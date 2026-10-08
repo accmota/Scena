@@ -163,5 +163,72 @@ class TestPartsListMatchesTheVerb(unittest.TestCase):
                                  "``_heading_driven_parts`` drifted from Line.rotate_by")
 
 
+# Pose verbs, each applied twice in every order: a store that one verb leaves
+# behind shows only when the next verb builds on it.
+POSE_OPS = {
+    "angle = 50": lambda o: setattr(o, "angle", 50),
+    "rotate_by 17": lambda o: o.rotate_by(17),
+    "rotate_by 17 about": lambda o: o.rotate_by(17, about=(3.0, -4.0)),
+    "rotate_to -40": lambda o: o.rotate_to(-40),
+    "flip_x": lambda o: setattr(o, "flip_x", not o.flip_x),
+    "flip_y": lambda o: setattr(o, "flip_y", not o.flip_y),
+    "reset_rotation": lambda o: o.reset_rotation(),
+    "scale_by 2": lambda o: o.scale_by(2),
+    "move_by": lambda o: o.move_by(3, 1),
+}
+
+
+def pose_store_lags():
+    """``"kind | op > op"`` where the pose store (``_rotation``, on the pose
+    host for a Track view) differs from the ``angle`` the shape reads."""
+    import itertools
+    import math
+    import warnings
+    out, checked = {}, 0
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for kind in G.KINDS:
+            for a, b in itertools.product(POSE_OPS, repeat=2):
+                try:
+                    obj = G.build(kind)
+                except Exception:  # noqa: BLE001  (Box: a value, no pose)
+                    continue
+                if not hasattr(obj, "_rotation"):
+                    continue
+                try:
+                    POSE_OPS[a](obj)
+                    POSE_OPS[b](obj)
+                    heading = float(obj.angle)
+                except Exception:  # noqa: BLE001  (a refusal: other guards judge it)
+                    continue
+                host = obj._pose_host() if hasattr(obj, "_pose_host") else obj
+                checked += 1
+                if not math.isclose(heading, float(host._rotation), abs_tol=1e-6):
+                    out[f"{kind} | {a} > {b}"] = (heading, float(host._rotation))
+    return out, checked
+
+
+class TestPoseStoreFollowsTheHeading(unittest.TestCase):
+    """The pose store (``_rotation``) equals the heading a shape reads, after
+    any two pose verbs. Where ``angle`` was a Defining slot (Rect, Square,
+    Ellipse, Line by length, RegularPolygon) an ``angle =`` write left the
+    store behind until the next verb: nothing drew wrong, because each verb
+    rereads ``angle``, but a reader of the store in between saw the old
+    heading (graphics review; 268 cases on HEAD). A Track view reads its host."""
+
+    def test_every_kind_after_any_two_pose_verbs(self):
+        lags, checked = pose_store_lags()
+        self.assertGreater(checked, 2000, "vacuous sweep")
+        self.assertEqual(lags, {})
+
+    def test_canary_an_angle_write_that_does_not_publish(self):
+        from diff_support import assert_catches
+        from scena.shapes import Shape
+        assert_catches(self, "test_heading_link.TestPoseStoreFollowsTheHeading.test_every_kind_after_any_two_pose_verbs",
+                       # None turns off both the inline fast-path publish and the slow path.
+                       [(Shape, "_publish_angle_input", None)],
+                       "an angle write that leaves the pose store behind")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

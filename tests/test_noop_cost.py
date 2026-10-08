@@ -73,6 +73,53 @@ class TestEmptyGroupVerbsBuildNothing(unittest.TestCase):
                         self.assertEqual(made[before:], [], f"group[…].{name}() on an empty group")
 
 
+def _entity_fields():
+    """Public non-method names of exported Entity classes (properties, slots),
+    minus the group's own: what ``group["x"].<name>`` reads from a member."""
+    from scena.entity import Entity
+    names = set()
+    for n in scena.__all__:
+        cls = getattr(scena, n, None)
+        if inspect.isclass(cls) and issubclass(cls, Entity):
+            for attr in dir(cls):
+                if attr.startswith("_"):
+                    continue
+                static = inspect.getattr_static(cls, attr, None)
+                if static is None or inspect.isfunction(static) or isinstance(static, (staticmethod, classmethod, type)):
+                    continue
+                names.add(attr)
+    own = {a for a in dir(GroupOperator) if not a.startswith("_")}
+    return sorted(names - own - set(_entity_methods()))
+
+
+class TestEmptyGroupFieldReadsRaise(unittest.TestCase):
+    """A field read on an empty group raises with the fix (Guia: "ler um campo
+    dá erro"). ``group["boss"].center`` answered an invented (0, 0) from a
+    Blank built and registered per read, and ``.hp`` raised naming ``Blank``
+    (graphics review SC12). Whole-group reads (``centroid``, ``box``,
+    ``empty``, ``count``) are the group's own and answer."""
+
+    def test_every_field_raises_with_the_group_and_builds_nothing(self):
+        names = _entity_fields()
+        self.assertGreater(len(names), 50, "inventory looks empty")
+        with system_world(draw=False):
+            g = group["noop_nobody"]
+            made, patch = _spy()
+            with patch, quiet():
+                for name in names + ["hp"]:
+                    with self.subTest(field=name):
+                        before = len(made)
+                        with self.assertRaises(AttributeError) as cm:
+                            getattr(g, name)
+                        msg = str(cm.exception)
+                        self.assertIn("group['noop_nobody'] is empty", msg)
+                        self.assertNotIn("Blank", msg)
+                        self.assertEqual(made[before:], [], f"group[…].{name} on an empty group")
+            self.assertIsNone(g.centroid)
+            self.assertIsNone(g.box)
+            self.assertTrue(g.empty)
+
+
 def _settings():
     """``(label, owner, attribute)`` for every world setting that is a plain attribute."""
     from scena.act import WORLD_SETTINGS

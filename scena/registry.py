@@ -1666,15 +1666,19 @@ def _blank_class_attr(name: str):
     return inspect.getattr_static(Blank, name, _MISSING)
 
 
-def _empty_group_attr(name: str):
+def _empty_group_attr(name: str, label: str):
     """``group["x"].<name>`` on an empty group (Guia, Agir em massa).
 
     A method does nothing and returns None (neither the group nor a list); with
     ``time=`` it returns a Handle (a timed verb on a stand-in target). Built
     without constructing a Shape: a full ``Blank()`` per call cost ~0.3 ms, paid
     every frame by ``group["tiros"].move_by(...)`` while no shot is alive, and its
-    roster entry made a run depend on GC timing (bug PM7). Reads and unknown
-    names keep the Blank path (the read value / the AttributeError).
+    roster entry made a run depend on GC timing (bug PM7).
+
+    A field read raises: there is no member to read it from. It used to read
+    a Blank built for the purpose, so ``group["boss"].center`` answered an
+    invented (0, 0) once the boss was gone, built and registered a Blank per
+    read (~0.1 ms), and ``.hp`` raised naming ``Blank`` (graphics review SC12).
     """
     attr = _blank_class_attr(name)
     on_blank = callable(attr) and not isinstance(attr, type)
@@ -1687,7 +1691,12 @@ def _empty_group_attr(name: str):
                 return getattr(Blank(), name)(*args, **kwargs)
             return None
         return _noop
-    return getattr(Blank(), name)
+    raise AttributeError(
+        f"{label} is empty: there is no member to read .{name} from. "
+        f"Check {label}.empty first, or read {label}.centroid / {label}.box "
+        f"(None when empty).",
+        name=name, obj=None,
+    )
 
 
 _ENTITY_METHODS: Optional[frozenset] = None
@@ -1986,6 +1995,14 @@ class GroupOperator:
         """
         return self._end_member("last")
 
+    def _author_label(self) -> str:
+        """How the author wrote this group, for a message."""
+        if self._group_id is not None:
+            return f"group[{self._group_id!r}]"
+        if self._formula_name is not None:
+            return f"group[{self._formula_name!r}]"
+        return "this group (a snapshot)"
+
     def __getattr__(self, name: str):
         # Groups may mix Shape and SpatialFx (both Entity). Attribute/method
         # forwarding applies to every current member — if a Shape-only API
@@ -1995,7 +2012,7 @@ class GroupOperator:
         # iterate members and filter yourself.
         members = self._members()
         if not members:
-            return _empty_group_attr(name)
+            return _empty_group_attr(name, self._author_label())
 
         first_attr = getattr(members[0], name)
         if callable(first_attr):

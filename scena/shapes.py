@@ -1202,6 +1202,32 @@ class Shape(Graphic, PaintState):
         """Shape clone builds via ``_clone_geometry`` (``center=`` / ``frame=`` ignored)."""
         return self._clone_geometry(**kwargs)
 
+    def _publish_angle_input(self) -> None:
+        """Where ``angle`` is a Defining input of the current model (Rect,
+        Square, Ellipse by size, Line by length, RegularPolygon …), the pose
+        store follows an ``angle =`` write. It lagged until the next verb on
+        every such kind: nothing drew wrong, because each verb reads ``angle``
+        and republishes, but any reader of ``_rotation`` in between saw the old
+        heading. Batched verbs publish themselves (``_pose_rotation_add``).
+
+        Per-frame path (``ship.angle = …``): the stored value is read raw and
+        the store written directly; the full ``_pose_rotation_set`` (property
+        anchor notify) only when the shape has anchors. No collision-epoch
+        bump: the pose key already reads the ``angle`` slot."""
+        if self._in_batch_update:
+            return
+        d = self.__dict__
+        defining = d.get('_defining_part_names')
+        if not defining or 'angle' not in defining:
+            return
+        v = d.get('angle')
+        if type(v) is not float:
+            v = _bare_num(self.angle)
+        if d.get('_field_anchors'):
+            _pose_rotation_set(self, v)
+        else:
+            object.__setattr__(self, '_rotation', v)
+
     def _takein_pose(self, other) -> None:
         """A whole-object copy (``<<``, ``absorb``, a whole ``@=`` pull) carries
         the source's pose: flips, heading with its turn count, scale (C7).
@@ -4401,11 +4427,12 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
                 if model is LineModel.POINT_POINT:
                     _takein_xy_float(self.p1, *_rotate_xy(x1, y1, cx, cy, dθ_rad))
                     _takein_xy_float(self.p2, *_rotate_xy(x2, y2, cx, cy, dθ_rad))
+                    _pose_rotation_add(self, dθ_deg)
                 else:
                     if model is LineModel.POINT_ANGLE_LENGTH:
                         _takein_xy_float(self.p1, *_rotate_xy(x1, y1, cx, cy, dθ_rad))
+                    # The ``angle`` write publishes the pose store (Shape._write_field).
                     self.angle = _bare_num(self.angle) + dθ_deg
-                _pose_rotation_add(self, dθ_deg)
                 return self
         return self._rotate_by_batched(dθ_deg, about=about, force=force)
 
@@ -4738,7 +4765,9 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
     def _write_field(self, name: str, value) -> None:
         # The rules (finite angle, spread in 0..360) are on the slots.
         super()._write_field(name, value)
-        if name == "angle" and self.model == CircleModel.CENTER_RADIUS:
+        # Outside a batch the shared write path publishes (Shape._publish_angle_input);
+        # inside one (a flip mirrors ``angle``) this keeps the store in step.
+        if name == "angle" and self._in_batch_update and self.model == CircleModel.CENTER_RADIUS:
             self._sync_rotation_to_angle()
 
     def _sync_rotation_to_angle(self) -> None:

@@ -70,6 +70,13 @@ left out.
   `cell=(16.9, 16)` raises (it truncated to 16; `16.0` is fine).
 - `group=""` (and `""` inside a list) raises TypeError, like `tag("")`; it
   made a group no name could reach.
+- Reading a field on an empty group raises AttributeError naming the group:
+  `group["boss"].center` with no boss left says `group['boss'] is empty: there
+  is no member to read .center from …`. It answered an invented `(0, 0)` (and
+  `angle` 0.0), built a hidden actor on every read, and `.hp` raised naming
+  `Blank`. Methods on an empty group still do nothing (`group["shots"].move_by
+  (…)` with no shot alive). For a position that may be gone, read
+  `group["boss"].centroid` or `.box` (None when empty), or check `.empty`.
 - `ease=` without `time=` raises TypeError on every timed verb (`move_to`,
   `rotate_by`, `scale_to`, …, and the camera's `pan_*` / `zoom_*` /
   `rotate_*` / `frame_to`): an instant call has no curve, and the value was

@@ -291,6 +291,15 @@ an unbound predicate but would be a second spelling for one concept.
 
 Immediate broadcasts (`destroy`, `tag` / `untag`) match `move_by` — a for-loop with nicer
 syntax; already reachable via `__getattr__`, listed so the pattern is discoverable.
+
+**An empty group.** A method does nothing and returns `None` (with `time=`, a Handle).
+A field read (`center`, `angle`, `hp`, any member field) raises `AttributeError`
+naming the group and the fix: `group['boss'] is empty: there is no member to read
+.center from. Check group['boss'].empty first, or read .centroid / .box (None when
+empty).` It used to read a `Blank` built for the purpose: an invented `(0, 0)`, a
+registered actor per read (~0.1 ms), and `.hp` raised naming `Blank` (SC12). The
+group's own reads (`centroid`, `box`, `empty`, `count`) answer. Guard:
+`test_noop_cost.TestEmptyGroupFieldReadsRaise` (every field of every exported kind).
 `.filter(pred)` returns a **snapshot** `GroupOperator` (same kind as `group["a"] | group["b"]`).
 Set algebra (`|` / `&` / `-` / `^`) and `.filter` keep join order (first-seen wins). They stay
 snapshots — not live — unless the author names the expression under `group["name"] @=`

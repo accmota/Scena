@@ -1296,6 +1296,8 @@ class Container():
     # per-field link's pull): a class whose computed fields derive from those
     # fields (Vec2 ``length`` / ``angle``) brings them in step. None: nothing to do.
     _sync_computed = None
+    # Shape publishes its pose store after an ``angle`` write (None elsewhere).
+    _publish_angle_input = None
     # Graph plumbing: never offered in a closed surface's "Writable on …" list.
     _closed_hidden = frozenset({"owner", "parts", "field_type"})
 
@@ -2685,6 +2687,15 @@ class Container():
                     old = d.get(name, slot.default)
                     if old != value:
                         d[name] = value
+                        if name == "angle":
+                            # Shape: the pose store follows (inline: per-frame
+                            # ``ship.angle = …``; no anchor on this path).
+                            defining = d.get('_defining_part_names')
+                            if (defining and 'angle' in defining
+                                    and self._publish_angle_input is not None
+                                    and not self._in_batch_update):
+                                object.__setattr__(self, '_rotation',
+                                                   value if type(value) is float else float(value))
                         if self._requires_pull_invalidate():
                             if not self._in_batch_update:
                                 self.update()
@@ -2744,6 +2755,10 @@ class Container():
                 store = self.__dict__
             if _value_changed(old, value):
                 store[name] = value
+                if name == "angle" and store is self.__dict__:
+                    pub = self._publish_angle_input
+                    if pub is not None:
+                        pub()
                 anchors = self.__dict__.get('_field_anchors')
                 anchor = anchors.get(name) if anchors else None
                 if anchor is not None:
