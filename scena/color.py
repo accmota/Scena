@@ -614,16 +614,18 @@ class Color(ClosedSurface):
 
     @property
     def alpha(self) -> float:
-        """Alpha in ``[0, 1]``. Writable (clamped). No-op on ``Color(None)``."""
+        """Alpha in ``[0, 1]``. Read-only: a Color is a value (``with_alpha``)."""
         return self._a
 
     @alpha.setter
     def alpha(self, alpha: float) -> None:
-        from .validate import alpha01
-        a = alpha01(alpha, "Color alpha")
-        if self.is_none():
-            return
-        object.__setattr__(self, '_a', a)
+        # A Color is shared by reference (every default shape shares one), so an
+        # in-place write faded every shape that used it (graphics review HP1).
+        raise AttributeError(
+            "Color is immutable: color.alpha = … would change every shape that "
+            "shares this colour. Write color.with_alpha(0.5) for a new Color, or "
+            "shape.set_alpha(0.5) to fade one shape."
+        )
 
     # Color modification methods (return new instances) -----------------------------------------------------------------
 

@@ -28,6 +28,7 @@ import os
 import sys
 import unittest
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np  # noqa: E402
@@ -168,6 +169,56 @@ class TestMaterialIsolation(unittest.TestCase):
             return self
         assert_catches(self, "test_material_isolation.TestMaterialIsolation.test_a_paint_write_stays_on_its_actor",
                        [(PaintState, "set_color", bad_set_color)], "a colour write into a shared material")
+
+
+class TestPaintWritesStayPut(unittest.TestCase):
+    """HP2 / HP3 / HP4 (graphics review): a paint knob kept by every path."""
+
+    def test_liquify_leaves_the_cached_fill_alpha_alone(self):
+        # HP2: the ghost alpha was written into the shape's cached fill paint,
+        # so a Gradient body drew at the ghost's alpha afterwards.
+        # The ghost pass is skipped at lite fidelity, so the helper every ghost
+        # look calls is tested directly.
+        from scena.recipes import _host_fill_paint
+        with fresh_world() as w:
+            c = w.track(scena.Circle(center=(80, 60), radius=25))
+            c.fill = scena.Gradient("red", "blue")
+            before = c._to_skia_fill_paint().getAlphaf()
+            ghost = _host_fill_paint(c, alpha=0.3)
+            self.assertAlmostEqual(ghost.getAlphaf(), 0.3)
+            self.assertAlmostEqual(c._to_skia_fill_paint().getAlphaf(), before)
+
+    def test_a_refused_look_keeps_the_current_one(self):
+        # HP3: a sprite-only look on a Shape stripped the current look first.
+        with fresh_world() as w:
+            c = w.track(scena.Circle(center=(80, 60), radius=25))
+            c.visual = scena.Halo()
+            look, pixels = c.visual, render([c]).tobytes()
+            with self.assertRaises(TypeError):
+                c.visual = scena.Recolor("red")
+            self.assertIs(c.visual, look)
+            self.assertEqual(render([c]).tobytes(), pixels)
+
+    def test_sprite_restore_visual_keeps_alpha(self):
+        # HP4: restore_visual reset a Sprite's body alpha to 1.0.
+        from tests.media_support import media
+        with fresh_world() as w:
+            s = w.track(scena.Sprite(media("space", "enemyGreen1.png"), center=(80, 60), height=60))
+            s.alpha = 0.4
+            s.save_visual()
+            s.alpha = 0.9
+            s.visual = scena.Recolor("red")
+            s.restore_visual()
+            self.assertAlmostEqual(s.alpha, 0.4)
+            self.assertIsNone(s.visual)
+
+    def test_color_alpha_is_read_only_and_names_the_fix(self):
+        c = scena.Color("red")
+        with self.assertRaises(AttributeError) as cm:
+            c.alpha = 0.5
+        self.assertIn("with_alpha", str(cm.exception))
+        self.assertIn("set_alpha", str(cm.exception))
+        self.assertEqual(c.alpha, 1.0)
 
 
 if __name__ == "__main__":

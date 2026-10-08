@@ -3351,6 +3351,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         '_blit_gray_cf',
         '_blit_hue_live',
         '_alpha',
+        '_saved_alpha',
         '_src_rect_cache',
         '_flip_x',
         '_flip_y',
@@ -3913,6 +3914,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
 
     @alpha.setter
     def alpha(self, value: float) -> None:
+        _refuse_if_destroyed(self, "alpha")
         from .validate import alpha01
         a = alpha01(value, "Sprite alpha")
         if abs(a - self._alpha) < 1e-6:
@@ -3923,6 +3925,22 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
     def set_alpha(self, alpha: float) -> "Sprite":
         """Set body opacity and return ``self`` (does not touch fill/line)."""
         self.alpha = alpha
+        return self
+
+    def save_visual(self) -> "Sprite":
+        """``PaintState.save_visual`` plus the body ``alpha`` (a Sprite channel the
+        PaintState snapshot does not hold; restore reset it to 1.0, HP4)."""
+        if getattr(self, "_saved_visual", None) is None:
+            self._saved_alpha = self._alpha
+        PaintState.save_visual(self)
+        return self
+
+    def restore_visual(self) -> "Sprite":
+        """Put back the appearance from :meth:`save_visual`, body ``alpha`` included."""
+        had = getattr(self, "_saved_visual", None) is not None
+        PaintState.restore_visual(self)
+        if had:
+            self.alpha = getattr(self, "_saved_alpha", self._alpha)
         return self
 
     @property

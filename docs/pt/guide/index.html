@@ -4588,7 +4588,7 @@ gold = Color("gold").lighter(0.15)</pre>
         <p>Harmonias de <code>Color</code>: <code>triadic</code>, <code>analogous</code>, <code>shades</code>, <code>contrast_color</code>, <code>muted_version</code>.</p>
         <details class="spec" open>
       <summary>Neste Color</summary>
-          <p>Imutável, salvo <code>.alpha</code>. <code>lighter</code> / <code>with_alpha</code> / <code>jitter</code> devolvem um Color novo.</p>
+          <p>Imutável: <code>lighter</code> / <code>with_alpha</code> / <code>jitter</code> devolvem um Color novo. Uma cor é compartilhada (todas as formas com a cor padrão usam a mesma), então <code>cor.alpha = 0.5</code> levanta <code>AttributeError</code> com a correção: <code>cor.with_alpha(0.5)</code> ou <code>forma.set_alpha(0.5)</code>.</p>
           <div class="tbl-wrap">
             <p class="name-group">Propriedades</p>
         <table>
@@ -4597,7 +4597,7 @@ gold = Color("gold").lighter(0.15)</pre>
           </thead>
           <tbody>
 <tr><td><code>.rgb</code></td><td class="type"><span class="t">tupla</span><span class="ex">(1, 0.8, 0, 1)</span></td><td>leitura</td><td>Tupla <code>(r, g, b, a)</code> em 0–1.</td></tr>
-<tr><td><code>.alpha</code></td><td class="type"><span class="t">número</span><span class="ex">0.8</span></td><td>lê / escreve</td><td>Alfa 0–1. Gravável (clampa).</td></tr>
+<tr><td><code>.alpha</code></td><td class="type"><span class="t">número</span><span class="ex">0.8</span></td><td>leitura</td><td>Alfa 0–1. Outro alfa: <code>with_alpha(a)</code> (Color novo) ou <code>forma.set_alpha(a)</code>.</td></tr>
 <tr><td><code>.hsl</code> / <code>.hsv</code> / <code>.brightness</code></td><td class="type"><span class="t">tupla ou número</span><span class="ex">(0.5, 0.8, 0.6)</span></td><td>leitura</td><td>Leitura. HSL/HSV: <code>(h, s, l|v, a)</code>.</td></tr>
           </tbody>
         </table>
@@ -4674,7 +4674,7 @@ g = Gradient("ocean").darker(0.15)     # nova rampa (cada stop)</pre>
 <tr><td><code>darker(amount=0.1)</code></td><td class="sig"><span class="params">Parâmetros: amount (número)</span></td><td>Gradient</td><td>Nova rampa mais escura: cada stop com <code>Color.darker(amount)</code>. <code>amount</code> padrão <code>0.1</code> (quanto sobe/desce a luminosidade HSL). Tipo, <code>size</code> e <code>angle</code> ficam iguais. Uso: <code>g2 = Gradient("ocean").darker(0.2)</code> · <code>bloco.visual = g.darker()</code>.</td></tr>
 <tr><td><code>lighter(amount=0.1)</code></td><td class="sig"><span class="params">Parâmetros: amount (número)</span></td><td>Gradient</td><td>Nova rampa mais clara: cada stop com <code>Color.lighter(amount)</code>. <code>amount</code> padrão <code>0.1</code>. Mesma geometria da rampa. Uso: <code>g2 = Gradient("navy", "cyan").lighter(0.15)</code>.</td></tr>
 <tr><td><code>mean_color()</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>Color</td><td>Média ponderada dos stops (integral RGB ao longo da rampa). Uso: <code>c.line = g.mean_color().darker(0.2)</code>.</td></tr>
-<tr><td><code>set_alpha(alpha)</code></td><td class="sig"><span class="params">Parâmetros: alpha (número 0–1)</span></td><td>Gradient</td><td>Alfa em todos os stops (mutável, in-place). Diferente de <code>darker</code> / <code>lighter</code>, que devolvem uma cópia.</td></tr>
+<tr><td><code>set_alpha(alpha)</code></td><td class="sig"><span class="params">Parâmetros: alpha (número 0–1)</span></td><td>Gradient</td><td>Alfa em todos os stops (mutável, in-place: muda as formas que usam este Gradient). Diferente de <code>darker</code> / <code>lighter</code>, que devolvem uma cópia. <code>forma.set_alpha(a)</code> dá à forma um Gradient novo e não mexe nas outras.</td></tr>
           </tbody>
         </table>
           </div>

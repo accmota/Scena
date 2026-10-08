@@ -14,6 +14,16 @@ left out.
 
 ### Breaking
 
+- A `Color` is immutable: `color.alpha = 0.5` raises AttributeError
+  `Color is immutable: … Write color.with_alpha(0.5) for a new Color, or
+  shape.set_alpha(0.5) to fade one shape.` Before, it changed the colour in
+  place, and colours are shared: every shape with the default colour uses the
+  same one, so `Circle().set_alpha(0.3)` faded every later default Circle and
+  Rect, in every act, and leaked through `clone()`, `look_like` and
+  `save_visual`. `shape.set_alpha(a)` now gives the shape new materials; a
+  `Gradient` or `Texture` shared with other shapes is left alone
+  (`gradient.set_alpha(a)` on the Gradient itself still changes it in place,
+  for every shape that uses it).
 - A point given as a sequence must be exactly two numbers everywhere. Before,
   tween destinations, `Track(points=…)` / `start=`, group and collision queries
   read the first two items of a longer sequence, and `(True, 0)` counted as a
@@ -64,6 +74,16 @@ left out.
   a parallax layer) when written, not later on `active = True`, which left
   the actor half resumed. `resolve_now` on a parked actor returns `[]`.
 - `on_collide = 5` raises TypeError at once (it crashed in the next frame).
+- `line_width = 0` draws no outline. It drew a one-pixel hairline, so a
+  tween or formula that ended at 0 left a thin line behind.
+- Paint writes on a destroyed actor (`line_width`, `fill`, `visual`,
+  `set_alpha`, `look_like`, …, and a Sprite's `alpha`) raise DestroyedError,
+  as `set_color` already did; they were stored silently.
+- A look a Shape refuses (`shape.visual = Recolor(…)`, a Sprite-only look)
+  keeps the current look; it stripped it first.
+- `sprite.restore_visual()` restores the body `alpha` too; it reset it to 1.
+- A ghosting look (`Liquify`) on a Gradient or Texture fill no longer leaves
+  the body drawn at the ghost's alpha.
 - A class whose `setup()` raises leaves nothing behind. Before, the actor
   stayed alive, drawn and in its groups, and its `@every` kept ticking; an
   `__init__` that set `on_collide` and then raised left its collision body

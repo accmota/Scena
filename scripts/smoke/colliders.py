@@ -68,9 +68,7 @@ space.clip("green", ["enemyGreen1.png", "enemyGreen2.png"], fps=6)
 
 
 def _tint(name: str) -> Color:
-    c = Color(name)
-    c.alpha = 0.5
-    return c
+    return Color(name).with_alpha(0.5)
 
 
 def _style(obj, name: str):

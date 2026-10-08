@@ -198,8 +198,7 @@ _sec_part = _body(Circle(center=(730, 430), radius=26, group="q_sector"))
 _sec_far = _body(Circle(center=(820, 430), radius=20, group="q_sector"))
 _sec_side = _body(Circle(center=(600, 590), radius=22, group="q_sector"))
 _sec_skip = _body(Circle(center=(630, 480), radius=22, group="q_sector"))
-_sec_fill = Color("gold")
-_sec_fill.alpha = 0.28
+_sec_fill = Color("gold").with_alpha(0.28)
 _sec_wedge = Circle(
     center=_GUARD,
     radius=_REACH,

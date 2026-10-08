@@ -1395,6 +1395,9 @@ def _host_fill_paint(shape, *, alpha: Optional[float] = None, hue_shift: float =
             paint = shape._to_skia_fill_paint()
             if paint is not None:
                 if alpha is not None:
+                    # A copy: the host's cached fill paint must keep its own
+                    # alpha, or the body draws at the ghost's alpha (HP2).
+                    paint = skia.Paint(paint)
                     try:
                         paint.setAlphaf(float(alpha))
                     except Exception:

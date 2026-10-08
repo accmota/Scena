@@ -1,6 +1,7 @@
 import warnings
 from typing import Any, Optional, Union, Tuple, overload, List, TYPE_CHECKING
 from enum import Enum
+import copy
 import skia
 import os
 import numpy as np
@@ -744,17 +745,26 @@ class PaintState:
                 return abs(float(paint.alpha) - float(alpha)) >= 1e-6
             return True
 
-        def _apply_alpha(paint, value: float) -> None:
+        def _faded(paint):
+            # A new material: the old one may be shared (the default paint,
+            # a clone, a look_like source, a save_visual snapshot, a Gradient
+            # two shapes use). Mutating it faded all of them (HP1).
             if isinstance(paint, Color):
-                paint.alpha = value
-            else:
-                paint.set_alpha(value)
+                return paint.with_alpha(alpha)
+            if isinstance(paint, Gradient):
+                return paint._map_stops(lambda c: c.with_alpha(alpha))
+            if isinstance(paint, Texture):
+                faded = copy.copy(paint)        # shares the image and shaders
+                object.__setattr__(faded, "_alpha", alpha)
+                return faded
+            paint.set_alpha(alpha)              # procedural: no shared state
+            return paint
 
         if self._fill and _alpha_changed(self._fill):
-            _apply_alpha(self._fill, alpha)
+            self._fill = _faded(self._fill)
             self._invalidate_fill_paint()
         if self._line and _alpha_changed(self._line):
-            _apply_alpha(self._line, alpha)
+            self._line = _faded(self._line)
             self._invalidate_line_paint()
         return self
 
@@ -1032,19 +1042,8 @@ class PaintState:
         from .stamps import is_stamp_visual, stamp_visual_hint
         if is_stamp_visual(value):
             raise TypeError(stamp_visual_hint(value))
-        prev = getattr(self, "_visual", None)
-        if prev is None:
-            self._snapshot_look_identity()
-        elif prev is not value:
-            # Start the new look from the author package, not live look
-            # memory (Halo wash, Bolt ADD, rewritten width, …).
-            # Same interned instance (slider rebuild / re-apply) keeps live fill.
-            try:
-                from .visuals import _clear_host_tint_stashes
-                _clear_host_tint_stashes(self)
-            except Exception:
-                pass
-            self._restore_look_identity()
+        # Every refusal before any write: a rejected look used to strip the
+        # current one first (HP3).
         # Pixel-body looks are Sprite-only (HueShift / Recolor / Aura / EmissiveBloom).
         from .entity import is_sprite_family, scena_kind
         if getattr(value, "_sprite_only", False) and not is_sprite_family(self):
@@ -1059,6 +1058,19 @@ class PaintState:
                 f"(needs a bitmap body). {tex_hint}"
                 f"Use Halo / Rim on a Shape, or assign {name} to a Sprite."
             )
+        prev = getattr(self, "_visual", None)
+        if prev is None:
+            self._snapshot_look_identity()
+        elif prev is not value:
+            # Start the new look from the author package, not live look
+            # memory (Halo wash, Bolt ADD, rewritten width, …).
+            # Same interned instance (slider rebuild / re-apply) keeps live fill.
+            try:
+                from .visuals import _clear_host_tint_stashes
+                _clear_host_tint_stashes(self)
+            except Exception:
+                pass
+            self._restore_look_identity()
         self._visual = value
         self._in_visual_apply = True
         try:
@@ -1261,6 +1273,11 @@ class PaintState:
             self._tex_line_hw == qhw and self._tex_line_hh == qhh
         )):
             return hit
+        # Zero is a collapsed size: no stroke. Skia's width 0 is a 1-device-pixel
+        # hairline, which a tween or formula ending at 0 left visible (HP10).
+        # Checked on a build only: ``line_width =`` clears the cached paint.
+        if self._line_width <= 0:
+            return None
 
         paint, got = self._material_paint(
             self._line,
@@ -1372,6 +1389,35 @@ class PaintState:
             self._cached_proc_fx = fx
         self._is_fill_paint_dirty = False
         return paint
+
+
+# Paint writes on a destroyed actor raise ``DestroyedError``, like
+# ``set_color`` already did: one table, one wrap (graphics review HP9). Living
+# actors pay one attribute lookup per paint write; reads stay legal.
+_PAINT_WRITE_PROPERTIES = (
+    "color", "fill", "line", "line_width", "dash", "line_cap", "line_join", "blend",
+    "line_filter", "fill_filter", "visual", "glow", "shadow", "hue", "gray", "tail",
+)
+_PAINT_WRITE_METHODS = ("set_alpha", "look_like", "restore_visual")
+
+
+def _refuse_on_dead(fn, what: str):
+    def checked(self, *args, **kwargs):
+        if getattr(self, "_destroyed", False):
+            from .entity import _refuse_if_destroyed
+            _refuse_if_destroyed(self, what)
+        return fn(self, *args, **kwargs)
+    checked.__name__, checked.__qualname__, checked.__doc__ = fn.__name__, fn.__qualname__, fn.__doc__
+    return checked
+
+
+for _name in _PAINT_WRITE_PROPERTIES:
+    _prop = PaintState.__dict__[_name]
+    setattr(PaintState, _name, _prop.setter(_refuse_on_dead(_prop.fset, _name)))
+for _name in _PAINT_WRITE_METHODS:
+    setattr(PaintState, _name, _refuse_on_dead(PaintState.__dict__[_name], _name))
+del _name, _prop
+
 
 def _proc_paint_helpers():
     """One-time imports for the procedural fill paint path."""
@@ -1491,8 +1537,8 @@ class Gradient(ClosedSurface):
         if all(abs(color.alpha - alpha) < 1e-6 for color in self._colors):
             return self  # No change needed
 
-        for color in self._colors:
-            color.alpha = alpha
+        # New stop colours: a stop may be the author's own Color (immutable).
+        self._colors = [color.with_alpha(alpha) for color in self._colors]
 
         self._update_shader()
         return self
