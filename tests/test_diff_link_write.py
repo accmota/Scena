@@ -234,6 +234,30 @@ class TestLinkedTrackWindowClamps(unittest.TestCase):
             t.destroy()
 
 
+class TestInkStoresNewObjects(unittest.TestCase):
+    """E7 (graphics review): the ink store compared with ``!=``, so an equal
+    but new list or Vec2 was not stored (the old object stayed) and a numpy
+    array raised. Immutable values still compare by value."""
+
+    def test_a_new_object_replaces_an_equal_one(self):
+        import numpy as np
+        c = scena.Circle(center=(0, 0), radius=3)
+        try:
+            first, second = [1, 2], [1, 2]
+            c.dlw_items = first
+            c.dlw_items = second
+            self.assertIs(c.dlw_items, second)
+            v1, v2 = Vec2(1, 2), Vec2(1, 2)
+            c.dlw_v = v1
+            c.dlw_v = v2
+            self.assertIs(c.dlw_v, v2)
+            c.dlw_arr = np.zeros(3)
+            c.dlw_arr = np.ones(3)
+            self.assertEqual(float(c.dlw_arr[0]), 1.0)
+        finally:
+            c.destroy()
+
+
 class TestCellHoldingAPair(unittest.TestCase):
     """``v @= lambda: st.pos`` / ``v << st.pos`` with ``st.pos`` holding a tuple
     or a Vec2 raised TypeError: the Vec2 / Point raw store got the cell, not its

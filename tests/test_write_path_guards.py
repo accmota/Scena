@@ -17,6 +17,7 @@ only with a reason that holds; otherwise route the write through the slot /
 from __future__ import annotations
 
 import ast
+import inspect
 import os
 import re
 import sys
@@ -317,7 +318,9 @@ def cold_reader_violations() -> dict:
             names |= derived.get(c.__name__, set())
         for sub, ns in derived.items():
             sc = getattr(scena, sub, None)
-            if isinstance(sc, type) and isinstance(cls, type) and issubclass(sc, cls):
+            # A subclass counts only when it runs this method (no override of its own).
+            if (isinstance(sc, type) and isinstance(cls, type) and issubclass(sc, cls)
+                    and inspect.getattr_static(sc, meth, None) is inspect.getattr_static(cls, meth, None)):
                 names |= ns
         for node in ast.walk(fn):
             if (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)

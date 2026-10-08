@@ -3994,12 +3994,15 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
     @property
     def is_collapsed(self) -> bool:
         """True when segment length is ``0``."""
-        return float(self._scale) == 0.0 or abs(_bare_num(self.length)) == 0.0
+        if float(self._scale) == 0.0:
+            return True
+        x1, y1, x2, y2 = self._segment_xy()     # Defining only: a cold length stays cold
+        return x1 == x2 and y1 == y2
 
     def _hit_test_xy(self, x: float, y: float) -> bool:
         """Hit-test against the segment p1→p2 with line_width/HIT_PADDING tolerance."""
-        x1, y1 = get_xy(self.p1, bare=True)
-        x2, y2 = get_xy(self.p2, bare=True)
+        # Defining inputs only: one hover used to wake p2 / length for good (SC6).
+        x1, y1, x2, y2 = self._segment_xy()
         dx, dy = x2 - x1, y2 - y1
         length_sq = dx * dx + dy * dy
         radius = max(self.line_width / 2.0, HIT_PADDING)
@@ -4831,13 +4834,13 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
     @property
     def is_collapsed(self) -> bool:
         """True when radius is ``0``."""
-        return float(self._scale) == 0.0 or abs(_bare_num(self.radius)) == 0.0
+        return float(self._scale) == 0.0 or abs(self._radius_value()) == 0.0
 
     def _hit_test_xy(self, x: float, y: float) -> bool:
         """Hit-test the painted fill: full disk, pie, or chord segment."""
-        cx, cy = get_xy(self.center, bare=True)
+        cx, cy = self._center_xy()              # Defining only (SC6)
         return _point_in_filled_arc(
-            x, y, cx, cy, abs(_bare_num(self.radius)),
+            x, y, cx, cy, abs(self._radius_value()),
             self._arc_angle(), _bare_num(self.spread),
             bool(self._use_center),
         )
@@ -5465,7 +5468,10 @@ class Ellipse(_DerivedRotationRoute, Shape):
     @property
     def is_collapsed(self) -> bool:
         """True when either axis extent is ``0``."""
-        return float(self._scale) == 0.0 or abs(_bare_num(self.width)) == 0.0 or abs(_bare_num(self.height)) == 0.0
+        if float(self._scale) == 0.0:
+            return True
+        _cx, _cy, w, h, _ang = self._oriented_frame()   # Defining only (SC6)
+        return abs(w) == 0.0 or abs(h) == 0.0
 
     def _hit_test_xy(self, x: float, y: float) -> bool:
         """Hit-test via inverse-rotate into local ellipse frame."""
@@ -6237,7 +6243,18 @@ class RegularPolygon(Polygon):
     @property
     def is_collapsed(self) -> bool:
         """True when circumradius is ``0``."""
-        return float(self._scale) == 0.0 or abs(_bare_num(self.radius)) == 0.0
+        return float(self._scale) == 0.0 or self._placement_params()[2] == 0.0
+
+    def _hit_test_xy(self, x: float, y: float) -> bool:
+        """Point-in-polygon over closed-form vertices: ``points`` would build a
+        Point per vertex and wake them (SC6 / SB8: one hover cost 2.8 → 58 µs
+        per later move + rotate)."""
+        cx, cy, r, phi0 = self._placement_params()
+        step = self._winding() * 2.0 * math.pi / self._n
+        a0 = _rad(phi0)
+        verts = [(cx + r * math.cos(a0 + i * step), cy + r * math.sin(a0 + i * step))
+                 for i in range(self._n)]
+        return _point_in_polygon(x, y, verts)
 
     def _include_point_slot_in_debug(self, name: str) -> bool:
         """Skip inactive alternate-model inputs and centroid (duplicates center)."""

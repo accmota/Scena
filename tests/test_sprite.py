@@ -1334,7 +1334,8 @@ class TestHitboxAndPose(SpriteTestCase):
         n_after_first = len(_AUTO_CACHE)
         self.assertGreaterEqual(n_after_first, 1)
         fr = a._sheet._frame_at(a._current_frame_index())
-        key = (image_cache_token(a._sheet.image), fr.x, fr.y, fr.w, fr.h, "")
+        from scena.atlas import _auto_key
+        key = _auto_key(a._sheet.image, fr)
         first = _AUTO_CACHE[key]
         b = self.track(Sprite(sh, frame="laserRed09.png", center=(80, 0), height=48, hitbox_shape="auto"))
         b.collidable = True

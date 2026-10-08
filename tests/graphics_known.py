@@ -343,17 +343,6 @@ MATERIAL = frozenset({
 })
 
 COLD_READS = frozenset({
-    # SC6 / SB8 (batch 6): a pointer hit test / collapse check reads a public Derivate
-    'Circle._hit_test_xy | self.center',
-    'Circle._hit_test_xy | self.radius',
-    'Circle.is_collapsed | self.radius',
-    'Ellipse.is_collapsed | self.height',
-    'Ellipse.is_collapsed | self.width',
-    'Line._hit_test_xy | self.p1',
-    'Line._hit_test_xy | self.p2',
-    'Line.is_collapsed | self.length',
-    'Polygon._hit_test_xy | self.points',
-    'RegularPolygon.is_collapsed | self.radius',
 })
 
 ROUTE = frozenset({
@@ -523,13 +512,6 @@ DRAW_DOORS = frozenset({
 })
 
 CACHE_KEYS = frozenset({
-    # GR7 (batch 6): frame.rotated is missing from the bake key
-    '_AUTO_CACHE | rotated',
-    '_FRAME_FX_CACHE | rotated',
-    '_UNION_CACHE | rotated',
-    # PA2 (batch 6): the auto-hitbox key lacks the trim offset
-    '_AUTO_CACHE | src_x',
-    '_AUTO_CACHE | src_y',
 })
 
 LIFECYCLE = frozenset({

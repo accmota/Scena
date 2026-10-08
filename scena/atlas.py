@@ -79,7 +79,7 @@ def ellipse_as_circle(
 _ATLAS_CACHE_CAP = 128
 _AUTO_CACHE: "OrderedDict[Tuple[Any, ...], AutoCollider]" = OrderedDict()
 _MASK_CACHE: "OrderedDict[Tuple[Any, ...], np.ndarray]" = OrderedDict()
-_UNION_CACHE: Dict[Tuple[Any, ...], "AutoCollider"] = {}
+_UNION_CACHE: "OrderedDict[Tuple[Any, ...], AutoCollider]" = OrderedDict()
 _FRAME_FX_CACHE: "OrderedDict[Tuple[Any, ...], FrameFx]" = OrderedDict()
 _IMAGE_TOKEN: Dict[int, int] = {}
 _IMAGE_HOLDERS: Dict[int, Set[int]] = {}
@@ -206,7 +206,25 @@ class AutoCollider:
         )
 
 
+# Tokens of live sheets. Their bakes stay until the sheet is released (bounded
+# by its frame count); only bakes of unregistered images share the LRU cap
+# (PA1: a 200-cell "each" sheet re-fitted every frame advance under one
+# global cap of 128).
+_SHEET_TOKENS: set = set()
+
+
+def _key_tokens(key) -> Tuple[Any, ...]:
+    """The image tokens a cache key names (a union key names one per frame)."""
+    if not key:
+        return ()
+    head = key[0]
+    if isinstance(head, tuple):
+        return tuple(sig[0] for sig in head if sig)
+    return (head,)
+
+
 def reset_atlas_caches() -> None:
+    _SHEET_TOKENS.clear()
     _AUTO_CACHE.clear()
     _MASK_CACHE.clear()
     _UNION_CACHE.clear()
@@ -235,11 +253,13 @@ def bind_sheet_images(token: int, images: Sequence[Any]) -> None:
         img_id = id(image)
         _IMAGE_HOLDERS.setdefault(img_id, set()).add(token)
         _IMAGE_TOKEN.setdefault(img_id, token)
+        _SHEET_TOKENS.add(_IMAGE_TOKEN[img_id])
 
 
 def _drop_cache_token(token: int) -> None:
-    for cache in (_AUTO_CACHE, _MASK_CACHE, _FRAME_FX_CACHE):
-        dead = [key for key in cache if key and key[0] == token]
+    _SHEET_TOKENS.discard(token)
+    for cache in (_AUTO_CACHE, _MASK_CACHE, _FRAME_FX_CACHE, _UNION_CACHE):
+        dead = [key for key in cache if token in _key_tokens(key)]
         for key in dead:
             cache.pop(key, None)
 
@@ -277,8 +297,13 @@ def _cache_get(cache: "OrderedDict", key: Tuple[Any, ...]):
 def _cache_put(cache: "OrderedDict", key: Tuple[Any, ...], value) -> None:
     cache[key] = value
     cache.move_to_end(key)
-    while len(cache) > _ATLAS_CACHE_CAP:
-        cache.popitem(last=False)
+    if len(cache) <= _ATLAS_CACHE_CAP:
+        return
+    # Evict only bakes no live sheet holds (oldest first); a sheet's own bakes
+    # leave with the sheet (``_drop_cache_token``). Runs on a bake (rare, ms).
+    loose = [k for k in cache if not any(t in _SHEET_TOKENS for t in _key_tokens(k))]
+    for k in loose[: max(0, len(loose) - _ATLAS_CACHE_CAP)]:
+        cache.pop(k, None)
 
 
 def _positive_trim(value, default: int = 0) -> int:
@@ -1734,6 +1759,18 @@ def _mask_to_source_boxes(
     )
 
 
+def _auto_key(image, frame: AtlasFrame, force_kind: Optional[str] = None) -> Tuple[Any, ...]:
+    """``_AUTO_CACHE`` key: every input of the bake. The trim offset places the
+    fit in source space (PA2: aliased frames shared one hitbox), and a rotated
+    cell is unrotated first (GR7). ``test_cache_keys`` varies each AtlasFrame
+    field against a warm cache."""
+    return (
+        image_cache_token(image), frame.x, frame.y, frame.w, frame.h,
+        bool(frame.rotated), frame.src_x, frame.src_y, frame.src_w, frame.src_h,
+        force_kind or "",
+    )
+
+
 def auto_collider_for_frame(
     image: skia.Image,
     frame: AtlasFrame,
@@ -1746,10 +1783,7 @@ def auto_collider_for_frame(
     force_kind = as_payload(force_kind)
     if frame.boxes and force_kind is None:
         return AutoCollider(kind="boxes", boxes=frame.boxes, precision=1.0, recall=1.0)
-    key = (
-        image_cache_token(image), frame.x, frame.y, frame.w, frame.h,
-        force_kind or "",
-    )
+    key = _auto_key(image, frame, force_kind)
     hit = _cache_get(_AUTO_CACHE, key)
     if hit is not None:
         return hit
@@ -1897,7 +1931,7 @@ def _frame_set_signature(
             image_cache_token(image),
             int(frame.x), int(frame.y), int(frame.w), int(frame.h),
             int(frame.src_x), int(frame.src_y), int(frame.src_w), int(frame.src_h),
-            float(frame.pivot_x), float(frame.pivot_y),
+            float(frame.pivot_x), float(frame.pivot_y), bool(frame.rotated),
         ))
     return tuple(sig)
 
@@ -2065,13 +2099,13 @@ def auto_collider_for_frames(
         )
     px_scales = _union_scales(len(items), scales)
     key = (_frame_set_signature(items), force_kind or "", px_scales)
-    hit = _UNION_CACHE.get(key)
+    hit = _cache_get(_UNION_CACHE, key)
     if hit is not None:
         return hit
     packed, synth, sx, sy = union_mask_for_frames(items, px_scales)
     chosen = _choose_auto_collider(packed, force_kind=force_kind)
     result = _source_collider_from_mask(chosen, synth, sx, sy)
-    _UNION_CACHE[key] = result
+    _cache_put(_UNION_CACHE, key, result)    # bounded and purged like the others (PA12)
     return result
 
 
@@ -2292,6 +2326,7 @@ def frame_fx_for_frame(
     key = (
         image_cache_token(image),
         int(frame.x), int(frame.y), int(frame.w), int(frame.h),
+        bool(frame.rotated),                   # the silhouette is unrotated (GR7)
     )
     hit = _cache_get(_FRAME_FX_CACHE, key)
     if hit is None:

@@ -26,6 +26,7 @@ import re
 import sys
 import unittest
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np  # noqa: E402
@@ -142,6 +143,80 @@ class TestCacheKeysCoverTheirInputs(unittest.TestCase):
         assert_catches(self, "test_cache_keys.TestCacheKeysCoverTheirInputs.test_a_warm_hit_equals_a_cold_bake",
                        [("scena.atlas", "_cache_get", lambda cache, key: next(iter(cache.values()), None))],
                        "a cache lookup that ignores the key")
+
+    def test_a_big_sheet_bakes_each_frame_once(self):
+        """PA1: one global cap of 128 under a ~200-cell sheet re-fitted every
+        frame advance (13–40 ms each). A live sheet's bakes stay."""
+        import tempfile
+        from unittest import mock
+        from scena.sprite import Sheet
+        from tests.test_sprite import _write_grid_png
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "big.png")
+            _write_grid_png(path, cell=8, cols=20, rows=10)
+            atlas.reset_atlas_caches()
+            sheet = Sheet(path, cell=(8, 8))
+            frames = [sheet._frame_at(i) for i in range(sheet.nframes)]
+            image = sheet._image
+            fits = []
+            real = atlas._choose_auto_collider
+            with mock.patch.object(atlas, "_choose_auto_collider",
+                                   lambda *a, **k: fits.append(1) or real(*a, **k)):
+                for fr in frames:
+                    atlas.auto_collider_for_frame(image, fr)
+                first = len(fits)
+                for fr in frames:
+                    atlas.auto_collider_for_frame(image, fr)
+            self.assertEqual(first, len(frames))
+            self.assertEqual(len(fits), first, "a second pass re-fitted frames")
+            atlas.reset_atlas_caches()
+
+    def test_a_released_sheet_drops_its_union_bakes(self):
+        """PA12: ``_UNION_CACHE`` was never purged with its sheet."""
+        img = _art()
+        atlas.reset_atlas_caches()
+        atlas.bind_sheet_images(7, [img])
+        BAKES["_UNION_CACHE"](img, _base())
+        self.assertTrue(atlas._UNION_CACHE)
+        atlas.release_sheet_token(7)
+        self.assertEqual(len(atlas._UNION_CACHE), 0)
+        atlas.reset_atlas_caches()
+
+    def _sheet_sprite(self, tmp):
+        from scena import Sprite
+        from scena.sprite import Sheet
+        from tests.test_sprite import _write_grid_png
+        path = os.path.join(tmp, "s.png")
+        _write_grid_png(path, cell=16, cols=2, rows=2)
+        sheet = Sheet(path, cell=(16, 16))
+        return sheet, Sprite(sheet, center=(80, 60), height=32)
+
+    def test_shield_envelope_follows_a_stretch(self):
+        """PB10: keyed on the size intent, the envelope went stale after ``width *= 2``."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            _sheet, s = self._sheet_sprite(tmp)
+            s._ensure_shield_envelope()
+            s.width = float(s.width) * 2
+            warm = s._ensure_shield_envelope()
+            s._shield_env = None
+            self.assertEqual(warm, s._ensure_shield_envelope())
+            s.destroy()
+
+    def test_blit_follows_a_later_clip_offset(self):
+        """PB11: the source-rect cache was keyed on the frame index only, so a
+        later ``clip(offset=)`` moved the pivot for hit tests but not the blit."""
+        import tempfile
+        from scena import Sprite
+        from test_diff_draw import render
+        with tempfile.TemporaryDirectory() as tmp:
+            sheet, s = self._sheet_sprite(tmp)
+            render([s])                                   # fills the cache for cell 0
+            sheet.clip("shift", [0], fps=1, offset=(6, 0))
+            fresh = Sprite(sheet, center=(80, 60), height=32)
+            self.assertEqual(render([s]).tobytes(), render([fresh]).tobytes())
+            s.destroy()
+            fresh.destroy()
 
     def test_every_module_cache_is_listed(self):
         missing = sorted(module_caches() - set(BAKES) - set(NOT_BAKES))

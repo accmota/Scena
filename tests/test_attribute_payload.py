@@ -111,7 +111,8 @@ class TestP0Gates(unittest.TestCase):
             force_kind=Attribute("circle"),
         )
         self.assertEqual(col_attr.kind, "circle")
-        key = (id(img), 0, 0, 32, 32, "circle")
+        from scena.atlas import _auto_key
+        key = _auto_key(img, fr, "circle")
         self.assertIn(key, _AUTO_CACHE)
         n_before = len(_AUTO_CACHE)
         col_str = auto_collider_for_frame(

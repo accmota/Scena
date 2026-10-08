@@ -116,42 +116,14 @@ START_SLOW = {
     "Line perpendicular_point": "linked to its reference Line at construction",
     "Line tangent_angle": "linked to its Circle at construction",
     "Line tangent_point": "linked to its Circle at construction",
-    "Track line point_point": "GR5 (batch 6, triage): a free Track.line(p1=, p2=) starts slow",
+    "Track line point_point": "by design (G11): a control-point Track keeps its centroid live",
 }
 
 
 # Known violations (D3 in Testing Design). This set may only SHRINK: a new
 # warm cell fails the guard, and a fixed cell still listed here fails too
 # (so the list cannot go stale).
-KNOWN_WARM = frozenset({
-    # SC6 / SB8 (graphics review, batch 6): hit test / is_collapsed read public
-    # Derivates (self.points, self.radius, self.length, self.p2).
-    ('Circle center_perimeter', 'hit test'),
-    ('Circle center_perimeter', 'is_collapsed'),
-    ('Circle two_points', 'hit test'),
-    ('Circle two_points', 'is_collapsed'),
-    ('Ellipse focal_points', 'is_collapsed'),
-    ('EquilateralTriangle', 'hit test'),
-    ('EquilateralTriangle', 'is_collapsed'),
-    ('EquilateralTriangle center_radius', 'hit test'),
-    ('EquilateralTriangle center_side', 'hit test'),
-    ('EquilateralTriangle center_side', 'is_collapsed'),
-    ('EquilateralTriangle vertex_side', 'hit test'),
-    ('EquilateralTriangle vertex_side', 'is_collapsed'),
-    ('Line center_length', 'hit test'),
-    ('Line center_length_angle', 'hit test'),
-    ('Line point_angle_length', 'hit test'),
-    ('Line point_dx_dy', 'hit test'),
-    ('Line point_dx_dy', 'is_collapsed'),
-    ('Line point_point', 'is_collapsed'),
-    ('Line point_vec', 'hit test'),
-    ('Line point_vec', 'is_collapsed'),
-    ('RegularPolygon center_radius', 'hit test'),
-    ('RegularPolygon center_side', 'hit test'),
-    ('RegularPolygon center_side', 'is_collapsed'),
-    ('RegularPolygon vertex_side', 'hit test'),
-    ('RegularPolygon vertex_side', 'is_collapsed'),
-})
+KNOWN_WARM = frozenset()
 
 # Author pose verbs that warm a cold Derivate (D3). Same shrink-only rule.
 KNOWN_WARM_VERBS = frozenset()

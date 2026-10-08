@@ -2712,7 +2712,7 @@ class Container():
             else:
                 old = self.__dict__.get(name, slot.default)
                 store = self.__dict__
-            if old != value:
+            if _value_changed(old, value):
                 store[name] = value
                 anchors = self.__dict__.get('_field_anchors')
                 anchor = anchors.get(name) if anchors else None
@@ -3363,7 +3363,7 @@ class ScalarAnchor(Container):
         ink = getattr(parent, '_ink', None)
         if isinstance(ink, dict) and name in ink:
             old = ink.get(name)
-            if old != new_value:
+            if _value_changed(old, new_value):
                 ink[name] = new_value
                 return True
             return False
@@ -3943,6 +3943,22 @@ def as_payload(obj):
 def as_payload_all(*values):
     """O(1) per item: Attribute → ``.value`` for each of ``values``."""
     return tuple(as_payload(v) for v in values)
+
+
+_VALUE_TYPES = (float, int, str, bool, tuple, type(None))
+
+
+def _value_changed(old, new) -> bool:
+    """Should a field store ``new`` over ``old``? Immutable values compare by
+    value (a repeated ``ship.pos = (1, 2)`` notifies nothing); anything else —
+    a list, a Vec2, a numpy array, an object — is stored when it is a new
+    object (graphics review E7: ``!=`` kept the old list, and a numpy array
+    raised in the comparison)."""
+    if old is new:
+        return False
+    if type(new) in _VALUE_TYPES and type(old) in _VALUE_TYPES:
+        return old != new
+    return True
 
 
 def _coerce_magnitude_slot(slot, value, *, clamp: bool, owner=None):

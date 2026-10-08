@@ -665,6 +665,7 @@ class Sheet(ClosedSurface):
     _anchor_pivot: Tuple[float, float] = (0.5, 0.5)
     _frame_offsets: Dict[int, Tuple[float, float]] = {}
     _plain_frames = True
+    _layout_epoch = 0
     _eff_frames: Optional[Tuple[AtlasFrame, ...]] = None
     # ``pixel_size=``: design units per PNG pixel for Sprites of this sheet
     # that pass no size keyword. ``None`` = the per-sprite default size.
@@ -1386,6 +1387,9 @@ class Sheet(ClosedSurface):
     def _refresh_frame_views(self) -> None:
         self._eff_frames = None
         self._plain_frames = self._anchor_pivot == (0.5, 0.5) and not self._frame_offsets
+        # Pivots may have moved (anchor / clip offset): sprites' cached source
+        # rects compare this before reuse (PB11).
+        self._layout_epoch = getattr(self, "_layout_epoch", 0) + 1
 
     @property
     def anchor(self):
@@ -4304,25 +4308,16 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         self._shield_env_key = None
 
     def _shield_env_cache_key(self) -> tuple:
-        """Identity of the envelope bake (sheet + size intent; not playhead)."""
+        """Identity of the envelope bake (sheet + design units per pixel; not playhead).
+
+        Every input of the bake: the scale per axis, not the size intent (PB10:
+        a height-sized sprite stretched with ``width *= 2`` kept a stale
+        envelope), and the sheet's pivot layout."""
         sheet = self._sheet
         n = int(getattr(sheet, "_nframes", 0) or 0)
-        intent = getattr(self, "_size_intent", "default")
         token = getattr(sheet, "_cache_token", id(sheet))
-        if intent == "height":
-            return (token, n, "height", round(abs(float(self.height)), 3))
-        if intent == "width":
-            return (token, n, "width", round(abs(float(self.width)), 3))
-        if intent == "size":
-            size = getattr(self, "_size_intent_value", None)
-            if size is None:
-                size = max(abs(float(self.width)), abs(float(self.height)))
-            return (token, n, "size", round(float(size), 3))
-        return (
-            token, n, intent or "default",
-            round(abs(float(self.width)), 3),
-            round(abs(float(self.height)), 3),
-        )
+        kx, ky = self._du_per_px()
+        return (token, n, getattr(sheet, "_layout_epoch", 0), round(kx, 6), round(ky, 6))
 
     def _frame_design_wh(self, fr) -> Tuple[float, float]:
         """Design-unit (w, h) for ``fr`` at this sprite's scale (scale=1)."""
@@ -5689,10 +5684,11 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         else:
             idx = int(self._frame)
         cache = self._src_rect_cache
-        if cache is None or cache[0] != idx:
+        epoch = self._sheet._layout_epoch
+        if cache is None or cache[0] != idx or cache[3] != epoch:
             fr = self._sheet._frame_at(idx)
             src = self._sheet._src_rect(idx)
-            self._src_rect_cache = (idx, src, fr)
+            self._src_rect_cache = (idx, src, fr, epoch)
         else:
             src = cache[1]
             fr = cache[2]

@@ -84,6 +84,18 @@ left out.
   circle (it raised), and so do scale and flip about the center on Circle,
   Line, Rect, Square and Text, `text.angle =` with a linked pin, and a Point
   with a linked heading that moves.
+- Hovering or clicking a shape no longer slows its later moves: one pointer
+  test woke computed parts for good (a hexagon's `move_by` + `rotate_by` went
+  from 2.8 to 58 µs).
+- Big sprite sheets bake each frame's hitbox and silhouette once. A sheet of
+  about 200 cells with `hitbox="each"` re-fitted on every frame advance.
+- Atlas frames that share pixels but differ in trim or rotation get their own
+  hitbox and silhouette; they shared one, shifted by the trim.
+- A sprite stretched after construction (`width *= 2` on a `height=` sprite)
+  updates its Shield; a later `sheet.clip(..., offset=)` moves the drawn
+  frame, not only its hit test.
+- Writing a new list, `Vec2` or numpy array to a field that held an equal one
+  stores the new object; a numpy array used to raise.
 - A refused call changes nothing. Before, these raised but left a change behind:
   `flip_x = True` on a linked or destroyed shape kept the flag; a Polygon
   with one linked vertex moved the others; `tag("a", 5)` claimed `"a"`;
