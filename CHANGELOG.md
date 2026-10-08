@@ -14,6 +14,16 @@ left out.
 
 ### Breaking
 
+- Writing a name that is not a field raises with the fix, instead of quietly
+  storing a value nothing reads: a method (`c.tag = "boss"`, `ship.destroy =
+  True` replaced the method), a read-only property (`ship.is_alive = False`
+  raised Python's own "property has no setter"), and a size the shape does
+  not have (`circle.width = 20`, `text.size = 40` changed nothing). Pick
+  another name for a field of your own (`ship.boss_tag = …`).
+- Every setter on a destroyed actor raises DestroyedError, as `move_by` and
+  `visible` already did; `time_scale`, `mass`, `clickable`, `corner_radius`
+  and others were stored. `active = True`, `mode = None` and `on_update = …`
+  stay quiet no-ops.
 - `Circle.from_points(center, perimeter)` copies plain points, like every
   constructor; a function links. Before, it linked a plain point (the
   opposite rule), so `Circle.from_points(ship.center, tip)` followed the

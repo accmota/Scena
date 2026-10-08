@@ -50,6 +50,8 @@ def _drop_failed_construct(obj) -> None:
             _drop_registrations(obj, registry)
     try:
         object.__setattr__(obj, "_destroyed", True)
+        from .entity import _mark_routes_dead
+        _mark_routes_dead(obj)
     except Exception:
         pass
 

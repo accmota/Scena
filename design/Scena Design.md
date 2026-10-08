@@ -236,7 +236,7 @@ not — Python evaluates them before `@=` sees them. Details: [Reactive Design.m
 | Surface | Create on write/link | Typo guard |
 |---------|----------------------|------------|
 | `st.key = …` / `st["key"] @=` | `=` and bracket `@=` create the cell (default `0`) | reserved names raise; a read of a missing cell raises with a did-you-mean |
-| `ship.field = …` | yes (ink field) | read raises if missing; a new name one edit from a real property raises (`rotaton`, `visable`, `colour`), and so does one adjacent swap of a 5+ letter property (`anlge`, `widht`, `lyaer`) |
+| `ship.field = …` | yes (ink field) | read raises if missing; a new name one edit from a real property raises (`rotaton`, `visable`, `colour`), and so does one adjacent swap of a 5+ letter property (`anlge`, `widht`, `lyaer`); a method name (`c.tag = …`), a read-only property (`is_alive`, `box`) and, on a Graphic, a size word the kind lacks (`circle.width`, `text.size`) raise with a hint (route table, graphics review R8) |
 | `ship["field"] @= …` | yes (same as `=`) | read raises if missing; a new name one edit from a real property raises, same as `=` |
 | `ship.field @= …` | field must exist (Python reads first) | use bracket `ship["field"] @= …` |
 | `ship.field = lambda: …` | never — raises `CallableAssignError` naming `ship["field"] @=` | — |

@@ -160,7 +160,8 @@ class SmokeHud:
 
     @title.setter
     def title(self, value: str) -> None:
-        self._title.text = value
+        if self._title.is_alive:   # the scene may have destroyed it
+            self._title.text = value
 
     @property
     def expect(self) -> str:
@@ -168,7 +169,8 @@ class SmokeHud:
 
     @expect.setter
     def expect(self, value: str) -> None:
-        self._expect.text = value
+        if self._expect.is_alive:   # the scene may have destroyed it
+            self._expect.text = value
 
     @property
     def keys(self) -> str:
@@ -176,7 +178,8 @@ class SmokeHud:
 
     @keys.setter
     def keys(self, value: str) -> None:
-        self._keys.text = value
+        if self._keys.is_alive:   # the scene may have destroyed it
+            self._keys.text = value
 
     @property
     def status(self) -> str:
@@ -184,7 +187,8 @@ class SmokeHud:
 
     @status.setter
     def status(self, value: str) -> None:
-        self._status.text = value
+        if self._status.is_alive:   # the scene may have destroyed it
+            self._status.text = value
 
     @property
     def aux(self) -> str:
@@ -192,5 +196,7 @@ class SmokeHud:
 
     @aux.setter
     def aux(self, value: str) -> None:
-        self._aux.visible = True
-        self._aux.text = value
+        if self._aux.is_alive:   # the scene may have destroyed it
+            self._aux.visible = True
+        if self._aux.is_alive:   # the scene may have destroyed it
+            self._aux.text = value

@@ -285,7 +285,9 @@ class RegistryMachine(RuleBasedStateMachine):
         else:
             want = DEFAULT_LAYER.get(m.kind, "default")
         self._register_new(c, m.kind, want, list(m.groups))
-        self.model[c].visible = m.visible
+        # A parked source reads hidden; the copy shows what the source will
+        # show on resume (graphics review E9).
+        self.model[c].visible = m.visible if m.saved_visible is None else m.saved_visible
         return c
 
     @rule(obj=objs, front=hst.booleans())

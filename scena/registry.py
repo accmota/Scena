@@ -877,6 +877,8 @@ class Registry:
             pass
         try:
             obj._destroyed = True
+            from .entity import _mark_routes_dead
+            _mark_routes_dead(obj)
         except Exception:
             pass
         try:
@@ -984,6 +986,8 @@ class Registry:
         note = f"a part of {host_label}, which was " + (host_note or "destroyed")
         d = part.__dict__
         d["_destroyed"] = True
+        from .entity import _mark_routes_dead
+        _mark_routes_dead(part)
         d["_destroyed_by"] = note
         d["_active"] = False
         d["_active_saved_visible"] = None

@@ -382,15 +382,121 @@ def _check_ink_near_miss(cls: type, name: str, route_map) -> None:
         raise AttributeError(msg)
 
 
+# Routed names a destroyed actor may still be written with, as a quiet no-op
+# (Actors Design: ``active = True`` does not revive; ``mode = None`` stays quiet).
+# ``on_update`` is scheduled work: like ``after`` / ``every`` on a dead actor,
+# setting it does nothing. ``owner``: teardown cuts it.
+_DEAD_QUIET = frozenset({"active", "mode", "owner", "on_update"})
+
+
+class _DeadSetter:
+    """Route of every name on a destroyed actor (E14: ``time_scale`` / ``mass`` /
+    ``clickable`` / ``corner_radius`` … were stored silently)."""
+
+    __slots__ = ()
+
+    def __set__(self, obj, value) -> None:
+        _refuse_if_destroyed(obj, "set")
+
+
+_DEAD_SETTER = _DeadSetter()
+
+
+class _DeadRoute(dict):
+    """A class's route map for its destroyed instances: the quiet names keep
+    their setter, every other name refuses."""
+
+    def get(self, name, default=None):
+        hit = dict.get(self, name)
+        return _DEAD_SETTER if hit is None else hit
+
+
+_DEAD_ROUTES: Dict[type, "_DeadRoute"] = {}
+
+
+def _mark_routes_dead(obj) -> None:
+    """Called where teardown marks ``_destroyed``: give the instance a route map
+    that refuses every write but the quiet ones (one check, at destroy time)."""
+    cls = type(obj)
+    dead = _DEAD_ROUTES.get(cls)
+    if dead is None:
+        live = getattr(cls, "_setattr_route", None)
+        if live is None:
+            _install_setattr_route(cls)
+            live = cls._setattr_route
+        dead = _DEAD_ROUTES[cls] = _DeadRoute(
+            {name: live[name] for name in _DEAD_QUIET if name in live})
+    try:
+        object.__setattr__(obj, "_setattr_route", dead)
+    except Exception:
+        pass
+
+
+class _RouteRefusal:
+    """A route that refuses the write with a hint (graphics review R8). It sits in
+    the per-class route table, so names that are writable pay nothing for it."""
+
+    __slots__ = ("message",)
+
+    def __init__(self, message: str):
+        self.message = message
+
+    def __set__(self, obj, value) -> None:
+        raise AttributeError(self.message.format(cls=type(obj).__name__))
+
+
+# Words an author expects to resize any Graphic. On a kind without the word,
+# ``circle.width = 20`` became a plain attribute nothing reads (E13).
+_SIZE_WORDS = ("width", "height", "radius", "side", "length", "size",
+               "corner_radius", "major_axis")
+
+
 def _install_setattr_route(cls: type) -> None:
-    """Cache known public setters so pose writes skip a per-assign MRO walk."""
+    """Cache known public setters so pose writes skip a per-assign MRO walk.
+
+    The first definition of a public name in the MRO decides its route:
+
+    * a settable descriptor routes to its setter;
+    * a property without a setter refuses with a hint (E12 / SA17: Python's
+      own "property … has no setter");
+    * a method refuses (E8: ``c.tag = "boss"`` replaced the method);
+    * on a Graphic, a size word the kind lacks refuses (E13).
+    """
     route: Dict[str, Any] = {}
+    seen = set()
+    methods = []
     for base in cls.__mro__:
         for name, desc in base.__dict__.items():
-            if not name or name[0] == "_" or name in route:
+            if not name or name[0] == "_":
+                continue
+            seen.add(name)
+            if name in route:
                 continue
             if hasattr(desc, "__set__"):
-                route[name] = desc
+                if isinstance(desc, property) and desc.fset is None:
+                    route[name] = _RouteRefusal(
+                        f"{{cls}}.{name} is read-only: it is computed for you, so it "
+                        f"cannot be set. A field of your own needs another name.")
+                else:
+                    route[name] = desc
+            elif (name not in _CALLABLE_RESERVED and name != "setup"
+                  and (inspect.isfunction(desc) or isinstance(desc, (staticmethod, classmethod)))):
+                methods.append(name)
+    # A setter anywhere in the MRO wins over a method of the same name
+    # (``Track.line()`` builds a track; ``track.line = color`` is the paint).
+    for name in methods:
+        if name not in route:
+            route[name] = _RouteRefusal(
+                f"{{cls}}.{name} is a method: call it ({name}(...)). Writing it "
+                f"would replace the method. A field of your own needs another name.")
+    if getattr(cls, "_scena_is_graphic", False):
+        own = [w for w in _SIZE_WORDS if w in seen]
+        sized_by = (" Size it with " + " / ".join(own) + ".") if own else ""
+        for word in _SIZE_WORDS:
+            if word not in seen:
+                route[word] = _RouteRefusal(
+                    f"{{cls}} has no {word}.{sized_by} A field of your own needs "
+                    f"another name.")
     for name in _LOOK_FAMILY:
         route.setdefault(name, _LOOK_MISSING)
     for name in _INK_RESERVED:
@@ -1436,7 +1542,10 @@ class Entity(Container):
             object.__setattr__(self, name, value)
             return
         # Known API / geometry first — never consult ink (pose / ContainerSlots).
-        route_map = getattr(type(self), "_setattr_route", None)
+        # The instance's own map first: a destroyed actor carries one in which
+        # every name refuses (``_mark_routes_dead``), so a live write pays no
+        # dead check at all.
+        route_map = getattr(self, "_setattr_route", None)
         if route_map is None:
             _install_setattr_route(type(self))
             route_map = type(self)._setattr_route  # type: ignore[attr-defined]
@@ -2385,6 +2494,9 @@ class Graphic(Entity, ABC):
     ``_pose_xy_guard`` refuses ``.x`` / ``.y``: position is ``.center``.
     The heading is ``.angle``; ``rotation`` is retired and raises with a hint.
     """
+
+    # Size words this kind lacks refuse on write (``_install_setattr_route``, E13).
+    _scena_is_graphic = True
 
     _pose_xy_guard = True
     _RETIRED_ATTRS = {"rotation": _ROTATION_RETIRED}

@@ -56,28 +56,10 @@ def _subjects():
     return out
 
 
-# Size words an author expects to resize any Graphic (E13: ``circle.width = 20``
-# became ink). Other kinds' knobs (``frame``, ``value``, ``align``) stay legal
-# ink names on a kind that lacks them.
-_GEOMETRY_WORDS = set(G.LENGTHS) | {"size", "spread", "corner_radius", "dist", "at_angle"}
-
-
 def _settable_geometry_names():
-    """Size words that are a settable property on at least one Graphic kind."""
-    names = set()
-    for _label, make in _subjects():
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            obj = make()
-        cls = type(obj)
-        if isinstance(obj, Graphic):
-            for name in dir(cls):
-                desc = inspect.getattr_static(cls, name, None)
-                settable = (isinstance(desc, property) and desc.fset is not None) or isinstance(desc, ScalarSlot)
-                if name in _GEOMETRY_WORDS and settable:
-                    names.add(name)
-        obj.destroy()
-    return names
+    """The size words the engine reserves (one home: ``entity._SIZE_WORDS``)."""
+    from scena.entity import _SIZE_WORDS
+    return set(_SIZE_WORDS)
 
 
 def _cases(obj, geometry):
@@ -140,6 +122,14 @@ class TestEveryPublicNameIsClassified(unittest.TestCase):
     def test_a_write_to_a_method_read_only_or_foreign_name_raises_with_a_hint(self):
         from graphics_known import shrink_only
         shrink_only(self, route_violations(), "ROUTE")
+
+    def test_canary_a_refusal_that_lets_the_write_through(self):
+        from diff_support import assert_catches
+        from scena.entity import _RouteRefusal
+        assert_catches(self, "test_route_table.TestEveryPublicNameIsClassified."
+                             "test_a_write_to_a_method_read_only_or_foreign_name_raises_with_a_hint",
+                       [(_RouteRefusal, "__set__", lambda self, obj, value: object.__setattr__(obj, "_canary", value))],
+                       "a refusal that silently accepts")
 
 
 if __name__ == "__main__":
