@@ -55,6 +55,10 @@ Paths: an expected path that went through abspath / realpath / Path.resolve /
 os.path.join is built the same way in the test, never written as a POSIX
 literal. Windows turns /a/b into C:\a\b. A relpath used as a label is
 compared in "/" form: os.path.relpath(p, ROOT).replace(os.sep, "/").
+A helper that takes a path in "/" form (png("ninja/a.png")) normalizes its
+join: os.path.normpath(os.path.join(root, rel)). Plain os.path.join gives
+C:\t\ninja/a.png on Windows, unequal to the C:\t\ninja\a.png the code
+returns. Guard: tests/test_platform_portability.py.
 
 File modes: Windows has no exec bit (os.chmod only toggles read-only; st_mode's
 execute bits follow the extension). Assert S_IXUSR / X_OK only under

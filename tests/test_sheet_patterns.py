@@ -43,7 +43,7 @@ class PatternTestCase(SpriteTestCase):
         self.addCleanup(p.stop)
 
     def png(self, rel, w=8, h=8):
-        path = os.path.join(self.root, rel)
+        path = os.path.normpath(os.path.join(self.root, rel))
         os.makedirs(os.path.dirname(path), exist_ok=True)
         _write_rect_png(path, w, h)
         return path

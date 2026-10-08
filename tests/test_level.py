@@ -77,7 +77,7 @@ class LevelTestCase(unittest.TestCase):
         return shape
 
     def write(self, doc, name="fase1.json"):
-        path = os.path.join(self.dir, name)
+        path = os.path.normpath(os.path.join(self.dir, name))
         with open(path, "w", encoding="utf-8") as f:
             json.dump(doc, f)
         return path
