@@ -76,6 +76,22 @@ across test modules. A test that drives run() with a mocked GL context must
 clear canvas.effects and install a no-op post_draw. An active stack takes the
 GPU scene-RT path, which a Mock context cannot create.
 
+Geometry campaign (design/Testing Design.md, "Geometry campaign")
+------------------
+
+  test_geom_axes.py       the axes (geom_axes) and covering arrays (covering)
+                          check themselves: every constructor row, pose verb
+                          and axis value has a case or a reason.
+  test_geom_sequences.py  H1: verb sequences from any base state, link and
+                          execution twin against the affine shadow
+                          (geom_shadow); 2-wise in quick, 2- and 3-wise in
+                          gate; Hypothesis machine; canaries. Known findings:
+                          geom_campaign_known.py (shrink-only patterns).
+
+  python tests/geom_coverage.py [--report]     branch-coverage ledger
+  python tests/mutation_run.py ... --ops call  deleted-call mutants only
+  python scripts/bench/perf_geometry.py --ab <pristine HEAD tree>
+
 Property-based tests (Hypothesis)
 ---------------------------------
 

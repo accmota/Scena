@@ -19,6 +19,7 @@ strategy, the rules, and the bug catalogue.
 | Is this bug a known class? | [Recurring bug classes](#recurring-bug-classes), [Bug catalogue](#bug-catalogue) |
 | Why the rules are what they are | [Lessons learned](#lessons-learned) |
 | Planning a new test: axes, oracle, invariants, layers | [Lessons for test planning](#lessons-for-test-planning) |
+| Geometry hardening: axes, shadow oracle, sentinel, laws, fuzzer | [Geometry campaign](#geometry-campaign) |
 
 Tests follow `tests/test_<area>.py`. The property / system suites are `test_hyp_*`,
 `test_sys_*`, `test_diff_*` (fast vs slow paths). Regression tests for a
@@ -83,6 +84,10 @@ Rules of thumb:
 | `tests/font_support.py` | `system_font_file()`: a monospace `.ttf` every OS installs (explicit candidate paths, no scan), for tests of `font="….ttf"` (WP4) |
 | `tests/media_support.py` | `MEDIA` (`examples/media/`), `SMOKE` (`scripts/smoke/`), `media(*parts)` / `smoke(*parts)`: absolute path of a tracked media file, **asserting** it exists. Tests read real images, sheets, sounds and SVGs only through it, never with a skip-if-missing (MR2) |
 | `tests/hyp_models.py` | `RegistryModel`: placement (painter order per layer), group join order and liveness of tracked objects; `track` / `place` / `move` / `restack` / `join` / `leave` / `destroy` / `drain` / `forget_dead`; `check_draw_lists(registry)`, `check_groups(pool, group_of)`. Exact in `test_hyp_canvas.RegistryMachine`; in `test_sys_hyp_world.WorldMachine` (deaths happen inside frames) call `forget_dead` before checking. Holds strong references: `clear()` before a leak check. |
+| `tests/geom_axes.py` | The geometry campaign's axes, read from the code: **K** kind × model × constructor row (`geometry_support.KINDS` + `EXTRA_KINDS`; `signature_reach` spies on the signature matcher), **B** base state (flipped, turned past a full turn, scaled, `MIN_SCALE`, degenerate, names crossed, cross-model copy, clone, mid-tween, parked, collidable, drawn), **W** warmth, **L** link configuration (field, part, whole, source of another link, chain), **R** read order, **X** execution twin (forced slow, caches dropped, inside a batch); `Reach` counters. Guard: `test_geom_axes` (every constructor row, every public pose verb and every axis value has a case or a reason). |
+| `tests/covering.py` | `covering_array(axes, t, valid)`: deterministic, constraint-aware t-wise covering arrays (IPOG); `uncovered_tuples` checks one. 2-wise in `quick`, 3-wise in `gate`. |
+| `tests/geom_shadow.py` | H1: the **affine shadow** of a subject (the composed map of its steps since the base state) and `run_cell` / `run_step`: after every step every point part, the drawn set, heading (full turns), scale, flip flags, hit test, collision prims, `.box` and the cull AABB must equal the shadow; a refused step changes nothing. Relational constraint cells (`CONSTRAINT_MAPS`) are affine too. Used by `test_geom_sequences`; known violations in `geom_campaign_known.SHADOW` (patterns, shrink-only). |
+| `tests/geom_coverage.py` | Branch-coverage ledger (H9): runs suites under `coverage.py` (`branch=True`) over the geometry engine modules, one process per module; writes `.scena_test_runs/coverage/<tag>.json`, reports LOST arcs against the previous ledger and, with `--report`, the unreached branch arcs per function. Measurement only, never in a tier. |
 
 Scena keeps **one** `ScenaFramework` per process. Every example and every system test
 must undo what it did; an example that leaks state makes Hypothesis report *Flaky*
@@ -192,6 +197,48 @@ PM12, PM14 and the doc gaps). A mutation run without the control is not
 evidence: an earlier run counted three "program-only" kills that were a spec
 failing on its own while the run went (`mutation_run` now refuses to start
 unless both suites pass unmutated).
+
+
+# Geometry campaign
+
+A white-box campaign (2026-10-08) over the whole geometric model before
+release: every Shape kind and model, Box, Anchor, Vec2, Sprite / Svg, Text,
+Track (with `reversed()` views), Hitbox parts and collision frames. It applies
+[Lessons for test planning](#lessons-for-test-planning) to the cross-product
+the reactive campaign and the graphics review sampled: field × write path ×
+what was read before × construction model × link kind × base state × verb
+sequence. Cadence: discover first (each harness logs into a shrink-only known
+list), then fix by class, one root cause per change, each with an A/B.
+
+**Axes** (`geom_axes.py`), each read from the code: K kind × model ×
+constructor row, B base state, W warmth, L link configuration, V step,
+R read order, X execution twin. The full product is far too large; a 2-wise
+covering array (`covering.py`) runs in `quick`, a 2-wise array over every
+kind plus a 3-wise array over the family-level axes in `gate`, and seeded
+random cells in `deep`. Reach counters assert every axis value ran.
+
+**Oracles with no model of their own:**
+
+| Harness | Oracle | Module |
+| --- | --- | --- |
+| H1 shadow | the composed affine map of the steps since the base state (a constraint cell's own map on a relational shape); refusals change nothing | `test_geom_sequences` |
+
+**Contract decisions the oracles encode** (written into the owning docs first):
+Q1 a flip applies `180 − θ` / `−θ` to the unwrapped heading on every kind
+(Shapes Design, Conventions); Q2 a finished timed `rotate_to` stores the
+target (Actors Design, Canvas Design); Q3b a relational shape that loses its
+relation becomes its free twin (Shapes Design); Q4 a flip does not mirror a
+running rotation (Actors Design); Q5 State refuses a function on `=`
+(Reactive Design); Q6 a law compares drawn geometry and points exactly,
+`angle` modulo 360 unless the law is about the turn count, and flip flags only
+in laws about them.
+
+**Baselines (phase 0, on `1ec7001`):** branch arcs reached by the existing
+geometry and reactive suites (`geom_coverage.py`): shapes 1610 / 2028, entity
+462 / 658, state 794 / 1222, box 145 / 166, sprite 973 / 1334, text 205 / 278,
+track 432 / 598, hitbox 126 / 248, geom 36 / 236, scenamath 59 / 154. Deleted
+calls (`mutation_run.py --ops call`, 80 sampled sites in shapes / state / box /
+entity, seed 1): the geometry suites kill 50, 30 survive.
 
 
 # Test tiers

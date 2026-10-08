@@ -9,6 +9,13 @@ program modules. "Killed by A only" is what the program tests add.
     python tests/mutation_run.py --modules scena.collision scena.shapes \
         --programs test_prog_bouncing_balls --n 30
     python tests/mutation_run.py ... --no-baseline     # A only (fast)
+    python tests/mutation_run.py ... --ops call        # only deleted calls
+
+``--ops`` keeps the sites of the named operators (``mutation_ops``: cmp, binop,
+bool, not, if, const, return, call). ``call`` deletes one expression-statement
+call (``self.update()``, ``_invalidate_bare_reads()``): a missing call was the
+root cause of most reactive and geometry bugs (D12-D26, G5, G8, R7), so the
+geometry campaign measures it on its own.
 
 Each mutant runs in fresh processes with ``SCENA_MUTANT=<module>:<site>``
 (``tests/mutant_site/sitecustomize.py`` applies it at import) and
@@ -122,6 +129,8 @@ def main(argv=None) -> int:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("-j", "--jobs", type=int, default=max(1, (os.cpu_count() or 2) - 2))
     ap.add_argument("--no-baseline", action="store_true")
+    ap.add_argument("--ops", nargs="*", default=[],
+                    help="only these operators (default: all)")
     ap.add_argument("--exclude-baseline", nargs="*", default=[],
                     help="quick-tier modules to leave out of B")
     args = ap.parse_args(argv)
@@ -133,7 +142,8 @@ def main(argv=None) -> int:
         with open(module_path(m), encoding="utf-8") as fh:
             src = fh.read()
         hit = set(lines.get(m, ()))
-        pool += [(m, s) for s in mutation_ops.sites(src) if s.line in hit]
+        pool += [(m, s) for s in mutation_ops.sites(src)
+                 if s.line in hit and (not args.ops or s.op in args.ops)]
     rng = random.Random(args.seed)
     sample = rng.sample(pool, min(args.n, len(pool)))
     print(f"{len(pool)} sites on executed lines; sampling {len(sample)}", flush=True)
