@@ -518,6 +518,9 @@ def _ensure_writable(
                 RuntimeWarning,
             )
             part.unlink()
+            drop = getattr(part.owner, "_drop_relational", None)
+            if drop is not None:
+                drop()
             return
         linked_names = str(part.name)
         if _actor_of(part.owner) is None:
@@ -548,6 +551,10 @@ def _ensure_writable(
             for node in linked:
                 if node._link is not None:      # a linked owner: drop its link too
                     node.unlink()
+            actor = _actor_of(part) or part
+            drop = getattr(actor, "_drop_relational", None)
+            if drop is not None:
+                drop()
             return
         linked_names = ", ".join(part_path(n) for n in linked)
         subject = entity_label(part)
@@ -1167,6 +1174,39 @@ class Shape(Graphic, PaintState):
     def _clone_recipe(self, *, center=None, frame=None, **kwargs) -> 'Shape':
         """Shape clone builds via ``_clone_geometry`` (``center=`` / ``frame=`` ignored)."""
         return self._clone_geometry(**kwargs)
+
+    def _takein_pose(self, other) -> None:
+        """A whole-object copy (``<<``, ``absorb``, a whole ``@=`` pull) carries
+        the source's pose: flips, heading with its turn count, scale (C7).
+        Before, a copy read alike but diverged on the next ``rotate_to`` /
+        ``flip`` (SC7 / SB7)."""
+        from .entity import Graphic
+        if isinstance(other, Graphic) and other is not self:
+            self._clone_pose_from(other)
+
+    def _drop_relational(self) -> None:
+        """Links gone (``force=True``): a relational model becomes its free twin,
+        keeping the values it has (SB5: a forced move then did nothing)."""
+        model = getattr(self, 'model', None)
+        if model is None or self._free_model(model) is model:
+            return
+        free = self._free_model(model)
+        old = set(self.__dict__.get('_defining_part_names') or ())
+        # The parts that become inputs keep the value they read now (a cold
+        # computed field would otherwise start from its slot default).
+        keep = {}
+        for name in (self._defining_names_for(free) or ()):
+            if name in old:
+                continue
+            value = getattr(self, name)
+            keep[name] = get_xy(value, bare=True) if isinstance(value, Point) else _bare_num(value)
+        self._adopt_model_of(self)
+        self.__dict__['_ref'] = None
+        for name, value in keep.items():
+            if isinstance(value, tuple):
+                getattr(self, name)._takein(value)
+            else:
+                _init_scalar(self, name, value)
 
     def _clone_geometry(self, **kwargs) -> 'Shape':
         """Construct a free (unlinked) copy with matching geometry. Subclasses implement."""
@@ -3224,6 +3264,30 @@ class LineModel(Enum):
     TANGENT_ANGLE = "tangent_angle"
     TANGENT_POINT = "tangent_point"
 
+
+# Defining parts per Line model (as the constructor sets them).
+_LINE_MODEL_DEFINING = {
+    LineModel.CENTER_LENGTH_ANGLE: ('center', 'angle', 'length'),
+    LineModel.POINT_POINT: ('p1', 'p2'),
+    LineModel.POINT_VEC: ('p1', 'vec'),
+    LineModel.POINT_DX_DY: ('p1', 'dx', 'dy'),
+    LineModel.POINT_ANGLE_LENGTH: ('p1', 'angle', 'length'),
+    LineModel.PARALLEL_POINT: ('p1', 'angle', 'length'),
+    LineModel.PERPENDICULAR_POINT: ('p1', 'angle', 'length'),
+    LineModel.PARALLEL_DIST: ('dist', 'angle', 'length', 'p1'),
+    LineModel.TANGENT_ANGLE: ('p1', 'at_angle', 'length'),
+    LineModel.TANGENT_POINT: ('p1', 'p2'),
+}
+
+# The free twin a copy takes for a relational model (no reference to follow).
+_LINE_FREE_MODEL = {
+    LineModel.PARALLEL_POINT: LineModel.POINT_ANGLE_LENGTH,
+    LineModel.PERPENDICULAR_POINT: LineModel.POINT_ANGLE_LENGTH,
+    LineModel.PARALLEL_DIST: LineModel.POINT_ANGLE_LENGTH,
+    LineModel.TANGENT_ANGLE: LineModel.POINT_ANGLE_LENGTH,
+    LineModel.TANGENT_POINT: LineModel.POINT_POINT,
+}
+
 def _rotation_is_derived(shape, name: str = 'angle') -> bool:
     """True when the heading field is a Derivate of the model (heading from the placement points)."""
     if name in (getattr(shape, '_defining_part_names', None) or ()):
@@ -3713,17 +3777,25 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
         with self._no_update():
             self._update_impl()
 
+    def _defining_names_for(self, model) -> Optional[Tuple[str, ...]]:
+        return _LINE_MODEL_DEFINING.get(model)
+
+    @staticmethod
+    def _free_model(model):
+        return _LINE_FREE_MODEL.get(model, model)
+
     def _takein_impl(self, other: 'Line') -> None:
         """Copy Line-specific attributes based on the line model.
 
-        Note: like every other model, this copies current resolved *values* only --
-        it does not re-establish formula links to `other._ref` (consistent with
-        how e.g. POINT_POINT's p1/p2 copy values, not another shape's link).
+        Copies current resolved *values* only. A relational source (parallel /
+        perpendicular / tangent) arrives as its free twin with no ``_ref``
+        (``_free_model``): a copy has no links to follow.
         """
         # Always copy the model first
         self._adopt_model_of(other)
-        self._ref = other._ref
-        self._tangent_side = other._tangent_side
+        same = self.model is other.model
+        self._ref = other._ref if same else None
+        self._tangent_side = other._tangent_side if same else None
 
         # Copy only the defining attributes for the current model
         match self.model:
@@ -4052,14 +4124,12 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
                 return (rot,)
 
     def _clone_geometry(self, **kwargs) -> 'Line':
-        # Snap any model (including relational) to free endpoints. The copy's
-        # heading keeps the source's turn count (290, not -70).
-        copy = type(self)(
-            p1=get_xy(self.p1, bare=True),
-            p2=get_xy(self.p2, bare=True),
-            **kwargs,
-        )
-        _pose_rotation_set(copy, self._rotation_value())
+        # The copy keeps a free model (SB6: every clone was POINT_POINT, so
+        # ``clone().length = 20`` raised); a relational model takes its free
+        # twin. One path with ``<<``: build, then take the source in.
+        x1, y1, x2, y2 = self._segment_xy()
+        copy = type(self)(p1=(x1, y1), p2=(x2, y2), **kwargs)
+        copy._takein(self)
         return copy
 
     def _move_by(self, dx: float, dy: float, *, force: bool = False) -> 'Line':
@@ -4751,14 +4821,14 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
 
     @classmethod
     def from_points(cls, center: GeneralPoint, perimeter: GeneralPoint, *, layer: Any = _USE_LAYER_DEFAULT, group: Optional[Union[str, List[str]]] = None) -> 'Circle':
-        """Create a circle from a center point and a point on the perimeter (live CENTER_PERIMETER model)."""
-        c = center if (callable(center) and not isinstance(center, type)) else (
-            (lambda s=center: s) if isinstance(center, Container) else center
-        )
-        p = perimeter if (callable(perimeter) and not isinstance(perimeter, type)) else (
-            (lambda s=perimeter: s) if isinstance(perimeter, Container) else perimeter
-        )
-        return cls(center=c, perimeter_point=p, layer=layer, group=group)
+        """Create a circle from a center point and a point on the perimeter (CENTER_PERIMETER).
+
+        Same rule as the constructor: a point is copied, a function links.
+        ``Circle.from_points(ship.center, tip)`` is where they are now;
+        ``Circle.from_points(lambda: ship.center, lambda: tip)`` follows them.
+        (It used to link a plain point: the opposite rule, graphics review SB9.)
+        """
+        return cls(center=center, perimeter_point=perimeter, layer=layer, group=group)
 
     @classmethod
     def from_corners(cls, *, point: GeneralPoint, pos: Pos, radius: float, layer: Any = _USE_LAYER_DEFAULT, group: Optional[Union[str, List[str]]] = None) -> 'Circle':
@@ -5309,10 +5379,20 @@ class Ellipse(_DerivedRotationRoute, Shape):
         with self._no_update():
             self._update_impl()
 
+    @staticmethod
+    def _free_model(model):
+        # A FROM_RECT copy is a free CENTER_WH ellipse (it has no Rect to follow).
+        return EllipseModel.CENTER_WH if model == EllipseModel.FROM_RECT else model
+
+    def _defining_names_for(self, model) -> Optional[Tuple[str, ...]]:
+        if model == EllipseModel.FOCAL_POINTS:
+            return ('fp1', 'fp2', 'major_axis')
+        return ('center', 'width', 'height', 'angle')
+
     def _takein_impl(self, other: 'Ellipse') -> None:
         """Copy only the defining attributes for the current model."""
         self._adopt_model_of(other)
-        self._ref = getattr(other, '_ref', None)
+        self._ref = getattr(other, '_ref', None) if self.model is other.model else None
         match self.model:
             case EllipseModel.CENTER_WH | EllipseModel.FROM_RECT:
                 self.center._takein(other.center)
@@ -5509,14 +5589,12 @@ class Ellipse(_DerivedRotationRoute, Shape):
                 return ()
 
     def _clone_geometry(self, **kwargs) -> 'Ellipse':
-        # Snap FROM_RECT / FOCAL_POINTS to free CENTER_WH values.
-        return type(self)(
-            center=get_xy(self.center, bare=True),
-            width=_bare_num(self.width),
-            height=_bare_num(self.height),
-            angle=_bare_num(self.angle),
-            **kwargs,
-        )
+        # A free model is kept (SB6: FOCAL_POINTS cloned as CENTER_WH);
+        # FROM_RECT takes its free twin. One path with ``<<``.
+        cx, cy, w, h, ang = self._oriented_frame()
+        copy = type(self)(center=(cx, cy), width=abs(w), height=abs(h), angle=ang, **kwargs)
+        copy._takein(self)
+        return copy
 
     def _move_by(self, dx: float, dy: float, *, force: bool = False) -> 'Ellipse':
         """Translate Defining position part(s) only (model-aware)."""
@@ -5906,7 +5984,9 @@ class Polygon(Shape):
                 f"Cannot take in a Polygon with a different vertex count "
                 f"({len(other._vertices)} vs {len(self._vertices)})"
             )
-        for mine, theirs in zip(self._vertices, other._vertices):
+        # The source's vertices as read: a RegularPolygon's are cold Derivates
+        # (its ``points`` places them), so ``_vertices`` read (0, 0) (SC2).
+        for mine, theirs in zip(self._vertices, other.points):
             mine._takein(theirs)
 
     def _parts_written_by_drag(self) -> Tuple[Container, ...]:

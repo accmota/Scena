@@ -127,6 +127,10 @@ def _cross_model_failures(kinds_by_class=None):
                     bad.append((ka, kb, "raised " + type(e).__name__))
                     continue
                 names = [n for n, _ in M.field_names(s) if n not in skip]
+                if G.is_relational(s):
+                    # A copy is the free twin (graphics review SB5): the fields
+                    # that only place it against the reference do not carry.
+                    names = [n for n in names if n not in ("dist", "at_angle")]
                 df = M.diff(M.snapshot_names(d, names), M.snapshot_names(s, names))
                 if df:
                     bad.append((ka, kb, df))

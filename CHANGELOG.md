@@ -14,6 +14,10 @@ left out.
 
 ### Breaking
 
+- `Circle.from_points(center, perimeter)` copies plain points, like every
+  constructor; a function links. Before, it linked a plain point (the
+  opposite rule), so `Circle.from_points(ship.center, tip)` followed the
+  ship. To follow, write `Circle.from_points(lambda: ship.center, lambda: tip)`.
 - A `Color` is immutable: `color.alpha = 0.5` raises AttributeError
   `Color is immutable: … Write color.with_alpha(0.5) for a new Color, or
   shape.set_alpha(0.5) to fade one shape.` Before, it changed the colour in
@@ -96,6 +100,15 @@ left out.
   frame, not only its hit test.
 - Writing a new list, `Vec2` or numpy array to a field that held an equal one
   stores the new object; a numpy array used to raise.
+- A copy acts like its source. `copy << shape` and `absorb` now carry the
+  flips, the heading with its full turns and the scale, so the next
+  `rotate_to` or flip agrees; `clone()` keeps the model (a cloned
+  `Line(center=, length=, angle=)` can take `length = 20`; it raised). A copy
+  of a line made with `parallel_to=`, `perpendicular_to=` or `circle=` (or an
+  ellipse made with `from_rect=`) is a free line or ellipse: it moved and
+  scaled wrong before. `force=True` on such a shape frees it the same way.
+- `polygon << regular_polygon` takes the polygon's corners; they all read
+  (0, 0). A clone of a parked actor is visible.
 - A refused call changes nothing. Before, these raised but left a change behind:
   `flip_x = True` on a linked or destroyed shape kept the flag; a Polygon
   with one linked vertex moved the others; `tag("a", 5)` claimed `"a"`;

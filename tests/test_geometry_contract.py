@@ -760,7 +760,9 @@ def sweep_c7(kinds, p):
                         if isinstance(c_before, G.ReadError) or not _same_drawn(
                                 _drawn(copy), [image(q) for q in c_before], 1e-4):
                             out[f"{kind} | {door} then {act} | copy off its verb"] = ""
-                            break
+                        break           # source and copy now differ by design
+                    else:
+                        break           # the source refused a verb the copy ran
     return out
 
 

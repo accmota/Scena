@@ -1891,6 +1891,7 @@ class Container():
             else:
                 with self._no_update():
                     self._takein_impl(result)
+                    self._takein_pose(result)       # a whole link carries the pose (C7)
                     self._refresh_after_raw_store()
             if self._link is not None:
                 self._link.old_value = result
@@ -2155,6 +2156,7 @@ class Container():
             return
 
         self._takein_impl(new_value)   # Call _takein method of the subclass (specific implementation by subclass)
+        self._takein_pose(new_value)
         # self.update() will be called automatically at the end by @batch_update_self
 
     def _taketo(self, other: 'Container') -> None:
@@ -2423,16 +2425,31 @@ class Container():
             part._rewire_subtree_structural_edges(upward=True)
         self._rewire_subtree_structural_edges(upward=None)
 
+    @staticmethod
+    def _free_model(model):
+        """The model a copy adopts for ``model`` (Shape kinds map relational ones)."""
+        return model
+
+    def _takein_pose(self, other) -> None:
+        """Hook after a whole-object takein (``<<``, ``absorb``, a whole ``@=`` pull).
+        Graphics carry the source's pose (C7); a plain Container has none."""
+
     def _adopt_model_of(self, other) -> None:
         """A copy (``_takein``) takes the source's construction model, and with
         it the source's Defining set. Switching only ``model`` left the old
         Defining parts in place: the copy read stale sizes / centers and
         refused writes to its new inputs (D21 in Testing Design). The bare-read
-        caches classified under the old set are dropped."""
-        self.model = other.model
+        caches classified under the old set are dropped.
+
+        A relational source model (Line ``parallel_to=`` / ``circle=``, Ellipse
+        ``from_rect=``) arrives as its free twin (``_free_model``): a copy has
+        no links, and a relational model without them moved wrong (graphics
+        review SB5: a tangent copy stretched on ``move_by``)."""
+        model = self._free_model(other.model)
+        self.model = model
         own = getattr(self, '_defining_names_for', None)
-        names = own(other.model) if own is not None else None
-        if names is None:
+        names = own(model) if own is not None else None
+        if names is None and model is other.model:
             names = other.__dict__.get('_defining_part_names')
         names = set(names) if names is not None else None
         old = self.__dict__.get('_defining_part_names') or set()

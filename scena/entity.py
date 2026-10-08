@@ -2894,7 +2894,10 @@ class Graphic(Entity, ABC):
         from .shapes import Point
         if isinstance(self, Point) and isinstance(copy, Point):
             copy._marker_style_auto = getattr(self, "_marker_style_auto", True)
-        copy.visible = self._visible
+        # A parked source reads hidden; the copy takes what it will show on
+        # resume (E9: a clone of a parked actor was invisible).
+        saved = getattr(self, "_active_saved_visible", None) if _parked(self) else None
+        copy.visible = self._visible if saved is None else bool(saved)
         if scale != 1.0:
             copy.scale_by(float(scale))
         return copy

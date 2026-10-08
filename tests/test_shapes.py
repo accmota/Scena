@@ -3708,3 +3708,74 @@ class TestCircleArcSpan(ShapeTestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestCopyContract(unittest.TestCase):
+    """C7 (graphics review batch 7): a copy carries geometry and pose, keeps a
+    free model, and turns a relational model into its free twin."""
+
+    def test_lshift_carries_the_pose(self):
+        # SC7 / SB7: << copied geometry, not flips / turns / scale.
+        src = Rect(center=(0, 0), width=4, height=2)
+        src.rotate_by(400)
+        src.flip_x = True
+        dst = Rect(center=(9, 9), width=1, height=1)
+        dst << src
+        self.assertEqual((float(dst.angle), dst.flip_x), (float(src.angle), True))
+        src.rotate_to(30)
+        dst.rotate_to(30)
+        self.assertAlmostEqual(float(dst.p1.x), float(src.p1.x))
+
+    def test_clone_keeps_a_free_model(self):
+        # SB6: every Line clone was POINT_POINT, so clone().length = 20 raised.
+        from scena import Ellipse
+        from scena.shapes import LineModel
+        for line in (Line(center=(0, 0), length=40, angle=30), Line(p1=(0, 0), angle=10, length=5)):
+            copy = line.clone()
+            self.assertIs(copy.model, line.model)
+            copy.length = 20
+            self.assertAlmostEqual(float(copy.length), 20.0)
+        e = Ellipse(fp1=(-3, 0), fp2=(3, 0), major_axis=10)
+        self.assertIs(e.clone().model, e.model)
+
+    def test_a_relational_copy_is_free(self):
+        # SB5: << / clone / force=True kept a relational model without links.
+        from scena.shapes import LineModel
+        c = Circle(center=(0, 0), radius=10)
+        tangent = Line(circle=c, at_angle=0, length=20)
+        for copy in (tangent.clone(), Line(p1=(0, 0), p2=(1, 1))):
+            if copy.model is LineModel.POINT_POINT:
+                copy << tangent
+            self.assertIs(copy.model, LineModel.POINT_ANGLE_LENGTH)
+            self.assertIsNone(copy._ref)
+            x0 = float(copy.p1.x)
+            copy.move_by(5, 0)
+            self.assertAlmostEqual(float(copy.p1.x), x0 + 5)
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tangent.move_by(5, 0, force=True)
+        self.assertIs(tangent.model, LineModel.POINT_ANGLE_LENGTH)
+        self.assertAlmostEqual(float(tangent.p1.x), 15.0)
+
+    def test_polygon_takes_a_regular_polygons_vertices(self):
+        # SC2: the source's cold vertices read (0, 0).
+        rp = RegularPolygon(center=(10, 10), radius=5, n=6)
+        poly = Polygon(points=[(0, 0)] * 6)
+        poly << rp
+        self.assertAlmostEqual(float(poly.points[0].x), 15.0)
+
+    def test_from_points_copies_like_the_constructor(self):
+        # SB9: from_points linked a plain point (the constructor copies).
+        a, b = Point(0, 0), Point(5, 0)
+        copied = Circle.from_points(a, b)
+        linked = Circle.from_points(lambda: a, lambda: b)
+        a.move_by(10, 0)
+        self.assertAlmostEqual(float(copied.center.x), 0.0)
+        self.assertAlmostEqual(float(linked.center.x), 10.0)
+
+    def test_clone_of_a_parked_actor_is_visible(self):
+        # E9: the clone took the parked (hidden) visible.
+        c = Circle(center=(0, 0), radius=3)
+        c.active = False
+        self.assertTrue(c.clone().visible)
