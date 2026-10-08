@@ -32,43 +32,50 @@ def is_unplaced_creation() -> bool:
 
 
 def _drop_failed_construct(obj) -> None:
-    """A constructor that raised must not leave a roster, group, or draw entry.
+    """A constructor that raised leaves nothing behind.
 
-    Neither may its parts: a Point part built before the raise leaves too.
+    The real teardown (``Registry._destroy_teardown``, without ``on_destroy``):
+    roster, groups, draw, parts, and also a Collider, timers, watches and
+    bounds made before the raise. A hand-kept partial copy leaked a Collider
+    when ``__init__`` set ``on_collide`` and then raised (graphics review E4).
+    An object that never reached the registry is only marked dead.
     """
     canvas = getattr(obj, "_scenacanvas", None)
     registry = getattr(canvas, "registry", None)
-    if registry is None:
-        return
+    if registry is not None:
+        try:
+            registry._destroy_teardown(obj)
+            return
+        except Exception:  # noqa: BLE001 — a half-built object: fall back below
+            _drop_registrations(obj, registry)
+    try:
+        object.__setattr__(obj, "_destroyed", True)
+    except Exception:
+        pass
+
+
+def _drop_registrations(obj, registry) -> None:
+    """Fallback when the teardown itself fails on a half-built object."""
     from .registry import entity_parts
     for part in entity_parts(obj):
         try:
             registry.retire_part(part, obj)
         except Exception:
             pass
-    try:
-        registry.unregister_draw(obj)
-    except Exception:
-        pass
-    try:
-        registry.remove_live(obj)
-    except Exception:
-        pass
-    groups = getattr(obj, "group", None)
-    if groups:
-        for gid in list(groups):
-            try:
-                registry.remove_from_group(obj, gid)
-            except Exception:
-                pass
+    for step in (registry.unregister_draw, registry.remove_live):
+        try:
+            step(obj)
+        except Exception:
+            pass
+    for gid in list(getattr(obj, "group", None) or ()):
+        try:
+            registry.remove_from_group(obj, gid)
+        except Exception:
+            pass
     try:
         from .orchestration import forget_hud_column_item, unregister_widget
         forget_hud_column_item(obj)
         unregister_widget(obj)
-    except Exception:
-        pass
-    try:
-        object.__setattr__(obj, "_destroyed", True)
     except Exception:
         pass
 

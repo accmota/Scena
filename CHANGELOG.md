@@ -64,6 +64,14 @@ left out.
   a parallax layer) when written, not later on `active = True`, which left
   the actor half resumed. `resolve_now` on a parked actor returns `[]`.
 - `on_collide = 5` raises TypeError at once (it crashed in the next frame).
+- A class whose `setup()` raises leaves nothing behind. Before, the actor
+  stayed alive, drawn and in its groups, and its `@every` kept ticking; an
+  `__init__` that set `on_collide` and then raised left its collision body
+  behind for good.
+- `class Enemy(Damageable, Circle)`, with a mixin that defines `__init__`,
+  runs `setup()`, `on_update`, `@every`, `@when` and `@collide_with` like any
+  other actor class, and a constructor that raises rolls back. Before, none of
+  them ran.
 - A hitbox part with a linked `active` (`hb["active"] @= fn`) runs `fn` once
   per frame; it ran once per contact, and a collision handler that changed
   what `fn` reads fired `@collide_exit` for contacts that never entered.

@@ -1188,8 +1188,10 @@ require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena._
 
 ## Implementation notes (maintainers)
 
-- `Entity` has exactly **one** `__init_subclass__` (rollback wrap → actor-init wrap → setattr
-  route → deferred `@every` / `@after` → cached lookups). A second `def __init_subclass__` in the
+- `Entity` has exactly **one** `__init_subclass__` (mixin `__init__` adoption → rollback wrap →
+  actor-init wrap → setattr route → deferred `@every` / `@after` → cached lookups). The actor-init
+  wrap runs the finish step inside the rollback; the rollback is `Registry._destroy_teardown`
+  (one teardown, never a hand-kept copy). A second `def __init_subclass__` in the
   class body silently replaces the first (2026-09-25 regression: `Rect.rotation =` recursed,
   `setup()` stopped running). Extend the existing hook; `tests/test_entity_hooks.py` scans
   `scena/` for any duplicate `def` in one class body.

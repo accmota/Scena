@@ -1134,11 +1134,12 @@ def _finish_actor_construct(item) -> None:
         setup(item)
     # After setup so ink the condition reads (``self.hp``) already exists.
     _install_method_when(item)
+    from .collision import enroll_item_groups
+    from .registry import ParallaxLayerError, UiLayerError
     try:
-        from .collision import enroll_item_groups
         enroll_item_groups(item)
-    except Exception:
-        pass
+    except (ParallaxLayerError, UiLayerError):
+        pass        # a decoration / HUD layer member of a pair group: no body (E18)
 
 
 def _wrap_construct_rollback(cls) -> None:
@@ -1188,10 +1189,39 @@ def _wrap_actor_init(cls) -> None:
                 )
             raise
         if type(self).__init__ is wrapped:
-            _finish_actor_construct(self)
+            try:
+                _finish_actor_construct(self)
+            except BaseException:
+                # The finish step (setup, method timers, watches, enroll) is
+                # part of construction: a raise rolls back like one in __init__ (E4).
+                from .place import _drop_failed_construct
+                _drop_failed_construct(self)
+                raise
 
     wrapped._scena_actor_init = True
     cls.__init__ = wrapped
+
+
+def _adopt_mixin_init(cls) -> None:
+    """Give ``cls`` its own ``__init__`` when it inherits one from a mixin (E5).
+
+    ``class Enemy(Damageable, Circle)``: ``Enemy.__init__`` resolves to the
+    mixin's plain ``__init__``, so no Scena wrapper would see the most-derived
+    call: ``setup()`` / ``on_update`` / ``@every`` never ran and a raise never
+    rolled back. A thin forwarder makes it this class's ``__init__``, which
+    the rollback and actor-init wraps then take as usual.
+    """
+    if "__init__" in cls.__dict__:
+        return
+    inherited = cls.__init__
+    if inherited is object.__init__ or getattr(inherited, "_scena_actor_init", False):
+        return
+
+    @wraps(inherited)
+    def __init__(self, *args, **kwargs):
+        inherited(self, *args, **kwargs)
+
+    cls.__init__ = __init__
 
 
 class Entity(Container):
@@ -1230,6 +1260,7 @@ class Entity(Container):
         # One hook only: a second ``__init_subclass__`` in this class body would
         # silently replace this one (routes, actor finish, deferred specs lost).
         super().__init_subclass__(**kwargs)
+        _adopt_mixin_init(cls)         # a mixin's __init__ becomes this class's own
         _wrap_construct_rollback(cls)  # inner: undo registration on raise
         _wrap_actor_init(cls)          # outer: setup() / watches after __init__
         _install_setattr_route(cls)

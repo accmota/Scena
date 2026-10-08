@@ -1201,6 +1201,7 @@ Fixed so far (each batch removes its entries from the known lists):
 
 | Batch | Findings | One-place fix | Guard |
 | --- | --- | --- | --- |
+| 2 construction | E4 (both causes), E5, E18 (swallowed enroll) | the finish step runs inside the rollback (`_wrap_actor_init`); the rollback is `Registry._destroy_teardown` (`place._drop_failed_construct`); `__init_subclass__` adopts a mixin's `__init__` (`_adopt_mixin_init`); the enroll `except` narrowed to the ui / parallax refusals | `test_construct_failure` (base × raise point × layout; every finish hook runs) |
 | 1 collision lifecycle | E1, E2, E3, E11, HP5, GR8, GR9; E12 for `on_collide*` | callbacks live on the actor (`Entity._collide_cbs`, copied by `ensure_collider`); one join path `Entity._enter_collision` (`collidable = True`, callback opt-in, resume) and one leave path `_leave_collision` (park never writes the opt-out); the opt-out recorded on every author `collidable = False`; stash validated when written (`_wants_collision` in the layer guards); `_item_in_play` reads the stored `_active` | `test_collision_lifecycle` (every sequence of up to three lifecycle statements vs a twin in the final state; method callback; ui while stashed); `test_hitbox_round2.TestLinkedActive.test_link_runs_once_per_step_not_per_contact` |
 
 ### F — contact flicker (2026-09-29)
