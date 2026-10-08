@@ -61,6 +61,7 @@ test = [
     "hypothesis>=6.100",
     "pytest",
     "Pillow",
+    "coverage>=7.6",
 ]
 # Guia catalog thumbnails (tools/guide/make_guia_thumbs.py):
 # animated WebP loops. Static posters need only skia.

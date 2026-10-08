@@ -1255,6 +1255,11 @@ gaps that **both** authors reported on their own.
 
 | Found in | Issue | Planned |
 | --- | --- | --- |
+| Geometry campaign Q1 (2026-10-08) | A Rect spine flip unwraps toward the previous heading: `rotate_by(400)` + `flip_x` reads 500, a fresh flip −180 (contract: −220, 180) | Campaign phase 7 (spine flip unwrap) |
+| Geometry campaign Q2 | A finished timed `rotate_to(30)` from 400 reads 390 (shape and camera; contract: 30) | Campaign phase 7 (`CHANGELOG.md` under Fixed) |
+| Geometry campaign Q3b | `unlink_all()`, unlinking a part, or a destroyed reference keeps a relational model (PARALLEL_DIST `move_by` does nothing, TANGENT verbs orbit); `force=True` leaves a hybrid (CENTER_WH Ellipse whose `center` follows the Rect) | Campaign phase 7 (`_drop_relational` on every way a relation goes) |
+| Geometry campaign Q5 | `st.f = my_def` stores the function (only `<lambda>` is refused) | Campaign phase 7 (`CHANGELOG.md` under Breaking) |
+| Geometry campaign GR17-link | A link on a Defining `angle` leaves the pose store `_rotation` at its old value (the pull stores raw); no wrong drawing found | Campaign phase 7 (the pull publishes the store) |
 | GR (2026-10-08) | Box and Rect keep near-copies of `_takein_impl` / `rotate_by` (they drifted once, SC1) | Decided 2026-10-08: no refactor now (no bug; the geometry contract sweep builds every Box model beside Rect). The next change to either method merges them into `_RectFrame` first ([Shapes Design](Shapes%20Design.md)) |
 
 ### GR — graphics review (2026-10-08)

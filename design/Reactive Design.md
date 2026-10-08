@@ -728,7 +728,7 @@ rect.destroy()
 
 - Dependents do **not** adopt the deleted object’s identity; they always owned their own parts and only copied via takein while linked.
 - A **multi-source** formula (`a @= lambda: r1.x + r2.x`) is cleared **entirely** if any source is removed — not surgically rewritten. Remaining sources no longer drive `a` (same warning + last value).
-- Overwriting a link with `=` also unlinks (warning) and writes a concrete value; that is local to the target, not a source teardown.
+- A **relational shape** (Line `parallel_to=` / `perpendicular_to=` / `circle=`, Ellipse `from_rect=`) whose reference is destroyed, or that loses its relation by `unlink_all()` / unlinking a linked part / `force=True`, becomes its free twin with its current values (`Shape._drop_relational`; [Shapes Design.md — Cross-shape relational constructors](Shapes%20Design.md#cross-shape-relational-constructors)).
 
 
 
@@ -875,7 +875,7 @@ These matter for a complete picture of the framework but are not the reactive co
 | API                          | Role                                                               |
 | ---------------------------- | ------------------------------------------------------------------ |
 | `State(name=…)`              | Diagnostic label in linked-write errors (`hud['score'].unlink()`) |
-| `st.key = …` / `create`      | Create or write the Attribute (identity stable once created). `name`, `keys`, `exists`, `create`, and `remove` are reserved |
+| `st.key = …` / `create`      | Create or write the Attribute (identity stable once created). `name`, `keys`, `exists`, `create`, and `remove` are reserved. A function or method (a `lambda`, a `def`, a bound method, a builtin) raises `CallableAssignError`, like a Shape field: `=` copies a value, `st["key"] @= fn` links (Q5 of the geometry campaign; a named `def` used to be stored) |
 | `st.key` / `exists` / `keys` | Read the Attribute handle; bag introspection                       |
 | `remove(key)`                | `clean_up()` the Attribute + drop the key (full reactive teardown) |
 

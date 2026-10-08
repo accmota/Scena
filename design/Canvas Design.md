@@ -447,7 +447,9 @@ cancels the earlier Handle; different channels run together):
 
 `about=` keeps a world point glued to the same design pixel by rewriting look
 each tick through the existing mutator — that **is** pan, so the Handle claims
-the pan key too. `rotate_to(time=)` uses shortest arc (CCW+); `rotate_by(time=)`
+the pan key too. `rotate_to(time=)` uses shortest arc (CCW+) and ends exactly
+on the target (`canvas.rotation` reads `θ`, as after the instant form; same rule
+as a shape's timed `rotate_to`, Actors Design); `rotate_by(time=)`
 is signed as written. Timed `set_origin` / `reset_view` keep rest look = look
 for the whole tween (`_anchor_rest`) so parallax offset stays 0. Not follow-cam:
 tracking a moving actor stays in `update` / `on_update`. Compose `chase` /
