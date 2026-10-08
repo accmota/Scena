@@ -74,6 +74,19 @@ def reached(elapsed: float, target: float) -> bool:
     """``elapsed >= target``, forgiving float rounding of a sum of frame steps."""
     return elapsed >= target - _DUE_EPS * (abs(target) if abs(target) > 1.0 else 1.0)
 
+
+def whole_steps(elapsed: float, rate: float) -> int:
+    """Whole steps of ``1 / rate`` in summed ``elapsed`` — a clip's frame count.
+
+    ``int(elapsed * rate)`` is one short on the frame a step is due (PM8; the
+    clip playhead showed each frame one game frame late, graphics review PB3).
+    The same tolerance as ``reached``."""
+    x = elapsed * rate
+    n = int(x)
+    if x >= n + 1 - _DUE_EPS * (n + 1 if n + 1 > 1 else 1):
+        n += 1
+    return n
+
 def last_author_error() -> Optional[Dict[str, Any]]:
     """Return the latest SCENA WARNING for the canvas banner, or ``None``."""
     hit = _last_author_error

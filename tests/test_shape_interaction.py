@@ -128,10 +128,11 @@ class TestFlagsAndDecorators(InteractionTestCase):
         self.assertIs(c.no_drop(), c)
         self.assertIsNone(c.on_drop_by)
         self.assertFalse(c.droppable)
-        self.assertNotIn(c, layer._interactive)
+        self.assertIn(c, layer._interactive)        # wheel_rotate alone keeps it (SA9)
 
         self.assertIs(c.no_wheel_rotate(), c)
         self.assertFalse(c.wheel_rotate)
+        self.assertNotIn(c, layer._interactive)
 
         # Flag-only opt-in (no callbacks) is also cleared.
         c.draggable = True

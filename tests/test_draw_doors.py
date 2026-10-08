@@ -111,12 +111,16 @@ def knob_violations() -> dict:
                 if look:
                     base.visual = scena.Recolor("red")
                     tuned.visual = scena.Recolor("red")
+                # Over gray: on the black clear colour an additive blend draws
+                # what a normal one draws, so black cannot tell them apart.
+                backdrop = scena.Rect(center=(80, 60), width=160, height=120, color="gray")
                 for path in (None, False):
-                    if _same(render([base], plain=path), render([tuned], plain=path), tol=0):
+                    if _same(render([backdrop, base], plain=path), render([backdrop, tuned], plain=path), tol=0):
                         where = "full" if path is False else "as computed"
                         out[f"Sprite | {look or 'no look'} | {knob} ignored ({where})"] = ""
                 base.destroy()
                 tuned.destroy()
+                backdrop.destroy()
     return out
 
 

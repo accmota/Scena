@@ -3828,3 +3828,12 @@ class TestRelationalVerbs(unittest.TestCase):
             c.move_by(Vec2(1, 1), 5)
         with self.assertRaises(TypeError):
             c.move_to(Point(1, 1), 50)
+
+
+class TestPointKeepsItsLayer(unittest.TestCase):
+    def test_hide_and_show_keep_the_layer(self):
+        # SA13: a Point built on a layer came back on 'top' after hide / show.
+        p = Point(1, 1, layer="default")
+        p.visible = False
+        p.visible = True
+        self.assertEqual(p.layer, "default")

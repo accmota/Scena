@@ -90,6 +90,7 @@ from .style import (
 )
 from .state import Attribute, Container, ContainerSlot, ScalarSlot, as_payload, _init_composite, batch_update_self
 from .validate import HINT_EXTENT
+from .process import _DUE_EPS
 from .closed import ClosedSurface, seal
 
 
@@ -3676,6 +3677,13 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         longer = _positive_number(value, what="size", exclusive=False)
         w = abs(self.width)
         h = abs(self.height)
+        if w <= 0.0 or h <= 0.0:
+            # Collapsed: the current box has no aspect left, the cell still has
+            # (PB14: size = 0 then size = 20 gave a square).
+            rw = float(getattr(self, "_ref_src_w", 0.0) or 0.0)
+            rh = float(getattr(self, "_ref_src_h", 0.0) or 0.0)
+            if rw > 0.0 and rh > 0.0:
+                w, h = rw, rh
         if w <= 0.0 and h <= 0.0:
             self.width = longer
             self.height = longer
@@ -4224,6 +4232,10 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
             min_hold, what="play(min_hold=)", exclusive=False,
         )
         frames, fps, yoyo = self._sheet._require_cycle(name)
+        if self._play_name is not None and self._play_loops is not None:
+            # Settle an ended one-shot now: it was settled only by a draw, so a
+            # hidden or culled sprite could not play it again (PB4).
+            self._current_frame_index()
         if not (self._play_name == name and self._play_loops == loops
                 and self._play_next == next_clip):
             # A linked size refuses before the clip switches, and before a
@@ -4505,6 +4517,9 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         self._play_next = next
         scale = float(self._time_scale) if float(self._time_scale) else 1.0
         self._play_t0 = _world_time() - max(0.0, float(start_elapsed)) / scale
+        # While frozen (time_scale 0) the new clip shows its own start, not the
+        # old clip's frozen phase (PB5).
+        self._play_frozen_elapsed = max(0.0, float(start_elapsed))
         if self._play_frames:
             self._frame = self._play_frames[0]
             self._apply_size_intent(self._sheet._frame_at(self._frame))
@@ -4546,7 +4561,8 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
 
     @time_scale.setter
     def time_scale(self, value) -> None:
-        new = max(0.0, float(value))
+        from .entity import _time_scale_value
+        new = _time_scale_value(self, value)
         elapsed = self._play_elapsed()
         if new == 0.0:
             self._play_frozen_elapsed = elapsed
@@ -4605,7 +4621,12 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         if not seq or self._play_fps <= 0.0:
             return self._frame
         elapsed = self._play_elapsed()
-        idx = int(elapsed * self._play_fps)
+        # ``process.whole_steps`` inlined (this runs per sprite per draw): the
+        # frame count with the PM8 tolerance (PB3: int() was a frame late).
+        x = elapsed * self._play_fps
+        idx = int(x)
+        if x >= idx + 1 - _DUE_EPS * (idx + 1 if idx else 1):
+            idx += 1
         n = len(seq)
         yoyo = self._play_yoyo
         loops = self._play_loops
@@ -4613,15 +4634,20 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
             return seq[_clip_step(idx, n, yoyo)]
         total = _clip_period(n, yoyo) * loops
         if idx >= total:
+            if getattr(self, "_destroyed", False):
+                return seq[-1]                    # a read on a dead sprite changes nothing (PB4)
             next_clip = self._play_next
             if next_clip:
                 # Switch without going through play() idempotence (t0 must reset).
                 if self._play_name:
                     self._play_resume_cache[self._play_name] = elapsed
                 frames, fps, yoyo = self._sheet._require_cycle(next_clip)
-                self._adopt_clip(next_clip, frames, fps, yoyo)
+                # The next clip starts at the boundary, not at this read (PB4):
+                # carry the time already spent past the end.
+                overshoot = max(0.0, elapsed - total / self._play_fps)
+                self._adopt_clip(next_clip, frames, fps, yoyo, start_elapsed=overshoot)
                 self._play_min_hold = 0.0
-                return self._play_frames[0] if self._play_frames else self._frame
+                return self._current_frame_index() if self._play_frames else self._frame
             hold = seq[0] if yoyo else seq[-1]
             self._frame = hold
             self._play_name = None
@@ -5632,9 +5658,9 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         b.setUniform("u_soft", float(look.soft))
         shader = b.makeShader()
         paint = skia.Paint(AntiAlias=True, Shader=shader)
-        gray = getattr(self, "_blit_gray_cf", None)
-        if gray is not None:
-            paint.setColorFilter(gray)
+        # The body's gray, blend and alpha, as on every other body route (PB8:
+        # a Recolor ignored Sprite.alpha and blend).
+        self._apply_blit_paint_extras(paint)
         skia_canvas.save()
         self._apply_paint_xform(skia_canvas, cx, cy, flip_x, flip_y)
         if fr.rotated:
@@ -5648,9 +5674,8 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
                 "u_dst",
                 [rdst.left(), rdst.top(), rdst.right(), rdst.bottom()],
             )
-            skia_canvas.drawRect(
-                rdst, skia.Paint(AntiAlias=True, Shader=b.makeShader()),
-            )
+            paint.setShader(b.makeShader())       # keeps gray / blend / alpha (PB8)
+            skia_canvas.drawRect(rdst, paint)
             skia_canvas.restore()
         else:
             skia_canvas.drawRect(dst, paint)
@@ -5793,7 +5818,10 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
 
         if fill_paint is _STYLE_PAINT:
             fill = getattr(self, "_fill", None)
-            if fill is not None and not is_sprite_body(fill):
+            # A style fill / line is a look's costume. With no look the full
+            # path draws what the plain blit draws: the bitmap (PB7:
+            # ``sprite.color = "blue"`` stroked an outline on this path only).
+            if vis is not None and fill is not None and not is_sprite_body(fill):
                 ellipse_fill = self._to_skia_fill_paint()
             if replace_body:
                 do_blit = False
@@ -5817,7 +5845,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
                 blit_paint = fill_paint
 
         if stroke_paint is _STYLE_PAINT:
-            ellipse_stroke = self._to_skia_line_paint()
+            ellipse_stroke = self._to_skia_line_paint() if vis is not None else None
         elif stroke_paint is not None:
             ellipse_stroke = stroke_paint
 
@@ -6032,6 +6060,7 @@ class Svg(Sprite):
         self._svg = stored
         self._src_rect_cache = None
         fr0 = sheet._frame_at(0)
+        self._refit_box_to_art(float(fr0.src_w), float(fr0.src_h))
         self._ref_src_w = float(fr0.src_w)
         self._ref_src_h = float(fr0.src_h)
         self._frame = 0
@@ -6039,6 +6068,24 @@ class Svg(Sprite):
         self._play_frames = ()
         self._on_sheet_swapped()
         self._warm_frame_fx_for_visual()
+
+    def _refit_box_to_art(self, px_w: float, px_h: float) -> None:
+        """New art keeps the side the author sized and takes its own aspect
+        (PB9: art of another aspect was stretched into the old box)."""
+        if px_w <= 0.0 or px_h <= 0.0:
+            return
+        w, h = abs(float(self.width)), abs(float(self.height))
+        intent = getattr(self, "_size_intent", None)
+        if intent == "width":
+            w2, h2 = w, w * px_h / px_w
+        elif intent == "height":
+            w2, h2 = h * px_w / px_h, h
+        else:
+            longer = max(w, h)
+            w2, h2 = (longer, longer * px_h / px_w) if px_w >= px_h else (longer * px_w / px_h, longer)
+        if abs(w2 - w) > 1e-9 or abs(h2 - h) > 1e-9:
+            self.width = w2
+            self.height = h2
 
     def play(self, clip: str, *, loops: Optional[int] = None, next: Optional[str] = None):
         """Refused: an Svg is a still (``TypeError``). Use a Sprite + Sheet for clips."""

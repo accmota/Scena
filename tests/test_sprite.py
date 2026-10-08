@@ -532,8 +532,7 @@ class TestClipOnTheExactFrame(SpriteTestCase):
                 sheet = Sheet(path, cell=(8, 8))
                 sheet.clip("run", list(range(8)), fps=fps)
                 s = self.track(Sprite(sheet, center=(0, 0)))
-                clock._time = 0.0
-                s.play("run")
+                s.play("run")                     # starts at the current world time
                 per = game // fps                 # game frames per clip frame
                 late = []
                 for m in range(1, 24):
@@ -549,6 +548,69 @@ class TestClipOnTheExactFrame(SpriteTestCase):
     def test_clip_frame_m_shows_on_its_game_frame(self):
         from tests.graphics_known import shrink_only
         shrink_only(self, self.late_cases(), "CLIP_DUE")
+
+
+class TestClipTimingAndSize(SpriteTestCase):
+    """Graphics review batch 8b: PB4, PB5, PB6, PB9, PB14."""
+
+    def _sheet(self):
+        path = self.tmp("t.png")
+        _write_grid_png(path, cell=8, cols=4, rows=2)
+        sh = Sheet(path, cell=(8, 8))
+        sh.clip("atk", [0, 1, 2], fps=10)
+        sh.clip("idle", [4, 5, 6, 7], fps=10)
+        return sh
+
+    def test_a_hidden_sprite_can_replay_a_one_shot(self):
+        # PB4: the end was settled only by a draw; play() thought it still ran.
+        s = self.track(Sprite(self._sheet(), center=(0, 0)))
+        s.visible = False
+        s.play("atk", loops=1)
+        clock.advance(0.7)
+        s.play("atk", loops=1)
+        self.assertEqual(s._play_name, "atk")
+        self.assertAlmostEqual(s._play_elapsed(), 0.0)
+
+    def test_next_starts_at_the_boundary_however_late_the_read(self):
+        # PB4: next= started at the first read after the end.
+        s = self.track(Sprite(self._sheet(), center=(0, 0)))
+        s.play("atk", loops=1, next="idle")
+        clock.advance(0.5)                     # 0.3 s of atk, then 0.2 s of idle
+        self.assertEqual(s.frame, 6)
+
+    def test_play_while_frozen_shows_the_new_clip_start(self):
+        # PB5: a frozen sprite kept the old clip's phase.
+        s = self.track(Sprite(self._sheet(), center=(0, 0)))
+        s.play("idle")
+        clock.advance(0.25)
+        s.time_scale = 0
+        s.play("atk")
+        self.assertEqual(s.frame, 0)
+
+    def test_time_scale_is_validated(self):
+        # PB6: -1 and NaN froze silently, inf crashed every draw, True passed.
+        s = self.track(Sprite(self._sheet(), center=(0, 0)))
+        for bad in (-1, float("nan"), float("inf"), True, "fast"):
+            with self.assertRaises((TypeError, ValueError)):
+                s.time_scale = bad
+
+    def test_size_after_a_collapse_keeps_the_aspect(self):
+        # PB14: size = 0 then size = 20 gave a square.
+        s = self.track(Sprite(media("space", "enemyGreen1.png"), center=(0, 0), size=40))
+        aspect = s.height / s.width
+        s.size = 0
+        s.size = 20
+        self.assertAlmostEqual(s.height / s.width, aspect)
+
+    def test_new_svg_art_keeps_its_aspect(self):
+        # PB9: art of another aspect was stretched into the old box.
+        from scena import Svg
+        wide = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20"/></svg>'
+        tall = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="40"><rect width="20" height="40"/></svg>'
+        s = self.track(Svg(wide, center=(0, 0), height=20))
+        s.svg = tall
+        self.assertAlmostEqual(s.height, 20.0)
+        self.assertAlmostEqual(s.width, 10.0)
 
 
 class TestPlayAndSheet(SpriteTestCase):
@@ -1134,10 +1196,10 @@ class TestPlayAndSheet(SpriteTestCase):
         s = self.track(Sprite(sh, center=(0, 0), size=32))
         s.play("hit", loops=1, next="idle")
         clock.advance(1.05)
-        self.assertEqual(s.frame, 0)  # next= fires on frame read
+        self.assertEqual(s.frame, 0)  # idle began at the 1.0 s boundary, not at this read (PB4)
         self.assertEqual(s._play_name, "idle")
         self.assertTrue(s._play_yoyo)
-        clock.advance(0.35)  # 3.5 frames at 10 fps → yoyo frame 1
+        clock.advance(0.30)  # 0.35 s since the boundary: 3.5 frames → yoyo frame 1
         self.assertEqual(s.frame, 1)
 
     def test_yoyo_overwrites_clip_same_name(self):

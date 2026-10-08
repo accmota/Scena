@@ -1053,6 +1053,20 @@ def _keep_collide_callbacks(item, col) -> None:
     object.__setattr__(item, "_collide_cbs", cbs or None)
 
 
+def _time_scale_value(item, value) -> float:
+    """One check for every ``time_scale`` (Entity, Sprite): alive, a real
+    number (not a bool), finite, >= 0. Sprite's own setter skipped it: -1 and
+    NaN froze silently and ``inf`` crashed every draw (PB6 / E12)."""
+    _refuse_if_destroyed(item, "time_scale")
+    if isinstance(value, bool):
+        raise TypeError("time_scale expected a number, got bool")
+    from .validate import number
+    v = number(value, "time_scale")
+    if v < 0.0:
+        raise ValueError(f"time_scale must be >= 0, got {v}")
+    return v
+
+
 def _wants_collision(item) -> bool:
     """Collidable now, or stashed to be collidable on resume."""
     if getattr(item, "_collidable", False) or getattr(item, "_collider", None) is not None:
@@ -1811,12 +1825,7 @@ class Entity(Container):
 
     @time_scale.setter
     def time_scale(self, value) -> None:
-        v = float(value)
-        if not math.isfinite(v):
-            raise ValueError(f"time_scale must be finite, got {v}")
-        if v < 0.0:
-            raise ValueError(f"time_scale must be >= 0, got {v}")
-        self._time_scale = v
+        self._time_scale = _time_scale_value(self, value)
 
     @property
     def active(self) -> bool:

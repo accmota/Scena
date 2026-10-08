@@ -100,6 +100,21 @@ left out.
   frame, not only its hit test.
 - Writing a new list, `Vec2` or numpy array to a field that held an equal one
   stores the new object; a numpy array used to raise.
+- Animation frames land on time: each frame of a clip showed one game frame
+  late. A one-shot clip can be played again on a hidden or off-screen sprite,
+  and `play(..., next="idle")` starts `idle` when the first clip ends, not when
+  the sprite is next drawn. A clip started while `time_scale = 0` shows its
+  first frame. `time_scale = -1`, `nan`, `inf` or `True` raise; they froze the
+  clip or crashed every draw.
+- `sprite.color = "blue"` with no look draws nothing extra on any path; it
+  stroked a blue outline once a shadow or trail was on. A `Recolor` look
+  follows the sprite's `alpha` and `blend`.
+- `svg.svg = ...` with art of another shape keeps the side you sized and the
+  new art's proportions; it stretched the art into the old box. `sprite.size`
+  after `size = 0` keeps the proportions.
+- `wheel_rotate = True` on its own makes a shape turn with the mouse wheel; it
+  needed another pointer flag. A Point built on a layer comes back on it after
+  `visible = False` / `True`; it came back on `top`.
 - A tangent line from a point (`Line(circle=, from_point=)`) turns about its
   circle's center, staying tangent; `rotate_by(30)` turned it 14.6° and
   `scale_by(2)` shrank it. Scaling or moving such a line, or turning any

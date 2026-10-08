@@ -1615,6 +1615,20 @@ Index: [Fences.md](Fences.md).
   writes (outbound `sink @= sprite.center` must track motion).
 - **Do not intern Entity identity.** Sheet intern stays; each shot remains a new registry
   id (`is_alive`, `@collide` object targets).
+- **Clip clock (graphics review, batch 8b).** The playhead counts whole frames with the
+  PM8 tolerance (`process.whole_steps`, inlined in `_current_frame_index`; SpriteButton
+  state art uses it too): `int(elapsed * fps)` showed each frame one game frame late.
+  A one-shot's end is settled by any reader, and `play()` settles first, so a hidden or
+  culled sprite can replay it; a `next=` clip starts at the boundary (the overshoot is
+  carried), not at the first read; a read on a destroyed sprite changes nothing. A new
+  clip while `time_scale == 0` shows its own start. `time_scale` shares Entity's check
+  (`entity._time_scale_value`: alive, a number, finite, ≥ 0).
+- **One picture on both draw paths.** With no look (`.visual`), the full path draws what the
+  plain blit draws: the bitmap (a style fill / stroke from `color =` is a look's costume;
+  PB7). Every body route applies gray, blend and alpha (`_apply_blit_paint_extras`, the
+  Recolor route included; PB8). Guard: `tests/test_draw_doors.py`.
+- **Size after new art.** `size =` after a collapse takes the cell's own aspect (PB14);
+  `svg =` keeps the side the author sized and takes the new art's aspect (PB9).
 
 ### Pitfalls
 

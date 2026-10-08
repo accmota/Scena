@@ -1236,7 +1236,7 @@ class Shape(Graphic, PaintState):
         active = (
             self._visible
             and (
-                self._clickable or self._draggable or self._droppable
+                self._clickable or self._draggable or self._droppable or self._wheel_rotate
                 or self._on_hover is not None or self._on_hover_exit is not None
             )
         )
@@ -1633,7 +1633,11 @@ class Shape(Graphic, PaintState):
         if value and not self._wheel_rotate:
             self._reject_if_parallax_layer("wheel_rotate")
             self._ensure_wheel_rotate_parts_writable()
-        self._wheel_rotate = value
+        if value != self._wheel_rotate:
+            self._wheel_rotate = value
+            # The pointer only reaches what the registry lists (SA9: the
+            # documented one-liner ``wheel_rotate = True`` did nothing alone).
+            self._sync_interactive_registry()
 
     @property
     def on_click(self):
@@ -2908,6 +2912,11 @@ class Point(Shape):
             _stash_flag(self, "visible", value)
             return
         if value:
+            back = self.__dict__.pop('_layer_while_hidden', None)
+            if back is not None and self._layer is None:
+                # Hidden off the layer it was built on: show it there again
+                # (SA13: it came back on 'top').
+                self.layer = back
             if not self._point_layer_saved:
                 self._layer_before_visible = self._layer
                 self._point_layer_saved = True
@@ -2922,7 +2931,8 @@ class Point(Shape):
                     self.layer = prev
             elif self._layer is not None:
                 # Constructed on a layer (or moved there) without a save — drop off
-                # the draw list for efficiency.
+                # the draw list for efficiency, remembering where it was.
+                self.__dict__['_layer_while_hidden'] = self._layer
                 self.layer = None
 
         if value != self._visible:

@@ -688,7 +688,8 @@ class SpriteButton(Sprite):
         if isinstance(spec, str):
             frames, fps, yoyo = self._sheet._require_cycle(spec)
             n = len(frames)
-            step = int(max(0.0, t - self._art_t0) * float(fps or 0.0))
+            from .process import whole_steps
+            step = whole_steps(max(0.0, t - self._art_t0), float(fps or 0.0))   # GR6 (PB3 class)
             if yoyo and n > 1:
                 period = 2 * n - 2
                 k = step % period
