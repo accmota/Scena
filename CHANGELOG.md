@@ -14,6 +14,11 @@ left out.
 
 ### Breaking
 
+- `Recolor(key=…)` with a white, gray or black key raises `ValueError:
+  Recolor(key='white'): Recolor matches pixels by hue and skips pixels under
+  HSV saturation 0.12; … Pick a key with a hue, e.g. key="red".` Before, it
+  was accepted and recolored the **red** pixels (a gray reads as hue 0), never
+  the gray ones. Recolor cannot select gray areas; a gray `to=` still works.
 - Writing a name that is not a field raises with the fix, instead of quietly
   storing a value nothing reads: a method (`c.tag = "boss"`, `ship.destroy =
   True` replaced the method), a read-only property (`ship.is_alive = False`

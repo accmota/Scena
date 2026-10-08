@@ -4538,6 +4538,8 @@ class Recolor(Recipe):
     ``key`` is the source hue (color or name); pixels near that hue are
     shifted to ``to``. No mask channel — any PNG with a distinct key hue.
     On Sprite: multipass SkSL blit. On Texture: paint ColorFilter.
+    A gray key (white, gray, black) raises ``ValueError``: it has no hue, and
+    pixels that gray are never matched. ``to`` may be gray.
 
     Args:
         key: Hue to replace (default ``"blue"``).
@@ -4561,6 +4563,7 @@ class Recolor(Recipe):
         soft: float = 0.04,
     ):
         kr = _as_color_rgb(key)
+        _refuse_gray_recolor_key(key, kr)
         tr = _as_color_rgb(to)
         key_t = (
             "recolor",
@@ -4623,6 +4626,25 @@ class Recolor(Recipe):
             draw(skia_canvas, self)
         else:
             shape._geometry_draw(skia_canvas)
+
+
+# The recolor shaders (``sprite_recolor`` / ``texture_recolor`` in
+# _sksl_shape.py: ``smoothstep(0.12, 0.28, hsv.y)``) never match a pixel below
+# this HSV saturation. A gray key has no hue (colorsys says 0, red), so it
+# would recolor red pixels and never its own color.
+_RECOLOR_MIN_KEY_S = 0.12
+
+
+def _refuse_gray_recolor_key(key, rgb) -> None:
+    s = colorsys.rgb_to_hsv(rgb[0], rgb[1], rgb[2])[1]
+    if s < _RECOLOR_MIN_KEY_S:
+        raise ValueError(
+            f"Recolor(key={key!r}): Recolor matches pixels by hue and skips pixels under "
+            f"HSV saturation {_RECOLOR_MIN_KEY_S}; this key's is {s:.2f}, so it can never "
+            f"select its own color (a pure gray reads as hue 0 and would recolor red pixels). "
+            f"Pick a key with a hue, e.g. key=\"red\". Recolor cannot select white, gray "
+            f"or black areas."
+        )
 
 
 def _as_color_rgb(color) -> Tuple[float, float, float]:

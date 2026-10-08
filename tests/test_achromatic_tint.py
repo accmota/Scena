@@ -12,6 +12,10 @@ The same lift sat in Color methods: ``saturate``, ``jitter``, ``accent_color``,
 ``monochromatic``, and ``interpolate`` in HSL / HSV, where a gray end's hue 0
 sent white -> blue through magenta.
 
+``Recolor(key="white")`` keyed hue 0 and recolored red pixels (its shaders
+never match pixels under saturation 0.12, so a gray key cannot select itself):
+a gray key now raises ``ValueError``.
+
 Bug class: any look or Color method that adds saturation to a gray (or reads
 a gray's hue). The render tests walk every public look (shape visuals, Halo styles, stamps,
 looks seeded with a gray on a Shape and a Sprite), so a new one is covered without a new test.
@@ -35,7 +39,7 @@ import numpy as np
 import skia
 
 import scena
-from scena import EquilateralTriangle, Halo, Sprite
+from scena import EquilateralTriangle, Halo, Recolor, Sprite, Texture
 from scena import recipes as _recipes
 from scena.color import Color, ColorSpace, Colormap, _ACHROMATIC_S, _chroma_weight
 from scena.recipes import _energy_rgb, _energy_spark_rgb, _vivid_rgb
@@ -213,6 +217,37 @@ class TestColorMethodsKeepGraysGray(unittest.TestCase):
         far = Color.interpolate(Color.from_hsv(0.0, 0.001, 1.0), Color("blue"), 0.5, ColorSpace.HSV)
         d = abs(far.hsv[0] - 2 / 3)
         self.assertLess(d, 0.01, far.hsv)
+
+
+class TestRecolorRefusesGrayKey(unittest.TestCase):
+    """A gray key has no hue: it keyed red pixels and never its own color."""
+
+    def test_gray_and_near_gray_keys_raise_with_the_fix(self):
+        keys = ["white", "gray", "black", Color(0.5, 0.5, 0.5),
+                colorsys.hsv_to_rgb(0.6, _recipes._RECOLOR_MIN_KEY_S * 0.9, 0.7)]
+        keys += [(g, g, g) for g in GRAYS]
+        for key in keys:
+            before = len(_recipes._RECIPE_CACHE)
+            with self.subTest(key=key), self.assertRaises(ValueError) as cm:
+                Recolor(key=key, to="blue")
+            msg = str(cm.exception)
+            self.assertIn("matches pixels by hue", msg)
+            self.assertIn('key="red"', msg)
+            self.assertEqual(len(_recipes._RECIPE_CACHE), before, "refused key was interned")
+        with self.assertRaises(ValueError):
+            Texture("tex.png", shift=Recolor("white", "gold"))
+
+    def test_colored_key_and_gray_to_are_fine(self):
+        Recolor(key=colorsys.hsv_to_rgb(0.6, _recipes._RECOLOR_MIN_KEY_S + 0.01, 0.7), to="blue")
+        for to in ("white", "gray", "black"):
+            self.assertEqual(Recolor("red", to).to, to)
+
+    def test_threshold_matches_the_shader_floor(self):
+        """The refusal is honest only while it equals the shaders' keying floor."""
+        from scena import _sksl_shape as sk
+        floor = f"smoothstep({_recipes._RECOLOR_MIN_KEY_S}, "
+        self.assertIn(floor, sk._SRCS["sprite_recolor"])
+        self.assertIn(floor, sk._COLOR_FILTER_SRCS["texture_recolor"])
 
 
 class TestLooksKeepGraysGray(unittest.TestCase):
