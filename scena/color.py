@@ -656,7 +656,8 @@ class Color(ClosedSurface):
         """Random color near this one (HSV nudge; alpha unchanged).
 
         Each of ``hue`` / ``saturation`` / ``value`` is a ± half-range.
-        Default hue (~±14°) keeps the family (e.g. reds stay reds).
+        Default hue (~±14°) keeps the family (e.g. reds stay reds). A gray
+        has no hue, so it stays gray: only its value moves.
 
             Color("red").jitter()
             Color("red").jitter(hue=0.1)
@@ -672,7 +673,7 @@ class Color(ClosedSurface):
         # cannot overflow uniform() into NaN (A9).
         dh, ds, dv = (min(abs(d), 1.0) for d in (dh, ds, dv))
         h = (h + random.uniform(-dh, dh)) % 1.0
-        s = _clamp01(s + random.uniform(-ds, ds))
+        s = _clamp01(s + _chroma_weight(s) * random.uniform(-ds, ds))
         v = _clamp01(v + random.uniform(-dv, dv))
         return Color.from_hsv(h, s, v, a)
 
@@ -691,11 +692,11 @@ class Color(ClosedSurface):
         return Color.from_hsl(h, s, max(0.0, l - amount), a)
 
     def saturate(self, amount: float = 0.1) -> 'Color':
-        """Create a more saturated version of this color"""
+        """Create a more saturated version of this color (a gray stays gray)."""
         from .validate import number
         amount = number(amount, "Color.saturate amount")
         h, s, l, a = self.hsl
-        return Color.from_hsl(h, min(1.0, s + amount), l, a)
+        return Color.from_hsl(h, min(1.0, s + _chroma_weight(self.hsv[1]) * amount), l, a)
 
     def desaturate(self, amount: float = 0.1) -> 'Color':
         """Create a less saturated version of this color"""
@@ -785,6 +786,15 @@ class Color(ClosedSurface):
             # Interpolate hue along shortest path
             h1, s1, x1, a1 = c1
             h2, s2, x2, a2 = c2
+
+            # A gray has no hue (colorsys says 0, red): it takes the other
+            # end's hue, fading in below HSV saturation _ACHROMATIC_S, so
+            # white -> blue does not sweep through magenta.
+            w1 = _chroma_weight(color1.hsv[1])
+            w2 = _chroma_weight(color2.hsv[1])
+            if w1 < 1.0 or w2 < 1.0:
+                d = (h2 - h1 + 0.5) % 1.0 - 0.5
+                h1, h2 = (h1 + (1.0 - w1) * w2 * d) % 1.0, (h2 - (1.0 - w2) * w1 * d) % 1.0
             
             # Find shortest path around the hue circle
             dh = h2 - h1
@@ -875,16 +885,17 @@ class Color(ClosedSurface):
     def monochromatic(self, steps: int = 5) -> List['Color']:
         """
         Returns a list of colors in the same hue with different brightness/saturation.
-        Creates a subtle and sophisticated combination.
+        Creates a subtle and sophisticated combination. A gray gives grays.
         Args:
             steps: Number of colors to generate
         """
         h, s, l, a = self.hsl
+        w = _chroma_weight(self.hsv[1])
         colors = []
         
         for i in range(steps):
             # Vary both saturation and lightness
-            new_s = max(0.0, min(1.0, s + (i - steps/2) * 0.15))
+            new_s = max(0.0, min(1.0, s + w * (i - steps/2) * 0.15))
             new_l = max(0.0, min(1.0, l + (i - steps/2) * 0.15))
             colors.append(Color.from_hsl(h, new_s, new_l, a))
             
@@ -941,7 +952,8 @@ class Color(ClosedSurface):
     def accent_color(self, intensity: float = 0.3) -> 'Color':
         """
         Returns an accent color that works well with the current color.
-        Good for highlights, buttons, or important UI elements.
+        Good for highlights, buttons, or important UI elements. A gray has
+        no hue, so its accent is a gray of another lightness.
         Args:
             intensity: How different the accent should be (0-1)
         """
@@ -954,7 +966,7 @@ class Color(ClosedSurface):
         new_h = (h + golden_ratio) % 1.0
         
         # Increase saturation and adjust lightness for visibility
-        new_s = min(1.0, s + intensity * 0.2)
+        new_s = min(1.0, s + _chroma_weight(self.hsv[1]) * intensity * 0.2)
         new_l = max(0.2, min(0.8, l + (0.5 - l) * intensity))
         
         return Color.from_hsl(new_h, new_s, new_l, a)

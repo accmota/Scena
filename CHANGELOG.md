@@ -82,6 +82,12 @@ left out.
   `Neon("white")` and the other looks seeded with a gray, and for
   `Color.vibrant_version()` on a gray. Near-whites (snow, ivory) get a light
   tint instead of a full color. Colors with any real saturation look as before.
+- `Color` methods no longer invent a red hue for a gray: `saturate`,
+  `jitter(saturation=)`, `accent_color` and `monochromatic` on white, gray or
+  black give grays (before, reddish tints), and `Color.interpolate` /
+  `Colormap` in `ColorSpace.HSL` or `HSV` from a gray take the other end's
+  hue (white → blue passed through magenta). `Color("gray").jitter()` with a
+  fixed seed now gives different (gray) colors.
 - Collision callbacks survive park and `collidable`. `on_collide`,
   `on_collide_stay` and `on_collide_exit` (a function or a method in the class
   body) stopped firing after `active = False` then `True`, or `collidable =

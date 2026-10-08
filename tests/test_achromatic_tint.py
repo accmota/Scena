@@ -8,8 +8,12 @@ The same lift sat in ``_energy_rgb`` (DashRing, GearShell, ElectricBolt) and
 fades a saturation lift out below HSV saturation 0.1 (Effect System Design,
 "A gray host gives a gray look").
 
-Bug class: any look that follows the host color and lifts saturation. The
-render tests walk every public look (shape visuals, Halo styles, stamps,
+The same lift sat in Color methods: ``saturate``, ``jitter``, ``accent_color``,
+``monochromatic``, and ``interpolate`` in HSL / HSV, where a gray end's hue 0
+sent white -> blue through magenta.
+
+Bug class: any look or Color method that adds saturation to a gray (or reads
+a gray's hue). The render tests walk every public look (shape visuals, Halo styles, stamps,
 looks seeded with a gray on a Shape and a Sprite), so a new one is covered without a new test.
 """
 
@@ -18,6 +22,7 @@ from __future__ import annotations
 import colorsys
 import inspect
 import os
+import random
 import shutil
 import sys
 import tempfile
@@ -32,7 +37,7 @@ import skia
 import scena
 from scena import EquilateralTriangle, Halo, Sprite
 from scena import recipes as _recipes
-from scena.color import Color, _ACHROMATIC_S, _chroma_weight
+from scena.color import Color, ColorSpace, Colormap, _ACHROMATIC_S, _chroma_weight
 from scena.recipes import _energy_rgb, _energy_spark_rgb, _vivid_rgb
 from scena.visuals import Visual
 
@@ -120,6 +125,94 @@ class TestHelpersKeepGraysGray(unittest.TestCase):
             for got in (_vivid_rgb(rgb, 0.55), Color(*rgb).vibrant_version(0.55).rgb[:3]):
                 for a, b in zip(got, _vivid_unramped(rgb, 0.55)):
                     self.assertAlmostEqual(a, b, places=6, msg=str(rgb))
+
+
+def _is_gray(c: Color) -> bool:
+    r, g, b = c.rgb[:3]
+    return max(r, g, b) - min(r, g, b) < 1e-6
+
+
+class TestColorMethodsKeepGraysGray(unittest.TestCase):
+    def assertAllGray(self, out, msg):
+        outs = out if isinstance(out, (list, tuple)) else [out]
+        for c in outs:
+            if isinstance(c, Color):
+                self.assertTrue(_is_gray(c), f"{msg}: {tuple(round(x, 3) for x in c.rgb[:3])}")
+
+    def test_every_zero_arg_method_on_every_gray(self):
+        """Discovery: a new public Color method that invents a hue fails here."""
+        called = []
+        for name in dir(Color):
+            if name.startswith("_") or isinstance(inspect.getattr_static(Color, name),
+                                                  (classmethod, staticmethod, property)):
+                continue
+            for g in GRAYS:
+                try:
+                    out = getattr(Color(g, g, g), name)()
+                except TypeError:
+                    break  # needs arguments (lerp, with_alpha): covered below
+                self.assertAllGray(out, f"Color({g}).{name}()")
+            else:
+                called.append(name)
+        for name in ("saturate", "jitter", "accent_color", "monochromatic", "vibrant_version"):
+            self.assertIn(name, called)
+
+    def test_lifts_with_arguments(self):
+        random.seed(7)
+        for g in GRAYS:
+            c = Color(g, g, g)
+            for amt in (0.1, 0.5, 1.0):
+                self.assertAllGray(c.saturate(amt), f"saturate({amt}) on {g}")
+                self.assertAllGray(c.accent_color(amt), f"accent_color({amt}) on {g}")
+            self.assertAllGray(c.monochromatic(9), f"monochromatic(9) on {g}")
+            for _ in range(40):
+                self.assertAllGray(c.jitter(hue=0.5, saturation=0.5, value=0.2), f"jitter on {g}")
+
+    def test_lifts_unchanged_on_saturated_colors(self):
+        c = Color(0.6, 0.4, 0.4)                    # HSV s = 0.33
+        h, s, l, a = c.hsl
+        self.assertEqual(c.saturate(0.2).rgb, Color.from_hsl(h, min(1.0, s + 0.2), l, a).rgb)
+        golden = 0.618033988749895
+        self.assertEqual(c.accent_color(0.3).rgb, Color.from_hsl(
+            (h + golden) % 1.0, min(1.0, s + 0.3 * 0.2), max(0.2, min(0.8, l + (0.5 - l) * 0.3)), a).rgb)
+
+    def _hues_along(self, a, b, space, n=9):
+        return [Color.interpolate(a, b, i / (n - 1), space) for i in range(1, n - 1)]
+
+    def test_interpolate_gray_end_takes_the_other_hue(self):
+        """white -> blue in HSV/HSL stays blue; it used to sweep through magenta."""
+        for space in (ColorSpace.HSV, ColorSpace.HSL):
+            for g in GRAYS:
+                for target in ("blue", "lime", "orange", "cyan"):
+                    tc = Color(target)
+                    for a, b in ((Color(g, g, g), tc), (tc, Color(g, g, g))):
+                        for mid in self._hues_along(a, b, space):
+                            if _is_gray(mid):
+                                continue
+                            d = abs(mid.hsv[0] - tc.hsv[0])
+                            self.assertLess(min(d, 1 - d), 1e-3,
+                                            f"{space.value} {g} <-> {target}: mid {mid.rgb[:3]}")
+                # Colormap goes through interpolate.
+                cmap = Colormap([(0.0, Color(g, g, g)), (1.0, tc)], space)
+                mid = cmap.get_color(0.5)
+                if not _is_gray(mid):
+                    d = abs(mid.hsv[0] - tc.hsv[0])
+                    self.assertLess(min(d, 1 - d), 1e-3, f"Colormap {space.value} {g} -> {target}")
+
+    def test_interpolate_saturated_pairs_unchanged(self):
+        """red -> blue still takes the shortest hue path (through magenta)."""
+        for space in (ColorSpace.HSV, ColorSpace.HSL):
+            mid = Color.interpolate(Color("red"), Color("blue"), 0.5, space)
+            self.assertAlmostEqual(mid.hsv[0], 5 / 6, places=3)
+
+    def test_interpolate_is_continuous_near_gray(self):
+        """An end at s = 0.05 pulls halfway: between its own hue and the other's."""
+        near = Color.from_hsv(0.0, 0.05, 1.0)       # faint pink
+        mid = Color.interpolate(near, Color("blue"), 0.5, ColorSpace.HSV)
+        self.assertTrue(2 / 3 < mid.hsv[0] < 1.0, mid.hsv)   # between blue and red, via magenta
+        far = Color.interpolate(Color.from_hsv(0.0, 0.001, 1.0), Color("blue"), 0.5, ColorSpace.HSV)
+        d = abs(far.hsv[0] - 2 / 3)
+        self.assertLess(d, 0.01, far.hsv)
 
 
 class TestLooksKeepGraysGray(unittest.TestCase):
