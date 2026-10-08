@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=77.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scena"
+# The number lives in scena/_version.py ([tool.setuptools.dynamic] below).
+dynamic = ["version"]
+description = "A beginner-friendly framework for creative graphics and 2D games in Python"
+readme = { file = "README.txt", content-type = "text/plain" }
+# PEP 639 (setuptools 77+). The code only: examples/media/ is not packaged
+# and keeps its own licenses (examples/media/CREDITS.md).
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "André Mota" }]
+requires-python = ">=3.12"
+keywords = ["creative coding", "game framework", "education", "2d", "skia", "glfw"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
+    "Natural Language :: English",
+    "Natural Language :: Portuguese (Brazilian)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Education",
+    "Topic :: Games/Entertainment",
+    "Topic :: Multimedia :: Graphics",
+]
+dependencies = [
+    "glfw",
+    "skia-python",
+    "pyopengl",
+    "numpy",
+    "miniaudio",
+    # Level editor (scena-editor): native Open / Save windows. Pure Python,
+    # no dependencies; without it the editor would fall back to tkinter,
+    # which some Pythons lack.
+    "crossfiledialog",
+]
+
+[project.urls]
+Homepage = "https://github.com/accmota/Scena"
+Documentation = "https://accmota.github.io/Scena/"
+Source = "https://github.com/accmota/Scena"
+Changelog = "https://github.com/accmota/Scena/blob/main/CHANGELOG.md"
+Issues = "https://github.com/accmota/Scena/issues"
+
+# `scena-editor [level.json]` and `scena-editor --shortcut` (a launcher icon).
+# The same as `python -m scena_editor`. A console command on purpose: on
+# Windows a GUI command has no console, so `--shortcut` could not say what
+# it made; the launcher icons start the editor without a console window.
+[project.scripts]
+scena-editor = "scena_editor.__main__:main"
+
+[project.optional-dependencies]
+# Pillow: the gate tier renders the Guia's animated thumbnails
+# (tests/test_guia_thumbs_render.py).
+test = [
+    "hypothesis>=6.100",
+    "pytest",
+    "Pillow",
+]
+# Guia catalog thumbnails (tools/guide/make_guia_thumbs.py):
+# animated WebP loops. Static posters need only skia.
+docs = [
+    "Pillow",
+]
+
+# The framework and the level editor; the editor's own tests do not ship.
+[tool.setuptools]
+packages = ["scena", "scena_editor"]
+
+[tool.setuptools.dynamic]
+version = { attr = "scena._version.__version__" }
+
+# PEP 561: editors / type checkers read the package's own annotations.
+[tool.setuptools.package-data]
+scena = ["py.typed"]

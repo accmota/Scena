@@ -1,0 +1,1225 @@
+# Testing Design
+
+How Scena is tested, what the test harnesses offer, and what the bugs found so far
+teach. Companion to [Scena Design.md](Scena%20Design.md). **Today's baseline**, not a
+freeze. Commands and suite lists live in `tests/README.txt`; this file keeps the
+strategy, the rules, and the bug catalogue.
+
+## Use
+
+| Need | Go to |
+| --- | --- |
+| Which kind of test to write | [Strategy](#strategy) |
+| Which tests to run, and when | [Test tiers](#test-tiers) |
+| Harness helpers (world reset, census, probe) | [Harness map](#harness-map) |
+| A test found a bug — what now | [Bug loop](#bug-loop) (mandatory) |
+| Whole programs against a spec written from the docs; a divergence to triage | [Program model tests](#program-model-tests) |
+| A leak test fails but the engine looks right | [Harness pitfalls](#harness-pitfalls) |
+| Do the smoke / example scripts still run? | `tests/test_scripts_run.py` ([Recurring bug classes](#recurring-bug-classes): a script left on a retired spelling) |
+| Is this bug a known class? | [Recurring bug classes](#recurring-bug-classes), [Bug catalogue](#bug-catalogue) |
+| Why the rules are what they are | [Lessons learned](#lessons-learned) |
+| Planning a new test: axes, oracle, invariants, layers | [Lessons for test planning](#lessons-for-test-planning) |
+
+Tests follow `tests/test_<area>.py`. The property / system suites are `test_hyp_*`,
+`test_sys_*`, `test_diff_*` (fast vs slow paths). Regression tests for a
+finding live in the **owning** `test_<area>.py`, not in the suite that found it.
+
+
+# Strategy
+
+Pick the test shape from where the bug would live, not from the feature.
+
+| Shape | Use for | Tool | Examples |
+| --- | --- | --- | --- |
+| Unit | One contract, one call, a fixed example (the regression test of every finding) | `unittest` | most `test_<area>.py` |
+| Property | One call over a whole input space: Numbers rule, "author errors only", round trips, algebra (`move_by` undoes), invariance (shift the world, contacts stay) | Hypothesis `@given` | `test_hyp_api.py`; geometry: `test_hyp_api.TestRotationGeometry`, `test_box.TestGridCoversBoxProperty`, `test_canvas.TestScreenWorldRoundTripProperty`, `test_sys_hyp_collision.TestTranslation`, `test_easing.TestChaseProperties` |
+| State machine | **Sequences** and **failure paths**: lifecycle, registries, what a rejected or destroyed thing leaves behind | Hypothesis `RuleBasedStateMachine` + a small model | `test_hyp_canvas.py`, `test_hyp_events.py`, `test_sys_hyp_world.py` |
+| System scenario | A cross-subsystem contract over real frames (destroy from every context, frame order, handoffs) | `unittest` + `SystemWorld` | `test_sys_lifetime.py`, `test_sys_frame_order.py` |
+| Oracle / differential | An optimization vs a reference: brute force, the uncached path, the batched path, `force=True`, a model | Hypothesis + a twin (`diff_support.make_twins`), a config toggle, or an oracle | `test_sys_hyp_collision.py` (brute force), `test_diff_pose.py` (fast twin vs forced-slow twin), `test_diff_reactive.py` (configs + link model), `test_diff_collision.py` (cached vs uncached, closed form vs SAT, sweeps vs sampling), `test_diff_draw.py` (plain blit, cull, batching) |
+| Program model | Whole author programs (widgets, input, physics, camera, acts) over many frames, against expectations written **from the docs** by spec-only authors; feature interactions; doc gaps | `program_support.ProgramRun` + per-frame author-level probes + a temporal check vocabulary; L3 oracles (`program_oracles`) | `test_prog_*.py` ([Program model tests](#program-model-tests)) |
+| Signature fuzz | The whole public surface against generic contracts: junk in any one keyword is an author error with no trace, unknown keywords name themselves, construct → remove returns to baseline, every verb on a destroyed actor raises `DestroyedError` or leaves no trace, junk as the first argument of every author method is an author error | Hypothesis, one generated test per export (`scena.__all__`) | `test_hyp_surface.py` |
+| Structural guard | A whole bug class that is visible in the source or the surface (duplicate `def`, every export fuzzed, member allowlist, `float(finite(…))`, Entity-or-None as an `or` operand, a hook calling its dispatcher) | `unittest` over `ast` / `scena.__all__` | `test_entity_hooks.py`, `test_api_surface.py`, `test_api_robustness.TestNoFloatAroundFormulaValidators` |
+| Soak | Slow growth over many frames | opt-in (`SCENA_SOAK=1`) | `test_sys_soak.py` |
+
+Rules of thumb:
+
+- **Check what is left, not only what is returned.** After a rejected call, a
+  destroy, or a teardown, compare a census of every registry with the baseline. Most
+  lifetime bugs are invisible to the call's return value.
+- **One contract per raise site.** Hypothesis reports one failure per exception type
+  and line. A shared assertion across many verbs lets the first broken verb hide the
+  rest — generate one test (or one `@invariant`) per contract.
+- **Model small, check often.** The model holds only what the contract talks about
+  (draw lists, join order, roster membership, `on_destroy` counts) and is checked after every step.
+- **A generic oracle beats per-call expectations.** "The message is not a Python
+  builtin message" (`hypothesis_support.leak_message`) checks "the error names the
+  fix" across the whole API with no per-call knowledge.
+- **Prove the test can fail.** A new property suite gets a canary: put a known bug
+  back by monkeypatch and assert the suite fails.
+
+
+# Harness map
+
+| Module | Offers |
+| --- | --- |
+| `tests/hypothesis_support.py` | Profiles `dev` / `ci` / `deep` / `replay` (`SCENA_HYPOTHESIS_PROFILE`); example DB in `.hypothesis/`; `WorldTracker` / `fresh_world` (reset the process-wide singletons per example); `scrub_pools`; strategies (`junk`, `not_numbers`, `not_points`, `magnitudes`, `angles`, pool names `GROUP_POOL` / `ID_POOL` / `LAYER_POOL`); `AUTHOR_ERRORS`, `assert_author_error`, `call_as_author`, `leak_message`. |
+| `tests/system_support.py` | `SystemWorld` / `system_world()` / `SystemTestCase`: real frames headless via `ScenaFramework._simulate_frame` (the body `run()` calls) + raster `_draw_frame` (post FX included: with no GL context the scene / FX render targets are raster surfaces); resets collision, bounds, cover, FX registries, clock, `ready` / `recently`, camera, post stack; pins pre-draw clocks to `clock.time`; quarantines live actors other modules left; turns the GC freeze off (`gc_policy.set_gc_freeze(False)`: a frozen heap would hide a real leak from `census` / `assert_collected`; the policy itself is tested in `test_gc_freeze.py`). `census()` / `diff_census()` / `full_collect()`; `id_snapshot()` / `describe_new_ids()`; `zombies()`; `Probe` (`dead_calls()`); `assert_collected()` (referrer chain names the holder); `kitchen_sink()` (one actor wired into every subsystem); `tone()` (in-memory Sound). |
+| `tests/diff_support.py` | `make_twins` / `force_slow` / `is_fast` (twin B via `_flag_pull_consumers`), `fingerprint` (pose + uncached collision prims read with cold engine readers), `assert_same` (tolerant structural diff naming the field), `assert_same_prims` (collision prims as a multiset: nearest-match pairing, never a raw-float sort — D10), `assert_fast` (**no vacuous pass**: fails if twin A left the fast path), `module_flag`, `assert_catches` (canary runner: patches a module name or a class, runs a fresh private copy of the target test under the `canary` profile). |
+| `tests/surface_support.py` | Inventory of `scena.__all__` by family (`family_of`, `constructor_names`, `ctor_params`); `EXCLUDED` (name → reason; the coverage guard fails on an export that is neither fuzzed nor listed); `surface_census()` (`census()` + post stack, background items / base kind, HUD cursors, hitbox parts, cover, capture devices); `census_diff`; `CURSOR_KEYS`; `remove(obj)` (destroy / remove / `reset_base`); `settle()`. |
+| `tests/script_harness.py` | Runs one script headless in its own process (`python tests/script_harness.py <script> [frames]`): `scena.run` → a loop of `ScenaFramework._simulate_frame` (no window, no draw), the script's directory as cwd, `sys.argv = [script]` (a bench takes its argparse defaults); prints `SCRIPT OK <frames>`. Used by `test_scripts_run.py` |
+| `tools/guide/make_guia_thumbs.py` | Render probe for every look in the Guia catalogs (Visual, SpatialFx, Post, Backgrounds): each card's snippet runs in a `SystemWorld` (GPU render target behind a hidden window; `--cpu` / the tests use raster) at its scene's design size (`init` *after* the world: its reset puts the tests' 400×300 back — the same 400×300 whose center hid the SpatialFx default-placement bug, see `TestDefaultPlacementFollowsDesign`) and is compared with the bare scene. A look that draws nothing fails; `anim: true` on a card that does not change over 2 s fails. Style variants read their choices from the engine's own `ValueError` (a probe value), so the Guia's option list is checked against code (`check_variant_choices`). Tests: `tests/test_guia_thumbs.py` (snippet choice, input hash, page data, variants and Guia/code drift, reductions, gallery lift, scenes) and `tests/test_guia_thumbs_render.py` (real renders: guards, measured loops, SpatialFx framing and a tall blaze measuring tall, transients, an impact shake on the photo; ~30 s, in `SLOW`) |
+| `tests/reactive_matrix_support.py` | Reactive matrix (also whole-object links, `run_whole_cell`, and cross-model copies in the test module): field × write path (`obj[f] @= lambda`, a cell, `part @= fn`) × read order (cold, self, all, all reversed) × construction model (`SUBJECTS`). Fields come from the `ScalarSlot` / `ContainerSlot` descriptors; the oracle is a plain-write twin read at the same moments (a Rect names its corners at first use). Checks I1 freshness, I5 unlink freezes, I6 two reads agree, I2 limits (`run_range_cell`: below / above / NaN). Used by `test_reactive_matrix.py` (guard: every exported reactive class has a subject or a `NOT_DRIVEN` reason; canaries for D12 / D13 / D14); complements `test_diff_link_write`. |
+| `tests/test_hyp_reactive_matrix.py` | Hypothesis state machine over the same subjects: new subject (with a plain-write twin) / new cell / link / move cell (the twin gets the same value) / unlink / read some names on both sides in one order. Formulas are closures `a*cell.v + b`: the formula checker reads the lambda's source and refuses helpers such as `getattr`. A canary narrows the pool to Vec2 (`_Vec2Only`); the full pool is too diffuse for the canary profile's 150 examples. Found D17 and D18. |
+| `tests/test_heading_link.py` | Derived headings (a `p1,p2` / `p1,vec` / `p1,dx,dy` Line, Circle by rim, Ellipse by foci, Rect spine): the heading link and a link on a part its turn rewrites are refused at the second `@=` and install nothing (D17); `_heading_driven_parts` equals what `rotate_by` refuses, both directions, so it cannot drift from the verb; every name read first is fresh after the source moves (D18). |
+| `tests/test_write_path_guards.py` | Static guards (AST) on the write paths: raw `__dict__` stores of a field, `_dirty` writes, raw pose writes without a gate (`_pose_fast_ok` / `_requires_pull_invalidate` / `_link_source`), point readers that do not delegate to `_xy_of`. Each allowlist entry carries its reason; a stale entry fails too. Track A item 6; closes Track C item 5 (the write paths stay separate). |
+| `tests/geometry_support.py` | Geometry contract registry: `KINDS` (every Graphic kind × constructor model, plus Box, built from a pose dict `{x, y, s, r}`); `point_parts` (every Point slot, `points[k]`, Text parts, `.box` named points), `vector_parts`, `scalar_parts`, `drawn` (the point set that fixes the paint), transform oracles (`turned` / `scaled` / `mirrored`), `safe` (a read that raises becomes a recorded `ReadError`), `settle` (run timed verbs). Used by `test_geometry_contract.py`; known violations in `geometry_known.py` (shrink-only). |
+| `tests/program_support.py` | Program model harness: `ProgramRun(program, params, probes=)` runs `tests/programs/<name>.py` in a `SystemWorld` (`run()` replaced by the startup it does; `PARAMS` / `mark()` injected), feeds input through the real GLFW handlers **inside the frame's poll** (`key_down` / `press` / `move` / `scroll` / `set_cell`, `widget_center(label)`), samples author-level probes after every frame into a `Trace`, and on `close()` destroys what the program made (census back to `census_before`: `leftovers()`). Spec vocabulary: `Scenario`, step builders (`wait`, `click_widget`, `key`, `drag`, `set_cell`, …), `Expect`, `serial(obj)` (per-run identity), checks (`always`, `never`, `at`, `at_end`, `eventually`, `steady`, `custom`). `program_test_case(...)` builds a test module. |
+| `tests/program_oracles.py` | L3 oracles over whole programs: `replay`, `probe_neutral` (probes do not change the world), `dt_split` (dt/2, twice the frames), `reactive_config` (lazy + backstop vs eager + strong), `cull_pixels`, `teardown` (census + zombies). Tier C: `tier_c` re-runs a rewritten program (`TIER_C`: `rename_groups` — every group name suffixed; `reorder_defs` — runs of undecorated defs reversed) and requires the same world (`world_fingerprint` minus `made_at`). |
+| `tests/program_coverage.py` | Which exports the programs reach: a profile hook records calls from a program's own code into `scena` (and the class of `self` / `cls`, since exported constructors are wrapped), mapped onto `scena.__all__`; global objects by name in the source. Guard: `test_program_coverage` (every export reached or in `PROGRAM_EXCLUDED` / a look family; `SLOW`). |
+| `tests/program_ledger.py` | Open divergences (shrink-only), verdicts and cause codes. |
+| `tests/mutation_run.py`, `tests/mutation_ops.py`, `tests/mutant_site/` | Sampled mutation run (value metric): mutate engine lines a suite executes (`SCENA_MUTANT=<module>:<site>` through `sitecustomize`, `SCENA_HYPOTHESIS_DB=0`), compare kill sets of the program suite and the quick tier. Report in `.scena_test_runs/mutation/`. |
+| `tests/source_support.py` | `iter_files(root, *suffixes, recursive=, skip_dirs=)`: sorted real files, skipping OS metadata (`is_junk`: AppleDouble `._*`, `.DS_Store`, `Thumbs.db`, `desktop.ini`), hidden dirs and `__pycache__`. **Every directory scan in `tests/` uses it** (guard: `test_platform_portability.TestSourceScansUseTheHelper`). |
+| `tests/font_support.py` | `system_font_file()`: a monospace `.ttf` every OS installs (explicit candidate paths, no scan), for tests of `font="….ttf"` (WP4) |
+| `tests/media_support.py` | `MEDIA` (`examples/media/`), `SMOKE` (`scripts/smoke/`), `media(*parts)` / `smoke(*parts)`: absolute path of a tracked media file, **asserting** it exists. Tests read real images, sheets, sounds and SVGs only through it, never with a skip-if-missing (MR2) |
+| `tests/hyp_models.py` | `RegistryModel`: placement (painter order per layer), group join order and liveness of tracked objects; `track` / `place` / `move` / `restack` / `join` / `leave` / `destroy` / `drain` / `forget_dead`; `check_draw_lists(registry)`, `check_groups(pool, group_of)`. Exact in `test_hyp_canvas.RegistryMachine`; in `test_sys_hyp_world.WorldMachine` (deaths happen inside frames) call `forget_dead` before checking. Holds strong references: `clear()` before a leak check. |
+
+Scena keeps **one** `ScenaFramework` per process. Every example and every system test
+must undo what it did; an example that leaks state makes Hypothesis report *Flaky*
+instead of the bug.
+
+
+# Program model tests
+
+Unit, property and system suites check one contract at a time. A **program model
+test** checks a whole author program — the way authors write it — against what
+the **documentation** says it must do. It finds what lives between features
+(widgets × cells × groups × physics × camera over hundreds of frames) and, as
+often, places where the docs do not say what the engine does.
+
+**Pieces.** A program (`tests/programs/<name>.py`: `from scena import *`, top-level
+code, `update`, callbacks, `run()`; `PARAMS.get(...)` for fuzzable choices). Two
+specs (`<name>_spec_a.py`, `_spec_b.py`) written by **independent spec-only
+authors** (agents) from the Guia, the tutorial, `examples/` and `design/` — never
+`scena/` or `tests/` — before the engine runs (prompt:
+`tests/programs/spec_agent_prompt.txt`). A spec declares author-level `PROBES`
+(read after every frame), `SCENARIOS` (params, seed, input steps) and `EXPECT`
+(each with a level, a doc citation, and `guess=True` when the docs did not
+settle it). `tests/test_prog_<name>.py` = `program_test_case(...)`: one test
+per spec scenario, L3 oracles on chosen scenarios, the ledger guard, canaries.
+
+**Levels.** L0 exact discrete (counts, membership, events, cell values). L1
+analytic with a stated tolerance (motion, rotation, zoom). L2 invariants and
+bounds (inside the walls, no deep overlap, energy). L3 model-free
+(`program_oracles`: replay, probe neutrality, dt split, reactive config twin,
+cull pixels, teardown census). Physics is never mirrored step by step: a second
+engine would be wrong in the same places; bounds and conservation are enough.
+
+**Rules.**
+
+- Spec authors list `FILES_READ` and the passages they found **silent or
+  ambiguous**. The same gap reported by both authors is a SPEC-GAP even when
+  no expectation diverges: settle what the engine does, write it into the Guia,
+  pin it with a unit test in the owning module (PM1).
+- Every divergence gets a verdict and a cause code (`tests/program_ledger.py`):
+  BUG (bug loop, then generalize), SPEC-GAP (fix the docs), SURPRISE (engine
+  right, a reasonable author expects otherwise: doc, warning, clearer error or
+  an API change under [Compatibility and versions](Scena%20Design.md#compatibility-and-versions)),
+  SPEC-ERROR / TOLERANCE (revise the spec with `revised="<CAUSE>: <why>"`).
+  Only open items stay in `OPEN`; an entry that stops diverging fails the guard.
+- A cause that recurs (3+) gets a systemic action (doc structure, an error
+  pattern, a structural guard), not one more local fix.
+- Spec authors never see the ledger or earlier findings: their independence is
+  what makes a divergence informative.
+- Value is measured, not assumed: canaries (`TestBouncingBallsCanaries`) prove
+  a spec fails on a planted bug; `tests/mutation_run.py` compares the mutants the
+  program suite kills with those the quick tier kills.
+- Input is delivered inside `glfw.poll_events` of the next frame, through the
+  real handlers (`_handle_key`, `_handle_mouse_button`, …); `click_widget` is a
+  press frame then a release frame (also a Menu option by its text). Probes
+  are author reads, so `probe_neutral` checks that reading does not change the
+  world. Anchor on `t.press_frame("R")` / `release_frame`, not on the n-th
+  input of a kind.
+
+**Harness lessons (2026-10-08).** Each was a false divergence before it was a
+rule:
+
+- Run the program as its own `__main__` for the whole run (not `runpy.run_path`,
+  which hands back a copy of the globals and restores `__main__`): a global the
+  program rebinds is then what probes read, and art loaded during a frame
+  resolves next to the script.
+- One program per process in real use: reset what is process-wide between runs
+  (keyboard and mouse state, group names learned for did-you-mean, background
+  items, acts through `_reset_act_manager`). A SPACE from one program skipping
+  the next program's title is how PM3 surfaced.
+- Take the teardown census after the program's namespace is gone, collect
+  before comparing worlds (`world_fingerprint`), and do not count the Points of
+  a value Box (`canvas.game_view` builds one per read) as a program leak.
+- Identity across frames is `program_support.serial(obj)`, never `id()`: ids
+  are reused after a free and differ between runs (PM revisions of
+  `cadeia_de_bolas`).
+- A cell reads as an `Attribute`; probe values unwrap it.
+- Restore every act-level world setting between runs (`act.WORLD_SETTINGS`
+  snapshot at start, restore at close): `canvas.playfield` set by one run
+  leaked into the next, unseen until a spec read it on the frame before the
+  program set its own.
+- A rewritten program (Tier C) runs from a temporary file, not under the
+  original name: the `@=` formula checker parses the file on disk (PM14).
+- A global object (`clock`, `mouse`) joins the dependency graph the first time
+  any formula reads it, once per process: not a program leak.
+- Start every run with no pointer (no position, hover target or press): the
+  previous run's cursor hovered a toy that spawned under it on frame 1.
+- Reset what another suite in the same process can leave behind: the mouse
+  position (test_api_robustness leaves it at junk), the widget layout cursor
+  (`ui.stack_reset()`: a program's widgets were placed at 1e200), the
+  background base (restore the world setting; do not force the default).
+  Each surfaced only when a program module ran after that suite in one
+  process, as the deep tier's serial pass does.
+
+**Value so far.** Seven Tier A programs (14 specs, ~520 expectations) and the
+Tier B composer (12 behaviours, 1000 compositions at `deep`) found three engine
+bugs (PM3, PM7, PM8), one API question settled by documenting it (PM5) and
+seven doc gaps (PM1, PM4, PM6, PM9, PM10 and the timer rule in PM8); 12 spec revisions, each with a cause
+(INTUITION 4, SPEC-LOGIC 4, MISREAD 1, HARNESS 1, DOC-AMBIG 1, DOC-SILENT 1).
+On random mutants of engine lines the programs execute, the bouncing-balls
+suite killed 11 of 39 and the quick tier 36, none killed by the program alone.
+Re-measured with all eleven programs and the composer (2026-10-08, 30 mutants
+over ten engine modules, a control run first): programs 10, quick tier 20,
+programs only 0, neither 10. Mutants measure local contracts, where the unit
+suites are strong; the program tests pay off on interaction, timing,
+isolation and documentation findings no mutant models (PM3, PM7, PM8, PM11,
+PM12, PM14 and the doc gaps). A mutation run without the control is not
+evidence: an earlier run counted three "program-only" kills that were a spec
+failing on its own while the run went (`mutation_run` now refuses to start
+unless both suites pass unmutated).
+
+
+# Test tiers
+
+Run the smallest tier that answers the question. `tests/run_tiers.py` runs **one
+process per test module** (big modules sharded by class), in parallel, slowest
+first; logs in `.scena_test_runs/<tier>/`, timings in `.scena_test_runs/timings.json`.
+One log per job, named after its label; a label too long for a file name
+(NAME_MAX is 255 bytes) is shortened to its first word, a count, and a hash
+(`log_name`). One argument may hold several space-separated module names
+(zsh does not word-split an unquoted `$mods`); the runner splits it into jobs.
+Two test roots: `tests/` (the framework) and `scena_editor/tests/` (the level
+editor, a companion app — [Editor Design.md](Editor%20Design.md#boundary)).
+Module names are unique across roots (`test_editor_*`, `test_boundary`); the
+runner maps each to its package (`run_tiers.TEST_ROOTS`, `package_of`). The
+deep tier's serial pass runs both roots in one process (`serial_names`).
+
+| Tier | When | Runs | Wall (10-core Mac, 2026-09-28) |
+| --- | --- | --- | --- |
+| **focused** (T0) | After every edit | The named modules, `dev`, canaries off | seconds |
+| **quick** (T1) | Before calling any change done | Every module except `SLOW`, `dev`, canaries off | ~25 s |
+| **gate** (T2) | Bug loop step 5; before a milestone | Every module, `ci`, canaries on, `test_hyp_surface` sharded | ~3.7 min (8 workers; floor = the slowest `test_hyp_surface` shard, ~150 s) |
+| **deep** (T3) | Nightly; bug loop step 8 (milestone close) | Every module at `deep`, soak on, **then one serial pass** over both test roots (`dev`) | 2 h + |
+
+```
+python tests/run_tiers.py focused test_collision test_diff_collision
+python tests/run_tiers.py quick
+python tests/run_tiers.py gate
+python tests/run_tiers.py deep
+python tests/run_tiers.py gate --plan                 # jobs and estimates, runs nothing
+python tests/run_tiers.py focused test_x --profile replay
+```
+
+Why this shape (measured 2026-09-28, 5001 tests):
+
+- **One process for everything is super-linear.** `python -m unittest discover -s tests`
+  took 23 min 38 s; the same tests as one process per module took 2 min 08 s on 8
+  workers (281 s summed). The single `ScenaFramework` keeps what every earlier module
+  left, the heap grows (460 MB vs ~110 MB), and every `census()` / `full_collect()`
+  (up to six full `gc.collect()` passes) walks all of it.
+- **The time is in a few modules.** 104 of 107 modules take < 10 s at `dev`.
+  `test_hyp_surface` is 121 s (`dev`) / 434 s (`ci`); `test_sys_hyp_world` 34 s;
+  canaries ~50 s of `test_hyp_surface` alone. Those are the `SLOW` set and the
+  `SCENA_CANARIES` switch.
+- **The serial pass stays, in deep only.** Process-per-module cannot see one module's
+  leftovers breaking the next; a single `discover` can. Conversely, only
+  process-per-module sees a test that passes **only** because an earlier module ran
+  (O1). Gate and deep together cover both directions.
+
+Rules:
+
+- **Every module must pass alone** (`python -m unittest tests.test_<area>`). The tiers
+  depend on it. A test that fails alone but passes in `discover` is an O-series bug.
+- **Canaries are tests of the tests** (`diff_support.assert_catches`, the
+  `TestWorldMachineReach` vacuity guard). They run at a fixed budget whatever the
+  profile, so the quick tiers skip them (`SCENA_CANARIES=0`; default on, so a plain
+  `unittest` run still includes them). Run `gate` after changing a suite, a canary, or
+  the engine path a canary patches.
+- **Keep `SLOW` / `SPLIT` data-driven.** A module that grows past ~15 s at `dev` joins
+  `SLOW` (`timings.json` shows it); a gate job that dominates the wall time joins
+  `SPLIT`. `tests/test_run_tiers.py` fails on a stale name and on a module no tier runs.
+- A module that starts and ends its own global state (new singleton, new registry)
+  needs no runner change; a new **env switch** goes in `Tier` / `tier_env`.
+
+
+# Bug loop
+
+Every finding — from any suite, at any profile — goes through these steps. None is
+optional. The loop exists because fixes cause regressions: the H1 fix broke every
+`Entity` subclass (R1), and only a re-run of the suites caught it.
+
+1. **Reproduce.** Turn the shrunk example into a deterministic repro.
+2. **Triage.** Model error, engine bug, or doc gap? If the design docs are silent or
+   ambiguous, write the contract into the owning companion **first**, then encode it.
+   A raise-vs-no-op choice is a design decision: ask.
+3. **Regression test first**, in the owning `tests/test_<area>.py`; it must fail on
+   the unfixed code. Add `@example(...)` of the shrunk case to the property.
+4. **Fix.**
+5. **Verification gate** — all green, in order (while iterating on the fix, use
+   `focused` / `quick`; the gate is for the finished fix — [Test tiers](#test-tiers)):
+   ```
+   python tests/run_tiers.py focused test_<area> <finding suite>
+   python tests/run_tiers.py focused <finding suite> --profile replay
+   python tests/run_tiers.py gate          # every module, ci, canaries (replaces the
+                                           # serial full suite + ci hyp / sys_hyp runs)
+   ```
+   Hot-path fixes (pose, draw, collision, `_write_field`) also run the matching
+   `scripts/bench` row ([Effect System Design §5.5](Effect%20System%20Design.md#55-changing-the-effect-system-without-regressing-hot-paths)).
+   A new failure here is a **regression of the fix**: fix it before moving on and give
+   it an `R` row.
+6. **Bug-class guard.** If one structural test would stop the whole class, add it.
+7. **Document.** A row in the [Bug catalogue](#bug-catalogue); a one-line warning in
+   the owning companion when the bug exposes a design hazard.
+8. **Milestone close.** Run the suite that found it once at `deep`
+   (`python tests/run_tiers.py focused <suite> --profile deep`); the whole
+   `deep` tier nightly or at the milestone.
+
+
+# Harness pitfalls
+
+Each of these produced a false leak or a false pass. Check them before blaming the
+engine.
+
+- **`kN32` is the platform's byte order**: RGBA on the Mac, **BGRA on Windows**.
+  `skia.Image.fromarray` defaults to it; `Image.toarray` defaults to the image's own
+  type, which is N32 for `skia.Surface(w, h)` / `MakeRasterN32Premul`. A test reading
+  `px[..., 0]` as red passes on the Mac and reads blue on Windows. Always pass
+  `colorType=skia.kRGBA_8888_ColorType` to both (engine code too). Guard:
+  `test_platform_portability.TestPixelsNameTheirByteOrder` (WP2).
+- **A tree copied from macOS holds `._<name>` next to every file** (AppleDouble, on
+  exFAT / FAT / SMB volumes). `._foo.py` ends in `.py`; `Path.glob` / `rglob` match it.
+  Scan with `tests/source_support.iter_files`, never `os.listdir` / `os.walk` / `glob`
+  (WP1). `run_tiers.py` prints a warning when it finds them; cleanup in `tests/README.txt`.
+- **A single wall-clock sample is noise under the parallel tiers**: time best of N
+  (`min`) against the budget (WP3). Best of N drops spikes, not sustained load: with
+  10 workers on a slower machine every sample is slow (WP7). Never size an absolute
+  ms budget on one machine; compare against a reference path timed in the same
+  process (a ratio), or keep the absolute number only as a loose catastrophe guard.
+  A ratio of two samples timed one after the other still moves with the load
+  between them: interleave short blocks of both paths (alternating which goes
+  first) and keep each side's best block (WP18).
+- **Text I/O without `encoding=` uses the locale**: UTF-8 on the Mac, cp1252 on
+  Windows (`—` reads as `â€”`). Every text `open` / `read_text` / `write_text` passes
+  `encoding="utf-8"`. Guard: `test_platform_portability.TestTextIoNamesItsEncoding`
+  (WP5). `run_tiers.py` pins the children's `PYTHONIOENCODING=utf-8` and reads logs
+  with `errors="replace"` (WP8); do not set `PYTHONUTF8`, which would hide WP5.
+  The same holds for a test's own children: `subprocess.run(..., text=True)` decodes
+  with the locale. A Python child gets `encoding="utf-8", errors="replace"` and
+  `PYTHONIOENCODING=utf-8` in its env. Guard:
+  `test_platform_portability.TestSubprocessTextNamesItsEncoding` (WP16).
+- **Path functions follow the host**: `os.path.abspath("/a/b")` is `C:\a\b` on
+  Windows. An expected path that went through `abspath` / `realpath` /
+  `Path.resolve` / `os.path.join` is built the same way in the test, never written
+  as a POSIX literal (WP6). A `relpath` used as a label is compared in `/` form:
+  `os.path.relpath(p, ROOT).replace(os.sep, "/")` (WP11).
+- **Windows has no exec bit**: `os.chmod` only toggles read-only, and `st_mode`'s
+  execute bits follow the extension (`.exe`, `.bat`), so a `.desktop` file is never
+  "executable". Assert `S_IXUSR` / `X_OK` only when `os.name != "nt"`. Guard:
+  `test_platform_portability.TestExecBitIsPosixOnly` (WP12).
+- **A Hypothesis module imports `hypothesis_support`** (or `system_support`) at
+  module level. Without it Hypothesis runs on its defaults: a 200 ms deadline
+  (`DeadlineExceeded` under a loaded tier), no example database, and
+  `SCENA_HYPOTHESIS_PROFILE` ignored. Guard:
+  `test_run_tiers.TestHypothesisProfileGuard` (WP13).
+- **Pin the clock when a test places a transient and then draws**: a test that sets a
+  fade's progress from one `_now()` read and then calls `draw()` / `step()` lets the
+  engine read the clock again, later by however long the test took under load. Pin it
+  with `transients.set_now_fn(lambda: now)` and `addCleanup(set_now_fn, None)`. Guard:
+  `test_platform_portability.TestTransientClockIsPinned` (WP14).
+- **A runner output file may be Hidden or read-only**: a tree copied from macOS can
+  arrive with its old `.scena_test_runs/` logs Hidden, and Windows refuses
+  `open(path, "w")` on an existing Hidden file. `run_tiers.open_fresh` deletes the old
+  file first. Guard: `test_run_tiers.TestOpenFresh` (WP10).
+- **Your own references keep actors alive**: loop variables, handle sets (a `Handle`
+  holds its owner), a sink's handle list, a teardown loop's local, and Hypothesis
+  bundle values. In state machines keep int handles into a pool the machine owns.
+- **The collision system keeps the last step's snapshot** (`_last_prims`) for one
+  frame: step once before asserting collection.
+- **GC-backstop finalizers free more on a later pass**: use `full_collect()` (gc until
+  nothing is freed), not one `gc.collect()`.
+- **Reading a linked value outside a frame batch is eager**, like the script body: a
+  pull recompute polls `@when` at once. Read inside the frame when edges matter.
+- **The `every()` flood detector keys on wall time**: headless runs are faster than
+  real time, so `sched.every_sites` is not a baseline key.
+- **Unlinked Defining writes do not poll events outside a frame** (A2 fast path):
+  `c.radius = 5` at top level does not fire `@on_change` until the next flush. Models
+  of eager mode must poll only after ink / boxed-cell writes
+  ([Reactive Design — Eager effects](Reactive%20Design.md)).
+- **Empty numeric layers are not a leak**: `layer=<int>` auto-creates on first use;
+  censuses ignore empty int layers.
+- **`import scena.collision as col` is the facade, not the module.** `scena/__init__`
+  exports `audio`, `canvas` and `collision` objects that shadow those submodules, so
+  a monkeypatch on `col` silently patches the facade and a canary "passes". Patch
+  `sys.modules["scena.collision"]` (or `from scena.collision import …` for reads).
+  The first D2 canary passed for exactly this reason.
+- **A canary must corrupt a path-specific helper, patched where it is CALLED.**
+  Skewing `_pose_rotation_set` (shared by both paths) moved both twins alike, so
+  the differential still agreed. `shapes.py` imports helpers by name: patch
+  `scena.shapes._x`, not `scena.entity._x`.
+- **Run canaries on a fresh copy of the test module.** Running the same `@given`
+  function from a second TestCase instance trips Hypothesis's
+  `differing_executors` check on the suite's own later run (`assert_catches`
+  does this for you).
+- **Derandomized canaries explore different examples per function identity.**
+  A canary that passes in one import and fails in another means the property
+  is weak for that bug class — strengthen the generator (see ABA below), do
+  not raise `max_examples` until it happens to pass.
+- **Generate the round trip on purpose (A → B → A).** Caches keyed by a past
+  state are wrong only when the state comes back; random walks almost never
+  revisit exact vertices (D2 was found only with an explicit "excursion" op).
+  Same for pull reactivity: "link → write source → read target" (D8's class).
+- **Geometry properties: check the pose, not the counter.** The heading `angle`
+  accumulates (a full turn reads `+360`), so "rotate 360° is the identity" and
+  "undo" hold on world vertices and the heading, not on the number. A property
+  that only reads the heading missed G1.
+- **Keep sample points off exact edges.** `Grid` placement and `cell_at` compute
+  the same edge in two frames; exactly on it they may disagree by one ulp (both
+  include the edge). Sample strictly inside, `_EDGE = 1e-6` away
+  (`test_box.TestGridCoversBoxProperty`), or the property fails on rounding.
+- **Screen ↔ world is float32.** `screen_to_world_coords` inverts a Skia matrix,
+  so a round trip at coordinates in the thousands drifts ~1e-4 world units.
+  Scale the tolerance with world, pan and screen magnitudes
+  (`test_canvas.TestScreenWorldRoundTripProperty._tol`); a slip in the chain
+  is O(1) or more.
+- **Invariance under a shift needs exact arithmetic.** Shift by whole numbers
+  and keep generated vertices dyadic (`size * 0.25`, not `* 0.6`); split a
+  shift into 1, 2 or 4 `move_by` steps, never 3. Otherwise a body that exactly
+  touches another lands an ulp in or out after the shift, and the property
+  reports rounding as a collision bug.
+- **Never canonicalize float data by sorting it.** An order-free compare that sorts
+  raw floats breaks as soon as two items tie on the first sort field: an ulp of
+  drift reorders them and the diff pairs different items, a false "fast and slow
+  paths diverge" on correct output (D10: two arc wedges, `-8.94 vs 0.0`). Pair by
+  nearest match within the tolerance (`assert_same_prims`). If a failing diff shows
+  values that exist on the other side at another index, suspect the pairing first.
+  A guard for this class must build the tie itself: at construction pose no model
+  has tied prims, so a sort-based oracle passes a guard that only shuffles.
+- **Headless frames draw at scale 1 into the top-left design rectangle** of a
+  framebuffer-sized surface (y-up), and `glViewport` is mocked, so geometry past
+  the view spills into the rest of the surface. Compare only
+  `surface[:height, :width]` (`test_diff_draw._screen`).
+- **A differential varies ONE switch.** Cull on/off with shared-filter batching
+  on differs by a level at batched blur-layer edges (the batching trade-off),
+  not because culling is wrong; pin every other switch to its reference.
+- **Formula sources must be captured directly** as default arguments
+  (`lambda o=obj: o.v`). A source behind another lambda is not found, `@=`
+  raises TypeError — and a generator that only produces such formulas tests
+  nothing (the first `test_diff_reactive` passed with every link failing).
+  Keep a fixed-program "not vacuous" test next to every generated program.
+- **`fx_quality="max"` is not "batching off"**: it also changes `post_scale` and
+  detail. To compare batched vs per-shape draw, flip `canvas.batch_shared_filters`.
+- **Check a caught exception AFTER the `except` block.** The traceback keeps the
+  half-built object alive while the handler runs, so a census taken inside it
+  reports the rolled-back actor as a leak (`test_hyp_surface` stores the verdict
+  and asserts after).
+- **Unbound methods have `self`.** An argument guesser reading
+  `inspect.signature(Class.method)` saw `self` as an unknown required parameter
+  and skipped every method: P6 passed while calling nothing. Drop the receiver,
+  and keep a call-count floor next to every generated loop.
+- **Optional parameters can decide whether work happens.** `after(0.1)` without
+  `fn` returns a decorator and schedules nothing; P6 must always pass `fn`
+  (`_ALWAYS_PASS`). The S9 canary exposed this.
+- **Layout cursors are not registries.** The HUD column (`_stack_x`, …) advances
+  when a widget is placed and `destroy()` does not rewind it. Only a *rejected*
+  call must leave it unchanged (`CURSOR_KEYS`).
+- **Compare the base background by kind, not identity.** Removing a base installs
+  a fresh default; `remove()` of a base is `reset_base()`.
+- **Python's "missing N required argument" is an author error** when it names a
+  real parameter of the call (a zero-argument call of a required knob).
+- **A canary that disables cleanup must undo its own leak.** The H1 rollback
+  canary left half-built Circles (no `model`) registered; eight tests in later
+  modules then crashed drawing them. Record what the patched no-op received
+  and run the real cleanup afterwards.
+- **A sweep needs a per-call timeout.** The first deterministic method sweep
+  ran 33 minutes at 100 % CPU: `spaced_points(1e308)` looped. Wrap each call in
+  `signal.alarm` and report a hang as a finding.
+- **"Constructible with no arguments" is not "covered".** The methods phase
+  skipped `Color`, `Box`, `Menu` because `Kind()` raises; the whole Color amount
+  family leaked unseen. `TestMethodCoverage` fails unless each such class has a
+  representative or is engine-built.
+- **Public is not author-facing.** `advance_scroll`, look `apply(host)`,
+  `sample_pad` were engine hooks without an underscore, so the methods phase
+  fuzzed them as author verbs. The sweep underscored every such hook (~110
+  names: look / filter / post / background / SpatialFx / audio-fx protocols,
+  widget interaction state) and `test_api_surface` now walks **every** class,
+  constructible instance, and exported object in `scena.__all__`: a public
+  name must be spelled in the Guia or listed in `SURFACE_NOT_IN_GUIA`. The
+  methods phase still fuzzes only those names. A protocol hook dispatched by
+  string (`getattr(look, "_render_sprite_body")`) must be renamed in the
+  string too; check for an existing private name before choosing the new one
+  (Laser's own `_render_sprite` would have become the dispatch target).
+- **A failing rule makes teardown lie.** Hypothesis runs `teardown()` in a
+  `finally` while the rule's exception propagates; its traceback pins the
+  actors, so the residue check reported two `Point`s instead of the real
+  `TypeError` (`obj.group` was a set; now a `GroupTags` frozenset — K3). `WorldMachine.teardown` skips its leak
+  asserts when `sys.exc_info()` is set.
+- **Rules are collected at class creation.** Monkeypatching a rule method after
+  the class exists does not change what Hypothesis calls. Count reach from
+  inside the rules (`HITS`) and assert it in a separate test
+  (`TestWorldMachineReach`).
+- **Random rule order rarely lines up a multi-step scenario.** "Create a
+  layer → move an actor onto it → drain it (with an `on_destroy` that spawns
+  back onto it)" never happened in 80 examples; a composite rule
+  (`drain_occupied_layer`, `link_then_kill_source`) makes it routine. Keep the
+  single-step rules too (they explore orderings). A composite rule must not
+  `return` on a dead or repeated bundle pick: spawn a fresh stand-in instead.
+- **A `derandomize=True` reach guard is only as robust as its weakest
+  counter.** The seed is the digest of the machine's source, so any edit
+  (renaming a lambda parameter) draws a new stream. `link_then_kill_source`
+  used to return when a pick was dead. Because `destroy_group` removes half the
+  world at a time, most picks were dead, and across 10 seeds `link_installed`
+  ranged from 0 to 108 (`link_source_died` was 0 in three of them). One rename
+  flipped the guard (`link_installed=0`, `link_refused_dead=23`). Fix: the rule
+  replaces dead or repeated picks, and after killing the source it retries `@=`
+  from the dead source, which must be refused (W2). Now the lowest count over
+  20 pinned seeds is 9 (`drain_nonempty`) and links stay ≥ 17. The guard keeps
+  `derandomize=True` (80 examples, 50 steps), so each edit still samples a new
+  stream. It asserts a floor of `MIN_HITS = 3` per counter, not only
+  > 0, so a counter drifting toward marginal fails before an edit flips it. **Do not fix a marginal counter with `@seed` or a larger
+  `max_examples`**: a pinned seed hides the low rate until the rule set changes,
+  and more examples only shrink the odds. Make the path common, then measure
+  the lowest count per counter over about 20 `@seed(n)` runs on a subclass of
+  the machine.
+- **A canary may be caught by another layer.** S1's bound-method variant only
+  pins an actor dropped without `destroy()`; the machine always destroys, and
+  `bounds.forget_item` covers the rest. Aim the canary at the defence the
+  machine exercises and name the unit test that guards the other.
+- **Canaries do not need shrinking.** The `canary` profile runs without the
+  shrink phase: six world canaries went from > 10 min to 12 s.
+- **An accepted junk value is invisible to "author errors only".** P2 checks
+  what a *raise* looks like; `Stars(enabled="no")` did not raise at all (A12).
+  Where the contract says a value must be refused (flags, enum names), walk
+  those parameters with a "must raise" test.
+- **Global setters run inside a snapshot.** `surface_support.global_snapshot()`
+  / `global_restore()` cover the framework FX-Auto / framerate / quality
+  fields, the canvas scales, the `fx_quality` globals, `WATCHDOG_ENABLED`,
+  `_show_tracks`, `_EXTRUDE_FOCUS` and the `PaintState` prototype;
+  `TestGlobalSetters` proves each setter's effect is captured and undone. A
+  new global setter goes in `GLOBAL_SETTERS` with a valid call.
+- **Census deltas cascade.** Refresh the baseline in `finally` after every
+  subtest, or one leak fails every later verb of the same actor.
+- **Settle garbage before a count baseline.** A "did not grow" check on
+  `dependency_graph.nodes` (or any registry a GC-backstop finalizer prunes) must
+  collect until nothing is freed **before** the baseline and before the final read.
+  Otherwise an earlier test's garbage is purged mid-loop, the count drops, and the
+  test fails only when its module runs alone (O1).
+
+
+# Lessons learned
+
+1. **Bugs live in sequences and in what failure leaves behind.** None of H1–H7 is a
+   one-line call: destroy → reuse id → destroy the stale reference (H3); construct →
+   register → raise (H1). Example tests covered happy paths and single bad inputs.
+2. **A small model checked after every step catches classes, not instances.**
+   "A destroyed object is nowhere" found H2, H3 and H4 without targeting any of them.
+3. **Python's own error messages are a free oracle.** `could not convert…` or
+   `float() argument…` reaching the author means a value got past the validators.
+4. **Settle the contract in the docs before encoding it.** About half the first
+   failures were model errors (`Text(layer="default")` needs `center=`; `clone()`
+   copies `visible`; `time=None` means instant). Two agents disagreed on `None` in pose
+   verbs until Effect System Design's "`move_to(None)` (pose still errors)" settled it.
+5. **One failure per raise site.** A shared "accepted" assertion hid `move_to(nan)`
+   behind `move_by(None)`.
+6. **Flaky means leak.** The first *Flaky* report was a zombie from one example
+   leaking into the next (H2).
+7. **Fixes cause regressions.** Five of the first fixes needed follow-ups (R1–R5); all
+   were caught by re-running the full suite and the property suites.
+8. **Search depth matters.** Blank `id=""` appeared only at the `deep` profile.
+9. **Test-owned references are the main source of false leaks** (System campaign; see
+   [Harness pitfalls](#harness-pitfalls)).
+10. **Passing is not proof.** A property that never failed may be weak; canaries
+    (re-introduced known bugs) measure it.
+11. **Guard against vacuous passes explicitly.** The first reactive
+    differential compared two runs in which every link had failed; the first
+    pose differential would have compared slow against slow for Polygon.
+    `assert_fast` and a fixed-program "not vacuous" test are cheap insurance.
+12. **Verify the mechanism before fixing.** A 1-pixel cull difference looked
+    like a missing antialias margin; a fix and a test were written, then a
+    direct experiment (disable the margin → no difference) showed the cause was
+    batched blur-layer bounds. The fix was reverted. Isolate by minimal repro
+    AND by switching the suspected cause off.
+13. **A fix can change a contract other tests encoded.** D8 (unlink pulls
+    first) made `test_sys_lifetime` fail: it asserted the stale value. Decide
+    which contract is right, write it in the design doc, then update the test —
+    never loosen the new fix to satisfy the old test.
+14. **A slow path can mask a correctness bug.** R7's cache key was blind to
+    Defining inputs from the start; warm Derivates bumped the collision epoch
+    and hid it. Removing the waste (D3) exposed it — only because the gate
+    re-ran the differential suites. After a performance fix, re-run the
+    correctness suites, not only the benchmarks.
+15. **Canaries test the harness too.** The P6 canary for S9 did not fail: the
+    fuzzer had skipped every method (unbound `self`), then called `after`
+    without `fn`. Fixing the harness found A6 / A7 at once. When a canary does
+    not bite, suspect the property before the engine.
+16. **A list kept by hand drifts from the code it describes.** The A3 guard
+    rejected functions everywhere except an opt-in list; reactive pad knobs were
+    not on it and `Rain.from_rect` broke (R8). Derive such lists from the class
+    (declared field slots) and guard with a test that walks every class.
+17. **`dev` green is not `ci` green for per-class generated tests.** 200 tests ×
+    8 examples leave most (knob, junk) pairs untried; `ci` found four more
+    leaks. Run `ci` before closing a milestone.
+18. **Methods had no guard at all.** Constructors got the numeric guard in A3;
+    the methods phase found 64 leaks from nine causes on its first run and one
+    infinite loop. A contract enforced at one entry point says nothing about
+    its siblings — fuzz each entry kind (constructor, method, setter, function).
+19. **Prove the machine reaches what it claims to check.** The first M4
+    world machine passed at `dev` in 3 s; a reach counter showed the drain of
+    an occupied layer and a link whose source dies never happened. An
+    invariant over a state the generator never builds is decoration.
+
+
+# Lessons for test planning
+
+From the reactive campaign (2026-10-07/08, D12–D26): fifteen bugs, none exotic.
+Each sat in a combination no test reached, or behind a rule that was written but
+not checked. Complements [Lessons learned](#lessons-learned) (canaries, vacuity,
+reach counters: items 10, 11, 19).
+
+## What the campaign taught
+
+1. **Bugs live in the cross-product; point tests sample it after the fact.** Every
+   bug was one cell of field × write path × what was read before × construction
+   model × link kind. Enumerating those axes from the slot metadata
+   (`reactive_matrix_support`) found them mechanically.
+2. **Read order is an axis of its own.** D18 hid because a sorted read put `angle`
+   first; D26 because tests read the caption before the link; corner names depend
+   on the first read. "Read the link first" found two bugs.
+3. **The oracle can be wrong too.** Five harness bugs: listing fields read the
+   subject (and named its corners) before the link; `_takein` on a Derivate
+   bypassed its guard; default-argument lambdas hid the source (the machine
+   installed zero links); two points on one formula made a zero-length spine; an
+   assumption that corner names are path-independent. The plain-write twin read at
+   the same moments, or the source object itself, held up.
+4. **Rules on one path are bugs on the others.** Validation in `_write_field`
+   overrides ran on `=` only; links, constructors and batches skipped it (D14,
+   D16, D22). Rules on the slot, one coercion, removed the class.
+5. **Duplicated code drifts silently.** Box carried ~300 lines of Rect and missed
+   Rect's later fix (D20, D23); twenty point readers each had their own rules (D24).
+6. **A lazy value needs a dirty edge *and* a pull on read.** D18, D19 and D26 each
+   had one of the two. Clean means recomputed (D13, D19).
+7. **Refuse where the mistake is made.** D17 accepted two exclusive links and
+   failed on every later read.
+8. **Copies need cross pairs.** Copies were tested within one construction model;
+   every ordered pair of models found 129 of 186 broken (D21).
+9. **A documented rule without a check decays.** Hazard #8 (Reactive Design) had a
+   rule and no guard; the first static guard on it found D25.
+10. **Performance is part of the fix.** Five first attempts regressed (+9 % to
+    +45 %: magnitude writes, Box `rotate_by`, Text layout, `get_xy`, `_xy_of`).
+    Separate runs drifted 3–5 % with the machine's load; alternating runs against a
+    pristine HEAD copy were reliable. An extra Python call, extra keyword defaults
+    or a `super()` proxy is measurable on these paths.
+
+## What the program-model campaign taught (2026-10-08)
+
+Eleven whole programs, 19 specs written from the docs by authors who never saw
+the engine, model-free oracles, and three programs written API-first. Findings:
+PM1–PM14 (catalogue). The suite had 6 300 tests and a strong mutation score, and
+still missed every one of them. Why each slipped through:
+
+| Finding | What the existing tests did | Why they missed it | The test that catches the class now |
+| --- | --- | --- | --- |
+| PM3 `keyp.once` fired for an old unread press | `test_keyp` pressed and read **with no frames in between**; the IN1 property modelled "since the last fire" | The contract is frame-scoped ("só no frame do aperto"); a test without frames cannot see a frame boundary. SC1 had been fixed as an act-change symptom | Frame-boundary steps in `TestOnceChordProperty`; `TestOnceIsFrameScopedInFrames` (real frames) |
+| PM7 empty-group verb built a Shape per call (~0.3 ms) | `census` before / after, with a full collect | Garbage collection erased the evidence; nothing measured the **cost** of a no-op, and benches use populated groups | A constructor spy around the no-op; `probe_neutral` (a run with observers vs one without differs by GC timing) |
+| PM8 timers a frame late by float rounding | Timer tests stepped `dt=0.1` / `0.2` and asserted with slack | Never the author's regime: `dt = 1/60` summed to a deadline that is a whole number of frames | `TestDueOnTheExactFrame`: 6 frame rates × 11 frame counts × 6 mechanisms |
+| PM11 `test_collision` returned engine colliders, reversed normal | Handler tests checked `info.a is me`; query tests checked "overlap or None" | The same `CollisionInfo` reached authors by two doors and only one was checked against the documented view | `TestQueryInfoIsTheAuthorView` (query equals what a handler sees) |
+| PM12 `deadzone(size=st.x)` refused a cell | The Numbers rule (cells count as numbers) is fuzzed on slots, verbs and constructors | Free helper functions were outside the fuzzed surface | Unit pin; the class guard is still to write (below) |
+| PM14 formula read the edited file at stale positions | Formula tests define lambdas in the test file, which never changes | Source availability was tested (REPL, `exec`), source **staleness** was not: an environment fact no unit test varies | `TestStaleSourceFile`; found by Tier C rewrites |
+| PM1, PM4, PM6, PM9, PM10, PM13 doc gaps; PM5 decided | Tests pin what the engine does | No test can notice that the docs are silent or wrong; only a reader who depends on the docs can | Spec-only authors; the same gap reported by two of them is a finding even with no divergence |
+
+1. **Tests written from the implementation inherit its blind spots.** PM3's
+   "an edge stays pending until read" and PM11's raw payload were what the code
+   did, and the tests agreed. The spec authors, reading only the Guia, expected
+   what the Guia says. Write the test for a documented sentence from the
+   sentence, not from the code.
+2. **A contract with "frame" in it needs real frames.** Calling the internals
+   back to back (`_press`, `once`) skips the boundary where the bug lives. Use
+   `SystemWorld` / `ProgramRun` for frame-scoped behaviour (edges, timers,
+   `@when`, pause, act changes).
+3. **Use the author's numbers.** `dt = 1/60`, deadlines like `0.25` and `0.5`,
+   60-frame seconds. Round test values (`0.1`, `0.2`) are kinder to floating
+   point than real programs are.
+4. **One payload, several doors: check them against each other.** `CollisionInfo`
+   from a handler and from a query; `.color` before and after a write; a value
+   read through a probe and through a fingerprint. A differential between doors
+   needs no model.
+5. **Cost is a contract too, and GC hides it.** A no-op that allocates passes
+   every correctness and leak test. Spy on constructors around no-ops, and
+   compare runs with and without observers.
+6. **Isolation bugs hide until order changes.** The harness alone found nine:
+   keyboard edges, group names learned for typo hints, background items, acts,
+   world settings (the playfield), pointer state, the mouse position, the
+   widget layout cursor, the program namespace held at census time. Each showed
+   only when one program ran after another (or after `test_api_robustness`) in
+   one process. Assume a global setting leaks until a test proves otherwise;
+   the deep tier's serial pass is the backstop, not the first line.
+7. **Writing realistic code against the docs is a test.** The three API-first
+   programs found PM11, PM12 and PM13 while being *written*, before any spec
+   ran. A program author is the first user of an API nobody had combined.
+8. **Two independent readers find doc gaps by agreeing.** Six gaps were reported
+   by both authors of one program without any divergence; six of twelve authors
+   could not predict the frame a timer fires (PM8). Agreement on an ambiguity is
+   a stronger signal than one divergence.
+9. **The spec authors' errors are worth reading too.** 12 revisions: INTUITION 4
+   (class names, a ball's path), SPEC-LOGIC 4 (a percentage standing in for an
+   exclusion, a miscomputed bound, `id()` reused after a free, a phase flipping
+   mid-frame), MISREAD 1, HARNESS 1, DOC-AMBIG 1, DOC-SILENT 1. The recurring
+   ones became generic check-writing rules in the spec prompt, never engine
+   facts (the authors' independence is the point).
+10. **Mutation score measures local contracts, not this.** Random mutants of the
+    lines the programs run: the quick tier killed 20 of 30, the programs 10, the
+    programs alone none. Every bug of this campaign is a *missing* contract or
+    one encoded wrongly, which no mutant of the existing code represents. A
+    mutation run also needs a control: one without it reported three false
+    "program-only" kills.
+
+### Class guards written from these lessons
+
+Each found a new member of its class on the first run (PM15–PM17):
+
+| Guard | Lesson | Covers | Found |
+| --- | --- | --- | --- |
+| `test_cells_as_numbers` | the Numbers rule on free functions (PM12) | every exported function in `CASES` (a canonical call) or `NO_NUMBERS` (a reason); each number, and each number in a pair, given as a cell, must give the same result | PM15 `amp_db(st.x)` raised |
+| `test_collision_doors` | one payload, several doors (PM11) | random circle / rect / polygon pairs: `@collide`, `on_collide`, `@collide_stay` and `test_collision` give the same `CollisionInfo`; reversed arguments reverse the normal when the centres differ along it | — (level centres have a fallback direction in argument order; documented in the test) |
+| `test_sys_frame_contracts` | frame promises in frames (PM3) | each Guia sentence that promises a frame ("só no frame", "no próximo frame", "no mesmo frame", "cada frame seguinte" …) maps to a real-frame test or a reason; a new sentence fails the scan | PM17 `Handle.velocity` after the end (doc gap) |
+| `test_noop_cost` | no-op cost (PM7) | every public method of every Entity kind through an empty group, every writable world setting written back: nothing joins the live roster | PM16 a Sprite / Text / Track method on an empty group raised |
+
+## Planning a new test
+
+1. **Enumerate from the source of truth**, not a hand list: slots, `__all__`,
+   models. Add a coverage test that fails when a new class has no subject
+   (`TestEveryReactiveClassIsDriven`).
+2. **Name the axes before writing a case:** write path (`=`, constructor, link on
+   a field, on a part, on the whole object, copy, batch, pose verb); read order
+   (cold, warm, source first, link first, reversed); source value (NaN, out of
+   range, bool, list, state cell, longer sequence); construction model, and every
+   ordered pair of models for copies; lifecycle (install, change, unlink, relink,
+   destroy).
+3. **Pick an oracle with no model of its own:** a plain-write twin read at the
+   same moments, or the source itself. Build the oracle's setup apart from the
+   subject; list fields from a throwaway instance.
+4. **State the invariants** the cells check: linked reads like written in any read
+   order; one rule set on every path; unlink freezes; two reads agree; a conflict
+   is refused at install and installs nothing; clean means recomputed; a copy
+   reproduces its source; one reading of a point.
+5. **Make the test check itself** ([Lessons learned](#lessons-learned) 10, 11, 19):
+   a not-vacuous assertion, activity counters, a canary per known bug, the probe
+   fails on HEAD before the fix, shrink-only known lists with reasons.
+6. **Use three layers:** a deterministic matrix in `quick`; a Hypothesis machine in
+   `gate` / `deep` (composite rules, so the budget reaches the interesting state;
+   a narrowed pool for a canary); static guards that turn each documented rule
+   into a check (`test_write_path_guards`, `TestOneCoercionForEveryPath`,
+   `test_rect_frame`).
+7. **Pin derived tables to their source in both directions**:
+   `_heading_driven_parts` equals what `rotate_by` refuses (`test_heading_link`).
+8. **Every fix gets an A/B against HEAD** (alternating or in-process; noise is
+   about ±2 %), with the same weight as its test.
+9. **Write the documented sentence as the oracle** before reading the
+   implementation; when the docs are silent, settle the contract first
+   ([What the program-model campaign taught](#what-the-program-model-campaign-taught-2026-10-08)).
+10. **Run frame-scoped behaviour in frames**, with the author's `dt`, and in a
+    process where something else ran first.
+
+## Invariants and assertions in code
+
+- **One home per rule:** slot metadata or one function, never an override that one
+  path runs.
+- **Static guards for structure, runtime checks for values:** an AST guard costs
+  nothing per frame. A runtime "recompute and compare on every read" mode was
+  weighed and dropped: the test-side oracle is that check.
+- **Allowlists carry reasons, and a stale entry fails.**
+
+
+# Recurring bug classes
+
+Findings from different suites keep landing in the same few classes. A fix for one
+member should ask whether the siblings share the cause.
+
+| Class | Members | Guard |
+| --- | --- | --- |
+| **A verb on a dead actor registers work or revives it** | H2 (`layer =`, `tag`), S5 (`mode =`), S8 (transient replace), S9 (`after` / `every` / `tween` / `play_sound` / `on_update`), W2 (`@=` onto a dead actor or a part it left behind), A6 (`resolve_now` re-enrolled the collider), A7 (a first read wired a dead widget into the graph; `Line(circle=dead)`; `Track.reversed()`), HB1 (hitbox writes on a dead or removed hitbox) | `test_sys_hyp_world` poke rule; `test_hyp_surface.TestDeadEntityVerbs` (P6: every public method and setter of every Entity kind; canary S9) |
+| **A registry keeps a dead owner** | H3 (id map; retired with ids), S1 (bound method in a `WeakKeyDictionary` value), S3 (`id(owner)` keys), S4 (dense snapshots), S6 (`_pair_targets`) | `census` / `zombies` / `assert_collected` in the system suites; `test_act.TestNoLeaks` (a busy scene — `kitchen_sink` plus timers, effects and rules made in the scene — changed N times: stable census, no zombies; 200 cycles with `SCENA_SOAK=1`) |
+| **State leaks from one act into the next** | SC1 (an unread `keyp.once` edge fired in the next act; generalized by PM3), a new canvas / clock / collision setter that an act change neither restores nor keeps on purpose | `test_act.TestSettingsClassification` (walks every settable name on `canvas` / `clock` / `collision` / `audio` / playfield / layers / effects / background and the exported `set_*` / `show_*`; each must be in `WORLD_SETTINGS`, `KEPT_SETTINGS` or the test's `NOT_SETTINGS`); `TestWorldSettings.test_the_test_changes_every_restored_setting` (guards the guard); rule: **anything the author can change globally is classified when it is added** |
+| **A deadline compared on summed frame time** | PM8 (`after` / `every` / tween end / `ready` / `recently` / transient progress fired a frame late or on time by rounding) | `process.reached` for every "is it due" comparison; `test_process.TestDueOnTheExactFrame` (any fps, any whole number of frames). A new timed mechanism compares through `reached` |
+| **A cheap-looking read or no-op builds a registered Entity** | PM7 (a verb on an empty group built a `Blank` Shape per call); PM16 (a non-Shape method on an empty group raised); `canvas.game_view.center` builds a Point (~70 µs) per read (by design: a Box is a value, a Point an entity) | `test_noop_cost` (every Entity method through an empty group, every world setting written back); `program_oracles.probe_neutral` (a run with probes vs without: GC-timed roster entries show up) |
+| **A cell is refused where a number is accepted** | PM12 (`deadzone`), PM15 (`amp_db`) | `test_cells_as_numbers` (every exported function, every number argument); `test_hyp_surface` (slots, verbs, constructors) |
+| **One payload, two doors, two views** | PM11 (`test_collision` vs handlers) | `test_collision_doors` |
+| **An unread edge outlives its frame** | SC1 (act change), PM3 (any later first reader of `keyp.once`) | `KeyPressed._expire_edges` at the end of every frame; `test_keyp.TestOnceChordProperty` with frame boundaries |
+| **A rejected call half-applies** | H1 (constructor registers then raises), H4 (`layer =` unregisters then fails), R4 (register auto-created a layer before the id check; retired with ids), A10 (`fade_in` shows before validating; `tangent_lines_from` keeps the first line), W3 (a raising formula left its ink cell and anchor) | constructor census in `test_hyp_api`; "claim nothing before every check passes" in `Registry.register` |
+| **Routing picks the wrong writer** | S10 (`_write_field` ink path on a property-backed field), R1 (a second `__init_subclass__` replaced the first, so `Rect.rotation` routed to `Shape.rotation` and recursed) | `test_entity_hooks` (no duplicate `def`; every subclass has its own route) |
+| **An engine error reaches the author** | verb `float()` leaks, `chance(True)`, `line_width`, H7 (`int(…, 16)`), A1 (unhashable key in `keyp` / `ready` / `recently` / `obj` (removed) / `canvas.layers[]`: **validate the type before any dict / set lookup**), A3–A5, A7 (`float(finite(fn))`), A8 (`finite` at a fixed site; `** 2` overflow), HB2 (Python's "property has no setter" on hitbox fields) | `leak_message` in every property; `test_hyp_surface` (P2 on every export); AST guard `TestNoFloatAroundFormulaValidators` |
+| **A dead Entity is falsy** (`Entity.__bool__`) | R9 (`self._alias_of or self` fell back to a reversed view's empty tables once the host died) | `test_entity_hooks.TestNoTruthinessFallbackOnEntities` (AST: no Entity-holding attribute as an `or` operand); rule: `is not None` for Entity-or-None |
+| **A raw-store site calls the dispatcher** (`_x` is the dispatcher, `_x_impl` the hook — a rename flips what an old `_x` call means) | A7 (`Square._takein_impl` → `super()._takein` → `self._takein_impl` … recursed), B1 (pull resolvers kept `_takein` after the rename: every read re-walked the cone) | `test_entity_hooks.TestHooksDoNotCallTheirDispatcher`; `test_pull_no_invalidate.TestPullResolversStoreRaw`. On any rename of a dispatcher / hook pair, re-map **every** old call site by meaning, not by spelling |
+| **A guard lands on a per-frame path** (correct check, general-case cost paid every frame) | B2 (`validate.finite` / `_finite_deg` ABC path on every `move_by` / `rotation =`) | `tests/test_hot_validators.py` (`TestHotPathsStayHot`). Rule: a validator on a verb tests the exact common type first; the bench pulses catch what the unit suite cannot |
+| **Engine code calls an author-facing lookup that guards or warns** | SC4 (`until_empty` polled `group[name]`; its near-miss typo warning fired on an emptied, dropped bucket) | Rule: engine internals read the registry / engine state directly; author guards (typo / near-miss warnings, `DestroyedError` hints) run once, at the author's call site, never in a per-frame poll |
+| **A hand-kept list drifts from the code** | R8 (`_formula_knobs` missed reactive pad fields), SK1 (`SCENIC_PRESET_NAMES` / `_SKY_ALIASES` named ramps the table lacked), SK2 (smoke preset strings no preset has) | `validate.formula_knobs(cls)` derives from field slots; `TestReactiveKnobsTakeFormulas` walks every export; `test_gradient_presets.TestSkyPresetNamesResolve` (every advertised / aliased / suggested sky name builds a sky; smoke literals scanned). Rule: an error message lists only names that resolve — filter the list through the same lookup the call uses |
+| **A cache hands out objects callers mutate** | D2 (`_poly_cache` Prims shifted in place by `_translate_prims`), K4 (interned looks: `Neon("red").color = …` repainted every user and poisoned the intern cache) | `TestPolygonCacheAliasing.test_no_cache_hands_out_the_prims_it_keeps`; `test_registry_key_fields.TestInternedLooksFrozen` (every exported interned look / filter); rule: a cache returns clones, or what it hands out refuses writes |
+| **A handle field doubles as a registry key** | K1 (`Layer.name` vs `canvas.layers`), K2 (`Handle.name` / `.owner` vs the scheduler slot `(id(owner), name)`), K3 (`shape.group` returned the live set; in-place `add` skipped `group_map`), K4 (interned look fields vs the intern key), K5 (`Entity.id` vs `id_map`) | `tests/test_registry_key_fields.py`, `test_registry_layers` (`test_name_*`); rule: a field a registry is keyed by (or mirrors) is a **property whose setter raises** with the create-and-move / re-schedule spelling, or a read-only snapshot (`GroupTags`, `frozenset`) that the registry swaps — never a plain attribute or a live container. Internal writers set the private slot |
+| **A per-frame throwaway enters the graph** (a value built to be read and dropped registers nodes; its tree is a reference cycle, so only a full GC frees them) | D11 (a measured Box's point part; views, group box and widget box were eager Boxes) | `test_box_snapshot.TestMeasuredPointsStayOffGraph` (count with the cyclic GC off); `test_leak_detector.TestGcChurnIsNotALeak`. Rule: an engine read that hands out a fresh Container every call (a snapshot, a measurement) keeps it off the graph until linked — a measured Box is `Box._snapshot` / `Box._from_aabb`, never `Box(p1=, p2=)`; its test counts graph nodes with `gc.disable()` |
+| **A fast path or cache disagrees with its reference** | D2 (poly cache), D4 (intersection GJK reused as a distance), D5 (support = first vertex within tie_eps) | `test_diff_*` + canaries |
+| **An oracle is stricter than the contract** (false positive) | D10 (prims compared in a raw-float sort order; the engine promises neither order nor bit-exact translation), G2 (contacts compared exactly across a world shift; the engine promises no answer at exact tangency) | `test_diff_collision.TestPrimsOracle` (drift + shuffle + built ties, every model); canary `test_oracle_guard_catches_a_sorted_compare`; `test_sys_hyp_collision.TestTangencyTolerance`. Rule: before calling a property failure an engine bug, check that the documented contract promises that exact answer; a float boundary (tangency, ties) needs an ε "either" band |
+| **Pull reactivity: a value depends on who read first** | D8 (`unlink` froze the unpulled value; destroy auto-unlink too) | `test_diff_reactive` link model + `chain` op; `TestUnlinkFreezesTheCurrentValue` |
+| **A mirror is applied as a rotation (or twice)** (a flip moves the shape, or relabels its parts as if turned) | G3 (`POINT_VEC` `flip_x`: `180 − θ` plus `vec.x`), G4 (`SPINE` side anchor kept its side), G6 (triangle mirrored `rotation`, not its heading; `vertex=` polygons turned about the vertex), G7 (`.box` of a flipped Graphic kept the turned angle but dropped the mirror), the pre-2026-09-29 Rect flip (`flip_x` sent `top_right` to the bottom left: names rotated 180°, not mirrored) | `test_rect_names.TestFlipMirrorsNamedPoints` + `test_flip_mirror.TestFlipMirrorsEveryKind` (every kind, drawn geometry) + canaries. Rule: a flip is checked on **every named / Defining point** (lands on its mirror about `center`) and on the region (does not move) — not on one read-back |
+| **A Derivate is missing from the update's write list** (filled on first read, then stale) | G5 (`vec` on Rect / Box / Line — also not pulled through its owner), G8 (RegularPolygon stats on their first read) | `test_rect_names.TestDerivatesMatchAFreshTwin` + canary. Rule: a new Derivate part is added to every `_update_impl_*` that owns it, and the fresh-twin check covers it |
+| **A kind implements a shared verb its own way** (flip, clone, `rotation`, a Derivate refresh: each kind hand-rolls it, and siblings drift) | G3 / G4 / G6 (flips moved or relabelled shapes), G5 / G8 (Derivates missing from a kind's write list), the 2026-09-30 contract sweep (Track flips change nothing; clones drop pose on every kind; Line `rotation` ≠ its heading) | `test_geometry_contract` (C1–C8 over every kind × model × verb × part, shrink-only `geometry_known.py`, canaries). Rule: a new kind, model or verb joins `geometry_support.KINDS` / `VERBS` in the same change — the sweep then checks it against the whole contract |
+| **An engine reader warms a cold Derivate** (performance) | D3 (per-frame readers / pose verbs knock 12 of 24 shape models off the pose fast path for good) | `test_diff_pose.TestEngineReadersStayCold` (shrink-only allowlist) |
+| **A count reads a structure with holes** | D1 (`len(layer._objects)` counts tombstones) | structural guard in `test_registry_layers`; `Layer._live_count` |
+| **A doc cites a test that does not exist** | Six design docs cited `tests/test_registry_layers.py` (written ahead of the Scene-rename step 2) while the file was still `test_scene_layers.py`. **Rename a test file and its citations in the same change** | `test_doc_citations.TestDocCitations` (every cited test file and dotted test name in live docs; the private `archive/` and `proposals/` exempt) |
+| **A published file cites the private workbench** (a design doc, code comment, test docstring or script names a file in the private `archive/` / `proposals/`; those folders are not published, so the link dies and the reason it pointed at goes with it), or a relative link points at a moved file | DL1 (2026-10: ~45 citations in 14 design docs, 6 tests and code, and 5 bench pages; 8 of them already dead because the proposal had moved to `archive/` or never existed) | `test_doc_links.TestDocLinks` (every published `.md` / `.py` / `.html` / `.txt`, including paths joined in code) + `TestScanner`. Rule: the living doc carries the conclusion and its reason — see [README — Private folders](README.md#private-folders) |
+| **Bundled media without its license or credit** (a file Scena redistributes, but an author cannot tell how to use it) | ML1 (`examples/media/backgrounds/` had no license file; `audio/laser4.wav` / `laser7.wav` were marked CC-BY 3.0 with no author, so no credit could be copied) | `test_media_licenses.TestMediaLicenses` (every media folder has a `license.txt`; every top folder is in `examples/media/CREDITS.md`; every file that a notice puts under CC-BY / CC-BY-SA has a credit block under "Attribution required", and every credited file exists) + `TestCodeLicense` (MIT `LICENSE` declared in `pyproject.toml`). Rule: add media only with its notice, never NC / ND / unlicensed |
+| **A media path is dead and nothing says so** (a missing image or sound is a `SCENA WARNING` and a placeholder; the script still builds and plays) | MR1 (the `scripts/examples` → `examples` move and the media reorganization left ~170 paths dead in examples, smoke, bench and tutorial), MR2 (media-backed tests `skipTest` on a missing file: the suite stayed green), MR3 (`test_scripts_run` scanned the old `scripts/examples` and found nothing) | `tests/test_media_refs.py` (every literal media path in `examples/`, `scripts/smoke/`, `scripts/bench/` resolves like the engine resolves it; `_media.py` lists exist; every media name in the tutorial exists under `examples/media/`). Rule: tracked media → `tests/media_support.media()`, no skip-if-missing; a move or rename of a media folder runs `test_media_refs` and updates `CREDITS.md` |
+| **A program fails only after time passes** (a check runs a few frames, or skips the collision pass; the bug needs a hit, a timer or a destroyed actor) | TU1 (tutorial 05: the ship is destroyed by a shot, `update` keeps steering it) | `test_tutorials` runs every step 600 frames through the real frame body with `random` seeded. Rule: a script check runs long enough for its timers and collisions to fire, and deterministically |
+| **A program only works at a fixed frame time** (the harness steps a constant `dt = 1/60`; a real run has hitches) | TU5 (tutorial 05: the fleet bounce `if past_edge: v = -v` sticks at the edge after one short frame) | `test_tutorials.TestFleetBounce`: a driver gives the frame after the first turn a 1 ms `dt` and counts turns over 20 s, for every tutorial step and example that moves the fleet by `st.velocidade`. Rule: a bounce sets the direction (`v = -80` past the right edge), never flips the sign |
+| **A check only looks where a body ends** (a per-frame sample misses what happened between frames; how much it misses depends on the frame rate) | CT1 (fast `@collide` shots tunnelled), CT2 (a fast body pushed into a resolve wall never fired `@collide`) | `tests/test_sys_fast_shots.py` (the same hit set at every pacing), `test_sys_hyp_collision.TestFastMotionAgainstSweptOracle`. Rule: a contact rule is tested at 30 Hz and uneven pacing with movers that cross a target within one frame, not only at 60 Hz with slow movers |
+| **A script is left on a retired spelling** (the engine moved on, the script never ran) | SR1 (`smoke/colliders.py`: `shape.group.add`), SR2 (`bench/historical/galaga.py`: `Text(x1=, y1=)`, `set_framerate`), SR3 (five smokes: `keyp.once(",")` / `"."`; `app_glowspot`: `"["` / `"]"`) | `tests/test_scripts_run.py` (**Scripts run headless**: every `scripts/smoke` and `examples` script, plus listed benches, builds and plays 30 frames in its own process). Rule: an API rename or removal runs this module in the same change; a script that drives its own loop (not `run()`) is not covered |
+| **A color name Scena does not know** (CSS / X11 habit; warns and paints magenta, so nothing fails) | SR4 (`"slategray"`, `"mediumseagreen"`, `"medium turquoise"`, `"slate gray"`) | `tests/test_color_literals.py` reads the literals statically, so click-only paths and Guia snippets that never run are covered too |
+| **A message uses a word reserved for an author concept, or the concept's old name** | "Scene-level after(..., then=)" (meant script level), "not scene bodies" (meant world space), "scene objects rising" (meant registered objects) — all wrong once the author concept existed (named Scene from 2026-09-28, `Act` since 2026-10-06); after the 2026-10-06 rename, any "scene change" / "current scene" left in a message or doc | `test_message_vocabulary.TestMessagesDoNotSayScene` (AST scan of raise / warn / error / message literals in every `scena/` module, `act.py` included; allowlist only for the rendered-frame sense and the retired-name error); `TestDocsDoNotUseRetiredSceneTerms` (live design docs: the registry / script-scope terms of the 2026-09-28 rename); `TestDocsDoNotUseSceneForAct` (live design docs: the old class and verb names, "scene change", old doc links; `Act Design.md` keeps the naming history); `TestGuiaDoesNotSayCena` (Guia sources + generated index: no "cena" at all; the old names only in the 0.6.0 rename note) |
+| **The old brand survives a rename** | After Stage → Scena (0.6.0): a string like `"stage.x"` in `mock.patch` / `sys.modules` (a regex on `stage.` missed the ones not followed by a letter), a no-dot `startswith("stage")` that also matched the editor, a guard regex still looking for `stage._x` (it passed by scanning nothing), a relative link `../stage/…`, a local variable named `stage` that a module rename would have broken, a message or sentence naming Stage | `test_message_vocabulary.TestNoStageBrand` (AST: no `stage` / `stage_editor` import or module string in code; no Stage / STAGE in messages; no Stage, `stage/`, `stage_editor`, `stage-editor`, `from stage` in published text). Allowed: lines naming 0.6.0 or a `LEGACY` name, the `"stage-level"` tag, the old `Stage Editor` launchers, `PostEffectStage` / pipeline stages, Act Design's Naming section. Package-name checks go through `scena/_pkg.is_framework_module` (no literal to rename next time) |
+| **A derived pose lags an input that never notifies** | T1 (view `Text.center` vs the string: formula text is pull, and `font_size` / `flash_text` / fill material are not graph nodes) | Refresh at the read, not at the write: `_TextCenterSlot` + reconcile in `_refresh_layout`; `TestViewPinMotionProperty` (random string changes interleaved with every pose writer) |
+| **A test depends on what ran before it** | O1 (graph-node baseline taken with an earlier test's garbage still pending) | `run_tiers.py` gate runs every module in its own process (a test that needs a predecessor fails there); deep's serial pass catches the reverse (a module that breaks its successors); rule: settle garbage before count baselines ([Harness pitfalls](#harness-pitfalls)) |
+| **A contact is judged on a pose that is never drawn** (frame-time dependent) | F1 (resolve skin read as a gap by the pre-resolve snapshot), F2 (accepted limitation: the pre-resolve pose sinks by g·dt² against a corner) | `tests/test_sys_resting_contact.py` (every kind × pacing incl. uneven 5 / 28 ms × far offset). Rule: a contact rule on a resolved pair must hold at 60 Hz, 200 Hz and uneven pacing; test with alternating short / long frames, not only 60 Hz |
+| **Event-driven level state goes stale** (a level recomputed only on an input event misses every other way it changes) | PH1 (`pointer_hover` recomputed only on mouse moves: stayed True after hide / `clickable = False` / moving away, a new target on top never took it, a widget did not clear it) | `tests/test_pointer_hover.TestStaleness` (every way out, pointer still) + `tests/test_hyp_hover` (exit guarantee; tiered == brute force; edges alternate; a never-exit mutation fails it). Rule: a level is re-validated **per frame** at O(1) and fully recomputed when any of its inputs changes (pointer, an epoch the writers bump, layer stack) — never only in one input's callback |
+| **A test passes only on the Mac** (it relies on a platform default or on a clean tree) | WP1 (scans read AppleDouble `._*` files), WP2 (pixels read in `kN32` order), WP3 / WP7 / WP18 (wall-clock budgets and ratios under load), WP5 / WP8 (text in the locale encoding), WP6 / WP11 (POSIX literals as expected paths or labels), WP9 (a gate test needs a package the `test` extra lacked), WP10 (old runner logs copied Hidden), WP12 (the exec bit asserted on Windows), WP13 (a Hypothesis module on Hypothesis defaults), WP14 / WP15 (a clock read twice, a hang timeout sized for an idle machine), WP16 (child output decoded with the locale), WP17 (paths sorted with the host separator; a test that needs a Mac font) | `tests/test_platform_portability.py` (AST: no bare directory scan in `tests/`; every `toarray` / `fromarray` in `scena/` and `tests/` names `colorType=`; every text `open` / `read_text` / `write_text` in `scena/`, `scena_editor/`, `tests/` names `encoding=`; every `S_IX*` / `X_OK` in a test names the platform; a test that writes a transient's `t0` pins the clock; every text-mode subprocess names `encoding=` / `errors=`), `test_run_tiers.TestHypothesisProfileGuard`. Rule: never rely on a default that differs by platform — name the byte order and the encoding, scan through `source_support`, build expected paths with the same path function, time as a ratio |
+| **A constructor touches a raw input before linking it** | C1 (`Line` home `length` / `angle` via `number()`), C2 (Ellipse focal `get_xy` / `float`), C3 (Box spine `height = float()`), C4 (rotated-corner `_takein` rewrite), C5 (`corner_radius` storing a function), C6 (fixed knobs with a raw or generic message) | `tests/test_ctor_links.py` (every signature, every geometry key: a lambda follows, and a lambda of the same numbers builds the same shape) |
+
+
+# Bug catalogue
+
+Series: **H** Hypothesis batch 1 (`test_hyp_*`), **R** regressions caused by fixes,
+**S** system suites (`test_sys_*`), **A** API surface, **D** differential, **W** world
+machine extensions (M4), **O** order / isolation (a test that depends on what ran before it), **G** geometry properties (transform algebra, round trips, invariance), **F** contact flicker (what a player sees across real frames), **CT** continuous detection (fast bodies between frames), **CS** closed surfaces (a write to a name the object does not have). "Guard" is the regression test in the owning file.
+
+### H — Hypothesis batch 1 (2026-09-25)
+
+| ID | Bug | Shrunk repro | Root cause | Why earlier tests missed it | Guard |
+| --- | --- | --- | --- | --- | --- |
+| H1 | Failed constructor left a registered zombie | `Circle(color=False)`; `Circle(layer="missing", id="a", group="g")` | `register()` ran before later validation; nothing rolled back | Tests asserted the raise, never the registry after it | `test_api_robustness.TestLifecycleContracts.test_failed_constructor_leaves_no_roster_or_draw`; `test_entity_hooks.TestConstructionIsAtomic` |
+| H2 | Verbs on a destroyed Entity revived it | `c.destroy(); c.layer = "top"` / `c.tag("g")` | Placement / tag verbs had no dead check (ink writes did) | No test touched a dead reference after destroy | `…test_dead_actor_rejects_layer_and_tag` |
+| H3 | Stale double `destroy()` dropped a live object's id | `a=Circle(id="x"); a.destroy(); b=Circle(id="x"); a.destroy()` | `remove_id` deleted by key without an identity check | Needs a three-step sequence with id reuse | Class retired with ids (2026-09-29): roster keys are serials, never reused. `…test_second_destroy_does_not_drop_a_newer_actor`, `test_registry_layers.TestNoIds.test_roster_keys_never_reused` |
+| H4 | Rejected `layer =` half-applied | `c.layer = "missing"` → raises, `c` undrawn | `change_layer` unregistered before resolving the target | Tests checked the raise only | `…test_rejected_layer_keeps_the_old_one` |
+| H5 | Parking a bare Entity crashed | `Entity().active = False` | Park read `visible`, which bare Entity lacks | Park was tested on shapes only | `…test_bare_entity_can_park` |
+| H6 | `Text.clone()` crashed | `Text("x").clone()` | `clone()` passed `frame=` to every recipe | Clone tested on Shape / Sprite only | `…test_text_clone` |
+| H7 | Malformed hex colour raised (one with an `int()` message) | `Circle(color="#")`, `"#000:00"` | Hex parse outside the unknown-colour policy | Colour tests used names, not broken hex | `…test_bad_hex_warns_and_is_magenta`; `test_color.TestColorStillStrict` |
+| H8 | Blank id registered, collided, never removed | `Circle(id="")` twice | Registry tests `if obj.id`; `""` is falsy | Found only at `deep` | Retired with ids (2026-09-29): any `id=` is a `TypeError` (`test_api_robustness.TestInkGuards.test_id_keyword_is_refused`, `test_registry_layers.TestNoIds`) |
+| H9 | `move_to(None)` / `move_by()` silently did nothing | `c.move_to(None)` | All-`None` target treated as "keep every axis" | Doc said it errors; no test | `test_hyp_api.TestVerbsRejectJunk.test_no_target_is_type_error_not_a_silent_no_op` |
+
+### R — regressions introduced by fixes
+
+| ID | Regression | Caused by | Caught by | Guard |
+| --- | --- | --- | --- | --- |
+| R1 | Every `Entity` subclass lost its setattr route, `setup()`, method watches, deferred `@every` / `@after`; `Rect.rotation =` / `flip_x` recursed | H1 rollback added a **second** `Entity.__init_subclass__`, which replaced the first | Re-running `test_hyp_api` (RecursionError) | `test_entity_hooks` (AST scan: no duplicate `def` in any class body; every subclass has its own route; `setup()` runs) |
+| R2 | Bare `Entity(layer="missing", id=…)` still leaked id / group | H1 wrapped subclass `__init__` only | Direct repro while verifying H1 | `test_entity_hooks.TestConstructionIsAtomic` |
+| R3 | `Text.clone(layer=…)` raised "multiple values for keyword 'layer'"; clone copied the layer | H6 fix passed `layer=self._layer` | `test_hyp_canvas` painter-order invariant | `test_entity_hooks.TestTextClonePlacement` |
+| R4 | A taken id with `layer=<int>` left an empty auto-created layer | R2 fix resolved the layer before the id check | `test_hyp_canvas` census | Retired with ids (2026-09-29): `register` resolves the layer first and nothing after it can refuse |
+| R5 | `test_color` still required `Color('#ff')` to raise | H7 changed the policy; old test not updated | Full suite | `test_color.test_invalid_hex_warns_and_falls_back_to_magenta` |
+| R6 | `destroy()` raised `DestroyedError` when an outside `@=` dependent existed | D8's `unlink` pull ran during teardown, after the source was marked dead | Direct probe of the auto-unlink sibling while verifying D8 | `test_reactive_edge_cases.TestUnlinkFreezesTheCurrentValue.test_destroyed_source_leaves_its_final_value` |
+| R7 | After D3, focal Ellipses / two-point and perimeter Circles kept a **stale collision hull** after `flip_x`, a `major_axis` write, or a Defining point write (tilted focal ellipse flipped: collided at 30° instead of 150°) | D3 kept them cold; their pose-key extra read Derivate slots from `__dict__` (stale while cold). Before D3 it only worked because warm Derivates made `_update_impl` bump `_collision_epoch` | `test_diff_collision.TestSnapshotCaches` in the D3 gate | `test_collision.TestPoseKeyCoversDefiningInputs`; `defining_point` op + canary `test_snapshot_suite_catches_a_stale_pose_key`. Fix: Circle / Ellipse `_collision_pose_extra` from Defining inputs — **the canary went blind after G14** (flips now turn the pose heading, so the random ops stopped reaching the bug through a flip); the R7 cases are now pinned as `@example`s (`major_axis` write, two-point / perimeter Circle point write). Lesson: when a fix changes a path a random suite used to reach a bug through, pin the reproducer |
+
+| R8 | `Rain.from_rect(r)` (and any `width=lambda: …` on a reactive field) raised "expected a number, got a function" | A3 guard rejected functions unless listed in `_formula_knobs`; reactive pad fields were not listed | Full suite (`test_spatial_fx`, Guia example run) | `test_api_robustness.TestReactiveKnobsTakeFormulas` (every export, every numeric knob that is a field slot, takes a formula); fix derives the list: `validate.formula_knobs(cls)` |
+| R9 | A rider on `path.reversed()` jumped to the origin when `path` was destroyed | Not a fix regression: found while triaging the gate (`test_track.TestFace`). `self._alias_of or self` — a destroyed host is falsy, so the view read its own empty tables; `freeze_last` also dropped the reversal | Full suite | `test_track.TestFace.test_reversed_rotated_freeze_does_not_jump`; class guard `test_entity_hooks.TestNoTruthinessFallbackOnEntities`. Fix: `Track._table_host()`, `_path_alive` checks the host, `frozen_rev` |
+
+### S — system suites (2026-09-25)
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| S1 | Class `@leave_playfield` pinned its actor forever; with several such methods only the last ran | Bound method stored as the value of a `WeakKeyDictionary` (value holds the key) | `test_leave_playfield.py:300` |
+| S2 | Cancelled voice of a destroyed owner stayed | An idle scheduler never pumped the offline mixer | `test_audio.test_destroyed_owner_voice_stops_when_scheduler_goes_idle` |
+| S3 | `every()` flood-site memory grew one key per actor | Keys were `id(owner)` | `test_process.py` (S3–S5 block) |
+| S4 | Dense mode / `on_update` snapshots kept the last destroyed owner alive while idle | Snapshot not cleared when empty | `test_process.py` |
+| S5 | `e.mode = fn` on a destroyed actor ran the mode body | No dead check | `test_process.py` |
+| S6 | `@collide_with` / object-literal / `resolve` pairs left destroyed bodies in the survivor's `_pair_targets` | Handler dropped, target list not pruned | `test_collision.py:2116` |
+| S7 | Class-body probe pinned a destroyed local | Read `frame.f_locals` (CPython ≤ 3.12 caches the snapshot on the frame) | `test_process.py` |
+| S8 | A transient whose replaced occupant's `on_done` destroyed the shape re-registered the dead shape | No dead check after `on_done` | `test_transients.py:331` |
+| S9 | `after` / `every` / `tween` / `play_sound` / `on_update` on a destroyed actor registered live work | No dead check at registration | `test_process.py` |
+| S10 | `tween(shape["rotation"] / ["scale"])` on a property-backed Graphic crashed on the first tick | `_write_field` took the ink path | `test_process.py` |
+| S11 | `play_sound("boom"); change_act(…)` / `self.play_sound("death"); self.destroy()` / a mode-body sound before a mode switch were cut silent (design bug, 2026-09-28) | Every implicit owner end cancelled all owned sounds, not only the ones that leak | `test_audio.TestSoundRingsOut` (fate matrix: every implicit and explicit ending × every sound state — a new ending path or state that skips `_rings_out` fails a cell); `test_act.TestActSoundsRingOut`; owner-end invariant in `test_sys_hyp_audio`; `test_audio.TestDeclick` for the cut itself |
+
+### A — API surface
+
+| ID | Bug | Shrunk repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| A1 | Unhashable key leaked Python's `unhashable type` from a name lookup (found on `keyp`; siblings found by checking the class) | `keyp(["A"])`; `ready(["a"], 1)`, `recently({…}, True)`, `e.ready` / `e.recently`, `obj(["a"])` (removed with ids), `canvas.layers[["a"]]` | Dict / set lookup ran before the type check (`keyp` spec cache, poll slot dicts, `id_map`, layer dict) | `test_keyp.TestKeySpecTypes`, `test_process.TestPollNameTypes`, `test_registry_layers.TestLookupKeyTypes` |
+| A2 | Three constructor knobs leaked Python's `float()` errors | `Line(length="x", angle=0)`, `Ellipse(from_rect=r, padding="x")`, `Rect(p1=, p2=, height="", anchor="cap")` | Raw `float(kwargs[...])` in Line's home values, the Ellipse `from_rect` branch and the Rect spine branch | `test_api_robustness.TestConstructorKnobsNeverLeakFloat`. Fix: `validate.finite` / `magnitude`. Found by `test_hyp_api` constructor fuzz at `ci` after a parallel Line API change added the home path |
+| A3 | Numeric constructor guard had loopholes: `None`, `bool`, tuples, objects and functions reached `float()`; interned looks built their key in `__new__` before the guard; filters had no guard; `None`-default knobs annotated as numbers were skipped | `Bloom(intensity=None)`, `Stars(twinkle=True)`, `Metal(speed=object())`, `SkyGradient(fade=(1, 2))`, `Kaleidoscope(segments=fn)`, `ProceduralFill(seed=None)` | `check_numeric_params` only rejected strings / NaN; `__new__` ran first | `test_api_robustness.TestSurfaceFuzzFindings`; `validate.guard_new_numbers`; a function passes only for `formula_knobs(cls)` (see R8). `validate.number` = fixed number (rejects functions); `finite` lets formulas through. Cost: the guard runs on every construct (interned looks too); `_numbers_fast_ok` skips `bind_partial` for plain in-range numbers (`Neon("red", amount=0.5)` 11.4 → 8.1 µs; unguarded 6.7), and `TestNumericGuardFastPath` proves it never accepts what the full check rejects |
+| A4 | Structured knobs and pure functions leaked Python's messages; `ready("new")` with no interval raised `KeyError` | `Dilate(radius=object())`, `DropShadow(offset="")`, `Blur(input=object())`, `Colormap(colors="00")`, `Lattice(scroll={…})` (dict has `len` and `[]`), `remap(None)`, `ready("x")` | Pairs / inputs / counts parsed with bare `float()` / indexing | `TestSurfaceFuzzFindings`; `validate.pair` (rejects mappings and sets), `filter_input`, `count`; `test_ready_without_interval_on_a_new_name_is_a_type_error` |
+| A5 | Widget geometry leaked, and a rejected widget moved the HUD layout cursor | `Button(top_left="")` (then `x1=""`), `DropDown(width=object())`, `Text("a", top_left="")`, `CheckBox(size="")` | Geometry validated after `begin_hud_item` (or never) | `TestSurfaceFuzzFindings.test_rejected_widget_does_not_move_the_layout_cursor`, `test_rejected_top_left_does_not_move_the_layout_cursor` (every widget + Text × bad points); `_geom_point` / `_geom_size` / Text `_anchor_xy` before any layout call |
+| A6 | `resolve_now` on a destroyed actor re-enrolled it in the collision index | `c.destroy(); c.resolve_now("g")` | `ensure_collider` had no dead check | `TestDeadVerbFindings.test_resolve_now_does_not_reenroll_a_dead_actor`; `ensure_collider` raises `DestroyedError` (every caller) |
+| A7 | Dead-verb batch once P6 really ran: `absorb(None)` leaked; `Square << Square` recursed forever (also live); `add_hitbox` on a dead sprite raised `RuntimeError`; `show_handles` / `show_points` built markers on a dead shape; a first read on a dead widget (`displayed_text`) put it back in the graph; `Line(circle=dead)`, `Ellipse(from_rect=dead)`, `dead_track.reversed()` linked new shapes to a dead source; `Gradient(size=fn)` and five other `float(finite(…))` sites leaked | see `TestDeadVerbFindings` | No dead / type checks; `super()._takein` (dispatcher) inside `_takein_impl`; lazy `ContainerSlot.__get__` wired the owner edge; `float()` around formula-passing validators | `test_api_robustness.TestDeadVerbFindings`, `TestNoFloatAroundFormulaValidators`; `test_entity_hooks.TestHooksDoNotCallTheirDispatcher`; P6 |
+| A8 | `ci` round after A7: fixed-number knobs and verbs still took a function through `finite` / `magnitude` (`Slider(min_value=fn)`, `ready(n, fn)`, `recently(hold=fn)`, `chase(dt=fn)`, `amp_db(floor=fn)`, `canvas.shake(fn)` / `glitch`, camera `pan` / `rotation`); `ColorSweep(axis=nan)`; `Text(width=fn)` (found at `deep`); `Track(rotation=fn)` leaked `float()` (now links, like every shape); `(x - hx) ** 2` raised `OverflowError` for a huge-but-finite coordinate (Slider handle, `Ellipse` / `Track.contains_point`) | `Slider(top_left=(1e200, 1e200)).on_mouse_move(1, 1)` (then `x1=1e200`); `Ellipse(...).contains_point((1e200, 1e200))` | `finite` passes formulas by design (reactive writes); float `**` overflows where `*` saturates | `TestSurfaceFuzzFindings` cases; `TestNoFloatPowerSquares` (AST: no `expr ** 2` in engine geometry; `_sq`); `validate.seconds` / `number` / `fixed_magnitude` at fixed sites; after `deep` also found `Text(width=fn)`, the fixed class was closed with `TestBareMagnitudeOnlyOnReactivePaths` (AST: a bare `magnitude(` only at allowlisted reactive sites; ~20 sites converted — timed `scale_to(fn)`, `canvas.zoom(fn)`, `Rect(corner_radius=fn)` had stored the function and crashed later in a frame) |
+| A9 | Methods phase (junk as the first argument of every author method on a live instance): 64 leaks from 9 causes — `set_alpha(None)` on every shape / Gradient / Texture / Sprite, `look_like(None)`, filter `compose(None)`, `clock.advance`, `Palette.reset`, `History.pop(None)`, `State.remove(None)` (`KeyError: None`), Track `at` / `local_at` / `tangent_at` / `angle_at` / `orbit` / `wander` / `zigzag` / `spaced_points`, Vec2 operands (`dot(None)`, `project_onto(object())`); then with representatives: the whole Color amount family (`lighter(None)`, `with_alpha("x")`, `jitter(1e308)` → NaN), `Box.inset`, `Grid.cell(None)` / `cell(1.7)` (silently truncated); `track.spaced_points(1e308)` **hung** | `scena.Color("red").lighter(None)`; `track.spaced_points(10**9)` | No argument checks on methods (constructors had the guard); Color not constructible without arguments, so the fuzzer skipped it | `test_api_robustness.TestMethodJunkFindings`; `test_hyp_surface.TestMethodJunk` + `TestMethodCoverage` (a class with author methods must be fuzzed: no-arg, `surface_support.REPRESENTATIVES`, or `ENGINE_BUILT`). Fixes: `validate.alpha01`, `number`; `scenamath._vec_arg` (a Vec2 or an `(x, y)` pair); `track._u_arg` / `_sample_count` (≤ 1,000,000); `box._cell_index` |
+| A10 | A rejected call half-applied: `fade_in("slow")` / `dissolve_in(...)` showed a hidden shape before validating `duration`; `tangent_lines_from(p, id2=<taken>)` left the first Line alive; `Contrail(duration=-1)` left its private stroke Line registered (a helper actor the H1 rollback does not know about) | `Point(visible=False).fade_in("slow")` → raises, Point now drawn | Side effect (`visible = True`, first construction) before the check that can fail | `TestMethodJunkFindings.test_rejected_fade_in_does_not_show_a_hidden_shape`, `test_tangent_lines_from_is_all_or_nothing`, `test_rejected_contrail_leaves_no_stroke`. Rule: a constructor that builds helper actors destroys them if it raises later; found by the methods phase's no-trace check (Point starts hidden, so only it exposed the class) |
+| A11 | A construct-time source shape of the wrong type leaked Python's `AttributeError` (`'bool' object has no attribute 'center'`) — found by the surface fuzzer at `deep` after M3 closed | `Ellipse(from_rect=False)`, `Ellipse(from_rect=Circle(...))`, `Line(circle=Rect(...))`, `Line(p1=, parallel_to=None)` | `_live_ref` (A7) checked "destroyed" but not the kind | `TestSurfaceFuzzFindings` cases. Fix: `_live_ref(ref, owner, kind, param)` requires a live `Line` / `Circle` / `Rect` (subclasses count) and names the parameter |
+| A12 | 36 flag knobs accepted any value through `bool()`: `"no"` is truthy, so `Stars(enabled="no")` switched the background **on** (also every background `enabled`, `Circle(use_center=)`, `Contrail(fade=)`, `Slider(show_value= / only_int=)`, `Text(stack=)`, `Sheet(yoyo=None)`, `set_watchdog`, `show_tracks`); `set_extrude_focus("x", 0)` leaked `float()` | `Stars(enabled="no")` | Flags were coerced, not checked; P2 cannot see an *accepted* junk value; the callable fuzzer only passed the first argument (`set_extrude_focus` stopped at "missing y") | `test_hyp_surface.TestFlagsTakeARealBool` (every flag of every export × `"no"`, `2`, `None`, `object()`); `TestSurfaceFuzzFindings.test_flags_take_a_real_bool`. Fix: the constructor guard checks bool-default knobs with `expect_bool` (fast path accepts only a real bool); `expect_bool` in the setters and the unguarded classes; the fuzzer fills the other required arguments (`_fill_required`) |
+| A13 | `ColorSweep(axis="banana")` silently meant radial; `axis=7` silently meant horizontal (`% 3`) | `ColorSweep(axis="horizontl")` | `_AXIS_ALIASES.get(key, 0)`; numeric codes wrapped | `test_color_sweep_axis_is_strict`. Decision: names + short aliases, or codes 0 / 1 / 2; anything else raises (`ValueError` with did-you-mean, `TypeError` for other types). A wrong axis looks plausible, so it gets no colour-style "warn and fall back" |
+| A14 | SpatialFx dual-model Derivates read stale; placement had a second spelling | `Rain(p1=(10, 20), p2=(110, 70)).width` → `0.0`; `Rain(center=…).p1` → origin; `Jet(p1=x)` silently became `origin=x`; `Fire(200, 150)` / `Sparks(at=p)` next to `center=` | Pad / beam domains lacked `_materialize_derivate_part` (Shapes have it); `Rain` corners were positional-only; `_init_point_fire_args` accepted four spellings of one point | `test_spatial_fx.TestDualModelDerivates`, `TestKeywordOnlyPlacement` (walks every exported kind + Fire style: positional, `at=`, scalar keywords raise with the point keyword; nothing registered), `TestRainCorners`, `TestJetPairs` |
+| A15 | `resolve()` / `unresolve()` accepted any side: `resolve(c, 5)`, `resolve(c, None)`, `resolve(c, Vignette())` registered a pair nothing could match; `@collide` refused numbers but let a post effect through | `resolve(Circle(), 5)` → silent no-op | Each pair verb had its own (or no) side check; `@collide`'s was a deny-list | `test_pair_sides`. Fix: one allow-list `collision._check_pair_sides` (actor, tag, `group['tag']`, `ANYTHING`, `Collider`, `Hitbox`) for all five verbs |
+| A16 | Python's binding message reached authors from ~25 exported constructors: `Polygon.__init__() got an unexpected keyword argument 'pionts'`, `Grid.__init__() missing 2 required positional arguments`; the looks' "Valid:" list printed `cls` | `Polygon(pionts=…)`, `Entity(gruop="a")`, `Neon(amout=1)` | No keyword check on classes without `**kwargs`; `check_numeric_params` listed every non-`self` name | `test_api_docs.TestUnknownKeywordMessages` (walks every exported class with a junk keyword; `Did you mean` cases; author `Entity` subclasses too; setup still runs once). Fix: `validate.install_friendly_constructor` on every export (`scena/__init__.py`) and the same rewrite inside `entity._wrap_actor_init`; acts only after a failed call and only on Python's own `X.__init__()` message. Exported *functions* keep Python's arity text: a wrapper frame would shift `_call_site(depth)` in the scheduler |
+| A17 | Guia parameter names were not the keyword names: `remap(v, in0, in1, out0, out1)`, `heading(de, para)`, `nearest(origem, itens)`, `Color.interpolate(a, b, t)`, `lighter(n)`, `with_alpha(a)`, `Palette.reset(i=0)`, `.dot(v)`, `play_sound(src)`, widgets' `attr` (code: `bounded`) … — a keyword call copied from the Guia raised | `remap(v=5, in0=0, in1=10)` | `check_parameter_keywords` only rejected a fixed list of Portuguese words | `validate_guia.check_parameter_rows` (every `Parâmetros:` row and `<p class="sig">` line vs the real signature, owner-aware; `*args` / `**kwargs` accept placeholders); `test_api_docs.TestGuiaParameterRows` with planted-row canaries. Code renames where the code name was worse: `Colormap.get_color(t)`, `Entity.goto_mode(fn)`, widgets / `Menu(cell)` |
+| A18 | `Vec2` operators leaked Python text: `Cannot add Vec2 and <class 'int'>`, `v * "a"` → `can't multiply sequence by non-int of type 'float'` | `Vec2(1, 2) * "a"` | `{type(other)}` in f-strings; `__mul__` / `__truediv__` unchecked | `test_api_docs.TestVec2OperatorMessages`. Fix: `_vec_operand_message` / `_vec_scale_message` (name the type, the accepted forms, `v + (5, 5)`, `v.dot(w)`) |
+| A19 | Engine hooks stayed public because their names are ordinary Guia words: `render` on every look (the word came from an Svg example), `tick` on every SpatialFx / PostEffect / ProceduralFill / `clock`, `shader`, `replaces_sprite_body`, `PostEffect.stage`, `collision.step`, `canvas.effects.hit_feedback` / `invalidate` / `release_surfaces` / `render`; objects reached through an export were never walked, so `canvas.layers["far"]` exposed `objects`, `append_object`, `tombstone_object`, `compact`, `live_count`, `response`, … and `canvas.fx_quality` exposed `from_value` | `Neon().render`, `canvas.layers["default"].append_object` | `test_api_surface` allowed any word found anywhere in the Guia, and walked only `scena.__all__` | `test_api_surface`: `_reachable_objects` walk, `TestEngineHooksAreUnderscored.HOOK_WORDS` (with a canary), `test_family_members_are_documented_in_their_family`. Fix: underscore every hook (`_render`, `_tick`, `_skia_shader`, `_replaces_sprite_body`, `_stage`, Layer `_objects` …); the dead `PostEffect.tick` removed |
+| A20 | `Menu(background=Gradient(…))` / `Texture(…)` crashed on the first draw | `Menu(options=["A"], background=Gradient("red", "blue"))` | `_panel_paint` called the material's `shader` **property** as a function (`bg.shader()`) | `test_api_docs.TestMenuMaterialBackground`. Found while renaming `shader` → `_skia_shader` (A19): a hook nobody documented was also a call site nobody ran |
+| A21 | `SpatialFx` on the `ui` layer raised plain `TypeError`, while `UiLayerError`'s docstring (and the error catalog) promise `UiLayerError` for exactly that case | `Fire(layer="ui")`, `fx.layer = "ui"` | Two raise sites predated `UiLayerError` | `test_ui_layer.TestUiSpatialFxForbidden` (now `UiLayerError`) |
+| A22 | Exports "documented" only in the search index: `WaterFill` / `FlameFill` / `SwellFill` / `WaveFill` / `AuroraFill` / `Stroke` / `ParallaxLayerError` / `UiLayerError` / `last_author_error` … pointed at a section that never named them; `validate_guia.py` said "\*Fill is not public" while `__all__` exported them | search "WaterFill" → Visual catalog, no WaterFill | `check_public_vs_all` only required an index entry | `validate_guia.check_symbols_described` (the anchor, or its section, names the symbol; catalog sections include the catalog text) + `test_api_docs.TestGuiaSymbolsAreDescribed` with a canary. Fix: Guia tabs *Procedural* and *Paint / Fill / Stroke*; the error catalog gained `CircularReferenceError`, `ParallaxLayerError`, `UiLayerError`, `ActUsageError`, `Cancelled`; the banner helpers left `__all__` |
+| A23 | The circular-link error said `linking Circle.radius to Circle would create a cycle in the dependency graph` — neither object identified, no fix; its docstring described a different error | `a["radius"] @= lambda: b.radius`, then `b["radius"] @= lambda: a.radius` | Message built from `.name` only | `test_api_docs.TestCircularLinkMessage`. Fix: `state._cycle_label` (field + `entity_label`), "Link one direction only …" |
+| A24 | Autocomplete / `help()` showed the wrong API: `width=<object object at 0x106d31cf0>` on Sprite / Svg / Text / Track / Point / Paint …; `Sprite` had one lone `@overload` `(source=None, **kwargs)` so static tools hid all twenty keywords; SpatialFx kinds hid `layer=` / `id=` / `group=` / `soft_edge=` behind `**kwargs`; Text / widgets / Track / Contrail ended in `**kwargs` only to reject typos; shape model keywords were "required" (`Circle(radius: float, …)`) and the gradual overload let `layer` be positional with no `center=`-only form; `Handle` showed 20 engine knobs | `help(Sprite)`, `inspect.signature(Circle)` | Bare `object()` sentinels; catch-all `**kwargs` for friendly errors; published union kept the first overload's "required" | `test_api_docs.TestSignaturesReadWell` (no `at 0x` in any exported signature; no exported `**kwargs`; no lone overload; shapes all-optional + gradual overload; SpatialFx published keywords accepted; named varargs; `py.typed`). Fix: `_defaults.Unset`; `_call_hints` on the class (actor wrapper / friendly constructor pass them to `reject_unexpected_kwargs`); `_publish_fx_signatures`, `_publish_svg_signature`, `set_defaults` / `change_act` `__signature__` |
+| A25 | `soft_edge=` on SpatialFx leaked `float()` for junk (`Orb(soft_edge="")`), and the first published signature showed `0.15` for every kind while each class used its own literal (Rain 0.18, GlowSpot 0.85 …) | `Jet(soft_edge=object())` | Not a guarded knob (hidden in `**kwargs`, so the surface fuzzer never reached it); defaults were literals inside each `__init__` | Found by `test_hyp_surface` once A24 published the keyword. Fix: `fixed_magnitude` in `SpatialFx._construct` and the Rain / Jet paths; per-class `_soft_edge` attribute is both the default and the published value (`test_spatial_fx_published_keywords_are_accepted`) |
+| A26 | Messages with no fix or a Python repr: `above("x")` / `below` / `layers.using` / `layers.default =` said only `Layer 'x' not found` (the `.layer =` path already listed layers + the create call); `Cannot convert <class 'object'> to Color` (a `ValueError` for a wrong type); `Cannot convert <class ...> to Point`; `geom._shape_center` raised `TypeError("Foo")`; presets dumped 94 names with no suggestion; `set_defaults(colr=)` had no hint; `Microphone(backends=5)` was swallowed into "no input device"; `window_frac` lived on as a deprecated second spelling of `window_scale` | see `test_api_docs.TestMessagesNameTheFix` | One-off `raise` sites predating the message rules | `test_api_docs.TestMessagesNameTheFix`, `test_color.test_invalid_type_still_raises` (now `TypeError` with the forms), `test_window_geom.test_window_frac_second_spelling_is_gone`. Fix: `LayerStack._missing` for every lookup; `did_you_mean` on presets / `set_defaults`; the Guia's unknown-colour rule corrected (near miss → closest name, else magenta) |
+| A27 | Found while writing the hover docs: `Track.eight / star / spiral / wave` passed knobs straight to `float()` / `int()` (`Track.eight(width="x")` leaked Python's message; `star(points=2.5)` truncated); `ProceduralFill.amount` / `.speed` setters used `float()`; `FilterEffect.filter` handed authors the raw `skia.ImageFilter`; widgets exposed WidgetManager dispatch (`on_mouse_down`, `on_key`, `on_char` …) as public methods; `keyp.press(k)` / `keyp.release(k)` injected input while `mouse.press(b)` is a query — one verb, two meanings; `Text.flash_text` returned an engine channel while the widget version returned `self` | `Track.eight(width="x")`, `keyp.press("A")` | No docstring had to describe them, so nobody read them | `test_api_docs.TestSignaturesReadWell` / `TestEverythingHasHoverDocs`, `test_api_surface.TestEngineHooksAreUnderscored` (widget hooks). Fix: `validate.number` / `count` in the presets and setters; `_skia_filter`; `_on_*`; `keyp._press` / `_release`; `flash_text(…, on_done=)` returns the caption / widget |
+| A28 | The Guia described two behaviors wrongly: `Button(cell)` was "a toggle" (the code is momentary — `value_on` while held, `value_off` on release; the example `Button(st.paused)` would pause only while pressed), and `Vec2.reflect_about(axis)` "mirrors about an axis" (it bounces off a surface with that **normal**: `(1, -1)` about `(0, 1)` → `(1, 1)`). The unknown-colour rule said "magenta" while a near miss uses the closest name | `Button(st.paused, value_on=True)` | Prose written from intent, not from the code | Guia fixed (Button one-liner, `cell` row, example; `reflect_about(normal)` row with the worked example; colour one-liner). Docstrings now state the same behavior (A27 pass) |
+| A29 | `Menu(background=Gradient(…))` drew a solid panel (the last stop); `Texture(…)` drew a 48-unit sprite fit at the view origin and dropped `alpha` / `shift`; a bad `background=` (`42`, `WaterFill()`) raised only on the first draw | `Menu(options=["A"], background=Gradient("red", "yellow"))` | `_panel_paint` used `material._skia_shader`, an origin-centered local-frame shader, in view coordinates with no host fit. The A20 test asserted `isinstance(paint, skia.Paint)` — a type, not pixels — so the half-fix passed | `test_menu.MenuBackgroundTest` (pixel samples at the panel edges, off-center panel, angle / radial / `size=`, Texture stretch + alpha, construction-time `TypeError`); bug class: `test_api_docs.TestMaterialShadersStayInTheirFrame` (only `style.py` / `recipes.py` may read `_skia_shader` / `_shader_for_scale` / `_shader_for_local`, with a canary). Fix: `style._material_paint_for_rect` (host fit + translate to the rect center) and `style._coerce_panel_material`. Lesson: a regression test for a rendering bug samples the output |
+| A30 | A float `TextInput` changed the cell when clicked in and out (`0.125` → `0.12`); a bool cell became the string `'1'`; typing past the box width dropped characters | `TextInput(st.f)` with `st.f = 0.125`, focus then unfocus | The box showed `f"{v:.2f}"` and wrote back on every focus loss; `isinstance(True, int)` routed bools to the int display while the commit fell through to "store the text"; `_on_char` refused characters that did not fit | `test_text_input.TestCommitRules` (incl. a Hypothesis property over floats), bug class `TestFocusInOutNeverChangesAValue` (every value widget × focus in / out with no edit). Fix: commit only when `.text` differs from the cell's own text at focus; floats shown with `.15g`; bool cells refused at construction; the box scrolls instead of dropping |
+| A31 | Focusing a `TextInput` right after its cell changed (no draw in between) edited the stale text, and the commit wrote it back over the new value | `st.t = "new"; box.focus()` | "Follow the cell unless focused" ran inside `_on_focus_gained`, where focus is already set | `test_text_input.TestCommitRules.test_focus_right_after_a_cell_write_edits_the_new_value`. Lesson: `set_focus` flips `_has_focus` before the widget hook runs — a hook must not gate on it |
+| A32 | The Guia showed no catalog at all (Visual, SpatialFx, Post, Backgrounds, filters, transients, complementos): one stray `)` in a `P(...)` list made `guia-api-catalogs.js` invalid JS, so `window.ScenaGuideCatalogs` never existed and every `cat.fill` was skipped | `P("color", "None", "…"))]` in the `Rain` card | `load_catalogs` reads the file with tolerant regexes: it saw every card, checked every parameter and reported ok | `validate_guia.check_catalog_js` (a JS bracket tokenizer that skips strings, comments, regex and template text; first mismatch as `file:line:col`; card count per bag vs the loader) runs first in `main()`; `check_catalog_js_engine` re-runs the file in node / jsc when one is installed; `test_api_robustness.TestGuiaMatchesCode` with planted-error cases. Rule: every hand-edited `.js` data file of the Guia passes the strict check |
+| A33 | `Collider` accepted any weak-referenceable piece and registered a body with no geometry that nothing could unregister (`Collider` has no `destroy`) | `Collider(lambda: 0)` | No type check on pieces; the parallax / part checks are no-ops for non-entities | `test_collision.TestCompoundCollider.test_non_shape_pieces_are_refused_before_registration`; `test_hyp_surface` P3/P5 at `ci` (found there). Fix: every piece must be an `Entity` or a `Hitbox` part, checked before any mutation |
+| A34 | A write to an unknown `Layer` attribute was stored and did nothing: typos (`layer.visable = False`), the frozen camera-response knobs (`layer.scroll = (0, 0)`, `layer.pan_response = 0.5`), a method name | `canvas.layers.create("far").scroll = (5, 0)` → no scroll, no error | `Layer` was a plain `@dataclass` with no `__setattr__`; only `name` / `z` / `post_fx` were properties | `test_registry_layers.TestLayerWriteGuard` (every layer kind, typos, frozen knobs incl. numeric layers, every dataclass field and setter still writable). Fix: allow-list `Layer.__setattr__` (dataclass fields + properties); others raise `AttributeError` with did-you-mean, the writable list, or the `canvas.layers.create(...)` hint. Later (P3), `scroll` became the live rate on non-neutral layers (`Layer.scroll` setter; neutral layers raise `ValueError` with the create fix) |
+| A35 | `v.length = 5` on a Vec2 said "derived (computed) attribute for the shape's current model … Construct the shape with a different model instead": a Rect message, and no way to set a length or heading in place was named | `Vec2(3, 4).length = 5`; `v["angle"] @= lambda: 30` | One Derivate message for every Container, worded for shapes | `test_derivate_readonly.TestVec2ComputedFieldMessages` (every Derivate slot of Vec2, `=` and `@=`). Fix: `Container._derived_field_message` hook; Vec2 names `v << vec_from_angle(v.angle, 5)` / `v << vec_from_angle(30, v.length)` and, for `@=`, `v @= lambda: vec_from_angle(angle, length)` |
+| A36 | Every computed field of every shape said "derived (computed) attribute for the shape's current model … Construct the shape with a different model instead": wrong for Text (no models), Track and Box, and it named no way to move a computed point. `rect.top_right << (1, 2)` did not raise at all: it overwrote the point and the rect stayed | `Text("a", center=(0, 0)).top_left = (1, 2)`; `rect.top_right << (1, 2)` | One shape-worded message at five sites; `Container.__lshift__` had no Derivate check | `test_derivate_readonly.TestDerivedFieldMessages` (every model × computed field × `=` / `.x =` / `@=` / `<<`; runs each suggested `move_to`). Fix: one hook, `Container._derived_field_message` (Shapes Design, "Refusing a computed field"); `<<` calls `_ensure_not_derivate` |
+| A37 | A parallax layer's `scroll` moved only when something painted: `update` read last frame's offset, a headless run never scrolled | `canvas.layers.create("nuvens", scroll=(0, -60))`, step frames without drawing → offset stays 0 | `ScrollState.advance(t)` ran inside `ScenaCanvas.draw` (world state advanced by paint) | `test_layer_scroll_view.TestScrollInFrameTick` (no draw, `update` sees this frame's offset, `clock.scale = 0` pauses), `test_parallax_layers.TestRenderEndToEnd.test_draw_does_not_advance_scroll`. Fix: `ScenaCanvas.advance_layer_scroll` once per frame right after the clock tick; draw only reads the accum. Rule: world state never advances in the draw walk; a custom frame loop calls the tick hooks after its own clock tick |
+| A38 | `ship.vel @= lambda: vec_from_angle(st.a * 30, 10)` raised `LinkedAttributeError: Circle.Circle_vel is linked — call Circle['Circle_vel'].unlink() first`; `ship.vel["x"] @= …` linked silently, so the next `resolve(bounce=)`, `confine(action="bounce")` or `vel.y -= g * dt` raised; `ship["vel"] @= …` already refused | `c.vel = (1, 0); c.vel @= lambda: (st.a, 0)` | Python runs `c.vel = c.vel.__imatmul__(f)`: the link landed on the owned Vec2, then the setter wrote into it. The bracket refusal lived on the Entity, which the part paths never reach | `test_fieldref.TestVelIsNotLinkable`; bug class `test_attribute_and_bracket_link_agree_on_every_actor_part` (every exported actor kind: a property handing out a Container that bracket `@=` refuses must refuse `part @= …` too and link nothing). Fix (decision: refuse, not link — the engine writes `.vel`): the owned Vec2 carries `_link_refused = "vel"`, checked in `state._refuse_link_on_dead` before any link; one message for all four spellings. An early return in the setter on `value is self._vel` would have kept the link |
+| A2 | Instant pose on a destroyed actor was not one rule | `Sprite.destroy(); sprite.move_by(1, 0)` raised `NotImplementedError`; `Circle.destroy(); circle.move_by(1, 0)` moved the husk | `destroy()` drops the graph node; the batched path called `_update_impl`, and the fast path wrote pose with no dead check | `test_api_robustness.TestLifecycleContracts.test_dead_instant_verbs_leave_pose_unchanged` (Sprite, Circle, Rect, Text, Point, Line × move / rotate / scale / confine) |
+
+### C — constructor links (2026-09-26)
+
+A value copies; a lambda links. These failed that rule because the constructor touched the raw argument before `_init_scalar` / `_init_composite`.
+
+| ID | Bug | Repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| C1 | `Line(length=lambda: …, angle=0)` rejected the home form; every other Line form accepted `length=` | `Line(length=lambda: src.x, angle=0)` | `_home_pose_values` ran `number()` on keys the author passed. Home fill only needs defaults for omitted keys | `test_ctor_links.test_line_home_length_and_angle_link` |
+| C2 | `Ellipse(fp1=, fp2=, major_axis=)` rejected a lambda on any of the three | `Ellipse(fp1=lambda: sun, fp2=(0, 0), major_axis=100)` | The `major > distance` check called `get_xy` / `_bare_num` on the raw kwargs | `test_every_geometry_key_links`; `test_linked_focal_ellipse_may_collapse` (a link may collapse; a written value still raises) |
+| C3 | Rect spine `height` linked, but `Box` spine `height=lambda` leaked `float()` | `Box(p1=…, p2=…, height=lambda: src.x, anchor="cap")` | `height = float(kwargs["height"])` before `_init_scalar` | `test_every_geometry_key_links` (Box spine) |
+| C4 | `Rect(p1=lambda: s, p2=(100, 50), rotation=30)` was a different rectangle from the plain call | plain corners moved to the rotated box; the link stayed at `s`, and `p2` was still rewritten | `_promote_aabb_diagonal_to_oriented_corners` / `_promote_point_vec_aabb_to_oriented` rewrote stored inputs. Runtime `_oriented_frame` already treated corners as pinned | `test_plain_and_linked_build_the_same_shape`; `test_shapes.test_construct_with_angle_pins_corners`. Same removal in `box.py` |
+| C5 | `corner_radius=lambda` used to be stored and crash at draw (A8 made it `fixed_magnitude`). Bracket `@=` still created dead ink | `rect["corner_radius"] @= lambda: 4` | Not a reserved name, so the link landed in ink the painter never reads | `test_ctor_links.test_corner_radius_assign_is_callable_assign_error`; `test_api_robustness` field-kind case. `corner_radius` is reserved; `=` of a callable is `CallableAssignError` |
+| C6 | Fixed knobs (`padding`, `Polygon(points=lambda)`, Sprite `width`/`height`/`size`, Text `width`, `Track(start=)`) raised Python's message or a generic "got a function" with no alternative | `Sprite(width=lambda: 3)` | The value was fed to aspect math / `len` / `float` | `test_fixed_keys_reject_with_scena_message` (each message names the linkable alternative). `Track(rotation=lambda)` links, same as a shape |
+| C7 | Docs taught the copy as a link (2026-10-05): the `Anchor` docstring said `Line(p1=a.center, …)` linked (its Example too), and Shapes / Reactive Design called `Line(p1=rect.top_left)` / `Line(p1=rect.right_center)` a link or DirectLink; the line stayed where it was built | `a = Anchor(100, 100); l = Line(p1=a.center, p2=(300, 100)); a.move_to(150, 120)` → `l.p1` still `(100, 100)` | Prose written before construction became always-copy, never updated; no test read docstring or design-doc claims. Runtime was right | `test_shapes.test_anchor_bare_center_is_a_snapshot`, `test_anchor_docstring_example_follows_the_drag` (runs the Example); class guard `test_api_docs.TestLinkClaimsUseLambda` (a bare dotted point keyword on a line that says link / liga / follows, with no copy word and no `lambda`, in `scena/*.py`, design docs, Guia, tutorials; canary). Heuristic: a claim split across lines escapes it |
+
+### T — Text / HUD (2026-09-26)
+
+| ID | Bug | Repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| T1 | Any motion on a view caption recentered it on its pin; a `center` write drew moved but snapped back on the next string change | `t = Text(text="", top_left=(16, 560)); t["text"] @= …; t.move_by(0, 0)` → left edge `16 − w/2` (then spelled `x1=16, y1=560`) | `center` stayed the old string's midpoint until the next layout, and `_move_by` / `_move_to` rebuilt the box around it with the world rule. Found again during the fix: a reconcile alone misread an *absolute* stale write (`center = P`, `tween`) as a translation, so reads refresh too | `tests/test_text.py` `TestViewPinMotion` (every verb × three anchors, stale and fresh), `TestViewPinMotionProperty` |
+| T2 | `Text(box=cell)` sat half its height above the cell centre (bug A); with `align="left"` / `"right"` the region-wide box shifted half a width sideways (bug B); and it silently advanced the HUD column | cell centre `(200, 150)`, 60 high → text centre y `161.8`; `align="left"` → box x `200..360` for a `120..280` cell | The region centre was fed to the bottom-left **edge** `x1, y1` (a centre is not a corner), and `align` doubled as the horizontal pin. Class: converting between a top / centre anchor and the min edge `y1` without the height | `tests/test_box.py` `test_text_box_is_centred_in_the_region` (every align × one and three lines), `test_text_box_does_not_join_the_hud_column`. Fix by design: `box=` is `center=` (pose) and `align` only places lines; anchors are named points (`top_left=` …), edges are private `_x1.._y2` |
+| T3 | A HUD caption near the top grew **upward**: a second line (formula text) pushed its first line off screen; `font_size` moved the top edge | tutorial `placar = Text(x1=20, y1=760)` on an 800-high screen; `"…\nVidas 3"` → top `807` | Placement was the bottom-left corner in y-up, so growth went up | `test_text.TestTextAnchors.test_growth_is_downward_and_away_from_the_anchor`; `TestViewPinMotionProperty` (every anchor × string / hard breaks / `width` / `align` / `font_size` / moves / anchor writes: pin fixed, top fixed) and `test_linked_anchor_tracks_its_source`. Guard against the scalar spelling coming back: `TestTextAnchors.test_no_public_scalar_edges` |
+| T4 | Tutorial steps had drifted from the API: `quadrado.visual = Aura()` (Aura is sprite-only), `keyp.once("escape")` (the key is `"ESC"`), `barra["rotation"] @= lambda b=barra: … b.nivel` (`CircularReferenceError`; also `examples/barras_girando.py`), `SkyGradient("space")` (no such preset) | open `docs/pt/tutorial/04-ui-widgets.html`, press Esc | Nothing executed the tutorial HTML; the API moved underneath (Aura scope, key names, default-arg formula sources) | `tests/test_tutorials.py`: every step's `code:` runs in a child process with `run()` as a few `update(dt)` calls; each `try` box runs appended to its step, or (a function-body fragment) compiles and resolves its calls. Verified to fail on the pre-fix HTML. Fix: `Rim()`, `"ESC"`, `lambda n=nivel: …`, `SkyGradient("dusk")` |
+
+### K — handle fields that double as registry keys (2026-09-28)
+
+A write changed the field; the registry kept the old key. Nothing raised.
+
+| ID | Bug | Repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| K1 | Renaming a layer desynced the registry | `l = canvas.layers.create("far"); l.name = "zz"` → `"zz" in canvas.layers` False, `"far"` True | `Layer.name` was a plain dataclass field and the `canvas.layers` key (also every member's `_layer`) | `test_registry_layers` (`test_name_is_read_only`, every layer kind, members in sync). Fix: read-only property, `AttributeError` naming `create` + `shape.layer =` |
+| K2 | A renamed / re-owned `Handle` orphaned its scheduler slot | `h = after(10, fn, name="spawn"); h.name = "x"; h.cancel()` → dead `h` still in `_named["spawn"]`; `h.owner = d; c.destroy()` → job survives its owner | `_forget` rebuilds `(id(owner), name)` from the **current** fields; `name` / `owner` were public slots | `TestHandleSlotKey`. Fix: `_name` / `_owner` slots + properties raising `TypeError` (same family as `h.remaining` / `h.paused`); `audio._unbind_named` writes `_name` |
+| K3 | In-place group edits skipped the group index | `c.group.add("boss")` → `c.group` says boss, `group["boss"]` lacks `c` (collision tags too) | `shape.group` returned the live `set` the registry mirrored; only `c.group = …` was routed | `TestGroupSnapshot` (every `set` mutator, enumerated from `set` itself). Fix: `GroupTags` (frozenset subclass, mutators raise with the `tag` / `untag` spelling); `Registry.add_to_group` / `remove_from_group` swap snapshots; `c.group \|= {…}` rebinds through the synced setter |
+| K4 | Writing a field on an interned look changed every shape using it | `a = Recolor("blue"); a.key = "red"` → `Recolor("blue").key == "red"`; `_key_hsv` still blue | Same-argument looks are one cached object (intern key = ctor args); public fields were plain attributes | `TestInternedLooksFrozen` (44 exported looks and filters, known and new field names). Fix: `_interned_setattr` on `Visual` / `FilterEffect` refuses public writes once `_ready` on `_interned` instances; hot private cursors (`_rp_stroke_i`) write `__dict__` directly |
+| K5 | `Point.temp(...).id = "x"` was accepted and `obj("x")` found nothing; the guide said `.id` was writable though every registered item raised `ValueError` | `p = Point.temp(1, 2); p.id = "ghost"` | The setter allowed the first write while `_id is None` — reachable only on never-registered items | Retired with ids (2026-09-29): `id` is plain ink now (`test_registry_key_fields.TestNoEntityIdKey`). Original fix: setter always raised `AttributeError` (was `ValueError`) with the `id=` / `tag` spelling; `register` writes `_id`. The Guia audit missed the row because it wrote the current value back (the setter's same-value early return); it now writes a different value and restores (`validate_guia.probe_value`, `test_api_robustness.TestGuiaAccessProbe`) |
+| K6 | `sprite.gray = 0` left the sprite gray after another module had built `Grayscale(0.00001)` (deep-tier serial pass: `test_off_spellings` failed, passed alone) | `Grayscale(0.00001); s.gray = 0` → `s.gray` is a Grayscale | The intern key is `round(amount, 4)` but `__init__` stored the raw amount, so the **first** caller decided what every later same-key call read; `coerce_gray` turns gray off only when `amount == 0` | `test_sprite.TestSpriteGrayStamp` (`test_off_spelling_after_a_tiny_amount_was_interned`, `test_interned_amount_does_not_depend_on_creation_order`). Fix: store the rounded key value. Rule: an interned look whose key rounds a field stores the rounded value. Still first-caller-wins, cosmetic only (nothing branches on the exact value): `HueShift.amount`, recipe `_intern_extra` knobs |
+
+### O — order / isolation (2026-09-28)
+
+| ID | Bug | Shrunk repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| O2 | `test_run_loop.TestCameraAfterUpdate` crashed in the deep tier's serial pass (`'_DummyLabel' object has no attribute 'is_alive'`) and passed alone | `python -m unittest tests.test_framework_debug tests.test_run_loop` | `test_framework_debug` put a stub on the process-wide `fw._system_label` and never restored it; the scene build's idempotent `_build_system_labels` then read `.is_alive` on it | Fix: the test restores the real label (`addCleanup`); the guard is `getattr(label, "is_alive", False)` for both labels (anything that is not a live Scena label is replaced). Class guard: the deep tier's serial pass. Rule: a test that assigns onto the `ScenaFramework` singleton restores it |
+| O3 | Every editor system test failed in one process after `test_ui_layer` (`Text.visible cannot change a destroyed actor … destroyed at test_ui_layer.py:36 in setUp`) and passed alone | `python -m unittest tests.test_ui_layer scena_editor.tests.test_editor_system` | `test_ui_layer`'s setUp wipes the registry (`destroy_all`), which also destroys the framework's HUD labels; the frame body's `_refresh_system_label` / `_refresh_error_label` then wrote to the dead labels. Hidden until a module after it stepped real frames — the deep serial pass started covering `scena_editor/tests/` | Fix: `ScenaFramework._live_label` — a dead HUD label is skipped (rebuilt at the next game start); `test_ui_layer` rebuilds the labels after itself. Guard: `tests/test_hud_labels.py` (frames with both labels destroyed, system info on, a pending warning). Rule as O2: a test that wipes or patches framework singletons restores them |
+| O1 | `test_change_gated_update.test_point_temp_does_not_link_attributes` failed when its module ran alone (`28 != 38` graph nodes) and passed inside `discover` | `python -m unittest tests.test_change_gated_update` | The baseline was read while the previous test's garbage was still pending; a GC pass mid-loop ran the GC-backstop finalizers and purged 10 nodes. Earlier modules in `discover` shifted the GC timing and hid it | `_settled_nodes` (collect until nothing is freed) before each baseline and final read in that module; class guard: the gate tier runs every module alone |
+
+### SC — scenes (2026-09-28)
+
+Found while building [Act Design.md](Act%20Design.md).
+
+| ID | Bug | Repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| SC1 | A key press from one act fired `keyp.once` in a later one | Hold SPACE to shoot in `Fase` (read only as `keyp("SPACE")`), lose → `FimDeJogo.on_update`'s `keyp.once("SPACE")` is True on its first frame and skips the game-over screen | An unread rising edge stays in `KeyPressed._pending_edges` until the first `once` reader — even long after release (by design: a same-poll press + release must still be seen). Nothing dropped it on an act change | `test_act.TestScopesAndScriptRules.test_a_key_press_does_not_carry_into_the_next_act`. Fix: `KeyPressed._swallow_edges()` (shared with the modal-mask lift) runs on every change. Generalized by PM3: unread edges now expire every frame |
+| SC2 | An undrawn entity kept only by the act's ink could skip its `on_destroy` | `class F(Act): setup: self.d = Diretor()`; GC between the act's own teardown (clears ink) and the batch drain | The registry holds undrawn entities weakly; the batch was only held from the drain on | `test_act.TestStartAndChange.test_undrawn_entity_held_only_by_act_ink_still_gets_on_destroy` (forces the GC at that point). Fix: `SceneManager.change` holds the whole batch strongly for the change |
+| SC4 | `until_empty("inimigo")` warned "No group 'inimigo'. Did you mean 'tiro_inimigo'?" the moment the fleet was cleared (found running the Act sample game; not act-specific) | A group `"inimigo"` and a group `"tiro_inimigo"`; `await until_empty("inimigo")`; destroy the last enemy | The per-frame poll went through the author lookup `group[name]`, whose near-miss guard warns for a name missing from `group_map` — and the registry deletes a bucket when it empties | `test_process` (`test_until_empty_does_not_warn_when_the_group_empties`, `test_until_empty_typo_still_warns_at_the_call`). Fix: check the name once at the call; poll `Registry.group_live_count` / the formula view |
+| SC3 | (design) "Stop the collision step after a change in a handler" would lose a surviving pair's `enter` and a game body's `exit` | `@collide` handler calls `change_act`; a game pair later in the same step | The existing dead-pair rules already drop every old-act pair; stopping the step also drops the survivors | `test_act.TestScopesAndScriptRules.test_change_act_in_a_collide_handler_drops_the_old_acts_pairs` (game pair dispatched after the change). Fix: no act guard in `CollisionSystem.step`; design doc corrected |
+
+### G — geometry properties (2026-09-28)
+
+Found by the transform / round-trip / invariance properties (grid tiling, camera
+round trip, collision under a world shift, chase frame-rate independence, vertex-level
+rotation algebra for every kind). G1 was an engine bug; G2 was the property being
+stricter than the contract; the rest held. G3–G8 were found while making Rect
+named points follow their points (2026-09-29 / 30), G9 onwards by the geometry contract sweep: all engine bugs.
+
+| ID | Bug | Shrunk repro | Root cause | Why earlier tests missed it | Guard |
+| --- | --- | --- | --- | --- | --- |
+| G1 | `Point.rotate_by` about the point itself left `rotation` unchanged (`rotate_to` set it; every other kind adds). `collision.raycast(p, length=)` reads that heading | `p = Point(5, 5); p.rotate_by(60)` → `p.rotation == 0` | Early return when the pivot equals the point ("no-op for position") skipped `_pose_rotation_add` | `TestPoseAlgebra` covered Shape kinds only; the Point test checked position only | `test_shapes.TestPoint.test_rotate_by_about_self_still_turns_the_heading` (+ linked point); class guard `test_hyp_api.TestRotationGeometry` (every kind with its own `rotate_by`, vertices + heading, `@example` of the repro) |
+| G2 | **Test fix, engine unchanged (by design).** Deep tier: `TestTranslation.test_moving_the_world_keeps_contacts` saw a contact appear after `move_by(0, 1)` of every body | Rect `(1, 2)` 10×5 (group `hb`), Polygon `(1, -6.5)–(39, -1.75)–(24.75, 22)` (group `ha`), four r=3 circles at the origin; `dx=0, dy=1, steps=1` → contact (5, 4) only in the moved world | The rect corner `(6, -0.5)` lies exactly on the polygon edge `(1, -6.5)–(24.75, 22)`. SAT projects world coordinates onto a normalized (irrational) edge axis; the corner is 1 ulp outside at `y`, 1 ulp inside at `y + 1`. Contract decided (user, 2026-09-29): touching counts, but at exactly zero gap either answer is allowed ([Collision Design — Touching and tangency](Collision%20Design.md#touching-and-tangency)); a translation-invariant narrow phase is not worth its cost for a game | The property compared contact sets exactly; only the `deep` profile found a dyadic polygon whose corner lands exactly on an edge | `test_sys_hyp_collision.TestTranslation` (both properties: contacts may differ only on pairs within `TANGENT_EPS` = 1e-6 of zero gap in either world; `@example` of the repro); `TestTangencyTolerance` (the repro is tangent at `dy` 0 / 1 / 4096; a 1e-3 gap or overlap is not, so the hatch cannot pass vacuously). Class: **An oracle is stricter than the contract** |
+| G3 | `flip_x` on a `POINT_VEC` rect moved the box | `Rect(p1=(0, 0), vec=(100, 50)).flip_x = True` → frame center (50, 25) → (150, −25) | The generic `Shape._mirror_scalars` turned `rotation` to `180 − θ` **and** negated `vec.x` — two mirrors, i.e. a displacement. Under the flip convention a mirror negates `vec.y` on either axis | Flip tests checked Line / Circle / Square read-backs and flip-twice identity, never that the region stayed put, and never `POINT_VEC` | `test_rect_names.TestFlipMirrorsNamedPoints` (every named point lands on its mirror; region unchanged; twice = identity; every Rect/Square model × rotation × crossed × axis; `@example` of the repro; canary: a rotation-only flip is caught). Class: **A mirror is applied as a rotation (or twice)** |
+| G4 | `flip_x` / `flip_y` on a `SPINE` `side_left` / `side_right` rect moved the box across `p1→p2` | `Rect(p1=(0, 0), p2=(100, 0), height=20, anchor="side_left").flip_x = True` → center y 10 → −10 | Mirroring `p1`/`p2` reverses the handedness of `p1→p2`; the anchor kept its side, so the box landed on the other one. The anchor now swaps | Same as G3 | Same property (`@example`s for both anchors and axes) + `test_spine_side_flip_keeps_the_box_in_place`. Class: **A mirror is applied as a rotation (or twice)** |
+| G5 | Derivate `vec` went stale on every model where it is Derivate (Rect, Box, Line): filled on first read, never refreshed | `r = Rect(p1=(0, 0), p2=(100, 50)); r.vec; r.p2.x = 300` → `r.vec` still (100, 50) | Two causes. (1) No `_update_impl_*` wrote `vec` (it was missing from the write lists). (2) Pull resolution: a Derivate `Vec2` has its own `_update_impl` (length / angle), so `_local_refresh_root()` stopped at it and never asked the owner to rewrite `x` / `y`. `_resolve_structural` now pulls a Derivate part's owner first ([Reactive Design](Reactive%20Design.md#_ensure_fresh--_resolve_--pull-on-read)) | Derivate tests read each part once, right after construction; nothing wrote a Defining part and read the Derivate again | `test_rect_names.TestDerivatesMatchAFreshTwin` (Rect / Square / Box, every model: read every Derivate, write a Defining part, compare every part with a freshly built twin; `p2 == p1 + R @ vec`; canary: an update that skips `vec` is caught). Class: **A Derivate is missing from the update's write list** |
+| G6 | `EquilateralTriangle.flip_x` / `flip_y` drew a different triangle; `RegularPolygon` / `EquilateralTriangle` `vertex=` flips moved the shape | `EquilateralTriangle(center=(0, 0), radius=10, rotation=10).flip_x = True` → apex down, not mirrored; `RegularPolygon(vertex=(3, 4), side=6, n=5, rotation=10).flip_x = True` → center (−2.0, 3.1) → (8.0, 3.1) | The generic flip mirrored `rotation` (`180 − θ`), but the triangle's vertex-0 heading is `rotation + 90`, so the heading was not mirrored. It also never touched the Defining `vertex` of `VERTEX_SIDE`, so the polygon turned about it. `RegularPolygon._mirror_geometry` now mirrors the heading and the vertex | The G3 property covered Rect / Square only; the earlier kind sweep compared one read-back, not the drawn vertex set | `test_flip_mirror.TestFlipMirrorsEveryKind` (every kind and model: drawn geometry is the mirror, center fixed, twice = identity; `@example`s of both repros; canary: the generic rotation mirror is caught). Class: **A mirror is applied as a rotation (or twice)** |
+| G7 | A flipped Sprite's `box.top_center` sat at its feet; `rect.box` / `Box(graphic)` of any flipped frame lost the mirror | `Sprite(…, center=(100, 100)).flip_x = True; sprite.box.top_center` → (100, 64), was (100, 136) | `flip_x` turns a Sprite's heading to `180 − θ` and draws the art mirrored. `.box` copied the angle (180) but not the mirror, so its frame was the sprite turned upside down. `.box` now carries the source's name signs (`box.region_name_signs`): a Box made from a Graphic is its frame, names included | `.box` tests used unflipped graphics | `test_rect_names.TestBoxCarriesNames` (flipped Rect / Sprite / Text boxes, board cell through turns and flips, fleet slot, `box=` placement). Class: **A mirror is applied as a rotation (or twice)** |
+| G8 | `RegularPolygon` / `EquilateralTriangle` `signed_area` read 0 (always, until a Defining write) and `perimeter_length` read 0 on its first read | `RegularPolygon(center=(0, 0), radius=5, n=4).signed_area` → 0.0, not 50 | The first read materializes the stat slot, then asks `_update_impl` to fill it — but `_stats_live()` cannot see a slot that is still being created, so the stats were skipped and the slot kept its default. Nothing re-dirtied it. The materialize path now computes the stats itself | Stats tests read `centroid` first (which placed every vertex) or used a free `Polygon` | `test_flip_mirror.TestRegularPolygonStatsMatchAFreePolygon` (every model, each stat as the first read, against a free `Polygon` on the same vertices — an independent oracle, so a stale default cannot pass). Class: **A Derivate is missing from the update's write list** |
+| G9 | RegularPolygon / EquilateralTriangle Derivate `vertex` read (0, 0) in the `center=` models; the G8 stats fix was incomplete — `signed_area` / `perimeter_length` read 0 when `side` / `radius` was read first | `RegularPolygon(center=(3, 4), radius=6, n=5).vertex` → (0, 0); read `.side`, then `.signed_area` → 0 | No `_update_impl_center_*` wrote `vertex`. `_stats_live()` looked for a stat's value in `__dict__`; on a first read of a dirty polygon the slot is registered (`_derivate_state`) but has no value yet, so the stats were skipped | Found by the geometry contract sweep (C1 / C4 / C5); the G8 test read each stat on a fresh polygon only | `test_flip_mirror.TestRegularPolygonStatsMatchAFreePolygon` (`test_stats_do_not_depend_on_what_was_read_first`, `test_vertex_is_points_zero_in_every_model`); `test_geometry_contract` C4 read order. Class: **A Derivate is missing from the update's write list** |
+| G10 | `Square(top_left=).scale_by` moved the square (both pivots) | `Square(top_left=(3, -2), length=20, rotation=15).scale_by(1.5)` → center drifts | `Rect.scale_by` (TOP_LEFT_WH) wrote the new size, then placed `top_left` from a re-read `_wh_signed()` — a Square's `length` is scaled only after `super().scale_by`, so the old side placed the corner | Square scale tests used `center=` | `test_shapes.TestSquare.test_top_left_scale_keeps_the_pivot`; `test_geometry_contract` C1 / C2 |
+| G11 | `Track.line(p1=, p2=)`: once `cursor` was read every read recursed; `.center` read (0, 0) and then lagged a move by one refresh; `move_by` / pivot `rotate_by` / `scale_by` did not move it (the documented `ship.center @= track.cursor` crashed) | `Track.line(p1=(0, 0), p2=(40, 10)).cursor` → RecursionError | `_refresh_cursor` called `at()` → `_ensure_samples` → `_update_impl` → `_refresh_cursor`. The Derivate centroid was initialised to (0, 0), written only at flatten (a translation keeps the centroid-relative key, so no reflatten), and the track was never flagged pull-live. The shared pivot verbs wrote the Derivate `center` | Track tests used presets whose `center` is Defining; nothing read `cursor` on a control-point track | `test_track.TestTrackGeometryContract`; `test_geometry_contract` C1 / C2 / C4. Class: **A kind implements a shared verb its own way** |
+| G12 | Track flips changed only the flag; `cursor` kept its world spot after `rotate_by` / `scale_by` | `Track.eight(center=(3, 4)).flip_x = True` → `at(0.1)` unchanged | Track had no `_mirror_geometry` (its heading is a pose, not a Defining part); the pose verbs never dirtied the track, so `cursor` was not refreshed | No flip test on Track | `test_track.TestTrackGeometryContract` (`test_flip_mirrors_the_path_in_place`, `test_cursor_follows_rotate_and_scale`). Class: **A mirror is applied as a rotation (or twice)** |
+| G13 | The cull box ignored rotation for Text and Track: a turned caption or path near the edge could be culled while visible | `Text("a long caption").rotate_by(90)` → cull box still wide and short | Text's `_domain_aabb` returned the unturned layout box; Track had none, so `_approx_draw_aabb` fell back to a guess | Cull tests used unrotated actors | `test_track.TestTrackGeometryContract.test_cull_box_contains_a_turned_track_and_text`; `test_geometry_contract` C6 |
+| G14 | Line `rotation` was a counter that started at 0 whatever the line's direction (after `rotate_to(50)` it read 33); flips left a pose heading unchanged on Point / Anchor / Polygon / Line | `Line(p1=(0, 0), p2=(38, 12)).rotate_to(50); line.rotation` → 33 | Line kept only the pose accumulator `_rotation`, never synced to its segment; the generic `_mirror_geometry` mirrored Defining `rotation` / `angle` only | Rotation tests compared deltas, not the reading against the geometry | `test_angle_field.TestAngleIsTheHeading`; `test_geometry_contract` C2 (pose conventions). Class: **A kind implements a shared verb its own way** |
+| G15 | `clone()` dropped the pose: `scale`, flip flags and a pose heading reset on every Shape; Sprite / Svg / Text copies faced the rest heading at scale 1; Text copies were re-placed by `center`; Track copies baked the pose into their points (rotation 0, scale 1) and resampled a curve at uniform `u`; Rect `p1=, p2=` / `p1=, vec=` copies named other corners `p1` / `p2` | `r = Rect(p1=(0, 0), p2=(40, 20)); r.rotate_by(20); r.scale_by(1.25); r.clone().scale` → 1 | Each recipe rebuilt geometry and left the pose stores at their construct defaults; Rect rebuilt every model as `CENTER_WH` (its `p1` / `p2` become Derivates on fixed corners); Sprite reseeded its heading on purpose (old contract) | Clone tests compared geometry, not the pose readings or part identities | `test_geometry_contract` C7 (canary: `test_c7_catches_a_clone_that_drops_the_pose`); `test_rect_names.TestCopiesCarryNames`, `test_track.TestTrackGeometryContract`, `test_text.TestTextFrame`, `test_sprite.TestSpriteArtAngle`. Fix: `Graphic._clone_pose_from` (Sprite adds `tilt`, Track reads the host pose), Rect clone keeps its model, Text clone keeps its anchor form, Track clone freezes its table in its own frame. Class: **A kind implements a shared verb its own way** |
+| G16 | A `reversed()` Track view's pose disagreed with its drawing: `rotate_by` / `scale_by` / flips wrote view slots nothing drew (`view.rotation` read 30, the path did not turn); `view.center` was a copy that went stale after `move_by`; `radius` read 0; `shape_outline(view)` was empty (so the contract's drawn checks were blind to views); the view's `cursor` raised on first read, then went stale; a destroyed view was handed out again by `reversed()` | `v = Track.eight().reversed(); v.rotate_by(30); v.at(0.1)` → unchanged | The view was a bare `Track` sharing tables by alias: drawing read the host via `_pose_host()`, but the fields and verbs were the view's own; `object.__setattr__(view, "center", root.center)` went through `ContainerSlot.__set__` and copied the value; the view's `_xs` was a construction-time alias | Views were not in the geometry registry; the view tests checked `face=` and rider snapshots only | `test_geometry_contract` (KINDS: `Track eight / circle / line point_point reversed`); `test_track.TestTrackGeometryContract` (`test_a_reversed_view_shares_the_host_pose`, `…link_on_a_view_writes_the_host`, `…view_cursor_follows_the_host_pose`, `…destroyed_view_is_not_handed_out_again`). Fix: `_ReversedTrack` with `_HostField`s and forwarding verbs; `_travel_vertices()`. Class: **A kind implements a shared verb its own way** |
+| G17 | A circle placed by its rim (`perimeter_point=` / `p1=, p2=`) had two headings: `rotation` read the arc `angle` (0 by default) while its frame — `p1`, `circle.box` — pointed elsewhere, so the arc opened away from its own rim point | `Circle(p1=(1070, 400), p2=(1250, 520))` → `rotation` 0, `box.angle` −146 | `angle` stayed a free Defining input on every model; the rim models' frame came from `_rim_heading` | The contract compared a Circle's `rotation` with its `angle`, never with its frame — found by the visual smoke (`scripts/smoke/geometry.py`, Circle rim page) | `test_geometry_contract` C6 (`box.angle is not rotation`, every kind with a frame); `test_shapes.TestCircleRimPoints` (`…rotation_is_the_direction_to_p1`, `…moving_the_rim_point_turns_the_heading`, `…angle_at_construction…`, `…writing_the_heading…`, `…linked_rim_point_is_refused`). Fix (decided 2026-09-30): on rim models `angle` is a Derivate — the direction to `p1` (`_arc_angle`, unwrapped to the turn count); writes / links / `angle=` turn the rim about the center (`_DerivedRotationRoute`, heading field `angle`). Class: **A kind implements a shared verb its own way** |
+| G18 | A formula that names `shape.rotation` went stale when the heading changed without a pose verb: a `center=, radius=` Circle on a flip, `angle =` or an `angle` link; a Line when an endpoint was written or dragged; a `reversed()` Track view on every change (its formula bound the view's own, never-notified node) | Geometry smoke, Heading page: `flip_x` → the arc flips, its heading arrow (`p2=` a function reading `arc.rotation`) stays | Formula sources come from the source text, so the formula depends on the `rotation` property anchor, which only `_pose_rotation_set` / `_pose_rotation_add` mark dirty; Line and Circle read `rotation` from their geometry, and a Circle flip writes `angle`, not the pose value | The checks re-read `rotation` (a pulled read re-evaluates); the unit repros used stdin lambdas, whose source cannot be read, so they took the broad path. Found by the user on the visual smoke | `test_angle_field.TestAngleFormulasStayFresh` (every registry kind × heading change, plus endpoint writes and links, read bare); the smoke's `arrows follow rotation` check (fails on the old engine). Fix: `_HeadingFromGeometry` (Line, Circle: the `rotation` anchor depends on the shape), `Circle._sync_rotation_to_angle`, `_ReversedTrack._ensure_scalar_anchor` → the host's node. Class: **A check reads through the path it is meant to test** — verify a linked consumer by what it holds (read bare), not by re-reading the source |
+| G19 | One heading, two names: Rect / Square / Ellipse / RegularPolygon / EquilateralTriangle called it `rotation`, Line / Circle / Box / Jet `angle`. `rect.angle = 30` was accepted as a custom ink field and the rect did not turn; a p1/p2 Line read `angle` 40 and `rotation` 400 after `rotate_by(400)`; the tangent Line read `rotation` 240 after `rotation = 150`; and `rotation = θ` / `rotate_to(θ)` gave different geometry under one name on shapes placed by a corner, an end or a vertex | `Rect(center=(0, 0), width=4, height=2).angle = 30` → `rotation` 0; `Line(circle=c, angle=0, length=20).rotation = 150` → 240 | Unify Phase 1 merged `angle` into `rotation` on five kinds and deferred Line; the noun of `rotate_to` became a field whose write keeps the placement point; the ink near-miss check only catches names of 6+ letters one edit from a real property; `Line.rotate_to` measured from the tangent model's *position* `angle` | Each kind was tested in its own spelling; nothing wrote the other kind's name and checked that the shape turned | `test_angle_field` (`TestRotationIsRetired`: every kind × every `rotation` spelling, and every `_INK_RESERVED` name never becomes ink; `TestAngleWorksOnEveryKind`: `x.angle = v` reads back and `rotate_by(400)` reads `+400` on every kind; `TestLineTangent`). Fix: the heading is `angle` on every Graphic ([Shapes Design — Geometry contract](Shapes%20Design.md#geometry-contract)); `rotation` in `Graphic._RETIRED_ATTRS`; tangent input `at_angle`. Class: **A kind implements a shared verb its own way** — and its sibling: **a retired or reserved name becomes ink** |
+| G9 | `sprite.box` sat half a height low under `Sheet(anchor="bottom")` and ignored `scale` | `Sprite(Sheet(p, anchor="bottom"), center=(100, 100), width=64, height=64).box` → bottom 68, top 132; the art spans 100..164. `s.scale_by(1.5)` left `box.width` at 64 | `region_frame` built a Sprite's box from `center` + `width` / `height`. `center` is the **pivot** (at the feet under `anchor="bottom"`) and `width` is the size knob (no `scale`). It now uses the drawn rect (`Sprite._oriented_frame`) and keeps the heading as the angle (G7's names) | `.box` tests used centre-anchored, unscaled sprites, where pivot = middle and knob = drawn size | `test_sprite_measure.TestSpriteBoxIsTheDrawnCell` (anchor, scale, offset, flips, rotation about the pivot, the hitbox inside the box — independent expected numbers). Class: **A measurement read from the pose knob instead of the drawn geometry** |
+
+### SR — scripts on retired spellings (2026-09-30)
+
+Found when a headless pass ran every smoke / example script after the hitbox rename. Each failed the same way on the commit before it: pre-existing, invisible until someone opened the window.
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| SR1 | `scripts/smoke/colliders.py` raised at construction | `obj.group.add("lab")` on the read-only `GroupTags` snapshot (K3 closed that door) | `test_scripts_run`. Fix: `obj.tag("lab")` |
+| SR2 | `scripts/bench/historical/galaga.py` raised at construction, then at `set_framerate` | `Text(x1=, y1=)` (placement is one point since the Text rework) and `set_framerate(FrameRateControl.NONE)` (now `canvas.framerate`) | `test_scripts_run` (listed in `EXTRA`, all six ablations checked by hand). Fix: `top_left=(20, H - 36)` — `x1` / `y1` was the top-left corner; `canvas.framerate = "max"` |
+| SR3 | Five smokes (`background`, `box`, `camera`, `confine`, `world_view`) and `app_glowspot` raised on the first frame | Punctuation key names (`","`, `"."`, `"["`, `"]"`) are not Scena keys; the smoke convention is A / S (primary), Q / W (paired), E (quality) | `test_scripts_run`. Fix: drop the punctuation alternates; glowspot: E quality, Q / W count |
+| SR4 | Four color names that Scena does not know painted magenta: `"slategray"` (`shape_fx` debris swatch), `"mediumseagreen"` (`smoke/tracks`), `"medium turquoise"` (`smoke/collide`), `"slate gray"` (Guia `Fog` card) | An unknown name only warns and falls back to magenta. The harness ignores warnings, and a click-only swatch or a card's second line never runs; Scena's 67 names are not CSS / X11 (`"dim gray"`, `"sea green"`, `"turquoise"`) | `test_color_literals` (static: color-knob keywords and `*SWATCH*` tuples in scripts, `color="…"` in the Guia catalogs / page / tutorials; vacuity check on the detector). Fix: the nearest Scena name |
+
+### HB — hitbox lifecycle and read-only fields (2026-09-30)
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| HB1 | Writes on a dead or removed hitbox behaved three ways: part `shape` / `anchor` / `scale` / `active` wrote silently, `source` / `px_*` / group claims raised `RuntimeError`, and `sprite.hitbox.active = False` did nothing | Each writer had (or lacked) its own alive check | `test_hitbox_model.TestDeadAndReadOnly` (writable set discovered from the classes; canary: dropping one check fails it). Fix: one `_refuse_dead` → `DestroyedError`, reads stay |
+| HB2 | `hb.box = …`, `hb.host`, `hb.is_alive`, `hb.layer`, `hb.group`, `sprite.hitboxes = …` raised Python's "property … has no setter" | Read-only properties with no setter | Same class (`test_read_only_fields_speak_scena`). Fix: `_read_only` setters with the Scena spelling. Other Entity read-only properties (`is_alive`, `touching_sides`, `rest_heading`, …) still use Python's text — not yet swept |
+
+### PH — pointer hover and pointer callbacks (2026-09-30)
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| PH1 | `pointer_hover` stale: True after `visible = False`, `clickable = False` or the shape moving away from a still cursor; a new clickable on top never took hover; a Button over a shape left both hovered; a modal left the shape hovered | Hover recomputed only in the mouse-move callback, per space, never exclusive with widgets | `test_pointer_hover.TestStaleness` / `TestPress` / `TestWidgets`, `test_hyp_hover`. Fix: tiered `ShapeInteractionManager.step_hover` once per frame + `registry._pointer_epoch` + `pointer_layers_signature` ([Shapes Design — Hover](Shapes%20Design.md#hover-pointer_hover-hover--hover_exit)) |
+| PH2 | Every Graphic's `_draw_index` was −1: `Graphic.__init__` reset it after registration had set it | Default written after `super().__init__` registered | `test_pointer_hover.TestHitOrder.test_draw_index_set_at_construction`. Every hit order walked whole layers and every destroy took the `objs.index()` fallback |
+| PH3 | `checkbox.on_click = f` (any non-Button widget) stored `f` and never called it; `@click(group)` skipped widgets silently; `@click(button)` raised; Button called `on_click()` with no payload while Graphics pass the target | `on_click` on the `UIWidget` base; a separate widget skip in `_iter_targets` | `test_pointer_hover.TestWidgets`, `test_widget_entity.WidgetEntityTest.test_click_takes_buttons_in_a_group`. Fix: `on_click` only on `Button` (`call_truncated(fn, button)`), one per-verb widget policy checked before any target is touched |
+| PH4 | Pointer setters (`on_click`, `on_drag_*`, `on_drop_by`) took any value; a two-parameter handler failed at the click, frames later | No registration check | `test_pointer_hover.TestEdges.test_handler_arity`. Fix: `validate.check_pointer_handler` in every setter and decorator. `call_truncated` also passes everything to `def f(*args)` (it passed nothing) |
+| PH5 | A parameter with a default received a payload the author never asked for: `lambda tool=tool: …` got the Button as `tool`, `app.save(then=None)` got it as `then`, `after(1, f)` with `f(who=None)` got the owner, `@on_change` `f(v=None)` got the value | Three counters (`call_truncated`, `process._argcount`, `events._callback_npos`) counted every positional parameter; the registration check (`required_positional_count`) counted only required ones, so registration and call disagreed | `test_payload_arity` (one test per hook kind: Button, shape click, `call_truncated`, timers, `on_update`, `@on_change`, plus partial / callable objects / classes). Fix: one counter, `validate.payload_arity` — only parameters with no default receive a value |
+
+### SK — sky / gradient preset names (2026-09-30)
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| SK1 | `SkyGradient("space")` raised "neither a sky preset nor a color. Did you mean 'space'?", and its "Sky presets" list named `space`; `toxic`, `forest` and the aliases `void` / `cosmos` / `alien` / `radioactive` failed the same way. `Gradient("toxic")` / `Gradient("forest")` fell back to magenta with a warning | `SCENIC_PRESET_NAMES` and `_SKY_ALIASES` listed names `GRADIENT_PRESETS` had no ramp for (the forest ramp was keyed `tgreen`). The error built its list and suggestions from the name set, not from what resolves. The preset test exempted the missing names as "reserved / retired" | `test_gradient_presets` (`test_every_scenic_name_has_a_ramp`, `TestSkyPresetNamesResolve`). Fix: `space` / `toxic` ramps added, `tgreen` renamed `forest`; `_resolving_sky_names()` feeds the message |
+| SK2 | `scripts/smoke/shape_fx.py` drew its `viridis` and `toxic` swatches magenta | Preset strings that are not preset keys (viridis is `vrds`) fall through to a color lookup, which warns and returns magenta | `TestSkyPresetNamesResolve.test_smoke_script_sky_and_preset_strings_resolve` (scans `SkyGradient("…")` and one-name recipe tuples in `scripts/smoke/*.py`) |
+
+### IN — keyboard input (2026-10-01)
+
+Found while spiking the level editor (Cmd+S / Cmd+O polled with `keyp.once`).
+
+| ID | Bug | Repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| IN1 | `keyp.once("CMD+O")` fired for keys that were never down together. Pressing Cmd alone opened the dialog if O had been typed earlier; tapping Cmd and then O did too. A fast Cmd+S (S down and up within one poll, Cmd held and already read) did **not** fire | `update`: `if keyp.once("CMD+O"): …`. Tap O, then press Cmd | Unread rising edges stay in `_pending_edges` until a `once` reads them (by design). The same-poll fallback merged **every** pending edge with the keys down now, so presses from different moments made a chord. It also required the modifier's own edge to be unread | `test_keyp.TestOnceChordNeedsKeysDownTogether` (each repro); `TestOnceChordProperty` (random taps / toggles / reads: `once(spec)` fires only if the spec's keys were down together, with no extra modifier, since it last fired) with canary `TestOnceChordCanaries`. Fix: each pending edge keeps the keys that were down at that press. The fallback fires only when a pending press of one of the spec's keys had the whole chord down (`_pending_rises`). One read consumes **every** pending press that completed the chord (deep-tier find: O held, Cmd-L and Cmd-R tapped in one poll fired twice), as two taps of one key collapse into one edge — `test_left_and_right_modifier_taps_under_a_held_key_are_one_read` |
+
+### WP — Windows / platform portability (2026-10-01, 2026-10-05, 2026-10-06, 2026-10-07)
+
+WP1–WP4: found by the quick tier on Windows 11 (12 jobs failed; the Mac passed the same tree). Tests only: the engine rendered correctly. WP5–WP9: the quick and gate tiers on the same machine, five days later. One shipped fix (the editor's Linux `.desktop` writer); the rest is tests and the runner. WP10–WP15: the next gate runs on that machine (2026-10-06); tests and the runner, plus one engine bug, A33. WP16–WP17: latent, found by a read-only audit of the suite for platform defaults after those fixes (nothing failed yet). WP18: the quick tier on the Mac (2 of 7 runs on 2026-10-07); the test only.
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| WP1 | 7 jobs (`test_registry_layers`, `test_api_docs`, `test_stamps`, `test_gradient_presets`, `test_message_vocabulary`, `test_doc_citations`, `test_audio`) raised `UnicodeDecodeError … 0xb0` or `DecodeError` | The tree was copied from macOS: 9 642 AppleDouble `._<name>` files. `os.listdir` + `endswith(".py")`, `os.walk` + `.md` and `Path.glob` / `rglob` handed them to `open(…, "utf-8")`, `ast.parse` and miniaudio | `test_platform_portability.TestSourceScansUseTheHelper` (AST over `tests/*.py`) + `TestIterFiles`; `test_run_tiers.TestAppleDoublePreflight`. Fix: all 19 scans go through `source_support.iter_files`; `run_tiers.py` warns on `._*` files |
+| WP2 | `test_visuals` (4), `test_looks` (same 4), `test_text` (2), `test_menu` (1) read exact red / blue swaps | `kN32` is BGRA on Windows. `toarray()` on an N32 surface returned BGRA; `fromarray(px)` read an RGBA array as BGRA | `test_platform_portability.TestPixelsNameTheirByteOrder` (AST over `scena/*.py` and `tests/*.py`). Fix: every call passes `colorType=skia.kRGBA_8888_ColorType`, engine sites (`atlas.py`, `style.py`, `effects.py` Grain) included though they were safe |
+| WP3 | `test_atlas` `TestSimplifyHull` round-mask budget (`test_round_mask_bake_stays_under_budget`, replaced in WP7) read 101 ms against a 40 ms budget | One `perf_counter` sample with 10 workers busy; the call takes ~22 ms alone | Best of 5 against the same budget. Not enough on a slower machine under sustained load: see WP7 |
+| WP4 | `test_text.TestFontSpec` (2), `test_menu.test_font_file_changes_measure` failed once the local file went away | They read `media/fonts/Tiny5-Regular.ttf`, which was never tracked: they passed only on the machine that had it | Nothing checked that a test's data file is in the repo | `tests/font_support.system_font_file()`: a monospace `.ttf` installed with every OS (Courier New on macOS / Windows, DejaVu Sans Mono / Liberation Mono on Linux), explicit paths only; the tests skip with a reason when none exists. Rule: a test reads tracked files or OS files, never a local one. Open: tests reading a root `media/` folder (laser sprites, `media/svg/*.svg`) still *skip* because it is not tracked |
+| WP5 | `test_version.test_changelog_has_a_section_for_this_version` did not find `## 0.5.0 — …` | `read_text()` with no encoding decodes as cp1252 on Windows: `—` became `â€”`. 12 more sites in `scena_editor/` (one shipped: the `.desktop` writer, which freedesktop requires in UTF-8) and 12 in `tests/` were latent | `test_platform_portability.TestTextIoNamesItsEncoding` (AST over `scena/`, `scena_editor/`, `tests/`, recursive; builtin `open` / `io.open`, `.read_text`, `.write_text`). Fix: every site passes `encoding="utf-8"`; `scripts/bench` and `scripts/tools` too (not guarded) |
+| WP6 | `test_editor_dialogs` (3), `test_editor_launch` (2): `'C:\\a\\b.json' != '/a/b.json'` | Expected values were POSIX literals; `os.path.abspath` in `dialogs._absolute` / `shortcut.create` follows the host (correct: a dialog on Windows returns Windows paths) | Rule (Harness pitfalls, `tests/README.txt`): expected paths are built with the same path function. Fix: the tests use `os.path.abspath(...)`; the AppleScript assertion escapes backslashes |
+| WP7 | `test_atlas` round-mask budget (`test_round_mask_bake_stays_under_budget`): best of 5 read 59 ms (`quick`) and 162 ms (`gate`) against 40 ms | Sustained contention (10 workers on 12 CPUs) slows every sample; WP3's best of 5 only drops spikes | `test_atlas.TestSimplifyHull.test_round_mask_simplify_is_not_the_cubic_recheck`: production `_simplify_hull` must be > 20× faster than the cubic reference in the same process (~215× measured on the Mac and on Windows). The absolute budget on `_choose_auto_collider` is dropped |
+| WP8 | `gate` printed no summary: `UnicodeDecodeError: 'charmap' … 0x9d` in `run_tiers.py` | The child writes its log in its stdio encoding (UTF-8 under `PYTHONIOENCODING=utf-8`, set by Claude Code and many IDE / CI shells); the parent read it with `open(log)` in cp1252 | `test_run_tiers.TestLogEncoding` (a child failing with `— ” → ×`: round-trips with an ASCII parent; a cp1252 child does not crash the runner). Fix: children get `PYTHONIOENCODING=utf-8`; logs are read with `encoding="utf-8", errors="replace"`; the script's stdout uses `errors="backslashreplace"` |
+| WP9 | `test_guia_thumbs_render` (4) failed: "animated thumbnail needs Pillow" | Pillow was only in the `docs` extra; the gate runs the module; the tests asserted instead of skipping | Pillow in the `test` extra; the 4 animated tests `skipUnless(PIL)` with the install command, before the ~50 s render starts |
+| WP10 | `gate` crashed before any test ran: `PermissionError` opening `.scena_test_runs/gate/<job>.log` | The copied tree's old logs (and `timings.json`) were Hidden; Windows refuses `open(path, "w")` on an existing Hidden file | `test_run_tiers.TestOpenFresh` (missing, read-only, Hidden on Windows). Fix: `run_tiers.open_fresh` deletes the old file first (clearing read-only), for logs and `timings.json` |
+| WP11 | `test_tutorials.TestFleetBounce`: `'examples/naves.py' not found in ['examples\\naves.py', …]` | A `relpath` label compared with a `/` literal | Rule (`tests/README.txt`, Paths): a relpath label is compared in `/` form. Fix: `.replace(os.sep, "/")` |
+| WP12 | `test_editor_launch` `test_linux_desktop_entry`: `S_IXUSR` not set | Windows has no exec bit (`st_mode` follows the extension) | `test_platform_portability.TestExecBitIsPosixOnly`. Fix: assert only when `os.name != "nt"` |
+| WP13 | `test_collision_queries.TestCollisionQueries.test_circle_wedge_matches_query_sector`: `DeadlineExceeded` 262 ms > 200 ms | The module never imported `hypothesis_support`: Hypothesis defaults (200 ms deadline, no DB, profile ignored); `test_shapes`, `test_text_input` too | `test_run_tiers.TestHypothesisProfileGuard` |
+| WP14 | `test_sprite.TestSpriteBlitBlendAndAlpha.test_alpha_composes_with_fade_out`: one channel 9 off (limit 8) | Fade progress set from one clock read; `draw()` read the clock again later, under load | `test_platform_portability.TestTransientClockIsPinned` (a test module that writes `_tx_state.<kind>.t0` calls `set_now_fn`; the other sites, in `test_transients` and `test_text`, already pinned it). Fix: clock pinned with `transients.set_now_fn`; the duplicated draw block was dropped |
+| WP15 | `test_scripts_run`: `scripts/smoke/hitbox.py` timed out at 120 s (7.8 s alone) | The module's own 8-worker pool on top of the tier's 10 workers, on a loaded run | `TIMEOUT` 300 s (a hang detector, not a budget). Not chosen: fewer inner workers inside a tier, which would make the module the slowest `quick` job on the Mac |
+| WP16 | Latent: 11 `subprocess.run(..., text=True)` sites in `tests/` (plus `make_guia_thumbs.py`, which `test_guia_thumbs_render` runs) and `scena_editor/dialogs._tk` (shipped: the file dialog's child prints the chosen path) | `text=True` decodes with the locale (cp1252 on Windows); a Python child under `PYTHONIOENCODING=utf-8` (set by `run_tiers` and inherited) writes UTF-8: garbled failure text, or `UnicodeDecodeError` on a byte cp1252 lacks (`Á` is `C3 81`); `_tk` would garble or crash on a path outside cp1252 | `test_platform_portability.TestSubprocessTextNamesItsEncoding` (AST over `scena/`, `scena_editor/`, `tests/`: a text-mode call names `encoding=` or `errors=`); `test_editor_dialogs` `test_tk_child_output_is_utf8_on_every_os`. Fix: Python children get `encoding="utf-8", errors="replace"` and `PYTHONIOENCODING=utf-8`; external tools (`powershell`, `osascript`, `lipo`) name their decoding. `scripts/bench` not swept (not guarded, as in WP5) |
+| WP17 | Latent: `iter_files` order differed by OS; `scena_editor/tests` scans and `scripts/smoke/audio.py` were outside the AppleDouble guard; `test_uiwidget.test_missing_glyph_falls_back` ran only on the Mac | `sorted()` on host paths: `"\\"` sorts after letters, `"/"` before (`sub/x.py` vs `subA.py`). The scan guard read `tests/*.py` only. The glyph test needed Helvetica | `TestIterFiles.test_order_does_not_depend_on_the_separator` (`source_support.path_key`, checked with `"\\"` on any host); `TestSourceScansUseTheHelper` now recursive over `tests/` and `scena_editor/tests/`. Fix: sort key in `/` form; editor scans use `iter_files`; the smoke skips `._*`; the glyph test uses `font_support.system_font_file()` and the first candidate character that font lacks |
+| WP18 | `test_regular_polygon_perf.TestPerfSmoke.test_rotate_by_cost_flat_in_n`: `n=6=1.2us n=200=6.6us ratio=5.62x` (limit 4×) in `quick`; always passed alone; the failing runs did not touch `rotate_by` | A ratio, but of two single samples taken one after the other (all n=6 calls, then all n=200 calls, ~4 ms each): load that rose between them, or one preemption inside one of them, moved the ratio. Under 14 busy processes on 10 CPUs the old test read 0.36×–3.65× over 20 runs | Both sizes timed in 25 interleaved blocks of 320 calls (the order alternates), each side keeps its best block, GC off while timing: 0.99×–1.01× under the same load. Limit unchanged (4×). Mutation-checked: a per-vertex `__dict__` read injected into `rotate_by` reads ~7.8× and fails; a bare `for v in vertices: pass` (~1.5×) is below the limit, as it was before |
+
+### MR — media migration (2026-10-02)
+
+`scripts/examples/` moved to the top-level `examples/`; the gitignored root `media/` and `scripts/examples/media/` were replaced by licensed packs in `examples/media/`; `scripts/smoke/sounds/` (license unknown) was removed. Nothing failed.
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| MR1 | ~170 media paths pointed at files that no longer existed (examples, smoke, bench, tutorial, Guia thumbs) | A missing file only warns; no test read the paths | `test_media_refs.TestMediaRefs` |
+| MR2 | 30+ media-backed tests (`test_sprite`, `test_atlas`, `test_svg`, `test_level*`, `test_audio`) would have skipped | `if not os.path.isfile(...): self.skipTest(...)` on files that are now tracked | `tests/media_support.media()` asserts; the skips are gone |
+| MR3 | `test_scripts_run`, the stamp lint and the AppleDouble count no longer covered the examples | They listed `scripts/examples` / `scripts/` by path | `test_scripts_run` scans `examples/`; `test_stamps` and `run_tiers.SOURCE_DIRS` include it |
+| MR4 | A forwarding-stub example (it ran a bench script) raised `FileNotFoundError` | It ran `../bench/perf_resolve_balls.py` relative to its own folder; one level up is now the repo root | `test_scripts_run` (it runs `examples/` again, MR3) |
+
+### DL — docs pointing at the private workbench (2026-10-06)
+
+The code is about to be published without `proposals/` and `archive/` (bench notes included; [README — Private folders](README.md#private-folders)). Nothing failed: no test read link targets.
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| DL1 | ~45 citations of private files in 14 design docs, 6 test docstrings, one code comment and 5 bench pages; 8 already dead (a proposal cited where it was before it moved to the archive, files that never existed) | Docs linked deliberation instead of carrying the reason; `test_doc_citations` checked test names only | `test_doc_links.TestDocLinks` (all citations removed 2026-10-06; a test that read an archived runbook through `os.path.join` and always skipped (the runbook-copy check in `tests/test_win_bench.py`), was deleted) |
+
+### GN — group-name typo guard (2026-10-02)
+
+Found running `examples/naves.py` after the media migration. Sibling of SC4, which had fixed only the `until_empty` path.
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| GN1 | `group["tiros_inimigos"]` warned "No group 'tiros_inimigos'. Did you mean 'inimigos'?" every run, before the first enemy shot; the script names that group in `@collide` and `@leave_playfield` | The near-miss guard treated "not in `group_map`" (no live member) as unknown, and rules registered names nowhere the guard read | `test_group_name_guard.TestNotFilledYet`: the `@collide` family, `collide_with`, `resolve`, `@leave_playfield` declare their names (`registry.declare_group_names`) |
+| GN2 | Clearing a fleet made any `group["inimigos"]` read warn "Did you mean 'tiros_inimigos'?" while a shot was alive | The registry drops a bucket with its last member; SC4 had routed only `until_empty` around it | `test_group_name_guard.TestEmptied`: a name that ever had a member (`_group_gen`) is known |
+
+### TU — tutorial endpoints (2026-10-02)
+
+Found in the post-migration tutorial review. Rule: every tutorial step runs for 10 s of game time with no warning, and the last step of each tutorial is a file in `examples/` (its code plus a docstring).
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| TU1 | Tutorial 05's last step (`A nave explode`) raised `DestroyedError` the first time an enemy shot hit: `@collide` destroyed the ship and `update` kept calling `nave.confine(...)` | `test_tutorials` ran each step as three `update(dt)` calls from the repo root: no collision pass, so no shot ever landed (and the draw of `choice()` decided whether one would) | `test_tutorials.TestTutorialsRun`: every step and `try` runs through `tests/script_harness.py --strict` for 600 frames of the real frame body (collisions, processes); the harness seeds `random` (0), so the crash reproduces. Verified to fail on the pre-fix HTML. Fix: `if nave:` around movement and shots |
+| TU2 | A tutorial step could print a warning (missing media, near-miss group name) and pass | The child run ignored warnings and resolved media from the repo root, where the reader's `media/` paths do not exist | `script_harness.py --strict` turns any warning into exit 3; steps run from a temporary folder with `media/` → `examples/media` |
+| TU3 | The examples named as tutorial endpoints had drifted from the last step: `pegar_estrelas.py` (glow, yoyo), `naves.py` (`Sheet`, shield), `cadeia_de_bolas.py` (`GearShell`, `rate`), `barras_girando.py` (`Palette`); tutorials 01 and 04's pause menu had no file at all | Nothing compared them; the README allowed the example to be "more than the tutorial" | `test_tutorials.TestTutorialEndsInAnExample`: the last step must declare `example:`; the file minus its docstring equals the step. Variants moved out of `examples/` (or into a `try` box) |
+| TU4 | The tutorial media check flagged `Sheet` frame names as missing files (tutorials from 03 on may use `Sheet`) | It matched every quoted `*.png` in the HTML | `test_media_refs.tutorial_paths` reads each step as a script (`literal_paths`: `frame=` is not a path) |
+| TU5 | Tutorial 05's fleet (`Vai e volta` onward, `naves.py`, and a shield variant) could stick at an edge, flipping direction every frame (1091 turns in 20 s) | The bounce flipped the sign (`st.velocidade = -st.velocidade`) whenever a ship was past 40 / 960. After one frame shorter than the overshoot, the edge ship was still past the edge, so the next frame flipped back outward, and from then on it oscillated there at a normal `dt` | `TestFleetBounce` (1 ms hitch after the first turn). Verified to fail on the pre-fix code. Fix: say the side, `st.velocidade = -80` past 960 and `80` below 40; repeating it is harmless. Also fixed in a learner's game outside `examples/` (not under the guard: its `update` stops once the ship dies) |
+
+### SB — SpriteButton groundwork (2026-10-02)
+
+Found while designing `SpriteButton` (a Sprite subclass with a press state).
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| SB1 | A press outlived its shape: a modal Menu opened mid-press left a stale `_pressed_shape` that kept hover after the menu closed and took the next release (a click on a shape the pointer merely crossed; the script's click eaten). Hiding, parking or destroying the held shape left the press until the next pointer event | `_pressed_shape` was written in three places and only `_press_lost` (dead, or undraggable mid-drag) checked it, lazily, on the next move / release | `test_script_callbacks.TestModalDropsShapePress` (canary-verified), `test_shape_interaction.TestPointerPressed`. Fix: `_set_pressed` is the only writer; `forget_destroyed`, `forget_pointer_target` (from `_sync_interactive_registry`) and `push_modal` drop it eagerly ([Shapes — Press lifecycle](Shapes%20Design.md#press-lifecycle-pointer_pressed)) |
+| SB2 | Engine dispatch by `type(obj).__name__` refused every subclass: `class Pad(Rect)` / `class Ball(Circle)` / `class Ship(Sprite)` raised on `.box` and `confine(by="box")`; `Svg` and Sprite subclasses raised on `.hue` and on Sprite-only looks; force-field looks lost their sprite outline; a `Text` subclass skipped the Text refusals | A dozen `== "Sprite"` / `in ("Rect", "Square")` checks across `box`, `confine`, `style`, `recipes`, `stamps`, `visuals`, `filters`, `transients`, `canvas`, `track` | `test_kind_dispatch` (every verb with author and Scena subclasses) plus a static scan of `scena/` that fails on a new `type(x).__name__` comparison unless marked `# exact-type: <reason>`. Fix: `entity.scena_kind` (nearest Scena class in the MRO) and `entity.is_sprite_family` |
+
+### CT — continuous detection (2026-10-05)
+
+Found with a test game whose shots were sped up to 5000 DU/s to test an extreme case. Fixed by swept detection ([Collision Design — Swept detection](Collision%20Design.md#swept-detection-fast-bodies)).
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| CT1 | A fast `@collide` shot passed through its target: a 28-tall laser at 83 DU/frame through 40-tall enemies hit ~85 % of them at 60 Hz and under half at 30 Hz. Same game, different hits by machine and FX load | Detection-only pairs were tested at the end-of-frame pose only (the broad phase widened start ∪ end for `resolve()` bodies alone) | `test_collision.TestSweptDetection` (laser tunnel, threshold edge, nearest-first, payload, placement not swept, start overlap, `on_collide`, `resolve_enabled = False`, canary with the gate off); `test_sys_fast_shots` (same hits at 30 / 60 / 120 Hz and 5 / 28 ms, offsets 0 / 65536; fails with the gate off); `test_sys_hyp_collision.TestFastMotionAgainstSweptOracle` (exact swept circle oracle; fails with the gate off) |
+| CT2 | A fast body pushed into a thin `resolve()` wall never fired `@collide`, while resolve stopped it correctly | `@collide` reads the pre-resolve pose, which was always past the wall; resolve then parked the body short of it, beyond the skin | `TestSweptDetection.test_fast_body_pushed_into_resolved_wall_fires_collide` (failed before the fix), `test_sys_fast_shots.TestFastBodyIntoResolvedWall` |
+| CT3 | A fast sprite's hitbox part (`add_hitbox`) carried no motion, so it could not be swept | `note_collider_motion` marked only the body's collider | `TestSweptDetection.test_fast_sprite_hitbox_part_is_swept`. Fix: the host's delta is added to each part's collider |
+| CT4 | An orbiting body (`rotate_by(20, about=pivot)`, r = 200: ~69 DU per frame for a 10-wide body) passed through a target between two poses, and a `resolve()` body orbited through a thin shelf. The same travel as `move_by` was swept | `rotate_by` moved `center` without noting it, so an orbit was placement. The motion/placement split was keyed to the verb's name (`_by` = travel) only for `move_*`; a turn's side effect on the position was never classified | `test_collision.TestOrbitMotion` (every kind notes its anchor chord exactly once — catches an override that notes twice; placement turns and spin note nothing; timed `rotate_by` / `rotate_to`; hitbox parts; resolve shelf; all fail with noting off). Fix: `entity._rotate_as_motion` / `_rotate_as_placement`. Rule: any verb whose side effect moves the pose anchor states whether that move is motion or placement, and has a test that reads `_pending_motion_*` after it |
+
+Lesson for the benches: the uncapped benches (`cpu_mix`, resolve) run at 300–500 FPS, so per-frame travel depends on the machine, and a slower run can cross the fast gate. `last_stats["fast"]` / `["swept"]` say whether it did. A before / after comparison on a shared machine is an interleaved A/B against a pristine copy of the previous tree, not two runs minutes apart (during this change, other sessions' test runs moved single numbers from 10 % up to 3×).
+
+### CS — closed surfaces (2026-10-07)
+
+Found by an audit probe: build every export and global object, write a junk name and a swapped-letter typo of each writable name. About 90 classes stored both. Rule: only Entity (ink) and `st` create names on write ([Scena Design](Scena%20Design.md#entity-ink-vs-st)); everything else is a closed surface (`scena/closed.py`). The class-wide guard is `test_closed_surfaces.TestEveryAuthorObjectIsClosed`: it walks every export, the global objects, every layer kind and reachable public attributes two levels deep; a new class must refuse a junk write or sit in `EXEMPT` with its reason.
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| CS1 | Effects stored typos and did nothing: `bloom.itnensity = 2`, `stars.pna_response = 0.5`, `echo.enabeld = False`, `canvas.effects.enabeld`, `Tail().lenght` | Plain classes; `Visual` / `FilterEffect` guarded interned instances only | `TestEveryAuthorObjectIsClosed` (junk, swapped-letter typo, write-back of every writable name). Fix: `ClosedSurface` on PostEffect / BackgroundField / AudioEffect and their stacks; `_interned_setattr` calls `check_closed_write` |
+| CS2 | Global objects stored typos: `audio.vloume = 0`, `clock.puased = True`, `canvas.zom = 2`, `ui.scael`, `collision.gravtiy`, `keyp.held.x` | Plain classes / Containers with no `__setattr__` | Same walk. Fix: `ClosedSurface` with `_closed_who` (`"audio"`, `"clock"`, …) |
+| CS3 | Values and materials stored typos: `box.widht`, `color.aplha`, `history.lenght`, `sheet.fps2`; snapshot boxes too (`graphic.box`, `canvas.game_view`) | Plain classes; `Box._snapshot` builds through `__new__`, so no constructor wrapper could seal it | Same walk, `TestEngineValueRegressions.test_snapshot_boxes_are_sealed`. Fix: `ClosedSurface`; `closed.seal()` at the end of every `__new__` fast path (`Box._snapshot`, `_sheet_from_image`). Rule: a construction path that skips `__init__` must call `seal()` |
+| CS4 | `st.pos.x = 5` (`st.pos` holding a Vec2) stored `x` on the cell: reads returned 5, the payload stayed `Vec2(1, 2)`, links never updated | `Attribute.__getattr__` falls through to the instance `__dict__` before the payload, and the cell had no `__setattr__` | `TestEngineValueRegressions.test_cell_payload_write_raises_with_the_reactive_fix`. Fix: `Attribute._closed_hint` names `st.pos = Vec2(..., st.pos.y)` |
+| CS5 | `ship.field_type = 3` corrupted the part's graph edges; `v.parts = …` orphaned the parts of any non-Entity Container | Plain public attributes on `Container` | `TestContainerPlumbing`. Fix: read-only properties over `_parts` / `_field_type`; engine code uses the private names |
+| CS6 | Entity ink took `anlge`, `widht`, `aplha`, `lyaer`, `gruop`, `nagle` as new ink | The near-miss guard needed 6+ letters and the same first letter | `TestInkTranspositionGuard`. Fix: a 5+ letter property one adjacent swap away raises (`closed.transposed`) |
+| CS7 | (caught in review, before release) A seal keyed on `type(self).__init__ is wrapped` would never have fired on an exported class | `scena/__init__.py` wraps every export's `__init__` again (`install_friendly_constructor`) after the class body ran, so the seal wrapper is never outermost | `TestClosedSubclasses.test_seal_survives_friendly_constructor_wrapper` / `test_seal_survives_any_outer_wrapper`, `TestEveryAuthorObjectIsClosed.test_exported_closed_classes_are_sealed`. Fix: the seal marks the outermost *sealed* call per instance (`__dict__` mark), independent of wrapper order |
+| CS8 | (caught in review) The planned write check called `inspect.getattr_static` per sealed public write (~350 ns); a closed `__setattr__` also made every private write pay a Python call (~100 ns): `graphic.box` +29 %, Vec2 arithmetic +60 % in a prototype | A Python `__setattr__` is paid by every write, private ones included | Per-class cached name sets (`closed.class_names`); `Container.__init__` writes its private fields with one `__dict__` update where safe (`state._container_dict_init`, `TestContainerFastInit`); Vec2 closed once its construction made no `__setattr__` call (CS9). Measure a new closed class's hot writes and constructions against the open baseline (interleaved A/B, pristine copy) |
+| CS9 | Vec2 stayed open: `v.lenght = 5` stored a dead attribute. Closing it naively cost +60% on arithmetic, then +23% with the `__dict__` init | Each arithmetic result is a new Vec2; after the dict init three Python `__setattr__` calls remained per construction (the `owner` setter with `owner=None`: `owner`, `_owner`, `_name`) | `TestClosedVec2` (`test_construction_makes_no_setattr_call` spies the class `__setattr__` over `temp`, `Vec2(...)`, `a + b`, `a * 2`), `TestContainerFastInit.test_ownerless_skip_leaves_what_the_owner_setter_left`. Fix: the dict path skips the setter for an ownerless object; `_processed_params` and the seal go through `__dict__`. Arithmetic 4–6% faster than open, frames within noise; `v.x = 5` +100 ns |
+
+### PM — program model (2026-10-08)
+
+First program: bouncing balls (walls, a spinning STATIC bar, `resolve(bounce=1)`,
+two Sliders bound to `st`, a Start button, wheel zoom). Two spec authors, 67
+expectations, 17 scenarios. No engine bug; one SPEC-LOGIC revision; six doc
+gaps that **both** authors reported on their own.
+
+| ID | Finding | Verdict / cause | Action |
+| --- | --- | --- | --- |
+| PM1 | When `Button.on_click` fires; `zoom_by` / `zoom_to` anchor without `about=`; who keeps the wheel (`on_mouse_scroll` order); `.angle` after `rotate_by` (wraps or accumulates); a Slider whose cell is out of range or not an int; when a destroyed object leaves its groups | SPEC-GAP / DOC-SILENT (all six reported by both spec authors) | Guia: on release over the button, release elsewhere cancels; no `about=` = view centre, pan unchanged; the widget under the pointer keeps the wheel (a Slider steps), a shape only while held with `wheel_rotate`; `.angle` accumulates (compare `% 360`); the Slider never rewrites its cell, drag / wheel write in range; destroyed leaves groups at once. Guards: `test_uiwidget` (`test_release_outside_cancels_the_click`, `test_out_of_range_cell_is_not_corrected`, `TestWheelRouting`), `test_canvas.test_zoom_without_about_keeps_pan`, `test_registry_layers.test_destroy_leaves_its_groups_at_once` |
+| PM3 | `keyp.once` fired for a press made long before, released, and never read: True on its first read, however late. Found by the harness: a SPACE in one program skipped the next program's title (no act change between them); inside one act the Guia's own `if flag1 and flag2 and keyp.once("SPACE")` fired seconds late | BUG / the Guia says "só no frame do aperto"; unread edges stayed in `_pending_edges` until a reader came (a side effect of the same-poll guarantee). SC1 had dropped them at act changes only — the symptom, not the class | `KeyPressed._expire_edges()` at the end of `_simulate_frame` (after every reader); `_once` needs a pending edge while the keys are held. Guards: `test_keyp.TestOnceIsFrameScoped`, `TestOnceIsFrameScopedInFrames`, and a frame-boundary step in `TestOnceChordProperty` (the whole class: no `once` without the keys going down together **in this frame**) |
+| PM2 | Spec A E21 failed: "free balls keep their drawn speed" was checked as "80% of balls", and one pair spawned touching at count = 8 (the engine conserved energy and momentum of that pair exactly) | SPEC-ERROR / SPEC-LOGIC | Check rewritten to its own claim (skip balls within one frame's travel of another). Lesson for spec authors: a statistical threshold standing in for a precise exclusion fails on small counts |
+| PM4 | `isinstance(st.n_bolas, int)` was False: `st.n` reads the cell. The Guia said both "`st.score` lê o valor" and "`st.key` Lê o Attribute" | SPEC-GAP / DOC-AMBIG (spec A of `cadeia_de_bolas` trusted the first row) | Guia: `st.score` reads the cell, which does arithmetic like its value; `st.score.value` is the plain value (for `isinstance` / `type` / a copy) |
+| PM5 | `.color` under a look read the look's live paint, not the colour the author set: `Halo` (a translucent wash: lightness ±0.2, alpha 0.12), `Rim`, `ElectricField`, and alpha / hue drift on `Line` under ~10 looks; Role D looks (Flame, Swell, Water) read the colour given. Spec b of `cadeia_de_bolas` guessed the colour given | SPEC-GAP / DOC-SILENT. Decision (2026-10-08): `.color` is the **current** colour — what the shape paints now (a breaking alternative, the colour given for every look, was declined) | Guia `.color` row states the rule and the Role D exception; keep your own colour in a variable or `st`. Guard: `test_visuals.TestColorReadsTheCurrentPaint` |
+| PM6 | `sprite.height` stayed 40 under `scale_to(1.08)`; spec A of `naves` expected 43.2 | SPEC-GAP / DOC-SILENT (both `naves` authors flagged it) | Guia pose table: `.scale` multiplies drawing and collider; `.width` / `.height` stay the size given; the drawn size is `.box`. Guard: `test_sprite.TestScaleKeepsTheGivenSize` |
+| PM7 | A verb on an empty group built a full `Blank()` Shape per call: ~0.3 ms (one-member group: 16 µs), every frame in `group["tiros"].move_by(...)` with no shot alive; the Blank sat in the live roster until GC, so two identical runs differed in roster size | BUG (perf) / found by the `probe_neutral` oracle: a run with probes and one without differed only by GC timing | `registry._empty_group_attr`: a method is a no-op returning `None` (Guia: "não faz nada"; with `time=` the Handle path stays); reads and unknown names keep the Blank path. 1.4 µs. Guard: `test_registry_layers.TestEmptyGroupVerbsBuildNothing` (spy on `Blank.__init__`) |
+| PM8 | Timers fired one frame late or on time by float rounding: at 60 FPS `after(0.5)` on frame 31, `every(0.25)` first on 16, `every(0.9)` on 54 (on time). 15 × (1/60) = 0.24999999999999997 | BUG / the class: every "is it due" comparison on summed frame time. Six of twelve spec authors could not predict the frame from the docs | `process.reached(elapsed, target)` (1e-9 relative) in `after` / `every` / tween end / `ready` / `recently` / transient progress. Guia: first `every` call one interval in, `after(0.5)` = frame 30 at 1/60. Guard: `test_process.TestDueOnTheExactFrame` (property over 6 fps × 11 frame counts × 6 mechanisms) |
+| PM9 | The Guia's coyote-time example re-applied the jump each frame of the `recently` windows: jump 151 high instead of ~115; its gotcha said re-setting `vel.y = PULO` "dá no mesmo" | SPEC-GAP / DOC-WRONG (both `platformer` authors computed the higher jump) | Guia example consumes the windows (`recently.reset("pulo")`, `recently.reset("no_chao")`); the gotcha now says an action that changes motion does not repeat harmlessly |
+| PM10 | Small gaps several authors hit: `e.after(d, fn)` passes the entity to a one-parameter `fn`; another plain key held does not change `keyp("A")`; `game_view` at the start is `(0, 0)`–`(width, height)`; `confine` clamps exactly to the edge; `Color.darker` / `lighter` move HSL lightness | SPEC-GAP / DOC-SILENT | Guia rows. Guards: `test_keyp.test_another_play_key_held_does_not_matter`, `test_color.TestLighterDarkerAreHslLightness` (the rest already pinned) |
+| PM11 | `test_collision(a, b)` returned the raw narrow-phase payload: `info.a` / `info.b` were engine Collider objects (a probe for a non-enrolled shape) and the normal / side followed canonical `id()` order, so half the pairs got the other body's normal | BUG / the Guia says a / b are the bodies, normal from a to b. Found writing the `toybox` API-first program | Query goes through `_oriented_info` (as handlers do) and names the body a probe stands for. Guard: `test_collision.TestQueryInfoIsTheAuthorView` (identities, both orders, same as the handler, a piece of a Collider) |
+| PM12 | `deadzone(size=st.x)` raised "expected a number … got Attribute"; every other number argument takes a cell (surveyed: `lerp`, `remap`, `chase`, `vec_from_angle`, `chance`, verbs, timers, `ready`, `recently`, constructors) | BUG / found writing `geometry_lab` | `as_payload` on `size` and its pair. Guard: `test_easing.TestDeadzoneTakesCells` |
+| PM13 | Two layers made with `below="default"` share a z; equal z draws in creation order (the newer on top), so "below default" twice puts the second *in front* of the first | SPEC-GAP / DOC-SILENT (found writing `runner_story`). The ordering an author would expect is debatable — left as documented behaviour | Guia layers.create row; chain `below=` to stack. Guard: `test_registry_layers.TestEqualZDrawsInCreationOrder` |
+| PM14 | The `@=` formula checker located a lambda by its position in the script file **on disk**. Edited and saved while the program runs, the file no longer matched the running code: a formula built afterwards read another lambda's names, or none ("formula has no reactive sources", misleading) | BUG / found by Tier C (rewritten programs ran under the original file name) | `formula_check._node_matches_code` checks the located node against the code object; a stale source counts as none (lambdas link from the code object, exact); errors say the file changed on disk. Guard: `test_formula_functions.TestStaleSourceFile` |
+| PM15 | `amp_db(st.level)` raised TypeError: `x` was type-checked by hand while `floor` went through `number()` | BUG / found by `test_cells_as_numbers` on its first run | `as_payload(x)`. Guard: the cells guard |
+| PM16 | A method that only some member kinds have (`play`, `showing`, `add_hitbox`, `flash_text`, `focus`, `at` …), called on an **empty** group, raised AttributeError: the stand-in for "no member" is a Shape. `group["inimigos"].play("andar")` crashed once the last enemy died | BUG / found by `test_noop_cost` (the Guia: the method does nothing on an empty group) | `_empty_group_attr` treats any public method of any Entity kind as a no-op; a typo still raises. Guard: `test_noop_cost.TestEmptyGroupVerbsBuildNothing` |
+| PM17 | `Handle.velocity` keeps the last frame's value after the motion ends (by design: `on_done` reads the arrival speed); the Guia said only "neste frame" | SPEC-GAP / DOC-SILENT (found by `test_sys_frame_contracts`) | Guia `Handle.velocity` row |
+| PM18 | `canvas.background = canvas.background` raised TypeError: the read is the live stack, a write expected a material for the base. Found writing `test_noop_cost` (every world setting written back) | BUG / read and write of one name did not round-trip | Writing the stack itself keeps it; the Guia says to keep `.base` to restore later. Guards: `test_background.TestBackgroundRoundTrip`, `test_noop_cost` (no special case) |
+
+### Open (found, not yet fixed)
+
+| Found in | Issue | Planned |
+| --- | --- | --- |
+| — | Nothing open. | — |
+
+### F — contact flicker (2026-09-29)
+
+Found by `tests/test_sys_resting_contact.py`, written after G2 to test what a
+player sees (a resting or walking body) instead of float tangency. F1 fixed; F2
+accepted as a limitation (user decision 2026-09-29).
+
+| ID | Bug | Repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| F1 | `@collide` on a pair that is also `resolve()`d flickered with frame time. 60 Hz: steady. 200 Hz: a resting body read as not touching after landing. Alternating 5 / 28 ms: enter / exit every other frame (238 events in 240 frames); walking re-entered every tile. Same at offset 65536 (not precision). `touching_sides` was steady throughout | `Rect` hero on a `STATIC` tile, `resolve("hero", "tile", bounce=0.0)` + `@collide` / `@collide_exit`, gravity by `move_by`, `dt = 0.005` | `@collide` reads the detection snapshot, taken before resolve; the sweep parks the body `_RESOLVE_SLOP` (0.08) short of the floor, so it overlapped only when that frame's fall g·dt² beat the slop. The `_RESOLVE_SLOP` comment even claimed it was residual *overlap* that prevented stay / exit flicker | `test_sys_resting_contact.TestCollideDoesNotFlicker` (rect and circle × 60 / 144 / 200 Hz and 5 / 28 ms × offsets 0 / 65536, resting and walking 12 tiles; `test_skin_is_what_keeps_the_resting_contact` patches the skin to 0 and expects the flicker back); `test_collision.TestRestingContactSkin` (inside / beyond the skin, exit past it, sensors and `resolve_enabled = False` strict, payload, true gap vs AABB on a 45° box, `_prim_gap` closed forms vs GJK). Fix (user decision 2026-09-29): a standing resolve pair within `_CONTACT_SKIN` = 2 × slop is a contact ([Collision Design — Resting contact (skin)](Collision%20Design.md#resting-contact-skin)) |
+| F2 | **Accepted limitation, engine unchanged (by design).** A circle walking over touching tiles with alternating 5 / 28 ms frames enters / exits the *next* tile every other frame while within ~2 DU of the seam. Rects, resting bodies and steady 60 / 144 / 200 Hz are clean after F1 | Circle r=8 hero, 12 touching 16×16 `STATIC` tiles, `resolve(..., bounce=0.0)`, `vx = 60`, `dt` alternating 0.005 / 0.028 | `@collide` reads the pre-resolve pose, which sinks by g·dt² (0.6 DU on 28 ms, none on 5 ms); against the next tile's corner the gap swings across any fixed skin. Fixing it means judging resolved pairs on the resolved pose: splits the frame-order rule, drops the enter `depth`, breaks same-frame policy in `@collide_stay`. Needs four conditions at once (curved body, seam, uneven pacing, per-tile enter / exit); the standing tile keeps its contact | `TestCollideDoesNotFlicker.test_curved_body_on_seams_with_uneven_frames` stays `expectedFailure` as a tripwire. Mitigation: the Guia teaches `touching_contacts` for "which tile am I on" ([Tocando](../docs/pt/guide/index.html#colisao-touching), "Não confundir" row); fence in [Collision Design — Resting contact (skin)](Collision%20Design.md#resting-contact-skin) |
+
+### W — world machine extensions (M4)
+
+| ID | Bug | Shrunk repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| W2 | `@=` onto a destroyed actor was accepted and put it back in the dependency graph (4 nodes) — ink cell, slot, property anchor (`rotation` / `scale`) and a held part (`dead.center @=`) | `c.destroy(); c["mirror"] @= (lambda: 1)` | No dead check on the link entry points; destroy cut the part's owner edge, so a part could not see its dead host | `test_reactive_edge_cases.TestNoLinkOntoADestroyedActor`; `test_hyp_surface.TestDeadEntityLinks` (P6 for `@=`, every kind × every field); world `link` rule asserts the outcome; canary `test_w2_link_onto_a_dead_actor`. Fix: `state._refuse_link_on_dead` in `Container.__imatmul__`, `Container._link_field`, `Graphic._link_field`; destroy marks parts `_host_destroyed` |
+| W3 | A formula that raised on its first evaluation still created the ink cell (`a.mirror` read `0.0` afterwards) and a scalar anchor node | `a["mirror"] @= (lambda: b.hp + 1)` with no `b.hp` | Cell / anchor created before `_assign_formula` evaluated | `test_reactive_edge_cases.TestFailedLinkInstallsNothing`. Fix: roll back the anchor (`Container._link_field`) and the ink cell (`Entity._link_field`; `_ink` is a slot, not `__dict__`) |
+| W4 | A part's work outlived its host: `line.p1.play_sound(x, loops="forever")` / `p1.after` / `p1.every` kept running after `line.destroy()`, and after an act change (parts are not in the doomed batch) (2026-09-29) | `l = Line(); l.p1.every(0.1, f); l.destroy()` | Destroy keeps parts as readable values (W2) but only ended the host's own scheduler work | `test_audio.TestSoundRingsOut` ("host destroy" row of the fate matrix; `test_part_work_ends_with_its_host`); `test_act.TestActSoundsRingOut.test_a_part_loop_of_an_act_object_stops_on_the_change`. Fix: `Registry._destroy_teardown_body` runs `cancel_owner(part, release=True)` for every part in the subtree that owns work |
+| P1 | A part outlived its destroyed owner in every registry list: `line.show_handles(); line.destroy()` left `p1` / `p2` alive, ownerless, drawn on `top` and draggable forever (the layer list held them); hidden parts stayed in the roster until GC; a tagged part stayed in its group; a dead part could be shown again; a failed constructor left its parts registered (2026-09-29) | `ln = Line(); ln.show_handles(); ln.destroy()` | `Registry.destroy` and the rollback took only the owner out; `Container._clean_up` walked parts for the graph only. Hidden behind ids: the old census skipped `_auto_` ids | `test_part_lifecycle` (every family × hidden / handles / visible; rollback; tags refused); `test_hyp_canvas` invariant `parts_follow_their_owner` + `show_handles` rule; canary `test_p1_part_outlives_its_owner`. Fix: `Registry.retire_part` from `_destroy_teardown_body` and `place._drop_failed_construct`. Design change with it: parts have no tags (`Entity._refuse_part_tags`) |
+| P2 | A part acted as an actor (design bug, 2026-09-29): `c.center.collidable = True` / `@collide(c.center, …)` / `resolve(line.p2, wall)` made a Point body (handlers got the Point; `resolve` kept only the centre out, so the disc overlapped the wall, and stretched a Line; owner and part fired twice; a parked owner's part kept colliding); `c.center.destroy()` left a live Circle moving on a dead centre; `top.clear(hard=True)` destroyed shown handles the same way | `c = Circle(); c.center.destroy(); c.move_by(5, 0)` | Parts are Entities, so every actor verb applied to them; `_drain_layer` destroyed whatever was drawn | `test_part_lifecycle.TestPartIsNotABody` (every family × every body verb, incl. list sides and `Collider([...])`; queries stay allowed), `TestPartLivesWithItsOwner` (`destroy` / `active`; hard clear undraws a foreign owner's handles, retires its own). Fix: `entity.refuse_part_as_actor` at each entry point (`_check_pair_sides`, `collidable`, `on_collide*`, `destroy`, `active`, registered `Collider`), backstop in `ensure_collider`; `_drain_layer` undraws parts |
+| P3 | A parked owner's shown handles kept drawing and stayed draggable: dragging one moved the parked shape; a part's own timers kept running (2026-09-29) | `ln = Line(); ln.show_handles(); ln.active = False` | Park stashed and hid only the owner | `test_part_lifecycle.TestPartParksWithOwner` (every family × handles / visible part; handle changes while parked; timers; destroy while parked); `test_hyp_canvas` invariant `parts_follow_their_owner` (part `active` follows the owner; a parked owner's parts are on no layer or pointer list). Fix: `Entity.active` runs `_park_self` / `_resume_self` on the owner and each part |
+
+W1 (a Sprite's hitbox part outliving its host) was withdrawn: the probe script's own variable held the sprite (the "your own references" pitfall); the engine skips dead-host parts (`hb.is_alive`). The machine now checks it (`hitbox_parts_die_with_their_host`).
+
+Reach guard (`TestWorldMachineReach`, 2026-09-28): `link_then_kill_source` replaces dead or repeated picks with fresh Circles, and after the source dies it re-links from it to check the W2 refusal. Every `REQUIRED` counter stayed ≥ 9 on each of the 20 measured seeds. The guard asserts each is ≥ `MIN_HITS` (3). The guard runs `derandomize=True` without a pinned seed. See [Harness pitfalls](#harness-pitfalls) ("A `derandomize=True` reach guard…") for the measurements and why neither `@seed` nor a larger `max_examples` was used.
+
+### D — differential (fast vs slow paths)
+
+| ID | Bug | Shrunk repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| D1 | Object counts included tombstones (also inflated the leak detector's entity count) | 3 circles on a layer, destroy 1, undraw 1 → `layers.list()` says 3 | `list_info` counted `len(layer.objects)`; `_count_registry_objects` counted `None` (not a `Point`); both keep holes until `compact()` | `test_registry_layers.TestLiveCountsIgnoreTombstones` (incl. structural guard: no `len(<x>.objects)` outside `Layer`; use `Layer._live_count`), `test_leak_detector.TestRegistryObjectCount` |
+| D2 | A `Polygon` collided **where it had been**, not where it was | Collider sees polygon at A; translate to B (fast path); move back to A and rotate +10 / −10 (forces a rebuild) → engine reports it at B | `_translate_prims` shifts prims **in place**; `_poly_cache` stored the same Prim objects under the old vertex key, so a rebuild that landed on A returned the shifted prims. Reachable from `snapshot_shape` and `_world_prims` | `test_collision.TestPolygonCacheAliasing` (unit, engine-level, and the class guard: no returned Prim is an object a cache keeps). Fix: `_poly_cache` stores and returns clones (`_clone_prims`); worst case +1.5 % step time with 200 polygons rebuilt every frame |
+| D3 | Drawn / collidable shapes lost the pose fast path **for good** (performance) | 12 of 24 models: e.g. `Polygon`, `Circle(p1=, p2=)`, `Ellipse(fp1=, fp2=)` warmed by draw / cull / collision; `Square` / `Rect` spine / `Line` by pose verbs | Engine readers and verbs read cold Derivates (`center`, `radius`, `rotation`, `width`, `angle`, `p1`/`p2`), which materializes them and sets the sticky `_needs_pull_invalidate` | `test_diff_pose.TestEngineReadersStayCold` (reader × model and verb × model matrices; allowlists now empty). Fix: every engine reader / verb goes through Defining helpers — `_center_xy` (+ Polygon vertex average), `_radius_value`, `_rotation_value`, `Rect._wh_signed`, Ellipse focal `_oriented_frame`, Line `_segment_xy`; collision pose position via `_center_xy`. Move + rotate + draw of those shapes: 26–40 % less per frame; CENTER_RADIUS circles keep a direct fast branch in the collision proxy (no regression) |
+| D4 | Conservative-advancement sweeps stopped **inside** the obstacle | unit box moving −3 in x into an axis-aligned OBB: first contact t = 0.667, sweep said 0.903 (0.7 deep) | `_gjk_distance` reused the intersection GJK, which returns as soon as separation is proven; the closest point of that unfinished simplex overestimates the gap (3.07 vs 2.0), and advancement trusts it as a lower bound | `test_collision.TestGjkDistanceIsAMinimum`; `test_diff_collision.TestSweepsAgainstSampling` (brute-force sampled sweep oracle). Fix: `_gjk_refine_closest` runs the GJK distance loop to convergence |
+| D5 | OBB / POLY support points were up to 0.5 short of the furthest vertex | box sweeping up into a circle: t = 0.533 vs 0.500 | `_prim_support_ex` kept the FIRST vertex within `tie_eps = 0.5` of the running best (meant only to COUNT face ties) and returned it as the support; GJK, EPA, projections and bisection read it | `test_collision.TestSupportIsTheTrueArgmax`. Fix: `_support_and_ties` returns the true argmax, ties still counted within `tie_eps`; all 268 collision tests (resolve, ramps) unchanged |
+| D6 | Leaving a group kept the pair targets that group implied | `@collide("a","b")`; body in `a` untags `a` → `_pair_targets` still `['b']` | `notify_group_remove` dropped the tag-list entry, never revisited targets (S6's class via untag). No wrong fire; wasted narrow phase if later tagged into the stale target's group | `test_collision.TestUntagPrunesPairTargets`; `test_diff_collision.TestIncrementalEnroll` (targets vs the set the registered pairs imply). Fix: `_prune_pair_targets` on untag |
+| D8 | `unlink()` froze a **stale** value (and so did destroy's auto-unlink) | `b @= a`; `a = 1` (unread); `b.unlink()` → `b` is 0 | pull reactivity: the write only marked `b` dirty; unlink cleared the link without pulling | `test_reactive_edge_cases.TestUnlinkFreezesTheCurrentValue`; `test_diff_reactive` (`chain` op + link model). Fix: `unlink` pulls first; `destroy()` pulls outside dependents after `on_destroy`, before the source reads as dead (formula errors re-raise after teardown). R6: the first version pulled during teardown and raised `DestroyedError`; `test_sys_lifetime` encoded the stale value and was updated (Reactive Design — External dependents). No measurable destroy-churn cost |
+| D7 | Park → `collidable = True` while parked → resume: body active + collidable + tagged but absent from the `@collide` tag index (handlers never fired again); `visible = True` while parked drew a parked actor | spawn in `a`; `active = False`; `collidable = True`; `active = True` → no `@collide` | Resume restored a flag that was already True (setter no-op → no re-enroll); flag writes during park applied immediately | `test_diff_collision.TestIncrementalEnroll` (index vs rebuild) found it; `test_process.TestParkStashesFlagWrites`. Fix: resume re-enrolls (landed in parallel) + **contract (user decision 2026-09-26): writes while parked update the stash**; reads report the current state; draw / hit walks use `_drawn` |
+| D9 | Culling dropped visible corners of thick-stroked sharp shapes | Rect rotated 20°, `line_width=3`, just left of the view: half-stroke pad ends 0.04 outside, the miter corner is 0.4 inside | The cull pad added half the stroke; a miter join reaches `hw / sin(θ/2)` past a corner (sqrt(2) on a rectangle; up to the miter limit 4 on polygons — sharper tips are beveled and reach less); square caps sqrt(2) | `test_cull.TestCullCoversMiterJoins`; `test_diff_draw.TestCullIsConservative`. Fix: `_stroke_reach_factor`. Mechanism verified against Skia's stroked bounds before fixing (lesson 12) |
+| D10 | **Harness bug, no engine change.** `TestSnapshotCaches` reported a Circle arc's cached prims diverging from uncached (`-8.94 vs 0.0`) | `Circle(center=(1, 2), radius=9, angle=110, spread=180)`; `move_by(-27, 3, face=True)`; `move_to(0, 0)` | The cache was right: the translate path matched a rebuild to 1 ulp. The oracle sorted prims by raw floats; the two wedges tie on `aabb` min-x (shared split vertex), the ulp flipped their order, and `assert_same` compared wedge A with wedge B. The suspected A→B→A key bug was not there: `move_face` changes the angle, which is in the pose key extra | `test_diff_collision.TestPrimsOracle` (fails on the sorted compare; class guard over every model with built ties; canary `test_oracle_guard_catches_a_sorted_compare`); `@example` on the property; engine pin `test_collision.TestArcSnapshotAfterFaceMove` (translate path serves `move_to`, multiset match). Fix: `diff_support.assert_same_prims` |
+| D11 | A point read off a fresh measuring Box entered the reactive graph, and only the cyclic GC took it out: read every frame, the node count climbed until the leak detector warned "reactive graph rising … possible orphaned Container" | `r = Rect(center=(0, 0), width=10, height=5)`; 50 × `r.box.center` → +22 graph nodes, 0 after `gc.collect()`. `scripts/smoke/box.py` Stamp page: +11 400 nodes in 300 frames (grid cells, `panel.box.center`); Parents page (`canvas.game_view.center`): +3 000 | A materialized Point part registers a node, and its structural edge registers the Box. Every Container tree is a reference cycle (`_owner` ↔ `parts`, a self-inclusive `_subtree_cache`), so the WeakValueDictionary graph drops those nodes at a full collection only — rare after `freeze_world`. Scalars (`box.width`) build no part, so they never showed it. Two fixes: a measured Box (`Box._snapshot`, now also `game_view` / `ui_view` / `group[...].box` / `widget.box` / playfield copies via `Box._from_aabb`) keeps its part tree off the graph until something links into it ([Reactive Design — Deferred trees](Reactive%20Design.md#deferred-trees-measured-boxes)); and the leak detector recounts after one `gc.collect()` before it warns (churn one collection gives back is not a leak — an author's per-frame `Point(...)` or `Box(center=…)` still churns) | `test_box_snapshot.TestMeasuredPointsStayOffGraph` (every named point of Rect / Circle / Sprite / Text boxes, layout children, grid cells, views, group box, playfield copies: node count flat with the cyclic GC **off**); `TestDeferredTreeStaysCorrect` (writes after corner reads match an eager twin; a link from / into a measured Box wires it and follows); `test_leak_detector.TestGcChurnIsNotALeak` (per-frame author `Box` churn does not warn; held Boxes still do) + `TestLeakSampler.test_recount_*`. The `scripts/smoke/geometry.py` workaround (rebuild points from box scalars) was reverted. Class: **A per-frame throwaway enters the graph** |
+| D12 | A Vec2 linked whole read a stale `length` / `angle`: 0.0 (never computed) or the value from before the link, and so did a link reading it. Same for an owned Vec2 linked per axis (`rect.vec["x"] @= …`) once the owner refreshed, and for the Derivate `vec` of a `corner_corner` Rect / Box after a `p2` write | `v @= lambda: vec_from_angle(st.a, 10)` → `v.length` 0.0; `z = Vec2(lambda: (w.length, 0))` stayed 0 | The pull stores x / y through `_takein_impl` ("Pull stores raw"), which skips `_update_impl`; the linked-clean read shortcut (`ScalarSlot.__get__`, Tier 1.6) returned the stored Derivate or the slot default | `test_derivate_readonly.TestLinkedVec2ComputedFieldsFollow` (lambda → Vec2 / tuple, read before / after the link, a chained link). Fix: `Vec2._sync_computed` after every raw x / y store (`Vec2._takein_impl`, and `ScalarAnchor._takein_impl` through the `Container._sync_computed` hook); the shortcut needs the name stored; `_refresh_scalar` computes a Derivate of a linked leaf on first read. A raw store must keep the node's own Derivates in step. Class guard: `test_diff_link_write` |
+| D13 | A linked field froze until its next source change when a Derivate was read first: `r["hp"] @= lambda: st.x`; `st.x = 2`; `r.width` → `r.hp` still the old value (Rect, Square, Line, Ellipse, Polygon, Track, Circle `spread`) | `c["spread"] @= …`; change; `c.p1.x` → `c.spread` old | An owner's refresh (`_resolve_structural`, `_resolve_link`, `DirectLink.evaluate_and_update`) cleared `_dirty` on its whole subtree, the `ScalarAnchor` of a linked field included; a linked node pulls only when dirty, and the owner's `_update_impl` never read that field | `test_diff_link_write.TestLinkedInkFollows` (every kind × a Derivate read), `TestLinkReadsLikeWrite`. Fix: `Container._clear_subtree_dirty` leaves a part with its own link dirty |
+| D14 | A link on Track `begin` / `end` stored values outside 0..1 (`t.begin` read 3.25; `=` clamps to 1.0); drawing clamped again, so only reads differed | `t["begin"] @= lambda: st.b`; `st.b = 3.25` | `Track._write_field` clamps; the link path (`ScalarAnchor._takein_impl`) only knew a slot's `maximum` | `test_diff_link_write.TestLinkedTrackWindowClamps`. Fix: `ScalarSlot(minimum=, maximum=)` clamps a pulled value; Track `begin` / `end` declare 0..1 |
+| D15 | `v @= lambda: st.pos` and `v << st.pos`, with `st.pos` holding a tuple or a Vec2, raised `TypeError` on a Vec2, a Point and a shape's point part | `st.pos = (1, 2)`; `Vec2(0, 0) << st.pos` | `Vec2._takein_impl` / `Point._takein_impl` read the pair from the cell itself; scalar fields already unwrapped a cell | `test_diff_link_write.TestCellHoldingAPair`. Fix: both unwrap an `Attribute` to its value |
+| D16 | A link into a field with no magnitude limit (`x`, `y`, `angle`, Track `begin` / `end` / `u`) stored NaN / inf: `=` raises `ValueError` "must be a finite number", a magnitude field's link already refused it | `st.a = float('nan')`; `p = Point(0, 0)`; `p["x"] @= lambda: st.a`; `p.x` → nan | `ScalarAnchor._takein_impl` applied the slot's magnitude and min / max limits but no finiteness check to non-magnitude slots | Tests linked finite values and out-of-range values; none linked a non-finite one | `test_reactive_matrix` (`run_range_cell` below / above / nan over every scalar field of every subject). Fix: one `-inf < v < inf` test on a float in the pull (A/B in one process: −0.3 %, noise). A pair store (`p << (nan, 0)`, `v @= lambda: pair`) stays unchecked on purpose, like `=` on a pair: vector math produces NaN legitimately |
+| D17 | On a `Line(p1, p2)` (or `p1,vec`, `p1,dx,dy`), `ln["angle"] @= f` then `ln["p1"] @= g` installed both; every later read of `angle` raised `LinkedAttributeError` ("Cannot rotate_by … its p1 has an @= formula"), and unlinking raised too. The refusal came at the read, not at the `@=` | `ln = Line(p1=(0, 0), p2=(3, 4))`; `ln["angle"] @= lambda: st.a`; `ln["p1"] @= lambda: (st.b, 0)`; `ln.angle` | A derived heading links through a property anchor that drives `rotate_to`; `rotate_to` refuses a part with its own formula, but nothing told the link install about the parts it rewrites (draggable / `wheel_rotate` / `resolve()` are checked at install) | The generated machine was the first code to link `angle` and a point on one Line | `test_heading_link` (both orders refused at the `@=`, the failed link installs nothing, and `Line._heading_driven_parts` equals what `rotate_by` refuses, in both directions). Fix: `_DerivedRotationRoute` refuses the second link (`_refuse_heading_link_over_linked_parts`, `_ensure_can_link_attribute`) from `Line._heading_driven_parts`. Circle-by-rim, Ellipse-by-foci and Rect-spine headings return `()` until they have a subject |
+| D18 | A shape with a linked, derived heading (`ln["angle"] @= f` on a `p1,p2` / `p1,vec` Line, a Circle by its rim, an Ellipse by its foci, a Rect spine) read stale geometry when the points were read BEFORE `angle` after the source moved: `p2` still (5, 0) where `ln.angle = -180` gives (0, 0), and so did `vec`, `dx`, `center` | `ln = Line(p1=(0, 0), p2=(5, 0))`; `ln["angle"] @= lambda: 360 * st.t - 180`; `st.t = 0`; `ln.p2` | The link drives `rotate_to` through a property anchor that only runs when pulled. `p1` / `p2` are Defining, and a clean Defining read does not walk to the shape (Reactive Design, "Difficult areas"); Derivates built from them were read from a clean owner. Reading `angle` first (a sorted read) hid it. The first fix attempt pulled inside the shape's own update batch, where `angle` is stored and not applied, and marked the anchor clean on top | The matrix read names in sorted order, so `angle` always came first; the generated machine reads in any order | `test_heading_link` (`TestDerivedHeadingLinkIsFresh`: every name read first, on every derived-heading kind), `test_reactive_matrix` (reversed post-move reads; canary on `_pull_heading`). Fix: `_pull_heading` applies a pending heading before a structural resolve or a Derivate materialization, never inside the batch; the points the turn rewrites carry `_pull_owner`, so their reads (classified once, off the bare fast path) pull their owner. No cost on a plain Defining read. Class: **a Derivate read before the Defining field that drives it** |
+| D19 | A whole-object link (`d @= s` or `d @= lambda: s`, every shape kind) refreshed `d`'s Defining inputs but not the Derivates already read: after `s.width = 10`, `d.top_right` stayed where it was. A Track copy also dropped `u` | `s = Rect(center=(0, 0), width=4, height=2)`; `d = Rect(…)`; `d @= s`; `d.top_right`; `s.width = 10`; `d.top_right` → (2, 1), want (5, 1) | The pull stores through `_takein_impl` (Defining parts only, inside `_no_update`) and then marks the whole subtree clean; no `_update_impl` ran, so live Derivates kept their values | The matrix linked fields and parts, never a whole shape | `test_reactive_matrix.TestWholeObjectLink` (every subject × field × direct / formula × read order; canary on `_refresh_after_raw_store`). Fix: `Container._refresh_after_raw_store` runs the node's own `_update_impl` after the raw store, in `_resolve_link` and `FormulaLink.evaluate_and_update`, only for nodes with parts (leaf sinks keep their fast path) |
+| D20 | `box << other_box` and `box @= other_box` raised `NotImplementedError`: Box had no `_takein_impl` | `Box(center=(0, 0), width=4, height=2) << Box(p1=(0, 0), p2=(6, 3))` | Box copies Rect's model code but not its copy hook; `Container._takein_impl` is a plain method, so the missing override was silent until called | No test copied a Box | `test_reactive_matrix.TestCopyAcrossModels` (every pair of Box models, `test_box_takes_only_a_box`). Fix: `Box._takein_impl` (model, Defining set and names, like Rect); a non-Box source raises TypeError naming `Box(shape)` |
+| D21 | A copy across construction models (`d << s` where `d` and `s` were built differently) set `model` but kept `d`'s old Defining set: 129 of 186 cross-model copies read wrong (stale sizes, centers, points) and refused writes to the new inputs (`dst.p2 = …` raised DerivedAttributeError). A Track copy kept drawing its own preset / circle and dropped the pose; `reversed_view << t` changed nothing | `dst = Rect(center=(10, 10), width=2, height=2)`; `dst << Rect(p1=(0, 0), p2=(4, 3))`; `dst.width` → 2, want 4 | Six `_takein_impl` wrote `self.model = other.model` and nothing else about the model; the parts that turned Derivate had been built as inputs, so the update never refreshed them | Copies were tested within one model (`clone()`, C7) | `test_reactive_matrix.TestCopyAcrossModels` (every ordered pair of models of each kind; canary on `_adopt_model_of`). Fix: `Container._adopt_model_of` sets the model and the target's own Defining set for it (`_defining_names_for`: a Rect taking a Square uses width / height), marks parts that turned Derivate live, and drops the bare-read caches. A Track copy becomes a free points track (no preset, no live source) with the source's pose; a `reversed()` view refuses a copy. RegularPolygon still refuses a different `n` |
+| D22 | The same field obeyed different rules on different paths: a constructor stored NaN in a non-size field (`Rect(…, angle=nan)`, `Line(dx=nan)`, `Point(nan, 0)`) where `=` raised; Line `length` raised inside a batch where every other size clamped; `track.begin = fn` and a derived heading's `angle = fn` raised a plain TypeError instead of CallableAssignError | `Rect(center=(0, 0), width=2, height=2, angle=float('nan')).angle` → nan | Rules lived in per-class `_write_field` overrides (Line, Circle, RegularPolygon, Track) that only author writes ran; `_init_scalar` checked only sizes; min / max were honoured only by links | Each path was tested on its own | `test_reactive_matrix.TestOneCoercionForEveryPath` (constructor refuses what `=` refuses, a function assigned names the link, a batch clamps a negative size, every `_write_field` override allowlisted). Fix: rules on `ScalarSlot` (`label`, `out_of_range`, `_kind`) and one coercion for `=`, constructor, batch and link (Track C item 1). Writes of Line / RegularPolygon fields got 10 % faster (no override) |
+| D23 | A Box placed by `top_left` ignored mirrored corner names (a copy or a flip's): its center, every named point and a `rotate_by` came out where an unmirrored box would be, while a Rect with the same names was right | `b = Box(top_left=(0, 0), width=4, height=2, angle=30)`; names `(-1, 1)`; `b.rotate_by(10)`; `b.top_left` ≠ Rect's | Box carried a near-copy (~300 lines) of Rect's frame model; Rect's later fix (`_top_left_offset`) never reached the copy | Box and Rect were tested apart | `test_rect_frame` (Box reads like Rect over every model × name signs, before and after a turn; neither class re-defines the shared methods). Fix: `_RectFrame` mixin (Track C item 4); Box's `rotate_by` uses the named offset. Box's `rotate_by` stays unbatched: `@batch_update_self` cost +45 % there |
+| D24 | About twenty private helpers turned a value into `(x, y)` with their own rules: `p << [1, 2]` raised while `v << [1, 2]` worked; tween destinations, Track, group and collision queries read the first two items of `(1, 2, 3)`; `(True, 0)` was a point in `get_xy` and `v + (True, 0)`; `v << ("1", "2")` parsed text; a state cell holding a pair worked in `p << st.c` but not in `p + st.c`; the Vec2 operand error offered a Point that it then refused | `Point(0, 0) << [1, 2]` → TypeError; `Vec2(0, 0) << ("1", "2")` → Vec2(1, 2) | Each module kept its own `_as_xy` (the `scenamath` copy even said "not a package-wide unification") | Each entry was tested with its own module's inputs | `test_pair_reading` (every entry × tuple / list / cell accepted, three items / bool / one item / text refused; Vec2 and Point messages; a delta refuses a Graphic). Fix: `_xy_of` / `_read_xy` / `_pair_numbers` are the one reading (Track C item 3); the copies delegate. Tuple reads got 20–50 % faster (an exact-number fast path) |
+| D25 | A direct link to a centred Text's `center` (`q @= text.center`) stayed put after `text.move_by` / `move_to`: Text wrote its centre with the raw float pose path and no gate | `t = Text("hi", center=(10, 10))`; `q @= t.center`; `t.move_by(5, 7)`; `q` → (10, 10) | Hazard #8 (Reactive Design) had a rule and no check: Text's moves, anchor shift and layout publish called `_takein_xy_float` unconditionally | Pose-link tests covered shapes and Sprite, not Text | `test_write_path_guards` (every raw pose write is gated; `TestTextLinksFollowAMove`). Fix: Text notifies when the point is a link source (`_link_source`, set by `_note_became_link_source`); the raw path stays for unlinked captions (A/B within noise) |
+| D26 | A direct link to an *anchored* caption's `center` (`Text("hi", top_left=…)`; `q @= t.center`) read the old centre after a move, `text =` or a formula string change, until something read the caption (10 of 64 placement × part × change cases) | `t = Text("hi", top_left=(10, 10))`; `q @= t.center`; `t.move_by(5, 7)`; `q` → old centre | The layout is lazy (width inputs never notify; it runs on draw and on reads through `_TextPartSlot`); the anchored centre is written by it, not by a source of `q`, and a DirectLink copies the Point without reading through the caption | The pose-link and Text tests read the caption before the link | `test_write_path_guards.TestTextLinksFollowAMove` (every placement × part × change, the link read first). Fix: when an anchored caption's `center` first becomes a link source (`_part_became_link_source`, called by `_note_became_link_source`), it depends on the caption and its reads pull the caption first (`_pull_owner`), as a derived heading does (D18). Unlinked captions are unchanged |
+
+### B — bench pulse findings
+
+| ID | Bug | Shrunk repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| B1 | Every **read** of a linked Point re-walked its whole dependent cone (performance; values stayed correct). `graph-1` sierpinski 7.07 → 14.64 ms, draw 5.0 → 12.6 ms; landed between 09-24 and 09-26 | `a → m @= f(a)`; `a.move_to(…)`; reading `m.x` calls `mark_dirty` once (should be 0); ×729 Lines per frame at depth 5 | The `takein` → `_takein` / `_takein` → `_takein_impl` rename: `Container._resolve_link` (both branches) and `DirectLink.evaluate_and_update` (container branch) kept calling `_takein`, which now names the invalidating dispatcher, not the raw store. `TestDeepBinaryTree` ceilings had been raised 46 → 107 to fit it | `tests/test_pull_no_invalidate.py`: `mark_dirty` count during reads per sink kind (0), one walk per write on a midpoint tree, downstream-fresh twins, AST guard `TestPullResolversStoreRaw` (resolvers and `_no_update` blocks in `evaluate_and_update` never call `_takein`; vacuity-guarded); `DEEP_MARK_DIRTY_CEILING` back to 46. Mutation-checked: reverting the fix fails 6 of 10 |
+| B2 | Per-frame verbs paid the full validator path for a plain `float` (performance). `balanced-2` cpu_mix tick 1.10 → 1.40 ms (scheduler `_tick_on_update`: author `on_update` bodies); `move_by` 1.19 → 2.25 µs, `rotation =` 0.86 → 1.21 µs | `c.move_by(0.1, -0.1)` in a loop; `validate.finite` ×2 per call, `_finite_deg` ×3 per `rotation =` | A3–A8 correctly routed verbs through `validate.finite` / `_finite_deg`, but a plain float took two `callable` probes, `as_payload` and an ABC `isinstance(numbers.Real)` (Python-level `__instancecheck__`); plus a function-local import per `move_by` | `tests/test_hot_validators.py`: contract table (float / int / subclasses / Fraction / NaN / inf / bool / non-numbers) for both validators; `TestHotPathsStayHot` patches the slow-path helpers to raise and drives `move_by` / `rotation =` / `rotate_by`. Fix: exact-type fast path first (as `_coerce_magnitude_slot` already did); `finite` imported at module level in shapes. Mutation-checked |
+| B3 | **Harness bug, no engine change.** Auto-diff reported `gpu −25%` / heroes `+7%` as "candidate real move" — the window had opened on another display, so the GPU cells ran at FB 1200×800 (1×) instead of 2400×1600 (2×), a different workload. The same code at 2× measured flat (heroes 6.18 ms, draw 2.35 ms vs 2.27–2.35 on 09-22…24) | `balanced-2` on the evening of 2026-09-28 | `§` = 1× was a hand convention in `balanced.md`: the runner neither wrote nor read it, and `autodiff` compared across scales | `tests/test_bench_pulse.py`: scale tags round-trip, the runner stamps 1× cells, previous-row lookup matches FB per GPU cell (fallback / not-compared notes), older fallback rows never claim "same fingerprint → noise", dashboard headline says FB. Mutation-checked |
+| B4 | **Probe bug, no engine change.** Every `jitter_probe` / `longrun` / Windows-wrapper run with `--seconds` hung forever (the window never closed); post-FX time was silently unmeasured | `jitter_probe.py app_first.py --seconds 4 --present keep` never returns (bisected to the author-API audit commit) | The author-API audit renamed engine hooks `Clock.tick` → `_tick` and `PostFxStack.render` → `_render`. `FrameProbe._patch` skipped a missing attribute silently, so the probe saw no frame start and never asked the window to close | `tests/test_frame_probe.py`: install on the real engine (every target exists, `_tick` / `_render` wrapped, uninstall restores), a missing target raises at install, a timed run requests the stop, every `--present` choice maps to a `canvas.framerate` value. `_patch` now raises instead of skipping. Same rename also broke `perf_spatial_fx.py` (patched `clock.tick`) |
+| B5 | FX Auto **unstable**: any minor system load stepped it down (often to low@30) and it never stepped back up | 30 s of +30 % work with a 25 ms spike every ~0.5 s cascaded high → low@30 in ~7 s and parked at low@60; after a real overload ended it never returned to high although high fit with ~50 % headroom | Down: period *mean* (dragged by spikes), one bad eval enough (`t_down_s` 1 s), a 3 % slip line hit by spike slips, the pacer's own late wakes counted. Up: climbs needed *current* work under 32–42 % of the budget — out of reach for a scene that fits | `tests/test_fx_auto.py` `TestStability` (production params, simulated frames: minor load → no step; one bad second → no step; overload → down fast, back to high slowly; parks at the rung that fits; GPU-bound slips walk down; external slips at most one step; learned cost ratio; failed-climb backoff) and `test_pacing` oversleep-vs-overrun. Fix: median, 2 s, overruns only, 10 % in window and latest period, predicted-cost climbs with learned ratios, external-slip hold, doubling failed-climb lock |

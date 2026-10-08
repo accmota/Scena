@@ -1,0 +1,1268 @@
+# Actors Design
+
+Identity (`Entity`), behaviour (process: timers, modes, tweens, async), groups,
+ink, and modes. **Happy path for this subsystem** — pick one row; do not read
+the rest. Sprite body / hitbox / clone: [Sprite Design.md](Sprite%20Design.md).
+Collision engine: [Collision Design.md](Collision%20Design.md). Hub:
+[Scena Design.md](Scena%20Design.md). Author calls:
+[Guia da API](../docs/pt/guide/index.html#agendar).
+
+Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-documents-are-descriptions-not-locks).
+
+| Goal | Go to |
+| --- | --- |
+| Entity / `active` / ink | [Architecture](#architecture), [Ink](#ink), [`active`](#active-park) |
+| Groups / fleet | [Groups are tags](#groups-are-tags), [Fleet helpers](#fleet-helpers-groups), [Group fences](#group-fences) |
+| Formula groups | [Formula groups](#formula-groups) |
+| Modes / `@on_mode` / `@exit_mode` | [Mode enter / exit](#mode-enter--exit) |
+| Async wait / helpers | [Process semantics](#process-semantics) |
+| Method decorators | [Method decorators](#method-decorators-every--after--collide_with--when--on_change) |
+| Ownership / tracks | [Tracks](#tracks), [Ownership](#ownership-no-on) |
+| Frame order | [Frame order](#frame-order) (canonical: [Scena Design.md — Datapath](Scena%20Design.md#datapath)) |
+| Maintainer notes | [Implementation notes](#implementation-notes-maintainers) |
+
+## Use
+
+1. Pick one jump-box row.
+2. Read that section only (search; do not read the rest of this file). Treat fences there as current constraints.
+3. Open **Start** only if the section is not enough.
+4. Open **Also** / another Design doc only if Start is not enough.
+5. Stop. Do not ingest `scripts/`, Sprite Design, or the private archive / proposals unless the body/hitbox is the task.
+
+## Router
+
+| Need | Start | Also |
+| --- | --- | --- |
+| `Entity`, ink, construct | `entity.py` | `place.py` |
+| `group["name"]` / formula `@=` | `registry.py` (`GroupOperator`) | `process.py` (`until_empty`) |
+| `after` / `every` / tween / modes | `process.py` | `easing.py` |
+| `@when` / `@on_change` | `events.py` | `state.py` |
+| `@collide*` **sugar** | `interaction.py` | `collision.py` (engine) |
+
+## Do not confuse
+
+| Looks like | Is actually | Not |
+| --- | --- | --- |
+| `@when` | `events.py` (flush) | `process.py` (timers/tweens) |
+| Groups | tags and queries | process owners (`every` / `on_update`) |
+| `group("name")` | migration `TypeError` | `group["name"]` |
+| `group["name"] @=` | `GroupOperator` (`registry.py`) | Attribute / `FieldRef` (`state.py`) |
+| Ink (`ship.hp`) | Entity field | `.visual` / paint |
+| Sprite body | [Sprite Design.md](Sprite%20Design.md) | this file |
+
+## Not in this doc
+
+- Class tree (full) → [Scena Design.md](Scena%20Design.md#class-tree-selected)
+- Sprite / Sheet / hitbox / clone / mass path → [Sprite Design.md](Sprite%20Design.md)
+- Collision engine → [Collision Design.md](Collision%20Design.md)
+- Measuring `group[...].box` → [Box Design.md](Box%20Design.md#bridge)
+- Follow math (`chase` / `deadzone`) → [Canvas Design.md](Canvas%20Design.md#follow-math-chase--deadzone)
+- Author catalogs → [Guia da API](../docs/pt/guide/index.html#agendar) (process), [Guia da API](../docs/pt/guide/index.html#desenhar-entity) (Entity)
+
+
+# Actors (Entity, Process)
+
+===============================
+
+Identity (`Entity`) and behaviour (process: timers, modes, tweens, async).
+Rejected process names (`state`, `on_hit`, `remove`) are **not** Scena API.
+Taught fleet sample: `examples/app_galaga.py`. Smoke scripts are visual
+tests, not idiomatic references.
+
+## Architecture
+
+```
+Container
+  └── Entity              identity, groups/tags, layer, visible, destroy,
+                          process host, ink, active
+        ├── Graphic       pose, filters, transients, .visual, stamps   (ABC, not constructed)
+        │     ├── Shape   geometric models, path, handles
+        │     ├── Sprite  sheet, frames, play, image body
+        │     └── Text    caption (HUD ``ui`` or world); ``\n`` is a hard break (no wrap); optional ``width=`` / ``align=``; glow= only (no .visual)
+        ├── SpatialFx     no Graphic; full process surface still (timed Rain)
+        └── UIWidget      HUD control (Button, Slider, …); drawn by WidgetManager,
+                          not a registry layer. ``layer=`` and ``collidable=True`` raise
+```
+
+**Entity is the registry citizen.** `Shape` and `Sprite` are entities that draw. Bare
+`Entity()` is the same object with no visual (`layer=None`). Do not invent a parallel
+Entity type that also has layer / groups / destroy. `UIWidget` is an Entity
+(not a Graphic), same idea as `SpatialFx`: groups, `visible`, `destroy()`, timers.
+It always draws in the HUD. `visible=False` also drops pointer and key input.
+
+Prepared for multi-body later (an Entity may own children with offsets). Today: one
+costume `.visual` per Graphic (or none). Appearance stamps (`.glow` / `.shadow` /
+`.hue` / `.tail`) compose around that costume.
+
+| Check | Meaning |
+|-------|---------|
+| `isinstance(x, Entity)` | Registry citizen (Circle, Sprite, SpatialFx, UIWidget, bare Entity) |
+| `isinstance(x, Graphic)` | Can flash, glow, tween pose |
+| `isinstance(x, Shape)` | **False** for Sprite. `@click` accepts Graphic (Shape and Sprite), not SpatialFx, UIWidget, or bare Entity. A group passed to `@click` skips widget members. `@collide` accepts Entity but skips widgets (`collidable=True` raises) |
+
+SpatialFx stays an Entity so `rain.after` / `rain.every` / `rain.destroy` / groups / tags
+work. It does not grow HP / hitbox / look APIs.
+
+## Current design choices
+
+These are today’s choices, not irrevocable commitments. Challenge them when a better design is worth the cost ([open design](Scena%20Design.md#design-documents-are-descriptions-not-locks)).
+
+| Topic | Choice |
+|-------|--------|
+| Registry citizen | **`Entity`** (layer, groups, visible, destroy, process host, ink) |
+| Shape / Sprite share | Internal ABC **`Graphic`**. Not a public constructor. Not named Looks. |
+| Body-less entity | Bare **`Entity()`** — no draw, `layer=None`. Spawners, directors. |
+| Vocabulary | **Entity** = registry citizen; **Graphic** = drawable pose body. Do not use "actor" as jargon. |
+| Tags | **Groups.** Lookup is `group["name"]` (`group("name")` raises). `tag` / `untag` / `tagged` are sugar. No second hashtag system. |
+| Identity | **No author ids.** The Python variable is the handle; a tag is the only lookup by name ([No author ids](#no-author-ids)). |
+| Formula groups | `group["name"] @= lambda: …` — recompute-on-read on `GroupOperator`, **not** an Attribute edge. `|` / `.filter()` stay snapshots. |
+| Fleet | One loop / one timer / one Director. Groups have queries + bulk verbs, **not** `every` / `on_update`. |
+| Entity data | **Ink:** `ship.hp = 3` is a bare scalar on the Entity. No `ship.state.hp`. Reserved names stay properties. |
+| FSM name | **`mode`** (callable). Not `state` (`st` and “visual state” already exist). |
+| Completion | **`then=`** = enter that mode. Positional **`fn`** / **`on_done=`** = call it (same channel). Not both with `then=`. |
+| Ownership | **One ambient rule** for bare `after` / `every` / `wait` / `tween` / timed pose / `play_sound`: started in a mode body → mode-scoped. Explicit `e.after` / `e.every` / `e.tween` / `e.play_sound` → entity-scoped. No public `on=`. |
+| Four rungs | All first-class **parallel styles**, not a one-way ladder. |
+| Async | Sequence form (`await`). Same handles. Not hidden; not the first tutorial. |
+| Per-frame hook | **`on_update`**. `Container.update()` stays graph recalculation. |
+| Teardown hook | **`on_destroy`**. Fixed name, like `on_update`. Fires from `destroy()` only, before cancellation. |
+| Mode marker / exit | **`@on_mode`** (tag, no runtime effect). **`@exit_mode(enter_fn)`** (optional cleanup on leave). Mode identity stays a callable. |
+| Clock | `clock.scale` / `paused`; `dt`/`time` scaled; `real_dt`/`real_time` wall; `ready` / `recently` use `clock.time`. |
+| Timed pose | Suite `time=` / `ease=` / `then=` / `on_done=` / `loops=` / `yoyo=` on `move_to` / `move_by` / `move_along` / `rotate_to` / `rotate_by` / `scale_to` / `scale_by` / `tween()`. `then=`/`on_done=`/`loops=`/`yoyo=` require `time=`. `yoyo=True` needs `loops` > 1 (or `"forever"`). `face=True` on `move_to` / `move_by` / `move_along` aims `.angle` at travel direction (works instant too on `move_to` / `move_by`; zero delta holds). `reset_rotation` has no `loops=`/`yoyo=` (single fixed destination). `move_along` is always motion; `time=` is one lap (`loops="forever"` has no finite whole-run). Same suite on canvas camera (`pan_*` / `zoom_*` / `rotate_*` / `frame_to` / `set_origin` / `reset_view`) — not Entity pose; channels in [Canvas Design.md](Canvas%20Design.md#timed-camera). `start=` is **`tween()` only** (optional initial value, same shape as `to`); not on pose verbs — place then travel stays two lines (`center = …` then `move_to(..., time=)`). |
+| Timed `rotate_to` | Shortest arc (degrees, CCW+). Exact 180° → CCW. `rotate_by(dθ, time=)` signed as written. Camera `rotate_*` matches. |
+| Missing sprite file | Legal. Magenta/black checker, warn once, **do not crash**. |
+| Missing atlas / unknown frame | Same: warn once, checker placeholder, still a full Entity. |
+| Unexpected Sprite kwargs | `TypeError` listing valid keys (`radius=` is Circle). |
+| Unexpected Shape / SpatialFx kwargs | Same: `TypeError` with family hint (`frame=` is Sprite). Gradual: empty / `center=` / complete size — not arbitrary home subsets. |
+| Sprite size | Design units (`height` / `width` / `size`). `scale` = pose zoom. |
+| Sprite flip | `flip_x` / `flip_y` bools on every Graphic except Text (mirrored text is unreadable: `True` raises `TypeError`, `False` is a no-op). Mirror about `center`. Shapes rewrite geometry; Sprite mirrors in the draw transform. |
+| Sprite `art_angle` | Bitmap nose in degrees (0 = +x, 90 = +y). Draw / hit-test / colliders use `angle − art_angle`. Construct seeds `angle` so the sprite appears as drawn and `.angle` is world heading. One value per sprite (clips share it). Omit / 0 = today's blit. Not per frame; not packed-atlas `rotated`. |
+| Sprite class defaults | `class X(Sprite, source=…, height=…)` omit-able look fills; instance wins. Not placement (`center`/`layer`). |
+| Shape class defaults | `class X(Circle, radius=…, color=…, group=…)` style/group + home size; instance wins. Not placement. Size fills home path only. |
+| Sprite clips | Wrap on the **clip** (`clip(..., yoyo=)` / `strip(..., yoyo=)`), not on `play`. `play(..., next=)` is a clip name. |
+| Sprite hitbox kinds | `"auto"` (default), `"rect"`, `"ellipse"`, `"circle"`, `"hull"`. `source` (`"clip"`, `"all"` = registered clips, tuple of clips) / numeric `hitbox_anchor` / per-axis `hitbox_scale`. No author `hitbox_accuracy` / `may_rotate`. No `hurtbox=` kwarg set: extra detect-only colliders are hitbox parts (`add_hitbox(group=…)`, [Sprite Design.md](Sprite%20Design.md#hitbox-parts)). |
+| `hitbox_shape="auto"` | Bake the reference set on collision enroll; frozen while animating unless `hitbox_source="each"`. Utility = quality − λ×cost; rotation-safe (never multi-rect). Walkers: `hitbox_shape="rect"`. |
+| Sprite spawn | **Construct again** is the default (and the taught shooter path). Track-only `Sprite("shot.png")` interns one single-frame `Sheet` + process-wide decode cache + cached auto-hitbox *fit*. Each call still pays Entity / Attribute / registration. `Sheet` is clips / atlas, not a fire-rate prerequisite. |
+| `clone()` | One verb on **Graphic** (Sprite + Shape). Birth: constructor + `setup()`, then `look_like`. Same cost class as warm construct — **not cheaper** than constructing the same path again. Copies art/style/groups, not process state. Layer is placement (omit → class default; `None` → undrawn); a HUD `Text` clone stays on `ui`, a world `Text` clone takes the class default. Copies `visible` (not park). Subclass clone returns the subclass (`Sting` / `Bolt`). No `Template` / pool / `spawn_like`. Not on bare `Entity`. |
+| Electric* / Shield on sprites | **ElectricField / ElectricBolt:** live silhouette path (all qualities). **Shield** (incl. plasma): frozen silhouette-union ellipse (per-frame alpha AABBs → design-unit union × ``shield_scale``, default 1.4); baked on look assign via ``_AUTO_CACHE`` bbox; independent of hitbox. **`Halo()` / `Halo(style="fill")` / `Laser()` on Sprite:** SDF glow/beam + blit + smoothed `path_v2` rim (no ImageFilter). **Shape** Halo/Laser stay on GPU primitives / the compiled filter package. Other path shells / Rim / Metal·Flame·Swell·Aurora·Wave / Extrude / MultiBorder·Organic·Tracer prefer cached silhouette path at **all** qualities. FrameFx bakes at **look assign** (all sheet cells) or via `prepare_fx(*looks)`; bare `Sprite()` / stamp Glow never bake. ``_replaces_sprite_body`` materials hide the bitmap. `InsetRim` is Shape-only. |
+| `@when` lifetime | Method `@when` / `@on_change`: `destroy()` drops the registration immediately (`drop_owner`). A dead owner still retires the watch on the next poll if it was not dropped. Park does **not** suppress — watches stay live. Classless watches whose source was destroyed (`DestroyedError` / `ReferenceError`) retire quietly; any other error (typo, missing ink) raises. No `on=` on `@when`. |
+| `@when` on methods | Condition takes `self`; wrap to zero-arg FormulaLink at construct (after `setup()`). Classless stays zero-arg. |
+| `@collide` arity | Truncated: `hit()`, `hit(me)`, `hit(me, other)`, `hit(me, other, info)`. Only parameters with no default receive a value (`validate.payload_arity`, one counter for every hook). |
+| `@collide_with` | Method-only; `self` is left side. Same target kinds as one `@collide` side. No `SELF` sentinel. |
+| Transient `on_done` | Payload `(shape,)`, same truncation. Exceptions propagate; the transient finishes first (hide applied) and `on_done` does not re-run. |
+| Timers | One API: ignore handle → hold handle → `name=` **slot**. Decorators attach **`fn.handle`**. Method `@every` tags; construct arms `every_on`. |
+| `@collide` after respawn | Prefer **group tags**. Object refs are **dropped** on `destroy()` (no handler leak). |
+| Park | **`active`** (not soft-destroy). Orthogonal to `destroy` / `mode`. |
+| Drop owned process (keep Entity) | **`cancel_process()`**. Cancels all owned Handles + mode script (same path as `destroy`), quietly clears `mode` to `None` without `@exit_mode` / `on_destroy`. Not ink, tags, `on_update`, `@when`, or transients. No global author `reset_all`. |
+
+## Groups are tags
+
+Keep `group=`, `add_to_group`, `group["enemy"]`, `@collide("bullet", "enemy")`. Sugar:
+`ship.tag(...)` / `untag` / `tagged`. `add_to_group` / `remove_from_group` / `tagged`
+take one name; a list raises `TypeError` and names `tag(...)` / `untag(...)`.
+Behaviour depends on tags the same way collision
+already does. Named-group lookup is **only** `group["name"]` — `group("name")` raises
+`TypeError` with a brackets hint. No silent alias and no dual spelling. There is no
+`obj("id")` (see [No author ids](#no-author-ids)). String keys work on the root
+`group` only; `group["wasp"]["other"]` raises (index members with an int:
+`group["wasp"][0]`). Plain `group["name"] = …` raises — bind with `@=`.
+
+**Parts have no tags.** `line.p1.tag(…)`, `untag`, `add_to_group`, `remove_from_group`
+and `part.group = …` raise `TypeError` naming the owner (`p1 is a part of the Line made
+at app.py:12 … Tag the Line itself`); `tagged` reads False. Groups are actor-level:
+`@collide` auto-enrolls a group's members as bodies and bulk verbs move them, so a
+tagged `center` would collide as a Point or reshape its owner, and it would sit in a
+group its owner's lifetime controls. For a set of handles, keep a Python list or tag
+the owners. `Act` refuses tags the same way. Guard: `test_part_lifecycle.TestPartsHaveNoTags`.
+
+Unchanged (not lookup): constructor / clone `group=`, `.tag` / `.untag` / `.tagged`,
+and string-tag APIs (`@collide("bolt", "wasp")`, `until_empty("wasp")`,
+`@leave_playfield("bolt")`).
+
+<a id="group-names"></a>**Group names (the typo guard).** `group["name"]` on a name with no members
+warns `No group 'x'. Did you mean 'y'?` only when the name is **unknown** and
+near-misses a known one. Known = live now, ever had a member (the registry drops a
+bucket with its last member but keeps the name in `_group_gen`), a formula group, or
+**declared by a rule**: `@collide` / `@collide_stay` / `@collide_exit`, `@collide_with`
+(and stay / exit), `resolve`, `@leave_playfield` record their string names at
+registration (`registry.declare_group_names`). So `group["tiros_inimigos"]` before the
+first shot, or `group["inimigos"]` after the fleet is cleared, reads quietly as an empty
+view; `group["inimgos"]` still warns at the line that typed it. A name used only in
+`group[...]` reads, before its first member, with a near-miss elsewhere still warns.
+Guard: `tests/test_group_name_guard.py` (Testing Design GN1).
+
+Groups resolve **live** each frame. Object literals do not. Prefer
+`@collide("player", "star")` over `@collide(basket, "star")` after destroy/recreate.
+Destroy **drops** object-literal pair handlers (no leak / warning flood); recreate still
+needs a new registration. Resolve also skips inactive / `collidable=False`. Prefer tags,
+or park with `active=False` and keep the same instance.
+
+## Fleet helpers (groups)
+
+Groups grow **verbs** (`destroy`, `tag`) and **queries** (`count`, `empty`, `any`, …) at
+the same DSL level as `move_by` / `len`. They are **not** a new process owner.
+`every` / `on_update` keep attaching where they already attach (script, or an `Entity`).
+Author surface: [Guia da API](../docs/pt/guide/index.html#mundo-grupos).
+
+### Principles
+
+1. **Same vocabulary.** `group`, `every`, `on_update`, `until` stay the words. Shared
+   timing is author-written (`every(2.4, volley)` looping the group, or a Director).
+2. **Gradual.** Per-entity APIs stay; group APIs are optional sugar for fleets.
+3. **Framework does not invent the formation.** Helpers move / query; the author still
+   chooses who is in the group and what happens.
+4. **One owner story for timers, not two.** Script-scoped `every(2.4, volley, name="fire")`
+   and `director.every(2.4, volley, name="fire")` already cover O(1) fleet timing.
+   `name=` stays per Entity / per script.
+5. **No reactive-graph changes.** Pose writes still go through existing A1–A3 / Attribute
+   paths.
+
+### Taught pattern (Director / one loop)
+
+Do not put 80 timers on 80 wasps. Loop the group from **one** place: `update(dt)`, script-level
+`every`, or a Director `Entity`. Individuals keep dive / death modes.
+
+`examples/app_galaga.py` is the showcase of that beginner-idiomatic shape (one Director
+sway loop, `await until_empty("wasp")`, per-wasp dive/death). Fire in that sample is
+per-wasp `@every(2.4, name="fire")` plus `@collide_with("bolt")` so class-method
+decorators have a live home; the O(1) fleet clock remains `every(2.4, volley)` as
+below. Most other `scripts/` remain visual smokes, not author references.
+
+Equally fine for one fleet: skip the Director class and put sway in `update(dt)` plus a
+script-level `every`. A `sway_x` group verb is **parking lot** (see **Deferred**).
+
+`group["wasp"].move_along(track, time=4)` is ordinary `__getattr__` broadcast (list of
+handles). Per-wasp `phase=` is an author `for` loop (`enumerate` / `.index(w)`).
+Broadcast itself has no per-member argument, and join-order rank is not a formation
+slot. Wait on a fleet with `parallel(*handles)` /
+`until(lambda: all(h.done for h in handles))`. There is no `Group.move_along`.
+Hover-on-a-path: [Tracks Design.md](Tracks%20Design.md).
+
+### Member walks copy
+
+Live `group["wasp"]` is a **view**: `.count`, `.empty`, and the **next** walk see
+join/leave. Walk order is **join order** (the sequence members tagged into this
+name) — not left-to-right, not draw order, not a formation. Already a member:
+`tag` / `add_to_group` is a no-op (does not move to the end). Re-tag after untag
+appends at the end. For a spatial lineup, the author sorts:
+`sorted(group["wasp"], key=lambda w: float(w.center.x))` or ink + `phase=` in a
+`for`. Join order is still not a formation.
+
+Every walk that yields members copies at enter: `for`, `any` / `all` /
+`count_where` / `filter` / `nearest` / `centroid` / `box` / `index` /
+`.first` / `.last` / `[i]`, bulk `destroy` / `tag` / `untag`, and
+attribute-forwarding (`group["wasp"].move_by(...)`).
+`destroy()` /
+`tag()` / spawn / GC during that walk cannot raise
+`RuntimeError: Set changed size during iteration` (the registry map is an ordered
+weak registry). Joiners during that walk wait until the next call. Destroyed
+members that were present at enter are still yielded this pass.
+
+That is not a snapshot `GroupOperator`. `group["a"] | group["b"]` and the **result** of
+`.filter(pred)` freeze the operator until discarded. A walk only freezes **this**
+call. Do not iterate the registry store directly — one copy rule, not a mix of live
+walks and `list()`.
+
+`count` / `empty` stay O(1) on a named tag — do not `list()` just to count.
+Formula groups (below) recompute on read, so `count` / `empty` are O(n).
+
+Regression: script `update` destroying off-screen group members while iterating.
+Tests: `tests/test_registry_layers.py` (`test_iter_survives_destroy_in_loop`,
+`test_iter_does_not_see_joiners_mid_loop`, `test_next_iter_sees_joiners`,
+`test_queries_survive_membership_change_in_pred`, `TestGroupJoinOrder`).
+
+### `count` / `empty` / `until_empty`
+
+`group["wasp"].count` and `.empty` are O(1) sync reads (`len` of the live tag
+registry; do not `list()` just to count). Formula-backed names recompute, so those
+reads are O(n). `until_empty(group_or_id)` is the **only** async-wait
+spelling for emptiness — a thin wrapper over `until(lambda: ...)`. It accepts a
+tag string, a live `group["name"]`, or a formula name / formula-backed operator.
+A tag string is checked once, at the call (`group[name]`'s near-miss warning
+catches a typo there); the per-frame poll reads the registry directly
+(`process._live_group_empty`, no lookup cost per frame). The emptied-group warning
+that once motivated it (Testing Design SC4) is now closed for every lookup: a name
+that ever had a member is known ([Group names](#group-names)).
+
+Do not write `until(group["wasp"].empty)`: `until(pred)` calls `pred()`; `.empty` is
+already a bool by the time `until` sees it. A competing `.is_empty` method would work as
+an unbound predicate but would be a second spelling for one concept.
+
+### Bulk & query helpers
+
+Immediate broadcasts (`destroy`, `tag` / `untag`) match `move_by` — a for-loop with nicer
+syntax; already reachable via `__getattr__`, listed so the pattern is discoverable.
+`.filter(pred)` returns a **snapshot** `GroupOperator` (same kind as `group["a"] | group["b"]`).
+Set algebra (`|` / `&` / `-` / `^`) and `.filter` keep join order (first-seen wins). They stay
+snapshots — not live — unless the author names the expression under `group["name"] @=`
+(see **Formula groups**).
+
+| Op | Member order |
+| --- | --- |
+| `A \| B` | A's join order, then B's members not already seen |
+| `A & B` | A's join order, keeping those also in B |
+| `A - B` | A's join order, dropping those in B |
+| `A ^ B` | `(A - B)` then `(B - A)` in those orders |
+| `.filter(pred)` | Source join order, keeping matches |
+
+Short-circuit / aggregate reads: `any` / `all` / `count_where` / `nearest` / `centroid` /
+`box` / `index`. Predicate shape is uniform: `pred(member) -> bool`. Empty `centroid` / `box`
+/ `nearest` return `None`. `.box` is a fresh measuring `Box` over members' AABB
+(angle 0), or `None`; a single-member group may be a collapsed Box. Safe to pass
+to `canvas.frame_to` with no empty-group guard.
+`.nearest(point, where=None, *, within=None)` caps distance
+with optional `within=` (same metric as the standalone `nearest(origin, items)` helper
+in `shapes.py` — use that for arbitrary lists / vertices / mix). All of these share the
+member-walk copy (see **Member walks copy**); a mutating pred is well-defined (members
+present at the call), not a crash.
+
+`.index(item)` is the inverse of `group["wasp"][i]`: 0-based **join-order rank** of an
+Entity. A string (in `index` or `in`) raises `TypeError` naming `tagged(...)` — members
+are actors, never names. Missing member raises `ValueError` with an
+`in` hint — not `-1` / `None` (`-1` looks like a number; membership is already `in`).
+Root `group.index(...)` raises `TypeError`. Rank is live: destroy / untag of an earlier
+member closes the gap. Not a sticky formation slot — stamp ink at birth
+(`w.slot = i`) for a number that must not move. Prefer `enumerate` when already
+looping. Tests: `tests/test_registry_layers.py` (`TestGroupIndex`).
+
+`group["wasp"][i]` is Python sequence indexing on join order: `0` is first, `[-1]`
+is last, `[-2]` the one before that. Out of range / empty raises `IndexError` with
+the group name (not a silent `None`). A **slice** (`group["wasp"][1:3]`, `[-2:]`)
+returns a `list` of those members — a copy, not a live `GroupOperator`. An empty
+slice is `[]` (no error). `.first` / `.last` are the named ends (`[0]` / `[-1]`):
+same join-order meaning, same empty `IndexError`. Root `group.first` / `group[0]`
+raises `TypeError`. No `.second` / `.nth` — use `[i]`. Tests:
+`tests/test_registry_layers.py` (`TestGroupFirstLast`).
+
+No `.set(attr, value)` bulk-write helper — attribute-forwarding already does
+`group["wasp"].hp = 3` (honest `AttributeError` on mixed membership).
+
+### Formula groups
+
+Named live combinations use the same brackets as tag lookup:
+
+```python
+group["enemies"] @= lambda: group["wasp"] | group["boss"]
+until_empty("enemies")          # or until_empty(group["enemies"])
+group["enemies"].unlink()
+```
+
+Recompute-on-every-read (no cache, no Attribute / `FieldRef` edge). Every access
+re-invokes the callable. Do not memoize on `Registry._group_gen` — that counter
+is per-tag (collision re-enrollment); nested formulas would need a recursive version
+vector. Revisit a cache only if profiled. Destroy already evicts from the tag map, so
+recompute never sees dead members (unlike a frozen snapshot’s strong-ref list). Nested
+formulas are legal. `|` / `&` / `.filter()` stay snapshots; liveness is the `@=` name.
+Lambda is required for a computed RHS; a bare live group or tag string is an alias; a
+bare snapshot raises with a hint to wrap in `lambda:`. A held `g = group["enemies"]`
+stays formula-backed after `@=` (the operator mutates — there is no `GroupFieldRef`).
+Namespace collision with tagged members raises both ways (`add_to_group` on a formula
+name raises; `@=` on a name that already has tagged members raises); re-`@=` on an
+existing formula warns (`RuntimeWarning`) and overrides. Cycles are detected at first
+read (re-entrancy stack), not at `@=` — weaker than the Attribute graph; the error is
+`RuntimeError` with the chain, not `RecursionError`.
+
+`@collide` / `resolve` live re-enrollment keys on `_group_id` (string tags). Formula
+groups fall through like snapshots (decoration-time membership). Prefer the source tag
+strings for collision.
+
+`.unlink()` / `.is_linked` live on a **named** `GroupOperator`. After unlink, the name
+is an empty tag view again. Snapshots and the root `group` cannot `@=` / unlink.
+
+Tests: `tests/test_registry_layers.py` (`TestGroupFormula`); `tests/test_process.py`
+(`test_until_empty_formula_name_and_operator`). Smoke: `scripts/smoke/group_formula.py`.
+
+### Group fences
+
+Groups are tags, not process owners. Do not add `group["wasp"].every` /
+`.on_update` / `every(..., group=)` — script-level `every` + Director already cover O(1)
+fleet timing. Revisit only if a script cannot express that. Two fleets wanting
+`name="fire"` is two Directors (or two script-level names), not a group timer.
+
+Do not silently merge per-entity `every` handles. A denser scheduler tick is
+allowed; merging timers is not. Optional later: `SCENA HINT` (see **Deferred**).
+
+`|` / `&` / `.filter()` stay snapshots. Live combinations are
+`group["name"] @=`. Walk order is join order, not spatial. `group("name")` raises.
+
+Also not on the surface: `group.mode`, auto-formation layout, a second bulk-write
+spelling beyond attribute-forwarding. Snapshot groups cannot host a live sway.
+
+Why these hold:
+
+| Idea | Why not |
+| --- | --- |
+| Group-scoped `every` / `after` / `on_update` | For one fleet the effect equals script `every` / a Director; the only gain is a `name=` namespace on the group. Costs: two spellings for one concept; broadcast vs host on one object (`move_by` means N members, `every` would mean **one** timer); a third arity rule (`fn()` on a group, `fn(x)` on an entity); an invisible process host |
+| Silent merge of equal per-entity timers | Bookkeeping-only payoff (each member still runs its callback); sound only for identical interval / name / function / phase, so staggered spawns gain nothing; two code paths that must agree under cancel / `name=` / exceptions / watchdog; hides the "one owner" lesson the Director teaches |
+| Live `\|` / `&` / `.filter()` by default | Breaks `=` copy vs `@=` link: a live combination must be named under `@=` |
+| `group("…")` beside `group["…"]` | Two spellings on one token, a skim hazard; the call form raises with the fix |
+| `union_of(...)` / `group.formula(...)` / plural `groups[...]` | A second idiom or noun with no `@=` marker |
+| Spatial or left-to-right walk order by default | Invents a formation; the author sorts |
+
+Index: [Fences.md](Fences.md).
+
+## No author ids
+
+Scena has no `id=` keyword, no `.id` field, and no `obj("id")` lookup (removed
+2026-09-29). **The Python variable is the handle.** To reach an actor where the
+variable does not reach (another function, an act class, a spawn helper), tag it and
+read the group: `Sprite("heroi.png", group="heroi")` … `group["heroi"].first`. Error
+messages and `repr` name an actor by its construction line (`entity_label` /
+`made_at`: `the Circle made at app.py:40`), which a beginner can click.
+
+Why it went: nobody called `obj()` (no script, no taught sample); the taught samples
+already reach a singleton through `group[...]`. It was a third way to reach an object
+(variable, `obj`, `group`), stringly typed and global. It also carried beginner traps:
+`id="bullet"` in a spawn helper crashed on the second call (ids were unique), a typo
+returned `None` (then Python's `NoneType` error), and the weak map lost an undrawn
+Entity known only by its id. Five bug-catalogue rows were id bookkeeping (H1, H3,
+H8, R2/R4, K5).
+
+- `X(id=…)` raises `TypeError` with the hint "keep the actor in a variable, or tag
+  it with `group=`" (`validate._FAMILY_KWARG_HINTS["id"]`). Same on class lines
+  (`class Heroi(Circle, id=…)`).
+- `"nome" in group["wasp"]` / `group["wasp"].index("nome")` raise `TypeError`: a
+  group holds actors; a tag test is `ship.tagged("wasp")`.
+- `ship.id = 3` is plain ink (the name is no longer reserved).
+- Internally the registry keeps a weak, ordered **roster** (`Registry.live`, keyed by
+  a serial that is never reused; `is_live` / `live_objects`). A stale second
+  `destroy()` therefore cannot drop a newer actor (the H3 class is gone by
+  construction). Tests that check "a rejected call registered nothing" compare
+  keys newer than a mark (`hypothesis_support.roster_mark` / `new_in_roster`), never
+  `len(live)` — the roster is weak, so unrelated garbage can shrink it. Parts are
+  in the roster too and leave with their owner ([Parts](#parts-leave-with-their-owner)).
+  An undrawn engine actor that must work from a one-line call with no author
+  variable (`Endless("pista", ...)`) is held strongly by `Registry.hold` (the
+  `_held` set) and leaves it in its own `_clean_up`; an author `Entity()` with
+  no variable is still collected (keep it in a variable).
+
+Fence: see [Fences](Fences.md) (`id=` / `obj()` / a name registry).
+
+## `active` (park)
+
+- `active = False` — stash then force `visible` / `collidable` off; **pause** owned
+  timers / tweens / `on_update` / async mode resume (`elapsed` frozen). Script-scoped
+  timers keep running. `@when` / `@on_change` still run (they watch facts, they are
+  not owned process — so `@when(lambda self: not self.active and keyp("R"))` can
+  revive). Shape transients (`flash` / `blink` / `dissolve_out` / …) also keep
+  ticking: they are presentation on wall clock, not actor process time. Prefer
+  `dissolve_out(..., on_done=self.park)` so the FX finishes while still visible;
+  park forces `visible=False`, so parking first hides the FX. Use
+  `clear_transients()` when the FX must stop; use `clock.paused` for a global
+  freeze, not fleet-wide park.
+- **Parts park with the owner.** Each Entity part (a shape's `center` / `p1` /
+  vertex) runs the same park / resume step (`Entity._park_self` / `_resume_self`):
+  shown handles leave their layer and the pointer list (a parked shape cannot be
+  dragged by a handle), `part.active` reads False, a part's own timers pause.
+  `show_handles()` / `no_handles()` / `part.visible = …` while parked update the
+  part's stash; resume restores it. Before, a parked Line's handles kept drawing and
+  dragging one moved the parked shape. Guards: `test_part_lifecycle.TestPartParksWithOwner`,
+  `test_hyp_canvas` invariant `parts_follow_their_owner`.
+- While parked, a `visible` / `collidable` **write updates the stash** that resume
+  restores; the actor stays hidden and out of collision. Reads report the current
+  state (False while parked). Engine draw / hit-test walks read the drawn flag
+  (`_drawn`), never the stash. A `blink` / `flash` on a parked actor therefore
+  cannot show it (D7 in [Testing Design](Testing%20Design.md#bug-catalogue)).
+- `active = True` — restore stashed flags and resume process time. If the
+  restored `collidable` is on (including when it was set again while parked,
+  so the flag was already true and the setter would not re-enroll), pair
+  groups are enrolled again.
+- Orthogonal to `mode` and to hard `destroy()` (`is_alive`) **while alive**.
+  `destroy()` marks `is_alive` False **and** `active` False (direct flag, not the
+  park setter). `active = True` on a destroyed leftover is a no-op — it does not
+  revive.
+- `.enable` / `.enabled` on an Entity raise `AttributeError` and name `.active`
+  (`True` / `False`, park / unpark). They are not one edit from `active`, so they
+  are explicit ink aliases, not reserved properties. Widgets, post effects,
+  backgrounds, and audio effect stacks keep a real `.enabled`: skip that
+  contribution; the object stays in its list. Park does more than that mute.
+
+Use park for death blink / restart-the-same-ship. Use destroy for one-shot debris.
+
+## `cancel_process` (drop owned process)
+
+Keep the Entity; drop its scheduled work. Author surface for the cancel step
+`destroy()` already runs internally — without teardown.
+
+```
+e.cancel_process():
+    1. cancel every Handle / mode script owned by e (all scopes — same as destroy).
+    2. quietly set mode = None (no @exit_mode, no on_destroy).
+    3. Entity stays is_alive; ink, tags, groups, active, on_update untouched.
+```
+
+| Want | Call |
+|------|------|
+| Pause **one** job, keep pending | `h.pause()` / `h.resume()` |
+| Pause all owned timers (park Entity) | `e.active = False` |
+| Drop owned timers / tweens / sounds / mode | `e.cancel_process()` |
+| Hard remove | `e.destroy()` |
+| Mode leave + exit hooks only | `e.mode = None` (mode-scoped cancel; entity-scoped survive) |
+| Clear flash / blink / dissolve | `e.clear_transients()` |
+
+Held `Handle` instances that are still running become `.cancelled`. Calling
+`cancel()` on a handle that already finished is a no-op and does **not** set
+`.cancelled`. Does **not** unregister `@when` / `@on_change` (those stay until
+`destroy()`, which drops method watches). Does **not** fire `@exit_mode` — same
+rule as `destroy()`. Author who needs exit-hook cleanup first:
+
+```python
+e.mode = None          # exit hooks; mode-scoped cancel
+e.cancel_process()     # entity-scoped leftovers
+```
+
+**Restart while keeping objects.** Destroy disposable actors (`group["wasp"].destroy()`);
+on persistent singletons call `cancel_process()`, reset ink by hand, then
+`goto_mode(...)` to re-arm behaviour (same-mode `e.mode = …` is a no-op).
+
+```python
+group["wasp"].destroy()
+player.cancel_process()
+player.clear_transients()
+player.hp = 3
+player.active = True
+player.goto_mode(player.playing)
+director.goto_mode(director.directing)
+```
+
+No author-facing global `reset_all` / `reset_process_scheduler` (tests only). Groups
+forward the method: `group["wasp"].cancel_process()`.
+
+## Ink
+
+`st` is the **app** bag. The per-Entity bag is the Entity itself (`ship.hp = 3`).
+Unknown public names on an Entity are values in `ink`. Entity is the only
+author object that holds ad-hoc author data: every other one is a closed
+surface (a write to a name it does not have raises —
+[Scena Design](Scena%20Design.md#entity-ink-vs-st)).
+
+> **Ink holds any value except a function.** Numbers, text, points, other
+> objects (`self.aviso = Text(...)`). Only numbers, bools and points can be
+> linked (`@=`). A stored object that was destroyed reads falsy (`if self.aviso:`).
+> A group view is callable, so `self.inimigos = group["inimigo"]` raises
+> `CallableAssignError` with its own sentence — "A group is looked up, not
+> stored. Write group['inimigo'] where you need it" (`entity._ink_callable_message`).
+> Store an object only when a later method uses it; a banner shown and removed
+> inside one async mode stays a local. Scenes use the same rule
+> ([Act Design.md](Act%20Design.md#act-memory-on-self-ink-rule)).
+
+**Writes create; reads must exist.** `ship.hp = 3` (copy) and
+`ship["hp"] @= lambda: …` (link) both materialize a missing ink field (default `0`).
+Reading `ship.hpt` when only `hp` exists raises `AttributeError` — typos between two
+ink names surface on **read**, not on assign/link (`ship.hpt = 1` would create `hpt`,
+same as plain `=`). The one write-time guard is the **near-miss of a real property**:
+creating ink whose name is one edit (or one adjacent swap) from a public
+property/slot of that class (`rotaton`, `visable`, `radious`), or a known spelling
+(`colour`, `centre`, `velocity`), raises `AttributeError` naming the property.
+`enable` / `enabled` are explicit aliases of `.active` (the error says
+`.active = True` / `False`, park / unpark) — not one edit from `active`, and not
+`_INK_RESERVED`. The edit-distance check fires for candidates ≥ 6 letters
+with the same first letter, and for candidates ≥ 5 letters one **adjacent swap**
+away at any position (`anlge`, `widht`, `aplha`, `lyaer`, `gruop`, `nagle` →
+`angle`; `scena.closed.transposed`). Never for `on_*` or plurals, and checked
+once per (class, name) — so `hp`, `player`, `flame`, `weight` stay ink, and so do
+plain deletions on short names (`coor`, `laer`). **Look-family** names that belong to another kind (`circle.alpha`,
+`text.alpha`, `entity.line_width`) raise too: they would otherwise land on a dead
+attribute (`_LOOK_MISSING` route). **`x` / `y` on a Graphic or SpatialFx** raise
+`AttributeError` and do not become ink — position is `.center` (`ship.center.x`,
+`move_to` / `move_by`). `Point` keeps real axis slots. A bare Entity still
+stores `e.x` as ink. `obj.group = "a"` / `{"a", "b"}` replaces the tag
+set and keeps `group[...]` in sync (non-str / non-iterable raises `TypeError`).
+Reading `obj.group` gives a **read-only snapshot** (`GroupTags`, a `frozenset`
+subclass): `.add` / `.discard` / … raise `AttributeError` naming `tag` / `untag`,
+because an in-place edit would skip `group_map` and collision tags; `obj.group |= {"b"}`
+rebinds, so it syncs. The registry swaps a new snapshot on every tag / untag — never
+mutate it in place. There is no `id` field (it would be ink like any other name); the
+registry roster keys by a private serial (`_reg_key`), so no author field doubles as a
+registry key. Tests: `test_registry_key_fields` (`TestGroupSnapshot`, `TestNoEntityIdKey`).
+Reserved names stay properties. Geometry leaves (`Point`, `Line`, `Vec2`) do not
+auto-materialize ink on bracket access — typos stay `AttributeError`. Plain
+`ship.hp = lambda: …` is **not** a link — it raises `CallableAssignError` (a
+`TypeError` + `AttributeError` + `ValueError` subclass) naming the `ship['hp'] @=`
+spelling, for every field kind: ink, `ScalarSlot`, `ContainerSlot`, pose property,
+`vel`, reserved look, `st` cell; `@=` is the only operator that installs a formula
+(taught form: [Reactive Design — Link attribution](Reactive%20Design.md#link-attribution-)).
+Why not let `=` sense a lambda (ink once did): one syntax shape (`x = lambda: …`)
+meant link on ink but raised on `Attribute` / `st`; a distinct operator shows "this
+line wires the graph" at a glance in a diff or a stranger's file; and `@=` fails
+loud on a non-linkable target, where `=` would store a dead function or link by
+accident.
+
+**Paint / appearance is not ink.** Costume and stamp properties (`.visual`, `.fill`,
+`.line`, `.line_width`, `.blend`, filters, `.glow`, `.shadow`, `.hue`, `.tail`, …)
+are plain Python properties — not `Attribute` graph cells. Bracket `@=`
+(`ship["line_width"] @= …`) and callable assign (`ship.line_width = lambda: …`)
+raise with a field-specific hint: use `=` for the look, and `on_update` /
+`@on_change` / `@when` when appearance should follow game state. Link custom ink
+(`ship.hp`) or geometry (`rect.width`, `line.p1.x`) instead. See
+[Scena Design.md — Entity ink vs `st`](Scena%20Design.md#entity-ink-vs-st).
+
+Dot `@=` (`ship.grounded @= …`) is **not** the bracket equivalent: Python evaluates
+`ship.grounded` before `@=`. On a composite that returns a Container this can work
+if the field already exists; on a scalar leaf (`ship.hp`, `p.x`) it is a bare
+`float` with no `__imatmul__`, so Python raises its own `TypeError` — Scena cannot
+intercept that without wrapping every scalar read. Always write
+`ship["grounded"] @= lambda: …`.
+
+`Shape`/`Sprite`/`Entity` use `__slots__` (no `__dict__`), so ink is the only place to
+hold ad-hoc author data on them. Paint channels are **not** ink — do not link them with
+`@=`. `@when`/`on_change`/`until` poll whatever they're given every frame regardless
+of source.
+
+## Four rungs (parallel)
+
+| Rung | Surface | Best at |
+|------|---------|---------|
+| 1 | `update(dt)`, `@collide`, `@when`, transients | Continuous motion, reactions |
+| 2 | `after`, `every`, `ready`, `recently` | Time, no modes |
+| 3 | `mode` + `then=` | One chapter, one completion |
+| 4 | `async` / `await`, optional class | A **sequence** of waits; per-object `on_update` |
+
+Teach: zero or one completion → `then=` (or ignore the handle). Two or more waits, or a
+value that must survive a wait → `async` mode (helpers that mode `await`s count). `then=`
+inside an async body: don’t; warn if a transition cancelled a still-running script.
+
+## Process semantics
+
+Cooperative scheduler owned by the engine, driven by `clock.dt`. Handles are awaitable
+so async is not a retrofit. Effective step for an Entity: `clock.dt * e.time_scale`.
+Script-level `after` / `every` use `clock.dt` (pause with the world). No per-group scale
+in v1.
+
+`e.time_scale = value` and `clock.scale = value` both raise `ValueError` for
+non-finite (`nan` / `inf`) or negative values — previously both setters did a
+bare `max(0.0, float(value))`, which silently mapped `nan` to `0.0`
+(`max(0.0, nan)` is `nan` in Python but the *comparison* `nan >= 0` used
+elsewhere reads `False`, so behavior around a `nan` scale was inconsistent
+rather than a clean reject) and mapped any negative value to `0.0` instead of
+telling the author their delta was wrong. `0.0` (freeze) stays legal.
+
+### every is seconds, not frames
+
+`every(interval, fn)` counts world seconds. The interval must be > 0.
+`every(0, …)` and a sentinel such as `EVERY_FRAME` are not a per-frame hook.
+Per-frame work is `on_update` (Entity) or script `update(dt)`, both of which
+receive `dt`. A non-positive interval stays `ValueError` and names those hooks.
+Revisit only if a script needs per-frame work that is cancellable, mode-scoped,
+or named, and `on_update` + `update(dt)` cannot express it.
+Index: [Fences.md](Fences.md).
+
+**Due on the exact frame.** A timer fires on the first frame whose summed time reaches its deadline; the first `every` call is one interval in. Time is summed frame by frame, so a deadline that is a whole number of frames can land a hair short by rounding (15 × 1/60 < 0.25): every "is it due" comparison (after / every / tween end / ready / recently / transient progress) goes through `process.reached` (1e-9 relative). At fixed 1/60, `after(0.5)` is frame 30, not 31 (bug PM8; `test_process.TestDueOnTheExactFrame`).
+
+**Handle clock.** `.elapsed` is world seconds since start (or since the last `every`
+fire). `.remaining` is the dual: seconds left until `after` / `wait` / `tween` finish,
+or until the next `every` fire. `0` when done or cancelled. `until` / `parallel` /
+`race` have no clock duration → `0`. Read-only: assigning `.remaining` is a
+`TypeError`. Refresh a buff with `after(..., name=)` (named slot replaces); do not
+write the countdown.
+
+**Handle slot key.** `.name` and `.owner` are read-only (`TypeError`). Together they
+are the scheduler slot `(id(owner), name)` (`_named`, `_by_owner`), recomputed on
+forget — a write used to park a cancelled handle in the old slot, or detach the job
+from its owner's destroy. Re-schedule instead (`other.after(…, name=…)` + `cancel()`).
+Internal writers use `_name` / `_owner`. Tests: `test_registry_key_fields.TestHandleSlotKey`.
+
+**Handles are made by the engine.** `Handle(...)` in any call form raises one
+author `TypeError` ("not built by hand", naming `after` / `every` / `tween` /
+`wait` / `move_to(..., time=)` / `play_sound` and `h = after(2.0, fn)`), never
+Python's `__init__()` complaint. Engine code builds through `Handle._make(**fields)`
+(`object.__new__` + `_init`); every construct site in `process.py`, `audio.py`,
+`audio_capture.py` and `menu.py` uses it. `__del__` reads its slots with
+`getattr`, so a handle whose `_init` raised dies without an unraisable error.
+Tests: `test_process.TestHandleConstruction`.
+
+**Pause one job.** `h.pause()` / `h.resume()` freeze a clocked Handle in place
+(`.elapsed` / `.remaining` / tween pose / sound cursor stay). Methods return the
+Handle (chainable). `.paused` is read-only (`True` only while alive and frozen);
+assigning it is `TypeError`. Idempotent; no-op on done / cancelled (does not revive).
+`cancel()` clears the flag. Kinds: `every` / `after` / `wait` / `tween` (timed pose
+included) / `sound`. `until` / `parallel` / `race` raise `TypeError` — pause the
+member Handles yourself. Stacks with `clock.paused`, `e.active = False`, and
+`e.time_scale = 0`; clearing one freeze does not clear `.paused`. `name=` and tween
+driver claims stay held while paused. A pointer hold freezes motion through a
+separate private gate (`Handle._held`), never through `.paused`: `.paused` is the
+author's switch only and never reports or undoes a hold ([Shapes Design.md —
+Persistent drivers](Shapes%20Design.md#persistent-drivers-vs-linked-pose)). `then=` / `on_done=` do not run on pause.
+Author surface: [Guia da API — Handle](../docs/pt/guide/index.html#agendar-handle).
+
+**First tick next frame.** A Handle created during `Scheduler.tick()` — including
+one re-armed from its own `after` / `every` fire callback or `tween(..., on_done=...)`
+— is not eligible until the *next* `tick()`. The same rule already holds for
+`update`, collision, flush, `on_update`, and async resume. Re-arming
+`after(0.5, self._hop)` from `_hop` itself is the natural spelling of “and then
+again”; a hitch or `delay=0` must not spin inside one pass.
+
+**Async wait.** `wait` / `until` / `until_empty` / `parallel` / `race` suspend a
+coroutine the engine is driving. The **entry** is an async mode (`e.mode = diving`).
+Helpers that mode `await`s are the same script — `await pause(0.4)` from the mode
+body is legal. They are **not** an entry in `update` / `on_update` / `@collide` /
+`@when` / a sync mode: calling them with no running script is `TypeError` (use
+`after(...)`). A must-await Handle must be `await`ed or passed to `parallel` /
+`race` **before the script yields or returns**; otherwise `TypeError` naming the
+call site and `await …` (the Handle is cancelled and the script aborted). A Handle
+the author already `cancel()`ed is not a forgotten await. `__del__` remains a backstop. Bare `wait(0.4)` does not block.
+
+**Motion readout.** Translation motion tweens (`move_along`, `move_to(..., time=)`,
+`move_by(..., time=)`) stash this tick’s pose delta as three floats. `.velocity` /
+`.speed` / `.heading` compute on read (`Vec2.temp` / hypot / atan2, or the track
+tangent — same quantity as `face=`). Ride handles also expose `.u` (mapped track
+parameter) and `.lap` (0-based; `loops="forever"` keeps counting). Non-motion
+handles (`after` / `every` / `wait` / rotate / scale / `tween`) raise
+`AttributeError` with a hint. Done or cancelled freezes the last tick (so
+`on_done` can still read exit speed). Movers never write `Graphic.vel` — the
+author copies if they want (`rider.vel = h.velocity`).
+
+**`loops=` / `yoyo=`.** Shared by timed pose, `tween()`, and the camera suite
+(`1`, int `N`, or `"forever"` — same spelling as `move_along` / `play_sound`).
+`yoyo=True` swaps start/end each odd lap (same named `ease` applied forward on
+every leg — not a time-mirrored curve). Implemented once in `Handle._tick_tween`
+as `u → 1 − u` on odd laps (affine writes make that equivalent to swapping
+endpoints / flipping `span`). Finite `loops=N` with yoyo: rests at start if `N`
+is even, at end if `N` is odd. `loops="forever"` never fires `on_done` / `then=`.
+`yoyo=True` with `loops=1` raises. `loops=` must be an int ≥ 1, an integral
+float (`2.0`), or `"forever"`. `True` / `False` and non-integral floats (`1.5`)
+raise `ValueError` (bool is an `int` subclass and must not become one lap).
+On `move_along`, yoyo flips the effective
+`span` direction; `phase=` stays the conga-line offset and is unaffected.
+`face=True` flips heading 180° when travel is reverse (yoyo odd lap or
+`span=(1, 0)` on `move_along`). The same `face=` lives on `move_to` /
+`move_by` (instant or timed): heading is `atan2(dy, dx)` of the frozen
+travel delta; zero delta holds rotation. Multi-key tween
+(`id(center)` + `(id(shape), "angle")`) matches `move_along` so a
+concurrent `rotate_*` cancels the face ride.
+
+**`tween` / `lerp`.** `tween(target, to, time=…)` writes a bracket handle
+(`FieldRef`), a live `Attribute`, or a pose Container (`Point` / `x`+`y`
+`takein`). Scalar / multi-value Attribute paths call free `lerp` from
+`easing.py` each tick; pose keeps the allocation-free 2-float write.
+`lerp(a, b, t)` is also author-facing (`from scena import lerp`): numbers,
+flat tuples/lists, types with `.lerp(other, t)` (`Vec2`, `Color`), and pose
+→ plain `(x, y)` (never allocates a Point). `t` is not clamped (elastic
+overshoot). Incompatible shapes raise at `tween()` call time, not mid-run.
+`Color.interpolate` / `Color.lerp` default to `ColorSpace.OKLAB`. Documented
+contract for sequences is depth-1; deeper nesting may work but is not promised.
+Author surface: [Guia da API — tween](../docs/pt/guide/index.html#mover-tween),
+[lerp](../docs/pt/guide/index.html#util-lerp).
+
+### Mode enter / exit
+
+The mode function **is** enter. `@on_mode` is an optional visual marker (no runtime
+effect on assign / `then=` / `==`). `@exit_mode(enter_fn)` is optional cleanup for
+that mode. There is no `on_enter`. Mode identity stays a callable, compared with `==`.
+
+Assigning `e.mode = diving`:
+
+1. Reject non-callables (fail loud — see Protections).
+2. If `value == e.mode` already (including both `None`), **no-op** — do not exit, do not
+   re-enter, do not reset `mode_time`. Defensive guards (`if x: e.mode = e.formation`)
+   are safe.
+3. Otherwise cancel work **scoped to the previous mode** (timers / tweens / timed pose /
+   mode script started in that body). Do **not** cancel: transients, `sprite.play()`,
+   entity-scoped timers (`e.after` / `e.every` / `e.tween`), event-track scripts.
+4. Run the outgoing mode's `@exit_mode` hook if one is attached — **without**
+   `owning(..., scope=SCOPE_MODE)`, so work it starts is entity-scoped by default.
+   Exceptions warn (Entity, hook, mode being entered, traceback); **the transition
+   still completes**. Cleanup must not block the next mode.
+5. Store the callable; `mode_time = 0`.
+6. Inspect **once**: `async` → exclusive mode script; plain `def` → call **once**.
+7. `e.mode = None` → cancel scoped work, run the exit hook, no body.
+
+To force exit+enter even when the target equals the current mode, use
+`e.goto_mode(diving)`. Same validation and transition steps as assignment, always.
+
+Compare with `==`, never `is` (bound methods are recreated). Body finished is **not** an
+exit — a sync `formation` that only arms `every(...)` is the normal idle mode.
+Frozen-mode warning only if nothing is pending past `FROZEN_MODE_S` (2s).
+
+A mode with no exit hook is unchanged from enter-only. `@exit_mode` attaches to the
+enter *callable* (no class/module registry) — the same way `@every` attaches `fn.handle`.
+
+#### Cancelling pending work when leaving a mode
+
+**One rule:** anything you start while a mode body is running — `after`, `every`,
+`wait`, `until`, `parallel`, `race`, `tween`, timed `move_*` / `rotate_*` / `scale_*`,
+`move_along` — belongs to that mode and dies when you leave. Use `e.after` /
+`e.every` / `e.tween` when the job must survive the mode change (and still dies on
+`destroy()` / `cancel_process()`).
+
+```python
+@on_mode
+def formation(self):
+    every(2.0, self.shoot)                 # dies when leaving formation
+    after(3.0, then=self.diving)           # idem
+    self.move_along(track, time=2.4, loops="forever")  # idem
+
+@on_mode
+def charging(self):
+    self.glow = True
+    after(0.5, then=self.diving)           # timer auto-cancels on leave
+
+@exit_mode(charging)
+def charging_exit(self):
+    self.glow = False                      # not a Handle — needs the hook
+```
+
+`@exit_mode` is for **non-Handle** cleanup (looks, ink). Do not use it only to
+cancel timers — those cancel automatically. Sync or async enter functions may both
+attach an exit hook.
+
+Work the exit hook itself schedules has **no** ambient mode context:
+
+- `self.foo(...)` / `after(0.4, self.ping)` → entity-scoped (survives next mode).
+- Bare `after(0.5, then=...)` with no inferable owner → existing `TypeError`.
+- A fire-and-forget free function → script scope.
+
+`destroy()` does **not** fire `@exit_mode`. Async modes may still use `try`/`finally`
+for rare non-Handle cleanup that must sit next to setup; `Cancelled` is a
+`BaseException`, so `finally` still runs. Cleanup that must run no matter how the
+Entity ends is `on_destroy` (below).
+
+Async cancellation raises **`Cancelled` as a `BaseException`**; `finally` still runs.
+Waiting on a dead entity ends the script silently. Assigning `e.mode = …` from *inside*
+the running script does not throw (coroutine on the stack); script is marked done and
+closed after `send()` returns.
+
+**Silent-death gap (only when the *mode's own owner* is torn down).** The rule
+above — dead owner, no warning — covers `destroy()` on the entity the mode is
+running on, or an explicit mode switch: both go through `Script.cancel()`
+throwing `Cancelled` in *before or after* `Script._advance` runs the
+coroutine, so an uncaught `Cancelled` never has to bubble out of `_advance`
+itself. A **different** situation reaches `_advance`'s own `except Cancelled:`
+handler: the mode's owner is still alive, but something it is `await`ing
+(a tween on itself or on a *different* entity, `until()`, `wait()`, …) gets
+cancelled out from under it — another tween claims the same property key
+([Shapes Design.md — Persistent drivers](Shapes%20Design.md#persistent-drivers-vs-linked-pose)),
+or the entity that Handle was tweening (not necessarily the mode's owner —
+e.g. a Director awaiting `wasp.move_to(..., time=)`) is destroyed mid-flight,
+or an `until()` predicate's subject is destroyed (the "retires quietly" rule
+above is about the `until()` *Handle* not raising `DestroyedError`; the
+`Cancelled` it still raises into anything awaiting it is a separate signal).
+If the author's `async def` does not catch `Cancelled` around that `await`,
+the mode stops running for good while `.mode` keeps reporting the now-dead
+function — previously with **zero** signal. This now emits a `RuntimeWarning`
+("async mode … was silently cancelled") naming the mode and owner, so the gap
+is visible instead of a mode that just quietly stops advancing. Wrap the
+`await` in `try: ... except Cancelled: ...` if the cancellation is expected
+and the warning is not wanted. Tests: `tests/test_process.py`
+(`test_awaited_tween_preempted_by_key_warns_and_stops_mode`,
+`test_awaited_tween_target_destroyed_warns_and_stops_mode`).
+
+### `@on_mode`
+
+Pure annotation: `fn._is_mode = True`; returns `fn` unchanged. Lets a reader tell a
+mode body from an event handler (`on_hit`) or a helper (`shoot`) at the definition
+site, matching `@every` / `@after` / `@collide`. Classless usage is the same tag:
+`@on_mode` / `w.mode = entering`.
+
+The tag is the source for a later modes inventory (debug overlay, runtime-recorded
+transition trace). That overlay is not required to ship the decorator. `@on_mode` does
+not require its target to be assigned to `.mode` somewhere — a static check cannot see
+`self.mode = choice([...])` and a sometimes-wrong warning is worse than none.
+
+Strings as mode names (`e.mode = "diving"`, `modes = [...]`) stay rejected: redundant
+source of truth, typo safety only as loud as a registry, worse editor tooling, and
+classless scripts would need a registry that does not exist. Callables keep rename /
+jump-to-definition for free.
+
+### Method decorators (`@every` / `@after` / `@collide_with` / `@when` / `@on_change`)
+
+Classless `@every` / `@after` / `@collide` / `@when` / `@on_change` register **immediately**, against a concrete
+owner / pair / condition that already exists. On a method the same decorator **tags**
+(zero runtime effect at class body) and `_finish_actor_construct` performs the
+identical registration once per instance — the same “tag now, bind later” rule as
+fixed hooks and `@on_mode`. No second scheduler, collision registry, or group-scoped
+timer. Decorators return the original function (no wrapper) so class and module
+stacking rules stay identical.
+
+Class-body detection (`process._in_executing_class_body`) rules out function
+frames from `f_code.co_flags` (`CO_OPTIMIZED`) **before** reading `f_locals`:
+on CPython ≤ 3.12, reading a function frame's `f_locals` caches a snapshot on
+the frame, pinning every local — a destroyed `shot` decorated with
+`@collide(shot, wall)` inside a long-lived async mode stayed alive after `del`
+(system-test finding S7). Do not add `f_locals` reads of author frames.
+
+**Roles (fail loud):** each callable has at most one role family. `@collide` /
+`@collide_with*` and stacked `@when` (or stacked `@on_change`) may append on the
+same function. `@every` / `@after` (timer), `@on_mode`, `@exit_mode`, and
+`@leave_playfield` are exclusive — a second timer or a cross-family mix is a
+`TypeError`. Decorating a discovered hook name (`on_update`, `setup`, `on_destroy`, …) is also a `TypeError`.
+Script-level `@collide*` in a class body is a `TypeError` (use `@collide_with*`).
+Script-level `@leave_playfield("…")` in a class body is a `TypeError` (use bare
+`@leave_playfield` on the method).
+
+| Decorator | Class body | Construct |
+|-----------|------------|-----------|
+| `@every(interval, name=)` | Store `_every_spec`; do not arm | `every_on(item, …)` entity-scoped. Dies on `destroy()` / `cancel_process()`. |
+| `@after(delay, name=)` | Store `_after_spec`; do not arm | `after_on(item, …)` entity-scoped. Dies on `destroy()` / `cancel_process()`. |
+| `@collide_with(target)` / `_stay` / `_exit` | Append `_collide_with_specs`; `TypeError` on a free function | `add_pair_handler(item, target, adapter)` |
+| `@leave_playfield` | Tag `_leave_playfield_method`; no group names | `add_instance_handler(item, bound)` |
+| `@when(lambda self: …)` | Append `_when_specs`; condition takes **one** arg | After `setup()`, wrap `lambda: condition_fn(item)` into existing `EventSystem` |
+| `@on_change(lambda self: …)` | Append `_when_specs` with `kind=ON_CHANGE`; target takes **one** arg | Same wrap / register as `@when`; callback may take the new value |
+
+`__init_subclass__` cancels any mistaken script-scope `@every` / `@after` handle if class-body detection
+missed. Module-level `@every` / `@after` / `@when` / `@on_change` / `@collide` are unchanged aside from
+role checks and stacked-`@when` / `@on_change` list registration.
+
+`@collide_with` adapter: pair dispatch is `(me, other, info)` but a bound method
+already has `me` as `self`, so the author writes `def fn(self, other, info)`.
+`@collide_with(ANYTHING)` plus a discovered `on_collide*` warns once per class
+(double-dispatch). Object-literal pair handlers (classless `@collide(player, …)` or
+per-instance `@collide_with`) are **swap-removed** on `destroy()` so short-lived
+Entities do not leak `_pair_handlers` or flood dead-target warnings. Tag × tag
+handlers are untouched.
+
+Not included: class-/group-scoped `@every`; `self.collide_with` imperative twin
+(deferred); `@collide(SELF, target)` (rejected); string `@when("hp <= 0")`.
+Bare Attribute `@on_change(st.x)` in a class body is a `TypeError` (callable
+only, same as `@when`).
+
+Polling in `on_update` with an explicit guard stays a documented alternative
+to method `@when` / `@on_change` — zero API, no edge-trigger.
+
+### `@exit_mode`
+
+Optional. Declare "undo my own setup" once so every path that leaves that mode gets
+it — instead of every mode reachable *from* it repeating the same cleanup line.
+
+```python
+@on_mode
+def charging(self):
+    self.glow = True
+    after(0.5, then=self.diving)
+
+@exit_mode(charging)
+def charging_exit(self):
+    self.glow = False
+```
+
+Protections at decoration / run time:
+
+| Failure | Detection | Message |
+|---------|-----------|---------|
+| `@exit_mode` on an `async def` exit hook | `_is_async_callable` at decoration | `TypeError`: exit hooks must be a plain function; use `try`/`finally` in the async body if cleanup must sit next to setup |
+| `@exit_mode` twice on the same enter function | `getattr(enter_fn, "_exit_mode")` | Warn: replaces an existing exit hook — remove the duplicate `@exit_mode` if this wasn't intentional |
+| Exception inside the hook | `try/except Exception` around `_invoke` in the mode setter | Warn with entity, hook, **mode being entered**, traceback; transition continues |
+
+`@exit_mode` on an **async** enter function is allowed — use it for looks / ink the same
+way as on a sync mode. Mode-scoped Handles already cancel; the hook is not competing
+with `try`/`finally` for timer cleanup.
+
+Same-mode reassignment calls **both** halves (exit then enter). Skipping both would
+reopen the silent-no-op failure enter already rejected; skipping one half would be a
+new asymmetric rule. "Exit runs whenever mode-scoped work is cancelled" is one
+sentence, and cancellation already happens on restart today. A caller who wants a
+no-op still writes `if self.mode != self.charging: ...` — that guard now protects
+both halves.
+
+### `on_destroy`
+
+Fixed-name lifecycle hook, the sixth member of the name-discovered family
+(`on_update`, `on_click`, `on_collide`, `on_collide_stay`, `on_collide_exit`,
+`on_destroy`). Not a decorator — the name has one canonical spelling. Class form
+auto-discovered; classless is `e.on_destroy = fn`. Arity-truncated via `_invoke`.
+
+```
+destroy():
+    1. if on_destroy is set, call it — self is still fully alive (ink, groups,
+       layer intact). Exceptions warn and are swallowed.
+    2. cancel every handle / script owned by this item (already unconditional).
+    3. retire every Entity part (see below), then drop from groups, drop the
+       roster entry, drop layer, mark is_alive = False and active = False
+       (not via the park setter).
+```
+
+#### Parts leave with their owner
+
+A shape's Point parts (a Circle's `center`, a Line's `p1` / `p2`, Polygon vertices,
+a Track's `center`) are Entities and register like actors: roster, and — once shown
+by `show_handles()` / `part.visible = True` — a draw layer and its pointer list.
+`destroy()` retires them with the owner (`Registry.retire_part`, deepest first, after
+the owner's `on_destroy`): off every layer, pointer list, group and the roster;
+`is_alive` False; their timers already end with the host (W4). A part is not an
+actor: it gets no `on_destroy` of its own. The failed-constructor rollback
+(`place._drop_failed_construct`) retires parts built before the raise the same way.
+
+Afterwards a part behaves exactly like any destroyed actor: pose reads stay
+(`dead.center.x`, `Point(dead.center)` copies the value); `if dead.center:` is False;
+writes (`move_by`, `.x =`, `visible =`, `@=`, `tag`) raise `DestroyedError` whose note
+names the owner (`— a part of the Circle made at app.py:5, which was destroyed at
+app.py:9`). Before (P1) a part stayed alive and ownerless; a shown handle kept
+drawing and could still be dragged forever (the layer list held it), and a dead
+part could be shown again. Guards: `test_part_lifecycle` (every family × hidden /
+handles / visible), invariant `parts_follow_their_owner` in `test_hyp_canvas`,
+canary `test_p1_part_outlives_its_owner`.
+
+#### A part is not an actor
+
+A part is geometry of its owner. It keeps what handles need — `visible`, `handle`,
+`draggable` / `clickable` on a shown handle, reads, moves while the owner lives, and
+its own timers (they end with the host, W4). It refuses the actor-only verbs, each
+with a `TypeError` naming the owner (`entity.refuse_part_as_actor`, `is_part`):
+
+| Verb on a part | Why refused | Spelling instead |
+|---|---|---|
+| `tag` / `untag` / `add_to_group` / `remove_from_group` / `group =` | Groups are actor-level (collision enrollment, bulk verbs) | Tag the owner; a Python list of parts |
+| `collidable = True`, `on_collide* =`, a part as a `@collide` / `@collide_stay` / `@collide_exit` / `resolve` / `unresolve` side, `Collider([part])` | A part as its own body hands handlers a Point instead of the actor, `resolve` pushes one point (a Circle's disc overlaps the wall, a Line stretches), one shape becomes two bodies, and every actor rule (park, `collidable`, destroy, scenes) would need owner propagation | `@collide(owner, …)` + `info.point`; `wall.contains_point(line.p2)`; an author-owned follower `tip = Point(lambda: line.p2)` |
+| `destroy()`, `active =` | A live Circle on a dead centre; a parked point of a live shape | `owner.destroy()` / `owner.active = False` — the owner's park parks its parts ([`active` (park)](#active-park)) |
+
+Allowed: `collidable = False` and `on_collide = None` (the state a part is in), and
+queries that enroll nothing (`test_collision(part, x)`, `part.collides_with()`, which
+use an unregistered probe collider; `ensure_collider` refuses a part as a backstop).
+A hard layer clear (`Layer.clear(hard=True)` / `delete(destroy_shapes=True)` /
+`reset_layers`) destroys the **actors** on the layer; a shown handle whose owner is
+elsewhere is only undrawn (`Registry._drain_layer`).
+
+Part collision, if a script ever needs it, is a separate design built on the
+[Sprite hitbox-part contract](Sprite%20Design.md#hitbox-parts): detect-only, the
+owner answers (`me` / `other` is the actor, `info` names the part), park /
+`collidable` / destroy apply to owner and parts together. Not Points as bodies.
+Guards: `test_part_lifecycle` (`TestPartsHaveNoTags`, `TestPartIsNotABody`,
+`TestPartLivesWithItsOwner`).
+
+If the hook reassigns `.mode` or arms a timer, step 2 sweeps it. That is why
+`on_destroy` is safe on destroy where `@exit_mode` is not: cancellation runs
+*after* this hook, *before* an exit hook (the outgoing mode's scope must be
+cleared before anything new claims it).
+
+- Fires **exactly once**, only from `destroy()` — never from a mode change, never
+  from `active = False`, never from `cancel_process()`.
+- Independent of `mode` — works for a bare `Entity()`, a bullet, anything that
+  never touches `.mode`.
+- Not a replacement for `@exit_mode`: "this entity is gone" vs. "I'm leaving
+  *this mode* for another one." An Entity can use either, both, or neither.
+  Dying via a mode transition fires `@exit_mode` only; dying via `destroy()` fires
+  `on_destroy` only.
+
+No auto-attach-to-next-constructed-Entity convenience: `e.on_destroy = fn` is already
+the same typing as `e.on_update = fn`, and implicit attach would silently hit the
+wrong instance in a spawner loop.
+
+### Tracks
+
+| Track | Policy |
+|-------|--------|
+| Mode script | One per Entity; a new mode cancels it |
+| Event handler (`@collide`, `@when`, `on_click`) | One running instance; re-entry **ignored** (async event-track later) |
+| `on_update` | Every frame, including during `await` |
+| `on_destroy` | Once, from `destroy()` only, before teardown |
+
+A hit-flash handler must not abort a dive. Cosmetic FX are not modes (use transients).
+
+### Ownership (no `on=`)
+
+**One rule for all process Handles** (`after` / `every` / `wait` / `until` /
+`parallel` / `race` / `tween` / timed pose / `move_along` / `play_sound`):
+
+| Where you write it | Owner | Scope |
+|-----------------------------------|-------|--------|
+| Inside a mode body (sync or async), bare call | that Entity | **mode** (dies on leave; a sound that ends by itself finishes — [Sound Design](Sound%20Design.md#when-the-owner-ends)) |
+| `e.after(...)` / `e.every(...)` / `e.tween(...)` / `e.play_sound(...)` | `e` | **entity** (survives mode; dies on `destroy` / `cancel_process` — on `destroy` a sound that ends by itself finishes) |
+| Bound method of a *different* Entity — `after(0.4, bomb.destroy)` from wasp's mode | that other Entity | **entity** |
+| Plain `after(2, drop)` at script level (lambda / free fn, no mode running) | none | **game** before the top level ends; **act** after it (ends on the next act change) — [Act Design](Act%20Design.md#lifetime-the-game-and-the-act) |
+| `setup` / `on_update` / `@collide` / `@when` | receiver or script | **entity** or script — no ambient mode |
+
+`destroy()` and `cancel_process()` both cancel **all** handles owned by the item —
+get the owner right at schedule time. `destroy()` also drops the owner from the
+scheduler's mode / `on_update` sets at once, and an idle frame (no timers, modes
+or `on_update` left) still clears the dense owner snapshots and pumps an offline
+mixer — the last destroyed actor must not stay in memory, and its cancelled voice
+must actually stop (system-test findings S2 / S4). Work scheduled on an actor that
+is already destroyed is never registered (S9). Lifetime is checked end to end by
+`tests/test_sys_lifetime.py` and `tests/test_sys_hyp_world.py`. Prefer `fx.after(0.55, fx.destroy)` for debris
+teardown. Use `cancel_process()` when the Entity must stay alive (restart / re-arm).
+
+`@collide` does **not** set a current owner. From a script handler, use `wasp.after(...)`
+or a bound method.
+
+### Frame order
+
+Canonical frame order lives in [Scena Design.md — Datapath](Scena%20Design.md#datapath).
+
+1. `clock._tick` / input (poll events; sample world pointer)
+2. User script `update(dt)`
+3. Process tick (tweens, due timers, async resume, `on_update`)
+4. Collision
+5. `flush` `@when` / `@on_change` / `@collide` (handlers may start processes; first tick next frame is fine)
+6. Transients
+7. Draw
+
+Details of process ownership and mode cancellation relative to that order: this document.
+
+### Layers vs looks (do not mix)
+
+| Thing | Job | Cancelled by mode change? |
+|-------|-----|---------------------------|
+| Mode script + mode-scoped timers / tweens / waits / timed pose | *What this Entity is doing* | Yes |
+| `e.after` / `e.every` / `e.tween` / `e.play_sound` | *Entity-owned jobs* | No (dies on `destroy` / `cancel_process`; a finite sound finishes after `destroy`) |
+| `@collide` / `@when` handlers | *Reactions* | No (event track) |
+| Shape transients, canvas shake | *How it looks for a moment* | **No** |
+| `.visual`, stamps (`.glow` / …), background fields | *Sticky costume / pigment / world* | No |
+| `sprite.play("walk")` | *Which frames* | No (it’s a look) |
+
+Do not add a second flash/shake/tint API. Process “effects” **are** existing transients.
+
+### Protections
+
+Raise immediately. Name the Entity, the call, the line, and **what to write instead**.
+Silent freeze is the failure to prevent.
+
+**Omit vs junk.** Gradual params means **omission** of known keys fills defaults
+(`Circle()`, `Circle(radius=50)`). Unknown or wrong-family keywords raise
+`TypeError` with a family hint (`Circle(aaa=1)`, `Sprite(radius=5)`). Missing
+image / atlas assets stay legal (checker + warn once). Missing / corrupt
+**sound** files stay legal too (silence + warn once) — because there is no
+visual checker, the warning also shows on the on-canvas banner as
+**SCENA WARNING** (amber), same Ctrl+Shift+E dismiss. The banner carries
+warnings only.
+
+**Author errors are loud.** The framework does not isolate author code. An
+exception in any author hook — `update`, `setup`, `on_update`, `every` / `after`
+fire, tween `on_done`, async mode bodies, `@when` / `@on_change`,
+`@collide*`, `@leave_playfield`, transient / cover `on_done`, `@exit_mode`,
+`on_destroy`, SpatialFx `tick` — propagates with its original traceback, and
+`run()` releases the window / GPU / audio on the way out. The framework keeps
+itself consistent first (`finally`), so a caught error (tests, a manual
+`flush()` in a `try`) leaves sane state: the fired timer / edge / leave is
+consumed, a mode transition completes, `destroy()` finishes teardown. Only
+environment conditions are handled and continued: the freeze watchdog (tight
+loop → warn + skip / disable), missing assets (checker / SCENA WARNING), no
+audio device, clock hitches.
+
+| Author wrote | Message intent |
+|--------------|----------------|
+| `e.mode = diving()` / `"diving"` | Must be a function; drop `()` / don’t use a string |
+| `fn` / `on_done=` and `then=` both | Use one channel, not both |
+| `wait(0.4)` with no running async script | `TypeError`: only inside an async mode (or a helper that mode awaits); use `after(...)` |
+| `wait(0.4)` without `await` inside an async mode | `TypeError` with call site and `await wait(0.4)`; Handle cancelled, script aborted |
+| Unknown `ease=` | `ValueError` listing catalog |
+| Every named `ease=` curve | `f(0) == 0.0` and `f(1) == 1.0` exactly (endpoint-exact) — a tween must start at its `from` and land exactly on `to`, even for curves that overshoot in between (`elastic`, `bounce`). `elastic` previously used a mis-transcribed formula (wrong overshoot period/phase, and not endpoint-exact); `sigmoid` / `erratic` previously landed a few ULP off `1.0` at `x=1`. Fixed in `easing.py`; regression coverage in `tests/test_easing.py` checks every named curve's `f(0)`/`f(1)` (`bounce`'s piecewise constants leave it ~3e-9 off at `places=6`, not a real bug — float precision, not asked to be "fixed" further). |
+| `after` / `every` / `wait` non-finite, or `after` delay < 0, or `every` interval ≤ 0 | `ValueError` at the call. `after(0)` stays legal (fires next tick). `every` ≤ 0 names `on_update` / `update(dt)` — not a frame sentinel. |
+| `canvas.framerate = 0` / negative / NaN / a non-number that is not a token (`"vsinc"` → did-you-mean `"vsync"`) | `ValueError` / `TypeError` at the assignment, before anything changes (FX Auto stays as it was) |
+| `tween` / `lerp` type or length mismatch | `TypeError` / `ValueError` at call time (before the first tick) |
+| `while True` with no await / return | Watchdog cancels mode / disables `on_update` / skips script `update` (`WATCHDOG_RESUME_S`, default 0.5s wall) |
+| Re-arm `after` / `every` / `tween(on_done=)` from its own fire | New handle waits for the next tick — no same-pass spin on hitch or `delay=0` |
+| Timer flood from `on_update` | `name=` replaces and is not a flood; unnamed same owner+site still warn if >N/sec |
+| `h.remaining = …` | `TypeError`: read-only; restart with `after(..., name=)` or `h.cancel()` |
+| `after(1, fn).velocity` | `AttributeError` with a hint: velocity is on `move_along` / timed `move_to` / `move_by` |
+| `after(1, fn).volume` / `.level` | `AttributeError` with a hint: those are on `play_sound` handles |
+| Exception in a **mode body** / `then=` (sync enter) | Raise. Name the Entity, the mode, the line. Do not leave a frozen idle mode. |
+| Exception in an **async mode** body | Raise. The mode script is aborted (coroutine closed, `_mode_script` cleared). |
+| Async mode `await`s something that is not a Handle | `TypeError`: await a Handle (`wait` / `until` / `move_to(time=)` / `after`); script aborted |
+| Exception in an **exit hook** (`@exit_mode`) | Raise after the transition completes (the new mode is entered; an error entering it chains onto the exit error). |
+| Exception in **`on_destroy`** | Raise after `destroy()` completes teardown. Same for a partner's `on_collide_exit` fired by the destroy. |
+| Exception in a **handler** (`every`/`after` fire, `on_update`, tween `on_done`, `setup`) | Raise. The fire is consumed first (`after` is done, `every` restarted its interval). `until` predicates and tween writes cancel their Handle, then raise. |
+| Exception in **`@when` / `@on_change`** | Raise (condition or callback). The edge is consumed before the callback runs, so a caught error does not refire; later watches run on the next poll. A non-bool `@when` is a `TypeError` — at registration when the seed value is already non-bool, else at the write that makes it so. Handler arity is checked at the decorator: `@when` handlers take `()` (methods `(self)`), `@on_change` `()` or `(value)`, `@collide` up to `(me, other, info)`; a non-condition (`@when(5)`, `@when("hp <= 0")`) raises. A source destroyed under the watch (`DestroyedError` / `ReferenceError`) retires it quietly; any other error — including a typo `AttributeError` — raises, at registration if the first evaluation already fails. |
+| `@when` already True at registration | Rising edge: it does not fire until the condition goes False, then True again. |
+| Exception in **`@collide` / `on_collide*`**, `@leave_playfield` | Raise (a leave edge is consumed first). |
+| `@exit_mode` on an `async def` **exit hook** | `TypeError` at decoration: use a plain function; put async cleanup in `try`/`finally` if it must sit next to setup |
+| Frozen mode | Warn once naming Entity + mode |
+| `@when` after `destroy` | Inert: registration dropped, don’t fire, don’t traceback |
+| `e.mode = fn` / `e.goto_mode(fn)` on a destroyed actor | `DestroyedError` — the body never runs (it used to run and arm work for a dead actor). `e.mode = None` stays a quiet no-op. |
+| Instant change on a destroyed actor: `move_by` / `move_to` / `rotate_*` / `scale_*` without `time=`, `confine`, `visible`, `collidable`, `play`, `set_color`, slot write (`dead.radius =`, `dead.x =`) | `DestroyedError`. The message names the verb, where `destroy()` ran (History's own note is kept when it already set one), the call site, and `if nave:` when the source line looks like `nave.move_by`. Pose reads (`.center` once it exists) stay. Ink reads still raise. `active = True` stays a no-op (must not revive). A missed verb must not surface as `NotImplementedError`. Slot check is one dict hop (`scripts/bench/perf_guards.py` stays in the same band). |
+| `if actor:` | Same check as `is_alive`. Boolean context means "usable", the same way an empty group is falsy — not a second lifetime API. `actor or other` skips a dead actor. |
+| `e.after` / `every` / `tween` / timed pose / `move_along` / `play_sound` / `on_update` / a transient on a destroyed actor (e.g. from a dying body’s own `@collide_exit`) | Quiet no-op: the Handle comes back **already cancelled** and is never registered; nothing fires, nothing holds the dead actor. |
+
+Watchdog uses `sys.monitoring` LINE events (Python 3.12+); non-author code
+(`stage.*`, stdlib) returns `DISABLE` after first touch so bulk `Sprite(...)` waves stay
+lean. Async mode resume is guarded by default; script `update(dt)` and `on_update`
+require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena.__all__`; off by default — ~10–15% frame cost when on).
+`set_watchdog(False)` for benchmarks.
+
+
+
+## Implementation notes (maintainers)
+
+- `Entity` has exactly **one** `__init_subclass__` (rollback wrap → actor-init wrap → setattr
+  route → deferred `@every` / `@after` → cached lookups). A second `def __init_subclass__` in the
+  class body silently replaces the first (2026-09-25 regression: `Rect.rotation =` recursed,
+  `setup()` stopped running). Extend the existing hook; `tests/test_entity_hooks.py` scans
+  `scena/` for any duplicate `def` in one class body.
+- **Dispatch by kind, never by class name.** Authors subclass (`class Pad(Rect)`,
+  `class Ship(Sprite)`) and Scena subclasses Sprite (`Svg`, `SpriteButton`). Engine code
+  asks `entity.scena_kind(obj)` (nearest Scena class in the MRO: `Pad` → `"Rect"`) or
+  `entity.is_sprite_family(obj)`; `type(obj).__name__ == "…"` refused every subclass
+  (Testing Design SB2). `tests/test_kind_dispatch.py` scans `scena/` for new name
+  comparisons; a deliberate exact-type check carries `# exact-type: <reason>`.
+- Tests: `reset_process_scheduler()` in `setUp`; `clock.advance(dt)` then `tick_processes()`.
+  Motion readout: `tests/test_handle_motion.py`.
+- Mode body runs inside `owning(e, scope="mode")`. Mode transition:
+  `cancel_owner(obj, scopes=("mode",))`, then the outgoing `@exit_mode` hook (no
+  owning context), then store and run the new body. Entity-scoped handles left alone.
+- `wait` / `until` / `until_empty` / `parallel` / `race` call `_require_running_script`.
+  `Script._advance` reports leftover must-await Handles created this resume.
+- `Shape.__slots__` must list `_time_scale`, `_on_update`, `_on_destroy`, `_mode_script`,
+  `_frozen_warned`, `_actor_constructed` (forgetting → `AttributeError` on `Circle()`).
+  `Entity` / `SpatialFx` have no those slots.
+- Star-export: `after`, `every`, `tween`, `wait`, `until`, `until_empty`, `parallel`,
+  `race`, `Handle`, `Cancelled`, `ReadyManager`, `RememberedManager`, `Entity`, `on_mode`, `exit_mode`,
+  `lerp` (with `remap` / `MappingFunctions` from `easing.py` via `state`).
+  Not `tick_processes` / `owning` / `reset_process_scheduler` (tests import from
+  `scena.process`).
+- `Clock.time` accumulates scaled `dt` (not wall-since-construct). Background / post FX that
+  sample `clock.time` pause when `clock.scale=0`.
+- `ready.reset(name)` sets `last_called = now - interval` so the next poll is True.
+  `ready(name, interval)` / `e.ready(...)` validate `interval` (`_validate_ready_interval`):
+  non-finite raises `ValueError` — `now - last_called >= nan` is always `False`,
+  which used to mean "never ready again" with no error; a negative interval
+  raises too — `>=` a negative number is always `True`, which used to mean
+  "always ready," silently defeating the cooldown. Checked both when a timer
+  is first created and when an existing one's interval is updated on recall.
+- `recently(name, value, hold=)` / `e.recently(...)` validate `hold` the same
+  way: non-finite or negative raises `ValueError` (a negative `hold` made
+  `(now - last_true) <= hold` false even on the call that just set
+  `last_true = now`, so a value that was truthy *right now* read back `False`).
+- `recently(name, value, hold=)` / `e.recently(...)` share `_remembered_poll` (global
+  `RememberedManager._slots` vs per-instance `_recently_state`). Level query: True every
+  frame inside the window. Entity poll state (`_ready_state` / `_recently_state`) lives in
+  instance `__dict__` (Container has no `__slots__`, so `Shape`/`Sprite` `__slots__` still
+  allow private attrs) — dies with the instance; not a scheduler Handle.
+- `e.ready(name, interval)` uses `_ready_poll` on `_ready_state` — independent cooldown
+  per Entity (global `ready` stays the flat namespace).
+- Collision runs **after** processes; handlers’ `after(...)` first tick next frame.
+  Same rule for a handle created from a fire callback (`after` re-arm, `every`
+  named replace, `tween(on_done=...)`): `Scheduler.tick()` copies **all four**
+  buckets (`every`, `once`, `tween`, `await`) into lists **before any loop**.
+  Copying one bucket at a time would let an `after()` created inside an `every`
+  fire run in the same tick. The sound bucket is copied later, after `tick_audio`.
+  Enroll / lazy hull / plain blit: [Sprite Design.md — Mass sprite hot path](Sprite%20Design.md#mass-sprite-hot-path).
+- Arity (`_argcount`, event `_callback_npos`): both are
+  `validate.payload_arity` — parameters with no default, a bound method's `self`
+  not counted, `*args` gets everything. Functions and bound methods read
+  `__code__` / `__defaults__` each call (no cache). Other callables
+  (`partial`, `__call__` objects) cache in their **own** `__dict__`. Never cache
+  on a bound method — `setattr` falls through to `__func__`, so a function used
+  both plain and bound would see the wrong count — nor on a class (subclasses
+  inherit it). `@on_change` arity is computed once per `EventRegistration`
+  (`_npos`), not on the callable.
+- Scheduler buckets (`_every`, `_once`, `_tween`, `_await_family`, `_sound`,
+  and the union `_handles`) are insertion-ordered dicts (value unused), plus
+  `_by_owner` keyed by `id(owner)`. Removal is O(1). `destroy`, mode change,
+  and the frozen-mode check walk only that owner's handles. `EventSystem._events`
+  is the same shape, with its own `_by_owner`, so `drop_owner` does not scan
+  every `@when` / `@on_change`. Do **not** reintroduce tombstones or deferred
+  removal: a finished Handle holds the Entity strongly, and a destroyed Entity
+  must be collectable immediately after `destroy()` (no tick in between).
+  Scripts stay a list; a script that finishes mid-tick is dropped by
+  `_compact_scripts` after the walk.
+- Groups / formula `@=`: `registry.py` (`GroupOperator`, `Registry._group_formulas`).
+  Formula eval uses a re-entrancy stack (`_group_formula_stack`); do not cache on
+  `_group_gen`. `until_empty` resolves formula names through the same live path.
+- Subclass `__init__` wrapping so `setup` runs without forcing `super().__init__`.
+- Performance and fail-loud, IDE-friendly author APIs remain constraints for all Entity work.
+
+## Deferred
+
+- Multi-body attach (turret / compound) — when a script needs it.
+- Debug overlay (mode name, `mode_time`, active handles, `@on_mode` inventory).
+  Runtime-recorded transition trace first if added; a static `then=` scan would
+  silently under-report dynamic targets.
+- Async event-track handlers (`@collide` / `@when` / `on_click`) — one running instance,
+  re-entry ignored; modes are the async surface today.
+- Edge-map silhouette FX on sprites — landed (FrameFx path + SDF; assign-time / `prepare_fx` warmup; Sprite Halo/Laser/Rim SDF).
+- Pixel-crisp (`nearest`) sprite sampling flag.
+- Auto hitbox follow-ups — see [Sprite Design.md — Deferred (auto hitbox)](Sprite%20Design.md#deferred-auto-hitbox).
+- `group.sway_x` — parking lot / maybe. Formation stays author-side (`sorted` /
+  `slot_x` / `phase=`). A group verb that invents layout is the same “framework
+  invents the formation” reject as spatial walk order.
+- Optional `SCENA HINT` when N Entities each own an identical `every` (not a silent merge).
+- `self.collide_with(target)` imperative twin of `@collide_with` — decorator shipped first; add the method only if scripts need late/dynamic pair enrollment.
+- `Scheduler._scripts` append-during-iteration (async mode list) — same shape as the handle-bucket snapshot, but `coro.send` is already watchdog-guarded. Revisit only if a concrete hang surfaces.

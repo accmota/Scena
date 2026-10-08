@@ -1,0 +1,8189 @@
+"""
+Collision system: opt-in colliders, snapshot broad phase, layered narrow phase.
+
+Frame phase (owned by ScenaFramework):
+  proxy AABB (cheap closed-form when possible) → broad phase
+  → lazy world prims (exact) → prim AABB reject → narrow
+  → enter/stay/exit events → sweep-and-slide resolve (declared pairs).
+
+Proxy AABBs prefer a cheap, never-too-tight bound (`_proxy_aabb_for_shape`) so
+rotation does not force a full prim rebuild every frame; translation-only still
+mutates four floats in place. Exact world prims are built only for overlapping
+pairs. Math runs on plain floats / NumPy, never on live Attributes.
+Resolution helpers on CollisionInfo remain author-triggered for the manual ladder;
+standing ``resolve()`` uses sweep-and-slide, not end-of-frame MTV.
+"""
+
+from __future__ import annotations
+
+import inspect
+import math
+import time
+import warnings
+import weakref
+from dataclasses import dataclass, field, replace
+from enum import IntEnum
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
+
+import numpy as np
+import skia
+
+from .scenamath import Vec2
+from .validate import call_truncated as _call
+from .validate import finite as _finite
+from .validate import fixed_magnitude as _fixed_magnitude
+from .validate import magnitude as _magnitude
+from .validate import number as _number
+from .closed import ClosedSurface
+
+
+from .purity_check import _READING as _SOLVER_READING, check_read_only, refuse_if_solver_reading
+
+
+def _sq(v: float) -> float:
+    """``v * v``. Not ``v ** 2``: a float power raises OverflowError for a
+    huge-but-finite author coordinate; a product saturates to inf."""
+    return v * v
+
+# ---------------------------------------------------------------------------
+# Kinds / constants
+# ---------------------------------------------------------------------------
+
+class PrimKind(IntEnum):
+    CIRCLE = 0
+    AABB = 1
+    OBB = 2
+    ELLIPSE = 3
+    POLY = 4
+
+
+# Packed params layout (max 8 floats per primitive):
+# CIRCLE:  cx, cy, r
+# AABB:    minx, miny, maxx, maxy
+# OBB:     cx, cy, hw, hh, angle_rad
+# ELLIPSE: cx, cy, rx, ry, angle_rad
+# POLY:    offset into vertex buffer, vertex count, (unused…)
+
+_ANGLE_EPS = 1e-6
+# Tiny pad on collider proxy AABBs for float robustness (not a fat/rotation proxy).
+_PROXY_EPS = 0.5
+# Sweep-and-slide skin (Godot safe_margin): resolve() stops a body this far
+# short of the contact, so a resting pair is a small gap, not an overlap.
+_RESOLVE_SLOP = 0.08
+# Detection skin for standing resolve() pairs: a gap this small still counts as
+# a contact for @collide / stay / exit, so a body resting ``_RESOLVE_SLOP`` above
+# a floor does not flicker with frame time (F1, Collision Design § Resting
+# contact). Twice the slop: margin for the gap settle / snap actually leave.
+_CONTACT_SKIN = 2.0 * _RESOLVE_SLOP
+_MAX_SLIDES = 4
+# Swept detection (Collision Design § Swept detection): a collider whose
+# motion-channel travel this frame exceeds this fraction of its thickness
+# (smaller proxy side, pad removed) is detected along its path. Below it two
+# bodies cannot pass through each other within one frame (relative travel <
+# thick_a + thick_b, with room for a rotated proxy's sqrt(2)). ``math.inf``
+# restores end-pose-only detection (bench A/B, canary tests).
+_FAST_MOTION_FRACTION = 0.5
+_SETTLE_BIAS = 0.5
+_SETTLE_MAX = 8.0
+_SETTLE_ITERS = 4
+# A box whose every edge moved with this frame's motion channel, within this
+# tolerance, is a swept translation. Larger than skin and proxy noise; smaller
+# than a real resize. Unswept recovery does not run for that case.
+_UNSWEPT_MOTION_TOL = 0.75
+_FLOOR_SNAP_MIN = 16.0
+# ``floor_below``: sideways sub-step of the up / across / drop march (DU), and
+# the extra lift over a 45° rise so a cast along the steepest floor does not
+# graze it as a wall.
+_FLOOR_PROBE_STEP = 8.0
+_FLOOR_PROBE_LIFT_MARGIN = 1.0
+# Probes kept for ``show_colliders`` when nothing draws (headless).
+_FLOOR_PROBE_DEBUG_CAP = 256
+# ``show_colliders`` outline colours (RGBA).
+_DEBUG_RESOLVE_RGBA = (1.0, 0.85, 0.2, 1.0)    # gold: in a resolve() pair
+_DEBUG_PART_RGBA = (0.2, 0.8, 1.0, 1.0)        # cyan: hitbox part (detect-only)
+_DEBUG_DETECT_RGBA = (0.196, 0.804, 0.196, 1.0)  # green: detect-only body
+_DEBUG_PROBE_FLOOR_RGBA = (1.0, 0.35, 0.9, 1.0)  # magenta: floor_below found a floor
+_DEBUG_PROBE_NONE_RGBA = (1.0, 0.25, 0.2, 1.0)   # red: floor_below found none
+
+# Chord-to-arc gap for a query_sector wedge. Past this, split the arc.
+_SECTOR_ARC_ERROR = 0.25
+_SECTOR_MAX_STEPS = 64
+# Refuse floor snap only when the body is clearly jumping / bouncing away
+# from the candidate floor. World-Y alone is wrong (rising rides).
+# Normal-speed alone is also wrong for walkers: authors often set world-axis
+# ``vel.x`` on slopes, which can look like tens of DU/s of "leave" while this
+# frame's motion barely separates — snap must still run.
+# Elastic pairs (``bounce > 0.5``) trust leave speed: last frame's impulse
+# already wrote an honest separating ``.vel``, and ``leave_d`` in DU is
+# ``~|vy|×dt`` so a 2 DU conjunct glues bounces at high FPS / moderate speed.
+# Walkers still need displacement *or* a motion that is clearly along the
+# normal (high-FPS jump: leave_d < 2 DU but leave_frac ≈ 1).
+_FLOOR_SNAP_LEAVE_VY = 8.0
+_FLOOR_SNAP_LEAVE_DIST = 2.0
+_FLOOR_SNAP_ELASTIC_BOUNCE = 0.5
+_FLOOR_SNAP_LEAVE_FRAC = 0.85
+_SLIDE_EPS = 1e-7
+# Stop-on-slope discards the post-contact slide only when this frame's own
+# horizontal motion is about 0 (no walk intent). An absolute DU/frame cutoff
+# ate real walk speed whenever gravity closed the floor slop.
+_STOP_ON_SLOPE_INTENT = 1e-3
+_TOI_ADVANCE_ITERS = 32
+_TOI_BISECT_CAP = 96
+_TOI_UNRESOLVED = object()
+
+# Immovable mass sentinel for ``Graphic.mass`` / ``mtv_split`` / ``velocity_split``.
+STATIC = float("inf")
+
+# Sentinel: ``add_resolve_pair`` stores this when only position correction is wanted.
+_RESOLVE_POSITION_ONLY = object()
+
+
+def _resolve_token_is_elastic(token: Any) -> bool:
+    """True when this pair's ``bounce=`` is elastic enough to trust leave speed."""
+    if token is _RESOLVE_POSITION_ONLY or token is None:
+        return False
+    try:
+        return float(token) > _FLOOR_SNAP_ELASTIC_BOUNCE
+    except (TypeError, ValueError):
+        return False
+
+
+def _floor_snap_should_refuse(
+    *,
+    leave_v: float,
+    leave_d: float,
+    rel_motion_len: float,
+    token: Any,
+) -> bool:
+    """Whether floor snap must stand down (body is leaving the candidate floor)."""
+    if leave_v <= _FLOOR_SNAP_LEAVE_VY:
+        return False
+    if _resolve_token_is_elastic(token):
+        return True
+    if leave_d > _FLOOR_SNAP_LEAVE_DIST:
+        return True
+    if (
+        rel_motion_len > _SLIDE_EPS
+        and (leave_d / rel_motion_len) > _FLOOR_SNAP_LEAVE_FRAC
+    ):
+        return True
+    return False
+
+
+def _aabb_overlap_tuple(
+    a: Tuple[float, float, float, float],
+    b: Tuple[float, float, float, float],
+) -> bool:
+    return not (a[0] > b[2] or b[0] > a[2] or a[1] > b[3] or b[1] > a[3])
+
+
+def _is_fast_narrow(pa: "Prim", pb: "Prim") -> bool:
+    """True when narrow_phase uses a dedicated non-SAT path."""
+    ka, kb = pa.kind, pb.kind
+    return (
+        (ka == PrimKind.CIRCLE and kb == PrimKind.CIRCLE)
+        or (ka == PrimKind.AABB and kb == PrimKind.AABB)
+        or (ka == PrimKind.CIRCLE and kb == PrimKind.AABB)
+        or (ka == PrimKind.AABB and kb == PrimKind.CIRCLE)
+    )
+
+
+class _AnythingType:
+    """Sentinel: collide with every other participant (``@collide(x, ANYTHING)``)."""
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "ANYTHING"
+
+    def __hash__(self) -> int:
+        return id(self)
+
+
+ANYTHING = _AnythingType()
+
+# Phase names for pair handlers / dispatch
+_PHASE_ENTER = "enter"
+_PHASE_STAY = "stay"
+_PHASE_EXIT = "exit"
+
+# One-shot warning when bounce= resolve hits a body without ``.vel``.
+_vel_missing_warned: Set[int] = set()
+
+def _vec2_components(v: Union[Vec2, Tuple[float, float], Sequence[float]]) -> Tuple[float, float]:
+    if isinstance(v, Vec2):
+        vx = float(v.x.value) if hasattr(v.x, "value") else float(v.x)
+        vy = float(v.y.value) if hasattr(v.y, "value") else float(v.y)
+        return vx, vy
+    return float(v[0]), float(v[1])
+
+
+def _normal_components(normal: Vec2) -> Tuple[float, float]:
+    nx = float(normal.x.value) if hasattr(normal.x, "value") else float(normal.x)
+    ny = float(normal.y.value) if hasattr(normal.y, "value") else float(normal.y)
+    return nx, ny
+
+
+def _slide_along(
+    tangent: Union[Vec2, Tuple[float, float], Sequence[float]],
+    velocity: Union[Vec2, Tuple[float, float], Sequence[float]],
+) -> Vec2:
+    """Project ``velocity`` onto ``tangent`` (walk/slide along a ramp)."""
+    vx, vy = _vec2_components(velocity)
+    tx, ty = _vec2_components(tangent)
+    dot = vx * tx + vy * ty
+    return Vec2.temp(dot * tx, dot * ty)
+
+
+def _validate_mass(name: str, mass: float) -> float:
+    ma = float(mass)
+    if math.isnan(ma) or (not math.isfinite(ma) and ma != STATIC):
+        raise ValueError(f"{name} must be positive or STATIC, got {mass!r}")
+    if ma <= 0.0 and ma != STATIC:
+        raise ValueError(f"{name} must be positive or STATIC, got {mass!r}")
+    return ma
+
+
+def _validate_bounce(bounce: float) -> float:
+    """Finite restitution ``>= 0``. Rejects bools, strings, NaN, and negatives."""
+    if isinstance(bounce, bool) or not isinstance(bounce, (int, float)):
+        raise TypeError(
+            f"bounce= must be a number >= 0 or omitted, got {bounce!r}"
+        )
+    b = float(bounce)
+    if not math.isfinite(b) or b < 0.0:
+        raise ValueError(f"bounce= must be a finite number >= 0, got {bounce!r}")
+    return b
+
+
+_ONLY_SIDES = ("top", "bottom", "left", "right")
+_MIRROR_SIDE = {"top": "bottom", "bottom": "top", "left": "right", "right": "left"}
+# Words authors reach for instead of a side. Sides are the first body's own
+# sides (``touching_sides``), so a floor under it is "bottom".
+_ONLY_SIDE_HINTS = {
+    "floor": "bottom", "ground": "bottom", "feet": "bottom", "above": "bottom",
+    "ceiling": "top", "head": "top", "below": "top",
+}
+
+
+def _normalize_only(only: Any) -> Any:
+    """``only=`` for ``resolve()``: None, a frozenset of sides, or a callable.
+
+    Sides are the first argument's sides, the same words as its
+    ``touching_sides``. A list, tuple, set or frozenset is an OR (order does
+    not matter, like ``group=``). All four sides is no filter (None).
+    """
+    if only is None:
+        return None
+    if isinstance(only, str):
+        items: Tuple[Any, ...] = (only,)
+    elif isinstance(only, (list, tuple, set, frozenset)):
+        items = tuple(only)
+        if not items:
+            raise ValueError(
+                "only= is empty, so the pair would never block. "
+                "Use unresolve(...) to drop the pair."
+            )
+    elif callable(only):
+        return only
+    else:
+        raise TypeError(
+            "only= takes a side (\"bottom\"), a list/tuple/set of sides, or a "
+            f"function of the contact; got {type(only).__name__}"
+        )
+    for side in items:
+        if not isinstance(side, str):
+            raise TypeError(
+                f"only= sides are strings (\"top\", \"bottom\", \"left\", "
+                f"\"right\"); got {side!r}"
+            )
+        if side not in _ONLY_SIDES:
+            hint = _ONLY_SIDE_HINTS.get(side.strip().lower())
+            if hint is not None:
+                extra = f' Did you mean "{hint}"?'
+            elif "," in side or " " in side.strip():
+                extra = ' For several sides use a set: only={"bottom", "left"}.'
+            else:
+                extra = ""
+            raise ValueError(
+                f"only={side!r} is not a side. Sides are the first body's own "
+                'sides, as in its touching_sides: "top", "bottom", "left", '
+                f'"right" ("bottom" = standing on it).{extra}'
+            )
+    sides = frozenset(items)
+    if len(sides) == len(_ONLY_SIDES):
+        return None
+    return sides
+
+
+def _mirror_only(spec: Any) -> Any:
+    """The same ``only=`` sides seen from the second body (top↔bottom, left↔right)."""
+    return frozenset(_MIRROR_SIDE[side] for side in spec)
+
+
+def _only_code(spec: Any) -> str:
+    if spec is None:
+        return "no only="
+    if isinstance(spec, frozenset):
+        inner = ", ".join(f'"{side}"' for side in _ONLY_SIDES if side in spec)
+        return f"only={{{inner}}}"
+    return f"only={getattr(spec, '__name__', type(spec).__name__)}"
+
+
+def _is_static_mass(mass: float) -> bool:
+    ma = float(mass)
+    return not math.isfinite(ma) or ma == STATIC
+
+
+def _side_from_normal(nx: float, ny: float) -> Optional[str]:
+    """Categorical contact side for body ``a`` (normal points from ``a`` toward ``b``).
+
+    Design space is y-up: ``+x`` is ``right``, ``+y`` is ``top``. ``bottom`` means
+    ``other`` is below ``a`` (standing on a floor).
+    """
+    if abs(nx) < 1e-12 and abs(ny) < 1e-12:
+        return None
+    # Ties (exact 45°) are top/bottom so a ramp at the walkability limit
+    # still counts as a floor for snap, stop-on-slope, and tilt="ground".
+    if abs(nx) > abs(ny):
+        return "right" if nx > 0.0 else "left"
+    return "top" if ny > 0.0 else "bottom"
+
+
+@dataclass(frozen=True)
+class TouchingContact:
+    """Read-only per-pair contact summary for ``Graphic.touching_contacts``.
+
+    Attributes:
+        other: What this body touches.
+        side: This body's side in contact: ``"top"`` · ``"bottom"`` · ``"left"`` ·
+            ``"right"``.
+        slope_angle: Surface slope in degrees (0 = flat floor).
+        normal: Unit contact normal.
+        tangent: Unit direction along the surface.
+        point: Contact point, if known.
+    """
+
+    other: Any
+    side: Optional[str]
+    slope_angle: float
+    normal: Vec2
+    tangent: Vec2
+    point: Optional[Tuple[float, float]] = None
+
+    def slide_along(
+        self,
+        velocity: Union[Vec2, Tuple[float, float], Sequence[float]],
+    ) -> Vec2:
+        """Project ``velocity`` onto ``tangent`` (walk/slide along a ramp)."""
+        return _slide_along(self.tangent, velocity)
+
+
+def _only_contact(other: Any, nx: float, ny: float, points: Any) -> TouchingContact:
+    """The contact an ``only=`` function sees, in the first argument's view.
+
+    ``(nx, ny)`` already points from that body toward ``other`` (a Collider).
+    ``point`` is the centroid of ``points`` when the solver has them, else
+    None (a sweep contact is not settled yet).
+    """
+    n = math.hypot(nx, ny)
+    if n > 1e-12:
+        ux, uy = nx / n, ny / n
+        tx, ty = -uy, ux
+        slope = math.degrees(math.atan2(ty, tx))
+    else:
+        ux = uy = 0.0
+        tx, ty = 1.0, 0.0
+        slope = 0.0
+    point = None
+    if points:
+        k = len(points)
+        point = (
+            sum(float(p[0]) for p in points) / k,
+            sum(float(p[1]) for p in points) / k,
+        )
+    return TouchingContact(
+        other=other._identity,
+        side=_side_from_normal(ux, uy),
+        slope_angle=slope,
+        normal=Vec2(ux, uy),
+        tangent=Vec2(tx, ty),
+        point=point,
+    )
+
+
+class _OnlyGate:
+    """``only=`` filter for one body's solve this frame (``_only_view``).
+
+    ``ok`` answers whether the solver may make this contact; it never changes
+    state. ``mark`` starts a pass. Callers mark only a contact the body really
+    reaches: a rejected sweep hit earlier than any accepted one, or a rejected
+    overlap in settle / unswept recovery. (A floor-snap probe may mark too; a
+    pass with no overlap ends at the body's next solve.) Unfiltered partners
+    of the same body always pass ``ok``.
+    """
+
+    __slots__ = ("_sys", "_ca", "_map", "_passing")
+
+    def __init__(self, system: Any, ca: Any, only_map: Dict[int, Tuple[Any, bool]],
+                 passing: Dict[int, Any]) -> None:
+        self._sys = system
+        self._ca = ca
+        self._map = only_map
+        self._passing = passing
+
+    def ok(self, cb: Any, nx: float, ny: float, points: Any = None) -> bool:
+        pid = id(cb)
+        if self._passing.get(pid) is cb:
+            return False
+        entry = self._map.get(pid)
+        if entry is None:
+            return True
+        spec, flip = entry
+        if isinstance(spec, frozenset):
+            # Set specs are stored in ``ca``'s view already (mirrored if needed).
+            return _side_from_normal(nx, ny) in spec
+        if flip:
+            # ``ca`` is the second argument: the function sees the first's view.
+            contact = _only_contact(self._ca, -nx, -ny, points)
+        else:
+            contact = _only_contact(cb, nx, ny, points)
+        # Solver lock: cold-path writes inside the function raise
+        # (``purity_check``). Only this branch pays for it.
+        _SOLVER_READING.append(spec)
+        try:
+            return bool(spec(contact))
+        finally:
+            _SOLVER_READING.pop()
+
+    def mark(self, cb: Any) -> None:
+        self._sys._begin_passing(self._ca, cb)
+
+
+class _QueryOnlyGate(_OnlyGate):
+    """``only=`` filter for ``floor_below``: same answers, never starts a pass.
+
+    A query reads the world; it must not change which one-way partners the
+    solver lets the body through next step.
+    """
+
+    __slots__ = ()
+
+    def mark(self, cb: Any) -> None:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# CollisionInfo
+# ---------------------------------------------------------------------------
+
+@dataclass(slots=True)
+class CollisionInfo:
+    """Ephemeral contact payload for one overlapping pair (one frame).
+
+    Slotted: a closed surface at no per-write cost (``info.nromal = …`` raises).
+
+    Attributes:
+        a: The first body of the pair.
+        b: The second body.
+        normal: Unit vector from ``a`` toward ``b``.
+        depth: Overlap depth in design units.
+        points: Contact points.
+        a_hitbox: The Hitbox part of ``a`` that touched, or ``None`` (the body).
+        b_hitbox: The Hitbox part of ``b`` that touched, or ``None``.
+    """
+
+    a: Any  # identity (Shape or Collider)
+    b: Any
+    normal: Vec2  # from a toward b (unit), or zero if unavailable
+    depth: float
+    points: List[Tuple[float, float]] = field(default_factory=list)
+    a_hitbox: Any = None  # ``Hitbox`` part on a's side, or None (the body)
+    b_hitbox: Any = None
+
+    def _refuse_part_resolution(self, what: str) -> None:
+        if self.a_hitbox is not None or self.b_hitbox is not None:
+            part = self.a_hitbox if self.a_hitbox is not None else self.b_hitbox
+            raise TypeError(
+                f"info.{what}() on a hitbox-part contact ({part!r}); parts only "
+                f"detect. Move the sprite yourself (knockback), or resolve bodies."
+            )
+
+    @property
+    def point(self) -> Optional[Tuple[float, float]]:
+        """One usable contact location: centroid of ``points``, or ``None`` if empty.
+
+        Prefer this for VFX (explosion, marker). Face manifolds with two clip
+        points yield the segment midpoint. Enter / stay fill ``points`` from the
+        clip list, or a prim-support witness when the clip is empty, so
+        ``point`` is a tuple while the pair overlaps. Exit keeps ``points``
+        empty (no current contact — not last stay's locus).
+        """
+        pts = self.points
+        n = len(pts)
+        if n == 0:
+            return None
+        if n == 1:
+            return pts[0]
+        return (sum(p[0] for p in pts) / n, sum(p[1] for p in pts) / n)
+
+    @property
+    def side(self) -> Optional[str]:
+        """Which side of ``a`` is in contact (``top``/``bottom``/``left``/``right``)."""
+        nx, ny = _normal_components(self.normal)
+        return _side_from_normal(nx, ny)
+
+    @property
+    def slope_angle(self) -> float:
+        """Surface angle in degrees from horizontal (0 = flat floor)."""
+        nx, ny = _normal_components(self.normal)
+        nlen = math.hypot(nx, ny)
+        if nlen < 1e-12:
+            return 0.0
+        tx, ty = -ny / nlen, nx / nlen
+        return math.degrees(math.atan2(ty, tx))
+
+    @property
+    def tangent(self) -> Vec2:
+        """Unit vector along the contact surface (perpendicular to ``normal``)."""
+        nx, ny = _normal_components(self.normal)
+        nlen = math.hypot(nx, ny)
+        if nlen < 1e-12:
+            return Vec2.temp(1.0, 0.0)
+        return Vec2.temp(-ny / nlen, nx / nlen)
+
+    def slide_along(
+        self,
+        velocity: Union[Vec2, Tuple[float, float], Sequence[float]],
+    ) -> Vec2:
+        """Project ``velocity`` onto ``tangent`` (walk/slide along a ramp)."""
+        return _slide_along(self.tangent, velocity)
+
+    def mtv_split(
+        self,
+        *,
+        mass_a: float = 1.0,
+        mass_b: float = 1.0,
+        slop: float = 0.0,
+    ) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        """Return (dx,dy) push for a and for b along the MTV.
+
+        ``STATIC`` / infinite mass on one side takes the full push on the other.
+        ``slop`` subtracts from ``depth`` before splitting (resolve skin epsilon).
+        """
+        nx, ny = _normal_components(self.normal)
+        nlen = math.hypot(nx, ny)
+        depth = max(0.0, float(self.depth) - float(slop))
+        if depth <= 0.0 or nlen < 1e-12:
+            return (0.0, 0.0), (0.0, 0.0)
+        nx /= nlen
+        ny /= nlen
+
+        ma = _validate_mass("mass_a", mass_a)
+        mb = _validate_mass("mass_b", mass_b)
+        a_inf = _is_static_mass(ma)
+        b_inf = _is_static_mass(mb)
+        if a_inf and b_inf:
+            return (0.0, 0.0), (0.0, 0.0)
+        if a_inf:
+            return (0.0, 0.0), (nx * depth, ny * depth)
+        if b_inf:
+            return (-nx * depth, -ny * depth), (0.0, 0.0)
+        inv_a = 1.0 / ma
+        inv_b = 1.0 / mb
+        total = inv_a + inv_b
+        wa = inv_a / total
+        wb = inv_b / total
+        return (-nx * depth * wa, -ny * depth * wa), (nx * depth * wb, ny * depth * wb)
+
+    def velocity_split(
+        self,
+        *,
+        mass_a: float = 1.0,
+        mass_b: float = 1.0,
+        bounce: float = 1.0,
+        vel_a: Union[Vec2, Tuple[float, float], Sequence[float], None] = None,
+        vel_b: Union[Vec2, Tuple[float, float], Sequence[float], None] = None,
+    ) -> Tuple[Vec2, Vec2]:
+        """Two-body impulse along ``normal``; returns ``(new_vel_a, new_vel_b)``."""
+        ma = _validate_mass("mass_a", mass_a)
+        mb = _validate_mass("mass_b", mass_b)
+        if vel_a is None or vel_b is None:
+            raise ValueError("velocity_split requires vel_a and vel_b")
+        vax, vay = _vec2_components(vel_a)
+        vbx, vby = _vec2_components(vel_b)
+        nx, ny = _normal_components(self.normal)
+        nlen = math.hypot(nx, ny)
+        if nlen < 1e-12:
+            return Vec2.temp(vax, vay), Vec2.temp(vbx, vby)
+        nx /= nlen
+        ny /= nlen
+        rvx, rvy = vax - vbx, vay - vby
+        vn = rvx * nx + rvy * ny
+        if vn <= 0.0:
+            return Vec2.temp(vax, vay), Vec2.temp(vbx, vby)
+        e = max(0.0, float(bounce))
+        if _is_static_mass(ma) and _is_static_mass(mb):
+            return Vec2.temp(vax, vay), Vec2.temp(vbx, vby)
+        if _is_static_mass(ma):
+            j = -(1.0 + e) * vn / (1.0 / mb)
+            vbx -= (j / mb) * nx
+            vby -= (j / mb) * ny
+        elif _is_static_mass(mb):
+            j = -(1.0 + e) * vn / (1.0 / ma)
+            vax += (j / ma) * nx
+            vay += (j / ma) * ny
+        else:
+            inv_sum = (1.0 / ma) + (1.0 / mb)
+            j = -(1.0 + e) * vn / inv_sum
+            vax += (j / ma) * nx
+            vay += (j / ma) * ny
+            vbx -= (j / mb) * nx
+            vby -= (j / mb) * ny
+        return Vec2.temp(vax, vay), Vec2.temp(vbx, vby)
+
+    def push_apart(
+        self,
+        *,
+        mass_a: Optional[float] = None,
+        mass_b: Optional[float] = None,
+        slop: float = _RESOLVE_SLOP,
+    ) -> None:
+        """Apply ``mtv_split`` via ``move_by`` on ``a`` and ``b``."""
+        self._refuse_part_resolution("push_apart")
+        a, b = self.a, self.b
+        ma = _mass_or_static(a, mass_a)
+        mb = _mass_or_static(b, mass_b)
+        (dxa, dya), (dxb, dyb) = self.mtv_split(mass_a=ma, mass_b=mb, slop=slop)
+        if dxa or dya:
+            a.move_by(dxa, dya)
+        if dxb or dyb:
+            b.move_by(dxb, dyb)
+
+    def bounce_apart(
+        self,
+        *,
+        mass_a: Optional[float] = None,
+        mass_b: Optional[float] = None,
+        bounce: float = 1.0,
+    ) -> None:
+        """Apply ``velocity_split`` and write ``.vel`` on both bodies."""
+        self._refuse_part_resolution("bounce_apart")
+        a, b = self.a, self.b
+        ma = _mass_or_static(a, mass_a)
+        mb = _mass_or_static(b, mass_b)
+        va = getattr(a, "_vel", None)
+        vb = getattr(b, "_vel", None)
+        # A side with no ``.vel`` is immovable (same as STATIC), not mass-1 at rest.
+        a_static = _is_static_mass(ma) or va is None
+        b_static = _is_static_mass(mb) or vb is None
+        if a_static and b_static:
+            if va is None and vb is None and not (
+                _is_static_mass(ma) and _is_static_mass(mb)
+            ):
+                _warn_missing_vel_once(a, b)
+            return
+        writable_a = (not a_static) and va is not None
+        writable_b = (not b_static) and vb is not None
+        if not writable_a and not writable_b:
+            _warn_missing_vel_once(a, b)
+            return
+        vel_a = va if va is not None else (0.0, 0.0)
+        vel_b = vb if vb is not None else (0.0, 0.0)
+        ma_imp = STATIC if va is None else ma
+        mb_imp = STATIC if vb is None else mb
+        nva, nvb = self.velocity_split(
+            mass_a=ma_imp, mass_b=mb_imp, bounce=bounce, vel_a=vel_a, vel_b=vel_b,
+        )
+        if not a_static and va is not None:
+            va.x, va.y = float(nva.x), float(nva.y)
+        if not b_static and vb is not None:
+            vb.x, vb.y = float(nvb.x), float(nvb.y)
+
+    def resolve(self, *, bounce: Optional[float] = None, slop: float = _RESOLVE_SLOP) -> None:
+        """Position split + optional velocity split for this pair."""
+        self._refuse_part_resolution("resolve")
+        self.push_apart(slop=slop)
+        if bounce is not None:
+            self.bounce_apart(bounce=bounce)
+
+    def reflect_velocity(
+        self,
+        velocity: Union[Vec2, Tuple[float, float], Sequence[float]],
+        *,
+        restitution: float = 1.0,
+    ) -> Vec2:
+        """Reflect ``velocity`` about ``normal`` with restitution in [0, 1+]."""
+        if isinstance(velocity, Vec2):
+            vx = float(velocity.x.value) if hasattr(velocity.x, "value") else float(velocity.x)
+            vy = float(velocity.y.value) if hasattr(velocity.y, "value") else float(velocity.y)
+        else:
+            vx, vy = float(velocity[0]), float(velocity[1])
+        nx = float(self.normal.x.value) if hasattr(self.normal.x, "value") else float(self.normal.x)
+        ny = float(self.normal.y.value) if hasattr(self.normal.y, "value") else float(self.normal.y)
+        nlen = math.hypot(nx, ny)
+        if nlen < 1e-12:
+            return Vec2.temp(vx, vy)
+        nx /= nlen
+        ny /= nlen
+        e = max(0.0, float(restitution))
+        # Only reflect the approaching component (v · n < 0 means moving into the surface
+        # when normal points from a→b and velocity is of a… callers pass the moving body's
+        # velocity; convention: normal points from other→me when reflecting me? We use
+        # info.normal as stored (a→b). Reflecting a's velocity: if v·n > 0, a is moving
+        # toward b's half-space along the separation normal — bounce by reflecting about n.
+        # Standard: reflect v about n: v' = v - (1+e)(v·n)n when v·n > 0 (approaching along n
+        # from a's side toward b). Actually separation normal from a to b: if a is penetrating
+        # into b, we push a along -n. Approaching: v_a · n > 0.
+        dot = vx * nx + vy * ny
+        if dot > 0.0:
+            factor = (1.0 + e) * dot
+            vx -= factor * nx
+            vy -= factor * ny
+        return Vec2.temp(vx, vy)
+
+
+def _warn_missing_vel_once(a: Any, b: Any) -> None:
+    for body in (a, b):
+        bid = id(body)
+        if bid in _vel_missing_warned:
+            continue
+        if getattr(body, "_vel", None) is None:
+            _vel_missing_warned.add(bid)
+            warnings.warn(
+                f"{body!r} has no .vel set; skipping velocity resolution for this pair. "
+                f"Assign .vel before using bounce= on resolve().",
+                stacklevel=4,
+            )
+
+
+_mass_missing_warned: Set[int] = set()
+
+
+def _mass_or_static(body: Any, override: Optional[float]) -> float:
+    """Mass for a push. A body with no ``mass`` attribute is immovable."""
+    if override is not None:
+        return float(override)
+    mass = getattr(body, "mass", None)
+    if mass is None:
+        bid = id(body)
+        if bid not in _mass_missing_warned:
+            _mass_missing_warned.add(bid)
+            warnings.warn(
+                f"{body!r} has no .mass; treating it as STATIC for this push.",
+                stacklevel=4,
+            )
+        return STATIC
+    return float(mass)
+
+
+# ---------------------------------------------------------------------------
+# Snapshot primitives (plain data)
+# ---------------------------------------------------------------------------
+
+@dataclass(slots=True)
+class Prim:
+    kind: PrimKind
+    aabb: Tuple[float, float, float, float]  # minx, miny, maxx, maxy
+    params: Tuple[float, ...] = ()
+    verts: Optional[List[Tuple[float, float]]] = None  # world verts for POLY
+
+
+def _aabb_from_circle(cx: float, cy: float, r: float) -> Tuple[float, float, float, float]:
+    return (cx - r, cy - r, cx + r, cy + r)
+
+
+def _aabb_from_obb(cx: float, cy: float, hw: float, hh: float, ang: float) -> Tuple[float, float, float, float]:
+    c, s = math.cos(ang), math.sin(ang)
+    # extents of rotated box
+    ex = abs(c) * hw + abs(s) * hh
+    ey = abs(s) * hw + abs(c) * hh
+    return (cx - ex, cy - ey, cx + ex, cy + ey)
+
+
+def _obb_corners(cx: float, cy: float, hw: float, hh: float, ang: float) -> List[Tuple[float, float]]:
+    c, s = math.cos(ang), math.sin(ang)
+    local = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)]
+    out = []
+    for lx, ly in local:
+        out.append((cx + lx * c - ly * s, cy + lx * s + ly * c))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Shape → Prim snapshot
+# ---------------------------------------------------------------------------
+
+def _aabb_from_verts(verts: Sequence[Tuple[float, float]]) -> Tuple[float, float, float, float]:
+    xs = [p[0] for p in verts]
+    ys = [p[1] for p in verts]
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+def _stroke_half_width(shape) -> float:
+    """Half-thickness for Line / Track stroke colliders (matches Line snapshot)."""
+    thick = getattr(shape, "line_width", None)
+    try:
+        return max(0.5, abs(float(thick)) * 0.5) if thick is not None else 0.5
+    except Exception:
+        return 0.5
+
+
+def _thin_obb_prim(
+    x1: float, y1: float, x2: float, y2: float, half: float,
+) -> List[Prim]:
+    """One thin OBB (or degenerate circle) along a stroke segment."""
+    dx, dy = x2 - x1, y2 - y1
+    length = math.hypot(dx, dy)
+    if length < 1e-12:
+        return [Prim(PrimKind.CIRCLE, _aabb_from_circle(x1, y1, half), (x1, y1, half))]
+    ang = math.atan2(dy, dx)
+    cx, cy = (x1 + x2) * 0.5, (y1 + y2) * 0.5
+    hw, hh = length * 0.5, half
+    aabb = _aabb_from_obb(cx, cy, hw, hh, ang)
+    return [Prim(PrimKind.OBB, aabb, (cx, cy, hw, hh, ang))]
+
+
+def _track_stroke_contours(
+    shape,
+) -> Tuple[List[List[Tuple[float, float]]], bool, float]:
+    """World stroke contours + ring-close flag + half-width.
+
+    Full window: one contour; ``ring_closed`` matches ``shape._closed`` (emit
+    last→first for a ring). Trimmed window: open contours from
+    ``_window_contours`` (never a gap-closing chord). Empty when nothing to stroke.
+    """
+    # Host tables: a reversed() view does not keep its own polyline after rebake.
+    xs, ys, _s, closed, _rev = shape._tables()
+    half = _stroke_half_width(shape)
+    n = len(xs)
+    if n < 2:
+        return [], False, half
+    _a, _b, full = shape._draw_window()
+    if full:
+        pts = [shape._world_of(xs[i], ys[i]) for i in range(n)]
+        return [pts], bool(closed), half
+    out: List[List[Tuple[float, float]]] = []
+    for contour in shape._window_contours():
+        if len(contour) < 2:
+            continue
+        out.append([shape._world_of(lx, ly) for lx, ly in contour])
+    return out, False, half
+
+
+def _track_stroke_world(shape) -> Tuple[List[Tuple[float, float]], bool, float]:
+    """World polyline samples + closed flag + half-width for a Track stroke.
+
+    For proxy AABB: flattens window contours into one point list. ``closed`` is
+    True only for a full closed window (ring). Trimmed windows report
+    ``closed=False`` so callers must not invent a last→first segment.
+    """
+    contours, closed, half = _track_stroke_contours(shape)
+    if not contours:
+        return [], False, half
+    if len(contours) == 1:
+        return contours[0], closed, half
+    pts: List[Tuple[float, float]] = []
+    for c in contours:
+        pts.extend(c)
+    return pts, False, half
+
+
+def _track_stroke_prims(shape) -> List[Prim]:
+    """Chain of thin OBBs along a Track polyline (stroke collider, not filled area).
+
+    Honors ``begin``/``end``: trimmed stroke = open OBB chains only (no chord
+    across the invisible gap). Full closed window keeps the ring close.
+    """
+    contours, ring_closed, half = _track_stroke_contours(shape)
+    out: List[Prim] = []
+    for pts in contours:
+        n = len(pts)
+        if n < 2:
+            continue
+        segs = n if ring_closed else n - 1
+        for i in range(segs):
+            ax, ay = pts[i]
+            bx, by = pts[(i + 1) % n]
+            out.extend(_thin_obb_prim(ax, ay, bx, by, half))
+    return out
+
+
+_proxy_kinds: Optional[tuple] = None
+
+
+def _load_proxy_kinds() -> tuple:
+    """Kinds ``_proxy_aabb_for_shape`` dispatches on, imported once (cycles)."""
+    global _proxy_kinds
+    from .shapes import (
+        Circle, Ellipse, Line, Point, Polygon, Rect, RegularPolygon, Square,
+        get_xy, _bare_num,
+    )
+    from .sprite import Sprite
+    from .track import Track
+    _proxy_kinds = (
+        Circle, Ellipse, Line, Point, Polygon, Rect, RegularPolygon, Square,
+        get_xy, _bare_num, Sprite, Track,
+    )
+    return _proxy_kinds
+
+
+def _proxy_aabb_for_shape(shape) -> Optional[Tuple[float, float, float, float]]:
+    """Cheap, possibly-loose (never-too-tight) bound for the broad-phase proxy.
+
+    Uses cached local extents / circumradius so rotation never forces a
+    vertex or sub-shape rebuild. Returns ``None`` for kinds without a cheap
+    closed form; caller unions exact prims for those.
+    """
+    # Runs for every collider whose pose is not a pure translation (every
+    # spinner, every frame): a per-call ``from … import`` block costs about
+    # as much as the bound itself.
+    (
+        Circle, Ellipse, Line, Point, Polygon, Rect, RegularPolygon, Square,
+        get_xy, _bare_num, Sprite, Track,
+    ) = _proxy_kinds or _load_proxy_kinds()
+
+    if getattr(type(shape), "_is_hitbox_part", False):
+        # Body extents placed by the paint transform (tilt, seat); no prims.
+        return shape._proxy_aabb()
+
+    if getattr(shape, "_main_hitbox_off", False):
+        return None   # the caller finds no prims: the proxy goes invalid
+
+    if isinstance(shape, Sprite):
+        shape._ensure_auto_baked()
+        if (
+            float(getattr(shape, "_hitbox_extent_x", 0.0) or 0.0) > 0.0
+            or float(getattr(shape, "_hitbox_extent_y", 0.0) or 0.0) > 0.0
+        ):
+            # Every baked prim, and its own AABB, sits in ``|lx| <= ex*w,
+            # |ly| <= ey*h`` about ``center``; ``_collision_specs`` turns it by
+            # the same ``_draw_angle()``. The AABB of that turned box holds
+            # every prim AABB. Extents follow the pose box (near-circle and
+            # turned-ellipse bounds depend on its aspect). Offset is
+            # rotation-free.
+            w, h = shape._hitbox_pose_wh()
+            w, h = abs(float(w)), abs(float(h))
+            ex, ey = shape._hitbox_extents_for_pose(w, h)
+            exw = ex * w
+            eyh = ey * h
+            rad = math.radians(float(shape._draw_angle()))
+            c = abs(math.cos(rad))
+            sn = abs(math.sin(rad))
+            hx = c * exw + sn * eyh
+            hy = sn * exw + c * eyh
+            ox = float(shape._offset_x)
+            oy = float(shape._offset_y)
+            if ox or oy:
+                pad = math.hypot(ox, oy)
+                hx += pad
+                hy += pad
+            cx, cy = get_xy(shape.center, bare=True)
+            return (cx - hx, cy - hy, cx + hx, cy + hy)
+        cx, cy, w, h, ang_deg = shape._collision_frame()
+        w, h = abs(float(w)), abs(float(h))
+        ang = math.radians(float(ang_deg))
+        hw, hh = w * 0.5, h * 0.5
+        if abs(ang) < _ANGLE_EPS or abs(abs(ang) - math.pi) < _ANGLE_EPS:
+            return (cx - hw, cy - hh, cx + hw, cy + hh)
+        return _aabb_from_obb(cx, cy, hw, hh, ang)
+
+    if isinstance(shape, Circle):
+        if shape.model is _circle_center_radius():   # common case: direct Defining reads
+            cx, cy = get_xy(shape.center, bare=True)
+            r = abs(_bare_num(shape.radius))
+        else:
+            cx, cy = shape._center_xy()      # Defining only (D3)
+            r = abs(shape._radius_value())
+        return _aabb_from_circle(cx, cy, r)
+
+    if isinstance(shape, Point):
+        cx, cy = get_xy(shape, bare=True)
+        return _aabb_from_circle(cx, cy, 0.0)
+
+    if isinstance(shape, Ellipse):
+        cx, cy, w_e, h_e, rot_e = shape._oriented_frame()   # Defining only (D3)
+        rx = w_e * 0.5
+        ry = h_e * 0.5
+        ang = math.radians(rot_e)
+        return _aabb_from_obb(cx, cy, rx, ry, ang)
+
+    if isinstance(shape, (Rect, Square)):
+        oriented = getattr(shape, "_oriented_frame", None)
+        if callable(oriented):
+            cx, cy, w, h, ang_deg = oriented()
+        else:
+            cx, cy = get_xy(shape.center, bare=True)
+            w = abs(_bare_num(shape.width))
+            h = abs(_bare_num(shape.height))
+            ang_deg = shape._rotation_value()
+        w, h = abs(float(w)), abs(float(h))
+        ang = math.radians(float(ang_deg))
+        hw, hh = w * 0.5, h * 0.5
+        if abs(ang) < _ANGLE_EPS or abs(abs(ang) - math.pi) < _ANGLE_EPS:
+            return (cx - hw, cy - hh, cx + hw, cy + hh)
+        return _aabb_from_obb(cx, cy, hw, hh, ang)
+
+    if isinstance(shape, RegularPolygon):
+        cx, cy, r, _phi0 = shape._placement_params()
+        return _aabb_from_circle(cx, cy, abs(float(r)))
+
+    if isinstance(shape, Line):
+        # Closed-form thin OBB from Defining endpoints — same math as exact
+        # snapshot, without materializing Derivate p2/center/vec.
+        x1, y1, x2, y2 = shape._segment_xy()
+        half = _stroke_half_width(shape)
+        dx, dy = x2 - x1, y2 - y1
+        length = math.hypot(dx, dy)
+        if length < 1e-12:
+            return _aabb_from_circle(x1, y1, half)
+        ang = math.atan2(dy, dx)
+        cx, cy = (x1 + x2) * 0.5, (y1 + y2) * 0.5
+        return _aabb_from_obb(cx, cy, length * 0.5, half, ang)
+
+    if isinstance(shape, Track):
+        # Union of baked samples + stroke half-width (never tighter than prims).
+        pts, _closed, half = _track_stroke_world(shape)
+        if len(pts) < 2:
+            return None
+        minx, miny, maxx, maxy = _aabb_from_verts(pts)
+        return (minx - half, miny - half, maxx + half, maxy + half)
+
+    if isinstance(shape, Polygon):
+        verts = [get_xy(v, bare=True) for v in shape.points]
+        if len(verts) < 3:
+            return None
+        return _aabb_from_verts(verts)
+
+    from .spatial_fx import SpatialFx
+    if isinstance(shape, SpatialFx):
+        # Cull AABB is a bloom pad — never tighter than collision_specs.
+        return shape._domain_aabb()
+
+    return None
+
+
+def _prims_from_collision_specs(specs: Sequence) -> List[Prim]:
+    """Build Prim list from SpatialFx.collision_specs() tuples."""
+    out: List[Prim] = []
+    for spec in specs or ():
+        if not spec:
+            continue
+        kind = spec[0]
+        if kind == "circle":
+            _, cx, cy, r = spec
+            cx, cy = float(cx), float(cy)
+            r = max(0.0, abs(float(r)))
+            out.append(Prim(PrimKind.CIRCLE, _aabb_from_circle(cx, cy, r), (cx, cy, r)))
+        elif kind == "aabb":
+            _, minx, miny, maxx, maxy = spec
+            minx, miny, maxx, maxy = float(minx), float(miny), float(maxx), float(maxy)
+            out.append(Prim(PrimKind.AABB, (minx, miny, maxx, maxy), (minx, miny, maxx, maxy)))
+        elif kind == "obb":
+            _, cx, cy, hw, hh, ang = spec
+            cx, cy = float(cx), float(cy)
+            hw, hh = max(0.0, abs(float(hw))), max(0.0, abs(float(hh)))
+            ang = float(ang)
+            aabb = _aabb_from_obb(cx, cy, hw, hh, ang)
+            out.append(Prim(PrimKind.OBB, aabb, (cx, cy, hw, hh, ang)))
+        elif kind == "ellipse":
+            _, cx, cy, rx, ry, ang = spec
+            cx, cy = float(cx), float(cy)
+            rx, ry = max(0.0, abs(float(rx))), max(0.0, abs(float(ry)))
+            ang = float(ang)
+            aabb = _aabb_from_obb(cx, cy, rx, ry, ang)
+            out.append(Prim(PrimKind.ELLIPSE, aabb, (cx, cy, rx, ry, ang)))
+        elif kind == "poly":
+            verts = spec[1]
+            if not verts or len(verts) < 3:
+                continue
+            vlist = [(float(x), float(y)) for x, y in verts]
+            aabb = _aabb_from_verts(vlist)
+            out.append(Prim(PrimKind.POLY, aabb, (), list(vlist)))
+    return out
+
+
+_get_xy = None
+_bare_attr = None
+
+
+def _sync_auto_hitbox_frame(shape) -> None:
+    """If a Sprite clip frame left the baked auto hull, bump epoch and rebake."""
+    # Class lookup: instance getattr("_play_frames") raises via Entity.__getattr__
+    # on Circle/Shape (no such slot). Sprite still syncs clip frames.
+    fn = getattr(type(shape), "_sync_auto_hitbox_frame", None)
+    if fn is not None:
+        fn(shape)
+
+
+def _ensure_pose_converters() -> None:
+    global _get_xy, _bare_attr
+    if _bare_attr is None:
+        from .shapes import _bare_attr as _ba, get_xy as _gxy
+        _bare_attr = _ba
+        _get_xy = _gxy
+
+
+def _pose_xy_of(obj) -> Optional[Tuple[float, float]]:
+    """Bare (x, y) from a Point / Vec2 / 2-tuple, or None if it is not pose-like."""
+    if obj is None:
+        return None
+    x = getattr(obj, "x", None)
+    y = getattr(obj, "y", None)
+    if x is not None and y is not None:
+        try:
+            return _bare_attr(x), _bare_attr(y)
+        except Exception:
+            pass
+    try:
+        return _get_xy(obj, bare=True)
+    except Exception:
+        return None
+
+
+_CIRCLE_CR = None
+
+
+def _circle_center_radius():
+    """``CircleModel.CENTER_RADIUS`` (resolved once; shapes imports stay local)."""
+    global _CIRCLE_CR
+    if _CIRCLE_CR is None:
+        from .shapes import CircleModel
+        _CIRCLE_CR = CircleModel.CENTER_RADIUS
+    return _CIRCLE_CR
+
+
+def _collision_pose_xy(shape) -> Tuple[float, float]:
+    """Translation anchor for the snapshot cache.
+
+    Shapes use ``center``. Beam SpatialFx (Jet) use ``origin`` / ``p1`` instead —
+    never treat the emitter itself as a Point. Kinds may override with
+    ``_collision_pose_anchor`` when ``center`` would materialize a Derivate
+    (Line: segment midpoint from Defining endpoints).
+    """
+    _ensure_pose_converters()
+    anchor_fn = getattr(type(shape), "_collision_pose_anchor", None)
+    if anchor_fn is not None:
+        try:
+            xy = anchor_fn(shape)
+            if xy is not None:
+                return (float(xy[0]), float(xy[1]))
+        except Exception:
+            pass
+    # Graphics: Defining-only center. ``getattr(shape, "center")`` materializes
+    # a cold Derivate center on non-center models (Rect corners, Polygon,
+    # Ellipse foci …) and knocks the shape off the pose fast path for good (D3).
+    center_fn = getattr(type(shape), "_center_xy", None)
+    if center_fn is not None:
+        xy = center_fn(shape)
+        return (float(xy[0]), float(xy[1]))
+    for name in ("center", "origin", "p1"):
+        pt = getattr(shape, name, None)
+        if pt is None or pt is shape:
+            continue
+        xy = _pose_xy_of(pt)
+        if xy is not None:
+            return xy
+    aabb_fn = getattr(shape, "_domain_aabb", None)
+    if callable(aabb_fn):
+        try:
+            minx, miny, maxx, maxy = aabb_fn()
+            return (0.5 * (minx + maxx), 0.5 * (miny + maxy))
+        except Exception:
+            pass
+    return (0.0, 0.0)
+
+
+_GRAPHIC_EXTRA_SLOTS = (
+    "angle", "at_angle", "radius", "width", "height", "length", "side", "spread",
+)
+_extra_slots_for_cls: Dict[type, Tuple[str, ...]] = {}
+
+
+def _extra_slot_names(cls) -> Tuple[str, ...]:
+    names = _extra_slots_for_cls.get(cls)
+    if names is not None:
+        return names
+    found = tuple(
+        n for n in _GRAPHIC_EXTRA_SLOTS
+        if getattr(getattr(cls, n, None), "_is_field_slot", False)
+    )
+    _extra_slots_for_cls[cls] = found
+    return found
+
+
+def _live_scalar(shape, name: str) -> float:
+    """Defining / live scalar from ``__dict__``, refreshing linked anchors."""
+    d = shape.__dict__
+    anchors = d.get("_field_anchors")
+    if anchors:
+        anchor = anchors.get(name)
+        if anchor is not None:
+            anchor._ensure_fresh()
+    else:
+        bare_ok = d.get("_scalar_bare_ok")
+        if bare_ok is not None and bare_ok.get(name) is False:
+            shape._refresh_scalar(name)
+    val = d.get(name)
+    if val is None:
+        return 0.0
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _collision_graphic_extra(shape) -> tuple:
+    """Live non-translational pose so ``.angle =`` / ``.radius =`` rebuild.
+
+    ``_collision_epoch`` is bumped by ``rotate_to`` / ``scale=`` / hitbox writes,
+    but Defining slot assigns (``rect.angle = …``, ``hex.angle = …``) often
+    skip that path when no live Derivates force ``_update_impl``. Extra must read
+    the slots themselves or the translate fast-path slides a stale hull.
+    """
+    cls = type(shape)
+    extra_fn = getattr(cls, "_collision_pose_extra", None)
+    if extra_fn is not None:
+        try:
+            extra = extra_fn(shape)
+            if extra:
+                return extra if type(extra) is tuple else tuple(float(v) for v in extra)
+        except (TypeError, ValueError, AttributeError, ArithmeticError):
+            pass
+    d = shape.__dict__
+    try:
+        rot = float(object.__getattribute__(shape, "_rotation"))
+    except (TypeError, ValueError, AttributeError):
+        rot = 0.0
+    try:
+        scale = float(object.__getattribute__(shape, "_scale"))
+    except (TypeError, ValueError, AttributeError):
+        scale = 1.0
+    parts = [rot, scale]
+    names = _extra_slot_names(cls)
+    for name in names:
+        parts.append(_live_scalar(shape, name))
+    if "spread" in names:
+        # Pie (1) vs chord segment (0). Read the instance dict so other
+        # Graphics do not pay Entity.__getattr__ on a missing name.
+        parts.append(1.0 if d.get("_use_center") else 0.0)
+    return tuple(parts)
+
+
+def _collision_pose_key(shape) -> tuple:
+    """Cache key: collision epoch + world position + non-translational pose.
+
+    Keys are ``(epoch, x, y, *extra)``. ``extra`` must stay identical for the
+    translate fast-path (formation sway). SpatialFx put direction and size
+    there (``_beam_frame`` / ``_pad_frame`` / ``_point_frame``) so rotate/stretch
+    rebuilds instead of sliding a stale hull. Graphics put live angle / size
+    (and Sprite current-frame source size) in extra so slot assigns that never
+    bump ``_collision_epoch`` still rebuild.
+
+    Frame methods are resolved on ``type(shape)`` — instance getattr would
+    raise through ``Entity.__getattr__`` on every Sprite/Shape miss. Graphics
+    skip those lookups via ``_has_domain_frame`` on SpatialFx domain bases.
+    """
+    cls = type(shape)
+    if getattr(cls, "_is_hitbox_part", False):
+        return shape._pose_key()  # paint pose in one pass (hitbox.py)
+    pull = getattr(cls, "_pull_property_anchors", None)
+    if pull is not None:
+        pull(shape)
+    epoch = int(getattr(shape, "_collision_epoch", 0) or 0)
+    if getattr(cls, "_has_domain_frame", False):
+        beam_frame = getattr(cls, "_beam_frame", None)
+        if beam_frame is not None:
+            try:
+                x0, y0, x1, y1, _length, width = beam_frame(shape)
+                return (
+                    epoch,
+                    float(x0), float(y0),
+                    float(x1) - float(x0), float(y1) - float(y0),
+                    float(width),
+                )
+            except (TypeError, ValueError, AttributeError, ArithmeticError):
+                pass
+        pad_frame = getattr(cls, "_pad_frame", None)
+        if pad_frame is not None:
+            try:
+                cx, cy, w, h = pad_frame(shape)
+                return (epoch, float(cx), float(cy), float(w), float(h))
+            except (TypeError, ValueError, AttributeError, ArithmeticError):
+                pass
+        point_frame = getattr(cls, "_point_frame", None)
+        if point_frame is not None:
+            try:
+                parts = point_frame(shape)
+                return (epoch,) + tuple(float(v) for v in parts)
+            except (TypeError, ValueError, AttributeError, ArithmeticError):
+                pass
+    cx, cy = _collision_pose_xy(shape)
+    return (epoch, cx, cy) + _collision_graphic_extra(shape)
+
+
+def _translation_delta(old_key: tuple, new_key: tuple) -> Optional[Tuple[float, float]]:
+    """``(dx, dy)`` when keys share epoch + extra pose; else None (rebuild)."""
+    if (
+        old_key is None
+        or new_key is None
+        or len(old_key) < 3
+        or len(old_key) != len(new_key)
+        or old_key[0] != new_key[0]
+        or old_key[3:] != new_key[3:]
+    ):
+        return None
+    return (new_key[1] - old_key[1], new_key[2] - old_key[2])
+
+
+def _keys_uniform_translation(
+    old_keys: Optional[tuple], new_keys: tuple
+) -> Optional[Tuple[float, float]]:
+    """Shared (dx, dy) if every shape key is a translation of the previous."""
+    if old_keys is None or len(old_keys) != len(new_keys):
+        return None
+    delta: Optional[Tuple[float, float]] = None
+    for ok, nk in zip(old_keys, new_keys):
+        d = _translation_delta(ok, nk)
+        if d is None:
+            return None
+        if delta is None:
+            delta = d
+        elif d != delta:
+            return None
+    return delta if delta is not None else (0.0, 0.0)
+
+
+def _shift_pose_key_bundle(
+    keys: Optional[tuple], dx: float, dy: float
+) -> Optional[tuple]:
+    """Translate ``(epoch, x, y, *extra)`` pose keys by ``(dx, dy)``.
+
+    Used by solver nudges so ``_world_prims`` can keep a cache hit without
+    rebuilding extras. Returns None when a key is not shift-shaped.
+    """
+    if keys is None:
+        return None
+    out = []
+    for k in keys:
+        if not isinstance(k, tuple) or len(k) < 3:
+            return None
+        out.append((k[0], k[1] + dx, k[2] + dy) + k[3:])
+    return tuple(out)
+
+
+def _proxy_aabb_overlap(ca: "Collider", cb: "Collider") -> bool:
+    """True when proxy AABBs overlap, or either proxy is invalid (conservative)."""
+    if not ca._proxy_valid or not cb._proxy_valid:
+        return True
+    a = ca._proxy
+    b = cb._proxy
+    return not (a[0] > b[2] or b[0] > a[2] or a[1] > b[3] or b[1] > a[3])
+
+
+def _unpadded_proxy_aabb(
+    collider: "Collider",
+) -> Optional[Tuple[float, float, float, float]]:
+    """Proxy AABB with ``_PROXY_EPS`` removed. ``None`` when the proxy is invalid."""
+    if not collider._proxy_valid:
+        return None
+    p = collider._proxy
+    if p is None or len(p) < 4:
+        return None
+    eps = _PROXY_EPS
+    return (p[0] + eps, p[1] + eps, p[2] - eps, p[3] - eps)
+
+
+def _prims_bounds_aabb(
+    prims: Sequence[Prim],
+) -> Optional[Tuple[float, float, float, float]]:
+    """Tight AABB of collision prims. Not the broad-phase proxy."""
+    if not prims:
+        return None
+    minx = min(p.aabb[0] for p in prims)
+    miny = min(p.aabb[1] for p in prims)
+    maxx = max(p.aabb[2] for p in prims)
+    maxy = max(p.aabb[3] for p in prims)
+    return (minx, miny, maxx, maxy)
+
+
+def _aabb_overlaps_box(
+    a: Tuple[float, float, float, float],
+    b: Tuple[float, float, float, float],
+) -> bool:
+    """Closed intervals: equal edges overlap (a touch counts as contact)."""
+    return not (a[0] > b[2] or b[0] > a[2] or a[1] > b[3] or b[1] > a[3])
+
+
+def _aabb_matches_motion(
+    prev: Tuple[float, float, float, float],
+    curr: Tuple[float, float, float, float],
+    dx: float,
+    dy: float,
+    tol: float = _UNSWEPT_MOTION_TOL,
+) -> bool:
+    """True when ``curr`` is ``prev`` shifted by ``(dx, dy)`` on every edge."""
+    return (
+        abs((curr[0] - prev[0]) - dx) <= tol
+        and abs((curr[1] - prev[1]) - dy) <= tol
+        and abs((curr[2] - prev[2]) - dx) <= tol
+        and abs((curr[3] - prev[3]) - dy) <= tol
+    )
+
+
+def _aabb_entry_normal(
+    prev_a: Tuple[float, float, float, float],
+    curr_a: Tuple[float, float, float, float],
+    prev_b: Tuple[float, float, float, float],
+    curr_b: Tuple[float, float, float, float],
+) -> Optional[Tuple[float, float]]:
+    """Latest face ``A`` crossed into ``B``. Normal points from ``A`` toward ``B``.
+
+    Both boxes are interpolated. A side counts only when ``A`` was clear of
+    that face and the other axis overlaps at the crossing. ``None`` when no
+    face can be named.
+    """
+    best_t = -1.0
+    best: Optional[Tuple[float, float]] = None
+
+    def _x_overlap(t: float) -> bool:
+        a0 = prev_a[0] + (curr_a[0] - prev_a[0]) * t
+        a1 = prev_a[2] + (curr_a[2] - prev_a[2]) * t
+        b0 = prev_b[0] + (curr_b[0] - prev_b[0]) * t
+        b1 = prev_b[2] + (curr_b[2] - prev_b[2]) * t
+        return a0 <= b1 and b0 <= a1
+
+    def _y_overlap(t: float) -> bool:
+        a0 = prev_a[1] + (curr_a[1] - prev_a[1]) * t
+        a1 = prev_a[3] + (curr_a[3] - prev_a[3]) * t
+        b0 = prev_b[1] + (curr_b[1] - prev_b[1]) * t
+        b1 = prev_b[3] + (curr_b[3] - prev_b[3]) * t
+        return a0 <= b1 and b0 <= a1
+
+    def _consider(
+        clear: bool,
+        crossed: bool,
+        t_num: float,
+        t_den: float,
+        nx: float,
+        ny: float,
+        other_overlaps,
+    ) -> None:
+        nonlocal best_t, best
+        if not clear or not crossed or t_den <= 1e-12:
+            return
+        t = t_num / t_den
+        if t < -1e-4 or t > 1.0 + 1e-4:
+            return
+        if t < 0.0:
+            t = 0.0
+        elif t > 1.0:
+            t = 1.0
+        if not other_overlaps(t):
+            return
+        if t > best_t + 1e-9:
+            best_t = t
+            best = (nx, ny)
+
+    # From below: A's top against B's bottom. Normal +Y.
+    _consider(
+        prev_a[3] <= prev_b[1] + 1e-6,
+        curr_a[3] > curr_b[1],
+        prev_b[1] - prev_a[3],
+        (curr_a[3] - prev_a[3]) - (curr_b[1] - prev_b[1]),
+        0.0, 1.0, _x_overlap,
+    )
+    # From above: A's bottom against B's top. Normal −Y.
+    _consider(
+        prev_a[1] >= prev_b[3] - 1e-6,
+        curr_a[1] < curr_b[3],
+        prev_a[1] - prev_b[3],
+        (curr_b[3] - prev_b[3]) - (curr_a[1] - prev_a[1]),
+        0.0, -1.0, _x_overlap,
+    )
+    # From the left: A's right against B's left. Normal +X.
+    _consider(
+        prev_a[2] <= prev_b[0] + 1e-6,
+        curr_a[2] > curr_b[0],
+        prev_b[0] - prev_a[2],
+        (curr_a[2] - prev_a[2]) - (curr_b[0] - prev_b[0]),
+        1.0, 0.0, _y_overlap,
+    )
+    # From the right: A's left against B's right. Normal −X.
+    _consider(
+        prev_a[0] >= prev_b[2] - 1e-6,
+        curr_a[0] < curr_b[2],
+        prev_a[0] - prev_b[2],
+        (curr_b[2] - prev_b[2]) - (curr_a[0] - prev_a[0]),
+        -1.0, 0.0, _y_overlap,
+    )
+    return best
+
+
+def _prims_penetration(
+    pas: Sequence[Prim], pbs: Sequence[Prim], nx: float, ny: float,
+) -> float:
+    """How far ``pas`` extends past ``pbs`` along ``n`` (from pas toward pbs)."""
+    nlen = math.hypot(nx, ny)
+    if nlen < 1e-12 or not pas or not pbs:
+        return 0.0
+    nx /= nlen
+    ny /= nlen
+    sa = _prims_support(pas, nx, ny)
+    sb = _prims_support(pbs, -nx, -ny)
+    if sa is None or sb is None:
+        return 0.0
+    return (sa[0] - sb[0]) * nx + (sa[1] - sb[1]) * ny
+
+
+def _aabb_support_gap(
+    body: Tuple[float, float, float, float],
+    obs: Tuple[float, float, float, float],
+    nx: float,
+    ny: float,
+) -> float:
+    """How far ``body`` extends past ``obs`` along ``n`` (from body toward obs)."""
+    if ny > 0.5:
+        return body[3] - obs[1]
+    if ny < -0.5:
+        return obs[3] - body[1]
+    if nx > 0.5:
+        return body[2] - obs[0]
+    if nx < -0.5:
+        return obs[2] - body[0]
+    return 0.0
+
+
+def _translate_prims(prims: List[Prim], dx: float, dy: float) -> List[Prim]:
+    """Shift prims in place when only the center moved (same collision epoch)."""
+    if dx == 0.0 and dy == 0.0:
+        return prims
+    for p in prims:
+        aabb = (p.aabb[0] + dx, p.aabb[1] + dy, p.aabb[2] + dx, p.aabb[3] + dy)
+        p.aabb = aabb
+        kind = p.kind
+        if kind == PrimKind.CIRCLE:
+            cx, cy, r = p.params
+            p.params = (cx + dx, cy + dy, r)
+        elif kind == PrimKind.AABB:
+            p.params = aabb
+        elif kind in (PrimKind.OBB, PrimKind.ELLIPSE):
+            p.params = (p.params[0] + dx, p.params[1] + dy) + p.params[2:]
+        elif kind == PrimKind.POLY:
+            p.verts = [(x + dx, y + dy) for x, y in (p.verts or ())]
+        else:
+            return []
+    return prims
+
+
+def _copy_prim(p: Prim) -> Prim:
+    verts = list(p.verts) if p.verts is not None else None
+    return Prim(p.kind, p.aabb, p.params, verts)
+
+
+def _copy_prims(prims: Sequence[Prim]) -> List[Prim]:
+    return [_copy_prim(p) for p in prims]
+
+
+def _copy_translate(prims: Sequence[Prim], dx: float, dy: float) -> List[Prim]:
+    out = _copy_prims(prims)
+    if dx or dy:
+        _translate_prims(out, dx, dy)
+    return out
+
+
+def _swept_aabb(
+    box: Sequence[float], dx: float, dy: float
+) -> Tuple[float, float, float, float]:
+    if dx >= 0.0:
+        minx, maxx = box[0], box[2] + dx
+    else:
+        minx, maxx = box[0] + dx, box[2]
+    if dy >= 0.0:
+        miny, maxy = box[1], box[3] + dy
+    else:
+        miny, maxy = box[1] + dy, box[3]
+    return (minx, miny, maxx, maxy)
+
+
+def _prim_extent_along(prim: Prim, dx: float, dy: float) -> float:
+    length = math.hypot(dx, dy)
+    if length < 1e-12:
+        return 0.0
+    ux, uy = dx / length, dy / length
+    a = prim.aabb
+    return abs(ux) * (a[2] - a[0]) * 0.5 + abs(uy) * (a[3] - a[1]) * 0.5
+
+
+def _prims_extent_along(prims: Sequence[Prim], dx: float, dy: float) -> float:
+    if not prims:
+        return 0.0
+    return min(_prim_extent_along(p, dx, dy) for p in prims)
+
+
+def _aabb_near_tuple(
+    a: Tuple[float, float, float, float],
+    b: Tuple[float, float, float, float],
+    pad: float,
+) -> bool:
+    """``_aabb_overlap_tuple`` with ``a`` grown by ``pad`` on every side."""
+    return not (a[0] - pad > b[2] or b[0] > a[2] + pad
+                or a[1] - pad > b[3] or b[1] > a[3] + pad)
+
+
+def _prim_gap(pa: Prim, pb: Prim) -> Tuple[float, float, float]:
+    """``(gap, nx, ny)`` between two prims that do not overlap, normal A → B.
+
+    Closed form for AABB / circle pairs (the tile-game case); GJK otherwise.
+    """
+    ka, kb = pa.kind, pb.kind
+    if ka == PrimKind.AABB and kb == PrimKind.AABB:
+        a, b = pa.params, pb.params
+        gx = max(b[0] - a[2], a[0] - b[2], 0.0)
+        gy = max(b[1] - a[3], a[1] - b[3], 0.0)
+        gap = math.hypot(gx, gy)
+        if gap > 0.0:
+            sx = 1.0 if b[0] - a[2] > 0.0 else -1.0
+            sy = 1.0 if b[1] - a[3] > 0.0 else -1.0
+            return gap, sx * gx / gap, sy * gy / gap
+    elif ka == PrimKind.CIRCLE and kb in (PrimKind.AABB, PrimKind.CIRCLE):
+        cx, cy, r = pa.params[0], pa.params[1], pa.params[2]
+        if kb == PrimKind.AABB:
+            b = pb.params
+            qx, qy, rb = min(max(cx, b[0]), b[2]), min(max(cy, b[1]), b[3]), 0.0
+        else:
+            qx, qy, rb = pb.params[0], pb.params[1], pb.params[2]
+        dist = math.hypot(qx - cx, qy - cy)
+        if dist > 1e-12:
+            return dist - r - rb, (qx - cx) / dist, (qy - cy) / dist
+    elif kb == PrimKind.CIRCLE and ka == PrimKind.AABB:
+        gap, nx, ny = _prim_gap(pb, pa)
+        return gap, -nx, -ny
+    return _gjk_distance((pa,), (pb,))
+
+
+def _skin_contact(
+    pas: Sequence[Prim], pbs: Sequence[Prim], skin: float,
+) -> Optional[Contact]:
+    """Resting contact for prims that do not overlap: the closest prim pair
+    within ``skin``, as a zero-depth contact (normal A → B, witness filled by
+    ``_points_or_witness``). ``None`` when every gap is larger."""
+    best: Optional[Tuple[float, float, float]] = None
+    for pa in pas:
+        for pb in pbs:
+            if not _aabb_near_tuple(pa.aabb, pb.aabb, skin):
+                continue
+            gap, nx, ny = _prim_gap(pa, pb)
+            if gap <= skin and (best is None or gap < best[0]):
+                best = (gap, nx, ny)
+    if best is None:
+        return None
+    return Contact((best[1], best[2]), 0.0, [])
+
+
+def _prims_near(pas: Sequence[Prim], pbs: Sequence[Prim], pad: float) -> bool:
+    for pa in pas:
+        for pb in pbs:
+            if _aabb_near_tuple(pa.aabb, pb.aabb, pad):
+                return True
+    return False
+
+
+def _narrow_any(pas: Sequence[Prim], pbs: Sequence[Prim]) -> Optional[Contact]:
+    best: Optional[Contact] = None
+    for pa in pas:
+        for pb in pbs:
+            if not _aabb_overlap_tuple(pa.aabb, pb.aabb):
+                continue
+            c = narrow_phase(pa, pb)
+            if c is not None and (best is None or c.depth > best.depth):
+                best = c
+    return best
+
+
+def _axis_penetration(
+    amin: float, amax: float, bmin: float, bmax: float,
+) -> Optional[float]:
+    """Minimum translation along one axis to separate two intervals.
+
+    ``None`` when the intervals are disjoint. When one interval contains the
+    other this is the distance to the nearer end, not the contained length.
+    Partial overlaps match ``hi - lo``.
+    """
+    to_neg = amax - bmin
+    to_pos = bmax - amin
+    if to_neg < 0.0 or to_pos < 0.0:
+        return None
+    return to_neg if to_neg < to_pos else to_pos
+
+
+def _aabb_toi(
+    a: Sequence[float], b: Sequence[float], dx: float, dy: float
+) -> Optional[Tuple[float, float, float]]:
+    """Entry time and normal (a→b) for moving AABB ``a`` vs stationary ``b``."""
+    aminx, aminy, amaxx, amaxy = a[0], a[1], a[2], a[3]
+    bminx, bminy, bmaxx, bmaxy = b[0], b[1], b[2], b[3]
+    currently = not (
+        aminx > bmaxx or bminx > amaxx or aminy > bmaxy or bminy > amaxy
+    )
+
+    def _axis(amin: float, amax: float, bmin: float, bmax: float, d: float):
+        if abs(d) < 1e-18:
+            if amax < bmin or amin > bmax:
+                return None
+            return (-1e30, 1e30)
+        t1 = (bmin - amax) / d
+        t2 = (bmax - amin) / d
+        return (min(t1, t2), max(t1, t2))
+
+    x = _axis(aminx, amaxx, bminx, bmaxx, dx)
+    y = _axis(aminy, amaxy, bminy, bmaxy, dy)
+    if x is None or y is None:
+        return None
+    t_enter = max(x[0], y[0])
+    t_exit = min(x[1], y[1])
+    if t_enter > t_exit or t_exit < 0.0 or t_enter > 1.0:
+        return None
+    if t_enter < 0.0:
+        if not currently:
+            return None
+        t = 0.0
+        pen_x = _axis_penetration(aminx, amaxx, bminx, bmaxx)
+        pen_y = _axis_penetration(aminy, amaxy, bminy, bmaxy)
+        acx = (aminx + amaxx) * 0.5
+        bcx = (bminx + bmaxx) * 0.5
+        acy = (aminy + amaxy) * 0.5
+        bcy = (bminy + bmaxy) * 0.5
+        if pen_y is None or (pen_x is not None and pen_x < pen_y):
+            nx = 1.0 if bcx >= acx else -1.0
+            ny = 0.0
+        else:
+            nx = 0.0
+            ny = 1.0 if bcy >= acy else -1.0
+        return (t, nx, ny)
+    t = t_enter
+    if x[0] > y[0]:
+        nx = 1.0 if dx > 0.0 else -1.0
+        ny = 0.0
+    else:
+        nx = 0.0
+        ny = 1.0 if dy > 0.0 else -1.0
+    return (t, nx, ny)
+
+
+def _circle_circle_toi(
+    ax: float, ay: float, ar: float, bx: float, by: float, br: float,
+    dx: float, dy: float,
+) -> Optional[Tuple[float, float, float]]:
+    rx, ry = ax - bx, ay - by
+    rsum = ar + br
+    c0 = rx * rx + ry * ry - rsum * rsum
+    a = dx * dx + dy * dy
+    if c0 <= 0.0:
+        dist = math.hypot(rx, ry)
+        if dist < 1e-12:
+            return (0.0, 1.0, 0.0)
+        return (0.0, -rx / dist, -ry / dist)
+    if a < 1e-18:
+        return None
+    b = 2.0 * (rx * dx + ry * dy)
+    disc = b * b - 4.0 * a * c0
+    if disc < 0.0:
+        return None
+    sqrt_d = math.sqrt(disc)
+    t = (-b - sqrt_d) / (2.0 * a)
+    if t < 0.0 or t > 1.0:
+        t2 = (-b + sqrt_d) / (2.0 * a)
+        if t2 < 0.0 or t2 > 1.0:
+            return None
+        t = t2
+    cx = ax + dx * t
+    cy = ay + dy * t
+    hx, hy = bx - cx, by - cy
+    dist = math.hypot(hx, hy)
+    if dist < 1e-12:
+        return (t, 1.0, 0.0)
+    return (t, hx / dist, hy / dist)
+
+
+def _circle_aabb_toi(
+    cx: float, cy: float, r: float, box: Sequence[float], dx: float, dy: float,
+) -> Optional[Tuple[float, float, float]]:
+    """Entry time of a moving circle against an AABB (rounded Minkowski sum).
+
+    The expanded box has square corners. A hit that lands in a corner square
+    is retested against the circle of radius ``r`` on that corner, so a pass
+    that misses the round corner is not a contact. Already-overlapping uses
+    the same normal as :func:`_circle_aabb`.
+    """
+    minx, miny, maxx, maxy = float(box[0]), float(box[1]), float(box[2]), float(box[3])
+    qx = min(max(cx, minx), maxx)
+    qy = min(max(cy, miny), maxy)
+    vx, vy = cx - qx, cy - qy
+    if vx * vx + vy * vy <= r * r + 1e-9:
+        contact = _circle_aabb((cx, cy, r), (minx, miny, maxx, maxy))
+        if contact is None:
+            return (0.0, 1.0, 0.0)
+        return (0.0, contact.normal[0], contact.normal[1])
+    expanded = (minx - r, miny - r, maxx + r, maxy + r)
+    t = _ray_aabb(cx, cy, dx, dy, expanded)
+    if t is None:
+        return None
+    px, py = cx + dx * t, cy + dy * t
+    left = px < minx
+    right = px > maxx
+    below = py < miny
+    above = py > maxy
+    if (left or right) and (below or above):
+        corner_x = minx if left else maxx
+        corner_y = miny if below else maxy
+        t_c = _ray_circle(cx, cy, dx, dy, corner_x, corner_y, r)
+        if t_c is None:
+            return None
+        t = t_c
+        px = cx + dx * t
+        py = cy + dy * t
+        hx, hy = corner_x - px, corner_y - py
+        dist = math.hypot(hx, hy)
+        if dist < 1e-12:
+            return (t, 1.0, 0.0)
+        return (t, hx / dist, hy / dist)
+    qx = min(max(px, minx), maxx)
+    qy = min(max(py, miny), maxy)
+    hx, hy = qx - px, qy - py
+    dist = math.hypot(hx, hy)
+    if dist < 1e-12:
+        left_d = px - minx
+        right_d = maxx - px
+        bottom_d = py - miny
+        top_d = maxy - py
+        m = min(left_d, right_d, bottom_d, top_d)
+        if m == left_d:
+            return (t, 1.0, 0.0)
+        if m == right_d:
+            return (t, -1.0, 0.0)
+        if m == bottom_d:
+            return (t, 0.0, 1.0)
+        return (t, 0.0, -1.0)
+    return (t, hx / dist, hy / dist)
+
+
+def _toi_fast(
+    pa: Prim, pb: Prim, dx: float, dy: float
+) -> Optional[Tuple[float, Contact]]:
+    ka, kb = pa.kind, pb.kind
+    if ka == PrimKind.AABB and kb == PrimKind.AABB:
+        hit = _aabb_toi(pa.params, pb.params, dx, dy)
+        if hit is None:
+            return None
+        t, nx, ny = hit
+        return (t, Contact((nx, ny), 0.0, []))
+    if ka == PrimKind.CIRCLE and kb == PrimKind.CIRCLE:
+        ax, ay, ar = pa.params[0], pa.params[1], pa.params[2]
+        bx, by, br = pb.params[0], pb.params[1], pb.params[2]
+        hit = _circle_circle_toi(ax, ay, ar, bx, by, br, dx, dy)
+        if hit is None:
+            return None
+        t, nx, ny = hit
+        return (t, Contact((nx, ny), 0.0, []))
+    if ka == PrimKind.CIRCLE and kb == PrimKind.AABB:
+        cx, cy, r = pa.params[0], pa.params[1], pa.params[2]
+        hit = _circle_aabb_toi(cx, cy, r, pb.params, dx, dy)
+        if hit is None:
+            return None
+        t, nx, ny = hit
+        return (t, Contact((nx, ny), 0.0, []))
+    if ka == PrimKind.AABB and kb == PrimKind.CIRCLE:
+        cx, cy, r = pb.params[0], pb.params[1], pb.params[2]
+        hit = _circle_aabb_toi(cx, cy, r, pa.params, -dx, -dy)
+        if hit is None:
+            return None
+        t, nx, ny = hit
+        return (t, Contact((-nx, -ny), 0.0, []))
+    return None
+
+
+def _toi_bisect(
+    pas: Sequence[Prim], pbs: Sequence[Prim], dx: float, dy: float
+) -> Optional[Tuple[float, Contact]]:
+    start = _narrow_any(pas, pbs)
+    if start is not None:
+        return (0.0, start)
+    length = math.hypot(dx, dy)
+    if length < 1e-12:
+        return None
+    ux, uy = dx / length, dy / length
+
+    def _thickness(prims: Sequence[Prim]) -> float:
+        s1 = _prims_support(prims, ux, uy)
+        s2 = _prims_support(prims, -ux, -uy)
+        if s1 is None or s2 is None:
+            return 1.0
+        return abs((s1[0] - s2[0]) * ux + (s1[1] - s2[1]) * uy)
+
+    min_ext = min(_thickness(pas), _thickness(pbs))
+    if min_ext < 1e-6:
+        min_ext = 1e-3
+    step = min(1.0, 0.9 * min_ext / length)
+    if step * _TOI_BISECT_CAP < 1.0:
+        step = 1.0 / float(_TOI_BISECT_CAP)
+    prev_t = 0.0
+    t = step
+    hit_t: Optional[float] = None
+    while t < 1.0 - 1e-12:
+        moved = _copy_translate(pas, dx * t, dy * t)
+        if _narrow_any(moved, pbs) is not None:
+            hit_t = t
+            break
+        prev_t = t
+        t += step
+    if hit_t is None:
+        moved = _copy_translate(pas, dx, dy)
+        if _narrow_any(moved, pbs) is None:
+            return None
+        hit_t = 1.0
+    lo, hi = prev_t, hit_t
+    contact: Optional[Contact] = None
+    for _ in range(12):
+        mid = 0.5 * (lo + hi)
+        moved = _copy_translate(pas, dx * mid, dy * mid)
+        c = _narrow_any(moved, pbs)
+        if c is not None:
+            hi = mid
+            contact = c
+        else:
+            lo = mid
+    if contact is None:
+        moved = _copy_translate(pas, dx * hi, dy * hi)
+        contact = _narrow_any(moved, pbs)
+    if contact is None:
+        return None
+    return (hi, contact)
+
+
+def _toi_prim_sets(
+    pas: Sequence[Prim], pbs: Sequence[Prim], dx: float, dy: float
+) -> Optional[Tuple[float, Contact]]:
+    if not pas or not pbs:
+        return None
+    all_fast = True
+    for pa in pas:
+        for pb in pbs:
+            if not _is_fast_narrow(pa, pb):
+                all_fast = False
+                break
+        if not all_fast:
+            break
+    if all_fast:
+        best: Optional[Tuple[float, Contact]] = None
+        for pa in pas:
+            for pb in pbs:
+                hit = _toi_fast(pa, pb, dx, dy)
+                if hit is None:
+                    continue
+                if best is None or hit[0] < best[0]:
+                    best = hit
+        return best
+    advanced = _toi_advance(pas, pbs, dx, dy)
+    if advanced is not _TOI_UNRESOLVED:
+        return advanced
+    return _toi_bisect(pas, pbs, dx, dy)
+
+
+def _remove_normal_component(
+    rx: float, ry: float, nx: float, ny: float
+) -> Tuple[float, float]:
+    nlen = math.hypot(nx, ny)
+    if nlen < 1e-12:
+        return rx, ry
+    nx /= nlen
+    ny /= nlen
+    dot = rx * nx + ry * ny
+    return rx - dot * nx, ry - dot * ny
+
+
+def _aabb_support(
+    box: Sequence[float], dx: float, dy: float,
+) -> Tuple[float, float]:
+    x = box[2] if dx > 0.0 else (box[0] if dx < 0.0 else 0.5 * (box[0] + box[2]))
+    y = box[3] if dy > 0.0 else (box[1] if dy < 0.0 else 0.5 * (box[1] + box[3]))
+    return float(x), float(y)
+
+
+def _synthesize_contact_point(
+    box_a: Sequence[float],
+    box_b: Sequence[float],
+    nx: float,
+    ny: float,
+) -> Tuple[float, float]:
+    """Midpoint of AABB supports along ``normal`` (from a toward b).
+
+    Prefer ``_synthesize_contact_point_from_prims`` for rotated bodies — a
+    proxy AABB around an OBB is fat and the midpoint drifts off the surface.
+    """
+    sa = _aabb_support(box_a, nx, ny)
+    sb = _aabb_support(box_b, -nx, -ny)
+    return (0.5 * (sa[0] + sb[0]), 0.5 * (sa[1] + sb[1]))
+
+
+def _prim_support(prim: Prim, dx: float, dy: float) -> Tuple[float, float]:
+    """Furthest point of ``prim`` in direction ``(dx, dy)``."""
+    pt, _ties = _prim_support_ex(prim, dx, dy)
+    return pt
+
+
+def _support_and_ties(verts, dx: float, dy: float, tie_eps: float, fallback):
+    """The furthest vertex along ``(dx, dy)``, and how many vertices are within
+    ``tie_eps`` of it (feature type: 1 = vertex, >= 2 = edge / face).
+
+    The point is always the true argmax. ``tie_eps`` only widens the COUNT —
+    returning "the first vertex within tie_eps" made the support up to
+    ``tie_eps`` short of the furthest point, and GJK / EPA / projections read
+    it (D5 in Testing Design).
+    """
+    best = None
+    best_d = -1e300
+    dots = []
+    for x, y in verts:
+        d = x * dx + y * dy
+        dots.append(d)
+        if d > best_d:
+            best_d = d
+            best = (float(x), float(y))
+    if best is None:
+        return (float(fallback[0]), float(fallback[1])), 1
+    ties = sum(1 for d in dots if d >= best_d - tie_eps)
+    return best, max(ties, 1)
+
+
+def _prim_support_ex(
+    prim: Prim, dx: float, dy: float,
+) -> Tuple[Tuple[float, float], int]:
+    """Support point plus how many feature vertices share that support value.
+
+    ``ties == 1`` → vertex feature; ``ties >= 2`` → edge/face feature. Used to
+    pick a witness when averaging two supports would drift along a long face.
+    """
+    # Sweep TOI normals are close to, but not exactly, a face normal — allow a
+    # small absolute slack so both endpoints of a supporting edge still tie.
+    tie_eps = 0.5
+
+    if prim.kind == PrimKind.CIRCLE:
+        cx, cy, r = float(prim.params[0]), float(prim.params[1]), float(prim.params[2])
+        ln = math.hypot(dx, dy)
+        if ln < 1e-12:
+            return (cx, cy), 1
+        return (cx + r * dx / ln, cy + r * dy / ln), 1
+    if prim.kind == PrimKind.AABB:
+        box = prim.params
+        # Axis-aligned box: one corner unless dx or dy is ~0 (then a full edge).
+        pt = _aabb_support(box, dx, dy)
+        ties = 1
+        if abs(dx) < 1e-9:
+            ties = 2
+        if abs(dy) < 1e-9:
+            ties = 2 if ties == 1 else 4
+        # Near-axis normals (ramp rest) still have a unique corner — keep ties=1.
+        return pt, ties
+    if prim.kind == PrimKind.OBB:
+        cx, cy, hw, hh, ang = (
+            float(prim.params[0]), float(prim.params[1]),
+            float(prim.params[2]), float(prim.params[3]), float(prim.params[4]),
+        )
+        return _support_and_ties(_obb_corners(cx, cy, hw, hh, ang), dx, dy, tie_eps, (cx, cy))
+    if prim.kind == PrimKind.ELLIPSE:
+        cx, cy, rx, ry, ang = (
+            float(prim.params[0]), float(prim.params[1]),
+            float(prim.params[2]), float(prim.params[3]), float(prim.params[4]),
+        )
+        # Support of axis-aligned ellipse in local frame, then rotate.
+        c, s = math.cos(ang), math.sin(ang)
+        lx, ly = c * dx + s * dy, -s * dx + c * dy
+        den = math.sqrt(max(rx * rx * lx * lx + ry * ry * ly * ly, 1e-24))
+        plx, ply = (rx * rx * lx) / den, (ry * ry * ly) / den
+        return (cx + plx * c - ply * s, cy + plx * s + ply * c), 1
+    if prim.kind == PrimKind.POLY and prim.verts:
+        return _support_and_ties(prim.verts, dx, dy, tie_eps, prim.verts[0])
+    # Fallback: AABB of the prim.
+    return _aabb_support(prim.aabb, dx, dy), 1
+
+
+def _prims_support(
+    prims: Sequence[Prim], dx: float, dy: float,
+) -> Optional[Tuple[float, float]]:
+    got = _prims_support_ex(prims, dx, dy)
+    return None if got is None else got[0]
+
+
+def _prims_support_ex(
+    prims: Sequence[Prim], dx: float, dy: float,
+) -> Optional[Tuple[Tuple[float, float], int]]:
+    if not prims:
+        return None
+    tie_eps = 0.5
+    best, ties = _prim_support_ex(prims[0], dx, dy)
+    best_d = best[0] * dx + best[1] * dy
+    for p in prims[1:]:
+        s, t = _prim_support_ex(p, dx, dy)
+        d = s[0] * dx + s[1] * dy
+        if d > best_d + tie_eps:
+            best_d = d
+            best = s
+            ties = t
+        elif abs(d - best_d) <= tie_eps:
+            ties += t
+    return best, ties
+
+
+def _synthesize_contact_point_from_prims(
+    pas: Sequence[Prim],
+    pbs: Sequence[Prim],
+    nx: float,
+    ny: float,
+) -> Tuple[float, float]:
+    """Witness along ``normal`` (from a toward b) from exact prim supports.
+
+    Averaging the two supports drifts along long faces (ramp corner rest picks
+    opposite ends of the top edge). Prefer a unique vertex witness when the
+    other feature is an edge/face.
+    """
+    a = _prims_support_ex(pas, nx, ny)
+    b = _prims_support_ex(pbs, -nx, -ny)
+    if a is None and b is None:
+        return (0.0, 0.0)
+    if a is None:
+        return b[0]  # type: ignore[index]
+    if b is None:
+        return a[0]
+    sa, ta = a
+    sb, tb = b
+    if ta == 1 and tb >= 2:
+        return sa
+    if tb == 1 and ta >= 2:
+        return sb
+    return (0.5 * (sa[0] + sb[0]), 0.5 * (sa[1] + sb[1]))
+
+
+def _points_or_witness(
+    points: Optional[Sequence[Tuple[float, float]]],
+    pas: Sequence[Prim],
+    pbs: Sequence[Prim],
+    nx: float,
+    ny: float,
+) -> List[Tuple[float, float]]:
+    """Clip manifold, or a prim-support witness when the clip list is empty.
+
+    Enter / stay use this so ``CollisionInfo.point`` is a tuple while the pair
+    overlaps. Exit keeps ``points`` empty. Does not invent a body-center locus.
+    """
+    pts = list(points) if points else []
+    if pts:
+        return pts
+    if not pas or not pbs:
+        return pts
+    if math.hypot(float(nx), float(ny)) < 1e-12:
+        return pts
+    return [_synthesize_contact_point_from_prims(pas, pbs, nx, ny)]
+
+
+def _collision_info_from_contact(ca, cb, contact, pas, pbs) -> CollisionInfo:
+    """Canonical (lo-id, hi-id) payload; empty clips get a support witness."""
+    ida, idb = id(ca), id(cb)
+    nx, ny = float(contact.normal[0]), float(contact.normal[1])
+    if ida < idb:
+        a, b = ca, cb
+        wpas, wpbs = pas, pbs
+    else:
+        a, b = cb, ca
+        nx, ny = -nx, -ny
+        wpas, wpbs = pbs, pas
+    return CollisionInfo(
+        a=a._identity,
+        b=b._identity,
+        normal=Vec2.temp(nx, ny),
+        depth=contact.depth,
+        points=_points_or_witness(contact.points, wpas, wpbs, nx, ny),
+    )
+
+
+def snapshot_shape(shape, *, cache_owner: Optional["Collider"] = None) -> List[Prim]:
+    """Extract world-space collision primitives from a Shape / SpatialFx (pulls Attributes)."""
+    if cache_owner is not None:
+        key = _collision_pose_key(shape)
+        cached = cache_owner._snap_cache.get(id(shape))
+        if cached is not None:
+            old_key, old_prims = cached
+            if old_key == key:
+                return old_prims
+            # Same epoch + extra pose, new position → translate (formation sway).
+            delta = _translation_delta(old_key, key) if old_prims else None
+            if delta is not None:
+                dx, dy = delta
+                translated = _translate_prims(old_prims, dx, dy)
+                if translated:
+                    cache_owner._snap_cache[id(shape)] = (key, translated)
+                    return translated
+        prims = _snapshot_shape_uncached(shape, cache_owner=cache_owner)
+        cache_owner._snap_cache[id(shape)] = (key, prims)
+        return prims
+    return _snapshot_shape_uncached(shape, cache_owner=None)
+
+
+def _snapshot_shape_uncached(
+    shape, *, cache_owner: Optional["Collider"] = None, include_off: bool = False,
+) -> List[Prim]:
+    """Extract world-space collision primitives (no pose cache).
+
+    A Graphic whose main hitbox is switched off (``g.hitbox.active = False``)
+    has no prims: the proxy goes invalid, so pairs, queries, ``resolve`` and
+    ``touching_*`` all skip it (its parts are separate colliders).
+    ``include_off`` measures it anyway (``hitbox.box``).
+    """
+    if not include_off and getattr(shape, "_main_hitbox_off", False):
+        return []
+    sys = _collision_system
+    if sys is not None:
+        sys._debug_hull_builds += 1
+    from .shapes import (
+        Circle, Ellipse, Line, Point, Polygon, Rect, RegularPolygon, Square,
+        get_xy, _bare_num, _clamped_spread, _is_full_turn,
+    )
+    from .spatial_fx import PointDomainFx, PadDomainFx, BeamDomainFx
+    from .sprite import Sprite
+
+    if getattr(type(shape), "_is_hitbox_part", False):
+        return _prims_from_collision_specs(shape._collision_specs())
+
+    # Lazy imports to avoid cycles; isinstance works across aliases.
+    if isinstance(shape, Sprite):
+        specs = getattr(shape, "_collision_specs", None)
+        if callable(specs):
+            return _prims_from_collision_specs(specs())
+        cx, cy, w, h, ang_deg = shape._collision_frame()
+        w, h = abs(float(w)), abs(float(h))
+        ang = math.radians(float(ang_deg))
+        hw, hh = w * 0.5, h * 0.5
+        if abs(ang) < _ANGLE_EPS or abs(abs(ang) - math.pi) < _ANGLE_EPS:
+            return [Prim(
+                PrimKind.AABB,
+                (cx - hw, cy - hh, cx + hw, cy + hh),
+                (cx - hw, cy - hh, cx + hw, cy + hh),
+            )]
+        aabb = _aabb_from_obb(cx, cy, hw, hh, ang)
+        return [Prim(PrimKind.OBB, aabb, (cx, cy, hw, hh, ang))]
+
+    if isinstance(shape, Circle):
+        if shape.model is _circle_center_radius():   # common case: direct Defining reads
+            cx, cy = get_xy(shape.center, bare=True)
+            r = abs(_bare_num(shape.radius))
+        else:
+            cx, cy = shape._center_xy()      # Defining only (D3)
+            r = abs(shape._radius_value())
+        # Full turn: the same CIRCLE prim as a disk. Narrow phase and sweep
+        # stay on the circle formulas. Only a shorter opening builds arc prims.
+        spread = _clamped_spread(_bare_num(shape.spread))
+        if _is_full_turn(spread):
+            return [Prim(PrimKind.CIRCLE, _aabb_from_circle(cx, cy, r), (cx, cy, r))]
+        if spread <= 0.0 or r <= 0.0:
+            return []
+        return _partial_circle_prims(
+            cx, cy, r, shape._arc_angle(), spread,        # Defining only (D3)
+            bool(shape.__dict__.get("_use_center", True)),
+        )
+
+    if isinstance(shape, Point):
+        cx, cy = get_xy(shape, bare=True)
+        return [Prim(PrimKind.CIRCLE, _aabb_from_circle(cx, cy, 0.0), (cx, cy, 0.0))]
+
+    if isinstance(shape, Ellipse):
+        cx, cy, w_e, h_e, rot_e = shape._oriented_frame()   # Defining only (D3)
+        rx = w_e * 0.5
+        ry = h_e * 0.5
+        ang = math.radians(rot_e)
+        aabb = _aabb_from_obb(cx, cy, rx, ry, ang)
+        return [Prim(PrimKind.ELLIPSE, aabb, (cx, cy, rx, ry, ang))]
+
+    if isinstance(shape, (Rect, Square)):
+        oriented = getattr(shape, "_oriented_frame", None)
+        if callable(oriented):
+            cx, cy, w, h, ang_deg = oriented()
+        else:
+            cx, cy = get_xy(shape.center, bare=True)
+            w = abs(_bare_num(shape.width))
+            h = abs(_bare_num(shape.height))
+            ang_deg = shape._rotation_value()
+        w, h = abs(float(w)), abs(float(h))
+        ang = math.radians(float(ang_deg))
+        hw, hh = w * 0.5, h * 0.5
+        if abs(ang) < _ANGLE_EPS or abs(abs(ang) - math.pi) < _ANGLE_EPS:
+            return [Prim(PrimKind.AABB, (cx - hw, cy - hh, cx + hw, cy + hh), (cx - hw, cy - hh, cx + hw, cy + hh))]
+        aabb = _aabb_from_obb(cx, cy, hw, hh, ang)
+        return [Prim(PrimKind.OBB, aabb, (cx, cy, hw, hh, ang))]
+
+    if isinstance(shape, Line):
+        # Defining-only endpoints — same geometry as getattr p1/p2, without
+        # waking Derivate p2/center on angle-length models.
+        x1, y1, x2, y2 = shape._segment_xy()
+        return _thin_obb_prim(x1, y1, x2, y2, _stroke_half_width(shape))
+
+    from .track import Track
+    if isinstance(shape, Track):
+        # Stroke tube: one thin OBB per baked segment (open or closed ring).
+        # Interior stays empty — not a filled disk/polygon.
+        return _track_stroke_prims(shape)
+
+    # SpatialFx placement domains (soft emitters). Point domains publish tight
+    # collision_specs (main paint circles / emission OBBs), separate from loose
+    # domain_aabb cull pads. Pad/Beam keep pad_frame / beam_frame duals.
+    if isinstance(shape, PointDomainFx):
+        return _prims_from_collision_specs(shape._collision_specs())
+
+    if isinstance(shape, PadDomainFx):
+        # Pads are axis-aligned (no angle), so the hull is the pad box.
+        cx, cy, w, h = shape._pad_frame()
+        hw, hh = abs(float(w)) * 0.5, abs(float(h)) * 0.5
+        box = (cx - hw, cy - hh, cx + hw, cy + hh)
+        return [Prim(PrimKind.AABB, box, box)]
+
+    if isinstance(shape, BeamDomainFx):
+        return _prims_from_collision_specs(shape._collision_specs())
+
+    # RegularPolygon / EquilateralTriangle: closed-form verts from center/radius/angle.
+    # Avoid shape.points — that materializes Derivate vertex Points via the reactive
+    # graph (~10× slower than reading Defining params once).
+    if isinstance(shape, RegularPolygon):
+        cx, cy, r, phi0 = shape._placement_params()
+        r = abs(float(r))
+        n = int(shape._n)
+        if n < 3 or r <= 0.0:
+            return []
+        phi0_rad = math.radians(float(phi0))
+        delta = 2.0 * math.pi / n
+        verts = [
+            (cx + r * math.cos(phi0_rad + i * delta),
+             cy + r * math.sin(phi0_rad + i * delta))
+            for i in range(n)
+        ]
+        return _snapshot_polygon_verts(verts, cache_owner=cache_owner, shape_id=id(shape))
+
+    if isinstance(shape, Polygon):
+        verts = []
+        for v in shape.points:
+            verts.append(get_xy(v, bare=True))
+        if len(verts) < 3:
+            return []
+        return _snapshot_polygon_verts(verts, cache_owner=cache_owner, shape_id=id(shape))
+
+    return []
+
+
+def _clone_prims(prims: List[Prim]) -> List[Prim]:
+    """Independent copies: a cache must never hand out objects it keeps.
+
+    ``_translate_prims`` shifts prims **in place** (formation-sway fast path).
+    A cache that returned its stored Prim objects would be moved along with the
+    caller's copy while still filed under the old key (D2 in Testing Design).
+    """
+    return [
+        Prim(p.kind, p.aabb, p.params, None if p.verts is None else list(p.verts))
+        for p in prims
+    ]
+
+
+def _snapshot_polygon_verts(
+    verts: List[Tuple[float, float]],
+    *,
+    cache_owner: Optional["Collider"] = None,
+    shape_id: int = 0,
+) -> List[Prim]:
+    """Convex hull as one POLY, or ear-clipped triangles if concave."""
+    key = tuple((round(x, 6), round(y, 6)) for x, y in verts)
+    if cache_owner is not None and shape_id:
+        cached = cache_owner._poly_cache.get(shape_id)
+        if cached is not None and cached[0] == key:
+            return _clone_prims(cached[1])
+
+    if _is_convex(verts):
+        xs = [p[0] for p in verts]
+        ys = [p[1] for p in verts]
+        aabb = (min(xs), min(ys), max(xs), max(ys))
+        prims = [Prim(PrimKind.POLY, aabb, (), list(verts))]
+    else:
+        tris = _ear_clip(verts)
+        prims = []
+        for tri in tris:
+            xs = [p[0] for p in tri]
+            ys = [p[1] for p in tri]
+            aabb = (min(xs), min(ys), max(xs), max(ys))
+            prims.append(Prim(PrimKind.POLY, aabb, (), list(tri)))
+        if not prims:
+            return []
+
+    if cache_owner is not None and shape_id:
+        cache_owner._poly_cache[shape_id] = (key, _clone_prims(prims))
+    return prims
+
+
+def _signed_area(verts: Sequence[Tuple[float, float]]) -> float:
+    n = len(verts)
+    a = 0.0
+    for i in range(n):
+        x1, y1 = verts[i]
+        x2, y2 = verts[(i + 1) % n]
+        a += x1 * y2 - x2 * y1
+    return 0.5 * a
+
+
+def _is_convex(verts: Sequence[Tuple[float, float]]) -> bool:
+    n = len(verts)
+    if n < 3:
+        return False
+    # Ensure consistent winding for cross-product sign.
+    prev = 0.0
+    for i in range(n):
+        x0, y0 = verts[i]
+        x1, y1 = verts[(i + 1) % n]
+        x2, y2 = verts[(i + 2) % n]
+        cross = (x1 - x0) * (y2 - y1) - (y1 - y0) * (x2 - x1)
+        if abs(cross) < 1e-12:
+            continue
+        if prev == 0.0:
+            prev = cross
+        elif cross * prev < 0.0:
+            return False
+    # A regular star keeps a consistent turn and still self-intersects.
+    for i in range(n):
+        a = verts[i]
+        b = verts[(i + 1) % n]
+        for j in range(i + 1, n):
+            if j == (i + 1) % n or (j + 1) % n == i:
+                continue
+            c = verts[j]
+            d = verts[(j + 1) % n]
+            if _segments_properly_intersect(a, b, c, d):
+                return False
+    return True
+
+
+def _orient(p, q, r) -> float:
+    return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+
+
+def _segments_properly_intersect(a, b, c, d) -> bool:
+    """True when open segments ab and cd cross (shared endpoints do not count)."""
+    o1 = _orient(a, b, c)
+    o2 = _orient(a, b, d)
+    o3 = _orient(c, d, a)
+    o4 = _orient(c, d, b)
+    return o1 * o2 < 0.0 and o3 * o4 < 0.0
+
+
+def _point_in_tri(p, a, b, c) -> bool:
+    # Barycentric
+    ax, ay = a
+    bx, by = b
+    cx, cy = c
+    px, py = p
+    v0x, v0y = cx - ax, cy - ay
+    v1x, v1y = bx - ax, by - ay
+    v2x, v2y = px - ax, py - ay
+    dot00 = v0x * v0x + v0y * v0y
+    dot01 = v0x * v1x + v0y * v1y
+    dot02 = v0x * v2x + v0y * v2y
+    dot11 = v1x * v1x + v1y * v1y
+    dot12 = v1x * v2x + v1y * v2y
+    denom = dot00 * dot11 - dot01 * dot01
+    if abs(denom) < 1e-18:
+        return False
+    u = (dot11 * dot02 - dot01 * dot12) / denom
+    v = (dot00 * dot12 - dot01 * dot02) / denom
+    return u >= -1e-9 and v >= -1e-9 and (u + v) <= 1.0 + 1e-9
+
+
+def _ear_clip(verts: Sequence[Tuple[float, float]]) -> List[List[Tuple[float, float]]]:
+    """Ear clipping → list of triangles. Handles CCW and CW."""
+    pts = list(verts)
+    n = len(pts)
+    if n < 3:
+        return []
+    if n == 3:
+        return [pts]
+    # Work on indices; flip to CCW if needed.
+    if _signed_area(pts) < 0:
+        pts = list(reversed(pts))
+    idx = list(range(len(pts)))
+    tris: List[List[Tuple[float, float]]] = []
+    guard = 0
+    max_guard = len(pts) * len(pts)
+    while len(idx) > 3 and guard < max_guard:
+        guard += 1
+        ear_found = False
+        m = len(idx)
+        for i in range(m):
+            i0, i1, i2 = idx[(i - 1) % m], idx[i], idx[(i + 1) % m]
+            a, b, c = pts[i0], pts[i1], pts[i2]
+            # Convex tip (CCW)
+            cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+            if cross <= 1e-12:
+                continue
+            # No other points inside
+            empty = True
+            for j in idx:
+                if j in (i0, i1, i2):
+                    continue
+                if _point_in_tri(pts[j], a, b, c):
+                    empty = False
+                    break
+            if not empty:
+                continue
+            tris.append([a, b, c])
+            del idx[i]
+            ear_found = True
+            break
+        if not ear_found:
+            break
+    if len(idx) == 3:
+        tris.append([pts[idx[0]], pts[idx[1]], pts[idx[2]]])
+        return tris
+    warnings.warn(
+        "polygon ear clip did not finish; skipping this triangulation",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+    return []
+
+
+# ---------------------------------------------------------------------------
+# Narrow phase
+# ---------------------------------------------------------------------------
+
+
+def _dot2(a: Tuple[float, float], b: Tuple[float, float]) -> float:
+    return a[0] * b[0] + a[1] * b[1]
+
+
+def _md_support(
+    pas: Sequence[Prim], pbs: Sequence[Prim], dx: float, dy: float,
+) -> Tuple[float, float]:
+    """Support of the Minkowski difference A − B."""
+    sa = _prims_support(pas, dx, dy)
+    sb = _prims_support(pbs, -dx, -dy)
+    if sa is None or sb is None:
+        return (0.0, 0.0)
+    return (sa[0] - sb[0], sa[1] - sb[1])
+
+
+def _triple2(
+    a: Tuple[float, float], b: Tuple[float, float], c: Tuple[float, float],
+) -> Tuple[float, float]:
+    """``(a × b) × c`` in 2D."""
+    ac = _dot2(a, c)
+    bc = _dot2(b, c)
+    return (ac * b[0] - bc * a[0], ac * b[1] - bc * a[1])
+
+
+def _gjk_evolve(
+    simplex: List[Tuple[float, float]],
+) -> Tuple[bool, Tuple[float, float]]:
+    """One GJK simplex step. Returns ``(contains_origin, search_direction)``."""
+    a = simplex[-1]
+    ao = (-a[0], -a[1])
+    if len(simplex) == 2:
+        b = simplex[0]
+        ab = (b[0] - a[0], b[1] - a[1])
+        if _dot2(ab, ao) > 0.0:
+            return False, _triple2(ab, ao, ab)
+        simplex[:] = [a]
+        return False, ao
+    c = simplex[0]
+    b = simplex[1]
+    ab = (b[0] - a[0], b[1] - a[1])
+    ac = (c[0] - a[0], c[1] - a[1])
+    ab_perp = _triple2(ac, ab, ab)
+    ac_perp = _triple2(ab, ac, ac)
+    if _dot2(ab_perp, ao) > 0.0:
+        simplex[:] = [b, a]
+        return False, ab_perp
+    if _dot2(ac_perp, ao) > 0.0:
+        simplex[:] = [c, a]
+        return False, ac_perp
+    return True, (0.0, 0.0)
+
+
+def _closest_on_simplex(
+    simplex: Sequence[Tuple[float, float]],
+) -> Tuple[float, float]:
+    """Point of ``simplex`` closest to the origin."""
+    if not simplex:
+        return (0.0, 0.0)
+    if len(simplex) == 1:
+        return simplex[0]
+    a, b = simplex[0], simplex[-1]
+    ab = (b[0] - a[0], b[1] - a[1])
+    denom = _dot2(ab, ab)
+    if denom < 1e-18:
+        return a
+    t = max(0.0, min(1.0, _dot2((-a[0], -a[1]), ab) / denom))
+    return (a[0] + ab[0] * t, a[1] + ab[1] * t)
+
+
+def _gjk(
+    pas: Sequence[Prim], pbs: Sequence[Prim],
+) -> Tuple[bool, List[Tuple[float, float]], Tuple[float, float], Tuple[float, float]]:
+    """Intersection test.
+
+    The third value is the closest Minkowski point when the shapes are
+    separated. The fourth is the last search direction, pointing from that
+    point toward the origin (from A toward B).
+    """
+    d = (1.0, 0.0)
+    simplex: List[Tuple[float, float]] = [_md_support(pas, pbs, d[0], d[1])]
+    d = (-simplex[0][0], -simplex[0][1])
+    prev = d
+    for _ in range(_TOI_ADVANCE_ITERS):
+        if _dot2(d, d) < 1e-24:
+            return True, simplex, (0.0, 0.0), prev
+        prev = d
+        a = _md_support(pas, pbs, d[0], d[1])
+        if _dot2(a, d) < 0.0:
+            return False, simplex, _closest_on_simplex(simplex), d
+        simplex.append(a)
+        contains, d = _gjk_evolve(simplex)
+        if _dot2(d, d) < 1e-24 and len(simplex) == 2:
+            # Supports landed on one line through the origin, so the next
+            # search direction vanished before a triangle existed. Probe the
+            # perpendicular or EPA never runs and the normal stays on that axis.
+            ex = simplex[1][0] - simplex[0][0]
+            ey = simplex[1][1] - simplex[0][1]
+            px, py = -ey, ex
+            ln = math.hypot(px, py)
+            if ln >= 1e-12:
+                px, py = px / ln, py / ln
+                simplex.append(_md_support(pas, pbs, px, py))
+                contains, d = _gjk_evolve(simplex)
+                prev = (px, py)
+        if contains or _dot2(d, d) < 1e-24:
+            return True, simplex, (0.0, 0.0), prev
+    return False, simplex, _closest_on_simplex(simplex), d
+
+
+def _epa(
+    pas: Sequence[Prim], pbs: Sequence[Prim], simplex: List[Tuple[float, float]],
+) -> Optional[Tuple[Tuple[float, float], float]]:
+    """Penetration normal (from A toward B) and depth. ``None`` if it does not converge."""
+    poly = [p for p in simplex if p is not None]
+    if len(poly) < 3:
+        return None
+    if _signed_area(poly) < 0.0:
+        poly.reverse()
+    best_n = (1.0, 0.0)
+    best_d = 0.0
+    for _ in range(_TOI_ADVANCE_ITERS):
+        n = len(poly)
+        best_d = 1e300
+        best_i = 0
+        best_n = (1.0, 0.0)
+        for i in range(n):
+            a = poly[i]
+            b = poly[(i + 1) % n]
+            ex, ey = b[0] - a[0], b[1] - a[1]
+            nx, ny = ey, -ex
+            ln = math.hypot(nx, ny)
+            if ln < 1e-12:
+                continue
+            nx /= ln
+            ny /= ln
+            dist = a[0] * nx + a[1] * ny
+            if dist < best_d:
+                best_d = dist
+                best_i = i
+                best_n = (nx, ny)
+        if best_d >= 1e299:
+            return None
+        support = _md_support(pas, pbs, best_n[0], best_n[1])
+        if support[0] * best_n[0] + support[1] * best_n[1] - best_d < 1e-4:
+            return best_n, max(0.0, best_d)
+        poly.insert(best_i + 1, support)
+    if best_d < 1e299:
+        return best_n, max(0.0, best_d)
+    return None
+
+
+def _gjk_epa_contact(pas: Sequence[Prim], pbs: Sequence[Prim]) -> Optional[Contact]:
+    """Overlap and penetration for any pair that includes an ellipse."""
+    if not pas or not pbs:
+        return None
+    hit, simplex, _closest, direction = _gjk(pas, pbs)
+    if not hit:
+        return None
+    pen = _epa(pas, pbs, simplex)
+    if pen is None:
+        # Overlapping but EPA did not finish: depth along the search direction
+        # (from A toward B). ``closest`` is the origin once GJK has entered.
+        nx, ny = direction
+        ln = math.hypot(nx, ny)
+        if ln < 1e-12:
+            nx, ny = 0.0, -1.0
+        else:
+            nx, ny = nx / ln, ny / ln
+        amin, amax = _project_prims(pas, nx, ny)
+        bmin, bmax = _project_prims(pbs, nx, ny)
+        depth = _axis_penetration(amin, amax, bmin, bmax)
+        if depth is None:
+            return None
+        pen = ((nx, ny), depth)
+    (nx, ny), depth = pen
+    pt = _synthesize_contact_point_from_prims(pas, pbs, nx, ny)
+    return Contact((nx, ny), depth, [pt])
+
+
+def _project_prims(
+    prims: Sequence[Prim], ax: float, ay: float,
+) -> Tuple[float, float]:
+    s_max = _prims_support(prims, ax, ay)
+    s_min = _prims_support(prims, -ax, -ay)
+    if s_max is None or s_min is None:
+        return 0.0, 0.0
+    return (
+        s_min[0] * ax + s_min[1] * ay,
+        s_max[0] * ax + s_max[1] * ay,
+    )
+
+
+def _gjk_epa_prims(pa: Prim, pb: Prim) -> Optional[Contact]:
+    return _gjk_epa_contact((pa,), (pb,))
+
+
+def _unit_direction(d: Tuple[float, float]) -> Tuple[float, float, float]:
+    """``(0, nx, ny)`` for a search direction. Down if the direction vanished."""
+    ln = math.hypot(d[0], d[1])
+    if ln < 1e-12:
+        return 0.0, 0.0, -1.0
+    return 0.0, d[0] / ln, d[1] / ln
+
+
+def _closest_on_hull_2d(
+    pts: List[Tuple[float, float]],
+) -> Tuple[Tuple[float, float], List[Tuple[float, float]]]:
+    """Closest point to the origin on the hull of <= 3 points, and the minimal
+    subset (vertex or edge) that carries it. Origin inside a triangle → (0, 0)."""
+    best = None
+    best_set: List[Tuple[float, float]] = []
+    for p in pts:
+        d = _dot2(p, p)
+        if best is None or d < best[0]:
+            best, best_set = (d, p), [p]
+    n = len(pts)
+    for i in range(n):
+        for j in range(i + 1, n):
+            a, b = pts[i], pts[j]
+            ab = (b[0] - a[0], b[1] - a[1])
+            den = _dot2(ab, ab)
+            if den < 1e-18:
+                continue
+            t = _dot2((-a[0], -a[1]), ab) / den
+            if 0.0 < t < 1.0:
+                q = (a[0] + ab[0] * t, a[1] + ab[1] * t)
+                d = _dot2(q, q)
+                if d < best[0]:
+                    best, best_set = (d, q), [a, b]
+    if n == 3:
+        a, b, c = pts
+        s1 = (b[0] - a[0]) * (-a[1]) - (b[1] - a[1]) * (-a[0])
+        s2 = (c[0] - b[0]) * (-b[1]) - (c[1] - b[1]) * (-b[0])
+        s3 = (a[0] - c[0]) * (-c[1]) - (a[1] - c[1]) * (-c[0])
+        if (s1 >= 0 and s2 >= 0 and s3 >= 0) or (s1 <= 0 and s2 <= 0 and s3 <= 0):
+            return (0.0, 0.0), list(pts)
+    return best[1], best_set
+
+
+def _gjk_refine_closest(
+    pas: Sequence[Prim], pbs: Sequence[Prim],
+    simplex: Sequence[Tuple[float, float]], start: Tuple[float, float],
+) -> Tuple[float, float]:
+    """GJK distance loop: closest point of A − B to the origin (separated case)."""
+    pts = [p for p in simplex if p is not None][-2:] or [start]
+    v, pts = _closest_on_hull_2d(pts)
+    for _ in range(_TOI_ADVANCE_ITERS):
+        vv = _dot2(v, v)
+        if vv < 1e-24:
+            return (0.0, 0.0)
+        w = _md_support(pas, pbs, -v[0], -v[1])
+        # No support point is closer along -v: v is the minimum (to tolerance).
+        if vv - _dot2(v, w) <= 1e-9 * max(vv, 1.0):
+            break
+        v, pts = _closest_on_hull_2d(pts + [w])
+    return v
+
+
+def _gjk_distance(
+    pas: Sequence[Prim], pbs: Sequence[Prim],
+) -> Tuple[float, float, float]:
+    """``(distance, nx, ny)`` with the normal pointing from A toward B.
+
+    Distance is 0 when the shapes overlap. The normal is still the penetration
+    direction: a sweep that steps just inside the surface has to slide on that
+    face, and a stand-in ``(1, 0)`` reads a floor as a wall.
+    """
+    hit, simplex, closest, direction = _gjk(pas, pbs)
+    if hit:
+        pen = _epa(pas, pbs, simplex)
+        if pen is not None:
+            (nx, ny), _depth = pen
+            return 0.0, nx, ny
+        return _unit_direction(direction)
+    # ``_gjk`` stops as soon as separation is PROVEN; its closest point belongs
+    # to an unfinished simplex and overestimates the gap. Conservative
+    # advancement needs a lower bound, so refine to the true minimum (D4).
+    closest = _gjk_refine_closest(pas, pbs, simplex, closest)
+    dist = math.hypot(closest[0], closest[1])
+    if dist < 1e-12:
+        return _unit_direction(direction)
+    # ``closest`` is a point of A−B, so it points from B toward A.
+    return dist, -closest[0] / dist, -closest[1] / dist
+
+
+def _toi_advance(
+    pas: Sequence[Prim], pbs: Sequence[Prim], dx: float, dy: float,
+):
+    """Conservative advancement for convex prims. ``_TOI_UNRESOLVED`` if it gives up."""
+    start = _narrow_any(pas, pbs)
+    if start is not None:
+        return (0.0, start)
+    length = math.hypot(dx, dy)
+    if length < 1e-12:
+        return None
+    ux, uy = dx / length, dy / length
+    traveled = 0.0
+    for _ in range(_TOI_ADVANCE_ITERS):
+        moved = pas if traveled < 1e-12 else _copy_translate(pas, ux * traveled, uy * traveled)
+        dist, nx, ny = _gjk_distance(moved, pbs)
+        if dist < 1e-3:
+            t = min(1.0, traveled / length)
+            return (t, Contact((nx, ny), 0.0, []))
+        closing = ux * nx + uy * ny
+        if closing <= 1e-6:
+            return None
+        advance = 0.8 * dist / closing
+        if advance < 1e-4:
+            t = min(1.0, traveled / length)
+            return (t, Contact((nx, ny), 0.0, []))
+        if traveled + advance >= length - 1e-6:
+            end = _copy_translate(pas, dx, dy)
+            if _narrow_any(end, pbs) is None and _gjk_distance(end, pbs)[0] > 1e-3:
+                return None
+            return _TOI_UNRESOLVED
+        traveled += advance
+    return _TOI_UNRESOLVED
+
+
+@dataclass
+class Contact:
+    normal: Tuple[float, float]  # from a → b
+    depth: float
+    points: List[Tuple[float, float]]
+
+
+def narrow_phase(pa: Prim, pb: Prim) -> Optional[Contact]:
+    ka, kb = pa.kind, pb.kind
+
+    # --- Layer 1 fast paths ---
+    if ka == PrimKind.CIRCLE and kb == PrimKind.CIRCLE:
+        return _circle_circle(pa.params, pb.params)
+    if ka == PrimKind.CIRCLE and kb == PrimKind.AABB:
+        return _circle_aabb(pa.params, pb.params)
+    if ka == PrimKind.AABB and kb == PrimKind.CIRCLE:
+        c = _circle_aabb(pb.params, pa.params)
+        return _flip_contact(c) if c else None
+    if ka == PrimKind.AABB and kb == PrimKind.AABB:
+        return _aabb_aabb(pa.params, pb.params)
+
+    # --- Layer 2: promote to polygon (or circle/ellipse support) via SAT ---
+    return _sat_prims(pa, pb)
+
+
+def _flip_contact(c: Optional[Contact]) -> Optional[Contact]:
+    if c is None:
+        return None
+    return Contact((-c.normal[0], -c.normal[1]), c.depth, list(c.points))
+
+
+def _circle_circle(a, b) -> Optional[Contact]:
+    ax, ay, ar = a[0], a[1], a[2]
+    bx, by, br = b[0], b[1], b[2]
+    dx, dy = bx - ax, by - ay
+    dist = math.hypot(dx, dy)
+    rsum = ar + br
+    if dist > rsum + 1e-9:
+        return None
+    if dist < 1e-12:
+        # Concentric — pick +x
+        return Contact((1.0, 0.0), rsum, [(ax, ay)])
+    nx, ny = dx / dist, dy / dist
+    depth = rsum - dist
+    px = ax + nx * ar
+    py = ay + ny * ar
+    return Contact((nx, ny), depth, [(px, py)])
+
+
+def _circle_aabb(cparams, bparams) -> Optional[Contact]:
+    cx, cy, r = cparams[0], cparams[1], cparams[2]
+    minx, miny, maxx, maxy = bparams[0], bparams[1], bparams[2], bparams[3]
+    qx = min(max(cx, minx), maxx)
+    qy = min(max(cy, miny), maxy)
+    dx, dy = cx - qx, cy - qy
+    d2 = dx * dx + dy * dy
+    if d2 > r * r + 1e-9:
+        return None
+    if d2 > 1e-12:
+        dist = math.sqrt(d2)
+        # Normal from AABB toward circle center (circle is A in circle_aabb call —
+        # wait: narrow_phase calls _circle_aabb(pa, pb) with pa=circle, pb=aabb.
+        # Normal should be from a(circle) → b(aabb), i.e. from circle into box =
+        # toward the box from circle = -direction from closest to center.
+        nx, ny = -dx / dist, -dy / dist
+        depth = r - dist
+        return Contact((nx, ny), depth, [(qx, qy)])
+    # Center inside AABB: push out along smallest penetration
+    left = cx - minx
+    right = maxx - cx
+    bottom = cy - miny
+    top = maxy - cy
+    m = min(left, right, bottom, top)
+    if m == left:
+        return Contact((1.0, 0.0), r + left, [(minx, cy)])
+    if m == right:
+        return Contact((-1.0, 0.0), r + right, [(maxx, cy)])
+    if m == bottom:
+        return Contact((0.0, 1.0), r + bottom, [(cx, miny)])
+    return Contact((0.0, -1.0), r + top, [(cx, maxy)])
+
+
+def _aabb_aabb(a, b) -> Optional[Contact]:
+    aminx, aminy, amaxx, amaxy = a[0], a[1], a[2], a[3]
+    bminx, bminy, bmaxx, bmaxy = b[0], b[1], b[2], b[3]
+    if aminx > bmaxx or bminx > amaxx or aminy > bmaxy or bminy > amaxy:
+        return None
+    pen_x = _axis_penetration(aminx, amaxx, bminx, bmaxx)
+    pen_y = _axis_penetration(aminy, amaxy, bminy, bmaxy)
+    if pen_x is None or pen_y is None:
+        return None
+    acx = (aminx + amaxx) * 0.5
+    bcx = (bminx + bmaxx) * 0.5
+    acy = (aminy + amaxy) * 0.5
+    bcy = (bminy + bmaxy) * 0.5
+    va = [(aminx, aminy), (amaxx, aminy), (amaxx, amaxy), (aminx, amaxy)]
+    vb = [(bminx, bminy), (bmaxx, bminy), (bmaxx, bmaxy), (bminx, bmaxy)]
+    if pen_x < pen_y:
+        nx = 1.0 if bcx >= acx else -1.0
+        return Contact((nx, 0.0), pen_x, _poly_contact_points(va, vb, nx, 0.0))
+    ny = 1.0 if bcy >= acy else -1.0
+    return Contact((0.0, ny), pen_y, _poly_contact_points(va, vb, 0.0, ny))
+
+
+def _prim_as_poly(p: Prim) -> List[Tuple[float, float]]:
+    if p.kind == PrimKind.POLY and p.verts:
+        return list(p.verts)
+    if p.kind == PrimKind.AABB:
+        minx, miny, maxx, maxy = p.params[0], p.params[1], p.params[2], p.params[3]
+        return [(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy)]
+    if p.kind == PrimKind.OBB:
+        cx, cy, hw, hh, ang = p.params[0], p.params[1], p.params[2], p.params[3], p.params[4]
+        return _obb_corners(cx, cy, hw, hh, ang)
+    if p.kind == PrimKind.CIRCLE:
+        # Approximate only if forced into SAT with non-circle; prefer support-based.
+        return []
+    if p.kind == PrimKind.ELLIPSE:
+        return []
+    return []
+
+
+def _project_poly(verts: Sequence[Tuple[float, float]], ax: float, ay: float) -> Tuple[float, float]:
+    dots = [vx * ax + vy * ay for vx, vy in verts]
+    return min(dots), max(dots)
+
+
+def _project_circle(cx: float, cy: float, r: float, ax: float, ay: float) -> Tuple[float, float]:
+    c = cx * ax + cy * ay
+    return c - r, c + r
+
+
+def _project_ellipse(cx: float, cy: float, rx: float, ry: float, ang: float, ax: float, ay: float) -> Tuple[float, float]:
+    # Support: transform axis into ellipse local frame, then rx/ry scale.
+    c, s = math.cos(ang), math.sin(ang)
+    # World axis (ax, ay) → local: R^T * axis
+    lx = ax * c + ay * s
+    ly = -ax * s + ay * c
+    # Support extent in local = hypot(rx*lx, ry*ly) for unit direction of (lx,ly) scaled
+    extent = math.hypot(rx * lx, ry * ly)
+    mid = cx * ax + cy * ay
+    return mid - extent, mid + extent
+
+
+def _orient_sat_axis(ax: float, ay: float, dx: float, dy: float) -> Tuple[float, float]:
+    """Point ``(ax, ay)`` from a toward b using center delta ``(dx, dy)``."""
+    if dx * ax + dy * ay < 0.0:
+        return (-ax, -ay)
+    return (ax, ay)
+
+
+def _select_sat_mtv(
+    scored: Sequence[Tuple[float, float, float]],
+    acx: float,
+    acy: float,
+    bcx: float,
+    bcy: float,
+) -> Tuple[Tuple[float, float], float]:
+    """Classic SAT: the axis with the smallest overlap is the MTV."""
+    if not scored:
+        return (1.0, 0.0), 0.0
+    merged: Dict[Tuple[float, float], float] = {}
+    for ax, ay, ov in scored:
+        nlen = math.hypot(ax, ay)
+        if nlen < 1e-12:
+            continue
+        ax /= nlen
+        ay /= nlen
+        if ax < 0.0 or (ax == 0.0 and ay < 0.0):
+            ax, ay = -ax, -ay
+        key = (round(ax, 5), round(ay, 5))
+        prev = merged.get(key)
+        if prev is None or ov < prev:
+            merged[key] = ov
+    items = [(k[0], k[1], ov) for k, ov in merged.items()]
+    if not items:
+        return (1.0, 0.0), 0.0
+    dx, dy = bcx - acx, bcy - acy
+    ax, ay, ov = min(items, key=lambda t: t[2])
+    return _orient_sat_axis(ax, ay, dx, dy), ov
+
+
+def _axes_from_poly(verts: Sequence[Tuple[float, float]]) -> List[Tuple[float, float]]:
+    axes = []
+    n = len(verts)
+    for i in range(n):
+        x1, y1 = verts[i]
+        x2, y2 = verts[(i + 1) % n]
+        ex, ey = x2 - x1, y2 - y1
+        # outward normal (perpendicular)
+        nx, ny = -ey, ex
+        length = math.hypot(nx, ny)
+        if length < 1e-12:
+            continue
+        axes.append((nx / length, ny / length))
+    return axes
+
+
+def _sat_prims(pa: Prim, pb: Prim) -> Optional[Contact]:
+    """SAT between two prims; circle/ellipse use closed-form projection."""
+    if pa.kind == PrimKind.ELLIPSE or pb.kind == PrimKind.ELLIPSE:
+        return _gjk_epa_prims(pa, pb)
+    # Special: circle vs anything poly-like
+    if pa.kind == PrimKind.CIRCLE and pb.kind in (PrimKind.OBB, PrimKind.POLY, PrimKind.AABB, PrimKind.ELLIPSE):
+        return _sat_circle_vs(pa, pb)
+    if pb.kind == PrimKind.CIRCLE and pa.kind in (PrimKind.OBB, PrimKind.POLY, PrimKind.AABB, PrimKind.ELLIPSE):
+        return _flip_contact(_sat_circle_vs(pb, pa))
+
+    if pa.kind == PrimKind.ELLIPSE or pb.kind == PrimKind.ELLIPSE:
+        return _sat_with_ellipse(pa, pb)
+
+    va = _prim_as_poly(pa)
+    vb = _prim_as_poly(pb)
+    if len(va) < 3 or len(vb) < 3:
+        return None
+    return _sat_polygons(va, vb)
+
+
+def _sat_circle_vs(circle: Prim, other: Prim) -> Optional[Contact]:
+    cx, cy, r = circle.params[0], circle.params[1], circle.params[2]
+    if other.kind == PrimKind.ELLIPSE:
+        return _circle_ellipse(circle.params, other.params)
+    verts = _prim_as_poly(other)
+    if len(verts) < 3:
+        return None
+    axes = _axes_from_poly(verts)
+    # Also axis from closest vertex / closest point toward center
+    closest = min(verts, key=lambda p: _sq(p[0] - cx) + _sq(p[1] - cy))
+    dx, dy = cx - closest[0], cy - closest[1]
+    dlen = math.hypot(dx, dy)
+    if dlen > 1e-12:
+        axes.append((dx / dlen, dy / dlen))
+
+    scored: List[Tuple[float, float, float]] = []
+    ocx = sum(v[0] for v in verts) / len(verts)
+    ocy = sum(v[1] for v in verts) / len(verts)
+    for ax, ay in axes:
+        amin, amax = _project_circle(cx, cy, r, ax, ay)
+        bmin, bmax = _project_poly(verts, ax, ay)
+        pen = _axis_penetration(amin, amax, bmin, bmax)
+        if pen is None:
+            return None
+        scored.append((ax, ay, pen))
+    best_axis, min_overlap = _select_sat_mtv(scored, cx, cy, ocx, ocy)
+
+    # Contact point: closest point on polygon to circle center, clamped
+    qx, qy = _closest_point_on_poly(cx, cy, verts)
+    return Contact(best_axis, min_overlap, [(qx, qy)])
+
+
+def _closest_point_on_poly(px: float, py: float, verts: Sequence[Tuple[float, float]]) -> Tuple[float, float]:
+    """Closest point on the polygon *boundary* (never an interior point)."""
+    best = verts[0]
+    best_d = float("inf")
+    n = len(verts)
+    for i in range(n):
+        ax, ay = verts[i]
+        bx, by = verts[(i + 1) % n]
+        qx, qy = _closest_point_on_segment(px, py, ax, ay, bx, by)
+        d = _sq(qx - px) + _sq(qy - py)
+        if d < best_d:
+            best_d = d
+            best = (qx, qy)
+    return best
+
+
+def _closest_point_on_segment(px, py, ax, ay, bx, by):
+    abx, aby = bx - ax, by - ay
+    t = ((px - ax) * abx + (py - ay) * aby)
+    denom = abx * abx + aby * aby
+    if denom < 1e-18:
+        return ax, ay
+    t /= denom
+    t = max(0.0, min(1.0, t))
+    return ax + t * abx, ay + t * aby
+
+
+def _point_in_polygon_xy(x: float, y: float, verts: Sequence[Tuple[float, float]]) -> bool:
+    inside = False
+    n = len(verts)
+    j = n - 1
+    for i in range(n):
+        xi, yi = verts[i]
+        xj, yj = verts[j]
+        if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi + 1e-30) + xi):
+            inside = not inside
+        j = i
+    return inside
+
+
+def _circle_ellipse(cparams, eparams) -> Optional[Contact]:
+    # Approximate via SAT with ellipse support + circle; axes from ellipse local x/y.
+    cx, cy, r = cparams[0], cparams[1], cparams[2]
+    ex, ey, rx, ry, ang = eparams[0], eparams[1], eparams[2], eparams[3], eparams[4]
+    c, s = math.cos(ang), math.sin(ang)
+    axes = [(c, s), (-s, c)]
+    # Also axis between centers
+    dx, dy = ex - cx, ey - cy
+    dlen = math.hypot(dx, dy)
+    if dlen > 1e-12:
+        axes.append((dx / dlen, dy / dlen))
+    scored: List[Tuple[float, float, float]] = []
+    for ax, ay in axes:
+        amin, amax = _project_circle(cx, cy, r, ax, ay)
+        bmin, bmax = _project_ellipse(ex, ey, rx, ry, ang, ax, ay)
+        pen = _axis_penetration(amin, amax, bmin, bmax)
+        if pen is None:
+            return None
+        scored.append((ax, ay, pen))
+    best, min_overlap = _select_sat_mtv(scored, cx, cy, ex, ey)
+    # Point on the circle, then back along the MTV onto the ellipse surface.
+    reach = max(0.0, r - min_overlap)
+    return Contact(best, min_overlap, [(cx + best[0] * reach, cy + best[1] * reach)])
+
+
+def _sat_with_ellipse(pa: Prim, pb: Prim) -> Optional[Contact]:
+    def project(p: Prim, ax: float, ay: float):
+        if p.kind == PrimKind.ELLIPSE:
+            return _project_ellipse(p.params[0], p.params[1], p.params[2], p.params[3], p.params[4], ax, ay)
+        if p.kind == PrimKind.CIRCLE:
+            return _project_circle(p.params[0], p.params[1], p.params[2], ax, ay)
+        verts = _prim_as_poly(p)
+        return _project_poly(verts, ax, ay)
+
+    def center(p: Prim):
+        if p.kind in (PrimKind.ELLIPSE, PrimKind.CIRCLE, PrimKind.OBB):
+            return p.params[0], p.params[1]
+        if p.kind == PrimKind.AABB:
+            return (p.params[0] + p.params[2]) * 0.5, (p.params[1] + p.params[3]) * 0.5
+        verts = _prim_as_poly(p)
+        return sum(v[0] for v in verts) / len(verts), sum(v[1] for v in verts) / len(verts)
+
+    acx, acy = center(pa)
+    bcx, bcy = center(pb)
+
+    # Build candidate axes from the non-ellipse side's edge normals (or both
+    # ellipses' local axes), plus a closest-vertex axis toward the opposite
+    # body's center for each polygon side — same corner-detection technique
+    # used in `_sat_circle_vs`. Without it, a rounded body (ellipse) near a
+    # box corner/end only has the two face normals as candidates, so SAT can
+    # pick a face axis whose overlap happens to be smaller than the true
+    # corner overlap (thin-slab side hit mistaken for a face hit).
+    axes: List[Tuple[float, float]] = []
+    for p, (ox, oy) in ((pa, (bcx, bcy)), (pb, (acx, acy))):
+        if p.kind == PrimKind.ELLIPSE:
+            ang = p.params[4]
+            c, s = math.cos(ang), math.sin(ang)
+            axes.append((c, s))
+            axes.append((-s, c))
+        else:
+            if p.kind == PrimKind.CIRCLE:
+                return _sat_circle_vs(p if p is pa else pb, pb if p is pa else pa)
+            verts = _prim_as_poly(p)
+            axes.extend(_axes_from_poly(verts))
+            if verts:
+                closest = min(verts, key=lambda v: _sq(v[0] - ox) + _sq(v[1] - oy))
+                dx, dy = ox - closest[0], oy - closest[1]
+                dlen = math.hypot(dx, dy)
+                if dlen > 1e-12:
+                    axes.append((dx / dlen, dy / dlen))
+
+    scored: List[Tuple[float, float, float]] = []
+    for ax, ay in axes:
+        amin, amax = project(pa, ax, ay)
+        bmin, bmax = project(pb, ax, ay)
+        pen = _axis_penetration(amin, amax, bmin, bmax)
+        if pen is None:
+            return None
+        scored.append((ax, ay, pen))
+    best, min_overlap = _select_sat_mtv(scored, acx, acy, bcx, bcy)
+    pts = _ellipse_contact_points(pa, pb, best[0], best[1])
+    return Contact(best, min_overlap, pts)
+
+
+def _ellipse_support(
+    cx: float, cy: float, rx: float, ry: float, ang: float, ax: float, ay: float,
+) -> Tuple[float, float]:
+    c, s = math.cos(ang), math.sin(ang)
+    lx = ax * c + ay * s
+    ly = -ax * s + ay * c
+    denom = math.hypot(rx * lx, ry * ly)
+    if denom < 1e-12:
+        return cx, cy
+    slx = (rx * rx * lx) / denom
+    sly = (ry * ry * ly) / denom
+    return cx + slx * c - sly * s, cy + slx * s + sly * c
+
+
+def _ellipse_contact_points(
+    pa: Prim, pb: Prim, nx: float, ny: float,
+) -> List[Tuple[float, float]]:
+    """Contact on a polygon face when one exists; else ellipse support along MTV."""
+    for poly, ellipse in ((pa, pb), (pb, pa)):
+        if poly.kind in (PrimKind.AABB, PrimKind.OBB, PrimKind.POLY) and ellipse.kind == PrimKind.ELLIPSE:
+            verts = _prim_as_poly(poly)
+            if len(verts) >= 3:
+                ecx, ecy = ellipse.params[0], ellipse.params[1]
+                return [_closest_point_on_poly(ecx, ecy, verts)]
+    # Two ellipses (or degenerate): support of A along n, on A's skin.
+    if pa.kind == PrimKind.ELLIPSE:
+        p = pa.params
+        return [_ellipse_support(p[0], p[1], p[2], p[3], p[4], nx, ny)]
+    if pb.kind == PrimKind.ELLIPSE:
+        p = pb.params
+        return [_ellipse_support(p[0], p[1], p[2], p[3], p[4], -nx, -ny)]
+    return [((pa.params[0] + pb.params[0]) * 0.5, (pa.params[1] + pb.params[1]) * 0.5)]
+
+
+def _support_face(verts: Sequence[Tuple[float, float]], nx: float, ny: float) -> int:
+    """Index of the edge that lies on the supporting plane in direction ``n``."""
+    n = len(verts)
+    dots = [vx * nx + vy * ny for vx, vy in verts]
+    imax = 0
+    best = dots[0]
+    for i in range(1, n):
+        if dots[i] > best:
+            best = dots[i]
+            imax = i
+    i_prev = (imax - 1) % n
+    i_next = (imax + 1) % n
+    if dots[i_prev] > dots[i_next]:
+        return i_prev
+    return imax
+
+
+def _clip_segment(
+    pts: Sequence[Tuple[float, float]],
+    nx: float,
+    ny: float,
+    offset: float,
+) -> List[Tuple[float, float]]:
+    """Keep the portion of a 1- or 2-point chain where ``n·p <= offset``."""
+    if not pts:
+        return []
+    if len(pts) == 1:
+        d = nx * pts[0][0] + ny * pts[0][1] - offset
+        return list(pts) if d <= 1e-9 else []
+    p1, p2 = pts[0], pts[1]
+    d1 = nx * p1[0] + ny * p1[1] - offset
+    d2 = nx * p2[0] + ny * p2[1] - offset
+    out: List[Tuple[float, float]] = []
+    if d1 <= 0.0:
+        out.append(p1)
+    if d1 * d2 < 0.0:
+        t = d1 / (d1 - d2)
+        out.append((p1[0] + t * (p2[0] - p1[0]), p1[1] + t * (p2[1] - p1[1])))
+    if d2 <= 0.0:
+        out.append(p2)
+    return out
+
+
+def _project_on_plane(
+    p: Tuple[float, float],
+    origin: Tuple[float, float],
+    nx: float,
+    ny: float,
+) -> Tuple[float, float]:
+    sep = nx * (p[0] - origin[0]) + ny * (p[1] - origin[1])
+    return (p[0] - sep * nx, p[1] - sep * ny)
+
+
+def _poly_contact_points(
+    va: Sequence[Tuple[float, float]],
+    vb: Sequence[Tuple[float, float]],
+    nx: float,
+    ny: float,
+) -> List[Tuple[float, float]]:
+    """Incident-face clip: contact(s) on the reference face, not body centers.
+
+    The more-aligned SAT face is the reference. The incident edge is clipped
+    against that face's side planes and projected onto it — a face-face hit
+    yields two clip points whose centroid (``CollisionInfo.point``) sits on
+    the shared surface. Side hits on a wide rect land on the vertical face
+    instead of halfway between the two centroids.
+    """
+    if len(va) < 2 or len(vb) < 2:
+        return [((va[0][0] + vb[0][0]) * 0.5, (va[0][1] + vb[0][1]) * 0.5)]
+
+    ia = _support_face(va, nx, ny)
+    ib = _support_face(vb, -nx, -ny)
+
+    def _align(verts, i, ax, ay) -> float:
+        n = len(verts)
+        x1, y1 = verts[i]
+        x2, y2 = verts[(i + 1) % n]
+        ex, ey = x2 - x1, y2 - y1
+        fnx, fny = ey, -ex
+        ln = math.hypot(fnx, fny)
+        if ln < 1e-12:
+            return 0.0
+        fnx /= ln
+        fny /= ln
+        return abs(fnx * ax + fny * ay)
+
+    da = _align(va, ia, nx, ny)
+    db = _align(vb, ib, -nx, -ny)
+    if da >= db:
+        ref, inc = va, vb
+        ref_i = ia
+        rnx, rny = nx, ny
+    else:
+        ref, inc = vb, va
+        ref_i = ib
+        rnx, rny = -nx, -ny
+
+    nref = len(ref)
+    ninc = len(inc)
+    v1 = ref[ref_i]
+    v2 = ref[(ref_i + 1) % nref]
+    inc_i = _support_face(inc, -rnx, -rny)
+    i1 = inc[inc_i]
+    i2 = inc[(inc_i + 1) % ninc]
+
+    tx, ty = v2[0] - v1[0], v2[1] - v1[1]
+    tlen = math.hypot(tx, ty)
+    if tlen < 1e-12:
+        return [_project_on_plane(i1, v1, rnx, rny)]
+    tx /= tlen
+    ty /= tlen
+
+    pts = _clip_segment((i1, i2), -tx, -ty, -tx * v1[0] - ty * v1[1])
+    pts = _clip_segment(pts, tx, ty, tx * v2[0] + ty * v2[1])
+
+    out: List[Tuple[float, float]] = []
+    offset = rnx * v1[0] + rny * v1[1]
+    for p in pts:
+        sep = rnx * p[0] + rny * p[1] - offset
+        if sep <= 1e-4:
+            out.append((p[0] - sep * rnx, p[1] - sep * rny))
+    if out:
+        return out
+    return [_project_on_plane(i1, v1, rnx, rny)]
+
+
+def _sat_polygons(va: Sequence[Tuple[float, float]], vb: Sequence[Tuple[float, float]]) -> Optional[Contact]:
+    axes = _axes_from_poly(va) + _axes_from_poly(vb)
+    scored: List[Tuple[float, float, float]] = []
+    acx = sum(v[0] for v in va) / len(va)
+    acy = sum(v[1] for v in va) / len(va)
+    bcx = sum(v[0] for v in vb) / len(vb)
+    bcy = sum(v[1] for v in vb) / len(vb)
+    for ax, ay in axes:
+        amin, amax = _project_poly(va, ax, ay)
+        bmin, bmax = _project_poly(vb, ax, ay)
+        pen = _axis_penetration(amin, amax, bmin, bmax)
+        if pen is None:
+            return None
+        scored.append((ax, ay, pen))
+    best, min_overlap = _select_sat_mtv(scored, acx, acy, bcx, bcy)
+    return Contact(best, min_overlap, _poly_contact_points(va, vb, best[0], best[1]))
+
+
+# ---------------------------------------------------------------------------
+# Collider
+# ---------------------------------------------------------------------------
+
+def _shape_layer_name(shape) -> Optional[Union[str, int]]:
+    name = getattr(shape, "layer", None)
+    if name is None:
+        name = getattr(shape, "_layer", None)
+    return name
+
+
+def _collision_layer_error(shape):
+    """``(exception class, message)`` when ``shape`` cannot enroll, else None.
+
+    A missing layer is allowed (same as enrollment, which only rejects a layer
+    it can see). Does not follow a hitbox part to its host — callers that
+    name the host pass the host.
+    """
+    try:
+        from .canvas import ScenaCanvas
+        from .registry import ParallaxLayerError, UiLayerError, normalize_layer_name, UI_LAYER
+
+        registry = ScenaCanvas.get_current().registry
+    except Exception:
+        return None
+    raw = _shape_layer_name(shape)
+    name = normalize_layer_name(raw)
+    if name is None:
+        return None
+    if name == UI_LAYER:
+        return (
+            UiLayerError,
+            f"Cannot enroll {shape!r} in collision: layer 'ui' is "
+            f"view-space (no collision)",
+        )
+    layer = registry.layers.get(name)
+    if layer is not None and not layer._is_neutral_response:
+        return (
+            ParallaxLayerError,
+            f"Cannot enroll {shape!r} in collision: layer {name!r} is a "
+            f"parallax layer (decoration-only; no hit-testing or collision)",
+        )
+    return None
+
+
+def _on_collision_layer(shape) -> bool:
+    """False for ``ui`` and parallax. A hitbox part follows its host's layer."""
+    subject = shape
+    if getattr(type(shape), "_is_hitbox_part", False):
+        ref = getattr(shape, "_host_ref", None)
+        host = ref() if callable(ref) else None
+        if host is not None:
+            subject = host
+    return _collision_layer_error(subject) is None
+
+
+def _assert_shapes_not_parallax(shapes: Sequence[Any]) -> None:
+    """Raise :class:`ParallaxLayerError` if any shape lives on a non-neutral layer.
+
+    Validation only — no registry or collider mutation. Used before any
+    enrollment so mixed lists / @collide decoration stay all-or-nothing.
+    """
+    for shape in shapes:
+        if shape is None:
+            continue
+        problem = _collision_layer_error(shape)
+        if problem is not None:
+            exc, msg = problem
+            raise exc(msg)
+
+
+def _has_query_geometry(item) -> bool:
+    """True when ``item`` can produce collision prims.
+
+    A bare ``Entity`` (director, spawner) has no body. Enrollment does not
+    filter those either — it just builds an empty proxy — but a named query
+    should not allocate a collider for one. ``Text`` is a Graphic with empty
+    prims; it is allowed through and then fails the proxy refresh.
+    """
+    if getattr(type(item), "_is_hitbox_part", False):
+        return True
+    from .entity import Graphic
+    from .spatial_fx import SpatialFx
+    return isinstance(item, (Graphic, SpatialFx))
+
+
+def _is_query_actor(atom) -> bool:
+    """An object atom of the query ``group=`` grammar (not a tag string)."""
+    if isinstance(atom, Collider):
+        return True
+    if getattr(type(atom), "_is_hitbox_part", False):
+        return True
+    from .registry import GroupOperator
+    if isinstance(atom, GroupOperator):
+        return True
+    from .entity import Entity
+    return isinstance(atom, Entity)
+
+
+def _query_group_type_error(value) -> TypeError:
+    return TypeError(
+        "group= must be a tag string, group['tag'], an actor, ANYTHING, "
+        f"or a list of those; got {type(value).__name__} {value!r}. "
+        'Write group="enemies" or group=["enemies", "rocks"].'
+    )
+
+
+def _parse_query_atom(item):
+    """One ``group=`` atom. ``ANYTHING`` stays the sentinel."""
+    if item is ANYTHING:
+        return item
+    if isinstance(item, str):
+        if item == "":
+            raise ValueError(
+                'group= must be a non-empty tag. Write group="enemies".'
+            )
+        return item
+    if _is_query_actor(item):
+        return item
+    raise _query_group_type_error(item)
+
+
+def _parse_query_group(group) -> Optional[List[Any]]:
+    """Expand ``group=`` for queries.
+
+    ``None`` means the enrolled collision world (``group`` omitted, ``None``,
+    or ``ANYTHING``). A list — possibly empty — is the atoms to test.
+    ``list`` / ``tuple`` / ``set`` / ``frozenset`` are the same grammar.
+    """
+    if group is None or group is ANYTHING:
+        return None
+    if isinstance(group, str):
+        return [_parse_query_atom(group)]
+    if isinstance(group, (list, tuple, set, frozenset)):
+        return [_parse_query_atom(item) for item in group]
+    return [_parse_query_atom(group)]
+
+
+def _collect_entities_from_target(target) -> List[Any]:
+    """Collect Entity shapes implied by a pair-handler target (no enrollment)."""
+    if target is ANYTHING or isinstance(target, str):
+        # Tags / ANYTHING: members known at decorate time via group map is
+        # incomplete for live groups; tags are re-checked when members appear.
+        # Still validate currently-known group members for string tags.
+        if isinstance(target, str):
+            try:
+                from .canvas import ScenaCanvas
+                registry = ScenaCanvas.get_current().registry
+                return list(registry.list_by_groupid(target))
+            except Exception:
+                return []
+        return []
+    if isinstance(target, Collider):
+        return list(target.shapes)
+    from .registry import GroupOperator
+    from .entity import Entity
+    if isinstance(target, GroupOperator):
+        return list(target)
+    if isinstance(target, Entity):
+        return [target]
+    return []
+
+
+def _side_code(side) -> str:
+    """A resolve side as the author would type it in ``unresolve(...)``."""
+    if isinstance(side, str):
+        return f'"{side}"'
+    if side is ANYTHING:
+        return "ANYTHING"
+    if isinstance(side, Collider):
+        side = side._identity
+    from .entity import entity_label
+    return f"<{entity_label(side)}>"
+
+
+def resolve_calls_for(shape) -> List[str]:
+    """Argument lists of the standing ``resolve()`` pairs that enroll ``shape``.
+
+    Grouped by the side ``shape`` is on: ``('("heroi", ["plataforma", "parede"])',)``.
+    Feeds ``resolve…`` / ``unresolve…`` hints, which must name **every** pair —
+    ``unresolve("heroi", "plataforma")`` alone leaves a member enrolled via
+    ``"parede"``.
+    """
+    sys = _collision_system
+    c = getattr(shape, "_collider", None)
+    if sys is None or c is None:
+        return []
+    by_side: Dict[str, List[str]] = {}
+    for ta, tb, _tok, _only in sys._resolve_pairs:
+        for own, other in ((ta, tb), (tb, ta)):
+            if sys._collider_on_resolve_side(c, own):
+                partners = by_side.setdefault(_side_code(own), [])
+                code = _side_code(other)
+                if code not in partners:
+                    partners.append(code)
+    out = []
+    for own, partners in by_side.items():
+        rhs = partners[0] if len(partners) == 1 else "[" + ", ".join(partners) + "]"
+        out.append(f"({own}, {rhs})")
+    return out
+
+
+def _note_resolve_enroll_shapes(shapes) -> None:
+    """Eager persistent-driver enroll for standing ``resolve()`` sides."""
+    for shape in shapes:
+        note = getattr(shape, "_note_resolve_enroll", None)
+        if callable(note):
+            note()
+
+
+def _note_resolve_unenroll_shapes(shapes) -> None:
+    for shape in shapes:
+        note = getattr(shape, "_note_resolve_unenroll", None)
+        if callable(note):
+            note()
+
+
+def _sync_resolve_driver_for_collider(
+    sys: "CollisionSystem", collider: "Collider", group: Optional[str] = None,
+) -> None:
+    """Set/clear ``_resolve_enrolled`` from current resolve-pair membership.
+
+    ``group`` is the tag being joined (late join), named in a formula refusal.
+    """
+    want = sys._collider_in_resolve(collider)
+    for shape in collider.shapes:
+        have = getattr(shape, "_resolve_enrolled", False)
+        if want and not have:
+            note = getattr(shape, "_note_resolve_enroll", None)
+            if callable(note):
+                if group is not None:
+                    note(group)
+                else:
+                    note()
+        elif not want and have:
+            note = getattr(shape, "_note_resolve_unenroll", None)
+            if callable(note):
+                note()
+
+
+def _refuse_part_resolve_side(sys: "CollisionSystem", side) -> None:
+    """``resolve()`` moves bodies: a ``Hitbox`` part only detects.
+
+    A *group* a part answers for is fine — resolve uses its members' bodies.
+    """
+    if _is_part_side(side):
+        raise TypeError(
+            f"resolve() does not take a hitbox part ({side!r}); parts only detect. "
+            f"Resolve the sprite itself: resolve(sprite, ...) uses its body hitbox."
+        )
+
+
+def _tag_is_resolve_side(sys: "CollisionSystem", tag: str) -> bool:
+    for a, b, _tok, _only in sys._resolve_pairs:
+        if sys._pair_tag_of(a) == tag or sys._pair_tag_of(b) == tag:
+            return True
+    return False
+
+
+def _assert_target_not_parallax(target) -> None:
+    """Validate all Entities currently implied by a pair target."""
+    _assert_shapes_not_parallax(_collect_entities_from_target(target))
+
+
+class Collider:
+    """Several shapes that collide as one body.
+
+    ``body = Collider([torso, head])`` makes one collision participant out of
+    the pieces: ``@collide(body, "bolt")`` fires once for the body, and the
+    handler's ``me`` is the Collider, not the piece that was hit. The pieces
+    keep drawing and moving on their own; the Collider only joins them for
+    collision. A single shape needs no Collider: name it in ``@collide`` /
+    ``resolve`` directly.
+
+    Engine notes: overlap tests run only for declared relations (``@collide`` /
+    ``resolve`` pair targets, or ``ANYTHING``); categories are the shapes'
+    ``group`` tags; parallax layers are refused before any registry change.
+    Enrollment builds an implicit Collider per shape (engine keywords
+    ``_identity_shape`` / ``_register`` / ``_bind``, not author API).
+
+    Args:
+        shapes: The shapes that make up the body (a list; one shape is accepted
+            too).
+
+    Attributes:
+        shapes: The live pieces (destroyed ones drop out).
+        on_collide: Called on the first frame of contact with anything:
+            ``fn(me, other, info)``.
+        on_collide_stay: Called on each following frame of contact.
+        on_collide_exit: Called when the contact ends.
+    """
+
+    __slots__ = (
+        "_shapes",
+        "_pair_targets",
+        "on_collide",
+        "on_collide_stay",
+        "on_collide_exit",
+        "_identity_shape",
+        "_system",
+        "_poly_cache",
+        "_snap_cache",
+        "_tags_cache",
+        "_proxy",
+        "_proxy_key",
+        "_proxy_valid",
+        "_world_prims",
+        "_world_key",
+        "_motion_dx",
+        "_motion_dy",
+        "_motion_translation",
+        "_pending_motion_dx",
+        "_pending_motion_dy",
+        "_proxy_start",
+        "_thick2",
+        "_resolved_aabb",
+        "_in_resolve",
+        "_part",
+        "__weakref__",
+    )
+
+    def __init__(
+        self,
+        shapes,
+        *,
+        _identity_shape=None,
+        _register: bool = True,
+        _bind: bool = True,
+    ):
+        identity = _identity_shape
+        if shapes is None:
+            raise TypeError("Collider requires at least one shape")
+        if not isinstance(shapes, (list, tuple)):
+            shapes = [shapes]
+        if not shapes:
+            raise TypeError("Collider requires at least one shape")
+        # Validate *before* any mutation (all-or-nothing).
+        from .entity import Entity
+        for s in shapes:
+            if not (isinstance(s, Entity) or getattr(type(s), "_is_hitbox_part", False)):
+                # Value shown only for None / numbers (no object reprs in messages).
+                simple = s is None or isinstance(s, (int, float, complex))
+                shown = f" {s!r}" if simple else ""
+                raise TypeError(
+                    "Collider pieces must be shapes or sprites; "
+                    f"got {type(s).__name__}{shown}. Write Collider([torso, head])."
+                )
+        if _register:
+            # A registered collider is a body; an unregistered one is a query
+            # probe (``test_collision`` / ``collides_with`` on a part are fine).
+            from .entity import refuse_part_as_actor
+            for s in shapes:
+                refuse_part_as_actor(s, "Collider([...])", "body")
+        to_check = list(shapes)
+        if identity is not None and identity not in to_check:
+            to_check.append(identity)
+        _assert_shapes_not_parallax(to_check)
+        self._shapes = [weakref.ref(s) for s in shapes]
+        # Targets from @collide / resolve: Shape | Collider | GroupOperator | str | ANYTHING
+        self._pair_targets: List[Any] = []
+        object.__setattr__(self, "on_collide", None)
+        object.__setattr__(self, "on_collide_stay", None)
+        object.__setattr__(self, "on_collide_exit", None)
+        self._identity_shape = weakref.ref(identity) if identity is not None else None
+        self._system = get_collision_system()
+        # shape id → (verts_key, prims) for concave decomposition reuse
+        self._poly_cache: Dict[int, Tuple[tuple, List[Prim]]] = {}
+        # shape id → (pose_key, prims) — skip rebuild when pose/hitbox unchanged
+        self._snap_cache: Dict[int, Tuple[tuple, List[Prim]]] = {}
+        self._tags_cache: Optional[frozenset] = None
+        self._proxy = [0.0, 0.0, 0.0, 0.0]
+        self._proxy_key: Optional[tuple] = None
+        self._proxy_valid = False
+        self._world_prims: Optional[List[Prim]] = None
+        self._world_key: Optional[tuple] = None
+        self._motion_dx = 0.0
+        self._motion_dy = 0.0
+        self._motion_translation = True
+        self._pending_motion_dx = 0.0
+        self._pending_motion_dy = 0.0
+        self._proxy_start: Optional[List[float]] = None
+        # Squared thickness (smaller proxy side, pad removed), refreshed when
+        # the proxy is rebuilt; the swept-detection gate reads it.
+        self._thick2 = 0.0
+        # Unpadded proxy at the end of the previous step. None until a step
+        # has stored one. Unswept-bounds recovery reads this; it is not motion.
+        self._resolved_aabb: Optional[Tuple[float, float, float, float]] = None
+        self._in_resolve = False
+        # The Hitbox when this collider is a sprite's hitbox part (else None).
+        self._part = None
+        if _register:
+            self._system.register(self)
+        # Single-shape explicit Collider: bind so shape.collidable / @collide
+        # reuse this instance instead of creating a second one. Queries pass
+        # _bind=False so a probe does not become an ANYTHING partner.
+        if _bind:
+            if identity is None and len(shapes) == 1:
+                shapes[0]._collider = self
+                shapes[0]._collidable = True
+            elif identity is not None:
+                identity._collider = self
+                identity._collidable = True
+
+    __init__.__signature__ = inspect.Signature([
+        inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD),
+        inspect.Parameter("shapes", inspect.Parameter.POSITIONAL_OR_KEYWORD),
+    ])
+
+    @property
+    def shapes(self) -> List[Any]:
+        """The live pieces of this body (a destroyed piece drops out)."""
+        out = []
+        for ref in self._shapes:
+            s = ref()
+            # After Shape.destroy()/clean_up(), node_id is cleared — treat as gone
+            # even if a Python strong reference keeps the weakref alive.
+            if s is not None and getattr(s, "_node_id", None) is not None:
+                out.append(s)
+        return out
+
+    @property
+    def _identity(self):
+        if self._identity_shape is not None:
+            s = self._identity_shape()
+            if s is not None:
+                return s
+        return self
+
+    def _group_tags(self) -> frozenset:
+        """Union of ``group`` on live shapes (cached until cleared each step)."""
+        cached = self._tags_cache
+        if cached is not None:
+            return cached
+        tags: Set[str] = set()
+        for s in self.shapes:
+            gids = getattr(s, "group", None)
+            if gids:
+                tags.update(gids)
+                if self._part is None:
+                    claims = getattr(s, "_hitbox_claims", None)
+                    if claims:
+                        tags.difference_update(claims)
+        self._tags_cache = frozenset(tags)
+        return self._tags_cache
+
+    def _add_pair_target(self, target) -> None:
+        if target not in self._pair_targets:
+            self._pair_targets.append(target)
+
+    def _remove_pair_target(self, target) -> None:
+        try:
+            self._pair_targets.remove(target)
+        except ValueError:
+            pass
+
+    def _sync_anything_interest(self) -> None:
+        """Keep ``ANYTHING`` in ``_pair_targets`` iff callbacks or handlers need it."""
+        from_callbacks = (
+            self.on_collide is not None
+            or self.on_collide_stay is not None
+            or self.on_collide_exit is not None
+        )
+        from_handlers = self._system._collider_has_handler_anything(self)
+        if from_callbacks or from_handlers:
+            self._add_pair_target(ANYTHING)
+        else:
+            self._remove_pair_target(ANYTHING)
+
+    def _wants(self, other: "Collider") -> bool:
+        """True if this collider declared interest in ``other`` (one-sided OK).
+
+        String pair-targets (group tags) are O(tags): membership on ``other``,
+        not an expansion of the whole group. Object / GroupOperator targets still
+        resolve to colliders.
+        """
+        if not self._pair_targets:
+            return False
+        other_tags = None
+        sys = self._system
+        for t in self._pair_targets:
+            if t is ANYTHING:
+                return True
+            if isinstance(t, str):
+                if other_tags is None:
+                    other_tags = other._group_tags()
+                if t in other_tags:
+                    return True
+                continue
+            for c in sys._resolve_target_to_colliders(t):
+                if c is other:
+                    return True
+        return False
+
+    def __setattr__(self, name: str, value) -> None:
+        object.__setattr__(self, name, value)
+        if name in ("on_collide", "on_collide_stay", "on_collide_exit"):
+            self._sync_anything_interest()
+
+    def _unregister(self) -> None:
+        self._system.unregister(self)
+
+
+# ---------------------------------------------------------------------------
+# CollisionSystem / World
+# ---------------------------------------------------------------------------
+
+class CollisionSystem:
+    """Owns the collider registry and runs one collision step per frame."""
+
+    def __init__(self):
+        self._colliders: List[Collider] = []
+        self._prev_contacts: Set[Tuple[int, int]] = set()
+        self._show = False
+        self._debug_shapes: List[Any] = []  # legacy shape-based overlay (cleared on disable)
+        self._debug_overlay: List[Tuple[Any, Prim]] = ()
+        # ``floor_below`` probes since the last debug draw: id(body) → (prims, found).
+        self._debug_probes: Dict[int, Tuple[List[Prim], bool]] = {}
+        self._debug_paint: Optional[skia.Paint] = None
+        # Pair handlers: (target_a, target_b, callback, phase)
+        self._pair_handlers: List[Tuple[Any, Any, Callable, str]] = []
+        # Script-level ``@collide`` entries made after the top level ended
+        # (inside an act): removed on an act change (``drop_act_pair_handlers``).
+        self._act_pair_handlers: List[Tuple[Any, Any, Callable, str]] = []
+        # Standing resolve pairs: (target_a, target_b, bounce_token, only)
+        # bounce_token is _RESOLVE_POSITION_ONLY or a float restitution.
+        # only is None (every side blocks), a frozenset of target_a's sides,
+        # or a callable of a TouchingContact (see ``_normalize_only``).
+        self._resolve_pairs: List[Tuple[Any, Any, Any, Any]] = []
+        # Any pair with ``only=``. False keeps the solver on the unfiltered
+        # path: one bool read per body per frame (``_apply_auto_resolve``).
+        self._has_only = False
+        # Incremental @collide tag index (enroll on membership, not each step).
+        # Not group membership — declared pair tags only. Named queries walk
+        # the registry group instead (see ``_candidates_for_group``).
+        self._pair_tags: Set[str] = set()
+        self._tag_colliders: Dict[str, List[Collider]] = {}
+        # Unregistered colliders for named queries. Keyed by the body or part
+        # so a per-frame ``collides_with`` reuses world prims. Dropped when
+        # the item enrolls for real, leaves play, or is collected.
+        self._query_colliders: "weakref.WeakKeyDictionary[Any, Collider]" = (
+            weakref.WeakKeyDictionary()
+        )
+        self._tag_index: Dict[str, Dict[int, int]] = {}
+        # Bodies of sprites whose hitbox part answers for a tag that is a
+        # resolve() side. ``resolve`` moves bodies; ``_tag_colliders`` lists
+        # who *answers* (the part), so these bodies live here instead.
+        self._claimed_bodies: Dict[str, List[Collider]] = {}
+        self._claimed_body_index: Dict[str, Dict[int, int]] = {}
+        self._collider_index: Dict[int, int] = {}
+        self._debug_enroll_count = 0
+        self._debug_hull_builds = 0
+        # Last world snapshot (for queries)
+        self._last_prims: List[Tuple[Collider, Prim]] = []
+        self._last_groups: List[Collider] = []
+        self._last_aabb: Optional[np.ndarray] = None  # collider proxy AABBs
+        # Cleared at the start of each step — caches object-literal expansions.
+        self._resolve_cache: Dict[Any, List[Collider]] = {}
+        # Object-literal @collide targets that were already warned as destroyed.
+        self._dead_target_warned: Set[int] = set()
+        # Last-step contacts from sweep/settle (feeds touching_*).
+        self._solve_contacts: Dict[Tuple[int, int], CollisionInfo] = {}
+        self._contact_memory: Dict[Tuple[int, int], Tuple[float, float]] = {}
+        # Per-pair contact sides (canonical lo→hi) + bottom refcounts for O(1)
+        # floor-snap early-out (avoids scanning ``_solve_contacts``).
+        self._solve_contact_sides: Dict[Tuple[int, int], Tuple[Optional[str], Optional[str]]] = {}
+        self._solve_bottom_count: Dict[int, int] = {}
+        # Standing resolve on/off. Detection, queries, and @collide stay live.
+        self._resolve_enabled = True
+        # Fast colliders of the current step (swept detection). Filled by
+        # ``_commit_pending_motion`` only during the proxy loop of ``step()``
+        # (``_fast_k2`` is the squared fraction there and ``inf`` elsewhere,
+        # so a commit outside it never lists), emptied when the narrow phase
+        # ends.
+        self._fast_colliders: List[Collider] = []
+        self._fast_k2 = math.inf
+        # True after a frame that published non-empty ``touching_*``.
+        # @collide-only scenes skip the Graphic walk until a leftover must clear.
+        self._touching_published = False
+        # When True, ``_world_prims`` may reuse proxy-synced caches. Only set
+        # during standing resolve, after ``_update_proxy`` — queries in
+        # ``update()`` still read live pose.
+        self._trust_proxy_world = False
+        # Cross-frame partner identity cache: ca_id → [(partner, bounce_token)].
+        # Motion deltas are refreshed each read. Cleared on enroll / pair edits.
+        self._partner_ident_cache: Dict[int, List[Tuple[Collider, Any]]] = {}
+        # Same lifetime: ca_id → {partner_id: (spec, flip)} for ``only=``
+        # partners, or None when no partner of ``ca`` is filtered. A set spec
+        # is already in ``ca``'s view; a callable spec keeps ``flip``.
+        self._partner_only_cache: Dict[int, Optional[Dict[int, Tuple[Any, bool]]]] = {}
+        # Passing ``only=`` pairs: body_id → {partner_id: partner}. Stored on
+        # both bodies. A passing pair is invisible to sweep, settle and snap
+        # until the two stop overlapping (``_only_view``).
+        self._passing: Dict[int, Dict[int, Collider]] = {}
+        # Last-step counters / timings (ms); for benches and profiling.
+        self.last_stats: Dict[str, float] = {
+            "proxies": 0,
+            "prims": 0,
+            "proxy_pairs": 0,
+            "narrow": 0,
+            "sat": 0,
+            "skin": 0,
+            "ms_snapshot": 0.0,
+            "ms_broad": 0.0,
+            "ms_narrow": 0.0,
+            "ms_resolve": 0.0,
+            "ms_total": 0.0,
+        }
+
+    @property
+    def resolve_enabled(self) -> bool:
+        """When False, skip sweep/settle/floor snap. Detection stays on."""
+        return self._resolve_enabled
+
+    @resolve_enabled.setter
+    def resolve_enabled(self, value: bool) -> None:
+        self._resolve_enabled = bool(value)
+
+    # -- registration -------------------------------------------------------
+
+    def register(self, collider: Collider) -> None:
+        cid = id(collider)
+        if cid in self._collider_index:
+            return
+        self._collider_index[cid] = len(self._colliders)
+        self._colliders.append(collider)
+        self._invalidate_partner_cache()
+        self._update_proxy(collider)
+
+    def unregister(self, collider: Collider) -> None:
+        """Leave the collision system (``collidable = False``, destroy).
+
+        Ends the collider's contacts first: fires ``@collide_exit`` for each
+        pair it was touching and drops those keys, so the survivor is told
+        and a later collider reusing this ``id()`` cannot inherit them.
+        """
+        try:
+            self._end_contacts_of(collider)  # author exit handlers may raise
+        finally:
+            self._swap_remove_collider(collider)
+            self._forget_collider_tags(collider)
+            self._invalidate_partner_cache()
+
+    def _invalidate_partner_cache(self) -> None:
+        """Drop cached resolve partner identities (enroll / pair graph changed)."""
+        if self._partner_ident_cache:
+            self._partner_ident_cache.clear()
+        if self._partner_only_cache:
+            self._partner_only_cache.clear()
+
+    def _swap_remove_collider(self, collider: Collider) -> None:
+        idx_map = self._collider_index
+        cid = id(collider)
+        i = idx_map.pop(cid, None)
+        if i is None:
+            return
+        lst = self._colliders
+        last = lst.pop()
+        if i != len(lst):
+            lst[i] = last
+            idx_map[id(last)] = i
+
+    def _prune_dead(self) -> None:
+        lst = self._colliders
+        idx_map = self._collider_index
+        i = 0
+        while i < len(lst):
+            c = lst[i]
+            if c.shapes:
+                i += 1
+                continue
+            self._forget_collider_tags(c)
+            self._invalidate_partner_cache()
+            # No shapes left → no identity to report an exit with; just drop
+            # the keys so a reused id() cannot inherit them.
+            self._end_contacts_of(c, emit=False)
+            last = lst.pop()
+            idx_map.pop(id(c), None)
+            if i != len(lst):
+                lst[i] = last
+                idx_map[id(last)] = i
+
+    @staticmethod
+    def _pair_tag_of(target) -> Optional[str]:
+        """String group tag, or a live GroupOperator's group id."""
+        if isinstance(target, str):
+            return target
+        gid = getattr(target, "_group_id", None)
+        if gid is not None and getattr(target, "is_live", False):
+            return gid
+        return None
+
+    def _note_pair_tag(self, target) -> None:
+        tag = self._pair_tag_of(target)
+        if tag is None:
+            return
+        self._pair_tags.add(tag)
+        self._tag_colliders.setdefault(tag, [])
+        self._tag_index.setdefault(tag, {})
+
+    def _tag_add(self, tag: str, collider: Collider) -> None:
+        lst = self._tag_colliders.get(tag)
+        if lst is None:
+            lst = []
+            self._tag_colliders[tag] = lst
+            self._tag_index[tag] = {}
+        idx_map = self._tag_index[tag]
+        cid = id(collider)
+        if cid in idx_map:
+            return
+        idx_map[cid] = len(lst)
+        lst.append(collider)
+        self._invalidate_partner_cache()
+
+    def _tag_remove(self, tag: str, collider: Collider) -> None:
+        idx_map = self._tag_index.get(tag)
+        if not idx_map:
+            return
+        cid = id(collider)
+        i = idx_map.pop(cid, None)
+        if i is None:
+            return
+        lst = self._tag_colliders[tag]
+        last = lst.pop()
+        if i != len(lst):
+            lst[i] = last
+            idx_map[id(last)] = i
+        self._invalidate_partner_cache()
+
+    def _forget_collider_tags(self, collider: Collider) -> None:
+        for tag in list(self._tag_index):
+            self._tag_remove(tag, collider)
+        for tag in list(self._claimed_body_index):
+            self._claimed_body_remove(tag, collider)
+
+    def _claimed_body_add(self, tag: str, collider: Collider) -> None:
+        lst = self._claimed_bodies.get(tag)
+        if lst is None:
+            lst = []
+            self._claimed_bodies[tag] = lst
+            self._claimed_body_index[tag] = {}
+        idx_map = self._claimed_body_index[tag]
+        cid = id(collider)
+        if cid in idx_map:
+            return
+        idx_map[cid] = len(lst)
+        lst.append(collider)
+        self._invalidate_partner_cache()
+
+    def _claimed_body_remove(self, tag: str, collider: Collider) -> None:
+        idx_map = self._claimed_body_index.get(tag)
+        if not idx_map:
+            return
+        i = idx_map.pop(id(collider), None)
+        if i is None:
+            return
+        lst = self._claimed_bodies[tag]
+        last = lst.pop()
+        if i != len(lst):
+            lst[i] = last
+            idx_map[id(last)] = i
+        if not lst:
+            del self._claimed_bodies[tag]
+            del self._claimed_body_index[tag]
+        self._invalidate_partner_cache()
+
+    def _enroll_claimed_body(self, host, tag: str) -> None:
+        """A part answers for resolve-side ``tag``: its host's body resolves."""
+        if not self._item_in_play(host):
+            return
+        _assert_shapes_not_parallax([host])
+        c = ensure_collider(host)
+        self._claimed_body_add(tag, c)
+        for a, b, _tok, _only in self._resolve_pairs:
+            if self._pair_tag_of(a) == tag:
+                c._add_pair_target(b)
+            if self._pair_tag_of(b) == tag:
+                c._add_pair_target(a)
+        _sync_resolve_driver_for_collider(self, c, tag)
+
+    def _resolve_side_colliders(self, target) -> Sequence[Collider]:
+        """Bodies on a ``resolve()`` side (a claiming part → its host's body)."""
+        tag = self._pair_tag_of(target)
+        if tag is not None:
+            lst = self._tag_colliders.get(tag) or ()
+            extra = self._claimed_bodies.get(tag)
+            if not extra:
+                return lst  # hot path: no part claims this tag
+            return [c for c in lst if c._part is None] + extra
+        return self._resolve_target_to_colliders(target)
+
+    def _resolve_now_colliders(self, target) -> List[Collider]:
+        """``resolve_now`` partners: resolve-side bodies, plus the hosts of any
+        part that answers for this tag (the tag need not be a resolve side)."""
+        out: List[Collider] = []
+        seen: Set[int] = set()
+        for c in self._resolve_side_colliders(target):
+            if c._part is None and id(c) not in seen:
+                seen.add(id(c))
+                out.append(c)
+        tag = self._pair_tag_of(target)
+        if tag is not None:
+            for c in self._tag_colliders.get(tag) or ():
+                if c._part is None:
+                    continue
+                host = c._identity
+                if host is None or not self._item_in_play(host):
+                    continue
+                body = ensure_collider(host)
+                if id(body) not in seen:
+                    seen.add(id(body))
+                    out.append(body)
+        return out
+
+    def _collider_on_resolve_side(self, collider: Collider, target) -> bool:
+        """``_collider_on_side`` for ``resolve()``: bodies only, claims included."""
+        if collider._part is not None:
+            return False
+        tag = self._pair_tag_of(target)
+        if tag is not None:
+            cid = id(collider)
+            idx = self._tag_index.get(tag)
+            if idx is not None and cid in idx:
+                return True
+            idx = self._claimed_body_index.get(tag)
+            return idx is not None and cid in idx
+        return self._collider_on_side(collider, target)
+
+    def _resolve_pair_matches(self, ta, tb, ca: Collider, cb: Collider):
+        if self._collider_on_resolve_side(ca, ta) and self._collider_on_resolve_side(cb, tb):
+            return ca, cb
+        if self._collider_on_resolve_side(cb, ta) and self._collider_on_resolve_side(ca, tb):
+            return cb, ca
+        return None
+
+    def _apply_handler_targets(self, collider: Collider, tag: str) -> None:
+        for a, b, _cb, _phase in self._pair_handlers:
+            a_tag = self._pair_tag_of(a)
+            b_tag = self._pair_tag_of(b)
+            if a_tag == tag:
+                collider._add_pair_target(b)
+            if b_tag == tag:
+                collider._add_pair_target(a)
+        for a, b, _tok, _only in self._resolve_pairs:
+            a_tag = self._pair_tag_of(a)
+            b_tag = self._pair_tag_of(b)
+            if a_tag == tag:
+                collider._add_pair_target(b)
+            if b_tag == tag:
+                collider._add_pair_target(a)
+
+    def _try_enroll_item(self, item, *, tag: str) -> Optional[Collider]:
+        """Ensure collider + tag index for one in-play group member (once).
+
+        A hitbox part that claims ``tag`` enrolls in place of its host.
+        """
+        routed = _tag_item(item, tag)
+        if routed is not item and _tag_is_resolve_side(self, tag):
+            self._enroll_claimed_body(item, tag)
+        item = routed
+        if item is None or not self._item_in_play(item):
+            return None
+        _assert_shapes_not_parallax([item])
+        existing = getattr(item, "_collider", None)
+        idx_map = self._tag_index.get(tag)
+        already = (
+            existing is not None
+            and idx_map is not None
+            and id(existing) in idx_map
+        )
+        if not already:
+            self._debug_enroll_count += 1
+        c = ensure_collider(item)
+        if not already:
+            bake = getattr(item, "_ensure_auto_baked", None)
+            if callable(bake):
+                bake()
+            self._tag_add(tag, c)
+        self._apply_handler_targets(c, tag)
+        if _tag_is_resolve_side(self, tag):
+            _sync_resolve_driver_for_collider(
+                self, c, tag if isinstance(tag, str) else None,
+            )
+        return c
+
+    def _enroll_target_now(self, target) -> List[Collider]:
+        """Decorate-time / recovery: scan a live group once and enroll members."""
+        tag = self._pair_tag_of(target)
+        if tag is None:
+            return list(self._resolve_target_to_colliders(target))
+        try:
+            from .canvas import ScenaCanvas
+            shapes = list(ScenaCanvas.get_current().registry.list_by_groupid(tag))
+        except Exception:
+            shapes = []
+        result: List[Collider] = []
+        for shape in shapes:
+            c = self._try_enroll_item(shape, tag=tag)
+            if c is not None:
+                result.append(c)
+        return result
+
+    def _handler_colliders(self, target) -> Sequence[Collider]:
+        tag = self._pair_tag_of(target)
+        if tag is not None:
+            return self._tag_colliders.get(tag) or ()
+        return self._resolve_target_to_colliders(target)
+
+    @staticmethod
+    def _item_in_play(item) -> bool:
+        """True when the item can participate in collision this frame.
+
+        ``collidable = False`` sets ``_collision_opt_out`` so
+        ``@collide`` group refresh does not re-enroll the item next step.
+        """
+        if not getattr(item, "is_alive", True):
+            return False
+        if not getattr(item, "active", True):
+            return False
+        if getattr(item, "_collision_opt_out", False):
+            return False
+        return True
+
+    def _warn_dead_object_target(self, target) -> None:
+        tid = id(target)
+        if tid in self._dead_target_warned:
+            return
+        self._dead_target_warned.add(tid)
+        warnings.warn(
+            f"@collide object target {target!r} is destroyed (is_alive=False). "
+            f"Object registrations keep the old Python instance — after "
+            f"destroy/recreate they never see the new actor. Prefer group "
+            f"tags: @collide(\"player\", \"star\").",
+            stacklevel=3,
+        )
+
+    def _colliders_for_shapes(self, shapes: List[Any]) -> List[Collider]:
+        live = [s for s in shapes if self._item_in_play(s)]
+        if not live:
+            return []
+        _assert_shapes_not_parallax(live)
+        return [ensure_collider(shape) for shape in live]
+
+    def _resolve_target_to_colliders(self, target) -> List[Collider]:
+        """Expand a pair-handler target to live Collider instances (step-cached)."""
+        # Cache key: strings by value; objects by identity.
+        if isinstance(target, str) or target is ANYTHING:
+            cache_key = target
+        else:
+            cache_key = ("obj", id(target))
+        cached = self._resolve_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        if target is ANYTHING:
+            result = [c for c in self._colliders if c._part is None]
+        elif isinstance(target, Collider):
+            result = [target] if any(self._item_in_play(s) for s in target.shapes) else []
+        elif isinstance(target, str):
+            result = self._tag_colliders.get(target) or ()
+        elif _is_part_side(target):
+            result = self._part_target_colliders(target)
+        else:
+            from .registry import GroupOperator
+            from .entity import Entity
+            if isinstance(target, GroupOperator):
+                tag = target._group_id
+                if tag is not None:
+                    result = self._tag_colliders.get(tag) or ()
+                else:
+                    result = self._colliders_for_shapes(list(target))
+            elif isinstance(target, Entity):
+                if not getattr(target, "is_alive", True):
+                    self._warn_dead_object_target(target)
+                    result = []
+                elif not self._item_in_play(target):
+                    result = []
+                else:
+                    _assert_shapes_not_parallax([target])
+                    result = [ensure_collider(target)]
+            else:
+                result = []
+
+        self._resolve_cache[cache_key] = result
+        return result
+
+    def add_pair_handler(self, a, b, callback: Callable, phase: str = _PHASE_ENTER) -> None:
+        """Register a pair handler. One call opts both sides in (no mirror needed).
+
+        Pre-validates both sides for parallax-layer members **before** appending
+        the handler or creating colliders, so a ``ParallaxLayerError`` leaves
+        ``_pair_handlers`` and enrollments unchanged for that failed decoration.
+        """
+        if _SOLVER_READING:
+            refuse_if_solver_reading('@collide registration')
+        # Collect + validate all currently-known shapes on both sides first.
+        items: List[Any] = []
+        items.extend(_collect_entities_from_target(a))
+        items.extend(_collect_entities_from_target(b))
+        _assert_shapes_not_parallax(items)
+        entry = (a, b, callback, phase)
+        self._pair_handlers.append(entry)
+        self._note_pair_tag(a)
+        self._note_pair_tag(b)
+        # Decorate-time: enroll members already living in tagged groups.
+        lefts = self._enroll_target_now(a)
+        rights = self._enroll_target_now(b)
+        for left in lefts:
+            left._add_pair_target(b)
+        for right in rights:
+            right._add_pair_target(a)
+        return entry
+
+    def drop_act_pair_handlers(self) -> int:
+        """Remove script-level ``@collide`` entries an act registered.
+
+        Called on an act change. Top-level (game) entries stay. Pair targets
+        the removed entries implied are pruned from the surviving colliders.
+        """
+        doomed = self._act_pair_handlers
+        if not doomed:
+            return 0
+        ids = {id(e) for e in doomed}
+        self._pair_handlers[:] = [e for e in self._pair_handlers if id(e) not in ids]
+        n = len(doomed)
+        self._act_pair_handlers = []
+        for c in list(self._colliders):
+            self._prune_pair_targets(c)
+        self._invalidate_partner_cache()
+        return n
+
+    def add_resolve_pair(
+        self, a, b, bounce: Optional[float] = None, only: Any = None,
+    ) -> None:
+        """Register a standing auto-resolve relationship.
+
+        ``only`` is in ``a``'s view. Re-registering an equal pair replaces its
+        bounce token and its ``only`` (last call wins), in the new call's order.
+        """
+        if _SOLVER_READING:
+            refuse_if_solver_reading('resolve()')
+        _refuse_part_resolve_side(self, a)
+        _refuse_part_resolve_side(self, b)
+        items: List[Any] = []
+        items.extend(_collect_entities_from_target(a))
+        items.extend(_collect_entities_from_target(b))
+        _assert_shapes_not_parallax(items)
+        if bounce is not None:
+            bounce = _validate_bounce(bounce)
+        token: Any = _RESOLVE_POSITION_ONLY if bounce is None else bounce
+        only = _normalize_only(only)
+        for i, (pa, pb, _tok, _only) in enumerate(self._resolve_pairs):
+            if _resolve_pair_equal(pa, pb, a, b):
+                # The new call's order: ``only`` sides are read from ``a``.
+                self._resolve_pairs[i] = (a, b, token, only)
+                self._invalidate_partner_cache()
+                self._refresh_has_only()
+                return
+        # Eager writability before committing the pair (no silent default).
+        for shape in items:
+            ensure = getattr(shape, "_ensure_resolve_parts_writable", None)
+            if callable(ensure):
+                ensure()
+        self._resolve_pairs.append((a, b, token, only))
+        self._invalidate_partner_cache()
+        self._refresh_has_only()
+        self._note_pair_tag(a)
+        self._note_pair_tag(b)
+        self._enroll_target_now(a)
+        self._enroll_target_now(b)
+        # Bodies, not the parts that may answer these tags for @collide.
+        for left in self._resolve_side_colliders(a):
+            left._add_pair_target(b)
+            _sync_resolve_driver_for_collider(self, left)
+        for right in self._resolve_side_colliders(b):
+            right._add_pair_target(a)
+            _sync_resolve_driver_for_collider(self, right)
+        _note_resolve_enroll_shapes(items)
+
+    def _refresh_has_only(self) -> None:
+        self._has_only = any(p[3] is not None for p in self._resolve_pairs)
+        if not self._has_only and self._passing:
+            self._passing.clear()
+
+    def _begin_passing(self, ca: Collider, cb: Collider) -> None:
+        """``ca`` and ``cb`` pass through each other until they separate."""
+        self._passing.setdefault(id(ca), {})[id(cb)] = cb
+        self._passing.setdefault(id(cb), {})[id(ca)] = ca
+
+    def _end_passing(self, ca: Collider, pid: int) -> None:
+        mine = self._passing.get(id(ca))
+        if mine is not None:
+            mine.pop(pid, None)
+        theirs = self._passing.get(pid)
+        if theirs is not None:
+            theirs.pop(id(ca), None)
+
+    def remove_resolve_pair(self, a, b) -> None:
+        """Cancel a standing ``resolve(a, b)`` registration."""
+        if _SOLVER_READING:
+            refuse_if_solver_reading('unresolve()')
+        i = 0
+        removed = False
+        while i < len(self._resolve_pairs):
+            pa, pb, _tok, _only = self._resolve_pairs[i]
+            if _resolve_pair_equal(pa, pb, a, b):
+                last = self._resolve_pairs.pop()
+                if i != len(self._resolve_pairs):
+                    self._resolve_pairs[i] = last
+                removed = True
+                continue
+            i += 1
+        if removed:
+            self._refresh_has_only()
+            # Claimed bodies only resolve while their tag is a resolve side.
+            for tag in list(self._claimed_bodies):
+                if not _tag_is_resolve_side(self, tag):
+                    for c in list(self._claimed_bodies.get(tag, ())):
+                        self._claimed_body_remove(tag, c)
+                        _sync_resolve_driver_for_collider(self, c)
+            # Sync after pair is gone so _collider_in_resolve is False.
+            for shape in _collect_entities_from_target(a):
+                c = getattr(shape, "_collider", None)
+                if c is not None:
+                    _sync_resolve_driver_for_collider(self, c)
+                elif getattr(shape, "_resolve_enrolled", False):
+                    _note_resolve_unenroll_shapes([shape])
+            for shape in _collect_entities_from_target(b):
+                c = getattr(shape, "_collider", None)
+                if c is not None:
+                    _sync_resolve_driver_for_collider(self, c)
+                elif getattr(shape, "_resolve_enrolled", False):
+                    _note_resolve_unenroll_shapes([shape])
+            self._invalidate_partner_cache()
+        else:
+            warnings.warn(
+                f"unresolve({a!r}, {b!r}) matched no standing resolve() pair",
+                RuntimeWarning,
+                stacklevel=3,
+            )
+
+    def _collider_on_side(self, collider: Collider, target) -> bool:
+        """True when ``collider`` is a member of a resolve / @collide side."""
+        if collider._part is not None:
+            # Parts answer for their groups and for their own Hitbox only.
+            if target is ANYTHING or target is collider._identity:
+                return False
+            if target is collider or target is collider._part:
+                return True
+        elif target is ANYTHING:
+            return True
+        elif target is collider or target is collider._identity:
+            return True
+        tag = self._pair_tag_of(target)
+        if tag is not None:
+            idx = self._tag_index.get(tag)
+            return idx is not None and id(collider) in idx
+        if isinstance(target, Collider):
+            return target is collider
+        for c in self._resolve_target_to_colliders(target):
+            if c is collider:
+                return True
+        return False
+
+    def _same_resolve_side(self, ta, tb) -> bool:
+        if ta is tb:
+            return True
+        tag_a = self._pair_tag_of(ta)
+        tag_b = self._pair_tag_of(tb)
+        return tag_a is not None and tag_a == tag_b
+
+    def _resolve_bounce_for(self, ca: Collider, cb: Collider) -> Optional[Any]:
+        """Return bounce token for this collider pair, or None if not registered."""
+        for ta, tb, token, _only in self._resolve_pairs:
+            if self._resolve_pair_matches(ta, tb, ca, cb):
+                return token
+        return None
+
+    def _collider_in_resolve(self, collider: Collider) -> bool:
+        if collider._part is not None:
+            return False
+        for ta, tb, _tok, _only in self._resolve_pairs:
+            if (
+                self._collider_on_resolve_side(collider, ta)
+                or self._collider_on_resolve_side(collider, tb)
+            ):
+                return True
+        return False
+
+    @staticmethod
+    def _side_is_identity(side, identity) -> bool:
+        """True when a pair-handler side is this destroyed actor (not a tag)."""
+        if side is identity:
+            return True
+        if isinstance(side, Collider):
+            return side._identity is identity
+        if _is_part_side(side):
+            return side._host_ref() is identity
+        return False
+
+    def drop_pair_handlers_for(self, identity) -> None:
+        """Swap-remove every pair handler whose left or right side *is* ``identity``.
+
+        Tag × tag handlers are untouched. Object-literal ``@collide(player, …)``
+        after ``player.destroy()`` must not linger (leak + dead-target warnings).
+        """
+        lst = self._pair_handlers
+        i = 0
+        dropped = False
+        while i < len(lst):
+            a, b, _cb, _phase = lst[i]
+            if self._side_is_identity(a, identity) or self._side_is_identity(b, identity):
+                last = lst.pop()
+                if i != len(lst):
+                    lst[i] = last
+                dropped = True
+                continue
+            i += 1
+        i = 0
+        resolve_changed = False
+        while i < len(self._resolve_pairs):
+            a, b, _tok, _only = self._resolve_pairs[i]
+            if self._side_is_identity(a, identity) or self._side_is_identity(b, identity):
+                last = self._resolve_pairs.pop()
+                if i != len(self._resolve_pairs):
+                    self._resolve_pairs[i] = last
+                resolve_changed = True
+                continue
+            i += 1
+        if dropped or resolve_changed:
+            # The other side of each dropped pair holds ``identity`` in its
+            # ``_pair_targets`` (``@collide_with("wall")`` on a bullet puts the
+            # bullet on the wall). Left there, every bullet ever fired stays
+            # reachable from the wall — a leak, and a broad phase that grows.
+            self._forget_pair_target(identity)
+        if resolve_changed:
+            self._invalidate_partner_cache()
+            self._refresh_has_only()
+        self._dead_target_warned.discard(id(identity))
+        col = getattr(identity, "_collider", None)
+        if col is not None:
+            self._dead_target_warned.discard(id(col))
+
+    def _forget_pair_target(self, identity) -> None:
+        """Remove ``identity`` (or its collider / parts) from every ``_pair_targets``."""
+        side_is = self._side_is_identity
+        for c in self._colliders:
+            targets = c._pair_targets
+            if any(side_is(t, identity) for t in targets):
+                targets[:] = [t for t in targets if not side_is(t, identity)]
+
+    def forget_destroyed_item(self, item) -> None:
+        """Destroy-time: fire ``@collide_exit`` for the survivor, then drop handlers."""
+        col = getattr(item, "_collider", None)
+        parts = getattr(item, "_hitbox_parts", None) or ()
+        try:
+            if col is not None:
+                self._fire_exit_for_destroyed(col)  # author handlers may raise
+            for part in parts:
+                if part._collider is not None:
+                    self._fire_exit_for_destroyed(part._collider)
+        finally:
+            if parts:
+                from .hitbox import _LINKED_PARTS
+                for part in parts:
+                    _LINKED_PARTS.discard(part)
+            for part in parts:
+                pc = part._collider
+                part._collider = None
+                part._collidable = False
+                if pc is not None:
+                    self._swap_remove_collider(pc)
+                    self._forget_collider_tags(pc)
+            self._drop_destroyed_collider(item, col)
+
+    def _drop_destroyed_collider(self, item, col) -> None:
+        self.drop_pair_handlers_for(item)
+        if col is not None:
+            self.unregister(col)
+            try:
+                object.__setattr__(item, "_collider", None)
+            except Exception:
+                try:
+                    item._collider = None
+                except Exception:
+                    pass
+
+    def _fire_exit_for_destroyed(self, col: Collider) -> None:
+        """Tell the surviving partner this contact ended because ``col`` is gone."""
+        self._end_contacts_of(col)
+
+    def _end_contacts_of(self, col: Collider, *, emit: bool = True) -> None:
+        """Drop ``col``'s contact keys; with ``emit``, fire exit for each pair.
+
+        Keys go before any handler runs (a raising exit handler cannot leave
+        them behind to fire again).
+        """
+        cid = id(col)
+        keys = [k for k in self._prev_contacts if cid in k]
+        if not keys:
+            return
+        for key in keys:
+            self._prev_contacts.discard(key)
+        if not emit:
+            return
+        id_to = {id(c): c for c in self._colliders}
+        id_to[cid] = col
+        for key in keys:
+            ca = id_to.get(key[0])
+            cb = id_to.get(key[1])
+            if ca is None or cb is None:
+                continue
+            info = CollisionInfo(
+                a=ca._identity, b=cb._identity, normal=Vec2.temp(0, 0), depth=0.0,
+            )
+            self._dispatch(ca, cb, info, _PHASE_EXIT)
+
+    def _prune_pair_targets(self, collider: "Collider") -> None:
+        """Drop targets no registered pair implies for ``collider`` any more
+        (after it left a tag). ``ANYTHING`` has its own sync; left alone."""
+        if not collider._pair_targets:
+            return
+        implied = set()
+        for a, b, *_rest in self._pair_handlers:
+            if collider in self._handler_colliders(a):
+                implied.add(id(b) if not isinstance(b, str) else b)
+            if collider in self._handler_colliders(b):
+                implied.add(id(a) if not isinstance(a, str) else a)
+        for a, b, _tok, _only in self._resolve_pairs:
+            if collider in self._resolve_side_colliders(a):
+                implied.add(id(b) if not isinstance(b, str) else b)
+            if collider in self._resolve_side_colliders(b):
+                implied.add(id(a) if not isinstance(a, str) else a)
+        for t in list(collider._pair_targets):
+            if t is ANYTHING:
+                continue
+            key = t if isinstance(t, str) else id(t)
+            if key not in implied:
+                collider._remove_pair_target(t)
+
+    def _refresh_pair_enrollments(self) -> None:
+        """Full rebuild of tag indexes (audit / desync recovery). Not the hot path."""
+        self._tag_colliders.clear()
+        self._tag_index.clear()
+        self._claimed_bodies.clear()
+        self._claimed_body_index.clear()
+        self._invalidate_partner_cache()
+        for a, b, _cb, _phase in self._pair_handlers:
+            self._note_pair_tag(a)
+            self._note_pair_tag(b)
+            self._enroll_target_now(a)
+            self._enroll_target_now(b)
+            for left in self._handler_colliders(a):
+                left._add_pair_target(b)
+            for right in self._handler_colliders(b):
+                right._add_pair_target(a)
+        for a, b, _tok, _only in self._resolve_pairs:
+            self._note_pair_tag(a)
+            self._note_pair_tag(b)
+            self._enroll_target_now(a)
+            self._enroll_target_now(b)
+            for left in self._resolve_side_colliders(a):
+                left._add_pair_target(b)
+            for right in self._resolve_side_colliders(b):
+                right._add_pair_target(a)
+
+    # -- interest -----------------------------------------------------------
+
+    def _collider_has_handler_anything(self, collider: Collider) -> bool:
+        """True when a registered ``@collide`` / ``resolve`` pair names ``ANYTHING`` for ``collider``."""
+        for a, b, _cb, _phase in self._pair_handlers:
+            if b is ANYTHING:
+                for c in self._handler_colliders(a):
+                    if c is collider:
+                        return True
+            if a is ANYTHING:
+                for c in self._handler_colliders(b):
+                    if c is collider:
+                        return True
+        for a, b, _tok, _only in self._resolve_pairs:
+            if b is ANYTHING:
+                for c in self._resolve_side_colliders(a):
+                    if c is collider:
+                        return True
+            if a is ANYTHING:
+                for c in self._resolve_side_colliders(b):
+                    if c is collider:
+                        return True
+        return False
+
+    def _interested(self, ca: Collider, cb: Collider) -> bool:
+        """Either side declaring interest is enough (one registration)."""
+        return ca._wants(cb) or cb._wants(ca)
+
+    def _pose_keys(self, collider: Collider) -> tuple:
+        return tuple(_collision_pose_key(s) for s in collider.shapes)
+
+    def _commit_pending_motion(self, collider: Collider) -> None:
+        """Consume motion-channel deltas; placement (no pending) is not swept."""
+        dx = collider._pending_motion_dx
+        dy = collider._pending_motion_dy
+        collider._pending_motion_dx = 0.0
+        collider._pending_motion_dy = 0.0
+        collider._motion_dx = dx
+        collider._motion_dy = dy
+        collider._motion_translation = True
+        if dx == 0.0 and dy == 0.0:
+            collider._proxy_start = None
+        elif collider._proxy_valid:
+            p = collider._proxy
+            collider._proxy_start = [p[0] - dx, p[1] - dy, p[2] - dx, p[3] - dy]
+            # Swept-detection gate, on moving colliders only (still ones never
+            # reach this branch): travel > fraction x thickness. One multiply
+            # and one compare; ``inf * 0`` is NaN, which compares False.
+            if dx * dx + dy * dy > self._fast_k2 * collider._thick2:
+                self._fast_colliders.append(collider)
+        else:
+            collider._proxy_start = None
+
+    def _update_proxy(self, collider: Collider, *, commit_motion: bool = True) -> bool:
+        """Refresh collider proxy AABB. Translation-only mutates four floats.
+
+        ``commit_motion=False`` (queries) leaves the motion channel untouched so
+        a ``collides_with`` / ``raycast`` during ``update()`` does not erase the
+        sweep ``step()`` still has to consume.
+        """
+        shapes = collider.shapes
+        if not shapes:
+            collider._proxy_valid = False
+            if commit_motion:
+                collider._motion_dx = 0.0
+                collider._motion_dy = 0.0
+                collider._motion_translation = True
+                collider._pending_motion_dx = 0.0
+                collider._pending_motion_dy = 0.0
+                collider._proxy_start = None
+            return False
+        for s in shapes:
+            _sync_auto_hitbox_frame(s)
+        keys = tuple(_collision_pose_key(s) for s in shapes)
+        old = collider._proxy_key
+        if old == keys and collider._proxy_valid:
+            if commit_motion:
+                self._commit_pending_motion(collider)
+            return True
+        delta = _keys_uniform_translation(old, keys) if collider._proxy_valid else None
+        if delta is not None:
+            dx, dy = delta
+            p = collider._proxy
+            p[0] += dx
+            p[1] += dy
+            p[2] += dx
+            p[3] += dy
+            collider._proxy_key = keys
+            if commit_motion:
+                self._commit_pending_motion(collider)
+            return True
+        minx = miny = 1e300
+        maxx = maxy = -1e300
+        any_prim = False
+        for s in shapes:
+            cheap = _proxy_aabb_for_shape(s)
+            if cheap is not None:
+                any_prim = True
+                a = cheap
+                if a[0] < minx:
+                    minx = a[0]
+                if a[1] < miny:
+                    miny = a[1]
+                if a[2] > maxx:
+                    maxx = a[2]
+                if a[3] > maxy:
+                    maxy = a[3]
+                continue
+            for prim in _snapshot_shape_uncached(s, cache_owner=collider):
+                any_prim = True
+                a = prim.aabb
+                if a[0] < minx:
+                    minx = a[0]
+                if a[1] < miny:
+                    miny = a[1]
+                if a[2] > maxx:
+                    maxx = a[2]
+                if a[3] > maxy:
+                    maxy = a[3]
+        if not any_prim:
+            collider._proxy_valid = False
+            collider._world_prims = None
+            collider._world_key = None
+            if commit_motion:
+                collider._pending_motion_dx = 0.0
+                collider._pending_motion_dy = 0.0
+                collider._motion_dx = 0.0
+                collider._motion_dy = 0.0
+                collider._motion_translation = True
+                collider._proxy_start = None
+            return False
+        eps = _PROXY_EPS
+        p = collider._proxy
+        p[0] = minx - eps
+        p[1] = miny - eps
+        p[2] = maxx + eps
+        p[3] = maxy + eps
+        thick = (maxx - minx if maxx - minx < maxy - miny else maxy - miny)
+        collider._thick2 = thick * thick
+        collider._proxy_key = keys
+        collider._proxy_valid = True
+        collider._world_prims = None
+        collider._world_key = None
+        if commit_motion:
+            self._commit_pending_motion(collider)
+        return True
+
+    def _world_prims(self, collider: Collider) -> List[Prim]:
+        """World prims for narrow phase — built only when AABBs overlap."""
+        shapes = collider.shapes
+        if not shapes:
+            return []
+        cached = collider._world_prims
+        old = collider._world_key
+        proxy_keys = collider._proxy_key
+        # After _update_proxy / a solver nudge, proxy_key matches world_key and
+        # extras do not need another pose-key walk (the settle inner loop).
+        if (
+            self._trust_proxy_world
+            and cached is not None
+            and old is not None
+            and proxy_keys is not None
+            and old == proxy_keys
+        ):
+            return cached
+        keys = tuple(_collision_pose_key(s) for s in shapes)
+        if cached is not None and old == keys:
+            collider._proxy_key = keys
+            return cached
+        delta = _keys_uniform_translation(old, keys) if cached is not None else None
+        if delta is not None:
+            dx, dy = delta
+            translated = _translate_prims(cached, dx, dy)
+            if translated:
+                collider._world_key = keys
+                collider._proxy_key = keys
+                return translated
+        prims: List[Prim] = []
+        for s in shapes:
+            prims.extend(_snapshot_shape_uncached(s, cache_owner=collider))
+        collider._world_prims = prims
+        collider._world_key = keys
+        collider._proxy_key = keys
+        return prims
+
+    def _declared_broad_pairs(
+        self,
+        colliders: List[Collider],
+        proxy: np.ndarray,
+    ) -> List[Tuple[int, int]]:
+        """AABB pairs from declared relations only (@collide, resolve, ANYTHING).
+
+        Walks each registered (a, b) once and crosses resolved colliders —
+        O(declarations × |A| × |B|) instead of O(n²) over all proxies.
+        Self-paired tags (``resolve("ball", "ball")``) iterate ``i < j`` and
+        vectorize the AABB test when the pool is large. Cross-tag pools of
+        8+ on both sides use the same numpy AABB on the swept array.
+        """
+        idx = {id(c): i for i, c in enumerate(colliders)}
+        n = len(colliders)
+        swept = proxy.copy()
+        for i, c in enumerate(colliders):
+            start = c._proxy_start
+            if c._in_resolve and start is not None:
+                row = swept[i]
+                s0, s1, s2, s3 = start[0], start[1], start[2], start[3]
+                if s0 < row[0]:
+                    row[0] = s0
+                if s1 < row[1]:
+                    row[1] = s1
+                if s2 > row[2]:
+                    row[2] = s2
+                if s3 > row[3]:
+                    row[3] = s3
+        # Fast colliders (swept detection) widen the same way; resolve bodies
+        # already did above. Empty list on a scene with no fast body.
+        for c in self._fast_colliders:
+            i = idx.get(id(c))
+            if i is None or c._in_resolve:
+                continue
+            start = c._proxy_start
+            row = swept[i]
+            if start[0] < row[0]:
+                row[0] = start[0]
+            if start[1] < row[1]:
+                row[1] = start[1]
+            if start[2] > row[2]:
+                row[2] = start[2]
+            if start[3] > row[3]:
+                row[3] = start[3]
+
+        pairs: List[Tuple[int, int]] = []
+        seen: Set[Tuple[int, int]] = set()
+        # Hosts of hitbox parts: a body and its parts (or two parts of one
+        # sprite) never pair. ``None`` when no part is registered (hot path).
+        owner: Optional[List[int]] = None
+        is_part: Optional[List[bool]] = None
+        if any(c._part is not None for c in colliders):
+            owner = [id(c._identity) for c in colliders]
+            is_part = [c._part is not None for c in colliders]
+
+        def _try_pair(i: int, j: int) -> None:
+            if i == j:
+                return
+            lo, hi = (i, j) if i < j else (j, i)
+            key = (lo, hi)
+            if key in seen:
+                return
+            seen.add(key)
+            if owner is not None and owner[lo] == owner[hi]:
+                return
+            a = swept[lo]
+            b = swept[hi]
+            if a[0] > b[2] or b[0] > a[2] or a[1] > b[3] or b[1] > a[3]:
+                return
+            pairs.append(key)
+
+        def _cross_same(members: Sequence[Collider]) -> None:
+            ids: List[int] = []
+            for c in members:
+                i = idx.get(id(c))
+                if i is not None:
+                    ids.append(i)
+            m = len(ids)
+            if m < 2:
+                return
+            if m >= 8:
+                arr = swept[ids]
+                minx = arr[:, 0]
+                miny = arr[:, 1]
+                maxx = arr[:, 2]
+                maxy = arr[:, 3]
+                no_x = (minx[:, None] > maxx[None, :]) | (minx[None, :] > maxx[:, None])
+                no_y = (miny[:, None] > maxy[None, :]) | (miny[None, :] > maxy[:, None])
+                overlap = ~(no_x | no_y)
+                ii, jj = np.nonzero(np.triu(overlap, k=1))
+                for a, b in zip(ii.tolist(), jj.tolist()):
+                    _try_pair(ids[a], ids[b])
+                return
+            for a in range(m):
+                ia = ids[a]
+                for b in range(a + 1, m):
+                    _try_pair(ia, ids[b])
+
+        def _cross_targets(ta, tb, members=self._handler_colliders) -> None:
+            tag_a = self._pair_tag_of(ta)
+            tag_b = self._pair_tag_of(tb)
+            if ta is tb or (tag_a is not None and tag_a == tag_b):
+                _cross_same(members(ta))
+                return
+            left_ids: List[int] = []
+            for c in members(ta):
+                i = idx.get(id(c))
+                if i is not None:
+                    left_ids.append(i)
+            right_ids: List[int] = []
+            for c in members(tb):
+                j = idx.get(id(c))
+                if j is not None:
+                    right_ids.append(j)
+            na, nb = len(left_ids), len(right_ids)
+            if na == 0 or nb == 0:
+                return
+            if na >= 8 and nb >= 8:
+                a_arr = swept[left_ids]
+                b_arr = swept[right_ids]
+                aminx, aminy = a_arr[:, 0], a_arr[:, 1]
+                amaxx, amaxy = a_arr[:, 2], a_arr[:, 3]
+                bminx, bminy = b_arr[:, 0], b_arr[:, 1]
+                bmaxx, bmaxy = b_arr[:, 2], b_arr[:, 3]
+                no_x = (aminx[:, None] > bmaxx[None, :]) | (bminx[None, :] > amaxx[:, None])
+                no_y = (aminy[:, None] > bmaxy[None, :]) | (bminy[None, :] > amaxy[:, None])
+                ii, jj = np.nonzero(~(no_x | no_y))
+                for a, b in zip(ii.tolist(), jj.tolist()):
+                    _try_pair(left_ids[a], right_ids[b])
+                return
+            for ia in left_ids:
+                for jb in right_ids:
+                    _try_pair(ia, jb)
+
+        for a, b, _cb, _phase in self._pair_handlers:
+            _cross_targets(a, b)
+        for a, b, _tok, _only in self._resolve_pairs:
+            _cross_targets(a, b, self._resolve_side_colliders)
+
+        anything_ids = [
+            i for i, ca in enumerate(colliders)
+            if any(t is ANYTHING for t in ca._pair_targets)
+        ]
+        if anything_ids:
+            # ``ANYTHING`` means bodies: a hitbox part is reached by its groups.
+            if n >= 8:
+                minx = swept[:, 0]
+                miny = swept[:, 1]
+                maxx = swept[:, 2]
+                maxy = swept[:, 3]
+                no_x = (minx[:, None] > maxx[None, :]) | (minx[None, :] > maxx[:, None])
+                no_y = (miny[:, None] > maxy[None, :]) | (miny[None, :] > maxy[:, None])
+                overlap = ~(no_x | no_y)
+                np.fill_diagonal(overlap, False)
+                for i in anything_ids:
+                    hits = np.nonzero(overlap[i])[0]
+                    for j in hits.tolist():
+                        if is_part is None or not is_part[j]:
+                            _try_pair(i, j)
+            else:
+                for i in anything_ids:
+                    for j in range(n):
+                        if i != j and (is_part is None or not is_part[j]):
+                            _try_pair(i, j)
+
+        return pairs
+
+    # -- step ---------------------------------------------------------------
+
+    def step(self) -> None:
+        t_total0 = time.perf_counter()
+        self._prune_dead()
+        # Linked hitbox ``active`` (``hb["active"] @= fn``): evaluated here, after
+        # update / on_update / play(), so collision sees this frame's value.
+        from .hitbox import _LINKED_PARTS, _refresh_linked_parts
+        if _LINKED_PARTS:
+            _refresh_linked_parts()
+        self._resolve_cache.clear()
+        self._solve_contacts.clear()
+        self._solve_contact_sides.clear()
+        self._solve_bottom_count.clear()
+        for c in self._colliders:
+            c._tags_cache = None
+            c._in_resolve = False
+        for ta, tb, _tok, _only in self._resolve_pairs:
+            for c in self._resolve_side_colliders(ta):
+                c._in_resolve = True
+            for c in self._resolve_side_colliders(tb):
+                c._in_resolve = True
+
+        # Snapshot → in-place proxy AABBs (world prims are lazy, on overlap).
+        # ``_fast_k2`` lets ``_commit_pending_motion`` list this step's fast
+        # colliders (swept detection); a commit outside this loop never does.
+        t0 = time.perf_counter()
+        live: List[Collider] = []
+        fast = self._fast_colliders
+        fast.clear()
+        self._fast_k2 = _FAST_MOTION_FRACTION * _FAST_MOTION_FRACTION
+        try:
+            for c in self._colliders:
+                if self._update_proxy(c):
+                    live.append(c)
+        finally:
+            self._fast_k2 = math.inf
+        ms_snapshot = (time.perf_counter() - t0) * 1000.0
+
+        self._last_groups = live
+        n_proxy = len(live)
+        if n_proxy == 0:
+            self._store_resolved_aabbs()
+            self._last_prims = []
+            self._emit_exit_keys(self._prev_contacts)
+            self._prev_contacts = set()
+            self._last_aabb = None
+            self.last_stats = {
+                "proxies": 0,
+                "prims": 0,
+                "proxy_pairs": 0,
+                "narrow": 0,
+                "sat": 0,
+                "skin": 0,
+                "fast": 0,
+                "swept": 0,
+                "swept_hits": 0,
+                "ms_snapshot": ms_snapshot,
+                "ms_broad": 0.0,
+                "ms_narrow": 0.0,
+                "ms_resolve": 0.0,
+                "ms_bounds": 0.0,
+                "ms_total": (time.perf_counter() - t_total0) * 1000.0,
+            }
+            if self._show:
+                self._update_debug_draw([])
+            return
+
+        proxy = np.zeros((n_proxy, 4), dtype=np.float64)
+        for i, c in enumerate(live):
+            p = c._proxy
+            proxy[i, 0] = p[0]
+            proxy[i, 1] = p[1]
+            proxy[i, 2] = p[2]
+            proxy[i, 3] = p[3]
+        self._last_aabb = proxy
+
+        # Broad phase: declared pairs only (@collide, resolve, ANYTHING).
+        t0 = time.perf_counter()
+        ii_jj = self._declared_broad_pairs(live, proxy)
+        ms_broad = (time.perf_counter() - t0) * 1000.0
+
+        current: Dict[Tuple[int, int], CollisionInfo] = {}
+        contact_keys: Set[Tuple[int, int]] = set()
+        proxy_pairs = 0
+        narrow_n = 0
+        sat_n = 0
+        skin_n = 0
+        n_prims = 0
+
+        t0 = time.perf_counter()
+        # ``_update_proxy`` just refreshed every live ``_proxy_key`` and no user
+        # code runs until dispatch, so a hull whose ``_world_key`` matches it is
+        # current. A collider in k pairs walks its pose keys once, not k times.
+        self._trust_proxy_world = True
+        try:
+            for i, j in ii_jj:
+                ca = live[i]
+                cb = live[j]
+                if ca is cb:
+                    continue
+                proxy_pairs += 1
+                pas = self._world_prims(ca)
+                pbs = self._world_prims(cb)
+                n_prims += len(pas) + len(pbs)
+                for pa in pas:
+                    for pb in pbs:
+                        if not _aabb_overlap_tuple(pa.aabb, pb.aabb):
+                            continue
+                        narrow_n += 1
+                        if not _is_fast_narrow(pa, pb):
+                            sat_n += 1
+                        contact = narrow_phase(pa, pb)
+                        if contact is None:
+                            continue
+                        ida, idb = id(ca), id(cb)
+                        key = (ida, idb) if ida < idb else (idb, ida)
+                        if key in current and current[key].depth >= contact.depth:
+                            pass
+                        else:
+                            current[key] = _collision_info_from_contact(
+                                ca, cb, contact, pas, pbs,
+                            )
+                        contact_keys.add(key)
+                # Resting contact (F1): resolve() parks a body ``_RESOLVE_SLOP``
+                # short of its partner, so a standing resolve pair within the
+                # skin is still a contact. Otherwise @collide on a resting body
+                # flickers with frame time. Sensors stay strict overlap.
+                if ca._in_resolve and cb._in_resolve and self._resolve_enabled:
+                    ida, idb = id(ca), id(cb)
+                    key = (ida, idb) if ida < idb else (idb, ida)
+                    if (
+                        key not in contact_keys
+                        and _prims_near(pas, pbs, _CONTACT_SKIN)
+                        and self._resolve_bounce_for(ca, cb) is not None
+                    ):
+                        contact = _skin_contact(pas, pbs, _CONTACT_SKIN)
+                        if contact is not None:
+                            skin_n += 1
+                            current[key] = _collision_info_from_contact(
+                                ca, cb, contact, pas, pbs,
+                            )
+                            contact_keys.add(key)
+            # Swept detection: only on a step with a fast collider.
+            n_fast = len(fast)
+            if n_fast:
+                t_enter, swept_n, swept_hits = self._swept_contacts(
+                    live, ii_jj, current, contact_keys,
+                )
+            else:
+                t_enter, swept_n, swept_hits = None, 0, 0
+        finally:
+            self._trust_proxy_world = False
+            fast.clear()
+        ms_narrow = (time.perf_counter() - t0) * 1000.0
+
+        last_prims: List[Tuple[Collider, Prim]] = []
+        if self._show:
+            prim_flat = []
+            for c in live:
+                for prim in self._world_prims(c):
+                    last_prims.append((c, prim))
+                    prim_flat.append((c, prim, len(prim_flat)))
+            self._update_debug_draw(prim_flat)
+        else:
+            for c in live:
+                cached = c._world_prims
+                if cached:
+                    for prim in cached:
+                        last_prims.append((c, prim))
+        self._last_prims = last_prims
+
+        self.last_stats = {
+            "proxies": float(n_proxy),
+            "prims": float(n_prims),
+            "proxy_pairs": float(proxy_pairs),
+            "narrow": float(narrow_n),
+            "sat": float(sat_n),
+            "skin": float(skin_n),
+            "fast": float(n_fast),
+            "swept": float(swept_n),
+            "swept_hits": float(swept_hits),
+            "ms_snapshot": ms_snapshot,
+            "ms_broad": ms_broad,
+            "ms_narrow": ms_narrow,
+            "ms_resolve": 0.0,
+            "ms_bounds": 0.0,
+            "ms_total": (time.perf_counter() - t_total0) * 1000.0,
+        }
+
+        # Enter / stay / exit. Commit this frame's contacts *before* handlers
+        # run: a handler that destroys a partner then finds the new pair and
+        # fires its exit (also for a pair entered this frame), and a raising
+        # handler cannot leave stale contacts that re-fire ``enter``.
+        prev = self._prev_contacts
+        entered = contact_keys - prev
+        stayed = contact_keys & prev
+        exited = prev - contact_keys
+        self._prev_contacts = contact_keys
+
+        id_to_collider = {id(c): c for c in self._colliders}
+
+        def colliders_for_key(key: Tuple[int, int]) -> Tuple[Collider, Collider]:
+            return id_to_collider[key[0]], id_to_collider[key[1]]
+
+        def _sort_keys(keys: Set[Tuple[int, int]]) -> List[Tuple[int, int]]:
+            idx_map = self._collider_index
+            ordered = []
+            for key in keys:
+                ia = idx_map.get(key[0], key[0])
+                ib = idx_map.get(key[1], key[1])
+                ordered.append((min(ia, ib), max(ia, ib), key))
+            ordered.sort()
+            return [key for _a, _b, key in ordered]
+
+        # A ``change_act`` from a handler tears the world down mid-step. No
+        # extra guard: the rest of the step's old-act pairs are dropped by the
+        # dead-pair rules (enter/stay skip bodies not in play; a destroyed body
+        # has no tags for a handler to match and no hooks), and new-act bodies
+        # are not in this step's contacts. Game pairs keep dispatching.
+        if t_enter:
+            # Nearest hit first: a fast body's enters run in time-of-impact
+            # order, so a shot that destroys itself hits the enemy it reached
+            # first (``_dispatch`` skips enters for a body already destroyed).
+            # Keys without a time (slow pairs) keep their order, after them.
+            entered_order = sorted(
+                _sort_keys(entered), key=lambda k: t_enter.get(k, 1.0),
+            )
+        else:
+            entered_order = _sort_keys(entered)
+        for key in entered_order:
+            if key not in current:
+                continue
+            info = current[key]
+            ca, cb = colliders_for_key(key)
+            self._dispatch(ca, cb, info, _PHASE_ENTER)
+        for key in _sort_keys(stayed):
+            if key not in current:
+                continue
+            info = current[key]
+            ca, cb = colliders_for_key(key)
+            self._dispatch(ca, cb, info, _PHASE_STAY)
+        for key in _sort_keys(exited):
+            ca, cb = colliders_for_key(key) if key[0] in id_to_collider and key[1] in id_to_collider else (None, None)
+            if ca is None:
+                continue
+            info = CollisionInfo(a=ca._identity, b=cb._identity, normal=Vec2.temp(0, 0), depth=0.0)
+            self._dispatch(ca, cb, info, _PHASE_EXIT)
+
+        t0 = time.perf_counter()
+        if self._resolve_enabled:
+            self._trust_proxy_world = True
+            try:
+                self._apply_auto_resolve(current, id_to_collider)
+            finally:
+                self._trust_proxy_world = False
+        self.last_stats["ms_resolve"] = (time.perf_counter() - t0) * 1000.0
+        t0 = time.perf_counter()
+        # No author code runs between resolve and here, so proxies still match
+        # the solver's nudges and world prims can skip the pose-key walk.
+        self._trust_proxy_world = True
+        try:
+            self._store_resolved_aabbs()
+        finally:
+            self._trust_proxy_world = False
+        self.last_stats["ms_bounds"] = (time.perf_counter() - t0) * 1000.0
+        self.last_stats["ms_total"] = (time.perf_counter() - t_total0) * 1000.0
+        self._update_touching_state(self._solve_contacts, id_to_collider)
+
+    def _swept_contacts(
+        self,
+        live: List[Collider],
+        ii_jj: List[Tuple[int, int]],
+        current: Dict[Tuple[int, int], CollisionInfo],
+        contact_keys: Set[Tuple[int, int]],
+    ) -> Tuple[Dict[Tuple[int, int], float], int, int]:
+        """Contacts along a fast collider's path this frame (swept detection).
+
+        Runs after the end-pose narrow phase, on broad pairs with a fast side
+        (their swept boxes were widened in ``_declared_broad_pairs``). A pair
+        with no end-pose contact whose relative path hits is a contact this
+        frame: depth 0, normal and ``point`` at the time of impact, bodies left
+        where they ended. Returns ``(t_enter, swept, hits)``: the impact time
+        of each new contact with a fast side (nearest-first enter order), the
+        number of exact sweeps, and the swept-only contacts added.
+        """
+        fast_ids = {id(c) for c in self._fast_colliders}
+        prev = self._prev_contacts
+        t_enter: Dict[Tuple[int, int], float] = {}
+        seen: Set[Tuple[int, int]] = set()
+        swept_n = 0
+        hits = 0
+        for i, j in ii_jj:
+            ca = live[i]
+            cb = live[j]
+            if ca is cb:
+                continue
+            ida, idb = id(ca), id(cb)
+            if ida not in fast_ids and idb not in fast_ids:
+                continue
+            key = (ida, idb) if ida < idb else (idb, ida)
+            if key in seen:
+                continue
+            seen.add(key)
+            overlapping = key in contact_keys
+            if overlapping and key in prev:
+                continue                       # an open contact: end pose decides
+            dax = ca._motion_dx if ca._motion_translation else 0.0
+            day = ca._motion_dy if ca._motion_translation else 0.0
+            dbx = cb._motion_dx if cb._motion_translation else 0.0
+            dby = cb._motion_dy if cb._motion_translation else 0.0
+            # In b's end frame, a travels the relative motion.
+            rdx = dax - dbx
+            rdy = day - dby
+            if rdx == 0.0 and rdy == 0.0:
+                continue
+            pa = ca._proxy
+            if _aabb_toi(
+                (pa[0] - rdx, pa[1] - rdy, pa[2] - rdx, pa[3] - rdy),
+                cb._proxy, rdx, rdy,
+            ) is None:
+                continue
+            pas = self._world_prims(ca)
+            pbs = self._world_prims(cb)
+            if not pas or not pbs:
+                continue
+            swept_n += 1
+            hit = _toi_prim_sets(_copy_translate(pas, -rdx, -rdy), pbs, rdx, rdy)
+            if hit is None or hit[1] is None:
+                continue
+            t = hit[0]
+            t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
+            if overlapping:
+                t_enter[key] = t               # new end-pose contact: when it began
+                continue
+            if t <= 1e-12 and key in prev:
+                continue                       # already reported; it has ended
+            nx, ny = hit[1].normal[0], hit[1].normal[1]
+            back = 1.0 - t
+            current[key] = _collision_info_from_contact(
+                ca, cb, Contact((nx, ny), 0.0, []),
+                _copy_translate(pas, -dax * back, -day * back),
+                _copy_translate(pbs, -dbx * back, -dby * back),
+            )
+            contact_keys.add(key)
+            t_enter[key] = t
+            hits += 1
+        return t_enter, swept_n, hits
+
+    def _apply_auto_resolve(
+        self,
+        current: Dict[Tuple[int, int], CollisionInfo],
+        id_to_collider: Dict[int, Collider],
+    ) -> None:
+        if not self._resolve_pairs:
+            return
+        # Walk declared resolve members only (not every enrolled collider).
+        bodies: List[Collider] = []
+        grounded_at_start: Dict[int, bool] = {}
+        seen: Set[int] = set()
+        for ta, tb, _tok, _only in self._resolve_pairs:
+            for side in (ta, tb):
+                for c in self._resolve_side_colliders(side):
+                    cid = id(c)
+                    if cid in seen:
+                        continue
+                    seen.add(cid)
+                    ident = c._identity
+                    mass = float(getattr(ident, "mass", 1.0)) if ident is not None else 1.0
+                    sides = getattr(ident, "touching_sides", frozenset()) or frozenset()
+                    grounded_at_start[cid] = "bottom" in sides
+                    if _is_static_mass(mass):
+                        continue
+                    bodies.append(c)
+        bodies.sort(key=lambda c: self._collider_index.get(id(c), id(c)))
+        # ``only=`` costs nothing here unless some pair has it: one bool per
+        # body, and the gate is read only after a hit or an overlap is found.
+        has_only = self._has_only
+        for ca in bodies:
+            partners = self._resolve_partners(ca)
+            if not partners:
+                continue
+            gate = None
+            if has_only:
+                only_map = self._partner_only_cache.get(id(ca))
+                if only_map is not None:
+                    gate, partners = self._only_view(ca, partners, only_map)
+                    if not partners:
+                        continue
+            self._sweep_and_slide(ca, partners, gate)
+            self._settle_body(ca, partners, gate)
+            if grounded_at_start.get(id(ca)):
+                self._floor_snap(ca, partners, gate)
+        if self._passing:
+            # Drop bodies and partners that left the resolve world (a body
+            # with no partners left never reaches ``_only_view``), then
+            # empty entries.
+            for bid in list(self._passing):
+                inner = self._passing[bid]
+                if bid in seen:
+                    for pid in [k for k in inner if k not in seen]:
+                        del inner[pid]
+                if not inner or bid not in seen:
+                    del self._passing[bid]
+        live = set(self._solve_contacts)
+        self._contact_memory = {
+            k: v for k, v in self._contact_memory.items() if k in live
+        }
+
+    def _resolve_partners(
+        self, ca: Collider
+    ) -> List[Tuple[Collider, Any, float, float]]:
+        """Partners of ``ca`` from standing ``resolve()`` registrations.
+
+        Tag sides walk ``_tag_colliders`` (O(declared members)), not every
+        enrolled collider. Partner *identities* are cached across frames and
+        refreshed only on enroll / pair-graph edits; motion deltas are read
+        live each call. First matching registration wins the bounce token.
+        """
+        cid = id(ca)
+        cached = self._partner_ident_cache.get(cid)
+        if cached is None:
+            out_ids: List[Tuple[Collider, Any]] = []
+            # partner id → (only entry in ca's view, registration) for the
+            # first registration that reached it; a second one must agree.
+            seen: Dict[int, Tuple[Any, Tuple[Any, Any, Any]]] = {}
+            only_map: Dict[int, Tuple[Any, bool]] = {}
+
+            def _append_side(target, token, entry, reg) -> None:
+                for c in self._resolve_side_colliders(target):
+                    if c is ca:
+                        continue
+                    pid = id(c)
+                    first = seen.get(pid)
+                    if first is not None:
+                        if first[0] != entry:
+                            self._raise_only_conflict(ca, c, first, (entry, reg))
+                        continue
+                    seen[pid] = (entry, reg)
+                    out_ids.append((c, token))
+                    if entry is not None:
+                        only_map[pid] = entry
+
+            for ta, tb, token, only in self._resolve_pairs:
+                on_a = self._collider_on_resolve_side(ca, ta)
+                on_b = self._collider_on_resolve_side(ca, tb)
+                reg = (ta, tb, only)
+                if on_a:
+                    _append_side(tb, token, None if only is None else (only, False), reg)
+                if on_b and not (on_a and self._same_resolve_side(ta, tb)):
+                    if only is None:
+                        entry = None
+                    elif isinstance(only, frozenset):
+                        entry = (_mirror_only(only), False)
+                    else:
+                        entry = (only, True)
+                    _append_side(ta, token, entry, reg)
+            self._partner_ident_cache[cid] = out_ids
+            self._partner_only_cache[cid] = only_map or None
+            cached = out_ids
+        return [(c, token, c._motion_dx, c._motion_dy) for c, token in cached]
+
+    def _raise_only_conflict(self, ca: Collider, cb: Collider, first, second) -> None:
+        """Two registrations reach one body pair with different ``only=``.
+
+        First-wins would drop a filter depending on declaration order, so this
+        raises instead (at ``resolve()``, or on the first step after a tag join).
+        """
+        from .entity import entity_label
+
+        def _reg(item) -> str:
+            ta, tb, only = item[1]
+            return f"resolve({_side_code(ta)}, {_side_code(tb)}, {_only_code(only)})"
+
+        raise ValueError(
+            f"{entity_label(ca._identity)} and {entity_label(cb._identity)} are paired by "
+            f"{_reg(first)} and by {_reg(second)}, which disagree on only=. "
+            "Keep one registration per body pair (e.g. give one-way platforms "
+            "their own tag), or pass the same only= to both."
+        )
+
+    def _only_view(
+        self, ca: Collider, partners: List[Tuple[Collider, Any, float, float]],
+        only_map: Dict[int, Tuple[Any, bool]],
+    ) -> Tuple[_OnlyGate, List[Tuple[Collider, Any, float, float]]]:
+        """Gate for ``ca``'s filtered partners; passing partners left out.
+
+        A pass ends when the pair no longer overlaps (or is no longer
+        filtered). Only called for bodies with an ``only=`` partner.
+        """
+        cid = id(ca)
+        passing = self._passing.setdefault(cid, {})
+        if passing:
+            for pid, cb in list(passing.items()):
+                if (
+                    only_map.get(pid) is None
+                    or not _proxy_aabb_overlap(ca, cb)
+                    or self._collision_info_for_colliders(ca, cb) is None
+                ):
+                    self._end_passing(ca, pid)
+            if passing:
+                # ``ok`` rejects them too; dropping them here only saves the
+                # TOI / overlap work for the whole pass.
+                partners = [p for p in partners if passing.get(id(p[0])) is not p[0]]
+        return _OnlyGate(self, ca, only_map, passing), partners
+
+    def _nudge_collider(self, collider: Collider, dx: float, dy: float) -> None:
+        if abs(dx) < 1e-18 and abs(dy) < 1e-18:
+            return
+        ident = collider._identity
+        moved = False
+        if ident is not None and ident is not collider:
+            mb = getattr(ident, "_move_by", None)
+            if callable(mb):
+                mb(dx, dy)
+                moved = True
+        if not moved:
+            for s in collider.shapes:
+                mb = getattr(s, "_move_by", None)
+                if callable(mb):
+                    mb(dx, dy)
+        p = collider._proxy
+        p[0] += dx
+        p[1] += dy
+        p[2] += dx
+        p[3] += dy
+        shapes = collider.shapes
+        shifted = _shift_pose_key_bundle(collider._proxy_key, dx, dy)
+        if collider._world_prims:
+            translated = _translate_prims(collider._world_prims, dx, dy)
+            if not translated:
+                collider._world_prims = None
+                collider._world_key = None
+            elif shifted is not None:
+                collider._world_key = shifted
+            elif shapes:
+                collider._world_key = tuple(_collision_pose_key(s) for s in shapes)
+        if shifted is not None:
+            collider._proxy_key = shifted
+        elif shapes:
+            collider._proxy_key = tuple(_collision_pose_key(s) for s in shapes)
+        collider._proxy_valid = True
+
+    def _bump_solve_bottom(self, cid: int, delta: int) -> None:
+        n = self._solve_bottom_count.get(cid, 0) + delta
+        if n <= 0:
+            self._solve_bottom_count.pop(cid, None)
+        else:
+            self._solve_bottom_count[cid] = n
+
+    @staticmethod
+    def _pair_key(ca: Collider, cb: Collider) -> Tuple[int, int]:
+        ia, ib = id(ca), id(cb)
+        return (ia, ib) if ia < ib else (ib, ia)
+
+    def _record_solve_contact(
+        self,
+        ca: Collider,
+        cb: Collider,
+        nx_self_to_other: float,
+        ny_self_to_other: float,
+        depth: float,
+        points: Optional[List[Tuple[float, float]]] = None,
+    ) -> None:
+        ia, ib = id(ca), id(cb)
+        if ia < ib:
+            nx, ny = nx_self_to_other, ny_self_to_other
+            a_id, b_id = ca, cb
+        else:
+            nx, ny = -nx_self_to_other, -ny_self_to_other
+            a_id, b_id = cb, ca
+        pts = list(points or [])
+        if not pts:
+            pts = _points_or_witness(
+                pts, self._world_prims(a_id), self._world_prims(b_id), nx, ny,
+            )
+            if not pts and ca._proxy_valid and cb._proxy_valid:
+                # Canonical key order: normal already points a→b for the stored info.
+                if ia < ib:
+                    pts = [_synthesize_contact_point(ca._proxy, cb._proxy, nx, ny)]
+                else:
+                    pts = [_synthesize_contact_point(cb._proxy, ca._proxy, nx, ny)]
+        info = CollisionInfo(
+            a=a_id._identity,
+            b=b_id._identity,
+            normal=Vec2.temp(nx, ny),
+            depth=float(depth),
+            points=pts,
+        )
+        key = (min(ia, ib), max(ia, ib))
+        prev = self._solve_contacts.get(key)
+        if prev is None or info.depth >= prev.depth:
+            self._solve_contacts[key] = info
+            side_lo = _side_from_normal(nx, ny)
+            side_hi = _side_from_normal(-nx, -ny)
+            old_sides = self._solve_contact_sides.get(key)
+            if old_sides is not None:
+                if old_sides[0] == "bottom":
+                    self._bump_solve_bottom(key[0], -1)
+                if old_sides[1] == "bottom":
+                    self._bump_solve_bottom(key[1], -1)
+            self._solve_contact_sides[key] = (side_lo, side_hi)
+            if side_lo == "bottom":
+                self._bump_solve_bottom(key[0], 1)
+            if side_hi == "bottom":
+                self._bump_solve_bottom(key[1], 1)
+        nlen = math.hypot(nx, ny)
+        if nlen > 1e-12:
+            self._contact_memory[key] = (nx / nlen, ny / nlen)
+
+    def _respond_velocity(
+        self,
+        ca: Collider,
+        cb: Collider,
+        token: Any,
+        nx: float,
+        ny: float,
+    ) -> None:
+        if token is _RESOLVE_POSITION_ONLY or token is None:
+            return
+        info = CollisionInfo(
+            a=ca._identity,
+            b=cb._identity,
+            normal=Vec2.temp(nx, ny),
+            depth=0.0,
+        )
+        info.bounce_apart(bounce=float(token))
+
+    def _earliest_toi(
+        self,
+        pas: List[Prim],
+        rdx: float,
+        rdy: float,
+        partners: Sequence[Tuple[Collider, Any, float, float]],
+        *,
+        relative: bool = False,
+        gate: Optional[_OnlyGate] = None,
+    ) -> Optional[Tuple[float, float, float, Collider, Any, float, float]]:
+        if not pas:
+            return None
+        minx = min(p.aabb[0] for p in pas)
+        miny = min(p.aabb[1] for p in pas)
+        maxx = max(p.aabb[2] for p in pas)
+        maxy = max(p.aabb[3] for p in pas)
+        sx0, sy0, sx1, sy1 = _swept_aabb((minx, miny, maxx, maxy), rdx, rdy)
+        best: Optional[Tuple[float, float, float, Collider, Any, float, float]] = None
+        rejected: Optional[List[Tuple[float, Collider]]] = None
+        for cb, token, odx, ody in partners:
+            # Partner box over the frame: union of its start (proxy - motion)
+            # and end proxy, inlined — this loop visits the whole partner pool.
+            pb = cb._proxy
+            if odx > 0.0:
+                if pb[0] - odx > sx1 or sx0 > pb[2]:
+                    continue
+            elif pb[0] > sx1 or sx0 > pb[2] - odx:
+                continue
+            if ody > 0.0:
+                if pb[1] - ody > sy1 or sy0 > pb[3]:
+                    continue
+            elif pb[1] > sy1 or sy0 > pb[3] - ody:
+                continue
+            pbs_end = self._world_prims(cb)
+            if not pbs_end:
+                continue
+            if relative and (odx or ody):
+                pbs = _copy_translate(pbs_end, -odx, -ody)
+                mdx = rdx - odx
+                mdy = rdy - ody
+                hit = _toi_prim_sets(pas, pbs, mdx, mdy)
+            else:
+                mdx = rdx
+                mdy = rdy
+                hit = _toi_prim_sets(pas, pbs_end, mdx, mdy)
+            if hit is None:
+                continue
+            t, contact = hit
+            if contact is None:
+                continue
+            # TOI at t=0 means "already overlapping". Do not let a separating
+            # or purely tangential motion clamp this frame's motion to zero;
+            # that overlap is a settle concern, not a sweep blocker.
+            if t <= 1e-12:
+                nx0, ny0 = contact.normal[0], contact.normal[1]
+                if (mdx * nx0 + mdy * ny0) <= 0.0:
+                    continue
+            if gate is not None and not gate.ok(
+                cb, contact.normal[0], contact.normal[1], contact.points,
+            ):
+                if rejected is None:
+                    rejected = []
+                rejected.append((t, cb))
+                continue
+            if best is None or t < best[0] - 1e-12:
+                best = (
+                    t, contact.normal[0], contact.normal[1],
+                    cb, token, odx, ody,
+                )
+        if rejected is not None:
+            # The body crosses into a rejected partner only if nothing
+            # accepted stops it first; a later rejected hit is re-judged on
+            # the next slide (from where the body really is).
+            stop = best[0] - 1e-12 if best is not None else math.inf
+            for t_rej, cb_rej in rejected:
+                if t_rej < stop:
+                    gate.mark(cb_rej)
+        return best
+
+    def _sweep_and_slide(
+        self,
+        ca: Collider,
+        partners: Sequence[Tuple[Collider, Any, float, float]],
+        gate: Optional[_OnlyGate] = None,
+    ) -> None:
+        dx = ca._motion_dx if ca._motion_translation else 0.0
+        dy = ca._motion_dy if ca._motion_translation else 0.0
+        pas_end = self._world_prims(ca)
+        if not pas_end:
+            return
+        partner_moves = any(
+            abs(odx) > 1e-12 or abs(ody) > 1e-12 for _cb, _tok, odx, ody in partners
+        )
+        if math.hypot(dx, dy) < _SLIDE_EPS:
+            if partner_moves:
+                self._sweep_idle_against_partner(ca, pas_end, partners, gate)
+            return
+        pas = _copy_translate(pas_end, -dx, -dy)
+        ox = 0.0
+        oy = 0.0
+        remaining = (dx, dy)
+        for _ in range(_MAX_SLIDES):
+            rdx, rdy = remaining
+            if math.hypot(rdx, rdy) < _SLIDE_EPS:
+                break
+            moved = _copy_translate(pas, ox, oy)
+            first = abs(ox) < 1e-12 and abs(oy) < 1e-12
+            hit = self._earliest_toi(moved, rdx, rdy, partners, relative=first, gate=gate)
+            if hit is None:
+                ox += rdx
+                oy += rdy
+                remaining = (0.0, 0.0)
+                break
+            t, nx, ny, other, token, odx, ody = hit
+            t = max(0.0, min(1.0, t))
+            ox += rdx * t
+            oy += rdy * t
+            nlen = math.hypot(nx, ny)
+            if nlen > 1e-12:
+                nx /= nlen
+                ny /= nlen
+                ox -= nx * _RESOLVE_SLOP
+                oy -= ny * _RESOLVE_SLOP
+            self._record_solve_contact(ca, other, nx, ny, 0.0)
+            self._respond_velocity(ca, other, token, nx, ny)
+            leftover_x = rdx * (1.0 - t)
+            leftover_y = rdy * (1.0 - t)
+            remaining = _remove_normal_component(leftover_x, leftover_y, nx, ny)
+            # Relative-frame TOI is against the partner's start-of-frame pose.
+            # Convert back to world space by inheriting the partner's leftover
+            # displacement — every contact side, not only a standing rider.
+            if first and (odx or ody):
+                ox += odx * (1.0 - t)
+                oy += ody * (1.0 - t)
+            side = _side_from_normal(nx, ny)
+            if side == "bottom" and abs(dx) < _STOP_ON_SLOPE_INTENT:
+                remaining = (0.0, 0.0)
+        self._nudge_collider(ca, ox - dx, oy - dy)
+
+    def _sweep_idle_against_partner(
+        self,
+        ca: Collider,
+        pas: List[Prim],
+        partners: Sequence[Tuple[Collider, Any, float, float]],
+        gate: Optional[_OnlyGate] = None,
+    ) -> None:
+        """One relative sweep when only the partner moved this frame.
+
+        A fast floor into a body that did not ``move_by`` never enters the
+        slide loop (own motion is 0). The relative TOI still has to run, or
+        the pair is left to the capped settle.
+        """
+        hit = self._earliest_toi(pas, 0.0, 0.0, partners, relative=True, gate=gate)
+        if hit is None:
+            return
+        t, nx, ny, other, token, odx, ody = hit
+        t = max(0.0, min(1.0, t))
+        nlen = math.hypot(nx, ny)
+        if nlen > 1e-12:
+            nx /= nlen
+            ny /= nlen
+        ox = odx * (1.0 - t) - nx * _RESOLVE_SLOP
+        oy = ody * (1.0 - t) - ny * _RESOLVE_SLOP
+        self._record_solve_contact(ca, other, nx, ny, 0.0)
+        self._respond_velocity(ca, other, token, nx, ny)
+        self._nudge_collider(ca, ox, oy)
+
+    def _settle_normal(
+        self,
+        ca: Collider,
+        cb: Collider,
+        info: CollisionInfo,
+    ) -> Tuple[float, float]:
+        nx, ny = _normal_components(info.normal)
+        if id(ca) > id(cb):
+            nx, ny = -nx, -ny
+        key = self._pair_key(ca, cb)
+        mem = self._contact_memory.get(key)
+        if mem is not None:
+            mx, my = mem
+            if id(ca) > id(cb):
+                mx, my = -mx, -my
+            return mx, my
+        ia = ca._identity
+        ib = cb._identity
+        va = getattr(ia, "_vel", None) if ia is not None else None
+        vb = getattr(ib, "_vel", None) if ib is not None else None
+        vax, vay = (0.0, 0.0) if va is None else _vec2_components(va)
+        vbx, vby = (0.0, 0.0) if vb is None else _vec2_components(vb)
+        vn = (vax - vbx) * nx + (vay - vby) * ny
+        if vn < 0.0:
+            nx, ny = -nx, -ny
+        nlen = math.hypot(nx, ny)
+        if nlen < 1e-12:
+            return 0.0, 1.0
+        return nx / nlen, ny / nlen
+
+    def _exact_bounds_aabb(
+        self, collider: Collider
+    ) -> Optional[Tuple[float, float, float, float]]:
+        """Collision-prim AABB for unswept recovery.
+
+        The broad-phase proxy for a sprite is its local extent box turned by
+        the heading. It extends past the hitbox, so a side correction (motion no longer
+        matches the box) would otherwise pull the body onto a shape the
+        hitbox does not touch.
+        """
+        exact = _prims_bounds_aabb(self._world_prims(collider))
+        if exact is not None:
+            return exact
+        return _unpadded_proxy_aabb(collider)
+
+    def _store_resolved_aabbs(self) -> None:
+        """Remember collision bounds for next frame's unswept recovery.
+
+        Only ``resolve()`` bodies and partners read them. Everyone else stays
+        lazy: world prims are built only for overlapping pairs. A collider that
+        joins resolve has no history for one frame, the same as spawn.
+        """
+        for c in self._colliders:
+            if c._in_resolve:
+                c._resolved_aabb = self._exact_bounds_aabb(c)
+            elif c._resolved_aabb is not None:
+                c._resolved_aabb = None
+
+    def _nudge_pair_along(
+        self,
+        ca: Collider,
+        cb: Collider,
+        nx: float,
+        ny: float,
+        corr: float,
+    ) -> None:
+        """Split ``corr`` along ``n`` (from ``ca`` toward ``cb``), same masses as settle."""
+        ia = ca._identity
+        ib = cb._identity
+        ma = float(getattr(ia, "mass", 1.0)) if ia is not None else 1.0
+        mb = float(getattr(ib, "mass", 1.0)) if ib is not None else 1.0
+        a_inf = _is_static_mass(ma)
+        b_inf = _is_static_mass(mb)
+        if b_inf and not a_inf:
+            self._nudge_collider(ca, -nx * corr, -ny * corr)
+        elif a_inf and not b_inf:
+            self._nudge_collider(cb, nx * corr, ny * corr)
+        elif not a_inf and not b_inf:
+            inv_a = 1.0 / ma
+            inv_b = 1.0 / mb
+            total = inv_a + inv_b
+            wa = inv_a / total
+            wb = inv_b / total
+            self._nudge_collider(ca, -nx * corr * wa, -ny * corr * wa)
+            self._nudge_collider(cb, nx * corr * wb, ny * corr * wb)
+
+    def _recover_unswept_bounds(
+        self,
+        ca: Collider,
+        partners: Sequence[Tuple[Collider, Any, float, float]],
+        gate: Optional[_OnlyGate] = None,
+    ) -> None:
+        """Pull a bounds change back across the face it crossed.
+
+        Runs only when the pair's last resolved bounds were clear, the current
+        collision-prim bounds overlap, the prims themselves overlap, and this
+        frame's motion channel does not already explain the body's box. The
+        broad-phase proxy and a rotated body's bounding box are not
+        enough. Spawn, an already-overlapping pair, a partner placed into a
+        body that only translated, and a hit the sweep stopped stay on the
+        capped settle loop.
+        """
+        prev_a = ca._resolved_aabb
+        if prev_a is None:
+            return
+        # Partners are the whole declared pool (every ball for ball×ball), so
+        # the stored-box and proxy rejects run before any prim bounds. Prims
+        # sit inside the proxy (``_nudge_collider`` keeps it synced), so a
+        # disjoint proxy pair cannot pass the prim-overlap test below.
+        curr_a: Optional[Tuple[float, float, float, float]] = None
+        for cb, token, _odx, _ody in partners:
+            if not _proxy_aabb_overlap(ca, cb):
+                continue
+            prev_b = cb._resolved_aabb
+            if prev_b is None or _aabb_overlaps_box(prev_a, prev_b):
+                continue
+            key = self._pair_key(ca, cb)
+            if key in self._solve_contacts:
+                continue
+            if curr_a is None:
+                curr_a = self._exact_bounds_aabb(ca)
+                if curr_a is None:
+                    return
+            curr_b = self._exact_bounds_aabb(cb)
+            if curr_b is None:
+                continue
+            if not _aabb_overlaps_box(curr_a, curr_b):
+                continue
+            if _aabb_matches_motion(prev_a, curr_a, ca._motion_dx, ca._motion_dy):
+                continue
+            # Prim AABBs of a rotated body are fatter than the body. A wall
+            # slide whose pose no longer matches the motion channel must not
+            # treat that empty corner as a floor.
+            if self._collision_info_for_colliders(ca, cb) is None:
+                continue
+            entered = _aabb_entry_normal(prev_a, curr_a, prev_b, curr_b)
+            if entered is None:
+                continue
+            nx, ny = entered
+            if gate is not None and not gate.ok(cb, nx, ny):
+                gate.mark(cb)
+                continue
+            pas = self._world_prims(ca)
+            pbs = self._world_prims(cb)
+            gap = _prims_penetration(pas, pbs, nx, ny)
+            if gap <= 0.0:
+                continue
+            self._nudge_pair_along(ca, cb, nx, ny, gap + _RESOLVE_SLOP)
+            curr_a = None
+            self._record_solve_contact(ca, cb, nx, ny, gap)
+            if token is not _RESOLVE_POSITION_ONLY:
+                self._respond_velocity(ca, cb, token, nx, ny)
+
+    def _settle_body(
+        self,
+        ca: Collider,
+        partners: Sequence[Tuple[Collider, Any, float, float]],
+        gate: Optional[_OnlyGate] = None,
+    ) -> None:
+        self._recover_unswept_bounds(ca, partners, gate)
+        for _ in range(_SETTLE_ITERS):
+            deepest: Optional[Tuple[Collider, Any, CollisionInfo, float, float, float]] = None
+            for cb, token, _odx, _ody in partners:
+                if not _proxy_aabb_overlap(ca, cb):
+                    continue
+                info = self._collision_info_for_colliders(ca, cb)
+                if info is None:
+                    continue
+                nx, ny = self._settle_normal(ca, cb, info)
+                if gate is not None and not gate.ok(cb, nx, ny, info.points):
+                    # An overlap this pair may not push out: pass through.
+                    gate.mark(cb)
+                    continue
+                depth = float(info.depth) - _RESOLVE_SLOP
+                if deepest is None or float(info.depth) > deepest[2].depth:
+                    deepest = (cb, token, info, nx, ny, depth)
+            if deepest is None:
+                break
+            cb, token, info, nx, ny, depth = deepest
+            key = self._pair_key(ca, cb)
+            had_contact = key in self._solve_contacts
+            if depth > 0.0:
+                corr = min(_SETTLE_BIAS * depth, _SETTLE_MAX)
+                ia = ca._identity
+                ib = cb._identity
+                ma = float(getattr(ia, "mass", 1.0)) if ia is not None else 1.0
+                mb = float(getattr(ib, "mass", 1.0)) if ib is not None else 1.0
+                a_inf = _is_static_mass(ma)
+                b_inf = _is_static_mass(mb)
+                if a_inf and not b_inf:
+                    self._nudge_collider(cb, nx * corr, ny * corr)
+                elif b_inf and not a_inf:
+                    self._nudge_collider(ca, -nx * corr, -ny * corr)
+                elif not a_inf and not b_inf:
+                    inv_a = 1.0 / ma
+                    inv_b = 1.0 / mb
+                    total = inv_a + inv_b
+                    self._nudge_collider(ca, -nx * corr * (inv_a / total), -ny * corr * (inv_a / total))
+                    self._nudge_collider(cb, nx * corr * (inv_b / total), ny * corr * (inv_b / total))
+            self._record_solve_contact(
+                ca, cb, nx, ny, max(0.0, float(info.depth)), points=list(info.points),
+            )
+            if not had_contact and token is not _RESOLVE_POSITION_ONLY:
+                self._respond_velocity(ca, cb, token, nx, ny)
+            if depth <= 0.0:
+                break
+
+    def _floor_snap(
+        self,
+        ca: Collider,
+        partners: Sequence[Tuple[Collider, Any, float, float]],
+        gate: Optional[_OnlyGate] = None,
+    ) -> None:
+        ident = ca._identity
+        if ident is None:
+            return
+        # Sweep/settle already recorded a bottom contact for this body.
+        if self._solve_bottom_count.get(id(ca), 0) > 0:
+            return
+        snap = max(_FLOOR_SNAP_MIN, abs(min(0.0, ca._motion_dy)) + 8.0)
+        pas = self._world_prims(ca)
+        hit = self._earliest_toi(pas, 0.0, -snap, partners, gate=gate)
+        if hit is None:
+            return
+        t, nx, ny, other, token, _odx, _ody = hit
+        nlen = math.hypot(nx, ny)
+        if nlen < 1e-12:
+            return
+        nx /= nlen
+        ny /= nlen
+        if _side_from_normal(nx, ny) != "bottom":
+            return
+        # Leave gate: relative velocity and this frame's relative displacement
+        # along the contact normal. Flat floors reduce speed to ``vy - ovy``;
+        # ramps ignore tangential climb. Walkers cannot trust speed alone —
+        # world-axis ``vel.x`` on a slope looks like tens of DU/s of leave
+        # while motion barely separates; snap must still heal short-frame
+        # ``_RESOLVE_SLOP`` gaps (closing them takes g·dt², which fails under
+        # ~9 ms). Elastic pairs (``bounce > 0.5``) trust ``leave_v``: the
+        # impulse already wrote an honest separating velocity, and a 2 DU
+        # ``leave_d`` conjunct glues bounces at high FPS.
+        vel = getattr(ident, "_vel", None)
+        if vel is not None:
+            vx, vy = _vec2_components(vel)
+            oident = other._identity
+            ovel = getattr(oident, "_vel", None) if oident is not None else None
+            ovx, ovy = (0.0, 0.0) if ovel is None else _vec2_components(ovel)
+            # ``(nx, ny)`` points from body toward other (down into a floor);
+            # leaving is motion opposite that normal.
+            rel_dx = ca._motion_dx - _odx
+            rel_dy = ca._motion_dy - _ody
+            leave_v = -((vx - ovx) * nx + (vy - ovy) * ny)
+            leave_d = -(rel_dx * nx + rel_dy * ny)
+            if _floor_snap_should_refuse(
+                leave_v=leave_v,
+                leave_d=leave_d,
+                rel_motion_len=math.hypot(rel_dx, rel_dy),
+                token=token,
+            ):
+                return
+        t = max(0.0, min(1.0, t))
+        self._nudge_collider(ca, 0.0, -snap * t)
+        self._nudge_collider(ca, -nx * _RESOLVE_SLOP, -ny * _RESOLVE_SLOP)
+        self._record_solve_contact(ca, other, nx, ny, 0.0)
+        self._respond_velocity(ca, other, token, nx, ny)
+
+    def _update_touching_state(
+        self,
+        current: Dict[Tuple[int, int], CollisionInfo],
+        id_to_collider: Dict[int, Collider],
+    ) -> None:
+        from .entity import Graphic
+
+        per_collider: Dict[int, List[Tuple[Any, CollisionInfo]]] = {}
+        for key, info in current.items():
+            ca = id_to_collider.get(key[0])
+            cb = id_to_collider.get(key[1])
+            if ca is None or cb is None:
+                continue
+            if self._resolve_bounce_for(ca, cb) is None:
+                continue
+            for me_c, other_c in ((ca, cb), (cb, ca)):
+                oriented = self._oriented_info(me_c, other_c, ca, info, _PHASE_STAY)
+                per_collider.setdefault(id(me_c), []).append((other_c._identity, oriented))
+
+        if not per_collider and not self._touching_published:
+            return
+
+        published = False
+        for c in self._colliders:
+            if c._part is not None:
+                # A part shares its host's identity; it must not overwrite
+                # the body's ``touching_*`` (parts never resolve).
+                continue
+            ident = c._identity
+            if not isinstance(ident, Graphic):
+                continue
+            raw = per_collider.get(id(c), [])
+            sides = frozenset(
+                oinfo.side for _other, oinfo in raw if oinfo.side is not None
+            )
+            contacts = tuple(
+                TouchingContact(
+                    other=other,
+                    side=oinfo.side,
+                    slope_angle=oinfo.slope_angle,
+                    normal=oinfo.normal,
+                    tangent=oinfo.tangent,
+                    point=oinfo.point,
+                )
+                for other, oinfo in raw
+            )
+            ident._collision_set_touching(sides, contacts)
+            if sides or contacts:
+                published = True
+        self._touching_published = published
+
+    def _collision_info_for_colliders(
+        self,
+        ca: Collider,
+        cb: Collider,
+    ) -> Optional[CollisionInfo]:
+        pas = self._world_prims(ca)
+        pbs = self._world_prims(cb)
+        best: Optional[CollisionInfo] = None
+        best_depth = -1.0
+        for pa in pas:
+            for pb in pbs:
+                if not _aabb_overlap_tuple(pa.aabb, pb.aabb):
+                    continue
+                contact = narrow_phase(pa, pb)
+                if contact is None:
+                    continue
+                info = _collision_info_from_contact(ca, cb, contact, pas, pbs)
+                if info.depth > best_depth:
+                    best_depth = info.depth
+                    best = info
+        return best
+
+    def test_collision(self, a, b) -> Optional[CollisionInfo]:
+        """One-shot narrow-phase test between two targets.
+
+        A shape that is not already enrolled is tested with a temporary probe
+        and is not registered as a collider.
+        """
+        lefts = self._colliders_for_query(a)
+        rights = self._colliders_for_query(b)
+        best: Optional[CollisionInfo] = None
+        best_pair = None
+        best_depth = -1.0
+        for ca in lefts:
+            self._update_proxy(ca, commit_motion=False)
+            for cb in rights:
+                self._update_proxy(cb, commit_motion=False)
+                info = self._collision_info_for_colliders(ca, cb)
+                if info is not None and info.depth > best_depth:
+                    best_depth = info.depth
+                    best = info
+                    best_pair = (ca, cb)
+        if best is None:
+            return None
+        # The author's view, as a handler gets it (PM11): a / b are the bodies,
+        # the normal points from a to b. The raw info is in canonical order
+        # (lower id first, ``_collision_info_from_contact``); a body that is
+        # not enrolled was probed through a throwaway Collider whose identity
+        # is the probe, so name the body it stands for.
+        ca, cb = best_pair
+        first = ca if best.a is ca._identity else cb
+        oriented = self._oriented_info(ca, cb, first, best, _PHASE_ENTER)
+        return replace(oriented, a=self._query_body(ca, a), b=self._query_body(cb, b))
+
+    @staticmethod
+    def _query_body(collider: Collider, target):
+        """The author object a query collider answers for."""
+        ident = collider._identity
+        return target if ident is collider and target is not collider \
+            and getattr(target, "_collider", None) is not collider else ident
+
+    def _colliders_for_query(self, target) -> List[Collider]:
+        """Colliders for a query. Bare shapes that are not enrolled stay ephemeral."""
+        if isinstance(target, Collider):
+            return [target] if any(self._item_in_play(s) for s in target.shapes) else []
+        from .entity import Entity
+        if isinstance(target, Entity):
+            if not self._item_in_play(target):
+                return []
+            _assert_shapes_not_parallax([target])
+            existing = getattr(target, "_collider", None)
+            if existing is not None:
+                return [existing]
+            return [Collider([target], _register=False, _bind=False)]
+        return list(self._enroll_target_now(target))
+
+    def _part_target_colliders(self, part) -> List[Collider]:
+        """A ``Hitbox`` named as a side: its collider while it is in play."""
+        if not part.is_alive:
+            self._warn_dead_object_target(part)
+            return []
+        if not self._item_in_play(part):
+            return []
+        _assert_shapes_not_parallax([part])
+        return [ensure_collider(part)]
+
+    def _colliders_for_target(self, target) -> List[Collider]:
+        if isinstance(target, Collider):
+            return [target] if any(self._item_in_play(s) for s in target.shapes) else []
+        if _is_part_side(target):
+            return self._part_target_colliders(target)
+        from .entity import Entity
+        if isinstance(target, Entity):
+            if not self._item_in_play(target):
+                return []
+            _assert_shapes_not_parallax([target])
+            return [ensure_collider(target)]
+        return list(self._enroll_target_now(target))
+
+    def _refresh_live_colliders(self, *, bodies_only: bool = False) -> List[Collider]:
+        """Current colliders with proxies refreshed and motion left pending.
+
+        ``bodies_only`` leaves hitbox parts out (queries with no group).
+        """
+        out: List[Collider] = []
+        for c in list(self._colliders):
+            if bodies_only and c._part is not None:
+                continue
+            if self._update_proxy(c, commit_motion=False):
+                out.append(c)
+        return out
+
+    def _drop_query_collider(self, item) -> None:
+        if item is not None:
+            self._query_colliders.pop(item, None)
+
+    def _members_named(self, tag: str) -> List[Any]:
+        """Live members of ``tag``, including a formula group of that name."""
+        try:
+            from .canvas import ScenaCanvas
+            registry = ScenaCanvas.get_current().registry
+        except Exception:
+            return []
+        if registry.has_group_formula(tag):
+            return registry.eval_group_formula(tag)
+        return registry.list_by_groupid(tag)
+
+    def _fast_tag_colliders(self, tag: str) -> Optional[List[Collider]]:
+        """Declared-tag index, or None when the member walk must run.
+
+        ``_tag_colliders`` is the broad-phase index for pair tags. It matches
+        group membership only after ``@collide`` / ``resolve`` enrolled the
+        tag, and never for a formula name (those members are not tagged with
+        the formula's name).
+        """
+        if tag not in self._pair_tags:
+            return None
+        try:
+            from .canvas import ScenaCanvas
+            registry = ScenaCanvas.get_current().registry
+            if registry.has_group_formula(tag):
+                return None
+        except Exception:
+            return None
+        return list(self._tag_colliders.get(tag) or ())
+
+    def _query_collider(self, item, tag: Optional[str]) -> Optional[Collider]:
+        """Collider that answers for ``item`` in a named query. No enrollment.
+
+        Reuses a registered collider. Otherwise a cached unregistered one
+        (``_register=False``, ``_bind=False``) so the query does not opt the
+        item into ``ANYTHING`` or ``step()``.
+        """
+        if isinstance(tag, str):
+            _refresh_part_link(item, tag)
+            routed = _tag_item(item, tag)
+        else:
+            routed = item
+        if routed is None:
+            return None
+        if not self._item_in_play(routed):
+            self._drop_query_collider(routed)
+            return None
+        if not _on_collision_layer(routed) or not _has_query_geometry(routed):
+            return None
+        existing = getattr(routed, "_collider", None)
+        if existing is not None:
+            self._drop_query_collider(routed)
+            return existing
+        cached = self._query_colliders.get(routed)
+        if cached is not None:
+            return cached
+        if getattr(type(routed), "_is_hitbox_part", False):
+            host_ref = getattr(routed, "_host_ref", None)
+            host = host_ref() if callable(host_ref) else None
+            if host is None:
+                return None
+            made = Collider(
+                [routed], _identity_shape=host, _register=False, _bind=False,
+            )
+            made._part = routed
+        else:
+            made = Collider(
+                [routed], _identity_shape=routed, _register=False, _bind=False,
+            )
+        bake = getattr(routed, "_ensure_auto_baked", None)
+        if callable(bake):
+            bake()
+        self._query_colliders[routed] = made
+        return made
+
+    def _colliders_for_members(self, tag: Optional[str], members) -> List[Collider]:
+        out: List[Collider] = []
+        for member in members:
+            collider = self._query_collider(member, tag)
+            if collider is not None:
+                out.append(collider)
+        return out
+
+    def _colliders_for_query_atom(self, atom) -> List[Collider]:
+        if atom is ANYTHING:
+            return self._refresh_live_colliders(bodies_only=True)
+        if isinstance(atom, str):
+            fast = self._fast_tag_colliders(atom)
+            if fast is not None:
+                return fast
+            return self._colliders_for_members(atom, self._members_named(atom))
+        from .registry import GroupOperator
+        if isinstance(atom, GroupOperator):
+            if atom._formula_name is not None:
+                return self._colliders_for_members(atom._formula_name, list(atom))
+            if atom._group_id is not None:
+                fast = self._fast_tag_colliders(atom._group_id)
+                if fast is not None:
+                    return fast
+                return self._colliders_for_members(atom._group_id, list(atom))
+            return self._colliders_for_members(None, list(atom))
+        return list(self._resolve_target_to_colliders(atom))
+
+    def _candidates_for_group(self, group: Any) -> List[Collider]:
+        """Colliders a query should test.
+
+        ``None`` / ``ANYTHING`` is the enrolled collision world (bodies only).
+        A tag or ``group['name']`` is that group's in-play members, whether
+        or not ``@collide`` / ``resolve`` declared the tag. Naming a group
+        does not enroll anyone.
+        """
+        atoms = _parse_query_group(group)
+        if atoms is None:
+            return self._refresh_live_colliders(bodies_only=True)
+        seen: Set[int] = set()
+        candidates: List[Collider] = []
+        for atom in atoms:
+            for collider in self._colliders_for_query_atom(atom):
+                cid = id(collider)
+                if cid not in seen:
+                    seen.add(cid)
+                    candidates.append(collider)
+        return candidates
+
+    def query_shape(self, shape, group: Any = None) -> List[Any]:
+        """Return identities overlapping ``shape``'s current geometry.
+
+        ``group=`` omitted (or ``ANYTHING``) is the enrolled collision world.
+        A tag or a collection of tags (list, tuple, set) tests that group's
+        members and does not enroll them. The probe itself is not a hit.
+        """
+        if not self._item_in_play(shape):
+            return []
+        _assert_shapes_not_parallax([shape])
+        existing = getattr(shape, "_collider", None)
+        probe = existing if existing is not None else Collider(
+            [shape], _register=False, _bind=False,
+        )
+        self._update_proxy(probe, commit_motion=False)
+        candidates = self._candidates_for_group(group)
+        hits: List[Any] = []
+        seen_hit: Set[int] = set()
+        for cb in candidates:
+            # Skip this body and its own hitbox parts. A named query builds a
+            # separate unregistered collider, so identity — not ``is probe`` —
+            # is what makes the probe not count as a hit against itself.
+            if cb is probe or cb._identity is shape:
+                continue
+            if not self._update_proxy(cb, commit_motion=False):
+                continue
+            info = self._collision_info_for_colliders(probe, cb)
+            if info is None:
+                continue
+            hid = id(cb)
+            if hid in seen_hit:
+                continue
+            seen_hit.add(hid)
+            hits.append(cb._identity)
+        return hits
+
+    def floor_below(
+        self, body, *, dx: Any = 0.0, depth: Any = None, group: Any = None,
+    ) -> Optional[Any]:
+        """The floor ``body`` would stand on after stepping ``dx``, or None.
+
+        One question, asked with the solver's own rules: ``body``'s collision
+        prims (not its drawn box), a floor is a ``"bottom"`` contact (±45°,
+        same as ``touching_sides``), and a drop deeper than ``depth`` is a
+        fall (default: the floor-snap reach). The step marches in sub-steps
+        of at most ``_FLOOR_PROBE_STEP``: lift (a 45° rise; a ceiling clips
+        it), across (a wall stops the march — the answer is the floor there),
+        drop. Every sub-step must find a floor within ``depth``.
+
+        Ground is ``body``'s standing ``resolve()`` partners (``only=`` gates
+        included), or ``group=`` when given (same grammar as ``query_shape``;
+        hitbox parts are never floors). Reads the live pose; consumes no
+        motion; enrolls nothing.
+        """
+        dx = _number(dx, "floor_below(dx=)")
+        reach = (
+            _FLOOR_SNAP_MIN if depth is None
+            else _fixed_magnitude(depth, "floor_below(depth=)")
+        )
+        if not self._item_in_play(body):
+            return None
+        _assert_shapes_not_parallax([body])
+        existing = getattr(body, "_collider", None)
+        in_resolve = existing is not None and self._collider_in_resolve(existing)
+        if group is None:
+            if not in_resolve:
+                from .entity import entity_label
+                label = entity_label(body)
+                raise ValueError(
+                    f"{label}.floor_below() has no ground to look for: {label} is "
+                    "in no resolve() pair. Pair it with its ground — "
+                    "resolve(hero, \"ground\") — or name the ground: "
+                    "floor_below(group=\"ground\")."
+                )
+            probe = existing
+            self._update_proxy(probe, commit_motion=False)
+            pool = [(c, tok) for c, tok, _odx, _ody in self._resolve_partners(probe)]
+        else:
+            probe = existing if existing is not None else Collider(
+                [body], _register=False, _bind=False,
+            )
+            self._update_proxy(probe, commit_motion=False)
+            if in_resolve:
+                self._resolve_partners(existing)  # fills the only= cache
+            pool = []
+            for cb in self._candidates_for_group(group):
+                if cb is probe or cb._part is not None or cb._identity is body:
+                    continue
+                pool.append((cb, None))
+        partners: List[Tuple[Collider, Any, float, float]] = []
+        for cb, tok in pool:
+            if self._update_proxy(cb, commit_motion=False):
+                partners.append((cb, tok, 0.0, 0.0))
+        gate: Optional[_OnlyGate] = None
+        if in_resolve and self._has_only:
+            only_map = self._partner_only_cache.get(id(existing))
+            if only_map:
+                passing = self._passing.get(id(existing)) or {}
+                gate = _QueryOnlyGate(self, existing, only_map, passing)
+        pas = list(self._world_prims(probe))
+        if not pas or not partners:
+            self._note_floor_probe(body, pas, False)
+            return None
+
+        step_max = min(_FLOOR_PROBE_STEP, max(reach, 1.0))
+        sign = 1.0 if dx >= 0.0 else -1.0
+        remaining = abs(dx)
+        ox = oy = 0.0
+        floor: Optional[Collider] = None
+        while True:
+            step = min(step_max, remaining)
+            x0, y0 = ox, oy
+            lift = 0.0
+            blocked = False
+            if step > 0.0:
+                remaining -= step
+                lift = step + _FLOOR_PROBE_LIFT_MARGIN
+                hit = self._earliest_toi(
+                    _copy_translate(pas, ox, oy), 0.0, lift, partners, gate=gate,
+                )
+                if hit is not None:
+                    lift = max(0.0, lift * max(0.0, min(1.0, hit[0])) - _RESOLVE_SLOP)
+                run = sign * step
+                hit = self._earliest_toi(
+                    _copy_translate(pas, ox, oy + lift), run, 0.0, partners, gate=gate,
+                )
+                if hit is None:
+                    ox += run
+                    oy += lift
+                else:
+                    # A wall (or a rise steeper than the lift) stops the
+                    # march. Answer for the last pose that stood: dropping
+                    # from the lifted, part-advanced pose would scrape a
+                    # slanted wall and read it as a missing floor.
+                    lift = 0.0
+                    blocked = True
+            drop = lift + reach
+            hit = self._earliest_toi(
+                _copy_translate(pas, ox, oy), 0.0, -drop, partners, gate=gate,
+            )
+            floor = None
+            if hit is None:
+                break
+            t, nx, ny, other = hit[0], hit[1], hit[2], hit[3]
+            nlen = math.hypot(nx, ny)
+            if nlen < 1e-12 or _side_from_normal(nx / nlen, ny / nlen) != "bottom":
+                if step > 0.0 and not blocked and nx * sign > 0.0:
+                    # Landed against a too-steep face that rises ahead (the
+                    # lift margin cleared its foot): a wall, not a ledge.
+                    # Answer for the last pose that stood.
+                    ox, oy = x0, y0
+                    remaining = 0.0
+                    continue
+                break
+            oy -= drop * max(0.0, min(1.0, t))
+            floor = other
+            if blocked or remaining <= 1e-9:
+                break
+        self._note_floor_probe(body, _copy_translate(pas, ox, oy), floor is not None)
+        return None if floor is None else floor._identity
+
+    def _note_floor_probe(self, body, prims: List[Prim], found: bool) -> None:
+        """Keep the last ``floor_below`` pose per body for ``show_colliders``."""
+        if not self._show:
+            return
+        probes = self._debug_probes
+        if len(probes) >= _FLOOR_PROBE_DEBUG_CAP and id(body) not in probes:
+            probes.clear()
+        probes[id(body)] = (prims, found)
+
+    def _fire_exits(self, contact_keys: Set[Tuple[int, int]]) -> None:
+        self._emit_exit_keys(contact_keys)
+
+    def _oriented_info(
+        self,
+        me_c: Collider,
+        other_c: Collider,
+        ca: Collider,
+        info: CollisionInfo,
+        phase: str,
+    ) -> CollisionInfo:
+        if me_c is ca or phase == _PHASE_EXIT:
+            normal = info.normal
+        else:
+            nx = float(info.normal.x.value) if hasattr(info.normal.x, "value") else float(info.normal.x)
+            ny = float(info.normal.y.value) if hasattr(info.normal.y, "value") else float(info.normal.y)
+            normal = Vec2.temp(-nx, -ny)
+        return CollisionInfo(
+            a=me_c._identity,
+            b=other_c._identity,
+            normal=normal,
+            depth=info.depth,
+            points=list(info.points),
+            a_hitbox=me_c._part,
+            b_hitbox=other_c._part,
+        )
+
+    def _dispatch(self, ca: Collider, cb: Collider, info: CollisionInfo, phase: str) -> None:
+        # Enter/stay must not run for a body destroyed earlier in this loop.
+        # Exit still runs: separation, and the destroy-time survivor notification.
+        if phase != _PHASE_EXIT:
+            if not self._collider_in_play(ca) or not self._collider_in_play(cb):
+                return
+        from .act import get_act_manager
+        acts = get_act_manager()
+        if acts.changing and self._both_leave_with_act(ca, cb, acts.dying_ids):
+            # Act teardown: two bodies leaving together owe each other no exit.
+            return
+        attr = {
+            _PHASE_ENTER: "on_collide",
+            _PHASE_STAY: "on_collide_stay",
+            _PHASE_EXIT: "on_collide_exit",
+        }[phase]
+        for me_c, other_c in ((ca, cb), (cb, ca)):
+            cb_fn = getattr(me_c, attr, None)
+            if cb_fn is not None and other_c._part is None:
+                oriented = self._oriented_info(me_c, other_c, ca, info, phase)
+                _call(cb_fn, me_c._identity, other_c._identity, oriented)
+
+        for ta, tb, handler, handler_phase in tuple(self._pair_handlers):
+            if handler_phase != phase:
+                continue
+            matched = self._pair_matches(ta, tb, ca, cb)
+            if not matched:
+                continue
+            me, other = matched
+            oriented = self._oriented_info(me, other, ca, info, phase)
+            _call(handler, me._identity, other._identity, oriented)
+
+    @staticmethod
+    def _both_leave_with_act(ca: Collider, cb: Collider, dying_ids) -> bool:
+        def leaving(c: Collider) -> bool:
+            ident = c._identity
+            if id(ident) in dying_ids:
+                return True
+            host = getattr(ident, "host", None) if c._part is not None else None
+            return host is not None and id(host) in dying_ids
+        return leaving(ca) and leaving(cb)
+
+    def _collider_in_play(self, collider: Collider) -> bool:
+        shapes = collider.shapes
+        if not shapes:
+            return False
+        return any(self._item_in_play(s) for s in shapes)
+
+    def _emit_exit_keys(self, keys: Set[Tuple[int, int]]) -> None:
+        """Dispatch exit for pairs whose colliders are both still registered."""
+        id_to = {id(c): c for c in self._colliders}
+        for key in list(keys):
+            ca = id_to.get(key[0])
+            cb = id_to.get(key[1])
+            if ca is None or cb is None:
+                continue
+            info = CollisionInfo(
+                a=ca._identity, b=cb._identity, normal=Vec2.temp(0, 0), depth=0.0,
+            )
+            self._dispatch(ca, cb, info, _PHASE_EXIT)
+
+    def _pair_matches(self, ta, tb, ca: Collider, cb: Collider):
+        if self._collider_on_side(ca, ta) and self._collider_on_side(cb, tb):
+            return ca, cb
+        if self._collider_on_side(cb, ta) and self._collider_on_side(ca, tb):
+            return cb, ca
+        return None
+
+    # -- queries ------------------------------------------------------------
+
+    def query_point(self, x, y=None, *, group: Any = None, ignore: Any = None) -> List[Any]:
+        """Identities whose hitbox contains the point.
+
+        ``query_point(x, y)`` or one point-like: ``query_point(mouse)``.
+        ``group=`` omitted (or ``ANYTHING``) is the enrolled collision world.
+        A tag or list of tags tests that group's members, enrolled or not.
+        A Graphic origin is the caster and is not a hit. ``ignore=`` adds to it.
+        """
+        caster = _caster_of(x) if y is None else None
+        x, y = _locus_xy(x, y)
+        return self._point_hits(x, y, group, _ignore_filter(ignore, caster))
+
+    def _point_hits(self, x, y, group, skipped) -> List[Any]:
+        hits = []
+        seen = set()
+        for c in self._candidates_for_group(group):
+            if skipped(c):
+                continue
+            if not self._update_proxy(c, commit_motion=False):
+                continue
+            p = c._proxy
+            if x < p[0] or x > p[2] or y < p[1] or y > p[3]:
+                continue
+            for prim in self._world_prims(c):
+                if id(c) in seen:
+                    break
+                if _prim_contains_point(prim, x, y):
+                    seen.add(id(c))
+                    hits.append(c._identity)
+        return hits
+
+    def query_circle(self, x, y=None, radius=None, *, group: Any = None, ignore: Any = None) -> List[Any]:
+        """Identities overlapping a circle.
+
+        ``query_circle(x, y, radius)`` or ``query_circle(p, radius=r)``.
+        A positional radius after a point-like raises — pass ``radius=``.
+        ``group=`` uses the same grammar as ``query_shape``. A negative
+        ``radius`` raises. A Graphic origin is the caster and is not a hit.
+        ``ignore=`` adds to that caster.
+        """
+        if radius is None and y is not None and not _is_coord(x):
+            raise TypeError(
+                "after a point-like, pass `radius=` by name: "
+                "query_circle(p, radius=80)"
+            )
+        if radius is None:
+            raise TypeError("query_circle() missing required argument: 'radius'")
+        caster = _caster_of(x) if y is None else None
+        x, y = _locus_xy(x, y)
+        r = _magnitude(radius, "radius")
+        return self._circle_hits(x, y, r, group, _ignore_filter(ignore, caster))
+
+    def _circle_hits(self, x, y, r, group, skipped) -> List[Any]:
+        probe = Prim(PrimKind.CIRCLE, _aabb_from_circle(x, y, r), (x, y, r))
+        hits = []
+        seen = set()
+        for c in self._candidates_for_group(group):
+            if skipped(c):
+                continue
+            if not self._update_proxy(c, commit_motion=False):
+                continue
+            p = c._proxy
+            if x + r < p[0] or x - r > p[2] or y + r < p[1] or y - r > p[3]:
+                continue
+            for prim in self._world_prims(c):
+                if id(c) in seen:
+                    break
+                minx, miny, maxx, maxy = prim.aabb
+                if x + r < minx or x - r > maxx or y + r < miny or y - r > maxy:
+                    continue
+                if narrow_phase(probe, prim) is not None:
+                    seen.add(id(c))
+                    hits.append(c._identity)
+        return hits
+
+    def query_sector(
+        self, origin, *args,
+        angle: Any = None, radius: Any = None, spread: Any = None,
+        group: Any = None, ignore: Any = None,
+    ) -> List[Any]:
+        """Identities overlapping a circular sector (a radar wedge).
+
+        The origin is positional. ``angle=`` (degrees, 0 = +x, CCW) defaults
+        to a Graphic origin's heading ``angle``. ``radius=`` is the reach.
+        ``spread=`` is the full opening in degrees (``60`` means ±30).
+        ``0`` is the center segment (every hit, not the first). ``360`` is
+        ``query_circle``. A Graphic origin is the caster and is not a hit.
+        """
+        if args:
+            raise TypeError(
+                "query_sector() takes the origin positionally; "
+                "pass angle=, radius=, spread=, group=, and ignore= by name. "
+                "Write query_sector(guard, radius=300, spread=60)."
+            )
+        if radius is None:
+            raise TypeError("query_sector() missing required argument: 'radius'")
+        if spread is None:
+            raise TypeError("query_sector() missing required argument: 'spread'")
+        caster = _caster_of(origin)
+        if angle is None:
+            angle = _heading_default(caster, "query_sector")
+        else:
+            angle = _finite(angle, "angle")
+        radius = _magnitude(radius, "radius")
+        spread = _magnitude(spread, "spread")
+        if spread > 360.0:
+            raise ValueError(f"spread must be <= 360, got {spread}")
+        x, y = _locus_xy(origin)
+        skipped = _ignore_filter(ignore, caster)
+        if spread == 360.0:
+            return self._circle_hits(x, y, radius, group, skipped)
+        if radius == 0.0:
+            return self._point_hits(x, y, group, skipped)
+        if spread == 0.0:
+            rad = math.radians(float(angle))
+            return self._segment_hits(
+                x, y,
+                x + radius * math.cos(rad),
+                y + radius * math.sin(rad),
+                group, skipped,
+            )
+        probes = _sector_wedges(x, y, float(angle), radius, spread)
+        return self._prim_hits(probes, group, skipped)
+
+    def _segment_hits(self, x1, y1, x2, y2, group, skipped) -> List[Any]:
+        """Every collider the segment touches, in candidate order."""
+        dx, dy = x2 - x1, y2 - y1
+        minx, maxx = (x1, x2) if x1 <= x2 else (x2, x1)
+        miny, maxy = (y1, y2) if y1 <= y2 else (y2, y1)
+        hits = []
+        seen = set()
+        for c in self._candidates_for_group(group):
+            if skipped(c):
+                continue
+            if not self._update_proxy(c, commit_motion=False):
+                continue
+            p = c._proxy
+            if maxx < p[0] or minx > p[2] or maxy < p[1] or miny > p[3]:
+                continue
+            for prim in self._world_prims(c):
+                if id(c) in seen:
+                    break
+                t = _ray_prim(x1, y1, dx, dy, prim)
+                if t is not None and 0.0 <= t <= 1.0:
+                    seen.add(id(c))
+                    hits.append(c._identity)
+        return hits
+
+    def _prim_hits(self, probes: Sequence[Prim], group, skipped) -> List[Any]:
+        """Identities overlapping any probe prim, in candidate order."""
+        if not probes:
+            return []
+        minx = min(p.aabb[0] for p in probes)
+        miny = min(p.aabb[1] for p in probes)
+        maxx = max(p.aabb[2] for p in probes)
+        maxy = max(p.aabb[3] for p in probes)
+        hits = []
+        seen = set()
+        for c in self._candidates_for_group(group):
+            if skipped(c):
+                continue
+            if not self._update_proxy(c, commit_motion=False):
+                continue
+            proxy = c._proxy
+            if maxx < proxy[0] or minx > proxy[2] or maxy < proxy[1] or miny > proxy[3]:
+                continue
+            for prim in self._world_prims(c):
+                if id(c) in seen:
+                    break
+                pminx, pminy, pmaxx, pmaxy = prim.aabb
+                if maxx < pminx or minx > pmaxx or maxy < pminy or miny > pmaxy:
+                    continue
+                for probe in probes:
+                    ax0, ay0, ax1, ay1 = probe.aabb
+                    if ax1 < pminx or ax0 > pmaxx or ay1 < pminy or ay0 > pmaxy:
+                        continue
+                    if narrow_phase(probe, prim) is not None:
+                        seen.add(id(c))
+                        hits.append(c._identity)
+                        break
+        return hits
+
+    def raycast(
+        self, p1, *args,
+        p2: Any = None, vec: Any = None, angle: Any = None, length: Any = None,
+        group: Any = None, ignore: Any = None,
+    ) -> Optional[Tuple[Any, float, Tuple[float, float]]]:
+        """First collider hit along a segment.
+
+        The start is positional. The end is one of ``p2=`` (a point),
+        ``vec=`` (a displacement), or ``length=`` with optional ``angle=``
+        (degrees). ``angle=`` omitted uses a Graphic start's heading ``angle``.
+        A positional second argument raises.
+
+        ``group=`` omitted (or ``ANYTHING``) is the enrolled world. A tag, or a
+        list / tuple / set of tags, tests those members without enrolling them.
+        A Graphic start is the caster and is not a hit. ``ignore=`` adds to
+        that caster: a body, a tag, a live group, or a list of those.
+
+        Returns (identity, t in [0,1], point) or None. A start inside a prim
+        is t = 0.
+        """
+        if args:
+            raise TypeError(
+                "raycast() takes only the start positionally. "
+                "Pass the end as p2=, as vec=, or as angle= and length=. "
+                "Write raycast(p1, p2=end), raycast(p1, vec=delta), "
+                "or raycast(p1, angle=45, length=400)."
+            )
+        end_forms = []
+        if p2 is not None:
+            end_forms.append("p2")
+        if vec is not None:
+            end_forms.append("vec")
+        if angle is not None or length is not None:
+            end_forms.append("angle")
+        if not end_forms:
+            raise TypeError(
+                "raycast() needs an end: p2=, vec=, or length= "
+                "(angle= is optional with length=)"
+            )
+        if len(end_forms) > 1:
+            raise TypeError(
+                "raycast() takes one end form: p2=, or vec=, or angle= and length="
+            )
+        caster = _caster_of(p1)
+        x1, y1 = _locus_xy(p1)
+        if p2 is not None:
+            x2, y2 = _locus_xy(p2)
+        elif vec is not None:
+            dx, dy = _delta_xy_of(vec)
+            x2, y2 = x1 + dx, y1 + dy
+        else:
+            if length is None:
+                raise TypeError("raycast() angle= needs length=")
+            length = _magnitude(length, "length")
+            if angle is None:
+                angle = _heading_default(caster, "raycast")
+            else:
+                angle = _finite(angle, "angle")
+            rad = math.radians(float(angle))
+            x2 = x1 + length * math.cos(rad)
+            y2 = y1 + length * math.sin(rad)
+        best_t = 1.0 + 1e-9
+        best = None
+        dx, dy = x2 - x1, y2 - y1
+        minx, maxx = (x1, x2) if x1 <= x2 else (x2, x1)
+        miny, maxy = (y1, y2) if y1 <= y2 else (y2, y1)
+        skipped = _ignore_filter(ignore, caster)
+
+        for c in self._candidates_for_group(group):
+            if skipped(c):
+                continue
+            if not self._update_proxy(c, commit_motion=False):
+                continue
+            p = c._proxy
+            if maxx < p[0] or minx > p[2] or maxy < p[1] or miny > p[3]:
+                continue
+            for prim in self._world_prims(c):
+                t = _ray_prim(x1, y1, dx, dy, prim)
+                if t is not None and 0.0 <= t <= 1.0 and t < best_t:
+                    best_t = t
+                    best = (c._identity, t, (x1 + t * dx, y1 + t * dy))
+        return best
+
+    # -- debug --------------------------------------------------------------
+
+    def show_colliders(self, enabled: bool = True) -> None:
+        self._show = bool(enabled)
+        if not self._show:
+            self._clear_debug_draw()
+
+    def _clear_debug_draw(self) -> None:
+        self._debug_overlay = ()
+        self._debug_probes.clear()
+        for s in self._debug_shapes:
+            try:
+                s.destroy()
+            except Exception:
+                pass
+        self._debug_shapes.clear()
+
+    def _update_debug_draw(self, prim_list) -> None:
+        """Cache world-space prims for immediate-mode debug_draw (no Shape churn)."""
+        self._debug_overlay = tuple((c, p) for c, p, _ in prim_list)
+
+    def _debug_color_for(self, collider: Collider) -> Tuple[float, float, float, float]:
+        """``show_colliders`` legend: gold = resolve, cyan = hitbox part, green = detect."""
+        if collider._part is not None:
+            return _DEBUG_PART_RGBA
+        if self._collider_in_resolve(collider):
+            return _DEBUG_RESOLVE_RGBA
+        return _DEBUG_DETECT_RGBA
+
+    def _debug_paint_for(self, rgba: Tuple[float, float, float, float]) -> skia.Paint:
+        paint = self._debug_paint
+        if paint is None:
+            paint = skia.Paint()
+            paint.setStyle(skia.Paint.kStroke_Style)
+            paint.setStrokeWidth(1.0)
+            paint.setAntiAlias(True)
+            self._debug_paint = paint
+        paint.setColor4f(skia.Color4f(*rgba))
+        return paint
+
+    @staticmethod
+    def _debug_outline_verts(prim: Prim) -> Optional[List[Tuple[float, float]]]:
+        if prim.kind == PrimKind.CIRCLE:
+            return None
+        if prim.kind == PrimKind.AABB:
+            minx, miny, maxx, maxy = prim.params
+            return [(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy)]
+        if prim.kind == PrimKind.OBB:
+            return _obb_corners(
+                prim.params[0], prim.params[1], prim.params[2], prim.params[3], prim.params[4],
+            )
+        if prim.kind == PrimKind.ELLIPSE:
+            cx, cy, rx, ry, ang = prim.params
+            verts: List[Tuple[float, float]] = []
+            for i in range(24):
+                t = 2 * math.pi * i / 24
+                lx, ly = rx * math.cos(t), ry * math.sin(t)
+                c_, s_ = math.cos(ang), math.sin(ang)
+                verts.append((cx + lx * c_ - ly * s_, cy + lx * s_ + ly * c_))
+            return verts
+        if prim.kind == PrimKind.POLY and prim.verts:
+            return list(prim.verts)
+        return None
+
+    def debug_draw(self, skia_canvas) -> None:
+        """Draw collider outlines in world space (called from the render loop)."""
+        if not self._show:
+            return
+        for collider, prim in self._debug_overlay:
+            self._debug_draw_prim(
+                skia_canvas, prim, self._debug_paint_for(self._debug_color_for(collider)),
+            )
+        if self._debug_probes:
+            # ``floor_below`` casts since the last draw: where the step ended.
+            for prims, found in self._debug_probes.values():
+                paint = self._debug_paint_for(
+                    _DEBUG_PROBE_FLOOR_RGBA if found else _DEBUG_PROBE_NONE_RGBA
+                )
+                for prim in prims:
+                    self._debug_draw_prim(skia_canvas, prim, paint)
+            self._debug_probes.clear()
+
+    def _debug_draw_prim(self, skia_canvas, prim: Prim, paint) -> None:
+        if prim.kind == PrimKind.CIRCLE:
+            cx, cy, r = prim.params[0], prim.params[1], prim.params[2]
+            skia_canvas.drawCircle(cx, cy, max(r, 1.0), paint)
+            return
+        verts = self._debug_outline_verts(prim)
+        if not verts or len(verts) < 3:
+            return
+        path = skia.Path()
+        path.moveTo(verts[0][0], verts[0][1])
+        for x, y in verts[1:]:
+            path.lineTo(x, y)
+        path.close()
+        skia_canvas.drawPath(path, paint)
+
+
+def _prim_contains_point(prim: Prim, x: float, y: float) -> bool:
+    if prim.kind == PrimKind.CIRCLE:
+        cx, cy, r = prim.params[0], prim.params[1], prim.params[2]
+        return _sq(x - cx) + _sq(y - cy) <= r * r + 1e-9
+    if prim.kind == PrimKind.AABB:
+        minx, miny, maxx, maxy = prim.params[0], prim.params[1], prim.params[2], prim.params[3]
+        return minx <= x <= maxx and miny <= y <= maxy
+    if prim.kind == PrimKind.OBB:
+        cx, cy, hw, hh, ang = prim.params[0], prim.params[1], prim.params[2], prim.params[3], prim.params[4]
+        c, s = math.cos(-ang), math.sin(-ang)
+        dx, dy = x - cx, y - cy
+        lx = dx * c - dy * s
+        ly = dx * s + dy * c
+        return abs(lx) <= hw + 1e-9 and abs(ly) <= hh + 1e-9
+    if prim.kind == PrimKind.ELLIPSE:
+        cx, cy, rx, ry, ang = prim.params
+        if rx <= 0 or ry <= 0:
+            return False
+        c, s = math.cos(-ang), math.sin(-ang)
+        dx, dy = x - cx, y - cy
+        lx = dx * c - dy * s
+        ly = dx * s + dy * c
+        return _sq(lx / rx) + _sq(ly / ry) <= 1.0 + 1e-9
+    if prim.kind == PrimKind.POLY and prim.verts:
+        return _point_in_polygon_xy(x, y, prim.verts)
+    return False
+
+
+def _ray_prim(x1, y1, dx, dy, prim: Prim) -> Optional[float]:
+    """Return smallest t in [0,1] where the segment hits ``prim``, or None."""
+    if prim.kind == PrimKind.CIRCLE:
+        return _ray_circle(x1, y1, dx, dy, prim.params[0], prim.params[1], prim.params[2])
+    if prim.kind == PrimKind.AABB:
+        return _ray_aabb(x1, y1, dx, dy, prim.params)
+    if prim.kind == PrimKind.OBB:
+        cx, cy, hw, hh, ang = prim.params
+        return _ray_obb(x1, y1, dx, dy, cx, cy, hw, hh, ang)
+    if prim.kind == PrimKind.ELLIPSE:
+        cx, cy, rx, ry, ang = prim.params
+        return _ray_ellipse(x1, y1, dx, dy, cx, cy, rx, ry, ang)
+    if prim.kind == PrimKind.POLY and prim.verts:
+        if _is_convex(prim.verts):
+            return _ray_convex_poly(x1, y1, dx, dy, prim.verts)
+        return _ray_sampled(x1, y1, dx, dy, prim)
+    return None
+
+
+def _ray_sampled(x1, y1, dx, dy, prim: Prim) -> Optional[float]:
+    """Containment samples spaced about 1 DU apart (non-convex fallback)."""
+    length = math.hypot(dx, dy)
+    steps = max(1, int(math.ceil(length)))
+    if _prim_contains_point(prim, x1, y1):
+        return 0.0
+    for i in range(1, steps + 1):
+        t = i / steps
+        if _prim_contains_point(prim, x1 + t * dx, y1 + t * dy):
+            lo, hi = (i - 1) / steps, t
+            for _ in range(8):
+                mid = 0.5 * (lo + hi)
+                if _prim_contains_point(prim, x1 + mid * dx, y1 + mid * dy):
+                    hi = mid
+                else:
+                    lo = mid
+            return hi
+    return None
+
+
+def _ray_obb(x1, y1, dx, dy, cx, cy, hw, hh, ang) -> Optional[float]:
+    """Slab test in the box's local frame."""
+    ca, sa = math.cos(float(ang)), math.sin(float(ang))
+    ox, oy = x1 - float(cx), y1 - float(cy)
+    lx = ca * ox + sa * oy
+    ly = -sa * ox + ca * oy
+    ldx = ca * dx + sa * dy
+    ldy = -sa * dx + ca * dy
+    return _ray_aabb(lx, ly, ldx, ldy, (-float(hw), -float(hh), float(hw), float(hh)))
+
+
+def _ray_ellipse(x1, y1, dx, dy, cx, cy, rx, ry, ang) -> Optional[float]:
+    """Map the segment onto the unit circle and solve the quadratic."""
+    if rx <= 1e-12 or ry <= 1e-12:
+        return None
+    ca, sa = math.cos(float(ang)), math.sin(float(ang))
+    ox, oy = x1 - float(cx), y1 - float(cy)
+    lx = (ca * ox + sa * oy) / float(rx)
+    ly = (-sa * ox + ca * oy) / float(ry)
+    ldx = (ca * dx + sa * dy) / float(rx)
+    ldy = (-sa * dx + ca * dy) / float(ry)
+    return _ray_circle(lx, ly, ldx, ldy, 0.0, 0.0, 1.0)
+
+
+def _ray_convex_poly(x1, y1, dx, dy, verts: Sequence[Tuple[float, float]]) -> Optional[float]:
+    """Cyrus–Beck clip against a convex polygon. Inside the polygon returns 0."""
+    n = len(verts)
+    if n < 3:
+        return None
+    ccw = _signed_area(verts) >= 0.0
+    t_enter, t_leave = 0.0, 1.0
+    for i in range(n):
+        ax, ay = verts[i]
+        bx, by = verts[(i + 1) % n]
+        ex, ey = bx - ax, by - ay
+        if ccw:
+            nx, ny = ey, -ex
+        else:
+            nx, ny = -ey, ex
+        denom = nx * dx + ny * dy
+        numer = nx * (ax - x1) + ny * (ay - y1)
+        if abs(denom) < 1e-18:
+            if numer < 0.0:
+                return None
+            continue
+        t = numer / denom
+        if denom < 0.0:
+            if t > t_enter:
+                t_enter = t
+        elif t < t_leave:
+            t_leave = t
+        if t_enter > t_leave:
+            return None
+    if t_enter < 0.0:
+        return 0.0 if t_leave >= 0.0 else None
+    return t_enter if t_enter <= 1.0 else None
+
+
+def _ray_circle(x1, y1, dx, dy, cx, cy, r) -> Optional[float]:
+    # |o + t d - c|^2 = r^2. A start inside the circle is t = 0, matching other prims.
+    fx, fy = x1 - cx, y1 - cy
+    if fx * fx + fy * fy <= r * r + 1e-9:
+        return 0.0
+    a = dx * dx + dy * dy
+    if a < 1e-18:
+        return None
+    b = 2 * (fx * dx + fy * dy)
+    c = fx * fx + fy * fy - r * r
+    disc = b * b - 4 * a * c
+    if disc < 0:
+        return None
+    sd = math.sqrt(disc)
+    t0 = (-b - sd) / (2 * a)
+    t1 = (-b + sd) / (2 * a)
+    for t in (t0, t1):
+        if 0.0 <= t <= 1.0:
+            return t
+    return None
+
+
+def _ray_aabb(x1, y1, dx, dy, box) -> Optional[float]:
+    minx, miny, maxx, maxy = box
+    tmin, tmax = 0.0, 1.0
+    for origin, d, mn, mx in ((x1, dx, minx, maxx), (y1, dy, miny, maxy)):
+        if abs(d) < 1e-18:
+            if origin < mn or origin > mx:
+                return None
+            continue
+        t1 = (mn - origin) / d
+        t2 = (mx - origin) / d
+        if t1 > t2:
+            t1, t2 = t2, t1
+        tmin = max(tmin, t1)
+        tmax = min(tmax, t2)
+        if tmin > tmax:
+            return None
+    return tmin if 0.0 <= tmin <= 1.0 else (0.0 if tmin < 0 <= tmax else None)
+
+
+# ---------------------------------------------------------------------------
+# Shape helpers / global system
+# ---------------------------------------------------------------------------
+
+_collision_system: Optional[CollisionSystem] = None
+
+
+def get_collision_system() -> CollisionSystem:
+    global _collision_system
+    if _collision_system is None:
+        _collision_system = CollisionSystem()
+    return _collision_system
+
+
+def reset_collision_system() -> None:
+    """Test helper: clear the global system."""
+    global _collision_system
+    if _collision_system is not None:
+        _collision_system._clear_debug_draw()
+    _collision_system = CollisionSystem()
+    # ScenaFramework caches this at bootstrap; keep the pointer current.
+    from .orchestration import ScenaFramework
+    fw = ScenaFramework._instance
+    if fw is not None:
+        fw.collision_system = _collision_system
+
+
+def _is_coord(value) -> bool:
+    """A bare number (not a point-like, not ``bool``)."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _locus_xy(p, y=None):
+    """``(x, y)`` numbers, or one point-like when ``y`` is omitted.
+
+    One point-like goes through ``_xy_of`` (the one reading): exactly two
+    numbers, Point, Vec2, Graphic ``.center``, mouse.
+    """
+    if y is not None:
+        return float(p), float(y)
+    from .shapes import _xy_of
+    return _xy_of(p, required=True)
+
+
+def _caster_of(origin):
+    """Graphic or SpatialFx origin, or None for a plain position.
+
+    A ``Point``, ``Vec2``, ``(x, y)``, or ``mouse`` is only a location.
+    The caster is excluded from query and raycast hits.
+    """
+    if origin is None or _is_coord(origin) or isinstance(origin, (tuple, list)):
+        return None
+    from .input import Mouse
+    from .shapes import Point
+    if isinstance(origin, (Point, Vec2, Mouse)):
+        return None
+    from .entity import Graphic
+    from .spatial_fx import SpatialFx
+    if isinstance(origin, (Graphic, SpatialFx)):
+        return origin
+    return None
+
+
+def _heading_default(caster, what: str) -> float:
+    """``caster.angle`` (the heading) when ``angle=`` is omitted. A plain position raises."""
+    from .entity import Graphic
+    if not isinstance(caster, Graphic):
+        raise TypeError(
+            f"{what}() pass angle= (a plain position has no heading)"
+        )
+    return float(caster.angle)
+
+
+def _delta_xy_of(vec) -> Tuple[float, float]:
+    """Displacement for ``raycast(vec=)``. A location is not a delta."""
+    from .input import Mouse
+    from .shapes import Point, _xy_of
+    if isinstance(vec, (Point, Mouse)) or getattr(vec, "center", None) is not None:
+        raise TypeError(
+            "vec= does not accept a Point, Graphic, or mouse (those are locations). "
+            "Use p2=, or pass a Vec2 or (dx, dy)."
+        )
+    return _xy_of(vec, required=True)
+
+
+def _ignore_type_error(value) -> TypeError:
+    return TypeError(
+        "ignore= must be a body, a tag, a live group, or a list of those; "
+        f"got {type(value).__name__} {value!r}. "
+        'Write ignore="allies" or ignore=["allies", shield].'
+    )
+
+
+def _ignore_members(tag: str) -> List[Any]:
+    """Registry members of ``tag``, including a formula group of that name."""
+    try:
+        from .canvas import ScenaCanvas
+        registry = ScenaCanvas.get_current().registry
+    except Exception:
+        return []
+    if registry.has_group_formula(tag):
+        return registry.eval_group_formula(tag)
+    return registry.list_by_groupid(tag)
+
+
+def _ignore_filter(ignore: Any, caster: Any) -> Callable[[Any], bool]:
+    """``collider -> True`` when the query must skip it.
+
+    The caster is always skipped. ``ignore=`` adds bodies (by identity),
+    tags, and live groups (by registry membership). A tag with no members
+    matches nothing. ``ANYTHING`` and other types raise.
+    """
+    body_ids: Set[int] = set()
+    member_ids: Set[int] = set()
+    if caster is not None:
+        body_ids.add(id(caster))
+
+    def add(item) -> None:
+        if item is ANYTHING:
+            raise ValueError(
+                "ignore= cannot be ANYTHING. Omit it to test everyone, "
+                "or pass the bodies and tags to skip."
+            )
+        if isinstance(item, str):
+            if item == "":
+                raise ValueError(
+                    'ignore= must be a non-empty tag. Write ignore="allies".'
+                )
+            for member in _ignore_members(item):
+                member_ids.add(id(member))
+            return
+        if isinstance(item, Collider):
+            body_ids.add(id(item))
+            if item._identity is not None:
+                body_ids.add(id(item._identity))
+            return
+        from .registry import GroupOperator
+        if isinstance(item, GroupOperator):
+            for member in list(item):
+                member_ids.add(id(member))
+            return
+        if _is_coord(item) or isinstance(item, (tuple, list)):
+            raise _ignore_type_error(item)
+        from .entity import Entity
+        if isinstance(item, Entity) or getattr(type(item), "_is_hitbox_part", False):
+            body_ids.add(id(item))
+            return
+        raise _ignore_type_error(item)
+
+    if ignore is None:
+        pass
+    elif isinstance(ignore, (list, tuple, set, frozenset)):
+        for item in ignore:
+            add(item)
+    else:
+        add(ignore)
+
+    def skipped(collider: Collider) -> bool:
+        ident = collider._identity
+        if id(collider) in body_ids or (ident is not None and id(ident) in body_ids):
+            return True
+        if ident is not None and id(ident) in member_ids:
+            return True
+        for shape in collider.shapes:
+            if id(shape) in body_ids or id(shape) in member_ids:
+                return True
+        return False
+
+    return skipped
+
+
+def _arc_steps(radius: float, span_rad: float) -> int:
+    """Chord count so the arc sits within ``_SECTOR_ARC_ERROR`` of each chord."""
+    if radius <= _SECTOR_ARC_ERROR or span_rad <= 0.0:
+        return 1
+    ratio = 1.0 - (_SECTOR_ARC_ERROR / radius)
+    if ratio <= -1.0:
+        return 1
+    half = math.acos(min(1.0, ratio))
+    dtheta = 2.0 * half
+    if dtheta <= 1e-9:
+        return _SECTOR_MAX_STEPS
+    return max(1, min(_SECTOR_MAX_STEPS, int(math.ceil(span_rad / dtheta))))
+
+
+def _segment_prim(
+    x: float, y: float, angle_deg: float, radius: float, spread_deg: float,
+) -> List[Prim]:
+    """One convex polygon for the chord-closed segment (``use_center=False``).
+
+    Arc samples use the same chord error as :func:`_sector_wedges`. The closing
+    edge is the chord. A circular segment stays convex at every opening below
+    a full turn, so this is a single polygon rather than 90° wedges.
+    """
+    span = math.radians(spread_deg)
+    n_wedges = max(1, int(math.ceil((spread_deg - 1e-9) / 90.0)))
+    steps = max(2, _arc_steps(radius, span / n_wedges) * n_wedges)
+    start = math.radians(angle_deg - spread_deg / 2.0)
+    verts = []
+    for step in range(steps + 1):
+        a = start + span * (step / steps)
+        verts.append((x + radius * math.cos(a), y + radius * math.sin(a)))
+    xs = [p[0] for p in verts]
+    ys = [p[1] for p in verts]
+    aabb = (min(xs), min(ys), max(xs), max(ys))
+    return [Prim(PrimKind.POLY, aabb, (), verts)]
+
+
+def _partial_circle_prims(
+    cx: float, cy: float, radius: float, angle_deg: float, spread_deg: float,
+    use_center: bool,
+) -> List[Prim]:
+    """Filled body of a partial circle. Callers keep the full-turn fast path."""
+    if use_center:
+        return _sector_wedges(cx, cy, angle_deg, radius, spread_deg)
+    return _segment_prim(cx, cy, angle_deg, radius, spread_deg)
+
+
+def _sector_wedges(x: float, y: float, angle_deg: float, radius: float, spread_deg: float) -> List[Prim]:
+    """Convex polygon wedges covering the sector. Each wedge is at most 90°."""
+    n_wedges = max(1, int(math.ceil((spread_deg - 1e-9) / 90.0)))
+    wedge_spread = spread_deg / n_wedges
+    start = angle_deg - spread_deg / 2.0
+    prims: List[Prim] = []
+    for i in range(n_wedges):
+        a0 = start + i * wedge_spread
+        span = math.radians(wedge_spread)
+        steps = _arc_steps(radius, span)
+        verts = [(x, y)]
+        for step in range(steps + 1):
+            a = math.radians(a0) + span * (step / steps)
+            verts.append((x + radius * math.cos(a), y + radius * math.sin(a)))
+        xs = [p[0] for p in verts]
+        ys = [p[1] for p in verts]
+        aabb = (min(xs), min(ys), max(xs), max(ys))
+        prims.append(Prim(PrimKind.POLY, aabb, (), verts))
+    return prims
+
+
+# Facade used as ``collision`` in author scripts
+class _CollisionFacade(ClosedSurface):
+    _closed_who = "collision"
+
+    def __init__(self) -> None:
+        pass  # closed surface: the seal needs a constructor to wrap
+
+    def _step(self) -> None:
+        get_collision_system().step()
+
+    def show_colliders(self, enabled: bool = True) -> None:
+        """Draw every hitbox as an overlay (``False`` hides them)."""
+        get_collision_system().show_colliders(enabled)
+
+    def show_tracks(self, enabled: bool = True) -> None:
+        """Draw every Track as an overlay (``False`` hides them)."""
+        from .track import show_tracks as _show
+        _show(enabled)
+
+    @property
+    def resolve_enabled(self) -> bool:
+        """When False, skip sweep/settle/floor snap. ``@collide`` / queries stay on."""
+        return get_collision_system().resolve_enabled
+
+    @resolve_enabled.setter
+    def resolve_enabled(self, value: bool) -> None:
+        get_collision_system().resolve_enabled = bool(value)
+
+    def query_point(self, x, y=None, *, group=None, ignore=None):
+        """Hitboxes containing ``(x, y)`` or one point-like.
+
+        ``group=`` omitted is the enrolled world. A tag (or a list of tags)
+        tests that group's members without enrolling them. A Graphic origin
+        is not a hit; ``ignore=`` adds to that caster.
+        """
+        return get_collision_system().query_point(x, y, group=group, ignore=ignore)
+
+    def query_circle(self, x, y=None, radius=None, *, group=None, ignore=None):
+        """Hitboxes overlapping a circle. See :meth:`CollisionSystem.query_circle`."""
+        return get_collision_system().query_circle(
+            x, y, radius, group=group, ignore=ignore,
+        )
+
+    def query_sector(
+        self, origin, *args,
+        angle=None, radius=None, spread=None, group=None, ignore=None,
+    ):
+        """Hitboxes overlapping a sector. See :meth:`CollisionSystem.query_sector`."""
+        return get_collision_system().query_sector(
+            origin, *args,
+            angle=angle, radius=radius, spread=spread, group=group, ignore=ignore,
+        )
+
+    def raycast(
+        self, p1, *args,
+        p2=None, vec=None, angle=None, length=None, group=None, ignore=None,
+    ):
+        """First hit along a segment. See :meth:`CollisionSystem.raycast`."""
+        return get_collision_system().raycast(
+            p1, *args,
+            p2=p2, vec=vec, angle=angle, length=length, group=group, ignore=ignore,
+        )
+
+    def query_shape(self, shape, group=None):
+        """Bodies whose hitbox overlaps ``shape`` (optionally only those in ``group``). A list."""
+        return get_collision_system().query_shape(shape, group=group)
+
+
+collision = _CollisionFacade()
+
+
+def _resolve_target_equal(x, y) -> bool:
+    """String tags compare by value; every other target compares by identity."""
+    if isinstance(x, str) and isinstance(y, str):
+        return x == y
+    return x is y
+
+
+def _resolve_pair_equal(pa, pb, a, b) -> bool:
+    """True when ``(pa, pb)`` is the same registration as ``(a, b)``, either order."""
+    return (
+        (_resolve_target_equal(pa, a) and _resolve_target_equal(pb, b))
+        or (_resolve_target_equal(pa, b) and _resolve_target_equal(pb, a))
+    )
+
+
+def resolve(a, b, bounce: Optional[float] = None, only: Any = None) -> None:
+    """Register standing auto-resolution for overlapping ``a`` and ``b`` each frame.
+
+    Same side grammar as ``@collide``: a tag, a body, ``ANYTHING``, or a
+    list/tuple (cross-product). ``resolve("bola", ["plataforma", "parede"])``
+    is both pairs.
+
+    ``only=`` limits which of ``a``'s sides this pair may produce in
+    ``a.touching_sides``: ``only="bottom"`` is a one-way (jump-through)
+    platform. A side, a list/tuple/set of sides, or a function of the
+    ``TouchingContact`` (``a``'s view) returning True to block. Any other first
+    contact makes the pair pass through until the two stop overlapping.
+
+    Args:
+        a: The side that gets pushed out (an actor, tag, ``group['tag']``, list).
+        b: What it stands on / bumps into (same forms).
+        bounce: ``None`` = position only; a number = restitution along the normal (0 =
+            stop).
+        only: Sides of ``a`` this pair may block (one-way platforms): a side, a set of
+            sides, or ``fn(contact)``.
+    """
+    sys = get_collision_system()
+    lefts = _normalize_side(a)
+    rights = _normalize_side(b)
+    if not lefts or not rights:
+        raise TypeError("resolve() sides must not be empty")
+    _check_pair_sides("resolve()", 'resolve(player, "walls")', lefts, rights)
+    from .registry import declare_group_names
+    declare_group_names(lefts + rights)
+    only = _normalize_only(only)
+    if only is not None and not isinstance(only, frozenset):
+        # The function runs inside the solver: refuse visible writes now.
+        check_read_only(only)
+    if isinstance(only, frozenset) and only != _mirror_only(only):
+        for left in lefts:
+            for right in rights:
+                if sys._same_resolve_side(left, right):
+                    raise ValueError(
+                        f"resolve({_side_code(left)}, {_side_code(right)}, "
+                        f"{_only_code(only)}): a group resolved against itself "
+                        "sees each contact from both bodies, so only= must read "
+                        'the same from both. Use {"top", "bottom"}, '
+                        '{"left", "right"}, or a function of the contact.'
+                    )
+    # All-or-nothing: refuse a hitbox-part side, or a member whose resolved
+    # part has an ``@=`` formula, before any pair registers. The formula check
+    # runs here (not only per pair in ``add_resolve_pair``) so it can name the
+    # group that pulled the member in.
+    for side in lefts + rights:
+        _refuse_part_resolve_side(sys, side)
+    for side in lefts + rights:
+        group = side if isinstance(side, str) else None
+        for shape in _collect_entities_from_target(side):
+            if getattr(shape, "_resolve_enrolled", False):
+                continue
+            ensure = getattr(shape, "_ensure_resolve_parts_writable", None)
+            if callable(ensure):
+                if group is not None:
+                    ensure(group)
+                else:
+                    ensure()
+    before = list(sys._resolve_pairs)
+    for left in lefts:
+        for right in rights:
+            sys.add_resolve_pair(left, right, bounce=bounce, only=only)
+    if sys._has_only:
+        # Eager: a body pair reached by two registrations that disagree on
+        # only= raises here, not on the next frame. Undo this call first.
+        try:
+            for side in lefts + rights:
+                for c in sys._resolve_side_colliders(side):
+                    sys._resolve_partners(c)
+        except ValueError:
+            _restore_resolve_pairs(before)
+            raise
+
+
+def _resolve_side_alive(side) -> bool:
+    if side is ANYTHING or isinstance(side, str):
+        return True
+    return bool(getattr(side, "is_alive", True))
+
+
+def _restore_resolve_pairs(snapshot) -> None:
+    """Put ``resolve`` pairs back to ``snapshot`` (an act change).
+
+    Pairs an act added are removed; game pairs an act removed or re-tuned
+    (``bounce=``) come back. A side that is a dead actor is not revived.
+    """
+    sys = get_collision_system()
+    for a, b, _tok, _only in list(sys._resolve_pairs):
+        if not any(_resolve_pair_equal(pa, pb, a, b) for pa, pb, _t, _o in snapshot):
+            sys.remove_resolve_pair(a, b)
+    for a, b, tok, only in snapshot:
+        if not (_resolve_side_alive(a) and _resolve_side_alive(b)):
+            continue
+        now = [
+            (pa, t, o) for pa, pb, t, o in sys._resolve_pairs
+            if _resolve_pair_equal(pa, pb, a, b)
+        ]
+        if (
+            now and now[0][1] == tok and now[0][2] == only
+            # ``only`` sides are read from the first argument: same order too.
+            and (only is None or _resolve_target_equal(now[0][0], a))
+        ):
+            continue
+        sys.add_resolve_pair(
+            a, b, bounce=None if tok is _RESOLVE_POSITION_ONLY else tok, only=only,
+        )
+
+
+def unresolve(a, b) -> None:
+    """Cancel a standing ``resolve(a, b)`` registration."""
+    sys = get_collision_system()
+    lefts = _normalize_side(a)
+    rights = _normalize_side(b)
+    if not lefts or not rights:
+        raise TypeError("unresolve() sides must not be empty")
+    _check_pair_sides("unresolve()", 'unresolve(player, "walls")', lefts, rights)
+    for left in lefts:
+        for right in rights:
+            sys.remove_resolve_pair(left, right)
+
+
+def test_collision(a, b) -> Optional[CollisionInfo]:
+    """One-shot overlap test; returns ``CollisionInfo`` or ``None``.
+
+    Args:
+        a: An actor or collider.
+        b: Another one.
+    """
+    return get_collision_system().test_collision(a, b)
+
+
+def notify_group_add(item, tag: str) -> None:
+    """Registry hook: a constructed item joined a group. Enroll if the tag is a pair side."""
+    sys = _collision_system
+    if sys is None or tag not in sys._pair_tags:
+        return
+    sys._try_enroll_item(item, tag=tag)
+
+
+def notify_group_remove(item, tag: str) -> None:
+    """Registry hook: item left a group. Drop from that tag's collider list."""
+    sys = _collision_system
+    if sys is None:
+        return
+    routed = _tag_item(item, tag)
+    body = getattr(item, "_collider", None)
+    if body is not None:
+        # A part may have answered for ``tag``; its host body resolved there.
+        sys._claimed_body_remove(tag, body)
+    c = getattr(routed if routed is not None else item, "_collider", None)
+    if c is None:
+        return
+    sys._tag_remove(tag, c)
+    sys._prune_pair_targets(c)  # D6: targets that tag implied go too
+    if getattr(item, "_resolve_enrolled", False):
+        # The body carries the resolve driver, even when a part answered.
+        _sync_resolve_driver_for_collider(sys, body if body is not None else c)
+
+
+def enroll_item_groups(item) -> None:
+    """Enroll ``item`` into every pair-handler tag it currently belongs to.
+
+    Called after construct (hitbox/frame exist) and when ``collidable = True``.
+    """
+    sys = _collision_system
+    if sys is None or not sys._pair_tags:
+        return
+    groups = getattr(item, "group", None)
+    if not groups:
+        return
+    for tag in list(groups):
+        if tag in sys._pair_tags:
+            sys._try_enroll_item(item, tag=tag)
+
+
+def _collider_of(shape) -> Optional[Collider]:
+    """Enrolled collider for ``shape``, or None if not in the system."""
+    return getattr(shape, "_collider", None)
+
+
+_motion_nonfinite_warned = False
+
+
+def note_collider_motion(shape, dx: float, dy: float) -> None:
+    """Mark this frame's translation as motion (swept). No-op if not enrolled.
+
+    A host's hitbox parts travel with it: each registered part's collider gets
+    the same delta, so a fast sprite's part is swept too (swept detection). A
+    host with a registered part always has a collider (``_ensure_part_collider``
+    enrolls it), so an unenrolled shape still returns at once.
+    """
+    global _motion_nonfinite_warned
+    col = _collider_of(shape)
+    if col is None:
+        return
+    try:
+        fx = 0.0 if dx is None else float(dx)
+        fy = 0.0 if dy is None else float(dy)
+    except (TypeError, ValueError):
+        fx, fy = float("nan"), float("nan")
+    if not math.isfinite(fx) or not math.isfinite(fy):
+        if not _motion_nonfinite_warned:
+            _motion_nonfinite_warned = True
+            warnings.warn(
+                f"note_collider_motion ignored non-finite delta ({dx!r}, {dy!r})",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        return
+    if fx == 0.0 and fy == 0.0:
+        return
+    col._pending_motion_dx += fx
+    col._pending_motion_dy += fy
+    parts = shape._hitbox_parts     # ``Entity`` class default ``()``
+    if parts:
+        for part in parts:
+            pc = part._collider
+            if pc is not None:
+                pc._pending_motion_dx += fx
+                pc._pending_motion_dy += fy
+
+
+def note_collider_placement(shape) -> None:
+    """Clear pending motion so this pose write is not swept (teleport / set)."""
+    col = _collider_of(shape)
+    if col is None:
+        return
+    col._pending_motion_dx = 0.0
+    col._pending_motion_dy = 0.0
+    parts = shape._hitbox_parts
+    if parts:
+        for part in parts:
+            pc = part._collider
+            if pc is not None:
+                pc._pending_motion_dx = 0.0
+                pc._pending_motion_dy = 0.0
+
+
+def _ensure_part_collider(part) -> Collider:
+    """Register a hitbox part: its own prims, its host as identity (never bound)."""
+    host = part._host_ref()
+    # A sprite with a hitbox in play is collidable: its body registers too
+    # (no tags it does not own — it answers ``ANYTHING`` and object sides).
+    if getattr(host, "_collider", None) is None:
+        ensure_collider(host)
+    c = Collider(part, _identity_shape=host, _register=False, _bind=False)
+    c._part = part
+    part._collider = c
+    part._collidable = True
+    c._system.register(c)
+    part._ensure_auto_baked()
+    return c
+
+
+def _refresh_part_link(item, tag: str) -> None:
+    """A named query reads a linked part's ``active`` fresh (as ``step()`` does)."""
+    claims = getattr(item, "_hitbox_claims", None)
+    if not claims:
+        return
+    part = claims.get(tag)
+    if part is not None and part._active_link is not None:
+        part._refresh_link()
+
+
+def _tag_item(item, tag: str):
+    """Who answers for ``tag`` on ``item``: a claiming hitbox part, or ``item``.
+
+    ``None`` when a part claims the tag but is switched off (the body must
+    not stand in for it).
+    """
+    claims = getattr(item, "_hitbox_claims", None)
+    if not claims:
+        return item
+    part = claims.get(tag)
+    if part is None:
+        return item
+    return part if part._active else None
+
+
+def _is_part_side(target) -> bool:
+    return getattr(type(target), "_is_hitbox_part", False)
+
+
+def ensure_collider(shape) -> Collider:
+    """Return shape's implicit collider, creating one if needed.
+
+    Raises ``RuntimeError`` if the shape opted out via ``collidable = False``
+    (sticky until ``collidable = True``). Callers that expand group tags must
+    filter with ``_item_in_play`` first so opted-out members stay out.
+    """
+    # Backstop: every author path refuses a part earlier with its own verb.
+    from .entity import refuse_part_as_actor
+    refuse_part_as_actor(shape, "collision", "body")
+    if getattr(shape, "_destroyed", False):
+        # A destroyed actor never re-enters the index (A6: resolve_now on a
+        # dead actor re-enrolled it; same class as H2 / S5 / S9).
+        from .entity import _destroyed_access_message
+        from .state import DestroyedError
+        raise DestroyedError(_destroyed_access_message(shape, "collision"))
+    if getattr(shape, "_collision_opt_out", False):
+        raise RuntimeError(
+            f"{shape!r} has collidable=False (collision opt-out); "
+            f"set collidable=True before ensure_collider"
+        )
+    existing = getattr(shape, "_collider", None)
+    if existing is not None:
+        return existing
+    if getattr(type(shape), "_is_hitbox_part", False):
+        return _ensure_part_collider(shape)
+    c = Collider(
+        shape,
+        _identity_shape=shape,
+        _register=True,
+    )
+    shape._collider = c
+    shape._collidable = True
+    ensure_auto = getattr(shape, "_ensure_auto_baked", None)
+    if callable(ensure_auto):
+        ensure_auto()
+    return c
+
+
+def _normalize_side(side) -> List[Any]:
+    """Expand one @collide side into atomic targets.
+
+    A side is one Shape / Collider / group tag / GroupOperator / ANYTHING,
+    or a list/tuple of those (one team). Strings are tags, not character sequences.
+    """
+    if side is ANYTHING or isinstance(side, str):
+        return [side]
+    if isinstance(side, (list, tuple)):
+        return list(side)
+    return [side]
+
+
+def _is_main_hitbox(atom) -> bool:
+    """``graphic.hitbox`` (the main view) — named by its Graphic, never itself."""
+    from .hitbox import _MainHitbox
+    return isinstance(atom, _MainHitbox)
+
+
+def _is_pair_side_atom(atom) -> bool:
+    """One atom of a pair side: an actor, a tag, ``group['tag']``, ``ANYTHING``."""
+    if atom is ANYTHING or isinstance(atom, str):
+        return True
+    if isinstance(atom, bool):
+        return False
+    from .registry import GroupOperator
+    from .entity import Entity
+    from .hitbox import Hitbox
+    return isinstance(atom, (Collider, GroupOperator, Entity, Hitbox))
+
+
+def _check_pair_sides(call: str, example: str, *sides) -> None:
+    """Refuse a side atom that names no body (``5``, ``None``, a post effect).
+
+    Shared by ``@collide`` / ``resolve`` / ``unresolve``: a junk side would
+    register a pair nothing can ever match — a silent no-op.
+    """
+    from .entity import refuse_part_as_actor
+    for atoms in sides:
+        for atom in atoms:
+            refuse_part_as_actor(atom, f"a {call} side", "body")
+            if _is_main_hitbox(atom):
+                verb = call[:-2] if call.endswith("()") else call
+                raise TypeError(
+                    f"{verb}(): name the actor, not its main hitbox — {verb}(hero, …), "
+                    "not hero.hitbox. The actor itself answers with its main "
+                    "hitbox; an extra hitbox is named by the group it claims."
+                )
+            if not _is_pair_side_atom(atom):
+                simple = atom is None or isinstance(atom, (int, float, complex))
+                shown = f" {atom!r}" if simple else ""
+                raise TypeError(
+                    f"{call} side must be an actor, a group tag string, "
+                    f"group['tag'], ANYTHING, or a list of those; got "
+                    f"{type(atom).__name__}{shown}. Write {example}."
+                )
+
+
+def _collide_decorator(phase: str, left, right):
+    """Shared implementation for @collide / @collide_stay / @collide_exit.
+
+    Exactly two sides. Each may be a single target or a list/tuple
+    (cross-product between the two sides).
+    """
+    lefts = _normalize_side(left)
+    rights = _normalize_side(right)
+    if not lefts or not rights:
+        raise TypeError(f"@{_decorator_name(phase)} sides must not be empty")
+    _check_pair_sides(
+        f"@{_decorator_name(phase)}",
+        f'@{_decorator_name(phase)}(player, "enemies")',
+        lefts, rights,
+    )
+    from .registry import declare_group_names
+    declare_group_names(lefts + rights)
+
+    def decorator(func: Callable) -> Callable:
+        from .process import _claim_decorator_role, _in_executing_class_body
+        if _in_executing_class_body():
+            raise TypeError(
+                f"@{_decorator_name(phase)} is for script-level pairs; "
+                f"use @{_with_decorator_name(phase)} on a class method "
+                f"(self is the left side). In an Act class: put "
+                f"@{_decorator_name(phase)} at the top of the file for the whole "
+                f"game, or inside setup() for this act only."
+            )
+        from .validate import check_handler_arity
+        check_handler_arity(func, ("me", "other", "info"), what=f"@{_decorator_name(phase)}")
+        _claim_decorator_role(func, "collide")
+        sys = get_collision_system()
+        from . import process as _process
+        in_act = _process._top_level_ended
+        for a in lefts:
+            for b in rights:
+                if a is b and a is not ANYTHING and not isinstance(a, str):
+                    continue
+                entry = sys.add_pair_handler(a, b, func, phase=phase)
+                if in_act:
+                    sys._act_pair_handlers.append(entry)
+        return func
+
+    return decorator
+
+
+def _decorator_name(phase: str) -> str:
+    return {
+        _PHASE_ENTER: "collide",
+        _PHASE_STAY: "collide_stay",
+        _PHASE_EXIT: "collide_exit",
+    }.get(phase, "collide")
+
+
+def collide(left, right):
+    """Decorator: fire on collision **enter** between two sides.
+
+    One registration opts both sides in — no need to mirror filters.
+
+    Each side may be a Shape, Collider, ``group['name']``, a group-id ``str``,
+    ``ANYTHING``, or a ``list`` / ``tuple`` of those (cross-product)::
+
+        @collide(player, enemy)
+        @collide(player, "enemies")
+        @collide("player_bullets", "enemies")
+        @collide(player, ANYTHING)
+        @collide(player, ["enemy", "wall"])
+        @collide([a1, a2], [b1, b2])
+        @collide((a1, a2), (b1, b2))   # tuples work the same as lists
+
+    Handler: ``func(me, other, info)`` with ``me`` from the left side.
+    Shape-level ``on_collide`` runs first, then pair handlers.
+    See also ``collide_stay``, ``collide_exit``.
+
+    Args:
+        left: An actor, tag, ``group["tag"]``, ``ANYTHING``, or a list of those.
+        right: The other side, same forms.
+    """
+    return _collide_decorator(_PHASE_ENTER, left, right)
+
+
+def collide_stay(left, right):
+    """Decorator: fire every frame while sides overlap. See ``collide``.
+
+    Args:
+        left: An actor, tag, ``group["tag"]``, ``ANYTHING``, or a list of those.
+        right: The other side, same forms.
+    """
+    return _collide_decorator(_PHASE_STAY, left, right)
+
+
+def collide_exit(left, right):
+    """Decorator: fire when an overlapping pair separates. See ``collide``.
+
+    Args:
+        left: An actor, tag, ``group["tag"]``, ``ANYTHING``, or a list of those.
+        right: The other side, same forms.
+    """
+    return _collide_decorator(_PHASE_EXIT, left, right)
+
+
+# Alias: explicit enter name (same as @collide)
+collide_enter = collide
+
+
+def _pair_method_adapter(bound: Callable) -> Callable:
+    """Pair dispatch is ``(me, other, info)``; a bound method already has ``me`` as ``self``.
+
+    Author surface is ``def fn(self, other)`` / ``fn(self, other, info)`` — not a
+    second ``me`` argument. Classless ``@collide`` callbacks stay unbound.
+    """
+    def handler(me, other, info):
+        _call(bound, other, info)
+    handler._scena_collide_with = bound
+    return handler
+
+
+def _collide_with_decorator(phase: str, target):
+    """Tag a method; construct registers ``add_pair_handler(item, target, …)``."""
+    rights = _normalize_side(target)
+    if not rights:
+        raise TypeError(f"@{_with_decorator_name(phase)} target must not be empty")
+    from .registry import declare_group_names
+    declare_group_names(rights)
+
+    def decorator(func: Callable) -> Callable:
+        from .process import _claim_decorator_role, _in_executing_class_body
+        if not _in_executing_class_body():
+            raise TypeError(
+                f"{_with_decorator_name(phase)} is for class methods; "
+                f"use @collide(a, b) at script level."
+            )
+        from .validate import check_handler_arity
+        check_handler_arity(
+            func, ("self", "other", "info"), what=f"@{_with_decorator_name(phase)}",
+        )
+        _claim_decorator_role(func, "collide")
+        specs = getattr(func, "_collide_with_specs", None)
+        if specs is None:
+            func._collide_with_specs = []
+            specs = func._collide_with_specs
+        specs.append((target, phase))
+        return func
+
+    return decorator
+
+
+def _with_decorator_name(phase: str) -> str:
+    return {
+        _PHASE_ENTER: "collide_with",
+        _PHASE_STAY: "collide_with_stay",
+        _PHASE_EXIT: "collide_with_exit",
+    }.get(phase, "collide_with")
+
+
+def collide_with(target):
+    """Method decorator: this instance collides **with** ``target`` (enter).
+
+    ``target`` is one side of classless ``@collide``: tag ``str``, shape,
+    ``ANYTHING``, or a ``list`` / ``tuple`` (cross-product with ``self``).
+    Handler: ``fn(self, other)`` / ``fn(self, other, info)``.
+    See also ``collide_with_stay``, ``collide_with_exit``.
+    """
+    return _collide_with_decorator(_PHASE_ENTER, target)
+
+
+def collide_with_stay(target):
+    """Method decorator: fire every frame while overlapping ``target``."""
+    return _collide_with_decorator(_PHASE_STAY, target)
+
+
+def collide_with_exit(target):
+    """Method decorator: fire when overlap with ``target`` ends."""
+    return _collide_with_decorator(_PHASE_EXIT, target)

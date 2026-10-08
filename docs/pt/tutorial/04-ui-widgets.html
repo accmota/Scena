@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UI Widgets — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "04",
+  title: "UI Widgets",
+  steps: [
+    {
+      title: "A cadeia",
+      part: "Script 1 · Cadeia de bolas",
+      body: `
+        <p>Este tutorial é sobre <strong>widgets</strong> (controles): sliders, caixas, listas, botões e menus, o painel com que você mexe num programa enquanto ele roda. Para ter o que controlar, começamos por uma animação simples, num script novo: uma cadeia de bolas que segue o mouse, como uma cobra.</p>
+        <p><strong>As bolas.</strong> A função <code>criar</code> faz trinta círculos no centro da vista (<code>canvas.game_view.center</code>), todos no grupo <code>bolas</code>. A cor começa em tomate, e <code>cor.darker(0.02)</code> (mais escura) a escurece um pouco a cada volta do <code>for</code>: a cauda sai mais escura que a cabeça. Por que uma função, se a chamamos uma vez só? Porque, daqui a dois passos, um botão vai chamá-la de novo para refazer a cadeia.</p>
+        <p><strong>O movimento.</strong> <code>chase</code> (perseguir) aproxima um número de outro, um pedaço a cada quadro: <code>chase(atual, alvo, rate=8)</code>. Quando está longe, anda muito; perto, pouco. Por isso a bola freia suave ao chegar. <code>rate</code> (taxa) é a pressa: quanto maior, mais rápido alcança. No <code>update</code>, só a primeira bola persegue o mouse; cada uma das outras persegue a da frente (<code>bolas[i - 1]</code>). Cada uma chega um pouco atrasada, e é esse atraso em fila que faz a cadeia ondular.</p>
+        <p><code>Plasma</code> é o fundo: uma névoa colorida que se move devagar (<code>speed</code>, velocidade). Rode e mexa o mouse.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse e teclado")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+# --- cadeia: a ponta segue o mouse; cada bola segue a anterior -------------
+def criar():
+    cor = Color("tomato")
+    centro = canvas.game_view.center
+    for i in range(30):
+        bola = Circle(center=centro, radius=16, color=cor, group="bolas")
+        bola.visual = Halo(style="pulse")
+        cor = cor.darker(0.02)
+
+
+criar()
+
+
+def update(dt):
+    bolas = group["bolas"]
+
+    # a primeira segue o mouse
+    ponta = bolas[0]
+    x = chase(ponta.center.x, mouse.x, rate=8)
+    y = chase(ponta.center.y, mouse.y, rate=8)
+    ponta.move_to(x, y)
+
+    # as outras seguem a da frente
+    for i in range(1, bolas.count):
+        bola = bolas[i]
+        da_frente = bolas[i - 1]
+        x = chase(bola.center.x, da_frente.center.x, rate=8)
+        y = chase(bola.center.y, da_frente.center.y, rate=8)
+        bola.move_to(x, y)
+
+
+run()
+`
+    },
+    {
+      title: "Slider",
+      body: `
+        <p>Primeiro widget: um controle para o número de bolas. Hoje esse número está escrito no código, em <code>range(30)</code>. Para um widget poder mudá-lo, ele precisa morar num lugar que os dois enxerguem: <code>st</code>, que você conheceu no placar. <code>st.n_bolas = 30</code> cria o valor, e <code>criar</code> passa a ler <code>range(st.n_bolas)</code>.</p>
+        <p><code>Slider</code> (controle deslizante) é uma trilha com um botão que se arrasta. O primeiro valor, <code>st.n_bolas</code>, diz onde ele escreve: arrastar muda <code>st.n_bolas</code>. <code>label</code> (legenda) é o nome ao lado; <code>min_value</code> e <code>max_value</code> são o menor e o maior valor; <code>only_int=True</code> (só inteiros) faz o slider pular de 1 em 1, porque não existe 12,4 bolas. Sem uma posição (<code>top_left</code>, canto de cima à esquerda), o widget entra numa coluna no canto da janela, e os próximos se empilham embaixo dele.</p>
+        <p>Rode e arraste. O número ao lado do slider muda, mas as bolas não: <code>criar</code> rodou uma vez, no começo, e não roda de novo sozinha. O próximo passo resolve isso.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse e teclado")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+st.n_bolas = 30
+
+# --- cadeia: a ponta segue o mouse; cada bola segue a anterior -------------
+def criar():
+    cor = Color("tomato")
+    centro = canvas.game_view.center
+    for i in range(st.n_bolas):
+        bola = Circle(center=centro, radius=16, color=cor, group="bolas")
+        bola.visual = Halo(style="pulse")
+        cor = cor.darker(0.02)
+
+
+Slider(st.n_bolas, label="Bolas", min_value=5, max_value=60, only_int=True)
+
+criar()
+
+
+def update(dt):
+    bolas = group["bolas"]
+
+    # a primeira segue o mouse
+    ponta = bolas[0]
+    x = chase(ponta.center.x, mouse.x, rate=8)
+    y = chase(ponta.center.y, mouse.y, rate=8)
+    ponta.move_to(x, y)
+
+    # as outras seguem a da frente
+    for i in range(1, bolas.count):
+        bola = bolas[i]
+        da_frente = bolas[i - 1]
+        x = chase(bola.center.x, da_frente.center.x, rate=8)
+        y = chase(bola.center.y, da_frente.center.y, rate=8)
+        bola.move_to(x, y)
+
+
+run()
+`
+    },
+    {
+      title: "Botão Rodar",
+      body: `
+        <p>Para o slider ter efeito, alguém precisa chamar <code>criar</code> de novo. Esse é o trabalho de um botão.</p>
+        <p><code>Button</code> (botão) recebe <code>label="Rodar"</code>, o texto, e <code>on_click=criar</code> (ao clicar). Repare: <code>criar</code> sem parênteses. Com parênteses, a função rodaria agora, enquanto o botão é criado. Sem eles, você entrega a função ao botão, e o Scena a chama a cada clique. <code>ui.gap()</code> (vão) abre um espaço na coluna antes do botão, para ele não grudar no slider.</p>
+        <p>Chamar <code>criar</code> de novo, porém, somaria bolas novas às antigas. Por isso <code>criar</code> agora começa limpando: <code>group["bolas"].destroy()</code> (destruir) apaga todas as bolas do grupo. Na primeira chamada o grupo está vazio, e a linha não faz nada.</p>
+        <p>Arraste o slider para 10 e aperte Rodar: a cadeia renasce no centro, com dez bolas.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse e teclado")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+st.n_bolas = 30
+
+# --- cadeia: a ponta segue o mouse; cada bola segue a anterior -------------
+def criar():
+    group["bolas"].destroy()
+
+    cor = Color("tomato")
+    centro = canvas.game_view.center
+    for i in range(st.n_bolas):
+        bola = Circle(center=centro, radius=16, color=cor, group="bolas")
+        bola.visual = Halo(style="pulse")
+        cor = cor.darker(0.02)
+
+
+Slider(st.n_bolas, label="Bolas", min_value=5, max_value=60, only_int=True)
+ui.gap()
+Button(label="Rodar", on_click=criar)
+
+criar()
+
+
+def update(dt):
+    bolas = group["bolas"]
+
+    # a primeira segue o mouse
+    ponta = bolas[0]
+    x = chase(ponta.center.x, mouse.x, rate=8)
+    y = chase(ponta.center.y, mouse.y, rate=8)
+    ponta.move_to(x, y)
+
+    # as outras seguem a da frente
+    for i in range(1, bolas.count):
+        bola = bolas[i]
+        da_frente = bolas[i - 1]
+        x = chase(bola.center.x, da_frente.center.x, rate=8)
+        y = chase(bola.center.y, da_frente.center.y, rate=8)
+        bola.move_to(x, y)
+
+
+run()
+`
+    },
+    {
+      title: "DropDown",
+      body: `
+        <p>Agora, escolher o visual das bolas. Para escolher um entre vários nomes, o widget é o <code>DropDown</code> (lista suspensa): um campo que abre uma lista quando você clica nele. <code>options</code> (opções) são os nomes da lista, e a escolha vai para <code>st.efeito</code>, que começa em <code>"Halo"</code>.</p>
+        <p>A lista guarda um texto, mas a bola precisa de um visual. Quem traduz é a função <code>visual_da_bola</code>: uma fila de <code>if</code> que compara <code>st.efeito</code> com cada nome e devolve (<code>return</code>) o visual daquele nome. Se nenhum bater, a última linha devolve o <code>Halo</code> (auréola) de antes. Em <code>criar</code>, <code>bola.visual = visual_da_bola()</code> leva parênteses, ao contrário do <code>on_click</code>: aqui queremos o resultado agora, uma vez por bola.</p>
+        <p>Como o slider, a lista só grava o valor. Escolha <code>Flame</code> e aperte Rodar.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse e teclado")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+st.n_bolas = 30
+st.efeito = "Halo"
+
+
+def visual_da_bola():
+    if st.efeito == "Flame":
+        return Flame()
+    if st.efeito == "Sphere":
+        return Sphere()
+    if st.efeito == "Shield":
+        return Shield()
+    if st.efeito == "Metal":
+        return Metal()
+    if st.efeito == "Aurora":
+        return Aurora()
+    if st.efeito == "Gel":
+        return Gel()
+    return Halo(style="pulse")
+
+
+# --- cadeia: a ponta segue o mouse; cada bola segue a anterior -------------
+def criar():
+    group["bolas"].destroy()
+
+    cor = Color("tomato")
+    centro = canvas.game_view.center
+    for i in range(st.n_bolas):
+        bola = Circle(center=centro, radius=16, color=cor, group="bolas")
+        bola.visual = visual_da_bola()
+        cor = cor.darker(0.02)
+
+
+Slider(st.n_bolas, label="Bolas", min_value=5, max_value=60, only_int=True)
+DropDown(st.efeito, options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
+ui.gap()
+Button(label="Rodar", on_click=criar)
+
+criar()
+
+
+def update(dt):
+    bolas = group["bolas"]
+
+    # a primeira segue o mouse
+    ponta = bolas[0]
+    x = chase(ponta.center.x, mouse.x, rate=8)
+    y = chase(ponta.center.y, mouse.y, rate=8)
+    ponta.move_to(x, y)
+
+    # as outras seguem a da frente
+    for i in range(1, bolas.count):
+        bola = bolas[i]
+        da_frente = bolas[i - 1]
+        x = chase(bola.center.x, da_frente.center.x, rate=8)
+        y = chase(bola.center.y, da_frente.center.y, rate=8)
+        bola.move_to(x, y)
+
+
+run()
+`,
+      try: [
+        {
+          note: "Mais visuais para experimentar, um por vez: troque a última linha de <code>visual_da_bola</code> (o <code>return</code> do <code>Halo</code>) por um deles e aperte Rodar com <code>Halo</code> escolhido. Para escolher pelo painel, acrescente um <code>if</code> e o nome na lista do <code>DropDown</code>.",
+          code: `return Neon()
+return Wave()
+return ElectricField()
+return Bolt()`
+        }
+      ]
+    },
+    {
+      title: "Linhas",
+      body: `
+        <p>Um enfeite: ligar cada bola à anterior com uma linha, como contas num colar. As linhas vão para o grupo <code>linhas</code>.</p>
+        <p><strong>Lembrar a anterior.</strong> Para ligar, <code>criar</code> precisa saber qual foi a bola anterior. <code>anterior</code> começa <code>None</code> (nada) e, no fim de cada volta do <code>for</code>, passa a ser a bola que acabou de nascer. A primeira bola não tem anterior, e o <code>if anterior is not None</code> pula a linha nessa volta: trinta bolas, vinte e nove linhas.</p>
+        <p><strong>Pontas que acompanham.</strong> A linha nasce com as duas pontas no centro. Logo em seguida, <code>linha["p1"] @= anterior.center</code> prende a ponta 1 ao centro da bola anterior, e <code>p2</code> ao da bola nova. É o mesmo <code>@=</code> do placar, aqui ligado a um ponto: quando as bolas andam, as pontas andam junto. Sem ele, as linhas ficariam paradas onde nasceram.</p>
+        <p><strong>A aparência.</strong> <code>layer=-1</code> (camada) desenha as linhas atrás das bolas. A cor é um degradê (<code>Gradient</code>) de vermelho a laranja; <code>set_alpha(0.3)</code> deixa a linha quase transparente (30% de opacidade); e <code>blend = "add"</code> (mistura por soma) soma a cor da linha à do que está atrás. Onde várias linhas se cruzam, a luz se acumula e brilha mais.</p>
+        <p>Por fim, <code>criar</code> também apaga as linhas antigas com <code>group["linhas"].destroy()</code>. Senão, elas sobrariam a cada Rodar.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse e teclado")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+st.n_bolas = 30
+st.efeito = "Halo"
+
+
+def visual_da_bola():
+    if st.efeito == "Flame":
+        return Flame()
+    if st.efeito == "Sphere":
+        return Sphere()
+    if st.efeito == "Shield":
+        return Shield()
+    if st.efeito == "Metal":
+        return Metal()
+    if st.efeito == "Aurora":
+        return Aurora()
+    if st.efeito == "Gel":
+        return Gel()
+    return Halo(style="pulse")
+
+
+# --- cadeia: a ponta segue o mouse; cada bola segue a anterior -------------
+def criar():
+    group["bolas"].destroy()
+    group["linhas"].destroy()
+
+    cor = Color("tomato")
+    centro = canvas.game_view.center
+    anterior = None
+    for i in range(st.n_bolas):
+        bola = Circle(center=centro, radius=16, color=cor, group="bolas")
+        bola.visual = visual_da_bola()
+        cor = cor.darker(0.02)
+
+        if anterior is not None:
+            linha = Line(p1=centro, p2=centro, color="tomato", group="linhas", layer=-1)
+            linha["p1"] @= anterior.center
+            linha["p2"] @= bola.center
+            linha.color = Gradient("red", "orange")
+            linha.set_alpha(0.3)
+            linha.blend = "add"
+
+        anterior = bola
+
+
+Slider(st.n_bolas, label="Bolas", min_value=5, max_value=60, only_int=True)
+DropDown(st.efeito, options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
+ui.gap()
+Button(label="Rodar", on_click=criar)
+
+criar()
+
+
+def update(dt):
+    bolas = group["bolas"]
+
+    # a primeira segue o mouse
+    ponta = bolas[0]
+    x = chase(ponta.center.x, mouse.x, rate=8)
+    y = chase(ponta.center.y, mouse.y, rate=8)
+    ponta.move_to(x, y)
+
+    # as outras seguem a da frente
+    for i in range(1, bolas.count):
+        bola = bolas[i]
+        da_frente = bolas[i - 1]
+        x = chase(bola.center.x, da_frente.center.x, rate=8)
+        y = chase(bola.center.y, da_frente.center.y, rate=8)
+        bola.move_to(x, y)
+
+
+run()
+`
+    },
+    {
+      title: "CheckBox",
+      body: `
+        <p>As linhas são bonitas, mas nem sempre se quer vê-las. Para ligar e desligar, o widget é o <code>CheckBox</code> (caixa de seleção): um quadradinho marcado ou desmarcado, que guarda <code>True</code> (verdadeiro) ou <code>False</code> (falso). Ele escreve em <code>st.linhas</code>, que começa <code>True</code>: a caixa nasce marcada.</p>
+        <p>Em <code>criar</code>, a condição da linha ganha uma parte: <code>if st.linhas and anterior is not None</code>. <code>and</code> (e) exige as duas coisas ao mesmo tempo: a caixa marcada e uma bola anterior.</p>
+        <p>Desmarque a caixa e aperte Rodar: a cadeia renasce sem linhas.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse e teclado")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+st.n_bolas = 30
+st.linhas = True
+st.efeito = "Halo"
+
+
+def visual_da_bola():
+    if st.efeito == "Flame":
+        return Flame()
+    if st.efeito == "Sphere":
+        return Sphere()
+    if st.efeito == "Shield":
+        return Shield()
+    if st.efeito == "Metal":
+        return Metal()
+    if st.efeito == "Aurora":
+        return Aurora()
+    if st.efeito == "Gel":
+        return Gel()
+    return Halo(style="pulse")
+
+
+# --- cadeia: a ponta segue o mouse; cada bola segue a anterior -------------
+def criar():
+    group["bolas"].destroy()
+    group["linhas"].destroy()
+
+    cor = Color("tomato")
+    centro = canvas.game_view.center
+    anterior = None
+    for i in range(st.n_bolas):
+        bola = Circle(center=centro, radius=16, color=cor, group="bolas")
+        bola.visual = visual_da_bola()
+        cor = cor.darker(0.02)
+
+        if st.linhas and anterior is not None:
+            linha = Line(p1=centro, p2=centro, color="tomato", group="linhas", layer=-1)
+            linha["p1"] @= anterior.center
+            linha["p2"] @= bola.center
+            linha.color = Gradient("red", "orange")
+            linha.set_alpha(0.3)
+            linha.blend = "add"
+
+        anterior = bola
+
+
+Slider(st.n_bolas, label="Bolas", min_value=5, max_value=60, only_int=True)
+CheckBox(st.linhas, label="Linhas")
+DropDown(st.efeito, options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
+ui.gap()
+Button(label="Rodar", on_click=criar)
+
+criar()
+
+
+def update(dt):
+    bolas = group["bolas"]
+
+    # a primeira segue o mouse
+    ponta = bolas[0]
+    x = chase(ponta.center.x, mouse.x, rate=8)
+    y = chase(ponta.center.y, mouse.y, rate=8)
+    ponta.move_to(x, y)
+
+    # as outras seguem a da frente
+    for i in range(1, bolas.count):
+        bola = bolas[i]
+        da_frente = bolas[i - 1]
+        x = chase(bola.center.x, da_frente.center.x, rate=8)
+        y = chase(bola.center.y, da_frente.center.y, rate=8)
+        bola.move_to(x, y)
+
+
+run()
+`,
+    },
+    {
+      title: "Menu de pausa",
+      body: `
+        <p>O último widget é diferente dos outros. Slider, lista, caixa e botão ficam sempre na coluna. Um <code>Menu</code> é uma pergunta: aparece no meio da tela, espera uma resposta e some. Vamos usá-lo como menu de pausa, aberto pela tecla Esc.</p>
+        <p><strong>Abrir.</strong> No <code>update</code>, <code>keyp.once("ESC")</code> é verdadeiro só no quadro em que a tecla desce, uma vez por toque. Com <code>keyp("ESC")</code>, verdadeiro enquanto a tecla está apertada, abriríamos um menu novo a cada quadro. Criar o <code>Menu</code> já o mostra: <code>title</code> (título) é a faixa de cima, e <code>options</code> (opções) são os botões. Sem <code>center</code> (centro), ele aparece no meio da vista.</p>
+        <p><strong>Pausar.</strong> <code>pause=True</code> (pausar) para o relógio do jogo enquanto o menu está aberto e o devolve como estava ao fechar: as bolas congelam. O menu também escurece o jogo atrás e segura o teclado. Com ele aberto, <code>keyp</code> responde falso, e o jogo não recebe as teclas.</p>
+        <p><strong>Responder.</strong> Um clique numa opção fecha o menu e chama <code>on_choose</code> (ao escolher) com a opção clicada. A função <code>escolher</code> só precisa tratar <code>"Recomeçar"</code>: chama <code>criar</code>, como o botão Rodar. <code>"Continuar"</code> não precisa de nada, porque fechar o menu já é continuar.</p>
+        <p>Aperte Esc e experimente as duas opções.</p>
+      `,
+      example: "cadeia_de_bolas.py",
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse e teclado")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+st.n_bolas = 30
+st.linhas = True
+st.efeito = "Halo"
+
+
+def visual_da_bola():
+    if st.efeito == "Flame":
+        return Flame()
+    if st.efeito == "Sphere":
+        return Sphere()
+    if st.efeito == "Shield":
+        return Shield()
+    if st.efeito == "Metal":
+        return Metal()
+    if st.efeito == "Aurora":
+        return Aurora()
+    if st.efeito == "Gel":
+        return Gel()
+    return Halo(style="pulse")
+
+
+# --- cadeia: a ponta segue o mouse; cada bola segue a anterior -------------
+def criar():
+    group["bolas"].destroy()
+    group["linhas"].destroy()
+
+    cor = Color("tomato")
+    centro = canvas.game_view.center
+    anterior = None
+    for i in range(st.n_bolas):
+        bola = Circle(center=centro, radius=16, color=cor, group="bolas")
+        bola.visual = visual_da_bola()
+        cor = cor.darker(0.02)
+
+        if st.linhas and anterior is not None:
+            linha = Line(p1=centro, p2=centro, color="tomato", group="linhas", layer=-1)
+            linha["p1"] @= anterior.center
+            linha["p2"] @= bola.center
+            linha.color = Gradient("red", "orange")
+            linha.set_alpha(0.3)
+            linha.blend = "add"
+
+        anterior = bola
+
+
+Slider(st.n_bolas, label="Bolas", min_value=5, max_value=60, only_int=True)
+CheckBox(st.linhas, label="Linhas")
+DropDown(st.efeito, options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
+ui.gap()
+Button(label="Rodar", on_click=criar)
+
+criar()
+
+
+def escolher(opcao):
+    if opcao == "Recomeçar":
+        criar()
+
+
+def update(dt):
+    if keyp.once("ESC"):
+        Menu(
+            options=["Continuar", "Recomeçar"],
+            title="Pausa",
+            pause=True,
+            on_choose=escolher,
+        )
+
+    bolas = group["bolas"]
+
+    # a primeira segue o mouse
+    ponta = bolas[0]
+    x = chase(ponta.center.x, mouse.x, rate=8)
+    y = chase(ponta.center.y, mouse.y, rate=8)
+    ponta.move_to(x, y)
+
+    # as outras seguem a da frente
+    for i in range(1, bolas.count):
+        bola = bolas[i]
+        da_frente = bolas[i - 1]
+        x = chase(bola.center.x, da_frente.center.x, rate=8)
+        y = chase(bola.center.y, da_frente.center.y, rate=8)
+        bola.move_to(x, y)
+
+
+run()
+`,
+      closing: `
+        <p>Neste script, slider, lista e caixa só gravam valores em <code>st</code>. Quem aplica é <code>criar</code>, chamado pelo botão Rodar ou pelo Recomeçar do menu: a cadeia nasce de novo, inteira, com os valores do painel. É simples e seguro. No próximo script, os controles vão mexer no desenho ao vivo, sem botão.</p>
+      `
+    },
+    {
+      title: "Barras girando",
+      part: "Script 2 · Barras girando",
+      fresh: true,
+      body: `
+        <p>Aqui começa um script novo, e com outro jeito de trabalhar. A cadeia nós construímos linha a linha. Este você recebe <strong>pronto</strong>: copie, rode, e depois vamos lê-lo por partes. Ele usa recursos do Scena que se entendem melhor vistos juntos, funcionando, do que montados aos poucos: uma fórmula que gira, uma função que chama a si mesma, um rastro na tela. Quando o script estiver claro, voltamos ao assunto do tutorial e penduramos um painel nele.</p>
+        <p><strong>A ideia.</strong> Uma barra gira no centro da janela. Em cada ponta dela nasce uma barra com metade do tamanho, presa àquela ponta, girando mais rápido e no sentido contrário. Nas pontas dessas nascem outras, e assim por diante, cinco vezes. São 63 barras, e cada uma só sabe duas coisas: onde fica o seu centro e quanto girou. O desenho, que parece complicado, sai de uma regra simples repetida.</p>
+        <p>Rode e observe um pouco. As barras pequenas desenham laços em volta das grandes, e o rastro transforma tudo em fitas de luz. Aperte <code>M</code> para desligar o rastro e ver as barras limpas.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Barras girando")
+
+Wallpaper(Gradient("ocean", type="radial", size=1000))
+Grain()
+mt = MotionTrail()
+
+RECURSOES = 5
+PROPORCAO = 1 / 15  # altura / comprimento
+FATOR_TAMANHO = 2
+FATOR_GIRO = -1.5
+VELOCIDADE = 26
+COMPRIMENTO = W * 0.5
+
+PALETA = Palette("lisboa")
+
+
+@when(lambda: keyp("M"))
+def muda_rastro():
+    mt.enabled = not mt.enabled
+
+
+def criar_barra(nivel, centro):
+    comprimento = COMPRIMENTO / (FATOR_TAMANHO ** nivel)
+    altura = comprimento * PROPORCAO
+
+    barra = Rect(
+        center=centro,
+        width=comprimento,
+        height=altura,
+        color=PALETA[nivel],
+    )
+
+    barra.visual = Aurora()
+    barra["angle"] @= lambda: (clock.time * VELOCIDADE * (FATOR_GIRO ** nivel)) % 360
+
+    if nivel < RECURSOES:
+        criar_barra(nivel + 1, lambda: barra.left_square_center)
+        criar_barra(nivel + 1, lambda: barra.right_square_center)
+
+
+criar_barra(0, (W / 2, H / 2))
+run()
+`,
+      closing: `
+        <p>Nos próximos três passos, o código é este mesmo. O trecho destacado em azul é o que estamos lendo. Começamos pelo que mais importa: como uma barra gira.</p>
+      `
+    },
+    {
+      title: "Uma barra que gira",
+      focus: ["def criar_barra", "barra = Rect(", "barra.visual"],
+      body: `
+        <p>Tudo acontece na função <code>criar_barra</code>. Ela recebe duas informações: o <code>nivel</code> da barra (0 para a do centro, 1 para as filhas dela, 2 para as netas…) e o <code>centro</code> onde a barra deve ficar.</p>
+        <p><strong>O tamanho.</strong> A barra do nível 0 tem <code>COMPRIMENTO</code>, metade da largura da janela. Nos níveis seguintes, o comprimento é dividido por <code>FATOR_TAMANHO ** nivel</code>. <code>**</code> é a potência do Python: <code>2 ** 0</code> é 1, <code>2 ** 1</code> é 2, <code>2 ** 2</code> é 4. Então cada nível tem metade do comprimento do anterior. A altura é sempre 1/15 do comprimento (<code>PROPORCAO</code>): todas as barras têm o mesmo formato, só o tamanho muda. Com isso, <code>Rect</code> (retângulo) recebe o centro, <code>width</code> (largura), <code>height</code> (altura) e uma cor da <code>PALETA</code>, uma por nível.</p>
+        <p><strong>A cor.</strong> <code>PALETA</code> é uma <code>Palette</code> (paleta): um punhado de cores tiradas, em degraus iguais, de um degradê pronto. <code>"lisboa"</code> passa por creme, âmbar, azul-claro, rosa-antigo, azul-petróleo e verde-escuro; sem dizer quantas, a paleta tira seis cores, uma para cada nível (0 a 5). <code>PALETA[nivel]</code> pega a cor daquele nível, como numa lista. Se o número passar da última, a paleta volta para a primeira, então nenhum nível fica sem cor.</p>
+        <p><strong>O giro.</strong> A linha <code>barra["angle"] @= …</code> é o coração do script. <code>angle</code> (ângulo) é a rotação da barra, em graus. Com <code>@=</code>, o ângulo vira uma fórmula que o Scena recalcula a cada quadro, como o texto do placar no tutorial 2. E, como lá, o nome do campo vai entre colchetes: é assim que se aponta o campo que recebe a fórmula. A fórmula lê <code>clock.time</code> (relógio, tempo): quantos segundos se passaram desde o início. Vezes <code>VELOCIDADE</code>, que é 26, a barra gira 26 graus por segundo. <code>% 360</code> é o resto da divisão por 360: mantém o ângulo dentro de uma volta.</p>
+        <p><strong>Um giro diferente por nível.</strong> Falta <code>FATOR_GIRO ** nivel</code>, que multiplica a velocidade. Com <code>FATOR_GIRO = -1.5</code>, o nível 0 multiplica por 1; o nível 1, por −1,5; o 2, por 2,25; o 3, por −3,375. O sinal alterna, então cada nível gira ao contrário do anterior, e cada vez mais rápido. É essa mistura de sentidos que faz o desenho se dobrar em laços.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Barras girando")
+
+Wallpaper(Gradient("ocean", type="radial", size=1000))
+Grain()
+mt = MotionTrail()
+
+RECURSOES = 5
+PROPORCAO = 1 / 15  # altura / comprimento
+FATOR_TAMANHO = 2
+FATOR_GIRO = -1.5
+VELOCIDADE = 26
+COMPRIMENTO = W * 0.5
+
+PALETA = Palette("lisboa")
+
+
+@when(lambda: keyp("M"))
+def muda_rastro():
+    mt.enabled = not mt.enabled
+
+
+def criar_barra(nivel, centro):
+    comprimento = COMPRIMENTO / (FATOR_TAMANHO ** nivel)
+    altura = comprimento * PROPORCAO
+
+    barra = Rect(
+        center=centro,
+        width=comprimento,
+        height=altura,
+        color=PALETA[nivel],
+    )
+
+    barra.visual = Aurora()
+    barra["angle"] @= lambda: (clock.time * VELOCIDADE * (FATOR_GIRO ** nivel)) % 360
+
+    if nivel < RECURSOES:
+        criar_barra(nivel + 1, lambda: barra.left_square_center)
+        criar_barra(nivel + 1, lambda: barra.right_square_center)
+
+
+criar_barra(0, (W / 2, H / 2))
+run()
+`,
+      try: [
+        {
+          note: "Troque o valor de <code>FATOR_GIRO</code> no topo, um por vez. Positivo: todos os níveis giram para o mesmo lado. −1: todos na mesma velocidade, com sentidos alternados.",
+          code: `FATOR_GIRO = 1.5
+FATOR_GIRO = -1`
+        }
+      ]
+    },
+    {
+      title: "Barras nas pontas",
+      focus: ["RECURSOES = 5", "if nivel < RECURSOES", "criar_barra(0"],
+      body: `
+        <p>Agora a parte mais curiosa: dentro de <code>criar_barra</code> há duas chamadas a <code>criar_barra</code>. A função chama a si mesma. Isso tem nome: <strong>recursão</strong>.</p>
+        <p><strong>Siga a execução.</strong> Na última linha antes de <code>run()</code>, <code>criar_barra(0, (W / 2, H / 2))</code> cria a barra do centro, no nível 0. Antes de terminar, a função pergunta: <code>nivel &lt; RECURSOES</code>? 0 é menor que 5, então ela chama <code>criar_barra</code> duas vezes, com <code>nivel + 1</code>: uma filha em cada ponta. Cada filha, no nível 1, faz a mesma pergunta e cria as suas duas filhas no nível 2. Isso continua até o nível 5, onde a pergunta dá falso e a função só cria a barra, sem filhas. Esse <code>if</code> é o freio da recursão: sem ele, a função se chamaria para sempre. Na conta, 1 + 2 + 4 + 8 + 16 + 32 = 63 barras.</p>
+        <p><strong>Onde a filha nasce.</strong> Imagine um quadrado em cada ponta da barra, com o lado igual à altura dela. <code>left_square_center</code> e <code>right_square_center</code> (centro do quadrado da esquerda / da direita) são os centros desses quadrados: dois pontos perto das pontas, que giram junto com a barra.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 420 150" role="img" aria-label="Uma barra com um quadrado tracejado em cada ponta; uma barra menor nasce no centro de cada quadrado">
+            <rect class="bar child" x="-60" y="-4" width="120" height="8" transform="translate(70 92) rotate(20)"/>
+            <rect class="bar child" x="-60" y="-4" width="120" height="8" transform="translate(350 92) rotate(20)"/>
+            <rect class="bar" x="60" y="82" width="300" height="20"/>
+            <rect class="guide" x="60" y="82" width="20" height="20"/>
+            <rect class="guide" x="340" y="82" width="20" height="20"/>
+            <circle class="dot" cx="70" cy="92" r="3.5"/>
+            <circle class="dot" cx="350" cy="92" r="3.5"/>
+            <line class="ray" x1="70" y1="86" x2="70" y2="34"/>
+            <line class="ray" x1="350" y1="86" x2="350" y2="34"/>
+            <text x="70" y="26" text-anchor="middle">left_square_center</text>
+            <text x="350" y="26" text-anchor="middle">right_square_center</text>
+            <text x="210" y="122" text-anchor="middle">mãe</text>
+            <text x="22" y="134">filha</text>
+            <text x="398" y="134" text-anchor="end">filha</text>
+          </svg>
+          <figcaption>Um quadrado imaginário em cada ponta, com o lado igual à altura da barra. Cada filha nasce no centro de um deles.</figcaption>
+        </figure>
+        <p><strong>Presa à mãe.</strong> A filha não recebe um ponto fixo. Recebe <code>lambda: barra.left_square_center</code>, uma fórmula. Como as linhas do tutorial de geometria, um <code>center</code> com <code>lambda</code> acompanha o que lê: a mãe gira, a ponta dela anda, e a filha vai junto, a cada quadro. A filha gira em volta do próprio centro, e a mãe a carrega pela ponta. Somados ao longo dos níveis, esses dois movimentos desenham os laços.</p>
+        <p>Experimente mudar <code>RECURSOES</code> no topo. Com 2, são só 7 barras, e a regra fica fácil de ver. Ou apague uma das duas chamadas dentro do <code>if</code>: cada barra terá uma filha só, e a árvore vira um braço articulado.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Barras girando")
+
+Wallpaper(Gradient("ocean", type="radial", size=1000))
+Grain()
+mt = MotionTrail()
+
+RECURSOES = 5
+PROPORCAO = 1 / 15  # altura / comprimento
+FATOR_TAMANHO = 2
+FATOR_GIRO = -1.5
+VELOCIDADE = 26
+COMPRIMENTO = W * 0.5
+
+PALETA = Palette("lisboa")
+
+
+@when(lambda: keyp("M"))
+def muda_rastro():
+    mt.enabled = not mt.enabled
+
+
+def criar_barra(nivel, centro):
+    comprimento = COMPRIMENTO / (FATOR_TAMANHO ** nivel)
+    altura = comprimento * PROPORCAO
+
+    barra = Rect(
+        center=centro,
+        width=comprimento,
+        height=altura,
+        color=PALETA[nivel],
+    )
+
+    barra.visual = Aurora()
+    barra["angle"] @= lambda: (clock.time * VELOCIDADE * (FATOR_GIRO ** nivel)) % 360
+
+    if nivel < RECURSOES:
+        criar_barra(nivel + 1, lambda: barra.left_square_center)
+        criar_barra(nivel + 1, lambda: barra.right_square_center)
+
+
+criar_barra(0, (W / 2, H / 2))
+run()
+`
+    },
+    {
+      title: "Fundo, brilho e rastro",
+      focus: ["Wallpaper(", "barra.visual", "@when("],
+      body: `
+        <p>Falta o acabamento. Nada aqui muda o movimento, só a maneira como ele aparece. Por isso ficou para o fim.</p>
+        <p><strong>O fundo.</strong> <code>Gradient("ocean", …)</code> usa um degradê pronto do Scena, o ocean (oceano). <code>type="radial"</code> faz as cores saírem do centro em círculos, em vez de atravessar a tela de um lado a outro, e <code>size=1000</code> (tamanho) é o raio desse círculo. <code>Grain()</code> (grão) espalha por cima um chuvisco animado e fraco, como num filme antigo.</p>
+        <p><strong>O rastro.</strong> <code>MotionTrail()</code> (rastro de movimento) não desenha nada sozinho: ele mistura cada quadro com os anteriores, que vão se apagando aos poucos. Tudo que se mexe deixa um fantasma, e o que está parado continua igual. Por isso as barras rápidas viram fitas. O efeito fica guardado em <code>mt</code> para podermos desligá-lo.</p>
+        <p><strong>A tecla M.</strong> <code>@when</code> (quando) roda a função no momento em que a condição passa de falsa para verdadeira. <code>keyp("M")</code> é verdadeiro enquanto a tecla está apertada, então <code>muda_rastro</code> roda uma vez por toque: segurar não repete. <code>mt.enabled</code> (habilitado) liga e desliga o efeito, e <code>not</code> inverte o valor: o que era verdadeiro vira falso, e vice-versa.</p>
+        <p><strong>O brilho.</strong> <code>Aurora()</code> é o visual de cada barra: uma luz que ondula por dentro, na cor da própria barra.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Barras girando")
+
+Wallpaper(Gradient("ocean", type="radial", size=1000))
+Grain()
+mt = MotionTrail()
+
+RECURSOES = 5
+PROPORCAO = 1 / 15  # altura / comprimento
+FATOR_TAMANHO = 2
+FATOR_GIRO = -1.5
+VELOCIDADE = 26
+COMPRIMENTO = W * 0.5
+
+PALETA = Palette("lisboa")
+
+
+@when(lambda: keyp("M"))
+def muda_rastro():
+    mt.enabled = not mt.enabled
+
+
+def criar_barra(nivel, centro):
+    comprimento = COMPRIMENTO / (FATOR_TAMANHO ** nivel)
+    altura = comprimento * PROPORCAO
+
+    barra = Rect(
+        center=centro,
+        width=comprimento,
+        height=altura,
+        color=PALETA[nivel],
+    )
+
+    barra.visual = Aurora()
+    barra["angle"] @= lambda: (clock.time * VELOCIDADE * (FATOR_GIRO ** nivel)) % 360
+
+    if nivel < RECURSOES:
+        criar_barra(nivel + 1, lambda: barra.left_square_center)
+        criar_barra(nivel + 1, lambda: barra.right_square_center)
+
+
+criar_barra(0, (W / 2, H / 2))
+run()
+`,
+      try: [
+        {
+          note: "Outros fundos, um por vez: o mesmo degradê radial com o preset <code>nebula</code>, ou o <code>ocean</code> sem <code>type</code> (de um lado a outro). A última linha alonga o rastro: <code>fade</code> (desbotar) é quanto do fantasma sobra a cada quadro. O padrão é 0.9; perto de 1, ele demora a sumir.",
+          code: `Wallpaper(Gradient("nebula", type="radial", size=1000))
+Wallpaper(Gradient("ocean"))
+mt.fade = 0.97`
+        }
+      ]
+    },
+    {
+      title: "Sliders ao vivo",
+      example: "barras_girando.py",
+      body: `
+        <p>De volta ao assunto do tutorial: widgets. No primeiro script, o painel só guardava valores, e era o botão Rodar que recriava a cadeia. Aqui isso não é preciso. A rotação já é uma fórmula, recalculada a cada quadro. Se a fórmula ler um valor do painel, o painel mexe no desenho ao vivo.</p>
+        <p>As constantes <code>VELOCIDADE</code> e <code>FATOR_GIRO</code> saem do topo e viram <code>st.velocidade</code> e <code>st.fator_giro</code>. Dois <code>Slider</code> escrevem nesses valores, e a fórmula do ângulo passa a lê-los. É toda a mudança: quatro linhas novas e uma alterada.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Barras girando")
+
+Wallpaper(Gradient("ocean", type="radial", size=1000))
+Grain()
+mt = MotionTrail()
+
+RECURSOES = 5
+PROPORCAO = 1 / 15  # altura / comprimento
+FATOR_TAMANHO = 2
+COMPRIMENTO = W * 0.5
+
+st.velocidade = 26
+st.fator_giro = -1.5
+
+PALETA = Palette("lisboa")
+
+Slider(st.velocidade, label="Velocidade", min_value=0, max_value=80)
+Slider(st.fator_giro, label="Giro", min_value=-3, max_value=3)
+
+
+@when(lambda: keyp("M"))
+def muda_rastro():
+    mt.enabled = not mt.enabled
+
+
+def criar_barra(nivel, centro):
+    comprimento = COMPRIMENTO / (FATOR_TAMANHO ** nivel)
+    altura = comprimento * PROPORCAO
+
+    barra = Rect(
+        center=centro,
+        width=comprimento,
+        height=altura,
+        color=PALETA[nivel],
+    )
+
+    barra.visual = Aurora()
+    barra["angle"] @= lambda: (clock.time * st.velocidade * (st.fator_giro ** nivel)) % 360
+
+    if nivel < RECURSOES:
+        criar_barra(nivel + 1, lambda: barra.left_square_center)
+        criar_barra(nivel + 1, lambda: barra.right_square_center)
+
+
+criar_barra(0, (W / 2, H / 2))
+run()
+`,
+      try: [
+        {
+          note: "Troque o degradê da <code>PALETA</code>: <code>\"plasma\"</code>, <code>\"ocean\"</code> (oceano), <code>\"neon\"</code> ou <code>\"rdyl\"</code> (do vermelho ao amarelo). <code>steps</code> (passos) diz quantas cores tirar: com <code>steps=3</code>, as cores se repetem de três em três níveis.",
+          code: `PALETA = Palette("plasma", steps=3)`
+        }
+      ],
+      closing: `
+        <p>Arraste <strong>Velocidade</strong> até 0: tudo para, e o rastro some. Leve <strong>Giro</strong> para 1: os níveis giram juntos, para o mesmo lado. Valores negativos alternam os sentidos. <code>M</code> continua ligando e desligando o rastro.</p>
+        <p>No primeiro script, o painel gravava e o botão aplicava. Aqui, a fórmula lê o painel o tempo todo. O último script leva essa ideia mais longe.</p>
+      `
+    },
+    {
+      title: "Osciloscópio",
+      part: "Script 3 · Osciloscópio",
+      fresh: true,
+      body: `
+        <p>Último script, e de novo um script pronto, para ler. Ele junta o que você já viu (fórmulas, <code>st</code>, sliders) com recursos novos: um ponto calculado com seno e cosseno, um rastro que você mesmo alimenta, um clique que liga tudo.</p>
+        <p><strong>A ideia.</strong> Pense na Lua. Ela gira em volta da Terra, que gira em volta do Sol. Visto do Sol, o caminho da Lua não é um círculo: é um círculo com ondas. Aqui acontece o mesmo. Um ponto, a <code>ponta</code>, dá voltas num círculo grande em volta da bola vermelha e, ao mesmo tempo, num círculo pequeno em volta desse caminho. Um feixe elétrico liga a bola à ponta, e um rastro mostra por onde a ponta passou. Os sliders mudam o círculo pequeno, e a figura muda com eles. O nome vem do osciloscópio, o aparelho que desenha sinais elétricos numa tela, com figuras parecidas.</p>
+        <p>Rode. A bola pulsa, esperando. Clique nela: o feixe aparece e o rastro começa a desenhar. Depois arraste os sliders e veja a figura se transformar.</p>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Osciloscópio")
+
+ui.scale = 0.9
+
+st.n = 4
+st.x1 = 50
+st.tx1 = 2
+st.y1 = 50
+st.ty1 = 2
+st.ligado = False
+Slider(st.n, label="n", min_value=1, max_value=6)
+Slider(st.x1, label="x1", min_value=-100, max_value=100)
+Slider(st.tx1, label="tx1", min_value=-10, max_value=10, only_int=True)
+Slider(st.y1, label="y1", min_value=-100, max_value=100)
+Slider(st.ty1, label="ty1", min_value=-10, max_value=10, only_int=True)
+
+
+bola = Circle(center=(W * 0.6, H * 0.5), radius=20)
+bola.visual = "red"
+bola.visual = Beat()
+
+st.tempo = 0
+
+
+def update(dt):
+    st.tempo += dt * st.n
+
+
+ponta = Point()
+ponta @= lambda: (
+    bola.center.x + 200 * cos(st.tempo) + st.x1 * cos(st.tempo * st.tx1),
+    bola.center.y + 200 * sin(st.tempo) + st.y1 * sin(st.tempo * st.ty1),
+)
+
+feixe = Line(p1=lambda: bola.center, p2=lambda: ponta)
+feixe.visual = ElectricField("yellow")
+feixe.visible = False
+
+rastro = Contrail(
+    duration=6.28 / 4,
+    fade=True,
+    ease="ease_out",
+    visual=Neon("red"),
+    line_width=2.5,
+    smooth=True,
+)
+
+@click(bola)
+def ligar():
+    if st.ligado:
+        return
+    st.ligado = True
+    feixe.visible = True
+    bola.visual = "red"
+    every(6.28 / (st.n * 100), lambda: rastro.snapshot(ponta))
+
+
+run()
+`,
+      closing: `
+        <p>Como nas barras, os próximos passos repetem o código, com o trecho em leitura destacado em azul. Começamos pela ponta, que é o coração do desenho.</p>
+      `
+    },
+    {
+      title: "A ponta: dois giros",
+      focus: ["st.tempo = 0", "def update", "ponta = Point()"],
+      body: `
+        <p>A ponta é quem desenha a figura: o feixe e o rastro só a seguem. Três trechos a movem, destacados no código: o tempo (<code>st.tempo</code>), o <code>update</code> que faz o tempo andar, e a fórmula da <code>ponta</code>. Antes de lê-los, um pouco de matemática.</p>
+        <p><strong>Um ponto num círculo.</strong> Para pôr um ponto num círculo, a matemática tem duas funções: <code>cos</code> (cosseno) e <code>sin</code> (seno). Dado um ângulo, <code>cos</code> diz quanto andar em x e <code>sin</code> quanto andar em y, num círculo de raio 1. Multiplique pelo raio e some ao centro: <code>(centro.x + 200 * cos(a), centro.y + 200 * sin(a))</code> é o ponto do círculo de raio 200 no ângulo <code>a</code>. Se <code>a</code> cresce, o ponto dá voltas. As duas funções vêm do Python, não do Scena: <code>from math import cos, sin</code>, na linha 2.</p>
+        <p>Esse ângulo é medido em <strong>radianos</strong>, não em graus: uma volta inteira vale 6.28 (duas vezes π). Guarde esse número, ele volta no rastro.</p>
+        <p><strong>O tempo.</strong> O ângulo da ponta é <code>st.tempo</code>. A cada quadro, <code>update</code> soma <code>dt * st.n</code> nele. Como <code>dt</code> é a duração do quadro, o ângulo cresce <code>st.n</code> radianos por segundo: com <code>n</code> em 4, uma volta leva pouco mais de um segundo e meio. Por que somar aos poucos, e não escrever <code>clock.time * st.n</code>, como nas barras? Porque <code>n</code> é um slider. Na multiplicação, mudar <code>n</code> muda o ângulo inteiro de uma vez, e a ponta pula. Somando, mudar <code>n</code> só muda a velocidade daqui para frente.</p>
+        <p><strong>Dois giros somados.</strong> A fórmula da <code>ponta</code> tem duas partes. A primeira, <code>200 * cos(st.tempo)</code>, é o círculo grande em volta da bola. A segunda, <code>st.x1 * cos(st.tempo * st.tx1)</code>, é o círculo pequeno: raio <code>x1</code>, com o ângulo <code>tx1</code> vezes mais rápido. Ele dá <code>tx1</code> voltas a cada volta grande. O y repete a ideia com <code>sin</code>, <code>y1</code> e <code>ty1</code>.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 380 250" role="img" aria-label="Um círculo grande em volta da bola e um círculo pequeno em volta de um ponto do grande; a ponta fica no círculo pequeno">
+            <circle class="guide" cx="160" cy="135" r="100"/>
+            <circle class="guide" cx="246.6" cy="85" r="34"/>
+            <line class="ray" x1="160" y1="135" x2="246.6" y2="85"/>
+            <line class="ray" x1="246.6" y1="85" x2="263.6" y2="55.6"/>
+            <circle class="hot" cx="160" cy="135" r="8"/>
+            <circle class="dot" cx="246.6" cy="85" r="3"/>
+            <circle class="dot" cx="263.6" cy="55.6" r="5"/>
+            <text x="160" y="160" text-anchor="middle">bola</text>
+            <text x="196" y="102" text-anchor="middle">200</text>
+            <text x="268" y="76">x1</text>
+            <text x="272" y="50">ponta</text>
+          </svg>
+          <figcaption>O giro grande (raio 200) carrega o centro do giro pequeno (raio <code>x1</code>), que dá <code>tx1</code> voltas a cada volta grande.</figcaption>
+        </figure>
+        <p><code>Point()</code> (ponto) cria um ponto invisível, e <code>ponta @= lambda: (…)</code> liga a ele uma fórmula que devolve <code>(x, y)</code>. Como lê <code>bola</code> e <code>st</code>, a ponta acompanha os dois: arraste um slider e ela muda de caminho no mesmo quadro.</p>
+        <p>Para experimentar nos sliders: <code>tx1</code> e <code>ty1</code> em −3 dão um quadrado de cantos redondos. <code>x1</code> e <code>y1</code> em 80, com <code>tx1</code> e <code>ty1</code> em 6, dão cinco laços. Valores diferentes em x e em y quebram a simetria.</p>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Osciloscópio")
+
+ui.scale = 0.9
+
+st.n = 4
+st.x1 = 50
+st.tx1 = 2
+st.y1 = 50
+st.ty1 = 2
+st.ligado = False
+Slider(st.n, label="n", min_value=1, max_value=6)
+Slider(st.x1, label="x1", min_value=-100, max_value=100)
+Slider(st.tx1, label="tx1", min_value=-10, max_value=10, only_int=True)
+Slider(st.y1, label="y1", min_value=-100, max_value=100)
+Slider(st.ty1, label="ty1", min_value=-10, max_value=10, only_int=True)
+
+
+bola = Circle(center=(W * 0.6, H * 0.5), radius=20)
+bola.visual = "red"
+bola.visual = Beat()
+
+st.tempo = 0
+
+
+def update(dt):
+    st.tempo += dt * st.n
+
+
+ponta = Point()
+ponta @= lambda: (
+    bola.center.x + 200 * cos(st.tempo) + st.x1 * cos(st.tempo * st.tx1),
+    bola.center.y + 200 * sin(st.tempo) + st.y1 * sin(st.tempo * st.ty1),
+)
+
+feixe = Line(p1=lambda: bola.center, p2=lambda: ponta)
+feixe.visual = ElectricField("yellow")
+feixe.visible = False
+
+rastro = Contrail(
+    duration=6.28 / 4,
+    fade=True,
+    ease="ease_out",
+    visual=Neon("red"),
+    line_width=2.5,
+    smooth=True,
+)
+
+@click(bola)
+def ligar():
+    if st.ligado:
+        return
+    st.ligado = True
+    feixe.visible = True
+    bola.visual = "red"
+    every(6.28 / (st.n * 100), lambda: rastro.snapshot(ponta))
+
+
+run()
+`
+    },
+    {
+      title: "O rastro",
+      focus: ["rastro = Contrail(", "@click(bola)"],
+      body: `
+        <p><code>Contrail</code> (rastro, como o de um avião no céu) é um traço que passa pelas posições que você dá a ele. É diferente do <code>MotionTrail</code> das barras, que borrava a tela inteira: o <code>Contrail</code> é uma linha de verdade, e não segue nada sozinho. Ele só guarda os pontos que recebe.</p>
+        <p><strong>Quem dá os pontos.</strong> Olhe o fim de <code>ligar</code>. <code>every(intervalo, função)</code> (a cada) chama a função a cada tantos segundos. É o mesmo <code>@every</code> do tutorial 2, escrito como chamada, o que permite começar o timer num momento escolhido: aqui, no clique. A função é <code>lambda: rastro.snapshot(ponta)</code>. <code>snapshot</code> (foto instantânea) guarda no rastro onde a ponta está agora. O intervalo, <code>6.28 / (st.n * 100)</code>, é o tempo de uma volta dividido por 100: cem fotos por volta.</p>
+        <p><strong>Quanto dura.</strong> <code>duration</code> (duração) diz por quantos segundos cada foto fica no traço; depois, sai. <code>6.28 / 4</code> é o tempo de uma volta com <code>n</code> em 4, então o rastro guarda exatamente uma volta da figura. Em vez de tempo, dá para limitar por quantidade, com <code>max_points</code> (máximo de pontos).</p>
+        <p><strong>A aparência.</strong> <code>fade=True</code> (desbotar) apaga o traço aos poucos, da cabeça (a foto mais nova) até a cauda (a mais velha). <code>ease</code> (suavização) é a curva desse apagar. Sem ela, o apagar é por igual. Com <code>"ease_out"</code>, o traço fica forte quase todo e só some perto do fim da cauda. <code>smooth=True</code> (suave) passa uma curva pelos pontos, em vez de ligá-los com retas. <code>line_width</code> é a espessura, e <code>visual</code> aceita os visuais de linha. Aqui, <code>Neon</code>.</p>
+        <p><strong>O clique.</strong> <code>@click(bola)</code> roda <code>ligar</code> quando você clica na bola. Um segundo clique criaria outro <code>every</code>, com o dobro de fotos. Para isso não acontecer, há <code>st.ligado</code>: no primeiro clique ele vira <code>True</code>, e nos seguintes o <code>return</code> (retornar) sai da função antes de tudo.</p>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Osciloscópio")
+
+ui.scale = 0.9
+
+st.n = 4
+st.x1 = 50
+st.tx1 = 2
+st.y1 = 50
+st.ty1 = 2
+st.ligado = False
+Slider(st.n, label="n", min_value=1, max_value=6)
+Slider(st.x1, label="x1", min_value=-100, max_value=100)
+Slider(st.tx1, label="tx1", min_value=-10, max_value=10, only_int=True)
+Slider(st.y1, label="y1", min_value=-100, max_value=100)
+Slider(st.ty1, label="ty1", min_value=-10, max_value=10, only_int=True)
+
+
+bola = Circle(center=(W * 0.6, H * 0.5), radius=20)
+bola.visual = "red"
+bola.visual = Beat()
+
+st.tempo = 0
+
+
+def update(dt):
+    st.tempo += dt * st.n
+
+
+ponta = Point()
+ponta @= lambda: (
+    bola.center.x + 200 * cos(st.tempo) + st.x1 * cos(st.tempo * st.tx1),
+    bola.center.y + 200 * sin(st.tempo) + st.y1 * sin(st.tempo * st.ty1),
+)
+
+feixe = Line(p1=lambda: bola.center, p2=lambda: ponta)
+feixe.visual = ElectricField("yellow")
+feixe.visible = False
+
+rastro = Contrail(
+    duration=6.28 / 4,
+    fade=True,
+    ease="ease_out",
+    visual=Neon("red"),
+    line_width=2.5,
+    smooth=True,
+)
+
+@click(bola)
+def ligar():
+    if st.ligado:
+        return
+    st.ligado = True
+    feixe.visible = True
+    bola.visual = "red"
+    every(6.28 / (st.n * 100), lambda: rastro.snapshot(ponta))
+
+
+run()
+`,
+      try: [
+        {
+          note: "Outros rastros, um por vez, no lugar do <code>rastro</code>. O primeiro guarda as últimas 80 fotos, sem desbotar. O segundo dura 5 segundos, com <code>Laser</code> e retas em vez de curva (<code>smooth=0</code>).",
+          code: `rastro = Contrail(max_points=80, color="cyan", line_width=4)
+rastro = Contrail(duration=5, fade=True, visual=Laser("lime"), smooth=0)`
+        }
+      ]
+    },
+    {
+      title: "Bola e feixe",
+      focus: ["bola = Circle(", "feixe = Line("],
+      body: `
+        <p>Faltam as duas peças que você vê primeiro: a bola e o feixe. Elas não calculam nada; dão forma ao desenho e mudam no clique.</p>
+        <p><strong>A bola.</strong> <code>visual</code> também aceita uma cor só: <code>bola.visual = "red"</code> deixa a bola vermelha, sem efeito. Logo depois, <code>Beat()</code> (batida) a faz pulsar como um coração. A batida mexe no tamanho e mantém a cor que a bola já tem. Ela é um convite: clique aqui. Em <code>ligar</code>, <code>bola.visual = "red"</code> volta à cor lisa, e a bola para de pulsar quando tudo liga.</p>
+        <p><strong>O feixe.</strong> <code>Line</code> (linha) com <code>p1</code> e <code>p2</code> (ponto 1 e ponto 2), cada um uma <code>lambda</code>: uma ponta da linha na bola, a outra na <code>ponta</code>. Como as linhas do tutorial de geometria, ela segue os dois a cada quadro. <code>ElectricField</code> (campo elétrico) é o visual de faíscas. <code>feixe.visible = False</code> (visível) esconde a linha até o clique, e em <code>ligar</code>, <code>feixe.visible = True</code> a mostra.</p>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Osciloscópio")
+
+ui.scale = 0.9
+
+st.n = 4
+st.x1 = 50
+st.tx1 = 2
+st.y1 = 50
+st.ty1 = 2
+st.ligado = False
+Slider(st.n, label="n", min_value=1, max_value=6)
+Slider(st.x1, label="x1", min_value=-100, max_value=100)
+Slider(st.tx1, label="tx1", min_value=-10, max_value=10, only_int=True)
+Slider(st.y1, label="y1", min_value=-100, max_value=100)
+Slider(st.ty1, label="ty1", min_value=-10, max_value=10, only_int=True)
+
+
+bola = Circle(center=(W * 0.6, H * 0.5), radius=20)
+bola.visual = "red"
+bola.visual = Beat()
+
+st.tempo = 0
+
+
+def update(dt):
+    st.tempo += dt * st.n
+
+
+ponta = Point()
+ponta @= lambda: (
+    bola.center.x + 200 * cos(st.tempo) + st.x1 * cos(st.tempo * st.tx1),
+    bola.center.y + 200 * sin(st.tempo) + st.y1 * sin(st.tempo * st.ty1),
+)
+
+feixe = Line(p1=lambda: bola.center, p2=lambda: ponta)
+feixe.visual = ElectricField("yellow")
+feixe.visible = False
+
+rastro = Contrail(
+    duration=6.28 / 4,
+    fade=True,
+    ease="ease_out",
+    visual=Neon("red"),
+    line_width=2.5,
+    smooth=True,
+)
+
+@click(bola)
+def ligar():
+    if st.ligado:
+        return
+    st.ligado = True
+    feixe.visible = True
+    bola.visual = "red"
+    every(6.28 / (st.n * 100), lambda: rastro.snapshot(ponta))
+
+
+run()
+`,
+      try: [
+        {
+          note: "Outro feixe e uma batida mais forte. Em <code>Beat</code>, <code>amount</code> (quantidade) é quanto a bola cresce, e <code>speed</code> (velocidade) é o ritmo.",
+          code: `feixe.visual = Laser("cyan")
+bola.visual = Beat(amount=0.3, speed=2)`
+        }
+      ]
+    },
+    {
+      title: "O painel",
+      example: "osciloscopio.py",
+      focus: ["ui.scale", "st.n = 4"],
+      body: `
+        <p>Por fim, o assunto do tutorial. Cada valor que a fórmula da ponta lê nasce em <code>st</code> e ganha um <code>Slider</code>. Não há botão Rodar, como nas barras: a fórmula lê os sliders a cada quadro. A diferença está no tamanho da corrente. O slider escreve em <code>st</code>; a <code>ponta</code> lê <code>st</code>; o <code>feixe</code> e o <code>rastro</code> leem a <code>ponta</code>. Um gesto no painel atravessa o desenho inteiro.</p>
+        <p><strong>Os limites.</strong> <code>x1</code> e <code>y1</code> vão de −100 a 100: um raio negativo começa o giro pequeno do lado oposto, e a figura vira. <code>tx1</code> e <code>ty1</code> têm <code>only_int=True</code> (só inteiros): com voltas inteiras, a figura fecha a cada volta grande e o rastro redesenha sempre o mesmo caminho. Com 2,5 voltas, ela não fecharia, e a figura ficaria girando.</p>
+        <p><strong>O tamanho do painel.</strong> Cinco sliders ocupam espaço. <code>ui.scale</code> (escala) muda o tamanho de todos os widgets de uma vez: 1 é o normal, e 0.9 é um pouco menor. A linha precisa vir antes de criar os widgets.</p>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Osciloscópio")
+
+ui.scale = 0.9
+
+st.n = 4
+st.x1 = 50
+st.tx1 = 2
+st.y1 = 50
+st.ty1 = 2
+st.ligado = False
+Slider(st.n, label="n", min_value=1, max_value=6)
+Slider(st.x1, label="x1", min_value=-100, max_value=100)
+Slider(st.tx1, label="tx1", min_value=-10, max_value=10, only_int=True)
+Slider(st.y1, label="y1", min_value=-100, max_value=100)
+Slider(st.ty1, label="ty1", min_value=-10, max_value=10, only_int=True)
+
+
+bola = Circle(center=(W * 0.6, H * 0.5), radius=20)
+bola.visual = "red"
+bola.visual = Beat()
+
+st.tempo = 0
+
+
+def update(dt):
+    st.tempo += dt * st.n
+
+
+ponta = Point()
+ponta @= lambda: (
+    bola.center.x + 200 * cos(st.tempo) + st.x1 * cos(st.tempo * st.tx1),
+    bola.center.y + 200 * sin(st.tempo) + st.y1 * sin(st.tempo * st.ty1),
+)
+
+feixe = Line(p1=lambda: bola.center, p2=lambda: ponta)
+feixe.visual = ElectricField("yellow")
+feixe.visible = False
+
+rastro = Contrail(
+    duration=6.28 / 4,
+    fade=True,
+    ease="ease_out",
+    visual=Neon("red"),
+    line_width=2.5,
+    smooth=True,
+)
+
+@click(bola)
+def ligar():
+    if st.ligado:
+        return
+    st.ligado = True
+    feixe.visible = True
+    bola.visual = "red"
+    every(6.28 / (st.n * 100), lambda: rastro.snapshot(ponta))
+
+
+run()
+`,
+      closing: `
+        <p>Clique na bola para ligar. Depois arraste os sliders: <code>n</code> muda a velocidade; <code>x1</code> e <code>y1</code>, o tamanho do giro pequeno; <code>tx1</code> e <code>ty1</code>, quantas voltas ele dá.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

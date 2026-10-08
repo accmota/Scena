@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pegar estrelas — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "02",
+  title: "Pegar estrelas",
+  steps: [
+    {
+      title: "A barra",
+      body: `
+        <p>Começa um script novo, e desta vez é um jogo: estrelas caem do alto, e você as pega com uma barra que corre perto do chão. Este primeiro passo só monta a barra, com peças do tutorial 01: janela, fundo, sprite e setas no <code>update</code>.</p>
+        <p>A barra é um <code>Sprite</code> com <code>width=80</code>: 80 pixels de largura, e a altura acompanha a proporção da imagem. Em <code>center=(500, 80)</code>, ela fica no meio da janela, logo acima da borda de baixo. Só há duas setas, esquerda e direita, porque a barra só anda de lado, a 380 pixels por segundo. A imagem vem da pasta <code>media/</code> que você copiou para junto do script: <code>k-rolling-ball/button_blue.png</code> é o arquivo <code>media/k-rolling-ball/button_blue.png</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Pegar estrelas")
+Wallpaper("dark navy")
+
+barra = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80))
+
+
+def update(dt):
+    if keyp("LEFT"):
+        barra.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        barra.move_by(380 * dt, 0)
+
+
+run()
+`
+    },
+    {
+      title: "Uma estrela caindo",
+      body: `
+        <p>Agora a primeira estrela. Uma só, com nome, para acertar o movimento antes de multiplicá-la.</p>
+        <p>Ela nasce em <code>center=(500, 820)</code>. A janela vai até y = 800, então a estrela começa um pouco acima da borda de cima, escondida, e entra descendo. No <code>update</code>, <code>move_by(0, -220 * dt)</code> não mexe no x e tira 220 do y a cada segundo: como y cresce para cima, um número negativo desce. A queda é mais lenta que a barra (380), para dar tempo de chegar embaixo da estrela.</p>
+        <p>Rode: a estrela atravessa a janela em menos de quatro segundos e some por baixo. É uma só, e nada acontece quando ela toca a barra. Os próximos passos resolvem as duas coisas.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Pegar estrelas")
+Wallpaper("dark navy")
+
+barra = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80))
+
+estrela = Sprite("k-rolling-ball/star.png", size=32, center=(500, 820))
+
+
+def update(dt):
+    if keyp("LEFT"):
+        barra.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        barra.move_by(380 * dt, 0)
+    estrela.move_by(0, -220 * dt)
+
+
+run()
+`
+    },
+    {
+      title: "De tempos em tempos",
+      body: `
+        <p>Uma estrela não faz um jogo. Precisamos de uma nova a cada pouco tempo, cada uma num lugar diferente.</p>
+        <p><strong>O tempo.</strong> <code>@every(0.9)</code> (a cada) em cima da função diz ao Scena quando rodá-la: a cada 0.9 segundo, sem parar. Você não chama <code>soltar_estrela</code> em lugar nenhum; o Scena chama. É o mesmo jeito do <code>@click</code> e do <code>@when</code> do tutorial 01, só que a pergunta agora é o relógio.</p>
+        <p><strong>O lugar.</strong> <code>uniform(80, 920)</code> (uniforme) sorteia um número entre 80 e 920, todos com a mesma chance. Esse x muda a cada estrela, e as margens de 80 a mantêm longe das bordas. O y é 780, logo abaixo da borda de cima: a estrela nasce inteira dentro da janela, à vista. <code>uniform</code> vem do Python, não do Scena: por isso a linha nova no topo, <code>from random import uniform</code> (<code>random</code> = aleatório).</p>
+        <p><strong>O buraco.</strong> Rode e espere. A primeira estrela cai, como antes, e as novas vão aparecendo no alto, uma a cada 0.9 segundo, mas ficam paradas: uma fileira que cresce no topo da janela. O <code>update</code> só move <code>estrela</code>, a que tem nome; as outras ninguém mexe. Esse é o próximo problema.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Pegar estrelas")
+Wallpaper("dark navy")
+
+barra = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80))
+
+estrela = Sprite("k-rolling-ball/star.png", size=32, center=(500, 820))
+
+
+@every(0.9)
+def soltar_estrela():
+    x = uniform(80, 920)
+    Sprite("k-rolling-ball/star.png", size=32, center=(x, 780))
+
+
+def update(dt):
+    if keyp("LEFT"):
+        barra.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        barra.move_by(380 * dt, 0)
+    estrela.move_by(0, -220 * dt)
+
+
+run()
+`
+    },
+    {
+      title: "Uma lista",
+      body: `
+        <p>Para mover todas as estrelas, o <code>update</code> precisa saber quais são. A solução é Python que você já conhece: uma lista.</p>
+        <p><code>estrelas = []</code> começa vazia. Em <code>soltar_estrela</code>, cada estrela nova recebe o nome <code>estrela</code> só pelo tempo de entrar na lista com <code>append</code> (acrescentar). No <code>update</code>, o <code>for</code> percorre a lista e dá a cada estrela o mesmo <code>move_by</code> de antes. A estrela com nome fixo saiu: agora todas nascem do <code>@every</code>.</p>
+        <p>Rode: a primeira cai depois de 0.9 segundo, e daí vem uma atrás da outra, cada uma num x.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Pegar estrelas")
+Wallpaper("dark navy")
+
+barra = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80))
+
+estrelas = []
+
+
+@every(0.9)
+def soltar_estrela():
+    x = uniform(80, 920)
+    estrela = Sprite("k-rolling-ball/star.png", size=32, center=(x, 780))
+    estrelas.append(estrela)
+
+
+def update(dt):
+    if keyp("LEFT"):
+        barra.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        barra.move_by(380 * dt, 0)
+
+    for estrela in estrelas:
+        estrela.move_by(0, -220 * dt)
+
+
+run()
+`
+    },
+    {
+      title: "Grupo",
+      body: `
+        <p>A lista funciona, mas é você quem cuida dela: criar, acrescentar e, mais tarde, tirar as estrelas que somem. O Scena pode fazer esse trabalho: é o grupo.</p>
+        <p><strong>Entrar.</strong> <code>group</code> (grupo) é um nome que junta várias coisas do jogo. Com <code>group="estrelas"</code> na criação, a estrela já nasce dentro do grupo <code>"estrelas"</code>, e a lista e o <code>append</code> saem do código. O nome é um texto entre aspas, escolhido por você; não precisa ser igual ao de nenhuma variável.</p>
+        <p><strong>Ler.</strong> <code>group["estrelas"]</code> é quem está no grupo neste momento, e o <code>for</code> percorre isso como percorria a lista. A diferença vem quando uma estrela é apagada: o grupo a tira na hora, enquanto a lista continuaria guardando uma estrela que não existe mais. E o nome do grupo serve em outros lugares do Scena, como na colisão.</p>
+        <p>Rode: o jogo é o mesmo do passo anterior. Só o código mudou.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Pegar estrelas")
+Wallpaper("dark navy")
+
+barra = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80))
+
+
+@every(0.9)
+def soltar_estrela():
+    x = uniform(80, 920)
+    Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="estrelas")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        barra.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        barra.move_by(380 * dt, 0)
+
+    for estrela in group["estrelas"]:
+        estrela.move_by(0, -220 * dt)
+
+
+run()
+`,
+      try: [
+        {
+          note: "No lugar do <code>for</code> inteiro: um <code>move_by</code> no grupo move cada estrela dele o mesmo tanto.",
+          code: `group["estrelas"].move_by(0, -220 * dt)`
+        }
+      ]
+    },
+    {
+      title: "Colisão",
+      body: `
+        <p>As estrelas caem e a barra anda, mas uma atravessa a outra. Falta o jogo de verdade: quando a barra toca uma estrela, a estrela é pega.</p>
+        <p><strong>Um grupo para a barra.</strong> A barra ganha <code>group="heroi"</code>. O grupo tem um nome diferente da variável (<code>barra</code>): ele diz o papel dela no jogo.</p>
+        <p><strong>O toque.</strong> <code>@collide("heroi", "estrelas")</code> (colidir) em cima da função diz ao Scena: quando algo do grupo <code>"heroi"</code> encostar em algo do grupo <code>"estrelas"</code>, rode <code>pegou</code>. A função recebe os dois que se tocaram, na mesma ordem dos grupos: primeiro a barra, depois aquela estrela. Ela roda uma vez, no momento em que os dois começam a se tocar, e não de novo a cada quadro enquanto continuam encostados.</p>
+        <p><strong>Apagar.</strong> <code>estrela.destroy()</code> (destruir) tira a estrela do jogo: ela some da tela e sai do grupo, então o <code>for</code> não a encontra mais. Rode e pegue algumas. Para ver por onde o Scena mede o toque, aperte <kbd>Ctrl+Shift+7</kbd>: ele desenha por cima de cada sprite o contorno que usa na colisão.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Pegar estrelas")
+Wallpaper("dark navy")
+
+barra = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80), group="heroi")
+
+
+@every(0.9)
+def soltar_estrela():
+    x = uniform(80, 920)
+    Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="estrelas")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        barra.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        barra.move_by(380 * dt, 0)
+
+    for estrela in group["estrelas"]:
+        estrela.move_by(0, -220 * dt)
+
+
+@collide("heroi", "estrelas")
+def pegou(barra, estrela):
+    estrela.destroy()
+
+
+run()
+`,
+      try: [
+        {
+          note: "Um por vez, no lugar do <code>@collide</code> e da sua função. Um lado também pode ser uma coisa só, pelo nome da variável (<code>barra</code>), ou <code>ANYTHING</code> (qualquer coisa): a barra contra tudo o que ela tocar.",
+          code: `@collide(barra, "estrelas")
+def pegou(barra, estrela):
+    estrela.destroy()
+
+@collide(barra, ANYTHING)
+def pegou(barra, outro):
+    outro.destroy()`
+        }
+      ]
+    },
+    {
+      title: "Além da tela",
+      body: `
+        <p>Este passo não tem código novo. Ele mostra um problema que o jogo já tem e que você ainda não vê.</p>
+        <p>Rode e deixe várias estrelas passarem sem pegar. Elas saem por baixo da janela, mas não deixam de existir: continuam no grupo e continuam caindo, cada vez mais longe, porque o <code>for</code> do <code>update</code> move todas, a cada quadro.</p>
+        <p><strong>Contar.</strong> <kbd>Ctrl+Shift+1</kbd> liga o painel do sistema (HUD). Nele, <code>objs</code> é quantas coisas existem no jogo. Olhe o número por meio minuto: a cada estrela perdida ele sobe, e nunca desce. Só as estrelas pegas, apagadas pelo <code>destroy</code>, saem da conta.</p>
+        <p><strong>Ver.</strong> <kbd>Ctrl+Shift+8</kbd> afasta a visão (50%, depois 25%): a janela vira um quadro no meio, e as estrelas perdidas aparecem abaixo dele, ainda descendo. Cada uma ainda dá trabalho ao Scena, quadro após quadro. Um bom código apaga o que não precisa mais.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Pegar estrelas")
+Wallpaper("dark navy")
+
+barra = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80), group="heroi")
+
+
+@every(0.9)
+def soltar_estrela():
+    x = uniform(80, 920)
+    Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="estrelas")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        barra.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        barra.move_by(380 * dt, 0)
+
+    for estrela in group["estrelas"]:
+        estrela.move_by(0, -220 * dt)
+
+
+@collide("heroi", "estrelas")
+def pegou(barra, estrela):
+    estrela.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "As perdidas",
+      body: `
+        <p>Agora a correção: apagar cada estrela que passa da borda de baixo.</p>
+        <p>Dentro do <code>for</code>, logo depois de mover a estrela, o <code>if</code> olha a altura dela. <code>estrela.center.y</code> é o y do centro da estrela. A borda de baixo da janela é y = 0; abaixo disso, a estrela já está saindo da tela e não volta mais. Então o mesmo <code>destroy</code> da colisão a apaga.</p>
+        <p>Rode com o HUD ligado (<kbd>Ctrl+Shift+1</kbd>). Agora <code>objs</code> sobe e desce, mas fica sempre perto do mesmo valor: as estrelas nascem no alto e são apagadas no fundo.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Pegar estrelas")
+Wallpaper("dark navy")
+
+barra = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80), group="heroi")
+
+
+@every(0.9)
+def soltar_estrela():
+    x = uniform(80, 920)
+    Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="estrelas")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        barra.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        barra.move_by(380 * dt, 0)
+
+    for estrela in group["estrelas"]:
+        estrela.move_by(0, -220 * dt)
+        if estrela.center.y < 0:
+            estrela.destroy()
+
+
+@collide("heroi", "estrelas")
+def pegou(barra, estrela):
+    estrela.destroy()
+
+
+run()
+`,
+      try: [
+        {
+          note: "No lugar do <code>if</code> no loop: uma faixa vermelha no fundo, num grupo próprio, e uma segunda colisão. A estrela que encosta no chão é apagada, como a que encosta na barra.",
+          code: `chao = Rect(center=(500, 0), width=1000, height=40, color="crimson", group="chao")
+
+@collide("chao", "estrelas")
+def caiu(chao, estrela):
+    estrela.destroy()`
+        }
+      ]
+    },
+    {
+      title: "Placar",
+      body: `
+        <p>O jogo funciona, mas não diz como você está indo. Vamos contar as estrelas pegas e as perdidas, e mostrar as duas contas na tela.</p>
+        <p><strong>Onde guardar.</strong> <code>st</code> é o lugar do Scena para guardar informações do jogo: pontos, vidas, o que o script precisar. <code>st.pontos = 0</code> cria um valor chamado <code>pontos</code>, começando em zero. Qualquer função do script lê e muda esse valor: <code>pegou</code> soma 1 em <code>st.pontos</code>, e o <code>if</code> das perdidas soma 1 em <code>st.perdidas</code>. O <code>st</code> tem recursos extras, que vêm mais adiante.</p>
+        <p><strong>O texto.</strong> <code>Text</code> (texto) escreve na tela. <code>top_left=(20, 780)</code> é o canto de cima, à esquerda, do texto; o texto cresce para a direita e para baixo a partir dali, então y = 780 o deixa encostado no topo da janela. <code>font_size=20</code> (tamanho da fonte) é o tamanho da letra. O texto começa vazio, <code>""</code>, porque quem o escreve é a linha seguinte.</p>
+        <p><strong>A fórmula.</strong> <code>lambda</code> é uma palavra-chave do Python para atribuir uma função: algo que calcula um valor a partir do que lê. Esta monta a frase do placar com os dois números (o <code>f</code> antes das aspas põe o valor de cada <code>{…}</code> dentro da frase). <code>placar["text"] @= …</code> liga o texto a essa função: quando o número muda, o texto muda. Os colchetes apontam o campo que recebe a fórmula, o <code>text</code> do placar. Por isso o <code>update</code> não precisa reescrever o placar: rode, e ele conta sozinho a cada estrela pega ou perdida.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Pegar estrelas")
+Wallpaper("dark navy")
+
+st.pontos = 0
+st.perdidas = 0
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Estrelas {st.pontos}   Perdidas {st.perdidas}"
+
+barra = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80), group="heroi")
+
+
+@every(0.9)
+def soltar_estrela():
+    x = uniform(80, 920)
+    Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="estrelas")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        barra.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        barra.move_by(380 * dt, 0)
+
+    for estrela in group["estrelas"]:
+        estrela.move_by(0, -220 * dt)
+        if estrela.center.y < 0:
+            estrela.destroy()
+            st.perdidas += 1
+
+
+@collide("heroi", "estrelas")
+def pegou(barra, estrela):
+    estrela.destroy()
+    st.pontos += 1
+
+
+run()
+`,
+      try: [
+        {
+          note: "O placar na direita: <code>top_right</code> (canto de cima, à direita) fica preso, e o texto cresce para a esquerda.",
+          code: `placar = Text(text="", top_right=(980, 780), font_size=20)`
+        }
+      ]
+    },
+    {
+      title: "Efeitos",
+      example: "pegar_estrelas.py",
+      body: `
+        <p>O jogo está completo. Este último passo cuida da resposta visual: a barra reage quando pega, e a estrela perdida avisa antes de sumir. O Scena tem uma biblioteca de efeitos que servem em qualquer forma ou sprite; aqui entram dois, e muitos outros vêm mais adiante.</p>
+        <p><strong>A barra salta.</strong> Em <code>pegou</code>, <code>barra.pop(scale=1.25)</code> (estalo) faz a barra crescer até 1,25 vez o seu tamanho e voltar, em menos de dois décimos de segundo. É só desenho: a barra não muda de tamanho para a colisão.</p>
+        <p><strong>A perdida pisca.</strong> Antes, a estrela sumia já fora da tela, sem você ver. Agora o <code>if</code> pergunta <code>y &lt; 40</code>, com a estrela ainda visível no fundo, e chama <code>perdeu</code>, uma função comum, sem nada em cima: roda quando o código a chama. Dentro dela, <code>flash(0.2)</code> (clarão) clareia a estrela por 0.2 segundo, e <code>after(0.2, estrela.destroy)</code> (depois) espera esses mesmos 0.2 segundo e a apaga. <code>every</code> repete; <code>after</code> é uma vez. Repare em <code>estrela.destroy</code> sem parênteses: você entrega a função para o <code>after</code> chamar mais tarde. Com parênteses, ela rodaria agora, e a estrela sumiria sem piscar.</p>
+        <p><strong>Fora do grupo.</strong> A primeira linha de <code>perdeu</code> segura o resto. <code>untag("estrelas")</code> (tirar a etiqueta) tira a estrela do grupo, mas não da tela. O <code>for</code> não a encontra mais: ela para de cair, e o <code>if</code> não chama <code>perdeu</code> de novo no quadro seguinte, o que contaria a mesma estrela a cada quadro. Fora do grupo, a barra também não a pega durante o clarão.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Pegar estrelas")
+Wallpaper("dark navy")
+
+st.pontos = 0
+st.perdidas = 0
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Estrelas {st.pontos}   Perdidas {st.perdidas}"
+
+barra = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80), group="heroi")
+
+
+@every(0.9)
+def soltar_estrela():
+    x = uniform(80, 920)
+    Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="estrelas")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        barra.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        barra.move_by(380 * dt, 0)
+
+    for estrela in group["estrelas"]:
+        estrela.move_by(0, -220 * dt)
+        if estrela.center.y < 40:
+            perdeu(estrela)
+
+
+@collide("heroi", "estrelas")
+def pegou(barra, estrela):
+    estrela.destroy()
+    st.pontos += 1
+    barra.pop(scale=1.25)
+
+
+def perdeu(estrela):
+    estrela.untag("estrelas")  # o if não dispara de novo
+    estrela.flash(0.2)
+    estrela.after(0.2, estrela.destroy)
+    st.perdidas += 1
+
+
+run()
+`,
+      try: [
+        {
+          note: "No lugar do <code>after</code>: o próprio <code>flash</code> chama o <code>destroy</code> quando termina (<code>on_done</code>, ao terminar).",
+          code: `estrela.flash(0.2, on_done=estrela.destroy)`
+        },
+        {
+          note: "Estrelas que brilham e balançam. Em <code>soltar_estrela</code>, troque a linha do <code>Sprite</code> por estas três: a estrela ganha um nome para receber o resto. <code>glow</code> liga o brilho. <code>move_by</code> com <code>time=0.4</code> (tempo) faz o deslocamento aos poucos, em 0.4 segundo, em vez de tudo de uma vez; <code>loops=\"forever\"</code> (repetições, para sempre) repete, e <code>yoyo=True</code> (ioiô) volta pelo mesmo caminho. A estrela balança 100 pixels para o lado enquanto cai.",
+          code: `estrela = Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="estrelas")
+estrela.glow = True
+estrela.move_by(100, 0, time=0.4, loops="forever", yoyo=True)`
+        }
+      ],
+      closing: `
+        <p>As setas esquerda e direita movem a barra. Pegue as estrelas que caem; as que passam piscam no fundo e somem. O placar, no alto, conta as duas.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

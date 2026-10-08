@@ -1,0 +1,703 @@
+"""Shared harness for the system / sub-system suites (``tests/test_sys_*.py``).
+
+Not a test module (no ``test_`` prefix). Builds on ``hypothesis_support``.
+
+The system suites drive the **real** frame body headless and deterministic:
+``ScenaFramework._simulate_frame(dt=…)`` (the same method ``run()`` calls) then
+optionally ``_draw_frame()`` onto a CPU raster surface. GLFW polling and
+``glViewport`` are patched; the mixer runs offline (``tick_audio`` pumps it).
+
+What lives here:
+
+* ``SystemWorld`` — a ``WorldTracker`` that also resets what the hyp suites
+  leave alone (collision, bounds, cover, FX registries, clock, ready /
+  recently, camera, post stack) and pins every time source to ``clock.time``.
+  ``world.step(n, dt, draw)`` runs frames; ``world.probe`` records hooks.
+* ``census()`` — a snapshot of every registry that can hold an actor
+  (graph, events, scheduler, collision, bounds, registry, FX, mixer, widgets).
+  ``diff_census`` names the holder that moved.
+* ``zombies()`` — objects any registry still references although they are
+  dead. A non-empty list is a lifetime bug.
+* ``Probe`` — author hooks append ``(frame, tag, owner_alive)``; the "no
+  callback for a dead owner" check reads it.
+* ``assert_collected`` — a destroyed actor must be garbage once the test drops
+  its own references; on failure the referrer chain names the holder.
+
+    python -m unittest tests.test_sys_lifetime -v
+"""
+from __future__ import annotations
+
+import gc
+import math
+import os
+import sys
+import warnings
+import weakref
+from contextlib import contextmanager
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from unittest import mock
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import skia  # noqa: E402
+
+from hypothesis_support import WorldTracker, boot, quiet, registry  # noqa: E402
+
+import scena.orchestration as orch  # noqa: E402
+from scena import canvas, clock  # noqa: E402
+from scena.audio_mixer import get_mixer, make_sine  # noqa: E402
+from scena.audio import Sound  # noqa: E402
+from scena.bounds import get_bounds_system, reset_bounds_system  # noqa: E402
+from scena.collision import get_collision_system, reset_collision_system  # noqa: E402
+from scena.cover import reset_cover  # noqa: E402
+from scena.orchestration import ScenaFramework  # noqa: E402
+from scena.process import get_scheduler, clear_author_error  # noqa: E402
+from scena.state import get_scena_system  # noqa: E402
+import scena.cover as _cover  # noqa: E402
+import scena.events as _events  # noqa: E402
+import scena.history as _history  # noqa: E402
+import scena.spatial_fx as _spatial_fx  # noqa: E402
+import scena.transients as _transients  # noqa: E402
+from scena.act import _reset_act_manager  # noqa: E402
+import scena.gc_policy as gc_policy  # noqa: E402
+
+FRAME = 1.0 / 60.0
+
+
+# --------------------------------------------------------------------------
+# Probe
+# --------------------------------------------------------------------------
+
+class Probe:
+    """Records author-hook calls. ``hook(tag, owner)`` wraps a callable.
+
+    Each record is ``(frame, tag, owner_alive)``. ``dead_calls()`` lists the
+    records made while their owner was already destroyed — the
+    use-after-destroy bug class.
+    """
+
+    def __init__(self) -> None:
+        self.records: List[Tuple[int, str, bool]] = []
+
+    def hit(self, tag: str, owner: Any = None) -> None:
+        alive = True if owner is None else bool(getattr(owner, "is_alive", True))
+        self.records.append((clock.frame, tag, alive))
+
+    def hook(self, tag: str, owner: Any = None, then: Optional[Callable] = None):
+        # Hold the owner weakly: the probe must not keep an actor alive.
+        ref = weakref.ref(owner) if owner is not None else None
+
+        def fn(*_a, **_k):
+            o = ref() if ref is not None else None
+            if ref is not None and o is None:
+                self.records.append((clock.frame, tag, False))
+            else:
+                self.hit(tag, o)
+            if then is not None:
+                return then()
+        return fn
+
+    def count(self, tag: str) -> int:
+        return sum(1 for _f, t, _a in self.records if t == tag)
+
+    def tags(self) -> List[str]:
+        return [t for _f, t, _a in self.records]
+
+    def frames(self, tag: str) -> List[int]:
+        return [f for f, t, _a in self.records if t == tag]
+
+    # Documented teardown hooks that run for the dying body itself, after
+    # ``is_alive`` turned False (Collision Design § Handlers: "the dying body,
+    # while it still exists").
+    TEARDOWN_TAGS = ("collide_exit",)
+
+    def dead_calls(self, allow: Iterable[str] = TEARDOWN_TAGS) -> List[Tuple[int, str, bool]]:
+        ok = set(allow)
+        return [r for r in self.records if not r[2] and r[1] not in ok]
+
+    def clear(self) -> None:
+        self.records.clear()
+
+
+# --------------------------------------------------------------------------
+# World
+# --------------------------------------------------------------------------
+
+def _noop(*_args, **_kwargs) -> None:
+    return None
+
+
+def reset_system_globals() -> None:
+    """Reset the singletons ``hypothesis_support.reset_globals`` leaves alone."""
+    reset_collision_system()
+    reset_bounds_system()
+    reset_cover()
+    _transients._active_shapes.clear()
+    _spatial_fx._active_fx.clear()
+    _history._active_histories.clear()
+    import builtins
+    for name, attr in (("ready", "_timers"), ("recently", "_slots")):
+        mgr = getattr(builtins, name, None)
+        if mgr is not None:
+            getattr(mgr, attr).clear()
+    clock.scale = 1.0
+    clock.paused = False
+    clock._dt = 0.0
+    clock._time = 0.0
+    clock._real_dt = 0.0
+    clock._real_time = 0.0
+    clock._frame = 0
+    canvas.reset_view()
+    canvas.effects.clear()
+    clear_author_error()
+    _reset_act_manager()
+
+
+class SystemWorld(WorldTracker):
+    """A headless world that steps real frames.
+
+    Use as ``with system_world() as w:`` or through ``SystemTestCase``.
+    """
+
+    def __init__(self, *, draw: bool = True) -> None:
+        super().__init__()
+        reset_system_globals()
+        # GC freeze off: a frozen heap would hide a real leak from census /
+        # assert_collected. The policy itself: tests/test_gc_freeze.py.
+        self._gc_freeze_was = gc_policy.gc_freeze_enabled()
+        gc_policy.set_gc_freeze(False)
+        self.draw_default = draw
+        self.probe = Probe()
+        self.fw = fw = ScenaFramework.get_instance()
+        self._saved = dict(
+            setup=fw.setup, update=fw.update, post_draw=fw.post_draw,
+            _fx_auto=fw._fx_auto, _first_act=fw._first_act,
+            _was_using_post=fw._was_using_post,
+            _drawing_surface=fw._drawing_surface,
+            _drawing_canvas=fw._drawing_canvas,
+            skia_canvas=fw._scena_draw.skia_canvas,
+        )
+        fw.setup = lambda scena_canvas: None
+        fw.update = lambda dt, scena_canvas: None
+        fw.post_draw = lambda skia_canvas, scene_image=None: None
+        fw._fx_auto = False
+        fw._was_using_post = False
+        w = max(1, int(fw.fb_width or 400))
+        h = max(1, int(fw.fb_height or 300))
+        self.surface = skia.Surface(w, h)
+        fw._drawing_surface = self.surface
+        fw._drawing_canvas = self.surface.getCanvas()
+        fw._scena_draw.skia_canvas = fw._drawing_canvas
+        self._patches = []
+        for target, attr in ((orch.glfw, "poll_events"), (orch.GL, "glViewport")):
+            # A plain no-op, not a MagicMock: a mock records every call, which
+            # a long run sees as a heap leak.
+            p = mock.patch.object(target, attr, new=_noop)
+            p.start()
+            self._patches.append(p)
+        # Every pre-draw clock reads world time: runs are deterministic.
+        now = lambda: clock.time  # noqa: E731
+        _transients.set_now_fn(now)
+        _spatial_fx.set_now_fn(now)
+        _cover.set_now_fn(now)
+        self.frames_run = 0
+        # Debris another test module left (dead but still registered) is not
+        # this world's bug: ``zombies()`` / ``assertNoZombies`` skip it.
+        self.preexisting_zombies = {id(o) for _h, o in zombies(ignore=())}
+        # Live actors another module left behind would draw / tick / collide
+        # in this world's frames (lazily growing the graph, adding handles).
+        # Park them while the world runs; teardown restores them.
+        self._quarantined = []
+        with quiet():
+            for obj in registry().live_objects():
+                if getattr(obj, "is_alive", False) and hasattr(type(obj), "active") \
+                        and getattr(obj, "active", False):
+                    try:
+                        obj.active = False
+                        self._quarantined.append(weakref.ref(obj))
+                    except Exception:
+                        pass
+
+    def zombies(self) -> List[Tuple[str, Any]]:
+        return zombies(ignore=self.preexisting_zombies)
+
+    # -- driving ----------------------------------------------------------
+    def on_update(self, fn: Optional[Callable[[float], Any]]) -> None:
+        """Install the script ``update(dt)`` (``None`` = no-op)."""
+        self.fw.update = (lambda dt, scena_canvas: None) if fn is None else (
+            lambda dt, scena_canvas=None: fn(dt))
+
+    def begin_game(self, first_act=None, setup: Optional[Callable] = None) -> None:
+        """End the top level the way ``run()`` does (``fw._begin_game``).
+
+        Everything alive now becomes the game; ``first_act`` (an Act class)
+        is built next. ``setup`` is the script-level ``setup(canvas)`` hook.
+        """
+        if setup is not None:
+            self.fw.setup = setup
+        self.fw._begin_game(first_act)
+
+    def step(self, n: int = 1, dt: float = FRAME, draw: Optional[bool] = None) -> None:
+        do_draw = self.draw_default if draw is None else draw
+        fw = self.fw
+        for _ in range(int(n)):
+            fw._simulate_frame(dt=dt)
+            if do_draw:
+                # Post FX draw too: with no GL context the scene / FX render
+                # targets are raster surfaces (``fw._offscreen_surface``).
+                fw._draw_frame()
+                fw._scene_image = None
+            self.frames_run += 1
+
+    def step_until(self, pred: Callable[[], bool], max_frames: int = 600,
+                   dt: float = FRAME, draw: Optional[bool] = None) -> int:
+        for i in range(max_frames):
+            if pred():
+                return i
+            self.step(1, dt=dt, draw=draw)
+        if pred():
+            return max_frames
+        raise AssertionError(f"condition not reached in {max_frames} frames")
+
+    def seconds(self, t: float, dt: float = FRAME, draw: Optional[bool] = None) -> None:
+        self.step(int(math.ceil(t / dt - 1e-9)), dt=dt, draw=draw)
+
+    # -- teardown ---------------------------------------------------------
+    def teardown(self, *, strict: bool = True) -> None:
+        fw = self.fw
+        try:
+            super().teardown(strict=strict)
+        finally:
+            for p in self._patches:
+                p.stop()
+            self._patches.clear()
+            with quiet():
+                for ref in self._quarantined:
+                    obj = ref()
+                    if obj is not None and getattr(obj, "is_alive", False):
+                        try:
+                            obj.active = True
+                        except Exception:
+                            pass
+            self._quarantined.clear()
+            _transients.set_now_fn(None)
+            _spatial_fx.set_now_fn(None)
+            _cover.set_now_fn(None)
+            fw._scena_draw.skia_canvas = self._saved.pop("skia_canvas")
+            for k, v in self._saved.items():
+                setattr(fw, k, v)
+            gc_policy.thaw_world()
+            gc_policy.set_gc_freeze(self._gc_freeze_was)
+            with quiet():
+                reset_system_globals()
+
+
+@contextmanager
+def system_world(**kw):
+    world = SystemWorld(**kw)
+    try:
+        yield world
+    except BaseException:
+        world.teardown(strict=False)    # never mask the body's own failure
+        raise
+    world.teardown()
+
+
+# --------------------------------------------------------------------------
+# Census: every registry that can hold an actor
+# --------------------------------------------------------------------------
+
+def _len(x) -> int:
+    try:
+        return len(x)
+    except Exception:
+        return -1
+
+
+def full_collect(max_passes: int = 6) -> None:
+    """``gc.collect()`` until a pass frees nothing: GC-backstop finalizers
+    (``weakref.finalize`` graph purge) release more garbage on a later pass."""
+    for _ in range(max_passes):
+        if gc.collect() == 0:
+            return
+
+
+def census(*, collect: bool = True) -> Dict[str, int]:
+    """Sizes of every holder. Compare two censuses with ``diff_census``."""
+    if collect:
+        full_collect()
+    out: Dict[str, int] = {}
+    ss = get_scena_system()
+    if ss is not None:
+        g = ss.dependency_graph
+        out["graph.nodes"] = _len(g.nodes)
+        out["graph.dependencies"] = sum(len(v) for v in g.dependencies.values())
+        out["graph.dependents"] = sum(len(v) for v in g.dependents.values())
+        out["graph.dep_keys"] = sum(1 for v in g.dependencies.values() if v)
+        out["update.dirty_stack"] = _len(ss.update_manager._dirty_stack)
+    es = _events._global_event_system
+    if es is not None:
+        out["events.live"] = sum(1 for r in es._events if not getattr(r, "_drop", False))
+        out["events.all"] = _len(es._events)
+        out["events.by_owner"] = _len(es._by_owner)
+    sch = get_scheduler()
+    for name in ("_handles", "_every", "_once", "_tween", "_await_family", "_sound",
+                 "_by_owner", "_named", "_tweens", "_scripts", "_mode_owners",
+                 "_update_owners", "_every_sites"):
+        out["sched." + name.lstrip("_")] = _len(getattr(sch, name))
+    col = get_collision_system()
+    for name in ("_colliders", "_collider_index", "_pair_handlers", "_resolve_pairs",
+                 "_prev_contacts", "_solve_contacts", "_contact_memory",
+                 "_resolve_cache", "_partner_ident_cache", "_partner_only_cache",
+                 "_passing", "_solve_contact_sides", "_solve_bottom_count"):
+        out["collision." + name.lstrip("_")] = _len(getattr(col, name))
+    out["collision.tag_colliders"] = sum(len(v) for v in col._tag_colliders.values())
+    out["collision.tag_index"] = sum(len(v) for v in col._tag_index.values())
+    b = get_bounds_system()
+    out["bounds.group_handlers"] = _len(b._group_handlers)
+    out["bounds.instance_handlers"] = _len(b._instance_handlers)
+    out["bounds.seen_inside"] = _len(b._seen_inside)
+    sc = registry()
+    out["registry.live"] = _len(sc.live)
+    out["registry.group_members"] = sum(len(v) for v in sc.group_map.values())
+    out["registry.group_formulas"] = _len(getattr(sc, "_group_formulas", ()))
+    # Live draw entries only: tombstones (``None`` holes) are compacted lazily,
+    # so the raw list length may go either way; ``draw_slots`` reports it.
+    live = 0
+    for layer in sc.layers.iter_draw_order():
+        live += sum(1 for o in layer._objects if o is not None)
+    out["registry.draw_live"] = live
+    out["fx.transient_shapes"] = _len(_transients._active_shapes)
+    out["fx.spatial_fx"] = _len(_spatial_fx._active_fx)
+    out["fx.histories"] = _len(_history._active_histories)
+    mixer = get_mixer()
+    out["mixer.voices"] = _len(mixer.voices)
+    out["mixer.finished_pending"] = _len(mixer._finished_pending)
+    fw = ScenaFramework.get_instance()
+    wm = getattr(fw, "widget_manager", None)
+    if wm is not None:
+        out["widgets"] = _len(wm.widgets)
+    import builtins
+    out["ready.timers"] = _len(getattr(getattr(builtins, "ready", None), "_timers", ()))
+    out["recently.slots"] = _len(getattr(getattr(builtins, "recently", None), "_slots", ()))
+    return out
+
+
+def draw_slots() -> int:
+    """Raw draw-list length incl. tombstones (bounded, not baseline-exact)."""
+    return sum(len(layer._objects) for layer in registry().layers.iter_draw_order())
+
+
+def diff_census(before: Dict[str, int], after: Dict[str, int],
+                ignore: Iterable[str] = ()) -> Dict[str, Tuple[int, int]]:
+    skip = set(ignore)
+    keys = set(before) | set(after)
+    return {k: (before.get(k, 0), after.get(k, 0)) for k in sorted(keys)
+            if k not in skip and before.get(k, 0) != after.get(k, 0)}
+
+
+def format_diff(diff: Dict[str, Tuple[int, int]]) -> str:
+    return ", ".join(f"{k}: {a}→{b}" for k, (a, b) in diff.items())
+
+
+def roster_snapshot() -> set:
+    """The roster keys currently registered (pair with ``describe_new_live``)."""
+    return set(registry().live.keys())
+
+
+def describe_new_live(before: set, limit: int = 8) -> str:
+    """Registered objects that were not there at ``before`` — for messages."""
+    from scena.entity import made_at
+    out = []
+    for key, obj in list(registry().live.items()):
+        if key in before:
+            continue
+        owner = getattr(obj, "_owner", None)
+        where = made_at(obj) or f"#{key}"
+        out.append(f"{type(obj).__name__} {where} alive={getattr(obj, 'is_alive', '?')}"
+                   + (f" owner={type(owner).__name__}" if owner is not None else ""))
+        if len(out) >= limit:
+            break
+    return "; ".join(out)
+
+
+# --------------------------------------------------------------------------
+# Zombies: dead objects a registry still references
+# --------------------------------------------------------------------------
+
+def _dead(obj) -> bool:
+    return obj is not None and getattr(obj, "is_alive", True) is False
+
+
+def zombies(ignore: Iterable[int] = ()) -> List[Tuple[str, Any]]:
+    """``(holder, obj)`` for every destroyed object a registry still holds.
+
+    ``ignore``: ids of objects to skip (``SystemWorld.zombies`` passes the
+    debris that existed before the world started).
+    """
+    found: List[Tuple[str, Any]] = []
+    skip = set(ignore)
+
+    def check(where, obj):
+        if _dead(obj) and id(obj) not in skip:
+            found.append((where, obj))
+
+    sch = get_scheduler()
+    for h in list(sch._handles):
+        if not (getattr(h, "cancelled", False) or getattr(h, "done", False)):
+            check("sched.handle.owner", getattr(h, "owner", None))
+    for owner in list(sch._mode_owners):
+        check("sched.mode_owners", owner)
+    for owner in list(sch._update_owners):
+        check("sched.update_owners", owner)
+    col = get_collision_system()
+    for c in list(col._colliders):
+        check("collision.colliders", getattr(c, "identity", None))
+        for s in getattr(c, "_shapes", ()) or ():
+            check("collision.collider.shape", s)
+        # S6: a survivor's pair targets must not keep destroyed bodies.
+        for t in list(getattr(c, "_pair_targets", ()) or ()):
+            if isinstance(t, str):
+                continue   # a group name / ANYTHING, not a body
+            check("collision._pair_targets", getattr(t, "identity", t))
+    for tag, lst in col._tag_colliders.items():
+        for c in lst:
+            check(f"collision.tag[{tag}]", getattr(c, "identity", None))
+    for a, bb, _cb, _phase in list(col._pair_handlers):
+        check("collision.pair_handlers", a)
+        check("collision.pair_handlers", bb)
+    es = _events._global_event_system
+    if es is not None:
+        for r in list(es._events):
+            if not getattr(r, "_drop", False):
+                check("events.owner", getattr(r, "_owner", None))
+    b = get_bounds_system()
+    for obj in list(b._instance_handlers.keys()):
+        check("bounds.instance_handlers", obj)
+    sc = registry()
+    for key, obj in list(sc.live.items()):
+        check(f"registry.live[{key}]", obj)
+    for g, members in sc.group_map.items():
+        for obj in list(members):
+            check(f"registry.group[{g}]", obj)
+    for layer in sc.layers.iter_draw_order():
+        for obj in layer._objects:
+            check(f"registry.layer[{layer.name}]", obj)
+    for obj in list(_transients._active_shapes):
+        check("fx.transient_shapes", obj)
+    for obj in list(_spatial_fx._active_fx):
+        check("fx.spatial_fx", obj)
+    return found
+
+
+# --------------------------------------------------------------------------
+# Collection
+# --------------------------------------------------------------------------
+
+def referrer_chain(obj, depth: int = 3) -> str:
+    """Human-readable referrers of ``obj`` (for a leak message)."""
+    lines = []
+    frontier = [obj]
+    seen = {id(obj)}
+    for level in range(depth):
+        nxt = []
+        for o in frontier:
+            for r in gc.get_referrers(o):
+                if id(r) in seen or r is frontier or r is nxt:
+                    continue
+                if isinstance(r, type(sys._getframe())):
+                    continue
+                seen.add(id(r))
+                desc = type(r).__name__
+                if isinstance(r, dict):
+                    keys = [k for k, v in r.items() if v is o][:3]
+                    desc += f" keys={keys!r}"
+                lines.append("  " * level + f"<- {desc} @{id(r):x}")
+                nxt.append(r)
+                if len(lines) > 40:
+                    return "\n".join(lines)
+        frontier = nxt
+    return "\n".join(lines)
+
+
+def assert_collected(testcase, ref: "weakref.ref", what: str = "actor") -> None:
+    full_collect()
+    if ref() is None:
+        return
+    obj = ref()
+    chain = referrer_chain(obj)
+    obj = None
+    testcase.fail(f"{what} was not garbage-collected after destroy; referrers:\n{chain}")
+
+
+# --------------------------------------------------------------------------
+# Test case base
+# --------------------------------------------------------------------------
+
+class SystemTestCase:
+    """unittest mixin: ``self.w`` is a fresh ``SystemWorld`` per test."""
+
+    world_draw = True
+
+    def setUp(self):  # noqa: D401
+        boot()
+        self.w = SystemWorld(draw=self.world_draw)
+        self.probe = self.w.probe
+
+    def tearDown(self):
+        self.w.teardown()
+
+    def track(self, obj):
+        return self.w.track(obj)
+
+    # -- assertions -------------------------------------------------------
+    def assertNoDeadCalls(self):
+        dead = self.probe.dead_calls()
+        self.assertEqual(dead, [], f"hooks ran for a destroyed owner: {dead}")
+
+    def assertNoZombies(self):
+        z = self.w.zombies()
+        self.assertEqual(z, [], "registries still hold destroyed objects: "
+                         + ", ".join(f"{w}: {type(o).__name__}" for w, o in z))
+
+    def assertCensusEqual(self, before, after=None, ignore=()):
+        after = census() if after is None else after
+        d = diff_census(before, after, ignore)
+        self.assertEqual(d, {}, "registry sizes changed: " + format_diff(d))
+
+
+# --------------------------------------------------------------------------
+# Materials
+# --------------------------------------------------------------------------
+
+def tone(duration: float = 0.3, freq: float = 440.0, amp: float = 0.2) -> Sound:
+    """An in-memory Sound (no file I/O)."""
+    return Sound._from_pcm(make_sine(freq, duration, amp=amp))
+
+
+# --------------------------------------------------------------------------
+# Kitchen sink: one actor wired into every subsystem
+# --------------------------------------------------------------------------
+
+class Sink:
+    """What ``kitchen_sink`` built: the actor plus its side objects."""
+
+    def __init__(self, actor, *, partner=None, source=None, dependent=None,
+                 contrail=None, track=None, handles=None):
+        self.actor = actor
+        self.partner = partner
+        self.source = source
+        self.dependent = dependent
+        self.contrail = contrail
+        self.track = track
+        self.handles = handles or {}
+
+
+def kitchen_sink(world: SystemWorld, *, kind: str = "circle", center=(0.0, 0.0),
+                 tag: str = "sink", partner_tag: str = "rock", partner: bool = True,
+                 sound: bool = True, links: bool = True, path: bool = True,
+                 layer: Any = None) -> Sink:
+    """Build an actor that touches every subsystem, all hooks probed.
+
+    Class hooks: method ``@when`` (owned watch), ``@collide_with`` /
+    ``@collide_with_exit`` on ``partner_tag``, instance ``@leave_playfield``.
+    Instance work: ``after`` / ``every`` / tween (yoyo forever) / async mode
+    awaiting ``wait`` / ``on_update`` / entity ``play_sound`` (forever loop) / ``flash`` /
+    ``.glow`` / ``move_along`` a Track / an object-literal ``@collide`` pair
+    handler / a Contrail fed from ``on_update``; an inbound ``@=`` (actor ←
+    source) and an outbound one (dependent ← actor).
+
+    Every hook records into ``world.probe`` with the actor as owner, so
+    ``probe.dead_calls()`` catches any call after destroy.
+    """
+    from scena import (Circle, Contrail, Entity, Sprite, Track, collide,
+                       collide_with, collide_with_exit, leave_playfield, wait, when)
+
+    probe = world.probe
+
+    def rec(tag_, self_):
+        probe.hit(tag_, self_)
+
+    base = {"circle": Circle, "sprite": Sprite}[kind]
+
+    class SinkActor(base):  # type: ignore[misc, valid-type]
+        @when(lambda self: getattr(self, "hp", 5) <= 0)
+        def low(self):
+            rec("when", self)
+
+        @collide_with(partner_tag)
+        def hit(self, other, info=None):
+            rec("collide", self)
+
+        @collide_with_exit(partner_tag)
+        def unhit(self, other, info=None):
+            rec("collide_exit", self)
+
+        @leave_playfield
+        def left(self):
+            rec("leave", self)
+
+    extra = {} if layer is None else {"layer": layer}
+    with quiet():
+        if kind == "circle":
+            a = SinkActor(center=center, radius=6, group=tag, **extra)
+        else:
+            a = SinkActor("system_missing.png", center=center, width=12, height=12,
+                          hitbox_shape="rect", group=tag, **extra)
+            a.add_hitbox()
+    world.track(a)
+    a.hp = 5
+    a.speed = 0
+    a.on_destroy = probe.hook("on_destroy", a)
+    handles = {}
+    handles["after"] = a.after(1e6, probe.hook("after", a))
+    handles["every"] = a.every(0.05, probe.hook("every", a))
+    if kind == "circle":
+        handles["tween"] = a.tween(a["radius"], 9, time=0.4, loops="forever", yoyo=True)
+
+    async def roaming(e):
+        while True:
+            await wait(0.05)
+            rec("mode", e)
+
+    a.mode = roaming
+
+    contrail = Contrail(max_points=8, color="red")
+    world.track(contrail)
+
+    def on_up(e, dt):
+        rec("on_update", e)
+        contrail.snapshot(e)
+
+    a.on_update = on_up
+    if sound:
+        # A forever loop: it must stop on destroy. A finite sound would ring
+        # out (Sound Design — When the owner ends) and hold a voice past it.
+        handles["sound"] = a.play_sound(tone(0.3), loops="forever",
+                                        on_done=probe.hook("sound_done", a))
+    a.flash(1e6, on_done=probe.hook("flash_done", a))
+    a.glow = "red"
+    trk = None
+    if path:
+        trk = world.track(Track(points=[center, (center[0] + 30, center[1]),
+                                        (center[0] + 30, center[1] + 30)]))
+        handles["path"] = a.move_along(trk, time=1.0, loops="forever")
+    rock = None
+    if partner:
+        rock = world.track(Circle(center=(center[0] + 400, center[1]), radius=6,
+                                  group=partner_tag))
+
+        @collide(a, rock)
+        def _pair(x, y, info=None):
+            rec("pair", a_ref())
+
+    a_ref = weakref.ref(a)
+    src = dep = None
+    if links:
+        src = world.track(Entity())
+        src.value = 1.0
+        a["speed"] @= (lambda: src.value * 2)
+        dep = world.track(Entity())
+        dep["mirror"] @= (lambda: a.hp + 1)
+    return Sink(a, partner=rock, source=src, dependent=dep, contrail=contrail,
+                track=trk, handles=handles)

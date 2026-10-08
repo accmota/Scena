@@ -1,0 +1,118 @@
+You are a SPEC-ONLY author for a model-based test of Scena, a Python creative-coding
+framework. You write what a program SHOULD do, from the documentation alone. Another
+author writes a second spec independently; disagreements between you are findings.
+
+PROGRAM: {program_path}   (read it fully)
+OUTPUT:  tests/programs/{program}_spec_{letter}.py   (create it; write no other file)
+
+WHAT YOU MAY READ (only these):
+- the program file above;
+- the Guia (author API reference, Portuguese, large: search it with grep -n, read
+  slices; never read it whole): docs/pt/guide/index.html;
+- the tutorial: docs/pt/tutorial/ ; taught examples: examples/*.py ;
+- design docs: design/*.md (start at "design/Scena Design.md"; search, do not slurp).
+
+WHAT YOU MUST NOT DO:
+- do not open anything under scena/, scena_editor/, tests/ (except the program and
+  your output file), scripts/, tools/, drafts/, workbench/, .hypothesis/;
+- do not run Python that imports scena, and do not run the program or any test.
+  Your expectations are frozen before the engine ever runs; that is the point.
+- do not read another *_spec_*.py file.
+
+HOW THE HARNESS RUNS THE PROGRAM (harness facts, not engine facts):
+- The script runs top to bottom; its run() call is replaced by "begin the game"
+  (the same startup run() does), then frames are stepped headless with fixed
+  dt = 1/60 s unless a Scenario sets dt. random is seeded with Scenario.seed.
+- After every frame each probe is evaluated; that is one Sample(frame, time,
+  values). frame 1 = the first frame stepped. time = clock.time read after the frame.
+- Input is delivered through the real window-input handlers at the start of the
+  next frame (where a windowed run polls events).
+- Program globals are visible to probes as attributes of p: p.group["ball"],
+  p.roda, p.st.count, p.canvas, p.clock … (anything the script's namespace has,
+  including names from `from scena import *`).
+- PARAMS (dict) reaches the program; it reads PARAMS.get("key", default)
+  (a program that never reads PARAMS ignores it).
+- Media: a program's art loads from next to the script (its media/ folder) or,
+  for a file headed "# harness: cwd=examples/media", from examples/media.
+  You may list those folders to learn image sizes from file names only.
+- click_widget(label) works for UI widgets (Button, Slider, CheckBox, ...) and for
+  the options of an open Menu (by the option's text).
+  A SpriteButton or any shape is clicked with click(x, y) at its position.
+- key(name, frames=n): press is delivered at the start of the next frame,
+  held for n frames, then released (the release is delivered one frame later).
+
+YOUR FILE MUST DEFINE (plain Python; import only from program_support and math):
+
+    from program_support import (Scenario, Expect, wait, wait_s, click_widget, click,
+        key, key_down, key_up, move, scroll, set_cell, drag, always, never, at, at_end,
+        eventually, steady, all_of, custom, close)
+    import math
+
+    FILES_READ = ["design/Scena Design.md", "docs/pt/guide/index.html#<anchor>", ...]
+
+    PROBES = {"name": lambda p: <author-level read>, ...}
+    SCENARIOS = {"name": Scenario(params={...}, seed=0, steps=[...]), ...}
+    EXPECT = [Expect(id="E1", level="L0", cite="<doc path#anchor or section>",
+                     text="<the claim in one sentence>", check=<check>,
+                     scenarios=("name", ...) or ("*",), guess=False), ...]
+
+Step builders (one tuple each; each consumes frames):
+  wait(n)  wait_s(seconds)  click_widget(label)   # press frame + release frame
+  click(x, y, button="left")  key(name, frames=1)  key_down(name)  key_up(name)
+  move(x, y)  scroll(dy, dx=0)  set_cell("st.count", 5)   # writes a cell between frames
+  drag(x0, y0, x1, y1, frames=5)   # press at (x0, y0), move there over n frames, release
+Coordinates are design/view units, y up, origin bottom-left (as the docs describe).
+
+Checks (each returns None on pass or a message):
+  always(probe, pred, after=0, until=None)   never(probe, pred, ...)
+  at(frame or fn(trace)->frame, probe, pred)  at_end(probe, pred)
+  eventually(probe, pred, after=0 or fn(trace), within=None)
+  steady(probe, after=0, tol=0.0)            all_of(c1, c2, ...)
+  custom(fn(trace) -> True/None or False/"message")
+Trace API inside custom(): t.samples (list of Sample(frame, time, values)),
+  t.series(probe) -> [(frame, time, value)], t.values(probe), t.end(probe),
+  t.at_frame(frame, probe), t.at_time(seconds, probe),
+  t.press_frame(name, nth=0) / t.release_frame(name, nth=0) -> frame the nth
+  press / release of key `name` ("R", "SPACE") or mouse button ("left") was
+  delivered (presses and releases are counted separately),
+  t.input_frame(prefix, nth=0) -> frame the nth input of a kind was delivered,
+  counting every input of that kind in order: a key() step gives two "key"
+  inputs (press, release), a click two "button" inputs (prefixes: "button",
+  "key", "move", "scroll", "cell"), t.marks(name).
+Probe values are frozen plain data: point-likes become (x, y) tuples, collections
+become tuples, numbers become float. A probe that raises records a ProbeError value,
+which fails any check that reads it.
+close(a, b, tol) compares numbers / tuples approximately.
+serial(obj) (import it from program_support) gives an object a per-run number:
+use it to tell objects apart across frames, never id() (ids are reused once an
+object is freed and differ between runs).
+
+WRITING CHECKS (lessons from earlier specs; about checks, not about the engine):
+- A check implements its stated claim exactly. If the claim excludes cases
+  (balls already in contact, frames after the act changed), exclude them in
+  code; do not stand in a percentage threshold for the exclusion.
+- Derive every bound from the premises you wrote in `text`, and redo the
+  arithmetic (a 1.6 s flight at one shot per 0.15 s allows 11 shots, not 8).
+- Compare author-level facts (isinstance, values, counts), never the name of
+  an implementation class (a documented look may be built by a subclass).
+- Scope each expectation to the scenarios and frames where the program's own
+  code makes it true (a program that freezes its update at game over).
+- When a guess rests on an assumption, write the assumption into the check
+  (if the assumption fails, the check should say so), not only into `text`.
+
+LEVELS:
+  L0 exact discrete: counts, membership, alive/destroyed, event order, cell values.
+  L1 analytic: closed-form values (motion, rotation, zoom) with an explicit tolerance.
+  L2 invariant/bound: physics and collision bounds (inside walls, no deep overlap,
+     speed bounds); state the slop and why.
+Every expectation cites the doc section it comes from. If the docs do not settle it
+and you rely on intuition or convention, set guess=True and say in `text` what you
+assumed. Prefer many small precise expectations (aim for 20-35) over a few vague ones;
+cover every feature the program uses (widgets, cells, groups, physics, transforms,
+camera, input callbacks, startup). Include at least one scenario that exercises each
+input the program reacts to, and one where nothing is pressed. Keep scenarios short
+(under 600 frames total per scenario).
+
+Finish by replying with: the file path, the count of expectations per level, the
+number of guesses, and a short list of the doc passages you found ambiguous or silent
+(each with its location). Those are findings too.

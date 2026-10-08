@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Naves — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "05",
+  title: "Naves",
+  steps: [
+    {
+      title: "A nave",
+      body: `
+        <p>Novo script: um Galaga simples. Uma nave embaixo, uma frota inimiga em cima, tiros dos dois lados. Este primeiro passo só junta o que você já sabe: um sprite e as setas.</p>
+        <p>A nave nasce em <code>center=(500, 70)</code>, no meio da largura e perto da borda de baixo. Só as setas esquerda e direita: como no Galaga, a nave anda numa linha só e o perigo vem de cima. <code>340 * dt</code> são 340 pixels por segundo. <code>glow</code> liga o brilho em volta da imagem, como no tutorial 01. A imagem vem de <code>media/space/</code>, ao lado do script.</p>
+        <p>Rode e segure uma seta até o fim: a nave sai da janela e some. É o assunto do próximo passo.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper("dark navy")
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+
+
+run()
+`,
+      try: [
+        {
+          note: "Um por vez, no lugar do arquivo.",
+          code: `nave = Sprite("plane/Fly1.png", height=45, center=(500, 70))
+nave = Sprite("space/ufoYellow.png", height=45, center=(500, 70))`
+        }
+      ]
+    },
+    {
+      title: "Limites",
+      body: `
+        <p>A nave sai da janela. Precisamos de uma cerca: um retângulo de onde o centro dela não passa.</p>
+        <p><strong>O retângulo.</strong> <code>canvas.game_view</code> (vista do jogo) é o retângulo que a janela mostra; no tutorial 04 ele dava o centro da cadeia. <code>inset(40)</code> (recuar) devolve uma cópia menor, 40 pixels para dentro em cada borda: aqui, x vai de 40 a 960. A cerca vale para o centro da nave; os 40 pixels de folga deixam a nave inteira à vista.</p>
+        <p><strong>A cerca.</strong> <code>confine</code> (confinar) olha onde a nave está agora: se o centro saiu do retângulo, ela volta para a borda dele. É uma correção feita a cada chamada, não uma regra que fica valendo sozinha. Por isso a linha vai no <code>update</code>, depois do <code>move_by</code>: primeiro a nave anda, depois a cerca corrige.</p>
+        <p>Segure uma seta: a nave para na borda.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper("dark navy")
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+    nave.confine(canvas.game_view.inset(40))
+
+
+run()
+`,
+      try: [
+        {
+          note: "O mesmo limite, no <code>if</code>. No lugar do <code>confine</code>.",
+          code: `if keyp("LEFT") and nave.center.x > 40:
+    nave.move_by(-340 * dt, 0)
+if keyp("RIGHT") and nave.center.x < 960:
+    nave.move_by(340 * dt, 0)`
+        }
+      ]
+    },
+    {
+      title: "O céu",
+      body: `
+        <p>O jogo funciona, mas o fundo é chapado. Este passo não muda o jogo, só o céu: um degradê, estrelas passando e três efeitos de tela.</p>
+        <p><strong>O degradê.</strong> <code>Gradient</code> (degradê) vai de uma cor a outra; ele apareceu num Experimente também do tutorial 01. <code>angle=90</code> (ângulo) põe a transição na vertical: preto numa borda, azul quase preto na outra. Cada <code>dark</code> (escuro) no nome da cor escurece mais um pouco, e <code>"dark dark blue"</code> é um azul bem fechado.</p>
+        <p><strong>As estrelas.</strong> <code>Stars</code> (estrelas) espalha um campo de pontos de luz pelo fundo. <code>scroll</code> (rolar) é quanto o campo anda sozinho, um <code>(x, y)</code> em pixels por segundo: <code>(0.0, -38.0)</code> desce 38 por segundo. As estrelas descem, e a nave parece voar para a frente. <code>pan_response</code> (resposta ao movimento da câmera) em 0 prende o campo à tela.</p>
+        <p><strong>Os efeitos de tela.</strong> <code>Grain</code>, <code>Bloom</code> e <code>Scanlines</code> não desenham uma forma: mexem na imagem inteira, depois que tudo foi desenhado. <code>Grain</code> (grão) você viu nas barras do tutorial 04, um chuvisco fraco. <code>Bloom</code> (florescer) faz o que é claro vazar luz em volta: o brilho da nave e, daqui a pouco, os lasers. <code>Scanlines</code> (linhas de varredura) risca a tela com linhas horizontais finas, como num fliperama antigo. Basta a linha para o efeito ligar.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+    nave.confine(canvas.game_view.inset(40))
+
+
+run()
+`,
+      try: [
+        {
+          note: "Um por vez, no lugar do <code>Wallpaper</code>: <code>SkyGradient</code> (degradê de céu) é um céu pronto.",
+          code: `SkyGradient("night")
+SkyGradient("sunset")
+SkyGradient("dusk")`
+        }
+      ]
+    },
+    {
+      title: "Atirar",
+      body: `
+        <p>Agora a nave atira. Cada tiro é um sprite novo, no grupo <code>tiros</code>, criado na frente da nave enquanto a barra de espaço está apertada.</p>
+        <p><strong>A cadência.</strong> <code>keyp("SPACE")</code> é verdadeiro enquanto o espaço está segurado, e o <code>update</code> roda dezenas de vezes por segundo. Sem freio, sairia um tiro por quadro: uma fileira colada de lasers. <code>ready</code> (pronto) é o freio. <code>ready("tiro", 0.2)</code> responde verdadeiro se já passaram 0.2 s desde a última vez que respondeu verdadeiro; no meio do caminho, falso. Na primeira chamada, verdadeiro. O nome <code>"tiro"</code> identifica esse relógio: outro nome seria outro relógio, com o seu intervalo. Resultado: no máximo cinco tiros por segundo.</p>
+        <p><strong>Onde nasce.</strong> <code>nave.center.y + 28</code> põe o laser 28 pixels acima do centro, no bico da nave. O x é o da nave: o tiro sai de onde ela estiver.</p>
+        <p>Segure espaço: os lasers aparecem e ficam parados no ar. Ninguém os move ainda.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+    nave.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("tiro", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")
+
+
+run()
+`,
+      try: [
+        {
+          note: "Um por vez, no lugar do <code>space/laserBlue03.png</code>.",
+          code: `Sprite("space/laserGreen02.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")
+Sprite("space/laserRed01.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")`
+        }
+      ]
+    },
+    {
+      title: "Os tiros sobem",
+      body: `
+        <p>Os lasers precisam subir. Como estão todos no grupo <code>tiros</code>, uma linha move todos: <code>group["tiros"].move_by(0, 640 * dt)</code>. O segundo número é o y, positivo para cima. 640 pixels por segundo é quase o dobro da velocidade da nave: o tiro tem de ser bem mais rápido do que quem atira.</p>
+        <p>Segure espaço: os lasers atravessam o céu e saem pelo topo. Saem da vista, mas não do jogo: cada um continua subindo acima da janela, para sempre.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+    nave.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("tiro", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")
+
+    group["tiros"].move_by(0, 640 * dt)
+
+
+run()
+`,
+      try: [
+        {
+          note: "O mesmo movimento, tiro a tiro. No lugar da linha do grupo.",
+          code: `for tiro in group["tiros"]:
+    tiro.move_by(0, 640 * dt)`
+        }
+      ]
+    },
+    {
+      title: "Fora da tela",
+      body: `
+        <p>Os lasers que saem pelo topo continuam existindo. É o mesmo vazamento das estrelas do tutorial 02, resolvido lá com um <code>if</code> na altura. Aqui usamos um recurso do Scena feito para isso.</p>
+        <p><strong>Quando sai.</strong> <code>@leave_playfield</code> (sair do campo de jogo), em cima da função, diz ao Scena: quando o centro de alguém deste grupo sair do campo, rode isto. Entre parênteses vão os grupos vigiados. A função recebe quem saiu, e <code>tiro.destroy()</code> o apaga.</p>
+        <p><strong>O campo.</strong> O campo de jogo não é a janela: é a janela com uma folga de um quarto do tamanho dela em cada lado. Nesta janela de 1000 × 800, ele vai de y −200 a y 1000. O laser some 200 pixels acima da borda, já fora de vista. A folga é de propósito: o que só põe a ponta para fora e volta não é apagado.</p>
+        <p>Abra o painel do sistema com <kbd>Ctrl+Shift+1</kbd> e segure espaço. Antes, o número de objs só subia; agora sobe um pouco e para.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+    nave.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("tiro", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")
+
+    group["tiros"].move_by(0, 640 * dt)
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`,
+      try: [
+        {
+          note: "No lugar do <code>@leave_playfield</code> e da linha do grupo: o <code>if</code> no laço, como as estrelas do tutorial 02. Aqui a borda é a da janela, 800.",
+          code: `for tiro in group["tiros"]:
+    tiro.move_by(0, 640 * dt)
+    if tiro.center.y > 800:
+        tiro.destroy()`
+        }
+      ]
+    },
+    {
+      title: "A frota",
+      body: `
+        <p>Agora os inimigos: 24 naves, em três linhas de oito. Dois <code>for</code>, um dentro do outro: para cada linha, o <code>for</code> de dentro percorre as oito colunas, e cada volta cria uma nave no grupo <code>inimigos</code>.</p>
+        <p><strong>A posição.</strong> O x começa em 185 e anda 90 por coluna: de 185 a 815, uma fileira centrada na janela. O y começa em 720, perto do topo, e desce 70 por linha: 720, 650, 580.</p>
+        <p><strong>A cor.</strong> <code>FROTA</code> é a lista de imagens, uma verde e uma azul. <code>linha % 2</code> é o resto da divisão por 2: dá 0, 1, 0 nas três linhas e escolhe a imagem da lista. As cores se alternam linha a linha.</p>
+        <p>As naves aparecem e ficam paradas.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Sprite(
+            FROTA[linha % 2],
+            height=40,
+            center=(185 + coluna * 90, 720 - linha * 70),
+            group="inimigos",
+        )
+
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+    nave.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("tiro", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")
+
+    group["tiros"].move_by(0, 640 * dt)
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`,
+      try: [
+        {
+          note: "Outros arquivos, no lugar da lista.",
+          code: `FROTA = ["space/ufoYellow.png", "space/enemyGreen1.png"]`
+        }
+      ]
+    },
+    {
+      title: "Respiram",
+      body: `
+        <p>A frota parada parece um desenho. Um pulso leve dá vida a ela, sem nenhuma linha no <code>update</code>.</p>
+        <p><code>scale_to</code> (escalar até) muda o tamanho do sprite até a escala pedida: 1 é o tamanho original, 1.08 é 8% maior. Com <code>time=0.45</code> (tempo), ele não pula: cresce aos poucos, em 0.45 segundo. O Scena cuida da animação sozinho, quadro a quadro.</p>
+        <p>Dois parâmetros fazem o pulso continuar. <code>yoyo=True</code> (ioiô) faz a animação voltar: cresce até 1.08, depois encolhe até 1. <code>loops="forever"</code> (voltas para sempre) repete isso sem parar. Ida e volta levam 0.9 s. Como as 24 naves começam juntas, a frota inteira respira no mesmo ritmo.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Sprite(
+            FROTA[linha % 2],
+            height=40,
+            center=(185 + coluna * 90, 720 - linha * 70),
+            group="inimigos",
+        )
+        inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+    nave.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("tiro", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")
+
+    group["tiros"].move_by(0, 640 * dt)
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`,
+      try: [
+        {
+          note: "Na nave, depois do <code>glow</code>: um pulso maior e mais lento.",
+          code: `nave.scale_to(1.12, time=0.8, loops="forever", yoyo=True)`
+        }
+      ]
+    },
+    {
+      title: "A frota anda",
+      body: `
+        <p>A frota precisa se mover. O jeito é o mesmo dos tiros: uma linha move o grupo inteiro. <code>80 * dt</code> no x são 80 pixels por segundo para a direita, devagar, para dar tempo de mirar.</p>
+        <p>Rode e espere. A nave da ponta direita começa em x 815; em menos de dois segundos passa de 960, e logo depois a frota sai pela borda e não volta. Ninguém mandou voltar: é o próximo passo.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Sprite(
+            FROTA[linha % 2],
+            height=40,
+            center=(185 + coluna * 90, 720 - linha * 70),
+            group="inimigos",
+        )
+        inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+    nave.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("tiro", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")
+
+    group["tiros"].move_by(0, 640 * dt)
+
+    group["inimigos"].move_by(80 * dt, 0)
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "Vai e volta",
+      body: `
+        <p>A frota precisa voltar quando chega à borda. Para isso, a velocidade deixa de ser um número fixo no <code>move_by</code> e vai para <code>st.velocidade</code>, em <code>st</code>, onde o jogo guarda o que muda. O sinal diz o lado: 80 vai para a direita, −80 para a esquerda.</p>
+        <p><strong>A pergunta.</strong> Depois de mover o grupo, o <code>for</code> passa por cada inimigo e olha o centro dele, com os mesmos limites da nave. Se algum passou de 960, a frota deve ir para a esquerda: <code>st.velocidade = -80</code>. Se algum ficou aquém de 40, deve ir para a direita: <code>st.velocidade = 80</code>. No quadro seguinte, o grupo inteiro anda para o lado novo.</p>
+        <p><strong>Por que dizer o lado.</strong> Parece mais curto inverter o sinal: <code>st.velocidade = -st.velocidade</code>. Mas a inversão não sabe para onde a frota já está indo. Se um quadro dura menos que os outros (o computador deu uma engasgada), a frota volta tão pouco que a nave da ponta continua além da borda. A inversão dispara de novo, a frota vira para fora outra vez, e fica presa ali, tremendo. Dizendo o lado, repetir não faz mal: enquanto a nave da ponta estiver além de 960, a resposta é sempre a mesma, −80. As três naves da coluna da ponta passam juntas, e tanto faz também: as três dizem a mesma coisa.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.velocidade = 80
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Sprite(
+            FROTA[linha % 2],
+            height=40,
+            center=(185 + coluna * 90, 720 - linha * 70),
+            group="inimigos",
+        )
+        inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+    nave.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("tiro", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")
+
+    group["tiros"].move_by(0, 640 * dt)
+
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "Colisão",
+      body: `
+        <p>Os tiros ainda atravessam a frota. <code>@collide</code> (colidir), do tutorial 02, liga os dois grupos: quando um tiro toca um inimigo, a função roda e recebe os dois, na ordem dos nomes.</p>
+        <p>Os dois são destruídos. O tiro também precisa sumir: se ficasse, seguiria subindo e derrubaria a nave da linha de trás. Um tiro, um inimigo.</p>
+        <p>Atire na frota. Com <kbd>Ctrl+Shift+7</kbd> você vê o contorno que o Scena usa na colisão de cada sprite.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.velocidade = 80
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Sprite(
+            FROTA[linha % 2],
+            height=40,
+            center=(185 + coluna * 90, 720 - linha * 70),
+            group="inimigos",
+        )
+        inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+    nave.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("tiro", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")
+
+    group["tiros"].move_by(0, 640 * dt)
+
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+@collide("tiros", "inimigos")
+def acertou(tiro, inimigo):
+    tiro.destroy()
+    inimigo.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "O acerto",
+      body: `
+        <p>O inimigo some sem aviso. Este passo dá ao acerto um estouro e um placar.</p>
+        <p><strong>O estouro.</strong> <code>canvas.burst_at</code> (estourar em) desenha uma pequena explosão num ponto. O ponto pode ser um par <code>(x, y)</code> ou o próprio sprite: aí o estouro nasce no centro dele. <code>radius=40</code> (raio) é o tamanho em pixels, o porte de um inimigo. É um efeito local: não treme a tela, e vários podem acontecer ao mesmo tempo. A linha vem antes do <code>destroy</code>, enquanto o inimigo ainda está ali.</p>
+        <p><strong>O placar.</strong> É o do tutorial 02: <code>st.pontos</code> guarda o número, e o texto ligado com <code>@=</code> acompanha sozinho. No acerto, <code>st.pontos += 1</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.pontos = 0
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Sprite(
+            FROTA[linha % 2],
+            height=40,
+            center=(185 + coluna * 90, 720 - linha * 70),
+            group="inimigos",
+        )
+        inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+    nave.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("tiro", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")
+
+    group["tiros"].move_by(0, 640 * dt)
+
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+@collide("tiros", "inimigos")
+def acertou(tiro, inimigo):
+    canvas.burst_at(inimigo, radius=40)
+    tiro.destroy()
+    inimigo.destroy()
+    st.pontos += 1
+
+
+run()
+`,
+      try: [
+        {
+          note: "A primeira entra junto do <code>burst_at</code>: <code>shake</code> (tremer) sacode a câmera por um instante. A segunda entra no lugar dele: <code>rings=True</code> (anéis) soma círculos que se abrem.",
+          code: `canvas.shake(8)
+canvas.burst_at(inimigo, radius=40, rings=True)`
+        }
+      ]
+    },
+    {
+      title: "A frota atira",
+      body: `
+        <p>Até aqui só você atira. Agora a frota responde: a cada 0.4 s, uma nave sorteada solta um laser vermelho para baixo.</p>
+        <p><strong>O sorteio.</strong> <code>@every(0.4)</code> roda <code>frota_atira</code> de tempos em tempos, como as estrelas do tutorial 02. <code>choice</code> (escolha) sorteia um item de uma lista: no tutorial 01 sorteava a cor, aqui sorteia uma nave do grupo. Por isso entra <code>from random import choice</code> no topo. Antes do sorteio, uma guarda: <code>count</code> (contagem) é quantos inimigos restam. Sortear num grupo vazio é erro; se a frota acabou, o <code>return</code> sai da função sem atirar.</p>
+        <p><strong>O laser.</strong> Nasce 20 pixels abaixo da nave sorteada, no grupo <code>tiros_inimigos</code>. <code>rotate_to(180)</code> (girar até) dá meia volta na imagem, para ela apontar para baixo, para onde o laser anda. No <code>update</code>, o grupo desce 400 pixels por segundo (y negativo). E o <code>@leave_playfield</code> ganhou um segundo nome: a mesma função apaga os dois tipos de tiro.</p>
+        <p>Os lasers vermelhos atravessam a sua nave sem efeito. Ninguém pergunta ainda se eles a tocaram.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.pontos = 0
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Sprite(
+            FROTA[linha % 2],
+            height=40,
+            center=(185 + coluna * 90, 720 - linha * 70),
+            group="inimigos",
+        )
+        inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    s = Sprite("space/laserRed01.png", height=28,
+           center=(inimigo.center.x, inimigo.center.y - 20), group="tiros_inimigos")
+    s.rotate_to(180)
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+    nave.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("tiro", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")
+
+    group["tiros"].move_by(0, 640 * dt)
+    group["tiros_inimigos"].move_by(0, -400 * dt)
+
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+@collide("tiros", "inimigos")
+def acertou(tiro, inimigo):
+    canvas.burst_at(inimigo, radius=40)
+    tiro.destroy()
+    inimigo.destroy()
+    st.pontos += 1
+
+
+run()
+`,
+      try: [
+        {
+          note: "No lugar do <code>0.4</code>: um tiro a cada 1.2 s, uma frota mais calma.",
+          code: `@every(1.2)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    s = Sprite("space/laserRed01.png", height=28,
+           center=(inimigo.center.x, inimigo.center.y - 20), group="tiros_inimigos")
+    s.rotate_to(180)`
+        }
+      ]
+    },
+    {
+      title: "A nave explode",
+      example: "naves.py",
+      body: `
+        <p>Falta o perigo: o laser inimigo precisa derrubar a nave. Outro <code>@collide</code>, agora com o grupo <code>tiros_inimigos</code> de um lado e a variável <code>nave</code>, sem aspas, do outro. Um lado pode ser um grupo ou um sprite só, como no Experimente também do tutorial 02.</p>
+        <p><strong>A explosão.</strong> <code>canvas.flash</code> (piscar) clareia a tela inteira por um instante; no tutorial 02, o <code>flash</code> era só da estrela. <code>0.4</code> é a força, de 0 a 1. <code>canvas.explosion_at</code> (explosão em) é a explosão grande, de cinema: bola de fogo, anéis, uma onda que entorta a imagem e a câmera tremendo. O <code>burst_at</code> do acerto é o estouro pequeno, para as naves inimigas. <code>amount</code> (quantidade) é a intensidade: 1.2 é o valor normal, e mais que isso dá uma explosão maior. Por fim, <code>nave.destroy()</code> tira a nave do jogo.</p>
+        <p><strong>Depois do destroy.</strong> A variável <code>nave</code> continua no script, mas o sprite já saiu do jogo. Ler a posição dele ainda vale; mandá-lo andar levanta erro. E o <code>update</code> continua rodando, com as setas e a cerca. <code>if nave:</code> pergunta se a nave ainda está no jogo, e depois do <code>destroy</code> a resposta é não. Por isso o movimento, a cerca e o tiro foram para dentro do <code>if</code>, um nível mais para a direita. Os tiros e a frota ficam fora: o jogo continua sem você.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.pontos = 0
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Sprite(
+            FROTA[linha % 2],
+            height=40,
+            center=(185 + coluna * 90, 720 - linha * 70),
+            group="inimigos",
+        )
+        inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    s = Sprite("space/laserRed01.png", height=28,
+           center=(inimigo.center.x, inimigo.center.y - 20), group="tiros_inimigos")
+    s.rotate_to(180)
+
+def update(dt):
+    if nave:
+        if keyp("LEFT"):
+            nave.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            nave.move_by(340 * dt, 0)
+        nave.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Sprite("space/laserBlue03.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")
+
+    group["tiros"].move_by(0, 640 * dt)
+    group["tiros_inimigos"].move_by(0, -400 * dt)
+
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+@collide("tiros", "inimigos")
+def acertou(tiro, inimigo):
+    canvas.burst_at(inimigo, radius=40)
+    tiro.destroy()
+    inimigo.destroy()
+    st.pontos += 1
+
+
+@collide("tiros_inimigos", nave)
+def atingiu(tiro, nave):
+    tiro.destroy()
+    canvas.flash(0.4)
+    canvas.explosion_at(nave, amount=1.2)
+    nave.destroy()
+
+
+run()
+`,
+      closing: `
+        <p>Setas movem a nave. Espaço atira. A frota respira, vai e volta e devolve tiro. Se um laser vermelho acerta a nave, ela explode, e a frota continua.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

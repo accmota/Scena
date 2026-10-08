@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geometria — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "03",
+  title: "Geometria",
+  steps: [
+    {
+      title: "Dois círculos",
+      part: "Script 1 · Círculos e linhas",
+      body: `
+        <p>Este tutorial é sobre geometria: formas que você pega com o mouse e formas que dependem umas das outras. São dois scripts. Neste primeiro, vamos arrastar círculos e um retângulo e ligá-los com linhas que os acompanham. No segundo, construímos o ponto médio de um segmento só com círculos, como se faz com compasso.</p>
+        <p><strong>Duas escritas.</strong> Começamos com dois círculos escritos de jeitos diferentes. O primeiro você já conhece: <code>center</code> (centro) e <code>radius</code> (raio), aqui 60. O segundo troca o raio por <code>perimeter_point</code> (ponto do perímetro, isto é, da borda): um ponto por onde o contorno passa. O Scena mede a distância do centro até esse ponto e usa essa distância como raio. De (600, 350) até (620, 400), dá cerca de 54.</p>
+        <p>Rode: dois círculos, nada de diferente à vista. A diferença está no que o Scena guarda. O primeiro círculo é um ponto e um número; o segundo é feito de dois pontos. Isso aparece no próximo passo, quando você puder pegá-los com o mouse. E o jeito dos dois pontos volta no segundo script: é ele que faz o papel do compasso.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Geometria")
+Wallpaper("dark navy")
+
+c1 = Circle(center=(300, 500), radius=60, color="deep sky blue")
+
+c2 = Circle(center=(600, 350), perimeter_point=(620, 400), color="orchid")
+
+run()
+`,
+      try: [
+        {
+          note: "Outras formas e outras escritas, uma por vez, no lugar dos círculos. Repare nas que usam dois pontos: o <code>Circle</code> com <code>p1</code> e <code>p2</code> (as pontas de um diâmetro), o <code>Rect</code> com dois cantos opostos, a <code>Line</code> (linha) de um ponto a outro. <code>Ellipse</code> é a elipse; <code>Polygon</code> (polígono) liga a lista de <code>points</code> (pontos).",
+          code: `Circle(p1=(500, 340), p2=(680, 460))
+Rect(center=(400, 350), width=160, height=80, color="coral")
+Rect(p1=(300, 280), p2=(520, 420), color="coral")
+Square(center=(400, 350), length=90, color="gold")
+Line(p1=(250, 250), p2=(550, 450), color="white")
+Ellipse(center=(400, 350), width=180, height=90, color="turquoise")
+Polygon(points=[(320, 280), (480, 290), (500, 420), (300, 400)], color="violet")
+RegularPolygon(n=5, center=(400, 350), radius=70, color="sky blue")
+EquilateralTriangle(center=(400, 350), radius=70, color="gold")`
+        }
+      ]
+    },
+    {
+      title: "Handles",
+      body: `
+        <p>Agora vamos pegar os círculos com o mouse. <code>show_handles()</code> (mostrar alças) desenha uma bolinha em cada ponto <em>livre</em> da forma, e cada bolinha pode ser arrastada. Livre quer dizer: um ponto que você deu ao Scena, e não um que ele calcula.</p>
+        <p>No primeiro círculo aparece uma alça só, no centro. O raio é um número, não um ponto, e não há onde pegá-lo. Arraste o centro: o círculo vai junto, sempre com raio 60. No segundo aparecem duas, o centro e o ponto da borda. Arraste o ponto da borda e o círculo cresce ou encolhe. Arraste o centro e o ponto da borda fica parado, então o raio muda.</p>
+        <p>As alças mostram de que pontos cada forma é feita. Era isso que o passo anterior queria dizer com “o que o Scena guarda”.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Geometria")
+Wallpaper("dark navy")
+
+c1 = Circle(center=(300, 500), radius=60, color="deep sky blue")
+c1.show_handles()
+
+c2 = Circle(center=(600, 350), perimeter_point=(620, 400), color="orchid")
+c2.show_handles()
+
+run()
+`,
+      try: [
+        {
+          note: "A mesma comparação com retângulos. Com <code>p1</code> e <code>p2</code>, o <code>Rect</code> é feito de dois cantos opostos, e cada canto vira uma alça. Com <code>center</code>, <code>width</code> e <code>height</code>, só o centro é ponto; largura e altura são números.",
+          code: `caixa = Rect(p1=(200, 200), p2=(380, 320), color="coral")
+caixa.show_handles()
+
+outra = Rect(center=(600, 280), width=140, height=80, color="gold")
+outra.show_handles()`
+        }
+      ]
+    },
+    {
+      title: "A forma inteira",
+      body: `
+        <p>A alça mexe um ponto de cada vez. Às vezes você quer levar a forma inteira para outro lugar. <code>draggable</code> (arrastável) faz isso: com <code>True</code>, você pega o círculo por qualquer parte do corpo, e ele vai todo junto, com os seus pontos.</p>
+        <p>Os dois gestos convivem. No segundo círculo, pegue a alça da borda e ele muda de tamanho; pegue o corpo, longe das alças, e ele muda de lugar sem mudar de tamanho.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Geometria")
+Wallpaper("dark navy")
+
+c1 = Circle(center=(300, 500), radius=60, color="deep sky blue")
+c1.show_handles()
+c1.draggable = True
+
+c2 = Circle(center=(600, 350), perimeter_point=(620, 400), color="orchid")
+c2.show_handles()
+c2.draggable = True
+
+run()
+`
+    },
+    {
+      title: "Linhas ao vivo",
+      body: `
+        <p>Até aqui, cada forma vive sozinha. Agora vamos criar formas que dependem de outras: linhas que ligam as formas e as seguem quando você arrasta.</p>
+        <p><strong>A caixa.</strong> Primeiro, mais uma forma para ligar: um <code>Rect</code> escrito com dois cantos, <code>p1</code> e <code>p2</code> (ponto 1 e ponto 2). Com alças e <code>draggable</code>, como os círculos, dá para esticá-lo pelos cantos ou levá-lo inteiro.</p>
+        <p><strong>As linhas.</strong> <code>Line</code> (linha) vai de <code>p1</code> a <code>p2</code>. Com pontos prontos, a linha ficaria parada. Aqui cada ponta recebe uma <code>lambda</code>, a palavra-chave do Python que você viu no placar do tutorial 2: ela atribui uma função, algo que calcula um valor a partir do que lê. <code>lambda: c1.center</code> lê o centro de <code>c1</code>. O Scena guarda essa conta e a refaz a cada quadro, então, quando o círculo anda, a ponta da linha anda com ele.</p>
+        <p><strong>Os cantos.</strong> <code>top_left</code> (em cima, à esquerda) e <code>bottom_right</code> (embaixo, à direita) são cantos que o Scena calcula a partir de <code>p1</code> e <code>p2</code>. Por isso <code>l1</code> continua no canto de cima à esquerda mesmo que você arraste um canto da caixa para o outro lado.</p>
+        <p><code>ElectricBolt</code> (raio elétrico) é um visual para linhas: faíscas correndo pelo traço. Rode e arraste qualquer forma. As três linhas seguem: <code>l1</code> e <code>l2</code> ligam a caixa aos círculos, <code>l3</code> liga um círculo ao outro.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Geometria")
+Wallpaper("dark navy")
+
+c1 = Circle(center=(300, 500), radius=60, color="deep sky blue")
+c1.show_handles()
+c1.draggable = True
+
+c2 = Circle(center=(600, 350), perimeter_point=(620, 400), color="orchid")
+c2.show_handles()
+c2.draggable = True
+
+caixa = Rect(p1=(200, 150), p2=(500, 250), color="gold")
+caixa.show_handles()
+caixa.draggable = True
+
+l1 = Line(p1=lambda: caixa.top_left, p2=lambda: c1.center, color="white")
+l2 = Line(p1=lambda: caixa.bottom_right, p2=lambda: c2.center, color="white")
+l3 = Line(p1=lambda: c1.center, p2=lambda: c2.center, color="white")
+
+l1.visual = ElectricBolt()
+l2.visual = ElectricBolt()
+l3.visual = ElectricBolt()
+
+
+run()
+`,
+      try: [
+        {
+          note: "As duas escritas lado a lado. Sem <code>lambda</code>, o Python lê <code>caixa.top_left</code> uma vez, quando a linha nasce, e a ponta fica naquele lugar para sempre. Com <code>lambda</code>, a ponta segue o canto. Cole e arraste a caixa.",
+          code: `Line(p1=caixa.top_left, p2=c1.center)           # cópia agora — não acompanha
+Line(p1=lambda: caixa.top_left, p2=lambda: c1.center)  # ao vivo`
+        }
+      ]
+    },
+    {
+      title: "O segmento",
+      part: "Script 2 · Ponto médio",
+      fresh: true,
+      body: `
+        <p>Aqui começa um script novo, num arquivo novo. Ele vai construir o <strong>ponto médio</strong> de um segmento: o ponto que fica exatamente no meio, à mesma distância das duas pontas. Daria para calcular, somando as pontas e dividindo por dois. Mas não vamos fazer conta nenhuma. Vamos usar só círculos e os pontos onde eles se cruzam, como os geômetras gregos faziam com régua e compasso, há mais de dois mil anos.</p>
+        <p><strong>Por que isso é interessante.</strong> Cada peça da construção vai ser uma forma do Scena, presa às anteriores por <code>lambda</code>. No fim, você arrasta uma ponta do segmento e a construção inteira se refaz, e o ponto médio continua no meio. Uma demonstração do livro de geometria vira uma figura que se mexe e que você testa com o mouse.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 220" role="img" aria-label="Um segmento horizontal; um círculo com centro em cada ponta, passando pela outra; os círculos se cruzam acima e abaixo do segmento; a linha entre os cruzamentos corta o segmento no meio">
+            <circle class="guide" cx="140" cy="110" r="100"/>
+            <circle class="guide" cx="240" cy="110" r="100"/>
+            <line class="ray" x1="190" y1="23.4" x2="190" y2="196.6"/>
+            <rect class="bar" x="140" y="108.5" width="100" height="3"/>
+            <circle class="dot" cx="140" cy="110" r="4.5"/>
+            <circle class="dot" cx="240" cy="110" r="4.5"/>
+            <circle class="dot" cx="190" cy="23.4" r="3.5"/>
+            <circle class="dot" cx="190" cy="196.6" r="3.5"/>
+            <circle class="hot" cx="190" cy="110" r="5"/>
+            <text x="134" y="128" text-anchor="end">ponta1</text>
+            <text x="246" y="128">ponta2</text>
+            <text x="197" y="100">meio</text>
+            <text x="197" y="78">corda</text>
+            <text x="30" y="36">circulo1</text>
+            <text x="350" y="36" text-anchor="end">circulo2</text>
+          </svg>
+          <figcaption>A construção completa. Cada círculo tem o centro numa ponta e passa pela outra. A linha entre os dois cruzamentos corta o segmento no meio.</figcaption>
+        </figure>
+        <p>Vamos montá-la peça por peça, começando pelo segmento.</p>
+        <p><strong>As pontas.</strong> <code>Anchor</code> (âncora) é um ponto que já nasce visível e arrastável, com a sua alça: é o ponto de partida de uma construção, a peça que o mouse move. <code>Anchor(420, 320)</code> recebe x e y. O <code>segmento</code> é uma <code>Line</code> com <code>lambda</code> nas pontas, como as linhas do primeiro script. <code>line_width</code> (largura da linha) é a espessura do traço: o normal é 1.5, e 3 deixa o segmento mais grosso que as linhas que virão depois.</p>
+        <p>Rode e arraste as duas bolinhas vermelhas. O segmento não tem alças nem <code>draggable</code>: quem se mexe são as âncoras, e ele só as segue.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Ponto médio")
+Wallpaper("dark navy")
+
+ponta1 = Anchor(420, 320)
+ponta2 = Anchor(580, 380)
+
+segmento = Line(p1=lambda: ponta1.center, p2=lambda: ponta2.center, color="white")
+segmento.line_width = 3
+
+run()
+`,
+      try: [
+        {
+          note: "A comparação do primeiro script, agora com as âncoras. Cole e arraste uma ponta: a linha sem <code>lambda</code> fica onde nasceu.",
+          code: `Line(p1=ponta1.center, p2=ponta2.center)         # cópia agora — não acompanha
+Line(p1=lambda: ponta1.center, p2=lambda: ponta2.center)  # ao vivo`
+        }
+      ]
+    },
+    {
+      title: "Compasso",
+      body: `
+        <p>Primeiro movimento do compasso: a ponta seca em <code>ponta1</code>, a abertura até <code>ponta2</code>. Em código, é o círculo de dois pontos do primeiro script: <code>center</code> na primeira ponta, <code>perimeter_point</code> na segunda. Assim o raio é sempre o comprimento do segmento. As duas posições são <code>lambda</code>, então o círculo segue as âncoras: afaste-as, e ele cresce.</p>
+        <p><strong>Só o contorno.</strong> Na construção, o que interessa é a borda do círculo; um disco pintado cobriria o resto. <code>fill</code> (preenchimento) é a tinta de dentro da forma. <code>None</code> (nenhum) é o valor do Python para “nada”, então o círculo fica oco, só com o contorno, num tom mais escuro da cor. <code>line_width = 2</code> engrossa um pouco esse contorno, para ele aparecer bem sobre o fundo.</p>
+        <p>Rode: o segmento sai do centro do círculo e termina exatamente na borda.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Ponto médio")
+Wallpaper("dark navy")
+
+ponta1 = Anchor(420, 320)
+ponta2 = Anchor(580, 380)
+
+segmento = Line(p1=lambda: ponta1.center, p2=lambda: ponta2.center, color="white")
+segmento.line_width = 3
+
+# Compasso: centro numa ponta, raio até a outra
+circulo1 = Circle(
+    center=lambda: ponta1.center,
+    perimeter_point=lambda: ponta2.center,
+    color="deep sky blue",
+)
+circulo1.fill = None
+circulo1.line_width = 2
+
+run()
+`,
+      try: [
+        {
+          note: "Com o círculo vale o mesmo. Sem <code>lambda</code>, centro e borda são lidos uma vez e o círculo fica parado onde nasceu; com <code>lambda</code>, ele acompanha as âncoras.",
+          code: `Circle(center=ponta1.center, perimeter_point=ponta2.center)  # cópia agora
+Circle(
+    center=lambda: ponta1.center,
+    perimeter_point=lambda: ponta2.center,
+)  # ao vivo`
+        }
+      ]
+    },
+    {
+      title: "O outro círculo",
+      body: `
+        <p>Segundo movimento do compasso, com as pontas trocadas: centro em <code>ponta2</code>, borda em <code>ponta1</code>. O raio é o mesmo do primeiro círculo, o comprimento do segmento.</p>
+        <p>Agora os dois contornos se cruzam em dois pontos, um de cada lado do segmento. E sempre se cruzam: o centro de cada círculo está na borda do outro, então eles nunca ficam longe demais nem um dentro do outro. Arraste as âncoras e veja os cruzamentos andarem. Por enquanto, eles são só um desenho: o Scena ainda não sabe onde ficam.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Ponto médio")
+Wallpaper("dark navy")
+
+ponta1 = Anchor(420, 320)
+ponta2 = Anchor(580, 380)
+
+segmento = Line(p1=lambda: ponta1.center, p2=lambda: ponta2.center, color="white")
+segmento.line_width = 3
+
+# Compasso: centro numa ponta, raio até a outra
+circulo1 = Circle(
+    center=lambda: ponta1.center,
+    perimeter_point=lambda: ponta2.center,
+    color="deep sky blue",
+)
+circulo1.fill = None
+circulo1.line_width = 2
+
+circulo2 = Circle(
+    center=lambda: ponta2.center,
+    perimeter_point=lambda: ponta1.center,
+    color="orchid",
+)
+circulo2.fill = None
+circulo2.line_width = 2
+
+run()
+`
+    },
+    {
+      title: "Cruzamentos",
+      body: `
+        <p>Para ligar uma linha nos cruzamentos, precisamos deles como pontos. Este passo os transforma em pontos que acompanham os círculos.</p>
+        <p><strong>A interseção.</strong> <code>intersection(circulo1, circulo2, 0)</code> (interseção) devolve um lugar onde os contornos das duas formas se cruzam, como <code>(x, y)</code>. Dois círculos se cruzam em até dois lugares, então o terceiro valor escolhe qual: <code>0</code> é o primeiro, <code>1</code> é o segundo.</p>
+        <p><strong>O ponto.</strong> <code>Point</code> (ponto) é uma posição, sem corpo. Com uma <code>lambda</code>, a posição é a da fórmula: a cada quadro, o Scena refaz a interseção, e o ponto vai para lá. Um <code>Point</code> nasce invisível, porque quase sempre só serve de apoio para outras formas. <code>visible = True</code> (visível) mostra uma marquinha nele, e <code>.color</code> a pinta de branco.</p>
+        <p>Rode e arraste as âncoras: as duas marcas brancas ficam grudadas nos cruzamentos.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Ponto médio")
+Wallpaper("dark navy")
+
+ponta1 = Anchor(420, 320)
+ponta2 = Anchor(580, 380)
+
+segmento = Line(p1=lambda: ponta1.center, p2=lambda: ponta2.center, color="white")
+segmento.line_width = 3
+
+# Compasso: centro numa ponta, raio até a outra
+circulo1 = Circle(
+    center=lambda: ponta1.center,
+    perimeter_point=lambda: ponta2.center,
+    color="deep sky blue",
+)
+circulo1.fill = None
+circulo1.line_width = 2
+
+circulo2 = Circle(
+    center=lambda: ponta2.center,
+    perimeter_point=lambda: ponta1.center,
+    color="orchid",
+)
+circulo2.fill = None
+circulo2.line_width = 2
+
+# Os dois cruzamentos (visíveis antes da corda)
+cruzamento1 = Point(lambda: intersection(circulo1, circulo2, 0))
+cruzamento1.visible = True
+cruzamento1.color = "white"
+
+cruzamento2 = Point(lambda: intersection(circulo1, circulo2, 1))
+cruzamento2.visible = True
+cruzamento2.color = "white"
+
+run()
+`
+    },
+    {
+      title: "A corda",
+      body: `
+        <p>Agora a linha que acha o meio. A <code>corda</code> é uma <code>Line</code> de um cruzamento ao outro. Desta vez cada <code>lambda</code> devolve o próprio ponto, <code>cruzamento1</code> ou <code>cruzamento2</code>, sem <code>.center</code>: um <code>Point</code> já é uma posição. Em geometria, corda é uma linha que liga dois pontos da borda de um círculo. Esta é corda dos dois círculos ao mesmo tempo.</p>
+        <p><strong>Por que ela passa pelo meio.</strong> Cada cruzamento está na borda dos dois círculos. Então fica à distância de um raio de <code>ponta1</code> e à mesma distância de <code>ponta2</code>. Os pontos que ficam à mesma distância das duas pontas formam uma reta, a <strong>mediatriz</strong> do segmento, que o atravessa bem no meio e em ângulo reto. A corda liga dois pontos dessa reta, então está sobre ela.</p>
+        <p><strong>O traço.</strong> <code>dash</code> (tracejado) muda o desenho do traço: <code>"dash"</code> é em tracinhos. O comentário lista os outros: <code>"dot"</code> (pontinhos), <code>"dot-dash"</code> (ponto e traço) e <code>"solid"</code> (contínuo, o normal). Tracejada, a corda se lê como uma linha de construção, um apoio, e não como parte da figura.</p>
+        <p>Rode e gire o segmento arrastando uma ponta: a corda gira junto e continua em ângulo reto com ele.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Ponto médio")
+Wallpaper("dark navy")
+
+ponta1 = Anchor(420, 320)
+ponta2 = Anchor(580, 380)
+
+segmento = Line(p1=lambda: ponta1.center, p2=lambda: ponta2.center, color="white")
+segmento.line_width = 3
+
+# Compasso: centro numa ponta, raio até a outra
+circulo1 = Circle(
+    center=lambda: ponta1.center,
+    perimeter_point=lambda: ponta2.center,
+    color="deep sky blue",
+)
+circulo1.fill = None
+circulo1.line_width = 2
+
+circulo2 = Circle(
+    center=lambda: ponta2.center,
+    perimeter_point=lambda: ponta1.center,
+    color="orchid",
+)
+circulo2.fill = None
+circulo2.line_width = 2
+
+# Os dois cruzamentos (visíveis antes da corda)
+cruzamento1 = Point(lambda: intersection(circulo1, circulo2, 0))
+cruzamento1.visible = True
+cruzamento1.color = "white"
+
+cruzamento2 = Point(lambda: intersection(circulo1, circulo2, 1))
+cruzamento2.visible = True
+cruzamento2.color = "white"
+
+# Corda entre os cruzamentos (mediatriz)
+corda = Line(p1=lambda: cruzamento1, p2=lambda: cruzamento2, color="gold")
+corda.line_width = 2
+corda.dash = "dash"  # ou "dot", "dot-dash", "solid"
+
+run()
+`
+    },
+    {
+      title: "O ponto médio",
+      example: "ponto_medio.py",
+      body: `
+        <p>Falta marcar o meio. Ele está onde a corda cruza o segmento, e esse lugar sai da mesma <code>intersection</code>, agora entre duas linhas: <code>intersection(corda, segmento, 0)</code>. Duas linhas retas se cruzam num lugar só, então o <code>0</code> basta.</p>
+        <p>O resultado vai direto para o <code>center</code> de um <code>Circle</code> de raio 8, em vez de um <code>Point</code>: queremos uma marca maior, dourada e com <code>glow</code> (brilho).</p>
+        <p>Rode e arraste as âncoras para longe, para perto, uma em volta da outra. Cada peça lê a anterior: as âncoras, o segmento, os círculos, os cruzamentos, a corda e o meio. Quando uma âncora anda, a construção inteira se refaz, e a marca dourada nunca sai do meio. Nenhuma linha do script faz a conta do ponto médio: ele saiu só de círculos e cruzamentos.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Ponto médio")
+Wallpaper("dark navy")
+
+ponta1 = Anchor(420, 320)
+ponta2 = Anchor(580, 380)
+
+segmento = Line(p1=lambda: ponta1.center, p2=lambda: ponta2.center, color="white")
+segmento.line_width = 3
+
+# Compasso: centro numa ponta, raio até a outra
+circulo1 = Circle(
+    center=lambda: ponta1.center,
+    perimeter_point=lambda: ponta2.center,
+    color="deep sky blue",
+)
+circulo1.fill = None
+circulo1.line_width = 2
+
+circulo2 = Circle(
+    center=lambda: ponta2.center,
+    perimeter_point=lambda: ponta1.center,
+    color="orchid",
+)
+circulo2.fill = None
+circulo2.line_width = 2
+
+# Os dois cruzamentos (visíveis antes da corda)
+cruzamento1 = Point(lambda: intersection(circulo1, circulo2, 0))
+cruzamento1.visible = True
+cruzamento1.color = "white"
+
+cruzamento2 = Point(lambda: intersection(circulo1, circulo2, 1))
+cruzamento2.visible = True
+cruzamento2.color = "white"
+
+# Corda entre os cruzamentos (mediatriz)
+corda = Line(p1=lambda: cruzamento1, p2=lambda: cruzamento2, color="gold")
+corda.line_width = 2
+corda.dash = "dash"  # ou "dot", "dot-dash", "solid"
+
+# Ponto médio = interseção da corda com o segmento
+meio = Circle(
+    center=lambda: intersection(corda, segmento, 0),
+    radius=8,
+    color="gold",
+)
+meio.glow = True
+
+run()
+`,
+      closing: `
+        <p>Arraste as âncoras nas pontas do segmento. Os círculos, a corda e o ponto médio acompanham.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,774 @@
+"""Editor controller headless: tools, selection, gestures, undo, files.
+
+Pointer events are world coordinates (y up), as the host passes them. A fake
+viewport stands in for Scena's camera.
+
+Run: python -m unittest scena_editor.tests.test_editor_tools
+"""
+import json
+import os
+import shutil
+import sys
+import tempfile
+import unittest
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "tests"))
+
+import hypothesis_support  # noqa: E402,F401  (loads the Hypothesis profile)
+from hypothesis import given, settings, strategies as hst  # noqa: E402
+
+from scena.level_format import parse  # noqa: E402
+from scena_editor import geometry as geo  # noqa: E402
+from scena_editor.doc import LevelDoc  # noqa: E402
+from scena_editor.tools import MIDDLE, Editor  # noqa: E402
+
+
+class FakeViewport:
+    """Camera: ``look`` (world point at the view center) + ``zoom``.
+    ``pan_by`` moves the content, like ``canvas.pan_by``."""
+
+    def __init__(self, zoom=1.0, look=(0.0, 0.0)):
+        self.zoom = zoom
+        self.look = list(look)
+        self.fitted = None
+        self.reset_to = None
+
+    def pan_by(self, dx, dy):
+        self.look[0] -= dx
+        self.look[1] -= dy
+
+    def zoom_about(self, factor, x, y):
+        # keep (x, y) where it is on screen
+        sx, sy = self.to_screen(x, y)
+        self.zoom *= factor
+        wx, wy = self.to_world(sx, sy)
+        self.look[0] += x - wx
+        self.look[1] += y - wy
+
+    def fit(self, box):
+        self.fitted = box
+
+    def actual_size(self):
+        self.zoom = 1.0
+
+    def to_world(self, sx, sy):
+        return self.look[0] + sx / self.zoom, self.look[1] + sy / self.zoom
+
+    def to_screen(self, x, y):
+        return (x - self.look[0]) * self.zoom, (y - self.look[1]) * self.zoom
+
+
+def ed(zoom=1.0):
+    e = Editor(LevelDoc((1000, 800)), FakeViewport(zoom))
+    return e
+
+
+def drag(e, a, b, steps=4, button=0, shift=False, space=False):
+    e.pointer_down(*a, button, shift=shift, space=space)
+    for i in range(1, steps + 1):
+        e.pointer_move(a[0] + (b[0] - a[0]) * i / steps, a[1] + (b[1] - a[1]) * i / steps,
+                       shift=shift)
+    e.pointer_up(*b, button, shift=shift)
+
+
+def click(e, p, shift=False):
+    e.pointer_down(*p, shift=shift)
+    e.pointer_up(*p, shift=shift)
+
+
+class TestCreate(unittest.TestCase):
+    def test_rect_by_drag_snaps_corners(self):
+        e = ed()
+        e.set_tool("rect")
+        drag(e, (11, 19), (98, 51))
+        item = e.single()
+        self.assertEqual(item["kind"], "rect")
+        self.assertEqual(geo.aabb(item), (10, 20, 100, 50))
+        self.assertEqual(e.tool, "select")
+        self.assertTrue(e.history.can_undo)
+
+    def test_shift_draws_without_snap(self):
+        e = ed()
+        e.set_tool("ellipse")
+        drag(e, (11, 19), (98, 51), shift=True)
+        self.assertEqual(geo.aabb(e.single()), (11, 19, 98, 51))
+
+    def test_circle_and_line(self):
+        e = ed()
+        e.set_tool("circle")
+        drag(e, (100, 100), (130, 140))
+        self.assertEqual(e.single()["radius"], 50.0)
+        e.set_tool("line")
+        drag(e, (0, 0), (52, 0))
+        self.assertEqual((e.single()["p1"], e.single()["p2"]), ((0, 0), (50, 0)))
+
+    def test_click_makes_a_default_shape(self):
+        """A click (no drag) with a shape tool makes a DEFAULT_SIZE shape at the
+        snapped click — rect / ellipse top-left there, circle centered, line to
+        the right — one undo step, then back to Select with it selected."""
+        want = {
+            "rect": {"center": (60, 160), "width": 100, "height": 100},
+            "ellipse": {"center": (60, 160), "width": 100, "height": 100},
+            "circle": {"center": (10, 210), "radius": 50},
+            "line": {"p1": (10, 210), "p2": (110, 210)},
+        }
+        for tool, fields in want.items():
+            with self.subTest(tool=tool):
+                e = ed()
+                e.set_tool(tool)
+                click(e, (12, 208))
+                item = e.single()
+                self.assertEqual(item["kind"], tool)
+                for key, value in fields.items():
+                    self.assertEqual(item[key], value, key)
+                self.assertEqual(e.tool, "select")
+                self.assertEqual(e.selection, [item["id"]])
+                self.assertTrue(e.undo())
+                self.assertEqual(e.doc.items, [])
+                self.assertFalse(e.history.can_undo)
+
+    def test_regular_polygon_click_and_drag(self):
+        """A click: a hexagon of radius 50 centered on the snapped click, a
+        vertex on top. A drag from the center out sets the radius (snapped)."""
+        e = ed()
+        e.set_tool("regular_polygon")
+        click(e, (12, 208))
+        item = e.single()
+        self.assertEqual((item["kind"], item["center"], item["radius"], item["n"],
+                          item["angle"]), ("regular_polygon", (10, 210), 50, 6, 90))
+        self.assertEqual(e.tool, "select")
+        e.set_tool("regular_polygon")
+        drag(e, (300, 300), (300, 337))
+        self.assertEqual((e.single()["center"], e.single()["radius"]), ((300, 300), 40))
+        e.set_tool("regular_polygon")
+        drag(e, (500, 500), (503, 503))                    # a drag (> 3 px) to radius 0: dropped
+        self.assertEqual(len(e.doc.items), 2)
+
+    def test_regular_polygon_handles_resize_and_turn(self):
+        e = ed()
+        a = e.doc.add({"kind": "regular_polygon", "center": (100, 100), "radius": 50, "n": 5,
+                       "angle": 90})
+        e.history.commit()
+        e.selection = [a]
+        radius, knob = geo.handles(e.doc.get(a), 20)
+        self.assertEqual(radius.role, "radius")
+        self.assertAlmostEqual(radius.x, 100)
+        self.assertAlmostEqual(radius.y, 150)               # vertex 0, on top
+        self.assertEqual(knob.role, "rotate")
+        self.assertAlmostEqual(knob.y, 170)                 # further out on the spoke
+        drag(e, (radius.x, radius.y), (100, 172))
+        self.assertEqual(e.doc.get(a)["radius"], 70)
+        radius, knob = geo.handles(e.doc.get(a), 20)
+        drag(e, (knob.x, knob.y), (190, 100 + 3))           # toward +x: angle ~0, snaps 15°
+        self.assertEqual(e.doc.get(a)["angle"], 0)
+        self.assertEqual(e.doc.get(a)["n"], 5)
+
+    def test_default_shape_corners_land_on_every_grid(self):
+        """DEFAULT_SIZE is a multiple of every grid step: all corners snap."""
+        from scena_editor.tools import DEFAULT_SIZE, GRID_SIZES
+        for grid in GRID_SIZES:
+            self.assertEqual(DEFAULT_SIZE % grid, 0, grid)
+        e = ed()
+        e.grid = 20.0
+        e.set_tool("rect")
+        click(e, (47, 93))
+        x0, y0, x1, y1 = geo.aabb(e.single())
+        self.assertEqual([v % 20 for v in (x0, y0, x1, y1)], [0, 0, 0, 0])
+
+    def test_shift_click_default_is_unsnapped(self):
+        e = ed()
+        e.set_tool("rect")
+        click(e, (12, 208), shift=True)
+        self.assertEqual(e.single()["center"], (62, 158))
+
+    def test_tool_keys(self):
+        """P → Point (used most), A → Path, G → Polygon; T is free. Every key
+        names a tool, every tool has one key."""
+        from scena_editor.tools import KEY_OF, TOOL_KEYS, TOOLS
+        self.assertEqual(sorted(TOOL_KEYS.values()), sorted(TOOLS))
+        self.assertEqual(len(KEY_OF), len(TOOL_KEYS))
+        for key, tool in (("P", "point"), ("A", "track"), ("G", "polygon"), ("V", "select"),
+                          ("H", "hand")):
+            e = ed()
+            self.assertTrue(e.key(key))
+            self.assertEqual(e.tool, tool)
+        e = ed()
+        self.assertFalse(e.key("T"))
+        self.assertEqual(e.tool, "select")
+
+    def test_flat_drag_is_discarded(self):
+        e = ed()
+        e.set_tool("rect")
+        drag(e, (10, 10), (60, 12))   # snaps to zero height
+        self.assertEqual(e.doc.items, [])
+        self.assertFalse(e.history.can_undo)
+
+    def test_point_click(self):
+        e = ed()
+        e.set_tool("point")
+        click(e, (33, 47))
+        self.assertEqual(e.single()["center"], (30, 50))
+
+    def test_polygon_enter_and_double_click(self):
+        e = ed()
+        e.set_tool("polygon")
+        for p in ((0, 0), (100, 0), (50, 80)):
+            click(e, p)
+        e.key("ENTER")
+        self.assertEqual(e.single()["kind"], "polygon")
+        self.assertEqual(len(e.single()["points"]), 3)
+        e.set_tool("track")
+        for p in ((0, 0), (100, 0)):
+            click(e, p)
+        click(e, (100, 0))           # the second press of a double click
+        e.double_click(100, 0)
+        self.assertEqual(e.single()["points"], ((0, 0), (100, 0)))
+
+    def test_too_few_points_and_esc(self):
+        e = ed()
+        e.set_tool("polygon")
+        click(e, (0, 0))
+        click(e, (10, 0))
+        self.assertFalse(e.finish_points())
+        self.assertEqual(e.doc.items, [])
+        e.set_tool("track")
+        click(e, (0, 0))
+        e.key("ESC")
+        self.assertEqual(e.pending, [])
+
+    def test_image_request_and_add(self):
+        e = ed()
+        e.set_tool("image")
+        self.assertTrue(e.image_requested)
+        e.add_image("/abs/fundo.png", (64, 32), (500, 400))
+        item = e.single()
+        self.assertEqual((item["width"], item["height"]), (64, 32))
+        self.assertFalse(e.image_requested)
+
+
+class TestSelectAndMove(unittest.TestCase):
+    def setUp(self):
+        self.e = ed()
+        self.a = self.e.doc.add({"kind": "rect", "center": (100, 100), "width": 40, "height": 20})
+        self.b = self.e.doc.add({"kind": "rect", "center": (300, 100), "width": 40, "height": 20})
+        self.e.history.commit()
+
+    def test_click_selects_and_empty_click_clears(self):
+        click(self.e, (100, 100))
+        self.assertEqual(self.e.selection, [self.a])
+        click(self.e, (700, 700))
+        self.assertEqual(self.e.selection, [])
+
+    def test_shift_click_toggles(self):
+        click(self.e, (100, 100))
+        click(self.e, (300, 100), shift=True)
+        self.assertEqual(self.e.selection, [self.a, self.b])
+        click(self.e, (100, 100), shift=True)
+        self.assertEqual(self.e.selection, [self.b])
+
+    def test_drag_at_the_center_snaps_bottom_left(self):
+        drag(self.e, (100, 100), (133, 104))
+        item = self.e.doc.get(self.a)
+        x0, y0, _x1, _y1 = geo.aabb(item)
+        self.assertEqual((x0 % 10, y0 % 10), (0, 0))
+        self.assertEqual(item["center"], (130, 100))
+        self.assertTrue(self.e.history.can_undo)
+
+    def test_drag_snaps_the_grabbed_corner(self):
+        """Moving snaps the corner of the selection's box nearest the press
+        (off-grid 137 × 83 shape: only that corner can land on the grid). The
+        grabs sit inside the box, clear of the corner and edge handles."""
+        e = ed()
+        a = e.doc.add({"kind": "rect", "center": (203.5, 201.5), "width": 137, "height": 83})
+        e.history.commit()                  # box 135..272 × 160..243
+        for grab, corner in (((250, 225), (2, 3)), ((155, 175), (0, 1)),
+                             ((155, 225), (0, 3)), ((250, 175), (2, 1))):
+            with self.subTest(grab=grab):
+                before = dict(e.doc.get(a))
+                drag(e, grab, (grab[0] + 41, grab[1] - 17))
+                box = geo.aabb(e.doc.get(a))
+                self.assertEqual((box[corner[0]] % 10, box[corner[1]] % 10), (0, 0), box)
+                e.undo()
+                self.assertEqual(e.doc.get(a), before)
+
+    def test_multi_selection_snaps_the_union_corner(self):
+        click(self.e, (100, 100))
+        click(self.e, (300, 100), shift=True)
+        self.e.doc.update(self.b, center=(303, 104))     # union box: 80..323 × 90..114
+        drag(self.e, (310, 108), (337, 121))             # nearest corner: top-right
+        x0, y0, x1, y1 = geo.union_aabb([self.e.doc.get(self.a), self.e.doc.get(self.b)])
+        self.assertEqual((x1 % 10, y1 % 10), (0, 0))
+
+    def test_shift_drag_moves_free(self):
+        click(self.e, (100, 100))
+        drag(self.e, (100, 100), (133, 104), shift=True)
+        self.assertEqual(self.e.doc.get(self.a)["center"], (133, 104))
+
+    def test_drag_moves_every_selected(self):
+        click(self.e, (100, 100))
+        click(self.e, (300, 100), shift=True)
+        drag(self.e, (300, 100), (300, 150))
+        self.assertEqual(self.e.doc.get(self.a)["center"], (100, 150))
+        self.assertEqual(self.e.doc.get(self.b)["center"], (300, 150))
+
+    def test_locked_items_select_but_do_not_move(self):
+        self.e.doc.update(self.a, locked=True)
+        drag(self.e, (100, 100), (200, 200))
+        self.assertEqual(self.e.selection, [self.a])
+        self.assertEqual(self.e.doc.get(self.a)["center"], (100, 100))
+        self.assertEqual(self.e.handles(), [])
+
+    def test_rubber_band_and_shift_adds(self):
+        drag(self.e, (0, 0), (200, 200), shift=True)
+        self.assertEqual(self.e.selection, [self.a])
+        drag(self.e, (250, 0), (400, 200), shift=True)
+        self.assertEqual(self.e.selection, [self.a, self.b])
+        self.assertIsNone(self.e.band)
+
+    def test_empty_drag_box_selects_and_replaces(self):
+        click(self.e, (300, 100))
+        drag(self.e, (0, 0), (200, 200))
+        self.assertEqual(self.e.selection, [self.a])
+        self.assertEqual(self.e.viewport.look, [0.0, 0.0])      # no pan
+
+    def test_hand_tool_pans_and_keeps_the_grabbed_point(self):
+        e, vp = self.e, self.e.viewport
+        e.set_tool("hand")
+        vp.zoom = 0.5
+        grab_screen = (40.0, -30.0)
+        grab = vp.to_world(*grab_screen)
+        e.pointer_down(*grab)
+        for i in range(1, 6):
+            screen = (40.0 + 25 * i, -30.0 + 10 * i)
+            e.pointer_move(*vp.to_world(*screen))       # fresh world point per event
+            under = vp.to_world(*screen)
+            self.assertAlmostEqual(under[0], grab[0])
+            self.assertAlmostEqual(under[1], grab[1])
+        e.pointer_up(*vp.to_world(*screen))
+        self.assertEqual(e.selection, [])
+
+    def test_middle_and_space_pan_even_over_items(self):
+        vp = self.e.viewport
+        drag(self.e, (100, 100), (150, 100), button=MIDDLE)
+        self.assertEqual(self.e.doc.get(self.a)["center"], (100, 100))
+        self.assertNotEqual(vp.look, [0.0, 0.0])
+
+    def test_click_again_cycles_through_overlaps(self):
+        c = self.e.doc.add({"kind": "rect", "center": (100, 100), "width": 10, "height": 10})
+        click(self.e, (100, 100))
+        self.assertEqual(self.e.selection, [c])          # topmost
+        click(self.e, (100, 100))
+        self.assertEqual(self.e.selection, [self.a])     # the one under it
+
+    def test_nudge_delete_duplicate_restack(self):
+        click(self.e, (100, 100))
+        self.e.key("RIGHT")
+        self.assertEqual(self.e.doc.get(self.a)["center"], (101, 100))
+        self.e.key("UP", shift=True)
+        self.assertEqual(self.e.doc.get(self.a)["center"], (101, 110))
+        self.e.duplicate()
+        self.assertEqual(len(self.e.doc.items), 3)
+        copy = self.e.single()
+        self.e.restack(front=False)
+        self.assertEqual(self.e.doc.items[0]["id"], copy["id"])
+        self.e.delete()
+        self.assertEqual(len(self.e.doc.items), 2)
+
+
+class TestHandles(unittest.TestCase):
+    def test_resize_corner_keeps_opposite_corner(self):
+        e = ed()
+        a = e.doc.add({"kind": "rect", "center": (100, 100), "width": 40, "height": 20})
+        e.selection = [a]
+        drag(e, (120, 110), (150, 140))               # top-right handle
+        self.assertEqual(geo.aabb(e.doc.get(a)), (80, 90, 150, 140))
+
+    def test_rotate_snaps_to_15(self):
+        e = ed()
+        a = e.doc.add({"kind": "rect", "center": (0, 0), "width": 40, "height": 20})
+        e.selection = [a]
+        knob = [h for h in e.handles() if h.role == "rotate"][0]
+        drag(e, (knob.x, knob.y), (-50, 47))
+        self.assertEqual(e.doc.get(a)["angle"] % 15, 0)
+
+    def test_circle_radius_line_end_vertex(self):
+        e = ed()
+        c = e.doc.add({"kind": "circle", "center": (0, 0), "radius": 10})
+        e.selection = [c]
+        drag(e, (10, 0), (33, 0))
+        self.assertEqual(e.doc.get(c)["radius"], 30)
+        p = e.doc.add({"kind": "polygon", "points": [(0, 0), (100, 0), (50, 80)]})
+        e.selection = [p]
+        drag(e, (50, 80), (52, 99))
+        self.assertEqual(e.doc.get(p)["points"][2], (50, 100))
+
+
+class TestToolsAndImages(unittest.TestCase):
+    def test_choosing_select_clears_the_selection(self):
+        e = ed()
+        a = e.doc.add({"kind": "point", "center": (0, 0)})
+        e.selection = [a]
+        e.set_tool("select")
+        self.assertEqual(e.selection, [])
+
+    def test_drawing_ends_in_select_with_the_new_item_selected(self):
+        e = ed()
+        e.set_tool("rect")
+        drag(e, (0, 0), (50, 50))
+        self.assertEqual(e.tool, "select")
+        self.assertEqual(len(e.selection), 1)
+
+    def test_replace_image_keeps_center_angle_height(self):
+        e = ed()
+        a = e.doc.add({"kind": "image", "file": "a.png", "center": (5, 6), "width": 40,
+                       "height": 20, "angle": 30})
+        e.history.commit()
+        self.assertTrue(e.replace_image(a, "b.png", (300, 100)))
+        item = e.doc.get(a)
+        self.assertEqual((item["file"], item["center"], item["angle"]), ("b.png", (5, 6), 30))
+        self.assertEqual((item["width"], item["height"]), (60.0, 20.0))
+        e.undo()
+        self.assertEqual(e.doc.get(a)["file"], "a.png")
+
+    def test_actual_size(self):
+        e = ed(zoom=0.3)
+        e.actual_size()
+        self.assertEqual(e.viewport.zoom, 1.0)
+
+
+class TestClipboardAndRounding(unittest.TestCase):
+    def test_copy_paste_offsets_names_and_selects(self):
+        e = ed()
+        a = e.doc.add({"kind": "rect", "name": "chao", "groups": ["g"], "center": (100, 100),
+                       "width": 40, "height": 20})
+        e.selection = [a]
+        self.assertIn("chao = Rect(", e.copy())
+        first = e.paste()
+        second = e.paste()
+        self.assertEqual(e.doc.get(first[0])["center"], (110, 90))
+        self.assertEqual(e.doc.get(second[0])["center"], (120, 80))
+        self.assertEqual(e.doc.get(first[0])["name"], "chao_2")
+        self.assertEqual(e.doc.get(first[0])["groups"], ("g",))
+        self.assertEqual(e.selection, second)
+        e.undo()
+        self.assertFalse(e.doc.has(second[0]))
+
+    def test_cut_and_paste_into_a_new_level(self):
+        e = ed()
+        a = e.doc.add({"kind": "point", "name": "inicio", "center": (5, 5)})
+        e.selection = [a]
+        e.cut()
+        self.assertEqual(e.doc.items, [])
+        e.set_doc(LevelDoc())
+        new = e.paste()
+        self.assertEqual(e.doc.get(new[0])["name"], "inicio")    # free in this level
+
+    def test_line_end_fields(self):
+        e = ed()
+        a = e.doc.add({"kind": "line", "p1": (0, 0), "p2": (10, 0)})
+        e.selection = [a]
+        self.assertTrue(e.set_field("x2", 30))
+        self.assertTrue(e.set_field("y1", -5))
+        self.assertEqual((e.doc.get(a)["p1"], e.doc.get(a)["p2"]), ((0, -5), (30, 0)))
+
+    def test_editor_keeps_two_decimals(self):
+        e = ed()
+        a = e.doc.add({"kind": "rect", "center": (1 / 3, 2 / 3), "width": 239.99999999999994,
+                       "height": 10, "angle": 30.000000001})
+        item = e.doc.get(a)
+        self.assertEqual((item["center"], item["width"], item["angle"]),
+                         ((0.33, 0.67), 240.0, 30.0))
+        e.selection = [a]
+        drag(e, (0.33, 0.67), (17.123456, 3.987654), shift=True)
+        cx, cy = e.doc.get(a)["center"]
+        self.assertEqual((cx, cy), (round(cx, 2), round(cy, 2)))
+
+    def test_files_and_code_have_no_float_noise(self):
+        from scena.level_format import code_for, serialize
+        item = {"kind": "rect", "name": None, "groups": (), "locked": False,
+                "center": (866.9565217391305, 570.0), "width": 239.99999999999994,
+                "height": 20.0, "angle": 0.0}
+        self.assertIn("width=240,", code_for(item))
+        out = serialize({"size": (100.0, 100.0), "items": [item]})["items"][0]
+        self.assertEqual(out["width"], 240)
+        self.assertEqual(out["center"], [866.956522, 570])
+
+
+class TestUndo(unittest.TestCase):
+    def test_one_step_per_gesture_and_exact_restore(self):
+        e = ed()
+        e.set_tool("rect")
+        drag(e, (0, 0), (100, 50))
+        after_create = e.doc.snapshot()
+        drag(e, (50, 25), (90, 25), steps=10)     # many moves, one step
+        e.undo()
+        self.assertEqual(e.doc.snapshot(), after_create)
+        e.undo()
+        self.assertEqual(e.doc.items, [])
+        self.assertFalse(e.history.can_undo)
+        e.redo()
+        e.redo()
+        self.assertEqual(len(e.doc.items), 1)
+        self.assertEqual(e.doc.items[0]["center"], (90, 25))
+
+    def test_new_edit_clears_redo(self):
+        e = ed()
+        e.set_tool("point")
+        click(e, (0, 0))
+        e.undo()
+        e.set_tool("point")
+        click(e, (50, 50))
+        self.assertFalse(e.redo())
+
+    def test_selection_and_pan_are_not_steps(self):
+        e = ed()
+        e.doc.add({"kind": "point", "center": (0, 0)})
+        e.history.commit()
+        steps = len(e.history._past)
+        click(e, (0, 0))
+        drag(e, (500, 500), (600, 600))
+        self.assertEqual(len(e.history._past), steps)
+
+    def test_undo_back_to_saved_is_clean(self):
+        e = ed()
+        self.assertFalse(e.doc.dirty)
+        e.set_tool("point")
+        click(e, (0, 0))
+        self.assertTrue(e.doc.dirty)
+        e.undo()
+        self.assertFalse(e.doc.dirty)
+
+    def test_esc_cancels_a_drag(self):
+        e = ed()
+        a = e.doc.add({"kind": "rect", "center": (100, 100), "width": 40, "height": 20})
+        e.history.commit()
+        e.pointer_down(100, 100)
+        e.pointer_move(200, 200)
+        e.key("ESC")
+        self.assertEqual(e.doc.get(a)["center"], (100, 100))
+
+
+class TestPanel(unittest.TestCase):
+    def test_fields_names_groups(self):
+        e = ed()
+        a = e.doc.add({"kind": "rect", "center": (100, 100), "width": 40, "height": 20})
+        b = e.doc.add({"kind": "line", "p1": (0, 0), "p2": (10, 0)})
+        e.selection = [a]
+        self.assertTrue(e.set_field("name", "chao"))
+        self.assertTrue(e.set_field("groups", "plataforma, especial, plataforma"))
+        self.assertEqual(e.doc.get(a)["groups"], ("plataforma", "especial"))
+        self.assertTrue(e.set_field("angle", 30))
+        e.selection = [b]
+        self.assertFalse(e.set_field("name", "chao"))
+        self.assertIn("already used", e.message)
+        self.assertTrue(e.set_field("x", 100))
+        self.assertEqual(e.doc.get(b)["p1"], (95, 0))
+        self.assertFalse(e.set_field("radius", 3))       # a line has no radius
+
+    def test_add_and_remove_group_on_many(self):
+        e = ed()
+        ids = [e.doc.add({"kind": "point", "center": (i, 0)}) for i in range(3)]
+        e.selection = ids
+        e.change_groups("estrela", add=True)
+        self.assertTrue(all(e.doc.get(i)["groups"] == ("estrela",) for i in ids))
+        e.change_groups("estrela", add=False)
+        self.assertTrue(all(e.doc.get(i)["groups"] == () for i in ids))
+
+    def test_copy_code(self):
+        e = ed()
+        a = e.doc.add({"kind": "circle", "name": "moeda", "center": (1, 2), "radius": 3})
+        e.selection = [a]
+        self.assertEqual(e.copy_code(), "moeda = Circle(center=(1, 2), radius=3)")
+
+
+class TestFiles(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(prefix="test_editor_files_")
+        self.addCleanup(shutil.rmtree, self.dir, True)
+
+    def test_save_load_round_trip_backup_and_relative_images(self):
+        doc = LevelDoc((500, 300))
+        img = os.path.join(self.dir, "arte", "x.png")
+        doc.add({"kind": "image", "file": img, "center": (1, 2), "width": 3, "height": 4})
+        doc.add({"kind": "rect", "name": "chao", "groups": ["g"], "center": (5, 5),
+                 "width": 10, "height": 2})
+        path = os.path.join(self.dir, "fase.json")
+        doc.save(path)
+        self.assertFalse(doc.dirty)
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        self.assertEqual(data["items"][0]["file"], "arte/x.png")
+        parse(data)                                     # a valid level file
+        again = LevelDoc.load(path)
+        self.assertEqual([{k: v for k, v in i.items() if k != "id"} for i in again.items],
+                         [{k: v for k, v in i.items() if k != "id"} for i in doc.items])
+        self.assertEqual(again.image_path(again.items[0]), img)
+        doc.save(path)
+        self.assertTrue(os.path.exists(path + ".bak"))
+
+    def test_save_as_rebases_image_paths(self):
+        doc = LevelDoc()
+        doc.add({"kind": "image", "file": os.path.join(self.dir, "x.png"),
+                 "center": (0, 0), "width": 1, "height": 1})
+        doc.save(os.path.join(self.dir, "a.json"))
+        sub = os.path.join(self.dir, "sub")
+        os.makedirs(sub)
+        doc.save(os.path.join(sub, "b.json"))
+        with open(os.path.join(sub, "b.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["items"][0]["file"], "../x.png")
+
+
+
+class TestPrimaryHeldSelects(unittest.TestCase):
+    """Primary (Cmd / Ctrl) held in Pan or a drawing tool: a press is a Select
+    press; the tool stays. Decided at the press — a gesture never switches."""
+
+    def setUp(self):
+        self.e = ed()
+        self.a = self.e.doc.add({"kind": "rect", "center": (100, 100), "width": 40, "height": 20})
+        self.b = self.e.doc.add({"kind": "rect", "center": (300, 100), "width": 40, "height": 20})
+        self.e.history.commit()
+
+    def test_click_selects_and_the_tool_stays(self):
+        from scena_editor.tools import SPRING_TOOLS
+        for tool in SPRING_TOOLS:
+            with self.subTest(tool=tool):
+                e = self.e
+                e.set_tool(tool)
+                e.selection = []
+                e.select_held = True
+                click(e, (100, 100))
+                self.assertEqual(e.selection, [self.a])
+                self.assertEqual(e.tool, tool)
+                self.assertEqual(len(e.doc.items), 2)          # nothing drawn
+                click(e, (300, 100), shift=True)               # Shift still adds
+                self.assertEqual(e.selection, [self.a, self.b])
+                e.select_held = False
+
+    def test_drag_moves_as_one_step(self):
+        e = self.e
+        e.set_tool("rect")
+        e.select_held = True
+        drag(e, (100, 100), (150, 100))
+        self.assertEqual(e.doc.get(self.a)["center"], (150, 100))
+        self.assertEqual(e.tool, "rect")
+        e.undo()
+        self.assertEqual(e.doc.get(self.a)["center"], (100, 100))
+
+    def test_releasing_primary_mid_drag_finishes_the_move(self):
+        e = self.e
+        e.set_tool("ellipse")
+        e.select_held = True
+        e.pointer_down(100, 100)
+        e.select_held = False
+        e.pointer_move(130, 100)
+        e.pointer_up(130, 100)
+        self.assertEqual(e.doc.get(self.a)["center"], (130, 100))
+        self.assertEqual(len(e.doc.items), 2)
+
+    def test_pressing_primary_mid_draw_keeps_drawing(self):
+        e = self.e
+        e.set_tool("rect")
+        e.pointer_down(500, 500)
+        e.select_held = True
+        e.pointer_move(560, 540)
+        e.pointer_up(560, 540)
+        self.assertEqual(len(e.doc.items), 3)
+        self.assertEqual(e.single()["kind"], "rect")
+
+    def test_pan_tool_box_selects(self):
+        e = self.e
+        e.set_tool("hand")
+        e.select_held = True
+        drag(e, (50, 50), (350, 150))
+        self.assertEqual(sorted(e.selection), sorted([self.a, self.b]))
+        self.assertEqual(list(e.viewport.look), [0.0, 0.0])    # no pan
+
+    def test_polygon_keeps_its_points(self):
+        e = self.e
+        e.set_tool("polygon")
+        for p in ((500, 500), (600, 500)):
+            click(e, p)
+        e.select_held = True
+        click(e, (100, 100))
+        e.double_click(100, 100)                               # does not close it
+        self.assertEqual(e.selection, [self.a])
+        self.assertEqual(e.pending, [(500, 500), (600, 500)])
+        e.select_held = False
+        click(e, (550, 600))
+        self.assertTrue(e.key("ENTER"))
+        self.assertEqual(len(e.single()["points"]), 3)
+
+    def test_standby_cursor_and_hint(self):
+        from scena_editor.i18n import t
+        e = self.e
+        e.set_tool("rect")
+        self.assertEqual(e.cursor(100, 100), "cross")
+        e.select_held = True
+        self.assertTrue(e.select_standby)
+        self.assertEqual(e.cursor(100, 100), "move")           # over a shape, as Select
+        self.assertEqual(e.cursor(700, 700), "arrow")
+        self.assertEqual(e.hint(), t("hint.select"))
+        e.set_tool("select")
+        self.assertFalse(e.select_standby)                     # Select is not "standby"
+        e.set_tool("hand")
+        self.assertEqual(e.cursor(700, 700), "arrow")
+        e.select_held = False
+        self.assertEqual(e.cursor(700, 700), "move")
+
+
+_point = hst.tuples(hst.integers(0, 900), hst.integers(0, 700))
+_action = hst.one_of(
+    hst.tuples(hst.just("tool"), hst.sampled_from(["select", "rect", "ellipse", "circle",
+                                                   "line", "point"])),
+    hst.tuples(hst.just("drag"), _point, _point, hst.booleans()),
+    hst.tuples(hst.just("click"), _point, hst.booleans()),
+    hst.tuples(hst.just("key"), hst.sampled_from(["DEL", "ESC", "LEFT", "UP", "V", "R", "P", "A"])),
+    hst.tuples(hst.just("undo")),
+    hst.tuples(hst.just("redo")),
+    hst.tuples(hst.just("dup")),
+)
+
+
+class TestUndoProperty(unittest.TestCase):
+    """Any edit sequence: undoing every step returns to the empty level, and
+    redoing every step returns to the end — exactly (snapshots)."""
+
+    @settings(deadline=None)
+    @given(actions=hst.lists(_action, max_size=25))
+    def test_undo_all_then_redo_all(self, actions):
+        e = ed()
+        start = e.doc.snapshot()
+        for a in actions:
+            if a[0] == "tool":
+                e.set_tool(a[1])
+            elif a[0] == "drag":
+                drag(e, a[1], a[2], shift=a[3])
+            elif a[0] == "click":
+                click(e, a[1], shift=a[2])
+            elif a[0] == "key":
+                e.key(a[1])
+            elif a[0] == "undo":
+                e.undo()
+            elif a[0] == "redo":
+                e.redo()
+            else:
+                e.duplicate()
+            parse({"format": "scena-level", "version": 1, "size": list(e.doc.size),
+                   "items": e.doc.to_file_dict()["items"]})      # always a valid level
+            self.assertTrue(all(e.doc.has(i) for i in e.selection))
+        while e.redo():
+            pass
+        end = e.doc.snapshot()
+        while e.undo():
+            pass
+        self.assertEqual(e.doc.snapshot()[1], start[1])
+        while e.redo():
+            pass
+        self.assertEqual(e.doc.snapshot(), end)
+
+
+if __name__ == "__main__":
+    unittest.main()

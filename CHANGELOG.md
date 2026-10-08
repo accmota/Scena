@@ -1,0 +1,404 @@
+# Changelog
+
+What changed for authors, one section per release. Versions follow
+`MAJOR.MINOR.PATCH`. While Scena is 0.x, a **minor** release (0.6.0) may break
+author code and a **patch** release (0.5.1) never does. The policy for breaking
+changes: [Scena Design.md — Compatibility and versions](design/Scena%20Design.md#compatibility-and-versions).
+
+Each release lists **Breaking** (before → after, and the error the old
+spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
+the docs and the repository a reader notices). A section with nothing in it is
+left out.
+
+## Unreleased (0.7.0)
+
+### Breaking
+
+- A point given as a sequence must be exactly two numbers everywhere. Before,
+  tween destinations, `Track(points=…)` / `start=`, group and collision queries
+  read the first two items of a longer sequence, and `(True, 0)` counted as a
+  point. Now `(1, 2, 3)` or `(True, 0)` raises TypeError
+  `expected (x, y) — exactly two numbers — got tuple (1, 2, 3)`; write the two
+  coordinates you mean.
+
+### Added
+
+- `Endless(layer, pieces, step=...)` fills the part of a layer the camera sees,
+  slot by slot, forever: an endless runner floor, flappy pipes, a cave, clouds
+  that never run out. `pieces` is an image path, a list of image paths, or a
+  function `fn(slot)` that builds what goes in one slot at its absolute
+  coordinates (`slot.left`, `slot.right`, …) and returns it (`[]` for an empty
+  slot). Each slot has its own random stream, `slot.rng` (and
+  `slot.chance(p)`), so walking back rebuilds the same piece; `seed=` replays
+  the same world. `axis="y"` scrolls vertically, `axis="xy"` fills a grid
+  (`step=(w, h)`). `.index_at(x)` tells which slot holds a point (score by
+  chunk), `.pieces` lists what it built. It needs a layer of its own
+  (`canvas.layers.create("pista", below="default")`); `default`, `top` and
+  `ui` raise with that line. Guia: Mundo sem fim.
+- `canvas.layers["nuvens"].view` is the window that layer shows, in its own
+  coordinates, as a `Box`. On a parallax layer it moves less than the camera,
+  so scenery spawned at `layer.view.right + 200` enters from the right; on a
+  gameplay layer it is `canvas.game_view`.
+- `layer.scroll` can be changed during play on a layer created with a camera
+  response (`pan_response=`, `scroll=`, …): `nuvens.scroll = (0, 0)` stops the
+  clouds, `nuvens.scroll = chase(nuvens.scroll, (0, 0), 3)` slows them down.
+  The change has no jump. On a gameplay layer it raises with the `create` line
+  that makes a scrolling decoration layer.
+- `canvas.playfield.set(box)` takes a `Box`:
+  `canvas.playfield.set(canvas.game_view.outset(300))` is the per-frame line
+  that keeps `@leave_playfield` working while the camera travels. The four
+  keywords still work; a Box and keywords together raise.
+
+### Fixed
+
+- `canvas.background = canvas.background` keeps the background; it raised
+  TypeError (a read gives the whole live background, a write expected a
+  colour). To save the background and restore it later, keep
+  `canvas.background.base`.
+
+- A method called on an empty group does nothing for every kind of object, as
+  the Guia says. `group["inimigos"].play("andar")` (and `showing`,
+  `add_hitbox`, `flash_text`, … — methods a Shape does not have) raised
+  AttributeError once the group had no member left. A misspelt method still
+  raises.
+
+- `amp_db(st.nivel)` takes a cell, like every other number argument.
+
+- A formula built after you edit and save the script while it runs links what
+  the running code reads. Before, Scena read the edited file at the old
+  positions: it said "formula has no reactive sources", or linked another
+  lambda's names. A named function whose source changed now says the file
+  changed on disk and asks for a restart.
+
+- `test_collision(a, b)` returns what a `@collide` handler sees: `info.a` is
+  `a`, `info.b` is `b`, and the normal points from `a` to `b` (`info.side` is
+  `a`'s side). It returned internal objects in `info.a` / `info.b` and, for
+  about half of the pairs, the normal and side of the other body.
+
+- `deadzone(..., size=st.folga)` takes a cell, like every other number
+  argument; it raised TypeError.
+
+- A timer whose time is a whole number of frames fires on that frame. At a
+  steady 60 FPS, `after(0.5)` fired on frame 31 and `every(0.25)` first on
+  frame 16 (the frame times summed a hair short of the deadline), while
+  `every(0.9)` was on time. The same for a timed move's end, `ready()`,
+  `recently()` and effects like `flash` / `pop`.
+
+- A verb on an empty group (`group["tiros"].move_by(0, 600 * dt)` while no
+  shot is alive) built a hidden shape on every call, about 0.3 ms each, every
+  frame. It now does nothing, as the Guia says, and returns `None` (it returned
+  that hidden shape); with `time=` it still returns a Handle.
+
+- `keyp.once("SPACE")` is True only in the frame of the press, as the Guia
+  says. Before, a press nobody read in its frame waited for the first reader,
+  however late: in `if pronto and keyp.once("SPACE")`, a SPACE pressed while
+  `pronto` was False fired seconds later, when `pronto` turned True, and a
+  key held since before was reported on its first read. A script that relied
+  on that (pressing jump in the air to jump on landing) should keep the press
+  itself: `if keyp.once("UP"): st.quer_pular = True`.
+
+- A point linked to a caption's centre (`marker @= text.center`) now follows
+  `text.move_by` / `text.move_to` and, for a caption placed by a corner
+  (`top_left=` …), a new string too; it stayed where the caption was.
+
+- A list is a point wherever a tuple is: `p << [1, 2]`, `p + [1, 2]`,
+  `v + [1, 2]` worked in some places only. A state cell holding a pair works
+  wherever a point does (`p + st.offset`, `v + st.offset`). `v << point`
+  and `v + "a"` now say why a Point is refused (a Point is a place, a Vec2
+  a displacement: the vector between two points is `p - q`).
+
+- A Box placed by `top_left` whose corner names were mirrored (copied from a
+  flipped shape) now places and turns like a Rect with the same names; before,
+  its points came out where an unmirrored box would be.
+
+- A constructor now refuses NaN or infinity in any number, as `=` does:
+  `Rect(…, angle=float('nan'))`, `Line(…, dx=…)`, `Point(nan, 0)` raise
+  ValueError (before, the value was stored and the shape vanished).
+  `track.begin = fn` and `line.angle = fn` on a line placed by two points raise
+  the usual "`=` copies a value, link with `@=`" error.
+
+- A shape linked whole to another (`copy @= rect`, `copy @= lambda: rect`)
+  now keeps every point you already read in step: before, `copy.top_right`
+  stayed where it was after the source changed, while `copy.width` followed.
+
+- `a << b` between two shapes of one kind built differently (a Rect from
+  corners copied into a Rect made from a center) now reads like `b` and takes
+  writes to `b`'s inputs; before, sizes and points read stale and
+  `a.p2 = …` raised. A Track copy draws the source's path and pose, Box can
+  copy a Box (`box << other_box` raised), and `track.reversed() << other`
+  raises with the fix instead of doing nothing. `square << rect` raises a
+  TypeError that shows how to build the Square from one side (it raised
+  AttributeError).
+
+- A shape turned by a link on its `angle` (a Line from two points, a Circle
+  placed by its rim, an Ellipse by its foci, a spine Rect) showed its old
+  points when you read them (`line.p2`, `line.vec`, `ellipse.fp1`) before
+  reading `angle`, after the source had moved. Any order of reads now sees the
+  turned shape.
+
+- A Line whose heading comes from its points (`p1`/`p2`, `p1`/`vec`,
+  `p1`/`dx`/`dy`) accepted `line["angle"] @= …` together with a link on `p1` or
+  `p2`, then raised `LinkedAttributeError` on every read of `angle`. The second
+  link now raises at the `@=` and installs nothing: turning the line rewrites
+  the point, and a point with its own formula cannot be rewritten.
+
+- A link onto a number field (`p["x"] @= lambda: …`, a shape's `angle`, a
+  Track's `begin` / `end`) whose function returns NaN or infinity now raises
+  `ValueError` on the read that pulls it, as writing the same value with `=`
+  does. Before, the link stored the NaN and every read after it was NaN. A vector or
+  point linked whole (`v @= lambda: (x, y)`) is not checked, like `v << (x, y)`.
+
+- A parallax layer's `scroll` moved only when the frame was drawn: `update`
+  saw last frame's offset, and a run that did not draw never scrolled. It now
+  advances with the clock, before `update`.
+- `canvas.playfield.set(left=..., ...)` accepted NaN and infinite edges and
+  stored them; it now raises `ValueError`, like the single-edge setters.
+- `canvas.layers.create(..., scroll="ab")` (or a 3-item tuple) failed with an
+  unrelated error; it now raises `TypeError` naming the pair form, like
+  `background.scroll`.
+- A write to a name a layer does not have now raises instead of being stored
+  and ignored. `layer.visable = False` raises `AttributeError: layer 'far' has
+  no 'visable'. Did you mean 'visible'? Writable on a layer: visible, z,
+  post_fx, scroll.` The camera-response knobs (`pan_response`,
+  `zoom_response`, `rotation_response`) are still set only in
+  `canvas.layers.create(...)`; writing one on the layer afterwards raises with
+  that call (`scroll` became live, see Added). Code that wrote such a name did nothing before, so a script that
+  ran keeps the same picture once the line is fixed or removed.
+- The same holds for every other author object except actors and `st`:
+  effects (`Bloom`, backgrounds, audio effects, looks and filters you build),
+  `canvas`, `canvas.effects`, `canvas.background`, `canvas.playfield`, `ui`,
+  `audio`, `clock`, `mouse`, `keyp`, `collision`, `ready`, `recently`, and
+  values such as `Box`, `Grid`, `Color`, `Palette`, `Gradient`, `Texture`,
+  `Sheet`, `History`, `Sound` and `Level`. `bloom.itnensity = 2` raises
+  `AttributeError: Bloom has no 'itnensity'. Did you mean 'intensity'?
+  Writable on Bloom: enabled, intensity, sigma.` Each such write did nothing
+  before. Your own data still goes on an actor (`ship.hp = 3`) or in `st`.
+  A subclass you write (of `History`, say) keeps its own
+  fields when it creates them in its `__init__`; a new name created later in a
+  method now raises and says to create it in `__init__`.
+- `Vec2` is closed too: `v.lenght = 5` raises `AttributeError: Vec2 has no
+  'lenght'. Did you mean 'length'? Writable on Vec2: x, y.` It used to store
+  a `lenght` that nothing read. Vector arithmetic is as fast as before (a
+  little faster).
+- Writing a computed field of a shape now says what it is computed from and
+  how to get what you wanted. `rect.top_right = (1, 2)` on a rect placed by
+  its center: `Rect.top_right is computed from the rect's center, width,
+  height and angle, so it cannot be set. To move the rect so its top_right
+  lands at (1, 2), write rect.move_to(1, 2, about=rect.top_right).` A size
+  (`line.length = 5` on a line between two points) names the inputs to change
+  and, when there is one, the constructor that takes it
+  (`Line(..., length=...)`). The old message told you to "construct the
+  shape with a different model", which made no sense for `Text` or `Track`.
+- `rect.top_right << (1, 2)` on a computed point now raises the same error.
+  It used to move the point by itself, leaving the rect where it was, so
+  the point no longer matched the rect.
+- `v.length = 5` and `v.angle = 30` on a `Vec2` now say how to do it:
+  `v << vec_from_angle(v.angle, 5)` keeps the direction and sets the length,
+  `v << vec_from_angle(30, v.length)` turns it and keeps the length. The old
+  message talked about a shape's model.
+- A `Vec2` linked whole (`v @= lambda: vec_from_angle(st.heading, 10)`) read
+  `length` and `angle` as 0, or as their values from before the link; a
+  formula reading them saw the same. They now follow `x` and `y`.
+- A field you linked could keep its old value after its source changed:
+  with `ship["hp"] @= lambda: st.hp`, reading a size or a corner of the ship
+  first (`ship.width`, `ship.top_left`) made `ship.hp` return the previous
+  value until the source changed again. Same for a linked `spread` on a
+  `Circle`. Fixed for every actor kind.
+- A linked `vec` part (`rect.vec["x"] @= …`) and the `vec` of a Rect or Box
+  built from two corners could report an old `vec.length` / `vec.angle`.
+- `track["begin"] @= …` / `track["end"] @= …` now keep the value between 0
+  and 1, as `track.begin = …` does.
+- `v @= lambda: st.pos` and `v << st.pos` work when `st.pos` holds a tuple or
+  a `Vec2` (on a `Vec2`, a `Point`, or a shape's point such as
+  `circle.center`). They raised `TypeError`.
+- `st.pos.x = 5`, where `st.pos` holds a `Vec2`, now raises. It used to store
+  `x` on the cell: `st.pos.x` read 5 while the `Vec2` and everything linked to
+  `st.pos` kept the old value. The error names the write that works:
+  `st.pos = Vec2(..., st.pos.y)`.
+- `ship.vel @= lambda: …` raised a confusing `LinkedAttributeError`
+  (`Circle.Circle_vel is linked — call Circle['Circle_vel'].unlink() first`),
+  and `ship.vel["x"] @= …` linked without complaint until the next
+  `resolve(..., bounce=)`, `confine(action="bounce")` or `vel.y -= …` raised.
+  `.vel` is not linkable — the engine writes it — and every spelling now
+  raises the message `ship["vel"] @= …` already gave: set it where it changes,
+  `ship.vel = vec_from_angle(st.a * 30, 10)` in `on_update`.
+- `field_type` and `parts` are read-only on every object (`ship.field_type = 3`
+  broke the actor's links; `v.parts = ...` lost its parts).
+- A new actor field one swap of two adjacent letters away from a 5+ letter
+  property now raises instead of becoming a field: `ship.anlge = 30` →
+  `Did you mean 'angle'?` (also `widht`, `aplha`, `lyaer`, `gruop`, `nagle`).
+  A field you meant to call `nagle` needs another name.
+
+### Documentation
+
+- The Guia now says what several features did without saying it:
+  `Button.on_click` fires on release (releasing elsewhere cancels); `zoom_by`
+  without `about=` keeps the pan; the widget under the pointer keeps the mouse
+  wheel; `.angle` accumulates past 360; a `Slider` never rewrites its cell;
+  a destroyed object leaves its groups at once; `st.x` reads the cell
+  (`st.x.value` for the plain value); `.scale` leaves `.width` / `.height` as
+  given (`.box` is the drawn size); `every` first fires one interval in;
+  `e.after(d, fn)` passes the object to a one-parameter `fn`; another key held
+  does not change `keyp("A")`; `canvas.game_view` at the start; `confine`
+  stops exactly at the edge; `Color.darker` / `lighter` move HSL lightness;
+  two layers made `below=` the same one share a z (the newer draws on top).
+- `.color` reads the colour the shape paints now: under a look such as `Halo`,
+  that is the look's tint (alpha included), not the colour you gave; under
+  `Flame` / `Swell` / `Water`, which have no single colour, it is the colour
+  you gave.
+- The coyote-time example in the Guia re-applied the jump for several frames
+  (a 30 % higher jump); it now calls `recently.reset` after jumping, and the
+  note that repeating `vel.y = PULO` "dá no mesmo" is corrected.
+
+## 0.6.0 — 2026-10-06
+
+### Breaking
+
+- The framework is now **Scena**, and the package is `scena` (the name
+  `stage` is taken on PyPI by an unrelated package). Before: `from stage
+  import *`. After: `from scena import *`. Nothing else in the API changes
+  name. The old import fails with `ModuleNotFoundError: No module named
+  'stage'`; there is no `stage` package to keep it working, because it would
+  hide the unrelated one. To update an install made from this repository:
+  `pip uninstall stage`, then `pip install -e .` (or `pip install scena`).
+  - **Level files** are written with `"format": "scena-level"`. Files saved
+    with `"stage-level"` still load (same version, same data); the editor
+    saves them with the new tag.
+  - **The editor** is `scena-editor` / `python -m scena_editor`. Run
+    `scena-editor --shortcut` again: it makes the "Scena Editor" launcher and
+    removes the old "Stage Editor" one. The error log moved to the "Scena
+    Editor" folder (`scena-editor` on Linux); the old log stays where it was.
+  - Messages say **SCENA WARNING** / **SCENA ERROR**, and a window with no
+    `title=` is titled "Scena".
+- `Scene` is now `Act`, and `change_scene` is now `change_act` (the framework
+  is moving to the name Scena, and `Scene` inside Scena says the same word
+  twice). Before: `class Fase(Scene): …` and `change_scene(Fase)`. After:
+  `class Fase(Act): …` and `change_act(Fase)`. `run(Titulo)` is unchanged.
+  With `from scena import *` the old names are gone (`NameError: name
+  'Scene' is not defined`); `scena.Scene` / `from scena import Scene` raise
+  with the fix: `TypeError: Scene was renamed to Act in 0.6.0. Write class
+  Fase(Act), and change_act(Fase) to enter it.` (and `change_scene` the same
+  way, `Write change_act(Fase).`). Also renamed: `SceneUsageError` →
+  `ActUsageError`, and the scope of ownerless work started after the top
+  level ends, `handle.scope == "scene"` → `"act"` (a string compare cannot
+  raise: a test for `"scene"` is now always False). The Guia chapter is
+  "Atos".
+- `Beat` and `Liquify` take `color` as their first argument, like the other
+  visuals that paint a body. Before: `Beat(0.1)` meant `amount=0.1`. After:
+  write `Beat(amount=0.1)`. The old spelling raises `TypeError: Beat's first
+  argument is color (since 0.6.0). For the old Beat(0.1) write
+  Beat(amount=0.1).` (same for `Liquify`).
+- `burn_out(fidelity=)` is removed: every value (`"full"`, `"lite"`, `"auto"`)
+  drew the same burn. Before: `ship.burn_out(0.5, fidelity="lite")`. After:
+  `ship.burn_out(0.5)`. The old spelling raises `TypeError: burn_out(fidelity=)
+  was removed in 0.6.0: it never changed the drawing … Delete it`.
+
+### Added
+
+- File patterns for frames: a file name with `*` loads every matching file,
+  one frame each, in natural order (`Run (2)` before `Run (10)`). A pack of
+  loose PNGs loads one animation per line:
+  `ninja = Sheet(anchor="bottom")` then
+  `ninja.strip("correndo", "ninja/Run__*.png", fps=12)`; one loop is
+  `Sheet("robot/Run (*).png", fps=12)`. A pattern works wherever a list of
+  files does (`Sheet` source and extra files, `strip`), searches the usual
+  image folders and uses the first one with a match. Only `*` is special, in
+  the file name only; matching is case-sensitive. No match is a placeholder
+  frame and one warning naming the pattern and the folders searched.
+  `cols=` / `rows=` / `cell=` / `atlas=` with a pattern raise `TypeError`.
+  `strip` also takes a list of files (`strip("voo", ["a.png", "b.png"])`).
+  A `*` in these file names used to be read literally (a missing file);
+  `Sprite("…*.png")` used to show a placeholder and now raises `TypeError`
+  pointing at `Sprite(Sheet("…*.png", fps=8))` (likewise `SpriteButton` art).
+- `Collider` comes with `from stage import *` (it was documented with
+  `from stage.collision import Collider`). Its author surface is
+  `Collider(shapes)`, `.shapes` and `on_collide` / `on_collide_stay` /
+  `on_collide_exit`; the engine members it used to show (`pair_targets`,
+  `add_pair_target`, `unregister`, …) are now private.
+- `Beat(color=)` and `Liquify(color=)`: paint the shape's body, like
+  `Neon("red")`. `visual = None` keeps the color and a later `set_color` wins.
+  Without `color` they keep the shape's own color, as before. A `Beat` with a
+  color on a `Sprite` raises (a Sprite keeps its pixels; tint it with
+  `sprite.hue = HueShift(to=…)`).
+- `set_color` under a look that paints its own colors (`Flame`, `Swell`,
+  `Water`, `Shield`) now warns once per look: the color is kept and shows
+  after `visual = None`.
+- A `st` cell (and a widget's `.data`) does math like its number with every
+  operator: `**`, `//`, `%`, `divmod`, three-argument `pow`, `round(st.x)`
+  (with `ndigits`), `math.trunc` / `floor` / `ceil`, and `complex()`, from
+  either side (`2 ** st.f`). Before, these raised `TypeError: unsupported
+  operand type(s) for ** or pow(): 'Attribute' and 'int'`, so `st.f ** 3` had
+  to be written `float(st.f) ** 3`; that still works. Like `+` and `*`, the
+  result is a plain number, and `st.f **= 2` writes into the same cell.
+
+### Fixed
+
+- `Collider(...)` with something that is not a shape or sprite (a function,
+  a number, a string, a point tuple) now raises `TypeError: Collider pieces
+  must be shapes or sprites; got function. Write Collider([torso, head]).`
+  Before, it was accepted and left an empty body in the collision system that
+  nothing could remove.
+- `shape.color` under `Flame` or `Swell` read navy `(0, 0, 0.5)` instead of
+  the shape's color.
+- A fast shot no longer passes through what it should hit. A body that moves
+  (`move_by`, `move_to(..., time=)`, `move_along`) more than half its own
+  thickness in one frame is now checked along its whole path, so `@collide`
+  fires the same way at any frame rate. When the path crosses several targets,
+  the nearest one's handler runs first. The hit's `info.point` is where they
+  met and `info.depth` is `0`. Also fixed: a fast body pushed into a thin
+  `resolve()` wall now fires `@collide`. Nothing to change in your code; a
+  game that relied on fast shots passing through will now see the hits.
+  Placement (`center =`, `@=`, `tween`) is still not checked along the way.
+- An object turning around another point (`rotate_by(..., about=pivot)`,
+  with or without `time=`) now travels: a fast orbit is checked along its
+  path like a `move_by`, and a `resolve()` wall stops it instead of letting
+  it jump through. Before, the orbit placed the object, so a fast orbiting
+  shield or satellite could pass through what it should hit. Instant
+  `rotate_to(..., about=)` still places, and spinning in place
+  (`rotate_by(30)`) is still not checked along the way.
+- The `Anchor` docstring said `Line(p1=a.center, p2=b.center)` follows the
+  Anchors. It does not: a bare `a.center` (or `a`) is copied once when the
+  Line is built. The docstring, the Guia and the design docs now show the
+  live spelling, `Line(p1=lambda: a.center, p2=lambda: b.center)`. Behavior
+  is unchanged.
+
+### Documentation
+
+- The design docs (`design/*.md`) are self-contained: each decision
+  carries its reason in the doc that states it. A fence or rejection says why
+  the alternative lost; a performance rule gives the number it rests on
+  (scene, machine, before → after). New "Not taken" tables in Tracks, Box and
+  Canvas Design; reasons added across Collision, Effect System, Sprite,
+  Shapes, Reactive, Actors and Act Design. The docs no longer link to plans,
+  deliberation or lab notes.
+- Those plans, deliberations, dated bench notes and retired lab scripts, and
+  the guides for writing tutorials and examples, are private
+  (`workbench/`) and not part of the repository. `scripts/bench/results/` (bench output) is no longer
+  tracked; the bench runners create it.
+- `tests/test_doc_links.py`: a published file (doc, code comment, test,
+  script) that cites one of those private files, or a relative link whose
+  file does not exist, fails the tests.
+- New layout. `design/` holds the design docs (was `documentation/`).
+  `docs/` is the author site, published with GitHub Pages: the Guia is
+  `docs/pt/guide/index.html` (was `documentation/API Guide/Guia da API.html`),
+  the tutorials are `docs/pt/tutorial/` (was `tutorial/`), and `docs/en/`
+  will hold the English versions. The Guia's tools moved to `tools/guide/`.
+- `examples/` now holds the tutorials' finished scripts, with names that match
+  the tutorials: `primeiro_script.py`, `pegar_estrelas.py`, `ponto_medio.py`,
+  `cadeia_de_bolas.py`, `barras_girando.py`, `osciloscopio.py`, `naves.py`
+  (were `app_primeiro_script.py`, `app_star_catch.py`, `app_geometria.py`,
+  `app_mouse_v2.py`, `app_spinning_rects.py`, `app_osc_v2.py`, `app_naves.py`).
+  The other sample games are being reworked and come back when ready.
+
+## 0.5.0 — 2026-10-05
+
+The first numbered release: the API is published, and authors outside the
+project now write code against it. Everything before was the design phase,
+with no compatibility promise and no changelog. The author surface at this
+release is `stage.__all__`, described in the
+[Guia da API](docs/pt/guide/index.html), and level
+files are `"format": "stage-level", "version": 1`.
+
+### Added
+
+- `stage.__version__`.

@@ -1,0 +1,119 @@
+
+Licenses (each file's license is listed below; full list and ready-to-copy
+credits: ../CREDITS.md):
+
+  Creative Commons 0 — CC0
+  https://creativecommons.org/publicdomain/zero/1.0/
+  You can copy, modify, distribute and perform the sound, even for commercial purposes, all without the need of asking permission to the author.
+
+  Creative Commons Attribution 3.0 — CC-BY 3.0 (laser4.wav, laser7.wav)
+  https://creativecommons.org/licenses/by/3.0/
+  Free to use and modify, even commercially, if you credit the author.
+
+  Creative Commons Attribution-ShareAlike 3.0 — CC-BY-SA 3.0
+  (explosion01.wav, explosion03.wav, explosion07.wav, explosion09.wav)
+  https://creativecommons.org/licenses/by-sa/3.0/
+  As CC-BY 3.0; modified versions of the sound must keep CC-BY-SA 3.0.
+
+
+---
+
+Victory.mp3
+CC0 – https://opengameart.org/content/victory
+
+---
+
+SuperHero_original_no_Intro.ogg
+CC0 — https://opengameart.org/content/adventure-theme
+
+---
+
+footstep_carpet_002.ogg
+footstep_snow_001.ogg
+impactBell_heavy_000.ogg
+impactGeneric_light_003.ogg
+impactPlank_medium_002.ogg
+impactPunch_heavy_001.ogg
+
+Impact Sounds (1.0)
+
+Created/distributed by Kenney (www.kenney.nl)
+Creation date: 19-12-2019
+
+        ------------------------------
+
+License: (Creative Commons Zero, CC0)
+http://creativecommons.org/publicdomain/zero/1.0/
+
+This content is free to use in personal, educational and commercial projects.
+
+Support us by crediting Kenney or www.kenney.nl (this is not mandatory)
+
+        ------------------------------
+
+Donate:   http://support.kenney.nl
+Request:  http://request.kenney.nl
+Patreon:  http://patreon.com/kenney/
+
+Follow on Twitter for updates:
+http://twitter.com/KenneyNL
+
+---
+
+explosion01.wav
+explosion03.wav
+explosion07.wav
+explosion09.wav
+
+https://opengameart.org/content/9-explosion-sounds
+This work, made by Unnamed (Viktor.Hahn@web.de), is
+licensed under the Creative Commons Attribution-ShareAlike 3.0 Unported License.
+http://creativecommons.org/licenses/by-sa/3.0/
+
+---
+
+explosion02.wav: by IdkMrGarcia -- https://freesound.org/s/446625/ -- License: Creative Commons 0
+
+explosion04.wav: by Anomaex -- https://freesound.org/s/490266/ -- License: Creative Commons 0
+
+projectile-hit.flac: Projectile Hit by unfa -- https://freesound.org/s/193429/ -- License: Creative Commons 0
+
+sfx-hit-2.wav: Retro video game sfx - Hit 2 by OwlStorm -- https://freesound.org/s/404792/ -- License: Creative Commons 0
+
+laser-big.wav: Laser Gun 02 by mrspivey -- https://freesound.org/s/805194/ -- License: Creative Commons 0
+
+---
+
+explode.flac
+
+Astronomical Explosion by SamsterBirdies -- https://freesound.org/s/760509/ -- License: Creative Commons 0
+Beefy Explosions by SamsterBirdies -- https://freesound.org/s/745549/ -- License: Creative Commons 0
+Explosive.flac by qubodup -- https://freesound.org/s/189778/ -- License: Creative Commons 0
+Windy Explosion.flac by qubodup -- https://freesound.org/s/182797/ -- License: Creative Commons 0
+
+---
+
+laser4.wav
+laser7.wav
+
+"Laser Fire" by dklon
+https://opengameart.org/content/laser-fire
+Licensed under CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
+The author asks: "credit me as dklon somewhere."
+
+---
+
+gameover.wav
+j1game_over_mono.wav by jivatma07 -- https://freesound.org/s/173859/ -- License: Creative Commons 0
+
+fx1.wav
+Game Over 04.wav by LilMati -- https://freesound.org/s/365782/ -- License: Creative Commons 0
+
+fx2.wav
+Game Over Arcade by Mountain_Man -- https://freesound.org/s/382310/ -- License: Creative Commons 0
+
+fx3.wav
+8-bit Game Over by Euphrosyyn -- https://freesound.org/s/442127/ -- License: Attribution 4.0
+
+---
+

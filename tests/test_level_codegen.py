@@ -1,0 +1,213 @@
+"""Copy as code and item.make() build the same shape as the level item.
+
+The editor's "Copy as code" (``level_format.code_for``) and ``LevelItem.make``
+share one kind → constructor table. This module evals the copied code in a
+Scena world and compares it with ``make()`` and with the item, for every kind
+and for random items — the whole class "the copied code / make() does not
+reproduce what was drawn".
+
+Run headless:
+
+    python -m unittest tests.test_level_codegen -v
+"""
+import json
+import os
+import shutil
+import sys
+import tempfile
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import hypothesis_support  # noqa: E402,F401  (loads the Hypothesis profile)
+from media_support import media  # noqa: E402
+from hypothesis import given, strategies as hst  # noqa: E402
+
+import scena  # noqa: E402
+from scena import Level, canvas, init  # noqa: E402
+from scena.level_format import FORMAT, VERSION, code_for, parse  # noqa: E402
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+STAR = media("space", "star_gold.png")
+
+
+def geometry(shape):
+    """Comparable geometry of any shape make() can build."""
+    name = type(shape).__name__
+    if name in ("Rect", "Ellipse", "Sprite"):
+        return (name, round(shape.center.x, 6), round(shape.center.y, 6),
+                round(shape.width, 6), round(shape.height, 6), round(shape.angle % 360, 6))
+    if name == "Circle":
+        return (name, round(shape.center.x, 6), round(shape.center.y, 6), round(shape.radius, 6))
+    if name == "Line":
+        return (name, round(shape.p1.x, 6), round(shape.p1.y, 6),
+                round(shape.p2.x, 6), round(shape.p2.y, 6))
+    if name == "Polygon":
+        return (name, tuple((round(p.x, 6), round(p.y, 6)) for p in shape.points))
+    if name == "RegularPolygon":
+        return (name, round(shape.center.x, 6), round(shape.center.y, 6),
+                round(shape.radius, 6), len(shape.points), round(shape.angle % 360, 6))
+    if name == "Track":
+        # A points= Track keeps its vertices about its own center (pose 0 here).
+        cx, cy = shape.center.x, shape.center.y
+        pts = tuple((round(cx + x, 6), round(cy + y, 6)) for x, y in shape._travel_vertices())
+        return (name, pts, shape.closed, round(shape.smooth, 6))
+    if name == "Point":
+        return (name, round(shape.x, 6), round(shape.y, 6))
+    raise AssertionError(name)
+
+
+def expected(item):
+    """The geometry the item describes, straight from the file record."""
+    k = item["kind"]
+    if k in ("rect", "ellipse", "image"):
+        cls = {"rect": "Rect", "ellipse": "Ellipse", "image": "Sprite"}[k]
+        return (cls, *item["center"], item["width"], item["height"], item["angle"] % 360)
+    if k == "circle":
+        return ("Circle", *item["center"], item["radius"])
+    if k == "line":
+        return ("Line", *item["p1"], *item["p2"])
+    if k == "polygon":
+        return ("Polygon", tuple(item["points"]))
+    if k == "regular_polygon":
+        return ("RegularPolygon", *item["center"], item["radius"], item["n"],
+                item["angle"] % 360)
+    if k == "track":
+        return ("Track", tuple(item["points"]), item["closed"], item["smooth"])
+    if k == "point":
+        return ("Point", *item["center"])
+    raise AssertionError(k)
+
+
+def rounded(t):
+    out = []
+    for v in t:
+        if isinstance(v, float):
+            out.append(round(v, 6))
+        elif isinstance(v, tuple):
+            out.append(rounded(v))
+        else:
+            out.append(v)
+    return tuple(out)
+
+
+class CodegenCase(unittest.TestCase):
+    def setUp(self):
+        init(width=1000, height=800)
+        canvas.reset_view()
+        self.dir = tempfile.mkdtemp(prefix="test_codegen_")
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        shutil.copy(STAR, os.path.join(self.dir, "star.png"))
+
+    def check(self, raw):
+        """make() == copied code == the item, for one raw item dict."""
+        doc = {"format": FORMAT, "version": VERSION, "size": [100, 100], "items": [raw]}
+        path = os.path.join(self.dir, "lv.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(doc, f)
+        item = parse(doc)["items"][0]
+        level_item = list(Level(path))[0]
+        made = level_item.make()
+        ns = {n: getattr(scena, n) for n in scena.__all__}
+        old = os.getcwd()
+        os.chdir(self.dir)   # the copied line names the image as the file does
+        try:
+            exec(code_for(item, var="copied"), ns)
+        finally:
+            os.chdir(old)
+        copied = ns["copied"]
+        try:
+            self.assertEqual(geometry(made), geometry(copied), code_for(item))
+            want = rounded(expected(item))
+            got = geometry(made)
+            if item["kind"] == "track" and item["smooth"]:
+                # A smooth track samples a curve through its points: every
+                # point lies on it, in order (the curve interpolates them).
+                self.assertEqual((got[0], got[2], got[3]), (want[0], want[2], want[3]))
+                samples = list(got[1])
+                at = 0
+                for p in want[1]:
+                    self.assertIn(p, samples[at:], code_for(item))
+                    at = samples.index(p, at) + 1
+            else:
+                self.assertEqual(got, want, code_for(item))
+            self.assertEqual(set(made.group), set(item["groups"]))
+            self.assertEqual(set(copied.group), set(item["groups"]))
+        finally:
+            made.destroy()
+            copied.destroy()
+
+
+class TestEveryKind(CodegenCase):
+    def test_each_kind(self):
+        for raw in [
+            {"kind": "rect", "center": [450, 170], "width": 220, "height": 24, "angle": 20,
+             "groups": ["plataforma"]},
+            {"kind": "ellipse", "center": [1, 2], "width": 30, "height": 10, "angle": 45},
+            {"kind": "circle", "center": [5, 6], "radius": 7, "groups": ["a", "b"]},
+            {"kind": "line", "p1": [0, 0], "p2": [10, 5]},
+            {"kind": "polygon", "points": [[0, 0], [10, 0], [5, 8]]},
+            {"kind": "regular_polygon", "center": [5, 6], "radius": 20, "n": 6},
+            {"kind": "regular_polygon", "center": [5, 6], "radius": 20, "n": 3, "angle": 90,
+             "groups": ["a"]},
+            {"kind": "track", "points": [[0, 0], [10, 0], [10, 10]], "closed": True},
+            {"kind": "track", "points": [[0, 0], [10, 3]]},
+            {"kind": "track", "points": [[0, 0], [10, 0], [10, 10]], "smooth": 0.5},
+            {"kind": "point", "center": [3, 4], "groups": ["estrela"]},
+            {"kind": "image", "file": "star.png", "center": [50, 60], "width": 40,
+             "height": 20, "angle": 30},
+        ]:
+            with self.subTest(kind=raw["kind"]):
+                self.check(raw)
+
+    def test_copied_line_uses_the_item_name(self):
+        item = parse({"format": FORMAT, "version": VERSION, "size": [1, 1], "items": [
+            {"kind": "circle", "name": "moeda", "center": [1, 2], "radius": 3}]})["items"][0]
+        self.assertEqual(code_for(item), "moeda = Circle(center=(1, 2), radius=3)")
+
+
+_c = hst.floats(-2000, 2000, allow_nan=False).map(lambda v: round(v, 2))
+_s = hst.floats(1, 500, allow_nan=False).map(lambda v: round(v, 2))
+_p = hst.tuples(_c, _c).map(list)
+_groups = hst.lists(hst.sampled_from(["g1", "g2", "g3"]), unique=True, max_size=2)
+
+
+@hst.composite
+def _raw_item(draw):
+    kind = draw(hst.sampled_from(["rect", "ellipse", "circle", "line", "polygon", "regular_polygon",
+                                  "track", "point", "image"]))
+    raw = {"kind": kind, "groups": draw(_groups)}
+    if kind in ("rect", "ellipse", "image"):
+        raw.update(center=draw(_p), width=draw(_s), height=draw(_s),
+                   angle=draw(hst.floats(-359, 359).map(lambda v: round(v, 2))))
+    if kind == "image":
+        raw["file"] = "star.png"
+    if kind == "circle":
+        raw.update(center=draw(_p), radius=draw(_s))
+    if kind == "line":
+        raw.update(p1=draw(_p), p2=draw(_p))
+    if kind == "polygon":
+        raw["points"] = draw(hst.lists(_p, min_size=3, max_size=5, unique_by=tuple))
+    if kind == "regular_polygon":
+        raw.update(center=draw(_p), radius=draw(_s), n=draw(hst.integers(3, 12)))
+        if draw(hst.booleans()):
+            raw["angle"] = draw(hst.floats(-359, 359).map(lambda v: round(v, 2)))
+    if kind == "track":
+        raw["points"] = draw(hst.lists(_p, min_size=2, max_size=5, unique_by=tuple))
+        raw["closed"] = draw(hst.booleans())
+        if draw(hst.booleans()):
+            raw["smooth"] = draw(hst.sampled_from([0, 0.25, 0.5, 1]))
+    if kind == "point":
+        raw["center"] = draw(_p)
+    return raw
+
+
+class TestRandomItems(CodegenCase):
+    @given(raw=_raw_item())
+    def test_make_and_copied_code_reproduce_the_item(self, raw):
+        self.check(raw)
+
+
+if __name__ == "__main__":
+    unittest.main()

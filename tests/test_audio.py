@@ -1,0 +1,1179 @@
+"""Audio mixer + play_sound. Run: python -m unittest tests.test_audio -v"""
+from __future__ import annotations
+
+import os
+import sys
+import unittest
+import warnings
+
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from tests.media_support import MEDIA, media
+from tests.source_support import iter_files
+
+from scena.audio_mixer import (
+    SAMPLE_RATE,
+    BufferSource,
+    CMD_CANCEL,
+    CMD_FINISH,
+    CMD_SET_HELD,
+    DECLICK_FRAMES,
+    CMD_SET_PAN,
+    CMD_SET_VOLUME,
+    CommandQueue,
+    Mixer,
+    Voice,
+    make_sine,
+    make_silence,
+    render,
+    rms,
+    soft_limit,
+)
+
+
+def _sine_voice(vid, amp=0.5, duration=0.05, freq=440.0, volume=1.0, pan=0.0, pitch=1.0, loops=1):
+    src = BufferSource(make_sine(freq, duration, amp=amp), loops=loops)
+    return Voice(vid, src, volume=volume, pan=pan, pitch=pitch)
+
+
+class TestStage0Dependency(unittest.TestCase):
+    def test_miniaudio_listed_and_null_backend(self):
+        import miniaudio
+        from pathlib import Path
+
+        import tomllib
+        root = Path(__file__).resolve().parents[1]
+        # pyproject.toml is the one package definition (setup.py is gone).
+        with open(root / "pyproject.toml", "rb") as f:
+            deps = tomllib.load(f)["project"]["dependencies"]
+        self.assertIn("miniaudio", deps)
+        self.assertIn("numpy", deps)
+        backends = miniaudio.get_enabled_backends()
+        self.assertIn(miniaudio.Backend.NULL, backends)
+
+        wav = Path(media("audio", "laser-big.wav"))
+        decoded = miniaudio.decode_file(
+            str(wav),
+            output_format=miniaudio.SampleFormat.FLOAT32,
+            nchannels=2,
+            sample_rate=44100,
+        )
+        self.assertGreater(decoded.num_frames, 0)
+        device = miniaudio.PlaybackDevice(
+            output_format=miniaudio.SampleFormat.FLOAT32,
+            nchannels=2,
+            sample_rate=44100,
+            backends=[miniaudio.Backend.NULL],
+        )
+
+        def gen():
+            n = yield np.zeros((0, 2), dtype=np.float32)
+            samples = np.asarray(decoded.samples, dtype=np.float32)
+            if samples.ndim == 1:
+                samples = samples.reshape(-1, decoded.nchannels)
+            pos = 0
+            while True:
+                frames = int(n) if n else 256
+                chunk = samples[pos:pos + frames]
+                pos += frames
+                if chunk.shape[0] < frames:
+                    pad = np.zeros((frames, samples.shape[1]), dtype=np.float32)
+                    if chunk.shape[0]:
+                        pad[: chunk.shape[0]] = chunk
+                    chunk = pad
+                n = yield chunk
+
+        g = gen()
+        g.send(None)
+        device.start(g)
+        device.close()
+
+
+class TestRenderCore(unittest.TestCase):
+    def test_two_sines_sum_at_volumes(self):
+        n = 512
+        a = make_sine(440, n / SAMPLE_RATE, amp=0.4)
+        b = make_sine(440, n / SAMPLE_RATE, amp=0.4)
+        voices = {
+            1: Voice(1, BufferSource(a), volume=0.5),
+            2: Voice(2, BufferSource(b), volume=0.25),
+        }
+        result = render(voices, n)
+        expected = a[:n].astype(np.float64) * 0.5 + b[:n].astype(np.float64) * 0.25
+        # Below the limiter knee: identity.
+        np.testing.assert_allclose(result.block, expected, atol=1e-5)
+
+    def test_finished_on_exact_frame_count(self):
+        n = 100
+        samples = make_sine(440, n / SAMPLE_RATE, amp=0.3)
+        self.assertEqual(samples.shape[0], n)
+        voices = {1: Voice(1, BufferSource(samples), volume=1.0)}
+        result = render(dict(voices), 50)
+        self.assertEqual(result.finished_ids, [])
+        self.assertFalse(voices[1].finished)
+        result = render(voices, 50)
+        self.assertEqual(len(result.finished_ids), 1)
+        vid, at = result.finished_ids[0]
+        self.assertEqual(vid, 1)
+        self.assertEqual(at, 50)
+        self.assertTrue(voices[1].finished if 1 in voices else True)
+
+        voices = {2: Voice(2, BufferSource(samples.copy()), volume=1.0)}
+        result = render(voices, 200)
+        self.assertEqual(result.finished_ids[0][0], 2)
+        self.assertEqual(result.finished_ids[0][1], n)
+        # Past the clip: tail is silence (mixer zeros).
+        self.assertLess(np.max(np.abs(result.block[n:])), 1e-6)
+        self.assertGreater(np.max(np.abs(result.block[:n])), 0.05)
+
+    def test_mid_buffer_volume_not_retroactive(self):
+        n = 200
+        samples = np.ones((n, 2), dtype=np.float32) * 0.2
+        voices = {1: Voice(1, BufferSource(samples), volume=1.0)}
+        result = render(
+            voices, n,
+            commands=[(CMD_SET_VOLUME, 1, 0.25, 80)],
+        )
+        np.testing.assert_allclose(result.block[:80], 0.2, atol=1e-6)
+        np.testing.assert_allclose(result.block[80:], 0.2 * 0.25, atol=1e-6)
+
+    def test_mid_buffer_pan_not_retroactive(self):
+        n = 100
+        samples = np.ones((n, 2), dtype=np.float32) * 0.5
+        voices = {1: Voice(1, BufferSource(samples), pan=0.0, volume=1.0)}
+        result = render(
+            voices, n,
+            commands=[(CMD_SET_PAN, 1, 1.0, 40)],
+        )
+        np.testing.assert_allclose(result.block[:40, 0], 0.5, atol=1e-6)
+        np.testing.assert_allclose(result.block[:40, 1], 0.5, atol=1e-6)
+        np.testing.assert_allclose(result.block[40:, 0], 0.0, atol=1e-6)
+        np.testing.assert_allclose(result.block[40:, 1], 0.5, atol=1e-6)
+
+    def test_full_scale_sum_is_soft_limited(self):
+        n = 256
+        a = np.ones((n, 2), dtype=np.float32)
+        b = np.ones((n, 2), dtype=np.float32)
+        voices = {
+            1: Voice(1, BufferSource(a), volume=1.0),
+            2: Voice(2, BufferSource(b), volume=1.0),
+        }
+        result = render(voices, n)
+        peak = float(np.max(np.abs(result.block)))
+        self.assertLessEqual(peak, 1.0 + 1e-6)
+        self.assertGreater(peak, 0.95)
+        # Must not wrap the way integer clipping would.
+        self.assertTrue(np.all(np.isfinite(result.block)))
+
+    def test_held_voice_does_not_advance_or_finish(self):
+        from scena.audio_mixer import CMD_SET_HELD
+        n = 200
+        samples = np.ones((n, 2), dtype=np.float32) * 0.3
+        voices = {1: Voice(1, BufferSource(samples), volume=1.0)}
+        result = render(voices, 50)
+        self.assertEqual(result.finished_ids, [])
+        pos = voices[1].source.pos
+        result = render(voices, 80, commands=[(CMD_SET_HELD, 1, True)])
+        self.assertEqual(result.finished_ids, [])
+        self.assertAlmostEqual(voices[1].source.pos, pos)
+        self.assertIn(1, voices)
+        self.assertTrue(voices[1].held)
+        np.testing.assert_allclose(result.block, 0.0, atol=1e-6)
+        result = render(voices, 200, commands=[(CMD_SET_HELD, 1, False)])
+        self.assertEqual(result.finished_ids[0][0], 1)
+        self.assertNotIn(1, voices)
+
+    def test_quiet_voice_unaffected_by_limiter(self):
+        n = 256
+        quiet = np.full((n, 2), 0.05, dtype=np.float32)
+        voices = {1: Voice(1, BufferSource(quiet), volume=1.0)}
+        result = render(voices, n)
+        np.testing.assert_allclose(result.block, 0.05, atol=1e-6)
+
+    def test_command_queue_applies_once_in_order(self):
+        q = CommandQueue()
+        q.push((CMD_SET_VOLUME, 1, 0.5))
+        q.push((CMD_SET_VOLUME, 1, 0.2))
+        cmds = q.drain()
+        self.assertEqual(cmds, [(CMD_SET_VOLUME, 1, 0.5), (CMD_SET_VOLUME, 1, 0.2)])
+        self.assertEqual(q.drain(), [])
+        samples = np.ones((64, 2), dtype=np.float32) * 0.4
+        voices = {1: Voice(1, BufferSource(samples), volume=1.0)}
+        result = render(voices, 32, commands=cmds)
+        np.testing.assert_allclose(result.block, 0.4 * 0.2, atol=1e-6)
+        self.assertAlmostEqual(voices[1].volume, 0.2)
+        self.assertFalse(voices[1].finished)
+
+    def test_soft_limit_helper_caps_and_is_identity_below_knee(self):
+        x = np.array([[0.2, -0.3], [2.0, -3.0]], dtype=np.float32)
+        y = soft_limit(x)
+        np.testing.assert_allclose(y[0], [0.2, -0.3], atol=1e-6)
+        self.assertLessEqual(float(np.max(np.abs(y))), 1.0)
+
+    def test_pitch_two_consumes_twice_as_fast(self):
+        n = 200
+        samples = make_sine(440, n / SAMPLE_RATE, amp=0.4)
+        voices = {1: Voice(1, BufferSource(samples), pitch=2.0)}
+        result = render(voices, n)
+        self.assertEqual(result.finished_ids[0][1], n // 2)
+        self.assertLess(np.max(np.abs(result.block[n // 2 + 2:])), 1e-5)
+
+    def test_mixer_render_block_drains_queue(self):
+        mixer = Mixer()
+        samples = np.ones((64, 2), dtype=np.float32) * 0.3
+        vid = mixer.start_voice(samples=samples, volume=1.0)
+        mixer.set_volume(vid, 0.5)
+        result = mixer.render_block(64)
+        np.testing.assert_allclose(result.block, 0.3 * 0.5, atol=1e-6)
+        self.assertEqual(mixer.take_finished(), [vid])
+        self.assertEqual(mixer.take_finished(), [])
+
+
+class TestDeclick(unittest.TestCase):
+    """A cut ramps to silence over DECLICK_FRAMES instead of clicking
+    (Sound Design — Mixer). Every cut path (h.cancel, loops and named slots
+    on an owner's end, name= replace) goes through CMD_CANCEL."""
+
+    AMP = 0.5
+    FREQ = 440.0
+
+    def _voices(self):
+        return {1: _sine_voice(1, amp=self.AMP, duration=1.0, freq=self.FREQ)}
+
+    def _loud_frame(self):
+        # A cut frame where the sine is near its peak: an instant cut there
+        # jumps by ~AMP; the ramp must not.
+        n = np.arange(200, 2000)
+        vals = np.abs(np.sin(2 * np.pi * self.FREQ * n / SAMPLE_RATE))
+        return int(n[int(np.argmax(vals > 0.95))])
+
+    def test_cancel_mid_block_ramps_to_silence(self):
+        at = self._loud_frame()
+        voices = self._voices()
+        n = at + DECLICK_FRAMES + 300
+        result = render(voices, n, commands=[(CMD_CANCEL, 1, at)])
+        left = result.block[:, 0].astype(np.float64)
+        max_sine_step = 2 * np.pi * self.FREQ / SAMPLE_RATE * self.AMP
+        steps = np.abs(np.diff(left[at - 1:at + DECLICK_FRAMES + 1]))
+        self.assertLess(float(np.max(steps)), max_sine_step * 1.5,
+                        "the cut must not jump (click)")
+        self.assertLess(float(np.max(np.abs(left[at + DECLICK_FRAMES:]))), 1e-6)
+        self.assertGreater(float(np.max(np.abs(left[at:at + 20]))), 0.3,
+                           "the ramp starts from the playing level")
+        self.assertEqual(result.finished_ids, [(1, at)], "reported once, at the cut")
+        self.assertEqual(voices, {}, "gone once the ramp ends")
+
+    def test_ramp_spanning_blocks_is_not_a_live_voice(self):
+        mixer = Mixer()
+        vid = mixer.start_voice(samples=make_sine(440, 1.0, amp=0.5), volume=1.0)
+        mixer.render_block(64)
+        mixer.cancel_voice(vid)
+        mixer.render_block(DECLICK_FRAMES // 2)
+        self.assertIn(vid, mixer.voices, "still ramping")
+        self.assertNotIn(vid, mixer.live_voice_ids())
+        self.assertEqual(mixer.take_finished(), [vid])
+        mixer.cancel_voice(vid)  # a second cut mid-ramp is a no-op
+        mixer.render_block(DECLICK_FRAMES)
+        self.assertNotIn(vid, mixer.voices)
+        self.assertEqual(mixer.take_finished(), [], "finished only once")
+
+    def test_silent_cuts_pop_at_once(self):
+        cases = {
+            "held": [(CMD_SET_HELD, 1, True), (CMD_CANCEL, 1)],
+            "finish": [(CMD_FINISH, 1)],
+        }
+        for name, cmds in cases.items():
+            with self.subTest(case=name):
+                voices = self._voices()
+                render(voices, 64, commands=cmds)
+                self.assertEqual(voices, {})
+        with self.subTest(case="zero-frame render"):
+            voices = self._voices()
+            render(voices, 0, commands=[(CMD_CANCEL, 1)])
+            self.assertEqual(voices, {})
+
+    def test_muted_voice_pops_at_once(self):
+        voices = {1: _sine_voice(1, amp=self.AMP, duration=1.0, volume=0.0)}
+        render(voices, 64, commands=[(CMD_CANCEL, 1)])
+        self.assertEqual(voices, {})
+
+
+from scena import Circle, Line, play_sound, Sound, clock
+from scena.audio import SAMPLE_RATE as _SR
+from scena.process import (
+    clear_author_error,
+    get_scheduler,
+    last_author_error,
+    reset_process_scheduler,
+    tick_processes,
+)
+from scena.audio_mixer import make_sine as _sine
+
+
+def _frame(real_dt=0.1):
+    clock.advance(real_dt)
+    tick_processes()
+
+
+def _pcm(duration=0.4, freq=440.0, amp=0.3):
+    return Sound._from_pcm(_sine(freq, duration, amp=amp))
+
+
+class PlaySoundTestCase(unittest.TestCase):
+    def setUp(self):
+        reset_process_scheduler()
+        clock.scale = 1.0
+        clock.paused = False
+        clock._dt = 0.0
+        clock._time = 0.0
+        clock._real_dt = 0.0
+        clock._real_time = 0.0
+        clock._frame = 0
+        self._owned = []
+        clear_author_error()
+
+    def tearDown(self):
+        for obj in self._owned:
+            try:
+                if getattr(obj, "is_alive", False):
+                    obj.destroy()
+            except Exception:
+                pass
+        self._owned.clear()
+        reset_process_scheduler()
+        clear_author_error()
+
+    def track(self, obj):
+        self._owned.append(obj)
+        return obj
+
+
+class TestPlaySoundOwnership(PlaySoundTestCase):
+    def test_destroyed_owner_voice_stops_when_scheduler_goes_idle(self):
+        """S2: with no process work left, the idle tick skipped ``tick_audio``;
+        the offline mixer never applied the cancel and the voice stayed."""
+        from scena.audio_mixer import get_mixer
+        c = self.track(Circle())
+        # A forever loop: a finite sound would ring out on destroy.
+        c.play_sound(_pcm(0.5), loops="forever")
+        _frame(0.05)
+        self.assertEqual(len(get_mixer().voices), 1)
+        c.destroy()
+        self.assertEqual(len(get_scheduler()._handles), 0)
+        _frame(0.05)
+        self.assertEqual(get_mixer().voices, {})
+
+    def test_mode_scoped_cancels_on_mode_change_without_on_done(self):
+        c = self.track(Circle())
+        done = []
+
+        def idle(e):
+            pass
+
+        def flying(e):
+            # Forever: a finite mode sound rings out (TestSoundRingsOut).
+            play_sound(_pcm(0.8), loops="forever", on_done=lambda: done.append(1))
+
+        c.mode = flying
+        h = next(iter(get_scheduler()._sound))
+        self.assertEqual(h.scope, "mode")
+        self.assertIs(h.owner, c)
+        c.mode = idle
+        self.assertTrue(h.cancelled)
+        _frame(1.0)
+        self.assertEqual(done, [])
+
+    def test_entity_play_sound_survives_mode_and_dies_on_destroy(self):
+        c = self.track(Circle())
+        done = []
+
+        def idle(e):
+            pass
+
+        def flying(e):
+            e.play_sound(_pcm(0.4), on_done=lambda: done.append(1))
+
+        c.mode = flying
+        h = next(iter(get_scheduler()._sound))
+        self.assertEqual(h.scope, "entity")
+        c.mode = idle
+        self.assertFalse(h.cancelled)
+        _frame(0.5)
+        self.assertEqual(done, [1])
+        self.assertTrue(h.done)
+
+        h2 = c.play_sound(_pcm(0.4), loops="forever")  # a finite one rings out
+        c.destroy()
+        self.assertTrue(h2.cancelled)
+
+    def test_ownerless_bare_play_sound_survives_until_cancel(self):
+        # Before the top level ends an ownerless sound is "game" scope; after
+        # it, "act" (tests/test_act.py covers the sealed side).
+        h = play_sound(_pcm(2.0))
+        self.assertEqual(h.scope, "game")
+        self.assertIsNone(h.owner)
+        _frame(0.3)
+        self.assertFalse(h.cancelled)
+        self.assertFalse(h.done)
+        h.cancel()
+        self.assertTrue(h.cancelled)
+
+    def test_on_done_once_on_natural_end_never_on_cancel(self):
+        n = []
+        h = play_sound(_pcm(0.2), on_done=lambda: n.append("ok"))
+        _frame(0.1)
+        self.assertEqual(n, [])
+        _frame(0.2)
+        self.assertEqual(n, ["ok"])
+        self.assertTrue(h.done)
+        self.assertFalse(h.cancelled)
+        _frame(0.2)
+        self.assertEqual(n, ["ok"])
+
+    def test_then_warns_if_it_cancels_running_async_mode(self):
+        c = self.track(Circle())
+
+        async def flying(e):
+            from scena import wait
+            await wait(10.0)
+
+        def landed(e):
+            pass
+
+        c.mode = flying
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            c.play_sound(_pcm(0.15), then=landed)
+            _frame(0.3)
+        msgs = [str(w.message) for w in caught]
+        self.assertTrue(
+            any("then=" in m and "cancelled a still-running async mode" in m for m in msgs),
+            msgs,
+        )
+        self.assertIs(c.mode, landed)
+
+    def test_named_slot_replace_cancels_previous_without_on_done(self):
+        n = []
+        a = play_sound(_pcm(1.0), on_done=lambda: n.append("a"), name="music")
+        b = play_sound(_pcm(1.0), on_done=lambda: n.append("b"), name="music")
+        self.assertTrue(a.cancelled)
+        self.assertFalse(b.cancelled)
+        _frame(1.2)
+        self.assertEqual(n, ["b"])
+
+    def test_loops_forever_never_on_done(self):
+        n = []
+        h = play_sound(_pcm(0.1), loops="forever", on_done=lambda: n.append(1))
+        _frame(0.5)
+        self.assertFalse(h.done)
+        self.assertEqual(n, [])
+        h.cancel()
+        _frame(0.2)
+        self.assertEqual(n, [])
+        self.assertTrue(h.cancelled)
+
+    def test_missing_file_warns_once_on_banner_and_ticks_silence(self):
+        n = []
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            h = play_sound("no_such_file.wav", on_done=lambda: n.append(1))
+            play_sound("no_such_file.wav")
+        banner = last_author_error()
+        self.assertIsNotNone(banner)
+        self.assertEqual(banner["severity"], "warning")
+        self.assertEqual(banner["where"], "play_sound")
+        self.assertIn("no_such_file.wav", banner["message"])
+        self.assertNotIn("SCENA ERROR", banner["message"])
+        warn_msgs = [str(w.message) for w in caught if "SCENA WARNING" in str(w.message)]
+        self.assertEqual(len(warn_msgs), 1, warn_msgs)
+        _frame(1.2)
+        self.assertEqual(n, [1])
+        self.assertTrue(h.done)
+        self.assertFalse(h.cancelled)
+
+    def test_corrupt_file_warns_once_and_plays_silence(self):
+        import tempfile
+        path = os.path.join(tempfile.gettempdir(), "scena_corrupt_sound.wav")
+        with open(path, "wb") as f:
+            f.write(b"not a wav at all")
+        n = []
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            h = play_sound(path, on_done=lambda: n.append(1))
+        banner = last_author_error()
+        self.assertIsNotNone(banner)
+        self.assertEqual(banner["severity"], "warning")
+        _frame(1.2)
+        self.assertEqual(n, [1])
+        self.assertTrue(h.done)
+
+    def test_pitch_two_finishes_in_half_the_frames(self):
+        samples = _sine(440, 0.2, amp=0.4)
+        n_frames = samples.shape[0]
+        h = play_sound(Sound._from_pcm(samples), pitch=2.0)
+        _frame(0.09)
+        self.assertFalse(h.done)
+        _frame(0.03)
+        self.assertTrue(h.done)
+        self.assertFalse(h.cancelled)
+        self.assertAlmostEqual(n_frames / _SR / 2.0, 0.1, places=3)
+
+    def test_media_audio_every_format_decodes(self):
+        import miniaudio
+        root = os.path.join(MEDIA, "audio")
+        files = [
+            os.path.basename(p)
+            for p in iter_files(root, ".wav", ".ogg", ".flac", ".mp3")
+        ]
+        self.assertTrue(any(n.endswith(".wav") for n in files))
+        self.assertTrue(any(n.endswith(".ogg") for n in files))
+        self.assertTrue(any(n.endswith(".flac") for n in files))
+        self.assertTrue(any(n.endswith(".mp3") for n in files))
+        for name in files:
+            path = os.path.join(root, name)
+            decoded = miniaudio.decode_file(
+                path,
+                output_format=miniaudio.SampleFormat.FLOAT32,
+                nchannels=2,
+                sample_rate=44100,
+            )
+            self.assertGreater(decoded.num_frames, 0, name)
+            h = play_sound(path)
+            self.assertFalse(h.cancelled)
+            h.cancel()
+
+
+class TestSoundRingsOut(PlaySoundTestCase):
+    """When the owner ends implicitly (destroy, mode leave), a sound that ends
+    by itself finishes; one that would play forever is cut. Callbacks never
+    outlive the owner. Explicit cuts (cancel_process, h.cancel) cut all.
+    Sound Design — When the owner ends; Act Design decision 12."""
+
+    RINGS = "rings out"
+    CUT = "cut"
+
+    # state -> fate on an implicit ending.
+    STATES = {
+        "finite": RINGS,
+        "loops=3": RINGS,
+        "forever": CUT,
+        "named": CUT,
+        "paused": CUT,
+        "fading-out loop": RINGS,
+        "fade_to loop": CUT,
+        "fade_to(0) finite": RINGS,
+        "on_done": RINGS,
+        "then=": RINGS,
+        "named fading out": RINGS,
+    }
+    # "host destroy": the sound is on a part (``line.p1``); the part outlives
+    # the host's destroy as a readable value, but its work ends with it.
+    IMPLICIT = ("destroy", "mode leave", "host destroy")
+    EXPLICIT = ("cancel_process", "h.cancel()")
+
+    def _start(self, state, *, entity, calls, target):
+        """Start one sound in ``state``; ``entity`` picks e.play_sound vs bare."""
+        def later(e):
+            calls.append("then")
+
+        play = entity.play_sound if target == "entity" else play_sound
+        kw = {}
+        clip = _pcm(0.4)
+        if state == "loops=3":
+            clip, kw = _pcm(0.2), {"loops": 3}
+        elif state in ("forever", "fading-out loop", "fade_to loop"):
+            clip, kw = _pcm(0.2), {"loops": "forever"}
+        elif state in ("named", "named fading out"):
+            kw = {"name": "sfx"}
+        elif state == "on_done":
+            kw = {"on_done": lambda: calls.append("on_done")}
+        elif state == "then=":
+            kw = {"then": later}
+        h = play(clip, **kw)
+        if state == "paused":
+            h.pause()
+        elif state in ("fading-out loop", "named fading out"):
+            h.fade_out(0.3)
+        elif state == "fade_to loop":
+            h.fade_to(0.2, time=5.0)
+        elif state == "fade_to(0) finite":
+            h.fade_to(0.0, time=0.1)
+        return h
+
+    def _run(self, ending, state):
+        from scena.audio_mixer import get_mixer
+
+        host = None
+        if ending == "host destroy":
+            host = self.track(Line())
+            c = host.p1
+        else:
+            c = self.track(Circle())
+        calls = []
+        made = []
+
+        def idle(e):
+            pass
+
+        if ending == "mode leave":
+            def singing(e):
+                made.append(self._start(state, entity=e, calls=calls, target="bare"))
+            c.mode = singing
+        else:
+            c.mode = idle
+            made.append(self._start(state, entity=c, calls=calls, target="entity"))
+        h = made[0]
+        _frame(0.02)
+        if ending == "destroy":
+            c.destroy()
+        elif ending == "host destroy":
+            host.destroy()
+        elif ending == "mode leave":
+            c.mode = idle
+        elif ending == "cancel_process":
+            c.cancel_process()
+        else:
+            h.cancel()
+        return c, h, calls, get_mixer()
+
+    def _assert_rings_out(self, c, h, calls, mixer):
+        self.assertFalse(h.cancelled)
+        self.assertIsNone(h.owner, "a released sound holds no owner")
+        self.assertEqual(h.scope, "game")
+        self.assertIsNone(h.name)
+        self.assertNotIn(h, get_scheduler()._named.values())
+        _frame(0.02)
+        self.assertIn(h._voice_id, mixer.live_voice_ids(), "still playing")
+        for _ in range(12):
+            _frame(0.1)
+        self.assertTrue(h.done, "it ends by itself")
+        self.assertFalse(h.cancelled)
+        self.assertNotIn(h._voice_id, mixer.voices)
+        self.assertEqual(calls, [], "callbacks never outlive the owner")
+        # then= never entered its mode (a dead host's teardown clears a
+        # part's mode to None; that is not the then= target either).
+        self.assertNotEqual(getattr(c.mode, "__name__", None), "later")
+
+    def _assert_cut(self, h, calls, mixer):
+        self.assertTrue(h.cancelled)
+        _frame(0.05)
+        self.assertNotIn(h._voice_id, mixer.voices)
+        self.assertEqual(calls, [])
+
+    def test_fate_matrix_implicit_endings(self):
+        for ending in self.IMPLICIT:
+            for state, fate in self.STATES.items():
+                with self.subTest(ending=ending, state=state, fate=fate):
+                    c, h, calls, mixer = self._run(ending, state)
+                    if fate == self.RINGS:
+                        self._assert_rings_out(c, h, calls, mixer)
+                    else:
+                        self._assert_cut(h, calls, mixer)
+                    reset_process_scheduler()
+
+    def test_fate_matrix_explicit_endings_always_cut(self):
+        for ending in self.EXPLICIT:
+            for state in self.STATES:
+                with self.subTest(ending=ending, state=state):
+                    _c, h, calls, mixer = self._run(ending, state)
+                    self._assert_cut(h, calls, mixer)
+                    reset_process_scheduler()
+
+    def test_part_work_ends_with_its_host(self):
+        # Found while adding the "host destroy" ending: a part's timers,
+        # tweens and loops kept running after its host was destroyed.
+        host = self.track(Line())
+        p = host.p1
+        fired = []
+        timer = p.after(0.2, lambda: fired.append("after"))
+        rep = p.every(0.1, lambda: fired.append("every"))
+        loop = p.play_sound(_pcm(0.2), loops="forever")
+        host.destroy()
+        self.assertFalse(p.is_alive, "a part leaves with its host")
+        float(p.x)  # still readable, like any destroyed actor
+        for h in (timer, rep, loop):
+            with self.subTest(kind=h.kind):
+                self.assertTrue(h.cancelled)
+        _frame(0.5)
+        self.assertEqual(fired, [])
+        self.assertEqual(get_scheduler()._by_owner.get(id(p)), None)
+
+    def test_entity_sound_survives_mode_leave_untouched(self):
+        # Mode leave only ends mode-scoped work; an entity sound keeps its owner.
+        c = self.track(Circle())
+
+        def idle(e):
+            pass
+
+        def flying(e):
+            pass
+
+        c.mode = flying
+        h = c.play_sound(_pcm(0.4), loops="forever")
+        c.mode = idle
+        self.assertIs(h.owner, c)
+        self.assertEqual(h.scope, "entity")
+        self.assertFalse(h.cancelled)
+
+    def test_destroyed_owner_is_collectable_while_its_sound_rings_out(self):
+        import gc
+        import weakref
+        c = Circle()
+        h = c.play_sound(_pcm(1.0))
+        r = weakref.ref(c)
+        c.destroy()
+        del c
+        gc.collect()
+        self.assertIsNone(r(), "the released sound must not pin its dead owner")
+        self.assertFalse(h.done)
+
+    def test_fade_out_in_on_destroy_lets_a_loop_fade_across_the_end(self):
+        from scena.audio_mixer import get_mixer
+
+        class Boss(Circle):
+            def on_destroy(self):
+                self.music.fade_out(0.3)
+
+        b = self.track(Boss())
+        b.music = b.play_sound(_pcm(0.2), loops="forever")
+        h = b.music
+        _frame(0.05)
+        b.destroy()
+        self.assertFalse(h.cancelled)
+        _frame(0.15)
+        self.assertFalse(h.done)
+        self.assertGreater(h.volume, 0.0)
+        self.assertLess(h.volume, 1.0)
+        _frame(0.2)
+        self.assertTrue(h.done)
+        _frame(0.05)
+        self.assertNotIn(h._voice_id, get_mixer().voices)
+
+    def test_released_named_slot_leaves_no_stale_key(self):
+        c = self.track(Circle())
+        h = c.play_sound(_pcm(1.0), name="music", loops="forever")
+        h.fade_out(0.5)
+        key = (id(c), "music")
+        self.assertIs(get_scheduler()._named.get(key), h)
+        c.destroy()
+        self.assertNotIn(key, get_scheduler()._named,
+                         "a stale key would let an object reusing id(c) cut it")
+        self.assertIsNone(h.name)
+        self.assertFalse(h.cancelled)
+
+
+class TestFades(PlaySoundTestCase):
+    def test_fade_in_linear_then_holds(self):
+        h = play_sound(_pcm(2.0), volume=1.0, fade_in=0.5)
+        self.assertAlmostEqual(h.volume, 0.0)
+        _frame(0.25)
+        self.assertAlmostEqual(h.volume, 0.5, places=2)
+        _frame(0.25)
+        self.assertAlmostEqual(h.volume, 1.0, places=2)
+        _frame(0.2)
+        self.assertAlmostEqual(h.volume, 1.0, places=2)
+        self.assertFalse(h.done)
+
+    def test_pause_holds_clip_without_on_done(self):
+        from scena.audio_mixer import get_mixer
+        n = []
+        h = play_sound(_pcm(0.4), on_done=lambda: n.append(1))
+        _frame(0.05)
+        self.assertIs(h.pause(), h)
+        self.assertTrue(h.paused)
+        _frame(0.5)
+        self.assertEqual(n, [])
+        self.assertFalse(h.done)
+        voice = get_mixer().voices.get(h._voice_id)
+        self.assertIsNotNone(voice)
+        self.assertTrue(voice.held)
+        self.assertIs(h.pause(), h)  # idempotent — still one hold
+        h.resume()
+        self.assertFalse(h.paused)
+        _frame(0.5)
+        self.assertEqual(n, [1])
+        self.assertTrue(h.done)
+
+    def test_cancel_while_paused_stops_voice(self):
+        from scena.audio_mixer import get_mixer
+        n = []
+        h = play_sound(_pcm(1.0), on_done=lambda: n.append(1))
+        _frame(0.05)
+        h.pause()
+        vid = h._voice_id
+        h.cancel()
+        self.assertTrue(h.cancelled)
+        self.assertFalse(h.paused)
+        get_mixer().render_block(256)
+        self.assertNotIn(vid, get_mixer().voices)
+        _frame(0.5)
+        self.assertEqual(n, [])
+
+    def test_fade_out_reaches_zero_and_fires_on_done(self):
+        n = []
+        h = play_sound(_pcm(2.0), on_done=lambda: n.append(1))
+        h.fade_out(0.3)
+        _frame(0.2)
+        self.assertFalse(h.done)
+        self.assertGreater(h.volume, 0.0)
+        _frame(0.15)
+        self.assertTrue(h.done)
+        self.assertFalse(h.cancelled)
+        self.assertEqual(n, [1])
+        self.assertAlmostEqual(h.volume, 0.0, places=2)
+
+    def test_crossfade_two_ramps(self):
+        a = play_sound(_pcm(3.0), volume=1.0, name="music", loops="forever")
+        b = play_sound(_pcm(3.0), volume=1.0, name="music", loops="forever", crossfade=1.0)
+        self.assertAlmostEqual(b.volume, 0.0)
+        _frame(0.5)
+        self.assertAlmostEqual(a.volume, 0.5, places=1)
+        self.assertAlmostEqual(b.volume, 0.5, places=1)
+        self.assertFalse(a.done)
+        _frame(0.55)
+        self.assertTrue(a.done)
+        self.assertFalse(a.cancelled)
+        self.assertAlmostEqual(b.volume, 1.0, places=1)
+        self.assertFalse(b.done)
+
+    def test_clock_scale_stretches_fade(self):
+        clock.scale = 0.5
+        n = []
+        h = play_sound(_pcm(4.0), on_done=lambda: n.append(1))
+        h.fade_out(0.2)
+        _frame(0.2)  # world dt = 0.1
+        self.assertFalse(h.done)
+        _frame(0.25)  # world +0.125 → total 0.225
+        self.assertTrue(h.done)
+        self.assertEqual(n, [1])
+
+
+class TestMasterBus(PlaySoundTestCase):
+    def test_volume_zero_mutes_without_cancelling(self):
+        from scena import audio
+        from scena.audio_mixer import get_mixer
+        h = play_sound(_pcm(1.0), volume=1.0)
+        audio.volume = 0.0
+        block = get_mixer().render_block(256).block
+        self.assertLess(float(np.max(np.abs(block))), 1e-6)
+        self.assertFalse(h.done)
+        self.assertFalse(h.cancelled)
+        audio.volume = 1.0
+
+    def test_muted_roundtrip_and_next_block(self):
+        from scena import audio
+        from scena.audio_mixer import get_mixer
+        play_sound(_pcm(1.0), volume=1.0)
+        get_mixer().render_block(64)
+        self.assertFalse(audio.muted)
+        audio.muted = True
+        self.assertTrue(audio.muted)
+        block = get_mixer().render_block(64).block
+        self.assertLess(float(np.max(np.abs(block))), 1e-6)
+        audio.muted = False
+        self.assertFalse(audio.muted)
+        block = get_mixer().render_block(64).block
+        self.assertGreater(float(np.max(np.abs(block))), 0.01)
+
+    def test_level_tau_rejects_non_positive(self):
+        from scena import audio
+        with self.assertRaises(ValueError):
+            audio.level_tau = 0
+        with self.assertRaises(ValueError):
+            audio.level_tau = -0.1
+        audio.level_tau = 0.08
+
+    def test_many_full_scale_voices_limited_quiet_unaffected(self):
+        from scena.audio_mixer import BufferSource, Voice, get_mixer, make_sine
+        n = 256
+        full = np.ones((n, 2), dtype=np.float32)
+        voices = {i: Voice(i, BufferSource(full.copy()), volume=1.0) for i in range(1, 9)}
+        from scena.audio_mixer import render
+        peak = float(np.max(np.abs(render(voices, n).block)))
+        self.assertLessEqual(peak, 1.0 + 1e-6)
+        quiet = np.full((n, 2), 0.04, dtype=np.float32)
+        r = render({1: Voice(1, BufferSource(quiet), volume=1.0)}, n)
+        np.testing.assert_allclose(r.block, 0.04, atol=1e-6)
+
+
+class TestAnalysis(PlaySoundTestCase):
+    def test_raw_rms_and_ema_toward_it(self):
+        import math
+        from scena.audio_mixer import (
+            AnalysisState, BufferSource, Voice, ema_alpha, loudness, render, rms,
+        )
+        n = 2048
+        samples = _sine(440, n / _SR, amp=1.0)
+        voices = {1: Voice(1, BufferSource(samples), volume=1.0)}
+        an = AnalysisState()
+        tau = 0.08
+        r = render(voices, n, analysis=an, level_tau=tau)
+        expected_rms = 1.0 / math.sqrt(2.0)
+        self.assertAlmostEqual(r.raw_rms, expected_rms, places=2)
+        self.assertAlmostEqual(r.raw_level, loudness(r.block), places=5)
+        alpha = ema_alpha(n / _SR, tau)
+        self.assertAlmostEqual(r.master_level, r.raw_level * alpha, places=5)
+        r2 = render(voices, n, analysis=an, level_tau=tau)
+        expected2 = r.master_level + (r2.raw_level - r.master_level) * alpha
+        self.assertAlmostEqual(r2.master_level, expected2, places=5)
+
+    def test_spectrum_peak_bin_for_known_frequency(self):
+        from scena.audio_mixer import AnalysisState, BufferSource, Voice, render
+        n = 4096
+
+        def peak_bin(freq):
+            samples = _sine(freq, n / _SR, amp=1.0)
+            an = AnalysisState()
+            voices = {1: Voice(1, BufferSource(samples), volume=1.0)}
+            r = None
+            for _ in range(8):
+                r = render(voices, n, analysis=an, level_tau=0.02, spectrum_bins=8)
+                voices = {1: Voice(1, BufferSource(samples.copy()), volume=1.0)}
+            return int(np.argmax(r.master_spectrum))
+
+        low = peak_bin(440)
+        high = peak_bin(8000)
+        # Log bands: 440 Hz is low-mid; 8 kHz sits several bars higher.
+        self.assertGreaterEqual(low, 1)
+        self.assertLess(low, 5)
+        self.assertGreater(high, low + 1)
+        samples = _sine(440, n / _SR, amp=1.0)
+        h = play_sound(Sound._from_pcm(samples), loops="forever")
+        _frame(0.05)
+        self.assertEqual(int(np.argmax(h.spectrum(bins=8))), low)
+
+    def test_level_tau_change_affects_rise(self):
+        from scena.audio_mixer import AnalysisState, BufferSource, Voice, render
+        n = 512
+        samples = _sine(440, 2.0, amp=1.0)
+        src = BufferSource(samples)
+
+        def rise(tau):
+            an = AnalysisState()
+            v = {1: Voice(1, BufferSource(samples.copy()), volume=1.0)}
+            r = render(v, n, analysis=an, level_tau=tau)
+            return r.master_level
+
+        slow = rise(0.5)
+        fast = rise(0.01)
+        self.assertGreater(fast, slow)
+
+    def test_level_on_after_handle_raises(self):
+        from scena import after
+        h = after(1.0, lambda: None)
+        with self.assertRaises(AttributeError) as ctx:
+            _ = h.level
+        self.assertIn("play_sound", str(ctx.exception))
+
+
+class TestMixerIdleAndSpectrumInterest(unittest.TestCase):
+    def test_settled_idle_skips_work(self):
+        mixer = Mixer()
+        self.assertTrue(mixer._settled)
+        r1 = mixer.render_block(256)
+        r2 = mixer.render_block(256)
+        self.assertIs(r1, r2)  # shared offline silent result
+        self.assertEqual(mixer.snapshot().master_level, 0.0)
+
+    def test_idle_decays_then_settles(self):
+        mixer = Mixer()
+        samples = make_sine(440, 0.05, amp=1.0)
+        mixer.start_voice(samples=samples, volume=1.0)
+        mixer.render_block(samples.shape[0])
+        self.assertFalse(mixer._settled)
+        self.assertGreater(mixer.snapshot().master_level, 0.05)
+        # Drain EMA toward silence without voices/commands.
+        for _ in range(80):
+            mixer.render_block(2048)
+            if mixer._settled:
+                break
+        self.assertTrue(mixer._settled)
+        self.assertEqual(mixer.snapshot().master_level, 0.0)
+        # Further idle pumps are free (same cached silent result).
+        a = mixer.render_block(128)
+        b = mixer.render_block(128)
+        self.assertIs(a, b)
+
+    def test_spectrum_skipped_until_interest(self):
+        mixer = Mixer()
+        samples = make_sine(440, 0.1, amp=1.0)
+        mixer.start_voice(samples=samples.copy(), volume=1.0, loops=-1)
+        mixer.render_block(2048)
+        self.assertFalse(mixer._spectrum_wanted)
+        # Snapshot spectrum stays at the zero default until someone asks.
+        self.assertLess(float(np.max(mixer.snapshot().master_spectrum)), 1e-6)
+        mixer.note_spectrum_interest()
+        self.assertTrue(mixer._spectrum_wanted)
+        # Catch-up from last block fills a real peak.
+        peak = int(np.argmax(mixer.snapshot().master_spectrum))
+        self.assertGreaterEqual(peak, 1)
+        mixer.render_block(2048)
+        peak2 = int(np.argmax(mixer.snapshot().master_spectrum))
+        self.assertEqual(peak2, peak)
+
+    def test_pure_render_still_computes_spectrum_by_default(self):
+        n = 2048
+        samples = make_sine(440, n / SAMPLE_RATE, amp=1.0)
+        voices = {1: Voice(1, BufferSource(samples), volume=1.0)}
+        r = render(voices, n, spectrum_bins=8)
+        self.assertGreater(float(np.max(r.master_spectrum)), 0.1)
+
+
+class TestSoundGuards(PlaySoundTestCase):
+    def test_rejects_non_finite_pitch_volume_pan(self):
+        tone = Sound._from_pcm(_sine(440, 0.2))
+        for kwargs in (
+            {"pitch": float("nan")},
+            {"pitch": 0},
+            {"pitch": float("inf")},
+            {"volume": float("nan")},
+            {"pan": float("nan")},
+        ):
+            with self.assertRaises(ValueError):
+                play_sound(tone, **kwargs)
+
+    def test_fade_rejects_non_finite_time(self):
+        h = play_sound(_pcm(1.0))
+        with self.assertRaises(ValueError):
+            h.fade_to(0.5, time=float("nan"))
+        with self.assertRaises(ValueError):
+            h.fade_out(time=float("inf"))
+        h.cancel()
+
+    def test_crossfade_zero_is_instant_cut(self):
+        from scena.audio_mixer import get_mixer
+        gone = []
+        a = play_sound(
+            _pcm(3.0), volume=1.0, name="music", loops="forever",
+            on_done=lambda: gone.append("a"),
+        )
+        b = play_sound(
+            _pcm(3.0), volume=1.0, name="music", loops="forever", crossfade=0,
+        )
+        self.assertTrue(a.cancelled)
+        get_mixer().render_block(256)
+        voice = get_mixer().voices.get(b._voice_id)
+        self.assertIsNotNone(voice)
+        self.assertAlmostEqual(voice.volume, 1.0, places=3)
+        self.assertAlmostEqual(b.volume, 1.0, places=3)
+        peak = float(np.max(np.abs(get_mixer().render_block(512).block)))
+        self.assertGreater(peak, 0.05)
+        _frame(0.2)
+        self.assertEqual(gone, [])
+        b.cancel()
+
+    def test_pause_freezes_fade_out(self):
+        n = []
+        h = play_sound(_pcm(2.0), on_done=lambda: n.append(1))
+        h.fade_out(0.2)
+        h.pause()
+        _frame(0.5)
+        self.assertEqual(n, [])
+        self.assertFalse(h.done)
+        h.resume()
+        _frame(0.3)
+        self.assertEqual(n, [1])
+        self.assertTrue(h.done)
+
+    def test_level_tau_and_amp_db_reject_non_finite(self):
+        from scena import audio
+        from scena.audio import amp_db, reset_audio
+        with self.assertRaises(ValueError):
+            audio.level_tau = float("nan")
+        self.assertEqual(amp_db(float("nan")), 0.0)
+        self.assertEqual(amp_db(float("inf")), 0.0)
+        with self.assertRaises(ValueError):
+            amp_db(0.5, floor=float("nan"))
+        with self.assertRaises(ValueError):
+            amp_db(0.5, floor=float("-inf"))
+        reset_audio()
+
+    def test_reset_audio_restores_bus(self):
+        from scena import audio
+        from scena.audio import reset_audio
+        audio.volume = 0.2
+        audio.muted = True
+        audio.level_tau = 0.5
+        reset_audio()
+        self.assertEqual(audio.volume, 1.0)
+        self.assertFalse(audio.muted)
+        self.assertAlmostEqual(audio.level_tau, 0.08)
+
+    def test_spectrum_half_scale_is_not_full(self):
+        from scena.audio_mixer import AnalysisState, BufferSource, Voice, render
+        n = 4096
+        samples = _sine(440, n / _SR, amp=0.5)
+        an = AnalysisState()
+        voices = {1: Voice(1, BufferSource(samples.copy()), volume=1.0)}
+        result = None
+        for _ in range(8):
+            result = render(voices, n, analysis=an, level_tau=0.02, spectrum_bins=32)
+            voices = {1: Voice(1, BufferSource(samples.copy()), volume=1.0)}
+        peak = float(np.max(result.master_spectrum))
+        self.assertGreater(peak, 0.25)
+        self.assertLess(peak, 0.75)
+
+    def test_render_zero_frames_keeps_ema(self):
+        from scena.audio_mixer import AnalysisState, BufferSource, Voice, render
+        an = AnalysisState()
+        samples = _sine(440, 0.05)
+        render({1: Voice(1, BufferSource(samples), volume=1.0)}, 512, analysis=an, level_tau=0.08)
+        before = an.master_level
+        self.assertGreater(before, 0.01)
+        render({}, 0, analysis=an, level_tau=0.08)
+        self.assertAlmostEqual(an.master_level, before, places=6)
+
+    def test_effects_enabled_false_reaches_mixer(self):
+        from scena.audio_effects import LowPass
+        from scena.audio_mixer import get_mixer
+        h = play_sound(_pcm(0.5))
+        h.effects.add(LowPass(cutoff=300))
+        h.effects.enabled = False
+        get_mixer().render_block(128)
+        voice = get_mixer().voices[h._voice_id]
+        self.assertEqual(tuple(voice.effects), ())
+        h.cancel()
+
+    def test_stream_remaining_uses_file_duration(self):
+        from scena.audio import reset_audio
+        root = media("audio", "laser-big.wav")
+        reset_audio()
+        material = Sound(root, stream=True)
+        h = play_sound(material)
+        _frame(0.05)
+        self.assertGreater(h.remaining, material.duration * 0.5)
+        h.cancel()
+        reset_audio()
+
+    def test_stream_override_does_not_poison_heuristic(self):
+        from scena.audio import reset_audio
+        root = media("audio", "laser-big.wav")
+        reset_audio()
+        Sound(root, stream=True)
+        heuristic = Sound(root)
+        self.assertFalse(heuristic._is_stream)
+        reset_audio()
+
+    def test_at_frame_past_block_applies_later(self):
+        mixer = Mixer()
+        samples = np.ones((256, 2), dtype=np.float32) * 0.4
+        vid = mixer.start_voice(samples=samples, volume=1.0, loops=-1)
+        mixer.set_volume(vid, 0.25, at_frame=100)
+        first = mixer.render_block(64)
+        np.testing.assert_allclose(first.block, 0.4, atol=1e-5)
+        second = mixer.render_block(64)
+        # 100 - 64 = 36 samples still at the old volume.
+        np.testing.assert_allclose(second.block[:36], 0.4, atol=1e-5)
+        np.testing.assert_allclose(second.block[36:], 0.4 * 0.25, atol=1e-5)
+
+    def test_settled_idle_block_matches_request(self):
+        mixer = Mixer()
+        block = mixer.render_block(256).block
+        self.assertEqual(block.shape, (256, 2))
+        self.assertLess(float(np.max(np.abs(block))), 1e-8)
+
+
+if __name__ == "__main__":
+    unittest.main()

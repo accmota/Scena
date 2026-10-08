@@ -1,0 +1,14 @@
+exp1.jpg
+CC0 — https://opengameart.org/content/explosion
+
+exp2.png, exp3.png
+CC0 - https://opengameart.org/content/2d-explosion-animations-frame-by-frame
+
+exp4.png
+CC0 — https://opengameart.org/content/pixel-explosion-12-frames
+
+spr_bullet_strip.png, spr_bullet_strip02.png, spr_bullet_strip03.png, spr_bullet_strip04.png
+CC0 — https://opengameart.org/content/sci-fi-space-simple-bullets
+
+
+

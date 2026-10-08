@@ -1,0 +1,99 @@
+# Fences
+
+Settled **nos**. Current constraints, not history.
+
+Open **only** when proposing API sugar, a second spelling, a silent rewrite, or
+resurrecting a dropped name. Not a reading list. Happy path stays in the matching
+`* Design.md`. Each fence carries its reason in the companion it links to.
+
+A fence in a companion section has the same weight as an invariant. Do not invent
+API a row below forbids without evidence that matches the **Revisit** bar.
+
+| Don't | Revisit | Where |
+| --- | --- | --- |
+| `Text.flip_x` / `flip_y = True` (mirrored text) | A use where mirrored text reads — none known; each flip would need its own frame convention on Text | [Canvas — Text placement](Canvas%20Design.md) |
+| `group["…"].every` / `.on_update` / `every(..., group=)` | A script-level `every` + Director cannot express | [Actors — Group fences](Actors%20Design.md#group-fences) |
+| `every(0)` / `EVERY_FRAME` as a per-frame hook | A script needs per-frame work that is cancellable, mode-scoped, or named, and `on_update` + `update(dt)` cannot express it | [Actors — every is seconds](Actors%20Design.md#every-is-seconds-not-frames) |
+| Silently merge per-entity `every` handles | Never as a rewrite; `SCENA HINT` is Deferred | [Actors — Group fences](Actors%20Design.md#group-fences) |
+| A part as a collision body (`part.collidable = True`, `@collide(part, …)`, `resolve(part, …)`, `part.on_collide`); `part.destroy()` / `part.active` | A taught script needs contact on part of a shape that `@collide(owner)` + `info.point`, `contains_point`, or a follower `Point` cannot express — then build shape hitbox parts on the [Sprite contract](Sprite%20Design.md#hitbox-parts) (owner answers, `info` names the part), not Points as bodies | [Actors — A part is not an actor](Actors%20Design.md#a-part-is-not-an-actor) |
+| Tags on a part (`line.p1.tag(…)`, `part.group = …`) | A taught script needs a set of parts across owners that a Python list or tagging the owners cannot express | [Actors — Groups are tags](Actors%20Design.md#groups-are-tags) |
+| `id=` / `.id` / `obj("id")`, or any name → actor registry besides tags | A taught script cannot reach an actor through a variable or `group["tag"]` | [Actors — No author ids](Actors%20Design.md#no-author-ids) |
+| Live `\|` / `&` / `.filter()`; `group("name")`; spatial walk order | New evidence that `@=` + join order fail | [Actors — Group fences](Actors%20Design.md#group-fences) |
+| `set_framerate(...)` / `FrameRateControl.*` next to `canvas.framerate`; divisor tokens (`"vsync_half"`); a number silently switched to a locked token | Never as a second spelling (tokens like `canvas.display`); a divisor token means different rates on different panels; a number is honoured as written | [Scena — Frame pacing and GC](Scena%20Design.md#frame-pacing-and-gc) |
+| `canvas.follow` / persistent `pan_toward` | Several taught games copy-paste the same unmodified `deadzone`+`chase`+`pan_to` | [Canvas — Follow math](Canvas%20Design.md#follow-math-chase--deadzone) |
+| "Rides the camera" carry sugar (a group that follows the view by itself) | Real games show heavy repetition of the one `group[...].move_by` carry line; it would be a persistent group-scoped driver | [Canvas — Endless fill](Canvas%20Design.md#endless-fill) |
+| `repeat_x=` / `repeat_y=` on layers; draw-copy tiling; a mixed list of images and builders; flat random helpers on `slot` (`slot.uniform`, …) | A periodic or flat-helper case that `Endless` with one image, or `slot.rng` / `slot.chance`, cannot express (two spellings otherwise) | [Canvas — Endless fill](Canvas%20Design.md#endless-fill) |
+| Live neutral ↔ parallax change on a layer (`layer.pan_response = …`, `scroll` making a neutral layer decoration) | Never as a silent change: a neutral layer may hold collidable bodies. Only the scroll **rate** is live | [Canvas — Parallax layers](Canvas%20Design.md#parallax-layers-decoration-only) |
+| Numeric layers: no `.z` mutation, no `create()` with an int name, no camera-response knobs | An advanced script needs a numbered layer to move or gain parallax — give it a name instead unless real friction shows up | [Canvas — Registry and layers](Canvas%20Design.md#registry-and-layers) |
+| Runtime read-tracking for `@=` formulas; formulas that loop over groups / collections, write Scena objects, or call code Scena cannot read | A taught script needs one and `update()` / a group formula / a same-file helper cannot express it | [Reactive — Formula visibility](Reactive%20Design.md#formula-visibility-named-functions-helpers-refusals) |
+| B1 float-pose + Attribute promotion | Target-machine scene still **update-bound** after A1–A4 + mass-sprite | [Reactive — Deferred B1](Reactive%20Design.md#deferred-float-pose--promotion-b1) |
+| Second Sprite type / SoA / Entity pool | Different product; not a Galaga win | [Sprite — Sprite fences](Sprite%20Design.md#sprite-fences) |
+| Force `hitbox_shape="rect"` on projectiles | Auto stays the beginner default | [Sprite — Sprite fences](Sprite%20Design.md#sprite-fences) |
+| Flat main-hitbox properties (`sprite.hitbox_scale`, `hitbox_from`), a `hitbox_box` read, `hb.width` / `hb.height`, or `@collide(hero.hitbox, …)` | Never — one spelling each: `Sprite(hitbox_X=)` then `sprite.hitbox.X`; `hb.box.width`; the actor names its main hitbox | [Sprite — Hitboxes: one type](Sprite%20Design.md#hitboxes-one-type) |
+| Second set of hitbox kwargs on Sprite (`hurtbox=`, `hurtbox_from=`, …); a hitbox part that resolves | A script needs something [hitbox parts](Sprite%20Design.md#hitbox-parts) (same four knobs, detect-only) cannot express | [Sprite — Sprite fences](Sprite%20Design.md#sprite-fences) |
+| `sprite.silhouette` | Never — second spelling of `Track(sprite)` (it also hid a cached registered Track) | [Sprite — Hitbox parts](Sprite%20Design.md#hitbox-parts) |
+| `add_hitbox(active=fn)`; `hb.active = fn` | Never — one spelling: `hb["active"] @= fn` | [Sprite — round 2](Sprite%20Design.md#pixel-shapes-and-linked-active-round-2) |
+| `add_hitbox(clips=…)` / a data frame gate (`showing=`) | `hb["active"] @= lambda: s.showing(…)` proves heavy in real scripts | [Sprite — round 2](Sprite%20Design.md#pixel-shapes-and-linked-active-round-2) |
+| `px_rect` / `px_circle` on the body; pixel coordinates measured from the pivot | The four body knobs cannot express a real pack's body (pivot-relative: never — the numbers are the editor's) | [Sprite — round 2](Sprite%20Design.md#pixel-shapes-and-linked-active-round-2) |
+| Polled links on other flags (`sprite["visible"] @=`, `collidable`) | A separate decision; `Hitbox.active` opens the category without committing to it | [Sprite — round 2](Sprite%20Design.md#pixel-shapes-and-linked-active-round-2) |
+| `.solid` / `.is_sensor` / `mass=0` as sensor | `@collide` vs `resolve()` already splits detect vs push | [Collision — Resolution](Collision%20Design.md#resolution) |
+| A second one-way keyword on `resolve` (`unless=` / `except_=` / `pass_through=` / `sides=`), a shape-level `one_way` flag, or the `only=` filter in the partner tuple / per partner visit; a solver-lock check on pose / slot write paths | A taught game that `only=` (sides or a function) cannot express; for cost, never — dispatch per body | [Collision — One-way fences](Collision%20Design.md#one-way-fences) |
+| Spatial hash / all-collider n×n | Declared-pair AABB is the broad phase | [Collision — What not to add](Collision%20Design.md#what-not-to-add) |
+| Sprite proxy tighter than its local extent box turned by the heading, including to fix a false unswept contact; `hitbox_shape="auto"` → always circle | `TestProxyAabbConservative` still holds (rotation × flip × offset × scale, near-circle mean radius, pose-aspect change) | [Collision — Sprite colliders](Collision%20Design.md#sprite-colliders), [Unswept bounds](Collision%20Design.md#unswept-bounds) |
+| All-in-one `Sky` / celestial wallpaper kinds | Composition stays author-owned | [Effects — Background inventory](Effect%20System%20Design.md#inventory-high-quality-only) |
+| Soft-plate CheapGlow / smart glow tiling; `post_fx_mode` | CheapGlow = filterless ADD on `.glow`; composition is hybrid | [Effects §5.2](Effect%20System%20Design.md#52-what-one-batch-costs) |
+| `moon.orbit` / `Group.move_along` / `stagger=` / path algebra | Real scripts show modifiers + `phase=` loops are not enough | [Tracks — Deferred](Tracks%20Design.md#deferred) |
+| `move_along(point-or-tuple)` | Evidence `move_to(..., time=)` cannot express it (it already does, point-for-point) | [Tracks — Travel](Tracks%20Design.md#travel) |
+| `Track(stroke=)` / `Track(fill=)` | Evidence `color=` (writes the stroke) and `.fill` after a showing keyword (`color=` / `visual=` / `line_width=` / `visible=True`) are not enough | [Tracks Design.md](Tracks%20Design.md) |
+| Writable `Handle.paused = …` | Never — second spelling of `pause()` / `resume()` | [Actors — Process semantics](Actors%20Design.md#process-semantics) |
+| `Contrail.sample` / `History.record(source, every=)` / `Graphic.contrail(...)` | Several taught samples copy the same unmodified `e.every(..., lambda: c.snapshot(e))` after the destroyed-source raise, and that raise is still not enough | [History — Sampling](History%20Design.md#sampling) |
+| `record(wet=True)` | `bake` or `h.effects` cannot express a taught case | [Sound — Recording fences](Sound%20Design.md#recording-fences) |
+| A setting for the 30 s record cap | A taught script needs a longer take and the warning is not enough | [Sound — Recording fences](Sound%20Design.md#recording-fences) |
+| `clip = mic.stop()` as a second spelling of `record()` | `clip = mic.record()` cannot be held across the handlers that start and stop | [Sound — Recording fences](Sound%20Design.md#recording-fences) |
+| `.x` / `.y` pose alias on Graphic / SpatialFx | Taught scripts still decompose `center` after `center + (dx, dy)` landed | [Shapes — Point arithmetic](Shapes%20Design.md#point-arithmetic) |
+| A new public constructor that takes positional numbers, or a knob that skips `validate.py` | Never as a second spelling of the keyword-only, validated constructors | [Scena — Numbers and signs](Scena%20Design.md#numbers-and-signs) |
+| `keyp[name]` | Never — second spelling of `keyp(name)` / `keyp.once(name)` | [Scena — key specs](Scena%20Design.md) |
+| Key-name aliases (`"ESCAPE"`, `"RETURN"`, `"DELETE"`, `"CONTROL"`, `"OPTION"`, `"COMMAND"`, …); punctuation by glyph or US word (`"."`, `"PERIOD"`) or row/column (`"R4C9"`) instead of `K1`–`K12` | Never — `on_key`'s `KeyName` cannot honour an alias without breaking `==`/`hash` (sets, dict keys); they raise with the Scena name instead | [Scena — key specs](Scena%20Design.md) |
+| `@at_ledge` / `facing=` / auto-turn on `floor_below`; a side-sensor helper read through `touching_sides`; a `has_floor` or `collision.floor_below` second spelling | A taught script needs an edge event that polling `floor_below(dx=)` in `update()` cannot express | [Collision — floor_below fences](Collision%20Design.md#floor_below-fences) |
+| Bare collision queries (`query_circle`, `collision_with_circle`) | A taught script cannot say which world it means (`collision.` is hitboxes; `nearest` / `distance` are drawn geometry) | [Collision — Query fences](Collision%20Design.md#query-fences) |
+| Positional end on `raycast` (`raycast(p, vec)`) | A `Vec2` stops being a point-like, so the call is not also "aim at this point" | [Collision — Query fences](Collision%20Design.md#query-fences) |
+| `query_sector(occluded_by=)` or a sort option | `raycast` after the sector, and `nearest(origin, hits)`, cannot express the case | [Collision — Query fences](Collision%20Design.md#query-fences) |
+| `Circle(theta1=, theta2=)` or any start/end spelling on Circle | A taught script needs a filled pie that grows from a fixed anchor, and one `angle` lambda or a Track `end` window cannot express it | [Shapes — Circle](Shapes%20Design.md#circle) |
+| `angle=` / `spread=` on `Track.arc`, or `start_angle` / `end_angle` | Never — a second spelling of a directed path (`from_angle` / `to_angle` already is that path; `begin` / `end` is the trim window) | [Tracks — Collision](Tracks%20Design.md#collision) |
+| Menu keyboard navigation, Esc, or `on_cancel` | A taught pause menu cannot be opened with `keyp.once` from the script | [Canvas — Menu](Canvas%20Design.md#menu) |
+| `canvas.to_view(point)` | A taught `Menu(center=lambda)` must track a world point while the camera moves | [Canvas — Menu](Canvas%20Design.md#menu) |
+| Menu submenus, scrolling, disabled items, or a dict of options | A taught menu cannot be one flat list | [Canvas — Menu](Canvas%20Design.md#menu) |
+| Option strings with an image extension drawn as images | `icons=` cannot express it | [Canvas — Menu](Canvas%20Design.md#menu) |
+| `Menu(near=)` / `top_left=` / `bold=` / `italic=` | Never — `center=` or `box=`, and `font=`, are the spellings | [Canvas — Menu](Canvas%20Design.md#menu) |
+| Scalar placement keywords (`x1=` / `y1=` / `x=` / `y=` / `pos=`) on Text, widgets, `Line`, or SpatialFx; positional coordinates or `at=` on SpatialFx (`Fire(200, 150)`, `Rain(x1, y1, x2, y2)`); public writable box edges `.x1 … .y2`; `align=` as a pin | Never — placement is one point: `top_left=` / `top_center=` / `top_right=`, `center=`, `box=`, `p1=` / `p2=`. SpatialFx point kinds are Circle's siblings (`center=`), Rain is Rect's (`p1=` / `p2=`). Those spellings raise with a hint naming them | [Canvas — Text placement](Canvas%20Design.md), [Effects — SpatialFx placement](Effect%20System%20Design.md#placement-is-points-keyword-only) |
+| A second name for a Graphic's heading (`rotation` back as a field, alias or property); `rotation = θ` meaning `rotate_to(θ)` while `angle =` keeps the placement point (two writable names for one number); `about="pivot"` / `about="center"` sentinels on the verbs; the placement point as the verbs' default pivot | Never as a second spelling. Revisit only if a taught script needs a rigid turn about the placement point that `x.angle = …` / `tween(x["angle"], …)` / `rotate_to(…, about=part)` cannot express | [Shapes — Geometry contract](Shapes%20Design.md#geometry-contract) |
+| `recipe=` (or any "light" / disc-only variant knob) on `burst_at` / `explosion_at` | Never — a flash disc is a *hit*, not a small death: it lives on `hit_at(style="disc")` (a small death is `burst_at`). "recipe" also collided with the look Recipes, and it took the silent aliases `"quick"` / `"pop"`. `hit_at`'s `style` stays a strict choice (`"star"` / `"disc"`); a third look, or a mode hidden in a number (`count=0` meaning "disc"), needs its own case — `count=0` only drops the sparks | [Effects — Canvas post categories](Effect%20System%20Design.md#32-canvas-post-effects--categories) |
+| `hit_at` reading its spark direction from `info` (the contact normal) when `angle` is omitted; `debris_at` taking `color` from a Graphic locus | Never — the normal flips with the `@collide` argument order, and a fill can be a Gradient / Texture (`hit_at(info)` / `debris_at(ship)` would silently differ from the same call on `info.point` / `ship.center`). An `away=point` knob on `hit_at` only if a taught script cannot aim with `angle` | [Effects — Canvas post categories](Effect%20System%20Design.md#32-canvas-post-effects--categories) |
+| `Rain(angle=)` as a turned pad or "wind" | A taught scene needs slanted rain — then a streak-direction knob, not a rotated pad | [Effects — SpatialFx placement](Effect%20System%20Design.md#placement-is-points-keyword-only) |
+| Bottom anchors on Text (`bottom_left=` / …) | A taught layout needs a caption that grows **upward** from a fixed bottom and moving a top anchor by `.box.height` is not enough | [Canvas — Text placement](Canvas%20Design.md) |
+| TextInput multi-line, undo inside the box, password mask, IME pre-edit, validators beyond int / float, a right-click menu | A taught script needs it and a second widget cannot express it | [Canvas — TextInput](Canvas%20Design.md#textinput) |
+| A key passing through a focused TextInput without committing it; a public `box.commit()` for shortcuts | Never — a shortcut that forgets the call reads stale data silently (the file saves `40` while the box shows `77`); the box commits before any key reaches the game | [Canvas — TextInput](Canvas%20Design.md#textinput) |
+| A per-key "let this key through" API on TextInput; plain keys reaching the game while a box has focus; undo inside the box | A taught script needs a key the claim rule (editing keys, text keys, Primary + A/C/X/V/Z/Y) keeps from the game | [Canvas — TextInput](Canvas%20Design.md#textinput) |
+| `on_enter` / `on_commit` as TextInput callback names; Enter keeping focus when `on_submit` is set | Never — `on_submit` is Enter only; Enter always drops focus, `box.focus()` keeps typing | [Canvas — TextInput](Canvas%20Design.md#textinput) |
+| DropDown list scrolling | A taught DropDown has more options than fit on screen on either side | [Canvas — HUD column](Canvas%20Design.md) |
+| `Menu.enabled` | Never — a disabled modal Menu blocks all input with nothing to click; `destroy()` it | [Canvas — Menu](Canvas%20Design.md#menu) |
+| `TextBox` as a name or alias | Never — `TextInput` (Scena's `Box` is a measuring region) | [Canvas — HUD column](Canvas%20Design.md) |
+| Widget `box=` | A taught layout needs a grid of widgets that `top_left=` + `ui.stack_*` + `widget.box` cannot express | [Canvas — HUD column](Canvas%20Design.md) |
+| Widget `top_left=` links (`lambda`) | A taught script needs a HUD widget that follows something | [Canvas — HUD column](Canvas%20Design.md) |
+| `Level(...)` creating anything at load; a bulk `level.make_all("g")`; a `LevelItem` as a `box=` input | A taught script needs a group made with no per-item change and a two-line loop is the friction (`box=item`: never — `item.box`) | [Editor — Fences](Editor%20Design.md#fences) |
+| Behavior, numbers, layers or several levels in a level file | See the row in the Editor fences | [Editor — Fences](Editor%20Design.md#fences) |
+| `enabled` on a Graphic other than `SpriteButton` (it is otherwise the near-miss for `active`) | A second Graphic with a "drawn but inert" state — then move `enabled` + `_accepts_press` to Graphic in one change | [Sprite — SpriteButton](Sprite%20Design.md#spritebutton) |
+| `SpriteButton.text` (or any third spelling of the label) | Never — `label` (string shortcut, same word as HUD `Button.label`) and `label_text` (the `Text`) are the two spellings | [Sprite — SpriteButton](Sprite%20Design.md#spritebutton) |
+| Linking a part's pose to its owner (`button.label_text["center"] @= lambda: button.center…`) | Never: the owner → part edge makes it a cycle. A part drawn by its owner has a relative pose | [Sprite — SpriteButton](Sprite%20Design.md#spritebutton) |
+| SpriteButton feel written to pose `scale` (tweens on hover / press) | Never: it fights the author's `scale` and moves the click area (edge flicker) | [Sprite — SpriteButton](Sprite%20Design.md#spritebutton) |
+| Engine dispatch on `type(x).__name__` | Never: it refuses every subclass. Use `scena_kind` / `is_sprite_family`; mark a deliberate exact check `# exact-type:` | [Actors — Implementation notes](Actors%20Design.md#implementation-notes-maintainers) |
+
+Parking-lot **maybe** (not a no): `group.sway_x` — [Actors Deferred](Actors%20Design.md#deferred).
+
+## Writing
+
+When a Rejected / Dropped / Non-goals block is about to land:
+
+1. **Will the next edit try this?** Fence in the companion (≤ ~8 lines), at the feature, with a revisit bar. Add a row here.
+2. **Waiting on evidence?** One **Deferred** bullet in the matching companion.
+3. **Why?** In the fence itself: one line on why the alternative lost (the case it breaks, the number it costs). The living doc keeps the conclusion and its reason; the trial (rounds, drafts) stays in the private archive and is never linked.
