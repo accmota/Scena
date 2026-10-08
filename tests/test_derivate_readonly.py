@@ -263,6 +263,14 @@ class TestDerivedFieldMessages(unittest.TestCase):
                     checked += 1
         self.assertGreater(checked, 500)
 
+    # Kinds whose suggested move is wrong (shrink-only: a fixed entry fails).
+    KNOWN_BAD_HINT = {
+        "Line parallel_dist": "GR1 (graphics review, batch 8): move projects onto the normal",
+        "Line tangent_point": "SB1 (batch 8): the move re-solves the tangent",
+        "Line tangent_angle": "GR2 (batch 9): the hint suggests move_to, which a linked p1 refuses",
+        "Ellipse from_rect": "GR2 (batch 9): the hint suggests move_to, which a linked center refuses",
+    }
+
     def test_the_suggested_move_lands_the_point(self):
         import geometry_support as G
         import re
@@ -270,6 +278,8 @@ class TestDerivedFieldMessages(unittest.TestCase):
         for kind, name, part, point in self._computed_fields():
             if not point:
                 continue
+            if kind in self.KNOWN_BAD_HINT:
+                continue                 # pinned by test_known_bad_hints_still_fail
             for form, value in (("=", (7, -3)), (".x =", 7)):
                 with self.subTest(kind=kind, field=name, form=form):
                     obj = G.build(kind)
@@ -293,6 +303,31 @@ class TestDerivedFieldMessages(unittest.TestCase):
                         self.assertAlmostEqual(p.x, 7, places=6)
                     checked += 1
         self.assertGreater(checked, 150)
+
+    def test_known_bad_hints_still_fail(self):
+        import geometry_support as G
+        import re
+        for kind in self.KNOWN_BAD_HINT:
+            with self.subTest(kind=kind):
+                obj = G.build(kind)
+                landed = True
+                for name in ("center", "p2", "fp1"):
+                    if name not in obj._field_slots() or not obj._field_is_derivate(name, obj._field_slots()[name]):
+                        continue
+                    try:
+                        setattr(obj, name, (7, -3))
+                    except DerivedAttributeError as e:
+                        found = re.search(r"write (\w+)\.(move_to\(.*\))\.$", str(e))
+                    if found is None:
+                        continue
+                    try:
+                        eval(f"obj.{found.group(2)}", {"obj": obj, found.group(1): obj})
+                        p = getattr(obj, name)
+                        landed = landed and abs(p.x - 7) < 1e-6 and abs(p.y + 3) < 1e-6
+                    except Exception:  # noqa: BLE001  (the hint's move is refused)
+                        landed = False
+                    break
+                self.assertFalse(landed, f"fixed: remove {kind} from KNOWN_BAD_HINT")
 
 
 if __name__ == "__main__":

@@ -98,6 +98,8 @@ def _defining_fields(obj):
     for name, slot in obj._field_slots().items():
         if obj._field_is_derivate(name, slot):
             continue
+        if obj._field_is_linked(name):
+            continue                     # linked by the model itself (relational kinds)
         if isinstance(slot, ScalarSlot):
             v = getattr(obj, name)
             if isinstance(v, (int, float)) and not isinstance(v, bool):
@@ -254,6 +256,173 @@ class TestCellHoldingAPair(unittest.TestCase):
                     st.dlw_pos = pair(5.0, 6.0)
                     self.assertEqual((linked.x, linked.y), (5.0, 6.0))
                     self.assertEqual((copied.x, copied.y), (1.0, 2.0))
+
+
+# ---------------------------------------------------------------------------
+# The write gate (graphics review R1): a pose verb on a linked shape either
+# refuses with nothing changed, or runs and keeps the link. Which answer is
+# right comes from an unlinked twin, not from a model of the gate: the parts
+# the twin's verb changes are the parts the verb writes.
+# ---------------------------------------------------------------------------
+
+GATE_PIVOT = (50.0, -20.0)
+
+GATE_VERBS = (
+    ("move_by", lambda o: o.move_by(7, -3)),
+    ("move_to", lambda o: o.move_to(60, 40)),
+    ("rotate_by", lambda o: o.rotate_by(33)),
+    ("rotate_by about", lambda o: o.rotate_by(33, about=GATE_PIVOT)),
+    ("rotate_to", lambda o: o.rotate_to(float(o.angle) + 50)),
+    ("scale_by", lambda o: o.scale_by(1.5)),
+    ("scale_by about", lambda o: o.scale_by(1.5, about=GATE_PIVOT)),
+    ("flip_x", lambda o: setattr(o, "flip_x", not o.flip_x)),
+    ("flip_y", lambda o: setattr(o, "flip_y", not o.flip_y)),
+    ("angle =", lambda o: setattr(o, "angle", float(o.angle) + 50)),
+    ("scale =", lambda o: setattr(o, "scale", float(o.scale) * 1.5)),
+)
+
+
+def _gate_kinds():
+    for kind in sorted(G.KINDS):
+        if kind.split()[0] in NO_LINK or kind.startswith("Box") or kind.endswith("reversed"):
+            continue                  # Box is a value; a reversed view forwards to its host
+        yield kind
+
+
+def _pose_reads(obj) -> dict:
+    out = {}
+    for name in ("angle", "scale", "flip_x", "flip_y"):
+        try:
+            v = getattr(obj, name)
+            out["pose." + name] = (float(v),)
+        except Exception as e:  # noqa: BLE001
+            out["pose." + name] = ("raises", type(e).__name__)
+    return out
+
+
+def _gate_state(obj) -> dict:
+    return {**_read_all(obj), **_pose_reads(obj)}
+
+
+def _keys_of(target: str) -> tuple:
+    """The read keys that show a write to ``target``."""
+    if target in ("angle", "scale"):
+        return (target, "pose." + target)
+    return (target, "~" + target)
+
+
+def _gate_targets(probe):
+    """(name, how) for each link target: Defining fields, pose anchors, the whole object."""
+    out = [(name, what) for name, what, _slot in _defining_fields(probe)]
+    names = {n for n, _ in out}
+    for pose in ("angle", "scale"):
+        if pose not in names and pose not in probe._field_slots() and hasattr(type(probe), pose):
+            out.append((pose, "scalar"))
+    out.append(("whole", "whole"))
+    return out
+
+
+def _link(obj, kind, name, how):
+    """Link ``name`` to a cell holding its current value (reads do not move)."""
+    if how == "whole":
+        src = G.build(kind)
+        obj @= (lambda s=src: s)
+        return src
+    if how == "scalar":
+        st.gate_s = float(getattr(obj, name))
+        obj[name] @= (lambda: st.gate_s)
+        return None
+    cur = getattr(obj, name)
+    st.gate_x, st.gate_y = float(cur.x), float(cur.y)
+    getattr(obj, name).__imatmul__(lambda: (st.gate_x, st.gate_y))
+    return None
+
+
+def _changed(before: dict, after: dict) -> set:
+    return {k for k, _a, _b in _differences(before, after)}
+
+
+def gate_violations(kinds=None) -> dict:
+    """``"kind | target | verb | verdict"`` -> detail, for every case off the contract."""
+    from scena.state import LinkedAttributeError
+    out = {}
+    for kind in (kinds or _gate_kinds()):
+        probe = G.build(kind)
+        if not hasattr(probe, "_field_slots"):
+            _destroy(probe)
+            continue
+        targets = _gate_targets(probe)
+        _destroy(probe)
+        for verb_name, verb in GATE_VERBS:
+            twin = G.build(kind)
+            try:
+                t0 = _gate_state(twin)
+                verb(twin)
+                t1 = _gate_state(twin)
+            except Exception:  # noqa: BLE001  (the verb does not apply to this kind)
+                _destroy(twin)
+                continue
+            _destroy(twin)
+            written = _changed(t0, t1)
+            for name, how in targets:
+                obj = G.build(kind)
+                extra = None
+                key = f"{kind} | {name} | {verb_name}"
+                try:
+                    try:
+                        extra = _link(obj, kind, name, how)
+                    except Exception as e:  # noqa: BLE001
+                        if how != "whole":
+                            out[f"{key} | link raises"] = type(e).__name__
+                        continue
+                    hits = written if how == "whole" else written & set(_keys_of(name))
+                    s0 = _gate_state(obj)
+                    try:
+                        verb(obj)
+                        err = None
+                    except LinkedAttributeError:
+                        err = "linked"
+                    except Exception as e:  # noqa: BLE001
+                        err = type(e).__name__
+                    s1 = _gate_state(obj)
+                    if err == "linked":
+                        if not hits:
+                            out[f"{key} | over-strict"] = "refused a verb that does not write it"
+                        elif _changed(s0, s1):
+                            out[f"{key} | half-applied"] = ", ".join(sorted(_changed(s0, s1))[:4])
+                    elif err:
+                        out[f"{key} | raises {err}"] = ""
+                    elif hits:
+                        out[f"{key} | under-strict"] = "ran over a linked part: " + ", ".join(sorted(hits)[:4])
+                    else:
+                        diff = _differences(s1, t1)
+                        if diff:
+                            out[f"{key} | diverged"] = ", ".join(k for k, _a, _b in diff[:4])
+                        linked = obj._is_linked() if how == "whole" and hasattr(obj, "_is_linked") else (
+                            True if how == "whole" else obj._field_is_linked(name))
+                        if not linked:
+                            out[f"{key} | link dropped"] = ""
+                finally:
+                    _destroy(obj)
+                    if extra is not None:
+                        _destroy(extra)
+    return out
+
+
+class TestLinkWriteGate(unittest.TestCase):
+    """Graphics review R1 (SA1, SA2 = E6 = PB2, SA3, SB3, SC8): one rule for
+    every kind, link target and pose verb. Known violations are shrink-only
+    (``graphics_known.GATE``)."""
+
+    def test_every_kind_target_and_verb(self):
+        from graphics_known import shrink_only
+        shrink_only(self, gate_violations(), "GATE")
+
+    def test_canary_a_gate_that_lets_everything_through(self):
+        from diff_support import assert_catches
+        assert_catches(self, "test_diff_link_write.TestLinkWriteGate.test_every_kind_target_and_verb",
+                       [("scena.shapes", "_ensure_writable", lambda *a, **k: None)],
+                       "a write gate that never refuses")
 
 
 if __name__ == "__main__":

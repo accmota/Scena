@@ -163,6 +163,8 @@ def sweep_c1(kinds, p):
                     out[f"{kind} | read | center raises {ctx['c'].name}"] = ""
                     continue
                 err = _apply(obj, verb, ctx)
+                if G.refused(obj, err):
+                    continue
                 if err:
                     out[f"{kind} | {name} | raises {err}"] = ""
                     continue
@@ -643,36 +645,122 @@ def sweep_c6(kinds, p):
 # C7 — copies
 # ---------------------------------------------------------------------------
 
+# Copy doors (C7: "clone() / _takein reproduce geometry, parts and pose"). The
+# graphics review found ``<<`` dropping the pose and relational models kept
+# without their links: ``sweep_c7`` used to test ``clone()`` only.
+COPY_DOORS = ("clone", "<<", "absorb")
+
+# Verbs run on source and copy alike after the copy ("copy then act"): a copy
+# that lost its turn count, flip or model diverges here even when it read the
+# same right after the copy. Absolute targets come from the source.
+COPY_ACTS = (
+    ("move_by", lambda o, a: o.move_by(7, -3)),
+    ("rotate_to", lambda o, a: o.rotate_to(a + 50)),
+    ("rotate_by", lambda o, a: o.rotate_by(33)),
+    ("scale_by", lambda o, a: o.scale_by(1.5)),
+    ("flip_x", lambda o, a: setattr(o, "flip_x", not o.flip_x)),
+)
+
+
+_FREE_OF = {"Line": "Line point_point", "Ellipse": "Ellipse center_wh"}
+
+
+def _free_kind(w, kind, p):
+    """A free model of the same class (a relational source copies into it)."""
+    return _FREE_OF[kind.split()[0]] if G.is_relational(_new(w, kind, p)) else kind
+
+
+def _prepped(w, kind, p):
+    src = _new(w, kind, p)
+    if G.can_flip(src):
+        _apply(src, lambda o, c: setattr(o, "flip_x", True), {})
+    _apply(src, lambda o, c: (o.rotate_by(20), o.scale_by(1.25)), {})
+    return src
+
+
+def _copy_by(w, door, kind, p, src):
+    if door == "clone":
+        return _track(w, src.clone())
+    dst = _new(w, _free_kind(w, kind, p), dict(p, x=p["x"] + 37.0, y=p["y"] - 11.0))
+    if door == "<<":
+        dst << src
+    else:
+        dst.absorb(_prepped(w, kind, p))      # absorb destroys its source: a twin
+    return dst
+
+
+def _pose_of(obj):
+    out = {}
+    for attr in ("angle", "scale", "flip_x", "flip_y"):
+        out[attr] = G.safe(lambda: getattr(obj, attr))
+    return out
+
+
+def _same_pose(a, b, attr):
+    x, y = a[attr], b[attr]
+    if isinstance(x, bool) or isinstance(y, bool):
+        return x == y
+    if isinstance(x, G.ReadError):
+        return True
+    return not isinstance(y, G.ReadError) and G.close(float(y), float(x), 1e-6)
+
+
 def sweep_c7(kinds, p):
     out = {}
     with fresh_world() as w:
         for kind in kinds:
-            src = _new(w, kind, p)
-            if not _is_graphic(src):
+            if not _is_graphic(_new(w, kind, p)):
                 continue
-            if G.can_flip(src):
-                _apply(src, lambda o, c: setattr(o, "flip_x", True), {})
-            _apply(src, lambda o, c: (o.rotate_by(20), o.scale_by(1.25)), {})
-            try:
-                copy = _track(w, src.clone())
-            except (Exception, RecursionError) as exc:  # noqa: BLE001
-                out[f"{kind} | clone | raises {type(exc).__name__}"] = ""
-                continue
-            if not _same_drawn(_drawn(copy), _drawn(src)):
-                out[f"{kind} | clone | drawn"] = ""
-            sp, cp = G.point_parts(src), G.point_parts(copy)
-            for n, f in sp.items():
-                if n in cp and not G.close(G.safe(cp[n]), G.safe(f), 1e-5):
-                    out[f"{kind} | clone | {G.part_group(n)}"] = n
-            for attr in ("angle", "scale", "flip_x", "flip_y"):
-                a = G.safe(lambda: getattr(src, attr))
-                b = G.safe(lambda: getattr(copy, attr))
-                if isinstance(a, bool) or isinstance(b, bool):
-                    ok = a == b
-                else:
-                    ok = G.close(float(b), float(a), 1e-6) if not isinstance(a, G.ReadError) else True
-                if not ok:
-                    out[f"{kind} | clone | {attr}"] = f"{a} vs {b}"
+            for door in COPY_DOORS:
+                if door != "clone" and (kind.endswith("reversed") or kind.split()[0] in ("Sprite", "Svg", "Text", "Track", "Point", "Anchor")):
+                    continue          # << / absorb are Shape copies (a reversed view refuses: tested apart)
+                src = _prepped(w, kind, p)
+                try:
+                    copy = _copy_by(w, door, kind, p, src)
+                except (Exception, RecursionError) as exc:  # noqa: BLE001
+                    out[f"{kind} | {door} | raises {type(exc).__name__}"] = ""
+                    continue
+                if not _same_drawn(_drawn(copy), _drawn(src)):
+                    out[f"{kind} | {door} | drawn"] = ""
+                sp, cp = G.point_parts(src), G.point_parts(copy)
+                for n, f in sp.items():
+                    if n in cp and not G.close(G.safe(cp[n]), G.safe(f), 1e-5):
+                        out[f"{kind} | {door} | {G.part_group(n)}"] = n
+                a, b = _pose_of(src), _pose_of(copy)
+                for attr in a:
+                    if not _same_pose(a, b, attr):
+                        out[f"{kind} | {door} | {attr}"] = f"{a[attr]} vs {b[attr]}"
+                # Copy then act: the same verbs keep source and copy alike. A
+                # relational source may refuse (it is linked); its copy is free,
+                # so then the copy is checked against the verb's own image.
+                for act, verb in COPY_ACTS:
+                    if act == "flip_x" and not G.can_flip(copy):
+                        continue
+                    ang = G.safe(lambda: float(src.angle))
+                    ang = 0.0 if isinstance(ang, G.ReadError) else ang
+                    c_before, c_ctx = _drawn(copy), _ctx(copy)
+                    e_copy = _apply(copy, lambda o, c: verb(o, ang), {})
+                    e_src = _apply(src, lambda o, c: verb(o, ang), {})
+                    if e_copy:
+                        out[f"{kind} | {door} then {act} | copy raises {e_copy}"] = ""
+                        break
+                    if not e_src:
+                        if not _same_drawn(_drawn(copy), _drawn(src)):
+                            out[f"{kind} | {door} then {act} | drawn"] = ""
+                            break
+                        a, b = _pose_of(src), _pose_of(copy)
+                        bad = [attr for attr in a if not _same_pose(a, b, attr)]
+                        if bad:
+                            out[f"{kind} | {door} then {act} | {bad[0]}"] = f"{a[bad[0]]} vs {b[bad[0]]}"
+                            break
+                    elif G.refused(src, e_src) and act in ("move_by", "rotate_by", "scale_by"):
+                        image = {"move_by": lambda q: (q[0] + 7, q[1] - 3),
+                                 "rotate_by": lambda q: G.turned(q, c_ctx["c"], 33),
+                                 "scale_by": lambda q: G.scaled(q, c_ctx["c"], 1.5)}[act]
+                        if isinstance(c_before, G.ReadError) or not _same_drawn(
+                                _drawn(copy), [image(q) for q in c_before], 1e-4):
+                            out[f"{kind} | {door} then {act} | copy off its verb"] = ""
+                            break
     return out
 
 
@@ -721,7 +809,9 @@ def sweep_c8(kinds, p):
                     err = None
                     for s in steps:
                         err = err or _apply(obj, lambda o, c: s(o), {})
-                    if err:
+                    if G.refused(obj, err):
+                        pass
+                    elif err:
                         out[f"{kind} | {label} | raises {err}"] = ""
                     elif not _same_drawn(_drawn(obj), ref, 1e-4):
                         out[f"{kind} | {label} | drawn"] = ""
@@ -790,6 +880,51 @@ TestC6CrossView = _family("C6")
 TestC7Copies = _family("C7")
 TestC8Extremes = _family("C8")
 
+
+
+class TestKindsCoverEveryModel(unittest.TestCase):
+    """Every constructor model of every kind is in ``geometry_support.KINDS``.
+
+    The 2026-10-08 graphics review found bugs in the relational Line models
+    and Ellipse FROM_RECT that no sweep reached: they were missing from KINDS
+    (Testing Design — What the graphics review taught). A sweep is only as
+    wide as its list, so the list is checked against the model enums.
+    """
+
+    # (class, model) pairs with no constructor, each with its reason.
+    NOT_CONSTRUCTIBLE = {
+        ("Box", "SPINE"): "Box has no p1=, p2=, height= constructor (a region, not a spine)",
+        ("Square", "CORNER_CORNER"): "Square takes center= or top_left= with length=",
+        ("Square", "POINT_VEC"): "Square takes center= or top_left= with length=",
+        ("Square", "SPINE"): "Square takes center= or top_left= with length=",
+        ("Track", "SHAPE"): "Track(shape) derives its curve from the source; covered in test_tracks",
+    }
+
+    @staticmethod
+    def _built():
+        """(class name -> model enum, set of model names KINDS builds)."""
+        from enum import Enum
+        enums, seen = {}, {}
+        with fresh_world() as w:
+            for kind in KINDS:
+                model = getattr(_new(w, kind, dict(G.P0)), "model", None)
+                if isinstance(model, Enum):
+                    name = type(_new(w, kind, dict(G.P0))).__name__
+                    enums[name] = type(model)
+                    seen.setdefault(name, set()).add(model.name)
+        return enums, seen
+
+    def test_every_model_has_a_kind(self):
+        enums, seen = self._built()
+        missing = sorted((cls, m.name) for cls, enum in enums.items() for m in enum
+                         if m.name not in seen[cls] and (cls, m.name) not in self.NOT_CONSTRUCTIBLE)
+        self.assertFalse(missing, "models with no entry in geometry_support.KINDS "
+                         f"(add a builder, or a reason to NOT_CONSTRUCTIBLE): {missing}")
+
+    def test_exclusions_are_not_stale(self):
+        _enums, seen = self._built()
+        stale = sorted(k for k in self.NOT_CONSTRUCTIBLE if k[1] in seen.get(k[0], ()))
+        self.assertFalse(stale, f"NOT_CONSTRUCTIBLE entries KINDS now builds (remove them): {stale}")
 
 
 class TestContractCanaries(unittest.TestCase):

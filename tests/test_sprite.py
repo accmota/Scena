@@ -508,6 +508,49 @@ class TestSizeApi(SpriteTestCase):
         self.assertAlmostEqual(s.scale, 2.0)
 
 
+class TestClipOnTheExactFrame(SpriteTestCase):
+    """PB3 (graphics review): the clip playhead truncated summed time,
+    ``int(elapsed * fps)``, so a clip frame due on a whole game frame showed
+    one game frame late depending on float rounding: the PM8 class that
+    ``process.reached`` closed for timers, missed for the playhead.
+
+    Every (game fps, clip fps, clip frame m) where clip frame m is due on a
+    whole game frame. Off-by-one cases are shrink-only
+    (``graphics_known.CLIP_DUE``, keyed by game fps and clip fps)."""
+
+    GAME_FPS = (24, 30, 50, 60, 120, 144)
+    CLIP_FPS = (4, 6, 8, 10, 12, 15, 24, 30)
+
+    def late_cases(self) -> dict:
+        path = self.tmp("due.png")
+        _write_grid_png(path, cell=8, cols=4, rows=2)
+        out = {}
+        for game in self.GAME_FPS:
+            for fps in self.CLIP_FPS:
+                if game % fps:
+                    continue                    # clip frames never land on a game frame
+                sheet = Sheet(path, cell=(8, 8))
+                sheet.clip("run", list(range(8)), fps=fps)
+                s = self.track(Sprite(sheet, center=(0, 0)))
+                clock._time = 0.0
+                s.play("run")
+                per = game // fps                 # game frames per clip frame
+                late = []
+                for m in range(1, 24):
+                    for _ in range(per):
+                        clock.advance(1.0 / game)
+                    if s.frame != m % 8:
+                        late.append(m)
+                s.destroy()
+                if late:
+                    out[f"game {game} | clip {fps}"] = ",".join(map(str, late[:6]))
+        return out
+
+    def test_clip_frame_m_shows_on_its_game_frame(self):
+        from tests.graphics_known import shrink_only
+        shrink_only(self, self.late_cases(), "CLIP_DUE")
+
+
 class TestPlayAndSheet(SpriteTestCase):
     def _sheet(self):
         path = self.tmp("hero.png")

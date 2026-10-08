@@ -800,7 +800,7 @@ member should ask whether the siblings share the cause.
 
 Series: **H** Hypothesis batch 1 (`test_hyp_*`), **R** regressions caused by fixes,
 **S** system suites (`test_sys_*`), **A** API surface, **D** differential, **W** world
-machine extensions (M4), **O** order / isolation (a test that depends on what ran before it), **G** geometry properties (transform algebra, round trips, invariance), **F** contact flicker (what a player sees across real frames), **CT** continuous detection (fast bodies between frames), **CS** closed surfaces (a write to a name the object does not have). "Guard" is the regression test in the owning file.
+machine extensions (M4), **O** order / isolation (a test that depends on what ran before it), **G** geometry properties (transform algebra, round trips, invariance), **F** contact flicker (what a player sees across real frames), **CT** continuous detection (fast bodies between frames), **CS** closed surfaces (a write to a name the object does not have), **GR** graphics review (2026-10-08: Shape / Sprite / Graphic / Entity; the review's own IDs SA / SB / SC / E / HP / PA / PB are kept, members its class guards found are GR1…). "Guard" is the regression test in the owning file.
 
 ### H — Hypothesis batch 1 (2026-09-25)
 
@@ -1155,7 +1155,45 @@ gaps that **both** authors reported on their own.
 
 | Found in | Issue | Planned |
 | --- | --- | --- |
-| — | Nothing open. | — |
+| GR (2026-10-08) | About 100 graphics-review findings and GR1–GR7, pinned by shrink-only class guards | Fix batches 1–10; see [GR](#gr--graphics-review-2026-10-08) |
+
+### GR — graphics review (2026-10-08)
+
+A review of Shape, Sprite, Graphic and Entity confirmed about 100 bugs from 8
+root causes: write gate, check-then-write, lifecycle state, construction
+wrappers, shared materials and caches, cold readers, copy contract, and
+route-table refusals. Each finding had a repro, but the suite had missed
+them all, so the guards were written before any fix (batch 0). Each guard
+enumerates its class from the source of truth, uses an oracle with no model
+of its own, and fails on HEAD. Today's failures are listed shrink-only in
+`tests/graphics_known.py` (and `geometry_known.py` for C1–C8), each tagged
+with its finding and the batch that removes it.
+
+| Guard | Class | Oracle |
+| --- | --- | --- |
+| `test_geometry_contract.TestKindsCoverEveryModel` | sweeps miss models (relational Line models and Ellipse FROM_RECT were outside KINDS) | every model enum value is built by KINDS or listed with a reason |
+| `test_diff_link_write.TestLinkWriteGate` | R1 write gate, under- and over-strict | an unlinked twin: the parts its verb changes are the parts the verb writes |
+| `test_refusal_atomic` | R2 half-applied refusals; reads that change by themselves | every public read and the registry census, before and after a dead / junk / link refusal |
+| `test_construct_failure` | R4 construction (rollback, mixin `__init__`) | census and zombies before and after; the actor's timer and update never run |
+| `test_material_isolation` | R5 shared mutable paint | each relative's paint reads and pixels |
+| `test_cache_keys` | R5 caches keyed on less than their inputs | a warm hit equals a cold bake, for each `AtlasFrame` field |
+| `test_diff_pose.TestEngineReadersStayCold` (+ hit test, `is_collapsed`, KINDS); `test_write_path_guards.TestEngineReadersReadDefiningInputs` | R6 cold readers | the shape stays on the fast path; no public Derivate read in a hit test |
+| `test_geometry_contract.sweep_c7` (`clone`, `<<`, `absorb`, then verbs) | R7 copies | source and copy run the same verbs and read alike |
+| `test_route_table` | R8 writes to methods, setter-less properties, foreign size words | a Scena error with a hint, the instance unchanged |
+| `test_sprite.TestClipOnTheExactFrame`; `test_write_path_guards.TestFrameCountsGoThroughReached` | PM8 class: the clip playhead | the clip frame due on a whole game frame shows on it; no `int(t * fps)` |
+| `test_draw_doors` | plain blit vs full draw; knobs a path ignores | the same pixels on both paths; every knob changes the picture |
+
+Members the guards found beyond the review (open; the batch is the fix plan):
+
+| ID | Bug | Root cause | Why earlier tests missed it | Guard |
+| --- | --- | --- | --- | --- |
+| GR1 | A PARALLEL_DIST Line's `move_by` / `move_to` moved it the wrong distance | the move is projected onto the normal (it changes `dist`) | relational models were not in KINDS | C1 / C2 sweeps (batch 8) |
+| GR2 | The DerivedAttributeError on a tangent-angle Line / FROM_RECT Ellipse suggests `move_to(...)`, which the linked input refuses | the hint does not know the model is relational | same | `test_derivate_readonly.KNOWN_BAD_HINT` (batch 9) |
+| GR3 | A destroyed focal-points Ellipse's `box` raises twice, then returns a 0 × 0 box | a dead read caches a collapsed frame | no test read a dead actor three times | `test_refusal_atomic.test_reads_are_stable` (batch 9) |
+| GR4 | `no_drag()` / `no_handles()` on a destroyed Point repaint it | no dead check on those verbs | P6 checks registrations, not the actor's own state | `test_refusal_atomic` dead source (batch 9) |
+| GR5 | A free `Track.line(p1=, p2=)` starts on the slow pose path | triage | the reader matrix had a hand list of models | `test_diff_pose.START_SLOW` (batch 6) |
+| GR6 | SpriteButton state art truncates summed time (`int(t * fps)`), like PB3 | PM8 rule not applied | same as PB3 | `TestFrameCountsGoThroughReached` (batch 8) |
+| GR7 | `frame.rotated` is missing from the auto-hitbox, silhouette and union cache keys | key built by hand from some frame fields | no test varied a frame field against a warm cache | `test_cache_keys` (batch 6) |
 
 ### F — contact flicker (2026-09-29)
 

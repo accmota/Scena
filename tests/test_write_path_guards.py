@@ -265,5 +265,108 @@ class TestTextLinksFollowAMove(unittest.TestCase):
                 self.assertEqual((float(q.x), float(q.y)), (float(t.center.x), float(t.center.y)))
 
 
+# ---------------------------------------------------------------------------
+# Engine readers stay cold, statically (graphics review R6)
+# ---------------------------------------------------------------------------
+
+# Per-frame engine readers (pointer hit test, collapse check) must read
+# Defining inputs (``_segment_xy``, ``_center_xy``, ``_radius_value``,
+# closed-form vertices). A plain ``self.<derivate>`` here materializes the
+# Derivate and drops the shape off the pose fast path for good.
+_COLD_METHODS = re.compile(r"^(_hit_test\w*|is_collapsed)$")
+# ``_update_impl_*`` are not listed: they guard each Derivate write with
+# ``_is_derivate_live()`` (a static read is not a warm-up there), and they run
+# only on a shape that is already pulled. The run-time reader matrix
+# (``test_diff_pose.TestEngineReadersStayCold``) judges what reaches them.
+
+
+def _derivate_names_by_class():
+    """class name -> fields that are a Derivate in at least one model (from KINDS)."""
+    import warnings
+    import geometry_support as G
+    out = {}
+    for kind in G.KINDS:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            obj = G.build(kind)
+        if not hasattr(obj, "_field_slots"):
+            continue
+        names = out.setdefault(type(obj).__name__, set())
+        for name, slot in obj._field_slots().items():
+            if obj._field_is_derivate(name, slot):
+                names.add(name)
+        if type(obj).__name__ == "RegularPolygon":
+            names.add("points")         # lazy: builds a Point per vertex
+    return out
+
+
+def cold_reader_violations() -> dict:
+    derived = _derivate_names_by_class()
+    # A subclass inherits its parents' rule (EquilateralTriangle reads like RegularPolygon).
+    import scena
+    out = {}
+    for fname, qual, fn in _functions():
+        if fname != "shapes.py" or "." not in qual:
+            continue
+        cls_name, meth = qual.split(".")[0], qual.split(".")[-1]
+        if not _COLD_METHODS.match(meth):
+            continue
+        cls = getattr(scena, cls_name, None)
+        names = set()
+        for c in (cls.__mro__ if isinstance(cls, type) else ()):
+            names |= derived.get(c.__name__, set())
+        for sub, ns in derived.items():
+            sc = getattr(scena, sub, None)
+            if isinstance(sc, type) and isinstance(cls, type) and issubclass(sc, cls):
+                names |= ns
+        for node in ast.walk(fn):
+            if (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+                    and node.value.id == "self" and node.attr in names):
+                out[f"{qual} | self.{node.attr}"] = f"shapes.py:{node.lineno}"
+    return out
+
+
+class TestEngineReadersReadDefiningInputs(unittest.TestCase):
+    def test_no_public_derivate_in_a_cold_method(self):
+        from graphics_known import shrink_only
+        shrink_only(self, cold_reader_violations(), "COLD_READS")
+
+
+# ---------------------------------------------------------------------------
+# Deadlines on summed time go through ``process.reached`` (PM8, graphics PB3)
+# ---------------------------------------------------------------------------
+
+def _names_in(node):
+    for n in ast.walk(node):
+        if isinstance(n, ast.Name):
+            yield n.id
+        elif isinstance(n, ast.Attribute):
+            yield n.attr
+
+
+def truncated_time_sites() -> dict:
+    """``int(t * fps)`` / ``math.floor(t * fps)``: a frame count from summed
+    time. Summed ``1/60`` steps land a hair under a whole frame, so the count
+    is one short on the frame it is due (PM8). Compare through ``reached``."""
+    out = {}
+    for fname, qual, fn in _functions():
+        for node in ast.walk(fn):
+            if not (isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.BinOp)
+                    and isinstance(node.args[0].op, ast.Mult)):
+                continue
+            callee = node.func.attr if isinstance(node.func, ast.Attribute) else getattr(node.func, "id", "")
+            if callee not in ("int", "floor"):
+                continue
+            if any("fps" in n.lower() for n in _names_in(node.args[0])):
+                out[f"{fname}:{qual}"] = f"line {node.lineno}"
+    return out
+
+
+class TestFrameCountsGoThroughReached(unittest.TestCase):
+    def test_no_frame_count_truncates_summed_time(self):
+        from graphics_known import shrink_only
+        shrink_only(self, truncated_time_sites(), "TRUNCATED_TIME")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

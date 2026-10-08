@@ -164,10 +164,16 @@ class TestAngleFormulasStayFresh(unittest.TestCase):
     """
 
     def _probe_after(self, obj, act):
-        from scena.state import get_scena_system
+        from scena.state import LinkedAttributeError, get_scena_system
         probe = Line(p1=(0, 0), p2=lambda: (obj.angle, 0.0))
         get_scena_system().flush()
-        act()
+        try:
+            act()
+        except LinkedAttributeError:
+            probe.destroy()
+            if G.is_relational(obj):
+                return None             # a linked input refuses: nothing to follow
+            raise
         get_scena_system().flush()
         got = probe._segment_xy()[2]
         probe.destroy()
@@ -191,8 +197,9 @@ class TestAngleFormulasStayFresh(unittest.TestCase):
                 w.track(obj)
                 for name, act in self._actions(obj):
                     with self.subTest(kind=kind, change=name):
-                        got, want = self._probe_after(obj, act)
-                        self.assertAlmostEqual(got, want, places=9)
+                        res = self._probe_after(obj, act)
+                        if res is not None:
+                            self.assertAlmostEqual(res[0], res[1], places=9)
 
     def test_geometry_writes_and_links_reach_the_heading(self):
         st = State()
@@ -356,7 +363,19 @@ class TestRefusedWritesChangeNothing(unittest.TestCase):
                         self.assertFalse(obj.is_alive)
 
 
+# Kinds whose heading verbs are known wrong (shrink-only: a fixed entry fails).
+KNOWN_HEADING = {
+    "Line tangent_point": "SB1 (graphics review, batch 8): the turn pivots on p1 and p2 re-solves the tangent",
+}
+
+
 class TestAngleWorksOnEveryKind(unittest.TestCase):
+    def _reads(self, kind, got, want):
+        if kind in KNOWN_HEADING:
+            self.assertNotAlmostEqual(got, want, places=6, msg=f"fixed: remove {kind} from KNOWN_HEADING")
+        else:
+            self.assertAlmostEqual(got, want, places=6)
+
     def test_setting_angle_reads_back(self):
         """``x.angle = v`` turns every kind (the old ``rect.angle`` was a silent no-op)."""
         from hypothesis_support import fresh_world
@@ -371,7 +390,7 @@ class TestAngleWorksOnEveryKind(unittest.TestCase):
                         # Only a linked input may refuse (parallel / tangent / FROM_RECT).
                         self.assertIn("link", str(exc).lower(), kind)
                         continue
-                    self.assertAlmostEqual(float(obj.angle), want, places=6)
+                    self._reads(kind, float(obj.angle), want)
 
     def test_full_turns_accumulate(self):
         from hypothesis_support import fresh_world
@@ -385,7 +404,7 @@ class TestAngleWorksOnEveryKind(unittest.TestCase):
                     except Exception as exc:  # noqa: BLE001
                         self.assertIn("link", str(exc).lower(), kind)
                         continue
-                    self.assertAlmostEqual(float(obj.angle), a0 + 400.0, places=6)
+                    self._reads(kind, float(obj.angle), a0 + 400.0)
 
     def test_p1_p2_line_keeps_full_turns(self):
         line = Line(p1=(0, 0), p2=(10, 0))

@@ -122,8 +122,8 @@ def _cross_model_failures(kinds_by_class=None):
                 try:
                     d << s
                 except Exception as e:
-                    if cls in COPY_REFUSES:
-                        continue
+                    if cls in COPY_REFUSES or G.refused(d, type(e).__name__):
+                        continue          # a relational target is linked: << refuses
                     bad.append((ka, kb, "raised " + type(e).__name__))
                     continue
                 names = [n for n, _ in M.field_names(s) if n not in skip]

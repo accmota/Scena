@@ -87,13 +87,71 @@ def _readers():
         "cull aabb": lambda o: cvm._approx_draw_aabb(o),
         "cull test": lambda o: eng._passes_cull(o),
         "draw": lambda o: o.draw(surface.getCanvas()),
+        # Pointer hover / click (graphics review R6: one hover warmed a
+        # RegularPolygon for good, 2.8 -> 58 us per move + rotate).
+        "hit test": lambda o: o.contains_point(*o._center_xy()),
+        "is_collapsed": lambda o: o.is_collapsed,
     }
+
+
+def _reader_models():
+    """MODELS plus every Graphic kind of ``geometry_support.KINDS`` that starts fast.
+
+    A sweep is only as wide as its list (graphics review): the reader matrix
+    covers the contract registry, not a hand-picked subset."""
+    import geometry_support as G
+    out = dict(MODELS)
+    for kind in sorted(G.KINDS):
+        if kind.startswith("Box") or kind in START_SLOW or kind in out:
+            continue
+        out[kind] = (lambda k=kind: G.build(k))
+    return out
+
+
+# KINDS entries that start on the slow path, with the reason.
+START_SLOW = {
+    "Ellipse from_rect": "linked to its Rect at construction",
+    "Line parallel_dist": "linked to its reference Line at construction",
+    "Line parallel_point": "linked to its reference Line at construction",
+    "Line perpendicular_point": "linked to its reference Line at construction",
+    "Line tangent_angle": "linked to its Circle at construction",
+    "Line tangent_point": "linked to its Circle at construction",
+    "Track line point_point": "GR5 (batch 6, triage): a free Track.line(p1=, p2=) starts slow",
+}
 
 
 # Known violations (D3 in Testing Design). This set may only SHRINK: a new
 # warm cell fails the guard, and a fixed cell still listed here fails too
 # (so the list cannot go stale).
-KNOWN_WARM = frozenset()
+KNOWN_WARM = frozenset({
+    # SC6 / SB8 (graphics review, batch 6): hit test / is_collapsed read public
+    # Derivates (self.points, self.radius, self.length, self.p2).
+    ('Circle center_perimeter', 'hit test'),
+    ('Circle center_perimeter', 'is_collapsed'),
+    ('Circle two_points', 'hit test'),
+    ('Circle two_points', 'is_collapsed'),
+    ('Ellipse focal_points', 'is_collapsed'),
+    ('EquilateralTriangle', 'hit test'),
+    ('EquilateralTriangle', 'is_collapsed'),
+    ('EquilateralTriangle center_radius', 'hit test'),
+    ('EquilateralTriangle center_side', 'hit test'),
+    ('EquilateralTriangle center_side', 'is_collapsed'),
+    ('EquilateralTriangle vertex_side', 'hit test'),
+    ('EquilateralTriangle vertex_side', 'is_collapsed'),
+    ('Line center_length', 'hit test'),
+    ('Line center_length_angle', 'hit test'),
+    ('Line point_angle_length', 'hit test'),
+    ('Line point_dx_dy', 'hit test'),
+    ('Line point_dx_dy', 'is_collapsed'),
+    ('Line point_point', 'is_collapsed'),
+    ('Line point_vec', 'hit test'),
+    ('Line point_vec', 'is_collapsed'),
+    ('RegularPolygon center_radius', 'hit test'),
+    ('RegularPolygon center_side', 'hit test'),
+    ('RegularPolygon center_side', 'is_collapsed'),
+    ('RegularPolygon vertex_side', 'hit test'),
+    ('RegularPolygon vertex_side', 'is_collapsed'),
+})
 
 # Author pose verbs that warm a cold Derivate (D3). Same shrink-only rule.
 KNOWN_WARM_VERBS = frozenset()
@@ -289,7 +347,7 @@ class TestEngineReadersStayCold(unittest.TestCase):
         readers = _readers()
         warm = set()
         fresh_slow = []
-        for model, make in MODELS.items():
+        for model, make in _reader_models().items():
             for reader, read in readers.items():
                 with quiet():
                     obj = make()
@@ -308,6 +366,14 @@ class TestEngineReadersStayCold(unittest.TestCase):
         self.assertEqual(new, [], "engine readers warmed a cold Derivate "
                          "(read Defining geometry instead; Reactive Design — Engine readers stay cold)")
         self.assertEqual(fixed, [], "fixed — remove these cells from KNOWN_WARM")
+
+    def test_start_slow_is_not_stale(self):
+        import geometry_support as G
+        for kind in START_SLOW:
+            with quiet():
+                obj = G.build(kind)
+            self.assertFalse(is_fast(obj), f"{kind} now starts fast: remove it from START_SLOW")
+            obj.destroy()
 
     def test_verb_matrix(self):
         warm = set()

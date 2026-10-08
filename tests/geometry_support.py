@@ -71,6 +71,16 @@ def _rotated(obj, deg):
     return obj
 
 
+def _ref_line(p):
+    """Reference for the parallel / perpendicular Line models (placed away from p)."""
+    return Line(p1=_at(p, -20, 15), p2=_polar(p, 40, p["r"] + 10))
+
+
+def _ref_circle(p):
+    """Reference for the tangent Line models, centred on p."""
+    return Circle(center=(p["x"], p["y"]), radius=9 * p["s"])
+
+
 # ---------------------------------------------------------------------------
 # Registry: name -> builder(p)
 # ---------------------------------------------------------------------------
@@ -83,12 +93,21 @@ KINDS: Dict[str, Callable] = {
     "Line center_length": lambda p: Line(center=(p["x"], p["y"]), length=40 * p["s"], angle=p["r"]),
     "Line point_angle_length": lambda p: Line(p1=(p["x"], p["y"]), angle=p["r"], length=40 * p["s"]),
     "Line point_dx_dy": lambda p: Line(p1=(p["x"], p["y"]), dx=30 * p["s"], dy=12 * p["s"]),
+    # Relational models: the subject follows a reference shape built with it
+    # (Shapes Design — Cross-shape relational constructors). The reference is
+    # kept alive by the subject (``_ref``).
+    "Line parallel_point": lambda p: Line(p1=(p["x"], p["y"]), parallel_to=_ref_line(p), length=30 * p["s"]),
+    "Line parallel_dist": lambda p: Line(dist=8 * p["s"], parallel_to=_ref_line(p)),
+    "Line perpendicular_point": lambda p: Line(p1=(p["x"], p["y"]), perpendicular_to=_ref_line(p), length=30 * p["s"]),
+    "Line tangent_angle": lambda p: Line(circle=_ref_circle(p), at_angle=p["r"] + 30, length=30 * p["s"]),
+    "Line tangent_point": lambda p: Line(circle=_ref_circle(p), from_point=_polar(p, 30, p["r"]), side="left"),
     "Circle center_radius": lambda p: Circle(center=(p["x"], p["y"]), radius=9 * p["s"], angle=p["r"]),
     "Circle center_perimeter": lambda p: Circle(center=(p["x"], p["y"]), perimeter_point=_polar(p, 9, p["r"] + 30)),
     "Circle two_points": lambda p: Circle(p1=_polar(p, 9, p["r"] + 40), p2=_polar(p, 9, p["r"] + 220)),
     "Circle arc": lambda p: Circle(center=(p["x"], p["y"]), radius=9 * p["s"], angle=p["r"], spread=120),
     "Ellipse center_wh": lambda p: Ellipse(center=(p["x"], p["y"]), width=30 * p["s"], height=12 * p["s"], angle=p["r"]),
     "Ellipse focal_points": lambda p: Ellipse(fp1=_polar(p, 8, p["r"] + 180), fp2=_polar(p, 8, p["r"]), major_axis=24 * p["s"]),
+    "Ellipse from_rect": lambda p: Ellipse(from_rect=Rect(center=(p["x"], p["y"]), width=30 * p["s"], height=12 * p["s"], angle=p["r"])),
     "Polygon": lambda p: _rotated(Polygon(points=[_at(p, -6, -4), _at(p, 7, -3), _at(p, 5, 6), _at(p, -4, 5)]), p["r"]),
     "RegularPolygon center_radius": lambda p: RegularPolygon(center=(p["x"], p["y"]), radius=6 * p["s"], n=5, angle=p["r"]),
     "RegularPolygon center_side": lambda p: RegularPolygon(center=(p["x"], p["y"]), side=6 * p["s"], n=4, angle=p["r"]),
@@ -123,6 +142,7 @@ KINDS: Dict[str, Callable] = {
     "Text top_left": lambda p: _rotated(Text("geo", top_left=(p["x"], p["y"])), p["r"]),
     "Text top_right": lambda p: _rotated(Text("geo", top_right=(p["x"], p["y"])), p["r"]),
     "Box center_wh": lambda p: Box(center=(p["x"], p["y"]), width=40 * p["s"], height=16 * p["s"], angle=p["r"]),
+    "Box top_left_wh": lambda p: Box(top_left=(p["x"], p["y"]), width=40 * p["s"], height=16 * p["s"], angle=p["r"]),
     "Box corner_corner": lambda p: Box(p1=(p["x"], p["y"]), p2=_at(p, 40, 16), angle=p["r"]),
     "Box point_vec": lambda p: Box(p1=(p["x"], p["y"]), vec=(40 * p["s"], 16 * p["s"]), angle=p["r"]),
 }
@@ -136,6 +156,24 @@ FRAME_KINDS = {k for k in KINDS if k.split()[0] in (
 
 def build(kind: str, p: Optional[dict] = None):
     return KINDS[kind](dict(P0) if p is None else p)
+
+
+# Models linked to a reference shape by construction. A pose verb that would
+# write a linked part is refused (LinkedAttributeError, nothing changed); a
+# verb that runs must keep every contract (Shapes Design — Linked parts).
+RELATIONAL_MODELS = frozenset({
+    "PARALLEL_POINT", "PARALLEL_DIST", "PERPENDICULAR_POINT", "TANGENT_ANGLE",
+    "TANGENT_POINT", "FROM_RECT",
+})
+
+
+def is_relational(obj) -> bool:
+    return getattr(getattr(obj, "model", None), "name", None) in RELATIONAL_MODELS
+
+
+def refused(obj, err) -> bool:
+    """A link refusal on a relational kind: the contract's allowed answer."""
+    return err == "LinkedAttributeError" and is_relational(obj)
 
 
 def is_box(obj) -> bool:
