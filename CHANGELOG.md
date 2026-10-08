@@ -84,6 +84,19 @@ left out.
   circle (it raised), and so do scale and flip about the center on Circle,
   Line, Rect, Square and Text, `text.angle =` with a linked pin, and a Point
   with a linked heading that moves.
+- A refused call changes nothing. Before, these raised but left a change behind:
+  `flip_x = True` on a linked or destroyed shape kept the flag; a Polygon
+  with one linked vertex moved the others; `tag("a", 5)` claimed `"a"`;
+  `point.handle = True` / `draggable = True` showed the point;
+  `sprite.play("big")` with a linked `width` half switched the clip, and
+  `play(..., next="big")` raised later from the frame loop (it now raises at
+  the `play` call); `reset_rotation()` cleared the tilt; `sheet.strip(...,
+  offset="bad")` added the frames; `clone(scale="x")` left a live clone; and
+  `show_handles()` on a shape linked as a whole (`shape @= other`) showed
+  handles before raising (it now skips them, like any linked point).
+- `rect << box` copies the Box's region; it switched the Rect's model and
+  then raised AttributeError, leaving a 0 × 0 rect.
+- `clone()` of a destroyed actor raises DestroyedError; it returned a live copy.
 - `c.center = (5, 5)` and `c.center << p` on a destroyed shape raise
   DestroyedError; they moved it.
 - `line_width = 0` draws no outline. It drew a one-pixel hairline, so a

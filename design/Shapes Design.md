@@ -678,6 +678,8 @@ A whole-object link drives whatever a copy carries: a Shape's geometry and pose 
 
 A destroyed point refuses `_takein` (`c.center = …`, `p << xy` on a destroyed shape raised nothing and moved it; SA10).
 
+**Check, then write** (graphics review R2). A verb runs every gate it needs before it writes anything, so a refusal leaves the actor exactly as it was: a Polygon gates every vertex before it moves one; `_mirror_geometry` gates every point and scalar first (Rect names its corners after the checks); RegularPolygon / Circle / Ellipse check the center or heading before writing a size; `point.handle = True` / `draggable = True` check before they show the point; `rect << box` reads the source before it adopts the model; `tag("a", 5)` checks every name before it claims one. A flip refuses a dead actor and a linked pose up front; its flag is set first (mirror code reads it) and put back if the mirror refuses. `show_handles()` skips every point of a shape linked as a whole (they are all driven). Guards: `test_refusal_atomic` (every public call × dead / junk / linked refusal, all reads and the registry before and after) and `TestLinkWriteGate` (no "half-applied" row).
+
 Guard: `test_diff_link_write.TestLinkWriteGate` (every kind × link target × pose verb, judged by an unlinked twin: the parts the twin's verb changes are the parts it writes).
 
 All geometric transforms (`move_by` / `move_to` / `rotate_*` / `scale_*`) use `_ensure_writable` on the Defining parts they write. Raw `Attribute` assignment (`=`) may still warn+unlink on its own; shape transforms do not rely on that path.

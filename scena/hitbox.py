@@ -629,18 +629,16 @@ class Hitbox(_HitboxBakeMixin):
     def tag(self, *names: str) -> "Hitbox":
         """Add this hitbox to named groups (tag sugar)."""
         self._refuse_dead("tag")
-        for n in names:
-            if not isinstance(n, str) or not n:
-                raise TypeError("tag() names must be non-empty strings")
+        from .entity import _tag_names
+        for n in _tag_names(names, "tag"):
             self.add_to_group(n)
         return self
 
     def untag(self, *names: str) -> "Hitbox":
         """Remove this hitbox from named groups (tag sugar)."""
         self._refuse_dead("untag")
-        for n in names:
-            if not isinstance(n, str) or not n:
-                raise TypeError("untag() names must be non-empty strings")
+        from .entity import _tag_names
+        for n in _tag_names(names, "untag"):
             self.remove_from_group(n)
         return self
 

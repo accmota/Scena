@@ -1354,7 +1354,11 @@ class Shape(Graphic, PaintState):
                 yield part
 
     def _iter_free_defining_points(self):
-        """Yield Defining Points with no inbound links in their subtree."""
+        """Yield Defining Points with no inbound link: not in their subtree, and
+        not on the shape (a whole-object link drives every point; GR10 —
+        ``show_handles()`` registered handles, then refused)."""
+        if self._link is not None or self._formula_driven_ancestor() is not None:
+            return
         for part in self._iter_defining_points():
             if any(node._link is not None for node in part._iter_subtree()):
                 continue
@@ -1777,13 +1781,27 @@ class Shape(Graphic, PaintState):
         return self
 
     def _apply_flip(self, axis: str, value, *, force: bool = False) -> None:
-        """Rewrite geometry so a mirror reads back true. ``force`` unlinks."""
+        """Rewrite geometry so a mirror reads back true. ``force`` unlinks.
+
+        Check, then write (graphics review R2): a dead actor and a linked pose
+        refuse before anything changes, and every ``_mirror_geometry`` gates all
+        its parts before it writes one. The flag goes first (mirror code reads
+        it) and is put back if the mirror refuses (SA5 / SC3 / E14)."""
         value = bool(value)
         flag = "_flip_x" if axis == "x" else "_flip_y"
         if value == bool(getattr(self, flag, False)):
             return
+        _refuse_if_destroyed(self, f"flip_{axis}")
+        rot = float(self._rotation)
+        turned = (180.0 - rot) if axis == "x" else -rot
+        # A flip is a pose write; the heading is gated only when it changes.
+        _gate_pose_anchor(self, "angle" if turned != rot else None, "flip", force)
         object.__setattr__(self, flag, value)
-        self._mirror_geometry(axis, force=force)
+        try:
+            self._mirror_geometry(axis, force=force)
+        except BaseException:
+            object.__setattr__(self, flag, not value)
+            raise
 
     def _mirror_points(self):
         names = getattr(self, "_defining_part_names", ()) or ()
@@ -1794,28 +1812,46 @@ class Shape(Graphic, PaintState):
                 out.append(pt)
         return out
 
+    def _mirror_scalar_parts(self, axis: str) -> List:
+        """The Defining scalars / vector a mirror rewrites (gated before any write)."""
+        names = getattr(self, "_defining_part_names", ()) or ()
+        out = []
+        if "angle" in names:
+            out.append(self["angle"])
+        if "dx" in names and axis == "x":
+            out.append(self["dx"])
+        if "dy" in names and axis == "y":
+            out.append(self["dy"])
+        if "vec" in names:
+            out.append(self.vec)
+        return out
+
     def _mirror_scalars(self, axis: str, *, force: bool = False) -> None:
         names = getattr(self, "_defining_part_names", ()) or ()
+        for part in self._mirror_scalar_parts(axis):
+            _ensure_writable(part, "flip", force=force)
         if "angle" in names:
-            _ensure_writable(self["angle"], "flip", force=force)
             ang = _bare_num(self.angle)
             self.angle = (180.0 - ang) if axis == "x" else -ang
         if "dx" in names and axis == "x":
-            _ensure_writable(self["dx"], "flip", force=force)
             self.dx = -_bare_num(self.dx)
         if "dy" in names and axis == "y":
-            _ensure_writable(self["dy"], "flip", force=force)
             self.dy = -_bare_num(self.dy)
         if "vec" in names:
-            _ensure_writable(self.vec, "flip", force=force)
             if axis == "x":
                 self.vec.x = -_bare_num(self.vec.x)
             else:
                 self.vec.y = -_bare_num(self.vec.y)
+
     def _mirror_geometry(self, axis: str, *, force: bool = False) -> None:
         cx, cy = self._center_xy()
-        for pt in self._mirror_points():
+        points = self._mirror_points()
+        # Every part first: a linked vertex k used to leave vertices 0..k-1 mirrored.
+        for pt in points:
             _ensure_writable(pt, "flip", force=force, pivot=(cx, cy))
+        for part in self._mirror_scalar_parts(axis):
+            _ensure_writable(part, "flip", force=force)
+        for pt in points:
             x, y = get_xy(pt, bare=True)
             if axis == "x":
                 pt._takein((2.0 * cx - x, y))
@@ -2851,6 +2887,9 @@ class Point(Shape):
     def handle(self, value: bool) -> None:
         value = _expect_flag(value, 'handle')
         if value:
+            if not self._draggable:          # every check before a write (SA11)
+                self._reject_if_parallax_layer("draggable")
+                self._ensure_drag_parts_writable()
             self.visible = True
             self.draggable = True
         else:
@@ -2865,11 +2904,11 @@ class Point(Shape):
     @draggable.setter
     def draggable(self, value: bool) -> None:
         value = _expect_flag(value, 'draggable')
-        if value:
-            self.visible = True
-        if value and not self._draggable:
+        if value and not self._draggable:    # every check before a write (SA11)
             self._reject_if_parallax_layer("draggable")
             self._ensure_drag_parts_writable()
+        if value:
+            self.visible = True
         if value != self._draggable:
             self._draggable = value
             self._sync_interactive_registry()
@@ -4996,6 +5035,7 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
         match self.model:
             case CircleModel.CENTER_RADIUS:
                 _ensure_writable(self.center, "rotate_by", force=force, pivot=(px, py))
+                _ensure_writable(self["angle"], "rotate_by", force=force)   # before any write (SB2b)
                 cx, cy = get_xy(self.center, bare=True)
                 self.center._takein(_rotate_xy(cx, cy, px, py, dθ_rad))
             case CircleModel.CENTER_PERIMETER:
@@ -5614,10 +5654,11 @@ class Ellipse(_DerivedRotationRoute, Shape):
             case EllipseModel.CENTER_WH | EllipseModel.FROM_RECT:
                 _ensure_writable(self["width"], "scale_by", force=force)
                 _ensure_writable(self["height"], "scale_by", force=force)
+                if not about_center:          # every check before any write (SB2c)
+                    _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
                 self.width = _bare_num(self.width) * factor
                 self.height = _bare_num(self.height) * factor
                 if not about_center:
-                    _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
                     self.center._takein(_scale_xy(cx, cy, px, py, factor))
             case EllipseModel.FOCAL_POINTS:
                 _ensure_writable(self.fp1, "scale_by", force=force)
@@ -5876,8 +5917,9 @@ class Polygon(Shape):
     @batch_update_self()
     def _move_by(self, dx: float, dy: float, *, force: bool = False) -> 'Polygon':
         """Translate every vertex by dx and/or dy."""
-        for vertex in self._vertices:
+        for vertex in self._vertices:      # every vertex first, then write (SC4)
             _ensure_writable(vertex, "move_by", force=force)
+        for vertex in self._vertices:
             if dx is not None:
                 vertex.x += dx
             if dy is not None:
@@ -5908,17 +5950,18 @@ class Polygon(Shape):
         _gate_pose_anchor(self, "angle", "rotate_by", force)
         dθ_rad = _rad(dθ_deg)
         px, py = self._pivot_xy(about)
+        for vertex in self._vertices:      # every vertex first, then write (SC4)
+            _ensure_writable(vertex, "rotate_by", force=force, pivot=(px, py))
         for vertex in self._vertices:
-            _ensure_writable(vertex, "rotate_by", force=force)
             x, y = get_xy(vertex, bare=True)
             vertex._takein(_rotate_xy(x, y, px, py, dθ_rad))
         _pose_rotation_add(self, dθ_deg)
         return self
 
-    @batch_update_self()
     def _mirror_points(self):
         return list(getattr(self, "_vertices", ()) or ())
 
+    @batch_update_self()
     def scale_by(self, factor: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Polygon':
         """Scale every vertex's distance from a pivot by factor."""
         _refuse_if_destroyed(self, "scale_by")
@@ -5927,8 +5970,9 @@ class Polygon(Shape):
             return self
         factor = geom
         px, py = self._pivot_xy(about)
+        for vertex in self._vertices:      # every vertex first, then write (SC4)
+            _ensure_writable(vertex, "scale_by", force=force, pivot=(px, py))
         for vertex in self._vertices:
-            _ensure_writable(vertex, "scale_by", force=force)
             x, y = get_xy(vertex, bare=True)
             vertex._takein(_scale_xy(x, y, px, py, factor))
         _pose_scale_set(self, store)
@@ -6705,9 +6749,10 @@ class RegularPolygon(Polygon):
             abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
         )
         _ensure_writable(self["radius"], "scale_by", force=force)
+        if not about_center:                 # every check before any write (SC5)
+            _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
         self.radius = _bare_num(self.radius) * factor
         if not about_center:
-            _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
             self.center._takein(_scale_xy(cx, cy, px, py, factor))
         _pose_scale_set(self, store)
         return self
@@ -6721,9 +6766,10 @@ class RegularPolygon(Polygon):
             abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
         )
         _ensure_writable(self["side"], "scale_by", force=force)
+        if not about_center:                 # every check before any write (SC5)
+            _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
         self.side = _bare_num(self.side) * factor
         if not about_center:
-            _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
             self.center._takein(_scale_xy(cx, cy, px, py, factor))
         _pose_scale_set(self, store)
         return self
@@ -7487,10 +7533,15 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
         The names travel too (a copy is a use): every named point of the copy
         sits where the source's does.
         """
-        self.__dict__['_name_signs'] = other._freeze_names()
+        # Read the source before the first write (SC1: a Box has no corner
+        # radius, and the raise came after the model switch: a 0 × 0 rect).
+        signs = other._freeze_names()
+        anchor = getattr(other, "_anchor", None)          # SPINE only (None elsewhere)
+        corner = getattr(other, "_corner_radius", self._corner_radius)   # a Box keeps ours
+        self.__dict__['_name_signs'] = signs
         self._adopt_model_of(other)
-        self._anchor = getattr(other, "_anchor", None)   # SPINE only (None elsewhere)
-        self._corner_radius = other._corner_radius
+        self._anchor = anchor
+        self._corner_radius = corner
         match self.model:
             case RectModel.CORNER_CORNER:
                 self.p1._takein(other.p1)
@@ -7664,7 +7715,6 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
         the size-defined models by flipping the stored name sign. A SPINE's
         side anchor swaps: a mirror changes handedness.
         """
-        self._freeze_names()
         cx, cy = self._center_xy()
 
         def mirrored(pt) -> Tuple[float, float]:
@@ -7686,11 +7736,12 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
             case _:
                 points = ()
         for pt in points:
-            _ensure_writable(pt, "flip", force=force)
+            _ensure_writable(pt, "flip", force=force, pivot=(cx, cy))
         if model != RectModel.SPINE:
             _ensure_writable(self["angle"], "flip", force=force)
         if model == RectModel.POINT_VEC:
             _ensure_writable(self.vec, "flip", force=force)
+        self._freeze_names()            # a write: after every check (SB2a)
 
         with self._batch_update():
             for pt in points:

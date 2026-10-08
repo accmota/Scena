@@ -446,7 +446,7 @@ def _refuse_linked_pose(obj, anchors, name: str, operation: str, force: bool = F
             and type(obj)._whole_link_carries_pose):
         from .shapes import _ensure_writable
         _ensure_writable(obj, operation, force=force)
-    if not anchors:
+    if not anchors or name is None:
         return
     from .state import _PropertyAnchor
     anchor = anchors.get(name)
@@ -1030,6 +1030,15 @@ def _parked(obj) -> bool:
 def _stash_flag(obj, flag: str, value: bool) -> None:
     """Record ``visible`` / ``collidable`` for resume (Actors Design — active)."""
     object.__setattr__(obj, f"_active_saved_{flag}", bool(value))
+
+
+def _tag_names(names, verb: str):
+    """Every name checked before the first is claimed: ``tag("a", 5)`` claimed
+    "a" and then raised (graphics review E10 / HP11)."""
+    for n in names:
+        if not isinstance(n, str) or not n:
+            raise TypeError(f"{verb}() names must be non-empty strings")
+    return names
 
 
 _COLLIDE_HOOKS = ("on_collide", "on_collide_stay", "on_collide_exit")
@@ -2067,18 +2076,14 @@ class Entity(Container):
     def tag(self, *names: str) -> "Entity":
         """Add this item to named groups (tag sugar). Refused on a part."""
         self._refuse_part_tags("tag", names[0] if names else None)
-        for n in names:
-            if not isinstance(n, str) or not n:
-                raise TypeError("tag() names must be non-empty strings")
+        for n in _tag_names(names, "tag"):
             self.add_to_group(n)
         return self
 
     def untag(self, *names: str) -> "Entity":
         """Remove this item from named groups (tag sugar). Refused on a part."""
         self._refuse_part_tags("untag", names[0] if names else None)
-        for n in names:
-            if not isinstance(n, str) or not n:
-                raise TypeError("untag() names must be non-empty strings")
+        for n in _tag_names(names, "untag"):
             self.remove_from_group(n)
         return self
 
@@ -2788,12 +2793,17 @@ class Graphic(Entity, ABC):
         flag = "_flip_x" if axis == "x" else "_flip_y"
         if value == bool(getattr(self, flag, False)):
             return
-        object.__setattr__(self, flag, value)
+        _refuse_if_destroyed(self, f"flip_{axis}")
         rot = float(self._rotation)
-        if axis == "x":
-            self.rotate_to(180.0 - rot)
-        else:
-            self.rotate_to(-rot)
+        new = 180.0 - rot if axis == "x" else -rot
+        # A flip is a pose write; the heading is gated only when it changes.
+        _gate_pose_anchor(self, "angle" if new != rot else None, "flip", force)
+        object.__setattr__(self, flag, value)
+        try:
+            self.rotate_to(new, force=force)
+        except BaseException:
+            object.__setattr__(self, flag, not value)       # check, then write (SA5)
+            raise
 
     @property
     def is_collapsed(self) -> bool:
@@ -2850,6 +2860,12 @@ class Graphic(Entity, ABC):
         (auto-created, frozen z). ``group`` omitted copies the source;
         passing ``group=`` replaces membership (not a merge).
         """
+        # Every check before the copy exists: a bad scale used to raise after
+        # the clone was built and registered, and a destroyed source cloned (E9).
+        _refuse_if_destroyed(self, "clone")
+        if scale != 1.0:
+            from .validate import number
+            scale = number(scale, "clone(scale=)")
         kwargs: Dict[str, Any] = {}
         if layer is not _USE_LAYER_DEFAULT:
             kwargs["layer"] = layer

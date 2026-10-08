@@ -409,5 +409,73 @@ class TestRefusalIsAtomic(unittest.TestCase):
                        [("scena.entity", "_refuse_if_destroyed", lambda *a, **k: None)],
                        "writes on a destroyed actor that are stored")
 
+class TestRefusedSpriteCallsChangeNothing(unittest.TestCase):
+    """R2 sites a signature cannot reach: each refusal leaves the actor as it was."""
+
+    def setUp(self):
+        import tempfile
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from tests.test_sprite import _write_grid_png
+        self._tmp = tempfile.TemporaryDirectory()
+        self.small = os.path.join(self._tmp.name, "small.png")
+        self.big = os.path.join(self._tmp.name, "big.png")
+        _write_grid_png(self.small, cell=8, cols=2, rows=1)
+        _write_grid_png(self.big, cell=16, cols=2, rows=1)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _sprite(self):
+        sheet = scena.Sheet(self.small, cell=(8, 8))
+        sheet.clip("idle", [0, 1], fps=8)
+        sheet.strip("big", self.big, cols=2, fps=8)
+        with quiet():
+            return scena.Sprite(sheet, center=(0, 0), height=16)
+
+    def test_play_with_a_linked_size_refuses_before_switching(self):
+        # PB1: the clip was half switched, and next= raised from the frame loop.
+        with fresh_world():
+            s = self._sprite()
+            scena.st.ra_w = float(s.width)
+            s["width"] @= (lambda: scena.st.ra_w)
+            before = observable(s)
+            with self.assertRaises(LinkedAttributeError):
+                s.play("big")
+            with self.assertRaises(LinkedAttributeError):
+                s.play("idle", loops=1, next="big")
+            self.assertEqual(_changed(before, observable(s)), [])
+            s.destroy()
+
+    def test_refused_reset_rotation_keeps_the_tilt(self):
+        # PB12: the tilt was cleared, then the call raised.
+        with fresh_world():
+            s = self._sprite()
+            s.tilt = 12.0
+            with self.assertRaises(Exception):
+                s.reset_rotation(time="soon")
+            self.assertAlmostEqual(float(s.tilt), 12.0)
+            s.destroy()
+
+    def test_strip_with_a_bad_offset_adds_no_frames(self):
+        # PA5: the new cells were appended, then the offset raised.
+        sheet = scena.Sheet(self.small, cell=(8, 8))
+        n = sheet.nframes
+        with self.assertRaises(TypeError):
+            sheet.strip("big", self.big, cols=2, offset="bad")
+        self.assertEqual(sheet.nframes, n)
+
+    def test_clone_refusals_build_nothing(self):
+        # E9: clone(scale="x") left a live, registered clone; a dead source cloned.
+        with fresh_world():
+            c = scena.Circle(center=(0, 0), radius=3)
+            c0 = surface_census(collect=False)
+            with self.assertRaises(TypeError):
+                c.clone(scale="x")
+            self.assertEqual(_census_moved(c0), {})
+            c.destroy()
+            with self.assertRaises(DestroyedError):
+                c.clone()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

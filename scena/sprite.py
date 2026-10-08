@@ -1182,6 +1182,9 @@ class Sheet(ClosedSurface):
         per_file = len(files) > 1 or bool(patterns)
         yoyo_mode = bool(as_payload(yoyo))
         fps_v = _positive_number(as_payload(fps), what="fps")
+        # Every clip argument before the frames are appended (PA5: a bad
+        # offset raised after the new cells were already on the sheet).
+        _parse_clip_offset(offset)
         cols_arg, rows_arg = _parse_cols_rows(cols, rows)
         cell_arg = _parse_cell(cell)
         _reject_layout_conflicts(
@@ -4043,16 +4046,24 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
             time: seconds to turn (omit for instant); then the usual
                 ``ease=`` / ``then=`` / ``on_done=`` / ``about=`` / ``force=``.
         """
+        tilt_fields = ("_tilt", "_tilt_mode", "_tilt_contact_point", "_tilt_contact_angle",
+                       "_tilt_contact_normal", "_tilt_contact_side")
+        saved = tuple(getattr(self, f) for f in tilt_fields)
         self._tilt = 0.0
         self._tilt_mode = "angle"
         self._tilt_contact_point = None
         self._tilt_contact_angle = 0.0
         self._tilt_contact_normal = None
         self._tilt_contact_side = None
-        return super().reset_rotation(
-            time=time, ease=ease, then=then, on_done=on_done,
-            about=about, force=force,
-        )
+        try:
+            return super().reset_rotation(
+                time=time, ease=ease, then=then, on_done=on_done,
+                about=about, force=force,
+            )
+        except BaseException:
+            for f, v in zip(tilt_fields, saved):   # a refused turn keeps the tilt (PB12)
+                setattr(self, f, v)
+            raise
 
     @property
     def art_angle(self) -> float:
@@ -4209,6 +4220,13 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
             min_hold, what="play(min_hold=)", exclusive=False,
         )
         frames, fps, yoyo = self._sheet._require_cycle(name)
+        if not (self._play_name == name and self._play_loops == loops
+                and self._play_next == next_clip):
+            # A linked size refuses before the clip switches, and before a
+            # next= clip would raise from the frame loop (PB1).
+            self._gate_clip_size(frames, "play")
+            if next_clip is not None:
+                self._gate_clip_size(self._sheet._require_cycle(next_clip)[0], "play(next=)")
         if (
             self._play_name == name
             and self._play_loops == loops
@@ -4556,6 +4574,20 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         kx = abs(float(self.width)) / rw if rw else 1.0
         ky = abs(float(self.height)) / rh if rh else 1.0
         return kx, ky
+
+    def _gate_clip_size(self, frames, operation: str) -> None:
+        """Refuse a clip whose first cell would rewrite a linked ``width`` /
+        ``height`` (``_apply_size_intent``), before anything changes."""
+        if not frames:
+            return
+        fr = self._sheet._frame_at(frames[0])
+        kx, ky = self._du_per_px()
+        if (abs(float(self.width) - float(fr.src_w) * kx) <= 1e-9
+                and abs(float(self.height) - float(fr.src_h) * ky) <= 1e-9):
+            return
+        from .shapes import _ensure_writable
+        _ensure_writable(self["width"], operation)
+        _ensure_writable(self["height"], operation)
 
     def _apply_size_intent(self, fr) -> None:
         """Move ``width`` / ``height`` to ``fr`` at the sprite's one scale.
