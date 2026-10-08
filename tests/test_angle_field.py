@@ -137,6 +137,73 @@ class TestAngleIsTheHeading(unittest.TestCase):
         line.rotate_by(720)
         self.assertAlmostEqual(float(line.angle), r0 + 720.0, places=6)
 
+    def test_derived_heading_does_not_depend_on_what_was_read(self):
+        # The same point writes read the same heading whichever reads came
+        # between them. Rect spine wrote its heading back into the turn
+        # reference on every update it ran, so a warm rect counted a turn a
+        # cold one did not (204.78 vs -155.22; the reactive matrix found it).
+        import itertools
+        ends = {"Ellipse foci": ("fp1", "fp2")}
+        # p2 goes round p1, then p1 jumps across: the direction crosses ±180.
+        writes = [("b", (-14.0, 5.0)), ("a", (25.0, 23.0)), ("b", (-30.0, -9.0)),
+                  ("a", (40.0, -20.0)), ("b", (-6.0, 30.0))]
+        for name, build in DERIVED_MODELS.items():
+            a_name, b_name = ends.get(name, ("p1", "p2"))
+            seen = {}
+            for reads in itertools.product((False, True), repeat=len(writes) + 1):
+                shape = build()
+                for (end, xy), read in zip(writes, reads):
+                    if read:
+                        shape.angle                 # warms the Derivate heading
+                    getattr(shape, a_name if end == "a" else b_name)._takein(xy)
+                if reads[-1]:
+                    shape.center
+                seen[reads] = round(float(shape.angle), 6)
+                shape.destroy()
+            with self.subTest(model=name):
+                self.assertEqual(len(set(seen.values())), 1, seen)
+
+    def test_point_writes_keep_the_turns_the_verbs_counted(self):
+        # Only verbs move the turn reference: after rotate_by(720) a point
+        # write reads the new direction near +720, warm or cold.
+        for name, build in DERIVED_MODELS.items():
+            for warm in (False, True):
+                with self.subTest(model=name, warm=warm):
+                    shape = build()
+                    if warm:
+                        shape.angle
+                    r0 = float(shape.angle)
+                    shape.rotate_by(720)
+                    self.assertAlmostEqual(float(shape.angle), r0 + 720.0, places=6)
+                    shape.rotate_by(5)                  # a turn, then a nudge back
+                    shape.rotate_by(-5)
+                    self.assertAlmostEqual(float(shape.angle), r0 + 720.0, places=6)
+                    shape.destroy()
+
+    def test_flips_keep_the_turns_on_every_kind(self):
+        # flip_x reads 180 − θ and flip_y −θ with the full turns kept, and the
+        # flip back restores θ. A Rect spine unwrapped the mirrored heading to
+        # the old turn reference: -690 flipped to -570, not 870.
+        builds = dict(DERIVED_MODELS)
+        builds.update({name: build for name, (build, _fixed) in INPUT_MODELS.items()
+                       if not name.startswith("Text")})
+        for name, build in builds.items():
+            for axis in ("x", "y"):
+                for warm in (False, True):
+                    with self.subTest(model=name, axis=axis, warm=warm):
+                        shape = build()
+                        if warm:
+                            shape.angle
+                        shape.rotate_by(-720)
+                        shape.rotate_by(30)
+                        r = float(shape.angle)
+                        setattr(shape, "flip_" + axis, True)
+                        want = (180.0 - r) if axis == "x" else -r
+                        self.assertAlmostEqual(float(shape.angle), want, places=6)
+                        setattr(shape, "flip_" + axis, False)
+                        self.assertAlmostEqual(float(shape.angle), r, places=6)
+                        shape.destroy()
+
     def test_flips_mirror_a_pose_heading(self):
         from scena import Point, Polygon
         for obj in (Point(1, 2), Polygon(points=[(0, 0), (4, 0), (4, 3)])):

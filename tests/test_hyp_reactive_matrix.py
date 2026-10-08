@@ -2,8 +2,8 @@
 
 A pool of subjects (``reactive_matrix_support.SUBJECTS``), each with a twin that
 only ever gets plain writes. Rules link a field to a cell, move the cell
-(the twin gets the same value written), unlink, and read some names on both
-sides at the same moment. Whatever the order, a read on the subject must equal
+(the twin gets every linked value written again until they all hold, the
+heading last), unlink, and read some names on both sides at the same moment. Whatever the order, a read on the subject must equal
 the twin's. The deterministic cross-product is ``test_reactive_matrix``; this
 machine reaches orders it does not (several links on one object, a link
 installed after reads, unlink then relink).
@@ -118,7 +118,39 @@ class _Pair:
         self.twin = factory()
         self.fields = fields_of(label, factory)
         self.linkable = linkable_of(label, factory)
-        self.links = {}     # field name -> cell
+        self.links = {}     # field name -> (cell, whole); install order
+
+    def settle_twin(self):
+        """Write every linked value to the twin as the subject holds them.
+
+        All links hold at once on the subject; the twin gets plain writes, and
+        a later write can move a field an earlier one set. So the twin re-puts
+        every linked value until a pass changes no linked read. Links that never
+        settle cannot all hold, and the engine must refuse the pair: a rim
+        Circle's ``angle`` and ``center`` settled nowhere (the radius followed
+        whichever center moves had been read) and are refused now
+        (``_heading_pivot_inputs``). The heading goes last, as the engine
+        applies it: a linked turn reads its pivot through that part's own link
+        first (Reactive Design, "A linked heading is pulled before the points
+        it rewrites are read")."""
+        names = [n for n in self.links if n != "angle"]
+        if "angle" in self.links:
+            names.append("angle")
+        if not names:
+            return
+        readable = [n for n in names if n != "@self"]
+        for _ in range(4):
+            before = M.snapshot_names(self.twin, readable)
+            for name in names:
+                cell, _ = self.links[name]
+                _, is_pair, slot = next(x for x in self.linkable if x[0] == name)
+                try:
+                    _put(self.twin, name, is_pair, map_value(name, slot, is_pair, cell.v))
+                except Exception:
+                    assume(False)
+            if not M.diff(before, M.snapshot_names(self.twin, readable)):
+                return
+        raise AssertionError(f"{self.label}: links {names} never settle on the written twin")
 
 
 class ReactiveMatrixMachine(RuleBasedStateMachine):
@@ -180,6 +212,7 @@ class ReactiveMatrixMachine(RuleBasedStateMachine):
             _put(pair.twin, name, is_pair, value)
         except Exception:
             assume(False)
+        pair.settle_twin()
 
     @rule(c=hst.integers(0, 3), t=hst.floats(0.0, 1.0))
     def move_cell(self, c, t):
@@ -187,13 +220,8 @@ class ReactiveMatrixMachine(RuleBasedStateMachine):
         cell = self.cells[c % len(self.cells)]
         cell.v = t
         for pair in self.pairs:
-            for name, (src, _) in list(pair.links.items()):
-                if src is cell:
-                    _, is_pair, slot = next(x for x in pair.linkable if x[0] == name)
-                    try:
-                        _put(pair.twin, name, is_pair, map_value(name, slot, is_pair, t))
-                    except Exception:
-                        assume(False)
+            if any(src is cell for src, _ in pair.links.values()):
+                pair.settle_twin()
 
     @rule(p=hst.integers(0, 5), f=hst.integers(0, 40))
     def unlink(self, p, f):
