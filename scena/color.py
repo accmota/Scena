@@ -357,6 +357,18 @@ def _clamp01(value: float) -> float:
     return value
 
 
+# HSV saturation below which a saturation *lift* fades out. A gray has no hue
+# (colorsys reports h = 0, red), so lifting its saturation invents red: white
+# Neon drew a red tube. The ramp keeps grays neutral and near-grays (snow,
+# ivory) lightly tinted; s >= this is untouched.
+_ACHROMATIC_S = 0.1
+
+
+def _chroma_weight(s: float) -> float:
+    """0 for a gray, 1 from ``_ACHROMATIC_S`` up: scales a saturation lift."""
+    return 1.0 if s >= _ACHROMATIC_S else s / _ACHROMATIC_S
+
+
 def _scalar_or_uniform(spec, *, name: str) -> float:
     """Resolve a fixed float or ``(lo, hi)`` range into one random sample."""
     spec = as_payload(spec)
@@ -961,6 +973,8 @@ class Color(ClosedSurface):
         """
         Returns a more vibrant version of this color (same hue, higher HSV
         saturation, lifted value). Good for neon glows, CTAs, emphasis.
+        A gray has no hue, so it stays gray (only lighter); near-grays gain
+        a little saturation, fading in up to HSV saturation 0.1.
         """
         from .validate import number
         amount = number(amount, "Color.vibrant_version amount")
@@ -968,7 +982,7 @@ class Color(ClosedSurface):
         amt = max(0.0, float(amount))
         # Additive boost plus a pull toward full saturation so muted colors
         # actually read as neon, not just slightly less gray.
-        s_boost = min(1.0, s + amt + (1.0 - s) * amt * 0.65)
+        s_boost = min(1.0, s + _chroma_weight(s) * (amt + (1.0 - s) * amt * 0.65))
         v_boost = min(1.0, max(v, 0.72) + amt * 0.28)
         return Color.from_hsv(h, s_boost, v_boost, a)
 

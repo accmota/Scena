@@ -75,6 +75,13 @@ left out.
 
 ### Fixed
 
+- A look on a white, gray or black shape stays neutral. `Neon()` drew a red
+  tube when the shape was white (tutorial 01, `triangulo.color = "white"`),
+  gray or black; `DashRing`, `GearShell`, `ElectricBolt` and
+  `Halo(style="fill")` / `Halo(style="soft")` turned pink. Same for
+  `Neon("white")` and the other looks seeded with a gray, and for
+  `Color.vibrant_version()` on a gray. Near-whites (snow, ivory) get a light
+  tint instead of a full color. Colors with any real saturation look as before.
 - Collision callbacks survive park and `collidable`. `on_collide`,
   `on_collide_stay` and `on_collide_exit` (a function or a method in the class
   body) stopped firing after `active = False` then `True`, or `collidable =

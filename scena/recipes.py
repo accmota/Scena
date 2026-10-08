@@ -31,7 +31,7 @@ import skia
 
 from .entity import is_sprite_family, scena_kind
 from ._defaults import Unset
-from .color import Color, ColorLike, resolve_rgba
+from .color import Color, ColorLike, _chroma_weight, resolve_rgba
 from .validate import expect_choice
 
 ShieldStyle = Literal[
@@ -180,7 +180,8 @@ def _vivid_rgb(rgb, amount: float = 0.55) -> Tuple[float, float, float]:
     """Same math as ``Color.vibrant_version`` — float path, no ``Color()``.
 
     Interned by ``(r, g, b, amount)``. Used by Neon tint; safe for any caller
-    that wants the vibrant lift without the Color construction tax.
+    that wants the vibrant lift without the Color construction tax. A gray
+    stays gray (``_chroma_weight``): no invented hue-0 red.
     """
     r, g, b = float(rgb[0]), float(rgb[1]), float(rgb[2])
     amt = float(amount)
@@ -189,7 +190,7 @@ def _vivid_rgb(rgb, amount: float = 0.55) -> Tuple[float, float, float]:
     if hit is not None:
         return hit
     h, s, v = colorsys.rgb_to_hsv(r, g, b)
-    s2 = min(1.0, s + amt + (1.0 - s) * amt * 0.65)
+    s2 = min(1.0, s + _chroma_weight(s) * (amt + (1.0 - s) * amt * 0.65))
     v2 = min(1.0, max(v, 0.72) + amt * 0.28)
     out = colorsys.hsv_to_rgb(h, s2, v2)
     if len(_VIVID_RGB) < _VIVID_RGB_CAP:
@@ -198,7 +199,7 @@ def _vivid_rgb(rgb, amount: float = 0.55) -> Tuple[float, float, float]:
 
 
 def _energy_rgb(tint) -> Tuple[float, float, float, float]:
-    """Host hue, slightly chroma-boosted. Does not rewrite shape fill/line."""
+    """Host hue, slightly chroma-boosted (a gray stays gray). Does not rewrite shape fill/line."""
     if type(tint) is tuple and len(tint) >= 3:
         r, g, b = float(tint[0]), float(tint[1]), float(tint[2])
     else:
@@ -208,7 +209,7 @@ def _energy_rgb(tint) -> Tuple[float, float, float, float]:
     if hit is not None:
         return hit
     h, s, v = colorsys.rgb_to_hsv(r, g, b)
-    s2 = min(1.0, s + (1.0 - s) * 0.32)
+    s2 = min(1.0, s + _chroma_weight(s) * (1.0 - s) * 0.32)
     rr, gg, bb = colorsys.hsv_to_rgb(h, s2, v)
     out = (rr, gg, bb, 1.0)
     if len(_ENERGY_RGB) < _ENERGY_RGB_CAP:
