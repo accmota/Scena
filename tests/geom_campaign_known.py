@@ -30,3 +30,39 @@ SHADOW = {
         "GX4: a timed verb skips the up-front write gate; the refusal comes from a later "
         "tick, after part of the motion ran; phase 7",
 }
+
+# Phase-1 probes (test_geom_probes): probe id -> finding. A listed probe must
+# still fail; one that passes must be removed.
+PROBES = {
+    "Q1": "spine flip unwraps toward the previous heading; phase 7",
+    "Q2": "a finished timed rotate_to keeps the shortest-arc end; phase 7",
+    "Q2-camera": "the camera's timed rotate_to keeps the shortest-arc end; phase 7",
+    "Q3b-unlink_all": "unlink_all keeps the relational model; phase 7",
+    "Q3b-destroy": "a destroyed reference keeps the relational model; phase 7",
+    "Q3b-force": "force=True leaves a hybrid (CENTER_WH with a linked center); phase 7",
+    "Q5": "State stores a named function; phase 7",
+    "GR17-link": "a link on a Defining angle leaves _rotation behind; phase 7",
+    "GX1": "a tall Ellipse swaps its foci on a flip; phase 7",
+    "GX2": "a zero-length Line keeps its heading on a flip; phase 7",
+    "GX3": "a zero-length tangent Line accepts a flip; phase 7",
+    "GX4": "timed verbs skip the up-front write gate; phase 7",
+    "GX5": "pose-zoom kinds below MIN_SCALE move by the clamped factor; phase 7",
+    "GX6": "a whole link during a running motion raises from a later tick; phase 7",
+    "GX7": "a write before any read skips the pull of a pull-owned point; phase 7",
+}
+
+# Timed / instant gate parity (test_geom_structure.TestTimedVerbsGateLikeInstant):
+# "kind | link | verb(time=) | accepted / raised from a tick".
+GATE_PARITY = {
+    "* | move_to(time=) | *": "GX4: timed move_to skips the gate (linked part, chain, whole, relational); phase 7",
+    "* | scale_by(time=) | *": "GX4: timed scale_by skips the gate; phase 7",
+    "* | scale_to(time=) | *": "GX4: timed scale_to skips the gate; phase 7",
+    "Line tangent_point | none | move_by(time=) | *": "GX4: timed move_by skips the tangent gate; phase 7",
+    "Line center_length | * | rotate_??(time=) | raised from a tick":
+        "GX4: a timed turn of a Line whose center is linked writes the center in its tick; phase 7",
+}
+
+# Structural guards (test_geom_structure): site -> finding.
+BARE_EXCEPT = {
+    "track._move_by": "GX8: the fast path swallows every exception and falls back; phase 7",
+}

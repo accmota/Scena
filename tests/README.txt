@@ -87,6 +87,12 @@ Geometry campaign (design/Testing Design.md, "Geometry campaign")
                           (geom_shadow); 2-wise in quick, 2- and 3-wise in
                           gate; Hypothesis machine; canaries. Known findings:
                           geom_campaign_known.py (shrink-only patterns).
+  test_geom_structure.py  H7: one update() per verb, model adopted before a
+                          copy writes, one Defining set per model, timed verbs
+                          gate like instant ones, no swallowed errors, the
+                          relational verb table (doc, exemptions, behaviour).
+  test_geom_probes.py     one probe per drift candidate and finding, from the
+                          contract; known-broken probes listed shrink-only.
 
   python tests/geom_coverage.py [--report]     branch-coverage ledger
   python tests/mutation_run.py ... --ops call  deleted-call mutants only

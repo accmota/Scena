@@ -222,6 +222,8 @@ random cells in `deep`. Reach counters assert every axis value ran.
 | Harness | Oracle | Module |
 | --- | --- | --- |
 | H1 shadow | the composed affine map of the steps since the base state (a constraint cell's own map on a relational shape); refusals change nothing | `test_geom_sequences` |
+| H7 structure | the code against itself: one `update()` per verb, model adopted before a copy writes, one Defining set per model (tables, `_defining_names_for`, constructors, cross-model copies), timed verbs refuse where instant ones do, no swallowed errors in pose verbs, the relational verb table (doc ↔ `CONTRACT_EXEMPT` ↔ shadow ↔ behaviour) | `test_geom_structure` |
+| Probes | one deterministic probe per drift candidate and per finding, written from the contract; known-broken probes listed shrink-only (`geom_campaign_known.PROBES`) | `test_geom_probes` |
 
 **Contract decisions the oracles encode** (written into the owning docs first):
 Q1 a flip applies `180 − θ` / `−θ` to the unwrapped heading on every kind
@@ -239,6 +241,17 @@ geometry and reactive suites (`geom_coverage.py`): shapes 1610 / 2028, entity
 track 432 / 598, hitbox 126 / 248, geom 36 / 236, scenamath 59 / 154. Deleted
 calls (`mutation_run.py --ops call`, 80 sampled sites in shapes / state / box /
 entity, seed 1): the geometry suites kill 50, 30 survive.
+
+**Phase 1 findings (static sweep and probes; H1 found the first ones while it
+was being built).** Catalogue [GX](#gx--geometry-campaign-2026-10-08). The
+drift list's suspects, triaged: the `_scalar_bare_ok` seed without the
+`_pull_owner` check is a real bug (GX7); an anchor type swap on a cross-model
+copy keeps outside `angle` readers fresh (cleared, probe kept); a reversed
+Track view's own `_rotation` is a dead store the collision key never reads
+(cleared, probe kept); every heading reader agrees on every kind after every
+verb, except through a link (GR17-link, known); `Box._takein_impl` copies a
+linked source's value, not its link (cleared). The Defining tables, the
+constructors and every cross-model copy name one Defining set per model.
 
 
 # Test tiers
@@ -1306,6 +1319,7 @@ gaps that **both** authors reported on their own.
 | Geometry campaign Q2 | A finished timed `rotate_to(30)` from 400 reads 390 (shape and camera; contract: 30) | Campaign phase 7 (`CHANGELOG.md` under Fixed) |
 | Geometry campaign Q3b | `unlink_all()`, unlinking a part, or a destroyed reference keeps a relational model (PARALLEL_DIST `move_by` does nothing, TANGENT verbs orbit); `force=True` leaves a hybrid (CENTER_WH Ellipse whose `center` follows the Rect) | Campaign phase 7 (`_drop_relational` on every way a relation goes) |
 | Geometry campaign Q5 | `st.f = my_def` stores the function (only `<lambda>` is refused) | Campaign phase 7 (`CHANGELOG.md` under Breaking) |
+| Geometry campaign GX1–GX8 | Found by the campaign's harnesses ([GX](#gx--geometry-campaign-2026-10-08)) | Campaign phase 7 |
 | Geometry campaign GR17-link | A link on a Defining `angle` leaves the pose store `_rotation` at its old value (the pull stores raw); no wrong drawing found | Campaign phase 7 (the pull publishes the store) |
 | GR (2026-10-08) | Box and Rect keep near-copies of `_takein_impl` / `rotate_by` (they drifted once, SC1) | Decided 2026-10-08: no refactor now (no bug; the geometry contract sweep builds every Box model beside Rect). The next change to either method merges them into `_RectFrame` first ([Shapes Design](Shapes%20Design.md)) |
 
@@ -1376,6 +1390,24 @@ Fixed so far (each batch removes its entries from the known lists):
 | 3 paint materials | HP1 (Breaking: `Color.alpha` read-only), HP2, HP3, HP4, HP9, HP10, GR4 | `Color` immutable; `PaintState.set_alpha` assigns faded copies (`with_alpha`, `Gradient._map_stops`, a shallow Texture copy); `Gradient.set_alpha` replaces its stop Colours; one table of paint writes wrapped with the dead check after `PaintState` (`_PAINT_WRITE_PROPERTIES` / `_METHODS`); the ghost fill paint is a copy; the sprite-only look check runs before any write; Sprite save / restore carry `alpha`; width ≤ 0 builds no stroke paint (checked on a build only: `line_width =` clears the cache, so no per-draw cost) | `test_material_isolation` (113 → 0, plus `TestPaintWritesStayPut`), `test_draw_doors` (hairline), `test_refusal_atomic` (dead paint) |
 | 2 construction | E4 (both causes), E5, E18 (swallowed enroll) | the finish step runs inside the rollback (`_wrap_actor_init`); the rollback is `Registry._destroy_teardown` (`place._drop_failed_construct`); `__init_subclass__` adopts a mixin's `__init__` (`_adopt_mixin_init`); the enroll `except` narrowed to the ui / parallax refusals | `test_construct_failure` (base × raise point × layout; every finish hook runs) |
 | 1 collision lifecycle | E1, E2, E3, E11, HP5, GR8, GR9; E12 for `on_collide*` | callbacks live on the actor (`Entity._collide_cbs`, copied by `ensure_collider`); one join path `Entity._enter_collision` (`collidable = True`, callback opt-in, resume) and one leave path `_leave_collision` (park never writes the opt-out); the opt-out recorded on every author `collidable = False`; stash validated when written (`_wants_collision` in the layer guards); `_item_in_play` reads the stored `_active` | `test_collision_lifecycle` (every sequence of up to three lifecycle statements vs a twin in the final state; method callback; ui while stashed); `test_hitbox_round2.TestLinkedActive.test_link_runs_once_per_step_not_per_contact` |
+
+### GX — geometry campaign (2026-10-08)
+
+White-box harnesses over the whole geometric model ([Geometry campaign](#geometry-campaign)).
+Contract questions settled first (Q1–Q5); the engine bugs they exposed and the
+new findings below are listed shrink-only in `tests/geom_campaign_known.py`
+until their fix wave (phase 7).
+
+| ID | Bug | Root cause | Why earlier tests missed it | Guard |
+| --- | --- | --- | --- | --- |
+| GX1 | A tall Ellipse (height > width) swaps `fp1` / `fp2` on a flip | the foci are derived along the heading's major axis; `180 − θ` reverses that axis when it is the height | KINDS builds wide ellipses only; C1 checks one verb from one pose | H1 (degenerate base: width 0), `test_geom_probes` GX1 |
+| GX2 | A zero-length Line keeps its heading on a flip | a collapsed segment's heading lives in the pose store, which the flip does not mirror | no sweep collapses a Line before a flip | H1 (degenerate base), probe GX2 |
+| GX3 | A zero-length TANGENT_ANGLE Line accepts a flip it refuses at any other length | the refusal depends on a write happening | same | H1, probe GX3 |
+| GX4 | Timed `move_to` / `scale_by` / `scale_to` (and a tangent line's `move_by`, a Line with a linked center's turn) are accepted at the call where the instant verb refuses; the refusal comes from a later tick, after part of the motion ran (584 cells) | the timed doors (`timed_*`) skip the instant verbs' up-front gate | `TestLinkWriteGate` and the relational tests call instant verbs | `test_geom_structure.TestTimedVerbsGateLikeInstant`, H1 (`refusal changed` on timed steps), probe GX4 |
+| GX5 | Below `MIN_SCALE`, a pose-zoom kind (Sprite, Svg) moves its center by the clamped factor and its size by the exact one | the pivot math reuses the Shapes clamp | no sequence scaled from `MIN_SCALE` with a pivot | H1 (`min_scale` base), probe GX5 |
+| GX6 | A whole `@=` (or a point-part link) installed during a running timed verb is accepted; the next tick raises | the "pushes it" check runs for field links only | link tests start from idle shapes | H1 (`mid_tween` base × link), probe GX6 |
+| GX7 | With a linked heading, a write to `p1.x` before any read makes later reads of `p1.x` skip the pull (reads 1.0; `p1.y` and a twin read the turned point) | `_write_field` seeds the bare-read cache without the `_pull_owner` check `__get__` makes | D18's tests read before writing | probe GX7 |
+| GX8 | `Track._move_by` swallows every exception from its fast path and retries on the slow one | a broad `except Exception: pass` | — | `test_geom_structure.TestNoBareExceptInPoseVerbs` |
 
 ### F — contact flicker (2026-09-29)
 
