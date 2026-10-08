@@ -364,9 +364,7 @@ class TestRefusedWritesChangeNothing(unittest.TestCase):
 
 
 # Kinds whose heading verbs are known wrong (shrink-only: a fixed entry fails).
-KNOWN_HEADING = {
-    "Line tangent_point": "SB1 (graphics review, batch 8): the turn pivots on p1 and p2 re-solves the tangent",
-}
+KNOWN_HEADING = {}
 
 
 class TestAngleWorksOnEveryKind(unittest.TestCase):

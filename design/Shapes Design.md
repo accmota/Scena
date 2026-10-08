@@ -256,6 +256,20 @@ Some models build a shape whose Defining parts are formula-linked to *another*, 
 - Wire Defining parts with `self.<part> @= (lambda: ...)`, **not** `self.<part>.assign_formula(lambda: ...)` — see the gotcha below.
 - Add module-level helpers (`_parallel_offset_point`, `_circle_point_at_angle`, `_circle_tangent_touch_point`, …) for the geometry so the lambda body stays a one-liner.
 
+## Pose verbs on a relational shape
+
+A pose verb either keeps the relation or refuses (`LinkedAttributeError`, nothing changed); it never ignores an argument. `force=True` frees the shape first (`_drop_relational`) and the verb runs on its free twin. Graphics review SB1 / SB4 / SA16; pinned by `test_shapes.TestRelationalVerbs` and the shape-specific tests.
+
+| Model | `move_*` | `rotate_*` / `angle =` | `scale_*` | flip |
+| --- | --- | --- | --- | --- |
+| `PARALLEL_POINT` / `PERPENDICULAR_POINT` | moves `p1` | refuses (the heading follows the reference) | about any pivot | refuses |
+| `PARALLEL_DIST` | across the reference: the move's normal component goes to `dist`, the along-track part is dropped (documented, `test_move_by_adjusts_dist`) | refuses | refuses | refuses |
+| `TANGENT_ANGLE` | refuses (`force=True` frees it) | orbits the circle's center (the default pivot; `about=` must be that center) | the length, about the pinned touch point (`about=` must be that point) | refuses |
+| `TANGENT_POINT` | refuses (moving the from-point re-solves the tangent: not a rigid move) | orbits the circle's center, as above | refuses | refuses |
+| `FROM_RECT` (Ellipse) | refuses (every input follows the Rect) | refuses | refuses | refuses |
+
+`angle` and the pose heading read the same value on every model (`TANGENT_ANGLE`: `at_angle + 90`, `Line._rotation_value`; SB4: they read 290 and -70, so `rotate_to(line.angle)` added a full turn). The contract sweeps skip exactly these documented meanings (`geometry_support.CONTRACT_EXEMPT`, each with its reason) and hold every other verb to rigid motion.
+
 ## Gotcha: `@=` vs `assign_formula(lambda: ...)` for internal wiring
 
 `FormulaLink._extract_sources` locates the exact `ast.Lambda` for the callable (by line/column when several share a statement). It also treats default-arg captures (`lambda h=host: …`) and simple subscripts (`items[0].radius`) as sources. User-facing constructor kwargs (`Circle(center=lambda: …, radius=lambda: …)`) go through `_init_composite` / `_init_scalar` and are safe with multiple lambdas on one line.

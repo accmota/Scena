@@ -167,6 +167,24 @@ RELATIONAL_MODELS = frozenset({
 })
 
 
+# Relational verbs whose documented meaning is not a rigid motion about the
+# center (Shapes Design — Cross-shape relational constructors). The contract
+# sweeps skip exactly these; each meaning is pinned in test_shapes.
+_ORBIT = "orbits its circle's center (the default pivot of a tangent line)"
+_ALONG = "moves across its reference only: the along-track part is dropped (dist)"
+_LENGTH = "scales its length about the touch point pinned to the circle"
+CONTRACT_EXEMPT = {
+    **{("Line parallel_dist", v): _ALONG for v in ("move_by", "move_by timed", "move_to")},
+    **{("Line tangent_angle", v): _ORBIT for v in ("rotate_by", "rotate_by timed", "rotate_to", "angle =")},
+    **{("Line tangent_angle", v): _LENGTH for v in ("scale_by", "scale_by timed", "scale_to")},
+    **{("Line tangent_point", v): _ORBIT for v in ("rotate_by", "rotate_by timed", "rotate_to", "angle =")},
+}
+
+
+def exempt(kind: str, verb: str) -> bool:
+    return (kind, verb) in CONTRACT_EXEMPT
+
+
 def is_relational(obj) -> bool:
     return getattr(getattr(obj, "model", None), "name", None) in RELATIONAL_MODELS
 

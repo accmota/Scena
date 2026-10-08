@@ -100,6 +100,17 @@ left out.
   frame, not only its hit test.
 - Writing a new list, `Vec2` or numpy array to a field that held an equal one
   stores the new object; a numpy array used to raise.
+- A tangent line from a point (`Line(circle=, from_point=)`) turns about its
+  circle's center, staying tangent; `rotate_by(30)` turned it 14.6° and
+  `scale_by(2)` shrank it. Scaling or moving such a line, or turning any
+  tangent line about another pivot, raises LinkedAttributeError (it was
+  ignored); `force=True` frees the line first.
+- A tangent line at an angle (`Line(circle=, at_angle=)`) reads one heading:
+  `line.angle` and `rotate_to(line.angle)` agree (it added a full turn).
+- `point.rotate_to(90, about=p)` turns the point by `90 - point.angle` about
+  `p`, like every other shape; it placed the point at polar angle 90.
+- `move_to(point, 50)` and `move_by(vec, 5)` raise TypeError; the second
+  argument was ignored.
 - A copy acts like its source. `copy << shape` and `absorb` now carry the
   flips, the heading with its full turns and the scale, so the next
   `rotate_to` or flip agrees; `clone()` keeps the model (a cloned

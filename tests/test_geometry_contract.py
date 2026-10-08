@@ -96,6 +96,10 @@ VERBS = [
      lambda p, c: G.turned(p, PIVOT, 33)),
     ("rotate_to", lambda o: True, lambda o, c: o.rotate_to(c["r0"] + 50),
      lambda p, c: G.turned(p, c["c"], 50)),
+    # rotate_to is rotate_by(target - angle) about any pivot (SA4: Point placed
+    # itself at polar angle target about the pivot instead).
+    ("rotate_to about", _is_graphic, lambda o, c: o.rotate_to(c["r0"] + 50, about=PIVOT),
+     lambda p, c: G.turned(p, PIVOT, 50)),
     # Setting angle keeps the model's placement point (an input model) or
     # is rotate_to about the center (derived heading). A p1=, p2= Rect leans:
     # not a rigid turn — its names are checked in test_rect_names.
@@ -153,6 +157,8 @@ def sweep_c1(kinds, p):
         G.reset_clock()
         for kind in kinds:
             for name, applies, verb, image in VERBS:
+                if G.exempt(kind, name):
+                    continue        # a documented relational meaning (CONTRACT_EXEMPT)
                 obj = _new(w, kind, p)
                 if not applies(obj):
                     continue
@@ -205,6 +211,8 @@ def sweep_c2(kinds, p):
         for kind in kinds:
             # The drawn geometry follows every verb (as a point set).
             for name, applies, verb, image in VERBS:
+                if G.exempt(kind, name):
+                    continue        # a documented relational meaning (CONTRACT_EXEMPT)
                 obj = _new(w, kind, p)
                 if not applies(obj):
                     continue
@@ -736,6 +744,8 @@ def sweep_c7(kinds, p):
                 for act, verb in COPY_ACTS:
                     if act == "flip_x" and not G.can_flip(copy):
                         continue
+                    if G.exempt(kind, act):
+                        break       # the source verb has its own documented meaning
                     ang = G.safe(lambda: float(src.angle))
                     ang = 0.0 if isinstance(ang, G.ReadError) else ang
                     c_before, c_ctx = _drawn(copy), _ctx(copy)

@@ -3779,3 +3779,52 @@ class TestCopyContract(unittest.TestCase):
         c = Circle(center=(0, 0), radius=3)
         c.active = False
         self.assertTrue(c.clone().visible)
+
+
+class TestRelationalVerbs(unittest.TestCase):
+    """Graphics review batch 8: a relational line's pose verbs keep the relation
+    or refuse; none ignores an argument (SB1, SB4)."""
+
+    def setUp(self):
+        self.circle = Circle(center=(0, 0), radius=10)
+
+    def test_a_tangent_from_a_point_orbits_its_circle(self):
+        # SB1: the turn pivoted on the from-point; rotate_by(30) turned it 14.6°.
+        line = Line(circle=self.circle, from_point=(30, 0), side="left")
+        a0 = float(line.angle)
+        line.rotate_by(30)
+        self.assertAlmostEqual(float(line.angle), a0 + 30, places=6)
+        self.assertAlmostEqual(math.hypot(line.p1.x, line.p1.y), 30.0, places=6)
+        with self.assertRaises(LinkedAttributeError):
+            line.scale_by(2)                      # it shrank the length 49.8 → 8
+        with self.assertRaises(LinkedAttributeError):
+            line.rotate_by(10, about=(50, 50))
+
+    def test_a_tangent_at_an_angle_reads_one_heading_and_honours_about(self):
+        # SB4: angle 290 vs pose -70 (rotate_to(l.angle) added a turn); about= ignored.
+        line = Line(circle=self.circle, at_angle=200, length=20)
+        self.assertAlmostEqual(float(line.angle), line._rotation_value())
+        p1 = (float(line.p1.x), float(line.p1.y))
+        line.rotate_to(float(line.angle))
+        self.assertAlmostEqual(float(line.p1.x), p1[0], places=6)
+        line.rotate_by(30, about=(0, 0))          # the circle's center: an orbit
+        with self.assertRaises(LinkedAttributeError):
+            line.rotate_by(30, about=(50, 50))
+        with self.assertRaises(LinkedAttributeError):
+            line.scale_by(2, about=(50, 50))
+
+    def test_point_rotate_to_about_a_pivot_turns_by_the_difference(self):
+        # SA4: rotate_to(θ, about=p) put the point at polar angle θ about p.
+        p = Point(10, 0)
+        p.rotate_by(30)                           # heading 30, still at (10, 0)
+        p.rotate_to(90, about=(0, 0))             # turn by 60 about the origin
+        self.assertAlmostEqual(float(p.angle), 90.0)
+        self.assertAlmostEqual(float(p.x), 10 * math.cos(math.radians(60)), places=6)
+
+    def test_a_second_argument_is_not_dropped(self):
+        # SA16: move_to(Point, 50) / move_by(Vec2, 5) ignored the second argument.
+        c = Circle(center=(0, 0), radius=3)
+        with self.assertRaises(TypeError):
+            c.move_by(Vec2(1, 1), 5)
+        with self.assertRaises(TypeError):
+            c.move_to(Point(1, 1), 50)

@@ -2112,6 +2112,12 @@ class Shape(Graphic, PaintState):
 
         polar = angle is not None or distance is not None
         vector = dx if (dx is not None and isinstance(dx, Vec2)) else None
+        if vector is not None and dy is not None:
+            # A second argument used to be dropped silently (SA16).
+            raise TypeError(
+                f"move_by(v) takes one Vec2; got a second argument ({type(dy).__name__}). "
+                "Write move_by(v) or move_by(dx, dy)."
+            )
         cartesian = vector is not None or dx is not None or dy is not None
         if not polar and not cartesian:
             # ``move_by(None)`` is usually a location / vector that turned out
@@ -2206,6 +2212,12 @@ class Shape(Graphic, PaintState):
             raise TypeError(
                 "move_to needs a target, got nothing (None). Write move_to(x, y) "
                 "or move_to(point); move_to(None, y) keeps x."
+            )
+        if y is not None and x is not None and not isinstance(x, (int, float)):
+            # A point-like target and a second number: the number was dropped (SA16).
+            raise TypeError(
+                f"move_to(point) takes one target; got a second argument ({type(y).__name__}). "
+                "Write move_to(point) or move_to(x, y)."
             )
         if isinstance(x, Vec2):
             vector = x
@@ -3118,22 +3130,13 @@ class Point(Shape):
 
     @batch_update_self()
     def rotate_to(self, value: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Point':
-        """Set polar angle about pivot (default: self → no-op for position)."""
+        """Turn so ``angle`` becomes ``value``: ``rotate_by(value - angle)`` about
+        the pivot (default: the point itself, which then only turns its heading).
+        It placed the point at polar angle ``value`` about the pivot instead,
+        unlike every other kind (C2; graphics review SA4)."""
         _refuse_if_destroyed(self, "rotate_to")
-        _gate_pose_anchor(self, "angle", "rotate_to", force)
-        px, py = self._pivot_xy(about)
-        x, y = get_xy(self, bare=True)
-        dist = math.hypot(x - px, y - py)
-        if dist == 0.0:
-            _pose_rotation_set(self, _finite_deg(value, "angle"))
-            return self
-        _ensure_writable(self, "rotate_to", force=force)
-        rad = _rad(_finite_deg(value, "rotate_to angle"))
-        nx, ny = px + dist * math.cos(rad), py + dist * math.sin(rad)
-        self.x = nx
-        self.y = ny
-        _pose_rotation_set(self, _finite_deg(value, "angle"))
-        return self
+        target = _finite_deg(value, "rotate_to angle")
+        return self.rotate_by(target - float(self._rotation), about=about, force=force)
 
     @batch_update_self()
     def rotate_by(self, angle: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Point':
@@ -3762,6 +3765,10 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
         """The heading from Defining inputs only (never wakes a Derivate ``angle``)."""
         if 'angle' in (getattr(self, '_defining_part_names', None) or ()):
             return _bare_num(self.angle)
+        if self.model is LineModel.TANGENT_ANGLE:
+            # The model's own heading, as ``angle`` reads it (SB4: 290 vs -70,
+            # so ``rotate_to(l.angle)`` added a full turn).
+            return _bare_num(self.at_angle) + 90.0
         return self._heading_value()
 
     def _set_defining_parts(self, *defining: str) -> None:
@@ -4162,6 +4169,8 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
     @batch_update_self()
     def _move_by_batched(self, dx: float, dy: float, *, force: bool = False) -> 'Line':
         """Batched translate — used when pull consumers exist or force=True."""
+        if (dx or dy) and self.model is LineModel.TANGENT_POINT:
+            self._gate_tangent("move_by", force)   # moving the from-point re-solves the tangent
         match self.model:
             case LineModel.CENTER_LENGTH_ANGLE:
                 _ensure_writable(self.center, "move_by", force=force)
@@ -4266,6 +4275,39 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
                 return (self.p1,)
         return ()
 
+    _TANGENT_HINT = (" A tangent line keeps touching its circle: it turns about the"
+                     " circle's center (the default pivot). Move the circle, or its"
+                     " from-point / at_angle, to place it.")
+
+    def _tangent_circle_xy(self):
+        return self._ref._center_xy() if self._ref is not None else None
+
+    def _gate_tangent(self, operation: str, force: bool, about=None) -> None:
+        """What a tangent Line's pose verbs do (Shapes Design — relational lines):
+        a turn orbits the circle's center (the default pivot); a TANGENT_ANGLE
+        scale changes the length about the pinned touch point; anything else
+        refuses (SB1 / SB4: an explicit ``about=`` was silently ignored, and a
+        from-point tangent turned about the from-point and stretched).
+        ``force=True`` frees the line and the verb runs on its free twin."""
+        model = self.model
+        if model not in (LineModel.TANGENT_ANGLE, LineModel.TANGENT_POINT):
+            return
+        turn = operation in ("rotate_by", "rotate_to")
+        if about is None and (turn or (operation == "scale_by" and model is LineModel.TANGENT_ANGLE)):
+            return
+        if about is not None and turn:
+            c = self._tangent_circle_xy()
+            ax, ay = get_xy(about, bare=True)
+            if c is not None and abs(ax - c[0]) <= 1e-9 and abs(ay - c[1]) <= 1e-9:
+                return
+        if about is not None and operation == "scale_by" and model is LineModel.TANGENT_ANGLE:
+            ax, ay = get_xy(about, bare=True)
+            tx, ty = get_xy(self.p1, bare=True)
+            if abs(ax - tx) <= 1e-9 and abs(ay - ty) <= 1e-9:
+                return
+        linked = self.p1 if model is LineModel.TANGENT_ANGLE else self.p2
+        _ensure_writable(linked, operation, force=force, undo_extra=self._TANGENT_HINT)
+
     @batch_update_self()
     def rotate_by(self, angle: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Line':
         """Rotate Defining geometry about a pivot by angle degrees."""
@@ -4274,6 +4316,10 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
         if dθ_deg == 0.0:
             return self
         dθ_rad = _rad(dθ_deg)
+        self._gate_tangent("rotate_by", force, about)
+        if about is None and self.model is LineModel.TANGENT_POINT:
+            # The default pivot of a tangent line is its circle's center.
+            about = self._tangent_circle_xy()
         px, py = self._pivot_xy(about)
 
         match self.model:
@@ -4364,6 +4410,7 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
             return self
         factor = geom
         px, py = self._pivot_xy(about)
+        self._gate_tangent("scale_by", force, about)
 
         match self.model:
             case LineModel.CENTER_LENGTH_ANGLE:
