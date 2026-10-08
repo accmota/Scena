@@ -362,6 +362,11 @@ left out.
 
 ### Documentation
 
+- A new landing page, `README.md` (it replaces `README.txt`, and PyPI shows it
+  too): what Scena is for, a whole game in one screen of code, the features
+  with short examples, clips of the example games, install, the tutorial and
+  the Guia. Its clips are recorded from the real programs
+  (`tools/readme/make_readme_media.py`), and its code is tested.
 - The Guia now says what several features did without saying it:
   `Button.on_click` fires on release (releasing elsewhere cancels); `zoom_by`
   without `about=` keeps the pan; the widget under the pointer keeps the mouse

@@ -47,7 +47,7 @@ PRIVATE = ("workbench", "drafts", "documentation/archive", "documentation/notes"
            "documentation/proposals")
 
 SCAN_DIRS = ("design", "docs", "tools", "scena", "scena_editor", "tests", "scripts", "examples")
-ROOT_FILES = ("AGENTS.md", "CHANGELOG.md", "CLAUDE.md", "CONTRIBUTING.md", "README.txt",
+ROOT_FILES = ("AGENTS.md", "CHANGELOG.md", "CLAUDE.md", "CONTRIBUTING.md", "README.md",
               "pyproject.toml")
 SUFFIXES = (".md", ".py", ".txt", ".html", ".js", ".toml")
 SKIP_SUBTREES = ("scripts/bench/results",)  # gitignored bench output

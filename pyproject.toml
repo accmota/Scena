@@ -7,7 +7,7 @@ name = "scena"
 # The number lives in scena/_version.py ([tool.setuptools.dynamic] below).
 dynamic = ["version"]
 description = "A beginner-friendly framework for creative graphics and 2D games in Python"
-readme = { file = "README.txt", content-type = "text/plain" }
+readme = { file = "README.md", content-type = "text/markdown" }
 # PEP 639 (setuptools 77+). The code only: examples/media/ is not packaged
 # and keeps its own licenses (examples/media/CREDITS.md).
 license = "MIT"

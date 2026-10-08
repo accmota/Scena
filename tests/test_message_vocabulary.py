@@ -254,7 +254,7 @@ _BRAND = re.compile(
 _LEGACY_OK = re.compile(r"0\.6\.0|LEGACY|legacy|stage-level|Stage Editor|stage_editor\.ico")
 _CODE_DIRS = ("scena", "scena_editor", "tests", "scripts", "examples", "tools")
 _TEXT_DIRS = ("design", "docs", "examples")
-_TEXT_ROOT_FILES = ("README.txt", "CONTRIBUTING.md", "CLAUDE.md", "AGENTS.md")
+_TEXT_ROOT_FILES = ("README.md", "CONTRIBUTING.md", "CLAUDE.md", "AGENTS.md")
 _TEXT_SKIP_DIRS = {"archive", "notes", "proposals", "results"}
 
 

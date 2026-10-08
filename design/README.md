@@ -56,6 +56,7 @@ Folder map only — not a hop list. Open **only** if that folder is the task.
 | `design/` | These docs | Contributors |
 | `docs/` | The author site, published with GitHub Pages: `docs/<lang>/guide/` (the Guia), `docs/<lang>/tutorial/`, `docs/assets/` (thumbnails, tutorial css/js — shared by every language). `pt` is written first; `en` mirrors it | Authors |
 | `tools/guide/` | The Guia's generators and checks: `validate_guia.py` (catalog checks, search index), `make_guia_thumbs.py` (thumbnails) | Contributors |
+| `tools/readme/` | `make_readme_media.py`: the clips `README.md` shows (`docs/assets/readme/`), recorded from the programs they show | Contributors |
 | `examples/` | Published beginner games; each tutorial ends in one of them | Authors |
 | `drafts/` | Private: game examples in development (a `media` link to `examples/media` lets them run). A game moves to `examples/` when it is ready | The maintainer |
 | `workbench/` | Private (below) | The maintainer |
@@ -229,3 +230,30 @@ file does not exist.
     reduced motion; its ▶ / ❚❚ button always works — reduced motion stops
     autoplay, not an animation the reader asked for. Attribute values go
     through `escAttr` (a variant's code has quotes).
+
+## Editing the README
+
+`README.md` is the landing page on GitHub **and** on PyPI (`readme` in
+`pyproject.toml`). Guards: `tests/test_readme.py`.
+
+- **Absolute URLs only.** Links and images point at
+  `github.com/accmota/Scena/(blob|tree)/main/…` or
+  `raw.githubusercontent.com/accmota/Scena/main/…`: PyPI renders the same file,
+  where a relative path is dead. Each one must map to a file in the checkout.
+- **Clips are recorded, never captured by hand.** `python tools/readme/make_readme_media.py`
+  plays each program headless on the GPU (`ProgramRun`: the frame body and
+  input handlers of a windowed run) while a *pilot* reads the game's globals
+  and holds keys / moves the mouse, then writes `docs/assets/readme/<id>.webp`.
+  Staleness is by input hash (program text, clip spec, pilot source, render
+  settings), never pixels; `--check` lists stale clips. Edit an example or a
+  pilot → render again.
+- **The code on the page is the code of its picture.** The block right after
+  `<!-- clip: <id> -->` is that clip's program (run as a file in `examples/`, so
+  its art resolves from `examples/media`).
+- **Code on the page runs.** A complete program (`from scena import *` …
+  `run()`) plays 2 s headless and must not warn. A fragment must use exported
+  names, accepted keywords and existing attributes of scena globals.
+- **Claims match the code.** "Mistakes explain themselves" is true only where
+  the near-miss message exists; check a claim before writing it.
+- **Docs links go to `pt`** until the English tutorial and Guia exist; the
+  page says so.
