@@ -436,3 +436,84 @@ class TestNinjaPack(SpriteTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSheetFrames(PatternTestCase):
+    """Graphics review (2026-10-08), Sheet frames: PA3, PA4, PA6, PA7, PA9, PA13."""
+
+    def test_two_files_with_one_name_keep_their_paths(self):
+        """PA3: ``idle/1.png`` and ``run/1.png`` are both "1": the last won,
+        even for the exact path that loaded the first."""
+        idle, run = self.png("idle/1.png", 8, 8), self.png("run/1.png", 16, 16)
+        sheet = Sheet([idle, run])
+        self.assertEqual(sheet.frame_index(idle), 0)
+        self.assertEqual(sheet.frame_index(run), 1)
+        self.assertEqual(sheet.frame_index("idle/1.png"), 0)
+        with self.assertRaisesRegex(ValueError, "names 2 frames"):
+            sheet.frame_index("1.png")
+        with self.assertRaisesRegex(ValueError, "names 2 frames"):
+            sheet.clip("one", ["1"], fps=4)
+
+    def test_strip_per_folder_keeps_each_path(self):
+        a = [self.png(f"idle/{i}.png") for i in (1, 2)]
+        b = [self.png(f"run/{i}.png") for i in (1, 2)]
+        sheet = Sheet()
+        sheet.strip("idle", a, fps=4)
+        sheet.strip("run", b, fps=4)
+        self.assertEqual([sheet.frame_index(p) for p in a + b], [0, 1, 2, 3])
+        with self.assertRaisesRegex(ValueError, "names 2 frames"):
+            sheet.frame_index("2")
+
+    def test_an_empty_sheet_names_no_cell(self):
+        """PA4: an empty ``Sheet()`` took any index; the draw wrapped it."""
+        with self.assertRaisesRegex(ValueError, "no cells yet"):
+            Sheet().clip("a", [3], fps=4)
+
+    def test_re_registering_a_clip_replaces_its_offset(self):
+        """PA6: re-registering "a" clashed with its own old offset, or kept it
+        after ``offset=`` was dropped."""
+        sheet = Sheet(self.png("g.png", 64, 16), cell=(16, 16))
+        sheet.clip("a", [0, 1], fps=4, offset=(3, 0))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")          # "clip replaced"
+            sheet.clip("a", [0, 1], fps=4, offset=(5, 0))
+            self.assertEqual(sheet._frame_offsets, {0: (5.0, 0.0), 1: (5.0, 0.0)})
+            sheet.clip("a", [0, 1], fps=4)
+        self.assertEqual(sheet._frame_offsets, {})
+        sheet.clip("b", [1], fps=4, offset=(2, 0))
+        with self.assertRaisesRegex(ValueError, "one offset"):
+            sheet.clip("c", [1], fps=4, offset=(9, 0))
+
+    def test_showing_refuses_a_bool_after_an_int(self):
+        """PA7: ``True == 1`` shared the selector cache entry."""
+        sheet = Sheet(self.png("g.png", 64, 16), cell=(16, 16))
+        s = self.track(Sprite(sheet, center=(0, 0), height=16))
+        s.showing(1)
+        with self.assertRaises(TypeError):
+            s.showing(True)
+        with self.assertRaises(TypeError):
+            s.showing((1, True))
+
+    def test_a_path_that_only_matches_by_case_warns(self):
+        """PA9: on a disk that ignores case, "G.PNG" opened g.png (missing on
+        Linux) and got a second cache entry."""
+        path = self.png("g.png", 16, 16)
+        upper = os.path.join(os.path.dirname(path), "G.PNG")
+        if not os.path.isfile(upper):
+            self.skipTest("this disk tells letter case apart")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            Sheet(upper, cell=(16, 16))
+        self.assertTrue(any("letter case" in str(w.message) for w in caught))
+        from scena.sprite import _resolve_image_path
+        self.assertEqual(_resolve_image_path(upper), path)
+
+    def test_a_missing_file_with_cell_keeps_its_clips(self):
+        """PA13: a missing file with ``cell=`` has one checker cell; "missing
+        stays legal" broke at the first clip past cell 0."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            sheet = Sheet(os.path.join(self.root, "nope.png"), cell=(16, 16))
+        sheet.clip("walk", [0, 1, 2], fps=4)
+        s = self.track(Sprite(sheet, center=(0, 0), height=16))
+        s.play("walk")

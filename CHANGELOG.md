@@ -17,8 +17,10 @@ left out.
 - Writing a name that is not a field raises with the fix, instead of quietly
   storing a value nothing reads: a method (`c.tag = "boss"`, `ship.destroy =
   True` replaced the method), a read-only property (`ship.is_alive = False`
-  raised Python's own "property has no setter"), and a size the shape does
-  not have (`circle.width = 20`, `text.size = 40` changed nothing). Pick
+  raised Python's own "property has no setter"), a size the shape does
+  not have (`circle.width = 20`, `text.size = 40` changed nothing), and a
+  point or relation it does not have (`circle.top_left = (0, 0)`,
+  `rect.fp1 = …`, `circle.dist = 3`; the error says to use `move_to`). Pick
   another name for a field of your own (`ship.boss_tag = …`).
 - Every setter on a destroyed actor raises DestroyedError, as `move_by` and
   `visible` already did; `time_scale`, `mass`, `clickable`, `corner_radius`
@@ -44,6 +46,30 @@ left out.
   point. Now `(1, 2, 3)` or `(True, 0)` raises TypeError
   `expected (x, y) — exactly two numbers — got tuple (1, 2, 3)`; write the two
   coordinates you mean.
+- A point is two finite numbers, and a number is finite, at every door:
+  `center = (nan, 0)`, `move_to((inf, 0))`, `rotate_by(10, about=(nan, 0))`
+  and `contains_point(nan, 0)` raise ValueError (they stored a NaN centre, or
+  answered True); `angle = 10**400` raises ValueError (it was stored, or
+  leaked Python's `OverflowError`). `scale =` and `mass =` follow the Numbers
+  rule: `scale = True`, `mass = True` and `mass = nan` raise (they were
+  accepted), `scale = "x"` raises Scena's TypeError.
+- A flag takes a real bool (or 0 / 1) everywhere: `rotate_by(…, force="no")`
+  (every pose verb), `Point(visible="no")`, `Sprite(flip_x="no")`,
+  `play(resume="no")`, `clip(yoyo="no")` and `Track(closed="no")` raise
+  TypeError. `"no"` is truthy in Python: `force="no"` unlinked the parts the
+  verb wrote.
+- `sprite.remove_hitbox(part)` leaves the sprite in the groups it was in on
+  its own; only a group the part's claim added goes with it. Before, removing
+  a weak spot (`add_hitbox(group=["enemy", "weak"])`) took the boss out of
+  `"enemy"`. `part.remove_from_group(name)` follows the same rule.
+- A Sheet frame name that two files share (`idle/1.png` and `run/1.png`, both
+  `"1"`) raises ValueError naming both files; the last one used to win, even
+  for the exact path that loaded the other. The path that loaded a frame
+  (or a tail of it, `"idle/1.png"`) still names it. `Sheet()` with no cells
+  refuses a frame index (`clip("a", [3])` was accepted and wrapped later), and
+  `cell=(16.9, 16)` raises (it truncated to 16; `16.0` is fine).
+- `group=""` (and `""` inside a list) raises TypeError, like `tag("")`; it
+  made a group no name could reach.
 
 ### Added
 
@@ -88,6 +114,37 @@ left out.
   a parallax layer) when written, not later on `active = True`, which left
   the actor half resumed. `resolve_now` on a parked actor returns `[]`.
 - `on_collide = 5` raises TypeError at once (it crashed in the next frame).
+- `remove_hitbox` on a destroyed sprite raises DestroyedError (it returned
+  silently). `repr(sprite.hitbox["active"])` works (it raised
+  AttributeError), and a hitbox repr no longer runs an `active` link.
+  `hb.tagged(["a"])` raises Scena's TypeError instead of "unhashable type".
+- `svg.svg = None` clears an Svg to the checker, as `Svg(None)` builds it; it
+  was ignored while a good picture was showing.
+- Sheet: re-registering a clip replaces its `offset=` (it clashed with its own
+  old offset, or kept it when `offset=` was dropped); `showing(True)` raises
+  after `showing(1)` (they shared a cache entry); a binary file given as
+  `atlas=` raises "not UTF-8 text" instead of Python's codec error; a missing
+  file loaded with `cell=` alone keeps every clip (each index shows the
+  checker); an image path that matches only because the disk ignores letter
+  case warns once (it fails on Linux) and shares one cache entry with the
+  right spelling.
+- Messages instead of Python's own errors: `middle_point(…, weight="x")`,
+  `Circle.from_corners(radius=lambda: 5)` (a one-shot copy: it takes a
+  number) and `pos="top_left"` (strings are accepted), `rp.points["a"]`,
+  `Polygon(points="abc")`, `Warp.spokes`, Lattice `layers` / `size` /
+  `layer_scale`, `DropDown.selected_index = True`, Portal knobs and Sprite
+  `tilt` / `offset` / `art_angle` with a huge int. `Polygon(points=<a
+  generator>)` works (it is read once). `help(EquilateralTriangle)` no longer
+  lists `n=` (still accepted as 3).
+- The error for writing a computed point names a move that works: on a line
+  or ellipse that follows a link (a tangent line, an ellipse built from a
+  rect) it adds `force=True`, which frees it first; on a parallel line it
+  says to change `dist`. Before, it suggested a `move_to` the link refused.
+- A destroyed focal-points Ellipse's `box` reads the same every time (it
+  raised twice, then returned a 0 × 0 box); `box` no longer warms the
+  ellipse's computed fields.
+- `track.rotate_by(…, about=(x, y))` checks the pivot like every other kind
+  (a tuple went past the point reader).
 - A linked heading or zoom (`sprite["angle"] @= …`, `poly["scale"] @= …`) on a
   Sprite, Point, Polygon, Text or Track refuses `rotate_by`, `scale_by` and
   `angle =` with LinkedAttributeError (`force=True` unlinks); the write was

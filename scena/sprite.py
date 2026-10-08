@@ -273,6 +273,7 @@ def reset_sprite_caches() -> None:
     _SVG_WARNED.clear()
     _STALE_HITBOX_WARNED.clear()
     _PLACEHOLDER_CACHE.clear()
+    _TRUE_CASE.clear()
     Sheet._intern.clear()
     reset_atlas_caches()
 
@@ -365,8 +366,54 @@ def _resolve_image_path(filename: str) -> Optional[str]:
         return None
     for ap in _image_candidates(filename):
         if os.path.isfile(ap):
-            return ap
+            return _true_case_path(ap, filename)
     return None
+
+
+_TRUE_CASE: Dict[str, str] = {}
+
+
+def _true_case_path(ap: str, written: str) -> str:
+    """``ap`` spelled as on disk. On a disk that ignores case (macOS, Windows)
+    ``"Hero.PNG"`` opened ``hero.png``: it failed on Linux, where patterns
+    already matched by case, and one image got two cache entries (graphics
+    review PA9). Warns once per spelling; the disk's spelling is the key."""
+    hit = _TRUE_CASE.get(ap)
+    if hit is not None:
+        return hit
+    real = ap
+    head, parts = ap, []
+    while True:
+        head, tail = os.path.split(head)
+        if not tail:
+            break
+        parts.append(tail)
+    parts.reverse()
+    cur = head
+    for part in parts:
+        try:
+            entries = os.listdir(cur)
+        except OSError:
+            real = ap
+            break
+        if part not in entries:
+            low = part.lower()
+            match = [e for e in entries if e.lower() == low]
+            if len(match) == 1:
+                part = match[0]
+        cur = os.path.join(cur, part)
+    else:
+        real = cur
+    if real != ap and written not in _MISSING_WARNED:
+        _MISSING_WARNED.add(written)
+        warnings.warn(
+            f"Image {written!r} was found as {os.path.basename(real)!r} only because this "
+            "disk ignores letter case; on Linux it is missing. Write the name as on disk.",
+            RuntimeWarning,
+            stacklevel=4,
+        )
+    _TRUE_CASE[ap] = real
+    return real
 
 
 def _image_candidates(filename: str) -> List[str]:
@@ -665,6 +712,10 @@ class Sheet(ClosedSurface):
     _anchor = "center"
     _anchor_pivot: Tuple[float, float] = (0.5, 0.5)
     _frame_offsets: Dict[int, Tuple[float, float]] = {}
+    _clip_offsets: Dict[str, Tuple[float, float]] = {}    # clip name → its offset=
+    _frame_paths: Tuple[Optional[str], ...] = ()           # file each frame came from (or None)
+    _path_to_index: Dict[str, int] = {}
+    _ambiguous_names: Dict[str, Tuple[int, ...]] = {}
     _plain_frames = True
     _layout_epoch = 0
     _eff_frames: Optional[Tuple[AtlasFrame, ...]] = None
@@ -825,6 +876,12 @@ class Sheet(ClosedSurface):
             self._image = _placeholder_for_layout(
                 self._image, cols=self._cols_arg, rows=self._rows_arg, cell=self._cell,
             )
+            if self._cell is not None and self._cols_arg is None and self._rows_arg is None:
+                # ``cell=`` alone: the cell count is the missing file's, unknown.
+                # Every index shows the checker, as a missing atlas does, so
+                # clips still build (graphics review PA13: "missing stays
+                # legal" raised at the first clip past cell 0).
+                self._missing_atlas = True
         iw = int(self._image.width())
         ih = int(self._image.height())
         self._px_w = max(1, iw)
@@ -971,7 +1028,8 @@ class Sheet(ClosedSurface):
         self._apply_frame_names()
 
     def _init_from_files(self, files: List[str], *, label: Optional[str] = None) -> None:
-        packed, frames, any_placeholder, display = _pack_frame_files(files)
+        packed, frames, any_placeholder, display, paths = _pack_frame_files(files)
+        self._frame_paths = paths
         self._source = label or files[0]
         self._image = packed
         self._placeholder = any_placeholder
@@ -1018,13 +1076,32 @@ class Sheet(ClosedSurface):
     def _apply_frame_names(self) -> None:
         mapping: Dict[str, int] = {}
         names: List[str] = []
+        owners: Dict[str, List[int]] = {}
         for i, fr in enumerate(self._atlas_frames):
             names.append(fr.name)
+            owners.setdefault(fr.name, []).append(i)
             mapping[fr.name] = i
             stem, ext = os.path.splitext(fr.name)
             if ext and stem and stem not in mapping:
                 mapping[stem] = i
+        # Two frames with one name (``idle/1.png`` and ``run/1.png``, both
+        # "1"): the name names neither, and the path that loaded each frame
+        # still names it. The last one won silently, even for the exact path
+        # (graphics review PA3).
+        ambiguous = {n: tuple(ix) for n, ix in owners.items() if len(ix) > 1}
+        for n in ambiguous:
+            mapping.pop(n, None)
+            stem, ext = os.path.splitext(n)
+            if ext and mapping.get(stem) in ambiguous[n]:
+                mapping.pop(stem, None)
+        by_path: Dict[str, int] = {}
+        for i, path in enumerate(self._frame_paths):
+            if path:
+                by_path[path] = i
+                by_path[os.path.splitext(path)[0]] = i
         self._name_to_index = mapping
+        self._ambiguous_names = ambiguous
+        self._path_to_index = by_path
         self._names = tuple(names)
 
     @property
@@ -1062,15 +1139,31 @@ class Sheet(ClosedSurface):
                 'Write frame=0 or frame="playerShip1_blue.png".'
             )
         if isinstance(key, int):
-            if key < 0 or (self._nframes and key >= self._nframes):
+            # An empty sheet has no cell to name (PA4: any index passed and the
+            # draw wrapped it ``% n`` once strip filled the sheet).
+            if key < 0 or key >= self._nframes:
                 if getattr(self, "_missing_atlas", False):
                     return 0
+                if not self._nframes:
+                    raise ValueError(
+                        f"frame={key}: this sheet has no cells yet. Load them first: "
+                        'Sheet("hero.png", cols=4), or sheet.strip(...).'
+                    )
                 raise ValueError(
-                    f"frame={key} is out of range (0..{max(0, self._nframes - 1)}; "
+                    f"frame={key} is out of range (0..{self._nframes - 1}; "
                     f"this sheet has {self._nframes} cells)."
                 )
             return key
         hit = self._name_to_index.get(key)
+        if hit is None:
+            hit = self._path_to_index.get(key)      # the string that loaded the frame
+            if hit is None and ("/" in key or os.sep in key) and self._path_to_index:
+                # A tail of that path ("idle/1.png"): it names one frame or none.
+                tail = os.sep + os.path.normpath(key).lstrip(os.sep)
+                found = {i for p, i in self._path_to_index.items()
+                         if os.path.normpath(p).endswith(tail)}
+                if len(found) == 1:
+                    hit = found.pop()
         if hit is None:
             # Suffix match: "blue.png" vs "playerShip1_blue.png" is too loose;
             # try with a common extension.
@@ -1090,6 +1183,16 @@ class Sheet(ClosedSurface):
         if hit is None:
             if getattr(self, "_missing_atlas", False):
                 return 0
+            base = os.path.basename(key)
+            for name in (key, base, os.path.splitext(base)[0]):
+                twins = self._ambiguous_names.get(name)
+                if twins:
+                    files = [self._frame_paths[i] for i in twins if i < len(self._frame_paths)]
+                    shown = ", ".join(repr(f) for f in files if f) or ", ".join(map(str, twins))
+                    raise ValueError(
+                        f"frame {key!r} names {len(twins)} frames ({shown}). "
+                        "Write the path that loaded the one you mean, or its index."
+                    )
             raise ValueError(self._unknown_frame_message(key))
         return hit
 
@@ -1139,7 +1242,7 @@ class Sheet(ClosedSurface):
                 )
             frames = list(range(self._nframes))
         return self._register_clip(
-            name, frames, fps=fps, yoyo=bool(as_payload(yoyo)), offset=offset,
+            name, frames, fps=fps, yoyo=as_payload(yoyo), offset=offset,
         )
 
     def strip(
@@ -1182,7 +1285,8 @@ class Sheet(ClosedSurface):
                 "or pass a strip / single-frame png to strip."
             )
         per_file = len(files) > 1 or bool(patterns)
-        yoyo_mode = bool(as_payload(yoyo))
+        from .validate import expect_bool
+        yoyo_mode = expect_bool(yoyo, "Sheet yoyo")
         fps_v = _positive_number(as_payload(fps), what="fps")
         # Every clip argument before the frames are appended (PA5: a bad
         # offset raised after the new cells were already on the sheet).
@@ -1196,7 +1300,7 @@ class Sheet(ClosedSurface):
         )
 
         if per_file:
-            img, new_frames, placeholder, display = _pack_frame_files(
+            img, new_frames, placeholder, display, new_paths = _pack_frame_files(
                 _expand_file_list(files),
             )
             new_src = tuple(fr.packed_rect() for fr in new_frames)
@@ -1227,6 +1331,7 @@ class Sheet(ClosedSurface):
             new_src = tuple(
                 _cell_src(cell_w, cell_h, ncols, i) for i in range(n_grid)
             )
+            new_paths = (None,) * n_grid
         n_new = len(new_frames)
         iw = max(1, int(img.width()))
         ih = max(1, int(img.height()))
@@ -1236,6 +1341,7 @@ class Sheet(ClosedSurface):
             self._frame_image = ()
             self._src = ()
             self._atlas_frames = ()
+            self._frame_paths = ()
             self._nframes = 0
             self._image = img
             self._source = files[0]
@@ -1253,6 +1359,8 @@ class Sheet(ClosedSurface):
         self._placeholder = bool(self._placeholder) or bool(placeholder)
 
         base = self._nframes
+        old_paths = tuple(self._frame_paths)[:base]
+        self._frame_paths = old_paths + (None,) * (base - len(old_paths)) + tuple(new_paths)
         self._atlas_frames = self._atlas_frames + new_frames
         self._src = self._src + new_src
         self._frame_image = self._frame_image + tuple(img_index for _ in range(n_new))
@@ -1275,7 +1383,8 @@ class Sheet(ClosedSurface):
     ) -> "Sheet":
         name = as_payload(name)
         fps = as_payload(fps)
-        yoyo = bool(yoyo)
+        from .validate import expect_bool
+        yoyo = expect_bool(yoyo, f"Sheet.clip({name!r}) yoyo")
         off = _parse_clip_offset(offset)
         if not isinstance(name, str) or not name:
             raise TypeError("Sheet.clip name must be a non-empty string")
@@ -1298,20 +1407,32 @@ class Sheet(ClosedSurface):
                 raise type(e)(
                     f"Sheet.clip({name!r}) frames[{i}]={f!r}: {e}"
                 ) from e
+        # Cell offsets come from the clips that set one, the clip being
+        # replaced left out: re-registering "a" clashed with its own old
+        # offset, or kept it after offset= was dropped (graphics review PA6).
+        offsets: Dict[int, Tuple[float, float]] = {}
+        for other, o in self._clip_offsets.items():
+            if other != name and other in self._cycles:
+                for idx in self._cycles[other][0]:
+                    offsets[idx] = o
         if off is not None:
             # An offset is a property of the cell's art: one cell cannot sit
             # in two places. Same offset in two clips is fine.
             for idx in out:
-                prev = self._frame_offsets.get(idx)
+                prev = offsets.get(idx)
                 if prev is not None and prev != off:
                     raise ValueError(
                         f"Sheet.clip({name!r}) offset={off} for cell {idx}, which "
                         f"another clip already moved by offset={prev}. A cell has "
                         "one offset; give the clips separate cells."
                     )
-            offsets = dict(self._frame_offsets)
             for idx in out:
                 offsets[idx] = off
+        clip_offsets = {n: o for n, o in self._clip_offsets.items() if n != name}
+        if off is not None:
+            clip_offsets[name] = off
+        self._clip_offsets = clip_offsets
+        if offsets != self._frame_offsets:
             self._frame_offsets = offsets
             self._refresh_frame_views()
         if name in self._cycles:
@@ -1383,6 +1504,7 @@ class Sheet(ClosedSurface):
         # y-up local pair → y-down source fraction (``(0, -1)`` bottom → py 1).
         self._anchor_pivot = (0.5 + 0.5 * ax, 0.5 - 0.5 * ay)
         self._frame_offsets = {}
+        self._clip_offsets = {}
         self._refresh_frame_views()
 
     def _refresh_frame_views(self) -> None:
@@ -1507,7 +1629,7 @@ def _pack_frame_files(
         any_placeholder = any_placeholder or placeholder
     packed, frames = compose_strip(images, names)
     display = names[0] if len(names) == 1 else f"{names[0]}+{len(names) - 1}"
-    return packed, frames, any_placeholder, display
+    return packed, frames, any_placeholder, display, tuple(files)
 
 
 def _resolve_atlas_image(atlas_path: str, listed: Optional[str]) -> Optional[str]:
@@ -1646,6 +1768,11 @@ def _parse_cell(cell) -> Optional[Tuple[int, int]]:
         or not isinstance(ch, (int, float))
     ):
         raise TypeError("cell sizes must be numbers of pixels, e.g. cell=(32, 32).")
+    for v in (cw, ch):
+        # Whole pixels (32 or 32.0): 16.9 truncated to 16, NaN leaked Python's
+        # "cannot convert" (graphics review PA10).
+        if isinstance(v, float) and (not math.isfinite(v) or v != int(v)):
+            raise ValueError(f"cell sizes must be whole numbers of pixels, got cell=({cw}, {ch}).")
     cw_i, ch_i = int(cw), int(ch)
     if cw_i <= 0 or ch_i <= 0:
         raise ValueError(f"cell sizes must be > 0, got cell=({cw}, {ch}).")
@@ -1864,15 +1991,21 @@ def _selector_cells(item, sheet, whole) -> Tuple[int, ...]:
 def _parse_frame_selector(value, sheet) -> frozenset:
     """``showing()`` selector → the set of cell indices it names (cached per sheet)."""
     value = as_payload(value)
-    if isinstance(value, list):
-        key = ("list", tuple(value))
-    else:
+    # Cached by exact atom type: ``True == 1 == 1.0`` share a hash, so
+    # ``showing(True)`` hit ``showing(1)``'s entry and skipped the type check
+    # (graphics review PA7). Anything else parses (and refuses) every time.
+    t = type(value)
+    if t is str or t is int:
         key = value
+    elif (t is tuple or t is list) and all(type(v) is str or type(v) is int for v in value):
+        key = ("seq", tuple(value))
+    else:
+        key = None
     try:
         cache = sheet._selector_cache
     except AttributeError:
         cache = None
-    if cache is not None:
+    if cache is not None and key is not None:
         try:
             hit = cache.get(key)
         except TypeError:   # unhashable atom inside: parse (and raise) below
@@ -1888,13 +2021,12 @@ def _parse_frame_selector(value, sheet) -> frozenset:
         out = frozenset(cells)
     else:
         out = frozenset(_selector_cells(value, sheet, value))
+    if key is None:
+        return out
     if cache is None:
         cache = {}
         sheet._selector_cache = cache
-    try:
-        cache[key] = out
-    except TypeError:
-        pass
+    cache[key] = out
     return out
 
 
@@ -2144,14 +2276,9 @@ def _parse_offset(offset) -> Tuple[float, float]:
     if offset is None:
         return (0.0, 0.0)
     if isinstance(offset, (tuple, list)) and len(offset) == 2:
-        dx = float(as_payload(offset[0]))
-        dy = float(as_payload(offset[1]))
-        if not math.isfinite(dx) or not math.isfinite(dy):
-            raise ValueError(
-                "offset expected finite (dx, dy) in design units; "
-                f"got {(dx, dy)}."
-            )
-        return (dx, dy)
+        from .validate import number
+        return (number(as_payload(offset[0]), "offset dx"),
+                number(as_payload(offset[1]), "offset dy"))
     raise TypeError(
         "offset expected (dx, dy) in design units, "
         f"got {type(offset).__name__}"
@@ -2194,10 +2321,8 @@ def _parse_art_angle(value) -> float:
             f"got {type(value).__name__}. "
             'Write Sprite("ship.png", art_angle=90).'
         )
-    n = float(value)
-    if not math.isfinite(n):
-        raise ValueError(f"art_angle must be finite, got {n}")
-    return n
+    from .validate import number
+    return number(value, "art_angle")
 
 
 def _fit_size(
@@ -3461,8 +3586,9 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         offset = _take("offset", offset, None)
         visual = _take("visual", visual, None)
         group = _take("group", group, None)
-        flip_x = bool(_take("flip_x", flip_x, False))
-        flip_y = bool(_take("flip_y", flip_y, False))
+        from .validate import expect_bool
+        flip_x = expect_bool(_take("flip_x", flip_x, False), "flip_x")
+        flip_y = expect_bool(_take("flip_y", flip_y, False), "flip_y")
         art_angle = _parse_art_angle(_take("art_angle", art_angle, 0.0))
         box = None if box is _OMIT else box
         if box is not None and center is not None:
@@ -3835,7 +3961,10 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         )
 
     def remove_hitbox(self, part) -> "Sprite":
-        """Remove a part made by ``add_hitbox``; the sprite leaves its groups."""
+        """Remove a part made by ``add_hitbox``. The sprite leaves the groups
+        the part put it in; groups it was in on its own stay (HP13). Refused
+        on a destroyed sprite (HP12: it was silent)."""
+        _refuse_if_destroyed(self, "remove_hitbox")
         if part is self.__dict__.get("_main_hitbox_view"):
             raise TypeError(
                 "the main hitbox is not removable; switch it off with "
@@ -4012,9 +4141,8 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
             return
 
         if isinstance(value, (int, float)) and not isinstance(value, bool):
-            angle = float(value)
-            if not math.isfinite(angle):
-                raise ValueError(f"Sprite.tilt angle must be finite, got {value!r}.")
+            from .validate import number
+            angle = number(value, "Sprite.tilt angle")
             self._tilt_mode = "angle"
             self._tilt_contact_point = None
             self._tilt_contact_angle = 0.0
@@ -4211,7 +4339,8 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         loops = as_payload(loops)
         next_clip = as_payload(next)
         min_hold = as_payload(min_hold)
-        resume = bool(as_payload(resume))
+        from .validate import expect_bool
+        resume = expect_bool(resume, "play(resume=)")
         if not isinstance(name, str) or not name:
             raise TypeError(
                 "play() expected a clip name string. Write sprite.play(\"walk\")."
@@ -6046,8 +6175,9 @@ class Svg(Sprite):
         img, ok, stored = _svg_resolve_source(text, dest_longer=dest)
         if stored is not None and stored == self._svg:
             return
-        if not ok and had_good:
-            # Keep last good body and markup; warn already emitted.
+        if not ok and had_good and text is not None:
+            # Keep last good body and markup; warn already emitted. ``svg = None``
+            # is a clear, not a failed load: it was a silent no-op (PB15).
             return
         sheet = _sheet_from_image(
             img,

@@ -157,13 +157,11 @@ def region_frame(obj) -> Tuple[float, float, float, float, float]:
     if callable(oriented) and name in ("Rect", "Square"):
         return oriented()
     if name == "Ellipse":
-        cx, cy = get_xy(obj.center, bare=True)
-        return (
-            cx, cy,
-            abs(_bare_num(obj.width)),
-            abs(_bare_num(obj.height)),
-            obj._rotation_value(),
-        )
+        # The cold reader (Defining inputs only). Reading the public Derivates
+        # warmed them, and on a destroyed focal ellipse each read built one
+        # more part before raising, then returned a 0 × 0 box (GR3).
+        cx, cy, w, h, _ang = obj._oriented_frame()
+        return (cx, cy, w, h, obj._rotation_value())
     if name == "Circle":
         # The circle's frame: the diameter square turned to its rim point p1,
         # so ``circle.box.right_center`` is ``circle.p1`` (Named points).
@@ -779,10 +777,7 @@ class Box(_RectFrame, _RectNames, ClosedSurface, Container):
 
     def contains_point(self, x, y=None) -> bool:
         """Hit geometry only — Box is not clickable. ``(x, y)`` or a point-like."""
-        if y is None:
-            px, py = _xy_of_point(x)
-        else:
-            px, py = float(x), float(y)
+        px, py = _xy_of_point(x if y is None else (x, y))
         cx, cy, w, h, ang = self._oriented_frame()
         return point_in_oriented_rect(px, py, cx, cy, w, h, ang)
 

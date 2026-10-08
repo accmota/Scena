@@ -971,9 +971,8 @@ class Clock(ClosedSurface, Container):
 
     @scale.setter
     def scale(self, value) -> None:
-        v = float(value)
-        if not math.isfinite(v):
-            raise ValueError(f"clock.scale must be finite, got {v}")
+        from .validate import number
+        v = number(value, "clock.scale")
         if v < 0.0:
             raise ValueError(f"clock.scale must be >= 0, got {v}")
         self._scale = v

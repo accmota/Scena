@@ -1716,7 +1716,11 @@ class Lattice(BackgroundField):
 
     @layers.setter
     def layers(self, value) -> None:
-        self._layers = max(1, min(3, int(value)))
+        from .validate import as_payload
+        raw = as_payload(value)
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            raise TypeError(f"Lattice layers expected a whole number 1 … 3, got {type(raw).__name__}")
+        self._layers = max(1, min(3, raw))
 
     @property
     def size(self) -> float:
@@ -1725,7 +1729,8 @@ class Lattice(BackgroundField):
 
     @size.setter
     def size(self, value) -> None:
-        self._size = max(0.05, min(1.7, float(value)))
+        from .validate import number
+        self._size = max(0.05, min(1.7, number(value, "Lattice size")))
 
     @property
     def layer_scale(self) -> float:
@@ -1734,7 +1739,8 @@ class Lattice(BackgroundField):
 
     @layer_scale.setter
     def layer_scale(self, value) -> None:
-        self._layer_scale = max(1.0, min(2.0, float(value)))
+        from .validate import number
+        self._layer_scale = max(1.0, min(2.0, number(value, "Lattice layer_scale")))
 
     def draw(self, canvas, w, h, t, cam, *, design_width, design_height, fw=None) -> None:
         ox, oy, scale, rot = self._parallax_uv(

@@ -209,7 +209,7 @@ class _ActiveRef:
 
     def __repr__(self) -> str:
         state = "linked" if self.linked else "plain"
-        return f"<hitbox['active'] {state}: {self._part._active}>"
+        return f"<hitbox['active'] {state}: {self._part._active_raw()}>"
 
 
 def _parse_part_groups(group) -> Tuple[str, ...]:
@@ -254,6 +254,7 @@ class Hitbox(_HitboxBakeMixin):
     __slots__ = (
         "_host_ref",
         "_claims",
+        "_added",
         "_active",
         "_removed",
         "_part_epoch",
@@ -374,6 +375,7 @@ class Hitbox(_HitboxBakeMixin):
         self = object.__new__(cls)
         self._host_ref = weakref.ref(host)
         self._claims = set()
+        self._added = set()         # claims that put the host in the group (HP13)
         self._active = bool(active)
         self._removed = False
         self._part_epoch = 0
@@ -425,6 +427,10 @@ class Hitbox(_HitboxBakeMixin):
         else:
             shape = f"{self._hitbox_kind}/{self._hitbox_from!r}"
         return f"<Hitbox {shape} [{groups}] of {host!r} {state}>"
+
+    def _active_raw(self) -> bool:
+        """The stored on / off, without running a link (repr)."""
+        return self._active
 
     # --- author surface ------------------------------------------------------
 
@@ -614,15 +620,16 @@ class Hitbox(_HitboxBakeMixin):
         return self
 
     def remove_from_group(self, groupid: str) -> "Hitbox":
-        """Stop answering for ``groupid``; the host leaves that group too."""
+        """Stop answering for ``groupid``. The host leaves the group when this
+        hitbox put it there; a group the host was in on its own stays."""
         from .entity import _require_group_name
         groupid = _require_group_name(groupid, "remove_from_group")
         self._refuse_dead("remove_from_group")
         if groupid not in self._claims:
             return self
         host = self._host_ref()
-        self._unclaim(groupid)
-        if host is not None and getattr(host, "is_alive", False) and groupid in host.group:
+        if self._unclaim(groupid) and host is not None and getattr(host, "is_alive", False) \
+                and groupid in host.group:
             host.remove_from_group(groupid)
         return self
 
@@ -644,7 +651,8 @@ class Hitbox(_HitboxBakeMixin):
 
     def tagged(self, name: str) -> bool:
         """True if this hitbox answers for the named group."""
-        return name in self._claims
+        from .entity import _require_group_name
+        return _require_group_name(name, "tagged") in self._claims     # HP6: a list hashed raw
 
     @property
     def shape(self) -> str:
@@ -817,10 +825,17 @@ class Hitbox(_HitboxBakeMixin):
                 sys._try_enroll_item(host, tag=name)
         else:
             host.add_to_group(name)
+            self._added.add(name)
 
-    def _unclaim(self, name: str) -> None:
+    def _unclaim(self, name: str) -> bool:
+        """Stop answering for ``name``. True when this claim had put the host
+        in the group, so the host leaves it too; a group the host was in on
+        its own stays (graphics review HP13: removing a weak spot took the
+        boss out of ``"enemy"``)."""
         host = self._host_ref()
         self._claims.discard(name)
+        added = name in self._added
+        self._added.discard(name)
         claims = host._hitbox_claims if host is not None else None
         if claims is not None and claims.get(name) is self:
             del claims[name]
@@ -828,6 +843,7 @@ class Hitbox(_HitboxBakeMixin):
         sys = _collision_system
         if sys is not None and self._collider is not None:
             sys._tag_remove(name, self._collider)
+        return added
 
     def _enroll_claims(self) -> None:
         """Enroll under every claimed group the host is currently in."""
@@ -856,8 +872,8 @@ class Hitbox(_HitboxBakeMixin):
             return
         host = self._host_ref()
         for name in list(self._claims):
-            self._unclaim(name)
-            if host is not None and getattr(host, "is_alive", False) and name in host.group:
+            if self._unclaim(name) and host is not None and getattr(host, "is_alive", False) \
+                    and name in host.group:
                 host.remove_from_group(name)
         self._retire_collider()
         self._removed = True
@@ -1199,7 +1215,8 @@ class _MainHitbox(Hitbox):
 
     def __repr__(self) -> str:
         host = self._host_ref()
-        state = "removed" if not self.is_alive else ("on" if self.active else "off")
+        # The stored state: a repr does not run the active link (HP8).
+        state = "removed" if not self.is_alive else ("on" if self._active_raw() else "off")
         from .sprite import Sprite
         if isinstance(host, Sprite):
             shape = f"{host._hitbox_kind}/{host._hitbox_from!r}"
@@ -1309,6 +1326,11 @@ class _MainHitbox(Hitbox):
             )
         self._apply_active(_expect_flag(value, 'active'))
 
+    def _active_raw(self) -> bool:
+        """The stored on / off, without running a link (repr)."""
+        host = self._host_ref()
+        return host is not None and not host.__dict__.get("_main_hitbox_off", False)
+
     def _apply_active(self, want: bool) -> None:
         host = self._host_ref()
         if host is None:
@@ -1379,7 +1401,8 @@ class _MainHitbox(Hitbox):
 
     def tagged(self, name: str) -> bool:
         """True when the main hitbox answers for ``name`` (see ``group``)."""
-        return name in self.group
+        from .entity import _require_group_name
+        return _require_group_name(name, "tagged") in self.group
 
     @property
     def px_rect(self):

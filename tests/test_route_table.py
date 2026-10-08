@@ -56,10 +56,32 @@ def _subjects():
     return out
 
 
+# Field names of some kind that are also ordinary words for a field of the
+# author's own: not reserved on the kinds that lack them.
+GENERIC = {
+    "x": "a Point's own; on an actor the pose refusal names .center",
+    "y": "same as x",
+    "dx": "a delta an author may keep", "dy": "same as dx",
+    "c": "a short name an author may keep", "u": "a Track cursor; a common author name",
+    "text": "a label an author may keep on any actor", "cursor": "same as u",
+    "begin": "a Track span; a common author name", "end": "same as begin",
+    "spread": "a Circle arc; a common author name",
+    "angle": "every Graphic has it", "center": "every Graphic has it",
+}
+
+
 def _settable_geometry_names():
-    """The size words the engine reserves (one home: ``entity._SIZE_WORDS``)."""
-    from scena.entity import _SIZE_WORDS
-    return set(_SIZE_WORDS)
+    """Every field name of any kind in KINDS (the slots, not the engine's own
+    word list: batch 9a enumerated ``_SIZE_WORDS``, the fix's list, and missed
+    ``circle.top_left = …``), minus the generic words above."""
+    names = set()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for kind in G.KINDS:
+            obj = G.build(kind)
+            if hasattr(obj, "_field_slots"):
+                names |= {n for n in obj._field_slots() if not n.startswith("_")}
+    return names - set(GENERIC)
 
 
 def _cases(obj, geometry):

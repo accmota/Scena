@@ -301,7 +301,8 @@ def _finite_deg(value, what: str) -> float:
         if math.isfinite(value):
             return value
     elif t is int:
-        return float(value)
+        if -1e308 < value < 1e308:      # 10**400: finite() refuses it below
+            return float(value)
     n = finite(_bare_num(value) if isinstance(value, Attribute) else value, what)
     if callable(n):
         raise TypeError(f"{what} expected a number, got a function")
@@ -674,10 +675,19 @@ def get_xy(obj: GeneralPoint, bare: bool = False) -> Tuple[float, float]:
         x, y = obj
         tx, ty = type(x), type(y)
         # Exact float / int (never bool): the common case, one test each.
-        if not ((tx is float or tx is int) and (ty is float or ty is int)):
-            if (not (isinstance(x, (int, float, Attribute)) and isinstance(y, (int, float, Attribute)))
-                    or tx is bool or ty is bool):
-                raise TypeError("Tuple coordinates must be numbers")
+        if (tx is float or tx is int) and (ty is float or ty is int):
+            # An author tuple: NaN / inf refused (SA6), inline (hot path).
+            try:
+                fx = float(x)
+                fy = float(y)
+            except OverflowError:
+                return _finite_xy(obj, x, y)
+            if (fx - fx) or (fy - fy):
+                return _finite_xy(obj, x, y)
+            return fx, fy
+        if (not (isinstance(x, (int, float, Attribute)) and isinstance(y, (int, float, Attribute)))
+                or tx is bool or ty is bool):
+            raise TypeError("Tuple coordinates must be numbers")
         if bare:
             if isinstance(x, Attribute):
                 x = _bare_attr(x)
@@ -745,7 +755,27 @@ def _pair_numbers(seq) -> Optional[Tuple[float, float]]:
     tx, ty = type(x), type(y)
     if tx is bool or ty is bool or not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
         return None
-    return float(x), float(y)
+    return _finite_xy(seq, x, y)
+
+
+def _finite_xy(seq, x, y) -> Tuple[float, float]:
+    """``(float(x), float(y))``, refusing NaN / inf / a huge int (graphics
+    review SA6: ``center = (nan, 0)`` stored a NaN center, ``(10**400, 0)``
+    leaked ``OverflowError``). A point is two finite numbers (Scena Design —
+    Numbers and signs)."""
+    try:
+        fx = float(x)
+        fy = float(y)
+    except OverflowError:
+        fx = fy = math.inf
+    if (fx - fx) or (fy - fy):      # nan / inf - itself is nan (truthy); finite is 0.0
+        raise ValueError(f"a point takes two finite numbers, got {_short_point(seq)}")
+    return fx, fy
+
+
+def _short_point(seq) -> str:
+    r = repr(tuple(seq)) if isinstance(seq, (tuple, list)) else repr(seq)
+    return r if len(r) <= 40 else r[:39] + "…"
 
 
 def _xy_of(obj: Any, *, required: bool = False) -> Optional[Tuple[float, float]]:
@@ -753,13 +783,22 @@ def _xy_of(obj: Any, *, required: bool = False) -> Optional[Tuple[float, float]]
 
     Point / Vec2 return here (the formula / contrail / linked-takein hot path:
     the same signature as before, no extra keyword defaults to fill)."""
-    if isinstance(obj, (Point, Vec2)):
+    if isinstance(obj, Point):
         return _bare_num(obj.x), _bare_num(obj.y)
+    if isinstance(obj, Vec2):       # a value type: it may hold NaN, a Point may not
+        return _finite_xy(obj, obj.x, obj.y)
     if isinstance(obj, (tuple, list)) and len(obj) == 2:
         x, y = obj
         tx, ty = type(x), type(y)
         if (tx is float or tx is int) and (ty is float or ty is int):
-            return float(x), float(y)
+            try:
+                fx = float(x)
+                fy = float(y)
+            except OverflowError:
+                return _finite_xy(obj, x, y)            # raises with the hint
+            if (fx - fx) or (fy - fy):                  # NaN / inf (SA6)
+                return _finite_xy(obj, x, y)
+            return fx, fy
     return _read_xy(obj, required, True, True)
 
 
@@ -779,8 +818,10 @@ def _read_xy(
     """
     # Lockstep with get_xy's Point/Vec2 branch. Do not call get_xy here:
     # that would add a second call on every linked takein and stamp rebuild.
-    if isinstance(obj, (Point, Vec2)):
+    if isinstance(obj, Point):
         return _bare_num(obj.x), _bare_num(obj.y)
+    if isinstance(obj, Vec2):
+        return _finite_xy(obj, obj.x, obj.y)
     if isinstance(obj, (tuple, list)):
         xy = _pair_numbers(obj)
         if xy is not None:
@@ -842,8 +883,10 @@ def middle_point(p1: Any, p2: Any, weight: float = 0.5) -> Tuple[float, float]:
         ValueError: If weight is not between 0.0 and 1.0
         TypeError: If p1 or p2 cannot be converted to coordinates
     """
+    from .validate import number
+    weight = number(weight, "middle_point weight")
     if not 0.0 <= weight <= 1.0:
-        raise ValueError("Weight must be between 0.0 and 1.0")
+        raise ValueError(f"middle_point weight must be between 0.0 and 1.0, got {weight:g}")
 
     x1, y1 = _xy_of(p1, required=True)
     x2, y2 = _xy_of(p2, required=True)
@@ -1742,7 +1785,7 @@ class Shape(Graphic, PaintState):
         if y is None:
             px, py = _xy_of(x, required=True)
         else:
-            px, py = float(x), float(y)
+            px, py = _xy_of((x, y), required=True)   # numbers, finite (SA15)
         return self._hit_test_xy(px, py)
 
     @property
@@ -1963,6 +2006,8 @@ class Shape(Graphic, PaintState):
         With ``time=``, interpolate the shortest arc (CCW+; 180° tie → CCW) and return a Handle.
         force=True unlinks Defining parts that must be written (default: raise).
         """
+        if force is not False and force is not True:      # "no" is truthy: it unlinked
+            force = _expect_flag(force, "rotate_to(force=)")
         if time is not None:
             from .process import timed_rotate_to
             return timed_rotate_to(
@@ -1988,6 +2033,8 @@ class Shape(Graphic, PaintState):
         Default Graphic path (Sprite): CTM ``_rotation``; orbit ``center`` when
         ``about`` is not the pose pivot. Geometry subclasses override.
         """
+        if force is not False and force is not True:      # "no" is truthy: it unlinked
+            force = _expect_flag(force, "rotate_by(force=)")
         if time is not None:
             from .process import timed_rotate_by
             return timed_rotate_by(
@@ -2017,7 +2064,8 @@ class Shape(Graphic, PaintState):
     @scale.setter
     def scale(self, value: float) -> None:
         """Alias for scale_to(value) about center. Prefer scale_to/scale_by when pivot ≠ center."""
-        self.scale_to(float(value))
+        from .validate import number
+        self.scale_to(number(value, f"{type(self).__name__}.scale"))
 
     def scale_to(self, value: float, *, time: Optional[float] = None, ease: str = "linear", then=None, on_done=None, about: Optional[GeneralPoint] = None, force: bool = False, loops: object = 1, yoyo: bool = False) -> Union['Shape', 'Handle']:
         """
@@ -2025,6 +2073,8 @@ class Shape(Graphic, PaintState):
         With ``time=``, interpolate and return a Handle.
         force=True unlinks Defining parts that must be written (default: raise).
         """
+        if force is not False and force is not True:      # "no" is truthy: it unlinked
+            force = _expect_flag(force, "scale_to(force=)")
         if time is not None:
             from .process import timed_scale_to
             return timed_scale_to(
@@ -2046,6 +2096,8 @@ class Shape(Graphic, PaintState):
         Default Graphic path (Sprite): CTM ``_scale``; orbit ``center`` when
         ``about`` is not the pose pivot. Geometry subclasses override.
         """
+        if force is not False and force is not True:      # "no" is truthy: it unlinked
+            force = _expect_flag(force, "scale_by(force=)")
         if time is not None:
             from .process import timed_scale_by
             return timed_scale_by(
@@ -2863,7 +2915,7 @@ class Point(Shape):
             if visible is None:
                 visible = True
         if visible is not None:
-            self.visible = bool(visible)
+            self.visible = visible       # the setter refuses "no" (SA12)
 
     def _apply_role_marker_style(self) -> None:
         """Paint guide vs handle colors when still on auto marker style."""
@@ -4270,6 +4322,16 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
             self.center._takein((nx, ny))
         return self
 
+    def _relational_move_hint(self, var: str) -> Optional[str]:
+        """A parallel-by-distance line cannot put a point anywhere: a move
+        only changes ``dist`` (Shapes Design — relational models). The
+        DerivedAttributeError hint said ``move_to(…)``, which landed
+        elsewhere (graphics review GR2)."""
+        if self.model is LineModel.PARALLEL_DIST:
+            return (f"It stays parallel to its reference, so a move only changes its distance: "
+                    f"write {var}.dist = …, or move the reference.")
+        return None
+
     def _heading_driven_parts(self) -> Tuple:
         # The parts rotate_by writes where ``angle`` is derived (see rotate_by).
         match self.model:
@@ -4898,6 +4960,11 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
             layer: Optional layer name
         Returns: A new Circle with the calculated center
         """
+        from .validate import coerce_enum
+        # A copy: a function radius has nothing to link (SB10 leaked the formula
+        # checker's "could not be parsed").
+        radius = fixed_magnitude(radius, "from_corners radius")
+        pos = coerce_enum(pos, Pos, what="from_corners pos")
         px, py = get_xy(point, bare=True)
         if pos == Pos.TOP_LEFT:
             center = (px + radius, py - radius)
@@ -5884,8 +5951,16 @@ class Polygon(Shape):
                 (cx - 1.4 * unit, cy - 0.6 * unit),
                 (cx + 0.9 * unit, cy - 1.1 * unit),
             ]
-        elif len(points) < 3:
-            raise ValueError(f"Polygon requires at least 3 points, got {len(points)}")
+        else:
+            if not isinstance(points, (list, tuple)):
+                # A generator / range of points is read once (it leaked "has no
+                # len()"); a string or a mapping is not a list of points (SC9).
+                if isinstance(points, (str, bytes, dict)) or not hasattr(points, "__iter__"):
+                    raise TypeError(f"Polygon points= takes a list of points, got "
+                                    f"{type(points).__name__}")
+                points = list(points)
+            if len(points) < 3:
+                raise ValueError(f"Polygon requires at least 3 points, got {len(points)}")
 
         super().__init__(
             layer=layer, group=group, visual=visual, color=color,
@@ -6158,6 +6233,12 @@ class _LazyRegularPolygonPoints(Sequence):
     def __getitem__(self, index):
         if isinstance(index, slice):
             return tuple(self[i] for i in range(*index.indices(len(self))))
+        if type(index) is not int:
+            if isinstance(index, bool) or not isinstance(index, int):
+                # rp.points['a'] leaked "'<' not supported" (graphics review SC9)
+                raise TypeError(f"RegularPolygon.points takes a whole-number index or a slice, "
+                                f"got {type(index).__name__} {index!r:.20}")
+            index = int(index)
         self._poly._ensure_vertex_live(index)
         return self._poly._vertices[index]
 
@@ -6533,7 +6614,8 @@ class RegularPolygon(Polygon):
         if idx < 0:
             idx += self._n
         if idx < 0 or idx >= self._n:
-            raise IndexError(f"RegularPolygon vertex index {idx} out of range")
+            raise IndexError(f"RegularPolygon vertex index {idx} out of range: it has {self._n} "
+                             f"vertices (0 … {self._n - 1})")
         self._wire_vertex(idx)
         vtx = self._vertices[idx]
         vtx._derivate_live = True
@@ -8701,6 +8783,10 @@ def _publish_shape_signature(cls: type) -> None:
     if "n" in collected and collected["n"].default is inspect.Parameter.empty:
         if cls.__name__ == "RegularPolygon":
             collected["n"] = collected["n"].replace(default=6)
+    if cls.__name__ == "EquilateralTriangle":
+        # Always 3: ``n=3`` is still accepted, but help() showed ``n=None`` as a
+        # knob (graphics review SC11).
+        collected.pop("n", None)
     # One flat signature cannot say "radius= needs center=": every model
     # keyword is optional here (``Circle()`` / ``Circle(center=…)`` work), and
     # the per-model forms are the ``@overload`` stubs editors show.

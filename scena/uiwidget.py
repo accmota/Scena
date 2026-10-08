@@ -410,7 +410,8 @@ class UiSettings(ClosedSurface):
 
     @scale.setter
     def scale(self, value) -> None:
-        s = float(value)
+        from .validate import number
+        s = number(value, "ui.scale")
         if s <= 0:
             raise ValueError("ui.scale must be > 0")
         self._scale = s
@@ -1534,8 +1535,8 @@ class DropDown(UIWidget):
 
     @selected_index.setter 
     def selected_index(self, new_index):
-        if not isinstance(new_index, int):
-            raise ValueError("Selected index must be an integer")
+        if not isinstance(new_index, int) or isinstance(new_index, bool):
+            raise TypeError(f"DropDown.selected_index expected a whole number, got {type(new_index).__name__}")
         if new_index < 0 or new_index >= len(self.options):
             raise ValueError("Selected index out of range")
         self.data = self.options[new_index]

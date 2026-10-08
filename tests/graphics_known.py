@@ -29,8 +29,6 @@ ATOMIC = frozenset({
 })
 
 UNSTABLE_READS = frozenset({
-    # GR3 (batch 9): a read on a destroyed actor raises, then returns a collapsed value
-    'Ellipse focal_points | dead | box',
 })
 
 CONSTRUCT = frozenset({
@@ -58,4 +56,10 @@ CACHE_KEYS = frozenset({
 })
 
 LIFECYCLE = frozenset({
+})
+
+VALUES = frozenset({
+})
+
+FLAGS = frozenset({
 })

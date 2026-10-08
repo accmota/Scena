@@ -575,7 +575,8 @@ class Track(Shape):
         styled = any(v is not None for v in (color, visual, line_width))
         if visible is None:
             visible = bool(styled)
-        want_draw = bool(visible)
+        visible = _expect_flag(visible, "Track visible")
+        want_draw = visible
         if layer is _USE_LAYER_SENTINEL:
             layer = _USE_LAYER_DEFAULT if (_register and want_draw) else None
 
@@ -614,7 +615,7 @@ class Track(Shape):
         self._mod_wander = None  # (amount, seed)
         self._smooth = _parse_smooth(smooth)
         self._quality = _parse_quality(quality)
-        self._closed = True if closed is None else bool(closed)
+        self._closed = True if closed is None else _expect_flag(closed, "Track closed")
         self._anchored = True
         self._frozen_cx = 0.0
         self._frozen_cy = 0.0
@@ -655,7 +656,7 @@ class Track(Shape):
                     raise TypeError("Track.line(p1=, p2=) does not take start=")
                 p1, p2 = _ends
                 self.model = TrackModel.FREE
-                self._closed = False if closed is None else bool(closed)
+                self._closed = False if closed is None else _expect_flag(closed, "Track closed")
                 self._init_ctrl_vertices((p1, p2))
                 self._anchored = _resolve_anchored(
                     placement_given=True, floating=floating, anchored=_anchored,
@@ -718,7 +719,7 @@ class Track(Shape):
                 else:
                     spec_r = _finite_number(radius, what="Track.radius")
                 self._spec = ("circle", spec_r, 0.0, 360.0)
-                self._closed = True if closed is None else bool(closed)
+                self._closed = True if closed is None else _expect_flag(closed, "Track closed")
                 pose_c = center if center is not None else _default_pose()[0]
                 self._set_defining_parts(
                     "center", "radius", "u", "begin", "end",
@@ -740,7 +741,7 @@ class Track(Shape):
             if not isinstance(raw, (list, tuple)) or len(raw) < 2:
                 raise ValueError(f"Track({need}) needs at least 2 points")
             self.model = TrackModel.FREE
-            self._closed = False if closed is None else bool(closed)
+            self._closed = False if closed is None else _expect_flag(closed, "Track closed")
             linked = any(_is_linkish(p) for p in raw) or bool(_ends)
             if linked:
                 self._init_ctrl_vertices(raw)
@@ -1147,7 +1148,7 @@ class Track(Shape):
         if about is None or not self._table_host()._ctrl_points:
             return None
         cx, cy = self._pose_xy()
-        px, py = get_xy(about, bare=True) if not isinstance(about, tuple) else about
+        px, py = get_xy(about, bare=True)       # a tuple too: NaN / junk refused (SA6)
         if abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12:
             return None
         nx, ny = image(cx, cy, float(px), float(py))

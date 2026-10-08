@@ -18,6 +18,7 @@ from scena.collision import (
 )
 from scena.shapes import get_xy
 from scena.scenamath import Vec2
+from scena.state import DestroyedError
 
 from tests.test_sprite import (
     SpriteTestCase,
@@ -154,6 +155,28 @@ class TestAddHitboxApi(PartTestCase):
         self.assertIsNone(hb.host)
         self.assertFalse(s.tagged("hurt"))
         with self.assertRaises(ValueError):
+            s.remove_hitbox(hb)
+
+    def test_remove_hitbox_keeps_the_hosts_own_groups(self):
+        """HP13 (decision 5): the host leaves only the groups the part's claim
+        added. Removing a weak spot took the boss out of "enemy"."""
+        boss = self.hero(group="enemy")
+        spot = boss.add_hitbox(group=["enemy", "weak"])
+        self.assertEqual(set(boss.group), {"enemy", "weak"})
+        boss.remove_hitbox(spot)
+        self.assertEqual(set(boss.group), {"enemy"})
+        # The same rule on the part's own verb.
+        spot = boss.add_hitbox(group=["enemy", "weak"])
+        spot.remove_from_group("enemy")
+        spot.remove_from_group("weak")
+        self.assertEqual(set(boss.group), {"enemy"})
+
+    def test_remove_hitbox_on_a_destroyed_sprite_raises(self):
+        """HP12: it returned silently."""
+        s = self.hero()
+        hb = s.add_hitbox(group="hurt")
+        s.destroy()
+        with self.assertRaises(DestroyedError):
             s.remove_hitbox(hb)
 
     def test_hitboxes_is_read_only(self):

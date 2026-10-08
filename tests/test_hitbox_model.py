@@ -156,8 +156,8 @@ class TestRoles(ModelCase):
         self.assertEqual(part.group, frozenset({"dor"}))
         s.tag("alvo")
         self.assertEqual(s.hitbox.group, frozenset({"heroi", "alvo"}))
-        s.remove_hitbox(part)                # the sprite leaves "dor" with it
-        self.assertEqual(s.hitbox.group, frozenset({"heroi", "alvo"}))
+        s.remove_hitbox(part)                # "dor" was the sprite's own: it stays (HP13)
+        self.assertEqual(s.hitbox.group, frozenset({"heroi", "alvo", "dor"}))
         r = self.track(Rect(center=self.at(0, 0), width=4, height=4, group="bloco"))
         self.assertEqual(r.hitbox.group, frozenset({"bloco"}))
 

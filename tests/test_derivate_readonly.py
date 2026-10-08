@@ -264,12 +264,10 @@ class TestDerivedFieldMessages(unittest.TestCase):
         self.assertGreater(checked, 500)
 
     # Kinds whose suggested move is wrong (shrink-only: a fixed entry fails).
-    KNOWN_BAD_HINT = {
-        "Line parallel_dist": "GR1 (graphics review, batch 8): move projects onto the normal",
-        "Line tangent_point": "SB1 (batch 8): the move re-solves the tangent",
-        "Line tangent_angle": "GR2 (batch 9): the hint suggests move_to, which a linked p1 refuses",
-        "Ellipse from_rect": "GR2 (batch 9): the hint suggests move_to, which a linked center refuses",
-    }
+    # Shrink-only. Emptied by graphics review batch 9 (GR2): a relational
+    # model's hint names the move that lands (``force=True`` frees it), and a
+    # parallel-by-distance line names ``dist`` (a move cannot place its points).
+    KNOWN_BAD_HINT = {}
 
     def test_the_suggested_move_lands_the_point(self):
         import geometry_support as G
@@ -303,6 +301,22 @@ class TestDerivedFieldMessages(unittest.TestCase):
                         self.assertAlmostEqual(p.x, 7, places=6)
                     checked += 1
         self.assertGreater(checked, 150)
+
+    def test_force_is_suggested_only_when_the_move_writes_a_link(self):
+        """GR2: ``force=True`` unlinks; a link the move does not write (a
+        linked radius) must not be dropped by following the hint."""
+        import scena
+        src = scena.Circle(center=(0, 0), radius=4)
+        c = scena.Circle(center=(10, 0), radius=lambda: src.radius + 1)
+        with self.assertRaises(DerivedAttributeError) as e:
+            c.p2 = (7, -3)
+        self.assertNotIn("force=True", str(e.exception))
+        linked = scena.Circle(center=lambda: src.center, radius=3)
+        with self.assertRaises(DerivedAttributeError) as e:
+            linked.p2 = (7, -3)
+        self.assertIn("force=True", str(e.exception))
+        for o in (src, c, linked):
+            o.destroy()
 
     def test_known_bad_hints_still_fail(self):
         import geometry_support as G

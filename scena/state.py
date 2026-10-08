@@ -1224,7 +1224,10 @@ def _join_names(names, word: str) -> str:
 
 def _number_text(value: Any) -> str:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return f"{value:g}"
+        try:
+            return f"{float(value):g}"
+        except OverflowError:       # 10**400: the message must not raise itself
+            return "x"
     return "x"
 
 
@@ -2802,6 +2805,18 @@ class Container():
         if is_point and hasattr(self, "move_to"):
             x, y = _derived_point_target(var, name, value, part)
             where = f"{name}.{part} is {_number_text(value)}" if part else f"{name} lands at ({x}, {y})"
+            relational = getattr(self, "_relational_move_hint", None)
+            hint = relational(var) if relational is not None else None
+            if hint:
+                return f"{head} {hint}"
+            if self._move_writes_a_link():
+                # The plain move is refused (a linked input, or a relational
+                # model's reference): suggest the move that lands (GR2).
+                return (
+                    f"{head} It follows a link, so a plain move is refused. To free it and "
+                    f"move it so its {where}, write "
+                    f"{var}.move_to({x}, {y}, about={var}.{name}, force=True)."
+                )
             return (
                 f"{head} To move the {prose} so its {where}, write "
                 f"{var}.move_to({x}, {y}, about={var}.{name})."
@@ -2812,6 +2827,18 @@ class Container():
         if not inputs:
             return head + (f" To set it, {build}." if build else "")
         return f"{head} Change {_join_names(inputs, 'or')} instead" + (f", or {build}." if build else ".")
+
+    def _move_writes_a_link(self) -> bool:
+        """True when ``move_to`` would write a linked part: a whole-object
+        link, or a link on a Defining point (refusal message only)."""
+        if self._link is not None or self._formula_driven_ancestor() is not None:
+            return True
+        for pname in (self.__dict__.get('_defining_part_names') or ()):
+            part = self.__dict__.get(pname)
+            if isinstance(part, Container) and part.__class__.__name__ == "Point" \
+                    and any(n._link is not None for n in part._iter_subtree()):
+                return True
+        return False
 
     def _derived_refusal(self, source: "Container", operation: str, value: Any = None,
                          leaf: Optional[str] = None) -> str:
@@ -3999,7 +4026,7 @@ def _coerce_magnitude_slot(slot, value, *, clamp: bool, owner=None):
         if clamp:
             return value
         t = type(value)
-        if t is int or (t is float and math.isfinite(value)):
+        if (t is float and math.isfinite(value)) or (t is int and -1e308 < value < 1e308):
             return value
         from .validate import finite
         return finite(value, slot.label or slot.name or "value")
@@ -4095,7 +4122,7 @@ def _init_scalar(owner, name, value) -> None:
         # an ordinary number skips the call (every constructor runs this).
         t = type(value)
         kind = slot._kind
-        if not ((kind == 0 and (t is int or (t is float and math.isfinite(value))))
+        if not ((kind == 0 and ((t is int and -1e308 < value < 1e308) or (t is float and math.isfinite(value))))
                 or (kind == 1 and t is float and 0.0 <= value < _INF
                     and (value > 0.0 or not slot.positive))):
             value = _coerce_magnitude_slot(slot, value, clamp=False, owner=owner)

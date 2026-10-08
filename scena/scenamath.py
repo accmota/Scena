@@ -311,7 +311,8 @@ class Vec2(Container):
     ) -> str:
         """``v.length = 5`` / ``v["angle"] @= …``: name the in-place spelling."""
         shown = (
-            f"{value:g}" if isinstance(value, (int, float)) and not isinstance(value, bool)
+            f"{value:g}" if isinstance(value, float)
+            or (type(value) is int and -1e308 < value < 1e308)     # 10**400 cannot format
             else None
         )
         if operation == "link":

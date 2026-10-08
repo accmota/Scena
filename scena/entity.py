@@ -229,10 +229,14 @@ def _normalize_groups(group) -> GroupTags:
     """``None`` / ``"tag"`` / sequence of tags → a fresh :class:`GroupTags`."""
     if group is None:
         return GroupTags()
-    if isinstance(group, str):
+    if isinstance(group, str) and group:
         return GroupTags((group,))
-    if isinstance(group, (Sequence, set, frozenset)) and all(isinstance(x, str) for x in group):
+    if (isinstance(group, (Sequence, set, frozenset)) and not isinstance(group, str)
+            and all(isinstance(x, str) and x for x in group)):
         return GroupTags(group)
+    if group == "" or (isinstance(group, (Sequence, set, frozenset)) and "" in group):
+        # ``group=""`` was a group no ``tag("")`` could name (graphics review E10).
+        raise TypeError('group names must be non-empty strings: write group="enemies", or group=None for none')
     raise TypeError(
         f"group expected a tag string or a list of tag strings, got "
         f"{type(group).__name__} {group!r}. Write group=\"enemies\" or "
@@ -449,6 +453,15 @@ class _RouteRefusal:
 # ``circle.width = 20`` became a plain attribute nothing reads (E13).
 _SIZE_WORDS = ("width", "height", "radius", "side", "length", "size",
                "corner_radius", "major_axis")
+# Points and relations of some kind that another kind lacks: ``circle.top_left
+# = (0, 0)`` was a dead attribute, read as a placement (E13). Generic words an
+# author may use for a field of their own (x, u, text, begin, end, cursor …)
+# are not reserved.
+_POINT_WORDS = ("top_left", "top_right", "bottom_left", "bottom_right",
+                "top_center", "bottom_center", "left_center", "right_center",
+                "left_square_center", "right_square_center", "p1", "p2", "fp1", "fp2",
+                "vertex", "centroid", "perimeter_point", "vec")
+_RELATION_WORDS = ("dist", "at_angle", "signed_area", "perimeter_length")
 
 
 def _install_setattr_route(cls: type) -> None:
@@ -497,6 +510,17 @@ def _install_setattr_route(cls: type) -> None:
                 route[word] = _RouteRefusal(
                     f"{{cls}} has no {word}.{sized_by} A field of your own needs "
                     f"another name.")
+        for word in _POINT_WORDS:
+            if word not in seen:
+                route[word] = _RouteRefusal(
+                    f"{{cls}} has no {word}. To place it, write move_to(x, y) (or "
+                    f"move_to(x, y, about=point) to put one of its points there). "
+                    f"A field of your own needs another name.")
+        for word in _RELATION_WORDS:
+            if word not in seen:
+                route[word] = _RouteRefusal(
+                    f"{{cls}} has no {word} (a Line / Polygon field). A field of "
+                    f"your own needs another name.")
     for name in _LOOK_FAMILY:
         route.setdefault(name, _LOOK_MISSING)
     for name in _INK_RESERVED:
@@ -2455,6 +2479,10 @@ def _install_timed_pose(cls) -> None:
             ):
                 # Instant path is the per-frame hot path (angle= / scale=).
                 # Do not import process or validate completion kwargs unless used.
+                if kwargs:
+                    f = kwargs.get("force", False)
+                    if f is not False and f is not True:    # force="no" is truthy: it unlinked
+                        kwargs["force"] = expect_bool(f, f"{name}(force=)")
                 if time is None:
                     if then is not None or on_done is not None:
                         from .process import _require_timed_completion
@@ -2567,7 +2595,8 @@ class Graphic(Entity, ABC):
     @mass.setter
     def mass(self, value: float) -> None:
         from .collision import STATIC
-        mv = float(value)
+        from .validate import number
+        mv = STATIC if value == STATIC and type(value) is float else number(value, "mass")
         if mv <= 0.0 and mv != STATIC:
             raise ValueError(f"mass must be positive or STATIC, got {value!r}")
         object.__setattr__(self, "_mass", mv)

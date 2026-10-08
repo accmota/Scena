@@ -2966,7 +2966,7 @@ lutador.play("correndo")</pre>
 <tr><td><code>play(clip, loops=, next=, min_hold=, resume=)</code></td><td class="sig"><span class="params">Parâmetros: clip (str), loops (número), next (str), min_hold (número), resume (True/False)</span></td><td>self</td><td>Toca um clip do Sheet. Visual, não mode. Tabela completa logo abaixo.</td></tr>
 <tr><td><code>add_hitbox(group=, shape=, source=, anchor=, scale=, active=, px_rect=, px_circle=)</code></td><td class="sig"><span class="params">Parâmetros: group (str ou lista), shape (str), source (padrão "each"), anchor, scale, active (True/False), px_rect (x, y, w, h), px_circle (x, y, r)</span></td><td>Hitbox</td><td>Hitbox extra, só detecção. <code>px_rect</code> / <code>px_circle</code>: forma à mão, no lugar dos quatro parâmetros da arte. <a href="#spr-hit-partes">Partes</a>, <a href="#spr-hit-ataque">Caixas de ataque</a>.</td></tr>
 <tr><td><code>showing(frames)</code></td><td class="sig"><span class="params">Parâmetros: frames (nome de clip, índice, nome de frame, ou tupla / lista)</span></td><td>bool</td><td>O frame na tela é um destes? Vai pelo frame (acerta com yoyo, <code>next=</code>, golpe interrompido). <a href="#spr-hit-ataque">Caixas de ataque</a>.</td></tr>
-<tr><td><code>remove_hitbox(part)</code></td><td class="sig"><span class="params">Parâmetros: part (Hitbox)</span></td><td>self</td><td>Tira a hitbox extra. O Sprite sai dos grupos dela. A principal não sai: <code>sprite.hitbox.active = False</code>.</td></tr>
+<tr><td><code>remove_hitbox(part)</code></td><td class="sig"><span class="params">Parâmetros: part (Hitbox)</span></td><td>self</td><td>Tira a hitbox extra. O Sprite sai dos grupos em que ela o pôs; um grupo em que ele já estava por conta própria fica. A principal não sai: <code>sprite.hitbox.active = False</code>.</td></tr>
 <tr><td><code>reset_rotation()</code></td><td class="sig"><span class="params">Opcional: time, ease, then, on_done</span></td><td>—</td><td>Gira até <code>rest_heading</code> e zera o <code>tilt</code>. Não limpa o flip.</td></tr>
 <tr><td><code>clone(center=, layer=, group=, frame=, scale=)</code></td><td class="sig"><span class="params">Parâmetros: center (ponto), layer (str), group (str ou lista), frame (número), scale (número)</span></td><td>o objeto copiado</td><td>Novo Sprite com a aparência deste. <a href="#spr-clone">Clone</a>.</td></tr>
 <tr><td><code>set_alpha(alpha)</code></td><td class="sig"><span class="params">Parâmetros: alpha (número 0–1)</span></td><td>self</td><td>Igual a <code>.alpha = alpha</code>. Não é o <code>Shape.set_alpha</code> (esse recolore fill/line).</td></tr>
@@ -3215,7 +3215,7 @@ mix = Sheet("ninja/Idle__*.png", "ninja/Dead__009.png")</pre>
         <span>Não há uma imagem para cortar: <code>cols=</code> / <code>rows=</code> / <code>cell=</code> / <code>atlas=</code> com padrão é <code>TypeError</code>, mesmo que só um arquivo case.</span>
       </li>
     </ol>
-    <p><strong>Onde vale:</strong> onde vários arquivos valem — no <code>Sheet</code> (como <code>source</code>, numa lista ou entre os arquivos extra) e no <code>strip</code>. <code>Sprite("ninja/Run__*.png")</code> é <code>TypeError</code>: um Sprite com nome de arquivo é uma imagem parada. Escreva <code>Sprite(Sheet("ninja/Run__*.png", fps=12))</code>. Os frames ganham o nome do arquivo sem a extensão (<code>"Run__003"</code>), para usar em <code>clip</code>, <code>frame=</code> e <code>showing</code>.</p>
+    <p><strong>Onde vale:</strong> onde vários arquivos valem — no <code>Sheet</code> (como <code>source</code>, numa lista ou entre os arquivos extra) e no <code>strip</code>. <code>Sprite("ninja/Run__*.png")</code> é <code>TypeError</code>: um Sprite com nome de arquivo é uma imagem parada. Escreva <code>Sprite(Sheet("ninja/Run__*.png", fps=12))</code>. Os frames ganham o nome do arquivo sem a extensão (<code>"Run__003"</code>), para usar em <code>clip</code>, <code>frame=</code> e <code>showing</code>. Dois arquivos com o mesmo nome em pastas diferentes (<code>idle/1.png</code> e <code>run/1.png</code>) não deixam o nome <code>"1"</code> valer para nenhum dos dois (<code>ValueError</code> citando os dois); use o caminho (<code>"idle/1.png"</code>) ou o índice.</p>
     <p>Sem padrão, a mesma coisa em lista: <code>ninja.strip("correndo", ["ninja/Run__000.png", "ninja/Run__001.png"], fps=12)</code>. Serve para escolher só alguns frames ou mudar a ordem.</p>
   </section>
 
@@ -3618,7 +3618,7 @@ def ferido(bala, alvo, info):             # alvo é o heroi; info.b_hitbox é do
               <tr><td>Desligar só a extra</td><td><code>dor.active = False</code></td><td>Sai de jogo (dispara as saídas). <code>True</code> religa.</td></tr>
               <tr><td>Desligar só a principal</td><td><code>heroi.hitbox.active = False</code></td><td>Atravessa chão e paredes (fantasma); as extras continuam detectando. <code>True</code> religa. Tudo: <code>collidable = False</code>.</td></tr>
               <tr><td>Desfazer a posse</td><td><code>dor.remove_from_group("dor")</code></td><td>A parte larga o grupo <em>e</em> o Sprite sai dele.</td></tr>
-              <tr><td>Remover a parte</td><td><code>heroi.remove_hitbox(dor)</code></td><td>O Sprite sai dos grupos dela.</td></tr>
+              <tr><td>Remover a parte</td><td><code>heroi.remove_hitbox(dor)</code></td><td>O Sprite sai dos grupos em que ela o pôs. O chefe com <code>group="inimigo"</code> continua em <code>"inimigo"</code> quando o ponto fraco <code>add_hitbox(group=["inimigo", "fraco"])</code> sai.</td></tr>
             </tbody>
           </table>
         </div>
@@ -3850,7 +3850,7 @@ bussola.svg = lib.render()   # recarrega (markup ou arquivo)</pre>
               <tr><th>Propriedade</th><th>Tipo (valor típico)</th><th>Leitura/Escrita</th><th>Significado</th></tr>
             </thead>
             <tbody>
-<tr><td><code>.svg</code></td><td class="type"><span class="t">str</span><span class="ex">"&lt;svg …&gt;"</span></td><td>lê / escreve</td><td>Markup atual — o texto, nunca o caminho. Atribuir recarrega (markup ou arquivo). String igual não faz nada. Falha: aviso, e fica o último corpo bom.</td></tr>
+<tr><td><code>.svg</code></td><td class="type"><span class="t">str</span><span class="ex">"&lt;svg …&gt;"</span></td><td>lê / escreve</td><td>Markup atual — o texto, nunca o caminho. Atribuir recarrega (markup ou arquivo). String igual não faz nada. Falha: aviso, e fica o último corpo bom. <code>None</code> limpa: volta ao xadrez, como <code>Svg(None)</code>.</td></tr>
 <tr><td><code>.box</code></td><td class="type"><span class="t">Box</span><span class="ex">icon.box</span></td><td>leitura</td><td>Uma cópia da moldura visual, tirada agora, com os nomes: depois de um <code>flip_x</code>, <code>box.top_center</code> continua sobre a cabeça. Acima na tela: <code>box.top</code>. <a href="#colocar-fit">Colocar</a>.</td></tr>
             </tbody>
           </table>

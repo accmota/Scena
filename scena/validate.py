@@ -44,7 +44,8 @@ def finite(value: Any, what: str) -> Any:
         if math.isfinite(value):
             return value
     elif t is int:
-        return float(value)
+        if -1e308 < value < 1e308:      # 10**400 overflows float(): refuse it below
+            return float(value)
     if _is_formula(value):
         return value
     raw = as_payload(value)
@@ -54,7 +55,10 @@ def finite(value: Any, what: str) -> Any:
         raise TypeError(
             f"{what} expected a number, got {type(raw).__name__} {_short_repr(raw)}"
         )
-    n = float(raw)
+    try:
+        n = float(raw)
+    except OverflowError:
+        raise ValueError(f"{what} must be a finite number, got {_short_repr(raw)}") from None
     if not math.isfinite(n):
         raise ValueError(f"{what} must be a finite number, got {n}")
     return n

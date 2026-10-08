@@ -485,6 +485,12 @@ def parse_atlas_json(path: str) -> Tuple[Optional[str], Tuple[AtlasFrame, ...]]:
                 f"Atlas JSON {path!r} is not valid JSON ({e}). "
                 "TexturePacker Hash/Array and a simple {frames: {name: {x,y,w,h}}} both work."
             ) from e
+        except UnicodeDecodeError:
+            # A binary or non-UTF-8 file leaked Python's codec error (PA8).
+            raise ValueError(
+                f"Atlas file {path!r} is not UTF-8 text: an atlas is a JSON or XML file. "
+                "Did you pass the image as atlas=?"
+            ) from None
     if not isinstance(data, dict):
         raise ValueError(
             f"Atlas JSON {path!r} expected an object, got {type(data).__name__}."
@@ -613,8 +619,8 @@ def load_atlas(path: str) -> Tuple[Optional[str], Tuple[AtlasFrame, ...]]:
         result = parse_atlas_json(key)
     else:
         # Peek: XML vs JSON.
-        with open(key, "r", encoding="utf-8-sig") as f:
-            start = f.read(64).lstrip()
+        with open(key, "rb") as f:
+            start = f.read(64).lstrip().decode("utf-8", "replace")
         if start.startswith("<"):
             result = parse_atlas_xml(key)
         else:

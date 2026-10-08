@@ -305,8 +305,12 @@ _LEAK_PATTERNS = [
     r"cannot unpack non-iterable",
     r"not enough values to unpack",
     r"too many values to unpack",
-    r"'<' not supported between",
-    r"'>' not supported between",
+    r"'[<>]=?' not supported between",
+    r"unhashable type",                 # graphics review HP6: hb.tagged(["a"])
+    r"has no len\(\)",                  # SC9: Polygon(points=<generator>)
+    r"int too large to convert",        # SA15: angle = 10**400
+    r"codec can't decode",              # PA8: a binary file as atlas=
+    r"indices must be integers",
     r"math domain error",
     r"cannot convert float NaN to integer",
     r"cannot convert float infinity to integer",

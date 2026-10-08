@@ -2445,12 +2445,8 @@ class Warp(PointDomainFx):
 
     @spokes.setter
     def spokes(self, value) -> None:
-        try:
-            n = int(round(float(value)))
-        except (TypeError, ValueError):
-            raise TypeError(
-                f"Warp spokes expected a number, got {type(value).__name__}"
-            ) from None
+        from .validate import number
+        n = int(round(number(value, "Warp spokes")))
         if n < _WARP_SPOKES_MIN:
             n = _WARP_SPOKES_MIN
         elif n > _WARP_SPOKES_MAX:
@@ -2746,10 +2742,8 @@ def _portal_number(value, name: str) -> float:
         raise TypeError(
             f"Portal {name} expected a number, got {type(value).__name__}"
         )
-    v = float(value)
-    if not math.isfinite(v):
-        raise ValueError(f"Portal {name} must be finite, got {value!r}")
-    return v
+    from .validate import number
+    return number(value, f"Portal {name}")
 
 
 # Fire.style dispatch (after all Fire subclasses exist)
