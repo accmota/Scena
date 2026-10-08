@@ -12,7 +12,8 @@ Checked:
   (``license.txt`` / ``License.txt`` / ``licence.txt``);
 * every top-level media folder is named in ``CREDITS.md``;
 * every file that a license notice puts under an attribution license (a block
-  linking ``licenses/by/`` or ``licenses/by-sa/``) is named in the
+  linking ``licenses/by/`` or ``licenses/by-sa/``, or naming the license in
+  words: "CC-BY", "CC BY", "Attribution 4.0") is named in the
   "Attribution required" section of ``CREDITS.md``, and every file named there
   exists;
 * the code license: ``LICENSE`` is MIT and ``pyproject.toml`` declares it.
@@ -39,7 +40,11 @@ LICENSE_NAMES = {"license.txt", "licence.txt"}
 # without them.
 _MEDIA_NAME = re.compile(r"(?<![\w\-+@./])[\w\-+@]+\.(?:%s)\b"
                          % "|".join(e[1:] for e in MEDIA_EXT), re.IGNORECASE)
-_ATTRIBUTION_LINK = re.compile(r"creativecommons\.org/licenses/by(?:-sa)?/")
+# A link or the license's name: Freesound notices say "License: Attribution
+# 4.0" with no link (fx3.wav once slipped past a link-only check). A CC-BY file
+# sharing a block with CC0 files flags them all; split the block with "---".
+_ATTRIBUTION = re.compile(r"creativecommons\.org/licenses/by(?:-sa)?/"
+                          r"|\bCC[- ]BY\b|\bAttribution(?:-ShareAlike)?\s+\d")
 
 
 def _media_dirs():
@@ -96,7 +101,7 @@ class TestMediaLicenses(unittest.TestCase):
             with open(path, encoding="utf-8", errors="replace") as fh:
                 blocks = re.split(r"\n-{3,}\n", fh.read())
             for block in blocks:
-                if _ATTRIBUTION_LINK.search(block):
+                if _ATTRIBUTION.search(block):
                     for name in _MEDIA_NAME.findall(block):
                         needs_credit.add(f"{folder}/{name.strip()}")
         self.assertTrue(needs_credit, "vacuous: no attribution-licensed file found")
@@ -104,6 +109,15 @@ class TestMediaLicenses(unittest.TestCase):
         self.assertEqual(missing, [],
                          "CC-BY / CC-BY-SA files without a credit block in "
                          "CREDITS.md, section 'Attribution required'")
+
+    def test_attribution_pattern_reads_unlinked_notices(self):
+        for text in ("License: Attribution 4.0", "Licensed under CC BY 4.0",
+                     "CC-BY-SA 3.0", "Attribution-ShareAlike 3.0 Unported",
+                     "https://creativecommons.org/licenses/by/3.0/"):
+            self.assertRegex(text, _ATTRIBUTION)
+        for text in ("License: Creative Commons 0", "Credit optional",
+                     "Support us by crediting Kenney"):
+            self.assertNotRegex(text, _ATTRIBUTION)
 
     def test_credited_files_exist(self):
         named = re.findall(r"`([\w\-]+/[^`]+?\.\w+)`", self.attribution)

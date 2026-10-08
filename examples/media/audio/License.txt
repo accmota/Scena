@@ -10,6 +10,10 @@ credits: ../CREDITS.md):
   https://creativecommons.org/licenses/by/3.0/
   Free to use and modify, even commercially, if you credit the author.
 
+  Creative Commons Attribution 4.0 — CC-BY 4.0 (fx3.wav)
+  https://creativecommons.org/licenses/by/4.0/
+  Free to use and modify, even commercially, if you credit the author.
+
   Creative Commons Attribution-ShareAlike 3.0 — CC-BY-SA 3.0
   (explosion01.wav, explosion03.wav, explosion07.wav, explosion09.wav)
   https://creativecommons.org/licenses/by-sa/3.0/
@@ -112,8 +116,12 @@ Game Over 04.wav by LilMati -- https://freesound.org/s/365782/ -- License: Creat
 fx2.wav
 Game Over Arcade by Mountain_Man -- https://freesound.org/s/382310/ -- License: Creative Commons 0
 
+---
+
 fx3.wav
-8-bit Game Over by Euphrosyyn -- https://freesound.org/s/442127/ -- License: Attribution 4.0
+"8-bit Game Over" by Euphrosyyn
+https://freesound.org/s/442127/
+Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
 
 ---
 

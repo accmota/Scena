@@ -27,6 +27,14 @@ https://opengameart.org/content/laser-fire
 Licensed under CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
 ```
 
+### `audio/fx3.wav`: CC-BY 4.0
+
+```
+"8-bit Game Over" by Euphrosyyn
+https://freesound.org/s/442127/
+Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+```
+
 ### `audio/explosion01.wav`, `audio/explosion03.wav`, `audio/explosion07.wav`, `audio/explosion09.wav`: CC-BY-SA 3.0
 
 ```
@@ -59,6 +67,7 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | `tilesets/` | GameArt2D | https://www.gameart2d.com/free-platformer-game-tileset.html |
 | `pixel_adv/` | Pixel Frog | https://pixelfrog-assets.itch.io/pixel-adventure-2 |
 | `misc/` (explosions, bullets) | OpenGameArt authors | links in `misc/license.txt` |
+| `misc/fireball/` | OpenGameArt | https://opengameart.org/content/fireball-effect-2 |
 | `audio/Victory.mp3` | OpenGameArt | https://opengameart.org/content/victory |
 | `audio/SuperHero_original_no_Intro.ogg` | OpenGameArt | https://opengameart.org/content/adventure-theme |
 | `audio/footstep_*`, `audio/impact*` | Kenney | https://www.kenney.nl ("Impact Sounds") |
@@ -68,6 +77,9 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | `audio/sfx-hit-2.wav` | OwlStorm | https://freesound.org/s/404792/ |
 | `audio/laser-big.wav` | mrspivey | https://freesound.org/s/805194/ |
 | `audio/explode.flac` | SamsterBirdies, qubodup (mix) | links in `audio/License.txt` |
+| `audio/gameover.wav` | jivatma07 | https://freesound.org/s/173859/ |
+| `audio/fx1.wav` | LilMati | https://freesound.org/s/365782/ |
+| `audio/fx2.wav` | Mountain_Man | https://freesound.org/s/382310/ |
 
 ## Adding media
 
