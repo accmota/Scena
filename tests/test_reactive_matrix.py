@@ -415,5 +415,48 @@ class TestCanaryTargets(unittest.TestCase):
             [(l, f) for l, f in M.SUBJECTS if l.startswith("Circle")]), [])
 
 
+
+class TestLinkValuesAwayFromConstruction(unittest.TestCase):
+    """The machine's link step, made exhaustive: every subject × every
+    linkable field × link values away from the construction value, read
+    against the plain-write twin.
+
+    The matrix above links each field with one value; for a SPINE Rect's
+    ``angle`` that value equals the construction heading, so the update's
+    heading publish was an unchanged no-op there. A link to 135° made the
+    publish go through the linked-pose refusal, and every read raised (found
+    by the gate's reactive machine after graphics review batch 4)."""
+
+    def test_every_linkable_field_at_several_values(self):
+        import test_hyp_reactive_matrix as H
+        from scena import State
+        bad, checked = [], 0
+        for label, factory in M.SUBJECTS:
+            for name, is_pair, slot in H.linkable_of(label, factory):
+                for t in (0.125, 0.5, 0.875):
+                    pair = H._Pair(label, factory)
+                    cell = State(name=f"lv{checked}")
+                    cell.v = t
+                    try:
+                        if name == "@self":
+                            pair.subject @= H.formula(cell, name, slot, is_pair)
+                        else:
+                            pair.subject[name] @= H.formula(cell, name, slot, is_pair)
+                    except Exception:  # noqa: BLE001  (the model refuses this link)
+                        continue
+                    try:
+                        H._put(pair.twin, name, is_pair, H.map_value(name, slot, is_pair, t))
+                    except Exception:  # noqa: BLE001  (a write the model refuses)
+                        continue
+                    checked += 1
+                    names = [n for n, _, _ in pair.fields]
+                    diff = M.diff(M.snapshot_names(pair.subject, names),
+                                  M.snapshot_names(pair.twin, names))
+                    if diff:
+                        bad.append((label, name, t, sorted(diff)[:4]))
+        self.assertGreater(checked, 200, "vacuous")
+        self.assertEqual(bad, [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

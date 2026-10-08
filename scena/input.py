@@ -861,6 +861,8 @@ class Mouse(ClosedSurface, Container):
 
     def click_pos(self, button=None):
         """Get (x,y) tuple of last click for specific/any button"""
+        if button is not None:
+            _check_button(button, "mouse.click_pos")    # a list hashed raw (A1 class)
         if self._input_masked:
             return None
         if button is None:

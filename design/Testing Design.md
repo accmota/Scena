@@ -698,6 +698,91 @@ Each found a new member of its class on the first run (PM15–PM17):
 | `test_sys_frame_contracts` | frame promises in frames (PM3) | each Guia sentence that promises a frame ("só no frame", "no próximo frame", "no mesmo frame", "cada frame seguinte" …) maps to a real-frame test or a reason; a new sentence fails the scan | PM17 `Handle.velocity` after the end (doc gap) |
 | `test_noop_cost` | no-op cost (PM7) | every public method of every Entity kind through an empty group, every writable world setting written back: nothing joins the live roster | PM16 a Sprite / Text / Track method on an empty group raised |
 
+## What the graphics review taught (2026-10-08)
+
+A code review of Shape, Sprite, Graphic and Entity confirmed about 100 bugs
+(catalogue: [GR](#gr--graphics-review-2026-10-08)). The suite had 6 300 tests,
+and most had a point test near them. Each class guard was written before its
+fix and failed on HEAD; together they found GR1–GR14 and about 1 000 more
+cases the review had not listed (most of them one cause: a huge int, GR12). The
+review is a sample; the guard is the census.
+
+| Finding class | What the existing tests did | Why they missed it | The test that catches the class now |
+| --- | --- | --- | --- |
+| R1 write gate (a linked part written, or a free one refused) | `test_diff_link_write` linked slot fields one at a time | Property-backed pose (`angle` / `scale` on Sprite, Point, Polygon, Text), whole-object links and pivots were outside the list | `TestLinkWriteGate`: every kind × link target × pose verb against an **unlinked twin**: the parts its verb changes must refuse, the rest must succeed |
+| R2 half-applied refusals | Tests asserted that a bad call raised | Nothing looked at the state after the raise | `test_refusal_atomic`: a full snapshot (geometry, pose, flags, groups, paint, registry census) before and after every dead / junk / link refusal (391 cases, then GR4, GR10) |
+| R3 lifecycle state on a throwaway object | One transition per test (`active = False`, then `True`) | Callbacks lived on the Collider that park drops; the bug needed two transitions in a row, or another statement order | `test_collision_lifecycle`: every sequence of up to three statements vs a twin built in the final state (GR8, GR9) |
+| R4 construction failure | Construction tests raised before `super().__init__` | The finish step (`setup()`, hooks, enroll) and a mixin's `__init__` ran outside the rollback | `test_construct_failure`: base × raise point × mixin layout, census and zombies |
+| R5 shared mutable paint; caches keyed on less than they read | Paint tests used one shape; cache tests warmed and read one frame | `Color` was shared by every default shape; a warm hit for a different frame was never compared with a cold bake | `test_material_isolation` (every paint write × every relative); `test_cache_keys` (a warm hit equals a cold bake, for each `AtlasFrame` field; a new cache must be listed) (GR7) |
+| R6 engine readers warm Derivates | `TestEngineReadersStayCold` with a hand list of readers and models | Hit tests and `is_collapsed` were not in the list; KINDS lacked models | KINDS for models, hit test and `is_collapsed` as readers; AST guard on the cold methods (GR5 triaged) |
+| R7 copies | `sweep_c7` over `clone` | `<<`, whole `@=` and `absorb` were other doors; a copy that reads alike can diverge on its next verb | `sweep_c7` over every copy door, **copy then act** (both run the same verbs and must read alike) |
+| R8 writes to names that are not fields | Typo guard for near misses | Methods, read-only properties and foreign geometry names were exact names, not near misses; batch 9a's guard enumerated the fix's own word list (GR14) | `test_route_table`: every method, read-only property and every field slot of any kind, from the instances |
+| Clip playhead on summed time (PB3) | `TestDueOnTheExactFrame` covered timers | The playhead used its own `int(t * fps)` | AST guard: no `int(… * fps)` outside `reached` (GR6) |
+| Two draw paths (PB7, PB8, HP10) | Draw tests rendered each knob once | The plain blit and the full draw read knobs differently | `test_draw_doors`: the same pixels on both paths, and every knob changes the picture |
+| Numbers rule leaks (SA6, SA7, E12, …) | `test_hyp_surface` fuzzed constructors and slots; flags were walked by bool default | Property setters, point fields, verbs' `about=`, method flags and flags typed `Any` were outside the walk; no pool held `10**400` | `test_value_validation`: every setter by the value it reads, points through verbs, every flag found by default, annotation or bool property (GR11–GR13) |
+| Slow paths on hot verbs (E15, SC10, SB11, …) | Benches measured scenes; unit tests checked results | A result test passes on the slow path | `test_hot_paths`: the fast path is taken on a free shape **and** lands where the slow path lands |
+
+1. **A sweep is only as wide as its enumeration list.** KINDS lacked the
+   relational models; the reader list lacked hit tests; the copy sweep had one
+   door; the flag walk had one kind of flag. Enumerate from what the instance
+   exposes (slots, `dir`, signatures, model enums) and add a coverage test that
+   fails when something new has no case.
+2. **Never enumerate from the fix's own list.** Batch 9a's route guard read
+   `_SIZE_WORDS`, the list the fix had just added, so it could only confirm the
+   fix (GR14). A guard's source of truth is outside the code it checks.
+3. **A contract on one door is not a contract.** `clone` vs `<<`; the plain blit
+   vs the full draw; slot setters vs property setters (`scale`, `mass`); the
+   point reader vs a pivot read by hand (GR13). Put the rule in the one place
+   every door passes, then test each door against the others.
+4. **A refusal is a write path.** Test the state after the raise, not only the
+   raise: gather, check, then write.
+5. **State that must outlive a transition cannot live on an object the
+   transition throws away** (E1: callbacks on the Collider).
+6. **A shared default must be immutable,** or one mutation is global (HP1).
+7. **A cache key covers every input of its bake, and a hit must not skip a
+   check.** `showing(True)` hit `showing(1)`'s entry because `True == 1` shares
+   a hash (PA7). Validate before the lookup, or key by exact type.
+8. **Python's equalities cross types.** `True == 1 == 1.0`, `"no"` is truthy
+   (`force="no"` unlinked: GR11), an int has no range (`10**400` passed every
+   exact-int fast path: GR12). A fast path for a type must keep every refusal
+   the slow path makes.
+9. **Construction failure and statement order are lifecycle paths.**
+   Enumerate the raise point and the order, not one happy sequence.
+10. **A fast path needs two pins:** that it is taken (a spy on the slow path
+    on a free shape), and that it lands where the slow path lands (a twin
+    pushed onto the slow path by a Derivate read).
+11. **Check a removal by its diff.** Deleting a function by text search ran
+    into the next one twice in batch 10 (`get_xy`, the `Anchor` header); the
+    import failed at once, but a diff shows the overshoot before anything runs.
+12. **A test value equal to the current one hides the write.** The matrix
+    linked a SPINE Rect's `angle` to the value it already had, so the refused
+    heading publish was an unchanged no-op (GR15). Drive each field to values
+    away from construction; the gate's Hypothesis machine found it, the
+    deterministic matrix now sweeps three values.
+13. **Tightening a leak pattern is a new guard run.** Counting "unhashable
+    type" as a leak (batch 9b) failed three exports in the next gate (GR16).
+    Run the slow fuzz after changing what it counts as a failure.
+
+### Class guards written from the graphics review
+
+| Guard | Lesson | Found beyond the review |
+| --- | --- | --- |
+| `TestKindsCoverEveryModel` | 1 | the relational models' sweeps: GR1 (documented), SB1 / SB4 confirmed |
+| `TestLinkWriteGate` (unlinked twin) | 3 | 689 cases before batch 4 |
+| `test_refusal_atomic` | 4 | GR3, GR4, GR10 |
+| `test_collision_lifecycle` | 5, 9 | GR8, GR9 |
+| `test_construct_failure` | 9 | — |
+| `test_material_isolation` | 6 | — |
+| `test_cache_keys` | 7 | GR7 |
+| `TestEngineReadersStayCold` + AST | 1 | GR5 (by design) |
+| `sweep_c7` (every door, copy then act) | 3 | — |
+| `test_route_table` | 1, 2 | GR14 |
+| `TestFrameCountsGoThroughReached` | 3 | GR6 |
+| `test_draw_doors` | 3 | — |
+| `test_value_validation` (+ `TestEaseNeedsTime`) | 1, 8 | GR11, GR12, GR13; `ease=` ignored by instant verbs |
+| `test_hot_paths` | 10 | — |
+| `TestLinkValuesAwayFromConstruction` | 8 (a value equal to the default hides a refused write) | GR15 |
+
 ## Planning a new test
 
 1. **Enumerate from the source of truth**, not a hand list: slots, `__all__`,
@@ -706,11 +791,19 @@ Each found a new member of its class on the first run (PM15–PM17):
 2. **Name the axes before writing a case:** write path (`=`, constructor, link on
    a field, on a part, on the whole object, copy, batch, pose verb); read order
    (cold, warm, source first, link first, reversed); source value (NaN, out of
-   range, bool, list, state cell, longer sequence); construction model, and every
-   ordered pair of models for copies; lifecycle (install, change, unlink, relink,
-   destroy).
+   range, bool, list, state cell, longer sequence, `10**400`, `"no"` for a flag);
+   construction model, and every ordered pair of models for copies; lifecycle
+   (install, change, unlink, relink, destroy, park and resume); **refusal source**
+   (dead, junk, linked, parked); **copy door** (`clone`, `<<`, whole `@=`,
+   `absorb`); **draw door** (plain blit, full draw); **statement order**; a
+   **read before the verb** (it can move a shape off its fast path); **base
+   layout** (a mixin first or last) and **raise point** for construction.
 3. **Pick an oracle with no model of its own:** a plain-write twin read at the
-   same moments, or the source itself. Build the oracle's setup apart from the
+   same moments, or the source itself. For a gate, an **unlinked twin**: run the
+   verb on it and record which parts changed; on the linked subject exactly
+   those parts must refuse (`TestLinkWriteGate`). For a lifecycle, a twin built
+   directly in the final state. For a cache, a cold bake. For a fast path, a
+   twin pushed onto the slow path. Build the oracle's setup apart from the
    subject; list fields from a throwaway instance.
 4. **State the invariants** the cells check: linked reads like written in any read
    order; one rule set on every path; unlink freezes; two reads agree; a conflict
@@ -751,13 +844,13 @@ member should ask whether the siblings share the cause.
 
 | Class | Members | Guard |
 | --- | --- | --- |
-| **A verb on a dead actor registers work or revives it** | H2 (`layer =`, `tag`), S5 (`mode =`), S8 (transient replace), S9 (`after` / `every` / `tween` / `play_sound` / `on_update`), W2 (`@=` onto a dead actor or a part it left behind), A6 (`resolve_now` re-enrolled the collider), A7 (a first read wired a dead widget into the graph; `Line(circle=dead)`; `Track.reversed()`), HB1 (hitbox writes on a dead or removed hitbox) | `test_sys_hyp_world` poke rule; `test_hyp_surface.TestDeadEntityVerbs` (P6: every public method and setter of every Entity kind; canary S9) |
+| **A verb on a dead actor registers work or revives it** | H2 (`layer =`, `tag`), S5 (`mode =`), S8 (transient replace), S9 (`after` / `every` / `tween` / `play_sound` / `on_update`), W2 (`@=` onto a dead actor or a part it left behind), A6 (`resolve_now` re-enrolled the collider), A7 (a first read wired a dead widget into the graph; `Line(circle=dead)`; `Track.reversed()`), HB1 (hitbox writes on a dead or removed hitbox), SA10 (`center =` moved a dead shape), E14 (dead setters stored, flips), HP7 / HP9 (dead paint and hitbox reads), HP12 (`remove_hitbox` silent), GR3 / GR4 | `test_sys_hyp_world` poke rule; `test_hyp_surface.TestDeadEntityVerbs` (P6: every public method and setter of every Entity kind; canary S9); `test_refusal_atomic` (dead source: nothing changes, reads stable); teardown's `_DeadRoute` refuses every routed write |
 | **A registry keeps a dead owner** | H3 (id map; retired with ids), S1 (bound method in a `WeakKeyDictionary` value), S3 (`id(owner)` keys), S4 (dense snapshots), S6 (`_pair_targets`) | `census` / `zombies` / `assert_collected` in the system suites; `test_act.TestNoLeaks` (a busy scene — `kitchen_sink` plus timers, effects and rules made in the scene — changed N times: stable census, no zombies; 200 cycles with `SCENA_SOAK=1`) |
 | **State leaks from one act into the next** | SC1 (an unread `keyp.once` edge fired in the next act; generalized by PM3), a new canvas / clock / collision setter that an act change neither restores nor keeps on purpose | `test_act.TestSettingsClassification` (walks every settable name on `canvas` / `clock` / `collision` / `audio` / playfield / layers / effects / background and the exported `set_*` / `show_*`; each must be in `WORLD_SETTINGS`, `KEPT_SETTINGS` or the test's `NOT_SETTINGS`); `TestWorldSettings.test_the_test_changes_every_restored_setting` (guards the guard); rule: **anything the author can change globally is classified when it is added** |
-| **A deadline compared on summed frame time** | PM8 (`after` / `every` / tween end / `ready` / `recently` / transient progress fired a frame late or on time by rounding) | `process.reached` for every "is it due" comparison; `test_process.TestDueOnTheExactFrame` (any fps, any whole number of frames). A new timed mechanism compares through `reached` |
+| **A deadline compared on summed frame time** | PM8 (`after` / `every` / tween end / `ready` / `recently` / transient progress fired a frame late or on time by rounding), PB3 (the clip playhead), PB4 (one-shot end, `next=`), GR6 (SpriteButton state art) | `process.reached` for every "is it due" comparison; `test_process.TestDueOnTheExactFrame` (any fps, any whole number of frames). A new timed mechanism compares through `reached` |
 | **A cheap-looking read or no-op builds a registered Entity** | PM7 (a verb on an empty group built a `Blank` Shape per call); PM16 (a non-Shape method on an empty group raised); `canvas.game_view.center` builds a Point (~70 µs) per read (by design: a Box is a value, a Point an entity) | `test_noop_cost` (every Entity method through an empty group, every world setting written back); `program_oracles.probe_neutral` (a run with probes vs without: GC-timed roster entries show up) |
 | **A cell is refused where a number is accepted** | PM12 (`deadzone`), PM15 (`amp_db`) | `test_cells_as_numbers` (every exported function, every number argument); `test_hyp_surface` (slots, verbs, constructors) |
-| **One payload, two doors, two views** | PM11 (`test_collision` vs handlers) | `test_collision_doors` |
+| **One payload, two doors, two views** | PM11 (`test_collision` vs handlers), PB7 / PB8 / HP10 (plain blit vs full draw), SC7 / SB7 (`clone` vs `<<` / whole `@=`), SA7 / E12 (slot setters validated, property setters not), GR13 (a pivot read past the point reader) | `test_collision_doors`; `test_draw_doors`; `sweep_c7` over every copy door; `test_value_validation` |
 | **An unread edge outlives its frame** | SC1 (act change), PM3 (any later first reader of `keyp.once`) | `KeyPressed._expire_edges` at the end of every frame; `test_keyp.TestOnceChordProperty` with frame boundaries |
 | **A rejected call half-applies** | H1 (constructor registers then raises), H4 (`layer =` unregisters then fails), R4 (register auto-created a layer before the id check; retired with ids), A10 (`fade_in` shows before validating; `tangent_lines_from` keeps the first line), W3 (a raising formula left its ink cell and anchor) | constructor census in `test_hyp_api`; "claim nothing before every check passes" in `Registry.register` |
 | **Routing picks the wrong writer** | S10 (`_write_field` ink path on a property-backed field), R1 (a second `__init_subclass__` replaced the first, so `Rect.rotation` routed to `Shape.rotation` and recursed) | `test_entity_hooks` (no duplicate `def`; every subclass has its own route) |
@@ -794,6 +887,11 @@ member should ask whether the siblings share the cause.
 | **A contact is judged on a pose that is never drawn** (frame-time dependent) | F1 (resolve skin read as a gap by the pre-resolve snapshot), F2 (accepted limitation: the pre-resolve pose sinks by g·dt² against a corner) | `tests/test_sys_resting_contact.py` (every kind × pacing incl. uneven 5 / 28 ms × far offset). Rule: a contact rule on a resolved pair must hold at 60 Hz, 200 Hz and uneven pacing; test with alternating short / long frames, not only 60 Hz |
 | **Event-driven level state goes stale** (a level recomputed only on an input event misses every other way it changes) | PH1 (`pointer_hover` recomputed only on mouse moves: stayed True after hide / `clickable = False` / moving away, a new target on top never took it, a widget did not clear it) | `tests/test_pointer_hover.TestStaleness` (every way out, pointer still) + `tests/test_hyp_hover` (exit guarantee; tiered == brute force; edges alternate; a never-exit mutation fails it). Rule: a level is re-validated **per frame** at O(1) and fully recomputed when any of its inputs changes (pointer, an epoch the writers bump, layer stack) — never only in one input's callback |
 | **A test passes only on the Mac** (it relies on a platform default or on a clean tree) | WP1 (scans read AppleDouble `._*` files), WP2 (pixels read in `kN32` order), WP3 / WP7 / WP18 (wall-clock budgets and ratios under load), WP5 / WP8 (text in the locale encoding), WP6 / WP11 (POSIX literals as expected paths or labels), WP9 (a gate test needs a package the `test` extra lacked), WP10 (old runner logs copied Hidden), WP12 (the exec bit asserted on Windows), WP13 (a Hypothesis module on Hypothesis defaults), WP14 / WP15 (a clock read twice, a hang timeout sized for an idle machine), WP16 (child output decoded with the locale), WP17 (paths sorted with the host separator; a test that needs a Mac font) | `tests/test_platform_portability.py` (AST: no bare directory scan in `tests/`; every `toarray` / `fromarray` in `scena/` and `tests/` names `colorType=`; every text `open` / `read_text` / `write_text` in `scena/`, `scena_editor/`, `tests/` names `encoding=`; every `S_IX*` / `X_OK` in a test names the platform; a test that writes a transient's `t0` pins the clock; every text-mode subprocess names `encoding=` / `errors=`), `test_run_tiers.TestHypothesisProfileGuard`. Rule: never rely on a default that differs by platform — name the byte order and the encoding, scan through `source_support`, build expected paths with the same path function, time as a ratio |
+| **State lives on an object a transition throws away** | E1 (`on_collide*` on the Collider that park and `collidable = False` drop), E2 / E3 / E11 (park stash written on one path only) | `test_collision_lifecycle` (every sequence of up to three lifecycle statements vs a twin in the final state). Rule: state that must outlive park / opt-out / resume lives on the actor |
+| **A shared default is mutable** | HP1 (`Color.alpha =` faded every default shape), K4 (interned looks) | `test_material_isolation` (every paint write × every relative). Rule: a shared default is immutable; a write gives the writer a new object |
+| **A cache key misses an input, or a hit skips a check** | PA2 / GR7 (trim offset, `rotated`), PB10 / PB11 (envelope, source rect), PA7 (`True` hit `1`'s entry) | `test_cache_keys` (a warm hit equals a cold bake per field; every module cache listed). Rule: the key holds every input of the bake; a hit is reached only after the type check |
+| **A fast path skips a refusal the slow path makes** | GR12 (`10**400` through every exact-int fast path), B2's inverse | `test_value_validation` (`10**400`, NaN, `True`, `"x"` on every setter). Rule: a type fast path keeps every refusal of the slow path (an int is bounded like a float) |
+| **A guard enumerates from the fix's own list** | GR14 (the route guard read `_SIZE_WORDS`) | `test_route_table` enumerates every field slot of every kind. Rule: a guard's source of truth is outside the code it checks |
 | **A constructor touches a raw input before linking it** | C1 (`Line` home `length` / `angle` via `number()`), C2 (Ellipse focal `get_xy` / `float`), C3 (Box spine `height = float()`), C4 (rotated-corner `_takein` rewrite), C5 (`corner_radius` storing a function), C6 (fixed knobs with a raw or generic message) | `tests/test_ctor_links.py` (every signature, every geometry key: a lambda follows, and a lambda of the same numbers builds the same shape) |
 
 
@@ -1156,7 +1254,7 @@ gaps that **both** authors reported on their own.
 
 | Found in | Issue | Planned |
 | --- | --- | --- |
-| GR (2026-10-08) | About 100 graphics-review findings and GR1–GR7, pinned by shrink-only class guards | Fix batches 1–10; see [GR](#gr--graphics-review-2026-10-08) |
+| GR (2026-10-08) | Left from the graphics review: SC12 (`group["boss"].center` on an empty group builds a Blank and a Point per read, about 0.15 ms; the PM7 leftover); RegularPolygon never publishes `_rotation` (a trap for the next reader); Box and Rect keep near-copies of `_takein_impl` / `rotate_by` (they drifted once, SC1) | Weigh with the author: SC12 needs a cached placeholder per group name; the other two are refactors with no bug today |
 
 ### GR — graphics review (2026-10-08)
 
@@ -1185,28 +1283,32 @@ with its finding and the batch that removes it.
 | `test_sprite.TestClipOnTheExactFrame`; `test_write_path_guards.TestFrameCountsGoThroughReached` | PM8 class: the clip playhead | the clip frame due on a whole game frame shows on it; no `int(t * fps)` |
 | `test_draw_doors` | plain blit vs full draw; knobs a path ignores | the same pixels on both paths; every knob changes the picture |
 
-Members the guards found beyond the review (open; the batch is the fix plan):
+Members the guards found beyond the review (all fixed or triaged by batch 10):
 
 | ID | Bug | Root cause | Why earlier tests missed it | Guard |
 | --- | --- | --- | --- | --- |
 | GR1 | A PARALLEL_DIST Line's `move_by` / `move_to` moved it the wrong distance | **documented design** (triaged in batch 8): the move's normal component becomes `dist`, the along-track part is dropped (`test_shapes.TestLineParallelDist.test_move_by_adjusts_dist`) | relational models were not in KINDS | the sweeps skip it with its reason (`geometry_support.CONTRACT_EXEMPT`) |
 | GR2 | The DerivedAttributeError on a tangent-angle Line / FROM_RECT Ellipse suggests `move_to(...)`, which the linked input refuses | the hint does not know the model is relational | same | `test_derivate_readonly` (fixed, batch 9b: `KNOWN_BAD_HINT` empty) |
 | GR3 | A destroyed focal-points Ellipse's `box` raises twice, then returns a 0 × 0 box | `box.region_frame` read the public Derivates `width` / `height`: each dead read built one more part before raising | no test read a dead actor three times | `test_refusal_atomic.test_reads_are_stable` (fixed, batch 9b) |
-| GR4 | `no_drag()` / `no_handles()` on a destroyed Point repaint it | no dead check on those verbs | P6 checks registrations, not the actor's own state | `test_refusal_atomic` dead source (batch 9) |
+| GR4 | `no_drag()` / `no_handles()` on a destroyed Point repaint it | no dead check on those verbs | P6 checks registrations, not the actor's own state | `test_refusal_atomic` dead source (fixed, batch 9a) |
 | GR5 | A free `Track.line(p1=, p2=)` starts on the slow pose path | **not a bug** (triaged in batch 6): a control-point Track keeps its centroid as a live Derivate so `center` never lags a move (G11) | the reader matrix had a hand list of models | `test_diff_pose.START_SLOW` (reason recorded) |
 | GR6 | SpriteButton state art truncates summed time (`int(t * fps)`), like PB3 | PM8 rule not applied | same as PB3 | `TestFrameCountsGoThroughReached` (batch 8) |
 | GR7 | `frame.rotated` is missing from the auto-hitbox, silhouette and union cache keys | key built by hand from some frame fields | no test varied a frame field against a warm cache | `test_cache_keys` (batch 6) |
 | GR8 | An `@collide` group declared while an actor was parked never enrolled it on resume | resume enrolled only an actor that was collidable before park | lifecycle tests ran one transition at a time | `test_collision_lifecycle` (fixed, batch 1) |
 | GR9 | `on_collide = f` opted the actor back in but did not enroll its pair groups | the callback path built a Collider without the enroll step `collidable = True` has | same | `test_collision_lifecycle` (fixed, batch 1) |
+| GR10 | `show_handles()` registered the handles, then a whole-object link refused the call | check after write | the registration was not part of any snapshot | `test_refusal_atomic` (fixed, batch 5) |
 | GR11 | `rotate_by(force="no")` (every pose verb) unlinked the parts it wrote: `"no"` is truthy | `force` never validated; flags were walked on constructors only | `TestFlagsTakeARealBool` walked constructor flags whose default is a bool | `test_value_validation` FLAGS (fixed, batch 9b) |
 | GR12 | `angle = 10**400` (about 600 setter cases) leaked `OverflowError`, or stored the int | the exact-int fast paths of `finite()`, `_finite_deg` and plain slots skip the range a float has | no pool held a huge int | `test_value_validation` VALUES (fixed, batch 9b) |
 | GR13 | `Track.rotate_by(about=(nan, 0))` turned the points to NaN | `_orbit_points` read a tuple pivot raw, past `get_xy` | the NaN pool reached setters, not pivots | same (fixed, batch 9b) |
+| GR15 | A SPINE Rect with `angle` linked raised `LinkedAttributeError` on every read once the link moved the heading | batch 4's backstop in `_pose_rotation_set` also refused the update publishing the heading it derived (the link's own echo); `Rect._publish_heading` now uses `_pose_rotation_publish` | the deterministic matrix links each field with one value, which for this model equals the construction heading, so the publish was an unchanged no-op | `test_reactive_matrix.TestLinkValuesAwayFromConstruction` (every subject × linkable field × three values; found by the gate's `test_hyp_reactive_matrix`; fixed, batch 11) |
+| GR16 | `Texture(filename=[])`, `mouse.click_pos([])`, `State().create([])` / `exists([])` raised Python's "unhashable type" | a dict lookup before the type check (A1 class) | `leak_message` did not count "unhashable type" until batch 9b | `test_hyp_surface` P2 (fixed, batch 11: one `_state_key` check for every State verb; `_check_button`; the image loader checks the name first) |
 | GR14 | `circle.top_left = …`, `fp1`, `vertex`, `dist` on a kind that lacks them were dead attributes | E13 reserved the size words only | the route guard enumerated the engine's own word list | `test_route_table` (fixed, batch 9b) |
 
 Fixed so far (each batch removes its entries from the known lists):
 
 | Batch | Findings | One-place fix | Guard |
 | --- | --- | --- | --- |
+| 11 lessons and gate findings | GR15, GR16 | `_pose_rotation_publish` for a derived heading (no linked-pose refusal: the update is the link's echo); `_state_key` / `_check_button` / the image loader check the type before a lookup | `TestLinkValuesAwayFromConstruction` (fails on HEAD), `test_hyp_surface` P2 |
 | 10 performance and leftovers | E15, E16, SA14, SC10, SB11, HP14, PA-note; E17, E18 (`made_at`, strict ink by class, `ease=` without `time=`), PA14, SA19 / SC13 dead code, PB-note | class defaults `_main_hitbox_off` / `_touching_sides` / `_blit_plain` (45 `__getattr__` misses per frame → 0); `_frame_outside_scena` walks `sys._getframe`; instant `move_to` skips the pivot; free Polygon `move_by` and Line about-center `rotate_by` take bare float writes (`_move_by_batched` / `_rotate_by_batched` otherwise); retired Hitbox names are `_RetiredKnob` class descriptors; file-list strips shared by decoded images (`_PACK_CACHE`); per-class caches stored on the class; `_ink_strict` on Point / Line; `_require_timed_completion(ease=)` on every timed verb, camera included; `_require_loop_kwargs` checks `yoyo`; `skip_file_prefixes=_WARN_SKIP` in sprite / atlas; `get_point`, `_hitbox_px_scale` and EquilateralTriangle's clone copy removed. A/B (in-process, interleaved, best of 14): 120 moving colliders 0.839 → 0.830 ms / frame; `destroy()` 56.1 → 31.2 µs; instant `move_to` 2.96 → 1.88 µs; Polygon `move_by` 14.0 → 1.9 µs; Line `rotate_by` 8.0 → 3.2 µs; 40 animated sprites with parts 6.27 → 6.14 ms (median); a second file-list Sheet 9.7 → 0.44 ms | `test_hot_paths` (each fast path taken on a free shape, equal to the slow path after a Derivate read; no `__getattr__` miss in a frame; 6 of 9 fail on HEAD), `TestEaseNeedsTime` (39 timed verbs), `TestSheetWarningsPointAtTheAuthor` (+ AST: no `stacklevel=` in sprite / atlas), `TestClipClockUnderPark` |
 | 9b validation, hitbox claims, sheet frames | SA6, SA7, SA12, SA15, SB10, SC9, SC11, E10, E12, PA3, PA4, PA6, PA7, PA8, PA9, PA10, PA11, PA13, PB13, PB15, HP6, HP8, HP12, HP13 (decision 5), GR2, GR3, GR11–GR14 | one point reader refuses NaN / inf / a huge int (`shapes._finite_xy`, inline in `_xy_of` / `get_xy`); `validate.finite` and the slot / `_finite_deg` int fast paths bound the int; hand-rolled `float()` setters call `validate.number` (`scale`, `mass`, `clock.scale`, `ui.scale`, Sprite `tilt` / `offset` / `art_angle`, Portal, Warp, Lattice); `force` checked where the pose verbs start; `expect_bool` for every flag that called `bool()`; a claim records the groups it added (`Hitbox._added`); a Sheet keeps each frame's file (`_frame_paths`), names that two frames share are ambiguous, per-clip offsets are recomputed (`_clip_offsets`), `showing()` caches by exact type, a path is spelled as on disk (`_true_case_path`); the relational move hint (`_move_writes_a_link`, `Line._relational_move_hint`); `region_frame` reads the Ellipse's cold frame; `_POINT_WORDS` / `_RELATION_WORDS` route refusals. A/B (per-frame tuple moves, linked tuple formulas, pose verbs, `showing`): 2.738 → 2.758 ms best, medians equal (noise) | VALUES 894 → 0, FLAGS 49 → 0 (`test_value_validation`, canary), UNSTABLE_READS 1 → 0, `KNOWN_BAD_HINT` 4 → 0, `TestNamedLeaks`, `TestSheetFrames` (7), hitbox HP12 / HP13 tests |
 | 9a route table | E8, E12 / SA17, E13, E14 class, GR4 | `_install_setattr_route` maps methods, setter-less properties and missing size words (`_SIZE_WORDS`) to `_RouteRefusal`; a setter anywhere in the MRO wins over a method (`Track.line`); teardown installs `_DeadRoute` per instance (`_mark_routes_dead`) so live writes pay nothing. A/B (400 routed writes): 1.515 → 1.512 ms | ROUTE 110 → 0 (+ canary), ATOMIC 256 → 0; `test_hyp_canvas` model and `test_process` follow E9 / the quiet `on_update`; the `world_view` smoke HUD no longer writes into Texts its scene destroyed |

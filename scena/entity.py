@@ -621,6 +621,27 @@ def _pose_rotation_set(obj, value: float) -> None:
         _mark_anchor_dirty(anchors, "angle")
 
 
+def _pose_rotation_publish(obj, value: float) -> None:
+    """An update publishes a heading it derived from the geometry (Rect).
+
+    Not an author write: a linked ``angle`` drives that geometry, so this is
+    the link's own echo. Through ``_pose_rotation_set`` the backstop refused
+    it, and every read of a SPINE Rect with ``angle`` linked raised (found by
+    the gate's reactive machine after batch 4)."""
+    value = float(value)
+    d = obj.__dict__
+    old = d.get("_rotation")
+    if old is None:
+        old = getattr(obj, "_rotation", None)
+    if old is not None and old == value:
+        return
+    object.__setattr__(obj, "_rotation", value)
+    _bump_collision_epoch(obj)
+    anchors = d.get("_field_anchors")
+    if anchors:
+        _mark_anchor_dirty(anchors, "angle")
+
+
 def _pose_rotation_add(obj, delta: float) -> None:
     _refuse_if_destroyed(obj, "rotate_by")
     anchors = obj.__dict__.get("_field_anchors")

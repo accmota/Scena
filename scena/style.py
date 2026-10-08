@@ -2270,6 +2270,9 @@ def _load_image(filename: str, *, kind: str = "image") -> skia.Image:
     Paths resolve via ``scena.sprite._resolve_image_path`` (absolute, script
     dir, ``media/`` next to the script, then cwd — not recursive).
     """
+    if not isinstance(filename, (str, os.PathLike)):
+        # Checked before the cache lookup: a list leaked "unhashable type".
+        raise TypeError(f"{kind} expected a file name, got {type(filename).__name__} {filename!r:.30}")
     try:
         from .sprite import _resolve_image_path
         resolved = _resolve_image_path(filename)

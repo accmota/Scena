@@ -226,6 +226,15 @@ def get_owner_chain(obj: 'Container') -> List['Container']:
 _STATE_RESERVED_CELLS = frozenset({"keys", "exists", "create", "remove"})
 
 
+def _state_key(key, verb: str) -> None:
+    """A State variable name is a string, checked before any dict lookup (a
+    list leaked "unhashable type": A1 class, found again by the gate's
+    surface fuzz once ``unhashable type`` counted as a leak)."""
+    if type(key) is not str:
+        raise TypeError(f"State.{verb}() takes a variable name (str), got "
+                        f"{type(key).__name__} {key!r:.30}")
+
+
 class State:
     """Named bag of boxed Attribute cells.
 
@@ -382,6 +391,7 @@ class State:
             key: The state variable name
             initial: Initial value (default 0)
         """
+        _state_key(key, "create")
         if key == 'name':
             raise AttributeError("State.name is read-only")
         if key in _STATE_RESERVED_CELLS:
@@ -397,6 +407,7 @@ class State:
 
     def exists(self, key: str) -> bool:
         """Check if a key exists in the state"""
+        _state_key(key, "exists")
         return key in self._data
 
     def keys(self) -> Set[str]:
@@ -411,8 +422,7 @@ class State:
         referenced this variable, unregisters from the DependencyGraph) and
         drops the key from this State. Raises KeyError if the key is absent.
         """
-        if type(key) is not str:
-            raise TypeError(f"State.remove() takes a variable name (str), got {type(key).__name__}")
+        _state_key(key, "remove")
         if key not in self._data:
             raise KeyError(f"State has no variable {key!r}")
         attr = self._data.pop(key)

@@ -32,7 +32,7 @@ from .entity import (
     _INK_RESERVED, _SET_OBJECT,
     _ink_link_forbidden_message,
     _install_setattr_route, _install_timed_pose,
-    _pose_rotation_set, _pose_rotation_add, _pose_scale_set,
+    _pose_rotation_set, _pose_rotation_add, _pose_rotation_publish, _pose_scale_set,
     _refuse_linked_pose, _gate_pose_anchor,
     _bump_collision_epoch, _geom_path_cache_set,
     _USE_LAYER_DEFAULT, _COPY_GROUPS, _STYLE_PAINT,
@@ -7840,8 +7840,9 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
                 raise ValueError(f"Unknown rect model: {self.model}")
 
     # The pose store follows every update. Bound directly (no extra frame on a
-    # per-update path): self._publish_heading(ang) is _pose_rotation_set(self, ang).
-    _publish_heading = _pose_rotation_set
+    # per-update path): self._publish_heading(ang) is _pose_rotation_publish(self, ang),
+    # which skips the linked-pose refusal (the update is the link's own echo).
+    _publish_heading = _pose_rotation_publish
 
     @property
     def corners(self) -> List['Point']:

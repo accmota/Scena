@@ -157,6 +157,10 @@ left out.
   attribute lookup falls through to the slow path).
 - Sheet and Sprite warnings (missing file, replaced clip, letter case) name
   the line in your program; they named a file inside Scena.
+- A SPINE Rect (`Rect(p1=, p2=, height=)`) with a linked `angle` reads again:
+  once the link turned it, every read raised LinkedAttributeError.
+- `Texture(filename=[])`, `mouse.click_pos([])` and `State().create([])` /
+  `exists([])` raise Scena's TypeError instead of Python's "unhashable type".
 - An author class named `Point` or `Line` behaves like any other class with
   bracket fields (`obj["hp"]`); the strict rule for the real Point / Line
   went by class name.
