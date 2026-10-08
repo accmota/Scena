@@ -1300,7 +1300,9 @@ const SPATIAL = [
       card.addEventListener("blur", () => setPlaying(img, false));
       card.addEventListener("click", () => {
         setPlaying(img, false);
-        showView(el, "tabs", true);
+        // Reading one card is not choosing Abas: only the toggle is remembered,
+        // or the next visit opens this catalog without its gallery.
+        showView(el, "tabs", false);
         const tab = el.querySelector(`:scope > .tabs > .tab-bar > .tab[data-tab="${card.dataset.goto}"]`);
         if (tab) tab.click();
         // The gallery just collapsed: bring the toggle + tab bar + panel to the top.

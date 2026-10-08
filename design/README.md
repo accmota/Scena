@@ -225,7 +225,10 @@ file does not exist.
   - **Guards:** a card that renders nothing visible fails; hit cards
     (`canvas.flash`, `zap_at`, …) use their peak frame as the poster.
   - **Page:** each such catalog has a **Galeria / Abas** toggle (remembered per
-    catalog); a link to a card opens Abas. A loop plays by itself in the active
+    catalog, in the browser's storage); a link to a card, or a click on a
+    gallery card, opens Abas *for now* — only the toggle is remembered, or one
+    card read hides that catalog's gallery on every later visit in that
+    browser. A loop plays by itself in the active
     panel (or under the pointer in the gallery) unless the system asks for
     reduced motion; its ▶ / ❚❚ button always works — reduced motion stops
     autoplay, not an animation the reader asked for. Attribute values go

@@ -8,6 +8,7 @@ Snippet choice, staleness hashing, the page data file, and the render guards
 from __future__ import annotations
 
 import os
+import re
 import sys
 import unittest
 
@@ -97,6 +98,16 @@ class TestPageData(unittest.TestCase):
         self.assertTrue(vg.validate_catalogs(bags))
         bags = {"LOOKS": [dict(_card(), thumb="c.visual = (")]}
         self.assertTrue(any("thumb" in e for e in vg.validate_catalogs(bags)))
+
+    def test_only_the_toggle_remembers_the_view(self):
+        # A gallery card click opened Abas *and saved it*: from then on that
+        # catalog opened without its gallery (seen in one browser, not in a
+        # fresh one). Every other way into Abas (a card, a link) is for now.
+        src = vg.CATALOGS.read_text(encoding="utf-8")
+        calls = re.findall(r"showView\(([^()]*)\)", src)
+        self.assertTrue(calls)
+        saved = [c for c in calls if not re.search(r",\s*(false|remember)\s*$", c)]
+        self.assertEqual(saved, ["el, b.dataset.view, true"])
 
 
 class TestVariants(unittest.TestCase):
