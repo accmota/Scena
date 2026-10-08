@@ -5251,6 +5251,39 @@ class TestSpritePointerAlpha(SpriteTestCase):
         self.assertIn(s, get_collision_system().query_point(0, 0))
 
 
+
+class TestClipClockUnderPark(unittest.TestCase):
+    """PB-note (graphics review): the clip clock is world time, not a timer.
+    A parked sprite's clip keeps advancing; ``time_scale = 0`` holds it."""
+
+    def test_park_advances_the_clip_and_time_scale_zero_holds_it(self):
+        import sys as _sys
+        _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from system_support import SystemWorld
+        w = SystemWorld(draw=False)
+        try:
+            d = tempfile.mkdtemp()
+            path = os.path.join(d, "g.png")
+            _write_grid_png(path, cell=16, cols=2, rows=1)
+            sheet = Sheet(path, cell=(16, 16))
+            sheet.clip("a", [0, 1], fps=4)
+            held = Sprite(sheet, center=(0, 0), height=16)
+            parked = Sprite(sheet, center=(0, 0), height=16)
+            held.play("a")
+            parked.play("a")
+            held.time_scale = 0
+            held.active = False
+            parked.active = False
+            w.step(45)                      # 0.75 s at 4 fps: cell 1
+            held.active = True
+            held.time_scale = 1
+            parked.active = True
+            self.assertEqual(held.frame, 0)
+            self.assertEqual(parked.frame, 1)
+        finally:
+            w.teardown()
+
+
 if __name__ == "__main__":
     unittest.main()
 

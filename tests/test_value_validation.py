@@ -423,6 +423,72 @@ class TestNamedLeaks(unittest.TestCase):
             t.destroy()
 
 
+# Verbs whose one required argument is a point (``pan_by((dx, dy))``).
+_POINT_FIRST = {"pan_by", "pan_to"}
+
+
+def ease_without_time_violations() -> dict:
+    """Every public verb with ``time=`` and ``ease=`` refuses ``ease=`` alone:
+    an instant call has no curve, and the value was ignored (graphics review
+    E18). Same arguments as the flag walk; the canvas camera verbs too."""
+    from test_hyp_surface import _ARG_BY_NAME
+    guesses = {**_ARG_BY_NAME, **_ARGS, "value": 1.0, "factor": 1.1}
+    out = {}
+    checked = ease_without_time_violations.checked = []
+    subjects = list(_method_instances()) + [("canvas", lambda: scena.canvas)]
+    for label, factory in subjects:
+        with fresh_world():
+            cls = type(factory())
+            for attr in sorted(dir(cls)):
+                if attr.startswith("_"):
+                    continue
+                if not callable(inspect.getattr_static(cls, attr, None)):
+                    continue
+                with quiet():
+                    method = getattr(factory(), attr)
+                try:
+                    params = inspect.signature(method).parameters
+                except (TypeError, ValueError):
+                    continue
+                if "ease" not in params or "time" not in params:
+                    continue
+                if params["time"].default is params["time"].empty:
+                    continue                    # time= is required (tween, move_along)
+                need = [p for p in params.values() if p.default is p.empty
+                        and p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD)]
+                if attr in _POINT_FIRST:
+                    args, kwargs = [(1.0, 1.0)], {}
+                elif any(p.name not in guesses for p in need):
+                    out[f"{label}.{attr}"] = "no argument guess (add one)"
+                    continue
+                else:
+                    args = [guesses[p.name] for p in need if p.kind is not p.KEYWORD_ONLY]
+                    kwargs = {p.name: guesses[p.name] for p in need if p.kind is p.KEYWORD_ONLY}
+                checked.append(f"{label}.{attr}")
+                try:
+                    with quiet():
+                        getattr(factory(), attr)(*args, **kwargs, ease="in_out")
+                except TypeError as e:
+                    if "ease" not in str(e):
+                        out[f"{label}.{attr}"] = f"TypeError, not about ease: {str(e)[:60]}"
+                    continue
+                except Exception as e:  # noqa: BLE001
+                    out[f"{label}.{attr}"] = f"{type(e).__name__}: {str(e)[:60]}"
+                    continue
+                out[f"{label}.{attr}"] = "ease= accepted without time="
+    return out
+
+
+class TestEaseNeedsTime(unittest.TestCase):
+    def setUp(self):
+        warnings.simplefilter("ignore")
+
+    def test_every_timed_verb_refuses_ease_alone(self):
+        found = ease_without_time_violations()
+        self.assertGreater(len(ease_without_time_violations.checked), 30, "vacuous walk")
+        self.assertEqual(found, {})
+
+
 class TestValueDoors(unittest.TestCase):
     def setUp(self):
         warnings.simplefilter("ignore")

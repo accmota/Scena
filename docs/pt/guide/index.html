@@ -7161,7 +7161,7 @@ ship.rotate_by(360, time=1.0, loops="forever")
 ship.scale_to(1.2, time=0.3, loops=4, yoyo=True)
 ship.move_to(600, 200, time=1.0, on_done=lambda: play_sound("pop"))</pre>
       </div>
-      <p>Sem <code>time=</code> (exceto <code>move_along</code> e <code>tween</code>, que exigem): na hora, devolve o objeto. Com <code>time=</code>: interpola e devolve <a href="#agendar-handle">Handle</a>. <code>then=</code> / <code>on_done=</code> / <code>loops=</code> / <code>yoyo=</code> exigem <code>time=</code>. <code>start=</code> existe só em <code>tween</code> — para colocar e depois viajar com um verbo de pose, use duas linhas (<code>center = …</code> e depois <code>move_to(..., time=)</code>). O contrato de fim: <a href="#agendar-fim">Ao terminar</a>.</p>
+      <p>Sem <code>time=</code> (exceto <code>move_along</code> e <code>tween</code>, que exigem): na hora, devolve o objeto. Com <code>time=</code>: interpola e devolve <a href="#agendar-handle">Handle</a>. <code>ease=</code> / <code>then=</code> / <code>on_done=</code> / <code>loops=</code> / <code>yoyo=</code> exigem <code>time=</code> (sem <code>time=</code> não há curva: <code>rotate_by(10, ease="in_out")</code> levanta erro). <code>start=</code> existe só em <code>tween</code> — para colocar e depois viajar com um verbo de pose, use duas linhas (<code>center = …</code> e depois <code>move_to(..., time=)</code>). O contrato de fim: <a href="#agendar-fim">Ao terminar</a>.</p>
       <div class="tbl-wrap wrap-first">
         <table>
           <thead>

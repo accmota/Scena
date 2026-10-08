@@ -93,6 +93,10 @@ from .validate import HINT_EXTENT
 from .process import _DUE_EPS
 from .closed import ClosedSurface, seal
 
+# Warnings point at the author's line: every frame inside the package is
+# skipped (graphics review PA14: Sheet warnings pointed at sprite.py).
+_WARN_SKIP = (os.path.dirname(os.path.abspath(__file__)) + os.sep,)
+
 
 def _sq(v: float) -> float:
     """``v * v``. Not ``v ** 2``: a float power raises OverflowError for a
@@ -274,6 +278,7 @@ def reset_sprite_caches() -> None:
     _STALE_HITBOX_WARNED.clear()
     _PLACEHOLDER_CACHE.clear()
     _TRUE_CASE.clear()
+    _PACK_CACHE.clear()
     Sheet._intern.clear()
     reset_atlas_caches()
 
@@ -371,6 +376,8 @@ def _resolve_image_path(filename: str) -> Optional[str]:
 
 
 _TRUE_CASE: Dict[str, str] = {}
+# Strips packed from file lists, keyed by the decoded images (PA-note).
+_PACK_CACHE: Dict[tuple, Tuple[skia.Image, Tuple[AtlasFrame, ...]]] = {}
 
 
 def _true_case_path(ap: str, written: str) -> str:
@@ -410,7 +417,7 @@ def _true_case_path(ap: str, written: str) -> str:
             f"Image {written!r} was found as {os.path.basename(real)!r} only because this "
             "disk ignores letter case; on Linux it is missing. Write the name as on disk.",
             RuntimeWarning,
-            stacklevel=4,
+            skip_file_prefixes=_WARN_SKIP,
         )
     _TRUE_CASE[ap] = real
     return real
@@ -541,7 +548,7 @@ def _expand_pattern(pattern: str) -> List[str]:
             "The clip is still valid. "
             f"Looked in: {'; '.join(folders)}.{hint}",
             RuntimeWarning,
-            stacklevel=4,
+            skip_file_prefixes=_WARN_SKIP,
         )
     return [pattern]
 
@@ -653,7 +660,7 @@ def _load_sprite_image(source: str) -> Tuple[skia.Image, bool, str]:
                 f"Sprite failed to decode {source!r} ({e}). Using a placeholder. "
                 "The actor is still valid.",
                 RuntimeWarning,
-                stacklevel=3,
+                skip_file_prefixes=_WARN_SKIP,
             )
             return _make_placeholder(os.path.basename(source)), True, os.path.basename(source)
     display = os.path.basename(source) or source
@@ -663,7 +670,7 @@ def _load_sprite_image(source: str) -> Tuple[skia.Image, bool, str]:
             f"Sprite file not found: {source!r}. Using a placeholder. "
             "The actor is still valid (layer / groups / process still work).",
             RuntimeWarning,
-            stacklevel=3,
+            skip_file_prefixes=_WARN_SKIP,
         )
     return _make_placeholder(display), True, display
 
@@ -940,7 +947,7 @@ class Sheet(ClosedSurface):
                     "Looked next to the script, in that folder's media/, "
                     "and in the current working directory.",
                     RuntimeWarning,
-                    stacklevel=3,
+                    skip_file_prefixes=_WARN_SKIP,
                 )
             self._init_placeholder(display, missing_atlas=True)
             return
@@ -980,7 +987,7 @@ class Sheet(ClosedSurface):
                             "Looked next to the script, in that folder's media/, "
                             "and in the current working directory.",
                             RuntimeWarning,
-                            stacklevel=3,
+                            skip_file_prefixes=_WARN_SKIP,
                         )
                     else:
                         warnings.warn(
@@ -988,7 +995,7 @@ class Sheet(ClosedSurface):
                             f"{listed_name!r}, which was also missing. "
                             "Using a placeholder. The catalog is still valid.",
                             RuntimeWarning,
-                            stacklevel=3,
+                            skip_file_prefixes=_WARN_SKIP,
                         )
                 source_miss_warned = True
                 img_path = listed_path
@@ -1007,7 +1014,7 @@ class Sheet(ClosedSurface):
                     f"(listed {listed_image!r}). Using a placeholder. "
                     "Pass the png: Sheet(\"space_sheet.png\", atlas=\"space_sheet.xml\").",
                     RuntimeWarning,
-                    stacklevel=3,
+                    skip_file_prefixes=_WARN_SKIP,
                 )
         else:
             self._image, self._placeholder, self._display = _load_sprite_image(img_path)
@@ -1441,7 +1448,7 @@ class Sheet(ClosedSurface):
                 f"Sheet clip {name!r} replaced (yoyo={old_yoyo} → yoyo={yoyo}). "
                 "Use a new name, or overwrite intentionally.",
                 RuntimeWarning,
-                stacklevel=3,
+                skip_file_prefixes=_WARN_SKIP,
             )
         self._cycles[name] = (out, fps_v, yoyo)
         self._selector_cache = None   # ``showing()`` sets name clips
@@ -1627,7 +1634,17 @@ def _pack_frame_files(
         images.append(img)
         names.append(os.path.splitext(os.path.basename(f))[0] or display)
         any_placeholder = any_placeholder or placeholder
-    packed, frames = compose_strip(images, names)
+    # The decoded images are shared (``_IMAGE_CACHE``); share the strip packed
+    # from them too. The same strip is the same image to the bake caches, so a
+    # second Sheet over the same files reuses the auto-hitbox fits instead of
+    # re-fitting them (graphics review PA-note: about 10 ms per instance). The
+    # Sheet itself stays the author's own (clip / strip still work).
+    key = (tuple(id(im) for im in images), tuple(names))
+    hit = _PACK_CACHE.get(key)
+    if hit is None:
+        hit = compose_strip(images, names)
+        _PACK_CACHE[key] = hit
+    packed, frames = hit
     display = names[0] if len(names) == 1 else f"{names[0]}+{len(names) - 1}"
     return packed, frames, any_placeholder, display, tuple(files)
 
@@ -1695,7 +1712,7 @@ def _warn_stale_hitbox_from(sprite) -> None:
     warnings.warn(
         f"hitbox source={spec!r} is not on this sheet; baking the construct frame.",
         RuntimeWarning,
-        stacklevel=2,
+        skip_file_prefixes=_WARN_SKIP,
     )
 
 
@@ -1708,7 +1725,7 @@ def _warn_atlas_source_mismatch(source: str, listed: Optional[str]) -> None:
     warnings.warn(
         f"source={source!r} but atlas lists {listed!r}; using source.",
         RuntimeWarning,
-        stacklevel=4,
+        skip_file_prefixes=_WARN_SKIP,
     )
 
 
@@ -2390,7 +2407,7 @@ def _svg_warn_once(kind: str, text: str, message: str) -> None:
     if key in _SVG_WARNED:
         return
     _SVG_WARNED.add(key)
-    warnings.warn(message, RuntimeWarning, stacklevel=3)
+    warnings.warn(message, RuntimeWarning, skip_file_prefixes=_WARN_SKIP)
 
 
 def _svg_looks_like_markup(text: str) -> bool:
@@ -2571,7 +2588,7 @@ def _warn_unknown_frame(sheet: Sheet, key: str) -> None:
         f"{sheet._unknown_frame_message(key)} Using a placeholder. "
         "The actor is still valid.",
         RuntimeWarning,
-        stacklevel=4,
+        skip_file_prefixes=_WARN_SKIP,
     )
 
 
@@ -3139,40 +3156,15 @@ class _HitboxBakeMixin:
                 return int(frames[0])
         return idx
 
-    def _hitbox_px_scale(
-        self,
-        fw: float, fh: float,
-        aw: float, ah: float,
-        rw: float, rh: float,
-    ) -> Tuple[float, float]:
-        """Reference-source pixels per frame pixel, matching the blit.
-
-        One design-units-per-pixel scale per sprite (``_du_per_px``): every
-        cell's pixels land at the same size, so this is always identity. Kept
-        so the union bake keeps one call shape.
-        """
-        return (1.0, 1.0)
-
     def _hitbox_union_scales(
         self, indices: Sequence[int],
     ) -> Tuple[Tuple[float, float], ...]:
-        """Blit placement of each bake frame, in the first index's source pixels."""
-        if len(indices) <= 1:
-            return ((1.0, 1.0),) * len(indices)
-        sheet = self._sheet
-        ref = sheet._frame_at(int(indices[0]))
-        rw = float(ref.src_w) or 1.0
-        rh = float(ref.src_h) or 1.0
-        out: List[Tuple[float, float]] = []
-        for i in indices:
-            fr = sheet._frame_at(int(i))
-            anchor = sheet._frame_at(self._hitbox_display_anchor_index(int(i)))
-            out.append(self._hitbox_px_scale(
-                float(fr.src_w), float(fr.src_h),
-                float(anchor.src_w), float(anchor.src_h),
-                rw, rh,
-            ))
-        return tuple(out)
+        """Blit placement of each bake frame, in the first index's source pixels.
+
+        One design-units-per-pixel scale per sprite (``_du_per_px``): every
+        cell's pixels land at the same size, so it is identity for each frame
+        (a per-frame helper that always returned ``(1, 1)`` is gone; SA19)."""
+        return ((1.0, 1.0),) * len(indices)
 
     def _apply_source_collider(self, col, fr) -> None:
         """Copy a source-space ``AutoCollider`` into local prims. Empty → design-box fallback."""

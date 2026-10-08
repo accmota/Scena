@@ -29,7 +29,7 @@ from .validate import expect_bool as _expect_flag
 from .validate import check_pointer_handler as _check_pointer_handler
 from .entity import (
     Entity, Graphic,
-    _INK_RESERVED, _SET_OBJECT, _SETATTR_ROUTE,
+    _INK_RESERVED, _SET_OBJECT,
     _ink_link_forbidden_message,
     _install_setattr_route, _install_timed_pose,
     _pose_rotation_set, _pose_rotation_add, _pose_scale_set,
@@ -641,22 +641,6 @@ def _point_in_polygon(x: float, y: float, vertices: Sequence) -> bool:
         xj, yj = xi, yi
     return inside
 
-
-def get_point(obj: GeneralPoint) -> 'Point':
-    """ Extract a Point from various object types. """
-    if isinstance(obj, Point):
-        return obj
-    elif isinstance(obj, tuple) and len(obj) == 2:
-        x, y = obj
-        if not (isinstance(x, (int, float, Attribute)) and isinstance(y, (int, float, Attribute))):
-            raise TypeError("Tuple coordinates must be numbers")
-
-        return Point(x, y, layer=None)
-    else:
-        raise TypeError(
-            f"expected a point — (x, y), Point, Vec2, or a Shape (its center) — "
-            f"got {type(obj).__name__}"
-        )
 
 def get_xy(obj: GeneralPoint, bare: bool = False) -> Tuple[float, float]:
     """ Extract a Point from various object types.
@@ -2014,9 +1998,9 @@ class Shape(Graphic, PaintState):
                 self, value, time=time, ease=ease, then=then, on_done=on_done,
                 about=about, force=force, loops=loops, yoyo=yoyo,
             )
-        if then is not None or on_done is not None:
+        if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="rotate_to")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="rotate_to")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="rotate_to")
@@ -2042,9 +2026,9 @@ class Shape(Graphic, PaintState):
                 about=about, force=force, loops=loops, yoyo=yoyo,
             )
         _refuse_if_destroyed(self, "rotate_by")
-        if then is not None or on_done is not None:
+        if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="rotate_by")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="rotate_by")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="rotate_by")
@@ -2081,9 +2065,9 @@ class Shape(Graphic, PaintState):
                 self, value, time=time, ease=ease, then=then, on_done=on_done,
                 about=about, force=force, loops=loops, yoyo=yoyo,
             )
-        if then is not None or on_done is not None:
+        if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="scale_to")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="scale_to")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="scale_to")
@@ -2105,9 +2089,9 @@ class Shape(Graphic, PaintState):
                 about=about, force=force, loops=loops, yoyo=yoyo,
             )
         _refuse_if_destroyed(self, "scale_by")
-        if then is not None or on_done is not None:
+        if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="scale_by")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="scale_by")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="scale_by")
@@ -2150,9 +2134,9 @@ class Shape(Graphic, PaintState):
         ``face=True`` aims ``.angle`` at the travel direction (zero delta holds).
         force=True unlinks Defining parts that must be written (default: raise).
         """
-        if time is None and (then is not None or on_done is not None):
+        if time is None and (then is not None or on_done is not None or ease != "linear"):
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="move_by")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="move_by")
         if time is None and (loops != 1 or yoyo):
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="move_by")
@@ -2256,9 +2240,9 @@ class Shape(Graphic, PaintState):
         Combined with ``about=``, the face-rotation pivots about the same point.
         force=True unlinks Defining parts that must be written (default: raise).
         """
-        if time is None and (then is not None or on_done is not None):
+        if time is None and (then is not None or on_done is not None or ease != "linear"):
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="move_to")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="move_to")
         if time is None and (loops != 1 or yoyo):
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="move_to")
@@ -2298,6 +2282,13 @@ class Shape(Graphic, PaintState):
                 force=force, loops=loops, yoyo=yoyo, face=face,
             )
         _refuse_if_destroyed(self, "move_to")
+        if about is None and not face:
+            # The common instant move: no pivot to read (graphics review SA14:
+            # a Rect spent 1.85 of 4.6 µs on a pivot it never used).
+            result = self._move_to(to_x, to_y, force=force)
+            from .collision import note_collider_placement
+            note_collider_placement(self)
+            return result
         px, py = self._pivot_xy(about)
         dx = None if to_x is None else to_x - px
         dy = None if to_y is None else to_y - py
@@ -2797,6 +2788,7 @@ class Point(Shape):
 
     # Empty _update_impl — dirty visits only need to fan out to dependents.
     _passthrough_update = True
+    _ink_strict = True          # bracket typos stay AttributeError (Entity.__getitem__)
 
     def __setattr__(self, name: str, value: Any) -> None:
         # ``x`` / ``y`` are the motion hot path (Line/Circle centers). Bypass
@@ -3514,6 +3506,12 @@ class _HeadingFromGeometry:
         return anchor
 
 
+# Line models whose about-center turn writes only free inputs (SB11 fast path).
+_LINE_FAST_TURN_MODELS = frozenset({
+    LineModel.POINT_POINT, LineModel.CENTER_LENGTH_ANGLE, LineModel.POINT_ANGLE_LENGTH,
+})
+
+
 class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
     """
     Line Constructor parameters:
@@ -3575,6 +3573,7 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
     at_angle = ScalarSlot(label="Line.at_angle")
 
     # Home model = CENTER_LENGTH_ANGLE (same as Line() / Line(center=…)).
+    _ink_strict = True          # bracket typos stay AttributeError (Entity.__getitem__)
     _HOME_KEYS = frozenset({"center", "length", "angle"})
     _HOME_OPTIONAL_KEYS = frozenset()
     _HOME_SIZE_KEYS = frozenset({"length", "angle"})
@@ -4380,13 +4379,38 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
         linked = self.p1 if model is LineModel.TANGENT_ANGLE else self.p2
         _ensure_writable(linked, operation, force=force, undo_extra=self._TANGENT_HINT)
 
-    @batch_update_self()
     def rotate_by(self, angle: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Line':
-        """Rotate Defining geometry about a pivot by angle degrees."""
+        """Rotate Defining geometry about a pivot by angle degrees.
+
+        A free line turned about its center takes bare float writes, as
+        Ellipse and Rect do (graphics review SB11: 32 µs against 10–15 for
+        its siblings). Anything linked, pulled or read falls to the batch."""
         _refuse_if_destroyed(self, "rotate_by")
         dθ_deg = _finite_deg(angle, "rotate_by angle")
         if dθ_deg == 0.0:
             return self
+        model = self.model
+        if (model in _LINE_FAST_TURN_MODELS and not force
+                and not self._requires_pull_invalidate()):
+            x1, y1, x2, y2 = self._segment_xy()
+            cx, cy = 0.5 * (x1 + x2), 0.5 * (y1 + y2)
+            if about is not None:
+                px, py = get_xy(about, bare=True)
+            if about is None or (abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12):
+                dθ_rad = _rad(dθ_deg)
+                if model is LineModel.POINT_POINT:
+                    _takein_xy_float(self.p1, *_rotate_xy(x1, y1, cx, cy, dθ_rad))
+                    _takein_xy_float(self.p2, *_rotate_xy(x2, y2, cx, cy, dθ_rad))
+                else:
+                    if model is LineModel.POINT_ANGLE_LENGTH:
+                        _takein_xy_float(self.p1, *_rotate_xy(x1, y1, cx, cy, dθ_rad))
+                    self.angle = _bare_num(self.angle) + dθ_deg
+                _pose_rotation_add(self, dθ_deg)
+                return self
+        return self._rotate_by_batched(dθ_deg, about=about, force=force)
+
+    @batch_update_self()
+    def _rotate_by_batched(self, dθ_deg: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Line':
         dθ_rad = _rad(dθ_deg)
         self._gate_tangent("rotate_by", force, about)
         if about is None and self.model is LineModel.TANGENT_POINT:
@@ -6132,9 +6156,20 @@ class Polygon(Shape):
         pts = [get_xy(v, bare=True) for v in self._vertices]
         return type(self)(points=pts, **kwargs)
 
-    @batch_update_self()
     def _move_by(self, dx: float, dy: float, *, force: bool = False) -> 'Polygon':
-        """Translate every vertex by dx and/or dy."""
+        """Translate every vertex by dx and/or dy.
+
+        Free polygon (nothing pulls from it, nothing read its Derivates):
+        bare float writes, as Rect does (graphics review SC10: 20.7 µs
+        against Rect's 2.7). A read of ``centroid`` / ``signed_area`` /
+        ``perimeter_length`` sets the sticky pull flag, so they never go stale."""
+        if _pose_fast_ok(self, force=force):
+            _translate_points_float(self._vertices, dx, dy)
+            return self
+        return self._move_by_batched(dx, dy, force=force)
+
+    @batch_update_self()
+    def _move_by_batched(self, dx: float, dy: float, *, force: bool = False) -> 'Polygon':
         for vertex in self._vertices:      # every vertex first, then write (SC4)
             _ensure_writable(vertex, "move_by", force=force)
         for vertex in self._vertices:
@@ -8542,37 +8577,6 @@ class EquilateralTriangle(RegularPolygon):
                 )
         kwargs['n'] = 3
         super().__init__(*args, **kwargs)
-
-    def _clone_geometry(self, **kwargs) -> 'EquilateralTriangle':
-        # Same model and pose, same vertex numbering (a flipped polygon's clone too).
-        return self._adopt_winding(self._clone_geometry_same_model(**kwargs))
-
-    def _clone_geometry_same_model(self, **kwargs) -> 'EquilateralTriangle':
-        cls = type(self)
-        match self.model:
-            case RegularPolygonModel.CENTER_RADIUS:
-                return cls(
-                    center=get_xy(self.center, bare=True),
-                    radius=_bare_num(self.radius),
-                    angle=_bare_num(self.angle),
-                    **kwargs,
-                )
-            case RegularPolygonModel.CENTER_SIDE:
-                return cls(
-                    center=get_xy(self.center, bare=True),
-                    side=_bare_num(self.side),
-                    angle=_bare_num(self.angle),
-                    **kwargs,
-                )
-            case RegularPolygonModel.VERTEX_SIDE:
-                return cls(
-                    vertex=get_xy(self.vertex, bare=True),
-                    side=_bare_num(self.side),
-                    angle=_bare_num(self.angle),
-                    **kwargs,
-                )
-            case _:
-                raise ValueError(f"Unknown regular polygon model: {self.model}")
 
 
 class Anchor(Point):

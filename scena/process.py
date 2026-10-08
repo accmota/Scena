@@ -474,14 +474,20 @@ def _fn_and_then(fn, then, *, call_name: str, on_done=None):
     return callback, then
 
 
-def _require_timed_completion(*, time, then, on_done, call_name: str) -> None:
-    """``then=`` / ``on_done=`` only make sense with ``time=``."""
+def _require_timed_completion(*, time, then, on_done, call_name: str, ease="linear") -> None:
+    """``then=`` / ``on_done=`` / ``ease=`` only make sense with ``time=``
+    (an instant verb took ``ease=`` and ignored it: graphics review E18)."""
     if time is not None:
         return
     if then is not None or on_done is not None:
         raise TypeError(
             f"{call_name} then= / on_done= require time=. "
             f"Omit them for an instant call, or pass time= to tween."
+        )
+    if ease != "linear":
+        raise TypeError(
+            f"{call_name} ease= requires time=: an instant call has no curve. "
+            f"Omit ease=, or pass time= to tween."
         )
 
 
@@ -493,7 +499,8 @@ def _require_loop_kwargs(*, loops, yoyo, time, call_name: str) -> int:
     """
     from .track import _parse_loops
 
-    yoyo = bool(yoyo)
+    from .validate import expect_bool
+    yoyo = expect_bool(yoyo, f"{call_name} yoyo")      # "no" is truthy
     default_loops = loops is None or loops == 1
     if time is None:
         if not default_loops or yoyo:

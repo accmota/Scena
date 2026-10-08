@@ -70,6 +70,10 @@ left out.
   `cell=(16.9, 16)` raises (it truncated to 16; `16.0` is fine).
 - `group=""` (and `""` inside a list) raises TypeError, like `tag("")`; it
   made a group no name could reach.
+- `ease=` without `time=` raises TypeError on every timed verb (`move_to`,
+  `rotate_by`, `scale_to`, …, and the camera's `pan_*` / `zoom_*` /
+  `rotate_*` / `frame_to`): an instant call has no curve, and the value was
+  ignored. `yoyo="no"` raises like any flag.
 
 ### Added
 
@@ -145,6 +149,17 @@ left out.
   ellipse's computed fields.
 - `track.rotate_by(…, about=(x, y))` checks the pivot like every other kind
   (a tuple went past the point reader).
+- Faster, with the same results: an instant `move_to` (about a third less:
+  it no longer computes an unused pivot), a free Polygon's `move_by` (about
+  7×), a Line turned about its center (about 2.5×), `destroy()` (about half),
+  a second Sheet over the same image files (it reuses the first one's
+  hitbox fits: about 10 ms → 0.4 ms), and every moving actor in a frame (no
+  attribute lookup falls through to the slow path).
+- Sheet and Sprite warnings (missing file, replaced clip, letter case) name
+  the line in your program; they named a file inside Scena.
+- An author class named `Point` or `Line` behaves like any other class with
+  bracket fields (`obj["hp"]`); the strict rule for the real Point / Line
+  went by class name.
 - A linked heading or zoom (`sprite["angle"] @= …`, `poly["scale"] @= …`) on a
   Sprite, Point, Polygon, Text or Track refuses `rotate_by`, `scale_by` and
   `angle =` with LinkedAttributeError (`force=True` unlinks); the write was

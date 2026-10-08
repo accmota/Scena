@@ -500,7 +500,7 @@ class TestMessagesNameTheFix(unittest.TestCase):
         from scena import distance, closest_point, Color, Vec2
         calls = [
             lambda: Color(object()),
-            lambda: scena.shapes.get_point(object()),
+            lambda: scena.shapes._xy_of(object(), required=True),
             lambda: Vec2(1, 2) + object(),
         ]
         for call in calls:

@@ -9,13 +9,13 @@ from __future__ import annotations
 import math
 import os
 import re
-import traceback
+import sys
 import warnings
 from abc import ABC
 from collections.abc import Sequence
 from functools import wraps
 import inspect
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, NamedTuple, Optional, Tuple, Union
 
 import skia
 
@@ -154,16 +154,17 @@ def _ink_link_forbidden_message(owner: "Entity", field: str) -> str:
         f"properties stay outside the reactive graph. {hint} {drive}"
     )
 
-# Geometry leaf types: bracket typos stay AttributeError (no ink auto-materialize).
-# Exact type on purpose: an author subclass (``class Laser(Line)``) is where
-# new ink fields live, so only the bare Scena kinds refuse unknown keys.
-_GEOMETRY_INK_STRICT = frozenset({"Point", "Line", "Vec2"})
+# Geometry leaf types (Point, Line) set ``_ink_strict = True`` in their own
+# class body: bracket typos stay AttributeError (no ink auto-materialize).
+# Read from the class's own ``__dict__``: an author subclass (``class
+# Laser(Line)``) is where new ink fields live, so only the bare Scena kinds
+# refuse unknown keys. It went by class *name*, so an author class named
+# ``Point`` became strict (graphics review E18).
 
 # Per-class setattr routing (built in ``__init_subclass__``). Values are either a
 # data descriptor (``__set__``) or ``_SET_OBJECT`` for reserved plain fields.
 _SET_OBJECT = object()
 _LOOK_MISSING = object()
-_SETATTR_ROUTE: Dict[type, Dict[str, Any]] = {}
 
 
 def _require_group_name(value, verb: str) -> str:
@@ -260,7 +261,6 @@ _INK_SPELLINGS = {
     # ``angle`` is too short for the one-edit check below (len >= 6).
     "angel": "angle", "agnle": "angle",
 }
-_INK_NEAR_MISS: Dict[Tuple[type, str], Optional[str]] = {}
 
 
 def _pose_xy_refused(owner, name: str) -> bool:
@@ -284,9 +284,6 @@ def _pose_xy_forbidden_message(owner, name: str) -> str:
     )
 
 
-_RETIRED_BY_CLASS: Dict[type, dict] = {}
-
-
 def _retired_attr_message(owner, name: str):
     """The hint for a public name this class retired, or ``None``.
 
@@ -296,12 +293,14 @@ def _retired_attr_message(owner, name: str):
     become ink.
     """
     cls = type(owner)
-    merged = _RETIRED_BY_CLASS.get(cls)
+    # Cached on the class itself: a module dict keyed by class pinned author
+    # classes defined inside functions (graphics review E17).
+    merged = cls.__dict__.get("_scena_retired_merged")
     if merged is None:
         merged = {}
         for klass in reversed(cls.__mro__):
             merged.update(klass.__dict__.get("_RETIRED_ATTRS") or {})
-        _RETIRED_BY_CLASS[cls] = merged
+        type.__setattr__(cls, "_scena_retired_merged", merged)
     return merged.get(name) if merged else None
 
 
@@ -376,12 +375,15 @@ def _check_ink_near_miss(cls: type, name: str, route_map) -> None:
     Cached per ``(class, name)``: the check runs once per new ink name, never
     on later writes of an existing ink field.
     """
-    key = (cls, name)
+    cache = cls.__dict__.get("_scena_ink_near_miss")      # on the class (E17)
+    if cache is None:
+        cache = {}
+        type.__setattr__(cls, "_scena_ink_near_miss", cache)
     try:
-        msg = _INK_NEAR_MISS[key]
+        msg = cache[name]
     except KeyError:
         msg = _ink_near_miss_message(cls, name, route_map)
-        _INK_NEAR_MISS[key] = msg
+        cache[name] = msg
     if msg is not None:
         raise AttributeError(msg)
 
@@ -527,7 +529,6 @@ def _install_setattr_route(cls: type) -> None:
         route.setdefault(name, _SET_OBJECT)
     # ``__slots__`` members (Shape.group) are descriptors too; group needs the registry sync.
     route["group"] = _SET_OBJECT
-    _SETATTR_ROUTE[cls] = route
     cls._setattr_route = route  # type: ignore[attr-defined]
 
 def _notify_property_anchor(obj, name: str) -> None:
@@ -946,21 +947,27 @@ def _destroyed_access_message(obj, base: str) -> str:
 _SCENA_PKG = os.path.dirname(os.path.abspath(__file__))
 
 
-def _frame_outside_scena():
-    """Nearest stack frame that is not Scena itself (the author's call)."""
-    prefix = _SCENA_PKG + os.sep
-    for frame in reversed(traceback.extract_stack()):
-        fn = frame.filename
-        if not fn:
-            continue
-        if fn.startswith("<"):
-            if fn in ("<string>", "<stdin>"):
-                return frame
-            continue
-        absfn = os.path.abspath(fn)
-        if absfn == _SCENA_PKG or absfn.startswith(prefix):
-            continue
-        return frame
+class _Site(NamedTuple):
+    filename: str
+    lineno: int
+    name: str
+
+
+def _frame_outside_scena() -> Optional[_Site]:
+    """Nearest stack frame that is not Scena itself (the author's call).
+
+    A ``sys._getframe`` walk with the cached file test of ``_author_site``:
+    ``traceback.extract_stack`` built every frame summary and read source
+    lines, a third of each ``destroy()`` (graphics review E16)."""
+    try:
+        f = sys._getframe(1)
+    except (AttributeError, ValueError):
+        return None
+    while f is not None:
+        code = f.f_code
+        if not _is_scena_file(code.co_filename):
+            return _Site(code.co_filename, f.f_lineno, code.co_name)
+        f = f.f_back
     return None
 
 
@@ -1054,7 +1061,9 @@ def made_at(obj) -> str:
     Actors have no author ids: the construction line is how a beginner finds
     the one a message or ``print`` is talking about.
     """
-    actor = _actor_of(obj) or obj
+    actor = _actor_of(obj)
+    if actor is None:           # ``or`` would skip a destroyed (falsy) actor (R9; E18)
+        actor = obj
     site = getattr(actor, "__dict__", {}).get("_site")
     if site is None:
         return ""
@@ -1470,6 +1479,12 @@ class Entity(Container):
     # ``on_collide*`` callbacks the actor keeps while it has no Collider (park,
     # ``collidable = False``); ``ensure_collider`` copies them into a new one.
     _collide_cbs = None
+    # Probed for every moving actor every frame (collision proxy, plain-blit
+    # draw): a class default keeps them off ``__getattr__``, which costs an
+    # exception per miss (graphics review E15: about 0.5 µs each).
+    _main_hitbox_off = False
+    _touching_sides = frozenset()
+    _blit_plain = None
 
     def __init_subclass__(cls, **kwargs):
         # One hook only: a second ``__init_subclass__`` in this class body would
@@ -1682,7 +1697,7 @@ class Entity(Container):
             retired = _retired_attr_message(self, key)
             if retired is not None:
                 raise AttributeError(retired, name=key, obj=None)
-        if type(self).__name__ in _GEOMETRY_INK_STRICT:  # exact-type: subclasses add their own ink
+        if type(self).__dict__.get("_ink_strict", False):  # own class only: subclasses add ink
             self._resolve_field(key)
         else:
             try:
@@ -1703,7 +1718,7 @@ class Entity(Container):
 
     def _ensure_ink_field(self, name: str) -> None:
         """Ensure ``name`` exists in ink (writes/links may create; reads may not)."""
-        if type(self).__name__ in _GEOMETRY_INK_STRICT:  # exact-type: subclasses add their own ink
+        if type(self).__dict__.get("_ink_strict", False):  # own class only: subclasses add ink
             raise AttributeError(f"{type(self).__name__} has no field {name!r}")
         if _pose_xy_refused(self, name):
             raise AttributeError(_pose_xy_forbidden_message(self, name))
@@ -2484,10 +2499,10 @@ def _install_timed_pose(cls) -> None:
                     if f is not False and f is not True:    # force="no" is truthy: it unlinked
                         kwargs["force"] = expect_bool(f, f"{name}(force=)")
                 if time is None:
-                    if then is not None or on_done is not None:
+                    if then is not None or on_done is not None or ease != "linear":
                         from .process import _require_timed_completion
                         _require_timed_completion(
-                            time=time, then=then, on_done=on_done, call_name=name,
+                            time=time, then=then, on_done=on_done, ease=ease, call_name=name,
                         )
                     if loops != 1 or yoyo:
                         from .process import _require_loop_kwargs

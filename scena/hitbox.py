@@ -93,6 +93,26 @@ def _retired_knob_message(name: str) -> str:
     return f"Hitbox.{name} is now hb.{new} (add_hitbox({new}=…) when adding one)."
 
 
+class _RetiredKnob:
+    """A retired name, read or written, raises with its new spelling. A class
+    descriptor costs nothing elsewhere; a ``__setattr__`` that checked the
+    name cost about 100 ns on every private write (graphics review HP14:
+    about 2 µs per animated part per step)."""
+
+    __slots__ = ("_name",)
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    def __get__(self, obj, owner=None):
+        if obj is None:
+            return self
+        raise AttributeError(_retired_knob_message(self._name))
+
+    def __set__(self, obj, value) -> None:
+        raise AttributeError(_retired_knob_message(self._name))
+
+
 def _box_of_prims(prims):
     """Screen-aligned Box around ``prims``, or ``None`` when there are none."""
     if not prims:
@@ -743,11 +763,6 @@ class Hitbox(_HitboxBakeMixin):
             raise AttributeError(_retired_knob_message(name))
         raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
 
-    def __setattr__(self, name: str, value) -> None:
-        if name in _RETIRED_KNOBS:
-            raise AttributeError(_retired_knob_message(name))
-        object.__setattr__(self, name, value)
-
     def _refuse_art_write(self, knob: str) -> None:
         if self._px is not None:
             name = "px_rect" if self._px[0] == "rect" else "px_circle"
@@ -1160,6 +1175,11 @@ class Hitbox(_HitboxBakeMixin):
 
     def _du_per_px(self):
         return self._host_ref()._du_per_px()
+
+
+for _name in _RETIRED_KNOBS:
+    setattr(Hitbox, _name, _RetiredKnob(_name))
+del _name
 
 
 class _MainHitbox(Hitbox):

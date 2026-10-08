@@ -159,7 +159,7 @@ def _camera_tween(
         _start_tween,
     )
 
-    _require_timed_completion(time=time, then=then, on_done=on_done, call_name=call_name)
+    _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name=call_name)
     n_loops = _require_loop_kwargs(
         loops=loops, yoyo=yoyo, time=time, call_name=call_name,
     )
@@ -1693,9 +1693,9 @@ class Canvas(ClosedSurface):
                 self, factor, time=time, about=about, ease=ease, then=then, on_done=on_done,
                 loops=loops, yoyo=yoyo,
             )
-        if then is not None or on_done is not None:
+        if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="zoom_to")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="zoom_to")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="zoom_to")
@@ -1723,9 +1723,9 @@ class Canvas(ClosedSurface):
                 self, factor, time=time, about=about, ease=ease, then=then, on_done=on_done,
                 loops=loops, yoyo=yoyo,
             )
-        if then is not None or on_done is not None:
+        if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="zoom_by")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="zoom_by")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="zoom_by")
@@ -1756,9 +1756,9 @@ class Canvas(ClosedSurface):
                 self, x, y, time=time, ease=ease, then=then, on_done=on_done,
                 loops=loops, yoyo=yoyo,
             )
-        if then is not None or on_done is not None:
+        if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="pan_to")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="pan_to")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="pan_to")
@@ -1788,9 +1788,9 @@ class Canvas(ClosedSurface):
                 self, dx, dy, time=time, ease=ease, then=then, on_done=on_done,
                 loops=loops, yoyo=yoyo,
             )
-        if then is not None or on_done is not None:
+        if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="pan_by")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="pan_by")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="pan_by")
@@ -1825,9 +1825,9 @@ class Canvas(ClosedSurface):
                 self, where, time=time, ease=ease, then=then, on_done=on_done,
                 loops=loops, yoyo=yoyo,
             )
-        if then is not None or on_done is not None:
+        if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="set_origin")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="set_origin")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="set_origin")
@@ -1855,9 +1855,9 @@ class Canvas(ClosedSurface):
                 self, angle, time=time, about=about, ease=ease, then=then, on_done=on_done,
                 loops=loops, yoyo=yoyo,
             )
-        if then is not None or on_done is not None:
+        if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="rotate_to")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="rotate_to")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="rotate_to")
@@ -1885,9 +1885,9 @@ class Canvas(ClosedSurface):
                 self, angle, time=time, about=about, ease=ease, then=then, on_done=on_done,
                 loops=loops, yoyo=yoyo,
             )
-        if then is not None or on_done is not None:
+        if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="rotate_by")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="rotate_by")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="rotate_by")
@@ -1924,9 +1924,9 @@ class Canvas(ClosedSurface):
                 self, target, time=time, pad=pad, rotate=rotate,
                 ease=ease, then=then, on_done=on_done, loops=loops, yoyo=yoyo,
             )
-        if then is not None or on_done is not None:
+        if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="frame_to")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="frame_to")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="frame_to")
@@ -1952,9 +1952,9 @@ class Canvas(ClosedSurface):
                 self, time=time, ease=ease, then=then, on_done=on_done,
                 loops=loops, yoyo=yoyo,
             )
-        if then is not None or on_done is not None:
+        if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, call_name="reset_view")
+            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="reset_view")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="reset_view")

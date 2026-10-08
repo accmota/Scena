@@ -82,6 +82,8 @@ def _scena_members(cls: type) -> set[str]:
         owner = next((k for k in cls.__mro__ if name in vars(k)), None)
         if owner is not None and owner.__module__ == builtins.__name__:
             continue
+        if owner is not None and type(vars(owner)[name]).__name__ == "_RetiredKnob":
+            continue        # a retired name that only raises with its new spelling
         out.add(name)
     return out
 

@@ -16,6 +16,10 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 import numpy as np
 import skia
 
+# Warnings point at the author's line: every frame inside the package is
+# skipped (graphics review PA14: Sheet warnings pointed at sprite.py).
+_WARN_SKIP = (os.path.dirname(os.path.abspath(__file__)) + os.sep,)
+
 
 def _sq(v: float) -> float:
     """``v * v``. Not ``v ** 2``: a float power raises OverflowError for a
@@ -2161,7 +2165,7 @@ def _empty_alpha_mask(th: int, tw: int) -> np.ndarray:
             "Sprite alpha downsample failed; using an empty mask. "
             "The hitbox will not cover this cell.",
             RuntimeWarning,
-            stacklevel=3,
+            skip_file_prefixes=_WARN_SKIP,
         )
     return np.zeros((th, tw), dtype=bool)
 

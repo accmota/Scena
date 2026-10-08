@@ -49,6 +49,7 @@ NOT_BAKES = {
     "_ATLAS_CACHE": "path -> parsed atlas file (a file edited on disk is out of scope)",
     "_IMAGE_CACHE": "path -> decoded image (same)",
     "_PLACEHOLDER_CACHE": "label -> generated placeholder art (pure function of its key)",
+    "_PACK_CACHE": "decoded images + names -> the strip packed from them (pure function of its key)",
 }
 
 # One changed value per AtlasFrame field (``name`` is a label, never baked).

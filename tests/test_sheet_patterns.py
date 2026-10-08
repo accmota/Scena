@@ -517,3 +517,31 @@ class TestSheetFrames(PatternTestCase):
         sheet.clip("walk", [0, 1, 2], fps=4)
         s = self.track(Sprite(sheet, center=(0, 0), height=16))
         s.play("walk")
+
+
+class TestSheetWarningsPointAtTheAuthor(PatternTestCase):
+    """PA14: a Sheet / Sprite warning named sprite.py or closed.py, not the
+    author's line. ``skip_file_prefixes`` skips every package frame, so no
+    hand-counted ``stacklevel`` can drift."""
+
+    def test_a_missing_file_warns_at_the_caller(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            Sheet(os.path.join(self.root, "nope.png"), cols=2)
+        self.assertTrue(caught)
+        self.assertTrue(all(os.path.basename(w.filename) == "test_sheet_patterns.py" for w in caught),
+                        [(w.filename, w.lineno) for w in caught])
+
+    def test_no_hand_counted_stacklevel(self):
+        import ast
+        import scena
+        pkg = os.path.dirname(scena.__file__)
+        bad = []
+        for name in ("sprite.py", "atlas.py"):
+            tree = ast.parse(open(os.path.join(pkg, name), encoding="utf-8").read())
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                        and node.func.attr == "warn"
+                        and any(k.arg == "stacklevel" for k in node.keywords)):
+                    bad.append(f"{name}:{node.lineno}")
+        self.assertEqual(bad, [], "use skip_file_prefixes=_WARN_SKIP")
