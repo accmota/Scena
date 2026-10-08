@@ -375,7 +375,14 @@ def gate_violations(kinds=None) -> dict:
                         if how != "whole":
                             out[f"{key} | link raises"] = type(e).__name__
                         continue
-                    hits = written if how == "whole" else written & set(_keys_of(name))
+                    # A whole-object link drives everything a copy carries:
+                    # geometry and pose (C7), or position only for a Point
+                    # (``_whole_link_carries_pose``). Any change of those refuses.
+                    if how == "whole":
+                        carries_pose = getattr(type(obj), "_whole_link_carries_pose", True)
+                        hits = written if carries_pose else {k for k in written if not k.startswith("pose.")}
+                    else:
+                        hits = written & set(_keys_of(name))
                     s0 = _gate_state(obj)
                     try:
                         verb(obj)

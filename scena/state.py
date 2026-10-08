@@ -3448,12 +3448,18 @@ class _PropertyAnchor(ScalarAnchor):
         old = getattr(parent, name)          # real property getter — always live/correct
         if old == new_value:
             return False
+        # The link itself is writing: the pose writers' linked-field refusal
+        # (entity._refuse_linked_pose) lets this one write through.
+        d = self.__dict__
+        d["_writing"] = True
         try:
             setattr(parent, name, new_value)     # real property setter — rotate_to / scale_to
         except LinkedAttributeError as exc:
             raise LinkedAttributeError(
                 f"{parent.name}['{name}'] @= could not write {name}: {exc}"
             ) from exc
+        finally:
+            d["_writing"] = False
         return True
 
     @property

@@ -664,7 +664,21 @@ Outbound links *to* a part (e.g. `Line(p1=lambda: rect.top_left)`) are fine: the
 
 Pivot attributes that are not written may stay linked.
 
-`_ensure_writable(part, operation, *, force=False)` is the shared helper for this check — it walks `part._iter_subtree()` looking for any linked node, so it catches a link set on a whole `Point` (e.g. `Polygon`'s vertex linked via `assign_formula(other_point)`) as well as one set on a single leaf `Attribute`. **Always check the whole part** (`_ensure_writable(self.p1, ...)`, not `_ensure_writable(self.p1.x, ...)`) — checking only a leaf misses links set at the parent level.
+`_ensure_writable(part, operation, *, force=False, pivot=None)` is the write gate, one function for every kind and verb (graphics review R1):
+
+- It walks `part._iter_subtree()` for any linked node, so it catches a link set on a whole `Point` (e.g. `Polygon`'s vertex linked via `assign_formula(other_point)`) as well as one set on a single leaf `Attribute`. **Always check the whole part** (`_ensure_writable(self.p1, ...)`, not `_ensure_writable(self.p1.x, ...)`) — checking only a leaf misses links set at the parent level.
+- It hops **up**: a whole-object link on an owner (`shape @= other`) drives every part, so it refuses too (SA1: the verb ran and the link snapped it back).
+- It skips **property-backed pose anchors** (`["angle"]` / `["scale"]` on a Sprite, Point, Polygon, Text, Track): they are not position parts. A linked heading does not block a move (SA3).
+- **`pivot=(x, y)`**: a point sitting on the verb's pivot is not moved by a turn, scale or mirror about it, so it is not written and may stay linked. Rotate / scale / mirror callers pass their pivot (SB3 / SC8: `Circle(center=lambda: ship.center, ...).rotate_by(5)` raised).
+- It returns at once when the ownership tree's sticky `_needs_pull_invalidate` is off (no `@=` anywhere in the tree), which is cheaper than the old subtree walk on every call.
+
+Property-backed pose fields have their own writers (`_pose_rotation_set` / `_pose_rotation_add` / `_pose_scale_set`): a linked `_PropertyAnchor` refuses there, so a verb never drops the write silently (SA2 = E6 = PB2); the anchor's own pull passes (`_writing`). Slot-backed headings are gated by `_ensure_writable(self["angle"])` in their verbs, and their link echoes into `_rotation` through the same writers, so the backstop checks property anchors only. Verbs check before they write: `_resolve_scale_apply` (every `scale_by`) and `_gate_pose_anchor` (the rotate entry of property-backed kinds) refuse a linked pose field, and a **whole-object link** on the actor, up front, and pass `force`.
+
+A whole-object link drives whatever a copy carries: a Shape's geometry and pose (C7), a Point's position only (`_whole_link_carries_pose = False`: `dst @= src` follows the source and may still turn on itself).
+
+A destroyed point refuses `_takein` (`c.center = …`, `p << xy` on a destroyed shape raised nothing and moved it; SA10).
+
+Guard: `test_diff_link_write.TestLinkWriteGate` (every kind × link target × pose verb, judged by an unlinked twin: the parts the twin's verb changes are the parts it writes).
 
 All geometric transforms (`move_by` / `move_to` / `rotate_*` / `scale_*`) use `_ensure_writable` on the Defining parts they write. Raw `Attribute` assignment (`=`) may still warn+unlink on its own; shape transforms do not rely on that path.
 

@@ -1019,12 +1019,13 @@ class Text(Graphic, PaintState):
 
     # wheel_rotate inherits Shape/Graphic default: (self["angle"],).
 
-    def _ensure_pose_writable(self, operation: str, force: bool) -> None:
-        """A linked anchor (or a linked centre) refuses every pose writer."""
+    def _ensure_pose_writable(self, operation: str, force: bool, pivot=None) -> None:
+        """A linked anchor (or a linked centre) refuses every pose writer that
+        moves it; one on the verb's ``pivot`` does not move and may stay linked."""
         anchor = self._anchor_part()
         if anchor is not None:
-            _ensure_writable(anchor, operation, force=force)
-        _ensure_writable(self.center, operation, force=force)
+            _ensure_writable(anchor, operation, force=force, pivot=pivot)
+        _ensure_writable(self.center, operation, force=force, pivot=pivot)
 
     def _shift_anchor(self, dx: float, dy: float) -> None:
         """Move the Defining anchor; the next layout re-lays the box from it."""
@@ -1170,9 +1171,9 @@ class Text(Graphic, PaintState):
         anchor = self._anchor_part()
         if kwargs.get("time") is not None or anchor is None:
             return verb(amount, *args, **kwargs)
-        self._ensure_pose_writable(operation, kwargs.get("force", False))
         self._refresh_layout()
         qx, qy = self._pivot_xy(kwargs.get("about"))       # validates the pivot
+        self._ensure_pose_writable(operation, kwargs.get("force", False), pivot=(qx, qy))
         rot0, sc0 = float(self._rotation), self._draw_scale()
         kwargs["about"] = None
         out = verb(amount, *args, **kwargs)                  # validates the amount

@@ -416,6 +416,10 @@ def _notify_property_anchor(obj, name: str) -> None:
     anchors = obj.__dict__.get("_field_anchors")
     if not anchors:
         return
+    _mark_anchor_dirty(anchors, name)
+
+
+def _mark_anchor_dirty(anchors, name: str) -> None:
     anchor = anchors.get(name)
     if anchor is None:
         return
@@ -423,6 +427,43 @@ def _notify_property_anchor(obj, name: str) -> None:
     if ss is None:
         return
     ss.update_manager.mark_dirty(anchor)
+
+
+def _refuse_linked_pose(obj, anchors, name: str, operation: str, force: bool = False) -> None:
+    """A linked pose refuses a verb's write instead of dropping it (SA1, SA2 =
+    E6 = PB2). Two links drive the pose:
+
+    * a whole-object link (``obj @= other``): a copy carries the pose (C7), so
+      the link drives it; the link's own pull passes (``_resolving``);
+    * a property-backed pose field (``["angle"]`` / ``["scale"]`` on a Sprite,
+      Point, Polygon, Text); the anchor's own ``_takein`` passes (``_writing``).
+      Slot-backed fields are gated by ``_ensure_writable`` in their verbs:
+      their link echoes into ``_rotation`` through here.
+
+    ``force`` unlinks with a warning (the verbs' up-front gates pass it)."""
+    d = obj.__dict__
+    if (d.get("_link") is not None and not d.get("_resolving")
+            and type(obj)._whole_link_carries_pose):
+        from .shapes import _ensure_writable
+        _ensure_writable(obj, operation, force=force)
+    if not anchors:
+        return
+    from .state import _PropertyAnchor
+    anchor = anchors.get(name)
+    if (anchor is None or anchor._link is None or not isinstance(anchor, _PropertyAnchor)
+            or anchor.__dict__.get("_writing")):
+        return
+    from .shapes import _ensure_writable
+    _ensure_writable(obj[name], operation, force=force)
+
+
+def _gate_pose_anchor(obj, name: str, operation: str, force: bool = False) -> None:
+    """Verb entry check for a property-backed pose field: refuse (or with
+    ``force`` unlink) before the verb writes anything else."""
+    d = obj.__dict__
+    anchors = d.get("_field_anchors")
+    if anchors or d.get("_link") is not None:
+        _refuse_linked_pose(obj, anchors, name, operation, force)
 
 
 def _pose_rotation_set(obj, value: float) -> None:
@@ -434,19 +475,30 @@ def _pose_rotation_set(obj, value: float) -> None:
     """
     _refuse_if_destroyed(obj, "angle")
     value = float(value)
-    old = obj.__dict__.get("_rotation")
+    d = obj.__dict__
+    old = d.get("_rotation")
+    if old is None:
+        old = getattr(obj, "_rotation", None)      # a class default until first written
     if old is not None and old == value:
         return
+    anchors = d.get("_field_anchors")
+    if anchors:
+        _refuse_linked_pose(obj, anchors, "angle", "rotate")
     object.__setattr__(obj, "_rotation", value)
     _bump_collision_epoch(obj)
-    _notify_property_anchor(obj, "angle")
+    if anchors:
+        _mark_anchor_dirty(anchors, "angle")
 
 
 def _pose_rotation_add(obj, delta: float) -> None:
     _refuse_if_destroyed(obj, "rotate_by")
+    anchors = obj.__dict__.get("_field_anchors")
+    if anchors:
+        _refuse_linked_pose(obj, anchors, "angle", "rotate_by")
     object.__setattr__(obj, "_rotation", obj._rotation + delta)
     _bump_collision_epoch(obj)
-    _notify_property_anchor(obj, "angle")
+    if anchors:
+        _mark_anchor_dirty(anchors, "angle")
 
 
 def _pose_scale_set(obj, value: float) -> None:
@@ -456,12 +508,19 @@ def _pose_scale_set(obj, value: float) -> None:
     """
     _refuse_if_destroyed(obj, "scale")
     value = float(value)
-    old = obj.__dict__.get("_scale")
+    d = obj.__dict__
+    old = d.get("_scale")
+    if old is None:
+        old = getattr(obj, "_scale", None)         # a class default until first written
     if old is not None and old == value:
         return
+    anchors = d.get("_field_anchors")
+    if anchors:
+        _refuse_linked_pose(obj, anchors, "scale", "scale")
     object.__setattr__(obj, "_scale", value)
     _bump_collision_epoch(obj)
-    _notify_property_anchor(obj, "scale")
+    if anchors:
+        _mark_anchor_dirty(anchors, "scale")
 
 
 def _bump_collision_epoch(obj) -> None:
@@ -1252,6 +1311,9 @@ class Entity(Container):
     # engine's per-item probes off ``__getattr__`` for every other Entity.
     _hitbox_claims = None
     _hitbox_parts = ()
+    # A whole-object link (``obj @= other``) drives the pose too (a copy carries
+    # it, C7); Point overrides: its link follows position only.
+    _whole_link_carries_pose = True
     # ``on_collide*`` callbacks the actor keeps while it has no Collider (park,
     # ``collidable = False``); ``ensure_collider`` copies them into a new one.
     _collide_cbs = None

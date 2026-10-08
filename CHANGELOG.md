@@ -74,6 +74,18 @@ left out.
   a parallax layer) when written, not later on `active = True`, which left
   the actor half resumed. `resolve_now` on a parked actor returns `[]`.
 - `on_collide = 5` raises TypeError at once (it crashed in the next frame).
+- A linked heading or zoom (`sprite["angle"] @= …`, `poly["scale"] @= …`) on a
+  Sprite, Point, Polygon, Text or Track refuses `rotate_by`, `scale_by` and
+  `angle =` with LinkedAttributeError (`force=True` unlinks); the write was
+  silently dropped. A shape linked as a whole (`shape @= other`) refuses a
+  verb that would move it; the verb ran and the link snapped the shape back.
+- A part that a verb does not move may stay linked:
+  `Circle(center=lambda: ship.center, radius=5).rotate_by(5)` turns the
+  circle (it raised), and so do scale and flip about the center on Circle,
+  Line, Rect, Square and Text, `text.angle =` with a linked pin, and a Point
+  with a linked heading that moves.
+- `c.center = (5, 5)` and `c.center << p` on a destroyed shape raise
+  DestroyedError; they moved it.
 - `line_width = 0` draws no outline. It drew a one-pixel hairline, so a
   tween or formula that ended at 0 left a thin line behind.
 - Paint writes on a destroyed actor (`line_width`, `fill`, `visual`,
