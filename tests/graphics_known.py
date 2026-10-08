@@ -1714,3 +1714,6 @@ CACHE_KEYS = frozenset({
     '_AUTO_CACHE | src_x',
     '_AUTO_CACHE | src_y',
 })
+
+LIFECYCLE = frozenset({
+})

@@ -973,6 +973,25 @@ def _stash_flag(obj, flag: str, value: bool) -> None:
     object.__setattr__(obj, f"_active_saved_{flag}", bool(value))
 
 
+_COLLIDE_HOOKS = ("on_collide", "on_collide_stay", "on_collide_exit")
+
+
+def _keep_collide_callbacks(item, col) -> None:
+    """Copy ``col``'s callbacks onto the actor before ``col`` is dropped (E1).
+
+    The Collider may hold callbacks the actor's store lacks (an author who set
+    them on a bound ``Collider([shape])``), so the Collider's view wins."""
+    cbs = {n: getattr(col, n) for n in _COLLIDE_HOOKS if getattr(col, n, None) is not None}
+    object.__setattr__(item, "_collide_cbs", cbs or None)
+
+
+def _wants_collision(item) -> bool:
+    """Collidable now, or stashed to be collidable on resume."""
+    if getattr(item, "_collidable", False) or getattr(item, "_collider", None) is not None:
+        return True
+    return _parked(item) and bool(getattr(item, "_active_saved_collidable", False))
+
+
 _SCENA_KIND_CACHE: dict = {}
 
 
@@ -1203,6 +1222,9 @@ class Entity(Container):
     # engine's per-item probes off ``__getattr__`` for every other Entity.
     _hitbox_claims = None
     _hitbox_parts = ()
+    # ``on_collide*`` callbacks the actor keeps while it has no Collider (park,
+    # ``collidable = False``); ``ensure_collider`` copies them into a new one.
+    _collide_cbs = None
 
     def __init_subclass__(cls, **kwargs):
         # One hook only: a second ``__init_subclass__`` in this class body would
@@ -1548,8 +1570,7 @@ class Entity(Container):
             or getattr(self, "_draggable", False)
             or getattr(self, "_droppable", False)
             or getattr(self, "_wheel_rotate", False)
-            or getattr(self, "_collidable", False)
-            or getattr(self, "_collider", None) is not None
+            or _wants_collision(self)
         )
         if not interactive:
             return
@@ -1565,10 +1586,7 @@ class Entity(Container):
         from .registry import layer_is_ui, UiLayerError
         if not layer_is_ui(target_layer):
             return
-        if not (
-            getattr(self, "_collidable", False)
-            or getattr(self, "_collider", None) is not None
-        ):
+        if not _wants_collision(self):
             return
         raise UiLayerError(
             f"Cannot move {self!r} into layer 'ui': item is collidable; "
@@ -1749,8 +1767,8 @@ class Entity(Container):
         # then stash the author's values and mark parked.
         if vis is not None:
             self.visible = False
-        if col is not None:
-            self.collidable = False
+        if col:
+            self._leave_collision()       # not ``collidable = False``: no opt-out (E2)
         object.__setattr__(self, "_active_saved_visible", vis)
         object.__setattr__(self, "_active_saved_collidable", col)
         object.__setattr__(self, "_active", False)
@@ -1764,12 +1782,12 @@ class Entity(Container):
         object.__setattr__(self, "_active_saved_collidable", None)
         if saved_vis is not None:
             self.visible = bool(saved_vis)
-        if saved_col is not None:
-            self.collidable = bool(saved_col)
-        # ``collidable = True`` while parked already set the flag, so the
-        # restore above is a no-op and would skip enrollment. Pair groups
-        # still need the body once it is in play.
-        if getattr(self, "_collidable", False):
+        # The stash was validated when it was written (E11); rejoin through the
+        # same path as ``collidable = True`` so callbacks and every pair group
+        # declared meanwhile come back (E1, GR8).
+        if saved_col and not getattr(self, "_collision_opt_out", False):
+            self._enter_collision()
+        elif not getattr(self, "_collision_opt_out", False):
             from .collision import enroll_item_groups
             enroll_item_groups(self)
 
@@ -2028,32 +2046,56 @@ class Entity(Container):
         value = _expect_flag(value, 'collidable')
         if value:
             refuse_part_as_actor(self, "collidable = True", "body")
+            # Checked where it is written, parked or not: a stashed True on the
+            # ui / parallax layer used to raise only on resume (E11).
+            self._reject_if_parallax_layer("collidable")
+            self._reject_if_ui_layer("collidable")
+        elif is_part(self):
+            return                  # a part is never a body: False is a no-op clear
+        # The author's switch, recorded whatever the current state: False is a
+        # sticky opt-out even before any ``@collide`` enrolled the actor (E3).
+        object.__setattr__(self, "_collision_opt_out", not value)
         if _parked(self):
             _stash_flag(self, "collidable", value)  # parked never collides; resume applies
             return
         if value == self._collidable:
             return
         if value:
-            # Guard before any state mutation (Collider also re-validates).
-            self._reject_if_parallax_layer("collidable")
-            self._reject_if_ui_layer("collidable")
-            object.__setattr__(self, "_collision_opt_out", False)
-            from .collision import ensure_collider, enroll_item_groups
-            ensure_collider(self)
-            # ensure_collider sets _collidable / _collider on success.
-            self._collidable = True
-            enroll_item_groups(self)
+            self._enter_collision()
         else:
-            # Sticky opt-out so ``@collide`` group refresh does not re-enroll.
-            object.__setattr__(self, "_collision_opt_out", True)
-            self._collidable = False
-            if self._collider is not None:
-                self._collider._unregister()
-                self._collider = None
-            # Hitbox parts share the host's switch (Sprite only).
-            retire = getattr(type(self), "_retire_hitbox_parts", None)
-            if retire is not None:
-                retire(self)
+            self._leave_collision()
+
+    def _enter_collision(self) -> None:
+        """Join collision: the one path for ``collidable = True``, a callback
+        opt-in and resume. The new Collider gets the actor's callbacks and the
+        actor enrolls in every pair group declared so far."""
+        from .collision import ensure_collider, enroll_item_groups
+        ensure_collider(self)
+        # ensure_collider sets _collidable / _collider on success.
+        self._collidable = True
+        enroll_item_groups(self)
+
+    def _leave_collision(self) -> None:
+        """Leave collision (exits fire); callbacks stay on the actor (E1).
+
+        Park calls this directly: it never writes the author's opt-out."""
+        col = self._collider
+        if col is not None:
+            _keep_collide_callbacks(self, col)
+            col._unregister()
+            self._collider = None
+        self._collidable = False
+        # Hitbox parts share the host's switch (Sprite only).
+        retire = getattr(type(self), "_retire_hitbox_parts", None)
+        if retire is not None:
+            retire(self)
+
+    def _collide_callback(self, attr: str):
+        col = self._collider
+        if col is not None:
+            return getattr(col, attr)
+        cbs = self._collide_cbs
+        return cbs.get(attr) if cbs else None
 
     @property
     def on_collide(self):
@@ -2063,17 +2105,35 @@ class Entity(Container):
         (this body vs every other enrolled participant) while any
         ``on_collide*`` callback is set. Clearing all three to ``None`` drops
         callback-sourced ``ANYTHING`` (see ``Collider._sync_anything_interest``).
+        The callback belongs to the actor: it survives park and
+        ``collidable = False`` / ``True`` (Actors Design — active).
         """
-        return self._collider.on_collide if self._collider is not None else None
+        return self._collide_callback("on_collide")
 
     def _bind_on_collide_callback(self, attr: str, value) -> None:
+        _refuse_if_destroyed(self, attr)
         if value is not None:
             refuse_part_as_actor(self, f"{attr} =", "body")
-        if value is not None and self._collider is None:
-            from .collision import ensure_collider
+            if not callable(value):
+                raise TypeError(
+                    f"{attr} takes a function fn(me, other, info), or None to clear it; "
+                    f"got {type(value).__name__}."
+                )
+        cbs = dict(self._collide_cbs or ())
+        if value is None:
+            cbs.pop(attr, None)
+        else:
+            cbs[attr] = value
+        object.__setattr__(self, "_collide_cbs", cbs or None)
+        if value is not None:
+            # A callback opts the body in, like ``collidable = True``.
             object.__setattr__(self, "_collision_opt_out", False)
-            ensure_collider(self)
-            self._collidable = True
+            if _parked(self):
+                _stash_flag(self, "collidable", True)   # joins on resume (E2)
+                return
+            if self._collider is None:
+                self._enter_collision()               # copies every callback
+                return
         if self._collider is not None:
             setattr(self._collider, attr, value)
 
@@ -2084,7 +2144,7 @@ class Entity(Container):
     @property
     def on_collide_stay(self):
         """Callback every frame while overlapping: ``fn(me, other, info)``."""
-        return self._collider.on_collide_stay if self._collider is not None else None
+        return self._collide_callback("on_collide_stay")
 
     @on_collide_stay.setter
     def on_collide_stay(self, value) -> None:
@@ -2093,7 +2153,7 @@ class Entity(Container):
     @property
     def on_collide_exit(self):
         """Callback when overlap ends: ``fn(me, other, info)``."""
-        return self._collider.on_collide_exit if self._collider is not None else None
+        return self._collide_callback("on_collide_exit")
 
     @on_collide_exit.setter
     def on_collide_exit(self, value) -> None:
@@ -2486,6 +2546,8 @@ class Graphic(Entity, ABC):
         # Same rule as ``resolve()``: a hitbox part (or its group) only detects.
         for side in (target if isinstance(target, (list, tuple)) else (target,)):
             _refuse_part_resolve_side(sys, side)
+        if _parked(self):
+            return []          # out of collision while parked; nothing is built (E2)
         ensure_collider(self)
         ca = self._collider
         if isinstance(target, (list, tuple)):

@@ -632,6 +632,40 @@ class TestLinkedActive(Round2Case):
         get_collision_system().step()
         self.assertEqual(len(calls), n + 1)
 
+    def test_link_runs_once_per_step_not_per_contact(self):
+        """HP5 (graphics review): the engine read the public ``active`` for a
+        part in play, so a linked flag ran its function once per contact, and
+        a handler that changed the input retired the part mid-dispatch
+        (``@collide_exit`` with no enter). One evaluation per step, at its
+        start (``_refresh_linked_parts``); the dispatch reads that value."""
+        s, hb = self.part()
+        box = {"on": True}
+        calls, hits, exits = [], [], []
+
+        def gate():
+            calls.append(1)
+            return box["on"]
+
+        hb["active"] @= gate
+        bullets = [self.dot(x, 0) for x in (-10, 0, 10)]
+
+        @collide("bullet", "hurt")
+        def hit(b, part, info=None):
+            hits.append(b)
+            box["on"] = False                      # the handler changes the input
+
+        @collide_exit("bullet", "hurt")
+        def gone(b, part, info=None):
+            exits.append(b)
+
+        n = len(calls)
+        get_collision_system().step()
+        self.assertEqual(len(calls) - n, 1, "one evaluation per step")
+        self.assertEqual(len(hits), len(bullets), "every contact of the step dispatched")
+        self.assertEqual(exits, [], "no exit inside the step that entered")
+        get_collision_system().step()               # the new value applies next step
+        self.assertEqual(sorted(map(id, exits)), sorted(map(id, bullets)))
+
     def test_removed_and_destroyed_parts_leave_the_index(self):
         s, hb = self.part()
         hb["active"] @= lambda: True

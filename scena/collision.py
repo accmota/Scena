@@ -4355,7 +4355,10 @@ class CollisionSystem:
         """
         if not getattr(item, "is_alive", True):
             return False
-        if not getattr(item, "active", True):
+        # The stored flag, not the public ``active``: on a hitbox part with a
+        # linked ``active`` the getter runs the link, once per contact (HP5).
+        # ``_refresh_linked_parts`` already applied it at the start of the step.
+        if getattr(item, "_active", True) is False:
             return False
         if getattr(item, "_collision_opt_out", False):
             return False
@@ -7942,6 +7945,11 @@ def ensure_collider(shape) -> Collider:
         return existing
     if getattr(type(shape), "_is_hitbox_part", False):
         return _ensure_part_collider(shape)
+    if getattr(shape, "_active", True) is False:
+        # Backstop: author paths stash while parked (Actors Design — active).
+        raise RuntimeError(
+            f"{shape!r} is parked (active = False): it joins collision on active = True"
+        )
     c = Collider(
         shape,
         _identity_shape=shape,
@@ -7949,6 +7957,11 @@ def ensure_collider(shape) -> Collider:
     )
     shape._collider = c
     shape._collidable = True
+    # Callbacks belong to the actor and outlive any Collider (E1).
+    cbs = getattr(shape, "_collide_cbs", None)
+    if cbs:
+        for name, fn in cbs.items():
+            setattr(c, name, fn)
     ensure_auto = getattr(shape, "_ensure_auto_baked", None)
     if callable(ensure_auto):
         ensure_auto()

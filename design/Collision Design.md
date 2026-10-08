@@ -77,9 +77,18 @@ Overlap tests in `step()` run only for **declared** relations:
 | --- | --- | --- | --- | --- |
 | `@collide(a, b)` | both sides | that pair | yes | no |
 | `resolve(a, b)` | both sides | that pair | no | yes |
-| `on_collide` / `@collide(..., ANYTHING)` | this body | this × every enrolled | yes | no |
+| `on_collide` / `@collide(..., ANYTHING)` | this body (and its pair groups, like `collidable = True`) | this × every enrolled | yes | no |
 | `collidable = True` | this body | **no pair by itself** | no | no |
-| `collidable = False` | opt-out (sticky) | — | — | — |
+| `collidable = False` | opt-out (sticky; recorded even before any enrollment) | — | — | — |
+
+`collidable = True`, `on_collide = f` and resume from park join through one
+path (`Entity._enter_collision`): `ensure_collider` copies the actor's
+callbacks into the new Collider, and the actor enrolls in its pair groups.
+Park leaves through `Entity._leave_collision` (exits fire, callbacks stay on
+the actor, no opt-out). `ensure_collider` refuses a parked actor. The engine
+reads a part's or actor's play state from the stored flag (`_active`), not
+the public `active`: a linked `hb["active"]` runs once per step
+(`_refresh_linked_parts`), never once per contact (graphics review HP5).
 
 `collidable = True` puts a hitbox in the registry for **unnamed** queries (`query_point` / `query_circle` / `query_sector` / `query_shape` / `raycast` with `group` omitted or `ANYTHING`), and as a partner for bodies that declared `ANYTHING`. It does **not** create pairwise tests against other flagged bodies. A query that **names** a group does not need this flag — see [Queries (on-demand)](#queries-on-demand).
 

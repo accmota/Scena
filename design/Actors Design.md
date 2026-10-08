@@ -462,10 +462,27 @@ Fence: see [Fences](Fences.md) (`id=` / `obj()` / a name registry).
   state (False while parked). Engine draw / hit-test walks read the drawn flag
   (`_drawn`), never the stash. A `blink` / `flash` on a parked actor therefore
   cannot show it (D7 in [Testing Design](Testing%20Design.md#bug-catalogue)).
-- `active = True` — restore stashed flags and resume process time. If the
-  restored `collidable` is on (including when it was set again while parked,
-  so the flag was already true and the setter would not re-enroll), pair
-  groups are enrolled again.
+- **Collision state belongs to the actor, not to its Collider.** The engine's
+  Collider is dropped by park and by `collidable = False` and rebuilt when the
+  actor rejoins; `on_collide` / `on_collide_stay` / `on_collide_exit` (a
+  function or a class-body method) live on the actor and survive both. While
+  parked, `on_collide = f` stores the callback and stashes `collidable = True`
+  (a callback opts in on resume, as it does when active); `resolve_now` returns
+  `[]` (a parked actor is out of collision; nothing is built). Park and resume
+  never write the author's opt-out: only `collidable = False` does, parked or
+  not, enrolled or not (before, a `collidable = False` written before any
+  `@collide` was dropped, so the result depended on statement order). A
+  stashed `collidable = True` is validated when written: on the `ui` /
+  parallax layer it raises then, and `layer = "ui"` is refused while it is
+  stashed (before, both raised on resume and left the actor half resumed).
+  Graphics review E1 / E2 / E3 / E11; guard `test_collision_lifecycle` (every
+  sequence of up to three lifecycle statements vs a twin built in the final
+  state).
+- `active = True` — restore stashed flags and resume process time. When the
+  restored state is collidable, the actor rejoins through the same path as
+  `collidable = True` and `on_collide = f` (`Entity._enter_collision`): its
+  callbacks come back and it enrolls in every pair group declared so far,
+  including groups declared while it was parked.
 - Orthogonal to `mode` and to hard `destroy()` (`is_alive`) **while alive**.
   `destroy()` marks `is_alive` False **and** `active` False (direct flag, not the
   park setter). `active = True` on a destroyed leftover is a no-op — it does not

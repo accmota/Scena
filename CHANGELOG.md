@@ -51,6 +51,23 @@ left out.
 
 ### Fixed
 
+- Collision callbacks survive park and `collidable`. `on_collide`,
+  `on_collide_stay` and `on_collide_exit` (a function or a method in the class
+  body) stopped firing after `active = False` then `True`, or `collidable =
+  False` then `True`: a pool or respawn game silently stopped reporting hits.
+  `on_collide = f` while parked now waits for `active = True` (before, it
+  joined collision at once and the actor then never collided with its groups
+  again), and the actor rejoins every `@collide` group declared meanwhile.
+- `collidable = False` written before any `@collide` is honoured: the actor
+  stays out of collision whatever order the lines run in.
+- A parked actor with `collidable = True` stashed refuses `layer = "ui"` (and
+  a parallax layer) when written, not later on `active = True`, which left
+  the actor half resumed. `resolve_now` on a parked actor returns `[]`.
+- `on_collide = 5` raises TypeError at once (it crashed in the next frame).
+- A hitbox part with a linked `active` (`hb["active"] @= fn`) runs `fn` once
+  per frame; it ran once per contact, and a collision handler that changed
+  what `fn` reads fired `@collide_exit` for contacts that never entered.
+
 - `canvas.background = canvas.background` keeps the background; it raised
   TypeError (a read gives the whole live background, a write expected a
   colour). To save the background and restore it later, keep

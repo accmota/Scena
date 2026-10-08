@@ -1194,6 +1194,14 @@ Members the guards found beyond the review (open; the batch is the fix plan):
 | GR5 | A free `Track.line(p1=, p2=)` starts on the slow pose path | triage | the reader matrix had a hand list of models | `test_diff_pose.START_SLOW` (batch 6) |
 | GR6 | SpriteButton state art truncates summed time (`int(t * fps)`), like PB3 | PM8 rule not applied | same as PB3 | `TestFrameCountsGoThroughReached` (batch 8) |
 | GR7 | `frame.rotated` is missing from the auto-hitbox, silhouette and union cache keys | key built by hand from some frame fields | no test varied a frame field against a warm cache | `test_cache_keys` (batch 6) |
+| GR8 | An `@collide` group declared while an actor was parked never enrolled it on resume | resume enrolled only an actor that was collidable before park | lifecycle tests ran one transition at a time | `test_collision_lifecycle` (fixed, batch 1) |
+| GR9 | `on_collide = f` opted the actor back in but did not enroll its pair groups | the callback path built a Collider without the enroll step `collidable = True` has | same | `test_collision_lifecycle` (fixed, batch 1) |
+
+Fixed so far (each batch removes its entries from the known lists):
+
+| Batch | Findings | One-place fix | Guard |
+| --- | --- | --- | --- |
+| 1 collision lifecycle | E1, E2, E3, E11, HP5, GR8, GR9; E12 for `on_collide*` | callbacks live on the actor (`Entity._collide_cbs`, copied by `ensure_collider`); one join path `Entity._enter_collision` (`collidable = True`, callback opt-in, resume) and one leave path `_leave_collision` (park never writes the opt-out); the opt-out recorded on every author `collidable = False`; stash validated when written (`_wants_collision` in the layer guards); `_item_in_play` reads the stored `_active` | `test_collision_lifecycle` (every sequence of up to three lifecycle statements vs a twin in the final state; method callback; ui while stashed); `test_hitbox_round2.TestLinkedActive.test_link_runs_once_per_step_not_per_contact` |
 
 ### F — contact flicker (2026-09-29)
 
