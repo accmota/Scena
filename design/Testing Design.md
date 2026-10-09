@@ -2240,6 +2240,12 @@ snapshot's entry from the setter instead, and the loop is unchanged.
 | perf | `_dispatch` copied and matched every handler per contact | phase snapshot; tag prefilter; act manager and phase map hoisted | 31 handlers, 150 stay contacts: 4.45 → 3.0 ms/frame | `test_collision.TestDispatchHandlerIndex` |
 | S9-11 | pointer → world and world → view in float32 (0.05 units at 1e6) | float64 closed forms | error 0 in the repro | `test_doors_agree.TestPointerMapsInFloat64` |
 
+Leftovers closed in the same batch: S8-10 (a raising body exit skipped the
+part exits: `test_hitbox_parts.TestDestroyExitsEveryPart`), S1-9 (a raising
+GLFW callback lost the rest of the poll: the frame re-reads keys and buttons
+from the OS, `test_input_frames.TestARaisingPollKeepsInputTrue`) and S1-11
+(cleanup forgets the terminated window: `test_run_cleanup`).
+
 Lessons:
 - A cache keyed on a list must not outlive the list's entries: the first phase
   snapshot held the dropped handlers' sides until the next dispatch, and the

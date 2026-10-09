@@ -232,5 +232,41 @@ class TestActChangeForgetsPointerInput(unittest.TestCase):
         self.assertEqual(log, [])
 
 
+
+class TestARaisingPollKeepsInputTrue(unittest.TestCase):
+    """Review 2026-10-09 S1-9: pyGLFW drops the rest of a poll after a
+    callback raises; a same-poll release was lost and ``keyp`` stuck for a
+    caller that catches. The frame re-reads keys and buttons from the OS."""
+
+    def test_a_tap_whose_press_raised_does_not_stick(self):
+        from unittest import mock
+        import scena.orchestration as orch
+        from scena import keyp
+        with system_world(draw=False) as w, input_driver(w) as d:
+            cm = w.fw.canvas_manager
+            saved = cm.on_key_down
+
+            def boom(key):
+                raise RuntimeError("author bug in on_key_down")
+
+            def poll():
+                # GLFW delivers the press; pyGLFW drops the release after
+                # the raise (it never reaches the framework).
+                d.press(glfw.KEY_SPACE)
+
+            cm.on_key_down = boom
+            try:
+                with mock.patch.object(orch.glfw, "poll_events", poll), \
+                        mock.patch.object(orch.glfw, "get_key", lambda _w, _k: glfw.RELEASE), \
+                        mock.patch.object(orch.glfw, "get_mouse_button",
+                                          lambda _w, _b: glfw.RELEASE):
+                    with self.assertRaises(RuntimeError):
+                        w.step(1)
+            finally:
+                cm.on_key_down = saved
+            w.step(2)
+            self.assertFalse(keyp("SPACE"), "the key the OS reports up stays held")
+
+
 if __name__ == "__main__":
     unittest.main()

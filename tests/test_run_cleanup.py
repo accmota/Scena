@@ -68,6 +68,22 @@ class RunCleanupTestCase(unittest.TestCase):
                 self.fw.run()
         self._assert_cleaned_once()
 
+    def test_a_closed_window_is_forgotten(self):
+        # Review 2026-10-09 S1-11: GLFW was terminated but the framework kept
+        # its window fields, so a second run() in the same process (a REPL, a
+        # notebook) skipped open_window() and drew on the dead window.
+        fw = self.fw
+        saved = (fw._windowed, fw._window, fw._drawing_surface, fw._drawing_canvas)
+        fw._windowed, fw._window = True, object()
+        try:
+            with mock.patch.object(fw, "_run_loop"):
+                fw.run()
+            self.assertFalse(fw._windowed, "the next run() opens a new window")
+            self.assertIsNone(fw._window)
+            self.assertIsNone(fw._context)
+        finally:
+            fw._windowed, fw._window, fw._drawing_surface, fw._drawing_canvas = saved
+
     def test_normal_exit_cleans_up(self):
         with mock.patch.object(self.fw, "_run_loop"):
             self.fw.run()

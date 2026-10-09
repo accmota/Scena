@@ -233,6 +233,12 @@ left out.
 - Collision handlers dispatch faster when many `@collide` rules exist.
 - The mouse position in the world stays exact at large world coordinates
   with the camera on (it was off by 0.05 units at x = 1 000 000).
+- When a key or mouse callback raises and you catch the error, keys and
+  buttons the system reports released no longer stay held in `keyp` and
+  `mouse`.
+- Destroying an actor whose body `@collide_exit` raises still ends the
+  contacts of its hitbox parts.
+- A second `run()` in the same Python session opens a new window.
 - `mouse.dx` / `mouse.dy` are this frame's motion: 0 when the mouse is
   still (they kept the last step, so `ship.move_by(mouse.dx, 0)` drifted
   forever), and the sum when several moves arrive in one frame.

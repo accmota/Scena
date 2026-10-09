@@ -4777,12 +4777,18 @@ class CollisionSystem:
         """Destroy-time: fire ``@collide_exit`` for the survivor, then drop handlers."""
         col = getattr(item, "_collider", None)
         parts = getattr(item, "_hitbox_parts", None) or ()
+        first_error = None
         try:
-            if col is not None:
-                self._fire_exit_for_destroyed(col)  # author handlers may raise
-            for part in parts:
-                if part._collider is not None:
-                    self._fire_exit_for_destroyed(part._collider)
+            # Every exit fires, each with its own error: a raising body exit
+            # skipped the part exits and left their keys behind (review
+            # 2026-10-09 S8-10). The first error is raised after the cleanup.
+            for c in ([col] if col is not None else []) + [
+                    p._collider for p in parts if p._collider is not None]:
+                try:
+                    self._fire_exit_for_destroyed(c)   # author handlers may raise
+                except BaseException as exc:            # noqa: BLE001
+                    if first_error is None:
+                        first_error = exc
         finally:
             if parts:
                 from .hitbox import _LINKED_PARTS
@@ -4793,9 +4799,14 @@ class CollisionSystem:
                 part._collider = None
                 part._collidable = False
                 if pc is not None:
+                    # No key may outlive the collider (an id() a new collider
+                    # could reuse before the next step).
+                    self._end_contacts_of(pc, emit=False)
                     self._swap_remove_collider(pc)
                     self._forget_collider_tags(pc)
             self._drop_destroyed_collider(item, col)
+        if first_error is not None:
+            raise first_error
 
     def _drop_destroyed_collider(self, item, col) -> None:
         self.drop_pair_handlers_for(item)

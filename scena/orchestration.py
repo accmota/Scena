@@ -3174,6 +3174,25 @@ class ScenaFramework:
             self.shape_manager.handle_mouse_move(view_x, view_y, ui=True)
             self.shape_manager.handle_mouse_move(world_x, world_y, ui=False)
 
+    def _resync_input_from_os(self):
+        """After a poll cut short: keys and mouse buttons as the OS has them
+        (held keys as level state, no new edges; a button the OS reports up
+        is released)."""
+        if self._window is None:
+            return
+        try:
+            self._seed_held_keys_from_os()
+            mouse = self.mouse
+            if mouse is not None and mouse._pressed_buttons:
+                from .input import get_glfw_mouse_button
+                for glfw_btn in range(8):          # GLFW_MOUSE_BUTTON_1 … 8
+                    name = get_glfw_mouse_button(glfw_btn)
+                    if (name in mouse._pressed_buttons
+                            and glfw.get_mouse_button(self._window, glfw_btn) != glfw.PRESS):
+                        mouse._button_up(name)
+        except Exception:
+            pass        # recovery only: the author's error is what propagates
+
     def _seed_held_keys_from_os(self):
         """Copy currently-down keys into ``keyp`` without press edges."""
         if self._window is None:
@@ -3473,6 +3492,16 @@ class ScenaFramework:
                     RuntimeWarning,
                     stacklevel=2,
                 )
+        if self._windowed:
+            # GLFW is terminated: the window, the GPU context and its surface
+            # are gone. A second run() in the same process (a REPL, a
+            # notebook) opens a new window instead of drawing on the dead
+            # one (review 2026-10-09 S1-11).
+            self._windowed = False
+            self._window = None
+            self._context = None
+            self._drawing_surface = None
+            self._drawing_canvas = None
 
     def _build_system_labels(self) -> None:
         """Framework HUD labels (system info, SCENA WARNING). Built once.
@@ -3626,7 +3655,14 @@ class ScenaFramework:
             self._tick_leak_detector()
 
             # Poll events (keys / buttons / view-space motion callbacks)
-            glfw.poll_events()
+            try:
+                glfw.poll_events()
+            except BaseException:
+                # pyGLFW drops every later event of a poll once a callback
+                # raises: a same-poll release is lost and the key would stay
+                # held for a caller that catches (review 2026-10-09 S1-9).
+                self._resync_input_from_os()
+                raise
             # World pointer is a sample, not only a move callback — still
             # cursor + camera pan with no GLFW motion.
             self._sync_pointer_level()

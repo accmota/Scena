@@ -1134,5 +1134,46 @@ class TestHitboxQueries(PartTestCase):
         self.assertEqual(s.collides_with("hurt"), [other])
 
 
+
+class TestDestroyExitsEveryPart(PartTestCase):
+    """Review 2026-10-09 S8-10: a raising body exit skipped the part exits and
+    left the part's contact keys behind (an ``id()`` a new collider could
+    reuse before the next step)."""
+
+    def test_a_raising_body_exit_still_ends_the_parts(self):
+        s = self.hero()
+        s.add_hitbox(group="hurt")
+        log = []
+
+        @collide_exit("bullet", "hero")
+        def body_exit(b, target, info):
+            log.append("body")
+            raise RuntimeError("author bug in a body exit")
+
+        @collide_exit("bullet", "hurt")
+        def part_exit(b, target, info):
+            log.append("part")
+
+        @collide("bullet", "hurt")
+        def part_enter(b, target, info):
+            pass
+
+        @collide("bullet", "hero")
+        def body_enter(b, target, info):
+            pass
+
+        self.dot(0, 0)
+        self.step()
+        parts = [p._collider for p in s._hitbox_parts if p._collider is not None]
+        self.assertTrue(parts, "not vacuous: the part is enrolled")
+        part_ids = {id(c) for c in parts}
+        with self.assertRaises(RuntimeError):
+            s.destroy()
+        self.assertEqual(sorted(log), ["body", "part"])
+        cs = get_collision_system()
+        self.assertFalse([k for k in cs._prev_contacts if part_ids & set(k)],
+                         "a part key outlived its collider")
+
+
 if __name__ == "__main__":
     unittest.main()
