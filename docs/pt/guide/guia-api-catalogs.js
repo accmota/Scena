@@ -211,7 +211,7 @@
       hosts: ["Shape", "Sprite"],
       params: [P("color", "segue o objeto", "Tinge o corpo (só Shape)", 1), P("amount", "0.08", "Quanto cresce, em fração do tamanho (0.08 = 8%)", 2), P("speed", "1", "Ritmo da respiração", 3)] },
     { id: "visual-recolor", kind: "sprite", family: "visual", name: "Recolor",
-      idea: "Troca uma cor da imagem por outra — o mesmo PNG de inimigo em azul e em vermelho. Os pixels perto do matiz <code>key</code> viram o matiz <code>to</code>; o resto fica. Num Sprite (em <code>.visual</code>) ou numa <code>Texture(shift=)</code>.",
+      idea: "Troca uma cor da imagem por outra — o mesmo PNG de inimigo em azul e em vermelho. Os pixels perto do matiz <code>key</code> viram o matiz <code>to</code>; o resto fica. Num Sprite (em <code>.visual</code>) ou numa <code>Texture(shift=)</code>. <code>key</code> precisa ter matiz: branco, cinza ou preto dão erro (Recolor não seleciona áreas cinzentas); <code>to</code> pode ser cinza.",
       code: "sprite.visual = Recolor(\"blue\", \"tomato\")\nTexture(\"tex2.png\", shift=Recolor(\"blue\", \"gold\"))",
       search: "recolor paleta sprite texture",
       hosts: ["Sprite"],

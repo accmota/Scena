@@ -592,7 +592,7 @@ class TestVisuals(unittest.TestCase):
 
     def test_vivid_rgb_matches_color_vibrant_version(self):
         """§3.5: float vivid path equals Color.vibrant_version (pixel-identical tint)."""
-        from scena.color import Color
+        from scena.color import Color, _chroma_weight
         from scena.recipes import _vivid_rgb, _energy_rgb, _energy_spark_rgb
         samples = [
             (0.35, 0.9, 1.0),
@@ -610,7 +610,7 @@ class TestVisuals(unittest.TestCase):
             er = _energy_rgb((*rgb, 1.0))
             c = Color(float(rgb[0]), float(rgb[1]), float(rgb[2]), 1.0)
             h, s, v, _ = c.hsv
-            s2 = min(1.0, s + (1.0 - s) * 0.32)
+            s2 = min(1.0, s + _chroma_weight(s) * (1.0 - s) * 0.32)
             ref_e = Color.from_hsv(h, s2, v, 1.0).rgb
             for a, b in zip(er[:3], ref_e[:3]):
                 self.assertAlmostEqual(a, b, places=5, msg=f"energy {rgb}")

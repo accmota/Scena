@@ -45,6 +45,11 @@ left out.
   accepted and never fired (a parallax layer is decoration; hit tests run in
   world space). A parallax item never fires `@leave_playfield`, as before;
   now the design doc says so.
+- `Recolor(key=…)` with a white, gray or black key raises `ValueError:
+  Recolor(key='white'): Recolor matches pixels by hue and skips pixels under
+  HSV saturation 0.12; … Pick a key with a hue, e.g. key="red".` Before, it
+  was accepted and recolored the **red** pixels (a gray reads as hue 0), never
+  the gray ones. Recolor cannot select gray areas; a gray `to=` still works.
 - Writing a name that is not a field raises with the fix, instead of quietly
   storing a value nothing reads: a method (`c.tag = "boss"`, `ship.destroy =
   True` replaced the method), a read-only property (`ship.is_alive = False`
@@ -249,6 +254,19 @@ left out.
   the old one. A tangent Line of length 0 refuses a flip, as it does at any
   other length; it accepted the flip and kept drawing the tangent heading.
 
+- A look on a white, gray or black shape stays neutral. `Neon()` drew a red
+  tube when the shape was white (tutorial 01, `triangulo.color = "white"`),
+  gray or black; `DashRing`, `GearShell`, `ElectricBolt` and
+  `Halo(style="fill")` / `Halo(style="soft")` turned pink. Same for
+  `Neon("white")` and the other looks seeded with a gray, and for
+  `Color.vibrant_version()` on a gray. Near-whites (snow, ivory) get a light
+  tint instead of a full color. Colors with any real saturation look as before.
+- `Color` methods no longer invent a red hue for a gray: `saturate`,
+  `jitter(saturation=)`, `accent_color` and `monochromatic` on white, gray or
+  black give grays (before, reddish tints), and `Color.interpolate` /
+  `Colormap` in `ColorSpace.HSL` or `HSV` from a gray take the other end's
+  hue (white → blue passed through magenta). `Color("gray").jitter()` with a
+  fixed seed now gives different (gray) colors.
 - Collision callbacks survive park and `collidable`. `on_collide`,
   `on_collide_stay` and `on_collide_exit` (a function or a method in the class
   body) stopped firing after `active = False` then `True`, or `collidable =
