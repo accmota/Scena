@@ -79,7 +79,7 @@ class ButtonTestCase(unittest.TestCase):
         return s
 
     def art(self, name="disc.png", draw=_disc, w=64, h=64):
-        return _png(os.path.join(self._tmp.name, name), w, h, draw)
+        return _png(os.path.normpath(os.path.join(self._tmp.name, name)), w, h, draw)
 
     def make(self, art=None, **kw):
         kw.setdefault("center", (self.o, self.o))

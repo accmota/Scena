@@ -172,7 +172,7 @@ def _link_media(folder: str) -> None:
 
 def run_program(folder: str, name: str, program: str) -> Tuple[bool, str]:
     """Run one program headless and strict. ``(ok, stderr tail)``."""
-    path = os.path.join(folder, name)
+    path = os.path.normpath(os.path.join(folder, name))
     with open(path, "w", encoding="utf-8") as f:
         f.write(program)
     try:

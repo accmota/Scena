@@ -42,6 +42,15 @@ Found by a read-only audit of the suite after that run (latent; WP16 / WP17):
   or ``errors=`` (an external tool writing in the locale).
 * **Sorting paths with the host separator.** ``"\\"`` sorts after letters,
   ``"/"`` before them; ``iter_files`` sorts in ``/`` form.
+
+Found on a Windows quick-tier run (2026-10-08):
+
+* **Joining a ``"/"`` path onto a ``"\\"`` root.** A test helper
+  ``png("ninja/Run__000.png")`` built ``os.path.join(root, rel)``, i.e.
+  ``C:\\t\\ninja/Run__000.png``; the code returned the ``abspath`` form
+  ``C:\\t\\ninja\\Run__000.png`` and the lists compared unequal. Every
+  ``os.path.join`` in the tests that takes a helper's parameter, or a literal
+  holding ``"/"``, is wrapped in ``os.path.normpath`` (or splits on ``"/"``).
 """
 from __future__ import annotations
 
@@ -356,6 +365,102 @@ class TestTransientClockIsPinned(unittest.TestCase):
     def test_guard_sees_a_t0_write(self):
         self.assertTrue(_T0_WRITE.search("s._tx_state.life.t0 = now - 0.1"))
         self.assertFalse(_T0_WRITE.search("assert s._tx_state.life.t0 == now"))
+
+
+_NORMALIZERS = frozenset({"normpath", "abspath", "realpath"})
+
+
+def _is_path_join(call: ast.Call) -> bool:
+    f = call.func
+    return (isinstance(f, ast.Attribute) and f.attr == "join"
+            and isinstance(f.value, ast.Attribute) and f.value.attr == "path")
+
+
+def _has_slash(node) -> bool:
+    if isinstance(node, ast.Constant):
+        return isinstance(node.value, str) and "/" in node.value
+    if isinstance(node, ast.JoinedStr):
+        return any(_has_slash(v) for v in node.values)
+    return False
+
+
+def _mixed_separator_joins(tree: ast.AST):
+    """Line numbers of ``os.path.join`` calls that may glue a ``"/"`` path onto
+    a ``"\\"`` root on Windows: a later part is a literal holding ``"/"``, or a
+    parameter of the enclosing function (a helper called as ``png("a/b.png")``).
+    Not flagged: the join wrapped in ``os.path.normpath`` / ``abspath`` /
+    ``realpath``, and parts split first (``*rel.split("/")``)."""
+    parent = {ch: n for n in ast.walk(tree) for ch in ast.iter_child_nodes(n)}
+
+    def params(node):
+        while node in parent:
+            node = parent[node]
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                a = node.args
+                return {x.arg for x in a.posonlyargs + a.args + a.kwonlyargs} - {"self"}
+        return set()
+
+    out = []
+    for call in ast.walk(tree):
+        if not (isinstance(call, ast.Call) and _is_path_join(call)):
+            continue
+        up = parent.get(call)
+        if (isinstance(up, ast.Call) and up.args and up.args[0] is call
+                and _attr(up) in _NORMALIZERS):
+            continue
+        names = params(call)
+        if any(_has_slash(a) or isinstance(a, ast.Name) and a.id in names
+               for a in call.args[1:]):
+            out.append(call.lineno)
+    return sorted(out)
+
+
+class TestJoinedPathsUseOneSeparator(unittest.TestCase):
+    """``os.path.join(root, "a/b.png")`` is ``C:\\t\\a/b.png`` on Windows, while
+    the code under test returns ``abspath`` / ``normpath`` results
+    (``C:\\t\\a\\b.png``): equal paths that compare unequal. Found on a Windows
+    quick-tier run (2026-10-08): the ``png(rel)`` helper of
+    test_sheet_patterns. A Mac run cannot see it (``os.sep`` is ``"/"``)."""
+
+    def test_joins_in_tests_normalize(self):
+        bad = []
+        for root in (TESTS, os.path.join(EDITOR, "tests")):
+            for path in iter_files(root, ".py", recursive=True):
+                with open(path, encoding="utf-8") as fh:
+                    tree = ast.parse(fh.read(), path)
+                rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+                bad += [f"{rel}:{n}" for n in _mixed_separator_joins(tree)]
+        self.assertEqual(
+            bad, [],
+            "wrap in os.path.normpath(os.path.join(...)) (or join *rel.split('/')): "
+            "a part written with '/' keeps it on Windows, and the code under test "
+            "returns '\\\\' paths:\n" + "\n".join(bad),
+        )
+
+    def test_guard_sees_each_spelling(self):
+        src = ("def a(rel):\n"
+               "    return os.path.join(root, rel)\n"                       # 2
+               "def b(rel):\n"
+               "    return os.path.normpath(os.path.join(root, rel))\n"
+               "def c(rel):\n"
+               "    return os.path.join(root, *rel.split('/'))\n"
+               "def d(root):\n"
+               "    return os.path.join(root, 'f.png')\n"
+               "os.path.join(root, 'a/b.png')\n"                            # 9
+               "os.path.join(root, f'{d}/x.png')\n"                         # 10
+               "os.path.join(root, 'a', 'b.png')\n"
+               "os.path.abspath(os.path.join(root, 'a/b'))\n"
+               "f = lambda name: os.path.join(root, name)\n"                # 13
+               "def e(self, rel):\n"
+               "    return str(os.path.join(self.root, rel))\n")            # 15
+        self.assertEqual(_mixed_separator_joins(ast.parse(src)), [2, 9, 10, 13, 15])
+
+    def test_the_windows_spelling_on_any_host(self):
+        import ntpath
+        mixed = ntpath.join("C:\\t", "a/b.png")
+        self.assertEqual(mixed, "C:\\t\\a/b.png")                           # the bug
+        self.assertEqual(ntpath.normpath(mixed), "C:\\t\\a\\b.png")         # the fix
+        self.assertEqual(ntpath.join("C:\\t", *"a/b.png".split("/")), "C:\\t\\a\\b.png")
 
 
 class TestPixelsNameTheirByteOrder(unittest.TestCase):

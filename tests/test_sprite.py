@@ -219,7 +219,7 @@ class SpriteTestCase(unittest.TestCase):
         return obj
 
     def tmp(self, name):
-        return os.path.join(self._tmp.name, name)
+        return os.path.normpath(os.path.join(self._tmp.name, name))
 
 
 class TestScaleKeepsTheGivenSize(SpriteTestCase):

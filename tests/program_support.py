@@ -87,7 +87,7 @@ def program_path(name: str) -> str:
         return name
     if "/" in name:
         return os.path.join(ROOT, *name.split("/"))
-    return os.path.join(PROGRAMS, name)
+    return os.path.normpath(os.path.join(PROGRAMS, name))
 
 
 # --------------------------------------------------------------------------
