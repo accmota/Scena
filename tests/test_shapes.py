@@ -3890,6 +3890,80 @@ class TestPoseZoomStaysSimilar(unittest.TestCase):
         A._destroy(s)
 
 
+class TestARelationThatGoesLeavesTheFreeTwin(unittest.TestCase):
+    """Q3b: a relational shape (Line ``parallel_to=`` / ``perpendicular_to=``
+    / ``circle=``, Ellipse ``from_rect=``) that loses its relation, by any
+    door, becomes its free twin with no relational link left: it used to keep
+    the relational model after ``unlink_all()`` or a destroyed reference (a
+    PARALLEL_DIST ``move_by`` did nothing), and ``force=True`` left a hybrid
+    (a CENTER_WH ellipse whose center still followed the rect)."""
+
+    def _relational(self):
+        import geom_axes as A
+        import geometry_support as G
+        return [k for k in G.KINDS if k.split()[0] in ("Line", "Ellipse")
+                and G.is_relational(A.build(k))]
+
+    def _free_and_unlinked(self, obj, kind, how):
+        import geometry_support as G
+        self.assertFalse(G.is_relational(obj), f"{kind} {how}: keeps {obj.model}")
+        left = [n._attr_name for n in obj._iter_subtree() if n._link is not None]
+        self.assertEqual(left, [], f"{kind} {how}: links left")
+        c0 = G.center_of(obj)
+        obj.move_by(7, -3)                  # a plain move moves it
+        c1 = G.center_of(obj)
+        self.assertAlmostEqual(c1[0], c0[0] + 7, places=6, msg=f"{kind} {how}")
+        self.assertAlmostEqual(c1[1], c0[1] - 3, places=6, msg=f"{kind} {how}")
+
+    def test_every_door_frees_every_relational_kind(self):
+        import warnings
+        import geom_axes as A
+        import geometry_support as G
+        for kind in self._relational():
+            for how in ("unlink_all", "part unlink", "destroyed reference"):
+                obj = A.build(kind)
+                before = {n: f() for n, f in G.point_parts(obj).items() if not n.startswith("box.")}
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    if how == "unlink_all":
+                        obj.unlink_all()
+                    elif how == "part unlink":
+                        node = next(n for n in obj._iter_subtree() if n._link is not None)
+                        node.unlink()
+                    else:
+                        obj._ref.destroy()
+                after = {n: f() for n, f in G.point_parts(obj).items() if n in before}
+                for n, xy in after.items():  # it stays where it was
+                    self.assertAlmostEqual(xy[0], before[n][0], places=6, msg=f"{kind} {how} {n}")
+                    self.assertAlmostEqual(xy[1], before[n][1], places=6, msg=f"{kind} {how} {n}")
+                self._free_and_unlinked(obj, kind, how)
+
+    def test_the_free_twin_publishes_its_heading(self):
+        # A tangent's ``at_angle`` pull turns it without moving the pose store;
+        # when the circle goes, ``angle`` becomes an input and the store follows.
+        from scena import State
+        c = Circle(center=(0, 0), radius=9)
+        ln = Line(circle=c, at_angle=30, length=20)
+        st = State(name="q3b")
+        st.a = 47.0
+        ln["at_angle"] @= lambda: st.a
+        st.a = 24.5
+        heading = float(ln.angle)
+        c.destroy()
+        self.assertEqual(ln.model, LineModel.POINT_ANGLE_LENGTH)
+        self.assertAlmostEqual(float(ln.angle), heading)
+        self.assertAlmostEqual(float(ln._rotation), heading)
+
+    def test_force_leaves_no_hybrid(self):
+        import warnings
+        import geom_axes as A
+        e = A.build("Ellipse from_rect")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            e.rotate_by(20, force=True)
+        self._free_and_unlinked(e, "Ellipse from_rect", "force")
+
+
 class TestCopyDoorsRefuseWhatClonesRefuse(unittest.TestCase):
     """Geometry campaign, wave 1: ``<<`` refuses what ``clone()`` refuses."""
 

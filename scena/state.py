@@ -2350,12 +2350,20 @@ class Container():
                 # must not fail on the link it removes.
                 pass
             # FormulaLink.clear() handles dependency cleanup
-            self._link.clear()
+            link = self._link
+            link.clear()
             self._link = None
             self._invalidate_bare_reads()
             # Restore structural edges from field_type (Defining vs Derivate)
             # and any remaining formula-driven ancestors.
             self._rewire_subtree_structural_edges(upward=None)
+            # A relational shape whose relation this link carried becomes its
+            # free twin (Q3b in Testing Design; Shape._relation_unlinked).
+            root = self._ownership_root()
+            if root is not self:
+                hook = getattr(root, '_relation_unlinked', None)
+                if hook is not None:
+                    hook(link)
 
     def unlink_all(self) -> 'Container':
         """

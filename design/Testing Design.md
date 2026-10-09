@@ -378,6 +378,16 @@ through `= 1.0`. Lessons:
 - Equality is not "unchanged" across types that compare equal: a flag and a
   number, like a list and a new list (E7).
 
+Wave 5, relations: Q3b. One hook does it for every door: `Container.unlink`
+tells the shape a part's link went, and a link that read the reference turns
+the shape into its free twin, unlinking the rest of the relation with it.
+The first version also ran while the relational shape itself was being
+destroyed (its teardown unlinks its parts) and raised from `destroy()`; the
+hook now leaves a destroyed shape alone. The sentinel then found the free
+twin of a tangent line with a linked `at_angle` holding the old heading in
+its pose store (the pull moved the heading, not the store); the conversion
+publishes the store when `angle` becomes an input.
+
 **Phase 1 findings (static sweep and probes; H1 found the first ones while it
 was being built).** Catalogue [GX](#gx--geometry-campaign-2026-10-08). The
 drift list's suspects, triaged: the `_scalar_bare_ok` seed without the
@@ -1455,7 +1465,6 @@ gaps that **both** authors reported on their own.
 
 | Found in | Issue | Planned |
 | --- | --- | --- |
-| Geometry campaign Q3b | `unlink_all()`, unlinking a part, or a destroyed reference keeps a relational model (PARALLEL_DIST `move_by` does nothing, TANGENT verbs orbit); `force=True` leaves a hybrid (CENTER_WH Ellipse whose `center` follows the Rect) | Campaign phase 7 (`_drop_relational` on every way a relation goes) |
 | Geometry campaign GX1–GX17 | Found by the campaign's harnesses ([GX](#gx--geometry-campaign-2026-10-08)) | Campaign phase 7 |
 | GR (2026-10-08) | Box and Rect keep near-copies of `_takein_impl` / `rotate_by` (they drifted once, SC1) | Decided 2026-10-08: no refactor now (no bug; the geometry contract sweep builds every Box model beside Rect). The next change to either method merges them into `_RectFrame` first ([Shapes Design](Shapes%20Design.md)) |
 

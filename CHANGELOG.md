@@ -166,6 +166,13 @@ left out.
   smallest scale: the center moved by a different factor than the size.
 - A Line whose heading is linked turns a point written before any read.
 - `track << flipped_track` draws the flipped path; it drew the unflipped one.
+- A Line made with `parallel_to=`, `perpendicular_to=` or `circle=`, or an
+  Ellipse made with `from_rect=`, becomes a plain shape where it is when its
+  relation goes: `unlink_all()`, unlinking one of its linked parts, or
+  destroying the line, circle or rect it follows. Before, it kept following
+  the relation in part (a parallel line's `move_by` did nothing, a tangent
+  line still orbited), and `force=True` left an ellipse whose center still
+  followed the rect.
 - A Line with both ends on one point turns its heading on a flip; it kept
   the old one. A tangent Line of length 0 refuses a flip, as it does at any
   other length; it accepted the flip and kept drawing the tangent heading.

@@ -19,9 +19,6 @@ SHADOW = {
 # Phase-1 probes (test_geom_probes): probe id -> finding. A listed probe must
 # still fail; one that passes must be removed.
 PROBES = {
-    "Q3b-unlink_all": "unlink_all keeps the relational model; phase 7",
-    "Q3b-destroy": "a destroyed reference keeps the relational model; phase 7",
-    "Q3b-force": "force=True leaves a hybrid (CENTER_WH with a linked center); phase 7",
 }
 
 # Timed / instant gate parity (test_geom_structure.TestTimedVerbsGateLikeInstant):
@@ -62,7 +59,4 @@ BAD_SOURCE = {
 # Fuzzer (tests/fuzz/geom_fuzz.py): fnmatch patterns over its signatures
 # ("oracle | kind | observable | rewrites | tags: …").
 FUZZ = {
-    "* | tags: *relational unlinked*":
-        "Q3b: unlink_all() keeps the relational model, so later verbs still follow the old "
-        "relation (or caches); phase 7",
 }

@@ -385,6 +385,15 @@ def _resolve_scale_apply(obj, factor: float, *, force: bool = False):
     return geom, store
 
 
+def _link_reads(link, ref) -> bool:
+    """Does ``link`` read ``ref`` (the reference of a relational shape)?"""
+    for src in getattr(link, 'sources', None) or ():
+        root = src._ownership_root() if isinstance(src, Container) else None
+        if root is ref:
+            return True
+    return False
+
+
 def _scale_gate_at_call(obj, *, value=None, factor=None, about=None, force: bool = False,
                         verb: str = "scale_by") -> None:
     """Everything an instant ``scale_by`` / ``scale_to`` checks before its first
@@ -1297,28 +1306,58 @@ class Shape(Graphic, PaintState):
             _pose_rotation_set(self, self._rotation_value())
 
     def _drop_relational(self) -> None:
-        """Links gone (``force=True``): a relational model becomes its free twin,
-        keeping the values it has (SB5: a forced move then did nothing)."""
+        """The relation is gone: a relational model becomes its free twin,
+        keeping the values it has, and every link that reads the reference is
+        removed with it (Q3b in Testing Design: no hybrid). Reached from every
+        way a relation goes: ``force=True`` (SB5: a forced move then did
+        nothing), ``unlink()`` / ``unlink_all()`` of a relational link, and a
+        destroyed reference (which unlinks its dependents): see
+        ``_relation_unlinked``."""
         model = getattr(self, 'model', None)
         if model is None or self._free_model(model) is model:
             return
-        free = self._free_model(model)
-        old = set(self.__dict__.get('_defining_part_names') or ())
-        # The parts that become inputs keep the value they read now (a cold
-        # computed field would otherwise start from its slot default).
-        keep = {}
-        for name in (self._defining_names_for(free) or ()):
-            if name in old:
-                continue
-            value = getattr(self, name)
-            keep[name] = get_xy(value, bare=True) if isinstance(value, Point) else _bare_num(value)
-        self._adopt_model_of(self)
-        self.__dict__['_ref'] = None
-        for name, value in keep.items():
-            if isinstance(value, tuple):
-                getattr(self, name)._takein(value)
-            else:
-                _init_scalar(self, name, value)
+        d = self.__dict__
+        if d.get('_dropping_relation'):
+            return                          # the unlinks below come back here
+        d['_dropping_relation'] = True
+        try:
+            free = self._free_model(model)
+            old = set(d.get('_defining_part_names') or ())
+            # The parts that become inputs keep the value they read now (a cold
+            # computed field would otherwise start from its slot default).
+            keep = {}
+            for name in (self._defining_names_for(free) or ()):
+                if name in old:
+                    continue
+                value = getattr(self, name)
+                keep[name] = get_xy(value, bare=True) if isinstance(value, Point) else _bare_num(value)
+            ref = d.get('_ref')
+            if ref is not None:
+                for node in list(self._iter_subtree()):
+                    if node._link is not None and _link_reads(node._link, ref):
+                        node.unlink()           # keeps its current value
+            self._adopt_model_of(self)
+            d['_ref'] = None
+            for name, value in keep.items():
+                if isinstance(value, tuple):
+                    getattr(self, name)._takein(value)
+                else:
+                    _init_scalar(self, name, value)
+            if 'angle' in (d.get('_defining_part_names') or ()):
+                # A heading that becomes an input publishes the store, which a
+                # tangent's ``at_angle`` pull never moved (sentinel I-heading).
+                object.__setattr__(self, '_rotation', float(self._rotation_value()))
+        finally:
+            d.pop('_dropping_relation', None)
+
+    def _relation_unlinked(self, link) -> None:
+        """A part's link was removed (``Container.unlink``): if it carried the
+        relation, the shape becomes its free twin."""
+        d = self.__dict__
+        if d.get('_destroyed') or d.get('_ref') is None:
+            return                          # its own teardown unlinks its parts
+        if _link_reads(link, d['_ref']):
+            self._drop_relational()
 
     def _clone_geometry(self, **kwargs) -> 'Shape':
         """Construct a free (unlinked) copy with matching geometry. Subclasses implement."""
