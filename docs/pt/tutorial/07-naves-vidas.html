@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Naves III — Atlas, explosão, vidas — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "07",
+  title: "Naves III · Atlas, explosão, vidas",
+  steps: [
+    {
+      title: "O jogo do 06",
+      body: `
+        <p>Novo script: o jogo do tutorial 06, como ele terminou, com as classes e o propulsor. Até aqui ele é bonito e curto, mas não perdoa: um tiro e acabou. Neste tutorial a frota fica variada e explode de verdade, o jogo ganha som e a nave ganha três vidas.</p>
+        <p>Antes disso, uma arrumação. O jogo vai querer muitas imagens novas: três tipos de inimigo, o ícone das vidas e, no próximo tutorial, um presente que cai e um escudo. Cada uma num arquivo solto é uma pilha de nomes de arquivo espalhada pelo código. O próximo passo junta tudo numa folha só.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.pontos = 0
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+
+class Tiro(Sprite, source="space/laserBlue03.png", height=28, group="tiros"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class TiroInimigo(Sprite, source="space/laserRed01.png", height=28, group="tiros_inimigos"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Inimigo(Sprite, height=40, group="inimigos"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("tiros")
+    def atingido(self, tiro):
+        canvas.burst_at(self, radius=40)
+        tiro.destroy()
+        self.destroy()
+        st.pontos += 1
+
+
+class Heroi(Sprite, source="space/playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.propulsor = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Tiro(center=(self.center.x, self.center.y + 28))
+
+    @collide_with("tiros_inimigos")
+    def atingido(self, tiro):
+        tiro.destroy()
+        canvas.flash(0.4)
+        canvas.explosion_at(self, amount=1.2)
+        self.destroy()
+
+    def on_destroy(self):
+        self.propulsor.destroy()
+
+
+nave = Heroi(center=(500, 70))
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Inimigo(FROTA[linha % 2], center=(185 + coluna * 90, 720 - linha * 70))
+        inimigo.hue = coluna / 8
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    TiroInimigo(center=(inimigo.center.x, inimigo.center.y - 20))
+
+
+def update(dt):
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "Uma folha de imagens",
+      body: `
+        <p>Os jogos guardam as figuras pequenas numa imagem só, uma <strong>folha</strong>, com uma lista ao lado que diz onde cada figura está. Isso se chama <strong>atlas</strong>. O pacote que usamos desde o 05 tem um: <code>shooter/sheet.png</code> é a folha, e <code>shooter/sheet.xml</code> é a lista, com o nome de cada figura e o retângulo que ela ocupa.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 400 230" role="img" aria-label="Uma imagem quadrada com várias figuras; quatro delas, na borda direita, têm uma linha até o seu nome numa lista ao lado">
+            <rect class="guide" x="20" y="15" width="200" height="200"/>
+            <rect class="bar" x="34" y="30" width="50" height="46"/>
+            <rect class="bar" x="94" y="30" width="46" height="42"/>
+            <rect class="bar" x="34" y="92" width="56" height="42"/>
+            <rect class="bar" x="100" y="96" width="40" height="40"/>
+            <rect class="bar child" x="40" y="150" width="10" height="34"/>
+            <rect class="bar child" x="60" y="150" width="10" height="34"/>
+            <rect class="bar" x="90" y="160" width="40" height="40"/>
+            <rect class="bar" x="34" y="192" width="22" height="16"/>
+            <rect class="bar" x="152" y="28" width="56" height="42"/>
+            <rect class="bar" x="156" y="88" width="50" height="46"/>
+            <rect class="bar child" x="186" y="146" width="10" height="34"/>
+            <rect class="hot" x="160" y="188" width="20" height="20"/>
+            <line class="guide" x1="208" y1="49" x2="250" y2="49"/>
+            <line class="guide" x1="206" y1="111" x2="250" y2="111"/>
+            <line class="guide" x1="196" y1="163" x2="250" y2="163"/>
+            <line class="guide" x1="180" y1="198" x2="250" y2="198"/>
+            <text x="256" y="53">playerShip1_red.png</text>
+            <text x="256" y="115">enemyBlack1.png</text>
+            <text x="256" y="167">laserBlue03.png</text>
+            <text x="256" y="202">powerupBlue_shield.png</text>
+            <text x="256" y="22">sheet.xml:</text>
+            <text x="120" y="228" text-anchor="middle">sheet.png</text>
+          </svg>
+          <figcaption>Um atlas: uma imagem com muitas figuras (<code>sheet.png</code>) e uma lista com o nome e o retângulo de cada uma (<code>sheet.xml</code>). <code>frame="…"</code> escolhe um retângulo pelo nome.</figcaption>
+        </figure>
+
+        <p><strong>A folha.</strong> <code>Sheet</code> (folha) carrega as duas coisas de uma vez: <code>Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")</code>. A folha fica numa variável, <code>folha</code>, e vale para o jogo inteiro: os pixels são lidos uma vez só, por mais sprites que usem a folha.</p>
+        <p><strong>Um quadro.</strong> Um sprite da folha diz duas coisas: a folha, em <code>source</code>, e qual figura, em <code>frame</code> (quadro), pelo nome que está na lista. Nas classes, os dois vão para a linha da classe: <code>class Tiro(Sprite, source=folha, frame="laserBlue03.png", …)</code>. O inimigo leva só a folha; cada criação diz o quadro: <code>Inimigo(frame=FROTA[linha % 2], …)</code>, e a lista <code>FROTA</code> agora guarda nomes de quadros, não de arquivos.</p>
+        <p>Rode: o jogo está igual. As figuras são as mesmas do 05, agora tiradas da folha. O ganho aparece no próximo passo.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+
+st.pontos = 0
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+
+class Tiro(Sprite, source=folha, frame="laserBlue03.png", height=28, group="tiros"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class TiroInimigo(Sprite, source=folha, frame="laserRed01.png", height=28, group="tiros_inimigos"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("tiros")
+    def atingido(self, tiro):
+        canvas.burst_at(self, radius=40)
+        tiro.destroy()
+        self.destroy()
+        st.pontos += 1
+
+
+class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.propulsor = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Tiro(center=(self.center.x, self.center.y + 28))
+
+    @collide_with("tiros_inimigos")
+    def atingido(self, tiro):
+        tiro.destroy()
+        canvas.flash(0.4)
+        canvas.explosion_at(self, amount=1.2)
+        self.destroy()
+
+    def on_destroy(self):
+        self.propulsor.destroy()
+
+
+nave = Heroi(center=(500, 70))
+
+FROTA = ["enemyGreen1.png", "enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Inimigo(frame=FROTA[linha % 2], center=(185 + coluna * 90, 720 - linha * 70))
+        inimigo.hue = coluna / 8
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    TiroInimigo(center=(inimigo.center.x, inimigo.center.y - 20))
+
+
+def update(dt):
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`,
+      try: [
+          {
+            note: "Outros quadros da folha para a nave, um por vez, depois do <code>nave = Heroi(…)</code>: trocar o <code>frame</code> troca a figura. Os nomes estão em <code>shooter/sheet.xml</code>; abra-o num editor de texto.",
+            code: `nave.frame = "playerShip2_blue.png"
+nave.frame = "playerShip3_green.png"`
+          }
+        ]
+    },
+    {
+      title: "Três inimigos",
+      body: `
+        <p>Com a folha, um inimigo novo custa um nome. A lista <code>FROTA</code> ganha três tipos, um por linha da frota, e o laço usa <code>FROTA[linha]</code>: a linha 0 tem o primeiro tipo, a linha 1 o segundo, a linha 2 o terceiro.</p>
+        <p>O matiz por coluna continua: cada linha tem a sua forma, cada coluna a sua cor. Nenhum arquivo novo, nenhuma linha nova na classe.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+
+st.pontos = 0
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+
+class Tiro(Sprite, source=folha, frame="laserBlue03.png", height=28, group="tiros"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class TiroInimigo(Sprite, source=folha, frame="laserRed01.png", height=28, group="tiros_inimigos"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("tiros")
+    def atingido(self, tiro):
+        canvas.burst_at(self, radius=40)
+        tiro.destroy()
+        self.destroy()
+        st.pontos += 1
+
+
+class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.propulsor = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Tiro(center=(self.center.x, self.center.y + 28))
+
+    @collide_with("tiros_inimigos")
+    def atingido(self, tiro):
+        tiro.destroy()
+        canvas.flash(0.4)
+        canvas.explosion_at(self, amount=1.2)
+        self.destroy()
+
+    def on_destroy(self):
+        self.propulsor.destroy()
+
+
+nave = Heroi(center=(500, 70))
+
+FROTA = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Inimigo(frame=FROTA[linha], center=(185 + coluna * 90, 720 - linha * 70))
+        inimigo.hue = coluna / 8
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    TiroInimigo(center=(inimigo.center.x, inimigo.center.y - 20))
+
+
+def update(dt):
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`,
+      try: [
+          {
+            note: "Outra frota, no lugar da lista. A folha tem <code>enemyBlack</code>, <code>enemyBlue</code>, <code>enemyGreen</code> e <code>enemyRed</code>, cada um de 1 a 5.",
+            code: `FROTA = ["enemyRed1.png", "enemyRed3.png", "enemyRed5.png"]`
+          }
+        ]
+    },
+    {
+      title: "Uma explosão em quadros",
+      body: `
+        <p>O inimigo some num estouro desenhado pelo Scena. Agora ele vai explodir com uma animação de verdade: uma explosão desenhada quadro a quadro, como num desenho animado.</p>
+        <p><strong>A faixa.</strong> <code>misc/exp4.png</code> é uma faixa de 12 quadros lado a lado, cada um com 96 pixels de lado: a explosão nasce pequena, cresce e se desfaz em fumaça. <code>Sheet("misc/exp4.png", cols=12)</code> corta a faixa em 12 colunas (<code>cols</code>). Esta folha não tem lista: os quadros se chamam pelo número, de 0 a 11.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 420 150" role="img" aria-label="Uma faixa de doze quadrados numerados de 0 a 11, como um filme; círculos crescem e depois se desfazem; uma seta embaixo diz o tempo, 24 quadros por segundo">
+            <rect class="guide" x="10" y="30" width="400" height="40"/>
+            <line class="guide" x1="43.3" y1="30" x2="43.3" y2="70"/>
+            <line class="guide" x1="76.7" y1="30" x2="76.7" y2="70"/>
+            <line class="guide" x1="110" y1="30" x2="110" y2="70"/>
+            <line class="guide" x1="143.3" y1="30" x2="143.3" y2="70"/>
+            <line class="guide" x1="176.7" y1="30" x2="176.7" y2="70"/>
+            <line class="guide" x1="210" y1="30" x2="210" y2="70"/>
+            <line class="guide" x1="243.3" y1="30" x2="243.3" y2="70"/>
+            <line class="guide" x1="276.7" y1="30" x2="276.7" y2="70"/>
+            <line class="guide" x1="310" y1="30" x2="310" y2="70"/>
+            <line class="guide" x1="343.3" y1="30" x2="343.3" y2="70"/>
+            <line class="guide" x1="376.7" y1="30" x2="376.7" y2="70"/>
+            <circle class="hot" cx="26.7" cy="50" r="3"/>
+            <circle class="hot" cx="60" cy="50" r="7"/>
+            <circle class="hot" cx="93.3" cy="50" r="11"/>
+            <circle class="hot" cx="126.7" cy="50" r="13"/>
+            <circle class="hot" cx="160" cy="50" r="14"/>
+            <circle class="bar child" cx="193.3" cy="50" r="14"/>
+            <circle class="bar child" cx="226.7" cy="50" r="13"/>
+            <circle class="bar child" cx="260" cy="50" r="11"/>
+            <circle class="dot" cx="293.3" cy="46" r="3"/>
+            <circle class="dot" cx="300" cy="55" r="2"/>
+            <circle class="dot" cx="322" cy="44" r="2"/>
+            <circle class="dot" cx="333" cy="56" r="2"/>
+            <circle class="dot" cx="360" cy="48" r="1.5"/>
+            <circle class="dot" cx="395" cy="52" r="1"/>
+            <text x="26.7" y="22" text-anchor="middle">0</text>
+            <text x="60" y="22" text-anchor="middle">1</text>
+            <text x="93.3" y="22" text-anchor="middle">2</text>
+            <text x="210" y="22" text-anchor="middle">…</text>
+            <text x="393.3" y="22" text-anchor="middle">11</text>
+            <line class="ray" x1="10" y1="95" x2="405" y2="95"/>
+            <line class="ray" x1="397" y1="90" x2="405" y2="95"/>
+            <line class="ray" x1="397" y1="100" x2="405" y2="95"/>
+            <text x="210" y="118" text-anchor="middle">clip "explode": quadros 0 a 11, 24 por segundo</text>
+            <text x="210" y="138" text-anchor="middle">12 quadros ÷ 24 = 0.5 s</text>
+          </svg>
+          <figcaption>A faixa <code>exp4.png</code> cortada em 12 quadros (<code>cols=12</code>). O clip toca os quadros em ordem, como um filme.</figcaption>
+        </figure>
+
+        <p><strong>O clip.</strong> Um <code>clip</code> é uma sequência de quadros com nome. <code>explosao.clip("explode", range(12), fps=24)</code> diz: o clip <code>"explode"</code> mostra os quadros 0 a 11 (<code>range(12)</code>, o mesmo do <code>for</code>), 24 por segundo (<code>fps</code>, quadros por segundo). Os 12 quadros levam meio segundo.</p>
+        <p><strong>A classe.</strong> <code>Explosao</code> é um sprite dessa folha. No <code>setup</code>, <code>play("explode", loops=1)</code> (tocar) toca o clip uma vez só e para no último quadro. Como o clip leva 0.5 s, <code>self.after(0.5, self.destroy)</code> apaga a explosão quando ele acaba. O <code>after</code> do tutorial 02, agora de um objeto: o relógio é desta explosão. No acerto, <code>Explosao(center=self.center)</code> nasce onde o inimigo estava, no lugar do <code>burst_at</code>.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosao = Sheet("misc/exp4.png", cols=12)
+explosao.clip("explode", range(12), fps=24)
+
+st.pontos = 0
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+
+class Explosao(Sprite, source=explosao, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        self.after(0.5, self.destroy)
+
+
+class Tiro(Sprite, source=folha, frame="laserBlue03.png", height=28, group="tiros"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class TiroInimigo(Sprite, source=folha, frame="laserRed01.png", height=28, group="tiros_inimigos"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("tiros")
+    def atingido(self, tiro):
+        Explosao(center=self.center)
+        tiro.destroy()
+        self.destroy()
+        st.pontos += 1
+
+
+class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.propulsor = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Tiro(center=(self.center.x, self.center.y + 28))
+
+    @collide_with("tiros_inimigos")
+    def atingido(self, tiro):
+        tiro.destroy()
+        canvas.flash(0.4)
+        canvas.explosion_at(self, amount=1.2)
+        self.destroy()
+
+    def on_destroy(self):
+        self.propulsor.destroy()
+
+
+nave = Heroi(center=(500, 70))
+
+FROTA = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Inimigo(frame=FROTA[linha], center=(185 + coluna * 90, 720 - linha * 70))
+        inimigo.hue = coluna / 8
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    TiroInimigo(center=(inimigo.center.x, inimigo.center.y - 20))
+
+
+def update(dt):
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`,
+      try: [
+          {
+            note: "Uma explosão maior, no acerto, no lugar da linha da <code>Explosao</code>: a criação vence a altura da linha da classe. Mais devagar é o <code>fps</code> do clip; com 12 quadros, o tempo do <code>after</code> é 12 dividido pelo <code>fps</code>.",
+            code: `Explosao(center=self.center, height=140)`
+          }
+        ]
+    },
+    {
+      title: "Som",
+      body: `
+        <p>O jogo é mudo. <code>play_sound</code> (tocar som) toca um arquivo de som, uma vez, e o jogo segue sem esperar. Como as imagens, o som vem da pasta <code>media/</code>, e o nome traz a subpasta: <code>"audio/laser4.wav"</code>.</p>
+        <p>Dois sons: o laser, logo depois de criar o <code>Tiro</code>; e a explosão, no acerto, junto da <code>Explosao</code>. Cada som fica junto da coisa que o faz. Dez tiros seguidos tocam dez vezes: os sons se somam, e um não corta o outro.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosao = Sheet("misc/exp4.png", cols=12)
+explosao.clip("explode", range(12), fps=24)
+
+st.pontos = 0
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+
+class Explosao(Sprite, source=explosao, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        self.after(0.5, self.destroy)
+
+
+class Tiro(Sprite, source=folha, frame="laserBlue03.png", height=28, group="tiros"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class TiroInimigo(Sprite, source=folha, frame="laserRed01.png", height=28, group="tiros_inimigos"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("tiros")
+    def atingido(self, tiro):
+        Explosao(center=self.center)
+        play_sound("audio/explosion01.wav")
+        tiro.destroy()
+        self.destroy()
+        st.pontos += 1
+
+
+class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.propulsor = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Tiro(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("tiros_inimigos")
+    def atingido(self, tiro):
+        tiro.destroy()
+        canvas.flash(0.4)
+        canvas.explosion_at(self, amount=1.2)
+        self.destroy()
+
+    def on_destroy(self):
+        self.propulsor.destroy()
+
+
+nave = Heroi(center=(500, 70))
+
+FROTA = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Inimigo(frame=FROTA[linha], center=(185 + coluna * 90, 720 - linha * 70))
+        inimigo.hue = coluna / 8
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    TiroInimigo(center=(inimigo.center.x, inimigo.center.y - 20))
+
+
+def update(dt):
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`,
+      try: [
+          {
+            note: "Outros sons, um por vez, no lugar dos dois. <code>volume</code> 1 é o original; <code>pitch</code> (altura) 1.5 é mais agudo e mais rápido.",
+            code: `play_sound("audio/laser7.wav", volume=0.5)
+play_sound("audio/explosion03.wav", pitch=1.5)`
+          }
+        ]
+    },
+    {
+      title: "Vidas",
+      body: `
+        <p>A nave ganha três vidas. Um laser vermelho tira uma vida, a nave pisca e, por um momento, nada mais a atinge.</p>
+        <p><strong>O número.</strong> <code>st.vidas = 3</code> guarda as vidas em <code>st</code>, ao lado dos pontos. No <code>Heroi</code>, quem perde a vida é o <code>atingido</code>: <code>st.vidas -= 1</code>. A nave não é mais destruída. Por enquanto, as vidas descem sem fim: 2, 1, 0, −1… É o assunto do próximo passo.</p>
+        <p><strong>O placar das vidas.</strong> No canto de cima, o ícone de uma nave pequena, outro quadro da folha, e um texto ligado: <code>vidas["text"] @= lambda: f"x {st.vidas}"</code>. É o <code>@=</code> do placar do tutorial 02: ele liga o texto a uma conta que lê <code>st.vidas</code>, e quando o número muda, o texto muda sozinho. Ninguém atualiza o placar à mão.</p>
+        <p><strong>O golpe.</strong> <code>canvas.shake(8)</code> (sacudir) treme a tela; 8 é a força. <code>self.blink(1.5)</code> (piscar) faz a nave piscar por 1.5 s. E um som de pancada.</p>
+        <p><strong>Um tempo de folga.</strong> Sem folga, uma rajada de lasers tiraria as três vidas num segundo. <code>ready</code>, o freio do tiro no tutorial 05, serve aqui também: <code>ready("dano", 1.5)</code> só responde verdadeiro se já passou 1.5 s desde a última vez. Se não passou, o <code>return</code> sai da função sem tirar vida. O laser some do mesmo jeito; enquanto a nave pisca, ela não perde vida.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosao = Sheet("misc/exp4.png", cols=12)
+explosao.clip("explode", range(12), fps=24)
+
+st.pontos = 0
+st.vidas = 3
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+Sprite(folha, frame="playerLife1_red.png", height=24, center=(900, 768))
+vidas = Text(text="", top_left=(920, 780), font_size=20)
+vidas["text"] @= lambda: f"x {st.vidas}"
+
+
+class Explosao(Sprite, source=explosao, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        self.after(0.5, self.destroy)
+
+
+class Tiro(Sprite, source=folha, frame="laserBlue03.png", height=28, group="tiros"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class TiroInimigo(Sprite, source=folha, frame="laserRed01.png", height=28, group="tiros_inimigos"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("tiros")
+    def atingido(self, tiro):
+        Explosao(center=self.center)
+        play_sound("audio/explosion01.wav")
+        tiro.destroy()
+        self.destroy()
+        st.pontos += 1
+
+
+class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.propulsor = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Tiro(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("tiros_inimigos")
+    def atingido(self, tiro):
+        tiro.destroy()
+        if not ready("dano", 1.5):
+            return
+        st.vidas -= 1
+        canvas.shake(8)
+        self.blink(1.5)
+        play_sound("audio/sfx-hit-2.wav")
+
+    def on_destroy(self):
+        self.propulsor.destroy()
+
+
+nave = Heroi(center=(500, 70))
+
+FROTA = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Inimigo(frame=FROTA[linha], center=(185 + coluna * 90, 720 - linha * 70))
+        inimigo.hue = coluna / 8
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    TiroInimigo(center=(inimigo.center.x, inimigo.center.y - 20))
+
+
+def update(dt):
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`,
+      dive: [
+        {
+          title: "O st por dentro",
+          body: `
+            <p><code>st</code> guarda os dados do jogo como um todo: os pontos, as vidas, a velocidade da frota. Cada nome em <code>st</code> é uma <strong>célula</strong>: um lugar com um valor que o Scena acompanha. É por isso que o <code>@=</code> funciona: a conta <code>f"x {st.vidas}"</code> lê a célula, e o Scena sabe que, quando a célula mudar, o texto precisa ser refeito.</p>
+            <p>A célula tem dois nomes. <code>st.vidas</code> e <code>st["vidas"]</code> são a mesma coisa; os colchetes servem quando o nome está numa variável (<code>st[nome]</code>).</p>
+            <p>A célula também avisa. <code>@on_change(st.vidas)</code> (quando mudar), em cima de uma função, roda a função a cada mudança do número, venha ela de onde vier. Aqui ainda não precisamos: quem muda as vidas é só o <code>atingido</code>, e o que acontece fica escrito ali. No próximo tutorial, o escudo vai ligar e desligar sozinho com um <code>@on_change</code>.</p>
+            <p>No Guia: <a href="../guide/index.html#reativo-state">st</a> · <a href="../guide/index.html#reagir-on-change">@on_change</a>.</p>
+          `,
+          try: [
+              {
+                note: "Um aviso a cada vida perdida, sem mexer no <code>atingido</code>. No fim do arquivo, antes do <code>run()</code>:",
+                code: `@on_change(st.vidas)
+def vidas_mudaram():
+    vidas.flash_text("AI!", 0.5)`
+              }
+            ]
+        }
+      ],
+      try: [
+          {
+            note: "Mais ou menos folga, no lugar do <code>1.5</code> do <code>ready</code> e do <code>blink</code> (os dois juntos: a nave pisca enquanto está protegida).",
+            code: `if not ready("dano", 3):
+    return`
+          }
+        ]
+    },
+    {
+      title: "Fim de jogo",
+      example: "naves_vidas.py",
+      body: `
+        <p>As vidas descem para baixo de zero. Na última, a nave tem de explodir, e o jogo tem de dizer que acabou.</p>
+        <p><strong>A última vida.</strong> Depois de <code>st.vidas -= 1</code>, um <code>if</code> separa os dois casos. Se ainda há vidas, é o golpe do passo anterior: piscar e o som de pancada. Se não há (<code>else</code>, senão), é o fim: o clarão e a explosão grande do tutorial 05, o som de fim de jogo, o texto <code>FIM DE JOGO</code> no meio da tela e o <code>destroy</code>. O <code>shake</code> vale para os dois casos e fica antes do <code>if</code>.</p>
+        <p><strong>O que sobra.</strong> <code>Fire</code> (fogo) é outro <code>SpatialFx</code>, como o propulsor do 06: um fogo parado num ponto do mundo. Ele nasce no centro da nave, um instante antes do <code>destroy</code>, e fica queimando onde ela caiu. <code>radius</code> (raio) é o tamanho do fogo.</p>
+        <p><strong>Depois do fim.</strong> A frota continua viva e atirando, e o propulsor sai com a nave (o <code>on_destroy</code> do 06). Para jogar de novo, feche a janela e rode outra vez: recomeçar o jogo por dentro é um assunto à parte, num tutorial adiante.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosao = Sheet("misc/exp4.png", cols=12)
+explosao.clip("explode", range(12), fps=24)
+
+st.pontos = 0
+st.vidas = 3
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+Sprite(folha, frame="playerLife1_red.png", height=24, center=(900, 768))
+vidas = Text(text="", top_left=(920, 780), font_size=20)
+vidas["text"] @= lambda: f"x {st.vidas}"
+
+
+class Explosao(Sprite, source=explosao, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        self.after(0.5, self.destroy)
+
+
+class Tiro(Sprite, source=folha, frame="laserBlue03.png", height=28, group="tiros"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class TiroInimigo(Sprite, source=folha, frame="laserRed01.png", height=28, group="tiros_inimigos"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("tiros")
+    def atingido(self, tiro):
+        Explosao(center=self.center)
+        play_sound("audio/explosion01.wav")
+        tiro.destroy()
+        self.destroy()
+        st.pontos += 1
+
+
+class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.propulsor = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Tiro(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("tiros_inimigos")
+    def atingido(self, tiro):
+        tiro.destroy()
+        if not ready("dano", 1.5):
+            return
+        st.vidas -= 1
+        canvas.shake(8)
+        if st.vidas > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="FIM DE JOGO", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    def on_destroy(self):
+        self.propulsor.destroy()
+
+
+nave = Heroi(center=(500, 70))
+
+FROTA = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Inimigo(frame=FROTA[linha], center=(185 + coluna * 90, 720 - linha * 70))
+        inimigo.hue = coluna / 8
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    TiroInimigo(center=(inimigo.center.x, inimigo.center.y - 20))
+
+
+def update(dt):
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`,
+      try: [
+          {
+            note: "Outros fogos no lugar do destroço. <code>style</code> (estilo) muda o jeito: <code>\"soft\"</code> é um disco mais calmo, <code>\"plume\"</code> uma chama que sobe, <code>\"embers\"</code> só brasas. No Guia: <a href='../guide/index.html#desenhar-spatial'>SpatialFx</a>.",
+            code: `Fire(center=self.center, radius=40, style="soft")
+Fire(center=self.center, width=30, style="plume")
+Fire(center=self.center, width=30, style="embers")`
+          }
+        ],
+      closing: `
+        <p>Setas movem a nave. Espaço atira. Três vidas: cada laser vermelho tira uma, e a nave pisca, protegida, por um momento. Na última, ela explode e o jogo acaba.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Sheet</code> com <code>atlas</code> — uma folha de figuras e a lista de onde cada uma está; <code>frame</code> escolhe uma pelo nome.</li>
+          <li><code>cols</code> e <code>clip</code> — uma faixa cortada em quadros, e uma sequência deles com nome e velocidade (<code>fps</code>).</li>
+          <li><code>play</code> com <code>loops=1</code> — toca o clip uma vez e para no último quadro; o <code>after</code> do próprio objeto o apaga.</li>
+          <li><code>play_sound</code> — toca um som, uma vez, sem esperar; os sons se somam.</li>
+          <li><code>st.vidas</code> e <code>@=</code> — uma célula que o placar lê; quando ela muda, o texto muda sozinho.</li>
+          <li><code>blink</code>, <code>shake</code> e <code>ready</code> — o golpe e o tempo de folga.</li>
+          <li><code>Fire</code> — um fogo parado num ponto do mundo, outro <code>SpatialFx</code>.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#spr-atlas">Atlas</a> · <a href="../guide/index.html#spr-clip">Clips</a> · <a href="../guide/index.html#som-play">play_sound</a> · <a href="../guide/index.html#reativo-state">st</a> · <a href="../guide/index.html#aparencia-transientes">Transientes</a> · <a href="../guide/index.html#desenhar-spatial">SpatialFx</a>.</p>
+        <p><strong>No próximo:</strong> um presente cai de um inimigo, e a nave ganha um escudo que se gasta.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Naves II — Classes — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "06",
+  title: "Naves II · Classes",
+  steps: [
+    {
+      title: "O jogo do 05",
+      body: `
+        <p>Novo script, o mesmo jogo: o Galaga do tutorial 05, inteiro, como ele terminou. Este tutorial quase não muda a tela. Ele <strong>reorganiza o código</strong>, e só no último passo a nave ganha uma peça nova.</p>
+        <p><strong>Onde dói.</strong> Leia o <code>update</code>. Ele lê as setas, move a nave, segura a cerca, cria os tiros, move os tiros dos dois lados, move a frota e vira a frota nas bordas. Tudo o que acontece a cada quadro, com todo mundo, mora numa função só. E o <code>if nave:</code> está lá porque o <code>update</code> não sabe se a nave ainda existe: depois do <code>destroy</code>, ele precisa perguntar. Num jogo maior, com vidas, escudo e um chefe, essa função vira uma lista que ninguém consegue ler.</p>
+        <p><strong>A ideia.</strong> Cada tipo de coisa do jogo vai carregar o próprio comportamento: o tiro sabe subir, o inimigo sabe pulsar e explodir, a nave sabe ler as setas. Para isso o Python tem as <strong>classes</strong>. Rode o script para lembrar do jogo; o próximo passo começa pelo mais simples, o tiro.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.pontos = 0
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Sprite(
+            FROTA[linha % 2],
+            height=40,
+            center=(185 + coluna * 90, 720 - linha * 70),
+            group="inimigos",
+        )
+        inimigo.hue = coluna / 8
+        inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    s = Sprite("space/laserRed01.png", height=28,
+           center=(inimigo.center.x, inimigo.center.y - 20), group="tiros_inimigos")
+    s.rotate_to(180)
+
+def update(dt):
+    if nave:
+        if keyp("LEFT"):
+            nave.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            nave.move_by(340 * dt, 0)
+        nave.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Sprite("space/laserBlue03.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")
+
+    group["tiros"].move_by(0, 640 * dt)
+    group["tiros_inimigos"].move_by(0, -400 * dt)
+
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+@collide("tiros", "inimigos")
+def acertou(tiro, inimigo):
+    canvas.burst_at(inimigo, radius=40)
+    tiro.destroy()
+    inimigo.destroy()
+    st.pontos += 1
+
+
+@collide("tiros_inimigos", nave)
+def atingiu(tiro, nave):
+    tiro.destroy()
+    canvas.flash(0.4)
+    canvas.explosion_at(nave, amount=1.2)
+    nave.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "A primeira classe: Tiro",
+      body: `
+        <p>O tiro é o mais simples: nasce e sobe. Hoje, nascer está no <code>update</code> (o <code>Sprite(…)</code> com a imagem, a altura e o grupo) e subir também (<code>group["tiros"].move_by</code>). Uma classe junta as duas coisas num lugar só.</p>
+        <p><strong>O molde.</strong> Uma <strong>classe</strong> é um molde: cada <code>Tiro(…)</code> sai igual, com a mesma imagem e o mesmo comportamento. A primeira linha diz o que o molde é e o que todo tiro tem. <code>class Tiro(Sprite, …)</code> é um sprite; depois da vírgula vêm os parâmetros que todo tiro recebe: a imagem (<code>source</code>, a fonte), a altura e o grupo. São os mesmos que o <code>Sprite(…)</code> recebia. Criar um tiro agora é só dizer onde: <code>Tiro(center=…)</code>.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="À esquerda, um retângulo chamado class Tiro, com on_update dentro; linhas tracejadas saem dele até três tiros em alturas diferentes, à direita; um dos tiros está destacado e tem o rótulo self">
+            <rect class="bar" x="20" y="62" width="130" height="76" rx="6"/>
+            <text x="85" y="94" text-anchor="middle">class Tiro</text>
+            <text x="85" y="114" text-anchor="middle">on_update</text>
+            <line class="guide" x1="150" y1="100" x2="252" y2="150"/>
+            <line class="guide" x1="150" y1="100" x2="302" y2="100"/>
+            <line class="guide" x1="150" y1="100" x2="352" y2="50"/>
+            <rect class="bar child" x="248" y="132" width="8" height="36" rx="3"/>
+            <rect class="hot" x="298" y="82" width="8" height="36" rx="3"/>
+            <rect class="bar child" x="348" y="32" width="8" height="36" rx="3"/>
+            <text x="302" y="136" text-anchor="middle">self</text>
+            <text x="300" y="190" text-anchor="middle">Tiro(center=…)</text>
+          </svg>
+          <figcaption>Um molde, muitos tiros. Cada tiro tem o seu lugar; o comportamento é o mesmo. Quando o Scena chama <code>on_update</code> de um deles, <code>self</code> é aquele tiro.</figcaption>
+        </figure>
+
+        <p><strong>O comportamento.</strong> Dentro da classe, <code>def on_update(self, dt)</code> é como o <code>update</code>: o Scena chama a cada quadro, mas uma vez para <em>cada</em> tiro. <code>self</code> quer dizer <strong>este aqui</strong>: o tiro que está sendo atualizado agora. <code>self.move_by(0, 640 * dt)</code> diz “este tiro sobe 640 pixels por segundo”. Com dez tiros na tela, o Scena chama dez vezes, cada vez com o seu <code>self</code>.</p>
+        <p>A linha <code>group["tiros"].move_by</code> saiu do <code>update</code>. Rode e segure espaço: os tiros sobem como antes. Nada mudou na tela; mudou quem cuida do tiro.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.pontos = 0
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+
+class Tiro(Sprite, source="space/laserBlue03.png", height=28, group="tiros"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Sprite(
+            FROTA[linha % 2],
+            height=40,
+            center=(185 + coluna * 90, 720 - linha * 70),
+            group="inimigos",
+        )
+        inimigo.hue = coluna / 8
+        inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    s = Sprite("space/laserRed01.png", height=28,
+           center=(inimigo.center.x, inimigo.center.y - 20), group="tiros_inimigos")
+    s.rotate_to(180)
+
+def update(dt):
+    if nave:
+        if keyp("LEFT"):
+            nave.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            nave.move_by(340 * dt, 0)
+        nave.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Tiro(center=(nave.center.x, nave.center.y + 28))
+
+    group["tiros_inimigos"].move_by(0, -400 * dt)
+
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+@collide("tiros", "inimigos")
+def acertou(tiro, inimigo):
+    canvas.burst_at(inimigo, radius=40)
+    tiro.destroy()
+    inimigo.destroy()
+    st.pontos += 1
+
+
+@collide("tiros_inimigos", nave)
+def atingiu(tiro, nave):
+    tiro.destroy()
+    canvas.flash(0.4)
+    canvas.explosion_at(nave, amount=1.2)
+    nave.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "O tiro da frota e o inimigo",
+      body: `
+        <p>Mais dois moldes, do mesmo jeito. O laser da frota vira a classe <code>TiroInimigo</code>: desce 400 pixels por segundo, no <code>on_update</code>, e a linha do grupo sai do <code>update</code>.</p>
+        <p><strong>Quando nasce.</strong> O laser vermelho precisava de meia volta (<code>rotate_to(180)</code>) logo depois de criado. Na classe, isso vai em <code>setup</code> (preparar): o Scena chama <code>setup</code> <strong>uma vez</strong>, quando o objeto nasce, antes do primeiro <code>on_update</code>. É o lugar do que cada um faz ao chegar ao jogo. O <code>frota_atira</code> fica com uma linha: <code>TiroInimigo(center=…)</code>.</p>
+        <p><strong>O inimigo.</strong> <code>Inimigo</code> leva para o seu <code>setup</code> o pulso (<code>scale_to</code> com <code>yoyo</code>): todo inimigo respira ao nascer. Ele não tem <code>on_update</code>, porque um inimigo não anda sozinho: quem anda é a frota inteira. A imagem também não está na linha da classe, porque muda de uma linha da frota para a outra; o laço a passa na hora de criar, <code>Inimigo(FROTA[linha % 2], center=…)</code>.</p>
+        <p><strong>A cor fica fora.</strong> O <code>hue</code> continua no laço. A cor de cada inimigo depende da coluna, e só o laço sabe a coluna. É a regra deste tutorial: o que é de cada um (pulsar) vai para a classe; o que é do conjunto (a arrumação da frota) fica fora.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.pontos = 0
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+
+class Tiro(Sprite, source="space/laserBlue03.png", height=28, group="tiros"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class TiroInimigo(Sprite, source="space/laserRed01.png", height=28, group="tiros_inimigos"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Inimigo(Sprite, height=40, group="inimigos"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Inimigo(FROTA[linha % 2], center=(185 + coluna * 90, 720 - linha * 70))
+        inimigo.hue = coluna / 8
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    TiroInimigo(center=(inimigo.center.x, inimigo.center.y - 20))
+
+
+def update(dt):
+    if nave:
+        if keyp("LEFT"):
+            nave.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            nave.move_by(340 * dt, 0)
+        nave.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Tiro(center=(nave.center.x, nave.center.y + 28))
+
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+@collide("tiros", "inimigos")
+def acertou(tiro, inimigo):
+    canvas.burst_at(inimigo, radius=40)
+    tiro.destroy()
+    inimigo.destroy()
+    st.pontos += 1
+
+
+@collide("tiros_inimigos", nave)
+def atingiu(tiro, nave):
+    tiro.destroy()
+    canvas.flash(0.4)
+    canvas.explosion_at(nave, amount=1.2)
+    nave.destroy()
+
+
+run()
+`,
+      dive: [
+        {
+          title: "A linha da classe",
+          body: `
+            <p>Os parâmetros na linha da <code>class</code> são o <strong>padrão</strong> daquele molde: todo <code>Tiro</code> nasce com aquela imagem, aquela altura e aquele grupo. Ao criar um, você pode passar outro valor, e o que a criação passa vence o padrão: <code>Tiro(center=…, height=40)</code> é um tiro maior, só aquele. <code>Inimigo</code> não tem imagem na linha, então cada criação dá a sua.</p>
+            <p>A posição (<code>center</code>) não vai na linha da classe: cada um nasce num lugar. E o padrão vai na linha, não como uma variável no corpo da classe: <code>height = 28</code> escrito ali dentro esconderia a altura do sprite em vez de mudá-la.</p>
+            <p>No Guia: <a href="../guide/index.html#spr-class">Subclasse de Sprite</a>.</p>
+          `
+        }
+      ],
+      try: [
+          {
+            note: "Um laser da frota mais comprido, só este: o que a criação passa vence a linha da classe. No <code>frota_atira</code>, no lugar da linha do <code>TiroInimigo</code>.",
+            code: `TiroInimigo(center=(inimigo.center.x, inimigo.center.y - 20), height=44)`
+          }
+        ]
+    },
+    {
+      title: "O herói",
+      body: `
+        <p>Falta a nave. Tudo o que o <code>update</code> fazia com ela vai para a classe <code>Heroi</code> (herói): as setas, a cerca e o tiro, no <code>on_update</code>; o brilho, no <code>setup</code>. Onde estava <code>nave</code>, agora está <code>self</code>. A nave nasce com <code>Heroi(center=(500, 70))</code>; a variável <code>nave</code> continua, porque a colisão do fim do arquivo ainda a usa.</p>
+        <p><strong>O <code>if nave:</code> sumiu.</strong> Lembra por que ele existia? Depois do <code>destroy</code>, o <code>update</code> continuava rodando e mandava a nave andar, e mandar andar uma nave destruída é erro. Com a classe, a pergunta não é mais necessária: o Scena só chama o <code>on_update</code> de quem está no jogo. Uma nave destruída para de receber a chamada, sozinha. É a razão mais concreta para usar classes: cada um cuida de si, e quem saiu do jogo para de cuidar.</p>
+        <p><strong>O que sobrou no <code>update</code>.</strong> Só a frota: mover o grupo e virar nas bordas. Isso não é de nenhum inimigo sozinho: a frota vira quando <em>qualquer</em> nave dela toca a borda, e todas viram juntas. Fica fora das classes.</p>
+        <p>Deixe um laser vermelho acertar a nave: ela explode e o jogo segue, sem erro.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.pontos = 0
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+
+class Tiro(Sprite, source="space/laserBlue03.png", height=28, group="tiros"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class TiroInimigo(Sprite, source="space/laserRed01.png", height=28, group="tiros_inimigos"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Inimigo(Sprite, height=40, group="inimigos"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+class Heroi(Sprite, source="space/playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Tiro(center=(self.center.x, self.center.y + 28))
+
+
+nave = Heroi(center=(500, 70))
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Inimigo(FROTA[linha % 2], center=(185 + coluna * 90, 720 - linha * 70))
+        inimigo.hue = coluna / 8
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    TiroInimigo(center=(inimigo.center.x, inimigo.center.y - 20))
+
+
+def update(dt):
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+@collide("tiros", "inimigos")
+def acertou(tiro, inimigo):
+    canvas.burst_at(inimigo, radius=40)
+    tiro.destroy()
+    inimigo.destroy()
+    st.pontos += 1
+
+
+@collide("tiros_inimigos", nave)
+def atingiu(tiro, nave):
+    tiro.destroy()
+    canvas.flash(0.4)
+    canvas.explosion_at(nave, amount=1.2)
+    nave.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "A colisão mora na classe",
+      body: `
+        <p>As duas funções de colisão ainda estão soltas no fim do arquivo. A reação de quem é atingido pode morar na classe de quem é atingido.</p>
+        <p><strong><code>@collide_with</code></strong> (colidir com), em cima de uma função dentro da classe, diz ao Scena: quando <em>este</em> objeto tocar alguém do grupo entre parênteses, rode isto. A função recebe <code>self</code> e o outro. Em <code>Inimigo</code>, <code>@collide_with("tiros")</code> leva o corpo do antigo <code>acertou</code>, com <code>self</code> no lugar de <code>inimigo</code>. Em <code>Heroi</code>, <code>@collide_with("tiros_inimigos")</code> leva o antigo <code>atingiu</code>. As duas funções soltas saem.</p>
+        <p><strong>Duas grafias.</strong> <code>@collide("tiros", "inimigos")</code>, solto, olha o par de fora: dois grupos, quem quer que sejam. <code>@collide_with</code> olha de dentro: este inimigo e o tiro que o acertou. As duas funcionam; escolha a que diz melhor de quem é a reação. Explodir é do inimigo; perder a nave é do herói.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.pontos = 0
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+
+class Tiro(Sprite, source="space/laserBlue03.png", height=28, group="tiros"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class TiroInimigo(Sprite, source="space/laserRed01.png", height=28, group="tiros_inimigos"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Inimigo(Sprite, height=40, group="inimigos"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("tiros")
+    def atingido(self, tiro):
+        canvas.burst_at(self, radius=40)
+        tiro.destroy()
+        self.destroy()
+        st.pontos += 1
+
+
+class Heroi(Sprite, source="space/playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Tiro(center=(self.center.x, self.center.y + 28))
+
+    @collide_with("tiros_inimigos")
+    def atingido(self, tiro):
+        tiro.destroy()
+        canvas.flash(0.4)
+        canvas.explosion_at(self, amount=1.2)
+        self.destroy()
+
+
+nave = Heroi(center=(500, 70))
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Inimigo(FROTA[linha % 2], center=(185 + coluna * 90, 720 - linha * 70))
+        inimigo.hue = coluna / 8
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    TiroInimigo(center=(inimigo.center.x, inimigo.center.y - 20))
+
+
+def update(dt):
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "O propulsor",
+      example: "naves_classes.py",
+      body: `
+        <p>O código está organizado. Agora uma peça nova, que a classe deixa fácil: um <strong>propulsor</strong>, um jato de fogo atrás da nave que anda com ela.</p>
+        <p><strong>Um efeito no mundo.</strong> <code>Jet</code> (jato) é um <code>SpatialFx</code>: um efeito que vive num lugar do mundo, como um objeto, apontado por um ponto e um ângulo. <code>origin</code> (origem) é o ponto de onde o jato sai. <code>angle=270</code> aponta para baixo: 0 é a direita, 90 é para cima, 270 é para baixo. <code>length</code> (comprimento) e <code>width</code> (largura) são o tamanho do jato, em pixels. <code>amount</code> (quantidade) é a força: 1 é o normal; 2 deixa o jato visível numa nave de 45 pixels.</p>
+        <p><strong>Uma parte da nave.</strong> O jato nasce no <code>setup</code> do <code>Heroi</code> e fica guardado em <code>self.propulsor</code>, um campo da nave (como <code>st.pontos</code> é um campo do jogo). A origem é uma <code>lambda</code>, como as do tutorial 03: <code>lambda: (self.center.x, self.center.y - 22)</code> é sempre a traseira <em>desta</em> nave, 22 pixels abaixo do centro. A nave anda e o jato vai junto, sem nenhuma linha no <code>on_update</code>.</p>
+        <p><strong>Quando a nave sai.</strong> O jato é um objeto do jogo, não um pedaço da imagem da nave: destruir a nave não o destrói. Por isso o <code>on_destroy</code> (ao destruir): o Scena chama essa função uma vez, de dentro do <code>destroy</code>, e ela apaga o propulsor. Sem ela, a nave explode, o Scena avisa no console que a origem do jato perdeu a nave, e o jato fica aceso, sozinho, onde a nave estava.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.pontos = 0
+st.velocidade = 80
+
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+
+class Tiro(Sprite, source="space/laserBlue03.png", height=28, group="tiros"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class TiroInimigo(Sprite, source="space/laserRed01.png", height=28, group="tiros_inimigos"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Inimigo(Sprite, height=40, group="inimigos"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("tiros")
+    def atingido(self, tiro):
+        canvas.burst_at(self, radius=40)
+        tiro.destroy()
+        self.destroy()
+        st.pontos += 1
+
+
+class Heroi(Sprite, source="space/playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.propulsor = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Tiro(center=(self.center.x, self.center.y + 28))
+
+    @collide_with("tiros_inimigos")
+    def atingido(self, tiro):
+        tiro.destroy()
+        canvas.flash(0.4)
+        canvas.explosion_at(self, amount=1.2)
+        self.destroy()
+
+    def on_destroy(self):
+        self.propulsor.destroy()
+
+
+nave = Heroi(center=(500, 70))
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Inimigo(FROTA[linha % 2], center=(185 + coluna * 90, 720 - linha * 70))
+        inimigo.hue = coluna / 8
+
+
+@every(0.4)
+def frota_atira():
+    if group["inimigos"].count == 0:
+        return
+    inimigo = choice(group["inimigos"])
+    TiroInimigo(center=(inimigo.center.x, inimigo.center.y - 20))
+
+
+def update(dt):
+    group["inimigos"].move_by(st.velocidade * dt, 0)
+
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
+
+
+@leave_playfield("tiros", "tiros_inimigos")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`,
+      try: [
+          {
+            note: "Outro jato, no lugar do do <code>setup</code>: mais longo, mais largo, mais forte e de outra cor.",
+            code: `self.propulsor = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                     angle=270, length=60, width=22, amount=3, color="cyan")`
+          },
+          {
+            note: "O jato que mostra a velocidade: forte quando a nave anda, fraco quando ela para. No <code>on_update</code> do <code>Heroi</code>, depois das setas.",
+            code: `if keyp("LEFT") or keyp("RIGHT"):
+    self.propulsor.amount = 3
+else:
+    self.propulsor.amount = 1`
+          },
+          {
+            note: "Outros efeitos no mundo, um por vez, no lugar do <code>Jet</code>: <code>Fire</code> (fogo) com <code>style=\"plume\"</code> é uma chama que aponta para <code>angle</code>; <code>Sparks</code> (faíscas) é um campo de faíscas em volta de um ponto. No Guia: <a href='../guide/index.html#desenhar-spatial'>SpatialFx</a>.",
+            code: `self.propulsor = Fire(center=lambda: (self.center.x, self.center.y - 22),
+                      width=14, style="plume", angle=270)
+self.propulsor = Sparks(center=lambda: (self.center.x, self.center.y - 22), radius=12)`
+          }
+        ],
+      closing: `
+        <p>Setas movem a nave. Espaço atira. O jogo é o do 05: a frota respira, vai e volta e devolve tiro. Agora cada coisa cuida de si, e a nave leva um propulsor.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>class</code> — um molde: cada <code>Tiro(…)</code> sai igual; os parâmetros da linha da classe são o padrão, e a criação pode trocá-los.</li>
+          <li><code>self</code> — este aqui: o tiro, o inimigo ou a nave que o Scena está chamando agora.</li>
+          <li><code>setup</code> e <code>on_update</code> — o Scena chama: o primeiro uma vez, quando nasce; o segundo a cada quadro, só enquanto está no jogo. Por isso o <code>if nave:</code> sumiu.</li>
+          <li><code>@collide_with</code> — a colisão vista de dentro da classe: este objeto e o outro.</li>
+          <li><code>on_destroy</code> — chamado uma vez pelo <code>destroy</code>; apaga as partes do objeto.</li>
+          <li><code>Jet</code> — um <code>SpatialFx</code>: um efeito que vive num lugar do mundo, apontado por um ponto e um ângulo.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#spr-class">Subclasse de Sprite</a> · <a href="../guide/index.html#desenhar-entity">Entity</a> · <a href="../guide/index.html#col-method">@collide_with</a> · <a href="../guide/index.html#reagir-callbacks-entity">Callbacks da Entity</a> · <a href="../guide/index.html#desenhar-spatial">SpatialFx</a>.</p>
+        <p><strong>No próximo:</strong> as imagens vão para uma folha só, a frota explode em quadros, o jogo ganha som e a nave ganha vidas.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

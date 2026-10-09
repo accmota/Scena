@@ -143,6 +143,39 @@ def _step_locals(program: str) -> set:
     return names
 
 
+def _module_names(program: str) -> set:
+    """Names the step binds at the top level (outside its functions and classes)."""
+    names = set()
+
+    def visit(node):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                names.add(child.name)
+                continue
+            if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store):
+                names.add(child.id)
+            visit(child)
+
+    visit(ast.parse(program))
+    return names
+
+
+def _reads_a_local(snippet: str, program: str) -> bool:
+    """The snippet names something that only exists inside one of the step's functions.
+
+    ``self.propulsor = Jet(origin=lambda: self.center)`` belongs in a class
+    method: run at the top level, ``self`` is missing, but the formula probe
+    reports "no reactive sources" instead of a ``NameError``. Decided before
+    the run, from the names, it does not depend on which error surfaces.
+    """
+    try:
+        tree = ast.parse(snippet)
+    except SyntaxError:
+        return False        # a bare ``return``: the run reports "outside function"
+    read = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+    return bool(read & (_step_locals(program) - _module_names(program)))
+
+
 def _check_fragment(snippet: str, program: str) -> Optional[str]:
     """Compile a function-body snippet; every capitalised call must resolve."""
     import scena
@@ -195,15 +228,21 @@ _NAME_ERROR = re.compile(r"NameError: name '(\w+)' is not defined")
 def run_all() -> List[str]:
     """``["page:line: error", …]`` for every step and ``try`` snippet."""
     jobs = []      # (label, program, snippet or None, step code)
+    fragment_failures = []
     for path in tutorial_pages():
         page = os.path.basename(path)
         for step in extract_steps(path):
             jobs.append((f"{page}:{step.line}", step.code, None, step.code))
             for tline, snippet in step.tries:
+                if _reads_a_local(snippet, step.code):
+                    frag = _check_fragment(snippet, step.code)
+                    if frag:
+                        fragment_failures.append(f"{page}:{tline}: try: {frag}")
+                    continue
                 program = step.code.replace("run()", "") + "\n" + snippet + "\nrun()\n"
                 jobs.append((f"{page}:{tline}: try", program, snippet, step.code))
 
-    failures = []
+    failures = fragment_failures
     with tempfile.TemporaryDirectory() as folder:
         _link_media(folder)
         workers = max(2, min(8, (os.cpu_count() or 4) - 1))
@@ -251,6 +290,19 @@ class TestTutorialExtraction(unittest.TestCase):
     def test_fragment_check_catches_an_unknown_call(self):
         self.assertIsNone(_check_fragment("return Neon()", "def f():\n    pass\n"))
         self.assertIn("NoSuchLook", _check_fragment("return NoSuchLook()", ""))
+
+    def test_a_snippet_for_a_method_is_a_fragment(self):
+        # Tutorial 06: a "try" that swaps the hero's thruster is written for
+        # ``setup``. At the top level its ``self`` is missing, and the formula
+        # probe of ``origin=lambda: self.center`` hid the NameError.
+        program = ("class Heroi(Sprite):\n    def setup(self):\n        self.glow = True\n\n"
+                   "nave = Heroi()\nfor inimigo in range(3):\n    pass\n"
+                   "def atira():\n    inimigo = 1\n")
+        self.assertTrue(_reads_a_local("self.propulsor = Jet(origin=lambda: self.center)", program))
+        self.assertFalse(_reads_a_local("nave.glow = False", program))
+        self.assertFalse(_reads_a_local("inimigo = 2", program),
+                         "a name the top level also binds runs as a program")
+        self.assertFalse(_reads_a_local("return", program))
 
     def test_strip_docstring(self):
         self.assertEqual(strip_docstring('"""Doc.\n\nMore.\n"""\n\nfrom scena import *\n'),
