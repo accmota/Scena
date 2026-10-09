@@ -748,7 +748,36 @@ engine.
   `dependency_graph.nodes` (or any registry a GC-backstop finalizer prunes) must
   collect until nothing is freed **before** the baseline and before the final read.
   Otherwise an earlier test's garbage is purged mid-loop, the count drops, and the
-  test fails only when its module runs alone (O1).
+  test fails only when its module runs alone (O1). The geometry campaign met it
+  twice more in tests written without it (`test_history`, the Anchor refusal in
+  `test_reactive_matrix`): any count of graph nodes or registry entries collects
+  first.
+- **An observer puts back what it adds, not only what it changes.** The
+  sentinel's I-clean restored the stores it found and left the cold slots its
+  recompute filled (a RegularPolygon's `side`), which a raw reader of the pose
+  key saw. Tests that assert engine internals (mark_dirty counts, cold
+  Derivates) do not run under an observer that runs engine code
+  (`run_tiers.SENTINEL_EXCLUDE`, with reasons).
+- **A harness that runs inside `@given` must not import a test module.** The
+  import builds that module's `@given` tests, and Hypothesis fails the
+  nested-given health check; the failure shows only when the import happens
+  first inside the machine. Shared helpers live in `geometry_support`.
+- **A shadow advances only when the clock does.** The shadow machine settled
+  every other subject's turn before a timed step that then did not run (a
+  parked subject); compare the clock before and after the step.
+- **A harness that keeps the last value per key reports one cell per key.**
+  A known pattern can then be satisfied by a different cell than the one it
+  names; dump the cells when a pattern is removed.
+- **Measure the A/B noise floor before reading a delta.** Two copies of one
+  tree (`perf_geometry.py --ab A --tree B`) differ by up to about ±2 % per row;
+  a hunk that never runs cannot cost 3 %. Bisect a delta by applying each hunk
+  alone on top of HEAD, tree against tree.
+- **A mutation sample depends on its pool.** Adding suites widens the lines
+  executed, so the same seed samples other mutants; compare suites with one
+  pool (`mutation_run.py --pool-programs`).
+- **zsh does not split an unquoted `$var`.** A program list held in a variable
+  reached `mutation_run.py` as one name: the control failed and no line was
+  collected. Write `${=var}`.
 
 
 # Lessons learned
@@ -1014,6 +1043,81 @@ review is a sample; the guard is the census.
 | `test_hot_paths` | 10 | — |
 | `TestLinkValuesAwayFromConstruction` | 8 (a value equal to the default hides a refused write) | GR15 |
 
+## What the geometry campaign taught (2026-10-09)
+
+A white-box campaign over the geometric model ([Geometry campaign](#geometry-campaign);
+catalogue [GX](#gx--geometry-campaign-2026-10-08)) found 19 GX bugs, settled six
+contract questions (Q1–Q6) and fixed them in five waves. Its harnesses have no
+model of their own (shadow, laws, twins, influence, sentinel, value edges, a
+fuzzer), so most findings were cells nobody had thought to write.
+
+| Finding class | What the existing tests did | Why they missed it | The test that catches the class now |
+| --- | --- | --- | --- |
+| Timed and instant forms of a verb disagree (GX4, GX17) | Timed tests ran on free shapes; gate tests used the instant verb | The timed probe called the instant verb with "no change", which returns before its gate, and the rotate probe lacked the pivot rule | `TestTimedVerbsGateLikeInstant`, both directions, every Defining part linked alone |
+| A motion's claim misses what it writes (GX6) | Link-conflict tests linked the claimed field | A turn claimed `angle`; the points it moves and a whole `@=` were not claimed | `test_process.TestTimedVerbsGateAtTheCall` (claims from the gate in record mode) |
+| A store set, a cached reader stale (GX2, GR17-link, GX18) | Flip and link tests read once, after the verb | A cold cache recomputes on the read; the stale value shows only when it was read before | Sentinel I-heading on every outermost call; probes that read first |
+| A gate exemption too wide (GX3) | Refusal tests used lengths away from 0 | At length 0 every point sits on the pivot, but the flip still turns a heading the relation owns | H1 degenerate bases (width 0, zero-length segments) |
+| One coercion missing on one path (GX14, GX15) | Value sweeps reached `=` and slot fields | The link pull and the `vec` part read their values through another function | `test_geom_values`: every field × value × path, including a source that turns bad and then good |
+| A relation left half-gone (Q3b) | Relational tests unlinked with `force=True` | `unlink_all`, a part's `unlink` and a destroyed reference were other doors | `TestARelationThatGoesLeavesTheFreeTwin`: every relational kind × every door |
+| A copy applies a pose twice (GX10) | Copy tests used symmetric tracks | A mirror of a circle or a figure eight is itself | `TestCopyCommutes` (act then copy) over every kind, a flipped asymmetric track |
+
+1. **A probe that calls the verb with "no change" is not a probe.** The verb
+   returns before its gate (`_move_to` to where it is, `scale_by(1)`), or the
+   call is not a no-op on every kind (it jumped a sheet-anchored sprite).
+   Share the gate itself: one `_scale_gate` that the instant verb and the
+   timed probe both run.
+2. **A gate exemption reasons about one write; the verb makes others.** The
+   pivot rule is right for the points a mirror leaves in place and wrong for
+   the heading it turns where a relation owns it (GX3).
+3. **Setting a store is half the fix when a cached Derivate reads it.** A verb
+   that moves no point recomputes nothing (GX2). A probe reads the value once
+   before the verb, or the cold cache hides the bug.
+4. **A claim covers what the motion writes, from the same gate** (GX6), or a
+   link on an unclaimed written part is accepted and the motion raises later.
+5. **Link every part alone.** A matrix that links one picked field per kind
+   tests one part; gates hold per part. The per-part parity guard found a
+   timed turn of an anchored Text with a linked pin, which the picked field
+   never reached.
+6. **Degenerate bases are their own cells.** Width 0, length 0, scale
+   `MIN_SCALE` and 0, a tall shape where every test used a wide one (GX1, GX2,
+   GX3, GX5).
+7. **A broad known pattern hides the next finding of the same invariant.**
+   `I-heading | *` was listed for GR17-link and matched GX18; `* | * | link vs
+   = | ok vs refused` covered GX14 and a contract difference (a link clamps a
+   size where `=` refuses) under one key. List each finding's own signature,
+   and re-triage the cells a removed pattern uncovers.
+8. **Equal is not unchanged across types.** A cell holding `True` kept it
+   through `= 1.0` (`True == 1.0`), so a link stayed refused. (Graphics review
+   lesson 8 for change detection.)
+9. **Removing a link must not fail on the link it removes.** `unlink()` and
+   `destroy()` pulled a source that held a refused value and raised; the last
+   good value stays.
+10. **Run the sentinel after every fix wave.** Each wave's fixes uncovered the
+    next layer: GX18 and GX19 after wave 2, a free twin's stale pose store
+    after wave 5.
+11. **Compensate perf at the site you change.** Moving each kind's scale checks
+    into a shared gate cost up to 18 % until the instant verb skipped the gate
+    when nothing in the tree was linked, which made `scale_by` faster than
+    before; removing a duplicate gate paid for a new flip override.
+12. **Coverage barely moves under combination harnesses.** Branch arcs grew by
+    about 1 % on shapes; the findings were in states, paths and histories a
+    branch ledger does not see. Measure suites with mutation on one pool, then
+    run the survivors against the whole quick tier: the survivors it also
+    missed were untested refusals.
+
+### Class guards written from the geometry campaign
+
+| Guard | Lesson | Found |
+| --- | --- | --- |
+| `TestTimedVerbsGateLikeInstant` (every part linked alone) | 1, 5 | GX4 (584 cells), GX17, the anchored Text pin |
+| `test_process.TestTimedVerbsGateAtTheCall` | 1, 4 | GX6 |
+| Sentinel (`run_tiers.py <tier> --sentinel`) | 3, 10 | GR17-link, GX7, GX11, GX18, GX19, the free twin's store |
+| H1 shadow (degenerate bases) | 6 | GX1, GX2, GX3, GX5 |
+| `test_geom_values` (every path; a source that turns bad) | 7, 8, 9 | GX14, GX15, `True` kept through `1.0`, unlink on a bad source |
+| `TestARelationThatGoesLeavesTheFreeTwin` | — | Q3b |
+| `TestCopyCommutes` (act then copy) | — | GX9, GX10 |
+| H10 fuzzer (`test_fuzz_corpus`) | — | GX16, GX17 |
+
 ## Planning a new test
 
 1. **Enumerate from the source of truth**, not a hand list: slots, `__all__`,
@@ -1028,14 +1132,19 @@ review is a sample; the guard is the census.
    (dead, junk, linked, parked); **copy door** (`clone`, `<<`, whole `@=`,
    `absorb`); **draw door** (plain blit, full draw); **statement order**; a
    **read before the verb** (it can move a shape off its fast path); **base
-   layout** (a mixin first or last) and **raise point** for construction.
+   layout** (a mixin first or last) and **raise point** for construction;
+   **instant vs timed** form of a verb (refused at the call, never from a
+   tick); **each Defining part linked alone**, not one picked field;
+   **degenerate bases** (size 0, length 0, `MIN_SCALE`, a tall shape).
 3. **Pick an oracle with no model of its own:** a plain-write twin read at the
    same moments, or the source itself. For a gate, an **unlinked twin**: run the
    verb on it and record which parts changed; on the linked subject exactly
    those parts must refuse (`TestLinkWriteGate`). For a lifecycle, a twin built
    directly in the final state. For a cache, a cold bake. For a fast path, a
-   twin pushed onto the slow path. Build the oracle's setup apart from the
-   subject; list fields from a throwaway instance.
+   twin pushed onto the slow path. For a timed verb, its instant form. For
+   a relational shape that loses its relation, its free twin. Build the
+   oracle's setup apart from the subject; list fields from a throwaway
+   instance.
 4. **State the invariants** the cells check: linked reads like written in any read
    order; one rule set on every path; unlink freezes; two reads agree; a conflict
    is refused at install and installs nothing; clean means recomputed; a copy
