@@ -430,6 +430,9 @@ def main(argv: Optional[Sequence[str]] = None, *, out_root: str = OUT,
     ap.add_argument("--profile", help="override the tier's Hypothesis profile (e.g. replay)")
     ap.add_argument("--timeout", type=float, help="seconds per job (default: per tier)")
     ap.add_argument("--plan", action="store_true", help="print the jobs and exit")
+    ap.add_argument("--sentinel", nargs="?", const="log", choices=("log", "1"),
+                    help="run every job under the geometry sentinel (tests/geom_sentinel.py): "
+                         "log violations (default) or raise them (1)")
     args = ap.parse_args(argv)
 
     tier = TIERS[args.tier]
@@ -447,6 +450,15 @@ def main(argv: Optional[Sequence[str]] = None, *, out_root: str = OUT,
     jobs = plan(tier, modules, list_ids=list_ids_subprocess,
                 timings=load_timings(timings_path), profile=args.profile)
     env = tier_env(tier, args.profile)
+    if args.sentinel:
+        jobs = [j for j in jobs if j.label.split(".")[0].split("[")[0] not in SENTINEL_EXCLUDE]
+        extra = sentinel_env(args.sentinel)
+        env.update(extra)
+        for j in jobs:
+            j.env.update(extra)
+        sys.path.insert(0, os.path.join(ROOT, "tests"))
+        import geom_sentinel
+        geom_sentinel.clear_logs()
     junk = count_appledouble()
     if junk:
         print(f"warning: {junk} AppleDouble '._*' files (tree copied from macOS); "
@@ -469,7 +481,40 @@ def main(argv: Optional[Sequence[str]] = None, *, out_root: str = OUT,
     if tier.serial_pass and not args.modules:
         serial_env = dict(env, SCENA_HYPOTHESIS_PROFILE="dev", SCENA_SOAK="0")
         results.append(runner.run_serial(serial_env))
-    return 0 if summarize(results, time.time() - start, stream) else 1
+    ok = summarize(results, time.time() - start, stream)
+    if args.sentinel:
+        ok = sentinel_summary(stream) and ok
+    return 0 if ok else 1
+
+
+# Modules a sentinel run leaves out: they time engine calls against each other,
+# and the sentinel's checks are not free (they recompute after every call).
+SENTINEL_EXCLUDE = {
+    "test_regular_polygon_perf": "rotate_by cost against n: the sentinel's I-clean recompute is O(n)",
+}
+
+
+def sentinel_env(mode: str) -> Dict[str, str]:
+    """``SCENA_SENTINEL`` and ``tests/sentinel_site`` first on PYTHONPATH."""
+    site = os.path.join(ROOT, "tests", "sentinel_site")
+    path = os.pathsep.join(p for p in (site, ROOT, os.environ.get("PYTHONPATH", "")) if p)
+    return {"SCENA_SENTINEL": mode, "PYTHONPATH": path}
+
+
+def sentinel_summary(stream) -> bool:
+    """Print the sentinel's distinct violations; False if any is not known."""
+    import fnmatch
+    sys.path.insert(0, os.path.join(ROOT, "tests"))
+    import geom_campaign_known
+    import geom_sentinel
+    agg = geom_sentinel.report()
+    new = {k: a for k, a in agg.items()
+           if not any(fnmatch.fnmatch(k, p) for p in geom_campaign_known.SENTINEL)}
+    print(f"\nsentinel: {len(agg)} distinct violations, {len(new)} not known", file=stream)
+    for k, a in sorted(new.items(), key=lambda kv: -kv[1]["count"]):
+        print(f"  {a['count']:6d}  {k}\n          {a['detail'][:160]}\n          {', '.join(a['where'])}",
+              file=stream)
+    return not new
 
 
 if __name__ == "__main__":

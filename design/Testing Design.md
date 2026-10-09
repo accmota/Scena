@@ -88,6 +88,8 @@ Rules of thumb:
 | `tests/covering.py` | `covering_array(axes, t, valid)`: deterministic, constraint-aware t-wise covering arrays (IPOG); `uncovered_tuples` checks one. 2-wise in `quick`, 3-wise in `gate`. |
 | `tests/geom_shadow.py` | H1: the **affine shadow** of a subject (the composed map of its steps since the base state) and `run_cell` / `run_step`: after every step every point part, the drawn set, heading (full turns), scale, flip flags, hit test, collision prims, `.box` and the cull AABB must equal the shadow; a refused step changes nothing. Relational constraint cells (`CONSTRAINT_MAPS`) are affine too. Used by `test_geom_sequences`; known violations in `geom_campaign_known.SHADOW` (patterns, shrink-only). |
 | `tests/geom_coverage.py` | Branch-coverage ledger (H9): runs suites under `coverage.py` (`branch=True`) over the geometry engine modules, one process per module; writes `.scena_test_runs/coverage/<tag>.json`, reports LOST arcs against the previous ledger and, with `--report`, the unreached branch arcs per function. Measurement only, never in a tier. |
+| `tests/geom_sentinel.py` | H2 **sentinel**: runtime invariants checked test-side after every outermost engine entry point (pose verbs, flip / angle / scale setters, slot `__set__`, public `__setattr__`, `_takein`, `@=`, `unlink`, `clone`, `<<`, `absorb`, `collision.snapshot_shape`): I-fast, I-bare, I-graph, I-clean, I-heading, I-names, I-epoch, I-atomic. Hooks are `sys.monitoring` events on the code objects, so no frame is added (author sites and `stacklevel` warnings stay right) and nothing is replaced; reads are raw `__dict__` (no pull, no warm Derivate, no Entity built). `SCENA_SENTINEL=log` / `1`; `tests/sentinel_site/sitecustomize.py` installs it right after `import scena`; `run_tiers.py <tier> --sentinel` runs a tier under it and prints `report()`. Self-test: `test_geom_sentinel` (four canaries). |
+| `tests/geom_laws.py` | H3 law table (`LAWS`): two programs on twin subjects that must read alike (algebra, timed = instant, spellings); `run_law`, `observe`, `differ` (Q6: points exactly, `angle` modulo 360 unless the law is about turns, flags only where the law says). Used by `test_geom_laws`; the fuzzer's rewrites reuse it. |
 
 Scena keeps **one** `ScenaFramework` per process. Every example and every system test
 must undo what it did; an example that leaks state makes Hypothesis report *Flaky*
@@ -224,6 +226,10 @@ random cells in `deep`. Reach counters assert every axis value ran.
 | H1 shadow | the composed affine map of the steps since the base state (a constraint cell's own map on a relational shape); refusals change nothing | `test_geom_sequences` |
 | H7 structure | the code against itself: one `update()` per verb, model adopted before a copy writes, one Defining set per model (tables, `_defining_names_for`, constructors, cross-model copies), timed verbs refuse where instant ones do, no swallowed errors in pose verbs, the relational verb table (doc ↔ `CONTRACT_EXEMPT` ↔ shadow ↔ behaviour) | `test_geom_structure` |
 | Probes | one deterministic probe per drift candidate and per finding, written from the contract; known-broken probes listed shrink-only (`geom_campaign_known.PROBES`) | `test_geom_probes` |
+| H2 sentinel | invariants on raw state after every outermost engine call (the whole suite becomes a probe: `run_tiers.py <tier> --sentinel`) | `test_geom_sentinel` (canaries), `geom_sentinel` |
+| H3 laws | two roads, one shape: the law table over kind × base × warmth × execution; copy and clone commute with every verb (act then copy); a verb on the source of `d @= s` reaches `d`; a clone made after any history acts like its source (bisimulation); a shape built at `p` then moved / scaled / turned is the shape built there | `test_geom_laws` |
+| H4 influence | each Defining input and pose quantity changed on a cold twin and on a warm one (every cache filled): the warm reads equal the cold ones; the collision key changes whenever the prims do; every Defining input moves something | `test_geom_influence` |
+| H5 twins | one random step program, six executions (normal, forced slow, caches dropped, in a batch, in a frame, eager graph): the same fingerprint after every step | `test_geom_twins` |
 
 **Contract decisions the oracles encode** (written into the owning docs first):
 Q1 a flip applies `180 − θ` / `−θ` to the unwrapped heading on every kind
@@ -241,6 +247,31 @@ geometry and reactive suites (`geom_coverage.py`): shapes 1610 / 2028, entity
 track 432 / 598, hitbox 126 / 248, geom 36 / 236, scenamath 59 / 154. Deleted
 calls (`mutation_run.py --ops call`, 80 sampled sites in shapes / state / box /
 entity, seed 1): the geometry suites kill 50, 30 survive.
+
+**Phase 2 (sentinel).** `quick` runs green under it (6 590 tests;
+`python tests/run_tiers.py quick --sentinel`, ~2.5 min wall). Building it
+taught three rules of its own: a check runs only for a call made from outside
+the engine (read paths are not hooked, so an engine write inside a pull would
+look outermost; the scheduler and the frame loop count as outside), a check
+never runs inside a check, and a refused call is compared only on nodes that
+were settled before it (a pull may still refresh a dirty, linked, pull-owned or
+lazily laid-out part; a first name freeze is a read). Its findings: GR17-link
+(I-heading), GX7 (I-bare), GX11 (I-atomic). Two hits were the harness: dangling
+graph ids after `program_oracles.reactive_config` swaps the scena system
+mid-process (a module singleton keeps its old node id), and a canary's planted
+state reaching the shared log through a later teardown (canary runs now log in
+memory only).
+
+**Phases 3–5 (shadow, laws, twins, influence).** The laws found GX9, GX10 and
+GX12 and re-found Q2 and GX3; every other law holds on every kind. The twins
+agree on every kind under every execution, and the influence matrix is clean:
+every geometry cache follows every input it reads (its canary, a collision
+key keyed on nothing, fires). Oracle lessons: a law between twins cannot see a
+bug both twins share (a scale about the origin still inverts), so each law
+canary breaks the law itself; corner names freeze at first use, so a law that
+copies or links compares against the source or freezes both twins first;
+`center =` is a field write (it keeps a rim-placed Circle's
+`perimeter_point`), a move only where the center is the sole point input.
 
 **Phase 1 findings (static sweep and probes; H1 found the first ones while it
 was being built).** Catalogue [GX](#gx--geometry-campaign-2026-10-08). The
@@ -283,6 +314,7 @@ python tests/run_tiers.py gate
 python tests/run_tiers.py deep
 python tests/run_tiers.py gate --plan                 # jobs and estimates, runs nothing
 python tests/run_tiers.py focused test_x --profile replay
+python tests/run_tiers.py quick --sentinel             # every job under the geometry sentinel
 ```
 
 Why this shape (measured 2026-09-28, 5001 tests):
@@ -893,7 +925,10 @@ review is a sample; the guard is the census.
   path runs.
 - **Static guards for structure, runtime checks for values:** an AST guard costs
   nothing per frame. A runtime "recompute and compare on every read" mode was
-  weighed and dropped: the test-side oracle is that check.
+  weighed and dropped: the test-side oracle is that check. Its whole-suite form
+  is the sentinel (`tests/geom_sentinel.py`, `run_tiers.py <tier> --sentinel`):
+  invariants checked after every engine entry point through `sys.monitoring`,
+  with nothing in the engine.
 - **Allowlists carry reasons, and a stale entry fails.**
 
 
@@ -1319,7 +1354,7 @@ gaps that **both** authors reported on their own.
 | Geometry campaign Q2 | A finished timed `rotate_to(30)` from 400 reads 390 (shape and camera; contract: 30) | Campaign phase 7 (`CHANGELOG.md` under Fixed) |
 | Geometry campaign Q3b | `unlink_all()`, unlinking a part, or a destroyed reference keeps a relational model (PARALLEL_DIST `move_by` does nothing, TANGENT verbs orbit); `force=True` leaves a hybrid (CENTER_WH Ellipse whose `center` follows the Rect) | Campaign phase 7 (`_drop_relational` on every way a relation goes) |
 | Geometry campaign Q5 | `st.f = my_def` stores the function (only `<lambda>` is refused) | Campaign phase 7 (`CHANGELOG.md` under Breaking) |
-| Geometry campaign GX1–GX8 | Found by the campaign's harnesses ([GX](#gx--geometry-campaign-2026-10-08)) | Campaign phase 7 |
+| Geometry campaign GX1–GX12 | Found by the campaign's harnesses ([GX](#gx--geometry-campaign-2026-10-08)) | Campaign phase 7 |
 | Geometry campaign GR17-link | A link on a Defining `angle` leaves the pose store `_rotation` at its old value (the pull stores raw); no wrong drawing found | Campaign phase 7 (the pull publishes the store) |
 | GR (2026-10-08) | Box and Rect keep near-copies of `_takein_impl` / `rotate_by` (they drifted once, SC1) | Decided 2026-10-08: no refactor now (no bug; the geometry contract sweep builds every Box model beside Rect). The next change to either method merges them into `_RectFrame` first ([Shapes Design](Shapes%20Design.md)) |
 
@@ -1408,6 +1443,11 @@ until their fix wave (phase 7).
 | GX6 | A whole `@=` (or a point-part link) installed during a running timed verb is accepted; the next tick raises | the "pushes it" check runs for field links only | link tests start from idle shapes | H1 (`mid_tween` base × link), probe GX6 |
 | GX7 | With a linked heading, a write to `p1.x` before any read makes later reads of `p1.x` skip the pull (reads 1.0; `p1.y` and a twin read the turned point) | `_write_field` seeds the bare-read cache without the `_pull_owner` check `__get__` makes | D18's tests read before writing | probe GX7 |
 | GX8 | `Track._move_by` swallows every exception from its fast path and retries on the slow one | a broad `except Exception: pass` | — | `test_geom_structure.TestNoBareExceptInPoseVerbs` |
+| GX9 | `sprite << other`, `svg << other`, `text << other` raise Python's `NotImplementedError("Subclasses must implement takein")` | no `_takein_impl` and no refusal for these kinds | `sweep_c7` skips `<<` for them | `test_geom_laws.TestCopyCommutes` |
+| GX10 | `track << flipped_track` draws the unflipped points | the free-points copy carries the flip flag but not the mirror | same | `TestCopyCommutes` |
+| GX11 | A `@=` refused for `wheel_rotate` (Polygon, Sprite `["angle"] @=`) leaves a new `angle` anchor part and a graph node (W3: a refused link installs nothing) | the anchor is made before the conflict check | `test_refusal_atomic` never meets a `wheel_rotate` conflict | sentinel I-atomic on `test_shapes` |
+| GX12 | `dst << dead` copies a destroyed shape (every kind), while `dead.clone()` refuses with `DestroyedError` | `_takein` checks the destination, not the source | refusal tests use dead destinations | sentinel triage; probe in phase 7 |
+
 
 ### F — contact flicker (2026-09-29)
 

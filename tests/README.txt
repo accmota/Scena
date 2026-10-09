@@ -93,6 +93,16 @@ Geometry campaign (design/Testing Design.md, "Geometry campaign")
                           relational verb table (doc, exemptions, behaviour).
   test_geom_probes.py     one probe per drift candidate and finding, from the
                           contract; known-broken probes listed shrink-only.
+  test_geom_sentinel.py   H2: the sentinel's canaries (geom_sentinel: runtime
+                          invariants after every engine call, sys.monitoring).
+  test_geom_laws.py       H3: law table (geom_laws), copy / clone commute with
+                          verbs, whole-link transparency, bisimulation,
+                          construction paths.
+  test_geom_twins.py      H5: one program, six executions, same fingerprint.
+  test_geom_influence.py  H4: every cache follows every input (warm = cold).
+
+  python tests/run_tiers.py quick --sentinel   the whole tier under the sentinel
+  python tests/geom_sentinel.py                aggregate the last sentinel logs
 
   python tests/geom_coverage.py [--report]     branch-coverage ledger
   python tests/mutation_run.py ... --ops call  deleted-call mutants only

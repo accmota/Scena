@@ -402,6 +402,9 @@ class TestAllowlistsCarryReasons(unittest.TestCase):
             "geom_campaign_known.PROBES": KNOWN.PROBES,
             "geom_campaign_known.GATE_PARITY": KNOWN.GATE_PARITY,
             "geom_campaign_known.BARE_EXCEPT": KNOWN.BARE_EXCEPT,
+            "geom_campaign_known.SENTINEL": KNOWN.SENTINEL,
+            "geom_campaign_known.LAWS": KNOWN.LAWS,
+            "geom_campaign_known.COPY_LAWS": KNOWN.COPY_LAWS,
             "TestPoseVerbsNotifyOnce.ALLOWED": TestPoseVerbsNotifyOnce.ALLOWED,
             "TestModelAdoptedBeforeWrites.NOT_MULTI_MODEL": TestModelAdoptedBeforeWrites.NOT_MULTI_MODEL,
         }

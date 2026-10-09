@@ -213,6 +213,58 @@ def assert_fast(tc, obj, what: str = "") -> None:
 
 
 # --------------------------------------------------------------------------
+# More twins (geometry campaign, H5): the same step under another execution
+# --------------------------------------------------------------------------
+
+def invalidate_all_caches(obj) -> None:
+    """Drop every bare-read cache and memo of ``obj``'s tree (test-side only)."""
+    inv = getattr(obj, "_invalidate_bare_reads", None)
+    if callable(inv):
+        inv()
+    d = getattr(obj, "__dict__", {})
+    for key in ("_poly_cache", "_collision_pose_extra", "_geom_path_key"):
+        d.pop(key, None)
+
+
+@contextmanager
+def eager_graph() -> Iterator[None]:
+    """Eager registration and strong graph nodes (both config flags off), on a
+    fresh scena system; restores the defaults after (``test_diff_reactive``)."""
+    from scena.state import (init_scena_system, set_graph_gc_backstop,
+                             set_lazy_container_registration)
+    set_lazy_container_registration(False)
+    set_graph_gc_backstop(False)
+    init_scena_system()
+    try:
+        yield
+    finally:
+        set_lazy_container_registration(True)
+        set_graph_gc_backstop(True)
+        init_scena_system()
+
+
+def in_batch(step: Callable[[], Any]) -> Any:
+    """Run ``step`` inside a frame batch (writes deferred to the batch end)."""
+    from scena.state import get_scena_system
+    ss = get_scena_system()
+    ss.begin_frame_batch()
+    try:
+        return step()
+    finally:
+        ss.end_frame_batch()
+
+
+def in_frame(step: Callable[[], Any], dt: float = 1 / 60) -> Any:
+    """Run ``step``, then one frame of world time (clock + processes)."""
+    from scena import clock
+    from scena.process import tick_processes
+    out = step()
+    clock.advance(dt)
+    tick_processes()
+    return out
+
+
+# --------------------------------------------------------------------------
 # Global switches
 # --------------------------------------------------------------------------
 

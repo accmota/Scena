@@ -554,14 +554,7 @@ def prepare_twin(obj, x: str) -> None:
         obj._flag_pull_consumers()
 
 
-def invalidate_all_caches(obj) -> None:
-    """Drop every bare-read cache and memo of ``obj`` (test-side; no engine cost)."""
-    inv = getattr(obj, "_invalidate_bare_reads", None)
-    if callable(inv):
-        inv()
-    d = getattr(obj, "__dict__", {})
-    for key in ("_poly_cache", "_collision_pose_extra", "_geom_path_key"):
-        d.pop(key, None)
+from diff_support import invalidate_all_caches  # noqa: E402  (one home for the twin helpers)
 
 
 @contextmanager

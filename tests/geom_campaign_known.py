@@ -66,3 +66,36 @@ GATE_PARITY = {
 BARE_EXCEPT = {
     "track._move_by": "GX8: the fast path swallows every exception and falls back; phase 7",
 }
+
+# Sentinel (geom_sentinel; ``run_tiers.py <tier> --sentinel``): fnmatch patterns
+# over "invariant | Kind MODEL | Class.call".
+SENTINEL = {
+    "I-heading | *": "GR17-link: a link on a Defining angle leaves the pose store behind; phase 7",
+    "I-bare | Line *": "GX7: a write before any read seeds the bare flag on a pull-owned point; phase 7",
+    "I-atomic | Polygon | FieldRef.__imatmul__": "GX11: a link refused for wheel_rotate leaves its anchor; phase 7",
+    "I-atomic | Sprite | FieldRef.__imatmul__": "GX11; phase 7",
+    "I-graph | * | *": "harness: program_oracles.reactive_config swaps the scena system mid-process, "
+                       "so a module singleton (clock) keeps its node id from the old graph; not an "
+                       "author path (one system per process)",
+}
+
+# Laws (test_geom_laws): fnmatch patterns over "law | kind | detail".
+LAWS = {
+    "rotate_to timed = instant (Q2) | * | angle (turns)":
+        "Q2: a finished timed rotate_to keeps the shortest-arc end; phase 7",
+    "flip_x then flip_y = rotate_by 180 (geometry) | Line tangent_angle | *":
+        "GX3: a zero-length tangent line accepts the flips it refuses at any other length; phase 7",
+}
+
+# Copy commutes with verbs (test_geom_laws.TestCopyCommutes): "door [after verb] | kind | detail".
+COPY_LAWS = {
+    "<< | Sprite | copy raises NotImplementedError":
+        "GX9: << on a Sprite / Svg / Text raises Python's NotImplementedError; phase 7",
+    "<< | Svg | copy raises NotImplementedError": "GX9; phase 7",
+    "<< | Text * | copy raises NotImplementedError": "GX9; phase 7",
+    "<< after flip_? | Track * | *":
+        "GX10: a Track copy of a flipped source draws the unflipped points; phase 7",
+}
+
+# Influence matrix (test_geom_influence): "kind | input | detail".
+INFLUENCE = {}
