@@ -1,6 +1,25 @@
-Artwork created by Luis Zuno (@ansimuz)
+Copyright/Attribution Notice: 
 
-License (CC0) You can copy, modify, distribute and perform the work, even for commercial purposes, all without asking permission: http://creativecommons.org/publicdomain/zero/1.0/
 
-Get more resources at ansimuz.com, Spread the word!
+1) Mountains
+   "Multilayer scroll backgrounds", by Vircon32 (Carra). Published at OpenGameArt under license CC-BY 4.0.
+   https://opengameart.org/content/multilayer-scroll-backgrounds
 
+2) Grass
+   OGA-BY 3.0
+   Author: CraftPix.net 2D Game Assets
+   https://opengameart.org/content/summer-pixel-art-seamless-background
+
+
+3) Clouds and Vegetation
+   OGA-BY 3.0
+   Author: CraftPix.net 2D Game Assets
+   https://opengameart.org/content/simple-natural-landscape-pixel-art-background
+
+   
+   Derived files (same author and license; modified for Scena):
+   - vegetation-no-trees.png: vegetation.png with the two tall trees removed.
+   - clouds-bank.png: clouds.png with the tall cumulus replaced by the low cloud
+     bank, rebuilt from the image's own pixels.
+   - clouds-low.png: clouds-bank.png with the original cumulus set lower and
+     further right, behind the bank.
