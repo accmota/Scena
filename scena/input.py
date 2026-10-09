@@ -406,8 +406,12 @@ class KeyPressed(ClosedSurface, Container):
         if physical in _SPECIFIC_TO_FAMILY:
             # Modifier down: this hold of any already-down play key is not a
             # new unmodified press (lifting the modifier must not fire once).
+            # A play key whose own press is still pending (same poll, never
+            # read) keeps its unmodified edge: it was pressed alone, and
+            # on_key_down already reported it so (review 2026-10-09 S3-9).
+            pending = self._pending_edges
             for name in self._pressed_keys:
-                if name not in _SPECIFIC_TO_FAMILY:
+                if name not in _SPECIFIC_TO_FAMILY and name not in pending:
                     self._once_fired.add(self._token(name, False))
         elif self._active_families():
             self._once_fired.add(self._token(physical, False))
@@ -757,8 +761,12 @@ class Mouse(ClosedSurface, Container):
         super().__init__()
         self._x = 0
         self._y = 0
-        self._last_x = 0
-        self._last_y = 0
+        # This frame's pointer motion (the hand, in world units): the sum of
+        # the motion callbacks since the frame began. Reset at the end of
+        # every frame (``_end_frame``), so a still mouse reads 0 and several
+        # callbacks in one poll add up (review 2026-10-09 S1-1 / S3-1).
+        self._acc_dx = 0.0
+        self._acc_dy = 0.0
         self._pressed_buttons = {}     # Stores currently pressed buttons
         self._last1_click_pos  = {}     # Stores (x,y) of last click for each button
         self._last1_click_time = {}    # Stores time of last click for each button
@@ -782,21 +790,33 @@ class Mouse(ClosedSurface, Container):
 
     @property
     def dx(self):
-        """Change in x position since last update"""
-        return self._x - self._last_x
+        """How far the pointer moved in x since the previous frame (world units).
+
+        The hand's motion: every motion event of this frame adds up, a still
+        mouse reads 0, and a camera move under a still cursor does not count.
+        """
+        return self._acc_dx
 
     @property
     def dy(self):
-        """Change in y position since last update"""
-        return self._y - self._last_y
+        """How far the pointer moved in y since the previous frame (world units, y-up)."""
+        return self._acc_dy
 
     def _update_position(self, x, y):
-        """Pointer moved: record last position so ``dx`` / ``dy`` are the delta."""
-        self._last_x = self._x
-        self._last_y = self._y
+        """Pointer moved: add the step to this frame's ``dx`` / ``dy``."""
+        self._acc_dx += x - self._x
+        self._acc_dy += y - self._y
         self._x = x
         self._y = y
         self.update()
+
+    def _end_frame(self) -> None:
+        """Frame boundary: this frame's motion is spent (``dx`` / ``dy`` read 0
+        next frame unless the pointer moves). Notifies only on a change (A2)."""
+        if self._acc_dx or self._acc_dy:
+            self._acc_dx = 0.0
+            self._acc_dy = 0.0
+            self.update()
 
     def _sync_position(self, x, y) -> bool:
         """Write world position as current level, not as a motion.
@@ -809,8 +829,6 @@ class Mouse(ClosedSurface, Container):
             return False
         self._x = x
         self._y = y
-        self._last_x = x
-        self._last_y = y
         self.update()
         return True
 
@@ -844,6 +862,12 @@ class Mouse(ClosedSurface, Container):
     def _button_down(self, button, x, y):
         """Register button press"""
         self._pressed_buttons[button] = True
+        if self._input_masked:
+            # A click the game never got (a modal took it) is not the game's
+            # last click: ``click_pos`` after the menu closes must not report
+            # it (review 2026-10-09 S3-11).
+            self.update()
+            return
         # Transfer last1 state to last2 if it exists
         if button in self._last1_click_pos:
             self._last2_click_pos[button] = self._last1_click_pos[button]

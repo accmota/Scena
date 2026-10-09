@@ -1065,7 +1065,7 @@
       "section": "aparencia-visual",
       "sectionTitle": "Visual",
       "anchor": "visual-recolor",
-      "oneLiner": "Troca uma cor da imagem por outra — o mesmo PNG de inimigo em azul e em vermelho. Os pixels perto do matiz key viram o matiz to ; o resto fica. Num Sprite (em .visual ) ou numa Texture(shift=) .",
+      "oneLiner": "Troca uma cor da imagem por outra — o mesmo PNG de inimigo em azul e em vermelho. Os pixels perto do matiz key viram o matiz to ; o resto fica. Num Sprite (em .visual ) ou numa Texture(shift=) . key precisa ter matiz: branco, cinza ou preto dão erro (Recolor não seleciona áreas cinzentas); to pode ser cinza.",
       "search": "recolor paleta sprite texture",
       "family": "visual",
       "catalog": true,

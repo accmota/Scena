@@ -77,6 +77,11 @@ class WidgetManager:
         self._open_modal_menu = None
         self._open_nonmodal_menu = None
         self.last_click = None
+        # Bumped when the widget set or a widget's visible / enabled changes:
+        # the hover step re-resolves widget hover under a still cursor then
+        # (review 2026-10-09 S3-6; PH1's widget half).
+        self._widget_epoch = 0
+        self._hover_epoch_seen = 0
         # GLFW modifier bits of the key event being dispatched (Shift / Ctrl /
         # Alt / Super). Set by ScenaFramework._handle_key before any widget
         # hook runs; TextInput reads it for Shift-select, clipboard, word moves.
@@ -156,6 +161,7 @@ class WidgetManager:
         # provisional y1/y2 once the widget knows its height, then advances the column.
         self.begin_hud_item(widget, top_left=top_left)
         self.widgets.append(widget)
+        self._widget_epoch += 1
         widget.width = self.widget_theme.default_width
 
     def begin_hud_item(self, item, *, top_left=None):
@@ -337,6 +343,7 @@ class WidgetManager:
     def remove_widget(self, widget):
         if widget in self.widgets:
             self.widgets.remove(widget)
+            self._widget_epoch += 1
         if widget in self._label_column:
             self._label_column.remove(widget)
         if self.focused_widget is widget:
@@ -400,6 +407,19 @@ class WidgetManager:
             other._on_mouse_leave(0, 0)
         self.mouse_over_widget = None
         self.set_focus(widget)
+
+    def sync_modal_mask(self) -> None:
+        """Once per frame: the input mask follows whether the modal widget is
+        modal now. A hidden or parked modal Menu stopped consuming pointer
+        events, but ``keyp`` / ``mouse`` stayed masked for good (review
+        2026-10-09 S3-2); shown again, it masks again. O(1)."""
+        modal = self.modal_widget
+        if modal is None:
+            return
+        want = self._is_live(modal)
+        keys = getattr(ScenaFramework.get_instance(), "keys", None)
+        if keys is not None and keys._input_masked != want:
+            self._set_input_masked(want)
 
     def release_modal(self, widget) -> None:
         """Drop the modal mask. The click that is still down stays hidden until release."""
@@ -713,6 +733,12 @@ class WidgetManager:
             self.mouse_over_widget._is_mouse_over = False
             self.mouse_over_widget._on_mouse_leave(x, y)
 
+        if self.pressed_widget and widget is not None and widget is self.mouse_over_widget:
+            # Pressed and still over its hover target: hover stays (a later
+            # move off fires the leave). Dropping it here without a leave left
+            # the highlight stuck after press, drag off, release (S3-5).
+            return True
+
         # Set new hovered widget, set its is_mouse_over to True and send mouse_move event
         if widget and not self.pressed_widget:
             self.mouse_over_widget = widget
@@ -727,6 +753,23 @@ class WidgetManager:
         if self._modal_consumes():
             return True
         return False
+
+    def refresh_hover(self, x, y) -> None:
+        """Re-resolve the hovered widget at a still pointer (no move or drag
+        callbacks): a widget shown, created or enabled under the cursor takes
+        hover, one hidden under it gives it up."""
+        if self.pressed_widget:
+            return
+        widget = self.get_widget_at(x, y)
+        old = self.mouse_over_widget
+        if widget is old:
+            return
+        if old is not None:
+            old._is_mouse_over = False
+            old._on_mouse_leave(x, y)
+        self.mouse_over_widget = widget
+        if widget is not None:
+            widget._is_mouse_over = bool(getattr(widget, "_enabled", True))
 
     def handle_mouse_scroll(self, xpos, ypos, xoffset, yoffset):
         # Mouse scroll is always handled by the widget that mouse is over
@@ -759,6 +802,11 @@ class CanvasManager:
         # (world_x, world_y, view_x, view_y, time). Drives click / double
         # click / drag and ``on_mouse_up``'s ``click_x, click_y``.
         self._presses = {}
+        # Keys whose ``on_key_down`` the script got: it gets ``on_key_up`` for
+        # exactly these (a modal opened in between does not eat it; a consumed
+        # shortcut or a filtered chord sends none: review 2026-10-09 S3-7,
+        # S1-10).
+        self._keys_down: set = set()
         self._last_click = None  # (button, view_x, view_y, time)
         # Same thresholds as widget double click (view-space points, seconds).
         self.click_distance_threshold = 5
@@ -805,6 +853,14 @@ class CanvasManager:
     def forget_press(self, button):
         """Drop a script press whose release went to a widget / shape."""
         self._presses.pop(button, None)
+
+    def forget_act_input(self) -> None:
+        """An act change: a press or key the old act's script got does not
+        complete as a click / up in the new act (review 2026-10-09 S3-8; keys
+        already swallow their ``once`` edge)."""
+        self._presses.clear()
+        self._keys_down.clear()
+        self._last_click = None
 
     def handle_mouse_click(self, x, y, button, view=None):
         vx, vy = view if view is not None else (x, y)
@@ -3056,7 +3112,9 @@ class ScenaFramework:
             if key_name in wm._claimed_down:
                 wm._claimed_down.discard(key_name)
                 wm.handle_key_up(key_name)
-            elif not modal:
+            elif key_name in self.canvas_manager._keys_down:
+                # Every script down gets its up, modal or not.
+                self.canvas_manager._keys_down.discard(key_name)
                 self.canvas_manager.handle_key_up(script_key)
             return
         if action not in (glfw.PRESS, glfw.REPEAT):
@@ -3078,6 +3136,7 @@ class ScenaFramework:
         # After _press: delivery reads the held state (a play key only unmodified).
         delivers = not modal and self.keys._delivers_script_key(key_name)
         if action == glfw.PRESS and delivers:
+            self.canvas_manager._keys_down.add(key_name)
             self.canvas_manager.handle_key_down(script_key)
         if delivers:
             self.canvas_manager.handle_key(script_key)
@@ -3098,12 +3157,17 @@ class ScenaFramework:
             return
         glfw_x, glfw_y = glfw.get_cursor_pos(self._window)
         world_x, world_y, view_x, view_y = self._pointer_from_glfw(glfw_x, glfw_y)
-        self.mouse._sync_position(world_x, world_y)
+        moved = self.mouse._sync_position(world_x, world_y)
         sm = getattr(self, "shape_manager", None)
         if sm is not None:
             # Level sample: a camera pan under a still cursor moves the world
             # pointer; step_hover re-resolves on the change.
             sm.note_pointer((view_x, view_y), (world_x, world_y))
+            if moved and sm._dragging and sm._pressed_shape is not None and not sm._press_in_ui:
+                # A world drag follows the world pointer, not only motion
+                # events: the dragged shape stays under a still cursor while
+                # the camera pans (review 2026-10-09 S3-4).
+                sm.handle_mouse_move(world_x, world_y, ui=False)
         if hover:
             self.widget_manager.handle_mouse_move(view_x, view_y)
             self.shape_manager.handle_mouse_move(view_x, view_y, ui=True)
@@ -3127,6 +3191,10 @@ class ScenaFramework:
         widget = None
         modal = False
         if wm is not None:
+            if wm._widget_epoch != wm._hover_epoch_seen:
+                wm._hover_epoch_seen = wm._widget_epoch
+                if sm._ptr_view is not None:
+                    wm.refresh_hover(*sm._ptr_view)
             widget = wm.pressed_widget or wm.mouse_over_widget
             modal = wm._modal_consumes()
         sm.step_hover(widget, modal)
@@ -3165,6 +3233,14 @@ class ScenaFramework:
 
         elif action == glfw.RELEASE:
             self.mouse._button_up(button)
+            if button in self.canvas_manager._presses:
+                # The script got this button's down (nothing else took the
+                # press): the up is the script's, even when a modal opened in
+                # between (review 2026-10-09 S3-7).
+                self.canvas_manager.handle_mouse_up(
+                    world_x, world_y, button, view=(view_x, view_y)
+                )
+                return
             to_script = False
             if not self.widget_manager.handle_mouse_up(view_x, view_y, button):
                 # Prefer the space that owns the press (ui vs world).
@@ -3574,6 +3650,7 @@ class ScenaFramework:
             # World pointer is a sample, not only a move callback — still
             # cursor + camera pan with no GLFW motion.
             self._sync_pointer_level()
+            self.widget_manager.sync_modal_mask()
 
             # Call user update. The sync watchdog (tight loop → skip frame)
             # is off by default; opt in with set_sync_watchdog(True).
@@ -3622,6 +3699,9 @@ class ScenaFramework:
             # keyp.once is True only in the frame of the press (PM3). A press
             # that arrives after this (between frames) is read next frame.
             self.keys._expire_edges()
+            mouse = self.mouse
+            if mouse is not None:
+                mouse._end_frame()      # dx / dy are per frame (S1-1)
             if ss is not None:
                 ss.end_frame_batch()
 

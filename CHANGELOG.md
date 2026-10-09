@@ -162,6 +162,23 @@ left out.
 
 ### Fixed
 
+- `mouse.dx` / `mouse.dy` are this frame's motion: 0 when the mouse is
+  still (they kept the last step, so `ship.move_by(mouse.dx, 0)` drifted
+  forever), and the sum when several moves arrive in one frame.
+- A parked or `collidable = False` body forgets `touching_sides` (it read
+  `"bottom"` in mid-air and snapped down when it came back).
+- A hidden or parked modal Menu no longer leaves `keyp` and `mouse` dead.
+- Every `on_key_down` / `on_mouse_down` the script gets has its up, even with
+  a modal opened in between; a consumed Ctrl+Shift shortcut sends no up.
+- A dragged shape stays under a still cursor while the camera pans.
+- A Button's hover highlight no longer sticks after press, drag off and
+  release; a Button shown under a still cursor is hovered.
+- A mouse press from the previous act no longer clicks in the new one;
+  `mouse.click_pos` ignores clicks made on a modal menu.
+- `keyp.once("A")` is not lost when Shift is tapped in the same frame.
+- A compound `Collider` whose pieces are destroyed fires `@collide_exit`.
+- `collision.query_point(…, group=hero)` in `update()` no longer finds a
+  hero parked in the same `update()`.
 - A link that reads a field of another object (`q["x"] @= p["x"]`)
   follows every change of that field: `p << …`, `absorb`, `shape.center = …`,
   `move_*` / `rotate_*` / `scale_*` (instant and timed), flips, tweens, drag,

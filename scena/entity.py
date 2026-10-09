@@ -2403,6 +2403,14 @@ class Entity(Container):
             col._unregister()
             self._collider = None
         self._collidable = False
+        # ``touching_*`` is written by the collision step, which no longer
+        # visits this body: clear it, or a parked / ghosted body reads
+        # "bottom" in mid-air and floor-snaps when it rejoins (review
+        # 2026-10-09 S8-5).
+        ink = getattr(self, "_ink", None)
+        if (isinstance(ink, dict) and ink.get("touching_sides")) or \
+                getattr(self, "_touching_contacts", None):
+            self._collision_set_touching(frozenset(), ())
         # Hitbox parts share the host's switch (Sprite only).
         retire = getattr(type(self), "_retire_hitbox_parts", None)
         if retire is not None:

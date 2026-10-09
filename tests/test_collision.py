@@ -6490,3 +6490,96 @@ class TestParkExitSeesAParkedActor(unittest.TestCase):
             self.assertTrue(ship.visible)
             ship.destroy()
             lava.destroy()
+
+
+class TestLeavePathsForgetWhatTheyLeave(unittest.TestCase):
+    """Each way out of collision clears what the step would have cleared
+    (review 2026-10-09 S8-5, S8-6, S8-8, S8-9)."""
+
+    def _rest_on_floor(self, w):
+        from scena import Circle, Rect, resolve
+        floor = Rect(center=(0, -40), width=400, height=20, group="lp_floor")
+        hero = Circle(center=(0, -20), radius=10, group="lp_hero")
+        resolve("lp_hero", "lp_floor")
+        for _ in range(20):
+            hero.move_by(0, -2)
+            w.step(1, dt=1 / 60)
+        self.assertIn("bottom", hero.touching_sides)
+        return hero, floor
+
+    def test_touching_clears_on_park_and_opt_out(self):
+        from tests.system_support import system_world
+        for leave in ("park", "opt_out"):
+            with self.subTest(leave), system_world(draw=False) as w:
+                hero, floor = self._rest_on_floor(w)
+                if leave == "park":
+                    hero.active = False
+                else:
+                    hero.collidable = False
+                self.assertEqual(set(hero.touching_sides), set())
+                hero.move_to(0, -10)              # 10 DU above the floor top
+                if leave == "park":
+                    hero.active = True
+                else:
+                    hero.collidable = True
+                w.step(1, dt=1 / 60)
+                self.assertAlmostEqual(hero.center.y, -10.0, places=6)   # no floor snap
+                hero.destroy()
+                floor.destroy()
+
+    def test_contact_memory_goes_with_the_last_resolve_pair(self):
+        from scena import unresolve
+        from scena.collision import get_collision_system
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            hero, floor = self._rest_on_floor(w)
+            unresolve("lp_hero", "lp_floor")
+            w.step(1, dt=1 / 60)
+            self.assertEqual(get_collision_system()._contact_memory, {})
+            hero.destroy()
+            floor.destroy()
+
+    def test_compound_collider_exits_when_its_pieces_die(self):
+        from scena import Circle, Collider, Rect, collide, collide_exit
+        from scena.collision import get_collision_system
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            a = Circle(center=(0, 0), radius=5)
+            b = Circle(center=(8, 0), radius=5)
+            body = Collider([a, b])
+            plate = Rect(center=(0, 0), width=30, height=30)
+            log = []
+
+            @collide(plate, body)
+            def on(m, o, i):
+                log.append("enter")
+
+            @collide_exit(plate, body)
+            def off(m, o, i):
+                log.append("exit")
+
+            w.step(2, dt=1 / 60)
+            n = len(get_collision_system()._pair_handlers)
+            a.destroy()
+            b.destroy()
+            w.step(3, dt=1 / 60)
+            self.assertEqual(log, ["enter", "exit"])
+            self.assertEqual(len(get_collision_system()._pair_handlers), n - 2)
+            plate.destroy()
+
+    def test_query_after_park_does_not_use_the_last_step(self):
+        from scena import Circle, Rect, collide, collision
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            hero = Circle(center=(0, 0), radius=10)
+            wall = Rect(center=(100, 0), width=10, height=10)
+
+            @collide(hero, wall)
+            def hit(h, x, i):
+                pass
+
+            w.step(2, dt=1 / 60)
+            hero.active = False
+            self.assertEqual(collision.query_point((0, 0), group=hero), [])
+            hero.destroy()
+            wall.destroy()

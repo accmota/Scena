@@ -160,6 +160,8 @@ Canvas `*_at` accepts `info` / `info.point` (or `(x, y)`, Point, Vec2, Graphic).
 
 Fence: do not add a local-frame narrow phase or a tangency epsilon to make zero gap translation-invariant. Reopen only with a case a player can see.
 
+Leaving collision (park, `collidable = False`) clears `touching_sides` / `touching_contacts` (the step no longer writes them; a stale `"bottom"` floor-snapped a body that rejoined in mid-air: review 2026-10-09 S8-5). With no resolve pair left, the settle memory and the one-way pass state are cleared too (S8-6). A compound `Collider([a, b])` whose pieces all die fires its survivors' exits and drops its pair handlers: it is its own identity (S8-9). The step's group / object expansion cache is the step's: it is cleared at the end of the step and whenever a collider leaves, so a query in `update()` never tests a body parked meanwhile (S8-8).
+
 What a player *does* see is contact flicker on resting bodies. `touching_sides` is steady at any frame pacing ([Floor snap / grounded flicker](#floor-snap--grounded-flicker)); `@collide` on a resolved pair is kept steady by the detection skin ([Resting contact (skin)](#resting-contact-skin)).
 
 Author catalog: [Guia da API — Colisão](../docs/pt/guide/index.html#colisao). Resolution helpers on `CollisionInfo`: `mtv_split`, `velocity_split`, `push_apart`, `bounce_apart`, `resolve`, `reflect_velocity`; ramp reading: `side`, `slope_angle`, `tangent`, `slide_along`.

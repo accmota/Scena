@@ -855,6 +855,9 @@ class UIWidget(Entity):
         self._visible = want
         if not want:
             self._release_interaction()
+        wm = getattr(self, "_widget_manager", None)
+        if wm is not None:
+            wm._widget_epoch += 1     # hover re-resolves under a still cursor
 
     @property
     def enabled(self) -> bool:
@@ -874,6 +877,9 @@ class UIWidget(Entity):
         self._enabled = want
         if not want:
             self._release_interaction()
+        wm = getattr(self, "_widget_manager", None)
+        if wm is not None:
+            wm._widget_epoch += 1     # hover re-resolves under a still cursor
 
     @property
     def layer(self):

@@ -396,6 +396,11 @@ class ActManager:
         hit = fw.post_fx_stack._hit if fw is not None else None
         if hit is not None:
             hit._clear_pulses()
+        # A press, a key or a click the old act's script got does not complete
+        # in the new act (S3-8).
+        cm = getattr(fw, "canvas_manager", None) if fw is not None else None
+        if cm is not None:
+            cm.forget_act_input()
         # A key press from the old act never fires ``once`` in the new one.
         keyp = getattr(builtins, "keyp", None)
         swallow = getattr(keyp, "_swallow_edges", None)

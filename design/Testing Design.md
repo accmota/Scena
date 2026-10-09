@@ -93,6 +93,7 @@ Rules of thumb:
 | `tests/source_support.py` | `iter_files(root, *suffixes, recursive=, skip_dirs=)`: sorted real files, skipping OS metadata (`is_junk`: AppleDouble `._*`, `.DS_Store`, `Thumbs.db`, `desktop.ini`), hidden dirs and `__pycache__`. **Every directory scan in `tests/` uses it** (guard: `test_platform_portability.TestSourceScansUseTheHelper`). |
 | `tests/font_support.py` | `system_font_file()`: a monospace `.ttf` every OS installs (explicit candidate paths, no scan), for tests of `font="….ttf"` (WP4) |
 | `tests/media_support.py` | `MEDIA` (`examples/media/`), `SMOKE` (`scripts/smoke/`), `media(*parts)` / `smoke(*parts)`: absolute path of a tracked media file, **asserting** it exists. Tests read real images, sheets, sounds and SVGs only through it, never with a skip-if-missing (MR2) |
+| `tests/input_driver.py` | `input_driver(world)`: a mutable OS cursor and a sentinel window, events through `_handle_mouse_move` / `_handle_mouse_button` / `_handle_key` between steps (they land in the next frame, as poll events do). Used by `tests/test_input_frames.py` |
 | `tests/hyp_models.py` | `RegistryModel`: placement (painter order per layer), group join order and liveness of tracked objects; `track` / `place` / `move` / `restack` / `join` / `leave` / `destroy` / `drain` / `forget_dead`; `check_draw_lists(registry)`, `check_groups(pool, group_of)`. Exact in `test_hyp_canvas.RegistryMachine`; in `test_sys_hyp_world.WorldMachine` (deaths happen inside frames) call `forget_dead` before checking. Holds strong references: `clear()` before a leak check. |
 | `tests/geom_axes.py` | The geometry campaign's axes, read from the code: **K** kind × model × constructor row (`geometry_support.KINDS` + `EXTRA_KINDS`; `signature_reach` spies on the signature matcher), **B** base state (flipped, turned past a full turn, scaled, `MIN_SCALE`, degenerate, names crossed, cross-model copy, clone, mid-tween, parked, collidable, drawn), **W** warmth, **L** link configuration (field, part, whole, source of another link, chain), **R** read order, **X** execution twin (forced slow, caches dropped, inside a batch); `Reach` counters. Guard: `test_geom_axes` (every constructor row, every public pose verb and every axis value has a case or a reason). |
 | `tests/covering.py` | `covering_array(axes, t, valid)`: deterministic, constraint-aware t-wise covering arrays (IPOG); `uncovered_tuples` checks one. 2-wise in `quick`, 3-wise in `gate`. |
@@ -2133,6 +2134,26 @@ Lessons:
 3. **The class guard found members the review did not list.** Scanning every
    slot name read through `__dict__` found `retire_part` writing `_active`
    into the dict (a retired part read active).
+
+### RV3 — systems review fixes, batch 3: leave paths and input (2026-10-09)
+
+| ID | Finding | Fix | Test |
+| --- | --- | --- | --- |
+| S8-5 | `touching_sides` stayed `"bottom"` after park / opt-out; rejoin floor-snapped mid-air | `_leave_collision` clears it | `test_collision.TestLeavePathsForgetWhatTheyLeave` |
+| S8-6 | `_contact_memory` / `_passing` survived with no resolve pair | cleared at the resolve pass's early return | same class |
+| S8-9 | a compound Collider pruned silently (no exit, handlers leaked) | compound: exits + `drop_pair_handlers_for` | same class |
+| S8-8 | queries in `update()` used the last step's object cache | cache cleared at step end and on a leave | same class |
+| S3-2 | a hidden / parked modal left keys and mouse masked | `sync_modal_mask` once per frame (a level) | `test_input_frames.TestModalInput` |
+| S1-1 = S3-1 | `mouse.dx` was the last callback's step, never reset | per-frame accumulator, reset at frame end | `test_input_frames.TestMouseDeltaIsPerFrame` |
+| S3-4 | a drag did not follow a camera pan under a still cursor | drag step from the sampled pointer | `TestDragFollowsTheWorldPointer` |
+| S3-5 = S1-3, S3-6 | widget highlight stuck after press-drag-off; widget hover only on moves | pressed widget keeps hover; widget epoch → `refresh_hover` | `TestWidgetHover` |
+| S3-7, S1-10 | a modal ate the script's up; a shortcut sent an up without a down | `_keys_down` / the script's own press decide who gets the up | `TestModalInput`, `TestKeyEdges` |
+| S3-8, S3-11 | an old act's press clicked in the new act; `click_pos` reported a masked click | `forget_act_input`; masked clicks not recorded | `TestActChangeForgetsPointerInput`, `TestModalInput` |
+| S3-9 | `keyp.once` lost when a modifier was tapped in the same poll | a pending play key keeps its edge | `TestKeyEdges` |
+
+Harness: `tests/input_driver.py` delivers GLFW-shaped events through the
+framework's own handlers between `SystemWorld` steps (the world stubs
+`poll_events`, so no system test had run an input callback in a frame).
 
 ### F — contact flicker (2026-09-29)
 

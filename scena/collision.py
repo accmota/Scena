@@ -4109,6 +4109,8 @@ class CollisionSystem:
         if i is None:
             return
         self._dispatch_epoch += 1
+        if self._resolve_cache:
+            self._resolve_cache.clear()     # an expansion may hold this collider
         lst = self._colliders
         last = lst.pop()
         if i != len(lst):
@@ -4126,9 +4128,18 @@ class CollisionSystem:
                 continue
             self._forget_collider_tags(c)
             self._invalidate_partner_cache()
-            # No shapes left → no identity to report an exit with; just drop
-            # the keys so a reused id() cannot inherit them.
-            self._end_contacts_of(c, emit=False)
+            if c._identity is c:
+                # A compound ``Collider([a, b])`` is its own identity, still
+                # held by the author and its handlers: its survivors get their
+                # exits and its pair handlers leave (review 2026-10-09 S8-9).
+                self._end_contacts_of(c, emit=True)
+                self.drop_pair_handlers_for(c)
+                self._forget_pair_target(c)
+            else:
+                # A body's pieces died with it: no identity to report an exit
+                # with; just drop the keys so a reused id() cannot inherit them.
+                self._end_contacts_of(c, emit=False)
+            self._dispatch_epoch += 1
             last = lst.pop()
             idx_map.pop(id(c), None)
             if i != len(lst):
@@ -5486,6 +5497,11 @@ class CollisionSystem:
         self.last_stats["ms_bounds"] = (time.perf_counter() - t0) * 1000.0
         self.last_stats["ms_total"] = (time.perf_counter() - t_total0) * 1000.0
         self._update_touching_state(self._solve_contacts, id_to_collider)
+        # The step's group / object expansions are this step's: a query in the
+        # next update() must not test a body parked or opted out meanwhile
+        # (review 2026-10-09 S8-8).
+        if self._resolve_cache:
+            self._resolve_cache.clear()
 
     def _swept_contacts(
         self,
@@ -5573,6 +5589,13 @@ class CollisionSystem:
         id_to_collider: Dict[int, Collider],
     ) -> None:
         if not self._resolve_pairs:
+            # No resolve pair: no memory of a settle normal or a one-way pass
+            # may outlive it (a pair resolved again later used the old normal
+            # and pushed a body through the platform: review 2026-10-09 S8-6).
+            if self._contact_memory:
+                self._contact_memory.clear()
+            if self._passing:
+                self._passing.clear()
             return
         # Walk declared resolve members only (not every enrolled collider).
         bodies: List[Collider] = []

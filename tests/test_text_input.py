@@ -788,7 +788,10 @@ class TestKeyRouting(TextInputCase):
         self.assertTrue(tb.focused)           # focus stays
         self.assertEqual(seen, [])            # not Enter: no on_submit
         self.up(glfw.KEY_S, PRIMARY)
-        self.assertIn("S", self.ups)
+        # Every script up has its down: S's down was a chord only (no
+        # on_key_down("S")), so its release sends no on_key_up("S") either
+        # (review 2026-10-09 S1-10; it used to arrive alone).
+        self.assertNotIn("S", self.ups)
         self.wm.set_focus(None)
         self.assertEqual(c.value, 250)
 
