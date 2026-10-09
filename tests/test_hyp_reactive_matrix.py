@@ -135,6 +135,23 @@ def _reassert_heading(pair, written):
     _put(pair.twin, "angle", is_pair, map_value("angle", slot, is_pair, cell.v))
 
 
+def _reassert_pin(pair, written):
+    """A linked ``center`` is an anchored caption's pin whatever moves.
+
+    On an anchored Text, ``text`` and ``center`` do not commute as writes: a
+    string written after ``center`` grows away from the anchor and moves the
+    midpoint. The link keeps ``center`` at its formula's value (Canvas Design,
+    Text), so the twin re-applies it after any other write (found by the deep
+    serial pass, 2026-10-09)."""
+    if written == "center" or "center" not in pair.links:
+        return
+    if pair.twin.__dict__.get("_anchor") is None:
+        return              # not an anchored caption: center is the pose already
+    cell, _whole = pair.links["center"]
+    _, is_pair, slot = next(x for x in pair.linkable if x[0] == "center")
+    _put(pair.twin, "center", is_pair, map_value("center", slot, is_pair, cell.v))
+
+
 class _Pair:
     def __init__(self, label, factory):
         self.label = label
@@ -203,6 +220,7 @@ class ReactiveMatrixMachine(RuleBasedStateMachine):
         try:
             _put(pair.twin, name, is_pair, value)
             _reassert_heading(pair, name)
+            _reassert_pin(pair, name)
         except Exception:
             assume(False)
 
@@ -218,6 +236,7 @@ class ReactiveMatrixMachine(RuleBasedStateMachine):
                     try:
                         _put(pair.twin, name, is_pair, map_value(name, slot, is_pair, t))
                         _reassert_heading(pair, name)
+                        _reassert_pin(pair, name)
                     except Exception:
                         assume(False)
 

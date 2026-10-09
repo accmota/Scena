@@ -129,6 +129,15 @@ left out.
 
 ### Fixed
 
+- A caption placed by `top_left=` (or `top_center=` / `top_right=`) whose
+  `center` is linked keeps the centre where its formula puts it when the
+  string changes; it used to keep the corner and drift the centre by half the
+  width change. While `center` links, the box grows both ways around it and
+  the corner follows: writing the corner raises `DerivedAttributeError`
+  (before, the write was accepted and the two disagreed). The same holds the
+  other way: after `t["top_left"] @= …`, `t.center = …` raises, as it does for
+  `Text(top_left=lambda: …)`. `t.center @= …` is refused when the corner
+  already links, as `t["center"] @= …` was. Unlink to write either again.
 - An act change (or a hard layer clear / a group destroy) that destroyed an
   open modal `Menu` left it open: the dimming mask and the menu's `pause`
   stayed, `await menu` hung, and the next act's `TextInput.focus()` raised

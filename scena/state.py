@@ -2348,6 +2348,17 @@ class Container():
             for root, flag in pull_flags:
                 root._needs_pull_invalidate = flag
             raise
+        self._note_part_link_changed()
+
+    def _note_part_link_changed(self) -> None:
+        """A link on this part was installed or removed: an owner whose model
+        depends on which part links re-reads it (``Text._part_link_changed``:
+        a linked ``center`` is an anchored caption's pin)."""
+        root = self._ownership_root()
+        if root is not self:
+            hook = getattr(root, '_part_link_changed', None)
+            if hook is not None:
+                hook(self)
 
     def unlink(self):
         """Unlink an attribute from its link; it keeps its CURRENT value.
@@ -2382,6 +2393,7 @@ class Container():
                 hook = getattr(root, '_relation_unlinked', None)
                 if hook is not None:
                     hook(link)
+            self._note_part_link_changed()
 
     def unlink_all(self) -> 'Container':
         """
