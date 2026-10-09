@@ -792,6 +792,11 @@ left out.
   property now raises instead of becoming a field: `ship.anlge = 30` →
   `Did you mean 'angle'?` (also `widht`, `aplha`, `lyaer`, `gruop`, `nagle`).
   A field you meant to call `nagle` needs another name.
+- `"lightcyan"`, `"darkblue"`, `"lightgray"`: a `dark` / `light` / `faded`
+  prefix written without a space is the same name as with one, like
+  `"deepskyblue"` already was. Before, they painted magenta with a warning
+  (`"lightpink"` became hot pink). A typo keeps its prefix in the
+  suggestion: `"lightcyna"` → `light cyan`.
 - `jet.color = "cyan"` after the constructor works on `Jet`, `Sparks`,
   `Starburst` and `Rain`, as it already did on `Orb`, `GlowSpot`, `Warp`,
   `Portal` and `Sunburst`. Before, the name was stored as text and the next

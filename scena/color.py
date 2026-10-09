@@ -193,6 +193,25 @@ class ColorNames:
         return modifiers, rest
 
     @classmethod
+    def _peel_glued_modifiers(cls, name: str) -> Tuple[List[str], str]:
+        """Peel modifiers written without a space: ``"lightcyan"`` → (["light"], "cyan").
+
+        The compact spelling of a base name is already the same name
+        (``"deepskyblue"``); this extends it to ``dark`` / ``light`` /
+        ``faded``. The caller keeps the peel only when the rest resolves.
+        """
+        modifiers: List[str] = []
+        rest = name
+        while True:
+            for mod in cls._MODIFIERS:
+                if rest.startswith(mod) and len(rest) > len(mod):
+                    modifiers.append(mod)
+                    rest = rest[len(mod):].lstrip()
+                    break
+            else:
+                return modifiers, rest
+
+    @classmethod
     def _lookup_base(cls, base: str) -> Tuple[Optional[str], ColorResolveKind, Tuple[str, ...]]:
         """
         Resolve a base color name (no modifiers).
@@ -280,6 +299,25 @@ class ColorNames:
             )
 
         resolved_name, kind, suggestions = cls._lookup_base(base)
+
+        if kind != ColorResolveKind.EXACT:
+            # "lightcyan", "darkdarkblue", "dark lightblue": a modifier glued
+            # to its base. Kept when the rest is a known name (silent) or a
+            # near typo of one ("lightcyna" → "light cyan", with a warning),
+            # and only if that beats reading the whole word as one name.
+            glued, rest = cls._peel_glued_modifiers(base)
+            if glued and rest:
+                g_name, g_kind, g_sugg = cls._lookup_base(rest)
+                if g_kind == ColorResolveKind.EXACT or (
+                    g_kind == ColorResolveKind.FUZZY and kind == ColorResolveKind.FALLBACK
+                ):
+                    modifiers = modifiers + glued
+                    resolved_name, kind, suggestions = g_name, g_kind, g_sugg
+
+        if modifiers:
+            # A suggestion keeps the modifier the author wrote: "light cyan", not "cyan".
+            prefix = ' '.join(modifiers) + ' '
+            suggestions = tuple(prefix + s for s in suggestions)
 
         if resolved_name is None:
             return ColorResolveResult(

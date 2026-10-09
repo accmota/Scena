@@ -136,6 +136,60 @@ class TestColorModifiers(unittest.TestCase):
             self.assertEqual(len(w), 0)
 
 
+class TestGluedModifiers(unittest.TestCase):
+    """``"lightcyan"`` is ``"light cyan"``, as ``"deepskyblue"`` is ``"deep sky blue"``.
+
+    Bug (2026-10-09, tutorial 08): ``Color("lightcyan")`` painted magenta with a
+    warning suggesting ``cyan, tan`` — the compact spelling of a base name was
+    already the same name, but a modifier glued to its base was not peeled.
+    """
+
+    def assertSilent(self, name, spaced):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            self.assertEqual(ColorNames.get(name), ColorNames.get(spaced), name)
+            self.assertEqual(len(w), 0, f"{name!r} warned: {[str(x.message) for x in w]}")
+
+    def test_every_modifier_glued_to_every_name_is_that_name(self):
+        for mod in ColorNames._MODIFIERS:
+            for base in ColorNames._COLORS:
+                with self.subTest(mod=mod, base=base):
+                    self.assertSilent(mod + base.replace(' ', ''), f"{mod} {base}")
+
+    def test_case_stacking_and_mixing(self):
+        self.assertSilent('LightCyan', 'light cyan')
+        self.assertSilent('DARKBLUE', 'dark blue')
+        self.assertSilent('darkdarkblue', 'dark dark blue')
+        self.assertSilent('dark lightblue', 'dark light blue')
+        self.assertSilent('darkskyblue', 'dark sky blue')
+
+    def test_a_typo_suggests_the_name_with_its_modifier(self):
+        result = ColorNames.resolve('lightcyna')
+        self.assertEqual(result.kind, ColorResolveKind.FUZZY)
+        self.assertEqual(result.resolved_name, 'light cyan')
+        self.assertIn('light cyan', result.suggestions)
+        with self.assertWarns(RuntimeWarning) as cm:
+            ColorNames.get('lightcyna')
+        self.assertIn("'light cyan'", str(cm.warning))
+        self.assertEqual(ColorNames.resolve('faded blu').suggestions, ('faded blue',))
+
+    def test_a_word_that_only_starts_like_a_modifier_is_not_peeled(self):
+        for name in ('lightning', 'darkxyz', 'light', 'dark'):
+            with self.subTest(name=name):
+                self.assertEqual(ColorNames.resolve(name).kind, ColorResolveKind.FALLBACK)
+
+    def test_a_table_name_that_starts_with_a_modifier_wins(self):
+        ColorNames._COLORS['darkorange'] = (1.0, 0.55, 0.0)
+        ColorNames._compact_to_name = ColorNames._names_by_length = None
+        try:
+            result = ColorNames.resolve('darkorange')
+            self.assertEqual(result.kind, ColorResolveKind.EXACT)
+            self.assertEqual(result.rgb, (1.0, 0.55, 0.0))
+        finally:
+            del ColorNames._COLORS['darkorange']
+            ColorNames._compact_to_name = ColorNames._names_by_length = None
+
+
 class TestColorSuffix(unittest.TestCase):
     def test_super_blue_uses_blue_not_sky(self):
         with warnings.catch_warnings(record=True) as w:
