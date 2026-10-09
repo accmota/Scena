@@ -21,7 +21,7 @@ Tutorial.mount({
       title: "O jogo do 07",
       body: `
         <p>Novo script: o jogo do tutorial 07, com a folha, as explosões, o som e as três vidas. Neste tutorial a nave ganha um <strong>escudo</strong>. Mas não de graça, nem para sempre: o escudo é um presente que cai de um inimigo destruído, e ele se gasta a cada laser que segura.</p>
-        <p>A folha do 07 já tem tudo o que é preciso: o ícone do presente (<code>powerupBlue_shield.png</code>) e três desenhos de escudo (<code>shield1.png</code> a <code>shield3.png</code>). Nenhum arquivo novo.</p>
+        <p>A folha do 07 já tem o ícone do presente (<code>powerupBlue_shield.png</code>), e o escudo nem precisa de imagem: o Scena desenha um. Nenhum arquivo novo.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -52,6 +52,7 @@ vidas["text"] @= lambda: f"x {st.vidas}"
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
         self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
         self.after(0.5, self.destroy)
 
 
@@ -75,7 +76,6 @@ class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
     @collide_with("tiros")
     def atingido(self, tiro):
         Explosao(center=self.center)
-        play_sound("audio/explosion01.wav")
         tiro.destroy()
         self.destroy()
         st.pontos += 1
@@ -159,11 +159,11 @@ run()
       title: "Um presente que cai",
       body: `
         <p>Às vezes, um inimigo destruído deixa cair um presente. A classe <code>Poder</code> é o presente: um quadro da folha que desce 150 pixels por segundo, no grupo <code>poderes</code>.</p>
-        <p><strong>Às vezes.</strong> <code>random()</code> (aleatório), de <code>from random import …</code>, sorteia um número entre 0 e 1. <code>random() &lt; 0.2</code> é verdadeiro em um sorteio de cada cinco, mais ou menos. No <code>atingido</code> do inimigo, um <code>Poder(center=self.center)</code> nasce onde ele estava, em 20% das explosões.</p>
+        <p><strong>Às vezes.</strong> <code>chance(0.2)</code> (chance) sorteia: responde verdadeiro em 20% das vezes, mais ou menos um sorteio de cada cinco. O número vai de 0 (nunca) a 1 (sempre). No <code>atingido</code> do inimigo, se a sorte disser sim, um <code>Poder(center=self.center)</code> nasce onde ele estava.</p>
         <p><strong>Pegar.</strong> No <code>Heroi</code>, outro <code>@collide_with</code>, agora com o grupo <code>poderes</code>: o presente some, a nave dá um <code>pop</code> (estalo: cresce de repente e volta) e toca um som. E o presente que ninguém pega sai pelo fundo: o grupo entrou no <code>@leave_playfield</code>.</p>
         <p>Atire até um presente cair, e pegue-o. Ele some e faz barulho, mas não acontece mais nada. Ainda não há escudo para ligar.</p>
       `,
-      code: `from random import choice, random
+      code: `from random import choice
 from scena import *
 
 init(width=1000, height=800, title="Naves")
@@ -192,6 +192,7 @@ vidas["text"] @= lambda: f"x {st.vidas}"
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
         self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
         self.after(0.5, self.destroy)
 
 
@@ -215,8 +216,7 @@ class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
     @collide_with("tiros")
     def atingido(self, tiro):
         Explosao(center=self.center)
-        play_sound("audio/explosion01.wav")
-        if random() < 0.2:
+        if chance(0.2):
             Poder(center=self.center)
         tiro.destroy()
         self.destroy()
@@ -310,7 +310,7 @@ run()
       try: [
           {
             note: "Presentes mais frequentes, para testar: no <code>atingido</code> do inimigo, no lugar do <code>0.2</code>. Com <code>1</code>, todo inimigo deixa um.",
-            code: `if random() < 0.5:
+            code: `if chance(0.5):
     Poder(center=self.center)`
           }
         ]
@@ -318,14 +318,14 @@ run()
     {
       title: "O escudo",
       body: `
-        <p>O escudo é outra peça da nave, como o propulsor do 06: a classe <code>Escudo</code> é um quadro da folha com um brilho ciano, e nasce no <code>setup</code> do <code>Heroi</code>, guardado em <code>self.escudo</code>. O centro dele é uma <code>lambda</code> que lê o centro da nave: onde ela vai, o escudo vai. E o <code>on_destroy</code> apaga as duas peças.</p>
+        <p>O escudo é outra peça da nave, como o propulsor do 06. Ele nasce no <code>setup</code> do <code>Heroi</code>, guardado em <code>self.escudo</code>: um <code>Circle</code> (círculo) de raio 38, que cobre a nave, com o visual <code>Shield</code> (escudo). <code>Shield</code> apareceu no menu de visuais do tutorial 04: uma bolha de energia que se mexe sozinha. <code>style="plasma"</code> (estilo) é a bolha prateada, transparente o bastante para a nave aparecer dentro. O centro do círculo é uma <code>lambda</code> que lê o centro da nave: onde ela vai, o escudo vai. E o <code>on_destroy</code> agora apaga as duas peças.</p>
         <p><strong>Estacionado.</strong> A nave começa sem escudo. <code>self.escudo.active = False</code> (ativo) <strong>estaciona</strong> o escudo: ele some e para, sem ser destruído. <code>active = True</code> o traz de volta, no mesmo lugar. É o jeito de ligar e desligar uma peça que vai e volta muitas vezes.</p>
         <p><strong>A energia.</strong> O escudo dura enquanto houver energia: <code>st.energia</code>, de 0 a 100, ao lado das vidas. Pegar o presente enche: <code>st.energia = 100</code>.</p>
         <p><strong>Quem liga o escudo.</strong> A regra é uma frase: <em>o escudo está ligado enquanto houver energia</em>. <code>@on_change</code> (quando mudar), que o 07 mostrou, escreve essa frase num lugar só. Em cima de <code>energia_mudou</code>, ele diz ao Scena: rode esta função a cada mudança de <code>st.energia</code>. A função liga o escudo se a energia é maior que zero, e o desliga se não é. Dentro de uma classe, a pergunta vem numa <code>lambda</code> que recebe <code>self</code>: <code>@on_change(lambda self: st.energia)</code>.</p>
         <p>Com isso, ninguém mais precisa lembrar do escudo. Pegar o presente só mexe na energia; quando, no próximo passo, os lasers gastarem a energia, eles também só mexerão nela. O escudo segue o número sozinho.</p>
         <p>Pegue um presente: o escudo aparece em volta da nave. Mas os lasers ainda o atravessam.</p>
       `,
-      code: `from random import choice, random
+      code: `from random import choice
 from scena import *
 
 init(width=1000, height=800, title="Naves")
@@ -355,6 +355,7 @@ vidas["text"] @= lambda: f"x {st.vidas}"
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
         self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
         self.after(0.5, self.destroy)
 
 
@@ -378,8 +379,7 @@ class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
     @collide_with("tiros")
     def atingido(self, tiro):
         Explosao(center=self.center)
-        play_sound("audio/explosion01.wav")
-        if random() < 0.2:
+        if chance(0.2):
             Poder(center=self.center)
         tiro.destroy()
         self.destroy()
@@ -391,17 +391,12 @@ class Poder(Sprite, source=folha, frame="powerupBlue_shield.png", height=30, gro
         self.move_by(0, -150 * dt)
 
 
-class Escudo(Sprite, source=folha, frame="shield2.png", height=80):
-    def setup(self):
-        self.glow = "cyan"
-
-
 class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
     def setup(self):
         self.glow = True
         self.propulsor = Jet(origin=lambda: (self.center.x, self.center.y - 22),
                              angle=270, length=40, width=16, amount=2)
-        self.escudo = Escudo(center=lambda: self.center)
+        self.escudo = Circle(center=lambda: self.center, radius=38, visual=Shield(style="plasma"))
         self.escudo.active = False
 
     def on_update(self, dt):
@@ -485,8 +480,8 @@ run()
 `,
       try: [
           {
-            note: "Os outros desenhos de escudo da folha, um por vez, na linha da classe <code>Escudo</code>: <code>shield1.png</code> é mais justo, <code>shield3.png</code> mais largo. Depois do <code>nave = Heroi(…)</code>, para ver sem pegar o presente:",
-            code: `nave.escudo.frame = "shield3.png"
+            note: "Outros estilos de <code>Shield</code>, um por vez, depois do <code>nave = Heroi(…)</code> (a segunda linha liga o escudo sem esperar o presente). Sem <code>style</code>, a bolha é verde (<code>\"bubble\"</code>); <code>\"ember\"</code> é brasa. <code>\"nebula\"</code> e <code>\"frost\"</code> são bonitos, mas cobrem a nave. No Guia: <a href='../guide/index.html#aparencia-visual'>Visual</a>.",
+            code: `nave.escudo.visual = Shield()
 st.energia = 100`
           }
         ]
@@ -494,11 +489,11 @@ st.energia = 100`
     {
       title: "A energia gasta",
       body: `
-        <p>Agora o escudo segura os lasers. O <code>Escudo</code> ganha o seu <code>@collide_with("tiros_inimigos")</code>: o laser some e a energia cai 20. Cinco lasers e acabou: a energia chega a zero, o <code>@on_change</code> desliga o escudo, e a nave volta a perder vidas.</p>
-        <p><strong>A forma da colisão.</strong> O desenho do escudo é um anel: uma linha curva com o meio vazio. Para a colisão, o Scena cobre cada sprite com uma forma simples, e a escolha automática prefere errar para dentro. Num anel fino, sobra um pedacinho dele, e os lasers passariam direto. <code>hitbox_shape="circle"</code> (forma de colisão: círculo), na linha da classe, cobre o anel inteiro com um círculo. Veja as formas com <kbd>Ctrl+Shift+7</kbd>.</p>
+        <p>Agora o escudo segura os lasers. Para isso ele precisa de um comportamento próprio, e, como no 06, comportamento próprio pede uma classe. <code>class Escudo(Circle, radius=38, visual=Shield(style="plasma"))</code> é o mesmo círculo, com o raio e o visual na linha da classe; no <code>setup</code> da nave, <code>Circle(…)</code> vira <code>Escudo(center=…)</code>.</p>
+        <p><strong>O bloqueio.</strong> O <code>Escudo</code> ganha o seu <code>@collide_with("tiros_inimigos")</code>: o laser some e a energia cai 20. Cinco lasers e acabou: a energia chega a zero, o <code>@on_change</code> desliga o escudo, e a nave volta a perder vidas. A colisão de um círculo é o próprio círculo: o laser bate na borda da bolha, antes de chegar à nave. Veja com <kbd>Ctrl+Shift+7</kbd>.</p>
         <p><strong>A barra.</strong> No canto, embaixo dos pontos, uma barra mostra a energia: um <code>Rect</code> preso pelo canto de cima à esquerda (<code>top_left</code>), cuja largura está ligada com <code>@=</code> à energia: <code>st.energia * 2</code>, 200 pixels cheia, zero vazia. Como o placar, ela acompanha sozinha.</p>
       `,
-      code: `from random import choice, random
+      code: `from random import choice
 from scena import *
 
 init(width=1000, height=800, title="Naves")
@@ -524,13 +519,14 @@ Sprite(folha, frame="playerLife1_red.png", height=24, center=(900, 768))
 vidas = Text(text="", top_left=(920, 780), font_size=20)
 vidas["text"] @= lambda: f"x {st.vidas}"
 
-barra = Rect(top_left=(20, 745), width=200, height=8, color="cyan")
+barra = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
 barra["width"] @= lambda: st.energia * 2
 
 
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
         self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
         self.after(0.5, self.destroy)
 
 
@@ -554,8 +550,7 @@ class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
     @collide_with("tiros")
     def atingido(self, tiro):
         Explosao(center=self.center)
-        play_sound("audio/explosion01.wav")
-        if random() < 0.2:
+        if chance(0.2):
             Poder(center=self.center)
         tiro.destroy()
         self.destroy()
@@ -567,10 +562,7 @@ class Poder(Sprite, source=folha, frame="powerupBlue_shield.png", height=30, gro
         self.move_by(0, -150 * dt)
 
 
-class Escudo(Sprite, source=folha, frame="shield2.png", height=80, hitbox_shape="circle"):
-    def setup(self):
-        self.glow = "cyan"
-
+class Escudo(Circle, radius=38, visual=Shield(style="plasma")):
     @collide_with("tiros_inimigos")
     def bloqueou(self, tiro):
         tiro.destroy()
@@ -693,10 +685,10 @@ run()
           <figcaption>Onde o laser tocou o escudo. O centro dos dois não diz isso; <code>info.point</code> diz.</figcaption>
         </figure>
 
-        <p><strong>O impacto.</strong> <code>canvas.zap_at</code> (choque em) desenha um choque elétrico num ponto: um núcleo claro e raios tortos. Como os outros <code>*_at</code> do 05, ele aceita um ponto, um sprite ou o próprio <code>info</code>: <code>canvas.zap_at(info, color="cyan")</code> estoura onde o laser tocou o escudo. Um som de pancada, mais agudo (<code>pitch=1.6</code>), diz que o golpe foi no escudo, não na nave.</p>
+        <p><strong>O impacto.</strong> <code>canvas.zap_at</code> (choque em) desenha um choque elétrico num ponto: um núcleo claro e raios tortos. Como os outros <code>*_at</code> do 05, ele aceita um ponto, um sprite ou o próprio <code>info</code>: <code>canvas.zap_at(info, color="sky blue")</code>, da cor da bolha, estoura onde o laser tocou o escudo. Um som de pancada, mais agudo (<code>pitch=1.6</code>), diz que o golpe foi no escudo, não na nave.</p>
         <p><strong>Por que um choque.</strong> O tipo de impacto conta o que aconteceu. <code>zap_at</code> diz “energia”: um campo de força. <code>canvas.hit_at</code> diz “algo bateu numa superfície dura”: uma estrela branca, um anel fino e faíscas curtas. Os dois estão na caixa; fique com o que combina com o seu escudo.</p>
       `,
-      code: `from random import choice, random
+      code: `from random import choice
 from scena import *
 
 init(width=1000, height=800, title="Naves")
@@ -722,13 +714,14 @@ Sprite(folha, frame="playerLife1_red.png", height=24, center=(900, 768))
 vidas = Text(text="", top_left=(920, 780), font_size=20)
 vidas["text"] @= lambda: f"x {st.vidas}"
 
-barra = Rect(top_left=(20, 745), width=200, height=8, color="cyan")
+barra = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
 barra["width"] @= lambda: st.energia * 2
 
 
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
         self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
         self.after(0.5, self.destroy)
 
 
@@ -752,8 +745,7 @@ class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
     @collide_with("tiros")
     def atingido(self, tiro):
         Explosao(center=self.center)
-        play_sound("audio/explosion01.wav")
-        if random() < 0.2:
+        if chance(0.2):
             Poder(center=self.center)
         tiro.destroy()
         self.destroy()
@@ -765,13 +757,10 @@ class Poder(Sprite, source=folha, frame="powerupBlue_shield.png", height=30, gro
         self.move_by(0, -150 * dt)
 
 
-class Escudo(Sprite, source=folha, frame="shield2.png", height=80, hitbox_shape="circle"):
-    def setup(self):
-        self.glow = "cyan"
-
+class Escudo(Circle, radius=38, visual=Shield(style="plasma")):
     @collide_with("tiros_inimigos")
     def bloqueou(self, tiro, info):
-        canvas.zap_at(info, color="cyan")
+        canvas.zap_at(info, color="sky blue")
         play_sound("audio/sfx-hit-2.wav", pitch=1.6)
         tiro.destroy()
         st.energia -= 20
@@ -867,13 +856,13 @@ run()
       try: [
           {
             note: "Outros impactos no mesmo ponto, um por vez, no lugar do <code>zap_at</code>. <code>style</code> muda o choque: <code>\"fork\"</code> são raios que se dividem, <code>\"corona\"</code> um anel de raios. No Guia: <a href='../guide/index.html#mundo-impactos'>Impactos</a>.",
-            code: `canvas.zap_at(info, color="cyan", style="fork")
-canvas.zap_at(info, color="cyan", style="corona")
-canvas.hit_at(info, color="cyan")`
+            code: `canvas.zap_at(info, color="sky blue", style="fork")
+canvas.zap_at(info, color="sky blue", style="corona")
+canvas.hit_at(info, color="sky blue")`
           },
           {
             note: "Faíscas que ficam um momento: <code>Sparks</code> é um <code>SpatialFx</code>, como o propulsor. Ele não some sozinho, por isso o <code>after</code> da própria faísca o apaga.",
-            code: `faisca = Sparks(center=info.point, radius=14, color="cyan")
+            code: `faisca = Sparks(center=info.point, radius=14, color="sky blue")
 faisca.after(0.3, faisca.destroy)`
           }
         ]
@@ -886,7 +875,7 @@ faisca.after(0.3, faisca.destroy)`
         <p>O lugar certo já existe. <code>energia_mudou</code> roda a cada mudança da energia; se a energia nova é zero, o escudo acabou de quebrar. Um <code>if</code> ali dentro: <code>canvas.burst_at</code> com anéis (<code>rings=True</code>) e 70 pixels de raio, o tamanho do escudo, e um som de sino.</p>
         <p>A quebra fica junto da regra que desliga o escudo, e não no <code>bloqueou</code>. Assim, se outra coisa um dia zerar a energia, o escudo quebra do mesmo jeito.</p>
       `,
-      code: `from random import choice, random
+      code: `from random import choice
 from scena import *
 
 init(width=1000, height=800, title="Naves")
@@ -912,13 +901,14 @@ Sprite(folha, frame="playerLife1_red.png", height=24, center=(900, 768))
 vidas = Text(text="", top_left=(920, 780), font_size=20)
 vidas["text"] @= lambda: f"x {st.vidas}"
 
-barra = Rect(top_left=(20, 745), width=200, height=8, color="cyan")
+barra = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
 barra["width"] @= lambda: st.energia * 2
 
 
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
         self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
         self.after(0.5, self.destroy)
 
 
@@ -942,8 +932,7 @@ class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
     @collide_with("tiros")
     def atingido(self, tiro):
         Explosao(center=self.center)
-        play_sound("audio/explosion01.wav")
-        if random() < 0.2:
+        if chance(0.2):
             Poder(center=self.center)
         tiro.destroy()
         self.destroy()
@@ -955,13 +944,10 @@ class Poder(Sprite, source=folha, frame="powerupBlue_shield.png", height=30, gro
         self.move_by(0, -150 * dt)
 
 
-class Escudo(Sprite, source=folha, frame="shield2.png", height=80, hitbox_shape="circle"):
-    def setup(self):
-        self.glow = "cyan"
-
+class Escudo(Circle, radius=38, visual=Shield(style="plasma")):
     @collide_with("tiros_inimigos")
     def bloqueou(self, tiro, info):
-        canvas.zap_at(info, color="cyan")
+        canvas.zap_at(info, color="sky blue")
         play_sound("audio/sfx-hit-2.wav", pitch=1.6)
         tiro.destroy()
         st.energia -= 20
@@ -1063,7 +1049,7 @@ run()
             code: `if st.energia <= 40:
     barra.color = "orange"
 else:
-    barra.color = "cyan"`
+    barra.color = "sky blue"`
           },
           {
             note: "O escudo se recarrega devagar, enquanto está ligado: 5 de energia por segundo. No fim do arquivo, antes do <code>run()</code>:",
@@ -1078,14 +1064,14 @@ def recarrega():
       `,
       recap: `
         <ul>
-          <li><code>random()</code> — um número entre 0 e 1; <code>random() &lt; 0.2</code> é verdadeiro uma vez em cinco.</li>
+          <li><code>chance</code> — um sorteio: <code>chance(0.2)</code> é verdadeiro em 20% das vezes.</li>
           <li><code>active</code> — <code>False</code> estaciona uma peça (some e para, sem ser destruída); <code>True</code> a traz de volta.</li>
           <li><code>@on_change</code> — roda a função quando o valor muda; uma regra num lugar só. Na classe, a pergunta vem numa <code>lambda</code> com <code>self</code>.</li>
-          <li><code>hitbox_shape</code> — a forma com que o sprite colide; <code>"circle"</code> cobre o anel do escudo.</li>
+          <li><code>Shield</code> num <code>Circle</code> — uma bolha de energia que cobre a nave; a colisão é o próprio círculo.</li>
           <li><code>info</code> — o terceiro parâmetro da colisão; <code>info.point</code> é onde os dois se tocaram.</li>
           <li><code>canvas.zap_at</code> e <code>canvas.hit_at</code> — impactos num ponto: energia ou superfície dura.</li>
         </ul>
-        <p><strong>No Guia:</strong> <a href="../guide/index.html#reagir-on-change">@on_change</a> · <a href="../guide/index.html#desenhar-entity">Entity (active)</a> · <a href="../guide/index.html#spr-hit">Hitbox do Sprite</a> · <a href="../guide/index.html#colisao-info">CollisionInfo</a> · <a href="../guide/index.html#mundo-impactos">Impactos</a>.</p>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#reagir-on-change">@on_change</a> · <a href="../guide/index.html#desenhar-entity">Entity (active)</a> · <a href="../guide/index.html#util-chance">chance</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#colisao-info">CollisionInfo</a> · <a href="../guide/index.html#mundo-impactos">Impactos</a>.</p>
         <p><strong>No próximo:</strong> outro jogo. Bolas que quicam nas paredes e umas nas outras, com uma regra de colisão que fica valendo.</p>
       `
     }

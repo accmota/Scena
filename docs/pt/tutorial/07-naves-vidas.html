@@ -571,7 +571,7 @@ run()
       title: "Som",
       body: `
         <p>O jogo é mudo. <code>play_sound</code> (tocar som) toca um arquivo de som, uma vez, e o jogo segue sem esperar. Como as imagens, o som vem da pasta <code>media/</code>, e o nome traz a subpasta: <code>"audio/laser4.wav"</code>.</p>
-        <p>Dois sons: o laser, logo depois de criar o <code>Tiro</code>; e a explosão, no acerto, junto da <code>Explosao</code>. Cada som fica junto da coisa que o faz. Dez tiros seguidos tocam dez vezes: os sons se somam, e um não corta o outro.</p>
+        <p>Dois sons. O laser fica com quem atira: no <code>on_update</code> do <code>Heroi</code>, logo depois de criar o <code>Tiro</code>. O estrondo fica com a explosão: no <code>setup</code> da <code>Explosao</code>, junto do <code>play</code>. Cada som fica junto da coisa que o faz; assim, toda explosão que o jogo criar, de quem quer que seja, já nasce com o seu estrondo. Dez tiros seguidos tocam dez vezes: os sons se somam, e um não corta o outro.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -597,6 +597,7 @@ placar["text"] @= lambda: f"Pontos {st.pontos}"
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
         self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
         self.after(0.5, self.destroy)
 
 
@@ -620,7 +621,6 @@ class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
     @collide_with("tiros")
     def atingido(self, tiro):
         Explosao(center=self.center)
-        play_sound("audio/explosion01.wav")
         tiro.destroy()
         self.destroy()
         st.pontos += 1
@@ -734,6 +734,7 @@ vidas["text"] @= lambda: f"x {st.vidas}"
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
         self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
         self.after(0.5, self.destroy)
 
 
@@ -757,7 +758,6 @@ class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
     @collide_with("tiros")
     def atingido(self, tiro):
         Explosao(center=self.center)
-        play_sound("audio/explosion01.wav")
         tiro.destroy()
         self.destroy()
         st.pontos += 1
@@ -893,6 +893,7 @@ vidas["text"] @= lambda: f"x {st.vidas}"
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
         self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
         self.after(0.5, self.destroy)
 
 
@@ -916,7 +917,6 @@ class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
     @collide_with("tiros")
     def atingido(self, tiro):
         Explosao(center=self.center)
-        play_sound("audio/explosion01.wav")
         tiro.destroy()
         self.destroy()
         st.pontos += 1

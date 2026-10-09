@@ -43,6 +43,7 @@ vidas["text"] @= lambda: f"x {st.vidas}"
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
         self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
         self.after(0.5, self.destroy)
 
 
@@ -66,7 +67,6 @@ class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
     @collide_with("tiros")
     def atingido(self, tiro):
         Explosao(center=self.center)
-        play_sound("audio/explosion01.wav")
         tiro.destroy()
         self.destroy()
         st.pontos += 1

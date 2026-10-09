@@ -15,7 +15,7 @@ Uso
     python examples/naves_escudo.py
 """
 
-from random import choice, random
+from random import choice
 from scena import *
 
 init(width=1000, height=800, title="Naves")
@@ -41,13 +41,14 @@ Sprite(folha, frame="playerLife1_red.png", height=24, center=(900, 768))
 vidas = Text(text="", top_left=(920, 780), font_size=20)
 vidas["text"] @= lambda: f"x {st.vidas}"
 
-barra = Rect(top_left=(20, 745), width=200, height=8, color="cyan")
+barra = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
 barra["width"] @= lambda: st.energia * 2
 
 
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
         self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
         self.after(0.5, self.destroy)
 
 
@@ -71,8 +72,7 @@ class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
     @collide_with("tiros")
     def atingido(self, tiro):
         Explosao(center=self.center)
-        play_sound("audio/explosion01.wav")
-        if random() < 0.2:
+        if chance(0.2):
             Poder(center=self.center)
         tiro.destroy()
         self.destroy()
@@ -84,13 +84,10 @@ class Poder(Sprite, source=folha, frame="powerupBlue_shield.png", height=30, gro
         self.move_by(0, -150 * dt)
 
 
-class Escudo(Sprite, source=folha, frame="shield2.png", height=80, hitbox_shape="circle"):
-    def setup(self):
-        self.glow = "cyan"
-
+class Escudo(Circle, radius=38, visual=Shield(style="plasma")):
     @collide_with("tiros_inimigos")
     def bloqueou(self, tiro, info):
-        canvas.zap_at(info, color="cyan")
+        canvas.zap_at(info, color="sky blue")
         play_sound("audio/sfx-hit-2.wav", pitch=1.6)
         tiro.destroy()
         st.energia -= 20
