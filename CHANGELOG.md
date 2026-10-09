@@ -198,6 +198,31 @@ left out.
   switch keeps the link instead of raising from inside the draw.
 - A raising `on_done` of one sound no longer loses the other sounds that
   ended in the same frame. Their `on_done` runs on the next frame.
+- `contains_point` (and so `@click` and hover) sees a linked `angle` or
+  `scale` as it is now, also on a shape that is not drawn.
+- `scale_to(…, force=True)` and `rotate_to(…, force=True)` on a linked pose
+  start from the value the link holds now.
+- `move_along(track.reversed())` follows the host track's turn, scale and
+  closure.
+- A pivot a rounding off a linked center is the center for every verb, and a
+  `Box` turns about a linked corner like a `Rect`.
+- `confine` no longer fires a `@collide` with something behind the wall it
+  clamped the body to.
+- `unresolve(heroi, group["paredes"])` undoes `resolve(heroi, "paredes")` and
+  `resolve(heroi, group["paredes"])`.
+- `layer.visible = "no"` and `layer.z = 5.5` raise instead of being taken as
+  `True` and `5`.
+- `ready.disable("tiro")` before the first `ready("tiro", …)` keeps it
+  disabled. `ready` and `recently` methods give Scena's message for a name
+  that is not a string.
+- `play(…, min_hold=0.25)` holds exactly 0.25 s.
+- A second timed move replaces the first even when something read `.center`
+  in between, and `tween(shape.center, …)` replaces a timed move.
+- `on_update` runs in the order the actors were created, the same on every
+  run. An `on_update` cleared by an earlier one in the same frame does not run
+  later in that frame.
+- `@on_change` fires when a value turns from `1` to `True` or from `0` to
+  `False`.
 - `mouse.dx` / `mouse.dy` are this frame's motion: 0 when the mouse is
   still (they kept the last step, so `ship.move_by(mouse.dx, 0)` drifted
   forever), and the sum when several moves arrive in one frame.

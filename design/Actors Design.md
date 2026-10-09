@@ -690,10 +690,22 @@ dropped the debt: `every(0.02)` gave 50 fires a second at 60 FPS and 30 at
 30 FPS ([Scena Design — Clocks](Scena%20Design.md#clocks)).
 `every(0, …)` and a sentinel such as `EVERY_FRAME` are not a per-frame hook.
 Per-frame work is `on_update` (Entity) or script `update(dt)`, both of which
-receive `dt`. A non-positive interval stays `ValueError` and names those hooks.
+receive `dt`. The `on_update` fleet runs in **creation order** (the owners are
+an insertion-ordered weak set; a `WeakSet` walked memory-address order, which
+changed from run to run: review 2026-10-09 S2-9), and an `on_update` cleared or
+replaced by an earlier one in the same frame does not run later in that frame:
+the setter swaps the frame snapshot's entry (`watch_update` while
+`_update_running`), so the loop pays nothing per actor (S2-10). A non-positive interval stays `ValueError` and names those hooks.
 Revisit only if a script needs per-frame work that is cancellable, mode-scoped,
 or named, and `on_update` + `update(dt)` cannot express it.
 Index: [Fences.md](Fences.md).
+
+**A running script is any script on the stack.** `Script.cancel` defers the
+throw / close when the coroutine is executing (`cr_running`), not only when it
+is the innermost script: a mode that set another actor's mode, whose body
+ended the first mode, threw into a coroutine still on the stack ("coroutine
+already executing", review 2026-10-09 S2-11). `_advance` closes it when its
+`send` returns.
 
 **Due on the exact frame.** A timer fires on the first frame whose summed time reaches its deadline; the first `every` call is one interval in. Time is summed frame by frame, so a deadline that is a whole number of frames can land a hair short by rounding (15 × 1/60 < 0.25): every "is it due" comparison (after / every / tween end / ready / recently / transient progress) goes through `process.reached` (1e-9 relative). At fixed 1/60, `after(0.5)` is frame 30, not 31 (bug PM8; `test_process.TestDueOnTheExactFrame`).
 
@@ -1282,6 +1294,12 @@ require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena._
 - `Clock.time` accumulates scaled `dt` (not wall-since-construct). Background / post FX that
   sample `clock.time` pause when `clock.scale=0`.
 - `ready.reset(name)` sets `last_called = now - interval` so the next poll is True.
+  Every `ready.*` / `recently.*` method checks the name (`_require_poll_name`)
+  before the dict lookup (a list raised Python's "unhashable"), and
+  `ready.disable(name)` on a name never polled is not a no-op: it makes a
+  disabled slot, so "no shooting until the intro ends" written before the first
+  shot holds; the first `ready(name, interval)` stores the interval and returns
+  False until `enable` (review 2026-10-09 S2-15).
   `ready(name, interval)` / `e.ready(...)` validate `interval` (`_validate_ready_interval`):
   non-finite raises `ValueError` — `now - last_called >= nan` is always `False`,
   which used to mean "never ready again" with no error; a negative interval

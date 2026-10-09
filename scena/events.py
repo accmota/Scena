@@ -65,9 +65,17 @@ def _snapshot_value(value: Any) -> Any:
 
 
 def _values_equal(a: Any, b: Any) -> bool:
-    """``==`` plus NaN-aware equality (NaN must not re-fire every poll)."""
+    """``==`` plus NaN-aware equality (NaN must not re-fire every poll).
+
+    ``True == 1 == 1.0`` in Python, but a flag that turns into a count (or
+    back) is a change: equal values differ when exactly one is a bool (review
+    2026-10-09 S2-14). ``10`` and ``10.0`` stay equal (a score that became a
+    float is not a new score)."""
+    if a is b:
+        return True                     # the common poll: the same object
     if a == b:
-        return True
+        ca, cb = a.__class__, b.__class__
+        return ca is cb or (ca is not bool and cb is not bool)
     if isinstance(a, float) and isinstance(b, float):
         return a != a and b != b
     if isinstance(a, tuple) and isinstance(b, tuple) and len(a) == len(b):

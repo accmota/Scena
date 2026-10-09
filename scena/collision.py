@@ -7832,10 +7832,15 @@ collision = _CollisionFacade()
 
 
 def _resolve_target_equal(x, y) -> bool:
-    """String tags compare by value; every other target compares by identity."""
-    if isinstance(x, str) and isinstance(y, str):
-        return x == y
-    return x is y
+    """Tags compare by name, ``"walls"`` and a live ``group["walls"]`` alike
+    (``unresolve(a, group["walls"])`` never matched its own ``resolve``:
+    review 2026-10-09 S9-7); every other target compares by identity."""
+    if x is y:
+        return True
+    tx = CollisionSystem._pair_tag_of(x)
+    if tx is None:
+        return False
+    return tx == CollisionSystem._pair_tag_of(y)
 
 
 def _resolve_pair_equal(pa, pb, a, b) -> bool:

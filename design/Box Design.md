@@ -317,6 +317,11 @@ membership. There is no `group[...].bounds` tuple form.
 # Confine
 
 Stateless pose helper on Graphic. Call after your own `move_by` (same phase).
+The correction it writes reaches collision like the public verbs' writes: a
+clamp or bounce joins the frame's pending motion, so the sweep ends where the
+body stopped (it kept the full `move_by` sweep and fired a ghost `@collide`
+behind the wall: review 2026-10-09 S7-4); a wrap is a placement (no sweep
+across the field).
 Any `Box` or frame-like Graphic as `region` — **any angle** (math runs in the
 region's local frame, same pattern as `inset` / `grid` / `beside` / `strip` /
 `contains_point`).

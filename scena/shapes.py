@@ -367,6 +367,25 @@ def _scale_geom_and_store(old: float, *, value=None, factor=None):
     return geom, store
 
 
+def _near_pivot(px, py, cx, cy) -> bool:
+    """One rule for "this point is the pivot": the turn / scale leaves it
+    where it is, so it is not written and may stay linked. Relative to the
+    coordinates' size (a centre computed another way differs by rounding).
+    The gates compared exactly and the verbs with 1e-12, so one pivot passed
+    ``rotate_by`` and was refused by ``scale_by`` (review 2026-10-09 S6-4)."""
+    tol = 1e-12 * max(1.0, abs(cx), abs(cy))
+    return abs(px - cx) <= tol and abs(py - cy) <= tol
+
+
+def _fresh_pose(obj) -> None:
+    """Pull a linked ``angle`` / ``scale`` into the stores before a verb
+    computes from them: ``force=True`` unlinks after the delta was computed,
+    so ``scale_to(2, force=True)`` scaled from the value of the last pull
+    (review 2026-10-09 S6-1). One dict probe when nothing is linked."""
+    if obj.__dict__.get("_field_anchors"):
+        type(obj)._pull_property_anchors(obj)
+
+
 def _resolve_scale_apply(obj, factor: float, *, force: bool = False):
     """``scale_to`` passes a geometry factor plus a pending store; ``scale_by`` does not.
 
@@ -375,6 +394,7 @@ def _resolve_scale_apply(obj, factor: float, *, force: bool = False):
     half-applied the verb)."""
     pending = obj.__dict__.get("_pending_scale_store", None)
     if pending is None:
+        _fresh_pose(obj)
         geom, store = _scale_geom_and_store(obj._scale, factor=factor)
     else:
         geom, store = float(factor), float(pending)
@@ -403,6 +423,7 @@ def _scale_gate_at_call(obj, *, value=None, factor=None, about=None, force: bool
     later tick after part of the motion ran (GX4 in Testing Design). One gate
     per kind (``_scale_gate``), shared with the instant verb."""
     _refuse_if_destroyed(obj, verb)
+    _fresh_pose(obj)
     geom, store = _scale_geom_and_store(obj._scale, value=value, factor=factor)
     if geom == 1.0 and store == float(obj._scale):
         return                              # the instant verb is a no-op
@@ -416,6 +437,7 @@ def _scale_gate_at_call(obj, *, value=None, factor=None, about=None, force: bool
 
 
 def _scale_to_via(obj, value, *, about, force):
+    _fresh_pose(obj)
     geom, store = _scale_geom_and_store(obj._scale, value=value)
     obj.__dict__["_pending_scale_store"] = store
     try:
@@ -430,7 +452,7 @@ def _about_is_pose_center(obj, about) -> bool:
         return True
     cx, cy = get_xy(obj.center, bare=True)
     px, py = get_xy(about, bare=True)
-    return abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
+    return _near_pivot(px, py, cx, cy)
 
 
 def _parallel_offset_point(ref: 'Line', dist_attr: Attribute) -> Tuple[float, float]:
@@ -510,7 +532,8 @@ def _gate_parts(gate) -> list:
     for part, pivot in rec:
         if pivot is not None and not isinstance(part, FieldRef):
             d = part.__dict__
-            if d.get('x') == pivot[0] and d.get('y') == pivot[1]:
+            x, y = d.get('x'), d.get('y')
+            if x is not None and y is not None and _near_pivot(x, y, pivot[0], pivot[1]):
                 continue
         out.append(part)
     return out
@@ -557,7 +580,8 @@ def _ensure_writable(
             return                          # no @= anywhere in the tree (sticky flag)
         if pivot is not None:
             d = part.__dict__
-            if 'x' in d and d['x'] == pivot[0] and d.get('y') == pivot[1]:
+            if 'x' in d and d.get('y') is not None and _near_pivot(
+                    d['x'], d['y'], pivot[0], pivot[1]):
                 return
         linked = [node for node in part._iter_subtree()
                   if node._link is not None and not isinstance(node, _PropertyAnchor)]
@@ -1906,6 +1930,11 @@ class Shape(Graphic, PaintState):
             px, py = _xy_of((x, y), required=True)   # numbers, finite (SA15)
         if getattr(self, "_destroyed", False) or getattr(self, "_host_destroyed", False):
             return False                     # review 2026-10-09 S6-8
+        # A linked angle / scale is pulled, as draw and collision pull it: an
+        # undrawn shape answered with its old pose (review 2026-10-09 S6-6).
+        # One dict probe when nothing is linked (the pointer walk is hot).
+        if self.__dict__.get("_field_anchors") or getattr(type(self), "_is_hitbox_part", False):
+            type(self)._pull_property_anchors(self)
         return self._hit_test_xy(px, py)
 
     @property
@@ -3349,6 +3378,7 @@ class Point(Shape):
         unlike every other kind (C2; graphics review SA4)."""
         _refuse_if_destroyed(self, "rotate_to")
         target = _finite_deg(value, "rotate_to angle")
+        _fresh_pose(self)
         return self.rotate_by(target - float(self._rotation), about=about, force=force)
 
     @batch_update_self()
@@ -4638,7 +4668,7 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
             cx, cy = 0.5 * (x1 + x2), 0.5 * (y1 + y2)
             if about is not None:
                 px, py = get_xy(about, bare=True)
-            if about is None or (abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12):
+            if about is None or (_near_pivot(px, py, cx, cy)):
                 dθ_rad = _rad(dθ_deg)
                 if model is LineModel.POINT_POINT:
                     _takein_xy_float(self.p1, *_rotate_xy(x1, y1, cx, cy, dθ_rad))
@@ -4667,7 +4697,7 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
                 _ensure_writable(self["angle"], "rotate_by", force=force)
                 cx, cy = get_xy(self.center, bare=True)
                 about_center = (about is None) or (
-                    abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
+                    _near_pivot(px, py, cx, cy)
                 )
                 if not about_center:
                     self.center._takein(_rotate_xy(cx, cy, px, py, dθ_rad))
@@ -4761,7 +4791,7 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
             case LineModel.CENTER_LENGTH_ANGLE:
                 cx, cy = get_xy(self.center, bare=True)
                 about_center = (about is None) or (
-                    abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
+                    _near_pivot(px, py, cx, cy)
                 )
                 if not about_center:
                     self.center._takein(_scale_xy(cx, cy, px, py, factor))
@@ -5518,7 +5548,7 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
             px, py = self._pivot_xy(about)
             cx, cy = get_xy(self.center, bare=True)
             about_center = (about is None) or (
-                abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
+                _near_pivot(px, py, cx, cy)
             )
             if about_center and not self._requires_pull_invalidate():
                 self.__dict__['angle'] = float(self.angle) + dθ_deg
@@ -6118,7 +6148,7 @@ class Ellipse(_DerivedRotationRoute, Shape):
             px, py = self._pivot_xy(about)
             cx, cy = _bare_attr(self.center.x), _bare_attr(self.center.y)
             about_center = (about is None) or (
-                abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
+                _near_pivot(px, py, cx, cy)
             )
             if about_center:
                 new_angle = _bare_num(self.angle) + dθ_deg
@@ -6133,7 +6163,7 @@ class Ellipse(_DerivedRotationRoute, Shape):
         px, py = self._pivot_xy(about)
         cx, cy = self._center_xy()  # Defining only (D3)
         about_center = (about is None) or (
-            abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
+            _near_pivot(px, py, cx, cy)
         )
 
         match self.model:
@@ -6175,7 +6205,7 @@ class Ellipse(_DerivedRotationRoute, Shape):
         px, py = self._pivot_xy(about)
         cx, cy = self._center_xy()  # Defining only (D3)
         about_center = (about is None) or (
-            abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
+            _near_pivot(px, py, cx, cy)
         )
 
         if force or self._requires_pull_invalidate():   # every check before any write (SB2c)
@@ -6206,7 +6236,7 @@ class Ellipse(_DerivedRotationRoute, Shape):
                 if about is not None:
                     px, py = self._pivot_xy(about) if pivot is None else pivot
                     cx, cy = self._center_xy()  # Defining only (D3)
-                    if not (abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12):
+                    if not (_near_pivot(px, py, cx, cy)):
                         _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
             case EllipseModel.FOCAL_POINTS:
                 _ensure_writable(self.fp1, "scale_by", force=force)
@@ -6497,6 +6527,7 @@ class Polygon(Shape):
 
     def rotate_to(self, value: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Polygon':
         """Set absolute rotation (degrees) about a pivot (default: centroid)."""
+        _fresh_pose(self)
         return self.rotate_by(_finite_deg(value, "rotate_to angle") - self._rotation, about=about, force=force)
 
     @batch_update_self()
@@ -7254,7 +7285,7 @@ class RegularPolygon(Polygon):
                 if not about_center:
                     px, py = self._pivot_xy(about)
                     cx, cy = get_xy(self.center, bare=True)
-                    about_center = abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
+                    about_center = _near_pivot(px, py, cx, cy)
                 if about_center and not force and not self._requires_pull_invalidate():
                     new_angle = _bare_num(self.angle) + dθ_deg
                     self.__dict__["angle"] = new_angle
@@ -7272,7 +7303,7 @@ class RegularPolygon(Polygon):
         px, py = self._pivot_xy(about)
         cx, cy = get_xy(self.center, bare=True)
         about_center = (about is None) or (
-            abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
+            _near_pivot(px, py, cx, cy)
         )
         _ensure_writable(self["angle"], "rotate_by", force=force)
         new_angle = _bare_num(self.angle) + dθ_deg
@@ -7331,7 +7362,7 @@ class RegularPolygon(Polygon):
         px, py = self._pivot_xy(about)
         cx, cy = get_xy(self.center, bare=True)
         about_center = (about is None) or (
-            abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
+            _near_pivot(px, py, cx, cy)
         )
         self.radius = _bare_num(self.radius) * factor
         if not about_center:
@@ -7345,7 +7376,7 @@ class RegularPolygon(Polygon):
         px, py = self._pivot_xy(about)
         cx, cy = get_xy(self.center, bare=True)
         about_center = (about is None) or (
-            abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
+            _near_pivot(px, py, cx, cy)
         )
         self.side = _bare_num(self.side) * factor
         if not about_center:
@@ -7374,7 +7405,7 @@ class RegularPolygon(Polygon):
         if about is not None:
             px, py = self._pivot_xy(about) if pivot is None else pivot
             cx, cy = get_xy(self.center, bare=True)
-            if not (abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12):
+            if not (_near_pivot(px, py, cx, cy)):
                 _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
 
     def scale_to(self, value: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'RegularPolygon':
@@ -7611,6 +7642,102 @@ class _RectFrame:
 
     def _pull_heading(self) -> None:
         """A pending derived-heading link (Rect, via _DerivedRotationRoute)."""
+
+    def _wh_signed(self) -> Tuple[float, float]:
+        """Signed Defining ``(width, height)``. On a Square ``length`` is Defining
+        and ``width`` / ``height`` are Derivate mirrors — read ``length`` (D3)."""
+        defining = getattr(self, '_defining_part_names', None)
+        if defining is not None and 'length' in defining and 'width' not in defining:
+            s = _bare_num(self.length)
+            return s, s
+        return _bare_num(self.width), _bare_num(self.height)
+
+    def _take_frame_parts(self, other) -> None:
+        """``<<`` / ``@=`` after ``_adopt_model_of``: the source's Defining
+        inputs for the model, one body for Rect and Box (they were copies)."""
+        match self.model:
+            case RectModel.CORNER_CORNER:
+                self.p1._takein(other.p1)
+                self.p2._takein(other.p2)
+                _init_scalar(self, 'angle', other.angle)
+            case RectModel.TOP_LEFT_WH:
+                self.top_left._takein(other.top_left)
+                _init_scalar(self, 'width', other.width)
+                _init_scalar(self, 'height', other.height)
+                _init_scalar(self, 'angle', other.angle)
+            case RectModel.CENTER_WH:
+                self.center._takein(other.center)
+                _init_scalar(self, 'width', other.width)
+                _init_scalar(self, 'height', other.height)
+                _init_scalar(self, 'angle', other.angle)
+            case RectModel.POINT_VEC:
+                self.p1._takein(other.p1)
+                self.vec._takein(other.vec)
+                _init_scalar(self, 'angle', other.angle)
+            case RectModel.SPINE:
+                self.p1._takein(other.p1)
+                self.p2._takein(other.p2)
+                _init_scalar(self, 'height', other.height)
+            case _:
+                raise ValueError(f"Unknown rect model: {self.model}")
+
+    def _rotate_frame(self, dθ_deg: float, *, about, force: bool) -> float:
+        """The one ``rotate_by`` body of Rect and Box: every model's Defining
+        parts turned about the pivot, each gated with ``pivot=`` (a linked part
+        on the pivot is not written, so it may stay linked). Returns the new
+        heading. Box kept a copy that drifted (no ``pivot=``, so a linked
+        corner on the pivot was refused on Box and allowed on Rect: review
+        2026-10-09 S7-3)."""
+        dθ_rad = _rad(dθ_deg)
+        px, py = self._pivot_xy(about)
+        cx, cy = self._center_xy()
+        # The heading from Defining inputs (never wakes a Derivate ``angle``).
+        new_angle = float(self._oriented_frame()[4]) + dθ_deg
+        about_center = (about is None) or _near_pivot(px, py, cx, cy)
+        pivot = (px, py)
+
+        match self.model:
+            case RectModel.CORNER_CORNER:
+                _ensure_writable(self["angle"], "rotate_by", force=force)
+                _ensure_writable(self.p1, "rotate_by", force=force, pivot=pivot)
+                _ensure_writable(self.p2, "rotate_by", force=force, pivot=pivot)
+                x1, y1 = get_xy(self.p1, bare=True)
+                x2, y2 = get_xy(self.p2, bare=True)
+                self.p1._takein(_rotate_xy(x1, y1, px, py, dθ_rad))
+                self.p2._takein(_rotate_xy(x2, y2, px, py, dθ_rad))
+                self.angle = new_angle
+            case RectModel.TOP_LEFT_WH:
+                _ensure_writable(self["angle"], "rotate_by", force=force)
+                _ensure_writable(self.top_left, "rotate_by", force=force, pivot=pivot)
+                # The named top_left (a flip or a copy can mirror the names).
+                tl = self._top_left_offset(*self._wh_signed())
+                if not about_center:
+                    cx, cy = _rotate_xy(cx, cy, px, py, dθ_rad)
+                self.top_left._takein(self._oriented_xy(cx, cy, *tl, new_angle))
+                self.angle = new_angle
+            case RectModel.CENTER_WH:
+                _ensure_writable(self["angle"], "rotate_by", force=force)
+                if not about_center:
+                    _ensure_writable(self.center, "rotate_by", force=force, pivot=pivot)
+                    self.center._takein(_rotate_xy(cx, cy, px, py, dθ_rad))
+                self.angle = new_angle
+            case RectModel.POINT_VEC:
+                _ensure_writable(self["angle"], "rotate_by", force=force)
+                _ensure_writable(self.p1, "rotate_by", force=force, pivot=pivot)
+                x1, y1 = get_xy(self.p1, bare=True)
+                self.p1._takein(_rotate_xy(x1, y1, px, py, dθ_rad))
+                self.angle = new_angle
+            case RectModel.SPINE:
+                # angle is Derivate (from p1->p2): turning p1 / p2 turns it.
+                _ensure_writable(self.p1, "rotate_by", force=force, pivot=pivot)
+                _ensure_writable(self.p2, "rotate_by", force=force, pivot=pivot)
+                x1, y1 = get_xy(self.p1, bare=True)
+                x2, y2 = get_xy(self.p2, bare=True)
+                self.p1._takein(_rotate_xy(x1, y1, px, py, dθ_rad))
+                self.p2._takein(_rotate_xy(x2, y2, px, py, dθ_rad))
+            case _:
+                raise ValueError(f"Unknown rect model: {self.model}")
+        return new_angle
 
     def _init_model(self, signature: str, kwargs: Dict[str, Any]) -> None:
         """The construction models (Rect and Box share them)."""
@@ -8078,15 +8205,6 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
         'left_square_center', 'right_square_center',
     )
 
-    def _wh_signed(self) -> Tuple[float, float]:
-        """Signed Defining ``(width, height)``. On a Square ``length`` is Defining
-        and ``width`` / ``height`` are Derivate mirrors — read ``length`` (D3)."""
-        defining = getattr(self, '_defining_part_names', None)
-        if defining is not None and 'length' in defining and 'width' not in defining:
-            s = _bare_num(self.length)
-            return s, s
-        return _bare_num(self.width), _bare_num(self.height)
-
     def _collision_pose_extra(self) -> Tuple[float, ...]:
         """``(rot, scale, ang, w, h)`` from Defining ``_oriented_frame`` (cold-safe).
 
@@ -8148,31 +8266,7 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
         self._adopt_model_of(other)
         self._anchor = anchor
         self._corner_radius = corner
-        match self.model:
-            case RectModel.CORNER_CORNER:
-                self.p1._takein(other.p1)
-                self.p2._takein(other.p2)
-                _init_scalar(self, 'angle', other.angle)
-            case RectModel.TOP_LEFT_WH:
-                self.top_left._takein(other.top_left)
-                _init_scalar(self, 'width', other.width)
-                _init_scalar(self, 'height', other.height)
-                _init_scalar(self, 'angle', other.angle)
-            case RectModel.CENTER_WH:
-                self.center._takein(other.center)
-                _init_scalar(self, 'width', other.width)
-                _init_scalar(self, 'height', other.height)
-                _init_scalar(self, 'angle', other.angle)
-            case RectModel.POINT_VEC:
-                self.p1._takein(other.p1)
-                self.vec._takein(other.vec)
-                _init_scalar(self, 'angle', other.angle)
-            case RectModel.SPINE:
-                self.p1._takein(other.p1)
-                self.p2._takein(other.p2)
-                _init_scalar(self, 'height', other.height)
-            case _:
-                raise ValueError(f"Unknown rect model: {self.model}")
+        self._take_frame_parts(other)
 
     # The pose store follows every update. Bound directly (no extra frame on a
     # per-update path): self._publish_heading(ang) is _pose_rotation_publish(self, ang),
@@ -8494,7 +8588,7 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
             px, py = self._pivot_xy(about)
             cx, cy = _bare_attr(self.center.x), _bare_attr(self.center.y)
             about_center = (about is None) or (
-                abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
+                _near_pivot(px, py, cx, cy)
             )
             if about_center:
                 new_angle = _bare_num(self.angle) + dθ_deg
@@ -8505,65 +8599,7 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
 
     @batch_update_self()
     def _rotate_by_batched(self, dθ_deg: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Rect':
-        dθ_rad = _rad(dθ_deg)
-        px, py = self._pivot_xy(about)
-        cx, cy = self._center_xy()
-        new_angle = self._rotation_value() + dθ_deg
-
-        # Pivot is center: only angle changes for CORNER_CORNER; TOP_LEFT_WH must move top_left.
-        about_center = (about is None) or (
-            abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
-        )
-
-        match self.model:
-            case RectModel.CORNER_CORNER:
-                _ensure_writable(self["angle"], "rotate_by", force=force)
-                _ensure_writable(self.p1, "rotate_by", force=force, pivot=(px, py))
-                _ensure_writable(self.p2, "rotate_by", force=force, pivot=(px, py))
-                x1, y1 = get_xy(self.p1, bare=True)
-                x2, y2 = get_xy(self.p2, bare=True)
-                self.p1._takein(_rotate_xy(x1, y1, px, py, dθ_rad))
-                self.p2._takein(_rotate_xy(x2, y2, px, py, dθ_rad))
-                self.angle = new_angle
-            case RectModel.TOP_LEFT_WH:
-                _ensure_writable(self["angle"], "rotate_by", force=force)
-                _ensure_writable(self.top_left, "rotate_by", force=force, pivot=(px, py))
-                tl = self._top_left_offset(*self._wh_signed())
-                if about_center:
-                    # Keep center fixed; recompute world top_left for new angle
-                    self.top_left._takein(self._oriented_xy(cx, cy, *tl, new_angle))
-                    self.angle = new_angle
-                else:
-                    # Rotate center about pivot, then place top_left from new center + angle
-                    ncx, ncy = _rotate_xy(cx, cy, px, py, dθ_rad)
-                    self.top_left._takein(self._oriented_xy(ncx, ncy, *tl, new_angle))
-                    self.angle = new_angle
-            case RectModel.CENTER_WH:
-                _ensure_writable(self["angle"], "rotate_by", force=force)
-                if about_center:
-                    self.angle = new_angle
-                else:
-                    _ensure_writable(self.center, "rotate_by", force=force, pivot=(px, py))
-                    ncx, ncy = _rotate_xy(cx, cy, px, py, dθ_rad)
-                    self.center._takein((ncx, ncy))
-                    self.angle = new_angle
-            case RectModel.POINT_VEC:
-                _ensure_writable(self["angle"], "rotate_by", force=force)
-                _ensure_writable(self.p1, "rotate_by", force=force, pivot=(px, py))
-                x1, y1 = get_xy(self.p1, bare=True)
-                self.p1._takein(_rotate_xy(x1, y1, px, py, dθ_rad))
-                self.angle = new_angle
-            case RectModel.SPINE:
-                # angle is Derivate (from p1->p2); rotating p1/p2 recomputes it automatically.
-                _ensure_writable(self.p1, "rotate_by", force=force, pivot=(px, py))
-                _ensure_writable(self.p2, "rotate_by", force=force, pivot=(px, py))
-                x1, y1 = get_xy(self.p1, bare=True)
-                x2, y2 = get_xy(self.p2, bare=True)
-                self.p1._takein(_rotate_xy(x1, y1, px, py, dθ_rad))
-                self.p2._takein(_rotate_xy(x2, y2, px, py, dθ_rad))
-            case _:
-                raise ValueError(f"Unknown rect model: {self.model}")
-
+        new_angle = self._rotate_frame(dθ_deg, about=about, force=force)
         _pose_rotation_set(self, new_angle)
         return self
 
@@ -8579,7 +8615,7 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
         px, py = self._pivot_xy(about)
         cx, cy = self._center_xy()
         about_center = (about is None) or (
-            abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
+            _near_pivot(px, py, cx, cy)
         )
 
         if force or self._requires_pull_invalidate():   # nothing linked: nothing refuses

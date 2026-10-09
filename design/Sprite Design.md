@@ -1647,6 +1647,7 @@ Index: [Fences.md](Fences.md).
   `next=` switch has no call site: when `width` / `height` is linked, the link keeps
   the size and the switch does not raise (`play()` and `frame =` still refuse a linked
   size at the call, PB1).
+- **`min_hold=` is due by `reached`**, like every other deadline: a bare `<` held 0.25 s for 16 frames at 1/60 for most start frames (review 2026-10-09 S7-2).
 - **Size writers check both slots first.** `size =` checks `width` and `height` before
   writing either, and `frame =` gates the cell's size before it stops the clip (review
   2026-10-09 S7-5 / S7-6: each refused after half its work).

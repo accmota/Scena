@@ -93,7 +93,7 @@ from .style import (
 )
 from .state import Attribute, Container, ContainerSlot, ScalarSlot, as_payload, _init_composite, batch_update_self
 from .validate import HINT_EXTENT
-from .process import _DUE_EPS
+from .process import _DUE_EPS, reached
 from .closed import ClosedSurface, seal
 
 # Warnings point at the author's line: every frame inside the package is
@@ -4449,7 +4449,9 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
             return self
         if self._play_name is not None and self._play_min_hold > 0.0:
             elapsed = self._play_elapsed()
-            if elapsed < self._play_min_hold:
+            # Due by ``reached`` (PM8 tolerance), not a bare ``<``: 0.25 s held
+            # 16 frames at 1/60 for most start frames (review 2026-10-09 S7-2).
+            if not reached(elapsed, self._play_min_hold):
                 return self
         if self._play_name:
             self._play_resume_cache[self._play_name] = self._play_elapsed()

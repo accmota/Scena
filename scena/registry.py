@@ -189,6 +189,11 @@ class Layer:
         # ``z`` / ``post_fx`` setters run their own checks. Anything else
         # used to land in a dead attribute (``layer.visable = False``,
         # ``layer.scroll = (0, 0)``). See Canvas Design, Registry and layers.
+        if attr == "visible":
+            # A flag, like a shape's: ``layer.visible = "no"`` is truthy and
+            # kept the layer drawing (review 2026-10-09 S9-9).
+            from .validate import expect_bool
+            value = expect_bool(value, "layer.visible")
         if attr in _LAYER_FIELDS or isinstance(getattr(Layer, attr, None), property):
             object.__setattr__(self, attr, value)
             return
@@ -496,6 +501,9 @@ class LayerStack:
             raise TypeError(
                 f"layer z must be a number, got {type(z).__name__}"
             )
+        if isinstance(z, float) and not z.is_integer():
+            # ``int(5.5)`` silently drew the layer at 5 (S9-9).
+            raise ValueError(f"layer z must be a whole number, got {z!r}")
         z = int(z)
         if name == TOP_LAYER:
             if z != TOP_Z:

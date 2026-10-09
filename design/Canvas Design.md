@@ -720,7 +720,9 @@ member still said `"far"`. The same pattern applies to any handle field that
 doubles as a registry key: expose it as a property whose setter raises, never
 as a writable field (siblings fixed together: `Handle.name` / `.owner`, `shape.group`, interned looks, the old `Entity.id` (removed with ids: the roster now keys by a private serial) — [Testing Design](Testing%20Design.md#bug-catalogue) K1–K5). Tests: `tests/test_registry_layers.py` (`test_name_*`).
 
-**A layer handle is a closed surface.** The author writes `visible`, `z`,
+**A layer handle is a closed surface.** `visible` takes a flag (`"no"` is
+refused, as on a shape), and `z` a whole number (`5.5` was drawn at 5: review
+2026-10-09 S9-9). The author writes `visible`, `z`,
 `post_fx` and `scroll` (the last three through their setters, which keep their
 own checks; `scroll` only on a non-neutral layer, see
 [Parallax layers](#parallax-layers-decoration-only)). `view` is read-only.

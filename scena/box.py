@@ -706,31 +706,7 @@ class Box(_RectFrame, _RectNames, ClosedSurface, Container):
         self.__dict__['_name_signs'] = other._freeze_names()
         self._adopt_model_of(other)
         self._anchor = getattr(other, "_anchor", None)
-        match self.model:
-            case RectModel.CORNER_CORNER:
-                self.p1._takein(other.p1)
-                self.p2._takein(other.p2)
-                _init_scalar(self, 'angle', other.angle)
-            case RectModel.TOP_LEFT_WH:
-                self.top_left._takein(other.top_left)
-                _init_scalar(self, 'width', other.width)
-                _init_scalar(self, 'height', other.height)
-                _init_scalar(self, 'angle', other.angle)
-            case RectModel.CENTER_WH:
-                self.center._takein(other.center)
-                _init_scalar(self, 'width', other.width)
-                _init_scalar(self, 'height', other.height)
-                _init_scalar(self, 'angle', other.angle)
-            case RectModel.POINT_VEC:
-                self.p1._takein(other.p1)
-                self.vec._takein(other.vec)
-                _init_scalar(self, 'angle', other.angle)
-            case RectModel.SPINE:
-                self.p1._takein(other.p1)
-                self.p2._takein(other.p2)
-                _init_scalar(self, 'height', other.height)
-            case _:
-                raise ValueError(f"Unknown box model: {self.model}")
+        self._take_frame_parts(other)
 
     def _oriented_frame(self) -> Tuple[float, float, float, float, float]:
         # A measured box keeps its center as floats until touched
@@ -929,59 +905,8 @@ class Box(_RectFrame, _RectNames, ClosedSurface, Container):
         dθ_deg = _finite_deg(angle, "rotate_by angle")
         if dθ_deg == 0.0:
             return self
-        dθ_rad = _rad(dθ_deg)
-        px, py = self._pivot_xy(about)
-        cx, cy = self._center_xy()
-        new_angle = _bare_num(self.angle) + dθ_deg
-        about_center = (about is None) or (
-            abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
-        )
-        match self.model:
-            case RectModel.CENTER_WH:
-                _ensure_writable(self["angle"], "rotate_by", force=force)
-                if about_center:
-                    self.angle = new_angle
-                else:
-                    _ensure_writable(self.center, "rotate_by", force=force)
-                    ncx, ncy = _rotate_xy(cx, cy, px, py, dθ_rad)
-                    self.center._takein((ncx, ncy))
-                    self.angle = new_angle
-            case RectModel.CORNER_CORNER:
-                _ensure_writable(self["angle"], "rotate_by", force=force)
-                _ensure_writable(self.p1, "rotate_by", force=force)
-                _ensure_writable(self.p2, "rotate_by", force=force)
-                x1, y1 = get_xy(self.p1, bare=True)
-                x2, y2 = get_xy(self.p2, bare=True)
-                self.p1._takein(_rotate_xy(x1, y1, px, py, dθ_rad))
-                self.p2._takein(_rotate_xy(x2, y2, px, py, dθ_rad))
-                self.angle = new_angle
-            case RectModel.TOP_LEFT_WH:
-                _ensure_writable(self["angle"], "rotate_by", force=force)
-                _ensure_writable(self.top_left, "rotate_by", force=force)
-                # The named top_left (a flip or a copy can mirror the names).
-                ox, oy = self._top_left_offset(_bare_num(self.width), _bare_num(self.height))
-                if about_center:
-                    self.top_left._takein(oriented_xy(cx, cy, ox, oy, new_angle))
-                    self.angle = new_angle
-                else:
-                    ncx, ncy = _rotate_xy(cx, cy, px, py, dθ_rad)
-                    self.top_left._takein(oriented_xy(ncx, ncy, ox, oy, new_angle))
-                    self.angle = new_angle
-            case RectModel.POINT_VEC:
-                _ensure_writable(self["angle"], "rotate_by", force=force)
-                _ensure_writable(self.p1, "rotate_by", force=force)
-                x1, y1 = get_xy(self.p1, bare=True)
-                self.p1._takein(_rotate_xy(x1, y1, px, py, dθ_rad))
-                self.angle = new_angle
-            case RectModel.SPINE:
-                _ensure_writable(self.p1, "rotate_by", force=force)
-                _ensure_writable(self.p2, "rotate_by", force=force)
-                x1, y1 = get_xy(self.p1, bare=True)
-                x2, y2 = get_xy(self.p2, bare=True)
-                self.p1._takein(_rotate_xy(x1, y1, px, py, dθ_rad))
-                self.p2._takein(_rotate_xy(x2, y2, px, py, dθ_rad))
-            case _:
-                raise ValueError(f"Unknown rect model: {self.model}")
+        # Rect's body (``_RectFrame._rotate_frame``): one copy, no drift.
+        self._rotate_frame(dθ_deg, about=about, force=force)
         return self
 
     def __repr__(self) -> str:

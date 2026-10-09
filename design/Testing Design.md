@@ -1906,7 +1906,6 @@ gaps that **both** authors reported on their own.
 | Found in | Issue | Planned |
 | --- | --- | --- |
 | Geometry campaign GX1–GX17 | Found by the campaign's harnesses ([GX](#gx--geometry-campaign-2026-10-08)) | Campaign phase 7 |
-| GR (2026-10-08) | Box and Rect keep near-copies of `_takein_impl` / `rotate_by` (they drifted once, SC1) | Decided 2026-10-08: no refactor now (no bug; the geometry contract sweep builds every Box model beside Rect). The next change to either method merges them into `_RectFrame` first ([Shapes Design](Shapes%20Design.md)) |
 
 ### HD — holders (interaction campaign, class 2; 2026-10-09)
 
@@ -2205,6 +2204,32 @@ Not fixed here: S9-1 (a `ui` / parallax member joining a pair group raises
 or is skipped depending on statement order). Both outcomes are documented
 somewhere (decoration refuses; E18 construct and the query rule skip), so
 making the two orders agree is a design decision, not a fix.
+
+### RV6 — systems review fixes, batch 5b: doors that agree, order that holds (2026-10-09)
+
+Root causes R7 (one payload, several doors; each door had its own test, none
+compared them) and R8 (a key or an order that depends on something unrelated).
+
+| ID | Finding | Fix | Test |
+| --- | --- | --- | --- |
+| S6-6 | `contains_point` used the stale pose of a linked angle / scale | it pulls, as draw and the query do | `test_doors_agree.TestHitTestPullsTheLinkedPose` |
+| S6-1 | `force=True` scale / rotate computed from the last pulled pose | `_fresh_pose` before the delta | `TestForceUsesTheFreshPose` |
+| S6-2 | `move_along(view)` read the view's stale copies | reads the host | `TestReversedViewRidesLikeItsHost` |
+| S6-4 | one pivot: exact in the gates, 1e-12 in the verbs | `_near_pivot` everywhere | `TestOnePivotRule` |
+| S7-3 | Box `rotate_by` drifted from Rect's (no `pivot=`) | merged into `_RectFrame` (`_rotate_frame`, `_take_frame_parts`) | `TestOnePivotRule` (Box vs Rect, every model) |
+| S7-4 | `confine` kept the full sweep (ghost `@collide`) | the correction joins the pending motion; wrap is a placement | `TestConfineSweepsLikeMoveTo` |
+| S9-7 | `unresolve(a, group["t"])` matched nothing | tag sides compare by tag | `TestSideSpellingsAgree` |
+| S9-9, S2-15 | `layer.visible = "no"`, `z = 5.5`; `ready.*` names unchecked, `disable` before a poll a no-op | flag / whole number; name first; a disabled slot | `TestSmallRefusals` |
+| S7-2 | `min_hold` a frame late | `reached` | `TestMinHoldIsDueByReached` |
+| S2-7 | the move replace key changed once `.center` was read | `(id(shape), "center")`, shared by `tween(shape.center)` | `test_scheduler_order.TestMoveReplaceKey` |
+| S2-9, S2-10 | `on_update` in address order; a cleared one ran later that frame | ordered weak set; the snapshot entry is swapped | `TestUpdateFleetOrder` |
+| S2-11 | cancel of an outer running script threw into it | any executing coroutine defers | `TestOuterScriptCancel` |
+| S2-14 | `@on_change` missed `1 → True` | bool-ness is a change | `TestOnChangeSeesBoolVersusNumber` |
+
+S7-1 (a yoyo end missed the "each" hitbox part) no longer reproduced on this
+tree. Perf: the first S2-10 fix (one attribute read per actor in the fleet
+loop) cost about 2 % of a 400-actor frame; the shipped fix swaps the frame
+snapshot's entry from the setter instead, and the loop is unchanged.
 
 ### F — contact flicker (2026-09-29)
 

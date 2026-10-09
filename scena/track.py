@@ -2284,8 +2284,9 @@ class RideState:
         self.path = path
         self.source_ref = None
         if path is not None and getattr(path, "model", None) is not None:
-            if path.model == TrackModel.SHAPE:
-                self.source_ref = path._source_ref
+            host = path._table_host() if hasattr(path, "_table_host") else path
+            if host.model == TrackModel.SHAPE:
+                self.source_ref = host._source_ref
         self.floating = bool(floating)
         self.root_x = float(root_x)
         self.root_y = float(root_y)
@@ -2464,7 +2465,9 @@ class RideState:
             return [], True, None
         closed = False
         if self.path is not None:
-            closed = bool(self.path._closed) and abs(self.span1 - self.span0) >= 0.999
+            tables = (self.path._table_host() if hasattr(self.path, "_table_host")
+                      else self.path)
+            closed = bool(tables._closed) and abs(self.span1 - self.span0) >= 0.999
         elif self.frozen_closed:
             closed = abs(self.span1 - self.span0) >= 0.999
         try:

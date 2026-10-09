@@ -223,6 +223,16 @@ def confine_graphic(
         move_to = getattr(graphic, "_move_to", None)
         if callable(move_to):
             move_to(nx, ny)
+            # The collision sweep must match where the body went (review
+            # 2026-10-09 S7-4): a wrap is a placement (no sweep across the
+            # field); a clamp / bounce cuts the frame's motion short, so the
+            # correction joins the pending motion and the sweep ends at the
+            # wall, not at the point past it (a ghost @collide behind it).
+            from .collision import note_collider_motion, note_collider_placement
+            if action == "wrap":
+                note_collider_placement(graphic)
+            else:
+                note_collider_motion(graphic, nx - x, ny - y)
         else:
             graphic.center = (nx, ny)
         if new_vel is not None:

@@ -226,6 +226,10 @@ def _invoke(callback: Optional[Callable], owner=None) -> None:
     callback(*extra[:n])
 
 
+def _no_update() -> None:
+    """The frame snapshot's stand-in for an ``on_update`` cleared mid-frame."""
+
+
 def _invoke_update(callback: Callable, owner, dt: float) -> None:
     """Call ``on_update``: method ``(self, dt)`` or function ``(e, dt)``; arity-truncated."""
     n = _argcount(callback)
@@ -1387,7 +1391,13 @@ class Script:
         if self.done:
             return
         self.silent = self.silent or silent
-        running = get_scheduler()._running is self
+        # Any script on the stack, not only the innermost: cancelling an outer
+        # running script threw into an executing coroutine (review 2026-10-09
+        # S2-11). ``_advance`` closes it when its ``send`` returns.
+        coro = self.coro
+        running = (get_scheduler()._running is self
+                   or getattr(coro, "cr_running", False)
+                   or getattr(coro, "gi_running", False))
         self.cancelled = True
         self.done = True
         self.waiting_on = None
@@ -1770,6 +1780,50 @@ def _rings_out(handle: Handle) -> bool:
     return handle._clip_duration > 0.0
 
 
+class _OrderedWeakSet:
+    """A weak set that iterates in insertion order (``WeakSet`` iterates in
+    hash order, which is the object's address: the ``on_update`` fleet ran in
+    a different order on every run)."""
+
+    __slots__ = ("_refs",)
+
+    def __init__(self) -> None:
+        self._refs: Dict[int, "weakref.ref"] = {}
+
+    def add(self, item) -> None:
+        key = id(item)
+        if key in self._refs:
+            return
+        refs = self._refs
+
+        def _gone(ref, key=key, refs=refs):
+            if refs.get(key) is ref:
+                del refs[key]
+
+        refs[key] = ref(item, _gone)
+
+    def discard(self, item) -> None:
+        ref = self._refs.get(id(item))
+        if ref is not None and ref() is item:
+            del self._refs[id(item)]
+
+    def __contains__(self, item) -> bool:
+        ref = self._refs.get(id(item))
+        return ref is not None and ref() is item
+
+    def __iter__(self):
+        for ref in list(self._refs.values()):
+            obj = ref()
+            if obj is not None:
+                yield obj
+
+    def __len__(self) -> int:
+        return len(self._refs)
+
+    def __bool__(self) -> bool:
+        return bool(self._refs)
+
+
 class Scheduler:
     """Cooperative timer list, driven by ``clock.dt`` (already scaled)."""
 
@@ -1795,8 +1849,12 @@ class Scheduler:
         self._tweens: Dict[object, Handle] = {}
         # Finished voice ids carried to the next tick after a raise (S2-13).
         self._sound_carry: set = set()
-        self._mode_owners: WeakSet = WeakSet()
-        self._update_owners: WeakSet = WeakSet()
+        # Insertion-ordered (creation order): a WeakSet walked in address
+        # order, which changed from run to run (review 2026-10-09 S2-9).
+        self._mode_owners = _OrderedWeakSet()
+        self._update_owners = _OrderedWeakSet()
+        self._update_running = False
+        self._update_pos: Dict[int, int] = {}
         self._mode_dense: List[object] = []
         self._update_dense: List[object] = []
         self._mode_dirty = False
@@ -2043,6 +2101,15 @@ class Scheduler:
         else:
             self._update_owners.discard(item)
         self._update_dirty = True
+        if self._update_running:
+            # Cleared or replaced by an earlier ``on_update`` this frame: the
+            # old function does not run later in the frame (review 2026-10-09
+            # S2-10). The frame's snapshot entry is swapped, so the fleet
+            # loop pays nothing per actor.
+            i = self._update_pos.get(id(item))
+            dense = self._update_dense
+            if i is not None and i < len(dense) and dense[i][0] is item:
+                dense[i] = (item, _no_update)
 
     def _refresh_mode_dense(self) -> None:
         if not self._mode_dirty:
@@ -2060,6 +2127,7 @@ class Scheduler:
                 continue
             dense.append((o, fn))
         self._update_dense = dense
+        self._update_pos = {id(o): i for i, (o, _fn) in enumerate(dense)}
         self._update_dirty = False
 
     def start_mode_script(self, owner, coro) -> Script:
@@ -2446,7 +2514,11 @@ class Scheduler:
 
         try:
             # One arm/disarm for the whole fleet — not per Entity (LINE tool cost).
-            _run_with_watchdog(_run_all, sync=True)
+            self._update_running = True
+            try:
+                _run_with_watchdog(_run_all, sync=True)
+            finally:
+                self._update_running = False
         except _Watchdog:
             item = current[0]
             warnings.warn(
@@ -2518,8 +2590,10 @@ class Scheduler:
         self._named.clear()
         self._tweens.clear()
         self._sound_carry = set()
-        self._mode_owners = WeakSet()
-        self._update_owners = WeakSet()
+        self._mode_owners = _OrderedWeakSet()
+        self._update_owners = _OrderedWeakSet()
+        self._update_running = False
+        self._update_pos: Dict[int, int] = {}
         self._mode_dense = []
         self._update_dense = []
         self._mode_dirty = False
@@ -3403,84 +3477,27 @@ def _as_xy(to) -> Tuple[float, float]:
         ) from None
 
 
-def _center_pose_key(shape) -> int:
-    """Stable identity for a shape's center-pose target, for tween-key dicts.
+def _center_pose_key(shape) -> tuple:
+    """The tween key of a shape's position, for every timed move and for
+    ``tween(shape.center, …)`` (``_pose_target_key``): ``(id(shape),
+    "center")``. It never reads ``center`` (a cold Derivate would wake: D3),
+    and it does not depend on whether anything read it yet. The old key was
+    ``id(shape)`` while the center was cold and ``id(center)`` after any
+    read, so a read between two moves let both run at once (review
+    2026-10-09 S2-7)."""
+    return (id(shape), "center")
 
-    Reading ``.center`` (or, for the Polygon family, ``.centroid`` under the
-    ``center`` alias) merely to name a dict key would force-materialize it if
-    it is a not-yet-touched Derivate for this shape's current model — e.g. a
-    ``Line`` built ``p1=``/``p2=`` (home ``CENTER_LENGTH_ANGLE`` keeps
-    ``center`` Defining, but every point-based model makes it Derivate), or a
-    free ``Polygon``'s ``centroid`` (always Derivate — vertices are Defining).
-    Materializing there permanently costs the shape its pose fast path
-    (Reactive Design A1-A3) just to compute a key, and does not even protect
-    the parts actually written (``p1``/``p2``, vertices) from a concurrent
-    ``@=``.
 
-    Resolution, without ever reading a cold Derivate:
-
-    1. If the underlying Container already exists (any prior read/link),
-       use its id — matches the key a same-property
-       ``tween(shape.center, ...)`` uses, so the two APIs still preempt /
-       conflict on the same target.
-    2. Else, if the slot is Defining right now for this instance (either the
-       class has no dynamic model, or ``_defining_part_names`` names it) —
-       ``_move_to`` / ``_move_by`` already reads/writes it, so materializing
-       here is free — read it.
-    3. Else (a cold Derivate for this model) key on the shape object itself
-       instead of waking it. A same-tick ``tween(shape.center, ...)`` would
-       not share this key in that case (rare: both APIs targeting a still-
-       untouched center in the same tick) — accepted trade for not paying
-       A1-A3 on every ordinary ``move_to`` / ``move_by`` / ``move_along``.
-    """
-    from .state import FieldType
-
-    # Never use hasattr()/getattr() on the *class* (or on an instance for a
-    # not-yet-materialized name) to probe for "center"/"centroid": both
-    # trigger ContainerSlot.__get__ — which either materializes a cold
-    # Derivate (instance case) or raises inside __get__(instance=None, ...)
-    # that hasattr/getattr-with-default silently swallow, so it would even
-    # lie about the slot existing on the class. Walk the MRO's own __dict__
-    # instead — a plain dict lookup, no descriptor protocol involved.
-    center_attr = None
-    for klass in type(shape).__mro__:
-        found = klass.__dict__.get("center")
-        if found is not None:
-            center_attr = found
-            break
-    if center_attr is None:
-        return id(shape)
-
-    if getattr(center_attr, "_is_field_slot", False):
-        slot_name, descriptor = "center", center_attr
-    elif isinstance(center_attr, property):
-        # Polygon family: `.center` is a read-only alias for `.centroid`
-        # (returns the same object — `id(shape.center) == id(shape.centroid)`).
-        slot_name, descriptor = "centroid", None
-        for klass in type(shape).__mro__:
-            found = klass.__dict__.get("centroid")
-            if found is not None:
-                if getattr(found, "_is_field_slot", False):
-                    descriptor = found
-                break
-    else:
-        # Some other kind of `.center` attribute (not a pose Container) —
-        # not our concern here; previous behavior.
-        return id(getattr(shape, "center", shape))
-
-    existing = shape.__dict__.get(slot_name)
-    if existing is not None:
-        return id(existing)
-    defining = getattr(shape, "_defining_part_names", None)
-    if defining is not None:
-        is_defining_now = slot_name in defining or "center" in defining
-    else:
-        is_defining_now = (
-            descriptor is None or descriptor.field_type == FieldType.Defining
-        )
-    if is_defining_now:
-        return id(getattr(shape, "center", shape))
-    return id(shape)
+def _pose_target_key(target) -> object:
+    """``tween(target, …)`` on a pose Container: a shape's ``center`` /
+    ``centroid`` shares the timed moves' key; any other Container keys on
+    itself."""
+    d = target.__dict__
+    owner = d.get("_owner")
+    if owner is not None and d.get("_attr_name") in ("center", "centroid") \
+            and _is_entity(owner):
+        return _center_pose_key(owner)
+    return id(target)
 
 
 def _move_claim_targets(shape) -> tuple:
@@ -3663,8 +3680,10 @@ def _tween_target(
     # Same-kind replace before writability — free the claim so probe succeeds.
     if is_fieldref:
         _preempt_tween_keys((id(target.owner), target.name))
-    elif is_attribute or is_pose:
+    elif is_attribute:
         _preempt_tween_keys(id(target))
+    else:
+        _preempt_tween_keys(_pose_target_key(target))
     _ensure_tween_writable(target, force=force)
 
     if is_fieldref:
@@ -3721,7 +3740,7 @@ def _tween_target(
             node._takein((x0 + (x1 - x0) * u, y0 + (y1 - y0) * u))
 
         return _start_tween(checked=checked,
-            duration=time, ease=ease, write=write, tween_key=id(target),
+            duration=time, ease=ease, write=write, tween_key=_pose_target_key(target),
             then=then, on_done=on_done, owner=owner, scope=scope, name=name,
             loops=n_loops, yoyo=yoyo, claim_targets=(target,), claim_kind="tween",
             target=_entity_written_by(target),
@@ -4210,10 +4229,12 @@ def timed_move_along(
     if isinstance(target, Track) or scena_kind(target) == "Track":  # reload-safe
         path = target
         path._ensure_samples()
-        floating = bool(path.is_floating)
+        # A ``reversed()`` view's own copies of the host's fields go stale:
+        # read the host (review 2026-10-09 S6-2).
+        floating = bool(path._pose_host().is_floating)
         # Forever without yoyo sawtooths via wrap; yoyo reverses instead (open
         # paths must not wrap or u=1 becomes 0 and snaps away from the end).
-        wrap = bool(path._closed) or (n_loops < 0 and not yoyo)
+        wrap = bool(path._table_host()._closed) or (n_loops < 0 and not yoyo)
     elif isinstance(target, ShapePoint) or (
         isinstance(target, (tuple, list)) and len(target) >= 2
         and not isinstance(target, Shape)
@@ -4253,8 +4274,9 @@ def timed_move_along(
             )
         at_x, at_y = _point_xy_static(at)
         lx0, ly0 = path.local_at(u0)
-        rot = float(path._rotation)
-        sc = float(path._scale)
+        pose = path._pose_host()
+        rot = float(pose._rotation)
+        sc = float(pose._scale)
         from .curves import apply_pose
         posed_x, posed_y = apply_pose(
             lx0, ly0, cx=0.0, cy=0.0, rotation_deg=rot, scale=sc,
@@ -4262,8 +4284,9 @@ def timed_move_along(
         root_x, root_y = at_x - posed_x, at_y - posed_y
     elif floating:
         lx0, ly0 = path.local_at(u0)
-        rot = float(path._rotation)
-        sc = float(path._scale)
+        pose = path._pose_host()
+        rot = float(pose._rotation)
+        sc = float(pose._scale)
         from .curves import apply_pose
         tx, ty = apply_pose(lx0, ly0, cx=0.0, cy=0.0, rotation_deg=rot, scale=sc)
         cx, cy = shape._center_xy()
@@ -4411,6 +4434,21 @@ def _ready_poll(
         }
         return True
     timer = timers[name]
+    if timer["interval"] is None:
+        # Disabled before its first poll (``ready.disable``): this call
+        # supplies the interval; the timer starts when it is enabled.
+        if interval is None:
+            raise TypeError(
+                f"ready({name!r}) is new: give it an interval the first time, "
+                f"e.g. ready({name!r}, 0.5)"
+            )
+        timer["interval"] = _validate_ready_interval(interval)
+        if not timer["enabled"]:
+            # Ready on its first poll after ``enable``, like a new name.
+            timer["last_called"] = now - timer["interval"]
+            return False
+        timer["last_called"] = now
+        return True
     if not timer["enabled"]:
         return False
     if interval is not None:
@@ -4495,26 +4533,37 @@ class ReadyManager(ClosedSurface):
         return _ready_poll(self._timers, name, interval, _now())
 
     def disable(self, name: str) -> "ReadyManager":
-        """Pause the ``name`` timer: ``ready(name, …)`` is False until ``enable``. Returns ``ready``."""
-        if name in self._timers:
-            self._timers[name]["enabled"] = False
+        """Pause the ``name`` timer: ``ready(name, …)`` is False until ``enable``.
+        A name never polled yet is disabled too (its first ``ready`` call
+        is False). Returns ``ready``."""
+        _require_poll_name(name, "ready.disable")
+        timer = self._timers.get(name)
+        if timer is None:
+            # Not a no-op: "no shooting until the intro ends" is written
+            # before the first shot (review 2026-10-09 S2-15).
+            self._timers[name] = {"interval": None, "last_called": None, "enabled": False}
+        else:
+            timer["enabled"] = False
         return self
 
     def enable(self, name: str) -> "ReadyManager":
         """Resume a disabled ``name`` timer. Returns ``ready``."""
+        _require_poll_name(name, "ready.enable")
         if name in self._timers:
             self._timers[name]["enabled"] = True
         return self
 
     def reset(self, name: str) -> "ReadyManager":
         """Make ``ready(name, …)`` True again on its next call (restart the cooldown). Returns ``ready``."""
-        now = _now()
-        if name in self._timers:
-            self._timers[name]["last_called"] = now - self._timers[name]["interval"]
+        _require_poll_name(name, "ready.reset")
+        timer = self._timers.get(name)
+        if timer is not None and timer["interval"] is not None:
+            timer["last_called"] = _now() - timer["interval"]
         return self
 
     def remove(self, name: str) -> "ReadyManager":
         """Forget the ``name`` timer; its next call starts fresh (and is True). Returns ``ready``."""
+        _require_poll_name(name, "ready.remove")
         self._timers.pop(name, None)
         return self
 
@@ -4537,12 +4586,14 @@ class RememberedManager(ClosedSurface):
 
     def reset(self, name: str) -> "RememberedManager":
         """Forget the slot: next read is False until ``value`` is truthy again."""
+        _require_poll_name(name, "recently.reset")
         if name in self._slots:
             self._slots[name]["last_true"] = None
         return self
 
     def remove(self, name: str) -> "RememberedManager":
         """Forget the ``name`` slot entirely. Returns ``recently``."""
+        _require_poll_name(name, "recently.remove")
         self._slots.pop(name, None)
         return self
 
