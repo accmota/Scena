@@ -73,6 +73,10 @@ def _trace(before, *, cursors=True):
         d = _diff(before, surface_census())
     if not cursors:
         d = {k: v for k, v in d.items() if k not in CURSOR_KEYS}
+    # ``layer=0`` auto-creates numeric layer 0, which stays by design (Canvas
+    # Design, "Numeric layers"); the census counts layers since review
+    # 2026-10-09 (act-made layers leave with the act).
+    d.pop("registry.layers", None)
     return d
 
 

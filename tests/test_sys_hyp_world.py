@@ -808,7 +808,12 @@ class TestSystemCanaries(unittest.TestCase):
 
     def test_s6_pair_targets_keep_the_dead(self):
         from scena.collision import CollisionSystem
-        self._catch(self.WORLD, [(CollisionSystem, "_forget_pair_target", lambda self, identity: None)],
+        # Two paths drop a dead side from ``_pair_targets`` since review
+        # 2026-10-09 S8-7: the destroy-time forget, and the tag retirement
+        # that prunes the members of a tag whose last rule went. The plant
+        # removes both.
+        self._catch(self.WORLD, [(CollisionSystem, "_forget_pair_target", lambda self, identity: None),
+                                 (CollisionSystem, "retire_unused_pair_tags", lambda self: None)],
                     "_pair_targets not pruned at destroy (S6)")
 
     def test_s9_work_scheduled_on_a_dead_owner(self):

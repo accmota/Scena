@@ -2253,6 +2253,14 @@ Lessons:
   entries.
 - A precision test needs a tolerance tighter than the bug: 1e-6 relative passed
   the float32 path (0.05 at 1e6); 1e-9 does not.
+- A canary plants a bug by disabling one function. When a fix adds a second
+  path to the same result, the plant stops biting: the S6 canary disabled
+  `_forget_pair_target`, and the new tag retirement pruned the dead side anyway;
+  the cull canary patched `_passes_cull`, and the draw loop now calls
+  `_cull_keeps`. A refactor that moves or duplicates a guarded step runs the gate
+  canaries and plants on every door.
+- A census key that counts a by-design keeper (an auto-created numeric layer)
+  must be excused, with its reason, in the traces that build and remove things.
 
 ### F — contact flicker (2026-09-29)
 

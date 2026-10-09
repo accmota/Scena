@@ -263,7 +263,10 @@ class TestDrawCanaries(unittest.TestCase):
         from diff_support import assert_catches
         eng_cls = type(_engine())
         assert_catches(self, "test_diff_draw.TestCullIsConservative.test_frame_identical_with_cull",
-                       [(eng_cls, "_passes_cull", lambda self, obj, layer=None: False)],
+                       # Both doors: the one-object check and the draw loop's
+                       # per-object step (review 2026-10-09 S9-10 hoisted it).
+                       [(eng_cls, "_passes_cull", lambda self, obj, layer=None: False),
+                        ("scena.canvas", "_cull_keeps", lambda obj, vb: False)],
                        "a cull that drops visible shapes")
 
     def test_flag_suite_catches_a_stale_flag(self):
