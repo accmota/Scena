@@ -303,6 +303,11 @@ left out.
   the line in your program; they named a file inside Scena.
 - A SPINE Rect (`Rect(p1=, p2=, height=)`) with a linked `angle` reads again:
   once the link turned it, every read raised LinkedAttributeError.
+- A SPINE Rect's `angle` after its ends move no longer depends on what your
+  program read in between. It counts full turns like a `Line(p1=, p2=)`:
+  only `rotate_by` / `rotate_to` add turns, and an end write reads the new
+  direction nearest to them. Before, a rect whose `angle` had been read could
+  read a full turn away (204.78 instead of -155.22) after the same writes.
 - `Texture(filename=[])`, `mouse.click_pos([])` and `State().create([])` /
   `exists([])` raise Scena's TypeError instead of Python's "unhashable type".
 - An author class named `Point` or `Line` behaves like any other class with

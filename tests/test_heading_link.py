@@ -69,6 +69,19 @@ def _link(line, name, st):
         line[name] @= (lambda: st.v + 0.0)
 
 
+def _heading_link(shape, st):
+    """``shape["angle"] @= …`` as a value for ``__setitem__`` (the ``@=`` result)."""
+    ref = shape["angle"]
+    ref @= (lambda: st.v + 10.0)
+    return ref
+
+
+def _is_linked(shape, name):
+    if isinstance(shape._field_slots()[name], ContainerSlot):
+        return any(n._link is not None for n in getattr(shape, name)._iter_subtree())
+    return shape[name].is_linked
+
+
 class TestHeadingLinkIsExclusive(unittest.TestCase):
     def setUp(self):
         self.st = State(name=f"hl{id(self)}")
@@ -100,6 +113,48 @@ class TestHeadingLinkIsExclusive(unittest.TestCase):
                         fresh._field_slots()[name], ContainerSlot) else
                         any(n._link is not None for n in getattr(fresh, name)._iter_subtree()))
                     self.assertEqual(float(fresh.angle), 11.0)       # the heading link survives
+
+    def test_every_input_the_heading_is_measured_from_is_exclusive(self):
+        # Found by writing each input and watching ``angle``, not from the
+        # engine's lists. A part the heading is read from but its turn does not
+        # rewrite (a rim Circle's center) made the result depend on which
+        # frames read it: the radius followed the center's path as far as
+        # reads had seen it (45.8 unread vs 28.0 read, same final cell).
+        for kind in DERIVED_HEADING:
+            for name in _linkable_names(G.build(kind)):
+                probe = G.build(kind)
+                before = float(probe.angle)
+                slot = probe._field_slots()[name]
+                if isinstance(slot, ContainerSlot):
+                    x, y = G.xy(getattr(probe, name))
+                    setattr(probe, name, (x + 3.0, y + 5.0))
+                else:
+                    v = float(getattr(probe, name))
+                    try:
+                        setattr(probe, name, v + 3.0)
+                    except ValueError:              # a bounded field (spread <= 360)
+                        setattr(probe, name, v - 3.0)
+                moves_heading = abs(float(probe.angle) - before) > 1e-9
+                # A part the turn rewrites is exclusive whether or not it moves
+                # the heading (pinned to the verb above).
+                exclusive = moves_heading or name in _driven(probe)
+                for heading_first in (True, False):
+                    with self.subTest(kind=kind, part=name, heading_first=heading_first):
+                        fresh = G.build(kind)
+                        install = [lambda: fresh.__setitem__("angle", _heading_link(fresh, self.st)),
+                                   lambda: _link(fresh, name, self.st)]
+                        if not heading_first:
+                            install.reverse()
+                        install[0]()
+                        if exclusive:
+                            with self.assertRaises(LinkedAttributeError):
+                                install[1]()
+                            linked = (fresh["angle"].is_linked, _is_linked(fresh, name))
+                            self.assertEqual(sum(linked), 1)            # installed nothing
+                        else:
+                            install[1]()
+                            self.assertTrue(fresh["angle"].is_linked)
+                            self.assertTrue(_is_linked(fresh, name))
 
     def test_a_derived_kind_with_no_listed_parts_is_a_mistake(self):
         for kind in DERIVED_HEADING:

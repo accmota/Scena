@@ -3568,6 +3568,39 @@ class _DerivedRotationRoute:
         """
         return ()
 
+    def _heading_pivot_inputs(self) -> Tuple:
+        """Parts the derived heading is measured from that its turn does not
+        rewrite (a rim-placed Circle's ``center``). A linked heading turns the
+        shape again each time one of them moves, from wherever it was last
+        read, so the result would depend on which frames read it: the two
+        links are exclusive too. ``test_heading_link`` finds these parts by
+        writing each input and watching ``angle``."""
+        return ()
+
+    def _heading_exclusive(self):
+        """``(part, label, is_pivot)`` for every part a heading link excludes."""
+        from .entity import part_path
+        out = []
+        for parts, pivot in ((self._heading_driven_parts(), False),
+                             (self._heading_pivot_inputs(), True)):
+            for part in parts:
+                label = str(part.name) if isinstance(part, FieldRef) else part_path(part, self)
+                out.append((part, label, pivot))
+        return out
+
+    def _heading_conflict_text(self, label: str, pivot: bool, heading_linked: bool) -> str:
+        h = self._HEADING_FIELD
+        if pivot:
+            again = (f"each move of {label} would turn the shape again, by an "
+                     f"amount that depends on which frames read it")
+            if heading_linked:
+                return f"{h} has an @= formula and is measured from {label}: {again}"
+            return f"its {label} has an @= formula, and {h} is measured from it: {again}"
+        if heading_linked:
+            return f"{h} has an @= formula that turns the shape by rewriting {label}"
+        return (f"its {label} has an @= formula, and a linked {h} turns the shape "
+                f"by rewriting {label}")
+
     def _resolve_structural(self) -> None:
         # A linked heading turns the shape with ``rotate_to``, which only runs
         # when the anchor is pulled. A resolve of the shape (a read of a
@@ -3597,22 +3630,23 @@ class _DerivedRotationRoute:
         return anchor is not None and anchor._link is not None
 
     def _refuse_heading_link_over_linked_parts(self) -> None:
-        """``angle @=`` while a part its turn rewrites is linked."""
-        for part in self._heading_driven_parts():
+        """``angle @=`` while a part its turn rewrites, or a part it is
+        measured from (``_heading_pivot_inputs``), is linked."""
+        for part, label, pivot in self._heading_exclusive():
             if isinstance(part, FieldRef):
-                linked = [part] if part.is_linked else []
-                label = str(part.name)
+                linked = part.is_linked
             else:
-                linked = [n for n in part._iter_subtree() if n._link is not None]
-                from .entity import part_path
-                label = part_path(part, self)
+                linked = any(n._link is not None for n in part._iter_subtree())
             if linked:
                 from .entity import entity_label
                 raise LinkedAttributeError(driver_conflict_message(
                     new="link", subject=entity_label(self), part=self._HEADING_FIELD,
-                    existing=(f"its {label} has an @= formula, and a linked "
-                              f"{self._HEADING_FIELD} turns the shape by rewriting {label}"),
-                    undo=f"Unlink {label} first, or leave {self._HEADING_FIELD} unlinked"))
+                    existing=self._heading_conflict_text(label, pivot, False),
+                    undo=(f"Unlink {label} first, or leave {self._HEADING_FIELD} unlinked"
+                          + self._heading_pivot_hint(pivot))))
+
+    def _heading_pivot_hint(self, pivot: bool) -> str:
+        return ""
 
     def _ensure_can_link_attribute(self, target) -> None:
         super()._ensure_can_link_attribute(target)
@@ -3620,15 +3654,14 @@ class _DerivedRotationRoute:
             anchor = self.__dict__['_field_anchors'][self._HEADING_FIELD]
             if target is anchor:
                 return
-            for part in self._heading_driven_parts():
+            for part, label, pivot in self._heading_exclusive():
                 if _link_overlaps_part(target, part):
-                    from .entity import entity_label, part_path
-                    label = str(part.name) if isinstance(part, FieldRef) else part_path(part, self)
+                    from .entity import entity_label
                     raise LinkedAttributeError(driver_conflict_message(
                         new="link", subject=entity_label(self), part=label,
-                        existing=(f"{self._HEADING_FIELD} has an @= formula that turns the "
-                                  f"shape by rewriting {label}"),
-                        undo=f"Unlink {self._HEADING_FIELD} first, or leave {label} unlinked"))
+                        existing=self._heading_conflict_text(label, pivot, True),
+                        undo=(f"Unlink {self._HEADING_FIELD} first, or leave {label} unlinked"
+                              + self._heading_pivot_hint(pivot))))
 
     def _scalar_anchor_class(self, name: str):
         # One anchor type for every use of ``["angle"]`` (link or formula
@@ -4980,6 +5013,21 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
             case CircleModel.CENTER_PERIMETER:
                 return (self.perimeter_point,)
         return ()
+
+    def _heading_pivot_inputs(self) -> Tuple:
+        # Placed by its rim, the heading points from the center to the rim
+        # point; the turn keeps the center. Linked with the heading, every
+        # center move moved the heading and the link turned the rim back, so
+        # the radius followed the center's path as far as reads had seen it.
+        if self.model == CircleModel.CENTER_PERIMETER:
+            return (self.center,)
+        return ()
+
+    def _heading_pivot_hint(self, pivot: bool) -> str:
+        if pivot:
+            return (". To drive both, place the circle with center= and radius=: "
+                    "there angle is an input")
+        return ""
 
     def _materialize_derivate_part(self, name: str) -> None:
         """Fill a Derivate part on first access via model ``_update_impl``."""
@@ -7831,13 +7879,17 @@ class _RectFrame:
         anchor="side_left"/"side_right": p1, p2 are corners of one long edge;
         the box extends left/right of p1→p2. Derivate width is the along-axis
         extent; Defining height is the cross-axis magnitude.
+
+        No ``_publish_heading``: the pose store is the turn reference the
+        heading unwraps to, and only verbs move it (as on a p1/p2 Line).
+        Written back here, it counted turns only across the updates that ran,
+        so the same writes read 204.78 warm and -155.22 cold.
         """
         cx, cy, w, h, ang = self._oriented_frame()
         self._takein_live_derivate('angle', ang)
         self._takein_live_derivate('width', w)
         self._takein_live_derivate('center', (cx, cy))
         self._apply_oriented_corners(cx, cy, w, h, ang)
-        self._publish_heading(ang)
 
 
 def _mirror_rotation_store(obj, axis: str) -> None:

@@ -1213,7 +1213,15 @@ resolves the owner first (`_pull_owner_first`; classification is once per node,
 so a plain Defining read stays free); a Derivate with its own structure
 (`vec`) asks its owner too. The same parts are why the heading link and a link
 on one of them are exclusive, refused at the second `@=` (D17,
-`_heading_driven_parts`). Guard: `tests/test_heading_link.py`.
+`_heading_driven_parts`). So is a part the heading is measured from that the
+turn does not rewrite (`_heading_pivot_inputs`: a rim-placed Circle's
+`center`). Linked with the heading, each move of that part turned the shape
+again from wherever it was last read, so the result depended on which frames
+read it: the radius followed the center's path as far as reads had seen it
+(45.8 unread vs 28.0 read, same final cell; GR19). The engine applies a
+part's own link before the turn that reads it, so the turn uses the current
+pivot. Guard: `tests/test_heading_link.py` (finds the inputs by writing each
+one and watching `angle`).
 
 Not covered by this rule: Derivate-part refreshes (`_refresh_*` in shapes /
 box under `_no_update`) call the dispatcher on purpose — a refreshed part must
