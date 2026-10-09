@@ -935,6 +935,10 @@ class Clock(ClosedSurface, Container):
         self._time = 0.0
         self._real_dt = 0.0
         self._real_time = 0.0
+        # Presentation time: the unscaled frame step, capped like the world's
+        # (MAX_FRAME_DT). Pause and slow motion do not stop it; a hitch does
+        # not jump it. The fade cover runs on it (Scena Design, "Clocks").
+        self._ui_time = 0.0
         self._frame = 0
         self._fps = 0.0
         self._scale = 1.0
@@ -1032,8 +1036,10 @@ class Clock(ClosedSurface, Container):
         self._real_dt = real_dt
         self._real_time = current_time - self._start_time
         step = real_dt if smooth is None else max(0.0, smooth(real_dt))
-        self._dt = min(step, MAX_FRAME_DT) * self._scale
+        capped = min(step, MAX_FRAME_DT)
+        self._dt = capped * self._scale
         self._time += self._dt
+        self._ui_time += capped
         self._frame += 1
 
         # FPS is wall-based (not scaled).
@@ -1072,6 +1078,7 @@ class Clock(ClosedSurface, Container):
             real_dt = 0.0
         self._real_dt = real_dt
         self._real_time += real_dt
+        self._ui_time += real_dt
         self._dt = real_dt * self._scale
         self._time += self._dt
         self._frame += 1

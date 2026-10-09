@@ -209,8 +209,15 @@ class AudioMachine(RuleBasedStateMachine):
     def voices_match_live_handles(self):
         if self.last_dt <= 0.0:
             return  # a zero-length frame does not pump the mixer
+        # A voice that ended while its owner was parked has no voice left but
+        # a live Handle: its on_done waits for the resume (X-life-4), and
+        # fires on the first tick after it (so right after a resume the owner
+        # may already be active). Only a live owner holds one.
+        held = [h for h in self.handles if h._end_held and not (h.done or h.cancelled)]
+        for h in held:
+            assert h._live_owner() is not None, "an end held for a dead owner"
         live = {h._voice_id for h in self.handles
-                if not (h.done or h.cancelled) and h._voice_id is not None}
+                if not (h.done or h.cancelled or h._end_held) and h._voice_id is not None}
         voices = get_mixer().live_voice_ids()
         assert voices == live, f"mixer voices {sorted(voices)} != live handles {sorted(live)}"
 

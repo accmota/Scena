@@ -23,7 +23,7 @@ _now_fn: Optional[Callable[[], float]] = None
 
 
 def set_now_fn(fn: Optional[Callable[[], float]]) -> None:
-    """Override the clock (tests). ``None`` restores ``clock.time``."""
+    """Override the clock (tests). ``None`` restores the presentation clock."""
     global _now_fn
     _now_fn = fn
 
@@ -35,7 +35,11 @@ def _now() -> float:
         from .orchestration import ScenaFramework
         clk = ScenaFramework.get_instance().clock
         if clk is not None:
-            return float(clk.time)
+            # Presentation time, not world time: a fade runs while the world
+            # is paused or slowed (a game-over ``fade_out(on_done=change_act)``
+            # after ``clock.paused = True`` must finish), and is capped per
+            # frame like the world, so a hitch does not skip the fade.
+            return float(clk._ui_time)
     except Exception:
         pass
     return time.perf_counter()

@@ -934,5 +934,32 @@ class TestPointerPriority(InteractionTestCase):
         self.assertIs(self.sim.hit_test(ox, oy, pressable=True), over)
 
 
+class TestContainsPointOnADeadActor(unittest.TestCase):
+    """A destroyed actor contains nothing (review 2026-10-09 S6-8): the
+    same answer as collision.query_point. A parked actor keeps its geometry."""
+
+    def test_destroyed_kinds_contain_nothing(self):
+        from scena import Circle, Rect, Polygon, Text
+        for make in (lambda: Circle(center=(0, 0), radius=10),
+                     lambda: Rect(center=(0, 0), width=20, height=20),
+                     lambda: Polygon(points=[(-10, -10), (10, -10), (0, 10)]),
+                     lambda: Text("abc", center=(0, 0))):
+            s = make()
+            self.assertTrue(s.contains_point(0, 0))
+            center = s.center
+            s.destroy()
+            self.assertFalse(s.contains_point(0, 0), type(s).__name__)
+            self.assertFalse(center.contains_point(0, 0), "a part of a dead actor")
+
+    def test_parked_keeps_its_geometry(self):
+        from scena import Circle
+        c = Circle(center=(0, 0), radius=10)
+        try:
+            c.active = False
+            self.assertTrue(c.contains_point(0, 0))
+        finally:
+            c.destroy()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -2140,8 +2140,12 @@ class ScenaCanvas:
         if t is None or not self.registry.layers.has_parallax_layers:
             return
         t = float(t)
+        # Every layer, hidden or not: scroll is world state, and ``visible``
+        # is paint. A hidden layer that froze would jump (or lag for good)
+        # when shown again, and an Endless on it would stop filling
+        # (review 2026-10-09 S9-6).
         moved = False
-        for layer in self.registry.layers.iter_draw_order():
+        for layer in self.registry.layers._layers.values():
             if not layer._is_neutral_response:
                 layer._scroll_state.advance(t)
                 moved = True

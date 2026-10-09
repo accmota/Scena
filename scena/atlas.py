@@ -100,7 +100,10 @@ _FX_PATH_V1_CAP = 200
 _FX_PATH_V1_TARGET = 160
 _FX_LOCAL_V2_CACHE_MAX = 8
 
-_ATLAS_CACHE: Dict[str, Tuple[Optional[str], Tuple["AtlasFrame", ...]]] = {}
+# abspath -> ((mtime_ns, size), parsed atlas). A rewritten file (a tool
+# regenerating the pack, hot reload) has a new stamp and is parsed again; one
+# entry per path (review 2026-10-09 S7-9).
+_ATLAS_CACHE: Dict[str, Tuple[Tuple[int, int], Tuple[Optional[str], Tuple["AtlasFrame", ...]]]] = {}
 
 
 class AtlasFrame:
@@ -109,8 +112,18 @@ class AtlasFrame:
     __slots__ = (
         "name", "x", "y", "w", "h",
         "src_x", "src_y", "src_w", "src_h",
-        "pivot_x", "pivot_y", "rotated", "boxes", "pivot_authored",
+        "pivot_x", "pivot_y", "rotated", "boxes", "pivot_authored", "_frozen",
     )
+
+    def __setattr__(self, name, value):
+        # Frames cached by ``load_atlas`` are shared by every Sheet of that
+        # file: they refuse writes (a Sheet keeps its own ``with_pivot`` copies).
+        if getattr(self, "_frozen", False):
+            raise AttributeError(
+                f"AtlasFrame {self.name!r} is shared by every Sheet of its atlas "
+                f"and cannot change; use frame.with_pivot(...) for a copy"
+            )
+        object.__setattr__(self, name, value)
 
     def __init__(
         self,
@@ -611,11 +624,16 @@ def parse_atlas_xml(path: str) -> Tuple[Optional[str], Tuple[AtlasFrame, ...]]:
 
 
 def load_atlas(path: str) -> Tuple[Optional[str], Tuple[AtlasFrame, ...]]:
-    """Parse JSON or XML atlas. Cached per absolute path."""
+    """Parse JSON or XML atlas. Cached per absolute path and file stamp."""
     key = os.path.abspath(path)
+    try:
+        st = os.stat(key)
+        stamp = (int(st.st_mtime_ns), int(st.st_size))
+    except OSError:
+        stamp = None            # the parse below reports the missing file
     hit = _ATLAS_CACHE.get(key)
-    if hit is not None:
-        return hit
+    if hit is not None and hit[0] == stamp:
+        return hit[1]
     ext = os.path.splitext(key)[1].lower()
     if ext == ".xml":
         result = parse_atlas_xml(key)
@@ -629,7 +647,10 @@ def load_atlas(path: str) -> Tuple[Optional[str], Tuple[AtlasFrame, ...]]:
             result = parse_atlas_xml(key)
         else:
             result = parse_atlas_json(key)
-    _ATLAS_CACHE[key] = result
+    for fr in result[1]:
+        object.__setattr__(fr, "_frozen", True)
+    if stamp is not None:
+        _ATLAS_CACHE[key] = (stamp, result)
     return result
 
 

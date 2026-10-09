@@ -62,6 +62,21 @@ class TestScrollInFrameTick(_LayerCleanup, SystemTestCase, unittest.TestCase):
         # Frame 1 seeds; frames 2..5 each add 10 before update runs.
         self.assertAlmostEqual(seen[-1], 40.0, places=3)
 
+    def test_hidden_layer_keeps_scrolling(self):
+        # Scroll is world state; ``visible`` is paint (review 2026-10-09 S9-6).
+        shown = canvas.layers.create("nuvens", scroll=(60.0, 0.0))
+        hidden = canvas.layers.create("nuvens2", scroll=(60.0, 0.0))
+        self.w.step(1)
+        hidden.visible = False
+        self.w.step(60, dt=1 / 60)          # 1 s hidden: no freeze
+        self.assertAlmostEqual(hidden._scroll_state.accum[0],
+                               shown._scroll_state.accum[0], places=6)
+        self.w.step(120, dt=1 / 60)         # 2 s more: no "tab resume" skip
+        hidden.visible = True
+        self.w.step(1, dt=1 / 60)           # no jump on re-show
+        self.assertAlmostEqual(hidden._scroll_state.accum[0],
+                               shown._scroll_state.accum[0], places=6)
+
     def test_clock_pause_stops_scroll(self):
         layer = canvas.layers.create("nuvens", scroll=(100.0, 0.0))
         self.w.step(3, dt=0.1)
