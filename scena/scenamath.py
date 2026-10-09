@@ -632,7 +632,9 @@ class Vec2(Container):
         # Nested under an outer no_update/batch_update: leaf writes already
         # skip update(); skip the redundant 3-node subtree walk.
         if self._in_batch_update:
-            self._takein_impl(new_value)
+            if self._takein_impl(new_value) and self.__dict__.get('_field_anchors'):
+                from .state import _notify_source_anchors
+                _notify_source_anchors(self)    # q["x"] @= v["x"] (S5-1)
             return
 
         previous_states: dict = {}
@@ -643,6 +645,9 @@ class Vec2(Container):
             self._restore_batch_update_subtree(previous_states)
 
         if changed:
+            if self.__dict__.get('_field_anchors'):
+                from .state import _notify_source_anchors
+                _notify_source_anchors(self)    # q["x"] @= v["x"] (S5-1)
             self.update()
 
     def _takein_impl(self, other: Union['Vec2', tuple, list]) -> bool:

@@ -2108,6 +2108,32 @@ Lessons:
    learned 13). So did a hover test whose oracle (`is_alive or center`)
    passed for a dead shape.
 
+### RV2 — systems review fixes, batch 2: field-reference links and the reactive core (2026-10-09)
+
+| ID | Finding | Fix | Test |
+| --- | --- | --- | --- |
+| S5-1, S6-5 | `q["x"] @= p["x"]` followed only `=`: 62 of 108 writer × kind cells stale (copies, pose verbs, flips, tweens, Text moves) | write dispatchers notify source-only field anchors (`_notify_source_anchors`); Text treats a field anchor as a link reader | `test_diff_link_write.TestFieldRefSourceFollowsEveryWriter` |
+| S5-2 | a link reading a Derivate scalar froze it for every reader | the anchor of a Derivate field depends on its owner; a dirty read recomputes | same class |
+| S5-3 | a property-anchor pull took `True` as 1.0, leaked `OverflowError` | `validate.number` on the pull | `test_reactive_edge_cases.TestReactiveCoreDoors` |
+| S5-4 | `_in_batch_update` (a Shape slot) read through `__dict__`: handlers flushed mid-batch; a retired part read `active` True | attribute access everywhere | same class; `test_write_path_guards.TestNoDictAccessToASlot` |
+| S5-5 | `unlink()` / `destroy()` raised on a formula raising `KeyError`, orphaning the anchor | keep the last value on any pull error; clean the anchor in `finally` | `TestReactiveCoreDoors` |
+| S5-6 | `clone(scale=-1 / 1e308)` registered the copy, then raised; `scale=True` accepted | validate first; destroy the copy if the scale cannot apply | `test_construct_failure.TestCloneScaleIsAtomic` |
+
+Lessons:
+
+1. **An edge that looks natural can be a cycle in another model.** Making
+   every source-only anchor depend on its owner fixed the matrix and broke
+   every PARALLEL_DIST line (its `p1` reads its own `dist`). Notify from the
+   writers for Defining fields; keep the upward edge for Derivates, which a
+   part cannot read without a real cycle.
+2. **A same-work A/B, not a work-changing one.** The first A/B showed +19 %:
+   the base did no work because its links were stale. Compare a workload both
+   trees compute (writers that notified before too); that A/B found a real
+   +10 % (a refresh on every read of a Defining field), fixed to noise.
+3. **The class guard found members the review did not list.** Scanning every
+   slot name read through `__dict__` found `retire_part` writing `_active`
+   into the dict (a retired part read active).
+
 ### F — contact flicker (2026-09-29)
 
 Found by `tests/test_sys_resting_contact.py`, written after G2 to test what a

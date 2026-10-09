@@ -675,5 +675,66 @@ class TestUnlinkFreezesTheCurrentValue(ReactiveEdgeCaseTest):
             k.destroy()
 
 
+
+class TestReactiveCoreDoors(unittest.TestCase):
+    """Review 2026-10-09 S5-3 / S5-4 / S5-5: the same rules on every door."""
+
+    def test_property_anchor_pull_keeps_the_numbers_rule(self):
+        from scena import Point, st
+        st.s53 = True
+        p = Point(0, 0)
+        with self.assertRaises(TypeError):
+            p["angle"] @= (lambda: st.s53)       # took True as 1.0
+        st.s53 = 10 ** 400
+        q = Point(0, 0)
+        with self.assertRaises(ValueError):
+            q["angle"] @= (lambda: st.s53)       # leaked OverflowError
+        p.destroy()
+        q.destroy()
+
+    def test_handlers_do_not_flush_mid_batch_outside_a_frame(self):
+        from scena import Rect, Point, on_change
+        r = Rect(top_left=(10, 20), width=10, height=6)
+        q = Point(0, 0)
+        q @= r.top_left
+        seen = []
+        on_change(lambda: (r.top_left.x, r.top_left.y))(lambda v: seen.append(v))
+        r.move_by(5, 7)                            # one compound write
+        self.assertEqual(seen[-1:], [(15.0, 27.0)])
+        self.assertNotIn((15.0, 20.0), seen)      # a pose that never existed
+        q.destroy()
+        r.destroy()
+
+    def test_unlink_keeps_the_last_value_when_the_formula_raises(self):
+        from scena import Circle, st
+        st.s55 = {"k": 7}
+        c = Circle(radius=1)
+        c["radius"] @= (lambda: st.s55["k"])
+        self.assertEqual(c.radius, 7)
+        st.s55 = {}                                # the formula now raises KeyError
+        c["radius"].unlink()
+        self.assertEqual(c.radius, 7)
+        self.assertNotIn("radius", c.__dict__.get("_field_anchors") or {})
+        c.destroy()
+        self.assertFalse(c.is_alive)
+
+    def test_destroy_with_a_raising_formula_completes(self):
+        from scena import Circle, st
+        st.s55b = {"k": 3}
+        c = Circle(radius=1)
+        c["radius"] @= (lambda: st.s55b["k"])
+        st.s55b = {}
+        c.destroy()                                # raised KeyError half-way
+        self.assertFalse(c.is_alive)
+        self.assertIsNone(c.__dict__.get("_node_id") if "_node_id" in c.__dict__ else None)
+
+    def test_a_retired_part_reads_inactive(self):
+        from scena import Circle
+        c = Circle(radius=3)
+        center = c.center
+        c.destroy()
+        self.assertFalse(center.active)            # the slot kept True (S5-4 class)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

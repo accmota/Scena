@@ -14,6 +14,7 @@ from .style import PaintState, LookLike
 from .color import Color, ColorLike
 from .scenamath import Vec2, vec_from_angle
 from .state import (
+    _notify_source_anchors,
     Attribute, Container, ContainerSlot, ScalarSlot, ScalarAnchor, FieldRef, FieldType,
     batch_update_attrs, batch_update_self, ephemeral_creation, LinkedAttributeError, DestroyedError,
     CallableAssignError,
@@ -3282,19 +3283,25 @@ class Point(Shape):
             _refuse_if_destroyed(self, "move")
 
         if self._in_batch_update:
-            if self._takein_impl(new_value) and self._requires_pull_invalidate():
-                if self._node_id is not None:
+            if self._takein_impl(new_value):
+                if self._requires_pull_invalidate() and self._node_id is not None:
                     self._scena_system.update_manager.mark_dirty(self)
+                if d.get('_field_anchors'):
+                    _notify_source_anchors(self)    # q["x"] @= p["x"] (S5-1)
             return
 
         # Leaf: no ownership children — skip subtree push/restore walks.
-        d['_in_batch_update'] = True
+        # The slot, not ``d[...]`` (a dict write is shadowed by Shape's
+        # ``_in_batch_update`` slot: review 2026-10-09 S5-4).
+        object.__setattr__(self, '_in_batch_update', True)
         try:
             changed = self._takein_impl(new_value)
         finally:
-            d['_in_batch_update'] = False
+            object.__setattr__(self, '_in_batch_update', False)
 
         if changed:
+            if d.get('_field_anchors'):
+                _notify_source_anchors(self)        # q["x"] @= p["x"] (S5-1)
             self.update()
 
     def _takein_impl(self, other: 'GeneralPoint') -> bool:

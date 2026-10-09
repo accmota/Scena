@@ -460,5 +460,108 @@ class TestLinkWriteGate(unittest.TestCase):
                        "a write gate that never refuses")
 
 
+
+class TestFieldRefSourceFollowsEveryWriter(unittest.TestCase):
+    """A link that reads one field of another object (``q["x"] @= p["x"]``,
+    the Guia's spelling) follows every writer of that field, not only ``=``:
+    copies, part writes, pose verbs (instant and timed), flips, tweens, and
+    a Derivate scalar it reads stays live (review 2026-10-09 S5-1, S5-2,
+    S6-5). The oracle is the source itself, read raw."""
+
+    KINDS = {
+        "Circle": (lambda: _sc().Circle(center=(10, 20), radius=10), "center", "radius",
+                   lambda: _sc().Circle(center=(70, 80), radius=17)),
+        "Rect": (lambda: _sc().Rect(top_left=(10, 20), width=10, height=6), "top_left", "width",
+                 lambda: _sc().Rect(top_left=(70, 80), width=17, height=9)),
+        "Line": (lambda: _sc().Line(p1=(10, 20), p2=(30, 20)), "p1", None,
+                 lambda: _sc().Line(p1=(70, 80), p2=(90, 85))),
+        "Ellipse": (lambda: _sc().Ellipse(center=(10, 20), width=10, height=6), "center", "width",
+                    lambda: _sc().Ellipse(center=(70, 80), width=17, height=9)),
+        "RegularPolygon": (lambda: _sc().RegularPolygon(center=(10, 20), radius=10, n=5), "center", "radius",
+                           lambda: _sc().RegularPolygon(center=(70, 80), radius=17, n=5)),
+    }
+
+    WRITERS = (
+        ("part =", lambda s, L, S, other: setattr(s, L.attr_name, (55, 66))),
+        ("leaf <<", lambda s, L, S, other: L << (55, 66)),
+        ("<<", lambda s, L, S, other: s << other()),
+        ("absorb", lambda s, L, S, other: s.absorb(other())),
+        ("move_to", lambda s, L, S, other: s.move_to(55, 66)),
+        ("move_by", lambda s, L, S, other: s.move_by(5, 7)),
+        ("rotate_by about", lambda s, L, S, other: s.rotate_by(30, about=(0, 0))),
+        ("scale_by about", lambda s, L, S, other: s.scale_by(2, about=(0, 0))),
+        ("rotate_by", lambda s, L, S, other: s.rotate_by(30)),
+        ("flip_x", lambda s, L, S, other: setattr(s, "flip_x", True)),
+        ("tween leaf", lambda s, L, S, other: _sc().tween(L, (55, 66), time=0.25)),
+        ("move_to time", lambda s, L, S, other: s.move_to(55, 66, time=0.25)),
+    )
+
+    def test_every_kind_and_writer(self):
+        from tests.system_support import system_world
+        sc = _sc()
+        stale = []
+        for kind, (make, lname, sname, other) in self.KINDS.items():
+            for wname, write in self.WRITERS:
+                with system_world(draw=False) as w:
+                    s = make()
+                    L = getattr(s, lname)
+                    qx = sc.Point(0, 0)
+                    qx["x"] @= L["x"]
+                    ks = None
+                    if sname:
+                        ks = sc.Circle(center=(0, 0), radius=1)
+                        ks["radius"] @= s[sname]
+                    w.step(1, dt=1 / 60)
+                    write(s, L, sname, other)
+                    w.step(20, dt=1 / 60)
+                    if qx.x != L.__dict__.get("x"):
+                        stale.append((kind, wname, "leaf x"))
+                    if ks is not None and ks.radius != max(0.0, s.__dict__.get(sname)):
+                        stale.append((kind, wname, sname))
+        self.assertEqual(stale, [])
+
+    def test_vec2_and_text_sources(self):
+        from tests.system_support import system_world
+        sc = _sc()
+        with system_world(draw=False) as w:
+            v = sc.Vec2(1, 2)
+            z = sc.Point(0, 0)
+            z["x"] @= v["x"]
+            v << (9, 9)
+            w.step(1, dt=1 / 60)
+            self.assertEqual(z.x, 9)
+            t = sc.Text("abc", top_left=(0, 0))
+            d = sc.Point(0, 0)
+            d["x"] @= t.top_left["x"]
+            t.move_by(10, 0)
+            w.step(1, dt=1 / 60)
+            self.assertEqual(d.x, t.top_left.x)
+            t.destroy()
+
+    def test_a_derivate_scalar_read_by_a_link_stays_live(self):
+        from tests.system_support import system_world
+        sc = _sc()
+        with system_world(draw=False) as w:
+            ln = sc.Line(p1=(0, 0), p2=(10, 0))
+            k = sc.Circle(center=(0, 0), radius=1)
+            k["radius"] @= ln["length"]
+            ln.p2 = (30, 0)
+            w.step(1, dt=1 / 60)
+            self.assertEqual(ln.length, 30.0)      # froze at 10 for every reader
+            self.assertEqual(k.radius, 30.0)
+            v = sc.Vec2(3, 4)
+            m = sc.Point(0, 0)
+            m["x"] @= v["length"]
+            v.x = 6
+            w.step(1, dt=1 / 60)
+            self.assertAlmostEqual(v.length, (36 + 16) ** 0.5)
+            self.assertAlmostEqual(m.x, v.length)
+
+
+def _sc():
+    import scena
+    return scena
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -1324,6 +1324,9 @@ class Container():
     # Entity / registry citizens use ``_scena_is_entity`` so they always enter the
     # graph. Bare Vec2 / Attribute stay False and register only on first edge.
     _graph_citizen = False
+    # True on ``ScalarAnchor`` (a field's graph node): its structural edge
+    # follows its link (``_should_use_upward_edge``).
+    _scalar_anchor = False
     # Hook run after a raw store of a Defining field (``_takein_impl``, a
     # per-field link's pull): a class whose computed fields derive from those
     # fields (Vec2 ``length`` / ``angle``) brings them in step. None: nothing to do.
@@ -1559,6 +1562,16 @@ class Container():
 
     def _should_use_upward_edge(self, owned: 'Container') -> bool:
         """Whether structural edge should be owned -> self (part depends on owner)."""
+        if (owned.__class__._scalar_anchor and owned.__dict__.get('_derivate_field')
+                and owned.__dict__.get('_link') is None):
+            # A source-only anchor on a Derivate scalar (``k["r"] @= line["length"]``)
+            # is computed from its owner: it depends on it, so any change of
+            # the owner dirties it and its readers (it froze: review
+            # 2026-10-09 S5-2). An anchor on a Defining field keeps the
+            # downward edge (a part's formula may read its owner's Defining
+            # field: PARALLEL_DIST p1 reads dist); its writers notify it
+            # (``_notify_source_anchors``).
+            return True
         owned_ft = owned.__dict__.get('_field_type', FieldType.Defining)
         if owned_ft == FieldType.Derivate:
             return True
@@ -1927,14 +1940,16 @@ class Container():
             if not self._parts:
                 # Leaf fast path — no ownership children to suppress or clear.
                 d = self.__dict__
-                was = d.get('_in_batch_update', False)
-                d['_in_batch_update'] = True
+                # Attribute, not ``d[...]``: a Shape keeps this flag in a slot
+                # that a dict write never reaches (review 2026-10-09 S5-4).
+                was = getattr(self, '_in_batch_update', False)
+                object.__setattr__(self, '_in_batch_update', True)
                 try:
                     self._takein_impl(result)
                     if self._link is not None:
                         self._link.old_value = result
                 finally:
-                    d['_in_batch_update'] = was
+                    object.__setattr__(self, '_in_batch_update', was)
             else:
                 with self._no_update():
                     self._takein_impl(result)
@@ -2204,6 +2219,11 @@ class Container():
 
         self._takein_impl(new_value)   # Call _takein method of the subclass (specific implementation by subclass)
         self._takein_pose(new_value)
+        # A copy (``<<``, ``absorb``, part ``=``) stores fields raw: dirty the
+        # field anchors a FieldRef link reads, on this node and its parts.
+        for node in self._iter_subtree():
+            if node.__dict__.get('_field_anchors'):
+                _notify_source_anchors(node)
         # self.update() will be called automatically at the end by @batch_update_self
 
     def _taketo(self, other: 'Container') -> None:
@@ -2372,11 +2392,14 @@ class Container():
                 self._resolve_link()
             except (DestroyedError, ReferenceError):
                 pass  # a source is already gone: keep the value pulled before it went
-            except (TypeError, ValueError, ArithmeticError):
+            except Exception:  # noqa: BLE001 — the link is going away
                 # The source holds a value the field refuses now (``True``, NaN,
-                # ``10**400``: GX14). The pull stored nothing, so the field keeps
-                # the last good value; unlinking (and destroy, which unlinks)
-                # must not fail on the link it removes.
+                # ``10**400``: GX14), or the formula itself raises (a ``KeyError``
+                # on ``st.d["k"]`` after ``st.d = {}``). The pull stored nothing,
+                # so the field keeps the last good value; unlinking (and
+                # destroy, which unlinks) must not fail on the link it removes
+                # (review 2026-10-09 S5-5: a KeyError orphaned the anchor and
+                # made destroy() raise half-way).
                 pass
             # FormulaLink.clear() handles dependency cleanup
             link = self._link
@@ -2635,9 +2658,11 @@ class Container():
         if not anchors or name not in anchors:
             return
         anchor = anchors.pop(name)
-        if anchor._link is not None:
-            anchor.unlink()
-        anchor._clean_up()
+        try:
+            if anchor._link is not None:
+                anchor.unlink()
+        finally:
+            anchor._clean_up()      # never leave a popped anchor in the graph
 
     def _link_field(self, name: str, source) -> None:
         """Install a formula/direct link on field ``name`` (bracket ``@=``)."""
@@ -2677,7 +2702,7 @@ class Container():
             return
         # Refuse before ``__get__`` so a rejected Derivate link does not
         # materialize the slot or stick ``_needs_pull_invalidate``.
-        if not self.__dict__.get("_in_batch_update", False) and self._field_is_derivate(name, slot):
+        if not getattr(self, "_in_batch_update", False) and self._field_is_derivate(name, slot):
             raise DerivedAttributeError(self._derived_field_message(name, "link"))
         target = slot.__get__(self, type(self))
         target._assign_formula(source)
@@ -3328,7 +3353,7 @@ class ContainerSlot:
         the check — those are the shape's own derivation.
         """
         if (
-            not instance.__dict__.get("_in_batch_update", False)
+            not getattr(instance, "_in_batch_update", False)
             and instance._field_is_derivate(self.name, self)
         ):
             raise DerivedAttributeError(
@@ -3415,6 +3440,14 @@ class ScalarSlot:
         if anchors and name in anchors:
             anchor = anchors[name]
             anchor._ensure_fresh()
+            ad = anchor.__dict__
+            if ad.get('_derivate_field') and ad.get('_dirty') and ad.get('_link') is None:
+                # A source-only anchor depends on its parent: dirty means the
+                # parent changed, so a Derivate scalar recomputes (it froze
+                # for every reader: review 2026-10-09 S5-2).
+                anchor._clear_subtree_dirty()
+                instance._refresh_scalar(name)
+                return d.get(name, self.default)
             if type(anchor) is _PropertyAnchor:
                 # A link that drives a verb on a Derivate slot (Rect spine /
                 # Ellipse foci / p1-p2 Line ``angle``): the value is the Derivate.
@@ -3479,6 +3512,7 @@ class ScalarAnchor(Container):
     """
 
     _passthrough_update = True
+    _scalar_anchor = True
 
     def __init__(self, parent: Container, field_name: str):
         self._scalar_parent = parent
@@ -3494,6 +3528,13 @@ class ScalarAnchor(Container):
         # A shape heading: a pull on a Defining ``angle`` publishes the pose store.
         self._publishes_rotation = (field_name == "angle"
                                     and type(parent)._publish_angle_input is not None)
+        # A Derivate scalar's anchor depends on its owner (S5-2), read by
+        # ``_should_use_upward_edge`` while ``super().__init__`` adds the part.
+        try:
+            self.__dict__['_derivate_field'] = bool(
+                isinstance(slot, ScalarSlot) and parent._field_is_derivate(field_name, slot))
+        except Exception:
+            self.__dict__['_derivate_field'] = False
         super().__init__(owner=parent, attr_name=field_name)
 
     def _takein_impl(self, new_value) -> bool:
@@ -3596,6 +3637,10 @@ class _PropertyAnchor(ScalarAnchor):
     _ensure_writable guards, collision-epoch bump) instead of poking __dict__.
     """
 
+    # Its edges are wired by its owner (``_DerivedRotationRoute`` adds the
+    # anchor → owner dependency of a derived heading by hand).
+    _scalar_anchor = False
+
     def _takein_impl(self, new_value) -> bool:
         if isinstance(new_value, FieldRef):
             new_value = new_value.value
@@ -3606,7 +3651,12 @@ class _PropertyAnchor(ScalarAnchor):
                 f"field {self.name} cannot take a {type(new_value).__name__}; "
                 f"use a lambda that returns a number"
             )
-        new_value = float(new_value)
+        if new_value.__class__ is not float:
+            # The Numbers rule, as ``=`` applies it: a bool is not a number
+            # and an int too big for a float is a ValueError, not Python's
+            # OverflowError (review 2026-10-09 S5-3; GX14 for ScalarAnchor).
+            from .validate import number
+            new_value = float(number(new_value, self._slot_label))
         parent = self._scalar_parent
         name = self._scalar_name
         old = getattr(parent, name)          # real property getter — always live/correct
@@ -4225,6 +4275,22 @@ def _refuse_link_on_dead(container, action: str) -> None:
         node = d.get("_owner") if d is not None else None
 
 
+def _notify_source_anchors(node, names=None) -> None:
+    """A raw store wrote fields of ``node``: dirty their field anchors, as
+    ``_write_field`` does for ``=``. A link that reads ``node[name]`` (a
+    FieldRef source) followed only ``=`` before (review 2026-10-09 S5-1).
+    Write dispatchers only, never a pull (pulls store raw)."""
+    anchors = node.__dict__.get('_field_anchors')
+    if not anchors:
+        return
+    um = node._scena_system.update_manager
+    for name, anchor in list(anchors.items()):
+        if names is not None and name not in names:
+            continue
+        if anchor._node_id is not None and anchor.__dict__.get('_link') is None:
+            um.mark_dirty(anchor)
+
+
 def _init_scalar(owner, name, value) -> None:
     """Construction-time scalar: callable → link; bare value → copy."""
     if callable(value) and not isinstance(value, type):
@@ -4542,7 +4608,7 @@ class UpdateManager:
         # once, from the batch's closing ``update()``.
         if not self.deferring and not self.is_updating:
             if (
-                not node.__dict__.get("_in_batch_update", False)
+                not getattr(node, "_in_batch_update", False)
                 and _events_pending_poll()
             ):
                 self.flush()

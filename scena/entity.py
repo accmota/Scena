@@ -3110,9 +3110,13 @@ class Graphic(Entity, ABC):
         # Every check before the copy exists: a bad scale used to raise after
         # the clone was built and registered, and a destroyed source cloned (E9).
         _refuse_if_destroyed(self, "clone")
-        if scale != 1.0:
+        if scale.__class__ is not float or scale != 1.0:
+            # Every value, ``True`` too (``True != 1.0`` is False, so it used
+            # to skip the check): a scale is a non-negative number (S5-6).
             from .validate import number
             scale = number(scale, "clone(scale=)")
+            if scale < 0.0:
+                raise ValueError(f"clone(scale=) is a magnitude: got {scale:g} (>= 0)")
         kwargs: Dict[str, Any] = {}
         if layer is not _USE_LAYER_DEFAULT:
             kwargs["layer"] = layer
@@ -3146,7 +3150,13 @@ class Graphic(Entity, ABC):
         saved = getattr(self, "_active_saved_visible", None) if _parked(self) else None
         copy.visible = self._visible if saved is None else bool(saved)
         if scale != 1.0:
-            copy.scale_by(float(scale))
+            try:
+                copy.scale_by(float(scale))
+            except BaseException:
+                # A scale the copy's sizes cannot take (``1e308`` overflows):
+                # the copy leaves, nothing half-built stays (review S5-6, E9).
+                copy.destroy()
+                raise
         return copy
 
     def _clone_pose_from(self, source: "Graphic") -> None:

@@ -1032,9 +1032,11 @@ class Registry:
         from .entity import _mark_routes_dead
         _mark_routes_dead(part)
         d["_destroyed_by"] = note
-        d["_active"] = False
-        d["_active_saved_visible"] = None
-        d["_active_saved_collidable"] = None
+        # Slots on a Shape part: a ``d[...]`` write never reached them, so a
+        # retired Point read ``active`` True (review 2026-10-09 S5-4 class).
+        object.__setattr__(part, "_active", False)
+        object.__setattr__(part, "_active_saved_visible", None)
+        object.__setattr__(part, "_active_saved_collidable", None)
 
     def change_layer(self, obj: RegistryObject, new_layer: Optional[LayerKey]) -> None:
         """Move ``obj`` to ``new_layer``, or undrawn if ``None``.

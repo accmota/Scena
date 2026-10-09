@@ -195,5 +195,28 @@ class TestConstructFailure(SystemTestCase, unittest.TestCase):
                        "a constructor that raises and is not rolled back")
 
 
+
+class TestCloneScaleIsAtomic(unittest.TestCase):
+    """clone(scale=) refuses before the copy exists, or removes the copy
+    (review 2026-10-09 S5-6, an E9 regression)."""
+
+    def test_bad_scales_leave_no_copy(self):
+        from scena import Circle
+        from scena.canvas import ScenaCanvas
+        reg = ScenaCanvas.get_current().registry
+        c = Circle(radius=5)
+        try:
+            n0 = len([o for o in reg.live_objects() if isinstance(o, Circle)])
+            for bad, err in ((True, TypeError), (-1, ValueError), (1e308, ValueError),
+                             (float("nan"), ValueError)):
+                with self.subTest(scale=bad):
+                    with self.assertRaises(err):
+                        c.clone(scale=bad)
+                    n = len([o for o in reg.live_objects() if isinstance(o, Circle)])
+                    self.assertEqual(n, n0)
+        finally:
+            c.destroy()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

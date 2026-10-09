@@ -171,7 +171,9 @@ class TestPoseFastPathsAreGated(unittest.TestCase):
     Reactive Design hazard #8). Text's moves were not gated (D25)."""
 
     FAST = {"_takein_xy_float", "_translate_point_float", "_translate_points_float", "_takein_float"}
-    GATES = {"_pose_fast_ok", "_requires_pull_invalidate"}
+    # ``text._read_by_a_link`` is the ``_link_source`` test widened to a
+    # link on one field of the point (review 2026-10-09 S6-5).
+    GATES = {"_pose_fast_ok", "_requires_pull_invalidate", "_read_by_a_link"}
     ALLOWED = {
         ("text.py", "Text._materialize_derivate_part"): "first fill of a part on its first read: no reader yet",
     }
@@ -374,6 +376,63 @@ class TestFrameCountsGoThroughReached(unittest.TestCase):
         from graphics_known import shrink_only
         shrink_only(self, truncated_time_sites(), "TRUNCATED_TIME")
 
+class TestNoDictAccessToASlot(unittest.TestCase):
+    """A name in a ``__slots__`` of Shape's MRO is read and written as an
+    attribute, never through ``__dict__``: a dict write is shadowed by the
+    slot and a dict read misses it (review 2026-10-09 S5-4: the batch flag
+    flushed handlers mid-batch; a retired part read ``active`` True).
+    The names come from the classes, not from a hand list."""
+
+    # (file, name) -> reason
+    ALLOWED = {
+        ("entity.py", "_rotation"): "pose store reads __dict__ first for a "
+            "non-Shape Graphic, then falls back to getattr (correct for a slot)",
+        ("entity.py", "_scale"): "same fallback as _rotation",
+    }
+
+    def _slot_names(self):
+        import scena  # noqa: F401
+        from scena.shapes import Shape
+        names = set()
+        for c in Shape.__mro__:
+            names.update(n for n in (c.__dict__.get("__slots__", ()) or ()) if n != "__weakref__")
+        return names
+
+    def test_slot_names_are_not_reached_through_dict(self):
+        import ast
+        import os
+        slots = self._slot_names()
+        from tests.source_support import iter_files
+        root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scena")
+        found = set()
+        for path in iter_files(root, ".py", recursive=False):
+            fn = os.path.basename(path)
+            tree = ast.parse(open(path, encoding="utf-8").read())
+            for func in ast.walk(tree):
+                if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                dict_names = set()
+                for n in ast.walk(func):
+                    if (isinstance(n, ast.Assign) and isinstance(n.value, ast.Attribute)
+                            and n.value.attr == "__dict__"):
+                        dict_names.update(t.id for t in n.targets if isinstance(t, ast.Name))
+
+                def is_dict(expr):
+                    return ((isinstance(expr, ast.Attribute) and expr.attr == "__dict__")
+                            or (isinstance(expr, ast.Name) and expr.id in dict_names))
+                for n in ast.walk(func):
+                    key = None
+                    if isinstance(n, ast.Subscript) and is_dict(n.value):
+                        key = n.slice
+                    elif (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                          and n.func.attr in ("get", "pop", "setdefault") and is_dict(n.func.value)
+                          and n.args):
+                        key = n.args[0]
+                    if isinstance(key, ast.Constant) and key.value in slots:
+                        found.add((fn, key.value))
+        self.assertEqual(sorted(found - set(self.ALLOWED)), [],
+                         "read / write a slot name as an attribute (getattr / object.__setattr__)")
+        self.assertEqual(sorted(set(self.ALLOWED) - found), [], "stale allowlist entry")
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

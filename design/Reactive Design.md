@@ -1336,6 +1336,38 @@ and nested `Point.takein` under an outer batch also `mark_dirty`s the Point.
 Unlinked A1/A4 fast paths may keep raw `_takein_xy_float` — they **only** run
 when `_pose_fast_ok` is true (`not force and not _requires_pull_invalidate()`).
 
+**A field read by a link (`q["x"] @= p["x"]`).** `p["x"]` used as a link
+source is a source-only `ScalarAnchor`, a part of `p`. On a **Defining**
+field it keeps the downward edge (`p` depends on it; a part's own formula may
+read its owner's Defining field — PARALLEL_DIST `p1` reads `dist` — so an
+upward edge would be a cycle), so `mark_dirty(p)` does not reach it: every
+writer that stores the field raw notifies it, as `=` (`_write_field`) does.
+The write dispatchers do it — `Point._takein`, `Vec2._takein`, and
+`Container._takein` (`<<`, `absorb`, a part `=`) for every node of the copied
+subtree — through `state._notify_source_anchors`, never a pull (pulls store
+raw). Text's raw publish writers treat a point with field anchors as read by
+a link (`text._read_by_a_link`). On a **Derivate** field
+(`k["radius"] @= line["length"]`) the anchor depends on its owner (upward
+edge; `ScalarAnchor._derivate_field`), and a read of the field through a
+dirty source-only anchor recomputes it. Before 2026-10-09 only `=` notified:
+62 of 108 writer × kind cells left the link stale, and a link on a Derivate
+froze the field for every reader (review S5-1, S5-2, S6-5). Guard:
+`tests/test_diff_link_write.py` (`TestFieldRefSourceFollowsEveryWriter`).
+
+**One storage per flag.** A name in a `__slots__` of Shape's MRO
+(`_in_batch_update`, `_active`, …) is read and written as an attribute
+(`getattr` / `object.__setattr__`), never through `__dict__`: a dict write is
+shadowed by the slot, a dict read misses it. The batch flag read from
+`__dict__` made handlers flush mid-batch outside a frame and see a pose that
+never existed (S5-4). Guard: `tests/test_write_path_guards.py`
+(`TestNoDictAccessToASlot`, names from the classes).
+
+**Unlink never fails on its own link.** `unlink()` (and `destroy()`, which
+unlinks) pulls first and keeps the last good value on **any** error from the
+pull — a refused value or a formula that raises (`KeyError`, …); the anchor
+is cleaned up in a `finally` (S5-5). A property-backed anchor's pull
+(`angle`, `scale`) applies the Numbers rule like `=` (S5-3).
+
 **Sprite hazard (fixed in A4):** `Sprite._move_by` / `_move_to` once always used
 `_takein_xy_float`, so outbound `sink["center"] @= lambda: sprite.center` went stale after the
 first move. Sprite must use the same `_pose_fast_ok` split as Circle/Rect.

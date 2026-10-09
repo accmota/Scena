@@ -162,6 +162,21 @@ left out.
 
 ### Fixed
 
+- A link that reads a field of another object (`q["x"] @= p["x"]`)
+  follows every change of that field: `p << …`, `absorb`, `shape.center = …`,
+  `move_*` / `rotate_*` / `scale_*` (instant and timed), flips, tweens, drag,
+  `resolve`, `confine`, and Text moves. Before, only `p.x = …` updated it.
+- A link that reads a computed field (`line["length"]`, `vec["length"]`,
+  `rect["width"]` of a corner-to-corner Rect) keeps that field current; it
+  froze for every reader.
+- `obj["angle"] @= lambda: …` / `["scale"]` refuse `True` and a huge int like
+  `=` does.
+- Outside the frame loop, `@on_change` / `@when` no longer see a half-moved
+  shape in the middle of `move_by`.
+- `unlink()` and `destroy()` no longer fail when the linked formula raises;
+  the field keeps its last value.
+- `clone(scale=…)` refuses a bad scale before making the copy (a negative or
+  huge scale left a live copy behind); `clone(scale=True)` raises.
 - Destroying a hovered or touching object runs its own `on_hover_exit` /
   `on_collide_exit` while it still exists: the usual un-highlight
   (`shape.color = "white"`) no longer raises `DestroyedError` out of

@@ -155,6 +155,15 @@ def _split_text_lines(text: str) -> list[str]:
     return text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
 
 
+def _read_by_a_link(point) -> bool:
+    """A link reads this point: a whole-point link (``_link_source``) or a
+    link on one of its fields (``q["x"] @= t.top_left["x"]``: a field
+    anchor). Then a raw float write would leave the link stale: the writer
+    notifies (D25; review 2026-10-09 S6-5)."""
+    d = point.__dict__
+    return bool(d.get('_link_source') or d.get('_field_anchors'))
+
+
 class _TextPartSlot(ContainerSlot):
     """``Text.center`` / ``top_left`` / ``top_center`` / ``top_right``.
 
@@ -759,7 +768,7 @@ class Text(Graphic, PaintState):
                     x, y = values[name]
                     # Raw float write unless a link reads this point; then
                     # notify (D25, hazard #8).
-                    if not part.__dict__.get('_link_source'):
+                    if not _read_by_a_link(part):
                         _takein_xy_float(part, x, y)
                     else:
                         part._takein((x, y))
@@ -1149,7 +1158,7 @@ class Text(Graphic, PaintState):
             return
         anchor = self._anchor_part()
         ax, ay = float(anchor.x), float(anchor.y)
-        if not anchor.__dict__.get('_link_source'):
+        if not _read_by_a_link(anchor):
             with self._batch_update():
                 _takein_xy_float(anchor, ax + dx, ay + dy)
         else:
@@ -1167,7 +1176,7 @@ class Text(Graphic, PaintState):
         cx = _bare_attr(self.center.x)
         cy = _bare_attr(self.center.y)
         center = self.center
-        if not center.__dict__.get('_link_source'):
+        if not _read_by_a_link(center):
             _takein_xy_float(center, cx + ddx, cy + ddy)
         else:
             center._takein((cx + ddx, cy + ddy))         # D25: notify link readers
@@ -1185,7 +1194,7 @@ class Text(Graphic, PaintState):
             self._shift_anchor(nx - cx, ny - cy)
             return self
         center = self.center
-        if not center.__dict__.get('_link_source'):
+        if not _read_by_a_link(center):
             _takein_xy_float(
                 center,
                 x=nx if nx != cx else None,
