@@ -1581,6 +1581,25 @@ class TestTextFrame(TextTestCase):
         self.assertAlmostEqual(next_gap(True), next_gap(False))
 
 
+class TestTimedPoseOfAPinnedCaption(unittest.TestCase):
+    """An anchored caption's turn and scale move its pin. With the pin linked,
+    the instant verb refuses; the timed one accepted and raised from a tick
+    (found when the gate-parity guard linked every Defining part)."""
+
+    def test_a_linked_pin_refuses_a_timed_turn_or_scale_at_the_call(self):
+        from scena import State, Text
+        from scena.state import LinkedAttributeError
+        st = State(name="pin")
+        st.p = (-17.0, -1.0)
+        for verb in (lambda t: t.rotate_by(30, time=0.2), lambda t: t.rotate_to(30, time=0.2),
+                     lambda t: t.scale_by(1.5, time=0.2), lambda t: t.scale_to(2, time=0.2)):
+            t = Text("pin", top_left=(-17, -1))
+            t["top_left"] @= lambda: st.p
+            with self.assertRaises(LinkedAttributeError):
+                verb(t)
+            t.destroy()
+
+
 class TestOnePlacementLink(unittest.TestCase):
     """GX13 (geometry campaign): an anchored caption takes a link on its anchor
     or on its center, not both (they disagreed: the center followed its source

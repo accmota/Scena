@@ -79,7 +79,7 @@ Rules of thumb:
 | `tests/program_oracles.py` | L3 oracles over whole programs: `replay`, `probe_neutral` (probes do not change the world), `dt_split` (dt/2, twice the frames), `reactive_config` (lazy + backstop vs eager + strong), `cull_pixels`, `teardown` (census + zombies). Tier C: `tier_c` re-runs a rewritten program (`TIER_C`: `rename_groups` — every group name suffixed; `reorder_defs` — runs of undecorated defs reversed) and requires the same world (`world_fingerprint` minus `made_at`). |
 | `tests/program_coverage.py` | Which exports the programs reach: a profile hook records calls from a program's own code into `scena` (and the class of `self` / `cls`, since exported constructors are wrapped), mapped onto `scena.__all__`; global objects by name in the source. Guard: `test_program_coverage` (every export reached or in `PROGRAM_EXCLUDED` / a look family; `SLOW`). |
 | `tests/program_ledger.py` | Open divergences (shrink-only), verdicts and cause codes. |
-| `tests/mutation_run.py`, `tests/mutation_ops.py`, `tests/mutant_site/` | Sampled mutation run (value metric): mutate engine lines a suite executes (`SCENA_MUTANT=<module>:<site>` through `sitecustomize`, `SCENA_HYPOTHESIS_DB=0`), compare kill sets of the program suite and the quick tier. Report in `.scena_test_runs/mutation/`. |
+| `tests/mutation_run.py`, `tests/mutation_ops.py`, `tests/mutant_site/` | Sampled mutation run (value metric): mutate engine lines a suite executes (`SCENA_MUTANT=<module>:<site>` through `sitecustomize`, `SCENA_HYPOTHESIS_DB=0`), compare kill sets of the program suite and the quick tier. `--pool-programs` fixes the sampled pool (the lines those programs execute), so two runs with one seed test the same mutants and the gain of added suites can be measured. From zsh, split a list held in a variable (`${=progs}`): an unquoted `$progs` is one argument, and the run stops at the control. Report in `.scena_test_runs/mutation/`. |
 | `tests/source_support.py` | `iter_files(root, *suffixes, recursive=, skip_dirs=)`: sorted real files, skipping OS metadata (`is_junk`: AppleDouble `._*`, `.DS_Store`, `Thumbs.db`, `desktop.ini`), hidden dirs and `__pycache__`. **Every directory scan in `tests/` uses it** (guard: `test_platform_portability.TestSourceScansUseTheHelper`). |
 | `tests/font_support.py` | `system_font_file()`: a monospace `.ttf` every OS installs (explicit candidate paths, no scan), for tests of `font="….ttf"` (WP4) |
 | `tests/media_support.py` | `MEDIA` (`examples/media/`), `SMOKE` (`scripts/smoke/`), `media(*parts)` / `smoke(*parts)`: absolute path of a tracked media file, **asserting** it exists. Tests read real images, sheets, sounds and SVGs only through it, never with a skip-if-missing (MR2) |
@@ -387,6 +387,30 @@ hook now leaves a destroyed shape alone. The sentinel then found the free
 twin of a tangent line with a linked `at_angle` holding the old heading in
 its pose store (the pull moved the heading, not the store); the conversion
 publishes the store when `angle` becomes an input.
+
+**Phase 8 (re-measure, 2026-10-09).** Every known list is empty but one
+harness entry (`SENTINEL` `I-graph`: a test swaps the scena system
+mid-process). Branch arcs reached (`geom_coverage.py --campaign`), phase 0 →
+now: shapes 1610 / 2028 → 1726 / 2146, entity 462 / 658 → 466 / 660, state
+794 / 1222 → 814 / 1242, text 205 / 278 → 209 / 282, track 432 / 598 → 435 /
+596, scenamath 59 / 154 → 63 / 158; box, sprite, hitbox and geom unchanged.
+The harnesses widen combinations (state × path × history), which a branch
+ledger barely sees. Deleted calls (`mutation_run.py --ops call`, seed 1, one
+pool for both runs: `--pool-programs` = the phase-0 geometry suites, 80 of
+1 312 sites in shapes / state / box / entity): the phase-0 suites kill 53,
+with the campaign's modules 55. The quick tier then killed 10 of the 25
+survivors; of the 15 it missed, four were untested refusals (Box's turn gate,
+`Blank.rotate_to(nan)`, `Anchor.draggable = "yes"`, RegularPolygon's timed
+scale with a linked `radius`), now pinned, two are equivalent (a later write
+refuses anyway: Circle's turn gate on `angle`; the cycle check runs twice),
+and nine are bookkeeping, caches, warm-up flags or message text, not
+triaged one by one. The RegularPolygon survivor showed the gate-parity guard
+linked one picked field per kind; it now links every Defining part alone
+(`geom_axes.linkable_parts`), which found that an anchored Text's timed
+turn or scale with a linked pin was accepted and raised from a tick (its
+pin is now in `_parts_written_by_wheel_rotate` and `Text._scale_gate`).
+Two node-count tests were order-dependent under the mutation control (a
+collection mid-test); they collect before counting.
 
 **Phase 1 findings (static sweep and probes; H1 found the first ones while it
 was being built).** Catalogue [GX](#gx--geometry-campaign-2026-10-08). The

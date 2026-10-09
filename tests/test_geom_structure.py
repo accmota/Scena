@@ -234,18 +234,36 @@ class TestTimedVerbsGateLikeInstant(unittest.TestCase):
         "scale_to": (lambda o: o.scale_to(2), lambda o: o.scale_to(2, time=0.2)),
     }
 
+    @staticmethod
+    def _links(kind):
+        """``none``, every Defining part linked alone (a scalar or a point:
+        the gate holds per part; one picked field missed RegularPolygon's
+        ``radius``), a chain and a whole link."""
+        obj = A.build(kind)
+        parts = A.linkable_parts(obj)
+        A._destroy(obj)
+        return (["none"] + [f"{'part' if pt else 'field'} {n}" for n, pt in parts]
+                + ["chain", "whole"])
+
+    @staticmethod
+    def _apply(link, obj, w):
+        if " " in link:
+            kind_of, name = link.split(" ", 1)
+            return A.link_part(obj, name, kind_of == "part")
+        return A.apply_link(link, obj, w)
+
     def _cells(self):
         found = {}
         with fresh_world() as w:
             for kind in sorted(A.K):
                 if kind.startswith("Box"):
                     continue
-                for link in ("none", "field", "part", "chain", "whole"):
+                for link in self._links(kind):
                     for verb, (instant, timed) in self.VERBS.items():
                         G.reset_clock()
                         twin = A.build(kind)
                         w.track(twin)
-                        if A.apply_link(link, twin, w) is None:
+                        if self._apply(link, twin, w) is None:
                             continue
                         try:
                             with warnings.catch_warnings():
@@ -257,7 +275,7 @@ class TestTimedVerbsGateLikeInstant(unittest.TestCase):
                         except Exception:  # noqa: BLE001  (not this guard's business)
                             continue
                         obj = w.track(A.build(kind))
-                        A.apply_link(link, obj, w)
+                        self._apply(link, obj, w)
                         try:
                             with warnings.catch_warnings():
                                 warnings.simplefilter("ignore")

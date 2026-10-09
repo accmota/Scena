@@ -1036,7 +1036,23 @@ class Text(Graphic, PaintState):
     def _parts_written_by_resolve(self):
         return self._parts_written_by_drag()
 
-    # wheel_rotate inherits Shape/Graphic default: (self["angle"],).
+    def _parts_written_by_wheel_rotate(self):
+        # An anchored caption turns about its center and its pin moves with
+        # it: the pin is written too (the timed probe and the claims read this;
+        # a timed turn with a linked pin raised from a tick).
+        anchor = self._anchor_part()
+        return (self["angle"],) if anchor is None else (anchor, self["angle"])
+
+    def _scale_gate(self, about, force: bool, pivot=None) -> None:
+        """The pose zoom's gate, plus the pin an anchored caption moves (the
+        instant verb checks it in ``_pinned_pose_verb``; the timed probe and
+        the claims run this)."""
+        anchor = self._anchor_part()
+        if anchor is not None:
+            if pivot is None:
+                pivot = self._pivot_xy(about)
+            _ensure_writable(anchor, "scale_by", force=force, pivot=pivot)
+        super()._scale_gate(about, force, pivot)
 
     def _ensure_pose_writable(self, operation: str, force: bool, pivot=None) -> None:
         """A linked anchor (or a linked centre) refuses every pose writer that

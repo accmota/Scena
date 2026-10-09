@@ -314,8 +314,10 @@ class TestAnchorRefusesEveryLink(unittest.TestCase):
         st = State(name="anchorlinks")
         st.v = (3.0, 4.0)
         st.s = 2.0
+        import gc
         a = Anchor(1, 2)
         g = get_scena_system().dependency_graph
+        gc.collect()        # the count includes garbage; a collection mid-test would move it
         before = (len(list(g.nodes)), float(a.x), float(a.y), len(list(a._iter_subtree())))
         targets = [(n, pair) for n, pair in M.field_names(a)]
         self.assertTrue(targets)
@@ -324,6 +326,7 @@ class TestAnchorRefusesEveryLink(unittest.TestCase):
                 a[name] @= (lambda: (st.v[0], st.v[1])) if pair else (lambda: st.s + 0.0)
         with self.assertRaises(LinkedAttributeError):
             a @= lambda: (st.v[0], st.v[1])
+        gc.collect()
         after = (len(list(g.nodes)), float(a.x), float(a.y), len(list(a._iter_subtree())))
         self.assertEqual(after, before, "a refused link left something behind")
         a.destroy()

@@ -429,6 +429,39 @@ def _linkable_point(obj) -> Optional[str]:
     return None
 
 
+def linkable_parts(obj) -> List[Tuple[str, bool]]:
+    """Every Defining scalar (False) and point (True) a link can drive."""
+    from scena.state import ContainerSlot, ScalarSlot
+    slots = obj._field_slots() if hasattr(obj, "_field_slots") else {}
+    defining = _defining(obj)
+    out = []
+    for name, slot in sorted(slots.items()):
+        if name not in defining:
+            continue
+        if isinstance(slot, ScalarSlot):
+            out.append((name, False))
+        elif isinstance(slot, ContainerSlot) and slot.container_class.__name__ == "Point":
+            out.append((name, True))
+    return out
+
+
+def link_part(obj, name: str, is_point: bool) -> Optional[LinkCtx]:
+    """Link one named Defining part to a fresh bag (the per-part field / part links)."""
+    if G.is_relational(obj) or type(obj).__name__ == "Anchor":
+        return None
+    st = new_bag()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        if is_point:
+            pt = getattr(obj, name)
+            st.x, st.y = float(pt.x), float(pt.y)
+            obj[name] @= lambda: (st.x, st.y)
+        else:
+            st.v = float(getattr(obj, name))
+            obj[name] @= lambda: st.v
+    return LinkCtx("part" if is_point else "field", cell=st, field=name)
+
+
 def _l_none(obj, w):
     return LinkCtx("none")
 

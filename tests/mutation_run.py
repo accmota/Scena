@@ -125,6 +125,10 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--modules", nargs="+", required=True)
     ap.add_argument("--programs", nargs="+", required=True)
+    ap.add_argument("--pool-programs", nargs="+", default=None,
+                    help="programs whose executed lines define the sampled pool "
+                         "(default: --programs). Two runs with one pool and one seed "
+                         "test the same mutants, so adding suites can be measured")
     ap.add_argument("--n", type=int, default=30)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("-j", "--jobs", type=int, default=max(1, (os.cpu_count() or 2) - 2))
@@ -136,7 +140,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     t0 = time.time()
-    lines = collect_lines(args.modules, args.programs)
+    lines = collect_lines(args.modules, args.pool_programs or args.programs)
     pool = []
     for m in args.modules:
         with open(module_path(m), encoding="utf-8") as fh:

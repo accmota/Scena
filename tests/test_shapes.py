@@ -3964,6 +3964,24 @@ class TestARelationThatGoesLeavesTheFreeTwin(unittest.TestCase):
         self._free_and_unlinked(e, "Ellipse from_rect", "force")
 
 
+class TestPhase8MutationSurvivors(unittest.TestCase):
+    """Calls whose deletion passed every quick-tier module (geometry campaign,
+    phase 8): each refusal is pinned here."""
+
+    def test_blank_rotate_to_refuses_a_non_finite_angle(self):
+        from scena.shapes import Blank
+        for bad in (float("nan"), float("inf")):
+            with self.assertRaises(ValueError):
+                Blank().rotate_to(bad)
+
+    def test_anchor_draggable_takes_a_bool(self):
+        a = Anchor(1, 2)
+        for junk in ("yes", None, 2.5):
+            with self.assertRaises(TypeError):
+                a.draggable = junk
+        a.destroy()
+
+
 class TestCopyDoorsRefuseWhatClonesRefuse(unittest.TestCase):
     """Geometry campaign, wave 1: ``<<`` refuses what ``clone()`` refuses."""
 

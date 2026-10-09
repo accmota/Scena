@@ -901,5 +901,23 @@ class TestBoxGeometryHelpers(BoxTestCase):
         self.assertAlmostEqual(p[1], 300.0, places=4)
 
 
+class TestBoxVerbsGateTheirParts(unittest.TestCase):
+    """Phase-8 mutation survivor (geometry campaign): deleting Box.rotate_by's
+    gate on ``p1`` passed every suite. A linked corner refuses the turn, and
+    the refusal changes nothing."""
+
+    def test_a_linked_corner_refuses_a_turn(self):
+        from scena import Box, State
+        from scena.state import LinkedAttributeError
+        st = State(name="boxgate")
+        st.x = 0.0
+        b = Box(p1=(0, 0), p2=(10, 4))
+        b["p1"] @= lambda: (st.x, 0.0)
+        before = (float(b.p2.x), float(b.p2.y))
+        with self.assertRaises(LinkedAttributeError):
+            b.rotate_by(10)
+        self.assertEqual((float(b.p2.x), float(b.p2.y)), before)
+
+
 if __name__ == "__main__":
     unittest.main()

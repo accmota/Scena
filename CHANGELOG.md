@@ -151,6 +151,9 @@ left out.
   already was; the motion's next frame raised instead.
 - A sheet-anchored Sprite's `move_to(…, time=)` starts where the sprite is;
   it jumped first.
+- An anchored Text (`top_left=` / `top_right=`) whose anchor is linked
+  refuses `rotate_by` / `scale_by` with `time=` at the call, as it does
+  without `time=`; it accepted and raised from the next frame.
 - A Line placed by `center=` with a linked center keeps taking `scale_by` /
   `rotate_by` about it; after one scale every later one was refused.
 - A tangent Line from a point refuses `move_by(0, 0)` like any other move.
