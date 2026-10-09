@@ -1,0 +1,106 @@
+{
+"program": {
+"seed": 178208277,
+"subjects": [
+{
+"kind": "EquilateralTriangle center_side",
+"base": "collidable",
+"link": "source"
+}
+],
+"ops": [
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"read",
+0,
+"sorted"
+],
+[
+"read",
+0,
+"reversed"
+],
+[
+"call",
+0,
+"move_by",
+[
+12.99,
+-28.95
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+0,
+"move_by",
+[
+16.12,
+25.93
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+1.5
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+0.8
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+289.91
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 378424696,
+"rewrites": [
+"timed_to_instant",
+"split_rotate"
+]
+}

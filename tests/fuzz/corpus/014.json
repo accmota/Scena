@@ -1,0 +1,53 @@
+{
+"program": {
+"seed": 662459676,
+"subjects": [
+{
+"kind": "Text top_right",
+"base": "fresh",
+"link": "none"
+},
+{
+"kind": "Circle center_perimeter",
+"base": "rotated",
+"link": "whole"
+}
+],
+"ops": [
+[
+"read",
+1,
+"reversed"
+],
+[
+"call",
+1,
+"move_by",
+[
+3.05,
+16.88
+],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"unlink",
+0
+]
+]
+},
+"rewrite_seed": 388106949,
+"rewrites": [
+"identity_scale",
+"split_scale",
+"x_twin:caches_dropped"
+]
+}

@@ -1,0 +1,132 @@
+{
+"program": {
+"seed": 525187911,
+"subjects": [
+{
+"kind": "Square center_length",
+"base": "collidable",
+"link": "whole"
+},
+{
+"kind": "Line perpendicular_point",
+"base": "flip_x",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+0,
+"move_to",
+[
+-17.71,
+6.28
+],
+{}
+],
+[
+"call",
+1,
+"rotate_to",
+[
+-72.96
+],
+{}
+],
+[
+"call",
+1,
+"rotate_by",
+[
+-9.16
+],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-320.52
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"unlink",
+0
+],
+[
+"call",
+0,
+"move_by",
+[
+-19.74,
+-0.51
+],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+-74.64,
+-19.39
+],
+{}
+],
+[
+"call",
+1,
+"move_by",
+[
+0.91,
+21.65
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+0,
+"rotate_to",
+[
+-329.55
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+-26.21,
+4.51
+],
+{
+"time": 0.2
+}
+]
+]
+},
+"rewrite_seed": 1050751543,
+"rewrites": [
+"split_move",
+"identity_move",
+"move_to_as_move_by",
+"x_twin:caches_dropped"
+]
+}

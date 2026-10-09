@@ -90,6 +90,7 @@ Rules of thumb:
 | `tests/geom_coverage.py` | Branch-coverage ledger (H9): runs suites under `coverage.py` (`branch=True`) over the geometry engine modules, one process per module; writes `.scena_test_runs/coverage/<tag>.json`, reports LOST arcs against the previous ledger and, with `--report`, the unreached branch arcs per function. Measurement only, never in a tier. |
 | `tests/geom_sentinel.py` | H2 **sentinel**: runtime invariants checked test-side after every outermost engine entry point (pose verbs, flip / angle / scale setters, slot `__set__`, public `__setattr__`, `_takein`, `@=`, `unlink`, `clone`, `<<`, `absorb`, `collision.snapshot_shape`): I-fast, I-bare, I-graph, I-clean, I-heading, I-names, I-epoch, I-atomic. Hooks are `sys.monitoring` events on the code objects, so no frame is added (author sites and `stacklevel` warnings stay right) and nothing is replaced; reads are raw `__dict__` (no pull, no warm Derivate, no Entity built). `SCENA_SENTINEL=log` / `1`; `tests/sentinel_site/sitecustomize.py` installs it right after `import scena`; `run_tiers.py <tier> --sentinel` runs a tier under it and prints `report()`. Self-test: `test_geom_sentinel` (four canaries). |
 | `tests/geom_laws.py` | H3 law table (`LAWS`): two programs on twin subjects that must read alike (algebra, timed = instant, spellings); `run_law`, `observe`, `differ` (Q6: points exactly, `angle` modulo 360 unless the law is about turns, flags only where the law says). Used by `test_geom_laws`; the fuzzer's rewrites reuse it. |
+| `tests/fuzz/` | H10 **metamorphic fuzzer**: `geom_gen.py` (seeded JSON programs over the whole K pool, parameterized verbs, reads, clones, unlinks; `run` returns a trace and checks every call against its own affine shadow), `geom_rewrite.py` (stacked semantics-preserving rewrites from the law table, kept as one group per original op so traces stay aligned), `geom_fuzz.py` (triple oracle P vs P′ / shadow / sentinel; multi-process volume runner with `sys.monitoring` branch-coverage guidance; signatures with tags that map a divergence to a known finding; `--canary`; `--build-corpus`), `reduce.py` (ddmin to a `unittest` repro in `found/`), `corpus/` (a greedy coverage set replayed in `gate` by `test_fuzz_corpus`). |
 
 Scena keeps **one** `ScenaFramework` per process. Every example and every system test
 must undo what it did; an example that leaks state makes Hypothesis report *Flaky*
@@ -231,6 +232,7 @@ random cells in `deep`. Reach counters assert every axis value ran.
 | H4 influence | each Defining input and pose quantity changed on a cold twin and on a warm one (every cache filled): the warm reads equal the cold ones; the collision key changes whenever the prims do; every Defining input moves something | `test_geom_influence` |
 | H5 twins | one random step program, six executions (normal, forced slow, caches dropped, in a batch, in a frame, eager graph): the same fingerprint after every step | `test_geom_twins` |
 | H8 values | the geometric edges (0, −0.0, ±180, 360k, 1e6, `MIN_SCALE`) and `test_value_validation`'s junk pools on every path (`=`, a link, a batch, `part << xy`): every path refuses alike (an author error that changes nothing) or stores alike; a link whose source turns bad refuses at the read, keeps the raw state, and follows again; a refusal inside a batch or a scheduled callback changes nothing | `test_geom_values` |
+| H10 fuzzer | stacked laws at volume: a program P and P′ (P rewritten by laws) must read alike after every original operation, P must match its shadow, and the sentinel must hold through both | `tests/fuzz/`, `test_fuzz_corpus` |
 | H6 families | Sprite, Svg and Text (centred and anchored) are reactive-matrix subjects; an Anchor refuses every inbound link and keeps nothing; Sprite / Text / Track constructor keywords link; sheet-anchored sprites join K; a sprite's art (rendered) and prims stay inside `.box`; hitbox parts follow their host's composed map; a new string keeps a caption's anchor and its links; a `reversed()` view reads its host backwards after every verb | `test_geom_families`, `test_reactive_matrix`, `test_ctor_links` |
 
 **Contract decisions the oracles encode** (written into the owning docs first):
@@ -284,6 +286,29 @@ whichever source moves, so the plain-write twin re-applies a linked derived
 heading after any other write (`_reassert_heading`). Sprites with a sheet
 anchor hold the shadow, the laws and the influence matrix; the rendered art
 stays inside `.box`; hitbox parts follow their host.
+
+**Phase 6 (value edges, then the fuzzer).** H8 found GX14 and GX15. The
+fuzzer runs about 55 programs a second on 8 workers (13 000 in four
+minutes); each canary is found within 1–6 programs (a rotation-only flip,
+a scale that forgets its pivot, a 0.1 % fast-path translate error, headings
+that lose their turns). It found GX16 and GX17 and re-found GX2, GX3, GX4,
+GX5 and Q3b under other signatures (its tags map them back). Lessons from
+building it, each an oracle that was wrong first:
+
+- The sentinel's I-clean recompute changed the stores it checked, so a run
+  under the sentinel diverged from one without it: a check that runs engine
+  code must put back every value it wrote (coordinates, slot scalars, pose
+  stores) and nothing else (restoring flags tripped I-fast).
+- A cold twin (observed only through cold readers) is the only way to keep
+  the pose fast path under a fuzzer: a shadow or a public read puts the
+  subject on the slow path for good, and the fast-path canary went unseen.
+  Cold reads compare only free subjects (a linked one holds values its next
+  pull refreshes) and read a `reversed()` view through its host.
+- Twin pools must fall back alike when a base state or a link does not
+  apply, or the two sides build different subjects.
+- A rewrite that mutates the program before it is accepted leaks into P′
+  (two reorders, one excused row); an OBB is the same box turned by π; a
+  refused factor cannot be split into one that runs.
 
 **Phase 1 findings (static sweep and probes; H1 found the first ones while it
 was being built).** Catalogue [GX](#gx--geometry-campaign-2026-10-08). The
@@ -1366,7 +1391,7 @@ gaps that **both** authors reported on their own.
 | Geometry campaign Q2 | A finished timed `rotate_to(30)` from 400 reads 390 (shape and camera; contract: 30) | Campaign phase 7 (`CHANGELOG.md` under Fixed) |
 | Geometry campaign Q3b | `unlink_all()`, unlinking a part, or a destroyed reference keeps a relational model (PARALLEL_DIST `move_by` does nothing, TANGENT verbs orbit); `force=True` leaves a hybrid (CENTER_WH Ellipse whose `center` follows the Rect) | Campaign phase 7 (`_drop_relational` on every way a relation goes) |
 | Geometry campaign Q5 | `st.f = my_def` stores the function (only `<lambda>` is refused) | Campaign phase 7 (`CHANGELOG.md` under Breaking) |
-| Geometry campaign GX1–GX15 | Found by the campaign's harnesses ([GX](#gx--geometry-campaign-2026-10-08)) | Campaign phase 7 |
+| Geometry campaign GX1–GX17 | Found by the campaign's harnesses ([GX](#gx--geometry-campaign-2026-10-08)) | Campaign phase 7 |
 | Geometry campaign GR17-link | A link on a Defining `angle` leaves the pose store `_rotation` at its old value (the pull stores raw); no wrong drawing found | Campaign phase 7 (the pull publishes the store) |
 | GR (2026-10-08) | Box and Rect keep near-copies of `_takein_impl` / `rotate_by` (they drifted once, SC1) | Decided 2026-10-08: no refactor now (no bug; the geometry contract sweep builds every Box model beside Rect). The next change to either method merges them into `_RectFrame` first ([Shapes Design](Shapes%20Design.md)) |
 
@@ -1461,6 +1486,8 @@ until their fix wave (phase 7).
 | GX12 | `dst << dead` copies a destroyed shape (every kind), while `dead.clone()` refuses with `DestroyedError` | `_takein` checks the destination, not the source | refusal tests use dead destinations | sentinel triage; probe in phase 7 |
 | GX14 | A link pull accepts a `bool` (`True` reads as 1.0) that `=` refuses, leaks Python's `OverflowError` for `10**400`, and names the field "magnitude" in its message | the pull's coercion (`ScalarAnchor._takein_impl`) skips the slot's exact-type checks | `TestOneCoercionForEveryPath` checks NaN / limits, not a bool or a huge int through a pull | `test_geom_values` (every field × value × path) |
 | GX15 | A shape's `vec` part (Rect / Line point-vec) stores `(0, inf)` on every path; every later read of `p2` / `width` raises; `10**400` leaks `OverflowError`; a Line moves its center before refusing | the Vec2 part's takein reads its pair past the point reader (`_xy_of`), so the Numbers rule does not run (D24 class) | the value sweeps reached point slots, not the `vec` part | `test_geom_values` (ci: every kind) |
+| GX16 | After one allowed `scale_by` about a linked center, a CENTER_LENGTH_ANGLE Line's end midpoint drifts 8.9e-16 from the linked center and every later `scale_by` is refused | the gate compares the pivot to the linked part exactly, and `_center_xy()` recomputes the center from the ends instead of reading the Defining center | one verb per test; nothing ran two | H10 (`identity_scale` rewrite) |
+| GX17 | A timed `rotate_by` / `rotate_to` on a Circle whose center is linked is refused while the instant turn about that center runs | the timed door gates the center the instant door knows is the pivot (GX4 reversed) | gate tests asked "instant refuses ⇒ timed refuses" only | H10 (`timed_to_instant`), `TestTimedVerbsGateLikeInstant` (both directions) |
 | GX13 | An anchored Text (`top_left=` / `top_right=`) accepts a link on its anchor and another on `center`; the two then disagree (the center follows its source, the anchor stays), and in the other order the center link does not hold its formula. Rect refuses the analogue (`center` is a Derivate there) | the caption's center is an input on every placement | Text was not a reactive-matrix subject | `test_hyp_reactive_matrix` (H6 subjects), probe GX13 |
 
 

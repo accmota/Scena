@@ -61,6 +61,8 @@ GATE_PARITY = {
     "Line tangent_point | none | move_by(time=) | *": "GX4: timed move_by skips the tangent gate; phase 7",
     "Line center_length | * | rotate_??(time=) | raised from a tick":
         "GX4: a timed turn of a Line whose center is linked writes the center in its tick; phase 7",
+    "Circle * | * | rotate_??(time=) | refused (instant runs)":
+        "GX17: a timed turn of a Circle whose center is linked is refused; the instant turn runs; phase 7",
 }
 
 # Structural guards (test_geom_structure): site -> finding.
@@ -119,4 +121,22 @@ BAD_SOURCE = {
     "bad source | * <- True: accepted": "GX14; phase 7",
     "bad source | * <- 1000000000000000000000*: accepted": "GX14 (a huge int through a pull); phase 7",
     "bad source | * <- 1000000000000000000000*: OverflowError is not an author error": "GX14; phase 7",
+}
+
+# Fuzzer (tests/fuzz/geom_fuzz.py): fnmatch patterns over its signatures
+# ("oracle | kind | observable | rewrites | tags: …").
+FUZZ = {
+    "P vs P' | Circle * | * | *timed_to_instant* | tags: *part link*":
+        "GX17: a timed turn of a Circle with a linked center is refused; phase 7",
+    "* | tags: *zero scale*":
+        "GX5: at or below MIN_SCALE a pose-zoom kind moves its center by the clamped factor "
+        "and sizes its box by the exact one; phase 7",
+    "P vs P' | Line center_length | * | tags: *part link*":
+        "GX16: after one scale about a linked center, the center drifts 1 ulp and the next "
+        "scale_by is refused; phase 7",
+    "* | tags: *zero-length line*":
+        "GX2 / GX3: a zero-length Line's heading under flips depends on history; phase 7",
+    "* | tags: *relational unlinked*":
+        "Q3b: unlink_all() keeps the relational model, so later verbs still follow the old "
+        "relation (or caches); phase 7",
 }

@@ -1,0 +1,74 @@
+{
+"program": {
+"seed": 516819858,
+"subjects": [
+{
+"kind": "Track line point_point reversed",
+"base": "scaled",
+"link": "field"
+},
+{
+"kind": "Ellipse center_wh",
+"base": "drawn",
+"link": "part"
+},
+{
+"kind": "Sprite sheet pair",
+"base": "flip_xy",
+"link": "field"
+}
+],
+"ops": [
+[
+"read",
+1,
+"sorted"
+],
+[
+"unlink",
+0
+],
+[
+"call",
+0,
+"scale_to",
+[
+1.5
+],
+{}
+],
+[
+"unlink",
+2
+],
+[
+"clone",
+1
+],
+[
+"read",
+2,
+"reversed"
+],
+[
+"call",
+1,
+"rotate_to",
+[
+-40.58
+],
+{}
+],
+[
+"read",
+1,
+"reversed"
+]
+]
+},
+"rewrite_seed": 194804716,
+"rewrites": [
+"identity_scale",
+"x_twin:cold"
+]
+}

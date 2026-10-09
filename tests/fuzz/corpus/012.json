@@ -1,0 +1,83 @@
+{
+"program": {
+"seed": 618341636,
+"subjects": [
+{
+"kind": "RegularPolygon center_radius noangle",
+"base": "flip_xy",
+"link": "whole"
+},
+{
+"kind": "RegularPolygon vertex_side",
+"base": "fresh",
+"link": "none"
+},
+{
+"kind": "Svg",
+"base": "flip_x",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+0,
+"scale_by",
+[
+1.5
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+82.89
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+0,
+"scale_to",
+[
+1.5
+],
+{}
+],
+[
+"call",
+2,
+"move_to",
+[
+63.44,
+-57.92
+],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 157197671,
+"rewrites": [
+"move_to_as_move_by",
+"split_rotate"
+]
+}

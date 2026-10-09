@@ -1,0 +1,72 @@
+{
+"program": {
+"seed": 735804863,
+"subjects": [
+{
+"kind": "Track line length",
+"base": "flip_x",
+"link": "whole"
+},
+{
+"kind": "Ellipse focal_points",
+"base": "collidable",
+"link": "none"
+}
+],
+"ops": [
+[
+"clone",
+1
+],
+[
+"call",
+1,
+"scale_by",
+[
+0.5
+],
+{}
+],
+[
+"call",
+1,
+"angle=",
+[
+-130.01
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+0.8
+],
+{}
+],
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+1,
+"move_by",
+[
+15.98,
+-0.17
+],
+{}
+]
+]
+},
+"rewrite_seed": 568561101,
+"rewrites": [
+"extra_reads",
+"x_twin:caches_dropped"
+]
+}

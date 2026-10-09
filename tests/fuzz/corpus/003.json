@@ -1,0 +1,118 @@
+{
+"program": {
+"seed": 155555737,
+"subjects": [
+{
+"kind": "RegularPolygon center_side",
+"base": "drawn",
+"link": "none"
+},
+{
+"kind": "Circle center_radius",
+"base": "flip_xy",
+"link": "source"
+}
+],
+"ops": [
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"unlink",
+1
+],
+[
+"call",
+0,
+"move_by",
+[
+-11.65,
+15.74
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+2.42,
+19.36
+],
+{}
+],
+[
+"clone",
+0
+],
+[
+"clone",
+1
+],
+[
+"call",
+1,
+"move_by",
+[
+-17.46,
+5.13
+],
+{}
+],
+[
+"call",
+1,
+"rotate_to",
+[
+-454.46
+],
+{}
+],
+[
+"call",
+1,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+0,
+"rotate_to",
+[
+390.02
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+14.86,
+-68.91
+],
+{}
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 202142728,
+"rewrites": [
+"split_move",
+"identity_flip",
+"x_twin:cold"
+]
+}

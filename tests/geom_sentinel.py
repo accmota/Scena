@@ -335,8 +335,29 @@ def _close(a, b) -> bool:
     return a == b
 
 
+_STORES = ("x", "y", "_rotation", "_scale")
+
+
+def _raw_dicts(nodes) -> list:
+    """The values a recompute writes — coordinates, slot scalars and pose
+    stores — to put back after the check. Flags and caches stay as they are."""
+    keep = []
+    for n in nodes:
+        d = _d(n)
+        try:
+            slots = set(n._field_slots())
+        except Exception:  # noqa: BLE001
+            slots = set()
+        keep.append((d, {k: d[k] for k in d
+                         if (k in _STORES or k in slots) and isinstance(d[k], (int, float))
+                         and not isinstance(d[k], bool)}))
+    return keep
+
+
 def check_clean(root, call) -> None:
-    """A clean tree's live Derivates are what its Defining values give."""
+    """A clean tree's live Derivates and pose stores are what its Defining
+    values give. The recompute runs inside a batch (nobody is notified) and
+    every value it wrote is put back, so the check changes nothing."""
     upd = getattr(type(root), "_update_impl", None)
     if upd is None or getattr(root, "_scena_is_entity", False) is False:
         return
@@ -352,8 +373,8 @@ def check_clean(root, call) -> None:
     if any(_d(n).get("_link") is not None for n in nodes):
         return              # a linked input is pulled on read, not recomputed here
     before = _derivate_values(root)
-    if not before:
-        return
+    saved = _raw_dicts(nodes)
+    store0 = _d(root).get("_rotation")
     prev: dict = {}
     root._push_batch_update_subtree(prev)       # recompute without notifying anyone
     try:
@@ -362,11 +383,17 @@ def check_clean(root, call) -> None:
         return
     finally:
         root._restore_batch_update_subtree(prev)
-    after = {(n, k): v for n, k, v in _derivate_values(root)}
+        after_vals = _derivate_values(root)
+        store1 = _d(root).get("_rotation")
+        for d, vals in saved:                   # put back every value the recompute wrote
+            d.update(vals)
+    after = {(n, k): v for n, k, v in after_vals}
     diff = [((n, k), v, after[(n, k)]) for n, k, v in before
             if (n, k) in after and not _close(v, after[(n, k)])]
     if diff:
         _report("I-clean", root, call, f"clean Derivate differs from a recompute: {diff[:3]}")
+    if isinstance(store0, float) and isinstance(store1, float) and not _close(store0, store1):
+        _report("I-clean", root, call, f"pose store {store0} differs from a recompute ({store1})")
 
 
 def check_heading(root, call) -> None:

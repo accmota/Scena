@@ -106,6 +106,14 @@ Geometry campaign (design/Testing Design.md, "Geometry campaign")
                           follow the host, captions keep their anchor, a
                           reversed() track reads its host backwards.
 
+  test_fuzz_corpus.py     H10: the fuzzer's regression corpus and repros
+                          replay clean; determinism; every rewrite used;
+                          canaries found within budget (gate only: SLOW).
+
+  python tests/fuzz/geom_fuzz.py --minutes 30 --workers 8 --seed S   volume
+  python tests/fuzz/geom_fuzz.py --programs 40 --canary flip         calibrate
+  python tests/fuzz/reduce.py --all          shrink failures to repros (found/)
+  python tests/fuzz/geom_fuzz.py --build-corpus 2500   rebuild tests/fuzz/corpus/
   python tests/run_tiers.py quick --sentinel   the whole tier under the sentinel
   python tests/geom_sentinel.py                aggregate the last sentinel logs
 

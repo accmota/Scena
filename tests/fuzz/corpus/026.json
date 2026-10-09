@@ -1,0 +1,101 @@
+{
+"program": {
+"seed": 221310449,
+"subjects": [
+{
+"kind": "RegularPolygon center_side noangle",
+"base": "flip_xy",
+"link": "none"
+},
+{
+"kind": "Rect center_wh",
+"base": "scaled",
+"link": "whole"
+}
+],
+"ops": [
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+-20.34,
+13.93
+],
+{}
+],
+[
+"call",
+1,
+"move_by",
+[
+-5.37,
+-15.2
+],
+{
+"time": 0.2
+}
+],
+[
+"unlink",
+1
+],
+[
+"call",
+0,
+"angle=",
+[
+-305.54
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+0.5
+],
+{}
+],
+[
+"unlink",
+0
+],
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"read",
+0,
+"sorted"
+],
+[
+"call",
+0,
+"scale_by",
+[
+2.0
+],
+{
+"time": 0.2
+}
+]
+]
+},
+"rewrite_seed": 403449954,
+"rewrites": [
+"identity_move"
+]
+}

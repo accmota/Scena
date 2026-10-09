@@ -1,0 +1,113 @@
+{
+"program": {
+"seed": 58073302,
+"subjects": [
+{
+"kind": "Text center",
+"base": "drawn",
+"link": "none"
+},
+{
+"kind": "Circle two_points",
+"base": "flip_xy",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+1,
+"rotate_by",
+[
+389.13
+],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+239.31
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+0,
+"scale_by",
+[
+0.5
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+1,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"call",
+1,
+"angle=",
+[
+-246.21
+],
+{}
+],
+[
+"call",
+1,
+"rotate_to",
+[
+-5.97
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+185.55
+],
+{}
+],
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 640142723,
+"rewrites": [
+"identity_move",
+"timed_to_instant",
+"identity_flip",
+"x_twin:forced_slow"
+]
+}

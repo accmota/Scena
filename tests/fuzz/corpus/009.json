@@ -1,0 +1,93 @@
+{
+"program": {
+"seed": 265862673,
+"subjects": [
+{
+"kind": "Sprite sheet pair",
+"base": "flip_x",
+"link": "none"
+},
+{
+"kind": "Rect point_vec noangle",
+"base": "copied",
+"link": "source"
+},
+{
+"kind": "Ellipse from_rect",
+"base": "collidable",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+1,
+"move_by",
+[
+13.6,
+-12.13
+],
+{}
+],
+[
+"call",
+1,
+"rotate_to",
+[
+-181.16
+],
+{}
+],
+[
+"call",
+1,
+"rotate_by",
+[
+367.2
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+345.16
+],
+{}
+],
+[
+"call",
+0,
+"rotate_to",
+[
+218.51
+],
+{}
+],
+[
+"unlink",
+1
+],
+[
+"call",
+1,
+"rotate_to",
+[
+59.32
+],
+{}
+]
+]
+},
+"rewrite_seed": 479402028,
+"rewrites": [
+"wrap_batch",
+"extra_reads"
+]
+}

@@ -1,0 +1,53 @@
+{
+"program": {
+"seed": 357268877,
+"subjects": [
+{
+"kind": "Sprite sheet left",
+"base": "cloned",
+"link": "source"
+},
+{
+"kind": "Sprite",
+"base": "degenerate",
+"link": "whole"
+}
+],
+"ops": [
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+1,
+"rotate_by",
+[
+-106.54
+],
+{
+"time": 0.2
+}
+],
+[
+"read",
+1,
+"reversed"
+],
+[
+"read",
+0,
+"reversed"
+]
+]
+},
+"rewrite_seed": 964622593,
+"rewrites": [
+"wrap_batch",
+"identity_flip",
+"x_twin:cold"
+]
+}

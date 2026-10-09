@@ -1,0 +1,61 @@
+{
+"program": {
+"seed": 347494470,
+"subjects": [
+{
+"kind": "Rect spine square",
+"base": "flip_xy",
+"link": "whole"
+},
+{
+"kind": "Circle center_radius",
+"base": "flip_xy",
+"link": "none"
+},
+{
+"kind": "Line point_point",
+"base": "drawn",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+1,
+"move_by",
+[
+28.64,
+-14.25
+],
+{}
+],
+[
+"unlink",
+2
+],
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+2,
+"rotate_by",
+[
+-231.88
+],
+{}
+]
+]
+},
+"rewrite_seed": 368906120,
+"rewrites": [
+"timed_to_instant",
+"identity_move",
+"split_rotate",
+"x_twin:cold"
+]
+}

@@ -1,0 +1,91 @@
+{
+"program": {
+"seed": 468597629,
+"subjects": [
+{
+"kind": "Rect center_wh noangle",
+"base": "cloned",
+"link": "whole"
+},
+{
+"kind": "Text center",
+"base": "copied",
+"link": "whole"
+}
+],
+"ops": [
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"clone",
+1
+],
+[
+"call",
+0,
+"rotate_by",
+[
+364.32
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+-71.09,
+-68.62
+],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"unlink",
+1
+],
+[
+"call",
+0,
+"scale_to",
+[
+3.0
+],
+{}
+],
+[
+"call",
+1,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+352.19
+],
+{}
+]
+]
+},
+"rewrite_seed": 617255372,
+"rewrites": [
+"identity_flip"
+]
+}

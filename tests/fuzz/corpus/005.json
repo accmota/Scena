@@ -1,0 +1,53 @@
+{
+"program": {
+"seed": 461060838,
+"subjects": [
+{
+"kind": "Text center",
+"base": "rotated",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+0,
+"rotate_to",
+[
+-344.85
+],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-10.14
+],
+{}
+]
+]
+},
+"rewrite_seed": 80521324,
+"rewrites": [
+"identity_move",
+"identity_flip",
+"timed_to_instant",
+"x_twin:caches_dropped"
+]
+}

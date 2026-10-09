@@ -1,0 +1,108 @@
+{
+"program": {
+"seed": 1031640628,
+"subjects": [
+{
+"kind": "Rect corner_corner reversed",
+"base": "flip_xy",
+"link": "source"
+},
+{
+"kind": "Text top_right",
+"base": "scaled",
+"link": "source"
+}
+],
+"ops": [
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"read",
+1,
+"reversed"
+],
+[
+"call",
+0,
+"move_to",
+[
+-53.16,
+52.08
+],
+{}
+],
+[
+"call",
+1,
+"rotate_to",
+[
+457.9
+],
+{}
+],
+[
+"call",
+1,
+"move_by",
+[
+28.97,
+-19.52
+],
+{}
+],
+[
+"call",
+1,
+"angle=",
+[
+-14.99
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+10.01,
+-0.86
+],
+{}
+],
+[
+"clone",
+0
+],
+[
+"call",
+1,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"call",
+1,
+"angle=",
+[
+300.52
+],
+{}
+]
+]
+},
+"rewrite_seed": 1039027013,
+"rewrites": [
+"timed_to_instant",
+"rotate_to_as_rotate_by",
+"move_to_as_move_by",
+"x_twin:forced_slow"
+]
+}

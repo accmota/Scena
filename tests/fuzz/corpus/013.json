@@ -1,0 +1,71 @@
+{
+"program": {
+"seed": 184570285,
+"subjects": [
+{
+"kind": "RegularPolygon center_radius noangle",
+"base": "degenerate",
+"link": "field"
+},
+{
+"kind": "Rect point_vec negative",
+"base": "copied",
+"link": "none"
+},
+{
+"kind": "Rect corner_corner reversed",
+"base": "rotated",
+"link": "none"
+}
+],
+"ops": [
+[
+"unlink",
+0
+],
+[
+"call",
+0,
+"move_by",
+[
+-10.17,
+-11.03
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+10.27,
+-3.88
+],
+{}
+],
+[
+"call",
+1,
+"scale_by",
+[
+1.25
+],
+{}
+],
+[
+"unlink",
+1
+],
+[
+"unlink",
+0
+]
+]
+},
+"rewrite_seed": 931247021,
+"rewrites": [
+"extra_reads",
+"identity_flip",
+"x_twin:caches_dropped"
+]
+}

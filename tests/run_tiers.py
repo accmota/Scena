@@ -62,6 +62,7 @@ SLOW = frozenset({
     "test_sys_hyp_world",  # ~35 s dev: session state machine + reach guard + canaries
     "test_guia_thumbs_render",  # ~30 s: real renders, one child process each
     "test_program_coverage",    # ~100 s: every program spec scenario under a profile hook
+    "test_fuzz_corpus",         # the geometry fuzzer's corpus replay: gate only (Testing Design)
     # Program model tests (gate / deep run them all; quick keeps the light ones).
     "test_prog_naves", "test_prog_cadeia_de_bolas", "test_prog_platformer",
     "test_prog_galaga_acts", "test_prog_runner_story",

@@ -1,0 +1,95 @@
+{
+"program": {
+"seed": 309785426,
+"subjects": [
+{
+"kind": "Ellipse from_rect padding",
+"base": "flip_x",
+"link": "source"
+},
+{
+"kind": "RegularPolygon center_side",
+"base": "degenerate",
+"link": "whole"
+}
+],
+"ops": [
+[
+"clone",
+0
+],
+[
+"call",
+0,
+"scale_by",
+[
+0.8
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"unlink",
+1
+],
+[
+"call",
+0,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+-35.32,
+-37.97
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+3.99,
+-49.88
+],
+{}
+],
+[
+"call",
+0,
+"rotate_to",
+[
+-393.83
+],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+-69.12,
+-10.02
+],
+{}
+]
+]
+},
+"rewrite_seed": 252956896,
+"rewrites": [
+"split_scale",
+"extra_reads",
+"x_twin:forced_slow"
+]
+}

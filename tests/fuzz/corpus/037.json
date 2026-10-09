@@ -1,0 +1,112 @@
+{
+"program": {
+"seed": 533492027,
+"subjects": [
+{
+"kind": "Line center_length",
+"base": "copied",
+"link": "none"
+},
+{
+"kind": "Rect top_left_wh noangle",
+"base": "cloned",
+"link": "field"
+}
+],
+"ops": [
+[
+"read",
+1,
+"reversed"
+],
+[
+"read",
+1,
+"sorted"
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+153.63
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+0.8
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"unlink",
+1
+],
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+1,
+"rotate_to",
+[
+192.55
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+18.19,
+-23.77
+],
+{}
+],
+[
+"read",
+1,
+"reversed"
+]
+]
+},
+"rewrite_seed": 386046157,
+"rewrites": [
+"move_to_as_move_by"
+]
+}

@@ -1,0 +1,112 @@
+{
+"program": {
+"seed": 341140776,
+"subjects": [
+{
+"kind": "Rect point_vec negative",
+"base": "flip_xy",
+"link": "none"
+},
+{
+"kind": "Line parallel_point",
+"base": "collidable",
+"link": "source"
+},
+{
+"kind": "Sprite sheet bottom",
+"base": "degenerate",
+"link": "whole"
+}
+],
+"ops": [
+[
+"clone",
+2
+],
+[
+"unlink",
+2
+],
+[
+"call",
+2,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+442.61
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+-400.01
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+44.98,
+70.06
+],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+1,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"call",
+2,
+"rotate_by",
+[
+-337.77
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+2,
+"rotate_to",
+[
+456.31
+],
+{}
+]
+]
+},
+"rewrite_seed": 365080079,
+"rewrites": [
+"x_twin:caches_dropped"
+]
+}

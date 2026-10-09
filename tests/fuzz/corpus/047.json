@@ -1,0 +1,82 @@
+{
+"program": {
+"seed": 307045058,
+"subjects": [
+{
+"kind": "Line parallel_dist",
+"base": "names_crossed",
+"link": "part"
+},
+{
+"kind": "Point",
+"base": "drawn",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+1,
+"scale_by",
+[
+2.0
+],
+{}
+],
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+243.62
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+0.8
+],
+{}
+],
+[
+"clone",
+0
+],
+[
+"call",
+0,
+"move_by",
+[
+-20.63,
+5.63
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+-66.29,
+9.55
+],
+{}
+]
+]
+},
+"rewrite_seed": 543544936,
+"rewrites": [
+"swap_clone",
+"wrap_batch"
+]
+}

@@ -1,0 +1,109 @@
+{
+"program": {
+"seed": 147667304,
+"subjects": [
+{
+"kind": "Track circle",
+"base": "cloned",
+"link": "source"
+}
+],
+"ops": [
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+47.17,
+4.16
+],
+{}
+],
+[
+"read",
+0,
+"sorted"
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+-331.04
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+481.49
+],
+{}
+],
+[
+"read",
+0,
+"sorted"
+],
+[
+"call",
+0,
+"scale_by",
+[
+0.8
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+0,
+"move_by",
+[
+23.45,
+0.53
+],
+{}
+]
+]
+},
+"rewrite_seed": 200995867,
+"rewrites": [
+"split_move",
+"extra_reads",
+"x_twin:caches_dropped"
+]
+}

@@ -1,0 +1,74 @@
+{
+"program": {
+"seed": 600000293,
+"subjects": [
+{
+"kind": "EquilateralTriangle vertex_side",
+"base": "names_crossed",
+"link": "none"
+},
+{
+"kind": "Line point_dx_dy",
+"base": "collidable",
+"link": "none"
+},
+{
+"kind": "Square center_length",
+"base": "scaled",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+0,
+"move_by",
+[
+5.66,
+16.78
+],
+{}
+],
+[
+"call",
+2,
+"move_by",
+[
+6.36,
+-27.65
+],
+{}
+],
+[
+"call",
+2,
+"move_to",
+[
+-73.68,
+29.27
+],
+{}
+],
+[
+"read",
+0,
+"reversed"
+],
+[
+"call",
+2,
+"move_to",
+[
+-58.31,
+64.17
+],
+{}
+]
+]
+},
+"rewrite_seed": 574808103,
+"rewrites": [
+"wrap_batch",
+"x_twin:cold"
+]
+}

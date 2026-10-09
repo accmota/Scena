@@ -1,0 +1,85 @@
+{
+"program": {
+"seed": 100035544,
+"subjects": [
+{
+"kind": "EquilateralTriangle vertex_side",
+"base": "flip_x",
+"link": "field"
+},
+{
+"kind": "Square center_length",
+"base": "copied",
+"link": "source"
+}
+],
+"ops": [
+[
+"call",
+0,
+"rotate_to",
+[
+285.81
+],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+1.5
+],
+{}
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+0.8
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+]
+]
+},
+"rewrite_seed": 285990742,
+"rewrites": [
+"identity_move",
+"wrap_batch",
+"x_twin:cold"
+]
+}

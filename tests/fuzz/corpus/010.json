@@ -1,0 +1,104 @@
+{
+"program": {
+"seed": 785310972,
+"subjects": [
+{
+"kind": "Anchor",
+"base": "collidable",
+"link": "whole"
+},
+{
+"kind": "Square center_length",
+"base": "drawn",
+"link": "none"
+}
+],
+"ops": [
+[
+"read",
+1,
+"reversed"
+],
+[
+"unlink",
+1
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+-42.95
+],
+{}
+],
+[
+"clone",
+0
+],
+[
+"call",
+0,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"read",
+1,
+"sorted"
+],
+[
+"unlink",
+0
+],
+[
+"call",
+0,
+"move_by",
+[
+4.94,
+20.04
+],
+{}
+],
+[
+"unlink",
+0
+],
+[
+"call",
+0,
+"rotate_by",
+[
+153.94
+],
+{}
+]
+]
+},
+"rewrite_seed": 124551738,
+"rewrites": [
+"identity_flip",
+"identity_move",
+"x_twin:cold"
+]
+}

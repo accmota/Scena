@@ -1,0 +1,72 @@
+{
+"program": {
+"seed": 438888457,
+"subjects": [
+{
+"kind": "Ellipse focal_points",
+"base": "degenerate",
+"link": "whole"
+},
+{
+"kind": "Track eight reversed",
+"base": "collidable",
+"link": "source"
+}
+],
+"ops": [
+[
+"call",
+0,
+"rotate_to",
+[
+-228.89
+],
+{}
+],
+[
+"call",
+0,
+"rotate_to",
+[
+256.19
+],
+{}
+],
+[
+"call",
+1,
+"rotate_by",
+[
+-130.94
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+103.82
+],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-55.75
+],
+{
+"time": 0.2
+}
+]
+]
+},
+"rewrite_seed": 1036490074,
+"rewrites": [
+"identity_move",
+"wrap_batch",
+"x_twin:forced_slow"
+]
+}

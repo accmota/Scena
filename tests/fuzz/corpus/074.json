@@ -1,0 +1,126 @@
+{
+"program": {
+"seed": 448315525,
+"subjects": [
+{
+"kind": "Rect top_left_wh",
+"base": "drawn",
+"link": "whole"
+}
+],
+"ops": [
+[
+"read",
+0,
+"sorted"
+],
+[
+"call",
+0,
+"scale_by",
+[
+2.0
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+0.64,
+-11.26
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+0,
+"scale_to",
+[
+3.0
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+1.72,
+-23.52
+],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-237.39
+],
+{}
+],
+[
+"unlink",
+0
+],
+[
+"call",
+0,
+"rotate_to",
+[
+301.21
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+22.35,
+25.45
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+0,
+"move_to",
+[
+48.49,
+-78.92
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+0.5
+],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 946239000,
+"rewrites": [
+"split_rotate",
+"split_rotate",
+"split_scale",
+"x_twin:cold"
+]
+}

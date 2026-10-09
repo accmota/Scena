@@ -1,0 +1,75 @@
+{
+"program": {
+"seed": 195443665,
+"subjects": [
+{
+"kind": "RegularPolygon center_side",
+"base": "names_crossed",
+"link": "field"
+},
+{
+"kind": "Sprite sheet left",
+"base": "flip_x",
+"link": "none"
+},
+{
+"kind": "Rect spine side_left",
+"base": "names_crossed",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"read",
+1,
+"sorted"
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+2,
+"move_by",
+[
+-3.42,
+29.03
+],
+{}
+],
+[
+"call",
+1,
+"move_by",
+[
+-19.96,
+-27.85
+],
+{}
+]
+]
+},
+"rewrite_seed": 560740612,
+"rewrites": [
+"identity_move",
+"x_twin:cold"
+]
+}

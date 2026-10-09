@@ -1,0 +1,60 @@
+{
+"program": {
+"seed": 1036132968,
+"subjects": [
+{
+"kind": "Circle arc",
+"base": "collidable",
+"link": "none"
+},
+{
+"kind": "RegularPolygon center_side noangle",
+"base": "flip_xy",
+"link": "whole"
+},
+{
+"kind": "EquilateralTriangle vertex_side",
+"base": "collidable",
+"link": "none"
+}
+],
+"ops": [
+[
+"unlink",
+1
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-118.06
+],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+1,
+"angle=",
+[
+-489.33
+],
+{}
+]
+]
+},
+"rewrite_seed": 227868236,
+"rewrites": [
+"extra_reads",
+"x_twin:cold"
+]
+}

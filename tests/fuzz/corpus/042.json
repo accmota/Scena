@@ -1,0 +1,96 @@
+{
+"program": {
+"seed": 780846359,
+"subjects": [
+{
+"kind": "RegularPolygon center_side",
+"base": "degenerate",
+"link": "source"
+},
+{
+"kind": "Line point_dx_dy",
+"base": "flip_xy",
+"link": "none"
+}
+],
+"ops": [
+[
+"clone",
+0
+],
+[
+"call",
+0,
+"move_by",
+[
+14.22,
+-16.45
+],
+{
+"time": 0.2
+}
+],
+[
+"clone",
+0
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+1,
+"move_by",
+[
+8.87,
+-2.95
+],
+{}
+],
+[
+"clone",
+0
+],
+[
+"call",
+1,
+"angle=",
+[
+-210.48
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+1.5
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 54762749,
+"rewrites": [
+"identity_scale",
+"split_scale",
+"x_twin:caches_dropped"
+]
+}

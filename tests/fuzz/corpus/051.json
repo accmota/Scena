@@ -1,0 +1,112 @@
+{
+"program": {
+"seed": 442105776,
+"subjects": [
+{
+"kind": "Line point_angle_length",
+"base": "copied",
+"link": "part"
+},
+{
+"kind": "Line point_dx_dy",
+"base": "scaled",
+"link": "whole"
+},
+{
+"kind": "Sprite sheet pair",
+"base": "flip_x",
+"link": "none"
+}
+],
+"ops": [
+[
+"unlink",
+1
+],
+[
+"unlink",
+1
+],
+[
+"call",
+1,
+"scale_to",
+[
+1.5
+],
+{}
+],
+[
+"call",
+2,
+"angle=",
+[
+382.27
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+116.13
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+20.33,
+-2.86
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+1,
+"rotate_to",
+[
+67.74
+],
+{}
+],
+[
+"call",
+2,
+"angle=",
+[
+-333.77
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+41.28,
+-79.12
+],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+382.84
+],
+{}
+]
+]
+},
+"rewrite_seed": 622686156,
+"rewrites": [
+"identity_move"
+]
+}

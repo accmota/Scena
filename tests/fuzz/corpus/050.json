@@ -1,0 +1,99 @@
+{
+"program": {
+"seed": 684213370,
+"subjects": [
+{
+"kind": "Line tangent_angle",
+"base": "names_crossed",
+"link": "field"
+},
+{
+"kind": "Line tangent_point",
+"base": "degenerate",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+0,
+"rotate_to",
+[
+453.85
+],
+{}
+],
+[
+"call",
+1,
+"move_by",
+[
+10.44,
+28.36
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+11.23,
+26.33
+],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+-27.95,
+-17.06
+],
+{}
+],
+[
+"clone",
+1
+],
+[
+"call",
+0,
+"move_to",
+[
+66.92,
+-21.1
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+2.0
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+]
+]
+},
+"rewrite_seed": 269490963,
+"rewrites": [
+"wrap_batch",
+"split_scale",
+"x_twin:forced_slow"
+]
+}

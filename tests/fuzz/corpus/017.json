@@ -1,0 +1,104 @@
+{
+"program": {
+"seed": 898017869,
+"subjects": [
+{
+"kind": "Ellipse focal_points",
+"base": "degenerate",
+"link": "whole"
+}
+],
+"ops": [
+[
+"call",
+0,
+"move_to",
+[
+27.8,
+-17.59
+],
+{}
+],
+[
+"read",
+0,
+"reversed"
+],
+[
+"call",
+0,
+"rotate_by",
+[
+292.34
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+0.8
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+-195.28
+],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-87.7
+],
+{}
+],
+[
+"read",
+0,
+"reversed"
+],
+[
+"unlink",
+0
+],
+[
+"call",
+0,
+"move_to",
+[
+-79.45,
+-36.47
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+1.5
+],
+{}
+],
+[
+"read",
+0,
+"reversed"
+]
+]
+},
+"rewrite_seed": 150013383,
+"rewrites": [
+"identity_scale",
+"split_rotate",
+"x_twin:forced_slow"
+]
+}

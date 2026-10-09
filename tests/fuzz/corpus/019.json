@@ -1,0 +1,113 @@
+{
+"program": {
+"seed": 132618469,
+"subjects": [
+{
+"kind": "Svg",
+"base": "drawn",
+"link": "none"
+},
+{
+"kind": "Rect spine side_right",
+"base": "collidable",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+0,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+52.09,
+48.25
+],
+{}
+],
+[
+"clone",
+1
+],
+[
+"call",
+1,
+"rotate_to",
+[
+-175.41
+],
+{}
+],
+[
+"read",
+1,
+"sorted"
+],
+[
+"call",
+0,
+"scale_to",
+[
+1.5
+],
+{}
+],
+[
+"call",
+1,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"unlink",
+0
+],
+[
+"call",
+1,
+"scale_by",
+[
+0.8
+],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+-56.21,
+-15.69
+],
+{}
+],
+[
+"clone",
+1
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 700041330,
+"rewrites": [
+"move_to_as_move_by",
+"x_twin:cold"
+]
+}

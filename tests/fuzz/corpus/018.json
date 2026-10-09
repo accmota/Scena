@@ -1,0 +1,99 @@
+{
+"program": {
+"seed": 277756007,
+"subjects": [
+{
+"kind": "Rect corner_corner",
+"base": "fresh",
+"link": "none"
+},
+{
+"kind": "Rect spine side_left",
+"base": "drawn",
+"link": "field"
+},
+{
+"kind": "Track line point_point",
+"base": "copied",
+"link": "field"
+}
+],
+"ops": [
+[
+"clone",
+1
+],
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+1,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+2,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+1,
+"rotate_by",
+[
+247.84
+],
+{
+"time": 0.2
+}
+],
+[
+"clone",
+0
+],
+[
+"call",
+2,
+"rotate_by",
+[
+7.54
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"unlink",
+0
+]
+]
+},
+"rewrite_seed": 531748801,
+"rewrites": [
+"identity_move",
+"timed_to_instant",
+"x_twin:caches_dropped"
+]
+}

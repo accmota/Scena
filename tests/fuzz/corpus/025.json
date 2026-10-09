@@ -1,0 +1,108 @@
+{
+"program": {
+"seed": 155508093,
+"subjects": [
+{
+"kind": "Track line point_point",
+"base": "flip_x",
+"link": "source"
+},
+{
+"kind": "Polygon",
+"base": "collidable",
+"link": "none"
+},
+{
+"kind": "Rect point_vec noangle",
+"base": "fresh",
+"link": "whole"
+}
+],
+"ops": [
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+2,
+"flip_x",
+[],
+{}
+],
+[
+"unlink",
+0
+],
+[
+"call",
+1,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+2.0
+],
+{}
+],
+[
+"call",
+1,
+"angle=",
+[
+288.29
+],
+{}
+],
+[
+"call",
+2,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+-63.66,
+5.63
+],
+{}
+],
+[
+"call",
+1,
+"rotate_by",
+[
+-306.52
+],
+{}
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 577508649,
+"rewrites": [
+"identity_flip",
+"identity_move",
+"x_twin:cold"
+]
+}

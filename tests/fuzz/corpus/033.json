@@ -1,0 +1,79 @@
+{
+"program": {
+"seed": 905590324,
+"subjects": [
+{
+"kind": "Ellipse focal_points",
+"base": "collidable",
+"link": "part"
+},
+{
+"kind": "Anchor",
+"base": "drawn",
+"link": "field"
+},
+{
+"kind": "Line perpendicular_point",
+"base": "fresh",
+"link": "part"
+}
+],
+"ops": [
+[
+"call",
+1,
+"angle=",
+[
+-278.21
+],
+{}
+],
+[
+"call",
+1,
+"angle=",
+[
+388.59
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+-22.76,
+9.18
+],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+18.01,
+69.06
+],
+{}
+],
+[
+"unlink",
+1
+],
+[
+"call",
+2,
+"scale_by",
+[
+0.8
+],
+{}
+]
+]
+},
+"rewrite_seed": 84196939,
+"rewrites": [
+"x_twin:caches_dropped"
+]
+}

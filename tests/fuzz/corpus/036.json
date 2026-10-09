@@ -1,0 +1,115 @@
+{
+"program": {
+"seed": 393728316,
+"subjects": [
+{
+"kind": "Sprite sheet left",
+"base": "rotated",
+"link": "source"
+},
+{
+"kind": "Line center_length",
+"base": "flip_x",
+"link": "none"
+},
+{
+"kind": "Polygon",
+"base": "fresh",
+"link": "whole"
+}
+],
+"ops": [
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"rotate_to",
+[
+-497.51
+],
+{}
+],
+[
+"read",
+1,
+"reversed"
+],
+[
+"call",
+2,
+"angle=",
+[
+-385.48
+],
+{}
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+0.5
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+1,
+"rotate_to",
+[
+114.02
+],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"read",
+0,
+"reversed"
+],
+[
+"call",
+1,
+"move_by",
+[
+-20.74,
+-8.46
+],
+{}
+]
+]
+},
+"rewrite_seed": 913361377,
+"rewrites": [
+"rotate_to_as_rotate_by",
+"x_twin:cold"
+]
+}

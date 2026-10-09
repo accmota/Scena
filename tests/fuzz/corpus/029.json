@@ -1,0 +1,84 @@
+{
+"program": {
+"seed": 409330878,
+"subjects": [
+{
+"kind": "Text top_left",
+"base": "drawn",
+"link": "source"
+},
+{
+"kind": "RegularPolygon center_radius",
+"base": "rotated",
+"link": "field"
+},
+{
+"kind": "Rect point_vec",
+"base": "cloned",
+"link": "field"
+}
+],
+"ops": [
+[
+"call",
+2,
+"flip_x",
+[],
+{}
+],
+[
+"unlink",
+0
+],
+[
+"call",
+2,
+"flip_x",
+[],
+{}
+],
+[
+"clone",
+1
+],
+[
+"call",
+1,
+"move_by",
+[
+-15.1,
+-17.61
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+2,
+"move_to",
+[
+62.32,
+-14.7
+],
+{}
+]
+]
+},
+"rewrite_seed": 144627902,
+"rewrites": []
+}

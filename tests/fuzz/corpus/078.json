@@ -1,0 +1,133 @@
+{
+"program": {
+"seed": 720121670,
+"subjects": [
+{
+"kind": "Rect corner_corner reversed",
+"base": "drawn",
+"link": "source"
+},
+{
+"kind": "Track circle",
+"base": "copied",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+1,
+"move_by",
+[
+25.07,
+5.33
+],
+{}
+],
+[
+"call",
+1,
+"rotate_to",
+[
+-273.7
+],
+{}
+],
+[
+"call",
+1,
+"move_by",
+[
+-17.21,
+-10.07
+],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-126.22
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+1,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+17.2,
+-28.17
+],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+1,
+"rotate_by",
+[
+-2.09
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+1,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"call",
+1,
+"scale_to",
+[
+3.0
+],
+{}
+]
+]
+},
+"rewrite_seed": 819536902,
+"rewrites": [
+"split_rotate",
+"rotate_to_as_rotate_by",
+"x_twin:cold"
+]
+}

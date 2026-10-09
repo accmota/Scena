@@ -1,0 +1,43 @@
+{
+"program": {
+"seed": 859728645,
+"subjects": [
+{
+"kind": "Circle arc",
+"base": "drawn",
+"link": "source"
+},
+{
+"kind": "Rect spine square",
+"base": "cloned",
+"link": "part"
+}
+],
+"ops": [
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"clone",
+0
+],
+[
+"call",
+1,
+"angle=",
+[
+59.63
+],
+{}
+]
+]
+},
+"rewrite_seed": 229944127,
+"rewrites": [
+"x_twin:caches_dropped"
+]
+}

@@ -1,0 +1,56 @@
+{
+"program": {
+"seed": 991483081,
+"subjects": [
+{
+"kind": "Rect center_wh noangle",
+"base": "degenerate",
+"link": "field"
+},
+{
+"kind": "RegularPolygon center_side noangle",
+"base": "degenerate",
+"link": "none"
+},
+{
+"kind": "Sprite sheet left",
+"base": "collidable",
+"link": "part"
+}
+],
+"ops": [
+[
+"call",
+0,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"call",
+0,
+"rotate_to",
+[
+138.96
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+-32.2,
+-38.96
+],
+{}
+]
+]
+},
+"rewrite_seed": 763353364,
+"rewrites": [
+"x_twin:caches_dropped"
+]
+}

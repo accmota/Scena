@@ -1,0 +1,88 @@
+{
+"program": {
+"seed": 286461136,
+"subjects": [
+{
+"kind": "Ellipse center_wh noangle",
+"base": "rotated",
+"link": "none"
+},
+{
+"kind": "Line parallel_dist",
+"base": "collidable",
+"link": "source"
+},
+{
+"kind": "Line tangent_point",
+"base": "degenerate",
+"link": "source"
+}
+],
+"ops": [
+[
+"call",
+0,
+"move_to",
+[
+2.56,
+76.12
+],
+{}
+],
+[
+"call",
+1,
+"angle=",
+[
+-149.02
+],
+{}
+],
+[
+"call",
+2,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+-18.67,
+-33.71
+],
+{}
+],
+[
+"call",
+2,
+"move_by",
+[
+22.84,
+-8.29
+],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+70.55,
+-27.44
+],
+{}
+]
+]
+},
+"rewrite_seed": 89671556,
+"rewrites": [
+"split_move",
+"timed_to_instant",
+"x_twin:cold"
+]
+}

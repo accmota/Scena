@@ -1,0 +1,111 @@
+{
+"program": {
+"seed": 621931211,
+"subjects": [
+{
+"kind": "Rect center_wh",
+"base": "drawn",
+"link": "none"
+},
+{
+"kind": "EquilateralTriangle center_radius",
+"base": "flip_xy",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+-481.93
+],
+{}
+],
+[
+"read",
+0,
+"sorted"
+],
+[
+"read",
+1,
+"reversed"
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"read",
+1,
+"sorted"
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+1,
+"scale_by",
+[
+2.0
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+1,
+"angle=",
+[
+-472.28
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+-69.11,
+-42.16
+],
+{}
+]
+]
+},
+"rewrite_seed": 900094241,
+"rewrites": [
+"swap_copy",
+"extra_reads",
+"identity_scale",
+"x_twin:caches_dropped"
+]
+}

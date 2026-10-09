@@ -1,0 +1,61 @@
+{
+"program": {
+"seed": 695425564,
+"subjects": [
+{
+"kind": "Rect top_left_wh noangle",
+"base": "flip_x",
+"link": "part"
+},
+{
+"kind": "Line point_angle_length",
+"base": "flip_x",
+"link": "none"
+},
+{
+"kind": "Square center_length",
+"base": "degenerate",
+"link": "field"
+}
+],
+"ops": [
+[
+"call",
+0,
+"rotate_to",
+[
+427.49
+],
+{}
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+2,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+0.5
+],
+{}
+]
+]
+},
+"rewrite_seed": 323946139,
+"rewrites": [
+"wrap_batch",
+"x_twin:forced_slow"
+]
+}

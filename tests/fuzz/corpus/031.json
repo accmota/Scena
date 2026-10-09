@@ -1,0 +1,116 @@
+{
+"program": {
+"seed": 39586494,
+"subjects": [
+{
+"kind": "Circle two_points",
+"base": "drawn",
+"link": "none"
+},
+{
+"kind": "Rect spine cap",
+"base": "drawn",
+"link": "field"
+},
+{
+"kind": "Line point_angle_length",
+"base": "collidable",
+"link": "part"
+}
+],
+"ops": [
+[
+"call",
+1,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+-410.84
+],
+{}
+],
+[
+"read",
+0,
+"reversed"
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-17.93
+],
+{
+"time": 0.2
+}
+],
+[
+"unlink",
+1
+],
+[
+"read",
+1,
+"sorted"
+],
+[
+"call",
+1,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"call",
+2,
+"scale_to",
+[
+1.5
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+18.81,
+-11.89
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+0,
+"scale_by",
+[
+2.0
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+]
+]
+},
+"rewrite_seed": 406854724,
+"rewrites": [
+"extra_reads",
+"x_twin:cold"
+]
+}

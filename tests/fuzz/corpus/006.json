@@ -1,0 +1,137 @@
+{
+"program": {
+"seed": 524193277,
+"subjects": [
+{
+"kind": "Line tangent_angle",
+"base": "rotated",
+"link": "none"
+},
+{
+"kind": "Sprite sheet left",
+"base": "fresh",
+"link": "field"
+}
+],
+"ops": [
+[
+"call",
+0,
+"scale_by",
+[
+0.5
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+1,
+"angle=",
+[
+-426.05
+],
+{}
+],
+[
+"call",
+1,
+"move_by",
+[
+-16.14,
+-3.4
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-165.64
+],
+{}
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-198.8
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"read",
+0,
+"sorted"
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+35.4
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+0,
+"move_by",
+[
+4.83,
+28.96
+],
+{
+"time": 0.2
+}
+]
+]
+},
+"rewrite_seed": 175782303,
+"rewrites": [
+"x_twin:forced_slow"
+]
+}

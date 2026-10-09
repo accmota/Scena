@@ -1,0 +1,54 @@
+{
+"program": {
+"seed": 918247487,
+"subjects": [
+{
+"kind": "Text center",
+"base": "scaled",
+"link": "none"
+},
+{
+"kind": "Track circle",
+"base": "scaled",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+1.5
+],
+{}
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 674625911,
+"rewrites": [
+"identity_flip",
+"x_twin:caches_dropped"
+]
+}

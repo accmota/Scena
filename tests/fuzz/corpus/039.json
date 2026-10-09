@@ -1,0 +1,86 @@
+{
+"program": {
+"seed": 415849346,
+"subjects": [
+{
+"kind": "Circle center_perimeter",
+"base": "drawn",
+"link": "whole"
+},
+{
+"kind": "EquilateralTriangle center_radius noangle",
+"base": "collidable",
+"link": "whole"
+}
+],
+"ops": [
+[
+"clone",
+0
+],
+[
+"call",
+1,
+"angle=",
+[
+377.85
+],
+{}
+],
+[
+"call",
+1,
+"angle=",
+[
+-106.9
+],
+{}
+],
+[
+"call",
+1,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"clone",
+0
+],
+[
+"call",
+1,
+"move_by",
+[
+-15.43,
+-14.71
+],
+{}
+],
+[
+"call",
+1,
+"scale_to",
+[
+1.5
+],
+{}
+],
+[
+"read",
+1,
+"reversed"
+],
+[
+"clone",
+0
+]
+]
+},
+"rewrite_seed": 739337659,
+"rewrites": [
+"identity_flip"
+]
+}

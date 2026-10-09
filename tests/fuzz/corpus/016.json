@@ -1,0 +1,95 @@
+{
+"program": {
+"seed": 134838299,
+"subjects": [
+{
+"kind": "Line center_length",
+"base": "drawn",
+"link": "source"
+},
+{
+"kind": "Polygon",
+"base": "drawn",
+"link": "none"
+}
+],
+"ops": [
+[
+"read",
+0,
+"reversed"
+],
+[
+"call",
+1,
+"rotate_to",
+[
+135.24
+],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-376.21
+],
+{}
+],
+[
+"call",
+1,
+"rotate_to",
+[
+17.12
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+330.59
+],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+3.0
+],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+28.66,
+-70.7
+],
+{}
+]
+]
+},
+"rewrite_seed": 127992538,
+"rewrites": [
+"identity_flip",
+"split_rotate",
+"split_rotate",
+"x_twin:cold"
+]
+}

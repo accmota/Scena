@@ -1,0 +1,123 @@
+{
+"program": {
+"seed": 6164837,
+"subjects": [
+{
+"kind": "Line center_length",
+"base": "scaled",
+"link": "none"
+},
+{
+"kind": "Track line point_point",
+"base": "drawn",
+"link": "part"
+},
+{
+"kind": "Rect top_left_wh",
+"base": "flip_x",
+"link": "field"
+}
+],
+"ops": [
+[
+"read",
+2,
+"sorted"
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-210.41
+],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+1.5
+],
+{}
+],
+[
+"clone",
+1
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-51.14
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+2,
+"move_to",
+[
+28.4,
+-7.4
+],
+{}
+],
+[
+"call",
+1,
+"rotate_by",
+[
+-4.21
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+-14.59,
+60.58
+],
+{}
+],
+[
+"call",
+1,
+"scale_by",
+[
+0.8
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"clone",
+1
+],
+[
+"read",
+0,
+"reversed"
+]
+]
+},
+"rewrite_seed": 168023449,
+"rewrites": [
+"identity_flip",
+"move_to_as_move_by",
+"x_twin:forced_slow"
+]
+}

@@ -1,0 +1,106 @@
+{
+"program": {
+"seed": 807946405,
+"subjects": [
+{
+"kind": "Rect spine side_right",
+"base": "degenerate",
+"link": "field"
+}
+],
+"ops": [
+[
+"call",
+0,
+"move_by",
+[
+27.07,
+-26.24
+],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-380.49
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+-53.72
+],
+{}
+],
+[
+"read",
+0,
+"sorted"
+],
+[
+"call",
+0,
+"rotate_to",
+[
+89.08
+],
+{}
+],
+[
+"read",
+0,
+"reversed"
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+3.45,
+19.04
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+492.38
+],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 319009742,
+"rewrites": [
+"rotate_to_as_rotate_by",
+"x_twin:forced_slow"
+]
+}

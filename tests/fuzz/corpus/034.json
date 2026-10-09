@@ -1,0 +1,103 @@
+{
+"program": {
+"seed": 745188126,
+"subjects": [
+{
+"kind": "Text center",
+"base": "flip_xy",
+"link": "none"
+},
+{
+"kind": "Ellipse center_wh",
+"base": "degenerate",
+"link": "part"
+},
+{
+"kind": "Rect corner_corner noangle",
+"base": "flip_xy",
+"link": "field"
+}
+],
+"ops": [
+[
+"call",
+2,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+1,
+"scale_by",
+[
+1.5
+],
+{}
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+2,
+"scale_by",
+[
+0.8
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+0,
+"move_to",
+[
+1.12,
+-32.13
+],
+{}
+],
+[
+"unlink",
+1
+],
+[
+"call",
+2,
+"flip_x",
+[],
+{}
+],
+[
+"read",
+1,
+"reversed"
+],
+[
+"call",
+1,
+"rotate_to",
+[
+-128.57
+],
+{}
+]
+]
+},
+"rewrite_seed": 48453507,
+"rewrites": [
+"identity_move",
+"rotate_to_as_rotate_by",
+"wrap_batch",
+"x_twin:forced_slow"
+]
+}

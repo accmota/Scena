@@ -1,0 +1,105 @@
+{
+"program": {
+"seed": 504515445,
+"subjects": [
+{
+"kind": "Rect corner_corner reversed",
+"base": "collidable",
+"link": "part"
+},
+{
+"kind": "EquilateralTriangle center_radius noangle",
+"base": "names_crossed",
+"link": "none"
+},
+{
+"kind": "RegularPolygon vertex_side",
+"base": "cloned",
+"link": "none"
+}
+],
+"ops": [
+[
+"clone",
+2
+],
+[
+"read",
+0,
+"reversed"
+],
+[
+"call",
+2,
+"rotate_by",
+[
+276.88
+],
+{}
+],
+[
+"call",
+1,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+2,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+-493.11
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+-23.99,
+-2.44
+],
+{}
+],
+[
+"read",
+2,
+"sorted"
+],
+[
+"unlink",
+2
+],
+[
+"clone",
+0
+],
+[
+"call",
+1,
+"move_to",
+[
+-44.84,
+-54.93
+],
+{}
+]
+]
+},
+"rewrite_seed": 260199295,
+"rewrites": [
+"identity_move",
+"x_twin:cold"
+]
+}

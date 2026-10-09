@@ -1,0 +1,114 @@
+{
+"program": {
+"seed": 867174835,
+"subjects": [
+{
+"kind": "RegularPolygon center_radius",
+"base": "copied",
+"link": "none"
+},
+{
+"kind": "Rect point_vec noangle",
+"base": "names_crossed",
+"link": "none"
+},
+{
+"kind": "Point",
+"base": "flip_xy",
+"link": "whole"
+}
+],
+"ops": [
+[
+"call",
+1,
+"move_to",
+[
+34.11,
+21.1
+],
+{}
+],
+[
+"unlink",
+0
+],
+[
+"call",
+2,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+1,
+"angle=",
+[
+486.81
+],
+{}
+],
+[
+"call",
+2,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+-29.49,
+-68.87
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+1.5
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+2,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"unlink",
+0
+],
+[
+"clone",
+0
+]
+]
+},
+"rewrite_seed": 728246374,
+"rewrites": [
+"wrap_batch",
+"identity_flip",
+"identity_move",
+"x_twin:cold"
+]
+}

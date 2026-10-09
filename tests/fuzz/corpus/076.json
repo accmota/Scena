@@ -1,0 +1,118 @@
+{
+"program": {
+"seed": 707950177,
+"subjects": [
+{
+"kind": "Ellipse from_rect padding",
+"base": "drawn",
+"link": "none"
+},
+{
+"kind": "Rect center_wh",
+"base": "collidable",
+"link": "part"
+},
+{
+"kind": "RegularPolygon center_radius",
+"base": "degenerate",
+"link": "source"
+}
+],
+"ops": [
+[
+"call",
+0,
+"rotate_to",
+[
+-179.32
+],
+{}
+],
+[
+"call",
+1,
+"scale_to",
+[
+3.0
+],
+{}
+],
+[
+"call",
+1,
+"rotate_by",
+[
+248.5
+],
+{}
+],
+[
+"read",
+2,
+"sorted"
+],
+[
+"call",
+0,
+"move_to",
+[
+5.4,
+42.76
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+-18.19,
+-71.62
+],
+{}
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"read",
+2,
+"reversed"
+],
+[
+"call",
+1,
+"move_by",
+[
+-5.81,
+-16.55
+],
+{}
+],
+[
+"unlink",
+2
+],
+[
+"call",
+1,
+"move_by",
+[
+-14.37,
+19.67
+],
+{}
+]
+]
+},
+"rewrite_seed": 478978337,
+"rewrites": [
+"identity_move",
+"move_to_as_move_by",
+"x_twin:caches_dropped"
+]
+}

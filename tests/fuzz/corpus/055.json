@@ -1,0 +1,47 @@
+{
+"program": {
+"seed": 324910814,
+"subjects": [
+{
+"kind": "Circle two_points",
+"base": "names_crossed",
+"link": "whole"
+},
+{
+"kind": "Rect point_vec noangle",
+"base": "collidable",
+"link": "none"
+}
+],
+"ops": [
+[
+"clone",
+0
+],
+[
+"call",
+1,
+"rotate_by",
+[
+-335.98
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+-27.88,
+-18.8
+],
+{}
+]
+]
+},
+"rewrite_seed": 498123579,
+"rewrites": [
+"wrap_batch",
+"x_twin:forced_slow"
+]
+}

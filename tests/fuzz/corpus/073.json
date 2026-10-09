@@ -1,0 +1,85 @@
+{
+"program": {
+"seed": 899680759,
+"subjects": [
+{
+"kind": "RegularPolygon vertex_side noangle",
+"base": "collidable",
+"link": "source"
+}
+],
+"ops": [
+[
+"call",
+0,
+"scale_by",
+[
+1.5
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+-26.87,
+-6.45
+],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+-7.25,
+59.26
+],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+3.0
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+456.73
+],
+{}
+],
+[
+"read",
+0,
+"reversed"
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 792966006,
+"rewrites": [
+"split_move",
+"extra_reads"
+]
+}

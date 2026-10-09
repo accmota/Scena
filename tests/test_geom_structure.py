@@ -222,8 +222,8 @@ class TestDefiningTablesAgree(unittest.TestCase):
 
 
 class TestTimedVerbsGateLikeInstant(unittest.TestCase):
-    """GX4 class: the instant form refuses ⇒ the timed form refuses at the call,
-    and a timed verb that was accepted never raises from a tick."""
+    """GX4 / GX17 class: the instant form refuses ⇔ the timed form refuses at
+    the call, and a timed verb that was accepted never raises from a tick."""
 
     VERBS = {
         "move_by": (lambda o: o.move_by(7, -3), lambda o: o.move_by(7, -3, time=0.2)),
@@ -267,6 +267,8 @@ class TestTimedVerbsGateLikeInstant(unittest.TestCase):
                             accepted = False
                         if refuses and accepted:
                             found[f"{kind} | {link} | {verb}(time=) | accepted"] = ""
+                        if not refuses and not accepted:
+                            found[f"{kind} | {link} | {verb}(time=) | refused (instant runs)"] = ""
                         try:
                             G.settle(0.5)
                         except LinkedAttributeError:

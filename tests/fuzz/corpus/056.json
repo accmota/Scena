@@ -1,0 +1,120 @@
+{
+"program": {
+"seed": 272812826,
+"subjects": [
+{
+"kind": "EquilateralTriangle center_radius",
+"base": "names_crossed",
+"link": "part"
+},
+{
+"kind": "Line tangent_point",
+"base": "names_crossed",
+"link": "none"
+},
+{
+"kind": "Square top_left_length noangle",
+"base": "copied",
+"link": "part"
+}
+],
+"ops": [
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+2,
+"scale_by",
+[
+1.5
+],
+{}
+],
+[
+"call",
+2,
+"move_by",
+[
+22.34,
+15.82
+],
+{}
+],
+[
+"call",
+1,
+"scale_by",
+[
+2.0
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"unlink",
+1
+],
+[
+"call",
+2,
+"scale_to",
+[
+1.5
+],
+{}
+],
+[
+"read",
+1,
+"reversed"
+],
+[
+"call",
+2,
+"scale_by",
+[
+1.25
+],
+{}
+],
+[
+"call",
+1,
+"rotate_by",
+[
+201.85
+],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+317.51
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+]
+]
+},
+"rewrite_seed": 59160708,
+"rewrites": [
+"split_move",
+"extra_reads",
+"x_twin:caches_dropped"
+]
+}

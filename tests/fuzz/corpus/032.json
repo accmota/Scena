@@ -1,0 +1,93 @@
+{
+"program": {
+"seed": 730407201,
+"subjects": [
+{
+"kind": "Track line point_point",
+"base": "rotated",
+"link": "source"
+},
+{
+"kind": "Line point_vec",
+"base": "rotated",
+"link": "part"
+},
+{
+"kind": "Line parallel_point",
+"base": "flip_x",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+2,
+"move_to",
+[
+10.08,
+60.63
+],
+{}
+],
+[
+"call",
+2,
+"angle=",
+[
+250.39
+],
+{}
+],
+[
+"call",
+2,
+"rotate_by",
+[
+-227.15
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+39.46,
+21.69
+],
+{}
+],
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+2,
+"scale_to",
+[
+3.0
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+63.46,
+-40.88
+],
+{}
+]
+]
+},
+"rewrite_seed": 752002365,
+"rewrites": [
+"extra_reads",
+"timed_to_instant"
+]
+}

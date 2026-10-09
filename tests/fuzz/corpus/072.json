@@ -1,0 +1,67 @@
+{
+"program": {
+"seed": 1060197637,
+"subjects": [
+{
+"kind": "Line point_vec",
+"base": "copied",
+"link": "whole"
+}
+],
+"ops": [
+[
+"unlink",
+0
+],
+[
+"call",
+0,
+"scale_to",
+[
+3.0
+],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+24.53,
+-2.45
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+241.42
+],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+3.0
+],
+{}
+]
+]
+},
+"rewrite_seed": 126603648,
+"rewrites": [
+"timed_to_instant",
+"x_twin:forced_slow"
+]
+}

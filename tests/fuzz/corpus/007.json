@@ -1,0 +1,100 @@
+{
+"program": {
+"seed": 442292975,
+"subjects": [
+{
+"kind": "Sprite",
+"base": "degenerate",
+"link": "none"
+},
+{
+"kind": "Square center_length",
+"base": "degenerate",
+"link": "none"
+}
+],
+"ops": [
+[
+"unlink",
+0
+],
+[
+"read",
+1,
+"sorted"
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+76.92,
+-17.11
+],
+{}
+],
+[
+"call",
+1,
+"scale_to",
+[
+3.0
+],
+{}
+],
+[
+"call",
+1,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"unlink",
+1
+],
+[
+"read",
+1,
+"sorted"
+],
+[
+"call",
+1,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+1,
+"rotate_by",
+[
+377.59
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+]
+]
+},
+"rewrite_seed": 1066042002,
+"rewrites": [
+"reorder",
+"x_twin:caches_dropped"
+]
+}

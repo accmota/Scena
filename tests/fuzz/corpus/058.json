@@ -1,0 +1,78 @@
+{
+"program": {
+"seed": 575224425,
+"subjects": [
+{
+"kind": "Track line point_point",
+"base": "flip_xy",
+"link": "whole"
+},
+{
+"kind": "RegularPolygon vertex_side noangle",
+"base": "drawn",
+"link": "whole"
+},
+{
+"kind": "Ellipse center_wh",
+"base": "scaled",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+2,
+"move_by",
+[
+-14.2,
+-15.53
+],
+{}
+],
+[
+"call",
+2,
+"angle=",
+[
+404.35
+],
+{}
+],
+[
+"call",
+1,
+"rotate_by",
+[
+-166.02
+],
+{}
+],
+[
+"call",
+2,
+"flip_x",
+[],
+{}
+],
+[
+"read",
+0,
+"sorted"
+],
+[
+"call",
+0,
+"rotate_to",
+[
+-403.7
+],
+{}
+]
+]
+},
+"rewrite_seed": 277508148,
+"rewrites": [
+"rotate_to_as_rotate_by",
+"x_twin:forced_slow"
+]
+}

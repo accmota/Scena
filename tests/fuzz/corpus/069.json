@@ -1,0 +1,95 @@
+{
+"program": {
+"seed": 304385787,
+"subjects": [
+{
+"kind": "Ellipse from_rect",
+"base": "flip_x",
+"link": "field"
+},
+{
+"kind": "Line point_point",
+"base": "cloned",
+"link": "none"
+}
+],
+"ops": [
+[
+"read",
+0,
+"reversed"
+],
+[
+"call",
+0,
+"move_by",
+[
+26.58,
+-24.51
+],
+{}
+],
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"read",
+1,
+"reversed"
+],
+[
+"call",
+1,
+"rotate_to",
+[
+-355.19
+],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+12.21,
+-28.79
+],
+{}
+],
+[
+"clone",
+1
+],
+[
+"clone",
+1
+]
+]
+},
+"rewrite_seed": 562230467,
+"rewrites": [
+"rotate_to_as_rotate_by",
+"identity_move",
+"x_twin:cold"
+]
+}

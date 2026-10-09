@@ -1,0 +1,48 @@
+{
+"program": {
+"seed": 776492204,
+"subjects": [
+{
+"kind": "Rect top_left_wh noangle",
+"base": "scaled",
+"link": "part"
+}
+],
+"ops": [
+[
+"call",
+0,
+"rotate_by",
+[
+-346.81
+],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+58.93,
+-39.79
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+269.38
+],
+{}
+]
+]
+},
+"rewrite_seed": 643744726,
+"rewrites": [
+"move_to_as_move_by",
+"identity_move",
+"x_twin:caches_dropped"
+]
+}

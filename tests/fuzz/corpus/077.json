@@ -1,0 +1,56 @@
+{
+"program": {
+"seed": 428035152,
+"subjects": [
+{
+"kind": "Circle two_points",
+"base": "fresh",
+"link": "field"
+}
+],
+"ops": [
+[
+"call",
+0,
+"rotate_by",
+[
+349.63
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+411.46
+],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-42.36
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 1026567496,
+"rewrites": [
+"wrap_batch",
+"split_rotate",
+"x_twin:caches_dropped"
+]
+}

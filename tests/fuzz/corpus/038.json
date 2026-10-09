@@ -1,0 +1,101 @@
+{
+"program": {
+"seed": 397596071,
+"subjects": [
+{
+"kind": "Polygon",
+"base": "flip_xy",
+"link": "none"
+},
+{
+"kind": "Rect corner_corner noangle",
+"base": "collidable",
+"link": "field"
+}
+],
+"ops": [
+[
+"read",
+0,
+"sorted"
+],
+[
+"call",
+0,
+"angle=",
+[
+-190.07
+],
+{}
+],
+[
+"unlink",
+0
+],
+[
+"clone",
+0
+],
+[
+"call",
+1,
+"rotate_by",
+[
+-255.11
+],
+{}
+],
+[
+"clone",
+0
+],
+[
+"clone",
+0
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+53.1,
+23.2
+],
+{}
+],
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 670435232,
+"rewrites": [
+"move_to_as_move_by",
+"split_rotate"
+]
+}

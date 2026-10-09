@@ -1,0 +1,120 @@
+{
+"program": {
+"seed": 611164247,
+"subjects": [
+{
+"kind": "Rect top_left_wh noangle",
+"base": "degenerate",
+"link": "part"
+},
+{
+"kind": "Rect corner_corner reversed",
+"base": "scaled",
+"link": "part"
+},
+{
+"kind": "Text top_right",
+"base": "drawn",
+"link": "field"
+}
+],
+"ops": [
+[
+"call",
+0,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+1.25
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+2,
+"scale_by",
+[
+1.25
+],
+{}
+],
+[
+"call",
+2,
+"scale_to",
+[
+1.5
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+-2.09,
+-19.8
+],
+{}
+],
+[
+"clone",
+2
+],
+[
+"unlink",
+0
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+2,
+"flip_x",
+[],
+{}
+],
+[
+"unlink",
+2
+],
+[
+"call",
+1,
+"scale_to",
+[
+3.0
+],
+{}
+],
+[
+"call",
+2,
+"flip_y",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 828480807,
+"rewrites": [
+"split_move",
+"timed_to_instant",
+"x_twin:cold"
+]
+}

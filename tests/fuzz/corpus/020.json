@@ -1,0 +1,74 @@
+{
+"program": {
+"seed": 799717633,
+"subjects": [
+{
+"kind": "RegularPolygon vertex_side",
+"base": "drawn",
+"link": "none"
+},
+{
+"kind": "Polygon",
+"base": "rotated",
+"link": "whole"
+}
+],
+"ops": [
+[
+"call",
+1,
+"scale_by",
+[
+0.8
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+1,
+"scale_by",
+[
+2.0
+],
+{}
+],
+[
+"read",
+0,
+"sorted"
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+1,
+"scale_by",
+[
+1.5
+],
+{}
+],
+[
+"call",
+1,
+"rotate_by",
+[
+-136.72
+],
+{}
+]
+]
+},
+"rewrite_seed": 209230569,
+"rewrites": [
+"split_scale",
+"extra_reads"
+]
+}

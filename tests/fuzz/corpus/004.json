@@ -1,0 +1,127 @@
+{
+"program": {
+"seed": 911648019,
+"subjects": [
+{
+"kind": "RegularPolygon vertex_side noangle",
+"base": "collidable",
+"link": "part"
+},
+{
+"kind": "Circle two_points",
+"base": "rotated",
+"link": "field"
+}
+],
+"ops": [
+[
+"call",
+0,
+"scale_to",
+[
+3.0
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+0.5
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+2.0
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+0,
+"angle=",
+[
+357.48
+],
+{}
+],
+[
+"call",
+1,
+"move_to",
+[
+67.95,
+-47.44
+],
+{}
+],
+[
+"call",
+0,
+"move_by",
+[
+-27.1,
+-9.32
+],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+269.18
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+0,
+"move_to",
+[
+48.79,
+-11.04
+],
+{}
+],
+[
+"call",
+1,
+"move_by",
+[
+-2.37,
+22.67
+],
+{}
+],
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+]
+]
+},
+"rewrite_seed": 126938843,
+"rewrites": [
+"wrap_batch",
+"split_scale",
+"x_twin:forced_slow"
+]
+}

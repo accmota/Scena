@@ -1,0 +1,94 @@
+{
+"program": {
+"seed": 847876999,
+"subjects": [
+{
+"kind": "Circle arc",
+"base": "rotated",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"rotate_to",
+[
+121.09
+],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-65.29
+],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+3.0
+],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-197.83
+],
+{
+"about": [
+50.0,
+-20.0
+]
+}
+],
+[
+"call",
+0,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+429.6
+],
+{}
+],
+[
+"call",
+0,
+"rotate_to",
+[
+-32.5
+],
+{}
+]
+]
+},
+"rewrite_seed": 103694312,
+"rewrites": [
+"identity_move",
+"x_twin:caches_dropped"
+]
+}

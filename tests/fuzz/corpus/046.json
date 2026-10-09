@@ -1,0 +1,48 @@
+{
+"program": {
+"seed": 577751935,
+"subjects": [
+{
+"kind": "Line center_length",
+"base": "drawn",
+"link": "none"
+},
+{
+"kind": "Svg",
+"base": "cloned",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+1,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+0,
+"angle=",
+[
+436.1
+],
+{}
+],
+[
+"unlink",
+0
+]
+]
+},
+"rewrite_seed": 957401070,
+"rewrites": []
+}

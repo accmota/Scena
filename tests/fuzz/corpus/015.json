@@ -1,0 +1,46 @@
+{
+"program": {
+"seed": 222344214,
+"subjects": [
+{
+"kind": "Track eight",
+"base": "drawn",
+"link": "part"
+},
+{
+"kind": "RegularPolygon vertex_side",
+"base": "copied",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+1,
+"rotate_to",
+[
+-91.06
+],
+{}
+],
+[
+"call",
+0,
+"rotate_by",
+[
+-11.6
+],
+{}
+],
+[
+"clone",
+1
+]
+]
+},
+"rewrite_seed": 1034062382,
+"rewrites": [
+"extra_reads",
+"identity_flip"
+]
+}

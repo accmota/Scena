@@ -1,0 +1,89 @@
+{
+"program": {
+"seed": 737608422,
+"subjects": [
+{
+"kind": "Square center_length",
+"base": "rotated",
+"link": "none"
+},
+{
+"kind": "Anchor",
+"base": "scaled",
+"link": "whole"
+},
+{
+"kind": "Text center",
+"base": "flip_x",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+1,
+"scale_by",
+[
+1.25
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+1,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+1,
+"angle=",
+[
+-241.04
+],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+0.5
+],
+{}
+],
+[
+"call",
+0,
+"scale_by",
+[
+1.25
+],
+{}
+],
+[
+"call",
+2,
+"move_by",
+[
+19.99,
+-23.47
+],
+{}
+],
+[
+"read",
+0,
+"reversed"
+]
+]
+},
+"rewrite_seed": 963864093,
+"rewrites": [
+"extra_reads",
+"x_twin:forced_slow"
+]
+}

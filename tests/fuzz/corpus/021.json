@@ -1,0 +1,113 @@
+{
+"program": {
+"seed": 644780074,
+"subjects": [
+{
+"kind": "Line parallel_dist",
+"base": "cloned",
+"link": "none"
+},
+{
+"kind": "EquilateralTriangle center_side",
+"base": "copied",
+"link": "part"
+},
+{
+"kind": "Rect point_vec negative",
+"base": "rotated",
+"link": "none"
+}
+],
+"ops": [
+[
+"call",
+1,
+"rotate_by",
+[
+107.23
+],
+{}
+],
+[
+"call",
+1,
+"scale_to",
+[
+3.0
+],
+{}
+],
+[
+"call",
+0,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+2,
+"flip_x",
+[],
+{}
+],
+[
+"call",
+1,
+"scale_to",
+[
+1.5
+],
+{}
+],
+[
+"call",
+0,
+"rotate_to",
+[
+375.1
+],
+{}
+],
+[
+"call",
+1,
+"rotate_by",
+[
+-30.77
+],
+{}
+],
+[
+"unlink",
+0
+],
+[
+"call",
+2,
+"scale_to",
+[
+3.0
+],
+{}
+],
+[
+"call",
+2,
+"flip_y",
+[],
+{}
+],
+[
+"unlink",
+2
+]
+]
+},
+"rewrite_seed": 1063254275,
+"rewrites": [
+"extra_reads",
+"split_rotate",
+"x_twin:cold"
+]
+}

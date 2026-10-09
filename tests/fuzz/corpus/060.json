@@ -1,0 +1,88 @@
+{
+"program": {
+"seed": 1042764545,
+"subjects": [
+{
+"kind": "Sprite sheet pair",
+"base": "copied",
+"link": "none"
+},
+{
+"kind": "Anchor",
+"base": "cloned",
+"link": "none"
+},
+{
+"kind": "Ellipse center_wh",
+"base": "scaled",
+"link": "none"
+}
+],
+"ops": [
+[
+"read",
+2,
+"sorted"
+],
+[
+"call",
+2,
+"angle=",
+[
+265.9
+],
+{}
+],
+[
+"call",
+2,
+"rotate_by",
+[
+239.02
+],
+{}
+],
+[
+"unlink",
+0
+],
+[
+"read",
+1,
+"sorted"
+],
+[
+"call",
+2,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+2,
+"rotate_by",
+[
+-75.85
+],
+{
+"time": 0.2
+}
+],
+[
+"call",
+0,
+"rotate_to",
+[
+-135.4
+],
+{}
+]
+]
+},
+"rewrite_seed": 105177088,
+"rewrites": [
+"swap_clone",
+"x_twin:cold"
+]
+}

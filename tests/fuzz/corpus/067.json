@@ -1,0 +1,85 @@
+{
+"program": {
+"seed": 763851703,
+"subjects": [
+{
+"kind": "Svg",
+"base": "degenerate",
+"link": "source"
+}
+],
+"ops": [
+[
+"call",
+0,
+"scale_by",
+[
+0.5
+],
+{}
+],
+[
+"call",
+0,
+"rotate_to",
+[
+-241.05
+],
+{}
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"unlink",
+0
+],
+[
+"call",
+0,
+"flip_y",
+[],
+{}
+],
+[
+"call",
+0,
+"scale_to",
+[
+1.0
+],
+{}
+],
+[
+"call",
+0,
+"rotate_to",
+[
+-167.59
+],
+{}
+],
+[
+"call",
+0,
+"move_to",
+[
+-28.57,
+-42.31
+],
+{}
+]
+]
+},
+"rewrite_seed": 478443795,
+"rewrites": [
+"rotate_to_as_rotate_by",
+"extra_reads",
+"move_to_as_move_by",
+"x_twin:caches_dropped"
+]
+}
