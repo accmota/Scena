@@ -466,6 +466,12 @@ Fence: see [Fences](Fences.md) (`id=` / `obj()` / a name registry).
   part's stash; resume restores it. Before, a parked Line's handles kept drawing and
   dragging one moved the parked shape. Guards: `test_part_lifecycle.TestPartParksWithOwner`,
   `test_hyp_canvas` invariant `parts_follow_their_owner`.
+- **Park then resume is an identity** on placement: `layer`, `visible`, the draw
+  list and the pointer list read as before. Park and resume write `visible` only
+  when it changes. Writing `False` to an item that is already hidden is not a no-op
+  everywhere: a hidden Point on a layer leaves it. Writing it took such a Point off
+  `'default'` for good (O5 in [Testing Design](Testing%20Design.md#bug-catalogue)).
+  Guard: `test_process.TestParkRoundTripKeepsPlacement`.
 - While parked, a `visible` / `collidable` **write updates the stash** that resume
   restores; the actor stays hidden and out of collision. Reads report the current
   state (False while parked). Engine draw / hit-test walks read the drawn flag

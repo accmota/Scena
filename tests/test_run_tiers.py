@@ -5,6 +5,7 @@ guards that keep a tier from silently dropping tests.
 
 import importlib.util
 import io
+import ast
 import os
 import re
 import stat
@@ -376,6 +377,70 @@ class TestHypothesisProfileGuard(unittest.TestCase):
         self.assertFalse(self.LOADS.search("from hypothesis import given\n"))
         self.assertTrue(self.USES.search("    @given(hst.integers())\n"))
 
+
+
+class TestSetUpAgainTearsDownFirst(unittest.TestCase):
+    """O7: a test that calls ``self.setUp()`` again mid-test (to run a second
+    case from a fresh fixture) must tear down first. ``setUp`` resets the
+    tracking list, so the first case's actors were never destroyed:
+    ``test_driver_composition`` left two Rects in group "heroi", and every
+    galaga program run later in the same process counted three heroes."""
+
+    TEARDOWNS = ("tearDown", "teardown")
+
+    @staticmethod
+    def _is_self_call(node, name):
+        call = node.value if isinstance(node, ast.Expr) else None
+        if not isinstance(call, ast.Call):
+            return False
+        f = call.func
+        while isinstance(f, ast.Attribute):
+            if f.attr == name:
+                inner = f.value
+                while isinstance(inner, ast.Attribute):
+                    inner = inner.value
+                return isinstance(inner, ast.Name) and inner.id == "self"
+            return False
+        return False
+
+    def offenders(self, text, label="<src>"):
+        out = []
+        for node in ast.walk(ast.parse(text)):
+            for field in ("body", "orelse", "finalbody"):
+                stmts = getattr(node, field, None)
+                if not isinstance(stmts, list):
+                    continue
+                for i, st in enumerate(stmts):
+                    if not self._is_self_call(st, "setUp"):
+                        continue
+                    prev = stmts[i - 1] if i else None
+                    if prev is None or not any(self._is_self_call(prev, t)
+                                               for t in self.TEARDOWNS):
+                        out.append(f"{label}:{st.lineno}")
+        return out
+
+    def test_every_repeated_setup_follows_a_teardown(self):
+        from source_support import iter_files
+        found = []
+        for _package, folder in rt.TEST_ROOTS:
+            for path in iter_files(folder, ".py"):
+                if not os.path.basename(path).startswith("test_"):
+                    continue
+                with open(path, encoding="utf-8") as fh:
+                    text = fh.read()
+                if "self.setUp()" not in text:
+                    continue
+                found += self.offenders(text, os.path.relpath(path, rt.ROOT).replace(os.sep, "/"))
+        self.assertEqual(found, [], "write self.tearDown() just before self.setUp() "
+                         "(setUp drops the tracking list: the first case's actors leak)")
+
+    def test_guard_sees_the_pattern(self):
+        bad = "def t(self):\n    run()\n    self.setUp()\n"
+        good = "def t(self):\n    self.tearDown()\n    self.setUp()\n"
+        world = "def t(self):\n    self.w.teardown()\n    self.setUp()\n"
+        self.assertEqual(len(self.offenders(bad)), 1)
+        self.assertEqual(self.offenders(good), [])
+        self.assertEqual(self.offenders(world), [])
 
 class TestCanarySwitch(unittest.TestCase):
     def test_require_canaries_skips_when_off(self):

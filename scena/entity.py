@@ -1439,6 +1439,8 @@ def _wrap_actor_init(cls) -> None:
                 from .place import _drop_failed_construct
                 _drop_failed_construct(self)
                 raise
+            # Built: the HUD cursor a rollback would restore is not needed.
+            self.__dict__.pop("_hud_cursor_before", None)
 
     wrapped._scena_actor_init = True
     cls.__init__ = wrapped
@@ -2044,8 +2046,11 @@ class Entity(Container):
         except AttributeError:
             col = None
         # Turn both off while still active (the setters stash once parked),
-        # then stash the author's values and mark parked.
-        if vis is not None:
+        # then stash the author's values and mark parked. Only a shown item is
+        # written: hiding an already hidden one is not a no-op everywhere (a
+        # hidden Point on a layer leaves it), and resume must put back exactly
+        # what was there.
+        if vis:
             self.visible = False
         if col:
             self._leave_collision()       # not ``collidable = False``: no opt-out (E2)
@@ -2060,7 +2065,8 @@ class Entity(Container):
         saved_col = getattr(self, "_active_saved_collidable", False)
         object.__setattr__(self, "_active_saved_visible", None)
         object.__setattr__(self, "_active_saved_collidable", None)
-        if saved_vis is not None:
+        # Hidden then and hidden now: nothing to write (see ``_park_self``).
+        if saved_vis is not None and bool(saved_vis) != bool(self.visible):
             self.visible = bool(saved_vis)
         # The stash was validated when it was written (E11); rejoin through the
         # same path as ``collidable = True`` so callbacks and every pair group

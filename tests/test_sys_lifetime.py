@@ -626,5 +626,36 @@ class TestInternedCaches(SystemTestCase, unittest.TestCase):
         self.assertEqual(sizes, after_sizes)
 
 
+
+class TestWorldGivesBackItsSettings(unittest.TestCase):
+    """O8: a world gives back every act-level world setting it changed
+    (``act.WORLD_SETTINGS``). ``test_noop_cost`` wrote ``playfield.left =
+    playfield.left`` inside ``system_world()``: the auto playfield became fixed
+    400x300 edges, and every later program in the process (naves / galaga at
+    1000x800) lost its shots at the stale edge — deep serial pass only."""
+
+    def test_every_world_setting_is_restored_at_teardown(self):
+        from scena import canvas, collision
+        from scena.act import WORLD_SETTINGS
+        # A world starts from reset globals (camera, effects, clock, collision:
+        # reset_system_globals) and gives back everything else as it found it.
+        from system_support import WORLD_RESETS
+        before = {w.name: w.snapshot() for w in WORLD_SETTINGS
+                  if w.name not in WORLD_RESETS}
+        self.assertGreaterEqual(len(before), 6, "not vacuous")
+        with system_world(draw=False):
+            pf = canvas.playfield
+            pf.left = pf.left                  # pins the auto playfield
+            pf.pad = 0.5
+            collision.resolve_enabled = not collision.resolve_enabled
+            canvas.layers.create("o8_layer")
+            canvas.layers.default = "o8_layer"
+        after = {w.name: w.snapshot() for w in WORLD_SETTINGS if w.name in before}
+        moved = {k: (before[k], after[k]) for k in before if before[k] != after[k]}
+        self.assertEqual(moved, {})
+        if "o8_layer" in canvas.layers:
+            canvas.layers["o8_layer"].delete()
+
+
 if __name__ == "__main__":
     unittest.main()

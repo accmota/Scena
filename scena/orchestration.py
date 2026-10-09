@@ -168,6 +168,11 @@ class WidgetManager:
         lists — callers that need that use :meth:`add_widget`.
         """
         self.widget_theme._ensure()
+        # A constructor that raises after this puts the cursor back exactly
+        # (``restore_hud_cursor``); the "last participant leaves" rewind alone
+        # missed it when the column held other live items. Dropped on success
+        # (``entity._wrap_actor_init``).
+        item.__dict__.setdefault("_hud_cursor_before", (self, self._cursor_state()))
         if top_left is None:
             x, top = self._next_hud_slot()
         else:
@@ -177,6 +182,19 @@ class WidgetManager:
         item._auto_layout_top = top
         item._stack_auto = top_left is None
         return (x, top)
+
+    def _cursor_state(self):
+        """Everything construction moves in the HUD column (see ``restore_hud_cursor``)."""
+        return (self._origin_x, self._origin_top, self._stack_x, self._stack_bottom,
+                self._stack_extra_gap, self._column_right, self._column_top,
+                list(self._column_participants), self._column_origin_x,
+                list(self._label_column))
+
+    def _restore_cursor_state(self, state):
+        (self._origin_x, self._origin_top, self._stack_x, self._stack_bottom,
+         self._stack_extra_gap, self._column_right, self._column_top,
+         self._column_participants, self._column_origin_x,
+         self._label_column) = state
 
     def peek_hud_slot(self):
         """The next column slot ``(x, top)`` without taking it (``stack=False``)."""
@@ -3748,6 +3766,14 @@ def forget_hud_column_item(obj) -> None:
     if wm is None:
         return
     wm._forget_column_item(obj)
+
+
+def restore_hud_cursor(obj) -> None:
+    """A constructor raised: put the HUD cursor back where ``obj`` found it."""
+    saved = getattr(obj, "__dict__", {}).pop("_hud_cursor_before", None)
+    if saved is not None:
+        wm, state = saved
+        wm._restore_cursor_state(state)
 
 
 def unregister_widget(obj) -> None:

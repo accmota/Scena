@@ -211,7 +211,12 @@ for placing things next to it.
 column list. Destroying the last live item of the **current** column rewinds
 the cursor to that column's x and visual top and drops a pending `ui.gap()`.
 A partial destroy does not rewind. Items left behind by a stack move are not
-tracked, so destroying them does not move the cursor. `ui.stack_column()` starts a new column at this
+tracked, so destroying them does not move the cursor. A constructor that
+raises after taking its slot is not a destroy. It puts the cursor back exactly
+where it found it, even when other items stay in the column:
+`begin_hud_item` records the cursor and the construct rollback
+(`place._drop_failed_construct`) restores it, whatever raised (A39 in
+[Testing Design](Testing%20Design.md#bug-catalogue)). `ui.stack_column()` starts a new column at this
 column’s visual top, with x past the max participating `x2` plus the theme
 gap (`gap=` overrides). An empty column uses origin x + default widget
 width + gap. Pending `ui.gap()` is cleared (it does not fatten the column

@@ -49,9 +49,9 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from hypothesis_support import quiet, registry  # noqa: E402
+from hypothesis_support import pristine_world_settings, quiet, registry  # noqa: E402
 from surface_support import CURSOR_KEYS, census_diff, reset_background_base, surface_census  # noqa: E402
-from system_support import FRAME, SystemWorld  # noqa: E402
+from system_support import FRAME, WORLD_RESETS, SystemWorld  # noqa: E402
 
 import glfw  # noqa: E402
 import scena  # noqa: E402
@@ -493,7 +493,10 @@ class ProgramRun:
         _SERIALS["map"] = weakref.WeakKeyDictionary()
         _SERIALS["next"] = 0
         random.seed(self.seed)
-        self.world = SystemWorld(draw=self.draw)
+        # Leftovers from other modules are parked only after census_before:
+        # teardown resumes them before census_after, so both censuses must
+        # see them active (else every parked drawn actor reads as a leak).
+        self.world = SystemWorld(draw=self.draw, quarantine=False)
         fw = self.world.fw
         self._roster_before = set(registry().live.keys())
         self._st_before = set(scena.st.keys())
@@ -540,6 +543,17 @@ class ProgramRun:
         self.census_before = surface_census()
         ss = get_scena_system()
         self._graph_before = set(ss.dependency_graph.nodes) if ss is not None else set()
+        self.world.quarantine()
+        # A real program starts in a fresh process: every world setting at its
+        # default (the world already reset WORLD_RESETS), whatever earlier
+        # modules left (a playfield pinned to another design size lost naves'
+        # shots at a stale edge — O8). Close gives back ``_settings_before``;
+        # the censuses above and at close both see those.
+        pristine = pristine_world_settings()
+        with quiet():
+            for w, _value in self._settings_before:
+                if w.name in pristine and w.name not in WORLD_RESETS:
+                    w.restore(pristine[w.name])
         cm = fw.canvas_manager
         self._saved_input = {n: getattr(cm, n, None) for n in _INPUT_CALLBACKS}
         self._saved_run = scena.run
