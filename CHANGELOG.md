@@ -154,6 +154,18 @@ left out.
 - A Line placed by `center=` with a linked center keeps taking `scale_by` /
   `rotate_by` about it; after one scale every later one was refused.
 - A tangent Line from a point refuses `move_by(0, 0)` like any other move.
+- A link refuses what `=` refuses, by the field's name: `shape["width"] @=
+  lambda: st.w` with `st.w = True` raises TypeError (it read 1), and a huge
+  int raises ValueError (it leaked Python's OverflowError; also for a point
+  linked to `(st.x, st.y)`). When the source is good again the link follows;
+  `unlink()` and `destroy()` keep the last good value instead of raising.
+- `st.v = 1.0` on a cell holding `True` stores `1.0`; it kept `True`.
+- `rect.vec` (and a Line's or Box's vector) refuses `(0, inf)` on every
+  path, like a point; it stored it, and every later read failed.
+- Sprite, Svg and Text scaled about another point stay similar below the
+  smallest scale: the center moved by a different factor than the size.
+- A Line whose heading is linked turns a point written before any read.
+- `track << flipped_track` draws the flipped path; it drew the unflipped one.
 - A Line with both ends on one point turns its heading on a flip; it kept
   the old one. A tangent Line of length 0 refuses a flip, as it does at any
   other length; it accepted the flip and kept drawing the tangent heading.

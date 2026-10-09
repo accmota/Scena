@@ -2343,6 +2343,12 @@ class Container():
                 self._resolve_link()
             except (DestroyedError, ReferenceError):
                 pass  # a source is already gone: keep the value pulled before it went
+            except (TypeError, ValueError, ArithmeticError):
+                # The source holds a value the field refuses now (``True``, NaN,
+                # ``10**400``: GX14). The pull stored nothing, so the field keeps
+                # the last good value; unlinking (and destroy, which unlinks)
+                # must not fail on the link it removes.
+                pass
             # FormulaLink.clear() handles dependency cleanup
             self._link.clear()
             self._link = None
@@ -2749,11 +2755,14 @@ class Container():
                         self._derived_refusal(der, "set", value, leaf=name)
                     )
             # Seed A3 write/read cache after the full guard path has proven
-            # this ScalarSlot is a bare Defining leaf (same conditions as __get__).
+            # this ScalarSlot is a bare Defining leaf (same conditions as __get__,
+            # ``_pull_owner`` included: a point a linked heading turns is pulled
+            # on read; seeded here, its first read skipped that pull: GX7).
             if (
                 isinstance(slot, ScalarSlot)
                 and not self._in_batch_update
                 and self._link is None
+                and '_pull_owner' not in self.__dict__
             ):
                 cache = self.__dict__.get('_scalar_bare_ok')
                 if cache is None:
@@ -3441,7 +3450,9 @@ class ScalarAnchor(Container):
         slots = getattr(parent, "_field_slots", None)
         slot = slots().get(field_name) if slots is not None else None
         self._slot = slot
-        self._slot_kind = slot._kind if isinstance(slot, ScalarSlot) else 0
+        # -1: not a number slot (a bag field); 0 plain, 1 size, 2 ranged.
+        self._slot_kind = slot._kind if isinstance(slot, ScalarSlot) else -1
+        self._slot_label = (slot.label or slot.name or "value") if isinstance(slot, ScalarSlot) else field_name
         # A shape heading: a pull on a Defining ``angle`` publishes the pose store.
         self._publishes_rotation = (field_name == "angle"
                                     and type(parent)._publish_angle_input is not None)
@@ -3467,20 +3478,28 @@ class ScalarAnchor(Container):
                 ink[name] = new_value
                 return True
             return False
-        slot = self._slot
         kind = self._slot_kind
-        if kind == 1:
-            # A size: negative reads 0, NaN / inf raise (clamp_magnitude).
-            from .validate import clamp_magnitude
-            new_value = clamp_magnitude(new_value)
-        elif kind == 2:
-            # The slot's rules, clamping (a link cannot raise mid-frame on a
-            # range; NaN / inf still raise, as ``=`` does: D14, D16).
-            new_value = _coerce_constrained(slot, new_value, True, link=True)
+        if kind >= 0:
+            # A number slot: the Numbers rule as ``=`` applies it, named by the
+            # slot (GX14 in Testing Design: a pull took ``True`` as 1, leaked
+            # OverflowError for a huge int and said "magnitude").
+            if new_value.__class__ is float:
+                if not (-_INF < new_value < _INF):
+                    raise ValueError(f"{self._slot_label} must be a finite number, got {new_value}")
+            elif not (new_value.__class__ is int and -1e308 < new_value < 1e308):
+                from .validate import number
+                new_value = number(new_value, self._slot_label)
+            if kind == 1:
+                # A size: negative reads 0.
+                from .validate import clamp_magnitude
+                new_value = clamp_magnitude(new_value)
+            elif kind == 2:
+                # The slot's rules, clamping (a link cannot raise mid-frame on a
+                # range; NaN / inf raise above, as ``=`` does: D14, D16).
+                new_value = _coerce_constrained(self._slot, new_value, True, link=True)
         elif new_value.__class__ is float and not (-_INF < new_value < _INF):
             # ``=`` refuses NaN / inf on a plain field; a link must not store them.
-            what = (slot.label if isinstance(slot, ScalarSlot) else None) or name
-            raise ValueError(f"{what} must be a finite number, got {new_value}")
+            raise ValueError(f"{name} must be a finite number, got {new_value}")
         d = parent.__dict__
         old = d.get(name)
         if old != new_value:
@@ -3683,9 +3702,11 @@ class Attribute(ClosedSurface, Container):  # Use string literal for forward ref
         if isinstance(new_value, Attribute):
             new_value = new_value.value
 
-        # Only update if validation was successful and value changed
+        # Only update if validation was successful and value changed. ``True ==
+        # 1.0``: a flag and a number differ (a cell holding ``True`` kept it
+        # through ``= 1.0``, so a link it fed stayed refused).
         old_value = self._raw_value
-        if old_value != new_value:
+        if old_value != new_value or (type(old_value) is bool) is not (type(new_value) is bool):
             self._raw_value = new_value
             return True
         else:
@@ -4064,7 +4085,9 @@ def _value_changed(old, new) -> bool:
     if old is new:
         return False
     if type(new) in _VALUE_TYPES and type(old) in _VALUE_TYPES:
-        return old != new
+        # ``True == 1.0``: a flag and a number are different values, or a cell
+        # holding ``True`` kept it through ``= 1.0`` (and a link refused on).
+        return old != new or (type(old) is bool) is not (type(new) is bool)
     return True
 
 

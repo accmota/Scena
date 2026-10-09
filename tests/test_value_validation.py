@@ -512,5 +512,70 @@ class TestValueDoors(unittest.TestCase):
                        "a finite() that accepts NaN")
 
 
+
+class TestLinkPullsKeepTheNumbersRule(unittest.TestCase):
+    """GX14 / GX15 (Testing Design): a link pull and a shape's ``vec`` part take
+    numbers by the rule ``=`` uses. A pull took ``True`` as 1, leaked
+    OverflowError for ``10**400`` (scalars, and points read from cells) and
+    named the field "magnitude"; ``rect.vec`` stored ``(0, inf)`` on every path."""
+
+    def test_a_scalar_pull_refuses_a_bool_and_a_huge_int_by_name(self):
+        st = scena.State(name="gx14")
+        for bad, err in ((True, TypeError), (10 ** 400, ValueError), (float("nan"), ValueError)):
+            r = scena.Rect(center=(0, 0), width=10, height=5)
+            st.w = 4.0
+            r["width"] @= lambda: st.w
+            st.w = bad
+            with self.assertRaises(err) as ctx:
+                r.width
+            self.assertTrue(_author_error(ctx.exception), repr(ctx.exception))
+            self.assertIn("width", str(ctx.exception))
+            st.w = 6.0                      # a good value: it follows again
+            self.assertEqual(float(r.width), 6.0)
+            st.w = bad
+            r["width"].unlink()             # removing a link whose source is bad keeps the last good value
+            self.assertEqual(float(r.width), 6.0)
+            remove(r)
+
+    def test_a_point_pull_from_cells_refuses_a_bool_and_a_huge_int(self):
+        st = scena.State(name="gx14p")
+        for bad in (True, 10 ** 400):
+            c = scena.Circle(center=(0, 0), radius=3)
+            st.x, st.y = 1.0, 2.0
+            c["center"] @= lambda: (st.x, st.y)
+            st.x = bad
+            with self.assertRaises((TypeError, ValueError)) as ctx:
+                c.center.x
+            self.assertTrue(_author_error(ctx.exception), repr(ctx.exception))
+            remove(c)
+
+    def test_a_cell_holding_true_takes_a_number(self):
+        st = scena.State(name="flag")
+        st.v = True
+        st.v = 1.0
+        self.assertIs(type(st.v.value), float)
+        st.v = True
+        self.assertIs(type(st.v.value), bool)
+
+    def test_a_shapes_vec_part_takes_two_finite_numbers_on_every_path(self):
+        st = scena.State(name="gx15")
+        for bad in ((0, float("inf")), (10 ** 400, 0)):
+            for path in ("=", "<<", "link"):
+                r = scena.Rect(p1=(0, 0), vec=(10, 4))
+                with self.assertRaises(ValueError, msg=f"{bad} {path}") as ctx:
+                    if path == "=":
+                        r.vec = bad
+                    elif path == "<<":
+                        r.vec << bad
+                    else:
+                        st.p = bad
+                        r["vec"] @= lambda: st.p
+                        r.vec.x
+                self.assertTrue(_author_error(ctx.exception), repr(ctx.exception))
+                remove(r)
+        free = scena.Vec2(0, 0)
+        free << (float("inf"), 0)               # a free Vec2 is a value: it may hold inf
+        self.assertEqual(free.x, float("inf"))
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

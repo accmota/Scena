@@ -649,24 +649,37 @@ class Vec2(Container):
         """Assimilate values from another vector or tuple. Returns True if changed."""
         if isinstance(other, Attribute):
             other = other.value      # an st cell holding a Vec2 / (x, y): ``v << st.pos``
+        overflow = False
         if isinstance(other, Vec2):
             x, y = float(other.x), float(other.y)
         elif (isinstance(other, (tuple, list)) and len(other) == 2
               and type(other[0]) is not bool and type(other[1]) is not bool
               and not isinstance(other[0], (str, bytes))
               and not isinstance(other[1], (str, bytes))):
-            x = _as_coord(other[0])
-            y = _as_coord(other[1])
+            try:
+                x = _as_coord(other[0])
+                y = _as_coord(other[1])
+            except OverflowError:
+                overflow = True
         else:
             # Same reading and words as every point-like (a Point is a place).
             from .shapes import _xy_refusal
             raise TypeError("Vec2 << " + _xy_refusal(other, points=False))
 
         d = self.__dict__
+        if overflow:
+            # An int no float holds: Python's OverflowError, not a Scena one (GX15).
+            r = repr(tuple(other))
+            raise ValueError(f"a vector takes two finite numbers, got {r if len(r) <= 40 else r[:39] + '…'}")
+        if d.get('_owner') is not None:
+            # A part (``rect.vec``, a Box's vector) is geometry: two finite
+            # numbers, as for a point; it took ``(0, inf)`` on every path (GX15
+            # in Testing Design). A free Vec2 is a value and may hold NaN / inf.
+            from .shapes import _finite_xy
+            x, y = _finite_xy(other, x, y)
         old_x = d.get('x', 0.0)
         old_y = d.get('y', 0.0)
         if old_x != x or old_y != y:
-            x, y = float(x), float(y)
             d['x'] = x
             d['y'] = y
             self._sync_computed()

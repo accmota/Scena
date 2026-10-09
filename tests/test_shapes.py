@@ -3858,6 +3858,38 @@ class TestLinkedCenterStaysThePivot(unittest.TestCase):
         self.assertEqual(ln._center_xy(), (0.3, 0.7))
 
 
+class TestPoseZoomStaysSimilar(unittest.TestCase):
+    """GX5: a pose-zoom kind (Sprite, Svg, Text) draws at its stored scale, so
+    a scale about another point orbits the center by that same ratio. Below
+    MIN_SCALE the orbit took the geometry kinds' clamp while the size took
+    the exact ratio; a scale of 0 still comes back."""
+
+    def test_center_and_size_scale_alike_below_min_scale(self):
+        import geom_axes as A
+        import geometry_support as G
+        from scena.validate import MIN_SCALE
+        for kind in ("Svg", "Text center"):
+            s = A.build(kind)
+            s.scale_to(MIN_SCALE * 0.8)
+            c0 = G.center_of(s)
+            s.scale_by(1.5, about=(50.0, -20.0))
+            want = G.scaled(c0, (50.0, -20.0), 1.5)
+            self.assertAlmostEqual(G.center_of(s)[0], want[0], places=9, msg=kind)
+            self.assertAlmostEqual(G.center_of(s)[1], want[1], places=9, msg=kind)
+            A._destroy(s)
+
+    def test_a_zero_scale_about_a_pivot_comes_back(self):
+        import geom_axes as A
+        import geometry_support as G
+        s = A.build("Svg")
+        c0 = G.center_of(s)
+        s.scale_by(0, about=(50.0, -20.0))
+        s.scale_to(1, about=(50.0, -20.0))
+        self.assertAlmostEqual(G.center_of(s)[0], c0[0], places=6)
+        self.assertAlmostEqual(G.center_of(s)[1], c0[1], places=6)
+        A._destroy(s)
+
+
 class TestCopyDoorsRefuseWhatClonesRefuse(unittest.TestCase):
     """Geometry campaign, wave 1: ``<<`` refuses what ``clone()`` refuses."""
 

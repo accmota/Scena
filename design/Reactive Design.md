@@ -278,7 +278,12 @@ Shape fields declared with `ContainerSlot` follow the same idea on `__set__`: as
 `begin` = 3 reads 1) and `label` (the name an error gives: `Line.angle`). One
 coercion applies them on every path: author `=` (`_coerce_magnitude_slot`,
 raise), constructor (`_init_scalar`, same as `=`), batch refresh (clamp), link
-pull (`ScalarAnchor._takein_impl`, clamp; NaN / inf raise). `_kind` (0 plain,
+pull (`ScalarAnchor._takein_impl`, clamp; NaN / inf, a bool and an int no
+float holds raise, named by the slot's label, as on `=`: GX14). A link whose
+source holds such a value refuses at the read and stores nothing; `unlink()`
+(and destroy, which unlinks) then keeps the last good value instead of
+raising. A cell or field holding `True` takes `1.0` (`True == 1.0`, but a flag
+and a number are different values: `_value_changed`, `Attribute._takein_impl`). `_kind` (0 plain,
 1 size, 2 ranged) is computed once, so a plain or size write costs what it did
 before the rules moved. Do not add a value check to a `_write_field` override:
 only the author path runs it (D14, D16, a NaN constructor angle).

@@ -1784,3 +1784,24 @@ class TestTrackGeometryContract(TrackTestCase):
         label.rotate_by(90)
         bx1, by1, bx2, by2 = _approx_draw_aabb(label)
         self.assertGreater(by2 - by1, bx2 - bx1)      # tall once turned
+
+
+class TestCopyOfAFlippedTrack(unittest.TestCase):
+    """GX10: ``track << flipped`` drew the unflipped points. The drawn table
+    has the mirror baked in and the copy takes the flags too, so the takein
+    must un-mirror first, as ``clone()`` does."""
+
+    def test_the_copy_draws_what_the_source_draws(self):
+        from scena import Track
+        for flips in (("x",), ("y",), ("x", "y")):
+            src = Track(points=[(0, 0), (30, 5), (12, 22), (-4, 9)])
+            for axis in flips:
+                setattr(src, f"flip_{axis}", True)
+            dst = Track(points=[(1, 1), (2, 2)])
+            dst << src
+            for u in (0.0, 0.3, 0.7):
+                a, b = src.at(u), dst.at(u)
+                self.assertAlmostEqual(a[0], b[0], places=6, msg=f"{flips} {u}")
+                self.assertAlmostEqual(a[1], b[1], places=6, msg=f"{flips} {u}")
+            for t in (src, dst):
+                t.destroy()

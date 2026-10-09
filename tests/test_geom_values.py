@@ -175,6 +175,8 @@ class TestEdgeValuesAgreeOnEveryPath(unittest.TestCase):
                         found[f"{kind} | {name} | {path} | refusal changed {o[2][0]}"] = tag
                 ref = outs["="]
                 for path, o in outs.items():
+                    if path == "link" and o[0] == "ok" and ref[0] == "refused" and not _bad_number(v):
+                        continue        # contract: a link pull clamps a size / range (Reactive Design)
                     if o[0] != ref[0]:
                         found[f"{kind} | {name} | {path} vs = | {o[0]} vs {ref[0]}"] = tag
                     elif o[0] == "ok" and not _same_ok(o, ref):

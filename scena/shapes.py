@@ -781,10 +781,12 @@ def _pair_numbers(seq) -> Optional[Tuple[float, float]]:
     if len(seq) != 2:
         return None
     x, y = seq
+    # A cell's value as stored: ``_bare_attr`` floats it, so ``True`` read as
+    # 1 and a huge int leaked OverflowError (GX14 in Testing Design).
     if isinstance(x, Attribute):
-        x = _bare_attr(x)
+        x = x.value
     if isinstance(y, Attribute):
-        y = _bare_attr(y)
+        y = y.value
     tx, ty = type(x), type(y)
     if tx is bool or ty is bool or not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
         return None
@@ -2183,10 +2185,15 @@ class Shape(Graphic, PaintState):
             from .process import _require_loop_kwargs
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="scale_by")
         geom, store = _resolve_scale_apply(self, factor, force=force)
-        if geom == 1.0 and store == float(self._scale):
+        old = float(self._scale)
+        if geom == 1.0 and store == old:
             return self
-        factor = geom
         if not _about_is_pose_center(self, about):
+            # A pose zoom draws at the stored scale: the center orbits by the
+            # same ratio, or the drawing stops being similar below MIN_SCALE
+            # (GX5 in Testing Design: the center took the geometry kinds'
+            # clamp). A scale of 0 counts as MIN_SCALE, so it can come back.
+            factor = (store if store > 0.0 else MIN_SCALE) / (old if old > 0.0 else MIN_SCALE)
             px, py = get_xy(about, bare=True)
             cx, cy = get_xy(self.center, bare=True)
             nx, ny = _scale_xy(cx, cy, px, py, factor)

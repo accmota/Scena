@@ -104,14 +104,20 @@ class TestSentinelCanaries(unittest.TestCase):
         self.assertFalse(_keys(self._run(scenario), "I-fast"))
 
     def test_i_bare_catches_gx7(self):
-        def scenario(w):
+        # GX7 is fixed (the write seed checks ``_pull_owner``): plant the old
+        # seed by hand, then make one more checked call.
+        def scenario(w, plant=False):
             st = State(name="sentbare")
             st.a = 0.0
             ln = w.track(Line(p1=(0, 0), p2=(10, 0)))
             ln["angle"] @= lambda: st.a
             ln.p1.x = 1.0
-        found = self._run(scenario)
-        self.assertTrue(_keys(found, "I-bare | Line"), found)
+            if plant:
+                ln.p1.__dict__.setdefault("_scalar_bare_ok", {})["x"] = True
+            ln.p1.y = 0.5
+        planted = self._run(lambda w: scenario(w, plant=True))
+        self.assertTrue(_keys(planted, "I-bare | Line"), planted)
+        self.assertFalse(_keys(self._run(scenario), "I-bare"))
 
 
 class TestSentinelOverTheShadowArray(unittest.TestCase):

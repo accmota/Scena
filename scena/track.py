@@ -1558,7 +1558,12 @@ class Track(Shape):
     def _takein_impl(self, other: "Track") -> None:
         if not isinstance(other, Track):
             raise TypeError("Track._takein expected a Track")
-        self._ctrl_local = other._travel_vertices()
+        # The drawn table has the source's mirror baked in; the copy re-mirrors
+        # from the flags it takes (``_clone_pose_from`` below), as clone() does
+        # (``_clone_geometry``). Without this a flipped source drew twice
+        # mirrored, i.e. unflipped (GX10 in Testing Design).
+        mirror = -1.0 if other._local_mirror() else 1.0
+        self._ctrl_local = [(x, mirror * y) for x, y in other._travel_vertices()]
         self._ctrl_points = []
         # A copy is a free points= track of the source's travel path (like
         # clone()): drop this track's own preset / circle / live-shape source,

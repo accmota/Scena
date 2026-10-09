@@ -255,5 +255,25 @@ class TestLinkedDefiningAngleFollowsInStore(unittest.TestCase):
         self.assertGreaterEqual(checked, 5, "vacuous sweep")
 
 
+class TestWriteBeforeReadKeepsThePull(unittest.TestCase):
+    """GX7: with a linked heading, a point the heading turns is pulled on read.
+    A plain write to one coordinate before any read seeded the bare-read cache
+    without that check, so the coordinate kept the written value after the
+    heading's source moved while the other one turned."""
+
+    def test_a_written_coordinate_still_turns_with_the_heading(self):
+        boot()
+        st = State(name="gx7")
+        st.a = 0.0
+        ln = Line(p1=(0, 0), p2=(10, 0))
+        ln["angle"] @= lambda: st.a
+        ln.p1.x = 1.0                       # before any read
+        st.a = 90.0
+        twin = Line(p1=(1, 0), p2=(10, 0))
+        twin.rotate_to(90)
+        self.assertAlmostEqual(float(ln.p1.x), float(twin.p1.x))
+        self.assertAlmostEqual(float(ln.p1.y), float(twin.p1.y))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
