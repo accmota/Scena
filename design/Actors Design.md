@@ -449,8 +449,11 @@ Fence: see [Fences](Fences.md) (`id=` / `obj()` / a name registry).
 ## `active` (park)
 
 - `active = False` — stash then force `visible` / `collidable` off; **pause** owned
-  timers / tweens / `on_update` / async mode resume (`elapsed` frozen). Script-scoped
-  timers keep running. `@when` / `@on_change` still run (they watch facts, they are
+  timers / tweens / `on_update` / async mode resume (`elapsed` frozen). An owned
+  **sound** keeps playing (park does not stop audio; pause the Handle for that)
+  and its Handle keeps reporting the voice, but its `on_done` waits for the
+  resume: park runs no owned callback (decided 2026-10-09, review X-life-4).
+  Script-scoped timers keep running. `@when` / `@on_change` still run (they watch facts, they are
   not owned process — so `@when(lambda self: not self.active and keyp("R"))` can
   revive). Shape transients (`flash` / `blink` / `dissolve_out` / …) also keep
   ticking: they are presentation on wall clock, not actor process time. Prefer
@@ -466,6 +469,12 @@ Fence: see [Fences](Fences.md) (`id=` / `obj()` / a name registry).
   part's stash; resume restores it. Before, a parked Line's handles kept drawing and
   dragging one moved the parked shape. Guards: `test_part_lifecycle.TestPartParksWithOwner`,
   `test_hyp_canvas` invariant `parts_follow_their_owner`.
+- **Park then resume is an identity** on placement: `layer`, `visible`, the draw
+  list and the pointer list read as before. Park and resume write `visible` only
+  when it changes. Writing `False` to an item that is already hidden is not a no-op
+  everywhere: a hidden Point on a layer leaves it. Writing it took such a Point off
+  `'default'` for good (O5 in [Testing Design](Testing%20Design.md#bug-catalogue)).
+  Guard: `test_process.TestParkRoundTripKeepsPlacement`.
 - While parked, a `visible` / `collidable` **write updates the stash** that resume
   restores; the actor stays hidden and out of collision. Reads report the current
   state (False while parked). Engine draw / hit-test walks read the drawn flag
@@ -665,6 +674,13 @@ telling the author their delta was wrong. `0.0` (freeze) stays legal.
 ### every is seconds, not frames
 
 `every(interval, fn)` counts world seconds. The interval must be > 0.
+A frame that covers several intervals fires several times (in that frame), so
+the rate does not depend on the frame rate and a hitch loses no fires; one tick
+fires at most `MAX_FRAME_DT / interval` times, so a stall cannot spiral
+(debt beyond that, from an uncapped `clock.advance` or a time scale above 1,
+keeps only its phase). Before 2026-10-09 it fired at most once per frame and
+dropped the debt: `every(0.02)` gave 50 fires a second at 60 FPS and 30 at
+30 FPS ([Scena Design — Clocks](Scena%20Design.md#clocks)).
 `every(0, …)` and a sentinel such as `EVERY_FRAME` are not a per-frame hook.
 Per-frame work is `on_update` (Entity) or script `update(dt)`, both of which
 receive `dt`. A non-positive interval stays `ValueError` and names those hooks.
@@ -989,7 +1005,10 @@ auto-discovered; classless is `e.on_destroy = fn`. Arity-truncated via `_invoke`
 ```
 destroy():
     1. if on_destroy is set, call it — self is still fully alive (ink, groups,
-       layer intact). Exceptions warn and are swallowed.
+       layer intact). An exception propagates after the teardown completes
+       (steps 2–3 run in a ``finally``), as Protections says: author errors
+       raise. (This line said "warn and are swallowed" until 2026-10-09,
+       which the code never did; review X-life-10.)
     2. cancel every handle / script owned by this item (already unconditional).
     3. retire every Entity part (see below), then drop from groups, drop the
        roster entry, drop layer, mark is_alive = False and active = False

@@ -1651,6 +1651,61 @@ class TestSurfaceFuzzFindings(unittest.TestCase):
                         make(bad)
                     self.assertEqual(cursor(), before)
 
+    def test_a_rejected_hud_item_leaves_the_column_exactly(self):
+        """A5, the whole class: every HUD constructor, every keyword. With a
+        live item already in the column (the A5 guards above start from an
+        empty one, where the "last participant leaves" rewind hid the move),
+        a constructor that raises after taking its slot left the cursor
+        advanced: ``Text(glow=[])`` / ``Text(angle="x")`` validated after
+        ``begin_hud_item`` (deep serial pass, 2026-10-09). The rollback now
+        puts back the cursor the item found, whatever raised."""
+        from scena.orchestration import ScenaFramework
+        from scena.text import Text as _Text
+        from scena.uiwidget import UIWidget
+        wm = ScenaFramework.get_instance().widget_manager
+
+        def cursor():
+            return (wm._origin_x, wm._origin_top, wm._stack_x, wm._stack_bottom,
+                    wm._stack_extra_gap, wm._column_right, wm._column_top,
+                    wm._column_origin_x,
+                    [r() for r in wm._column_participants], list(wm._label_column))
+
+        st = scena.st
+        st.a5c_v = 0.5
+        st.a5c_s = ""
+        st.a5c_b = False
+        base = {
+            "Button": {}, "Text": {"text": "a"}, "Menu": {"options": ["a"]},
+            "Slider": {"cell": st.a5c_v}, "CheckBox": {"cell": st.a5c_b},
+            "TextInput": {"cell": st.a5c_s}, "DropDown": {"options": ["a"]},
+        }
+        classes = {n: getattr(scena, n) for n in scena.__all__
+                   if inspect.isclass(getattr(scena, n))
+                   and issubclass(getattr(scena, n), (UIWidget, _Text))}
+        self.assertEqual(set(classes) - set(base), set(), "a new HUD class: add its base call")
+        junk = (object(), [], "w", math.nan)
+        scena.ui.stack_reset()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            keeper = scena.Text("column keeper")
+            try:
+                for name, cls in classes.items():
+                    params = [p for p in inspect.signature(cls).parameters
+                              if not p.startswith("_")]
+                    for param in params:
+                        for bad in junk:
+                            before = cursor()
+                            try:
+                                obj = cls(**{**base[name], param: bad})
+                            except Exception:  # noqa: BLE001 — the contract is the cursor
+                                with self.subTest(call=f"{name}({param}={bad!r})"):
+                                    self.assertEqual(cursor(), before)
+                            else:
+                                obj.destroy()
+                            obj = None
+            finally:
+                keeper.destroy()
+
 
 class TestReactiveKnobsTakeFormulas(unittest.TestCase):
     """R8 (Testing Design): the A3 guard rejected functions on every numeric

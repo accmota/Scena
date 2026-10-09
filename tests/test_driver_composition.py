@@ -216,6 +216,7 @@ class TestCloneMotionThenResolve(DriverCase):
 
     def test_clone_forever_move_then_resolve_stops_at_wall_either_order(self):
         motion_first = self._run(resolve_first=False)
+        self.tearDown()   # setUp drops the tracking list: destroy the first run's actors
         self.setUp()
         resolve_first = self._run(resolve_first=True)
         # Wall face at +190, half-width 10: the clone rests just short of +180.

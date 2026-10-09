@@ -23,10 +23,11 @@ import warnings
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from hypothesis_support import boot  # noqa: E402
 from system_support import SystemTestCase  # noqa: E402
 
 from scena import (  # noqa: E402
-    Act, Circle, Endless, Polygon, Rect, Sprite, canvas, change_act, group,
+    Act, Circle, Endless, Polygon, Rect, Sprite, canvas, change_act, group, init,
 )
 from scena.canvas import ScenaCanvas  # noqa: E402
 from scena.endless import _SLOT_CAP, Slot, _mix  # noqa: E402
@@ -48,6 +49,15 @@ def _floor(slot, y=0.0, h=20.0, **kw):
 
 class EndlessCase(SystemTestCase, unittest.TestCase):
     world_draw = False
+
+    @classmethod
+    def setUpClass(cls):
+        # Slot counts (the cap tests, free roam under _SLOT_CAP) follow the
+        # view area: pin the design size instead of inheriting the last
+        # module's init() (boot() inits 400x300 once per process; the deep
+        # serial pass ran this after an 800x600 module and hit the cap).
+        boot()
+        init(width=400, height=300)
 
     def setUp(self):
         super().setUp()

@@ -34,24 +34,35 @@ _now_fn = None  # optional test clock
 
 
 def set_now_fn(fn) -> None:
-    """Test hook: override wall-clock for spatial tick (``None`` restores)."""
+    """Test hook: override the spatial clock (``None`` restores world time)."""
     global _now_fn
     _now_fn = fn
 
 
 def _now() -> float:
+    """World time (``clock.time``): SpatialFx are world actors.
+
+    Pause and slow motion reach them like every other world process (their
+    own ``after`` / ``every`` already count world seconds). Shader phases read
+    the same clock, so a paused world freezes the rain, too.
+    """
     if _now_fn is not None:
         return float(_now_fn())
+    try:
+        from .orchestration import ScenaFramework
+        clk = ScenaFramework.get_instance().clock
+        if clk is not None:
+            return float(clk.time)
+    except Exception:
+        pass
     return time.perf_counter()
 
 
-# Float32 shader clocks subtract this so a long-running process does not
-# quantize animation to multi-millisecond steps.
-_SPATIAL_T0 = time.perf_counter()
-
-
 def _shader_time() -> float:
-    return _now() - _SPATIAL_T0
+    # World time starts at 0 with the run, so float32 shader clocks keep
+    # their precision without an origin subtraction (phases wrap anyway:
+    # ``_wrapped_phase``).
+    return _now()
 
 
 _TAU = 2.0 * math.pi

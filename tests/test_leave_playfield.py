@@ -285,7 +285,10 @@ class TestSceneHandler(LeaveBoundsTestCase):
         self.assertEqual(gone, [c])
         self.assertFalse(c.is_alive)
 
-    def test_second_registration_replaces(self):
+    def test_second_registration_adds(self):
+        # Every top-level handler on a tag runs, like @collide and the class
+        # form; before 2026-10-09 the second silently replaced the first
+        # (review S4-10).
         first = []
         second = []
 
@@ -301,7 +304,7 @@ class TestSceneHandler(LeaveBoundsTestCase):
         _bounds_step()
         c.center.y = -300
         _bounds_step()
-        self.assertEqual(first, [])
+        self.assertEqual(first, [c])
         self.assertEqual(second, [c])
 
     def test_shared_handler_two_groups(self):

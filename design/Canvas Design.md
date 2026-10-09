@@ -227,7 +227,12 @@ for placing things next to it.
 column list. Destroying the last live item of the **current** column rewinds
 the cursor to that column's x and visual top and drops a pending `ui.gap()`.
 A partial destroy does not rewind. Items left behind by a stack move are not
-tracked, so destroying them does not move the cursor. `ui.stack_column()` starts a new column at this
+tracked, so destroying them does not move the cursor. A constructor that
+raises after taking its slot is not a destroy. It puts the cursor back exactly
+where it found it, even when other items stay in the column:
+`begin_hud_item` records the cursor and the construct rollback
+(`place._drop_failed_construct`) restores it, whatever raised (A39 in
+[Testing Design](Testing%20Design.md#bug-catalogue)). `ui.stack_column()` starts a new column at this
 column’s visual top, with x past the max participating `x2` plus the theme
 gap (`gap=` overrides). An empty column uses origin x + default widget
 width + gap. Pending `ui.gap()` is cleared (it does not fatten the column
@@ -413,8 +418,12 @@ integrates it once per frame in the frame body, right after the clock tick
 (before `update` and the process tick), and `draw` only reads the accumulated
 offset. So `update` sees this frame's offset, a headless run that never draws
 still scrolls, and painting twice (post FX) never double-counts. A custom frame
-loop (bench harnesses) calls it after its own clock tick. A non-finite `t` is
-skipped. Non-finite scroll rates raise at the setter. Same-z layers are legal; among equal z, draw order is first-seen
+loop (bench harnesses) calls it after its own clock tick. Every non-neutral
+layer advances, hidden or not: `visible` is paint, scroll is world state (a
+hidden layer that froze would jump when shown again, and an Endless on it
+would stop filling). A gap in world time is integrated in full; the run loop
+already caps a frame at `MAX_FRAME_DT` (the old 1.5 s "tab resume" skip left a
+layer lagging for good). A non-finite `t` is skipped. Non-finite scroll rates raise at the setter. Same-z layers are legal; among equal z, draw order is first-seen
 (stable sort).
 Non-neutral layers are exempt from `cull_offscreen` (bounds live under a
 different matrix). Graphics with no `.visual`, no fill/line filters, and no
@@ -1081,7 +1090,8 @@ author's (`set` keyed by `slot.i`).
   constructor that raises (a builder error on the first fill) releases what it
   built and is never held. `active = False` freezes the fill (pieces stay).
 - **Acts.** Created in an Act → torn down by `change_act`, pieces included.
-  Create it in the Act that uses it: a top-level `Endless` survives the change,
+  Create it, and its layer, in the Act that uses it (an act-created layer
+  leaves with the act, so a restart works): a top-level `Endless` survives the change,
   but pieces it built during the Act leave with the Act and count as consumed.
 
 **Hazard: fixed camera on a gameplay layer.** A neutral layer's window never

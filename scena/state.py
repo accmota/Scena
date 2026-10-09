@@ -4570,28 +4570,37 @@ class UpdateManager:
         """Poll ``@when`` / ``@on_change`` until quiet (pulls pure data).
 
         A callback that fires can change what another watches, so polling
-        repeats while anything fired — at most ``FLUSH_MAX_ROUNDS`` rounds.
-        Still firing after that means handlers keep re-triggering each other
-        (e.g. two ``@on_change`` bumping each other's source): warn once per
-        flush and leave the rest for the next flush instead of spinning.
+        repeats while anything fired. A chain with no cycle never fires one
+        watch twice, so it settles in at most one round per watch, however
+        long it is. Only rounds in which a watch fires *again* count toward
+        ``FLUSH_MAX_ROUNDS``; past that, handlers keep re-triggering each other
+        (two ``@on_change`` bumping each other's source): warn once per flush
+        and leave the rest for the next flush instead of spinning
+        (review 2026-10-09 S2-17).
         """
         if self.is_updating:
             return
         self.is_updating = True
         try:
             from .events import poll_all_events
-            for _ in range(FLUSH_MAX_ROUNDS):
-                if not poll_all_events():
+            fired_before: set = set()
+            repeat_rounds = 0
+            while True:
+                fired, repeated = poll_all_events(fired_before)
+                if not fired:
                     break
-            else:
-                warnings.warn(
-                    f"SCENA: @when / @on_change still firing after "
-                    f"{FLUSH_MAX_ROUNDS} rounds in one flush — handlers keep "
-                    f"re-triggering each other (a cycle?). Remaining changes "
-                    f"run on the next flush.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
+                if repeated:
+                    repeat_rounds += 1
+                    if repeat_rounds >= FLUSH_MAX_ROUNDS:
+                        warnings.warn(
+                            f"SCENA: @when / @on_change watches fired again in "
+                            f"{FLUSH_MAX_ROUNDS} rounds of one flush — handlers "
+                            f"keep re-triggering each other (a cycle). Remaining "
+                            f"changes run on the next flush.",
+                            RuntimeWarning,
+                            stacklevel=2,
+                        )
+                        break
         finally:
             self.is_updating = False
 

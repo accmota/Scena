@@ -4602,7 +4602,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
             center = get_xy(self.center, bare=True)
         fr = self.frame if frame is None else frame
         cell = self._sheet._frame_at(self._sheet.frame_index(fr))
-        return type(self)(
+        return self._copy_main_hitbox_switch(type(self)(
             self._sheet,
             frame=fr,
             hitbox_shape=self._hitbox_kind,
@@ -4617,7 +4617,14 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
             center=center,
             **self._size_intent_kwargs(cell),
             **kwargs,
-        )
+        ))
+
+    def _copy_main_hitbox_switch(self, copy):
+        """A clone collides like its source: ``hitbox.active = False`` is a
+        main-hitbox knob like its shape and scale (review 2026-10-09 S7-8)."""
+        if self.__dict__.get("_main_hitbox_off", False):
+            copy.hitbox.active = False
+        return copy
 
     def _adopt_clip(
         self,
@@ -6228,7 +6235,7 @@ class Svg(Sprite):
         """Construct a new Svg from this markup (private sheet; not shared)."""
         if center is None:
             center = get_xy(self.center, bare=True)
-        return type(self)(
+        return self._copy_main_hitbox_switch(type(self)(
             self._svg,
             hitbox_shape=self._hitbox_kind,
             hitbox_source=self._hitbox_from,
@@ -6242,7 +6249,7 @@ class Svg(Sprite):
             center=center,
             **self._size_intent_kwargs(),
             **kwargs,
-        )
+        ))
 
     def __str__(self) -> str:
         n = 0 if self._svg is None else len(self._svg)

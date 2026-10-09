@@ -16,6 +16,7 @@ record. Nothing is recorded per spawn, so a bullet pays nothing.
 from __future__ import annotations
 
 import builtins
+import functools
 import inspect
 import weakref
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
@@ -50,7 +51,7 @@ _BODY_HOOKS = (
 )
 _BODY_TAGS = ("_collide_with_specs", "_leave_playfield_method")
 _CLASS_KEYWORDS = ("group", "layer")
-_MAX_TEARDOWN_PASSES = 10_000
+_MAX_TEARDOWN_PASSES = 100
 
 
 def _base_class_message() -> str:
@@ -117,6 +118,8 @@ class ActManager:
         # World settings at the seal (``WORLD_SETTINGS`` name → value).
         self._settings: Dict[str, Any] = {}
         self._game_leave: dict = {}
+        # Layer names at the seal: a layer an act creates leaves with the act.
+        self._game_layers: frozenset = frozenset()
         self._game_ready_keys: frozenset = frozenset()
         self._game_recently_keys: frozenset = frozenset()
         from .process import _set_top_level_ended
@@ -133,6 +136,7 @@ class ActManager:
         )
         self._settings = {w.name: w.snapshot() for w in WORLD_SETTINGS}
         self._game_leave = dict(get_bounds_system()._group_handlers)
+        self._game_layers = frozenset(registry.layers._layers)
         ready = getattr(builtins, "ready", None)
         recently = getattr(builtins, "recently", None)
         self._game_ready_keys = frozenset(getattr(ready, "_timers", {}) or ())
@@ -203,9 +207,16 @@ class ActManager:
             if leaving is not None and leaving.is_alive:
                 first_error = self._destroy_one(leaving, first_error)
             # 2. Everything else created after the top level ended, as one batch.
-            first_error = self._teardown(first_error)
+            first_error = self._teardown(first_error, {id(o) for o in batch})
+            # 2b. Work and hooks the act handed to game objects (a bound method
+            #     of the act, or a function closing over it) leave with the act.
+            if leaving is not None:
+                self._drop_act_callables(leaving)
             # 3. World settings back to their top-level values.
             self._restore()
+            # 4. Layers the act created leave with it (a restart creates them
+            #    again; review 2026-10-09 S4-4).
+            first_error = self._drop_act_layers(first_error)
         finally:
             del batch
             self.dying_ids = set()
@@ -224,6 +235,65 @@ class ActManager:
         if first_error is not None:
             raise first_error
         return act
+
+    # Hooks on a game object that can hold an act's callable.
+    _GAME_HOOKS = (
+        "on_update", "on_click", "on_hover", "on_hover_exit", "on_collide",
+        "on_collide_stay", "on_collide_exit", "on_destroy", "on_drag_to",
+        "on_drag_over", "on_drop_by", "mode",
+    )
+
+    def _drop_act_callables(self, act) -> None:
+        """"Closest owner wins" keeps work on a game object; but a callable of
+        the leaving act would stack on every restart, keep the dead act alive
+        and reach its destroyed ink (review 2026-10-09 X-life-7). Cancel those
+        handles and clear those hooks; everything else the game owns stays."""
+        from .process import get_scheduler
+        for handle in list(get_scheduler()._handles):
+            if handle._cancelled or handle._done:
+                continue
+            if (_belongs_to(handle._fn, act) or _belongs_to(handle._then, act)
+                    or _belongs_to(handle._on_done, act)):
+                handle.cancel()
+        for obj in list(self._game_entities):
+            if not _is_live(obj):
+                continue
+            cls = type(obj)
+            for name in self._GAME_HOOKS:
+                if not hasattr(cls, name):
+                    continue
+                try:
+                    value = getattr(obj, name)
+                except Exception:
+                    continue
+                if _belongs_to(value, act):
+                    setattr(obj, name, None)
+
+    def _drop_act_layers(self, first_error):
+        """Delete every layer created after the seal. A game object still on
+        one keeps it, and the change raises (after the new act is built)
+        naming the layer and the fix."""
+        from .registry import BUILT_IN_LAYERS
+        stack = _registry().layers
+        for name in list(stack._layers):
+            if name in self._game_layers or name in BUILT_IN_LAYERS:
+                continue
+            layer = stack._layers[name]
+            layer._compact()
+            if layer._objects:
+                left = ", ".join(type(o).__name__ for o in layer._objects[:3])
+                act = self._leaving.__name__ if self._leaving else "the act"
+                err = ActUsageError(
+                    f"Layer {name!r} was created in {act} and leaves with it, "
+                    f"but game objects are still on it ({left}). Move them to "
+                    f"a game layer before the change (obj.layer = \"default\"), "
+                    f"or create the layer at the top of the file."
+                )
+                if first_error is None:
+                    first_error = err
+                continue
+            stack.delete(name)
+        return first_error
 
     def _destroy_one(self, obj, first_error):
         self._hook_owner = obj
@@ -252,7 +322,36 @@ class ActManager:
             out.append(obj)
         return out
 
-    def _teardown(self, first_error):
+    def _fire_hook(self, obj, first_error):
+        from .entity import _fire_on_destroy
+        self._hook_owner = obj
+        try:
+            _fire_on_destroy(obj)
+        except BaseException as exc:  # noqa: BLE001 — author hook; finish the change
+            if first_error is None:
+                first_error = exc
+        finally:
+            self._hook_owner = None
+        return first_error
+
+    def _teardown(self, first_error, batch_ids=None):
+        """Tear down everything made after the seal, in two phases.
+
+        1. Every ``on_destroy`` of the batch runs while the **whole** batch is
+           alive (as the act's own ``on_destroy`` does), so a hook that reads
+           a sibling does not depend on creation order (review 2026-10-09
+           X-life-9).
+        2. Teardown. An object created during the teardown (by a hook) leaves
+           without its own ``on_destroy``: it belongs to the ending act, and a
+           self-replacing hook (keep the field full) would otherwise respawn
+           forever (X-life-6).
+        """
+        batch = list(self._doomed())      # held: ids stay unique while used
+        if batch_ids is None:
+            batch_ids = {id(o) for o in batch}
+        for obj in batch:
+            if id(obj) in batch_ids and _is_live(obj):
+                first_error = self._fire_hook(obj, first_error)
         passes = 0
         while True:
             doomed = self._doomed()
@@ -260,14 +359,21 @@ class ActManager:
                 break
             passes += 1
             if passes > _MAX_TEARDOWN_PASSES:
+                kinds = sorted({type(o).__name__ for o in doomed})
                 raise RuntimeError(
-                    "An act change did not settle: on_destroy hooks keep "
-                    "creating objects."
+                    "An act change did not settle: teardown hooks keep "
+                    f"creating objects ({', '.join(kinds)}) after "
+                    f"{_MAX_TEARDOWN_PASSES} passes."
                 )
             self.dying_ids.update(id(obj) for obj in doomed)
             for obj in doomed:
-                if _is_live(obj):
-                    first_error = self._destroy_one(obj, first_error)
+                if not _is_live(obj):
+                    continue
+                if id(obj) not in batch_ids:
+                    # Born during the teardown: leaves without its own hook.
+                    object.__setattr__(obj, "_on_destroy", None)
+                first_error = self._destroy_one(obj, first_error)
+        del batch
         self._drop_script_level_work()
         return first_error
 
@@ -280,6 +386,7 @@ class ActManager:
         from .events import get_global_event_system
         from .process import SCOPE_ACT, get_scheduler
         get_scheduler().cancel_ownerless(SCOPE_ACT, release=True)
+        get_scheduler().resume_suspended_game_slots()
         get_global_event_system().drop_act_owned()
         get_collision_system().drop_act_pair_handlers()
         get_collision_system().restore_sealed_resolve_pairs()
@@ -580,6 +687,27 @@ def _reset_act_manager() -> None:
         except Exception:
             pass
     m._reset()
+
+
+def _belongs_to(fn, act) -> bool:
+    """True when ``fn`` is a bound method of ``act`` or a function (lambda,
+    nested def, ``functools.partial``) whose closure or arguments hold it."""
+    if fn is None or act is None:
+        return False
+    if getattr(fn, "__self__", None) is act:
+        return True
+    if isinstance(fn, functools.partial):
+        if fn.args and any(a is act for a in fn.args):
+            return True
+        return _belongs_to(fn.func, act)
+    func = getattr(fn, "__func__", fn)
+    for cell in getattr(func, "__closure__", None) or ():
+        try:
+            if cell.cell_contents is act:
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 def _framework():

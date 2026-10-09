@@ -1478,6 +1478,33 @@ class TestTextAnchorLinks(TextTestCase):
         self.assertAlmostEqual(b._x1, 40.0)
 
 
+class TestTextTakesAFunction(unittest.TestCase):
+    """``Text(fn)`` links, as the docstring and the constructor-links rule
+    say: the same link as ``t["text"] @= fn`` (review 2026-10-09 S6-7)."""
+
+    def test_function_argument_links(self):
+        from scena import Text, st
+        st.s67_n = 3
+        t = Text(lambda: f"pontos {st.s67_n}", center=(0, 0))
+        try:
+            self.assertEqual(t.text.value, "pontos 3")
+            st.s67_n = 12
+            self.assertEqual(t.text.value, "pontos 12")
+            self.assertIsNotNone(t.text._link)
+        finally:
+            t.destroy()
+
+    def test_a_function_with_no_source_raises_and_leaves_nothing(self):
+        from scena import Text
+        from scena.canvas import ScenaCanvas
+        reg = ScenaCanvas.get_current().registry
+        before = len([o for o in reg.live_objects() if isinstance(o, Text)])
+        with self.assertRaises(TypeError):
+            Text(lambda: "fixo", center=(0, 0))
+        after = len([o for o in reg.live_objects() if isinstance(o, Text)])
+        self.assertEqual(after, before)
+
+
 if __name__ == "__main__":
     unittest.main()
 

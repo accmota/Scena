@@ -103,7 +103,9 @@ Implementation. `Sheet._frame_at(i)` returns the shared atlas frames when the an
 is `"center"` and no offsets exist (`_plain_frames`, one bool check on the draw
 path); otherwise a per-Sheet tuple of `AtlasFrame.with_pivot` copies built lazily
 (`_eff_frames`, reset by `strip()` / `clip(offset=)`). Atlas frames are cached and
-shared (`_ATLAS_CACHE`), so a Sheet never mutates one. Every pivot reader (blit,
+shared (`_ATLAS_CACHE`, keyed by path and the file's modification time and
+size, so a rewritten atlas is parsed again; the cached frames refuse writes),
+so a Sheet never mutates one. Every pivot reader (blit,
 `_visual_local_center`, hitbox bake and union, flip, tilt, parts) goes through
 `_frame_at`; the union cache key already includes pivots (`_frame_set_signature`),
 and single-frame bakes live in pixel space (pivot-independent). Interned stills
@@ -413,6 +415,9 @@ intern the catalog.
 
 What intern **cannot** skip: per-Entity / Attribute / registry registration. Every
 live projectile is an independent registry citizen. `clone()` pays that same scaffolding.
+A clone collides like its source: the main-hitbox knobs (`hitbox_shape` /
+`source` / `anchor` / `scale`) and a switched-off `hitbox.active = False` are
+copied, as `collidable = False` is (decided 2026-10-09, review S7-8).
 
 ### Invisible caches (path-only ctor)
 
@@ -961,7 +966,7 @@ stability from its four knobs.
 
 **Tests.** `tests/test_hitbox_round2.py`:
 - `TestPxShapeApi`, `TestPxShapePlacement` (the oracle: a `px_rect` equals an atlas box with the same numbers, also on a trimmed frame), `TestPxShapeCache`.
-- `TestPxShapeProperty`: Hypothesis over rotation, flips, tilt, offset and scale; the proxy holds the prims. Atlases are cached by path, so each example writes its atlas under a new file name (rewriting one path read the previous example's boxes).
+- `TestPxShapeProperty`: Hypothesis over rotation, flips, tilt, offset and scale; the proxy holds the prims. Atlases are cached by path and file stamp; each example still writes its atlas under a new file name (two rewrites within the file system's timestamp resolution can share a stamp).
 - `TestShowing`, `TestLinkedActive`.
 - `TestLinkedActiveFrames`: real frames through `SystemWorld`. It checks enter on the first strike cell, no lag when `play()` runs in `on_update`, and that switching clips mid-swing turns the box off.
 

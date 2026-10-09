@@ -87,6 +87,55 @@ class TestProbesAndTeardown(unittest.TestCase):
         self.assertEqual(run.leftovers(), {})
         self.assertEqual(zombies(), [])
 
+    def test_leftovers_from_another_module_are_not_the_programs(self):
+        # The deep serial pass runs every module in one process: actors an
+        # earlier module left alive are parked while the program runs and
+        # resumed at close. Both censuses must see them in the same state —
+        # census_before was taken after parking, census_after after resuming,
+        # and every parked drawn actor read as the program's leak (draw_live
+        # 1608 -> 1610 in 43 teardown checks). A hidden Point on a layer also
+        # came back off it (park / resume was not an identity).
+        from scena import Circle, Point
+        shown = Circle(center=(0, 0), radius=5)
+        marker = Point(0, 0)
+        marker.visible = True            # on 'top'; parking takes it off
+        hidden = Point(0, 0)
+        hidden.layer = "default"
+        try:
+            run = ProgramRun("input_probe")
+            run.start()
+            run.play([("wait", 2)])
+            run.close()
+            self.assertEqual(run.leftovers(), {})
+            self.assertTrue(shown.active and shown.visible)
+            self.assertEqual((marker.layer, marker.visible), ("top", True))
+            self.assertEqual(hidden.layer, "default")
+        finally:
+            for obj in (shown, marker, hidden):
+                obj.destroy()
+
+    def test_a_program_starts_from_fresh_world_settings(self):
+        # O8: test_noop_cost / test_closed_surfaces left the auto playfield
+        # pinned to 400x300 edges; naves and galaga (1000x800) lost their shots
+        # at that stale edge, in the serial pass only. A real program starts
+        # in a fresh process: the run starts from the framework defaults
+        # (system_support.reset_world_settings) and gives back what it found.
+        from scena import canvas
+        from scena.act import WORLD_SETTINGS
+        setting = {w.name: w for w in WORLD_SETTINGS}["playfield"]
+        found = setting.snapshot()
+        pf = canvas.playfield
+        pf.left = pf.left - 123                  # another module's leftover
+        left_behind = setting.snapshot()
+        try:
+            with ProgramRun("input_probe", probes={"pf": lambda p: setting.snapshot()}) as run:
+                run.step(1)
+                self.assertEqual(run.trace.end("pf"), (0.25, None))   # the default: auto edges
+            self.assertEqual(setting.snapshot(), left_behind)
+            self.assertEqual(run.leftovers(), {})
+        finally:
+            setting.restore(found)
+
     def test_probes_read_the_live_namespace(self):
         # A global the program rebinds during frames (``global frames_seen``)
         # is what the probe reads: the namespace is the program's own, not a copy.

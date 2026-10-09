@@ -497,7 +497,10 @@ class ProgramRun:
         _SERIALS["map"] = weakref.WeakKeyDictionary()
         _SERIALS["next"] = 0
         random.seed(self.seed)
-        self.world = SystemWorld(draw=self.draw)
+        # Leftovers from other modules are parked only after census_before:
+        # teardown resumes them before census_after, so both censuses must
+        # see them active (else every parked drawn actor reads as a leak).
+        self.world = SystemWorld(draw=self.draw, quarantine=False)
         fw = self.world.fw
         self._roster_before = set(registry().live.keys())
         self._st_before = set(scena.st.keys())
@@ -550,6 +553,7 @@ class ProgramRun:
         self.census_before = surface_census()
         ss = get_scena_system()
         self._graph_before = set(ss.dependency_graph.nodes) if ss is not None else set()
+        self.world.quarantine()
         cm = fw.canvas_manager
         self._saved_input = {n: getattr(cm, n, None) for n in _INPUT_CALLBACKS}
         self._saved_run = scena.run

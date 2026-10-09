@@ -265,5 +265,52 @@ class TestDraw(CoverTest):
         self.assertLess(int(corner[0]), 40)
 
 
+class TestCoverRunsOnPresentationTime(unittest.TestCase):
+    """The cover is presentation: it runs while the world is paused or
+    slowed, and a hitch advances it at most MAX_FRAME_DT (design decision,
+    review 2026-10-09 S1-6; Scena Design "Clocks")."""
+
+    def test_fade_out_finishes_while_paused(self):
+        from scena import clock
+        from tests.system_support import system_world
+        done = []
+        with system_world(draw=False) as w:
+            clock.paused = True
+            try:
+                canvas.fade_out(0.5, on_done=lambda: done.append(clock.time))
+                w.step(40, dt=1 / 60)
+            finally:
+                clock.paused = False
+                cv.reset_cover()
+        self.assertEqual(len(done), 1, "fade_out never finished under clock.paused")
+
+    def test_slow_motion_does_not_slow_the_fade(self):
+        from scena import clock
+        from tests.system_support import system_world
+        frames = []
+        with system_world(draw=False) as w:
+            clock.scale = 0.25
+            try:
+                canvas.fade_out(0.5, on_done=lambda: frames.append(w.frames_run))
+                w.step(60, dt=1 / 60)
+            finally:
+                clock.scale = 1.0
+                cv.reset_cover()
+        self.assertTrue(frames and frames[0] <= 31, frames)
+
+    def test_presentation_time_is_unscaled_and_capped(self):
+        from scena.input import Clock, MAX_FRAME_DT
+        c = Clock()
+        c._last_time = 0.0
+        c._tick(1.0)                      # a 1 s hitch
+        self.assertAlmostEqual(c._ui_time, MAX_FRAME_DT)
+        c.paused = True
+        c._tick(1.1)
+        self.assertAlmostEqual(c._ui_time, MAX_FRAME_DT + 0.1)
+        self.assertAlmostEqual(c.time, MAX_FRAME_DT)   # the world stayed put
+        c.advance(0.5)                     # an explicit step is taken as given
+        self.assertAlmostEqual(c._ui_time, MAX_FRAME_DT + 0.6)
+
+
 if __name__ == "__main__":
     unittest.main()

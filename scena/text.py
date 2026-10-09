@@ -410,6 +410,13 @@ class Text(Graphic, PaintState):
 
         if bounded is not None:
             self.__dict__["text"] = bounded
+        elif callable(initial_text):
+            # ``Text(lambda: f"Pontos {st.pontos}")``: a function links, the
+            # same link as ``t["text"] @= fn`` (same source rules), before the
+            # first layout reads it (review 2026-10-09 S6-7; the docstring and
+            # the constructor-links rule promised it).
+            self.text.value = ""
+            self._link_field("text", initial_text)
         else:
             seed = "no label" if initial_text is None else initial_text
             self.text.value = seed

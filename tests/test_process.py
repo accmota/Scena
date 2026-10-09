@@ -324,11 +324,13 @@ class TestDueOnTheExactFrame(ProcessTestCase):
             secs = k * (1.0 / fps)       # what an author writes as k / fps
             secs = round(secs, 6) if abs(round(secs, 6) * fps - k) < 1e-9 else secs
             with self.subTest(fps=fps, k=k, secs=secs):
+                self.tearDown()
                 self.setUp()
                 hit = []
                 after(secs, lambda: hit.append(1))
                 self.assertEqual(self._frames_until(lambda: hit, dt), k, "after")
 
+                self.tearDown()
                 self.setUp()
                 ticks = []
                 every(secs, lambda: ticks.append(clock.frame))
@@ -336,6 +338,7 @@ class TestDueOnTheExactFrame(ProcessTestCase):
                     _frame(dt)
                 self.assertEqual(len(ticks), 3, f"every fired at {ticks}")
 
+                self.tearDown()
                 self.setUp()
                 c = self.track(Circle(center=(0, 0), radius=1))
                 c.move_to(100, 0, time=secs)
@@ -348,11 +351,13 @@ class TestDueOnTheExactFrame(ProcessTestCase):
                     t += dt
                 self.assertEqual(_progress(0.0, secs, t), 1.0, "transient progress")
 
+                self.tearDown()
                 self.setUp()
                 self.assertTrue(ready("pm8", secs))
                 got = self._frames_until(lambda: ready("pm8"), dt)
                 self.assertEqual(got, k, "ready")
 
+                self.tearDown()
                 self.setUp()
                 self.assertTrue(recently("pm8", True, hold=secs))
                 for n in range(1, k + 1):
@@ -5196,6 +5201,189 @@ class TestParkStashesFlagWrites(ProcessTestCase):
         for k in range(10):
             tx.tick_all_transients(k * 0.05)
             self.assertFalse(c._visible, f"blink showed a parked shape at tick {k}")
+
+
+
+class TestParkRoundTripKeepsPlacement(ProcessTestCase):
+    """``active = False`` then ``active = True`` puts back exactly what was
+    there (Actors Design — active): layer, visible, draw-list and pointer-list
+    membership. Bug: park wrote ``visible = False`` to an already hidden Point
+    on a layer, which drops it off the layer (``_layer_while_hidden``); resume
+    wrote ``False`` again and the point came back on ``layer=None``. The
+    deep serial pass saw it as ``registry.draw_live`` moving across a
+    ``SystemWorld`` quarantine (Testing Design, "serial pass")."""
+
+    @staticmethod
+    def _placement(e):
+        from scena.canvas import ScenaCanvas
+        reg = ScenaCanvas.get_current().registry
+        drawn = any(o is e for layer in reg.layers.iter_draw_order()
+                    for o in layer._objects)
+        pointer = any(o is e for layer in reg.layers.iter_draw_order()
+                      for o in getattr(layer, "_interactive", ()))
+        return (e.layer, e.visible, e._visible, drawn, pointer)
+
+    def _cases(self):
+        from scena import Point, Sprite, Text
+
+        def hidden_point_on_layer():
+            p = Point(0, 0)
+            p.layer = "default"          # still hidden: on the draw list, skipped
+            return p
+
+        def shown_point():
+            p = Point(0, 0)
+            p.visible = True
+            return p
+
+        def handle_point():
+            p = Point(0, 0)
+            p.handle = True
+            return p
+
+        def draggable_rect():
+            r = Rect(center=(0, 0), width=4, height=4)
+            r.draggable = True
+            return r
+
+        def hidden_circle():
+            c = Circle(center=(0, 0), radius=5)
+            c.visible = False
+            return c
+
+        def _line_with_handles():
+            ln = Line(p1=(0, 0), p2=(5, 5))
+            ln.show_handles()
+            return ln
+
+        def hidden_text():
+            t = Text("p", center=(0, 0))
+            t.visible = False
+            return t
+
+        return {
+            "Point(0, 0)": lambda: Point(0, 0),
+            "hidden Point on a layer": hidden_point_on_layer,
+            "shown Point": shown_point,
+            "handle Point": handle_point,
+            "Circle": lambda: Circle(center=(0, 0), radius=5),
+            "hidden Circle": hidden_circle,
+            "draggable Rect": draggable_rect,
+            "Line with handles": lambda: _line_with_handles(),
+            "Sprite": lambda: Sprite("park_missing.png", center=(0, 0)),
+            "hidden Text": hidden_text,
+        }
+
+    def test_park_resume_is_identity_on_placement(self):
+        for kind, make in self._cases().items():
+            with self.subTest(kind=kind):
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    e = self.track(make())
+                    before = self._placement(e)
+                    e.active = False
+                    e.active = True
+                    self.assertEqual(self._placement(e), before)
+                    # A second round trip too: the first must not leave a
+                    # stash behind that the second reads.
+                    e.active = False
+                    e.active = True
+                    self.assertEqual(self._placement(e), before)
+
+
+class TestEveryCountsWorldSeconds(unittest.TestCase):
+    """``every`` keeps its debt: the rate does not depend on the frame rate,
+    and a hitch loses no fires (design decision, review 2026-10-09 S2-16)."""
+
+    def _count(self, interval, dts, **kw):
+        from scena import every
+        from tests.system_support import system_world
+        fires = []
+        with system_world(draw=False) as w:
+            h = every(interval, lambda: fires.append(1), **kw)
+            for dt in dts:
+                w.step(1, dt=dt)
+            h.cancel()
+        return len(fires)
+
+    def test_same_rate_at_30_and_60_fps(self):
+        self.assertEqual(self._count(0.02, [1 / 60] * 60), 50)
+        self.assertEqual(self._count(0.02, [1 / 30] * 30), 50)
+
+    def test_a_hitch_loses_nothing(self):
+        dts = [1 / 60] * 15 + [0.25] + [1 / 60] * 30
+        self.assertEqual(self._count(0.1, dts), int((15 / 60 + 0.25 + 30 / 60) / 0.1 + 1e-9))
+
+    def test_a_burst_stops_when_the_callback_cancels(self):
+        from scena import every
+        from tests.system_support import system_world
+        fires = []
+        with system_world(draw=False) as w:
+            box = {}
+
+            def tick():
+                fires.append(1)
+                box["h"].cancel()
+            box["h"] = every(0.02, tick)
+            w.step(1, dt=0.25)
+        self.assertEqual(fires, [1])
+
+    def test_a_burst_stops_when_the_owner_parks(self):
+        from scena import Entity
+        from tests.system_support import system_world
+        fires = []
+        with system_world(draw=False) as w:
+            e = Entity()
+            try:
+                def tick():
+                    fires.append(1)
+                    e.active = False
+                e.every(0.02, tick)
+                w.step(1, dt=0.25)
+                self.assertEqual(fires, [1])
+            finally:
+                e.destroy()
+
+
+class TestParkHoldsSoundOnDone(unittest.TestCase):
+    """Park does not stop audio, but it promises no owned callbacks: an
+    owned sound's on_done waits for the resume, and the Handle keeps
+    reporting the voice (review 2026-10-09 X-life-4)."""
+
+    def test_on_done_waits_for_resume(self):
+        from scena import Circle
+        from tests.system_support import system_world, tone
+        log = []
+        with system_world(draw=False) as w:
+            ship = Circle(center=(0, 0), radius=10)
+            try:
+                h = ship.play_sound(tone(0.3), on_done=lambda: log.append(ship.active))
+                w.step(3, dt=1 / 60)
+                ship.active = False
+                e0 = h.elapsed
+                w.step(60, dt=1 / 60)
+                self.assertEqual(log, [], "on_done ran on the parked actor")
+                self.assertGreater(h.elapsed, e0, "the Handle froze while the voice played")
+                self.assertFalse(h.done)
+                ship.active = True
+                w.step(2, dt=1 / 60)
+                self.assertEqual(log, [True])
+                self.assertTrue(h.done)
+            finally:
+                ship.destroy()
+
+    def test_unparked_sound_ends_as_before(self):
+        from scena import Circle
+        from tests.system_support import system_world, tone
+        log = []
+        with system_world(draw=False) as w:
+            ship = Circle(center=(0, 0), radius=10)
+            try:
+                ship.play_sound(tone(0.2), on_done=lambda: log.append(1))
+                w.step(30, dt=1 / 60)
+                self.assertEqual(log, [1])
+            finally:
+                ship.destroy()
 
 
 if __name__ == "__main__":

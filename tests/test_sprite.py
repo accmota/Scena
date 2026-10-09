@@ -3128,6 +3128,17 @@ class TestGreedyHitbox(unittest.TestCase):
 
 
 class TestSpriteClone(SpriteTestCase):
+    def test_clone_copies_a_main_hitbox_switched_off(self):
+        # A clone collides like its source (review 2026-10-09 S7-8).
+        path = self.tmp("ghost.png")
+        _write_rect_png(path, 8, 8)
+        src = self.track(Sprite(path, height=18, center=(0, 0)))
+        src.hitbox.active = False
+        copy = self.track(src.clone(center=(40, 0)))
+        self.assertFalse(copy.hitbox.active)
+        on = self.track(Sprite(path, height=18, center=(0, 0)))
+        self.assertTrue(self.track(on.clone()).hitbox.active)
+
     def test_clone_shares_sheet_identity(self):
         path = self.tmp("shot.png")
         _write_rect_png(path, 8, 8)

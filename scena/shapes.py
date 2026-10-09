@@ -1894,11 +1894,17 @@ class Shape(Graphic, PaintState):
         not the PNG rect and not the hitbox. Circle: the filled arc
         (pie or chord). Rect ``corner_radius`` rounds the pointer fill;
         collision stays the oriented box.
+
+        A destroyed actor (or a part of one) contains nothing: a destroyed
+        object is nowhere, as for ``collision.query_point``. A parked actor
+        keeps its geometric answer (park turns collision off, not geometry).
         """
         if y is None:
             px, py = _xy_of(x, required=True)
         else:
             px, py = _xy_of((x, y), required=True)   # numbers, finite (SA15)
+        if getattr(self, "_destroyed", False) or getattr(self, "_host_destroyed", False):
+            return False                     # review 2026-10-09 S6-8
         return self._hit_test_xy(px, py)
 
     @property

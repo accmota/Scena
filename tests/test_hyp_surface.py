@@ -195,8 +195,14 @@ def _junk_test(name):
         param = data.draw(hst.sampled_from(params), label="param")
         value = data.draw(junk, label="value")
         call = f"{name}({param}={value!r})"
-        with fresh_world():
+        with fresh_world() as world:
             reset_background_base()
+            # A live item already in the HUD column: alone there, a rejected
+            # HUD item that took a slot is rewound by the "last participant
+            # leaves" rule and its cursor move goes unseen (the deep serial
+            # pass, with leftovers in the column, saw Text(glow=[]) move it).
+            with quiet():
+                world.track(scena.Text("column keeper"))
             settle()
             before = surface_census()
             err = None

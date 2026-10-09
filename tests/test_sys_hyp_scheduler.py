@@ -86,7 +86,12 @@ class TestAfter(unittest.TestCase):
 class TestEvery(unittest.TestCase):
 
     @given(dts=frame_dts, p=hst.sampled_from([1 / 60, 0.05, 0.1, 0.3]))
-    def test_count_and_one_per_frame(self, dts, p):
+    def test_count_follows_world_seconds(self, dts, p):
+        # ``every`` counts world seconds: the count after N frames is
+        # floor(total / p) whatever the frame times (a frame that covers
+        # several intervals fires several times), and no frame fires more
+        # than one capped world step owes (review 2026-10-09 S2-16).
+        from scena.process import _every_fire_budget
         with system_world(draw=False) as w:
             fires = []
             idx = {"i": -1}
@@ -95,11 +100,14 @@ class TestEvery(unittest.TestCase):
                 idx["i"] = i
                 w.step(1, dt=dt)
             total = sum(dts)
-            self.assertEqual(len(fires), len(set(fires)), "more than one fire per frame")
-            bound = math.floor(total / p + 1e-7)
+            exact = total / p
+            bound = math.floor(exact + 1e-7)
+            edge = abs(exact - round(exact)) < 1e-6 and round(exact) > 0
             self.assertLessEqual(len(fires), bound)
-            if all(dt <= p + EPS for dt in dts):
-                self.assertGreaterEqual(len(fires), bound - 1)
+            self.assertGreaterEqual(len(fires), bound - (1 if edge else 0),
+                                    f"dts={dts} p={p}")
+            per_frame = max((fires.count(i) for i in set(fires)), default=0)
+            self.assertLessEqual(per_frame, _every_fire_budget(p))
 
 
 class TestTween(unittest.TestCase):

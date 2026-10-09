@@ -1147,5 +1147,40 @@ class TestDefaultPlacementFollowsDesign(unittest.TestCase):
                     fx.destroy()
 
 
+class TestSpatialFxRunOnWorldTime(unittest.TestCase):
+    """SpatialFx are world actors: pause and slow motion reach their tick and
+    their shader phases, as they reach their own ``after`` / ``every``
+    (design decision, review 2026-10-09 S1-7). The production clock is read
+    here: SystemWorld does not pin it."""
+
+    def test_production_clock_is_world_time(self):
+        from scena import clock
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            w.step(3, dt=1 / 60)
+            self.assertEqual(sfx._now(), clock.time)
+            self.assertEqual(sfx._shader_time(), clock.time)
+
+    def test_paused_world_freezes_the_emitter(self):
+        from scena import clock
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            s = Sparks(center=(100, 100), radius=40, rate=80)
+            try:
+                w.step(1, dt=1 / 60)
+                n0 = s._bank.n
+                t0 = sfx._shader_time()
+                clock.paused = True
+                w.step(30, dt=1 / 60)
+                self.assertEqual(s._bank.n, n0, "a paused world kept emitting")
+                self.assertEqual(sfx._shader_time(), t0)
+                clock.paused = False
+                w.step(20, dt=1 / 60)
+                self.assertGreater(s._bank.n, n0)
+            finally:
+                clock.paused = False
+                s.destroy()
+
+
 if __name__ == "__main__":
     unittest.main()

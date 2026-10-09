@@ -242,11 +242,14 @@ class TestScrollState(unittest.TestCase):
         self.assertEqual(s.accum, (0.0, 0.0))
         self.assertEqual(s.rate, (10.0, 0.0))
 
-    def test_skips_huge_dt(self):
+    def test_integrates_a_long_gap(self):
+        # World time is fed once per frame (capped by the run loop), so a gap
+        # is real world time: integrate it, do not skip it (review 2026-10-09
+        # S9-6; the old 1.5 s "tab resume" skip left a layer lagging for good).
         s = ScrollState((100.0, 0.0))
         s.advance(0.0)
-        s.advance(10.0)  # > 1.5s gap
-        self.assertEqual(s.accum, (0.0, 0.0))
+        s.advance(10.0)
+        self.assertAlmostEqual(s.accum[0], 1000.0)
 
     def test_first_advance_seeds_only(self):
         s = ScrollState((100.0, 0.0))

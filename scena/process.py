@@ -75,6 +75,12 @@ def reached(elapsed: float, target: float) -> bool:
     return elapsed >= target - _DUE_EPS * (abs(target) if abs(target) > 1.0 else 1.0)
 
 
+def _every_fire_budget(interval: float) -> int:
+    """Most ``every`` fires one tick may make: what one capped world step owes."""
+    from .input import MAX_FRAME_DT
+    return max(1, int(math.ceil(MAX_FRAME_DT / interval - _DUE_EPS)))
+
+
 def whole_steps(elapsed: float, rate: float) -> int:
     """Whole steps of ``1 / rate`` in summed ``elapsed`` — a clip's frame count.
 
@@ -539,7 +545,7 @@ class Handle:
         "_last_heading", "_last_u",
         "_voice_id", "_sound_volume", "_sound_pan", "_sound_pitch",
         "_sound_loops", "_clip_duration", "_sound_effects", "_sound_fade_out",
-        "_record",
+        "_record", "_end_held",
     )
 
     def __init__(self, *_args, **_kwargs) -> None:
@@ -604,6 +610,9 @@ class Handle:
         # the parts this job writes freezes it without touching ``_paused``,
         # which stays the author's pause()/resume() switch.
         self._held = False
+        # A sound whose voice ended while its owner was parked: ``on_done``
+        # waits for the resume (park promises no owned callbacks).
+        self._end_held = False
         self._alive = True
         self._owner_ref = ref(owner) if owner is not None else None
         self._target_ref = ref(target) if target is not None else None
@@ -1779,6 +1788,10 @@ class Scheduler:
         # strongly, so the id cannot be reused while the key is present.
         self._by_owner: Dict[int, Dict[Handle, None]] = {}
         self._named: Dict[Tuple[Optional[int], str], Handle] = {}
+        # Game-scope named handles an act's same-name ownerless handle took the
+        # slot from: paused, not cancelled; the act change gives them back
+        # (``resume_suspended_game_slots``). Key -> (handle, was it paused).
+        self._suspended_game: Dict[Tuple[Any, str], Tuple[Handle, bool]] = {}
         self._tweens: Dict[object, Handle] = {}
         self._mode_owners: WeakSet = WeakSet()
         self._update_owners: WeakSet = WeakSet()
@@ -1822,6 +1835,16 @@ class Scheduler:
         if handle.name:
             key = (id(handle.owner) if handle.owner is not None else None, handle.name)
             old = self._named.get(key)
+            if (old is not None and old is not handle and key[0] is None
+                    and old.scope == SCOPE_GAME and handle.scope == SCOPE_ACT
+                    and old.kind in _PAUSABLE_KINDS
+                    and not (old._done or old._cancelled)):
+                # An act's timer takes a game timer's name: it replaces it for
+                # the act only. The game's pauses and comes back at the act
+                # change (review 2026-10-09 S2-6; Act Design).
+                self._suspended_game[key] = (old, old._paused)
+                old.pause()
+                old = None
             if old is not None and old is not handle:
                 old_fn = old._fn
                 old.cancel()
@@ -1963,6 +1986,21 @@ class Scheduler:
             self._update_owners.discard(owner)
             self._mode_dirty = True
             self._update_dirty = True
+
+    def resume_suspended_game_slots(self) -> None:
+        """An act change: game named handles an act shadowed take their slot
+        back and resume (unless the author paused or cancelled them)."""
+        suspended, self._suspended_game = self._suspended_game, {}
+        for key, (handle, was_paused) in suspended.items():
+            if handle._done or handle._cancelled:
+                continue
+            current = self._named.get(key)
+            if current is not None and current is not handle and not (
+                    current._done or current._cancelled):
+                continue
+            self._named[key] = handle
+            if not was_paused:
+                handle.resume()
 
     def cancel_ownerless(self, scope: str = SCOPE_ACT, *, release: bool = False) -> int:
         """Cancel every ownerless handle of ``scope`` (an act change). Returns the count.
@@ -2156,14 +2194,38 @@ class Scheduler:
             handle._elapsed += world_dt * scale
         else:
             handle._elapsed += world_dt
-        # At most one fire per tick (avoids spiral on a stall).
-        if reached(handle._elapsed, handle.interval):
-            handle._elapsed -= handle.interval
+        # ``every`` counts world seconds: a frame that covers several intervals
+        # fires several times (30 FPS and 60 FPS give the same rate; a hitch
+        # loses nothing). Bounded per tick by MAX_FRAME_DT / interval, the most
+        # one capped world step can owe, so a stall cannot spiral; debt beyond
+        # it (an uncapped ``clock.advance``, a time scale above 1) keeps only
+        # its phase. Review 2026-10-09 S2-16.
+        interval = handle.interval
+        if not reached(handle._elapsed, interval):
+            return
+        fired = 0
+        budget = 0                          # computed only when a frame owes more
+        while True:
+            handle._elapsed -= interval
             if handle._elapsed < 0.0:
                 handle._elapsed = 0.0       # due by rounding only: no debt
-            if handle._elapsed >= handle.interval:
-                handle._elapsed = handle._elapsed % handle.interval
+            fired += 1
+            if handle._elapsed >= interval:
+                if not budget:
+                    budget = _every_fire_budget(interval)
+                if fired >= budget:
+                    handle._elapsed = handle._elapsed % interval
             handle._fire_every()
+            if not reached(handle._elapsed, interval):
+                return
+            # The callback may have cancelled, parked, paused or killed.
+            if handle._cancelled or handle._paused:
+                return
+            owner = handle._live_owner()
+            if handle.owner is not None and owner is None:
+                return
+            if owner is not None and not getattr(owner, "active", True):
+                return
 
     def _tick_once(self, handle: Handle, world_dt: float) -> None:
         if not self._prepare_timed_handle(handle, world_dt):
@@ -2205,7 +2267,11 @@ class Scheduler:
             if handle._cancelled:
                 return
             owner = None
-        if not handle._paused and (owner is None or getattr(owner, "active", True)):
+        # The voice keeps playing while its owner is parked (park does not
+        # stop audio), so the Handle keeps reporting it; only an author
+        # ``pause()`` (the mixer holds the voice) freezes it.
+        parked = owner is not None and not getattr(owner, "active", True)
+        if not handle._paused:
             scale = 1.0 if owner is None else getattr(owner, "_time_scale", 1.0)
             if scale < 0.0:
                 scale = 0.0
@@ -2213,6 +2279,14 @@ class Scheduler:
         pending = getattr(self, "_sound_finished_tick", None) or set()
         if handle._voice_id in pending:
             pending.discard(handle._voice_id)
+            if parked:
+                # Park promises no owned callbacks: hold ``on_done`` until the
+                # owner resumes (review 2026-10-09 X-life-4).
+                handle._end_held = True
+                return
+            handle._fire_once()
+        elif handle._end_held and not parked:
+            handle._end_held = False
             handle._fire_once()
 
     def _tick_idle(self) -> None:

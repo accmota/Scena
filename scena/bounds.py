@@ -277,7 +277,10 @@ class BoundsSystem:
     """Global leave-bounds registry and per-frame step."""
 
     def __init__(self) -> None:
-        self._group_handlers: Dict[str, Callable] = {}
+        # Tag -> every top-level handler on it, in registration order (all run,
+        # like ``@collide`` and the class form). An act's handlers are dropped at
+        # the act change (the act manager restores the sealed copy).
+        self._group_handlers: Dict[str, Tuple[Callable, ...]] = {}
         # item → the class's plain ``@leave_playfield`` functions (called as
         # ``fn(item)``). Never a bound method: the value would hold its own
         # weak key strongly and the actor could never be collected.
@@ -298,7 +301,11 @@ class BoundsSystem:
 
     def add_group_handler(self, group_name: str, handler: Callable) -> None:
         expect_callable(handler, what="leave_playfield handler")
-        self._group_handlers[str(group_name)] = handler
+        tag = str(group_name)
+        prev = self._group_handlers.get(tag, ())
+        if handler not in prev:
+            # A new tuple, never an in-place change: the act seal keeps a copy.
+            self._group_handlers[tag] = prev + (handler,)
 
     def add_instance_handler(self, item, fn: Callable) -> None:
         """Enroll a class ``@leave_playfield`` function for ``item``.
@@ -352,10 +359,10 @@ class BoundsSystem:
             out.append(functools.partial(call_truncated, fn, item, item))
             seen_ids.add(id(fn))
         for tag in getattr(item, "group", ()) or ():
-            handler = self._group_handlers.get(tag)
-            if handler is not None and id(handler) not in seen_ids:
-                out.append(handler)
-                seen_ids.add(id(handler))
+            for handler in self._group_handlers.get(tag, ()):
+                if id(handler) not in seen_ids:
+                    out.append(handler)
+                    seen_ids.add(id(handler))
         return out
 
     def _dispatch_leave(self, item, handlers: List[Callable]) -> None:

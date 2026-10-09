@@ -777,7 +777,7 @@ flush()
 
 - Unused derived work is never recomputed (cold Derivate laziness; unread linked formulas stay idle until read or an effect pulls them).
 - `UpdateManager.is_updating` prevents nested effect flushes; writes during flush only `mark_dirty`.
-- `@when` callbacks run during flush; `flush` re-polls the event list while anything fired, so a cascade (A's callback changes what B watches) settles in the same flush. After `FLUSH_MAX_ROUNDS` (8) rounds still firing, `flush` warns ("re-triggering each other") and leaves the rest for the next flush — a ping-pong cycle cannot spin.
+- `@when` callbacks run during flush; `flush` re-polls the event list while anything fired, so a cascade (A's callback changes what B watches) settles in the same flush. A chain with no cycle never fires one watch twice, so it settles in the same flush however long it is. Only rounds in which a watch fires *again* count: after `FLUSH_MAX_ROUNDS` (8) such rounds, `flush` warns ("re-triggering each other") and leaves the rest for the next flush — a ping-pong cycle cannot spin. (Before 2026-10-09 every round counted, so an acyclic relay chain longer than 8 links warned "a cycle?" and its tail lagged a frame.)
 - `mark_dirty` **always re-walks the cone** (cycle `seen` only). Do not short-circuit when the seed is already dirty — a prior pull may have cleared dependents. A **pull** never walks: resolvers store through `_takein_impl`, not the `_takein` dispatcher ("Pull stores raw").
 
 

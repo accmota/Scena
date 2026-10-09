@@ -40,20 +40,27 @@ def _drop_failed_construct(obj) -> None:
     when ``__init__`` set ``on_collide`` and then raised (graphics review E4).
     An object that never reached the registry is only marked dead.
     """
-    canvas = getattr(obj, "_scenacanvas", None)
-    registry = getattr(canvas, "registry", None)
-    if registry is not None:
-        try:
-            registry._destroy_teardown(obj)
-            return
-        except Exception:  # noqa: BLE001 — a half-built object: fall back below
-            _drop_registrations(obj, registry)
     try:
-        object.__setattr__(obj, "_destroyed", True)
-        from .entity import _mark_routes_dead
-        _mark_routes_dead(obj)
-    except Exception:
-        pass
+        canvas = getattr(obj, "_scenacanvas", None)
+        registry = getattr(canvas, "registry", None)
+        if registry is not None:
+            try:
+                registry._destroy_teardown(obj)
+                return
+            except Exception:  # noqa: BLE001 — a half-built object: fall back below
+                _drop_registrations(obj, registry)
+        try:
+            object.__setattr__(obj, "_destroyed", True)
+            from .entity import _mark_routes_dead
+            _mark_routes_dead(obj)
+        except Exception:
+            pass
+    finally:
+        # Last: the teardown's column rewind only fires when ``obj`` was the
+        # column's last live item; the cursor goes back to exactly where the
+        # constructor found it (deep serial pass: ``Text(glow=[])``).
+        from .orchestration import restore_hud_cursor
+        restore_hud_cursor(obj)
 
 
 def _drop_registrations(obj, registry) -> None:

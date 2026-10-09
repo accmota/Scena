@@ -153,6 +153,12 @@ def reset_system_globals() -> None:
     _reset_act_manager()
 
 
+# World settings ``reset_system_globals`` puts in their fresh state (a camera
+# that follows the design size, no effects, clock at 1, resolve on). Writing a
+# snapshot back is not the same for them: a restored camera pins its origin.
+WORLD_RESETS = frozenset({"camera", "effects", "clock", "collision.resolve_enabled"})
+
+
 def reset_world_settings() -> None:
     """Every world setting an act change restores (``act.WORLD_SETTINGS``) back
     to the framework default, as a fresh process has it: camera, background
@@ -187,9 +193,15 @@ class SystemWorld(WorldTracker):
     Use as ``with system_world() as w:`` or through ``SystemTestCase``.
     """
 
-    def __init__(self, *, draw: bool = True) -> None:
+    def __init__(self, *, draw: bool = True, quarantine: bool = True) -> None:
         super().__init__()
         reset_system_globals()
+        # Every act-level world setting (playfield, layer default, background,
+        # paint defaults …) as the world found it; teardown gives it back.
+        # ``test_noop_cost`` pinned the auto playfield to 400x300 edges and
+        # every later program in the process lost its shots there (O8).
+        from scena.act import WORLD_SETTINGS
+        self._settings_start = [(w, w.snapshot()) for w in WORLD_SETTINGS]
         # GC freeze off: a frozen heap would hide a real leak from census /
         # assert_collected. The policy itself: tests/test_gc_freeze.py.
         self._gc_freeze_was = gc_policy.gc_freeze_enabled()
@@ -223,19 +235,32 @@ class SystemWorld(WorldTracker):
             p = mock.patch.object(target, attr, new=_noop)
             p.start()
             self._patches.append(p)
-        # Every pre-draw clock reads world time: runs are deterministic.
-        now = lambda: clock.time  # noqa: E731
-        _transients.set_now_fn(now)
-        _spatial_fx.set_now_fn(now)
-        _cover.set_now_fn(now)
+        # Shape transients run on wall time in production (presentation,
+        # Effect System Design); pin them to world time so runs are
+        # deterministic. SpatialFx (world time) and the cover (the clock's
+        # presentation time) read the frame clock in production too, so they
+        # are NOT pinned: a pin would test a clock the shipped code does not
+        # read (review 2026-10-09, S1-7).
+        _transients.set_now_fn(lambda: clock.time)
+        _spatial_fx.set_now_fn(None)
+        _cover.set_now_fn(None)
         self.frames_run = 0
         # Debris another test module left (dead but still registered) is not
         # this world's bug: ``zombies()`` / ``assertNoZombies`` skip it.
         self.preexisting_zombies = {id(o) for _h, o in zombies(ignore=())}
-        # Live actors another module left behind would draw / tick / collide
-        # in this world's frames (lazily growing the graph, adding handles).
-        # Park them while the world runs; teardown restores them.
         self._quarantined = []
+        if quarantine:
+            self.quarantine()
+
+    def quarantine(self) -> None:
+        """Park the live actors another module left behind.
+
+        They would draw / tick / collide in this world's frames (lazily growing
+        the graph, adding handles). Teardown restores them. Parking moves
+        census keys (``registry.draw_live``): a census compared with one taken
+        after teardown must be taken before this call (``ProgramRun`` passes
+        ``quarantine=False`` and calls it after ``census_before``).
+        """
         with quiet():
             for obj in registry().live_objects():
                 if getattr(obj, "is_alive", False) and hasattr(type(obj), "active") \
@@ -317,6 +342,11 @@ class SystemWorld(WorldTracker):
             gc_policy.thaw_world()
             gc_policy.set_gc_freeze(self._gc_freeze_was)
             with quiet():
+                for w, value in self._settings_start:
+                    try:
+                        w.restore(value)
+                    except Exception:
+                        pass
                 reset_system_globals()
 
 
