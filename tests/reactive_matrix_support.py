@@ -21,10 +21,13 @@ import itertools
 import math
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
+import warnings
+
 import geometry_support as G
 import scena
+from media_support import media
 from scena import Box, Circle, Ellipse, EquilateralTriangle, Line, Point, Polygon
-from scena import Rect, RegularPolygon, Square, State, Track, Vec2
+from scena import Rect, RegularPolygon, Sprite, Square, State, Svg, Text, Track, Vec2
 from scena.state import ContainerSlot, ScalarSlot
 
 _COUNTER = itertools.count()
@@ -32,6 +35,16 @@ _COUNTER = itertools.count()
 
 def _tri():
     return Polygon(points=[(0, 0), (10, 0), (5, 8)])
+
+
+def _sprite():
+    return Sprite(media("space", "enemyGreen1.png"), center=(0, 0), height=20)
+
+
+def _svg():
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return Svg(G.SVG, center=(0, 0))
 
 
 # (label, factory). One entry per construction model that changes which
@@ -63,20 +76,24 @@ SUBJECTS: List[Tuple[str, Callable[[], object]]] = [
     ("Ellipse focal_points", lambda: G.build("Ellipse focal_points")),
     ("Rect spine cap", lambda: G.build("Rect spine cap")),
     ("Rect spine square", lambda: G.build("Rect spine square")),
+    # Families the matrix left out until the geometry campaign (H6): pose kept
+    # as a zoom on top of size knobs, and a caption laid out from font metrics.
+    ("Sprite", _sprite),
+    ("Svg", _svg),
+    ("Text center", lambda: Text("geo", center=(0, 0))),
+    ("Text top_left", lambda: Text("geo", top_left=(0, 0))),
 ]
 
 # Classes whose reactive slots are covered by a subject above (guard).
 COVERED = frozenset({
     "Vec2", "Point", "Line", "Circle", "Ellipse", "Rect", "Square", "Box",
-    "Polygon", "RegularPolygon", "EquilateralTriangle", "Track",
+    "Polygon", "RegularPolygon", "EquilateralTriangle", "Track", "Sprite", "Svg", "Text",
 })
 # Reactive classes the matrix does not drive, each with the reason.
 NOT_DRIVEN = {
-    "Anchor": "reads through its host; covered by test_fieldref",
-    "Sprite": "needs an asset; pose links covered by test_pose_link_contract",
-    "Svg": "needs an asset",
-    "SpriteButton": "needs an asset",
-    "Text": "layout depends on font metrics; its center parts are covered by test_text",
+    "Anchor": "a refusal subject: every inbound link is refused, atomically "
+              "(test_reactive_matrix.TestAnchorRefusesEveryLink)",
+    "SpriteButton": "a widget sprite; its reactive slots are Sprite's (the Sprite subject)",
     "Menu": "a widget container; its ContainerSlots are `data` aliases",
     "Button": "UI widget; `data` is an alias of the payload (uiwidget._DataAlias)",
     "TextInput": "UI widget; `data` alias", "DropDown": "UI widget; `data` alias",

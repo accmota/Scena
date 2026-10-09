@@ -100,6 +100,9 @@ Geometry campaign (design/Testing Design.md, "Geometry campaign")
                           construction paths.
   test_geom_twins.py      H5: one program, six executions, same fingerprint.
   test_geom_influence.py  H4: every cache follows every input (warm = cold).
+  test_geom_families.py   H6: sprite art inside .box (rendered), hitbox parts
+                          follow the host, captions keep their anchor, a
+                          reversed() track reads its host backwards.
 
   python tests/run_tiers.py quick --sentinel   the whole tier under the sentinel
   python tests/geom_sentinel.py                aggregate the last sentinel logs

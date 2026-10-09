@@ -81,6 +81,27 @@ EXTRA_KINDS: Dict[str, Callable] = {
     "EquilateralTriangle vertex_side noangle": lambda p: EquilateralTriangle(vertex=(p["x"], p["y"]), side=6 * p["s"]),
 }
 
+def _sheet_sprite(anchor):
+    """A Sprite over real art with a Sheet anchor (its pivot is not the cell's center)."""
+    def build_(p):
+        from media_support import media
+        from scena import Sheet, Sprite
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            s = Sprite(Sheet(media("space", "enemyGreen1.png"), anchor=anchor),
+                       center=(p["x"], p["y"]), height=20 * p["s"])
+        return G._rotated(s, p["r"])
+    return build_
+
+
+# Sprite × sheet anchor (H6): the pivot sits off the cell's center, so every
+# verb and flip turns the art about a point that is not its middle.
+EXTRA_KINDS.update({
+    "Sprite sheet bottom": _sheet_sprite("bottom"),
+    "Sprite sheet left": _sheet_sprite("left"),
+    "Sprite sheet pair": _sheet_sprite((0.3, -0.2)),
+})
+
 K: Dict[str, Callable] = {**G.KINDS, **EXTRA_KINDS}
 
 # Constructor rows no K builder reaches, each with its reason.

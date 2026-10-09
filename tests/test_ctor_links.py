@@ -368,3 +368,73 @@ class TestConstructorLinks(unittest.TestCase):
         self.assertAlmostEqual(float(poly.points[0].x), 7.0)
         self.assertAlmostEqual(float(poly.points[0].y), 8.0)
         self.assertAlmostEqual(float(poly.points[1].x), 0.0)
+
+
+class TestFamilyConstructorLinks(unittest.TestCase):
+    """The families without constructor signatures (geometry campaign, H6):
+    every geometry keyword takes a lambda that links, and a lambda of the
+    same number builds the same shape as the number."""
+
+    @classmethod
+    def setUpClass(cls):
+        init(width=400, height=300)
+
+    @staticmethod
+    def _cases():
+        import warnings
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from media_support import media
+        img = media("space", "enemyGreen1.png")
+
+        def sprite(**kw):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                return Sprite(img, **kw)
+        return [
+            # (label, build(**kw), base kwargs, key, value, moved value)
+            ("Sprite center", sprite, dict(height=20), "center", (10.0, 5.0), (30.0, -4.0)),
+            ("Sprite angle", sprite, dict(center=(0, 0), height=20), "angle", 25.0, 70.0),
+            ("Text center", lambda **kw: Text("geo", **kw), dict(), "center", (10.0, 5.0), (30.0, -4.0)),
+            ("Text top_left", lambda **kw: Text("geo", **kw), dict(), "top_left", (10.0, 5.0), (30.0, -4.0)),
+            ("Text top_right", lambda **kw: Text("geo", **kw), dict(), "top_right", (10.0, 5.0), (30.0, -4.0)),
+            ("Text angle", lambda **kw: Text("geo", **kw), dict(center=(0, 0)), "angle", 25.0, 70.0),
+            ("Track center", Track, dict(radius=10), "center", (10.0, 5.0), (30.0, -4.0)),
+            ("Track radius", Track, dict(center=(0, 0)), "radius", 12.0, 20.0),
+            ("Track angle", Track, dict(center=(0, 0), radius=10), "angle", 25.0, 70.0),
+        ]
+
+    def test_a_lambda_of_the_value_builds_the_same_shape_and_follows(self):
+        from scena import State
+        wrong = []
+        for label, build, base, key, value, moved in self._cases():
+            plain = build(**dict(base, **{key: value}))
+            st = State(name="ctorfam")
+            st.v = value
+            if isinstance(value, tuple):
+                linked = build(**dict(base, **{key: lambda: (st.v[0], st.v[1])}))
+            else:
+                linked = build(**dict(base, **{key: lambda: st.v + 0.0}))
+            if not _near(_read(plain, key), _read(linked, key)):
+                wrong.append(f"{label}: built {_read(linked, key)} vs {_read(plain, key)}")
+            if _snapshot(plain) != _snapshot(linked):
+                wrong.append(f"{label}: shape {_snapshot(linked)} vs {_snapshot(plain)}")
+            st.v = moved
+            if not _near(_read(linked, key), moved):
+                wrong.append(f"{label}: does not follow ({_read(linked, key)} vs {moved})")
+            for o in (plain, linked):
+                o.destroy()
+        self.assertEqual(wrong, [])
+
+    def test_fixed_size_knobs_refuse_a_lambda_with_the_fix(self):
+        """A Sprite's ``width`` / ``height`` are fixed at construction (play and
+        ``frame=`` re-fit the body; Sprite Design): a lambda is refused with
+        the linkable spelling, not stored."""
+        cases = self._cases()
+        sprite = cases[0][1]
+        from scena import State
+        st = State(name="ctorfixed")
+        st.w = 30.0
+        for key in ("width", "height"):
+            with self.assertRaises(TypeError) as ctx:
+                sprite(center=(0, 0), **{key: lambda: st.w + 0.0})
+            self.assertIn("scale", str(ctx.exception))

@@ -111,6 +111,26 @@ def _put(obj, name, is_pair, v):
         setattr(obj, name, v)
 
 
+def _reassert_heading(pair, written):
+    """A linked derived heading holds its formula whichever source moves.
+
+    On a model whose heading is derived from the geometry (a rim-placed
+    Circle, foci, a spine), ``angle`` and a placement input (``center``) do
+    not commute as writes: ``angle = a; center = c`` leaves another heading
+    than ``center = c; angle = a``. The link keeps ``angle`` at its formula's
+    value, so the twin re-applies the heading after any other write (the
+    oracle would otherwise be stricter than the contract; found when the H6
+    subjects shifted the machine's draws, 2026-10-08)."""
+    if written == "angle" or "angle" not in pair.links:
+        return
+    defining = pair.twin.__dict__.get("_defining_part_names") or ()
+    if "angle" in defining:
+        return              # a Defining angle is an input: writes commute
+    cell, _whole = pair.links["angle"]
+    _, is_pair, slot = next(x for x in pair.linkable if x[0] == "angle")
+    _put(pair.twin, "angle", is_pair, map_value("angle", slot, is_pair, cell.v))
+
+
 class _Pair:
     def __init__(self, label, factory):
         self.label = label
@@ -163,6 +183,12 @@ class ReactiveMatrixMachine(RuleBasedStateMachine):
         name, is_pair, slot = pair.linkable[f % len(pair.linkable)]
         cell = self.cells[c % len(self.cells)]
         assume(name not in pair.links)
+        # GX13 (geometry campaign, phase 7): an anchored caption accepts links on
+        # its anchor and its center, which then disagree. Listed shrink-only in
+        # geom_campaign_known.PROBES; test_geom_probes keeps the repro.
+        anchor = pair.subject.__dict__.get("_anchor")
+        if anchor is not None and {name, *pair.links} >= {anchor, "center"}:
+            return
         value = map_value(name, slot, is_pair, cell.v)
         fn = formula(cell, name, slot, is_pair)
         try:
@@ -178,6 +204,7 @@ class ReactiveMatrixMachine(RuleBasedStateMachine):
         pair.links[name] = (cell, whole and is_pair)
         try:
             _put(pair.twin, name, is_pair, value)
+            _reassert_heading(pair, name)
         except Exception:
             assume(False)
 
@@ -192,6 +219,7 @@ class ReactiveMatrixMachine(RuleBasedStateMachine):
                     _, is_pair, slot = next(x for x in pair.linkable if x[0] == name)
                     try:
                         _put(pair.twin, name, is_pair, map_value(name, slot, is_pair, t))
+                        _reassert_heading(pair, name)
                     except Exception:
                         assume(False)
 

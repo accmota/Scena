@@ -304,6 +304,31 @@ class TestOneCoercionForEveryPath(unittest.TestCase):
         self.assertEqual(sorted(set(allowed) - found), [], "stale entry")
 
 
+class TestAnchorRefusesEveryLink(unittest.TestCase):
+    """An Anchor is dragged (``draggable``): every inbound link is refused,
+    and the refusal installs nothing (geometry campaign, H6)."""
+
+    def test_every_field_and_the_whole_object(self):
+        from scena import Anchor, State
+        from scena.state import LinkedAttributeError, get_scena_system
+        st = State(name="anchorlinks")
+        st.v = (3.0, 4.0)
+        st.s = 2.0
+        a = Anchor(1, 2)
+        g = get_scena_system().dependency_graph
+        before = (len(list(g.nodes)), float(a.x), float(a.y), len(list(a._iter_subtree())))
+        targets = [(n, pair) for n, pair in M.field_names(a)]
+        self.assertTrue(targets)
+        for name, pair in targets:
+            with self.assertRaises(LinkedAttributeError, msg=name):
+                a[name] @= (lambda: (st.v[0], st.v[1])) if pair else (lambda: st.s + 0.0)
+        with self.assertRaises(LinkedAttributeError):
+            a @= lambda: (st.v[0], st.v[1])
+        after = (len(list(g.nodes)), float(a.x), float(a.y), len(list(a._iter_subtree())))
+        self.assertEqual(after, before, "a refused link left something behind")
+        a.destroy()
+
+
 class TestEveryReactiveClassIsDriven(unittest.TestCase):
     def test_no_reactive_class_without_a_subject_or_a_reason(self):
         classes = set(M.reactive_classes())

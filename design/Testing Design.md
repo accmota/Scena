@@ -230,6 +230,7 @@ random cells in `deep`. Reach counters assert every axis value ran.
 | H3 laws | two roads, one shape: the law table over kind × base × warmth × execution; copy and clone commute with every verb (act then copy); a verb on the source of `d @= s` reaches `d`; a clone made after any history acts like its source (bisimulation); a shape built at `p` then moved / scaled / turned is the shape built there | `test_geom_laws` |
 | H4 influence | each Defining input and pose quantity changed on a cold twin and on a warm one (every cache filled): the warm reads equal the cold ones; the collision key changes whenever the prims do; every Defining input moves something | `test_geom_influence` |
 | H5 twins | one random step program, six executions (normal, forced slow, caches dropped, in a batch, in a frame, eager graph): the same fingerprint after every step | `test_geom_twins` |
+| H6 families | Sprite, Svg and Text (centred and anchored) are reactive-matrix subjects; an Anchor refuses every inbound link and keeps nothing; Sprite / Text / Track constructor keywords link; sheet-anchored sprites join K; a sprite's art (rendered) and prims stay inside `.box`; hitbox parts follow their host's composed map; a new string keeps a caption's anchor and its links; a `reversed()` view reads its host backwards after every verb | `test_geom_families`, `test_reactive_matrix`, `test_ctor_links` |
 
 **Contract decisions the oracles encode** (written into the owning docs first):
 Q1 a flip applies `180 − θ` / `−θ` to the unwrapped heading on every kind
@@ -272,6 +273,16 @@ canary breaks the law itself; corner names freeze at first use, so a law that
 copies or links compares against the source or freezes both twins first;
 `center =` is a field write (it keeps a rim-placed Circle's
 `perimeter_point`), a move only where the center is the sole point input.
+
+**Phase 5b (family parity, H6).** The new subjects shifted the draws of
+`test_hyp_reactive_matrix`, which then found GX13 (an anchored caption takes
+links on its anchor and its center) and an oracle that was stricter than the
+contract: on a model whose heading is derived (a rim-placed Circle), `angle`
+and `center` do not commute as writes, and a linked heading holds its formula
+whichever source moves, so the plain-write twin re-applies a linked derived
+heading after any other write (`_reassert_heading`). Sprites with a sheet
+anchor hold the shadow, the laws and the influence matrix; the rendered art
+stays inside `.box`; hitbox parts follow their host.
 
 **Phase 1 findings (static sweep and probes; H1 found the first ones while it
 was being built).** Catalogue [GX](#gx--geometry-campaign-2026-10-08). The
@@ -1354,7 +1365,7 @@ gaps that **both** authors reported on their own.
 | Geometry campaign Q2 | A finished timed `rotate_to(30)` from 400 reads 390 (shape and camera; contract: 30) | Campaign phase 7 (`CHANGELOG.md` under Fixed) |
 | Geometry campaign Q3b | `unlink_all()`, unlinking a part, or a destroyed reference keeps a relational model (PARALLEL_DIST `move_by` does nothing, TANGENT verbs orbit); `force=True` leaves a hybrid (CENTER_WH Ellipse whose `center` follows the Rect) | Campaign phase 7 (`_drop_relational` on every way a relation goes) |
 | Geometry campaign Q5 | `st.f = my_def` stores the function (only `<lambda>` is refused) | Campaign phase 7 (`CHANGELOG.md` under Breaking) |
-| Geometry campaign GX1–GX12 | Found by the campaign's harnesses ([GX](#gx--geometry-campaign-2026-10-08)) | Campaign phase 7 |
+| Geometry campaign GX1–GX13 | Found by the campaign's harnesses ([GX](#gx--geometry-campaign-2026-10-08)) | Campaign phase 7 |
 | Geometry campaign GR17-link | A link on a Defining `angle` leaves the pose store `_rotation` at its old value (the pull stores raw); no wrong drawing found | Campaign phase 7 (the pull publishes the store) |
 | GR (2026-10-08) | Box and Rect keep near-copies of `_takein_impl` / `rotate_by` (they drifted once, SC1) | Decided 2026-10-08: no refactor now (no bug; the geometry contract sweep builds every Box model beside Rect). The next change to either method merges them into `_RectFrame` first ([Shapes Design](Shapes%20Design.md)) |
 
@@ -1447,6 +1458,7 @@ until their fix wave (phase 7).
 | GX10 | `track << flipped_track` draws the unflipped points | the free-points copy carries the flip flag but not the mirror | same | `TestCopyCommutes` |
 | GX11 | A `@=` refused for `wheel_rotate` (Polygon, Sprite `["angle"] @=`) leaves a new `angle` anchor part and a graph node (W3: a refused link installs nothing) | the anchor is made before the conflict check | `test_refusal_atomic` never meets a `wheel_rotate` conflict | sentinel I-atomic on `test_shapes` |
 | GX12 | `dst << dead` copies a destroyed shape (every kind), while `dead.clone()` refuses with `DestroyedError` | `_takein` checks the destination, not the source | refusal tests use dead destinations | sentinel triage; probe in phase 7 |
+| GX13 | An anchored Text (`top_left=` / `top_right=`) accepts a link on its anchor and another on `center`; the two then disagree (the center follows its source, the anchor stays), and in the other order the center link does not hold its formula. Rect refuses the analogue (`center` is a Derivate there) | the caption's center is an input on every placement | Text was not a reactive-matrix subject | `test_hyp_reactive_matrix` (H6 subjects), probe GX13 |
 
 
 ### F — contact flicker (2026-09-29)

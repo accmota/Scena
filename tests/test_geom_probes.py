@@ -35,7 +35,7 @@ import geom_axes as A  # noqa: E402
 import geom_campaign_known as KNOWN  # noqa: E402
 import geometry_support as G  # noqa: E402
 from scena import (  # noqa: E402
-    Circle, Ellipse, Line, Point, Rect, RegularPolygon, State, Track, canvas,
+    Circle, Ellipse, Line, Point, Rect, RegularPolygon, State, Text, Track, canvas,
 )
 from scena.state import CallableAssignError, LinkedAttributeError  # noqa: E402
 
@@ -295,6 +295,19 @@ class TestHarnessFindings(_World):
         twin.rotate_to(90)
         self.assertTrue(A.close_xy((float(ln.p1.x), float(ln.p1.y)), _xy(twin.p1)),
                         f"{_xy(ln.p1)} vs {_xy(twin.p1)}")
+
+
+class TestFamilyFindings(_World):
+    """Findings of the family subjects (H6)."""
+
+    @probe("GX13")
+    def test_gx13_an_anchored_caption_takes_one_placement_link(self):
+        st = State(name="gx13")
+        st.a, st.c = (-17.0, -1.0), (-16.0, 1.0)
+        t = self.t(Text("geo", top_left=(0, 0)))
+        t["top_left"] @= lambda: st.a
+        with self.assertRaises((LinkedAttributeError, TypeError, AttributeError)):
+            t["center"] @= lambda: st.c
 
 
 class TestDriftCandidates(_World):

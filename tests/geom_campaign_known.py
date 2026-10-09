@@ -49,6 +49,7 @@ PROBES = {
     "GX5": "pose-zoom kinds below MIN_SCALE move by the clamped factor; phase 7",
     "GX6": "a whole link during a running motion raises from a later tick; phase 7",
     "GX7": "a write before any read skips the pull of a pull-owned point; phase 7",
+    "GX13": "an anchored Text accepts links on its anchor and its center; phase 7",
 }
 
 # Timed / instant gate parity (test_geom_structure.TestTimedVerbsGateLikeInstant):
@@ -89,7 +90,7 @@ LAWS = {
 
 # Copy commutes with verbs (test_geom_laws.TestCopyCommutes): "door [after verb] | kind | detail".
 COPY_LAWS = {
-    "<< | Sprite | copy raises NotImplementedError":
+    "<< | Sprite* | copy raises NotImplementedError":
         "GX9: << on a Sprite / Svg / Text raises Python's NotImplementedError; phase 7",
     "<< | Svg | copy raises NotImplementedError": "GX9; phase 7",
     "<< | Text * | copy raises NotImplementedError": "GX9; phase 7",
