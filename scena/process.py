@@ -3014,6 +3014,29 @@ def refuse_if_process_driven(node) -> None:
                 )
         cur = getattr(cur, "_owner", None)
 
+    # A whole-object link drives every part under it: a claim on any of them
+    # (a running turn claims the points it writes, and the heading field)
+    # refuses it too (GX6 in Testing Design: the next tick raised).
+    for sub in node._iter_subtree():
+        if sub is node:
+            claims = getattr(sub, "_process_field_claims", None)
+            if claims:
+                for name, h in claims.items():
+                    if _claim_active(h):
+                        raise LinkedAttributeError(
+                            motion_conflict_message(h, subject=entity_label(sub), part=str(name)))
+            continue
+        h = getattr(sub, "_active_process_claim", None)
+        if _claim_active(h):
+            raise LinkedAttributeError(
+                motion_conflict_message(h, subject=entity_label(node), part=part_path(sub)))
+        claims = getattr(sub, "_process_field_claims", None)
+        if claims:
+            for name, h in claims.items():
+                if _claim_active(h):
+                    raise LinkedAttributeError(
+                        motion_conflict_message(h, subject=entity_label(node), part=str(name)))
+
 
 def process_claims_on(part) -> List["Handle"]:
     """Every distinct active process Handle claiming ``part`` (no first-match).
@@ -3617,18 +3640,22 @@ def timed_move_to(
     n_loops = _require_loop_kwargs(
         loops=loops, yoyo=yoyo, time=time, call_name="move_to",
     )
-    px, py = shape._pivot_xy(about)
+    if about is None:
+        # The point the instant ``_move_to`` places: a sheet-anchored sprite's
+        # ``center``, not its art frame (the old probe jumped it there first).
+        origin = getattr(shape, "_move_to_xy", None)
+        px, py = origin() if origin is not None else shape._pivot_xy(None)
+    else:
+        px, py = shape._pivot_xy(about)
     x1 = px if to_x is None else float(to_x)
     y1 = py if to_y is None else float(to_y)
     key = _center_pose_key(shape)
     # Same-kind replace before writability probe.
     _preempt_tween_keys(key)
-    # Probe writability on the instant path (same refuse / unlink as move_to).
-    # Default path keeps ``_move_to``; ``about=`` uses the generic ``_move_by`` probe.
-    if about is None:
-        shape._move_to(px, py, force=force)
-    else:
-        shape._move_by(0.0, 0.0, force=force)
+    # Probe writability at the call with the writer the ticks use (``_move_by``):
+    # ``_move_to`` to the current place returned before its gate, so the
+    # refusal came from a tick, after part of the move (GX4 in Testing Design).
+    shape._move_by(0.0, 0.0, force=force)
     owner, scope = _pose_owner_scope(shape)
     dx = x1 - px
     dy = y1 - py
@@ -3763,8 +3790,25 @@ def _probe_rotate_writable(shape, *, about, force: bool, verb: str) -> None:
     parts = tuple(parts_fn()) if callable(parts_fn) else (shape["angle"],)
     if about is not None:
         parts += _move_claim_targets(shape)
+    # The instant verb's pivot rule: a point on the pivot is not moved by a
+    # turn, so it may stay linked (a Circle whose center follows something
+    # turns about it; the timed turn refused it: GX17 in Testing Design).
+    pivot = shape._pivot_xy(about)
     for part in parts:
-        _ensure_writable(part, verb, force=force)
+        _ensure_writable(part, verb, force=force, pivot=pivot)
+
+
+def _pose_claim_targets(shape, field: str, gate) -> tuple:
+    """What a timed turn / scale claims: its pose field and every part its
+    ticks write (the call's gate, recorded; points on the pivot excluded).
+    It claimed only the field, so a link on a written point, or a whole
+    ``@=``, was accepted mid-motion and the next tick raised (GX6)."""
+    from .shapes import _gate_parts
+    out = [shape[field]]
+    for part in _gate_parts(gate):
+        if not any(part is o for o in out):
+            out.append(part)
+    return tuple(out)
 
 
 def timed_rotate_to(
@@ -3786,11 +3830,19 @@ def timed_rotate_to(
     _preempt_tween_keys((id(shape), "angle"))
     _probe_rotate_writable(shape, about=about, force=force, verb="rotate_to")
     start = float(shape._rotation_value())
-    delta = shortest_delta_deg(start, float(value))
+    end = float(value)
+    delta = shortest_delta_deg(start, end)
     applied = [0.0]
     owner, scope = _pose_owner_scope(shape)
 
-    def write(u, s=shape, d=delta, box=applied, ab=about, f=force):
+    def write(u, s=shape, d=delta, box=applied, ab=about, f=force, goal=end):
+        if u == 1.0:
+            # The end stores exactly the target, as the instant form does: the
+            # shortest arc from 400 to 30 reached 390 (Q2 in Testing Design).
+            # The rest of the arc plus the whole turns is one instant rotate_to.
+            s.rotate_to(goal, about=ab, force=f)
+            box[0] = d
+            return
         target = d * u
         step = target - box[0]
         if step != 0.0:
@@ -3802,7 +3854,8 @@ def timed_rotate_to(
         tween_key=(id(shape), "angle"),
         then=then, on_done=on_done, owner=owner, scope=scope,
         loops=n_loops, yoyo=yoyo,
-        claim_targets=(shape["angle"],),
+        claim_targets=_pose_claim_targets(shape, "angle", lambda: _probe_rotate_writable(
+            shape, about=about, force=False, verb="rotate_to")),
         claim_kind="tween", claim_verb="rotate_to",
         target=shape,
     )
@@ -3842,10 +3895,29 @@ def timed_rotate_by(
         tween_key=(id(shape), "angle"),
         then=then, on_done=on_done, owner=owner, scope=scope,
         loops=n_loops, yoyo=yoyo,
-        claim_targets=(shape["angle"],),
+        claim_targets=_pose_claim_targets(shape, "angle", lambda: _probe_rotate_writable(
+            shape, about=about, force=False, verb="rotate_by")),
         claim_kind="tween", claim_verb="rotate_by",
         target=shape,
     )
+
+
+def _probe_scale_writable(shape, end: float, *, about, force: bool, verb: str) -> None:
+    """The instant scale's checks at the call, toward the end value (the ticks
+    write ``scale_to`` steps toward it): a refusal raised from a later tick,
+    after part of the motion ran (GX4 in Testing Design)."""
+    gate = getattr(shape, "_scale_gate", None)
+    if gate is None:
+        return                              # not a pose-scaled kind (an fx, a camera)
+    from .shapes import _scale_gate_at_call
+    _scale_gate_at_call(shape, value=end, about=about, force=force, verb=verb)
+
+
+def _scale_claim_targets(shape, about) -> tuple:
+    gate = getattr(shape, "_scale_gate", None)
+    if gate is None:
+        return (shape["scale"],)
+    return _pose_claim_targets(shape, "scale", lambda: gate(about, False))
 
 
 def timed_scale_to(
@@ -3867,6 +3939,7 @@ def timed_scale_to(
     _preempt_tween_keys((id(shape), "scale"))
     start = float(shape.scale)
     end = fixed_magnitude(value, "scale", hint=HINT_SCALE)
+    _probe_scale_writable(shape, end, about=about, force=force, verb="scale_to")
     owner, scope = _pose_owner_scope(shape)
 
     def write(u, s=shape, a=start, b=end, ab=about, f=force):
@@ -3877,7 +3950,7 @@ def timed_scale_to(
         tween_key=(id(shape), "scale"),
         then=then, on_done=on_done, owner=owner, scope=scope,
         loops=n_loops, yoyo=yoyo,
-        claim_targets=(shape["scale"],),
+        claim_targets=_scale_claim_targets(shape, about),
         claim_kind="tween", claim_verb="scale_to",
         target=shape,
     )
@@ -3903,6 +3976,7 @@ def timed_scale_by(
     _preempt_tween_keys((id(shape), "scale"))
     start = float(shape.scale)
     end = start * fixed_magnitude(factor, "scale", hint=HINT_SCALE)
+    _probe_scale_writable(shape, end, about=about, force=force, verb="scale_by")
     owner, scope = _pose_owner_scope(shape)
 
     def write(u, s=shape, a=start, b=end, ab=about, f=force):
@@ -3913,7 +3987,7 @@ def timed_scale_by(
         tween_key=(id(shape), "scale"),
         then=then, on_done=on_done, owner=owner, scope=scope,
         loops=n_loops, yoyo=yoyo,
-        claim_targets=(shape["scale"],),
+        claim_targets=_scale_claim_targets(shape, about),
         claim_kind="tween", claim_verb="scale_by",
         target=shape,
     )

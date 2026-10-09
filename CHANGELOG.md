@@ -137,6 +137,23 @@ left out.
   fresh `flip_x` reads 180 (it read −180).
 - A tall Ellipse (height greater than width) mirrors each focus on a flip;
   `fp1` and `fp2` swapped places.
+- A finished `rotate_to(θ, time=…)` reads exactly `θ`, like the instant
+  form: from 400, `rotate_to(30, time=1)` ends at 30 (it ended at 390). The
+  motion still takes the short way. Same for the camera's `rotate_to`.
+- A timed `move_to`, `scale_by` or `scale_to` refuses at the call where the
+  instant form refuses (a linked part, a relational shape); `force=True`
+  unlinks at the call. Before, the refusal came from the frame loop after
+  part of the motion had run. A timed turn of a shape whose linked center is
+  its pivot (`circle.rotate_by(90, time=1)` with `circle["center"] @= …`)
+  now runs, as the instant turn does; it was refused.
+- Linking a part that a running motion moves, or the whole shape (`shape @=
+  …`), is refused at the `@=` ("… pushes it"), as linking the heading
+  already was; the motion's next frame raised instead.
+- A sheet-anchored Sprite's `move_to(…, time=)` starts where the sprite is;
+  it jumped first.
+- A Line placed by `center=` with a linked center keeps taking `scale_by` /
+  `rotate_by` about it; after one scale every later one was refused.
+- A tangent Line from a point refuses `move_by(0, 0)` like any other move.
 - A Line with both ends on one point turns its heading on a flip; it kept
   the old one. A tangent Line of length 0 refuses a flip, as it does at any
   other length; it accepted the flip and kept drawing the tangent heading.

@@ -717,7 +717,7 @@ Pushes add up (a timed move under standing `resolve()` is swept and stops at the
 
 | Case | Response |
 |------|----------|
-| Formula vs any other driver on overlapping parts (`@=` vs drag / wheel / tween / timed pose verb / `move_along` / resolve), either order | **Hard error** (`LinkedAttributeError`) at the second call. Timed rotate probes rotation at the call (`_probe_rotate_writable`), not on the first tick |
+| Formula vs any other driver on overlapping parts (`@=` vs drag / wheel / tween / timed pose verb / `move_along` / resolve), either order | **Hard error** (`LinkedAttributeError`) at the second call. A timed verb runs its instant form's gate at the call (`_probe_rotate_writable` with the pivot rule; `_scale_gate_at_call`, the same `_scale_gate` the instant `scale_by` runs; `move_to` probes the `_move_by` its ticks use), so it refuses, or unlinks with `force=True`, exactly where the instant verb does and never from a later tick (GX4 / GX17). It claims every part its ticks write (`_pose_claim_targets`: the gate in record mode, `_gate_parts`, less the points on the pivot), so a link on one of them, or a whole `@=` over them, is refused at the `@=` (GX6) |
 | Any two non-formula drivers (drag + motion, resolve + motion, wheel + timed rotate, …), either order | **Compose** — no refusal. `_PROCESS_CLAIM_REFUSING_OPS` is gone; do not reintroduce a one-way refusal (the bug class it created: outcome depended on which line ran first) |
 | Same-kind re-declaration (`@=` over `@=`, second motion on the same pose key) | **Warn + replace** (or no-op if unchanged) |
 

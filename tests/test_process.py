@@ -2046,9 +2046,19 @@ class TestTweenAndTimedPose(ProcessTestCase):
         c = self.track(Circle())
         c.rotate_to(350)
         h = c.rotate_to(10, time=0.2)
-        _frame(0.2)
+        _frame(0.1)
+        self.assertAlmostEqual(c.angle % 360.0, 0.0, places=4)     # the short way
+        _frame(0.1)
         self.assertTrue(h.done)
-        self.assertAlmostEqual(c.angle % 360.0, 10.0, places=4)
+        # Q2: it ends exactly on the target, as the instant form does (it read 370).
+        self.assertEqual(float(c.angle), 10.0)
+        for kind in (lambda: Rect(center=(0, 0), width=10, height=4),
+                     lambda: Line(p1=(0, 0), p2=(10, 0)), lambda: Polygon(points=[(0, 0), (5, 0), (3, 4)])):
+            o = self.track(kind())
+            o.rotate_by(400)
+            o.rotate_to(30, time=0.2)
+            _frame(0.2)
+            self.assertAlmostEqual(float(o.angle), 30.0, places=9)
 
     def test_rotate_by_uses_signed_delta(self):
         c = self.track(Circle())
@@ -2577,6 +2587,97 @@ class TestTweenAndTimedPose(ProcessTestCase):
         _frame(0.1)
         self.assertTrue(h.done)
         self.assertNotIn("center", line.__dict__)
+
+
+class TestTimedVerbsGateAtTheCall(ProcessTestCase):
+    """A timed verb refuses (or unlinks with ``force=True``) at the call,
+    exactly where its instant form does, and never from a later tick after
+    part of the motion ran (GX4 / GX17 in Testing Design; the class guard is
+    ``test_geom_structure.TestTimedVerbsGateLikeInstant``)."""
+
+    def _linked(self, obj, part):
+        from scena import State
+        st = State(name="gate")
+        st.x = 0.0
+        obj[part] @= lambda: (st.x, 0.0)
+        return obj
+
+    def test_scale_and_move_to_refuse_a_linked_part_at_the_call(self):
+        for verb in (lambda r: r.scale_by(1.5, time=0.2), lambda r: r.scale_to(2, time=0.2),
+                     lambda r: r.move_to(5, 5, time=0.2), lambda r: r.move_by(7, -3, time=0.2)):
+            r = self.track(self._linked(Rect(p1=(0, 0), p2=(10, 0), height=3, anchor="cap"), "p1"))
+            before = (float(r.p2.x), float(r.p2.y), float(r.height))
+            with self.assertRaises(LinkedAttributeError):
+                verb(r)
+            _frame(0.5)
+            self.assertEqual((float(r.p2.x), float(r.p2.y), float(r.height)), before)
+
+    def test_force_unlinks_at_the_call_and_the_motion_runs(self):
+        r = self.track(self._linked(Rect(p1=(0, 0), p2=(10, 0), height=3, anchor="cap"), "p1"))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            r.scale_by(2, time=0.2, force=True)
+        self.assertFalse(r["p1"].is_linked)
+        for _ in range(4):
+            _frame(0.1)
+        self.assertAlmostEqual(float(r.height), 6.0)
+
+    def test_a_turn_about_a_linked_center_runs_timed_as_instant(self):
+        # GX17: the instant turn about a linked center runs (the center sits
+        # on the pivot); the timed one was refused.
+        c = self.track(self._linked(Circle(center=(0, 0), radius=8), "center"))
+        c.rotate_by(30, time=0.2)
+        for _ in range(4):
+            _frame(0.1)
+        self.assertAlmostEqual(float(c.angle), 30.0)
+
+    def test_a_tangent_line_refuses_a_timed_move(self):
+        c = self.track(Circle(center=(0, 0), radius=9))
+        ln = self.track(Line(circle=c, from_point=(30, 0), side="left"))
+        for verb in (lambda: ln.move_by(7, -3, time=0.2), lambda: ln.move_to(5, 5, time=0.2)):
+            with self.assertRaises(LinkedAttributeError):
+                verb()
+
+    def test_a_link_on_what_a_running_motion_writes_is_refused_at_the_link(self):
+        # GX6: a turn claimed only ``angle``, so a whole ``@=`` or a link on a
+        # point the turn moves was accepted, and the next tick raised.
+        from scena import State
+        st = State(name="gx6")
+        st.x = 0.0
+        r = self.track(Rect(center=(0, 0), width=10, height=4))
+        src = self.track(r.clone())
+        r.rotate_by(90, time=1.0)
+        _frame(0.3)
+        with self.assertRaises(LinkedAttributeError) as ctx:
+            r @= lambda: src
+        self.assertIn("pushes it", str(ctx.exception))
+        ln = self.track(Line(p1=(0, 0), p2=(10, 0)))
+        ln.scale_by(2, time=1.0)
+        _frame(0.3)
+        with self.assertRaises(LinkedAttributeError):
+            ln["p2"] @= lambda: (st.x, 0.0)
+        # A point on the pivot is not written: a turning Circle's center may link.
+        c = self.track(Circle(center=(0, 0), radius=5))
+        c.rotate_by(90, time=1.0)
+        _frame(0.3)
+        c["center"] @= lambda: (st.x, 0.0)
+        for _ in range(10):
+            _frame(0.1)                     # nothing raises from a tick
+        self.assertAlmostEqual(float(r.angle), 90.0)
+        self.assertAlmostEqual(float(c.angle), 90.0)
+
+    def test_a_sheet_sprite_does_not_jump_at_the_call(self):
+        # The old move_to probe placed the center on the art-frame pivot first.
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import geom_axes as A
+        s = self.track(A.build("Sprite sheet pair"))
+        s.flip_x = True
+        s.move_to(60, 40, time=0.2)
+        self.assertEqual((float(s.center.x), float(s.center.y)), (3.0, -2.0))
+        for _ in range(4):
+            _frame(0.1)
+        self.assertAlmostEqual(float(s.center.x), 60.0)
+        self.assertAlmostEqual(float(s.center.y), 40.0)
 
 
 class TestEasingCatalog(ProcessTestCase):

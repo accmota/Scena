@@ -385,6 +385,26 @@ def _resolve_scale_apply(obj, factor: float, *, force: bool = False):
     return geom, store
 
 
+def _scale_gate_at_call(obj, *, value=None, factor=None, about=None, force: bool = False,
+                        verb: str = "scale_by") -> None:
+    """Everything an instant ``scale_by`` / ``scale_to`` checks before its first
+    write, without writing: the timed verbs run it at the call, so they refuse
+    (or unlink with ``force=True``) where the instant verb does, not from a
+    later tick after part of the motion ran (GX4 in Testing Design). One gate
+    per kind (``_scale_gate``), shared with the instant verb."""
+    _refuse_if_destroyed(obj, verb)
+    geom, store = _scale_geom_and_store(obj._scale, value=value, factor=factor)
+    if geom == 1.0 and store == float(obj._scale):
+        return                              # the instant verb is a no-op
+    d = obj.__dict__
+    anchors = d.get("_field_anchors")
+    if anchors or d.get("_link") is not None:
+        _refuse_linked_pose(obj, anchors, "scale", verb, force)
+    gate = getattr(obj, "_scale_gate", None)
+    if gate is not None:
+        gate(about, force)
+
+
 def _scale_to_via(obj, value, *, about, force):
     geom, store = _scale_geom_and_store(obj._scale, value=value)
     obj.__dict__["_pending_scale_store"] = store
@@ -460,6 +480,32 @@ _OP_PHRASE = {
 }
 
 
+# Record mode (``_gate_parts``): the gate lists what it would write instead of
+# checking it. A timed verb claims those parts, so a link made while it runs
+# is refused at the ``@=`` (GX6 in Testing Design), not from a later tick.
+_GATE_RECORD: Optional[list] = None
+
+
+def _gate_parts(gate) -> list:
+    """The parts ``gate()`` would write: every part it gates, less the points
+    that sit on the pivot it names (a verb about them does not move them)."""
+    global _GATE_RECORD
+    prev, _GATE_RECORD = _GATE_RECORD, []
+    try:
+        gate()
+        rec = _GATE_RECORD
+    finally:
+        _GATE_RECORD = prev
+    out = []
+    for part, pivot in rec:
+        if pivot is not None and not isinstance(part, FieldRef):
+            d = part.__dict__
+            if d.get('x') == pivot[0] and d.get('y') == pivot[1]:
+                continue
+        out.append(part)
+    return out
+
+
 def _ensure_writable(
     part, operation: str, *, force: bool = False,
     context: str = "", undo_extra: str = "", pivot=None,
@@ -483,6 +529,9 @@ def _ensure_writable(
     have no ``force``. ``context`` follows the actor label in the message;
     ``undo_extra`` extends the undo hint. Accepts a FieldRef or a Container.
     """
+    if _GATE_RECORD is not None:
+        _GATE_RECORD.append((part, pivot))
+        return
     if isinstance(part, FieldRef):
         owner = part.owner
         if not part.is_linked:
@@ -2144,10 +2193,17 @@ class Shape(Graphic, PaintState):
             if not force and not self._requires_pull_invalidate():
                 _takein_xy_float(self.center, nx, ny)
             else:
-                _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
+                self._scale_gate(about, force)
                 self.center._takein((nx, ny))
         _pose_scale_set(self, store)
         return self
+
+    def _scale_gate(self, about, force: bool, pivot=None) -> None:
+        """The checks ``scale_by`` makes before its first write (one per kind;
+        the timed verbs run it at the call: ``_scale_gate_at_call``). Here the
+        pose zoom: only an orbit about another point moves ``center``."""
+        if not _about_is_pose_center(self, about):
+            _ensure_writable(self.center, "scale_by", force=force, pivot=get_xy(about, bare=True))
 
     def move_by(
         self,
@@ -2726,6 +2782,7 @@ _GRAPHIC_SHARED = (
     "scale",
     "scale_to",
     "scale_by",
+    "_scale_gate",
     "move_by",
     "move_to",
     "draw",
@@ -3265,13 +3322,18 @@ class Point(Shape):
         factor = geom
         px, py = self._pivot_xy(about)
         x, y = get_xy(self, bare=True)
-        _ensure_writable(self, "scale_by", force=force, pivot=(px, py))
+        if force or self._requires_pull_invalidate():   # nothing linked: nothing refuses
+            self._scale_gate(about, force, (px, py))
         nx, ny = _scale_xy(x, y, px, py, factor)
         if nx != x or ny != y:              # a point on its pivot does not move
             self.x = nx
             self.y = ny
         _pose_scale_set(self, store)
         return self
+
+    def _scale_gate(self, about, force: bool, pivot=None) -> None:
+        _ensure_writable(self, "scale_by", force=force,
+                         pivot=self._pivot_xy(about) if pivot is None else pivot)
 
     # Operator overloading --------------------------------------------------------------------------------------------
 
@@ -4011,7 +4073,14 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
                 raise ValueError(f"Unknown line model: {self.model}")
 
     def _collision_pose_anchor(self) -> Tuple[float, float]:
-        """Segment midpoint from Defining geometry (does not wake Derivate center)."""
+        """Segment midpoint from Defining geometry (does not wake Derivate center).
+
+        The home model's center is Defining: read it, not the mean of the ends
+        recomputed from it. That mean drifts an ulp after a scale about a
+        linked center, the gate compares the pivot exactly, and every later
+        verb about the center was refused (GX16 in Testing Design)."""
+        if self.model is LineModel.CENTER_LENGTH_ANGLE:
+            return get_xy(self.center, bare=True)
         x1, y1, x2, y2 = self._segment_xy()
         return (0.5 * (x1 + x2), 0.5 * (y1 + y2))
 
@@ -4275,8 +4344,11 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
     @batch_update_self()
     def _move_by_batched(self, dx: float, dy: float, *, force: bool = False) -> 'Line':
         """Batched translate — used when pull consumers exist or force=True."""
-        if (dx or dy) and self.model is LineModel.TANGENT_POINT:
-            self._gate_tangent("move_by", force)   # moving the from-point re-solves the tangent
+        if self.model is LineModel.TANGENT_POINT:
+            # Moving the from-point re-solves the tangent. Gated whatever the
+            # amount, like every linked part: the timed verbs probe with a
+            # zero move (GX4 in Testing Design).
+            self._gate_tangent("move_by", force)
         match self.model:
             case LineModel.CENTER_LENGTH_ANGLE:
                 _ensure_writable(self.center, "move_by", force=force)
@@ -4581,11 +4653,15 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
         factor = geom
         px, py = self._pivot_xy(about)
         self._gate_tangent("scale_by", force, about)
+        # The writes follow the model as the tangent gate leaves it (a forced
+        # tangent runs on its free twin); a forced unlink below keeps them
+        # (PARALLEL_DIST still scales ``dist``; Q3b decides that in its wave).
+        model = self.model
+        if force or self._requires_pull_invalidate():   # nothing linked: nothing refuses
+            self._scale_gate(about, force, (px, py))     # every check before any write
 
-        match self.model:
+        match model:
             case LineModel.CENTER_LENGTH_ANGLE:
-                _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self["length"], "scale_by", force=force)
                 cx, cy = get_xy(self.center, bare=True)
                 about_center = (about is None) or (
                     abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
@@ -4596,44 +4672,31 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
                 # while angle stayed put, so vec and angle would disagree.
                 self.length = _bare_num(self.length) * factor
             case LineModel.POINT_POINT:
-                _ensure_writable(self.p1, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self.p2, "scale_by", force=force, pivot=(px, py))
                 x1, y1 = get_xy(self.p1, bare=True)
                 x2, y2 = get_xy(self.p2, bare=True)
                 self.p1._takein(_scale_xy(x1, y1, px, py, factor))
                 self.p2._takein(_scale_xy(x2, y2, px, py, factor))
             case LineModel.POINT_VEC:
-                _ensure_writable(self.p1, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self.vec, "scale_by", force=force)
                 x1, y1 = get_xy(self.p1, bare=True)
                 self.p1._takein(_scale_xy(x1, y1, px, py, factor))
                 self.vec.x = _bare_num(self.vec.x) * factor
                 self.vec.y = _bare_num(self.vec.y) * factor
             case LineModel.POINT_ANGLE_LENGTH | LineModel.PARALLEL_POINT | LineModel.PERPENDICULAR_POINT:
-                _ensure_writable(self.p1, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self["length"], "scale_by", force=force)
                 x1, y1 = get_xy(self.p1, bare=True)
                 self.p1._takein(_scale_xy(x1, y1, px, py, factor))
                 self.length = _bare_num(self.length) * factor
             case LineModel.PARALLEL_DIST:
-                _ensure_writable(self.p1, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self["length"], "scale_by", force=force)
                 x1, y1 = get_xy(self.p1, bare=True)
                 self.p1._takein(_scale_xy(x1, y1, px, py, factor))
                 self.dist = _bare_num(self.dist) * factor
                 self.length = _bare_num(self.length) * factor
             case LineModel.TANGENT_ANGLE:
                 # p1 stays pinned to the circle; only the tangent segment's length scales.
-                _ensure_writable(self["length"], "scale_by", force=force)
                 self.length = _bare_num(self.length) * factor
             case LineModel.TANGENT_POINT:
-                _ensure_writable(self.p1, "scale_by", force=force, pivot=(px, py))
                 x1, y1 = get_xy(self.p1, bare=True)
                 self.p1._takein(_scale_xy(x1, y1, px, py, factor))
             case LineModel.POINT_DX_DY:
-                _ensure_writable(self.p1, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self["dx"], "scale_by", force=force)
-                _ensure_writable(self["dy"], "scale_by", force=force)
                 x1, y1 = get_xy(self.p1, bare=True)
                 self.p1._takein(_scale_xy(x1, y1, px, py, factor))
                 self.dx = _bare_num(self.dx) * factor
@@ -4643,6 +4706,33 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
 
         _pose_scale_set(self, store)
         return self
+
+    def _scale_gate(self, about, force: bool, pivot=None) -> None:
+        if pivot is None:
+            pivot = self._pivot_xy(about)
+        self._gate_tangent("scale_by", force, about)
+        match self.model:
+            case LineModel.CENTER_LENGTH_ANGLE:
+                _ensure_writable(self.center, "scale_by", force=force, pivot=pivot)
+                _ensure_writable(self["length"], "scale_by", force=force)
+            case LineModel.POINT_POINT:
+                _ensure_writable(self.p1, "scale_by", force=force, pivot=pivot)
+                _ensure_writable(self.p2, "scale_by", force=force, pivot=pivot)
+            case LineModel.POINT_VEC:
+                _ensure_writable(self.p1, "scale_by", force=force, pivot=pivot)
+                _ensure_writable(self.vec, "scale_by", force=force)
+            case (LineModel.POINT_ANGLE_LENGTH | LineModel.PARALLEL_POINT
+                  | LineModel.PERPENDICULAR_POINT | LineModel.PARALLEL_DIST):
+                _ensure_writable(self.p1, "scale_by", force=force, pivot=pivot)
+                _ensure_writable(self["length"], "scale_by", force=force)
+            case LineModel.TANGENT_ANGLE:
+                _ensure_writable(self["length"], "scale_by", force=force)
+            case LineModel.TANGENT_POINT:
+                _ensure_writable(self.p1, "scale_by", force=force, pivot=pivot)
+            case LineModel.POINT_DX_DY:
+                _ensure_writable(self.p1, "scale_by", force=force, pivot=pivot)
+                _ensure_writable(self["dx"], "scale_by", force=force)
+                _ensure_writable(self["dy"], "scale_by", force=force)
 
     def scale_to(self, value: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Line':
         """Set absolute uniform scale about a pivot."""
@@ -5374,17 +5464,15 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
             return self
         factor = geom
         px, py = self._pivot_xy(about)
+        if force or self._requires_pull_invalidate():   # nothing linked: nothing refuses
+            self._scale_gate(about, force, (px, py))     # every check before any write
 
         match self.model:
             case CircleModel.CENTER_RADIUS:
-                _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self["radius"], "scale_by", force=force)
                 cx, cy = get_xy(self.center, bare=True)
                 self.center._takein(_scale_xy(cx, cy, px, py, factor))
                 self.radius = _bare_num(self.radius) * factor
             case CircleModel.CENTER_PERIMETER:
-                _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self.perimeter_point, "scale_by", force=force, pivot=(px, py))
                 cx, cy = get_xy(self.center, bare=True)
                 ppx, ppy = get_xy(self.perimeter_point, bare=True)
                 ncx, ncy = _scale_xy(cx, cy, px, py, factor)
@@ -5393,8 +5481,6 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
                 self.center._takein((ncx, ncy))
                 self.perimeter_point._takein((ncx + r * math.cos(ang), ncy + r * math.sin(ang)))
             case CircleModel.TWO_POINTS:
-                _ensure_writable(self.p1, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self.p2, "scale_by", force=force, pivot=(px, py))
                 x1, y1 = get_xy(self.p1, bare=True)
                 x2, y2 = get_xy(self.p2, bare=True)
                 self.p1._takein(_scale_xy(x1, y1, px, py, factor))
@@ -5404,6 +5490,20 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
 
         _pose_scale_set(self, store)
         return self
+
+    def _scale_gate(self, about, force: bool, pivot=None) -> None:
+        if pivot is None:
+            pivot = self._pivot_xy(about)
+        match self.model:
+            case CircleModel.CENTER_RADIUS:
+                _ensure_writable(self.center, "scale_by", force=force, pivot=pivot)
+                _ensure_writable(self["radius"], "scale_by", force=force)
+            case CircleModel.CENTER_PERIMETER:
+                _ensure_writable(self.center, "scale_by", force=force, pivot=pivot)
+                _ensure_writable(self.perimeter_point, "scale_by", force=force, pivot=pivot)
+            case CircleModel.TWO_POINTS:
+                _ensure_writable(self.p1, "scale_by", force=force, pivot=pivot)
+                _ensure_writable(self.p2, "scale_by", force=force, pivot=pivot)
 
 
 class EllipseModel(Enum):
@@ -5966,20 +6066,15 @@ class Ellipse(_DerivedRotationRoute, Shape):
             abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
         )
 
+        if force or self._requires_pull_invalidate():   # every check before any write (SB2c)
+            self._scale_gate(about, force, (px, py))
         match self.model:
             case EllipseModel.CENTER_WH | EllipseModel.FROM_RECT:
-                _ensure_writable(self["width"], "scale_by", force=force)
-                _ensure_writable(self["height"], "scale_by", force=force)
-                if not about_center:          # every check before any write (SB2c)
-                    _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
                 self.width = _bare_num(self.width) * factor
                 self.height = _bare_num(self.height) * factor
                 if not about_center:
                     self.center._takein(_scale_xy(cx, cy, px, py, factor))
             case EllipseModel.FOCAL_POINTS:
-                _ensure_writable(self.fp1, "scale_by", force=force)
-                _ensure_writable(self.fp2, "scale_by", force=force)
-                _ensure_writable(self["major_axis"], "scale_by", force=force)
                 x1, y1 = get_xy(self.fp1, bare=True)
                 x2, y2 = get_xy(self.fp2, bare=True)
                 self.fp1._takein(_scale_xy(x1, y1, px, py, factor))
@@ -5990,6 +6085,21 @@ class Ellipse(_DerivedRotationRoute, Shape):
 
         _pose_scale_set(self, store)
         return self
+
+    def _scale_gate(self, about, force: bool, pivot=None) -> None:
+        match self.model:
+            case EllipseModel.CENTER_WH | EllipseModel.FROM_RECT:
+                _ensure_writable(self["width"], "scale_by", force=force)
+                _ensure_writable(self["height"], "scale_by", force=force)
+                if about is not None:
+                    px, py = self._pivot_xy(about) if pivot is None else pivot
+                    cx, cy = self._center_xy()  # Defining only (D3)
+                    if not (abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12):
+                        _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
+            case EllipseModel.FOCAL_POINTS:
+                _ensure_writable(self.fp1, "scale_by", force=force)
+                _ensure_writable(self.fp2, "scale_by", force=force)
+                _ensure_writable(self["major_axis"], "scale_by", force=force)
 
     def scale_to(self, value: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Ellipse':
         """Set absolute uniform scale about a pivot."""
@@ -6307,13 +6417,19 @@ class Polygon(Shape):
             return self
         factor = geom
         px, py = self._pivot_xy(about)
-        for vertex in self._vertices:      # every vertex first, then write (SC4)
-            _ensure_writable(vertex, "scale_by", force=force, pivot=(px, py))
+        if force or self._requires_pull_invalidate():   # every vertex first, then write (SC4)
+            self._scale_gate(about, force, (px, py))
         for vertex in self._vertices:
             x, y = get_xy(vertex, bare=True)
             vertex._takein(_scale_xy(x, y, px, py, factor))
         _pose_scale_set(self, store)
         return self
+
+    def _scale_gate(self, about, force: bool, pivot=None) -> None:
+        if pivot is None:
+            pivot = self._pivot_xy(about)
+        for vertex in self._vertices:
+            _ensure_writable(vertex, "scale_by", force=force, pivot=pivot)
 
     def scale_to(self, value: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Polygon':
         """Set absolute uniform scale about a pivot."""
@@ -7082,6 +7198,8 @@ class RegularPolygon(Polygon):
         if own:
             self.__dict__["_pending_scale_store"] = store
         try:
+            if force or self._requires_pull_invalidate():   # every check before any write (SC5)
+                self._scale_gate(about, force)
             match self.model:
                 case RegularPolygonModel.CENTER_RADIUS:
                     return self._scale_by_center_radius(factor, about=about, force=force)
@@ -7103,9 +7221,6 @@ class RegularPolygon(Polygon):
         about_center = (about is None) or (
             abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
         )
-        _ensure_writable(self["radius"], "scale_by", force=force)
-        if not about_center:                 # every check before any write (SC5)
-            _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
         self.radius = _bare_num(self.radius) * factor
         if not about_center:
             self.center._takein(_scale_xy(cx, cy, px, py, factor))
@@ -7120,9 +7235,6 @@ class RegularPolygon(Polygon):
         about_center = (about is None) or (
             abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
         )
-        _ensure_writable(self["side"], "scale_by", force=force)
-        if not about_center:                 # every check before any write (SC5)
-            _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
         self.side = _bare_num(self.side) * factor
         if not about_center:
             self.center._takein(_scale_xy(cx, cy, px, py, factor))
@@ -7133,13 +7245,25 @@ class RegularPolygon(Polygon):
     def _scale_by_vertex_side(self, factor: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'RegularPolygon':
         store = self.__dict__["_pending_scale_store"]
         px, py = self._pivot_xy(about)
-        _ensure_writable(self.vertex, "scale_by", force=force, pivot=(px, py))
-        _ensure_writable(self["side"], "scale_by", force=force)
         vx, vy = get_xy(self.vertex, bare=True)
         self.vertex._takein(_scale_xy(vx, vy, px, py, factor))
         self.side = _bare_num(self.side) * factor
         _pose_scale_set(self, store)
         return self
+
+    def _scale_gate(self, about, force: bool, pivot=None) -> None:
+        if self.model is RegularPolygonModel.VERTEX_SIDE:
+            _ensure_writable(self.vertex, "scale_by", force=force,
+                             pivot=self._pivot_xy(about) if pivot is None else pivot)
+            _ensure_writable(self["side"], "scale_by", force=force)
+            return
+        size = "radius" if self.model is RegularPolygonModel.CENTER_RADIUS else "side"
+        _ensure_writable(self[size], "scale_by", force=force)
+        if about is not None:
+            px, py = self._pivot_xy(about) if pivot is None else pivot
+            cx, cy = get_xy(self.center, bare=True)
+            if not (abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12):
+                _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
 
     def scale_to(self, value: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'RegularPolygon':
         """Set absolute uniform scale about a pivot."""
@@ -8342,18 +8466,15 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
             abs(px - cx) < 1e-12 and abs(py - cy) < 1e-12
         )
 
+        if force or self._requires_pull_invalidate():   # nothing linked: nothing refuses
+            self._scale_gate(about, force, (px, py))     # every check before any write
         match self.model:
             case RectModel.CORNER_CORNER:
-                _ensure_writable(self.p1, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self.p2, "scale_by", force=force, pivot=(px, py))
                 x1, y1 = get_xy(self.p1, bare=True)
                 x2, y2 = get_xy(self.p2, bare=True)
                 self.p1._takein(_scale_xy(x1, y1, px, py, factor))
                 self.p2._takein(_scale_xy(x2, y2, px, py, factor))
             case RectModel.TOP_LEFT_WH:
-                _ensure_writable(self.top_left, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self["width"], "scale_by", force=force)
-                _ensure_writable(self["height"], "scale_by", force=force)
                 w0, h0 = self._wh_signed()
                 self.width = w0 * factor
                 self.height = h0 * factor
@@ -8367,9 +8488,6 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
                 tl = self._top_left_offset(w0 * factor, h0 * factor)
                 self.top_left._takein(self._oriented_xy(ncx, ncy, *tl, ang))
             case RectModel.CENTER_WH:
-                _ensure_writable(self.center, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self["width"], "scale_by", force=force)
-                _ensure_writable(self["height"], "scale_by", force=force)
                 w0, h0 = self._wh_signed()
                 self.width = w0 * factor
                 self.height = h0 * factor
@@ -8379,16 +8497,11 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
                     ncx, ncy = _scale_xy(cx, cy, px, py, factor)
                 self.center._takein((ncx, ncy))
             case RectModel.POINT_VEC:
-                _ensure_writable(self.p1, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self.vec, "scale_by", force=force)
                 x1, y1 = get_xy(self.p1, bare=True)
                 self.p1._takein(_scale_xy(x1, y1, px, py, factor))
                 self.vec.x = _bare_num(self.vec.x) * factor
                 self.vec.y = _bare_num(self.vec.y) * factor
             case RectModel.SPINE:
-                _ensure_writable(self.p1, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self.p2, "scale_by", force=force, pivot=(px, py))
-                _ensure_writable(self["height"], "scale_by", force=force)
                 x1, y1 = get_xy(self.p1, bare=True)
                 x2, y2 = get_xy(self.p2, bare=True)
                 self.p1._takein(_scale_xy(x1, y1, px, py, factor))
@@ -8399,6 +8512,29 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
 
         _pose_scale_set(self, store)
         return self
+
+    def _scale_gate(self, about, force: bool, pivot=None) -> None:
+        if pivot is None:
+            pivot = self._pivot_xy(about)
+        match self.model:
+            case RectModel.CORNER_CORNER:
+                _ensure_writable(self.p1, "scale_by", force=force, pivot=pivot)
+                _ensure_writable(self.p2, "scale_by", force=force, pivot=pivot)
+            case RectModel.TOP_LEFT_WH:
+                _ensure_writable(self.top_left, "scale_by", force=force, pivot=pivot)
+                _ensure_writable(self["width"], "scale_by", force=force)
+                _ensure_writable(self["height"], "scale_by", force=force)
+            case RectModel.CENTER_WH:
+                _ensure_writable(self.center, "scale_by", force=force, pivot=pivot)
+                _ensure_writable(self["width"], "scale_by", force=force)
+                _ensure_writable(self["height"], "scale_by", force=force)
+            case RectModel.POINT_VEC:
+                _ensure_writable(self.p1, "scale_by", force=force, pivot=pivot)
+                _ensure_writable(self.vec, "scale_by", force=force)
+            case RectModel.SPINE:
+                _ensure_writable(self.p1, "scale_by", force=force, pivot=pivot)
+                _ensure_writable(self.p2, "scale_by", force=force, pivot=pivot)
+                _ensure_writable(self["height"], "scale_by", force=force)
 
     def scale_to(self, value: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Rect':
         """Set absolute uniform scale about a pivot."""
@@ -8608,7 +8744,8 @@ class Square(Rect):
         if own:
             self.__dict__["_pending_scale_store"] = store
         try:
-            _ensure_writable(self["length"], "scale_by", force=force)
+            if force or self._requires_pull_invalidate():   # nothing linked: nothing refuses
+                self._scale_gate(about, force)
             super().scale_by(factor, about=about, force=force)
             # Scale the Defining input. Do not re-read Derivate width — a dirty
             # pull would rematerialize it from the still-unscaled length.
@@ -8617,6 +8754,10 @@ class Square(Rect):
         finally:
             if own:
                 self.__dict__.pop("_pending_scale_store", None)
+
+    def _scale_gate(self, about, force: bool, pivot=None) -> None:
+        _ensure_writable(self["length"], "scale_by", force=force)
+        super()._scale_gate(about, force, pivot)
 
 
 class EquilateralTriangle(RegularPolygon):
@@ -8834,6 +8975,9 @@ class Blank(Shape):
         _geom, store = _resolve_scale_apply(self, factor, force=force)
         _pose_scale_set(self, store)
         return self
+
+    def _scale_gate(self, about, force: bool, pivot=None) -> None:
+        pass                                # nothing but the pose store
 
 
 _SHAPE_STYLE_SIGNATURE = (

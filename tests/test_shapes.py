@@ -3839,6 +3839,25 @@ class TestPointKeepsItsLayer(unittest.TestCase):
         self.assertEqual(p.layer, "default")
 
 
+class TestLinkedCenterStaysThePivot(unittest.TestCase):
+    """GX16: a home-model Line's pivot is its Defining center. It was the mean
+    of the ends recomputed from it, which drifts an ulp after a scale; the gate
+    compares the pivot exactly, so the next verb about a linked center was
+    refused."""
+
+    def test_verbs_about_a_linked_center_keep_running(self):
+        from scena import State
+        st = State(name="gx16")
+        st.x, st.y = 0.3, 0.7
+        ln = Line(center=(0, 0), length=20, angle=10)
+        ln["center"] @= lambda: (st.x, st.y)
+        for _ in range(6):
+            ln.scale_by(1.37)
+            ln.rotate_by(13)
+        self.assertAlmostEqual(float(ln.length), 20 * 1.37 ** 6)
+        self.assertEqual(ln._center_xy(), (0.3, 0.7))
+
+
 class TestCopyDoorsRefuseWhatClonesRefuse(unittest.TestCase):
     """Geometry campaign, wave 1: ``<<`` refuses what ``clone()`` refuses."""
 

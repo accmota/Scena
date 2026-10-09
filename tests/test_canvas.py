@@ -968,8 +968,16 @@ class TestTimedCamera(CanvasTestCase):
         canvas.reset_view()
         canvas.rotate_to(350)
         canvas.rotate_to(10, time=0.2)
+        self._frame(0.1)
+        self.assertAlmostEqual(canvas.rotation % 360.0, 0.0, places=4)    # the short way
+        self._frame(0.1)
+        # Q2: it ends exactly on the target, as the instant form does (it read 370).
+        self.assertEqual(canvas.rotation, 10.0)
+        canvas.rotate_to(400)
+        canvas.rotate_to(30, time=0.2)
         self._frame(0.2)
-        self.assertAlmostEqual(canvas.rotation % 360.0, 10.0, places=4)
+        self.assertEqual(canvas.rotation, 30.0)
+        canvas.reset_view()
 
     def test_rotate_by_signed(self):
         canvas.reset_view()

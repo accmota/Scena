@@ -5171,6 +5171,13 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         self.center._takein((cx, cy))
         return self
 
+    def _move_to_xy(self) -> Tuple[float, float]:
+        """The point ``_move_to`` places (``center``); a sheet anchor puts the
+        art frame, the turn and scale pivot, elsewhere. The timed ``move_to``
+        measures its delta from here."""
+        c = self.center
+        return (_bare_attr(c.x), _bare_attr(c.y))
+
     def _move_to(self, x: float, y: float, *, force: bool = False) -> "Sprite":
         """Absolute center placement. Same A1 / pull-invalidate split as Circle/Rect."""
         if _pose_fast_ok(self, force=force):

@@ -331,7 +331,8 @@ def timed_camera_rotate_to(
 
     eng = canvas._engine
     start = float(eng._rotation)
-    delta = shortest_delta_deg(start, _finite_number(angle, "rotation"))
+    end = _finite_number(angle, "rotation")
+    delta = shortest_delta_deg(start, end)
     about_xy = _freeze_about(about)
     keys = (
         (CAMERA_ROTATION_KEY, CAMERA_PAN_KEY)
@@ -339,8 +340,10 @@ def timed_camera_rotate_to(
         else (CAMERA_ROTATION_KEY,)
     )
 
-    def write(u, e=eng, a=start, d=delta, ab=about_xy):
-        e.rotate_to(a + d * u, about=ab)
+    def write(u, e=eng, a=start, d=delta, ab=about_xy, goal=end):
+        # The end stores exactly the target, as the instant form does (the
+        # shortest arc from 400 to 30 reached 390; Q2 in Testing Design).
+        e.rotate_to(goal if u == 1.0 else a + d * u, about=ab)
 
     return _camera_tween(
         write=write,
