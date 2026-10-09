@@ -239,6 +239,28 @@ left out.
 - Destroying an actor whose body `@collide_exit` raises still ends the
   contacts of its hitbox parts.
 - A second `run()` in the same Python session opens a new window.
+- With the camera moving in `update()` or by `canvas.pan_by(…, time=)`, a
+  dragged shape, hover and anything linked to `mouse` stay under a still
+  cursor (they were one frame of camera travel behind).
+- A respawn in a `@collide` handler (`move_to` or `center =`) lands on the
+  spawn point under `resolve()`, and `center =`, `center.x =` or `center << p`
+  after a `move_by` no longer sweeps through walls the body never crossed.
+- A query in `update()` sees a hitbox whose `hb["active"] @= …` formula just
+  turned it off, on every kind of query and for the main hitbox too.
+- `cull_offscreen` draws a shape whose linked `scale` or `angle` just brought it
+  into view, and `.box` / `group[...].box` measure that pose.
+- `portal.tilt =` and `portal.angle =` reshape a Portal's collision.
+- `canvas.zoom_to(…, time=)` and `zoom_by(…, time=)` zoom geometrically, as the
+  docs say: half time is the middle of the zoom, and an elastic zoom-out no
+  longer shrinks the world to a dot.
+- A `loops=` move or tween keeps world time under a slow frame: it ends at
+  `loops × time` and a yoyo stays in phase. `h.elapsed` and `h.remaining` on a
+  finite `loops=` count the whole run.
+- `every` never fires more than its per-frame bound after a long frame.
+- An `Endless` fill keeps up with a camera moved later in the frame, and a
+  scrolling layer counts its first frame.
+- A key pressed while a modal menu is open no longer sends `on_key` repeats
+  once the menu closes.
 - `mouse.dx` / `mouse.dy` are this frame's motion: 0 when the mouse is
   still (they kept the last step, so `ship.move_by(mouse.dx, 0)` drifted
   forever), and the sum when several moves arrive in one frame.

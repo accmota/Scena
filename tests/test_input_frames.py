@@ -268,5 +268,88 @@ class TestARaisingPollKeepsInputTrue(unittest.TestCase):
             self.assertFalse(keyp("SPACE"), "the key the OS reports up stays held")
 
 
+
+class TestKeyStreamsFollowTheScriptDown(unittest.TestCase):
+    """Review 2026-10-09 W-P4: ``on_key`` repeats follow the same door as the
+    up; a key pressed under a modal sends nothing once the mask lifts."""
+
+    def test_no_repeat_for_a_key_pressed_under_a_modal(self):
+        with system_world(draw=False) as w, input_driver(w) as d:
+            cm = w.fw.canvas_manager
+            wm = w.fw.widget_manager
+            log = []
+            saved = (cm.on_key_down, cm.on_key, cm.on_key_up)
+            cm.on_key_down = lambda k: log.append(("down", k))
+            cm.on_key = lambda k: log.append(("key", k))
+            cm.on_key_up = lambda k: log.append(("up", k))
+            try:
+                mb = Button(label="M")
+                wm.push_modal(mb)
+                w.step(1)
+                d.press(glfw.KEY_A)
+                w.step(1)
+                mb.destroy()
+                w.step(1)
+                d.key(glfw.KEY_A, glfw.REPEAT)
+                w.step(1)
+                d.release(glfw.KEY_A)
+                w.step(1)
+                self.assertEqual(log, [])
+                d.press(glfw.KEY_A)                  # a fresh press: the full stream
+                d.key(glfw.KEY_A, glfw.REPEAT)
+                d.release(glfw.KEY_A)
+                w.step(1)
+                self.assertEqual([e[0] for e in log], ["down", "key", "key", "up"])
+            finally:
+                cm.on_key_down, cm.on_key, cm.on_key_up = saved
+
+
+class TestALostReleaseEndsTheDrag(unittest.TestCase):
+    """Review 2026-10-09 W-P5: the S1-9 recovery ends every press owner."""
+
+    def test_drag_and_hold_end_with_the_button(self):
+        from unittest import mock
+        import scena.orchestration as orch
+        with system_world(draw=False) as w, input_driver(w) as d:
+            sm = w.fw.shape_manager
+            sm.drag_threshold = 1.0
+            c = Circle(center=(200, 150), radius=30)
+            c.draggable = True
+            patrol = c.move_by(0, 300, time=3)
+            boom = {"on": False}
+
+            def over(*a):
+                if boom["on"]:
+                    raise RuntimeError("author bug in on_drag_over")
+            c.on_drag_over = over
+            d.move(200, 150)
+            w.step(1)
+            d.down()
+            w.step(1)
+            d.move(210, 150)
+            w.step(1)
+            self.assertTrue(sm._dragging, "not vacuous")
+            boom["on"] = True
+
+            def poll():
+                d.move(220, 150)                     # raises: the release is lost
+                d.up()
+
+            with mock.patch.object(orch.glfw, "poll_events", poll), \
+                    mock.patch.object(orch.glfw, "get_mouse_button",
+                                      lambda _w, _b: glfw.RELEASE), \
+                    mock.patch.object(orch.glfw, "get_key", lambda _w, _k: glfw.RELEASE):
+                with self.assertRaises(RuntimeError):
+                    w.step(1)
+            boom["on"] = False
+            self.assertFalse(sm._dragging)
+            self.assertFalse(patrol._held)
+            d.move(400, 300)
+            w.step(5)
+            self.assertGreater(abs(c.center.x - 400), 30, "the shape follows the bare cursor")
+            patrol.cancel()
+            c.destroy()
+
+
 if __name__ == "__main__":
     unittest.main()

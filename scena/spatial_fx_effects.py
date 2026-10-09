@@ -2693,6 +2693,14 @@ class Portal(PointDomainFx):
         pad = abs(_bare_num(self.radius, 60.0)) * self._reach()
         return (cx - pad, cy - pad, cx + pad, cy + pad)
 
+    def _point_frame(self) -> Tuple[float, ...]:
+        """The collision key holds every input of ``_collision_specs``: a
+        ``tilt`` / ``angle`` write left the old hull cached (review 2026-10-09
+        W-G4)."""
+        cx, cy = get_xy(self.center, bare=True)
+        return (cx, cy, abs(_bare_num(self.radius, 60.0)),
+                float(self.tilt), float(self.angle))
+
     def _collision_specs(self) -> List[Tuple]:
         cx, cy = get_xy(self.center, bare=True)
         r = max(1e-6, abs(_bare_num(self.radius, 60.0)) * _PORTAL_HIT)

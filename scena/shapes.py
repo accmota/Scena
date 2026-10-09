@@ -35,7 +35,7 @@ from .entity import (
     _install_setattr_route, _install_timed_pose,
     _pose_rotation_set, _pose_rotation_add, _pose_rotation_publish, _pose_scale_set,
     _refuse_linked_pose, _gate_pose_anchor,
-    _bump_collision_epoch, _geom_path_cache_set,
+    _bump_collision_epoch, _geom_path_cache_set, _placement_write,
     _USE_LAYER_DEFAULT, _COPY_GROUPS, _STYLE_PAINT,
     _fire_on_destroy, _refuse_if_destroyed,
     _parked, _stash_flag,
@@ -2975,11 +2975,21 @@ class Point(Shape):
     def __setattr__(self, name: str, value: Any) -> None:
         # ``x`` / ``y`` are the motion hot path (Line/Circle centers). Bypass
         # Entity ink routing and call the ContainerSlot directly.
-        if name == "x":
-            Point.__dict__["x"].__set__(self, value)
-            return
-        if name == "y":
-            Point.__dict__["y"].__set__(self, value)
+        if name == "x" or name == "y":
+            Point.__dict__[name].__set__(self, value)
+            owner = self._owner
+            if owner is not None:
+                # ``center.x =`` is placement: it ends the frame's pending
+                # motion (X-writers-4). The usual owner is the actor itself:
+                # one slot read and a compare when nothing moved.
+                try:
+                    col = owner._collider
+                except AttributeError:          # a nested part: find the actor
+                    _placement_write(self)
+                else:
+                    if col is not None and (col._pending_motion_dx != 0.0
+                                            or col._pending_motion_dy != 0.0):
+                        _placement_write(self)
             return
         if not name or name[0] == "_":
             object.__setattr__(self, name, value)
@@ -4288,8 +4298,11 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
         if center is not None and (
             center._field_type == FieldType.Defining or center._is_derivate_live()
         ):
-            self.center.x = (_bare_num(self.p1.x) + _bare_num(self.p2.x)) / 2
-            self.center.y = (_bare_num(self.p1.y) + _bare_num(self.p2.y)) / 2
+            # The slot directly: an engine recompute is not an author
+            # placement (``Point.__setattr__`` notes one, X-writers-4).
+            c = self.center
+            Point.__dict__["x"].__set__(c, (_bare_num(self.p1.x) + _bare_num(self.p2.x)) / 2)
+            Point.__dict__["y"].__set__(c, (_bare_num(self.p1.y) + _bare_num(self.p2.y)) / 2)
 
         length = self.__dict__.get('length')
         if self._field_is_derivate('length'):

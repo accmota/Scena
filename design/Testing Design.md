@@ -2262,6 +2262,45 @@ Lessons:
 - A census key that counts a by-design keeper (an auto-created numeric layer)
   must be excused, with its reason, in the traces that build and remove things.
 
+### RV8 — writers × time (2026-10-09)
+
+The cross-cutting pass the review had to stop, finished by three reviewers
+(geometry writers, pointer composition, uneven pacing). The collision cache
+held (123 kind × writer cases); every finding is a reader that ran before a
+writer later in the frame, or a total that depended on the frame cut.
+
+| ID | Finding | Fix | Test |
+| --- | --- | --- | --- |
+| W-T1 | a frame longer than a lap dropped laps (`%`) | every whole lap counts, capped by the laps left | `test_uneven_pacing.TestTweenLaps` |
+| W-T3 | `every` fired one past its budget after `%` | a remainder a hair under the interval is the boundary | `TestEveryBound` |
+| W-T4 | `Handle.elapsed` / `.remaining` lap-local on `loops=N` | run totals | `TestHandleClockCountsTheRun` |
+| W-T6 | Endless fell behind a camera moved after its fill | a second fill after the tick when the view moved | `TestScrollAndFill` |
+| W-T7 | a scrolling layer lost its first frame | the scroll clock starts at the layer's birth | same class |
+| W-G1 | a handler's respawn was invisible to that step's resolve | movable bodies refresh after author code ran | `test_same_frame_writers.TestHandlerWritesReachResolve` |
+| W-G2 | queries did not poll a linked `hb["active"]` (declared tag, `ANYTHING`, main hitbox) | every query polls | `TestQueriesPollLinkedHitboxes` |
+| W-G3 / X-w-5 | cull and `.box` measured a stale linked pose | `_approx_draw_aabb` and `region_frame` pull | `TestMeasuringReadersPull` |
+| W-G4 | Portal's collision key missed `tilt` / `angle` | `Portal._point_frame` | `TestPortalKey` |
+| X-w-3 | timed zoom was linear (doc: geometric) | `_zoom_lerp` | `TestTimedZoomIsGeometric` |
+| X-w-4 | `center =` / `.x =` / `<<` after `move_by` kept the sweep | author placement clears pending motion | `TestPlacementEndsTheSweep` |
+| W-P1 | pointer sampled before a camera move in `update` / a tween | sampled again after the tick when the camera moved | `TestPointerFollowsTheCamera` |
+| W-P4 | `on_key` repeats for a key pressed under a modal | `on_key` follows the script-down door | `test_input_frames.TestKeyStreamsFollowTheScriptDown` |
+| W-P5 | after a lost release the drag went on | the S1-9 recovery ends every press owner | `TestALostReleaseEndsTheDrag` |
+
+New class: **a level sampled before a writer later in the same frame** (W-P1,
+W-G1, W-G2, W-G3, W-T6). Guard: every reader of a level the frame can still
+change (pointer, proxies, linked switches, measured poses, a fill) either runs
+after the last writer or re-reads when the writer ran; the tests above write in
+`update()`, in a handler and in a timer, then read in the same frame.
+
+Perf: the first W-G1 fix refreshed every resolve side after any handler (+42 %
+with 200 static tiles and a stay handler); the shipped one refreshes only the
+movable bodies resolve already lists. The placement hook costs ~37 ns per author
+point write (`center.x +=`), ~0.6 % of a frame with 400 such writes; a detector
+at commit time cannot tell a placement after a move from one before it.
+
+Decisions left to the author (report section 8): W-P3, W-T2, W-T5, W-T8, W-T9,
+X-writers-2.
+
 ### F — contact flicker (2026-09-29)
 
 Found by `tests/test_sys_resting_contact.py`, written after G2 to test what a

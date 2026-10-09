@@ -729,7 +729,12 @@ class Handle:
 
     @property
     def elapsed(self) -> float:
-        """World seconds this job has run (paused time does not count)."""
+        """World seconds this job has run (paused time does not count).
+
+        A finite ``loops=`` verb counts from its start, every lap included;
+        ``loops="forever"`` reads the current lap."""
+        if self.kind == "tween" and self._loops > 1:
+            return self._lap * self.delay + self._elapsed
         return self._elapsed
 
     @property
@@ -760,6 +765,10 @@ class Handle:
                 return max(0.0, lap - elapsed)
             return max(0.0, dur * max(self._sound_loops, 1) / pitch - self._elapsed)
         duration = self.interval if self.kind == "every" else self.delay
+        if self.kind == "tween" and self._loops > 1:
+            # Until the run ends, not the lap (review 2026-10-09 W-T4).
+            left = self._loops * self.delay - (self._lap * self.delay + self._elapsed)
+            return 0.0 if left <= 0.0 else left
         if self.kind == "tween" and self._loops < 0:
             duration = self.delay  # remaining in the current lap
         left = duration - self._elapsed
@@ -1302,12 +1311,31 @@ class Handle:
             loops = self._loops
             more = loops < 0 or (self._lap + 1) < loops
             if more and duration > 0.0:
-                self._lap += 1
-                self._elapsed -= duration
-                if self._elapsed >= duration:
-                    self._elapsed = self._elapsed % duration
-                if self._elapsed < 0.0:
-                    self._elapsed = 0.0
+                # Every whole lap this frame covered (PM8 tolerance): one frame
+                # longer than a lap advanced one lap and dropped the rest, so a
+                # finite run ended late and a yoyo lost its parity (review
+                # 2026-10-09 W-T1).
+                k = max(1, whole_steps(self._elapsed, 1.0 / duration))
+                if loops >= 0 and self._lap + k >= loops:
+                    # The run ends inside this frame: land on its last lap's end.
+                    self._lap = loops - 1
+                    self._elapsed = duration
+                    if write is not None:
+                        try:
+                            write(self._yoyo_u(1.0))
+                        except Exception:
+                            self.cancel()
+                            raise
+                    self._mark_complete()
+                    if self._then is not None:
+                        self._apply_then(owner)
+                    elif self._on_done is not None:
+                        _invoke(self._on_done, owner)
+                    return
+                self._lap += k
+                self._elapsed -= k * duration
+                if self._elapsed < 0.0 or reached(self._elapsed, duration):
+                    self._elapsed = 0.0     # a hair from a boundary: the boundary
                 t2 = self._elapsed / duration if duration > 0.0 else 1.0
                 if t2 > 1.0:
                     t2 = 1.0
@@ -2284,7 +2312,11 @@ class Scheduler:
                 if not budget:
                     budget = _every_fire_budget(interval)
                 if fired >= budget:
-                    handle._elapsed = handle._elapsed % interval
+                    rem = handle._elapsed % interval
+                    # A summed float leaves ``%`` a hair under ``interval``:
+                    # that is the boundary, not one more fire past the
+                    # budget (review 2026-10-09 W-T3, the PM8 class).
+                    handle._elapsed = 0.0 if reached(rem, interval) else rem
             handle._fire_every()
             if not reached(handle._elapsed, interval):
                 return

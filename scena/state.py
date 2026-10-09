@@ -87,6 +87,10 @@ from .closed import ClosedSurface, make_closed_setattr
 T = TypeVar('T')  # Generic type for values
 Number = Union[int, float]  # Type alias for numeric types
 
+# ``entity._placement_write``: an author ``<<`` on an actor or its part is a
+# collision placement (set by entity at import; state does not import entity).
+_PLACEMENT_HOOK = None
+
 class ContainerSet:
     """
     A set-like class that uses object identity (id()) for comparison instead of __eq__.
@@ -2490,6 +2494,9 @@ class Container():
                 other, f"{self.name} << {other.name}: the source was destroyed; "
                        f"copy it before destroy(), or keep it alive"))
         self._takein(other)
+        hook = _PLACEMENT_HOOK
+        if hook is not None:
+            hook(self)          # ``center << p`` is placement (X-writers-4)
         return self
 
     def __getitem__(self, key: str) -> 'FieldRef':

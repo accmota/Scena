@@ -717,7 +717,12 @@ already executing", review 2026-10-09 S2-11). `_advance` closes it when its
 **Due on the exact frame.** A timer fires on the first frame whose summed time reaches its deadline; the first `every` call is one interval in. Time is summed frame by frame, so a deadline that is a whole number of frames can land a hair short by rounding (15 × 1/60 < 0.25): every "is it due" comparison (after / every / tween end / ready / recently / transient progress) goes through `process.reached` (1e-9 relative). At fixed 1/60, `after(0.5)` is frame 30, not 31 (bug PM8; `test_process.TestDueOnTheExactFrame`).
 
 **Handle clock.** `.elapsed` is world seconds since start (or since the last `every`
-fire). `.remaining` is the dual: seconds left until `after` / `wait` / `tween` finish,
+fire); on a finite `loops=` verb it counts the whole run, and `.remaining` counts to
+the run's end (both read the current lap only on `loops="forever"`: review 2026-10-09
+W-T4). A frame longer than a lap advances every whole lap it covers, capped by the
+laps left, so a finite run ends at `loops × time` and a yoyo keeps its phase under a
+hitch (W-T1); `every` past its per-tick budget keeps its phase without one extra fire
+(a `%` remainder a hair under the interval is the boundary, W-T3). `.remaining` is the dual: seconds left until `after` / `wait` / `tween` finish,
 or until the next `every` fire. `0` when done or cancelled. `until` / `parallel` /
 `race` have no clock duration → `0`. Read-only: assigning `.remaining` is a
 `TypeError`. Refresh a buff with `after(..., name=)` (named slot replaces); do not

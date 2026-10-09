@@ -59,8 +59,10 @@ class TestScrollInFrameTick(_LayerCleanup, SystemTestCase, unittest.TestCase):
         seen = []
         self.w.on_update(lambda dt: seen.append(layer._scroll_state.accum[0]))
         self.w.step(5, dt=0.1)
-        # Frame 1 seeds; frames 2..5 each add 10 before update runs.
-        self.assertAlmostEqual(seen[-1], 40.0, places=3)
+        # Scroll counts from the layer's birth (review 2026-10-09 W-T7: the
+        # first frame used to only seed): each of the 5 frames adds 10 before
+        # update runs.
+        self.assertAlmostEqual(seen[-1], 50.0, places=3)
 
     def test_hidden_layer_keeps_scrolling(self):
         # Scroll is world state; ``visible`` is paint (review 2026-10-09 S9-6).

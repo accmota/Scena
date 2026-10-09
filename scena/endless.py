@@ -11,9 +11,32 @@ from __future__ import annotations
 
 import math
 import random
+import weakref
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .entity import Entity, Graphic
+
+# Live Endless instances, for the fill after the process tick.
+_LIVE_ENDLESS: "weakref.WeakSet" = weakref.WeakSet()
+
+
+def refill_after_tick() -> None:
+    """Frame body, right after the process tick: an Endless whose view moved
+    after its own ``on_update`` filled (a camera moved by a later actor or a
+    timer) fills again, so a frame with a long ``dt`` never paints an empty
+    strip at the leading edge (review 2026-10-09 W-T6). One view read when the
+    view did not move."""
+    if not _LIVE_ENDLESS:
+        return
+    for e in list(_LIVE_ENDLESS):
+        if not e.is_alive:
+            _LIVE_ENDLESS.discard(e)
+            continue
+        if not e.active:
+            continue
+        v = e._view()
+        if (v.left, v.right, v.bottom, v.top) != getattr(e, "_filled_view", None):
+            e._fill(v)
 from .registry import BUILT_IN_LAYERS, normalize_layer_name
 
 __all__ = ["Endless", "Slot"]
@@ -271,6 +294,7 @@ class Endless(Entity):
         # draw slot, and the roster is weak (Actors Design, roster).
         self._scenacanvas.registry.hold(self)
         self.on_update = Endless._tick
+        _LIVE_ENDLESS.add(self)
 
     # --- construction checks ------------------------------------------------
 
@@ -542,10 +566,12 @@ class Endless(Entity):
     def _tick(self, dt) -> None:
         self._fill()
 
-    def _fill(self) -> None:
+    def _fill(self, v=None) -> None:
         if not self.is_alive:
             return
-        v = self._view()
+        if v is None:
+            v = self._view()
+        self._filled_view = (v.left, v.right, v.bottom, v.top)
         if self._axis == "xy":
             self._fill_xy(v)
         else:

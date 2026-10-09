@@ -675,6 +675,33 @@ def _pose_scale_set(obj, value: float) -> None:
         _mark_anchor_dirty(anchors, "scale")
 
 
+# Author ``=`` on a pose that is placement for collision (Collision Design,
+# "Motion vs placement"): ``center =``, ``center.x =`` / ``.y =`` on an actor's
+# part. Placement clears the frame's pending motion, as instant ``move_to``
+# does: after a ``move_by`` a respawn by ``center =`` was swept along a segment
+# the body never travelled (review 2026-10-09 X-writers-4).
+_PLACEMENT_WRITES = frozenset({"center", "x", "y"})
+
+
+def _placement_write(obj) -> None:
+    col = getattr(obj, "_collider", None) if getattr(obj, "_scena_is_entity", False) else None
+    actor = obj
+    if col is None:
+        actor = _actor_of(obj)
+        if actor is None or actor is obj:
+            return
+        col = getattr(actor, "_collider", None)
+        if col is None:
+            return
+    if col._pending_motion_dx != 0.0 or col._pending_motion_dy != 0.0:
+        from .collision import note_collider_placement
+        note_collider_placement(actor)
+
+
+from . import state as _state_module          # noqa: E402
+_state_module._PLACEMENT_HOOK = _placement_write
+
+
 def _bump_collision_epoch(obj) -> None:
     """Invalidate collision snapshot cache for this Graphic / Entity."""
     try:
@@ -1647,6 +1674,8 @@ class Entity(Container):
                 raise AttributeError(_look_missing_message(self, name))
             else:
                 route.__set__(self, value)
+                if name in _PLACEMENT_WRITES:
+                    _placement_write(self)
             return
         # Unknown public name → ink (lazy bag of bare scalars).
         try:

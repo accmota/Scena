@@ -3958,6 +3958,8 @@ class CollisionSystem:
         self._enter_pending: Set[Tuple[int, int]] = set()
         # ``_phase_handlers`` snapshot: ((epoch, len), {phase: handlers}).
         self._phase_cache = None
+        # An author handler ran in this step's dispatch (W-G1).
+        self._author_ran = False
         self._exit_pending: Set[Tuple[int, int]] = set()
         # Bumped when a collider leaves or a pair handler is removed: a
         # dispatch whose epoch moved re-checks liveness and registration
@@ -5583,6 +5585,7 @@ class CollisionSystem:
             entered_order = _sort_keys(entered)
         self._enter_pending = set(entered)
         self._exit_pending = set(exited)
+        self._author_ran = False
         for key in entered_order:
             if key not in self._enter_pending:
                 continue                  # its body left mid-step: no enter, no exit
@@ -5747,6 +5750,14 @@ class CollisionSystem:
                         continue
                     bodies.append(c)
         bodies.sort(key=lambda c: self._collider_index.get(id(c), id(c)))
+        if self._author_ran:
+            # A handler may have moved or grown a body (a respawn in a hazard
+            # handler): resolve sees it, not the proxy built before dispatch
+            # (review 2026-10-09 W-G1). Only after author code ran, only the
+            # movable bodies (a STATIC partner a handler moves is the rare case
+            # left: its proxy follows next step).
+            for c in bodies:
+                self._update_proxy(c, commit_motion=False)
         # ``only=`` costs nothing here unless some pair has it: one bool per
         # body, and the gate is read only after a hit or an overlap is found.
         has_only = self._has_only
@@ -6711,6 +6722,12 @@ class CollisionSystem:
         or not ``@collide`` / ``resolve`` declared the tag. Naming a group
         does not enroll anyone.
         """
+        # A linked ``hb["active"]`` is polled: the step reads it at its start,
+        # and a query in ``update()`` after the formula changed hit a hitbox
+        # it had turned off (review 2026-10-09 W-G2; Reactive Design).
+        if _linked_parts():
+            from .hitbox import _refresh_linked_parts
+            _refresh_linked_parts()
         atoms = _parse_query_group(group)
         if atoms is None:
             return self._refresh_live_colliders(bodies_only=True)
@@ -6942,6 +6959,7 @@ class CollisionSystem:
             cb_fn = getattr(me_c, attr, None)
             if cb_fn is not None and other_c._part is None:
                 oriented = self._oriented_info(me_c, other_c, ca, info, phase)
+                self._author_ran = True
                 _call(cb_fn, me_c._identity, other_c._identity, oriented)
                 if self._dispatch_epoch != epoch:
                     changed = True
@@ -6970,6 +6988,7 @@ class CollisionSystem:
                 continue
             me, other = matched
             oriented = self._oriented_info(me, other, ca, info, phase)
+            self._author_ran = True
             _call(handler, me._identity, other._identity, oriented)
             if self._dispatch_epoch != epoch:
                 changed = True
@@ -7984,6 +8003,19 @@ def _resolve_side_alive(side) -> bool:
     if side is ANYTHING or isinstance(side, str):
         return True
     return bool(getattr(side, "is_alive", True))
+
+
+_LINKED_PARTS_SET = None
+
+
+def _linked_parts():
+    """``hitbox._LINKED_PARTS`` (imported once; hitbox imports this module)."""
+    global _LINKED_PARTS_SET
+    if _LINKED_PARTS_SET is None:
+        from .hitbox import _LINKED_PARTS
+        _LINKED_PARTS_SET = _LINKED_PARTS
+    return _LINKED_PARTS_SET
+
 
 
 _PHASE_CALLBACK = {

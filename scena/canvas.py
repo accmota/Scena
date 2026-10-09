@@ -266,7 +266,10 @@ def timed_camera_zoom_to(
     keys = (CAMERA_ZOOM_KEY, CAMERA_PAN_KEY) if about_xy is not None else (CAMERA_ZOOM_KEY,)
 
     def write(u, e=eng, a=z0, b=z1, ab=about_xy):
-        e.zoom_to(clamp_magnitude(a + (b - a) * u), about=ab)
+        # Geometric, as Canvas Design says and frame_to / reset_view do: a
+        # linear zoom collapsed the world to a dot under an overshooting ease
+        # (review 2026-10-09 X-writers-3).
+        e.zoom_to(clamp_magnitude(_zoom_lerp(a, b, u)), about=ab)
 
     return _camera_tween(
         write=write,
@@ -301,7 +304,10 @@ def timed_camera_zoom_by(
     keys = (CAMERA_ZOOM_KEY, CAMERA_PAN_KEY) if about_xy is not None else (CAMERA_ZOOM_KEY,)
 
     def write(u, e=eng, a=z0, b=z1, ab=about_xy):
-        e.zoom_to(clamp_magnitude(a + (b - a) * u), about=ab)
+        # Geometric, as Canvas Design says and frame_to / reset_view do: a
+        # linear zoom collapsed the world to a dot under an overshooting ease
+        # (review 2026-10-09 X-writers-3).
+        e.zoom_to(clamp_magnitude(_zoom_lerp(a, b, u)), about=ab)
 
     return _camera_tween(
         write=write,
@@ -657,6 +663,14 @@ def _approx_draw_aabb(obj) -> Optional[Tuple[float, float, float, float]]:
     Derivates. Returns ``None`` when no usable box is known (cull fail-open;
     batching substitutes a small origin hint).
     """
+    # Every measuring reader pulls a linked angle / scale first, as draw and
+    # collision do: the cull ran before the draw's pull and skipped a shape a
+    # formula had brought into view (review 2026-10-09 W-G3). One dict probe.
+    d = getattr(obj, "__dict__", None)
+    if d and d.get("_field_anchors"):
+        pull = getattr(type(obj), "_pull_property_anchors", None)
+        if pull is not None:
+            pull(obj)
     domain_aabb = _probe(obj, "_domain_aabb")
     if callable(domain_aabb):
         try:

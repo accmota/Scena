@@ -152,6 +152,13 @@ def region_frame(obj) -> Tuple[float, float, float, float, float]:
         raise TypeError("box= requires a Box, Rect, or frame-like Graphic")
     if isinstance(obj, Box):
         return obj._oriented_frame()
+    # A linked angle / scale is pulled before the frame is measured (``.box``,
+    # ``confine``, ``box=`` placement: review 2026-10-09 W-G3 / X-writers-5).
+    d = getattr(obj, "__dict__", None)
+    if d and d.get("_field_anchors"):
+        pull = getattr(type(obj), "_pull_property_anchors", None)
+        if pull is not None:
+            pull(obj)
     name = frame_kind(obj)
     oriented = getattr(obj, "_oriented_frame", None)
     if callable(oriented) and name in ("Rect", "Square"):

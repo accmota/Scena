@@ -915,7 +915,10 @@ changes (`CameraResponse` is a frozen dataclass; `pan_response`,
 `zoom_response`, `rotation_response` stay frozen). The scroll **rate** is live,
 as on backgrounds: `layer.scroll = (x, y)` on a layer created non-neutral
 changes the speed from now on, with no jump (`ScrollState.rate`; `(0, 0)` stops,
-`chase(layer.scroll, (0, 0), 3)` eases). On a neutral layer the write raises
+`chase(layer.scroll, (0, 0), 3)` eases). Scroll counts from the layer's birth
+(`ScrollState._last_t` is seeded with `clock.time` when the layer is made): the
+first frame's time was lost, 75 of 100 DU when that frame was a 0.25 s hitch
+(review 2026-10-09 W-T7). On a neutral layer the write raises
 `ValueError` naming `canvas.layers.create(name, scroll=(…))`: a neutral layer
 may hold collidable bodies and must never turn into decoration. A layer meant to
 start stopped is created at running speed, then stopped — an explicit
@@ -1070,8 +1073,11 @@ build every slot overlapping `[near − ahead, far + ahead]`, nearest the view
 centre first; destroy (release) every slot entirely outside
 `[near − behind, far + behind]`. `ahead = 0.5·extent`, `behind = 1.0·extent`,
 internal (no knob in v1). `"xy"`: the same per axis on cells. The first frame
-is filled in the constructor. A camera moved later in the same frame is covered
-by `ahead`.
+is filled in the constructor. A camera moved later in the same frame (a later
+actor's `on_update`, a timer) is caught by a second fill right after the process
+tick (`endless.refill_after_tick`), which runs only when the view moved since the
+instance's own fill: `ahead` alone did not cover a long frame (a 0.25 s hitch at
+1500 DU/s left an empty strip: review 2026-10-09 W-T6).
 
 **Thrash.** The band between the margins (half a view) is spatial hysteresis:
 to rebuild the same slot repeatedly the camera must swing more than half a view

@@ -21,6 +21,7 @@ from .uiwidget import WidgetTheme, ui
 from .state import State, get_scena_system
 from .process import ReadyManager, RememberedManager, tick_processes, _run_with_watchdog, _Watchdog, WATCHDOG_RESUME_S
 from .sprite import settle_clip_ends
+from .endless import refill_after_tick
 from .validate import call_truncated
 from .bounds import get_bounds_system
 from .transients import tick_all_transients
@@ -3139,7 +3140,10 @@ class ScenaFramework:
         if action == glfw.PRESS and delivers:
             self.canvas_manager._keys_down.add(key_name)
             self.canvas_manager.handle_key_down(script_key)
-        if delivers:
+        # ``on_key`` (press and repeats) follows the same door as the up: a key
+        # the script never saw go down (pressed under a modal, or in an old
+        # act) sends no repeats when the mask lifts (review 2026-10-09 W-P4).
+        if delivers and (action == glfw.PRESS or key_name in self.canvas_manager._keys_down):
             self.canvas_manager.handle_key(script_key)
 
     def _pointer_from_glfw(self, glfw_x, glfw_y):
@@ -3185,11 +3189,30 @@ class ScenaFramework:
             mouse = self.mouse
             if mouse is not None and mouse._pressed_buttons:
                 from .input import get_glfw_mouse_button
+                released = []
                 for glfw_btn in range(8):          # GLFW_MOUSE_BUTTON_1 … 8
                     name = get_glfw_mouse_button(glfw_btn)
                     if (name in mouse._pressed_buttons
                             and glfw.get_mouse_button(self._window, glfw_btn) != glfw.PRESS):
                         mouse._button_up(name)
+                        released.append(name)
+                # Every owner of a press the lost release would have ended:
+                # the script's press, a widget's, and the shape press / drag
+                # with its hold, dropped without callbacks (review 2026-10-09
+                # W-P5: the drag went on after the mouse read up).
+                cm = self.canvas_manager
+                wm = self.widget_manager
+                for name in released:
+                    if cm is not None:
+                        cm._presses.pop(name, None)
+                    if wm is not None:
+                        wm.mouse_down_widget_by_button.pop(name, None)
+                if not mouse._pressed_buttons:
+                    if wm is not None:
+                        wm.pressed_widget = None
+                    sm = self.shape_manager
+                    if sm is not None and sm._pressed_shape is not None:
+                        sm._drop_press()
         except Exception:
             pass        # recovery only: the author's error is what propagates
 
@@ -3667,6 +3690,8 @@ class ScenaFramework:
             # cursor + camera pan with no GLFW motion.
             self._sync_pointer_level()
             self.widget_manager.sync_modal_mask()
+            sd = self._scena_draw
+            cam0 = (sd._look_x, sd._look_y, sd._zoom, sd._rotation) if sd is not None else None
 
             # Call user update. The sync watchdog (tight loop → skip frame)
             # is off by default; opt in with set_sync_watchdog(True).
@@ -3693,6 +3718,14 @@ class ScenaFramework:
             # Sprite clips that end this frame end here (and switch to
             # ``next=``), not in the first reader, which may be the draw.
             settle_clip_ends()
+            # An Endless whose view a later writer moved fills again (W-T6).
+            refill_after_tick()
+            # The camera moved in update() or by a timed camera verb: the world
+            # pointer is sampled again, so drag, hover and ``mouse`` links
+            # follow the camera the frame is drawn with (review 2026-10-09
+            # W-P1). ``update`` read the pre-move pointer: what the user saw.
+            if cam0 is not None and cam0 != (sd._look_x, sd._look_y, sd._zoom, sd._rotation):
+                self._sync_pointer_level()
 
             # Collision step: snapshot → broad/narrow → enter/stay/exit.
             # Runs before flush so @when sees post-collision writes from handlers.

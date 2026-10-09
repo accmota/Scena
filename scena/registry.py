@@ -181,7 +181,18 @@ class Layer:
     def __post_init__(self) -> None:
         if self._scroll_state is None:
             rate = self._response.scroll if self._response is not None else (0.0, 0.0)
-            object.__setattr__(self, '_scroll_state', ScrollState(rate))
+            state = ScrollState(rate)
+            # Scroll counts from the layer's birth: the first frame's dt was
+            # lost (a 0.25 s first frame scrolled 75 of 100: review 2026-10-09
+            # W-T7). No clock yet (import time): the first advance seeds it.
+            try:
+                from .process import _clock
+                clk = _clock()
+                if clk is not None:
+                    state._last_t = float(clk.time)
+            except Exception:
+                pass
+            object.__setattr__(self, '_scroll_state', state)
 
     def __setattr__(self, attr: str, value: Any) -> None:
         # Closed surface: dataclass fields (incl. the private ones the
