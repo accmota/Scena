@@ -129,7 +129,9 @@ linked anchor cannot move, so they raise `LinkedAttributeError` like `move_by`
 flipped: `flip_x` / `flip_y = True` raises `TypeError` (mirrored text is unreadable). Which are Defining follows the placement, like a Rect
 model: the anchor (and `center` too, for a snapshot anchor); `center` alone for
 `center=` / `box=`. The others are Derivate: writing them raises
-`DerivedAttributeError`. The anchor follows the usual construction rule:
+`DerivedAttributeError`. A placement link changes this while it links (see
+"one placement link" below): the linked part is the only Defining placement
+part. The anchor follows the usual construction rule:
 **bare values copy, callables link** — `top_left=lambda: panel.top_left`, or a
 tuple with a callable component (`(lambda: x * 2 + 10, 50)` links x only).
 A `Point` passed as a value is copied, exactly like `Rect(top_left=p)`. With a
@@ -162,7 +164,8 @@ published centre `_center_rec` are the record of the last layout.
 `_refresh_layout` takes the pin from the anchor part when it links or was
 written (`anchor ≠ _pin`); otherwise it shifts the pin by
 `center − _center_rec` (a `center` write since the last layout is a
-translation). Then it re-lays-out the box away from the pin for the current
+translation). A linked `center` is not a translation: it is the pin itself,
+and the box is laid around it. Then it re-lays-out the box away from the pin for the current
 string and publishes the parts (`_publish_parts`). Move verbs write the anchor
 (`_shift_anchor`). Text's cull box (`_domain_aabb`) bounds the caption as drawn — turned and scaled about its center (it ignored rotation, G13). Layout runs on draw, cull, hit-test, and **every outside
 read of a part** (`_TextPartSlot`; `center` only on anchored captions), so each
@@ -177,9 +180,22 @@ input; the box and the other parts are output, written only by
 `_center_rec` — write `center` outside it and the next refresh reads a
 translation. `center` must exist before the first layout (the constructor
 reads it): created later it would start at `(0, 0)` and read as a jump. An
-anchored caption takes one placement link — its anchor or its `center` — and
-the second `@=` raises LinkedAttributeError (`Text._link_field`; both were
-accepted and disagreed, GX13 in Testing Design).
+anchored caption takes one placement link — its anchor or its `center`, in any
+spelling (`t["center"] @=`, `t.center @=`, a leaf `t.center["x"] @=`) — and
+the second link raises (`LinkedAttributeError` from the bracket,
+`DerivedAttributeError` from a part: both were accepted and disagreed, GX13
+in Testing Design). **A linked part is the pin while it links**, so it holds
+its formula whatever the string does. A linked anchor: as above. A linked
+`center`: the box is laid around it (a longer string grows both ways, like a
+pose caption), the anchor follows as output (a write raises
+`DerivedAttributeError`), and the move verbs raise `LinkedAttributeError`
+naming `center`. A string change used to keep the anchor and move a linked
+centre off its formula (GX20). Unlinking restores the construction model: the
+anchor, where it is now, is the pin again. How: `Text._sync_placement_model`,
+run by the `Container._note_part_link_changed` hook on every link install and
+unlink, retypes the placement parts (`_field_type`, `_defining_part_names`;
+the bare-write cache is dropped); a `Text(top_left=lambda: …)` caption stays
+anchor-only after an unlink, as its construction model says.
 **Constructor anchors are tops; `_y1` is the min (bottom) edge — never feed one
 into the other without the height** (that was bug A: `box=` put the region
 centre on the bottom edge). **Limit:** a formula that *reads* `placar.center`

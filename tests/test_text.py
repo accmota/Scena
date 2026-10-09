@@ -1653,3 +1653,195 @@ class TestOnePlacementLink(unittest.TestCase):
         t["center"] @= lambda: st2.c
         self.assertAlmostEqual(float(t.center.x), 3.0)
         t.destroy()
+
+    def test_every_link_spelling_takes_one_placement(self):
+        """The refusal holds for the whole part (``t.center @= f``) and a
+        leaf (``t.center["x"] @= f``), not only the bracket: the whole-part
+        spelling was accepted and the two disagreed."""
+        from scena import State
+        from scena.state import DerivedAttributeError
+        st2 = State(name="gx13s")
+        st2.a, st2.c, st2.x = (1.0, 2.0), (3.0, 4.0), 5.0
+        spellings = {
+            "bracket": lambda t, name, fn: t.__setitem__(name, t[name].__imatmul__(fn)),
+            "whole": lambda t, name, fn: getattr(t, name).__imatmul__(fn),
+        }
+        for anchor in ("top_left", "top_center", "top_right"):
+            for first, second in ((anchor, "center"), ("center", anchor)):
+                for how1, link1 in spellings.items():
+                    for how2, link2 in spellings.items():
+                        t = Text("geo", **{anchor: (0, 0)})
+                        fns = {anchor: (lambda: st2.a), "center": (lambda: st2.c)}
+                        link1(t, first, fns[first])
+                        with self.subTest(anchor=anchor, first=first, how1=how1, how2=how2):
+                            with self.assertRaises((LinkedAttributeError, DerivedAttributeError)):
+                                link2(t, second, fns[second])
+                        t.destroy()
+                t = Text("geo", **{anchor: (0, 0)})
+                t[first] @= (lambda: st2.a) if first == anchor else (lambda: st2.c)
+                with self.assertRaises((LinkedAttributeError, DerivedAttributeError)):
+                    getattr(t, second)["x"] @= lambda: st2.x
+                t.destroy()
+
+
+class TestLinkedCenterIsThePin(unittest.TestCase):
+    """Deep serial pass 2026-10-09 (`test_hyp_reactive_matrix`): on an anchored
+    caption a linked ``center`` lost its formula when the string changed. The
+    layout kept the anchor and moved the centre by half the width change, then
+    published that over the link (center x -16.95 for a formula of -16.0).
+    Contract (Canvas Design, Text): a linked part is the pin while it links.
+    A linked ``center``: the box lays out around it, the anchor follows and is
+    output (a write raises), unlinking restores the construction model."""
+
+    ANCHORS = ("top_left", "top_center", "top_right")
+
+    def setUp(self):
+        from scena import State
+        self.cell = State(name="lcpin")
+        self.cell.c = (10.0, 20.0)
+        self.cell.s = "geo"
+        self.made = []
+
+    def tearDown(self):
+        for t in self.made:
+            t.destroy()
+
+    def caption(self, **kw):
+        t = Text("geo", **kw)
+        self.made.append(t)
+        return t
+
+    def assert_center_holds(self, t, x, y, msg=""):
+        self.assertAlmostEqual(float(t.center.x), x, places=6, msg=msg)
+        self.assertAlmostEqual(float(t.center.y), y, places=6, msg=msg)
+
+    def assert_anchor_follows(self, t, anchor, msg=""):
+        b = t.box
+        expect = {"top_left": b.top_left, "top_center": b.top_center,
+                  "top_right": b.top_right}[anchor]
+        part = getattr(t, anchor)
+        self.assertAlmostEqual(float(part.x), float(expect.x), places=6, msg=msg)
+        self.assertAlmostEqual(float(part.y), float(expect.y), places=6, msg=msg)
+
+    def test_a_string_change_keeps_a_linked_center(self):
+        """Every width input: a plain write, formula text, ``width``, ``font_size``."""
+        cell = self.cell
+        changes = (
+            ("write", lambda t: setattr(t, "text", "a much longer string\nand a line")),
+            ("formula", None),
+            ("width", lambda t: setattr(t, "width", 300)),
+            ("font_size", lambda t: setattr(t, "font_size", 40)),
+        )
+        for anchor in self.ANCHORS:
+            for label, change in changes:
+                t = self.caption(**{anchor: (0, 0)})
+                t["center"] @= lambda: cell.c
+                if change is None:
+                    t["text"] @= lambda: cell.s
+                    cell.s = "a much longer string"
+                else:
+                    change(t)
+                msg = f"{anchor} / {label}"
+                self.assert_center_holds(t, 10.0, 20.0, msg)
+                self.assert_anchor_follows(t, anchor, msg)
+                cell.s = "geo"
+
+    def test_one_cell_moves_the_string_and_the_center(self):
+        """The shortest Hypothesis case: ``text`` and ``center`` linked to one
+        cell, then the cell moves; read like plain writes, string first."""
+        from scena import State
+        cell = State(name="lcpin1")
+        cell.v = 1.0
+        for anchor in self.ANCHORS:
+            t = self.caption(**{anchor: (0, 0)})
+            twin = self.caption(**{anchor: (0, 0)})
+            t["text"] @= lambda: (40.0 * cell.v - 9.0, 20.0 * cell.v + 15.0)
+            t["center"] @= lambda: (40.0 * cell.v - 16.0, 20.0 * cell.v + 1.0)
+            for v in (0.0, 0.37, 1.0):
+                cell.v = v
+                twin.text = (40.0 * v - 9.0, 20.0 * v + 15.0)
+                twin.center = (40.0 * v - 16.0, 20.0 * v + 1.0)
+                for name in ("center",) + self.ANCHORS:
+                    a, b = getattr(t, name), getattr(twin, name)
+                    self.assertAlmostEqual(float(a.x), float(b.x), places=6, msg=f"{anchor} {name} v={v}")
+                    self.assertAlmostEqual(float(a.y), float(b.y), places=6, msg=f"{anchor} {name} v={v}")
+                self.assert_center_holds(t, 40.0 * v - 16.0, 20.0 * v + 1.0)
+
+    def test_the_anchor_is_output_while_the_center_links(self):
+        """An anchor write would fight the link: every spelling raises, and the
+        move verbs raise as before. A leaf link counts as a link."""
+        from scena.state import DerivedAttributeError
+        cell = self.cell
+        cell.x = 3.0
+        writes = (
+            lambda t, a: setattr(t, a, (5, 5)),
+            lambda t, a: setattr(getattr(t, a), "x", 7),
+            lambda t, a: setattr(getattr(t, a), "y", 7),
+        )
+        for anchor in self.ANCHORS:
+            for leaf in (False, True):
+                t = self.caption(**{anchor: (0, 0)})
+                if leaf:
+                    t.center["x"] @= lambda: cell.x
+                else:
+                    t["center"] @= lambda: cell.c
+                for w in writes:
+                    with self.assertRaises(DerivedAttributeError, msg=f"{anchor} leaf={leaf}"):
+                        w(t, anchor)
+                with self.assertRaises(LinkedAttributeError):
+                    t.move_by(1, 1)
+                self.assertAlmostEqual(float(t.center.x), 3.0 if leaf else 10.0)
+
+    def test_the_center_is_output_while_the_anchor_links_after_construction(self):
+        """The mirror: ``t["top_left"] @= f`` after construction makes ``center``
+        output too, as ``Text(top_left=lambda: …)`` does (a ``center`` write
+        was accepted and left the two parts apart)."""
+        from scena.state import DerivedAttributeError
+        cell = self.cell
+        for anchor in self.ANCHORS:
+            t = self.caption(**{anchor: (0, 0)})
+            t[anchor] @= lambda: cell.c
+            with self.assertRaises(DerivedAttributeError):
+                t.center = (5, 5)
+            with self.assertRaises(DerivedAttributeError):
+                t.center.x = 7
+            part = getattr(t, anchor)
+            self.assertAlmostEqual(float(part.x), 10.0)
+            self.assert_anchor_follows(t, anchor)
+            t[anchor].unlink()                   # the snapshot model is back
+            t.center = (5, 5)
+            self.assert_center_holds(t, 5.0, 5.0)
+        built = self.caption(top_left=lambda: cell.c)
+        built["top_left"].unlink()               # built linked: center stays derived
+        with self.assertRaises(DerivedAttributeError):
+            built.center = (5, 5)
+
+    def test_unlink_restores_the_construction_model(self):
+        """After unlinking, the anchor where it is now is the pin again: both
+        placement parts take writes, and a longer string grows away from it."""
+        cell = self.cell
+        for anchor in self.ANCHORS:
+            t = self.caption(**{anchor: (0, 0)})
+            t["center"] @= lambda: cell.c
+            t["center"].unlink()
+            part = getattr(t, anchor)
+            px, py = float(part.x), float(part.y)
+            t.text = "a much longer string"
+            self.assertAlmostEqual(float(part.x), px, places=6)
+            self.assertAlmostEqual(float(part.y), py, places=6)
+            setattr(t, anchor, (1, 2))
+            t.center = (30, 40)
+            self.assert_center_holds(t, 30.0, 40.0)
+            t[anchor] @= lambda: cell.c          # one placement link again
+            self.assertAlmostEqual(float(part.x), 10.0)
+
+    def test_a_turned_caption_keeps_a_linked_center(self):
+        cell = self.cell
+        for anchor in self.ANCHORS:
+            t = self.caption(**{anchor: (0, 0)})
+            t.angle = 30
+            t["center"] @= lambda: cell.c
+            t.text = "a much longer string"
+            t.rotate_by(15)
+            self.assert_center_holds(t, 10.0, 20.0, anchor)
+            self.assert_anchor_follows(t, anchor, anchor)

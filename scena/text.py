@@ -29,6 +29,7 @@ from .validate import MIN_SCALE, magnitude, fixed_magnitude
 from .state import (
     Attribute,
     ContainerSlot,
+    FieldType,
     LinkedAttributeError,
     as_payload,
     _init_composite,
@@ -365,6 +366,9 @@ class Text(Graphic, PaintState):
         self.__dict__["_defining_part_names"] = frozenset(
             set(self._field_slots()) - derived
         )
+        # The construction model: a runtime placement link changes the Defining
+        # set while it links, and unlinking restores this (_sync_placement_model).
+        self.__dict__["_built_defining"] = self.__dict__["_defining_part_names"]
 
         PaintState.__init__(self)
         # Caption default: white fill, no stroke. color=/set_color must not
@@ -595,6 +599,62 @@ class Text(Graphic, PaintState):
             return False
         return any(node._link is not None for node in part._iter_subtree())
 
+    def _part_link_changed(self, node) -> None:
+        """A part's link was installed or removed (``Container`` hook)."""
+        d = self.__dict__
+        if d.get("_anchor") is None or d.get("_destroyed"):
+            return
+        root = node
+        while root._owner is not None and root._owner is not self:
+            root = root._owner
+        if root._attr_name in ("center", d["_anchor"]):
+            self._sync_placement_model()
+
+    def _sync_placement_model(self) -> None:
+        """Which placement part is Defining follows which one links.
+
+        A linked part is the pin while it links: a linked anchor (as at
+        construction), or a linked ``center``, around which the box lays out.
+        The other placement part is then output (Derivate: a write raises,
+        it cannot fight the link). With no link the construction model holds.
+        """
+        d = self.__dict__
+        anchor = d["_anchor"]
+        center = d.get("center")
+        center_links = center is not None and any(
+            node._link is not None for node in center._iter_subtree())
+        d["_center_links"] = center_links
+        if center_links:
+            derived = set(_TEXT_PARTS) - {"center"}
+        elif self._anchor_is_linked():
+            derived = set(_TEXT_PARTS) - {anchor}
+        else:
+            derived = set(_TEXT_PARTS) - d["_built_defining"]
+        defining = frozenset(set(self._field_slots()) - derived)
+        if defining == d["_defining_part_names"]:
+            return
+        d["_defining_part_names"] = defining
+        for name in _TEXT_PARTS:
+            part = d.get(name)
+            if part is None:
+                continue
+            ft = FieldType.Derivate if name in derived else FieldType.Defining
+            if part.__dict__.get("_field_type") == ft:
+                continue
+            part._field_type = ft
+            part._invalidate_bare_reads()      # a cached bare write skips the guard
+            if ft == FieldType.Derivate:
+                part._rewire_subtree_structural_edges(upward=True)
+        self._rewire_subtree_structural_edges(upward=None)
+
+    def _anchor_offset(self, box_w: float) -> float:
+        """The anchor's x in the unturned box, from its center."""
+        if self._anchor == "top_right":
+            return 0.5 * box_w
+        if self._anchor == "top_center":
+            return 0.0
+        return -0.5 * box_w
+
     def _posed(self, lx: float, ly: float) -> tuple:
         """A local offset from the center, turned and scaled like the drawing
         (scale 0 draws at ``MIN_SCALE``: the pin keeps its offset, so it recovers)."""
@@ -612,13 +672,7 @@ class Text(Graphic, PaintState):
         The anchor is the pin of the drawn corner (Named points): a turned or
         scaled caption keeps its ``top_left`` where the pin is.
         """
-        if self._anchor == "top_right":
-            ax = 0.5 * box_w
-        elif self._anchor == "top_center":
-            ax = 0.0
-        else:
-            ax = -0.5 * box_w
-        ox, oy = self._posed(ax, 0.5 * h)
+        ox, oy = self._posed(self._anchor_offset(box_w), 0.5 * h)
         cx, cy = px - ox, py - oy
         return (cx - 0.5 * box_w, cy - 0.5 * h, cx + 0.5 * box_w, cy + 0.5 * h)
 
@@ -695,8 +749,8 @@ class Text(Graphic, PaintState):
                     if part is None:
                         continue
                     if name == "center":
-                        if self._anchor is None:
-                            continue   # pose caption: centre is the pose
+                        if self._anchor is None or d.get("_center_links"):
+                            continue   # the pose, or a linked pin: its own source
                     elif name == self._anchor:
                         if self._anchor_is_linked():
                             continue
@@ -873,8 +927,22 @@ class Text(Graphic, PaintState):
             part = self.__dict__.get(self._anchor)
             if part is None:
                 return
-            ax, ay = float(part.x), float(part.y)
             pin = self._pin
+            if self.__dict__.get("_center_links"):
+                # A linked center is the pin while it links: the box lays out
+                # around it and the anchor follows, so the center holds its
+                # formula whatever the string does.
+                center = self.__dict__["center"]
+                cx, cy = float(center.x), float(center.y)
+                ox, oy = self._posed(self._anchor_offset(box_w), 0.5 * h)
+                px, py = cx + ox, cy + oy
+                edges = (cx - 0.5 * box_w, cy - 0.5 * h, cx + 0.5 * box_w, cy + 0.5 * h)
+                if (px, py) != pin or edges != current or posed:
+                    self._pin = (px, py)
+                    self._x1, self._y1, self._x2, self._y2 = edges
+                    self._publish_parts()
+                return
+            ax, ay = float(part.x), float(part.y)
             if pin is None or (ax, ay) != pin or self._anchor_is_linked():
                 px, py = ax, ay
             else:
@@ -1072,6 +1140,12 @@ class Text(Graphic, PaintState):
     def _shift_anchor(self, dx: float, dy: float) -> None:
         """Move the Defining anchor; the next layout re-lays the box from it."""
         if dx == 0.0 and dy == 0.0:
+            return
+        if self.__dict__.get("_center_links"):
+            # The linked center is the pin; the layout places the anchor (a
+            # turn about the center already moved it: shifting it again
+            # turned it twice).
+            self._refresh_layout()
             return
         anchor = self._anchor_part()
         ax, ay = float(anchor.x), float(anchor.y)

@@ -162,6 +162,15 @@ left out.
 
 ### Fixed
 
+- A caption placed by `top_left=` (or `top_center=` / `top_right=`) whose
+  `center` is linked keeps the centre where its formula puts it when the
+  string changes; it used to keep the corner and drift the centre by half the
+  width change. While `center` links, the box grows both ways around it and
+  the corner follows: writing the corner raises `DerivedAttributeError`
+  (before, the write was accepted and the two disagreed). The same holds the
+  other way: after `t["top_left"] @= …`, `t.center = …` raises, as it does for
+  `Text(top_left=lambda: …)`. `t.center @= …` is refused when the corner
+  already links, as `t["center"] @= …` was. Unlink to write either again.
 - The fade cover runs while the world is paused or slowed (presentation
   time): `clock.paused = True; canvas.fade_out(0.5, on_done=…)` finishes.
   Before, the screen stayed black and `on_done` never ran.
