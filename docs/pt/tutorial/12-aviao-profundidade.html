@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Avião II — Profundidade — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "12",
+  title: "Avião II · Profundidade",
+  steps: [
+    {
+      title: "O jogo do 11",
+      body: `
+        <p>Novo script: o avião do tutorial 11, com os pilares, os pontos, a batida e o espaço para recomeçar. Neste tutorial ele ganha <strong>profundidade</strong>: o céu tem montanhas e nuvens que passam, umas mais depressa que as outras. E música.</p>
+        <p>As imagens novas são da mesma pasta do céu, <code>backgrounds/mountains/</code>: <code>mountains2.png</code> (nuvens pequenas), <code>mountains3.png</code> (montes) e <code>mountains4.png</code> (mato), cada uma do tamanho da tela, com o fundo transparente.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Avião")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+folha = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+folha.clip("voando", [0, 1], fps=12)
+folha.clip("caindo", [2])
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.pontos = 0
+st.voando = True
+
+placar = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+aviso = Text(text="", center=(320, 200), font_size=24, color="navy")
+
+
+class Aviao(Sprite, source=folha, height=40):
+    def setup(self):
+        self.play("voando")
+
+    def on_update(self, dt):
+        if st.voando:
+            alvo = 0
+            if keyp("UP"):
+                alvo = 30
+            if keyp("DOWN"):
+                alvo = -30
+            self.rotate_to(chase(self.angle, alvo, rate=4))
+            seta = vec_from_angle(self.angle, length=220)
+            self.move_by(0, seta.y * dt)
+            self.confine(canvas.game_view)
+            if self.center.y < 30:
+                self.cair()
+        elif self.center.y > 30:
+            self.rotate_to(chase(self.angle, -60, rate=3))
+            self.move_by(0, -160 * dt)
+
+    @collide_with("porta")
+    def passou(self, porta):
+        porta.destroy()
+        st.pontos += 1
+        play_sound("audio/fx2.wav")
+
+    @collide_with("pilar")
+    def bateu(self, pilar):
+        if st.voando:
+            self.cair()
+
+    def cair(self):
+        st.voando = False
+        self.play("caindo")
+        canvas.shake(6)
+        play_sound("audio/explosion02.wav")
+        aviso.text = "Aperte espaço"
+
+
+aviao = Aviao(center=(120, 200))
+
+
+def novo_par():
+    meio = uniform(110, 250)
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio + 190), group="pilar")
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio - 190), group="pilar")
+    porta = Rect(center=(690, meio), width=10, height=120, group="porta")
+    porta.visible = False
+
+
+@every(2)
+def mais_pilares():
+    if st.voando:
+        novo_par()
+
+
+def recomecar():
+    group["pilar"].destroy()
+    group["porta"].destroy()
+    st.pontos = 0
+    st.voando = True
+    aviso.text = ""
+    aviao.center = (120, 200)
+    aviao.rotate_to(0)
+    aviao.play("voando")
+
+
+def update(dt):
+    if st.voando:
+        group["pilar"].move_by(-120 * dt, 0)
+        group["porta"].move_by(-120 * dt, 0)
+    elif keyp("SPACE"):
+        recomecar()
+
+
+@leave_playfield("pilar", "porta")
+def saiu(coisa):
+    coisa.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "Longe e perto",
+      body: `
+        <p>Olhe pela janela de um carro: a árvore da beira da estrada passa voando, o morro lá longe quase não anda, e a lua parece ir junto com você. Quanto mais longe, mais devagar. Desenhar o cenário em faixas que andam em velocidades diferentes dá essa sensação na tela: chama-se <strong>parallax</strong>.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 400 210" role="img" aria-label="Quatro faixas, da mais longe, em cima, à mais perto, embaixo: nuvens, montes, mato e pilares; cada uma tem uma seta para a esquerda, mais curta para o que está longe e mais comprida para o que está perto">
+            <text x="10" y="28">longe</text>
+            <text x="10" y="190">perto</text>
+            <line class="guide" x1="30" y1="40" x2="30" y2="170"/>
+            <rect class="bar child" x="50" y="34" width="60" height="14" rx="7"/>
+            <rect class="bar" x="50" y="70" width="40" height="22" rx="3"/>
+            <rect class="bar" x="95" y="78" width="30" height="14" rx="3"/>
+            <rect class="dot" x="50" y="118" width="70" height="10" rx="5"/>
+            <rect class="bar" x="70" y="146" width="16" height="40" rx="3"/>
+            <line class="ray" x1="330" y1="41" x2="312" y2="41"/>
+            <line class="ray" x1="312" y1="41" x2="319" y2="36"/>
+            <line class="ray" x1="312" y1="41" x2="319" y2="46"/>
+            <text x="338" y="45">nuvens 12</text>
+            <line class="ray" x1="330" y1="84" x2="276" y2="84"/>
+            <line class="ray" x1="276" y1="84" x2="283" y2="79"/>
+            <line class="ray" x1="276" y1="84" x2="283" y2="89"/>
+            <text x="338" y="88">montes 36</text>
+            <line class="ray" x1="330" y1="123" x2="204" y2="123"/>
+            <line class="ray" x1="204" y1="123" x2="211" y2="118"/>
+            <line class="ray" x1="204" y1="123" x2="211" y2="128"/>
+            <text x="338" y="127">mato 84</text>
+            <line class="ray" x1="330" y1="166" x2="150" y2="166"/>
+            <line class="ray" x1="150" y1="166" x2="157" y2="161"/>
+            <line class="ray" x1="150" y1="166" x2="157" y2="171"/>
+            <text x="338" y="170">pilares 120</text>
+          </svg>
+          <figcaption>Quanto mais longe, mais devagar. As setas são quanto cada faixa anda num segundo, para a esquerda.</figcaption>
+        </figure>
+
+        <p><strong>Uma camada por faixa.</strong> <code>canvas.layers.create("montes", scroll=(-36, 0), below="default")</code> cria uma <strong>camada</strong> (<em>layer</em>) com nome: um plano de desenho, como uma folha de papel transparente. <code>scroll=(-36, 0)</code> (rolar) faz a camada andar sozinha, 36 por segundo para a esquerda, com tudo que está nela. <code>below="default"</code> (abaixo) a põe atrás da camada onde o jogo acontece: os pilares e o avião passam na frente. Criadas na mesma posição, a camada criada depois fica na frente da anterior: as nuvens no fundo, o mato na frente.</p>
+        <p><strong>Sem fim.</strong> Uma imagem da largura da tela, andando, acaba logo. <code>Endless("montes", "…/mountains3.png", height=360)</code> (sem fim) enche a camada com a mesma imagem, uma colada na outra: monta a próxima um pouco antes de ela aparecer na direita e destrói a que ficou bem para trás, na esquerda. <code>height=360</code> é a altura de cada imagem, a da tela. A paisagem nunca acaba, e nunca há mais que umas poucas imagens vivas.</p>
+        <p>Voe, e depois bata. O avião cai, os pilares param… e as montanhas continuam passando.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Avião")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+nuvens = canvas.layers.create("nuvens", scroll=(-12, 0), below="default")
+montes = canvas.layers.create("montes", scroll=(-36, 0), below="default")
+mato = canvas.layers.create("mato", scroll=(-84, 0), below="default")
+Endless("nuvens", "backgrounds/mountains/mountains2.png", height=360)
+Endless("montes", "backgrounds/mountains/mountains3.png", height=360)
+Endless("mato", "backgrounds/mountains/mountains4.png", height=360)
+
+folha = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+folha.clip("voando", [0, 1], fps=12)
+folha.clip("caindo", [2])
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.pontos = 0
+st.voando = True
+
+placar = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+aviso = Text(text="", center=(320, 200), font_size=24, color="navy")
+
+
+class Aviao(Sprite, source=folha, height=40):
+    def setup(self):
+        self.play("voando")
+
+    def on_update(self, dt):
+        if st.voando:
+            alvo = 0
+            if keyp("UP"):
+                alvo = 30
+            if keyp("DOWN"):
+                alvo = -30
+            self.rotate_to(chase(self.angle, alvo, rate=4))
+            seta = vec_from_angle(self.angle, length=220)
+            self.move_by(0, seta.y * dt)
+            self.confine(canvas.game_view)
+            if self.center.y < 30:
+                self.cair()
+        elif self.center.y > 30:
+            self.rotate_to(chase(self.angle, -60, rate=3))
+            self.move_by(0, -160 * dt)
+
+    @collide_with("porta")
+    def passou(self, porta):
+        porta.destroy()
+        st.pontos += 1
+        play_sound("audio/fx2.wav")
+
+    @collide_with("pilar")
+    def bateu(self, pilar):
+        if st.voando:
+            self.cair()
+
+    def cair(self):
+        st.voando = False
+        self.play("caindo")
+        canvas.shake(6)
+        play_sound("audio/explosion02.wav")
+        aviso.text = "Aperte espaço"
+
+
+aviao = Aviao(center=(120, 200))
+
+
+def novo_par():
+    meio = uniform(110, 250)
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio + 190), group="pilar")
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio - 190), group="pilar")
+    porta = Rect(center=(690, meio), width=10, height=120, group="porta")
+    porta.visible = False
+
+
+@every(2)
+def mais_pilares():
+    if st.voando:
+        novo_par()
+
+
+def recomecar():
+    group["pilar"].destroy()
+    group["porta"].destroy()
+    st.pontos = 0
+    st.voando = True
+    aviso.text = ""
+    aviao.center = (120, 200)
+    aviao.rotate_to(0)
+    aviao.play("voando")
+
+
+def update(dt):
+    if st.voando:
+        group["pilar"].move_by(-120 * dt, 0)
+        group["porta"].move_by(-120 * dt, 0)
+    elif keyp("SPACE"):
+        recomecar()
+
+
+@leave_playfield("pilar", "porta")
+def saiu(coisa):
+    coisa.destroy()
+
+
+run()
+`,
+      dive: [
+        {
+          title: "Camadas e o Endless",
+          body: `
+            <p><strong>Camadas.</strong> Toda coisa na tela está numa camada, e as camadas decidem o que fica na frente. Três já existem: <code>default</code> (padrão, onde tudo nasce), <code>top</code> (na frente do mundo) e <code>ui</code> (o HUD, presa à janela). <code>canvas.layers.create</code> cria outras, por nome, e <code>below=</code> / <code>above=</code> (acima) dizem onde ficam.</p>
+            <p><strong>Andar sozinha.</strong> <code>scroll=</code> é uma deriva: a camada anda nessa velocidade, sem nada no jogo mexendo nela. Aqui a câmera fica parada e é o cenário que passa. Num jogo em que a câmera anda (um mundo maior que a tela), as camadas usam <code>pan_response=</code> (resposta ao movimento da câmera): 0.3 anda 30% do que a câmera anda. É a mesma ideia, para quando quem anda é a câmera.</p>
+            <p><strong>O Endless.</strong> Ele corta o caminho em <em>vagas</em> (slots), uma depois da outra, e monta o que vai em cada vaga só quando ela está para entrar na tela. Aqui, cada vaga é uma imagem. No próximo tutorial, uma lista de imagens sorteadas e peças soltas.</p>
+            <p>No Guia: <a href="../guide/index.html#mundo-camadas">Camadas</a> · <a href="../guide/index.html#mundo-sem-fim">Mundo sem fim</a>.</p>
+          `
+        }
+      ],
+      try: [
+          {
+            note: "Outro chão, no lugar do mato: um gramado baixo, da mesma pasta. No lugar do <code>Endless</code> do mato:",
+            replaces: ['Endless("mato"'],
+            code: `Endless("mato", "backgrounds/mountains/grass.png", height=360)`
+          }
+        ]
+    },
+    {
+      title: "Uma velocidade só",
+      body: `
+        <p>As camadas andam cada uma no seu número, e os pilares no deles. Mas é tudo o mesmo voo: quando o avião cai, tudo deveria parar junto.</p>
+        <p><strong>Uma velocidade.</strong> <code>st.velocidade</code> é a velocidade do voo, 120. Os pilares andam essa velocidade, e cada camada anda uma <strong>fração</strong> dela, escrita no <code>update</code> a cada quadro: <code>montes.scroll = (-st.velocidade * 0.3, 0)</code>, 30% do voo. As nuvens, longe, 10%; o mato, perto, 70%. O <code>scroll=</code> da criação ainda é preciso (é ele que faz da camada uma camada que anda), mas daqui em diante quem manda é o <code>update</code>.</p>
+        <p><strong>A freada.</strong> Na queda, a velocidade persegue zero: <code>st.velocidade = chase(st.velocidade, 0, rate=2)</code>, o <code>chase</code> do manche, agora num número. Pilares e camadas freiam juntos, e param em um ou dois segundos. Recomeçar devolve os 120.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Avião")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+nuvens = canvas.layers.create("nuvens", scroll=(-12, 0), below="default")
+montes = canvas.layers.create("montes", scroll=(-36, 0), below="default")
+mato = canvas.layers.create("mato", scroll=(-84, 0), below="default")
+Endless("nuvens", "backgrounds/mountains/mountains2.png", height=360)
+Endless("montes", "backgrounds/mountains/mountains3.png", height=360)
+Endless("mato", "backgrounds/mountains/mountains4.png", height=360)
+
+folha = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+folha.clip("voando", [0, 1], fps=12)
+folha.clip("caindo", [2])
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.pontos = 0
+st.voando = True
+st.velocidade = 120
+
+placar = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+aviso = Text(text="", center=(320, 200), font_size=24, color="navy")
+
+
+class Aviao(Sprite, source=folha, height=40):
+    def setup(self):
+        self.play("voando")
+
+    def on_update(self, dt):
+        if st.voando:
+            alvo = 0
+            if keyp("UP"):
+                alvo = 30
+            if keyp("DOWN"):
+                alvo = -30
+            self.rotate_to(chase(self.angle, alvo, rate=4))
+            seta = vec_from_angle(self.angle, length=220)
+            self.move_by(0, seta.y * dt)
+            self.confine(canvas.game_view)
+            if self.center.y < 30:
+                self.cair()
+        elif self.center.y > 30:
+            self.rotate_to(chase(self.angle, -60, rate=3))
+            self.move_by(0, -160 * dt)
+
+    @collide_with("porta")
+    def passou(self, porta):
+        porta.destroy()
+        st.pontos += 1
+        play_sound("audio/fx2.wav")
+
+    @collide_with("pilar")
+    def bateu(self, pilar):
+        if st.voando:
+            self.cair()
+
+    def cair(self):
+        st.voando = False
+        self.play("caindo")
+        canvas.shake(6)
+        play_sound("audio/explosion02.wav")
+        aviso.text = "Aperte espaço"
+
+
+aviao = Aviao(center=(120, 200))
+
+
+def novo_par():
+    meio = uniform(110, 250)
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio + 190), group="pilar")
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio - 190), group="pilar")
+    porta = Rect(center=(690, meio), width=10, height=120, group="porta")
+    porta.visible = False
+
+
+@every(2)
+def mais_pilares():
+    if st.voando:
+        novo_par()
+
+
+def recomecar():
+    group["pilar"].destroy()
+    group["porta"].destroy()
+    st.pontos = 0
+    st.voando = True
+    st.velocidade = 120
+    aviso.text = ""
+    aviao.center = (120, 200)
+    aviao.rotate_to(0)
+    aviao.play("voando")
+
+
+def update(dt):
+    if not st.voando:
+        st.velocidade = chase(st.velocidade, 0, rate=2)
+        if keyp("SPACE"):
+            recomecar()
+    group["pilar"].move_by(-st.velocidade * dt, 0)
+    group["porta"].move_by(-st.velocidade * dt, 0)
+    nuvens.scroll = (-st.velocidade * 0.1, 0)
+    montes.scroll = (-st.velocidade * 0.3, 0)
+    mato.scroll = (-st.velocidade * 0.7, 0)
+
+
+@leave_playfield("pilar", "porta")
+def saiu(coisa):
+    coisa.destroy()
+
+
+run()
+`,
+      try: [
+          {
+            note: "Mais depressa a cada ponto: o voo acelera 4 por ponto. No <code>passou</code> do <code>Aviao</code>, depois do <code>st.pontos += 1</code>:",
+            code: `st.velocidade += 4`
+          }
+        ]
+    },
+    {
+      title: "Fogo na queda",
+      body: `
+        <p>O avião quebrado cai pegando fogo. <code>Fire</code> (fogo), um efeito que vive no mundo, como o fogo no destroço da nave no 07. <code>style="plume"</code> (pluma) é uma labareda que sobe, de largura 14.</p>
+        <p><strong>Atrás do avião.</strong> <code>center=lambda: self.center</code>: o centro do fogo é uma <code>lambda</code> que lê o centro do avião, então o fogo cai junto com ele, como o propulsor do 06 seguia a nave. O fogo fica guardado em <code>self.fogo</code>, e <code>recomecar</code> o apaga.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Avião")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+nuvens = canvas.layers.create("nuvens", scroll=(-12, 0), below="default")
+montes = canvas.layers.create("montes", scroll=(-36, 0), below="default")
+mato = canvas.layers.create("mato", scroll=(-84, 0), below="default")
+Endless("nuvens", "backgrounds/mountains/mountains2.png", height=360)
+Endless("montes", "backgrounds/mountains/mountains3.png", height=360)
+Endless("mato", "backgrounds/mountains/mountains4.png", height=360)
+
+folha = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+folha.clip("voando", [0, 1], fps=12)
+folha.clip("caindo", [2])
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.pontos = 0
+st.voando = True
+st.velocidade = 120
+
+placar = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+aviso = Text(text="", center=(320, 200), font_size=24, color="navy")
+
+
+class Aviao(Sprite, source=folha, height=40):
+    def setup(self):
+        self.play("voando")
+
+    def on_update(self, dt):
+        if st.voando:
+            alvo = 0
+            if keyp("UP"):
+                alvo = 30
+            if keyp("DOWN"):
+                alvo = -30
+            self.rotate_to(chase(self.angle, alvo, rate=4))
+            seta = vec_from_angle(self.angle, length=220)
+            self.move_by(0, seta.y * dt)
+            self.confine(canvas.game_view)
+            if self.center.y < 30:
+                self.cair()
+        elif self.center.y > 30:
+            self.rotate_to(chase(self.angle, -60, rate=3))
+            self.move_by(0, -160 * dt)
+
+    @collide_with("porta")
+    def passou(self, porta):
+        porta.destroy()
+        st.pontos += 1
+        play_sound("audio/fx2.wav")
+
+    @collide_with("pilar")
+    def bateu(self, pilar):
+        if st.voando:
+            self.cair()
+
+    def cair(self):
+        st.voando = False
+        self.play("caindo")
+        canvas.shake(6)
+        play_sound("audio/explosion02.wav")
+        self.fogo = Fire(center=lambda: self.center, width=14, style="plume")
+        aviso.text = "Aperte espaço"
+
+
+aviao = Aviao(center=(120, 200))
+
+
+def novo_par():
+    meio = uniform(110, 250)
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio + 190), group="pilar")
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio - 190), group="pilar")
+    porta = Rect(center=(690, meio), width=10, height=120, group="porta")
+    porta.visible = False
+
+
+@every(2)
+def mais_pilares():
+    if st.voando:
+        novo_par()
+
+
+def recomecar():
+    group["pilar"].destroy()
+    group["porta"].destroy()
+    st.pontos = 0
+    st.voando = True
+    st.velocidade = 120
+    aviso.text = ""
+    aviao.center = (120, 200)
+    aviao.rotate_to(0)
+    aviao.play("voando")
+    aviao.fogo.destroy()
+
+
+def update(dt):
+    if not st.voando:
+        st.velocidade = chase(st.velocidade, 0, rate=2)
+        if keyp("SPACE"):
+            recomecar()
+    group["pilar"].move_by(-st.velocidade * dt, 0)
+    group["porta"].move_by(-st.velocidade * dt, 0)
+    nuvens.scroll = (-st.velocidade * 0.1, 0)
+    montes.scroll = (-st.velocidade * 0.3, 0)
+    mato.scroll = (-st.velocidade * 0.7, 0)
+
+
+@leave_playfield("pilar", "porta")
+def saiu(coisa):
+    coisa.destroy()
+
+
+run()
+`,
+      try: [
+          {
+            note: "Um de cada vez, no lugar do <code>Fire</code> em <code>cair</code>: um fogo maior, ou brasas que sobem.",
+            replaces: ['self.fogo = Fire('],
+            code: `self.fogo = Fire(center=lambda: self.center, width=24, style="plume")
+self.fogo = Fire(center=lambda: self.center, width=20, style="embers")`
+          }
+        ]
+    },
+    {
+      title: "Música",
+      example: "aviao_profundidade.py",
+      body: `
+        <p>Uma música para o voo. <code>play_sound</code> (do 07) com <code>loops="forever"</code> (repetir para sempre) toca e recomeça sozinha quando acaba. <code>volume=0.5</code>, metade, para os outros sons aparecerem.</p>
+        <p><strong>O controle do som.</strong> <code>play_sound</code> devolve um controle do som que está tocando, guardado em <code>musica</code>. <code>musica.fade_to(0.1, time=1)</code> (esmaecer até) abaixa o volume para 0.1 em um segundo, sem cortar: na queda, a música quase some. <code>recomecar</code> a traz de volta a 0.5.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Avião")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+nuvens = canvas.layers.create("nuvens", scroll=(-12, 0), below="default")
+montes = canvas.layers.create("montes", scroll=(-36, 0), below="default")
+mato = canvas.layers.create("mato", scroll=(-84, 0), below="default")
+Endless("nuvens", "backgrounds/mountains/mountains2.png", height=360)
+Endless("montes", "backgrounds/mountains/mountains3.png", height=360)
+Endless("mato", "backgrounds/mountains/mountains4.png", height=360)
+
+folha = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+folha.clip("voando", [0, 1], fps=12)
+folha.clip("caindo", [2])
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.pontos = 0
+st.voando = True
+st.velocidade = 120
+
+musica = play_sound("audio/SuperHero_original_no_Intro.ogg", loops="forever", volume=0.5)
+
+placar = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+aviso = Text(text="", center=(320, 200), font_size=24, color="navy")
+
+
+class Aviao(Sprite, source=folha, height=40):
+    def setup(self):
+        self.play("voando")
+
+    def on_update(self, dt):
+        if st.voando:
+            alvo = 0
+            if keyp("UP"):
+                alvo = 30
+            if keyp("DOWN"):
+                alvo = -30
+            self.rotate_to(chase(self.angle, alvo, rate=4))
+            seta = vec_from_angle(self.angle, length=220)
+            self.move_by(0, seta.y * dt)
+            self.confine(canvas.game_view)
+            if self.center.y < 30:
+                self.cair()
+        elif self.center.y > 30:
+            self.rotate_to(chase(self.angle, -60, rate=3))
+            self.move_by(0, -160 * dt)
+
+    @collide_with("porta")
+    def passou(self, porta):
+        porta.destroy()
+        st.pontos += 1
+        play_sound("audio/fx2.wav")
+
+    @collide_with("pilar")
+    def bateu(self, pilar):
+        if st.voando:
+            self.cair()
+
+    def cair(self):
+        st.voando = False
+        self.play("caindo")
+        canvas.shake(6)
+        play_sound("audio/explosion02.wav")
+        self.fogo = Fire(center=lambda: self.center, width=14, style="plume")
+        aviso.text = "Aperte espaço"
+        musica.fade_to(0.1, time=1)
+
+
+aviao = Aviao(center=(120, 200))
+
+
+def novo_par():
+    meio = uniform(110, 250)
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio + 190), group="pilar")
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio - 190), group="pilar")
+    porta = Rect(center=(690, meio), width=10, height=120, group="porta")
+    porta.visible = False
+
+
+@every(2)
+def mais_pilares():
+    if st.voando:
+        novo_par()
+
+
+def recomecar():
+    group["pilar"].destroy()
+    group["porta"].destroy()
+    st.pontos = 0
+    st.voando = True
+    st.velocidade = 120
+    aviso.text = ""
+    aviao.center = (120, 200)
+    aviao.rotate_to(0)
+    aviao.play("voando")
+    aviao.fogo.destroy()
+    musica.fade_to(0.5, time=1)
+
+
+def update(dt):
+    if not st.voando:
+        st.velocidade = chase(st.velocidade, 0, rate=2)
+        if keyp("SPACE"):
+            recomecar()
+    group["pilar"].move_by(-st.velocidade * dt, 0)
+    group["porta"].move_by(-st.velocidade * dt, 0)
+    nuvens.scroll = (-st.velocidade * 0.1, 0)
+    montes.scroll = (-st.velocidade * 0.3, 0)
+    mato.scroll = (-st.velocidade * 0.7, 0)
+
+
+@leave_playfield("pilar", "porta")
+def saiu(coisa):
+    coisa.destroy()
+
+
+run()
+`,
+      closing: `
+        <p>Seta para cima levanta o nariz; seta para baixo o abaixa. Passe pelo vão dos pilares: cada par vale um ponto. O cenário passa em faixas, mais devagar as de longe. Batendo, o avião cai pegando fogo, tudo freia e a música abaixa; espaço recomeça.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>canvas.layers.create</code> — uma camada com nome; <code>scroll=</code> a faz andar sozinha, e <code>below="default"</code> a põe atrás do jogo.</li>
+          <li><code>Endless</code> — enche a camada com a mesma imagem, uma depois da outra, sem fim; <code>height=</code> é o tamanho de cada uma.</li>
+          <li>Parallax — o que está longe anda mais devagar: cada camada anda uma fração da velocidade do voo.</li>
+          <li><code>.scroll</code> — a velocidade da camada muda a qualquer momento; com <code>chase</code>, tudo freia junto.</li>
+          <li><code>Fire</code> com <code>center=lambda: …</code> — um efeito que segue um objeto.</li>
+          <li><code>loops="forever"</code> e <code>fade_to</code> — música que repete, e o volume que muda devagar.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#mundo-camadas">Camadas</a> · <a href="../guide/index.html#mundo-sem-fim">Mundo sem fim</a> · <a href="../guide/index.html#desenhar-spatial">SpatialFx</a> · <a href="../guide/index.html#som-play">play_sound</a>.</p>
+        <p><strong>No próximo:</strong> uma paisagem que não se repete: nuvens e campos sorteados, árvores e casas soltas pelo caminho, e um mato na frente do avião.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

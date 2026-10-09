@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bolas — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "09",
+  title: "Bolas",
+  steps: [
+    {
+      title: "As paredes",
+      body: `
+        <p>Outro jogo, sem naves: uma caixa com bolas que quicam nas paredes e umas nas outras. O tutorial é sobre uma ideia só, uma <strong>regra de colisão que fica valendo</strong>. Primeiro, a caixa.</p>
+        <p><strong>As paredes.</strong> Quatro <code>Rect</code> (retângulo), uma em cada borda da janela de 1000 por 720, todas no grupo <code>parede</code>. Um grupo aceita o que um objeto aceita: <code>group["parede"].visual = Metal()</code> dá o visual de metal às quatro de uma vez. <code>SkyGradient("night")</code> é o céu noturno do 05.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=720, title="Bolas")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="parede")
+Rect(center=(500, 704), width=1000, height=32, group="parede")
+Rect(center=(16, 360), width=32, height=720, group="parede")
+Rect(center=(984, 360), width=32, height=720, group="parede")
+group["parede"].visual = Metal()
+
+
+run()
+`
+    },
+    {
+      title: "Uma bola",
+      body: `
+        <p><strong>Uma classe de forma.</strong> No 06, as classes vinham de <code>Sprite</code>. Uma forma também pode ser classe: <code>class Bola(Circle, …)</code> é um molde de círculo, com raio, cor e grupo na linha da classe, como o <code>height=</code> do <code>Tiro</code>.</p>
+        <p><strong>A velocidade.</strong> <code>self.vel</code> (de <em>velocity</em>, velocidade) é quanto a bola anda por segundo. <code>Vec2(200, 120)</code> é uma <strong>seta</strong> (vetor) de dois números: 200 para a direita e 120 para cima, por segundo. No <code>on_update</code>, a bola anda <code>vel.x * dt</code> e <code>vel.y * dt</code>, o pedaço da seta que cabe num quadro. É a conta do <code>move_by(340 * dt, 0)</code> das naves, agora nas duas direções. A seta nasce no <code>setup</code>: cada bola ganha a sua.</p>
+        <p>Rode: a bola anda em diagonal, atravessa a parede e some. Ainda não há nada que a segure.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=720, title="Bolas")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="parede")
+Rect(center=(500, 704), width=1000, height=32, group="parede")
+Rect(center=(16, 360), width=32, height=720, group="parede")
+Rect(center=(984, 360), width=32, height=720, group="parede")
+group["parede"].visual = Metal()
+
+
+class Bola(Circle, radius=14, color="tomato", group="bola"):
+    def setup(self):
+        self.vel = Vec2(200, 120)
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+Bola(center=(200, 200))
+
+
+run()
+`
+    },
+    {
+      title: "Uma regra que fica valendo",
+      body: `
+        <p><code>resolve("bola", "parede", bounce=1)</code> (resolver) é uma regra escrita uma vez, fora de qualquer função, e que vale em todos os quadros: bola e parede <strong>não se atravessam</strong>. Quando a bola chega à parede, o Scena a para no ponto do toque e corrige a sua <code>vel</code>.</p>
+        <p><strong>O resolve não move a bola.</strong> Quem anda é o <code>on_update</code>, como antes. O <code>resolve</code> só desfaz o que o movimento faria de errado: separa as duas e vira a seta. Com <code>bounce=1</code> (quique), a bola sai com a mesma força com que bateu.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 400 210" role="img" aria-label="Uma bola anda em diagonal até uma parede à direita; no ponto do toque ela para; a seta de antes aponta para dentro da parede e a seta de depois aponta para fora, com a mesma parte para cima">
+            <rect class="bar" x="300" y="12" width="24" height="186" rx="3"/>
+            <circle class="guide" cx="96" cy="160" r="15"/>
+            <line class="ray" x1="110" y1="152" x2="270" y2="106"/>
+            <circle class="hot" cx="285" cy="102" r="15"/>
+            <line class="guide" x1="270" y1="94" x2="120" y2="40"/>
+            <circle class="guide" cx="106" cy="35" r="15"/>
+            <line class="ray" x1="210" y1="140" x2="250" y2="140"/>
+            <line class="ray" x1="250" y1="140" x2="243" y2="135"/>
+            <line class="ray" x1="250" y1="140" x2="243" y2="145"/>
+            <line class="ray" x1="250" y1="62" x2="210" y2="62"/>
+            <line class="ray" x1="210" y1="62" x2="217" y2="57"/>
+            <line class="ray" x1="210" y1="62" x2="217" y2="67"/>
+            <text x="132" y="176">vel antes: (200, 120)</text>
+            <text x="124" y="28">vel depois: (-200, 120)</text>
+            <text x="330" y="106">parede</text>
+          </svg>
+          <figcaption>A bola chega à parede; o <code>resolve</code> a para no toque e vira a parte da seta que entrava na parede. A parte para cima fica como estava.</figcaption>
+        </figure>
+
+        <p><strong>Quem cede.</strong> <code>.mass</code> (massa) decide quem é empurrado quando dois se tocam. <code>STATIC</code> (estático) não cede nunca: é a massa certa para paredes e chão. Sem ela, a parede teria massa 1, como a bola, e as duas se empurrariam meio a meio.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=720, title="Bolas")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="parede")
+Rect(center=(500, 704), width=1000, height=32, group="parede")
+Rect(center=(16, 360), width=32, height=720, group="parede")
+Rect(center=(984, 360), width=32, height=720, group="parede")
+group["parede"].visual = Metal()
+group["parede"].mass = STATIC
+
+
+class Bola(Circle, radius=14, color="tomato", group="bola"):
+    def setup(self):
+        self.vel = Vec2(200, 120)
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+resolve("bola", "parede", bounce=1)
+
+Bola(center=(200, 200))
+
+
+run()
+`,
+      try: [
+          {
+            note: "Um por vez, no lugar do <code>bounce=1</code>. Com 0.6 a bola perde força a cada batida; acima de 1, ganha.",
+            replaces: ['resolve("bola", "parede"'],
+            code: `resolve("bola", "parede", bounce=0.6)
+resolve("bola", "parede", bounce=1.2)`
+          }
+        ]
+    },
+    {
+      title: "Muitas bolas",
+      body: `
+        <p>Vinte bolas, cada uma num lugar e numa direção. <code>uniform(80, 920)</code> (do 02) sorteia o lugar.</p>
+        <p><strong>Uma seta a partir de um ângulo.</strong> A direção vem de <code>vec_from_angle</code> (seta a partir de um ângulo): <code>vec_from_angle(90, length=260)</code> é uma seta de comprimento (<em>length</em>) 260 que aponta para cima. O ângulo conta como no resto do Scena: 0 é para a direita, 90 para cima, 180 para a esquerda. Com um ângulo sorteado entre 0 e 360 e um comprimento entre 180 e 340, cada bola sai para um lado, na sua velocidade.</p>
+        <p>Elas quicam nas paredes, mas passam umas pelas outras. A regra fala de bola com parede; de bola com bola, ainda não.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=720, title="Bolas")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="parede")
+Rect(center=(500, 704), width=1000, height=32, group="parede")
+Rect(center=(16, 360), width=32, height=720, group="parede")
+Rect(center=(984, 360), width=32, height=720, group="parede")
+group["parede"].visual = Metal()
+group["parede"].mass = STATIC
+
+
+class Bola(Circle, radius=14, color="tomato", group="bola"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+resolve("bola", "parede", bounce=1)
+
+for i in range(20):
+    Bola(center=(uniform(80, 920), uniform(80, 640)))
+
+
+run()
+`
+    },
+    {
+      title: "Bola com bola",
+      body: `
+        <p>Mais uma regra, agora do grupo com ele mesmo: <code>resolve("bola", "bola", bounce=1)</code>. Duas bolas que se tocam se separam, e as setas das duas mudam: a que bateu recua, a que foi atingida sai andando.</p>
+        <p><strong>A massa.</strong> Toda bola tem massa 1 (o padrão), então duas bolas se empurram por igual. Uma bola mais pesada empurra mais e é menos empurrada. Na caixa, uma bola grande de massa 8 abre caminho entre as pequenas.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=720, title="Bolas")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="parede")
+Rect(center=(500, 704), width=1000, height=32, group="parede")
+Rect(center=(16, 360), width=32, height=720, group="parede")
+Rect(center=(984, 360), width=32, height=720, group="parede")
+group["parede"].visual = Metal()
+group["parede"].mass = STATIC
+
+
+class Bola(Circle, radius=14, color="tomato", group="bola"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+resolve("bola", "parede", bounce=1)
+resolve("bola", "bola", bounce=1)
+
+for i in range(20):
+    Bola(center=(uniform(80, 920), uniform(80, 640)))
+
+
+run()
+`,
+      try: [
+          {
+            note: "Uma bola pesada, maior e de outra cor. No fim do arquivo, antes do <code>run()</code>. O <code>radius=</code> da criação vale mais que o da linha da classe.",
+            code: `pesada = Bola(center=(500, 360), radius=40, color="steel blue")
+pesada.mass = 8`
+          }
+        ]
+    },
+    {
+      title: "O toque",
+      body: `
+        <p>O <code>resolve</code> faz a bola quicar, mas não avisa ninguém. Para um som e um clarão a cada batida, é o <code>@collide_with</code> do 06, dentro da <code>Bola</code>: quando esta bola toca uma parede, o Scena chama <code>bateu</code>. São duas coisas diferentes, e as duas valem juntas: o <code>resolve</code> <strong>segura</strong>; o <code>@collide_with</code> <strong>avisa</strong>.</p>
+        <p><strong>Onde.</strong> O terceiro parâmetro, <code>info</code>, é o do escudo no 08: <code>canvas.hit_at(info, …)</code> marca o ponto onde a bola tocou. <code>style="disc"</code> (disco) é a versão leve do impacto: um clarão redondo, sem faíscas. Com vinte bolas, um impacto pequeno (<code>radius=10</code>) e um som baixo (<code>volume=0.5</code>) bastam.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=720, title="Bolas")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="parede")
+Rect(center=(500, 704), width=1000, height=32, group="parede")
+Rect(center=(16, 360), width=32, height=720, group="parede")
+Rect(center=(984, 360), width=32, height=720, group="parede")
+group["parede"].visual = Metal()
+group["parede"].mass = STATIC
+
+
+class Bola(Circle, radius=14, color="tomato", group="bola"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        canvas.hit_at(info, radius=10, style="disc")
+        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+
+
+resolve("bola", "parede", bounce=1)
+resolve("bola", "bola", bounce=1)
+
+for i in range(20):
+    Bola(center=(uniform(80, 920), uniform(80, 640)))
+
+
+run()
+`,
+      try: [
+          {
+            note: "Cada batida num tom diferente. No <code>bateu</code>, no lugar do <code>play_sound</code>: <code>pitch</code> (tom) acima de 1 é mais agudo.",
+            replaces: ['play_sound("audio/impactGeneric'],
+            code: `play_sound("audio/impactGeneric_light_003.ogg", volume=0.5, pitch=uniform(0.7, 1.4))`
+          },
+          {
+            note: "O impacto completo, com faíscas, no lugar do <code>hit_at</code> leve.",
+            replaces: ['canvas.hit_at('],
+            code: `canvas.hit_at(info, color="gold")`
+          }
+        ]
+    },
+    {
+      title: "A escolhida",
+      body: `
+        <p>Uma das vinte vira a escolhida: <code>choice(group["bola"])</code> (do 05) sorteia uma, que fica dourada e ganha um rastro.</p>
+        <p><strong>O rastro.</strong> <code>.tail</code> (cauda) é um complemento que apareceu na caixa do 05: cópias fantasmas atrás do objeto. Lá ele era só <code>True</code>; aqui vem com ajustes, em <code>Tail(…)</code>: <code>color</code> (cor) das cópias, <code>size</code> (tamanho: o comprimento do rastro) e <code>amount</code> (quantidade: a força das cópias).</p>
+        <p><strong>Sem ângulo.</strong> Sem <code>angle=</code> (ângulo), o rastro segue o movimento: fica sempre atrás da bola, vira junto quando ela quica e cresce quando ela corre. Ele lê para onde a bola andou, não a <code>vel</code>; por isso funciona com qualquer jeito de andar.</p>
+      `,
+      code: `from random import uniform, choice
+from scena import *
+
+init(width=1000, height=720, title="Bolas")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="parede")
+Rect(center=(500, 704), width=1000, height=32, group="parede")
+Rect(center=(16, 360), width=32, height=720, group="parede")
+Rect(center=(984, 360), width=32, height=720, group="parede")
+group["parede"].visual = Metal()
+group["parede"].mass = STATIC
+
+
+class Bola(Circle, radius=14, color="tomato", group="bola"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        canvas.hit_at(info, radius=10, style="disc")
+        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+
+
+resolve("bola", "parede", bounce=1)
+resolve("bola", "bola", bounce=1)
+
+for i in range(20):
+    Bola(center=(uniform(80, 920), uniform(80, 640)))
+
+escolhida = choice(group["bola"])
+escolhida.color = "gold"
+escolhida.tail = Tail(color="gold", size=1.4, amount=1.2)
+
+
+run()
+`,
+      try: [
+          {
+            note: "Um por vez, no lugar do <code>Tail</code> da escolhida. <code>angle=180</code> trava o rastro para a esquerda, ande a bola para onde andar.",
+            replaces: ['escolhida.tail ='],
+            code: `escolhida.tail = Tail(color="gold", size=3)
+escolhida.tail = Tail(color="gold", angle=180)
+escolhida.tail = True`
+          }
+        ]
+    },
+    {
+      title: "Um traço de verdade",
+      body: `
+        <p>O <code>Tail</code> é feito de cópias da bola e só mostra o último instante. Para ver o caminho, o <code>Contrail</code> (rastro de avião) do osciloscópio, no 04: uma linha que passa pelas últimas posições.</p>
+        <p><strong>Quem guarda.</strong> <code>escolhida.every(0.05, …)</code> guarda a posição da escolhida 20 vezes por segundo, com <code>snapshot</code> (instantâneo). No 04 o <code>every</code> era solto, no arquivo; aqui ele é <strong>da bola</strong>: o timer é dela, e para sozinho se ela for destruída.</p>
+        <p><strong>Quanto dura.</strong> <code>duration=8</code> (duração) guarda só os últimos 8 segundos, e <code>fade=True</code> (esmaecer) apaga a ponta velha aos poucos.</p>
+      `,
+      code: `from random import uniform, choice
+from scena import *
+
+init(width=1000, height=720, title="Bolas")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="parede")
+Rect(center=(500, 704), width=1000, height=32, group="parede")
+Rect(center=(16, 360), width=32, height=720, group="parede")
+Rect(center=(984, 360), width=32, height=720, group="parede")
+group["parede"].visual = Metal()
+group["parede"].mass = STATIC
+
+
+class Bola(Circle, radius=14, color="tomato", group="bola"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        canvas.hit_at(info, radius=10, style="disc")
+        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+
+
+resolve("bola", "parede", bounce=1)
+resolve("bola", "bola", bounce=1)
+
+for i in range(20):
+    Bola(center=(uniform(80, 920), uniform(80, 640)))
+
+escolhida = choice(group["bola"])
+escolhida.color = "gold"
+escolhida.tail = Tail(color="gold", size=1.4, amount=1.2)
+
+rastro = Contrail(duration=8, fade=True, color="gold", line_width=3)
+escolhida.every(0.05, lambda: rastro.snapshot(escolhida))
+
+
+run()
+`,
+      dive: [
+        {
+          title: "Tail e Contrail",
+          body: `
+            <p>Os dois desenham por onde algo passou, de jeitos diferentes.</p>
+            <p><strong>Tail</strong> é um complemento: cópias da própria bola, mais fracas para trás. Não precisa de nada além de <code>bola.tail = Tail(…)</code>; ele mesmo vê o movimento. É curto (o último instante) e tem a forma do objeto: num sprite, as cópias são do desenho dele.</p>
+            <p><strong>Contrail</strong> é um objeto à parte: uma linha. Você decide quando guardar um ponto (<code>snapshot</code>) e por quanto tempo (<code>duration</code>) ou quantos (<code>max_points</code>). Pode ser longo, ter cor ou visual próprio, e ficar no mundo depois que a bola passou.</p>
+            <p>No Guia: <a href="../guide/index.html#aparencia-selos">Complementos</a> · <a href="../guide/index.html#contrail">Contrail</a>.</p>
+          `,
+          try: [
+              {
+                note: "Um traço de laser, mais longo. No lugar do <code>Contrail</code>; <code>visual=</code> vai no lugar do <code>color=</code>.",
+                replaces: ['rastro = Contrail('],
+                code: `rastro = Contrail(duration=15, fade=True, visual=Laser("gold"), line_width=3)`
+              }
+            ]
+        }
+      ]
+    },
+    {
+      title: "Mais perto",
+      example: "bolas.py",
+      body: `
+        <p>A roda do mouse aproxima e afasta. <code>on_mouse_scroll</code> (ao rolar o mouse) é uma função de nome fixo, como o <code>update</code>: o Scena a chama quando a roda gira, com quanto ela girou. <code>yoffset</code> é positivo para um lado e negativo para o outro.</p>
+        <p><strong>A câmera.</strong> <code>canvas.zoom_by(1.1)</code> (aproximar por) aumenta o zoom em 10%; <code>1 / 1.1</code> desfaz. A câmera não mexe nas bolas: muda só o que a janela mostra. <code>about=mouse</code> (em volta de) segura o ponto embaixo do ponteiro, e o zoom vai para onde você aponta.</p>
+        <p>A câmera também desliza (<code>canvas.pan_by</code>, <code>canvas.pan_to</code>), vai a um zoom exato (<code>canvas.zoom_to</code>) e enquadra um objeto (<code>canvas.frame_to</code>). Os jogos com mundo maior que a tela vão usar isso; aqui, a roda basta.</p>
+      `,
+      code: `from random import uniform, choice
+from scena import *
+
+init(width=1000, height=720, title="Bolas")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="parede")
+Rect(center=(500, 704), width=1000, height=32, group="parede")
+Rect(center=(16, 360), width=32, height=720, group="parede")
+Rect(center=(984, 360), width=32, height=720, group="parede")
+group["parede"].visual = Metal()
+group["parede"].mass = STATIC
+
+
+class Bola(Circle, radius=14, color="tomato", group="bola"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        canvas.hit_at(info, radius=10, style="disc")
+        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+
+
+resolve("bola", "parede", bounce=1)
+resolve("bola", "bola", bounce=1)
+
+for i in range(20):
+    Bola(center=(uniform(80, 920), uniform(80, 640)))
+
+escolhida = choice(group["bola"])
+escolhida.color = "gold"
+escolhida.tail = Tail(color="gold", size=1.4, amount=1.2)
+
+rastro = Contrail(duration=8, fade=True, color="gold", line_width=3)
+escolhida.every(0.05, lambda: rastro.snapshot(escolhida))
+
+
+def on_mouse_scroll(xoffset, yoffset):
+    if yoffset > 0:
+        canvas.zoom_by(1.1, about=mouse)
+    else:
+        canvas.zoom_by(1 / 1.1, about=mouse)
+
+
+run()
+`,
+      try: [
+          {
+            note: "R volta a câmera ao começo, em meio segundo. No fim do arquivo, antes do <code>run()</code>.",
+            code: `def update(dt):
+    if keyp.once("R"):
+        canvas.reset_view(time=0.5)`
+          },
+          {
+            note: "A câmera segue a escolhida. Aproxime com a roda e veja de perto. No fim do arquivo, antes do <code>run()</code>.",
+            code: `def update(dt):
+    canvas.pan_to(escolhida)`
+          },
+          {
+            note: "Gravidade: as bolas caem e quicam no chão. No <code>on_update</code> da <code>Bola</code>, antes do <code>move_by</code>.",
+            code: `self.vel.y -= 400 * dt`
+          },
+          {
+            note: "Uma barra que gira no meio da caixa, também parede. No fim do arquivo, antes do <code>run()</code>.",
+            code: `roda = Rect(center=(500, 360), width=200, height=20, group="parede")
+roda.visual = Halo("deep sky blue")
+roda.mass = STATIC
+
+
+def update(dt):
+    roda.rotate_by(50 * dt)`
+          }
+        ],
+      closing: `
+        <p>Vinte bolas quicam nas paredes e umas nas outras, com um som a cada batida; a dourada deixa um rastro. A roda do mouse aproxima e afasta.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>class Bola(Circle)</code> — uma forma também é molde; raio, cor e grupo na linha da classe.</li>
+          <li><code>vel</code> e <code>Vec2</code> — a velocidade é uma seta: quanto anda em x e em y por segundo. <code>vec_from_angle</code> monta a seta de um ângulo e um comprimento.</li>
+          <li><code>resolve</code> — uma regra que fica valendo: separa os dois corpos e corrige a velocidade; <code>bounce=</code> diz quanto do quique sobra.</li>
+          <li><code>mass</code> e <code>STATIC</code> — quem cede no empurrão; <code>STATIC</code> não cede nunca.</li>
+          <li><code>Tail</code> — o rastro de cópias, com cor, tamanho e força; sem ângulo, segue o movimento.</li>
+          <li><code>canvas.zoom_by</code> — a câmera aproxima; os objetos não mudam de lugar.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#colisao-resolve">Tornar sólido (resolve)</a> · <a href="../guide/index.html#geo-vec2">Vec2</a> · <a href="../guide/index.html#aparencia-selos">Complementos</a> · <a href="../guide/index.html#contrail">Contrail</a> · <a href="../guide/index.html#mundo-camera">Câmera</a> · <a href="../guide/index.html#frame-mouse">Mouse</a>.</p>
+        <p><strong>No próximo:</strong> o Ateliê (10) ainda está em preparação. O 11 é outro jogo: um avião entre pilares, com uma hélice que gira e um manche com inércia.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

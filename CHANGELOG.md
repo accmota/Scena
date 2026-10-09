@@ -142,7 +142,11 @@ left out.
   slot). Each slot has its own random stream, `slot.rng` (and
   `slot.chance(p)`), so walking back rebuilds the same piece; `seed=` replays
   the same world. `axis="y"` scrolls vertically, `axis="xy"` fills a grid
-  (`step=(w, h)`). `.index_at(x)` tells which slot holds a point (score by
+  (`step=(w, h)`). `height=` / `width=` / `size=` size each image piece as
+  in `Sprite(path, height=...)`: `Endless("montes", "montes.png",
+  height=360)` is a band the height of the screen (without them, an image
+  piece is a bare `Sprite(path)`, 48 units on its longer side).
+  `.index_at(x)` tells which slot holds a point (score by
   chunk), `.pieces` lists what it built. It needs a layer of its own
   (`canvas.layers.create("pista", below="default")`); `default`, `top` and
   `ui` raise with that line. Guia: Mundo sem fim.
@@ -835,6 +839,15 @@ left out.
   that is the look's tint (alpha included), not the colour you gave; under
   `Flame` / `Swell` / `Water`, which have no single colour, it is the colour
   you gave.
+- Four new tutorials (Portuguese): 09 Bolas (`resolve`, `vel`, `mass`,
+  `Tail`, the camera zoom), 11 Avião (a sheet of files with two clips,
+  inertia with `chase`, an invisible score gate, restart by hand), 12 Avião II
+  · Profundidade (parallax layers with `scroll=`, `Endless` with one image,
+  one speed that brakes everything, music) and 13 Avião III · Paisagem sem
+  fim (`Endless` with a list, a builder with `slot.rng` / `slot.chance`, a
+  layer in front of the game). 10 (Ateliê) has a card and no page yet. Their
+  endpoints are `examples/bolas.py`, `aviao.py`, `aviao_profundidade.py` and
+  `aviao_paisagem.py`.
 - The coyote-time example in the Guia re-applied the jump for several frames
   (a 30 % higher jump); it now calls `recently.reset` after jumping, and the
   note that repeating `vel.y = PULO` "dá no mesmo" is corrected.

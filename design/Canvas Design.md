@@ -1008,7 +1008,7 @@ only: `scripts/smoke/world_view.py`.
 # Endless fill
 
 `Endless(layer, pieces, *, axis="x", step=None, gap=0, start=None, seed=None,
-bottom=None, left=None, group=None)` — `scena/endless.py`. Answers the Parallax
+bottom=None, left=None, group=None, height=None, width=None, size=None)` — `scena/endless.py`. Answers the Parallax
 "Tiling / repeat sugar" deferral and the per-game "build the next chunk, destroy
 the old one" bookkeeping of runners, flappy games and shooters.
 
@@ -1029,6 +1029,16 @@ naming the slot. No mixed list: variation inside a builder is
 collidable piece on a parallax layer raises `ParallaxLayerError` at
 construction, unchanged); a returned piece the author put on another layer is
 moved. `Endless` **never moves** its pieces.
+
+**Image size.** An image piece is `Sprite(path)`, so it takes Sprite's
+size: 48 units on its longer side unless `height=` / `width=` / `size=` are
+given (passed to every piece and to the measuring probe, so the slot width
+always equals the built width). A band of background art wants
+`height=` of the screen (`Endless("montes", "montes.png", height=360)`); the
+first draft of tutorial 12 got a row of 48-unit thumbnails from the bare form
+(2026-10-09), and the Guia's own `predios` example had the same gap. With a
+builder the three raise `TypeError` (the builder sizes its own pieces), like
+`bottom=` / `group=`.
 
 **`slot`** (`Slot`, not exported; reached only through the builder): `i` (`j`
 for `"xy"`), the edges along the endless axes in **absolute** world coordinates
@@ -1141,8 +1151,9 @@ pieces per sample (trapezoids).
 `ValueError`; builder without `step=` → `TypeError`; `step` and `gap` →
 `TypeError`; `"xy"` without a pair step, or with `gap` / a function step →
 `TypeError`; `bottom=` with `"y"` / `left=` with `"x"` → `TypeError` naming the
-other; `bottom` / `left` / `group` with a builder → `TypeError` (the builder
-places and tags its own pieces; no silent no-op); measured extent + gap ≤ 0 →
+other; `bottom` / `left` / `group` / `height` / `width` / `size` with a builder
+→ `TypeError` (the builder places, tags and sizes its own pieces; no silent
+no-op); measured extent + gap ≤ 0 →
 `ValueError` "Pass step="; `step(slot)` ≤ 0 / non-finite → `ValueError`,
 non-number → `TypeError`; builder `None` / non-Graphic → `TypeError`.
 

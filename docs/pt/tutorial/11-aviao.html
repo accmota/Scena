@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Avião — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "11",
+  title: "Avião",
+  steps: [
+    {
+      title: "O céu e o avião",
+      body: `
+        <p>Outro jogo: um avião voa entre pilares. Ele não anda para a frente; quem anda é o mundo, e o avião só sobe e desce. Cada par de pilares que ele atravessa vale um ponto, e uma batida acaba o voo.</p>
+        <p><strong>O tamanho.</strong> As imagens do cenário deste jogo (e do próximo) são <em>pixel art</em> de 640 por 360 pixels. Com <code>init(width=640, height=360)</code>, o espaço do jogo tem o mesmo tamanho do desenho, e as contas ficam simples: a imagem cobre a tela inteira. A janela continua grande; o Scena amplia tudo junto.</p>
+        <p><strong>O céu.</strong> <code>Wallpaper</code> (papel de parede) com um arquivo de imagem: o céu e as montanhas lá no fundo, parados. O avião, por enquanto, é um sprite parado também.</p>
+      `,
+      code: `from scena import *
+
+init(width=640, height=360, title="Avião")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+aviao = Sprite("plane/Fly1.png", height=40, center=(120, 200))
+
+
+run()
+`
+    },
+    {
+      title: "A hélice gira",
+      body: `
+        <p>O avião tem três desenhos, cada um num arquivo: <code>Fly1.png</code> e <code>Fly2.png</code> (voar, com a hélice em duas posições) e <code>Dead.png</code> (o avião quebrado). No 07, a explosão era <em>uma</em> imagem cortada em 12 quadros. Aqui, cada quadro é um arquivo: <code>Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")</code> junta os três numa folha, numerados na ordem em que aparecem: 0, 1 e 2.</p>
+        <p><strong>Dois clips.</strong> <code>clip("voando", [0, 1], fps=12)</code> é uma sequência com nome: os quadros 0 e 1, doze por segundo (<code>fps</code>, quadros por segundo), repetindo. Trocar de desenho tão depressa faz a hélice girar. <code>clip("caindo", [2])</code> tem um quadro só, o avião quebrado; ele fica guardado para a batida.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 400 180" role="img" aria-label="Três quadros lado a lado, numerados 0, 1 e 2, cada um vindo de um arquivo; os quadros 0 e 1 formam o clip voando, que se repete; o quadro 2 sozinho é o clip caindo">
+            <text x="42" y="20">Fly1.png</text>
+            <text x="162" y="20">Fly2.png</text>
+            <text x="282" y="20">Dead.png</text>
+            <rect class="bar" x="20" y="30" width="100" height="62" rx="4"/>
+            <rect class="bar" x="140" y="30" width="100" height="62" rx="4"/>
+            <rect class="bar child" x="260" y="30" width="100" height="62" rx="4"/>
+            <text x="66" y="66">0</text>
+            <text x="186" y="66">1</text>
+            <text x="306" y="66">2</text>
+            <line class="guide" x1="20" y1="110" x2="240" y2="110"/>
+            <line class="ray" x1="240" y1="120" x2="20" y2="120"/>
+            <line class="ray" x1="20" y1="120" x2="28" y2="115"/>
+            <line class="ray" x1="20" y1="120" x2="28" y2="125"/>
+            <line class="guide" x1="260" y1="110" x2="360" y2="110"/>
+            <text x="34" y="142">"voando": 0, 1, 0, 1…</text>
+            <text x="268" y="142">"caindo": 2</text>
+            <text x="80" y="170">play("voando") escolhe o que toca</text>
+          </svg>
+          <figcaption>Cada arquivo é um quadro, numerado na ordem. Um clip é uma sequência de quadros com nome; <code>play</code> escolhe qual toca.</figcaption>
+        </figure>
+
+        <p><code>aviao.play("voando")</code> (tocar) escolhe o clip que está tocando.</p>
+      `,
+      code: `from scena import *
+
+init(width=640, height=360, title="Avião")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+folha = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+folha.clip("voando", [0, 1], fps=12)
+folha.clip("caindo", [2])
+
+aviao = Sprite(folha, height=40, center=(120, 200))
+aviao.play("voando")
+
+
+run()
+`,
+      try: [
+          {
+            note: "Outra escrita, só para voar (a folha fica sem o avião quebrado). Com <code>*</code> (qualquer coisa no lugar), o Scena pega todos os arquivos que casam, em ordem: Fly1, Fly2. <code>fps=</code> faz um clip com todos, e <code>name=</code> (nome) dá o nome dele. No lugar das três linhas da folha:",
+            replaces: ['folha = Sheet(', 'folha.clip("voando"', 'folha.clip("caindo"'],
+            code: `folha = Sheet("plane/Fly*.png", fps=12, name="voando")`
+          }
+        ]
+    },
+    {
+      title: "O manche",
+      body: `
+        <p>O avião ganha comportamento, então vira uma classe, como o <code>Heroi</code> do 06: <code>Aviao</code>, com a folha e a altura na linha da classe. O clip começa no <code>setup</code>.</p>
+        <p><strong>O nariz.</strong> As setas para cima e para baixo escolhem um <code>alvo</code> (o ângulo pedido): 30 graus para cima, 30 para baixo, ou reto (0) se nada está apertado. <code>rotate_to(alvo)</code> gira o avião até lá.</p>
+        <p><strong>Sobe para onde aponta.</strong> <code>vec_from_angle</code> (do 09) faz uma seta na direção do nariz, de comprimento 220. Dela, o avião usa só a parte de cima, <code>seta.y</code>: com o nariz reto, zero; a 30 graus, 110 por segundo. Para a frente, ele não vai. <code>confine</code> (do 05) o segura dentro da tela.</p>
+        <p>Voe um pouco. Funciona, mas o nariz pula de uma posição para a outra, como um brinquedo. Um avião de verdade demora a virar.</p>
+      `,
+      code: `from scena import *
+
+init(width=640, height=360, title="Avião")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+folha = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+folha.clip("voando", [0, 1], fps=12)
+folha.clip("caindo", [2])
+
+
+class Aviao(Sprite, source=folha, height=40):
+    def setup(self):
+        self.play("voando")
+
+    def on_update(self, dt):
+        alvo = 0
+        if keyp("UP"):
+            alvo = 30
+        if keyp("DOWN"):
+            alvo = -30
+        self.rotate_to(alvo)
+        seta = vec_from_angle(self.angle, length=220)
+        self.move_by(0, seta.y * dt)
+        self.confine(canvas.game_view)
+
+
+aviao = Aviao(center=(120, 200))
+
+
+run()
+`
+    },
+    {
+      title: "Inércia",
+      body: `
+        <p>No lugar de girar até o alvo de uma vez, o ângulo <strong>persegue</strong> o alvo: <code>chase(self.angle, alvo, rate=4)</code>. É o <code>chase</code> da cadeia de bolas do 04, agora num ângulo. A cada quadro, ele devolve um ângulo um pouco mais perto do alvo: muito mais perto quando está longe, só um pouco quando já está perto.</p>
+        <p><strong>Com números.</strong> O avião voa reto (0) e você aperta a seta para cima (alvo 30). Com <code>rate=4</code> (taxa), em um quarto de segundo o nariz já está a 19 graus; em meio segundo, a 26; e daí vai encostando no 30. Soltar a seta faz o mesmo caminho de volta, até 0. Esse atraso é a <strong>inércia</strong>: o avião parece ter peso.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 380 190" role="img" aria-label="Um gráfico do ângulo no tempo: o ângulo pedido salta de 0 para 30 de uma vez; o ângulo de verdade sobe depressa no começo e devagar no fim, até encostar no pedido">
+            <line class="guide" x1="40" y1="150" x2="360" y2="150"/>
+            <line class="guide" x1="40" y1="20" x2="40" y2="150"/>
+            <line class="guide" x1="140" y1="150" x2="140" y2="45"/>
+            <line class="guide" x1="140" y1="45" x2="350" y2="45"/>
+            <line class="ray" x1="140" y1="150" x2="150" y2="115"/>
+            <line class="ray" x1="150" y1="115" x2="160" y2="92"/>
+            <line class="ray" x1="160" y1="92" x2="170" y2="77"/>
+            <line class="ray" x1="170" y1="77" x2="180" y2="66"/>
+            <line class="ray" x1="180" y1="66" x2="190" y2="59"/>
+            <line class="ray" x1="190" y1="59" x2="200" y2="55"/>
+            <line class="ray" x1="200" y1="55" x2="210" y2="51"/>
+            <line class="ray" x1="210" y1="51" x2="220" y2="49"/>
+            <line class="ray" x1="220" y1="49" x2="230" y2="48"/>
+            <line class="ray" x1="230" y1="48" x2="240" y2="47"/>
+            <line class="ray" x1="240" y1="47" x2="250" y2="46"/>
+            <line class="ray" x1="250" y1="46" x2="260" y2="46"/>
+            <line class="ray" x1="260" y1="46" x2="270" y2="46"/>
+            <line class="ray" x1="270" y1="46" x2="280" y2="45"/>
+            <line class="ray" x1="280" y1="45" x2="290" y2="45"/>
+            <line class="ray" x1="290" y1="45" x2="300" y2="45"/>
+            <line class="ray" x1="300" y1="45" x2="310" y2="45"/>
+            <line class="ray" x1="310" y1="45" x2="320" y2="45"/>
+            <line class="ray" x1="320" y1="45" x2="330" y2="45"/>
+            <line class="ray" x1="330" y1="45" x2="340" y2="45"/>
+            <line class="ray" x1="340" y1="45" x2="340" y2="45"/>
+            <circle class="dot" cx="165" cy="84" r="3"/>
+            <circle class="dot" cx="190" cy="59" r="3"/>
+            <text x="230" y="36">alvo: 30</text>
+            <text x="196" y="96">0,25 s: 19</text>
+            <text x="198" y="70">0,5 s: 26</text>
+            <text x="96" y="168">aperta ↑</text>
+            <text x="300" y="168">tempo</text>
+            <text x="4" y="48">30</text>
+            <text x="10" y="154">0</text>
+          </svg>
+          <figcaption>O alvo (tracejado) pula para 30 quando a seta é apertada. O ângulo de verdade (linha cheia) persegue: anda muito quando está longe e pouco quando está perto.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=640, height=360, title="Avião")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+folha = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+folha.clip("voando", [0, 1], fps=12)
+folha.clip("caindo", [2])
+
+
+class Aviao(Sprite, source=folha, height=40):
+    def setup(self):
+        self.play("voando")
+
+    def on_update(self, dt):
+        alvo = 0
+        if keyp("UP"):
+            alvo = 30
+        if keyp("DOWN"):
+            alvo = -30
+        self.rotate_to(chase(self.angle, alvo, rate=4))
+        seta = vec_from_angle(self.angle, length=220)
+        self.move_by(0, seta.y * dt)
+        self.confine(canvas.game_view)
+
+
+aviao = Aviao(center=(120, 200))
+
+
+run()
+`,
+      try: [
+          {
+            note: "Um por vez, no lugar do <code>rate=4</code>. Com 2, um avião pesado, que demora a responder; com 10, um avião leve e nervoso.",
+            replaces: ['self.rotate_to(chase(self.angle, alvo'],
+            code: `self.rotate_to(chase(self.angle, alvo, rate=2))
+self.rotate_to(chase(self.angle, alvo, rate=10))`
+          }
+        ]
+    },
+    {
+      title: "Um par de pilares",
+      body: `
+        <p><strong>As peças.</strong> Os pilares vêm da folha de um pacote de peças (<code>rollingBall_sheet@2.png</code>, com o seu atlas, como a folha das naves no 07). O quadro <code>block_narrow.png</code> é um bloco verde, alto e estreito; com <code>height=260</code>, um pilar.</p>
+        <p><strong>Um par.</strong> <code>novo_par()</code> faz dois pilares, um em cima do outro, com um vão entre eles. <code>meio</code> é a altura do meio do vão. Cada pilar tem 260 de altura, e o seu centro fica 190 acima ou abaixo do meio: a ponta de cada um fica a 60 do meio, e o vão tem 120. Os dois nascem em x = 680, logo depois da borda direita da tela.</p>
+        <p><strong>O mundo anda.</strong> No <code>update</code>, <code>group["pilar"].move_by(-120 * dt, 0)</code> leva os pilares para a esquerda, 120 por segundo. O avião não sai do lugar; parece que ele voa.</p>
+        <p>Por enquanto, um par só, e o avião passa através dele: ainda não há colisão.</p>
+      `,
+      code: `from scena import *
+
+init(width=640, height=360, title="Avião")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+folha = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+folha.clip("voando", [0, 1], fps=12)
+folha.clip("caindo", [2])
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+
+class Aviao(Sprite, source=folha, height=40):
+    def setup(self):
+        self.play("voando")
+
+    def on_update(self, dt):
+        alvo = 0
+        if keyp("UP"):
+            alvo = 30
+        if keyp("DOWN"):
+            alvo = -30
+        self.rotate_to(chase(self.angle, alvo, rate=4))
+        seta = vec_from_angle(self.angle, length=220)
+        self.move_by(0, seta.y * dt)
+        self.confine(canvas.game_view)
+
+
+aviao = Aviao(center=(120, 200))
+
+
+def novo_par():
+    meio = 180
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio + 190), group="pilar")
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio - 190), group="pilar")
+
+
+novo_par()
+
+
+def update(dt):
+    group["pilar"].move_by(-120 * dt, 0)
+
+
+run()
+`
+    },
+    {
+      title: "Pilares sem fim",
+      body: `
+        <p>Um par novo a cada 2 segundos: <code>@every(2)</code> chama <code>novo_par</code>. A 120 por segundo, um par fica a 240 do outro.</p>
+        <p><strong>Um vão em cada altura.</strong> <code>meio = uniform(110, 250)</code> sorteia a altura do vão de cada par. O avião precisa subir e descer, e a inércia passa a fazer diferença.</p>
+        <p><strong>Os que saíram.</strong> Um par que passou pela borda esquerda não volta mais. <code>@leave_playfield("pilar")</code> (do 05) destrói cada pilar que sai da área do jogo. Sem isso, os pilares velhos se juntariam fora da tela, para sempre.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Avião")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+folha = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+folha.clip("voando", [0, 1], fps=12)
+folha.clip("caindo", [2])
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+
+class Aviao(Sprite, source=folha, height=40):
+    def setup(self):
+        self.play("voando")
+
+    def on_update(self, dt):
+        alvo = 0
+        if keyp("UP"):
+            alvo = 30
+        if keyp("DOWN"):
+            alvo = -30
+        self.rotate_to(chase(self.angle, alvo, rate=4))
+        seta = vec_from_angle(self.angle, length=220)
+        self.move_by(0, seta.y * dt)
+        self.confine(canvas.game_view)
+
+
+aviao = Aviao(center=(120, 200))
+
+
+def novo_par():
+    meio = uniform(110, 250)
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio + 190), group="pilar")
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio - 190), group="pilar")
+
+
+@every(2)
+def mais_pilares():
+    novo_par()
+
+
+def update(dt):
+    group["pilar"].move_by(-120 * dt, 0)
+
+
+@leave_playfield("pilar")
+def saiu(coisa):
+    coisa.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "Pontos",
+      body: `
+        <p>Passar por um par vale um ponto. Mas o que é <em>passar</em>? O avião atravessou o vão. Para o Scena ver isso, uma <strong>porta</strong>: um <code>Rect</code> estreito no vão, no grupo <code>porta</code>, que anda com os pilares. Quando o avião toca a porta, é um ponto: o <code>@collide_with("porta")</code> do <code>Aviao</code> destrói a porta (para não contar duas vezes), soma o ponto e toca um som.</p>
+        <p><strong>Invisível.</strong> <code>porta.visible = False</code> (visível) esconde o desenho, mas a porta continua no jogo e continua colidindo. <code>Ctrl+Shift+7</code> desenha os colisores: a porta aparece no vão.</p>
+        <p>O placar é o do 02: <code>st.pontos</code> e um <code>Text</code> ligado a ele com <code>@=</code>. Azul-marinho (<code>color="navy"</code>), porque o céu é claro.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Avião")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+folha = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+folha.clip("voando", [0, 1], fps=12)
+folha.clip("caindo", [2])
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.pontos = 0
+
+placar = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+
+class Aviao(Sprite, source=folha, height=40):
+    def setup(self):
+        self.play("voando")
+
+    def on_update(self, dt):
+        alvo = 0
+        if keyp("UP"):
+            alvo = 30
+        if keyp("DOWN"):
+            alvo = -30
+        self.rotate_to(chase(self.angle, alvo, rate=4))
+        seta = vec_from_angle(self.angle, length=220)
+        self.move_by(0, seta.y * dt)
+        self.confine(canvas.game_view)
+
+    @collide_with("porta")
+    def passou(self, porta):
+        porta.destroy()
+        st.pontos += 1
+        play_sound("audio/fx2.wav")
+
+
+aviao = Aviao(center=(120, 200))
+
+
+def novo_par():
+    meio = uniform(110, 250)
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio + 190), group="pilar")
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio - 190), group="pilar")
+    porta = Rect(center=(690, meio), width=10, height=120, group="porta")
+    porta.visible = False
+
+
+@every(2)
+def mais_pilares():
+    novo_par()
+
+
+def update(dt):
+    group["pilar"].move_by(-120 * dt, 0)
+    group["porta"].move_by(-120 * dt, 0)
+
+
+@leave_playfield("pilar", "porta")
+def saiu(coisa):
+    coisa.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "A batida",
+      body: `
+        <p>Bater num pilar, ou no chão, acaba o voo.</p>
+        <p><strong>Voando ou não.</strong> <code>st.voando</code> diz se o avião ainda voa. O <code>update</code> só move os pilares, e o <code>@every</code> só faz pilares novos, enquanto ele voa. O manche também: depois da batida, as setas não fazem nada.</p>
+        <p><strong>Cair.</strong> <code>cair</code> é uma função da própria classe, que nós chamamos (<code>self.cair()</code>), de dois lugares: do <code>@collide_with("pilar")</code> e do <code>on_update</code>, quando o avião desce abaixo de 30, o chão. Ela muda <code>st.voando</code>, troca o clip para <code>"caindo"</code> (o avião quebrado), treme a tela e toca a batida. O <code>if st.voando</code> do <code>bateu</code> evita uma segunda batida enquanto ele cai encostado no pilar.</p>
+        <p><strong>A queda.</strong> Sem voar, o <code>on_update</code> faz outra coisa: o nariz persegue -60 graus (aponta para o chão) e o avião desce até o chão, e para ali.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Avião")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+folha = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+folha.clip("voando", [0, 1], fps=12)
+folha.clip("caindo", [2])
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.pontos = 0
+st.voando = True
+
+placar = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+
+class Aviao(Sprite, source=folha, height=40):
+    def setup(self):
+        self.play("voando")
+
+    def on_update(self, dt):
+        if st.voando:
+            alvo = 0
+            if keyp("UP"):
+                alvo = 30
+            if keyp("DOWN"):
+                alvo = -30
+            self.rotate_to(chase(self.angle, alvo, rate=4))
+            seta = vec_from_angle(self.angle, length=220)
+            self.move_by(0, seta.y * dt)
+            self.confine(canvas.game_view)
+            if self.center.y < 30:
+                self.cair()
+        elif self.center.y > 30:
+            self.rotate_to(chase(self.angle, -60, rate=3))
+            self.move_by(0, -160 * dt)
+
+    @collide_with("porta")
+    def passou(self, porta):
+        porta.destroy()
+        st.pontos += 1
+        play_sound("audio/fx2.wav")
+
+    @collide_with("pilar")
+    def bateu(self, pilar):
+        if st.voando:
+            self.cair()
+
+    def cair(self):
+        st.voando = False
+        self.play("caindo")
+        canvas.shake(6)
+        play_sound("audio/explosion02.wav")
+
+
+aviao = Aviao(center=(120, 200))
+
+
+def novo_par():
+    meio = uniform(110, 250)
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio + 190), group="pilar")
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio - 190), group="pilar")
+    porta = Rect(center=(690, meio), width=10, height=120, group="porta")
+    porta.visible = False
+
+
+@every(2)
+def mais_pilares():
+    if st.voando:
+        novo_par()
+
+
+def update(dt):
+    if st.voando:
+        group["pilar"].move_by(-120 * dt, 0)
+        group["porta"].move_by(-120 * dt, 0)
+
+
+@leave_playfield("pilar", "porta")
+def saiu(coisa):
+    coisa.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "De novo",
+      example: "aviao.py",
+      body: `
+        <p>Depois da batida, espaço recomeça.</p>
+        <p><strong>O aviso.</strong> Um <code>Text</code> no meio da tela, vazio no começo. <code>cair</code> escreve nele “Aperte espaço”.</p>
+        <p><strong>Recomeçar.</strong> Um jogo de uma fase só recomeça com uma lista curta: destruir os pilares e as portas (<code>group["pilar"].destroy()</code> destrói o grupo todo), zerar os pontos, voltar a voar, apagar o aviso, pôr o avião no lugar, reto, com o clip de voar. <code>recomecar()</code> é essa lista, e o <code>update</code> a chama quando o avião não voa e o espaço está apertado.</p>
+        <p>A lista cresce com o jogo: cada coisa nova que o jogo cria precisa de uma linha aqui. Mais adiante, os atos (<code>Act</code>) fazem isso sozinhos.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Avião")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+folha = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+folha.clip("voando", [0, 1], fps=12)
+folha.clip("caindo", [2])
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.pontos = 0
+st.voando = True
+
+placar = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+placar["text"] @= lambda: f"Pontos {st.pontos}"
+aviso = Text(text="", center=(320, 200), font_size=24, color="navy")
+
+
+class Aviao(Sprite, source=folha, height=40):
+    def setup(self):
+        self.play("voando")
+
+    def on_update(self, dt):
+        if st.voando:
+            alvo = 0
+            if keyp("UP"):
+                alvo = 30
+            if keyp("DOWN"):
+                alvo = -30
+            self.rotate_to(chase(self.angle, alvo, rate=4))
+            seta = vec_from_angle(self.angle, length=220)
+            self.move_by(0, seta.y * dt)
+            self.confine(canvas.game_view)
+            if self.center.y < 30:
+                self.cair()
+        elif self.center.y > 30:
+            self.rotate_to(chase(self.angle, -60, rate=3))
+            self.move_by(0, -160 * dt)
+
+    @collide_with("porta")
+    def passou(self, porta):
+        porta.destroy()
+        st.pontos += 1
+        play_sound("audio/fx2.wav")
+
+    @collide_with("pilar")
+    def bateu(self, pilar):
+        if st.voando:
+            self.cair()
+
+    def cair(self):
+        st.voando = False
+        self.play("caindo")
+        canvas.shake(6)
+        play_sound("audio/explosion02.wav")
+        aviso.text = "Aperte espaço"
+
+
+aviao = Aviao(center=(120, 200))
+
+
+def novo_par():
+    meio = uniform(110, 250)
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio + 190), group="pilar")
+    Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio - 190), group="pilar")
+    porta = Rect(center=(690, meio), width=10, height=120, group="porta")
+    porta.visible = False
+
+
+@every(2)
+def mais_pilares():
+    if st.voando:
+        novo_par()
+
+
+def recomecar():
+    group["pilar"].destroy()
+    group["porta"].destroy()
+    st.pontos = 0
+    st.voando = True
+    aviso.text = ""
+    aviao.center = (120, 200)
+    aviao.rotate_to(0)
+    aviao.play("voando")
+
+
+def update(dt):
+    if st.voando:
+        group["pilar"].move_by(-120 * dt, 0)
+        group["porta"].move_by(-120 * dt, 0)
+    elif keyp("SPACE"):
+        recomecar()
+
+
+@leave_playfield("pilar", "porta")
+def saiu(coisa):
+    coisa.destroy()
+
+
+run()
+`,
+      try: [
+          {
+            note: "Mais difícil com o tempo: o vão fica menor a cada ponto. Em <code>novo_par</code>, no lugar das duas linhas dos pilares (o <code>max</code> não deixa o vão ficar menor que 80):",
+            replaces: ['Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio + 190)', 'Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio - 190)'],
+            code: `vao = max(40, 60 - st.pontos * 2)
+Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio + 130 + vao), group="pilar")
+Sprite(pecas, frame="block_narrow.png", height=260, center=(680, meio - 130 - vao), group="pilar")`
+          }
+        ],
+      closing: `
+        <p>Seta para cima levanta o nariz; seta para baixo o abaixa. O avião sobe e desce para onde aponta, com inércia. Passe pelo vão dos pilares: cada par vale um ponto. Batendo num pilar ou no chão, o avião cai; espaço recomeça.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Sheet</code> de arquivos — cada arquivo é um quadro, numerado na ordem.</li>
+          <li><code>clip</code> e <code>play</code> — um clip é uma sequência de quadros com nome; <code>play</code> escolhe qual toca.</li>
+          <li><code>chase</code> como inércia — o ângulo de verdade persegue o ângulo pedido.</li>
+          <li><code>group["pilar"].move_by</code> — o mundo anda e o avião fica.</li>
+          <li><code>visible = False</code> — esconde o desenho; a colisão continua (a porta do ponto).</li>
+          <li><code>st.voando</code> e <code>recomecar</code> — um estado que várias partes leem, e a lista que põe tudo como no começo.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#spr-files">Vários arquivos</a> · <a href="../guide/index.html#spr-clip">Clips</a> · <a href="../guide/index.html#util-chase">chase</a> · <a href="../guide/index.html#desenhar-entity">Entity (visible)</a> · <a href="../guide/index.html#colisao-collide">Colisão</a>.</p>
+        <p><strong>No próximo:</strong> o mesmo jogo ganha profundidade: montanhas e nuvens que andam em velocidades diferentes, e música.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

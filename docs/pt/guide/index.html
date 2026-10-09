@@ -5959,7 +5959,7 @@ canvas.layers["top"].post_fx = False   # top nítido; ui já fica após o post</
         <button class="copy-btn" type="button">copiar</button>
 <pre>canvas.layers.create("predios", pan_response=0.5)
 canvas.layers.create("pista", below="default")       # camada própria, atrás do jogador
-Endless("predios", ["predio1.png", "predio2.png"], bottom=80, gap=(40, 200))
+Endless("predios", ["predio1.png", "predio2.png"], height=300, bottom=80, gap=(40, 200))
 
 def canos(slot):
     if slot.i &lt; 2:
@@ -5975,11 +5975,11 @@ def update(dt):
     canvas.playfield.set(canvas.game_view.outset(60))
     st.pontos = max(0, pista.index_at(passaro.center.x) - 1)</pre>
       </div>
-      <p><strong>Peças</strong>: um caminho de imagem, uma lista de caminhos (uma por vaga, sorteada) ou uma função <code>fn(slot)</code> que devolve um objeto, uma lista de objetos ou <code>[]</code> (vaga vazia). A função monta nas coordenadas <strong>absolutas</strong> da vaga (<code>slot.left</code>, <code>slot.right</code>…). O <code>Endless</code> nunca move as peças.</p>
+      <p><strong>Peças</strong>: um caminho de imagem (com <code>height=</code>: o tamanho de cada uma), uma lista de caminhos (uma por vaga, sorteada) ou uma função <code>fn(slot)</code> que devolve um objeto, uma lista de objetos ou <code>[]</code> (vaga vazia). A função monta nas coordenadas <strong>absolutas</strong> da vaga (<code>slot.left</code>, <code>slot.right</code>…). O <code>Endless</code> nunca move as peças.</p>
       <p><strong>Sorteio</strong>: troque <code>random.</code> por <code>slot.rng.</code> (e <code>chance(p)</code> por <code>slot.chance(p)</code>). Cada vaga tem seu próprio sorteio: voltar a uma vaga monta <strong>a mesma</strong> peça. O <code>random</code> global daria outra peça na volta, sem aviso. <code>seed=</code> com um número repete o mesmo mundo em toda partida; sem <code>seed</code>, um mundo novo por partida (<code>.seed</code> diz qual saiu).</p>
       <details class="spec" open>
       <summary>Neste Endless</summary>
-        <p class="sig"><code>Endless(layer, pieces, axis=, step=, gap=, start=, seed=, bottom=, left=, group=)</code></p>
+        <p class="sig"><code>Endless(layer, pieces, axis=, step=, gap=, start=, seed=, bottom=, left=, group=, height=, width=, size=)</code></p>
         <div class="tbl-wrap">
           <table>
           <thead>
@@ -5996,6 +5996,7 @@ def update(dt):
             <tr><td><code>bottom</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">None</span></td><td>Imagens com <code>axis="x"</code>: o y da base. Padrão: a base da tela.</td></tr>
             <tr><td><code>left</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">None</span></td><td>Imagens com <code>axis="y"</code>: o x da esquerda. Padrão: a esquerda da tela.</td></tr>
             <tr><td><code>group</code></td><td>nome=</td><td class="type"><span class="t">str ou lista</span><span class="ex">None</span></td><td>Grupo das imagens. A função dá grupo às suas peças.</td></tr>
+            <tr><td><code>height</code> · <code>width</code> · <code>size</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">None</span></td><td>Tamanho de cada imagem, como em <code>Sprite(caminho, height=…)</code>. Sem ele, a imagem fica com o tamanho de um <code>Sprite</code> sem tamanho (48 no lado maior). Uma faixa de cenário quase sempre quer <code>height=</code> da tela. A função dá tamanho às suas peças.</td></tr>
           </tbody>
         </table>
           <p class="name-group">Leituras e controle</p>

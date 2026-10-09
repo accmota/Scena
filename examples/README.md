@@ -18,6 +18,13 @@ its last step here.
 | 03 Geometria | `ponto_medio.py` |
 | 04 UI Widgets | `cadeia_de_bolas.py`, `barras_girando.py`, `osciloscopio.py` |
 | 05 Naves | `naves.py` |
+| 06 Naves II · Classes | `naves_classes.py` |
+| 07 Naves III · Atlas, explosão, vidas | `naves_vidas.py` |
+| 08 Naves IV · Escudo | `naves_escudo.py` |
+| 09 Bolas | `bolas.py` |
+| 11 Avião | `aviao.py` |
+| 12 Avião II · Profundidade | `aviao_profundidade.py` |
+| 13 Avião III · Paisagem sem fim | `aviao_paisagem.py` |
 
 ```bash
 python examples/naves.py

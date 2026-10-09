@@ -582,6 +582,10 @@ pre.code {
   text-decoration: none;
 }
 
+/* A tutorial that has its number but no page yet (a <div class="card">). */
+div.card { border-style: dashed; opacity: 0.7; }
+div.card:hover { border-color: var(--border); }
+
 .card .num {
   font-family: var(--mono);
   font-size: 12px;

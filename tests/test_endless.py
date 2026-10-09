@@ -140,6 +140,8 @@ class TestConstructionErrors(EndlessCase):
             (dict(pieces=_floor, step=100, seed="abc"), TypeError, "seed"),
             (dict(pieces=_floor, step=100, seed=True), TypeError, "seed"),
             (dict(pieces=STAR, gap=(50, 10)), ValueError, "lo <= hi"),
+            (dict(pieces=_floor, step=10, height=40), TypeError, "sizes its own"),
+            (dict(pieces=_floor, step=10, width=40), TypeError, "sizes its own"),
         ]
         for kw, exc, pattern in cases:
             with self.subTest(kw=kw):
@@ -469,6 +471,30 @@ class TestImages(EndlessCase):
     def test_non_positive_extent_raises_naming_step(self):
         with self.assertRaisesRegex(ValueError, "Pass step="):
             Endless("pista", STAR, gap=-10000)
+
+    def test_height_sizes_every_piece_and_the_slot_follows(self):
+        # A band of background art wants the size of the screen; a bare
+        # Sprite(path) is 48 units on its longer side (tutorial 12, 2026-10-09:
+        # one line of Endless gave a row of 48-unit thumbnails).
+        e = Endless("pista", [STAR, SHIP], height=120, bottom=0, seed=4)
+        keys = sorted(e._live)
+        self.assertTrue(keys)
+        for k in keys:
+            (sprite,) = e._live[k]
+            near, far = e._bounds(k)
+            self.assertAlmostEqual(sprite.height, 120, places=6)
+            self.assertAlmostEqual(far - near, sprite.width, places=6)       # no gap, no overlap
+            self.assertAlmostEqual(sprite.center.y - 60, 0, places=6)
+        self.assertCovers1D(e)
+        for kw, side in ((dict(width=90), "width"), (dict(size=90), None)):
+            with self.subTest(kw=kw):
+                f = Endless("pista", SHIP, seed=1, **kw)
+                probe = Sprite(SHIP, **kw)
+                for p in f.pieces:
+                    self.assertAlmostEqual(p.width, probe.width, places=6)
+                    self.assertAlmostEqual(p.height, probe.height, places=6)
+                probe.destroy()
+                f.destroy()
 
     def test_group_and_layer(self):
         canvas.layers.create("ceu", pan_response=0.3)

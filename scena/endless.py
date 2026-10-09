@@ -209,6 +209,10 @@ class Endless(Entity):
         left: Image pieces with ``axis="y"``: x of their left edge (default:
             the view's left at creation).
         group: Group tag(s) for image pieces (builders set their own).
+        height / width / size: Image pieces: the size of each piece, as in
+            ``Sprite(path, height=...)`` (a bare ``Sprite(path)`` is 48 units on
+            its longer side). A band of background art usually wants
+            ``height=`` of the screen. Builders size their own pieces.
     """
 
     def __init__(
@@ -224,6 +228,9 @@ class Endless(Entity):
         bottom=None,
         left=None,
         group=None,
+        height=None,
+        width=None,
+        size=None,
     ):
         from .canvas import ScenaCanvas
         engine = ScenaCanvas.get_current()
@@ -238,6 +245,7 @@ class Endless(Entity):
                 "Endless group= is for image pieces; a builder gives its pieces "
                 "their own group (Rect(..., group='parede'))."
             )
+        sizing = self._check_sizing(kind, height=height, width=width, size=size)
         seed_val = self._check_seed(seed)
 
         self._construct(layer=None)
@@ -249,6 +257,7 @@ class Endless(Entity):
         self._step = step_val
         self._gap = gap_val
         self._group = group
+        self._sizing = sizing
         self._seed = seed_val
         self._extent_cache: Dict[str, Tuple[float, float]] = {}
         # 1D variable widths: index → (near, far). Fixed steps need no cache.
@@ -411,6 +420,17 @@ class Endless(Entity):
         return number(value, "Endless bottom" if axis == "x" else "Endless left")
 
     @staticmethod
+    def _check_sizing(kind, **given):
+        sizing = {k: v for k, v in given.items() if v is not None}
+        if sizing and kind == "builder":
+            name = next(iter(sizing))
+            raise TypeError(
+                f"Endless {name}= is for image pieces; a builder sizes its own "
+                f"pieces (Sprite(..., {name}=...) inside the builder)."
+            )
+        return sizing
+
+    @staticmethod
     def _check_seed(seed):
         if seed is None:
             return random.getrandbits(32)
@@ -496,7 +516,7 @@ class Endless(Entity):
         size = self._extent_cache.get(path)
         if size is None:
             from .sprite import Sprite
-            probe = Sprite(path, layer=None)
+            probe = Sprite(path, layer=None, **self._sizing)
             try:
                 size = (float(probe.width), float(probe.height))
             finally:
@@ -652,8 +672,9 @@ class Endless(Entity):
 
     def _sprite(self, Sprite, path, center):
         if self._group is None:
-            return Sprite(path, center=center, layer=self._layer_key)
-        return Sprite(path, center=center, layer=self._layer_key, group=self._group)
+            return Sprite(path, center=center, layer=self._layer_key, **self._sizing)
+        return Sprite(path, center=center, layer=self._layer_key, group=self._group,
+                      **self._sizing)
 
     def _image_piece(self, path, near):
         from .sprite import Sprite

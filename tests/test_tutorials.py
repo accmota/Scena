@@ -29,6 +29,15 @@ a snippet that only makes sense inside one of the step's functions (it names a
 local such as ``x`` / ``forma``, or it is a bare ``return``) is compiled inside
 a function instead, and every capitalised call in it must resolve.
 
+A box that takes the place of lines ("no lugar de…") declares them:
+``replaces: ['folha = Sheet(', 'folha.clip(']`` (each anchor starts exactly
+one line of the step, as ``focus`` does). Such a box runs **in place**: the
+first anchored line becomes the snippet (at its indentation) and the other
+anchored lines go. Appended, it would pass even when it breaks in place
+(tutorial 11, 2026-10-09: ``Sheet("plane/Fly*.png", fps=12)`` named its clip
+``"default"``, and the step's ``play("voando")`` raised; ``TU6``). A box in a
+method body with ``replaces:`` is run, not just compiled.
+
 A step may declare ``example: "app_x.py"``; the last step of every tutorial
 must. That file, minus its module docstring, equals the step's code.
 
@@ -48,7 +57,7 @@ import tempfile
 import textwrap
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXAMPLES = os.path.join(ROOT, "examples")
@@ -71,6 +80,7 @@ class Step(NamedTuple):
     code: str
     tries: List[Tuple[int, str]]
     example: Optional[str]
+    places: Dict[int, List[str]]        # try line → the lines it replaces
 
 
 def tutorial_pages() -> list:
@@ -78,7 +88,11 @@ def tutorial_pages() -> list:
     return [p for p in iter_files(TUTORIALS, ".html") if _PAGE.fullmatch(os.path.basename(p))]
 
 
-_BLOCK = re.compile(r'\b(code|try|example):\s*(`((?:\\.|[^`\\])*)`|\[|"([^"]*)")', re.S)
+_BLOCK = re.compile(r'\b(code|try|example|replaces):\s*(`((?:\\.|[^`\\])*)`|\[|"([^"]*)")', re.S)
+_ANCHORS = re.compile(r'"([^"]*)"|\'([^\']*)\'')
+# The rest of ``replaces: [`` up to its ``]``: quoted anchors only, so a ``]``
+# inside an anchor (``'folha.clip("voando", [0, 1]'``) does not end the list.
+_LIST_REST = re.compile(r'\s*((?:\'[^\']*\'|"[^"]*")(?:\s*,\s*(?:\'[^\']*\'|"[^"]*"))*)\s*\]')
 _CODE = re.compile(r"\bcode:\s*`((?:\\.|[^`\\])*)`", re.S)
 
 
@@ -101,6 +115,7 @@ def extract_steps(path: str) -> List[Step]:
     steps: List[Step] = []
     in_try = False
     example = None
+    replaces = None
     for m in _BLOCK.finditer(html):
         line = html.count("\n", 0, m.start()) + 1
         kind = m.group(1)
@@ -110,14 +125,51 @@ def extract_steps(path: str) -> List[Step]:
         if kind == "example":
             example, in_try = m.group(4), False
             continue
+        if kind == "replaces":
+            if m.group(4) is not None:
+                replaces = [m.group(4)]
+            else:
+                rest = _LIST_REST.match(html, m.end())
+                replaces = [a or b for a, b in _ANCHORS.findall(rest.group(1))] if rest else []
+            continue
         src = _unescape(m.group(3))
         if in_try and steps and "run()" not in src:
             steps[-1].tries.append((line, src))
+            if replaces is not None:
+                steps[-1].places[line] = replaces
+            replaces = None
             continue
         in_try = False
-        steps.append(Step(line, src, [], example))
+        replaces = None
+        steps.append(Step(line, src, [], example, {}))
         example = None
     return steps
+
+
+def in_place(code: str, snippet: str, anchors: List[str]) -> Tuple[Optional[str], str]:
+    """``(program, "")``: the step with ``snippet`` where the anchored lines were.
+
+    Each anchor starts exactly one line (indentation ignored); the first one
+    takes the snippet, re-indented to its own indentation, and the others are
+    dropped. ``(None, why)`` when an anchor misses or is ambiguous.
+    """
+    lines = code.split("\n")
+    at = []
+    for anchor in anchors:
+        hits = [i for i, ln in enumerate(lines) if ln.lstrip().startswith(anchor)]
+        if len(hits) != 1:
+            return None, f"replaces {anchor!r} starts {len(hits)} lines (needs exactly 1)"
+        at.append(hits[0])
+    first = at[0]
+    indent = lines[first][:len(lines[first]) - len(lines[first].lstrip())]
+    new = [indent + ln if ln.strip() else ln for ln in snippet.strip("\n").split("\n")]
+    out = []
+    for i, ln in enumerate(lines):
+        if i == first:
+            out.extend(new)
+        elif i not in at:
+            out.append(ln)
+    return "\n".join(out), ""
 
 
 def strip_docstring(src: str) -> str:
@@ -234,6 +286,13 @@ def run_all() -> List[str]:
         for step in extract_steps(path):
             jobs.append((f"{page}:{step.line}", step.code, None, step.code))
             for tline, snippet in step.tries:
+                if tline in step.places:
+                    program, why = in_place(step.code, snippet, step.places[tline])
+                    if program is None:
+                        fragment_failures.append(f"{page}:{tline}: try: {why}")
+                    else:
+                        jobs.append((f"{page}:{tline}: try (in place)", program, None, step.code))
+                    continue
                 if _reads_a_local(snippet, step.code):
                     frag = _check_fragment(snippet, step.code)
                     if frag:
@@ -585,6 +644,47 @@ class TestTutorialsRun(unittest.TestCase):
             self.assertFalse(ok_warn)
             self.assertIn("SCRIPT WARNING", err)
             self.assertEqual(run_program(folder, "ok.py", ok), (True, ""))
+
+
+class TestTryInPlace(unittest.TestCase):
+    """A box with ``replaces:`` runs where it goes, not after the program (TU6)."""
+
+    STEP = ('from scena import *\n\n'
+            'folha = Sheet("plane/Fly1.png", "plane/Fly2.png")\n'
+            'folha.clip("voando", [0, 1], fps=12)\n\n'
+            'class Aviao(Sprite, source=folha, height=40):\n'
+            '    def setup(self):\n'
+            '        self.play("voando")\n\n'
+            'Aviao(center=(100, 100))\n\nrun()\n')
+
+    def test_the_snippet_takes_the_place_of_the_anchored_lines(self):
+        program, why = in_place(self.STEP, 'folha = Sheet("plane/Fly*.png", fps=12)',
+                                ["folha = Sheet(", 'folha.clip("voando"'])
+        self.assertEqual(why, "")
+        self.assertIn('folha = Sheet("plane/Fly*.png", fps=12)\n\nclass Aviao', program)
+        self.assertNotIn("folha.clip", program)
+        program, _ = in_place(self.STEP, 'self.play("voando", loops=1)', ['self.play('])
+        self.assertIn('    def setup(self):\n        self.play("voando", loops=1)\n', program)
+
+    def test_a_missing_or_ambiguous_anchor_is_reported(self):
+        self.assertIsNone(in_place(self.STEP, "x = 1", ["nada("])[0])
+        self.assertIsNone(in_place(self.STEP, "x = 1", ["folha"])[0])     # starts two lines
+
+    def test_in_place_catches_the_box_that_only_passes_appended(self):
+        bad = 'folha = Sheet("plane/Fly*.png", fps=12)'          # its one clip is "default"
+        good = 'folha = Sheet("plane/Fly*.png", fps=12, name="voando")'
+        anchors = ["folha = Sheet(", 'folha.clip("voando"']
+        with tempfile.TemporaryDirectory() as folder:
+            _link_media(folder)
+            appended = self.STEP.replace("run()", "") + "\n" + bad + "\nrun()\n"
+            self.assertTrue(run_program(folder, "appended.py", appended)[0])
+            self.assertFalse(run_program(folder, "bad.py", in_place(self.STEP, bad, anchors)[0])[0])
+            self.assertEqual(run_program(folder, "good.py", in_place(self.STEP, good, anchors)[0]),
+                             (True, ""))
+
+    def test_the_pages_use_it(self):
+        n = sum(len(step.places) for path in tutorial_pages() for step in extract_steps(path))
+        self.assertGreater(n, 0, "no box declares replaces: (the scan no longer matches)")
 
 
 class TestTutorialPageSyntax(unittest.TestCase):
