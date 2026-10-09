@@ -1334,11 +1334,20 @@ class Sparks(PointDomainFx):
         _reject_positional_fx(self, args)
         self.rate = float(rate)
         self.amount = float(amount)
-        self.color = resolve_rgb(color, default=(1.0, 0.85, 0.4))
+        self._rgb = resolve_rgb(color, default=(1.0, 0.85, 0.4))
         self._spawn_acc = 0.0
         self._seed = _frac_hash(id(self) % 10000, 0.7) * 1000.0
         self._bank = _PartBank(90, with_hot=True)
         self._init_point_domain(center=center, radius=radius, soft_edge=soft_edge, **kwargs)
+
+    @property
+    def color(self):
+        """Spark color (any color form). ``None`` resets to the default. Writable."""
+        return self._rgb
+
+    @color.setter
+    def color(self, value) -> None:
+        self._rgb = resolve_rgb(value, default=(1.0, 0.85, 0.4))
 
     def _domain_aabb(self) -> Tuple[float, float, float, float]:
         cx, cy = get_xy(self.center, bare=True)
@@ -1582,10 +1591,19 @@ class Starburst(PointDomainFx):
         self.points = 5 if int(points) >= 5 else 4
         self.amount = float(amount)
         self.speed = float(speed)
-        self.color = resolve_rgb(color, default=(1.0, 0.95, 0.75))
+        self._rgb = resolve_rgb(color, default=(1.0, 0.95, 0.75))
         self._seed = _frac_hash(id(self) % 10000, 0.62) * 6.28
         self._init_point_domain(center=center, radius=radius, soft_edge=soft_edge, **kwargs)
         self._path = skia.Path()
+
+    @property
+    def color(self):
+        """Star color (any color form). ``None`` resets to the default. Writable."""
+        return self._rgb
+
+    @color.setter
+    def color(self, value) -> None:
+        self._rgb = resolve_rgb(value, default=(1.0, 0.95, 0.75))
 
     def _domain_aabb(self) -> Tuple[float, float, float, float]:
         cx, cy = get_xy(self.center, bare=True)
@@ -1786,7 +1804,7 @@ class Rain(PadDomainFx):
 
         SpatialFx._construct(self, **scene_kw)
         self.amount = float(amount)
-        self.color = resolve_rgb(color, default=(0.65, 0.75, 0.9))
+        self._rgb = resolve_rgb(color, default=(0.65, 0.75, 0.9))
         self._spawn_acc = 0.0
         self._seed = _frac_hash(id(self) % 10000, 9.1) * 1000.0
         self._bank = _PartBank(220, with_wt=True)
@@ -1808,6 +1826,15 @@ class Rain(PadDomainFx):
                 _init_composite(self.center, center)
                 _init_scalar(self, "width", width)
                 _init_scalar(self, "height", height)
+
+    @property
+    def color(self):
+        """Drop color (any color form). ``None`` resets to the default. Writable."""
+        return self._rgb
+
+    @color.setter
+    def color(self, value) -> None:
+        self._rgb = resolve_rgb(value, default=(0.65, 0.75, 0.9))
 
     @classmethod
     def from_rect(cls, rect, *, amount: float = 0.55, color: Optional[ColorLike] = None, **kwargs) -> "Rain":
@@ -1990,7 +2017,7 @@ class Jet(BeamDomainFx):
             )
         SpatialFx._construct(self, **scene_kw)
         self.amount = float(amount)
-        self.color = resolve_rgb(color, default=(1.0, 0.55, 0.15))
+        self._rgb = resolve_rgb(color, default=(1.0, 0.55, 0.15))
         self._spawn_acc = 0.0
         self._seed = _frac_hash(id(self) % 10000, 2.2) * 1000.0
         self._bank = _PartBank(100, with_wt=True)
@@ -2015,6 +2042,15 @@ class Jet(BeamDomainFx):
                 _init_scalar(self, "angle", angle)
                 _init_scalar(self, "length", length)
                 _init_scalar(self, "width", width)
+
+    @property
+    def color(self):
+        """Jet tint (any color form). ``None`` resets to the default. Writable."""
+        return self._rgb
+
+    @color.setter
+    def color(self, value) -> None:
+        self._rgb = resolve_rgb(value, default=(1.0, 0.55, 0.15))
 
     def _collision_specs(self) -> List[Tuple]:
         x0, y0, x1, y1, length, width = self._beam_frame()

@@ -660,6 +660,8 @@ Sugar: `Rain.from_rect(rect)`, `Jet.from_line(line)`. Linking uses normal Point/
 - Particles are instance-local lists (not DependencyGraph nodes).
 - `undraw` soft; `destroy` hard (also drops tick registration).
 - **Process host:** SpatialFx is an `Entity`, so `fx.after` / `fx.every` / `fx.destroy` / groups / tags work the same as on Shape / Sprite. Continuous emitters (`Sparks`) need an explicit timed teardown — prefer `fx.after(0.55, fx.destroy)` (or bare `after(0.55, fx.destroy)`, which binds to `fx` via bound-method ownership). Scheduling teardown on a dying wasp (`self.after(..., fx.destroy)`) cancels with the wasp and leaves the emitter alive.
+- **A part does not die with its maker.** A `Jet` made in `Heroi.setup` (the tutorial 06 thruster, `origin=lambda: …` reading the hero) is its own Entity: destroying the hero leaves it burning where the hero died. The owner destroys it in `on_destroy` (`self.propulsor.destroy()`).
+- **Every look parameter is writable after birth**, with the constructor's resolution: `color` is a property that runs `resolve_rgb` (a name, hex, `Color`, a tuple). `Jet` / `Sparks` / `Starburst` / `Rain` once kept `color` as a raw field, so `jet.color = "cyan"` stored the string and the next draw raised (2026-10-09). A new kind with `color=` gets the property; `TestColorWriteAfterBirth` walks every kind whose constructor takes `color=`.
 - Quality: `particle_scale(FxQuality)` steps density (reuses quality ladder; no new public scale).
 
 Tests: `tests/test_spatial_fx.py`, ownership edge cases in `tests/test_process.py`. Visual: `python scripts/smoke/spatial.py`, `python scripts/smoke/spatial.py`.

@@ -752,6 +752,10 @@ left out.
   property now raises instead of becoming a field: `ship.anlge = 30` →
   `Did you mean 'angle'?` (also `widht`, `aplha`, `lyaer`, `gruop`, `nagle`).
   A field you meant to call `nagle` needs another name.
+- `jet.color = "cyan"` after the constructor works on `Jet`, `Sparks`,
+  `Starburst` and `Rain`, as it already did on `Orb`, `GlowSpot`, `Warp`,
+  `Portal` and `Sunburst`. Before, the name was stored as text and the next
+  frame raised `ValueError: too many values to unpack`.
 
 ### Documentation
 

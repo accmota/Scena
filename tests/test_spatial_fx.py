@@ -383,6 +383,46 @@ class TestEffectColorResolve(SpatialFxTestBase):
         self.assertEqual(g.color, expected)
 
 
+class TestColorWriteAfterBirth(SpatialFxTestBase):
+    """``fx.color = "gold"`` after the constructor resolves like ``color="gold"``.
+
+    Bug (2026-10-09, tutorial 06 probe): ``Jet``, ``Sparks``, ``Starburst`` and
+    ``Rain`` kept ``color`` as a raw field, so ``jet.color = "cyan"`` stored the
+    string and the next draw raised ``ValueError: too many values to unpack``.
+    The Guia promises "os parâmetros mudam por atribuição". Every kind whose
+    constructor takes ``color=`` is checked, so a new kind cannot repeat it.
+    """
+
+    PLACES = {
+        "Rain": dict(p1=(10, 10), p2=(90, 90)),
+        "Jet": dict(origin=(10, 50), angle=0, length=60),
+    }
+
+    def kinds(self):
+        import inspect
+        for name in sfx.__all__:
+            cls = getattr(sfx, name, None)
+            if (inspect.isclass(cls) and issubclass(cls, sfx.SpatialFx)
+                    and "color" in inspect.signature(cls.__init__).parameters):
+                yield name, cls
+
+    def test_every_kind_resolves_a_color_written_later(self):
+        from scena.color import Color
+        gold = tuple(float(c) for c in Color("gold").rgb[:3])
+        seen = 0
+        for name, cls in self.kinds():
+            with self.subTest(kind=name):
+                fx = cls(**self.PLACES.get(name, dict(center=(50, 50))))
+                fx.color = "gold"
+                self.assertEqual(tuple(fx.color[:3]), gold)
+                for _ in range(3):
+                    self.advance()
+                fx.draw(_raster(100, 100).getCanvas())
+                fx.destroy()
+                seen += 1
+        self.assertGreaterEqual(seen, 9, "the kind list lost effects that take color=")
+
+
 class TestOrb(SpatialFxTestBase):
     def test_default_is_sun_like(self):
         orb = Orb(center=(40, 50), radius=32)
