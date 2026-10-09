@@ -174,24 +174,29 @@ class TestGuardsCollisionAllOrNothing(ParallaxTestCase):
         self.assertIsNone(player._collider)
         self.assertFalse(player.collidable)
 
-    def test_collide_mixed_group_transactional(self):
+    def test_collide_mixed_group_skips_the_parallax_member(self):
+        # A group's member on a parallax layer has no body: it is skipped,
+        # whether the rule or the tag came first (review 2026-10-09 S9-1,
+        # decided; before, the rule raised in this order and the tag was
+        # swallowed in the other). Naming the shape itself still raises.
         canvas.layers.create("bg", pan_response=0.4)
         px = self.track(Circle(center=(0, 0), radius=10, layer="bg", group="mixed"))
         norm = self.track(Circle(center=(40, 0), radius=10, group="mixed"))
         player = self.track(Circle(center=(80, 0), radius=10))
-        sys = get_collision_system()
-        handlers_before = list(sys._pair_handlers)
 
+        @collide(group["mixed"], player)
+        def _on(me, other, info):
+            pass
+
+        self.assertIsNone(px._collider)
+        self.assertIsNotNone(norm._collider)
+        late = self.track(Circle(center=(0, 40), radius=10, layer="bg"))
+        late.tag("mixed")                       # the other order: skipped too
+        self.assertIsNone(late._collider)
         with self.assertRaises(ParallaxLayerError):
-
-            @collide(group["mixed"], player)
-            def _on(me, other, info):
+            @collide(px, player)
+            def _named(me, other, info):
                 pass
-
-        self.assertEqual(sys._pair_handlers, handlers_before)
-        self.assertIsNone(norm._collider)
-        self.assertFalse(norm.collidable)
-        self.assertIsNone(player._collider)
 
 
 class TestGuardsLayerMove(ParallaxTestCase):

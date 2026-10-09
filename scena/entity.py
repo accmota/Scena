@@ -2550,6 +2550,13 @@ def _rotate_as_motion(shape, fn, value, kwargs):
         return fn(shape, value, **kwargs)
     from .collision import _collision_pose_xy, note_collider_motion
     x0, y0 = _collision_pose_xy(shape)
+    turn = None
+    try:
+        deg = float(value)
+        if abs(deg) > _ORBIT_STEP_DEG and math.isfinite(deg):
+            turn = (deg, shape._pivot_xy(kwargs.get("about")))
+    except Exception:
+        turn = None
     _rotate_depth += 1
     try:
         out = fn(shape, value, **kwargs)
@@ -2558,9 +2565,44 @@ def _rotate_as_motion(shape, fn, value, kwargs):
     x1, y1 = _collision_pose_xy(shape)
     dx = x1 - x0
     dy = y1 - y0
-    if dx * dx + dy * dy > _ORBIT_EPS2:
+    if turn is not None:
+        _note_orbit_path(shape, x0, y0, x1, y1, turn[0], turn[1])
+    if dx * dx + dy * dy > _ORBIT_EPS2 or turn is not None:
         note_collider_motion(shape, dx, dy)
     return out
+
+
+# A turn larger than this per call is swept as an arc of chords this size or
+# smaller, not one straight chord: a hitch multiplies the angle per frame, and
+# one chord cut across the circle and missed targets on the arc (review
+# 2026-10-09 W-T5, decided). Collision Design, "Orbit chord".
+_ORBIT_STEP_DEG = 16.0
+
+
+def _note_orbit_path(shape, x0, y0, x1, y1, deg, pivot) -> None:
+    """The arc's waypoints from ``(x0, y0)`` about ``pivot`` by ``deg``; only
+    when that arc ends where the turn did (a pivot that moved, or a sign
+    convention that differs, leaves the single chord)."""
+    px, py = pivot
+    n = int(math.ceil(abs(deg) / _ORBIT_STEP_DEG))
+    rx, ry = x0 - px, y0 - py
+    radius = math.hypot(rx, ry)
+    if radius <= 1e-9:
+        return
+    rad = math.radians(deg)
+    ex = px + rx * math.cos(rad) - ry * math.sin(rad)
+    ey = py + rx * math.sin(rad) + ry * math.cos(rad)
+    if abs(ex - x1) + abs(ey - y1) > 1e-6 * (1.0 + radius):
+        return
+    pts = []
+    for k in range(1, n):
+        a = rad * k / n
+        wx = px + rx * math.cos(a) - ry * math.sin(a)
+        wy = py + rx * math.sin(a) + ry * math.cos(a)
+        pts.append((wx - x0, wy - y0))
+    if pts:
+        from .collision import note_collider_path
+        note_collider_path(shape, pts)
 
 
 def _rotate_as_placement(fn, *args, **kwargs):

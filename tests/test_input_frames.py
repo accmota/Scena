@@ -351,5 +351,34 @@ class TestALostReleaseEndsTheDrag(unittest.TestCase):
             c.destroy()
 
 
+
+class TestTheDragIsALevel(unittest.TestCase):
+    """Review 2026-10-09 W-P3 (decided): a held shape stays under a still
+    cursor whatever ``update`` writes to it."""
+
+    def test_a_per_frame_move_by_does_not_walk_it_off(self):
+        with system_world(draw=False) as w, input_driver(w) as d:
+            ball = Circle(center=(200, 150), radius=20)
+            ball.draggable = True
+            w.step(1)
+            d.move(200, 150)
+            w.step(1)
+            d.down()
+            d.move(210, 150)
+            w.step(1)
+            self.assertTrue(w.fw.shape_manager._dragging, "not vacuous")
+            gap0 = ball.center.y - mouse.y
+            w.on_update(lambda dt: ball.move_by(0, -300 * dt))
+            w.step(30)
+            self.assertAlmostEqual(ball.center.y - mouse.y, gap0, places=6)
+            w.on_update(None)
+            d.up()
+            w.step(1)
+            ball.move_by(0, -10)                    # released: author writes win again
+            w.step(1)
+            self.assertAlmostEqual(ball.center.y - mouse.y, gap0 - 10, places=6)
+            ball.destroy()
+
+
 if __name__ == "__main__":
     unittest.main()

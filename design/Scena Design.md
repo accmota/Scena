@@ -531,10 +531,10 @@ timed mechanism picks its row here and compares deadlines through
 | Consumer | Clock | Why |
 | --- | --- | --- |
 | `update(dt)`, `after` / `every` / `tween` / timed verbs / modes / `move_along` | world | game time; `every` keeps its debt, so its rate is frame-rate independent (catch-up bounded by `MAX_FRAME_DT / interval` fires per tick) |
-| `ready` / `recently`, History / Contrail, sprite playhead and `min_hold` | world | game time |
-| SpatialFx tick and shader phases | world | world actors: pause freezes the rain; their own `after` already counted world seconds |
-| Layer scroll (`advance_layer_scroll`, every non-neutral layer, hidden or not) | world | scroll is world state; `visible` is paint |
-| Canvas cover (`fade_in` / `fade_out`) | presentation | a screen transition runs while the world is paused (a game-over `fade_out(on_done=change_act)` after `clock.paused = True` finishes) |
+| `ready` / `recently`, History / Contrail, sprite playhead and `min_hold` | world | game time; `ready` carries its overshoot like `every` (a steady cadence at any fps; after a pause in polling it reopens one interval later, no burst: review 2026-10-09 W-T2). A self re-arming `after` or an `await wait(p)` loop starts each period at the frame that noticed the last one: "at least `p` apart", not a rate; use `every` for a rate |
+| SpatialFx tick and shader phases | world | world actors: pause freezes the rain; their own `after` already counted world seconds. A frame feeds them at most `MAX_FRAME_DT`, the world's cap, cut into steps of at most 0.1 s for the integrators; the first tick advances by the time since birth (W-T9) |
+| Layer scroll (`advance_layer_scroll`, every non-neutral layer, hidden or not), background-field scroll (`BackgroundStack._advance_scroll_all`, every field, enabled or not) | world | scroll is world state; `visible` / `enabled` is paint; both count from birth (W-T7, W-T8) |
+| Canvas cover (`fade_in` / `fade_out`), post `shake` / `flash` / `glitch` decay (`PostFxStack._render`) | presentation | a screen transition or a hit effect runs while the world is paused (a game-over `fade_out(on_done=change_act)` after `clock.paused = True` finishes; a shake under the pause menu ends: X-writers-2) |
 | Shape transients, SpriteButton eases | wall | presentation, documented ([Effect System Design](Effect%20System%20Design.md)): a paused menu still animates |
 | Double click, FPS, frame pacing | wall | input and the display |
 

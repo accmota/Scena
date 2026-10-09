@@ -394,8 +394,10 @@ class TestBackgroundScroll(_UnplacedTest):
         b = self._stub()
         b.pan_response = 0.0
         b.scroll = (0.0, -80.0)  # invaders-style: roll down
-        b._advance_scroll(10.0)
-        b._advance_scroll(11.0)  # 1s → -80 design Y → +80 FB y
+        # Scroll counts from the field's birth (review 2026-10-09 W-T8): one
+        # second after it → -80 design Y → +80 FB y.
+        t0 = float(b._scroll_last_t or 0.0)
+        b._advance_scroll(t0 + 1.0)
         cam = CameraSample(0.0, 0.0, 1.0, 0.0, rest_x=0.0, rest_y=0.0)
         ox, oy, _, _ = b._parallax_uv(
             cam=cam,

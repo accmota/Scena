@@ -233,7 +233,12 @@ class BackgroundField(ClosedSurface):
         if not hasattr(self, "_scroll_accum"):
             self._scroll_accum = [0.0, 0.0]
         if not hasattr(self, "_scroll_last_t"):
-            self._scroll_last_t = None
+            # Scroll counts from the field's birth (W-T7 / W-T8).
+            try:
+                from .process import _now
+                self._scroll_last_t = _now()
+            except Exception:
+                self._scroll_last_t = None
 
     @property
     def scroll(self) -> Tuple[float, float]:
@@ -255,7 +260,10 @@ class BackgroundField(ClosedSurface):
         self._scroll = scroll_rate(value, "scroll")
 
     def _advance_scroll(self, t: float) -> None:
-        """Integrate ``scroll`` over wall-clock time (called once per frame)."""
+        """Integrate ``scroll`` over world time, once per frame from the frame
+        body (``BackgroundStack.advance_scroll``), enabled or not: scroll is
+        world state like layer scroll (review 2026-10-09 W-T8; it ran in the
+        draw, only while the field was drawn, and skipped gaps over 1.5 s)."""
         self._ensure_scroll_state()
         t = float(t)
         if not math.isfinite(t):
@@ -267,9 +275,6 @@ class BackgroundField(ClosedSurface):
         dt = t - float(last)
         self._scroll_last_t = t
         if dt <= 0.0:
-            return
-        # Tab resume / huge clock jump: skip gap (do not fast-forward the field).
-        if dt > 1.5:
             return
         sx, sy = self._scroll
         self._scroll_accum[0] += float(sx) * dt
@@ -454,6 +459,14 @@ class BackgroundStack(ClosedSurface):
 
     _closed_who = "canvas.background"
 
+    def _advance_scroll_all(self, t: float) -> None:
+        """Frame body: every field's scroll, the base's too, enabled or not."""
+        base = self._base
+        if base is not None:
+            base._advance_scroll(t)
+        for b in self._items:
+            b._advance_scroll(t)
+
     def __init__(self) -> None:
         self._items: List[BackgroundField] = []
         self._base: BackgroundField = _default_base_field()
@@ -574,7 +587,6 @@ class BackgroundStack(ClosedSurface):
             dh = float(design_height)
             base = self._base
             if base is not None and base._is_active():
-                base._advance_scroll(t)
                 base.draw(
                     skia_canvas, w, h, t, cam,
                     design_width=dw, design_height=dh, fw=fw,
@@ -584,7 +596,6 @@ class BackgroundStack(ClosedSurface):
             for b in self._items:
                 if not b._is_active():
                     continue
-                b._advance_scroll(t)
                 b.draw(
                     skia_canvas, w, h, t, cam,
                     design_width=dw, design_height=dh, fw=fw,

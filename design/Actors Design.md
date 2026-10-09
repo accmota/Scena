@@ -1306,6 +1306,12 @@ require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena._
   `scena.process`).
 - `Clock.time` accumulates scaled `dt` (not wall-since-construct). Background / post FX that
   sample `clock.time` pause when `clock.scale=0`.
+- `ready(name, interval)` keeps a steady cadence: a True moves the window by one
+  interval from when it was due, not from the frame that noticed it (the overshoot
+  was dropped, so the rate depended on the frame rate), and after a pause in polling
+  it reopens one interval from now: no burst (review 2026-10-09 W-T2, decided). A
+  self re-arming `after` or an `await wait(p)` loop starts each period at the frame
+  that noticed the last one: "at least `p` apart", not a rate. Use `every` for a rate.
 - `ready.reset(name)` sets `last_called = now - interval` so the next poll is True.
   Every `ready.*` / `recently.*` method checks the name (`_require_poll_name`)
   before the dict lookup (a list raised Python's "unhashable"), and

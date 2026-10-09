@@ -3698,6 +3698,27 @@ def _tag_is_resolve_side(sys: "CollisionSystem", tag: str) -> bool:
     return False
 
 
+def _named_side_entities(side) -> List[Any]:
+    """The actors a side names directly (an actor, a ``Collider``'s pieces).
+    Members reached through a group (a tag, ``group[...]``, a snapshot of
+    groups) are not named: one on ``ui`` or a parallax layer has no body and
+    is skipped, whatever the order of the tag and the rule (review 2026-10-09
+    S9-1, decided)."""
+    from .entity import Entity
+    if isinstance(side, Collider):
+        return list(side.shapes)
+    if isinstance(side, Entity):
+        return [side]
+    return []
+
+
+def _assert_named_sides_not_parallax(sides) -> None:
+    items: List[Any] = []
+    for side in sides:
+        items.extend(_named_side_entities(side))
+    _assert_shapes_not_parallax(items)
+
+
 def _assert_target_not_parallax(target) -> None:
     """Validate all Entities currently implied by a pair target."""
     _assert_shapes_not_parallax(_collect_entities_from_target(target))
@@ -3753,6 +3774,8 @@ class Collider:
         "_pending_motion_dx",
         "_pending_motion_dy",
         "_proxy_start",
+        "_pending_path",
+        "_motion_path",
         "_thick2",
         "_resolved_aabb",
         "_in_resolve",
@@ -3820,6 +3843,10 @@ class Collider:
         self._pending_motion_dx = 0.0
         self._pending_motion_dy = 0.0
         self._proxy_start: Optional[List[float]] = None
+        # Waypoints of this frame's motion when it is not one straight chord
+        # (a fast orbit: W-T5): cumulative offsets from the frame's start.
+        self._pending_path: Optional[List[Tuple[float, float]]] = None
+        self._motion_path: Optional[List[Tuple[float, float]]] = None
         # Squared thickness (smaller proxy side, pad removed), refreshed when
         # the proxy is rebuilt; the swept-detection gate reads it.
         self._thick2 = 0.0
@@ -4238,9 +4265,8 @@ class CollisionSystem:
 
     def _enroll_claimed_body(self, host, tag: str) -> None:
         """A part answers for resolve-side ``tag``: its host's body resolves."""
-        if not self._item_in_play(host):
-            return
-        _assert_shapes_not_parallax([host])
+        if not self._item_in_play(host) or _collision_layer_error(host) is not None:
+            return                      # no body on ui / parallax (S9-1)
         c = ensure_collider(host)
         self._claimed_body_add(tag, c)
         for a, b, _tok, _only in self._resolve_pairs:
@@ -4332,7 +4358,8 @@ class CollisionSystem:
         item = routed
         if item is None or not self._item_in_play(item):
             return None
-        _assert_shapes_not_parallax([item])
+        if _collision_layer_error(item) is not None:
+            return None                 # a group member on ui / parallax: no body (S9-1)
         existing = getattr(item, "_collider", None)
         idx_map = self._tag_index.get(tag)
         already = (
@@ -4410,10 +4437,11 @@ class CollisionSystem:
         )
 
     def _colliders_for_shapes(self, shapes: List[Any]) -> List[Collider]:
-        live = [s for s in shapes if self._item_in_play(s)]
+        # A snapshot group's members: one on ui / parallax is skipped (S9-1).
+        live = [s for s in shapes if self._item_in_play(s)
+                and _collision_layer_error(s) is None]
         if not live:
             return []
-        _assert_shapes_not_parallax(live)
         return [ensure_collider(shape) for shape in live]
 
     def _resolve_target_to_colliders(self, target) -> List[Collider]:
@@ -4468,11 +4496,9 @@ class CollisionSystem:
         """
         if _SOLVER_READING:
             refuse_if_solver_reading('@collide registration')
-        # Collect + validate all currently-known shapes on both sides first.
-        items: List[Any] = []
-        items.extend(_collect_entities_from_target(a))
-        items.extend(_collect_entities_from_target(b))
-        _assert_shapes_not_parallax(items)
+        # A side named directly refuses a ui / parallax actor; a group's
+        # member there is skipped (S9-1).
+        _assert_named_sides_not_parallax((a, b))
         entry = (a, b, callback, phase)
         self._pair_handlers.append(entry)
         self._note_pair_tag(a)
@@ -4536,7 +4562,8 @@ class CollisionSystem:
         items: List[Any] = []
         items.extend(_collect_entities_from_target(a))
         items.extend(_collect_entities_from_target(b))
-        _assert_shapes_not_parallax(items)
+        _assert_named_sides_not_parallax((a, b))
+        items = [i for i in items if _collision_layer_error(i) is None]
         if bounce is not None:
             bounce = _validate_bounce(bounce)
         token: Any = _RESOLVE_POSITION_ONLY if bounce is None else bounce
@@ -5034,18 +5061,49 @@ class CollisionSystem:
         collider._motion_dx = dx
         collider._motion_dy = dy
         collider._motion_translation = True
-        if dx == 0.0 and dy == 0.0:
-            collider._proxy_start = None
+        path = collider._pending_path
+        if path is not None:
+            collider._pending_path = None
+        collider._motion_path = path
+        if path is None:
+            if dx == 0.0 and dy == 0.0:
+                collider._proxy_start = None
+            elif collider._proxy_valid:
+                p = collider._proxy
+                collider._proxy_start = [p[0] - dx, p[1] - dy, p[2] - dx, p[3] - dy]
+                # Swept-detection gate, on moving colliders only (still ones never
+                # reach this branch): travel > fraction x thickness. One multiply
+                # and one compare; ``inf * 0`` is NaN, which compares False.
+                if dx * dx + dy * dy > self._fast_k2 * collider._thick2:
+                    self._fast_colliders.append(collider)
+            else:
+                collider._proxy_start = None
         elif collider._proxy_valid:
+            # A curved path (a fast orbit, W-T5): the swept box covers every
+            # waypoint, and the gate reads the path's length, not its chord
+            # (a full turn ends where it began).
             p = collider._proxy
-            collider._proxy_start = [p[0] - dx, p[1] - dy, p[2] - dx, p[3] - dy]
-            # Swept-detection gate, on moving colliders only (still ones never
-            # reach this branch): travel > fraction x thickness. One multiply
-            # and one compare; ``inf * 0`` is NaN, which compares False.
-            if dx * dx + dy * dy > self._fast_k2 * collider._thick2:
+            box = [p[0] - dx, p[1] - dy, p[2] - dx, p[3] - dy]
+            length = 0.0
+            px = py = 0.0
+            for wx, wy in path + [(dx, dy)]:
+                ox, oy = wx - dx, wy - dy
+                if p[0] + ox < box[0]:
+                    box[0] = p[0] + ox
+                if p[1] + oy < box[1]:
+                    box[1] = p[1] + oy
+                if p[2] + ox > box[2]:
+                    box[2] = p[2] + ox
+                if p[3] + oy > box[3]:
+                    box[3] = p[3] + oy
+                length += math.hypot(wx - px, wy - py)
+                px, py = wx, wy
+            collider._proxy_start = box
+            if length * length > self._fast_k2 * collider._thick2:
                 self._fast_colliders.append(collider)
         else:
             collider._proxy_start = None
+            collider._motion_path = None
 
     def _update_proxy(self, collider: Collider, *, commit_motion: bool = True) -> bool:
         """Refresh collider proxy AABB. Translation-only mutates four floats.
@@ -5064,6 +5122,8 @@ class CollisionSystem:
                 collider._pending_motion_dx = 0.0
                 collider._pending_motion_dy = 0.0
                 collider._proxy_start = None
+                collider._pending_path = None
+                collider._motion_path = None
             return False
         for s in shapes:
             _sync_auto_hitbox_frame(s)
@@ -5124,6 +5184,8 @@ class CollisionSystem:
                 collider._motion_dy = 0.0
                 collider._motion_translation = True
                 collider._proxy_start = None
+                collider._pending_path = None
+                collider._motion_path = None
             return False
         eps = _PROXY_EPS
         p = collider._proxy
@@ -5679,6 +5741,29 @@ class CollisionSystem:
             day = ca._motion_dy if ca._motion_translation else 0.0
             dbx = cb._motion_dx if cb._motion_translation else 0.0
             dby = cb._motion_dy if cb._motion_translation else 0.0
+            if ca._motion_path is not None or cb._motion_path is not None:
+                pas = self._world_prims(ca)
+                pbs = self._world_prims(cb)
+                if not pas or not pbs:
+                    continue
+                swept_n += 1
+                found = _toi_along_paths(ca, cb, pas, pbs)
+                if found is None:
+                    continue
+                t, contact, (oax, oay), (obx, oby) = found
+                if overlapping:
+                    t_enter[key] = t
+                    continue
+                if t <= 1e-12 and key in prev:
+                    continue
+                current[key] = _collision_info_from_contact(
+                    ca, cb, Contact((contact.normal[0], contact.normal[1]), 0.0, []),
+                    _copy_translate(pas, oax, oay), _copy_translate(pbs, obx, oby),
+                )
+                contact_keys.add(key)
+                t_enter[key] = t
+                hits += 1
+                continue
             # In b's end frame, a travels the relative motion.
             rdx = dax - dbx
             rdy = day - dby
@@ -7972,11 +8057,8 @@ def resolve(a, b, bounce: Optional[float] = None, only: Any = None) -> None:
                     ensure(group)
                 else:
                     ensure()
-    # The layer refusal for every member, before any pair (S8-1).
-    items: List[Any] = []
-    for side in lefts + rights:
-        items.extend(_collect_entities_from_target(side))
-    _assert_shapes_not_parallax(items)
+    # The layer refusal for every named member, before any pair (S8-1, S9-1).
+    _assert_named_sides_not_parallax(lefts + rights)
     if bounce is not None:
         _validate_bounce(bounce)
     before = list(sys._resolve_pairs)
@@ -8139,6 +8221,87 @@ def _collider_of(shape) -> Optional[Collider]:
 _motion_nonfinite_warned = False
 
 
+def note_collider_path(shape, offsets) -> None:
+    """Waypoints of a curved motion about to be noted (a fast orbit, W-T5):
+    ``offsets`` are cumulative from this motion's start; they are stored from
+    the frame's start (after any motion already pending)."""
+    col = _collider_of(shape)
+    if col is None or not offsets:
+        return
+    targets = [col]
+    parts = shape._hitbox_parts
+    if parts:
+        targets.extend(p._collider for p in parts if p._collider is not None)
+    for c in targets:
+        bx, by = c._pending_motion_dx, c._pending_motion_dy
+        path = c._pending_path
+        if path is None:
+            path = c._pending_path = []
+            if bx != 0.0 or by != 0.0:
+                path.append((bx, by))         # the straight motion before it
+        path.extend((bx + ox, by + oy) for ox, oy in offsets)
+
+
+def _path_breaks(c) -> List[Tuple[float, float, float]]:
+    """``(fraction, x, y)`` along a collider's motion this frame, from
+    ``(0, 0, 0)`` to ``(1, total)``; fractions by length (a straight motion
+    is one segment)."""
+    tx, ty = (c._motion_dx, c._motion_dy) if c._motion_translation else (0.0, 0.0)
+    path = c._motion_path
+    if not path:
+        return [(0.0, 0.0, 0.0), (1.0, tx, ty)]
+    pts = [(0.0, 0.0)] + list(path) + [(tx, ty)]
+    lens = [0.0]
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        lens.append(lens[-1] + math.hypot(x1 - x0, y1 - y0))
+    total = lens[-1] or 1.0
+    return [(lens[k] / total, pts[k][0], pts[k][1]) for k in range(len(pts))]
+
+
+def _path_at(breaks, f: float) -> Tuple[float, float]:
+    for (f0, x0, y0), (f1, x1, y1) in zip(breaks, breaks[1:]):
+        if f <= f1 or f1 >= 1.0:
+            u = 0.0 if f1 <= f0 else (f - f0) / (f1 - f0)
+            u = 0.0 if u < 0.0 else (1.0 if u > 1.0 else u)
+            return x0 + (x1 - x0) * u, y0 + (y1 - y0) * u
+    return breaks[-1][1], breaks[-1][2]
+
+
+def _toi_along_paths(ca, cb, pas, pbs):
+    """Earliest contact of ``ca`` and ``cb`` along this frame's motion when
+    either moved along a polyline (W-T5), segment by segment in ``cb``'s end
+    frame. Returns ``(t, contact, a_offset, b_offset)`` (offsets from the end
+    poses at ``t``) or None."""
+    ba, bb = _path_breaks(ca), _path_breaks(cb)
+    tax, tay = ba[-1][1], ba[-1][2]
+    tbx, tby = bb[-1][1], bb[-1][2]
+    fs = sorted({f for f, _x, _y in ba} | {f for f, _x, _y in bb})
+
+    def rel(f):
+        ax, ay = _path_at(ba, f)
+        bx, by = _path_at(bb, f)
+        return (ax - tax) - (bx - tbx), (ay - tay) - (by - tby)
+
+    for f0, f1 in zip(fs, fs[1:]):
+        if f1 <= f0:
+            continue
+        r0x, r0y = rel(f0)
+        r1x, r1y = rel(f1)
+        mx, my = r1x - r0x, r1y - r0y
+        if mx == 0.0 and my == 0.0:
+            continue
+        hit = _toi_prim_sets(_copy_translate(pas, r0x, r0y), pbs, mx, my)
+        if hit is None or hit[1] is None:
+            continue
+        ts = hit[0]
+        ts = 0.0 if ts < 0.0 else (1.0 if ts > 1.0 else ts)
+        t = f0 + (f1 - f0) * ts
+        ax, ay = _path_at(ba, t)
+        bx, by = _path_at(bb, t)
+        return t, hit[1], (ax - tax, ay - tay), (bx - tbx, by - tby)
+    return None
+
+
 def note_collider_motion(shape, dx: float, dy: float) -> None:
     """Mark this frame's translation as motion (swept). No-op if not enrolled.
 
@@ -8185,6 +8348,7 @@ def note_collider_placement(shape) -> None:
         return
     col._pending_motion_dx = 0.0
     col._pending_motion_dy = 0.0
+    col._pending_path = None
     parts = shape._hitbox_parts
     if parts:
         for part in parts:
@@ -8192,6 +8356,7 @@ def note_collider_placement(shape) -> None:
             if pc is not None:
                 pc._pending_motion_dx = 0.0
                 pc._pending_motion_dy = 0.0
+                pc._pending_path = None
 
 
 def _ensure_part_collider(part) -> Collider:
@@ -8383,10 +8548,7 @@ def _collide_decorator(phase: str, left, right):
         # All-or-nothing: every member of every side passes the layer check
         # before the first pair registers (a ui member in the last list slot
         # left the earlier pairs live: review 2026-10-09 S8-1).
-        items: List[Any] = []
-        for side in lefts + rights:
-            items.extend(_collect_entities_from_target(side))
-        _assert_shapes_not_parallax(items)
+        _assert_named_sides_not_parallax(lefts + rights)
         added: List[Any] = []
         try:
             for a in lefts:

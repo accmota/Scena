@@ -689,7 +689,7 @@ Registry bookkeeping split from the old monolithic layer manager:
 | ------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `LayerStack`                    | Draw layers keyed by str name or int position; z-order (higher z on top), enable flags, `CameraResponse`, `has_parallax_layers` cache; built-ins `default` / `top` / **`ui`** |
 | `Layer`                         | Draw list + frozen `response`; read-only `name` (registry key; no rename); `_is_neutral_response`; tombstone + compact (painter order). `objects` keeps a `None` hole per removal until `compact()`: count with `live_count`, never `len(objects)` (D1 in [Testing Design](Testing%20Design.md#bug-catalogue)) |
-| `ParallaxLayerError`            | Raised when interactive/collidable content meets a non-neutral layer                                      |
+| `ParallaxLayerError`            | Raised when interactive/collidable content meets a non-neutral layer (a group's member there is skipped instead: Collision Design, S9-1) |
 | `UiLayerError`                  | Raised when collision (or move-while-collidable) meets the reserved view-space **`ui`** layer             |
 | `Registry`                 | Ids, groups, `register` / `unregister_draw` / `destroy`                                                   |
 | `LayersFacade`                  | Author API behind `canvas.layers` (`create(..., pan_response=…)`)                                             |

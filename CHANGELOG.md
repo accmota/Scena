@@ -162,6 +162,24 @@ left out.
 
 ### Fixed
 
+- Decided behaviour (review 2026-10-09):
+  - A shape on the `ui` layer or a parallax layer in a group named by
+    `@collide` or `resolve` is skipped (it has no body), whether the rule or
+    the tag came first. Before, one order raised and the other was silent.
+    Naming the shape itself (`@collide(icone, …)`) still raises.
+  - While you drag a shape, it stays under the cursor even if `on_update`
+    moves it (a per-frame `move_by` for gravity). It used to drift off the
+    still cursor and snap back on the next mouse motion.
+  - `ready("tiro", 0.07)` polled every frame fires at the same rate at 30 and
+    60 FPS (it dropped the overshoot of each period). After a pause in polling,
+    it is ready once, with no burst.
+  - A fast orbit (`rotate_by(…, about=)`) hits targets on its arc even when a
+    slow frame turns it far in one step.
+  - A background field's `scroll` keeps moving while the field is disabled,
+    like a layer's scroll, so it does not jump or lag when shown again.
+  - SpatialFx effects keep world time through a slow frame (they advanced at
+    most 0.1 s per frame).
+  - `canvas.shake`, `flash` and `glitch` end while the game is paused.
 - An act change gives back more of what the act changed:
   - A `group["alvos"] @= …` made in an act leaves with it. A restart no
     longer warns "overrides its previous link". The name can be tagged in the

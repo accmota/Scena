@@ -2301,6 +2301,20 @@ at commit time cannot tell a placement after a move from one before it.
 Decisions left to the author (report section 8): W-P3, W-T2, W-T5, W-T8, W-T9,
 X-writers-2.
 
+### RV9 — decisions applied (2026-10-09)
+
+The seven open items of the review, decided by the author and applied.
+
+| ID | Decision | Implementation | Test |
+| --- | --- | --- | --- |
+| S9-1 | a group's member on `ui` / parallax is skipped in both orders; a named actor raises | `_assert_named_sides_not_parallax`; `_try_enroll_item` / `_colliders_for_shapes` skip | `test_parallax_layers.TestGuardsCollisionAllOrNothing` |
+| W-P3 | the drag is a level | `ShapeManager.reapply_drag` after the tick | `test_input_frames.TestTheDragIsALevel` |
+| W-T2 | `ready` carries its overshoot, no burst; `after` / `wait` re-arms documented | `_ready_poll` | `test_uneven_pacing.TestDecidedClocks` |
+| W-T5 | a turn over 16° is swept as an arc | `_note_orbit_path`, `_toi_along_paths` | same class |
+| W-T8 | background-field scroll is world state | `BackgroundStack._advance_scroll_all` in the frame body | same class |
+| W-T9 | SpatialFx: the world's `MAX_FRAME_DT`, sub-stepped at 0.1 s | `tick_all_spatial_fx` | same class |
+| X-writers-2 | shake / flash / glitch decay on presentation time | `PostFxStack._render` | same class |
+
 ### F — contact flicker (2026-09-29)
 
 Found by `tests/test_sys_resting_contact.py`, written after G2 to test what a

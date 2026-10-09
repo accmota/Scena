@@ -110,11 +110,23 @@ def _plate_surface(fx, w: int, h: int) -> skia.Surface:
     return surf
 
 
+from .input import MAX_FRAME_DT  # noqa: E402
+
+# The largest single step an emitter's integrators take.
+_MAX_FX_STEP = 0.1
+
+
 def register_spatial(fx: "SpatialFx") -> None:
     try:
         _active_fx.add(fx)
     except TypeError:
-        pass
+        return
+    if getattr(fx, "_tick_t", None) is None:
+        # The first tick advances by the real time since birth, not 1/60.
+        try:
+            fx._tick_t = _now()
+        except Exception:
+            pass
 
 
 def unregister_spatial(fx: "SpatialFx") -> None:
@@ -138,10 +150,21 @@ def tick_all_spatial_fx(now: Optional[float] = None) -> None:
         if t0 is None:
             dt = 1.0 / 60.0
         else:
-            dt = max(0.0, min(0.1, t - float(t0)))
+            # The world clock's one cap (MAX_FRAME_DT), not a stricter 0.1 s
+            # of its own: a 0.25 s frame advanced the effects by only 0.1 s
+            # (review 2026-10-09 W-T9). The integrators keep steps of at most
+            # _MAX_FX_STEP, so a long frame is cut into a few.
+            dt = max(0.0, min(MAX_FRAME_DT, t - float(t0)))
         fx._tick_t = t
         if fx.visible:
-            fx._tick(dt, t)
+            if dt <= _MAX_FX_STEP:
+                fx._tick(dt, t)
+            else:
+                n = int(math.ceil(dt / _MAX_FX_STEP))
+                step = dt / n
+                t_start = t - dt
+                for i in range(1, n + 1):
+                    fx._tick(step, t_start + step * i)
 
 
 def registered_count() -> int:

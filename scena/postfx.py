@@ -20,6 +20,8 @@ import skia
 
 from .closed import ClosedSurface
 
+from .input import MAX_FRAME_DT as _MAX_FRAME_DT  # the clocks' frame cap
+
 
 class PostEffectStage(Enum):
     FILTER = "filter"        # replace-style ImageFilter DAG
@@ -144,6 +146,7 @@ class PostFxStack(ClosedSurface):
         self._effects: List[PostEffect] = []
         self.enabled: bool = True
         self._hit = None  # lazy HitFeedback singleton
+        self._last_ui_t = None  # presentation clock at the last compose
         self._filter_cache_key = None
         self._filter_cache = None
         self._compose_surface = None
@@ -279,8 +282,15 @@ class PostFxStack(ClosedSurface):
         # flushed; this frame's shaders rebind after ticks.
         self._release_retained_runtime_images()
 
-        # Decay hit-feedback / apply camera shake before composing.
-        dt = float(getattr(getattr(fw, "clock", None), "dt", 0.0) or 0.0)
+        # Decay hit-feedback / apply camera shake before composing, on the
+        # presentation clock (like the cover and shape transients): on world
+        # dt a shake / flash / glitch never ended under ``clock.paused``
+        # (review 2026-10-09 X-writers-2, decided). Capped like a frame.
+        clk = getattr(fw, "clock", None)
+        ui_t = float(getattr(clk, "_ui_time", 0.0) or 0.0)
+        last = self._last_ui_t
+        self._last_ui_t = ui_t
+        dt = 0.0 if last is None else min(max(0.0, ui_t - last), _MAX_FRAME_DT)
         canvas_facade = getattr(fw, "_canvas", None)
         for e in self._effects:
             tick = getattr(e, "tick_frame", None)

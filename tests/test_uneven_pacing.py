@@ -149,5 +149,107 @@ class TestScrollAndFill(unittest.TestCase):
                 self.assertEqual(holes, [])
 
 
+
+class TestDecidedClocks(unittest.TestCase):
+    """Review 2026-10-09 decisions W-T2, W-T5, W-T8, W-T9, X-writers-2."""
+
+    def test_ready_keeps_its_rate_at_any_fps(self):
+        from scena import ready
+        counts = {}
+        for fps in (60, 30):
+            with system_world(draw=False) as w:
+                n = [0]
+                w.on_update(lambda dt: n.__setitem__(0, n[0] + (1 if ready("up_tiro", 0.07) else 0)))
+                w.step(3 * fps, dt=1 / fps)
+                w.on_update(None)
+                ready.remove("up_tiro")
+                counts[fps] = n[0]
+        self.assertEqual(counts[60], counts[30])
+        self.assertIn(counts[60], (42, 43))         # 3 s / 0.07, the first poll is True
+
+    def test_ready_after_a_pause_in_polling_does_not_burst(self):
+        from scena import ready
+        with system_world(draw=False) as w:
+            self.assertTrue(ready("up_burst", 0.1))
+            w.step(60)                               # not polled for 1 s
+            hits = 0
+            for _ in range(6):                       # 0.1 s of polls
+                hits += 1 if ready("up_burst") else 0
+                w.step(1)
+            ready.remove("up_burst")
+            self.assertEqual(hits, 1)
+
+    def test_a_fast_orbit_hits_a_target_on_its_arc_under_a_hitch(self):
+        from scena import collide
+        for name, dts in (("steady", [1 / 60] * 30), ("hitch", [0.25] + [1 / 60] * 15)):
+            with self.subTest(cut=name), system_world(draw=False) as w:
+                hits = []
+                blade = w.track(Circle(center=(100, 0), radius=6, group="up_blade"))
+                w.track(Circle(center=(0, 100), radius=6, group="up_target"))
+
+                @collide("up_blade", "up_target")
+                def hit(b, t):
+                    hits.append(1)
+                w.on_update(lambda dt: blade.rotate_by(720 * dt, about=(0, 0)))
+                for d in dts:
+                    w.step(1, dt=d)
+                w.on_update(None)
+                self.assertTrue(hits)
+
+    def test_background_scroll_is_world_state(self):
+        from scena.background import BackgroundField
+
+        class Field(BackgroundField):
+            def draw(self, *a, **k):
+                pass
+
+        for hidden in (1.0, 2.0):
+            with self.subTest(hidden=hidden), system_world(draw=True) as w:
+                f = Field()
+                f.scroll = (100.0, 0.0)
+                canvas.background.add(f)
+                t0 = clock.time
+                w.step(60)
+                f.enabled = False
+                w.step(round(hidden * 60))
+                f.enabled = True
+                w.step(60)
+                self.assertAlmostEqual(f._scroll_accum[0], 100.0 * (clock.time - t0), places=6)
+                canvas.background.remove(f)
+
+    def test_spatial_fx_keep_world_time(self):
+        from scena import Sparks
+        for name, dts in (("steady", [1 / 60] * 60), ("hitch", [1 / 60] * 15 + [0.25] + [1 / 60] * 30)):
+            with self.subTest(cut=name), system_world(draw=False) as w:
+                fx = Sparks(center=(0, 0), rate=40)
+                seen = [0.0]
+                orig = fx._tick
+
+                def spy(dt, t, _o=orig):
+                    seen[0] += dt
+                    _o(dt, t)
+                fx._tick = spy
+                t0 = clock.time
+                for d in dts:
+                    w.step(1, dt=d)
+                self.assertAlmostEqual(seen[0], clock.time - t0, places=6)
+                fx.destroy()
+
+    def test_shake_and_flash_end_while_paused(self):
+        with system_world(draw=True) as w:
+            Circle(center=(200, 150), radius=30, color="red")
+            w.step(2)
+            canvas.shake(12)
+            canvas.flash(0.8)
+            clock.paused = True
+            try:
+                w.step(180)
+                hit = w.fw.post_fx_stack._hit
+                self.assertLess(hit._shake, 0.5)
+                self.assertLess(hit._flash, 0.05)
+            finally:
+                clock.paused = False
+
+
 if __name__ == "__main__":
     unittest.main()

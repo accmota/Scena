@@ -2002,7 +2002,7 @@ inimigo.move_by(200, 0, time=2, loops="forever")   # ok: convivem
 # segurar o inimigo com o mouse congela a patrulha nele;
 # soltar → ela continua de onde ele caiu</pre>
     </div>
-    <p><strong>Regra:</strong> fórmula <code>@=</code> contra qualquer outro driver na mesma parte → erro duro, nas duas ordens (a mensagem diz a linha onde o objeto foi criado, ex. <code>the Sprite made at jogo.py:151</code>). Os outros drivers nunca se recusam entre si. <strong>Segurar com o mouse</strong> congela os movimentos (<code>tween</code> / <code>move_*(time=)</code>) nas partes que o arraste (ou a roda) escreve; ao soltar eles continuam, antes do <code>on_drag_to</code> — então um “voltar para casa” (<code>move_to(casa, time=0.3)</code>) no <code>on_drag_to</code> funciona. Isso não é <code>handle.pause()</code>: <code>h.paused</code> continua sendo só seu. Redeclaração do <em>mesmo</em> tipo (segundo <code>tween</code> na mesma chave, novo <code>@=</code> no mesmo campo) → avisa e substitui. <code>force=True</code> continua só nos verbos pontuais de <a href="#mover-pose">Mover</a> / <code>tween</code> — não nos flags <code>draggable</code> / <code>wheel_rotate</code>.</p>
+    <p><strong>Regra:</strong> fórmula <code>@=</code> contra qualquer outro driver na mesma parte → erro duro, nas duas ordens (a mensagem diz a linha onde o objeto foi criado, ex. <code>the Sprite made at jogo.py:151</code>). Os outros drivers nunca se recusam entre si. <strong>Segurar com o mouse</strong> congela os movimentos (<code>tween</code> / <code>move_*(time=)</code>) nas partes que o arraste (ou a roda) escreve; ao soltar eles continuam, antes do <code>on_drag_to</code> — então um “voltar para casa” (<code>move_to(casa, time=0.3)</code>) no <code>on_drag_to</code> funciona. Enquanto você segura, o arraste vence também o que o seu <code>on_update</code> escreve no objeto (um <code>move_by</code> de gravidade por frame): a cada frame ele volta para baixo do cursor; ao soltar, o seu código volta a mandar. Isso não é <code>handle.pause()</code>: <code>h.paused</code> continua sendo só seu. Redeclaração do <em>mesmo</em> tipo (segundo <code>tween</code> na mesma chave, novo <code>@=</code> no mesmo campo) → avisa e substitui. <code>force=True</code> continua só nos verbos pontuais de <a href="#mover-pose">Mover</a> / <code>tween</code> — não nos flags <code>draggable</code> / <code>wheel_rotate</code>.</p>
     <p class="name-group">Não confundir</p>
     <div class="tbl-wrap confuse-wrap">
 <table class="confuse">
@@ -7582,7 +7582,7 @@ def drop():
 
     <section class="section prose" id="agendar-ready">
       <h2>ready</h2>
-      <p class="one-liner"><code>ready(nome, intervalo)</code> é um tempo de recarga: devolve <code>True</code> no máximo uma vez por intervalo — “já posso atirar de novo?”. A primeira chamada já devolve <code>True</code>. Conta no tempo do jogo (pausa vale).</p>
+      <p class="one-liner"><code>ready(nome, intervalo)</code> é um tempo de recarga: devolve <code>True</code> no máximo uma vez por intervalo — “já posso atirar de novo?”. A primeira chamada já devolve <code>True</code>. Conta no tempo do jogo (pausa vale). Chamado todo frame (botão segurado), mantém o ritmo em qualquer taxa de quadros; depois de um tempo sem chamar, volta a dar <code>True</code> uma vez, sem rajada.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>def update(dt):

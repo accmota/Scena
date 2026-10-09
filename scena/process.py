@@ -4504,8 +4504,15 @@ def _ready_poll(
         return False
     if interval is not None:
         timer["interval"] = _validate_ready_interval(interval)
-    if reached(now - timer["last_called"], timer["interval"]):
-        timer["last_called"] = now
+    interval = timer["interval"]
+    if reached(now - timer["last_called"], interval):
+        # A steady cadence: the next window opens one interval after this
+        # one was due, not after the frame that noticed it (the overshoot was
+        # dropped, so the rate depended on the frame rate: review 2026-10-09
+        # W-T2). After a pause in polling (the button was not held) it opens
+        # one interval from now: no burst of catch-up True.
+        nxt = timer["last_called"] + interval
+        timer["last_called"] = nxt if now - nxt < interval else now
         return True
     return False
 

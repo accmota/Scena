@@ -1011,6 +1011,24 @@ class ShapeInteractionManager:
 
     # --- hover (level, resolved once per frame) ------------------------------
 
+    def reapply_drag(self) -> None:
+        """The drag is a level: after ``update`` and the process tick, the held
+        shape is put back under the pointer, so an author write on its drag
+        parts (a per-frame ``move_by``) does not walk it off a still cursor
+        (review 2026-10-09 W-P3, decided: the drag wins, as it already does
+        over Handles). No callback: ``on_drag_over`` follows pointer motion."""
+        if not self._dragging:
+            return
+        shape = self._pressed_shape
+        xy = getattr(self, "_drag_xy", None)
+        if shape is None or xy is None or not getattr(shape, "is_alive", False):
+            return
+        from .shapes import get_xy
+        tx, ty = xy[0] + self._grab_dx, xy[1] + self._grab_dy
+        cx, cy = get_xy(shape.center, bare=True)
+        if cx != tx or cy != ty:
+            shape.move_to(tx, ty)
+
     def note_pointer(self, view_xy=None, world_xy=None) -> None:
         """Record the pointer (view and/or world). No hit test: hover waits for :meth:`step_hover`."""
         if view_xy is not None:
@@ -1227,6 +1245,7 @@ class ShapeInteractionManager:
             hold_claims_on(shape, shape._parts_written_by_drag())
 
         shape.move_to(x + self._grab_dx, y + self._grab_dy)
+        self._drag_xy = (x, y)
         hit_fn = self.hit_test_ui if self._press_in_ui else self.hit_test
         to_shape = hit_fn(x, y, exclude=shape, droppable=True)
         self._call(shape.on_drag_over, shape, to_shape, (x, y))
@@ -3671,6 +3690,9 @@ class ScenaFramework:
             # Layer scroll is world state: integrate it with the clock, before
             # update(dt) and the process tick read layer.view (not in draw).
             self._scena_draw.advance_layer_scroll(self.clock.time)
+            bs = self._background_stack
+            if bs is not None:
+                bs._advance_scroll_all(self.clock.time)  # W-T8: world state too
 
             # System HUD: feedback timeout + throttled FPS/info refresh.
             self._refresh_system_label()
@@ -3726,6 +3748,10 @@ class ScenaFramework:
             # W-P1). ``update`` read the pre-move pointer: what the user saw.
             if cam0 is not None and cam0 != (sd._look_x, sd._look_y, sd._zoom, sd._rotation):
                 self._sync_pointer_level()
+            # A held shape stays under the pointer whatever update wrote (W-P3).
+            sm = self.shape_manager
+            if sm is not None and sm._dragging:
+                sm.reapply_drag()
 
             # Collision step: snapshot → broad/narrow → enter/stay/exit.
             # Runs before flush so @when sees post-collision writes from handlers.
