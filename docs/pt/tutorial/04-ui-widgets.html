@@ -537,6 +537,17 @@ run()
 `,
       closing: `
         <p>Neste script, slider, lista e caixa só gravam valores em <code>st</code>. Quem aplica é <code>criar</code>, chamado pelo botão Rodar ou pelo Recomeçar do menu: a cadeia nasce de novo, inteira, com os valores do painel. É simples e seguro. No próximo script, os controles vão mexer no desenho ao vivo, sem botão.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>st</code> é a ponte: o widget escreve nele e o desenho lê.</li>
+          <li><code>Slider</code> — um número dentro de um intervalo; <code>DropDown</code> — um texto entre vários; <code>CheckBox</code> — verdadeiro ou falso.</li>
+          <li><code>Button</code> — recebe a função em <code>on_click</code>, sem parênteses; <code>ui.gap</code> abre um vão na coluna.</li>
+          <li><code>Menu</code> — uma pergunta que aparece, espera a resposta e some; <code>keyp.once</code> abre uma vez por toque.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#ui-widgets">Widgets</a> · <a href="../guide/index.html#ui-slider">Slider</a> · <a href="../guide/index.html#ui-dropdown">DropDown</a> · <a href="../guide/index.html#ui-checkbox">CheckBox</a> · <a href="../guide/index.html#ui-button">Button</a> · <a href="../guide/index.html#ui-menu">Menu</a> · <a href="../guide/index.html#ui-stack">Coluna</a>.</p>
+        <p><strong>Experimente também:</strong> um campo para digitar texto (<code>TextInput</code>) e um botão feito de imagem (<code>SpriteButton</code>) — veja o Guia.</p>
+        <p><strong>No próximo script:</strong> as barras girando, prontas, para ler por partes.</p>
       `
     },
     {
@@ -870,6 +881,16 @@ run()
       closing: `
         <p>Arraste <strong>Velocidade</strong> até 0: tudo para, e o rastro some. Leve <strong>Giro</strong> para 1: os níveis giram juntos, para o mesmo lado. Valores negativos alternam os sentidos. <code>M</code> continua ligando e desligando o rastro.</p>
         <p>No primeiro script, o painel gravava e o botão aplicava. Aqui, a fórmula lê o painel o tempo todo. O último script leva essa ideia mais longe.</p>
+      `,
+      recap: `
+        <ul>
+          <li>Uma <code>lambda</code> no ângulo — a rotação é uma fórmula, recalculada a cada frame.</li>
+          <li>Recursão — <code>criar_barra</code> chama a si mesma até o último nível, e cada barra nasce na ponta da anterior.</li>
+          <li><code>MotionTrail</code> — mistura os frames anteriores e deixa o movimento borrado; <code>Gradient</code> e <code>Grain</code> cuidam do fundo.</li>
+          <li><code>Slider</code> que escreve em <code>st</code> mexe no desenho ao vivo, sem botão: a fórmula lê o <code>st</code> a cada frame.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#reativo-liga">Ligar (@=)</a> · <a href="../guide/index.html#reativo-lambda">Lambda</a> · <a href="../guide/index.html#aparencia-cor">Cor / Gradient / Texture</a> · <a href="../guide/index.html#mundo-post">Efeitos de tela</a> · <a href="../guide/index.html#ui-slider">Slider</a>.</p>
+        <p><strong>No próximo script:</strong> o osciloscópio — um ponto com dois giros e um rastro que você alimenta.</p>
       `
     },
     {
@@ -1275,6 +1296,17 @@ run()
 `,
       closing: `
         <p>Clique na bola para ligar. Depois arraste os sliders: <code>n</code> muda a velocidade; <code>x1</code> e <code>y1</code>, o tamanho do giro pequeno; <code>tx1</code> e <code>ty1</code>, quantas voltas ele dá.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>cos</code> e <code>sin</code> — põem um ponto num círculo; somar dois giros dá a figura.</li>
+          <li><code>Contrail</code> — uma linha pelos pontos que você dá; <code>snapshot</code> guarda um ponto, e <code>every</code> chama a função de tempos em tempos.</li>
+          <li><code>Beat</code> — faz a bola pulsar; um convite ao clique.</li>
+          <li>Cada valor da fórmula nasce em <code>st</code> e ganha um <code>Slider</code>: um gesto no painel atravessa o desenho inteiro.</li>
+          <li><code>ui.scale</code> — escala o painel inteiro de uma vez.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#contrail">Contrail</a> · <a href="../guide/index.html#agendar-timers">after / every</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#ui-slider">Slider</a> · <a href="../guide/index.html#ui-stack">Coluna</a>.</p>
+        <p><strong>No próximo:</strong> um jogo maior, com nave, frota e tiros dos dois lados.</p>
       `
     }
   ]

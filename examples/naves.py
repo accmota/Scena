@@ -41,6 +41,7 @@ for linha in range(3):
             center=(185 + coluna * 90, 720 - linha * 70),
             group="inimigos",
         )
+        inimigo.hue = coluna / 8
         inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
 
 

@@ -574,6 +574,18 @@ def canto():
       ],
       closing: `
         <p>Setas movem a estrela. Um clique numa das três formas sorteia uma cor nova para ela. D solta um círculo sob o mouse. Leve a estrela além de x = 800: o triângulo fica branco e o círculo cresce.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>init</code> e <code>run</code> — abrem a janela e rodam o laço; <code>from scena import *</code> traz tudo. O y cresce para cima.</li>
+          <li><code>Wallpaper</code>, <code>Rect</code>, <code>Circle</code> — cada linha já faz a coisa aparecer; <code>center</code> diz onde.</li>
+          <li><code>.color</code>, <code>.visual</code>, <code>.glow</code> — mudar uma coisa numa forma é o nome, um ponto, o que mudar. O visual e o brilho convivem.</li>
+          <li><code>Sprite</code> — uma imagem da pasta <code>media/</code>, com o tamanho que você pede.</li>
+          <li><code>update(dt)</code>, <code>move_by</code>, <code>keyp</code> — o Scena chama <code>update</code> a cada frame; <code>dt</code> converte "por segundo" em "por frame".</li>
+          <li><code>@click</code> e <code>@when</code> — dizem ao Scena quando rodar a função: num clique, ou quando uma pergunta (<code>lambda</code>) vira verdadeira.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#script-minimo">Script mínimo</a> · <a href="../guide/index.html#desenhar-shapes">Shapes</a> · <a href="../guide/index.html#desenhar-sprite">Sprite</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#frame-teclado">Teclado</a> · <a href="../guide/index.html#reagir-pointer">Clique / arraste / hover</a> · <a href="../guide/index.html#reagir-when">@when</a>.</p>
+        <p><strong>No próximo:</strong> a estrela vira um jogo — estrelas caem, uma barra as pega e um placar conta.</p>
       `
     }
   ]

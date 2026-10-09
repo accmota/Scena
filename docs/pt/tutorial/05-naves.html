@@ -21,16 +21,14 @@ Tutorial.mount({
       title: "A nave",
       body: `
         <p>Novo script: um Galaga simples. Uma nave embaixo, uma frota inimiga em cima, tiros dos dois lados. Este primeiro passo só junta o que você já sabe: um sprite e as setas.</p>
-        <p>A nave nasce em <code>center=(500, 70)</code>, no meio da largura e perto da borda de baixo. Só as setas esquerda e direita: como no Galaga, a nave anda numa linha só e o perigo vem de cima. <code>340 * dt</code> são 340 pixels por segundo. <code>glow</code> liga o brilho em volta da imagem, como no tutorial 01. A imagem vem de <code>media/space/</code>, ao lado do script.</p>
+        <p>A nave nasce em <code>center=(500, 70)</code>, no meio da largura e perto da borda de baixo. Só as setas esquerda e direita: como no Galaga, a nave anda numa linha só e o perigo vem de cima. <code>340 * dt</code> são 340 pixels por segundo. A imagem vem de <code>media/space/</code>, ao lado do script. O fundo é o preto de sempre: o céu e o brilho da nave têm passo próprio, daqui a pouco.</p>
         <p>Rode e segure uma seta até o fim: a nave sai da janela e some. É o assunto do próximo passo.</p>
       `,
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper("dark navy")
 
 nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
-nave.glow = True
 
 
 def update(dt):
@@ -61,10 +59,8 @@ nave = Sprite("space/ufoYellow.png", height=45, center=(500, 70))`
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper("dark navy")
 
 nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
-nave.glow = True
 
 
 def update(dt):
@@ -93,7 +89,81 @@ if keyp("RIGHT") and nave.center.x < 960:
         <p>O jogo funciona, mas o fundo é chapado. Este passo não muda o jogo, só o céu: um degradê, estrelas passando e três efeitos de tela.</p>
         <p><strong>O degradê.</strong> <code>Gradient</code> (degradê) vai de uma cor a outra; ele apareceu num Experimente também do tutorial 01. <code>angle=90</code> (ângulo) põe a transição na vertical: preto numa borda, azul quase preto na outra. Cada <code>dark</code> (escuro) no nome da cor escurece mais um pouco, e <code>"dark dark blue"</code> é um azul bem fechado.</p>
         <p><strong>As estrelas.</strong> <code>Stars</code> (estrelas) espalha um campo de pontos de luz pelo fundo. <code>scroll</code> (rolar) é quanto o campo anda sozinho, um <code>(x, y)</code> em pixels por segundo: <code>(0.0, -38.0)</code> desce 38 por segundo. As estrelas descem, e a nave parece voar para a frente. <code>pan_response</code> (resposta ao movimento da câmera) em 0 prende o campo à tela.</p>
-        <p><strong>Os efeitos de tela.</strong> <code>Grain</code>, <code>Bloom</code> e <code>Scanlines</code> não desenham uma forma: mexem na imagem inteira, depois que tudo foi desenhado. <code>Grain</code> (grão) você viu nas barras do tutorial 04, um chuvisco fraco. <code>Bloom</code> (florescer) faz o que é claro vazar luz em volta: o brilho da nave e, daqui a pouco, os lasers. <code>Scanlines</code> (linhas de varredura) risca a tela com linhas horizontais finas, como num fliperama antigo. Basta a linha para o efeito ligar.</p>
+        <p><strong>Os efeitos de tela.</strong> <code>Grain</code>, <code>Bloom</code> e <code>Scanlines</code> não desenham uma forma: mexem na imagem inteira, depois que tudo foi desenhado. <code>Grain</code> (grão) você viu nas barras do tutorial 04, um chuvisco fraco. <code>Bloom</code> (florescer) faz o que é claro vazar luz em volta: o brilho que a nave vai ganhar no próximo passo e, mais adiante, os lasers. <code>Scanlines</code> (linhas de varredura) risca a tela com linhas horizontais finas, como num fliperama antigo. Basta a linha para o efeito ligar.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+    nave.confine(canvas.game_view.inset(40))
+
+
+run()
+`,
+      dive: [
+        {
+          title: "Fundos",
+          body: `
+            <p>O <strong>fundo</strong> é desenhado primeiro, atrás de tudo o que o jogo cria. Ele tem duas camadas. A <em>base</em> é sempre uma só: uma cor, um degradê, um céu pronto ou uma imagem, com <code>Wallpaper</code> ou <code>SkyGradient</code>. Criar outra base troca a anterior. Por cima dela vêm os <em>extras</em>, campos animados que o Scena calcula sozinho e que não acabam nunca: <code>Stars</code>, <code>Stardust</code>, <code>Nebuladust</code>, <code>Borealis</code>, <code>Clouds</code>. Os extras se empilham, na ordem em que nascem, e cada um aparece assim que é criado.</p>
+            <p>Os extras dividem os mesmos parâmetros. <code>color</code> é a cor; <code>amount</code> (quantidade) é o quanto aparece; <code>alpha</code> é a transparência; <code>speed</code> (velocidade) é o ritmo da animação; <code>scroll</code> é quanto o campo anda sozinho, em pixels por segundo; <code>pan_response</code> é quanto ele acompanha a câmera, e 0 o prende à tela. Para mudar ou tirar um extra depois, guarde o que a linha devolve: <code>nuvens = Clouds()</code>, e depois <code>nuvens.remove()</code>.</p>
+            <p>No Guia: <a href="../guide/index.html#mundo-background">Background</a>, com todos os fundos.</p>
+          `,
+          try: [
+            {
+              note: "Bases, uma por vez, no lugar do <code>Wallpaper</code>. Cada linha mostra os parâmetros que mais valem a troca.",
+              code: `SkyGradient("night")  # um céu pronto; outros: "sunset", "dusk", "dawn", "ember", "space", "ice", "toxic"
+Wallpaper("backgrounds/bg2.png", fit="cover")  # uma imagem; cover cobre a janela inteira
+Wallpaper("navy")  # uma cor`
+            },
+            {
+              note: "Extras, junto do <code>Stars</code> ou no lugar dele (apague uma linha para tirá-lo):",
+              code: `Borealis(color="lime", height=0.5)  # uma aurora que desce do alto; height é até onde
+Nebuladust("orchid", color2="cyan", alpha=0.5)  # uma nebulosa em manchas de cores
+Clouds(amount=0.5, scroll=(-30, 0))  # nuvens passando para a esquerda
+Stardust(amount=1.5)  # poeira de estrelas, mais densa`
+            }
+          ]
+        },
+        {
+          title: "Efeitos de tela",
+          body: `
+            <p>Um <strong>efeito de tela</strong> não desenha uma forma: ele muda a imagem inteira, depois que o jogo e o fundo foram desenhados. A diferença para o fundo é a ordem: o fundo é o primeiro a ser desenhado, o efeito é o último. Por isso <code>Bloom</code> consegue vazar o brilho da nave sobre o céu, e <code>Scanlines</code> risca tudo, nave e estrelas juntas.</p>
+            <p>Cada efeito tem um número que dá a força: <code>Grain(amount=0.07)</code> é o chuvisco; <code>Bloom(intensity=0.6, sigma=10)</code>, onde <code>intensity</code> (intensidade) é a luz que vaza e <code>sigma</code> é o alcance dela; <code>Scanlines(amount=1.0)</code>. Cada efeito é um passo a mais sobre a imagem: ligue os que o jogo pede. Para tirar todos, <code>canvas.effects.clear()</code>.</p>
+            <p>No Guia: <a href="../guide/index.html#mundo-post">Post</a>, com todos os efeitos.</p>
+          `,
+          try: [
+            {
+              note: "Um por vez, junto dos três ou no lugar de um deles, com os parâmetros que mudam o jeito.",
+              code: `Bloom(intensity=1.0, sigma=14)  # mais luz vazando
+Grain(amount=0.15)  # um chuvisco mais forte
+Scanlines(amount=0.5)  # linhas mais leves
+Pixelate(cell=6)  # pixels grandes, de jogo antigo; cell é o tamanho de cada um
+Crt()  # uma TV de tubo
+CosmicBloom("orchid", "cyan")  # manchas de nebulosa e brilhos, em duas cores`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "O brilho",
+      body: `
+        <p>A nave ainda se confunde com o céu. Ela é a personagem, e vai ficar rodeada de inimigos: vale destacá-la.</p>
+        <p><code>glow</code> (brilho) você conheceu nas formas, no tutorial 01. Em um sprite é o mesmo: <code>nave.glow = True</code> acende um halo em volta da imagem, na cor da própria nave. Ele não troca a imagem nem o que ela faz: <strong>soma-se</strong> à aparência. Por isso o <code>Bloom</code> do passo anterior ganha o que espalhar: o halo vaza luz pelo céu.</p>
+        <p>É o primeiro dos <strong>complementos</strong>, coisas que se somam ao visual, cada uma na sua propriedade. Os outros estão na caixa abaixo, e o <code>hue</code> vem adiante, junto dos inimigos.</p>
       `,
       code: `from scena import *
 
@@ -120,10 +190,20 @@ run()
 `,
       try: [
         {
-          note: "Um por vez, no lugar do <code>Wallpaper</code>: <code>SkyGradient</code> (degradê de céu) é um céu pronto.",
-          code: `SkyGradient("night")
-SkyGradient("sunset")
-SkyGradient("dusk")`
+          note: "O brilho, um por vez, no lugar do <code>True</code>: uma cor, em vez da cor da nave, ou <code>Glow</code> com os números: <code>radius</code> (raio) é o alcance do halo, <code>sigma</code> é o quanto ele é macio, <code>amount</code> (quantidade) é a força.",
+          code: `nave.glow = "cyan"
+nave.glow = Glow("gold", radius=20)
+nave.glow = Glow(radius=8, sigma=3, amount=2)`
+        },
+        {
+          note: "Outros complementos, na nave. <code>shadow</code> (sombra) a descola do céu: <code>offset</code> (deslocamento) é a distância da sombra e <code>sigma</code> o quanto ela é macia.",
+          code: `nave.shadow = True
+nave.shadow = Shadow(offset=14, sigma=8)`
+        },
+        {
+          note: "<code>tail</code> (rastro) deixa cópias fantasmas atrás da nave quando ela anda, e some quando ela para: segure uma seta para ver. <code>size</code> (tamanho) é o tamanho das cópias e <code>amount</code> (quantidade), a força. Sem <code>angle</code>, o rastro segue o movimento.",
+          code: `nave.tail = True
+nave.tail = Tail("cyan", size=1.5, amount=1.5)`
         }
       ]
     },
@@ -321,6 +401,93 @@ run()
       ]
     },
     {
+      title: "Cores",
+      body: `
+        <p>Os inimigos estão parados e quase iguais: duas imagens, duas cores. O segundo complemento muda isso sem nenhum arquivo novo.</p>
+        <p><strong>O matiz.</strong> <code>hue</code> (matiz) gira as cores de uma imagem em volta do círculo de cores, como girar uma roda: o vermelho vira laranja, amarelo, verde… A medida é em <em>voltas</em>: 0 é a imagem como ela é, 0.33 é um terço de volta (um vermelho vira verde), 1 é a volta inteira, de novo a imagem original. Só funciona em sprites.</p>
+        <p><strong>Uma cor por coluna.</strong> <code>coluna / 8</code> vai de 0 a 0.875 nas oito colunas: cada nave gira um oitavo de volta a mais que a da esquerda. A mesma imagem, uma frota de arco-íris.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 220" role="img" aria-label="O círculo de matiz com oito pontos igualmente espaçados, numerados de 0 a 7 a partir da direita, no sentido horário; cada ponto é um oitavo de volta">
+            <circle class="guide" cx="190" cy="110" r="80"/>
+            <circle class="dot" cx="270.0" cy="110.0" r="5"/>
+            <circle class="dot" cx="246.6" cy="166.6" r="5"/>
+            <circle class="dot" cx="190.0" cy="190.0" r="5"/>
+            <circle class="dot" cx="133.4" cy="166.6" r="5"/>
+            <circle class="dot" cx="110.0" cy="110.0" r="5"/>
+            <circle class="dot" cx="133.4" cy="53.4" r="5"/>
+            <circle class="dot" cx="190.0" cy="30.0" r="5"/>
+            <circle class="dot" cx="246.6" cy="53.4" r="5"/>
+            <text x="288.0" y="114.0">coluna 0</text>
+            <text x="259.3" y="183.3">1</text>
+            <text x="190.0" y="212.0" text-anchor="middle">2</text>
+            <text x="120.7" y="183.3" text-anchor="end">3</text>
+            <text x="92.0" y="114.0" text-anchor="end">4</text>
+            <text x="120.7" y="44.7" text-anchor="end">5</text>
+            <text x="190.0" y="16.0" text-anchor="middle">6</text>
+            <text x="259.3" y="44.7">7</text>
+          </svg>
+          <figcaption>O círculo de matiz, as cores em volta. Cada coluna gira a cor da imagem um oitavo de volta a mais que a anterior: <code>coluna / 8</code>.</figcaption>
+        </figure>
+        <p><strong>A família.</strong> <code>glow</code> e <code>hue</code> são <strong>complementos</strong>: coisas que se somam à aparência, cada uma na sua propriedade, sem mexer no <code>visual</code>. Há outros, como <code>shadow</code> (sombra) e <code>gray</code> (tons de cinza); a tabela inteira está no Guia.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+nave = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+nave.glow = True
+
+FROTA = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Sprite(
+            FROTA[linha % 2],
+            height=40,
+            center=(185 + coluna * 90, 720 - linha * 70),
+            group="inimigos",
+        )
+        inimigo.hue = coluna / 8
+
+
+def update(dt):
+    if keyp("LEFT"):
+        nave.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        nave.move_by(340 * dt, 0)
+    nave.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("tiro", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(nave.center.x, nave.center.y + 28), group="tiros")
+
+    group["tiros"].move_by(0, 640 * dt)
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run()
+`,
+      try: [
+        {
+          note: "Outras maneiras de repartir a roda, no lugar da linha do <code>hue</code>: só um pedaço da roda, ou uma cor por linha.",
+          code: `inimigo.hue = coluna / 16
+inimigo.hue = linha / 3`
+        },
+        {
+          note: "<code>gray</code> (cinza) tira a cor: 0 é a imagem como ela é e 1 é todo cinza. Numa nave, serve para um inimigo congelado ou desligado.",
+          code: `inimigo.gray = 0.5
+inimigo.gray = True`
+        }
+      ]
+    },
+    {
       title: "Respiram",
       body: `
         <p>A frota parada parece um desenho. Um pulso leve dá vida a ela, sem nenhuma linha no <code>update</code>.</p>
@@ -348,6 +515,7 @@ for linha in range(3):
             center=(185 + coluna * 90, 720 - linha * 70),
             group="inimigos",
         )
+        inimigo.hue = coluna / 8
         inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
 
 
@@ -405,6 +573,7 @@ for linha in range(3):
             center=(185 + coluna * 90, 720 - linha * 70),
             group="inimigos",
         )
+        inimigo.hue = coluna / 8
         inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
 
 
@@ -461,6 +630,7 @@ for linha in range(3):
             center=(185 + coluna * 90, 720 - linha * 70),
             group="inimigos",
         )
+        inimigo.hue = coluna / 8
         inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
 
 
@@ -523,6 +693,7 @@ for linha in range(3):
             center=(185 + coluna * 90, 720 - linha * 70),
             group="inimigos",
         )
+        inimigo.hue = coluna / 8
         inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
 
 
@@ -595,6 +766,7 @@ for linha in range(3):
             center=(185 + coluna * 90, 720 - linha * 70),
             group="inimigos",
         )
+        inimigo.hue = coluna / 8
         inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
 
 
@@ -636,9 +808,18 @@ run()
 `,
       try: [
         {
-          note: "A primeira entra junto do <code>burst_at</code>: <code>shake</code> (tremer) sacode a câmera por um instante. A segunda entra no lugar dele: <code>rings=True</code> (anéis) soma círculos que se abrem.",
-          code: `canvas.shake(8)
-canvas.burst_at(inimigo, radius=40, rings=True)`
+          note: "Os parâmetros do <code>burst_at</code>, um por vez, no lugar dele. <code>radius</code> (raio) é o tamanho do estouro, em pixels; <code>amount</code> (quantidade) é a força, e o normal é 1.2; <code>rings=True</code> (anéis) soma círculos que se abrem. O ponto pode ser o sprite ou um par <code>(x, y)</code>.",
+          code: `canvas.burst_at(inimigo, radius=70, amount=2)
+canvas.burst_at(inimigo, radius=40, amount=0.6, rings=True)
+canvas.burst_at(inimigo.center.x, inimigo.center.y, radius=40)`
+        },
+        {
+          note: "Outros efeitos de tela no mesmo ponto, um por vez ou combinados: <code>hit_at</code> marca onde o tiro bateu, <code>debris_at</code> solta estilhaços, <code>ripple_at</code> faz uma onda que entorta a imagem, <code>canvas.flash</code> clareia a tela e <code>canvas.shake</code> sacode a câmera. Todos os <code>*_at</code> aceitam o sprite ou um <code>(x, y)</code>. No Guia: <a href='../guide/index.html#mundo-impactos'>Impactos</a>.",
+          code: `canvas.hit_at(tiro, color="cyan")
+canvas.debris_at(inimigo, color="gray")
+canvas.ripple_at(inimigo, amount=0.6)
+canvas.flash(0.3)
+canvas.shake(8)`
         }
       ]
     },
@@ -678,6 +859,7 @@ for linha in range(3):
             center=(185 + coluna * 90, 720 - linha * 70),
             group="inimigos",
         )
+        inimigo.hue = coluna / 8
         inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
 
 
@@ -777,6 +959,7 @@ for linha in range(3):
             center=(185 + coluna * 90, 720 - linha * 70),
             group="inimigos",
         )
+        inimigo.hue = coluna / 8
         inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
 
 
@@ -837,6 +1020,20 @@ run()
 `,
       closing: `
         <p>Setas movem a nave. Espaço atira. A frota respira, vai e volta e devolve tiro. Se um laser vermelho acerta a nave, ela explode, e a frota continua.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>confine</code> — corrige a posição a cada chamada, por isso vai no <code>update</code>, depois do <code>move_by</code>; <code>inset</code> dá a folga.</li>
+          <li><code>ready</code> — o freio da cadência: verdadeiro se já passou o tempo desde a última vez.</li>
+          <li><code>@leave_playfield</code> — apaga o que saiu do campo, sem um <code>if</code> de altura em cada grupo.</li>
+          <li><code>scale_to</code> com <code>yoyo</code> e <code>loops</code> — uma animação que o Scena toca sozinho, sem linha no <code>update</code>.</li>
+          <li><code>glow</code> e <code>hue</code> — complementos: somam-se à aparência sem mexer no visual; o matiz gira as cores de uma imagem, em voltas.</li>
+          <li><code>st.velocidade</code> diz o lado, e não inverte o sinal: repetir a ordem não faz mal.</li>
+          <li><code>canvas.burst_at</code> e <code>canvas.explosion_at</code> — estouros num ponto; <code>canvas.flash</code> clareia a tela inteira.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#mover-confine">confine</a> · <a href="../guide/index.html#agendar-ready">ready</a> · <a href="../guide/index.html#reagir-bounds">@leave_playfield</a> · <a href="../guide/index.html#pose-scale-to">scale_to</a> · <a href="../guide/index.html#mundo-impactos">Impactos</a> · <a href="../guide/index.html#mundo-background">Background</a> · <a href="../guide/index.html#mundo-post">Post</a> · <a href="../guide/index.html#aparencia-selos">Complementos</a>.</p>
+        <p><strong>Experimente também:</strong> outros fundos, no lugar do degradê — <code>Wallpaper("navy")</code> (uma cor), <code>Borealis(height=0.5, color="lime")</code> (uma aurora que desce do alto), <code>Stardust()</code>. <code>canvas.effects.clear()</code> tira os efeitos de tela.</p>
+        <p><strong>No próximo:</strong> as naves viram classes — cada uma carrega o seu comportamento.</p>
       `
     }
   ]

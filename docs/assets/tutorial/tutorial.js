@@ -199,35 +199,53 @@ function bindCopy(root, copyNew, copyAll) {
   if (allBtn) allBtn.addEventListener("click", () => copyText(copyAll, allBtn));
 }
 
-function renderTry(items) {
-  if (!items || !items.length) return "";
-  const blocks = items
-    .map((alt, i) => {
-      const code = alt.code.replace(/\n$/, "");
-      const lines = code.split("\n");
-      const rows = lines
-        .map((line, n) => {
-          const src = line.length ? highlight(line) : "\n";
-          return `<div class="line new"><span class="ln">${n + 1}</span><span class="src">${src}</span></div>`;
-        })
-        .join("");
-      return `
+function renderAlt(alt, attr, key) {
+  const code = alt.code.replace(/\n$/, "");
+  const rows = code
+    .split("\n")
+    .map((line, n) => {
+      const src = line.length ? highlight(line) : "\n";
+      return `<div class="line new"><span class="ln">${n + 1}</span><span class="src">${src}</span></div>`;
+    })
+    .join("");
+  return `
         <div class="alt">
           ${alt.note ? `<p>${alt.note}</p>` : ""}
           <div class="code-panel">
             <div class="code-bar">
-              <button type="button" class="copy-btn" data-try="${i}">copiar</button>
+              <button type="button" class="copy-btn" ${attr}="${key}">copiar</button>
             </div>
             <pre class="code">${rows}</pre>
           </div>
         </div>`;
-    })
-    .join("");
+}
+
+function renderTry(items) {
+  if (!items || !items.length) return "";
+  const blocks = items.map((alt, i) => renderAlt(alt, "data-try", i)).join("");
   return `
     <aside class="try">
       <h2>Experimente também</h2>
       ${blocks}
     </aside>`;
+}
+
+// "Para entender melhor": a box that explains the concepts behind a step's
+// code (what it is, how it works, the parameters) and may carry alternatives.
+function renderDive(items) {
+  if (!items || !items.length) return "";
+  return items
+    .map((item, d) => {
+      const alts = (item.try || []).map((alt, i) => renderAlt(alt, "data-dive", `${d}.${i}`)).join("");
+      return `
+    <aside class="dive">
+      <h2>Para entender melhor</h2>
+      <h3>${esc(item.title)}</h3>
+      <div class="dive-body">${item.body || ""}</div>
+      ${alts}
+    </aside>`;
+    })
+    .join("");
 }
 
 const Tutorial = {
@@ -292,6 +310,9 @@ const Tutorial = {
       const closing = step.closing
         ? `<div class="closing">${step.closing}</div>`
         : "";
+      const recap = step.recap
+        ? `<aside class="recap"><h2>O que vimos</h2>${step.recap}</aside>`
+        : "";
 
       main.innerHTML = `
         <div class="kicker">${part ? `${esc(part.part)} · ` : ""}Passo ${idx + 1} de ${steps.length}</div>
@@ -299,7 +320,9 @@ const Tutorial = {
         <div class="explain">${step.body}</div>
         ${renderCode(step.code, marks, !!step.focus)}
         ${renderTry(step.try)}
+        ${renderDive(step.dive)}
         ${closing}
+        ${recap}
         <div class="step-nav">
           <button type="button" class="nav-btn" data-prev ${idx === 0 ? "disabled" : ""}>← Anterior</button>
           <button type="button" class="nav-btn primary" data-next ${idx === steps.length - 1 ? "disabled" : ""}>Próximo →</button>
@@ -308,6 +331,11 @@ const Tutorial = {
       bindCopy(main, copyNew, copyAll);
       main.querySelectorAll("[data-try]").forEach((btn) => {
         const alt = step.try[Number(btn.dataset.try)];
+        btn.addEventListener("click", () => copyText(alt.code.replace(/\n$/, "") + "\n", btn));
+      });
+      main.querySelectorAll("[data-dive]").forEach((btn) => {
+        const [d, i] = btn.dataset.dive.split(".").map(Number);
+        const alt = step.dive[d].try[i];
         btn.addEventListener("click", () => copyText(alt.code.replace(/\n$/, "") + "\n", btn));
       });
       main.querySelector("[data-prev]").addEventListener("click", () => go(idx - 1));

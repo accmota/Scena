@@ -314,6 +314,96 @@ class TestTutorialParts(unittest.TestCase):
                     f"{page}: part goes on the first step and on every fresh step")
 
 
+_RECAP = re.compile(r"^      recap:\s*`((?:\\.|[^`\\])*)`", re.M | re.S)
+GUIDE_PT = os.path.join(ROOT, "docs", "pt", "guide", "index.html")
+
+
+def step_recaps(path: str) -> List[Optional[str]]:
+    """The ``recap`` HTML per step object (``None`` when the step has none)."""
+    out = []
+    for chunk in _STEP_OPEN.split(_read(path))[1:]:
+        m = _RECAP.search(chunk)
+        out.append(None if m is None else m.group(1))
+    return out
+
+
+def script_ends(path: str) -> List[int]:
+    """Indexes of the last step of every script (before a ``fresh`` step, and the final one)."""
+    heads = step_heads(path)
+    return [i for i in range(len(heads)) if i == len(heads) - 1 or heads[i + 1][0]]
+
+
+class TestTutorialRecap(unittest.TestCase):
+    """"O que vimos": every script ends with a recap that points into the Guia.
+
+    The recap looks back (tutorial-authoring.md, "O que vimos"): a list of the
+    concepts, links to the Guia, and nothing the tutorial did not show.
+    """
+
+    def test_engine_draws_the_recap(self):
+        js = _read(os.path.join(ROOT, "docs", "assets", "tutorial", "tutorial.js"))
+        css = _read(os.path.join(ROOT, "docs", "assets", "tutorial", "tutorial.css"))
+        self.assertIn("step.recap", js)
+        self.assertIn('class="recap"', js)
+        self.assertIn(".recap", css)
+
+    def test_engine_draws_the_dive_boxes(self):
+        js = _read(os.path.join(ROOT, "docs", "assets", "tutorial", "tutorial.js"))
+        css = _read(os.path.join(ROOT, "docs", "assets", "tutorial", "tutorial.css"))
+        self.assertIn("step.dive", js)
+        self.assertIn('class="dive"', js)
+        self.assertIn("Para entender melhor", js)
+        self.assertIn(".dive", css)
+
+    def test_every_script_ends_with_a_recap_and_only_there(self):
+        for path in tutorial_pages():
+            page = os.path.basename(path)
+            recaps = step_recaps(path)
+            self.assertEqual(len(recaps), len(extract_steps(path)),
+                             "a step object the recap scan did not see")
+            with self.subTest(page=page):
+                have = [i for i, r in enumerate(recaps) if r is not None]
+                self.assertEqual(
+                    have, script_ends(path),
+                    f"{page}: recap goes on the last step of every script (steps {script_ends(path)}), "
+                    "and on no other")
+
+    def test_recap_links_point_at_guia_anchors_that_exist(self):
+        guide_ids = set(re.findall(r'\bid="([^"]+)"', _read(GUIDE_PT)))
+        for path in tutorial_pages():
+            page = os.path.basename(path)
+            for i, recap in enumerate(step_recaps(path)):
+                if recap is None:
+                    continue
+                with self.subTest(page=page, step=i + 1):
+                    links = re.findall(r'href="([^"]*)"', recap)
+                    self.assertTrue(links, f"{page} step {i + 1}: a recap needs a \"No Guia\" link")
+                    for href in links:
+                        self.assertTrue(href.startswith("../guide/index.html#"),
+                                        f"{page}: {href} is not a link into the Guia")
+                        self.assertIn(href.split("#", 1)[1], guide_ids,
+                                      f"{page}: the Guia has no #{href.split('#', 1)[1]}")
+
+    def test_recap_list_teaches_nothing_the_tutorial_did_not_show(self):
+        for path in tutorial_pages():
+            page = os.path.basename(path)
+            html = _read(path)
+            for i, recap in enumerate(step_recaps(path)):
+                if recap is None:
+                    continue
+                shown = html.replace(recap, "")
+                items = re.findall(r"<li>(.*?)</li>", recap, re.S)
+                with self.subTest(page=page, step=i + 1):
+                    self.assertTrue(items, f"{page} step {i + 1}: a recap lists the concepts as <li>")
+                    for item in items:
+                        for term in re.findall(r"<code>([^<]+)</code>", item):
+                            word = re.split(r"[(\[ ]", term.lstrip("@."), 1)[0]
+                            self.assertTrue(
+                                word in shown,
+                                f"{page} step {i + 1}: the recap names `{term}`, "
+                                "which no step of the tutorial shows")
+
+
 _FOCUS = re.compile(r"^      focus:\s*\[(.*)\],?$", re.M)
 
 
@@ -443,6 +533,61 @@ class TestTutorialsRun(unittest.TestCase):
             self.assertFalse(ok_warn)
             self.assertIn("SCRIPT WARNING", err)
             self.assertEqual(run_program(folder, "ok.py", ok), (True, ""))
+
+
+class TestTutorialPageSyntax(unittest.TestCase):
+    """A page whose script does not parse is blank for the reader (2026-10-09).
+
+    An unescaped ``"`` inside a double-quoted ``note: "…"`` (a link written as
+    ``<a href="…">`` in a try note) ended the string early and blanked the whole
+    page; no test noticed, because the extractor only reads the ``code:`` blocks.
+    No JavaScript engine here, so the quoted one-line fields are checked by shape.
+    """
+
+    _QUOTED = re.compile(r'^\s*(note|title|part|id|example|focus):\s*"')
+    _WELL_FORMED = re.compile(r'^\s*(?:note|title|part|id|example):\s*"(?:[^"\\]|\\.)*",?\s*$')
+
+    def test_quoted_fields_are_one_well_formed_string(self):
+        for path in tutorial_pages():
+            page = os.path.basename(path)
+            for n, line in enumerate(_read(path).splitlines(), 1):
+                if not re.match(r'^\s*(note|title|part|id|example):\s*"', line):
+                    continue
+                with self.subTest(page=page, line=n):
+                    self.assertRegex(line, self._WELL_FORMED,
+                                     f"{page}:{n}: a quote inside a double-quoted string "
+                                     "(use single quotes in an href, or escape it)")
+
+    def test_the_checker_catches_the_bug(self):
+        bad = '          note: "Veja <a href="../guide/index.html#x">aqui</a>.",'
+        good = "          note: \"Veja <a href='../guide/index.html#x'>aqui</a>.\","
+        self.assertIsNone(self._WELL_FORMED.match(bad))
+        self.assertIsNotNone(self._WELL_FORMED.match(good))
+
+
+class TestTutorialDive(unittest.TestCase):
+    """"Para entender melhor": a dive box has a title and a body, and its links resolve."""
+
+    def test_dive_items_have_a_title_a_body_and_working_links(self):
+        guide_ids = set(re.findall(r'\bid="([^"]+)"', _read(GUIDE_PT)))
+        seen = 0
+        for path in tutorial_pages():
+            page = os.path.basename(path)
+            html = _read(path)
+            for chunk in _STEP_OPEN.split(html)[1:]:
+                m = re.search(r"^      dive:\s*\[", chunk, re.M)
+                if not m:
+                    continue
+                for item in re.split(r"^        \{$", chunk[m.end():], flags=re.M)[1:]:
+                    seen += 1
+                    with self.subTest(page=page):
+                        self.assertRegex(item, r'^\s*title:\s*"[^"]+"', f"{page}: a dive item needs a title")
+                        self.assertRegex(item, r"body:\s*`", f"{page}: a dive item needs a body")
+                        for href in re.findall(r'href="([^"]*)"', item):
+                            self.assertTrue(href.startswith("../guide/index.html#"), f"{page}: {href}")
+                            self.assertIn(href.split("#", 1)[1], guide_ids,
+                                          f"{page}: the Guia has no #{href.split('#', 1)[1]}")
+        self.assertGreater(seen, 0, "no tutorial uses a dive box (05 'O céu' should)")
 
 
 if __name__ == "__main__":

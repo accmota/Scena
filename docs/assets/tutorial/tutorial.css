@@ -388,6 +388,36 @@ pre.code {
   margin-bottom: 0.75rem;
 }
 
+
+/* ── Para entender melhor (concept box) ── */
+.dive {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-line);
+  border-radius: var(--radius);
+  padding: 0.95rem 1.05rem 1.05rem;
+  margin-bottom: 1.5rem;
+}
+
+.dive h2 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.3rem;
+}
+
+.dive h3 {
+  font-size: 1.05rem;
+  margin-bottom: 0.5rem;
+}
+
+.dive-body p {
+  font-size: 0.95rem;
+  margin-bottom: 0.6rem;
+}
+
 .alt {
   margin-top: 0.7rem;
 }
@@ -458,6 +488,37 @@ pre.code {
   font-family: var(--mono);
   font-size: 13px;
   color: var(--text);
+}
+
+.recap {
+  margin-top: 1.25rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-line);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  font-size: 0.95rem;
+}
+
+.recap h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.recap ul {
+  margin: 0 0 0.6rem;
+  padding-left: 1.2rem;
+}
+
+.recap li { margin: 0.25rem 0; }
+
+.recap p {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
 }
 
 .menu-btn {

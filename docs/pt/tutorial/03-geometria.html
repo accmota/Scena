@@ -147,7 +147,17 @@ run()
           code: `Line(p1=caixa.top_left, p2=c1.center)           # cópia agora — não acompanha
 Line(p1=lambda: caixa.top_left, p2=lambda: c1.center)  # ao vivo`
         }
-      ]
+      ],
+      recap: `
+        <ul>
+          <li><code>center</code> e <code>radius</code>, ou <code>perimeter_point</code> — duas escritas do mesmo círculo; no segundo, o ponto da borda também é uma peça sua.</li>
+          <li><code>show_handles</code> — uma alça em cada ponto livre; arrastar a alça move aquele ponto só.</li>
+          <li><code>draggable</code> — pega a forma inteira por qualquer parte do corpo.</li>
+          <li><code>lambda</code> numa ponta de <code>Line</code> — a linha lê o ponto a cada frame e acompanha; sem ela, é uma cópia de agora.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#ptr-handle">Alças</a> · <a href="../guide/index.html#ptr-drag">Arrastar</a> · <a href="../guide/index.html#shape-line">Line</a> · <a href="../guide/index.html#reativo-lambda">Lambda</a>.</p>
+        <p><strong>No próximo script:</strong> o ponto médio de um segmento, construído só com círculos e interseções.</p>
+      `
     },
     {
       title: "O segmento",
@@ -441,6 +451,17 @@ run()
 `,
       closing: `
         <p>Arraste as âncoras nas pontas do segmento. Os círculos, a corda e o ponto médio acompanham.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Anchor</code> — as duas pontas que você arrasta; o resto da construção as lê.</li>
+          <li><code>fill = None</code> — uma forma só de contorno, para ver o que está atrás.</li>
+          <li><code>intersection</code> — onde os contornos de duas formas se cruzam; o último número escolhe qual cruzamento.</li>
+          <li><code>Point</code> — uma posição sem corpo, calculada por uma <code>lambda</code>.</li>
+          <li>Cada peça lê a anterior: mexa numa âncora e a construção inteira se refaz sozinha.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#geo-intersecoes">Interseções</a> · <a href="../guide/index.html#geo-helpers">Pontos</a> · <a href="../guide/index.html#shape-point">Point</a> · <a href="../guide/index.html#reativo-lambda">Lambda</a>.</p>
+        <p><strong>No próximo:</strong> widgets — sliders, listas, caixas, botões e menus para mexer num programa enquanto ele roda.</p>
       `
     }
   ]

@@ -460,6 +460,19 @@ estrela.move_by(100, 0, time=0.4, loops="forever", yoyo=True)`
       ],
       closing: `
         <p>As setas esquerda e direita movem a barra. Pegue as estrelas que caem; as que passam piscam no fundo e somem. O placar, no alto, conta as duas.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>@every</code> — roda a função de tempos em tempos; <code>after</code> espera e roda uma vez.</li>
+          <li><code>group</code> — um nome que junta coisas; <code>group["estrelas"]</code> é quem está nele agora, sem lista para cuidar.</li>
+          <li><code>@collide</code> — roda quando algo de um grupo encosta em algo de outro; <code>destroy</code> tira a coisa do jogo.</li>
+          <li>O que sai da tela e não é apagado vaza: o HUD (<code>objs</code>) mostra a conta, e o <code>if</code> da altura corrige.</li>
+          <li><code>st</code> e <code>@=</code> — <code>st</code> guarda os dados do jogo; <code>@=</code> liga o texto do placar a uma fórmula, que se mantém verdadeira sozinha.</li>
+          <li><code>pop</code> e <code>flash</code> — efeitos curtos sobre uma coisa, sem mudar o que ela é.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#agendar-timers">after / every</a> · <a href="../guide/index.html#mundo-grupos">Grupos</a> · <a href="../guide/index.html#colisao-collide">Detectar colisão</a> · <a href="../guide/index.html#reativo-entity">st e campos da Entity</a> · <a href="../guide/index.html#reativo-liga">Ligar (@=)</a> · <a href="../guide/index.html#desenhar-text">Text</a> · <a href="../guide/index.html#aparencia-transientes">Transientes</a>.</p>
+        <p><strong>Experimente também:</strong> há outros efeitos curtos além de <code>pop</code> e <code>flash</code>, como <code>blink</code> e <code>pulse_outline</code> — a seção de transientes do Guia mostra todos.</p>
+        <p><strong>No próximo:</strong> geometria — formas que você pega com o mouse e formas que dependem umas das outras.</p>
       `
     }
   ]
