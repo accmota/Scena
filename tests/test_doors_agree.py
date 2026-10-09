@@ -296,5 +296,47 @@ class TestMinHoldIsDueByReached(SystemTestCase, unittest.TestCase):
         self.assertEqual(set(held.values()), {15}, held)
 
 
+
+class TestPointerMapsInFloat64(SystemTestCase, unittest.TestCase):
+    """S9-11: pointer -> world and world -> view are float64 closed forms;
+    the float32 Skia inverse was 0.05 units off at x ~ 1e6. The draw matrix
+    stays the reference for the convention (near the origin both agree)."""
+    world_draw = False
+
+    def test_round_trip_at_large_coordinates(self):
+        fw = self.w.fw
+        eng = fw._scena_draw
+        for base in (1e3, 1e6, 1e7):
+            for zoom, rot in ((1.0, 0.0), (2.0, 30.0), (0.5, -75.0)):
+                with self.subTest(base=base, zoom=zoom, rot=rot):
+                    look = (base + 0.37, base * 0.5 + 0.11)
+                    eng.reset_view()
+                    eng.pan_to(*look)
+                    eng.zoom_to(zoom)
+                    eng.rotate_to(rot)
+                    wx, wy = look[0] + 13.3, look[1] - 7.1
+                    vx, vy = fw.world_to_view_coords(wx, wy)
+                    vs = fw.view_scale or 1.0
+                    sx = fw._letterbox_pad_x + vx * vs
+                    sy = fw._letterbox_pad_y + (fw.design_height - vy) * vs
+                    bx, by = fw.screen_to_world_coords(sx, sy)
+                    self.assertAlmostEqual(bx, wx, delta=1e-9 * max(1.0, base))
+                    self.assertAlmostEqual(by, wy, delta=1e-9 * max(1.0, base))
+        eng.reset_view()
+
+    def test_same_convention_as_the_draw_matrix(self):
+        fw = self.w.fw
+        eng = fw._scena_draw
+        eng.reset_view()
+        eng.pan_to(40, -25)
+        eng.zoom_to(1.7)
+        eng.rotate_to(33)
+        p = eng._camera_matrix.mapXY(12.5, 7.25)
+        vx, vy = fw.world_to_view_coords(12.5, 7.25)
+        self.assertAlmostEqual(vx, p.x(), places=3)
+        self.assertAlmostEqual(vy, p.y(), places=3)
+        eng.reset_view()
+
+
 if __name__ == "__main__":
     unittest.main()

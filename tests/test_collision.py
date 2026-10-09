@@ -300,6 +300,69 @@ class TestAnythingInterestLifecycle(CollisionTestCase):
         self.assertNotIn("un_wall", a._collider._pair_targets)
 
 
+
+class TestDispatchHandlerIndex(CollisionTestCase):
+    """Review 2026-10-09 perf: ``_dispatch`` walks this phase's handlers from a
+    snapshot, skipping a tag handler whose tag holds neither collider. The
+    skip is a necessary condition only: every handler that matched before
+    still runs, in registration order."""
+
+    def test_the_matching_handler_runs_among_unrelated_ones(self):
+        log = []
+        for k in range(20):
+            @collide(f"dx_a{k}", f"dx_b{k}")
+            def other(a, b, info):
+                log.append("other")
+        a = self.track(Circle(center=self.at(0, 0), radius=10, group="dx_x"))
+        b = self.track(Circle(center=self.at(5, 0), radius=10, group="dx_y"))
+
+        @collide("dx_x", "dx_y")
+        def hit(me, other, info):
+            log.append(("hit", me is a, other is b))
+        self.step()
+        self.assertEqual(log, [("hit", True, True)])
+
+    def test_object_and_tag_sides_and_order(self):
+        log = []
+        a = self.track(Circle(center=self.at(0, 0), radius=10))
+        b = self.track(Circle(center=self.at(5, 0), radius=10, group="dx_wall"))
+
+        @collide(a, "dx_wall")
+        def first(me, other, info):
+            log.append("first")
+
+        @collide(a, b)
+        def second(me, other, info):
+            log.append("second")
+
+        @collide("dx_wall", a)
+        def third(me, other, info):
+            log.append("third")
+        self.step()
+        self.assertEqual(log, ["first", "second", "third"])
+
+    def test_a_handler_added_and_dropped_between_steps(self):
+        log = []
+        a = self.track(Circle(center=self.at(0, 0), radius=10, group="dx_p"))
+        b = self.track(Circle(center=self.at(5, 0), radius=10, group="dx_q"))
+
+        @collide_stay("dx_p", "dx_q")
+        def stay(me, other, info):
+            log.append("stay")
+        self.step()
+        self.step()
+
+        @collide_stay("dx_p", "dx_q")
+        def later(me, other, info):
+            log.append("later")
+        self.step()
+        self.assertEqual(log, ["stay", "stay", "later"])
+        b.destroy()
+        self._owned.remove(b)
+        cs = get_collision_system()
+        self.assertIsNone(cs._phase_cache, "the snapshot keeps no dropped side")
+
+
 class TestLayer1FastPaths(CollisionTestCase):
     def test_circle_circle(self):
         a = self.track(Circle(center=self.at(0, 0), radius=20))

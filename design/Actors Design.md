@@ -300,6 +300,13 @@ empty).` It used to read a `Blank` built for the purpose: an invented `(0, 0)`, 
 registered actor per read (~0.1 ms), and `.hp` raised naming `Blank` (SC12). The
 group's own reads (`centroid`, `box`, `empty`, `count`) answer. Guard:
 `test_noop_cost.TestEmptyGroupFieldReadsRaise` (every field of every exported kind).
+A write of a plain value to an author field (`group["tiros"].hp = 3`) is a no-op:
+the first write of a name asks a `Blank` what it means (a new field, a typo, a
+callable), and later writes of that name build nothing. A timed verb (`time=`)
+returns a timer Handle with the verb's duration and `on_done`, not a tween on a
+stand-in (`then=` / `loops=` / `yoyo=` keep the stand-in). Both built and
+registered a `Blank` per call, ~0.3 ms (review 2026-10-09 S9-8; guard
+`test_noop_cost.TestEmptyGroupWritesAndTimedVerbsBuildNothing`).
 `.filter(pred)` returns a **snapshot** `GroupOperator` (same kind as `group["a"] | group["b"]`).
 Set algebra (`|` / `&` / `-` / `^`) and `.filter` keep join order (first-seen wins). They stay
 snapshots — not live — unless the author names the expression under `group["name"] @=`

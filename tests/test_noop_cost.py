@@ -92,6 +92,44 @@ def _entity_fields():
     return sorted(names - own - set(_entity_methods()))
 
 
+class TestEmptyGroupWritesAndTimedVerbsBuildNothing(unittest.TestCase):
+    """Review 2026-10-09 S9-8: an author field written on an empty group, and
+    a timed verb on one, built and registered a Blank stand-in per call."""
+
+    def test_field_writes_after_the_first(self):
+        with system_world(draw=False) as w:
+            g = group["noop_shots"]
+            g.hp = 3                       # the first write decides the name
+            made, patch = _spy()
+            with patch, quiet():
+                for i in range(30):
+                    g.hp = i
+                    w.step(1)
+            self.assertEqual(made, [])
+
+    def test_a_typo_still_raises(self):
+        with system_world(draw=False):
+            with self.assertRaises(AttributeError):
+                group["noop_shots"].anlge = 30
+
+    def test_timed_verbs_keep_their_timing_and_build_nothing(self):
+        with system_world(draw=False) as w:
+            g = group["noop_shots"]
+            done = []
+            made, patch = _spy()
+            with patch, quiet():
+                h = g.move_by(10, 0, time=0.2, on_done=lambda: done.append(1))
+                g.rotate_by(30, time=0.2)
+                w.step(6)
+                self.assertEqual(done, [])
+                w.step(10)
+            self.assertEqual(made, [])
+            self.assertEqual(done, [1])
+            self.assertTrue(h.done)
+            with self.assertRaises(ValueError):
+                g.move_by(10, 0, time=-1)
+
+
 class TestEmptyGroupFieldReadsRaise(unittest.TestCase):
     """A field read on an empty group raises with the fix (Guia: "ler um campo
     dá erro"). ``group["boss"].center`` answered an invented (0, 0) from a

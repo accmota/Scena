@@ -2231,6 +2231,23 @@ tree. Perf: the first S2-10 fix (one attribute read per actor in the fleet
 loop) cost about 2 % of a 400-actor frame; the shipped fix swaps the frame
 snapshot's entry from the setter instead, and the loop is unchanged.
 
+### RV7 — systems review fixes, batch 6: perf (2026-10-09)
+
+| ID | Finding | Fix | Measured | Test |
+| --- | --- | --- | --- | --- |
+| S9-10 | `cull_offscreen` drew 2–3× slower than no culling | layer checks once per layer, view window once per draw, optional names probed per class (`_probe`), stroke reach without double reads | 1000 cheap rects: 2.8× → 1.1× of no-cull; 1000 `Text`: culling 2.5× faster | `test_cull.TestCullDrawLoop` |
+| S9-8 | an empty group built a registered `Blank` per field write and per timed verb | field names remembered after the first write; a timed verb is a timer | 0.16 → 0.03 ms/frame, no roster churn | `test_noop_cost.TestEmptyGroupWritesAndTimedVerbsBuildNothing` |
+| perf | `_dispatch` copied and matched every handler per contact | phase snapshot; tag prefilter; act manager and phase map hoisted | 31 handlers, 150 stay contacts: 4.45 → 3.0 ms/frame | `test_collision.TestDispatchHandlerIndex` |
+| S9-11 | pointer → world and world → view in float32 (0.05 units at 1e6) | float64 closed forms | error 0 in the repro | `test_doors_agree.TestPointerMapsInFloat64` |
+
+Lessons:
+- A cache keyed on a list must not outlive the list's entries: the first phase
+  snapshot held the dropped handlers' sides until the next dispatch, and the
+  holders scan (`test_sys_holders`) caught it. Clear it where the list loses
+  entries.
+- A precision test needs a tolerance tighter than the bug: 1e-6 relative passed
+  the float32 path (0.05 at 1e6); 1e-9 does not.
+
 ### F — contact flicker (2026-09-29)
 
 Found by `tests/test_sys_resting_contact.py`, written after G2 to test what a

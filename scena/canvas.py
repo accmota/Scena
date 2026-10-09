@@ -1,5 +1,5 @@
 import math
-from typing import Optional, Union, Tuple, List
+from typing import Dict, Optional, Union, Tuple, List
 from enum import Enum
 import skia
 from dataclasses import dataclass
@@ -629,6 +629,25 @@ def _expand_aabb_for_shield_oval(
     return _union_aabb([box, env])
 
 
+_CLASS_HAS: Dict[Tuple[type, str], bool] = {}
+
+
+def _probe(obj, name: str):
+    """``getattr(obj, name, None)`` without the miss: an actor's ink
+    ``__getattr__`` makes a miss cost ~0.5 µs, and the cull asks five or six
+    optional names per object per frame (review 2026-10-09 S9-10). Whether the
+    class has the name is decided once per class; an instance attribute still
+    answers through ``__dict__``."""
+    key = (type(obj), name)
+    has = _CLASS_HAS.get(key)
+    if has is None:
+        has = _CLASS_HAS[key] = any(name in k.__dict__ for k in type(obj).__mro__)
+    if has:
+        return getattr(obj, name, None)
+    d = getattr(obj, "__dict__", None)
+    return d.get(name) if d else None
+
+
 def _approx_draw_aabb(obj) -> Optional[Tuple[float, float, float, float]]:
     """Loose axis-aligned bounds in y-up world space.
 
@@ -638,7 +657,7 @@ def _approx_draw_aabb(obj) -> Optional[Tuple[float, float, float, float]]:
     Derivates. Returns ``None`` when no usable box is known (cull fail-open;
     batching substitutes a small origin hint).
     """
-    domain_aabb = getattr(obj, "_domain_aabb", None)
+    domain_aabb = _probe(obj, "_domain_aabb")
     if callable(domain_aabb):
         try:
             box = tuple(float(v) for v in domain_aabb())
@@ -647,7 +666,7 @@ def _approx_draw_aabb(obj) -> Optional[Tuple[float, float, float, float]]:
         except Exception:
             pass
 
-    oriented = getattr(obj, '_oriented_frame', None)
+    oriented = _probe(obj, '_oriented_frame')
     if callable(oriented):
         try:
             cx, cy, w, h, ang = oriented()
@@ -655,7 +674,7 @@ def _approx_draw_aabb(obj) -> Optional[Tuple[float, float, float, float]]:
         except Exception:
             pass
 
-    placement = getattr(obj, '_placement_params', None)
+    placement = _probe(obj, '_placement_params')
     if callable(placement):
         try:
             cx, cy, r, _phi = placement()
@@ -664,7 +683,7 @@ def _approx_draw_aabb(obj) -> Optional[Tuple[float, float, float, float]]:
         except Exception:
             pass
 
-    vertices = getattr(obj, "_vertices", None)
+    vertices = _probe(obj, "_vertices")
     if vertices:
         try:
             xs: List[float] = []
@@ -680,7 +699,7 @@ def _approx_draw_aabb(obj) -> Optional[Tuple[float, float, float, float]]:
 
     # Line: Defining endpoints. ``center`` is a cold Derivate on Line — reading
     # it below would mark the Line pull-live and push its motion off A1.
-    segment = getattr(obj, '_segment_xy', None)
+    segment = _probe(obj, '_segment_xy')
     if callable(segment):
         try:
             x1, y1, x2, y2 = segment()
@@ -690,7 +709,7 @@ def _approx_draw_aabb(obj) -> Optional[Tuple[float, float, float, float]]:
 
     # Circle: Defining center + radius (``radius`` / ``center`` are Derivates
     # on the perimeter and two-point models; reading them wakes them — D3).
-    radius_fn = getattr(obj, '_radius_value', None)
+    radius_fn = _probe(obj, '_radius_value')
     if callable(radius_fn):
         try:
             cx, cy = obj._center_xy()
@@ -767,6 +786,14 @@ _SKIA_MITER_LIMIT = 4.0
 _SMOOTH_OUTLINES = ("Circle", "Ellipse")
 
 
+_SQRT2 = math.sqrt(2.0)
+
+
+def _scena_kind(obj) -> str:
+    from .entity import scena_kind
+    return scena_kind(obj)
+
+
 def _stroke_reach_factor(obj) -> float:
     """How many half-widths the stroke can reach past the outline (D9).
 
@@ -775,14 +802,17 @@ def _stroke_reach_factor(obj) -> float:
     rectangle's 90 degree corners, up to the miter limit elsewhere); a square
     cap's corners reach sqrt(2) half-widths past a line end.
     """
-    join = str(getattr(getattr(obj, "line_join", None), "value", getattr(obj, "line_join", "")) or "")
-    cap = str(getattr(getattr(obj, "line_cap", None), "value", getattr(obj, "line_cap", "")) or "")
+    # Each property read once (the nested ``getattr`` defaults read them twice:
+    # this runs per object per frame under ``cull_offscreen``, S9-10).
+    j = getattr(obj, "line_join", None)
+    join = str(getattr(j, "value", j) or "")
+    c = getattr(obj, "line_cap", None)
+    cap = str(getattr(c, "value", c) or "")
     factor = 1.0
     if cap == "square":
-        factor = math.sqrt(2.0)
+        factor = _SQRT2
     if join == "miter":
-        from .entity import scena_kind
-        kind = scena_kind(obj)
+        kind = _scena_kind(obj)
         if kind in _SMOOTH_OUTLINES:
             try:
                 is_arc = float(getattr(obj, "spread", 360.0)) < 360.0
@@ -791,9 +821,29 @@ def _stroke_reach_factor(obj) -> float:
             if not is_arc:
                 return factor  # closed smooth outline: no joins
         if kind in ("Rect", "Square", "Box"):
-            return max(factor, math.sqrt(2.0))
+            return max(factor, _SQRT2)
         return _SKIA_MITER_LIMIT
     return factor
+
+
+def _cull_keeps(obj, vb) -> bool:
+    """Per object, on a layer that culls: does its padded draw AABB meet the
+    view window ``vb``? Fail open (keep drawing) on unknown geometry."""
+    try:
+        box = _approx_draw_aabb(obj)
+        if box is None:
+            return True
+        pad = _filter_outset(obj)
+        if getattr(obj, "_tx_state", None) is not None:
+            from .transients import transient_cull_pad
+            pad += float(transient_cull_pad(obj) or 0.0)
+        extra = _probe(obj, "_cull_pad")
+        if extra is not None:
+            pad += float(extra())
+        box = _expand_aabb_for_shield_oval(box, obj, pad)
+        return _aabb_intersects_view(_pad_aabb(box, pad), vb)
+    except Exception:
+        return True
 
 
 def _filter_outset(obj) -> float:
@@ -830,7 +880,9 @@ def _filter_outset(obj) -> float:
                 pass
     pad = base
     try:
-        pad += 0.5 * float(getattr(obj, 'line_width', 0) or 0) * _stroke_reach_factor(obj)
+        lw = float(getattr(obj, 'line_width', 0) or 0)
+        if lw:                          # the join / cap probe only for a stroke
+            pad += 0.5 * lw * _stroke_reach_factor(obj)
     except Exception:
         pass
     if multipass:
@@ -2201,6 +2253,7 @@ class ScenaCanvas:
         self._cull_skipped = 0
         has_parallax = self.registry.layers.has_parallax_layers
         sk = self.skia_canvas
+        vb = None                      # the culling view window, once per draw
         for layer in self.registry.layers.iter_draw_order():
             if layer_filter is not None and not layer_filter(layer.name):
                 continue
@@ -2226,15 +2279,29 @@ class ScenaCanvas:
             # Default ``cull_offscreen=False``: skip the per-object ``_passes_cull``
             # call (its first line is ``return True``). Counters still count kept
             # visibles so draw instrumentation stays honest.
-            if self.cull_offscreen:
+            if self.cull_offscreen and not self._layer_never_culled(layer):
+                # The view window and the layer checks once per layer, not per
+                # object: they cost more than the blit they could skip
+                # (review 2026-10-09 S9-10).
+                if vb is None:
+                    vb = self.visible_bounds
+                keep = _cull_keeps
+                append = objs.append
+                skipped = 0
                 for o in layer._objects:
                     if not _drawn(o):
                         continue
-                    if self._passes_cull(o, layer=layer):
-                        self._cull_kept += 1
-                        objs.append(o)
+                    if keep(o, vb):
+                        append(o)
                     else:
-                        self._cull_skipped += 1
+                        skipped += 1
+                self._cull_kept += len(objs)
+                self._cull_skipped += skipped
+            elif self.cull_offscreen:
+                for o in layer._objects:
+                    if _drawn(o):
+                        objs.append(o)
+                self._cull_kept += len(objs)
             else:
                 for o in layer._objects:
                     if _drawn(o):
@@ -2259,52 +2326,33 @@ class ScenaCanvas:
             finally:
                 sk.restoreToCount(layer_saves)
 
+    def _layer_never_culled(self, layer) -> bool:
+        """Debug zoom, a parallax layer (its own partial CTM) and the ``ui``
+        view pass are never culled (see ``_passes_cull``)."""
+        if self._debug_zoom_active or not layer._is_neutral_response:
+            return True
+        from .registry import UI_LAYER
+        return layer.name == UI_LAYER
+
     def _passes_cull(self, obj, layer=None) -> bool:
+        """One object: drawn this frame under ``cull_offscreen``? The draw
+        loop runs the same two steps with the layer check and the view window
+        hoisted (``_layer_never_culled`` once per layer, ``_cull_keeps`` per
+        object): one body, two doors (review 2026-10-09 S9-10)."""
         if not self.cull_offscreen:
             return True
-        # Debug zoom: skip cull so off-screen content is visible while inspecting.
-        # Does not change ``visible_bounds`` (player frustum stays author camera).
-        if self._debug_zoom_active:
-            return True
-        # Parallax layers: never cull (own partial CTM ≠ global visible_bounds).
-        if layer is not None and not layer._is_neutral_response:
-            return True
-        # Reserved ui view pass: never cull (drawn under view CTM, not camera).
-        try:
-            from .registry import UI_LAYER
-            lname = getattr(layer, "name", None) if layer is not None else None
-            if lname is None:
-                lname = getattr(obj, "layer", None) or getattr(obj, "_layer", None)
-            if lname == UI_LAYER:
-                return True
-        except Exception:
-            pass
         if layer is None:
+            name = getattr(obj, "_layer", None) or getattr(obj, "layer", None)
             try:
-                name = getattr(obj, "layer", None) or getattr(obj, "_layer", None)
-                ly = self.registry.layers.get(name) if name else None
-                if ly is not None and not ly._is_neutral_response:
-                    return True
+                layer = self.registry.layers.get(name) if name else None
             except Exception:
-                pass
-        try:
-            box = _approx_draw_aabb(obj)
-            if box is None:
-                return True  # unknown geometry: fail-open (keep drawing)
-            pad = _filter_outset(obj)
-            try:
-                from .transients import transient_cull_pad
-                pad += float(transient_cull_pad(obj) or 0.0)
-            except Exception:
-                pass
-            extra = getattr(obj, "_cull_pad", None)
-            if extra is not None:
-                pad += float(extra())
-            box = _expand_aabb_for_shield_oval(box, obj, pad)
-            aabb = _pad_aabb(box, pad)
-            return _aabb_intersects_view(aabb, self.visible_bounds)
-        except Exception:
+                layer = None
+        if layer is not None:
+            if self._layer_never_culled(layer):
+                return True
+        elif self._debug_zoom_active:
             return True
+        return _cull_keeps(obj, self.visible_bounds)
 
     def _draw_filtered_one(self, obj) -> None:
         """One object on the filtered route (ImageFilter glow / shadow on a saveLayer).
@@ -2819,6 +2867,27 @@ class ScenaCanvas:
         else:
             self._camera_matrix = skia.Matrix()  # identity
         self._notify_view_changed()
+
+    def _world_to_view_xy(self, x: float, y: float) -> Tuple[float, float]:
+        """The camera map in float64: ``c + R(rotation) · zoom · (w - look)``.
+        ``_camera_matrix`` is a float32 Skia matrix: at x ~ 1e6 it put the
+        pointer 0.05 units off, and 1.5 design units at 1e7 for an overlay
+        (review 2026-10-09 S9-11). The draw CTM stays float32."""
+        z = max(self._zoom, _MIN_ZOOM)
+        dx, dy = (x - self._look_x) * z, (y - self._look_y) * z
+        r = math.radians(self._rotation)
+        c, s = math.cos(r), math.sin(r)
+        return (self.width * 0.5 + dx * c - dy * s,
+                self.height * 0.5 + dx * s + dy * c)
+
+    def _view_to_world_xy(self, x: float, y: float) -> Tuple[float, float]:
+        """The inverse camera map in float64 (see ``_world_to_view_xy``)."""
+        z = max(self._zoom, _MIN_ZOOM)
+        dx, dy = x - self.width * 0.5, y - self.height * 0.5
+        r = math.radians(self._rotation)
+        c, s = math.cos(r), math.sin(r)
+        return (self._look_x + (dx * c + dy * s) / z,
+                self._look_y + (-dx * s + dy * c) / z)
 
     def _notify_view_changed(self) -> None:
         """The camera, a layer's scroll or the design size moved: formulas

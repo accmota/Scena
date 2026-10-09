@@ -3294,8 +3294,7 @@ class ScenaFramework:
         x, y = float(world_x), float(world_y)
         draw_canvas = self._scena_draw
         if draw_canvas is not None and draw_canvas._camera_active:
-            p = draw_canvas._camera_matrix.mapXY(x, y)
-            x, y = float(p.x()), float(p.y())
+            x, y = draw_canvas._world_to_view_xy(x, y)      # float64 (S9-11)
         if self._debug_zoom_active:
             cx = self.design_width * 0.5
             cy = self.design_height * 0.5
@@ -3357,39 +3356,19 @@ class ScenaFramework:
         if not cam_active and not self._debug_zoom_active:
             return self.screen_to_view_coords(screen_x, screen_y)
 
-        # Build T(pad) · view_scale · flipY · [inspector] · camera, then invert.
-        matrix = skia.Matrix()
-        matrix.setTranslate(self._letterbox_pad_x, self._letterbox_pad_y)
-        scale_m = skia.Matrix()
-        scale_m.setScale(vs, vs)
-        matrix.preConcat(scale_m)
-        flip = skia.Matrix()
-        flip.setTranslate(0, H)
-        flip.preScale(1, -1)
-        matrix.preConcat(flip)
+        # Each step inverted in float64 (a float32 Skia inverse put the
+        # pointer 0.05 units off at x ~ 1e6: review 2026-10-09 S9-11).
+        x, y = self.screen_to_view_coords(screen_x, screen_y)
         if self._debug_zoom_active:
             cx = self.design_width * 0.5
             cy = self.design_height * 0.5
             z = float(self._debug_zoom)
-            insp = skia.Matrix()
-            # T(cx,cy) · S(z) · T(-cx,-cy)
-            t_neg = skia.Matrix()
-            t_neg.setTranslate(-cx, -cy)
-            s = skia.Matrix()
-            s.setScale(z, z)
-            t_pos = skia.Matrix()
-            t_pos.setTranslate(cx, cy)
-            insp.setConcat(t_pos, s)
-            insp.preConcat(t_neg)
-            matrix.preConcat(insp)
+            if z:
+                x = cx + (x - cx) / z
+                y = cy + (y - cy) / z
         if cam_active:
-            matrix.preConcat(draw_canvas._camera_matrix)
-
-        inverse = skia.Matrix()
-        if matrix.invert(inverse):
-            point = inverse.mapXY(screen_x, screen_y)
-            return point.x(), point.y()
-        return self.screen_to_view_coords(screen_x, screen_y)
+            x, y = draw_canvas._view_to_world_xy(x, y)
+        return x, y
 
     def open_window(self):
         """Create the real OS window and GPU-backed Skia surface, using

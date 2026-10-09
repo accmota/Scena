@@ -1711,6 +1711,9 @@ def _member_not_name(verb: str, item: str, where: str) -> str:
 
 
 _MISSING = object()
+# Names a Blank accepted as an ink field (an empty group's write of a plain
+# value to one of them is a no-op; see ``GroupOperator.__setattr__``).
+_EMPTY_GROUP_FIELDS_OK: set = set()
 
 
 def _blank_class_attr(name: str):
@@ -1741,6 +1744,10 @@ def _empty_group_attr(name: str, label: str):
         # found by test_noop_cost). A typo still raises below.
         def _noop(*args, **kwargs):
             if on_blank and kwargs.get("time") is not None:
+                from .process import _empty_group_timed
+                handle = _empty_group_timed(kwargs)
+                if handle is not None:
+                    return handle
                 return getattr(Blank(), name)(*args, **kwargs)
             return None
         return _noop
@@ -2111,7 +2118,16 @@ class GroupOperator:
             # A known field: nothing to write (no member). Anything else goes
             # through a Blank, which keeps the error an unknown name gives.
             if _blank_class_attr(name) is _MISSING:
+                # A Blank decides what an unknown name means (a new field, a
+                # typo, a callable …). Once a name was accepted as a field,
+                # writing a plain value to it again builds nothing: a Blank
+                # per write cost ~0.3 ms and two roster entries (S9-8).
+                plain = not (callable(value) and not isinstance(value, type))
+                if plain and name in _EMPTY_GROUP_FIELDS_OK:
+                    return
                 setattr(Blank(), name, value)
+                if plain:
+                    _EMPTY_GROUP_FIELDS_OK.add(name)
             return
         reg = self._registry
         gen = reg._destroy_gen

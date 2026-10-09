@@ -3956,6 +3956,8 @@ class CollisionSystem:
         # never ran, S8-3); a pending exit fires at that moment, while the
         # body still exists, instead of on a dead body later (X-life-2).
         self._enter_pending: Set[Tuple[int, int]] = set()
+        # ``_phase_handlers`` snapshot: ((epoch, len), {phase: handlers}).
+        self._phase_cache = None
         self._exit_pending: Set[Tuple[int, int]] = set()
         # Bumped when a collider leaves or a pair handler is removed: a
         # dispatch whose epoch moved re-checks liveness and registration
@@ -4109,6 +4111,7 @@ class CollisionSystem:
         if i is None:
             return
         self._dispatch_epoch += 1
+        self._phase_cache = None          # holds the dropped entries' sides
         if self._resolve_cache:
             self._resolve_cache.clear()     # an expansion may hold this collider
         lst = self._colliders
@@ -4140,6 +4143,7 @@ class CollisionSystem:
                 # with; just drop the keys so a reused id() cannot inherit them.
                 self._end_contacts_of(c, emit=False)
             self._dispatch_epoch += 1
+            self._phase_cache = None          # holds the dropped entries' sides
             last = lst.pop()
             idx_map.pop(id(c), None)
             if i != len(lst):
@@ -4489,6 +4493,7 @@ class CollisionSystem:
         self._act_pair_handlers[:] = [
             e for e in self._act_pair_handlers if id(e) not in ids]
         self._dispatch_epoch += 1
+        self._phase_cache = None          # holds the dropped entries' sides
         for c in list(self._colliders):
             self._prune_pair_targets(c)
         self._invalidate_partner_cache()
@@ -4506,6 +4511,7 @@ class CollisionSystem:
         ids = {id(e) for e in doomed}
         self._pair_handlers[:] = [e for e in self._pair_handlers if id(e) not in ids]
         self._dispatch_epoch += 1
+        self._phase_cache = None          # holds the dropped entries' sides
         n = len(doomed)
         self._act_pair_handlers = []
         for c in list(self._colliders):
@@ -4739,6 +4745,7 @@ class CollisionSystem:
         dropped = self._prune_dead_side(identity, lst, swap=True)
         if dropped:
             self._dispatch_epoch += 1
+            self._phase_cache = None          # holds the dropped entries' sides
         resolve_changed = self._prune_dead_side(identity, self._resolve_pairs, swap=True)
         if dropped or resolve_changed:
             # The other side of each dropped pair holds ``identity`` in its
@@ -6909,16 +6916,11 @@ class CollisionSystem:
         if phase != _PHASE_EXIT:
             if not self._collider_in_play(ca) or not self._collider_in_play(cb):
                 return
-        from .act import get_act_manager
-        acts = get_act_manager()
+        acts = _act_manager()
         if acts.changing and self._both_leave_with_act(ca, cb, acts.dying_ids):
             # Act teardown: two bodies leaving together owe each other no exit.
             return
-        attr = {
-            _PHASE_ENTER: "on_collide",
-            _PHASE_STAY: "on_collide_stay",
-            _PHASE_EXIT: "on_collide_exit",
-        }[phase]
+        attr = _PHASE_CALLBACK[phase]
         # A handler may destroy or park a side, or change act (which drops
         # the act's handlers). Checked after each handler that ran, by one
         # int compare: a dead side ends enter / stay (S8-2), and a handler no
@@ -6936,9 +6938,19 @@ class CollisionSystem:
                             not self._collider_in_play(ca) or not self._collider_in_play(cb)):
                         return
 
-        for ta, tb, handler, handler_phase in tuple(self._pair_handlers):
-            if handler_phase != phase:
-                continue
+        # This phase's handlers only, from a snapshot rebuilt when the list
+        # changes (review 2026-10-09 perf: every contact copied and filtered
+        # every handler of every phase).
+        tag_index = self._tag_index
+        ida, idb = id(ca), id(cb)
+        for ta, tb, handler, _phase, key_tag in self._phase_handlers(phase):
+            if key_tag is not None:
+                # A tag side matches only a collider in that tag's index: two
+                # lookups skip a handler that cannot match (``_pair_matches``
+                # was 40 % of a step with 30 unrelated handlers).
+                idx = tag_index.get(key_tag)
+                if not idx or (ida not in idx and idb not in idx):
+                    continue
             if changed and not any(
                     e[2] is handler and e[0] is ta and e[1] is tb for e in self._pair_handlers):
                 continue
@@ -6953,6 +6965,24 @@ class CollisionSystem:
                 if phase != _PHASE_EXIT and (
                         not self._collider_in_play(ca) or not self._collider_in_play(cb)):
                     return
+
+    def _phase_handlers(self, phase: str) -> tuple:
+        """The pair handlers of ``phase``, as a tuple (a snapshot: a handler
+        may register or drop handlers). Keyed by the dispatch epoch (bumped by
+        every removal) and the list length (an append changes it)."""
+        key = (self._dispatch_epoch, len(self._pair_handlers))
+        cache = self._phase_cache
+        if cache is None or cache[0] != key:
+            by_phase: Dict[str, list] = {_PHASE_ENTER: [], _PHASE_STAY: [], _PHASE_EXIT: []}
+            for entry in self._pair_handlers:
+                # The prefilter tag: a side that is a tag (both must match,
+                # so either one is a necessary condition).
+                key_tag = self._pair_tag_of(entry[0])
+                if key_tag is None:
+                    key_tag = self._pair_tag_of(entry[1])
+                by_phase.setdefault(entry[3], []).append((*entry, key_tag))
+            cache = self._phase_cache = (key, {k: tuple(v) for k, v in by_phase.items()})
+        return cache[1].get(phase, ())
 
     @staticmethod
     def _both_leave_with_act(ca: Collider, cb: Collider, dying_ids) -> bool:
@@ -7943,6 +7973,24 @@ def _resolve_side_alive(side) -> bool:
     if side is ANYTHING or isinstance(side, str):
         return True
     return bool(getattr(side, "is_alive", True))
+
+
+_PHASE_CALLBACK = {
+    _PHASE_ENTER: "on_collide",
+    _PHASE_STAY: "on_collide_stay",
+    _PHASE_EXIT: "on_collide_exit",
+}
+_ACT_MANAGER = None
+
+
+def _act_manager():
+    """The act manager (one object for the process; imported once, not per
+    contact)."""
+    global _ACT_MANAGER
+    if _ACT_MANAGER is None:
+        from .act import get_act_manager
+        _ACT_MANAGER = get_act_manager()
+    return _ACT_MANAGER
 
 
 def _restore_resolve_pairs(snapshot) -> None:

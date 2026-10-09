@@ -3385,6 +3385,25 @@ def _validate_timed(*, time, ease, then, on_done, owner=None,
     return on_done, then, duration, resolve_ease(ease, what="ease")
 
 
+def _empty_group_timed(kwargs: dict) -> Optional[Handle]:
+    """A timed verb on an empty group (``group["tiros"].move_by(…, time=0.5)``
+    with no shot alive): the verb's timing and ``on_done``, with nothing to
+    move. A timer, not a tween on a stand-in actor (which built and
+    registered a ``Blank`` per call, ~0.3 ms: review 2026-10-09 S9-8).
+    Returns None for the rare forms the caller still routes through the
+    stand-in (``then=`` / ``loops=`` / ``yoyo=``)."""
+    if kwargs.get("then") is not None or kwargs.get("loops", 1) not in (1, None) \
+            or kwargs.get("yoyo"):
+        return None
+    owner, scope = _infer_owner()
+    checked = _validate_timed(
+        time=kwargs.get("time"), ease=kwargs.get("ease", "linear"), then=None,
+        on_done=kwargs.get("on_done"), owner=owner)
+    on_done, _then, duration, _ease = checked
+    handle = Handle._make(kind="after", delay=duration, fn=on_done, owner=owner, scope=scope)
+    return get_scheduler().add(handle)
+
+
 def _start_tween(
     *,
     duration: float,

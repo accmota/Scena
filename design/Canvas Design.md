@@ -578,8 +578,17 @@ post are not on this path.
 **Draw-walk hoist (2026-09-10):** when `cull_offscreen` is False, `ScenaCanvas.draw`
 builds the per-layer list from `visible` only — it does **not** call
 `_passes_cull` (whose first line would `return True`). `_cull_kept` still
-counts visibles; `_cull_skipped` stays 0. When the flag is True, the per-object
-`_passes_cull` path is unchanged (pads, parallax / `ui` exemptions, fail-open).
+counts visibles; `_cull_skipped` stays 0. When the flag is True, the layer
+exemptions run once per layer (`_layer_never_culled`: debug zoom, parallax,
+`ui`) and `visible_bounds` once per draw; per object only `_cull_keeps(obj, vb)`
+runs (AABB, pads, fail-open). `_passes_cull` is the same two steps for one
+object. Optional names are probed per class (`_probe`), so an actor's ink
+`__getattr__` miss (~0.5 µs each, five or six per object) is not paid. Before
+2026-10-09 the per-object call recomputed the view window, ran two imports and
+the layer checks: culling drew 2–3× slower than drawing everything (review
+S9-10). Now: 1000 cheap rects, 865 off screen, ~1.1× the no-cull cost in the
+headless raster bench (computing a Rect's AABB costs about one plain raster
+blit); 1000 `Text` labels draw 2.5× faster with culling on.
 
 Test hooks: `_cull_kept` / `_cull_skipped` (reset each `draw()`, same spirit as
 `_layer_ctm_swaps`). Trade-off: false skip (popping glow) is the failure mode —
@@ -874,7 +883,11 @@ structurally forbidden (`ParallaxLayerError`). This is not a v1 gap — it is a
 permanent architectural choice so:
 
 - `screen_to_world_coords`, hit-testing, and the entire collision system stay
-world-space under one global camera (no per-layer inverse math).
+world-space under one global camera (no per-layer inverse math). The pointer
+and overlay maps (`screen_to_world_coords`, `world_to_view_coords`) are float64
+closed forms (`ScenaCanvas._view_to_world_xy` / `_world_to_view_xy`); the
+float32 Skia inverse put the pointer 0.05 units off at x ~ 1e6 (review
+2026-10-09 S9-11). The draw CTM stays float32.
 - World-position vs apparent-screen-position never diverge for interactive
 bodies.
 

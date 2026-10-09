@@ -223,6 +223,16 @@ left out.
   later in that frame.
 - `@on_change` fires when a value turns from `1` to `True` or from `0` to
   `False`.
+- `canvas.cull_offscreen = True` no longer makes drawing slower than drawing
+  everything. It costs about the same for trivial shapes and pays off for
+  real ones: 1000 text labels draw 2.5× faster.
+- Writing a field or calling a timed verb on an empty group
+  (`group["tiros"].hp = 3`, `group["tiros"].move_by(…, time=0.5)`) no longer
+  builds a hidden actor per call. The timed verb still waits its time and
+  runs `on_done`.
+- Collision handlers dispatch faster when many `@collide` rules exist.
+- The mouse position in the world stays exact at large world coordinates
+  with the camera on (it was off by 0.05 units at x = 1 000 000).
 - `mouse.dx` / `mouse.dy` are this frame's motion: 0 when the mouse is
   still (they kept the last step, so `ship.move_by(mouse.dx, 0)` drifted
   forever), and the sum when several moves arrive in one frame.
