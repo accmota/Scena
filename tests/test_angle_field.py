@@ -48,6 +48,10 @@ DERIVED_MODELS = {
     "Circle by rim": lambda: Circle(p1=(3, -2), p2=(23, -2)),
 }
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 class TestAngleIsAnInput(unittest.TestCase):
     def test_setting_keeps_the_placement_point(self):

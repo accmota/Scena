@@ -25,6 +25,10 @@ from scena.shapes import (
 )
 from scena.state import get_scena_system
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _vertex_xy(n: int, idx: int, cx: float, cy: float, r: float, angle_deg: float):
     a = math.radians(angle_deg) + idx * (2.0 * math.pi / n)

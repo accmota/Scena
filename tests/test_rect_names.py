@@ -40,6 +40,10 @@ NAMED = (
 )
 TOL = 1e-6
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def xy(p):
     return (float(p.x), float(p.y))

@@ -34,6 +34,10 @@ from scena.state import LinkedAttributeError, DerivedAttributeError, Attribute
 from scena.scenamath import Vec2
 from scena.box import Box
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 class ShapeTestCase(unittest.TestCase):
     """Common numeric-comparison helpers for shape tests."""

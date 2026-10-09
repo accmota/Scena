@@ -20,6 +20,10 @@ import math
 from scena.shapes import Line, Point, Rect
 from scena.state import DerivedAttributeError
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 class TestDerivateAttributesAreReadOnly(unittest.TestCase):
     def test_set_or_link_derivate_raises_across_models(self):

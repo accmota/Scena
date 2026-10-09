@@ -31,6 +31,10 @@ MODELS = {
 }
 SIGNS = ((1, 1), (-1, 1), (1, -1), (-1, -1))
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _xy(p):
     return (round(float(p.x), 6), round(float(p.y), 6))

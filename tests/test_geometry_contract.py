@@ -59,6 +59,10 @@ POSES = hst.fixed_dictionaries({
     "r": hst.integers(-180, 180).map(float),
 })
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _track(w, obj):
     if not isinstance(obj, Box):

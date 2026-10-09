@@ -43,6 +43,10 @@ from scena.track import Track
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 class GeomTestCase(unittest.TestCase):
     def assertPointAlmost(self, got, x, y, places=5, msg=None):

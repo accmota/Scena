@@ -34,6 +34,10 @@ from scena.state import Attribute, LinkedAttributeError
 from scena.events import cleanup_global_event_system
 from scena.shapes import Shape, Polygon
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _frame(real_dt=0.1):
     clock.advance(real_dt)

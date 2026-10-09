@@ -18,6 +18,10 @@ from scena.state import State, CircularReferenceError, DependencyState
 from scena.shapes import Point, Circle, Line
 from scena.scenamath import Vec2
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def get_diameter(circle: Circle) -> float:
     return circle.radius * 2

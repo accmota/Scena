@@ -28,6 +28,10 @@ from scena.state import (
 )
 from scena import clock, tween
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _frame(real_dt=0.1):
     clock.advance(real_dt)

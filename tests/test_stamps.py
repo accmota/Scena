@@ -27,6 +27,10 @@ from scena.stamps import (
     resolve_tail_size,
 )
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _tick(dt: float = 1.0 / 60.0) -> None:
     """Advance world clock without the GLFW loop (for follow-tail samples)."""

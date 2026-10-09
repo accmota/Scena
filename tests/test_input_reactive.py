@@ -17,6 +17,10 @@ from scena.shapes import Circle
 from scena.state import State, get_scena_system
 from scena.input import MAX_FRAME_DT, Clock, KeyPressed, Mouse
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 class TestMouseAsPoint(unittest.TestCase):
     """Plain ``mouse`` is a point wherever a Point / ``(x, y)`` is accepted."""

@@ -28,6 +28,10 @@ from scena_editor.view import DESIGN  # noqa: E402
 KIND_CLASS = {"rect": "Rect", "ellipse": "Ellipse", "circle": "Circle", "line": "Line",
               "polygon": "Polygon", "track": "Track", "point": "Circle", "image": "Sprite"}
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def world(vx, vy):
     """View (window) point → world point through the current camera."""

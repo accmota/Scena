@@ -26,6 +26,10 @@ import scena.orchestration as orch  # noqa: E402
 from scena import Circle, Entity, Rect, Text, collide  # noqa: E402
 from scena.act import Act, change_act  # noqa: E402
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 class _PolicyOn:
     """Turn the policy on for one test (SystemWorld turns it off)."""

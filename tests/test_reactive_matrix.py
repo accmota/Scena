@@ -40,6 +40,10 @@ KNOWN_RANGE = frozenset()
 # before any read of the points it rewrites.
 KNOWN_STALE_READ_ORDER = frozenset()
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _freshness_failures(subjects, reverse=False):
     bad = []

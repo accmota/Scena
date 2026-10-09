@@ -91,6 +91,7 @@ Rules of thumb:
 | `tests/geom_sentinel.py` | H2 **sentinel**: runtime invariants checked test-side after every outermost engine entry point (pose verbs, flip / angle / scale setters, slot `__set__`, public `__setattr__`, `_takein`, `@=`, `unlink`, `clone`, `<<`, `absorb`, `collision.snapshot_shape`): I-fast, I-bare, I-graph, I-clean, I-heading, I-names, I-epoch, I-atomic. Hooks are `sys.monitoring` events on the code objects, so no frame is added (author sites and `stacklevel` warnings stay right) and nothing is replaced; reads are raw `__dict__` (no pull, no warm Derivate, no Entity built). `SCENA_SENTINEL=log` / `1`; `tests/sentinel_site/sitecustomize.py` installs it right after `import scena`; `run_tiers.py <tier> --sentinel` runs a tier under it and prints `report()`. Self-test: `test_geom_sentinel` (four canaries). |
 | `tests/geom_laws.py` | H3 law table (`LAWS`): two programs on twin subjects that must read alike (algebra, timed = instant, spellings); `run_law`, `observe`, `differ` (Q6: points exactly, `angle` modulo 360 unless the law is about turns, flags only where the law says). Used by `test_geom_laws`; the fuzzer's rewrites reuse it. |
 | `tests/fuzz/` | H10 **metamorphic fuzzer**: `geom_gen.py` (seeded JSON programs over the whole K pool, parameterized verbs, reads, clones, unlinks; `run` returns a trace and checks every call against its own affine shadow), `geom_rewrite.py` (stacked semantics-preserving rewrites from the law table, kept as one group per original op so traces stay aligned), `geom_fuzz.py` (triple oracle P vs P′ / shadow / sentinel; multi-process volume runner with `sys.monitoring` branch-coverage guidance; signatures with tags that map a divergence to a known finding; `--canary`; `--build-corpus`), `reduce.py` (ddmin to a `unittest` repro in `found/`), `corpus/` (a greedy coverage set replayed in `gate` by `test_fuzz_corpus`). |
+| `tests/leftovers.py` | Module isolation: `module_sweep()` → `setUpModule, tearDownModule` that destroy every actor the module registered (roster keys after the module's mark, newest first; parts leave with their owners; `on_destroy` cleared; raises when one survives); `mark()` / `made_since()` / `sweep()`; `LeftoverCheck` (fails a module that leaves more than `LIMIT` = 50 live roster items). `run_tiers.py` runs every job through `--child` (`python -m unittest` plus one check after each module, not counted in "Ran N"). Tests: `test_leftovers.py`. |
 
 Scena keeps **one** `ScenaFramework` per process. Every example and every system test
 must undo what it did; an example that leaks state makes Hypothesis report *Flaky*
@@ -484,6 +485,19 @@ Rules:
 - **Keep `SLOW` / `SPLIT` data-driven.** A module that grows past ~15 s at `dev` joins
   `SLOW` (`timings.json` shows it); a gate job that dominates the wall time joins
   `SPLIT`. `tests/test_run_tiers.py` fails on a stale name and on a module no tier runs.
+- **A module destroys what its tests made.** Leftovers live on in the serial pass: every
+  later `census()` / `full_collect()` walks them and every `SystemWorld` parks and
+  resumes them (`test_shapes` left 1905 roster items, `test_reactive_matrix` ~163 000).
+  A module that builds actors without destroying them declares
+  `setUpModule, tearDownModule = module_sweep()` (`tests/leftovers.py`). Every tier
+  enforces it: `run_tiers.py` runs a `LeftoverCheck` after each module, which fails above
+  `LIMIT` (50) live roster items and names their kinds. Measured on the serial pass
+  (2026-10-09, 48 modules swept): 45 failures → 6 (the program-run censuses that saw
+  other modules' shapes), 7854 s → 2883 s of CPU. Counts can grow with the
+  budget: `test_construct_failure` left 2 at `dev` and 216 with canaries on, so the gate
+  is where such a module shows. Leftovers once exposed an engine bug (a hidden Point on a
+  layer, through the serial pass): when a leftover state matters, build it inside an
+  isolated test rather than relying on a neighbour to leak it.
 - A module that starts and ends its own global state (new singleton, new registry)
   needs no runner change; a new **env switch** goes in `Tier` / `tier_env`.
 
@@ -593,6 +607,10 @@ engine.
   ([Reactive Design — Eager effects](Reactive%20Design.md)).
 - **Empty numeric layers are not a leak**: `layer=<int>` auto-creates on first use;
   censuses ignore empty int layers.
+- **A list of suspects keeps the suspects alive.** The roster is weak, so it lists garbage
+  until a GC pass; collect *after* dropping your own list of the items, or the list is
+  what keeps them. The first `LeftoverCheck` called `gc.collect()` with its list in hand
+  and reported 192 Points that were garbage.
 - **`import scena.collision as col` is the facade, not the module.** `scena/__init__`
   exports `audio`, `canvas` and `collision` objects that shadow those submodules, so
   a monkeypatch on `col` silently patches the facade and a canary "passes". Patch

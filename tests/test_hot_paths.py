@@ -37,6 +37,10 @@ import scena  # noqa: E402
 import scena.entity as E  # noqa: E402
 import scena.shapes as SH  # noqa: E402
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _xy(p):
     return (round(float(p.x), 9), round(float(p.y), 9))

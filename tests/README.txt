@@ -20,6 +20,14 @@ module that leaves state behind for the next one; it lists every module of
 both roots (tests/ then scena_editor/tests/) in one process. Every module must also pass alone:
 python -m unittest tests.test_<area>
 
+A module destroys what its tests made (the serial pass would carry it into every
+later module). A module that builds actors and keeps them declares
+  from tests.leftovers import module_sweep
+  setUpModule, tearDownModule = module_sweep()
+Every tier checks it: run_tiers.py runs each job through "run_tiers.py --child"
+(python -m unittest plus a LeftoverCheck after each module), which fails a module
+that leaves more than leftovers.LIMIT live roster items.
+
 Env switches: SCENA_HYPOTHESIS_PROFILE (dev / ci / deep / replay),
 SCENA_CANARIES=0 (skip canaries and vacuity guards; default on),
 SCENA_SOAK=1 (endurance), SCENA_HYPOTHESIS_DB=0 (no example database; the

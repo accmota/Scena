@@ -26,6 +26,10 @@ from scena.shapes import Point, Rect, Circle
 from scena.scenamath import Vec2
 from scena.orchestration import ScenaFramework
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 class CanvasTestCase(unittest.TestCase):
     def setUp(self):

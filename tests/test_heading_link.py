@@ -37,6 +37,10 @@ DERIVED_HEADING = (
     "Rect spine cap", "Rect spine square", "Rect spine side_left", "Rect spine side_right",
 )
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _name(part):
     return str(part.name) if isinstance(part, FieldRef) else part._attr_name

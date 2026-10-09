@@ -56,6 +56,10 @@ _NOT_CALLED = {"destroy", "setup", "update", "clone", "look_like", "save_visual"
 _ENGINE_PREFIXES = ("on_mouse_", "on_key", "on_char", "draw", "tick", "_")
 _JUNK = "junk"
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _subjects():
     for kind in sorted(G.KINDS):

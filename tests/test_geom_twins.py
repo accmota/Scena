@@ -41,6 +41,10 @@ TWINS = ("forced_slow", "caches_dropped", "in_batch", "in_frame", "eager_graph")
 # Kinds that start on the slow path by design (test_diff_pose.START_SLOW, GR5).
 START_SLOW = ("Track line point_point",)
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _run(kind, program, twin):
     """Fingerprints after every step of ``program`` on ``kind`` under ``twin``."""

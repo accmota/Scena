@@ -56,6 +56,10 @@ WRITES = {
     "line_width = 6": lambda o: setattr(o, "line_width", 6),
 }
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _mat(m):
     if type(m).__name__ == "Color":

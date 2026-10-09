@@ -27,6 +27,10 @@ Tiers (strategy in design/Testing Design.md, "Test tiers"):
     deep     every module, deep profile, canaries on, soak on,
              then one serial pass over every root (dev profile)
 
+Each job is ``run_tiers.py --child <names>``: ``python -m unittest`` plus a
+leftover check after each module (a module destroys what its tests made;
+tests/leftovers.py).
+
 Logs: ``.scena_test_runs/<tier>/<job>.log`` (a long label is shortened,
 see ``log_name``); timings (used to start the
 slowest jobs first): ``.scena_test_runs/timings.json``. Exit status 1 when a
@@ -44,6 +48,7 @@ import subprocess
 import sys
 import threading
 import time
+import unittest
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Iterable, List, Optional, Sequence
@@ -258,6 +263,58 @@ def parse_output(text: str) -> tuple:
 
 
 # --------------------------------------------------------------------------
+# The child: ``python -m unittest`` plus a leftover check after each module
+# --------------------------------------------------------------------------
+
+CHILD = "--child"
+
+
+def with_leftover_checks(suites: Sequence[unittest.TestSuite], check) -> unittest.TestSuite:
+    """``suites`` in order, ``check(module)`` after each run of one module.
+
+    The check is a test of another module, so unittest runs the module's
+    ``tearDownModule`` (its sweep) before it. Consecutive names of one module
+    (a shard's test ids) share one check: no extra module setup between them.
+    """
+    out = unittest.TestSuite()
+    prev = None
+    for suite in suites:
+        first = next(iter(_flat(suite)), None)
+        module = type(first).__module__ if first is not None else prev
+        if prev is not None and module != prev:
+            out.addTest(check(prev))
+        out.addTest(suite)
+        prev = module
+    if prev is not None:
+        out.addTest(check(prev))
+    return out
+
+
+def _flat(suite):
+    for t in suite:
+        if isinstance(t, unittest.TestSuite):
+            yield from _flat(t)
+        else:
+            yield t
+
+
+def child_main(argv: Sequence[str]) -> None:
+    """``python -m unittest <argv>`` with a ``LeftoverCheck`` after each module
+    (tests/leftovers.py)."""
+    sys.path[0] = ROOT                  # as ``python -m``: the cwd, not tests/
+    from tests import leftovers
+
+    class Loader(unittest.TestLoader):
+        def loadTestsFromNames(self, names, module=None):
+            suites = [self.loadTestsFromName(n, module) for n in names]
+            state = {"at": leftovers.mark()}    # after imports: import-time actors are not counted
+            return with_leftover_checks(
+                suites, lambda mod: leftovers.LeftoverCheck(mod, state))
+
+    unittest.main(module=None, argv=["python -m unittest", *argv], testLoader=Loader())
+
+
+# --------------------------------------------------------------------------
 # Running
 # --------------------------------------------------------------------------
 
@@ -339,7 +396,8 @@ class Runner:
         env = {**os.environ, "PYTHONIOENCODING": "utf-8", **job.env}
         start = time.time()
         with open_fresh(log) as fh:
-            proc = subprocess.Popen([sys.executable, "-m", "unittest", *extra_args, *job.names],
+            proc = subprocess.Popen([sys.executable, os.path.join(TESTS, "run_tiers.py"), CHILD,
+                                     *extra_args, *job.names],
                                     cwd=ROOT, env=env, stdout=fh, stderr=subprocess.STDOUT)
             with self._lock:
                 self._procs.add(proc)
@@ -525,6 +583,8 @@ def sentinel_summary(stream) -> bool:
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == [CHILD]:
+        child_main(sys.argv[2:])        # exits
     # Failure logs can hold any character; a console redirected to a file on
     # Windows encodes with the locale and errors="strict".
     sys.stdout.reconfigure(errors="backslashreplace")

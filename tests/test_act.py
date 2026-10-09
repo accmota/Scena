@@ -40,6 +40,10 @@ from scena.act import (  # noqa: E402
     get_act_manager,
 )
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def current():
     return get_act_manager().current

@@ -53,6 +53,10 @@ BASES = ["fresh", "flip_x", "flip_xy", "rotated", "scaled", "min_scale", "degene
 XS = ["normal", "forced_slow", "caches_dropped"]
 DEEP = hypothesis_support.PROFILE in ("ci", "deep")
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _known(key, table):
     return any(fnmatch.fnmatch(key, p) for p in table)

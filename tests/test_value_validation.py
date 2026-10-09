@@ -67,6 +67,10 @@ ACCEPTED = {
     ("layers", "10**400"): "a whole count past the range clamps to 3, like layers = 7",
 }
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _author_error(exc) -> bool:
     if isinstance(exc, UnicodeError):          # a ValueError, but Python's text
