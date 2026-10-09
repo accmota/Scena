@@ -1857,6 +1857,8 @@ class Entity(Container):
             or getattr(self, "_draggable", False)
             or getattr(self, "_droppable", False)
             or getattr(self, "_wheel_rotate", False)
+            or getattr(self, "_on_hover", None) is not None
+            or getattr(self, "_on_hover_exit", None) is not None
             or _wants_collision(self)
         )
         if not interactive:

@@ -24,6 +24,10 @@ from scena.state import (
     Attribute,
 )
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _graph():
     return get_scena_system().dependency_graph

@@ -39,6 +39,10 @@ _NO_COLOR = {
     "Visual": "base", "Recipe": "base",
 }
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _public_visual_classes():
     out = []

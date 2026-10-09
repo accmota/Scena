@@ -13,6 +13,10 @@ from scena.recipes import Neon
 from scena.filters import GlowFilter
 from scena import transients as tx
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _clock():
     """Mutable fake time for deterministic tests."""

@@ -594,15 +594,34 @@ raises naming the item; a bare `Entity` (no `center`) is skipped.
 (rotated camera uses the AABB of the four view corners). Placement parent for
 game objects. The engine still culls against its internal frustum AABB.
 
+**`canvas` is a formula source** (2026-10-09, RX1): the author facade is a
+`Container` like `mouse` / `clock` / `keyp`. A formula that reads `canvas.zoom`
+/ `pan_x` / `pan_y` / `rotation`, `canvas.game_view…` or
+`canvas.layers[name].view…` registers `canvas` as its source, and the engine
+notifies it (`ScenaCanvas._notify_view_changed`, from `_sync_camera` and from
+the per-frame scroll advance) so the formula follows every camera move and
+every scroll. The measured `Box` met in the chain is a value, never the source
+(Reactive Design, Deferred trees): nothing throwaway joins the graph. Engine
+readers (draw walk, cull, hit test, `screen_to_world_coords`) keep reading the
+raw camera fields. Cost: an unlinked canvas has no graph node and the notify
+returns after two attribute reads (A/B: `pan_to` 2.12 vs 2.11 µs); with a
+dependent it is the `mark_dirty` the author asked for (+1.3 µs per camera
+move).
+
 **`canvas.ui_view`** — `[0, width] × [0, height]` in **view** units as a fresh
-`Box`. HUD / `layer="ui"` / view `Text`. Camera-immune.
+`Box`. HUD / `layer="ui"` / view `Text`. Camera-immune; it changes only with
+the design size (`init`), so a formula on it is accepted and stays constant
+through every camera move.
 
 **Inspect overlay (Ctrl+Shift+7 / debug zoom):** gold quad = design-view /
 player frustum; cyan stroke = playfield when `@leave_playfield` is enrolled.
 Never the same geometry.
 
 Class `@leave_playfield` methods: every one on the class runs (not only the
-last). The registry stores the **plain function** per instance and calls
+last). Top-level handlers too: every `@leave_playfield("tag")` on a tag runs,
+in registration order, like `@collide`; an act's handlers leave at the act
+change (decided 2026-10-09, review S4-10; before, a second top-level handler
+silently replaced the first). The registry stores the **plain function** per instance and calls
 `fn(item)` — never a bound method: `_instance_handlers` is a
 `WeakKeyDictionary`, and a bound method as its value would hold its own key, so
 the actor could never be collected (system-test finding S1). `destroy()` drops
@@ -714,7 +733,11 @@ under the global camera; allowing interactive members on a parallax
 layer would make screen position diverge from the inverse they use.
 Guards live on `Entity` / interactive setters and in
 `Collider` construction — the hit/collision systems themselves need no
-special paths because forbidden members never register.
+special paths because forbidden members never register. Hover handlers
+(`on_hover` / `on_hover_exit`, `@hover`) are interaction too: refused on a
+parallax shape, and a shape with them cannot move into a parallax layer. A
+parallax item never fires `@leave_playfield` (it moves with its layer; the
+bounds step skips it, `test_parallax_layers`).
 
 
 # Background engine
@@ -902,7 +925,9 @@ Test hook: `ScenaCanvas._layer_ctm_swaps` (reset each `draw()`).
 `canvas.layers[name].view` → the view window in **that layer's own coordinates**,
 as a fresh measured `Box` (same contract as `canvas.game_view`: a snapshot, off
 the reactive graph, rotated camera → AABB of the four view corners,
-over-inclusive). Read-only (a write raises naming `canvas.pan_to`).
+over-inclusive). Read-only (a write raises naming `canvas.pan_to`). In a
+formula its source is `canvas`, notified by the scroll advance as well as by
+the camera, so `lambda: canvas.layers["bg"].view.left` follows the scroll.
 `ScenaCanvas.layer_view(layer)`:
 
 | Layer | `.view` |

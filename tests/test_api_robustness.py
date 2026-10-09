@@ -40,6 +40,10 @@ from scena.state import CallableAssignError
 from scena.events import cleanup_global_event_system
 from scena import validate
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _public_classes(base):
     return sorted(

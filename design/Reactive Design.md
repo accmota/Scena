@@ -827,6 +827,15 @@ Weak `_owner` references were ruled out (every owner walk on the hot path,
 and a held point would orphan). The Point itself is still built (~45 µs: it is
 a Graphic); only the graph work is skipped.
 
+A deferred tree is a **value in a formula chain**, never the source: the
+dependency walk (`state._is_durable_source`) keeps the Container *before* it
+(`canvas` for `canvas.game_view.center`, the graphic for `graphic.box.right`).
+Depending on the measured Box froze the formula at the value it was linked
+with and joined the throwaway into the graph on every pull (RX1, interaction
+campaign class 8; `test_canvas.TestCanvasIsAFormulaSource`). The owner of a
+measurement is what notifies: `canvas` (a Container since 2026-10-09) from
+`_sync_camera` and the scroll advance, a Graphic from its pose writes.
+
 Hazards: a new write path on a Container must end in `update()` (or
 `mark_dirty` guarded by `_node_id`), never assume the owner has a node; a new
 path that adds graph state for a node without `register_container` would skip

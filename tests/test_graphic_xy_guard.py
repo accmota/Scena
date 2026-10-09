@@ -22,6 +22,10 @@ from scena.entity import Entity, Graphic, _LOOK_MISSING, _SET_OBJECT
 from scena.shapes import Circle, Point, _xy_of
 from scena.spatial_fx import SpatialFx
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _concrete(cls):
     found = []

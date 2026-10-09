@@ -105,26 +105,14 @@ from scena.state import (  # noqa: E402
 )
 
 _BOOTED = False
-# Every act-level world setting as a fresh process has it, taken at the first
-# ``boot()`` (module import: unittest loads every module before running any
-# test). ``ProgramRun`` starts each program from these, as a real one starts.
-_PRISTINE_SETTINGS = None
 
 
 def boot() -> None:
     """``init`` once per process (design size only; no window)."""
-    global _BOOTED, _PRISTINE_SETTINGS
+    global _BOOTED
     if not _BOOTED:
         init(width=400, height=300)
         _BOOTED = True
-        from scena.act import WORLD_SETTINGS
-        _PRISTINE_SETTINGS = {w.name: w.snapshot() for w in WORLD_SETTINGS}
-
-
-def pristine_world_settings() -> dict:
-    """World setting name → its value in a fresh process (see ``boot``)."""
-    boot()
-    return dict(_PRISTINE_SETTINGS)
 
 
 def registry():

@@ -20,6 +20,14 @@ module that leaves state behind for the next one; it lists every module of
 both roots (tests/ then scena_editor/tests/) in one process. Every module must also pass alone:
 python -m unittest tests.test_<area>
 
+A module destroys what its tests made (the serial pass would carry it into every
+later module). A module that builds actors and keeps them declares
+  from tests.leftovers import module_sweep
+  setUpModule, tearDownModule = module_sweep()
+Every tier checks it: run_tiers.py runs each job through "run_tiers.py --child"
+(python -m unittest plus a LeftoverCheck after each module), which fails a module
+that leaves more than leftovers.LIMIT live roster items.
+
 Env switches: SCENA_HYPOTHESIS_PROFILE (dev / ci / deep / replay),
 SCENA_CANARIES=0 (skip canaries and vacuity guards; default on),
 SCENA_SOAK=1 (endurance), SCENA_HYPOTHESIS_DB=0 (no example database; the
@@ -121,6 +129,11 @@ Geometry campaign (design/Testing Design.md, "Geometry campaign")
   python tests/mutation_run.py ... --ops call  deleted-call mutants only
   python scripts/bench/perf_geometry.py --ab <pristine HEAD tree>
 
+  test_reactive_cross_matrix.py  engine-owned sources (mouse, clock, keyp, the
+                           view, a cell, another actor) x sinks in other
+                           subsystems, against a plain-write twin in frames.
+                           Interaction campaign 8 (RX1 open).
+
 Property-based tests (Hypothesis)
 ---------------------------------
 
@@ -161,6 +174,9 @@ brings Pillow for the Guia's animated thumbnails in test_guia_thumbs_render.py):
                           incremental @collide enroll vs rebuild.
   test_diff_draw.py       sticky plain-blit flag, plain vs full draw, cull on vs
                           off, shared-filter batching on vs off (apart).
+  test_diff_pipeline.py   a white square's brightest rastered pixel vs the
+                          transform chain (camera x layer response x post FX x
+                          window scale x letterbox). Interaction campaign 6.
 
   Differential helpers: tests/diff_support.py (make_twins, fingerprint,
   assert_fast, assert_catches for canaries).
@@ -220,6 +236,26 @@ tests/system_support.py.
                            on_done, group / layer drain, parked, leaving), a
                            spawn / destroy churn, drop-without-destroy, clone
                            isolation, park across subsystems, modes, caches.
+  test_sys_holders.py      holder x ender: scan() finds every engine path to
+                           an actor; after destroy / act change / clear /
+                           delete / recycle none may remain; after park / hide /
+                           undraw / collidable off / untag each holder follows
+                           the documented contract. Interaction campaign 2.
+  test_sys_pointer_pipeline.py  one OS pixel through window scale, letterbox,
+                           camera and layer kind to the handler that fires
+                           (hover / click / drag; precedence). Interaction
+                           campaign 5.
+  test_sys_art_contact.py  a clip started from every author hook: the hitbox
+                           enters on the frame the strike cell is drawn.
+                           Interaction campaign 12.
+  test_sys_error_sites.py  author error x callback site: every author hook
+                           armed to raise once; the frame closes, the next
+                           runs, nothing dead is held. Interaction campaign 7.
+  test_sys_phase_matrix.py phase x mutation x observer: a change made in any
+                           author-code phase of frame N is seen by every later
+                           phase of N and every phase of N+1, and by nothing it
+                           does not name (frame order as the oracle; a phase
+                           clock checks each arming). Interaction campaign 1.
   test_sys_frame_order.py  phase order in one frame, handoffs (timer from a
                            handler, pre-draw write -> next flush, same-frame
                            spawn collides), glitch-free handlers, recovery from
@@ -294,6 +330,21 @@ ledger: design/Testing Design.md, "Program model tests".
 
   API-first programs (geometry_lab, toybox, runner_story) cover exports the
   drafts and examples never touch; Tier B composer: test_prog_compose.py.
+
+  Isolation (Testing Design, "Interaction campaign", class 4):
+  test_prog_isolation.py runs every program after a neighbour (dev) or after
+  every program (ci), after dirty predecessors (what a test module leaves:
+  live shapes, shapes with work, a stale widget, learned group names, a junk
+  pointer, kept and world settings), and checks that a run gives the process
+  back. ProgramRun starts from the framework defaults of every world setting
+  (system_support.reset_world_settings) and restores what it found at close.
+  SLOW (~35 s at dev).
+
+  Invariance (class 3): test_prog_invariance.py runs program_oracles'
+  camera_moved (the camera set before the first line: the same world),
+  time_scaled (clock.scale = k with frames of dt / k: the same trace) and
+  the rename_layers rewrite over every program, with exclusion tables that
+  carry their reasons. SLOW (~30 s at dev).
 
   Value metric (slow; one quick tier per mutant):
   python tests/mutation_run.py --modules scena.collision scena.uiwidget \

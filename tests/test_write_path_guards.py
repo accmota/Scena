@@ -34,6 +34,10 @@ from source_support import iter_files  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scena")
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _functions():
     """(file, qualname, FunctionDef) for every function in scena/."""

@@ -16,6 +16,10 @@ from scena.shapes import Rect, Line, Point
 from scena.state import get_scena_system, flush
 from scena.events import when, unregister_event, cleanup_global_event_system
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 class TestPullOutsideFrameBatch(unittest.TestCase):
     def test_construction_pulls_on_read(self):

@@ -28,7 +28,7 @@ from program_support import (FRAME, ProgramRun, Scenario, Trace, _plain, close a
                              registry)
 from system_support import full_collect, zombies
 
-from scena import canvas
+from scena import canvas, clock
 from scena.entity import made_at
 
 
@@ -263,7 +263,42 @@ def reorder_defs(source: str) -> str:
     return ast.unparse(tree)
 
 
-TIER_C = {"rename_groups": rename_groups, "reorder_defs": reorder_defs}
+_BUILT_IN_LAYERS = {"default", "top", "ui"}
+
+
+def _layer_names(tree: ast.AST) -> set:
+    """String literals the program uses as its own layer names."""
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.keyword) and node.arg in ("layer", "below", "above") \
+                and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            names.add(node.value.value)
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                and node.func.attr == "create" and node.args \
+                and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+            names.add(node.args[0].value)
+        elif isinstance(node, ast.Subscript) and isinstance(node.value, ast.Attribute) \
+                and node.value.attr == "layers" and isinstance(node.slice, ast.Constant) \
+                and isinstance(node.slice.value, str):
+            names.add(node.slice.value)
+    return names - _BUILT_IN_LAYERS
+
+
+def rename_layers(source: str, suffix: str = "_r") -> str:
+    """Every author layer name gets ``suffix`` everywhere it appears as a whole string."""
+    tree = ast.parse(source)
+    names = _layer_names(tree)
+
+    class R(ast.NodeTransformer):
+        def visit_Constant(self, node):
+            if isinstance(node.value, str) and node.value in names:
+                return ast.copy_location(ast.Constant(node.value + suffix), node)
+            return node
+    return ast.unparse(R().visit(tree))
+
+
+TIER_C = {"rename_groups": rename_groups, "reorder_defs": reorder_defs,
+          "rename_layers": rename_layers}
 
 
 def tier_c(program: str, spec_ns, scenario: str, transform: str) -> List[str]:
@@ -287,3 +322,50 @@ def tier_c(program: str, spec_ns, scenario: str, transform: str) -> List[str]:
     rows = [f"  original  {x}\n  rewritten {y}" for x, y in zip(fa, fb) if x != y][:3]
     return [f"tier_c {transform}: the rewritten program left a different world "
             f"({len(fa)} vs {len(fb)} objects)\n" + "\n".join(rows)]
+
+
+# --------------------------------------------------------------------------
+# Metamorphic invariances: the world does not depend on how it is looked at
+# --------------------------------------------------------------------------
+
+def camera_moved(program: str, spec_ns, scenario: str, cam: Dict[str, Any],
+                 ignore: Sequence[str] = ()) -> List[str]:
+    """The same program with the camera moved before its first line leaves
+    the same world and the same probe trace (``ignore``: probes that read
+    the camera, the view or the pointer in world units).
+
+    ``cam``: ``zoom``, ``pan`` (dx, dy), ``rotate`` (degrees), ``origin``.
+    """
+    def prelude(run: ProgramRun) -> None:
+        if cam.get("origin"):
+            canvas.set_origin(cam["origin"])
+        if cam.get("zoom"):
+            canvas.zoom_to(cam["zoom"])
+        if cam.get("pan"):
+            canvas.pan_by(*cam["pan"])
+        if cam.get("rotate"):
+            canvas.rotate_to(cam["rotate"])
+
+    probes = {k: v for k, v in spec_ns["PROBES"].items() if k not in ignore}
+    a, fa = _run(program, spec_ns, scenario, probes=probes, at_end=world_fingerprint)
+    b, fb = _run(program, spec_ns, scenario, probes=probes, at_end=world_fingerprint,
+                 before_start=lambda run: setattr(run, "prelude", prelude))
+    out = [f"camera_moved {cam}: {m}" for m in _diff_samples(a, b, tol=1e-9)]
+    if fa != fb:
+        rows = [f"  plain {x}\n  moved {y}" for x, y in zip(fa, fb) if x != y][:3]
+        out.append(f"camera_moved {cam}: a different world ({len(fa)} vs {len(fb)} objects)\n"
+                   + "\n".join(rows))
+    return out
+
+
+def time_scaled(program: str, spec_ns, scenario: str, k: float = 2.0) -> List[str]:
+    """``clock.scale = k`` with real frames of ``dt / k``: the same world time
+    per frame, so the same trace. Catches anything that reads the real dt or
+    wall time where world time is the contract."""
+    sc = spec_ns["SCENARIOS"][scenario]
+    a, _ = _run(program, spec_ns, scenario)
+    b, _ = _run(program, spec_ns, scenario, dt=sc.dt / k,
+                before_start=lambda run: setattr(
+                    run, "prelude", lambda r: setattr(clock, "scale", k)))
+    return [f"time_scaled x{k}: {m}" for m in _diff_samples(a, b, tol=1e-9)]
+

@@ -33,6 +33,10 @@ from scena import State  # noqa: E402
 _FIELDS = {}     # label -> [(name, is_pair, slot)]   every readable name
 _LINKABLE = {}   # label -> [(name, is_pair, slot)]   names the model lets a link drive
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def fields_of(label, factory):
     if label not in _FIELDS:

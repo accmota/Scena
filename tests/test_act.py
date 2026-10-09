@@ -23,7 +23,7 @@ import inspect  # noqa: E402
 
 import scena  # noqa: E402
 from scena import (  # noqa: E402
-    Bloom, Circle, Entity, Line, Point, Rect, Stars, Text, Vignette, after, audio, canvas, clock,
+    STATIC, Bloom, Circle, Entity, Line, Point, Rect, Stars, Text, Vignette, after, audio, canvas, clock,
     collide, collide_exit, collision, group, leave_playfield, on_change, on_mode, play_sound,
     resolve, set_defaults, unresolve, wait, when, st,
 )
@@ -39,6 +39,10 @@ from scena.act import (  # noqa: E402
     KEPT_SETTINGS, WORLD_SETTINGS, Act, ActUsageError, change_act,
     get_act_manager,
 )
+
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
 
 
 def current():
@@ -1110,6 +1114,9 @@ NOT_SETTINGS = {
     # engine drivers and Container plumbing
     "clock.advance", "clock.update", "clock.unlink", "clock.unlink_all",
     "clock.owner", "clock.parts", "clock.field_type",
+    # canvas is a formula source (a Container like clock): the same plumbing
+    "canvas.update", "canvas.unlink", "canvas.unlink_all",
+    "canvas.owner", "canvas.parts", "canvas.field_type",
     # queries (read-only) and Box factories (return new boxes)
     "collision.query_circle", "collision.query_point", "collision.query_sector",
     "collision.query_shape", "collision.raycast", "audio.spectrum",
@@ -1392,6 +1399,75 @@ class TestRetiredSceneNames(unittest.TestCase):
         ns = self._star_namespace()
         exec("class Scene:\n    pass\nclass Minha(Scene):\n    pass", ns)
         self.assertIn("Minha", ns)
+
+
+class TestDestroyedSidesLeaveTheActPairLists(ActTestCase):
+    """HD2 / HD3 / HD5 (Testing Design, HD): pair lists an act change reads back
+    and the widget manager's menu fields must not keep a destroyed object."""
+
+    def test_sealed_resolve_pair_forgets_a_destroyed_game_side(self):
+        player = Circle(center=(10, 10), radius=5, group="hd_player")
+        wall = Circle(center=(300, 10), radius=5, group="hd_wall")
+        wall.mass = STATIC
+        resolve(player, wall)
+        self.begin(Vazia)
+        col = get_collision_system()
+        self.assertTrue(any(a is player or b is player
+                            for a, b, _t, _o in col._sealed_resolve_pairs))
+        player.destroy()
+        self.assertFalse(any(a is player or b is player
+                             for a, b, _t, _o in col._sealed_resolve_pairs),
+                         "the seal kept a destroyed resolve side")
+        change_act(Vazia)      # restores the game's pairs: nothing to revive
+        self.assertFalse(any(a is player or b is player for a, b, _t, _o in col._resolve_pairs))
+        wall.destroy()
+
+    def test_act_pair_handler_forgets_a_destroyed_side_before_the_change(self):
+        box = {}
+
+        class ComPar(Act):
+            def setup(self):
+                box["a"] = a = Circle(center=(10, 10), radius=5)
+                box["rock"] = rock = Circle(center=(300, 10), radius=5)
+
+                @collide(a, rock)
+                def _hit(x, y, info=None):
+                    pass
+
+        self.begin(ComPar)
+        col = get_collision_system()
+        a = box["a"]
+        self.assertTrue(any(x is a or y is a for x, y, _cb, _ph in col._act_pair_handlers))
+        a.destroy()
+        self.assertFalse(any(x is a or y is a for x, y, _cb, _ph in col._act_pair_handlers),
+                         "the act-level pair list kept a destroyed side")
+        self.assertFalse(any(x is a or y is a for x, y, _cb, _ph in col._pair_handlers))
+
+    def test_a_modal_menu_open_at_the_change_closes_with_its_act(self):
+        from scena import Menu, TextInput
+        box = {}
+
+        class ComMenu(Act):
+            def setup(self):
+                box["menu"] = Menu(options=["um", "dois"], on_choose=lambda v: None, pause=True)
+
+        class Depois(Act):
+            def setup(self):
+                st.hd_nome = ""
+                box["ti"] = TextInput(st.hd_nome, top_left=(10, 290), width=100)
+
+        self.begin(ComMenu)
+        wm = self.w.fw.widget_manager
+        self.assertIs(wm._open_modal_menu, box["menu"])
+        self.assertTrue(clock.paused)
+        change_act(Depois)
+        self.assertIsNone(wm._open_modal_menu, "a destroyed menu stayed open")
+        self.assertIsNone(wm.modal_widget)
+        self.assertFalse(clock.paused, "the menu's pause outlived the menu")
+        handle = box["menu"]._choice_handle
+        self.assertTrue(handle._done or handle._cancelled, "await menu would hang")
+        box["ti"].focus()      # used to raise: "A modal Menu is open"
+        self.assertIs(wm.focused_widget, box["ti"])
 
 
 if __name__ == "__main__":

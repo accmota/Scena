@@ -18,6 +18,10 @@ from scena.style import (
 from scena.background_kinds import SkyGradient
 from scena.place import unplaced_creation
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 class TestGradientFit(unittest.TestCase):
     def setUp(self):

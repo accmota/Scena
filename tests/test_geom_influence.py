@@ -50,6 +50,10 @@ from scena.state import ContainerSlot, ScalarSlot  # noqa: E402
 
 DEEP = hypothesis_support.PROFILE in ("ci", "deep")
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _inputs(obj):
     """(name, perturb) for every Defining input and pose quantity of ``obj``."""

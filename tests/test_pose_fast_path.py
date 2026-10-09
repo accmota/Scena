@@ -27,6 +27,10 @@ from scena.state import (
     LinkedAttributeError, DerivedAttributeError, Attribute, get_scena_system,
 )
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _mark_dirty_count(fn) -> int:
     """How many times ``UpdateManager.mark_dirty`` runs during ``fn``."""

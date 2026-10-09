@@ -43,6 +43,10 @@ NO_LINK = {
     "Anchor": "a draggable Anchor refuses a position link (the pointer drags it)",
 }
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _value(v):
     if isinstance(v, (int, float)) and not isinstance(v, bool):

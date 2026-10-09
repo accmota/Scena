@@ -45,6 +45,10 @@ _RAW = re.compile(r"has no setter|can't set attribute|object attribute '.*' is r
 _ASSIGNABLE = set(_ACTOR_HOOK_NAMES) | {"mode", "setup"}
 _VALUE = 12.5
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _subjects():
     """(label, factory) for every Graphic kind in KINDS, plus a bare Entity."""

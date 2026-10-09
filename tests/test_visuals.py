@@ -39,6 +39,10 @@ VISUAL_CLASSES = (
     Beat, InsetRim,
 )
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 class TestVisuals(unittest.TestCase):
     def setUp(self):

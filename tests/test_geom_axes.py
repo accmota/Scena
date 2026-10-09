@@ -30,6 +30,10 @@ from hypothesis_support import fresh_world  # noqa: E402
 import covering  # noqa: E402
 import geom_axes as A  # noqa: E402
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 class TestCoveringArrays(unittest.TestCase):
     def _axes(self, rng, k, lo=2, hi=5):

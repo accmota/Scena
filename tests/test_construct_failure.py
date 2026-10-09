@@ -47,6 +47,10 @@ POINTS = ("before super", "after super", "after on_collide", "after every",
 LAYOUTS = ("direct", "mixin first", "mixin last")
 IGNORE = ("sched.every_sites",)
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 class Boom(Exception):
     pass

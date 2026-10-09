@@ -49,6 +49,10 @@ EDGE_NUMS = (0.0, -0.0, 1e-9, -3.5, 180.0, -180.0, 360.0, 720.5, -1080.0, 1e6, -
 EDGE_POINTS = ((0.0, -0.0), (1e6, -1e6), (-1e6, 3.0), (1e-9, 1e-9))
 PATHS = ("=", "link", "batch", "<<")
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _fields(obj):
     slots = obj._field_slots() if hasattr(obj, "_field_slots") else {}

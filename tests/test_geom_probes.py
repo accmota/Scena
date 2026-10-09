@@ -39,6 +39,10 @@ from scena import (  # noqa: E402
 )
 from scena.state import CallableAssignError, LinkedAttributeError  # noqa: E402
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def probe(pid):
     """Run the probe; if ``pid`` is listed as known-broken, it must still fail."""

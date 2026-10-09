@@ -329,6 +329,22 @@ class PaintState:
             state.visual = look
         return state
 
+    @classmethod
+    def _reset_defaults(cls) -> 'PaintState':
+        """Install the framework's own prototype (what a fresh canvas has):
+        pale line, navy fill, solid round-capped stroke. Called by the canvas
+        at construction and by test harnesses that start a program from a
+        clean process (``tests/system_support.reset_world_settings``)."""
+        return cls.set_defaults(
+            line_width=DEFAULT_LINE_WIDTH,
+            dash=DashStyle.SOLID,
+            line_cap=LineCapStyle.ROUND,
+            line_join=LineJoinStyle.MITER,
+            line=(0.8, 0.8, 0.9, 1.0),
+            fill=(0.0, 0.0, 0.5, 1.0),
+            blend=BlendMode.NORMAL,
+        )
+
     def __init__(self):
         defaults = self.get_defaults()
         if defaults is None:

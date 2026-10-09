@@ -34,6 +34,10 @@ from scena.state import (
 )
 from scena.scenamath import Vec2
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _mark_dirty_count(fn) -> int:
     um = get_scena_system().update_manager

@@ -1017,5 +1017,18 @@ class TestWheelRouting(WidgetTestCase):
             rect.destroy()
 
 
+
+class TestDestroyedWidgetLeavesTheLastClick(WidgetTestCase):
+    """HD4 (Testing Design, HD): the double-click memory must not keep a
+    destroyed widget (a new widget at the same spot was a double click)."""
+
+    def test_last_click_is_cleared_on_destroy(self):
+        b = self.track(Button(label=self.key("hd")))
+        self.click(b)
+        self.assertIs(self.wm.last_click.widget, b)
+        b.destroy()
+        self.assertIsNone(self.wm.last_click)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

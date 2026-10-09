@@ -24,6 +24,7 @@ from .registry import (
 from .camera_response import CameraResponse, partial_camera_matrix
 from .validate import HINT_SCALE, clamp_magnitude, magnitude, fixed_magnitude, seconds
 from .closed import ClosedSurface
+from .state import Container
 
 def _finite_number(value, what: str) -> float:
     """Float that is not NaN or ±inf. ``bool`` is not a number."""
@@ -957,7 +958,7 @@ class VisibleBounds:
         return (self.left + self.width * 0.5, self.top - self.height * 0.5)
 
 
-class Canvas(ClosedSurface):
+class Canvas(ClosedSurface, Container):
     """Author-facing canvas API (design size, background, camera).
 
     Wraps the internal :class:`ScenaCanvas` engine. The global ``canvas`` object
@@ -967,7 +968,24 @@ class Canvas(ClosedSurface):
     _closed_who = "canvas"
 
     def __init__(self, engine: 'ScenaCanvas'):
+        # A Container, like ``mouse`` / ``clock`` / ``keyp``: a formula that
+        # reads ``canvas.zoom`` / ``pan_x`` / ``game_view`` / ``layers[…].view``
+        # registers the canvas as its source, and the engine calls
+        # ``update()`` whenever the camera, a layer's scroll or the design
+        # size changes (``ScenaCanvas._notify_view_changed``). Unused: A2
+        # skips ``mark_dirty`` until something links to it.
+        super().__init__()
         self._engine = engine
+        engine._author_facade = self
+
+    def _update_impl(self) -> None:
+        pass                              # nothing derived here: the engine holds the camera
+
+    def _takein_impl(self, new_value):
+        raise TypeError(
+            "canvas is the stage — cannot takein; move the camera with canvas.pan_to / "
+            "zoom_to, or link from formulas with lambda: canvas.game_view.center"
+        )
 
     # --- design size (read-only; set via init()) --------------------------------
 
@@ -1651,6 +1669,8 @@ class Canvas(ClosedSurface):
 
         A measured Box (``Box._snapshot``): read every frame, its points
         stay off the reactive graph (Box Design, "Measured boxes are lazy").
+        In a formula (``c["center"] @= lambda: canvas.game_view.center``) the
+        source is ``canvas`` itself: the value follows every camera move.
         """
         from .box import Box
         vb = self._engine.visible_bounds
@@ -2063,15 +2083,7 @@ class ScenaCanvas:
 
         # Create and set default style
         self.background_color = background_color
-        PaintState.set_defaults(
-            line_width=DEFAULT_LINE_WIDTH,
-            dash=DashStyle.SOLID,
-            line_cap=LineCapStyle.ROUND,
-            line_join=LineJoinStyle.MITER,
-            line=(0.8, 0.8, 0.9, 1.0),
-            fill=(0.0, 0.0, 0.5, 1.0),
-            blend=BlendMode.NORMAL,
-        )
+        PaintState._reset_defaults()
 
         # Set this canvas as current
         ScenaCanvas.set_current(self)
@@ -2128,9 +2140,13 @@ class ScenaCanvas:
         if t is None or not self.registry.layers.has_parallax_layers:
             return
         t = float(t)
+        moved = False
         for layer in self.registry.layers.iter_draw_order():
             if not layer._is_neutral_response:
                 layer._scroll_state.advance(t)
+                moved = True
+        if moved:
+            self._notify_view_changed()      # a formula on layer.view follows the scroll
 
     def _layer_partial_matrix(self, layer: Layer) -> "skia.Matrix":
         """World → design matrix for ``layer`` including author scroll accum."""
@@ -2798,6 +2814,19 @@ class ScenaCanvas:
             self._camera_matrix = m
         else:
             self._camera_matrix = skia.Matrix()  # identity
+        self._notify_view_changed()
+
+    def _notify_view_changed(self) -> None:
+        """The camera, a layer's scroll or the design size moved: formulas
+        that read the author ``canvas`` (zoom, pan, ``game_view``, a layer's
+        ``view``) re-evaluate. Engine readers keep reading the raw fields."""
+        facade = getattr(self, "_author_facade", None)
+        # Nothing can depend on a Container that has no graph node yet (a
+        # formula that reads ``canvas`` registers it), so an unlinked canvas
+        # pays two attribute reads here, not Container.update's ephemeral
+        # branch (+1.7 us per camera move, A/B 2026-10-09).
+        if facade is not None and (facade._node_id is not None or facade._link is not None):
+            facade.update()
 
     def camera_matrix(self) -> skia.Matrix:
         """Cached world → design-space transform (identity when camera inactive)."""

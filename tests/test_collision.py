@@ -6306,3 +6306,40 @@ class TestOrbitMotion(CollisionTestCase):
         body.rotate_by(self.STEP, about=(ox, oy))
         self.step()
         self.assertLess(float(body.center.y), oy + 98.0)
+
+class TestDestroyedSidesLeaveEverySnapshotSide(CollisionTestCase):
+    """HD1 (Testing Design, HD): a group-operator side (``group["a"] | group["b"]``)
+    copies its members at the call; a destroyed member must leave that copy
+    in every pair list (handlers and ``resolve``), or the dead body stays
+    reachable from the collision system for good."""
+
+    def _snapshot_sides(self):
+        col = get_collision_system()
+        sides = []
+        for a, b, *_rest in list(col._pair_handlers) + list(col._resolve_pairs):
+            for side in (a, b):
+                snap = getattr(side, "_snapshot", None)
+                if snap is not None:
+                    sides.append(snap)
+        return sides
+
+    def test_destroyed_member_leaves_handler_and_resolve_snapshots(self):
+        from scena import group
+        a = self.track(Circle(center=self.at(0, 0), radius=5, group="hd_a"))
+        b = self.track(Circle(center=self.at(50, 0), radius=5, group="hd_b"))
+        rock = self.track(Circle(center=self.at(500, 0), radius=5, group="hd_rock"))
+        rock.mass = STATIC
+
+        @collide(group["hd_a"] | group["hd_b"], "hd_rock")
+        def _hit(x, y, info=None):
+            pass
+
+        resolve(group["hd_a"] | group["hd_b"], rock)
+        sides = self._snapshot_sides()
+        self.assertTrue(sides, "no snapshot side was registered")
+        self.assertTrue(all(any(m is a for m in snap) for snap in sides))
+        a.destroy()
+        for snap in self._snapshot_sides():
+            self.assertFalse(any(m is a for m in snap), "a destroyed member stayed in a side")
+            self.assertTrue(any(m is b for m in snap), "the live member was dropped too")
+

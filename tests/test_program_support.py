@@ -118,11 +118,10 @@ class TestProbesAndTeardown(unittest.TestCase):
         # O8: test_noop_cost / test_closed_surfaces left the auto playfield
         # pinned to 400x300 edges; naves and galaga (1000x800) lost their shots
         # at that stale edge, in the serial pass only. A real program starts
-        # in a fresh process: the run starts from the boot-time settings and
-        # gives back what it found at close.
+        # in a fresh process: the run starts from the framework defaults
+        # (system_support.reset_world_settings) and gives back what it found.
         from scena import canvas
         from scena.act import WORLD_SETTINGS
-        from hypothesis_support import pristine_world_settings
         setting = {w.name: w for w in WORLD_SETTINGS}["playfield"]
         found = setting.snapshot()
         pf = canvas.playfield
@@ -131,7 +130,7 @@ class TestProbesAndTeardown(unittest.TestCase):
         try:
             with ProgramRun("input_probe", probes={"pf": lambda p: setting.snapshot()}) as run:
                 run.step(1)
-                self.assertEqual(run.trace.end("pf"), pristine_world_settings()["playfield"])
+                self.assertEqual(run.trace.end("pf"), (0.25, None))   # the default: auto edges
             self.assertEqual(setting.snapshot(), left_behind)
             self.assertEqual(run.leftovers(), {})
         finally:

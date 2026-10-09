@@ -40,6 +40,10 @@ _XY_LEAF = {
     "x2": ("p2", "x"), "y2": ("p2", "y"),
 }
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _signatures(cls):
     if cls is Box:

@@ -55,6 +55,10 @@ from scena.state import Container, LinkedAttributeError  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
+
 
 def _tree(mod):
     with open(os.path.join(ROOT, "scena", mod + ".py"), encoding="utf-8") as fh:
