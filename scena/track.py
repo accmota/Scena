@@ -1521,19 +1521,17 @@ class Track(Shape):
                     if dy:
                         vtx.y += dy
             return self
-        if not force:
-            try:
-                if not host._requires_pull_invalidate():
-                    cx = _bare_attr(host.center.x)
-                    cy = _bare_attr(host.center.y)
-                    if dx is not None:
-                        cx = cx + float(dx)
-                    if dy is not None:
-                        cy = cy + float(dy)
-                    _takein_xy_float(host.center, cx, cy)
-                    return self
-            except Exception:
-                pass
+        if not force and not host._requires_pull_invalidate():
+            # Nothing reads the center through a link: a bare float write
+            # (no try: an error here is the slow path's error too, GX8).
+            cx = _bare_attr(host.center.x)
+            cy = _bare_attr(host.center.y)
+            if dx is not None:
+                cx = cx + float(dx)
+            if dy is not None:
+                cy = cy + float(dy)
+            _takein_xy_float(host.center, cx, cy)
+            return self
         _ensure_writable(host.center, "move_by", force=force)
         cx, cy = get_xy(host.center, bare=True)
         nx = cx + (0.0 if dx is None else float(dx))

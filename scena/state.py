@@ -313,7 +313,7 @@ class State:
                 f"{self._name}.{key} is reserved (part of the state object itself). "
                 f"Pick another key, e.g. {self._name}.player_{key} = …"
             )
-        if callable(value) and getattr(value, "__name__", None) == "<lambda>":
+        if isinstance(value, _PLAIN_FUNCTIONS):
             raise CallableAssignError(callable_assign_message(self._name, key))
 
         if key not in self._data:
@@ -396,6 +396,8 @@ class State:
             raise AttributeError("State.name is read-only")
         if key in _STATE_RESERVED_CELLS:
             raise AttributeError(f"State.{key} is reserved")
+        if isinstance(initial, _PLAIN_FUNCTIONS):
+            raise CallableAssignError(callable_assign_message(self._name, key))
         if key not in self._data:
             if initial is None:
                 initial = 0
@@ -582,6 +584,18 @@ class CallableAssignError(TypeError, AttributeError, ValueError):
     cell). Subclasses ``TypeError`` / ``AttributeError`` / ``ValueError`` so
     code that caught the older per-site types keeps working.
     """
+
+
+import functools as _functools
+import types as _types
+
+# What ``st.x = …`` refuses: a plain function or method (a ``lambda``, a
+# ``def``, a bound method, a builtin, a ``partial``). ``=`` copies a value;
+# ``st["x"] @= fn`` links. A class and a callable object (a key table, a
+# group operator) are values (Q5 of the geometry campaign; a named ``def`` used
+# to be stored).
+_PLAIN_FUNCTIONS = (_types.FunctionType, _types.MethodType, _types.BuiltinFunctionType,
+                    _functools.partial)
 
 
 def callable_assign_message(owner: Any, field: str) -> str:
@@ -2401,6 +2415,13 @@ class Container():
             node = nd.get('_owner')
         if linked or self._formula_driven_descendant() is not None:
             self._refuse_author_write()
+        if other.__class__ is not tuple and getattr(other, "_destroyed", False):
+            # A destroyed source is not a live Scena object: clone() and
+            # absorb() refuse it, and so does << (GX12 in Testing Design).
+            from .entity import _destroyed_access_message
+            raise DestroyedError(_destroyed_access_message(
+                other, f"{self.name} << {other.name}: the source was destroyed; "
+                       f"copy it before destroy(), or keep it alive"))
         self._takein(other)
         return self
 

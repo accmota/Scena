@@ -214,6 +214,24 @@ class TestCallableAssignEveryFieldKind(unittest.TestCase):
         with self.assertRaises(CallableAssignError):
             st.robust_x = lambda: 3
 
+    def test_state_refuses_every_plain_function(self):
+        # Q5 (geometry campaign): State refused only a lambda; a named def, a
+        # method or a builtin was stored silently.
+        import functools
+
+        def named():
+            return 3
+        for fn in (named, self.setUp, print, len, functools.partial(max, 1)):
+            with self.subTest(fn=fn):
+                with self.assertRaises(CallableAssignError) as ctx:
+                    st.robust_fn = fn
+                self.assertIn("@=", str(ctx.exception))
+                with self.assertRaises(CallableAssignError):
+                    st.create("robust_fn2", fn)
+        st.robust_kind = int            # a class is a value
+        st.robust_num = 3
+        self.assertEqual(st.robust_num, 3)
+
     def test_error_is_catchable_as_legacy_types(self):
         self.assertTrue(issubclass(CallableAssignError, TypeError))
         self.assertTrue(issubclass(CallableAssignError, AttributeError))

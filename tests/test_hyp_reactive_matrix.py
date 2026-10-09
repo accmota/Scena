@@ -183,12 +183,6 @@ class ReactiveMatrixMachine(RuleBasedStateMachine):
         name, is_pair, slot = pair.linkable[f % len(pair.linkable)]
         cell = self.cells[c % len(self.cells)]
         assume(name not in pair.links)
-        # GX13 (geometry campaign, phase 7): an anchored caption accepts links on
-        # its anchor and its center, which then disagree. Listed shrink-only in
-        # geom_campaign_known.PROBES; test_geom_probes keeps the repro.
-        anchor = pair.subject.__dict__.get("_anchor")
-        if anchor is not None and {name, *pair.links} >= {anchor, "center"}:
-            return
         value = map_value(name, slot, is_pair, cell.v)
         fn = formula(cell, name, slot, is_pair)
         try:

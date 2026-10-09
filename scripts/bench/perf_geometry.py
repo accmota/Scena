@@ -99,6 +99,26 @@ def _rows(scena):
         return (time.perf_counter() - t0) * 1e6 / n
     rows["linked center pull Circle"] = linked_part
 
+    def lshift_tuple(n):
+        from scena import Point
+        p = Point(0, 0)
+        t0 = time.perf_counter()
+        for i in range(n):
+            p << (float(i & 7), 1.0)
+        return (time.perf_counter() - t0) * 1e6 / n
+    rows["Point << tuple"] = lshift_tuple
+
+    def lshift_point(n):
+        from scena import Point
+        c = Circle(center=(0, 0), radius=5)
+        src = Point(1, 2)
+        t0 = time.perf_counter()
+        for i in range(n):
+            src.x = float(i & 7)
+            c.center << src
+        return (time.perf_counter() - t0) * 1e6 / n
+    rows["Circle.center << Point"] = lshift_point
+
     def heading_read(n):
         ln = Line(p1=(0, 0), p2=(10, 3))
         t0 = time.perf_counter()

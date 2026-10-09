@@ -172,6 +172,8 @@ class TestCopyCommutes(unittest.TestCase):
                     continue
                 if door == "<<" and kind.endswith("reversed"):
                     continue            # a reversed() view refuses a copy (Tracks Design)
+                if door == "<<" and A.family(kind) in ("Sprite", "Svg", "Text"):
+                    continue            # << is a Shape copy; these refuse it (test_shapes, GX9)
                 out = self._cell(w, kind, door, base, vname)
                 if out:
                     found[out[0]] = out[1]

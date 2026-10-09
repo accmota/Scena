@@ -81,6 +81,12 @@ left out.
   `rotate_by`, `scale_to`, …, and the camera's `pan_*` / `zoom_*` /
   `rotate_*` / `frame_to`): an instant call has no curve, and the value was
   ignored. `yoyo="no"` raises like any flag.
+- `st.x = some_function` raises CallableAssignError, for any plain function or
+  method (a `def`, a bound method, a builtin, a `functools.partial`), as it
+  already did for a `lambda` and as a shape field does: `=` copies a value,
+  `st["x"] @= fn` links. Before, a named `def` was stored as the cell's value.
+  A class and a callable object stay values. `st.create("x", fn)` refuses the
+  same.
 
 ### Added
 
@@ -111,6 +117,20 @@ left out.
   keywords still work; a Box and keywords together raise.
 
 ### Fixed
+
+- `target << source` refuses a destroyed source with DestroyedError, as
+  `source.clone()` and `absorb(source)` do; it copied the destroyed shape.
+- `sprite << other`, `svg << other` and `text << other` raise Scena's
+  TypeError with the fix (`other.clone()`, or place it with `center =`);
+  they leaked Python's `NotImplementedError("Subclasses must implement
+  takein")`. `<<` is a Shape copy.
+- An anchored caption (`Text(top_left=…)` / `top_right=`) takes one
+  placement link: linking `center` while the anchor is linked (or the anchor
+  while `center` is) raises LinkedAttributeError at the second `@=`. Both were
+  accepted and disagreed: the center followed its source while the anchor
+  stayed.
+- A link refused because `wheel_rotate` is on (`polygon["angle"] @= …`,
+  `sprite["angle"] @= …`) leaves nothing behind; it kept the link's anchor.
 
 - Collision callbacks survive park and `collidable`. `on_collide`,
   `on_collide_stay` and `on_collide_exit` (a function or a method in the class

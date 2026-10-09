@@ -3837,3 +3837,68 @@ class TestPointKeepsItsLayer(unittest.TestCase):
         p.visible = False
         p.visible = True
         self.assertEqual(p.layer, "default")
+
+
+class TestCopyDoorsRefuseWhatClonesRefuse(unittest.TestCase):
+    """Geometry campaign, wave 1: ``<<`` refuses what ``clone()`` refuses."""
+
+    def test_a_destroyed_source_refuses_every_kind(self):
+        # GX12: ``dst << dead`` copied the destroyed shape; ``dead.clone()`` refused.
+        import warnings
+        import geom_axes as A
+        from scena.state import DestroyedError
+        wrong = []
+        for kind in sorted(A.K):
+            if kind.startswith("Box") or kind.endswith("reversed") or A.family(kind) in ("Sprite", "Svg", "Text"):
+                continue
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                src, dst = A.build(kind), A.build(kind)
+                if __import__("geometry_support").is_relational(dst):
+                    A._destroy(dst)
+                    continue            # a relational shape refuses every copy (linked)
+                src.destroy()
+                before = {n: f() for n, f in __import__("geometry_support").point_parts(dst).items()
+                          if not n.startswith("box.")}
+                try:
+                    dst << src
+                    wrong.append(f"{kind}: accepted")
+                except DestroyedError:
+                    pass
+                after = {n: f() for n, f in __import__("geometry_support").point_parts(dst).items()
+                         if not n.startswith("box.")}
+                if after != before:
+                    wrong.append(f"{kind}: the refusal changed the copy")
+                A._destroy(dst)
+        self.assertEqual(wrong, [])
+
+    def test_a_kind_without_a_copy_refuses_with_the_fix(self):
+        # GX9: Sprite / Svg / Text << other leaked NotImplementedError("Subclasses must implement takein").
+        import geom_axes as A
+        for kind in ("Sprite", "Svg", "Text center", "Text top_left"):
+            a, b = A.build(kind), A.build(kind)
+            with self.assertRaises(TypeError) as ctx:
+                a << b
+            self.assertIn("clone()", str(ctx.exception))
+            for o in (a, b):
+                o.destroy()
+
+    def test_a_link_refused_for_wheel_rotate_installs_nothing(self):
+        # GX11: the property-anchor path made the angle anchor (and its graph
+        # node) before the wheel_rotate conflict refused the link.
+        import warnings
+        from scena import Polygon, Sprite
+        from scena.state import Attribute, LinkedAttributeError, get_scena_system
+        g = get_scena_system().dependency_graph
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            subjects = [Polygon(points=[(0, 0), (10, 0), (5, 8)]), Sprite("missing_gx11.png", center=(0, 0))]
+        for obj in subjects:
+            obj.wheel_rotate = True
+            nodes0 = len(list(g.nodes))
+            anchors0 = dict(obj.__dict__.get("_field_anchors") or {})
+            with self.assertRaises(LinkedAttributeError):
+                obj["angle"] @= Attribute(0.0)
+            self.assertEqual(dict(obj.__dict__.get("_field_anchors") or {}), anchors0)
+            self.assertEqual(len(list(g.nodes)), nodes0)
+            obj.destroy()

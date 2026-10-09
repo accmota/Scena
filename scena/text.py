@@ -29,6 +29,7 @@ from .validate import MIN_SCALE, magnitude, fixed_magnitude
 from .state import (
     Attribute,
     ContainerSlot,
+    LinkedAttributeError,
     as_payload,
     _init_composite,
 )
@@ -633,6 +634,24 @@ class Text(Graphic, PaintState):
         if self._anchor is not None and self._pin is not None:
             values[self._anchor] = self._pin   # exact: never re-derived
         return values
+
+    def _link_field(self, name: str, source) -> None:
+        """An anchored caption takes one placement link: its anchor or its
+        center, not both. Both drove one caption two ways and disagreed (the
+        center followed its source, the anchor stayed; GX13 in Testing
+        Design), so the second ``@=`` refuses, the way a Rect placed by its
+        corner refuses a ``center`` link."""
+        anchor = self.__dict__.get("_anchor")
+        if anchor is not None and name in ("center", anchor):
+            other = anchor if name == "center" else "center"
+            part = self.__dict__.get(other)
+            if part is not None and part.__dict__.get("_link") is not None:
+                raise LinkedAttributeError(
+                    f"{self.name}['{name}'] @= …: this caption is placed by its {anchor} and "
+                    f"{self.name}['{other}'] already has a link. Link one of them: "
+                    f"call {self.name}['{other}'].unlink() first"
+                )
+        super()._link_field(name, source)
 
     def _part_became_link_source(self, part) -> None:
         """An anchored caption's ``center`` is written by the lazy layout, not

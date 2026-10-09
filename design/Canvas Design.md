@@ -176,7 +176,10 @@ input; the box and the other parts are output, written only by
 `_publish_parts` under the layout scope (`_in_text_layout`), which also records
 `_center_rec` — write `center` outside it and the next refresh reads a
 translation. `center` must exist before the first layout (the constructor
-reads it): created later it would start at `(0, 0)` and read as a jump.
+reads it): created later it would start at `(0, 0)` and read as a jump. An
+anchored caption takes one placement link — its anchor or its `center` — and
+the second `@=` raises LinkedAttributeError (`Text._link_field`; both were
+accepted and disagreed, GX13 in Testing Design).
 **Constructor anchors are tops; `_y1` is the min (bottom) edge — never feed one
 into the other without the height** (that was bug A: `box=` put the region
 centre on the bottom edge). **Limit:** a formula that *reads* `placar.center`

@@ -2792,8 +2792,17 @@ class Graphic(Entity, ABC):
                 f"{self.name}.touching_sides is engine-owned and cannot be linked with @="
             )
         if name in _PROPERTY_LINK_ANY and name in (_PROPERTY_LINK_BY_CLASS.get(type(self)) or _property_link_names(self)):
-            self._ensure_scalar_anchor(
-                name, anchor_cls=self._scalar_anchor_class(name))._assign_formula(source)
+            anchors = self.__dict__.get("_field_anchors")
+            had_anchor = bool(anchors) and name in anchors
+            anchor = self._ensure_scalar_anchor(name, anchor_cls=self._scalar_anchor_class(name))
+            try:
+                anchor._assign_formula(source)
+            except BaseException:
+                # A refused link (wheel_rotate, a raising formula) installs
+                # nothing: drop the anchor this call made (W3; GX11).
+                if not had_anchor:
+                    self._drop_scalar_anchor(name)
+                raise
             return
         super()._link_field(name, source)
 
@@ -3024,6 +3033,16 @@ class Graphic(Entity, ABC):
         """
         from .confine import confine_graphic
         return confine_graphic(self, region, by=by, action=action)
+
+    def _takein_impl(self, other) -> None:
+        """``a << b`` copies a Shape (Shapes Design, C7). A Graphic with no copy
+        of its own (Sprite, Svg, Text) refuses with the fix; it used to leak
+        Python's NotImplementedError (GX9 in Testing Design)."""
+        kind = type(self).__name__
+        raise TypeError(
+            f"{kind} << …: a {kind} does not take in another actor. Make a copy "
+            f"with other.clone(), or place this one: {self.name}.center = other.center"
+        )
 
     def clone(
         self,

@@ -40,7 +40,6 @@ PROBES = {
     "Q3b-unlink_all": "unlink_all keeps the relational model; phase 7",
     "Q3b-destroy": "a destroyed reference keeps the relational model; phase 7",
     "Q3b-force": "force=True leaves a hybrid (CENTER_WH with a linked center); phase 7",
-    "Q5": "State stores a named function; phase 7",
     "GR17-link": "a link on a Defining angle leaves _rotation behind; phase 7",
     "GX1": "a tall Ellipse swaps its foci on a flip; phase 7",
     "GX2": "a zero-length Line keeps its heading on a flip; phase 7",
@@ -49,7 +48,6 @@ PROBES = {
     "GX5": "pose-zoom kinds below MIN_SCALE move by the clamped factor; phase 7",
     "GX6": "a whole link during a running motion raises from a later tick; phase 7",
     "GX7": "a write before any read skips the pull of a pull-owned point; phase 7",
-    "GX13": "an anchored Text accepts links on its anchor and its center; phase 7",
 }
 
 # Timed / instant gate parity (test_geom_structure.TestTimedVerbsGateLikeInstant):
@@ -66,17 +64,13 @@ GATE_PARITY = {
 }
 
 # Structural guards (test_geom_structure): site -> finding.
-BARE_EXCEPT = {
-    "track._move_by": "GX8: the fast path swallows every exception and falls back; phase 7",
-}
+BARE_EXCEPT = {}
 
 # Sentinel (geom_sentinel; ``run_tiers.py <tier> --sentinel``): fnmatch patterns
 # over "invariant | Kind MODEL | Class.call".
 SENTINEL = {
     "I-heading | *": "GR17-link: a link on a Defining angle leaves the pose store behind; phase 7",
     "I-bare | Line *": "GX7: a write before any read seeds the bare flag on a pull-owned point; phase 7",
-    "I-atomic | Polygon | FieldRef.__imatmul__": "GX11: a link refused for wheel_rotate leaves its anchor; phase 7",
-    "I-atomic | Sprite | FieldRef.__imatmul__": "GX11; phase 7",
     "I-graph | * | *": "harness: program_oracles.reactive_config swaps the scena system mid-process, "
                        "so a module singleton (clock) keeps its node id from the old graph; not an "
                        "author path (one system per process)",
@@ -92,10 +86,6 @@ LAWS = {
 
 # Copy commutes with verbs (test_geom_laws.TestCopyCommutes): "door [after verb] | kind | detail".
 COPY_LAWS = {
-    "<< | Sprite* | copy raises NotImplementedError":
-        "GX9: << on a Sprite / Svg / Text raises Python's NotImplementedError; phase 7",
-    "<< | Svg | copy raises NotImplementedError": "GX9; phase 7",
-    "<< | Text * | copy raises NotImplementedError": "GX9; phase 7",
     "<< after flip_? | Track * | *":
         "GX10: a Track copy of a flipped source draws the unflipped points; phase 7",
 }

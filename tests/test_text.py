@@ -1579,3 +1579,31 @@ class TestTextFrame(TextTestCase):
             nxt = self.track(Text("Next", font_size=16))
             return t._y1 - nxt._y1
         self.assertAlmostEqual(next_gap(True), next_gap(False))
+
+
+class TestOnePlacementLink(unittest.TestCase):
+    """GX13 (geometry campaign): an anchored caption takes a link on its anchor
+    or on its center, not both (they disagreed: the center followed its source
+    while the anchor stayed)."""
+
+    def test_the_second_placement_link_refuses(self):
+        from scena import State
+        st2 = State(name="gx13t")
+        st2.a, st2.c = (1.0, 2.0), (3.0, 4.0)
+        for anchor in ("top_left", "top_right"):
+            for first, second in ((anchor, "center"), ("center", anchor)):
+                t = Text("geo", **{anchor: (0, 0)})
+                fns = {anchor: (lambda: st2.a), "center": (lambda: st2.c)}
+                t[first] @= fns[first]
+                with self.assertRaises(LinkedAttributeError):
+                    t[second] @= fns[second]
+                t.destroy()
+
+    def test_a_centred_caption_still_links_its_center(self):
+        from scena import State
+        st2 = State(name="gx13c")
+        st2.c = (3.0, 4.0)
+        t = Text("geo", center=(0, 0))
+        t["center"] @= lambda: st2.c
+        self.assertAlmostEqual(float(t.center.x), 3.0)
+        t.destroy()
