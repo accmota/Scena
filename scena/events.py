@@ -311,6 +311,9 @@ class EventSystem:
         # registration leaves immediately, so destroy() does not keep the Entity.
         self._events: Dict[EventRegistration, None] = {}
         self._by_owner: Dict[int, Dict[EventRegistration, None]] = {}
+        # Classless watches (no owner): ``drop_reading`` scans only these, so
+        # a destroy never walks every registration.
+        self._classless: Dict[EventRegistration, None] = {}
         self._event_counter = 0
         self._polling = False
         self.repeated = False
@@ -356,6 +359,8 @@ class EventSystem:
         event._act_owned = owner is None and _process._top_level_ended
         self._events[event] = None
         self._index_owner(event)
+        if owner is None:
+            self._classless[event] = None
         self._event_counter += 1
         return event
 
@@ -382,6 +387,23 @@ class EventSystem:
             if event._owner is owner:
                 event.release()
             self._events.pop(event, None)
+
+    def drop_reading(self, obj: Any) -> None:
+        """Retire classless watches whose condition closes over ``obj`` (it was
+        destroyed). A field that stays readable after destroy (``radius``,
+        ``angle``, ``center``) never raised, so the watch never retired and
+        its closure kept the dead actor alive (review 2026-10-09 S2-8).
+        Called from ``destroy()``; O(classless watches)."""
+        if obj is None or not self._classless:
+            return
+        for event in list(self._classless):
+            if event._drop or event not in self._events:
+                self._classless.pop(event, None)
+                continue
+            if _condition_reads(event._condition, obj):
+                event.release()
+                self._events.pop(event, None)
+                self._classless.pop(event, None)
 
     def drop_act_owned(self) -> int:
         """Retire classless watches registered after the top level ended.
@@ -454,6 +476,23 @@ def cleanup_global_event_system() -> None:
     if _global_event_system:
         _global_event_system.cleanup()
         _global_event_system = None
+
+
+def _condition_reads(cond: Any, obj: Any) -> bool:
+    """``cond`` holds ``obj``: a bound method of it, a field handle on it, or a
+    function whose closure cells or default arguments hold it."""
+    if cond is None:
+        return False
+    if getattr(cond, "__self__", None) is obj or getattr(cond, "owner", None) is obj:
+        return True
+    func = getattr(cond, "__func__", cond)
+    for cell in getattr(func, "__closure__", None) or ():
+        try:
+            if cell.cell_contents is obj:
+                return True
+        except ValueError:
+            continue
+    return any(d is obj for d in (getattr(func, "__defaults__", None) or ()))
 
 
 def poll_all_events(fired_before: Optional[set] = None) -> Tuple[int, bool]:

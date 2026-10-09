@@ -109,7 +109,9 @@ class Probe:
     # Documented teardown hooks that run for the dying body itself, after
     # ``is_alive`` turned False (Collision Design § Handlers: "the dying body,
     # while it still exists").
-    TEARDOWN_TAGS = ("collide_exit",)
+    # The dying body's own exit hooks run while it is still alive (review
+    # 2026-10-09 X-life-5), so no hook is excused from the dead-call check.
+    TEARDOWN_TAGS: Tuple[str, ...] = ()
 
     def dead_calls(self, allow: Iterable[str] = TEARDOWN_TAGS) -> List[Tuple[int, str, bool]]:
         ok = set(allow)

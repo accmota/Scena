@@ -6343,3 +6343,150 @@ class TestDestroyedSidesLeaveEverySnapshotSide(CollisionTestCase):
             self.assertFalse(any(m is a for m in snap), "a destroyed member stayed in a side")
             self.assertTrue(any(m is b for m in snap), "the live member was dropped too")
 
+
+class TestDyingBodyExits(unittest.TestCase):
+    """Destroy fires the dying body's own exit while it still exists, and the
+    survivor's exit sees it out of its groups (review 2026-10-09 X-life-5,
+    S9-2)."""
+
+    def test_own_exit_may_write_to_the_dying_body(self):
+        from scena import Circle
+        from tests.system_support import system_world
+        seen = []
+        with system_world(draw=False) as w:
+            ship = Circle(center=(0, 0), radius=10, group="dx_ship")
+            lava = Circle(center=(5, 0), radius=10, group="dx_lava")
+
+            def cool(me, other, info):
+                me.color = "white"           # raised DestroyedError before
+                seen.append(me.is_alive)
+            ship.on_collide = lambda me, other, info: None
+            ship.on_collide_exit = cool
+            lava.collidable = True
+            w.step(2, dt=1 / 60)
+            ship.destroy()
+            lava.destroy()
+        self.assertEqual(seen, [True])
+
+    def test_survivor_exit_sees_the_group_without_the_dying(self):
+        from scena import Circle, collide, collide_exit, group
+        from tests.system_support import system_world
+        seen = []
+        with system_world(draw=False) as w:
+            hero = Circle(center=(0, 0), radius=10, group="dx_hero")
+            foe = Circle(center=(5, 0), radius=10, group="dx_foe")
+
+            @collide("dx_hero", "dx_foe")
+            def touch(h, f, info):
+                pass
+
+            @collide_exit("dx_hero", "dx_foe")
+            def gone(h, f, info):
+                seen.append((group["dx_foe"].count, group["dx_foe"].empty))
+                group["dx_foe"].move_by(1, 0)    # a broadcast skips the dying
+
+            w.step(2, dt=1 / 60)
+            foe.destroy()
+            hero.destroy()
+        self.assertEqual(seen, [(0, True)])
+
+
+class TestDispatchSeesWhatHandlersDid(unittest.TestCase):
+    """One dispatch, several handlers: a handler that destroys a side or
+    changes act stops the rest of that enter / stay; an exit is delivered
+    only for a pair whose enter ran (review 2026-10-09 S8-2, S8-3)."""
+
+    def test_later_pair_handlers_skip_a_destroyed_side(self):
+        from scena import Circle, collide
+        from tests.system_support import system_world
+        seen = []
+        with system_world(draw=False) as w:
+            hero = Circle(center=(0, 0), radius=5)
+            enemy = Circle(center=(4, 0), radius=10)
+
+            @collide(hero, enemy)
+            def first(h, e, info):
+                seen.append(("first", e.is_alive))
+
+            @collide(hero, enemy)
+            def kill(h, e, info):
+                seen.append(("kill", e.is_alive))
+                e.destroy()
+
+            @collide(hero, enemy)
+            def score(h, e, info):
+                seen.append(("score", e.is_alive))
+
+            w.step(2, dt=1 / 60)
+            hero.destroy()
+        self.assertEqual(seen, [("first", True), ("kill", True)])
+
+    def test_mutual_kill_runs_no_handler_on_a_dead_side(self):
+        from scena import Circle
+        from tests.system_support import system_world
+        calls = []
+        with system_world(draw=False) as w:
+            a = Circle(center=(0, 0), radius=5)
+            b = Circle(center=(4, 0), radius=10)
+            a.on_collide = lambda me, other, info: (calls.append((me.is_alive, other.is_alive)), other.destroy())
+            b.on_collide = lambda me, other, info: (calls.append((me.is_alive, other.is_alive)), other.destroy())
+            w.step(2, dt=1 / 60)
+            for o in (a, b):
+                o.destroy()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0], (True, True))
+
+    def test_no_exit_without_its_enter(self):
+        from scena import Circle, collide, collide_exit
+        from tests.system_support import system_world
+        log = []
+        with system_world(draw=False) as w:
+            shot = Circle(center=(0, 0), radius=5, group="dl_shot")
+            e1 = Circle(center=(-6, 0), radius=4, group="dl_foe")
+            e2 = Circle(center=(6, 0), radius=4, group="dl_foe")
+
+            @collide("dl_shot", "dl_foe")
+            def hit(s, f, info):
+                log.append(("enter", f))
+                s.destroy()
+
+            @collide_exit("dl_shot", "dl_foe")
+            def left(s, f, info):
+                log.append(("exit", f))
+
+            w.step(2, dt=1 / 60)
+            for o in (e1, e2):
+                o.destroy()
+        entered = [f for k, f in log if k == "enter"]
+        exited = [f for k, f in log if k == "exit"]
+        self.assertEqual(len(entered), 1)
+        self.assertEqual(exited, entered)
+
+
+class TestParkExitSeesAParkedActor(unittest.TestCase):
+    """Park leaves collision after the actor reads parked: an exit handler
+    sees ``active`` False and its flag writes go to the stash (review
+    2026-10-09 X-life-1)."""
+
+    def test_exit_handler_visible_write_waits_for_resume(self):
+        from scena import Circle
+        from tests.system_support import system_world
+        seen = []
+        with system_world(draw=False) as w:
+            ship = Circle(center=(0, 0), radius=10)
+            lava = Circle(center=(5, 0), radius=10)
+            lava.collidable = True
+
+            def leave(me, other, info):
+                seen.append(me.active)
+                me.visible = True            # the blink's "be visible again"
+            ship.on_collide = lambda me, other, info: None
+            ship.on_collide_exit = leave
+            w.step(2, dt=1 / 60)
+            ship.active = False
+            self.assertEqual(seen, [False])
+            self.assertFalse(ship.visible, "a parked actor was left drawn")
+            ship.active = True
+            self.assertTrue(ship.visible)
+            ship.destroy()
+            lava.destroy()

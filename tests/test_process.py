@@ -5386,6 +5386,158 @@ class TestParkHoldsSoundOnDone(unittest.TestCase):
                 ship.destroy()
 
 
+class TestTweenDoorsOnADeadTarget(unittest.TestCase):
+    """Every tween() door has the timed pose verbs' dead-target rule: the
+    target dies mid-flight → a quiet cancel, no write, no on_done
+    (review 2026-10-09 S2-2)."""
+
+    def test_every_door(self):
+        from scena import Circle, tween
+        from tests.system_support import system_world
+        doors = {
+            "field": lambda b: tween(b["radius"], 2, time=0.5, on_done=lambda: done.append(1)),
+            "ink": lambda b: tween(b["hp"], 0, time=0.5, on_done=lambda: done.append(1)),
+            "pose part": lambda b: tween(b.center, (100, 0), time=0.5, on_done=lambda: done.append(1)),
+        }
+        for label, start in doors.items():
+            with self.subTest(door=label), system_world(draw=False) as w:
+                done = []
+                boss = Circle(center=(0, 0), radius=20)
+                boss.hp = 10
+                h = start(boss)
+                w.step(5, dt=1 / 60)
+                boss.destroy()
+                w.step(40, dt=1 / 60)            # raised DestroyedError (pose)
+                self.assertTrue(h.cancelled, label)
+                self.assertEqual(done, [], label)
+
+
+class TestHooksHaveNoAmbientOwner(unittest.TestCase):
+    """setup(), on_destroy and @exit_mode run with no ambient mode owner,
+    even when called from inside another actor's mode body; and a mode
+    transition survives what its exit hook does (review 2026-10-09 S2-1,
+    S2-3, S2-4, S2-12)."""
+
+    def test_setup_of_an_actor_built_in_a_mode_body_owns_its_work(self):
+        from scena import Circle, after, every, on_mode
+        from tests.system_support import system_world
+        shots = []
+        with system_world(draw=False) as w:
+            class Shot(Circle):
+                def setup(self):
+                    self.trail = every(0.1, lambda: None)
+                    self.flight = self.move_by(0, -300, time=1.0)
+
+            class Wasp(Circle):
+                @on_mode
+                def attack(self):
+                    shots.append(Shot(center=self.center, radius=2))
+                    after(0.2, then=self.retreat)
+
+                @on_mode
+                def retreat(self):
+                    pass
+
+            wasp = Wasp(center=(0, 0), radius=8)
+            try:
+                wasp.mode = wasp.attack
+                s = shots[0]
+                self.assertIs(s.flight.owner, s)
+                self.assertIsNot(s.trail.owner, wasp)
+                w.step(30, dt=1 / 60)               # the wasp changes mode
+                self.assertFalse(s.flight.cancelled)
+                self.assertFalse(s.trail.cancelled)
+                s.trail.cancel()
+            finally:
+                for o in shots + [wasp]:
+                    o.destroy()
+
+    def test_exit_hook_assigning_mode_raises_and_the_change_completes(self):
+        from scena import Circle, exit_mode, on_mode
+        from tests.system_support import system_world
+        exits = []
+        with system_world(draw=False) as w:
+            class Ship(Circle):
+                @on_mode
+                def charging(self):
+                    pass
+
+                @exit_mode(charging)
+                def charging_exit(self):
+                    exits.append(1)
+                    self.mode = self.cooldown
+
+                @on_mode
+                def cooldown(self):
+                    pass
+
+                @on_mode
+                def diving(self):
+                    pass
+
+            s = Ship(radius=3)
+            try:
+                s.mode = s.charging
+                with self.assertRaisesRegex(TypeError, "exit_mode"):
+                    s.mode = s.diving            # RecursionError before
+                self.assertEqual(exits, [1])
+                self.assertEqual(s.mode.__name__, "diving")
+            finally:
+                s.destroy()
+
+    def test_exit_hook_that_destroys_runs_no_next_body(self):
+        from scena import Circle, exit_mode, on_mode
+        from tests.system_support import system_world
+        ran = []
+        with system_world(draw=False) as w:
+            class Bomb(Circle):
+                @on_mode
+                def armed(self):
+                    pass
+
+                @exit_mode(armed)
+                def armed_exit(self):
+                    self.destroy()
+
+                @on_mode
+                def fleeing(self):
+                    ran.append(self.is_alive)
+
+            b = Bomb(radius=3)
+            b.mode = b.armed
+            b.mode = b.fleeing
+            self.assertEqual(ran, [])
+            self.assertFalse(b.is_alive)
+
+
+class TestWatchOnADestroyedSourceRetires(unittest.TestCase):
+    """A classless @when / @on_change over a destroyed actor retires, even on
+    a field that stays readable after destroy (review 2026-10-09 S2-8)."""
+
+    def test_readable_fields_retire_the_watch(self):
+        import gc
+        import weakref
+        from scena import Circle, when, on_change
+        from scena.events import get_global_event_system
+        from tests.system_support import system_world
+        for label, make in (
+            ("radius", lambda b: when(lambda: b.radius < 5)),
+            ("center", lambda b: on_change(lambda: b.center.x)),
+            ("default arg", lambda b: when(lambda bb=b: bb.angle > 90)),
+        ):
+            with self.subTest(label), system_world(draw=False) as w:
+                boss = Circle(center=(0, 0), radius=20)
+                make(boss)(lambda *a: None)
+                es = get_global_event_system()
+                n0 = len(es._events)
+                ref = weakref.ref(boss)
+                boss.destroy()
+                self.assertEqual(len(es._events), n0 - 1, label)
+                del boss
+                gc.collect()
+                self.assertIsNone(ref(), f"{label}: the watch kept the dead actor")
+
+
 if __name__ == "__main__":
     unittest.main()
 

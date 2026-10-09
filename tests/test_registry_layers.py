@@ -756,6 +756,25 @@ class TestGroupLiveView(RegistryTestCase):
         self.assertEqual(len(g2), 2)
         self.assertEqual(set(g1), set(g2))
 
+    def test_broadcast_skips_members_an_earlier_call_destroyed(self):
+        # review 2026-10-09 S9-3: a chain reaction inside one broadcast
+        class Mine(Circle):
+            def blast(self):
+                for m in group["bc_mine"]:
+                    if m is not self and m.is_alive and abs(m.center.x - self.center.x) < 15:
+                        m.destroy()
+                self.color = "orange"
+
+        ms = [Mine(center=(x, 0), radius=4, group="bc_mine") for x in (0, 10, 100)]
+        try:
+            group["bc_mine"].blast()           # raised DestroyedError before
+            self.assertFalse(ms[1].is_alive)
+            self.assertTrue(ms[2].is_alive)
+            group["bc_mine"].visible = False   # a setter broadcast skips them too
+        finally:
+            for m in ms:
+                m.destroy()
+
     def test_broadcast_sees_new_members(self):
         a = self.track(Circle(center=(0, 0), radius=1, group='g_bc'))
         g = group['g_bc']

@@ -800,10 +800,15 @@ Assigning `e.mode = diving`:
 3. Otherwise cancel work **scoped to the previous mode** (timers / tweens / timed pose /
    mode script started in that body). Do **not** cancel: transients, `sprite.play()`,
    entity-scoped timers (`e.after` / `e.every` / `e.tween`), event-track scripts.
-4. Run the outgoing mode's `@exit_mode` hook if one is attached — **without**
-   `owning(..., scope=SCOPE_MODE)`, so work it starts is entity-scoped by default.
-   Exceptions warn (Entity, hook, mode being entered, traceback); **the transition
-   still completes**. Cleanup must not block the next mode.
+4. Run the outgoing mode's `@exit_mode` hook if one is attached — with **no**
+   ambient owner (`process.no_owner`), so work it starts is entity-scoped by
+   default even when the change was made from another actor's mode body.
+   An exception — a watchdog trip too — still completes the transition, then
+   re-raises. Cleanup must not block the next mode. Inside its own exit hook
+   `self.mode = …` / `goto_mode` raises `TypeError` (the change is already
+   under way; it used to re-run the hook until `RecursionError`), and a hook
+   that destroys the actor ends the transition there: no next body runs on a
+   dead actor (review 2026-10-09 S2-1, S2-3, S2-4, S2-12).
 5. Store the callable; `mode_time = 0`.
 6. Inspect **once**: `async` → exclusive mode script; plain `def` → call **once**.
 7. `e.mode = None` → cancel scoped work, run the exit hook, no body.
@@ -1009,11 +1014,26 @@ destroy():
        (steps 2–3 run in a ``finally``), as Protections says: author errors
        raise. (This line said "warn and are swallowed" until 2026-10-09,
        which the code never did; review X-life-10.)
-    2. cancel every handle / script owned by this item (already unconditional).
-    3. retire every Entity part (see below), then drop from groups, drop the
-       roster entry, drop layer, mark is_alive = False and active = False
-       (not via the park setter).
+    2. mark it dying (a destroy() from its own hooks is a no-op) and take it
+       out of its group buckets (a survivor's handler counting the group sees
+       it gone); then fire the collision and pointer exits — the dying
+       object's own exit hooks run while it still reads alive.
+    3. mark is_alive = False and active = False (not via the park setter);
+       cancel every handle / script owned by this item; retire classless
+       @when / @on_change whose condition reads it (a field that stays
+       readable after destroy never raised, so the watch never retired).
+    4. retire every Entity part (see below), then drop its tags, the roster
+       entry and the layer. An exit-hook error re-raises here, after the
+       whole teardown (review 2026-10-09 X-life-5, S9-2, S2-8).
 ```
+
+A broadcast (`group["mine"].blast()`) skips a member an earlier member's call
+destroyed during that broadcast (a chain reaction the author cannot guard);
+a member dead before the broadcast still raises (S9-3). Every `tween()` door
+(`tween(x["field"])`, `tween(x.center)`) has the timed pose verbs' dead-target
+rule: the target dies mid-flight → quiet cancel, no write, no `on_done` (S2-2).
+`setup()`, `on_destroy` and `@exit_mode` run with no ambient mode owner even
+when called from inside another actor's mode body (S2-1).
 
 #### Parts leave with their owner
 

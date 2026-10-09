@@ -2563,6 +2563,31 @@ def owning(item, scope: str = SCOPE_ENTITY) -> Iterator[None]:
         _scope_ctx.reset(t_scope)
 
 
+@contextmanager
+def no_owner() -> Iterator[None]:
+    """No ambient owner: for author hooks the engine calls synchronously
+    (``setup()``, ``on_destroy``, ``@exit_mode``). Called from inside a mode
+    body, they used to inherit that body's ``owning(actor, "mode")``, so a
+    shot built in a wasp's mode had its own timers owned by the wasp's mode
+    (review 2026-10-09 S2-1; Actors Design, Ownership)."""
+    t_owner = _owner_ctx.set(None)
+    t_scope = _scope_ctx.set(None)
+    try:
+        yield
+    finally:
+        _owner_ctx.reset(t_owner)
+        _scope_ctx.reset(t_scope)
+
+
+def call_without_owner(fn: Callable, *args):
+    """``fn(*args)`` under :func:`no_owner`, at no cost when no ambient owner
+    is set (the common case: construction and destroy outside a mode body)."""
+    if _owner_ctx.get() is None and _scope_ctx.get() is None:
+        return fn(*args)
+    with no_owner():
+        return fn(*args)
+
+
 def _infer_owner(fn: Optional[Callable] = None) -> Tuple[object, str]:
     """Resolve owner/scope for bare ``after`` / ``every`` / ``wait`` / ``tween`` / …
 
@@ -3537,6 +3562,23 @@ def tween_on(
     )
 
 
+def _entity_written_by(target):
+    """The Entity a ``tween()`` target writes to (a FieldRef's owner, or the
+    actor that owns an Attribute / pose node), or ``None`` (a ``st`` cell).
+    It gets the dead-target rule the timed pose verbs have: destroyed →
+    the tween cancels quietly, no write, no ``on_done`` (review S2-2)."""
+    from .entity import Entity
+    from .state import FieldRef
+    node = target.owner if isinstance(target, FieldRef) else target
+    seen = 0
+    while node is not None and seen < 64:
+        if isinstance(node, Entity):
+            return node
+        node = getattr(node, "_owner", None)
+        seen += 1
+    return None
+
+
 def _tween_target(
     target,
     to,
@@ -3610,6 +3652,7 @@ def _tween_target(
             duration=time, ease=ease, write=write, tween_key=(id(target.owner), target.name),
             then=then, on_done=on_done, owner=owner, scope=scope, name=name,
             loops=n_loops, yoyo=yoyo, claim_targets=(target,), claim_kind="tween",
+            target=_entity_written_by(target),
         )
 
     if is_attribute:
@@ -3623,6 +3666,7 @@ def _tween_target(
             duration=time, ease=ease, write=write, tween_key=id(target),
             then=then, on_done=on_done, owner=owner, scope=scope, name=name,
             loops=n_loops, yoyo=yoyo, claim_targets=(target,), claim_kind="tween",
+            target=_entity_written_by(target),
         )
 
     if is_pose:
@@ -3639,6 +3683,7 @@ def _tween_target(
             duration=time, ease=ease, write=write, tween_key=id(target),
             then=then, on_done=on_done, owner=owner, scope=scope, name=name,
             loops=n_loops, yoyo=yoyo, claim_targets=(target,), claim_kind="tween",
+            target=_entity_written_by(target),
         )
 
     raise TypeError(

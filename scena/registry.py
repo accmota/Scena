@@ -43,6 +43,7 @@ from weakref import WeakValueDictionary
 
 from .camera_response import CameraResponse, ScrollState
 from .entity import GroupTags
+from .state import DestroyedError
 from .shapes import Shape, Blank, nearest as _nearest_item
 
 # Registered drawables: Shape or SpatialFx via Entity.
@@ -718,6 +719,9 @@ class Registry:
         self._next_key = 0
         self.group_map: Dict[str, _OrderedWeakGroup] = {}
         self._group_gen: Dict[str, int] = {}
+        # Bumped by every destroy: a broadcast re-checks liveness only when
+        # it moved during the broadcast (S9-3), at no per-member cost.
+        self._destroy_gen = 0
         # Group names a rule declared (@collide family, collide_with, resolve,
         # @leave_playfield). With ``_group_gen`` (every name that ever had a
         # member) these are the names ``group[...]`` may read while empty
@@ -825,12 +829,21 @@ class Registry:
         propagate after teardown completes.
         """
         from .entity import _fire_on_destroy
+        if getattr(obj, "_dying", False):
+            return          # a hook of this teardown called destroy() again
         try:
             _fire_on_destroy(obj)
         finally:
             self._destroy_teardown(obj)
 
     def _destroy_teardown(self, obj: RegistryObject) -> None:
+        # Dying: alive (its own exit hooks run on a live object), but a second
+        # destroy() from one of those hooks is a no-op (review X-life-5).
+        self._destroy_gen += 1
+        try:
+            object.__setattr__(obj, "_dying", True)
+        except Exception:
+            pass
         # Pull outside @= dependents while obj still reads as alive: auto-unlink
         # later keeps their value, which must be the source's final one (D8).
         # A formula error re-raises after teardown (same rule as on_destroy).
@@ -875,6 +888,32 @@ class Registry:
             _record_destroy_site(obj)
         except Exception:
             pass
+        # Out of its groups for every reader before any author exit runs: a
+        # survivor's ``on_collide_exit`` counting ``group["enemy"]`` sees the
+        # last enemy gone (review S9-2). Its tags stay until the registry
+        # teardown; collision keeps its own tag index for the exits below.
+        if obj.group:
+            self._leave_group_buckets(obj)
+        # The exits that are author code run while ``obj`` still exists
+        # (Shapes Design "Hover", Collision Design: "the dying body, while it
+        # still exists"): the dying object's own hover / collide exit may
+        # write to it (the taught un-highlight). Before, they ran after
+        # ``_destroyed`` and raised DestroyedError out of destroy() and
+        # change_act (review X-life-5). An error re-raises after teardown.
+        exit_error: Optional[BaseException] = None
+        from .collision import get_collision_system
+        try:
+            # Fires the survivor's and the dying body's on_collide_exit.
+            get_collision_system().forget_destroyed_item(obj)
+        except BaseException as exc:  # noqa: BLE001 — finish the teardown first
+            exit_error = exc
+        for manager in list(getattr(self, "_pointer_managers", ()) or ()):
+            try:
+                # Fires on_hover_exit while obj still exists.
+                manager.forget_destroyed(obj)
+            except BaseException as exc:  # noqa: BLE001
+                if exit_error is None:
+                    exit_error = exc
         try:
             obj._destroyed = True
             from .entity import _mark_routes_dead
@@ -922,7 +961,10 @@ class Registry:
             pass
         try:
             from .events import get_global_event_system
-            get_global_event_system().drop_owner(obj)
+            es = get_global_event_system()
+            es.drop_owner(obj)
+            if es._classless:
+                es.drop_reading(obj)  # classless watches on a dead source (S2-8)
         except Exception:
             pass
         try:
@@ -930,22 +972,23 @@ class Registry:
             get_bounds_system().forget_item(obj)
         except Exception:
             pass
-        from .collision import get_collision_system
-        try:
-            try:
-                # Fires the survivor's on_collide_exit (author code).
-                get_collision_system().forget_destroyed_item(obj)
-            finally:
-                # Fires on_hover_exit while obj still exists (author code).
-                for manager in list(getattr(self, "_pointer_managers", ()) or ()):
-                    manager.forget_destroyed(obj)
-        finally:
-            # A part leaves with its owner: off every draw / pointer list,
-            # group and the roster, and dead (writes raise, reads stay).
-            for part in parts:
-                self.retire_part(part, obj)
-            self.unregister_draw(obj)
-            self._teardown_registry_and_graph(obj)
+        # A part leaves with its owner: off every draw / pointer list,
+        # group and the roster, and dead (writes raise, reads stay).
+        for part in parts:
+            self.retire_part(part, obj)
+        self.unregister_draw(obj)
+        self._teardown_registry_and_graph(obj)
+        if exit_error is not None:
+            raise exit_error
+
+    def _leave_group_buckets(self, obj: RegistryObject) -> None:
+        """Take a dying object out of every group bucket (reads, counts,
+        broadcasts, formula groups) without the collision notify; its tags
+        and the collision tag index go in the normal teardown."""
+        for groupid in list(getattr(obj, "group", ()) or ()):
+            bucket = self.group_map.get(groupid)
+            if bucket is not None and bucket.discard(obj):
+                self._group_gen[groupid] = self._group_gen.get(groupid, 0) + 1
 
     def retire_part(self, part: RegistryObject, host: RegistryObject) -> None:
         """Take one Entity part of ``host`` out of Scena (host destroy / rollback).
@@ -2018,8 +2061,27 @@ class GroupOperator:
         if callable(first_attr):
             def wrapper(*args, **kwargs):
                 current = self._members()
-                results = [getattr(obj, name)(*args, **kwargs) for obj in current]
-                if results and all(r is obj for r, obj in zip(results, current)):
+                reg = self._registry
+                gen = reg._destroy_gen
+                results = []
+                append = results.append
+                skipped = None
+                for obj in current:
+                    try:
+                        append(getattr(obj, name)(*args, **kwargs))
+                    except DestroyedError:
+                        # A member an earlier member's call destroyed (a chain
+                        # reaction) is skipped: the author cannot guard inside
+                        # a broadcast (review 2026-10-09 S9-3). A member dead
+                        # before the broadcast still raises.
+                        if reg._destroy_gen == gen or not getattr(obj, "_destroyed", False):
+                            raise
+                        if skipped is None:
+                            skipped = set()
+                        skipped.add(id(obj))
+                called = current if skipped is None else [
+                    o for o in current if id(o) not in skipped]
+                if results and all(r is obj for r, obj in zip(results, called)):
                     return self
                 return results
             return wrapper
@@ -2041,7 +2103,11 @@ class GroupOperator:
             if _blank_class_attr(name) is _MISSING:
                 setattr(Blank(), name, value)
             return
+        reg = self._registry
+        gen = reg._destroy_gen
         for obj in members:
+            if reg._destroy_gen != gen and getattr(obj, "_destroyed", False):
+                continue    # destroyed by an earlier member's setter (S9-3)
             setattr(obj, name, value)
 
     def _resolve_other(self, other: Union[str, 'GroupOperator']) -> List[Shape]:

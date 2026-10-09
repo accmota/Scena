@@ -209,6 +209,29 @@ class TestFlagsAndDecorators(InteractionTestCase):
         self.assertIs(events[-1][1], token)
         self.assertIs(events[-1][2], zone)
 
+    def test_no_drop_by_on_a_target_drag_to_destroyed(self):
+        # review 2026-10-09 S1-2
+        tx, ty = self.at(0, 0)
+        zx, zy = self.at(100, 0)
+        token = self.track(Circle(center=(tx, ty), radius=20))
+        zone = self.track(Rect(center=(zx, zy), width=60, height=60))
+        events = []
+
+        @drag_to(token)
+        def on_to(frm, to, pos):
+            events.append("to")
+            to.destroy()                     # the slot is consumed
+
+        @drop_by(zone)
+        def on_drop(frm, to, pos):
+            events.append("drop")
+
+        self.sim.drag_threshold = 1.0
+        self.sim.handle_mouse_down(tx, ty, self.btn)
+        self.sim.handle_mouse_move(zx, zy)
+        self.sim.handle_mouse_up(zx, zy, self.btn)
+        self.assertEqual(events, ["to"])
+
     def test_group_decorator_registers_members(self):
         from scena import group
 

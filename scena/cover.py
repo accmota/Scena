@@ -74,7 +74,7 @@ def _canvas_facade():
 class _Tween:
     __slots__ = (
         "t0", "duration", "start", "end", "on_done",
-        "cancelled", "finished",
+        "cancelled", "finished", "act_made",
     )
 
     def __init__(self, t0: float, duration: float, start: float, end: float, on_done):
@@ -85,6 +85,10 @@ class _Tween:
         self.on_done = on_done
         self.cancelled = False
         self.finished = False
+        # Started after the seal (an act's fade): its ``on_done`` belongs to
+        # that act and leaves with it (``drop_act_on_done``).
+        from .process import _top_level_ended
+        self.act_made = bool(_top_level_ended)
 
 
 class CanvasCover:
@@ -295,6 +299,15 @@ _cover = CanvasCover()
 
 def get_cover() -> CanvasCover:
     return _cover
+
+
+def drop_act_on_done() -> None:
+    """An act change: the cover survives (a fade crosses the change) but an
+    in-flight ``on_done`` an act gave it does not: it would fire in the next
+    act and redirect the game (review 2026-10-09 S4-2; Act Design)."""
+    tw = _cover._tween
+    if tw is not None and not tw.finished and tw.act_made:
+        tw.on_done = None
 
 
 def tick_cover(now: Optional[float] = None) -> None:

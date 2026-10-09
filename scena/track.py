@@ -2059,6 +2059,15 @@ _VIEW_HOST_FIELDS = frozenset({
 })
 
 
+def _forward_timed(fn):
+    """A view verb that forwards to its host: ``time=`` goes to the host's
+    own timed verb (one tween key, owned by the host, dies with it), so
+    ``Shape.__init_subclass__`` must not wrap the view's method in a second
+    tween of the view (review 2026-10-09 S6-3)."""
+    fn._timed_wrapped = True
+    return fn
+
+
 class _ReversedTrack(Track):
     """``track.reversed()``: the host's tables read backwards.
 
@@ -2089,15 +2098,19 @@ class _ReversedTrack(Track):
     def move_to(self, *args, **kwargs):
         return self._on_host(self._alias_of.move_to(*args, **kwargs))
 
+    @_forward_timed
     def rotate_by(self, *args, **kwargs):
         return self._on_host(self._alias_of.rotate_by(*args, **kwargs))
 
+    @_forward_timed
     def rotate_to(self, *args, **kwargs):
         return self._on_host(self._alias_of.rotate_to(*args, **kwargs))
 
+    @_forward_timed
     def scale_by(self, *args, **kwargs):
         return self._on_host(self._alias_of.scale_by(*args, **kwargs))
 
+    @_forward_timed
     def scale_to(self, *args, **kwargs):
         return self._on_host(self._alias_of.scale_to(*args, **kwargs))
 

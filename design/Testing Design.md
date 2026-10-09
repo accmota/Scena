@@ -2064,6 +2064,50 @@ Two lessons from implementing them:
    implementation; keep it only where production is non-deterministic (shape
    transients on wall time), and test the production clock at least once.
 
+### RV — systems review fixes, batch 1: crashes and dead subjects (2026-10-09)
+
+Root causes R2 (author code on a subject the engine already killed; exit
+without enter) and the act-change crashes of the systems review. Repros:
+private workbench, "2026-10-09 systems review/repro".
+
+| ID | Finding | Fix | Test |
+| --- | --- | --- | --- |
+| X-life-5 | `destroy()` fired the dying object's own hover / collide exit after `is_alive` turned False: the taught un-highlight raised out of `destroy()` and `change_act` (the title menu crashed) | teardown marks `_dying`, fires the exits, then marks dead; a re-entrant `destroy()` is a no-op | `test_pointer_hover.test_destroy_exit_sees_a_live_shape` (was a weak oracle: it passed with a dead shape), `test_collision.TestDyingBodyExits`; `Probe.TEARDOWN_TAGS` emptied |
+| S9-2 | the survivor's exit counted the dying partner in its group | the dying object leaves its group buckets before any exit | `TestDyingBodyExits.test_survivor_exit_sees_the_group_without_the_dying` |
+| S8-2 | later handlers of one dispatch ran on a side an earlier one destroyed | dispatch epoch checked after each handler that ran | `test_collision.TestDispatchSeesWhatHandlersDid` |
+| S8-3, X-life-2 | exit for a pair whose enter never ran; exits on dead bodies after a mid-step `change_act` | the step's pending enters / exits: a leaving body drops pending enters and fires pending exits at once | same class; `test_act.TestChangeInsideADispatch` |
+| S4-1 | the leaving act's `@collide` / `@leave_playfield` ran after `change_act` in one dispatch | epoch → registration re-check; leave handlers re-checked against the live table | `test_act.TestChangeInsideADispatch` |
+| S4-2 | an act's `fade_out(on_done=)` fired in the next act | the change drops an act-made cover `on_done`, keeps the fade | `test_act.TestCoverOnDoneLeavesWithTheAct` |
+| S2-2 | `tween(x["field"])` / `tween(x.center)` wrote a dead actor or crashed the frame | every tween door resolves the Entity it writes (`_entity_written_by`) | `test_process.TestTweenDoorsOnADeadTarget` |
+| S6-3 | timed verbs on a `reversed()` view tweened the view (summed with the host's, outlived it) | the view's forwarding verbs skip the timed wrapper | `test_track.TestReversedViewTimedVerbs` |
+| S2-1 | a mode body's ambient owner leaked into `setup()` / `on_destroy` / `@exit_mode` | `process.call_without_owner` / `no_owner` | `test_process.TestHooksHaveNoAmbientOwner` |
+| S2-3, S2-4, S2-12 | exit hook: `self.mode =` recursed; destroy ran the next body on a dead actor; a watchdog trip froze the mode | `mode =` in its own exit hook raises `TypeError`; a destroyed actor ends the transition; any exception completes it | same class |
+| S2-8 | a classless `@when` over a field readable after destroy never retired (kept the actor) | destroy retires classless watches whose condition holds the actor (index of classless watches: no scan of all) | `test_process.TestWatchOnADestroyedSourceRetires` |
+| S9-3 | a broadcast called members an earlier member destroyed | skip on `DestroyedError` when a destroy happened during the broadcast | `test_registry_layers.test_broadcast_skips_members_an_earlier_call_destroyed` |
+| S1-2 | `on_drop_by` ran on a target `on_drag_to` destroyed | liveness re-check | `test_shape_interaction.test_no_drop_by_on_a_target_drag_to_destroyed` |
+| S1-4 / S3-10 | hover exit for a target whose enter never ran | `_hover_entered`: exit only after its enter | `test_pointer_hover.test_exit_that_destroys_the_next_target_gives_it_no_exit` |
+| X-life-1 | park fired exits while `active` read True; a `visible` write left a parked actor drawn | park marks parked before leaving collision | `test_collision.TestParkExitSeesAParkedActor` |
+| X-life-3 | a release whose press a parked / destroyed shape or widget took reached the script's `on_mouse_up` | no script up without its down (an old test pinned the opposite; the doc said otherwise) | `test_script_callbacks.test_up_without_script_press_reaches_nothing` |
+| S1-5 | `last_click` kept a Button that destroyed itself in its `on_click` (HD4 cleared it before it was stored) | nothing stored when the click killed its widget | `test_uiwidget.TestDestroyedWidgetLeavesTheLastClick` |
+
+Lessons:
+
+1. **A liveness check on a hot loop costs, unless it is gated.** The first
+   versions cost 1–5 % (a property read per broadcast member, a check per
+   handler). Gating with a counter (dispatch epoch, registry destroy count)
+   or an exception that is free until raised (a `DestroyedError` skip in the
+   broadcast) brought every bench back to noise (alternating runs against a
+   HEAD export; A/A noise ~1 %).
+2. **`getattr(entity, "_new_flag", default)` reaches the ink `__getattr__`.**
+   A missing attribute on an Entity runs the ink lookup (it builds an error
+   with hints) before the default applies: 2.5 µs per destroy. A new private
+   flag read on a hot path gets a class default.
+3. **A test can pin the implementation against the doc.** The canvas test for
+   "up without a script press" asserted the up was delivered; Shapes Design
+   said a swallowed press gives the script nothing. The doc won (Lessons
+   learned 13). So did a hover test whose oracle (`is_alive or center`)
+   passed for a dead shape.
+
 ### F — contact flicker (2026-09-29)
 
 Found by `tests/test_sys_resting_contact.py`, written after G2 to test what a

@@ -534,6 +534,7 @@ class ProgramRun:
         sm._set_pressed(None)
         sm._dragging = False
         sm._hover_target = None
+        sm._hover_entered = None
         sm._ptr_view = sm._ptr_world = None
         sm._resolved_sig = None
         # Every world setting an act change restores (camera, playfield,

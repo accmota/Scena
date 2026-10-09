@@ -581,7 +581,11 @@ def setup(self):
 ```
 
 The cover is a framework singleton and survives the change (it is not a
-one-shot and not act-owned). A `fade=` is reconsidered only if a taught game
+one-shot and not act-owned). An `on_done` an act gave a fade still in flight
+does **not** survive: the change drops it and keeps the animation (as a
+released sound drops its `on_done`). Otherwise the next act's `fade_in`
+replaced the fade, fired the old act's `on_done` from inside `setup`, and a
+`change_act(FimDeJogo)` in it redirected the game (review 2026-10-09 S4-2). A `fade=` is reconsidered only if a taught game
 cannot write those two lines.
 
 Music fades the same way, with no new spelling: start the fade in the act's

@@ -666,6 +666,12 @@ class WidgetManager:
 
         # Handle single click
         widget_at_mouse._on_mouse_click(x, y, button)
+        if not getattr(widget_at_mouse, "is_alive", True):
+            # The click destroyed its widget (a "Start" button that closes
+            # itself, a change_act): ``remove_widget`` already ran, so the
+            # record must not be stored after it (review S1-5 / HD4).
+            self.last_click = None
+            return True
 
         # Check for double click
         if (
@@ -784,10 +790,13 @@ class CanvasManager:
 
     def handle_mouse_up(self, x, y, button, view=None):
         press = self._presses.pop(button, None)
-        click_x, click_y = (press[0], press[1]) if press is not None else (x, y)
-        callback_if_exists(self, 'on_mouse_up', x, y, button, click_x, click_y)
         if press is None:
+            # The script never got this button's down (a widget or shape took
+            # the press, then was parked / destroyed before the release):
+            # no up without its down (review 2026-10-09 X-life-3).
             return
+        click_x, click_y = press[0], press[1]
+        callback_if_exists(self, 'on_mouse_up', x, y, button, click_x, click_y)
         vx, vy = view if view is not None else (x, y)
         if math.hypot(vx - press[2], vy - press[3]) > self.click_distance_threshold:
             return
@@ -865,6 +874,9 @@ class ShapeInteractionManager:
         self._press_swallowed = False
         # One hover target across widgets → ui → world (Graphic, widget or None).
         self._hover_target = None
+        # The target whose ``@hover`` (enter) actually ran: an exit goes only
+        # to it (review 2026-10-09 S1-4 / S3-10).
+        self._hover_entered = None
         self._ptr_view = None
         self._ptr_world = None
         # Inputs of the last full hover hit test; None forces the next one.
@@ -1033,11 +1045,17 @@ class ShapeInteractionManager:
             setter = getattr(new, "_set_pointer_hover", None)
             if setter is not None:
                 setter(True)
+        entered = getattr(self, "_hover_entered", None)
+        self._hover_entered = None
         try:
-            if old is not None:
+            # Only a target whose enter ran gets an exit: an exit handler
+            # that destroys the next target must not give it an exit with
+            # no enter.
+            if old is not None and entered is old:
                 self._call(getattr(old, "_on_hover_exit", None), old)
         finally:
             if new is not None and self._hover_target is new:
+                self._hover_entered = new
                 self._call(getattr(new, "_on_hover", None), new)
 
     def forget_destroyed(self, obj) -> None:
@@ -1193,7 +1211,10 @@ class ShapeInteractionManager:
             to_shape = hit_fn(x, y, exclude=shape, droppable=True)
             pos = (x, y)
             self._call(shape.on_drag_to, shape, to_shape, pos)
-            if to_shape is not None:
+            # ``on_drag_to`` may have destroyed either side or changed act:
+            # no drop on a dead party (review 2026-10-09 S1-2).
+            if (to_shape is not None and getattr(to_shape, "is_alive", True)
+                    and getattr(shape, "is_alive", True)):
                 self._call(to_shape.on_drop_by, shape, to_shape, pos)
             return True
 

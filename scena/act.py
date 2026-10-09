@@ -390,6 +390,8 @@ class ActManager:
         get_global_event_system().drop_act_owned()
         get_collision_system().drop_act_pair_handlers()
         get_collision_system().restore_sealed_resolve_pairs()
+        from .cover import drop_act_on_done
+        drop_act_on_done()          # the fade stays; the act's on_done goes
         fw = _framework()
         hit = fw.post_fx_stack._hit if fw is not None else None
         if hit is not None:

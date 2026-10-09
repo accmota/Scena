@@ -1669,5 +1669,103 @@ class TestNamedSlotsAcrossTheSeal(ActTestCase):
         h.cancel()
 
 
+class TestCoverOnDoneLeavesWithTheAct(ActTestCase):
+    """An act's in-flight fade keeps animating across the change, but its
+    on_done leaves with the act (review 2026-10-09 S4-2)."""
+
+    def test_old_on_done_does_not_redirect_the_next_act(self):
+        entered = []
+
+        class Fim(Act):
+            def setup(self):
+                entered.append("Fim")
+
+        class Titulo2(Act):
+            def setup(self):
+                entered.append("Titulo")
+                canvas.fade_in(0.5)          # replaces the old fade
+
+        class Fase4(Act):
+            def setup(self):
+                entered.append("Fase")
+                canvas.fade_out(0.5, on_done=lambda: change_act(Fim))
+
+        self.begin(Fase4)
+        self.w.step(6, dt=1 / 60)
+        change_act(Titulo2)
+        self.w.step(60, dt=1 / 60)
+        self.assertEqual(entered, ["Fase", "Titulo"])
+        self.assertIsInstance(current(), Titulo2)
+
+    def test_on_done_of_a_fade_that_ends_in_the_act_still_runs(self):
+        done = []
+
+        class Fase5(Act):
+            def setup(self):
+                canvas.fade_out(0.25, on_done=lambda: done.append(1))
+
+        self.begin(Fase5)
+        self.w.step(30, dt=1 / 60)
+        self.assertEqual(done, [1])
+        canvas.fade_in(0)
+
+
+class TestChangeInsideADispatch(ActTestCase):
+    """A change_act made by the first handler of a dispatch stops the dead
+    act's handlers that follow in the same dispatch (review 2026-10-09
+    S4-1): @collide pair handlers and @leave_playfield handlers."""
+
+    def test_collide_handlers_of_the_leaving_act_stop(self):
+        log = []
+
+        class Placar(Act):
+            pass
+
+        class Fase6(Act):
+            def setup(self):
+                @collide("ci_bola", "ci_gol")
+                def torcida(b, g):
+                    log.append(type(current()).__name__)
+
+        @collide("ci_bola", "ci_gol")
+        def gol(b, g):
+            change_act(Placar)
+
+        bola = Circle(center=(0, 0), radius=10, group="ci_bola")
+        trave = Circle(center=(200, 0), radius=10, group="ci_gol")
+        self.begin(Fase6)
+        self.w.step(1, dt=1 / 60)
+        bola.center = (195, 0)
+        self.w.step(1, dt=1 / 60)
+        self.assertNotIn("Placar", log)
+        bola.destroy()
+        trave.destroy()
+
+    def test_leave_handlers_of_the_leaving_act_stop(self):
+        import itertools
+        log = []
+
+        class Fim(Act):
+            pass
+
+        class Fase7(Act):
+            def setup(self):
+                @leave_playfield("ci_tiro")
+                def ato(t):
+                    log.append(type(current()).__name__)
+
+        @leave_playfield("ci_tiro")
+        def jogo(t):
+            change_act(Fim)
+
+        tiro = Circle(center=(0, 0), radius=3, group="ci_tiro")
+        self.begin(Fase7)
+        self.w.step(1, dt=1 / 60)
+        tiro.center = (0, -5000)
+        self.w.step(1, dt=1 / 60)
+        self.assertNotIn("Fim", log)
+        tiro.destroy()
+
+
 if __name__ == "__main__":
     unittest.main()

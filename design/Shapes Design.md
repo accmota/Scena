@@ -1034,7 +1034,10 @@ False (a disabled `SpriteButton`) still takes the press — nothing underneath,
 nor the script, gets it or its release — but there is no press bit, no drag,
 no wheel and no click. `_accepts_press()` is checked again at release, so
 disabling between press and release cancels the click. Same contract as a
-disabled widget (`_SWALLOWED_PRESS`).
+disabled widget (`_SWALLOWED_PRESS`). Every script `on_mouse_up` has its
+`on_mouse_down`: a press a widget or Graphic took, then lost to a park or a
+destroy before the release, gives the script no up (review 2026-10-09
+X-life-3).
 
 ## Drag and drop
 
@@ -1043,7 +1046,7 @@ State machine (left button):
 1. Press on a pressable Graphic → pending
 2. Move past a small Manhattan threshold **and** `draggable` → dragging (`move_to` with grab offset). The grab offset is taken from the shape's center **at the crossing** (`center_now − press_xy`), not at the press: a motion may have carried the shape meanwhile, and the press-time offset would snap it back. At the crossing the hold starts: motion on the drag parts is held ([Pointer hold](#persistent-drivers-vs-linked-pose)). A wheel tick while pressed holds motion on the wheel parts
 3. Release without having dragged → click if `clickable` and still inside
-4. Release while dragging → the hold ends first, then `on_drag_to` on the dragged Graphic; if a droppable is under the pointer, also `on_drop_by` on that target
+4. Release while dragging → the hold ends first, then `on_drag_to` on the dragged Graphic; if a droppable is under the pointer, also `on_drop_by` on that target — unless `on_drag_to` destroyed either side (or changed act): no drop on a dead party (review 2026-10-09 S1-2)
 5. `draggable = False` or destroy mid-drag → the drag ends there (hold ended at once, the shape stops following, release fires no drag callbacks). Before this, the drag kept going after `draggable = False` and the next pointer event after a destroy raised `DestroyedError` (`ShapeInteractionManager._press_lost` / `_drop_press`)
 
 While dragging, each move calls `on_drag_over` on the dragged Graphic with the
@@ -1138,8 +1141,13 @@ Graphic is pressed or dragged it keeps hover (affordance).
 exit — pointer left, hidden, destroyed, no longer a target, covered by a
 widget, modal opened. Destroy fires the exit synchronously, while the object
 still exists (registry teardown → `ShapeInteractionManager.forget_destroyed`,
-next to collision's `forget_destroyed_item`). The target is committed before
-handlers run; a raising handler propagates with the edge consumed.
+next to collision's `forget_destroyed_item`); the object is marked dead only
+after those exits, and a `destroy()` from inside them is a no-op (before
+2026-10-09 it was already dead there, so the taught un-highlight raised
+`DestroyedError`, review X-life-5). An exit goes only to a target whose enter
+ran: an exit handler that destroys the next target gives it no exit (S1-4).
+The target is committed before handlers run; a raising handler propagates
+with the edge consumed.
 
 **Hover-only targets are click-transparent.** A Graphic with only hover
 handlers joins hover resolution, but presses fall through to the pressable

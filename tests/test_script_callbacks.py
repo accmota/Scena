@@ -137,9 +137,12 @@ class TestCanvasManagerPointer(unittest.TestCase):
         self.cm.handle_mouse_up(40, 0, "LEFT", view=(52, 50))
         self.assertEqual(self._kinds(), ["up", "click"])
 
-    def test_up_without_script_press_is_not_a_click(self):
+    def test_up_without_script_press_reaches_nothing(self):
+        # Every script up has its down: a press a widget or shape took (then
+        # parked / destroyed before the release) gives the script no up and
+        # no click (Shapes Design, press lifecycle; review 2026-10-09 X-life-3).
         self.cm.handle_mouse_up(5, 5, "LEFT")
-        self.assertEqual(self.log, [("up", 5, 5, "LEFT", 5, 5)])
+        self.assertEqual(self.log, [])
 
     def test_double_click(self):
         for _ in range(2):

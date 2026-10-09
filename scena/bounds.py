@@ -372,6 +372,11 @@ class BoundsSystem:
             if isinstance(handler, functools.partial):
                 handler()  # class method, already given its instance
             else:
+                # An earlier handler may have changed act: an act's handler
+                # dropped by that change does not run (review S4-1).
+                tags = getattr(item, "group", ()) or ()
+                if not any(handler in self._group_handlers.get(t, ()) for t in tags):
+                    continue
                 call_truncated(handler, item)
 
     def step(self) -> None:

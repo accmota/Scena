@@ -1335,8 +1335,8 @@ def _fire_on_destroy(item) -> None:
     if hook is None:
         return
     object.__setattr__(item, "_on_destroy", None)
-    from .process import _invoke
-    _invoke(hook, item)
+    from .process import _invoke, call_without_owner
+    call_without_owner(_invoke, hook, item)
 
 
 def _install_subclass_hooks(item) -> None:
@@ -1432,7 +1432,8 @@ def _wrap_actor_init(cls) -> None:
             raise
         if type(self).__init__ is wrapped:
             try:
-                _finish_actor_construct(self)
+                from .process import call_without_owner
+                call_without_owner(_finish_actor_construct, self)
             except BaseException:
                 # The finish step (setup, method timers, watches, enroll) is
                 # part of construction: a raise rolls back like one in __init__ (E4).
@@ -1496,6 +1497,11 @@ class Entity(Container):
     # engine's per-item probes off ``__getattr__`` for every other Entity.
     _hitbox_claims = None
     _hitbox_parts = ()
+    # Class defaults so a hot read never reaches ``__getattr__`` (ink lookup):
+    # set during a destroy teardown (X-life-5) and during an @exit_mode hook
+    # (S2-3).
+    _dying = False
+    _mode_leaving = None
     # A whole-object link (``obj @= other``) drives the pose too (a copy carries
     # it, C7); Point overrides: its link follows position only.
     _whole_link_carries_pose = True
@@ -1590,7 +1596,8 @@ class Entity(Container):
             self._scenacanvas.registry.register(self, layer)
 
         if type(self).__init__ is Entity.__init__:
-            _finish_actor_construct(self)
+            from .process import call_without_owner
+            call_without_owner(_finish_actor_construct, self)
 
     def draw(self, skia_canvas) -> None:
         """No visual on bare Entity. Safe if moved onto a draw layer."""
@@ -1953,8 +1960,8 @@ class Entity(Container):
         """
         if _SOLVER_READING:
             refuse_if_solver_reading('destroy()')
-        if not self.is_alive:
-            return self
+        if not self.is_alive or getattr(self, "_dying", False):
+            return self     # dead, or a hook of its own teardown (X-life-5)
         refuse_part_as_actor(self, "destroy()", "life")
         try:
             _fire_on_destroy(self)
@@ -2054,11 +2061,15 @@ class Entity(Container):
         # what was there.
         if vis:
             self.visible = False
-        if col:
-            self._leave_collision()       # not ``collidable = False``: no opt-out (E2)
         object.__setattr__(self, "_active_saved_visible", vis)
         object.__setattr__(self, "_active_saved_collidable", col)
         object.__setattr__(self, "_active", False)
+        # Leave collision last: its exit handlers (author code) see a parked
+        # actor, and a ``visible`` / ``collidable`` write there goes to the
+        # stash. Before, they ran while ``active`` still read True and a
+        # ``me.visible = True`` left a parked actor drawn (review X-life-1).
+        if col:
+            self._leave_collision()       # not ``collidable = False``: no opt-out (E2)
 
     def _resume_self(self) -> None:
         """Resume this item alone: restore stashed flags it owns."""
@@ -2092,15 +2103,28 @@ class Entity(Container):
         exit+enter.
         """
         self._validate_mode_value(value)
+        self._refuse_mode_in_exit_hook()
         if value == self._mode:
             return
         self._goto_mode(value)
+
+    def _refuse_mode_in_exit_hook(self) -> None:
+        leaving = getattr(self, "_mode_leaving", None)
+        if leaving is not None:
+            # It re-ran its own exit hook ~200 times, then RecursionError (S2-3).
+            name = getattr(leaving, "__name__", "the mode")
+            raise TypeError(
+                f"{self.name}.mode = … inside @exit_mode({name}): the change of mode is "
+                f"already under way. Choose the next mode where the change is made "
+                f"(the line that assigns mode, or then=), not in the exit hook."
+            )
 
     def goto_mode(self, fn) -> None:
         """Always exit, then enter the mode ``fn`` — even when ``fn`` is the
         current mode (a restart). ``e.mode = fn`` does nothing when ``fn`` is
         already running."""
         self._validate_mode_value(fn)
+        self._refuse_mode_in_exit_hook()
         self._goto_mode(fn)
 
     @staticmethod
@@ -2133,14 +2157,24 @@ class Entity(Container):
 
         exit_fn = getattr(old_mode, "_exit_mode", None) if old_mode is not None else None
         if exit_fn is not None:
+            from .process import no_owner
+            object.__setattr__(self, "_mode_leaving", old_mode)
             try:
-                _invoke(exit_fn, self)  # no owning() context: entity-scoped by default
-            except Exception:
+                with no_owner():         # no owning() context (S2-1)
+                    _invoke(exit_fn, self)
+            except BaseException:
                 # Finish the transition (never leave a cancelled, frozen old
-                # mode), then re-raise. An error entering the new mode chains
-                # onto this one.
-                self._enter_mode(value)
+                # mode), then re-raise — a watchdog trip too (S2-12). An
+                # error entering the new mode chains onto this one.
+                object.__setattr__(self, "_mode_leaving", None)
+                if not getattr(self, "_destroyed", False):
+                    self._enter_mode(value)
                 raise
+            object.__setattr__(self, "_mode_leaving", None)
+            if getattr(self, "_destroyed", False):
+                # The exit hook destroyed the actor: no next body runs on a
+                # dead actor (S2-4; Protections: the body never runs).
+                return
         self._enter_mode(value)
 
     def _enter_mode(self, value) -> None:

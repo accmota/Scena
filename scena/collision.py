@@ -3951,6 +3951,16 @@ class CollisionSystem:
     def __init__(self):
         self._colliders: List[Collider] = []
         self._prev_contacts: Set[Tuple[int, int]] = set()
+        # The step's enters / exits not dispatched yet. A body destroyed (or
+        # parked) mid-step: a pending enter is dropped with no exit (its enter
+        # never ran, S8-3); a pending exit fires at that moment, while the
+        # body still exists, instead of on a dead body later (X-life-2).
+        self._enter_pending: Set[Tuple[int, int]] = set()
+        self._exit_pending: Set[Tuple[int, int]] = set()
+        # Bumped when a collider leaves or a pair handler is removed: a
+        # dispatch whose epoch moved re-checks liveness and registration
+        # before each later handler (S8-2, S4-1). One int compare otherwise.
+        self._dispatch_epoch = 0
         self._show = False
         self._debug_shapes: List[Any] = []  # legacy shape-based overlay (cleared on disable)
         self._debug_overlay: List[Tuple[Any, Prim]] = ()
@@ -4098,6 +4108,7 @@ class CollisionSystem:
         i = idx_map.pop(cid, None)
         if i is None:
             return
+        self._dispatch_epoch += 1
         lst = self._colliders
         last = lst.pop()
         if i != len(lst):
@@ -4469,6 +4480,7 @@ class CollisionSystem:
             return 0
         ids = {id(e) for e in doomed}
         self._pair_handlers[:] = [e for e in self._pair_handlers if id(e) not in ids]
+        self._dispatch_epoch += 1
         n = len(doomed)
         self._act_pair_handlers = []
         for c in list(self._colliders):
@@ -4691,6 +4703,8 @@ class CollisionSystem:
             self._prune_dead_side(identity, self._sealed_resolve_pairs, swap=False)
         lst = self._pair_handlers
         dropped = self._prune_dead_side(identity, lst, swap=True)
+        if dropped:
+            self._dispatch_epoch += 1
         resolve_changed = self._prune_dead_side(identity, self._resolve_pairs, swap=True)
         if dropped or resolve_changed:
             # The other side of each dropped pair holds ``identity`` in its
@@ -4762,6 +4776,19 @@ class CollisionSystem:
         """
         cid = id(col)
         keys = [k for k in self._prev_contacts if cid in k]
+        # This step's enters not dispatched yet: no enter ran, so no exit.
+        if self._enter_pending:
+            for k in [k for k in self._enter_pending if cid in k]:
+                self._enter_pending.discard(k)
+                if k in keys:
+                    keys.remove(k)
+                    self._prev_contacts.discard(k)
+        # This step's exits not dispatched yet: they fire now, while the body
+        # still exists, and not again from the step's exit loop.
+        if self._exit_pending:
+            for k in [k for k in self._exit_pending if cid in k]:
+                self._exit_pending.discard(k)
+                keys.append(k)
         if not keys:
             return
         for key in keys:
@@ -5412,7 +5439,12 @@ class CollisionSystem:
             )
         else:
             entered_order = _sort_keys(entered)
+        self._enter_pending = set(entered)
+        self._exit_pending = set(exited)
         for key in entered_order:
+            if key not in self._enter_pending:
+                continue                  # its body left mid-step: no enter, no exit
+            self._enter_pending.discard(key)
             if key not in current:
                 continue
             info = current[key]
@@ -5424,7 +5456,11 @@ class CollisionSystem:
             info = current[key]
             ca, cb = colliders_for_key(key)
             self._dispatch(ca, cb, info, _PHASE_STAY)
+        self._enter_pending = set()
         for key in _sort_keys(exited):
+            if key not in self._exit_pending:
+                continue                  # already fired when a body left
+            self._exit_pending.discard(key)
             ca, cb = colliders_for_key(key) if key[0] in id_to_collider and key[1] in id_to_collider else (None, None)
             if ca is None:
                 continue
@@ -6747,14 +6783,28 @@ class CollisionSystem:
             _PHASE_STAY: "on_collide_stay",
             _PHASE_EXIT: "on_collide_exit",
         }[phase]
+        # A handler may destroy or park a side, or change act (which drops
+        # the act's handlers). Checked after each handler that ran, by one
+        # int compare: a dead side ends enter / stay (S8-2), and a handler no
+        # longer registered does not run (S4-1).
+        epoch = self._dispatch_epoch
+        changed = False
         for me_c, other_c in ((ca, cb), (cb, ca)):
             cb_fn = getattr(me_c, attr, None)
             if cb_fn is not None and other_c._part is None:
                 oriented = self._oriented_info(me_c, other_c, ca, info, phase)
                 _call(cb_fn, me_c._identity, other_c._identity, oriented)
+                if self._dispatch_epoch != epoch:
+                    changed = True
+                    if phase != _PHASE_EXIT and (
+                            not self._collider_in_play(ca) or not self._collider_in_play(cb)):
+                        return
 
         for ta, tb, handler, handler_phase in tuple(self._pair_handlers):
             if handler_phase != phase:
+                continue
+            if changed and not any(
+                    e[2] is handler and e[0] is ta and e[1] is tb for e in self._pair_handlers):
                 continue
             matched = self._pair_matches(ta, tb, ca, cb)
             if not matched:
@@ -6762,6 +6812,11 @@ class CollisionSystem:
             me, other = matched
             oriented = self._oriented_info(me, other, ca, info, phase)
             _call(handler, me._identity, other._identity, oriented)
+            if self._dispatch_epoch != epoch:
+                changed = True
+                if phase != _PHASE_EXIT and (
+                        not self._collider_in_play(ca) or not self._collider_in_play(cb)):
+                    return
 
     @staticmethod
     def _both_leave_with_act(ca: Collider, cb: Collider, dying_ids) -> bool:

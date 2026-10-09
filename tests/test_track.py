@@ -1640,6 +1640,43 @@ class TestTrackPathCache(unittest.TestCase):
         self.assertNotIn(id(tr._pose_host()._xs), tr._geom_path_key)
 
 
+class TestReversedViewTimedVerbs(unittest.TestCase):
+    """A timed turn or scale on a reversed() view is the host's own timed
+    verb: one tween key (a new turn replaces the old), owned by the host,
+    gone with it (review 2026-10-09 S6-3)."""
+
+    def test_view_turn_replaces_the_host_turn(self):
+        from scena import Track
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            t = Track.line(length=200)
+            try:
+                t.rotate_by(90, time=1)
+                w.step(1, dt=1 / 60)
+                t.reversed().rotate_by(-90, time=1)
+                w.step(80, dt=1 / 60)
+                h = Track.line(length=200)
+                h.rotate_by(90, time=1)
+                w.step(1, dt=1 / 60)
+                h.rotate_by(-90, time=1)
+                w.step(80, dt=1 / 60)
+                self.assertAlmostEqual(t.angle, h.angle, places=6)
+                h.destroy()
+            finally:
+                t.destroy()
+
+    def test_view_tween_dies_with_the_host(self):
+        from scena import Track
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            t = Track.line(length=200)
+            handle = t.reversed().scale_by(2, time=1)
+            w.step(5, dt=1 / 60)
+            t.destroy()
+            w.step(5, dt=1 / 60)                 # raised DestroyedError before
+            self.assertTrue(handle.cancelled or handle.done)
+
+
 if __name__ == "__main__":
     unittest.main()
 

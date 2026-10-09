@@ -1029,6 +1029,14 @@ class TestDestroyedWidgetLeavesTheLastClick(WidgetTestCase):
         b.destroy()
         self.assertIsNone(self.wm.last_click)
 
+    def test_a_button_that_destroys_itself_on_click_is_not_kept(self):
+        # The click record used to be stored after the handler, so the clear
+        # in remove_widget ran first and the dead button stayed (review S1-5).
+        b = self.track(Button(label=self.key("hd2"), on_click=lambda: b.destroy()))
+        self.click(b)
+        self.assertFalse(b.is_alive)
+        self.assertIsNone(self.wm.last_click)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

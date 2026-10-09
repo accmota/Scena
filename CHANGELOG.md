@@ -162,6 +162,38 @@ left out.
 
 ### Fixed
 
+- Destroying a hovered or touching object runs its own `on_hover_exit` /
+  `on_collide_exit` while it still exists: the usual un-highlight
+  (`shape.color = "white"`) no longer raises `DestroyedError` out of
+  `destroy()` or `change_act` (a title-menu option whose click changes act
+  crashed). A `destroy()` inside those hooks does nothing.
+- A survivor's `@collide_exit` sees the destroyed partner gone from its
+  groups (`group["enemy"].empty` is True after the last kill).
+- Within one collision dispatch, a handler that destroys a side or changes
+  act stops the handlers after it; an exit is delivered only for a pair whose
+  enter ran.
+- `change_act` from a `@collide` or `@leave_playfield` handler stops the
+  leaving act's handlers in the same dispatch.
+- An act's `canvas.fade_out(on_done=…)` still animating at an act change no
+  longer fires its `on_done` in the next act.
+- `tween(x["field"], …)` and `tween(x.center, …)` cancel quietly when `x` is
+  destroyed (it kept writing, or crashed the frame).
+- Timed `rotate_*` / `scale_*` on a `track.reversed()` view turn the track
+  itself, and end with it.
+- `setup()`, `on_destroy` and `@exit_mode` of an actor made inside another
+  actor's mode own their work themselves (a shot's own timers no longer died
+  with the wasp's mode).
+- `self.mode = …` inside its own `@exit_mode` raises a `TypeError` with the
+  fix (it recursed until `RecursionError`); an exit hook that destroys the
+  actor runs no next mode body.
+- A top-level `@when` / `@on_change` reading a destroyed actor retires (it
+  kept the actor alive when the field stayed readable).
+- A group broadcast skips members an earlier member's call destroyed.
+- `on_drop_by` does not run on a target `on_drag_to` destroyed.
+- A hover target never gets `on_hover_exit` without its `on_hover`.
+- Parking an actor runs its collision exits with `active` already False.
+- The script gets no `on_mouse_up` for a press a widget or shape took.
+- A Button that destroys itself in its `on_click` is no longer kept alive.
 - A caption placed by `top_left=` (or `top_center=` / `top_right=`) whose
   `center` is linked keeps the centre where its formula puts it when the
   string changes; it used to keep the corner and drift the centre by half the

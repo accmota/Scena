@@ -392,10 +392,30 @@ class TestEdges(HoverTestCase):
     def test_destroy_exit_sees_a_live_shape(self):
         seen = []
         c = self.watched()
-        c.on_hover_exit = lambda shape: seen.append(bool(shape.is_alive) or shape.center)
+        def unhighlight(shape):
+            shape.color = "white"            # the taught un-highlight writes
+            seen.append(shape.is_alive)
+        c.on_hover_exit = unhighlight
+        self.point()
+        c.destroy()                          # raised DestroyedError (X-life-5)
+        self.assertEqual(seen, [True])
+        self.assertFalse(c.is_alive)
+
+    def test_exit_that_destroys_the_next_target_gives_it_no_exit(self):
+        # review 2026-10-09 S1-4 / S3-10: every exit follows its enter
+        card = self.watched(0, 0)
+        tip = self.watched(40, 0)
+        card.on_hover_exit = lambda shape: (self.log.append(("exit", shape)), tip.destroy())
+        self.point(0, 0)
+        self.point(55, 0)                    # off the card, onto the tip
+        self.assertEqual(self.log, [("enter", card), ("exit", card)])
+
+    def test_destroy_inside_its_own_exit_is_a_no_op(self):
+        c = self.watched()
+        c.on_hover_exit = lambda shape: shape.destroy()
         self.point()
         c.destroy()
-        self.assertEqual(len(seen), 1)
+        self.assertFalse(c.is_alive)
 
     def test_hover_only_shape_is_click_transparent(self):
         from scena.input import Mouse
