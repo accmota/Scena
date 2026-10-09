@@ -220,6 +220,65 @@ class TestRegularPolygonStatsMatchAFreePolygon(unittest.TestCase):
         self.assertAlmostEqual(float(RegularPolygon(center=(0, 0), radius=5, n=4).signed_area), 50.0)
 
 
+class TestFlipHeadingEdges(unittest.TestCase):
+    """The heading a flip leaves where the geometry alone does not say it
+    (Testing Design, geometry campaign: Q1, GX1–GX3)."""
+
+    def test_spine_flip_applies_the_convention_to_the_unwrapped_heading(self):
+        # Q1: 180 - θ / -θ on the unwrapped heading (it unwrapped toward the
+        # previous heading: 500 for -220).
+        for rot in (0.0, 30.0, 400.0, -220.0):
+            for axis in ("x", "y"):
+                r = Rect(p1=(0, 0), p2=(10, 0), height=3, anchor="cap")
+                r.rotate_to(rot)
+                setattr(r, f"flip_{axis}", True)
+                want = 180.0 - rot if axis == "x" else -rot
+                self.assertAlmostEqual(float(r.angle), want, msg=f"{rot} {axis}")
+                self.assertAlmostEqual(float(r._rotation), want, msg=f"{rot} {axis}")
+
+    def test_a_tall_ellipse_mirrors_each_focus(self):
+        # GX1: height > width put the foci 90° the wrong way after a flip,
+        # so fp1 and fp2 swapped.
+        for w, h in ((10, 30), (30, 10)):
+            for flips in (("x",), ("y",), ("x", "y")):
+                e = Ellipse(center=(3, -2), width=w, height=h, angle=17)
+                for axis in flips:
+                    f1, f2 = xy(e.fp1), xy(e.fp2)
+                    setattr(e, f"flip_{axis}", True)
+                    for got, was in ((xy(e.fp1), f1), (xy(e.fp2), f2)):
+                        want = (6.0 - was[0], was[1]) if axis == "x" else (was[0], -4.0 - was[1])
+                        self.assertAlmostEqual(got[0], want[0], msg=f"{w}x{h} {flips}")
+                        self.assertAlmostEqual(got[1], want[1], msg=f"{w}x{h} {flips}")
+
+    def test_a_zero_length_line_flips_its_heading(self):
+        # GX2: no point moves, so the derived heading kept its cached value.
+        for build in (lambda: Line(p1=(0, 0), p2=(10, 0)), lambda: Line(p1=(0, 0), vec=(10, 0))):
+            ln = build()
+            ln.rotate_by(17)
+            if ln.model.name == "POINT_POINT":
+                ln.p2 = xy(ln.p1)
+            else:
+                ln.vec = (0, 0)
+            h = float(ln.angle)            # read first: the cached value must not survive
+            ln.flip_x = True
+            self.assertAlmostEqual(float(ln.angle), 180.0 - h)
+            ln.flip_y = True
+            self.assertAlmostEqual(float(ln.angle), h - 180.0)
+            self.assertAlmostEqual(float(ln._rotation), float(ln.angle))
+
+    def test_a_zero_length_tangent_line_refuses_a_flip_like_any_length(self):
+        # GX3: its points sat on the pivot, so the gate let the flip through
+        # and the store left the drawn (tangent) heading.
+        from scena.state import LinkedAttributeError
+        for length in (20, 0):
+            c = Circle(center=(0, 0), radius=9)
+            ln = Line(circle=c, at_angle=30, length=20)
+            ln.length = length
+            for axis in ("x", "y"):
+                with self.assertRaises(LinkedAttributeError, msg=f"{length} {axis}"):
+                    setattr(ln, f"flip_{axis}", True)
+
+
 class TestFlipMirrorCanary(unittest.TestCase):
     def test_mirroring_raw_rotation_is_caught(self):
         from diff_support import assert_catches

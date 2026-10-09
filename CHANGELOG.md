@@ -131,6 +131,15 @@ left out.
   stayed.
 - A link refused because `wheel_rotate` is on (`polygon["angle"] @= …`,
   `sprite["angle"] @= …`) leaves nothing behind; it kept the link's anchor.
+- A flip turns the heading to `180 − θ` (`flip_x`) or `−θ` (`flip_y`) on a
+  Rect placed by its spine (`p1=`, `p2=`), as on every other
+  shape: after `rotate_by(400)`, `flip_x` reads −220 (it read 500), and a
+  fresh `flip_x` reads 180 (it read −180).
+- A tall Ellipse (height greater than width) mirrors each focus on a flip;
+  `fp1` and `fp2` swapped places.
+- A Line with both ends on one point turns its heading on a flip; it kept
+  the old one. A tangent Line of length 0 refuses a flip, as it does at any
+  other length; it accepted the flip and kept drawing the tangent heading.
 
 - Collision callbacks survive park and `collidable`. `on_collide`,
   `on_collide_stay` and `on_collide_exit` (a function or a method in the class

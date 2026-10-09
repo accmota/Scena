@@ -230,5 +230,30 @@ class TestPoseStoreFollowsTheHeading(unittest.TestCase):
                        "an angle write that leaves the pose store behind")
 
 
+class TestLinkedDefiningAngleFollowsInStore(unittest.TestCase):
+    """A link on a Defining ``angle`` pulls the value raw (Reactive Design,
+    "Pull stores raw"); the pose store must follow it as it follows ``=``.
+    It lagged a link pull on every such kind (GR17-link in Testing Design).
+    Class guard: every kind whose model has a Defining ``angle``."""
+
+    def test_every_kind_with_a_defining_angle(self):
+        boot()
+        st = State(name="gr17")
+        st.a = 0.0
+        checked = 0
+        for kind in G.KINDS:
+            obj = G.build(kind)
+            if (G.is_box(obj) or G.is_relational(obj)      # no pose store / a relation drives it
+                    or "angle" not in (getattr(obj, "_defining_part_names", ()) or ())):
+                continue
+            obj["angle"] @= lambda: st.a
+            for v in (70.0, 430.0, -15.5):
+                st.a = v
+                self.assertAlmostEqual(float(obj.angle), v, msg=kind)
+                self.assertAlmostEqual(float(obj._rotation), v, msg=f"{kind}: the store lags")
+            checked += 1
+        self.assertGreaterEqual(checked, 5, "vacuous sweep")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

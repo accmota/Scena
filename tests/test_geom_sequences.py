@@ -178,13 +178,15 @@ class ShadowMachine(RuleBasedStateMachine):
         if not self.pool:
             return
         kind, obj, shadow, lk = self.pool[i % len(self.pool)]
-        if step in S.TIMED:
-            # The settle runs every motion in the pool: each other shadow's
-            # in-flight turn finishes too.
+        t0 = G.clock.time
+        bad = S.run_step(obj, kind, shadow, lk, step, read)
+        if G.clock.time != t0:
+            # The settle ran every motion in the pool: each other shadow's
+            # in-flight turn finished too. Only when the clock moved: a timed
+            # step on a parked subject, or one refused up front, settles nothing.
             for _k, o2, sh2, _l in self.pool:
                 if o2 is not obj:
                     sh2.settle()
-        bad = S.run_step(obj, kind, shadow, lk, step, read)
         for k, v in bad.items():
             if not any(fnmatch.fnmatch(k, p) for p in KNOWN.SHADOW):
                 raise AssertionError(f"{k}: {v}")

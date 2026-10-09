@@ -340,7 +340,9 @@ _STORES = ("x", "y", "_rotation", "_scale")
 
 def _raw_dicts(nodes) -> list:
     """The values a recompute writes — coordinates, slot scalars and pose
-    stores — to put back after the check. Flags and caches stay as they are."""
+    stores — to put back after the check, and the names it may add (a cold
+    slot it fills, such as a RegularPolygon's ``side``: a raw reader of the
+    pose key would see it). Flags and caches stay as they are."""
     keep = []
     for n in nodes:
         d = _d(n)
@@ -348,10 +350,21 @@ def _raw_dicts(nodes) -> list:
             slots = set(n._field_slots())
         except Exception:  # noqa: BLE001
             slots = set()
+        names = slots | set(_STORES)
         keep.append((d, {k: d[k] for k in d
-                         if (k in _STORES or k in slots) and isinstance(d[k], (int, float))
-                         and not isinstance(d[k], bool)}))
+                         if k in names and isinstance(d[k], (int, float))
+                         and not isinstance(d[k], bool)},
+                     names - set(d)))
     return keep
+
+
+def _put_back(saved) -> None:
+    for d, vals, absent in saved:
+        d.update(vals)
+        for k in absent:
+            v = d.get(k)
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                del d[k]
 
 
 def check_clean(root, call) -> None:
@@ -385,8 +398,7 @@ def check_clean(root, call) -> None:
         root._restore_batch_update_subtree(prev)
         after_vals = _derivate_values(root)
         store1 = _d(root).get("_rotation")
-        for d, vals in saved:                   # put back every value the recompute wrote
-            d.update(vals)
+        _put_back(saved)                        # every value the recompute wrote
     after = {(n, k): v for n, k, v in after_vals}
     diff = [((n, k), v, after[(n, k)]) for n, k, v in before
             if (n, k) in after and not _close(v, after[(n, k)])]

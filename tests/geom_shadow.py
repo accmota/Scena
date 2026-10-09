@@ -447,8 +447,7 @@ def _prim_vertices(obj):
     if type(obj).__name__ not in _HIT_FAMILIES - {"Sprite", "Svg", "Text"}:
         return None             # a Line / Track prim is a stroke: its width does not scale
     try:
-        from test_geometry_contract import _prim_points
-        pts, conics = _prim_points(obj)
+        pts, conics = G.prim_points(obj)
     except Exception:  # noqa: BLE001
         return None
     return pts + [(c[1][0], c[1][1]) for c in conics]
@@ -534,9 +533,8 @@ def check(obj, s: Shadow, order: List[str], tol: float = 1e-6) -> Dict[str, str]
     if type(obj).__name__ in ("Rect", "Square", "Ellipse", "Circle", "Sprite", "Svg", "Text"):
         d = G.safe(lambda: G.drawn(obj))
         if not isinstance(d, G.ReadError):
-            from test_geometry_contract import _box_contains
             span = max(1.0, max(abs(c) for q in d for c in q))
-            if not G.safe(lambda: _box_contains(obj, d, 1e-6 * span)) is True:
+            if not G.safe(lambda: G.box_contains(obj, d, 1e-6 * span)) is True:
                 out[".box contains drawn"] = ""
     if _graphic(obj):
         from scena.canvas import _approx_draw_aabb

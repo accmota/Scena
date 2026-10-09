@@ -492,6 +492,12 @@ def main(argv: Optional[Sequence[str]] = None, *, out_root: str = OUT,
 # and the sentinel's checks are not free (they recompute after every call).
 SENTINEL_EXCLUDE = {
     "test_regular_polygon_perf": "rotate_by cost against n: the sentinel's I-clean recompute is O(n)",
+    # They assert engine internals that any observer running engine code moves:
+    # I-clean's recompute marks nodes dirty inside its batch and warms Derivates
+    # (it restores values, not flags: restoring flags trips I-fast).
+    "test_pose_fast_path": "counts mark_dirty calls during a motion",
+    "test_pose_link_contract": "counts mark_dirty calls during a motion",
+    "test_diff_pose": "asserts Derivates stay cold through engine reads",
 }
 
 

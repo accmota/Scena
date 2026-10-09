@@ -539,35 +539,8 @@ def sweep_c5(kinds, p):
 # C6 — every subsystem sees the same geometry
 # ---------------------------------------------------------------------------
 
-def _prim_points(obj):
-    from scena.collision import PrimKind, _snapshot_shape_uncached
-    pts, conics = [], []
-    for prim in _snapshot_shape_uncached(obj, cache_owner=None):
-        if prim.kind == PrimKind.POLY:
-            pts += [tuple(v) for v in prim.verts]
-        elif prim.kind == PrimKind.OBB:
-            cx, cy, hw, hh, ang = prim.params[:5]
-            pts += G.frame_corners(cx, cy, 2 * hw, 2 * hh, math.degrees(ang))
-        elif prim.kind == PrimKind.AABB:
-            x1, y1, x2, y2 = prim.params[:4]
-            pts += [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
-        elif prim.kind == PrimKind.CIRCLE:
-            conics.append(("circle", prim.params[:3]))
-        elif prim.kind == PrimKind.ELLIPSE:
-            conics.append(("ellipse", prim.params[:5]))
-    return pts, conics
-
-
-def _box_contains(obj, pts, slack=1e-6):
-    from scena.box import region_frame
-    cx, cy, w, h, ang = region_frame(obj)
-    c, s = math.cos(math.radians(-ang)), math.sin(math.radians(-ang))
-    for x, y in pts:
-        dx, dy = x - cx, y - cy
-        lx, ly = dx * c - dy * s, dx * s + dy * c
-        if abs(lx) > w / 2 + slack or abs(ly) > h / 2 + slack:
-            return False
-    return True
+_prim_points = G.prim_points
+_box_contains = G.box_contains
 
 
 def sweep_c6(kinds, p):

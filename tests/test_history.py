@@ -283,8 +283,11 @@ class TestHistoryOwnership(HistoryTestCase):
         from scena.canvas import ScenaCanvas
         from scena.state import get_scena_system
 
+        import gc
+
         h = History()
         tip = self._dot(5)
+        gc.collect()        # the count includes garbage; a collection mid-test would move it
         before = len(get_scena_system().dependency_graph.nodes)
         p = h.snapshot(10, 20)
         q = h.snapshot((30, 40))

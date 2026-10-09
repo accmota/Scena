@@ -3436,18 +3436,28 @@ class ScalarAnchor(Container):
     def __init__(self, parent: Container, field_name: str):
         self._scalar_parent = parent
         self._scalar_name = field_name
+        # The slot depends on the parent's class and the name only: look it up
+        # once, not on every pull.
+        slots = getattr(parent, "_field_slots", None)
+        slot = slots().get(field_name) if slots is not None else None
+        self._slot = slot
+        self._slot_kind = slot._kind if isinstance(slot, ScalarSlot) else 0
+        # A shape heading: a pull on a Defining ``angle`` publishes the pose store.
+        self._publishes_rotation = (field_name == "angle"
+                                    and type(parent)._publish_angle_input is not None)
         super().__init__(owner=parent, attr_name=field_name)
 
     def _takein_impl(self, new_value) -> bool:
-        if isinstance(new_value, FieldRef):
-            new_value = new_value.value
-        if isinstance(new_value, Attribute):
-            new_value = new_value.value
-        elif isinstance(new_value, Container):
-            raise TypeError(
-                f"scalar field {self.name} cannot take a {type(new_value).__name__}; "
-                f"use a lambda that returns a number or string"
-            )
+        if new_value.__class__ is not float:        # a pulled float is the common case
+            if isinstance(new_value, FieldRef):
+                new_value = new_value.value
+            if isinstance(new_value, Attribute):
+                new_value = new_value.value
+            elif isinstance(new_value, Container):
+                raise TypeError(
+                    f"scalar field {self.name} cannot take a {type(new_value).__name__}; "
+                    f"use a lambda that returns a number or string"
+                )
         parent = self._scalar_parent
         name = self._scalar_name
         ink = getattr(parent, '_ink', None)
@@ -3457,11 +3467,8 @@ class ScalarAnchor(Container):
                 ink[name] = new_value
                 return True
             return False
-        slot = None
-        slots = getattr(parent, "_field_slots", None)
-        if slots is not None:
-            slot = parent._field_slots().get(name)
-        kind = slot._kind if isinstance(slot, ScalarSlot) else 0
+        slot = self._slot
+        kind = self._slot_kind
         if kind == 1:
             # A size: negative reads 0, NaN / inf raise (clamp_magnitude).
             from .validate import clamp_magnitude
@@ -3474,9 +3481,19 @@ class ScalarAnchor(Container):
             # ``=`` refuses NaN / inf on a plain field; a link must not store them.
             what = (slot.label if isinstance(slot, ScalarSlot) else None) or name
             raise ValueError(f"{what} must be a finite number, got {new_value}")
-        old = parent.__dict__.get(name)
+        d = parent.__dict__
+        old = d.get(name)
         if old != new_value:
-            parent.__dict__[name] = new_value
+            if self._publishes_rotation:
+                # A Defining heading: the pose store follows, as on ``=``
+                # (GR17-link in Testing Design: it lagged a link pull).
+                defining = d.get('_defining_part_names')
+                if defining and 'angle' in defining:
+                    # Converted before the store: a refusal keeps both.
+                    object.__setattr__(parent, '_rotation',
+                                       new_value if new_value.__class__ is float
+                                       else float(new_value))
+            d[name] = new_value
             # A raw store skips the parent's _update_impl (Reactive Design,
             # "Pull stores raw"): let it keep its computed fields in step.
             sync = parent._sync_computed

@@ -1234,8 +1234,16 @@ class Shape(Graphic, PaintState):
         Before, a copy read alike but diverged on the next ``rotate_to`` /
         ``flip`` (SC7 / SB7)."""
         from .entity import Graphic
-        if isinstance(other, Graphic) and other is not self:
-            self._clone_pose_from(other)
+        if isinstance(other, Graphic):
+            if other is not self:
+                self._clone_pose_from(other)
+            return
+        # A source with no pose (``rect << box``): the heading is the copy's own
+        # Defining ``angle``, which the takein stored raw; the store kept the old
+        # heading (sentinel I-heading, geometry campaign wave 2).
+        defining = self.__dict__.get('_defining_part_names')
+        if defining and 'angle' in defining:
+            _pose_rotation_set(self, self._rotation_value())
 
     def _drop_relational(self) -> None:
         """Links gone (``force=True``): a relational model becomes its free twin,
@@ -1901,10 +1909,13 @@ class Shape(Graphic, PaintState):
             raise
 
     def _mirror_points(self):
-        names = getattr(self, "_defining_part_names", ()) or ()
+        # Parts live in the instance dict (getattr would not pull either).
+        d = self.__dict__
         out = []
-        for name in names:
-            pt = getattr(self, name, None)
+        for name in d.get('_defining_part_names') or ():
+            pt = d.get(name)
+            if pt is None:
+                pt = getattr(self, name, None)
             if isinstance(pt, Point):
                 out.append(pt)
         return out
@@ -1923,10 +1934,8 @@ class Shape(Graphic, PaintState):
             out.append(self.vec)
         return out
 
-    def _mirror_scalars(self, axis: str, *, force: bool = False) -> None:
-        names = getattr(self, "_defining_part_names", ()) or ()
-        for part in self._mirror_scalar_parts(axis):
-            _ensure_writable(part, "flip", force=force)
+    def _mirror_scalars(self, axis: str, names) -> None:
+        # Gated by the caller (``_mirror_geometry``, every part before any write).
         if "angle" in names:
             ang = _bare_num(self.angle)
             self.angle = (180.0 - ang) if axis == "x" else -ang
@@ -1948,19 +1957,22 @@ class Shape(Graphic, PaintState):
             _ensure_writable(pt, "flip", force=force, pivot=(cx, cy))
         for part in self._mirror_scalar_parts(axis):
             _ensure_writable(part, "flip", force=force)
+        names = getattr(self, "_defining_part_names", ()) or ()
+        if "angle" not in names:
+            # A heading kept only as pose (Point, Polygon, a p1/p2 Line) mirrors
+            # by the convention too — it used to stay put. Set it before the
+            # points move: a derived heading is unwrapped toward the pose store,
+            # and a zero-length segment has no direction of its own, so it reads
+            # the store as it is during the update (GX2 in Testing Design).
+            rot = float(self._rotation)
+            _pose_rotation_set(self, (180.0 - rot) if axis == "x" else -rot)
         for pt in points:
             x, y = get_xy(pt, bare=True)
             if axis == "x":
                 pt._takein((2.0 * cx - x, y))
             else:
                 pt._takein((x, 2.0 * cy - y))
-        self._mirror_scalars(axis, force=force)
-        names = getattr(self, "_defining_part_names", ()) or ()
-        if "angle" not in names:
-            # A heading kept only as pose (Point, Polygon, a p1/p2 Line) mirrors
-            # by the convention too — it used to stay put.
-            rot = float(self._rotation)
-            _pose_rotation_set(self, (180.0 - rot) if axis == "x" else -rot)
+        self._mirror_scalars(axis, names)
 
     def _center_xy(self) -> Tuple[float, float]:
         """Bare center from current Defining pose when possible.
@@ -3532,6 +3544,13 @@ class _HeadingFromGeometry:
         return anchor
 
 
+# Line models whose heading follows a circle (a flip gates their points with no pivot).
+_LINE_TANGENT_MODELS = frozenset({LineModel.TANGENT_ANGLE, LineModel.TANGENT_POINT})
+# Line models whose ``angle`` is derived from the segment (a zero-length one reads the pose store).
+_LINE_DERIVED_HEADING_MODELS = frozenset({
+    LineModel.POINT_POINT, LineModel.POINT_VEC, LineModel.POINT_DX_DY,
+})
+
 # Line models whose about-center turn writes only free inputs (SB11 fast path).
 _LINE_FAST_TURN_MODELS = frozenset({
     LineModel.POINT_POINT, LineModel.CENTER_LENGTH_ANGLE, LineModel.POINT_ANGLE_LENGTH,
@@ -4356,6 +4375,34 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
             return (f"It stays parallel to its reference, so a move only changes its distance: "
                     f"write {var}.dist = …, or move the reference.")
         return None
+
+    def _mirror_geometry(self, axis: str, *, force: bool = False) -> None:
+        model = self.model
+        if model in _LINE_TANGENT_MODELS:
+            # A tangent line's heading is the circle's tangent at its touch
+            # point. At length 0 its points sit on the pivot, so the pivot
+            # exemption let a flip through and the pose store left the drawn
+            # heading (GX3 in Testing Design): gate them as at any length.
+            for pt in self._mirror_points():
+                _ensure_writable(pt, "flip", force=force)
+        Shape._mirror_geometry(self, axis, force=force)
+        if model in _LINE_DERIVED_HEADING_MODELS and self._defining_span_is_zero():
+            # A zero-length segment: no point moved, so nothing recomputed
+            # the derived heading from the mirrored pose store (GX2).
+            self.update()
+
+    def _defining_span_is_zero(self) -> bool:
+        # The raw Defining stores (a flip runs after its gate, so no link is
+        # pending); reading a Derivate end would warm it.
+        d = self.__dict__
+        model = self.model
+        if model is LineModel.POINT_POINT:
+            a, b = d['p1'].__dict__, d['p2'].__dict__
+            return a['x'] == b['x'] and a['y'] == b['y']
+        if model is LineModel.POINT_VEC:
+            v = d['vec'].__dict__
+            return v['x'] == 0 and v['y'] == 0
+        return _bare_num(self.dx) == 0 and _bare_num(self.dy) == 0
 
     def _heading_driven_parts(self) -> Tuple:
         # The parts rotate_by writes where ``angle`` is derived (see rotate_by).
@@ -5605,8 +5652,16 @@ class Ellipse(_DerivedRotationRoute, Shape):
         b = min(w, h) / 2.0
         c = math.sqrt(max(a * a - b * b, 0.0))
         # Foci sit along whichever local axis is longer (width -> local +x / angle;
-        # height -> local +y / angle + pi/2).
-        foci_angle = ang if w >= h else ang + 90.0
+        # height -> local +y / angle + pi/2). A flip turns the heading to
+        # 180 - angle / -angle, which reverses the +pi/2 side: after an odd
+        # number of flips the height axis is angle - pi/2, so each focus lands
+        # on its own mirror (GX1 in Testing Design: tall foci swapped names).
+        if w >= h:
+            foci_angle = ang
+        elif self._flip_x != self._flip_y:
+            foci_angle = ang - 90.0
+        else:
+            foci_angle = ang + 90.0
         fx = math.cos(_rad(foci_angle)) * c
         fy = math.sin(_rad(foci_angle)) * c
 
@@ -7604,6 +7659,13 @@ class _RectFrame:
         self._publish_heading(ang)
 
 
+def _mirror_rotation_store(obj, axis: str) -> None:
+    """The flip convention on the raw pose store (no notify: the caller's
+    batch publishes the heading it derives)."""
+    r = float(obj._rotation)
+    object.__setattr__(obj, '_rotation', (180.0 - r) if axis == "x" else -r)
+
+
 class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
     """
     Oriented rectangle with multi-model constructors (Line-style).
@@ -7835,6 +7897,10 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
         """
         # Read the source before the first write (SC1: a Box has no corner
         # radius, and the raise came after the model switch: a 0 × 0 rect).
+        # The raw name-sign store below is that first write: a destroyed
+        # rect refuses before it (sentinel I-atomic: the dead rect took the
+        # source's signs, then raised).
+        _refuse_if_destroyed(self, "set")
         signs = other._freeze_names()
         anchor = getattr(other, "_anchor", None)          # SPINE only (None elsewhere)
         corner = getattr(other, "_corner_radius", self._corner_radius)   # a Box keeps ours
@@ -8036,25 +8102,32 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
                 points = (self.top_left,)
             case _:
                 points = ()
+        spine = model is RectModel.SPINE
+        point_vec = model is RectModel.POINT_VEC
         for pt in points:
             _ensure_writable(pt, "flip", force=force, pivot=(cx, cy))
-        if model != RectModel.SPINE:
+        if not spine:
             _ensure_writable(self["angle"], "flip", force=force)
-        if model == RectModel.POINT_VEC:
+        if point_vec:
             _ensure_writable(self.vec, "flip", force=force)
         self._freeze_names()            # a write: after every check (SB2a)
+        if spine:
+            # The spine's heading is unwrapped toward the pose store: give it
+            # the mirrored full turn first, so 400 flips to -220, not 500
+            # (Q1: the convention applies to the unwrapped value).
+            _mirror_rotation_store(self, axis)
 
         with self._batch_update():
             for pt in points:
                 pt._takein(mirrored(pt))
-            if model != RectModel.SPINE:
+            if not spine:
                 self.angle = turned(_bare_num(self.angle))
-            if model == RectModel.POINT_VEC:
+            if point_vec:
                 self.vec.y = -_bare_num(self.vec.y)
-            elif model in (RectModel.CENTER_WH, RectModel.TOP_LEFT_WH, RectModel.SPINE):
+            elif spine or model is RectModel.CENTER_WH or model is RectModel.TOP_LEFT_WH:
                 sx, sy = self.__dict__['_name_signs']
                 self.__dict__['_name_signs'] = (sx, -sy)
-            if model == RectModel.SPINE and self._anchor in ("side_left", "side_right"):
+            if spine and self._anchor in ("side_left", "side_right"):
                 self._anchor = "side_right" if self._anchor == "side_left" else "side_left"
         _pose_rotation_set(self, self._rotation_value())
 

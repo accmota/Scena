@@ -13,7 +13,10 @@ side; separate runs drift 3-5 % with the machine's load):
     python scripts/bench/perf_geometry.py --ab /tmp/scena_head [--pairs 12]
 
 ``--tree DIR`` imports ``scena`` from DIR instead of this checkout (the A/B
-driver uses it for the HEAD side).
+driver uses it for the HEAD side). With ``--ab`` it is the other side, so two
+copies of one tree give the noise floor of a row:
+
+    python scripts/bench/perf_geometry.py --ab /tmp/scena_head --tree /tmp/scena_head2
 """
 from __future__ import annotations
 
@@ -162,10 +165,12 @@ def run_rows(tree, n, rounds, only):
     return out
 
 
-def ab(head_tree, n, pairs, only):
-    """Alternate HEAD / working-tree subprocesses; keep each side's best run."""
+def ab(head_tree, n, pairs, only, work_tree=None):
+    """Alternate HEAD / working-tree subprocesses; keep each side's best run.
+    ``work_tree`` (``--tree`` with ``--ab``) replaces the working tree: two
+    copies of one tree measure the noise floor."""
     best = {"head": {}, "work": {}}
-    order = [("head", head_tree), ("work", None)]
+    order = [("head", head_tree), ("work", work_tree)]
     for k in range(pairs):
         for side, tree in (order if k % 2 == 0 else order[::-1]):
             cmd = [sys.executable, __file__, "--json", "--n", str(n), "--rounds", "1"]
@@ -199,7 +204,7 @@ def main() -> None:
     args = ap.parse_args()
     only = [r for r in args.rows.split(",") if r]
     if args.ab:
-        ab(args.ab, args.n, args.pairs, only)
+        ab(args.ab, args.n, args.pairs, only, args.tree)
         return
     out = run_rows(args.tree, args.n, args.rounds, only)
     if args.json:

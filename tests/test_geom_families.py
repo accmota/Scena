@@ -61,8 +61,7 @@ def _apply(obj, kind, steps):
 
 
 def _box_frame_contains(obj, pts, slack):
-    from test_geometry_contract import _box_contains
-    return _box_contains(obj, pts, slack)
+    return G.box_contains(obj, pts, slack)
 
 
 class TestSpriteArtInsideItsBox(unittest.TestCase):
@@ -90,8 +89,7 @@ class TestSpriteArtInsideItsBox(unittest.TestCase):
                         continue
                     if not _box_frame_contains(obj, pts, 1.5):
                         wrong.append(f"{kind} {steps}: art outside .box")
-                    from test_geometry_contract import _prim_points
-                    prims, conics = _prim_points(obj)
+                    prims, conics = G.prim_points(obj)
                     prims += [(c[1][0], c[1][1]) for c in conics]
                     if prims and not _box_frame_contains(obj, prims, 1e-4 * 100):
                         wrong.append(f"{kind} {steps}: collision prims outside .box")
@@ -187,8 +185,7 @@ class TestTextKeepsItsAnchor(unittest.TestCase):
                         if not A.close_xy(G.xy(pin), got, 1e-6):
                             wrong.append(f"{place} after {vname} (read first {read_first}): a link lags")
                         d = G.drawn(t)
-                        from test_geometry_contract import _box_contains
-                        if not _box_contains(t, d, 1e-6):
+                        if not G.box_contains(t, d, 1e-6):
                             wrong.append(f"{place} after {vname}: box misses the new layout")
         self.assertEqual(wrong, [])
 

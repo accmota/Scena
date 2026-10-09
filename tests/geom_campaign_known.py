@@ -16,13 +16,6 @@ or a design gap whose fix is scheduled.
 SHADOW = {
     "* | rotate_to timed | heading":
         "Q2: a finished timed rotate_to keeps the shortest-arc end (390 for 30 from 400); phase 7",
-    "Rect spine * | flip_? | heading":
-        "Q1: the spine unwraps a flip toward the previous heading (500 for -220); phase 7",
-    "Ellipse * | flip_? | part fp?":
-        "GX1: a tall Ellipse (height > width) swaps its foci names on a flip; phase 7",
-    "Line * | flip_? | heading":
-        "GX2 / GX3: a zero-length Line keeps its heading on a flip; a zero-length tangent "
-        "line accepts the flip it refuses at any other length; phase 7",
     "S* | scale_by about | *":
         "GX5: below MIN_SCALE a pose-zoom kind (Sprite, Svg) moves its center by the clamped "
         "factor and its size by the exact one; phase 7",
@@ -34,16 +27,11 @@ SHADOW = {
 # Phase-1 probes (test_geom_probes): probe id -> finding. A listed probe must
 # still fail; one that passes must be removed.
 PROBES = {
-    "Q1": "spine flip unwraps toward the previous heading; phase 7",
     "Q2": "a finished timed rotate_to keeps the shortest-arc end; phase 7",
     "Q2-camera": "the camera's timed rotate_to keeps the shortest-arc end; phase 7",
     "Q3b-unlink_all": "unlink_all keeps the relational model; phase 7",
     "Q3b-destroy": "a destroyed reference keeps the relational model; phase 7",
     "Q3b-force": "force=True leaves a hybrid (CENTER_WH with a linked center); phase 7",
-    "GR17-link": "a link on a Defining angle leaves _rotation behind; phase 7",
-    "GX1": "a tall Ellipse swaps its foci on a flip; phase 7",
-    "GX2": "a zero-length Line keeps its heading on a flip; phase 7",
-    "GX3": "a zero-length tangent Line accepts a flip; phase 7",
     "GX4": "timed verbs skip the up-front write gate; phase 7",
     "GX5": "pose-zoom kinds below MIN_SCALE move by the clamped factor; phase 7",
     "GX6": "a whole link during a running motion raises from a later tick; phase 7",
@@ -69,7 +57,6 @@ BARE_EXCEPT = {}
 # Sentinel (geom_sentinel; ``run_tiers.py <tier> --sentinel``): fnmatch patterns
 # over "invariant | Kind MODEL | Class.call".
 SENTINEL = {
-    "I-heading | *": "GR17-link: a link on a Defining angle leaves the pose store behind; phase 7",
     "I-bare | Line *": "GX7: a write before any read seeds the bare flag on a pull-owned point; phase 7",
     "I-graph | * | *": "harness: program_oracles.reactive_config swaps the scena system mid-process, "
                        "so a module singleton (clock) keeps its node id from the old graph; not an "
@@ -80,8 +67,6 @@ SENTINEL = {
 LAWS = {
     "rotate_to timed = instant (Q2) | * | angle (turns)":
         "Q2: a finished timed rotate_to keeps the shortest-arc end; phase 7",
-    "flip_x then flip_y = rotate_by 180 (geometry) | Line tangent_angle | *":
-        "GX3: a zero-length tangent line accepts the flips it refuses at any other length; phase 7",
 }
 
 # Copy commutes with verbs (test_geom_laws.TestCopyCommutes): "door [after verb] | kind | detail".
@@ -124,8 +109,6 @@ FUZZ = {
     "P vs P' | Line center_length | * | tags: *part link*":
         "GX16: after one scale about a linked center, the center drifts 1 ulp and the next "
         "scale_by is refused; phase 7",
-    "* | tags: *zero-length line*":
-        "GX2 / GX3: a zero-length Line's heading under flips depends on history; phase 7",
     "* | tags: *relational unlinked*":
         "Q3b: unlink_all() keeps the relational model, so later verbs still follow the old "
         "relation (or caches); phase 7",

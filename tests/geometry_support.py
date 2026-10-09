@@ -413,6 +413,41 @@ def mirrored(pt: XY, center: XY, axis: str) -> XY:
 # Timed verbs
 # ---------------------------------------------------------------------------
 
+def prim_points(obj):
+    """Collision prims of ``obj`` (uncached) as polygon points and conics."""
+    from scena.collision import PrimKind, _snapshot_shape_uncached
+    pts, conics = [], []
+    for prim in _snapshot_shape_uncached(obj, cache_owner=None):
+        if prim.kind == PrimKind.POLY:
+            pts += [tuple(v) for v in prim.verts]
+        elif prim.kind == PrimKind.OBB:
+            cx, cy, hw, hh, ang = prim.params[:5]
+            pts += frame_corners(cx, cy, 2 * hw, 2 * hh, math.degrees(ang))
+        elif prim.kind == PrimKind.AABB:
+            x1, y1, x2, y2 = prim.params[:4]
+            pts += [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+        elif prim.kind == PrimKind.CIRCLE:
+            conics.append(("circle", prim.params[:3]))
+        elif prim.kind == PrimKind.ELLIPSE:
+            conics.append(("ellipse", prim.params[:5]))
+    return pts, conics
+
+
+def box_contains(obj, pts, slack=1e-6) -> bool:
+    """Every point lies inside ``obj.box`` (its region frame), within ``slack``.
+    Here, not in a test module: importing one builds its ``@given`` tests, and
+    inside a running ``@given`` that trips Hypothesis's nested-given check."""
+    from scena.box import region_frame
+    cx, cy, w, h, ang = region_frame(obj)
+    c, s = math.cos(math.radians(-ang)), math.sin(math.radians(-ang))
+    for x, y in pts:
+        dx, dy = x - cx, y - cy
+        lx, ly = dx * c - dy * s, dx * s + dy * c
+        if abs(lx) > w / 2 + slack or abs(ly) > h / 2 + slack:
+            return False
+    return True
+
+
 def settle(seconds: float = 0.5, dt: float = 0.05) -> None:
     """Run timed verbs to completion (world clock + process tick)."""
     t = 0.0

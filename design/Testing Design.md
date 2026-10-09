@@ -252,7 +252,8 @@ track 432 / 598, hitbox 126 / 248, geom 36 / 236, scenamath 59 / 154. Deleted
 calls (`mutation_run.py --ops call`, 80 sampled sites in shapes / state / box /
 entity, seed 1): the geometry suites kill 50, 30 survive.
 
-**Phase 2 (sentinel).** `quick` runs green under it (6 590 tests;
+**Phase 2 (sentinel).** `quick` runs green under it (6 590 tests, except the
+modules in `run_tiers.SENTINEL_EXCLUDE`;
 `python tests/run_tiers.py quick --sentinel`, ~2.5 min wall). Building it
 taught three rules of its own: a check runs only for a call made from outside
 the engine (read paths are not hooked, so an engine write inside a pull would
@@ -310,6 +311,43 @@ building it, each an oracle that was wrong first:
   (two reorders, one excused row); an OBB is the same box turned by π; a
   refused factor cannot be split into one that runs.
 
+**Phase 7 (fix waves; one root cause per fix, each with the bug loop and an
+A/B of its hot rows).** Wave 1: GX8, GX9, GX11, GX12, GX13 and Q5 (the
+copy doors, placement links, State callables). Wave 2, headings under flips:
+Q1 (the spine mirrors its unwrapped heading), GX1, GX2, GX3 and GR17-link
+(a link pull on a Defining `angle` publishes `_rotation`, as `=` does).
+Dropping the broad `I-heading | *` sentinel pattern uncovered GX18 and GX19,
+fixed in the same wave. The A/B on the flip rows needed compensation, and got
+more: `Shape._mirror_geometry` gated the scalar parts twice and looked its
+points up through `getattr` (Circle, Ellipse and Polygon flips are now 11–24 %
+faster), and a `ScalarAnchor` looks its slot up once, not on every pull.
+Lessons:
+
+- A store that a verb sets is half the fix when a cached Derivate reads it:
+  a verb that moves no point (a zero-length segment) recomputes nothing, so
+  the reader keeps its old value. A probe must read the value once before
+  the verb, or the cache is cold and the bug hides.
+- A gate exemption reasons about one write; the verb may make others. The
+  pivot exemption is right for the points a mirror leaves in place, and
+  wrong for the heading it turns where a relation owns the heading.
+- A broad known pattern hides the next finding of the same invariant: list
+  the finding's own signature (`I-heading | Rect | Container.__lshift__`),
+  not the invariant.
+- An observer must put back what it adds, not only what it changes: I-clean
+  restored the stores it found and left the cold slots its recompute filled
+  (a RegularPolygon's `side`), which a raw reader of the pose key then saw.
+  Tests that assert engine internals (mark_dirty counts, cold Derivates) do
+  not run under the sentinel (`run_tiers.SENTINEL_EXCLUDE`, with reasons).
+- A harness that runs inside `@given` must not import a test module: the
+  import builds that module's `@given` tests, and Hypothesis fails the
+  nested-given health check (shared helpers live in `geometry_support`).
+- The shadow machine settled the other subjects' turns before a timed step
+  that then did not run (a parked subject); it now settles them only when
+  the clock moved.
+- `perf_geometry.py --ab HEAD --tree COPY` measures the noise floor (two
+  copies of one tree): about ±2 % per row, so a one-run delta under 3 % is
+  not a finding until it repeats.
+
 **Phase 1 findings (static sweep and probes; H1 found the first ones while it
 was being built).** Catalogue [GX](#gx--geometry-campaign-2026-10-08). The
 drift list's suspects, triaged: the `_scalar_bare_ok` seed without the
@@ -317,7 +355,7 @@ drift list's suspects, triaged: the `_scalar_bare_ok` seed without the
 copy keeps outside `angle` readers fresh (cleared, probe kept); a reversed
 Track view's own `_rotation` is a dead store the collision key never reads
 (cleared, probe kept); every heading reader agrees on every kind after every
-verb, except through a link (GR17-link, known); `Box._takein_impl` copies a
+verb, except through a link (GR17-link; fixed in wave 2); `Box._takein_impl` copies a
 linked source's value, not its link (cleared). The Defining tables, the
 constructors and every cross-model copy name one Defining set per model.
 
@@ -1387,11 +1425,9 @@ gaps that **both** authors reported on their own.
 
 | Found in | Issue | Planned |
 | --- | --- | --- |
-| Geometry campaign Q1 (2026-10-08) | A Rect spine flip unwraps toward the previous heading: `rotate_by(400)` + `flip_x` reads 500, a fresh flip −180 (contract: −220, 180) | Campaign phase 7 (spine flip unwrap) |
 | Geometry campaign Q2 | A finished timed `rotate_to(30)` from 400 reads 390 (shape and camera; contract: 30) | Campaign phase 7 (`CHANGELOG.md` under Fixed) |
 | Geometry campaign Q3b | `unlink_all()`, unlinking a part, or a destroyed reference keeps a relational model (PARALLEL_DIST `move_by` does nothing, TANGENT verbs orbit); `force=True` leaves a hybrid (CENTER_WH Ellipse whose `center` follows the Rect) | Campaign phase 7 (`_drop_relational` on every way a relation goes) |
 | Geometry campaign GX1–GX17 | Found by the campaign's harnesses ([GX](#gx--geometry-campaign-2026-10-08)) | Campaign phase 7 |
-| Geometry campaign GR17-link | A link on a Defining `angle` leaves the pose store `_rotation` at its old value (the pull stores raw); no wrong drawing found | Campaign phase 7 (the pull publishes the store) |
 | GR (2026-10-08) | Box and Rect keep near-copies of `_takein_impl` / `rotate_by` (they drifted once, SC1) | Decided 2026-10-08: no refactor now (no bug; the geometry contract sweep builds every Box model beside Rect). The next change to either method merges them into `_RectFrame` first ([Shapes Design](Shapes%20Design.md)) |
 
 ### GR — graphics review (2026-10-08)
@@ -1471,9 +1507,9 @@ until their fix wave (phase 7).
 
 | ID | Bug | Root cause | Why earlier tests missed it | Guard |
 | --- | --- | --- | --- | --- |
-| GX1 | A tall Ellipse (height > width) swaps `fp1` / `fp2` on a flip | the foci are derived along the heading's major axis; `180 − θ` reverses that axis when it is the height | KINDS builds wide ellipses only; C1 checks one verb from one pose | H1 (degenerate base: width 0), `test_geom_probes` GX1 |
-| GX2 | A zero-length Line keeps its heading on a flip | a collapsed segment's heading lives in the pose store, which the flip does not mirror | no sweep collapses a Line before a flip | H1 (degenerate base), probe GX2 |
-| GX3 | A zero-length TANGENT_ANGLE Line accepts a flip it refuses at any other length | the refusal depends on a write happening | same | H1, probe GX3 |
+| GX1 | A tall Ellipse (height > width) swaps `fp1` / `fp2` on a flip | the foci are derived along the heading's major axis; `180 − θ` reverses that axis when it is the height | KINDS builds wide ellipses only; C1 checks one verb from one pose | H1 (degenerate base: width 0), `test_geom_probes` GX1 Fixed, wave 2: the foci turn by `−90°` when exactly one flip is set (`Ellipse._update_impl_center_wh`; `test_flip_mirror.TestFlipHeadingEdges`). |
+| GX2 | A zero-length Line keeps its heading on a flip | a collapsed segment's heading lives in the pose store, which the flip does not mirror | no sweep collapses a Line before a flip | H1 (degenerate base), probe GX2 Fixed, wave 2: the flip mirrors the pose store before the points move, and a zero-length Line recomputes its derived heading (no point moved to do it; same test class). |
+| GX3 | A zero-length TANGENT_ANGLE Line accepts a flip it refuses at any other length | the refusal depends on a write happening | same | H1, probe GX3 Fixed, wave 2: a tangent Line's points get no pivot exemption on a flip (`Line._mirror_geometry`), since the flip also turns a heading the relation owns (same test class). |
 | GX4 | Timed `move_to` / `scale_by` / `scale_to` (and a tangent line's `move_by`, a Line with a linked center's turn) are accepted at the call where the instant verb refuses; the refusal comes from a later tick, after part of the motion ran (584 cells) | the timed doors (`timed_*`) skip the instant verbs' up-front gate | `TestLinkWriteGate` and the relational tests call instant verbs | `test_geom_structure.TestTimedVerbsGateLikeInstant`, H1 (`refusal changed` on timed steps), probe GX4 |
 | GX5 | Below `MIN_SCALE`, a pose-zoom kind (Sprite, Svg) moves its center by the clamped factor and its size by the exact one | the pivot math reuses the Shapes clamp | no sequence scaled from `MIN_SCALE` with a pivot | H1 (`min_scale` base), probe GX5 |
 | GX6 | A whole `@=` (or a point-part link) installed during a running timed verb is accepted; the next tick raises | the "pushes it" check runs for field links only | link tests start from idle shapes | H1 (`mid_tween` base × link), probe GX6 |
@@ -1487,6 +1523,8 @@ until their fix wave (phase 7).
 | GX15 | A shape's `vec` part (Rect / Line point-vec) stores `(0, inf)` on every path; every later read of `p2` / `width` raises; `10**400` leaks `OverflowError`; a Line moves its center before refusing | the Vec2 part's takein reads its pair past the point reader (`_xy_of`), so the Numbers rule does not run (D24 class) | the value sweeps reached point slots, not the `vec` part | `test_geom_values` (ci: every kind) |
 | GX16 | After one allowed `scale_by` about a linked center, a CENTER_LENGTH_ANGLE Line's end midpoint drifts 8.9e-16 from the linked center and every later `scale_by` is refused | the gate compares the pivot to the linked part exactly, and `_center_xy()` recomputes the center from the ends instead of reading the Defining center | one verb per test; nothing ran two | H10 (`identity_scale` rewrite) |
 | GX17 | A timed `rotate_by` / `rotate_to` on a Circle whose center is linked is refused while the instant turn about that center runs | the timed door gates the center the instant door knows is the pivot (GX4 reversed) | gate tests asked "instant refuses ⇒ timed refuses" only | H10 (`timed_to_instant`), `TestTimedVerbsGateLikeInstant` (both directions) |
+| GX18 | `rect << box` keeps the rect's old pose store while `angle` takes the box's (0 vs 17) | a Box has no pose, and `_takein_pose` carried a pose only from a Graphic | `I-heading | *` was listed for GR17-link and matched it too | sentinel I-heading on `test_refusal_atomic` Fixed, wave 2: a copy from a pose-less source publishes its own Defining heading (`Shape._takein_pose`; `test_shapes.TestCopyDoorsRefuseWhatClonesRefuse`). |
+| GX19 | `dead_rect << box` writes the source's name signs into the destroyed rect, then raises `DestroyedError` (a flipped dead rect's `top_right` moved) | `Rect._takein_impl` stores the signs raw before its first guarded write | the refusal sweep's subjects are unflipped, so the signs were equal | sentinel I-atomic Fixed, wave 2: the takein refuses a destroyed rect first (same test class). |
 | GX13 | An anchored Text (`top_left=` / `top_right=`) accepts a link on its anchor and another on `center`; the two then disagree (the center follows its source, the anchor stays), and in the other order the center link does not hold its formula. Rect refuses the analogue (`center` is a Derivate there) | the caption's center is an input on every placement | Text was not a reactive-matrix subject | `test_hyp_reactive_matrix` (H6 subjects), probe GX13 Fixed, wave 1: `Text._link_field` (`test_text.TestOnePlacementLink`). |
 
 

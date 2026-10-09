@@ -3872,6 +3872,35 @@ class TestCopyDoorsRefuseWhatClonesRefuse(unittest.TestCase):
                 A._destroy(dst)
         self.assertEqual(wrong, [])
 
+    def test_a_destroyed_rect_refuses_before_taking_the_names(self):
+        # Sentinel I-atomic: a dead flipped rect took the source's name signs,
+        # then raised DestroyedError; its named points had moved.
+        from scena.state import DestroyedError
+        for build in (lambda: Rect(center=(0, 0), width=10, height=5, angle=17),
+                      lambda: Rect(p1=(0, 0), p2=(10, 0), height=3, anchor="cap"),
+                      lambda: Rect(p1=(0, 0), p2=(10, 4))):
+            r = build()
+            r.flip_y = True
+            signs = r.__dict__.get("_name_signs")
+            corner = (float(r.top_right.x), float(r.top_right.y))
+            r.destroy()
+            with self.assertRaises(DestroyedError):
+                r << Box(center=(9, 9), width=4, height=2)
+            self.assertEqual(r.__dict__.get("_name_signs"), signs, r.model)
+            self.assertEqual((float(r.top_right.x), float(r.top_right.y)), corner, r.model)
+
+    def test_a_copy_from_a_box_publishes_its_heading(self):
+        # Sentinel I-heading: a Box has no pose, so ``rect << box`` kept the
+        # rect's old pose store while its angle took the box's.
+        for build in (lambda: Rect(center=(0, 0), width=10, height=5, angle=17),
+                      lambda: Rect(p1=(0, 0), p2=(10, 4))):
+            for box_angle in (0.0, 30.0):
+                r = build()
+                r.rotate_by(400)
+                r << Box(center=(9, 9), width=4, height=2, angle=box_angle)
+                self.assertAlmostEqual(float(r.angle), box_angle)
+                self.assertAlmostEqual(float(r._rotation), box_angle)
+
     def test_a_kind_without_a_copy_refuses_with_the_fix(self):
         # GX9: Sprite / Svg / Text << other leaked NotImplementedError("Subclasses must implement takein").
         import geom_axes as A
