@@ -90,8 +90,9 @@ def partial_camera_matrix(
 class ScrollState:
     """Accumulates author scroll rate (design units/sec, y-up).
 
-    Same integration rules as :meth:`BackgroundField._advance_scroll` — rate can
-    change live without popping; large clock jumps (tab resume) are skipped.
+    The rate can change live without popping. Fed world time once per frame
+    (``advance_layer_scroll``), so a gap is real world time and is integrated
+    in full: the run loop already caps a frame at ``MAX_FRAME_DT``.
     """
 
     __slots__ = ("_rate", "_accum", "_last_t")
@@ -121,7 +122,7 @@ class ScrollState:
         return (float(self._accum[0]), float(self._accum[1]))
 
     def advance(self, t: float) -> None:
-        """Integrate rate over wall-clock time (call once per frame)."""
+        """Integrate rate over world time (call once per frame)."""
         t = float(t)
         if not math.isfinite(t):
             return
@@ -132,9 +133,6 @@ class ScrollState:
         dt = t - float(last)
         self._last_t = t
         if dt <= 0.0:
-            return
-        # Tab resume / huge clock jump: skip gap (do not fast-forward).
-        if dt > 1.5:
             return
         sx, sy = self._rate
         self._accum[0] += float(sx) * dt

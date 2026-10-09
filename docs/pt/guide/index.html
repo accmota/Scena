@@ -1720,6 +1720,7 @@ orbit.center @= earth.center</pre>
 placar["text"] @= texto_placar       # sem () — liga a função, não o resultado
 placar["text"] @= lambda: texto_placar()   # também vale: o Scena segue a função</pre>
       </div>
+      <p>Também vale já no construtor: <code>Text(texto_placar, top_left=(20, 580))</code> faz a mesma ligação.</p>
       <p>Pode usar <code>if</code>, variáveis locais, <code>len</code> / <code>min</code> / <code>round</code>, <code>math</code>, funções do Scena e outras funções <em>do mesmo arquivo</em> (até 3 níveis). O Scena recusa com <code>TypeError</code> o que ele não consegue enxergar lendo o código — senão a ligação ficaria parada sem avisar:</p>
       <ul class="plain">
         <li><code>for</code> / <code>while</code> / <code>[… for … in …]</code> — os itens só existem quando roda. Faça no <code>update()</code>.</li>
@@ -2040,6 +2041,7 @@ inimigo.move_by(200, 0, time=2, loops="forever")   # ok: convivem
       <button class="copy-btn" type="button">copiar</button>
 <pre>ship.visible = False
 # estacionar: some, para timers e colisão
+# (um som do ship continua tocando; o on_done dele espera o ship voltar)
 ship.active = False
 # cancela timers/tweens/mode; Entity continua viva
 ship.cancel_process()
@@ -5611,7 +5613,7 @@ canvas.debris_at(x, y, color="peru")
 canvas.fade_out(0.5, on_done=load_next)
 canvas.fade_in(0.5)</pre>
       </div>
-      <p class="gotcha"><code>*_at</code> aceitam <code>(x, y)</code> ou um ponto (tupla, Point, Vec2, Graphic, <code>info</code>); <code>None</code> não faz nada. Depois de um ponto, os outros parâmetros vão por nome (<code>amount=</code>, <code>radius=</code>). Capa cobre depois dos widgets (o HUD também) e <strong>segura</strong> até o <code>fade_in</code>; <code>canvas.covered</code> é 0…1 (só leitura). Sem <code>then=</code> — só <code>on_done</code>. Íris: <code>fade_out(…, style="iris", center=heroi)</code> — <code>center=</code> é um ponto, copiado agora (omita = centro do quadro).</p>
+      <p class="gotcha"><code>*_at</code> aceitam <code>(x, y)</code> ou um ponto (tupla, Point, Vec2, Graphic, <code>info</code>); <code>None</code> não faz nada. Depois de um ponto, os outros parâmetros vão por nome (<code>amount=</code>, <code>radius=</code>). Capa cobre depois dos widgets (o HUD também) e <strong>segura</strong> até o <code>fade_in</code>; ela anda mesmo com <code>clock.paused</code> (é transição de tela, não tempo de jogo); <code>canvas.covered</code> é 0…1 (só leitura). Sem <code>then=</code> — só <code>on_done</code>. Íris: <code>fade_out(…, style="iris", center=heroi)</code> — <code>center=</code> é um ponto, copiado agora (omita = centro do quadro).</p>
       <div class="chips" data-filter-group="impacts">
         <button class="chip active" type="button" data-filter="all">Todos</button>
         <button class="chip" type="button" data-filter="screen">Tela toda</button>
@@ -7490,7 +7492,7 @@ ship.tween(ship["hp"], 0, time=0.6)
 
     <section class="section prose" id="agendar-timers">
       <h2>after / every</h2>
-      <p class="one-liner"><code>after(segundos, função)</code> chama a função uma vez, depois desse tempo; <code>every(segundos, função)</code> chama de novo a cada intervalo — a primeira vez depois de um intervalo, não na hora. Dispara no primeiro frame em que o tempo já passou: com frames de 1/60 s, <code>after(0.5)</code> é o frame 30 e <code>every(0.25)</code> os frames 15, 30, 45… O tempo é o do jogo: pausa e câmera lenta valem. Ignore o Handle devolvido, guarde-o para cancelar, ou dê um <code>name=</code> — chamar de novo com o mesmo nome substitui o anterior. Dentro de um mode, <code>after</code> / <code>every</code> soltos param quando o mode acaba; <code>e.after</code> / <code>e.every</code> continuam (<a href="#mode-cancela">escopo e cancelamento</a>).</p>
+      <p class="one-liner"><code>after(segundos, função)</code> chama a função uma vez, depois desse tempo; <code>every(segundos, função)</code> chama de novo a cada intervalo — a primeira vez depois de um intervalo, não na hora. Dispara no primeiro frame em que o tempo já passou: com frames de 1/60 s, <code>after(0.5)</code> é o frame 30 e <code>every(0.25)</code> os frames 15, 30, 45… Um frame mais longo que o intervalo dispara as vezes que deve: o ritmo não depende do FPS. O tempo é o do jogo: pausa e câmera lenta valem. Ignore o Handle devolvido, guarde-o para cancelar, ou dê um <code>name=</code> — chamar de novo com o mesmo nome substitui o anterior. Dentro de um mode, <code>after</code> / <code>every</code> soltos param quando o mode acaba; <code>e.after</code> / <code>e.every</code> continuam (<a href="#mode-cancela">escopo e cancelamento</a>).</p>
       <div class="tabs" data-tabs>
         <div class="tab-bar">
           <button class="tab active" type="button" data-tab="ag-call">Chamada</button>
@@ -8160,7 +8162,7 @@ run(Titulo)</pre>
           <tbody>
 <tr><td><strong>Sai</strong></td><td>Objetos (Shape, Sprite, Text, SpatialFx, Entity, widgets) — <code>on_destroy</code> roda. Timers, tweens, sons e tweens de câmera sem dono do palco — mas <a href="#som-dono-acaba">um som que acaba sozinho termina de tocar</a> (sem <code>on_done</code>); loop <code>"forever"</code>, <code>name=</code> e pausado cortam. <code>@when</code> / <code>@on_change</code> / <code>@collide</code> / <code>@leave_playfield</code> soltos escritos no <code>setup</code>. Post e background criados no ato. Slots de <code>ready</code> / <code>recently</code> do script. <code>shake</code> / <code>flash</code> / <code>explosion_at</code> pendentes. Ligações <code>@=</code> entre objetos que saem juntos somem em silêncio.</td></tr>
 <tr><td><strong>Volta</strong> ao que o topo deixou (ou ao padrão)</td><td>Câmera, <code>canvas.background</code>, <code>canvas.effects</code> e o background (lista e <code>.enabled</code>), <code>canvas.playfield</code>, <code>clock.scale</code> / <code>clock.paused</code>, <code>collision.resolve_enabled</code>, <code>canvas.layers.default</code>, <code>set_defaults</code>, os pares de <code>resolve</code>.</td></tr>
-<tr><td><strong>Fica</strong></td><td><code>st</code>. Objetos do palco e os timers deles (<code>radio.play_sound(…)</code>). Camadas. Preferências: volume do <code>audio</code>, <code>fx_quality</code>, <code>post_fx_scale</code>, <code>display</code>, <code>framerate</code>. O fade (<code>fade_out</code> / <code>fade_in</code>).</td></tr>
+<tr><td><strong>Fica</strong></td><td><code>st</code>. Objetos do palco e os timers deles (<code>radio.play_sound(…)</code>) — menos o que o ato entregou a eles: um método do ato (ou uma função que lê o <code>self</code> do ato) em <code>heroi.every(…)</code>, <code>heroi.on_update</code> ou <code>heroi.mode</code> sai com o ato. Um timer do palco cujo <code>name=</code> o ato reusou volta depois da troca. Camadas do palco (uma camada criada no ato sai com ele; recomeçar o ato a cria de novo). Preferências: volume do <code>audio</code>, <code>fx_quality</code>, <code>post_fx_scale</code>, <code>display</code>, <code>framerate</code>. O fade (<code>fade_out</code> / <code>fade_in</code>).</td></tr>
           </tbody>
         </table>
       </div>
@@ -8948,6 +8950,7 @@ canvas.playfield.set(canvas.game_view.outset(300))</pre>
       <p>O retângulo é o playfield, fixo no mundo — não segue a câmera. Não é <code>canvas.game_view</code> (a janela). Layout de naves / HUD: <a href="#colocar">Colocar</a>.</p>
       <p>Câmera que anda (corredor, flappy): o playfield fica para trás. Faça-o seguir a janela com uma linha por quadro, no <code>update</code>: <code>canvas.playfield.set(canvas.game_view.outset(300))</code>.</p>
       <p>Padrão (não precisa definir): o retângulo de design com <code>pad=0.25</code> em cada lado (1.5×, centrado). Só passa a valer quando algum <code>@leave_playfield</code> está em uso.</p>
+      <p>Dois <code>@leave_playfield("bullet")</code> rodam os dois, na ordem em que foram escritos (como <code>@collide</code>). Um feito dentro de um ato sai na troca de ato.</p>
       <details class="spec" open>
       <summary>Neste canvas.playfield</summary>
         <div class="tbl-wrap wrap-first">

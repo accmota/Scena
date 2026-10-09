@@ -397,8 +397,12 @@ integrates it once per frame in the frame body, right after the clock tick
 (before `update` and the process tick), and `draw` only reads the accumulated
 offset. So `update` sees this frame's offset, a headless run that never draws
 still scrolls, and painting twice (post FX) never double-counts. A custom frame
-loop (bench harnesses) calls it after its own clock tick. A non-finite `t` is
-skipped. Non-finite scroll rates raise at the setter. Same-z layers are legal; among equal z, draw order is first-seen
+loop (bench harnesses) calls it after its own clock tick. Every non-neutral
+layer advances, hidden or not: `visible` is paint, scroll is world state (a
+hidden layer that froze would jump when shown again, and an Endless on it
+would stop filling). A gap in world time is integrated in full; the run loop
+already caps a frame at `MAX_FRAME_DT` (the old 1.5 s "tab resume" skip left a
+layer lagging for good). A non-finite `t` is skipped. Non-finite scroll rates raise at the setter. Same-z layers are legal; among equal z, draw order is first-seen
 (stable sort).
 Non-neutral layers are exempt from `cull_offscreen` (bounds live under a
 different matrix). Graphics with no `.visual`, no fill/line filters, and no
@@ -1065,7 +1069,8 @@ author's (`set` keyed by `slot.i`).
   constructor that raises (a builder error on the first fill) releases what it
   built and is never held. `active = False` freezes the fill (pieces stay).
 - **Acts.** Created in an Act → torn down by `change_act`, pieces included.
-  Create it in the Act that uses it: a top-level `Endless` survives the change,
+  Create it, and its layer, in the Act that uses it (an act-created layer
+  leaves with the act, so a restart works): a top-level `Endless` survives the change,
   but pieces it built during the Act leave with the Act and count as consumed.
 
 **Hazard: fixed camera on a gameplay layer.** A neutral layer's window never

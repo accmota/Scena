@@ -5198,6 +5198,101 @@ class TestParkStashesFlagWrites(ProcessTestCase):
             self.assertFalse(c._visible, f"blink showed a parked shape at tick {k}")
 
 
+class TestEveryCountsWorldSeconds(unittest.TestCase):
+    """``every`` keeps its debt: the rate does not depend on the frame rate,
+    and a hitch loses no fires (design decision, review 2026-10-09 S2-16)."""
+
+    def _count(self, interval, dts, **kw):
+        from scena import every
+        from tests.system_support import system_world
+        fires = []
+        with system_world(draw=False) as w:
+            h = every(interval, lambda: fires.append(1), **kw)
+            for dt in dts:
+                w.step(1, dt=dt)
+            h.cancel()
+        return len(fires)
+
+    def test_same_rate_at_30_and_60_fps(self):
+        self.assertEqual(self._count(0.02, [1 / 60] * 60), 50)
+        self.assertEqual(self._count(0.02, [1 / 30] * 30), 50)
+
+    def test_a_hitch_loses_nothing(self):
+        dts = [1 / 60] * 15 + [0.25] + [1 / 60] * 30
+        self.assertEqual(self._count(0.1, dts), int((15 / 60 + 0.25 + 30 / 60) / 0.1 + 1e-9))
+
+    def test_a_burst_stops_when_the_callback_cancels(self):
+        from scena import every
+        from tests.system_support import system_world
+        fires = []
+        with system_world(draw=False) as w:
+            box = {}
+
+            def tick():
+                fires.append(1)
+                box["h"].cancel()
+            box["h"] = every(0.02, tick)
+            w.step(1, dt=0.25)
+        self.assertEqual(fires, [1])
+
+    def test_a_burst_stops_when_the_owner_parks(self):
+        from scena import Entity
+        from tests.system_support import system_world
+        fires = []
+        with system_world(draw=False) as w:
+            e = Entity()
+            try:
+                def tick():
+                    fires.append(1)
+                    e.active = False
+                e.every(0.02, tick)
+                w.step(1, dt=0.25)
+                self.assertEqual(fires, [1])
+            finally:
+                e.destroy()
+
+
+class TestParkHoldsSoundOnDone(unittest.TestCase):
+    """Park does not stop audio, but it promises no owned callbacks: an
+    owned sound's on_done waits for the resume, and the Handle keeps
+    reporting the voice (review 2026-10-09 X-life-4)."""
+
+    def test_on_done_waits_for_resume(self):
+        from scena import Circle
+        from tests.system_support import system_world, tone
+        log = []
+        with system_world(draw=False) as w:
+            ship = Circle(center=(0, 0), radius=10)
+            try:
+                h = ship.play_sound(tone(0.3), on_done=lambda: log.append(ship.active))
+                w.step(3, dt=1 / 60)
+                ship.active = False
+                e0 = h.elapsed
+                w.step(60, dt=1 / 60)
+                self.assertEqual(log, [], "on_done ran on the parked actor")
+                self.assertGreater(h.elapsed, e0, "the Handle froze while the voice played")
+                self.assertFalse(h.done)
+                ship.active = True
+                w.step(2, dt=1 / 60)
+                self.assertEqual(log, [True])
+                self.assertTrue(h.done)
+            finally:
+                ship.destroy()
+
+    def test_unparked_sound_ends_as_before(self):
+        from scena import Circle
+        from tests.system_support import system_world, tone
+        log = []
+        with system_world(draw=False) as w:
+            ship = Circle(center=(0, 0), radius=10)
+            try:
+                ship.play_sound(tone(0.2), on_done=lambda: log.append(1))
+                w.step(30, dt=1 / 60)
+                self.assertEqual(log, [1])
+            finally:
+                ship.destroy()
+
+
 if __name__ == "__main__":
     unittest.main()
 

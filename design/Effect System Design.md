@@ -69,11 +69,11 @@ to the author surface follow [Compatibility and versions](Scena%20Design.md#comp
   - **Shape visuals** — one exclusive costume (`shape.visual = Paint(...)` / `Neon()` / …); compiled style packages or multipass Recipes.
   - **Appearance stamps** — sticky pigment / motion around the costume (`shape.glow` / `.shadow` / `.tail`; Sprite also `.hue` / `.gray`). Orthogonal to `.visual`.
   - **Shape transients** — multi-channel one-shots (`life` / `flash` / `pulse` / `pop` / `knock` / `spark`); orthogonal to `.visual`, stamps, and sticky filters.
-  - **SpatialFx** — sticky ambient emitters with soft placement domains (campfire, rain, jet, sparks); registered like shapes, not visuals/post.
+  - **SpatialFx** — sticky ambient emitters with soft placement domains (campfire, rain, jet, sparks); registered like shapes, not visuals/post. Tick and shader phases run on world time: pause and slow motion reach them ([Scena Design — Clocks](Scena%20Design.md#clocks)).
   - **BackgroundFields** — pre-scene full-screen procedural fields (parallax skies / tunnels); `canvas.background`, not layers/post.
   - **Parallax Layers** — shape/SpatialFx layers with partial camera response (`canvas.layers.create(..., pan_response=…)`); decoration-only (no hit/collision).
   - **Canvas-wide post effects** — grade, vignette, bloom, grain, curated SkSL, hit feedback, …
-  - **Canvas cover** — `fade_in` / `fade_out` (fade / wipe / iris); holds until uncover; after widgets, not post
+  - **Canvas cover** — `fade_in` / `fade_out` (fade / wipe / iris); holds until uncover; after widgets, not post. Runs on presentation time: a fade finishes while `clock.paused` ([Scena Design — Clocks](Scena%20Design.md#clocks))
 3. One author-facing **quality** knob (`FxQuality`) that trades pixels for FPS.
 4. Beginner API: zero-arg constructors look good; no author-written SkSL.
 5. Performance first: measure in-app FPS; use matrix/microbench to explain *why*.

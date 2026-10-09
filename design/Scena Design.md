@@ -515,6 +515,34 @@ only at a full collection; the leak detector therefore runs one `gc.collect()`
 (play objects only, ~1 ms) before it warns, and only then
 ([Reactive Design — Deferred trees](Reactive%20Design.md#deferred-trees-measured-boxes)).
 
+## Clocks
+
+Three clocks feed the frame. **World time** (`clock.time` / `clock.dt`) is
+scaled by `clock.scale`, stops while `clock.paused`, and a frame feeds it at
+most `MAX_FRAME_DT` (0.25 s). **Presentation time** (`clock._ui_time`) is the
+same capped step, unscaled: pause and slow motion do not stop it. **Wall
+time** (`perf_counter`) is raw. A consumer reads one of them on purpose; a new
+timed mechanism picks its row here and compares deadlines through
+`process.reached`.
+
+| Consumer | Clock | Why |
+| --- | --- | --- |
+| `update(dt)`, `after` / `every` / `tween` / timed verbs / modes / `move_along` | world | game time; `every` keeps its debt, so its rate is frame-rate independent (catch-up bounded by `MAX_FRAME_DT / interval` fires per tick) |
+| `ready` / `recently`, History / Contrail, sprite playhead and `min_hold` | world | game time |
+| SpatialFx tick and shader phases | world | world actors: pause freezes the rain; their own `after` already counted world seconds |
+| Layer scroll (`advance_layer_scroll`, every non-neutral layer, hidden or not) | world | scroll is world state; `visible` is paint |
+| Canvas cover (`fade_in` / `fade_out`) | presentation | a screen transition runs while the world is paused (a game-over `fade_out(on_done=change_act)` after `clock.paused = True` finishes) |
+| Shape transients, SpriteButton eases | wall | presentation, documented ([Effect System Design](Effect%20System%20Design.md)): a paused menu still animates |
+| Double click, FPS, frame pacing | wall | input and the display |
+
+Tests: `SystemWorld` pins only the transient clock (to world time, for
+determinism). SpatialFx and the cover read the frame clock in production too,
+so the harness tests the shipped clock (review 2026-10-09, S1-6 / S1-7):
+`tests/test_cover.py` (`TestCoverRunsOnPresentationTime`),
+`tests/test_spatial_fx.py` (`TestSpatialFxRunOnWorldTime`),
+`tests/test_process.py` (`TestEveryCountsWorldSeconds`),
+`tests/test_layer_scroll_view.py` (`test_hidden_layer_keeps_scrolling`).
+
 ## Pull reactivity
 
 When the ownership tree has **pull consumers** (outbound `@=` / `@when`, or live

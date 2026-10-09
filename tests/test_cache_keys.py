@@ -46,7 +46,7 @@ BAKES = {
 }
 # Caches with no frame bake behind them, and why.
 NOT_BAKES = {
-    "_ATLAS_CACHE": "path -> parsed atlas file (a file edited on disk is out of scope)",
+    "_ATLAS_CACHE": "path -> (mtime_ns, size) and the parsed atlas file; a rewritten file is parsed again",
     "_IMAGE_CACHE": "path -> decoded image (same)",
     "_PLACEHOLDER_CACHE": "label -> generated placeholder art (pure function of its key)",
     "_PACK_CACHE": "decoded images + names -> the strip packed from them (pure function of its key)",
@@ -226,7 +226,8 @@ class TestCacheKeysCoverTheirInputs(unittest.TestCase):
         self.assertEqual(stale, [], "listed caches that no longer exist")
 
     def test_every_frame_field_is_varied(self):
-        self.assertEqual(set(AtlasFrame.__slots__) - {"name"}, set(VARIANTS),
+        # ``_frozen`` is a write lock on cached frames, not a bake input.
+        self.assertEqual(set(AtlasFrame.__slots__) - {"name", "_frozen"}, set(VARIANTS),
                          "a new AtlasFrame field: give it a VARIANTS entry")
 
 

@@ -1979,6 +1979,46 @@ until their fix wave (phase 7).
 | GX13 | An anchored Text (`top_left=` / `top_right=`) accepts a link on its anchor and another on `center`; the two then disagree (the center follows its source, the anchor stays), and in the other order the center link does not hold its formula. Rect refuses the analogue (`center` is a Derivate there) | the caption's center is an input on every placement | Text was not a reactive-matrix subject | `test_hyp_reactive_matrix` (H6 subjects), probe GX13 Fixed, wave 1: `Text._link_field` (`test_text.TestOnePlacementLink`). |
 
 
+### SY — systems review, design decisions (2026-10-09)
+
+A review of the frame body, scheduler, input, acts, reactive core, shapes,
+sprites, box, collision, registry and canvas (report in the private
+workbench) confirmed about 90 interaction bugs; 17 of its items needed a
+design decision. The decisions and their guards:
+
+| # | Decision | Guard |
+| --- | --- | --- |
+| SY1 | The fade cover runs on presentation time (`clock._ui_time`: unscaled, capped like the world) | `test_cover.TestCoverRunsOnPresentationTime` |
+| SY2 | SpatialFx tick and shader phases run on world time; `SystemWorld` no longer pins their clock | `test_spatial_fx.TestSpatialFxRunOnWorldTime` |
+| SY3 | `every` keeps its debt (bounded catch-up) | `test_process.TestEveryCountsWorldSeconds`; `test_sys_hyp_scheduler.TestEvery` (new contract) |
+| SY4 | Hidden layers keep scrolling; no 1.5 s skip on world time | `test_layer_scroll_view.test_hidden_layer_keeps_scrolling`, `test_camera_response.test_integrates_a_long_gap` |
+| SY5 | Only rounds where a watch fires again count toward `FLUSH_MAX_ROUNDS` | `test_reactive_edge_cases.TestEvents.test_long_acyclic_chain_settles_in_one_flush` |
+| SY6 | An act's ownerless named timer suspends the game's same-name timer until the change | `test_act.TestNamedSlotsAcrossTheSeal` |
+| SY7 | Act-created layers leave with the act | `test_act.TestActLayers` |
+| SY8 / SY10 | Act teardown in two phases; objects born in teardown run no `on_destroy`; cap 100 passes | `test_act.TestTeardownPhases` |
+| SY9 | An act's callables handed to game objects leave with the act | `test_act.TestActCallablesOnGameObjects` |
+| SY11 | Top-level `@leave_playfield` handlers accumulate | `test_leave_playfield.test_second_registration_adds`, `test_act` (act handler leaves) |
+| SY12 | Park holds an owned sound's `on_done` until resume | `test_process.TestParkHoldsSoundOnDone`; `test_sys_hyp_audio` (held end has no voice) |
+| SY13 | `contains_point` is False on a destroyed actor | `test_shape_interaction.TestContainsPointOnADeadActor` |
+| SY14 | `clone()` copies `hitbox.active = False` | `test_sprite.TestSpriteClone` |
+| SY15 | Atlas cache keyed by path + file stamp; cached frames frozen | `test_atlas.TestAtlasFileCache` |
+| SY16 | `Text(fn)` links | `test_text.TestTextTakesAFunction` |
+| SY17 | Actors Design: `on_destroy` errors raise after teardown | doc only |
+
+Two lessons from implementing them:
+
+1. **A reset that swallows errors hides a broken call.** `_reset_act_manager`
+   (test isolation) calls `ActManager._teardown` inside `except Exception:
+   pass`; a signature change made that call raise `TypeError`, the reset did
+   nothing, and the next test module saw a leftover actor in its group
+   count. The failure surfaced two modules away from its cause. A swallow on
+   a cleanup path needs its own test that the cleanup happened.
+2. **The harness pinned a clock production did not read.** `SystemWorld`
+   pinned SpatialFx and the cover to world time, so every system test ran
+   a clock the shipped code never used (SY1, SY2). A harness pin is a second
+   implementation; keep it only where production is non-deterministic (shape
+   transients on wall time), and test the production clock at least once.
+
 ### F — contact flicker (2026-09-29)
 
 Found by `tests/test_sys_resting_contact.py`, written after G2 to test what a

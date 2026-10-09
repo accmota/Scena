@@ -373,7 +373,8 @@ builds fresh", extended to settings.
 | Kept | Why |
 | --- | --- |
 | `st` values | Game data; `jogo_novo()` resets what a new game needs |
-| Game objects and their own timers (`radio.play_sound(...)` on a top-level `radio`) | Closest owner wins; game objects live until the window closes |
+| Game objects and their own timers (`radio.play_sound(...)` on a top-level `radio`) | Closest owner wins; game objects live until the window closes. **Except** work and hooks the act handed them: a handle whose function, `then=` or `on_done=` is a bound method of the leaving act (or a function closing over it), and a game object's hook (`on_update`, `mode`, `on_click`, `on_collide*`, drag hooks, …) set to one, leave with the act. Otherwise they stacked on every restart, kept the dead act alive and reached its destroyed fields (decided 2026-10-09, review X-life-7) |
+| A game timer whose name an act's ownerless timer took (`every(…, name="beat")` at the top and in the act) | The act's timer replaces it **for the act**: the game's pauses and resumes at the change, with its phase (an author `pause()` is kept). Before 2026-10-09 the act's cancelled it for good (review S2-6) |
 | Preferences: audio volume, `canvas.fx_quality`, `post_fx_scale`, `shape_fx_scale`, `display`, `batch_shared_filters`, `cull_offscreen` | Player or engine settings, not world state (an options act must be able to change them) |
 
 **Every author-settable canvas / clock / collision setting is classified as
@@ -381,9 +382,15 @@ either restored or kept.** The implementation keeps both lists in one place
 (`WORLD_SETTINGS` / `KEPT_SETTINGS` in `scena/act.py`), and a test fails
 when a new setter is added without being classified
 (`TestSettingsClassification` in `tests/test_act.py`; one-shots, queries and
-engine hooks are listed there as `NOT_SETTINGS`). Layers themselves are game
-objects: `canvas.layers.create` in an act makes a layer that stays, and a
-layer's own state (`visible`) is its own.
+engine hooks are listed there as `NOT_SETTINGS`). A layer created at the top
+is a game object, and its own state (`visible`, `z`, `scroll`) is its own. A
+layer created **in an act** leaves with the act (the seal records the layer
+names), so a restart creates it again and the Endless recipe ("create it in
+the Act that uses it") can restart. A game object still on an act layer at the
+change keeps that layer, and `change_act` raises after the new act is built,
+naming the layer and the fix (move the object to a game layer first, or create
+the layer at the top). Decided 2026-10-09 (review S4-4): before, the second
+`create` of a restart raised "already exists" and left no current act.
 
 Rule of thumb for authors: **if it should start fresh every time, create it in
 `setup`. If it should survive every act, create it at the top.** Music started
@@ -477,7 +484,14 @@ act's own `on_update`. A read-only query is added only for a real case.
 2. Mark "changing act". Run the act's `on_destroy` while everything it
    created is still alive.
 3. Tear down everything created since the top level ended **as one batch**
-   ([Removed](#removed)). Entities' own `on_destroy` hooks run. Formula
+   ([Removed](#removed)), in two phases: first every entity's own
+   `on_destroy` runs while the **whole** batch is still alive (a boss's hook
+   may read its escort, whatever their creation order), then teardown. An
+   object created during the teardown (by a hook) leaves without its own
+   `on_destroy`: it belongs to the ending act, and a self-replacing hook
+   ("keep the asteroid field full") would respawn forever. A teardown that
+   still does not settle stops after 100 passes and names the classes it
+   keeps creating (decided 2026-10-09, review X-life-6 / X-life-9). Formula
    dependents torn down in the same batch are not auto-unlinked one by one, so
    no "was unlinked because a formula source was removed" warning is printed for
    a HUD that leaves together with the hero it reads.

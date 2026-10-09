@@ -501,7 +501,32 @@ class TestEvents(ReactiveEdgeCaseTest):
                 ss.flush()
         finally:
             ss.end_frame_batch()
-        self.assertLessEqual(len(calls), 2 * FLUSH_MAX_ROUNDS)
+        # The first round fires both without a repeat; then at most
+        # FLUSH_MAX_ROUNDS rounds in which a watch fires again.
+        self.assertLessEqual(len(calls), 2 * (FLUSH_MAX_ROUNDS + 1))
+
+    def test_long_acyclic_chain_settles_in_one_flush(self):
+        # A relay chain longer than FLUSH_MAX_ROUNDS with no cycle is not a
+        # cycle: no warning, no lag (review 2026-10-09 S2-17). Registered
+        # tail first, so every round advances it by one link.
+        import warnings
+        from scena.state import FLUSH_MAX_ROUNDS
+        n = FLUSH_MAX_ROUNDS + 4
+        cells = [Attribute(0.0) for _ in range(n + 1)]
+        for i in reversed(range(n)):
+            def relay(value, i=i):
+                cells[i + 1].value = value
+            on_change(lambda i=i: cells[i].value)(relay)
+        ss = get_scena_system()
+        ss.begin_frame_batch()
+        try:
+            cells[0].value = 7.0
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", RuntimeWarning)
+                ss.flush()
+        finally:
+            ss.end_frame_batch()
+        self.assertEqual([c.value for c in cells], [7.0] * (n + 1))
 
     def test_nan_fires_once(self):
         b = Attribute(1.0)

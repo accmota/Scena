@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import warnings
 from enum import Enum, auto
-from typing import Callable, Any, Dict, Optional, Union
+from typing import Callable, Any, Dict, Optional, Tuple, Union
 
 from ._defaults import Unset
 from .state import Container, Attribute, DestroyedError, FieldRef
@@ -313,6 +313,7 @@ class EventSystem:
         self._by_owner: Dict[int, Dict[EventRegistration, None]] = {}
         self._event_counter = 0
         self._polling = False
+        self.repeated = False
 
     def _index_owner(self, event: EventRegistration) -> None:
         owner = event._owner
@@ -395,19 +396,30 @@ class EventSystem:
             self._unindex(event)
         return len(dropped)
 
-    def poll(self) -> int:
+    def poll(self, fired_before: Optional[set] = None) -> int:
         """Evaluate every active event in registration order.
 
         Returns how many callbacks fired. An exception from a condition or a
         callback propagates (later watches wait for the next poll).
+
+        ``fired_before`` (the flush's record): ids of the watches that already
+        fired in this flush. Each fire is added; ``self.repeated`` tells
+        whether a watch fired again (the only sign of a cycle).
         """
         self._polling = True
+        self.repeated = False
         drop = False
         try:
             fired = 0
             for event in list(self._events):
                 if not event._drop and event.poll():
                     fired += 1
+                    if fired_before is not None:
+                        key = id(event)
+                        if key in fired_before:
+                            self.repeated = True
+                        else:
+                            fired_before.add(key)
                 if event._drop:
                     drop = True
             return fired
@@ -444,10 +456,13 @@ def cleanup_global_event_system() -> None:
         _global_event_system = None
 
 
-def poll_all_events() -> int:
-    if _global_event_system is None:
-        return 0
-    return _global_event_system.poll()
+def poll_all_events(fired_before: Optional[set] = None) -> Tuple[int, bool]:
+    """One round: ``(callbacks fired, whether a watch fired again this flush)``."""
+    es = _global_event_system
+    if es is None:
+        return 0, False
+    fired = es.poll(fired_before)
+    return fired, es.repeated
 
 
 def has_registered_events() -> bool:

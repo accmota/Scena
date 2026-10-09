@@ -955,7 +955,9 @@ space as `mouse.x` / `mouse.y`). `p` is Point, Vec2, `(x, y)`, mouse, or an
 object with `.center` / `.x`/`.y`. This is **pointer / draw geometry** — the
 same test `@click` / `pointer_hover` use — not the collision hitbox
 (`collision.query_point`). Subclasses implement `_hit_test_xy`; the public
-method unpacks author args. Sprite samples the **current frame's alpha**
+method unpacks author args. A destroyed actor (and a part of one) contains
+nothing, the same answer as `query_point`; a parked actor keeps its geometric
+answer (decided 2026-10-09, review S6-8). Sprite samples the **current frame's alpha**
 (oriented visual rect first; a transparent texel misses), not the baked
 hitbox. Circle's pointer test follows the filled arc (pie or chord);
 `intersections` stays the full circumference. Rect `corner_radius` rounds

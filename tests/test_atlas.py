@@ -1074,5 +1074,49 @@ class TestReviewedAtlasFixes(unittest.TestCase):
         self.assertFalse(any(key[0] == t1 for key in _MASK_CACHE))
 
 
+class TestAtlasFileCache(unittest.TestCase):
+    """The atlas cache follows the file (review 2026-10-09 S7-9): a rewritten
+    file is parsed again, and the shared cached frames refuse writes."""
+
+    def setUp(self):
+        import tempfile
+        reset_atlas_caches()
+        self._dir = tempfile.TemporaryDirectory()
+        self.path = self._dir.name + "/pack.json"
+
+    def tearDown(self):
+        reset_atlas_caches()
+        self._dir.cleanup()
+
+    def _write(self, frames):
+        import json
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump({"frames": frames}, f)
+
+    def test_a_rewritten_file_is_parsed_again(self):
+        import os
+        from scena.atlas import load_atlas
+        self._write({"a": {"x": 0, "y": 0, "w": 8, "h": 8}})
+        first = load_atlas(self.path)[1]
+        self.assertEqual([f.name for f in first], ["a"])
+        self.assertIs(load_atlas(self.path)[1], first)        # cached
+        self._write({"a": {"x": 0, "y": 0, "w": 8, "h": 8},
+                     "b": {"x": 8, "y": 0, "w": 8, "h": 8}})
+        st = os.stat(self.path)
+        os.utime(self.path, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000))
+        second = load_atlas(self.path)[1]
+        self.assertEqual(sorted(f.name for f in second), ["a", "b"])
+
+    def test_cached_frames_are_frozen_and_copies_are_not(self):
+        from scena.atlas import load_atlas
+        self._write({"a": {"x": 0, "y": 0, "w": 8, "h": 8}})
+        fr = load_atlas(self.path)[1][0]
+        with self.assertRaisesRegex(AttributeError, "with_pivot"):
+            fr.pivot_x = 0.0
+        copy = fr.with_pivot(0.0, 1.0)
+        copy.boxes = ((0, 0, 1, 1),)
+        self.assertEqual(fr.boxes, ())
+
+
 if __name__ == "__main__":
     unittest.main()

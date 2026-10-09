@@ -14,6 +14,31 @@ left out.
 
 ### Breaking
 
+- `every(interval, fn)` counts world seconds at any frame rate: a frame
+  longer than the interval fires as many times as it owes (at most
+  `0.25 / interval` per frame), and a hitch loses no fires. Before, it fired
+  at most once per frame, so `every(0.02)` gave 50 fires a second at 60 FPS
+  and 30 at 30 FPS. A spawner tuned at 30 FPS spawns more now.
+- SpatialFx (`Rain`, `Sparks`, `Fire`, …) run on world time: `clock.paused`
+  freezes them and `clock.scale` slows them, like their own `after` / `every`.
+  Before, they ran on the wall clock.
+- Every top-level `@leave_playfield("tag")` on a tag runs, in order, like
+  `@collide`; one made in an act leaves at the act change. Before, a second
+  top-level handler silently replaced the first.
+- A layer created inside an act (`canvas.layers.create` in `setup`) leaves
+  with the act, so restarting the act works. A game object still on such a
+  layer makes `change_act` raise (after the new act is built), naming the
+  layer: move it to a game layer first, or create the layer at the top.
+- An act's method, or a function that reads the act's `self`, handed to a
+  game object (`heroi.every(0.5, self.pulsar)`, `heroi.on_update = lambda e,
+  dt: self.x`, `heroi.mode = self.caca`) leaves with the act. Before, it
+  stacked on every restart and kept the old act alive.
+- In an act change, an object created by a teardown hook (a self-replacing
+  `on_destroy`) leaves without running its own `on_destroy`; a teardown that
+  does not settle stops after 100 passes (was 10,000, about 8 s) and names
+  the class it keeps creating.
+- `contains_point` on a destroyed actor is `False`, like
+  `collision.query_point`. A parked actor still answers from its geometry.
 - A hover handler on a shape in a parallax layer raises `ParallaxLayerError`
   (`@hover(deco)`, `deco.on_hover = …`), like `clickable`; a shape with a
   hover handler cannot move into a parallax layer. Before, the handler was
@@ -96,6 +121,9 @@ left out.
 
 ### Added
 
+- `Text(fn)` links the text to a function, the same link as
+  `t["text"] @= fn`: `Text(lambda: f"Pontos {st.pontos}", top_left=(20, 580))`.
+  The docstring promised it; the constructor raised `CallableAssignError`.
 - `canvas` is a formula source, like `mouse` and `clock`: `ship["center"] @=
   lambda: canvas.game_view.center`, `lambda: canvas.zoom`, or `lambda:
   canvas.layers["bg"].view.left` follow every camera move and every scroll.
@@ -129,6 +157,25 @@ left out.
 
 ### Fixed
 
+- The fade cover runs while the world is paused or slowed (presentation
+  time): `clock.paused = True; canvas.fade_out(0.5, on_done=…)` finishes.
+  Before, the screen stayed black and `on_done` never ran.
+- A hidden scroll layer keeps scrolling. Before, it froze while hidden and
+  jumped when shown again (or lagged for good after 1.5 s hidden).
+- An `@on_change` relay chain longer than 8 links settles in one flush; only a
+  real cycle warns. Before, it warned "a cycle?" and the tail lagged a frame.
+- An act's ownerless timer with a game timer's `name=` replaces it for the act
+  only: the game timer pauses and comes back at the act change. Before, the
+  act's cancelled it for good.
+- In an act change, every object's `on_destroy` runs while the whole act is
+  still alive: a boss's hook can read its escort whatever their creation
+  order. Before, reading a sibling's field could raise `DestroyedError`.
+- An owned sound's `on_done` waits while its owner is parked (`active =
+  False`) and runs on resume; the sound keeps playing and its Handle keeps
+  counting. Before, `on_done` ran on the parked actor.
+- `sprite.clone()` copies `hitbox.active = False`, like `collidable = False`.
+- An atlas file rewritten while the program runs is read again (the cache
+  follows the file's time and size); the shared atlas frames refuse writes.
 - An act change (or a hard layer clear / a group destroy) that destroyed an
   open modal `Menu` left it open: the dimming mask and the menu's `pause`
   stayed, `await menu` hung, and the next act's `TextInput.focus()` raised
@@ -535,6 +582,9 @@ left out.
 
 ### Documentation
 
+- Scena Design has a "Clocks" table: which clock (world, presentation,
+  wall) each consumer reads. Actors Design no longer says an `on_destroy`
+  error is swallowed (it raises after the teardown, as the code does).
 - Testing Design gains an "Interaction campaign" section: how the seams
   between subsystems are tested (a matrix with a guard, a model-free
   oracle, a canary per class), the ten classes, their findings, and one

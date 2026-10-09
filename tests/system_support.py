@@ -223,11 +223,15 @@ class SystemWorld(WorldTracker):
             p = mock.patch.object(target, attr, new=_noop)
             p.start()
             self._patches.append(p)
-        # Every pre-draw clock reads world time: runs are deterministic.
-        now = lambda: clock.time  # noqa: E731
-        _transients.set_now_fn(now)
-        _spatial_fx.set_now_fn(now)
-        _cover.set_now_fn(now)
+        # Shape transients run on wall time in production (presentation,
+        # Effect System Design); pin them to world time so runs are
+        # deterministic. SpatialFx (world time) and the cover (the clock's
+        # presentation time) read the frame clock in production too, so they
+        # are NOT pinned: a pin would test a clock the shipped code does not
+        # read (review 2026-10-09, S1-7).
+        _transients.set_now_fn(lambda: clock.time)
+        _spatial_fx.set_now_fn(None)
+        _cover.set_now_fn(None)
         self.frames_run = 0
         # Debris another test module left (dead but still registered) is not
         # this world's bug: ``zombies()`` / ``assertNoZombies`` skip it.

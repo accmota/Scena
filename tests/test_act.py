@@ -163,9 +163,9 @@ class TestStartAndChange(ActTestCase):
         from scena.act import ActManager
         drain = ActManager._teardown
 
-        def collect_then_drain(manager, first_error):
+        def collect_then_drain(manager, first_error, *rest):
             gc.collect()
-            return drain(manager, first_error)
+            return drain(manager, first_error, *rest)
 
         with mock.patch.object(ActManager, "_teardown", collect_then_drain):
             change_act(Vazia)
@@ -339,7 +339,10 @@ class TestScriptLevelWork(ActTestCase):
         self.assertNotIn("tiro", builtins.ready._timers)
         self.assertNotIn("no_chao", builtins.recently._slots)
 
-    def test_leave_playfield_handler_overridden_in_an_act_is_restored(self):
+    def test_leave_playfield_handler_added_in_an_act_leaves_with_it(self):
+        # Top-level handlers accumulate (like @collide): the act's runs next
+        # to the game's, and the act change drops only the act's
+        # (review 2026-10-09 S4-10).
         @leave_playfield("tiro")
         def jogo(t):
             pass
@@ -352,10 +355,11 @@ class TestScriptLevelWork(ActTestCase):
 
         self.begin(Outra)
         handlers = get_bounds_system()._group_handlers
-        self.assertIsNot(handlers["tiro"], jogo)
+        self.assertEqual(len(handlers["tiro"]), 2)
+        self.assertIs(handlers["tiro"][0], jogo)
         change_act(Vazia)
         handlers = get_bounds_system()._group_handlers
-        self.assertIs(handlers["tiro"], jogo)
+        self.assertEqual(handlers["tiro"], (jogo,))
         self.assertNotIn("extra", handlers)
 
 
@@ -1401,6 +1405,7 @@ class TestRetiredSceneNames(unittest.TestCase):
         self.assertIn("Minha", ns)
 
 
+
 class TestDestroyedSidesLeaveTheActPairLists(ActTestCase):
     """HD2 / HD3 / HD5 (Testing Design, HD): pair lists an act change reads back
     and the widget manager's menu fields must not keep a destroyed object."""
@@ -1468,6 +1473,200 @@ class TestDestroyedSidesLeaveTheActPairLists(ActTestCase):
         self.assertTrue(handle._done or handle._cancelled, "await menu would hang")
         box["ti"].focus()      # used to raise: "A modal Menu is open"
         self.assertIs(wm.focused_widget, box["ti"])
+
+
+class TestTeardownPhases(ActTestCase):
+    """Act teardown in two phases (review 2026-10-09 X-life-6 / X-life-9):
+    every on_destroy of the batch runs while the whole batch is alive, then
+    teardown; objects born during the teardown leave without their hook."""
+
+    def test_on_destroy_sees_every_sibling_alive_in_any_creation_order(self):
+        seen = []
+
+        class Chefe(Circle):
+            def on_destroy(self):
+                seen.append(self.escolta.hp)      # ink: raises if the escort died
+
+        class EscoltaPrimeiro(Act):
+            def setup(self):
+                escolta = Circle(center=(50, 0), radius=5)
+                escolta.hp = 3
+                self.chefe = Chefe(center=(0, 0), radius=20)
+                self.chefe.escolta = escolta
+
+        class ChefePrimeiro(Act):
+            def setup(self):
+                self.chefe = Chefe(center=(0, 0), radius=20)
+                escolta = Circle(center=(50, 0), radius=5)
+                escolta.hp = 4
+                self.chefe.escolta = escolta
+
+        self.begin(EscoltaPrimeiro)
+        change_act(ChefePrimeiro)
+        change_act(Vazia)
+        self.assertEqual(seen, [3, 4])
+
+    def test_a_self_replacing_on_destroy_settles(self):
+        made = []
+
+        class Asteroide(Circle):
+            def on_destroy(self):
+                made.append(Asteroide(center=(self.center.x + 50, 0), radius=10))
+
+        class Campo(Act):
+            def setup(self):
+                for i in range(3):
+                    Asteroide(center=(i * 60, 0), radius=10)
+
+        self.begin(Campo)
+        rock = Asteroide(center=(500, 0), radius=10)
+        rock.destroy()                       # in play: replaced, as wanted
+        self.assertTrue(made[-1].is_alive)
+        n_before = len(made)
+        change_act(Vazia)                    # settles: spawns made by the
+        self.assertIsInstance(current(), Vazia)  # teardown run no hook
+        self.assertEqual(len(made) - n_before, 4)   # one per batch member
+        self.assertFalse(any(m.is_alive for m in made))
+        from scena.act import _MAX_TEARDOWN_PASSES
+        self.assertLessEqual(_MAX_TEARDOWN_PASSES, 100)  # a runaway fails fast
+
+
+class TestActLayers(ActTestCase):
+    """A layer created in an act leaves with it (review 2026-10-09 S4-4):
+    a restart is a fresh act, and the Endless recipe (create the layer in
+    the act) can restart."""
+
+    def test_restart_recreates_the_layer(self):
+        class Pista(Act):
+            def setup(self):
+                canvas.layers.create("act_pista", scroll=(0.0, -40.0))
+                Circle(layer="act_pista")
+
+        self.begin(Pista)
+        change_act(Pista)                     # raised "already exists" before
+        self.assertIsInstance(current(), Pista)
+        self.assertIn("act_pista", list(canvas.layers))
+        change_act(Vazia)
+        self.assertNotIn("act_pista", list(canvas.layers))
+
+    def test_game_layers_stay(self):
+        canvas.layers.create("act_jogo")
+        try:
+            self.begin(Vazia)
+            change_act(Vazia)
+            self.assertIn("act_jogo", list(canvas.layers))
+        finally:
+            canvas.layers["act_jogo"].delete()
+
+    def test_a_game_object_on_an_act_layer_raises_with_the_fix(self):
+        game = Circle()
+
+        class Movedor(Act):
+            def setup(self):
+                canvas.layers.create("act_meio")
+                game.layer = "act_meio"
+
+        self.begin(Movedor)
+        with self.assertRaisesRegex(ActUsageError, "act_meio.*game layer"):
+            change_act(Vazia)
+        self.assertIsInstance(current(), Vazia)   # the change finished
+        game.layer = "default"
+        game.destroy()
+        canvas.layers["act_meio"].delete()
+
+
+class TestActCallablesOnGameObjects(ActTestCase):
+    """An act's method (or a function closing over the act) handed to a game
+    object leaves with the act (review 2026-10-09 X-life-7)."""
+
+    def test_act_method_scheduled_on_a_game_object_does_not_stack(self):
+        import gc
+        import weakref
+        heroi = Circle(group="heroi_jogo")
+        pulses = []
+        acts = []
+
+        class Fase3(Act):
+            def setup(self):
+                acts.append(weakref.ref(self))
+                self.alvo = 1
+                heroi.every(0.25, self.pulsar)
+                heroi.on_update = lambda e, dt: self.alvo
+                heroi.mode = self.caca
+
+            def pulsar(self):
+                pulses.append(self.alvo)
+
+            def caca(self):
+                pass
+
+        self.begin(Fase3)
+        self.w.step(20, dt=1 / 60)
+        change_act(Fase3)                     # restart
+        sched = get_scheduler()
+        mine = [h for h in sched._handles if not h._cancelled and h.owner is heroi]
+        self.assertEqual(len(mine), 1, "the act's every() stacked on restart")
+        del mine                              # a test-owned handle keeps its act
+        change_act(Vazia)
+        self.assertIsNone(heroi.on_update)
+        self.assertIsNone(heroi.mode)
+        self.w.step(30, dt=1 / 60)            # nothing reaches the dead acts
+        gc.collect()
+        self.assertTrue(all(r() is None for r in acts), "a dead act stayed alive")
+        self.assertTrue(heroi.is_alive)
+        heroi.destroy()
+
+    def test_game_callables_stay(self):
+        heroi = Circle(group="heroi_jogo")
+        ticks = []
+        heroi.every(0.25, lambda: ticks.append(1))   # no act in the closure
+        self.begin(Vazia)
+        change_act(Vazia)
+        self.w.step(20, dt=1 / 60)
+        self.assertTrue(ticks)
+        heroi.destroy()
+
+
+class TestNamedSlotsAcrossTheSeal(ActTestCase):
+    """An act's ownerless timer with a game timer's name replaces it for the
+    act only; the act change gives the game's back (review 2026-10-09 S2-6)."""
+
+    def test_game_timer_pauses_during_the_act_and_comes_back(self):
+        from scena import every
+        game_beats, act_beats = [], []
+        every(0.25, lambda: game_beats.append(1), name="beat")
+
+        class Musica(Act):
+            def setup(self):
+                every(0.5, lambda: act_beats.append(1), name="beat")
+
+        self.begin(Musica)
+        n0 = len(game_beats)
+        self.w.step(60, dt=1 / 60)
+        self.assertEqual(len(game_beats), n0, "the game's beat ran during the act")
+        self.assertEqual(len(act_beats), 2)
+        change_act(Vazia)
+        self.w.step(60, dt=1 / 60)
+        self.assertEqual(len(game_beats) - n0, 4, "the game's beat did not come back")
+        self.assertEqual(len(act_beats), 2)
+        get_scheduler()._named[(None, "beat")].cancel()
+
+    def test_an_author_pause_is_kept(self):
+        from scena import every
+        beats = []
+        h = every(0.25, lambda: beats.append(1), name="beat2")
+        h.pause()
+
+        class Outra2(Act):
+            def setup(self):
+                every(0.5, lambda: None, name="beat2")
+
+        self.begin(Outra2)
+        change_act(Vazia)
+        self.w.step(60, dt=1 / 60)
+        self.assertEqual(beats, [])
+        self.assertTrue(h.paused)
+        h.cancel()
 
 
 if __name__ == "__main__":
