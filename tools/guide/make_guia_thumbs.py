@@ -79,7 +79,7 @@ HERO_LINE = 2.0                # the smoke scripts' line_width range is 1.5–2.
 HERO_OUTLINE_DARKER = 0.35     # outline = fill.darker(…): the edge reads apart from the body
 MEDIA = REPO / "examples" / "media"
 SPRITE_FIXTURE = MEDIA / "space" / "playerShip1_red.png"
-POST_WALLPAPER = MEDIA / "backgrounds" / "bg1.jpeg"   # a real picture: post FX act on detail, light, color
+POST_WALLPAPER = MEDIA / "images" / "bg1.jpeg"   # a real picture: post FX act on detail, light, color
 DETAIL_KEEP = 0.6              # "detail" reduction: mean pushed this far toward the block max
 
 # Scene presets: design size (16:10), framebuffer, reduction to OUT, version

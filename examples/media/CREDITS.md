@@ -55,7 +55,7 @@ no credit required. Credit is still welcome, and the authors are listed here.
 
 | Folder / files | Author | Source |
 |---|---|---|
-| `backgrounds/` | André Mota (generated with Midjourney) | this repository; see `backgrounds/license.txt` |
+| `images/` | André Mota (generated with Midjourney) | this repository; see `images/license.txt` |
 | `k-rolling-ball/` | Kenney | https://www.kenney.nl ("Rolling Ball Assets") |
 | `k-textures/` | Kenney | https://www.kenney.nl ("Retro Textures Fantasy") |
 | `planets/` | Kenney | https://www.kenney.nl ("Planets") |

@@ -84,7 +84,7 @@ if args.no_bg:
     canvas.background = (0.07, 0.08, 0.10, 1)
 else:
     try:
-        Wallpaper("examples/media/backgrounds/bg3.jpg", fit="cover")
+        Wallpaper("examples/media/images/bg3.jpg", fit="cover")
     except Exception:
         canvas.background = (0.07, 0.08, 0.10, 1)
 

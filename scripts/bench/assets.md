@@ -25,8 +25,8 @@ A steady scene runs uncapped; each asset is spawned **cold** (fresh process, emp
 | `atlas` | Kenney XML atlas (1024² sheet) + one frame |
 | `strip` | 10-file frame sequence (ninja run) |
 | `hitbox` | new atlas frame with `hitbox="auto"` + collision rule (fit cost) |
-| `wall_jpg` | `Wallpaper` 1456×816 JPEG (`backgrounds/bg1.jpeg`) |
-| `wall_png` | `Wallpaper` 1456×816 PNG (2.7 MB, `backgrounds/bg2.png`) |
+| `wall_jpg` | `Wallpaper` 1456×816 JPEG (`images/bg1.jpeg`) |
+| `wall_png` | `Wallpaper` 1456×816 PNG (2.7 MB, `images/bg2.png`) |
 
 ## How to run
 

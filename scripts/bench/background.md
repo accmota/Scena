@@ -13,7 +13,7 @@ Every field re-samples its parallax UV and every depth layer rebuilds its partia
 | Mode | Scene | Phase that should move |
 |------|-------|------------------------|
 | `sky` | `SkyGradient` + `Stars` + `Stardust` + `Clouds` | `bg_ms` |
-| `wallpaper` | `Wallpaper("backgrounds/bg1.jpeg", fit="cover")` with pan/zoom response | `bg_ms` |
+| `wallpaper` | `Wallpaper("images/bg1.jpeg", fit="cover")` with pan/zoom response | `bg_ms` |
 | `parallax` | 3 parallax layers (far/mid/near, ~60 shapes) + 24 world shapes | `draw_ms` |
 | `mix` | sky + parallax (typical side-scroller / shooter). **Primary.** | `bg_ms` + `draw_ms` |
 

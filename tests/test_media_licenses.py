@@ -1,7 +1,7 @@
 """Bundled media must say where it came from and how it may be used.
 
 Bug class: a folder of images or sounds is copied into ``examples/media/``
-without its license notice (``backgrounds/`` once had none), or a file that
+without its license notice (``images/``, then named ``backgrounds/``, once had none), or a file that
 needs attribution (CC-BY, CC-BY-SA) is added without a ready-to-copy credit
 in ``examples/media/CREDITS.md``. Then a Scena author ships a game with the
 file and cannot know they owe a credit. Nothing else turns red.

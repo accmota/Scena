@@ -209,7 +209,7 @@ set_leak_detector(False)
 if args.bench:
     canvas.framerate = "max"
 
-WALLPAPER = str(REPO_ROOT / "examples" / "media" / "backgrounds" / "bg1.jpeg")
+WALLPAPER = str(REPO_ROOT / "examples" / "media" / "images" / "bg1.jpeg")
 
 
 def _sky() -> None:

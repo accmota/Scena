@@ -182,7 +182,7 @@ file does not exist.
     1–2 px stars): post / looks average each block, SpatialFx keep small lights
     ("detail"), fields keep each block's brightest pixel ("max") — a star field
     averaged down is a flat dark plate.
-  - **Scenes.** Post and Impactos: `examples/media/backgrounds/bg1.jpeg` as a cover
+  - **Scenes.** Post and Impactos: `examples/media/images/bg1.jpeg` as a cover
     wallpaper and nothing else (effects act on a real picture; a shake of a flat
     color changes nothing). Looks / transients: the hero's outline is
     `fill.darker(0.35)`. One-shot verbs (Transientes, Impactos) fire 0.25 s into

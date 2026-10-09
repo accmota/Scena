@@ -13,7 +13,7 @@ from _hud import SmokeHud, apply_camera
 init(width=1400, height=900, window_scale=0.8, title="Smoke — background")
 canvas.set_origin("center")
 
-BG1 = "../../examples/media/backgrounds/bg1.jpeg"
+BG1 = "../../examples/media/images/bg1.jpeg"
 
 # Scene markers so pan/zoom relation is obvious.
 Circle(center=(0, 0), radius=28).set_color("cyan")

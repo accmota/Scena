@@ -2,7 +2,7 @@
 
 app_fx_lab.py — visual lab: canvas post FX and shape visuals (independent).
 
-Background: examples/media/backgrounds/bg3.jpg
+Background: examples/media/images/bg3.jpg
 Shapes: mixed kinds/sizes/motion, half opaque + half varying alphas;
 ~20 colorful gradient fills and gradient strokes on half the Lines.
 
@@ -54,8 +54,8 @@ parser.add_argument("--warmup", type=float, default=0.4, help="bench warmup")
 args, _ = parser.parse_known_args()
 
 W, H = 1200, 800
-_MEDIA_NOTE = "cwd-relative examples/media/backgrounds/bg3.jpg, examples/media/k-textures/floor_wood_planks.png"
-BG2 = "examples/media/backgrounds/bg3.jpg"
+_MEDIA_NOTE = "cwd-relative examples/media/images/bg3.jpg, examples/media/k-textures/floor_wood_planks.png"
+BG2 = "examples/media/images/bg3.jpg"
 TEX2 = "examples/media/k-textures/floor_wood_planks.png"
 TEX_SPRITE = Texture(TEX2, fit="cover")
 TEX_TILE = Texture(TEX2, fit="tile", tile_size=40)

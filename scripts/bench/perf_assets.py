@@ -52,8 +52,8 @@ FILES = {
     "atlas": [MEDIA / "shooter" / "sheet.png"],
     "strip": [Path(p) for p in sorted(glob.glob(str(MEDIA / "ninja" / "Run__*.png")))[:10]],
     "hitbox": [],
-    "wall_jpg": [MEDIA / "backgrounds" / "bg1.jpeg"],
-    "wall_png": [MEDIA / "backgrounds" / "bg2.png"],
+    "wall_jpg": [MEDIA / "images" / "bg1.jpeg"],
+    "wall_png": [MEDIA / "images" / "bg2.png"],
 }
 BASELINE_S = 1.5    # steady scene before the first spawn
 GAP_S = 0.4         # between spawns

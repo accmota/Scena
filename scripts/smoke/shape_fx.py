@@ -53,7 +53,7 @@ args.duration = 2.0
 args.warmup = 0.4
 
 W, H = 1200, 800
-BG2 = "../../examples/media/backgrounds/bg3.jpg"
+BG2 = "../../examples/media/images/bg3.jpg"
 TEX2 = "../../examples/media/k-textures/floor_wood_planks.png"
 TEX_SPRITE = Texture(TEX2, fit="cover")
 TEX_TILE = Texture(TEX2, fit="tile", tile_size=40)
