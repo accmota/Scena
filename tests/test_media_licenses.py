@@ -13,7 +13,7 @@ Checked:
 * every top-level media folder is named in ``CREDITS.md``;
 * every file that a license notice puts under an attribution license (a block
   linking ``licenses/by/`` or ``licenses/by-sa/``, or naming the license in
-  words: "CC-BY", "CC BY", "Attribution 4.0") is named in the
+  words: "CC-BY", "CC BY", "OGA-BY", "Attribution 4.0") is named in the
   "Attribution required" section of ``CREDITS.md``, and every file named there
   exists;
 * the code license: ``LICENSE`` is MIT and ``pyproject.toml`` declares it.
@@ -43,8 +43,10 @@ _MEDIA_NAME = re.compile(r"(?<![\w\-+@./])[\w\-+@]+\.(?:%s)\b"
 # A link or the license's name: Freesound notices say "License: Attribution
 # 4.0" with no link (fx3.wav once slipped past a link-only check). A CC-BY file
 # sharing a block with CC0 files flags them all; split the block with "---".
+# OGA-BY (OpenGameArt's CC-BY without the DRM clause) needs credit too: the
+# mountains/ CraftPix files once named only "OGA-BY 3.0".
 _ATTRIBUTION = re.compile(r"creativecommons\.org/licenses/by(?:-sa)?/"
-                          r"|\bCC[- ]BY\b|\bAttribution(?:-ShareAlike)?\s+\d")
+                          r"|\b(?:CC|OGA)[- ]BY\b|\bAttribution(?:-ShareAlike)?\s+\d")
 
 
 def _media_dirs():
@@ -113,6 +115,7 @@ class TestMediaLicenses(unittest.TestCase):
     def test_attribution_pattern_reads_unlinked_notices(self):
         for text in ("License: Attribution 4.0", "Licensed under CC BY 4.0",
                      "CC-BY-SA 3.0", "Attribution-ShareAlike 3.0 Unported",
+                     "OGA-BY 3.0", "https://static.opengameart.org/OGA-BY-3.0.txt",
                      "https://creativecommons.org/licenses/by/3.0/"):
             self.assertRegex(text, _ATTRIBUTION)
         for text in ("License: Creative Commons 0", "Credit optional",

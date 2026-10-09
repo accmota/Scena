@@ -1,24 +1,30 @@
-Copyright/Attribution Notice: 
+Copyright/Attribution Notice:
 
-
-1) Mountains
+1) Mountains: mountains1.png, mountains2.png, mountains3.png, mountains4.png
    "Multilayer scroll backgrounds", by Vircon32 (Carra). Published at OpenGameArt under license CC-BY 4.0.
    https://opengameart.org/content/multilayer-scroll-backgrounds
+   https://creativecommons.org/licenses/by/4.0/
 
-2) Grass
+---
+
+2) Grass: grass.png
    OGA-BY 3.0
    Author: CraftPix.net 2D Game Assets
    https://opengameart.org/content/summer-pixel-art-seamless-background
+   https://static.opengameart.org/OGA-BY-3.0.txt
 
+---
 
-3) Clouds and Vegetation
+3) Clouds and Vegetation: clouds.png, vegetation_a.png
    OGA-BY 3.0
    Author: CraftPix.net 2D Game Assets
    https://opengameart.org/content/simple-natural-landscape-pixel-art-background
+   https://static.opengameart.org/OGA-BY-3.0.txt
 
-   
+   vegetation_a.png is the pack's vegetation layer, renamed.
+
    Derived files (same author and license; modified for Scena):
-   - vegetation-no-trees.png: vegetation.png with the two tall trees removed.
+   - vegetation_b.png: vegetation_a.png with the two tall trees removed.
    - clouds-bank.png: clouds.png with the tall cumulus replaced by the low cloud
      bank, rebuilt from the image's own pixels.
    - clouds-low.png: clouds-bank.png with the original cumulus set lower and

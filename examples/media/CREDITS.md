@@ -48,6 +48,34 @@ files must be released under CC BY-SA 3.0 (or a compatible license). A game
 that just plays the files is a collection, not an adaptation, so the game's
 code and its other assets keep their own licenses.
 
+### `backgrounds/mountains/mountains1.png`, `backgrounds/mountains/mountains2.png`, `backgrounds/mountains/mountains3.png`, `backgrounds/mountains/mountains4.png`: CC-BY 4.0
+
+```
+"Multilayer scroll backgrounds" by Vircon32 (Carra)
+https://opengameart.org/content/multilayer-scroll-backgrounds
+Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+```
+
+### `backgrounds/mountains/grass.png`: OGA-BY 3.0
+
+```
+Grass background by CraftPix.net 2D Game Assets
+https://opengameart.org/content/summer-pixel-art-seamless-background
+Licensed under OGA-BY 3.0: https://static.opengameart.org/OGA-BY-3.0.txt
+```
+
+### `backgrounds/mountains/clouds.png`, `backgrounds/mountains/clouds-bank.png`, `backgrounds/mountains/clouds-low.png`, `backgrounds/mountains/vegetation_a.png`, `backgrounds/mountains/vegetation_b.png`: OGA-BY 3.0
+
+```
+Clouds and vegetation by CraftPix.net 2D Game Assets
+https://opengameart.org/content/simple-natural-landscape-pixel-art-background
+Licensed under OGA-BY 3.0: https://static.opengameart.org/OGA-BY-3.0.txt
+clouds-bank.png, clouds-low.png and vegetation_b.png modified for Scena.
+```
+
+OGA-BY 3.0 is CC BY 3.0 without the clause against DRM: the same credit
+rules apply.
+
 ## CC0 (no conditions)
 
 CC0 is a public-domain dedication: copy, modify, redistribute and sell, with
@@ -56,7 +84,7 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | Folder / files | Author | Source |
 |---|---|---|
 | `images/` | André Mota (generated with Midjourney) | this repository; see `images/license.txt` |
-| `backgrounds/country/`, `backgrounds/mountains/` | Luis Zuno (@ansimuz) | https://ansimuz.com; see each folder's `license.txt` |
+| `backgrounds/kn/` | Kenney | https://www.kenney.nl ("Background Elements") |
 | `textures/` (numbered `.jpg`) | rubberduck | https://opengameart.org/content/50-free-textures-5-with-normalmaps |
 | `textures/Brick_*.png` | Cethiel | https://opengameart.org/content/tileable-brick-ground-textures-set-2 |
 | `k-rolling-ball/` | Kenney | https://www.kenney.nl ("Rolling Ball Assets") |
