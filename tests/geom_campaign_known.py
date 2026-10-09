@@ -100,3 +100,23 @@ COPY_LAWS = {
 
 # Influence matrix (test_geom_influence): "kind | input | detail".
 INFLUENCE = {}
+
+# Value edges through every path (test_geom_values): "kind | field | path [vs =] | detail".
+VALUES = {
+    "* | * | link vs = | ok vs refused":
+        "GX14: a link pull accepts a bool that = refuses; phase 7",
+    "* | * | link | not an author error":
+        "GX14: a link pull leaks OverflowError for a huge int; phase 7",
+    "* | vec | * | stores a non-finite value":
+        "GX15: a shape's vec part stores inf (the Vec2 takein skips the Numbers rule); phase 7",
+    "* | vec | * | not an author error": "GX15: a huge int leaks OverflowError; phase 7",
+    "* | vec | * vs = | stores another value": "GX15: a stored inf draws NaN geometry; phase 7",
+    "Line * | vec | * | refusal changed *": "GX15: a Line refuses vec=(0, inf) after moving its center; phase 7",
+}
+
+# A linked field whose source turns bad (test_geom_values.TestLinkSourceTurnsBad).
+BAD_SOURCE = {
+    "bad source | * <- True: accepted": "GX14; phase 7",
+    "bad source | * <- 1000000000000000000000*: accepted": "GX14 (a huge int through a pull); phase 7",
+    "bad source | * <- 1000000000000000000000*: OverflowError is not an author error": "GX14; phase 7",
+}

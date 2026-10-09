@@ -405,6 +405,9 @@ class TestAllowlistsCarryReasons(unittest.TestCase):
             "geom_campaign_known.SENTINEL": KNOWN.SENTINEL,
             "geom_campaign_known.LAWS": KNOWN.LAWS,
             "geom_campaign_known.COPY_LAWS": KNOWN.COPY_LAWS,
+            "geom_campaign_known.INFLUENCE": KNOWN.INFLUENCE,
+            "geom_campaign_known.VALUES": KNOWN.VALUES,
+            "geom_campaign_known.BAD_SOURCE": KNOWN.BAD_SOURCE,
             "TestPoseVerbsNotifyOnce.ALLOWED": TestPoseVerbsNotifyOnce.ALLOWED,
             "TestModelAdoptedBeforeWrites.NOT_MULTI_MODEL": TestModelAdoptedBeforeWrites.NOT_MULTI_MODEL,
         }
