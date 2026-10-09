@@ -6885,6 +6885,7 @@ def on_mouse_scroll(xoffset, yoffset):
       <details class="spec">
       <summary>Em @= (reativo)</summary>
         <p class="one-liner"><code>mouse</code> é reativo (como <code>clock</code> / <code>keyp</code>). O ponteiro inteiro liga direto (<code>center @= mouse</code>). <code>.x</code> / <code>.y</code> / <code>.press</code> são propriedades — nomeie <code>mouse</code> num <code>lambda</code>. Mesma regra que o teclado: segurando (nível) vale; “acabou de apertar” não.</p>
+        <p class="one-liner"><code>canvas</code> também é reativo: <code>lambda: canvas.game_view.center</code>, <code>lambda: canvas.zoom</code> ou <code>lambda: canvas.layers["fundo"].view.left</code> seguem cada movimento da câmera e cada rolagem de camada (<code>canvas.ui_view</code> só muda com <code>init</code>).</p>
         <div class="code-panel">
           <button class="copy-btn" type="button">copiar</button>
 <pre>cursor["center"] @= mouse

@@ -51,7 +51,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from hypothesis_support import quiet, registry  # noqa: E402
 from surface_support import CURSOR_KEYS, census_diff, reset_background_base, surface_census  # noqa: E402
-from system_support import FRAME, SystemWorld  # noqa: E402
+from system_support import FRAME, SystemWorld, reset_world_settings  # noqa: E402
 
 import glfw  # noqa: E402
 import scena  # noqa: E402
@@ -461,6 +461,10 @@ class ProgramRun:
         # Tier C: run rewritten source as if it were the program file (same
         # path for media, cwd and made_at).
         self.source = source
+        # Metamorphic oracles: a callable run after the world reset and before
+        # the program's first line (a camera move, a clock scale), as if the
+        # process had started that way.
+        self.prelude: Optional[Callable[["ProgramRun"], None]] = None
         self.trace = Trace()
         self.trace.params = dict(self.params)
         self.ns: Dict[str, Any] = {}
@@ -502,7 +506,6 @@ class ProgramRun:
         # program per process in real use, so each run starts from the names
         # known before it and gives back the ones it taught.
         self._groups_before = (set(reg._group_gen), set(reg._declared_groups))
-        self._bg_before = list(getattr(fw.background_stack, "_items", ()))
         # A fresh keyboard and mouse: nothing held or pending from before.
         fw.keys._pressed_keys.clear()
         fw.keys._pending_edges.clear()
@@ -537,6 +540,13 @@ class ProgramRun:
         # until a spec read it on the frame before the program set its own).
         from scena.act import WORLD_SETTINGS
         self._settings_before = [(w, w.snapshot()) for w in WORLD_SETTINGS]
+        # ... and start from the framework defaults, as a fresh process would:
+        # a playfield pad or paint default another suite left is not this
+        # program's world (test_prog_isolation, dirty predecessors).
+        reset_world_settings()
+        # Given back at close: the pointer and the design size (init()).
+        self._pointer_before = (fw.mouse._x, fw.mouse._y)
+        self._size_before = (fw.design_width, fw.design_height)
         self.census_before = surface_census()
         ss = get_scena_system()
         self._graph_before = set(ss.dependency_graph.nodes) if ss is not None else set()
@@ -599,6 +609,8 @@ class ProgramRun:
                 cwd = media
             mod.__file__ = exec_path
         os.chdir(cwd)
+        if self.prelude is not None:
+            self.prelude(self)
         code = compile(source, exec_path, "exec")
         self.ns = mod.__dict__
         exec(code, self.ns)
@@ -633,27 +645,22 @@ class ProgramRun:
                             scena.st.remove(k)
                         except Exception:
                             pass
+                # The program's world settings go (framework defaults, as at
+                # start); what the process had before the run comes back
+                # after the census below, so a restored value is never
+                # counted as a leftover.
                 with quiet():
-                    for w, value in getattr(self, "_settings_before", ()):
-                        try:
-                            w.restore(value)
-                        except Exception:
-                            pass
-                # (the background base is a world setting: restored above)
-                stack = self.world.fw.background_stack
-                with quiet():
-                    for item in list(getattr(stack, "_items", ())):
-                        if item not in self._bg_before:
-                            try:
-                                item.remove()
-                            except Exception:
-                                pass
+                    reset_world_settings()
                 reg = registry()
                 gen, declared = self._groups_before
                 for name in set(reg._group_gen) - gen:
                     if name not in reg.group_map:
                         del reg._group_gen[name]
                 reg._declared_groups.intersection_update(declared | set(reg.group_map))
+                fw = self.world.fw
+                fw.mouse._sync_position(*self._pointer_before)
+                if (fw.design_width, fw.design_height) != self._size_before:
+                    fw.bootstrap(width=self._size_before[0], height=self._size_before[1])
         finally:
             had_world = self.world is not None
             for p in self._patches:
@@ -679,6 +686,12 @@ class ProgramRun:
             # gone, so a value it still referenced (a Box and its Points) is
             # not counted as a leak.
             self.census_after = surface_census()
+            with quiet():
+                for w, value in getattr(self, "_settings_before", ()):
+                    try:
+                        w.restore(value)
+                    except Exception:
+                        pass
             # A Box is a value (canvas.game_view builds one per read); its
             # named Points sit in the live roster while any cache still holds
             # the Box. Not something the program made and failed to destroy.
@@ -778,8 +791,15 @@ class ProgramRun:
         self._pending.append(("cell", (path, value)))
 
     def widget(self, label: str):
+        """The one live, active widget labelled ``label``.
+
+        A widget another module left behind is parked by the ``SystemWorld``
+        quarantine (``active = False``) and cannot be clicked, so it does not
+        make the label ambiguous (test_prog_isolation, ``stale_widget``).
+        """
         hits = [w for w in self.world.fw.widget_manager.widgets
-                if getattr(w, "label", None) == label]
+                if getattr(w, "label", None) == label
+                and getattr(w, "is_alive", True) and getattr(w, "active", True)]
         if len(hits) != 1:
             raise AssertionError(f"{len(hits)} widgets labelled {label!r}")
         return hits[0]
@@ -789,7 +809,8 @@ class ProgramRun:
         option ``label`` of an open Menu (view units)."""
         from scena.menu import Menu
         wm = self.world.fw.widget_manager
-        if not any(getattr(w, "label", None) == label for w in wm.widgets):
+        if not any(getattr(w, "label", None) == label and getattr(w, "active", True)
+                   for w in wm.widgets):
             for m in wm.widgets:
                 if isinstance(m, Menu) and label in m._labels:
                     m._sync_anchor()

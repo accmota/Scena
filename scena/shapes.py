@@ -1844,7 +1844,10 @@ class Shape(Graphic, PaintState):
 
     @on_hover.setter
     def on_hover(self, value) -> None:
-        self._on_hover = _check_pointer_handler(value, ("shape",), what="on_hover")
+        value = _check_pointer_handler(value, ("shape",), what="on_hover")
+        if value is not None:
+            self._reject_if_parallax_layer("on_hover")
+        self._on_hover = value
         self._sync_interactive_registry()
 
     @property
@@ -1854,8 +1857,10 @@ class Shape(Graphic, PaintState):
 
     @on_hover_exit.setter
     def on_hover_exit(self, value) -> None:
-        self._on_hover_exit = _check_pointer_handler(
-            value, ("shape",), what="on_hover_exit")
+        value = _check_pointer_handler(value, ("shape",), what="on_hover_exit")
+        if value is not None:
+            self._reject_if_parallax_layer("on_hover_exit")
+        self._on_hover_exit = value
         self._sync_interactive_registry()
 
     def _no_click(self) -> 'Shape':

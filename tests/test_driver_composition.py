@@ -139,6 +139,11 @@ DRIVERS = {
     "move_along": ("center", _move_along),
     "resolve": ("center", _resolve),
 }
+# Not drivers (interaction campaign, class 9): ``confine``, a teleport in a
+# leave handler, an Endless piece's or a Level item's placement are instant
+# writes — a pair with a formula depends on order by design (the write refuses
+# a linked part: TestLinkWriteGate), and they claim nothing afterwards. A timed
+# camera pan reads a body; it writes none.
 
 
 class TestOrderIndependence(DriverCase):

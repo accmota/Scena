@@ -103,6 +103,37 @@ class TestGuardsInteractive(ParallaxTestCase):
             c.on_collide = fn
         self.assertIsNone(c._collider)
 
+    def test_on_hover_raises_and_a_hover_shape_cannot_move_in(self):
+        """Hover is pointer interaction (interaction campaign, class 10)."""
+        canvas.layers.create("bg", pan_response=0.4)
+        c = self.track(Circle(center=(0, 0), radius=10, layer="bg"))
+        for name in ("on_hover", "on_hover_exit"):
+            with self.subTest(flag=name):
+                with self.assertRaises(ParallaxLayerError):
+                    setattr(c, name, lambda shape: None)
+                self.assertIsNone(getattr(c, name))
+        self.assertNotIn(c, _registry().layers["bg"]._interactive)
+        d = self.track(Circle(center=(0, 0), radius=10))
+        d.on_hover = lambda shape: None
+        with self.assertRaises(ParallaxLayerError):
+            d.layer = "bg"
+        self.assertEqual(d.layer, "default")
+
+    def test_leave_playfield_never_fires_for_a_parallax_item(self):
+        """Decoration moves with its layer: a leave edge would be meaningless
+        (documented in Canvas Design, parallax-layer invariant)."""
+        from scena import leave_playfield
+        from scena.bounds import get_bounds_system
+        canvas.layers.create("bg", pan_response=0.4)
+        fired = []
+        leave_playfield("deco")(lambda item: fired.append(item))
+        c = self.track(Circle(center=(0, 0), radius=10, layer="bg", group="deco"))
+        get_bounds_system().step()
+        c.move_to(99999, 0)
+        get_bounds_system().step()
+        get_bounds_system().step()
+        self.assertEqual(fired, [])
+
     def test_point_handle_raises(self):
         canvas.layers.create("bg", pan_response=0.4)
         p = self.track(Point(1, 2, layer="bg"))

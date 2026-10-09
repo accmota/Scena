@@ -333,6 +333,14 @@ class WidgetManager:
         for button, ev in list(self.mouse_down_widget_by_button.items()):
             if ev.widget is widget:
                 self.mouse_down_widget_by_button[button] = ev._replace(widget=None)
+        if self.last_click is not None and self.last_click.widget is widget:
+            self.last_click = None                       # HD4: no double click on a dead widget
+        # A menu closed by any destroy path (an act change, a layer drain, a
+        # group destroy) settles here, not only in ``Menu.destroy`` (HD5).
+        settle = getattr(widget, "_settle_on_remove", None)
+        if settle is not None:
+            settle()
+        self.note_menu_closed(widget)
         if self.modal_widget is widget:
             self.release_modal(widget)
 

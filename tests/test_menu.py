@@ -586,5 +586,28 @@ class MenuBackgroundTest(unittest.TestCase):
         self.assertAlmostEqual(got.fB, want.fB, places=4)
 
 
+
+class TestRegistryDestroySettlesTheMenu(MenuTest):
+    """HD5 (Testing Design, HD): every destroy path (an act change, a layer
+    drain, a group destroy go through ``registry.destroy``, not
+    ``Menu.destroy``) closes the menu: chrome, modal mask, pause, handle."""
+
+    def test_registry_destroy_closes_a_modal_paused_menu(self):
+        from scena.canvas import ScenaCanvas
+        menu = Menu(options=["um", "dois"], on_choose=lambda v: None, pause=True)
+        self.assertIs(self.wm._open_modal_menu, menu)
+        self.assertTrue(self.clock.paused)
+        ScenaCanvas.get_current().registry.destroy(menu)
+        self.assertFalse(menu.is_alive)
+        self.assertIsNone(self.wm._open_modal_menu)
+        self.assertIsNone(self.wm.modal_widget)
+        self.assertFalse(self.keys._input_masked)
+        self.assertFalse(self.clock.paused)
+        h = menu._choice_handle
+        self.assertTrue(h._done or h._cancelled)
+        again = self.track(Menu(options=["x"], on_choose=lambda v: None))   # no "already open"
+        self.assertIs(self.wm._open_modal_menu, again)
+
+
 if __name__ == "__main__":
     unittest.main()

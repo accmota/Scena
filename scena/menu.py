@@ -262,12 +262,18 @@ class Menu(UIWidget):
             else:
                 callback(value)
 
-    def destroy(self):
-        """Close the menu now. An ``await menu`` gets ``None`` (no choice). Safe to call twice."""
+    def _settle_on_remove(self) -> None:
+        """Close with no choice: chrome, modal mask, clock pause and the
+        ``await`` handle. Runs from every destroy path (the widget manager
+        calls it when the widget is unregistered); safe to call twice."""
         if not getattr(self, "_settled", False):
             self._settled = True
             self._close_chrome()
             self._complete_handle(None)
+
+    def destroy(self):
+        """Close the menu now. An ``await menu`` gets ``None`` (no choice). Safe to call twice."""
+        self._settle_on_remove()
         if not self.is_alive:
             return self
         return super().destroy()

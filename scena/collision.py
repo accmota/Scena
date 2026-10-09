@@ -3962,6 +3962,10 @@ class CollisionSystem:
         # Script-level ``@collide`` entries made after the top level ended
         # (inside an act): removed on an act change (``drop_act_pair_handlers``).
         self._act_pair_handlers: List[Tuple[Any, Any, Callable, str]] = []
+        # ``resolve`` pairs at the seal (``run()`` ended the top level): an act
+        # change puts them back (``restore_sealed_resolve_pairs``). Owned here
+        # so a destroyed side leaves it like every other pair list (HD2).
+        self._sealed_resolve_pairs: Optional[List[Tuple[Any, Any, Any, Any]]] = None
         # Standing resolve pairs: (target_a, target_b, bounce_token, only)
         # bounce_token is _RESOLVE_POSITION_ONLY or a float restitution.
         # only is None (every side blocks), a frozenset of target_a's sides,
@@ -4641,35 +4645,53 @@ class CollisionSystem:
             return side._host_ref() is identity
         return False
 
+    def seal_resolve_pairs(self) -> None:
+        """Remember the ``resolve`` pairs of the game (the act manager's seal)."""
+        self._sealed_resolve_pairs = list(self._resolve_pairs)
+
+    def restore_sealed_resolve_pairs(self) -> None:
+        """An act change: the game's ``resolve`` pairs come back, the act's go."""
+        _restore_resolve_pairs(self._sealed_resolve_pairs or [])
+
+    def _prune_dead_side(self, identity, entries: list, *, swap: bool) -> bool:
+        """Drop every entry of ``entries`` (tuples whose first two items are
+        pair sides) with ``identity`` as a side, and ``identity`` out of every
+        group-operator snapshot side (``group["a"] | group["b"]`` copies its
+        members at the call: HD1). Returns True when an entry went."""
+        dropped = False
+        i = 0
+        while i < len(entries):
+            a, b = entries[i][0], entries[i][1]
+            if self._side_is_identity(a, identity) or self._side_is_identity(b, identity):
+                if swap:
+                    last = entries.pop()
+                    if i != len(entries):
+                        entries[i] = last
+                else:
+                    del entries[i]
+                dropped = True
+                continue
+            for side in (a, b):
+                snap = getattr(side, "_snapshot", None)
+                if snap and any(m is identity for m in snap):
+                    snap[:] = [m for m in snap if m is not identity]
+            i += 1
+        return dropped
+
     def drop_pair_handlers_for(self, identity) -> None:
-        """Swap-remove every pair handler whose left or right side *is* ``identity``.
+        """Remove ``identity`` from every pair list: a handler or ``resolve``
+        side (swap-removed), the act-level handler list, the sealed game
+        pairs, and every group-operator snapshot side.
 
         Tag × tag handlers are untouched. Object-literal ``@collide(player, …)``
         after ``player.destroy()`` must not linger (leak + dead-target warnings).
         """
+        self._prune_dead_side(identity, self._act_pair_handlers, swap=False)
+        if self._sealed_resolve_pairs:
+            self._prune_dead_side(identity, self._sealed_resolve_pairs, swap=False)
         lst = self._pair_handlers
-        i = 0
-        dropped = False
-        while i < len(lst):
-            a, b, _cb, _phase = lst[i]
-            if self._side_is_identity(a, identity) or self._side_is_identity(b, identity):
-                last = lst.pop()
-                if i != len(lst):
-                    lst[i] = last
-                dropped = True
-                continue
-            i += 1
-        i = 0
-        resolve_changed = False
-        while i < len(self._resolve_pairs):
-            a, b, _tok, _only = self._resolve_pairs[i]
-            if self._side_is_identity(a, identity) or self._side_is_identity(b, identity):
-                last = self._resolve_pairs.pop()
-                if i != len(self._resolve_pairs):
-                    self._resolve_pairs[i] = last
-                resolve_changed = True
-                continue
-            i += 1
+        dropped = self._prune_dead_side(identity, lst, swap=True)
+        resolve_changed = self._prune_dead_side(identity, self._resolve_pairs, swap=True)
         if dropped or resolve_changed:
             # The other side of each dropped pair holds ``identity`` in its
             # ``_pair_targets`` (``@collide_with("wall")`` on a bullet puts the

@@ -71,6 +71,10 @@ SLOW = frozenset({
     # Program model tests (gate / deep run them all; quick keeps the light ones).
     "test_prog_naves", "test_prog_cadeia_de_bolas", "test_prog_platformer",
     "test_prog_galaga_acts", "test_prog_runner_story",
+    "test_prog_isolation",       # ~35 s dev: every program after a neighbour and after
+                                 # dirty predecessors; ci runs every ordered pair
+    "test_prog_invariance",      # ~30 s dev: camera, time-scale and layer-rename oracles
+                                 # over every program; ci runs every scenario and camera
 })
 # Modules sharded by TestCase class (big classes in chunks) in gate / deep.
 SPLIT = frozenset({"test_hyp_surface"})

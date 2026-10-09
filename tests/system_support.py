@@ -153,6 +153,34 @@ def reset_system_globals() -> None:
     _reset_act_manager()
 
 
+def reset_world_settings() -> None:
+    """Every world setting an act change restores (``act.WORLD_SETTINGS``) back
+    to the framework default, as a fresh process has it: camera, background
+    base and fields, post effects, playfield, clock, resolve, default layer,
+    paint defaults. ``ProgramRun`` starts from here (one program per process
+    in real use); guard: ``test_prog_isolation.TestResetWorldSettings``.
+    """
+    from scena.style import PaintState
+    fw = ScenaFramework.get_instance()
+    canvas.reset_view()
+    bs = fw.background_stack
+    bs.reset_base()
+    bs.clear()
+    bs.enabled = True
+    canvas.effects.clear()
+    fw.post_fx_stack.enabled = True
+    pf = canvas.playfield
+    pf._pad = 0.25
+    pf._explicit = None
+    clock.scale = 1.0
+    clock.paused = False
+    get_collision_system().resolve_enabled = True
+    layers = registry().layers
+    if "default" in layers:
+        layers.default = "default"
+    PaintState._reset_defaults()
+
+
 class SystemWorld(WorldTracker):
     """A headless world that steps real frames.
 
@@ -322,6 +350,15 @@ def full_collect(max_passes: int = 6) -> None:
             return
 
 
+def all_layers(sc) -> List[Any]:
+    """Every layer of the registry, drawn or not (hidden layers and ``ui``)."""
+    stack = sc.layers
+    layers = getattr(stack, "_layers", None)
+    if isinstance(layers, dict):
+        return list(layers.values())
+    return list(stack.iter_draw_order())
+
+
 def census(*, collect: bool = True) -> Dict[str, int]:
     """Sizes of every holder. Compare two censuses with ``diff_census``."""
     if collect:
@@ -363,8 +400,11 @@ def census(*, collect: bool = True) -> Dict[str, int]:
     out["registry.group_formulas"] = _len(getattr(sc, "_group_formulas", ()))
     # Live draw entries only: tombstones (``None`` holes) are compacted lazily,
     # so the raw list length may go either way; ``draw_slots`` reports it.
+    # Every layer, hidden ones and ``ui`` included: ``iter_draw_order`` skips
+    # them, which hid their objects from the census and from ``zombies()``
+    # (interaction campaign, class 2).
     live = 0
-    for layer in sc.layers.iter_draw_order():
+    for layer in all_layers(sc):
         live += sum(1 for o in layer._objects if o is not None)
     out["registry.draw_live"] = live
     out["fx.transient_shapes"] = _len(_transients._active_shapes)
@@ -385,7 +425,7 @@ def census(*, collect: bool = True) -> Dict[str, int]:
 
 def draw_slots() -> int:
     """Raw draw-list length incl. tombstones (bounded, not baseline-exact)."""
-    return sum(len(layer._objects) for layer in registry().layers.iter_draw_order())
+    return sum(len(layer._objects) for layer in all_layers(registry()))
 
 
 def diff_census(before: Dict[str, int], after: Dict[str, int],
@@ -480,7 +520,7 @@ def zombies(ignore: Iterable[int] = ()) -> List[Tuple[str, Any]]:
     for g, members in sc.group_map.items():
         for obj in list(members):
             check(f"registry.group[{g}]", obj)
-    for layer in sc.layers.iter_draw_order():
+    for layer in all_layers(sc):
         for obj in layer._objects:
             check(f"registry.layer[{layer.name}]", obj)
     for obj in list(_transients._active_shapes):

@@ -119,7 +119,6 @@ class ActManager:
         self._game_leave: dict = {}
         self._game_ready_keys: frozenset = frozenset()
         self._game_recently_keys: frozenset = frozenset()
-        self._game_resolve_pairs: List[Any] = []
         from .process import _set_top_level_ended
         _set_top_level_ended(False)
 
@@ -140,7 +139,7 @@ class ActManager:
         self._game_recently_keys = frozenset(getattr(recently, "_slots", {}) or ())
         from .collision import get_collision_system
         from .process import _set_top_level_ended
-        self._game_resolve_pairs = list(get_collision_system()._resolve_pairs)
+        get_collision_system().seal_resolve_pairs()
         self.act_mode = bool(act_mode)
         self.sealed = True
         _set_top_level_ended(True)
@@ -277,13 +276,13 @@ class ActManager:
         made after the seal. Runs after the entity drain, so work an
         ``on_destroy`` started (a bare ``after``) goes too."""
         from .bounds import get_bounds_system
-        from .collision import _restore_resolve_pairs, get_collision_system
+        from .collision import get_collision_system
         from .events import get_global_event_system
         from .process import SCOPE_ACT, get_scheduler
         get_scheduler().cancel_ownerless(SCOPE_ACT, release=True)
         get_global_event_system().drop_act_owned()
         get_collision_system().drop_act_pair_handlers()
-        _restore_resolve_pairs(self._game_resolve_pairs)
+        get_collision_system().restore_sealed_resolve_pairs()
         fw = _framework()
         hit = fw.post_fx_stack._hit if fw is not None else None
         if hit is not None:

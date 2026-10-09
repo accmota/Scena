@@ -1245,5 +1245,105 @@ class TestFilteredPaintCache(CanvasTestCase):
         self.assertIsNotNone(restored.getImageFilter())
 
 
+
+class TestCanvasIsAFormulaSource(CanvasTestCase):
+    """RX1 (Testing Design, interaction campaign class 8): ``canvas`` is a
+    formula source like ``mouse`` / ``clock``. A formula that reads the
+    camera, ``game_view`` or a layer's ``view`` follows every camera move and
+    every scroll; a measured Box met in the chain is a value, not the source
+    (``state._is_durable_source``), so nothing throwaway joins the graph."""
+
+    def setUp(self):
+        super().setUp()
+        self._owned = []
+
+    def tearDown(self):
+        for o in self._owned:
+            try:
+                o.destroy()
+            except Exception:
+                pass
+        canvas.reset_view()
+        if "rx_bg" in canvas.layers:
+            canvas.layers["rx_bg"].delete(destroy_shapes=True)
+        super().tearDown()
+
+    def track(self, o):
+        self._owned.append(o)
+        return o
+
+    def _view_center(self):
+        vb = canvas._engine.visible_bounds
+        return ((vb.left + vb.right) / 2.0, (vb.bottom + vb.top) / 2.0)
+
+    def test_game_view_center_follows_every_camera_move(self):
+        c = self.track(Circle(center=(0, 0), radius=5))
+        c["center"] @= (lambda: canvas.game_view.center)
+        for name, move in (("zoom", lambda: canvas.zoom_to(2.0)),
+                           ("pan", lambda: canvas.pan_by(70.0, -30.0)),
+                           ("rotate", lambda: canvas.rotate_to(25.0)),
+                           ("origin", lambda: canvas.set_origin("center")),
+                           ("reset", lambda: canvas.reset_view())):
+            with self.subTest(move=name):
+                move()
+                want = self._view_center()
+                self.assertAlmostPoint((float(c.center.x), float(c.center.y)), *want, places=4)
+
+    def test_camera_scalars_follow(self):
+        r = self.track(Rect(center=(0, 0), width=10, height=10))
+        r["width"] @= (lambda: canvas.game_view.width * 0.5)
+        r["angle"] @= (lambda: canvas.rotation + 1.0)
+        canvas.zoom_to(2.0)
+        vb = canvas._engine.visible_bounds
+        self.assertAlmostEqual(float(r.width), (vb.right - vb.left) * 0.5, places=4)
+        canvas.rotate_to(30.0)
+        self.assertAlmostEqual(float(r.angle), 31.0, places=6)
+
+    def test_layer_view_follows_scroll_and_camera(self):
+        canvas.layers.create("rx_bg", pan_response=0.4, scroll=(-40.0, 0.0), below="default")
+        p = self.track(Point(0, 0))
+        p["x"] @= (lambda: canvas.layers["rx_bg"].view.left)
+        canvas._engine.advance_layer_scroll(0.0)       # the scroll's time origin
+        before = float(p.x)
+        canvas._engine.advance_layer_scroll(0.5)
+        after_scroll = float(p.x)
+        self.assertNotAlmostEqual(before, after_scroll, places=3)
+        self.assertAlmostEqual(after_scroll, float(canvas.layers["rx_bg"].view.left), places=4)
+        canvas.pan_by(100.0, 0.0)
+        self.assertAlmostEqual(float(p.x), float(canvas.layers["rx_bg"].view.left), places=4)
+
+    def test_ui_view_formula_is_accepted_and_camera_immune(self):
+        p = self.track(Point(0, 0))
+        p["x"] @= (lambda: canvas.ui_view.right)
+        canvas.zoom_to(3.0)
+        canvas.pan_by(200.0, 0.0)
+        self.assertAlmostEqual(float(p.x), float(canvas.width), places=6)
+
+    def test_a_graphic_box_formula_follows_the_graphic(self):
+        r = self.track(Rect(center=(0, 0), width=10, height=10))
+        p = self.track(Point(0, 0))
+        p["x"] @= (lambda: r.box.right)
+        r.move_by(25.0, 0.0)
+        self.assertAlmostEqual(float(p.x), 30.0, places=6)
+
+    def test_nothing_throwaway_joins_the_graph(self):
+        import gc
+        from scena.state import get_scena_system
+        c = self.track(Circle(center=(0, 0), radius=5))
+        c["center"] @= (lambda: canvas.game_view.center)
+        canvas.zoom_to(1.5)
+        float(c.center.x)
+        gc.disable()
+        try:
+            nodes = get_scena_system().dependency_graph.nodes
+            n0 = len(nodes)
+            for _ in range(30):
+                canvas.pan_by(1.0, 0.0)
+                float(c.center.x)
+            self.assertEqual(len(nodes), n0, "camera pulls joined throwaway Boxes into the graph")
+        finally:
+            gc.enable()
+
+
 if __name__ == '__main__':
     unittest.main()

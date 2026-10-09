@@ -20,6 +20,7 @@ strategy, the rules, and the bug catalogue.
 | Why the rules are what they are | [Lessons learned](#lessons-learned) |
 | Planning a new test: axes, oracle, invariants, layers | [Lessons for test planning](#lessons-for-test-planning) |
 | Geometry hardening: axes, shadow oracle, sentinel, laws, fuzzer | [Geometry campaign](#geometry-campaign) |
+| Bugs between subsystems: the seams, the matrices, what is still missing | [Interaction campaign](#interaction-campaign) |
 
 Tests follow `tests/test_<area>.py`. The property / system suites are `test_hyp_*`,
 `test_sys_*`, `test_diff_*` (fast vs slow paths). Regression tests for a
@@ -76,9 +77,18 @@ Rules of thumb:
 | `tests/test_write_path_guards.py` | Static guards (AST) on the write paths: raw `__dict__` stores of a field, `_dirty` writes, raw pose writes without a gate (`_pose_fast_ok` / `_requires_pull_invalidate` / `_link_source`), point readers that do not delegate to `_xy_of`. Each allowlist entry carries its reason; a stale entry fails too. Track A item 6; closes Track C item 5 (the write paths stay separate). |
 | `tests/geometry_support.py` | Geometry contract registry: `KINDS` (every Graphic kind × constructor model, plus Box, built from a pose dict `{x, y, s, r}`); `point_parts` (every Point slot, `points[k]`, Text parts, `.box` named points), `vector_parts`, `scalar_parts`, `drawn` (the point set that fixes the paint), transform oracles (`turned` / `scaled` / `mirrored`), `safe` (a read that raises becomes a recorded `ReadError`), `settle` (run timed verbs). Used by `test_geometry_contract.py`; known violations in `geometry_known.py` (shrink-only). |
 | `tests/program_support.py` | Program model harness: `ProgramRun(program, params, probes=)` runs `tests/programs/<name>.py` in a `SystemWorld` (`run()` replaced by the startup it does; `PARAMS` / `mark()` injected), feeds input through the real GLFW handlers **inside the frame's poll** (`key_down` / `press` / `move` / `scroll` / `set_cell`, `widget_center(label)`), samples author-level probes after every frame into a `Trace`, and on `close()` destroys what the program made (census back to `census_before`: `leftovers()`). Spec vocabulary: `Scenario`, step builders (`wait`, `click_widget`, `key`, `drag`, `set_cell`, …), `Expect`, `serial(obj)` (per-run identity), checks (`always`, `never`, `at`, `at_end`, `eventually`, `steady`, `custom`). `program_test_case(...)` builds a test module. |
-| `tests/program_oracles.py` | L3 oracles over whole programs: `replay`, `probe_neutral` (probes do not change the world), `dt_split` (dt/2, twice the frames), `reactive_config` (lazy + backstop vs eager + strong), `cull_pixels`, `teardown` (census + zombies). Tier C: `tier_c` re-runs a rewritten program (`TIER_C`: `rename_groups` — every group name suffixed; `reorder_defs` — runs of undecorated defs reversed) and requires the same world (`world_fingerprint` minus `made_at`). |
+| `tests/program_oracles.py` | L3 oracles over whole programs: `replay`, `probe_neutral` (probes do not change the world), `dt_split` (dt/2, twice the frames), `reactive_config` (lazy + backstop vs eager + strong), `cull_pixels`, `teardown` (census + zombies). Tier C: `tier_c` re-runs a rewritten program (`TIER_C`: `rename_groups` — every group name suffixed; `reorder_defs` — runs of undecorated defs reversed; `rename_layers` — every author layer name suffixed) and requires the same world (`world_fingerprint` minus `made_at`). Metamorphic ([Interaction campaign](#interaction-campaign), class 3): `camera_moved` (the camera set before the first line through `ProgramRun.prelude`: the same trace minus the probes that read the camera, the same world), `time_scaled` (`clock.scale = k`, frames of `dt / k`: the same trace). |
+| `tests/test_prog_invariance.py` | The metamorphic oracles over every program (exclusion tables with reasons: programs that place by the view or chase the mouse leave the camera oracle, a program that sets `clock.scale` leaves the time oracle), `rename_layers` on every program, canaries. `SLOW`. |
 | `tests/program_coverage.py` | Which exports the programs reach: a profile hook records calls from a program's own code into `scena` (and the class of `self` / `cls`, since exported constructors are wrapped), mapped onto `scena.__all__`; global objects by name in the source. Guard: `test_program_coverage` (every export reached or in `PROGRAM_EXCLUDED` / a look family; `SLOW`). |
 | `tests/program_ledger.py` | Open divergences (shrink-only), verdicts and cause codes. |
+| `tests/test_sys_holders.py` | Holder × ender ([Interaction campaign](#interaction-campaign), class 2): `scan(target)` (every engine path to an object, with its reference kind), `HOLDERS` classification guard, `Wired` subject, gone enders (no strong path may remain; `KEEPS` with reasons), partial enders (`EXPECT` per documented contract; `UNSETTLED` shrink-only), canaries (a pointer manager or a pair list that keeps a destroyed body). ~0.4 s. |
+| `tests/test_diff_pipeline.py` | Rendering composition pixel oracle ([Interaction campaign](#interaction-campaign), class 6): the brightest rastered pixel vs the transform chain, per display × camera × layer kind × post FX; canary. ~7 s. |
+| `tests/test_sys_pointer_pipeline.py` | Pointer pipeline under every transform ([Interaction campaign](#interaction-campaign), class 5): `Rig` (display, camera, the three targets, a cursor the GLFW handlers read), the forward map as oracle, the untransformed pixel as the not-vacuous check, precedence, canary (a pointer map that drops the letterbox pad). ~0.3 s. |
+| `tests/test_reactive_cross_matrix.py` | Reactive source × sink across subsystems ([Interaction campaign](#interaction-campaign), class 8): `SOURCES` (plain reader functions the formula checker follows, an install and a drive per source), `SINKS` (make a linked subject and a plain-write twin), three read points per frame × read order, the guard over every global on `scena.__all__`, `KNOWN` shrink-only, canary (a scalar link whose pull stores nothing). ~0.4 s. |
+| `tests/test_sys_art_contact.py` | Art change × trigger phase × contact frame (class 12): `TRIGGERS`, the strike cells read at draw time as the oracle. ~0.2 s. |
+| `tests/test_sys_error_sites.py` | Author error × callback site ([Interaction campaign](#interaction-campaign), class 7): `SITES` (every author callback armed to raise once), one recovery contract, `EXCUSED` and `KNOWN` tables, the coverage guard over `scena.__all__` and `on_*` attributes, canary (a batch left open). ~0.3 s. |
+| `tests/test_sys_phase_matrix.py` | Phase × mutation × observer ([Interaction campaign](#interaction-campaign), class 1): `PhaseClock` (the frame body's phase entry points patched to name the current phase), `Cell` (X over Y under the pointer, every observer wired, the mutation armed in one phase of frame N), the frame-order rule as oracle, `NOT_OBSERVED` reasons, `SYNCHRONOUS` mutations, `KNOWN` shrink-only, canaries (a hover step or a collision step that never runs). ~1 s. |
+| `tests/test_prog_isolation.py` | Program isolation ([Interaction campaign](#interaction-campaign), class 4): B after A reads like B alone for every ordered program pair (a chain at `dev`, every pair and every scenario at `ci`); B after a dirty process (`DIRTY`: live drawn shapes, shapes with work, a stale widget with B's own label, learned group names, a junk pointer with a held key, kept settings, every world setting); a run gives the process back (`process_snapshot`: world and kept settings, learned names, input, clock, census); `reset_world_settings` reaches every `WORLD_SETTINGS` row and the dirty cell changes every one; `KNOWN` shrink-only; canaries (a pointer reset dropped). `SLOW`. |
 | `tests/mutation_run.py`, `tests/mutation_ops.py`, `tests/mutant_site/` | Sampled mutation run (value metric): mutate engine lines a suite executes (`SCENA_MUTANT=<module>:<site>` through `sitecustomize`, `SCENA_HYPOTHESIS_DB=0`), compare kill sets of the program suite and the quick tier. `--pool-programs` fixes the sampled pool (the lines those programs execute), so two runs with one seed test the same mutants and the gain of added suites can be measured. From zsh, split a list held in a variable (`${=progs}`): an unquoted `$progs` is one argument, and the run stops at the control. Report in `.scena_test_runs/mutation/`. |
 | `tests/source_support.py` | `iter_files(root, *suffixes, recursive=, skip_dirs=)`: sorted real files, skipping OS metadata (`is_junk`: AppleDouble `._*`, `.DS_Store`, `Thumbs.db`, `desktop.ini`), hidden dirs and `__pycache__`. **Every directory scan in `tests/` uses it** (guard: `test_platform_portability.TestSourceScansUseTheHelper`). |
 | `tests/font_support.py` | `system_font_file()`: a monospace `.ttf` every OS installs (explicit candidate paths, no scan), for tests of `font="….ttf"` (WP4) |
@@ -184,6 +194,16 @@ rule:
   background base (restore the world setting; do not force the default).
   Each surfaced only when a program module ran after that suite in one
   process, as the deep tier's serial pass does.
+- A run starts from the **framework defaults** of every world setting
+  (`system_support.reset_world_settings`: camera, background base and
+  fields, post effects, playfield, clock, resolve, default layer, paint
+  defaults through `PaintState._reset_defaults`, the one call the canvas
+  itself makes) and gives the process back at `close()`: the settings it
+  found, the pointer where it was, the design size `init()` had. Found by
+  `test_prog_isolation`'s dirty cells (2026-10-09): a playfield pad another
+  test left changed which enemy shots survived in `naves`, and a snapshot
+  restored at close before the census was counted as a background leftover.
+  The census is taken first, then the pre-run settings come back.
 
 **Value so far.** Seven Tier A programs (14 specs, ~520 expectations) and the
 Tier B composer (12 behaviours, 1000 compositions at `deep`) found three engine
@@ -423,6 +443,222 @@ Track view's own `_rotation` is a dead store the collision key never reads
 verb, except through a link (GR17-link; fixed in wave 2); `Box._takein_impl` copies a
 linked source's value, not its link (cleared). The Defining tables, the
 constructors and every cross-model copy name one Defining set per model.
+
+
+# Interaction campaign
+
+Four campaigns found their bugs in combinations inside one subsystem
+([Lessons for test planning](#lessons-for-test-planning)). Across subsystems the
+suite samples: `test_sys_lifetime` (destroy from every context on `kitchen_sink`),
+`test_sys_frame_order` (four handoffs), `test_sys_hyp_world` (random sessions,
+registry invariants), `test_act` (a change from seven contexts), the program model,
+`test_prog_compose` (behaviours that share nothing: non-interference, not
+interaction), `test_driver_composition` (ten pose drivers pairwise). A verification
+pass over twelve candidate seams (2026-10-09) found two with no test and eight with
+hand-picked cells and no guard. The campaign applies the same discipline to the seams:
+
+1. **Enumerate the seam from the code.** Subsystems meet on the frame (phases of
+   `_simulate_frame` / `_draw_frame`), the Entity (every engine container that holds
+   one), shared fields (pose, `visible`, `layer`, `active`, groups, world settings)
+   and transforms (window scale, letterbox, camera, layer response). A class is a
+   product of two such axes, each read from a source of truth.
+2. **Cover pairwise, guard the axes** (`covering.py`; a guard fails when a new phase,
+   holder, driver, source or export has no cell and no reason).
+3. **Oracles with no model**: metamorphic invariance over a whole program (camera
+   moved, time scaled, layers renamed, another program first → the same trace); a twin
+   with the subsystem absent; a transition observed from every later phase
+   (`PhaseRig`); the same event through every door.
+4. Three layers per class (matrix in `quick`, rules on the existing `WorldMachine`,
+   a static guard); reach counters and a canary per catalogued interaction bug;
+   real frames, the author's `dt`, a predecessor in the process; an unknown cell is
+   a SPEC-GAP for the owning doc first.
+
+| # | Class | Seam | Status |
+| --- | --- | --- | --- |
+| 1 | Phase × mutation × observer | a write in one frame phase, seen by every later phase of that frame and the next | **done** (`test_sys_phase_matrix`, see below) |
+| 2 | Holder × ender | every engine attribute that can reference an Entity × every way it ends or moves (destroy, park, `layer =`, clear, untag, `change_act` mid-hover / drag / focus) | **done** (`test_sys_holders`, HD1–HD5 fixed, see below) |
+| 3 | Metamorphic program oracles | camera moved, time scaled, layers renamed → the same world trace | **done** (`program_oracles.camera_moved` / `time_scaled` / `rename_layers`, `test_prog_invariance`, see below) |
+| 4 | Program order pairs and dirty predecessors | B after A, B after a test module's leftovers, a run gives the process back | **done** (`test_prog_isolation`, see below) |
+| 5 | Pointer pipeline under every transform | one OS pixel through window scale × letterbox × camera × layer kind to the handler that fires | **done** (`test_sys_pointer_pipeline`, 54 cells + precedence, see below) |
+| 6 | Rendering composition pixel oracle | a bright actor at the predicted screen pixel across camera × layer response × post FX × scale × letterbox | **done** (`test_diff_pipeline`, 108 cells, see below) |
+| 7 | Author error × callback site | every dispatcher that runs author code: the frame finishes, the next is clean | **done** (`test_sys_error_sites`, 31 sites, see below) |
+| 8 | Reactive source × sink across subsystems | engine-owned sources (`mouse`, `clock`, `keyp`, views, boxes, a widget's cell) × sinks in other subsystems | **done** (`test_reactive_cross_matrix`; RX1 found and fixed, see below) |
+| 9 | Pose writers beyond `DRIVERS` | `confine`, a leave teleport, an Endless piece, a Level item, a timed camera | **closed, no cell** (instant writes, not drivers: see below) |
+| 10 | Parallax silent skips | `@leave_playfield` skips parallax items silently; `on_hover` has no parallax refusal | **done** (`test_parallax_layers`, one contract tightened, one pinned) |
+| 12 | Art change × trigger phase × contact frame | mostly covered; one small matrix | **done** (`test_sys_art_contact`, six triggers) |
+
+**Class 6 (2026-10-09).** `test_diff_pipeline`: one white square on black
+on a world layer, a parallax layer (`pan_response` 0.4) or `ui`, under three
+displays × six cameras × post FX off / on (a `Vignette`), rastered through
+the real draw; the brightest pixel must sit where the engine's own maps put
+it (`world_to_view_coords`, `_layer_partial_matrix`, the design point, then
+`pad + view_scale · flipY`). Every cell agrees within 3 px. Canary: a scene
+drawn without the letterbox offset.
+
+**Class 5 (2026-10-09).** `test_sys_pointer_pipeline`: three displays
+(window scale and letterbox pads) × six cameras (identity, zoom, pan,
+rotation, origin, all three) × three targets (a world shape, a shape on
+`ui`, a Button) × three verbs (hover, click, drag), the pixel computed with
+the engine's own forward map and delivered through the real GLFW handlers;
+the verdict is the handler that fires (a drag of 40 px moves a world shape
+by the world delta the inverse map gives), plus a not-vacuous check (the
+pixel computed without the transform misses) and widget-over-shape
+precedence under every camera. Every cell agrees. Harness lesson: cells in
+one test method must destroy their targets, or a later cell's pointer lands
+on an earlier cell's identical shape and logs into the wrong rig (the first
+run reported 39 misses that were the harness).
+
+**Class 8 (2026-10-09).** `test_reactive_cross_matrix`: six engine-owned
+sources (`mouse`, `clock.time`, `keyp(...)`, `canvas.game_view`, a state
+cell, another actor's part; `group["…"].box` is excused: the formula checker
+refuses a formula that reads a group) × five sinks in other subsystems (a
+shape's centre and radius, a caption's string and centre, a SpatialFx
+placement; appearance knobs refuse `@=` by design and widgets bind a cell),
+each read first or second against a plain-write twin written with the
+source as it reads now, at three points of every frame. Every cell agreed
+except one source: **RX1** — `canvas.game_view` is a measured Box off the
+graph, so a formula that read only it never re-evaluated (the no-sources
+guard was satisfied by the throwaway Box). Fixed the same day (user decision):
+`canvas` is a formula source, and a deferred tree met in a chain is a value
+([RX](#rx--reactive-sources-across-subsystems-interaction-campaign-class-8-2026-10-09)).
+Harness lessons: formulas
+must be plain (`pair()[0]` is refused by the checker: give a source a scalar
+reader), and the twin is written at the read point, never earlier (a source
+that moves at the frame start, the clock, left a twin written last frame one
+tick stale).
+
+**Class 12 (2026-10-09).** `test_sys_art_contact`: a clip started from six
+author hooks (update, a timer, a tween `on_done`, another pair's collision
+handler, a `@when`, a transient `on_done`), a flash and a stamp alive on the
+sprite; the enter edge fires in the first frame whose drawn cell is a strike
+cell and the exit edge in the first frame after the last (both read at draw
+time). Every trigger agrees.
+
+**Classes 9 and 10 (2026-10-09).** Class 9 closed without a cell: `confine`,
+a teleport in a leave handler and the placement of an Endless piece or a
+Level item are instant writes, not persistent drivers. Added to `DRIVERS`,
+`confine` × `formula_center` depended on order at once, by design: the
+instant write refuses a linked part (`TestLinkWriteGate` is that contract)
+and claims nothing afterwards, so a formula installed later is fine. A timed
+camera pan reads a body and writes none. The reasoning sits next to the table.
+Class 10 settled two contracts in Canvas Design (parallax-layer invariant):
+hover handlers are interaction, so `on_hover` / `on_hover_exit` on a parallax
+shape now raise `ParallaxLayerError` like `clickable`, and a shape with them
+cannot move into a parallax layer (before: accepted and silently never
+hovered); a parallax item never fires `@leave_playfield` (pinned: the bounds
+step skips decoration, which moves with its layer).
+
+**Class 7 (2026-10-09).** `test_sys_error_sites`: thirty-one author
+callback sites (update, timers, `every`, tween / transient / cover / sound
+`on_done`, sync and async mode bodies, `@exit_mode`, `on_update`,
+`on_destroy`, collision enter / stay / exit, a leave handler, hover and
+hover-exit, click, drag and drop, a widget's click and submit, `@when`,
+`@on_change`, a formula, an `until` predicate, an act's `setup`, `on_update`
+and `on_destroy`, an Endless builder), each armed to raise once in a frame
+and checked for the same contract (the error reaches the frame exactly once,
+the batch is closed and the dirty stack empty, a bystander's `every` keeps
+ticking, no registry holds a destroyed object, no pointer state names one).
+Every site recovers. A guard requires every callback-taking export and every
+`on_*` attribute of a Graphic to be covered by a site or excused. Harness
+lessons: a formula cannot raise through a helper (the formula checker refuses
+a body that "creates a Boom": divide by a cell that is zero for one read
+instead), and an `until` predicate is checked eagerly at the call (a
+predicate that raises there is "not awaited"; raise from the engine's poll).
+
+**Class 3 (2026-10-09).** `program_oracles.camera_moved` (zoom, pan,
+rotation, origin set before the program's first line, through
+`ProgramRun.prelude`), `time_scaled` (`clock.scale = k` with frames of
+`dt / k`: the same world time per frame, so the same trace: anything that
+reads the real dt or wall time shows) and `rename_layers` (a Tier C rewrite,
+like `rename_groups`), run over every program by `test_prog_invariance`.
+First run: every eligible scenario agrees. The camera oracle applies to the
+four programs that do not look at the camera: the others place by the view on
+purpose (`confine(canvas.game_view)` every frame in `naves` and
+`snake_chain`, the head at the view's centre, Endless in `runner_story`) or
+chase the mouse (a view point), and are excluded with that reason. Probes that
+read the camera (`zoom`, `pan`) are ignored per program. `runner_story` sets
+`clock.scale` itself, so it leaves the time oracle. An "observer off" oracle
+(cull, post FX, shared-filter batching off → the same trace) is not needed:
+`test_prog_isolation`'s `kept_settings` cell runs every program with those
+preferences changed. Canaries: a world clock that reads the zoom, a clock
+whose dt ignores `clock.scale`.
+
+**Class 2 (2026-10-09).** `test_sys_holders`: the holders are **found**, not
+listed. `scan(target)` walks the engine's object graph from its roots (the
+framework and its managers, the collision, scheduler, bounds and event
+systems, the registry, the act manager, the reactive graph, the module
+singletons) through attributes, containers, weak containers, bound methods and
+closures and returns every path that reaches the subject with its reference
+kind (0.3 s for the whole module). A path seen on a live, fully wired subject
+(`kitchen_sink` plus the pointer in a drag, a resting contact with `resolve`,
+a group-operator pair side; in act cells an object-literal pair handler and
+widgets with focus, a click and an open menu) must be classified in `HOLDERS`;
+after a **gone** ender (destroy, destroy after the seal, destroy inside an act,
+act change, hard clear, layer delete, group destroy, an Endless recycle, a
+destroyed widget) no strong path may remain; after a **partial** ender (park,
+hide, undraw, collidable off, untag) each holder keeps or drops per the
+documented contract (`EXPECT`, written from Actors Design "park": pair
+declarations are reactions on the actor and survive, the Collider and the
+survivor's contact go, a parked or hidden shape stays in its layer list and
+leaves the pointer lists). First run, five engine findings, all strong
+references to a destroyed object that census and `zombies()` never looked at:
+HD1 a group-operator side (`group["a"] | group["b"]`) copies its members at the
+call and kept a destroyed one in every pair list; HD2 the resolve pairs
+remembered at the seal kept a destroyed game-level side forever; HD3 an
+act-level object-literal pair handler kept a destroyed side until the act
+change; HD4 `WidgetManager.last_click` kept a destroyed widget; HD5 an act
+change (and any `registry.destroy` path) bypassed `Menu.destroy`, so the dead
+modal menu stayed open: the next act's widgets could not take focus. One root
+cause each: `drop_pair_handlers_for` now prunes every pair list (the act-level
+list, the sealed pairs, now owned by the collision system, and every snapshot
+side) through one `_prune_dead_side`; `remove_widget` clears the last click and
+settles a menu through `Menu._settle_on_remove`, the teardown hook `destroy()`
+also calls. Regression tests sit in `test_collision`, `test_act`, `test_menu` and
+`test_uiwidget`; catalogue [HD](#hd--holders-interaction-campaign-class-2-2026-10-09);
+three Recurring bug classes rows. The census and `zombies()` now walk every
+layer (`system_support.all_layers`): hidden layers and `ui` were invisible to
+both.
+
+**Class 1 (2026-10-09).** `test_sys_phase_matrix`: seven phases where author
+code runs (update, an actor's `on_update`, a pair handler, a leave handler, a
+hover handler, a `@when`, a transient `on_done`) × thirteen mutations of one
+subject (destroy, park, resume, hide, show, collidable off / on, untag / tag,
+move onto / off / far from its partner, an ink write) × six observers reading
+from their own phase (the actor's tick, the X–Y contact, the leave edge, the
+hover level by its own enter / exit edges, a `@when`, the drawn flag). The
+documented frame order is the oracle: a later phase sees the change in frame
+N, the same phase in N or N+1, an earlier phase in N+1, and nothing moves that
+the mutation does not name. Every arming is checked against a phase clock
+patched onto the frame body (a mutation that ran in the wrong phase or frame
+fails before any verdict). First run, 91 cells: every cell agrees with the
+rule once two engine facts were written into the tables rather than found as
+bugs: a shape sliding under a still pointer waits for pointer motion
+(`TestTradeOff`, documented), and a destroy is synchronous (its exit edges
+fire from the call, so a later phase's reading flips in N). Harness lessons:
+a helper that must *leave* the playfield has to start inside it (the first
+leave-phase arming sat outside the 400 × 300 test playfield and never
+fired; the arming guard caught it), and the hover level is read through the
+hover step's own handlers, not through `pointer_hover` at draw time (a guard
+on a dead subject made the observer flip early).
+
+**Class 4 (2026-10-09).** `test_prog_isolation`: every program after a
+neighbour (`dev`) or after every program (`ci`), after seven dirty predecessors,
+and a given-back snapshot. First run: every pair and every dirty cell agreed
+with the alone trace except the world-settings cell, which changed `naves`
+(a playfield pad left in the process decided which enemy shots survived) and
+`runner_story` (its `pf` probe read the pad). Not an engine bug: one program
+per process in real use. Two harness contracts came out of it, now in
+`ProgramRun` ([Program model tests](#program-model-tests), harness lessons): a
+run starts from the framework defaults of every world setting and gives the
+process back at close (settings, pointer, design size), and the census is
+taken before the pre-run settings return (a restored background field was
+counted as a leftover). The engine gained `PaintState._reset_defaults` so the
+harness and the canvas install the same prototype (no hand copy of the
+literal). The dirty cells did **not** reproduce the deep serial failures
+([Open](#open-found-not-yet-fixed)): 300 live drawn shapes and shapes with
+work in the process leave every program's trace unchanged under the
+`SystemWorld` quarantine, so the cause lies elsewhere (the act reset, or a
+module that leaves state the quarantine does not park).
 
 
 # Test tiers
@@ -1254,6 +1490,10 @@ member should ask whether the siblings share the cause.
 | **A fast path skips a refusal the slow path makes** | GR12 (`10**400` through every exact-int fast path), B2's inverse | `test_value_validation` (`10**400`, NaN, `True`, `"x"` on every setter). Rule: a type fast path keeps every refusal of the slow path (an int is bounded like a float) |
 | **A second store of one value lags** (a cache of a field written on some paths only) | GR17 (`_rotation` vs a Defining `angle` slot), T1 (Text center vs its string) | `TestPoseStoreFollowsTheHeading` (store vs value after any two verbs). Rule: a second store is written on every path that writes the value, or not kept at all |
 | **A guard enumerates from the fix's own list** | GR14 (the route guard read `_SIZE_WORDS`) | `test_route_table` enumerates every field slot of every kind. Rule: a guard's source of truth is outside the code it checks |
+| **A measured value satisfies the no-sources guard** (a formula's dependency walk lands on a fresh snapshot Container, so the guard sees a source that nothing updates) | RX1 (`canvas.game_view`, `layer.view`, `graphic.box` in a formula) | `state._is_durable_source` (a deferred tree is a value; the Container before it is the source); `test_canvas.TestCanvasIsAFormulaSource`. Rule: whatever hands out a measured snapshot is itself a Container that notifies when the measurement changes |
+| **A copied pair side keeps a destroyed body** (a list or snapshot taken at registration time is pruned on destroy only where someone remembered it) | HD1 (group-operator snapshot), HD2 (the sealed `resolve` pairs), HD3 (the act-level handler list), S6 / D6 (`_pair_targets`) | `test_sys_holders` (`scan` finds every path, no list is named by hand); rule: every list that holds pair sides is pruned by **one** function, `CollisionSystem._prune_dead_side`, from `drop_pair_handlers_for` |
+| **A close path lives in a `destroy` override that `registry.destroy` bypasses** (an act change, a layer drain and a group destroy call the registry primitive) | HD5 (`Menu.destroy`) | `test_menu.TestRegistryDestroySettlesTheMenu`; rule: per-kind teardown goes in a hook the registry teardown reaches (`_settle_on_remove` from `remove_widget`), never in an override of the public verb |
+| **A manager field is cleared on some removals only** | HD4 (`last_click`), PH1 (hover target), E1 | `test_sys_holders` partial and gone enders; rule: `remove_widget` / `forget_destroyed` clear **every** field of the manager that can name a widget or shape |
 | **A constructor touches a raw input before linking it** | C1 (`Line` home `length` / `angle` via `number()`), C2 (Ellipse focal `get_xy` / `float`), C3 (Box spine `height = float()`), C4 (rotated-corner `_takein` rewrite), C5 (`corner_radius` storing a function), C6 (fixed knobs with a raw or generic message) | `tests/test_ctor_links.py` (every signature, every geometry key: a lambda follows, and a lambda of the same numbers builds the same shape) |
 
 
@@ -1619,6 +1859,27 @@ gaps that **both** authors reported on their own.
 | Deep tier, serial pass (2026-10-09) | 46 failures in the one-process pass only (every parallel job passes): program-run teardown censuses see `registry.draw_live` move because shapes earlier modules left alive (`test_shapes` leaves ~700) change draw-list membership during the run; also `Text(glow=[])` moving `widgets._stack_bottom` and an endless-layer bound. Already failing on `1ec7001`, before the geometry campaign | Find whether an act reset re-adds objects no act owns (engine) or modules must clean up (isolation); fix by root cause |
 | Geometry campaign GX1–GX17 | Found by the campaign's harnesses ([GX](#gx--geometry-campaign-2026-10-08)) | Campaign phase 7 |
 | GR (2026-10-08) | Box and Rect keep near-copies of `_takein_impl` / `rotate_by` (they drifted once, SC1) | Decided 2026-10-08: no refactor now (no bug; the geometry contract sweep builds every Box model beside Rect). The next change to either method merges them into `_RectFrame` first ([Shapes Design](Shapes%20Design.md)) |
+
+### HD — holders (interaction campaign, class 2; 2026-10-09)
+
+Found by `tests/test_sys_holders.py` (`scan`: every engine path to a destroyed
+subject). All strong references to a destroyed object that the census and
+`zombies()` never looked at. Fixed by class: one `_prune_dead_side` for every
+pair list; one teardown hook for a menu.
+
+| ID | Bug | Shrunk repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| HD1 | A group-operator pair side (`group["a"] | group["b"]`) kept a destroyed member in every pair list (`@collide`, `resolve`) for good | `@collide(group["a"] | group["b"], "rock")`; `a.destroy()` → `_pair_handlers[i][0]._snapshot` still holds `a` | `GroupOperator` copies its members at the call (`_snapshot`); `drop_pair_handlers_for` compared sides by identity and never looked inside one | `test_collision.TestDestroyedSidesLeaveEverySnapshotSide`; `test_sys_holders` gone enders. Fix: `CollisionSystem._prune_dead_side` drops the identity out of every snapshot side it walks |
+| HD2 | The `resolve` pairs remembered at the seal kept a destroyed game-level side forever | `resolve(player, wall)`; `run(Titulo)`; `player.destroy()` → `ActManager._game_resolve_pairs` holds `player` | The act manager copied `_resolve_pairs` at the seal and only skipped dead sides at the restore; nothing pruned the copy | `test_act.TestDestroyedSidesLeaveTheActPairLists.test_sealed_resolve_pair_forgets_a_destroyed_game_side`. Fix: the collision system owns the sealed copy (`seal_resolve_pairs` / `restore_sealed_resolve_pairs`) and prunes it with the other lists |
+| HD3 | An act-level object-literal pair handler kept a destroyed side until the act change | inside an act: `@collide(a, rock)`; `a.destroy()` → `_act_pair_handlers` holds `a` | `drop_pair_handlers_for` pruned `_pair_handlers` and `_resolve_pairs` only | `…test_act_pair_handler_forgets_a_destroyed_side_before_the_change`. Fix: the same prune on `_act_pair_handlers` |
+| HD4 | `WidgetManager.last_click` kept a destroyed widget (a new widget at the spot could read as a double click) | click a Button; `destroy()` → `wm.last_click.widget` is the dead Button | `remove_widget` cleared focus, press and hover, not the double-click memory | `test_uiwidget.TestDestroyedWidgetLeavesTheLastClick`. Fix: `remove_widget` clears it |
+| HD5 | An act change (and every `registry.destroy` path: a layer drain, a group destroy) left a destroyed modal Menu open: the manager kept it, the modal mask stayed, the clock pause it set stayed, `await menu` hung, and the next act's `TextInput.focus()` raised "A modal Menu is open" | `Menu(..., pause=True)` in act A; `change_act(B)`; `TextInput(...).focus()` | The close logic lived in a `Menu.destroy` override; `ActManager._destroy_one` and `_drain_layer` call `registry.destroy(obj)` directly | `test_act…test_a_modal_menu_open_at_the_change_closes_with_its_act`, `test_menu.TestRegistryDestroySettlesTheMenu`. Fix: `Menu._settle_on_remove`, a teardown hook `WidgetManager.remove_widget` runs on every path (`destroy()` calls it too) |
+
+### RX — reactive sources across subsystems (interaction campaign, class 8; 2026-10-09)
+
+| ID | Bug | Shrunk repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| RX1 | A formula that read only `canvas.game_view` (or `layer.view`, or `graphic.box`) never re-evaluated: `c["center"] @= lambda: canvas.game_view.center` stayed where the camera was when linked; the no-sources guard did not fire | `c["center"] @= lambda: canvas.game_view.center`; `canvas.zoom_to(2)` → `c.center` unchanged | The dependency walk took the last Container in the chain, which was the measured Box (`Box._from_aabb`, a fresh value off the graph: D11), so the guard was satisfied by a throwaway and the formula depended on an object nothing ever updated; each pull also joined that Box into the graph | `test_canvas.TestCanvasIsAFormulaSource` (every camera move, a layer's scroll, `ui_view`, `graphic.box`, graph node count flat); `test_reactive_cross_matrix` (every sink from `canvas.game_view`). Fix (user decision 2026-10-09): `canvas` is a `Container` (like `mouse`) notified by `_sync_camera` and the scroll advance; `state._is_durable_source` keeps a deferred tree out of the chain's sources. Cost: an unlinked canvas returns after two attribute reads (A/B 2.12 vs 2.11 µs per `pan_to`) |
 
 ### GR — graphics review (2026-10-08)
 

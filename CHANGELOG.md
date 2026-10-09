@@ -14,6 +14,12 @@ left out.
 
 ### Breaking
 
+- A hover handler on a shape in a parallax layer raises `ParallaxLayerError`
+  (`@hover(deco)`, `deco.on_hover = …`), like `clickable`; a shape with a
+  hover handler cannot move into a parallax layer. Before, the handler was
+  accepted and never fired (a parallax layer is decoration; hit tests run in
+  world space). A parallax item never fires `@leave_playfield`, as before;
+  now the design doc says so.
 - Writing a name that is not a field raises with the fix, instead of quietly
   storing a value nothing reads: a method (`c.tag = "boss"`, `ship.destroy =
   True` replaced the method), a read-only property (`ship.is_alive = False`
@@ -90,6 +96,11 @@ left out.
 
 ### Added
 
+- `canvas` is a formula source, like `mouse` and `clock`: `ship["center"] @=
+  lambda: canvas.game_view.center`, `lambda: canvas.zoom`, or `lambda:
+  canvas.layers["bg"].view.left` follow every camera move and every scroll.
+  Before, a formula that read only the camera or a view kept the value it
+  was linked with.
 - `Endless(layer, pieces, step=...)` fills the part of a layer the camera sees,
   slot by slot, forever: an endless runner floor, flappy pipes, a cave, clouds
   that never run out. `pieces` is an image path, a list of image paths, or a
@@ -118,6 +129,17 @@ left out.
 
 ### Fixed
 
+- An act change (or a hard layer clear / a group destroy) that destroyed an
+  open modal `Menu` left it open: the dimming mask and the menu's `pause`
+  stayed, `await menu` hung, and the next act's `TextInput.focus()` raised
+  "A modal Menu is open". Every destroy path now closes the menu.
+- A destroyed widget stayed in the double-click memory: a widget made at the
+  same spot could take a first click as a double click.
+- Pair lists kept destroyed bodies: a group-operator side
+  (`@collide(group["a"] | group["b"], …)`, `resolve(group["a"] | …)`) kept a
+  destroyed member, the `resolve` pairs remembered when the game started kept
+  a destroyed side forever, and an act's `@collide(ship, …)` kept a destroyed
+  `ship` until the act changed (a leak and dead-target warnings).
 - `target << source` refuses a destroyed source with DestroyedError, as
   `source.clone()` and `absorb(source)` do; it copied the destroyed shape.
 - `sprite << other`, `svg << other` and `text << other` raise Scena's
@@ -513,6 +535,11 @@ left out.
 
 ### Documentation
 
+- Testing Design gains an "Interaction campaign" section: how the seams
+  between subsystems are tested (a matrix with a guard, a model-free
+  oracle, a canary per class), the ten classes, their findings, and one
+  open design question (RX1: a formula that reads only `canvas.game_view`
+  never re-evaluates).
 - A new landing page, `README.md` (it replaces `README.txt`, and PyPI shows it
   too): what Scena is for, a whole game in one screen of code, the features
   with short examples, clips of the example games, install, the tutorial and

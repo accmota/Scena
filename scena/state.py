@@ -1007,7 +1007,7 @@ class FormulaLink():
                                 parent_container = target
                                 terminal_field = payload
                         target = next_target
-                        if isinstance(target, Container):
+                        if _is_durable_source(target):
                             last_container = target
                         if callable(target) and not isinstance(target, Container):
                             break
@@ -1019,7 +1019,7 @@ class FormulaLink():
                                 f"@= formula {fn_label} reads {base_name}[…{payload!r}], "
                                 "which does not exist when the formula is linked."
                             )
-                        if isinstance(target, Container):
+                        if _is_durable_source(target):
                             last_container = target
 
                 # ``st["score"]`` / ``obj["field"]`` yields a FieldRef, not a
@@ -1168,6 +1168,24 @@ def _normalize_link_rhs(source):
     if isinstance(source, FieldRef):
         return source.owner._linkable_source(source.name)
     return source
+
+def _is_durable_source(obj) -> bool:
+    """A Container a formula chain may depend on.
+
+    A measured Box (``canvas.game_view``, ``graphic.box``, ``layer.view``) is
+    a fresh value built on every read, off the graph until linked: depending
+    on it would freeze the formula at the value it was linked with (and join
+    the throwaway into the graph on every pull, D11). The source is what it
+    was measured from — the Container before it in the chain (``canvas``,
+    the graphic), which notifies when the measurement changes.
+    """
+    if not isinstance(obj, Container):
+        return False
+    try:
+        return not obj._in_deferred_graph_tree()
+    except Exception:
+        return True
+
 
 _FORMULA_NO_SOURCES_ERROR = (
     "@= formula has no reactive sources — name a Scena value in the lambda "
