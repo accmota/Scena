@@ -44,7 +44,7 @@ import skia  # noqa: E402
 from hypothesis_support import WorldTracker, boot, quiet, registry  # noqa: E402
 
 import scena.orchestration as orch  # noqa: E402
-from scena import canvas, clock  # noqa: E402
+from scena import ANYTHING, canvas, clock  # noqa: E402
 from scena.audio_mixer import get_mixer, make_sine  # noqa: E402
 from scena.audio import Sound  # noqa: E402
 from scena.bounds import get_bounds_system, reset_bounds_system  # noqa: E402
@@ -129,8 +129,72 @@ def _noop(*_args, **_kwargs) -> None:
     return None
 
 
+def reset_input_state() -> None:
+    """A fresh keyboard, mouse and pointer: nothing held, pending, hovered or
+    pressed from an earlier world (review 2026-10-09 X-life-8: a key held and
+    a hover target from world 1 reached world 2, whose first frame ran world
+    1's ``on_hover_exit``). ``ProgramRun`` and ``SystemWorld`` both start here.
+    """
+    fw = ScenaFramework._instance
+    if fw is None:
+        return
+    keys = getattr(fw, "keys", None)
+    if keys is not None:
+        keys._pressed_keys.clear()
+        keys._pending_edges.clear()
+        keys._once_fired.clear()
+        keys._input_masked = False
+    m = getattr(fw, "mouse", None)
+    if m is not None:
+        m._pressed_buttons.clear()
+        # Another suite may leave it at a junk position (test_api_robustness
+        # fuzzes it), masked, or with a click history that would make the
+        # first click a double click.
+        m._input_masked = False
+        m._mask_latch_buttons.clear()
+        for hist in (m._last1_click_pos, m._last1_click_time,
+                     m._last2_click_pos, m._last2_click_time):
+            hist.clear()
+        m._sync_position(0.0, 0.0)
+        m._end_frame()
+    sm = getattr(fw, "shape_manager", None)
+    if sm is not None:
+        # No pointer yet (a cursor outside the window): no hover target, no
+        # press, no remembered position from the previous world.
+        sm._set_pressed(None)
+        sm._dragging = False
+        sm._hover_target = None
+        sm._hover_entered = None
+        sm._ptr_view = sm._ptr_world = None
+        sm._resolved_sig = None
+    cm = getattr(fw, "canvas_manager", None)
+    if cm is not None:
+        cm.forget_act_input()
+    wm = getattr(fw, "widget_manager", None)
+    if wm is not None:
+        wm.mouse_over_widget = None
+        wm.pressed_widget = None
+        wm.focused_widget = None
+        wm.mouse_down_widget_by_button.clear()
+        wm.last_click = None
+        wm._claimed_down.clear()
+        wm._key_mods = 0
+        modal = wm.modal_widget
+        if modal is not None and not getattr(modal, "is_alive", True):
+            wm.modal_widget = None
+        # Widget layout starts from the top-left column, not from wherever the
+        # last HUD item anyone placed left the cursor (S4-5).
+        wm.reset_hud_stack()
+
+
 def reset_system_globals() -> None:
-    """Reset the singletons ``hypothesis_support.reset_globals`` leaves alone."""
+    """Reset the singletons ``hypothesis_support.reset_globals`` leaves alone.
+
+    The act manager goes first: its teardown puts the sealed game's leave
+    handlers and resolve pairs back, so resetting those singletons before it
+    let an old test's rules into every later world (review 2026-10-09 S4-8).
+    """
+    _reset_act_manager()
     reset_collision_system()
     reset_bounds_system()
     reset_cover()
@@ -152,20 +216,21 @@ def reset_system_globals() -> None:
     canvas.reset_view()
     canvas.effects.clear()
     clear_author_error()
-    _reset_act_manager()
+    reset_input_state()
 
 
 # World settings ``reset_system_globals`` puts in their fresh state (a camera
 # that follows the design size, no effects, clock at 1, resolve on). Writing a
 # snapshot back is not the same for them: a restored camera pins its origin.
-WORLD_RESETS = frozenset({"camera", "effects", "clock", "collision.resolve_enabled"})
+WORLD_RESETS = frozenset({"camera", "effects", "clock", "collision.resolve_enabled",
+                          "hud_stack"})
 
 
 def reset_world_settings() -> None:
     """Every world setting an act change restores (``act.WORLD_SETTINGS``) back
     to the framework default, as a fresh process has it: camera, background
     base and fields, post effects, playfield, clock, resolve, default layer,
-    paint defaults. ``ProgramRun`` starts from here (one program per process
+    paint defaults, HUD column cursor. ``ProgramRun`` starts from here (one program per process
     in real use); guard: ``test_prog_isolation.TestResetWorldSettings``.
     """
     from scena.style import PaintState
@@ -187,6 +252,9 @@ def reset_world_settings() -> None:
     if "default" in layers:
         layers.default = "default"
     PaintState._reset_defaults()
+    wm = getattr(fw, "widget_manager", None)
+    if wm is not None:
+        wm.reset_hud_stack()
 
 
 class SystemWorld(WorldTracker):
@@ -420,6 +488,9 @@ def census(*, collect: bool = True) -> Dict[str, int]:
                  "_resolve_cache", "_partner_ident_cache", "_partner_only_cache",
                  "_passing", "_solve_contact_sides", "_solve_bottom_count"):
         out["collision." + name.lstrip("_")] = _len(getattr(col, name))
+    out["collision.pair_tags"] = _len(col._pair_tags)
+    out["collision.anything_targets"] = sum(
+        1 for c in col._colliders if any(t is ANYTHING for t in c._pair_targets))
     out["collision.tag_colliders"] = sum(len(v) for v in col._tag_colliders.values())
     out["collision.tag_index"] = sum(len(v) for v in col._tag_index.values())
     b = get_bounds_system()
@@ -430,6 +501,7 @@ def census(*, collect: bool = True) -> Dict[str, int]:
     out["registry.live"] = _len(sc.live)
     out["registry.group_members"] = sum(len(v) for v in sc.group_map.values())
     out["registry.group_formulas"] = _len(getattr(sc, "_group_formulas", ()))
+    out["registry.layers"] = _len(getattr(sc.layers, "_layers", ()))
     # Live draw entries only: tombstones (``None`` holes) are compacted lazily,
     # so the raw list length may go either way; ``draw_slots`` reports it.
     # Every layer, hidden ones and ``ui`` included: ``iter_draw_order`` skips

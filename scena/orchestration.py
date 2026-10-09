@@ -27,7 +27,7 @@ from .history import tick_all_histories
 from .cover import tick_cover, is_cover_active, draw_cover
 from .spatial_fx import tick_all_spatial_fx
 from .pacing import FramePacer, PaceMode, locked_interval
-from .gc_policy import freeze_world, thaw_world
+from .gc_policy import freeze_world, run_pending_freeze, thaw_world
 import warnings
 import traceback
 import weakref
@@ -3704,6 +3704,9 @@ class ScenaFramework:
                 mouse._end_frame()      # dx / dy are per frame (S1-1)
             if ss is not None:
                 ss.end_frame_batch()
+        # An act change this frame asked for one collect + freeze: here no
+        # handler stack holds the old act (gc_policy, S4-7).
+        run_pending_freeze()
 
     def _tick_pre_draw(self) -> None:
         """Advance paint-side lifecycles after flush, before paint."""

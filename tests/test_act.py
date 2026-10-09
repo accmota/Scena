@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import builtins
 import os
+import gc
 import warnings
+import weakref
 import sys
 import unittest
 from unittest import mock
@@ -23,9 +25,9 @@ import inspect  # noqa: E402
 
 import scena  # noqa: E402
 from scena import (  # noqa: E402
-    STATIC, Bloom, Circle, Entity, Line, Point, Rect, Stars, Text, Vignette, after, audio, canvas, clock,
+    ANYTHING, STATIC, Bloom, Circle, Entity, Line, Point, Rect, Stars, Text, Vignette, after, audio, canvas, clock,
     collide, collide_exit, collision, group, leave_playfield, on_change, on_mode, play_sound,
-    resolve, set_defaults, unresolve, wait, when, st,
+    resolve, set_defaults, unresolve, wait, when, st, ui,
 )
 from scena.collision import get_collision_system  # noqa: E402
 from scena.process import (  # noqa: E402
@@ -923,10 +925,49 @@ class TestNoLeaks(ActTestCase):
                 def bateu(a, b):
                     pass
 
+                # Registries an act can write beyond the hand-picked ones
+                # (review 2026-10-09 R3): a formula group, an act-only pair
+                # tag, ANYTHING interest, a leave rule, a layer, the HUD.
+                group["mov_alvos"] @= lambda: group["sink"]
+
+                @collide("mov_moeda", "mov_heroi")
+                def pega(a, b):
+                    pass
+                Circle(center=(300, 300), radius=3, group="mov_moeda")
+                resolve("mov_heroi", ANYTHING)
+
+                @leave_playfield("mov_tiro")
+                def sumiu(obj):
+                    pass
+                canvas.layers.create("mov_camada")
+                Text("hud", layer="ui")
+
             def on_update(self, dt):
                 st.contador += 1
 
         return Movimentada
+
+    # Registries with no lazy warm-up: one act must give them back exactly.
+    ACT_REGISTRIES = (
+        "collision.pair_tags", "collision.anything_targets",
+        "collision.pair_handlers", "collision.resolve_pairs", "collision.colliders",
+        "registry.group_formulas", "registry.layers", "bounds.group_handlers",
+        "widgets", "ready.timers", "recently.slots",
+    )
+
+    def test_one_act_gives_back_every_registry(self):
+        st.contador = 0
+        busy = self.busy_act()
+        self.begin(Vazia)
+        with quiet():
+            before = census()
+            hud = orch.ScenaFramework.get_instance().widget_manager.peek_hud_slot()
+            self.cycle(busy, 1)
+        after_ = census()
+        d = {k: (before.get(k), after_.get(k)) for k in self.ACT_REGISTRIES
+             if before.get(k) != after_.get(k)}
+        self.assertEqual(d, {}, "an act left these registries changed: " + format_diff(d))
+        self.assertEqual(orch.ScenaFramework.get_instance().widget_manager.peek_hud_slot(), hud)
 
     def cycle(self, busy, n):
         for _ in range(n):
@@ -984,6 +1025,8 @@ def _world_state():
         "collision.resolve_enabled": collision.resolve_enabled,
         "layers.default": canvas.layers.default,
         "set_defaults": PaintState.get_defaults(),
+        # Where the next omitted-y HUD item goes.
+        "hud_stack": orch.ScenaFramework.get_instance().widget_manager.peek_hud_slot(),
     }
 
 
@@ -1005,6 +1048,7 @@ def _mess_up_the_world():
     canvas.layers.create("ato_extra", z=40)
     canvas.layers.default = "ato_extra"
     set_defaults("coral", line_width=4.0)
+    ui.stack_origin(300, 222)
 
 
 class Bagunca(Act):
@@ -1127,18 +1171,45 @@ NOT_SETTINGS = {
     "background.items", "layers.list",
     "playfield.beside", "playfield.grid", "playfield.inset", "playfield.outset",
     "playfield.strip",
-    # layers are game-wide objects: made or cleared by the author, never removed
-    # by an act change (their own state is theirs, like a game object's)
+    # layers: a layer an act creates leaves with it (``_drop_act_layers``); a
+    # game layer's own state is its own, like a game object's
     "layers.create", "layers.clear", "layers.using",
 }
 
+# Exported instances the walk does not enter, each with its reason. Every
+# other instance in ``scena.__all__`` is walked: the guard must not depend on
+# a hand list of objects (review 2026-10-09 S4-6: ``ui`` was never walked).
+NOT_WALKED = {
+    "st": "game data: kept across acts by design",
+    "group": "group lookup; formulas are recorded at the seal (S4-3)",
+    "mouse": "input reader (frame state, not a setting)",
+    "keyp": "input reader (frame state, not a setting)",
+    "ready": "keys made after the seal are dropped by the change",
+    "recently": "keys made after the seal are dropped by the change",
+    "ANYTHING": "collision sentinel",
+}
+
+# Sub-objects reached through an exported instance.
+_SUB_OBJECTS = {
+    "playfield": lambda: canvas.playfield, "layers": lambda: canvas.layers,
+    "effects": lambda: canvas.effects, "background": lambda: canvas.background,
+}
+
+
+def _exported_instances():
+    out = {}
+    for name in scena.__all__:
+        v = getattr(scena, name)
+        if (inspect.isclass(v) or inspect.isroutine(v) or inspect.ismodule(v)
+                or isinstance(v, (str, int, float, tuple, frozenset, type(None)))):
+            continue
+        out[name] = v
+    return out
+
 
 def _settable_surface():
-    objs = {
-        "canvas": canvas, "clock": clock, "collision": collision, "audio": audio,
-        "playfield": canvas.playfield, "layers": canvas.layers,
-        "effects": canvas.effects, "background": canvas.background,
-    }
+    objs = {k: v for k, v in _exported_instances().items() if k not in NOT_WALKED}
+    objs.update({k: fn() for k, fn in _SUB_OBJECTS.items()})
     names = set()
     for label, o in objs.items():
         for c in type(o).__mro__:
@@ -1179,6 +1250,13 @@ class TestSettingsClassification(unittest.TestCase):
         self.assertEqual(set(restored) & set(KEPT_SETTINGS), set())
         self.assertEqual(set(restored) & NOT_SETTINGS, set())
         self.assertEqual(set(KEPT_SETTINGS) & NOT_SETTINGS, set())
+
+    def test_every_exported_instance_is_walked_or_excused(self):
+        exported = set(_exported_instances())
+        walked = exported - set(NOT_WALKED)
+        self.assertIn("ui", walked)
+        self.assertEqual(sorted(set(NOT_WALKED) - exported), [],
+                         "NOT_WALKED names that are no longer exported")
 
     def test_classified_names_exist(self):
         surface = _settable_surface()
@@ -1529,6 +1607,164 @@ class TestTeardownPhases(ActTestCase):
         self.assertFalse(any(m.is_alive for m in made))
         from scena.act import _MAX_TEARDOWN_PASSES
         self.assertLessEqual(_MAX_TEARDOWN_PASSES, 100)  # a runaway fails fast
+
+    def test_a_runaway_teardown_still_restores_and_drops_the_act(self):
+        # Review 2026-10-09 S4-9: the cap raised before the world settings
+        # were restored and before the act's rules and timers were dropped.
+        import scena.act as act_mod
+        ticks = []
+
+        class Corrida(Act):
+            def setup(self):
+                Circle(center=(0, 0), radius=5)
+                clock.scale = 0.25
+                after(0.05, lambda: ticks.append(1))
+
+                @leave_playfield("corrida_bala")
+                def sumiu(obj):
+                    pass
+
+        self.begin(Corrida)
+        with mock.patch.object(act_mod, "_MAX_TEARDOWN_PASSES", 0):
+            with self.assertRaises(RuntimeError) as cm:
+                change_act(Vazia)
+        self.assertIn("did not settle", str(cm.exception))
+        self.assertEqual(clock.scale, 1.0, "world settings restored")
+        self.assertNotIn("corrida_bala", get_bounds_system()._group_handlers)
+        self.w.seconds(0.2)
+        self.assertEqual(ticks, [], "the act's timer was dropped")
+
+
+class TestActOwnsItsRegistries(ActTestCase):
+    """Review 2026-10-09 R3: an act change gives back every registry an act
+    can write, not only the hand-picked ones (formula groups, pair tags,
+    ``ANYTHING`` interest, the HUD cursor, a camera tween)."""
+
+    def _registry(self):
+        from scena.canvas import ScenaCanvas
+        return ScenaCanvas.get_current().registry
+
+    def test_an_act_formula_group_leaves_and_a_game_formula_comes_back(self):
+        Circle(center=(0, 0), radius=4, group="rg_vespa")
+        group["rg_alvos"] @= lambda: group["rg_vespa"]
+        game_fn = self._registry()._group_formulas["rg_alvos"]
+        refs = []
+
+        class Fase2(Act):
+            def setup(self):
+                refs.append(weakref.ref(self))
+                self.chefe = Circle(center=(9, 0), radius=4, group="rg_chefe")
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    group["rg_alvos"] @= lambda: (
+                        group["rg_vespa"] | group["rg_chefe"]) if self.chefe else group["rg_vespa"]
+                group["rg_so_do_ato"] @= lambda: group["rg_chefe"]
+
+        self.begin(Fase2)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            change_act(Fase2)                       # restart
+        self.assertFalse([c for c in caught if "overrides its previous link" in str(c.message)
+                          and "rg_so_do_ato" in str(c.message)],
+                         "a restart starts from the game's formulas")
+        change_act(Vazia)
+        formulas = self._registry()._group_formulas
+        self.assertNotIn("rg_so_do_ato", formulas)
+        self.assertIs(formulas["rg_alvos"], game_fn, "the game's formula is back")
+        Circle(center=(0, 0), radius=4, group="rg_so_do_ato")   # the name is free
+        self.w.step(1)
+        gc.collect()
+        self.assertEqual([r for r in refs if r() is not None], [],
+                         "a formula reading self pinned the old act")
+
+    def test_an_act_only_collide_tag_retires_with_the_act(self):
+        class Loja(Act):
+            def setup(self):
+                @collide("rg_moeda", "rg_heroi")
+                def pega(c, h, info):
+                    pass
+
+        class Menu(Act):
+            def setup(self):
+                self.moedas = [Circle(center=(i * 30, 0), radius=10, group="rg_moeda")
+                               for i in range(3)]
+
+        cs = get_collision_system()
+        enfeite = Circle(center=(400, 0), radius=10)     # a game member, tagged in the act
+        manual = Circle(center=(450, 0), radius=10)
+        manual.collidable = True                          # the author's own switch
+        self.begin(Loja)
+        enfeite.tag("rg_moeda")
+        manual.tag("rg_moeda")
+        self.w.step(1)
+        self.assertIsNotNone(enfeite._collider, "enrolled by the act's tag")
+        change_act(Menu)
+        self.w.step(1)
+        self.assertNotIn("rg_moeda", cs._pair_tags)
+        self.assertEqual([m for m in current().moedas if m._collider is not None], [],
+                         "a later member is not enrolled by a dead act's rule")
+        self.assertIsNone(enfeite._collider, "enrolled only by the act's tag: leaves")
+        self.assertFalse(enfeite.collidable)
+        self.assertIsNotNone(manual._collider, "collidable = True stays")
+        self.assertEqual(collision.query_point(0, 0), [])
+
+    def _anything_rule_goes(self, kind):
+        from scena import ANYTHING
+        heroi = Circle(center=(0, 0), radius=10)          # the game's
+        pedra = Circle(center=(300, 0), radius=10)
+        pedra.collidable = True
+
+        class Nivel(Act):
+            def setup(self):
+                if kind == "collide":
+                    @collide(heroi, ANYTHING)
+                    def bate(me, other, info):
+                        pass
+                else:
+                    resolve(heroi, ANYTHING)
+
+        self.begin(Nivel)
+        self.w.step(1)
+        self.assertTrue(any(t is ANYTHING for t in heroi._collider._pair_targets))
+        change_act(Vazia)
+        self.w.step(1)
+        col = heroi._collider
+        self.assertFalse(col is not None and any(t is ANYTHING for t in col._pair_targets),
+                         "the dead act's ANYTHING kept pairing the hero with every body")
+
+    def test_an_act_collide_anything_on_a_game_body_goes(self):
+        self._anything_rule_goes("collide")
+
+    def test_an_act_resolve_anything_on_a_game_body_goes(self):
+        self._anything_rule_goes("resolve")
+
+    def test_a_game_camera_tween_stops_at_the_change(self):
+        def segue(me):
+            canvas.pan_to(1000, 0, time=2)
+
+        diretor = Entity()
+        self.begin(Vazia)
+        diretor.mode = segue
+        self.w.seconds(0.5)
+        change_act(Vazia)
+        x = canvas.pan_x
+        self.w.seconds(0.5)
+        self.assertAlmostEqual(canvas.pan_x, x, msg="the restored camera pose holds")
+        diretor.destroy()
+
+    def test_the_act_hud_starts_at_the_same_slot_on_every_entry(self):
+        Text("RECORDE", layer="ui")                     # a game HUD item
+        seen = []
+
+        class Fase3(Act):
+            def setup(self):
+                t = Text("pontos", layer="ui")
+                seen.append(round(t.center.y, 3))
+
+        self.begin(Fase3)
+        for _ in range(3):
+            change_act(Fase3)
+        self.assertEqual(len(set(seen)), 1, f"the HUD moved down per restart: {seen}")
 
 
 class TestActLayers(ActTestCase):

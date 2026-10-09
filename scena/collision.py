@@ -4601,7 +4601,16 @@ class CollisionSystem:
                     _sync_resolve_driver_for_collider(self, c)
                 elif getattr(shape, "_resolve_enrolled", False):
                     _note_resolve_unenroll_shapes([shape])
+            # The other side no pair implies any more leaves the targets
+            # (``ANYTHING`` included: S8-4).
+            for side in (a, b):
+                if side is ANYTHING:
+                    continue
+                for c in list(self._resolve_side_colliders(side)):
+                    if c._pair_targets:
+                        self._prune_pair_targets(c)
             self._invalidate_partner_cache()
+            self.retire_unused_pair_tags()
         else:
             warnings.warn(
                 f"unresolve({a!r}, {b!r}) matched no standing resolve() pair",
@@ -4726,6 +4735,10 @@ class CollisionSystem:
         if resolve_changed:
             self._invalidate_partner_cache()
             self._refresh_has_only()
+        if dropped or resolve_changed:
+            # ``@collide(boss, "bullet")``: with the boss gone, "bullet" stops
+            # enrolling (every door that drops a declaration, S8-7).
+            self.retire_unused_pair_tags()
         self._dead_target_warned.discard(id(identity))
         col = getattr(identity, "_collider", None)
         if col is not None:
@@ -4834,12 +4847,92 @@ class CollisionSystem:
                 implied.add(id(b) if not isinstance(b, str) else b)
             if collider in self._resolve_side_colliders(b):
                 implied.add(id(a) if not isinstance(a, str) else a)
+        anything = False
         for t in list(collider._pair_targets):
             if t is ANYTHING:
+                anything = True
                 continue
             key = t if isinstance(t, str) else id(t)
             if key not in implied:
                 collider._remove_pair_target(t)
+        if anything:
+            # Callbacks and pairs both imply ANYTHING: its own sync decides
+            # (review 2026-10-09 S8-4: it was never removed).
+            collider._sync_anything_interest()
+
+    def _pair_tags_in_use(self) -> Set[str]:
+        out: Set[str] = set()
+        for a, b, *_rest in self._pair_handlers:
+            for side in (a, b):
+                tag = self._pair_tag_of(side)
+                if tag is not None:
+                    out.add(tag)
+        for a, b, _tok, _only in self._resolve_pairs:
+            for side in (a, b):
+                tag = self._pair_tag_of(side)
+                if tag is not None:
+                    out.add(tag)
+        return out
+
+    def _collider_still_declared(self, c: "Collider") -> bool:
+        """A body some declaration still names: its own switch or callbacks,
+        a live pair tag, an instance side, or a registered hitbox part."""
+        item = c._identity
+        if getattr(item, "_collision_opt_in", False):
+            return True
+        if (c.on_collide is not None or c.on_collide_stay is not None
+                or c.on_collide_exit is not None
+                or getattr(item, "_collide_cbs", None)):
+            return True
+        cid = id(c)
+        for idx in self._tag_index.values():
+            if cid in idx:
+                return True
+        for idx in self._claimed_body_index.values():
+            if cid in idx:
+                return True
+        for parts in (getattr(item, "_hitbox_parts", None) or ()):
+            if getattr(parts, "_collider", None) is not None:
+                return True
+        for entries in (self._pair_handlers, self._resolve_pairs):
+            for a, b, *_rest in entries:
+                for side in (a, b):
+                    if side is ANYTHING or self._pair_tag_of(side) is not None:
+                        continue
+                    if c in self._handler_colliders(side):
+                        return True
+        return False
+
+    def retire_unused_pair_tags(self) -> None:
+        """An act change: a tag no surviving ``@collide`` / ``resolve`` names
+        stops enrolling members, and a body enrolled only through it leaves
+        collision (review 2026-10-09 S8-7). Without this, every later member
+        of an act-only tag got a collider and answered unnamed queries."""
+        gone = self._pair_tags - self._pair_tags_in_use()
+        if not gone:
+            return
+        left: List[Collider] = []
+        for tag in gone:
+            self._pair_tags.discard(tag)
+            left.extend(self._tag_colliders.pop(tag, ()) or ())
+            self._tag_index.pop(tag, None)
+            left.extend(self._claimed_bodies.pop(tag, ()) or ())
+            self._claimed_body_index.pop(tag, None)
+        self._invalidate_partner_cache()
+        seen: Set[int] = set()
+        for c in left:
+            if id(c) in seen or c._part is not None:
+                continue
+            seen.add(id(c))
+            if c not in self._colliders:
+                continue
+            self._prune_pair_targets(c)
+            if self._collider_still_declared(c):
+                continue
+            item = c._identity
+            leave = getattr(item, "_leave_collision", None)
+            if callable(leave) and getattr(item, "_collider", None) is c:
+                leave()
 
     def _refresh_pair_enrollments(self) -> None:
         """Full rebuild of tag indexes (audit / desync recovery). Not the hot path."""
@@ -5284,6 +5377,12 @@ class CollisionSystem:
                 "ms_bounds": 0.0,
                 "ms_total": (time.perf_counter() - t_total0) * 1000.0,
             }
+            # No body in play: no settle normal or one-way pass can outlive
+            # this (the last pair's bodies left collision: S8-6 / S8-7).
+            if self._contact_memory:
+                self._contact_memory.clear()
+            if self._passing:
+                self._passing.clear()
             if self._show:
                 self._update_debug_draw([])
             return

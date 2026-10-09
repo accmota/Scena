@@ -503,8 +503,10 @@ Under `TIMER` / `UNCAPPED`, `dt` is raw.
 
 **GC** (`scena/gc_policy.py`). `_begin_game` ends with `gc.collect();
 gc.freeze()` (before the clock origin, so it is not a frame); an act change
-thaws at its start and collects + freezes after the new act is built (one
-pause, in the transition frame); `run()` cleanup thaws. Same on every Python
+thaws at its start and asks for one collect + freeze, which runs at the end of
+`_simulate_frame` (one pause, in the transition frame: a collect inside the
+handler that changed act froze the bodies its stack still held, review
+2026-10-09 S4-7); `run()` cleanup thaws. Same on every Python
 (3.14.5+ is generational again). **Cost:** Scena objects sit in reference
 cycles, so a frozen object destroyed during play is reclaimed at the next
 act change or exit. It was alive at the freeze, so memory is bounded by the

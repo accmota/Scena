@@ -162,6 +162,27 @@ left out.
 
 ### Fixed
 
+- An act change gives back more of what the act changed:
+  - A `group["alvos"] @= …` made in an act leaves with it. A restart no
+    longer warns "overrides its previous link". The name can be tagged in the
+    next act, and a game formula the act re-bound comes back.
+  - A collision tag that no remaining `@collide` or `resolve` names stops
+    enrolling members. An act's `@collide("moeda", "heroi")` made every later
+    coin in every act a collision body that answered `collision.query_point`.
+    A body that only that rule enrolled leaves collision. A body you set
+    `collidable = True` stays. The same now happens after `unresolve` and
+    when an object named in a rule (`@collide(chefe, "tiro")`) is destroyed.
+  - `unresolve(heroi, ANYTHING)` and an act's `ANYTHING` rule on a game body
+    stop that body from pairing with every other body.
+  - A camera move with `time=` started by a game actor no longer undoes the
+    restored camera after the change.
+  - The act's HUD starts at the same place on every entry. With one HUD item
+    at the top of the file, it used to move one row lower on every restart.
+  - An act change from inside a collision handler no longer keeps the old
+    act's objects in memory until the next change.
+  - An act change whose teardown never settles still restores the world
+    settings and drops the act's rules and timers before it raises.
+- `ui.min_label_space` refuses `True`, NaN and infinity, like `ui.scale`.
 - `mouse.dx` / `mouse.dy` are this frame's motion: 0 when the mouse is
   still (they kept the last step, so `ship.move_by(mouse.dx, 0)` drifted
   forever), and the sum when several moves arrive in one frame.
@@ -678,6 +699,9 @@ left out.
 
 ### Documentation
 
+- Act Design lists the UI theme (`ui.scale`, `ui.font`,
+  `ui.min_label_space`) as preferences an act may change for good, and the
+  HUD column cursor as a setting the change restores.
 - Scena Design has a "Clocks" table: which clock (world, presentation,
   wall) each consumer reads. Actors Design no longer says an `on_destroy`
   error is swallowed (it raises after the teardown, as the code does).

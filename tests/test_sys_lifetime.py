@@ -211,7 +211,7 @@ EXPECT_MIRROR = {"script_when": 1}
 # they outlive the actor by design).
 CONTEXT_IGNORE = {
     "leave_playfield": ("bounds.group_handlers",),
-    "tag_handler_other_side": ("collision.pair_handlers",),
+    "tag_handler_other_side": ("collision.pair_handlers", "collision.pair_tags"),
 }
 
 
@@ -655,6 +655,60 @@ class TestWorldGivesBackItsSettings(unittest.TestCase):
         self.assertEqual(moved, {})
         if "o8_layer" in canvas.layers:
             canvas.layers["o8_layer"].delete()
+
+
+
+class TestWorldsAreIsolated(unittest.TestCase):
+    """A world starts with nothing from the world before it (review
+    2026-10-09, the "Open" deep serial pass)."""
+
+    def test_an_act_reset_does_not_reinstall_old_rules(self):
+        # S4-8: the act manager's teardown restored the sealed game's leave
+        # handlers and resolve pairs into singletons already reset.
+        from scena import Act, resolve
+        from scena.bounds import get_bounds_system
+        from scena.collision import get_collision_system
+
+        class Fase(Act):
+            def setup(self):
+                pass
+
+        with system_world(draw=False) as w:
+            @leave_playfield("iso_bala")
+            def sumiu(obj):
+                pass
+            resolve("iso_a", "iso_b")
+            w.begin_game(Fase)
+            w.step(1)
+        self.assertNotIn("iso_bala", get_bounds_system()._group_handlers)
+        self.assertEqual(get_collision_system()._resolve_pairs, [])
+
+    def test_input_and_hover_do_not_reach_the_next_world(self):
+        # X-life-8: a key held and a hover target from world 1 were still there
+        # in world 2, whose first frame ran world 1's on_hover_exit.
+        import glfw
+        from scena import keyp
+        from input_driver import input_driver
+        log = []
+        where = ["world1"]
+        with system_world(draw=False) as w, input_driver(w) as d:
+            tip = Circle(center=(300, 300), radius=40)
+            tip.on_hover_exit = lambda s: log.append(where[0])
+            w.step(1)
+            d.move(300, 300)
+            w.step(2)
+            self.assertIs(w.fw.shape_manager._hover_target, tip)
+            d.press(glfw.KEY_A)
+            w.step(1)
+        where[0] = "world2"
+        try:
+            with system_world(draw=False) as w2:
+                self.assertFalse(keyp("A"), "a key held in world 1")
+                w2.step(1)
+            self.assertNotIn("world2", log)
+        finally:
+            with quiet():
+                tip.destroy()
 
 
 if __name__ == "__main__":

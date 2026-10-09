@@ -340,8 +340,11 @@ vocabulary is needed to teach it.
 | --- | --- |
 | Entities (Shape, Sprite, Text, SpatialFx, bare Entity), widgets | destroyed (`on_destroy` runs) |
 | Timers, tweens, sounds with no longer-lived owner (includes camera tweens) | cancelled — except a sound that ends by itself, which finishes as game work with its `on_done` dropped ([decision 12](#decisions-2026-09-26)). Forever loops, named slots (`name=`) and paused sounds are cut |
+| A timed camera verb in flight (`canvas.pan_to(…, time=2)`), **whatever its owner** | cancelled: the camera pose is restored, and a game actor's mode that started the move would write it again next frame (review 2026-10-09 S9-5) |
 | Classless `@when` / `@on_change` / `@collide` / `@leave_playfield` registrations | unregistered (a `@leave_playfield` tag the act took over goes back to the game's handler) |
 | `resolve(a, b)` pairs | back to the top-level set (act pairs removed; a game pair the act removed or re-tuned comes back) |
+| Formula groups (`group["alvos"] @= …`) | back to the top-level set: an act's formula leaves (a restart binds it again with no "overrides" warning, and the name is free for tagging), a game formula the act re-bound comes back (review 2026-10-09 S4-3) |
+| Collision tags no surviving rule names, and `ANYTHING` interest from an act rule | retired: later members of the tag are not enrolled, and a body enrolled **only** through it leaves collision (`collidable` reads `False`; an author `collidable = True` keeps it). A game body named with `ANYTHING` in an act rule stops pairing with every body (review 2026-10-09 S8-4, S8-7) |
 | Post effects, background fields | removed |
 | Script-level `ready` / `recently` memory | forgotten (fixes the shooter's `ready.reset`) |
 | Pending canvas one-shots (`shake`, `flash`, `explosion_at`, `fireworks_at`, …) | cleared |
@@ -363,6 +366,7 @@ wallpaper set only in `Fase` goes back to none).
 | `canvas.layers.default` | An act's construction default must not decide where the next act's shapes go |
 | `set_defaults(...)` (the paint prototype) | An act's default look must not become the next act's |
 | `canvas.effects` / `canvas.background` membership and their `.enabled` | The stacks go back to the game's list, in order: an act's `Bloom()` leaves, and a game effect an act removed (`glow.remove()`, `canvas.effects.clear()`, `set_fly`) comes back. The hit-feedback singleton stays |
+| The HUD column cursor (where the next omitted-y HUD `Text` or widget goes; `ui.stack_origin`, `ui.stack_from`, `ui.stack_column`, `ui.stack_reset`, `ui.gap`) | One game HUD item kept the column alive, so each restart stacked the act's HUD one block lower, off screen after four (review 2026-10-09 S4-5) |
 
 The reason for all of them is one: **an act's look and behaviour must not
 depend on which act came before it** — the same promise as "entering always
@@ -375,14 +379,19 @@ builds fresh", extended to settings.
 | `st` values | Game data; `jogo_novo()` resets what a new game needs |
 | Game objects and their own timers (`radio.play_sound(...)` on a top-level `radio`) | Closest owner wins; game objects live until the window closes. **Except** work and hooks the act handed them: a handle whose function, `then=` or `on_done=` is a bound method of the leaving act (or a function closing over it), and a game object's hook (`on_update`, `mode`, `on_click`, `on_collide*`, drag hooks, …) set to one, leave with the act. Otherwise they stacked on every restart, kept the dead act alive and reached its destroyed fields (decided 2026-10-09, review X-life-7) |
 | A game timer whose name an act's ownerless timer took (`every(…, name="beat")` at the top and in the act) | The act's timer replaces it **for the act**: the game's pauses and resumes at the change, with its phase (an author `pause()` is kept). Before 2026-10-09 the act's cancelled it for good (review S2-6) |
-| Preferences: audio volume, `canvas.fx_quality`, `post_fx_scale`, `shape_fx_scale`, `display`, `batch_shared_filters`, `cull_offscreen` | Player or engine settings, not world state (an options act must be able to change them) |
+| Preferences: audio volume, `canvas.fx_quality`, `post_fx_scale`, `shape_fx_scale`, `display`, `batch_shared_filters`, `cull_offscreen`, the UI theme (`ui.scale`, `ui.font`, `ui.min_label_space`) | Player or engine settings, not world state (an options act must be able to change them; a UI size is an accessibility choice) |
 
 **Every author-settable canvas / clock / collision setting is classified as
 either restored or kept.** The implementation keeps both lists in one place
 (`WORLD_SETTINGS` / `KEPT_SETTINGS` in `scena/act.py`), and a test fails
 when a new setter is added without being classified
 (`TestSettingsClassification` in `tests/test_act.py`; one-shots, queries and
-engine hooks are listed there as `NOT_SETTINGS`). A layer created at the top
+engine hooks are listed there as `NOT_SETTINGS`). The test walks **every
+instance exported in `scena.__all__`**, not a hand list of objects: `ui` was
+never walked, so its settings leaked unclassified (review 2026-10-09 S4-6).
+An exported instance that is not a settings surface (`st`, `group`, `mouse`,
+`keyp`, `ready`, `recently`, `ANYTHING`) is excused by name, with its reason
+(`NOT_WALKED`). A layer created at the top
 is a game object, and its own state (`visible`, `z`, `scroll`) is its own. A
 layer created **in an act** leaves with the act (the seal records the layer
 names), so a restart creates it again and the Endless recipe ("create it in
@@ -491,7 +500,9 @@ act's own `on_update`. A read-only query is added only for a real case.
    `on_destroy`: it belongs to the ending act, and a self-replacing hook
    ("keep the asteroid field full") would respawn forever. A teardown that
    still does not settle stops after 100 passes and names the classes it
-   keeps creating (decided 2026-10-09, review X-life-6 / X-life-9). Formula
+   keeps creating (decided 2026-10-09, review X-life-6 / X-life-9); the act's
+   rules and timers are still dropped and the world settings still restored
+   before it raises (S4-9). Formula
    dependents torn down in the same batch are not auto-unlinked one by one, so
    no "was unlinked because a formula source was removed" warning is printed for
    a HUD that leaves together with the hero it reads.
@@ -499,11 +510,17 @@ act's own `on_update`. A read-only query is added only for a real case.
    ([Restored](#restored-world-settings)).
 5. Clear "changing act". Build the new act: construct the instance, make it
    current, call `setup()`.
-6. GC: the change thawed the frozen heap before step 2; now one
-   `gc.collect(); gc.freeze()` reclaims the old act (Scena objects sit in
-   reference cycles, so without the thaw they would stay frozen forever) and
-   freezes the new one. This is the one GC pause of the change, in the
-   transition frame (`scena/gc_policy.py`; test: `tests/test_gc_freeze.py`).
+6. GC: the change thawed the frozen heap before step 2 and asks for one
+   `gc.collect(); gc.freeze()` at the **end of the frame**
+   (`run_pending_freeze`, after `_simulate_frame`'s body). That collect
+   reclaims the old act (Scena objects sit in reference cycles, so without
+   the thaw they would stay frozen forever) and freezes the new one. It is the
+   one GC pause of the change, in the transition frame
+   (`scena/gc_policy.py`; test: `tests/test_gc_freeze.py`). It waits for the
+   frame end because a change made inside a handler (a collision step, a
+   timer, a cover `on_done`) runs under stack frames that still hold the old
+   act's bodies: a collect there froze them until the next change (review
+   2026-10-09 S4-7). Two changes in one frame refreeze once.
 7. Return to the caller.
 
 **Immediate, like a mode assignment.** After the line, you are in the new act.

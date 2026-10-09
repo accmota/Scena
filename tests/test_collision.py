@@ -252,6 +252,54 @@ class TestAnythingInterestLifecycle(CollisionTestCase):
         self.assertIn(ANYTHING, wasp._collider._pair_targets)
 
 
+    def test_unresolve_anything_removes_anything(self):
+        # Review 2026-10-09 S8-4: the pair went, ANYTHING stayed, and the hero
+        # kept a proxy pair with every body.
+        a = self.track(Circle(center=self.at(0, 0), radius=200))
+        for i in range(5):
+            self.track(Circle(center=self.at(i * 10 - 20, 0), radius=4)).collidable = True
+        resolve(a, ANYTHING)
+        self.step()
+        self.assertGreater(get_collision_system().last_stats["proxy_pairs"], 0)
+        unresolve(a, ANYTHING)
+        self.assertNotIn(ANYTHING, a._collider._pair_targets)
+        self.step()
+        self.assertEqual(get_collision_system().last_stats["proxy_pairs"], 0)
+
+    def test_unresolve_anything_keeps_on_collide_interest(self):
+        a = self.track(Circle(center=self.at(0, 0), radius=20))
+        a.on_collide = lambda *args: None
+        resolve(a, ANYTHING)
+        unresolve(a, ANYTHING)
+        self.assertIn(ANYTHING, a._collider._pair_targets, "the callback still wants it")
+
+    def test_a_tag_whose_last_rule_died_stops_enrolling(self):
+        # Review 2026-10-09 S8-7, destroy door: with the boss gone, "un_bala"
+        # kept enrolling every later bullet (a collider and a proxy each).
+        boss = self.track(Circle(center=self.at(0, 0), radius=20))
+
+        @collide(boss, "un_bala")
+        def hit(b, bullet, info):
+            pass
+
+        first = self.track(Circle(center=self.at(50, 0), radius=3, group="un_bala"))
+        self.assertIsNotNone(first._collider)
+        boss.destroy()
+        cs = get_collision_system()
+        self.assertNotIn("un_bala", cs._pair_tags)
+        self.assertIsNone(first._collider, "enrolled only by the dead rule")
+        later = self.track(Circle(center=self.at(60, 0), radius=3, group="un_bala"))
+        self.assertIsNone(later._collider)
+
+    def test_unresolve_drops_the_other_side_from_the_targets(self):
+        a = self.track(Circle(center=self.at(0, 0), radius=20))
+        self.track(Circle(center=self.at(100, 0), radius=20, group="un_wall"))
+        resolve(a, "un_wall")
+        self.assertIn("un_wall", a._collider._pair_targets)
+        unresolve(a, "un_wall")
+        self.assertNotIn("un_wall", a._collider._pair_targets)
+
+
 class TestLayer1FastPaths(CollisionTestCase):
     def test_circle_circle(self):
         a = self.track(Circle(center=self.at(0, 0), radius=20))
@@ -1651,7 +1699,9 @@ class TestLazyHull(CollisionTestCase):
         unresolve("rb_body", "rb_floor")
         self.step()
         self.assertIsNone(body._collider._resolved_aabb)
-        self.assertIsNone(floor._collider._resolved_aabb)
+        # The floor was enrolled only by the pair: it leaves collision with it
+        # (review 2026-10-09 S8-7); the body stays for its @collide.
+        self.assertIsNone(floor._collider)
 
     def test_narrow_loop_walks_pose_keys_once_per_collider(self):
         """A spinner in several proxy pairs walks its pose key once in narrow."""

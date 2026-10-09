@@ -319,6 +319,7 @@ def world_settings() -> Undo:
     scena.collision.resolve_enabled = False
     canvas.layers.create("suja", below="default")
     canvas.layers.default = "suja"
+    scena.ui.stack_origin(321, 123)
 
     def undo():
         with quiet():

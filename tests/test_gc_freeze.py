@@ -85,9 +85,47 @@ class TestGcFreeze(_PolicyOn, SystemTestCase, unittest.TestCase):
         self.w.step(3)
         self.assertTrue(all(r() is not None for r in REFS))
         change_act(Calm)
-        # No explicit gc.collect(): the change thawed, collected, re-froze.
+        # The change thawed; the collect + freeze waits for the frame boundary.
+        self.assertFalse(gc_policy.world_frozen())
+        self.assertTrue(gc_policy.freeze_pending())
+        self.w.step(1)
+        # No explicit gc.collect(): the frame end collected and re-froze.
         alive = [type(r()).__name__ for r in REFS if r() is not None]
         self.assertEqual(alive, [], f"stranded after change_act: {alive}")
+        self.assertTrue(gc_policy.world_frozen())
+        self.assertFalse(gc_policy.freeze_pending())
+
+    def test_change_from_a_collision_handler_does_not_freeze_the_old_act(self):
+        # Review 2026-10-09 S4-7: the collect ran inside the collision step,
+        # whose locals still held the old act's bodies: they were frozen until
+        # the next change.
+        refs = []
+
+        class Arena(Act):
+            def setup(self):
+                a = Circle(center=(100, 100), radius=10, group="gc_a")
+                b = Circle(center=(105, 100), radius=10, group="gc_b")
+                refs[:] = [weakref.ref(a), weakref.ref(b)]
+
+        @collide("gc_a", "gc_b")
+        def hit(a, b):
+            change_act(Calm)
+
+        self.w.begin_game(Arena)
+        self.w.step(2)
+        self.assertTrue(gc_policy.world_frozen())
+        gc.collect()
+        alive = [r for r in refs if r() is not None]
+        self.assertEqual(alive, [], "the old act's bodies were frozen mid-step")
+
+    def test_two_changes_in_one_frame_refreeze_once(self):
+        self.w.begin_game(Busy)
+        change_act(Calm)
+        change_act(Busy)
+        self.assertTrue(gc_policy.freeze_pending(), "the second change keeps the request")
+        with mock.patch.object(gc, "freeze", wraps=gc.freeze) as freeze:
+            self.w.step(1)
+        self.assertEqual(freeze.call_count, 1)
         self.assertTrue(gc_policy.world_frozen())
 
     def test_setup_object_destroyed_in_play_waits_for_the_next_thaw(self):
@@ -101,6 +139,7 @@ class TestGcFreeze(_PolicyOn, SystemTestCase, unittest.TestCase):
         gc.collect()
         self.assertIsNotNone(victim(), "expected: frozen until the next thaw")
         change_act(Calm)
+        self.w.step(1)
         self.assertIsNone(victim())
 
     def test_thaw_is_only_undo(self):

@@ -473,6 +473,12 @@ cancels the earlier Handle; different channels run together):
 | rotation | `rotate_to` / `rotate_by` |
 | all three | `frame_to` / `reset_view` |
 
+An act change restores the camera pose and **cancels the handle on every
+channel**, whatever its owner: a camera move started from a game actor's mode
+(owned by that actor, so it outlives the act) would otherwise write the camera
+again on the next frame and undo the restore (review 2026-10-09 S9-5;
+`act._restore_camera`, `test_act.TestActOwnsItsRegistries`).
+
 `about=` keeps a world point glued to the same design pixel by rewriting look
 each tick through the existing mutator — that **is** pan, so the Handle claims
 the pan key too. `rotate_to(time=)` uses shortest arc (CCW+) and ends exactly

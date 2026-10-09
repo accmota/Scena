@@ -51,7 +51,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from hypothesis_support import quiet, registry  # noqa: E402
 from surface_support import CURSOR_KEYS, census_diff, reset_background_base, surface_census  # noqa: E402
-from system_support import FRAME, SystemWorld, reset_world_settings  # noqa: E402
+from system_support import FRAME, SystemWorld, reset_input_state, reset_world_settings  # noqa: E402
 
 import glfw  # noqa: E402
 import scena  # noqa: E402
@@ -509,34 +509,9 @@ class ProgramRun:
         # program per process in real use, so each run starts from the names
         # known before it and gives back the ones it taught.
         self._groups_before = (set(reg._group_gen), set(reg._declared_groups))
-        # A fresh keyboard and mouse: nothing held or pending from before.
-        fw.keys._pressed_keys.clear()
-        fw.keys._pending_edges.clear()
-        fw.keys._once_fired.clear()
-        fw.mouse._pressed_buttons.clear()
-        # The mouse too: another suite in the same process may leave it at a
-        # junk position (test_api_robustness fuzzes it), masked, or with a
-        # click history that would make the first click a double click.
-        fw.keys._input_masked = False
-        fw.mouse._input_masked = False
-        fw.mouse._mask_latch_buttons.clear()
-        for hist in (fw.mouse._last1_click_pos, fw.mouse._last1_click_time,
-                     fw.mouse._last2_click_pos, fw.mouse._last2_click_time):
-            hist.clear()
-        fw.mouse._sync_position(0.0, 0.0)
-        # Widget layout starts from the top-left column, not from wherever the
-        # last widget anyone placed left the cursor (destroy does not rewind
-        # it: surface_support.CURSOR_KEYS; another suite left it at 1e200).
-        scena.ui.stack_reset()
-        # No pointer yet (a cursor outside the window): no hover target, no
-        # press, no remembered position from the previous run.
-        sm = fw.shape_manager
-        sm._set_pressed(None)
-        sm._dragging = False
-        sm._hover_target = None
-        sm._hover_entered = None
-        sm._ptr_view = sm._ptr_world = None
-        sm._resolved_sig = None
+        # A fresh keyboard, mouse, pointer and HUD cursor (SystemWorld's
+        # reset ran it too; once more right before the census is cheap).
+        reset_input_state()
         # Every world setting an act change restores (camera, playfield,
         # background, effects, clock, collision, audio …): a program sets them
         # for the whole process, so give the next run the values from before

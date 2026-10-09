@@ -435,7 +435,8 @@ class UiSettings(ClosedSurface):
 
     @min_label_space.setter
     def min_label_space(self, value) -> None:
-        v = float(value)
+        from .validate import number
+        v = number(value, "ui.min_label_space")
         if v < 0:
             raise ValueError("ui.min_label_space must be >= 0")
         self._min_label_space = v

@@ -1508,6 +1508,9 @@ class Entity(Container):
     # ``on_collide*`` callbacks the actor keeps while it has no Collider (park,
     # ``collidable = False``); ``ensure_collider`` copies them into a new one.
     _collide_cbs = None
+    # ``collidable = True`` written by the author: the body stays in collision
+    # when a pair tag that enrolled it retires (review 2026-10-09 S8-7).
+    _collision_opt_in = False
     # Probed for every moving actor every frame (collision proxy, plain-blit
     # draw): a class default keeps them off ``__getattr__``, which costs an
     # exception per miss (graphics review E15: about 0.5 µs each).
@@ -2373,6 +2376,7 @@ class Entity(Container):
         # The author's switch, recorded whatever the current state: False is a
         # sticky opt-out even before any ``@collide`` enrolled the actor (E3).
         object.__setattr__(self, "_collision_opt_out", not value)
+        object.__setattr__(self, "_collision_opt_in", value)
         if _parked(self):
             _stash_flag(self, "collidable", value)  # parked never collides; resume applies
             return

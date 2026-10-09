@@ -118,6 +118,8 @@ class ActManager:
         # World settings at the seal (``WORLD_SETTINGS`` name → value).
         self._settings: Dict[str, Any] = {}
         self._game_leave: dict = {}
+        # ``group["x"] @=`` formulas at the seal (review 2026-10-09 S4-3).
+        self._game_formulas: dict = {}
         # Layer names at the seal: a layer an act creates leaves with the act.
         self._game_layers: frozenset = frozenset()
         self._game_ready_keys: frozenset = frozenset()
@@ -136,6 +138,7 @@ class ActManager:
         )
         self._settings = {w.name: w.snapshot() for w in WORLD_SETTINGS}
         self._game_leave = dict(get_bounds_system()._group_handlers)
+        self._game_formulas = dict(registry._group_formulas)
         self._game_layers = frozenset(registry.layers._layers)
         ready = getattr(builtins, "ready", None)
         recently = getattr(builtins, "recently", None)
@@ -177,14 +180,16 @@ class ActManager:
 
     def change(self, cls: type) -> "Act":
         # GC policy: thaw so the leaving act's objects can be collected;
-        # one collect + freeze after the new act is built (gc_policy).
-        from .gc_policy import freeze_world, thaw_world
+        # one collect + freeze at the end of this frame, after the new act is
+        # built and the caller's stack (a handler) let go of the old act
+        # (gc_policy, review 2026-10-09 S4-7).
+        from .gc_policy import request_freeze, thaw_world
         refreeze = thaw_world()
         try:
             return self._change(cls)
         finally:
             if refreeze:
-                freeze_world()
+                request_freeze()
 
     def _change(self, cls: type) -> "Act":
         leaving = self.current
@@ -207,13 +212,18 @@ class ActManager:
             if leaving is not None and leaving.is_alive:
                 first_error = self._destroy_one(leaving, first_error)
             # 2. Everything else created after the top level ended, as one batch.
-            first_error = self._teardown(first_error, {id(o) for o in batch})
-            # 2b. Work and hooks the act handed to game objects (a bound method
-            #     of the act, or a function closing over it) leave with the act.
-            if leaving is not None:
-                self._drop_act_callables(leaving)
-            # 3. World settings back to their top-level values.
-            self._restore()
+            #    A runaway teardown raises; the steps below run anyway, so the
+            #    act's rules and settings never outlive it (S4-9).
+            try:
+                first_error = self._teardown(first_error, {id(o) for o in batch})
+            finally:
+                # 2b. Work and hooks the act handed to game objects (a bound
+                #     method of the act, or a function closing over it) leave
+                #     with the act.
+                if leaving is not None:
+                    self._drop_act_callables(leaving)
+                # 3. World settings back to their top-level values.
+                self._restore()
             # 4. Layers the act created leave with it (a restart creates them
             #    again; review 2026-10-09 S4-4).
             first_error = self._drop_act_layers(first_error)
@@ -353,28 +363,32 @@ class ActManager:
             if id(obj) in batch_ids and _is_live(obj):
                 first_error = self._fire_hook(obj, first_error)
         passes = 0
-        while True:
-            doomed = self._doomed()
-            if not doomed:
-                break
-            passes += 1
-            if passes > _MAX_TEARDOWN_PASSES:
-                kinds = sorted({type(o).__name__ for o in doomed})
-                raise RuntimeError(
-                    "An act change did not settle: teardown hooks keep "
-                    f"creating objects ({', '.join(kinds)}) after "
-                    f"{_MAX_TEARDOWN_PASSES} passes."
-                )
-            self.dying_ids.update(id(obj) for obj in doomed)
-            for obj in doomed:
-                if not _is_live(obj):
-                    continue
-                if id(obj) not in batch_ids:
-                    # Born during the teardown: leaves without its own hook.
-                    object.__setattr__(obj, "_on_destroy", None)
-                first_error = self._destroy_one(obj, first_error)
-        del batch
-        self._drop_script_level_work()
+        try:
+            while True:
+                doomed = self._doomed()
+                if not doomed:
+                    break
+                passes += 1
+                if passes > _MAX_TEARDOWN_PASSES:
+                    kinds = sorted({type(o).__name__ for o in doomed})
+                    raise RuntimeError(
+                        "An act change did not settle: teardown hooks keep "
+                        f"creating objects ({', '.join(kinds)}) after "
+                        f"{_MAX_TEARDOWN_PASSES} passes."
+                    )
+                self.dying_ids.update(id(obj) for obj in doomed)
+                for obj in doomed:
+                    if not _is_live(obj):
+                        continue
+                    if id(obj) not in batch_ids:
+                        # Born during the teardown: leaves without its own hook.
+                        object.__setattr__(obj, "_on_destroy", None)
+                    first_error = self._destroy_one(obj, first_error)
+        finally:
+            del batch
+            # Also when the cap raised: the act's timers, rules and leave
+            # handlers go (review 2026-10-09 S4-9).
+            self._drop_script_level_work()
         return first_error
 
     def _drop_script_level_work(self) -> None:
@@ -390,6 +404,7 @@ class ActManager:
         get_global_event_system().drop_act_owned()
         get_collision_system().drop_act_pair_handlers()
         get_collision_system().restore_sealed_resolve_pairs()
+        get_collision_system().retire_unused_pair_tags()
         from .cover import drop_act_on_done
         drop_act_on_done()          # the fade stays; the act's on_done goes
         fw = _framework()
@@ -409,6 +424,12 @@ class ActManager:
         bounds = get_bounds_system()
         bounds._group_handlers.clear()
         bounds._group_handlers.update(self._game_leave)
+        # Formula groups an act bound leave with it; a game formula the act
+        # re-bound comes back (S4-3).
+        registry = _registry()
+        registry._group_formulas.clear()
+        registry._group_formulas.update(self._game_formulas)
+        registry._group_formula_stack.clear()
         ready = getattr(builtins, "ready", None)
         timers = getattr(ready, "_timers", None)
         if timers is not None:
@@ -463,6 +484,16 @@ def _snap_camera():
 
 def _restore_camera(v) -> None:
     e = _engine()
+    # A timed camera verb in flight would write the camera again next frame,
+    # whatever its owner (a game actor's mode keeps running): the restored
+    # pose wins (review 2026-10-09 S9-5).
+    from .canvas import CAMERA_ALL_KEYS
+    from .process import get_scheduler
+    tweens = get_scheduler()._tweens
+    for key in CAMERA_ALL_KEYS:
+        handle = tweens.get(key)
+        if handle is not None:
+            handle.cancel()
     for f, x in zip(_CAMERA_FIELDS, v):
         setattr(e, f, x)
     e._sync_camera()
@@ -551,6 +582,28 @@ def _restore_post_effects(game) -> None:
     post._invalidate()
 
 
+def _widget_manager():
+    fw = _framework()
+    return getattr(fw, "widget_manager", None) if fw is not None else None
+
+
+def _snap_hud_stack():
+    wm = _widget_manager()
+    return None if wm is None else wm._cursor_state()
+
+
+def _restore_hud_stack(v) -> None:
+    """The HUD column cursor at the seal: an act's omitted-y HUD starts at
+    the same slot on every entry (review 2026-10-09 S4-5)."""
+    wm = _widget_manager()
+    if wm is None or v is None:
+        return
+    state = list(v)
+    state[7] = [r for r in state[7] if r() is not None]   # participants
+    state[9] = list(state[9])                              # label column
+    wm._restore_cursor_state(tuple(state))
+
+
 def _flag(obj_fn: Callable[[], Any], attr: str):
     return (lambda: getattr(obj_fn(), attr),
             lambda v: setattr(obj_fn(), attr, v))
@@ -599,6 +652,11 @@ WORLD_SETTINGS: Tuple[WorldSetting, ...] = (
     WorldSetting(
         "set_defaults", ("set_defaults",),
         _snap_paint_defaults, _restore_paint_defaults),
+    WorldSetting(
+        "hud_stack",
+        ("ui.stack_reset", "ui.stack_origin", "ui.stack_from", "ui.stack_column",
+         "ui.gap"),
+        _snap_hud_stack, _restore_hud_stack),
 )
 
 # Player / engine preferences and debug switches: an act may change them for
@@ -613,6 +671,9 @@ KEPT_SETTINGS: Dict[str, str] = {
     "audio.volume": "preference",
     "audio.muted": "preference",
     "audio.level_tau": "preference (analysis)",
+    "ui.scale": "preference (theme)",
+    "ui.font": "preference (theme)",
+    "ui.min_label_space": "preference (theme)",
     "canvas.framerate": "preference (engine)",
     "set_fx_auto": "preference (engine)",
     "set_watchdog": "debug",

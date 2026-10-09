@@ -370,6 +370,13 @@ existing formula warns (`RuntimeWarning`) and overrides. Cycles are detected at 
 read (re-entrancy stack), not at `@=` — weaker than the Attribute graph; the error is
 `RuntimeError` with the chain, not `RecursionError`.
 
+**Acts.** The seal records the formulas (`ActManager._game_formulas`); an act
+change puts that set back. A formula an act bound leaves with it (a restart
+binds it again without the "overrides" warning, a lambda reading the act's
+`self` no longer pins the dead act, and the name is free for tagging), and a
+game formula the act re-bound comes back (review 2026-10-09 S4-3; Act Design
+"Removed").
+
 `@collide` / `resolve` live re-enrollment keys on `_group_id` (string tags). Formula
 groups fall through like snapshots (decoration-time membership). Prefer the source tag
 strings for collision.

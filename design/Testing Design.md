@@ -65,7 +65,7 @@ Rules of thumb:
 | Module | Offers |
 | --- | --- |
 | `tests/hypothesis_support.py` | Profiles `dev` / `ci` / `deep` / `replay` (`SCENA_HYPOTHESIS_PROFILE`); example DB in `.hypothesis/`; `WorldTracker` / `fresh_world` (reset the process-wide singletons per example); `scrub_pools`; strategies (`junk`, `not_numbers`, `not_points`, `magnitudes`, `angles`, pool names `GROUP_POOL` / `ID_POOL` / `LAYER_POOL`); `AUTHOR_ERRORS`, `assert_author_error`, `call_as_author`, `leak_message`. |
-| `tests/system_support.py` | `SystemWorld` / `system_world()` / `SystemTestCase`: real frames headless via `ScenaFramework._simulate_frame` (the body `run()` calls) + raster `_draw_frame` (post FX included: with no GL context the scene / FX render targets are raster surfaces); resets collision, bounds, cover, FX registries, clock, `ready` / `recently`, camera, post stack; pins pre-draw clocks to `clock.time`; quarantines (parks) live actors other modules left, resumed at teardown (`quarantine=False` defers it to `world.quarantine()`, for a census taken before parking: O4); gives back every `act.WORLD_SETTINGS` entry at teardown (O8); turns the GC freeze off (`gc_policy.set_gc_freeze(False)`: a frozen heap would hide a real leak from `census` / `assert_collected`; the policy itself is tested in `test_gc_freeze.py`). `census()` / `diff_census()` / `full_collect()`; `id_snapshot()` / `describe_new_ids()`; `zombies()`; `Probe` (`dead_calls()`); `assert_collected()` (referrer chain names the holder); `kitchen_sink()` (one actor wired into every subsystem); `tone()` (in-memory Sound). |
+| `tests/system_support.py` | `SystemWorld` / `system_world()` / `SystemTestCase`: real frames headless via `ScenaFramework._simulate_frame` (the body `run()` calls) + raster `_draw_frame` (post FX included: with no GL context the scene / FX render targets are raster surfaces); resets the act manager first (its teardown restores game rules: S4-8), then collision, bounds, cover, FX registries, clock, `ready` / `recently`, camera, post stack, and input (`reset_input_state`: keys, mouse, hover, press, widget focus, HUD cursor; X-life-8); pins pre-draw clocks to `clock.time`; quarantines (parks) live actors other modules left, resumed at teardown (`quarantine=False` defers it to `world.quarantine()`, for a census taken before parking: O4); gives back every `act.WORLD_SETTINGS` entry at teardown (O8); turns the GC freeze off (`gc_policy.set_gc_freeze(False)`: a frozen heap would hide a real leak from `census` / `assert_collected`; the policy itself is tested in `test_gc_freeze.py`). `census()` / `diff_census()` / `full_collect()`; `id_snapshot()` / `describe_new_ids()`; `zombies()`; `Probe` (`dead_calls()`); `assert_collected()` (referrer chain names the holder); `kitchen_sink()` (one actor wired into every subsystem); `tone()` (in-memory Sound). |
 | `tests/diff_support.py` | `make_twins` / `force_slow` / `is_fast` (twin B via `_flag_pull_consumers`), `fingerprint` (pose + uncached collision prims read with cold engine readers), `assert_same` (tolerant structural diff naming the field), `assert_same_prims` (collision prims as a multiset: nearest-match pairing, never a raw-float sort — D10), `assert_fast` (**no vacuous pass**: fails if twin A left the fast path), `module_flag`, `assert_catches` (canary runner: patches a module name or a class, runs a fresh private copy of the target test under the `canary` profile). |
 | `tests/surface_support.py` | Inventory of `scena.__all__` by family (`family_of`, `constructor_names`, `ctor_params`); `EXCLUDED` (name → reason; the coverage guard fails on an export that is neither fuzzed nor listed); `surface_census()` (`census()` + post stack, background items / base kind, HUD cursors, hitbox parts, cover, capture devices); `census_diff`; `CURSOR_KEYS`; `remove(obj)` (destroy / remove / `reset_base`); `settle()`. |
 | `tests/script_harness.py` | Runs one script headless in its own process (`python tests/script_harness.py <script> [frames]`): `scena.run` → a loop of `ScenaFramework._simulate_frame` (no window, no draw), the script's directory as cwd, `sys.argv = [script]` (a bench takes its argparse defaults); prints `SCRIPT OK <frames>`. Used by `test_scripts_run.py` |
@@ -664,7 +664,14 @@ literal). The dirty cells did **not** reproduce the deep serial failures
 ([Open](#open-found-not-yet-fixed)): 300 live drawn shapes and shapes with
 work in the process leave every program's trace unchanged under the
 `SystemWorld` quarantine, so the cause lies elsewhere (the act reset, or a
-module that leaves state the quarantine does not park).
+module that leaves state the quarantine does not park). The systems review
+(2026-10-09, [RV4](#rv4--systems-review-fixes-batch-4-what-an-act-change-owns-2026-10-09))
+found and fixed both leads: `reset_system_globals` ran the act reset **after**
+resetting collision and bounds, and the reset's teardown wrote the sealed
+game's leave handlers and resolve pairs back into the fresh singletons
+(S4-8); and `SystemWorld` reset no input, hover, press or HUD cursor state
+between worlds (X-life-8; `reset_input_state`, shared with `ProgramRun`).
+Rerun the deep tier to see whether the serial failures are gone.
 
 
 # Test tiers
@@ -2154,6 +2161,33 @@ Lessons:
 Harness: `tests/input_driver.py` delivers GLFW-shaped events through the
 framework's own handlers between `SystemWorld` steps (the world stubs
 `poll_events`, so no system test had run an input callback in a frame).
+
+### RV4 — systems review fixes, batch 4: what an act change owns (2026-10-09)
+
+Root cause R3: the seal recorded a hand-picked set of registries, and the
+settings guard walked a hand-picked set of objects. Each row is a registry an
+act could write that neither list named.
+
+| ID | Finding | Fix | Test |
+| --- | --- | --- | --- |
+| S4-3 = S9-4 | an act's `group["x"] @=` survived: restart warning, pinned act, name blocked for tagging | the seal records `_group_formulas`; the change puts that set back | `test_act.TestActOwnsItsRegistries` |
+| S8-4 | `unresolve(x, ANYTHING)` and an act's `ANYTHING` rule left `x` pairing with every body | `_prune_pair_targets` re-derives `ANYTHING`; `unresolve` prunes both sides | same class; `test_collision.TestAnythingInterestLifecycle` |
+| S8-7 | a tag no rule named any more kept enrolling members (act change, `unresolve`, destroy of an object side) | `retire_unused_pair_tags` at every door; a body enrolled only by the tag leaves, an author `collidable = True` stays | same classes |
+| S9-5 | a game actor's camera tween undid the restored camera | the camera restore cancels every camera channel | same class |
+| S4-5 | the act's HUD stacked lower on every restart | the HUD column cursor is a `WORLD_SETTINGS` row (`hud_stack`) | same class; `TestWorldSettings` |
+| S4-6 | the settings guard never walked `ui` | the guard walks every exported instance; the rest are excused by name (`NOT_WALKED`); `ui.scale` / `font` / `min_label_space` kept as preferences | `TestSettingsClassification` |
+| S4-7 = S1-8 | a change from a handler froze the old act's bodies until the next change | the change requests the collect + freeze; the end of `_simulate_frame` runs it | `test_gc_freeze` |
+| S4-9 | a runaway teardown raised before the restore and the script-level drop | both run in a `finally` | `test_act.TestTeardownPhases` |
+| S4-8 | the test reset re-installed the game's leave handlers and resolve pairs | `reset_system_globals` resets the act manager first | `test_sys_lifetime.TestWorldsAreIsolated` |
+| X-life-8 | `SystemWorld` kept keys, hover, press and the HUD cursor between worlds | `reset_input_state` in every world and in `ProgramRun` | same class |
+
+Guard for the class: `TestNoLeaks.test_one_act_gives_back_every_registry`.
+The busy act uses every verb above once, and the registries with no lazy
+warm-up must read the same after one act as before it. The census gained
+`collision.pair_tags`, `collision.anything_targets` and `registry.layers`. A
+warmed census comparison cannot see a registry that leaks once and then
+stays flat, so this test compares against the census taken before the first
+act.
 
 ### F — contact flicker (2026-09-29)
 

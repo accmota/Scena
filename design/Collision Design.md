@@ -92,6 +92,18 @@ the public `active`: a linked `hb["active"]` runs once per step
 
 `collidable = True` puts a hitbox in the registry for **unnamed** queries (`query_point` / `query_circle` / `query_sector` / `query_shape` / `raycast` with `group` omitted or `ANYTHING`), and as a partner for bodies that declared `ANYTHING`. It does **not** create pairwise tests against other flagged bodies. A query that **names** a group does not need this flag — see [Queries (on-demand)](#queries-on-demand).
 
+**A tag enrolls while a rule names it.** `_pair_tags` is derived from the live
+`@collide` and `resolve` declarations. When the last one naming a tag goes (act
+change, `unresolve`, the destroy of an object side such as `@collide(boss,
+"bullet")`), `retire_unused_pair_tags` drops the tag: later members are not
+enrolled, and a body enrolled **only** through it leaves collision (exits fire,
+`collidable` reads `False`). A body some declaration still names stays: an
+author `collidable = True` (`_collision_opt_in`), its own `on_collide*`, another
+live tag, an instance side, a registered hitbox part. Before 2026-10-09 a tag
+never left: an act's `@collide("coin", "hero")` enrolled every later coin of
+every act, each paying a proxy per step and answering unnamed queries (review
+S8-7).
+
 Enrollment keys on **string tags** (and live tag `group["name"]`). A formula name
 (`group["enemies"] @=`) is not a collision tag — partners stay decoration-time, like
 a snapshot. Prefer the source tag strings in `@collide` / `resolve`.
@@ -110,8 +122,16 @@ A destroyed body never re-enters the index: `ensure_collider` raises `DestroyedE
 | Source | Adds `ANYTHING` | Removed when |
 | --- | --- | --- |
 | `on_collide` / `on_collide_stay` / `on_collide_exit` ≠ `None` | yes | all three callbacks are `None` |
-| `@collide(x, ANYTHING)` / `@collide_with(ANYTHING)` | yes (on the named side) | handler dropped (destroy / module unload) |
-| `resolve(x, ANYTHING)` | yes | `unresolve(x, ANYTHING)` |
+| `@collide(x, ANYTHING)` / `@collide_with(ANYTHING)` | yes (on the named side) | handler dropped (destroy / act change / module unload) |
+| `resolve(x, ANYTHING)` | yes | `unresolve(x, ANYTHING)` / act change |
+
+Every door that drops a pair re-derives `ANYTHING` from what is left
+(`_prune_pair_targets` → `_sync_anything_interest`, which counts callbacks,
+handlers and resolve pairs). Before 2026-10-09 the prune skipped `ANYTHING`
+and `unresolve` never pruned: `unresolve(hero, ANYTHING)` and an act's
+`@collide(hero, ANYTHING)` on a game hero left the hero pairing with every
+body for good (review S8-4; `TestAnythingInterestLifecycle`,
+`test_act.TestActOwnsItsRegistries`).
 
 Clearing `on_collide = None` **silences the object callback** and drops callback-sourced `ANYTHING`; **`@collide(a, b)` handlers on the same contact are unaffected** (dispatch runs object callbacks first, then pair handlers). If `@collide_with(ANYTHING)` (or `@collide(self, ANYTHING)`) still applies, `ANYTHING` stays.
 
