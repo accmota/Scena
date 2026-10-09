@@ -1489,6 +1489,7 @@ gaps that **both** authors reported on their own.
 
 | Found in | Issue | Planned |
 | --- | --- | --- |
+| Deep tier, serial pass (2026-10-09) | 46 failures in the one-process pass only (every parallel job passes): program-run teardown censuses see `registry.draw_live` move because shapes earlier modules left alive (`test_shapes` leaves ~700) change draw-list membership during the run; also `Text(glow=[])` moving `widgets._stack_bottom` and an endless-layer bound. Already failing on `1ec7001`, before the geometry campaign | Find whether an act reset re-adds objects no act owns (engine) or modules must clean up (isolation); fix by root cause |
 | Geometry campaign GX1–GX17 | Found by the campaign's harnesses ([GX](#gx--geometry-campaign-2026-10-08)) | Campaign phase 7 |
 | GR (2026-10-08) | Box and Rect keep near-copies of `_takein_impl` / `rotate_by` (they drifted once, SC1) | Decided 2026-10-08: no refactor now (no bug; the geometry contract sweep builds every Box model beside Rect). The next change to either method merges them into `_RectFrame` first ([Shapes Design](Shapes%20Design.md)) |
 
