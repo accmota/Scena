@@ -43,7 +43,10 @@ import math
 import os
 import re
 import sys
+import heapq
+import itertools
 import warnings
+import weakref
 from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union, overload
 
 import numpy as np
@@ -3322,6 +3325,70 @@ class _HitboxBakeMixin:
         return px_w * kx * s, px_h * ky * s
 
 
+# Clips with a finite ``loops=`` (they end, and may switch to ``next=``), by
+# the world time they end: ``(due, seq, weakref)``. ``settle_clip_ends`` reads
+# the due ones in the simulation, so the end and the ``next=`` switch (with its
+# size write) never happen first inside a draw (review 2026-10-09 S7-7). A
+# heap, not a walk: a frame with nothing due costs one compare (a walk of 300
+# playing sprites cost 5 % of the frame). A stale entry (the clip changed, the
+# time scale moved the end) no longer matches ``sprite._play_due``.
+_CLIP_DUE: list = []
+_CLIP_SEQ = itertools.count()
+
+
+def _schedule_clip_end(sp) -> None:
+    loops = sp._play_loops
+    scale = float(sp._time_scale)
+    if loops is None or not sp._play_frames or sp._play_fps <= 0.0 or scale <= 0.0:
+        sp._play_due = None             # never ends, or frozen (rescheduled on thaw)
+        return
+    length = _clip_period(len(sp._play_frames), sp._play_yoyo) * loops / sp._play_fps
+    due = sp._play_t0 + length / scale
+    sp._play_due = due
+    heapq.heappush(_CLIP_DUE, (due, next(_CLIP_SEQ), weakref.ref(sp)))
+
+
+_CLIP_COMPACT_AT = 256
+
+
+def _compact_clip_due() -> None:
+    """Drop entries of dead sprites and stale ends (a spawned sprite with a
+    long finite clip, destroyed early, would otherwise sit until its end)."""
+    global _CLIP_COMPACT_AT
+    live = []
+    for entry in _CLIP_DUE:
+        sp = entry[2]()
+        if sp is not None and not getattr(sp, "_destroyed", False) and sp._play_due == entry[0]:
+            live.append(entry)
+    heapq.heapify(live)
+    _CLIP_DUE[:] = live
+    _CLIP_COMPACT_AT = max(256, 2 * len(live))
+
+
+def settle_clip_ends() -> None:
+    """Frame body, after the process tick: finish due clip ends / switches."""
+    if not _CLIP_DUE:
+        return
+    if len(_CLIP_DUE) > _CLIP_COMPACT_AT:
+        _compact_clip_due()
+    now = _world_time()
+    early = now + 1e-6                  # the playhead's own tolerance decides
+    again = []
+    while _CLIP_DUE and _CLIP_DUE[0][0] <= early:
+        entry = heapq.heappop(_CLIP_DUE)
+        sp = entry[2]()
+        if sp is None or getattr(sp, "_destroyed", False) or sp._play_due != entry[0]:
+            continue
+        if not sp._play_frames or sp._play_loops is None:
+            sp._play_due = None         # stopped by another writer (frame =, svg =)
+            continue
+        sp._current_frame_index()
+        if sp._play_due == entry[0] and sp._play_frames:
+            again.append(entry)         # not over by the playhead's count yet
+    for entry in again:
+        heapq.heappush(_CLIP_DUE, entry)
+
+
 class Sprite(_HitboxBakeMixin, Graphic, PaintState):
     """Image-body actor. Not a Shape — ``isinstance(sprite, Shape)`` is False.
 
@@ -3762,6 +3829,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         self._play_next: Optional[str] = None
         self._play_t0 = 0.0
         self._play_frozen_elapsed = 0.0
+        self._play_due = None           # world time a finite clip ends
         self._play_min_hold = 0.0
         self._play_resume_cache: Dict[str, float] = {}
         self._blit_paint = _BLIT_PAINT
@@ -3793,6 +3861,11 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
     @size.setter
     def size(self, value) -> None:
         longer = _positive_number(value, what="size", exclusive=False)
+        # Both sides before either write: a linked ``height`` refused after
+        # ``width`` had landed (review 2026-10-09 S7-5).
+        from .shapes import _ensure_writable
+        _ensure_writable(self["width"], "size =")
+        _ensure_writable(self["height"], "size =")
         w = abs(self.width)
         h = abs(self.height)
         if w <= 0.0 or h <= 0.0:
@@ -3833,6 +3906,9 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
     @frame.setter
     def frame(self, value) -> None:
         idx = self._sheet.frame_index(value)
+        # A linked size refuses before the clip stops (as ``play()`` does:
+        # PB1; review 2026-10-09 S7-6).
+        self._gate_clip_size((int(idx),), "frame =")
         self._play_name = None
         self._play_frames = ()
         self._play_min_hold = 0.0
@@ -4636,6 +4712,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         loops: Optional[int] = None,
         next: Optional[str] = None,
         start_elapsed: float = 0.0,
+        engine: bool = False,
     ) -> None:
         self._play_name = name
         self._play_frames = tuple(frames)
@@ -4650,7 +4727,11 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         self._play_frozen_elapsed = max(0.0, float(start_elapsed))
         if self._play_frames:
             self._frame = self._play_frames[0]
-            self._apply_size_intent(self._sheet._frame_at(self._frame))
+            self._apply_size_intent(self._sheet._frame_at(self._frame),
+                                    keep_linked=engine)
+        # A clip that ends ends in the simulation (``settle_clip_ends``), not
+        # in whatever reads the frame first.
+        _schedule_clip_end(self)
         self._sync_clip_hitbox()
 
     def _size_intent_kwargs(self, fr=None) -> dict:
@@ -4697,6 +4778,8 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         elif self._play_frames:
             self._play_t0 = _world_time() - elapsed / new
         self._time_scale = new
+        if self._play_frames and self._play_loops is not None:
+            _schedule_clip_end(self)     # the end moved with the scale
 
     def _du_per_px(self) -> Tuple[float, float]:
         """Design units per source pixel — one scale for every cell (scale=1).
@@ -4728,7 +4811,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         _ensure_writable(self["width"], operation)
         _ensure_writable(self["height"], operation)
 
-    def _apply_size_intent(self, fr) -> None:
+    def _apply_size_intent(self, fr, *, keep_linked: bool = False) -> None:
         """Move ``width`` / ``height`` to ``fr`` at the sprite's one scale.
 
         Each cell draws at its own PNG size times ``_du_per_px``: a pack
@@ -4739,10 +4822,24 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         px_w, px_h = float(fr.src_w), float(fr.src_h)
         du_w, du_h = px_w * kx, px_h * ky
         if abs(float(self.width) - du_w) > 1e-9 or abs(float(self.height) - du_h) > 1e-9:
+            if keep_linked and self._size_is_linked():
+                # An engine switch (``next=``) has no call site to refuse at:
+                # the link owns the size (review 2026-10-09 S7-7).
+                return
             self.width = du_w
             self.height = du_h
         self._ref_src_w = px_w
         self._ref_src_h = px_h
+
+    def _size_is_linked(self) -> bool:
+        from .shapes import _ensure_writable
+        from .state import LinkedAttributeError
+        try:
+            _ensure_writable(self["width"], "play")
+            _ensure_writable(self["height"], "play")
+        except LinkedAttributeError:
+            return True
+        return False
 
     def _current_frame_index(self) -> int:
         seq = self._play_frames
@@ -4773,13 +4870,15 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
                 # The next clip starts at the boundary, not at this read (PB4):
                 # carry the time already spent past the end.
                 overshoot = max(0.0, elapsed - total / self._play_fps)
-                self._adopt_clip(next_clip, frames, fps, yoyo, start_elapsed=overshoot)
+                self._adopt_clip(next_clip, frames, fps, yoyo, start_elapsed=overshoot,
+                                 engine=True)
                 self._play_min_hold = 0.0
                 return self._current_frame_index() if self._play_frames else self._frame
             hold = seq[0] if yoyo else seq[-1]
             self._frame = hold
             self._play_name = None
             self._play_frames = ()
+            self._play_due = None
             self._sync_clip_hitbox()
             return hold
         return seq[_clip_step(idx, n, yoyo)]

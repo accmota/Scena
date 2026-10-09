@@ -1793,6 +1793,8 @@ class Scheduler:
         # (``resume_suspended_game_slots``). Key -> (handle, was it paused).
         self._suspended_game: Dict[Tuple[Any, str], Tuple[Handle, bool]] = {}
         self._tweens: Dict[object, Handle] = {}
+        # Finished voice ids carried to the next tick after a raise (S2-13).
+        self._sound_carry: set = set()
         self._mode_owners: WeakSet = WeakSet()
         self._update_owners: WeakSet = WeakSet()
         self._mode_dense: List[object] = []
@@ -2375,11 +2377,24 @@ class Scheduler:
                 self._sound_finished_tick = set(get_mixer().take_finished())
             except Exception:
                 self._sound_finished_tick = set()
+            carry = self._sound_carry
+            if carry:
+                # Voices a raising ``on_done`` left unprocessed last frame.
+                self._sound_finished_tick |= carry
+                self._sound_carry = set()
             # After tick_audio, so a sound handle created by that pump waits.
             sound_s = list(self._sound)
-            for handle in sound_s:
-                self._tick_sound(handle, world_dt)
-            self._sound_finished_tick = None
+            try:
+                for handle in sound_s:
+                    self._tick_sound(handle, world_dt)
+            except BaseException:
+                # The finished voices not reached yet end next frame: one raising
+                # ``on_done`` lost every other voice that ended this frame
+                # (review 2026-10-09 S2-13).
+                self._sound_carry = set(self._sound_finished_tick or ())
+                raise
+            finally:
+                self._sound_finished_tick = None
 
             for script in self._scripts:
                 if script.done:
@@ -2502,6 +2517,7 @@ class Scheduler:
         self._by_owner.clear()
         self._named.clear()
         self._tweens.clear()
+        self._sound_carry = set()
         self._mode_owners = WeakSet()
         self._update_owners = WeakSet()
         self._mode_dense = []
@@ -3279,6 +3295,22 @@ def active_process_claim_on(part) -> Optional["Handle"]:
     return None
 
 
+def _validate_timed(*, time, ease, then, on_done, owner=None,
+                    what: str = "tween time=") -> tuple:
+    """Every refusal ``_start_tween`` makes, run before a timed verb touches
+    anything (the same-property replace, the ``face=`` snap): a rejected
+    ``move_to(…, time=-1)`` cancelled the move already in flight (review
+    2026-10-09 S2-5). Returns ``(on_done, then, duration, ease_fn)`` for
+    ``_start_tween(checked=…)``, so nothing is checked twice."""
+    on_done, then = _fn_and_then(None, then, call_name="tween", on_done=on_done)
+    if then is not None:
+        _require_then_owner(then, owner, call_name="tween")
+    duration = seconds(time, what)
+    if duration < 0.0:
+        raise ValueError(f"{what} must be >= 0")
+    return on_done, then, duration, resolve_ease(ease, what="ease")
+
+
 def _start_tween(
     *,
     duration: float,
@@ -3300,6 +3332,7 @@ def _start_tween(
     claim_verb: Optional[str] = None,
     target=None,
     what: str = "tween time=",
+    checked: Optional[tuple] = None,
 ) -> Handle:
     """``target=``, when given, is the Entity this tween actually writes to
     (e.g. the shape a ``move_to`` moves) — checked every tick independently
@@ -3308,13 +3341,19 @@ def _start_tween(
     destroyed target kept running (and still fired ``on_done``) because
     only the Director's liveness was ever checked.
     """
-    on_done, then = _fn_and_then(None, then, call_name="tween", on_done=on_done)
-    if then is not None:
-        _require_then_owner(then, owner, call_name="tween")
-    duration = seconds(duration, what)
-    if duration < 0.0:
-        raise ValueError(f"{what} must be >= 0")
-    ease_fn = resolve_ease(ease, what="ease")
+    if checked is not None:
+        # The verb ran ``_validate_timed`` before touching anything.
+        on_done, then, duration, ease_fn = checked
+        if then is not None:
+            _require_then_owner(then, owner, call_name="tween")
+    else:
+        on_done, then = _fn_and_then(None, then, call_name="tween", on_done=on_done)
+        if then is not None:
+            _require_then_owner(then, owner, call_name="tween")
+        duration = seconds(duration, what)
+        if duration < 0.0:
+            raise ValueError(f"{what} must be >= 0")
+        ease_fn = resolve_ease(ease, what="ease")
     handle = Handle._make(
         kind="tween",
         delay=duration,
@@ -3619,6 +3658,8 @@ def _tween_target(
     n_loops = _require_loop_kwargs(
         loops=loops, yoyo=yoyo, time=time, call_name="tween",
     )
+    checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
+                              owner=owner)
     # Same-kind replace before writability — free the claim so probe succeeds.
     if is_fieldref:
         _preempt_tween_keys((id(target.owner), target.name))
@@ -3648,7 +3689,7 @@ def _tween_target(
                     value = float(hi)
             ref.owner._write_field(ref.name, value)
 
-        return _start_tween(
+        return _start_tween(checked=checked,
             duration=time, ease=ease, write=write, tween_key=(id(target.owner), target.name),
             then=then, on_done=on_done, owner=owner, scope=scope, name=name,
             loops=n_loops, yoyo=yoyo, claim_targets=(target,), claim_kind="tween",
@@ -3662,7 +3703,7 @@ def _tween_target(
         def write(u, attr=target, s=from_val, e=to):
             attr._takein(lerp(s, e, u))
 
-        return _start_tween(
+        return _start_tween(checked=checked,
             duration=time, ease=ease, write=write, tween_key=id(target),
             then=then, on_done=on_done, owner=owner, scope=scope, name=name,
             loops=n_loops, yoyo=yoyo, claim_targets=(target,), claim_kind="tween",
@@ -3679,7 +3720,7 @@ def _tween_target(
         def write(u, node=target, x0=sx, y0=sy, x1=ex, y1=ey):
             node._takein((x0 + (x1 - x0) * u, y0 + (y1 - y0) * u))
 
-        return _start_tween(
+        return _start_tween(checked=checked,
             duration=time, ease=ease, write=write, tween_key=id(target),
             then=then, on_done=on_done, owner=owner, scope=scope, name=name,
             loops=n_loops, yoyo=yoyo, claim_targets=(target,), claim_kind="tween",
@@ -3759,6 +3800,8 @@ def timed_move_to(
     n_loops = _require_loop_kwargs(
         loops=loops, yoyo=yoyo, time=time, call_name="move_to",
     )
+    checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
+                              owner=shape, what="move_to time=")
     if about is None:
         # The point the instant ``_move_to`` places: a sheet-anchored sprite's
         # ``center``, not its art frame (the old probe jumped it there first).
@@ -3809,7 +3852,7 @@ def timed_move_to(
             h._last_dx += step_x
             h._last_dy += step_y
 
-    handle = _start_tween(
+    handle = _start_tween(checked=checked,
         duration=time, ease=ease, write=write, tween_keys=keys,
         then=then, on_done=on_done, owner=owner, scope=scope,
         loops=n_loops, yoyo=yoyo, motion_readout=True,
@@ -3845,6 +3888,8 @@ def timed_move_by(
     n_loops = _require_loop_kwargs(
         loops=loops, yoyo=yoyo, time=time, call_name="move_by",
     )
+    checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
+                              owner=shape)
     dx = float(dx)
     dy = float(dy)
     key = _center_pose_key(shape)
@@ -3882,7 +3927,7 @@ def timed_move_by(
             h._last_dx += step_x
             h._last_dy += step_y
 
-    handle = _start_tween(
+    handle = _start_tween(checked=checked,
         duration=time, ease=ease, write=write, tween_keys=keys,
         then=then, on_done=on_done, owner=owner, scope=scope,
         loops=n_loops, yoyo=yoyo, motion_readout=True,
@@ -3946,6 +3991,8 @@ def timed_rotate_to(
     n_loops = _require_loop_kwargs(
         loops=loops, yoyo=yoyo, time=time, call_name="rotate_to",
     )
+    checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
+                              owner=shape)
     _preempt_tween_keys((id(shape), "angle"))
     _probe_rotate_writable(shape, about=about, force=force, verb="rotate_to")
     start = float(shape._rotation_value())
@@ -3968,7 +4015,7 @@ def timed_rotate_to(
             s.rotate_by(step, about=ab, force=f)
             box[0] = target
 
-    return _start_tween(
+    return _start_tween(checked=checked,
         duration=time, ease=ease, write=write,
         tween_key=(id(shape), "angle"),
         then=then, on_done=on_done, owner=owner, scope=scope,
@@ -3996,6 +4043,8 @@ def timed_rotate_by(
     n_loops = _require_loop_kwargs(
         loops=loops, yoyo=yoyo, time=time, call_name="rotate_by",
     )
+    checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
+                              owner=shape)
     _preempt_tween_keys((id(shape), "angle"))
     _probe_rotate_writable(shape, about=about, force=force, verb="rotate_by")
     delta = float(angle)
@@ -4009,7 +4058,7 @@ def timed_rotate_by(
             s.rotate_by(step, about=ab, force=f)
             box[0] = target
 
-    return _start_tween(
+    return _start_tween(checked=checked,
         duration=time, ease=ease, write=write,
         tween_key=(id(shape), "angle"),
         then=then, on_done=on_done, owner=owner, scope=scope,
@@ -4055,6 +4104,8 @@ def timed_scale_to(
     n_loops = _require_loop_kwargs(
         loops=loops, yoyo=yoyo, time=time, call_name="scale_to",
     )
+    checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
+                              owner=shape)
     _preempt_tween_keys((id(shape), "scale"))
     start = float(shape.scale)
     end = fixed_magnitude(value, "scale", hint=HINT_SCALE)
@@ -4064,7 +4115,7 @@ def timed_scale_to(
     def write(u, s=shape, a=start, b=end, ab=about, f=force):
         s.scale_to(clamp_magnitude(a + (b - a) * u), about=ab, force=f)
 
-    return _start_tween(
+    return _start_tween(checked=checked,
         duration=time, ease=ease, write=write,
         tween_key=(id(shape), "scale"),
         then=then, on_done=on_done, owner=owner, scope=scope,
@@ -4092,6 +4143,8 @@ def timed_scale_by(
     n_loops = _require_loop_kwargs(
         loops=loops, yoyo=yoyo, time=time, call_name="scale_by",
     )
+    checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
+                              owner=shape)
     _preempt_tween_keys((id(shape), "scale"))
     start = float(shape.scale)
     end = start * fixed_magnitude(factor, "scale", hint=HINT_SCALE)
@@ -4101,7 +4154,7 @@ def timed_scale_by(
     def write(u, s=shape, a=start, b=end, ab=about, f=force):
         s.scale_to(clamp_magnitude(a + (b - a) * u), about=ab, force=f)
 
-    return _start_tween(
+    return _start_tween(checked=checked,
         duration=time, ease=ease, write=write,
         tween_key=(id(shape), "scale"),
         then=then, on_done=on_done, owner=owner, scope=scope,

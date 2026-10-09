@@ -20,6 +20,7 @@ from .input import (
 from .uiwidget import WidgetTheme, ui
 from .state import State, get_scena_system
 from .process import ReadyManager, RememberedManager, tick_processes, _run_with_watchdog, _Watchdog, WATCHDOG_RESUME_S
+from .sprite import settle_clip_ends
 from .validate import call_truncated
 from .bounds import get_bounds_system
 from .transients import tick_all_transients
@@ -3674,6 +3675,9 @@ class ScenaFramework:
             # current and collision handlers may start new timers (first
             # tick next frame).
             tick_processes()
+            # Sprite clips that end this frame end here (and switch to
+            # ``next=``), not in the first reader, which may be the draw.
+            settle_clip_ends()
 
             # Collision step: snapshot → broad/narrow → enter/stay/exit.
             # Runs before flush so @when sees post-collision writes from handlers.

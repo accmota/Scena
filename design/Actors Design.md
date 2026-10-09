@@ -900,6 +900,14 @@ and the warning is not wanted. Tests: `tests/test_process.py`
 (`test_awaited_tween_preempted_by_key_warns_and_stops_mode`,
 `test_awaited_tween_target_destroyed_warns_and_stops_mode`).
 
+**A rejected timed verb replaces nothing.** Every timed pose verb and
+`tween()` runs the checks `_start_tween` makes (`time=` a finite number ≥ 0,
+`ease=`, `then=` / `on_done=`) in `_validate_timed`, before the same-property
+replace cancels the job in flight and before `face=True` snaps the heading.
+Before 2026-10-09, `c.move_to(0, 300, time=-1)` raised after it had already
+cancelled the move in flight (review S2-5; guard
+`tests/test_rejected_calls_leave_no_trace.py`).
+
 ### `@on_mode`
 
 Pure annotation: `fn._is_mode = True`; returns `fn` unchanged. Lets a reader tell a

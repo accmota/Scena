@@ -1635,6 +1635,21 @@ Index: [Fences.md](Fences.md).
   carried), not at the first read; a read on a destroyed sprite changes nothing. A new
   clip while `time_scale == 0` shows its own start. `time_scale` shares Entity's check
   (`entity._time_scale_value`: alive, a number, finite, ≥ 0).
+- **A clip that ends ends in the simulation (review 2026-10-09 S7-7).** A clip with a
+  finite `loops=` is scheduled by the world time it ends (`_CLIP_DUE`, a heap of
+  `(due, seq, weakref)`; `_schedule_clip_end` runs on `_adopt_clip` and on a
+  `time_scale` write, a frozen clip has no end until it thaws). `settle_clip_ends()`
+  (frame body, right after the process tick) reads the due ones, so the end and the
+  `next=` switch, with its size write, happen before collision and `flush`, never
+  first inside the draw. A heap, not a walk: walking 300 playing sprites cost 5 % of
+  the frame. A stale entry (`sprite._play_due` moved on) is skipped, and the heap is
+  compacted past twice its live size. Other readers still settle it earlier (the result is the same). The
+  `next=` switch has no call site: when `width` / `height` is linked, the link keeps
+  the size and the switch does not raise (`play()` and `frame =` still refuse a linked
+  size at the call, PB1).
+- **Size writers check both slots first.** `size =` checks `width` and `height` before
+  writing either, and `frame =` gates the cell's size before it stops the clip (review
+  2026-10-09 S7-5 / S7-6: each refused after half its work).
 - **One picture on both draw paths.** With no look (`.visual`), the full path draws what the
   plain blit draws: the bitmap (a style fill / stroke from `color =` is a look's costume;
   PB7). Every body route applies gray, blend and alpha (`_apply_blit_paint_extras`, the

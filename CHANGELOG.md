@@ -183,6 +183,21 @@ left out.
   - An act change whose teardown never settles still restores the world
     settings and drops the act's rules and timers before it raises.
 - `ui.min_label_space` refuses `True`, NaN and infinity, like `ui.scale`.
+- A rejected call changes nothing:
+  - A timed verb that refuses its arguments (`move_to(0, 300, time=-1)`,
+    `rotate_by(10, time=1, on_done=5)`, `tween(…, time=-1)`) keeps the move
+    already in flight. With `face=True` it no longer turns the shape.
+  - `@collide([heroi, icone_hud], parede)` and `resolve([...], ...)` with a
+    `ui` or parallax member register no pair at all. Before, the first pairs
+    stayed live.
+  - `sprite.size = n` with a linked `height` (or `width`) leaves both sides
+    as they were. `sprite.frame = i` with a linked size keeps the clip
+    playing.
+- A sprite clip with `loops=` and `next=` switches in the frame's
+  simulation, not first in the draw. With a linked `width` or `height`, the
+  switch keeps the link instead of raising from inside the draw.
+- A raising `on_done` of one sound no longer loses the other sounds that
+  ended in the same frame. Their `on_done` runs on the next frame.
 - `mouse.dx` / `mouse.dy` are this frame's motion: 0 when the mouse is
   still (they kept the last step, so `ship.move_by(mouse.dx, 0)` drifted
   forever), and the sum when several moves arrive in one frame.

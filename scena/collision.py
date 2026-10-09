@@ -4480,6 +4480,20 @@ class CollisionSystem:
             right._add_pair_target(a)
         return entry
 
+    def _drop_pair_entries(self, entries) -> None:
+        """Undo ``add_pair_handler`` for ``entries`` (a refused decoration)."""
+        if not entries:
+            return
+        ids = {id(e) for e in entries}
+        self._pair_handlers[:] = [e for e in self._pair_handlers if id(e) not in ids]
+        self._act_pair_handlers[:] = [
+            e for e in self._act_pair_handlers if id(e) not in ids]
+        self._dispatch_epoch += 1
+        for c in list(self._colliders):
+            self._prune_pair_targets(c)
+        self._invalidate_partner_cache()
+        self.retire_unused_pair_tags()
+
     def drop_act_pair_handlers(self) -> int:
         """Remove script-level ``@collide`` entries an act registered.
 
@@ -7893,10 +7907,21 @@ def resolve(a, b, bounce: Optional[float] = None, only: Any = None) -> None:
                     ensure(group)
                 else:
                     ensure()
+    # The layer refusal for every member, before any pair (S8-1).
+    items: List[Any] = []
+    for side in lefts + rights:
+        items.extend(_collect_entities_from_target(side))
+    _assert_shapes_not_parallax(items)
+    if bounce is not None:
+        _validate_bounce(bounce)
     before = list(sys._resolve_pairs)
-    for left in lefts:
-        for right in rights:
-            sys.add_resolve_pair(left, right, bounce=bounce, only=only)
+    try:
+        for left in lefts:
+            for right in rights:
+                sys.add_resolve_pair(left, right, bounce=bounce, only=only)
+    except BaseException:
+        _restore_resolve_pairs(before)
+        raise
     if sys._has_only:
         # Eager: a body pair reached by two registrations that disagree on
         # only= raises here, not on the next frame. Undo this call first.
@@ -8259,13 +8284,26 @@ def _collide_decorator(phase: str, left, right):
         sys = get_collision_system()
         from . import process as _process
         in_act = _process._top_level_ended
-        for a in lefts:
-            for b in rights:
-                if a is b and a is not ANYTHING and not isinstance(a, str):
-                    continue
-                entry = sys.add_pair_handler(a, b, func, phase=phase)
-                if in_act:
-                    sys._act_pair_handlers.append(entry)
+        # All-or-nothing: every member of every side passes the layer check
+        # before the first pair registers (a ui member in the last list slot
+        # left the earlier pairs live: review 2026-10-09 S8-1).
+        items: List[Any] = []
+        for side in lefts + rights:
+            items.extend(_collect_entities_from_target(side))
+        _assert_shapes_not_parallax(items)
+        added: List[Any] = []
+        try:
+            for a in lefts:
+                for b in rights:
+                    if a is b and a is not ANYTHING and not isinstance(a, str):
+                        continue
+                    entry = sys.add_pair_handler(a, b, func, phase=phase)
+                    added.append(entry)
+                    if in_act:
+                        sys._act_pair_handlers.append(entry)
+        except BaseException:
+            sys._drop_pair_entries(added)
+            raise
         return func
 
     return decorator

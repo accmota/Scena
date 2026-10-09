@@ -2189,6 +2189,23 @@ warmed census comparison cannot see a registry that leaks once and then
 stays flat, so this test compares against the census taken before the first
 act.
 
+### RV5 — systems review fixes, batch 5a: a rejected call leaves no trace (2026-10-09)
+
+Root cause R6: a refusal checked after part of the work was done.
+
+| ID | Finding | Fix | Test |
+| --- | --- | --- | --- |
+| S2-5 | a rejected timed verb (`time=-1`, a bad `ease=`) cancelled the job in flight; `face=True` turned the shape | `_validate_timed` before the replace and the face snap | `test_rejected_calls_leave_no_trace.TestRejectedTimedVerbs` |
+| S8-1 | `@collide([hero, hud], b)` / `resolve([...], b)` left the earlier pairs live | the layer check and `bounce=` for every member first; rollback on a late failure | `TestRejectedListSides` |
+| S7-5 / S7-6 | `size =` wrote `width` before a linked `height` refused; `frame =` stopped the clip before a linked width refused | both slots checked first; `frame =` gates like `play()` | `TestRejectedSpriteSize` |
+| S7-7 | a `next=` switch raised `LinkedAttributeError` from the draw, half-applied | the switch settles in the simulation (`settle_clip_ends`); a linked size keeps its link | `TestDeferredClipSwitch` |
+| S2-13 | a raising sound `on_done` lost every other sound that ended that frame | the unprocessed ids carry to the next tick | `TestRaisingSoundDone` |
+
+Not fixed here: S9-1 (a `ui` / parallax member joining a pair group raises
+or is skipped depending on statement order). Both outcomes are documented
+somewhere (decoration refuses; E18 construct and the query rule skip), so
+making the two orders agree is a design decision, not a fix.
+
 ### F — contact flicker (2026-09-29)
 
 Found by `tests/test_sys_resting_contact.py`, written after G2 to test what a
