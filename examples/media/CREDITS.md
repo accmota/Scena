@@ -56,6 +56,9 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | Folder / files | Author | Source |
 |---|---|---|
 | `images/` | André Mota (generated with Midjourney) | this repository; see `images/license.txt` |
+| `backgrounds/country/`, `backgrounds/mountains/` | Luis Zuno (@ansimuz) | https://ansimuz.com; see each folder's `license.txt` |
+| `textures/` (numbered `.jpg`) | rubberduck | https://opengameart.org/content/50-free-textures-5-with-normalmaps |
+| `textures/Brick_*.png` | Cethiel | https://opengameart.org/content/tileable-brick-ground-textures-set-2 |
 | `k-rolling-ball/` | Kenney | https://www.kenney.nl ("Rolling Ball Assets") |
 | `k-textures/` | Kenney | https://www.kenney.nl ("Retro Textures Fantasy") |
 | `planets/` | Kenney | https://www.kenney.nl ("Planets") |
