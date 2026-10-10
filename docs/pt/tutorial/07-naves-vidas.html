@@ -693,6 +693,12 @@ run()
             note: "Outros sons, um por vez, no lugar dos dois. <code>volume</code> 1 é o original; <code>pitch</code> (altura) 1.5 é mais agudo e mais rápido.",
             code: `play_sound("audio/laser7.wav", volume=0.5)
 play_sound("audio/explosion03.wav", pitch=1.5)`
+          },
+          {
+            note: "Cada som um pouco diferente. <code>uniform(a, b)</code> (uniforme) sorteia um número qualquer entre <code>a</code> e <code>b</code>. Com o <code>pitch</code> sorteado a cada vez, cada tiro sai um pouco mais grave ou mais agudo, e a repetição para de cansar o ouvido: é um truque dos jogos. Pouca variação no laser, mais na explosão; demais, o som desafina. Como o <code>pitch</code> muda a velocidade junto, um estrondo mais grave também dura um pouco mais. A primeira linha vai no topo, no lugar da importação; as outras, no lugar das duas linhas de som.",
+            code: `from random import choice, uniform
+play_sound("audio/laser4.wav", pitch=uniform(0.9, 1.1))
+play_sound("audio/explosion01.wav", pitch=uniform(0.8, 1.2))`
           }
         ]
     },
