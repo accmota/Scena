@@ -56,6 +56,8 @@ The release number lives in `scena/_version.py` (`scena.__version__`); `pyprojec
 
 1.0 is the point where breaking changes stop being routine; it is not scheduled.
 
+**Releasing:** rename `## Unreleased (X.Y.Z)` in the CHANGELOG to `## X.Y.Z — YYYY-MM-DD`, set `__version__`, run the `gate` tier, commit, then `git tag vX.Y.Z && git push origin main vX.Y.Z`. The tag starts `.github/workflows/release.yml`: it refuses a tag that disagrees with `_version.py` or has no dated changelog section, builds, runs `twine check`, and publishes to PyPI through Trusted Publishing (no token; configured on pypi.org for this workflow and the `pypi` environment). A published version cannot be uploaded again: a bad release is fixed by the next patch.
+
 **Rules for a breaking change:**
 
 - **Loud, never silent.** A renamed or removed name, keyword, or field raises with the new spelling in the message — the existing pattern (`_RETIRED_ATTRS` on Sprite, `hitbox._RETIRED_KNOBS`, the `group("name")` migration `TypeError`; a retired top-level name answers `stage.<old>` / `from scena import <old>` with a raising stub through the module `__getattr__`, `act.RETIRED_NAMES` for the 0.6.0 Act rename — star-import code gets a plain `NameError`). The old spelling does **not** keep working as an alias: [Fences.md](Fences.md) still allows one spelling, and the retired-name error is the migration path. Keep that error at least until 1.0.

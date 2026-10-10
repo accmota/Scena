@@ -35,6 +35,17 @@ class TestVersion(unittest.TestCase):
         heading = rf"^## {re.escape(scena.__version__)} — \d{{4}}-\d{{2}}-\d{{2}}$"
         self.assertRegex(changelog, re.compile(heading, re.MULTILINE))
 
+    def test_release_workflow_checks_the_tag_before_publishing(self):
+        # A pushed tag publishes to PyPI. The workflow must refuse a tag that
+        # disagrees with scena/_version.py or has no dated changelog section.
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+        self.assertIn('tags: ["v*"]', workflow)
+        self.assertIn("scena/_version.py", workflow)
+        self.assertIn('"v$version" != "$GITHUB_REF_NAME"', workflow)
+        self.assertIn("CHANGELOG.md", workflow)
+        self.assertLess(workflow.index("GITHUB_REF_NAME"),
+                        workflow.index("pypa/gh-action-pypi-publish"))
+
     def test_version_is_not_star_imported(self):
         # `from scena import *` is the author namespace; the version is not a verb.
         self.assertNotIn("__version__", scena.__all__)
