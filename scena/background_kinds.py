@@ -34,7 +34,7 @@ from .background import (
 from .color import Color, ColorLike, resolve_rgb
 from .validate import expect_choice
 from .gradient_presets import SCENIC_PRESET_NAMES
-from .style import BackgroundFit, BackgroundImage, Gradient, GradientType, Texture, TileMode
+from .style import BackgroundFit, BackgroundImage, Gradient, GradientType, Texture
 from ._sksl_backdrop import (
     floor_builder,
     startunnel_builder,
@@ -314,10 +314,14 @@ class Wallpaper(BackgroundField):
         filename: Instead of ``source``: an image path.
         image: Instead of ``source``: a loaded ``skia.Image``.
         fit: Images: ``"cover"`` · ``"contain"`` · ``"stretch"`` · ``"tile"``.
-        tile_mode: Images: ``"clamp"`` · ``"repeat"`` · ``"mirror"`` · ``"decal"``.
+        tile_mode: Images: what shows past the image edge (a panning or
+            zoomed-out camera): ``"decal"`` (nothing; the underlay) ·
+            ``"clamp"`` · ``"repeat"`` · ``"mirror"``. Omitted: ``"repeat"``
+            with ``fit="tile"``, else ``"decal"``.
         scale: Images: extra zoom (> 0).
         tile_size: Images with ``fit="tile"``: tile size in design units.
-        underlay: Images: color behind a ``contain`` letterbox; ``None`` = no clear.
+        underlay: Images: color behind a ``contain`` letterbox and past a
+            ``"decal"`` edge; ``None`` = no clear.
         pan_response: How much the field follows camera pan: 0 = glued to the screen, 1
             = moves with the world.
         zoom_response: How much camera zoom scales the pattern (0 = not at all).
@@ -389,7 +393,7 @@ class Wallpaper(BackgroundField):
                     filename=filename,
                     image=image,
                     fit=BackgroundFit.COVER if fit is None else fit,
-                    tile_mode=TileMode.CLAMP if tile_mode is None else tile_mode,
+                    tile_mode=tile_mode,
                     scale=1.0 if scale is None else scale,
                     tile_size=tile_size,
                     underlay=underlay,

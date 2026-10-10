@@ -4463,7 +4463,7 @@
       "section": "mundo-background",
       "sectionTitle": "Background",
       "anchor": "bg-wallpaper",
-      "oneLiner": "A base do fundo: cor, gradient, arquivo de imagem ou texture. Criar já o põe como canvas.background.base . Sem args: preto opaco. String com . ou / é arquivo; senão é cor. Depois de criado, dá para mudar .source , os ajustes de câmera e enabled . fit / tile_mode / scale / tile_size / underlay / filename / image ficam fixos — para mudar, troque .source ou crie outro Wallpaper.",
+      "oneLiner": "A base do fundo: cor, gradient, arquivo de imagem ou texture. Criar já o põe como canvas.background.base . Sem args: preto opaco. String com . ou / é arquivo; senão é cor. Depois de criado, dá para mudar .source , os ajustes de câmera e enabled . fit / tile_mode / scale / tile_size / underlay / filename / image ficam fixos — para mudar, troque .source ou crie outro Wallpaper. Com câmera que anda ( pan_response / zoom_response ), passe tile_mode=\"mirror\" : sem ele, além da borda da imagem aparece o underlay (preto).",
       "search": "wallpaper base cor imagem texture fit tile cover contain",
       "family": "field",
       "catalog": true,
@@ -4500,8 +4500,8 @@
           "name": "tile_mode",
           "pass": "kw",
           "type": "",
-          "def": "\"clamp\"",
-          "doc": "Só imagem: clamp · repeat · mirror · decal. Em tile, clamp vira repeat."
+          "def": "\"decal\"",
+          "doc": "Só imagem: o que aparece além da borda quando a câmera anda ou afasta o zoom. decal (nada; aparece o underlay) · clamp (estica a borda) · repeat · mirror (espelha, sem emenda). Omitido: repeat com fit=\"tile\", senão decal. Em tile, clamp vira repeat."
         },
         {
           "name": "scale",
@@ -4522,7 +4522,7 @@
           "pass": "kw",
           "type": "",
           "def": "preto",
-          "doc": "Só imagem: cor das faixas que sobram em fit=\"contain\". None = não pinta as sobras."
+          "doc": "Só imagem: cor das faixas que sobram em fit=\"contain\" e de tudo além da borda com tile_mode=\"decal\". None = não pinta as sobras."
         },
         {
           "name": "pan_response",

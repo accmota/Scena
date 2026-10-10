@@ -2640,7 +2640,7 @@ class BackgroundImage:
         filename: str = None,
         image: skia.Image = None,
         fit: Union[BackgroundFit, str] = BackgroundFit.COVER,
-        tile_mode: TileMode = TileMode.CLAMP,
+        tile_mode: Union[TileMode, str, None] = None,
         scale: float = 1.0,
         tile_size: Union[float, Tuple[float, float], None] = None,
         underlay: Union[Tuple[float, float, float, float], 'Color', str, None] = None,
@@ -2652,10 +2652,16 @@ class BackgroundImage:
 
         fit_val = coerce_enum(fit, BackgroundFit, what="fit")
         self._fit = fit_val
-        tm = coerce_enum(tile_mode, TileMode, what="tile_mode")
+        # Omitted: REPEAT for tile, DECAL (nothing past the edge, the underlay
+        # shows) for cover / contain / stretch — same as Texture. An explicit
+        # clamp / repeat / mirror extends a fitted image past its edge under a
+        # panning or zoomed-out camera.
+        if tile_mode is None:
+            tm = TileMode.REPEAT if fit_val == BackgroundFit.TILE else TileMode.DECAL
+        else:
+            tm = coerce_enum(tile_mode, TileMode, what="tile_mode")
         # fit=tile is infinite wallpaper: CLAMP would smear the image edge
-        # once UV exceeds the first cell. Default to REPEAT when author
-        # leaves the general-purpose CLAMP default.
+        # once UV exceeds the first cell.
         if fit_val == BackgroundFit.TILE and tm == TileMode.CLAMP:
             tm = TileMode.REPEAT
         self._tile_mode = tm
@@ -2677,7 +2683,7 @@ class BackgroundImage:
             self._image = _make_fallback_image()
 
         # Underlay for letterbox (contain) and for edges revealed by pan/zoom
-        # (cover/stretch use DECAL sampling). Default black. None = no clear.
+        # (cover/stretch with the DECAL default). Default black. None = no clear.
         if underlay is not None:
             self._underlay = Color(underlay) if not isinstance(underlay, Color) else underlay
         elif fit_val in (BackgroundFit.CONTAIN, BackgroundFit.COVER, BackgroundFit.STRETCH):
@@ -2730,10 +2736,12 @@ class BackgroundImage:
 # help — the drawn image is never the cached one.
 #
 # Wallpaper images therefore never get a per-build ``setShader``:
-# fitted images draw with ``drawImageRect`` on the shared cached image, and
-# tiles share one template Paint per image (shader set once, identity local
-# matrix, copied with ``skia.Paint(template)`` which keeps the same shader)
-# placed by the canvas matrix. Same decoded texture across Wallpaper
+# fitted images with the DECAL default draw with ``drawImageRect`` on the
+# shared cached image, and tiles — and fitted images with an explicit
+# clamp / repeat / mirror ``tile_mode`` — share one template Paint per image +
+# mode (shader set once, identity local matrix, copied with
+# ``skia.Paint(template)`` which keeps the same shader) placed by the canvas
+# matrix. Same decoded texture across Wallpaper
 # instances, window resizes, and camera-rest changes.
 #
 # The ``skia.Paint(Shader=...)`` kwarg shares the shader like the copy
@@ -2823,7 +2831,7 @@ def prewarm_background_image(source) -> None:
     img = getattr(source, "image", None)
     if img is None or not img.isLazyGenerated():
         return
-    job = (img, source._fit == BackgroundFit.TILE, source._tile_mode)
+    job = (img, _uses_template(source), source._tile_mode)
     ctx = _live_gr_context()
     if ctx is None:
         _PENDING_PREWARM.append(job)
@@ -2844,6 +2852,15 @@ def prewarm_pending_images() -> None:
         if key not in seen:
             seen.add(key)
             _prewarm(ctx, img, tile, tile_mode)
+
+
+def _uses_template(source) -> bool:
+    """True when the wallpaper draws through the image's template Paint.
+
+    Tiles, and fitted images whose ``tile_mode`` extends past the edge; a fitted
+    DECAL image draws with ``drawImageRect`` instead.
+    """
+    return source._fit == BackgroundFit.TILE or source._tile_mode != TileMode.DECAL
 
 
 def _live_gr_context():
@@ -2927,13 +2944,22 @@ def build_background_fill(
             sx = sy = s * user_scale
         tx = (w - iw * sx) * 0.5
         ty = (h - ih * sy) * 0.5
-        # Pan/zoom can reveal outside the fitted image: nothing is drawn there,
-        # so the underlay shows as clean surroundings (no edge smear).
+        underlay_src = getattr(source, "underlay", None)
+        underlay = underlay_src.color4f if underlay_src is not None else skia.Color4f(0.0, 0.0, 0.0, 1.0)
+        if _uses_template(source):
+            # clamp / repeat / mirror: the image continues past its edge, so a
+            # panning or zoomed-out camera never reveals the underlay. Same
+            # placement as the dst rect below, through the template shader.
+            m = skia.Matrix.Translate(tx, ty)
+            m.preScale(sx, sy)
+            paint = skia.Paint(_image_template_paint(img, source._tile_mode))
+            paint.setAntiAlias(False)
+            return BackgroundFill(paint, rect, underlay, matrix=m)
+        # DECAL: pan/zoom can reveal outside the fitted image: nothing is drawn
+        # there, so the underlay shows as clean surroundings (no edge smear).
         dst = skia.Rect.MakeXYWH(tx, ty, iw * sx, ih * sy)
         paint = skia.Paint()
         paint.setAntiAlias(False)
-        underlay_src = getattr(source, "underlay", None)
-        underlay = underlay_src.color4f if underlay_src is not None else skia.Color4f(0.0, 0.0, 0.0, 1.0)
         return BackgroundFill(paint, rect, underlay, image=img, dst=dst)
 
     paint = skia.Paint()

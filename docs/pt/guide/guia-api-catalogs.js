@@ -632,18 +632,18 @@ const SPATIAL = [
         ...fieldCam(0, 0, 0)
       ] },
     { id: "bg-wallpaper", kind: "base", family: "field", name: "Wallpaper",
-      idea: "A base do fundo: cor, gradient, arquivo de imagem ou texture. Criar já o põe como <code>canvas.background.base</code>. Sem args: preto opaco. String com <code>.</code> ou <code>/</code> é arquivo; senão é cor. Depois de criado, dá para mudar <code>.source</code>, os ajustes de câmera e <code>enabled</code>. <code>fit</code> / <code>tile_mode</code> / <code>scale</code> / <code>tile_size</code> / <code>underlay</code> / <code>filename</code> / <code>image</code> ficam fixos — para mudar, troque <code>.source</code> ou crie outro Wallpaper.",
-      code: "Wallpaper(\"navy\")\nWallpaper(Gradient(\"navy\", \"black\", angle=90), pan_response=0.05)\nWallpaper(\"space.jpg\", fit=\"cover\", pan_response=0.15, zoom_response=0.3)\nWallpaper(\"bg2.png\", fit=\"contain\")\nWallpaper(path, fit=\"tile\", tile_size=200, tile_mode=\"mirror\")",
+      idea: "A base do fundo: cor, gradient, arquivo de imagem ou texture. Criar já o põe como <code>canvas.background.base</code>. Sem args: preto opaco. String com <code>.</code> ou <code>/</code> é arquivo; senão é cor. Depois de criado, dá para mudar <code>.source</code>, os ajustes de câmera e <code>enabled</code>. <code>fit</code> / <code>tile_mode</code> / <code>scale</code> / <code>tile_size</code> / <code>underlay</code> / <code>filename</code> / <code>image</code> ficam fixos — para mudar, troque <code>.source</code> ou crie outro Wallpaper. Com câmera que anda (<code>pan_response</code> / <code>zoom_response</code>), passe <code>tile_mode=\"mirror\"</code>: sem ele, além da borda da imagem aparece o <code>underlay</code> (preto).",
+      code: "Wallpaper(\"navy\")\nWallpaper(Gradient(\"navy\", \"black\", angle=90), pan_response=0.05)\nWallpaper(\"space.jpg\", tile_mode=\"mirror\", pan_response=0.15, zoom_response=0.3)\nWallpaper(\"bg2.png\", fit=\"contain\")\nWallpaper(path, fit=\"tile\", tile_size=200, tile_mode=\"mirror\")",
       search: "wallpaper base cor imagem texture fit tile cover contain",
       params: [
         P("source", "preto", "Nome de cor, tuple, Color, Gradient, Texture, arquivo (str com . ou /) ou Image. Visual / SpatialFx / filtro levantam TypeError.", 1, "cor / Gradient / arquivo / Texture"),
         P("filename", "None", "Em vez de source: caminho. Busca em Arquivos de imagem."),
         P("image", "None", "Em vez de source: skia.Image já carregada."),
         P("fit", "\"cover\"", "Só imagem: cover · contain · stretch · tile"),
-        P("tile_mode", "\"clamp\"", "Só imagem: clamp · repeat · mirror · decal. Em tile, clamp vira repeat."),
+        P("tile_mode", "\"decal\"", "Só imagem: o que aparece além da borda quando a câmera anda ou afasta o zoom. decal (nada; aparece o underlay) · clamp (estica a borda) · repeat · mirror (espelha, sem emenda). Omitido: repeat com fit=\"tile\", senão decal. Em tile, clamp vira repeat."),
         P("scale", "1", "Só imagem: zoom extra. Tem que ser > 0."),
         P("tile_size", "¼ do lado menor", "Só imagem / fit=\"tile\": célula em unidades de design."),
-        P("underlay", "preto", "Só imagem: cor das faixas que sobram em fit=\"contain\". None = não pinta as sobras."),
+        P("underlay", "preto", "Só imagem: cor das faixas que sobram em fit=\"contain\" e de tudo além da borda com tile_mode=\"decal\". None = não pinta as sobras."),
         ...fieldCam(0, 0, 0)
       ] },
     { id: "bg-stars", kind: "ambient", family: "field", name: "Stars",

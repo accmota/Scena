@@ -837,12 +837,30 @@ image's `uniqueID`, so only draws of *that same image object* reuse the decode.
 (framebuffer size, design size, camera rest, fit knobs) key; `Wallpaper.draw` calls
 `fill.fill(canvas, rect)` for the plain and the camera-CTM paths:
 
-- **cover / contain / stretch** → `drawImageRect` on the shared cached image
-  (nearest sampling, same placement as the former DECAL shader); the letterbox
-  underlay shows around the dst rect.
-- **tile** → one **template Paint per image** (`_image_template_paint`, identity
-  local matrix, shader set once) copied with `skia.Paint(template)`; the tile
-  matrix goes on the canvas (`concat`) and the fill rect is inverse-mapped.
+- **cover / contain / stretch, `tile_mode="decal"`** (the omitted default) →
+  `drawImageRect` on the shared cached image (nearest sampling, same placement
+  as the former DECAL shader); the letterbox underlay shows around the dst rect
+  and past the image edge under a panning / zoomed-out camera.
+- **cover / contain / stretch, `tile_mode` clamp / repeat / mirror** → the tile
+  path below with the fit's image → dst matrix: the image continues past its
+  edge, so a camera with `pan_response` / `zoom_response` never reaches the
+  underlay. Linear sampling (as tile); at rest with a 1:1 fit it matches decal.
+- **tile** → one **template Paint per image + mode** (`_image_template_paint`,
+  identity local matrix, shader set once) copied with `skia.Paint(template)`;
+  the tile matrix goes on the canvas (`concat`) and the fill rect is
+  inverse-mapped. `style._uses_template` picks this path (and the matching
+  prewarm draw).
+
+`tile_mode` omitted resolves per fit, as on `Texture`: `"repeat"` for tile,
+`"decal"` otherwise; `"clamp"` on tile becomes `"repeat"`. Every image fit
+honours an explicit `tile_mode` — a fit that ignores it is the bug of 2026-10
+(`Wallpaper("BG.png", tile_mode="mirror", pan_response=0.1)` went black once
+the camera passed the image; only `fit="tile"` covered). Decal stays the
+default: extending the image is the author's choice, not something the
+framework adds (scale < 1 or a zoom-out would show copies nobody asked for);
+the Guia tells a panning author to pass `tile_mode="mirror"`. Guard:
+`tests/test_background_image.py` (`TestFittedImagePastEdge`: every fit ×
+every extending mode × far pan / zoom-out / rotation leaves no underlay pixel).
 - Gradient / solid → plain `drawRect` with the paint.
 
 Construct **prewarms** the texture (`prewarm_background_image`: draw the same

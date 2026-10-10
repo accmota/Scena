@@ -5397,7 +5397,7 @@ canvas.background.remove(cl)   # igual
 canvas.background.clear()      # só extras; a base fica
 canvas.set_fly(Tunnel())
 Wallpaper(Gradient("navy", "black", angle=90), pan_response=0.05)
-Wallpaper("bg1.jpg", fit="cover", pan_response=0.15)</pre>
+Wallpaper("bg1.jpg", tile_mode="mirror", pan_response=0.15)</pre>
         </div>
         <p>Poeira espacial: <code>Stardust</code> (duas cores), <code>Chromadust</code> (paleta que gira; <code>reflect=True</code> faz vai-e-volta), <code>Nebuladust</code> (três cores em manchas). Não são SpatialFx <code>Starburst</code>, o post <code>Chroma</code> nem <code>Nebula</code> (faixas).</p>
         <details class="spec" open>
@@ -5443,13 +5443,13 @@ canvas.background.base = Color(0.05, 0.05, 0.08)</pre>
       <details class="spec" open>
       <summary>Wallpaper</summary>
         <p class="one-liner">A base do fundo: uma cor, um degradê, uma imagem ou uma Texture cobrindo a tela inteira. Criar um Wallpaper já o põe como base (<code>canvas.background.base</code>).</p>
-        <p class="sig"><code>Wallpaper(source, filename=, image=, fit="cover", tile_mode="clamp", scale=1, tile_size=, underlay=, pan_response=0, zoom_response=0, rotation_response=0, scroll=(0, 0), enabled=True)</code></p>
+        <p class="sig"><code>Wallpaper(source, filename=, image=, fit="cover", tile_mode=, scale=1, tile_size=, underlay=, pan_response=0, zoom_response=0, rotation_response=0, scroll=(0, 0), enabled=True)</code></p>
         <p class="sig-hint">Nome sem <code>=</code>: 1º na ordem (cor, gradient, texture ou arquivo). O resto pelo nome. Sem args: preto opaco. String com <code>.</code> ou <code>/</code> é arquivo; senão é cor. Parâmetros de imagem só valem para arquivo. Criar um Wallpaper já o põe como base. Busca: <a href="#arquivos-imagem">Arquivos de imagem</a>.</p>
         <div class="code-panel">
           <button class="copy-btn" type="button">copiar</button>
 <pre>Wallpaper("navy")
 Wallpaper(Gradient("navy", "black", angle=90), pan_response=0.05)
-Wallpaper("space.jpg", fit="cover", pan_response=0.15, zoom_response=0.3)
+Wallpaper("space.jpg", tile_mode="mirror", pan_response=0.15, zoom_response=0.3)
 Wallpaper("bg2.png", fit="contain")
 Wallpaper(path, fit="tile", tile_size=200, tile_mode="mirror")</pre>
         </div>
@@ -5463,10 +5463,10 @@ Wallpaper(path, fit="tile", tile_size=200, tile_mode="mirror")</pre>
             <tr><td><code>filename</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">None</span></td><td>Em vez de <code>source</code>: caminho do arquivo.</td></tr>
             <tr><td><code>image</code></td><td>nome=</td><td class="type"><span class="t">Image</span><span class="ex">None</span></td><td>Em vez de <code>source</code>: <code>skia.Image</code> já carregada.</td></tr>
             <tr><td><code>fit</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">"cover"</span></td><td>Só imagem: <code>cover</code> · <code>contain</code> · <code>stretch</code> · <code>tile</code>.</td></tr>
-            <tr><td><code>tile_mode</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">"clamp"</span></td><td>Só imagem: <code>clamp</code> · <code>repeat</code> · <code>mirror</code> · <code>decal</code>. Em tile, <code>clamp</code> vira <code>repeat</code>.</td></tr>
+            <tr><td><code>tile_mode</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">"decal"</span></td><td>Só imagem: o que aparece além da borda da imagem quando a câmera anda ou afasta o zoom. <code>"decal"</code> (nada; aparece o <code>underlay</code>) · <code>"clamp"</code> (estica a última linha de pixels) · <code>"repeat"</code> (repete) · <code>"mirror"</code> (repete espelhando, sem emenda). Omitido: <code>"repeat"</code> com <code>fit="tile"</code>, senão <code>"decal"</code>. Em tile, <code>"clamp"</code> vira <code>"repeat"</code>.</td></tr>
             <tr><td><code>scale</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">1</span></td><td>Só imagem: zoom extra. Tem que ser &gt; 0.</td></tr>
             <tr><td><code>tile_size</code></td><td>nome=</td><td class="type"><span class="t">número ou par de números</span><span class="ex">¼ do lado menor</span></td><td>Só imagem / <code>fit="tile"</code>: célula em unidades de design.</td></tr>
-            <tr><td><code>underlay</code></td><td>nome=</td><td class="type"><span class="t">cor</span><span class="ex">preto</span></td><td>Só imagem: cor das faixas que sobram em <code>fit="contain"</code>. <code>None</code> = não pinta as sobras.</td></tr>
+            <tr><td><code>underlay</code></td><td>nome=</td><td class="type"><span class="t">cor</span><span class="ex">preto</span></td><td>Só imagem: cor das faixas que sobram em <code>fit="contain"</code> e de tudo além da borda com <code>tile_mode="decal"</code>. <code>None</code> = não pinta as sobras.</td></tr>
             <tr><td><code>pan_response</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Resposta ao pan da câmera. 0 = colado na tela. 1 = 1:1 com o mundo.</td></tr>
             <tr><td><code>zoom_response</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Quanto o zoom da câmera afeta o padrão.</td></tr>
             <tr><td><code>rotation_response</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Fração da rotação da câmera.</td></tr>
@@ -5488,6 +5488,7 @@ Wallpaper(path, fit="tile", tile_size=200, tile_mode="mirror")</pre>
             </tbody>
           </table>
         </div>
+        <p><strong>Câmera que anda:</strong> em <code>cover</code> / <code>contain</code> / <code>stretch</code> a imagem termina na borda. Com <code>pan_response</code>, <code>zoom_response</code> ou <code>rotation_response</code>, a câmera chega lá: passe <code>tile_mode="mirror"</code> (a imagem continua espelhada, sem emenda) ou <code>"repeat"</code>. Sem <code>tile_mode</code>, além da borda aparece o <code>underlay</code> (preto). Ex.: <code>Wallpaper("bg1.jpg", tile_mode="mirror", pan_response=0.1)</code>.</p>
         <p>Atribuição de cor / tuple / Gradient / Texture já envolve num Wallpaper. Imagem: o próprio construtor. <code>fit=</code> numa cor levanta TypeError. Leitura de <code>.fit</code> / <code>.tile_mode</code> no source de imagem devolve a mesma string. Depois: <code>source</code>, câmera (<code>pan_response</code> / <code>zoom_response</code> / <code>rotation_response</code> / <code>scroll</code>) e <code>enabled</code> atribuem na instância. <code>filename</code> / <code>image</code> / <code>fit</code> / <code>tile_mode</code> / <code>scale</code> / <code>tile_size</code> / <code>underlay</code> ficam fixos no source — para mudar, troque <code>.source</code> ou construa outro Wallpaper. <code>wp.remove()</code> na base levanta TypeError; substitua <code>canvas.background.base</code>.</p>
       </details>
       <details class="spec" open>

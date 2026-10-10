@@ -98,6 +98,15 @@ left out.
   reader was unlinked with a "formula source was removed" warning.
 - Classes you define (`class Tiro(Sprite)`) and the script that defined them
   are freed when the program ends. Before, they stayed in memory.
+- `Wallpaper("bg.png", tile_mode="mirror", pan_response=0.1)` keeps covering
+  the screen when the camera pans or zooms out past the image. Before,
+  `fit="cover"` / `"contain"` / `"stretch"` ignored `tile_mode` and showed
+  black past the image edge; only `fit="tile"` worked. `"clamp"`, `"repeat"`
+  and `"mirror"` now apply to every image fit.
+- An image Wallpaper without `tile_mode=` reads `.tile_mode` as `"decal"`
+  (`"repeat"` with `fit="tile"`), which is what it draws: nothing past the
+  image edge, so the `underlay` shows. The Guia listed `"clamp"`, which was
+  never applied. The look is unchanged.
 
 ### Documentation
 
@@ -122,6 +131,8 @@ left out.
 - New media, all CC0 and made for Scena: `synth/` (jump, coin and throw
   sounds), `audio/nota.wav` (a piano note) and `levels/` (the Ninja III and IV
   level files, made with the level editor's own format).
+- Guia, Wallpaper: with a camera that moves, pass `tile_mode="mirror"`; the
+  examples do.
 
 ## 0.7.1 — 2026-10-09
 

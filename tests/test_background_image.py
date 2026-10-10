@@ -170,6 +170,128 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class TestFittedImagePastEdge(unittest.TestCase):
+    """``tile_mode`` decides what a fitted image shows past its edge.
+
+    Regression 2026-10: ``fit="cover"`` / ``"contain"`` / ``"stretch"`` drew
+    with ``drawImageRect`` and ignored ``tile_mode``, so
+    ``Wallpaper("BG.png", tile_mode="mirror", pan_response=0.1)`` turned black
+    once the camera panned past the image (the Guia listed ``tile_mode`` for
+    every image fit). Class guard: every fit × every extending mode × a far
+    pan / zoom-out / rotation leaves no underlay and no unpainted pixel.
+    """
+
+    W, H = 200, 150          # framebuffer
+    DW, DH = 1000.0, 750.0   # design; BG.png is 1000x750
+    REST = (500.0, 375.0)
+
+    @classmethod
+    def setUpClass(cls):
+        import numpy as np
+        from tests.media_support import media
+        cls.np = np
+        cls.path = media("tilesets", "BG", "BG.png")
+        img = skia.Image.open(cls.path)
+        px = np.asarray(img.toarray(colorType=skia.kRGBA_8888_ColorType))
+        # The check below reads black as "the underlay showed".
+        assert not (px[..., :3].sum(-1) == 0).any()
+
+    def _cams(self):
+        from scena.background import CameraSample
+        rx, ry = self.REST
+        return {
+            "pan right": CameraSample(rx + 40000.0, ry, 1.0, 0.0, rest_x=rx, rest_y=ry),
+            "pan down-left": CameraSample(rx - 25000.0, ry - 30000.0, 1.0, 0.0, rest_x=rx, rest_y=ry),
+            "zoom out": CameraSample(rx, ry, 0.2, 0.0, rest_x=rx, rest_y=ry),
+            "pan + rotate": CameraSample(rx + 9000.0, ry, 1.0, 33.0, rest_x=rx, rest_y=ry),
+        }
+
+    def _shot(self, wp, cam, w=None, h=None):
+        w = w or self.W
+        h = h or self.H
+        surf = skia.Surface(w, h)
+        c = surf.getCanvas()
+        c.clear(skia.Color4f(0, 1, 0, 1))  # sentinel: left unpainted
+        wp.draw(c, w, h, 0.0, cam, design_width=self.DW, design_height=self.DH)
+        return self.np.asarray(surf.makeImageSnapshot().toarray(
+            colorType=skia.kRGBA_8888_ColorType))
+
+    def _underlay_and_unpainted(self, px):
+        rgb = px[..., :3].astype(int)
+        black = int((rgb.sum(-1) == 0).sum())
+        green = int(((rgb[..., 0] == 0) & (rgb[..., 1] == 255) & (rgb[..., 2] == 0)).sum())
+        return black, green
+
+    def _wallpaper(self, **kw):
+        return Wallpaper.temp(self.path, pan_response=0.1, zoom_response=1.0,
+                              rotation_response=1.0, **kw)
+
+    def test_extending_modes_cover_the_view_past_the_edge(self):
+        for fit in ("cover", "contain", "stretch"):
+            for mode in ("mirror", "repeat", "clamp"):
+                wp = self._wallpaper(fit=fit, tile_mode=mode)
+                for name, cam in self._cams().items():
+                    with self.subTest(fit=fit, tile_mode=mode, camera=name):
+                        px = self._shot(wp, cam)
+                        self.assertEqual(self._underlay_and_unpainted(px), (0, 0))
+
+    def test_repro_default_fit_mirror_far_pan(self):
+        # The report: default fit="cover", tile_mode="mirror", pan_response=0.1.
+        from scena.background import CameraSample
+        wp = Wallpaper.temp(self.path, tile_mode="mirror", pan_response=0.1)
+        rx, ry = self.REST
+        for dx in (2000.0, 6000.0, 60000.0, -60000.0):
+            with self.subTest(pan=dx):
+                cam = CameraSample(rx + dx, ry, 1.0, 0.0, rest_x=rx, rest_y=ry)
+                px = self._shot(wp, cam)
+                self.assertEqual(self._underlay_and_unpainted(px), (0, 0))
+
+    def test_texture_source_honours_tile_mode_too(self):
+        from scena.style import Texture
+        wp = Wallpaper.temp(Texture(self.path, tile_mode="mirror"), pan_response=0.1)
+        px = self._shot(wp, self._cams()["pan right"])
+        self.assertEqual(self._underlay_and_unpainted(px), (0, 0))
+
+    def test_omitted_tile_mode_is_decal_and_shows_the_underlay(self):
+        # Today's look is kept: nothing past a fitted image's edge.
+        wp = self._wallpaper()
+        self.assertEqual(wp.source.tile_mode, "decal")
+        px = self._shot(wp, self._cams()["pan right"])
+        black, green = self._underlay_and_unpainted(px)
+        self.assertEqual(black, self.W * self.H)
+        self.assertEqual(green, 0)
+
+    def test_omitted_and_clamp_tile_mode_on_tile_is_repeat(self):
+        self.assertEqual(Wallpaper.temp(self.path, fit="tile").source.tile_mode, "repeat")
+        self.assertEqual(
+            Wallpaper.temp(self.path, fit="tile", tile_mode="clamp").source.tile_mode, "repeat")
+        self.assertEqual(
+            Wallpaper.temp(self.path, tile_mode="clamp").source.tile_mode, "clamp")
+
+    def test_at_rest_an_extending_mode_matches_the_decal_look(self):
+        # Image pixels map 1:1 onto the framebuffer, so linear (template) and
+        # nearest (drawImageRect) sampling agree: tile_mode shows only past the edge.
+        from scena.background import CameraSample
+        rx, ry = self.REST
+        cam = CameraSample(rx, ry, 1.0, 0.0, rest_x=rx, rest_y=ry)
+        w, h = int(self.DW), int(self.DH)
+        ref = self._shot(self._wallpaper(), cam, w, h)
+        for mode in ("mirror", "repeat", "clamp"):
+            with self.subTest(tile_mode=mode):
+                px = self._shot(self._wallpaper(tile_mode=mode), cam, w, h)
+                self.assertTrue(self.np.array_equal(px, ref))
+
+    def test_extending_fit_prewarms_the_template_it_draws(self):
+        from scena import style
+        style._PENDING_PREWARM.clear()
+        try:
+            style.prewarm_background_image(style.BackgroundImage(self.path, tile_mode="mirror"))
+            style.prewarm_background_image(style.BackgroundImage(self.path))
+            self.assertEqual([j[1] for j in style._PENDING_PREWARM], [True, False])
+        finally:
+            style._PENDING_PREWARM.clear()
+
+
 class TestWallpaperImageIdentity(unittest.TestCase):
     """Wallpaper images keep their decoded texture across rebuilds.
 
