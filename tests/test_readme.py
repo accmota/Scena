@@ -2,8 +2,9 @@
 
 README.md is the page GitHub shows and the page PyPI shows (``readme`` in
 ``pyproject.toml``), so every link and image in it is an absolute
-``github.com/accmota/Scena`` / ``raw.githubusercontent.com`` URL. A relative
-one breaks on PyPI.
+``github.com/accmota/Scena`` URL (images through ``/raw/main/``: the
+``raw.githubusercontent.com`` host 404s while the repository is private). A
+relative one breaks on PyPI.
 
 Bug classes guarded:
 
@@ -43,8 +44,11 @@ sys.path.insert(0, os.path.join(ROOT, "tests"))
 import make_readme_media as mm  # noqa: E402
 
 _REPO_URL = re.compile(
-    r"https://(?:github\.com/accmota/Scena/(?:blob|tree)/main|"
+    r"https://(?:github\.com/accmota/Scena/(?:blob|tree|raw)/main|"
     r"raw\.githubusercontent\.com/accmota/Scena/main)/([^\s\"')#?]+)")
+# An image goes through github.com/.../raw/main/ (a redirect GitHub signs for a
+# logged-in viewer): raw.githubusercontent.com answers 404 while the repo is private.
+_IMG_SRC = re.compile(r"""<img\s[^>]*src=["']([^"']+)["']""")
 _BLOCK = re.compile(r"```python\n(.*?)\n```", re.S)
 # Globals whose attributes are the author's own (``st.score``): any name is legal.
 _OPEN = frozenset({"st"})
@@ -172,6 +176,12 @@ class TestReadmeLinks(unittest.TestCase):
             if not os.path.exists(os.path.join(ROOT, *rel.split("/"))):
                 missing.append(rel)
         self.assertEqual(missing, [])
+
+    def test_images_use_the_github_raw_redirect(self):
+        bad = [u for u in _IMG_SRC.findall(_readme())
+               if not u.startswith("https://github.com/accmota/Scena/raw/main/")]
+        self.assertEqual(bad, [], "README images must use github.com/accmota/Scena/raw/main/ "
+                                  "(raw.githubusercontent.com is dead while the repo is private)")
 
     def test_no_relative_links(self):
         """PyPI renders the same file: a relative link or image is dead there."""

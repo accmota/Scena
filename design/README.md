@@ -239,14 +239,17 @@ file does not exist.
 `README.md` is the landing page on GitHub **and** on PyPI (`readme` in
 `pyproject.toml`). Guards: `tests/test_readme.py`.
 
-- **Absolute URLs only.** Links and images point at
-  `github.com/accmota/Scena/(blob|tree)/main/…` or
-  `raw.githubusercontent.com/accmota/Scena/main/…`: PyPI renders the same file,
-  where a relative path is dead. Each one must map to a file in the checkout.
+- **Absolute URLs only.** Links point at
+  `github.com/accmota/Scena/(blob|tree)/main/…`, images at
+  `github.com/accmota/Scena/raw/main/…`: PyPI renders the same file, where a
+  relative path is dead. Each one must map to a file in the checkout. Not
+  `raw.githubusercontent.com`: it answers 404 while the repository is private,
+  where `github.com/…/raw/…` redirects with a token for a signed-in viewer.
 - **Clips are recorded, never captured by hand.** `python tools/readme/make_readme_media.py`
   plays each program headless on the GPU (`ProgramRun`: the frame body and
   input handlers of a windowed run) while a *pilot* reads the game's globals
   and holds keys / moves the mouse, then writes `docs/assets/readme/<id>.webp`.
+  Clips are animated WebP at 30 fps (`FPS` in the tool; the game steps at 60).
   Staleness is by input hash (program text, clip spec, pilot source, render
   settings), never pixels; `--check` lists stale clips. Edit an example or a
   pilot → render again.

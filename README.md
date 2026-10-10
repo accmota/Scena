@@ -13,11 +13,11 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/accmota/Scena/main/docs/assets/readme/naves.webp" width="600" alt="Naves: a Galaga-style game from the tutorial. A red ship fires at a breathing fleet, enemies burst into light, the screen glows.">
+  <img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/naves_escudo.webp" width="600" alt="Naves: a space shooter from the tutorial. A red ship fires at a breathing fleet, enemies explode, and a plasma shield catches the enemy fire.">
 </p>
 
 Scena is a Python framework for drawing, animating and making games, written for
-people who are learning to program and for the people who teach them. You write
+people who are learning to program. You write
 what is on the screen and what should happen; Scena runs the loop, draws every
 frame, moves the animations, checks the collisions and cleans up after you. It
 draws with [Skia](https://skia.org) (the engine behind Chrome and Android), so even a
@@ -70,7 +70,7 @@ run()
 ```
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/accmota/Scena/main/docs/assets/readme/catch-the-stars.webp" width="560" alt="The program above running: stars fall, the paddle catches them, the score counts up.">
+  <img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/catch-the-stars.webp" width="560" alt="The program above running: stars fall, the paddle catches them, the score counts up.">
 </p>
 
 No game loop to write, no event queue to poll, no list of objects to draw or to
@@ -149,14 +149,14 @@ backgrounds and one-shot explosions, all composable.
 
 <table>
   <tr>
-    <td align="center"><img src="https://raw.githubusercontent.com/accmota/Scena/main/docs/assets/thumbs/visual-flame.anim.webp" width="240" alt="A circle with the Flame look"><br><code>visual = Flame()</code></td>
-    <td align="center"><img src="https://raw.githubusercontent.com/accmota/Scena/main/docs/assets/thumbs/visual-electricfield.anim.webp" width="240" alt="A circle with the ElectricField look"><br><code>visual = ElectricField()</code></td>
-    <td align="center"><img src="https://raw.githubusercontent.com/accmota/Scena/main/docs/assets/thumbs/spatial-portal.anim.webp" width="240" alt="A swirling portal"><br><code>Portal()</code></td>
+    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/visual-flame.anim.webp" width="240" alt="A circle with the Flame look"><br><code>visual = Flame()</code></td>
+    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/visual-electricfield.anim.webp" width="240" alt="A circle with the ElectricField look"><br><code>visual = ElectricField()</code></td>
+    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/spatial-portal.anim.webp" width="240" alt="A swirling portal"><br><code>Portal()</code></td>
   </tr>
   <tr>
-    <td align="center"><img src="https://raw.githubusercontent.com/accmota/Scena/main/docs/assets/thumbs/post-fireworks.anim.webp" width="240" alt="Fireworks over a picture"><br><code>canvas.fireworks_at(x, y)</code></td>
-    <td align="center"><img src="https://raw.githubusercontent.com/accmota/Scena/main/docs/assets/thumbs/bg-borealis.anim.webp" width="240" alt="An aurora background"><br><code>Borealis()</code></td>
-    <td align="center"><img src="https://raw.githubusercontent.com/accmota/Scena/main/docs/assets/thumbs/fx-dissolve-out.anim.webp" width="240" alt="A ship dissolving"><br><code>ship.dissolve_out(0.5)</code></td>
+    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/post-fireworks.anim.webp" width="240" alt="Fireworks over a picture"><br><code>canvas.fireworks_at(x, y)</code></td>
+    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/bg-borealis.anim.webp" width="240" alt="An aurora background"><br><code>Borealis()</code></td>
+    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/fx-dissolve-out.anim.webp" width="240" alt="A ship dissolving"><br><code>ship.dissolve_out(0.5)</code></td>
   </tr>
 </table>
 
@@ -173,16 +173,16 @@ last step of a tutorial.
 
 <table>
   <tr>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/naves.py"><img src="https://raw.githubusercontent.com/accmota/Scena/main/docs/assets/readme/naves.webp" width="380" alt="Naves"></a><br><b>Naves</b>: a Galaga in 100 lines</td>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/cadeia_de_bolas.py"><img src="https://raw.githubusercontent.com/accmota/Scena/main/docs/assets/readme/cadeia_de_bolas.webp" width="380" alt="Chain of balls"></a><br><b>Chain of balls</b>: a chain that follows the mouse, with live sliders</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/naves_escudo.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/naves_escudo.webp" width="380" alt="Naves"></a><br><b>Naves</b>: a space shooter with lives, explosions and a shield</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/aviao_paisagem.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/aviao_paisagem.webp" width="380" alt="Plane"></a><br><b>Plane</b>: fly between pillars over an endless, layered landscape</td>
   </tr>
   <tr>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/barras_girando.py"><img src="https://raw.githubusercontent.com/accmota/Scena/main/docs/assets/readme/barras_girando.webp" width="380" alt="Spinning bars"></a><br><b>Spinning bars</b>: recursion you can watch</td>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/osciloscopio.py"><img src="https://raw.githubusercontent.com/accmota/Scena/main/docs/assets/readme/osciloscopio.webp" width="380" alt="Oscilloscope"></a><br><b>Oscilloscope</b>: two circles make a curve</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/barras_girando.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/barras_girando.webp" width="380" alt="Spinning bars"></a><br><b>Spinning bars</b>: recursion you can watch</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/osciloscopio.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/osciloscopio.webp" width="380" alt="Oscilloscope"></a><br><b>Oscilloscope</b>: two circles make a curve</td>
   </tr>
   <tr>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/ponto_medio.py"><img src="https://raw.githubusercontent.com/accmota/Scena/main/docs/assets/readme/ponto_medio.webp" width="380" alt="Midpoint"></a><br><b>Midpoint</b>: a compass-and-ruler construction you can drag</td>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/primeiro_script.py"><img src="https://raw.githubusercontent.com/accmota/Scena/main/docs/assets/readme/primeiro_script.webp" width="380" alt="First script"></a><br><b>First script</b>: shapes, looks, the keyboard and the mouse</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/ponto_medio.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ponto_medio.webp" width="380" alt="Midpoint"></a><br><b>Midpoint</b>: a compass-and-ruler construction you can drag</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/bolas.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/bolas.webp" width="380" alt="Balls"></a><br><b>Balls</b>: twenty balls bounce off the walls and each other</td>
   </tr>
 </table>
 
@@ -200,15 +200,15 @@ To try the examples, get a copy of this repository and run one:
 git clone https://github.com/accmota/Scena.git
 cd Scena
 pip install -e .
-python examples/naves.py
+python examples/naves_escudo.py
 ```
 
 Then, in any script: `from scena import *`.
 
 ## Learn
 
-- **[Tutorial](https://accmota.github.io/Scena/pt/tutorial/)**: five lessons,
-  from the first shapes to a complete space shooter. Each one ends in a file in
+- **[Tutorial](https://accmota.github.io/Scena/pt/tutorial/)**: from the first
+  shapes to a space shooter, bouncing balls and a side-scrolling plane. Each one ends in a file in
   [`examples/`](https://github.com/accmota/Scena/tree/main/examples).
 - **[API Guide](https://accmota.github.io/Scena/pt/guide/)**: every class,
   function and effect, with a live picture of each look.
@@ -218,8 +218,7 @@ progress. The API itself (every name you type) is in English.
 
 ## Is Scena for you?
 
-Scena is a good fit for learning to program, teaching a class, sketching ideas,
-math and physics visualizations, and small 2D games. It is not trying to be a
+Scena is a good fit for learning to program, small 2D games and creative coding. It is not trying to be a
 professional engine: it is 2D only, runs on the desktop (not in the browser or on
 phones), and is made for scenes with tens to hundreds of objects. Simple games stay
 simple, even if that means less power for very large ones.

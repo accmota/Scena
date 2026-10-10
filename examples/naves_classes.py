@@ -1,8 +1,8 @@
 """Naves II — tutorial 06.
 
-O Galaga do tutorial 05, reorganizado em classes: o tiro sobe sozinho, o
-inimigo pulsa e explode, a nave lê as setas e leva um propulsor. Sem vidas,
-sem reinício.
+O jogo de naves do tutorial 05, reorganizado em classes: o tiro sobe
+sozinho, o inimigo pulsa e explode, a nave lê as setas e leva um
+propulsor. Sem vidas, sem reinício.
 
 Controles
 ---------

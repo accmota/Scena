@@ -1,6 +1,6 @@
 """Naves — tutorial 05.
 
-Galaga simples: a nave atira, a frota respira, vai e volta e devolve tiro.
+Jogo de naves simples: a nave atira, a frota respira, vai e volta e devolve tiro.
 Sem vidas, sem reinício.
 
 Controles

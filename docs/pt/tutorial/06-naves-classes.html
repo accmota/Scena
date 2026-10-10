@@ -20,7 +20,7 @@ Tutorial.mount({
     {
       title: "O jogo do 05",
       body: `
-        <p>Novo script, o mesmo jogo: o Galaga do tutorial 05, inteiro, como ele terminou. Este tutorial quase não muda a tela. Ele <strong>reorganiza o código</strong>, e só no último passo a nave ganha uma peça nova.</p>
+        <p>Novo script, o mesmo jogo: o jogo de naves do tutorial 05, inteiro, como ele terminou. Este tutorial quase não muda a tela. Ele <strong>reorganiza o código</strong>, e só no último passo a nave ganha uma peça nova.</p>
         <p><strong>Onde dói.</strong> Leia o <code>update</code>. Ele lê as setas, move a nave, segura a cerca, cria os tiros, move os tiros dos dois lados, move a frota e vira a frota nas bordas. Tudo o que acontece a cada quadro, com todo mundo, mora numa função só. E o <code>if nave:</code> está lá porque o <code>update</code> não sabe se a nave ainda existe: depois do <code>destroy</code>, ele precisa perguntar. Num jogo maior, com vidas, escudo e um chefe, essa função vira uma lista que ninguém consegue ler.</p>
         <p><strong>A ideia.</strong> Cada tipo de coisa do jogo vai carregar o próprio comportamento: o tiro sabe subir, o inimigo sabe pulsar e explodir, a nave sabe ler as setas. Para isso o Python tem as <strong>classes</strong>. Rode o script para lembrar do jogo; o próximo passo começa pelo mais simples, o tiro.</p>
       `,

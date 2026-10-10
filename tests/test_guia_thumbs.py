@@ -206,5 +206,56 @@ class TestScenes(unittest.TestCase):
         self.assertTrue(mt.in_scope(_card(family="life")))
 
 
+
+class TestPinnedSurface(unittest.TestCase):
+    """The capture surface survives the engine's post → direct switch.
+
+    Bug: ``bolas.py``'s README clip froze on the GPU. ``canvas.hit_at`` puts the
+    frame on the post path; when the hit ends, ``_recover_direct_fb_path``
+    rebinds the drawing surface to the (hidden, 64 px) window framebuffer, and
+    the capture kept reading a surface nothing drew to. Any capture tool that
+    sets ``fw._drawing_surface`` by hand must go through ``_pin_surface``.
+    """
+
+    def _fw(self):
+        from types import SimpleNamespace
+        bound = []
+        draw = SimpleNamespace(rebind=lambda canvas, pixel_ratio: bound.append(canvas),
+                               _shape_fx_surface=None, _shape_fx_pool=[])
+        ctx = SimpleNamespace(flush=lambda: None, freeGpuResources=lambda: None,
+                              resetGLTextureBindings=lambda: None)
+        fw = SimpleNamespace(_scena_draw=draw, _context=ctx, _post_fx_stack=None,
+                             _scene_surface=None, _fx_surface=None, _fx_surface2=None)
+        fw._create_drawing_surface = lambda: setattr(fw, "_drawing_surface", "window FB")
+        return fw, bound
+
+    def test_leaving_the_post_path_keeps_drawing_into_the_capture(self):
+        from scena.orchestration import ScenaFramework
+        surf = SimpleSurface()
+        fw, bound = self._fw()
+        mt._pin_surface(fw, surf, 2.0)
+        self.assertIs(fw._drawing_surface, surf)
+        ScenaFramework._recover_direct_fb_path(fw)      # the engine's own switch
+        self.assertIs(fw._drawing_surface, surf)
+        self.assertIs(fw._drawing_canvas, surf.canvas)
+        self.assertEqual(bound, [surf.canvas, surf.canvas])
+
+    def test_readme_clips_pin_through_the_same_helper(self):
+        with open(os.path.join(ROOT, "tools", "readme", "make_readme_media.py"),
+                  encoding="utf-8") as fh:
+            text = fh.read()
+        bind = re.compile(r"fw\._drawing_surface,\s*fw\._drawing_canvas\s*=\s*surf,")
+        self.assertEqual(len(bind.findall(text)), 0, "set the capture surface with _pin_surface")
+        with open(mt.__file__, encoding="utf-8") as fh:
+            self.assertEqual(len(bind.findall(fh.read())), 1, "only _pin_surface binds by hand")
+
+class SimpleSurface:
+    def __init__(self):
+        self.canvas = object()
+
+    def getCanvas(self):
+        return self.canvas
+
+
 if __name__ == "__main__":
     unittest.main()

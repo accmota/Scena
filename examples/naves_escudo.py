@@ -1,9 +1,9 @@
 """Naves IV — tutorial 08.
 
-O Galaga do tutorial 07 com um escudo: às vezes um inimigo destruído deixa
-cair um presente; pegá-lo enche a energia e liga o escudo. Cada laser que o
-escudo segura estoura onde bateu e gasta energia; sem energia, o escudo
-quebra e a nave volta a perder vidas.
+O jogo de naves do tutorial 07 com um escudo: às vezes um inimigo
+destruído deixa cair um presente; pegá-lo enche a energia e liga o
+escudo. Cada laser que o escudo segura estoura onde bateu e gasta
+energia; sem energia, o escudo quebra e a nave volta a perder vidas.
 
 Controles
 ---------

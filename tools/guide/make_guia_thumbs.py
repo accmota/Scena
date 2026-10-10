@@ -624,6 +624,23 @@ def _gpu_surface(fw, w: int, h: int):
         return None
 
 
+def _pin_surface(fw, surf, pixel_ratio: float) -> None:
+    """Draw every frame into ``surf``, the surface the capture reads.
+
+    The engine rebinds its drawing surface to the window framebuffer when it
+    leaves the post path (``_recover_direct_fb_path``: a one-shot such as
+    ``hit_at`` ends) or the framebuffer resizes. Headless, that framebuffer is a
+    hidden 64 px window: the capture would read a surface nothing draws to any
+    more, and the clip freezes on the frame before the switch.
+    """
+    def bind():
+        fw._drawing_surface, fw._drawing_canvas = surf, surf.getCanvas()
+        fw._scena_draw.rebind(fw._drawing_canvas, pixel_ratio=pixel_ratio)
+
+    bind()
+    fw._create_drawing_surface = bind
+
+
 def render_one(spec: dict) -> dict:
     """Child-process body: render one card to ``spec['out']`` / ``spec['anim_out']``."""
     import random
@@ -656,8 +673,7 @@ def render_one(spec: dict) -> dict:
         backend = "gpu" if surf is not None else "cpu"
     if surf is None:
         surf = skia.Surface(RW, RH)
-    fw._drawing_surface, fw._drawing_canvas = surf, surf.getCanvas()
-    fw._scena_draw.rebind(fw._drawing_canvas, pixel_ratio=s)
+    _pin_surface(fw, surf, s)
     world.surface = surf
     scena.canvas.background = BG
 

@@ -1,7 +1,7 @@
 """Naves III — tutorial 07.
 
-O Galaga do tutorial 06 com as figuras numa folha (atlas), três tipos de
-inimigo, uma explosão em quadros, som e três vidas. Na última vida, a nave
+O jogo de naves do tutorial 06 com as figuras numa folha (atlas), três
+tipos de inimigo, uma explosão em quadros, som e três vidas. Na última vida, a nave
 explode e o jogo acaba (para jogar de novo, rode outra vez).
 
 Controles

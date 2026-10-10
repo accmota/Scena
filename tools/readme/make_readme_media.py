@@ -12,7 +12,7 @@ changes, the clips are rendered again.
   docs/assets/readme/<id>.webp     looping clip (README.md shows it)
   docs/assets/readme/manifest.json input hash per clip (staleness)
 
-A clip's program is an example file (``examples/naves.py``) or a README code
+A clip's program is an example file (``examples/bolas.py``) or a README code
 block: the block that follows ``<!-- clip: <id> -->`` in README.md runs as if
 it were a file in ``examples/`` (its art resolves from ``examples/media``).
 The README never shows code that is not the code of its picture.
@@ -21,7 +21,7 @@ Staleness hashes the *inputs* (the program text, the clip spec, the pilot's
 source, the render settings), never pixels: GPU jitter does not churn the repo.
 
   python tools/readme/make_readme_media.py            # render missing / stale clips
-  python tools/readme/make_readme_media.py --id naves # one clip (repeatable)
+  python tools/readme/make_readme_media.py --id bolas # one clip (repeatable)
   python tools/readme/make_readme_media.py --force    # re-render what the filter picks
   python tools/readme/make_readme_media.py --check    # list stale / missing, exit 1 if any
   python tools/readme/make_readme_media.py --cpu      # raster only (no display)
@@ -49,8 +49,8 @@ OUT_DIR = REPO / "docs" / "assets" / "readme"
 MANIFEST = OUT_DIR / "manifest.json"
 
 # ── Render settings (any change here invalidates every clip) ───────────────
-RENDER_VERSION = 1
-FPS = 15                       # clip frame rate (the game steps at 60)
+RENDER_VERSION = 2
+FPS = 30                       # clip frame rate (the game steps at 60)
 QUALITY = 72                   # WebP quality of each frame
 SUPERSAMPLE = 2                # render at 2× the clip size, then average 2×2 blocks
 BLANK_MIN_DIFF = 8             # a clip must change by more than this (0–255) over its length
@@ -62,18 +62,18 @@ BLANK_MIN_DIFF = 8             # a clip must change by more than this (0–255) 
 CLIPS = {
     "catch-the-stars": {"program": "README.md#catch-the-stars", "size": (640, 480),
                         "seconds": 6.0, "lead": 1.5, "pilot": "follow_stars"},
-    "naves": {"program": "examples/naves.py", "size": (600, 480),
-              "seconds": 7.0, "lead": 0.5, "pilot": "fly_and_fire"},
-    "cadeia_de_bolas": {"program": "examples/cadeia_de_bolas.py", "size": (600, 420),
-                        "seconds": 6.0, "lead": 0.5, "pilot": "mouse_figure_eight"},
+    "naves_escudo": {"program": "examples/naves_escudo.py", "size": (600, 480),
+                     "seconds": 8.0, "lead": 0.5, "pilot": "fly_fire_and_catch"},
+    "bolas": {"program": "examples/bolas.py", "size": (600, 432),
+              "seconds": 6.0, "lead": 1.0, "pilot": "watch"},
+    "aviao_paisagem": {"program": "examples/aviao_paisagem.py", "size": (480, 270),
+                       "seconds": 7.0, "lead": 3.0, "pilot": "fly_the_gaps"},
     "barras_girando": {"program": "examples/barras_girando.py", "size": (600, 420),
                        "seconds": 6.0, "lead": 1.0, "pilot": "watch"},
     "osciloscopio": {"program": "examples/osciloscopio.py", "size": (600, 432),
                      "seconds": 6.0, "lead": 0.3, "pilot": "click_the_ball"},
     "ponto_medio": {"program": "examples/ponto_medio.py", "size": (600, 420),
                     "seconds": 6.0, "lead": 0.3, "pilot": "drag_an_end"},
-    "primeiro_script": {"program": "examples/primeiro_script.py", "size": (600, 420),
-                        "seconds": 5.5, "lead": 0.3, "pilot": "first_script"},
 }
 
 
@@ -98,20 +98,19 @@ def follow_stars(game, t):
     game.hold("RIGHT" if dx > 12 else "LEFT" if dx < -12 else None)
 
 
-def fly_and_fire(game, t):
-    """The ship sweeps under the fleet and fires all the time."""
+def fly_fire_and_catch(game, t):
+    """The ship fires all the time, sweeps under the fleet, and goes for a falling shield."""
     nave = game.ns["nave"]
     if not nave:
         game.hold()
         return
-    target = 500 + 300 * math.sin(t * 0.9)
+    poderes = list(game.ns["group"]["poderes"])
+    if poderes:
+        target = min(poderes, key=lambda p: p.center.y).center.x
+    else:
+        target = 500 + 300 * math.sin(t * 0.9)
     dx = target - nave.center.x
     game.hold("SPACE", "RIGHT" if dx > 15 else "LEFT" if dx < -15 else None)
-
-
-def mouse_figure_eight(game, t):
-    """The mouse draws a figure eight; the chain follows."""
-    game.mouse(500 + 300 * math.sin(t * 1.3), 350 + 160 * math.sin(t * 2.6))
 
 
 def click_the_ball(game, t):
@@ -138,29 +137,20 @@ def drag_an_end(game, t):
     game.mouse(420 + r * math.cos(a), 320 + r * math.sin(a))
 
 
-def first_script(game, t):
-    """Click each shape, drop circles with D, then drive the star past x = 800."""
-    f = round(t * 60)
-    for at, (x, y) in ((0.5, (160, 480)), (0.9, (300, 480)), (1.3, (440, 480)), (1.7, (160, 480))):
-        if f == round(at * 60):
-            game.mouse(x, y)
-            game.press()
-        elif f == round(at * 60) + 3:
-            game.release()
-    keys = []
-    for at, (x, y) in ((2.1, (650, 250)), (2.4, (760, 330)), (2.7, (860, 220)), (3.0, (600, 380))):
-        if round(at * 60) <= f < round(at * 60) + 6:
-            game.mouse(x, y)
-            keys.append("D")
-    if 3.3 <= t < 4.3:
-        keys.append("RIGHT")
-    if 3.6 <= t < 4.0:
-        keys.append("UP")
+def fly_the_gaps(game, t):
+    """Steer the plane toward the next gap between pillars (or the middle)."""
+    aviao = game.ns["aviao"]
+    portas = [p for p in game.ns["group"]["porta"] if p.center.x > aviao.center.x - 10]
+    target = min(portas, key=lambda p: p.center.x).center.y if portas else 200
+    dy = target - aviao.center.y
+    keys = ["UP" if dy > 12 else "DOWN" if dy < -12 else None]
+    if not game.ns["st"].voando and t % 1.0 < 0.05:
+        keys.append("SPACE")
     game.hold(*keys)
 
 
-PILOTS = {f.__name__: f for f in (watch, follow_stars, fly_and_fire, mouse_figure_eight,
-                                   click_the_ball, drag_an_end, first_script)}
+PILOTS = {f.__name__: f for f in (watch, follow_stars, fly_fire_and_catch, click_the_ball,
+                                   drag_an_end, fly_the_gaps)}
 
 
 # ── README blocks ──────────────────────────────────────────────────────────
@@ -293,6 +283,12 @@ def _gpu_surface(fw, w: int, h: int):
     return gpu(fw, w, h)
 
 
+def _pin_surface(fw, surf, pixel_ratio: float) -> None:
+    sys.path.insert(0, str(REPO / "tools" / "guide"))
+    from make_guia_thumbs import _pin_surface as pin  # survives the post → direct switch
+    pin(fw, surf, pixel_ratio)
+
+
 def _downscale(px, factor: int):
     import numpy as np
     h, w = px.shape[:2]
@@ -332,8 +328,7 @@ def render_one(spec: dict) -> dict:
             backend = "gpu"
         else:
             surf = skia.Surface(rw, rh)
-        fw._drawing_surface, fw._drawing_canvas = surf, surf.getCanvas()
-        fw._scena_draw.rebind(fw._drawing_canvas, pixel_ratio=s)
+        _pin_surface(fw, surf, s)
         run.world.surface = surf
 
         pilot = Pilot(run)
