@@ -166,6 +166,14 @@ left out.
 
 ### Fixed
 
+- `@leave_playfield` checks its arguments at the decorator. `ANYTHING`,
+  `group["tiro"]` and a class each raise a `TypeError` that names the right
+  spelling (`@leave_playfield("tiro")`, or a bare `@leave_playfield` method on
+  the class). Before, `group["tiro"]` and a class were taken for the handler
+  ("requires at least one group name", or an `AttributeError` in a class
+  body). A handler that needs more arguments than Scena passes (`item` at
+  script level, `self, item` on a method) raises at the decorator like
+  `@collide`, not at the first leave frames later.
 - Decided behaviour (review 2026-10-09):
   - A shape on the `ui` layer or a parallax layer in a group named by
     `@collide` or `resolve` is skipped (it has no body), whether the rule or

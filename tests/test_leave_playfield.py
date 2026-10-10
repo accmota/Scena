@@ -451,10 +451,109 @@ class TestDecoratorErrors(LeaveBoundsTestCase):
     def test_mix_collide_raises(self):
         a = Circle(center=(100, 100), radius=5)
         b = Circle(center=(200, 200), radius=5)
-        with self.assertRaises(TypeError):
+        # A signature both decorators accept: the role mix is the only fault.
+        with self.assertRaisesRegex(TypeError, "@collide"):
             @collide(a, b)
             @leave_playfield("bolt")
-            def fn(me, other, info=None):
+            def fn(me, other=None, info=None):
+                pass
+
+    # Every non-name argument raises at the decorator with a fix that names
+    # the right spelling (ANYTHING, group['x'] and classes are callable or
+    # look like sides of @collide, so each gets its own message).
+    def test_anything_raises_naming_the_alternatives(self):
+        from scena import ANYTHING
+        with self.assertRaisesRegex(TypeError, r"does not take ANYTHING.*bare @leave_playfield method"):
+            @leave_playfield(ANYTHING)
+            def fn(item):
+                pass
+        with self.assertRaisesRegex(TypeError, "does not take ANYTHING"):
+            @leave_playfield("bolt", ANYTHING)
+            def fn2(item):
+                pass
+
+    def test_group_operator_raises_with_its_name(self):
+        from scena import group
+        with self.assertRaisesRegex(TypeError, r"@leave_playfield\('bolt'\), not group\['bolt'\]"):
+            @leave_playfield(group["bolt"])
+            def fn(item):
+                pass
+
+    def test_group_operator_in_class_body_raises_with_its_name(self):
+        from scena import group
+        with self.assertRaisesRegex(TypeError, r"not group\['bolt'\]"):
+            class Bad(Circle):
+                @leave_playfield(group["bolt"])
+                def out(self):
+                    pass
+
+    def test_class_raises(self):
+        with self.assertRaisesRegex(TypeError, "not the class Circle"):
+            @leave_playfield(Circle)
+            def fn(item):
+                pass
+
+    def test_name_check_runs_before_the_function(self):
+        # Bare on a class used to return the inner decorator silently.
+        with self.assertRaisesRegex(TypeError, "not the class"):
+            @leave_playfield
+            class NotAHandler:
+                pass
+
+    def test_other_non_names_raise(self):
+        actor = self.track(Circle(center=(1, 1), radius=2))
+        for bad in (5, None, actor, ("bolt",)):
+            with self.subTest(bad=bad):
+                with self.assertRaisesRegex(TypeError, "must be strings"):
+                    leave_playfield(bad)
+
+    def test_bad_name_leaves_nothing_enrolled(self):
+        with self.assertRaises(TypeError):
+            @leave_playfield("bolt", 5)
+            def fn(item):
+                pass
+        self.assertFalse(get_bounds_system().enrolled)
+
+    # Handlers that need more arguments than Scena passes raise at the
+    # decorator, like @collide — not frames later at the first leave.
+    def test_script_handler_with_two_params_raises(self):
+        with self.assertRaisesRegex(TypeError, r"needs 2 .* at most 1 \(item\)"):
+            @leave_playfield("bolt")
+            def fn(item, extra):
+                pass
+        self.assertFalse(get_bounds_system().enrolled)
+
+    def test_method_with_three_params_raises(self):
+        with self.assertRaisesRegex(TypeError, r"needs 3 .* at most 2 \(self, item\)"):
+            class Bad(Circle):
+                @leave_playfield
+                def out(self, item, extra):
+                    pass
+
+    def test_accepted_signatures(self):
+        @leave_playfield("bolt")
+        def none():
+            pass
+
+        @leave_playfield("bolt")
+        def one(item, extra=None, *, flag=False):
+            pass
+
+        @leave_playfield("bolt")
+        def star(*args):
+            pass
+
+        class Ok(Circle):
+            @leave_playfield
+            def a(self):
+                pass
+
+            @leave_playfield
+            def b(self, item):
+                pass
+
+            @leave_playfield()
+            def c(self):
                 pass
 
 

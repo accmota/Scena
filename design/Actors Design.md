@@ -973,14 +973,19 @@ same function. `@every` / `@after` (timer), `@on_mode`, `@exit_mode`, and
 `TypeError`. Decorating a discovered hook name (`on_update`, `setup`, `on_destroy`, …) is also a `TypeError`.
 Script-level `@collide*` in a class body is a `TypeError` (use `@collide_with*`).
 Script-level `@leave_playfield("…")` in a class body is a `TypeError` (use bare
-`@leave_playfield` on the method).
+`@leave_playfield` on the method). Group names are checked at the decorator:
+`ANYTHING`, `group["x"]` and a class each raise with the right spelling. They
+are callable (or `@collide` sides), so the bare-form test (`callable` and not a
+`str`) must exclude `GroupOperator` and `type`, or they are taken for the
+handler. Handler arity is checked there too (`check_handler_arity`: `item` at
+script level, `self, item` on a method), as for `@collide`.
 
 | Decorator | Class body | Construct |
 |-----------|------------|-----------|
 | `@every(interval, name=)` | Store `_every_spec`; do not arm | `every_on(item, …)` entity-scoped. Dies on `destroy()` / `cancel_process()`. |
 | `@after(delay, name=)` | Store `_after_spec`; do not arm | `after_on(item, …)` entity-scoped. Dies on `destroy()` / `cancel_process()`. |
 | `@collide_with(target)` / `_stay` / `_exit` | Append `_collide_with_specs`; `TypeError` on a free function | `add_pair_handler(item, target, adapter)` |
-| `@leave_playfield` | Tag `_leave_playfield_method`; no group names | `add_instance_handler(item, bound)` |
+| `@leave_playfield` | Tag `_leave_playfield_method`; no group names | `add_instance_handler(item, fn)`: the plain function, called `fn(item, item)` (never a bound method; [Canvas Design](Canvas%20Design.md#playfield-leave-bounds)) |
 | `@when(lambda self: …)` | Append `_when_specs`; condition takes **one** arg | After `setup()`, wrap `lambda: condition_fn(item)` into existing `EventSystem` |
 | `@on_change(lambda self: …)` | Append `_when_specs` with `kind=ON_CHANGE`; target takes **one** arg | Same wrap / register as `@when`; callback may take the new value |
 

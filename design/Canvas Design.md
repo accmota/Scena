@@ -662,6 +662,16 @@ silently replaced the first). The registry stores the **plain function** per ins
 the actor could never be collected (system-test finding S1). `destroy()` drops
 the entry (`BoundsSystem.forget_item`).
 
+Arguments are checked at the decorator: group names are strings only.
+`ANYTHING` raises, naming the tag form and the bare class method (decided
+2026-10-09): in `@collide` it means every collision participant, but here it
+would mean every actor (the player, the camera target, backgrounds, `Text`),
+so a `destroy()` handler would remove them too; `ui`-layer items (view space)
+would need an exemption, and the step would scan every live actor. Tags or a
+class method say what is watched. `group["x"]` and a class raise with the
+right spelling. A handler that needs more positional arguments than it gets
+(`item` / `self, item`) raises there, as `@collide` does.
+
 Leave-playfield step runs after collision, before flush. Center vs AABB only —
 not object AABB, not cull pads, not sentinel colliders. Implementation:
 `scena/bounds.py`. Tests: `tests/test_leave_playfield.py`. Placement:

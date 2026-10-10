@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, List, NamedTuple, Optional, Set, Tuple
 
 import skia
 
-from .validate import call_truncated, expect_callable
+from .validate import call_truncated, check_handler_arity, expect_callable
 from .closed import ClosedSurface
 
 __all__ = [
@@ -486,6 +486,35 @@ def _in_class_body_for_bounds() -> bool:
     return False
 
 
+def _check_group_name(tag) -> None:
+    """Raise now, at ``@leave_playfield(...)``, unless ``tag`` is a group name."""
+    if isinstance(tag, str):
+        return
+    if tag is ANYTHING:
+        raise TypeError(
+            "@leave_playfield does not take ANYTHING — it watches named groups. "
+            "Name them (@leave_playfield('bolt', 'rock')), or give the class a "
+            "bare @leave_playfield method."
+        )
+    if isinstance(tag, GroupOperator):
+        name = tag._group_id
+        shown = repr(name) if name is not None else "'bolt'"
+        raise TypeError(
+            f"@leave_playfield takes the group's name: @leave_playfield({shown}), "
+            f"not group[{shown}]."
+        )
+    if isinstance(tag, type):
+        raise TypeError(
+            f"@leave_playfield takes group names, not the class {tag.__name__} — "
+            f"give {tag.__name__} a bare @leave_playfield method, or name its "
+            f"group (@leave_playfield('bolt'))."
+        )
+    raise TypeError(
+        "@leave_playfield group names must be strings — "
+        f"got {type(tag).__name__}. Use @leave_playfield('bolt')."
+    )
+
+
 def _register_leave_playfield(func: Callable, tags: Tuple[str, ...]) -> Callable:
     from .process import _claim_decorator_role
 
@@ -497,6 +526,9 @@ def _register_leave_playfield(func: Callable, tags: Tuple[str, ...]) -> Callable
                 "@leave_playfield on a class method takes no group names — "
                 "use @leave_playfield at script level for group['bolt'] enrollment."
             )
+        expect_callable(func, what="leave_playfield handler")
+        # Called as fn(item, item): ``self``, then the item (a bound method's rule).
+        check_handler_arity(func, ("self", "item"), what="@leave_playfield")
         _claim_decorator_role(func, "leave_playfield")
         func._leave_playfield_method = True
         return func
@@ -507,13 +539,8 @@ def _register_leave_playfield(func: Callable, tags: Tuple[str, ...]) -> Callable
             "(e.g. @leave_playfield('bolt', 'sting'))."
         )
 
-    for tag in tags:
-        if not isinstance(tag, str):
-            raise TypeError(
-                "@leave_playfield group names must be strings — "
-                f"got {type(tag).__name__}. Use @leave_playfield('bolt'), not group['bolt']."
-            )
-
+    expect_callable(func, what="leave_playfield handler")
+    check_handler_arity(func, ("item",), what="@leave_playfield")
     _claim_decorator_role(func, "leave_playfield")
     from .registry import declare_group_names
     declare_group_names(tags)
@@ -539,12 +566,17 @@ def leave_playfield(*group_names):
             def leftover(self):
                 self.destroy()
     """
+    # Bare form: the one argument is the function itself. ``group['bolt']``
+    # and classes are callable too — they are (wrong) group names, not the
+    # handler, and must reach the name check below.
     bare = (
         len(group_names) == 1
         and callable(group_names[0])
-        and not isinstance(group_names[0], str)
+        and not isinstance(group_names[0], (str, type, GroupOperator))
     )
     tags = () if bare else group_names
+    for tag in tags:
+        _check_group_name(tag)
 
     def decorator(func: Callable) -> Callable:
         return _register_leave_playfield(func, tags)
@@ -554,6 +586,8 @@ def leave_playfield(*group_names):
     return decorator
 
 
-# Late import for type hints only
+# Late imports: canvas imports this module; ANYTHING / GroupOperator are read
+# by the decorator name check.
 from .canvas import ScenaCanvas  # noqa: E402
-from .registry import LayerStack  # noqa: E402
+from .collision import ANYTHING  # noqa: E402
+from .registry import GroupOperator, LayerStack  # noqa: E402
