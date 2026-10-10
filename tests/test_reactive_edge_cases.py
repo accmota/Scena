@@ -736,5 +736,32 @@ class TestReactiveCoreDoors(unittest.TestCase):
         self.assertFalse(center.active)            # the slot kept True (S5-4 class)
 
 
+class TestGraphResetRebindsEverySource(unittest.TestCase):
+    """Deep serial pass (2026-10-09): ``init_scena_system()`` re-pointed only
+    ``keyp`` / ``mouse`` / ``clock`` at the new graph (a hand list). The
+    ``canvas`` facade, a formula source since RX1, kept the old one: after any
+    module reset the graph, ``lambda: canvas.game_view`` links froze."""
+
+    def test_a_camera_link_follows_after_a_graph_reset(self):
+        import builtins
+        from scena import canvas
+        from scena.state import Container, get_scena_system, init_scena_system
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from system_support import system_world
+        init_scena_system()
+        for obj in vars(builtins).values():
+            if isinstance(obj, Container) and "_scena_system" in obj.__dict__:
+                self.assertIs(obj._scena_system, get_scena_system(), type(obj).__name__)
+        with system_world(draw=False) as w:
+            dot = Circle(center=(0, 0), radius=2)
+            dot["center"] @= (lambda: canvas.game_view.center)
+            w.step(1)
+            canvas.pan_by(30, 0)
+            w.step(1)
+            self.assertAlmostEqual(dot.center.x, canvas.game_view.center.x)
+            dot.destroy()
+            canvas.reset_view()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

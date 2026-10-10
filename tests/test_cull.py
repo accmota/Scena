@@ -340,12 +340,15 @@ class TestCullDrawLoop(CullTestCase):
     object). The loop hoists them; ``_passes_cull`` is the same two steps."""
 
     def _scene(self):
+        # A layer of its own: in the serial pass other modules leave shapes on
+        # ``default``, and the draw counts every one (deep serial, 2026-10-09).
+        canvas.layers.create("cull_loop")
         objs = []
         for i in range(60):
             objs.append(self.track(Circle(center=(i * 37 % 2400 - 1200, i * 53 % 1600 - 800),
-                                          radius=6)))
+                                          radius=6, layer="cull_loop")))
             objs.append(self.track(Line(p1=(i * 41 % 2000 - 1000, -900),
-                                        p2=(i * 29 % 2000 - 1000, 900))))
+                                        p2=(i * 29 % 2000 - 1000, 900), layer="cull_loop")))
         canvas.pan_to(130, -40)
         canvas.zoom_to(1.3)
         canvas.cull_offscreen = True
@@ -354,12 +357,12 @@ class TestCullDrawLoop(CullTestCase):
     def test_the_loop_agrees_with_passes_cull(self):
         objs = self._scene()
         eng = _engine()
-        layer = _default_layer()
+        layer = eng.registry.layers["cull_loop"]
         want = sum(1 for o in objs if eng._passes_cull(o, layer=layer))
         skipped = len(objs) - want
         self.assertGreater(skipped, 0, "not vacuous")
         self.assertGreater(want, 0, "not vacuous")
-        eng.draw(layer_filter=lambda name: name == "default")
+        eng.draw(layer_filter=lambda name: name == "cull_loop")
         self.assertEqual(eng._cull_skipped, skipped)
 
     def test_the_view_window_is_computed_once_per_draw(self):
@@ -373,7 +376,7 @@ class TestCullDrawLoop(CullTestCase):
             calls.append(1)
             return real.fget(self)
         with mock.patch.object(type(eng), "visible_bounds", property(counted)):
-            eng.draw(layer_filter=lambda name: name == "default")
+            eng.draw(layer_filter=lambda name: name == "cull_loop")
         self.assertEqual(len(calls), 1)
 
 

@@ -2316,6 +2316,26 @@ The seven open items of the review, decided by the author and applied.
 | W-T9 | SpatialFx: the world's `MAX_FRAME_DT`, sub-stepped at 0.1 s | `tick_all_spatial_fx` | same class |
 | X-writers-2 | shake / flash / glitch decay on presentation time | `PostFxStack._render` | same class |
 
+### DS2 — deep serial pass after the systems review (2026-10-09)
+
+The parallel half of the deep tier passed (244 jobs); the serial pass (every
+module in one process) failed 12 tests in three groups. All three are order
+effects the per-module processes cannot see.
+
+| Failure | Cause | Fix |
+| --- | --- | --- |
+| 10 `canvas.game_view` cells of `test_reactive_cross_matrix` | `init_scena_system()` (called by `test_diff_reactive`) rebound a hand list of formula sources (`keyp`, `mouse`, `clock`); the `canvas` facade, a source since RX1, kept the discarded graph | the rebind walks every Container in `builtins` (`state._rebind_input_singletons`); `test_reactive_edge_cases.TestGraphResetRebindsEverySource` |
+| `test_hyp_reactive_matrix` Vec2 canary | the machine's steps depend on object addresses, not only on the seed: after other imports (`tools/guide` modules) it missed the plant at 150 examples; at 300 it missed it in a bare process | `assert_catches(profile=(...))` tries 150, 300, then 600 examples; the plant must be caught at one of them |
+| `test_cull.TestCullDrawLoop` (new in RV7) | the draw counted leftovers other modules left on `default` | the test draws a layer of its own |
+
+Lessons:
+- A rebind (or reset) list of "the long-lived ones" is a hand-kept list:
+  walk the place they live.
+- A test that counts what a draw or a query sees must own the space it
+  counts (its own layer or group), or the serial pass's leftovers change it.
+- A canary on a Hypothesis machine whose path depends on addresses needs
+  an escalating budget, or it is green or red by import order.
+
 ### F — contact flicker (2026-09-29)
 
 Found by `tests/test_sys_resting_contact.py`, written after G2 to test what a

@@ -4810,11 +4810,14 @@ def _rebind_input_singletons(scena_system: ScenaSystem) -> None:
     the new one — a press would not re-pull.
     """
     import builtins
-    for name in ("keyp", "mouse", "clock"):
-        obj = getattr(builtins, name, None)
-        if obj is None or not hasattr(obj, "_scena_system"):
-            continue
-        obj._scena_system = scena_system
+    # Every long-lived Container the framework publishes, not a hand list:
+    # ``canvas`` became a formula source (camera, ``game_view``) and was
+    # missing, so after an ``init_scena_system()`` a camera move notified the
+    # discarded graph and every ``lambda: canvas.game_view`` link froze
+    # (review 2026-10-09, deep serial pass).
+    for obj in list(vars(builtins).values()):
+        if isinstance(obj, Container) and "_scena_system" in getattr(obj, "__dict__", {}):
+            obj._scena_system = scena_system
 
 
 def init_scena_system() -> ScenaSystem:

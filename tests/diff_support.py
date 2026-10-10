@@ -281,22 +281,35 @@ def module_flag(module_name: str, attr: str, value) -> Iterator[None]:
         setattr(mod, attr, old)
 
 
-def assert_catches(tc, test_id: str, patches, what: str) -> None:
+def assert_catches(tc, test_id: str, patches, what: str, *, profile="canary") -> None:
     """Canary: run ``test_id`` (``module.Class.method``) with ``patches`` applied
     and require it to FAIL. ``patches`` is a list of ``(target, attr, value)``;
     a ``str`` target is a module name patched through ``sys.modules``
     (facade-safe), anything else (a class) is patched directly.
 
     Runs under the ``canary`` Hypothesis profile (no DB, fixed seed).
+    ``profile`` may be a tuple of profiles, tried in order until one catches
+    the plant: a machine whose steps depend on object addresses (not only on
+    the seed) finds its plant at one budget in one process and at another in
+    the next (the Vec2 canary in the deep serial pass, 2026-10-09).
     Skipped when ``SCENA_CANARIES=0`` (the quick tier).
     """
     require_canaries(tc)
+    profiles = (profile,) if isinstance(profile, str) else tuple(profile)
+    for name in profiles:
+        if not _plant_survives(test_id, patches, name):
+            return
+    tc.fail(f"canary: {test_id} did not catch {what}")
+
+
+def _plant_survives(test_id: str, patches, profile: str) -> bool:
+    """Run ``test_id`` under ``profile`` with the plant: True when it passes."""
     import unittest
     from unittest import mock
     from hypothesis import settings as hsettings
     stack = []
     previous = hsettings.get_current_profile_name()
-    hsettings.load_profile("canary")
+    hsettings.load_profile(profile)
     try:
         for target, attr, value in patches:
             owner = sys.modules[target] if isinstance(target, str) else target
@@ -319,8 +332,6 @@ def assert_catches(tc, test_id: str, patches, what: str) -> None:
         for p in reversed(stack):
             p.stop()
         hsettings.load_profile(previous)
-    if result.wasSuccessful():
-        tc.fail(f"canary: {test_id} did not catch {what}")
-
+    return result.wasSuccessful()
 
 boot()

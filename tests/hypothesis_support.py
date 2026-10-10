@@ -77,6 +77,17 @@ settings.register_profile(
     phases=[Phase.explicit, Phase.generate],
     suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large],
 )
+# A canary whose machine finds its plant only on some runs at 150 examples:
+# the Vec2 stale-length canary missed it in the deep serial pass once the
+# process had imported other modules (object addresses, not the seed, steer
+# which steps the machine takes). The canary tries 150, then 300, then 600
+# (``assert_catches(profile=(...))``) (2026-10-09).
+settings.register_profile(
+    "canary_wide", settings.get_profile("canary"), max_examples=300,
+)
+settings.register_profile(
+    "canary_wider", settings.get_profile("canary"), max_examples=600,
+)
 PROFILE = os.environ.get("SCENA_HYPOTHESIS_PROFILE", "dev")
 settings.load_profile(PROFILE)
 

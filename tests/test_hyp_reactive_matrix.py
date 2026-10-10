@@ -270,7 +270,8 @@ class TestReactiveMatrixMachine(unittest.TestCase):
         assert_catches(
             self, "test_hyp_reactive_matrix.TestCanaryTarget.test_machine",
             [(Vec2, "_sync_computed", lambda self: None)],
-            "a raw store that leaves Vec2 length/angle stale")
+            "a raw store that leaves Vec2 length/angle stale",
+            profile=("canary", "canary_wide", "canary_wider"))
 
 
 class _Vec2Only(ReactiveMatrixMachine):
