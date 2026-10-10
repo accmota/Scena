@@ -232,7 +232,6 @@ licenses (mostly CC0). A few sounds ask for credit; the lines to copy are in
 
 Contributions are welcome under the same license: see
 [CONTRIBUTING.md](https://github.com/accmota/Scena/blob/main/CONTRIBUTING.md).
-Before 0.6.0 the package was called `stage`; to upgrade, `pip uninstall stage`, then install Scena.
 
 ---
 
