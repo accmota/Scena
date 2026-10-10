@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ligue 4 — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "16",
+  title: "Ligue 4",
+  steps: [
+    {
+      title: "O tabuleiro",
+      body: `
+        <p>Novo script, e um jogo de tabuleiro: o <strong>Ligue 4</strong>. Dois jogadores, o vermelho e o azul, jogam uma bola por vez numa grade de 7 colunas e 6 linhas; a bola cai pela coluna até a casa livre mais baixa. Quem fizer quatro bolas em linha primeiro ganha.</p>
+        <p>Neste tutorial: um tabuleiro feito de casas, uma bola que você arrasta e solta numa coluna, e as regras do jogo escritas em Python simples, com listas. As peças vêm da folha que os pilares do Avião (11) já usavam: ela também tem buracos e bolas.</p>
+        <p><strong>Uma caixa que não aparece.</strong> <code>Box</code> (caixa) é um retângulo que não se desenha: serve para medir e posicionar. Ele se escreve como um <code>Rect</code>, com <code>center=</code>, <code>width=</code> e <code>height=</code>. A <code>zona</code> é o lugar das casas: 560 por 480.</p>
+        <p><strong>A moldura.</strong> O tabuleiro é um <code>Rect</code> feito da zona. <code>box=zona.outset(14)</code> é a zona alargada 14 para fora (<code>outset</code>) de cada lado, e <code>corner_radius=24</code> (raio do canto) arredonda os cantos. Os números ficam num lugar só: mude a zona, e a moldura vai junto.</p>
+        <p><strong>A grade.</strong> <code>zona.grid(7, 6)</code> fatia a zona em 7 colunas e 6 linhas iguais e devolve a grade (<code>grid</code>). Cada casa é também um <code>Box</code>, de 80 por 80. O <code>for</code> passa pelas 42 casas e põe um buraco em cada uma (o quadro <code>hole_large.png</code>). <code>box=casa</code> encaixa o sprite na casa: no centro dela, do tamanho dela.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=760, title="Ligue 4")
+Wallpaper("#2b3550")
+
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zona = Box(center=(500, 340), width=560, height=480)
+Rect(box=zona.outset(14), color="#d8dce4", corner_radius=24)
+grade = zona.grid(7, 6)
+for casa in grade:
+    Sprite(pecas, frame="hole_large.png", box=casa)
+
+run()
+`,
+      try: [
+          {
+            note: "Sem a folha, os buracos podem ser formas: um círculo escuro no centro de cada casa. No lugar do <code>Sprite</code> do buraco:",
+            replaces: ['Sprite(pecas, frame="hole_large.png"'],
+            code: `Circle(center=casa.center, radius=32, color="#20222a")`
+          },
+          {
+            note: "<code>gap=</code> (vão) deixa um espaço entre as casas, e elas encolhem para caber na zona:",
+            replaces: ['grade = zona.grid('],
+            code: `grade = zona.grid(7, 6, gap=10)`
+          }
+        ]
+    },
+    {
+      title: "Uma bola para arrastar",
+      body: `
+        <p>A bola do jogador espera ao lado do tabuleiro. É outro quadro da mesma folha, <code>ball_red_large.png</code>. <code>INICIO</code> guarda o lugar dela; o nome em maiúsculas avisa que esse valor não muda durante o jogo (como as listas do 13).</p>
+        <p><code>draggable = True</code> é o do tutorial 03: dá para pegar a bola com o mouse e levá-la a qualquer lugar. Rode e experimente. Por enquanto, ela fica onde você a solta, em cima do tabuleiro ou fora dele: soltar ainda não quer dizer nada.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=760, title="Ligue 4")
+Wallpaper("#2b3550")
+
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zona = Box(center=(500, 340), width=560, height=480)
+Rect(box=zona.outset(14), color="#d8dce4", corner_radius=24)
+grade = zona.grid(7, 6)
+for casa in grade:
+    Sprite(pecas, frame="hole_large.png", box=casa)
+
+INICIO = (110, 520)
+proxima = Sprite(pecas, frame="ball_red_large.png", height=64, center=INICIO)
+proxima.draggable = True
+
+run()
+`
+    },
+    {
+      title: "Soltar numa casa",
+      body: `
+        <p><strong>Quando solta.</strong> <code>@drag_to(proxima)</code> (arrastou até) diz ao Scena: quando o arraste desta bola acabar, chame a função. Ela recebe três coisas: a bola arrastada; o alvo (<code>alvo</code>, um objeto marcado para receber coisas soltas em cima dele; aqui não há nenhum, então ele vem <code>None</code>); e <code>pos</code>, o ponto onde o mouse soltou. O <code>@drag_to</code> já liga o <code>draggable</code> sozinho; a linha do passo anterior pode ficar.</p>
+        <p><strong>Que casa é essa?</strong> <code>grade.cell_at(pos)</code> (a casa em) faz a conta da grade ao contrário: recebe um ponto e devolve a casa que está embaixo dele, ou <code>None</code> (nada), se o ponto cai fora do tabuleiro.</p>
+        <p><strong>Fora, volta.</strong> Solta fora do tabuleiro, a bola volta ao seu lugar: <code>move_to(INICIO, time=0.3)</code> (mover até). Como no <code>scale_to</code> do 05, com <code>time=</code> ela não pula: desliza até lá em 0.3 segundo. O <code>return</code> termina a função ali mesmo. Solta numa casa, nasce uma bola no centro dela, e a <code>proxima</code> volta na hora para o lugar, pronta para outra jogada.</p>
+        <p><strong>Por cima.</strong> As bolas novas nascem depois da <code>proxima</code>, e quem nasce depois é desenhado na frente: arrastada sobre uma delas, a <code>proxima</code> passaria por baixo. <code>layer="top"</code> (a camada de cima) a põe numa camada acima da do jogo, como as camadas do 12.</p>
+        <p>A bola ainda fica na casa onde você a solta, até no meio de uma coluna vazia, como num jogo da velha. Falta a gravidade.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=760, title="Ligue 4")
+Wallpaper("#2b3550")
+
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zona = Box(center=(500, 340), width=560, height=480)
+Rect(box=zona.outset(14), color="#d8dce4", corner_radius=24)
+grade = zona.grid(7, 6)
+for casa in grade:
+    Sprite(pecas, frame="hole_large.png", box=casa)
+
+INICIO = (110, 520)
+proxima = Sprite(pecas, frame="ball_red_large.png", height=64, center=INICIO, layer="top")
+proxima.draggable = True
+
+
+@drag_to(proxima)
+def soltou(bola, alvo, pos):
+    casa = grade.cell_at(pos)
+    if casa is None:
+        bola.move_to(INICIO, time=0.3)
+        return
+    Sprite(pecas, frame="ball_red_large.png", height=64, center=casa.center)
+    bola.center = INICIO
+
+
+run()
+`,
+      dive: [
+        {
+          title: "Arrastar e soltar",
+          body: `
+            <p>O Scena tem três ganchos para o arraste, e cada um responde a uma pergunta.</p>
+            <ul>
+              <li><code>@drag_to(bola)</code>, o deste passo, fica na coisa arrastada e roda uma vez, quando ela é solta: <em>onde soltaram esta bola?</em></li>
+              <li><code>@drag_over(bola)</code> (arrastando sobre) também fica nela, mas roda a cada quadro enquanto ela está sendo arrastada: <em>por onde ela está passando?</em> Serve para mostrar onde a bola vai cair antes de soltar (uma caixa no último passo).</li>
+              <li><code>@drop_by(cesto)</code> (solto por) fica no alvo: liga o <code>droppable</code> (aceita soltar) do <code>cesto</code> e roda quando alguma coisa é solta em cima dele: <em>o que soltaram aqui?</em> O <code>alvo</code> dos três ganchos é esse objeto, quando o ponto está em cima dele.</li>
+            </ul>
+            <p>Os três recebem os mesmos três valores: quem foi arrastado, o alvo e o ponto. Aqui, o <code>@drag_to</code> é o que basta: a bola precisa de uma resposta onde quer que seja solta, inclusive fora do tabuleiro, para voltar. Com um <code>@drop_by</code> no tabuleiro, soltar fora não chamaria ninguém, e a bola ficaria largada lá.</p>
+            <p>No Guia: <a href="../guide/index.html#ptr-drag">Arrastar</a> · <a href="../guide/index.html#colocar-grid">Grid</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "As colunas",
+      body: `
+        <p>No Ligue 4, a bola não fica onde você a solta: ela cai pela coluna até a casa livre mais baixa. Para saber qual é essa casa, o jogo precisa lembrar o que já existe em cada coluna.</p>
+        <p><strong>Uma lista por coluna.</strong> <code>colunas</code> tem sete listas vazias, uma para cada coluna. Cada bola que entra numa coluna vai para o fim da lista dela (<code>append</code>). Então a lista cresce de baixo para cima, como a pilha de bolas: <code>coluna[0]</code> é a bola do fundo, e <code>len(coluna)</code> diz quantas bolas a coluna já tem.</p>
+        <p><strong>A casa livre.</strong> Cada casa sabe a sua coluna: <code>casa.col_index</code> (o número da coluna, de 0 a 6, da esquerda para a direita). As linhas, a grade conta de cima para baixo (a linha 0 é a de cima), e a lista conta de baixo para cima. Por isso, com <code>len(coluna)</code> bolas na coluna, a casa livre está na linha <code>5 - len(coluna)</code> da grade. <code>grade.cell(…)</code> (a casa) devolve a casa de uma coluna e uma linha, nessa ordem: é o <code>destino</code>.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="À esquerda, a grade de 7 colunas por 6 linhas, com as linhas numeradas de 0, em cima, a 5, embaixo; a coluna 2 tem duas bolas no fundo, e a casa logo acima delas, na linha 3, está marcada como a próxima. À direita, a lista da coluna 2, com dois itens empilhados de baixo para cima, 0 e 1, alinhados com as duas bolas, e um espaço livre em cima">
+            <text x="2" y="26">linha</text>
+            <circle class="guide" cx="51" cy="45" r="7"/>
+            <circle class="guide" cx="51" cy="67" r="7"/>
+            <circle class="guide" cx="51" cy="89" r="7"/>
+            <circle class="guide" cx="51" cy="111" r="7"/>
+            <circle class="guide" cx="51" cy="133" r="7"/>
+            <circle class="guide" cx="51" cy="155" r="7"/>
+            <circle class="guide" cx="73" cy="45" r="7"/>
+            <circle class="guide" cx="73" cy="67" r="7"/>
+            <circle class="guide" cx="73" cy="89" r="7"/>
+            <circle class="guide" cx="73" cy="111" r="7"/>
+            <circle class="guide" cx="73" cy="133" r="7"/>
+            <circle class="guide" cx="73" cy="155" r="7"/>
+            <circle class="guide" cx="95" cy="45" r="7"/>
+            <circle class="guide" cx="95" cy="67" r="7"/>
+            <circle class="guide" cx="95" cy="89" r="7"/>
+            <circle class="bar child" cx="95" cy="111" r="9"/>
+            <circle class="bar" cx="95" cy="133" r="9"/>
+            <circle class="bar" cx="95" cy="155" r="9"/>
+            <circle class="guide" cx="117" cy="45" r="7"/>
+            <circle class="guide" cx="117" cy="67" r="7"/>
+            <circle class="guide" cx="117" cy="89" r="7"/>
+            <circle class="guide" cx="117" cy="111" r="7"/>
+            <circle class="guide" cx="117" cy="133" r="7"/>
+            <circle class="guide" cx="117" cy="155" r="7"/>
+            <circle class="guide" cx="139" cy="45" r="7"/>
+            <circle class="guide" cx="139" cy="67" r="7"/>
+            <circle class="guide" cx="139" cy="89" r="7"/>
+            <circle class="guide" cx="139" cy="111" r="7"/>
+            <circle class="guide" cx="139" cy="133" r="7"/>
+            <circle class="guide" cx="139" cy="155" r="7"/>
+            <circle class="guide" cx="161" cy="45" r="7"/>
+            <circle class="guide" cx="161" cy="67" r="7"/>
+            <circle class="guide" cx="161" cy="89" r="7"/>
+            <circle class="guide" cx="161" cy="111" r="7"/>
+            <circle class="guide" cx="161" cy="133" r="7"/>
+            <circle class="guide" cx="161" cy="155" r="7"/>
+            <circle class="guide" cx="183" cy="45" r="7"/>
+            <circle class="guide" cx="183" cy="67" r="7"/>
+            <circle class="guide" cx="183" cy="89" r="7"/>
+            <circle class="guide" cx="183" cy="111" r="7"/>
+            <circle class="guide" cx="183" cy="133" r="7"/>
+            <circle class="guide" cx="183" cy="155" r="7"/>
+            <text x="24" y="49">0</text>
+            <text x="24" y="71">1</text>
+            <text x="24" y="93">2</text>
+            <text x="24" y="115">3</text>
+            <text x="24" y="137">4</text>
+            <text x="24" y="159">5</text>
+            <text x="48" y="182">0</text>
+            <text x="70" y="182">1</text>
+            <text x="92" y="182">2</text>
+            <text x="114" y="182">3</text>
+            <text x="136" y="182">4</text>
+            <text x="158" y="182">5</text>
+            <text x="180" y="182">6</text>
+            <text x="80" y="198">coluna</text>
+            <line class="ray" x1="95" y1="6" x2="95" y2="96"/>
+            <line class="ray" x1="95" y1="98" x2="90" y2="89"/>
+            <line class="ray" x1="95" y1="98" x2="100" y2="89"/>
+            <line class="guide" x1="200" y1="111" x2="248" y2="111"/>
+            <line class="guide" x1="200" y1="133" x2="248" y2="133"/>
+            <line class="guide" x1="200" y1="155" x2="248" y2="155"/>
+            <rect class="guide" x="250" y="100" width="44" height="22" rx="3"/>
+            <rect class="bar" x="250" y="122" width="44" height="22" rx="3"/>
+            <rect class="bar" x="250" y="144" width="44" height="22" rx="3"/>
+            <text x="300" y="115">livre</text>
+            <text x="300" y="137">[1]</text>
+            <text x="300" y="159">[0]</text>
+            <text x="238" y="90">colunas[2]</text>
+            <text x="214" y="36">len(colunas[2]) = 2</text>
+            <text x="214" y="54">linha = 5 - 2 = 3</text>
+          </svg>
+          <figcaption>A coluna 2 tem duas bolas, e a lista dela também: <code>[0]</code> é a do fundo. A grade conta as linhas de cima para baixo, então a casa livre é a linha 5 − 2 = 3.</figcaption>
+        </figure>
+
+        <p><strong>Coluna cheia.</strong> Com seis bolas, não cabe mais nenhuma: a bola volta, como quando é solta fora. As duas condições ficam no mesmo <code>if</code>, ligadas por <code>or</code> (ou). A ordem importa: se a casa é <code>None</code>, o Python nem lê a segunda parte, que daria erro (<code>None</code> não tem coluna).</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=760, title="Ligue 4")
+Wallpaper("#2b3550")
+
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zona = Box(center=(500, 340), width=560, height=480)
+Rect(box=zona.outset(14), color="#d8dce4", corner_radius=24)
+grade = zona.grid(7, 6)
+for casa in grade:
+    Sprite(pecas, frame="hole_large.png", box=casa)
+
+INICIO = (110, 520)
+proxima = Sprite(pecas, frame="ball_red_large.png", height=64, center=INICIO, layer="top")
+proxima.draggable = True
+
+colunas = [[], [], [], [], [], [], []]
+
+
+@drag_to(proxima)
+def soltou(bola, alvo, pos):
+    casa = grade.cell_at(pos)
+    if casa is None or len(colunas[casa.col_index]) == 6:
+        bola.move_to(INICIO, time=0.3)
+        return
+    coluna = colunas[casa.col_index]
+    destino = grade.cell(casa.col_index, 5 - len(coluna))
+    nova = Sprite(pecas, frame="ball_red_large.png", height=64, center=destino.center)
+    coluna.append(nova)
+    bola.center = INICIO
+
+
+run()
+`
+    },
+    {
+      title: "Cair",
+      body: `
+        <p>A bola já vai para a casa certa, mas aparece lá de uma vez. Agora ela nasce na boca da coluna, logo acima do tabuleiro, e cai.</p>
+        <p><strong>A queda.</strong> <code>move_to(destino.center, time=0.5, ease="bounce")</code>: em meio segundo, a bola desce até o centro da casa livre. <code>ease=</code> (a curva) muda o jeito de andar, como no 04: com <code>"bounce"</code> (quicar), ela bate no fundo e quica um pouco antes de parar.</p>
+        <p><strong>Quando chega.</strong> <code>on_done=pousou</code> (ao terminar) entrega uma função ao <code>move_to</code>, e ele a chama quando a viagem acaba. <code>pousou</code> vai sem parênteses, como o <code>on_click=criar</code> do 04. Por enquanto, ela só toca o som da bola batendo, mas é o lugar do que acontece depois de cada jogada: o resto das regras vai entrar nela.</p>
+        <p>A lista recebe a bola na hora em que ela é solta, não na chegada. Ela ainda está caindo, mas a casa já é dela: se outra bola vier logo atrás, já encontra a coluna com uma bola a mais.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=760, title="Ligue 4")
+Wallpaper("#2b3550")
+
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zona = Box(center=(500, 340), width=560, height=480)
+Rect(box=zona.outset(14), color="#d8dce4", corner_radius=24)
+grade = zona.grid(7, 6)
+for casa in grade:
+    Sprite(pecas, frame="hole_large.png", box=casa)
+
+INICIO = (110, 520)
+proxima = Sprite(pecas, frame="ball_red_large.png", height=64, center=INICIO, layer="top")
+proxima.draggable = True
+
+colunas = [[], [], [], [], [], [], []]
+
+
+@drag_to(proxima)
+def soltou(bola, alvo, pos):
+    casa = grade.cell_at(pos)
+    if casa is None or len(colunas[casa.col_index]) == 6:
+        bola.move_to(INICIO, time=0.3)
+        return
+    coluna = colunas[casa.col_index]
+    destino = grade.cell(casa.col_index, 5 - len(coluna))
+    nova = Sprite(pecas, frame="ball_red_large.png", height=64, center=(destino.center.x, 630))
+    nova.move_to(destino.center, time=0.5, ease="bounce", on_done=pousou)
+    coluna.append(nova)
+    bola.center = INICIO
+
+
+def pousou():
+    play_sound("audio/impactPlank_medium_002.ogg")
+
+
+run()
+`,
+      try: [
+          {
+            note: "Outra curva: <code>ease_in</code> (começa devagar e acelera) é a queda de verdade, sem o quique. Também valem <code>ease_out</code> e <code>elastic</code>, uma por vez. No lugar do <code>move_to</code> da bola nova:",
+            replaces: ['nova.move_to('],
+            code: `nova.move_to(destino.center, time=0.4, ease="ease_in", on_done=pousou)`
+          }
+        ]
+    },
+    {
+      title: "A vez",
+      body: `
+        <p>Dois jogadores, uma bola de cada vez. De quem é a vez fica em <code>st.vez</code>: <code>"vermelho"</code> ou <code>"azul"</code>.</p>
+        <p><strong>O aviso.</strong> O texto acima do tabuleiro diz de quem é a vez. O <code>@=</code> é o do placar do 02: ele liga o texto a uma função, e quando <code>st.vez</code> muda, o texto muda sozinho.</p>
+        <p><strong>Trocar.</strong> <code>trocar_vez()</code> passa a vez para o outro jogador e troca a imagem da <code>proxima</code>: <code>frame</code> (o quadro) escolhe outro quadro da folha, agora depois de criada. A bola nova copia o quadro da que você arrastou, <code>frame=bola.frame</code>: vermelha na vez do vermelho, azul na vez do azul.</p>
+        <p><strong>Esperar a queda.</strong> A vez troca quando a bola pousa, em <code>pousou</code>. Enquanto ela cai, a <code>proxima</code> fica escondida (<code>visible = False</code>, como a porta do 11), e não dá para jogar de novo: um objeto invisível não recebe o mouse. Quando a queda termina, ela reaparece no lugar, já na cor do outro jogador.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=760, title="Ligue 4")
+Wallpaper("#2b3550")
+
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zona = Box(center=(500, 340), width=560, height=480)
+Rect(box=zona.outset(14), color="#d8dce4", corner_radius=24)
+grade = zona.grid(7, 6)
+for casa in grade:
+    Sprite(pecas, frame="hole_large.png", box=casa)
+
+INICIO = (110, 520)
+proxima = Sprite(pecas, frame="ball_red_large.png", height=64, center=INICIO, layer="top")
+proxima.draggable = True
+
+colunas = [[], [], [], [], [], [], []]
+st.vez = "vermelho"
+
+aviso = Text(text="", center=(500, 712), font_size=36, color="white")
+aviso["text"] @= lambda: f"Vez do {st.vez}"
+
+
+@drag_to(proxima)
+def soltou(bola, alvo, pos):
+    casa = grade.cell_at(pos)
+    if casa is None or len(colunas[casa.col_index]) == 6:
+        bola.move_to(INICIO, time=0.3)
+        return
+    coluna = colunas[casa.col_index]
+    destino = grade.cell(casa.col_index, 5 - len(coluna))
+    nova = Sprite(pecas, frame=bola.frame, height=64, center=(destino.center.x, 630))
+    nova.move_to(destino.center, time=0.5, ease="bounce", on_done=pousou)
+    coluna.append(nova)
+    bola.visible = False
+    bola.center = INICIO
+
+
+def pousou():
+    play_sound("audio/impactPlank_medium_002.ogg")
+    trocar_vez()
+    proxima.visible = True
+
+
+def trocar_vez():
+    if st.vez == "vermelho":
+        st.vez = "azul"
+        proxima.frame = "ball_blue_large.png"
+    else:
+        st.vez = "vermelho"
+        proxima.frame = "ball_red_large.png"
+
+
+run()
+`
+    },
+    {
+      title: "Quatro em linha",
+      body: `
+        <p>Falta a regra que termina o jogo. Tudo o que ela precisa já está nas listas: a regra é Python puro.</p>
+        <p><strong>De quem é a bola.</strong> Cada bola nova guarda o seu dono: <code>nova.dono = st.vez</code>. Um campo novo num objeto é só um nome e um valor, como o <code>self.fogo</code> do avião (12).</p>
+        <p><strong>Quatro seguidas.</strong> <code>quatro(x, y, dx, dy)</code> começa numa casa e dá quatro passos de <code>(dx, dy)</code>, como um <code>move_by</code> de casa em casa. Aqui, <code>x</code> é a coluna e <code>y</code> é o lugar na lista, contado de baixo para cima, como o y da tela. A cada passo, <code>c</code> e <code>l</code> são a coluna e o lugar na lista daquela casa, e ela olha o que tem lá. Se a casa sai do tabuleiro pela direita (<code>c &gt; 6</code>), está vazia (a lista da coluna é mais curta) ou é do outro jogador, não são quatro: a função devolve <code>False</code>. Se os quatro passos dão certo, as quatro bolas acendem (<code>glow</code>, o brilho do 05, aqui dourado) e ela devolve <code>True</code>.</p>
+        <p><strong>No tabuleiro todo.</strong> <code>conferir()</code> experimenta cada casa como começo, em duas direções: <code>(1, 0)</code> anda para a direita (quatro deitadas, numa linha) e <code>(0, 1)</code> anda para cima (quatro em pé, numa coluna). Ela só olha as bolas de quem acabou de jogar, porque só ele pode ter feito uma linha nova; por isso o <code>pousou</code> confere antes de trocar a vez.</p>
+        <p><strong>O fim.</strong> Com quatro em linha, <code>st.fim</code> fica verdadeiro. O <code>pousou</code> toca a música da vitória e não troca a vez, e o <code>soltou</code> manda qualquer bola de volta. O aviso agora tem duas frases, e escolher entre elas pede um <code>if</code>: a fórmula do <code>@=</code> vira uma função com nome, <code>mensagem</code>. O <code>@=</code> aceita qualquer função que devolva o texto, e a chama de novo quando <code>st.vez</code> ou <code>st.fim</code> mudam.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=760, title="Ligue 4")
+Wallpaper("#2b3550")
+
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zona = Box(center=(500, 340), width=560, height=480)
+Rect(box=zona.outset(14), color="#d8dce4", corner_radius=24)
+grade = zona.grid(7, 6)
+for casa in grade:
+    Sprite(pecas, frame="hole_large.png", box=casa)
+
+INICIO = (110, 520)
+proxima = Sprite(pecas, frame="ball_red_large.png", height=64, center=INICIO, layer="top")
+proxima.draggable = True
+
+colunas = [[], [], [], [], [], [], []]
+st.vez = "vermelho"
+st.fim = False
+
+
+def mensagem():
+    if st.fim:
+        return f"O {st.vez} venceu!"
+    return f"Vez do {st.vez}"
+
+
+aviso = Text(text="", center=(500, 712), font_size=36, color="white")
+aviso["text"] @= mensagem
+
+
+@drag_to(proxima)
+def soltou(bola, alvo, pos):
+    casa = grade.cell_at(pos)
+    if st.fim or casa is None or len(colunas[casa.col_index]) == 6:
+        bola.move_to(INICIO, time=0.3)
+        return
+    coluna = colunas[casa.col_index]
+    destino = grade.cell(casa.col_index, 5 - len(coluna))
+    nova = Sprite(pecas, frame=bola.frame, height=64, center=(destino.center.x, 630))
+    nova.dono = st.vez
+    nova.move_to(destino.center, time=0.5, ease="bounce", on_done=pousou)
+    coluna.append(nova)
+    bola.visible = False
+    bola.center = INICIO
+
+
+def pousou():
+    play_sound("audio/impactPlank_medium_002.ogg")
+    conferir()
+    if st.fim:
+        play_sound("audio/Victory.mp3")
+    else:
+        trocar_vez()
+    proxima.visible = True
+
+
+def trocar_vez():
+    if st.vez == "vermelho":
+        st.vez = "azul"
+        proxima.frame = "ball_blue_large.png"
+    else:
+        st.vez = "vermelho"
+        proxima.frame = "ball_red_large.png"
+
+
+def quatro(x, y, dx, dy):
+    bolas = []
+    for passo in range(4):
+        c = x + passo * dx
+        l = y + passo * dy
+        if c > 6 or l >= len(colunas[c]) or colunas[c][l].dono != st.vez:
+            return False
+        bolas.append(colunas[c][l])
+    for bola in bolas:
+        bola.glow = "gold"
+    return True
+
+
+def conferir():
+    for x in range(7):
+        for y in range(6):
+            if quatro(x, y, 1, 0) or quatro(x, y, 0, 1):
+                st.fim = True
+
+
+run()
+`
+    },
+    {
+      title: "Novo jogo",
+      example: "ligue4.py",
+      body: `
+        <p>Uma partida acabou; falta começar outra. Um <code>Button</code> (botão, o do 04) chama <code>novo_jogo</code>.</p>
+        <p><strong>Voltar ao começo.</strong> As bolas jogadas entram num grupo, <code>group="jogadas"</code>, e o grupo inteiro é destruído de uma vez. As listas ficam vazias (<code>clear</code>, limpar). A vez volta para o vermelho, <code>st.fim</code> volta a falso, e a <code>proxima</code> volta vermelha e visível. Esta última linha conta: se o botão for clicado com uma bola caindo, a bola é destruída no meio da queda, o <code>pousou</code> não chega a rodar, e a <code>proxima</code> ficaria escondida para sempre.</p>
+        <p>É um recomeço à mão, como o do Avião (11): uma lista do que desfazer. Num jogo com atos (20), trocar de ato faz isso por você.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=760, title="Ligue 4")
+Wallpaper("#2b3550")
+
+pecas = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zona = Box(center=(500, 340), width=560, height=480)
+Rect(box=zona.outset(14), color="#d8dce4", corner_radius=24)
+grade = zona.grid(7, 6)
+for casa in grade:
+    Sprite(pecas, frame="hole_large.png", box=casa)
+
+INICIO = (110, 520)
+proxima = Sprite(pecas, frame="ball_red_large.png", height=64, center=INICIO, layer="top")
+proxima.draggable = True
+
+colunas = [[], [], [], [], [], [], []]
+st.vez = "vermelho"
+st.fim = False
+
+
+def mensagem():
+    if st.fim:
+        return f"O {st.vez} venceu!"
+    return f"Vez do {st.vez}"
+
+
+aviso = Text(text="", center=(500, 712), font_size=36, color="white")
+aviso["text"] @= mensagem
+
+
+@drag_to(proxima)
+def soltou(bola, alvo, pos):
+    casa = grade.cell_at(pos)
+    if st.fim or casa is None or len(colunas[casa.col_index]) == 6:
+        bola.move_to(INICIO, time=0.3)
+        return
+    coluna = colunas[casa.col_index]
+    destino = grade.cell(casa.col_index, 5 - len(coluna))
+    nova = Sprite(pecas, frame=bola.frame, height=64, center=(destino.center.x, 630), group="jogadas")
+    nova.dono = st.vez
+    nova.move_to(destino.center, time=0.5, ease="bounce", on_done=pousou)
+    coluna.append(nova)
+    bola.visible = False
+    bola.center = INICIO
+
+
+def pousou():
+    play_sound("audio/impactPlank_medium_002.ogg")
+    conferir()
+    if st.fim:
+        play_sound("audio/Victory.mp3")
+    else:
+        trocar_vez()
+    proxima.visible = True
+
+
+def trocar_vez():
+    if st.vez == "vermelho":
+        st.vez = "azul"
+        proxima.frame = "ball_blue_large.png"
+    else:
+        st.vez = "vermelho"
+        proxima.frame = "ball_red_large.png"
+
+
+def quatro(x, y, dx, dy):
+    bolas = []
+    for passo in range(4):
+        c = x + passo * dx
+        l = y + passo * dy
+        if c > 6 or l >= len(colunas[c]) or colunas[c][l].dono != st.vez:
+            return False
+        bolas.append(colunas[c][l])
+    for bola in bolas:
+        bola.glow = "gold"
+    return True
+
+
+def conferir():
+    for x in range(7):
+        for y in range(6):
+            if quatro(x, y, 1, 0) or quatro(x, y, 0, 1):
+                st.fim = True
+
+
+def novo_jogo():
+    group["jogadas"].destroy()
+    for coluna in colunas:
+        coluna.clear()
+    st.vez = "vermelho"
+    st.fim = False
+    proxima.frame = "ball_red_large.png"
+    proxima.visible = True
+
+
+Button(label="Novo jogo", on_click=novo_jogo)
+
+run()
+`,
+      try: [
+          {
+            note: "Enquanto você arrasta, uma faixa clara mostra a coluna onde a bola vai cair: <code>@drag_over</code> roda a cada quadro do arraste. Para a faixa sumir ao soltar, ponha <code>faixa.visible = False</code> na primeira linha de <code>soltou</code>. No fim do script, antes do <code>run()</code>:",
+            code: `faixa = Rect(center=(500, 340), width=80, height=480, color="#ffffff33")
+faixa.visible = False
+
+
+@drag_over(proxima)
+def arrastando(bola, alvo, pos):
+    casa = grade.cell_at(pos)
+    if casa is None:
+        faixa.visible = False
+    else:
+        faixa.visible = True
+        faixa.center = (casa.center.x, 340)`
+          }
+        ],
+      dive: [
+        {
+          title: "Para continuar",
+          body: `
+            <p>O jogo tem as regras mínimas. Daqui em diante, ele é seu. Algumas ideias, da mais simples para a mais trabalhosa:</p>
+            <ul>
+              <li><strong>Diagonais.</strong> A diagonal que sobe é mais uma direção, <code>(1, 1)</code> (na caixa abaixo). A que desce, <code>(1, -1)</code>, pede um cuidado a mais: <code>l</code> pode ficar negativo, e um índice negativo conta do fim da lista (<code>coluna[-1]</code> é a última bola, não “nenhuma”). Acrescente <code>l &lt; 0 or</code> no começo do <code>if</code> de <code>quatro</code>.</li>
+              <li><strong>Empate.</strong> As sete colunas cheias e ninguém com quatro: o jogo acaba empatado. No <code>pousou</code>, conte as bolas das listas; 42 é o tabuleiro cheio.</li>
+              <li><strong>Placar.</strong> As vitórias de cada jogador em <code>st</code>, num texto com <code>@=</code>, que o <code>novo_jogo</code> não zera.</li>
+              <li><strong>Uma festa para quem ganhou.</strong> As quatro bolas pulsando (<code>scale_to</code> com <code>loops="forever"</code>, como a frota do 05), ou um efeito no meio delas.</li>
+              <li><strong>O computador.</strong> Um adversário que joga sozinho na vez do azul. A função <code>soltou</code> é sua, e dá para chamá-la à mão: <code>soltou(proxima, None, casa.center)</code> joga na coluna daquela casa. No <code>pousou</code>, um <code>after</code> espera um pouco e o computador escolhe uma coluna. Comece sorteando uma coluna que não esteja cheia; depois, ensine-o a completar as suas linhas de três e a fechar as do adversário.</li>
+            </ul>
+          `,
+          try: [
+            {
+              note: "As diagonais que sobem: mais uma direção no <code>if</code>. No lugar de <code>conferir</code>:",
+              replaces: ['def conferir():', 'for x in range(7):', 'for y in range(6):', 'if quatro(x, y, 1, 0)', 'st.fim = True'],
+              code: `def conferir():
+    for x in range(7):
+        for y in range(6):
+            if quatro(x, y, 1, 0) or quatro(x, y, 0, 1) or quatro(x, y, 1, 1):
+                st.fim = True`
+            }
+          ]
+        }
+      ],
+      closing: `
+        <p>Arraste a bola do lado esquerdo e solte-a em cima de uma coluna: ela cai até a casa livre mais baixa, e a vez passa para o outro jogador. Quatro bolas da mesma cor em linha, deitadas ou em pé, ganham o jogo e acendem. <strong>Novo jogo</strong> limpa o tabuleiro.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Box</code> — um retângulo que não se desenha: mede e posiciona; <code>outset</code> o alarga.</li>
+          <li><code>grid</code> — fatia a caixa em casas iguais; <code>grade.cell(coluna, linha)</code> pega uma, e a linha 0 é a de cima.</li>
+          <li><code>cell_at</code> — o caminho inverso: do ponto para a casa, ou <code>None</code> fora da grade.</li>
+          <li><code>box=</code> — encaixa um sprite ou uma forma numa casa.</li>
+          <li><code>@drag_to</code> — roda quando o arraste acaba, com a coisa arrastada, o alvo e o ponto onde soltou.</li>
+          <li><code>on_done=</code> — a função que um <code>move_to</code> com <code>time=</code> chama quando a viagem acaba.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#colocar-box">Box</a> · <a href="../guide/index.html#colocar-grid">Grid</a> · <a href="../guide/index.html#ptr-drag">Arrastar</a> · <a href="../guide/index.html#mover-pose">Mover</a> · <a href="../guide/index.html#agendar-fim">Ao terminar</a>.</p>
+        <p><strong>No próximo:</strong> o som vira entrada: um piano tocado pelo teclado.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

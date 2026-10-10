@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ninja II · O mundo — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "15",
+  title: "Ninja II · O mundo",
+  steps: [
+    {
+      title: "O jogo do 14",
+      body: `
+        <p>O ninja do 14 corre, pula e pisa no chão, mas não tem o que fazer. Neste tutorial, ele ganha um mundo para viver: um buraco com água, estrelas para pegar, robôs que patrulham, kunais (as facas de arremesso do ninja) para jogar e três vidas.</p>
+        <p>O ponto de partida é o jogo do 14, como ficou. Rode e lembre: setas para os lados andam, seta para cima pula.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+for i in range(13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+
+
+def plataforma(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="chao")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="chao")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="chao")
+
+
+plataforma(360, 220)
+plataforma(720, 390)
+Rect(center=(-20, 375), width=40, height=750, group="chao")
+Rect(center=(1020, 375), width=40, height=750, group="chao")
+group["chao"].mass = STATIC
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        no_chao = "bottom" in self.touching_sides
+        if keyp.once("UP") and no_chao:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+
+resolve("heroi", "chao", bounce=0)
+
+heroi = Heroi(center=(100, 400))
+
+
+run()
+`
+    },
+    {
+      title: "Um buraco no chão",
+      body: `
+        <p><strong>O buraco.</strong> O chão agora vem em dois pedaços, com um vão de duas peças entre eles. Nas beiradas do vão, duas peças com o lado de terra à mostra: <code>3.png</code> fecha o pedaço da esquerda, <code>1.png</code> abre o da direita. Lá embaixo, duas peças de água (<code>17.png</code>), mais baixas que o chão. Uma terceira plataforma, lá no alto, completa o cenário.</p>
+        <p><strong>Quem fica na frente.</strong> O que nasce depois é desenhado na frente. A árvore, as moitas, a placa e o cogumelo nascem antes do chão: ficam atrás de tudo, só de enfeite, sem grupo e sem colisão. A água nasce depois do ninja, então o ninja que cai afunda <em>atrás</em> dela.</p>
+        <p><strong>Cair no buraco.</strong> Quando os pés descem abaixo de y = 30, o ninja caiu na água: o <code>on_update</code> chama <code>self.perder()</code>, uma função da própria classe, como o <code>cair()</code> do avião no 11. Por enquanto ela só põe o ninja de volta no começo, parado. <code>self.center = (100, 400)</code> <strong>coloca</strong>: o ninja some de um lugar e aparece no outro, sem atravessar o caminho; o <code>resolve</code> só segura quem viaja (<code>move_by</code>). E a <code>vel</code> volta a zero, senão ele chegaria lá caindo depressa.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+Sprite("tilesets/Object/Tree_2.png", height=230, center=(130, 195))
+Sprite("tilesets/Object/Bush (1).png", height=50, center=(300, 105))
+Sprite("tilesets/Object/Sign_2.png", height=60, center=(410, 110))
+Sprite("tilesets/Object/Mushroom_1.png", height=30, center=(770, 95))
+Sprite("tilesets/Object/Bush (3).png", height=40, center=(960, 100))
+
+for i in range(5):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+Sprite("tilesets/Tiles/3.png", height=80, center=(440, 40), group="chao")
+Sprite("tilesets/Tiles/1.png", height=80, center=(680, 40), group="chao")
+for i in range(9, 13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+
+
+def plataforma(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="chao")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="chao")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="chao")
+
+
+plataforma(360, 220)
+plataforma(720, 390)
+plataforma(420, 560)
+Rect(center=(-20, 375), width=40, height=750, group="chao")
+Rect(center=(1020, 375), width=40, height=750, group="chao")
+group["chao"].mass = STATIC
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        no_chao = "bottom" in self.touching_sides
+        if keyp.once("UP") and no_chao:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+        if self.center.y < 30:
+            self.perder()
+
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    def perder(self):
+        self.center = (100, 400)
+        self.vel = Vec2(0, 0)
+
+
+resolve("heroi", "chao", bounce=0)
+
+heroi = Heroi(center=(100, 400))
+
+Sprite("tilesets/Tiles/17.png", width=80, center=(520, 31))
+Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
+
+
+run()
+`,
+      try: [
+          {
+            note: "Outros enfeites da mesma pasta (uma pedra, outra árvore, outro cogumelo), para pôr junto dos outros, antes do chão, para ficarem atrás.",
+            code: `Sprite("tilesets/Object/Stone.png", height=40, center=(880, 100))
+Sprite("tilesets/Object/Tree_3.png", height=200, center=(900, 180))
+Sprite("tilesets/Object/Mushroom_2.png", height=30, center=(240, 95))`
+          }
+        ]
+    },
+    {
+      title: "Pulo mais justo",
+      body: `
+        <p>Corra até a beirada do buraco e pule no último instante. Muitas vezes o ninja cai em vez de pular, e parece injusto: você apertou na hora. O que aconteceu é que, por um ou dois quadros, os pés já tinham saído do chão, e <code>"bottom"</code> já não estava em <code>touching_sides</code>.</p>
+        <p><strong>Uma folga.</strong> Jogos de plataforma dão uma folga aqui: o personagem ainda pode pular um pouquinho depois de sair da beirada. Tem até nome, <em>coyote time</em> (o tempo do coiote, o do desenho animado, que só cai quando olha para baixo). <code>recently</code> (recentemente) é a ferramenta: <code>recently("no_chao", no_chao, hold=0.12)</code> responde <code>True</code> se <code>no_chao</code> foi verdade em algum momento dos últimos 0,12 segundos (<code>hold</code>, segurar). O nome <code>"no_chao"</code> é a gaveta onde o Scena guarda essa lembrança.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 400 180" role="img" aria-label="Uma linha do tempo. A faixa no_chao vai até o instante em que o ninja sai da beirada. A faixa pode_pular vai até o mesmo ponto e continua por mais 0,12 segundo. Apertar a seta dentro dessa folga ainda pula; depois dela, não">
+            <line class="ray" x1="20" y1="140" x2="380" y2="140"/>
+            <text x="20" y="38">no_chao</text>
+            <rect class="bar" x="110" y="28" width="140" height="16" rx="3"/>
+            <text x="20" y="78">pode_pular</text>
+            <rect class="bar" x="110" y="68" width="140" height="16" rx="3"/>
+            <rect class="bar child" x="250" y="68" width="62" height="16" rx="3"/>
+            <line class="guide" x1="250" y1="16" x2="250" y2="140"/>
+            <line class="guide" x1="312" y1="60" x2="312" y2="140"/>
+            <text x="258" y="60">0,12 s</text>
+            <circle class="hot" cx="285" cy="112" r="5"/>
+            <text x="272" y="130">pula</text>
+            <circle class="dot" cx="345" cy="112" r="5"/>
+            <text x="336" y="130">cai</text>
+            <text x="196" y="158">sai da beirada</text>
+            <text x="336" y="158">tempo</text>
+          </svg>
+          <figcaption>Os pés saem do chão na linha tracejada. <code>pode_pular</code> continua verdade por mais 0,12 segundo: apertar a seta ali ainda pula (o ponto vermelho); depois, não.</figcaption>
+        </figure>
+
+        <p><strong>Gastar a folga.</strong> <code>recently</code> diz <code>True</code> em todos os quadros da folga, não uma vez só. Depois de pular, <code>recently.reset("no_chao")</code> (esquecer) apaga a lembrança; sem isso, o ninja que acabou de pular ainda teria 0,12 segundo para pular de novo, no ar.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+Sprite("tilesets/Object/Tree_2.png", height=230, center=(130, 195))
+Sprite("tilesets/Object/Bush (1).png", height=50, center=(300, 105))
+Sprite("tilesets/Object/Sign_2.png", height=60, center=(410, 110))
+Sprite("tilesets/Object/Mushroom_1.png", height=30, center=(770, 95))
+Sprite("tilesets/Object/Bush (3).png", height=40, center=(960, 100))
+
+for i in range(5):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+Sprite("tilesets/Tiles/3.png", height=80, center=(440, 40), group="chao")
+Sprite("tilesets/Tiles/1.png", height=80, center=(680, 40), group="chao")
+for i in range(9, 13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+
+
+def plataforma(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="chao")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="chao")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="chao")
+
+
+plataforma(360, 220)
+plataforma(720, 390)
+plataforma(420, 560)
+Rect(center=(-20, 375), width=40, height=750, group="chao")
+Rect(center=(1020, 375), width=40, height=750, group="chao")
+group["chao"].mass = STATIC
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        no_chao = "bottom" in self.touching_sides
+        pode_pular = recently("no_chao", no_chao, hold=0.12)
+        if keyp.once("UP") and pode_pular:
+            self.vel.y = 900
+            recently.reset("no_chao")
+            play_sound("synth/jump.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+        if self.center.y < 30:
+            self.perder()
+
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    def perder(self):
+        self.center = (100, 400)
+        self.vel = Vec2(0, 0)
+
+
+resolve("heroi", "chao", bounce=0)
+
+heroi = Heroi(center=(100, 400))
+
+Sprite("tilesets/Tiles/17.png", width=80, center=(520, 31))
+Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
+
+
+run()
+`,
+      try: [
+          {
+            note: "A outra folga, para quem aperta cedo demais: a seta apertada até 0,12 segundo antes de pisar também vale (o pulo fica guardado). No lugar da linha do <code>if</code>:",
+            replaces: ['if keyp.once("UP") and pode_pular:'],
+            code: `if recently("pulo", keyp.once("UP"), hold=0.12) and pode_pular:
+    recently.reset("pulo")`
+          }
+        ]
+    },
+    {
+      title: "Estrelas",
+      body: `
+        <p>Cinco estrelas espalhadas pelo mundo: em cima das plataformas, sobre o buraco, num canto. O <code>for</code> lê os pontos de uma lista, e cada estrela pulsa para sempre com o <code>scale_to</code> do 05.</p>
+        <p><strong>Pegar.</strong> É o jogo do 02, agora dentro da classe: <code>@collide_with("estrela")</code> no <code>Heroi</code> destrói a estrela, soma um em <code>st.estrelas</code> e toca um som. O placar é ligado a <code>st.estrelas</code> com <code>@=</code>, como sempre.</p>
+        <p><strong>Todas.</strong> Na quinta, o <code>aviso</code> (um <code>Text</code> vazio no alto) ganha a frase da vitória, com música. A estrela sobre o buraco só se pega no meio do pulo.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+Sprite("tilesets/Object/Tree_2.png", height=230, center=(130, 195))
+Sprite("tilesets/Object/Bush (1).png", height=50, center=(300, 105))
+Sprite("tilesets/Object/Sign_2.png", height=60, center=(410, 110))
+Sprite("tilesets/Object/Mushroom_1.png", height=30, center=(770, 95))
+Sprite("tilesets/Object/Bush (3).png", height=40, center=(960, 100))
+
+for i in range(5):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+Sprite("tilesets/Tiles/3.png", height=80, center=(440, 40), group="chao")
+Sprite("tilesets/Tiles/1.png", height=80, center=(680, 40), group="chao")
+for i in range(9, 13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+
+
+def plataforma(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="chao")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="chao")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="chao")
+
+
+plataforma(360, 220)
+plataforma(720, 390)
+plataforma(420, 560)
+Rect(center=(-20, 375), width=40, height=750, group="chao")
+Rect(center=(1020, 375), width=40, height=750, group="chao")
+group["chao"].mass = STATIC
+
+st.estrelas = 0
+
+placar = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+placar["text"] @= lambda: f"Estrelas {st.estrelas}"
+aviso = Text(text="", center=(500, 680), font_size=36, color="dark green")
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        no_chao = "bottom" in self.touching_sides
+        pode_pular = recently("no_chao", no_chao, hold=0.12)
+        if keyp.once("UP") and pode_pular:
+            self.vel.y = 900
+            recently.reset("no_chao")
+            play_sound("synth/jump.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+        if self.center.y < 30:
+            self.perder()
+
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    @collide_with("estrela")
+    def pegou(self, estrela):
+        estrela.destroy()
+        st.estrelas += 1
+        play_sound("synth/coin.wav")
+        if st.estrelas == 5:
+            aviso.text = "Todas as estrelas!"
+            play_sound("audio/Victory.mp3")
+
+    def perder(self):
+        self.center = (100, 400)
+        self.vel = Vec2(0, 0)
+
+
+resolve("heroi", "chao", bounce=0)
+
+heroi = Heroi(center=(100, 400))
+
+for x, y in [(360, 300), (560, 220), (720, 470), (420, 640), (960, 150)]:
+    estrela = Sprite("k-rolling-ball/star.png", height=36, center=(x, y), group="estrela")
+    estrela.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+Sprite("tilesets/Tiles/17.png", width=80, center=(520, 31))
+Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
+
+
+run()
+`
+    },
+    {
+      title: "Um robô",
+      body: `
+        <p>Dois robôs patrulham: um no chão da direita, outro na plataforma do meio. Cada um é um <code>Robo</code>, uma classe de <code>Sprite</code> com uma folha só dele, feita como a do ninja: <code>anchor="bottom"</code> e <code>pixel_size</code>, para os pés ficarem no chão. Com um clip só na folha, o robô já nasce andando.</p>
+        <p><strong>A patrulha.</strong> No <code>setup</code>, o robô guarda onde nasceu: <code>self.meio = self.center.x</code>. Ele anda 90 por segundo e vira quando passa 90 além do meio, para um lado ou para o outro. Cada <code>if</code> diz para que lado ir (−90 ou 90), em vez de inverter o sinal, e o <code>flip_x</code> muda só na virada. Cada robô patrulha em volta de onde nasceu, então um <code>Robo(center=…)</code> basta para pôr outro.</p>
+        <p><strong>Sem gravidade.</strong> O robô anda numa linha reta, na altura em que nasceu, e nunca sai da plataforma: não precisa cair, nem de <code>resolve</code>. Só o ninja tem as linhas da gravidade.</p>
+        <p><strong>Encostar.</strong> <code>@collide_with("robo")</code> no <code>Heroi</code> chama o mesmo <code>perder</code> do buraco: o ninja volta ao começo.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+Sprite("tilesets/Object/Tree_2.png", height=230, center=(130, 195))
+Sprite("tilesets/Object/Bush (1).png", height=50, center=(300, 105))
+Sprite("tilesets/Object/Sign_2.png", height=60, center=(410, 110))
+Sprite("tilesets/Object/Mushroom_1.png", height=30, center=(770, 95))
+Sprite("tilesets/Object/Bush (3).png", height=40, center=(960, 100))
+
+for i in range(5):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+Sprite("tilesets/Tiles/3.png", height=80, center=(440, 40), group="chao")
+Sprite("tilesets/Tiles/1.png", height=80, center=(680, 40), group="chao")
+for i in range(9, 13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+
+
+def plataforma(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="chao")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="chao")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="chao")
+
+
+plataforma(360, 220)
+plataforma(720, 390)
+plataforma(420, 560)
+Rect(center=(-20, 375), width=40, height=750, group="chao")
+Rect(center=(1020, 375), width=40, height=750, group="chao")
+group["chao"].mass = STATIC
+
+st.estrelas = 0
+
+placar = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+placar["text"] @= lambda: f"Estrelas {st.estrelas}"
+aviso = Text(text="", center=(500, 680), font_size=36, color="dark green")
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+
+robo = Sheet(anchor="bottom", pixel_size=0.16)
+robo.strip("andando", "robot/Run (*).png", fps=12)
+
+
+class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
+    def setup(self):
+        self.meio = self.center.x
+        self.vel = Vec2(90, 0)
+
+    def on_update(self, dt):
+        if self.center.x > self.meio + 90:
+            self.vel.x = -90
+            self.flip_x = True
+        if self.center.x < self.meio - 90:
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        no_chao = "bottom" in self.touching_sides
+        pode_pular = recently("no_chao", no_chao, hold=0.12)
+        if keyp.once("UP") and pode_pular:
+            self.vel.y = 900
+            recently.reset("no_chao")
+            play_sound("synth/jump.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+        if self.center.y < 30:
+            self.perder()
+
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    @collide_with("estrela")
+    def pegou(self, estrela):
+        estrela.destroy()
+        st.estrelas += 1
+        play_sound("synth/coin.wav")
+        if st.estrelas == 5:
+            aviso.text = "Todas as estrelas!"
+            play_sound("audio/Victory.mp3")
+
+    @collide_with("robo")
+    def bateu(self, robo):
+        self.perder()
+
+    def perder(self):
+        self.center = (100, 400)
+        self.vel = Vec2(0, 0)
+
+
+resolve("heroi", "chao", bounce=0)
+
+heroi = Heroi(center=(100, 400))
+
+for x, y in [(360, 300), (560, 220), (720, 470), (420, 640), (960, 150)]:
+    estrela = Sprite("k-rolling-ball/star.png", height=36, center=(x, y), group="estrela")
+    estrela.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+Robo(center=(840, 80))
+Robo(center=(720, 419))
+
+Sprite("tilesets/Tiles/17.png", width=80, center=(520, 31))
+Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
+
+
+run()
+`
+    },
+    {
+      title: "Kunai",
+      body: `
+        <p>Espaço joga uma kunai. Três coisas acontecem juntas: o ninja faz o movimento de jogar, a kunai sai voando, e um robô atingido quebra.</p>
+        <p><strong>O movimento.</strong> Um clip novo, <code>"jogando"</code>, com os arquivos <code>Throw__</code>. <code>play("jogando", loops=1, next="parado")</code> toca uma vez (<code>loops=1</code>) e depois passa para o parado (<code>next</code>, o próximo). Mas o fim do <code>on_update</code> escolhe um clip a cada quadro e trocaria o arremesso logo no quadro seguinte. <code>self.showing("jogando")</code> (mostrando) diz se o desenho na tela é do arremesso: enquanto for, o <code>return</code> sai do <code>on_update</code> antes da escolha.</p>
+        <p><strong>A kunai.</strong> O desenho dela aponta para cima; <code>art_angle=90</code> (o ângulo da arte) avisa o Scena, e daí o ângulo da kunai é para onde ela aponta no mundo. Ela nasce na altura do peito do ninja e gira para o mesmo ângulo dele: <code>kunai.rotate_to(self.angle)</code>. O ninja espelhado para a esquerda tem ângulo 180; para a direita, 0. No <code>on_update</code>, ela anda para onde aponta, como o avião do 11. <code>ready("kunai", 0.4)</code> (do 05) deixa jogar uma a cada 0,4 segundo, e <code>@leave_playfield</code> destrói as que saem da tela.</p>
+        <p><strong>O robô quebra.</strong> A folha do robô ganha o clip <code>"quebrado"</code>. Com dois clips, ele não toca nenhum sozinho: o <code>setup</code> pede o <code>"andando"</code>. Atingido, o robô para, toca o <code>"quebrado"</code> uma vez (sem <code>next</code>, fica no último desenho, caído) e se destrói 2 segundos depois. <code>self.untag("robo")</code> (tirar a etiqueta) o tira do grupo <code>robo</code>: caído, ele não machuca mais o ninja.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+Sprite("tilesets/Object/Tree_2.png", height=230, center=(130, 195))
+Sprite("tilesets/Object/Bush (1).png", height=50, center=(300, 105))
+Sprite("tilesets/Object/Sign_2.png", height=60, center=(410, 110))
+Sprite("tilesets/Object/Mushroom_1.png", height=30, center=(770, 95))
+Sprite("tilesets/Object/Bush (3).png", height=40, center=(960, 100))
+
+for i in range(5):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+Sprite("tilesets/Tiles/3.png", height=80, center=(440, 40), group="chao")
+Sprite("tilesets/Tiles/1.png", height=80, center=(680, 40), group="chao")
+for i in range(9, 13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+
+
+def plataforma(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="chao")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="chao")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="chao")
+
+
+plataforma(360, 220)
+plataforma(720, 390)
+plataforma(420, 560)
+Rect(center=(-20, 375), width=40, height=750, group="chao")
+Rect(center=(1020, 375), width=40, height=750, group="chao")
+group["chao"].mass = STATIC
+
+st.estrelas = 0
+
+placar = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+placar["text"] @= lambda: f"Estrelas {st.estrelas}"
+aviso = Text(text="", center=(500, 680), font_size=36, color="dark green")
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+ninja.strip("jogando", "ninja/Throw__*.png", fps=24)
+
+robo = Sheet(anchor="bottom", pixel_size=0.16)
+robo.strip("andando", "robot/Run (*).png", fps=12)
+robo.strip("quebrado", "robot/Dead (*).png", fps=12)
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        seta = vec_from_angle(self.angle, length=700)
+        self.move_by(seta.x * dt, 0)
+
+
+class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
+    def setup(self):
+        self.meio = self.center.x
+        self.vel = Vec2(90, 0)
+        self.play("andando")
+
+    def on_update(self, dt):
+        if self.center.x > self.meio + 90:
+            self.vel.x = -90
+            self.flip_x = True
+        if self.center.x < self.meio - 90:
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def atingido(self, kunai):
+        kunai.destroy()
+        self.untag("robo")
+        self.vel.x = 0
+        self.play("quebrado", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        no_chao = "bottom" in self.touching_sides
+        pode_pular = recently("no_chao", no_chao, hold=0.12)
+        if keyp.once("UP") and pode_pular:
+            self.vel.y = 900
+            recently.reset("no_chao")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and ready("kunai", 0.4):
+            self.play("jogando", loops=1, next="parado")
+            kunai = Kunai(center=(self.center.x, self.center.y + 50))
+            kunai.rotate_to(self.angle)
+            play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+        if self.center.y < 30:
+            self.perder()
+
+        if self.showing("jogando"):
+            return
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    @collide_with("estrela")
+    def pegou(self, estrela):
+        estrela.destroy()
+        st.estrelas += 1
+        play_sound("synth/coin.wav")
+        if st.estrelas == 5:
+            aviso.text = "Todas as estrelas!"
+            play_sound("audio/Victory.mp3")
+
+    @collide_with("robo")
+    def bateu(self, robo):
+        self.perder()
+
+    def perder(self):
+        self.center = (100, 400)
+        self.vel = Vec2(0, 0)
+
+
+resolve("heroi", "chao", bounce=0)
+
+heroi = Heroi(center=(100, 400))
+
+for x, y in [(360, 300), (560, 220), (720, 470), (420, 640), (960, 150)]:
+    estrela = Sprite("k-rolling-ball/star.png", height=36, center=(x, y), group="estrela")
+    estrela.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+Robo(center=(840, 80))
+Robo(center=(720, 419))
+
+Sprite("tilesets/Tiles/17.png", width=80, center=(520, 31))
+Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
+
+
+@leave_playfield("kunai")
+def saiu(kunai):
+    kunai.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "Três vidas",
+      example: "ninja_mundo.py",
+      body: `
+        <p>Cair na água ou encostar num robô agora custa uma vida. São as vidas do 07: <code>st.vidas</code> começa em 3, e o HUD mostra um ninja pequeno e <code>x 3</code>, ligado com <code>@=</code>.</p>
+        <p><strong>Perder.</strong> A função <code>perder</code> cresce, como o nome amplo prometia. Ela tira uma vida e treme a tela. Se sobrou alguma, o ninja volta ao começo, piscando (<code>blink</code>, do 07). Na última, o clip <code>"morto"</code> (os arquivos <code>Dead__</code>) toca uma vez e o aviso diz que o jogo acabou.</p>
+        <p><strong>Depois do fim.</strong> Com <code>st.vidas</code> em 0, o <code>on_update</code> sai logo na primeira linha: as setas e o espaço não fazem mais nada, e o ninja fica caído. Um robô ainda pode passar por ele e chamar <code>perder</code> de novo; a primeira linha de <code>perder</code> não deixa as vidas ficarem negativas.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+Sprite("tilesets/Object/Tree_2.png", height=230, center=(130, 195))
+Sprite("tilesets/Object/Bush (1).png", height=50, center=(300, 105))
+Sprite("tilesets/Object/Sign_2.png", height=60, center=(410, 110))
+Sprite("tilesets/Object/Mushroom_1.png", height=30, center=(770, 95))
+Sprite("tilesets/Object/Bush (3).png", height=40, center=(960, 100))
+
+for i in range(5):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+Sprite("tilesets/Tiles/3.png", height=80, center=(440, 40), group="chao")
+Sprite("tilesets/Tiles/1.png", height=80, center=(680, 40), group="chao")
+for i in range(9, 13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+
+
+def plataforma(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="chao")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="chao")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="chao")
+
+
+plataforma(360, 220)
+plataforma(720, 390)
+plataforma(420, 560)
+Rect(center=(-20, 375), width=40, height=750, group="chao")
+Rect(center=(1020, 375), width=40, height=750, group="chao")
+group["chao"].mass = STATIC
+
+st.estrelas = 0
+st.vidas = 3
+
+placar = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+placar["text"] @= lambda: f"Estrelas {st.estrelas}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715))
+vidas = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+vidas["text"] @= lambda: f"x {st.vidas}"
+aviso = Text(text="", center=(500, 680), font_size=36, color="dark green")
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+ninja.strip("jogando", "ninja/Throw__*.png", fps=24)
+ninja.strip("morto", "ninja/Dead__*.png", fps=12)
+
+robo = Sheet(anchor="bottom", pixel_size=0.16)
+robo.strip("andando", "robot/Run (*).png", fps=12)
+robo.strip("quebrado", "robot/Dead (*).png", fps=12)
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        seta = vec_from_angle(self.angle, length=700)
+        self.move_by(seta.x * dt, 0)
+
+
+class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
+    def setup(self):
+        self.meio = self.center.x
+        self.vel = Vec2(90, 0)
+        self.play("andando")
+
+    def on_update(self, dt):
+        if self.center.x > self.meio + 90:
+            self.vel.x = -90
+            self.flip_x = True
+        if self.center.x < self.meio - 90:
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def atingido(self, kunai):
+        kunai.destroy()
+        self.untag("robo")
+        self.vel.x = 0
+        self.play("quebrado", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if st.vidas == 0:
+            return
+
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        no_chao = "bottom" in self.touching_sides
+        pode_pular = recently("no_chao", no_chao, hold=0.12)
+        if keyp.once("UP") and pode_pular:
+            self.vel.y = 900
+            recently.reset("no_chao")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and ready("kunai", 0.4):
+            self.play("jogando", loops=1, next="parado")
+            kunai = Kunai(center=(self.center.x, self.center.y + 50))
+            kunai.rotate_to(self.angle)
+            play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+        if self.center.y < 30:
+            self.perder()
+
+        if self.showing("jogando"):
+            return
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    @collide_with("estrela")
+    def pegou(self, estrela):
+        estrela.destroy()
+        st.estrelas += 1
+        play_sound("synth/coin.wav")
+        if st.estrelas == 5:
+            aviso.text = "Todas as estrelas!"
+            play_sound("audio/Victory.mp3")
+
+    @collide_with("robo")
+    def bateu(self, robo):
+        self.perder()
+
+    def perder(self):
+        if st.vidas == 0:
+            return
+        st.vidas -= 1
+        canvas.shake(6)
+        if st.vidas > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.center = (100, 400)
+            self.vel = Vec2(0, 0)
+            self.blink(1)
+        else:
+            play_sound("audio/gameover.wav")
+            self.play("morto", loops=1)
+            aviso.text = "Fim de jogo"
+
+
+resolve("heroi", "chao", bounce=0)
+
+heroi = Heroi(center=(100, 400))
+
+for x, y in [(360, 300), (560, 220), (720, 470), (420, 640), (960, 150)]:
+    estrela = Sprite("k-rolling-ball/star.png", height=36, center=(x, y), group="estrela")
+    estrela.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+Robo(center=(840, 80))
+Robo(center=(720, 419))
+
+Sprite("tilesets/Tiles/17.png", width=80, center=(520, 31))
+Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
+
+
+@leave_playfield("kunai")
+def saiu(kunai):
+    kunai.destroy()
+
+
+run()
+`,
+      closing: `
+        <p>Setas para os lados andam; seta para cima pula, com uma folga na beirada; espaço joga uma kunai. Pegue as cinco estrelas. Cair na água ou encostar num robô custa uma vida; uma kunai quebra o robô. Sem vidas, o jogo acaba (para jogar de novo, rode outra vez).</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>center =</code> — coloca: o ninja aparece no começo sem atravessar o caminho; o <code>resolve</code> só segura quem viaja.</li>
+          <li><code>recently</code> e <code>recently.reset</code> — lembram por um instante que algo foi verdade (o tempo do coiote) e esquecem quando a folga foi gasta.</li>
+          <li><code>Robo</code> com <code>self.meio</code> — cada robô patrulha em volta de onde nasceu, virando num lado dito, sem gravidade.</li>
+          <li><code>play(…, loops=1, next=)</code> e <code>showing</code> — um clip que toca uma vez e volta, e a pergunta que deixa a escolha do clip esperar.</li>
+          <li><code>art_angle</code> e <code>rotate_to(self.angle)</code> — a kunai aponta para onde o ninja olha.</li>
+          <li><code>untag</code> — tira um objeto de um grupo: o robô caído não machuca.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#colisao-resolve">Tornar sólido (colocar × viajar)</a> · <a href="../guide/index.html#agendar-recently">recently</a> · <a href="../guide/index.html#sprite-animar">Animar sprites</a> · <a href="../guide/index.html#sprite-orientar">Orientar sprites</a> · <a href="../guide/index.html#mundo-grupos">Grupos</a>.</p>
+        <p><strong>No próximo:</strong> um jogo de tabuleiro, o Ligue 4. O ninja volta no 21, num nível maior que a tela, montado no editor de níveis, com uma câmera que o segue.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Corredor infinito — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "23",
+  title: "Corredor infinito",
+  steps: [
+    {
+      title: "Um robô que corre",
+      body: `
+        <p>Novo jogo: um corredor sem fim. O robô corre sozinho para a direita, cada vez mais rápido, e você só decide quando ele pula. O chão vai ter buracos, moedas e caixas, e nunca acaba.</p>
+        <p>Este primeiro passo junta o que você já conhece. A folha do robô é montada como a do ninja do 14: uma animação por linha (<code>strip</code> com <code>*</code>), <code>pixel_size</code> e <code>anchor="bottom"</code>; os desenhos estão em <code>robot/</code>. A gravidade e o pulo também são os do 14: a cada segundo, <code>vel.y</code> perde 2200; a seta para cima dá 900 de uma vez, só com os pés no chão. O que muda: não há tecla para andar. O robô anda <code>st.velocidade</code> por segundo, sempre para a frente.</p>
+        <p><strong>Um ato desde o começo.</strong> Como no 20, o jogo mora num ato: <code>class Corrida(Act)</code> monta a corrida no <code>setup</code>, e <code>run(Corrida)</code> a começa. Recomeçar, mais adiante, vai custar uma linha. <code>self.robo</code> guarda o robô para o <code>on_update</code> do ato.</p>
+        <p><strong>A câmera vai atrás.</strong> Como no 21, um <code>pan_to</code> a cada quadro: o centro da tela fica 250 à frente do robô, e a altura fica fixa (270, o meio da tela). O robô fica parado na tela, e o mundo passa por ele.</p>
+        <p>O buraco deste passo: o chão é um retângulo de 2400. Em uns sete segundos ele acaba, e o robô cai para fora do mundo.</p>
+      `,
+      code: `from scena import *
+
+init(width=960, height=540, title="Corredor")
+Wallpaper(Gradient("#9fd4f0", "#3d97d6", angle=90))
+
+folha = Sheet(anchor="bottom", pixel_size=0.16)
+folha.strip("correndo", "robot/Run (*).png", fps=14)
+folha.strip("pulando", "robot/Jump (*).png", fps=14)
+
+
+class Robo(Sprite, source=folha, hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        resolve(self, "chao", bounce=0)
+
+    def on_update(self, dt):
+        no_chao = "bottom" in self.touching_sides
+        if keyp.once("UP") and no_chao:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if no_chao:
+            self.play("correndo")
+        else:
+            self.play("pulando")
+        self.move_by(st.velocidade * dt, self.vel.y * dt)
+
+
+class Corrida(Act):
+    def setup(self):
+        st.velocidade = 320
+        chao = Rect(top_left=(0, 150), width=2400, height=150, color="sienna", group="chao")
+        chao.mass = STATIC
+        self.robo = Robo(center=(200, 300))
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robo.center.x + 250, 270)
+
+
+run(Corrida)
+`
+    },
+    {
+      title: "Uma pista sem fim",
+      body: `
+        <p>Um retângulo mais comprido só adia a queda. O chão precisa ser feito <strong>enquanto</strong> o robô corre: um pedaço novo à frente, e os pedaços que ficaram para trás precisam sumir. É o <code>Endless</code> do 13, agora com a câmera andando.</p>
+        <p><strong>A pista.</strong> <code>Endless("pista", trecho, step=384)</code> corta o mundo em vagas de 384 de largura e chama <code>trecho(slot)</code> para cada uma. A função faz um retângulo de chão que começa na borda esquerda da vaga (<code>slot.left</code>) e tem a largura dela, e o devolve. Os retângulos das vagas se encostam: cada linha fina no chão é a emenda entre duas vagas.</p>
+        <p><strong>A câmera anda, o chão fica.</strong> No 13, a camada é que andava (<code>scroll=</code>), e o <code>Endless</code> enchia a janela dela. Aqui, a camada <code>pista</code> não tem <code>scroll=</code> nem <code>pan_response</code>: é neutra, anda junto com o mundo, como a <code>default</code>. Quem anda é a câmera. A cada quadro, o <code>Endless</code> olha a janela da câmera: monta cada vaga um pouco antes de ela entrar na tela e destrói as que ficaram bem para trás. Ele nunca move uma peça.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 420 200" role="img" aria-label="Uma fileira de vagas no mundo, numeradas da esquerda para a direita. A tela é um retângulo tracejado sobre algumas delas, com o robô perto da borda esquerda. As vagas sob a tela e logo à frente dela têm chão; a última, à direita, acabou de ser montada; as da esquerda, bem para trás da tela, já foram destruídas. Uma seta diz que a câmera anda para a direita.">
+            <rect class="guide" x="120" y="30" width="180" height="112"/>
+            <text x="186" y="22">a tela</text>
+            <text x="232" y="62">a câmera anda →</text>
+            <line class="guide" x1="10" y1="142" x2="410" y2="142"/>
+            <rect class="guide" x="12" y="112" width="46" height="30"/>
+            <rect class="guide" x="62" y="112" width="46" height="30"/>
+            <rect class="bar" x="112" y="112" width="46" height="30"/>
+            <rect class="bar" x="162" y="112" width="46" height="30"/>
+            <rect class="bar" x="212" y="112" width="46" height="30"/>
+            <rect class="bar" x="262" y="112" width="46" height="30"/>
+            <rect class="bar" x="312" y="112" width="46" height="30"/>
+            <rect class="bar child" x="362" y="112" width="46" height="30"/>
+            <circle class="dot" cx="150" cy="100" r="7"/>
+            <text x="28" y="158">0</text>
+            <text x="78" y="158">1</text>
+            <text x="128" y="158">2</text>
+            <text x="178" y="158">3</text>
+            <text x="228" y="158">4</text>
+            <text x="278" y="158">5</text>
+            <text x="328" y="158">6</text>
+            <text x="378" y="158">7</text>
+            <text x="10" y="180">destruídas</text>
+            <text x="190" y="180">vivas</text>
+            <text x="318" y="180">montada agora</text>
+          </svg>
+          <figcaption>A pista é cortada em vagas de 384. A câmera anda com o robô; um pouco antes de uma vaga entrar na tela, o <code>Endless</code> chama <code>trecho(slot)</code> para ela. As vagas que ficaram bem para trás são destruídas, com tudo o que a função devolveu.</figcaption>
+        </figure>
+        <p><strong>O chão colide.</strong> O que a função devolve é uma peça de verdade: o retângulo está no grupo <code>chao</code>, tem <code>mass = STATIC</code>, e o <code>resolve</code> do robô segura nele como num chão feito à mão. Por isso a pista mora numa camada neutra: numa camada de parallax (as do 12, 13 e 21), uma peça não colide, e o robô atravessaria o chão. O que colide fica numa camada neutra; camada de parallax é só para enfeite. E por que uma camada só dela, abaixo da <code>default</code>: as peças nascem no meio do jogo, e na <code>default</code> seriam pintadas por cima do robô.</p>
+        <p>Abra o painel do sistema (<kbd>Ctrl+Shift+1</kbd>) e olhe <code>objs</code>: o número sobe no começo e depois para, por mais que o robô corra. Vagas novas entram na frente, as velhas saem atrás.</p>
+      `,
+      code: `from scena import *
+
+init(width=960, height=540, title="Corredor")
+Wallpaper(Gradient("#9fd4f0", "#3d97d6", angle=90))
+
+folha = Sheet(anchor="bottom", pixel_size=0.16)
+folha.strip("correndo", "robot/Run (*).png", fps=14)
+folha.strip("pulando", "robot/Jump (*).png", fps=14)
+
+
+def trecho(slot):
+    chao = Rect(top_left=(slot.left, 150), width=384, height=150, color="sienna", group="chao")
+    chao.mass = STATIC
+    return chao
+
+
+class Robo(Sprite, source=folha, hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        resolve(self, "chao", bounce=0)
+
+    def on_update(self, dt):
+        no_chao = "bottom" in self.touching_sides
+        if keyp.once("UP") and no_chao:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if no_chao:
+            self.play("correndo")
+        else:
+            self.play("pulando")
+        self.move_by(st.velocidade * dt, self.vel.y * dt)
+
+
+class Corrida(Act):
+    def setup(self):
+        st.velocidade = 320
+        canvas.layers.create("pista", below="default")
+        Endless("pista", trecho, step=384)
+        self.robo = Robo(center=(200, 300))
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robo.center.x + 250, 270)
+
+
+run(Corrida)
+`,
+      dive: [
+        {
+          title: "O Endless com a câmera andando",
+          body: `
+            <p>A cada quadro, o <code>Endless</code> lê a janela da camada dele. Numa camada neutra, é a janela da câmera. Toda vaga que está para entrar nela é montada, a mais perto primeiro; toda vaga que ficou bem para trás é destruída, com tudo o que a função devolveu. As peças nascem e morrem fora da vista: nada aparece nem some na tela.</p>
+            <p>Ele não move nada. Cada peça é montada uma vez, nas coordenadas do mundo da vaga (<code>slot.left</code>, <code>slot.right</code>), e fica lá. No começo, ele enche a primeira tela inteira, com vagas para os dois lados: <code>slot.i</code> é 0, 1, 2… à frente do começo e −1, −2… atrás.</p>
+            <p>É dele o que a função devolve. Uma peça que a função cria e não devolve é sua: ele não a destrói, e ela fica no mundo para sempre. Por isso tudo o que a vaga monta vai no <code>return</code>.</p>
+            <p>No Guia: <a href="../guide/index.html#mundo-sem-fim">Mundo sem fim</a> · <a href="../guide/index.html#mundo-camadas">Camadas</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Terra e grama",
+      body: `
+        <p>Um retângulo marrom é chão, mas não parece. Dois toques de aparência, sem mexer no jogo.</p>
+        <p><strong>Uma textura.</strong> <code>Texture</code> (textura) é uma imagem que pinta o interior de uma forma. Com <code>fit="tile"</code> (encaixe em ladrilhos), a imagem se repete em quadrados de <code>tile_size=64</code> (tamanho do ladrilho): o retângulo de 384 por 150 ganha seis ladrilhos de terra por linha. A imagem é a <code>floor_ground_dirt.png</code> da pasta <code>k-textures/</code>, uma terra com pedrinhas feita para se repetir sem emenda. <code>TERRA</code> é feita uma vez, no topo, e toda vaga usa a mesma.</p>
+        <p><strong>Dentro e contorno.</strong> A textura vai em <code>chao.fill</code> (o preenchimento) e também em <code>chao.line</code> (o contorno). Sem o contorno de terra, sobra a linha clara entre duas vagas.</p>
+        <p><strong>A grama.</strong> Duas <code>Line</code> grossas sobre o chão: uma verde-escura de 16 e uma verde-clara de 8, um pouco mais alta. Elas não estão no grupo <code>chao</code>: são só desenho, e o robô pisa no retângulo. A função agora devolve uma lista com as três peças, e o <code>Endless</code> destrói as três juntas quando a vaga fica para trás.</p>
+      `,
+      code: `from scena import *
+
+init(width=960, height=540, title="Corredor")
+Wallpaper(Gradient("#9fd4f0", "#3d97d6", angle=90))
+
+folha = Sheet(anchor="bottom", pixel_size=0.16)
+folha.strip("correndo", "robot/Run (*).png", fps=14)
+folha.strip("pulando", "robot/Jump (*).png", fps=14)
+
+TERRA = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=64)
+
+
+def trecho(slot):
+    chao = Rect(top_left=(slot.left, 150), width=384, height=150, group="chao")
+    chao.fill = TERRA
+    chao.line = TERRA
+    chao.mass = STATIC
+    grama = Line(p1=(slot.left, 146), p2=(slot.right, 146), color="#6fa124", line_width=16)
+    broto = Line(p1=(slot.left, 150), p2=(slot.right, 150), color="#b3d02a", line_width=8)
+    return [chao, grama, broto]
+
+
+class Robo(Sprite, source=folha, hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        resolve(self, "chao", bounce=0)
+
+    def on_update(self, dt):
+        no_chao = "bottom" in self.touching_sides
+        if keyp.once("UP") and no_chao:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if no_chao:
+            self.play("correndo")
+        else:
+            self.play("pulando")
+        self.move_by(st.velocidade * dt, self.vel.y * dt)
+
+
+class Corrida(Act):
+    def setup(self):
+        st.velocidade = 320
+        canvas.layers.create("pista", below="default")
+        Endless("pista", trecho, step=384)
+        self.robo = Robo(center=(200, 300))
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robo.center.x + 250, 270)
+
+
+run(Corrida)
+`,
+      try: [
+        {
+          note: "Outros chãos, um por vez, no lugar de <code>TERRA</code>: uma calçada de pedra, rocha escura, a terra desenhada da pasta <code>tilesets/</code>. Além de <code>tile</code>, o <code>fit=</code> aceita <code>cover</code> (uma imagem só cobre a forma toda) e <code>stretch</code> (estica).",
+          replaces: ['TERRA = Texture('],
+          code: `TERRA = Texture("textures/Brick_04.png", fit="tile", tile_size=96)
+TERRA = Texture("k-textures/wall_rock.png", fit="tile", tile_size=64)
+TERRA = Texture("tilesets/Tiles/5.png", fit="tile", tile_size=64)`
+        }
+      ]
+    },
+    {
+      title: "Buracos",
+      body: `
+        <p>Um chão sem fim e sem perigo não é jogo. Algumas vagas vão acabar antes da hora.</p>
+        <p><strong>Colunas.</strong> A vaga de 384 são seis colunas de 64, o tamanho do ladrilho. <code>colunas = 6</code> é o normal; em 40% das vagas (<code>slot.chance(0.4)</code>, o sorteio da vaga do 13), só 3. O retângulo e a grama vão até <code>slot.left + 64 * colunas</code>, e o resto da vaga, 192, fica vazio: um buraco. <code>slot.i > 1</code> deixa as primeiras vagas sempre inteiras, para a corrida não começar num buraco.</p>
+        <p><strong>O buraco fica no fim da vaga.</strong> A vaga seguinte sempre começa com chão. Dois buracos nunca se juntam num buraco largo demais para o pulo: entre dois deles há pelo menos três colunas de chão.</p>
+        <p>Com a seta para cima na hora certa, o robô atravessa. Se ele cai, cai para sempre, e a câmera continua indo atrás dele: falta o fim da corrida.</p>
+      `,
+      code: `from scena import *
+
+init(width=960, height=540, title="Corredor")
+Wallpaper(Gradient("#9fd4f0", "#3d97d6", angle=90))
+
+folha = Sheet(anchor="bottom", pixel_size=0.16)
+folha.strip("correndo", "robot/Run (*).png", fps=14)
+folha.strip("pulando", "robot/Jump (*).png", fps=14)
+
+TERRA = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=64)
+
+
+def trecho(slot):
+    colunas = 6
+    if slot.i > 1 and slot.chance(0.4):
+        colunas = 3
+    chao = Rect(top_left=(slot.left, 150), width=64 * colunas, height=150, group="chao")
+    chao.fill = TERRA
+    chao.line = TERRA
+    chao.mass = STATIC
+    grama = Line(p1=(slot.left, 146), p2=(slot.left + 64 * colunas, 146), color="#6fa124", line_width=16)
+    broto = Line(p1=(slot.left, 150), p2=(slot.left + 64 * colunas, 150), color="#b3d02a", line_width=8)
+    return [chao, grama, broto]
+
+
+class Robo(Sprite, source=folha, hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        resolve(self, "chao", bounce=0)
+
+    def on_update(self, dt):
+        no_chao = "bottom" in self.touching_sides
+        if keyp.once("UP") and no_chao:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if no_chao:
+            self.play("correndo")
+        else:
+            self.play("pulando")
+        self.move_by(st.velocidade * dt, self.vel.y * dt)
+
+
+class Corrida(Act):
+    def setup(self):
+        st.velocidade = 320
+        canvas.layers.create("pista", below="default")
+        Endless("pista", trecho, step=384)
+        self.robo = Robo(center=(200, 300))
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robo.center.x + 250, 270)
+
+
+run(Corrida)
+`
+    },
+    {
+      title: "Fim da corrida",
+      body: `
+        <p>Cair no buraco acaba a corrida. Cair é sair da área de jogo por baixo, e para isso há o <code>@leave_playfield</code> do 05, aqui na forma da classe (sem nome de grupo: vale para o robô). Quando o centro dele sai do <code>canvas.playfield</code>, o Scena chama <code>caiu</code>.</p>
+        <p><strong>A corrida acaba.</strong> <code>caiu</code> põe <code>st.correndo = False</code> e zera a velocidade: o robô para de avançar, e a câmera para com ele. No ato, <code>@when(lambda self: not st.correndo)</code> vigia esse fim e escreve o aviso. O aviso fica na camada <code>ui</code> (<code>layer="ui"</code>): um <code>Text</code> com <code>center=</code> nasce no mundo, e a câmera, que andou, o deixaria para trás.</p>
+        <p><strong>Recomeçar.</strong> Espaço chama <code>change_act(Corrida)</code>, como no 20: o ato sai com tudo o que criou (a camada, o <code>Endless</code>, as peças, o robô, o aviso) e um ato novo começa, com uma pista nova. A linha vem por último no <code>on_update</code>: depois do <code>change_act</code>, o <code>self.robo</code> do ato velho já não existe.</p>
+        <p><strong>A área de jogo anda junto.</strong> O <code>playfield</code> é um retângulo fixo no mundo: a tela com uma folga em volta, no lugar onde a câmera começou. Ele não segue a câmera. Rode sem a linha <code>canvas.playfield.set(…)</code> e veja: o robô "sai" dele em x = 1200, em pé no chão firme, uns três segundos depois da largada, e a corrida acaba sem motivo. A linha refaz o retângulo a cada quadro: a janela da câmera (<code>canvas.game_view</code>) com 100 de folga (<code>outset</code>, para fora) de cada lado. Agora o robô só sai dela caindo num buraco.</p>
+      `,
+      code: `from scena import *
+
+init(width=960, height=540, title="Corredor")
+Wallpaper(Gradient("#9fd4f0", "#3d97d6", angle=90))
+
+folha = Sheet(anchor="bottom", pixel_size=0.16)
+folha.strip("correndo", "robot/Run (*).png", fps=14)
+folha.strip("pulando", "robot/Jump (*).png", fps=14)
+
+TERRA = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=64)
+
+
+def trecho(slot):
+    colunas = 6
+    if slot.i > 1 and slot.chance(0.4):
+        colunas = 3
+    chao = Rect(top_left=(slot.left, 150), width=64 * colunas, height=150, group="chao")
+    chao.fill = TERRA
+    chao.line = TERRA
+    chao.mass = STATIC
+    grama = Line(p1=(slot.left, 146), p2=(slot.left + 64 * colunas, 146), color="#6fa124", line_width=16)
+    broto = Line(p1=(slot.left, 150), p2=(slot.left + 64 * colunas, 150), color="#b3d02a", line_width=8)
+    return [chao, grama, broto]
+
+
+class Robo(Sprite, source=folha, hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        resolve(self, "chao", bounce=0)
+
+    def on_update(self, dt):
+        no_chao = "bottom" in self.touching_sides
+        if keyp.once("UP") and no_chao:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if no_chao:
+            self.play("correndo")
+        else:
+            self.play("pulando")
+        self.move_by(st.velocidade * dt, self.vel.y * dt)
+
+    @leave_playfield
+    def caiu(self):
+        st.correndo = False
+        st.velocidade = 0
+
+
+class Corrida(Act):
+    def setup(self):
+        st.velocidade = 320
+        st.correndo = True
+        canvas.layers.create("pista", below="default")
+        Endless("pista", trecho, step=384)
+        self.robo = Robo(center=(200, 300))
+        self.aviso = Text(text="", center=(480, 400), font_size=32, color="navy", layer="ui")
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robo.center.x + 250, 270)
+        canvas.playfield.set(canvas.game_view.outset(100))
+        if not st.correndo and keyp.once("SPACE"):
+            change_act(Corrida)
+
+    @when(lambda self: not st.correndo)
+    def acabou(self):
+        self.aviso.text = "Aperte espaço"
+
+
+run(Corrida)
+`
+    },
+    {
+      title: "Morro e vale",
+      body: `
+        <p>Chão plano cansa. A pista vai subir e descer. A pergunta é: de onde vem a altura do chão?</p>
+        <p><strong>Uma função do x.</strong> <code>altura(x)</code> devolve a altura do chão em qualquer ponto do mundo: 130, mais uma onda longa de 55 (<code>sin(x / 400)</code>), mais uma curta de 25 (<code>sin(x / 150)</code>). Somadas, as duas fazem morros que não se repetem tão cedo. O <code>sin</code> (seno) vem do <code>math</code> do Python, como no 04.</p>
+        <p><strong>Por que não sortear.</strong> Cada vaga é montada sozinha, e o sorteio dela (<code>slot.rng</code>) não sabe nada da vizinha. Se cada vaga sorteasse a sua altura, toda emenda seria um degrau. A borda direita de uma vaga e a borda esquerda da seguinte são o mesmo x: perguntando à mesma função, as duas recebem a mesma resposta, e o chão continua sem degrau. A regra: <strong>o que precisa casar entre vagas é uma função do x</strong>; o sorteio da vaga é para o que fica dentro dela.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 420 230" role="img" aria-label="Em cima: duas vagas vizinhas, a 4 e a 5, com o chão de cada uma desenhado por uma função do x; na emenda as duas perguntam a altura do mesmo x e o chão continua sem degrau. Embaixo: as mesmas duas vagas, cada uma com uma altura sorteada; na emenda o chão dá um degrau.">
+            <polygon class="bar" points="30,100 210,100 210,52 180,46 150,44 120,46 90,52 60,60 30,68"/>
+            <polygon class="bar" points="210,100 390,100 390,40 360,36 330,38 300,42 270,46 240,50 210,52"/>
+            <line class="guide" x1="210" y1="14" x2="210" y2="108"/>
+            <circle class="dot" cx="210" cy="52" r="5"/>
+            <text x="218" y="24">altura(x) na emenda</text>
+            <text x="92" y="92">vaga 4</text>
+            <text x="276" y="92">vaga 5</text>
+            <polygon class="bar" points="30,212 210,212 210,160 30,160"/>
+            <polygon class="bar" points="210,212 390,212 390,184 210,184"/>
+            <rect class="hot" x="206" y="160" width="8" height="24"/>
+            <line class="guide" x1="210" y1="126" x2="210" y2="218"/>
+            <text x="218" y="140">um sorteio por vaga: degrau</text>
+            <text x="92" y="204">vaga 4</text>
+            <text x="276" y="204">vaga 5</text>
+          </svg>
+          <figcaption>Em cima, cada vaga pergunta a <code>altura(x)</code>: na emenda, as duas perguntam pelo mesmo x e recebem a mesma resposta. Embaixo, cada vaga sorteia a sua altura com o <code>slot.rng</code>: o sorteio de uma não sabe do da outra, e a emenda vira um degrau.</figcaption>
+        </figure>
+        <p><strong>Colunas de quatro cantos.</strong> Um morro não cabe num retângulo. <code>coluna(x)</code> faz um <code>Polygon</code> (polígono) de quatro cantos: a base em y = 0 e o topo indo de <code>altura(x)</code> a <code>altura(x + 64)</code>, uma rampa curta. A grama segue a mesma rampa. <code>trecho</code> chama <code>coluna</code> para cada coluna da vaga e junta as listas numa só (<code>pecas += …</code>). O resto não mudou: a textura, o grupo, o buraco no fim da vaga.</p>
+        <p><strong>Na rampa.</strong> <code>self.tilt = "ground"</code> (inclinação: a do chão) inclina o desenho do robô para acompanhar a rampa. Só o desenho: a caixa de colisão continua em pé, presa pelos pés (<code>hitbox_anchor="bottom"</code>, a âncora da caixa embaixo), e é ela que o <code>resolve</code> segura.</p>
+      `,
+      code: `from math import sin
+from scena import *
+
+init(width=960, height=540, title="Corredor")
+Wallpaper(Gradient("#9fd4f0", "#3d97d6", angle=90))
+
+folha = Sheet(anchor="bottom", pixel_size=0.16)
+folha.strip("correndo", "robot/Run (*).png", fps=14)
+folha.strip("pulando", "robot/Jump (*).png", fps=14)
+
+TERRA = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=64)
+
+
+def altura(x):
+    return 130 + 55 * sin(x / 400) + 25 * sin(x / 150)
+
+
+def coluna(x):
+    chao = Polygon(points=[(x, 0), (x + 64, 0), (x + 64, altura(x + 64)), (x, altura(x))], group="chao")
+    chao.fill = TERRA
+    chao.line = TERRA
+    chao.mass = STATIC
+    grama = Line(p1=(x, altura(x) - 4), p2=(x + 64, altura(x + 64) - 4), color="#6fa124", line_width=16)
+    broto = Line(p1=(x, altura(x)), p2=(x + 64, altura(x + 64)), color="#b3d02a", line_width=8)
+    return [chao, grama, broto]
+
+
+def trecho(slot):
+    colunas = 6
+    if slot.i > 1 and slot.chance(0.4):
+        colunas = 3
+    pecas = []
+    for k in range(colunas):
+        pecas += coluna(slot.left + 64 * k)
+    return pecas
+
+
+class Robo(Sprite, source=folha, hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        resolve(self, "chao", bounce=0)
+
+    def on_update(self, dt):
+        no_chao = "bottom" in self.touching_sides
+        if keyp.once("UP") and no_chao:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if no_chao:
+            self.play("correndo")
+        else:
+            self.play("pulando")
+        self.move_by(st.velocidade * dt, self.vel.y * dt)
+
+    @leave_playfield
+    def caiu(self):
+        st.correndo = False
+        st.velocidade = 0
+
+
+class Corrida(Act):
+    def setup(self):
+        st.velocidade = 320
+        st.correndo = True
+        canvas.layers.create("pista", below="default")
+        Endless("pista", trecho, step=384)
+        self.robo = Robo(center=(200, 300))
+        self.aviso = Text(text="", center=(480, 400), font_size=32, color="navy", layer="ui")
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robo.center.x + 250, 270)
+        canvas.playfield.set(canvas.game_view.outset(100))
+        if not st.correndo and keyp.once("SPACE"):
+            change_act(Corrida)
+
+    @when(lambda self: not st.correndo)
+    def acabou(self):
+        self.aviso.text = "Aperte espaço"
+
+
+run(Corrida)
+`,
+      try: [
+        {
+          note: "Outras montanhas, uma por vez, no lugar da conta da <code>altura</code>: ondas mais curtas e mais altas; uma serra que sobe aos poucos; um vale fundo de vez em quando. Uma rampa de mais de 45° vira parede.",
+          replaces: ['return 130 + 55'],
+          code: `return 130 + 40 * sin(x / 200) + 30 * sin(x / 90)
+return 100 + x / 200 % 150
+return 160 - 90 * sin(x / 900) ** 8`
+        }
+      ]
+    },
+    {
+      title: "O que vai na vaga",
+      body: `
+        <p>Agora a vaga ganha o que fica sobre o chão: às vezes uma plataforma sobre o buraco, e sempre uma coisa sorteada entre três: uma fileira de moedas, uma caixa no caminho ou um enfeite.</p>
+        <p><strong>Plataformas.</strong> Numa vaga com buraco, em 60% das vezes, <code>plataforma</code> põe uma tábua de 128 por 24 no meio do buraco (<code>meio</code>, a 288 da borda da vaga), 100 acima da <code>altura</code> dali, com três moedas por cima. Duas caras, sorteadas pela vaga: madeira (<code>MADEIRA</code>, uma <code>Texture</code> de <code>textures/</code>) com o visual <code>Extrude</code> (extrusão), que lhe dá uma espessura em 3D para baixo (<code>angle=270</code>); ou pedra (<code>PEDRA</code>, de <code>k-textures/</code>) com o visual <code>Ink</code> (tinta), um contorno de pena irregular, de laje lascada. O visual se soma à textura: a textura pinta o interior, o visual dá o volume ou o contorno.</p>
+        <p><strong>Mão única.</strong> A tábua segura o robô como o chão, com mais um <code>resolve</code>, e é de mão única como as tábuas do 22: <code>only="bottom"</code> (só embaixo) segura só os pés. O pulo que sai da beira do buraco passa por baixo e atravessa a tábua; caindo, o robô pisa nela. Sólida dos quatro lados, ela pararia o robô no meio do pulo, de lado, e o derrubaria no buraco. Por isso ela tem um grupo só dela, <code>tabua</code>.</p>
+        <p><strong>Onde.</strong> <code>x</code> é sorteado com <code>slot.rng.uniform</code> entre as bordas do chão da vaga, 40 para dentro de cada lado (o buraco fica fora). A altura vem de <code>altura(x)</code>: a função que fez o chão diz onde ele está naquele x, e a caixa e o enfeite ficam em pé nele. As moedas ficam 120 acima: só se pega no pulo.</p>
+        <p><strong>As três.</strong> Em 40% das vagas, três moedas: <code>moedas(x, y)</code> faz a fileira, cada uma um <code>Circle</code> com o visual <code>Sphere</code> (esfera) laranja, que dá volume e um brilho de ouro; a mesma função põe as moedas da plataforma. Das outras, a partir da quarta vaga, metade ganha uma caixa (<code>Crate.png</code>, da pasta <code>tilesets/Object/</code>); o resto, uma moita, um cogumelo ou uma placa, sorteados da lista <code>MOITAS</code>, sem grupo: só enfeite.</p>
+        <p><strong>Pegar e bater.</strong> No <code>Robo</code>, <code>@collide_with("moeda")</code> destrói a moeda, soma uma e toca um som; o placar mostra as moedas. <code>@collide_with("caixa")</code> acaba a corrida, com um tremor de tela. A caixa não entra no <code>resolve</code>: ela não segura o robô, só o derruba. Sem corrida, o desenho troca para <code>caindo</code>, o clip novo (<code>Dead (*).png</code>), tocado uma vez (<code>loops=1</code>): o robô desaba e fica no chão.</p>
+        <p><strong>O sorteio da vaga, de novo.</strong> Todos os sorteios são do <code>slot.rng</code>, como no 13. Mas neste jogo o robô só vai para a frente: uma vaga que ficou para trás nunca volta, e o <code>random</code> solto também funcionaria. O <code>slot.rng</code> vale assim mesmo. Com <code>seed=</code> (caixa abaixo), a pista inteira se repete, buraco por buraco, moeda por moeda, porque cada vaga tira tudo do seu próprio sorteio. E se o jogo mudar (uma tecla que deixa o robô voltar, uma câmera que recua para mostrar o caminho), toda vaga que voltar à tela volta igual.</p>
+      `,
+      code: `from math import sin
+from scena import *
+
+init(width=960, height=540, title="Corredor")
+Wallpaper(Gradient("#9fd4f0", "#3d97d6", angle=90))
+
+folha = Sheet(anchor="bottom", pixel_size=0.16)
+folha.strip("correndo", "robot/Run (*).png", fps=14)
+folha.strip("pulando", "robot/Jump (*).png", fps=14)
+folha.strip("caindo", "robot/Dead (*).png", fps=20)
+
+TERRA = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=64)
+MADEIRA = Texture("textures/236.jpg", fit="tile", tile_size=64)
+PEDRA = Texture("k-textures/wall_stone.png", fit="tile", tile_size=40)
+MOITAS = ["tilesets/Object/Bush (1).png", "tilesets/Object/Bush (3).png", "tilesets/Object/Mushroom_1.png",
+          "tilesets/Object/Mushroom_2.png", "tilesets/Object/Sign_2.png"]
+
+
+def altura(x):
+    return 130 + 55 * sin(x / 400) + 25 * sin(x / 150)
+
+
+def coluna(x):
+    chao = Polygon(points=[(x, 0), (x + 64, 0), (x + 64, altura(x + 64)), (x, altura(x))], group="chao")
+    chao.fill = TERRA
+    chao.line = TERRA
+    chao.mass = STATIC
+    grama = Line(p1=(x, altura(x) - 4), p2=(x + 64, altura(x + 64) - 4), color="#6fa124", line_width=16)
+    broto = Line(p1=(x, altura(x)), p2=(x + 64, altura(x + 64)), color="#b3d02a", line_width=8)
+    return [chao, grama, broto]
+
+
+def moedas(x, y):
+    fila = []
+    for k in range(3):
+        fila.append(Circle(center=(x - 36 + 36 * k, y), radius=11, visual=Sphere("orange"), group="moeda"))
+    return fila
+
+
+def plataforma(slot, x, y):
+    tabua = Rect(center=(x, y), width=128, height=24, group="tabua")
+    tabua.mass = STATIC
+    if slot.chance(0.5):
+        tabua.fill = MADEIRA
+        tabua.visual = Extrude(depth=20, angle=270)
+    else:
+        tabua.fill = PEDRA
+        tabua.visual = Ink()
+    return tabua
+
+
+def trecho(slot):
+    colunas = 6
+    if slot.i > 1 and slot.chance(0.4):
+        colunas = 3
+    pecas = []
+    for k in range(colunas):
+        pecas += coluna(slot.left + 64 * k)
+    if colunas == 3 and slot.chance(0.6):
+        meio = slot.left + 288
+        pecas.append(plataforma(slot, meio, altura(meio) + 100))
+        pecas += moedas(meio, altura(meio) + 150)
+    x = slot.rng.uniform(slot.left + 40, slot.left + 64 * colunas - 40)
+    if slot.chance(0.4):
+        pecas += moedas(x, altura(x) + 120)
+    elif slot.i > 2 and slot.chance(0.5):
+        pecas.append(Sprite("tilesets/Object/Crate.png", height=50, center=(x, altura(x) + 22), group="caixa"))
+    else:
+        pecas.append(Sprite(slot.rng.choice(MOITAS), height=40, center=(x, altura(x) + 16)))
+    return pecas
+
+
+class Robo(Sprite, source=folha, hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        resolve(self, "chao", bounce=0)
+        resolve(self, "tabua", bounce=0, only="bottom")
+
+    def on_update(self, dt):
+        no_chao = "bottom" in self.touching_sides
+        if keyp.once("UP") and no_chao:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if not st.correndo:
+            self.play("caindo", loops=1)
+        elif no_chao:
+            self.play("correndo")
+        else:
+            self.play("pulando")
+        self.move_by(st.velocidade * dt, self.vel.y * dt)
+
+    @collide_with("moeda")
+    def pegou(self, moeda):
+        moeda.destroy()
+        st.moedas += 1
+        play_sound("synth/coin.wav")
+
+    @collide_with("caixa")
+    def bateu(self, caixa):
+        if st.correndo:
+            st.correndo = False
+            st.velocidade = 0
+            canvas.shake(6)
+            play_sound("audio/impactPlank_medium_002.ogg")
+
+    @leave_playfield
+    def caiu(self):
+        st.correndo = False
+        st.velocidade = 0
+
+
+class Corrida(Act):
+    def setup(self):
+        st.velocidade = 320
+        st.correndo = True
+        st.moedas = 0
+        canvas.layers.create("pista", below="default")
+        Endless("pista", trecho, step=384)
+        self.robo = Robo(center=(200, 300))
+        placar = Text(text="", top_left=(16, 524), font_size=20, color="navy")
+        placar["text"] @= lambda: f"Moedas {st.moedas}"
+        self.aviso = Text(text="", center=(480, 400), font_size=32, color="navy", layer="ui")
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robo.center.x + 250, 270)
+        canvas.playfield.set(canvas.game_view.outset(100))
+        if not st.correndo and keyp.once("SPACE"):
+            change_act(Corrida)
+
+    @when(lambda self: not st.correndo)
+    def acabou(self):
+        self.aviso.text = "Aperte espaço"
+
+
+run(Corrida)
+`,
+      try: [
+        {
+          note: "A mesma pista em toda corrida, para treinar: <code>seed=</code> (semente) com um número. Troque o número para outra pista. No lugar do <code>Endless</code> da pista:",
+          replaces: ['Endless("pista"'],
+          code: `Endless("pista", trecho, step=384, seed=7)`
+        },
+        {
+          note: "Outra cara para a pedra, uma por vez, no lugar do <code>Ink</code>: um contorno que treme devagar, uma borda de luz, uma moldura com vão. Mais no Guia: Visual.",
+          replaces: ['tabua.visual = Ink()'],
+          code: `tabua.visual = OrganicOutline()
+tabua.visual = Rim()
+tabua.visual = InsetRim()`
+        }
+      ]
+    },
+    {
+      title: "Cada vez mais rápido",
+      body: `
+        <p>A corrida precisa de pressa e de placar.</p>
+        <p><strong>Mais rápido.</strong> No <code>on_update</code> do ato, enquanto o robô corre, <code>st.velocidade</code> cresce 6 por segundo: 320 na largada, 500 depois de meio minuto, 680 depois de um. O pulo continua o mesmo, então ele vai mais longe; mas as caixas chegam mais depressa, e a hora de pular fica mais curta.</p>
+        <p><strong>Metros.</strong> A distância é o x do robô: <code>int(self.robo.center.x / 64)</code>, uma coluna de chão por metro. O placar liga os três números com <code>@=</code>, como no 07.</p>
+        <p><strong>Recorde.</strong> <code>st.recorde = 0</code> fica no topo do arquivo, fora do ato. O <code>setup</code> do ato zera os dados de cada corrida, mas o <code>st</code> sobrevive à troca de ato (20): o recorde vale de uma corrida para a outra. No fim de cada uma, <code>acabou</code> guarda o maior.</p>
+      `,
+      code: `from math import sin
+from scena import *
+
+init(width=960, height=540, title="Corredor")
+Wallpaper(Gradient("#9fd4f0", "#3d97d6", angle=90))
+
+folha = Sheet(anchor="bottom", pixel_size=0.16)
+folha.strip("correndo", "robot/Run (*).png", fps=14)
+folha.strip("pulando", "robot/Jump (*).png", fps=14)
+folha.strip("caindo", "robot/Dead (*).png", fps=20)
+
+TERRA = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=64)
+MADEIRA = Texture("textures/236.jpg", fit="tile", tile_size=64)
+PEDRA = Texture("k-textures/wall_stone.png", fit="tile", tile_size=40)
+MOITAS = ["tilesets/Object/Bush (1).png", "tilesets/Object/Bush (3).png", "tilesets/Object/Mushroom_1.png",
+          "tilesets/Object/Mushroom_2.png", "tilesets/Object/Sign_2.png"]
+
+
+def altura(x):
+    return 130 + 55 * sin(x / 400) + 25 * sin(x / 150)
+
+
+def coluna(x):
+    chao = Polygon(points=[(x, 0), (x + 64, 0), (x + 64, altura(x + 64)), (x, altura(x))], group="chao")
+    chao.fill = TERRA
+    chao.line = TERRA
+    chao.mass = STATIC
+    grama = Line(p1=(x, altura(x) - 4), p2=(x + 64, altura(x + 64) - 4), color="#6fa124", line_width=16)
+    broto = Line(p1=(x, altura(x)), p2=(x + 64, altura(x + 64)), color="#b3d02a", line_width=8)
+    return [chao, grama, broto]
+
+
+def moedas(x, y):
+    fila = []
+    for k in range(3):
+        fila.append(Circle(center=(x - 36 + 36 * k, y), radius=11, visual=Sphere("orange"), group="moeda"))
+    return fila
+
+
+def plataforma(slot, x, y):
+    tabua = Rect(center=(x, y), width=128, height=24, group="tabua")
+    tabua.mass = STATIC
+    if slot.chance(0.5):
+        tabua.fill = MADEIRA
+        tabua.visual = Extrude(depth=20, angle=270)
+    else:
+        tabua.fill = PEDRA
+        tabua.visual = Ink()
+    return tabua
+
+
+def trecho(slot):
+    colunas = 6
+    if slot.i > 1 and slot.chance(0.4):
+        colunas = 3
+    pecas = []
+    for k in range(colunas):
+        pecas += coluna(slot.left + 64 * k)
+    if colunas == 3 and slot.chance(0.6):
+        meio = slot.left + 288
+        pecas.append(plataforma(slot, meio, altura(meio) + 100))
+        pecas += moedas(meio, altura(meio) + 150)
+    x = slot.rng.uniform(slot.left + 40, slot.left + 64 * colunas - 40)
+    if slot.chance(0.4):
+        pecas += moedas(x, altura(x) + 120)
+    elif slot.i > 2 and slot.chance(0.5):
+        pecas.append(Sprite("tilesets/Object/Crate.png", height=50, center=(x, altura(x) + 22), group="caixa"))
+    else:
+        pecas.append(Sprite(slot.rng.choice(MOITAS), height=40, center=(x, altura(x) + 16)))
+    return pecas
+
+
+st.recorde = 0
+
+
+class Robo(Sprite, source=folha, hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        resolve(self, "chao", bounce=0)
+        resolve(self, "tabua", bounce=0, only="bottom")
+
+    def on_update(self, dt):
+        no_chao = "bottom" in self.touching_sides
+        if keyp.once("UP") and no_chao:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if not st.correndo:
+            self.play("caindo", loops=1)
+        elif no_chao:
+            self.play("correndo")
+        else:
+            self.play("pulando")
+        self.move_by(st.velocidade * dt, self.vel.y * dt)
+
+    @collide_with("moeda")
+    def pegou(self, moeda):
+        moeda.destroy()
+        st.moedas += 1
+        play_sound("synth/coin.wav")
+
+    @collide_with("caixa")
+    def bateu(self, caixa):
+        if st.correndo:
+            st.correndo = False
+            st.velocidade = 0
+            canvas.shake(6)
+            play_sound("audio/impactPlank_medium_002.ogg")
+
+    @leave_playfield
+    def caiu(self):
+        st.correndo = False
+        st.velocidade = 0
+
+
+class Corrida(Act):
+    def setup(self):
+        st.velocidade = 320
+        st.correndo = True
+        st.moedas = 0
+        st.metros = 0
+        canvas.layers.create("pista", below="default")
+        Endless("pista", trecho, step=384)
+        self.robo = Robo(center=(200, 300))
+        placar = Text(text="", top_left=(16, 524), font_size=20, color="navy")
+        placar["text"] @= lambda: f"{st.metros} m   Moedas {st.moedas}   Recorde {st.recorde} m"
+        self.aviso = Text(text="", center=(480, 400), font_size=32, color="navy", layer="ui")
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robo.center.x + 250, 270)
+        canvas.playfield.set(canvas.game_view.outset(100))
+        if st.correndo:
+            st.velocidade += 6 * dt
+            st.metros = int(self.robo.center.x / 64)
+        elif keyp.once("SPACE"):
+            change_act(Corrida)
+
+    @when(lambda self: not st.correndo)
+    def acabou(self):
+        st.recorde = max(st.recorde, st.metros)
+        self.aviso.text = "Aperte espaço"
+
+
+run(Corrida)
+`
+    },
+    {
+      title: "Ao longe",
+      example: "corredor.py",
+      body: `
+        <p>Atrás da pista, só céu. Duas faixas de cenário dão profundidade, com as silhuetas claras da folha de enfeites do 13 (<code>backgrounds/kn/</code>): montanhas, morros, castelos, torres e árvores, num azul muito claro, como coisas vistas de longe.</p>
+        <p><strong>Camadas que andam menos.</strong> As camadas do 21: com <code>pan_response=0.1</code>, a camada anda um décimo do que a câmera anda; com <code>0.3</code>, três décimos. A serra quase não sai do lugar, os morros passam devagar, a pista passa inteira. É o parallax do 12, agora feito pela câmera, sem <code>scroll=</code>.</p>
+        <p><strong>Um Endless em cada uma.</strong> Como a pista. A diferença está nas coordenadas: numa camada de parallax, <code>slot.left</code> é medido na camada, que anda menos que o mundo, e as vagas dela passam devagar. <code>longe(slot)</code> põe uma serra de 1400 de largura em cada vaga de 1400 (uma emenda na outra) e uma nuvem sorteada; <code>colinas(slot)</code>, uma faixa de morros e três silhuetas em pé atrás dela. É só enfeite: nada ali entra num <code>resolve</code> ou num <code>@collide</code>, pelo motivo do passo 2.</p>
+        <p><strong>A ordem.</strong> As camadas novas são criadas antes da pista, de trás para a frente: a ordem de <code>create</code> é a ordem do desenho (13). <code>serra.set_alpha(0.6)</code> (transparência) deixa o céu aparecer através da serra, e ela parece mais longe ainda.</p>
+      `,
+      code: `from math import sin
+from scena import *
+
+init(width=960, height=540, title="Corredor")
+Wallpaper(Gradient("#9fd4f0", "#3d97d6", angle=90))
+
+folha = Sheet(anchor="bottom", pixel_size=0.16)
+folha.strip("correndo", "robot/Run (*).png", fps=14)
+folha.strip("pulando", "robot/Jump (*).png", fps=14)
+folha.strip("caindo", "robot/Dead (*).png", fps=20)
+cenario = Sheet("backgrounds/kn/bgElements_spritesheet.png", atlas="backgrounds/kn/bgElements_spritesheet.xml")
+
+TERRA = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=64)
+MADEIRA = Texture("textures/236.jpg", fit="tile", tile_size=64)
+PEDRA = Texture("k-textures/wall_stone.png", fit="tile", tile_size=40)
+MOITAS = ["tilesets/Object/Bush (1).png", "tilesets/Object/Bush (3).png", "tilesets/Object/Mushroom_1.png",
+          "tilesets/Object/Mushroom_2.png", "tilesets/Object/Sign_2.png"]
+SILHUETAS = ["castle.png", "tower.png", "tree01.png", "tree08.png", "tree11.png", "tree12.png", "house_side_tall.png"]
+
+
+def altura(x):
+    return 130 + 55 * sin(x / 400) + 25 * sin(x / 150)
+
+
+def coluna(x):
+    chao = Polygon(points=[(x, 0), (x + 64, 0), (x + 64, altura(x + 64)), (x, altura(x))], group="chao")
+    chao.fill = TERRA
+    chao.line = TERRA
+    chao.mass = STATIC
+    grama = Line(p1=(x, altura(x) - 4), p2=(x + 64, altura(x + 64) - 4), color="#6fa124", line_width=16)
+    broto = Line(p1=(x, altura(x)), p2=(x + 64, altura(x + 64)), color="#b3d02a", line_width=8)
+    return [chao, grama, broto]
+
+
+def moedas(x, y):
+    fila = []
+    for k in range(3):
+        fila.append(Circle(center=(x - 36 + 36 * k, y), radius=11, visual=Sphere("orange"), group="moeda"))
+    return fila
+
+
+def plataforma(slot, x, y):
+    tabua = Rect(center=(x, y), width=128, height=24, group="tabua")
+    tabua.mass = STATIC
+    if slot.chance(0.5):
+        tabua.fill = MADEIRA
+        tabua.visual = Extrude(depth=20, angle=270)
+    else:
+        tabua.fill = PEDRA
+        tabua.visual = Ink()
+    return tabua
+
+
+def trecho(slot):
+    colunas = 6
+    if slot.i > 1 and slot.chance(0.4):
+        colunas = 3
+    pecas = []
+    for k in range(colunas):
+        pecas += coluna(slot.left + 64 * k)
+    if colunas == 3 and slot.chance(0.6):
+        meio = slot.left + 288
+        pecas.append(plataforma(slot, meio, altura(meio) + 100))
+        pecas += moedas(meio, altura(meio) + 150)
+    x = slot.rng.uniform(slot.left + 40, slot.left + 64 * colunas - 40)
+    if slot.chance(0.4):
+        pecas += moedas(x, altura(x) + 120)
+    elif slot.i > 2 and slot.chance(0.5):
+        pecas.append(Sprite("tilesets/Object/Crate.png", height=50, center=(x, altura(x) + 22), group="caixa"))
+    else:
+        pecas.append(Sprite(slot.rng.choice(MOITAS), height=40, center=(x, altura(x) + 16)))
+    return pecas
+
+
+def longe(slot):
+    serra = Sprite(cenario, frame="pointy_mountains.png", width=1400, center=(slot.left + 700, 170))
+    serra.set_alpha(0.6)
+    nuvem = Sprite(cenario, frame=f"cloud{slot.rng.randint(1, 9)}.png", height=slot.rng.uniform(50, 80),
+                   center=(slot.rng.uniform(slot.left, slot.right), slot.rng.uniform(400, 480)))
+    return [serra, nuvem]
+
+
+def colinas(slot):
+    pecas = []
+    for k in range(3):
+        x = slot.rng.uniform(slot.left, slot.right)
+        alto = slot.rng.uniform(120, 200)
+        pecas.append(Sprite(cenario, frame=slot.rng.choice(SILHUETAS), height=alto, center=(x, 110 + alto / 2)))
+    pecas.append(Sprite(cenario, frame="hills1.png", width=1000, center=(slot.left + 500, 64)))
+    return pecas
+
+
+st.recorde = 0
+
+
+class Robo(Sprite, source=folha, hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        resolve(self, "chao", bounce=0)
+        resolve(self, "tabua", bounce=0, only="bottom")
+
+    def on_update(self, dt):
+        no_chao = "bottom" in self.touching_sides
+        if keyp.once("UP") and no_chao:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if not st.correndo:
+            self.play("caindo", loops=1)
+        elif no_chao:
+            self.play("correndo")
+        else:
+            self.play("pulando")
+        self.move_by(st.velocidade * dt, self.vel.y * dt)
+
+    @collide_with("moeda")
+    def pegou(self, moeda):
+        moeda.destroy()
+        st.moedas += 1
+        play_sound("synth/coin.wav")
+
+    @collide_with("caixa")
+    def bateu(self, caixa):
+        if st.correndo:
+            st.correndo = False
+            st.velocidade = 0
+            canvas.shake(6)
+            play_sound("audio/impactPlank_medium_002.ogg")
+
+    @leave_playfield
+    def caiu(self):
+        st.correndo = False
+        st.velocidade = 0
+
+
+class Corrida(Act):
+    def setup(self):
+        st.velocidade = 320
+        st.correndo = True
+        st.moedas = 0
+        st.metros = 0
+        canvas.layers.create("longe", pan_response=0.1, below="default")
+        canvas.layers.create("colinas", pan_response=0.3, below="default")
+        canvas.layers.create("pista", below="default")
+        Endless("longe", longe, step=1400)
+        Endless("colinas", colinas, step=1000)
+        Endless("pista", trecho, step=384)
+        self.robo = Robo(center=(200, 300))
+        placar = Text(text="", top_left=(16, 524), font_size=20, color="navy")
+        placar["text"] @= lambda: f"{st.metros} m   Moedas {st.moedas}   Recorde {st.recorde} m"
+        self.aviso = Text(text="", center=(480, 400), font_size=32, color="navy", layer="ui")
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robo.center.x + 250, 270)
+        canvas.playfield.set(canvas.game_view.outset(100))
+        if st.correndo:
+            st.velocidade += 6 * dt
+            st.metros = int(self.robo.center.x / 64)
+        elif keyp.once("SPACE"):
+            change_act(Corrida)
+
+    @when(lambda self: not st.correndo)
+    def acabou(self):
+        st.recorde = max(st.recorde, st.metros)
+        self.aviso.text = "Aperte espaço"
+
+
+run(Corrida)
+`,
+      try: [
+        {
+          note: "Outro fundo: a floresta da pasta <code>tilesets/BG/</code>, uma imagem só que se repete (o <code>Endless</code> de uma imagem, do 12). No lugar do <code>Endless</code> da serra:",
+          replaces: ['Endless("longe"'],
+          code: `Endless("longe", "tilesets/BG/BG.png", height=540)`
+        }
+      ],
+      dive: [
+        {
+          title: "Duas referências",
+          body: `
+            <p>Todo jogo sem fim tem duas referências: o mundo (o chão, os buracos, as moedas) e a tela (o placar, o aviso). Neste jogo, a câmera anda e o mundo fica parado: cada peça é montada uma vez, onde fica, e o que é da tela vai na camada <code>ui</code>. No Avião (11 a 13) era o contrário: a câmera parada, as camadas andando com <code>scroll=</code>, e os pilares empurrados a cada quadro com <code>move_by</code>.</p>
+            <p>Com a câmera andando, o resto vem com pouco: o parallax é o <code>pan_response</code> de cada camada; a área de jogo, uma linha por quadro (<code>playfield.set</code>); e o fim da corrida, parar o robô, que a câmera para junto.</p>
+            <p>No Guia: <a href="../guide/index.html#mundo-sem-fim">Mundo sem fim</a> (a tabela "Dois jeitos de fazer um jogo sem fim") · <a href="../guide/index.html#mundo-camadas">Camadas</a> · <a href="../guide/index.html#mundo-camera">Câmera</a>.</p>
+          `
+        }
+      ],
+      closing: `
+        <p>Seta para cima pula, só com os pés no chão. O robô corre sozinho, cada vez mais rápido: pule os buracos e as caixas e pegue as moedas no ar. Caindo num buraco ou batendo numa caixa, a corrida acaba; espaço recomeça, numa pista nova. O placar mostra os metros, as moedas e o recorde.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Endless</code> com a câmera andando — monta cada vaga um pouco antes de ela entrar na tela e destrói as que ficaram para trás; numa camada neutra, as peças são o próprio mundo e colidem.</li>
+          <li><code>Texture</code> — uma imagem que pinta uma forma, no <code>fill</code> e no <code>line</code>; <code>fit="tile"</code> a repete em ladrilhos; um visual por cima (<code>Extrude</code>, <code>Ink</code>) dá volume ou contorno.</li>
+          <li><code>canvas.playfield.set(canvas.game_view.outset(100))</code> — a área de jogo refeita a cada quadro em volta da janela da câmera, para o <code>@leave_playfield</code> andar junto.</li>
+          <li><code>altura(x)</code> — o que precisa casar entre vagas é uma função do x; o <code>slot.rng</code> é para o que fica dentro da vaga.</li>
+          <li><code>tilt</code> — inclina só o desenho, para acompanhar a rampa.</li>
+          <li><code>pan_response</code> com <code>Endless</code> — faixas de enfeite que andam menos que o mundo, montadas por vaga como a pista.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#mundo-sem-fim">Mundo sem fim</a> · <a href="../guide/index.html#reagir-bounds">@leave_playfield</a> · <a href="../guide/index.html#aparencia-cor">Cor / Gradient / Texture</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#sprite-orientar">Orientar sprites</a> · <a href="../guide/index.html#mundo-camadas">Camadas</a> · <a href="../guide/index.html#atos-trocar">change_act</a>.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

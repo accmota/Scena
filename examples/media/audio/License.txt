@@ -125,3 +125,6 @@ Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
 
 ---
 
+nota.wav
+A soft plucked note (C4, 1.2 s), synthesized for Scena (the Estúdio tutorials).
+Made for Scena -- License: Creative Commons 0

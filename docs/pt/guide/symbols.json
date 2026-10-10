@@ -792,8 +792,8 @@
           "name": "color",
           "pass": 1,
           "type": "",
-          "def": "segue o preenchimento",
-          "doc": "Cor do metal"
+          "def": "cromado",
+          "doc": "Cor do metal (sem ela, cromado, qualquer que seja a cor da forma)"
         },
         {
           "name": "amount",

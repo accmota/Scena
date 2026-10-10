@@ -25,6 +25,16 @@ its last step here.
 | 11 Avião | `aviao.py` |
 | 12 Avião II · Profundidade | `aviao_profundidade.py` |
 | 13 Avião III · Paisagem sem fim | `aviao_paisagem.py` |
+| 14 Ninja | `ninja.py` |
+| 15 Ninja II · O mundo | `ninja_mundo.py` |
+| 16 Ligue 4 | `ligue4.py` |
+| 17 Estúdio · Piano | `piano.py` |
+| 18 Estúdio II · Voz | `estudio_voz.py` |
+| 19 Naves V · Capítulos e sequências | `naves_modos.py` |
+| 20 Naves VI · Atos | `naves_atos.py` |
+| 21 Ninja III · O nível | `ninja_nivel.py` |
+| 22 Ninja IV · Perigos | `ninja_perigos.py` |
+| 23 Corredor infinito | `corredor.py` |
 
 ```bash
 python examples/naves.py

@@ -2034,6 +2034,8 @@ class ProceduralFill:
                 b.setUniform("u_rot", 0.0)
                 b.setUniform("u_origin", [0.0, 0.0])
                 b.setUniform("u_light", 28.0)
+                from .recipes import _metal_tint
+                b.setUniform("u_tint", _metal_tint(self))
             except Exception:
                 pass
         self._shader = b.makeShader()

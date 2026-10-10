@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estúdio — Piano — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "17",
+  title: "Estúdio · Piano",
+  steps: [
+    {
+      title: "As teclas",
+      body: `
+        <p>Novo script, e desta vez não é um jogo: é um <strong>piano</strong>. Até aqui o som era um enfeite do jogo (o laser, a explosão, a música do voo). Neste tutorial ele é o assunto: você aperta uma tecla, e ela toca. No próximo, o contrário: a sua voz mexe na tela.</p>
+        <p><strong>Oito teclas.</strong> Um <code>for</code> faz oito retângulos lado a lado. Cada tecla tem 110 de largura, e há um vão de 6 entre elas: por isso o centro anda 116 a cada volta (<code>94 + i * 116</code>). Embaixo de cada uma, um <code>Text</code> com a letra que vai tocá-la.</p>
+        <p><strong>As letras.</strong> <code>LETRAS</code> são as teclas da fileira do meio do teclado do computador, de A a K: a mão fica parada, um dedo em cada tecla, como num piano de verdade.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Piano")
+Wallpaper("dark navy")
+
+LETRAS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+
+for i in range(8):
+    Rect(center=(94 + i * 116, 190), width=110, height=300, color="#F2EFE6")
+    Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+run()
+`
+    },
+    {
+      title: "O piano",
+      body: `
+        <p><strong>Um molde para as teclas.</strong> Cada tecla vai ter a sua letra, a sua nota e um comportamento: tocar quando a letra é apertada. Muitas coisas iguais, cada uma com o seu comportamento: é o caso de uma classe (tutorial 06). <code>Tecla</code> traz na linha da classe o que é igual em todas: o tamanho, a cor e o grupo <code>"teclas"</code>.</p>
+        <p><strong>O que é de cada uma.</strong> No <code>for</code>, depois de criar a tecla, <code>tecla.letra = LETRAS[i]</code> e <code>tecla.nota = NOTAS[i]</code>. Um nome novo depois do ponto cria um <strong>campo</strong> da tecla: um valor que fica guardado nela. Cada uma das oito guarda a sua letra e a sua nota.</p>
+        <p><strong>Cada tecla ouve a sua letra.</strong> No <code>on_update</code>, a tecla pergunta <code>keyp.once(self.letra)</code>: a letra <em>desta</em> tecla foi apertada agora? <code>once</code> (uma vez), como no tutorial 01: só no quadro do aperto, então segurar a tecla não repete a nota. Oito teclas, oito perguntas, cada uma pela sua letra.</p>
+        <p><strong>Uma nota, oito alturas.</strong> Há um arquivo só, <code>audio/nota.wav</code>: uma nota de piano, um dó. <code>pitch=</code> (altura) muda a altura do som ao tocar. Com <code>pitch=1</code>, a nota sai como foi gravada; com <code>pitch=2</code>, ela toca duas vezes mais rápido e sai uma oitava acima, o dó seguinte. Os números de <code>NOTAS</code>, de 1 a 2, são as oito notas de uma oitava: dó, ré, mi, fá, sol, lá, si, dó. Cada tecla toca um pouco mais alto que a anterior.</p>
+        <p>O som vai em <code>tocar</code>, uma função da tecla, e não direto no <code>on_update</code>: daqui a dois passos o mouse também vai tocar.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Piano")
+Wallpaper("dark navy")
+
+LETRAS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTAS = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+
+class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
+    def on_update(self, dt):
+        if keyp.once(self.letra):
+            self.tocar()
+
+    def tocar(self):
+        play_sound("audio/nota.wav", pitch=self.nota)
+
+
+for i in range(8):
+    tecla = Tecla(center=(94 + i * 116, 190))
+    tecla.letra = LETRAS[i]
+    tecla.nota = NOTAS[i]
+    Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+run()
+`,
+      try: [
+        {
+          note: "Outra escala: a pentatônica, cinco notas que se repetem uma oitava acima. Qualquer sequência delas soa bem, até apertada ao acaso. No lugar da linha de <code>NOTAS</code>:",
+          replaces: ['NOTAS ='],
+          code: `NOTAS = [1, 1.12, 1.26, 1.5, 1.68, 2, 2.24, 2.52]`
+        },
+        {
+          note: "Outro instrumento: qualquer som serve de nota. Um sino, no lugar do <code>play_sound</code>:",
+          replaces: ['play_sound("audio/nota.wav"'],
+          code: `play_sound("audio/impactBell_heavy_000.ogg", pitch=self.nota)`
+        }
+      ]
+    },
+    {
+      title: "As teclas acendem",
+      body: `
+        <p>Ao tocar, a tecla fica dourada (<code>self.color = "gold"</code>). E ela apaga quando o som acaba.</p>
+        <p><strong>O som avisa.</strong> <code>on_done=self.apagar</code> (ao terminar) entrega ao <code>play_sound</code> uma função para chamar quando a nota acabar de tocar. É o mesmo <code>on_done</code> do <code>flash</code> do tutorial 02. <code>apagar</code> devolve a cor de antes.</p>
+        <p><strong>Repare nas pontas.</strong> A nota do A dura pouco mais de um segundo; a do K, a metade. <code>pitch=2</code> toca a nota duas vezes mais rápido, então ela acaba antes, e a tecla apaga antes. A luz mostra quanto cada nota soa.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Piano")
+Wallpaper("dark navy")
+
+LETRAS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTAS = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+
+class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
+    def on_update(self, dt):
+        if keyp.once(self.letra):
+            self.tocar()
+
+    def tocar(self):
+        play_sound("audio/nota.wav", pitch=self.nota, on_done=self.apagar)
+        self.color = "gold"
+
+    def apagar(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    tecla = Tecla(center=(94 + i * 116, 190))
+    tecla.letra = LETRAS[i]
+    tecla.nota = NOTAS[i]
+    Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+run()
+`,
+      try: [
+        {
+          note: "Outra escrita: a tecla acende por um tempo fixo, sem esperar o som. No lugar da linha do <code>play_sound</code>:",
+          replaces: ['play_sound("audio/nota.wav"'],
+          code: `play_sound("audio/nota.wav", pitch=self.nota)
+self.after(0.3, self.apagar)`
+        }
+      ]
+    },
+    {
+      title: "O mouse também",
+      example: "piano.py",
+      body: `
+        <p>Um clique numa tecla também toca. <code>@click</code> é o do tutorial 01, agora com um grupo: <code>@click(group["teclas"])</code> chama <code>clicou</code> quando qualquer tecla do grupo é clicada, e entrega a tecla clicada. A função só pede que ela toque: <code>tecla.tocar()</code>, a mesma que a letra chama.</p>
+        <p><strong>Depois do <code>for</code>.</strong> O <code>@click</code> olha o grupo na hora em que é lido: as oito teclas já precisam existir. Por isso ele vem depois do laço.</p>
+        <p><strong>E a letra?</strong> A letra fica por cima da tecla, mas não pega o clique: um <code>Text</code> sem <code>@click</code> deixa o clique passar para o que está embaixo dele.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Piano")
+Wallpaper("dark navy")
+
+LETRAS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTAS = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+
+class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
+    def on_update(self, dt):
+        if keyp.once(self.letra):
+            self.tocar()
+
+    def tocar(self):
+        play_sound("audio/nota.wav", pitch=self.nota, on_done=self.apagar)
+        self.color = "gold"
+
+    def apagar(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    tecla = Tecla(center=(94 + i * 116, 190))
+    tecla.letra = LETRAS[i]
+    tecla.nota = NOTAS[i]
+    Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+
+@click(group["teclas"])
+def clicou(tecla):
+    tecla.tocar()
+
+
+run()
+`,
+      closing: `
+        <p>As letras A S D F G H J K tocam as oito notas, do dó ao dó seguinte; um clique numa tecla também toca. A tecla fica dourada enquanto a nota soa.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>pitch=</code> — a altura do som: 1 é o som como foi gravado; 2 toca duas vezes mais rápido, uma oitava acima.</li>
+          <li><code>tecla.nota</code> — um campo: um nome novo depois do ponto guarda um valor naquele objeto, um em cada tecla.</li>
+          <li><code>keyp.once(self.letra)</code> — cada tecla pergunta pela sua letra, uma vez por aperto.</li>
+          <li><code>on_done=</code> — o som chama a função quando acaba: a tecla apaga.</li>
+          <li><code>@click(group["teclas"])</code> — um clique em qualquer tecla do grupo, e a função recebe a tecla clicada.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#som-play">play_sound</a> · <a href="../guide/index.html#reativo-entity">Guardar valores</a> · <a href="../guide/index.html#frame-teclado">Teclado</a> · <a href="../guide/index.html#reagir-pointer">Clique / arraste</a>.</p>
+        <p><strong>No próximo:</strong> o piano toca a sua voz, e uma estrela dança com uma luz que cresce quando você fala.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

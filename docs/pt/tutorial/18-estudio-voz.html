@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estúdio II — Voz — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "18",
+  title: "Estúdio II · Voz",
+  steps: [
+    {
+      title: "O piano do 17",
+      body: `
+        <p>Novo script: o piano do tutorial 17, com o título <code>"Estúdio"</code>. No 17, você tocava e o som saía. Agora é o contrário: <strong>o som manda na tela</strong>. O piano vai tocar a sua voz, uma barra vai mostrar quão alto você fala, e uma estrela vai dançar com uma luz que cresce com a voz.</p>
+        <p>Duas coisas novas: o <strong>microfone</strong> e as <strong>trilhas</strong> (um caminho que um objeto percorre sozinho). E o <code>@=</code>, que você já usou no placar, visto de perto.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Estúdio")
+Wallpaper("dark navy")
+
+LETRAS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTAS = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+
+class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
+    def on_update(self, dt):
+        if keyp.once(self.letra):
+            self.tocar()
+
+    def tocar(self):
+        play_sound("audio/nota.wav", pitch=self.nota, on_done=self.apagar)
+        self.color = "gold"
+
+    def apagar(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    tecla = Tecla(center=(94 + i * 116, 190))
+    tecla.letra = LETRAS[i]
+    tecla.nota = NOTAS[i]
+    Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+
+@click(group["teclas"])
+def clicou(tecla):
+    tecla.tocar()
+
+
+run()
+`
+    },
+    {
+      title: "O microfone",
+      body: `
+        <p><strong>O gravador.</strong> Um ponto no canto de cima, à direita: a luz de gravação. A classe <code>Gravador</code> cuida de tudo que é do microfone. No <code>on_update</code>, R chama <code>gravar</code>; enquanto grava, a luz fica vermelha e o aviso diz "Fale!".</p>
+        <p><strong>Abrir o microfone.</strong> <code>Microphone()</code> (microfone) abre o microfone do computador; nada é captado antes dessa linha. O gravador o abre na primeira vez que você aperta R, e não no começo do programa: o programa só ouve quando você pede. Até lá, <code>self.mic</code> é <code>None</code> (nada), e <code>if not self.mic</code> pergunta se ele ainda não foi aberto.</p>
+        <p><strong>Na primeira vez</strong>, o sistema pergunta se o programa que roda o seu script (o Terminal, o VS Code…) pode usar o microfone. Responda que sim (se a pergunta apareceu no meio da gravação e ela saiu muda, aperte R de novo). Se você negar, o microfone fica mudo e o Scena avisa no console; para mudar de ideia, no Mac: Ajustes do Sistema › Privacidade e Segurança › Microfone; no Windows: Configurações › Privacidade e segurança › Microfone.</p>
+        <p><strong>Gravar.</strong> <code>self.mic.record(seconds=2, on_done=self.gravou)</code> (gravar) grava dois segundos e devolve a gravação, guardada em <code>self.gravacao</code>. Ela ainda está sendo feita: só dá para tocar quando acabar. Por isso o <code>on_done</code>, como o do som no 17: quando os dois segundos terminam, o Scena chama <code>gravou</code>, que toca o que você disse e apaga a luz.</p>
+        <p><strong>Uma de cada vez.</strong> <code>self.mic.recording</code> (gravando) é verdadeiro enquanto a gravação não acabou. Um R no meio dela não começa outra: o <code>return</code> sai de <code>gravar</code> antes.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Estúdio")
+Wallpaper("dark navy")
+
+LETRAS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTAS = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+
+class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
+    def on_update(self, dt):
+        if keyp.once(self.letra):
+            self.tocar()
+
+    def tocar(self):
+        play_sound("audio/nota.wav", pitch=self.nota, on_done=self.apagar)
+        self.color = "gold"
+
+    def apagar(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    tecla = Tecla(center=(94 + i * 116, 190))
+    tecla.letra = LETRAS[i]
+    tecla.nota = NOTAS[i]
+    Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+
+@click(group["teclas"])
+def clicou(tecla):
+    tecla.tocar()
+
+
+aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="silver")
+
+
+class Gravador(Circle, radius=10, color="dim gray"):
+    def setup(self):
+        self.mic = None
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            self.gravar()
+
+    def gravar(self):
+        if not self.mic:
+            self.mic = Microphone()
+        if self.mic.recording:
+            return
+        self.gravacao = self.mic.record(seconds=2, on_done=self.gravou)
+        self.color = "red"
+        aviso.text = "Fale!"
+
+    def gravou(self):
+        play_sound(self.gravacao)
+        self.color = "dim gray"
+        aviso.text = "R grava de novo"
+
+
+gravador = Gravador(center=(975, 575))
+
+
+run()
+`
+    },
+    {
+      title: "As teclas cantam",
+      body: `
+        <p>Em vez de tocar a gravação uma vez, o gravador a guarda: <code>self.som</code> é o som que o piano toca. Ele começa como a nota do 17, <code>"audio/nota.wav"</code>; <code>gravou</code> troca pela gravação.</p>
+        <p><strong>A tecla toca o som do gravador.</strong> Em <code>tocar</code>, <code>play_sound(gravador.som, pitch=self.nota)</code>. <code>play_sound</code> aceita o nome de um arquivo ou um som gravado, e o <code>pitch=</code> vale para os dois. Grave "lá", e o piano canta: a sua voz nas oito alturas, do A ao K. No K, <code>pitch=2</code>, ela sai duas vezes mais rápida, uma oitava acima.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Estúdio")
+Wallpaper("dark navy")
+
+LETRAS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTAS = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+
+class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
+    def on_update(self, dt):
+        if keyp.once(self.letra):
+            self.tocar()
+
+    def tocar(self):
+        play_sound(gravador.som, pitch=self.nota, on_done=self.apagar)
+        self.color = "gold"
+
+    def apagar(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    tecla = Tecla(center=(94 + i * 116, 190))
+    tecla.letra = LETRAS[i]
+    tecla.nota = NOTAS[i]
+    Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+
+@click(group["teclas"])
+def clicou(tecla):
+    tecla.tocar()
+
+
+aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="silver")
+
+
+class Gravador(Circle, radius=10, color="dim gray"):
+    def setup(self):
+        self.mic = None
+        self.som = "audio/nota.wav"
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            self.gravar()
+
+    def gravar(self):
+        if not self.mic:
+            self.mic = Microphone()
+        if self.mic.recording:
+            return
+        self.gravacao = self.mic.record(seconds=2, on_done=self.gravou)
+        self.color = "red"
+        aviso.text = "Fale!"
+
+    def gravou(self):
+        self.som = self.gravacao
+        self.color = "dim gray"
+        aviso.text = "As teclas tocam a sua voz. R grava de novo"
+
+
+gravador = Gravador(center=(975, 575))
+
+
+run()
+`,
+      try: [
+        {
+          note: "A voz com um efeito. <code>bake</code> (assar) aplica o efeito uma vez e devolve um som novo, já pronto: as oito teclas tocam a voz com eco. Um por vez, no lugar da linha <code>self.som = self.gravacao</code>. <code>Echo</code> (eco: <code>delay</code>, o tempo entre as voltas; <code>decay</code>, quanto cada volta guarda), <code>Reverb</code> (sala: <code>size</code>, o tamanho), <code>Distortion</code> (distorção), <code>LowPass</code> (abafado, atrás da parede), <code>HighPass</code> (fino, de rádio).",
+          replaces: ['self.som = self.gravacao'],
+          code: `self.som = self.gravacao.bake(Echo(delay=0.25, decay=0.6))
+self.som = self.gravacao.bake(Reverb(size=1.2))
+self.som = self.gravacao.bake(Distortion())
+self.som = self.gravacao.bake(LowPass())
+self.som = self.gravacao.bake(HighPass())`
+        }
+      ]
+    },
+    {
+      title: "O medidor",
+      body: `
+        <p>Uma barra em cima, à esquerda, mostra quão alto você está falando agora. Ela começa a andar depois do primeiro R, quando o microfone abre.</p>
+        <p><strong>Quão alto.</strong> <code>self.mic.level</code> (nível) diz quão alto está o som que chega ao microfone, de 0 (silêncio) a 1, já suavizado. Nessa conta, a fala é pequena, poucos centésimos, e a barra mal sairia do lugar. <code>amp_db</code> passa o nível para a escala do ouvido, também de 0 a 1: o silêncio fica perto de 0, a fala no meio, um grito perto de 1.</p>
+        <p><strong>Uma fórmula, não uma cópia.</strong> <code>barra["width"] @= lambda: 300 * st.voz</code>. Com <code>=</code>, <code>barra.width = 300 * st.voz</code> faria a conta uma vez, agora, com <code>st.voz</code> ainda 0, e a barra ficaria parada em 0. O <code>@=</code> guarda a <strong>fórmula</strong>: a conta inteira, para refazer depois. Toda vez que <code>st.voz</code> muda, o Scena refaz a conta, e a largura fica certa sozinha. Nenhuma linha do programa "atualiza a barra". É o mesmo <code>@=</code> do placar do 02, das vidas do 07 e da energia do 08.</p>
+        <p><strong>Por que <code>st.voz</code> no meio?</strong> O Scena sabe quando refazer uma fórmula porque acompanha o que ela lê: uma célula do <code>st</code>, um campo de um objeto, o <code>mouse</code>, o teclado. O nível do microfone não é nada disso: é uma leitura de um aparelho, e ninguém avisa o Scena quando ela muda. Então o gravador faz a <strong>única cópia</strong>: a cada quadro, no <code>on_update</code>, <code>st.voz = amp_db(self.mic.level)</code>. Daí em diante, tudo que segue a voz se liga a <code>st.voz</code>.</p>
+        <p>O retângulo escuro, sem nome, é o trilho do medidor: mostra até onde a barra vai.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Estúdio")
+Wallpaper("dark navy")
+
+LETRAS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTAS = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+st.voz = 0
+
+
+class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
+    def on_update(self, dt):
+        if keyp.once(self.letra):
+            self.tocar()
+
+    def tocar(self):
+        play_sound(gravador.som, pitch=self.nota, on_done=self.apagar)
+        self.color = "gold"
+
+    def apagar(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    tecla = Tecla(center=(94 + i * 116, 190))
+    tecla.letra = LETRAS[i]
+    tecla.nota = NOTAS[i]
+    Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+
+@click(group["teclas"])
+def clicou(tecla):
+    tecla.tocar()
+
+
+aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="silver")
+
+
+class Gravador(Circle, radius=10, color="dim gray"):
+    def setup(self):
+        self.mic = None
+        self.som = "audio/nota.wav"
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            self.gravar()
+        if self.mic:
+            st.voz = amp_db(self.mic.level)
+
+    def gravar(self):
+        if not self.mic:
+            self.mic = Microphone()
+        if self.mic.recording:
+            return
+        self.gravacao = self.mic.record(seconds=2, on_done=self.gravou)
+        self.color = "red"
+        aviso.text = "Fale!"
+
+    def gravou(self):
+        self.som = self.gravacao
+        self.color = "dim gray"
+        aviso.text = "As teclas tocam a sua voz. R grava de novo"
+
+
+gravador = Gravador(center=(975, 575))
+
+
+Rect(top_left=(20, 550), width=300, height=10, color="#262B55")
+barra = Rect(top_left=(20, 550), width=0, height=10, color="lime")
+barra["width"] @= lambda: 300 * st.voz
+
+
+run()
+`,
+      try: [
+        {
+          note: "A cópia, para ver a diferença. No lugar do <code>@=</code>, a barra fica em 0 (a conta foi feita uma vez, no começo):",
+          replaces: ['barra["width"]'],
+          code: `barra.width = 300 * st.voz`
+        }
+      ],
+      dive: [
+        {
+          title: "O que dá para ligar",
+          body: `
+            <p><strong>À esquerda do <code>@=</code></strong>, entre colchetes, um campo que guarda um número, um texto ou um ponto: o tamanho (<code>width</code>, <code>height</code>, <code>radius</code>), o lugar (<code>center</code>), o giro (<code>angle</code>), a escala (<code>scale</code>), o <code>text</code> de um <code>Text</code>, um campo seu (<code>tecla["nota"]</code>) ou uma célula do <code>st</code> (<code>st["voz"]</code>). Os colchetes são obrigatórios: <code>barra.width</code> já é o número de agora, não o campo.</p>
+            <p><strong>Não ligam</strong>: a pintura (<code>color</code>, <code>glow</code>, <code>visual</code>) e o <code>active</code>. O Scena recusa com um erro que diz o que fazer: escrever com <code>=</code>, num <code>on_update</code> ou num <code>@when</code> / <code>@on_change</code>. Foi assim que o escudo do 08 ligava e desligava. Também não liga o <code>scroll</code> das camadas do 12: ele é escrito no <code>update</code>, a cada quadro.</p>
+            <p><strong>À direita</strong>, a fórmula precisa ler alguma coisa que o Scena acompanha: o <code>st</code>, o campo de um objeto (<code>tecla.nota</code>, <code>barra.width</code>), o <code>mouse</code>, o teclado (<code>keyp</code>), o relógio (<code>clock</code>). Uma variável comum do Python não avisa quando muda: com <code>x = 10</code>, a fórmula <code>lambda: x * 2</code> é recusada (<code>TypeError</code>: a fórmula não tem fontes que o Scena acompanhe). A saída é a deste passo: guardar o valor no <code>st</code> e ligar ao <code>st</code>.</p>
+            <p>No Guia: <a href="../guide/index.html#reativo-liga">Ligar</a> · <a href="../guide/index.html#reativo-fontes">O que pode ser ligado</a>.</p>
+          `,
+          try: [
+            {
+              note: "Outras fontes, uma por vez, no lugar do <code>@=</code> da barra: a barra cheia enquanto o espaço está apertado; a barra que segue o mouse.",
+              replaces: ['barra["width"]'],
+              code: `barra["width"] @= lambda: 300 if keyp("SPACE") else 0`
+            },
+            {
+              replaces: ['barra["width"]'],
+              code: `barra["width"] @= lambda: mouse.x / 3`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "A luz que dança",
+      body: `
+        <p><strong>Uma trilha.</strong> <code>Track.eight(width=760, height=140, center=(500, 470))</code> é uma <strong>trilha</strong> (<em>track</em>): uma curva, aqui com a forma de um oito (<em>eight</em>), de 760 de largura e 140 de altura, sobre as teclas. Uma trilha é invisível, como um ponto: é um caminho, não um desenho. Para vê-la enquanto testa, <code>Ctrl+Shift+7</code> mostra as trilhas em magenta.</p>
+        <p><strong>Percorrer.</strong> <code>estrela.move_along(trilha, time=8, loops="forever")</code> (mover ao longo de) põe a estrela no caminho: uma volta inteira a cada 8 segundos (<code>time=8</code>), para sempre. Ela anda sozinha; nenhuma linha no <code>update</code>.</p>
+        <p><strong>A luz.</strong> <code>GlowSpot</code> (mancha de luz) é um efeito do mundo, como o <code>Jet</code> do 06. Um efeito não percorre trilha: ele segue a estrela, com <code>center=lambda: estrela.center</code>. O alcance (<code>radius</code>) e o brilho (<code>amount</code>) se ligam a <code>st.voz</code>: em silêncio, uma luz pequena e fraca; quando você fala, ela cresce e acende.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 400 170" role="img" aria-label="À esquerda, o microfone, com mic.level; uma seta marcada cópia, a cada quadro, leva a st.voz, no meio; de st.voz saem três setas marcadas @=, para barra.width, luz.radius e luz.amount, à direita">
+            <rect class="bar child" x="8" y="64" width="92" height="42" rx="4"/>
+            <text x="20" y="82">microfone</text>
+            <text x="20" y="97">mic.level</text>
+            <line class="ray" x1="100" y1="85" x2="160" y2="85"/>
+            <line class="ray" x1="160" y1="85" x2="153" y2="80"/>
+            <line class="ray" x1="160" y1="85" x2="153" y2="90"/>
+            <text x="110" y="76">cópia</text>
+            <text x="108" y="104">a cada</text>
+            <text x="108" y="117">quadro</text>
+            <rect class="bar" x="160" y="68" width="70" height="34" rx="4"/>
+            <text x="174" y="89">st.voz</text>
+            <line class="ray" x1="230" y1="85" x2="290" y2="35"/>
+            <line class="ray" x1="290" y1="35" x2="286.5" y2="43.2"/>
+            <line class="ray" x1="290" y1="35" x2="281.3" y2="37"/>
+            <line class="ray" x1="230" y1="85" x2="290" y2="85"/>
+            <line class="ray" x1="290" y1="85" x2="283" y2="80"/>
+            <line class="ray" x1="290" y1="85" x2="283" y2="90"/>
+            <line class="ray" x1="230" y1="85" x2="290" y2="135"/>
+            <line class="ray" x1="290" y1="135" x2="281.3" y2="133"/>
+            <line class="ray" x1="290" y1="135" x2="286.5" y2="126.8"/>
+            <text x="240" y="50">@=</text>
+            <text x="250" y="80">@=</text>
+            <text x="240" y="130">@=</text>
+            <circle class="dot" cx="296" cy="35" r="3"/>
+            <circle class="dot" cx="296" cy="85" r="3"/>
+            <circle class="dot" cx="296" cy="135" r="3"/>
+            <text x="304" y="39">barra.width</text>
+            <text x="304" y="89">luz.radius</text>
+            <text x="304" y="139">luz.amount</text>
+          </svg>
+          <figcaption>Uma cópia, três fórmulas. O gravador copia o nível do microfone para <code>st.voz</code> a cada quadro; a barra e a luz estão ligadas a <code>st.voz</code> e mudam sozinhas.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Estúdio")
+Wallpaper("dark navy")
+
+LETRAS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTAS = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+st.voz = 0
+
+
+class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
+    def on_update(self, dt):
+        if keyp.once(self.letra):
+            self.tocar()
+
+    def tocar(self):
+        play_sound(gravador.som, pitch=self.nota, on_done=self.apagar)
+        self.color = "gold"
+
+    def apagar(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    tecla = Tecla(center=(94 + i * 116, 190))
+    tecla.letra = LETRAS[i]
+    tecla.nota = NOTAS[i]
+    Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+
+@click(group["teclas"])
+def clicou(tecla):
+    tecla.tocar()
+
+
+aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="silver")
+
+
+class Gravador(Circle, radius=10, color="dim gray"):
+    def setup(self):
+        self.mic = None
+        self.som = "audio/nota.wav"
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            self.gravar()
+        if self.mic:
+            st.voz = amp_db(self.mic.level)
+
+    def gravar(self):
+        if not self.mic:
+            self.mic = Microphone()
+        if self.mic.recording:
+            return
+        self.gravacao = self.mic.record(seconds=2, on_done=self.gravou)
+        self.color = "red"
+        aviso.text = "Fale!"
+
+    def gravou(self):
+        self.som = self.gravacao
+        self.color = "dim gray"
+        aviso.text = "As teclas tocam a sua voz. R grava de novo"
+
+
+gravador = Gravador(center=(975, 575))
+
+
+Rect(top_left=(20, 550), width=300, height=10, color="#262B55")
+barra = Rect(top_left=(20, 550), width=0, height=10, color="lime")
+barra["width"] @= lambda: 300 * st.voz
+
+
+trilha = Track.eight(width=760, height=140, center=(500, 470))
+estrela = Sprite("space/star_gold.png", size=32)
+estrela.move_along(trilha, time=8, loops="forever")
+luz = GlowSpot(center=lambda: estrela.center, color="gold")
+luz["radius"] @= lambda: 30 + 120 * st.voz
+luz["amount"] @= lambda: 0.3 + st.voz
+
+
+run()
+`,
+      try: [
+        {
+          note: "Outras trilhas, uma por vez, no lugar da linha da <code>trilha</code>: um círculo, uma estrela de cinco pontas, um caminho seu (pontos ligados por uma curva, de volta ao começo).",
+          replaces: ['trilha = Track'],
+          code: `trilha = Track.circle(radius=110, center=(500, 470))
+trilha = Track.star(points=5, radius=110, center=(500, 470))
+trilha = Track(points=[(120, 420), (360, 540), (640, 400), (880, 520)], closed=True)`
+        },
+        {
+          note: "A estrela também cresce com a voz (no fim do script):",
+          code: `estrela["scale"] @= lambda: 1 + st.voz`
+        }
+      ]
+    },
+    {
+      title: "Palmas",
+      example: "estudio_voz.py",
+      body: `
+        <p>Bata uma palma: um sol estoura onde a estrela está.</p>
+        <p><strong>Uma vez por palma.</strong> <code>@when(lambda: st.voz > 0.75)</code> é o <code>@when</code> do 01: roda <code>palma</code> uma vez, quando a condição passa de falsa para verdadeira. Enquanto o som continua alto, não roda de novo; a palma seguinte precisa de um silêncio antes. Um <code>update</code> que testasse <code>st.voz > 0.75</code> a cada quadro soltaria um sol por quadro.</p>
+        <p><strong>O sol.</strong> <code>Sunburst</code> (explosão de sol) é outro efeito do mundo. Ele nasce no lugar onde a estrela estava (<code>center=estrela.center</code>, sem <code>lambda</code>: o sol fica, a estrela segue) e é destruído 0,8 segundo depois, como as faíscas do 08.</p>
+        <p><strong>O número.</strong> 0,75 depende do seu microfone e da sala. Olhe o medidor: três quartos da barra. Se a palma não solta o sol, baixe (0,65); se ele estoura quando você só fala, suba.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Estúdio")
+Wallpaper("dark navy")
+
+LETRAS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTAS = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+st.voz = 0
+
+
+class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
+    def on_update(self, dt):
+        if keyp.once(self.letra):
+            self.tocar()
+
+    def tocar(self):
+        play_sound(gravador.som, pitch=self.nota, on_done=self.apagar)
+        self.color = "gold"
+
+    def apagar(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    tecla = Tecla(center=(94 + i * 116, 190))
+    tecla.letra = LETRAS[i]
+    tecla.nota = NOTAS[i]
+    Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+
+@click(group["teclas"])
+def clicou(tecla):
+    tecla.tocar()
+
+
+aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="silver")
+
+
+class Gravador(Circle, radius=10, color="dim gray"):
+    def setup(self):
+        self.mic = None
+        self.som = "audio/nota.wav"
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            self.gravar()
+        if self.mic:
+            st.voz = amp_db(self.mic.level)
+
+    def gravar(self):
+        if not self.mic:
+            self.mic = Microphone()
+        if self.mic.recording:
+            return
+        self.gravacao = self.mic.record(seconds=2, on_done=self.gravou)
+        self.color = "red"
+        aviso.text = "Fale!"
+
+    def gravou(self):
+        self.som = self.gravacao
+        self.color = "dim gray"
+        aviso.text = "As teclas tocam a sua voz. R grava de novo"
+
+
+gravador = Gravador(center=(975, 575))
+
+
+Rect(top_left=(20, 550), width=300, height=10, color="#262B55")
+barra = Rect(top_left=(20, 550), width=0, height=10, color="lime")
+barra["width"] @= lambda: 300 * st.voz
+
+
+trilha = Track.eight(width=760, height=140, center=(500, 470))
+estrela = Sprite("space/star_gold.png", size=32)
+estrela.move_along(trilha, time=8, loops="forever")
+luz = GlowSpot(center=lambda: estrela.center, color="gold")
+luz["radius"] @= lambda: 30 + 120 * st.voz
+luz["amount"] @= lambda: 0.3 + st.voz
+
+
+@when(lambda: st.voz > 0.75)
+def palma():
+    sol = Sunburst(center=estrela.center, radius=100)
+    sol.after(0.8, sol.destroy)
+
+
+run()
+`,
+      try: [
+        {
+          note: "Outros estouros, um por vez, no lugar das duas linhas do <code>Sunburst</code>: um <code>Orb</code> (um sol com coroa); um impacto do 05, que some sozinho (sem <code>destroy</code>); a tela que pisca.",
+          replaces: ['sol = Sunburst(', 'sol.after('],
+          code: `sol = Orb(center=estrela.center, radius=50)
+sol.after(0.8, sol.destroy)`
+        },
+        {
+          replaces: ['sol = Sunburst(', 'sol.after('],
+          code: `canvas.burst_at(estrela, radius=120)`
+        },
+        {
+          replaces: ['sol = Sunburst(', 'sol.after('],
+          code: `canvas.flash(0.2)`
+        }
+      ],
+      closing: `
+        <p>A S D F G H J K tocam as oito notas; um clique numa tecla também. R grava dois segundos da sua voz (na primeira vez, o sistema pede licença para usar o microfone), e depois as teclas tocam a gravação. A barra mostra quão alto você fala, a estrela dança num oito com uma luz que cresce com a voz, e uma palma solta um sol.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Microphone()</code> — abre o microfone; nada é captado antes. Na primeira vez, o sistema pede licença.</li>
+          <li><code>record(seconds=2, on_done=…)</code> — grava um som, que só toca depois que a gravação acaba; <code>play_sound</code> toca a gravação como um arquivo, com <code>pitch=</code>.</li>
+          <li><code>amp_db(self.mic.level)</code> — quão alto está o som agora, na escala do ouvido, de 0 a 1.</li>
+          <li><code>@=</code> — uma fórmula, não uma cópia: o Scena a refaz quando muda o que ela lê. O microfone o Scena não acompanha; por isso uma cópia por quadro em <code>st.voz</code>, e tudo o mais ligado a ela.</li>
+          <li><code>Track</code> e <code>move_along</code> — uma curva invisível, e um objeto que a percorre sozinho, volta após volta.</li>
+          <li><code>@when</code> sobre o nível — uma vez por palma, quando o som passa do limite.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#som-mic">Microphone</a> · <a href="../guide/index.html#som-audio">audio e amp_db</a> · <a href="../guide/index.html#som-fx">Efeitos de som</a> · <a href="../guide/index.html#reativo-fontes">O que pode ser ligado</a> · <a href="../guide/index.html#desenhar-track">Track</a> · <a href="../guide/index.html#mover-move-along">move_along</a> · <a href="../guide/index.html#desenhar-spatial">Efeitos no mundo</a>.</p>
+        <p><strong>Experimente também:</strong> ouvir a sua voz ao vivo, com um efeito: <code>play_sound(gravador.mic)</code> e <code>gravador.mic.effects.add(Echo())</code> (com fones de ouvido; sem eles, o som sai da caixa e volta para o microfone).</p>
+        <p><strong>No próximo:</strong> de volta às naves, com capítulos: a frota entra em formação, mergulha e volta.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

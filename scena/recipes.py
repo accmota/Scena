@@ -541,6 +541,7 @@ def _procedural_shader(
                 b.setUniform("u_origin", [float(cx), float(cy)])
                 la = _METAL_LIGHT_ANGLE if light_deg is None else float(light_deg)
                 b.setUniform("u_light", float(la))
+                b.setUniform("u_tint", _metal_tint(fill))
             except Exception:
                 pass
         fill._shader = b.makeShader()
@@ -5230,6 +5231,12 @@ class Gel(Recipe):
 
 
 
+def _metal_tint(fill) -> list:
+    """The metal shader's ``u_tint``: rgb + 1 for ``Metal(color)``, zeros (chrome) without."""
+    rgb = (getattr(fill, "_extra_rgb", None) or {}).get("tint")
+    return [0.0, 0.0, 0.0, 0.0] if rgb is None else [*rgb, 1.0]
+
+
 class Metal(Recipe):
     """Chrome: brushed metal fill + shared world light + chrome rim.
 
@@ -5237,7 +5244,8 @@ class Metal(Recipe):
     On ``Sprite``: fills the alpha silhouette (replaces the bitmap).
 
     Args:
-        color: Tint (any color form; default: follows the shape's own color).
+        color: Tint (any color form; default: chrome, whatever the shape's
+            own color — ``Metal("gold")`` for a gold metal).
         amount: Grain.
         speed: Shimmer speed (0 freezes the grain).
     """
@@ -5266,6 +5274,10 @@ class Metal(Recipe):
         self._fill = ProceduralFill(
             kind="metal", amount=self.amount, speed=fill_speed,
         )
+        if self._metal_seed is not None:
+            # The shader mixes its chrome palette toward the tint. Before
+            # 2026-10-09 the tint never reached it: Metal("gold") drew silver.
+            self._fill._extra_rgb = {"tint": tuple(float(c) for c in self._metal_seed.rgb[:3])}
         self._ready = True
 
     @property

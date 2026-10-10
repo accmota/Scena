@@ -214,10 +214,28 @@ def confine_graphic(
     self_frame = _self_frame_for_by(graphic, by)
     hw, hh = _effective_half_extents(rw, rh, by, self_frame, rang)
 
-    x, y = _graphic_center_xy(graphic)
+    # The point compared to the region: the pose ``center`` for by="center"
+    # (what the author placed), the drawn frame's middle for "box" /
+    # "overlap" (the extents are measured about it). A Sprite with a sheet
+    # anchor has the two apart (anchor="bottom": center is the feet), and
+    # ``_move_to`` places the pose point, so the correction is applied as a
+    # delta to it. Before (2026-10-09, tutorial 14), the drawn middle was
+    # written back as the feet: every clamp lifted the sprite by half its
+    # height, a frame at a time.
+    pose = getattr(type(graphic), "_move_to_xy", None)
+    if self_frame is not None:
+        x, y = self_frame[0], self_frame[1]
+    elif pose is None:
+        x, y = _graphic_center_xy(graphic)
+    else:
+        x, y = pose(graphic)
     nx, ny, sides, new_vel = _confine_point(
         x, y, rcx, rcy, hw, hh, rang, action, vel=vel_xy,
     )
+    if pose is not None and self_frame is not None:
+        px, py = pose(graphic)
+        nx, ny = px + (nx - x), py + (ny - y)
+        x, y = px, py
 
     if sides:
         move_to = getattr(graphic, "_move_to", None)

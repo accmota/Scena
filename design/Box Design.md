@@ -349,6 +349,17 @@ Returns a `frozenset` of region-**local** edges acted on this call
 A rotated region's `"left"` is its own local left — same orientation contract as
 `Grid` / `Box`.
 
+**A Sprite with a sheet anchor** (`Sheet(anchor="bottom")`, an atlas pivot,
+`clip(offset=)`): `center` is the pivot (the feet), not the middle of the
+drawing. `by="center"` checks that pivot; `"box"` / `"overlap"` measure the
+drawn `.box` about its own middle; either way the correction moves the pivot
+by the same amount (the pose writer places `center`). Before 2026-10-09 the
+drawn middle was written back as the pivot, so every clamp lifted an anchored
+sprite by half its height, a frame at a time (a ninja walking into the screen
+edge climbed to the top; tutorial 14). Guard: `tests/test_confine.py`
+`TestAnchoredSprite`. The pose point is read from the class
+(`type(g)._move_to_xy`), so a shape pays one type lookup.
+
 `by="box"` / `by="overlap"` on a Graphic with no `.box` (`Line`, free `Polygon`,
 `Track`, `Point`) raises the same `TypeError` as `graphic.box`.
 

@@ -111,6 +111,9 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | `audio/gameover.wav` | jivatma07 | https://freesound.org/s/173859/ |
 | `audio/fx1.wav` | LilMati | https://freesound.org/s/365782/ |
 | `audio/fx2.wav` | Mountain_Man | https://freesound.org/s/382310/ |
+| `audio/nota.wav` | made for Scena (synthesized by a script) | this repository; see `audio/License.txt` |
+| `synth/` | made for Scena (synthesized by a script) | this repository; see `synth/license.txt` |
+| `levels/` | made for Scena (level files) | this repository; see `levels/license.txt` |
 
 ## Adding media
 

@@ -235,6 +235,78 @@ class TestErrorsAndDegenerate(ConfineTestCase):
         self.assertEqual(sides, frozenset({"right"}))
 
 
+class TestAnchoredSprite(ConfineTestCase):
+    """A Sprite whose sheet has an anchor: ``center`` is the pivot, not the
+    middle of the drawing (anchor="bottom" puts it at the feet).
+
+    Bug (2026-10-09, tutorial 14): confine compared the drawn middle and wrote
+    it back as the pivot, so every clamp lifted the sprite by half its height.
+    A ninja walking into the screen edge climbed ~1900 units/s to the top.
+    Bug class: a pose writer fed a point measured in another frame (drawn box
+    vs pivot). Every by= and action= is checked against the anchor.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import tempfile
+        from tests.test_sprite import _write_padded_png
+        cls._td = tempfile.TemporaryDirectory()
+        cls.png = os.path.join(cls._td.name, "bar.png")
+        _write_padded_png(cls.png, canvas_w=64, canvas_h=64, blob=(24, 8, 16, 48))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._td.cleanup()
+
+    def sprite(self, anchor, center):
+        import warnings
+        from scena import Sheet, Sprite
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return self.track(Sprite(Sheet(self.png, anchor=anchor), center=center,
+                                     width=64, height=64))
+
+    def test_clamp_keeps_the_pivot_off_the_edge_and_does_not_lift(self):
+        play = Box(center=(500, 400), width=1000, height=800)
+        for anchor in ("center", "bottom", "top"):
+            with self.subTest(anchor=anchor):
+                s = self.sprite(anchor, (990, 300))
+                for _ in range(30):
+                    s.move_by(5, -5)
+                    s.confine(play)
+                self.assertAlmostEqual(float(s.center.x), 1000.0)
+                self.assertAlmostEqual(float(s.center.y), 150.0)      # kept falling
+
+    def test_by_box_and_overlap_measure_the_drawn_box(self):
+        play = Box(center=(500, 400), width=1000, height=800)
+        for anchor in ("center", "bottom"):
+            for by, right in (("box", 1000.0), ("overlap", 1064.0)):
+                with self.subTest(anchor=anchor, by=by):
+                    s = self.sprite(anchor, (1200, 300))
+                    s.confine(play, by=by)
+                    self.assertAlmostEqual(float(s.box.right), right)
+                    self.assertAlmostEqual(float(s.center.y), 300.0)
+
+    def test_by_box_at_the_floor_puts_the_feet_on_it(self):
+        s = self.sprite("bottom", (500, -40))
+        s.confine(Box(center=(500, 400), width=1000, height=800), by="box")
+        self.assertAlmostEqual(float(s.box.bottom), 0.0)
+        self.assertAlmostEqual(float(s.center.y), 0.0)                # the feet
+
+    def test_wrap_and_bounce_move_the_pivot_by_the_correction(self):
+        from scena import Vec2
+        play = Box(center=(500, 400), width=1000, height=800)
+        s = self.sprite("bottom", (1010, 300))
+        self.assertEqual(s.confine(play, action="wrap"), frozenset({"right"}))
+        self.assertAlmostEqual(float(s.center.x), 10.0)
+        self.assertAlmostEqual(float(s.center.y), 300.0)
+        b = self.sprite("bottom", (500, 820))
+        b.vel = Vec2(0, 100)
+        self.assertEqual(b.confine(play, action="bounce"), frozenset({"top"}))
+        self.assertAlmostEqual(float(b.center.y), 800.0)
+        self.assertAlmostEqual(float(b.vel.y), -100.0)
+
+
 class TestPureHelpers(unittest.TestCase):
     def test_projected_half_axis_aligned(self):
         pw, ph = _projected_half(20, 10, 0, 0)

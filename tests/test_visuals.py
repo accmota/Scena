@@ -1769,6 +1769,35 @@ class TestVisuals(unittest.TestCase):
         self.assertAlmostEqual(frozen._fill.speed, 0.0)
         self.assertIsNot(frozen, Metal(speed=1.0))
 
+    def test_metal_color_tints_the_metal(self):
+        """``Metal("crimson")`` draws red metal; ``Metal()`` stays chrome.
+
+        Bug (2026-10-09, tutorial 23): the tint never reached the shader, so
+        ``Metal("gold")`` drew silver though the Guia says ``color`` is the
+        metal's color. ``Metal()`` stays chrome on any shape color (every
+        published Metal is chrome).
+        """
+        def mean_rgb(visual, color=None):
+            c = Circle(center=(64, 64), radius=40)
+            if color is not None:
+                c.color = color
+            c.visual = visual
+            surf = skia.Surface(128, 128)
+            cnv = surf.getCanvas()
+            cnv.clear(skia.ColorBLACK)
+            c.draw(cnv)
+            px = surf.makeImageSnapshot().toarray(colorType=skia.kRGBA_8888_ColorType)
+            c.destroy()
+            core = px[44:84, 44:84, :3].reshape(-1, 3).mean(axis=0)
+            return [float(v) for v in core]
+
+        r, g, b = mean_rgb(Metal("crimson", speed=0))
+        self.assertGreater(r, g + 40, (r, g, b))
+        self.assertGreater(r, b + 30, (r, g, b))
+        for chrome in (mean_rgb(Metal(speed=0)), mean_rgb(Metal(speed=0), color="crimson")):
+            self.assertLess(max(chrome) - min(chrome), 25, chrome)    # gray, whatever the shape
+        self.assertIsNot(Metal("gold"), Metal("crimson"))
+
     def test_tail_size_scales_span(self):
         """size drives ghost spacing (span = 22 × size)."""
         small = Tail(angle=45, size=0.5)

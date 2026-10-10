@@ -1,0 +1,9 @@
+ninja.json, ninja_perigos.json
+
+A level file for the Ninja tutorials (21 and 22), made for Scena (written
+by a script in the level editor's own format). Creative Commons Zero (CC0) /
+Public Domain: use it freely, no credit needed.
+https://creativecommons.org/publicdomain/zero/1.0/
+
+The images it places come from tilesets/ (GameArt2D, CC0); see
+tilesets/licence.txt.

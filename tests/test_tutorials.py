@@ -94,6 +94,20 @@ _ANCHORS = re.compile(r'"([^"]*)"|\'([^\']*)\'')
 # inside an anchor (``'folha.clip("voando", [0, 1]'``) does not end the list.
 _LIST_REST = re.compile(r'\s*((?:\'[^\']*\'|"[^"]*")(?:\s*,\s*(?:\'[^\']*\'|"[^"]*"))*)\s*\]')
 _CODE = re.compile(r"\bcode:\s*`((?:\\.|[^`\\])*)`", re.S)
+# A program's last line: ``run()``, or ``run(Fase)`` in a game made of acts
+# (tutorial 20 on). A box never has one at column 0.
+_RUN = re.compile(r"^run\(\w*\)[ \t]*$", re.M)
+
+
+def is_program(src: str) -> bool:
+    """``src`` ends a whole program (has a top-level ``run(…)`` line)."""
+    return _RUN.search(src) is not None
+
+
+def append_snippet(code: str, snippet: str) -> str:
+    """The step with ``snippet`` added just before its ``run(…)`` line."""
+    last = list(_RUN.finditer(code))[-1]
+    return code[:last.start()] + "\n" + snippet + "\n" + code[last.start():]
 
 
 def _read(path: str) -> str:
@@ -133,7 +147,7 @@ def extract_steps(path: str) -> List[Step]:
                 replaces = [a or b for a, b in _ANCHORS.findall(rest.group(1))] if rest else []
             continue
         src = _unescape(m.group(3))
-        if in_try and steps and "run()" not in src:
+        if in_try and steps and not is_program(src):
             steps[-1].tries.append((line, src))
             if replaces is not None:
                 steps[-1].places[line] = replaces
@@ -298,7 +312,7 @@ def run_all() -> List[str]:
                     if frag:
                         fragment_failures.append(f"{page}:{tline}: try: {frag}")
                     continue
-                program = step.code.replace("run()", "") + "\n" + snippet + "\nrun()\n"
+                program = append_snippet(step.code, snippet)
                 jobs.append((f"{page}:{tline}: try", program, snippet, step.code))
 
     failures = fragment_failures
@@ -344,7 +358,7 @@ class TestTutorialExtraction(unittest.TestCase):
                     "an example: field the extractor did not attach to a step")
                 self.assertGreater(len(steps), 2)
                 for step in steps:
-                    self.assertIn("run()", step.code)
+                    self.assertTrue(is_program(step.code), f"{os.path.basename(path)}:{step.line}: no run(…) line")
 
     def test_fragment_check_catches_an_unknown_call(self):
         self.assertIsNone(_check_fragment("return Neon()", "def f():\n    pass\n"))
@@ -362,6 +376,23 @@ class TestTutorialExtraction(unittest.TestCase):
         self.assertFalse(_reads_a_local("inimigo = 2", program),
                          "a name the top level also binds runs as a program")
         self.assertFalse(_reads_a_local("return", program))
+
+    def test_a_game_of_acts_ends_in_run_with_its_first_act(self):
+        # Tutorial 20 (2026-10-09): ``run(Fase)`` / ``run(Titulo)``. The
+        # extractor took a step without a bare ``run()`` for a box of the
+        # step before, and an appended box went after ``run(Titulo)``.
+        html = ("steps: [ { code: `from scena import *\nrun()\n`, try: [ { code: `x = 1` } ] },\n"
+                "{ code: `from scena import *\nclass Fase(Act):\n    pass\n\nrun(Fase)\n` } ]")
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "99-x.html")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(html)
+            steps = extract_steps(path)
+        self.assertEqual(len(steps), 2)
+        self.assertEqual([src for _line, src in steps[0].tries], ["x = 1"])
+        self.assertTrue(is_program(steps[1].code))
+        self.assertFalse(is_program("    run(Fase)\nfase.run()"))
+        self.assertTrue(append_snippet(steps[1].code, "x = 1").endswith("\nx = 1\nrun(Fase)\n"))
 
     def test_strip_docstring(self):
         self.assertEqual(strip_docstring('"""Doc.\n\nMore.\n"""\n\nfrom scena import *\n'),
@@ -567,7 +598,14 @@ from scena.orchestration import ScenaFramework
 
 def headless_run(first_act=None):
     fw = ScenaFramework.get_instance()
-    fw.set_auto_callbacks(inspect.currentframe().f_back.f_globals)
+    names = inspect.currentframe().f_back.f_globals
+    fw.set_auto_callbacks(names)
+    # A game of acts (tutorial 20) opens on its title: start at the act whose
+    # code moves the fleet, as a player who pressed "Jogar" would.
+    for value in list(names.values()):
+        if (isinstance(value, type) and issubclass(value, scena.Act) and value is not scena.Act
+                and MARKER in inspect.getsource(value)):
+            first_act = value
     fw._begin_game(first_act)
     last, flips, hitch = float(scena.st.velocidade), 0, True
     for _ in range(60 * 20):
@@ -589,11 +627,13 @@ runpy.run_path(sys.argv[1], run_name="__main__")
 class TestFleetBounce(unittest.TestCase):
     """Tutorial 05's fleet turns at the edges once per crossing, even after a short frame."""
 
+    MARKER = 'group["inimigos"].move_by(st.velocidade'
+
     def _flips(self, script: str) -> int:
         with tempfile.TemporaryDirectory() as folder:
             driver = os.path.join(folder, "bounce_driver.py")
             with open(driver, "w", encoding="utf-8") as f:
-                f.write(f"ROOT = {ROOT!r}\n" + _BOUNCE_DRIVER)
+                f.write(f"ROOT = {ROOT!r}\nMARKER = {self.MARKER!r}\n" + _BOUNCE_DRIVER)
             p = subprocess.run([sys.executable, driver, script], capture_output=True,
                                encoding="utf-8", errors="replace", timeout=TIMEOUT,
                                env={**os.environ, "PYTHONIOENCODING": "utf-8"})
@@ -603,7 +643,7 @@ class TestFleetBounce(unittest.TestCase):
 
     def test_fleet_does_not_stick_at_the_edge(self):
         # 20 s at 80 u/s over a 290-unit lane: about 6 turns. A stuck fleet turns every frame.
-        marker = 'group["inimigos"].move_by(st.velocidade'
+        marker = self.MARKER
         # game_*.py are learners' games (no ``if nave:``: the update stops once the ship dies).
         # Labels in "/" form on every OS (os.path.relpath gives "\\" on Windows).
         programs = [(os.path.relpath(p, ROOT).replace(os.sep, "/"), p) for p in iter_files(EXAMPLES, ".py", recursive=True)

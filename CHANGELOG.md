@@ -10,6 +10,36 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
+## Unreleased
+
+### Fixed
+
+- `confine` on a `Sprite` whose sheet has an anchor (`Sheet(anchor="bottom")`,
+  an atlas pivot) keeps `center` (the feet) on the edge. Before, each clamp
+  lifted the sprite by half its height: a platformer hero walking into the
+  screen edge climbed to the top. `by="box"` / `"overlap"` measure the drawn
+  box, as documented.
+- `Metal("gold")` draws gold metal. Before, the color was ignored and every
+  `Metal` was chrome. `Metal()` without a color stays chrome, whatever the
+  shape's own color.
+
+### Documentation
+
+- Tutorials 14–23 (Portuguese): Ninja (gravity by hand, `resolve`,
+  `touching_sides`, clips of different sizes), Ninja II (a world: `recently`,
+  stars, robots, kunai, lives), Ligue 4 (a board game: `Box` / `grid`, drag and
+  drop with `@drag_to`, `move_to(time=)`), Estúdio · Piano (`pitch=`),
+  Estúdio II · Voz (the microphone, `@=` in depth, `Track` and `move_along`),
+  Naves V (modes, `async` / `wait`, a boss), Naves VI (acts: title, restart,
+  game over, record, `until_empty`), Ninja III (a level made in the level
+  editor, `Level`, a camera that follows, `pan_response`), Ninja IV (one-way
+  planks, `floor_below`, a hurtbox, electric rays, restart with an act) and
+  Corredor infinito (`Endless` building a collidable world under a moving
+  camera). Each ends in a new file in `examples/`.
+- New media, all CC0 and made for Scena: `synth/` (jump, coin and throw
+  sounds), `audio/nota.wav` (a piano note) and `levels/` (the Ninja III and IV
+  level files, made with the level editor's own format).
+
 ## 0.7.1 — 2026-10-09
 
 ### Fixed

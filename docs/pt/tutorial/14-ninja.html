@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ninja — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "14",
+  title: "Ninja",
+  steps: [
+    {
+      title: "O chão e as plataformas",
+      body: `
+        <p>Outro jogo: um ninja que anda, pula e cai. É um jogo de plataforma, e este tutorial é sobre o que todo jogo de plataforma precisa: <strong>gravidade</strong> e <strong>chão</strong>. Primeiro, o cenário.</p>
+        <p><strong>O fundo.</strong> Como no 11, o espaço do jogo tem o tamanho da imagem do fundo: <code>init(width=1000, height=750)</code>, e o <code>Wallpaper</code> com o arquivo cobre a tela inteira.</p>
+        <p><strong>O chão em peças.</strong> A arte do chão vem em <strong>peças</strong> (<em>tiles</em>, ladrilhos): quadrados de 128 pixels, desenhados para se encaixar lado a lado. O <code>for</code> põe 13 peças de 80 de altura, uma ao lado da outra: os centros vão de x = 40 a x = 1000, de 80 em 80. Todas entram no grupo <code>chao</code>.</p>
+        <p><strong>Plataformas.</strong> Uma plataforma solta no ar tem três peças: a ponta esquerda (<code>13.png</code>), o meio (<code>14.png</code>) e a ponta direita (<code>15.png</code>). A função <code>plataforma(x, y)</code> monta as três em volta do ponto (x, y); duas chamadas, duas plataformas. Elas também vão para o grupo <code>chao</code>: para o ninja, tudo isso é chão.</p>
+        <p>O ninja, por enquanto, é um sprite parado. O chão termina em y = 80, e o centro do ninja está 44 acima (metade da altura dele): de pé.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+for i in range(13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+
+
+def plataforma(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="chao")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="chao")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="chao")
+
+
+plataforma(360, 220)
+plataforma(720, 390)
+
+heroi = Sprite("ninja/Idle__000.png", height=88, center=(100, 124))
+
+
+run()
+`
+    },
+    {
+      title: "Gravidade",
+      body: `
+        <p>O ninja vai ganhar comportamento, então vira uma classe, como o <code>Aviao</code> do 11: <code>Heroi</code>, com a imagem e a altura na linha da classe. Ele começa no alto (y = 400), para a queda aparecer.</p>
+        <p><strong>A velocidade.</strong> Como a bola do 09, o ninja tem uma <code>vel</code>: uma seta que diz quanto ele anda por segundo. Ela nasce parada, <code>Vec2(0, 0)</code>, no <code>setup</code>. A cada quadro, o <code>on_update</code> anda o pedaço da seta que cabe naquele quadro: <code>vel.y * dt</code>.</p>
+        <p><strong>A gravidade.</strong> Uma linha: <code>self.vel.y -= 2200 * dt</code>. A cada segundo, a velocidade para baixo cresce 2200; a cada quadro (um sexagésimo de segundo), um pouco mais de 36. Por isso a queda começa devagar e vai acelerando. O Scena não tem uma gravidade pronta: são estas duas linhas, e o número é seu.</p>
+        <p><strong>Um pulo é uma velocidade.</strong> A mesma linha explica o pulo, que vem daqui a pouco: dar ao ninja 900 de <code>vel.y</code>, para cima. A gravidade gasta essa velocidade aos poucos; quando ela chega a zero, o ninja está no alto; daí em diante, a mesma conta a faz crescer para baixo, e ele desce.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 410 235" role="img" aria-label="Os pontos de um pulo, a cada décimo de segundo, desenham um arco; em cada ponto, uma seta vertical: grande para cima no começo, cada vez menor, nenhuma no alto, e depois para baixo, cada vez maior">
+            <line class="ray" x1="20" y1="175" x2="400" y2="175"/>
+            <circle class="dot" cx="100" cy="175" r="3"/>
+            <line class="ray" x1="100" y1="175" x2="100" y2="126"/>
+            <line class="ray" x1="100" y1="126" x2="97" y2="130"/>
+            <line class="ray" x1="100" y1="126" x2="103" y2="130"/>
+            <circle class="dot" cx="128" cy="125" r="3"/>
+            <line class="ray" x1="128" y1="125" x2="128" y2="88"/>
+            <line class="ray" x1="128" y1="88" x2="125" y2="92"/>
+            <line class="ray" x1="128" y1="88" x2="131" y2="92"/>
+            <circle class="dot" cx="155" cy="89" r="3"/>
+            <line class="ray" x1="155" y1="89" x2="155" y2="64"/>
+            <line class="ray" x1="155" y1="64" x2="152" y2="68"/>
+            <line class="ray" x1="155" y1="64" x2="158" y2="68"/>
+            <circle class="dot" cx="182" cy="68" r="3"/>
+            <line class="ray" x1="182" y1="68" x2="182" y2="56"/>
+            <line class="ray" x1="182" y1="56" x2="179" y2="60"/>
+            <line class="ray" x1="182" y1="56" x2="185" y2="60"/>
+            <circle class="dot" cx="210" cy="61" r="3"/>
+            <circle class="dot" cx="238" cy="68" r="3"/>
+            <line class="ray" x1="238" y1="68" x2="238" y2="80"/>
+            <line class="ray" x1="238" y1="80" x2="235" y2="76"/>
+            <line class="ray" x1="238" y1="80" x2="241" y2="76"/>
+            <circle class="dot" cx="265" cy="89" r="3"/>
+            <line class="ray" x1="265" y1="89" x2="265" y2="114"/>
+            <line class="ray" x1="265" y1="114" x2="262" y2="110"/>
+            <line class="ray" x1="265" y1="114" x2="268" y2="110"/>
+            <circle class="dot" cx="292" cy="125" r="3"/>
+            <line class="ray" x1="292" y1="125" x2="292" y2="162"/>
+            <line class="ray" x1="292" y1="162" x2="289" y2="158"/>
+            <line class="ray" x1="292" y1="162" x2="295" y2="158"/>
+            <circle class="dot" cx="320" cy="175" r="3"/>
+            <line class="ray" x1="320" y1="175" x2="320" y2="224"/>
+            <line class="ray" x1="320" y1="224" x2="317" y2="220"/>
+            <line class="ray" x1="320" y1="224" x2="323" y2="220"/>
+
+            <text x="8" y="140">vel.y = 900</text>
+            <text x="182" y="48">vel.y = 0</text>
+            <text x="328" y="216">vel.y = −900</text>
+            <text x="24" y="192">chão</text>
+            <text x="262" y="72">−2200 por segundo</text>
+          </svg>
+          <figcaption>O ninja a cada décimo de segundo de um pulo, e a sua <code>vel.y</code> (as setas). A gravidade tira 2200 por segundo: a seta encolhe na subida, some no alto e cresce na descida.</figcaption>
+        </figure>
+
+        <p>Rode: o ninja cai, atravessa o chão e some. As peças são só desenho; ainda não seguram ninguém.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+for i in range(13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+
+
+def plataforma(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="chao")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="chao")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="chao")
+
+
+plataforma(360, 220)
+plataforma(720, 390)
+
+
+class Heroi(Sprite, source="ninja/Idle__000.png", height=88):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        self.vel.y -= 2200 * dt
+        self.move_by(0, self.vel.y * dt)
+
+
+heroi = Heroi(center=(100, 400))
+
+
+run()
+`,
+      try: [
+          {
+            note: "Um por vez, no lugar do 2200. Com 1000, a queda é lenta, como na Lua; com 4000, o ninja pesa.",
+            replaces: ['self.vel.y -= 2200'],
+            code: `self.vel.y -= 1000 * dt
+self.vel.y -= 4000 * dt`
+          }
+        ]
+    },
+    {
+      title: "O chão segura",
+      body: `
+        <p>É a regra do 09: <code>resolve("heroi", "chao", bounce=0)</code>. Herói e chão <strong>não se atravessam</strong>: quando o ninja chega ao chão, o Scena o para no ponto do toque. O ninja entra no grupo <code>heroi</code>, na linha da classe, para a regra o achar. <code>group["chao"].mass = STATIC</code> faz o chão não ceder; sem isso, o ninja empurraria as peças.</p>
+        <p><strong>Por que bounce=0.</strong> Sem <code>bounce</code> (quique), o <code>resolve</code> só corrige a posição: o ninja para em cima do chão, mas a sua <code>vel.y</code> continua crescendo para baixo, 2200 a cada segundo parado. Ao sair da beirada de uma plataforma, ele despencaria de uma vez, com toda a velocidade guardada. Com <code>bounce=0</code>, a parte da velocidade que entra no chão vira zero a cada toque: parado no chão, a <code>vel.y</code> é 0. Na bola do 09, o <code>bounce</code> era 1: ela saía com a mesma força com que batia.</p>
+        <p><strong>A caixa dos pés.</strong> Quem colide não é o desenho, é uma forma calculada a partir dele, a <em>hitbox</em> (caixa de colisão). <code>Ctrl+Shift+7</code> mostra as formas. Sem pedir nada, o Scena escolhe a forma que mais se parece com a figura, e prefere errar para dentro; para o ninja, é uma elipse estreita que deixa os pés de fora, e eles afundam na grama. <code>hitbox_shape="rect"</code> (forma: retângulo) pede uma caixa que cobre o desenho, de base reta: os pés pisam na grama, e uma base reta não escorrega na beirada. É a forma de quem anda sobre um chão.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+for i in range(13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+
+
+def plataforma(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="chao")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="chao")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="chao")
+
+
+plataforma(360, 220)
+plataforma(720, 390)
+group["chao"].mass = STATIC
+
+
+class Heroi(Sprite, source="ninja/Idle__000.png", height=88, group="heroi", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        self.vel.y -= 2200 * dt
+        self.move_by(0, self.vel.y * dt)
+
+
+resolve("heroi", "chao", bounce=0)
+
+heroi = Heroi(center=(100, 400))
+
+
+run()
+`
+    },
+    {
+      title: "Andar",
+      body: `
+        <p>As setas mudam a <code>vel.x</code>: −280 para a esquerda, 280 para a direita e 0 sem seta. O <code>move_by</code> agora usa as duas partes da seta, como a bola do 09; o <code>resolve</code> continua segurando.</p>
+        <p><strong>Para que lado olha.</strong> O desenho do ninja olha para a direita. <code>flip_x = True</code> (espelhar no x) o vira para a esquerda; <code>False</code>, de volta. Sem seta, ninguém muda o <code>flip_x</code>: o ninja fica olhando para o último lado em que andou.</p>
+        <p><strong>As bordas.</strong> Andando, o ninja sairia da tela. Duas paredes o seguram: um <code>Rect</code> alto de cada lado, logo além da borda (por isso não aparecem), também no grupo <code>chao</code>. O <code>resolve</code> segura o ninja nelas do mesmo jeito que no chão; quem é sólido para ele está nesse grupo.</p>
+        <p>Ande até debaixo de uma plataforma: ainda não dá para subir.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+for i in range(13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+
+
+def plataforma(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="chao")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="chao")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="chao")
+
+
+plataforma(360, 220)
+plataforma(720, 390)
+Rect(center=(-20, 375), width=40, height=750, group="chao")
+Rect(center=(1020, 375), width=40, height=750, group="chao")
+group["chao"].mass = STATIC
+
+
+class Heroi(Sprite, source="ninja/Idle__000.png", height=88, group="heroi", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+resolve("heroi", "chao", bounce=0)
+
+heroi = Heroi(center=(100, 400))
+
+
+run()
+`
+    },
+    {
+      title: "Pular",
+      body: `
+        <p>O pulo é o da figura do passo 2: <code>self.vel.y = 900</code>, e a gravidade faz o resto. <code>keyp.once("UP")</code> (do 01) só vale no quadro em que a seta é apertada: segurar a seta não pula de novo.</p>
+        <p><strong>Só no chão.</strong> Sem mais nada, o ninja pularia também no ar, quantas vezes quisesse, e subiria até o céu. <code>self.touching_sides</code> (os lados que tocam) diz quais lados do ninja encostam em algo sólido, segundo as regras de <code>resolve</code>: <code>"bottom"</code> (embaixo), <code>"top"</code> (em cima), <code>"left"</code> (esquerda) e <code>"right"</code> (direita). De pé no chão, tem <code>"bottom"</code>; no ar, nenhum. <code>no_chao = "bottom" in self.touching_sides</code> faz a pergunta uma vez e lhe dá um nome.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 360 215" role="img" aria-label="Uma caixa, o ninja, de pé num chão e encostada numa parede à direita; os quatro lados da caixa têm nome: top em cima, bottom embaixo, left à esquerda, right à direita; os lados bottom e right estão marcados, porque encostam em algo">
+            <rect class="bar child" x="20" y="160" width="320" height="22" rx="3"/>
+            <rect class="bar child" x="250" y="30" width="26" height="130" rx="3"/>
+            <rect class="bar" x="170" y="68" width="80" height="92" rx="3"/>
+            <text x="198" y="60">"top"</text>
+            <text x="120" y="118">"left"</text>
+            <text x="284" y="118">"right"</text>
+            <text x="186" y="176">"bottom"</text>
+            <circle class="hot" cx="210" cy="160" r="5"/>
+            <circle class="hot" cx="250" cy="114" r="5"/>
+            <text x="40" y="205">touching_sides: "bottom" e "right"</text>
+          </svg>
+          <figcaption>Os quatro lados do ninja. Aqui, ele pisa no chão e encosta numa parede: <code>touching_sides</code> tem <code>"bottom"</code> e <code>"right"</code>. No ar, longe de tudo, não tem nenhum.</figcaption>
+        </figure>
+
+        <p><strong>A cabeça.</strong> Pule debaixo de uma plataforma: a cabeça bate (<code>"top"</code>) e o ninja cai de volta. É o mesmo <code>bounce=0</code>: a parte da velocidade que entrava na plataforma vira zero.</p>
+        <p><strong>A altura.</strong> A 900, o pulo sobe uns 184 (900 × 900 ÷ 2 ÷ 2200). A primeira plataforma está 169 acima do chão, e a segunda, 170 acima da primeira: dá, com pouca folga. Pule de longe e correndo; subindo bem debaixo dela, a cabeça bate. O pulo toca um som.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+for i in range(13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+
+
+def plataforma(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="chao")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="chao")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="chao")
+
+
+plataforma(360, 220)
+plataforma(720, 390)
+Rect(center=(-20, 375), width=40, height=750, group="chao")
+Rect(center=(1020, 375), width=40, height=750, group="chao")
+group["chao"].mass = STATIC
+
+
+class Heroi(Sprite, source="ninja/Idle__000.png", height=88, group="heroi", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        no_chao = "bottom" in self.touching_sides
+        if keyp.once("UP") and no_chao:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+resolve("heroi", "chao", bounce=0)
+
+heroi = Heroi(center=(100, 400))
+
+
+run()
+`,
+      try: [
+          {
+            note: "Um por vez, no lugar do 900. Com 700, o pulo não alcança a primeira plataforma; com 1100, sobra altura.",
+            replaces: ['self.vel.y = 900'],
+            code: `self.vel.y = 700
+self.vel.y = 1100`
+          }
+        ]
+    },
+    {
+      title: "Correr e pular de verdade",
+      example: "ninja.py",
+      body: `
+        <p>O ninja tem dez desenhos para cada movimento, cada um num arquivo: <code>Idle__000.png</code> a <code>Idle__009.png</code> (parado), <code>Run__000.png</code> a <code>Run__009.png</code> (correndo), <code>Jump__000.png</code> a <code>Jump__009.png</code> (pulando). No 11, o avião tinha três arquivos, escritos um por um; aqui são trinta.</p>
+        <p><strong>Um padrão.</strong> O <code>*</code> (qualquer coisa no lugar) pega todos os arquivos que casam, em ordem: <code>"ninja/Idle__*.png"</code> são os dez do parado. <code>strip</code> (faixa) acrescenta à folha uma animação: o nome do clip, os arquivos e o <code>fps</code>. A folha começa vazia, <code>Sheet(…)</code> sem arquivo, e ganha uma linha por animação. O resto do nome vale letra por letra: <code>"ninja/Jump__*.png"</code> não pega <code>Jump_Throw__000.png</code> (pular jogando).</p>
+        <p><strong>Tamanhos diferentes.</strong> Os desenhos não têm o mesmo tamanho: o parado tem 439 pixels de altura, o correndo 458, o pulando 483, e as larguras mudam mais ainda. Dois ajustes na folha resolvem. <code>pixel_size=0.2</code> (tamanho do pixel): cada pixel do desenho vale 0,2 no jogo, então o parado fica com 88 e o pulando com 97, cada desenho no seu tamanho de verdade; o <code>height=</code> sai da classe. <code>anchor="bottom"</code> (âncora embaixo): o <code>center</code> do ninja passa a ser o meio da base de cada desenho, os pés. Trocar de desenho não tira o ninja do chão.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 380 165" role="img" aria-label="Três retângulos de tamanhos diferentes, o parado, o correndo e o pulando, apoiados na mesma linha; um ponto marca o meio da base de cada um, que é o center">
+            <line class="guide" x1="20" y1="130" x2="360" y2="130"/>
+            <rect class="bar" x="57" y="42" width="46" height="88" rx="3"/>
+            <rect class="bar" x="153" y="38" width="73" height="92" rx="3"/>
+            <rect class="bar" x="264" y="33" width="72" height="97" rx="3"/>
+            <circle class="hot" cx="80" cy="130" r="4"/>
+            <circle class="hot" cx="190" cy="130" r="4"/>
+            <circle class="hot" cx="300" cy="130" r="4"/>
+            <text x="48" y="28">parado 88</text>
+            <text x="148" y="28">correndo 92</text>
+            <text x="262" y="24">pulando 97</text>
+            <text x="110" y="152">center = os pés, em todos</text>
+          </svg>
+          <figcaption>Com <code>pixel_size=0.2</code>, cada desenho fica no seu tamanho. Com <code>anchor="bottom"</code>, todos se apoiam no mesmo ponto: o <code>center</code> é o meio da base.</figcaption>
+        </figure>
+
+        <p><strong>Qual clip.</strong> No fim do <code>on_update</code>, o estado escolhe: no ar, <code>"pulando"</code>; no chão e andando, <code>"correndo"</code>; senão, <code>"parado"</code>. Pedir o clip que já está tocando não o reinicia, então dá para pedir a cada quadro.</p>
+        <p><strong>A caixa não muda.</strong> A hitbox é calculada uma vez, no primeiro desenho do primeiro clip (o parado), e fica assim: o ninja não cresce quando pula, nem fica mais largo quando corre.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+for i in range(13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
+
+
+def plataforma(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="chao")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="chao")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="chao")
+
+
+plataforma(360, 220)
+plataforma(720, 390)
+Rect(center=(-20, 375), width=40, height=750, group="chao")
+Rect(center=(1020, 375), width=40, height=750, group="chao")
+group["chao"].mass = STATIC
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        no_chao = "bottom" in self.touching_sides
+        if keyp.once("UP") and no_chao:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+
+resolve("heroi", "chao", bounce=0)
+
+heroi = Heroi(center=(100, 400))
+
+
+run()
+`,
+      try: [
+          {
+            note: "No ar, o ninja plana em vez de pular: os arquivos Glide_000.png a Glide_009.png (planar; o nome tem um sublinhado só). No lugar da linha do pulando:",
+            replaces: ['ninja.strip("pulando"'],
+            code: `ninja.strip("pulando", "ninja/Glide_*.png", fps=10)`
+          }
+        ],
+      closing: `
+        <p>Setas para os lados andam; seta para cima pula, só com os pés no chão. O ninja corre, pula e cai com a gravidade, pisa no chão e nas plataformas e bate a cabeça embaixo delas.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>vel.y -= 2200 * dt</code> — a gravidade à mão: a velocidade para baixo cresce a cada quadro. Um pulo é uma velocidade para cima que ela gasta.</li>
+          <li><code>resolve</code> com <code>bounce=0</code> e <code>STATIC</code> — o chão segura o ninja e zera a velocidade que entra nele.</li>
+          <li><code>hitbox_shape="rect"</code> — a caixa de colisão de base reta, para quem anda sobre um chão.</li>
+          <li><code>touching_sides</code> — quais lados encostam em algo sólido; <code>"bottom"</code> é estar no chão.</li>
+          <li><code>flip_x</code> — espelha o desenho: o ninja olha para o lado em que anda.</li>
+          <li><code>strip</code> com <code>*</code>, <code>pixel_size</code> e <code>anchor="bottom"</code> — uma animação por linha, de arquivos de tamanhos diferentes, cada um no seu tamanho e com os pés no chão.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#colisao-resolve">Tornar sólido</a> · <a href="../guide/index.html#colisao-touching">Tocando</a> · <a href="../guide/index.html#spr-hit">Hitbox do Sprite</a> · <a href="../guide/index.html#sprite-carregar">Carregar sprites</a> · <a href="../guide/index.html#sprite-animar">Animar sprites</a> · <a href="../guide/index.html#sprite-orientar">Orientar sprites</a>.</p>
+        <p><strong>No próximo:</strong> o ninja ganha um mundo para viver: um buraco com água, estrelas para pegar, robôs que patrulham e kunais para jogar.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

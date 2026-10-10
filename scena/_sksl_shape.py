@@ -447,6 +447,7 @@ uniform float u_seed;
 uniform float u_rot;       // shape CTM rotation (degrees)
 uniform float2 u_origin;   // shape center in world/design space
 uniform float u_light;     // shared specular direction (degrees)
+uniform half4 u_tint;      // rgb + how much (0 = chrome): Metal("gold")
 
 half4 main(float2 coord) {
     float rad = radians(u_rot);
@@ -468,9 +469,9 @@ half4 main(float2 coord) {
     float band = pow(max(sin(along * 0.031 - t * 1.6), 0.0), 14.0);
     float band2 = pow(max(sin(along * 0.052 + t * 2.1), 0.0), 20.0);
 
-    half3 base = half3(0.50, 0.52, 0.56);
-    half3 dark = half3(0.16, 0.18, 0.22);
-    half3 light = half3(0.92, 0.93, 0.96);
+    half3 base = mix(half3(0.50, 0.52, 0.56), u_tint.rgb * 0.95, u_tint.a);
+    half3 dark = mix(half3(0.16, 0.18, 0.22), u_tint.rgb * 0.45, u_tint.a);
+    half3 light = mix(half3(0.92, 0.93, 0.96), mix(u_tint.rgb, half3(1.0), 0.5), u_tint.a);
     half3 col = mix(dark, base, half(brush));
     col = mix(col, light, half(band * 0.85 * u_amount));
     col = mix(col, half3(1.0, 1.0, 1.0), half(band2 * 0.55 * u_amount));

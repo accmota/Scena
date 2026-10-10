@@ -193,7 +193,7 @@ def tutorial_paths() -> Iterator[Tuple[str, str]]:
     name (``frame="…"``) is not a path. A ``try`` that is a function-body
     fragment is read inside a function.
     """
-    from tests.test_tutorials import extract_steps, tutorial_pages
+    from tests.test_tutorials import append_snippet, extract_steps, in_place, tutorial_pages
     for page in tutorial_pages():
         name = os.path.relpath(page, ROOT)
         for step in extract_steps(page):
@@ -201,8 +201,18 @@ def tutorial_paths() -> Iterator[Tuple[str, str]]:
                 try:
                     found = list(literal_paths(code))
                 except SyntaxError:
-                    found = list(literal_paths("def _f():\n" + "".join(
-                        "    " + ln + "\n" for ln in code.splitlines())))
+                    try:
+                        found = list(literal_paths("def _f():\n" + "".join(
+                            "    " + ln + "\n" for ln in code.splitlines())))
+                    except SyntaxError:
+                        # A box that only parses where it goes (a bare ``if``
+                        # line in place of one, a decorator before a step's
+                        # function): read it the way test_tutorials runs it.
+                        if line in step.places:
+                            program, _why = in_place(step.code, code, step.places[line])
+                        else:
+                            program = append_snippet(step.code, code)
+                        found = list(literal_paths(program or code))
                 for _no, _kind, path in found:
                     yield f"{name}:{line}", path
 
@@ -262,6 +272,22 @@ class TestMediaRefs(unittest.TestCase):
             'play_sound("audio/Victory.mp3")\n'
         )
         self.assertEqual(dead_paths(script, src), ["3: space/gone.png", "6: space/vanished.png"])
+
+    def test_a_box_is_read_where_it_runs(self):
+        # 2026-10-09 (tutorials 14-20): a box that only parses in its place
+        # (a bare ``if`` line with replaces:) raised SyntaxError here, so
+        # authors bent boxes to please the scan. It is read the way
+        # test_tutorials runs it.
+        import tempfile
+        page = ('steps: [ { code: `from scena import *\n\ndef f():\n    if x:\n'
+                '        Sprite("space/star_gold.png")\n\nrun()\n`, try: [\n'
+                "  { replaces: ['if x:'], code: `if keyp(\"A\"):` } ] } ]")
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "99-x.html")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(page)
+            with patch("tests.test_tutorials.tutorial_pages", lambda: [path]):
+                self.assertEqual([p for _at, p in tutorial_paths()], ["space/star_gold.png"] * 2)
 
     def test_guard_expands_patterns(self):
         # A pattern counts when it matches at least one file; one that matches

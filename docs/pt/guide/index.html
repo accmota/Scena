@@ -7312,7 +7312,7 @@ ship.confine(canvas.game_view, action="wrap")</pre>
                 <tr><th>Valor</th><th>Significado</th></tr>
               </thead>
               <tbody>
-                <tr><td><code>"center"</code> (padrão)</td><td>Só o centro. Equivale ao padrão escrito à mão (<code>if x &lt; 40: center.x = 40</code>).</td></tr>
+                <tr><td><code>"center"</code> (padrão)</td><td>Só o centro. Equivale ao padrão escrito à mão (<code>if x &lt; 40: center.x = 40</code>). Num <code>Sprite</code> com <code>Sheet(anchor="bottom")</code>, o <code>center</code> são os pés: é ele que fica na borda.</td></tr>
                 <tr><td><code>"box"</code></td><td>O <code>graphic.box</code> fica <em>inteiro</em> dentro. Para isso, encolhe a região pela metade da largura e da altura do objeto, medidas ao longo dos lados da região. Objeto maior que a região: fica preso no centro nesse eixo (resto, não erro) — o mesmo espírito de <code>Box.inset</code>.</td></tr>
                 <tr><td><code>"overlap"</code></td><td>O contrário de <code>"box"</code>: o objeto pode ficar parcialmente para fora; a ação só dispara quando o <code>.box</code> dele já saiu por completo da região. Para isso, cresce a região pela metade da largura e da altura do objeto.</td></tr>
               </tbody>
