@@ -10,6 +10,21 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
+## 0.7.1 — 2026-10-09
+
+### Fixed
+
+- A formula that reads `canvas` (`canvas.zoom`, `canvas.game_view`, a
+  layer's `view`) keeps following the camera after Scena's reactive graph is
+  rebuilt. Before, it froze at its last value. A game does not rebuild the
+  graph, so this showed only in test suites that do.
+
+### Documentation
+
+- New example `examples/app_draw.py` ("Trilha"): drawing a trail with the
+  mouse.
+- The release workflow runs its actions on Node 24.
+
 ## 0.7.0 — 2026-10-09
 
 ### Breaking
