@@ -9714,7 +9714,7 @@ def no_ponto_fraco(tiro, peca):
 
 chefe.on_collide = lambda me, other, info: …   # o tiro em qualquer parte do chefe</pre>
         </div>
-        <p>O corpo nunca colide com as próprias peças (nem as empurra num <code>resolve</code>). Uma regra com <code>ANYTHING</code> vê os dois corpos: um tiro no tronco são dois contatos, um com o tronco e um com o chefe — nomeie o grupo para contar uma vez. Nas consultas, o Collider vem antes das peças que também são corpos: <code>collision.query_point</code> lista o chefe primeiro, e <code>collision.raycast</code> devolve o chefe quando o raio entra nos dois no mesmo ponto; <code>raycast(…, group="ponto_fraco")</code> devolve o tronco. A ordem das linhas não muda nada disso.</p>
+        <p>O corpo nunca colide com as próprias peças (nem as empurra num <code>resolve</code>), e duas peças do mesmo Collider que também são corpos (dois pontos fracos) não colidem entre si. Uma regra com <code>ANYTHING</code> vê os dois corpos: um tiro no tronco são dois contatos, um com o tronco e um com o chefe — nomeie o grupo para contar uma vez. Nas consultas, o Collider vem antes das peças que também são corpos: <code>collision.query_point</code> (e <code>query_circle</code>, <code>query_sector</code>, <code>query_shape</code>) lista o chefe primeiro, e <code>collision.raycast</code> devolve o chefe quando o raio entra nos dois no mesmo ponto; <code>raycast(…, group="ponto_fraco")</code> devolve o tronco. A ordem das linhas não muda nada disso.</p>
       </details>
     </section>
     <p class="more"><strong>Onde mais procurar</strong> — <a href="#mover">Mover</a> · <a href="#reagir">Reagir</a> · <a href="#geometria">Geometria</a></p>

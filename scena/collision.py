@@ -5328,11 +5328,13 @@ class CollisionSystem:
             is_part = [c._part is not None for c in colliders]
         # A body and the own body of one of its pieces never pair either
         # (``torso.collidable`` + ``Collider([torso, head])``: the boss touched
-        # its own torso; AC10). ``None`` when no multi-piece body is live.
+        # its own torso; AC10), nor do two pieces that are bodies of their own
+        # (two weak points of one boss). ``None`` when no multi-piece body is live.
         kin: Optional[Set[Tuple[int, int]]] = None
         for c in self._multi_bodies.values() if self._multi_bodies else ():
             ic = idx.get(id(c))
             if ic is not None:
+                own_bodies: List[int] = []
                 for ref in c._shapes:
                     piece = ref()
                     own = getattr(piece, "_collider", None) if piece is not None else None
@@ -5343,6 +5345,9 @@ class CollisionSystem:
                         if kin is None:
                             kin = set()
                         kin.add((ic, io) if ic < io else (io, ic))
+                        for jo in own_bodies:
+                            kin.add((jo, io) if jo < io else (io, jo))
+                        own_bodies.append(io)
 
         def _try_pair(i: int, j: int) -> None:
             if i == j:
@@ -7468,7 +7473,7 @@ class CollisionSystem:
         return self._prim_hits(probes, group, skipped)
 
     def _segment_hits(self, x1, y1, x2, y2, group, skipped) -> List[Any]:
-        """Every collider the segment touches, in candidate order."""
+        """Every collider the segment touches: multi-piece bodies first (AC10)."""
         dx, dy = x2 - x1, y2 - y1
         minx, maxx = (x1, x2) if x1 <= x2 else (x2, x1)
         miny, maxy = (y1, y2) if y1 <= y2 else (y2, y1)
@@ -7488,11 +7493,11 @@ class CollisionSystem:
                 t = _ray_prim(x1, y1, dx, dy, prim)
                 if t is not None and 0.0 <= t <= 1.0:
                     seen.add(id(c))
-                    hits.append(c._identity)
-        return hits
+                    hits.append(c)
+        return _bodies_first(hits)
 
     def _prim_hits(self, probes: Sequence[Prim], group, skipped) -> List[Any]:
-        """Identities overlapping any probe prim, in candidate order."""
+        """Identities overlapping any probe prim: multi-piece bodies first (AC10)."""
         if not probes:
             return []
         minx = min(p.aabb[0] for p in probes)
@@ -7521,9 +7526,9 @@ class CollisionSystem:
                         continue
                     if narrow_phase(probe, prim) is not None:
                         seen.add(id(c))
-                        hits.append(c._identity)
+                        hits.append(c)
                         break
-        return hits
+        return _bodies_first(hits)
 
     def raycast(
         self, p1, *args,

@@ -103,8 +103,9 @@ left out.
 - A `Fire` subclass given `style=` other than `"camp"` raises, naming
   `Fire(style=...)`. Before, the style was silently ignored.
 - A shape that is a piece of a `Collider` and also a body of its own (a
-  weak point) no longer collides with the Collider it belongs to, and
-  `raycast`, `query_point`, `query_circle` and `query_shape` name the
+  weak point) no longer collides with the Collider it belongs to, nor with
+  another weak point of the same Collider, and `raycast`, `query_point`,
+  `query_circle`, `query_sector` and `query_shape` name the
   Collider first whatever order the lines ran in; `query_shape(piece)` no
   longer finds the Collider the piece belongs to. Before, the boss touched
   its own torso and the queries depended on statement order.

@@ -1512,6 +1512,27 @@ class TestPieceThatIsAlsoABody(CollisionTestCase):
                 self.assertNotIn(torso, others)
                 self.assertNotIn(boss, others)
 
+    def test_two_weak_points_of_one_body_never_touch(self):
+        # Release audit 2026-10-11: AC10 kept a body off its own pieces, but two
+        # pieces that are bodies of their own (two weak points) still collided
+        # with each other every frame.
+        torso = self.track(Rect(center=self.at(0, 0), width=60, height=40))
+        head = self.track(Circle(center=self.at(0, 25), radius=12))
+        torso.collidable = True
+        head.collidable = True
+        Collider([torso, head])
+        touches = []
+        torso.on_collide = lambda me, o, info: touches.append(o)
+        head.on_collide = lambda me, o, info: touches.append(o)
+        self.step()
+        self.step()
+        self.assertEqual(touches, [])
+        # Two separate bodies that overlap still touch.
+        other = self.track(Circle(center=self.at(0, 25), radius=12))
+        other.collidable = True
+        self.step()
+        self.assertIn(other, touches)
+
     def test_weak_point_and_body_each_see_the_shot(self):
         torso, _head, boss = self._boss(True)
         seen = []
@@ -1538,6 +1559,9 @@ class TestPieceThatIsAlsoABody(CollisionTestCase):
                 self.assertIs(hit[0], torso)
                 at = collision.query_point(x, y)
                 self.assertEqual(at[:2], [boss, torso])
+                for spread in (40, 0):         # a wedge, and the segment case
+                    cone = collision.query_sector((x - 100, y), angle=0, radius=200, spread=spread)
+                    self.assertEqual(cone[:2], [boss, torso], f"spread={spread}")
                 self.assertNotIn(boss, collision.query_shape(torso))
                 for s in (torso, _head):
                     s.destroy()
