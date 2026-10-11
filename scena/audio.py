@@ -26,6 +26,7 @@ from .audio_mixer import (
     require_finite,
     reset_mixer,
 )
+from . import audio_mixer as _audio_mixer
 from . import audio_effects as _audio_effects  # registers the mixer effect processor
 from .closed import ClosedSurface
 from .process import (
@@ -633,6 +634,10 @@ class Sound(ClosedSurface):
         return BufferSource(samples, loops=loops)
 
 
+def _bus_stamp(_bus) -> int:
+    return _audio_mixer._publish_count
+
+
 class AudioBus(ClosedSurface):
     """Module singleton ``audio`` — master volume / mute / analysis τ."""
 
@@ -674,9 +679,18 @@ class AudioBus(ClosedSurface):
         self._level_tau = tau
         get_mixer().set_level_tau(tau)
 
+    def _formula_source(self):
+        """The graph node an ``@=`` reading the mix depends on (``level_source``)."""
+        from .level_source import level_source_for
+        return level_source_for(self, _bus_stamp)
+
     @property
     def level(self) -> float:
-        """Loudness of the final mix, 0 … 1, smoothed over ``level_tau``."""
+        """Loudness of the final mix, 0 … 1, smoothed over ``level_tau``.
+
+        A formula that reads it (``@= lambda: audio.level``) follows it,
+        updated once per frame.
+        """
         return float(get_mixer().snapshot().master_level)
 
     def spectrum(self, bins: int = 8) -> list:

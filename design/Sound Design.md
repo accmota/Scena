@@ -17,6 +17,7 @@ Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-
 | Master bus | [Master](#master) |
 | Missing files / banner | [Assets](#assets) |
 | Analysis / mic / record / effects | [Analysis](#analysis), [Microphone](#microphone), [Effects](#effects) |
+| `@=` / `@when` on a level | [Levels as formula sources](#levels-as-formula-sources) |
 | Locating code | [Router](#router) |
 
 ## Use
@@ -33,6 +34,7 @@ Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-
 | `play_sound` / `Sound` / `audio` | `audio.py` | `process.py` (`Handle`) | this file |
 | Mix / limiter / pitch resample / tails | `audio_mixer.py` | `audio_effects.py` (`_tail_seconds`) | this file |
 | Capture | `audio_capture.py` | `audio.py` (`play_sound(mic)`) | this file |
+| Level as a formula source | `level_source.py` | `state.py` (`_formula_source_of`), `orchestration.py` (`_simulate_frame`) | this file |
 | `LowPass` / `Wavefold` / bake | `audio_effects.py` | `audio.py` (`Sound.bake`) | this file |
 | Banner warning severity | `process.py` (`report_author_warning`) | `orchestration.py` | [Actors Design.md](Actors%20Design.md#protections) |
 
@@ -297,6 +299,50 @@ that snapshot. A full-scale sine peaks near 1 in its band; half-scale peaks
 near 0.5 (the reference is `n/4`, the Hann-scaled rfft bin — not `n/8`).
 Not an FFT toolkit; no `.level_raw`, no separate spectrum τ. Non-finite
 blocks read as silence on the meter, not as full scale.
+
+### Levels as formula sources
+
+`bar["width"] @= lambda: 300 * amp_db(mic.level)` links, like `clock` /
+`mouse` (and `@when` / `@on_change` on a level fire). A level is written by
+an audio thread (the capture callback, the mixer), which must never touch the
+reactive graph, so the reader is not a Container. It names a stand-in node
+instead (`level_source.py`): `state._formula_source_of` asks
+`type(obj)._formula_source` at link time, for the base of a chain and for
+every object along it, so `self.mic.level` inside an Entity depends on the
+mic, not on the Entity (before, that chain was accepted with the Entity as its
+only source and froze: AL1 in Testing Design). A formula with no readable
+source (REPL, `exec`) links from its code object; there the fallback also
+looks one attribute away from a Container candidate, for each name the code
+reads (`self` → `.mic`). One `LevelSource` per `Microphone`; the `audio` bus
+and every sound `Handle` share one (all voices read one mixer snapshot; a
+timer Handle answers `None` and `.level` raises its hint).
+
+The frame body samples linked sources in step 1, after the pointer sample
+(`if LEVEL_SOURCES: sample_level_sources()`): a source whose reader published
+since the last frame (`Microphone._ingest_seq`, bumped per capture block and
+on `close()`; `audio_mixer._publish_count`, bumped per snapshot publish and on
+a mixer reset) gets `update()`. `.level` stays a live read; the node only says
+"it moved". Consequences:
+
+- Updated once per frame. Outside `run()` (a script with no frames) a linked
+  level does not move, like a `clock` formula.
+- A formula on one `h.level` re-runs every frame while **anything** plays
+  (shared node); a settled mixer publishes nothing, so it stops.
+- Sources are learned at link time: the mic must exist when the formula is
+  linked. `lambda: amp_db(g.mic.level) if g.mic else 0`, linked while
+  `g.mic` is `None`, follows only `g`. A mic opened on demand links where it
+  opens: tutorial 18 writes `st["voz"] @= lambda: amp_db(self.mic.level)`
+  right after `Microphone()` in the R handler, and the meter, the light and
+  the `@when` read `st.voz` (0 until then). Opening the mic at the top of the
+  file would warn on a machine with no input (and the tutorial runner has
+  none).
+- Cost: nothing is created until a formula links a level; the frame pays one
+  empty-list check (`perf_audio_levels.py`, 2026-10-10: frame body 12.03 vs
+  11.93 µs with no mic, 15.97 vs 15.98 µs with an unlinked mic; a mic driving
+  three formulas and a `@when` costs 37 µs/frame read directly vs 53 µs for
+  the `on_update` copy into `st`). A graph reset makes a new node on the next
+  link; dead readers (weakref) and old-graph nodes leave the list on the next
+  sample. Tests: `tests/test_audio_level_source.py`.
 
 ## Microphone
 

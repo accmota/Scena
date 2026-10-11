@@ -225,7 +225,8 @@ self.som = self.gravacao.bake(HighPass())`
         <p>Uma barra em cima, à esquerda, mostra quão alto você está falando agora. Ela começa a andar depois do primeiro R, quando o microfone abre.</p>
         <p><strong>Quão alto.</strong> <code>self.mic.level</code> (nível) diz quão alto está o som que chega ao microfone, de 0 (silêncio) a 1, já suavizado. Nessa conta, a fala é pequena, poucos centésimos, e a barra mal sairia do lugar. <code>amp_db</code> passa o nível para a escala do ouvido, também de 0 a 1: o silêncio fica perto de 0, a fala no meio, um grito perto de 1.</p>
         <p><strong>Uma fórmula, não uma cópia.</strong> <code>barra["width"] @= lambda: 300 * st.voz</code>. Com <code>=</code>, <code>barra.width = 300 * st.voz</code> faria a conta uma vez, agora, com <code>st.voz</code> ainda 0, e a barra ficaria parada em 0. O <code>@=</code> guarda a <strong>fórmula</strong>: a conta inteira, para refazer depois. Toda vez que <code>st.voz</code> muda, o Scena refaz a conta, e a largura fica certa sozinha. Nenhuma linha do programa "atualiza a barra". É o mesmo <code>@=</code> do placar do 02, das vidas do 07 e da energia do 08.</p>
-        <p><strong>Por que <code>st.voz</code> no meio?</strong> O Scena sabe quando refazer uma fórmula porque acompanha o que ela lê: uma célula do <code>st</code>, um campo de um objeto, o <code>mouse</code>, o teclado. O nível do microfone não é nada disso: é uma leitura de um aparelho, e ninguém avisa o Scena quando ela muda. Então o gravador faz a <strong>única cópia</strong>: a cada quadro, no <code>on_update</code>, <code>st.voz = amp_db(self.mic.level)</code>. Daí em diante, tudo que segue a voz se liga a <code>st.voz</code>.</p>
+        <p><strong>A voz numa célula.</strong> O Scena sabe quando refazer uma fórmula porque acompanha o que ela lê: uma célula do <code>st</code>, um campo de um objeto, o <code>mouse</code>, o teclado, e também o nível do microfone, que ele confere uma vez por quadro. Quando o primeiro R abre o microfone, o gravador liga a célula <code>st.voz</code> a ele: <code>st["voz"] @= lambda: amp_db(self.mic.level)</code>. São duas fórmulas em fila: a barra segue <code>st.voz</code>, e <code>st.voz</code> segue o microfone. Nenhuma linha copia nada.</p>
+        <p><strong>Por que não ligar a barra direto no microfone?</strong> Uma fórmula aprende o que vai seguir na hora em que é ligada. No começo do programa ainda não há microfone: <code>gravador.mic</code> é <code>None</code>, e uma fórmula com <code>gravador.mic.level</code> daria erro. Por isso o <code>@=</code> do microfone fica no <code>gravar</code>, logo depois de abri-lo. A barra se liga a <code>st.voz</code>, que existe desde o começo e vale 0 até o primeiro R. E a voz ganha um nome só, para a barra e para o que vier depois.</p>
         <p>O retângulo escuro, sem nome, é o trilho do medidor: mostra até onde a barra vai.</p>
       `,
       code: `from scena import *
@@ -275,12 +276,11 @@ class Gravador(Circle, radius=10, color="dim gray"):
     def on_update(self, dt):
         if keyp.once("R"):
             self.gravar()
-        if self.mic:
-            st.voz = amp_db(self.mic.level)
 
     def gravar(self):
         if not self.mic:
             self.mic = Microphone()
+            st["voz"] @= lambda: amp_db(self.mic.level)
         if self.mic.recording:
             return
         self.gravacao = self.mic.record(seconds=2, on_done=self.gravou)
@@ -316,7 +316,7 @@ run()
           body: `
             <p><strong>À esquerda do <code>@=</code></strong>, entre colchetes, um campo que guarda um número, um texto ou um ponto: o tamanho (<code>width</code>, <code>height</code>, <code>radius</code>), o lugar (<code>center</code>), o giro (<code>angle</code>), a escala (<code>scale</code>), o <code>text</code> de um <code>Text</code>, um campo seu (<code>tecla["nota"]</code>) ou uma célula do <code>st</code> (<code>st["voz"]</code>). Os colchetes são obrigatórios: <code>barra.width</code> já é o número de agora, não o campo.</p>
             <p><strong>Não ligam</strong>: a pintura (<code>color</code>, <code>glow</code>, <code>visual</code>) e o <code>active</code>. O Scena recusa com um erro que diz o que fazer: escrever com <code>=</code>, num <code>on_update</code> ou num <code>@when</code> / <code>@on_change</code>. Foi assim que o escudo do 08 ligava e desligava. Também não liga o <code>scroll</code> das camadas do 12: ele é escrito no <code>update</code>, a cada quadro.</p>
-            <p><strong>À direita</strong>, a fórmula precisa ler alguma coisa que o Scena acompanha: o <code>st</code>, o campo de um objeto (<code>tecla.nota</code>, <code>barra.width</code>), o <code>mouse</code>, o teclado (<code>keyp</code>), o relógio (<code>clock</code>). Uma variável comum do Python não avisa quando muda: com <code>x = 10</code>, a fórmula <code>lambda: x * 2</code> é recusada (<code>TypeError</code>: a fórmula não tem fontes que o Scena acompanhe). A saída é a deste passo: guardar o valor no <code>st</code> e ligar ao <code>st</code>.</p>
+            <p><strong>À direita</strong>, a fórmula precisa ler alguma coisa que o Scena acompanha: o <code>st</code>, o campo de um objeto (<code>tecla.nota</code>, <code>barra.width</code>), o <code>mouse</code>, o teclado (<code>keyp</code>), o relógio (<code>clock</code>), o nível de um som ou do microfone (<code>self.mic.level</code>). Uma variável comum do Python não avisa quando muda: com <code>x = 10</code>, a fórmula <code>lambda: x * 2</code> é recusada (<code>TypeError</code>: a fórmula não tem fontes que o Scena acompanhe). A saída: guardar o valor no <code>st</code>, escrevendo com <code>=</code> quando ele muda, e ligar ao <code>st</code>.</p>
             <p>No Guia: <a href="../guide/index.html#reativo-liga">Ligar</a> · <a href="../guide/index.html#reativo-fontes">O que pode ser ligado</a>.</p>
           `,
           try: [
@@ -338,19 +338,17 @@ run()
       body: `
         <p><strong>Uma trilha.</strong> <code>Track.eight(width=760, height=140, center=(500, 470))</code> é uma <strong>trilha</strong> (<em>track</em>): uma curva, aqui com a forma de um oito (<em>eight</em>), de 760 de largura e 140 de altura, sobre as teclas. Uma trilha é invisível, como um ponto: é um caminho, não um desenho. Para vê-la enquanto testa, <code>Ctrl+Shift+7</code> mostra as trilhas em magenta.</p>
         <p><strong>Percorrer.</strong> <code>estrela.move_along(trilha, time=8, loops="forever")</code> (mover ao longo de) põe a estrela no caminho: uma volta inteira a cada 8 segundos (<code>time=8</code>), para sempre. Ela anda sozinha; nenhuma linha no <code>update</code>.</p>
-        <p><strong>A luz.</strong> <code>GlowSpot</code> (mancha de luz) é um efeito do mundo, como o <code>Jet</code> do 06. Um efeito não percorre trilha: ele segue a estrela, com <code>center=lambda: estrela.center</code>. O alcance (<code>radius</code>) e o brilho (<code>amount</code>) se ligam a <code>st.voz</code>: em silêncio, uma luz pequena e fraca; quando você fala, ela cresce e acende.</p>
+        <p><strong>A luz.</strong> <code>GlowSpot</code> (mancha de luz) é um efeito do mundo, como o <code>Jet</code> do 06. Um efeito não percorre trilha: ele segue a estrela, com <code>center=lambda: estrela.center</code>. O alcance (<code>radius</code>) e o brilho (<code>amount</code>) se ligam a <code>st.voz</code>, como a barra: em silêncio, uma luz pequena e fraca; quando você fala, ela cresce e acende.</p>
 
         <figure class="fig">
-          <svg viewBox="0 0 400 170" role="img" aria-label="À esquerda, o microfone, com mic.level; uma seta marcada cópia, a cada quadro, leva a st.voz, no meio; de st.voz saem três setas marcadas @=, para barra.width, luz.radius e luz.amount, à direita">
+          <svg viewBox="0 0 400 170" role="img" aria-label="À esquerda, o microfone, com mic.level; uma seta marcada @= leva a st.voz, no meio; de st.voz saem três setas marcadas @=, para barra.width, luz.radius e luz.amount, à direita">
             <rect class="bar child" x="8" y="64" width="92" height="42" rx="4"/>
             <text x="20" y="82">microfone</text>
             <text x="20" y="97">mic.level</text>
             <line class="ray" x1="100" y1="85" x2="160" y2="85"/>
             <line class="ray" x1="160" y1="85" x2="153" y2="80"/>
             <line class="ray" x1="160" y1="85" x2="153" y2="90"/>
-            <text x="110" y="76">cópia</text>
-            <text x="108" y="104">a cada</text>
-            <text x="108" y="117">quadro</text>
+            <text x="120" y="76">@=</text>
             <rect class="bar" x="160" y="68" width="70" height="34" rx="4"/>
             <text x="174" y="89">st.voz</text>
             <line class="ray" x1="230" y1="85" x2="290" y2="35"/>
@@ -372,7 +370,7 @@ run()
             <text x="304" y="89">luz.radius</text>
             <text x="304" y="139">luz.amount</text>
           </svg>
-          <figcaption>Uma cópia, três fórmulas. O gravador copia o nível do microfone para <code>st.voz</code> a cada quadro; a barra e a luz estão ligadas a <code>st.voz</code> e mudam sozinhas.</figcaption>
+          <figcaption>Quatro fórmulas, nenhuma cópia. <code>st.voz</code> está ligada ao nível do microfone; a barra e a luz estão ligadas a <code>st.voz</code>. Quando você fala, tudo muda sozinho.</figcaption>
         </figure>
       `,
       code: `from scena import *
@@ -422,12 +420,11 @@ class Gravador(Circle, radius=10, color="dim gray"):
     def on_update(self, dt):
         if keyp.once("R"):
             self.gravar()
-        if self.mic:
-            st.voz = amp_db(self.mic.level)
 
     def gravar(self):
         if not self.mic:
             self.mic = Microphone()
+            st["voz"] @= lambda: amp_db(self.mic.level)
         if self.mic.recording:
             return
         self.gravacao = self.mic.record(seconds=2, on_done=self.gravou)
@@ -528,12 +525,11 @@ class Gravador(Circle, radius=10, color="dim gray"):
     def on_update(self, dt):
         if keyp.once("R"):
             self.gravar()
-        if self.mic:
-            st.voz = amp_db(self.mic.level)
 
     def gravar(self):
         if not self.mic:
             self.mic = Microphone()
+            st["voz"] @= lambda: amp_db(self.mic.level)
         if self.mic.recording:
             return
         self.gravacao = self.mic.record(seconds=2, on_done=self.gravou)
@@ -594,7 +590,7 @@ sol.after(0.8, sol.destroy)`
           <li><code>Microphone()</code> — abre o microfone; nada é captado antes. Na primeira vez, o sistema pede licença.</li>
           <li><code>record(seconds=2, on_done=…)</code> — grava um som, que só toca depois que a gravação acaba; <code>play_sound</code> toca a gravação como um arquivo, com <code>pitch=</code>.</li>
           <li><code>amp_db(self.mic.level)</code> — quão alto está o som agora, na escala do ouvido, de 0 a 1.</li>
-          <li><code>@=</code> — uma fórmula, não uma cópia: o Scena a refaz quando muda o que ela lê. O microfone o Scena não acompanha; por isso uma cópia por quadro em <code>st.voz</code>, e tudo o mais ligado a ela.</li>
+          <li><code>@=</code> — uma fórmula, não uma cópia: o Scena a refaz quando muda o que ela lê, até o nível do microfone. Ela aprende o que segue quando é ligada: <code>st.voz</code> se liga ao microfone quando ele abre, e o resto se liga a <code>st.voz</code>.</li>
           <li><code>Track</code> e <code>move_along</code> — uma curva invisível, e um objeto que a percorre sozinho, volta após volta.</li>
           <li><code>@when</code> sobre o nível — uma vez por palma, quando o som passa do limite.</li>
         </ul>

@@ -3,7 +3,7 @@
 O piano do tutorial 17 com a sua voz: R abre o microfone (na primeira
 vez, o sistema pede licença) e grava dois segundos; depois as teclas
 tocam a gravação em oito alturas. Um medidor mostra quão alto você fala
-(st.voz, ligado com @=), uma estrela percorre um oito (Track +
+(st.voz, ligado ao microfone com @=), uma estrela percorre um oito (Track +
 move_along) com uma luz que cresce com a voz, e uma palma solta um sol.
 
 Controles
@@ -64,12 +64,11 @@ class Gravador(Circle, radius=10, color="dim gray"):
     def on_update(self, dt):
         if keyp.once("R"):
             self.gravar()
-        if self.mic:
-            st.voz = amp_db(self.mic.level)
 
     def gravar(self):
         if not self.mic:
             self.mic = Microphone()
+            st["voz"] @= lambda: amp_db(self.mic.level)
         if self.mic.recording:
             return
         self.gravacao = self.mic.record(seconds=2, on_done=self.gravou)

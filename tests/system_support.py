@@ -51,6 +51,7 @@ from scena.audio import Sound  # noqa: E402
 from scena.bounds import get_bounds_system, reset_bounds_system  # noqa: E402
 from scena.collision import get_collision_system, reset_collision_system  # noqa: E402
 from scena.cover import reset_cover  # noqa: E402
+from scena.level_source import reset_level_sources  # noqa: E402
 from scena.orchestration import ScenaFramework  # noqa: E402
 from scena.process import get_scheduler, clear_author_error  # noqa: E402
 from scena.state import get_scena_system  # noqa: E402
@@ -218,6 +219,7 @@ def reset_system_globals() -> None:
     canvas.effects.clear()
     clear_author_error()
     reset_input_state()
+    reset_level_sources()
 
 
 # World settings ``reset_system_globals`` puts in their fresh state (a camera

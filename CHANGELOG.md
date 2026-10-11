@@ -38,6 +38,14 @@ left out.
   group="hud")`. The look goes on the class line (`font_size`, `font`,
   `color`, `background`, `glow`, `align`, `width`, `group`); the text and its
   position stay on the instance.
+- A formula can read an audio level: `barra["width"] @= lambda: 300 *
+  amp_db(mic.level)` follows the voice, like a formula on `clock` or `mouse`.
+  The same works for `audio.level`, the `h.level` of a `play_sound`, and
+  their `.spectrum()`, in `@=`, `@when` and `@on_change`. The level updates
+  once per frame. The microphone must exist when the formula is linked.
+  Before, `@=` on `mic.level` raised "formula has no reactive sources", and
+  the meter needed an `on_update` that copied the level into `st`; that copy
+  still works.
 
 ### Fixed
 
@@ -53,7 +61,9 @@ left out.
 - A class keyword on a family that takes none (the widgets, `Entity`,
   `Endless`: `class Painel(Entity, group="hud")`) raises an error that says to
   pass it when you make one. Before, Python's "takes no keyword arguments".
-
+- A formula that reads a microphone held by an object
+  (`lambda: self.mic.level` inside an Entity, `lambda: gravador.mic.level`)
+  follows the level. Before, it was accepted and never changed.
 - `confine` on a `Sprite` whose sheet has an anchor (`Sheet(anchor="bottom")`,
   an atlas pivot) keeps `center` (the feet) on the edge. Before, each clamp
   lifted the sprite by half its height: a platformer hero walking into the

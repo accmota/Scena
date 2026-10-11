@@ -1039,6 +1039,7 @@ class Mixer:
         return result
 
     def _publish(self, result: RenderResult) -> None:
+        global _publish_count
         nxt = 1 - self._snap_i
         snap = self._snaps[nxt]
         snap.master_level = result.master_level
@@ -1048,6 +1049,7 @@ class Mixer:
         snap.voice_remaining = dict(result.voice_remaining)
         snap.finished_ids = [vid for vid, _at in result.finished_ids]
         self._snap_i = nxt
+        _publish_count += 1
 
     def snapshot(self) -> _Snapshot:
         return self._snaps[self._snap_i]
@@ -1134,6 +1136,15 @@ class Mixer:
 
 
 _mixer: Optional[Mixer] = None
+# Bumped on every snapshot publish (any mixer) and on a mixer reset: the
+# frame's audio sample compares it to know ``audio.level`` / ``h.level``
+# changed (``level_source``). One writer at a time; a lost increment only
+# delays the next notification by a block.
+_publish_count = 0
+
+
+def publish_count() -> int:
+    return _publish_count
 
 
 def get_mixer() -> Mixer:
@@ -1144,7 +1155,8 @@ def get_mixer() -> Mixer:
 
 
 def reset_mixer() -> None:
-    global _mixer
+    global _mixer, _publish_count
     if _mixer is not None:
         _mixer.reset()
     _mixer = Mixer()
+    _publish_count += 1

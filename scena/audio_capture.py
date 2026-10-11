@@ -52,6 +52,10 @@ def close_all_microphones() -> None:
 atexit.register(close_all_microphones)
 
 
+def _mic_stamp(mic) -> int:
+    return mic._ingest_seq
+
+
 class _Take:
     """One in-progress recording. Chunks append on the capture thread."""
 
@@ -106,6 +110,9 @@ class Microphone(ClosedSurface):
         self._fx_pos = 0
         self._level = 0.0
         self._spectrum = np.zeros(DEFAULT_SPECTRUM_BINS, dtype=np.float32)
+        # Bumped after each analysis update (capture thread) and on close: the
+        # frame's audio sample dirties a linked ``mic.level`` when it moves.
+        self._ingest_seq = 0
         self.effects = AudioEffectStack(microphone=self)
         if backends is not None:
             import miniaudio
@@ -232,6 +239,7 @@ class Microphone(ClosedSurface):
         self._level += (raw_l - self._level) * a
         spec = spectrum_bands(frames, bins=DEFAULT_SPECTRUM_BINS, sample_rate=SAMPLE_RATE)
         self._spectrum += (spec - self._spectrum) * a
+        self._ingest_seq += 1
 
     def _read_from(self, cursor_box, n_frames: int) -> np.ndarray:
         n = int(n_frames)
@@ -268,11 +276,18 @@ class Microphone(ClosedSurface):
         cursor = [oldest]
         return PullSource(lambda n, c=cursor: self._read_from(c, n))
 
+    def _formula_source(self):
+        """The graph node an ``@=`` reading this mic depends on (``level_source``)."""
+        from .level_source import level_source_for
+        return level_source_for(self, _mic_stamp)
+
     @property
     def level(self) -> float:
         """Current input loudness, 0 … 1, smoothed over ``audio.level_tau`` seconds.
 
-        Works without monitoring (``play_sound(mic)`` is not needed).
+        Works without monitoring (``play_sound(mic)`` is not needed). A
+        formula that reads it (``bar["width"] @= lambda: 300 * mic.level``)
+        follows it, updated once per frame.
         """
         return float(self._level)
 
@@ -495,3 +510,4 @@ class Microphone(ClosedSurface):
             self._fx_pos = 0
         self._level = 0.0
         self._spectrum[:] = 0
+        self._ingest_seq += 1

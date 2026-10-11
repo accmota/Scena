@@ -350,7 +350,7 @@ Canonical order inside `run()` — one frame body, `ScenaFramework._simulate_fra
 (steps 1–7; headless drivers and `tests/system_support.py` call the same method),
 then `_draw_frame` (8):
 
-1. `clock._tick`, then layer scroll (`advance_layer_scroll`: world state, integrated here so `update` and `layer.view` see this frame's offset; draw only reads it — [Canvas Design.md — Parallax layers](Canvas%20Design.md#parallax-layers-decoration-only)), then input (poll events; **sample** world pointer; keys/buttons via callbacks; mouse moves only *record* the pointer)  
+1. `clock._tick`, then layer scroll (`advance_layer_scroll`: world state, integrated here so `update` and `layer.view` see this frame's offset; draw only reads it — [Canvas Design.md — Parallax layers](Canvas%20Design.md#parallax-layers-decoration-only)), then input (poll events; **sample** world pointer; keys/buttons via callbacks; mouse moves only *record* the pointer), then the audio levels a formula links (`sample_level_sources`, only when one is linked — [Sound Design.md — Levels as formula sources](Sound%20Design.md#levels-as-formula-sources))  
 2. User script `update(dt)`  
 3. Process tick (tweens, due timers, sound-finished poll, async resume, `on_update`)  
 4. Collision  
@@ -678,6 +678,7 @@ Do not read this appendix as a license to open the whole cluster.
 | `after` / `every` / tween / modes / `ready` / `recently` | `process.py` | `easing.py` (`ease=`, `remap`, `lerp`, `chase`, `deadzone`) | [Actors Design.md](Actors%20Design.md) |
 | `play_sound` / `Sound` / `audio` | `audio.py` | `audio_mixer.py` | [Sound Design.md](Sound%20Design.md) |
 | Microphone | `audio_capture.py` | `audio.py` | [Sound Design.md](Sound%20Design.md) |
+| `@= lambda: mic.level` / `audio.level` / `h.level` | `level_source.py` | `state.py` (`_formula_source_of`), `orchestration.py` (frame step 1) | [Sound Design.md — Levels as formula sources](Sound%20Design.md#levels-as-formula-sources) |
 | Audio FX (`LowPass`, …) | `audio_effects.py` | `audio_mixer.py` | [Sound Design.md](Sound%20Design.md) |
 | `@when` / `@on_change` | `events.py` | `state.py` (dirty / flush) | [Reactive Design.md](Reactive%20Design.md) |
 | `@click` / `@hover` / `@drag_*` | `interaction.py` | `orchestration.py` (`ShapeInteractionManager.step_hover`), `registry.py` (hit order, `_pointer_epoch`) | [Shapes Design.md — Hover](Shapes%20Design.md#hover-pointer_hover-hover--hover_exit) |

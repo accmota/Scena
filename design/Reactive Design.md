@@ -146,7 +146,7 @@ Line(p1=lambda: rect.top_left, p2=c.center)  # constructor: callable links, bare
 | Side | Rule |
 | --- | --- |
 | **Target (LHS)** | A linkable Scena field: geometry / pose slots (`radius`, `center`, `angle`, …), Entity ink (`ship["hp"]`), `State` cells (`st["score"]`), or a standalone `Attribute`. Paint / appearance channels are **not** linkable. |
-| **Source (RHS)** | A `lambda` — or a named function (`def`) — whose code names at least one Container (`FormulaLink`). Input Containers (`clock`, `keyp`, `mouse`) count. Another Container or a bracket `FieldRef` (`obj["field"]` → DirectLink) is also legal, just not the taught-first form. Bare floats (`host.angle`) are **not** sources — Python evaluates them before `@=` runs; wrap with `lambda: host.angle`. |
+| **Source (RHS)** | A `lambda` — or a named function (`def`) — whose code names at least one Container (`FormulaLink`). Input Containers (`clock`, `keyp`, `mouse`) count, and so do audio levels (`mic.level`, `audio.level`, a sound `h.level`, their `.spectrum()`): not Containers, they name a per-frame-sampled stand-in node through `_formula_source` — [Sound Design — Levels as formula sources](Sound%20Design.md#levels-as-formula-sources). Another Container or a bracket `FieldRef` (`obj["field"]` → DirectLink) is also legal, just not the taught-first form. Bare floats (`host.angle`) are **not** sources — Python evaluates them before `@=` runs; wrap with `lambda: host.angle`. |
 
 **Auto-reactive cells.** Creating Entity ink (`ship.hp = 100`) or a State cell (`st.wave = 1`, `State(name="hud").level = 0`) allocates an `Attribute` (or ink anchor) in the dependency graph. Manual cells: `Attribute(0.0)`.
 

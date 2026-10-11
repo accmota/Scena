@@ -923,6 +923,26 @@ class FormulaLink():
             fallback = ContainerSet(
                 v for v in candidates if isinstance(v, Container)
             )
+            # An audio reader, reached directly or one attribute away from a
+            # Scena object (``self.mic.level``): without the hop the object is
+            # the only source and the level never notifies.
+            for value in candidates:
+                off_graph = _formula_source_of(value)
+                if off_graph is not None:
+                    fallback.add(off_graph)
+                elif isinstance(value, Container):
+                    for attr in fn.__code__.co_names:
+                        # Only a stored value (ink): a class attribute is a
+                        # property / slot whose read can materialize a part.
+                        if hasattr(type(value), attr):
+                            continue
+                        try:
+                            held = getattr(value, attr)
+                        except Exception:
+                            continue
+                        off_graph = _formula_source_of(held)
+                        if off_graph is not None:
+                            fallback.add(off_graph)
             # ``lambda h=st: h.score`` — State is not a Container; the cell is.
             # Lambdas without source (REPL / exec) reach ``st`` as a global.
             names = fn.__code__.co_names
@@ -1014,10 +1034,12 @@ class FormulaLink():
 
             def _collect_from_chain(self, base_name, steps):
                 base_obj = self.resolution_context.get(base_name)
-                last_container = base_obj if isinstance(base_obj, Container) else None
-
                 if base_obj is None:
                     return
+                last_container = (
+                    base_obj if isinstance(base_obj, Container)
+                    else _formula_source_of(base_obj)
+                )
 
                 target = base_obj
                 parent_container = None
@@ -1048,6 +1070,10 @@ class FormulaLink():
                         target = next_target
                         if _is_durable_source(target):
                             last_container = target
+                        else:
+                            off_graph = _formula_source_of(target)
+                            if off_graph is not None:
+                                last_container = off_graph
                         if callable(target) and not isinstance(target, Container):
                             break
                     else:  # 'sub'
@@ -1210,6 +1236,20 @@ def _normalize_link_rhs(source):
     if isinstance(source, FieldRef):
         return source.owner._linkable_source(source.name)
     return source
+
+def _formula_source_of(obj):
+    """The graph node of a value that lives off the graph, or None.
+
+    An audio level is written by an audio thread, never through the graph: a
+    microphone, the ``audio`` bus and a sound ``Handle`` name a stand-in node
+    (``_formula_source``, ``level_source.py``) that the frame dirties when the
+    level moves. Asked at link time only.
+    """
+    hook = getattr(type(obj), "_formula_source", None)
+    if hook is None:
+        return None
+    return hook(obj)
+
 
 def _is_durable_source(obj) -> bool:
     """A Container a formula chain may depend on.

@@ -30,6 +30,7 @@ from .cover import tick_cover, is_cover_active, draw_cover
 from .spatial_fx import tick_all_spatial_fx
 from .pacing import FramePacer, PaceMode, locked_interval
 from .gc_policy import freeze_world, run_pending_freeze, thaw_world
+from .level_source import LEVEL_SOURCES, sample_level_sources
 import warnings
 import traceback
 import weakref
@@ -3712,6 +3713,11 @@ class ScenaFramework:
             # cursor + camera pan with no GLFW motion.
             self._sync_pointer_level()
             self.widget_manager.sync_modal_mask()
+            # Audio levels a formula reads (mic.level, audio.level, h.level)
+            # are written by audio threads: dirty them here when the capture
+            # or the mix published since the last frame (level_source.py).
+            if LEVEL_SOURCES:
+                sample_level_sources()
             sd = self._scena_draw
             cam0 = (sd._look_x, sd._look_y, sd._zoom, sd._rotation) if sd is not None else None
 

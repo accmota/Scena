@@ -952,11 +952,24 @@ class Handle:
     def level(self) -> float:
         """Current loudness of this voice, 0 … 1, smoothed over ``audio.level_tau`` seconds.
 
-        Sound handles only. For a dB meter: ``amp_db(h.level)``.
+        Sound handles only. For a dB meter: ``amp_db(h.level)``. A formula
+        that reads it (``@= lambda: h.level``) follows it, updated once per
+        frame while anything plays.
         """
         self._require_sound("level")
         from .audio_mixer import get_mixer
         return float(get_mixer().snapshot().voice_levels.get(self._voice_id, 0.0))
+
+    def _formula_source(self):
+        """An ``@=`` reading a sound's ``level`` / ``spectrum`` depends on the mix.
+
+        Every voice's analysis comes from the same mixer snapshot, so one graph
+        node (the ``audio`` bus's) serves them all. Other handles have no level.
+        """
+        if self.kind != "sound":
+            return None
+        from .audio import audio
+        return audio._formula_source()
 
     def spectrum(self, bins: int = 8) -> list:
         """Loudness per frequency band of this voice, low to high.
