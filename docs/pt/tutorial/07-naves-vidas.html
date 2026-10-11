@@ -838,8 +838,8 @@ run()
         {
           title: "O st por dentro",
           body: `
-            <p><code>st</code> guarda os dados do jogo como um todo: os pontos, as vidas, a velocidade da frota. Cada nome em <code>st</code> é uma <strong>célula</strong>: um lugar com um valor que o Scena acompanha. É por isso que o <code>@=</code> funciona: a conta <code>f"x {st.vidas}"</code> lê a célula, e o Scena sabe que, quando a célula mudar, o texto precisa ser refeito.</p>
-            <p>A célula tem dois nomes. <code>st.vidas</code> e <code>st["vidas"]</code> são a mesma coisa; os colchetes servem quando o nome está numa variável (<code>st[nome]</code>).</p>
+            <p><code>st</code> guarda os dados do jogo como um todo: os pontos, as vidas, a velocidade da frota. Cada nome em <code>st</code> é uma <strong>célula</strong>: um lugar com um valor que o Scena acompanha. É por isso que o <code>@=</code> funciona: a conta <code>f"x {st.vidas}"</code> lê o valor da célula, e o Scena sabe que, quando a célula mudar, o texto precisa ser refeito.</p>
+            <p>Ponto e colchetes dizem coisas diferentes. <code>st.vidas</code> é o número de agora (3, 2, 1…): é com ele que você lê e muda as vidas. <code>st["vidas"]</code> é a própria célula, o lugar onde o número mora. Os colchetes vão onde alguém precisa acompanhar a célula, não só ler o número uma vez: o <code>@on_change</code> logo abaixo, os widgets (<code>Slider(st["volume"])</code>) e o <code>st["vidas"] @= …</code>.</p>
             <p>A célula também avisa. <code>@on_change(st["vidas"])</code> (quando mudar), em cima de uma função, roda a função a cada mudança do número, venha ela de onde vier. Aqui ainda não precisamos: quem muda as vidas é só o <code>atingido</code>, e o que acontece fica escrito ali. No próximo tutorial, o escudo vai ligar e desligar sozinho com um <code>@on_change</code>.</p>
             <p>No Guia: <a href="../guide/index.html#reativo-state">st</a> · <a href="../guide/index.html#reagir-on-change">@on_change</a>.</p>
           `,
@@ -1018,7 +1018,7 @@ Fire(center=self.center, width=30, style="embers")`
           <li><code>cols</code> e <code>clip</code> — uma faixa cortada em quadros, e uma sequência deles com nome e velocidade (<code>fps</code>).</li>
           <li><code>play</code> com <code>loops=1</code> — toca o clip uma vez e para no último quadro; o <code>after</code> do próprio objeto o apaga.</li>
           <li><code>play_sound</code> — toca um som, uma vez, sem esperar; os sons se somam.</li>
-          <li><code>st.vidas</code> e <code>@=</code> — uma célula que o placar lê; quando ela muda, o texto muda sozinho.</li>
+          <li><code>st.vidas</code> e <code>@=</code> — o número de vidas, guardado numa célula que o placar lê; quando ele muda, o texto muda sozinho.</li>
           <li><code>blink</code>, <code>shake</code> e <code>ready</code> — o golpe e o tempo de folga.</li>
           <li><code>Fire</code> — um fogo parado num ponto do mundo, outro <code>SpatialFx</code>.</li>
         </ul>

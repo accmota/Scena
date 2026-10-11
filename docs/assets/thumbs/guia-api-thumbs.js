@@ -825,8 +825,8 @@ window.ScenaGuideThumbs = {
    },
    {
     "src": "../../assets/thumbs/spatial-fire~style-plume.webp",
-    "w": 480,
-    "h": 300,
+    "w": 300,
+    "h": 480,
     "anim": "../../assets/thumbs/spatial-fire~style-plume.anim.webp",
     "card": "../../assets/thumbs/spatial-fire~style-plume.card.webp",
     "param": "style",

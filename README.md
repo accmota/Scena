@@ -208,7 +208,9 @@ Then, in any script: `from scena import *`.
 ## Learn
 
 - **[Tutorial](https://accmota.github.io/Scena/pt/tutorial/)**: from the first
-  shapes to a space shooter, bouncing balls and a side-scrolling plane. Each one ends in a file in
+  shapes to a space shooter, bouncing balls, a side-scrolling plane, a ninja
+  platformer built in the level editor, a board game, a voice-driven music
+  studio and an endless runner. Each one ends in a file in
   [`examples/`](https://github.com/accmota/Scena/tree/main/examples).
 - **[API Guide](https://accmota.github.io/Scena/pt/guide/)**: every class,
   function and effect, with a live picture of each look.
