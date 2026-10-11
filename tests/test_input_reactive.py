@@ -18,6 +18,7 @@ from scena.state import State, get_scena_system
 from scena.input import MAX_FRAME_DT, Clock, KeyPressed, Mouse
 
 from tests.leftovers import module_sweep  # noqa: E402
+from tests.graph_support import gc_paused, settled_graph_size  # noqa: E402
 
 setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
 
@@ -116,7 +117,8 @@ class TestMouseFormulaSource(unittest.TestCase):
         """A2: no pull consumers → update() early-out; graph size stable."""
         mouse = Mouse()
         ss = get_scena_system()
-        n0 = len(ss.dependency_graph.nodes)
+        self.enterContext(gc_paused())
+        n0 = settled_graph_size(ss)
         self.assertFalse(mouse._requires_pull_invalidate())
 
         for i in range(30):

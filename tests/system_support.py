@@ -42,6 +42,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import skia  # noqa: E402
 
 from hypothesis_support import WorldTracker, boot, quiet, registry  # noqa: E402
+from graph_support import full_collect  # noqa: E402,F401  (re-exported)
 
 import scena.orchestration as orch  # noqa: E402
 from scena import ANYTHING, canvas, clock  # noqa: E402
@@ -440,14 +441,6 @@ def _len(x) -> int:
         return len(x)
     except Exception:
         return -1
-
-
-def full_collect(max_passes: int = 6) -> None:
-    """``gc.collect()`` until a pass frees nothing: GC-backstop finalizers
-    (``weakref.finalize`` graph purge) release more garbage on a later pass."""
-    for _ in range(max_passes):
-        if gc.collect() == 0:
-            return
 
 
 def all_layers(sc) -> List[Any]:

@@ -28,6 +28,12 @@ Every tier checks it: run_tiers.py runs each job through "run_tiers.py --child"
 (python -m unittest plus a LeftoverCheck after each module), which fails a module
 that leaves more than leftovers.LIMIT live roster items.
 
+A test that counts reactive graph nodes reads them settled:
+  from tests.graph_support import gc_paused, settled_graph_size
+  self.enterContext(gc_paused()); before = settled_graph_size()
+A raw len(graph.nodes) includes an earlier test's garbage, which a GC pass can
+purge mid-test (O1, O9). test_count_baselines.py fails on an unsettled count.
+
 Env switches: SCENA_HYPOTHESIS_PROFILE (dev / ci / deep / replay),
 SCENA_CANARIES=0 (skip canaries and vacuity guards; default on),
 SCENA_SOAK=1 (endurance), SCENA_HYPOTHESIS_DB=0 (no example database; the

@@ -41,6 +41,7 @@ from scena.events import cleanup_global_event_system
 from scena import validate
 
 from tests.leftovers import module_sweep  # noqa: E402
+from tests.graph_support import gc_paused, settled_graph_size  # noqa: E402
 
 setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
 
@@ -1988,7 +1989,8 @@ class TestDeadVerbFindings(unittest.TestCase):
         from scena.state import get_scena_system
         b = self._dead(lambda: scena.Button())
         g = get_scena_system().dependency_graph
-        before = len(g.nodes)
+        self.enterContext(gc_paused())
+        before = settled_graph_size()
         b._displayed_text()
         self.assertEqual(len(g.nodes), before)
         self.assertIsNone(getattr(b.data, "_owner", None))

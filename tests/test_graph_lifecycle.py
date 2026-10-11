@@ -8,7 +8,6 @@ Run headless:
 
 import os
 import sys
-import gc
 import unittest
 import warnings
 
@@ -25,6 +24,7 @@ from scena.state import (
 )
 
 from tests.leftovers import module_sweep  # noqa: E402
+from tests.graph_support import full_collect  # noqa: E402
 
 setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
 
@@ -40,7 +40,7 @@ def _stable_node_count(g=None):
     dead entries until finalizers run; snapshots used as baselines must
     collect first or absolute counts race with reclamation.
     """
-    gc.collect()
+    full_collect()
     return len((g or _graph()).nodes)
 
 

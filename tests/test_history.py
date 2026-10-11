@@ -22,6 +22,7 @@ from scena.history import (
 )
 from scena.process import reset_process_scheduler, tick_processes
 from scena.state import DestroyedError
+from tests.graph_support import full_collect, gc_paused  # noqa: E402
 
 
 class HistoryTestCase(unittest.TestCase):
@@ -283,11 +284,10 @@ class TestHistoryOwnership(HistoryTestCase):
         from scena.canvas import ScenaCanvas
         from scena.state import get_scena_system
 
-        import gc
-
         h = History()
         tip = self._dot(5)
-        gc.collect()        # the count includes garbage; a collection mid-test would move it
+        self.enterContext(gc_paused())
+        full_collect()      # the count includes garbage; a collection mid-test would move it
         before = len(get_scena_system().dependency_graph.nodes)
         p = h.snapshot(10, 20)
         q = h.snapshot((30, 40))
@@ -411,12 +411,14 @@ class TestContrail(HistoryTestCase):
         from scena.state import get_scena_system
 
         c = self.own(Contrail(max_points=2, color="red"))
+        self.enterContext(gc_paused())
+        full_collect()
         before = len(get_scena_system().dependency_graph.nodes)
         for i in range(8):
             c.snapshot((float(i), float(i)))
         after = len(get_scena_system().dependency_graph.nodes)
-        # Evicted temps must not enter the graph. A drop is unrelated GC.
-        self.assertLessEqual(after, before)
+        # Evicted temps must not enter the graph.
+        self.assertEqual(after, before)
         self.assertEqual(len(c), 2)
         self.assertTrue(all(p._ephemeral and p._node_id is None for p in c))
 

@@ -24,6 +24,7 @@ from scena.state import (
     graph_gc_backstop_enabled,
 )
 from scena.scenamath import Vec2
+from tests.graph_support import settled_graph_size  # noqa: E402
 
 
 def _graph():
@@ -214,7 +215,7 @@ class TestGeneralFixWithoutSitePatch(_BackstopTestCase):
     def test_relink_fresh_vec2_each_tick_graph_stays_flat(self):
         g = _graph()
         sink = Point(0, 0)
-        n0 = len(g.nodes)
+        n0 = settled_graph_size()
 
         class Holder:
             pass

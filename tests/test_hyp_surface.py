@@ -42,6 +42,7 @@ from surface_support import (  # noqa: E402
     family_of, remove, reset_background_base, settle, surface_census,
 )
 from system_support import zombies  # noqa: E402
+from graph_support import gc_paused  # noqa: E402
 from hypothesis import given, note, settings, strategies as hst  # noqa: E402
 
 import scena  # noqa: E402
@@ -626,6 +627,7 @@ class TestDeadEntityLinks(unittest.TestCase):
         from scena.state import get_scena_system
         checked = 0
         src = scena.Circle(radius=1)
+        self.enterContext(gc_paused())  # no collection lands between two counts (O9)
         try:
             for name in ENTITY_NAMES:
                 with fresh_world():

@@ -12,7 +12,6 @@ pending floats won), and a measurement that quietly builds Shapes again.
 
     python -m unittest tests.test_box_snapshot -v
 """
-import gc
 import itertools
 import os
 import sys
@@ -24,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scena import Box, Circle, Rect, Sprite, Text, canvas, group, init
 from scena.shapes import Point, get_xy
 from scena.state import get_scena_system
+from tests.graph_support import full_collect, gc_paused  # noqa: E402
 
 FRAMES = [
     (10.0, 20.0, 30.0, 40.0, 0.0),
@@ -161,10 +161,6 @@ class TestBuildsNoPointUntilAsked(SnapshotCase):
             s.destroy()
 
 
-def graph_size():
-    return len(get_scena_system().dependency_graph.nodes)
-
-
 class TestMeasuredPointsStayOffGraph(SnapshotCase):
     """D11 (Testing Design): a measured Box's point read entered the graph.
 
@@ -181,20 +177,16 @@ class TestMeasuredPointsStayOffGraph(SnapshotCase):
 
     def setUp(self):
         super().setUp()
-        self._gc_was = gc.isenabled()
-        gc.collect()
-        gc.disable()
-
-    def tearDown(self):
-        if self._gc_was:
-            gc.enable()
+        self.enterContext(gc_paused())
+        full_collect()
 
     def assert_flat(self, read, what):
         read()  # first touch may warm class-level caches
-        before = graph_size()
+        graph = get_scena_system().dependency_graph
+        before = len(graph.nodes)
         for _ in range(self.READS):
             read()
-        self.assertEqual(graph_size(), before, f"{what} grew the reactive graph")
+        self.assertEqual(len(graph.nodes), before, f"{what} grew the reactive graph")
 
     def test_every_point_of_every_measured_graphic(self):
         graphics = [

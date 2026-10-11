@@ -5,7 +5,6 @@ Before the fix, each formula eval that did `point + vec` or `vec / 10` registere
 new Containers permanently, so graph size (and FPS cost) grew every frame.
 """
 
-import gc
 import os
 import sys
 import unittest
@@ -15,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scena.shapes import Point
 from scena.scenamath import Vec2
 from scena.state import State, get_scena_system
+from tests.graph_support import settled_graph_size  # noqa: E402
 
 
 def _stable_node_count(ss=None):
@@ -25,9 +25,7 @@ def _stable_node_count(ss=None):
     collect first or absolute counts race with reclamation of leftovers
     from earlier tests in the same process.
     """
-    gc.collect()
-    graph = (ss or get_scena_system()).dependency_graph
-    return len(graph.nodes)
+    return settled_graph_size(ss)
 
 
 class TestEphemeralMath(unittest.TestCase):

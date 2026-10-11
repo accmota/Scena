@@ -24,6 +24,7 @@ from scena.state import (
     get_scena_system,
 )
 from scena.scenamath import Vec2
+from tests.graph_support import gc_paused, settled_graph_size
 
 
 class ReactiveEdgeCaseTest(unittest.TestCase):
@@ -561,10 +562,6 @@ class TestNoLinkOntoADestroyedActor(ReactiveEdgeCaseTest):
     on a destroyed owner — ink cell, slot, or a part like ``center`` — it raises
     ``DestroyedError`` and registers nothing."""
 
-    def _graph_size(self):
-        from scena.state import get_scena_system
-        return len(get_scena_system().dependency_graph.nodes)
-
     def test_link_targets_on_a_dead_actor_raise(self):
         from scena.state import DestroyedError
         src = Circle(center=(0, 0), radius=1)
@@ -578,10 +575,11 @@ class TestNoLinkOntoADestroyedActor(ReactiveEdgeCaseTest):
                 with self.subTest(target=label):
                     dead = Circle(center=(0, 0), radius=3)
                     dead.destroy()
-                    before = self._graph_size()
-                    with self.assertRaises(DestroyedError):
-                        link(dead)
-                    self.assertEqual(self._graph_size(), before)
+                    with gc_paused():
+                        before = settled_graph_size()
+                        with self.assertRaises(DestroyedError):
+                            link(dead)
+                        self.assertEqual(len(get_scena_system().dependency_graph.nodes), before)
         finally:
             src.destroy()
 
@@ -589,15 +587,19 @@ class TestNoLinkOntoADestroyedActor(ReactiveEdgeCaseTest):
 class TestFailedLinkInstallsNothing(ReactiveEdgeCaseTest):
     """W3 (Testing Design): a formula that raises on its first evaluation
     left the ink cell it created (``a.mirror`` read 0.0 afterwards) and a
-    scalar anchor in the graph. A rejected ``@=`` installs nothing."""
+    scalar anchor in the graph. A rejected ``@=`` installs nothing.
+
+    O9 (Testing Design): the count is taken settled and with the cyclic GC
+    paused. Unsettled, an earlier test's garbage (``TestEvents`` leaves two
+    Attributes per test) was purged mid-test and the module failed alone."""
 
     def test_rejected_formula_leaves_no_cell_and_no_node(self):
-        from scena.state import get_scena_system
         a = Circle(center=(0, 0), radius=6)
         b = Circle(center=(0, 0), radius=3)
+        self.enterContext(gc_paused())
         try:
             graph = get_scena_system().dependency_graph
-            before = len(graph.nodes)
+            before = settled_graph_size()
             with self.assertRaises(AttributeError):
                 a["mirror"] @= (lambda s=b: s.hp + 1)     # b has no hp
             self.assertEqual(len(graph.nodes), before)

@@ -35,6 +35,7 @@ from scena.scenamath import Vec2
 from scena.box import Box
 
 from tests.leftovers import module_sweep  # noqa: E402
+from tests.graph_support import full_collect, gc_paused  # noqa: E402
 
 setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
 
@@ -4069,6 +4070,8 @@ class TestCopyDoorsRefuseWhatClonesRefuse(unittest.TestCase):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             subjects = [Polygon(points=[(0, 0), (10, 0), (5, 8)]), Sprite("missing_gx11.png", center=(0, 0))]
+        self.enterContext(gc_paused())
+        full_collect()
         for obj in subjects:
             obj.wheel_rotate = True
             nodes0 = len(list(g.nodes))

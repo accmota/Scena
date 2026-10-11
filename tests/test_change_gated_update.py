@@ -2,7 +2,6 @@
 Change-gated updates and keypress graph-stability regressions.
 """
 
-import gc
 import os
 import sys
 import unittest
@@ -13,15 +12,14 @@ from scena.shapes import Circle, Point
 from scena.scenamath import Vec2
 from scena.state import State, Attribute, get_scena_system
 from scena.input import KeyPressed
+from tests.graph_support import settled_graph_size  # noqa: E402
 
 
 def _settled_nodes(ss):
     """Graph size after garbage from earlier tests is gone. GC-backstop
     finalizers purge graph nodes; if they run mid-test the count drops and a
     "did not grow" check fails only when the module runs alone."""
-    while gc.collect():
-        pass
-    return len(ss.dependency_graph.nodes)
+    return settled_graph_size(ss)
 
 
 class TestKeypressGraphStable(unittest.TestCase):
