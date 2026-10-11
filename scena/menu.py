@@ -21,6 +21,7 @@ from .uiwidget import (
     UIWidget,
     _make_ui_font,
     _require_bound,
+    _NO_CELL,
     draw_string_upright,
     measure_text,
     resolve_typeface,
@@ -61,7 +62,7 @@ class Menu(UIWidget):
     """Pop-up list of choices. Creating it shows it. Picking closes it.
 
     Args:
-        cell: Data cell that receives the chosen option (``st.ship``).
+        cell: Data cell that receives the chosen option (``st["ship"]``).
         options: The choices (a list). The label is ``str(option)``; the chosen value is
             the item itself.
         on_choose: ``fn(option)`` called on every pick (not on ``destroy()``).
@@ -87,7 +88,7 @@ class Menu(UIWidget):
 
     def __init__(
         self,
-        cell: Attribute | None = None,
+        cell: Attribute | None = _NO_CELL,
         *,
         options=None,
         on_choose=None,
@@ -146,7 +147,7 @@ class Menu(UIWidget):
                     "on_choose receives the chosen option: "
                     "write def escolher(opcao):"
                 )
-        _require_bound(cell, "Menu")
+        cell = _require_bound(cell, "Menu", "ship", takes_initial=False)
         if icons is not None:
             icons = list(icons)
             if len(icons) != len(options):

@@ -53,7 +53,7 @@ ring.visible = False
 st.count = PARAMS.get("count", 6)
 st.speed = PARAMS.get("speed", 160)
 st.binned = 0          # toys currently in a bin
-st.changes = 0         # on_change(st.binned) firings
+st.changes = 0         # on_change(st["binned"]) firings
 st.flushed = True      # each drop saw its on_change run right after flush()
 st.watching = True
 st.hovers = st.hover_exits = 0
@@ -137,14 +137,14 @@ def landed(toy, target, pos):
     toy.tag(BIN_NAME[target])
     toy.center = (target.center.x + uniform(-70, 70), target.center.y)
     toy.vel = Vec2(0, 0)
-    before = st.changes.value     # .value: a copy, not the live cell
+    before = st.changes     # a copy: st.changes reads the value
     st.binned += 1
     flush()                      # the watcher runs now, not at the end of the frame
     if st.watching and st.changes != before + 1:
         st.flushed = False
 
 
-@on_change(st.binned)
+@on_change(st["binned"])
 def on_binned(value):
     st.changes += 1
 

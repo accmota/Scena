@@ -96,8 +96,8 @@ MATERIAIS = list(VISUAIS)
 
 def saida_esperada(g):
     """The generator formula, in plain Python (the twin)."""
-    ganho = st.ganho_a.value if g is PECAS.get("ga") else 2.0
-    return st.tensao.value * ganho if g.center.x < COL0_DIREITA else 0.0
+    ganho = st.ganho_a if g is PECAS.get("ga") else 2.0
+    return st.tensao * ganho if g.center.x < COL0_DIREITA else 0.0
 
 
 def raio_formula():
@@ -151,14 +151,14 @@ def _painel():
     t = PECAS.get("painel")
     if t is None or not t.is_alive:
         return None
-    esperado = f"Tensao {st.tensao.value:.2f}  Potencia {OFICINA.potencia.value:.2f}"
+    esperado = f"Tensao {st.tensao:.2f}  Potencia {OFICINA.potencia:.2f}"
     return t.text == esperado or f"{t.text!r} vs {esperado!r}"
 
 
 G.invariant("hud.fresh", _painel)
-SOBRE = G.model(EdgeModel("sobrecarga", lambda: OFICINA.potencia.value > 40))
-POT = G.model(ChangeModel("potencia", lambda: OFICINA.potencia.value))
-SEMENTE = G.model(ChangeModel("semente", lambda: st.semente.value))
+SOBRE = G.model(EdgeModel("sobrecarga", lambda: OFICINA.potencia > 40))
+POT = G.model(ChangeModel("potencia", lambda: OFICINA.potencia))
+SEMENTE = G.model(ChangeModel("semente", lambda: st.semente))
 
 
 # --- geometry: the engine against closed forms ---------------------------------
@@ -321,7 +321,7 @@ def conferir_pixels(px):
         return
     MODELO["pixels"] += 1
     c = (prisma.center.x, prisma.center.y)
-    mat = st.material.value
+    mat = st.material
     meio = px(*c)
     if not prisma.visible:
         G.equal(meio, CASA, "pixel.hidden_is_background", tol=2)
@@ -366,20 +366,20 @@ def mudou_potencia(valor):
         G.equal(h.pitch, 0.8 + valor / 80 * 0.8, "remap.linear", tol=1e-9)
 
 
-@on_change(st.semente)
+@on_change(st["semente"])
 def mudou_semente(valor):
     SEMENTE.fired(G, valor)
     MODELO["semente_commits"] += 1
 
 
-@on_change(st.mudo)
+@on_change(st["mudo"])
 def mudou_mudo(valor):
     audio.muted = bool(valor)
     MODELO["mudo_desde"] = G.t if valor else None
     G.hit("widget.mudo")
 
 
-@on_change(st.material)
+@on_change(st["material"])
 def mudou_material(valor):
     G.check(valor in MATERIAIS, "dropdown.value_is_option", repr(valor))
     w = PECAS.get("dd")
@@ -391,7 +391,7 @@ def mudou_material(valor):
     G.hit(f"material.{valor}")
 
 
-@on_change(st.congelar)
+@on_change(st["congelar"])
 def mudou_congelar(valor):
     lamp, h = PECAS.get("lampada"), PECAS.get("zumbido")
     if lamp is None or not lamp.is_alive:
@@ -491,7 +491,7 @@ class Bancada(Act):
         lampada = Circle(center=celula(2, 1), radius=lambda: 18 + OFICINA.potencia * 0.5,
                          color="light yellow", group="peca")
         prisma = RegularPolygon(n=6, center=celula(3, 2), radius=48, angle=10, group="peca")
-        prisma.visual = VISUAIS[st.material.value]()
+        prisma.visual = VISUAIS[st.material]()
         PECAS.update(ga=ga, gb=gb, lampada=lampada, prisma=prisma)
         for k, p in (("ga", ga), ("gb", gb), ("lampada", lampada), ("prisma", prisma)):
             nascer(p, "peca")
@@ -542,27 +542,27 @@ class Bancada(Act):
 
         @click(lampada)
         def clicou(lamp):
-            st.laser = not st.laser.value
-            laser.visible = st.laser.value
+            st.laser = not st.laser
+            laser.visible = st.laser
             G.hit("click.lampada")
 
         st.laser = True
         painel = Text("", top_left=(20, 120), font_size=16, stack=False)
-        painel["text"] @= lambda: f"Tensao {st.tensao.value:.2f}  Potencia {OFICINA.potencia.value:.2f}"
+        painel["text"] @= lambda: f"Tensao {st.tensao:.2f}  Potencia {OFICINA.potencia:.2f}"
         PECAS["painel"] = painel
         ui.stack_reset()
-        primeiro = Slider(st.tensao, label="Tensao", max_value=10)
+        primeiro = Slider(st["tensao"], label="Tensao", max_value=10)
         if MODELO["coluna0"] is None:
             MODELO["coluna0"] = (primeiro.box.left, primeiro.box.top)
         else:
             G.equal((primeiro.box.left, primeiro.box.top), MODELO["coluna0"], "act.column_restored")
-        Slider(st.ganho_a, label="Ganho A", min_value=1, max_value=5, only_int=True)
+        Slider(st["ganho_a"], label="Ganho A", min_value=1, max_value=5, only_int=True)
         ui.gap()
-        CheckBox(st.congelar, label="Congelar")
-        CheckBox(st.mudo, label="Mudo")
-        PECAS["dd"] = DropDown(st.material, options=MATERIAIS)
+        CheckBox(st["congelar"], label="Congelar")
+        CheckBox(st["mudo"], label="Mudo")
+        PECAS["dd"] = DropDown(st["material"], options=MATERIAIS)
         ui.stack_column()
-        PECAS["ti"] = TextInput(st.semente, placeholder="semente", label="Semente", max_length=6)
+        PECAS["ti"] = TextInput(st["semente"], placeholder="semente", label="Semente", max_length=6)
         Button(label="Reset", on_click=self.perguntar)
         barras = []
         for i in range(8):

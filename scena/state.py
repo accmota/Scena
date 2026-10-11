@@ -240,11 +240,14 @@ def _state_key(key, verb: str) -> None:
 
 
 class State:
-    """Named bag of boxed Attribute cells.
+    """Named bag of Attribute cells.
 
-    Dot access returns the Attribute (DirectLink RHS, widget bind). Bracket
-    access returns a FieldRef for link management — same ``@=`` spelling as
-    Shape/Entity fields. Dot-form ``st.key @=`` still works via Attribute.
+    Dot access reads the cell's **value** (``st.mic is None``, ``type(st.n)``,
+    ``best = st.score`` copies), the same as an Entity field. Bracket access
+    returns a FieldRef: the handle that links (``st["k"] @= …``) and binds
+    (``Slider(st["volume"])``, ``Text(st["score"])``, ``@on_change(st["wave"])``)
+    — the same spelling as Shape/Entity fields. Before 0.8.0 the dot read
+    returned the cell itself, so ``st.mic is None`` was always False.
 
     ``name`` is a diagnostic label for FieldRef / LinkedAttributeError
     messages (same role as Container.name). The builtin bag is constructed
@@ -291,10 +294,19 @@ class State:
         return attr
 
     def __getattr__(self, key: str) -> Any:
-        """Allow accessing attributes using dot notation: state.key"""
-        if key in self._data:
-            return self._data[key]  # Return the Attribute directly
-        raise AttributeError(self._missing_cell_message(key))
+        """``st.key`` reads the cell's value (pull-resolves a linked cell).
+
+        Hot path: an unlinked cached leaf returns ``_raw_value`` without the
+        ``Attribute.value`` property call (same test as that property).
+        """
+        try:
+            cell = self._data[key]
+        except KeyError:
+            raise AttributeError(self._missing_cell_message(key)) from None
+        d = cell.__dict__
+        if d.get('_bare_ok') is True and d['_link'] is None:
+            return d['_raw_value']
+        return cell.value
 
     def _missing_cell_message(self, key: str) -> str:
         from .validate import did_you_mean
@@ -320,10 +332,18 @@ class State:
         if isinstance(value, _PLAIN_FUNCTIONS):
             raise CallableAssignError(callable_assign_message(self._name, key))
 
-        if key not in self._data:
+        cell = self._data.get(key)
+        if cell is None:
             self._data[key] = self._new_cell(key, value)
+        elif value is cell._raw_value and type(value) not in _VALUE_TYPES:
+            # ``st.pos += v`` / ``st.items += [x]``: ``st.pos`` is the held
+            # object, ``+=`` changed it in place and assigns it back. The cell
+            # sees the same object, so it would notify nothing (0.8.0).
+            cell._changed_in_place()
         else:
-            self._data[key].value = value
+            # What ``cell.value = value`` runs, without the closed-surface
+            # ``__setattr__`` and the property hop (pays for the check above).
+            cell._assign_value(value)
 
     def __getitem__(self, key: str) -> 'FieldRef':
         """Link handle. Does not create a cell — ``@=`` does, reads must exist."""
@@ -1046,11 +1066,15 @@ class FormulaLink():
                 terminal_field = None
                 for i, (kind, payload) in enumerate(steps):
                     if kind == 'attr':
+                        if isinstance(target, State):
+                            # ``st.score`` reads the value; the source is the
+                            # cell (a missing one raises "has no cell …"). The
+                            # rest of a chain (``st.pos.x``) reads the payload,
+                            # which is not a source of its own: a write
+                            # replaces it in the cell.
+                            target = last_container = target._resolve_cell(payload)
+                            break
                         if not hasattr(target, payload):
-                            if isinstance(target, State):
-                                # Reads must exist: surface "st has no cell …"
-                                # instead of a vague "no reactive sources".
-                                getattr(target, payload)
                             # A read the link cannot follow would leave it
                             # silently stale — refuse instead of warning. The
                             # object's own error (with its hints) comes first.
@@ -1226,8 +1250,9 @@ _FIELD_DERIVATE = FieldType.Derivate
 
 
 _LINK_RHS_ERROR = (
-    "@= needs a linkable object, a field (obj['name']), or a callable — "
-    "use '=' for a plain value"
+    "@= needs a linkable object, a field (obj['radius'], st['score']), or a "
+    "callable — use '=' for a plain value (st.score reads the value; the "
+    "cell is st['score'])"
 )
 
 
@@ -3808,6 +3833,56 @@ class _FlagPropertyAnchor(_PropertyAnchor):
         return True
 
 
+# A value type a cell holds by value (``scenamath`` sets it to ``Vec2``). Since
+# 0.8.0 ``st.pos`` is the held Vec2 itself, so ``st.pos.x = 5`` would change the
+# payload in place and the cell's links would never hear of it. The Vec2 a cell
+# holds gets a per-instance ``_write_field`` that refuses an author write (other
+# Vec2s pay nothing); it is removed when the cell takes another value.
+_HELD_BY_VALUE: Optional[type] = None
+
+
+class _HeldPayloadWrite:
+    """``_write_field`` of a Vec2 held by a cell (weak refs: no cycle)."""
+
+    __slots__ = ("cell", "payload")
+
+    def __init__(self, cell: "Attribute", payload) -> None:
+        self.cell = weakref.ref(cell)
+        self.payload = weakref.ref(payload)
+
+    def __call__(self, name: str, value) -> None:
+        p = self.payload()
+        cell = self.cell()
+        if (cell is not None and not p._in_batch_update
+                and cell.__dict__.get('_raw_value') is p):
+            raise AttributeError(_held_payload_message(cell, p, name))
+        type(p)._write_field(p, name, value)
+
+
+def _held_payload_message(cell: "Attribute", payload, name: str) -> str:
+    who = cell._name
+    kind = type(payload).__name__
+    if name in ("x", "y"):
+        example = f"Vec2(..., {who}.y)" if name == "x" else f"Vec2({who}.x, ...)"
+    else:
+        example = f"<a new {kind}>"
+    return (
+        f"{who}.{name} = ... would change the {kind} that {who} holds in place, "
+        f"and nothing linked to {who} would see it. Assign a whole value: "
+        f"{who} = {example} (or {who} += Vec2(...))."
+    )
+
+
+def _rehold_payload(cell: "Attribute", old, new) -> None:
+    """Move the held-payload guard from ``old`` to ``new`` (either may be a Vec2)."""
+    if old.__class__ is _HELD_BY_VALUE:
+        guard = old.__dict__.get('_write_field')
+        if isinstance(guard, _HeldPayloadWrite) and guard.cell() is cell:
+            del old.__dict__['_write_field']
+    if new.__class__ is _HELD_BY_VALUE:
+        new.__dict__['_write_field'] = _HeldPayloadWrite(cell, new)
+
+
 class Attribute(ClosedSurface, Container):  # Use string literal for forward reference
     """It is a unified attribute class that behaves according to its value type.
 
@@ -3900,9 +3975,23 @@ class Attribute(ClosedSurface, Container):  # Use string literal for forward ref
         old_value = self._raw_value
         if old_value != new_value or (type(old_value) is bool) is not (type(new_value) is bool):
             self._raw_value = new_value
+            if old_value.__class__ is _HELD_BY_VALUE or new_value.__class__ is _HELD_BY_VALUE:
+                _rehold_payload(self, old_value, new_value)
             return True
         else:
             return False
+
+    def _changed_in_place(self) -> None:
+        """The held object changed in place and was assigned back
+        (``st.pos += v``): notify as a changed write does (``_takein``)."""
+        self._refuse_author_write()
+        if not self._requires_pull_invalidate():
+            self._scena_system.update_manager.maybe_poll_events()
+            return
+        if not self._in_batch_update:
+            self.update()
+        elif self._node_id is not None:
+            self._scena_system.update_manager.mark_dirty(self)
 
     def _takein_float(self, f: float) -> bool:
         """Pose A1 write: float only, no Attribute unpack, no graph.
@@ -4263,6 +4352,37 @@ def as_payload(obj):
 def as_payload_all(*values):
     """O(1) per item: Attribute → ``.value`` for each of ``values``."""
     return tuple(as_payload(v) for v in values)
+
+
+def bound_cell(handle):
+    """The cell a binding argument names, or ``None`` when it names none.
+
+    ``st["volume"]`` (a FieldRef on a State) → that cell; a missing cell
+    raises the State's "has no cell … Create it first" error. A standalone
+    ``Attribute`` (``Attribute(0)``, ``slider.data``) → itself. Anything else
+    → ``None``: a plain value, including ``st.volume``, which reads the value
+    (0.8.0). Widgets, ``Text`` and ``SpriteButton(label=)`` bind through this.
+    """
+    if isinstance(handle, Attribute):
+        return handle
+    if isinstance(handle, FieldRef) and isinstance(handle.owner, State):
+        return handle.owner._resolve_cell(handle.name)
+    return None
+
+
+def unbound_value_hint(call: str, value, example: str = "volume") -> str:
+    """Error tail for a plain value where a cell was expected.
+
+    ``call`` is the spelling with the example cell, e.g.
+    ``Slider(st["volume"])``; ``example`` is that cell's name.
+    """
+    if isinstance(value, FieldRef):
+        return (f"got the field {value!r}: only a State cell binds here "
+                f"({call}). For an object's field, link instead: "
+                f"lambda: obj.field.")
+    return (f"got {type(value).__name__} {value!r:.40}. Pass the cell with "
+            f"brackets: {call}. st.{example} reads the value (since 0.8.0); "
+            f"st[\"{example}\"] is the cell.")
 
 
 _VALUE_TYPES = (float, int, str, bool, tuple, type(None))

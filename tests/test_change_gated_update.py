@@ -31,8 +31,8 @@ class TestKeypressGraphStable(unittest.TestCase):
         st.create('var1', initial=0)
         st.create('var2', initial=0)
 
-        st.var1 @= (lambda: vt.rotate(Point.temp(c5.center.x, c5.center.y).x))
-        st.var2 @= (lambda: c5.center + vt)
+        st["var1"] @= (lambda: vt.rotate(Point.temp(c5.center.x, c5.center.y).x))
+        st["var2"] @= (lambda: c5.center + vt)
         c5.center["x"] @= (lambda: 1200 if keyp("D") else 800)
 
         ss = get_scena_system()
@@ -70,8 +70,7 @@ class TestChangeGatedUpdate(unittest.TestCase):
         st.create('a', initial=1.0)
         st.create('b', initial=0.0)
         st.create('c', initial=0.0)
-        a, b, c = st.a, st.b, st.c
-
+        a, b, c = st._resolve_cell("a"), st._resolve_cell("b"), st._resolve_cell("c")
         b @= (lambda: 100 if a.value > 0 else 0)
         c @= (lambda: b * 2)
 
@@ -86,8 +85,7 @@ class TestChangeGatedUpdate(unittest.TestCase):
         st.create('a', initial=1.0)
         st.create('b', initial=0.0)
         st.create('c', initial=0.0)
-        a, b, c = st.a, st.b, st.c
-
+        a, b, c = st._resolve_cell("a"), st._resolve_cell("b"), st._resolve_cell("c")
         b @= (lambda: a * 10)
         c @= (lambda: b + 1)
 
@@ -102,8 +100,7 @@ class TestChangeGatedUpdate(unittest.TestCase):
         st.create('a', initial=1.0)
         st.create('b', initial=0.0)
         st.create('c', initial=0.0)
-        a, b, c = st.a, st.b, st.c
-
+        a, b, c = st._resolve_cell("a"), st._resolve_cell("b"), st._resolve_cell("c")
         b @= (lambda: a + 1)
         c @= (lambda: a + b)
 
@@ -150,8 +147,7 @@ class TestChangeGatedUpdate(unittest.TestCase):
         c5 = Circle(center=(800, 700), radius=10)
         st = State()
         st.create('sink', initial=0.0)
-        sink = st.sink
-
+        sink = st._resolve_cell("sink")
         c5.center["x"] @= (lambda: 1200 if keyp("D") else 800)
         sink @= (lambda: c5.center.x * 2)
 

@@ -249,7 +249,7 @@ def arm_widget_click(tc, log):
 
 def arm_widget_submit(tc, log):
     st.es_nome = ""
-    ti = tc.track(TextInput(st.es_nome, top_left=(10, 290), width=100, on_submit=_once(log)))
+    ti = tc.track(TextInput(st["es_nome"], top_left=(10, 290), width=100, on_submit=_once(log)))
     wm = tc.w.fw.widget_manager
 
     def submit(dt):

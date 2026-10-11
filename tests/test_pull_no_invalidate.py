@@ -96,7 +96,7 @@ class TestMidpointTreePull(PullCase):
         st = self.own(State(name="drv"))
         st.x = 500.0
         p1 = Point(x=500.0, y=100.0)
-        p1["x"] @= st.x
+        p1["x"] @= st["x"]
         p2 = Point(x=300.0, y=500.0)
         p3 = Point(x=700.0, y=500.0)
         points, lines = [p1, p2, p3], []

@@ -34,8 +34,8 @@ st.fator_giro = -1.5
 
 PALETA = Palette("lisboa")
 
-Slider(st.velocidade, label="Velocidade", min_value=0, max_value=80)
-Slider(st.fator_giro, label="Giro", min_value=-3, max_value=3)
+Slider(st["velocidade"], label="Velocidade", min_value=0, max_value=80)
+Slider(st["fator_giro"], label="Giro", min_value=-3, max_value=3)
 
 
 @when(lambda: keyp("M"))

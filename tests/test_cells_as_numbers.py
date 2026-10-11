@@ -1,8 +1,10 @@
 """Guard: a cell counts as its number in every exported function (the Numbers rule).
 
-Class guard for PM12 (``deadzone(size=st.x)`` refused a cell). The Guia: a
-``st`` cell "faz conta como o número que guarda". ``test_hyp_surface`` fuzzes
-slots, verbs and constructors; this module covers the free functions.
+Class guard for PM12 (``deadzone(size=st.x)`` refused a cell, when ``st.x``
+was the cell). Since 0.8.0 ``st.x`` is the number; the cells an author still
+holds are ``Attribute`` objects (``slider.data``, ``Attribute(0)``), and they
+count as their number. ``test_hyp_surface`` fuzzes slots, verbs and
+constructors; this module covers the free functions.
 
 Every exported function is in ``CASES`` (a canonical call) or ``NO_NUMBERS``
 (with a reason). For each case, every number argument — and every number inside
@@ -109,9 +111,15 @@ def _plain(v):
 
 
 def _cell(value):
+    """The ``Attribute`` an ``st`` cell holds. Since 0.8.0 ``st.name`` is the
+    number and ``st["name"]`` a FieldRef (a handle that binds, not a number);
+    the cell an author can still hold is an ``Attribute`` (``slider.data``,
+    ``Attribute(0)``). Through the dot read this test compared a number with
+    itself and its canary stopped catching (SV5)."""
+    from scena.state import bound_cell
     name = f"pm12_cell_{next(_N)}"
     setattr(st, name, value)
-    return getattr(st, name), name
+    return bound_cell(st[name]), name
 
 
 def _swaps(args, kwargs):

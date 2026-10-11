@@ -65,9 +65,9 @@ def criar():
         anterior = bola
 
 
-Slider(st.n_bolas, label="Bolas", min_value=5, max_value=60, only_int=True)
-CheckBox(st.linhas, label="Linhas")
-DropDown(st.efeito, options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
+Slider(st["n_bolas"], label="Bolas", min_value=5, max_value=60, only_int=True)
+CheckBox(st["linhas"], label="Linhas")
+DropDown(st["efeito"], options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
 ui.gap()
 Button(label="Rodar", on_click=criar)
 

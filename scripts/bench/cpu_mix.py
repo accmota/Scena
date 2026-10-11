@@ -418,7 +418,7 @@ def combo_milestone():
     st.combo = 0
 
 
-@on_change(st.kills)
+@on_change(st["kills"])
 def on_kill(value):
     # Cheap side effect — keeps on_change on the hot path under churn.
     if int(value) > 0 and int(value) % 25 == 0:

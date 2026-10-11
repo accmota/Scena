@@ -29,9 +29,12 @@ from .validate import MIN_SCALE, magnitude, fixed_magnitude
 from .state import (
     Attribute,
     ContainerSlot,
+    FieldRef,
     FieldType,
     LinkedAttributeError,
     as_payload,
+    bound_cell,
+    unbound_value_hint,
     _init_composite,
 )
 from .style import PaintState
@@ -220,8 +223,8 @@ class Text(Graphic, PaintState):
     line count changes after construct.
 
     Args:
-        text: What to show: a string, a number, a data cell (``st.score``) or a function
-            (linked, updates live).
+        text: What to show: a string, a data cell (``st["score"]``, shown live) or
+            a function (linked, updates live). A number raises: write a string.
         center: Middle of the text box.
         top_left: Pin the visual top-left corner here (the text grows right and down).
         top_center: Pin the top-center here.
@@ -286,7 +289,7 @@ class Text(Graphic, PaintState):
 
     def __init__(
         self,
-        text: Union[str, float, Attribute, Callable[[], Any], None] = None,
+        text: Union[str, Attribute, Callable[[], Any], None] = None,
         *,
         center: Optional[TextPoint] = None,
         top_left: Optional[TextPoint] = None,
@@ -355,13 +358,22 @@ class Text(Graphic, PaintState):
                 width = rw
             center = (cx, cy)
 
-        # Positional / text=: Attribute identity-bind (before as_payload unwraps).
-        bounded: Optional[Attribute] = None
+        # Positional / text=: a cell (``st["score"]``, a standalone Attribute)
+        # identity-binds; anything else is the text, or a function that links.
         initial_text = None
-        if isinstance(text, Attribute):
-            bounded = text
-        else:
-            text = as_payload(text)
+        bounded: Optional[Attribute] = bound_cell(text)
+        if bounded is None:
+            if isinstance(text, FieldRef):
+                raise TypeError("Text(field): " + unbound_value_hint('Text(st["score"])', text, "score"))
+            if isinstance(text, (int, float)):
+                # ``Text(st.score)`` reads the number (0.8.0): it would show a
+                # snapshot where the author meant the live cell.
+                raise TypeError(
+                    f"Text({text!r}) takes a string: Text(\"{text}\") or "
+                    f"Text(str(n)). To show a st cell live, pass it with "
+                    f"brackets: Text(st[\"score\"]) (st.score reads the value "
+                    f"since 0.8.0), or a formula: Text(lambda: f\"Score {{st.score}}\")."
+                )
             if text is not None:
                 initial_text = text
 

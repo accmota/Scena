@@ -9,7 +9,7 @@ import warnings
 
 from .entity import Entity
 from .input import Mouse, _PUNCT_KEYS
-from .state import ContainerSlot, Attribute, as_payload
+from .state import ContainerSlot, Attribute, as_payload, bound_cell, unbound_value_hint
 from .color import Color
 from .validate import expect_bool as _expect_flag
 from .closed import ClosedSurface
@@ -1129,23 +1129,48 @@ class UIWidget(Entity):
         """Check if the given point (x, y) is within the widget's bounds."""
         return self._x1 <= x <= self._x2 and self._y1 <= y <= self._y2
 
-def _require_bound(cell, widget: str) -> None:
-    """``cell`` is ``None`` or a data cell (``st.volume``); never a bare value."""
-    if cell is None or isinstance(cell, Attribute):
-        return
-    raise TypeError(
-        f"{widget}(cell) expects a data cell such as st.volume, got "
-        f"{type(cell).__name__} {cell!r}. To set the starting value, write "
-        f"{widget}(initial={cell!r}); to bind, create the cell first "
-        f"(st.volume = {cell!r}) and pass {widget}(st.volume)."
-    )
+class _NoCell:
+    """Default of a widget's ``cell``: none given (an explicit ``None`` raises)."""
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "<no cell>"
+
+
+_NO_CELL = _NoCell()
+
+
+def _require_bound(cell, widget: str, example: str, *, takes_initial: bool = True):
+    """The cell a widget binds: ``st["volume"]`` → its Attribute; omitted → None.
+
+    A plain value raises: ``Slider(st.volume)`` reads the value (0.8.0), so
+    it names the bracket spelling. So does an explicit ``None`` — what
+    ``Menu(st.ship)`` passes while ``st.ship`` still holds ``None``, which
+    would otherwise leave the widget silently unbound.
+    """
+    if cell is _NO_CELL:
+        return None
+    bound = bound_cell(cell)
+    if bound is not None:
+        return bound
+    call = f'{widget}(st["{example}"])'
+    if cell is None:
+        raise TypeError(
+            f"{widget}(None): to bind a cell, pass it with brackets: {call} "
+            f"(st.{example} reads the value, here None). For a widget with "
+            f"no cell, leave the argument out."
+        )
+    tail = (f" To set the starting value instead, write {widget}(initial={cell!r:.40})."
+            if takes_initial and not hasattr(cell, "owner") else "")
+    raise TypeError(f"{widget}(cell) binds a data cell: "
+                    + unbound_value_hint(call, cell, example) + tail)
 
 
 class Slider(UIWidget):
     """A horizontal value slider in the HUD (drag, click, or mouse wheel).
 
     Args:
-        cell: numeric data cell the slider reads and writes (``st.volume``).
+        cell: numeric data cell the slider reads and writes (``st["volume"]``).
         label: caption (default: the cell's name).
         top_left: ``(x, y)`` of the visual top-left; omit to stack in the HUD column.
         width: track length in design units (default: theme size).
@@ -1157,7 +1182,7 @@ class Slider(UIWidget):
         group: group tag(s).
     """
 
-    def __init__(self, cell: Attribute | None = None, *, label: str | None = None, 
+    def __init__(self, cell: Attribute | None = _NO_CELL, *, label: str | None = None, 
                  top_left=None, width: float | None = None, 
                  min_value: float = None, max_value: float = None, initial: float | None = None,
                  show_value: bool = True, only_int: bool = False,
@@ -1172,7 +1197,7 @@ class Slider(UIWidget):
         # Flags before any layout call: a rejected Slider must not move the HUD column.
         show_value = expect_bool(show_value, "Slider show_value")
         only_int = expect_bool(only_int, "Slider only_int")
-        _require_bound(cell, "Slider")
+        cell = _require_bound(cell, "Slider", "volume")
         from .validate import number   # fixed numbers: finite() lets a function through
         if min_value is not None:
             min_value = number(min_value, "Slider min_value")
@@ -1461,7 +1486,7 @@ class DropDown(UIWidget):
     """A pick-one list in the HUD.
 
     Args:
-        cell: data cell that receives the chosen option (``st.palette``).
+        cell: data cell that receives the chosen option (``st["palette"]``).
         top_left: ``(x, y)`` of the visual top-left; omit to stack in the HUD column.
         width, height: size in design units (default: theme size).
         options: the choices (a list); omitted, the cell's ``options`` are used.
@@ -1470,14 +1495,14 @@ class DropDown(UIWidget):
         group: group tag(s).
     """
 
-    def __init__(self, cell: Attribute | None = None, *, top_left=None, width=None, 
+    def __init__(self, cell: Attribute | None = _NO_CELL, *, top_left=None, width=None, 
                  height=None, options=None, initial=None, enabled=True, group=None):
         top_left = _geom_point(top_left, "DropDown")
         width = _geom_size(width, "width")
         height = _geom_size(height, "height")
         options = as_payload(options)
         initial = as_payload(initial)
-        _require_bound(cell, "DropDown")
+        cell = _require_bound(cell, "DropDown", "palette")
         if options is not None:
             if isinstance(options, (str, bytes)) or not hasattr(options, "__iter__"):
                 raise TypeError(
@@ -1770,7 +1795,7 @@ class Button(UIWidget):
     — a momentary switch, not a toggle (use ``CheckBox`` for on/off).
 
     Args:
-        cell: optional data cell (``st.firing``) written on press / release.
+        cell: optional data cell (``st["firing"]``) written on press / release.
         top_left: ``(x, y)`` of the visual top-left; omit to stack in the HUD column.
         width, height: size in design units (default: theme size).
         label: text on the button (default ``"Button"``).
@@ -1780,7 +1805,7 @@ class Button(UIWidget):
         group: group tag(s), like any actor.
     """
 
-    def __init__(self, cell: Attribute | None = None, *, top_left=None, width=None, 
+    def __init__(self, cell: Attribute | None = _NO_CELL, *, top_left=None, width=None, 
                  height=None, label="Button", on_click=None, value_on = None, value_off = None,
                  enabled=True, group=None):
         top_left = _geom_point(top_left, "Button")
@@ -1790,7 +1815,7 @@ class Button(UIWidget):
         on_click = as_payload(on_click)
         value_on = as_payload(value_on)
         value_off = as_payload(value_off)
-        _require_bound(cell, "Button")
+        cell = _require_bound(cell, "Button", "firing", takes_initial=False)
         from .validate import check_pointer_handler
         check_pointer_handler(on_click, ("the Button",), what="Button on_click")
         enabled = _expect_flag(enabled, "Button enabled")
@@ -1891,7 +1916,7 @@ class CheckBox(UIWidget):
     """An on/off box with a label in the HUD. ``.checked`` is the value.
 
     Args:
-        cell: boolean data cell it toggles (``st.mute``).
+        cell: boolean data cell it toggles (``st["mute"]``).
         top_left: ``(x, y)`` of the visual top-left; omit to stack in the HUD column.
         size: side of the box in design units (default: theme size).
         label: text next to the box (default ``"CheckBox"``).
@@ -1902,13 +1927,13 @@ class CheckBox(UIWidget):
 
     checked = _DataAlias()
 
-    def __init__(self, cell: Attribute | None = None, *, top_left=None, size=None, 
+    def __init__(self, cell: Attribute | None = _NO_CELL, *, top_left=None, size=None, 
                  label="CheckBox", initial=None, enabled=True, group=None):
         top_left = _geom_point(top_left, "CheckBox")
         size = _geom_size(size, "CheckBox size")
         label = as_payload(label)
         initial = as_payload(initial)
-        _require_bound(cell, "CheckBox")
+        cell = _require_bound(cell, "CheckBox", "mute")
         enabled = _expect_flag(enabled, "CheckBox enabled")
         super().__init__(group=group, top_left=top_left)
         self._enabled = enabled
@@ -2101,7 +2126,7 @@ class TextInput(UIWidget):
     Ctrl + arrows / Backspace by word. Drag selects; double-click selects a word.
 
     Args:
-        cell: data cell the committed text goes to (``st.player_name``).
+        cell: data cell the committed text goes to (``st["player_name"]``).
         top_left: ``(x, y)`` of the visual top-left; omit to stack in the HUD column.
         width, height: size in design units (default: theme size). With a
             ``label``, ``width`` covers the label and the box.
@@ -2129,7 +2154,7 @@ class TextInput(UIWidget):
     _needed_label_space = 0.0
     _joins_label_column = False
 
-    def __init__(self, cell: Attribute | None = None, *, top_left=None, width=None,
+    def __init__(self, cell: Attribute | None = _NO_CELL, *, top_left=None, width=None,
                  height=None, initial=None, placeholder="", label=None, max_length=None,
                  on_submit=None, enabled=True, group=None):
         from .validate import check_pointer_handler, count, expect_bool
@@ -2146,7 +2171,7 @@ class TextInput(UIWidget):
         if max_length is not None:
             max_length = count(max_length, "TextInput max_length", 1)
         check_pointer_handler(on_submit, ("the value",), what="TextInput on_submit")
-        _require_bound(cell, "TextInput")
+        cell = _require_bound(cell, "TextInput", "player_name")
         starting = initial if initial is not None else (
             cell.value if cell is not None else "")
         if isinstance(starting, bool):

@@ -190,25 +190,25 @@ def _build_widgets() -> None:
         ui.gap()
         ui.gap()
         # No explicit width/height/size — those would hide ui.scale.
-        _w(DropDown(st.ui_font, options=_FONT_OPTIONS))
+        _w(DropDown(st["ui_font"], options=_FONT_OPTIONS))
         _w(Text(text="glyphs: ← → ★ α"))
         on = bool(st.controls_on)
         # Labeled Slider + TextInputs stacked in one run share a label column.
-        _refs["radius"] = _w(Slider(st.radius, label="Radius", show_value=True,
+        _refs["radius"] = _w(Slider(st["radius"], label="Radius", show_value=True,
                                     min_value=20.0, max_value=160.0, enabled=on))
-        _w(TextInput(st.rect_w, label="Rect width", placeholder="rect width"))
-        _refs["name"] = _w(TextInput(st.player, label="Name", max_length=8,
+        _w(TextInput(st["rect_w"], label="Rect width", placeholder="rect width"))
+        _refs["name"] = _w(TextInput(st["player"], label="Name", max_length=8,
                                      placeholder="max 8 chars"))
         _refs["console"] = _w(TextInput(label="Console", placeholder="gold / radius 120",
                                         on_submit=_run_command))
-        _refs["color"] = _w(DropDown(st.color_name, options=_COLORS, enabled=on))
-        _w(CheckBox(st.show_square, label="Show square"))
-        _w(CheckBox(st.controls_on, label="Enable controls"))
+        _refs["color"] = _w(DropDown(st["color_name"], options=_COLORS, enabled=on))
+        _w(CheckBox(st["show_square"], label="Show square"))
+        _w(CheckBox(st["controls_on"], label="Enable controls"))
         _refs["nudge"] = _w(Button(label="Nudge circle +25x", on_click=_on_nudge, enabled=on))
         _refs["nudge"].on_hover = _nudge_hover
-        _w(Slider(st.alarm, label="alarm (@when ≥ 80)", show_value=True, min_value=0.0, max_value=100.0))
+        _w(Slider(st["alarm"], label="alarm (@when ≥ 80)", show_value=True, min_value=0.0, max_value=100.0))
         # Near the bottom edge: no room below, so the list opens upward.
-        _w(DropDown(st.difficulty, top_left=(40, 60),
+        _w(DropDown(st["difficulty"], top_left=(40, 60),
                     options=["story", "easy", "normal", "hard", "brutal", "nightmare"]))
         hud.aux = _chrome_aux()
     finally:
@@ -219,11 +219,11 @@ def _build_widgets() -> None:
 cx, cy = 780.0, 480.0
 
 ball = Circle(center=(cx, cy), radius=70).set_color("cyan")
-ball["radius"] @= st.radius
+ball["radius"] @= st["radius"]
 ball.center["x"] @= lambda: cx + float(st.nudge)
 
 panel = Rect(center=(cx + 260, cy), width=180, height=120).set_color("cyan")
-panel["width"] @= st.rect_w
+panel["width"] @= st["rect_w"]
 
 sq = Square(center=(cx + 260, cy - 180), length=90).set_color("gold")
 
@@ -236,7 +236,7 @@ link_b.center["y"] @= lambda: float(link_a.center.y)
 (_t := (Line(p1=lambda: link_a.center, p2=lambda: link_b.center).set_color("white"))).line_width = 1
 
 
-@on_change(st.ui_font)
+@on_change(st["ui_font"])
 def _font_changed(name):
     if _building:
         return
@@ -244,41 +244,41 @@ def _font_changed(name):
     hud.status = f"ui.font → {name}  face={_resolved_face()}"
 
 
-@on_change(st.color_name)
+@on_change(st["color_name"])
 def _recolor(name):
     ball.set_color(str(name))
     panel.set_color(str(name))
     hud.status = f"color → {name}"
 
 
-@on_change(st.show_square)
+@on_change(st["show_square"])
 def _toggle_sq(show):
     sq.visible = bool(show)
     hud.status = f"square visible → {bool(show)}"
 
 
-@on_change(st.radius)
+@on_change(st["radius"])
 def _radius_status(r):
     hud.status = f"radius → {float(r):.1f}"
 
 
-@on_change(st.rect_w)
+@on_change(st["rect_w"])
 def _width_status(w):
     hud.status = f"rect width → {float(w):.1f}"
 
 
-@on_change(st.player)
+@on_change(st["player"])
 def _player_status(name):
     hud.status = f"name committed → {name!r} (max_length 8)"
 
 
-@on_change(st.controls_on)
+@on_change(st["controls_on"])
 def _controls_status(on):
     _set_controls(bool(on))
     hud.status = f"controls enabled → {bool(on)} (Radius, Color, Nudge)"
 
 
-@on_change(st.difficulty)
+@on_change(st["difficulty"])
 def _difficulty_status(level):
     hud.status = f"difficulty → {level}"
 

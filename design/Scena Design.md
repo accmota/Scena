@@ -244,6 +244,10 @@ not — Python evaluates them before `@=` sees them. Details: [Reactive Design.m
 | `ship.field = lambda: …` | never — raises `CallableAssignError` naming `ship["field"] @=` | — |
 
 Entity ink: **writes and bracket `@=` may create**; **reads** fail on unknown names.
+Both surfaces **read the value** (`ship.hp`, `st.score`: `st.mic is None` works) and
+name the field with brackets (`ship["hp"]`, `st["score"]`): the handle that links,
+binds (`Slider(st["volume"])`, `Text(st["score"])`) and watches (`@on_change(st["wave"])`).
+`st` read the cell itself before 0.8.0 ([Reactive Design — State bag](Reactive%20Design.md#state-bag)).
 Creation has a near-miss guard (once per class and name) and look properties
 that belong to another actor kind (`circle.alpha`, `text.alpha`) raise instead of
 landing in a dead attribute. `enable` / `enabled` are explicit aliases of

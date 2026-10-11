@@ -246,7 +246,7 @@ class TestStateCells(unittest.TestCase):
 
     def test_augmented_writes_keep_the_cell(self):
         self.st.n = 7
-        cell = self.st.n
+        cell = self.st._resolve_cell("n")
         for op_src, want in (
             ("st.n **= 2", 49), ("st.n //= 5", 9), ("st.n %= 4", 1),
             ("st.n += 0.5", 1.5), ("st.n *= 4", 6.0), ("st.n -= 1", 5.0),
@@ -254,17 +254,17 @@ class TestStateCells(unittest.TestCase):
         ):
             with self.subTest(step=op_src):
                 exec(op_src, {"st": self.st})
-                self.assertIs(self.st.n, cell, "augmented write replaced the cell")
-                self.assertEqual(self.st.n.value, want)
+                self.assertIs(self.st._resolve_cell("n"), cell, "augmented write replaced the cell")
+                self.assertEqual(self.st.n, want)
 
     def test_formula_reads_pow_and_mod_live(self):
         self.st.f = 2.0
         self.st.y = 0
         st = self.st
         st["y"] @= lambda: (st.f ** 3) % 5
-        self.assertEqual(st.y.value, (2.0 ** 3) % 5)
+        self.assertEqual(st.y, (2.0 ** 3) % 5)
         st.f = 3.0
-        self.assertEqual(st.y.value, (3.0 ** 3) % 5)
+        self.assertEqual(st.y, (3.0 ** 3) % 5)
 
 
 if __name__ == "__main__":

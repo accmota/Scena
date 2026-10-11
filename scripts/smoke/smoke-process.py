@@ -179,7 +179,7 @@ async def diving(e):
 # ---------------------------------------------------------------------------
 _caption(5, "6  @when / @on_change")
 st.create("heat", initial=0.0)
-Slider(st.heat, label="heat", width=200, min_value=0.0, max_value=100.0, show_value=True, top_left=(20, 228))
+Slider(st["heat"], label="heat", width=200, min_value=0.0, max_value=100.0, show_value=True, top_left=(20, 228))
 when_tok = Circle(center=_COLS[5], radius=30).set_color("gray")
 
 
@@ -195,7 +195,7 @@ def _cool():
     when_tok.set_color("gray")
 
 
-@on_change(st.heat)
+@on_change(st["heat"])
 def _heat_changed(v):
     if _focus == 6:
         hud.status = f"on_change heat={float(v):.0f}"

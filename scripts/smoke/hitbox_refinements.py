@@ -349,18 +349,18 @@ def _apply_anchor(*_args) -> None:
         sprite.hitbox.anchor = pair
 
 
-@on_change(st.ax)
-@on_change(st.ay)
+@on_change(st["ax"])
+@on_change(st["ay"])
 def _on_anchor(*_args):
     _apply_anchor()
 
 
 _slider_x = Slider(
-    st.ax, label="anchor x", min_value=-1.5, max_value=1.5,
+    st["ax"], label="anchor x", min_value=-1.5, max_value=1.5,
     top_left=(48, SAFE_BOTTOM + 106), width=360, show_value=True,
 )
 _slider_y = Slider(
-    st.ay, label="anchor y", min_value=-1.5, max_value=1.5,
+    st["ay"], label="anchor y", min_value=-1.5, max_value=1.5,
     top_left=(48, SAFE_BOTTOM + 60), width=360, show_value=True,
 )
 

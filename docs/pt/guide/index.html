@@ -1637,7 +1637,7 @@ c.unlink_all()</pre>
             <tr><td><code>ship.campo @=</code></td><td>Não equivale ao colchete: Python lê <code>ship.campo</code> antes. Num campo escalar (<code>ship.hp</code>, <code>p.x</code>) isso já é um float — <code>TypeError</code> do próprio Python, sem mensagem do Scena. Prefira <code>ship["campo"] @= lambda: …</code>.</td></tr>
             <tr><td><code>.unlink()</code> / <code>unlink_all()</code></td><td><code>c["radius"].unlink()</code> solta aquele campo da fórmula; <code>c.unlink_all()</code> solta todos os campos ligados do objeto (e das partes dele, como <code>center.x</code>).</td></tr>
             <tr><td>Campo ligado + <code>=</code> / <code>&lt;&lt;</code></td><td><code>LinkedAttributeError</code>. Unlink primeiro. Nos verbos de pose / <code>tween</code>: o mesmo, salvo <code>force=True</code> (avisa e solta) — <a href="#mover-pose">Mover</a>. A mesma família de erro vale quando outro <a href="#reativo-drivers">driver persistente</a> já controla o campo.</td></tr>
-            <tr><td>Widget</td><td>O 1º argumento é o Attribute que o widget lê e escreve (ligação nos dois sentidos). Não é <code>@=</code>.</td></tr>
+            <tr><td>Widget</td><td>O 1º argumento é a célula que o widget lê e escreve (<code>Slider(st["volume"])</code>, ligação nos dois sentidos). Não é <code>@=</code>.</td></tr>
             <tr><td>Lambda que não lê nada que o Scena acompanha</td><td><code>TypeError</code> — a fórmula precisa nomear algo reativo (ver <a href="#reativo-fontes">O que pode ser ligado</a>). Não congela em silêncio.</td></tr>
           </tbody>
         </table>
@@ -1858,7 +1858,7 @@ Line(p1=(50, 50), p2=lambda: bola.center)</pre>
             <tr><td>Point</td><td>o ponto inteiro: <code>Point(lambda: …)</code>; um eixo: <code>Point(lambda: mouse.x, 0)</code>; par: <code>Point((lambda: src.x, 10))</code></td><td><code>Point(outro_ponto)</code> copia (não acompanha)</td></tr>
             <tr><td>Vec2</td><td>cada componente: <code>Vec2(lambda: a.x, lambda: a.y)</code>; o vetor inteiro: <code>Vec2(lambda: v1 + v2)</code></td><td>resultado de conta já feita (<code>Vec2(v1.x, v1.y)</code> copia os floats)</td></tr>
             <tr><td>Sprite / Svg</td><td>só <code>center=</code></td><td><code>width</code> / <code>height</code> / <code>size</code> (números na hora), <code>frame</code>, <code>hitbox</code>, arquivo, <code>color</code> / <code>visual</code>. <code>fps=</code> / <code>cols=</code> / <code>atlas=</code> vão no <code>Sheet</code>. Depois: <code>sprite["width"] @=</code> / <code>["angle"] @=</code> / <code>["scale"] @=</code></td></tr>
-            <tr><td>Text</td><td><code>center=</code></td><td><code>text=</code> é uma string, ou um Attribute que o Text passa a mostrar — não uma fórmula. <code>font_size</code>, <code>color</code>, <code>top_left=</code>. Depois: <code>hud["text"] @= lambda: …</code></td></tr>
+            <tr><td>Text</td><td><code>center=</code></td><td><code>text=</code> é uma string, ou uma célula (<code>st["score"]</code>) que o Text passa a mostrar — não uma fórmula. <code>font_size</code>, <code>color</code>, <code>top_left=</code>. Depois: <code>hud["text"] @= lambda: …</code></td></tr>
             <tr><td>Track</td><td><code>center</code>, <code>radius</code>, <code>begin</code>, <code>end</code>; cada ponto em <code>points=</code></td><td><code>stroke</code>, <code>smooth</code>, <code>floating</code></td></tr>
             <tr><td>SpatialFx (Fire, Rain, …)</td><td><code>center</code>, <code>radius</code>; no fogo dirigido também <code>width</code>, <code>length</code>, <code>angle</code></td><td><code>color</code>, estilo, <code>layer</code> / <code>group</code></td></tr>
             <tr><td>Box</td><td>os mesmos da geometria do Rect (<code>center</code>, <code>width</code>, <code>height</code>, <code>p1</code>, <code>p2</code>, …)</td><td>Box não é Entity. <code>Box(graphic)</code> é uma cópia, tirada agora</td></tr>
@@ -1914,7 +1914,8 @@ ship["shield"] @= lambda: st.lives * 10</pre>
             <tr><th>Propriedade</th><th>Tipo (valor típico)</th><th>Leitura/Escrita</th><th>Significado</th></tr>
           </thead>
           <tbody>
-            <tr><td><code>st.score = 0</code></td><td class="type"><span class="t">Attribute</span><span class="ex">st.score = 0</span></td><td>lê / escreve</td><td>Cria (ou grava) o campo. <code>st.score</code> lê a célula (Attribute), que faz conta como o valor; o valor puro é <code>st.score.value</code> (para <code>isinstance</code>, <code>type</code> ou guardar uma cópia).</td></tr>
+            <tr><td><code>st.score = 0</code></td><td class="type"><span class="t">valor</span><span class="ex">st.score = 0</span></td><td>lê / escreve</td><td>Cria (ou grava) o campo. <code>st.score</code> lê o valor que está lá agora, como um campo de Entity: <code>st.mic is None</code>, <code>type(st.score)</code> e <code>recorde = st.score</code> (uma cópia) funcionam como numa variável comum.</td></tr>
+            <tr><td><code>st["score"]</code></td><td class="type"><span class="t">célula</span><span class="ex">Slider(st["volume"])</span></td><td>leitura</td><td>A célula: o lugar onde o valor mora. É o que ligam e acompanham: widgets (<code>Slider(st["volume"])</code>), <code>Text(st["score"])</code>, <code>@on_change(st["wave"])</code>, <code>@when(st["alive"])</code>, <code>tween(st["t"], …)</code>, <code>@=</code>. <code>.value</code> lê o valor; <code>.unlink()</code> desliga uma fórmula.</td></tr>
             <tr><td><code>st["hud"] @=</code></td><td class="type"><span class="t">ligação</span><span class="ex">st["hud"] @= lambda: …</span></td><td>lê / escreve</td><td>Liga aquele campo. <code>@=</code> cria o campo se faltar (valor inicial <code>0</code>). Ler um campo que não existe levanta erro.</td></tr>
             <tr><td><code>st.keys</code> / <code>st.exists("score")</code></td><td class="type"><span class="t">nomes / bool</span></td><td>leitura</td><td>Lista os campos; diz se um já foi criado.</td></tr>
             <tr><td><code>.name</code></td><td class="type"><span class="t">str</span><span class="ex">"st"</span></td><td>leitura</td><td>Rótulo de diagnóstico. O global é <code>"st"</code>.</td></tr>
@@ -1926,7 +1927,8 @@ ship["shield"] @= lambda: st.lives * 10</pre>
         <table>
           <thead><tr><th>Situação</th><th>Significado</th></tr></thead>
           <tbody>
-            <tr><td><code>st.key</code></td><td>Lê o Attribute. <code>st.key = …</code> grava <code>.value</code>. Faz conta como o número que guarda, com qualquer operador e dos dois lados (<code>st.f ** 3</code>, <code>2 ** st.f</code>, <code>st.n % 4</code>, <code>round(st.f)</code>, comparações); o resultado é um número comum, e <code>st.f **= 2</code> grava na mesma célula. <code>isinstance(st.n, int)</code> é <code>False</code> (é a célula): use <code>st.n.value</code>.</td></tr>
+            <tr><td><code>st.key</code></td><td>Lê o valor. <code>st.key = …</code> grava. <code>st.f **= 2</code>, <code>st.pos += Vec2(1, 0)</code> e <code>st.itens += [x]</code> gravam na mesma célula e avisam quem está ligado. Mudar o valor por dentro não avisa: <code>st.pos.x = 5</code> levanta (grave o valor inteiro: <code>st.pos = Vec2(5, st.pos.y)</code>), e <code>st.itens.append(x)</code> muda a lista sem avisar as ligações.</td></tr>
+            <tr><td><code>Slider(st.volume)</code></td><td><code>TypeError</code> com a correção: <code>st.volume</code> é o número de agora, e o widget precisa da célula, <code>st["volume"]</code>. O mesmo para <code>Text</code>, <code>@on_change</code>, <code>@when</code>, <code>until</code>, <code>tween</code> e <code>@=</code>. Antes da 0.8.0, <code>st.key</code> devolvia a célula: <code>st.mic is None</code> era sempre <code>False</code> e <code>recorde = st.score</code> seguia o placar.</td></tr>
             <tr><td><code>st["key"] @=</code></td><td>Mesma grafia da geometria. Cria o campo se faltar (valor inicial <code>0</code>). A leitura (<code>st.key</code>, <code>st["key"]</code> à direita) exige que ela exista.</td></tr>
           </tbody>
         </table>
@@ -4337,14 +4339,14 @@ Text("x", top_left=(lambda: mouse.x, 760))</pre>
     <details class="spec" open>
       <summary>Construtor Text</summary>
       <p class="sig"><code>Text(text, top_left=, top_center=, top_right=, center=, box=, width=, align=, layer=, font=, font_size=, color=, background=, glow=, stack=, group=, angle=)</code></p>
-      <p class="sig-hint">1º: o texto, ou um Attribute que ele mostra. Omita <code>center=</code>/<code>layer=</code> → camada <code>ui</code> + pilha automática (a mesma dos widgets). <code>center=</code> sem layer → mundo <code>default</code>. Um ponto (<code>top_left=</code> …) na camada <code>ui</code> também avança a coluna. Não existe <code>x1=</code> / <code>y1=</code> / <code>pos=</code>: o erro aponta o ponto.</p>
+      <p class="sig-hint">1º: o texto, ou uma célula que ele mostra (<code>st["score"]</code>). Omita <code>center=</code>/<code>layer=</code> → camada <code>ui</code> + pilha automática (a mesma dos widgets). <code>center=</code> sem layer → mundo <code>default</code>. Um ponto (<code>top_left=</code> …) na camada <code>ui</code> também avança a coluna. Não existe <code>x1=</code> / <code>y1=</code> / <code>pos=</code>: o erro aponta o ponto.</p>
       <div class="tbl-wrap">
         <table>
           <thead>
             <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td><code>text</code></td><td>1º</td><td class="type"><span class="t">str ou Attribute</span><span class="ex">"SCORE"</span></td><td>O texto, ou um Attribute que o Text passa a mostrar (e acompanha)</td></tr>
+<tr><td><code>text</code></td><td>1º</td><td class="type"><span class="t">str, célula ou função</span><span class="ex">"SCORE"</span></td><td>O texto; ou uma célula (<code>st["score"]</code>) que o Text passa a mostrar (e acompanha); ou uma função, que liga. Um número levanta erro: escreva um texto (<code>Text(str(n))</code>).</td></tr>
 <tr><td><code>top_left=</code> / <code>top_center=</code> / <code>top_right=</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">(20, 780)</span></td><td>Um só. Prende esse ponto da caixa (topo visual); o texto cresce para baixo e para longe dele — uma linha nova ou <code>font_size</code> maior não empurra o topo. Sem nenhum: pilha da coluna. <code>layer</code> omitido → <code>ui</code> (avança a coluna); <code>layer="default"</code> → legenda no mundo, fora da coluna. Valor copia; <code>lambda</code> liga, como <code>Rect(top_left=)</code>: <code>top_left=lambda: panel.top_left</code>, ou tupla mista <code>(lambda: mouse.x, 760)</code> (só x liga). Um <code>Point</code> passado é copiado. Mover (<code>move_by</code>, <code>move_to</code>, <code>time=</code>, <code>tween</code>, arrastar) leva o ponto junto; <code>move_to(x, y)</code> põe o meio da string atual em <code>(x, y)</code>. Com âncora ligada, mover levanta <code>LinkedAttributeError</code> (use <code>t["top_left"].unlink()</code>).</td></tr>
 <tr><td><code>width=</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">120</span></td><td>Caixa fixa. Omitido → acompanha a string. Excesso corta (sem wrap). <code>\n</code> é quebra dura (altura = n × métrica da linha). A coluna não se reorganiza se o número de linhas mudar depois.</td></tr>
 <tr><td><code>align=</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">"left"</span></td><td><code>"left"</code> / <code>"center"</code> / <code>"right"</code> (ou <code>XPos.LEFT</code> / <code>XPos.CENTER</code> / <code>XPos.RIGHT</code>). Alinha cada linha dentro da caixa (<code>width=</code> ou a linha mais larga); nunca move a âncora. Padrão segue a âncora: <code>top_left</code> → <code>"left"</code>, <code>top_right</code> → <code>"right"</code>, <code>top_center</code> / <code>center=</code> / <code>box=</code> → <code>"center"</code>. Qualquer combinação vale (ex.: bloco em <code>top_right=</code> com linhas à esquerda).</td></tr>
@@ -8511,7 +8513,7 @@ play_sound(crunch)</pre>
     <section class="section prose" id="reagir-when">
       <h2>@when</h2>
       <p class="one-liner"><code>@when(condição)</code> roda a função uma vez quando a condição <em>passa</em> de <code>False</code> para <code>True</code> — “quando o HP chegar a 0, morra”. A condição é conferida a cada frame; enquanto continua <code>True</code>, a função não roda de novo.</p>
-      <p>Expressão Python (<code>player.hp &lt;= 0</code>) vale <em>agora</em>, na hora do decorator. Para o Scena conferir a condição a cada frame, passe uma função: <code>lambda: …</code>. Attribute bool (<code>st.alive</code>) pode ir cru no módulo. Na classe: <code>lambda self: …</code>.</p>
+      <p>Expressão Python (<code>player.hp &lt;= 0</code>) vale <em>agora</em>, na hora do decorator. Para o Scena conferir a condição a cada frame, passe uma função: <code>lambda: …</code>. Uma célula bool (<code>st["alive"]</code>) pode ir crua no módulo. Na classe: <code>lambda self: …</code>.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>st.hp = 3
@@ -8543,10 +8545,10 @@ def on_death():
 def on_y():
     restart()</pre>
           </div>
-          <p>Expressão crua (<code>@when(player.hp &lt;= 0)</code>) avalia uma vez, na hora do decorator — não é conferida de novo. No módulo, um Attribute bool também vale: <code>@when(st.alive)</code>.</p>
+          <p>Expressão crua (<code>@when(player.hp &lt;= 0)</code>) avalia uma vez, na hora do decorator — não é conferida de novo. No módulo, uma célula bool também vale: <code>@when(st["alive"])</code> (com colchetes: <code>st.alive</code> é o valor de agora).</p>
         </div>
         <div class="tab-panel" data-panel="when-method" id="when-method">
-          <p>Na classe: <code>lambda self: …</code>. Attribute cru (<code>st.hp</code>) só no módulo.</p>
+          <p>Na classe: <code>lambda self: …</code>. Célula crua (<code>st["hp"]</code>) só no módulo.</p>
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
 <pre>class Ship(Sprite):
@@ -8564,7 +8566,7 @@ def on_y():
               <tr><th>Peça</th><th>Significado</th></tr>
             </thead>
             <tbody>
-              <tr><td><code>@when(cond)</code></td><td>Bool. Precisa de <code>lambda</code> (expressão True/False). Dispara na borda False→True. Enquanto continua True, não dispara de novo. No módulo, Attribute bool: <code>@when(st.alive)</code>.</td></tr>
+              <tr><td><code>@when(cond)</code></td><td>Bool. Precisa de <code>lambda</code> (expressão True/False). Dispara na borda False→True. Enquanto continua True, não dispara de novo. No módulo, célula bool: <code>@when(st["alive"])</code>.</td></tr>
               <tr><td>Quando avalia</td><td>Todo frame, e depois de gravações em campos próprios / State. <code>flush()</code> roda agora as conferências pendentes, sem esperar o fim do frame.</td></tr>
               <tr><td>Método</td><td><code>lambda self: …</code>. Vale para cada objeto da classe, desde que ele é criado.</td></tr>
               <tr><td>Vários <code>@when</code> no mesmo <code>def</code></td><td>Ok: as duas expressões disparam o mesmo corpo. Misturar com <code>@on_change</code> é TypeError.</td></tr>
@@ -8581,11 +8583,11 @@ def on_y():
     <section class="section prose" id="reagir-on-change">
       <h2>@on_change</h2>
       <p class="one-liner"><code>@on_change(valor)</code> roda a função toda vez que o valor muda, e pode receber o valor novo. Vale para qualquer tipo: número, texto, tupla.</p>
-      <p>Aceita algo reativo do Scena (<code>st.wave</code>, <code>st.pos</code>) ou um <code>lambda</code>. Campo de objeto precisa de lambda: <code>c.radius</code> cru pega o número de agora, não o Attribute. Na classe: <code>lambda self: …</code>.</p>
+      <p>Aceita uma célula (<code>st["wave"]</code>, <code>st["pos"]</code>) ou um <code>lambda</code>. Sem colchetes, <code>st.wave</code> é o número de agora e levanta erro. Campo de objeto precisa de lambda: <code>c.radius</code> cru pega o número de agora. Na classe: <code>lambda self: …</code>.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>st.pos = (0, 0)
-@on_change(st.pos)
+@on_change(st["pos"])
 def on_pos(value):
     marker.center = value
 
@@ -8603,7 +8605,7 @@ def on_radius(value):
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
 <pre>st.wave = 1
-@on_change(st.wave)
+@on_change(st["wave"])
 def on_wave(value):
     spawn(value)
 
@@ -8613,7 +8615,7 @@ def on_radius(value):
           </div>
         </div>
         <div class="tab-panel" data-panel="chg-method" id="chg-method">
-          <p>Na classe: <code>lambda self: …</code>. Attribute cru (<code>st.hp</code>) só no módulo. Callback: <code>def fn(self)</code> ou <code>def fn(self, value)</code>.</p>
+          <p>Na classe: <code>lambda self: …</code>. Célula crua (<code>st["hp"]</code>) só no módulo. Callback: <code>def fn(self)</code> ou <code>def fn(self, value)</code>.</p>
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
 <pre>class Ship(Sprite):
@@ -9993,7 +9995,7 @@ d = distance(player.center, closest_point(wall, player.center))</pre>
     <section class="section prose" id="ui-widgets">
       <h2>Widgets</h2>
       <p class="one-liner">Widgets são os controles de interface — <a href="#ui-slider">Slider</a>, <a href="#ui-button">Button</a>, <a href="#ui-checkbox">CheckBox</a>, <a href="#ui-textinput">TextInput</a>, <a href="#ui-dropdown">DropDown</a> — desenhados na janela, por cima do jogo, sem acompanhar a câmera. Servem para ajustes e ferramentas (volume, opções, nome do jogador).</p>
-      <p>Cada widget fica ligado a um valor: o 1º argumento, um Attribute (em geral um campo de <code>st</code>). Os dois andam juntos nos dois sentidos — mexer no controle grava o valor, e gravar o valor no código (<code>st.volume = 0.2</code>) move o controle. Sem <code>top_left=</code>, os widgets se empilham numa <a href="#ui-stack">coluna</a> no canto da janela, junto com os <a href="#desenhar-text">Text</a> de HUD. <code>ui.scale</code> e <code>ui.font</code> mudam o tamanho e a fonte de todos. <a href="#ui-menu">Menu</a> é outra coisa: uma pergunta no centro da tela, fora da coluna. Botão feito da sua arte: <a href="#ui-sprite-button">SpriteButton</a>.</p>
+      <p>Cada widget fica ligado a um valor: o 1º argumento, uma célula de <code>st</code> com colchetes (<code>Slider(st["volume"])</code>). Sem colchetes, <code>st.volume</code> é o número de agora, e o widget levanta erro com a correção. Os dois andam juntos nos dois sentidos — mexer no controle grava o valor, e gravar o valor no código (<code>st.volume = 0.2</code>) move o controle. Sem <code>top_left=</code>, os widgets se empilham numa <a href="#ui-stack">coluna</a> no canto da janela, junto com os <a href="#desenhar-text">Text</a> de HUD. <code>ui.scale</code> e <code>ui.font</code> mudam o tamanho e a fonte de todos. <a href="#ui-menu">Menu</a> é outra coisa: uma pergunta no centro da tela, fora da coluna. Botão feito da sua arte: <a href="#ui-sprite-button">SpriteButton</a>.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>ui.scale = 0.85
@@ -10001,8 +10003,8 @@ ui.font = "Menlo"
 st.volume = 0.5
 st.mute = False
 Text("Volume")
-Slider(st.volume, label="Volume", max_value=1)   # faixa 0…1
-CheckBox(st.mute, label="Mute")
+Slider(st["volume"], label="Volume", max_value=1)   # faixa 0…1
+CheckBox(st["mute"], label="Mute")
 Button(label="Reset", on_click=reset)</pre>
       </div>
       <details class="spec" open>
@@ -10039,7 +10041,7 @@ Button(label="Reset", on_click=reset)</pre>
             <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td>1º argumento (<code>cell</code>)</td><td>1º</td><td class="type"><span class="t">Attribute</span><span class="ex">st.volume</span></td><td>O valor que o widget mostra e edita. Os dois ficam ligados nos dois sentidos: o gesto grava no Attribute; gravar no Attribute move o controle. É o próprio Attribute (<code>st.volume</code>), não uma fórmula <code>@=</code>.</td></tr>
+<tr><td>1º argumento (<code>cell</code>)</td><td>1º</td><td class="type"><span class="t">célula</span><span class="ex">st["volume"]</span></td><td>O valor que o widget mostra e edita. Os dois ficam ligados nos dois sentidos: o gesto grava na célula; gravar no valor (<code>st.volume = 0.2</code>) move o controle. É a própria célula, com colchetes (<code>st["volume"]</code>), não uma fórmula <code>@=</code>; <code>st.volume</code> sem colchetes é o número e levanta erro.</td></tr>
 <tr><td><code>top_left=</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">(20, 300)</span></td><td>Canto superior esquerdo visual, espaço da janela. Omita para empilhar (mesma coluna que Text HUD); com ele, ainda avança a coluna. Cópia: <code>lambda</code> levanta erro (widget não segue fórmula). Não existe <code>x1=</code> / <code>y1=</code>.</td></tr>
 <tr><td><code>initial=</code></td><td>nome=</td><td class="type"><span class="t">qualquer</span><span class="ex">0.5</span></td><td>Valor de partida. Se vier junto com um Attribute, grava este valor nele.</td></tr>
 <tr><td><code>width=</code> / <code>height=</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">260 / 28</span></td><td>Tamanho do controle, em unidades de design. Omitido: o do tema (260 × 28, vezes <code>ui.scale</code>). Slider só tem <code>width=</code>; CheckBox usa <code>size=</code>.</td></tr>
@@ -10078,7 +10080,7 @@ Button(label="Reset", on_click=reset)</pre>
 <pre>st.volume = 0.5
 st.mute = False
 Text("Volume")
-Slider(st.volume, label="Volume", max_value=1)
+Slider(st["volume"], label="Volume", max_value=1)
 
 ui.stack_column()
 Button(label="Outra coluna")
@@ -10087,7 +10089,7 @@ ui.stack_origin(400, 700)
 Button(label="Coluna absoluta")
 
 ui.stack_from(hud)
-CheckBox(st.mute, label="Mute")
+CheckBox(st["mute"], label="Mute")
 
 ui.stack_reset()
 Text("De novo no topo")</pre>
@@ -10122,7 +10124,7 @@ Text("De novo no topo")</pre>
         <button class="copy-btn" type="button">copiar</button>
 <pre>st.firing = False
 Button(label="Reset", on_click=reset)
-Button(st.firing, label="Fire")      # st.firing é True enquanto o botão está pressionado</pre>
+Button(st["firing"], label="Fire")      # st.firing é True enquanto o botão está pressionado</pre>
       </div>
       <details class="spec" open>
       <summary>Construtor</summary>
@@ -10134,7 +10136,7 @@ Button(st.firing, label="Fire")      # st.firing é True enquanto o botão está
               <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
             </thead>
           <tbody>
-            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">Attribute ou None</span></td><td>Opcional. Segue o botão: <code>value_on</code> enquanto pressionado, <code>value_off</code> ao soltar (não é toggle — para liga/desliga use <code>CheckBox</code>). Ex.: <code>Button(st.firing, …)</code>.</td></tr>
+            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">célula</span></td><td>Opcional (omitida: sem célula; <code>None</code> levanta). Segue o botão: <code>value_on</code> enquanto pressionado, <code>value_off</code> ao soltar (não é toggle — para liga/desliga use <code>CheckBox</code>). Ex.: <code>Button(st["firing"], …)</code>.</td></tr>
             <tr><td><code>label</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">"Button"</span></td><td>Texto escrito no botão.</td></tr>
             <tr><td><code>on_click</code></td><td>nome=</td><td class="type"><span class="t">função ou None</span></td><td>Callback: <code>fn()</code> ou <code>fn(botao)</code>. Ex.: <code>on_click=reset</code>. Também <code>botao.on_click = fn</code> ou <code>@click(botao)</code>. Só Button tem <code>on_click</code>.</td></tr>
             <tr><td><code>value_on</code> / <code>value_off</code></td><td>nome=</td><td class="type"><span class="t">qualquer ou None</span></td><td>Valores escritos no <code>cell</code> ao pressionar / soltar. Padrão <code>True</code> / <code>False</code>.</td></tr>
@@ -10173,7 +10175,7 @@ sair = SpriteButton("sair.png", hover="sair_hover.png", pressed="sair_down.png",
             </thead>
           <tbody>
             <tr><td><code>source</code></td><td>1º</td><td class="type"><span class="t">arquivo ou Sheet</span></td><td>A arte do botão. Uma Sheet com um clipe anima como num Sprite.</td></tr>
-            <tr><td><code>label</code></td><td>nome=</td><td class="type"><span class="t">str, número, Attribute ou função</span></td><td>Texto centralizado sobre a arte. Encolhe para caber (só no desenho: <code>font_size</code> continua o seu). Uma função ou Attribute liga: <code>label=lambda: f"Vidas {st.vidas}"</code>.</td></tr>
+            <tr><td><code>label</code></td><td>nome=</td><td class="type"><span class="t">str, número, célula ou função</span></td><td>Texto centralizado sobre a arte. Encolhe para caber (só no desenho: <code>font_size</code> continua o seu). Uma função ou uma célula liga: <code>label=lambda: f"Vidas {st.vidas}"</code>, <code>label=st["vidas"]</code>.</td></tr>
             <tr><td><code>font</code> / <code>font_size</code></td><td>nome=</td><td class="type"><span class="t">nome ou arquivo / número</span><span class="ex">40 % da altura</span></td><td>Fonte e tamanho do rótulo, como em <a href="#desenhar-text">Text</a>.</td></tr>
             <tr><td><code>label_color</code></td><td>nome=</td><td class="type"><span class="t">cor, Gradient ou Texture</span><span class="ex">branco</span></td><td>Cor do rótulo.</td></tr>
             <tr><td><code>label_inset</code></td><td>nome=</td><td class="type"><span class="t">número ou (esq, cima, dir, baixo)</span><span class="ex">0</span></td><td>Margem da caixa do rótulo dentro da arte — para borda ou "degrau" 3D embaixo. O rótulo centraliza e encaixa nessa caixa.</td></tr>
@@ -10220,8 +10222,8 @@ sair = SpriteButton("sair.png", hover="sair_hover.png", pressed="sair_down.png",
         <button class="copy-btn" type="button">copiar</button>
 <pre>st.volume = 0.5
 st.vidas = 3
-Slider(st.volume, label="Volume", max_value=1)
-Slider(st.vidas, label="Vidas", min_value=1, max_value=9, only_int=True)</pre>
+Slider(st["volume"], label="Volume", max_value=1)
+Slider(st["vidas"], label="Vidas", min_value=1, max_value=9, only_int=True)</pre>
       </div>
       <details class="spec" open>
       <summary>Construtor</summary>
@@ -10233,8 +10235,8 @@ Slider(st.vidas, label="Vidas", min_value=1, max_value=9, only_int=True)</pre>
               <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
             </thead>
           <tbody>
-            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">Attribute</span></td><td>Attribute numérico. Ex.: <code>Slider(st.volume, …)</code>.</td></tr>
-            <tr><td><code>label</code></td><td>nome=</td><td class="type"><span class="t">str ou None</span></td><td>Legenda à esquerda da barra. Omitida: o nome do campo (<code>Slider(st.volume)</code> mostra <code>st.volume</code>).</td></tr>
+            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">célula</span></td><td>Célula numérica. Ex.: <code>Slider(st["volume"], …)</code>.</td></tr>
+            <tr><td><code>label</code></td><td>nome=</td><td class="type"><span class="t">str ou None</span></td><td>Legenda à esquerda da barra. Omitida: o nome do campo (<code>Slider(st["volume"])</code> mostra <code>st.volume</code>).</td></tr>
             <tr><td><code>min_value</code> / <code>max_value</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0 / 100</span></td><td>Os dois extremos da barra. Iguais, ou mínimo maior que o máximo, levantam <code>ValueError</code>.</td></tr>
             <tr><td><code>initial</code></td><td>nome=</td><td class="type"><span class="t">número ou None</span><span class="ex">None</span></td><td>Valor de partida; gravado no Attribute. Sem ele e sem Attribute: o meio da faixa.</td></tr>
             <tr><td><code>only_int</code></td><td>nome=</td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td><code>True</code>: o puxador anda de inteiro em inteiro (vidas, nível).</td></tr>
@@ -10254,8 +10256,8 @@ Slider(st.vidas, label="Vidas", min_value=1, max_value=9, only_int=True)</pre>
         <button class="copy-btn" type="button">copiar</button>
 <pre>st.mute = False
 st.debug = False
-CheckBox(st.mute, label="Mute")
-CheckBox(st.debug, label="Colliders", initial=False)</pre>
+CheckBox(st["mute"], label="Mute")
+CheckBox(st["debug"], label="Colliders", initial=False)</pre>
       </div>
       <details class="spec" open>
       <summary>Construtor</summary>
@@ -10267,7 +10269,7 @@ CheckBox(st.debug, label="Colliders", initial=False)</pre>
               <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
             </thead>
           <tbody>
-            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">Attribute</span></td><td>Attribute bool. Ex.: <code>CheckBox(st.mute, …)</code>.</td></tr>
+            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">célula</span></td><td>Célula bool. Ex.: <code>CheckBox(st["mute"], …)</code>.</td></tr>
             <tr><td><code>label</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">"CheckBox"</span></td><td>Legenda à direita da caixa.</td></tr>
             <tr><td><code>initial</code></td><td>nome=</td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td>Marcada ou não no começo; gravado no Attribute.</td></tr>
             <tr><td><code>size</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">18</span></td><td>Lado da caixa, em unidades de design. Omitido: o do tema (18 × <code>ui.scale</code>).</td></tr>
@@ -10285,8 +10287,8 @@ CheckBox(st.debug, label="Colliders", initial=False)</pre>
         <button class="copy-btn" type="button">copiar</button>
 <pre>st.player_name = ""                  # st.name é reservado (é o nome do State)
 st.seed = ""
-TextInput(st.player_name, placeholder="Nome", label="Jogador", max_length=12)
-TextInput(st.seed, width=200, top_left=(20, 300))
+TextInput(st["player_name"], placeholder="Nome", label="Jogador", max_length=12)
+TextInput(st["seed"], width=200, top_left=(20, 300))
 
 def run(cmd):                        # console: Enter roda e continua digitando
     print(cmd)
@@ -10305,7 +10307,7 @@ console = TextInput(on_submit=run, width=400)</pre>
               <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
             </thead>
           <tbody>
-            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">Attribute</span></td><td>Attribute (texto ou número). O texto é gravado nele no Enter, no Tab ou ao perder o foco. Attribute bool levanta erro: use <code>CheckBox</code>. Ex.: <code>TextInput(st.player_name, …)</code>.</td></tr>
+            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">célula</span></td><td>Célula de texto ou número. O texto é gravado nela no Enter, no Tab ou ao perder o foco. Célula bool levanta erro: use <code>CheckBox</code>. Ex.: <code>TextInput(st["player_name"], …)</code>.</td></tr>
             <tr><td><code>placeholder</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">""</span></td><td>Dica cinza com a caixa vazia</td></tr>
             <tr><td><code>label</code></td><td>nome=</td><td class="type"><span class="t">str ou None</span><span class="ex">None</span></td><td>Legenda à esquerda. <code>width</code> inclui a legenda. Empilhados, Sliders e TextInputs com legenda dividem a mesma coluna de legendas.</td></tr>
             <tr><td><code>max_length</code></td><td>nome=</td><td class="type"><span class="t">int ou None</span><span class="ex">None</span></td><td>Máximo de caracteres ao digitar ou colar. Um valor maior vindo do código aparece inteiro.</td></tr>
@@ -10334,8 +10336,8 @@ console = TextInput(on_submit=run, width=400)</pre>
         <button class="copy-btn" type="button">copiar</button>
 <pre>st.palette = "night"
 st.weapon = "laser"
-DropDown(st.palette, options=["night", "sunset", "day"])
-DropDown(st.weapon, options=["laser", "rocket"], initial="laser")</pre>
+DropDown(st["palette"], options=["night", "sunset", "day"])
+DropDown(st["weapon"], options=["laser", "rocket"], initial="laser")</pre>
       </div>
       <details class="spec" open>
       <summary>Construtor</summary>
@@ -10347,7 +10349,7 @@ DropDown(st.weapon, options=["laser", "rocket"], initial="laser")</pre>
               <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
             </thead>
           <tbody>
-            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">Attribute</span></td><td>Attribute da seleção. Ex.: <code>DropDown(st.palette, …)</code>.</td></tr>
+            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">célula</span></td><td>Célula da seleção. Ex.: <code>DropDown(st["palette"], …)</code>.</td></tr>
             <tr><td><code>options</code></td><td>nome=</td><td class="type"><span class="t">lista</span><span class="ex">["night", "day"]</span></td><td>As escolhas. O texto mostrado é <code>str()</code> de cada item. Sem <code>options=</code>: três opções de exemplo (<code>"Option 1"</code>…). Ex.: <code>options=["night", "sunset", "day"]</code>.</td></tr>
             <tr><td><code>initial</code></td><td>nome=</td><td class="type"><span class="t">um item de options</span><span class="ex">"laser"</span></td><td>Opção marcada no começo; gravada no Attribute. Fora da lista: a primeira.</td></tr>
             <tr><td><code>width</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">260</span></td><td>Largura da caixa fechada, em unidades de design. Omitida: a do tema (260 × <code>ui.scale</code>).</td></tr>
@@ -10370,7 +10372,7 @@ DropDown(st.weapon, options=["laser", "rocket"], initial="laser")</pre>
 def escolher(opcao):
     pass
 
-Menu(st.nave, options=["Azul", "Vermelha"], on_choose=escolher, title="Sua nave")
+Menu(st["nave"], options=["Azul", "Vermelha"], on_choose=escolher, title="Sua nave")
 
 async def modo(e):
     escolha = await Menu(options=["Continuar", "Sair"], title="Pausa", pause=True)
@@ -10389,7 +10391,7 @@ def update(dt):
               <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
             </thead>
           <tbody>
-            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">Attribute ou None</span></td><td>Campo (Attribute) que recebe a opção escolhida. Ex.: <code>Menu(st.nave, …)</code>.</td></tr>
+            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">célula</span></td><td>Opcional. Célula que recebe a opção escolhida. Ex.: <code>Menu(st["nave"], …)</code>. <code>None</code> levanta (seria <code>st.nave</code> ainda vazio, sem colchetes).</td></tr>
             <tr><td><code>options</code></td><td>nome=</td><td class="type"><span class="t">lista</span><span class="ex">["Jogar", "Sair"]</span></td><td>Escolhas. O rótulo é <code>str()</code>. O valor escolhido é o item, não o texto.</td></tr>
             <tr><td><code>on_choose</code></td><td>nome=</td><td class="type"><span class="t">função</span><span class="ex">escolher</span></td><td><code>escolher(opcao)</code>. Roda em todo clique, inclusive a mesma opção de novo. Não roda em <code>destroy()</code>.</td></tr>
             <tr><td><code>title</code></td><td>nome=</td><td class="type"><span class="t">str</span></td><td>Faixa no topo. Omitir = só as opções.</td></tr>
@@ -10443,13 +10445,13 @@ def update(dt):
 <pre>st.volume = 0.5
 st.palette = "night"
 Text("Volume")
-Slider(st.volume, label="Volume", max_value=1)
+Slider(st["volume"], label="Volume", max_value=1)
 ui.gap()
 Button(label="Reset", on_click=reset)
 
 ui.gap()
 ui.gap()
-DropDown(st.palette, options=["night", "day"])</pre>
+DropDown(st["palette"], options=["night", "day"])</pre>
       </div>
       <details class="spec">
       <summary>Chamada</summary>
@@ -10479,11 +10481,11 @@ DropDown(st.palette, options=["night", "day"])</pre>
 <pre>st.volume = 0.5
 st.pan = 0.0
 st.mute = False
-Slider(st.volume, label="Volume", max_value=1)
-Slider(st.pan, label="Pan", min_value=-1, max_value=1)
+Slider(st["volume"], label="Volume", max_value=1)
+Slider(st["pan"], label="Pan", min_value=-1, max_value=1)
 
 ui.stack_column()
-CheckBox(st.mute, label="Mute")
+CheckBox(st["mute"], label="Mute")
 Button(label="Reset", on_click=reset)
 
 ui.stack_column(gap=24)

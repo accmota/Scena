@@ -58,14 +58,14 @@ _applied_heading = 90.0  # last heading pushed from slider → actors
 
 ui.gap()
 ui.gap()
-Slider(st.radius, label="Radius", show_value=True, min_value=24.0, max_value=90.0)
-Slider(st.hue, label="Hue shift", show_value=True, min_value=0.0, max_value=1.0)
-Slider(st.heading, label="Heading °", show_value=True, min_value=0.0, max_value=360.0)
-Slider(st.orbit, label="Orbit ° (about hub)", show_value=True, min_value=0.0, max_value=360.0)
-TextInput(st.rect_w, placeholder="rect width")
-DropDown(st.color, options=["cyan", "magenta", "gold", "lime", "orange"])
-CheckBox(st.show_hex, label="Show hex")
-CheckBox(st.flip_ninja, label="Ninja flip_x")
+Slider(st["radius"], label="Radius", show_value=True, min_value=24.0, max_value=90.0)
+Slider(st["hue"], label="Hue shift", show_value=True, min_value=0.0, max_value=1.0)
+Slider(st["heading"], label="Heading °", show_value=True, min_value=0.0, max_value=360.0)
+Slider(st["orbit"], label="Orbit ° (about hub)", show_value=True, min_value=0.0, max_value=360.0)
+TextInput(st["rect_w"], placeholder="rect width")
+DropDown(st["color"], options=["cyan", "magenta", "gold", "lime", "orange"])
+CheckBox(st["show_hex"], label="Show hex")
+CheckBox(st["flip_ninja"], label="Ninja flip_x")
 
 
 def ping():
@@ -128,7 +128,7 @@ set_post(0)
 
 # --- shapes ------------------------------------------------------------------
 planet = Circle(center=(520, 480), radius=52).set_color("cyan")
-planet["radius"] @= st.radius
+planet["radius"] @= st["radius"]
 planet.glow = Glow("cyan", radius=14, sigma=7)
 
 moon = Circle(center=(600, 480), radius=18).set_color("silver")
@@ -138,7 +138,7 @@ tether = Line(p1=lambda: planet.center, p2=lambda: moon.center).set_color("white
 tether.line_width = 1
 
 panel = Rect(center=(720, 480), width=130, height=80).set_color("cyan")
-panel["width"] @= st.rect_w
+panel["width"] @= st["rect_w"]
 
 square = Square(center=(880, 480), length=70, angle=12).set_color("gold")
 oval = Ellipse(center=(520, 340), width=110, height=56, angle=-18).set_color("magenta")
@@ -194,7 +194,7 @@ ninja = Sprite("../../examples/media/ninja/Idle__003.png", height=64, center=(10
 ninja.angle = float(st.heading)
 nose = Line(p1=lambda: ship.center, angle=90, length=52).set_color("gold")
 nose.line_width = 3
-nose["angle"] @= st.heading
+nose["angle"] @= st["heading"]
 ufo = Sprite(space, frame="ufoBlue.png", size=50, center=(1240, 380))
 ufo.play("ufo")
 meteor = Sprite(space, frame="meteorBrown_big1.png", size=56, center=(1180, 250))
@@ -241,27 +241,27 @@ def select(step):
     hud.status = f"selected {who}"
 
 
-@on_change(st.color)
+@on_change(st["color"])
 def recolor(name):
     planet.set_color(str(name))
     panel.set_color(str(name))
     hud.status = f"color → {name}"
 
 
-@on_change(st.hue)
+@on_change(st["hue"])
 def on_hue(turns):
     # Texture(shift=) is construct-time; rebuild fill (decode stays shared).
     wood.fill = Texture("../../examples/media/k-textures/floor_wood_planks.png", shift=HueShift(amount=float(turns)))
     hud.status = f"hue → {float(turns):.2f}"
 
 
-@on_change(st.show_hex)
+@on_change(st["show_hex"])
 def toggle_hex(show):
     hexagon.visible = bool(show)
     hud.status = f"hex visible → {bool(show)}"
 
 
-@on_change(st.orbit)
+@on_change(st["orbit"])
 def on_orbit(deg):
     a = float(deg)
     rotor.rotate_to(a, about=hub.center)
@@ -272,7 +272,7 @@ def on_orbit(deg):
     )
 
 
-@on_change(st.heading)
+@on_change(st["heading"])
 def on_heading(deg):
     global _applied_heading
     a = float(deg)
@@ -287,7 +287,7 @@ def on_heading(deg):
     )
 
 
-@on_change(st.flip_ninja)
+@on_change(st["flip_ninja"])
 def on_flip(v):
     ninja.flip_x = bool(v)
     hud.status = (

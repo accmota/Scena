@@ -77,10 +77,10 @@ class TestSliderBind(WidgetTestCase):
         name = self.key("radius")
         st.create(name, initial=70.0)
         s = self.track(Slider(
-            getattr(st, name), label="R", top_left=(20, 100), width=300,
+            st[name], label="R", top_left=(20, 100), width=300,
             min_value=20.0, max_value=160.0,
         ))
-        attr = getattr(st, name)
+        attr = st._resolve_cell(name)
         self.assertIs(s.data, attr)
         self.assertEqual(s.min_value, 20.0)
         self.assertEqual(s.max_value, 160.0)
@@ -112,14 +112,14 @@ class TestSliderBind(WidgetTestCase):
         # a drag or the wheel writes a new one, and that one is in range.
         name = self.key("count")
         st.create(name, initial=100)
-        s = self.track(Slider(getattr(st, name), label="N", top_left=(20, 140),
+        s = self.track(Slider(st[name], label="N", top_left=(20, 140),
                               width=300, min_value=1, max_value=80, only_int=True))
-        self.assertEqual(getattr(st, name).value, 100)
+        self.assertEqual(getattr(st, name), 100)
         setattr(st, name, 2.5)
-        self.assertEqual(getattr(st, name).value, 2.5)
+        self.assertEqual(getattr(st, name), 2.5)
         setattr(st, name, 100)
         s._on_mouse_scroll(0, 1)
-        self.assertEqual(getattr(st, name).value, 80)
+        self.assertEqual(getattr(st, name), 80)
 
     def test_wheel_only_int(self):
         s = self.track(Slider(
@@ -228,7 +228,7 @@ class TestDropDownIndex(WidgetTestCase):
         name = self.key("color")
         st.create(name, initial="cyan")
         d = self.track(DropDown(
-            getattr(st, name),
+            st[name],
             options=["cyan", "magenta", "gold"],
             top_left=(20, 200), width=220,
         ))
@@ -290,8 +290,8 @@ class TestTextBoxCommit(WidgetTestCase):
     def test_commit_on_focus_lost_and_invalid_keeps_data(self):
         name = self.key("n")
         st.create(name, initial=10)
-        tb = self.track(TextInput(getattr(st, name), top_left=(20, 140), width=200))
-        attr = getattr(st, name)
+        tb = self.track(TextInput(st[name], top_left=(20, 140), width=200))
+        attr = st._resolve_cell(name)
 
         tb._on_focus_gained()
         tb.text = "20"
@@ -310,7 +310,7 @@ class TestCheckBox(WidgetTestCase):
     def test_checked_is_data_alias(self):
         name = self.key("on")
         st.create(name, initial=False)
-        attr = getattr(st, name)
+        attr = st._resolve_cell(name)
         c = self.track(CheckBox(attr, label="Show", top_left=(20, 40)))
         self.assertIs(c.checked, attr)
         c.checked = True
@@ -322,11 +322,11 @@ class TestCheckBox(WidgetTestCase):
         name = self.key("on")
         st.create(name, initial=False)
         c = self.track(CheckBox(
-            getattr(st, name), label="Show", top_left=(20, 40), initial=True,
+            st[name], label="Show", top_left=(20, 40), initial=True,
         ))
-        self.assertTrue(bool(getattr(st, name).value))
+        self.assertTrue(bool(getattr(st, name)))
         c._on_mouse_click(c._x1 + 1, c._y1 + 1, self.btn)
-        self.assertFalse(bool(getattr(st, name).value))
+        self.assertFalse(bool(getattr(st, name)))
 
 
 class TestButton(WidgetTestCase):
@@ -360,15 +360,15 @@ class TestButton(WidgetTestCase):
         name = self.key("hold")
         st.create(name, initial=0.0)
         b = self.track(Button(
-            getattr(st, name), label="H", top_left=(20, 300), width=120,
+            st[name], label="H", top_left=(20, 300), width=120,
             value_on=2000.0, value_off=600.0,
         ))
         x = (b._x1 + b._x2) * 0.5
         y = (b._y1 + b._y2) * 0.5
         self.wm.handle_mouse_down(x, y, self.btn)
-        self.assertAlmostEqual(float(getattr(st, name).value), 2000.0)
+        self.assertAlmostEqual(float(getattr(st, name)), 2000.0)
         self.wm.handle_mouse_up(x, y, self.btn)
-        self.assertAlmostEqual(float(getattr(st, name).value), 600.0)
+        self.assertAlmostEqual(float(getattr(st, name)), 600.0)
 
 
 class TestLayoutAndEnabled(WidgetTestCase):
@@ -459,7 +459,7 @@ class TestBoxedCellFormatAndBrackets(WidgetTestCase):
     def test_linked_checkbox_click_is_noop(self):
         st.create("flag", initial=False)
         c = self.track(CheckBox(label="Show", top_left=(20, 40)))
-        c["checked"] @= st.flag
+        c["checked"] @= st["flag"]
         self.assertFalse(bool(c.value))
         self.click(c)
         self.assertFalse(bool(c.value))
@@ -481,7 +481,7 @@ class TestBoxedCellFormatAndBrackets(WidgetTestCase):
     def test_linked_textbox_does_not_commit(self):
         st.create("title", initial="hero")
         tb = self.track(TextInput(top_left=(20, 40), width=200, initial="hi"))
-        tb["data"] @= st.title
+        tb["data"] @= st["title"]
         self.assertEqual(tb.value, "hero")
         tb._on_focus_gained()
         tb.text = "nope"

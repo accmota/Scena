@@ -135,8 +135,8 @@ for _k, _g in (("tiro", "tiro"), ("tiro_inimigo", "tiro_inimigo"), ("inimigo", "
 group["alvos"] @= lambda: group["inimigo"] | group["chefe"]
 G.invariant("group.formula", lambda: group["alvos"].count
             == group["inimigo"].count + group["chefe"].count or "alvos != inimigo + chefe")
-G.invariant("score.model", lambda: st.pontos.value == MODELO["pontos"]
-            or f"st.pontos {st.pontos.value} vs model {MODELO['pontos']}")
+G.invariant("score.model", lambda: st.pontos == MODELO["pontos"]
+            or f"st.pontos {st.pontos} vs model {MODELO['pontos']}")
 # A widget writes st.volume in the input poll (frame step 1); @on_change runs
 # at flush (step 6): at G.frame() audio.volume is what the last flush set.
 VOLUME = {"flushed": 0.8}
@@ -189,8 +189,8 @@ def _rastro():
 
 G.invariant("contrail.bound", _rastro)
 
-PERDEU = G.model(EdgeModel("perdeu", lambda: st.vidas.value == 0))
-PONTOS = G.model(ChangeModel("pontos", lambda: st.pontos.value))
+PERDEU = G.model(EdgeModel("perdeu", lambda: st.vidas == 0))
+PONTOS = G.model(ChangeModel("pontos", lambda: st.pontos))
 COVER = G.model(CoverModel(lambda: canvas.covered))
 
 
@@ -203,15 +203,15 @@ def perdeu():
         trocar(Fim, style="iris", center=heroi.center if heroi else None)
 
 
-@on_change(st.pontos)
+@on_change(st["pontos"])
 def mudou_pontos(valor):
     PONTOS.fired(G, valor)
     st.recorde = max(st.recorde, valor)
 
 
-@on_change(st.volume)
+@on_change(st["volume"])
 def mudou_volume(valor):
-    G.equal(valor, st.volume.value, "on_change.value_is_current")
+    G.equal(valor, st.volume, "on_change.value_is_current")
     audio.volume = valor
     VOLUME["flushed"] = valor
     G.hit("widget.volume")
@@ -310,7 +310,7 @@ class Heroi(Sprite, source=SPACE, frame="playerShip1_red.png", height=48, group=
     def setup(self):
         nascer(self, "heroi")
         TIRO.update(ultimo=None, segurando_desde=None, nova=True, ancora=None, k=0)
-        self.frame = st.nave.value
+        self.frame = st.nave
         self.dor = self.add_hitbox(group="dor", scale=0.55)
         self.ferido = False
 
@@ -370,7 +370,7 @@ class Heroi(Sprite, source=SPACE, frame="playerShip1_red.png", height=48, group=
         G.hit("dica")
 
     def levar_dano(self):
-        if self.ferido or GOD or st.escudo.value > 0:
+        if self.ferido or GOD or st.escudo > 0:
             G.hit("dano.ignorado")
             return
         st.vidas -= 1
@@ -431,7 +431,7 @@ class Energia(Orb, radius=16, color="gold", group="energia"):
         st.escudo = 1.0
         h = tween(st["escudo"], 0.0, time=3.0, ease=curva, name="escudo",
                   on_done=lambda: TWEENS.done(G, "escudo"))
-        TWEENS.expect(G, "escudo", lambda: st.escudo.value, 1.0, 0.0, 3.0, ease=curva, early=False)
+        TWEENS.expect(G, "escudo", lambda: st.escudo, 1.0, 0.0, 3.0, ease=curva, early=False)
         ATO["tweens"] = ATO.get("tweens", []) + ["escudo"]
         G.check(not h.done, "tween.handle")
         marcar_morte(self, "pego")
@@ -742,7 +742,7 @@ def entrar_ato(nome):
         G.equal(canvas.playfield.pad, 0.25, "act.playfield_restored", tol=1e-12)
         G.equal(clock.scale, 1.0, "act.clock_restored")
         # Fica: st (the score crosses the change).
-        G.equal(st.pontos.value, MODELO["pontos"], "act.st_kept")
+        G.equal(st.pontos, MODELO["pontos"], "act.st_kept")
     ATO.update(nome=nome, objs=set(), n=ATO["n"] + 1, sons=[], tweens=[], handles_ato=[])
     for k in ("chroma", "marcas", "faiscas", "torres_shapes"):
         ATO.pop(k, None)
@@ -778,9 +778,9 @@ class Hangar(Act):
     def setup(self):
         entrar_ato("Hangar")
         Text("HANGAR", center=(W / 2, H * 0.8), font_size=48)
-        WIDGETS["nave"] = DropDown(st.nave, options=NAVES)
-        WIDGETS["crt"] = CheckBox(st.crt, label="CRT")
-        WIDGETS["volume"] = Slider(st.volume, label="Volume", max_value=1)
+        WIDGETS["nave"] = DropDown(st["nave"], options=NAVES)
+        WIDGETS["crt"] = CheckBox(st["crt"], label="CRT")
+        WIDGETS["volume"] = Slider(st["volume"], label="Volume", max_value=1)
         WIDGETS["lancar"] = Button(label="LANCAR", on_click=self.lancar)
         self.trocas_nave = 0
 
@@ -843,7 +843,7 @@ class Setor(Act):
         ATO["marcas"] = History(max_points=5, on_leave=lambda m: G.hit("history.leave"))
         ATO["chroma"] = Chroma(amount=0)
         self.wash = Wash(intensity=0, color=(1.0, 0.2, 0.2))
-        if st.crt.value:
+        if st.crt:
             Crt(amount=0.6)
             G.hit("post.crt")
         Rect(center=(760, 80), width=160, height=70, color=Color("teal").with_alpha(0.25),
@@ -889,7 +889,7 @@ class Setor(Act):
         TIMERS.fired(G, "metronomo")
 
     def on_update(self, dt):
-        self.wash.intensity = 0.25 if st.vidas.value == 1 else 0.0
+        self.wash.intensity = 0.25 if st.vidas == 1 else 0.0
         if keyp.once("P") and self.pausador.mode is None:
             self.pausador.mode = self.pausador.pausa
 
@@ -971,10 +971,10 @@ class Fim(Act):
     def setup(self):
         entrar_ato("Fim")
         st.recorde = max(st.recorde, st.pontos)
-        G.check(st.recorde.value >= st.pontos.value, "st.recorde")
-        msg = "VITORIA" if st.venceu.value else "FIM DE JOGO"
+        G.check(st.recorde >= st.pontos, "st.recorde")
+        msg = "VITORIA" if st.venceu else "FIM DE JOGO"
         Text(msg, center=(W / 2, H * 0.6), font_size=60)
-        if st.venceu.value:
+        if st.venceu:
             canvas.fireworks_at((W / 2, H * 0.6))
         h = self.after(1.2, self.voltar)
         TIMERS.expect_after(G, "fim", h, 1.2, early=False, scope="Fim")

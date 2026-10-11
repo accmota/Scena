@@ -255,7 +255,7 @@ for i in range(N_CHECKS):
 # Always-on corner_radius (not in the Q/W FX panel pool — that pool is rebound).
 st.corner_radius = 0.0
 Slider(
-    st.corner_radius,
+    st["corner_radius"],
     label="corner_radius",
     show_value=True,
     min_value=0.0,

@@ -1014,7 +1014,7 @@ handlers are untouched.
 
 Not included: class-/group-scoped `@every`; `self.collide_with` imperative twin
 (deferred); `@collide(SELF, target)` (rejected); string `@when("hp <= 0")`.
-Bare Attribute `@on_change(st.x)` in a class body is a `TypeError` (callable
+A bare cell `@on_change(st["x"])` in a class body is a `TypeError` (callable
 only, same as `@when`).
 
 Polling in `on_update` with an explicit guard stays a documented alternative

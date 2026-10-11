@@ -118,7 +118,7 @@ def deep_binary_tree(levels: int = 4, driver_val: float = 0.0):
     """Binary tree of Rects linked via left/right_square_center (spinning-rects shape)."""
     st = State(name="drv")
     st.t = driver_val
-    t = st.t
+    t = st._resolve_cell("t")
     root = Rect(center=(500.0, 350.0), width=200.0, height=200.0 / 15)
     root["angle"] @= (lambda t=t: (t * 26.0) % 360.0)
     bars = [root]
@@ -145,7 +145,7 @@ def deep_binary_tree(levels: int = 4, driver_val: float = 0.0):
 def linear_chain(n: int = 20):
     st = State(name="chain")
     st.t = 0.0
-    t = st.t
+    t = st._resolve_cell("t")
     prev = Rect(center=(0.0, 0.0), width=100.0, height=10.0)
     prev["angle"] @= (lambda t=t: (t * 20.0) % 360.0)
     chain = [prev]
@@ -164,7 +164,7 @@ def linear_chain(n: int = 20):
 def diamond(width: int = 8):
     st = State(name="dia")
     st.a = 1.0
-    a = st.a
+    a = st._resolve_cell("a")
     branches = []
     for i in range(width):
         b = Attribute(0.0, attr_name=f"b{i}")

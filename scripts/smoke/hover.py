@@ -323,7 +323,7 @@ def widgets_page():
     beep = _track(Button(label="Beep (fn())", width=200,
                          on_click=lambda: setattr(hud, "status", "Beep: fn() called")))
     st.hover_vol = 0.5
-    slider = _track(Slider(st.hover_vol, label="Vol"))
+    slider = _track(Slider(st["hover_vol"], label="Vol"))
     square = _track(Rect(center=(700, 420), width=200, height=200).set_color(IDLE))
     _named(square, "square")
     # A world shape exactly under the Reset button: the button must win hover.

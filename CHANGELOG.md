@@ -10,9 +10,41 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
-## Unreleased
+## Unreleased (0.8.0)
 
 ### Breaking
+
+- `st.key` reads the **value**, like an Entity field (`ship.hp`). The cell is
+  `st["key"]`. Before, `st.key` returned the cell itself (an `Attribute`), so
+  `if st.mic is None:` was always False, `match st.mic: case None` never
+  matched, `type(st.n)` and `isinstance(st.n, int)` named the cell, and
+  `recorde = st.score` (or `lista.append(st.score)`) kept following the score
+  instead of copying it. All of these now do what they say. Same for any
+  `State` bag (`hud = State(name="hud")`).
+- What binds or watches a cell takes the brackets. Old → new:
+  `Slider(st.volume)` → `Slider(st["volume"])` (also `CheckBox`, `DropDown`,
+  `TextInput`, `Button`, `Menu`); `Text(st.score)` → `Text(st["score"])`;
+  `@on_change(st.wave)` → `@on_change(st["wave"])`; `@when(st.alive)` →
+  `@when(st["alive"])`; `until(st.done)` → `until(st["done"])`;
+  `tween(st.t, …)` → `tween(st["t"], …)`; `c["radius"] @= st.r` →
+  `c["radius"] @= st["r"]`; `st.x @= …` → `st["x"] @= …`. The old spelling
+  raises `TypeError` naming the bracket form (`Slider(cell) binds a data
+  cell: got float 0.5. Pass the cell with brackets: Slider(st["volume"])`).
+  `SpriteButton(label=st["vidas"])` now shows the cell live.
+- `st.key.value` raises `AttributeError` (`'int' object has no attribute
+  'value'`): write `st.key`, which is already the value.
+- `Text(<number>)` raises: write a string (`Text(str(n))`), a cell
+  (`Text(st["score"])`) or a function. Before, `Text(5)` showed "5"; after
+  the change above, `Text(st.score)` would have been a frozen snapshot.
+- A widget's `cell` given as `None` raises; leave the argument out for a
+  widget with no cell. `Menu(st.nave)` while `st.nave` is still `None` would
+  otherwise have built a menu that writes nowhere.
+- `@on_change(v)` / `@when(v)` with a free `Vec2` raises: watch the cell
+  (`@on_change(st["pos"])`) or a function (`@on_change(lambda: line.vec)`).
+- `st.pos.x = 5` still raises (assign a whole value:
+  `st.pos = Vec2(5, st.pos.y)`), and `st.pos += Vec2(1, 0)` /
+  `st.itens += [x]` still update what is linked to the cell.
+  `st.itens.append(x)` changes the list without telling links, as before.
 
 - `anchor.draggable = False` and `anchor.handle = False` raise `TypeError`
   (an Anchor is always a draggable handle; use `Point(x, y, visible=True)`

@@ -205,7 +205,7 @@ class ArmadaPilot(Pilot):
         alvo = g["alvos"].nearest((hx, hy + 400))
         tx = alvo.center.x if alvo is not None else 500.0
         # an orb falling low: go and take it (the shield tween)
-        if v.st.escudo.value <= 0:
+        if v.st.escudo <= 0:
             for o in g["energia"]:
                 if o.center.y < 360:
                     tx = o.center.x
@@ -274,7 +274,7 @@ class CavernaPilot(Pilot):
             self.hold(run, "RIGHT", False)
             return
         x, y, vy, chao = P["x"], P["y"], P["vy"], P["chao"]
-        mortes = v.st.mortes.value
+        mortes = v.st.mortes
         if P["morrendo"]:
             self.hold(run, "RIGHT", False)
             self.jumped_gap = self.buffered = self.riding = self.boarding = False

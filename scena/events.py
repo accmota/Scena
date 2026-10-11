@@ -110,12 +110,23 @@ def _validate_condition(condition: Condition, kind: EventKind) -> None:
     then simply never fire — "raise loud" instead.
     """
     label = "@when" if kind is EventKind.WHEN else "@on_change"
+    cell = "alive" if kind is EventKind.WHEN else "wave"
     if isinstance(condition, FieldRef):
         return
     if isinstance(condition, Container):
-        if isinstance(condition, Attribute) or getattr(
-            type(condition), "_leaf_composite", False
-        ):
+        if isinstance(condition, Attribute):
+            return
+        if getattr(type(condition), "_leaf_composite", False):
+            from .scenamath import Vec2
+            if condition.owner is None and isinstance(condition, Vec2):
+                # ``@on_change(st.pos)`` reads the Vec2 the cell holds (0.8.0):
+                # ``st.pos = Vec2(…)`` stores a new one, so this never fires.
+                raise TypeError(
+                    f"{label}(Vec2) watches a free Vec2 value, which nothing "
+                    "replaces in place. To watch a st cell, pass it with "
+                    f"brackets: {label}(st[\"pos\"]) (st.pos reads the value "
+                    f"since 0.8.0). For a shape's vector: {label}(lambda: line.vec)."
+                )
             return
         raise TypeError(
             f"{label}({type(condition).__name__} instance) watches an object "
@@ -125,11 +136,13 @@ def _validate_condition(condition: Condition, kind: EventKind) -> None:
     if callable(condition):
         return
     raise TypeError(
-        f"{label} condition must be a zero-arg callable, an Attribute, a "
-        f"pose field (obj[\"field\"]), or a Point/Vec2 — got a bare "
-        f"{type(condition).__name__} ({condition!r}). Comparisons and "
+        f"{label} condition must be a zero-arg callable, a field "
+        f"(st[\"{cell}\"], obj[\"field\"]), or a Point/Vec2 — got a bare "
+        f"{type(condition).__name__} ({condition!r:.40}). Comparisons and "
         f"attribute reads inside {label}(...) run once, at decoration "
-        f"time; wrap them in a lambda: {label}(lambda: ...)."
+        f"time; wrap them in a lambda: {label}(lambda: ...). A st cell is "
+        f"watched with brackets: {label}(st[\"{cell}\"]) (st.{cell} reads the "
+        f"value since 0.8.0)."
     )
 
 
@@ -572,8 +585,8 @@ def when(condition: Condition):
             if not callable(condition):
                 raise TypeError(
                     "@when on a method needs a callable condition "
-                    "(lambda self: ...). Use module-level @when(attribute) "
-                    "for a bare Attribute."
+                    "(lambda self: ...). Use module-level @when(st[\"alive\"]) "
+                    "for a st cell."
                 )
             from .validate import check_handler_arity
             check_handler_arity(func, ("self",), what="@when")
@@ -608,7 +621,7 @@ def on_change(target: Condition):
 
     Example (classless)::
 
-        @on_change(st.pos)
+        @on_change(st["pos"])
         def follow(value):
             ...
 
@@ -622,8 +635,8 @@ def on_change(target: Condition):
             if not callable(target):
                 raise TypeError(
                     "@on_change on a method needs a callable target "
-                    "(lambda self: ...). Use module-level @on_change(attribute) "
-                    "for a bare Attribute."
+                    "(lambda self: ...). Use module-level @on_change(st[\"wave\"]) "
+                    "for a st cell."
                 )
             from .validate import check_handler_arity
             check_handler_arity(func, ("self", "value"), what="@on_change")

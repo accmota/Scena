@@ -117,7 +117,7 @@ def hovered_flags(s):
 
 # ---------------------------------------------------------------- probes
 def _st(name):
-    return lambda p: getattr(p.st, name).value
+    return lambda p: getattr(p.st, name)
 
 
 PROBES = {
@@ -833,7 +833,7 @@ EXPECT = [
                 "changes at no other frame.",
            check=custom(c_scan), scenarios=("scan", "still")),
     Expect(id="E37", level="L0", cite=G + "#reagir-on-change; #reagir-when (unregister_event)",
-           text="on_change(st.binned) runs once per real change: write 3 -> 1, write 3 again -> no run, "
+           text="on_change(st['binned']) runs once per real change: write 3 -> 1, write 3 again -> no run, "
                 "SPACE (3 -> 0) -> 2, after U writing 7 -> still 2; watching False from U on.",
            check=custom(c_cells), scenarios=("cells",)),
     Expect(id="E38", level="L2", cite="toybox.py spawn(speed=0); " + G + "#colisao-resolve",

@@ -74,10 +74,10 @@ class MenuTest(unittest.TestCase):
         st.nave = "Azul"
         order = []
         def escolher(opcao):
-            order.append(("choose", opcao, st.nave.value, keyp("A")))
+            order.append(("choose", opcao, st.nave, keyp("A")))
         self.keys._press("A")
         menu = self.track(Menu(
-            st.nave, options=["Azul", "Vermelha"], on_choose=escolher, title="Nave",
+            st["nave"], options=["Azul", "Vermelha"], on_choose=escolher, title="Nave",
         ))
         self.assertFalse(keyp("A"))
         self.assertIsNone(menu._ink)

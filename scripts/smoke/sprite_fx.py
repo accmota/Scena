@@ -304,7 +304,7 @@ def _fx(label: str, x: float, y: float, apply, **cell_kw) -> Sprite:
 
 # --- Param panel (view space; above FPS strip) -------------------------------
 Slider(
-    st.fx_amount,
+    st["fx_amount"],
     label="amount ×",
     show_value=True,
     min_value=0.0,
@@ -313,19 +313,19 @@ Slider(
     width=260,
 )
 CheckBox(
-    st.pass_color,
+    st["pass_color"],
     label="pass color (off = sample sprite)",
     top_left=(300, SAFE_BOTTOM + 48),
 )
 
 
-@on_change(st.fx_amount)
+@on_change(st["fx_amount"])
 def _on_amount(_v) -> None:
     _apply_all_fx()
     _hud()
 
 
-@on_change(st.pass_color)
+@on_change(st["pass_color"])
 def _on_pass_color(_v) -> None:
     _apply_all_fx()
     _hud()

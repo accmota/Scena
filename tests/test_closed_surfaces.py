@@ -251,10 +251,10 @@ class TestEngineValueRegressions(unittest.TestCase):
         with self.assertRaises(AttributeError) as cm:
             st.cs_pos.x = 5
         msg = str(cm.exception)
-        self.assertIn("st.cs_pos holds a Vec2", msg)
+        self.assertIn("the Vec2 that st.cs_pos holds", msg)
         self.assertIn("st.cs_pos = Vec2(..., st.cs_pos.y)", msg)
-        self.assertEqual((st.cs_pos.value.x, st.cs_pos.value.y), (1.0, 2.0))
-        self.assertNotIn("x", vars(st.cs_pos))
+        self.assertEqual((st.cs_pos.x, st.cs_pos.y), (1.0, 2.0))
+        self.assertIs(type(st.cs_pos), Vec2)          # the held value itself (0.8.0)
         st.cs_pos = Vec2(5, st.cs_pos.y)            # the reactive spelling
         self.assertEqual(st.cs_pos.x, 5.0)
 
@@ -262,9 +262,9 @@ class TestEngineValueRegressions(unittest.TestCase):
         from scena import st
         st.cs_hp = 3
         st.cs_hp = 4
-        cell = st.cs_hp
+        cell = st._resolve_cell("cs_hp")
         cell.value = 5
-        self.assertEqual(st.cs_hp.value, 5)
+        self.assertEqual(st.cs_hp, 5)
         with self.assertRaises(AttributeError):
             cell.valeu = 6
 

@@ -48,12 +48,15 @@ class TextInputCase(WidgetTestCase):
     def box(self, cell=None, **kw):
         kw.setdefault("top_left", (20, 300))
         kw.setdefault("width", 200)
+        if cell is None:
+            return self.track(TextInput(**kw))
         return self.track(TextInput(cell, **kw))
 
     def cell(self, value):
+        """The bound handle, ``st["name"]``; ``.value`` reads the cell."""
         name = self.key("ti")
         st.create(name, initial=value)
-        return getattr(st, name)
+        return st[name]
 
     def press(self, key, mods=0):
         self.wm._key_mods = mods
@@ -147,7 +150,7 @@ class TestCommitRules(TextInputCase):
         self.type("zz")
         self.wm.set_focus(None)
         self.assertFalse(tb.is_valid)
-        c.value = 42
+        setattr(st, c.name, 42)   # the game writes st.<name> = 42
         self.draw(tb)
         self.assertTrue(tb.is_valid)
         self.assertEqual(tb.text, "42")
@@ -165,7 +168,7 @@ class TestCommitRules(TextInputCase):
         # unless focused" check skipped and the box edited stale text.
         c = self.cell("old")
         tb = self.box(c)
-        c.value = "new"          # no draw in between
+        setattr(st, c.name, "new")          # no draw in between
         self.wm.set_focus(tb)
         self.assertEqual(tb.text, "new")
         self.wm.set_focus(None)
@@ -180,7 +183,7 @@ class TestCommitRules(TextInputCase):
         c = self.cell("old")
         tb = self.box(c)
         self.wm.set_focus(tb)
-        c.value = "new"          # the game writes while the box has focus
+        setattr(st, c.name, "new")          # the game writes while the box has focus
         self.wm.set_focus(None)  # no edit: nothing to commit
         self.assertEqual(c.value, "new")
 
@@ -414,7 +417,7 @@ class TestClipboard(TextInputCase):
     def test_linked_box_copies_but_does_not_edit(self):
         st.create("ti_title", initial="hero")
         tb = self.box(initial="x")
-        tb["data"] @= st.ti_title
+        tb["data"] @= st["ti_title"]
         self.wm.set_focus(tb)
         self.press("C", PRIMARY)
         self.assertEqual(uiw._clipboard_buffer, "hero")

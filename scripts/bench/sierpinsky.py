@@ -67,7 +67,7 @@ st.reference = canvas.width / 2
 going_right = True
 
 p1 = Point(x=float(st.reference), y=100)
-p1["x"] @= st.reference
+p1["x"] @= st["reference"]
 p2 = Point(x=canvas.width / 2 - (side / 2), y=canvas.height - 100)
 p3 = Point(x=canvas.width / 2 + (side / 2), y=canvas.height - 100)
 

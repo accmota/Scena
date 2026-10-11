@@ -1593,7 +1593,7 @@ class TestDestroyedSidesLeaveTheActPairLists(ActTestCase):
         class Depois(Act):
             def setup(self):
                 st.hd_nome = ""
-                box["ti"] = TextInput(st.hd_nome, top_left=(10, 290), width=100)
+                box["ti"] = TextInput(st["hd_nome"], top_left=(10, 290), width=100)
 
         self.begin(ComMenu)
         wm = self.w.fw.widget_manager

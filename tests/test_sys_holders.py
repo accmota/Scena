@@ -537,7 +537,7 @@ class TestGoneEnders(HolderCase):
                     def _lit(a, b, info=None):
                         pass
                     st.nome = ""
-                    box["ti"] = TextInput(st.nome, top_left=(10, 290), width=100)
+                    box["ti"] = TextInput(st["nome"], top_left=(10, 290), width=100)
                     box["bt"] = Button(label="Vai", on_click=lambda: None)
 
             class Vazia(Act):
@@ -607,7 +607,7 @@ class TestGoneEnders(HolderCase):
     def test_widget_destroyed_with_focus_click_and_menu(self):
         def body(w):
             st.nome2 = ""
-            ti = w.track(TextInput(st.nome2, top_left=(10, 290), width=100))
+            ti = w.track(TextInput(st["nome2"], top_left=(10, 290), width=100))
             bt = w.track(Button(label="Vai2", on_click=lambda: None))
             w.step(1)
             wm = w.fw.widget_manager

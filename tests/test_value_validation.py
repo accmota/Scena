@@ -557,9 +557,9 @@ class TestLinkPullsKeepTheNumbersRule(unittest.TestCase):
         st = scena.State(name="flag")
         st.v = True
         st.v = 1.0
-        self.assertIs(type(st.v.value), float)
+        self.assertIs(type(st.v), float)
         st.v = True
-        self.assertIs(type(st.v.value), bool)
+        self.assertIs(type(st.v), bool)
 
     def test_a_shapes_vec_part_takes_two_finite_numbers_on_every_path(self):
         st = scena.State(name="gx15")

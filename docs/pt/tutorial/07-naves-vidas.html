@@ -840,13 +840,13 @@ run()
           body: `
             <p><code>st</code> guarda os dados do jogo como um todo: os pontos, as vidas, a velocidade da frota. Cada nome em <code>st</code> é uma <strong>célula</strong>: um lugar com um valor que o Scena acompanha. É por isso que o <code>@=</code> funciona: a conta <code>f"x {st.vidas}"</code> lê a célula, e o Scena sabe que, quando a célula mudar, o texto precisa ser refeito.</p>
             <p>A célula tem dois nomes. <code>st.vidas</code> e <code>st["vidas"]</code> são a mesma coisa; os colchetes servem quando o nome está numa variável (<code>st[nome]</code>).</p>
-            <p>A célula também avisa. <code>@on_change(st.vidas)</code> (quando mudar), em cima de uma função, roda a função a cada mudança do número, venha ela de onde vier. Aqui ainda não precisamos: quem muda as vidas é só o <code>atingido</code>, e o que acontece fica escrito ali. No próximo tutorial, o escudo vai ligar e desligar sozinho com um <code>@on_change</code>.</p>
+            <p>A célula também avisa. <code>@on_change(st["vidas"])</code> (quando mudar), em cima de uma função, roda a função a cada mudança do número, venha ela de onde vier. Aqui ainda não precisamos: quem muda as vidas é só o <code>atingido</code>, e o que acontece fica escrito ali. No próximo tutorial, o escudo vai ligar e desligar sozinho com um <code>@on_change</code>.</p>
             <p>No Guia: <a href="../guide/index.html#reativo-state">st</a> · <a href="../guide/index.html#reagir-on-change">@on_change</a>.</p>
           `,
           try: [
               {
                 note: "Um aviso a cada vida perdida, sem mexer no <code>atingido</code>. No fim do arquivo, antes do <code>run()</code>:",
-                code: `@on_change(st.vidas)
+                code: `@on_change(st["vidas"])
 def vidas_mudaram():
     vidas.flash_text("AI!", 0.5)`
               }

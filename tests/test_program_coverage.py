@@ -49,6 +49,10 @@ PROGRAM_EXCLUDED = {
     "show_tracks": "a debug overlay: test_track",
     "Microphone": "an input device (no device headless): test_audio_capture",
     "Level": "loads a level file made by the editor: test_level, scena_editor/tests",
+    # Reached through the State bag only. Before 0.8.0 ``st.x`` handed out the
+    # cell, so ``st.x + 1`` counted; now ``st.x`` is the value and programs pass
+    # ``st["x"]`` to widgets / tween / @on_change, which count as those exports.
+    "Attribute": "the cell type: st['x'] in every program; its members: test_state_reads_value",
 }
 
 

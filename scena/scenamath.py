@@ -830,3 +830,9 @@ def vec_from_angle(angle: float, length: float = 1.0, reference_vec: Optional[Ve
         y=length * math.sin(rad)
     )
 
+
+
+# The Vec2 a State cell holds refuses an in-place author write (``st.pos.x = 5``):
+# ``state._rehold_payload`` installs the guard; see ``state._HELD_BY_VALUE``.
+from . import state as _state  # noqa: E402
+_state._HELD_BY_VALUE = Vec2

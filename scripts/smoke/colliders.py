@@ -43,11 +43,11 @@ st.create("body_scale", initial=1.0)
 st.create("line_w", initial=2.0)
 
 Slider(
-    st.body_scale, label="size (scale)", min_value=0.45, max_value=2.2,
+    st["body_scale"], label="size (scale)", min_value=0.45, max_value=2.2,
     top_left=(24, SAFE_BOTTOM + 100), width=260, show_value=True,
 )
 Slider(
-    st.line_w, label="outline width", min_value=0.5, max_value=14.0,
+    st["line_w"], label="outline width", min_value=0.5, max_value=14.0,
     top_left=(24, SAFE_BOTTOM + 56), width=260, show_value=True,
 )
 

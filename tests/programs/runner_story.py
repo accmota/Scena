@@ -86,7 +86,7 @@ result = Text(text="", center=(W / 2, 300), font_size=28, layer="ui")
 def save_name(value):
     result.text = f"{value or 'ANON'}: {st.coins} coins, {st.distance} m"
 
-name_box = TextInput(st.player_name, placeholder="Name", label="Name", max_length=10,
+name_box = TextInput(st["player_name"], placeholder="Name", label="Name", max_length=10,
                      on_submit=save_name, top_left=(350, 240))
 name_box.visible = False
 

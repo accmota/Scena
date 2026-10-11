@@ -17,7 +17,7 @@ import skia
 from .entity import Graphic, _USE_LAYER_DEFAULT
 from .shapes import GeneralPoint
 from .sprite import _OMIT, Sprite
-from .state import as_payload
+from .state import as_payload, bound_cell
 from .validate import expect_bool as _expect_flag
 
 __all__ = ["SpriteButton"]
@@ -251,7 +251,7 @@ class SpriteButton(Sprite):
         press_scale: Drawn size while pressed (default 0.94; 1 = no shrink).
         breathe: Slow size pulse while idle: ``True`` (±5 %) or the swing (0.03).
         breathe_time: Seconds per breath (default 1.6).
-        label: Text centered on the button (str, number, ``Attribute`` or function);
+        label: Text centered on the button (str, number, a cell ``st["lives"]`` or function);
             it shrinks to fit. ``button.label_text`` is the ``Text`` for fine control.
         font: Label font: family name or a ``.ttf`` / ``.otf`` file.
         font_size: Label size in design units (default: 40 % of the button height).
@@ -400,7 +400,11 @@ class SpriteButton(Sprite):
         if enabled_fn is not None:
             ref = self["enabled"]
             ref @= enabled_fn
-        label = as_payload(label) if not callable(label) else label
+        cell = bound_cell(label)
+        if cell is not None:
+            label = cell          # ``label=st["vidas"]``: the label shows the cell live
+        elif not callable(label):
+            label = as_payload(label)
         if label is not None:
             self._make_label(label, font=font, font_size=font_size, color=label_color)
         elif any(v is not None for v in (font, font_size, label_color)):
@@ -757,6 +761,8 @@ class SpriteButton(Sprite):
             sc = abs(float(self._scale)) or 1.0
             font_size = max(6.0, 0.4 * bh / sc)
         live = value if callable(value) else None
+        if live is None and isinstance(value, (int, float)):
+            value = str(value)    # a number label (Text itself takes strings)
         t = Text("" if live is not None else value, center=(0, 0), layer=None,
                  stack=False, font=font, font_size=font_size, color=color)
         if live is not None:

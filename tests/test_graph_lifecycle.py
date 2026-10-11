@@ -351,7 +351,7 @@ class TestStateLifecycle(unittest.TestCase):
         st = State()
         st.create("a", initial=7)
         self.assertTrue(st.exists("a"))
-        self.assertEqual(st.a.value, 7)
+        self.assertEqual(st.a, 7)
         self.assertIn("a", st.keys())
         self.assertFalse(st.exists("missing"))
 
@@ -359,7 +359,8 @@ class TestStateLifecycle(unittest.TestCase):
         st = State()
         st.x = 3
         self.assertTrue(st.exists("x"))
-        self.assertIsInstance(st.x, Attribute)
+        self.assertIsInstance(st._resolve_cell("x"), Attribute)
+        self.assertIs(type(st.x), int)       # the dot read is the value (0.8.0)
         st.x = 9
         self.assertEqual(st.x, 9)
 
@@ -367,7 +368,7 @@ class TestStateLifecycle(unittest.TestCase):
         g = _graph()
         st = State()
         st.create("v", initial=1)
-        attr = st.v
+        attr = st._resolve_cell("v")
         # Lazy registration: unlinked State cells stay off-graph until used.
         self.assertIsNone(attr._node_id)
         self.assertNotIn(id(attr), g.nodes)
@@ -386,7 +387,7 @@ class TestStateLifecycle(unittest.TestCase):
         self.assertIsNone(attr._node_id)
         self.assertNotIn(attr_id, g.nodes)
         with self.assertRaises(AttributeError):
-            _ = st.v
+            _ = st._resolve_cell("v")
         sink._clean_up()
 
     def test_remove_missing_raises(self):
@@ -398,7 +399,7 @@ class TestStateLifecycle(unittest.TestCase):
         st = State()
         st.create("src", initial=10)
         sink = Attribute(0, attr_name="sink")
-        sink @= st.src
+        sink @= st["src"]
         self.assertEqual(sink.value, 10)
 
         with warnings.catch_warnings(record=True) as w:
@@ -414,7 +415,7 @@ class TestStateLifecycle(unittest.TestCase):
         st = State()
         st.create("a", initial=2)
         st.create("b", initial=0)
-        a, b = st.a, st.b
+        a, b = st._resolve_cell("a"), st._resolve_cell("b")
         b @= (lambda: a * 5)
         self.assertEqual(b.value, 10)
         a.value = 4

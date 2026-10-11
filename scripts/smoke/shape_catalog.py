@@ -34,7 +34,7 @@ st.create("spin_speed", initial=45.0)
 st.create("paused", initial=0)
 
 # Sliders sit under the HUD band, clear of bottom FPS.
-Slider(st.spin_speed, min_value=0.0, max_value=180.0, top_left=(24, H - 92), width=220)
+Slider(st["spin_speed"], min_value=0.0, max_value=180.0, top_left=(24, H - 92), width=220)
 
 _owned: list = []
 _spin: list[tuple] = []

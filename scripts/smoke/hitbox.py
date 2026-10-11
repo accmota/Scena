@@ -201,7 +201,7 @@ _empty = Text(
 )
 # Scale under HUD band, clear of bottom FPS
 _scale_slider = Slider(
-    st.hitbox_scale, label="hitbox_scale", min_value=0.5, max_value=1.5,
+    st["hitbox_scale"], label="hitbox_scale", min_value=0.5, max_value=1.5,
     top_left=(20, 698), width=220, show_value=True, 
 )
 
@@ -233,10 +233,10 @@ def _rebuild_page() -> None:
     chunk = st.entries[start:start + _PAGE_SIZE]
     hud.status = _status_line(len(chunk))
 
-    author = str(st.author_kind.value)
-    fk = st.force_kind.value
-    from_mode = str(st.from_mode.value)
-    anchor = str(st.hitbox_anchor.value)
+    author = str(st.author_kind)
+    fk = st.force_kind
+    from_mode = str(st.from_mode)
+    anchor = str(st.hitbox_anchor)
     scale = float(st.hitbox_scale)
 
     for i, (label, sheet, frame_name) in enumerate(chunk):
@@ -276,14 +276,14 @@ def _rebuild_page() -> None:
 
 def _status_line(chunk_n: Optional[int] = None) -> str:
     total_pages = max(1, (len(st.entries) + _PAGE_SIZE - 1) // _PAGE_SIZE) if st.entries else 1
-    start = int(st.page.value) * _PAGE_SIZE
+    start = int(st.page) * _PAGE_SIZE
     if chunk_n is None:
         chunk_n = min(_PAGE_SIZE, max(0, len(st.entries) - start)) if st.entries else 0
-    fk = st.force_kind.value
-    mode = f"force={fk}" if fk else f"hitbox={st.author_kind.value}"
+    fk = st.force_kind
+    mode = f"force={fk}" if fk else f"hitbox={st.author_kind}"
     return (
-        f"page {int(st.page.value) + 1}/{total_pages}  {mode}  "
-        f"from={st.from_mode.value}  anchor={st.hitbox_anchor.value}  "
+        f"page {int(st.page) + 1}/{total_pages}  {mode}  "
+        f"from={st.from_mode}  anchor={st.hitbox_anchor}  "
         f"scale={float(st.hitbox_scale):.2f}  "
         f"showing {chunk_n} / {len(st.entries) if st.entries else 0}"
     )
@@ -323,11 +323,11 @@ def _cycle(current, options):
 
 def on_key_down(key):
     if key == "A":
-        st.page = max(0, int(st.page.value) - 1)
+        st.page = max(0, int(st.page) - 1)
         _rebuild_page()
     elif key == "S":
         max_page = max(0, (len(st.entries) - 1) // _PAGE_SIZE) if st.entries else 0
-        st.page = min(max_page, int(st.page.value) + 1)
+        st.page = min(max_page, int(st.page) + 1)
         _rebuild_page()
     elif key == "0":
         st.force_kind = None
@@ -353,13 +353,13 @@ def on_key_down(key):
         _rebuild_page()
     elif key == "Q":
         st.force_kind = None
-        st.author_kind = _cycle(st.author_kind.value, _AUTHOR_CYCLE)
+        st.author_kind = _cycle(st.author_kind, _AUTHOR_CYCLE)
         _rebuild_page()
     elif key == "F":
-        st.from_mode = _cycle(st.from_mode.value, _FROM_CYCLE)
+        st.from_mode = _cycle(st.from_mode, _FROM_CYCLE)
         _rebuild_page()
     elif key == "V":
-        st.hitbox_anchor = _cycle(st.hitbox_anchor.value, _HITBOX_ANCHORS)
+        st.hitbox_anchor = _cycle(st.hitbox_anchor, _HITBOX_ANCHORS)
         _rebuild_page()
     elif key == "C":
         st.show_col = not bool(st.show_col)

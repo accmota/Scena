@@ -421,24 +421,24 @@ def _spawn_leaver():
 ui.gap()
 ui.gap()
 cols_sl = Slider(
-    st.cols, label="Columns", show_value=True, only_int=True,
+    st["cols"], label="Columns", show_value=True, only_int=True,
     min_value=1.0, max_value=12.0,
 )
 Slider(
-    st.rows, label="Rows", show_value=True, only_int=True,
+    st["rows"], label="Rows", show_value=True, only_int=True,
     min_value=1.0, max_value=8.0,
 )
-Slider(st.margin, label="Inset", show_value=True, min_value=0.0, max_value=48.0)
-Slider(st.gap_x, label="Gap X", show_value=True, min_value=0.0, max_value=40.0)
-Slider(st.gap_y, label="Gap Y", show_value=True, min_value=0.0, max_value=40.0)
-Slider(st.cell_pad, label="Cell pad", show_value=True, min_value=0.0, max_value=24.0)
-Slider(st.angle, label="Angle °", show_value=True, min_value=-180.0, max_value=180.0)
-DropDown(st.kind, options=list(STAMP_KINDS))
+Slider(st["margin"], label="Inset", show_value=True, min_value=0.0, max_value=48.0)
+Slider(st["gap_x"], label="Gap X", show_value=True, min_value=0.0, max_value=40.0)
+Slider(st["gap_y"], label="Gap Y", show_value=True, min_value=0.0, max_value=40.0)
+Slider(st["cell_pad"], label="Cell pad", show_value=True, min_value=0.0, max_value=24.0)
+Slider(st["angle"], label="Angle °", show_value=True, min_value=-180.0, max_value=180.0)
+DropDown(st["kind"], options=list(STAMP_KINDS))
 Button(label="Stamp cells", on_click=stamp_cells)
 Button(label="Clear stamps", on_click=_clear_stamps)
 
 ui.stack_origin(cols_sl.box.top_right + (16, 0))
-CheckBox(st.overlay, label="Live overlay")
+CheckBox(st["overlay"], label="Live overlay")
 Button(label="Raise g[0, 0]", on_click=try_getitem)
 Button(label="Raise Box()", on_click=try_empty_box)
 

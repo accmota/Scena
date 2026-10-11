@@ -132,9 +132,9 @@ class TestCircularReferenceDetection(unittest.TestCase):
         c1 @= lambda: c2
 
         # varA already feeds c1 via p1.x → … → c1; linking varA to c1.center.x cycles.
-        # Use assign_formula: `st.varA @=` also goes through State.__setattr__.
+        # Use assign_formula: `st["varA"] @=` also goes through State.__setattr__.
         with self.assertRaises(CircularReferenceError):
-            st.varA._assign_formula(lambda: c1.center.x * 2)
+            st._resolve_cell("varA")._assign_formula(lambda: c1.center.x * 2)
 
 
 # ---------------------------------------------------------------------------

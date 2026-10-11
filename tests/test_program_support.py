@@ -250,6 +250,29 @@ class TestTierC(unittest.TestCase):
                 with open(program_path(prog), encoding="utf-8") as fh:
                     self.assertTrue(O._group_names(ast.parse(fh.read())), "vacuous rename")
 
+    def test_a_rename_leaves_cell_and_field_keys_alone(self):
+        # cadeia_de_bolas: "linhas" is a group and an st cell. Since 0.8.0 the
+        # checkbox takes st["linhas"], and renaming that key asked for a cell
+        # the program never made (gate, 2026-10-11).
+        import program_oracles as O
+        src = ('st.linhas = True\n'
+               'Line(p1=(0, 0), p2=(1, 1), group="linhas")\n'
+               'group["linhas"].destroy()\n'
+               'CheckBox(st["linhas"], label="Linhas")\n'
+               'bola["linhas"] @= lambda: 1\n')
+        out = O.rename_groups(src)
+        self.assertIn("group='linhas_r'", out)
+        self.assertIn("group['linhas_r']", out)
+        self.assertIn("st['linhas']", out)
+        self.assertIn("bola['linhas']", out)
+        src = ('Circle(radius=1, layer="fundo")\n'
+               'canvas.layers["fundo"].visible = False\n'
+               'st["fundo"] = 1\n')
+        out = O.rename_layers(src)
+        self.assertIn("layer='fundo_r'", out)
+        self.assertIn("canvas.layers['fundo_r']", out)
+        self.assertIn("st['fundo']", out)
+
     def test_a_broken_rewrite_is_caught(self):
         # Canary: renaming group= but not group["..."] changes the program.
         import ast

@@ -63,7 +63,7 @@ _rect_region = None
 st.angle = 28.0
 # Module-level — Oriented page reads it; other pages ignore.
 _angle_slider = Slider(
-    st.angle, label="Angle °", show_value=True, min_value=0.0, max_value=90.0
+    st["angle"], label="Angle °", show_value=True, min_value=0.0, max_value=90.0
 )
 
 

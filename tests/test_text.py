@@ -17,7 +17,7 @@ from scena import Color, Glow, Neon, CheapGlow, Text, Button, Slider, canvas, gr
 from scena.orchestration import ScenaFramework
 from scena.registry import BUILT_IN_LAYERS, UiLayerError
 from scena.shapes import Circle
-from scena.state import Attribute, LinkedAttributeError
+from scena.state import Attribute, LinkedAttributeError, State
 
 
 class TextTestCase(unittest.TestCase):
@@ -211,17 +211,16 @@ class TestHudStack(TextTestCase):
 
 class TestTextCell(TextTestCase):
     def test_text_formula_tracks_state(self):
-        name = self.key("score")
-        st.create(name, initial=3)
+        bag = State(name="hud_bag")
+        bag.score = 3
         hud = self.track(Text(text="", top_left=(20, 100), font_size=16))
         self.assertIsInstance(hud.text, Attribute)
 
-        score = getattr(st, name)
-        hud.text @= (lambda: f"Stars {score}")
+        hud["text"] @= (lambda: f"Stars {bag.score}")
         self.assertEqual(hud.value, "Stars 3")
         self.assertEqual(str(hud.text), "Stars 3")
 
-        setattr(st, name, 7)
+        bag.score = 7
         self.assertEqual(hud.value, "Stars 7")
 
         with self.assertRaises(LinkedAttributeError):
@@ -234,8 +233,8 @@ class TestTextCell(TextTestCase):
     def test_identity_bind_shares_text_cell(self):
         name = self.key("title")
         st.create(name, initial="Hello")
-        attr = getattr(st, name)
-        lab = self.track(Text(attr, top_left=(20, 400)))
+        attr = st._resolve_cell(name)
+        lab = self.track(Text(st[name], top_left=(20, 400)))
         self.assertIs(lab.text, attr)
         self.assertEqual(lab.value, "Hello")
         lab.text = "Hi"
@@ -250,7 +249,7 @@ class TestTextCell(TextTestCase):
         st.create("hud", initial="ready")
         lab = self.track(Text(text="idle", top_left=(20, 400), font_size=16))
         self.assertFalse(lab["text"].is_linked)
-        lab["text"] @= st.hud
+        lab["text"] @= st["hud"]
         self.assertTrue(lab["text"].is_linked)
         self.assertEqual(lab.value, "ready")
         st.hud = "go"

@@ -53,7 +53,7 @@ class TestPhase0Core(unittest.TestCase):
     def test_direct_link_propagates(self):
         """b @= a (container direct link) tracks a."""
         st = new_state(a=5, b=0)
-        a, b = st.a, st.b
+        a, b = st._resolve_cell("a"), st._resolve_cell("b")
         b @= a
         self.assertEqual(b.value, 5)
         a.value = 42
@@ -62,7 +62,7 @@ class TestPhase0Core(unittest.TestCase):
     def test_lambda_formula_propagates(self):
         """b @= (lambda: a * 10) tracks a. Regression for FormulaLink.always_update."""
         st = new_state(a=2, b=0)
-        a, b = st.a, st.b
+        a, b = st._resolve_cell("a"), st._resolve_cell("b")
         b @= (lambda: a * 10)
         self.assertEqual(b.value, 20)
         a.value = 5
@@ -73,24 +73,24 @@ class TestPhase0Core(unittest.TestCase):
         st = new_state(b=0)
         x = 10
         with self.assertRaises(TypeError) as ctx:
-            st.b @= (lambda: x * 2)
+            st["b"] @= (lambda: x * 2)
         self.assertIn("no reactive sources", str(ctx.exception))
-        self.assertFalse(st.b._link)
+        self.assertFalse(st._resolve_cell("b")._link)
 
     def test_constant_lambda_raises(self):
         st = new_state(b=0)
         with self.assertRaises(TypeError) as ctx:
-            st.b @= (lambda: 100)
+            st["b"] @= (lambda: 100)
         self.assertIn("no reactive sources", str(ctx.exception))
 
     def test_mixed_plain_and_container_still_links(self):
         """A Container source is enough; plain names ride along on re-eval."""
         st = new_state(a=2, b=0)
         x = 10
-        st.b @= (lambda: x + st.a)
-        self.assertEqual(st.b.value, 12)
-        st.a.value = 5
-        self.assertEqual(st.b.value, 15)
+        st["b"] @= (lambda: x + st.a)
+        self.assertEqual(st.b, 12)
+        st.a = 5
+        self.assertEqual(st.b, 15)
 
     def test_default_arg_capture_is_a_source(self):
         """``lambda h=host: h…`` is the loop-binding idiom — host is reactive."""
@@ -124,7 +124,7 @@ class TestPhase0Core(unittest.TestCase):
     def test_line_defining_formula_moves_point(self):
         """A lambda formula on a defining attribute drives the point."""
         st = new_state(mx=0)
-        mx = st.mx
+        mx = st._resolve_cell("mx")
         ln = Line(p1=(0, 0), p2=(10, 0))
         ln.p1["x"] @= (lambda: mx)
         mx.value = 100
@@ -132,7 +132,7 @@ class TestPhase0Core(unittest.TestCase):
 
     def test_circular_reference_is_detected(self):
         st = new_state(a=0, b=0)
-        a, b = st.a, st.b
+        a, b = st._resolve_cell("a"), st._resolve_cell("b")
         a @= (lambda: b)
         with self.assertRaises(CircularReferenceError):
             b @= (lambda: a)
@@ -147,7 +147,7 @@ class TestPhase1Events(unittest.TestCase):
         from scena.events import when, cleanup_global_event_system
         cleanup_global_event_system()
         st = new_state(x=0)
-        x = st.x
+        x = st._resolve_cell("x")
         fired = []
 
         @when(lambda: x > 100)
@@ -163,7 +163,7 @@ class TestPhase1Events(unittest.TestCase):
         from scena.events import when, cleanup_global_event_system
         cleanup_global_event_system()
         st = new_state(x=0)
-        x = st.x
+        x = st._resolve_cell("x")
         fired = []
 
         try:
@@ -180,7 +180,7 @@ class TestPhase1Events(unittest.TestCase):
         from scena.events import on_change, cleanup_global_event_system
         cleanup_global_event_system()
         st = new_state(x=0)
-        x = st.x
+        x = st._resolve_cell("x")
         seen = []
 
         @on_change(x)
@@ -196,7 +196,7 @@ class TestPhase1Events(unittest.TestCase):
         from scena.events import on_change, cleanup_global_event_system
         cleanup_global_event_system()
         st = new_state(x=0)
-        x = st.x
+        x = st._resolve_cell("x")
         seen = []
 
         @on_change(x)
@@ -243,13 +243,13 @@ class TestPhase2DependencyDirection(unittest.TestCase):
 
     def test_assign_formula_sets_linked_outward(self):
         st = new_state(a=0, src=100)
-        a = st.a
+        a = st._resolve_cell("a")
         a @= (lambda: st.src)
         self.assertEqual(a._dependency_state, DependencyState.LINKED_OUTWARD)
 
     def test_unlink_restores_dependent_downward(self):
         st = new_state(a=0, src=100)
-        a = st.a
+        a = st._resolve_cell("a")
         a @= (lambda: st.src)
         a.unlink()
         self.assertEqual(a._dependency_state, DependencyState.DEPENDENT_DOWNWARD)
@@ -258,7 +258,7 @@ class TestPhase2DependencyDirection(unittest.TestCase):
         """A formula reading a derived attribute (line.center) must stay in sync."""
         ln = Line(p1=(0, 0), p2=(10, 0))
         st = new_state(cx=-1)
-        cx = st.cx
+        cx = st._resolve_cell("cx")
         cx @= (lambda: ln.center.x)
         self.assertEqual(cx.value, 5)
         ln.move_to(100, 0)

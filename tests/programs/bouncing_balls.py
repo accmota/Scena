@@ -27,8 +27,8 @@ roda.mass = STATIC
 st.count = PARAMS.get("count", 30)
 st.size = PARAMS.get("size", 12)
 
-Slider(st.count, label="Balls", min_value=1, max_value=80, only_int=True)
-Slider(st.size, label="Size", min_value=2, max_value=48, only_int=True)
+Slider(st["count"], label="Balls", min_value=1, max_value=80, only_int=True)
+Slider(st["size"], label="Size", min_value=2, max_value=48, only_int=True)
 
 
 resolve("ball", "wall", bounce=1.0)

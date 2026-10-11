@@ -231,19 +231,19 @@ st.angle = 0.0
 ui.gap()
 ui.gap()
 Text(text="hitbox", font_size=12, color=Color(0.7, 0.76, 0.88, 1))
-DropDown(st.hitbox, options=list(_HITBOX_CHOICES))
+DropDown(st["hitbox"], options=list(_HITBOX_CHOICES))
 Text(text="hitbox_from", font_size=12, color=Color(0.7, 0.76, 0.88, 1))
-_from_dd = DropDown(st.hitbox_from, options=["all", "each"])
+_from_dd = DropDown(st["hitbox_from"], options=["all", "each"])
 Text(text="hitbox_anchor", font_size=12, color=Color(0.7, 0.76, 0.88, 1))
-DropDown(st.hitbox_anchor, options=list(_HITBOX_ANCHORS))
-Slider(st.scale_x, label="hitbox_scale x", min_value=0.2, max_value=1.8, show_value=True)
-Slider(st.scale_y, label="hitbox_scale y", min_value=0.2, max_value=1.8, show_value=True)
-CheckBox(st.show_col, label="show colliders")
-CheckBox(st.animate, label="play clip")
-CheckBox(st.flip_x, label="flip_x")
-CheckBox(st.flip_y, label="flip_y")
-CheckBox(st.spin, label="spin")
-Slider(st.angle, label="angle °", min_value=0.0, max_value=360.0, show_value=True)
+DropDown(st["hitbox_anchor"], options=list(_HITBOX_ANCHORS))
+Slider(st["scale_x"], label="hitbox_scale x", min_value=0.2, max_value=1.8, show_value=True)
+Slider(st["scale_y"], label="hitbox_scale y", min_value=0.2, max_value=1.8, show_value=True)
+CheckBox(st["show_col"], label="show colliders")
+CheckBox(st["animate"], label="play clip")
+CheckBox(st["flip_x"], label="flip_x")
+CheckBox(st["flip_y"], label="flip_y")
+CheckBox(st["spin"], label="spin")
+Slider(st["angle"], label="angle °", min_value=0.0, max_value=360.0, show_value=True)
 
 
 def _platformer_recipe():
@@ -444,29 +444,29 @@ def _step_clip(step: int) -> None:
     _status()
 
 
-@on_change(st.hitbox)
-@on_change(st.hitbox_from)
-@on_change(st.hitbox_anchor)
-@on_change(st.scale_x)
-@on_change(st.scale_y)
+@on_change(st["hitbox"])
+@on_change(st["hitbox_from"])
+@on_change(st["hitbox_anchor"])
+@on_change(st["scale_x"])
+@on_change(st["scale_y"])
 def _on_hitbox(_value=None):
     _apply_hitbox()
 
 
-@on_change(st.animate)
+@on_change(st["animate"])
 def _on_animate(play):
     if hero is not None and hero.is_alive:
         hero.time_scale = 1.0 if bool(play) else 0.0
     _status()
 
 
-@on_change(st.show_col)
+@on_change(st["show_col"])
 def _on_outlines(show):
     collision.show_colliders(bool(show))
     _status()
 
 
-@on_change(st.flip_x)
+@on_change(st["flip_x"])
 def _on_flip_x(v):
     if hero is not None and hero.is_alive:
         hero.flip_x = bool(v)
@@ -474,7 +474,7 @@ def _on_flip_x(v):
     _status()
 
 
-@on_change(st.flip_y)
+@on_change(st["flip_y"])
 def _on_flip_y(v):
     if hero is not None and hero.is_alive:
         hero.flip_y = bool(v)
@@ -482,7 +482,7 @@ def _on_flip_y(v):
     _status()
 
 
-@on_change(st.angle)
+@on_change(st["angle"])
 def _on_rotation(deg):
     if _syncing or bool(st.spin):
         return
@@ -491,7 +491,7 @@ def _on_rotation(deg):
     _status()
 
 
-@on_change(st.spin)
+@on_change(st["spin"])
 def _on_spin(spin):
     if not bool(spin):
         _sync_rotation_from_hero()

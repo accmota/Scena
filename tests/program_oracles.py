@@ -236,17 +236,34 @@ def _group_names(tree: ast.AST) -> set:
     return names
 
 
+class _RenameStrings(ast.NodeTransformer):
+    """``names`` get ``suffix`` wherever they appear as a whole string, except
+    as the key of a subscript that is not the namespace itself: ``st["linhas"]``
+    names a cell and ``obj["campo"]`` a field, even when a group or layer has
+    the same name (since 0.8.0 a widget takes ``st["x"]``, a string)."""
+
+    def __init__(self, names, suffix, is_namespace):
+        self.names, self.suffix, self.is_namespace = names, suffix, is_namespace
+
+    def visit_Subscript(self, node):
+        node.value = self.visit(node.value)
+        if self.is_namespace(node.value):
+            node.slice = self.visit(node.slice)
+        return node
+
+    def visit_Constant(self, node):
+        if isinstance(node.value, str) and node.value in self.names:
+            return ast.copy_location(ast.Constant(node.value + self.suffix), node)
+        return node
+
+
 def rename_groups(source: str, suffix: str = "_r") -> str:
-    """Every group name gets ``suffix`` everywhere it appears as a whole string."""
+    """Every group name gets ``suffix`` everywhere it appears as a whole string
+    (a subscript key only in ``group[...]``)."""
     tree = ast.parse(source)
     names = _group_names(tree)
-
-    class R(ast.NodeTransformer):
-        def visit_Constant(self, node):
-            if isinstance(node.value, str) and node.value in names:
-                return ast.copy_location(ast.Constant(node.value + suffix), node)
-            return node
-    return ast.unparse(R().visit(tree))
+    is_group = lambda v: isinstance(v, ast.Name) and v.id == "group"  # noqa: E731
+    return ast.unparse(_RenameStrings(names, suffix, is_group).visit(tree))
 
 
 def reorder_defs(source: str) -> str:
@@ -291,16 +308,12 @@ def _layer_names(tree: ast.AST) -> set:
 
 
 def rename_layers(source: str, suffix: str = "_r") -> str:
-    """Every author layer name gets ``suffix`` everywhere it appears as a whole string."""
+    """Every author layer name gets ``suffix`` everywhere it appears as a whole
+    string (a subscript key only in ``….layers[...]``)."""
     tree = ast.parse(source)
     names = _layer_names(tree)
-
-    class R(ast.NodeTransformer):
-        def visit_Constant(self, node):
-            if isinstance(node.value, str) and node.value in names:
-                return ast.copy_location(ast.Constant(node.value + suffix), node)
-            return node
-    return ast.unparse(R().visit(tree))
+    is_layers = lambda v: isinstance(v, ast.Attribute) and v.attr == "layers"  # noqa: E731
+    return ast.unparse(_RenameStrings(names, suffix, is_layers).visit(tree))
 
 
 TIER_C = {"rename_groups": rename_groups, "reorder_defs": reorder_defs,

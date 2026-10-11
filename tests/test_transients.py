@@ -1057,7 +1057,7 @@ class TestFlashText(TransientTestBase):
         from scena import st
         st.create("hud", initial="HP 5")
         lab = self._label(text="idle")
-        lab["text"] @= st.hud
+        lab["text"] @= st["hud"]
         self.assertEqual(lab._displayed_text(), "HP 5")
 
         lab.flash_text("HIT!", duration=0.5)

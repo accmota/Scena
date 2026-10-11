@@ -198,9 +198,9 @@ class TestBarePointReadWrite(unittest.TestCase):
         st.src = 3.0
         st.dst = 0.0
         st["dst"] @= st["src"]
-        self.assertEqual(st.dst.value, 3.0)
+        self.assertEqual(st.dst, 3.0)
         st.src = 8.0
-        self.assertEqual(st.dst.value, 8.0)
+        self.assertEqual(st.dst, 8.0)
 
     def test_non_linkable_rhs_raises(self):
         p = Point(0, 0)
@@ -283,15 +283,15 @@ class TestBoxedCellAssignValueRaises(unittest.TestCase):
         st = State()
         st.create("src", initial=3)
         st.create("dst", initial=0)
-        st.dst @= lambda: st.src.value * 10
-        self.assertEqual(st.dst.value, 30)
+        st["dst"] @= lambda: st.src * 10
+        self.assertEqual(st.dst, 30)
         with self.assertRaises(LinkedAttributeError) as ctx:
             st.dst = 1
         self.assertIn("State.dst is linked", str(ctx.exception))
         self.assertIn("State['dst'].unlink()", str(ctx.exception))
-        st.dst.unlink()
+        st["dst"].unlink()
         st.dst = 1
-        self.assertEqual(st.dst.value, 1)
+        self.assertEqual(st.dst, 1)
 
     def test_root_container_at_equals_still_links(self):
         """Root objects have no owner field — ``obj @=`` remains the link verb."""
@@ -311,23 +311,25 @@ class TestStateBrackets(unittest.TestCase):
         st = State()
         st.create("src", initial=3)
         st.create("dst", initial=0)
-        st["dst"] @= lambda: st.src.value * 10
-        self.assertEqual(st.dst.value, 30)
+        st["dst"] @= lambda: st.src * 10
+        self.assertEqual(st.dst, 30)
         self.assertTrue(st["dst"].is_linked)
         st.src = 4
-        self.assertEqual(st.dst.value, 40)
+        self.assertEqual(st.dst, 40)
 
     def test_bracket_value_is_payload(self):
         st = State()
         st.create("score", initial=12.5)
         self.assertEqual(st["score"].value, 12.5)
-        self.assertIsInstance(st.score, Attribute)
+        # The dot read is the value too (0.8.0); the bracket is the handle.
+        self.assertIs(type(st.score), float)
+        self.assertIsInstance(st._resolve_cell("score"), Attribute)
 
     def test_linked_dot_assign_raises_then_unlink(self):
         st = State()
         st.create("src", initial=3)
         st.create("dst", initial=0)
-        st["dst"] @= lambda: st.src.value * 10
+        st["dst"] @= lambda: st.src * 10
         with self.assertRaises(LinkedAttributeError) as ctx:
             st.dst = 1
         self.assertIn("State.dst", str(ctx.exception))
@@ -335,7 +337,7 @@ class TestStateBrackets(unittest.TestCase):
         st["dst"].unlink()
         self.assertFalse(st["dst"].is_linked)
         st.dst = 1
-        self.assertEqual(st.dst.value, 1)
+        self.assertEqual(st.dst, 1)
 
     def test_unknown_key_raises(self):
         st = State()
@@ -361,7 +363,7 @@ class TestStateBrackets(unittest.TestCase):
         unlabeled = State()
         self.assertEqual(unlabeled.name, "State")
         unlabeled.create("t", initial=0)
-        self.assertEqual(unlabeled.t.name, "State.t")
+        self.assertEqual(unlabeled._resolve_cell("t").name, "State.t")
         ref = unlabeled["t"]
         self.assertIsInstance(ref, FieldRef)
         self.assertIs(ref.owner, unlabeled)
@@ -371,7 +373,7 @@ class TestStateBrackets(unittest.TestCase):
         hud = State(name="hud")
         self.assertEqual(hud.name, "hud")
         hud.score = 0
-        self.assertEqual(hud.score.name, "hud.score")
+        self.assertEqual(hud._resolve_cell("score").name, "hud.score")
         self.assertIn("'hud'", str(hud))
         self.assertIn("name='hud'", repr(hud))
 
@@ -442,9 +444,9 @@ class TestTweenFieldRef(unittest.TestCase):
         st.create("t", initial=0.0)
         tween(st["t"], to=20, time=0.2)
         _frame(0.1)
-        self.assertAlmostEqual(st.t.value, 10.0, places=5)
+        self.assertAlmostEqual(st.t, 10.0, places=5)
         _frame(0.1)
-        self.assertAlmostEqual(st.t.value, 20.0, places=5)
+        self.assertAlmostEqual(st.t, 20.0, places=5)
 
     def test_tween_linked_state_field_names_the_bag(self):
         hud = State(name="hud")

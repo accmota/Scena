@@ -31,13 +31,13 @@ st.tx1 = 2
 st.y1 = 50
 st.ty1 = 2
 st.modo = "Contrail fade"
-Slider(st.n, label="n", min_value=1, max_value=6)
-Slider(st.x1, label="x1", min_value=-100, max_value=100)
-Slider(st.tx1, label="tx1", min_value=-10, max_value=10, only_int=True)
-Slider(st.y1, label="y1", min_value=-100, max_value=100)
-Slider(st.ty1, label="ty1", min_value=-10, max_value=10, only_int=True)
+Slider(st["n"], label="n", min_value=1, max_value=6)
+Slider(st["x1"], label="x1", min_value=-100, max_value=100)
+Slider(st["tx1"], label="tx1", min_value=-10, max_value=10, only_int=True)
+Slider(st["y1"], label="y1", min_value=-100, max_value=100)
+Slider(st["ty1"], label="ty1", min_value=-10, max_value=10, only_int=True)
 DropDown(
-    st.modo,
+    st["modo"],
     options=["Contrail fade", "Contrail flat", "Segments", "Dots"],
 )
 

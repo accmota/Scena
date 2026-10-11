@@ -197,10 +197,10 @@ def _pop(kind, grp):
 for _k in ("fruta", "robo", "nuvem", "bandeira"):
     G.invariant(f"pop.{_k}", _pop(_k, _k))
 
-FRUTAS = G.model(ChangeModel("frutas", lambda: st.frutas.value))
+FRUTAS = G.model(ChangeModel("frutas", lambda: st.frutas))
 
 
-@on_change(st.frutas)
+@on_change(st["frutas"])
 def mudou_frutas(valor):
     FRUTAS.fired(G, valor)
     for i, cel in enumerate(HUD.get("celulas", ())):
@@ -784,10 +784,10 @@ class Fase(Act):
 class Fim(Act):
     def setup(self):
         entrar_ato("Fim")
-        G.check(st.chegou.value, "fim.chegou")
+        G.check(st.chegou, "fim.chegou")
         Text("SAIDA!", center=(W / 2, H / 2), font_size=48)
-        G.equal(st.frutas.value, len(MODELO["frutas"]), "fruta.count_kept")
-        G.equal(st.mortes.value, MODELO["mortes"], "mortes.count_kept")
+        G.equal(st.frutas, len(MODELO["frutas"]), "fruta.count_kept")
+        G.equal(st.mortes, MODELO["mortes"], "mortes.count_kept")
         h = self.after(1.0, self.fim)
         TIMERS.expect_after(G, "fim", h, 1.0, early=False, scope="Fim")
 
@@ -817,8 +817,8 @@ def _hud():
 
 
 G.invariant("hud.fresh", _hud)
-G.invariant("fruta.model", lambda: st.frutas.value == len(MODELO["frutas"])
-            or f"st.frutas {st.frutas.value} vs {len(MODELO['frutas'])}")
+G.invariant("fruta.model", lambda: st.frutas == len(MODELO["frutas"])
+            or f"st.frutas {st.frutas} vs {len(MODELO['frutas'])}")
 
 
 def update(dt):

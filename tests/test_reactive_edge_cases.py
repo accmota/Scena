@@ -391,7 +391,7 @@ class TestEvents(ReactiveEdgeCaseTest):
         st.hp = 5
         hits = []
 
-        @on_change(st.hp)
+        @on_change(st["hp"])
         def on_hp(value):
             hits.append(("attr", value))
 

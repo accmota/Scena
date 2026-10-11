@@ -112,7 +112,7 @@ def update(dt):
     if keyp("LEFT"):
         b.x = b.x - 150 * dt
 
-    follower.center << deadzone(follower, target, size=st.slack.value)  # a raw Attribute is refused here
+    follower.center << deadzone(follower, target, size=st.slack)  # st.slack reads the value
 
     st.dist = distance(a, b)
     st.heading = heading(a, b)

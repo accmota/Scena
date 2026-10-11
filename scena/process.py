@@ -3038,18 +3038,23 @@ def wait(delay: float) -> Handle:
 
 
 def _start_until(pred, *, await_hint: str, site, what: str = "until()") -> Handle:
-    from .state import Container, as_payload
+    from .state import Container, FieldRef, as_payload
     if callable(pred) and not isinstance(pred, Container):
         fn = pred
     elif isinstance(pred, Container):
         cell = pred
         fn = lambda: bool(as_payload(cell))
+    elif isinstance(pred, FieldRef):
+        ref = pred                      # ``until(st["done"])``: re-read each frame
+        ref.value                       # a missing cell raises here, not frames later
+        fn = lambda: bool(ref.value)
     else:
         raise TypeError(
             f"until() expected a function or a reactive cell, got "
             f"{'None' if pred is None else type(pred).__name__}. "
-            f"Wrap it: until(lambda: cond); for group emptiness use "
-            f"until_empty(group) instead."
+            f"Wrap it: until(lambda: cond), or pass a st cell with brackets: "
+            f"until(st[\"done\"]) (st.done reads the value since 0.8.0); "
+            f"for group emptiness use until_empty(group) instead."
         )
     _require_running_script(what)
     owner, scope = _infer_owner()
@@ -3776,8 +3781,9 @@ def _tween_target(
     )
     if not (is_fieldref or is_attribute or is_pose):
         raise TypeError(
-            'tween() needs a bracket handle (obj["field"]) or a pose Container, '
-            f'got a plain {type(target).__name__}'
+            'tween() needs a bracket handle (obj["field"], st["t"]) or a pose '
+            f'Container, got a plain {type(target).__name__}. st.t reads the '
+            'value (since 0.8.0); st["t"] is the cell.'
         )
 
     n_loops = _require_loop_kwargs(

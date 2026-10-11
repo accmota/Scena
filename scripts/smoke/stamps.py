@@ -58,7 +58,7 @@ ui.gap()
 ui.gap()
 ui.gap()
 DropDown(
-    st.glow_form,
+    st["glow_form"],
     options=[
         "glow: off",
         "glow: True",
@@ -68,7 +68,7 @@ DropDown(
     ],
 )
 DropDown(
-    st.shadow_form,
+    st["shadow_form"],
     options=[
         "shadow: off",
         "shadow: True",
@@ -77,7 +77,7 @@ DropDown(
     ],
 )
 DropDown(
-    st.hue_form,
+    st["hue_form"],
     options=[
         "hue: off",
         "hue: True",
@@ -86,7 +86,7 @@ DropDown(
     ],
 )
 DropDown(
-    st.tail_form,
+    st["tail_form"],
     options=[
         "tail: off",
         "tail: True (follow)",
@@ -97,7 +97,7 @@ DropDown(
     ],
 )
 _tail_size_slider = Slider(
-    st.tail_size,
+    st["tail_size"],
     label="tail size (locked)",
     show_value=True,
     min_value=0.2,
@@ -312,27 +312,27 @@ def _apply_tail(form: str) -> None:
     _refresh_caps()
 
 
-@on_change(st.glow_form)
+@on_change(st["glow_form"])
 def on_glow(v):
     _apply_glow(str(v))
 
 
-@on_change(st.shadow_form)
+@on_change(st["shadow_form"])
 def on_shadow(v):
     _apply_shadow(str(v))
 
 
-@on_change(st.hue_form)
+@on_change(st["hue_form"])
 def on_hue(v):
     _apply_hue(str(v))
 
 
-@on_change(st.tail_form)
+@on_change(st["tail_form"])
 def on_tail(v):
     _apply_tail(str(v))
 
 
-@on_change(st.tail_size)
+@on_change(st["tail_size"])
 def on_tail_size(v):
     _sync_locked_tail_size()
     if _tail_is_locked():

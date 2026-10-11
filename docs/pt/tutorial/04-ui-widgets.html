@@ -70,7 +70,7 @@ run()
       title: "Slider",
       body: `
         <p>Primeiro widget: um controle para o número de bolas. Hoje esse número está escrito no código, em <code>range(30)</code>. Para um widget poder mudá-lo, ele precisa morar num lugar que os dois enxerguem: <code>st</code>, que você conheceu no placar. <code>st.n_bolas = 30</code> cria o valor, e <code>criar</code> passa a ler <code>range(st.n_bolas)</code>.</p>
-        <p><code>Slider</code> (controle deslizante) é uma trilha com um botão que se arrasta. O primeiro valor, <code>st.n_bolas</code>, diz onde ele escreve: arrastar muda <code>st.n_bolas</code>. <code>label</code> (legenda) é o nome ao lado; <code>min_value</code> e <code>max_value</code> são o menor e o maior valor; <code>only_int=True</code> (só inteiros) faz o slider pular de 1 em 1, porque não existe 12,4 bolas. Sem uma posição (<code>top_left</code>, canto de cima à esquerda), o widget entra numa coluna no canto da janela, e os próximos se empilham embaixo dele.</p>
+        <p><code>Slider</code> (controle deslizante) é uma trilha com um botão que se arrasta. O primeiro valor, <code>st["n_bolas"]</code>, diz onde ele escreve: arrastar muda <code>st.n_bolas</code>. Os colchetes entregam a célula, o lugar onde o valor mora; <code>st.n_bolas</code> sozinho é só o número que está lá agora (30), e com ele o Slider não teria onde escrever. <code>label</code> (legenda) é o nome ao lado; <code>min_value</code> e <code>max_value</code> são o menor e o maior valor; <code>only_int=True</code> (só inteiros) faz o slider pular de 1 em 1, porque não existe 12,4 bolas. Sem uma posição (<code>top_left</code>, canto de cima à esquerda), o widget entra numa coluna no canto da janela, e os próximos se empilham embaixo dele.</p>
         <p>Rode e arraste. O número ao lado do slider muda, mas as bolas não: <code>criar</code> rodou uma vez, no começo, e não roda de novo sozinha. O próximo passo resolve isso.</p>
       `,
       code: `from scena import *
@@ -91,7 +91,7 @@ def criar():
         cor = cor.darker(0.02)
 
 
-Slider(st.n_bolas, label="Bolas", min_value=5, max_value=60, only_int=True)
+Slider(st["n_bolas"], label="Bolas", min_value=5, max_value=60, only_int=True)
 
 criar()
 
@@ -145,7 +145,7 @@ def criar():
         cor = cor.darker(0.02)
 
 
-Slider(st.n_bolas, label="Bolas", min_value=5, max_value=60, only_int=True)
+Slider(st["n_bolas"], label="Bolas", min_value=5, max_value=60, only_int=True)
 ui.gap()
 Button(label="Rodar", on_click=criar)
 
@@ -218,8 +218,8 @@ def criar():
         cor = cor.darker(0.02)
 
 
-Slider(st.n_bolas, label="Bolas", min_value=5, max_value=60, only_int=True)
-DropDown(st.efeito, options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
+Slider(st["n_bolas"], label="Bolas", min_value=5, max_value=60, only_int=True)
+DropDown(st["efeito"], options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
 ui.gap()
 Button(label="Rodar", on_click=criar)
 
@@ -315,8 +315,8 @@ def criar():
         anterior = bola
 
 
-Slider(st.n_bolas, label="Bolas", min_value=5, max_value=60, only_int=True)
-DropDown(st.efeito, options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
+Slider(st["n_bolas"], label="Bolas", min_value=5, max_value=60, only_int=True)
+DropDown(st["efeito"], options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
 ui.gap()
 Button(label="Rodar", on_click=criar)
 
@@ -402,9 +402,9 @@ def criar():
         anterior = bola
 
 
-Slider(st.n_bolas, label="Bolas", min_value=5, max_value=60, only_int=True)
-CheckBox(st.linhas, label="Linhas")
-DropDown(st.efeito, options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
+Slider(st["n_bolas"], label="Bolas", min_value=5, max_value=60, only_int=True)
+CheckBox(st["linhas"], label="Linhas")
+DropDown(st["efeito"], options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
 ui.gap()
 Button(label="Rodar", on_click=criar)
 
@@ -493,9 +493,9 @@ def criar():
         anterior = bola
 
 
-Slider(st.n_bolas, label="Bolas", min_value=5, max_value=60, only_int=True)
-CheckBox(st.linhas, label="Linhas")
-DropDown(st.efeito, options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
+Slider(st["n_bolas"], label="Bolas", min_value=5, max_value=60, only_int=True)
+CheckBox(st["linhas"], label="Linhas")
+DropDown(st["efeito"], options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
 ui.gap()
 Button(label="Rodar", on_click=criar)
 
@@ -841,8 +841,8 @@ st.fator_giro = -1.5
 
 PALETA = Palette("lisboa")
 
-Slider(st.velocidade, label="Velocidade", min_value=0, max_value=80)
-Slider(st.fator_giro, label="Giro", min_value=-3, max_value=3)
+Slider(st["velocidade"], label="Velocidade", min_value=0, max_value=80)
+Slider(st["fator_giro"], label="Giro", min_value=-3, max_value=3)
 
 
 @when(lambda: keyp("M"))
@@ -916,11 +916,11 @@ st.tx1 = 2
 st.y1 = 50
 st.ty1 = 2
 st.ligado = False
-Slider(st.n, label="n", min_value=1, max_value=6)
-Slider(st.x1, label="x1", min_value=-100, max_value=100)
-Slider(st.tx1, label="tx1", min_value=-10, max_value=10, only_int=True)
-Slider(st.y1, label="y1", min_value=-100, max_value=100)
-Slider(st.ty1, label="ty1", min_value=-10, max_value=10, only_int=True)
+Slider(st["n"], label="n", min_value=1, max_value=6)
+Slider(st["x1"], label="x1", min_value=-100, max_value=100)
+Slider(st["tx1"], label="tx1", min_value=-10, max_value=10, only_int=True)
+Slider(st["y1"], label="y1", min_value=-100, max_value=100)
+Slider(st["ty1"], label="ty1", min_value=-10, max_value=10, only_int=True)
 
 
 bola = Circle(center=(W * 0.6, H * 0.5), radius=20)
@@ -1012,11 +1012,11 @@ st.tx1 = 2
 st.y1 = 50
 st.ty1 = 2
 st.ligado = False
-Slider(st.n, label="n", min_value=1, max_value=6)
-Slider(st.x1, label="x1", min_value=-100, max_value=100)
-Slider(st.tx1, label="tx1", min_value=-10, max_value=10, only_int=True)
-Slider(st.y1, label="y1", min_value=-100, max_value=100)
-Slider(st.ty1, label="ty1", min_value=-10, max_value=10, only_int=True)
+Slider(st["n"], label="n", min_value=1, max_value=6)
+Slider(st["x1"], label="x1", min_value=-100, max_value=100)
+Slider(st["tx1"], label="tx1", min_value=-10, max_value=10, only_int=True)
+Slider(st["y1"], label="y1", min_value=-100, max_value=100)
+Slider(st["ty1"], label="ty1", min_value=-10, max_value=10, only_int=True)
 
 
 bola = Circle(center=(W * 0.6, H * 0.5), radius=20)
@@ -1086,11 +1086,11 @@ st.tx1 = 2
 st.y1 = 50
 st.ty1 = 2
 st.ligado = False
-Slider(st.n, label="n", min_value=1, max_value=6)
-Slider(st.x1, label="x1", min_value=-100, max_value=100)
-Slider(st.tx1, label="tx1", min_value=-10, max_value=10, only_int=True)
-Slider(st.y1, label="y1", min_value=-100, max_value=100)
-Slider(st.ty1, label="ty1", min_value=-10, max_value=10, only_int=True)
+Slider(st["n"], label="n", min_value=1, max_value=6)
+Slider(st["x1"], label="x1", min_value=-100, max_value=100)
+Slider(st["tx1"], label="tx1", min_value=-10, max_value=10, only_int=True)
+Slider(st["y1"], label="y1", min_value=-100, max_value=100)
+Slider(st["ty1"], label="ty1", min_value=-10, max_value=10, only_int=True)
 
 
 bola = Circle(center=(W * 0.6, H * 0.5), radius=20)
@@ -1165,11 +1165,11 @@ st.tx1 = 2
 st.y1 = 50
 st.ty1 = 2
 st.ligado = False
-Slider(st.n, label="n", min_value=1, max_value=6)
-Slider(st.x1, label="x1", min_value=-100, max_value=100)
-Slider(st.tx1, label="tx1", min_value=-10, max_value=10, only_int=True)
-Slider(st.y1, label="y1", min_value=-100, max_value=100)
-Slider(st.ty1, label="ty1", min_value=-10, max_value=10, only_int=True)
+Slider(st["n"], label="n", min_value=1, max_value=6)
+Slider(st["x1"], label="x1", min_value=-100, max_value=100)
+Slider(st["tx1"], label="tx1", min_value=-10, max_value=10, only_int=True)
+Slider(st["y1"], label="y1", min_value=-100, max_value=100)
+Slider(st["ty1"], label="ty1", min_value=-10, max_value=10, only_int=True)
 
 
 bola = Circle(center=(W * 0.6, H * 0.5), radius=20)
@@ -1245,11 +1245,11 @@ st.tx1 = 2
 st.y1 = 50
 st.ty1 = 2
 st.ligado = False
-Slider(st.n, label="n", min_value=1, max_value=6)
-Slider(st.x1, label="x1", min_value=-100, max_value=100)
-Slider(st.tx1, label="tx1", min_value=-10, max_value=10, only_int=True)
-Slider(st.y1, label="y1", min_value=-100, max_value=100)
-Slider(st.ty1, label="ty1", min_value=-10, max_value=10, only_int=True)
+Slider(st["n"], label="n", min_value=1, max_value=6)
+Slider(st["x1"], label="x1", min_value=-100, max_value=100)
+Slider(st["tx1"], label="tx1", min_value=-10, max_value=10, only_int=True)
+Slider(st["y1"], label="y1", min_value=-100, max_value=100)
+Slider(st["ty1"], label="ty1", min_value=-10, max_value=10, only_int=True)
 
 
 bola = Circle(center=(W * 0.6, H * 0.5), radius=20)

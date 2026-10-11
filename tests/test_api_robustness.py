@@ -852,7 +852,7 @@ class TestPhase3SilentPaths(unittest.TestCase):
     def test_state_bracket_link_creates_cell(self):
         c = Circle(radius=6)
         st["robust_new"] @= lambda: c.radius
-        self.assertEqual(st.robust_new.value, 6)
+        self.assertEqual(st.robust_new, 6)
         with self.assertRaises(AttributeError):
             _ = st.robust_missing
         with self.assertRaises(AttributeError):
@@ -1638,9 +1638,9 @@ class TestSurfaceFuzzFindings(unittest.TestCase):
         st.a5_b = False
         makers = {
             "Button": lambda bad: scena.Button(top_left=bad),
-            "Slider": lambda bad: scena.Slider(st.a5_v, top_left=bad),
-            "CheckBox": lambda bad: scena.CheckBox(st.a5_b, top_left=bad),
-            "TextInput": lambda bad: scena.TextInput(st.a5_s, top_left=bad),
+            "Slider": lambda bad: scena.Slider(st["a5_v"], top_left=bad),
+            "CheckBox": lambda bad: scena.CheckBox(st["a5_b"], top_left=bad),
+            "TextInput": lambda bad: scena.TextInput(st["a5_s"], top_left=bad),
             "DropDown": lambda bad: scena.DropDown(options=["a"], top_left=bad),
             "Text": lambda bad: scena.Text("a", top_left=bad),
         }

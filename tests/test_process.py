@@ -1814,7 +1814,7 @@ class TestClassMethodOnChange(ProcessTestCase):
         st.x = 0
         with self.assertRaises(TypeError) as ctx:
             class Drone(Circle):
-                @on_change(st.x)
+                @on_change(st["x"])
                 def watch(self, value):
                     pass
         self.assertIn("@on_change", str(ctx.exception))
@@ -1825,7 +1825,7 @@ class TestClassMethodOnChange(ProcessTestCase):
         st.heat = 10
         fired = []
 
-        @on_change(st.heat)
+        @on_change(st["heat"])
         def on_heat(value):
             fired.append(value)
 
@@ -3232,7 +3232,7 @@ class TestAsyncAwait(ProcessTestCase):
         seen = []
 
         async def diving(e):
-            await until(st.cleared)
+            await until(st["cleared"])
             seen.append("done")
 
         c.mode = diving
@@ -4669,7 +4669,7 @@ class TestDecoratorRoles(ProcessTestCase):
 
         when(lambda: True)(handler)
         with self.assertRaises(TypeError) as ctx:
-            on_change(st.x)(handler)
+            on_change(st["x"])(handler)
         self.assertIn("@on_change", str(ctx.exception))
 
     def test_decorator_on_actor_hook_raises(self):

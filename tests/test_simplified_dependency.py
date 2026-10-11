@@ -24,7 +24,7 @@ class TestDependencyStateChanges(unittest.TestCase):
         st = State()
         st.create('varA', initial=0)
 
-        A = st.varA  # Container A
+        A = st._resolve_cell("varA")  # Container A
         a1 = Attribute(10, owner=A, attr_name="a1")
         a2 = Attribute(20, owner=A, attr_name="a2")
 
@@ -59,9 +59,8 @@ class TestCircularReferenceDetection(unittest.TestCase):
         st.create('varA', initial=0)
         st.create('varB', initial=0)
 
-        A = st.varA
-        B = st.varB
-
+        A = st._resolve_cell("varA")
+        B = st._resolve_cell("varB")
         # Create a circular reference: A @= B and B @= A
         A @= lambda: B
 

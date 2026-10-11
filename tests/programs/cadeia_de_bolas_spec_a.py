@@ -78,7 +78,7 @@ PROBES = {
     "st_n": lambda p: p.st.n_bolas,
     # Revised (SPEC-ERROR / DOC-AMBIG): st.n_bolas reads the cell (Attribute);
     # the Guia contradicted itself ("lê o valor" vs "Lê o Attribute"), fixed in PM4.
-    "st_n_is_int": lambda p: isinstance(p.st.n_bolas.value, int),
+    "st_n_is_int": lambda p: isinstance(p.st.n_bolas, int),
     "st_linhas": lambda p: bool(p.st.linhas),
     "st_efeito": lambda p: str(p.st.efeito),
     "visuals": lambda p: tuple(_look(b.visual) for b in p.group["bolas"]),
