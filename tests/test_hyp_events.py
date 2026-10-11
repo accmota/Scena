@@ -13,7 +13,8 @@ Model (Reactive Design — events; Actors Design — ``@when`` lifetime):
 * A destroyed source retires the watch quietly at the next poll; it never
   fires again. ``unregister_event`` stops a watch at once.
 * ``flush()`` repeats polling until quiet (callbacks that write are relayed
-  within the same flush).
+  within the same flush); a cycle stops after ``FLUSH_MAX_ROUNDS`` rounds in
+  which a watch fires again.
 * A method watch dies with its owner (``destroy`` drops it at once); parking
   (``active = False``) does not suppress it.
 
@@ -35,7 +36,7 @@ from hypothesis.stateful import (  # noqa: E402
 
 from scena import Entity, on_change, when  # noqa: E402
 from scena.events import get_global_event_system, unregister_event  # noqa: E402
-from scena.state import DestroyedError, get_scena_system  # noqa: E402
+from scena.state import FLUSH_MAX_ROUNDS, DestroyedError, get_scena_system  # noqa: E402
 
 boot()
 
@@ -92,9 +93,17 @@ class EventMachine(RuleBasedStateMachine):
 
     # ---------------------------------------------------------------- model
     def _poll_model(self):
-        """One flush: rounds of polls in registration order until quiet."""
-        for _ in range(8):
-            fired = False
+        """One flush: rounds of polls in registration order until quiet.
+
+        Only a round in which a watch fires *again* (it already fired in this
+        flush) counts toward ``FLUSH_MAX_ROUNDS`` (SY5); the flush stops after
+        that many. The model counted every round, so a relay cycle whose
+        first round was all first fires ran one round more in the engine
+        (gate, 2026-10-11)."""
+        fired_before = set()
+        repeat_rounds = 0
+        while True:
+            fired = repeated = False
             for w in self.watch_list:
                 if not w.active:
                     continue
@@ -105,17 +114,21 @@ class EventMachine(RuleBasedStateMachine):
                 if v == w.old:
                     continue
                 w.old = v
-                if w.kind == "when":
-                    if v:
-                        self.expected.append((w, None))
-                        fired = True
-                else:
-                    self.expected.append((w, v))
-                    fired = True
-                    if w.kind == "relay" and w.relay_to.alive:
-                        w.relay_to.value = v
+                if w.kind == "when" and not v:
+                    continue
+                self.expected.append((w, None if w.kind == "when" else v))
+                fired = True
+                if id(w) in fired_before:
+                    repeated = True
+                fired_before.add(id(w))
+                if w.kind == "relay" and w.relay_to.alive:
+                    w.relay_to.value = v
             if not fired:
                 return
+            if repeated:
+                repeat_rounds += 1
+                if repeat_rounds >= FLUSH_MAX_ROUNDS:
+                    return
 
     def _after_write(self):
         if not self.deferring:
@@ -261,6 +274,34 @@ class EventMachine(RuleBasedStateMachine):
 
 
 TestEventModel = EventMachine.TestCase
+
+
+class TestRelayCycleRounds(unittest.TestCase):
+    """The case the gate found (2026-10-11): three relays in a cycle. The
+    first round is all first fires, so it does not count toward
+    ``FLUSH_MAX_ROUNDS``: 27 fires, not 24. The model counted every round."""
+
+    def test_first_fires_do_not_count_toward_the_round_limit(self):
+        m = EventMachine()
+
+        def check():
+            m.fires_match_model()
+            m.no_retired_watch_is_registered()
+        try:
+            s0 = m.new_source(value=1)
+            s1 = m.new_source(value=1)
+            m.watch_relay(a=s1, b=s0)
+            m.write(src=s1, value=0)
+            s2 = m.new_source(value=0)
+            m.watch_relay(a=s2, b=s1)
+            m.bounce(a=0, b=1, src=s2)
+            check()
+            m.watch_relay(a=s0, b=s2)
+            m.end_frame()                         # the flush runs the cycle
+            self.assertEqual(len(m.log), 27)      # 9 rounds of 3 relays
+            check()                               # the model agrees
+        finally:
+            m.teardown()
 
 
 class TestGlitchFree(unittest.TestCase):
