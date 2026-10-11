@@ -29,8 +29,17 @@ left out.
   `tween(st.t, …)` → `tween(st["t"], …)`; `c["radius"] @= st.r` →
   `c["radius"] @= st["r"]`; `st.x @= …` → `st["x"] @= …`. The old spelling
   raises `TypeError` naming the bracket form (`Slider(cell) binds a data
-  cell: got float 0.5. Pass the cell with brackets: Slider(st["volume"])`).
-  `SpriteButton(label=st["vidas"])` now shows the cell live.
+  cell: got float 0.5. Pass the cell with brackets: Slider(st["volume"])`),
+  also when the cell holds a `Vec2` (`st.pos @= …`, `c["center"] @= st.pos`,
+  `tween(st.pos, …)`, `until(st.pos)`). Two exceptions: `st.x @= …` on a
+  number raises Python's own `TypeError` (`unsupported operand type(s) for
+  @=`), which Scena cannot word; and `Text(st.nome)` on a text cell shows
+  the name of now and no longer follows it (`Text(st["nome"])` follows).
+  `SpriteButton(label=st["vidas"])` now shows the cell live. `Text(True)`
+  and `Text(c["radius"])` raise too: only a State cell binds a Text.
+- A cell holds a `Vec2` by value: `st.v0 = ball.vel` stores a copy of the
+  ball's velocity. Before, the cell kept the ball's own `Vec2`, which went
+  on changing with the ball without telling anything linked to `st.v0`.
 - `st.key.value` raises `AttributeError` (`'int' object has no attribute
   'value'`): write `st.key`, which is already the value.
 - `Text(<number>)` raises: write a string (`Text(str(n))`), a cell
@@ -60,6 +69,9 @@ left out.
 
 ### Added
 
+- `until` takes a cell or a field and waits until it is true:
+  `await until(st["acabou"])`, `await until(chefe["vivo"])` (the field is read
+  each frame, like `until(lambda: chefe.vivo)`).
 - Class keywords on spatial effects, like shapes and sprites:
   `class Energia(Orb, radius=16, color="gold", group="energia")` sets the
   defaults of every `Energia`. Placement (`center=`, `p1=`, `origin=`,
@@ -84,9 +96,10 @@ left out.
   `Fire(style=...)`. Before, the style was silently ignored.
 - A shape that is a piece of a `Collider` and also a body of its own (a
   weak point) no longer collides with the Collider it belongs to, and
-  `raycast` / `query_point` name the Collider first whatever order the lines
-  ran in. Before, the boss touched its own torso and the queries depended on
-  statement order.
+  `raycast`, `query_point`, `query_circle` and `query_shape` name the
+  Collider first whatever order the lines ran in; `query_shape(piece)` no
+  longer finds the Collider the piece belongs to. Before, the boss touched
+  its own torso and the queries depended on statement order.
 - `class Rota(Track, color="gold", group="rotas")` applies its class
   keywords. Before, `Track` accepted them and dropped them.
 - A class keyword on a family that takes none (the widgets, `Entity`,
@@ -127,14 +140,26 @@ left out.
 - `obj["field"].unlink()` on a field another formula reads keeps that formula
   linked: it reads the frozen value and follows later writes. Before, the
   reader was unlinked with a "formula source was removed" warning.
+- A formula that reads a microphone kept in a State cell (`st.mic.level`,
+  `hud.mic.level`) follows the level. Before, it depended on the cell only and
+  stayed at 0.
+- A formula that reads `g.mic.level` while `g.mic` is still `None` raises an
+  error that names the read and says to link after the mic exists (sources are
+  learned at link time, also behind `if g.mic else 0`). Before, Python's bare
+  "'NoneType' object has no attribute 'level'".
+- `if canvas.effects:` is False during a `shake` / `flash` / `*_at` impact
+  when you added no effect, like `len(canvas.effects)`.
 - Classes you define (`class Tiro(Sprite)`) and the script that defined them
   are freed when the program ends. Before, they stayed in memory.
 - `Wallpaper("bg.png", tile_mode="mirror", pan_response=0.1)` keeps covering
   the screen when the camera pans or zooms out past the image. Before,
   `fit="cover"` / `"contain"` / `"stretch"` ignored `tile_mode` and showed
   black past the image edge; only `fit="tile"` worked. `"clamp"`, `"repeat"`
-  and `"mirror"` now apply to every image fit.
-- An image Wallpaper without `tile_mode=` reads `.tile_mode` as `"decal"`
+  and `"mirror"` now apply to every image fit. With an explicit `tile_mode=`,
+  `fit="contain"` also fills its side bands with the image (instead of the
+  `underlay`) even while the camera stands still, and the image is sampled
+  smoothly.
+- An image Wallpaper without `tile_mode=` reads `.source.tile_mode` as `"decal"`
   (`"repeat"` with `fit="tile"`), which is what it draws: nothing past the
   image edge, so the `underlay` shows. The Guia listed `"clamp"`, which was
   never applied. The look is unchanged.

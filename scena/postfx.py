@@ -218,7 +218,13 @@ class PostFxStack(ClosedSurface):
         return n
 
     def __bool__(self) -> bool:
-        return self._is_active
+        # Agrees with ``len`` / ``list``: the impacts' internal ``_hit`` is not
+        # one of the author's posts, so ``if canvas.effects:`` stays False
+        # during a shake. The engine's render switch is ``_is_active``.
+        if not self.enabled:
+            return False
+        hit = self._hit
+        return any(e._is_active() for e in self._effects if e is not hit)
 
     @property
     def _is_active(self) -> bool:

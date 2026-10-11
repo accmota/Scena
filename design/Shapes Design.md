@@ -737,7 +737,7 @@ Pushes add up (a timed move under standing `resolve()` is swept and stops at the
 
 Tests: `tests/test_driver_composition.py` (every driver pair both orders; hold edges; messages; `TestCarry`: carried rider − uncarried twin == summed carry every frame, floating / anchored / forever-preset paths, both orders in the frame).
 
-Shared wording: `driver_conflict_message(new=, subject=, part=, existing=, undo=)` in `state.py` (`motion_conflict_message` for a motion Handle). The subject is the actor that already owns the part, named by `entity_label` (`entity.py`): the line that made it (there are no author ids) (`the Sprite made at app.py:151`, `_site` captured in `_construct` for top-level actors by a `sys._getframe` walk — parts are named through their owner; ~0.5 µs per actor against ~6.7 µs for `traceback.extract_stack` and ~145 µs to construct a `Circle`, 2026-09-26 micro-bench), plus `(a clone of the one from line 121)` for a `clone()`. Never the class name alone, never `_auto_sprite2` (it appears nowhere in the author's file). A motion is named by the call as written (`Handle._claim_label`: `move_by(time=2, loops="forever") pushes it`, `tween(time=1) sets it`); a forever motion drops "or wait for the motion to finish". Resolve refusals name the group (`, group "heroi"`) and every pair (`resolve_calls_for` → `unresolve("heroi", ["plataforma", "parede"])`); `resolve()` checks every member of every side before registering any pair (all-or-nothing). Overlap uses `_link_overlaps_part` (whole subtree + owner chain). Property-anchored `angle` / `scale` are listed as FieldRefs in `_parts_written_by_*` — no per-family special case. **Anchor** is just a permanently-draggable Point (`_parts_written_by_drag() == (self,)`); inbound links fall out of the generic check.
+Shared wording: `driver_conflict_message(new=, subject=, part=, existing=, undo=)` in `state.py` (`motion_conflict_message` for a motion Handle). The subject is the actor that already owns the part, named by `entity_label` (`entity.py`): the line that made it (there are no author ids) (`the Sprite made at app.py:151`, `_site` captured in `_construct` for top-level actors by a `sys._getframe` walk — parts are named through their owner; ~0.5 µs per actor against ~6.7 µs for `traceback.extract_stack` and ~145 µs to construct a `Circle`, 2026-09-26 micro-bench), plus `(a clone of the one from line 121)` for a `clone()`. Never the class name alone, never `_auto_sprite2` (it appears nowhere in the author's file). A motion is named by the call as written (`Handle._claim_label`: `move_by(time=2, loops="forever") pushes it`, `tween(time=1) sets it`); a forever motion drops "or wait for the motion to finish". Resolve refusals name the group (`, group "heroi"`) and every pair (`resolve_calls_for` → `unresolve("heroi", ["plataforma", "parede"])`); `resolve()` checks every member of every side before registering any pair (all-or-nothing). Overlap uses `_link_overlaps_part` (whole subtree + owner chain). Property-anchored `angle` / `scale` are listed as FieldRefs in `_parts_written_by_*` — no per-family special case. **Anchor** is just a permanently-draggable Point (`_parts_written_by_drag() == (self,)`); it refuses inbound links in its own `_ensure_can_link_attribute` (the generic message said "set draggable = False first", which an Anchor cannot do; AC16).
 
 **Scheduler-motion Handle vs its target's death.** A tween/`move_along`
 Handle's `owner` (who *scheduled* the work — may be a Director/mode-context
@@ -1199,10 +1199,12 @@ before `flush`, widget hand-off).
 
 - Same marker glyph as a visible Point (radius 8, alpha 0.5, fill only)
 - `color=` forwards to Point (author tint); omit → role-auto handle red
-- Always `handle` / draggable, on layer `top` while shown
-- Pose stays free via the generic persistent-driver rule (always `draggable`;
-  inbound `@=` overlaps `_parts_written_by_drag() == (self,)`)
-  — outbound links *to* the Anchor remain fine
+- Always `handle` / draggable, on layer `top` while shown; `draggable = False`
+  / `handle = False` raise `TypeError` (decided 2026-10-10; they were a silent
+  no-op), `= True` is a no-op
+- Takes no inbound `@=`: `_ensure_can_link_attribute` raises
+  `LinkedAttributeError` naming `Point(lambda: ...)` for a marker that follows
+  a formula — outbound links *to* the Anchor remain fine
 - `center` aliases self (Point); `x` / `y` are the Point slots
 - When it is the topmost pressable under the cursor (hover or held): thin
   outer ring in a lighter tone of the fill (`Color.lighter`)

@@ -84,6 +84,17 @@ class TestMicLevelIsASource(SystemTestCase, unittest.TestCase):
         self.feed(0.9, frames=6)
         self.assertEqual(len(hits), 1)
 
+    def test_on_change_hears_the_level(self):
+        from scena import on_change
+        mic = self.mic
+        seen = []
+        on_change(lambda: round(mic.level, 3))(lambda value: seen.append(value))
+        self.feed(0.0, frames=2)
+        before = len(seen)
+        self.feed(0.6, frames=3)
+        self.assertGreater(len(seen), before)
+        self.assertGreater(seen[-1], 0.0)
+
     def test_a_mic_held_by_an_entity_follows(self):
         """The chain ``g.mic.level`` used to depend on ``g`` only: accepted, frozen."""
         mic = self.mic
@@ -101,6 +112,47 @@ class TestMicLevelIsASource(SystemTestCase, unittest.TestCase):
         self.assertGreater(mic.level, 0.0)
         self.assertAlmostEqual(g.bar.width, 300 * mic.level)
         self.assertAlmostEqual(other.width, 300 * amp_db(mic.level))
+
+    def test_a_mic_held_in_a_state_cell_follows(self):
+        """``st.mic.level``: the chain stopped at the cell, so the formula
+        depended on ``st["mic"]`` only and stayed at 0 while the level moved."""
+        from scena import State
+        hud = State(name="hud_mic")
+        hud.mic = self.mic
+        st.mic_t = self.mic
+        a = Rect(top_left=(0, 0), width=1, height=10)
+        b = Rect(top_left=(0, 20), width=1, height=10)
+        try:
+            a["width"] @= lambda: 300 * hud.mic.level
+            b["width"] @= lambda: 300 * amp_db(st.mic_t.level)
+            self.feed(0.5, frames=2)
+            self.assertGreater(self.mic.level, 0.0)
+            self.assertAlmostEqual(a.width, 300 * self.mic.level)
+            self.assertAlmostEqual(b.width, 300 * amp_db(self.mic.level))
+        finally:
+            a["width"].unlink()
+            b["width"].unlink()
+            st.mic_t = None
+
+    def test_a_mic_not_opened_yet_names_the_read_and_the_fix(self):
+        """``g.mic.level`` with ``g.mic`` None raised Python's bare "'NoneType'
+        object has no attribute 'level'", also behind ``if g.mic else 0``
+        (sources are learned at link time; Sound Design said it linked)."""
+
+        class Recorder(Circle):
+            def setup(self):
+                self.mic = None
+
+        g = Recorder(radius=4)
+        bar = Rect(top_left=(0, 0), width=1, height=10)
+        for formula in (lambda: 300 * g.mic.level,
+                        lambda: amp_db(g.mic.level) if g.mic else 0):
+            with self.subTest(formula=formula):
+                with self.assertRaises(AttributeError) as cm:
+                    bar["width"] @= formula
+                msg = str(cm.exception)
+                self.assertIn("g.mic.level", msg)
+                self.assertIn("g.mic is None when the formula is linked", msg)
 
     def test_close_drops_the_formula_to_zero(self):
         mic = self.mic

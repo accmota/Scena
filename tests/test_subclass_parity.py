@@ -133,6 +133,22 @@ class TestClassKeywords(SystemTestCase, unittest.TestCase):
                      "Entity", "Endless"):
             self.assertIn(name, refused)
 
+    def test_track_applies_its_class_color_and_group(self):
+        # AC10: Track accepted class keywords and dropped them; only group=
+        # is checked across the families above.
+        Rota = type("Rota", (scena.Track,), {"__module__": AUTHOR_MODULE},
+                    color="gold", group="rotas")
+        r = Rota(points=[(0, 0), (10, 0), (10, 10)])
+        try:
+            self.assertEqual(r.color.rgb, scena.Color("gold").rgb)
+            self.assertTrue(r.tagged("rotas"))
+            self.assertTrue(r.visible)          # a styled Track draws
+            own = Rota(points=[(0, 0), (5, 5)], color="red")
+            self.assertEqual(own.color.rgb, scena.Color("red").rgb)   # the instance wins
+            destroy(own)
+        finally:
+            destroy(r)
+
     def test_an_unknown_class_keyword_is_an_author_error(self):
         for kind in kinds():
             with self.subTest(kind=kind.__name__):

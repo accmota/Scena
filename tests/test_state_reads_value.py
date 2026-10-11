@@ -374,5 +374,102 @@ class TestBindingSitesTakeTheCell(EngineCase):
         self.assertEqual(c.radius, 4.0)
 
 
+class TestHeldVec2IsNotTheCell(EngineCase):
+    """A Vec2 is a Container, so every door that takes a Container accepted
+    ``st.pos`` (the held Vec2) where it needs the cell: it worked until the
+    next ``st.pos = …`` replaced the payload, then went silently stale (the
+    link stayed on the old Vec2, the tween moved it behind the cell's back).
+    Each door refuses it with the bracket spelling; the cell still works."""
+
+    def setUp(self):
+        super().setUp()
+        self.st = State(name="st")
+        self.st.pos = Vec2(1, 2)
+        self.st.x = 3.0
+
+    def assert_refused(self, call, bracket):
+        with self.assertRaises(TypeError) as cm:
+            call()
+        msg = str(cm.exception)
+        self.assertIn(bracket, msg)
+        self.assertIn("holds now, not the cell", msg)
+
+    def test_every_door_refuses_the_held_vec2(self):
+        st = self.st
+        c = self.track(Circle())
+
+        def link_target():
+            st.pos @= (lambda: Vec2(st.x, 0))
+
+        def link_source():
+            c["center"] @= st.pos
+
+        doors = {
+            "@= target": (link_target, 'st["pos"] @= …'),
+            "@= source": (link_source, '… @= st["pos"]'),
+            "tween": (lambda: tween(st.pos, Vec2(10, 0), time=1), 'tween(st["pos"], …)'),
+            "until": (lambda: until(st.pos), 'until(st["pos"])'),
+        }
+        for name, (call, bracket) in doors.items():
+            with self.subTest(door=name):
+                self.assert_refused(call, bracket)
+        self.assertIsNone(vars(st.pos).get('_link'))   # nothing was linked
+        self.assertEqual((st.pos.x, st.pos.y), (1.0, 2.0))
+
+    def test_a_named_bag_spells_its_own_bracket(self):
+        hud = State(name="hud")
+        hud.alvo = Vec2(0, 0)
+        self.assert_refused(lambda: tween(hud.alvo, Vec2(1, 1), time=1), 'tween(hud["alvo"], …)')
+
+    def test_the_cell_links_and_follows_a_replaced_payload(self):
+        st = self.st
+        c = self.track(Circle())
+        c["center"] @= st["pos"]
+        st.pos = Vec2(50, 60)
+        self.assertEqual((c.center.x, c.center.y), (50.0, 60.0))
+
+    def test_a_vec2_that_left_the_cell_is_free(self):
+        old = self.st.pos
+        self.st.pos = Vec2(5, 5)
+        c = self.track(Circle())
+        c["center"] @= old                   # no longer held: an ordinary Vec2 source
+        old.x = 9
+        self.assertEqual(c.center.x, 9.0)
+
+
+class TestCellCopiesAnObjectsVec2(EngineCase):
+    """``st.v0 = ball.vel`` stored the ball's own Vec2, and the held-payload
+    guard then sat on the ball's field: ``ball.vel = …`` (whose setter writes
+    into that Vec2) raised an error naming ``st.v0``. A cell holds a Vec2 by
+    value: an owned Vec2 is copied, like ``recorde = st.score``."""
+
+    def test_storing_a_field_vec2_snapshots_it(self):
+        st = State(name="st")
+        ball = self.track(Circle())
+        ball.vel = Vec2(50, 0)
+        st.v0 = ball.vel
+        self.assertIsNot(st.v0, ball.vel)
+        ball.vel = Vec2(3, 3)                # the ball's field stays writable
+        self.assertEqual((ball.vel.x, ball.vel.y), (3.0, 3.0))
+        self.assertEqual((st.v0.x, st.v0.y), (50.0, 0.0))
+        with self.assertRaises(AttributeError):
+            st.v0.x = 1                      # the copy is the held payload
+
+    def test_replacing_with_a_field_vec2_snapshots_it_too(self):
+        st = State(name="st")
+        st.v0 = Vec2(0, 0)
+        ball = self.track(Circle())
+        ball.vel = Vec2(7, 8)
+        st.v0 = ball.vel
+        ball.vel = Vec2(1, 1)
+        self.assertEqual((st.v0.x, st.v0.y), (7.0, 8.0))
+
+    def test_a_free_vec2_is_held_as_is(self):
+        st = State(name="st")
+        v = Vec2(1, 2)
+        st.v = v
+        self.assertIs(st.v, v)               # no copy where no one else owns it
+
+
 if __name__ == "__main__":
     unittest.main()

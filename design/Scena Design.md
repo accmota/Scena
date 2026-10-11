@@ -56,6 +56,8 @@ The release number lives in `scena/_version.py` (`scena.__version__`); `pyprojec
 
 1.0 is the point where breaking changes stop being routine; it is not scheduled.
 
+**Before releasing:** nothing left on a branch, a worktree or a stash; every CHANGELOG entry checked against its code, its test, the Guia and the design docs, with a probe at the last tag for each "before" claim ([Testing Design — RA](Testing%20Design.md#ra--080-release-audit-2026-10-11)); the Guia, tutorials, `examples/` and README read for the changed spellings; `python tools/guide/validate_guia.py --examples` and `python tools/guide/make_guia_thumbs.py --check` clean.
+
 **Releasing:** rename `## Unreleased (X.Y.Z)` in the CHANGELOG to `## X.Y.Z — YYYY-MM-DD`, set `__version__`, run the `gate` tier, commit, then `git tag vX.Y.Z && git push origin main vX.Y.Z`. The tag starts `.github/workflows/release.yml`: it refuses a tag that disagrees with `_version.py` or has no dated changelog section, builds, runs `twine check`, and publishes to PyPI through Trusted Publishing (no token; configured on pypi.org for this workflow and the `pypi` environment). A published version cannot be uploaded again: a bad release is fixed by the next patch.
 
 **Rules for a breaking change:**

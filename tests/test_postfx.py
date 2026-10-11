@@ -56,6 +56,17 @@ class TestPostFxStack(unittest.TestCase):
             self.assertNotIn(canvas.effects._hit, canvas.effects)
             self.assertTrue(any(e is canvas.effects._hit for e in canvas.effects._effects))
 
+    def test_truth_agrees_with_len_during_an_impact(self):
+        # ``bool`` still counted the hidden HitFeedback after AC3: ``if
+        # canvas.effects:`` was True during a shake while ``len()`` was 0.
+        canvas.shake(4)
+        self.assertEqual(len(canvas.effects), 0)
+        self.assertFalse(canvas.effects)
+        self.assertTrue(canvas.effects._is_active)   # the engine still renders it
+        v = canvas.effects.add(Vignette())
+        self.assertTrue(canvas.effects)
+        canvas.effects.remove(v)
+
     def test_add_remove_clear(self):
         stack = canvas.effects
         self.assertEqual(len(stack), 0)

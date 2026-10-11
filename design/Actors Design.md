@@ -191,7 +191,11 @@ registration (`registry.declare_group_names`). So `group["tiros_inimigos"]` befo
 first shot, or `group["inimigos"]` after the fleet is cleared, reads quietly as an empty
 view; `group["inimgos"]` still warns at the line that typed it. A name used only in
 `group[...]` reads, before its first member, with a near-miss elsewhere still warns.
-Guard: `tests/test_group_name_guard.py` (Testing Design GN1).
+A formula-group declaration (`group["coluna0"] @= lambda: ...`) does not warn: Python
+reads `group["coluna0"]` before the `@=` runs, so when a hint would be shown the guard
+first checks the caller's bytecode for an in-place `@=` stored back into the same
+subscript (`registry._declares_group_formula`, AC9).
+Guard: `tests/test_group_name_guard.py` (Testing Design GN1; `TestDeclaringAFormulaIsNotATypo`).
 
 Groups resolve **live** each frame. Object literals do not. Prefer
 `@collide("player", "star")` over `@collide(basket, "star")` after destroy/recreate.

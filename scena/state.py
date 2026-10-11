@@ -1073,7 +1073,33 @@ class FormulaLink():
                             # which is not a source of its own: a write
                             # replaces it in the cell.
                             target = last_container = target._resolve_cell(payload)
+                            # An audio reader held in the cell (``st.mic.level``)
+                            # is written off the graph: its level is a source
+                            # too, or the formula hears only a new ``st.mic``.
+                            # A cell that holds None now (``lambda: st.alvo.r
+                            # if st.alvo else 0``) is fine: the cell is the
+                            # source, and a new ``st.alvo`` re-runs the formula.
+                            if i < len(steps) - 1:
+                                off_graph = _formula_source_of(target.value)
+                                if off_graph is not None:
+                                    self.sources.add(off_graph)
                             break
+                        if target is None and i > 0:
+                            # ``g.mic.level`` while ``g.mic`` is None (a mic
+                            # opened later): Python's "'NoneType' object has
+                            # no attribute 'level'" named neither the read nor
+                            # the fix. Sources are learned at link time.
+                            path = base_name + "".join(
+                                f".{p}" if k == 'attr' else f"[{p!r}]"
+                                for k, p in steps[:i]
+                            )
+                            raise AttributeError(
+                                f"@= formula {fn_label} reads {path}.{payload}, "
+                                f"but {path} is None when the formula is linked. "
+                                "A formula learns what it follows when it is "
+                                f"linked: link it after {path} is set (even "
+                                f"with 'if {path} else …' in the formula)."
+                            )
                         if not hasattr(target, payload):
                             # A read the link cannot follow would leave it
                             # silently stale — refuse instead of warning. The
@@ -1260,6 +1286,8 @@ def _normalize_link_rhs(source):
     """Turn a FieldRef into its graph node; leave Container / callable unchanged."""
     if isinstance(source, FieldRef):
         return source.owner._linkable_source(source.name)
+    if source.__class__ is _HELD_BY_VALUE:
+        refuse_held_payload(source, "… @= {cell}")
     return source
 
 def _formula_source_of(obj):
@@ -2572,6 +2600,8 @@ class Container():
             TypeError: If other is not an Attribute or a lambda function
         """
         _refuse_link_on_dead(self, "@=")
+        if self.__class__ is _HELD_BY_VALUE:
+            refuse_held_payload(self, "{cell} @= …")
         self._assign_formula(other)
         return self
 
@@ -3873,6 +3903,42 @@ def _held_payload_message(cell: "Attribute", payload, name: str) -> str:
     )
 
 
+def held_cell(obj) -> Optional["Attribute"]:
+    """The cell that holds ``obj`` by value right now (``st.pos``'s Vec2), or None.
+
+    ``st.pos`` reads that Vec2 (0.8.0). A door that needs the cell (``@=`` on
+    either side, ``tween``, ``until``) would take the payload instead and work
+    until the next ``st.pos = …`` replaced it: the doors refuse it through
+    ``refuse_held_payload``.
+    """
+    if obj.__class__ is not _HELD_BY_VALUE:
+        return None
+    guard = obj.__dict__.get('_write_field')
+    if not isinstance(guard, _HeldPayloadWrite):
+        return None
+    cell = guard.cell()
+    if cell is None or cell.__dict__.get('_raw_value') is not obj:
+        return None
+    return cell
+
+
+def refuse_held_payload(obj, call: str) -> None:
+    """Raise when ``obj`` is a Vec2 a cell holds. ``call`` spells the door with
+    ``{cell}`` where the cell goes, e.g. ``"tween({cell}, …)"``."""
+    cell = held_cell(obj)
+    if cell is None:
+        return
+    who = cell._name
+    owner, _, key = who.rpartition(".")
+    bracket = f'{owner}["{key}"]' if owner else who
+    raise TypeError(
+        f"{call.format(cell=who)} takes the {type(obj).__name__} that {who} "
+        f"holds now, not the cell: the next {who} = … would leave it behind. "
+        f"Pass the cell with brackets: {call.format(cell=bracket)}. {who} reads "
+        f"the value (since 0.8.0); {bracket} is the cell."
+    )
+
+
 def _rehold_payload(cell: "Attribute", old, new) -> None:
     """Move the held-payload guard from ``old`` to ``new`` (either may be a Vec2)."""
     if old.__class__ is _HELD_BY_VALUE:
@@ -3974,9 +4040,17 @@ class Attribute(ClosedSurface, Container):  # Use string literal for forward ref
         # through ``= 1.0``, so a link it fed stayed refused).
         old_value = self._raw_value
         if old_value != new_value or (type(old_value) is bool) is not (type(new_value) is bool):
-            self._raw_value = new_value
             if old_value.__class__ is _HELD_BY_VALUE or new_value.__class__ is _HELD_BY_VALUE:
+                # A cell holds a Vec2 by value: an object's own Vec2 (``st.v0 =
+                # ball.vel``) is copied, or the held-payload guard would sit on
+                # the object's field and refuse its next write (``ball.vel = …``).
+                if (new_value.__class__ is _HELD_BY_VALUE
+                        and new_value.__dict__.get('_owner') is not None):
+                    new_value = _HELD_BY_VALUE(new_value.x, new_value.y)
+                self._raw_value = new_value
                 _rehold_payload(self, old_value, new_value)
+            else:
+                self._raw_value = new_value
             return True
         else:
             return False

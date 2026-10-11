@@ -3242,6 +3242,24 @@ class TestAsyncAwait(ProcessTestCase):
         _frame(0.1)
         self.assertEqual(seen, ["done"])
 
+    def test_until_an_objects_field(self):
+        # 0.8.0: until() takes any bracket handle, not only a State cell.
+        boss = self.track(Circle())
+        c = self.track(Circle())
+        seen = []
+
+        async def waiting(e):
+            await until(boss["dead"])
+            seen.append("done")
+
+        boss.dead = False
+        c.mode = waiting
+        _frame(0.1)
+        self.assertEqual(seen, [])
+        boss.dead = True
+        _frame(0.1)
+        self.assertEqual(seen, ["done"])
+
     def test_until_empty_waits_for_group(self):
         wasp = self.track(Circle(group="until_wasps"))
         director = self.track(Entity())

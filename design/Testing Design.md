@@ -2233,6 +2233,25 @@ Reported by the user: `if st.mic is None:` was silently always False. Root of th
 | SV6 | (same gate) Tier C `rename_groups` on `cadeia_de_bolas`: "st has no cell 'linhas_r'". `"linhas"` is a group and an `st` cell; `CheckBox(st["linhas"])` made the cell name a string, and the oracle renamed every whole string | A source transform that renames string literals did not tell a group key from a cell or field key | `program_oracles._RenameStrings`: a subscript key is renamed only on the namespace itself (`group[...]`, `….layers[...]`). `test_program_support.TestTierC.test_a_rename_leaves_cell_and_field_keys_alone` |
 | SV7 | (same gate) `test_program_coverage`: `Attribute` reached by no program. It had counted only because `st.x + 1` called `Attribute.__add__` | Coverage by side effect of the old dot read | `Attribute` in `PROGRAM_EXCLUDED` with the reason (programs pass `st["x"]`; members: `test_state_reads_value`) |
 
+### RA — 0.8.0 release audit (2026-10-11)
+
+Before tagging 0.8.0, read-only agents checked every CHANGELOG entry against the
+code (a probe at HEAD and at v0.7.1), the Guia, the tutorials and the design
+docs. All tiers had passed: every finding below is a claim no test made. Lesson
+for the class: **a CHANGELOG or Guia sentence of the form "the old spelling
+raises" / "X now follows" is a test to write, not a summary to trust.** Each
+door the sentence names gets a case, and every payload kind the door can take
+(a number, a text, a `Vec2`, an object) gets one too: the SV2 guards covered
+numbers, and the `Vec2` (a Container) walked through four doors.
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| RA1 | With a `Vec2` cell, `st.pos @= …`, `c["center"] @= st.pos`, `tween(st.pos, …)` and `until(st.pos)` were accepted: each took the held Vec2 and went stale at the next `st.pos = …` (the tween moved it inside a batch, past the in-place guard). The CHANGELOG said the old spelling raises | A Vec2 is a Container, and each door accepts a Container | `TestHeldVec2IsNotTheCell` (every door × the bracket spelling; a named bag). Fix: `state.refuse_held_payload` / `held_cell` in `Container.__imatmul__`, `_normalize_link_rhs`, `tween`, `_start_until` |
+| RA2 | A formula on `st.mic.level` (a mic kept in a State cell) linked and stayed at 0 while the level moved, the case the 0.8.0 CHANGELOG used as its example; `g.mic.level` with `g.mic` still `None` raised Python's bare `'NoneType' object has no attribute 'level'`, and Sound Design said the guarded form linked | `_extract_sources` stops a State chain at the cell, so the off-graph level source was never asked | `test_audio_level_source`: `test_a_mic_held_in_a_state_cell_follows` (fails without the fix), `test_a_mic_not_opened_yet_names_the_read_and_the_fix`, `test_on_change_hears_the_level` |
+| RA3 | `st.v0 = ball.vel`, then `ball.vel = Vec2(3, 3)`, raised "st.v0.x = … would change the Vec2 that st.v0 holds" (the vel setter writes into the existing Vec2); a `confine(action="bounce")` write would too | The cell kept the object's own Vec2 and the SV3 guard went onto it | `TestCellCopiesAnObjectsVec2`. Fix: a cell copies an owned Vec2 (`_takein_impl`, inside the Vec2 branch: other writes pay nothing) |
+| RA4 | `if canvas.effects:` was True during a `shake` with no author effect, while `len()` was 0 (AC3 fixed `__iter__` / `__len__` only) | `PostFxStack.__bool__` returned `_is_active`, which counts the internal `_hit` | `test_postfx.test_truth_agrees_with_len_during_an_impact` |
+| RA5 | Docs drift: tutorial 07 said `st.vidas` and `st["vidas"]` are the same thing; Guia rows promised errors that did not happen (`@=` on a number, `@on_change(c.radius)` "never sees a change" — it raises), named `ready` "at most once per N seconds", said every visual takes the object's colour (`Metal()` is chrome); the CHANGELOG named `.tile_mode` (it is `.source.tile_mode`) and missed `query_circle` / `query_shape` order, `until(<field>)`, `Text(True)`, and the `contain` band fill; 21 Guia thumbnails were stale | Prose changed in one place and not in the others | Fixed in the docs; `make_guia_thumbs.py --check` before a release (the release checklist in Scena Design) |
+
 ### Open (found, not yet fixed)
 
 | Found in | Issue | Planned |

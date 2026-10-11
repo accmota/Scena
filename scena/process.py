@@ -3038,10 +3038,11 @@ def wait(delay: float) -> Handle:
 
 
 def _start_until(pred, *, await_hint: str, site, what: str = "until()") -> Handle:
-    from .state import Container, FieldRef, as_payload
+    from .state import Container, FieldRef, as_payload, refuse_held_payload
     if callable(pred) and not isinstance(pred, Container):
         fn = pred
     elif isinstance(pred, Container):
+        refuse_held_payload(pred, "until({cell})")
         cell = pred
         fn = lambda: bool(as_payload(cell))
     elif isinstance(pred, FieldRef):
@@ -3764,7 +3765,7 @@ def _tween_target(
     yoyo: bool = False,
     start=None,
 ) -> Handle:
-    from .state import Attribute, Container, FieldRef
+    from .state import Attribute, Container, FieldRef, refuse_held_payload
     from .shapes import Point
     from .easing import lerp
 
@@ -3785,6 +3786,8 @@ def _tween_target(
             f'Container, got a plain {type(target).__name__}. st.t reads the '
             'value (since 0.8.0); st["t"] is the cell.'
         )
+    if is_pose:
+        refuse_held_payload(target, "tween({cell}, …)")
 
     n_loops = _require_loop_kwargs(
         loops=loops, yoyo=yoyo, time=time, call_name="tween",

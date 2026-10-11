@@ -330,7 +330,13 @@ a mixer reset) gets `update()`. `.level` stays a live read; the node only says
   (shared node); a settled mixer publishes nothing, so it stops.
 - Sources are learned at link time: the mic must exist when the formula is
   linked. `lambda: amp_db(g.mic.level) if g.mic else 0`, linked while
-  `g.mic` is `None`, follows only `g`. A mic opened on demand links where it
+  `g.mic` is `None`, raises (the source walk reads the whole chain, whatever
+  the condition) with a message naming the read and the fix
+  (`state._extract_sources`, RA2). A mic in a State cell (`st.mic.level`)
+  follows the cell and the level; one linked while `st.mic` is `None`
+  follows the cell only, and a later `g.mic = other` / `st.mic = other`
+  leaves the formula on the first mic's level (link again after replacing a
+  mic). A mic opened on demand links where it
   opens: tutorial 18 writes `st["voz"] @= lambda: amp_db(self.mic.level)`
   right after `Microphone()` in the R handler, and the meter, the light and
   the `@when` read `st.voz` (0 until then). Opening the mic at the top of the

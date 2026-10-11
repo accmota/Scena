@@ -18,6 +18,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scena.canvas import ScenaCanvas
+from scena.state import LinkedAttributeError
 from scena.collision import get_collision_system
 from scena.geom import intersections
 from scena.input import Mouse
@@ -894,6 +895,15 @@ class TestAnchorInteraction(InteractionTestCase):
         a.draggable = True                    # True stays a no-op
         self.assertTrue(a.draggable)
         self.assertTrue(a.handle)
+
+        # AC16: a link said "set draggable = False first", which an Anchor
+        # cannot do. It names the Point that follows a formula instead.
+        with self.assertRaises(LinkedAttributeError) as ctx:
+            a["x"] @= lambda: a.y
+        msg = str(ctx.exception)
+        self.assertIn("takes no links", msg)
+        self.assertIn("Point(lambda: ...)", msg)
+        self.assertNotIn("draggable = False", msg)
 
         a.on_drag_to = None
         a.on_drag_over = None
