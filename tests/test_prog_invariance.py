@@ -19,7 +19,8 @@ and the world (``program_oracles``):
 Scenarios with pointer input (move, click, drag) are skipped by the camera
 oracle: a view-space click lands elsewhere in the world on purpose. ``dev``
 runs the first eligible scenario of each program; ``ci`` / ``deep`` every one.
-``KNOWN`` is shrink-only.
+``KNOWN`` is shrink-only. One class per program (``TestPlatformer``), one
+test per oracle: ``run_tiers.SPLIT`` gives each program its own gate job.
 
     python -m unittest tests.test_prog_invariance -v
 """
@@ -96,57 +97,57 @@ def _check(tc: unittest.TestCase, key: str, msgs: List[str]) -> None:
         tc.fail(f"KNOWN entry no longer fails; remove it: {key!r}")
 
 
-class TestCameraMoved(unittest.TestCase):
-    maxDiff = None
-
-    def _program(self, program: str) -> None:
-        ns = load_spec(program, "a")
-        ignore = CAMERA_IGNORE.get(program, [])
-        for sc in _scenarios(program, pointer_free=True):
-            for cam in (CAMERAS if FULL else CAMERAS[:2]):
-                with self.subTest(scenario=sc, camera=cam):
-                    msgs = program_oracles.camera_moved(program, ns, sc, cam, ignore=ignore)
-                    _check(self, f"camera_moved | {program} | {sc}", msgs)
+def _camera_moved(tc: unittest.TestCase, program: str) -> None:
+    ns = load_spec(program, "a")
+    ignore = CAMERA_IGNORE.get(program, [])
+    for sc in _scenarios(program, pointer_free=True):
+        for cam in (CAMERAS if FULL else CAMERAS[:2]):
+            with tc.subTest(scenario=sc, camera=cam):
+                msgs = program_oracles.camera_moved(program, ns, sc, cam, ignore=ignore)
+                _check(tc, f"camera_moved | {program} | {sc}", msgs)
 
 
-for _p in PROGRAMS:
-    if _p not in CAMERA_EXCLUDED:
-        setattr(TestCameraMoved, f"test_{_ident(_p)}",
-                (lambda p: lambda self: self._program(p))(_p))
+def _time_scaled(tc: unittest.TestCase, program: str) -> None:
+    ns = load_spec(program, "a")
+    for sc in _scenarios(program, pointer_free=False):
+        for k in ((2.0, 0.5) if FULL else (2.0,)):
+            with tc.subTest(scenario=sc, k=k):
+                msgs = program_oracles.time_scaled(program, ns, sc, k)
+                _check(tc, f"time_scaled | {program} | {sc}", msgs)
 
 
-class TestTimeScaled(unittest.TestCase):
-    maxDiff = None
-
-    def _program(self, program: str) -> None:
-        ns = load_spec(program, "a")
-        for sc in _scenarios(program, pointer_free=False):
-            for k in ((2.0, 0.5) if FULL else (2.0,)):
-                with self.subTest(scenario=sc, k=k):
-                    msgs = program_oracles.time_scaled(program, ns, sc, k)
-                    _check(self, f"time_scaled | {program} | {sc}", msgs)
+def _rename_layers(tc: unittest.TestCase, program: str) -> None:
+    ns = load_spec(program, "a")
+    for sc in _scenarios(program, pointer_free=False):
+        with tc.subTest(scenario=sc):
+            msgs = program_oracles.tier_c(program, ns, sc, "rename_layers")
+            _check(tc, f"rename_layers | {program} | {sc}", msgs)
 
 
-for _p in PROGRAMS:
-    if _p not in TIME_EXCLUDED:
-        setattr(TestTimeScaled, f"test_{_ident(_p)}",
-                (lambda p: lambda self: self._program(p))(_p))
+def program_case_name(program: str) -> str:
+    """``examples/cadeia_de_bolas`` → ``TestCadeiaDeBolas``."""
+    return "Test" + "".join(w.capitalize() for w in _ident(program).split("_"))
 
 
-class TestRenameLayers(unittest.TestCase):
-    maxDiff = None
+def _program_case(program: str) -> type:
+    """One class per program, one test per oracle that takes it: the gate's
+    SPLIT runs each program as its own job (the module was one ~200 s job)."""
+    body: Dict[str, Any] = {
+        "__doc__": f"Camera, time-scale and layer-rename invariance of ``{program}``.",
+        "__module__": __name__,
+        "PROGRAM": program,
+        "maxDiff": None,
+    }
+    if program not in CAMERA_EXCLUDED:
+        body["test_camera_moved"] = lambda self: _camera_moved(self, program)
+    if program not in TIME_EXCLUDED:
+        body["test_time_scaled"] = lambda self: _time_scaled(self, program)
+    body["test_rename_layers"] = lambda self: _rename_layers(self, program)
+    return type(program_case_name(program), (unittest.TestCase,), body)
 
-    def _program(self, program: str) -> None:
-        ns = load_spec(program, "a")
-        for sc in _scenarios(program, pointer_free=False):
-            with self.subTest(scenario=sc):
-                msgs = program_oracles.tier_c(program, ns, sc, "rename_layers")
-                _check(self, f"rename_layers | {program} | {sc}", msgs)
 
-
-for _p in PROGRAMS:
-    setattr(TestRenameLayers, f"test_{_ident(_p)}",
-            (lambda p: lambda self: self._program(p))(_p))
+PROGRAM_CASES = [_program_case(p) for p in PROGRAMS]
+globals().update({case.__name__: case for case in PROGRAM_CASES})
 
 
 class TestAxes(unittest.TestCase):
@@ -159,6 +160,15 @@ class TestAxes(unittest.TestCase):
         rows = {_ident(p) for p in PROGRAMS}
         missing = [m for m in mods if m not in rows and m not in ("compose", "isolation", "invariance")]
         self.assertFalse(missing, f"program modules with no invariance row: {missing}")
+
+    def test_every_program_has_its_own_class(self):
+        self.assertEqual([case.PROGRAM for case in PROGRAM_CASES], PROGRAMS)
+        names = [case.__name__ for case in PROGRAM_CASES]
+        self.assertEqual(len(set(names)), len(names), "two programs share a class name")
+        for case in PROGRAM_CASES:
+            self.assertIs(globals()[case.__name__], case)
+            self.assertNotEqual(case.__name__, "TestAxes")
+            self.assertNotEqual(case.__name__, "TestCanaries")
 
     def test_exclusions_name_programs(self):
         for table in (CAMERA_EXCLUDED, TIME_EXCLUDED, CAMERA_IGNORE):
@@ -182,7 +192,7 @@ class TestCanaries(unittest.TestCase):
 
         def zoom_scaled(self, dt, _r=real):
             _r(self, dt * float(_canvas.zoom or 1.0))     # world time follows the camera
-        assert_catches(self, "test_prog_invariance.TestCameraMoved.test_bouncing_balls",
+        assert_catches(self, "test_prog_invariance.TestBouncingBalls.test_camera_moved",
                        [(Clock, "advance", zoom_scaled)], "a world clock that reads the zoom")
 
     def test_time_oracle_catches_a_timer_on_real_time(self):
@@ -193,7 +203,7 @@ class TestCanaries(unittest.TestCase):
         def unscaled(self, dt, _r=real):
             _r(self, dt)
             self._dt = dt          # world dt ignores the scale
-        assert_catches(self, "test_prog_invariance.TestTimeScaled.test_bouncing_balls",
+        assert_catches(self, "test_prog_invariance.TestBouncingBalls.test_time_scaled",
                        [(Clock, "advance", unscaled)], "a clock whose dt ignores clock.scale")
 
 

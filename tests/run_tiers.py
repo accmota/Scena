@@ -68,7 +68,7 @@ SLOW = frozenset({
     "test_hyp_surface",    # ~120 s dev, ~430 s ci: one generated test per export
     "test_sys_hyp_world",  # ~35 s dev: session state machine + reach guard + canaries
     "test_guia_thumbs_render",  # ~30 s: real renders, one child process each
-    "test_program_coverage",    # ~100 s: every program spec scenario under a profile hook
+    "test_program_coverage",    # ~55 s: every program spec scenario under a sys.monitoring hook
     "test_fuzz_corpus",         # the geometry fuzzer's corpus replay: gate only (Testing Design)
     # Exhaustive enumerations (measured alone 2026-10-10; under quick's 8 workers ~2.5x).
     "test_reactive_matrix_cells",  # ~22 s: every subject x field x path x order
@@ -82,10 +82,10 @@ SLOW = frozenset({
     # Program model tests (gate / deep run them all; quick keeps the light ones).
     "test_prog_naves", "test_prog_cadeia_de_bolas", "test_prog_platformer",
     "test_prog_galaga_acts", "test_prog_runner_story",
-    "test_prog_isolation",       # ~35 s dev: every program after a neighbour and after
-                                 # dirty predecessors; ci runs every ordered pair
-    "test_prog_invariance",      # ~30 s dev: camera, time-scale and layer-rename oracles
-                                 # over every program; ci runs every scenario and camera
+    "test_prog_isolation",       # ~50 s dev, ~150 s ci: every program after a neighbour and
+                                 # after dirty predecessors; ci runs every ordered pair
+    "test_prog_invariance",      # ~35 s dev, ~195 s ci: camera, time-scale and layer-rename
+                                 # oracles over every program; ci runs every scenario and camera
     # Game system tests (tests/games/): quick runs test_game_<name>; the long
     # runs, L3 oracles, random pilots and canaries are gate / deep.
     "test_game_armada_deep", "test_game_caverna_deep", "test_game_oficina_deep",
@@ -93,7 +93,9 @@ SLOW = frozenset({
 })
 # Modules sharded by TestCase class (big classes in chunks) in gate / deep.
 SPLIT = frozenset({
-    "test_hyp_surface",
+    "test_hyp_surface",         # TestDeadEntityVerbs: one test per kind and verb kind
+    "test_prog_invariance",     # one class per program
+    "test_prog_isolation",      # one class per program read (B)
     "test_tutorial_steps",      # one class per tutorial page: one job per page
     "test_game_armada_deep", "test_game_caverna_deep", "test_game_oficina_deep",
 })
@@ -357,9 +359,12 @@ def child_main(argv: Sequence[str]) -> None:
 # Running
 # --------------------------------------------------------------------------
 
-def list_ids_subprocess(module: str) -> List[str]:
+def list_ids_subprocess(module: str, env: Optional[Dict[str, str]] = None) -> List[str]:
     """Test ids of ``<package>.<module>`` (generated tests included), loaded in
-    a child so this process never imports scena."""
+    a child so this process never imports scena. ``env`` is the tier's
+    (``tier_env``): a module may generate other tests at another profile
+    (``test_prog_isolation``: every ordered pair at ci, a chain at dev), so the
+    ids are listed where the jobs will run them (``ids_lister``)."""
     package = package_of(module)
     code = (
         "import sys, unittest\n"
@@ -372,10 +377,15 @@ def list_ids_subprocess(module: str) -> List[str]:
     )
     p = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True,
                        encoding="utf-8", errors="replace", timeout=600,
-                       env=child_env(dict(os.environ)))
+                       env=child_env(dict(os.environ), env))
     if p.returncode != 0:
         raise RuntimeError(f"cannot list tests of {module}:\n{p.stderr[-2000:]}")
     return [line for line in p.stdout.splitlines() if line.startswith(package + ".")]
+
+
+def ids_lister(env: Dict[str, str]) -> Callable[[str], List[str]]:
+    """``plan``'s ``list_ids`` for a run whose jobs get ``env``."""
+    return lambda module: list_ids_subprocess(module, env)
 
 
 def _safe(label: str) -> str:
@@ -543,9 +553,9 @@ def main(argv: Optional[Sequence[str]] = None, *, out_root: str = OUT,
 
     out_dir = os.path.join(out_root, tier.name)
     timings_path = os.path.join(out_root, "timings.json")
-    jobs = plan(tier, modules, list_ids=list_ids_subprocess,
-                timings=load_timings(timings_path), profile=args.profile)
     env = tier_env(tier, args.profile)
+    jobs = plan(tier, modules, list_ids=ids_lister(env),
+                timings=load_timings(timings_path), profile=args.profile)
     if args.sentinel:
         jobs = [j for j in jobs if j.label.split(".")[0].split("[")[0] not in SENTINEL_EXCLUDE]
         extra = sentinel_env(args.sentinel)

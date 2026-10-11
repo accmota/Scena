@@ -2,7 +2,8 @@
 
 Coverage tool: tests/program_coverage.py (calls from a program's own code into
 scena, mapped onto ``scena.__all__``). Protocol: design/Testing Design.md,
-"Program model tests". In ``run_tiers.SLOW`` (~100 s).
+"Program model tests". In ``run_tiers.SLOW`` (~55 s at any profile: every
+spec scenario under the hook).
 
 A new export fails this guard until a program uses it (write or extend an
 API-first program in tests/programs/, with specs) or it gets a reason below.

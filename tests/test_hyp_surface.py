@@ -541,81 +541,109 @@ def _dead(name):
     return obj
 
 
+def _dead_verbs(obj):
+    """Public methods of a dead ``obj`` with guessable arguments: ``(attr, args, kwargs)``."""
+    out = []
+    for attr in sorted(dir(type(obj))):
+        if attr.startswith("_") or attr in _READ_OK:
+            continue
+        member = inspect.getattr_static(type(obj), attr, None)
+        if isinstance(member, property) or not callable(member):
+            continue
+        guess = _guess_args(getattr(type(obj), attr))
+        if guess is not None:
+            out.append((attr, *guess))
+    return out
+
+
+def _dead_methods_test(name):
+    def test(self):
+        with fresh_world():
+            obj = _dead(name)
+            if obj is None:
+                return
+            settle()
+            base = surface_census()
+            for attr, args, kwargs in _dead_verbs(obj):
+                with self.subTest(method=attr):
+                    try:
+                        try:
+                            with quiet():
+                                getattr(obj, attr)(*args, **kwargs)
+                        except DestroyedError:
+                            continue
+                        except Exception as exc:  # noqa: BLE001
+                            self.assertTrue(_is_author_error(exc, _param_names(getattr(type(obj), attr))),
+                                            f"dead {name}.{attr}() raised {_describe(exc)}")
+                        z = [(h, type(o).__name__) for h, o in zombies() if o is obj]
+                        self.assertEqual(z, [], f"dead {name}.{attr}() re-registered the actor")
+                        self.assertEqual(_trace(base), {}, f"dead {name}.{attr}() left a trace")
+                    finally:
+                        base = surface_census()   # no cascade into later subtests
+
+    test.__doc__ = f"{name}: every public method on a destroyed one raises DestroyedError or leaves no trace."
+    return test
+
+
+def _dead_setters_test(name):
+    def test(self):
+        with fresh_world():
+            obj = _dead(name)
+            if obj is None:
+                return
+            settle()
+            base = surface_census()
+            route = getattr(type(obj), "_setattr_route", {}) or {}
+            for attr in sorted(route):
+                desc = route[attr]
+                if not hasattr(desc, "__set__") or attr.startswith("_"):
+                    continue
+                with self.subTest(setter=attr):
+                    try:
+                        with quiet():
+                            current = getattr(obj, attr)
+                    except Exception:  # noqa: BLE001 — a dead read may raise
+                        continue
+                    # Baseline AFTER the read: a read may materialize a part
+                    # (``box``, ``centroid``); only the write is under test.
+                    base = surface_census()
+                    try:
+                        try:
+                            with quiet():
+                                setattr(obj, attr, current)
+                        except DestroyedError:
+                            continue
+                        except Exception as exc:  # noqa: BLE001
+                            self.assertTrue(_is_author_error(exc) or isinstance(exc, AttributeError),
+                                            f"dead {name}.{attr} = … raised {_describe(exc)}")
+                        z = [(h, type(o).__name__) for h, o in zombies() if o is obj]
+                        self.assertEqual(z, [], f"dead {name}.{attr} = … re-registered the actor")
+                        self.assertEqual(_trace(base), {}, f"dead {name}.{attr} = … left a trace")
+                    finally:
+                        base = surface_census()
+
+    test.__doc__ = f"{name}: every setter on a destroyed one raises DestroyedError or leaves no trace."
+    return test
+
+
 class TestDeadEntityVerbs(unittest.TestCase):
-    def test_methods_on_a_destroyed_entity(self):
+    """P6, one test per Entity kind and verb kind (``test_Circle_methods``,
+    ``test_Circle_setters``): ``run_tiers.SPLIT`` shards the class in CHUNK
+    tests; the walk over every kind in one test was the gate's longest job."""
+    for _n in ENTITY_NAMES:
+        locals()[f"test_{_n}_methods"] = _dead_methods_test(_n)
+        locals()[f"test_{_n}_setters"] = _dead_setters_test(_n)
+    del _n
+
+    def test_verbs_are_called(self):
+        # Vacuity guard: an argument-guessing bug once skipped every method.
         calls = 0
         for name in ENTITY_NAMES:
             with fresh_world():
                 obj = _dead(name)
-                if obj is None:
-                    continue
-                settle()
-                base = surface_census()
-                for attr in sorted(dir(type(obj))):
-                    if attr.startswith("_") or attr in _READ_OK:
-                        continue
-                    member = inspect.getattr_static(type(obj), attr, None)
-                    if isinstance(member, property) or not callable(member):
-                        continue
-                    guess = _guess_args(getattr(type(obj), attr))
-                    if guess is None:
-                        continue
-                    args, kwargs = guess
-                    calls += 1
-                    with self.subTest(export=name, method=attr):
-                        try:
-                            try:
-                                with quiet():
-                                    getattr(obj, attr)(*args, **kwargs)
-                            except DestroyedError:
-                                continue
-                            except Exception as exc:  # noqa: BLE001
-                                self.assertTrue(_is_author_error(exc, _param_names(getattr(type(obj), attr))),
-                                                f"dead {name}.{attr}() raised {_describe(exc)}")
-                            z = [(h, type(o).__name__) for h, o in zombies() if o is obj]
-                            self.assertEqual(z, [], f"dead {name}.{attr}() re-registered the actor")
-                            self.assertEqual(_trace(base), {}, f"dead {name}.{attr}() left a trace")
-                        finally:
-                            base = surface_census()   # no cascade into later subtests
-        # Vacuity guard: an argument-guessing bug once skipped every method.
-        self.assertGreater(calls, 500, f"P6 called only {calls} dead verbs")
-
-    def test_setters_on_a_destroyed_entity(self):
-        for name in ENTITY_NAMES:
-            with fresh_world():
-                obj = _dead(name)
-                if obj is None:
-                    continue
-                settle()
-                base = surface_census()
-                route = getattr(type(obj), "_setattr_route", {}) or {}
-                for attr in sorted(route):
-                    desc = route[attr]
-                    if not hasattr(desc, "__set__") or attr.startswith("_"):
-                        continue
-                    with self.subTest(export=name, setter=attr):
-                        try:
-                            with quiet():
-                                current = getattr(obj, attr)
-                        except Exception:  # noqa: BLE001 — a dead read may raise
-                            continue
-                        # Baseline AFTER the read: a read may materialize a part
-                        # (``box``, ``centroid``); only the write is under test.
-                        base = surface_census()
-                        try:
-                            try:
-                                with quiet():
-                                    setattr(obj, attr, current)
-                            except DestroyedError:
-                                continue
-                            except Exception as exc:  # noqa: BLE001
-                                self.assertTrue(_is_author_error(exc) or isinstance(exc, AttributeError),
-                                                f"dead {name}.{attr} = … raised {_describe(exc)}")
-                            z = [(h, type(o).__name__) for h, o in zombies() if o is obj]
-                            self.assertEqual(z, [], f"dead {name}.{attr} = … re-registered the actor")
-                            self.assertEqual(_trace(base), {}, f"dead {name}.{attr} = … left a trace")
-                        finally:
-                            base = surface_census()
+                if obj is not None:
+                    calls += len(_dead_verbs(obj))
+        self.assertGreater(calls, 500, f"P6 calls only {calls} dead verbs")
 
 
 class TestDeadEntityLinks(unittest.TestCase):
@@ -802,7 +830,7 @@ class TestSurfaceCanaries(unittest.TestCase):
     def test_p6_catches_work_scheduled_on_a_dead_owner(self):
         from diff_support import assert_catches
         from scena.process import Scheduler
-        assert_catches(self, "test_hyp_surface.TestDeadEntityVerbs.test_methods_on_a_destroyed_entity",
+        assert_catches(self, "test_hyp_surface.TestDeadEntityVerbs.test_Circle_methods",
                        [(Scheduler, "add", _scheduler_add_without_dead_owner_guard())],
                        "after / every on a destroyed owner (S9)")
 

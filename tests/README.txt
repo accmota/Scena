@@ -371,13 +371,15 @@ ledger: design/Testing Design.md, "Program model tests".
   pointer, kept and world settings), and checks that a run gives the process
   back. ProgramRun starts from the framework defaults of every world setting
   (system_support.reset_world_settings) and restores what it found at close.
-  SLOW (~35 s at dev).
+  SLOW and SPLIT: one class per program (TestNaves), one gate job each
+  (~50 s dev, ~150 s ci in one process).
 
   Invariance (class 3): test_prog_invariance.py runs program_oracles'
   camera_moved (the camera set before the first line: the same world),
   time_scaled (clock.scale = k with frames of dt / k: the same trace) and
   the rename_layers rewrite over every program, with exclusion tables that
-  carry their reasons. SLOW (~30 s at dev).
+  carry their reasons. SLOW and SPLIT: one class per program
+  (TestPlatformer), one gate job each (~35 s dev, ~195 s ci in one process).
 
   Value metric (slow; one quick tier per mutant):
   python tests/mutation_run.py --modules scena.collision scena.uiwidget \

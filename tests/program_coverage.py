@@ -63,7 +63,7 @@ def collect_runs(runs: Iterable[Tuple[str, Callable[[], object]]],
     """``{export: {member qualnames}}`` reached by calls made from ``files``.
 
     ``runs`` is ``(label, run)`` pairs; each ``run()`` executes under the
-    profile hook. A run that raises is reported on stderr (its own test
+    monitoring hook. A run that raises is reported on stderr (its own test
     reports it properly) and the others go on. The game system tests
     (``test_game_coverage``) reuse this with their own runs.
     """
@@ -71,38 +71,60 @@ def collect_runs(runs: Iterable[Tuple[str, Callable[[], object]]],
     classes: Set[str] = set()                     # exported classes an author call was about
     prog_files = set(files)
 
-    def prof(frame, event, arg):
-        if event != "call":
-            return
+    mon = sys.monitoring
+    # Every Python frame that starts (or a generator resumes: what a profile
+    # hook's "call" sees) in scena, called from a program's own code. A code
+    # object outside scena is never recorded: DISABLE stops its events for
+    # good, so only scena frames pay the callback (a sys.setprofile hook, on
+    # every call, return and C call, took 101 s here against 55 s; the
+    # scenarios alone take 32 s).
+    events = mon.events.PY_START | mon.events.PY_RESUME
+
+    def on_start(code, _offset):
+        if not code.co_filename.startswith(SCENA_DIR):
+            return mon.DISABLE
+        frame = sys._getframe(1)                  # the frame that starts
         caller = frame.f_back
         if caller is None or caller.f_code.co_filename not in prog_files:
-            return
-        code = frame.f_code
-        if code.co_filename.startswith(SCENA_DIR):
-            calls.add((code.co_qualname, code.co_filename))
-            # Exported constructors are wrapped (friendly-constructor shims),
-            # and visuals are interned through __new__: name the class of the
-            # object the call is about.
-            loc = frame.f_locals
-            for key in ("self", "cls"):
-                obj = loc.get(key)
-                if obj is None:
-                    continue
-                cls = obj if inspect.isclass(obj) else type(obj)
-                for c in cls.__mro__:
-                    if getattr(scena, c.__name__, None) is c:
-                        classes.add(c.__name__)
+            return None
+        calls.add((code.co_qualname, code.co_filename))
+        # Exported constructors are wrapped (friendly-constructor shims),
+        # and visuals are interned through __new__: name the class of the
+        # object the call is about.
+        loc = frame.f_locals
+        for key in ("self", "cls"):
+            obj = loc.get(key)
+            if obj is None:
+                continue
+            cls = obj if inspect.isclass(obj) else type(obj)
+            for c in cls.__mro__:
+                if getattr(scena, c.__name__, None) is c:
+                    classes.add(c.__name__)
+        return None
 
-    for label, run in runs:
-        sys.setprofile(prof)
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                run()
-        except Exception as e:  # a crashing scenario is reported by its own test
-            print(f"  ({label}: {type(e).__name__})", file=sys.stderr)
-        finally:
-            sys.setprofile(None)
+    # The profiler slot, or a free one (cProfile and coverage.py take theirs).
+    tool = next((t for t in (mon.PROFILER_ID, 3, 4) if mon.get_tool(t) is None), None)
+    if tool is None:
+        raise RuntimeError("no free sys.monitoring tool id for program coverage")
+    mon.use_tool_id(tool, "scena program coverage")
+    try:
+        mon.register_callback(tool, mon.events.PY_START, on_start)
+        mon.register_callback(tool, mon.events.PY_RESUME, on_start)
+        for label, run in runs:
+            mon.set_events(tool, events)
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    run()
+            except Exception as e:  # a crashing scenario is reported by its own test
+                print(f"  ({label}: {type(e).__name__})", file=sys.stderr)
+            finally:
+                mon.set_events(tool, 0)
+    finally:
+        mon.register_callback(tool, mon.events.PY_START, None)
+        mon.register_callback(tool, mon.events.PY_RESUME, None)
+        mon.free_tool_id(tool)
+        mon.restart_events()                      # undo the DISABLEs
 
     owners = _export_owners()
     reached: Dict[str, Set[str]] = {}

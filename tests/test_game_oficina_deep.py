@@ -2,9 +2,11 @@
 
 * ``TestSession`` — two act instances (a reset through the Menu): every
   material drawn, the trash, the seed box, mute, unlink / relink.
-* ``TestOracles`` — replay, probe neutrality, reactive configuration twin,
-  dt split and ``time_scaled`` (everything runs on world time, no cover),
-  Tier C rewrites. Excluded, with the reason: ``camera_moved`` (input arrives
+* ``TestOraclesSessao`` — replay, probe neutrality, reactive configuration
+  twin, over the session. ``TestOraclesParado`` — dt split and ``time_scaled``
+  (everything runs on world time, no cover), Tier C rewrites. Two classes so
+  the gate shards them (``test_run_tiers``: no job holds half the module).
+  Excluded, with the reason: ``camera_moved`` (input arrives
   in view units: under a moved camera the drags land elsewhere in the world).
 * ``TestRandomPilots`` — Hypothesis draws the materials and the rounds.
 * ``TestCanaries`` — known bugs put back.
@@ -39,10 +41,12 @@ class TestSession(unittest.TestCase):
         gh.assert_game_clean(self, gh.run_game(GAME, "sessao"))
 
 
-class TestOracles(unittest.TestCase):
+class _Oracles(unittest.TestCase):
     def _ok(self, msgs):
         self.assertFalse(msgs, "\n".join(msgs))
 
+
+class TestOraclesSessao(_Oracles):
     def test_replay(self):
         self._ok(program_oracles.replay(gh.game_path(GAME), _ns(), "sessao"))
 
@@ -52,6 +56,8 @@ class TestOracles(unittest.TestCase):
     def test_reactive_config(self):
         self._ok(program_oracles.reactive_config(gh.game_path(GAME), _ns(), "sessao"))
 
+
+class TestOraclesParado(_Oracles):
     def test_dt_split(self):
         self._ok(program_oracles.dt_split(gh.game_path(GAME), _ns(), "parado",
                                           {"potencia": 1e-9, "raio": 1e-9}))

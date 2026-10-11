@@ -184,6 +184,48 @@ class TestShard(unittest.TestCase):
                               [j.names for j in jobs], f"{tier}: {case.PAGE}")
         self.assertGreaterEqual(len(ts.PAGE_CASES), 20)
 
+    def test_every_split_module_really_shards(self):
+        # The real ids, at the gate's profile (a module's tests may depend on
+        # it): every generated class (one per program, per page) is found by
+        # the loader and lands in exactly one gate job. SPLIT shards by
+        # TestCase class, so a module of one or two big classes stays one or
+        # two jobs whatever SPLIT says: no job may hold half the module.
+        from concurrent.futures import ThreadPoolExecutor
+        mods = sorted(rt.SPLIT)
+        lister = rt.ids_lister(rt.tier_env(rt.TIERS["gate"]))
+        with ThreadPoolExecutor(len(mods)) as ex:
+            listed = dict(zip(mods, ex.map(lister, mods)))
+        for mod, ids in listed.items():
+            with self.subTest(module=mod):
+                jobs = rt.plan(rt.TIERS["gate"], [mod], list_ids=lambda _m, ids=ids: ids)
+                planned = [t for j in jobs for t in j.names]
+                self.assertEqual(sorted(planned), sorted(ids), "every test in one job")
+                self.assertGreater(len(jobs), 2, f"{mod} plans {len(jobs)} gate jobs")
+                biggest = max(len(j.names) for j in jobs)
+                self.assertLessEqual(biggest, len(ids) // 2,
+                                     f"one job of {mod} holds {biggest} of {len(ids)} tests")
+
+    def test_split_ids_are_listed_with_the_tiers_env(self):
+        # The parent has no tier env: listed there, test_prog_isolation gave
+        # its dev ids (a chain of pairs) to a ci gate, whose shards then ran
+        # ~50 of its ~190 cells and passed (2026-10-10).
+        seen = []
+
+        def record(module, env=None):
+            seen.append((module, dict(env or {})))
+            return _fake_ids(module)
+        mod = sorted(rt.SPLIT)[0]
+        for argv, profile in ((["gate"], "ci"), (["deep"], "deep"),
+                              (["gate", "--profile", "replay"], "replay")):
+            seen.clear()
+            with self.subTest(argv=argv), tempfile.TemporaryDirectory() as tmp, \
+                    mock.patch.object(rt, "list_ids_subprocess", record), \
+                    mock.patch.dict(os.environ, {"SCENA_HYPOTHESIS_PROFILE": "dev"}):
+                rc = rt.main([*argv, mod, "--plan"], out_root=tmp, stream=io.StringIO())
+                self.assertEqual(rc, 0)
+                self.assertEqual([m for m, _e in seen], [mod])
+                self.assertEqual(seen[0][1].get("SCENA_HYPOTHESIS_PROFILE"), profile)
+
     def test_slowest_first_from_timings(self):
         jobs = rt.plan(rt.TIERS["quick"], ["test_a", "test_b", "test_c"],
                        list_ids=_fake_ids,

@@ -26,6 +26,9 @@ second alone run is a replay failure, reported as such. Known findings are
 listed shrink-only in ``KNOWN`` (a listed cell must still fail in the full
 run). Canaries plant a dropped harness reset and expect the pair to fail.
 
+One class per program B (``TestNaves``: ``test_after_<A>``, ``test_with_<cell>``,
+``test_given_back``): ``run_tiers.SPLIT`` gives each B its own gate job.
+
     python -m unittest tests.test_prog_isolation -v
     SCENA_HYPOTHESIS_PROFILE=ci python -m unittest tests.test_prog_isolation
 """
@@ -366,74 +369,80 @@ def _pairs() -> List[Tuple[str, str]]:
     return [(names[i], names[(i + 1) % n]) for i in range(n)]
 
 
-class TestProgramOrderPairs(unittest.TestCase):
-    """B after A reads like B alone, for every ordered pair (chains at dev)."""
-    maxDiff = None
-
-    def _after(self, a: str, b: str) -> None:
-        for sc in b_scenarios(b):
-            alone(b, sc)                      # taken before A ran
-        before = process_snapshot(collect=False)
-        _run(a, spec(a), PROGRAMS[a])
-        after_a = process_snapshot(collect=False)
-        for sc in b_scenarios(b):
-            with self.subTest(scenario=sc):
-                t = trace_of(b, sc)
-                msgs = compare(b, sc, t, f"after {a}/{PROGRAMS[a]}")
-                moved = snapshot_diff(before, after_a)
-                if msgs and moved:
-                    msgs.append(f"process state {a} left changed: {moved}")
-                _check(self, f"after {a}", b, sc, msgs)
+def _after(tc: unittest.TestCase, a: str, b: str) -> None:
+    """B after A reads like B alone."""
+    for sc in b_scenarios(b):
+        alone(b, sc)                      # taken before A ran
+    before = process_snapshot(collect=False)
+    _run(a, spec(a), PROGRAMS[a])
+    after_a = process_snapshot(collect=False)
+    for sc in b_scenarios(b):
+        with tc.subTest(scenario=sc):
+            t = trace_of(b, sc)
+            msgs = compare(b, sc, t, f"after {a}/{PROGRAMS[a]}")
+            moved = snapshot_diff(before, after_a)
+            if msgs and moved:
+                msgs.append(f"process state {a} left changed: {moved}")
+            _check(tc, f"after {a}", b, sc, msgs)
 
 
-for _a, _b in _pairs():
-    setattr(TestProgramOrderPairs, f"test_{_ident(_b)}__after__{_ident(_a)}",
-            (lambda a, b: lambda self: self._after(a, b))(_a, _b))
-
-
-class TestDirtyPredecessors(unittest.TestCase):
+def _dirty(tc: unittest.TestCase, cell: str, program: str) -> None:
     """B with a test module's leftovers in the process reads like B alone."""
-    maxDiff = None
-
-    def _dirty(self, cell: str, program: str) -> None:
+    for sc in b_scenarios(program):
+        alone(program, sc)
+    undo = DIRTY[cell]()
+    try:
         for sc in b_scenarios(program):
-            alone(program, sc)
-        undo = DIRTY[cell]()
-        try:
-            for sc in b_scenarios(program):
-                with self.subTest(scenario=sc):
-                    t = trace_of(program, sc)
-                    _check(self, cell, program, sc,
-                           compare(program, sc, t, f"with {cell}", classify=False))
-        finally:
-            undo()
-            with quiet():
-                from scena.act import _reset_act_manager
-                _reset_act_manager()
+            with tc.subTest(scenario=sc):
+                t = trace_of(program, sc)
+                _check(tc, cell, program, sc,
+                       compare(program, sc, t, f"with {cell}", classify=False))
+    finally:
+        undo()
+        with quiet():
+            from scena.act import _reset_act_manager
+            _reset_act_manager()
 
 
-for _cell in DIRTY:
-    for _p in (PROGRAMS if FULL else DIRTY_PROGRAMS_DEV):
-        setattr(TestDirtyPredecessors, f"test_{_ident(_p)}__with__{_cell}",
-                (lambda c, p: lambda self: self._dirty(c, p))(_cell, _p))
-
-
-class TestProcessGivenBack(unittest.TestCase):
+def _given_back(tc: unittest.TestCase, program: str) -> None:
     """A run leaves the process-wide state as it found it (snapshot keys)."""
-    maxDiff = None
-
-    def _given_back(self, program: str) -> None:
-        warm()
-        before = process_snapshot()
-        _run(program, spec(program), PROGRAMS[program])
-        moved = snapshot_diff(before, process_snapshot())
-        _check(self, "given_back", program, PROGRAMS[program],
-               [f"{k}: {v[0]} -> {v[1]}" for k, v in moved.items()])
+    warm()
+    before = process_snapshot()
+    _run(program, spec(program), PROGRAMS[program])
+    moved = snapshot_diff(before, process_snapshot())
+    _check(tc, "given_back", program, PROGRAMS[program],
+           [f"{k}: {v[0]} -> {v[1]}" for k, v in moved.items()])
 
 
-for _p in PROGRAMS:
-    setattr(TestProcessGivenBack, f"test_{_ident(_p)}",
-            (lambda p: lambda self: self._given_back(p))(_p))
+def program_case_name(program: str) -> str:
+    """``examples/cadeia_de_bolas`` → ``TestCadeiaDeBolas``."""
+    return "Test" + "".join(w.capitalize() for w in _ident(program).split("_"))
+
+
+def _program_case(b: str) -> type:
+    """Every cell where ``b`` is the program read: ``test_after_<a>`` (order
+    pairs: every A at ci, the chain neighbour at dev), ``test_with_<cell>``
+    (dirty predecessors) and ``test_given_back``. One class per program, so
+    the gate's SPLIT runs each as its own job and B's alone traces are taken
+    once per job (the module was one ~150 s job)."""
+    body: Dict[str, Any] = {
+        "__doc__": f"``{b}`` reads the same whatever ran before it, and gives the process back.",
+        "__module__": __name__,
+        "PROGRAM": b,
+        "maxDiff": None,
+    }
+    for a, b2 in _pairs():
+        if b2 == b:
+            body[f"test_after_{_ident(a)}"] = (lambda a_: lambda self: _after(self, a_, b))(a)
+    if FULL or b in DIRTY_PROGRAMS_DEV:
+        for cell in DIRTY:
+            body[f"test_with_{cell}"] = (lambda c: lambda self: _dirty(self, c, b))(cell)
+    body["test_given_back"] = lambda self: _given_back(self, b)
+    return type(program_case_name(b), (unittest.TestCase,), body)
+
+
+PROGRAM_CASES = [_program_case(p) for p in PROGRAMS]
+globals().update({case.__name__: case for case in PROGRAM_CASES})
 
 
 class TestAxes(unittest.TestCase):
@@ -457,6 +466,17 @@ class TestAxes(unittest.TestCase):
         pairs = _pairs()
         self.assertEqual({a for a, _ in pairs}, set(PROGRAMS))
         self.assertEqual({b for _, b in pairs}, set(PROGRAMS))
+
+    def test_every_program_has_its_own_class(self):
+        self.assertEqual([case.PROGRAM for case in PROGRAM_CASES], list(PROGRAMS))
+        names = [case.__name__ for case in PROGRAM_CASES]
+        self.assertEqual(len(set(names)), len(names), "two programs share a class name")
+        fixed = {"TestAxes", "TestResetWorldSettings", "TestCanaries"}
+        for case in PROGRAM_CASES:
+            self.assertIs(globals()[case.__name__], case)
+            self.assertNotIn(case.__name__, fixed)
+        pairs = sum(1 for case in PROGRAM_CASES for n in dir(case) if n.startswith("test_after_"))
+        self.assertEqual(pairs, len(_pairs()))
 
     def test_known_keys_name_real_cells(self):
         cells = {f"after {p}" for p in PROGRAMS} | set(DIRTY) | {"given_back"}
@@ -515,14 +535,13 @@ class TestCanaries(unittest.TestCase):
     reach a trace; the plants are on the resets the harness owns."""
 
     def test_dirty_cell_catches_world_settings_that_are_not_reset(self):
-        assert_catches(self, "test_prog_isolation.TestDirtyPredecessors."
-                             "test_naves__with__world_settings",
+        assert_catches(self, "test_prog_isolation.TestNaves.test_with_world_settings",
                        [("program_support", "reset_world_settings", lambda: None)],
                        "a playfield pad left by an earlier test (it decides which shots survive)")
 
     def test_given_back_catches_a_pointer_that_is_not_given_back(self):
         from scena.input import Mouse
-        assert_catches(self, "test_prog_isolation.TestProcessGivenBack.test_cadeia_de_bolas",
+        assert_catches(self, "test_prog_isolation.TestCadeiaDeBolas.test_given_back",
                        [(Mouse, "_sync_position", lambda self, x, y: None)],
                        "the pointer left where the program moved it")
 
