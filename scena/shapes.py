@@ -1155,7 +1155,8 @@ class Shape(Graphic, PaintState):
         '_collidable', '_collider', '_collision_opt_out', '_time_scale',
         '_active', '_active_saved_visible', '_active_saved_collidable',
         '_mode', '_mode_time', 'model', '_ink',
-        '_on_update', '_on_destroy', '_mode_script', '_frozen_warned', '_actor_constructed',
+        '_on_update', '_on_destroy', '_mode_script', '_frozen_warned', '_mode_idle_from',
+        '_actor_constructed',
         '_geom_path', '_geom_path_key', '_tx_state',
         '_collision_epoch',
         '_plain_blit',
@@ -1825,6 +1826,11 @@ class Shape(Graphic, PaintState):
         self._on_click = _check_pointer_handler(value, ("shape",), what="on_click")
         self.clickable = value is not None
 
+    def _draggable_from_callbacks(self, on: bool) -> None:
+        """A drag callback set or cleared turns ``draggable`` on or off (an
+        Anchor overrides: it is always draggable)."""
+        self.draggable = on
+
     @property
     def on_drag_to(self):
         """Called when a drag of this shape ends: ``fn(from_shape, to_shape_or_None, pos)``."""
@@ -1834,7 +1840,7 @@ class Shape(Graphic, PaintState):
     def on_drag_to(self, value) -> None:
         self._on_drag_to = _check_pointer_handler(
             value, ("from_shape", "to_shape", "pos"), what="on_drag_to")
-        self.draggable = value is not None or self._on_drag_over is not None
+        self._draggable_from_callbacks(value is not None or self._on_drag_over is not None)
 
     @property
     def on_drag_over(self):
@@ -1845,7 +1851,7 @@ class Shape(Graphic, PaintState):
     def on_drag_over(self, value) -> None:
         self._on_drag_over = _check_pointer_handler(
             value, ("from_shape", "to_shape", "pos"), what="on_drag_over")
-        self.draggable = value is not None or self._on_drag_to is not None
+        self._draggable_from_callbacks(value is not None or self._on_drag_to is not None)
 
     @property
     def on_drop_by(self):
@@ -2842,6 +2848,7 @@ _GRAPHIC_SHARED = (
     "on_click",
     "on_drag_to",
     "on_drag_over",
+    "_draggable_from_callbacks",
     "on_drop_by",
     "on_hover",
     "on_hover_exit",
@@ -8988,6 +8995,17 @@ class EquilateralTriangle(RegularPolygon):
         super().__init__(*args, **kwargs)
 
 
+def _refuse_anchor_off(anchor, name: str) -> None:
+    """``anchor.draggable = False`` / ``handle = False`` (decided 2026-10-10:
+    raise; it was accepted and ignored)."""
+    from .entity import entity_label
+    raise TypeError(
+        f"{name} = False on {entity_label(anchor)}: an Anchor is always a "
+        f"draggable handle. For a point the pointer cannot move, use "
+        f"Point(x, y, visible=True)."
+    )
+
+
 class Anchor(Point):
     """Sugar for a free, always-handled Point (visible + draggable on ``top``).
 
@@ -9060,7 +9078,8 @@ class Anchor(Point):
     def handle(self, value: bool) -> None:
         # Anchors are always handles; keep visible + draggable in sync. The
         # value is still checked: "no" is not a flag (A12).
-        expect_bool(value, "Anchor.handle")
+        if not expect_bool(value, "Anchor.handle"):
+            _refuse_anchor_off(self, "handle")
         self.visible = True
         if not self._draggable:
             self._draggable = True
@@ -9069,16 +9088,29 @@ class Anchor(Point):
 
     @property
     def draggable(self) -> bool:
-        """Always ``True`` (an Anchor is a handle); assigning keeps it draggable."""
+        """Always ``True`` (an Anchor is a handle); ``False`` raises."""
         return True
 
     @draggable.setter
     def draggable(self, value: bool) -> None:
-        expect_bool(value, "Anchor.draggable")
+        if not expect_bool(value, "Anchor.draggable"):
+            _refuse_anchor_off(self, "draggable")
         self.handle = True
 
-    # Inbound-link rejection falls out of Shape._ensure_can_link_attribute:
-    # Anchors are permanently draggable and _parts_written_by_drag() is (self,).
+    def _draggable_from_callbacks(self, on: bool) -> None:
+        pass        # always draggable: clearing a drag callback keeps the handle
+
+    def _ensure_can_link_attribute(self, target: Container) -> None:
+        """No inbound links: the pointer drags an Anchor (Guia: "Sem ligação de
+        entrada"). The generic refusal said "set draggable = False first",
+        which an Anchor cannot do."""
+        from .entity import entity_label
+        label = entity_label(self)
+        raise LinkedAttributeError(
+            f"{label[:1].upper()}{label[1:]} takes no links (@=): an Anchor is always a "
+            f"handle the pointer drags. For a marker that follows a formula, use a "
+            f"Point: Point(lambda: ...), or keep the value in a field of another object."
+        )
 
     def _clone_geometry(self, **kwargs) -> 'Anchor':
         cx, cy = get_xy(self, bare=True)

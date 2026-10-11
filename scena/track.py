@@ -572,6 +572,15 @@ class Track(Shape):
         # setter promotes later if the author shows an unstyled Track.
         # .fill / .line / .line_width after construction do not.
         from .entity import _USE_LAYER_DEFAULT
+        # Class keywords (``class Rota(Track, color="gold", group="rotas")``):
+        # the Shape rule. Track bypassed it, so they were accepted and dropped.
+        defaults = getattr(type(self), '_shape_defaults', None) or {}
+        if color is None and 'color' in defaults:
+            color = defaults['color']
+        if visual is None and 'visual' in defaults:
+            visual = defaults['visual']
+        if group is None and 'group' in defaults:
+            group = defaults['group']
         styled = any(v is not None for v in (color, visual, line_width))
         if visible is None:
             visible = bool(styled)

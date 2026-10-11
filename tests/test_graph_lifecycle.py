@@ -655,3 +655,35 @@ class TestLazyContainerRegistration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestOwnFieldLinksDieQuietly(unittest.TestCase):
+    """AC11 (game system tests): an Entity whose own field reads the Entity
+    itself (the Guia's ``hero["grounded"] @= lambda: "bottom" in
+    hero.touching_sides``) warned "Attribute … was unlinked because a formula
+    source was removed" on every destroy. The field goes with its owner; only
+    a link outside the dying object is worth the warning."""
+
+    def _warnings(self, fn):
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            fn()
+        return [str(x.message) for x in w if "was unlinked" in str(x.message)]
+
+    def test_self_reading_field_is_quiet(self):
+        from scena import Rect
+        r = Rect(center=(10, 10), width=4, height=4)
+        r["s"] @= lambda: r.center.x * 2
+        self.assertEqual(self._warnings(r.destroy), [])
+
+    def test_link_from_another_object_still_warns(self):
+        from scena import Rect
+        a = Rect(center=(10, 10), width=4, height=4)
+        b = Rect(center=(10, 10), width=4, height=4)
+        b["s"] @= lambda: a.center.x * 2
+        try:
+            self.assertEqual(len(self._warnings(a.destroy)), 1)
+            self.assertFalse(b["s"].is_linked)
+        finally:
+            b.destroy()

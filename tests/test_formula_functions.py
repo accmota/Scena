@@ -130,6 +130,57 @@ class TestNamedFunction(FormulaFunctionTest):
         self.assertEqual(sink.value, 9.0)
 
 
+class TestDefaultArgIsNotARead(FormulaFunctionTest):
+    """AC8 (game system tests): the default-argument idiom with the loop's own
+    name, ``for g in gens: g["saida"] @= (lambda g=g: g.ganho * 2)``, raised
+    CircularReferenceError. The extractor visited the default's expression
+    (evaluated once, at creation) as a read: ``g`` resolved to the shape, so
+    the shape's own field "read the whole shape". With another name
+    (``lambda g=h:``) the default did not resolve and it worked: the link
+    depended on how a variable was named."""
+
+    def _gens(self):
+        from scena import Rect
+        out = []
+        for i in range(2):
+            r = Rect(center=(10 + i * 20, 10), width=4, height=4)
+            r.ganho = 3.0 + i
+            out.append(r)
+        self.addCleanup(lambda: [r.destroy() for r in out])
+        return out
+
+    def test_lambda_default_same_name_in_a_loop(self):
+        gens = self._gens()
+        for g in gens:
+            g["saida"] @= (lambda g=g: g.ganho * 2)
+        self.assertEqual([g.saida for g in gens], [6.0, 8.0])
+        gens[0].ganho = 10.0
+        self.assertEqual([g.saida for g in gens], [20.0, 8.0])
+
+    def test_def_default_same_name_in_a_loop(self):
+        gens = self._gens()
+        for g in gens:
+            def triplo(g=g):
+                return g.ganho * 3
+            g["saida"] @= triplo
+        gens[1].ganho = 1.0
+        self.assertEqual([g.saida for g in gens], [9.0, 3.0])
+
+    def test_default_object_is_not_a_whole_source(self):
+        # The default names the object; only what the body reads is a source.
+        from scena import Rect
+        a = Rect(center=(0, 0), width=4, height=4)
+        b = Rect(center=(0, 0), width=4, height=4)
+        self.addCleanup(lambda: (a.destroy(), b.destroy()))
+        a.ganho = 2.0
+        sink = Attribute(0.0)
+        sink @= (lambda s=a: s.ganho + b.width)
+        names = {type(src).__name__ for src in sink._link.sources} if hasattr(sink, "_link") else set()
+        self.assertEqual(sink.value, 6.0)
+        a.ganho = 5.0
+        self.assertEqual(sink.value, 9.0)
+
+
 class TestHelpers(FormulaFunctionTest):
     def test_lambda_calling_helper_links(self):
         sink = Attribute("")

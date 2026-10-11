@@ -50,6 +50,7 @@ def script_paths():
     found += iter_files(os.path.join(ROOT, "examples"), ".py", recursive=True,
                         skip_dirs={"media"})
     found += iter_files(os.path.join(ROOT, "tests", "loads"), ".py")
+    found += iter_files(os.path.join(ROOT, "tests", "games"), ".py")
     return found
 
 

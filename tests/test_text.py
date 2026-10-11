@@ -13,7 +13,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scena import Color, Glow, Neon, CheapGlow, Text, Button, Slider, canvas, init, st, ui
+from scena import Color, Glow, Neon, CheapGlow, Text, Button, Slider, canvas, group, init, st, ui
 from scena.orchestration import ScenaFramework
 from scena.registry import BUILT_IN_LAYERS, UiLayerError
 from scena.shapes import Circle
@@ -1503,6 +1503,51 @@ class TestTextTakesAFunction(unittest.TestCase):
             Text(lambda: "fixo", center=(0, 0))
         after = len([o for o in reg.live_objects() if isinstance(o, Text)])
         self.assertEqual(after, before)
+
+
+
+class TestClassKeywords(unittest.TestCase):
+    """Class keywords on a Text subclass (decided 2026-10-10, after AC2 / AC15):
+    the look on the class line, the content and the placement on the instance."""
+
+    def _sub(self, name="Placar", base=None, **kw):
+        return type(name, (base or Text,), {"__module__": "author_game"}, **kw)
+
+    def test_defaults_apply_and_the_instance_wins(self):
+        Placar = self._sub(font_size=32, color="gold", group="hud_ck", align="right")
+        p = Placar("10", center=(100, 100))
+        try:
+            self.assertEqual(p.font_size, 32.0)
+            self.assertTrue(p.tagged("hud_ck"))
+            self.assertEqual(Placar("x", center=(0, 0), font_size=12).font_size, 12.0)
+            Big = self._sub("Big", Placar, font_size=48)
+            self.assertEqual(Big("y", center=(0, 0)).font_size, 48.0)
+            self.assertTrue(Big("y", center=(0, 0)).tagged("hud_ck"))
+        finally:
+            for t in list(group["hud_ck"]):
+                t.destroy()
+
+    def test_refusals_on_the_class_line(self):
+        cases = {"center": "instance placement", "top_left": "instance placement",
+                 "layer": "instance placement", "text": "content",
+                 "font_sise": "Did you mean 'font_size'"}
+        for key, words in cases.items():
+            with self.subTest(key=key):
+                with self.assertRaises(TypeError) as ctx:
+                    self._sub(**{key: (1, 1) if key != "font_sise" else 3})
+                self.assertIn(words, str(ctx.exception))
+        with self.assertRaises(TypeError):
+            self._sub(font_size="big")
+        with self.assertRaises(ValueError):
+            self._sub(width=-3)
+
+    def test_plain_text_is_unchanged(self):
+        t = Text("a", center=(0, 0))
+        try:
+            self.assertEqual(Text._class_defaults, {})
+            self.assertIsNotNone(t.font_size)
+        finally:
+            t.destroy()
 
 
 if __name__ == "__main__":

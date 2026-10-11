@@ -310,6 +310,15 @@ def set_cell(path: str, value: Any):
     return ("set_cell", path, value)
 
 
+def drive(factory: Callable[[], Callable[["ProgramRun"], None]], frames: int):
+    """Run ``frames`` frames under a pilot: ``factory()`` builds a fresh pilot
+    per run (replay oracles run the scenario twice), and ``pilot(run)`` is
+    called before each frame to queue input from what it reads. A pilot that
+    holds keys lists them in ``pilot.held``; they are released at the end.
+    Deterministic as long as the pilot is (no clock, no ``id()``)."""
+    return ("drive", factory, int(frames))
+
+
 @dataclass
 class Expect:
     id: str
@@ -584,6 +593,12 @@ class ProgramRun:
             exec_path = os.path.join(self._tmpdir.name, os.path.basename(self.path))
             with open(exec_path, "w", encoding="utf-8") as fh:
                 fh.write(source)
+            # Data files that sit next to the program (a game's level file)
+            # travel with it: "next to the script" must still find them.
+            import shutil
+            from source_support import iter_files
+            for data in iter_files(os.path.dirname(self.path), ".json", recursive=False):
+                shutil.copy(data, os.path.join(self._tmpdir.name, os.path.basename(data)))
             media = os.path.join(os.path.dirname(self.path), "media")
             if cwd == os.path.dirname(self.path) and os.path.isdir(media):
                 cwd = media
@@ -694,6 +709,29 @@ class ProgramRun:
                 if firsts:
                     self.census_after = dict(self.census_after)
                     self.census_after["graph.nodes"] -= firsts
+                # The same Box values in the dependency graph (the Box and the
+                # Points it owns, with the edges between them): a value a cache
+                # still holds is not a node the program failed to release. Found
+                # by the game system tests (a formation Box, read through a
+                # Grid, still held at the close of a run that ended mid-act;
+                # whether it was depended on GC timing).
+                g = ss.dependency_graph
+                box_ids = set()
+                for k in list(g.nodes):
+                    if k in self._graph_before:
+                        continue
+                    o = g.nodes.get(k)
+                    if o is not None and (type(o).__name__ == "Box"
+                                          or type(getattr(o, "_owner", None)).__name__ == "Box"):
+                        box_ids.add(k)
+                if box_ids:
+                    self.census_after = dict(self.census_after)
+                    self.census_after["graph.nodes"] -= len(box_ids)
+                    for key, table in (("graph.dependencies", g.dependencies),
+                                       ("graph.dependents", g.dependents)):
+                        self.census_after[key] -= sum(len(table.get(k, ())) for k in box_ids)
+                    self.census_after["graph.dep_keys"] -= sum(
+                        1 for k in box_ids if g.dependencies.get(k))
 
     def leftovers(self) -> Dict[str, Tuple[Any, Any]]:
         """Census keys that moved between program start and ``close()``.
@@ -803,12 +841,32 @@ class ProgramRun:
         return ((w._x1 + w._x2) / 2.0, (w._y1 + w._y2) / 2.0)
 
     # -- stepping ---------------------------------------------------------
-    def step(self, n: int = 1, dt: Optional[float] = None) -> None:
+    def step(self, n: int = 1, dt: Optional[float] = None,
+             draw: Optional[bool] = None) -> None:
+        """``draw=None`` follows the run's ``draw``; True / False draws (or
+        not) these frames only (a game draws at checkpoints)."""
         d = self.dt if dt is None else dt
+        if draw or (draw is None and self.world.draw_default):
+            self._wire_surface()
         for _ in range(int(n)):
-            self.world.step(1, dt=d)
+            self.world.step(1, dt=d, draw=draw)
             self.frames += 1
             self.sample()
+
+    def _wire_surface(self) -> None:
+        """Point the draw engine at the world's raster surface.
+
+        The program's ``init()`` rebuilds the drawing canvas the engine paints
+        on, so after it the engine painted elsewhere and every draw of a
+        program read back blank (and ``program_oracles.cull_pixels`` compared
+        two blank images). Re-wired before each draw (a program may call
+        ``init`` again)."""
+        fw = self.world.fw
+        surf = self.world.surface
+        if fw._drawing_surface is not surf or fw._scena_draw.skia_canvas is not fw._drawing_canvas:
+            fw._drawing_surface = surf
+            fw._drawing_canvas = surf.getCanvas()
+            fw._scena_draw.skia_canvas = fw._drawing_canvas
 
     def sample(self) -> None:
         values = {}
@@ -871,6 +929,18 @@ class ProgramRun:
             elif kind == "set_cell":
                 self.set_cell(st[1], st[2])
                 self._pstep(1)
+            elif kind == "drive":
+                # A pilot: a fresh one per run (the factory), called before
+                # every frame with the run; it reads the world and queues
+                # input like a player. Keys it holds are released at the end.
+                _k, factory, frames = st
+                pilot = factory()
+                for _ in range(int(frames) * self.stretch):
+                    pilot(self)
+                    self.step(1)
+                for name in sorted(getattr(pilot, "held", ())):
+                    self.key_up(name)
+                self.step(1)
             else:
                 raise ValueError(f"unknown step {st!r}")
 

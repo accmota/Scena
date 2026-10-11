@@ -172,6 +172,58 @@ def _trace(values):
     return t
 
 
+class TestDrawReachesThePixels(unittest.TestCase):
+    """HV1 (game system tests, 2026-10-10): a program's ``init()`` rebuilt the
+    canvas the engine paints on, so every ProgramRun draw went elsewhere: the
+    screen read back blank, and ``program_oracles.cull_pixels`` compared two
+    blank images (vacuous for every program, all of which call ``init``)."""
+
+    PROGRAM = (
+        "from scena import *\n"
+        "init(width=1000, height=700)\n"
+        "c = Circle(center=(200, 500), radius=40, color='red')\n"
+        "run()\n"
+    )
+
+    def _run(self, draw_steps):
+        import tempfile
+        import numpy as np
+        import skia
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "hv1_prog.py")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(self.PROGRAM)
+            with ProgramRun(path, draw=True) as run:
+                draw_steps(run)
+                a = np.asarray(run.world.surface.makeImageSnapshot().toarray(
+                    colorType=skia.kRGBA_8888_ColorType))
+                sx, sy = run._to_screen(200, 500)
+                return a[int(sy), int(sx)][:3].tolist()
+
+    def test_a_drawn_frame_shows_the_program(self):
+        r, g, b = self._run(lambda run: run.step(2))
+        self.assertGreater(r, 150, "the program's red circle is not in the drawn frame")
+
+    def test_a_checkpoint_draw_shows_the_program(self):
+        def steps(run):
+            run.step(3, draw=False)
+            run.step(1, dt=0.0, draw=True)
+        r, g, b = self._run(steps)
+        self.assertGreater(r, 150)
+
+    def test_cull_pixels_is_not_vacuous(self):
+        import program_oracles
+        from program_support import Scenario
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "hv1_blank.py")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("from scena import *\ninit(width=400, height=300)\nrun()\n")
+            ns = {"SCENARIOS": {"s": Scenario(steps=[("wait", 2)])}, "PROBES": {}}
+            msgs = program_oracles.cull_pixels(path, ns, "s")
+        self.assertTrue(msgs and "nothing was drawn" in msgs[0], msgs)
+
+
 class TestSpecVocabulary(unittest.TestCase):
     def test_checks(self):
         t = _trace([1, 2, 3, 3, ProbeError("X", "boom")])

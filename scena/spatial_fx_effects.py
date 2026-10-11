@@ -25,6 +25,7 @@ FIRE_STYLES = ("camp", "soft", "plume", "tongues", "embers", "blaze")
 
 import skia
 
+from ._pkg import is_framework_module
 from .color import ColorLike, resolve_rgb
 from .validate import expect_choice, fixed_magnitude
 from .fx_quality import (
@@ -393,6 +394,14 @@ class Fire(PointDomainFx):
             impl = _FIRE_STYLES.get(st, Fire)
             if impl is not Fire:
                 return object.__new__(impl)
+        elif style != "camp" and not is_framework_module(cls.__module__):
+            # An author subclass draws the camp fire: style= was silently
+            # ignored (found with AC2).
+            expect_choice(style, FIRE_STYLES, what="Fire style")
+            raise TypeError(
+                f"{cls.__name__} is a Fire subclass: it draws the camp fire, and "
+                f"style= cannot change that. Write Fire(style={style!r}) for that style."
+            )
         return object.__new__(cls)
 
     # Default soft_edge= (help() / autocomplete read it: _publish_fx_signatures).

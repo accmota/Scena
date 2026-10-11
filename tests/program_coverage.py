@@ -21,7 +21,7 @@ import json
 import os
 import sys
 import warnings
-from typing import Dict, Iterable, List, Set, Tuple
+from typing import Callable, Dict, Iterable, List, Set, Tuple
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -58,11 +58,18 @@ def _export_owners() -> Dict[str, str]:
     return owners
 
 
-def collect(program_files: Iterable[str] = (), scenarios=None) -> Dict[str, Set[str]]:
-    """``{export: {member qualnames}}`` reached by the programs' own code."""
+def collect_runs(runs: Iterable[Tuple[str, Callable[[], object]]],
+                 files: Iterable[str]) -> Dict[str, Set[str]]:
+    """``{export: {member qualnames}}`` reached by calls made from ``files``.
+
+    ``runs`` is ``(label, run)`` pairs; each ``run()`` executes under the
+    profile hook. A run that raises is reported on stderr (its own test
+    reports it properly) and the others go on. The game system tests
+    (``test_game_coverage``) reuse this with their own runs.
+    """
     calls: Set[Tuple[str, str]] = set()           # (qualname, filename)
     classes: Set[str] = set()                     # exported classes an author call was about
-    prog_files = set()
+    prog_files = set(files)
 
     def prof(frame, event, arg):
         if event != "call":
@@ -86,20 +93,16 @@ def collect(program_files: Iterable[str] = (), scenarios=None) -> Dict[str, Set[
                     if getattr(scena, c.__name__, None) is c:
                         classes.add(c.__name__)
 
-    for prog, letter in program_specs():
-        ns = load_spec(prog, letter)
-        from program_support import program_path
-        prog_files.add(program_path(prog))
-        for sc in ns["SCENARIOS"]:
-            sys.setprofile(prof)
-            try:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    run_scenario(prog, ns, sc)
-            except Exception as e:  # a crashing scenario is reported by its own test
-                print(f"  ({prog}/{letter} {sc}: {type(e).__name__})", file=sys.stderr)
-            finally:
-                sys.setprofile(None)
+    for label, run in runs:
+        sys.setprofile(prof)
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                run()
+        except Exception as e:  # a crashing scenario is reported by its own test
+            print(f"  ({label}: {type(e).__name__})", file=sys.stderr)
+        finally:
+            sys.setprofile(None)
 
     owners = _export_owners()
     reached: Dict[str, Set[str]] = {}
@@ -114,21 +117,38 @@ def collect(program_files: Iterable[str] = (), scenarios=None) -> Dict[str, Set[
     return reached
 
 
+def collect(program_files: Iterable[str] = (), scenarios=None) -> Dict[str, Set[str]]:
+    """``{export: {member qualnames}}`` reached by the programs' own code."""
+    from program_support import program_path
+    runs, files = [], []
+    for prog, letter in program_specs():
+        ns = load_spec(prog, letter)
+        files.append(program_path(prog))
+        for sc in ns["SCENARIOS"]:
+            runs.append((f"{prog}/{letter} {sc}",
+                         lambda prog=prog, ns=ns, sc=sc: run_scenario(prog, ns, sc)))
+    return collect_runs(runs, files)
+
+
 # Read-only records the engine hands out: reached when a program reads the
 # property that hands them out (an attribute read is not a call the hook sees).
 RECORD_HINTS = {"TouchingContact": "touching_contacts", "CollisionInfo": "info."}
 
 
-def source_reached() -> Set[str]:
+def _program_texts() -> List[str]:
+    from program_support import program_path
+    out = []
+    for prog, _l in program_specs():
+        with open(program_path(prog), encoding="utf-8") as fh:
+            out.append(fh.read())
+    return out
+
+
+def source_reached(texts: Iterable[str] = None) -> Set[str]:
     """Enums named in a program, and records whose property a program reads."""
     import enum
     import re
-    from program_support import program_path
-    srcs = []
-    for prog, _l in program_specs():
-        with open(program_path(prog), encoding="utf-8") as fh:
-            srcs.append(fh.read())
-    text = "\n".join(srcs)
+    text = "\n".join(_program_texts() if texts is None else texts)
     out = set()
     for n in scena.__all__:
         obj = getattr(scena, n, None)
@@ -141,7 +161,7 @@ def source_reached() -> Set[str]:
     return out
 
 
-def global_objects_touched() -> Set[str]:
+def global_objects_touched(texts: Iterable[str] = None) -> Set[str]:
     """Exported non-class / non-function objects (``st``, ``keyp``, ``canvas`` …)
     referenced by any program's source text (a read of a global object is not a
     Python call the profile hook sees)."""
@@ -149,11 +169,8 @@ def global_objects_touched() -> Set[str]:
     names = {n for n in scena.__all__
              if not inspect.isclass(getattr(scena, n, None))
              and not inspect.isfunction(getattr(scena, n, None))}
-    from program_support import program_path
     seen = set()
-    for prog, _l in program_specs():
-        with open(program_path(prog), encoding="utf-8") as fh:
-            src = fh.read()
+    for src in (_program_texts() if texts is None else texts):
         for n in names:
             if re.search(rf"(?<![\w.]){re.escape(n)}(?!\w)", src):
                 seen.add(n)

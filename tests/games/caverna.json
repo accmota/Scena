@@ -1,0 +1,456 @@
+{
+ "format": "scena-level",
+ "version": 1,
+ "size": [
+  3800,
+  900
+ ],
+ "items": [
+  {
+   "kind": "rect",
+   "name": "chao_a",
+   "groups": [
+    "plataforma"
+   ],
+   "center": [
+    450,
+    40
+   ],
+   "width": 900,
+   "height": 80
+  },
+  {
+   "kind": "rect",
+   "name": "chao_b",
+   "groups": [
+    "plataforma"
+   ],
+   "center": [
+    1370,
+    40
+   ],
+   "width": 700,
+   "height": 80
+  },
+  {
+   "kind": "rect",
+   "name": "rampa_a",
+   "groups": [
+    "plataforma",
+    "rampa"
+   ],
+   "center": [
+    1888.09,
+    109.51
+   ],
+   "width": 340.0,
+   "height": 30.0,
+   "angle": 15.0
+  },
+  {
+   "kind": "rect",
+   "name": "plataforma_alta",
+   "groups": [
+    "plataforma"
+   ],
+   "center": [
+    2198.415,
+    151.998
+   ],
+   "width": 300,
+   "height": 30
+  },
+  {
+   "kind": "rect",
+   "name": "chao_c",
+   "groups": [
+    "plataforma"
+   ],
+   "center": [
+    2860,
+    40
+   ],
+   "width": 800,
+   "height": 80
+  },
+  {
+   "kind": "rect",
+   "name": "chao_d",
+   "groups": [
+    "plataforma"
+   ],
+   "center": [
+    3650,
+    40
+   ],
+   "width": 300,
+   "height": 80
+  },
+  {
+   "kind": "polygon",
+   "name": "pedra",
+   "groups": [
+    "plataforma",
+    "pedra"
+   ],
+   "points": [
+    [
+     1180,
+     80
+    ],
+    [
+     1250,
+     80
+    ],
+    [
+     1215,
+     128
+    ]
+   ]
+  },
+  {
+   "kind": "track",
+   "name": "elevador",
+   "groups": [
+    "trilho"
+   ],
+   "points": [
+    [
+     3325,
+     70
+    ],
+    [
+     3435,
+     70
+    ]
+   ],
+   "smooth": 0
+  },
+  {
+   "kind": "track",
+   "name": "drone",
+   "groups": [
+    "trilho"
+   ],
+   "closed": true,
+   "smooth": 1,
+   "points": [
+    [
+     2600,
+     330
+    ],
+    [
+     2800,
+     420
+    ],
+    [
+     3000,
+     330
+    ],
+    [
+     2800,
+     260
+    ]
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "inicio",
+   "groups": [
+    "inicio"
+   ],
+   "center": [
+    100,
+    80
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "cp0",
+   "groups": [
+    "checkpoint"
+   ],
+   "center": [
+    650,
+    80
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "cp1",
+   "groups": [
+    "checkpoint"
+   ],
+   "center": [
+    1550,
+    80
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "cp2",
+   "groups": [
+    "checkpoint"
+   ],
+   "center": [
+    2560,
+    80
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "cp3",
+   "groups": [
+    "checkpoint"
+   ],
+   "center": [
+    3660,
+    80
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "fruta0",
+   "groups": [
+    "fruta"
+   ],
+   "center": [
+    300,
+    115
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "fruta1",
+   "groups": [
+    "fruta"
+   ],
+   "center": [
+    420,
+    115
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "fruta2",
+   "groups": [
+    "fruta"
+   ],
+   "center": [
+    780,
+    115
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "fruta3",
+   "groups": [
+    "fruta"
+   ],
+   "center": [
+    1080,
+    115
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "fruta4",
+   "groups": [
+    "fruta"
+   ],
+   "center": [
+    1300,
+    115
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "fruta5",
+   "groups": [
+    "fruta"
+   ],
+   "center": [
+    1650,
+    115
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "fruta6",
+   "groups": [
+    "fruta"
+   ],
+   "center": [
+    1850,
+    175
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "fruta7",
+   "groups": [
+    "fruta"
+   ],
+   "center": [
+    2150,
+    205
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "fruta8",
+   "groups": [
+    "fruta"
+   ],
+   "center": [
+    2300,
+    205
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "fruta9",
+   "groups": [
+    "fruta"
+   ],
+   "center": [
+    2700,
+    115
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "fruta10",
+   "groups": [
+    "fruta"
+   ],
+   "center": [
+    3000,
+    115
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "fruta11",
+   "groups": [
+    "fruta"
+   ],
+   "center": [
+    3700,
+    115
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "robo0",
+   "groups": [
+    "robo"
+   ],
+   "center": [
+    1500,
+    80
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "robo1",
+   "groups": [
+    "robo"
+   ],
+   "center": [
+    2900,
+    80
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "tocha0",
+   "groups": [
+    "tocha"
+   ],
+   "center": [
+    320,
+    80
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "tocha1",
+   "groups": [
+    "tocha"
+   ],
+   "center": [
+    2200,
+    166.998
+   ]
+  },
+  {
+   "kind": "point",
+   "name": "saida",
+   "groups": [
+    "saida"
+   ],
+   "center": [
+    3760,
+    80
+   ]
+  },
+  {
+   "kind": "rect",
+   "name": "chuva",
+   "groups": [
+    "zona_chuva"
+   ],
+   "center": [
+    2900,
+    520
+   ],
+   "width": 500,
+   "height": 300
+  },
+  {
+   "kind": "image",
+   "name": "caixote",
+   "groups": [
+    "decor"
+   ],
+   "file": "../../examples/media/tilesets/Object/Crate.png",
+   "center": [
+    1080,
+    118.5
+   ],
+   "width": 77,
+   "height": 77
+  },
+  {
+   "kind": "image",
+   "name": "arvore",
+   "groups": [
+    "decor"
+   ],
+   "file": "../../examples/media/tilesets/Object/Tree_1.png",
+   "center": [
+    180,
+    160
+   ],
+   "width": 116,
+   "height": 160,
+   "angle": 0
+  },
+  {
+   "kind": "image",
+   "name": "placa",
+   "groups": [
+    "decor"
+   ],
+   "file": "../../examples/media/tilesets/Object/Sign_1.png",
+   "center": [
+    3600,
+    112
+   ],
+   "width": 64,
+   "height": 64,
+   "angle": 8
+  }
+ ]
+}

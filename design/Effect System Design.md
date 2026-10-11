@@ -591,6 +591,8 @@ Tests: `tests/test_transients.py`. Visual: `python scripts/smoke/transients.py`.
 | Whole-picture grade                     | `canvas.effects`       |
 | Scenery / chunks that never end         | `Endless` (pieces per slot; `Wallpaper(tile)` for repeated pixels) |
 
+**Author subclasses take class keywords**, like Shape and Sprite (AC2, 2026-10-10): `class Energia(Orb, radius=16, color="gold", group="energia")`. `SpatialFx.__init_subclass__` moves the keywords into `cls._class_defaults` (merged over an author base's) and records the framework kind (`_class_kind`); each framework kind's `__init__` is wrapped (`_wrap_fx_class_defaults`) to fill the keywords a call left out, only when the instance's `_class_kind` is that kind (a framework `super().__init__` chain never receives another kind's knobs; an author `__init__` that calls `super().__init__(**kw)` still gets them). Allowed: the kind's keyword knobs, `group`, `soft_edge` (`_fx_class_keys`). Refused as author errors on the class line: placement (`center`, `p1`, `p2`, `origin`, `layer`), unknown names (did-you-mean), bad numbers (`check_numeric_params`), and `style` (it picks the class `Fire(...)` builds in `Fire.__new__`). An instance `style=` other than the default on an author Fire subclass raises too: it was silently ignored. Before, the class line raised Python's own "takes no keyword arguments". Guard: `test_spatial_fx.TestClassKeywords` (every exported kind).
+
 
 
 
@@ -770,6 +772,10 @@ decay on their own: whole screen (`flash`, `shake`, `glitch`), at a place
 "a look that lasts" vs "an event", not "whole screen" vs "a point". Sibling
 catalogs: Transientes (one-shot *on an actor*), SpatialFx (*lasts* at a place).
 Guard: `test_api_robustness.TestGuiaMatchesCode.test_post_is_the_stack_and_impactos_the_one_shot_verbs`.
+The impacts draw through an internal `HitFeedback` post kept in the same
+list (`PostFxStack._hit`); the author views (`list(canvas.effects)`, `len`,
+iteration) skip it, so an impact never shows in the stack and an act restore
+does not hand it back (AC3; `test_postfx.TestPostFxStack.test_impacts_never_join_the_authors_stack`).
 
 
 

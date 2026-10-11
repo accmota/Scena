@@ -202,10 +202,20 @@ class PostFxStack(ClosedSurface):
         self._invalidate()
 
     def __iter__(self):
-        return iter(self._effects)
+        # The author's stack: the impacts' internal HitFeedback (``_hit``) lives
+        # in ``_effects`` for the render order but is not one of the author's
+        # posts ("Impactos ... não entram nesta pilha", Guia; AC3).
+        hit = self._hit
+        if hit is None:
+            return iter(self._effects)
+        return iter([e for e in self._effects if e is not hit])
 
     def __len__(self) -> int:
-        return len(self._effects)
+        hit = self._hit
+        n = len(self._effects)
+        if hit is not None and any(e is hit for e in self._effects):
+            n -= 1
+        return n
 
     def __bool__(self) -> bool:
         return self._is_active

@@ -30,5 +30,7 @@ ASSETS = os.path.join(DOCS, "assets")
 THUMBS = os.path.join(ASSETS, "thumbs")
 GUIDE_TOOLS = os.path.join(ROOT, "tools", "guide")
 EXAMPLES = os.path.join(ROOT, "examples")
+# Game system tests: programs written to be tested (tests/games/README.txt).
+GAMES = os.path.join(ROOT, "tests", "games")
 WORKBENCH = os.path.join(ROOT, "workbench")
 DRAFTS = os.path.join(ROOT, "drafts")

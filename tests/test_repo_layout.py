@@ -24,7 +24,7 @@ _HREF = re.compile(r"""(?:href|src)=["']([^"'#?]+)""")
 class TestLayoutPaths(unittest.TestCase):
     def test_every_published_path_exists(self):
         for name in ("DESIGN", "DOCS", "GUIDE", "GUIDE_HTML", "GUIDE_CATALOGS", "TUTORIAL",
-                     "ASSETS", "THUMBS", "GUIDE_TOOLS", "EXAMPLES"):
+                     "ASSETS", "THUMBS", "GUIDE_TOOLS", "EXAMPLES", "GAMES"):
             path = getattr(layout, name)
             self.assertTrue(os.path.exists(path), f"repo_layout.{name}: {path} does not exist")
 

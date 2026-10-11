@@ -75,9 +75,14 @@ SLOW = frozenset({
                                  # dirty predecessors; ci runs every ordered pair
     "test_prog_invariance",      # ~30 s dev: camera, time-scale and layer-rename oracles
                                  # over every program; ci runs every scenario and camera
+    # Game system tests (tests/games/): quick runs test_game_<name>; the long
+    # runs, L3 oracles, random pilots and canaries are gate / deep.
+    "test_game_armada_deep", "test_game_caverna_deep", "test_game_oficina_deep",
+    "test_game_coverage",        # every game under the coverage profile hook
 })
 # Modules sharded by TestCase class (big classes in chunks) in gate / deep.
-SPLIT = frozenset({"test_hyp_surface"})
+SPLIT = frozenset({"test_hyp_surface", "test_game_armada_deep", "test_game_caverna_deep",
+                   "test_game_oficina_deep"})
 CHUNK = 40  # max tests per shard of a SPLIT module
 
 

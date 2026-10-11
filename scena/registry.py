@@ -23,6 +23,8 @@ that is never reused, so a stale second ``destroy()`` cannot drop a newer actor.
 
 from __future__ import annotations
 
+import sys
+
 import math
 from contextlib import contextmanager
 from dataclasses import dataclass, field, fields
@@ -1796,6 +1798,33 @@ def _entity_method_names() -> frozenset:
     return _ENTITY_METHODS
 
 
+def _declares_group_formula(frame) -> bool:
+    """Is the caller's ``group[name]`` the left side of ``group[name] @= …``?
+
+    Python reads ``group[name]`` before the ``@=`` runs, so the near-miss
+    guard saw the declaration of a new formula group as a read of an unknown
+    name (AC9). Only consulted when a hint would be shown (an unknown name
+    near a known one): the caller's bytecode after its subscript has the
+    in-place ``@=`` right before the store back into the same subscript."""
+    try:
+        import dis
+        code, at = frame.f_code, frame.f_lasti
+        seen = False
+        for ins in dis.get_instructions(code):
+            if ins.offset <= at:
+                continue
+            if ins.opname == "BINARY_OP" and ins.argrepr == "@=":
+                seen = True
+            elif ins.opname == "STORE_SUBSCR":
+                return seen
+            elif ins.opname in ("POP_TOP", "RETURN_VALUE", "RETURN_CONST", "STORE_NAME",
+                                "STORE_FAST", "STORE_GLOBAL", "STORE_ATTR"):
+                return False
+    except Exception:
+        return False
+    return False
+
+
 class GroupOperator:
     """Global ``group["name"]`` — live named group, formula group, or snapshot.
 
@@ -1970,7 +1999,7 @@ class GroupOperator:
             if not self._registry.group_name_known(key):
                 from .validate import did_you_mean
                 hint = did_you_mean(key, self._registry.known_group_names())
-                if hint:
+                if hint and not _declares_group_formula(sys._getframe(1)):
                     import warnings
                     warnings.warn(
                         f"No group {key!r}.{hint} A new name is an empty view.",

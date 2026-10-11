@@ -1172,5 +1172,118 @@ class TestFormulaLinkNamedFunction(unittest.TestCase):
         self.assertEqual(sink.value, 8.0)
 
 
+
+class TestUnlinkKeepsReaders(unittest.TestCase):
+    """AC12 (found by test_hyp_api.ReactiveLinksMachine, 2026-10-10): unlinking
+    a scalar or ink field that another formula reads dropped the field's graph
+    anchor, which is also the node the reader depends on: the reader was
+    unlinked ("a formula source was removed") and froze at a stale value. The
+    Guia: ``unlink`` freezes the field at its current value; readers keep
+    reading it."""
+
+    def _quiet(self, fn):
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            fn()
+        return [str(x.message) for x in w if "was unlinked" in str(x.message)]
+
+    def _check(self, owner, field, src, read):
+        owner[field] @= lambda: src.value + 1
+        reader = Attribute(0.0)
+        reader @= lambda: read() * 10
+        self.assertEqual(reader.value, 30.0)
+        self.assertEqual(self._quiet(owner[field].unlink), [])
+        self.assertIsNotNone(reader._link, "the reader was unlinked")
+        self.assertFalse(owner[field].is_linked)
+        src.value = 7                       # the field is frozen now
+        self.assertEqual(read(), 3.0)
+        setattr(owner, field, 5.0)          # a write reaches the reader
+        self.assertEqual(reader.value, 50.0)
+        with self.assertRaises(LinkedAttributeError):
+            reader.value = 1
+
+    def test_ink_field(self):
+        from scena.shapes import Circle
+        c = Circle(center=(0, 0), radius=10)
+        c.hp = 0.0
+        self._check(c, "hp", Attribute(2.0), lambda: c.hp)
+
+    def test_scalar_slot_field(self):
+        from scena.shapes import Circle
+        c = Circle(center=(0, 0), radius=10)
+        self._check(c, "radius", Attribute(2.0), lambda: c.radius)
+
+    def test_an_unread_field_drops_its_anchor(self):
+        from scena.shapes import Circle
+        c = Circle(center=(0, 0), radius=10)
+        src = Attribute(2.0)
+        c["radius"] @= lambda: src.value + 1
+        c["radius"].unlink()
+        self.assertNotIn("radius", c.__dict__.get("_field_anchors") or {})
+        self.assertEqual(c.radius, 3.0)
+
+
+
+class TestOwnSizeReadIsAKnownLimit(unittest.TestCase):
+    """AC14 (decided 2026-10-10: a known limitation, documented). A custom field
+    of an object cannot read the object's own size fields or computed points:
+    they are worked out from the whole object, the new field included. The
+    refusal says so and names the idiom (a class property, or update(dt)),
+    installs nothing, and a real cycle keeps the generic message."""
+
+    def _refused(self, owner, name, fn):
+        from scena.state import CircularReferenceError
+        with self.assertRaises(CircularReferenceError) as ctx:
+            owner[name] @= fn
+        anchors = owner.__dict__.get("_field_anchors") or {}
+        self.assertTrue(name not in anchors or anchors[name]._link is None, "the refusal installed a link")
+        return str(ctx.exception)
+
+    def test_the_message_names_the_limit_and_the_idiom(self):
+        from scena.shapes import Circle, Polygon, Rect
+        r = Rect(center=(0, 0), width=4, height=4)
+        c = Circle(center=(0, 0), radius=3)
+        p = Polygon(points=[(0, 0), (40, 0), (20, 30)])
+        try:
+            for owner, fn in ((r, lambda: r.width * 2), (r, lambda: r.top_left.x),
+                              (c, lambda: c.radius + 1), (p, lambda: p.center.x)):
+                with self.subTest(kind=type(owner).__name__):
+                    msg = self._refused(owner, "dano", fn)
+                    self.assertIn("known limit", msg)
+                    self.assertIn("@property def dano(self)", msg)
+        finally:
+            for s in (r, c, p):
+                s.destroy()
+
+    def test_what_still_reads_fine(self):
+        from scena.shapes import Rect
+        other = Rect(center=(0, 0), width=6, height=4)
+        r = Rect(center=(1, 2), width=4, height=4)
+        try:
+            r.carga = 2.0
+            r["a"] @= lambda: r.carga * 2           # its own custom field
+            r["b"] @= lambda: r.center.x + 1        # its center (a placement point)
+            r["c"] @= lambda: other.width * 2       # another object's size
+            self.assertEqual((r.a, r.b, r.c), (4.0, 2.0, 12.0))
+        finally:
+            r.destroy()
+            other.destroy()
+
+    def test_a_real_cycle_keeps_the_generic_message(self):
+        from scena.shapes import Rect
+        from scena.state import CircularReferenceError
+        r = Rect(center=(0, 0), width=4, height=4)
+        try:
+            r.a = 1.0
+            r["b"] @= lambda: r.a + 1
+            with self.assertRaises(CircularReferenceError) as ctx:
+                r["a"] @= lambda: r.b + 1
+            self.assertIn("Link one direction only", str(ctx.exception))
+            self.assertNotIn("known limit", str(ctx.exception))
+        finally:
+            r.destroy()
+
+
 if __name__ == "__main__":
     unittest.main()

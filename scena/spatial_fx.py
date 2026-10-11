@@ -218,6 +218,69 @@ def _hide_positional_catchall(init) -> None:
         init.__signature__ = sig.replace(parameters=params)
 
 
+# Instance placement: never a class default (a Shape refuses center= / layer=
+# on the class line the same way).
+_FX_CLASS_PLACEMENT = frozenset({"center", "p1", "p2", "origin", "layer"})
+
+
+def _fx_class_keys(kind: type) -> frozenset:
+    """Keywords a subclass of ``kind`` may set on its class line: the kind's
+    own keyword knobs, ``group`` and ``soft_edge``; placement stays on the
+    instance; ``style`` (picks another class in ``Fire.__new__``) is refused."""
+    from .class_defaults import init_keywords
+    return frozenset((init_keywords(kind) | {"group", "soft_edge"}) - _FX_CLASS_PLACEMENT - {"style"})
+
+
+def _take_fx_class_defaults(cls: type, kwargs: Dict[str, Any]) -> None:
+    """An author subclass's class keywords (before: Python's own "takes no
+    keyword arguments" TypeError, AC2). Shared rules: ``class_defaults``."""
+    from .class_defaults import take_class_defaults
+    kind = next((k for k in cls.__mro__[1:] if is_framework_module(k.__module__)
+                 and issubclass(k, SpatialFx)), SpatialFx)
+    take_class_defaults(
+        cls, kwargs, kind=kind, allowed=_fx_class_keys(kind), placement=_FX_CLASS_PLACEMENT,
+        refused={"style": (
+            f"style= picks the class {kind.__name__}(...) builds, so a subclass "
+            f"cannot set it. Write {kind.__name__}(style=...) for another style."
+        )},
+    )
+
+
+def _wrap_fx_class_defaults(kind: type) -> None:
+    """Wrap a framework kind's ``__init__``: an author subclass's class
+    defaults fill the keywords its call left out. Only for the kind the
+    subclass derives from (``_class_kind``), so a framework ``super().__init__``
+    chain never receives another kind's knobs."""
+    import functools
+    import inspect
+    orig = kind.__dict__["__init__"]
+    # A fixed signature (the bare base): unknown names get the author error
+    # here, since Python's own would now come from inside this wrapper.
+    try:
+        params = inspect.signature(inspect.unwrap(orig)).parameters.values()
+        accepts = None if any(p.kind is p.VAR_KEYWORD for p in params) else frozenset(
+            p.name for p in params if p.name != "self" and p.kind is not p.VAR_POSITIONAL)
+    except (TypeError, ValueError):
+        accepts = None
+
+    @functools.wraps(orig)
+    def init(self, *args, **kw):
+        cls = type(self)
+        if accepts is not None:
+            extra = {k: v for k, v in kw.items() if k not in accepts}
+            if extra:
+                from .validate import reject_unexpected_kwargs
+                reject_unexpected_kwargs(cls.__name__, extra, valid=accepts)
+        defaults = cls._class_defaults
+        if defaults and cls._class_kind is kind:
+            for key, value in defaults.items():
+                if key not in kw:
+                    kw[key] = value
+        orig(self, *args, **kw)
+
+    kind.__init__ = init
+
+
 def _public_fx_name(cls: type) -> str:
     """``Fire`` for ``_LookPlume``: the class an author typed."""
     return next(k.__name__ for k in cls.__mro__ if not k.__name__.startswith("_"))
@@ -294,11 +357,21 @@ class SpatialFx(Entity):
 
     _pose_xy_guard = True
 
+    # Class keywords of an author subclass (``class Energia(Orb, radius=16)``):
+    # the kind's defaults for every instance, like Shape / Sprite (AC2;
+    # ``class_defaults``).
+    _class_defaults: Dict[str, Any] = {}
+    _class_kind: Optional[type] = None
+
     def __init_subclass__(cls, **kwargs):
-        if is_framework_module(cls.__module__) and "__init__" in cls.__dict__:
-            _hide_positional_catchall(cls.__dict__["__init__"])
-            from .validate import guard_init_numbers
-            guard_init_numbers(cls)
+        if is_framework_module(cls.__module__):
+            if "__init__" in cls.__dict__:
+                _hide_positional_catchall(cls.__dict__["__init__"])
+                from .validate import guard_init_numbers
+                guard_init_numbers(cls)
+                _wrap_fx_class_defaults(cls)
+        else:
+            _take_fx_class_defaults(cls, kwargs)
         super().__init_subclass__(**kwargs)
 
     def __init__(
@@ -405,6 +478,10 @@ class SpatialFx(Entity):
         """
         minx, miny, maxx, maxy = self._domain_aabb()
         return [("aabb", minx, miny, maxx, maxy)]
+
+
+# The base's own __init__ (its __init_subclass__ never sees SpatialFx itself).
+_wrap_fx_class_defaults(SpatialFx)
 
 
 # ---------------------------------------------------------------------------

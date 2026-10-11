@@ -355,6 +355,24 @@ ledger: design/Testing Design.md, "Program model tests".
       --programs test_prog_bouncing_balls --n 40
   python tests/mutation_run.py ... --no-baseline     # program suite only
 
+Game system tests
+-----------------
+
+tests/games/ holds three games written to be tested (Armada, a shooter with
+acts; Caverna, a platformer on caverna.json; Oficina, a reactive workshop with
+widgets, geometry and audio). White-box: each carries a Ledger and side models
+(tests/game_support.py) and records every failed check; the drivers fail the
+test with the list. Strategy and rules: design/Testing Design.md, "Game system
+tests"; the folder: tests/games/README.txt.
+
+  python tests/run_tiers.py focused test_game_support test_game_armada test_game_caverna test_game_oficina
+  python tests/run_tiers.py focused test_game_armada_deep --profile ci     # SLOW + SPLIT
+
+  Driver library: tests/game_harness.py (GAMES, pilots, run_game, problems,
+  KNOWN / WARN_OK shrink-only, assert_canary). test_game_coverage (SLOW) holds
+  each game to the exports it claims. SCENA_GAME_CHECKS=raise raises at the
+  failing check, for a debugger.
+
 Pitfalls, the bug loop (what to run after every fix), and the catalogue of
 findings (H / R / S / A / D / W / O series) live in design/Testing Design.md.
 Read its "Harness pitfalls" before trusting a leak failure, and follow its

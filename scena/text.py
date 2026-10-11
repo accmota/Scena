@@ -256,6 +256,34 @@ class Text(Graphic, PaintState):
     top_right = _TextPartSlot(Point)
     text = ContainerSlot(Attribute)
 
+    # Class keywords of an author subclass (``class Placar(Text, font_size=32,
+    # color="gold", group="hud")``): the look, never the content or the
+    # placement (``class_defaults``; AC15 follow-up, 2026-10-10).
+    _class_defaults: dict = {}
+    _CLASS_KEYS = frozenset({"font_size", "font", "color", "background", "glow",
+                             "align", "width", "group"})
+    _CLASS_PLACEMENT = frozenset({"center", "top_left", "top_center", "top_right",
+                                  "box", "layer", "stack", "angle"})
+
+    def __init_subclass__(cls, **kwargs):
+        from ._pkg import is_framework_module
+        if not is_framework_module(cls.__module__):
+            from .class_defaults import take_class_defaults
+            take_class_defaults(
+                cls, kwargs, kind=Text, allowed=Text._CLASS_KEYS,
+                placement=Text._CLASS_PLACEMENT,
+                refused={"text": (
+                    f"text= is the content of one {cls.__name__}, not a class default. "
+                    f"Pass it when you make one: {cls.__name__}(\"...\"), or set "
+                    f"self.text in setup()."
+                )},
+            )
+            for key in ("font_size", "width"):     # None defaults: not in the generic check
+                value = cls._class_defaults.get(key)
+                if value is not None and not callable(value):
+                    fixed_magnitude(value, f"{cls.__name__} {key}")
+        super().__init_subclass__(**kwargs)
+
     def __init__(
         self,
         text: Union[str, float, Attribute, Callable[[], Any], None] = None,
@@ -277,6 +305,26 @@ class Text(Graphic, PaintState):
         box: Any = None,
         angle: Union[float, Callable[[], float], None] = None,
     ):
+        defaults = type(self)._class_defaults
+        if defaults:
+            # Class keywords fill what the call left out (the instance wins).
+            d = defaults.get
+            if width is None:
+                width = d("width")
+            if align is None:
+                align = d("align")
+            if font_size is None:
+                font_size = d("font_size")
+            if font is None:
+                font = d("font")
+            if color is None:
+                color = d("color")
+            if background is None:
+                background = d("background")
+            if glow is None:
+                glow = d("glow")
+            if group is None:
+                group = d("group")
         given = [
             (name, value)
             for name, value in (

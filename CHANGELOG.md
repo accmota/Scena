@@ -14,6 +14,11 @@ left out.
 
 ### Breaking
 
+- `anchor.draggable = False` and `anchor.handle = False` raise `TypeError`
+  (an Anchor is always a draggable handle; use `Point(x, y, visible=True)`
+  for a point the pointer cannot move). Before, they were accepted and
+  ignored. A link on an Anchor (`a["campo"] @= ...`) now says that an Anchor
+  takes no links, instead of telling you to set `draggable = False`.
 - An `async def` where Scena calls a function raises `TypeError` with the
   fix: `async def setup`, `async def on_update`, an async `@every` / `@when`
   / `@collide` / `on_click` / `on_done=`, or a lambda that calls an async
@@ -22,7 +27,32 @@ left out.
   as a script: write the waits in `async def intro(self)` and start it with
   `self.mode = self.intro`.
 
+### Added
+
+- Class keywords on spatial effects, like shapes and sprites:
+  `class Energia(Orb, radius=16, color="gold", group="energia")` sets the
+  defaults of every `Energia`. Placement (`center=`, `p1=`, `origin=`,
+  `layer=`) stays on the instance. Before, the class line raised Python's
+  "takes no keyword arguments".
+- Class keywords on texts: `class Placar(Text, font_size=32, color="gold",
+  group="hud")`. The look goes on the class line (`font_size`, `font`,
+  `color`, `background`, `glow`, `align`, `width`, `group`); the text and its
+  position stay on the instance.
+
 ### Fixed
+
+- A `Fire` subclass given `style=` other than `"camp"` raises, naming
+  `Fire(style=...)`. Before, the style was silently ignored.
+- A shape that is a piece of a `Collider` and also a body of its own (a
+  weak point) no longer collides with the Collider it belongs to, and
+  `raycast` / `query_point` name the Collider first whatever order the lines
+  ran in. Before, the boss touched its own torso and the queries depended on
+  statement order.
+- `class Rota(Track, color="gold", group="rotas")` applies its class
+  keywords. Before, `Track` accepted them and dropped them.
+- A class keyword on a family that takes none (the widgets, `Entity`,
+  `Endless`: `class Painel(Entity, group="hud")`) raises an error that says to
+  pass it when you make one. Before, Python's "takes no keyword arguments".
 
 - `confine` on a `Sprite` whose sheet has an anchor (`Sheet(anchor="bottom")`,
   an atlas pivot) keeps `center` (the feet) on the edge. Before, each clamp
@@ -32,9 +62,42 @@ left out.
 - `Metal("gold")` draws gold metal. Before, the color was ignored and every
   `Metal` was chrome. `Metal()` without a color stays chrome, whatever the
   shape's own color.
+- `on_collide`, `on_collide_stay` and `on_collide_exit` written as methods of
+  a class (`class Nave(Sprite): def on_collide(self, other, info)`) get the
+  other body and the collision info. Before, `other` was the object itself and
+  `info` the other body.
+- A formula whose lambda takes a default (`for g in gens: g["saida"] @=
+  (lambda g=g: g.ganho * 2)`, the loop-variable idiom) links. Before, it could
+  raise `CircularReferenceError`: the default was read as a source.
+- Declaring a formula group (`group["coluna0"] @= lambda: ...`) no longer warns
+  "No group 'coluna0'. Did you mean …?" when a group with a near name exists.
+- Destroying an object whose own field reads the object
+  (`hero["grounded"] @= lambda: "bottom" in hero.touching_sides`) no longer
+  warns that the attribute was unlinked.
+- The frozen-mode warning counts the time a mode has had nothing pending, not
+  its age: a mode that waited a long `until_empty` and then ends the act no
+  longer warns.
+- `list(canvas.effects)` and `len(canvas.effects)` show only the effects you
+  added. Before, they also showed an internal entry after any `shake`, `flash`
+  or `*_at` impact.
+- A `tween(..., name="x")` that replaces the running tween in the same `name=`
+  slot no longer warns "replaces a previous in-flight tween": the slot asks for
+  the replacement. Two tweens on one property in different slots still warn.
+- `obj["field"].unlink()` on a field another formula reads keeps that formula
+  linked: it reads the frozen value and follows later writes. Before, the
+  reader was unlinked with a "formula source was removed" warning.
+- Classes you define (`class Tiro(Sprite)`) and the script that defined them
+  are freed when the program ends. Before, they stayed in memory.
 
 ### Documentation
 
+- Guia, reactive sources: a known limit, now named by its error. A custom
+  field cannot read its own object's size or computed points
+  (`r["dano"] @= lambda: r.width * 2`); use a class `@property` or
+  `update(dt)`. Before, the error spoke of a circular link the author never
+  wrote.
+- Guia, `ready`: the rhythm is exact on average (what a frame overshoots counts
+  toward the next), so two `True` can come a little closer than the interval.
 - Tutorials 14–23 (Portuguese): Ninja (gravity by hand, `resolve`,
   `touching_sides`, clips of different sizes), Ninja II (a world: `recently`,
   stars, robots, kunai, lives), Ligue 4 (a board game: `Box` / `grid`, drag and

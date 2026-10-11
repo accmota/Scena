@@ -160,6 +160,7 @@ def cull_pixels(program: str, spec_ns, scenario: str) -> List[str]:
         saved = canvas.cull_offscreen, eng.batch_shared_filters
         eng.batch_shared_filters = False
         shots = []
+        run._wire_surface()          # the program's init() rebuilt the canvas
         try:
             for cull in (False, True):
                 canvas.cull_offscreen = cull
@@ -169,6 +170,11 @@ def cull_pixels(program: str, spec_ns, scenario: str) -> List[str]:
             canvas.cull_offscreen, eng.batch_shared_filters = saved
         return shots
     _t, (off, on) = _run(program, spec_ns, scenario, probes={}, draw=True, at_end=frames)
+    if not np.ptp(off[:, :, :3]):
+        # Not vacuous: a frame that drew nothing agrees with itself (the
+        # oracle compared two blank images until ProgramRun re-wired the
+        # surface after the program's init()).
+        return ["cull_pixels: the frame is one flat colour: nothing was drawn"]
     d = np.abs(off.astype(int) - on.astype(int)).max(axis=-1)
     if (d > 0).any():
         ys, xs = np.nonzero(d)

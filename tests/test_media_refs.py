@@ -6,7 +6,7 @@ error. ``test_scripts_run`` builds the scene and passes, and a moved or
 deleted file goes unnoticed until someone opens the window (the 2026-10
 ``scripts/examples`` → ``examples`` move left about 170 such paths).
 
-Checked, in ``examples/**``, ``tests/loads/*.py``,
+Checked, in ``examples/**``, ``tests/loads/*.py``, ``tests/games/*.py``,
 ``scripts/smoke/*.py`` and ``scripts/bench/**``:
 
 * a string constant with a media extension passed as the first argument of
@@ -19,7 +19,8 @@ Checked, in ``examples/**``, ``tests/loads/*.py``,
   "media", …)`` chains that end in a file name.
 
 Each path resolves the way the engine does (``scena.sprite._resolve_image_path``):
-absolute, next to the script, the script's ``media/``, then cwd (the repo root).
+absolute, next to the script, the script's ``media/``, then cwd (the repo root,
+or the folder a ``# harness: cwd=<dir>`` header names).
 A file pattern (``"ninja/Run__*.png"``, ``Sheet`` / ``strip``) must match at
 least one file in the first folder that has a match
 (``scena.sprite._pattern_matches``) — a pattern that matches nothing is a
@@ -183,7 +184,17 @@ def _scripts() -> List[str]:
               if not os.path.basename(p).startswith("_")]
     found += iter_files(os.path.join(ROOT, "scripts", "bench"), ".py",
                         recursive=True, skip_dirs={"results"})
+    found += iter_files(os.path.join(ROOT, "tests", "games"), ".py")
     return found
+
+
+def _harness_cwd(src: str) -> str:
+    """The folder a script runs from: ``# harness: cwd=<dir>`` on its first
+    lines (the game system tests run from ``examples/media``), else the root."""
+    for line in src.splitlines()[:5]:
+        if line.startswith("# harness: cwd="):
+            return os.path.join(ROOT, line.split("=", 1)[1].strip())
+    return ROOT
 
 
 def tutorial_paths() -> Iterator[Tuple[str, str]]:
@@ -231,7 +242,11 @@ class TestMediaRefs(unittest.TestCase):
             with open(path, encoding="utf-8") as fh:
                 src = fh.read()
             rel = os.path.relpath(path, ROOT)
-            dead += [f"{rel}:{d}" for d in dead_paths(path, src)]
+            os.chdir(_harness_cwd(src))
+            try:
+                dead += [f"{rel}:{d}" for d in dead_paths(path, src)]
+            finally:
+                os.chdir(ROOT)
         self.assertEqual(dead, [], "media path does not resolve (moved or deleted file?)")
 
     def test_smoke_media_lists_exist(self):

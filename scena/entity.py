@@ -107,24 +107,68 @@ _PROPERTY_LINK_FIELDS = frozenset({"angle", "scale"})
 # Every name some class may declare linkable through ``_property_link_extra``
 # (a property + ``@=``); the cheap pre-check before the per-class lookup.
 _PROPERTY_LINK_ANY = _PROPERTY_LINK_FIELDS | frozenset({"enabled"})
-_PROPERTY_LINK_BY_CLASS: Dict[type, frozenset] = {}
+# Collision's pose key reads these slots when a class declares them (live
+# angle / size); the per-class tuple is ``cls._scena_extra_slots``.
+GRAPHIC_EXTRA_SLOTS = (
+    "angle", "at_angle", "radius", "width", "height", "length", "side", "spread",
+)
+
+
+def _refuse_class_keywords(cls, kwargs) -> None:
+    """Class keywords no family took (Shape, Sprite, SpatialFx and Text take
+    theirs before this): an author error naming the fix, not Python's "takes no
+    keyword arguments" (the AC2 class). A class later in the MRO with its own
+    ``__init_subclass__`` (an author mixin) may still want them."""
+    rest = cls.__mro__[cls.__mro__.index(Entity) + 1:]
+    if any("__init_subclass__" in k.__dict__ for k in rest if k is not object):
+        return
+    from ._pkg import is_framework_module
+    kind = next((k for k in cls.__mro__[1:] if is_framework_module(k.__module__)), Entity)
+    names = ", ".join(f"{k}=" for k in sorted(kwargs))
+    first = sorted(kwargs)[0]
+    raise TypeError(
+        f"class {cls.__name__}({kind.__name__}, {names}): {kind.__name__} subclasses "
+        f"take no class keywords (Shape, Sprite, SpatialFx and Text subclasses do). "
+        f"Pass them when you make one: {cls.__name__}({first}=...)."
+    )
+
+
+def _cache_class_tables(cls: type) -> None:
+    """Per-class tables the hot paths read as plain class attributes.
+
+    Computed once, when the class is made (``Entity.__init_subclass__``), and
+    stored on the class itself — never in a module dict keyed by the class: a
+    key is a strong reference, and an author's class (with its module's
+    globals) would outlive the program (AC1, tests/test_author_class_lifetime.py).
+    """
+    slots = set()
+    for base in cls.__mro__:
+        for name, val in base.__dict__.items():
+            if getattr(val, "_is_field_slot", False):
+                slots.add(name)
+    links = frozenset(n for n in _PROPERTY_LINK_FIELDS if n not in slots)
+    links |= frozenset(getattr(cls, "_property_link_extra", ()) or ())
+    cls._scena_property_links = links
+    cls._scena_kind_name = _kind_of_class(cls)
+    cls._scena_extra_slots = tuple(
+        n for n in GRAPHIC_EXTRA_SLOTS
+        if getattr(getattr(cls, n, None), "_is_field_slot", False))
+    live = cls.__dict__.get("_setattr_route")
+    if live is None:
+        _install_setattr_route(cls)
+        live = cls._setattr_route
+    cls._scena_dead_route = _DeadRoute({name: live[name] for name in _DEAD_QUIET if name in live})
 
 
 def _property_link_names(obj) -> frozenset:
-    """The property-backed linkable fields of this class, cached per class.
+    """The property-backed linkable fields of this class (``_cache_class_tables``).
 
     ``_PROPERTY_LINK_FIELDS`` not backed by a real slot (``angle`` is a slot on
     Rect / Line / Circle, a property on Sprite / Point — and ``x["angle"]`` is
     on the per-frame path), plus the class's own ``_property_link_extra``
     (``SpriteButton.enabled``; names listed in ``_PROPERTY_LINK_ANY``)."""
-    cls = type(obj)
-    names = _PROPERTY_LINK_BY_CLASS.get(cls)
-    if names is None:
-        slots = obj._field_slots()
-        names = frozenset(n for n in _PROPERTY_LINK_FIELDS if n not in slots)
-        names |= frozenset(getattr(cls, "_property_link_extra", ()) or ())
-        _PROPERTY_LINK_BY_CLASS[cls] = names
-    return names
+    return type(obj)._scena_property_links
+
 
 # The heading used to be ``rotation`` on Graphics; it is ``angle`` now
 # (Shapes Design — Geometry contract). A write must not become ink.
@@ -417,23 +461,12 @@ class _DeadRoute(dict):
         return _DEAD_SETTER if hit is None else hit
 
 
-_DEAD_ROUTES: Dict[type, "_DeadRoute"] = {}
-
-
 def _mark_routes_dead(obj) -> None:
     """Called where teardown marks ``_destroyed``: give the instance a route map
-    that refuses every write but the quiet ones (one check, at destroy time)."""
-    cls = type(obj)
-    dead = _DEAD_ROUTES.get(cls)
-    if dead is None:
-        live = getattr(cls, "_setattr_route", None)
-        if live is None:
-            _install_setattr_route(cls)
-            live = cls._setattr_route
-        dead = _DEAD_ROUTES[cls] = _DeadRoute(
-            {name: live[name] for name in _DEAD_QUIET if name in live})
+    that refuses every write but the quiet ones (one check, at destroy time).
+    The map is made with the class (``_cache_class_tables``; AC1)."""
     try:
-        object.__setattr__(obj, "_setattr_route", dead)
+        object.__setattr__(obj, "_setattr_route", type(obj)._scena_dead_route)
     except Exception:
         pass
 
@@ -1271,6 +1304,8 @@ def _wants_collision(item) -> bool:
     return _parked(item) and bool(getattr(item, "_active_saved_collidable", False))
 
 
+# Classes outside Entity (Box, Vec2, builtins) that the framework owns:
+# immortal, so a dict keyed by them pins nothing (AC1).
 _SCENA_KIND_CACHE: dict = {}
 
 
@@ -1284,16 +1319,23 @@ def scena_kind(obj) -> str:
     refused every author subclass (Testing Design, bug catalogue).
     """
     cls = obj if isinstance(obj, type) else type(obj)
+    kind = getattr(cls, "_scena_kind_name", None)   # every Entity class has its own (AC1)
+    if kind is not None:
+        return kind
     kind = _SCENA_KIND_CACHE.get(cls)
     if kind is None:
-        kind = cls.__name__
-        for k in cls.__mro__:
-            mod = getattr(k, "__module__", "") or ""
-            if is_framework_module(mod):
-                kind = k.__name__
-                break
-        _SCENA_KIND_CACHE[cls] = kind
+        kind = _kind_of_class(cls)
+        if is_framework_module(getattr(cls, "__module__", "") or "") or cls.__module__ == "builtins":
+            _SCENA_KIND_CACHE[cls] = kind     # immortal classes only: no author class pinned
     return kind
+
+
+def _kind_of_class(cls: type) -> str:
+    for k in cls.__mro__:
+        mod = getattr(k, "__module__", "") or ""
+        if is_framework_module(mod):
+            return k.__name__
+    return cls.__name__
 
 
 def is_sprite_family(obj) -> bool:
@@ -1383,6 +1425,12 @@ def _install_subclass_hooks(item) -> None:
         if hook is None:
             continue
         bound = hook.__get__(item, cls)
+        if name in _COLLIDE_HOOKS:
+            # The collider calls ``fn(me, other, info)``; the method's ``self``
+            # is already ``me``: give it ``(other, info)``, as ``@collide_with``
+            # does (AC6: it received ``other = self``).
+            from .collision import _pair_method_adapter
+            bound = _pair_method_adapter(bound)
         assigned = False
         for c in cls.__mro__:
             desc = c.__dict__.get(name)
@@ -1558,11 +1606,14 @@ class Entity(Container):
     def __init_subclass__(cls, **kwargs):
         # One hook only: a second ``__init_subclass__`` in this class body would
         # silently replace this one (routes, actor finish, deferred specs lost).
+        if kwargs:
+            _refuse_class_keywords(cls, kwargs)
         super().__init_subclass__(**kwargs)
         _adopt_mixin_init(cls)         # a mixin's __init__ becomes this class's own
         _wrap_construct_rollback(cls)  # inner: undo registration on raise
         _wrap_actor_init(cls)          # outer: setup() / watches after __init__
         _install_setattr_route(cls)
+        _cache_class_tables(cls)
         _claim_deferred_every_specs(cls)
         _claim_deferred_after_specs(cls)
         _cache_actor_lookups(cls)
@@ -1663,7 +1714,7 @@ class Entity(Container):
             if (
                 name in _PROPERTY_LINK_ANY
                 and isinstance(self, Graphic)
-                and name in _property_link_names(self)
+                and name in type(self)._scena_property_links
             ):
                 raise CallableAssignError(callable_assign_message(self, name)) from None
             try:
@@ -2027,6 +2078,7 @@ class Entity(Container):
         sched.cancel_owner(self)
         object.__setattr__(self, "_mode", None)
         object.__setattr__(self, "_mode_time", 0.0)
+        object.__setattr__(self, "_mode_idle_from", 0.0)
         object.__setattr__(self, "_frozen_warned", False)
         sched.watch_mode(self, False)
         return self
@@ -2226,6 +2278,7 @@ class Entity(Container):
         sched = get_scheduler()
         object.__setattr__(self, "_mode", value)
         object.__setattr__(self, "_mode_time", 0.0)
+        object.__setattr__(self, "_mode_idle_from", 0.0)
         object.__setattr__(self, "_frozen_warned", False)
         if value is None:
             sched.watch_mode(self, False)
@@ -2543,6 +2596,7 @@ class Entity(Container):
 
 
 _install_setattr_route(Entity)
+_cache_class_tables(Entity)
 
 
 # Orbit motion (Collision Design — Motion vs placement). ``rotate_by`` about a
@@ -2890,7 +2944,7 @@ class Graphic(Entity, ABC):
                 anchor._ensure_fresh()
 
     def _scalar_anchor_class(self, name: str):
-        if name in _PROPERTY_LINK_ANY and name in (_PROPERTY_LINK_BY_CLASS.get(type(self)) or _property_link_names(self)):
+        if name in _PROPERTY_LINK_ANY and name in type(self)._scena_property_links:
             flags = getattr(type(self), "_property_link_flags", ())
             return _FlagPropertyAnchor if name in flags else _PropertyAnchor
         return super()._scalar_anchor_class(name)
@@ -2898,7 +2952,7 @@ class Graphic(Entity, ABC):
     def _resolve_field(self, key: str):
         if key == "touching_sides":
             return _INK_SLOT
-        if key in _PROPERTY_LINK_ANY and key in (_PROPERTY_LINK_BY_CLASS.get(type(self)) or _property_link_names(self)):
+        if key in _PROPERTY_LINK_ANY and key in type(self)._scena_property_links:
             return _INK_SLOT              # reuse the existing "ink-shaped" dispatch branch
         return super()._resolve_field(key)
 
@@ -2909,7 +2963,7 @@ class Graphic(Entity, ABC):
         # ``shape["angle"]`` — goes through the setter, like
         # ``_PropertyAnchor._takein`` does; the ink path would crash (no ink
         # dict) or store a dead ink value the pose never reads.
-        if name in _PROPERTY_LINK_ANY and name in (_PROPERTY_LINK_BY_CLASS.get(type(self)) or _property_link_names(self)):
+        if name in _PROPERTY_LINK_ANY and name in type(self)._scena_property_links:
             anchors = self.__dict__.get("_field_anchors")
             anchor = anchors.get(name) if anchors else None
             if anchor is not None and anchor._link is not None:
@@ -2929,7 +2983,7 @@ class Graphic(Entity, ABC):
             raise AttributeError(
                 f"{self.name}.touching_sides is engine-owned and cannot be linked with @="
             )
-        if name in _PROPERTY_LINK_ANY and name in (_PROPERTY_LINK_BY_CLASS.get(type(self)) or _property_link_names(self)):
+        if name in _PROPERTY_LINK_ANY and name in type(self)._scena_property_links:
             anchors = self.__dict__.get("_field_anchors")
             had_anchor = bool(anchors) and name in anchors
             anchor = self._ensure_scalar_anchor(name, anchor_cls=self._scalar_anchor_class(name))

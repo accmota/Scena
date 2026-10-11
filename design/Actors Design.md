@@ -137,7 +137,10 @@ These are today’s choices, not irrevocable commitments. Challenge them when a 
 | Sprite flip | `flip_x` / `flip_y` bools on every Graphic except Text (mirrored text is unreadable: `True` raises `TypeError`, `False` is a no-op). Mirror about `center`. Shapes rewrite geometry; Sprite mirrors in the draw transform. |
 | Sprite `art_angle` | Bitmap nose in degrees (0 = +x, 90 = +y). Draw / hit-test / colliders use `angle − art_angle`. Construct seeds `angle` so the sprite appears as drawn and `.angle` is world heading. One value per sprite (clips share it). Omit / 0 = today's blit. Not per frame; not packed-atlas `rotated`. |
 | Sprite class defaults | `class X(Sprite, source=…, height=…)` omit-able look fills; instance wins. Not placement (`center`/`layer`). |
-| Shape class defaults | `class X(Circle, radius=…, color=…, group=…)` style/group + home size; instance wins. Not placement. Size fills home path only. |
+| Shape class defaults | `class X(Circle, radius=…, color=…, group=…)` style/group + home size; instance wins. Not placement. Size fills home path only. Every kind reads them, `Track` included (it bypassed them until AC15). |
+| SpatialFx class defaults | `class X(Orb, radius=…, color=…, group=…)`: the kind's knobs, `group`, `soft_edge`; instance wins; not placement, not `style` ([Effect System Design](Effect%20System%20Design.md), 3.1d; AC2). |
+| Text class defaults | `class X(Text, font_size=…, color=…, group=…)`: the look (`font_size`, `font`, `color`, `background`, `glow`, `align`, `width`, `group`); instance wins; not the text, not placement (`center`, `top_*`, `box`, `layer`, `stack`, `angle`). `Text.__init__` reads `_class_defaults`; validation shared with SpatialFx in `scena/class_defaults.py` (`take_class_defaults`: placement / unknown / bad values raise on the class line, an author mixin's own `__init_subclass__` still gets its keywords). |
+| Other families | The widgets, `Entity`, `Endless` take no class keywords (decided 2026-10-10: their arguments are content, behaviour or layout): `Entity._refuse_class_keywords` raises an author error naming the fix (pass them on the instance), and lets an author mixin's own `__init_subclass__` take its keywords (AC15). Guard over every family: `tests/test_subclass_parity.py`. |
 | Sprite clips | Wrap on the **clip** (`clip(..., yoyo=)` / `strip(..., yoyo=)`), not on `play`. `play(..., next=)` is a clip name. |
 | Sprite hitbox kinds | `"auto"` (default), `"rect"`, `"ellipse"`, `"circle"`, `"hull"`. `source` (`"clip"`, `"all"` = registered clips, tuple of clips) / numeric `hitbox_anchor` / per-axis `hitbox_scale`. No author `hitbox_accuracy` / `may_rotate`. No `hurtbox=` kwarg set: extra detect-only colliders are hitbox parts (`add_hitbox(group=…)`, [Sprite Design.md](Sprite%20Design.md#hitbox-parts)). |
 | `hitbox_shape="auto"` | Bake the reference set on collision enroll; frozen while animating unless `hitbox_source="each"`. Utility = quality − λ×cost; rotation-safe (never multi-rect). Walkers: `hitbox_shape="rect"`. |
@@ -849,7 +852,15 @@ To force exit+enter even when the target equals the current mode, use
 
 Compare with `==`, never `is` (bound methods are recreated). Body finished is **not** an
 exit — a sync `formation` that only arms `every(...)` is the normal idle mode.
-Frozen-mode warning only if nothing is pending past `FROZEN_MODE_S` (2s).
+Frozen-mode warning only if nothing is pending past `FROZEN_MODE_S` (2s) — idle time,
+not the mode's age: an async body that waited 2 s and then started a cover fade
+before `change_act` is not frozen (AC7). Idle counts from the mode time at
+which its last work ended (the async body, the last owned timer or tween; the
+scheduler writes it on the owner, `_mode_idle_from`, when that work leaves;
+entering a mode resets it),
+or from the mode's start when nothing ended. A mode younger than
+`FROZEN_MODE_S` is not looked at (the cheap exit). Guard:
+`test_process.TestFrozenModeWarning`.
 
 A mode with no exit hook is unchanged from enter-only. `@exit_mode` attaches to the
 enter *callable* (no class/module registry) — the same way `@every` attaches `fn.handle`.

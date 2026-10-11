@@ -43,6 +43,19 @@ class TestPostFxStack(unittest.TestCase):
     def tearDown(self):
         canvas.effects.clear()
 
+    def test_impacts_never_join_the_authors_stack(self):
+        # AC3 (game system tests): every impact (shake, flash, *_at) keeps its
+        # internal HitFeedback in the render list; list(canvas.effects) and
+        # len() showed it, though the Guia says impacts do not enter the stack.
+        v = Vignette()
+        for impact in (lambda: canvas.shake(4), lambda: canvas.flash(0.3),
+                       lambda: canvas.hit_at((100, 100)), lambda: canvas.burst_at((50, 50))):
+            impact()
+            self.assertEqual(list(canvas.effects), [v])
+            self.assertEqual(len(canvas.effects), 1)
+            self.assertNotIn(canvas.effects._hit, canvas.effects)
+            self.assertTrue(any(e is canvas.effects._hit for e in canvas.effects._effects))
+
     def test_add_remove_clear(self):
         stack = canvas.effects
         self.assertEqual(len(stack), 0)

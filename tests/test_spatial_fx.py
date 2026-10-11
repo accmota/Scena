@@ -1166,7 +1166,7 @@ class TestDefaultPlacementFollowsDesign(unittest.TestCase):
     def tearDown(self):
         init(width=800, height=600)
 
-    def test_every_spatial_fx_defaults_to_the_design_center(self):
+    def test_every_spatial_class_defaults_to_the_design_center(self):
         import inspect
         import scena
         from scena.spatial_fx import SpatialFx
@@ -1220,6 +1220,77 @@ class TestSpatialFxRunOnWorldTime(unittest.TestCase):
             finally:
                 clock.paused = False
                 s.destroy()
+
+
+
+def _author_subclass(kind, **class_kw):
+    """``class Sub(kind, **class_kw)`` as an author module would write it."""
+    return type("Sub" + kind.__name__, (kind,), {"__module__": "author_game"}, **class_kw)
+
+
+def _class_kinds():
+    import inspect
+    import scena
+    return [getattr(scena, n) for n in scena.__all__
+            if inspect.isclass(getattr(scena, n)) and issubclass(getattr(scena, n), sfx.SpatialFx)
+            and getattr(scena, n) is not sfx.SpatialFx]
+
+
+class TestClassKeywords(SpatialFxTestBase):
+    """AC2 (game system tests): ``class Energia(Orb, radius=16)`` raised
+    Python's own "takes no keyword arguments". Class keywords are the kind's
+    defaults, as on Shape / Sprite: knobs and ``group`` on the class line,
+    placement on the instance, the instance's own keyword wins."""
+
+    def test_every_kind_takes_its_knobs_as_class_defaults(self):
+        for kind in _class_kinds():
+            with self.subTest(kind=kind.__name__):
+                Sub = _author_subclass(kind, amount=0.5, group="ac2")
+                o = Sub()
+                self.assertEqual(o.amount, 0.5)
+                self.assertTrue(o.tagged("ac2"))
+                self.assertEqual(Sub(amount=0.25).amount, 0.25, "the instance wins")
+
+    def test_defaults_merge_down_the_subclasses(self):
+        A = _author_subclass(Orb, radius=16, color="gold")
+        B = type("B", (A,), {"__module__": "author_game"}, radius=30)
+        b = B()
+        self.assertEqual(b.radius, 30.0)
+        self.assertEqual(A().radius, 16.0)
+        self.assertEqual(B._class_defaults["color"], "gold")
+
+    def test_an_author_init_still_gets_them(self):
+        class Mine(Orb):
+            def __init__(self, **kw):
+                super().__init__(**kw)
+        Mine.__module__ = "author_game"
+        Sub = type("Sub", (Mine,), {"__module__": "author_game"}, radius=22)
+        self.assertEqual(Sub().radius, 22.0)
+
+    def test_refusals_are_author_errors(self):
+        cases = {
+            "center": "instance placement", "layer": "instance placement",
+            "radiu": "Did you mean 'radius'", "style": "style=",
+        }
+        for key, words in cases.items():
+            with self.subTest(key=key):
+                with self.assertRaises(TypeError) as ctx:
+                    _author_subclass(Fire, **{key: 3 if key == "radiu" else (1, 1)})
+                self.assertIn(words, str(ctx.exception))
+                self.assertNotIn("takes no keyword", str(ctx.exception))
+        with self.assertRaises(TypeError):        # a bad value fails on the class line
+            _author_subclass(Orb, radius="big")
+
+    def test_a_fire_subclass_refuses_another_style(self):
+        Sub = _author_subclass(Fire)
+        Sub(style="camp")
+        with self.assertRaises(TypeError) as ctx:
+            Sub(style="plume")
+        self.assertIn("Fire(style='plume')", str(ctx.exception))
+
+    def test_framework_kinds_are_unchanged(self):
+        self.assertEqual(Orb()._class_defaults, {})
+        self.assertIsNone(Orb._class_kind)
 
 
 if __name__ == "__main__":

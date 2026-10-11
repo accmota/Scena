@@ -1478,7 +1478,7 @@ run()</pre>
 <tr><td>ligar (<code>@=</code>)</td><td>Fazer um campo seguir uma fórmula: <code>c["radius"] @= lambda: ship.hp</code> refaz a conta sempre que <code>ship.hp</code> muda. O oposto de <code>=</code>, que copia o valor uma vez.</td></tr>
 <tr><td>Handle</td><td>O objeto que os verbos que levam tempo devolvem (<code>after</code>, <code>tween</code>, <code>move_to(…, time=)</code>, <code>play_sound</code>…): serve para cancelar, pausar ou esperar aquela tarefa. Ver <a href="#agendar-handle">Handle</a>.</td></tr>
 <tr><td>mode</td><td>O capítulo de comportamento em que uma Entity está agora (<code>e.mode = e.mergulhando</code>). O que ele começa (timers, movimentos) para quando ele acaba. Ver <a href="#mode">Mode</a>.</td></tr>
-<tr><td>slot (<code>name=</code>)</td><td>Um nome que guarda uma tarefa só: <code>after(2, dica, name="dica")</code> chamado de novo com o mesmo nome <em>substitui</em> o anterior em vez de somar outro.</td></tr>
+<tr><td>slot (<code>name=</code>)</td><td>Um nome que guarda uma tarefa só: <code>after(2, dica, name="dica")</code> chamado de novo com o mesmo nome <em>substitui</em> o anterior em vez de somar outro. O slot é de um <em>lugar</em>: o objeto da chamada (<code>nave.after(…, name=)</code>); numa chamada solta, quem está no mode que roda (dentro do corpo de um mode, inclusive o mode de um ato); fora de mode (topo do script, <code>setup</code> do ato, callbacks), o jogo / o ato atual. O mesmo nome em dois lugares são dois slots: um <code>play_sound(…, name="musica")</code> solto no <code>setup</code> do ato e outro solto no mode do ato tocam juntos. Para uma tarefa só, chame sempre do mesmo lugar — a trilha de um ato com <code>self.play_sound(…, name="musica")</code>, que é o mesmo slot de uma chamada solta no mode do ato.</td></tr>
 <tr><td>colocar × viajar</td><td>Colocar põe o objeto direto no lugar (<code>center = …</code>, <code>move_to</code> sem <code>time=</code>) e atravessa paredes. Viajar anda até lá (<code>move_by</code>, <code>move_to(…, time=)</code>, <code>move_along</code>), e uma parede de <a href="#colisao-resolve"><code>resolve()</code></a> para no meio; o <code>@collide</code> de quem viaja rápido confere o caminho inteiro (<a href="#colisao-rapido">Objeto rápido</a>). Girar no lugar e escalar (<code>rotate_*</code> / <code>scale_*</code>) nunca são parados pela parede: ela só afasta o objeto depois. Girar em volta de outro ponto (<code>rotate_by(…, about=)</code>) leva o centro junto, e isso é viajar.</td></tr>
 <tr><td>segurando × no frame do aperto</td><td><code>keyp("A")</code> é <code>True</code> em todo frame em que a tecla está segurada; <code>keyp.once("A")</code> só no frame em que ela foi apertada. <code>@when</code> dispara quando a condição <em>passa</em> de <code>False</code> para <code>True</code>, não enquanto continua <code>True</code>.</td></tr>
 <tr><td>canal</td><td>Nos <a href="#aparencia-transientes">Transientes</a>, a vaga de um tipo de efeito: um <code>flash</code> novo substitui o <code>flash</code> em curso, mas convive com um <code>pop</code>.</td></tr>
@@ -1769,6 +1769,7 @@ label["text"] @= lambda: f"{hud.level}"</pre>
 <tr><td><code>c["glow"] @= …</code> (pintura)</td><td>Pintura (<code>.fill</code>, <code>.glow</code>, <code>.visual</code>…) não liga. Use <code>=</code> e <a href="#frame"><code>on_update</code></a> / <a href="#reagir"><code>@when</code></a>.</td><td>campo reativo</td></tr>
 <tr><td>Entrada do frame no <code>@=</code></td><td><code>clock</code> / <code>keyp</code> / <code>mouse</code> sempre dentro de <code>lambda:</code> (<code>lambda: clock.time</code>, <code>lambda: keyp("D")</code>, <code>lambda: mouse.x</code>) — nunca número cru nem <code>once</code> / <code>dx</code>. Ver <a href="#frame">Frame</a>.</td><td>valor de agora</td></tr>
 <tr><td>Widget ligado a uma fórmula</td><td>O gesto do usuário não faz nada: quem manda é a fórmula.</td><td>controle livre</td></tr>
+<tr><td><code>r["dano"] @= lambda: r.width * 2</code> (um campo do objeto lendo o tamanho dele)</td><td>Limite conhecido: um campo próprio não lê o tamanho do próprio objeto (<code>width</code>, <code>radius</code>…) nem os pontos calculados dele (cantos, o <code>center</code> de um <code>Polygon</code>) — eles saem do objeto inteiro, e o campo novo faz parte dele. <code>CircularReferenceError</code> com a explicação. Use uma propriedade na classe (<code>@property</code> <code>def dano(self): return self.width * 2</code>) ou calcule em <code>update(dt)</code>. Os campos próprios do objeto (<code>r.carga</code>), o <code>center</code> de um Rect ou Circle e os campos de outros objetos podem ser lidos.</td><td>uma referência circular sua</td></tr>
 </tbody>
 </table>
 </div>
@@ -2800,7 +2801,7 @@ b = Anchor(500, 300, color="lime")</pre>
         </details>
         <details class="spec" open>
       <summary>Anchor</summary>
-          <p>Atalho: Point visível e arrastável no <code>top</code>. Sem ligação de entrada. Aceita os mesmos pontos de <code>Point(ponto)</code> (cópia). <code>color=</code> pinta o marcador (omitido: vermelho automático).</p>
+          <p>Atalho: Point visível e arrastável no <code>top</code>, sempre: <code>a.draggable = False</code> (ou <code>handle = False</code>) levanta TypeError — para um ponto que o mouse não move, use <code>Point(x, y, visible=True)</code>. Sem ligação de entrada: <code>a["campo"] @= …</code> levanta LinkedAttributeError. Aceita os mesmos pontos de <code>Point(ponto)</code> (cópia). <code>color=</code> pinta o marcador (omitido: vermelho automático).</p>
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
 <pre>a = Anchor(400, 300)
@@ -4486,8 +4487,8 @@ spawner = Spawner(group="spawners")
       </div>
     </details>
     <details class="spec">
-      <summary>Subclasse de Shape / Sprite</summary>
-      <p>Parâmetros na linha <code>class</code> viram o padrão daquele tipo. Pose (<code>center</code>, <code>layer</code>) fica na instância.</p>
+      <summary>Subclasse de Shape / Sprite / SpatialFx / Text</summary>
+      <p>Parâmetros na linha <code>class</code> viram o padrão daquele tipo. Pose (<code>center</code>, <code>layer</code>) fica na instância. Vale igual para um efeito espacial — <code>class Energia(Orb, radius=16, color="gold", group="energia")</code> — e para um texto: <code>class Placar(Text, font_size=32, color="gold", group="hud")</code>, e <code>Placar("0", top_left=(20, 580))</code>.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>class Bolt(Circle, radius=8, color="gold", group="bolt"):
@@ -4509,6 +4510,9 @@ Nave(center=(x, y))</pre>
             <tr><td><code>color</code> <code>visual</code> <code>group</code></td><td><code>center</code> <code>layer</code></td></tr>
             <tr><td>Tamanho: <code>radius</code> <code>width</code>/<code>height</code> <code>length</code>/<code>angle</code></td><td>Pose por instância (<code>center=</code>)</td></tr>
             <tr><td>Sprite: <code>source=</code> <code>frame=</code> <code>height=</code></td><td><code>class Bolt(Circle): radius = 8</code> — esconde a propriedade</td></tr>
+            <tr><td>Text: <code>font_size</code> <code>font</code> <code>color</code> <code>background</code> <code>glow</code> <code>align</code> <code>width</code> <code>group</code></td><td>O texto e a posição (<code>center</code> <code>top_left</code> … <code>box</code> <code>layer</code> <code>stack</code> <code>angle</code>)</td></tr>
+            <tr><td>—</td><td>Widgets, <code>Entity</code>, <code>Endless</code>: sem parâmetros de classe (erro com a correção); passe na instância</td></tr>
+            <tr><td>SpatialFx: os parâmetros do tipo (<code>radius</code> <code>amount</code> <code>color</code> <code>length</code>…), <code>group</code> <code>soft_edge</code></td><td>Pontos (<code>center</code> <code>p1</code> <code>p2</code> <code>origin</code>); <code>style=</code> de <code>Fire</code> — escolhe outra classe: escreva <code>Fire(style=…)</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -7583,7 +7587,7 @@ def drop():
 
     <section class="section prose" id="agendar-ready">
       <h2>ready</h2>
-      <p class="one-liner"><code>ready(nome, intervalo)</code> é um tempo de recarga: devolve <code>True</code> no máximo uma vez por intervalo — “já posso atirar de novo?”. A primeira chamada já devolve <code>True</code>. Conta no tempo do jogo (pausa vale). Chamado todo frame (botão segurado), mantém o ritmo em qualquer taxa de quadros; depois de um tempo sem chamar, volta a dar <code>True</code> uma vez, sem rajada.</p>
+      <p class="one-liner"><code>ready(nome, intervalo)</code> é um tempo de recarga: devolve <code>True</code> uma vez por intervalo — “já posso atirar de novo?”. O ritmo é exato na média: a sobra de um frame conta para o próximo, então dois <code>True</code> seguidos podem vir um pouco mais perto que o intervalo quando ele não é um número inteiro de frames. A primeira chamada já devolve <code>True</code>. Conta no tempo do jogo (pausa vale). Chamado todo frame (botão segurado), mantém o ritmo em qualquer taxa de quadros; depois de um tempo sem chamar, volta a dar <code>True</code> uma vez, sem rajada.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>def update(dt):
@@ -8287,6 +8291,7 @@ class Ship(Sprite):
     def cruising_exit(self):
         self.hum.fade_out(0.3)</pre>
       </div>
+      <p>Os dois <code>name="music"</code> acima trocam porque rodam no mesmo lugar. O slot é por lugar (<a href="#vocabulario">slot</a>): solto no <code>setup</code> de um ato e solto dentro de um mode do ato são dois slots, e as duas músicas tocam. Trilha de um ato que troca entre fases: <code>self.play_sound("tema.ogg", name="musica", loops="forever")</code> no ato, sempre.</p>
       <details class="spec" open>
       <summary>Neste play_sound</summary>
         <div class="tbl-wrap">
@@ -9686,6 +9691,20 @@ def on_hit(me, other, info):
           </tbody>
         </table>
         </div>
+        <p id="colisao-ponto-fraco"><strong>Ponto fraco: uma peça que também é um corpo.</strong> Uma peça pode ser, além de parte do Collider, um corpo dela mesma — com <code>collidable = True</code>, ou porque uma regra nomeia o grupo dela. São dois contornos separados: a regra do grupo da peça vê a peça, e a do corpo vê o corpo.</p>
+        <div class="code-panel">
+          <button class="copy-btn" type="button">copiar</button>
+<pre>torso = Rect(center=(500, 300), width=80, height=120, group="ponto_fraco")
+head = Circle(center=(500, 390), radius=30)
+chefe = Collider([torso, head])
+
+@collide("bolt", "ponto_fraco")          # o tiro no tronco: dano dobrado
+def no_ponto_fraco(tiro, peca):
+    tiro.destroy()
+
+chefe.on_collide = lambda me, other, info: …   # o tiro em qualquer parte do chefe</pre>
+        </div>
+        <p>O corpo nunca colide com as próprias peças (nem as empurra num <code>resolve</code>). Uma regra com <code>ANYTHING</code> vê os dois corpos: um tiro no tronco são dois contatos, um com o tronco e um com o chefe — nomeie o grupo para contar uma vez. Nas consultas, o Collider vem antes das peças que também são corpos: <code>collision.query_point</code> lista o chefe primeiro, e <code>collision.raycast</code> devolve o chefe quando o raio entra nos dois no mesmo ponto; <code>raycast(…, group="ponto_fraco")</code> devolve o tronco. A ordem das linhas não muda nada disso.</p>
       </details>
     </section>
     <p class="more"><strong>Onde mais procurar</strong> — <a href="#mover">Mover</a> · <a href="#reagir">Reagir</a> · <a href="#geometria">Geometria</a></p>

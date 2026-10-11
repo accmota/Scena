@@ -699,6 +699,38 @@ def _cycle_label(node) -> str:
     field = str(name).rsplit(".", 1)[-1] if name else type(node).__name__
     return f"{field} of {label}"
 
+def _own_size_read_message(owner, source) -> Optional[str]:
+    """AC14 (a known limitation, 2026-10-10): a custom field of an object that
+    reads the object's own size fields or derived points (``r["d"] @= lambda:
+    r.width``, ``r.top_left``, a Polygon's ``center``). Those are computed from
+    the whole object, the new field included, so the link would read itself.
+    ``None`` for a real cycle (two of the object's formulas reading each other)."""
+    from .entity import entity_label
+    if not isinstance(owner, ScalarAnchor) or isinstance(source, ScalarAnchor):
+        return None
+    if getattr(source, "_link", None) is not None:
+        return None
+    parent = getattr(owner, "_scalar_parent", None)
+    if parent is None:
+        return None
+    try:
+        same = source._ownership_root() is parent._ownership_root()
+    except Exception:
+        return None
+    if not same:
+        return None
+    name = getattr(owner, "_scalar_name", "field")
+    what = entity_label(parent)
+    return (
+        f"{name} of {what} cannot read that object's own size or computed points "
+        f"(width, radius, corners, a polygon's center, ...): those are worked out "
+        f"from the whole object, and {name} is part of it. This is a known limit. "
+        f"Use a property in the class instead (@property def {name}(self): "
+        f"return self.width * 2), or set {name} in update(dt). Its own custom "
+        f"fields and other objects can be read in a formula."
+    )
+
+
 class FormulaLink():
     """Base class for Direct and Formula attribute links."""
 
@@ -832,6 +864,9 @@ class FormulaLink():
             if g.would_create_cycle(owner_id, source_id):
                 owner_desc = _cycle_label(owner)
                 source_desc = _cycle_label(source)
+                own = _own_size_read_message(owner, source)
+                if own is not None:
+                    raise CircularReferenceError(own)
                 raise CircularReferenceError(
                     f"Circular link: {owner_desc} would read {source_desc}, which already "
                     f"reads {owner_desc} (directly or through other formulas). A formula "
@@ -1085,12 +1120,15 @@ class FormulaLink():
                 k: v for k, v in part.context.items() if k not in part.locals
             }
             extractor = SourceExtractor(resolution_context)
+            # The body only. A default's expression runs once, when the
+            # function is made; the body reads the parameter, which resolves
+            # to that default through the context. Visiting the default as a
+            # read made ``lambda g=g: g.ganho`` (a loop's own name) depend on
+            # the whole of ``g``: a cycle when the link is g's own field, and
+            # an over-broad source otherwise (AC8).
             if isinstance(part.node, ast.Lambda):
-                extractor.visit(part.node)
+                extractor.visit(part.node.body)
             else:
-                args = part.node.args
-                for default in (*args.defaults, *(d for d in args.kw_defaults if d is not None)):
-                    extractor.visit(default)
                 for stmt in part.node.body:
                     extractor.visit(stmt)
             for source in extractor.sources:
@@ -2127,7 +2165,16 @@ class Container():
                     continue
                 if any(getattr(src, '_node_id', None) in subtree_ids for src in link.sources):
                     hook = _UNLINK_NOTICE_HOOK
-                    if hook is None or not hook(dep, self):
+                    # A field of the dying object itself (its own ``hp`` or
+                    # ``grounded`` reading its pose) goes with its owner:
+                    # unlinked quietly, not a lost link (AC11).
+                    # (A part's clean-up runs inside its host's: the host is
+                    # already dead then, and its fields read the part.)
+                    parent = dep._scalar_parent if isinstance(dep, ScalarAnchor) else None
+                    own = parent is not None and (
+                        getattr(parent, '_node_id', None) in subtree_ids
+                        or getattr(parent, 'is_alive', True) is False)
+                    if not own and (hook is None or not hook(dep, self)):
                         warnings.warn(
                             f"Attribute {dep.name} was unlinked because a formula source was removed",
                             RuntimeWarning,
@@ -2732,6 +2779,16 @@ class Container():
     def _unlink_field(self, name: str) -> None:
         slot = self._resolve_field(name)
         if slot is _INK_SLOT or isinstance(slot, ScalarSlot):
+            anchors = self.__dict__.get('_field_anchors')
+            anchor = anchors.get(name) if anchors else None
+            if anchor is not None and anchor._external_formula_dependents():
+                # The anchor is also the node other formulas read this field
+                # through: unlinking freezes the field and keeps it a source.
+                # Dropping it unlinked every reader ("a formula source was
+                # removed") and froze it at a stale value (AC12).
+                if anchor._link is not None:
+                    anchor.unlink()
+                return
             self._drop_scalar_anchor(name)
             return
         target = slot.__get__(self, type(self))

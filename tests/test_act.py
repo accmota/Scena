@@ -329,7 +329,9 @@ class TestScriptLevelWork(ActTestCase):
         self.assertIsNotNone(hit)
         change_act(Vazia)
         self.assertIs(canvas.effects._hit, hit)
-        self.assertIn(hit, list(canvas.effects))
+        self.assertTrue(any(e is hit for e in canvas.effects._effects))
+        # ... and it is never one of the author's posts (AC3).
+        self.assertNotIn(hit, list(canvas.effects))
 
     def test_ready_and_recently_slots_made_after_the_seal_are_forgotten(self):
         builtins.ready("jogo", 1.0)
@@ -815,6 +817,60 @@ class TestActSoundsRingOut(ActTestCase):
         self.assertFalse(h.done)
         self.w.seconds(0.4)
         self.assertTrue(h.done)
+
+
+class TestNameSlotsAreByPlace(ActTestCase):
+    """AC5 (game system tests; decided 2026-10-10: documented, not changed).
+    A ``name=`` slot belongs to a place: the object a call is made on, or,
+    for a loose call, the actor whose mode body is running — else the game /
+    the current act. A loose ``play_sound(name="musica")`` in an act's
+    ``setup`` and another loose one inside the act's mode are two slots, so
+    both tracks play. ``self.play_sound`` in the act is the act's slot, the
+    same one a loose call in the act's mode uses. Guia: vocabulário, slot."""
+
+    def _run(self, in_setup, in_mode):
+        made = {}
+
+        class Trilha(Act):
+            def setup(self):
+                made["a"] = in_setup(self)
+                self.mode = self.jogando
+
+            def jogando(self):
+                made["b"] = in_mode(self)
+
+        self.begin(Trilha)
+        self.w.seconds(0.05)
+        return made
+
+    def _end(self):
+        change_act(Vazia)       # the module sweep cannot end an act
+        self.w.seconds(0.01)
+
+    def test_loose_in_setup_and_loose_in_the_mode_are_two_slots(self):
+        m = self._run(lambda a: play_sound(tone(2.0), name="musica", loops="forever"),
+                      lambda a: play_sound(tone(2.0), name="musica", loops="forever"))
+        self.assertFalse(m["a"].cancelled, "a different place: not replaced")
+        self.assertFalse(m["b"].cancelled)
+        self._end()
+
+    def test_the_acts_own_slot_is_one(self):
+        m = self._run(lambda a: a.play_sound(tone(2.0), name="musica", loops="forever"),
+                      lambda a: play_sound(tone(2.0), name="musica", loops="forever", crossfade=0.1))
+        self.w.seconds(0.3)
+        self.assertTrue(m["a"].cancelled or m["a"].done, "the act's slot replaces")
+        self.assertFalse(m["b"].cancelled)
+        self._end()
+
+    def test_timers_follow_the_same_rule(self):
+        m = self._run(lambda a: after(5.0, lambda: None, name="dica"),
+                      lambda a: after(5.0, lambda: None, name="dica"))
+        self.assertFalse(m["a"].cancelled)
+        self._end()
+        m2 = self._run(lambda a: a.after(5.0, lambda: None, name="dica"),
+                       lambda a: after(5.0, lambda: None, name="dica"))
+        self.assertTrue(m2["a"].cancelled)
+        self._end()
 
 
 class TestBatchTeardown(ActTestCase):

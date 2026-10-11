@@ -1482,6 +1482,75 @@ class TestQueries(CollisionTestCase):
         self.assertEqual(len([c for c in get_collision_system()._colliders if c.shapes]), 1)
 
 
+class TestPieceThatIsAlsoABody(CollisionTestCase):
+    """AC10 (decided 2026-10-10: two boundaries, made coherent). A shape inside
+    ``Collider([torso, head])`` may also be a body of its own (``collidable``,
+    or a rule that names its group): the weak-point pattern. The two bodies
+    stay separate, but the boss never touches its own torso, and the queries
+    answer the same whatever line ran first: the multi-piece body first."""
+
+    def _boss(self, flag_first, ox=0):
+        torso = self.track(Rect(center=self.at(ox, 0), width=60, height=40, group="ac10_fraco"))
+        head = self.track(Circle(center=self.at(ox, 35), radius=12))
+        if flag_first:
+            torso.collidable = True
+            boss = Collider([torso, head])
+        else:
+            boss = Collider([torso, head])
+            torso.collidable = True
+        return torso, head, boss
+
+    def test_the_body_never_touches_its_own_piece(self):
+        for flag_first in (True, False):
+            with self.subTest(flag_first=flag_first):
+                torso, _head, boss = self._boss(flag_first, ox=0 if flag_first else 600)
+                others = []
+                boss.on_collide = lambda me, o, info: others.append(o)
+                torso.on_collide = lambda me, o, info: others.append(me if o is boss else None)
+                self.step()
+                self.step()
+                self.assertNotIn(torso, others)
+                self.assertNotIn(boss, others)
+
+    def test_weak_point_and_body_each_see_the_shot(self):
+        torso, _head, boss = self._boss(True)
+        seen = []
+
+        @collide("ac10_tiro", "ac10_fraco")
+        def fraco(t, o):
+            seen.append(("fraco", o))
+
+        boss.on_collide = lambda me, o, info: seen.append(("boss", me))
+        self.track(Circle(center=self.at(0, 0), radius=4, group="ac10_tiro"))
+        self.step()
+        self.assertIn(("fraco", torso), seen)
+        self.assertIn(("boss", boss), seen)
+        self.assertEqual(len(seen), 2)
+
+    def test_queries_name_the_body_first_in_either_order(self):
+        for flag_first in (True, False):
+            with self.subTest(flag_first=flag_first):
+                torso, _head, boss = self._boss(flag_first)
+                x, y = self.at(0, 0)
+                hit = collision.raycast((x - 300, y), p2=(x + 300, y))
+                self.assertIs(hit[0], boss)
+                hit = collision.raycast((x - 300, y), p2=(x + 300, y), group="ac10_fraco")
+                self.assertIs(hit[0], torso)
+                at = collision.query_point(x, y)
+                self.assertEqual(at[:2], [boss, torso])
+                self.assertNotIn(boss, collision.query_shape(torso))
+                for s in (torso, _head):
+                    s.destroy()
+
+    def test_a_resolve_on_the_piece_does_not_push_it_out_of_its_body(self):
+        torso, _head, boss = self._boss(True)
+        resolve(torso, ANYTHING)
+        before = (float(torso.center.x), float(torso.center.y))
+        for _ in range(5):
+            self.step()
+        self.assertEqual((float(torso.center.x), float(torso.center.y)), before)
+
+
 class TestCompoundCollider(CollisionTestCase):
     def test_collider_comes_with_the_star_import(self):
         # The only author import is ``from scena import *``: a documented
@@ -2543,6 +2612,73 @@ class TestDeadAndGroupResolve(CollisionTestCase):
         b.collidable = True
         self.step()
         self.assertEqual(len(hits), 1)
+
+
+class TestOnCollideMethodArguments(CollisionTestCase):
+    """AC6 (game system tests): ``on_collide*`` written as a class method got
+    ``other = self`` and ``info = the other body``. The method was stored as
+    the property callback ``fn(me, other, info)`` and called with its arity:
+    a bound ``on_collide(self, other, info)`` takes two, so it received
+    ``(me, other)``. Guia, "Detectar": "Como método da classe: fn(self, other)
+    ou fn(self, other, info)". Every phase, both arities, every family that
+    collides (Shape, Sprite, SpatialFx)."""
+
+    def _families(self):
+        from scena import Orb
+        from scena.sprite import Sprite
+        sheet = media_sheet()
+        return (
+            ("Circle", Circle, lambda K, c: K(center=c, radius=12)),
+            ("Sprite", Sprite, lambda K, c: K(sheet, height=24, center=c, hitbox_shape="circle")),
+            ("Orb", Orb, lambda K, c: K(center=c, radius=12)),
+        )
+
+    def test_method_gets_other_and_info(self):
+        for i, (fam, base, make) in enumerate(self._families()):
+            with self.subTest(family=fam):
+                seen = []
+                ox = i * 2000          # each family alone: earlier bodies stay alive
+
+                class K(base):
+                    def on_collide(self, other, info):
+                        seen.append(("enter", self, other, info))
+
+                    def on_collide_stay(self, other, info):
+                        seen.append(("stay", self, other, info))
+
+                    def on_collide_exit(self, other):
+                        seen.append(("exit", self, other, None))
+
+                k = self.track(make(K, self.at(ox, 0)))
+                wall = self.track(Rect(center=self.at(ox + 8, 0), width=20, height=20))
+                wall.collidable = True
+                self.step()
+                self.step()
+                wall.center = self.at(ox + 500, 0)
+                self.step()
+                phases = [p for p, *_ in seen]
+                self.assertEqual(phases, ["enter", "stay", "exit"], fam)
+                for phase, me, other, info in seen:
+                    self.assertIs(me, k, (fam, phase))
+                    self.assertIs(other, wall, (fam, phase))
+                    if info is not None:
+                        self.assertIs(info.a, k, (fam, phase))
+                        self.assertIs(info.b, wall, (fam, phase))
+
+    def test_property_callback_unchanged(self):
+        a = self.track(Circle(center=self.at(0, 0), radius=12))
+        b = self.track(Circle(center=self.at(5, 0), radius=12))
+        b.collidable = True
+        got = []
+        a.on_collide = lambda me, other, info: got.append((me, other, info.b))
+        self.step()
+        self.assertEqual(got, [(a, b, b)])
+
+
+def media_sheet():
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from media_support import media
+    return Sheet(media("space", "star_gold.png"))
 
 
 class TestCollideWith(CollisionTestCase):

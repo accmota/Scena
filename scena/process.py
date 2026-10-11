@@ -1994,6 +1994,8 @@ class Scheduler:
                 owned.pop(handle, None)
                 if not owned:
                     self._by_owner.pop(id(owner), None)
+                    if getattr(owner, "_mode", None) is not None:
+                        _note_idle_from(owner)
 
     def _reparent_to_game(self, handle: Handle) -> None:
         owner = handle._owner
@@ -2190,6 +2192,7 @@ class Scheduler:
             owner = script.owner
             if owner is not None and getattr(owner, "_mode_script", None) is script:
                 object.__setattr__(owner, "_mode_script", None)
+                self._note_mode_work_ended(owner)
             return
         try:
             self._scripts.remove(script)
@@ -2198,6 +2201,12 @@ class Scheduler:
         owner = script.owner
         if owner is not None and getattr(owner, "_mode_script", None) is script:
             object.__setattr__(owner, "_mode_script", None)
+            self._note_mode_work_ended(owner)
+
+    @staticmethod
+    def _note_mode_work_ended(owner) -> None:
+        if getattr(owner, "_mode", None) is not None:
+            _note_idle_from(owner)
 
     def _compact_scripts(self) -> None:
         if not any(s.done for s in self._scripts):
@@ -2596,9 +2605,17 @@ class Scheduler:
                 continue
             if getattr(item, "_frozen_warned", False):
                 continue
-            if float(getattr(item, "_mode_time", 0.0)) < FROZEN_MODE_S:
-                continue
+            mode_time = float(getattr(item, "_mode_time", 0.0))
+            if mode_time < FROZEN_MODE_S:
+                continue        # too young to have been idle that long (the cheap exit)
             if self._owner_has_pending(item):
+                continue
+            # Idle since its last work ended in this mode, else since the
+            # mode began.
+            since = getattr(item, "_mode_idle_from", 0.0)
+            if since > mode_time:
+                since = 0.0
+            if mode_time - since < FROZEN_MODE_S:
                 continue
             object.__setattr__(item, "_frozen_warned", True)
             mode = item._mode
@@ -3579,17 +3596,40 @@ def _move_claim_targets(shape) -> tuple:
     return (getattr(shape, "center", shape),)
 
 
-def _preempt_tween_keys(*keys) -> None:
-    """Same-kind replace: cancel in-flight handles on these tween keys (with warning)."""
+def _note_idle_from(owner) -> None:
+    """``owner``'s async body or last owned handle just ended in its mode: its
+    idle stretch may start now. The frozen-mode warning counts idle time from
+    ``_mode_idle_from`` (AC7; Actors Design, "past FROZEN_MODE_S"); entering a
+    mode resets it to 0 (``Entity._enter_mode``). Kept on the owner, like
+    ``_frozen_warned``: nothing else holds it."""
+    try:
+        object.__setattr__(owner, "_mode_idle_from", owner._mode_time)
+    except (AttributeError, TypeError):
+        pass        # an owner with no slot for it: counted from the mode's start
+
+
+def _preempt_tween_keys(*keys, slot=None) -> None:
+    """Same-kind replace: cancel in-flight handles on these tween keys (with warning).
+
+    ``slot`` is the new call's ``(owner, name)``: an old handle in that same
+    ``name=`` slot is the replacement the Guia promises ("substitui o
+    anterior"), so it is cancelled without the warning.
+    """
     if not keys:
         return
     sched = get_scheduler()
+    named = None
+    if slot is not None and slot[1] is not None:
+        named = sched._named.get((id(slot[0]) if slot[0] is not None else None, slot[1]))
     seen = set()
     for key in keys:
         if key in seen:
             continue
         seen.add(key)
         old = sched._tweens.get(key)
+        if old is not None and old is named and _claim_active(old):
+            old.cancel()        # the name= slot replaces it: no warning
+            continue
         if old is not None and _claim_active(old):
             warnings.warn(
                 f"tween/move_along on the same property replaces a previous "
@@ -3733,12 +3773,13 @@ def _tween_target(
     checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
                               owner=owner)
     # Same-kind replace before writability — free the claim so probe succeeds.
+    slot = (owner, name)
     if is_fieldref:
-        _preempt_tween_keys((id(target.owner), target.name))
+        _preempt_tween_keys((id(target.owner), target.name), slot=slot)
     elif is_attribute:
-        _preempt_tween_keys(id(target))
+        _preempt_tween_keys(id(target), slot=slot)
     else:
-        _preempt_tween_keys(_pose_target_key(target))
+        _preempt_tween_keys(_pose_target_key(target), slot=slot)
     _ensure_tween_writable(target, force=force)
 
     if is_fieldref:

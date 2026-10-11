@@ -1205,22 +1205,17 @@ def _collision_pose_xy(shape) -> Tuple[float, float]:
     return (0.0, 0.0)
 
 
-_GRAPHIC_EXTRA_SLOTS = (
-    "angle", "at_angle", "radius", "width", "height", "length", "side", "spread",
-)
-_extra_slots_for_cls: Dict[type, Tuple[str, ...]] = {}
-
-
 def _extra_slot_names(cls) -> Tuple[str, ...]:
-    names = _extra_slots_for_cls.get(cls)
-    if names is not None:
-        return names
-    found = tuple(
-        n for n in _GRAPHIC_EXTRA_SLOTS
-        if getattr(getattr(cls, n, None), "_is_field_slot", False)
-    )
-    _extra_slots_for_cls[cls] = found
-    return found
+    # Made with the class (entity._cache_class_tables), stored on it: never a
+    # dict keyed by the class, which would keep an author's class alive (AC1).
+    names = getattr(cls, "_scena_extra_slots", None)
+    if names is None:
+        from .entity import GRAPHIC_EXTRA_SLOTS
+        names = tuple(
+            n for n in GRAPHIC_EXTRA_SLOTS
+            if getattr(getattr(cls, n, None), "_is_field_slot", False)
+        )
+    return names
 
 
 def _live_scalar(shape, name: str) -> float:
@@ -3724,6 +3719,21 @@ def _assert_target_not_parallax(target) -> None:
     _assert_shapes_not_parallax(_collect_entities_from_target(target))
 
 
+def _is_multi_body(c) -> bool:
+    """An author ``Collider([a, b, ...])`` of several pieces (not a shape's
+    own implicit body, not a single-shape Collider)."""
+    return c._identity_shape is None and len(c._shapes) > 1
+
+
+def _bodies_first(colliders) -> List[Any]:
+    """Query hits as identities, multi-piece bodies first (each group in
+    registration order). A piece that is also a body of its own answers
+    after the body it belongs to, whatever line ran first (AC10)."""
+    if any(_is_multi_body(c) for c in colliders):
+        colliders = sorted(colliders, key=lambda c: 0 if _is_multi_body(c) else 1)
+    return [c._identity for c in colliders]
+
+
 class Collider:
     """Several shapes that collide as one body.
 
@@ -3977,6 +3987,9 @@ class CollisionSystem:
 
     def __init__(self):
         self._colliders: List[Collider] = []
+        # Registered multi-piece bodies (``Collider([a, b])``), so the broad
+        # phase finds a body / own-piece pair without walking every collider.
+        self._multi_bodies: Dict[int, Collider] = {}
         self._prev_contacts: Set[Tuple[int, int]] = set()
         # The step's enters / exits not dispatched yet. A body destroyed (or
         # parked) mid-step: a pending enter is dropped with no exit (its enter
@@ -4109,6 +4122,8 @@ class CollisionSystem:
             return
         self._collider_index[cid] = len(self._colliders)
         self._colliders.append(collider)
+        if _is_multi_body(collider):
+            self._multi_bodies[cid] = collider
         self._invalidate_partner_cache()
         self._update_proxy(collider)
 
@@ -4136,6 +4151,7 @@ class CollisionSystem:
     def _swap_remove_collider(self, collider: Collider) -> None:
         idx_map = self._collider_index
         cid = id(collider)
+        self._multi_bodies.pop(cid, None)
         i = idx_map.pop(cid, None)
         if i is None:
             return
@@ -5296,6 +5312,23 @@ class CollisionSystem:
         if any(c._part is not None for c in colliders):
             owner = [id(c._identity) for c in colliders]
             is_part = [c._part is not None for c in colliders]
+        # A body and the own body of one of its pieces never pair either
+        # (``torso.collidable`` + ``Collider([torso, head])``: the boss touched
+        # its own torso; AC10). ``None`` when no multi-piece body is live.
+        kin: Optional[Set[Tuple[int, int]]] = None
+        for c in self._multi_bodies.values() if self._multi_bodies else ():
+            ic = idx.get(id(c))
+            if ic is not None:
+                for ref in c._shapes:
+                    piece = ref()
+                    own = getattr(piece, "_collider", None) if piece is not None else None
+                    if own is None or own is c:
+                        continue
+                    io = idx.get(id(own))
+                    if io is not None:
+                        if kin is None:
+                            kin = set()
+                        kin.add((ic, io) if ic < io else (io, ic))
 
         def _try_pair(i: int, j: int) -> None:
             if i == j:
@@ -5306,6 +5339,8 @@ class CollisionSystem:
                 return
             seen.add(key)
             if owner is not None and owner[lo] == owner[hi]:
+                return
+            if kin is not None and key in kin:
                 return
             a = swept[lo]
             b = swept[hi]
@@ -6850,6 +6885,10 @@ class CollisionSystem:
             # is what makes the probe not count as a hit against itself.
             if cb is probe or cb._identity is shape:
                 continue
+            # Nor a body the probe is a piece of (AC10: the boss does not
+            # overlap its own torso).
+            if _is_multi_body(cb) and any(r() is shape for r in cb._shapes):
+                continue
             if not self._update_proxy(cb, commit_motion=False):
                 continue
             info = self._collision_info_for_colliders(probe, cb)
@@ -6859,8 +6898,8 @@ class CollisionSystem:
             if hid in seen_hit:
                 continue
             seen_hit.add(hid)
-            hits.append(cb._identity)
-        return hits
+            hits.append(cb)
+        return _bodies_first(hits)
 
     def floor_below(
         self, body, *, dx: Any = 0.0, depth: Any = None, group: Any = None,
@@ -7165,8 +7204,8 @@ class CollisionSystem:
                     break
                 if _prim_contains_point(prim, x, y):
                     seen.add(id(c))
-                    hits.append(c._identity)
-        return hits
+                    hits.append(c)
+        return _bodies_first(hits)
 
     def query_circle(self, x, y=None, radius=None, *, group: Any = None, ignore: Any = None) -> List[Any]:
         """Identities overlapping a circle.
@@ -7209,8 +7248,8 @@ class CollisionSystem:
                     continue
                 if narrow_phase(probe, prim) is not None:
                     seen.add(id(c))
-                    hits.append(c._identity)
-        return hits
+                    hits.append(c)
+        return _bodies_first(hits)
 
     def query_sector(
         self, origin, *args,
@@ -7381,6 +7420,7 @@ class CollisionSystem:
             x2 = x1 + length * math.cos(rad)
             y2 = y1 + length * math.sin(rad)
         best_t = 1.0 + 1e-9
+        best_rank = 2
         best = None
         dx, dy = x2 - x1, y2 - y1
         minx, maxx = (x1, x2) if x1 <= x2 else (x2, x1)
@@ -7395,10 +7435,16 @@ class CollisionSystem:
             p = c._proxy
             if maxx < p[0] or minx > p[2] or maxy < p[1] or miny > p[3]:
                 continue
+            rank = 0 if _is_multi_body(c) else 1
             for prim in self._world_prims(c):
                 t = _ray_prim(x1, y1, dx, dy, prim)
-                if t is not None and 0.0 <= t <= 1.0 and t < best_t:
+                if t is None or not 0.0 <= t <= 1.0:
+                    continue
+                # Nearest first; on a tie (a piece that is also a body of its
+                # own) the multi-piece body wins, whatever line ran first (AC10).
+                if t < best_t - 1e-9 or (t <= best_t + 1e-9 and rank < best_rank):
                     best_t = t
+                    best_rank = rank
                     best = (c._identity, t, (x1 + t * dx, y1 + t * dy))
         return best
 

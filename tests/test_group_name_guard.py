@@ -81,6 +81,42 @@ class TestTypoStillWarns(_Case):
         self.assertIn("gng_bolts", got[0])
 
 
+class TestDeclaringAFormulaIsNotATypo(_Case):
+    """AC9 (game system tests): ``group["inimigos"] @= lambda: …`` next to a
+    tag ``"inimigo"`` warned "No group 'inimigos'. Did you mean 'inimigo'?".
+    Python reads ``group["inimigos"]`` before the ``@=``, so the guard saw a
+    read of an unknown name; it is the declaration the Guia teaches."""
+
+    def tearDown(self):
+        for name in ("gng_inimigos", "gng_tropa"):
+            try:
+                group[name].unlink()
+            except Exception:
+                pass
+        super().tearDown()
+
+    def test_formula_declaration_does_not_warn(self):
+        self.own(Circle(center=(0, 0), radius=5, group="gng_inimigo"))
+
+        def declare():
+            group["gng_inimigos"] @= lambda: group["gng_inimigo"]
+        self.assertEqual(_near_miss_warnings(declare), [])
+        self.assertEqual(group["gng_inimigos"].count, 1)
+
+    def test_declaration_inside_a_function_and_a_class_body(self):
+        self.own(Circle(center=(0, 0), radius=5, group="gng_tropas"))
+
+        class Montador:
+            def montar(self):
+                group["gng_tropa"] @= lambda: group["gng_tropas"]
+        self.assertEqual(_near_miss_warnings(Montador().montar), [])
+
+    def test_a_plain_read_still_warns(self):
+        self.own(Circle(center=(0, 0), radius=5, group="gng_inimigo"))
+        got = _near_miss_warnings(lambda: group["gng_inimigos"].count)
+        self.assertEqual(len(got), 1)
+
+
 class TestNotFilledYet(_Case):
     """The naves case: the group is named by a rule before its first member."""
 

@@ -14,6 +14,7 @@ strategy, the rules, and the bug catalogue.
 | Harness helpers (world reset, census, probe) | [Harness map](#harness-map) |
 | A test found a bug — what now | [Bug loop](#bug-loop) (mandatory) |
 | Whole programs against a spec written from the docs; a divergence to triage | [Program model tests](#program-model-tests) |
+| Whole games written to be tested: side models inside the game, under a real load | [Game system tests](#game-system-tests) |
 | A leak test fails but the engine looks right | [Harness pitfalls](#harness-pitfalls) |
 | Do the smoke / example scripts still run? | `tests/test_scripts_run.py` ([Recurring bug classes](#recurring-bug-classes): a script left on a retired spelling) |
 | Is this bug a known class? | [Recurring bug classes](#recurring-bug-classes), [Bug catalogue](#bug-catalogue) |
@@ -39,8 +40,9 @@ Pick the test shape from where the bug would live, not from the feature.
 | System scenario | A cross-subsystem contract over real frames (destroy from every context, frame order, handoffs) | `unittest` + `SystemWorld` | `test_sys_lifetime.py`, `test_sys_frame_order.py` |
 | Oracle / differential | An optimization vs a reference: brute force, the uncached path, the batched path, `force=True`, a model | Hypothesis + a twin (`diff_support.make_twins`), a config toggle, or an oracle | `test_sys_hyp_collision.py` (brute force), `test_diff_pose.py` (fast twin vs forced-slow twin), `test_diff_reactive.py` (configs + link model), `test_diff_collision.py` (cached vs uncached, closed form vs SAT, sweeps vs sampling), `test_diff_draw.py` (plain blit, cull, batching) |
 | Program model | Whole author programs (widgets, input, physics, camera, acts) over many frames, against expectations written **from the docs** by spec-only authors; feature interactions; doc gaps | `program_support.ProgramRun` + per-frame author-level probes + a temporal check vocabulary; L3 oracles (`program_oracles`) | `test_prog_*.py` ([Program model tests](#program-model-tests)) |
+| Game system | Many features at once under a real load (acts, modes, timers, collision, level files, audio, widgets, draw) over thousands of frames; white-box: the game carries its own side models | `game_support.Ledger` + side models inside the game; `game_harness` pilots, `run_game`, the L3 oracles, canaries | `test_game_*.py` ([Game system tests](#game-system-tests)) |
 | Signature fuzz | The whole public surface against generic contracts: junk in any one keyword is an author error with no trace, unknown keywords name themselves, construct → remove returns to baseline, every verb on a destroyed actor raises `DestroyedError` or leaves no trace, junk as the first argument of every author method is an author error | Hypothesis, one generated test per export (`scena.__all__`) | `test_hyp_surface.py` |
-| Structural guard | A whole bug class that is visible in the source or the surface (duplicate `def`, every export fuzzed, member allowlist, `float(finite(…))`, Entity-or-None as an `or` operand, a hook calling its dispatcher) | `unittest` over `ast` / `scena.__all__` | `test_entity_hooks.py`, `test_api_surface.py`, `test_api_robustness.TestNoFloatAroundFormulaValidators` |
+| Structural guard | A whole bug class that is visible in the source or the surface (duplicate `def`, every export fuzzed, member allowlist, `float(finite(…))`, Entity-or-None as an `or` operand, a hook calling its dispatcher) | `unittest` over `ast` / `scena.__all__` | `test_entity_hooks.py`, `test_api_surface.py`, `test_api_robustness.TestNoFloatAroundFormulaValidators`; every family asked the same subclass questions (`test_subclass_parity.py`); every warning with both sides (`test_warning_contracts.py`) |
 | Soak | Slow growth over many frames | opt-in (`SCENA_SOAK=1`) | `test_sys_soak.py` |
 
 Rules of thumb:
@@ -76,11 +78,16 @@ Rules of thumb:
 | `tests/test_heading_link.py` | Derived headings (a `p1,p2` / `p1,vec` / `p1,dx,dy` Line, Circle by rim, Ellipse by foci, Rect spine): the heading link and a link on a part its turn rewrites, or on a part the heading is measured from (found by writing each input and watching `angle`), are refused at the second `@=` and install nothing (D17, GR19); `_heading_driven_parts` equals what `rotate_by` refuses, both directions, so it cannot drift from the verb; every name read first is fresh after the source moves (D18). |
 | `tests/test_write_path_guards.py` | Static guards (AST) on the write paths: raw `__dict__` stores of a field, `_dirty` writes, raw pose writes without a gate (`_pose_fast_ok` / `_requires_pull_invalidate` / `_link_source`), point readers that do not delegate to `_xy_of`. Each allowlist entry carries its reason; a stale entry fails too. Track A item 6; closes Track C item 5 (the write paths stay separate). |
 | `tests/geometry_support.py` | Geometry contract registry: `KINDS` (every Graphic kind × constructor model, plus Box, built from a pose dict `{x, y, s, r}`); `point_parts` (every Point slot, `points[k]`, Text parts, `.box` named points), `vector_parts`, `scalar_parts`, `drawn` (the point set that fixes the paint), transform oracles (`turned` / `scaled` / `mirrored`), `safe` (a read that raises becomes a recorded `ReadError`), `settle` (run timed verbs). Used by `test_geometry_contract.py`; known violations in `geometry_known.py` (shrink-only). |
-| `tests/program_support.py` | Program model harness: `ProgramRun(program, params, probes=)` runs `tests/programs/<name>.py` in a `SystemWorld` (`run()` replaced by the startup it does; `PARAMS` / `mark()` injected), feeds input through the real GLFW handlers **inside the frame's poll** (`key_down` / `press` / `move` / `scroll` / `set_cell`, `widget_center(label)`), samples author-level probes after every frame into a `Trace`, and on `close()` destroys what the program made (census back to `census_before`: `leftovers()`). Spec vocabulary: `Scenario`, step builders (`wait`, `click_widget`, `key`, `drag`, `set_cell`, …), `Expect`, `serial(obj)` (per-run identity), checks (`always`, `never`, `at`, `at_end`, `eventually`, `steady`, `custom`). `program_test_case(...)` builds a test module. |
+| `tests/program_support.py` | Program model harness: `ProgramRun(program, params, probes=)` runs `tests/programs/<name>.py` in a `SystemWorld` (`run()` replaced by the startup it does; `PARAMS` / `mark()` injected), feeds input through the real GLFW handlers **inside the frame's poll** (`key_down` / `press` / `move` / `scroll` / `set_cell`, `widget_center(label)`), samples author-level probes after every frame into a `Trace`, and on `close()` destroys what the program made (census back to `census_before`: `leftovers()`). Spec vocabulary: `Scenario`, step builders (`wait`, `click_widget`, `key`, `drag`, `set_cell`, `drive` — a pilot called before each frame, …), `Expect`, `serial(obj)` (per-run identity), checks (`always`, `never`, `at`, `at_end`, `eventually`, `steady`, `custom`). `program_test_case(...)` builds a test module. |
 | `tests/program_oracles.py` | L3 oracles over whole programs: `replay`, `probe_neutral` (probes do not change the world), `dt_split` (dt/2, twice the frames), `reactive_config` (lazy + backstop vs eager + strong), `cull_pixels`, `teardown` (census + zombies). Tier C: `tier_c` re-runs a rewritten program (`TIER_C`: `rename_groups` — every group name suffixed; `reorder_defs` — runs of undecorated defs reversed; `rename_layers` — every author layer name suffixed) and requires the same world (`world_fingerprint` minus `made_at`). Metamorphic ([Interaction campaign](#interaction-campaign), class 3): `camera_moved` (the camera set before the first line through `ProgramRun.prelude`: the same trace minus the probes that read the camera, the same world), `time_scaled` (`clock.scale = k`, frames of `dt / k`: the same trace). |
 | `tests/test_prog_invariance.py` | The metamorphic oracles over every program (exclusion tables with reasons: programs that place by the view or chase the mouse leave the camera oracle, a program that sets `clock.scale` leaves the time oracle), `rename_layers` on every program, canaries. `SLOW`. |
 | `tests/program_coverage.py` | Which exports the programs reach: a profile hook records calls from a program's own code into `scena` (and the class of `self` / `cls`, since exported constructors are wrapped), mapped onto `scena.__all__`; global objects by name in the source. Guard: `test_program_coverage` (every export reached or in `PROGRAM_EXCLUDED` / a look family; `SLOW`). |
 | `tests/program_ledger.py` | Open divergences (shrink-only), verdicts and cause codes. |
+| `tests/game_support.py` | In-game instrumentation for `tests/games/` (light: no Hypothesis, no glfw): `Ledger` (`frame()` as the first line of `update`, reach counters, `check` / `equal` / `within` that **record** a failure with frame, time and scope, `invariant`, lifetimes by serial, `finish`, a plain-data `report()`, `digest()`), side models (`TimerModel`, `TweenModel`, `EdgeModel`, `ChangeModel`, `CoverModel`, `SoundModel`) and `geom` (closed-form intersections, point-in-shape, closest points, swept circles, Grid cells, `amp_db`). Tests: `test_game_support`. |
+| `tests/test_subclass_parity.py` | Every exported `Entity` family subclassed in an author module and asked the same questions: a class keyword is applied or refused with an author error, `on_collide` methods get `(other, info)`, an own field that reads the object (a part too) dies without a warning, the subclass is collected. Tables with reasons: `NOT_SUBCLASSED`, `NO_CONTACT`, `NO_INK_LINK`, `KNOWN_SELF_READ` (shrink-only). |
+| `tests/test_warning_contracts.py`, `tests/warning_sites.py`, `tests/warnsite_site/` | Every `warnings.warn` / `report_author_warning` site of `scena/` (by `ast`, module:qualname) has a `CONTRACTS` row: `fires=` (test module) or `untested=` reason, `silent=` (the test of its legitimate twin) or `twin=` reason; named tests must exist. `warning_sites.py` runs a tier with a recording `sitecustomize` and prints the rows the measurement contradicts (measurement only: the hook breaks stacklevel tests). |
+| `tests/test_documented_patterns.py` | The Guia's patterns that sit next to a warning, each a small program in real frames with every warning recorded (director wave, ground flag, formula group, named tween refresh, loop-default formulas, collide method, SpatialFx class keywords, a HUD over an unlinked field, an act soundtrack). |
+| `tests/game_harness.py` | The game drivers: `GAMES` (`GameSpec`: scenarios, probes, reach minimums, checks that must run, claimed exports, `spec_ns()` for `program_oracles`), pilots (`Pilot`, one class per game, deterministic, reading only the game's state), `run_game` (a `ProgramRun` with the `drive` step; reads `G.report()` before `close()`; records SCENA warnings), `problems` / `assert_game_clean`, `KNOWN` and `WARN_OK` (shrink-only, with reasons), `run_patched` / `assert_canary`. |
 | `tests/test_sys_holders.py` | Holder × ender ([Interaction campaign](#interaction-campaign), class 2): `scan(target)` (every engine path to an object, with its reference kind), `HOLDERS` classification guard, `Wired` subject, gone enders (no strong path may remain; `KEEPS` with reasons), partial enders (`EXPECT` per documented contract; `UNSETTLED` shrink-only), canaries (a pointer manager or a pair list that keeps a destroyed body). ~0.4 s. |
 | `tests/test_diff_pipeline.py` | Rendering composition pixel oracle ([Interaction campaign](#interaction-campaign), class 6): the brightest rastered pixel vs the transform chain, per display × camera × layer kind × post FX; canary. ~7 s. |
 | `tests/test_sys_pointer_pipeline.py` | Pointer pipeline under every transform ([Interaction campaign](#interaction-campaign), class 5): `Rig` (display, camera, the three targets, a cursor the GLFW handlers read), the forward map as oracle, the untransformed pixel as the not-vacuous check, precedence, canary (a pointer map that drops the letterbox pad). ~0.3 s. |
@@ -227,6 +234,111 @@ PM12, PM14 and the doc gaps). A mutation run without the control is not
 evidence: an earlier run counted three "program-only" kills that were a spec
 failing on its own while the run went (`mutation_run` now refuses to start
 unless both suites pass unmutated).
+
+
+# Game system tests
+
+A program model test is black-box: the program is an author's, the spec is
+written from the docs by someone who never saw the engine. A **game system
+test** is white-box: a whole game written **to be tested**, carrying its own
+instrumentation and side models, run for thousands of frames under a real load
+(many features at once: acts, modes, timers, collision, a level file, audio,
+widgets, posts, draw). It finds what lives between features when they all run
+together, and checks each one against an independent model while they do.
+Games are not examples or tutorials, and are never copied into either.
+
+**Pieces.**
+
+- `tests/games/<name>.py` (with data files next to it, `caverna.json`): `from
+  scena import *` like an author, plus `from game_support import ...`.
+  `# harness: cwd=examples/media` on the first line: art resolves from there
+  (the media guards read the header). `PARAMS.get(...)` for sizes, god mode,
+  speeds; seeded `random` only.
+- `tests/game_support.py`: the `Ledger` (`G`) and the side models. The game
+  calls `G.frame()` as the first line of `update`, `G.check(...)` /
+  `G.equal(...)` where it knows the answer, `G.born` / `G.died` (from
+  `on_destroy`), `G.event(...)` for reach, and the models' hooks where it
+  schedules, fires, cancels.
+- `tests/game_harness.py`: `GAMES` (scenarios, probes, reach minimums, checks
+  that must run, claims), one pilot class per game, `run_game`, `problems`,
+  canary helpers.
+- Drivers flat in `tests/`: `test_game_<name>.py` (quick: a short scripted run,
+  a static run, teardown) and `test_game_<name>_deep.py` (`SLOW` + `SPLIT`: the
+  long run, L3 oracles, random pilots, canaries); `test_game_support.py` (the
+  oracles' own tests); `test_game_coverage.py` (`SLOW`: each game reaches the
+  exports it claims, through `program_coverage.collect_runs`). Not
+  `tests/programs/` (doc-spec'd, black-box: the isolation, invariance and
+  coverage tables assume specs there) and not `test_prog_*` (those tables
+  would need rows).
+
+**Rules.**
+
+- **An independent source.** A model never calls the engine function it
+  checks. Its truth is a Guia sentence (quoted in its docstring), closed-form
+  math (`geom`), or the game's own bookkeeping (what it spawned, scored,
+  destroyed). A model built from the engine's own answer agrees with every bug.
+- **Record, never raise.** A check fails inside engine callbacks; raising there
+  would end the frame as an author error and hide the rest of the run. Checks
+  record frame, time, scope and context; the driver fails the test with the
+  list. `SCENA_GAME_CHECKS=raise` raises at the site, for a debugger.
+- **Plain data out, serials not ids.** `report()` holds no engine object (read
+  before `close()`, so the census sees nothing of the game); models hold handles
+  through closures and drop them in `release()` (`Handle` has no weakref slot).
+- **No vacuous pass.** Every scenario names reach minimums (`G.event` /
+  `G.hit` counters: the boss died, the lift carried the rider, the act changed)
+  and the checks that must have run at least once; `test_game_coverage` holds
+  each game to its `claims`.
+- **The phase rule for reactive sources.** Models sample at `G.frame()` (frame
+  step 2). A value written by input (a widget, a click callback) lands in the
+  poll **before** that sample; one written in update, collision or a callback
+  lands after. So `EdgeModel` / `ChangeModel` settle an edge first seen at
+  frame N one frame later: one fire in frame N-1 or N. `TimerModel` takes
+  `early=` (made in update: counts that frame's `dt`; made later in the frame:
+  counts from the next).
+- **Pilots are deterministic** and read only the game's state and their own
+  counters (`drive(factory, frames)`: `pilot(run)` before each frame, input
+  through the real handlers). A pilot's generator holds the namespace: the
+  harness releases pilots before `close()`.
+- **Draw at checkpoints only.** `run.step(1, dt=0.0, draw=True)` and a pixel
+  read: the drawing surface is re-pointed first (HV1).
+- **`KNOWN` is shrink-only** (`game_harness.KNOWN`, `WARN_OK`): an entry
+  carries its reason and a finding ID; an entry no run hits fails
+  (`known_still_fail`).
+- **Prove the models can fail.** Each game's deep driver plants known bugs by
+  `mock.patch` and requires the named check to fail (`assert_canary`): PM8's
+  timer rounding back, a custom ease ignored, CCD off, AC3 and AC6 put back
+  (Armada); PM8 through a plain `every`, a Level angle negated, `deadzone`
+  and `recently` broken, `floor_below` off (Caverna); `intersections` dropping a point, the
+  hover step skipped, `amp_db` skewed, a stale pull (Oficina).
+
+**L3 oracles.** `spec_ns()` gives `program_oracles` what it reads, so replay,
+`probe_neutral`, `dt_split`, `reactive_config`, `teardown`, `tier_c`,
+`camera_moved` and `time_scaled` run unchanged. Exclusions carry reasons:
+`dt_split` on continuous probes only, with tolerances (input lands half a
+coarse frame earlier); `time_scaled` not on Armada (the cover runs on
+presentation time); `camera_moved` on Oficina only (the others place by the
+view).
+
+**The three games (2026-10-10).**
+
+| Game | Load | Models |
+| --- | --- | --- |
+| Armada (shooter) | Acts title → hangar → sector → arena → end through one iris; sheet atlas and clip, `collide` / `_stay` / `_exit`, hitbox parts and a weak point, `Collider`, modes with `race` / `parallel` / `until_empty`, named `every` / `after`, a custom-ease tween, Jet / Portal / Orb / Sparks / Fire, four posts, widgets and a pause `Menu`, music crossfade and handle effects | population, shot conservation, timers, tween (exact), edges / changes, act and cover, `ready` cadence, CCD no-tunnel (swept circles), sounds |
+| Caverna (platformer) | `caverna.json` Level (platforms, a ramp, a polygon, tracks, points, images), `resolve`, slopes, coyote time and a jump buffer, a lift by `move_along` carrying its rider, camera deadzone + chase, parallax, Endless, clips, History checkpoints, death → iris → respawn | Level vs plain JSON, grounded ⇔ geometry, rider displacement, coyote / buffer twin, camera bound, parallax view, Endless slot determinism, clip frame formula |
+| Oficina (reactive workshop) | Grid board, drag / drop / hover / click, State cells and `@=` chains, group formulas, every widget kind, materials (Fill / Stroke / Paint, Gradient / Texture), a laser against shapes, raycast / `query_point`, `Collider`, Track probe, baked fx chain, spectrum, Microphone (NULL backend), pixel checks | a plain-Python reactive twin, widget mappings, pointer geometry, laser closed forms, audio stack, pixels at checkpoints |
+
+Together they reach 123 of 249 exports, 28 that no program reaches (Level,
+Microphone, the audio effects, SpatialFx, Fill / Stroke / Paint, Chroma / Wash
+/ Crt / Pixelate …).
+
+**Value so far.** Writing and running the three games found eight engine bugs
+(AC1, AC3, AC6–AC9, AC11, AC13; AC12 came from an existing suite during the same work; [AC](#ac--game-system-tests-2026-10-10)), a
+harness vacuity (HV1: every `ProgramRun` draw painted a surface nobody read,
+so `cull_pixels` compared two blank frames), a doc sentence that over-promised
+(AC4), and three API questions (AC2, AC5, AC10). Most were met by the game's
+own code before any model ran: a pattern the Guia shows, used in a real game,
+broke (a coyote flag that reads its owner, a formula group declared with `@=`,
+an `on_collide` method, a long `until_empty` wave, a named tween refreshed).
 
 
 # Geometry campaign
@@ -1411,6 +1523,73 @@ fuzzer), so most findings were cells nobody had thought to write.
 | `TestCopyCommutes` (act then copy) | — | GX9, GX10 |
 | H10 fuzzer (`test_fuzz_corpus`) | — | GX16, GX17 |
 
+## What the game system tests taught (2026-10-10)
+
+1. **A Guia pattern used in a real game is a test the unit suites do not
+   write.** Six of the eight engine bugs (AC6, AC7, AC8, AC9, AC11, AC13)
+   broke a pattern the Guia shows: a ground flag that reads its owner, a
+   formula group declared with `@=`, a collide method, a long `until_empty`
+   wave, the loop-variable default, a named tween refreshed. Each unit test
+   had used the feature in the shape that worked; the game used it the way an
+   author would. Run the pattern itself, as a small program, in real frames
+   (`test_documented_patterns`; 7 of its 9 programs fail on the code before
+   the fixes).
+2. **A warning has two sides, and the tests held one.** AC7 and AC13 were not
+   untested warnings: measured with a recording hook (`tests/warning_sites.py`),
+   both fired in existing tests (`test_frozen_mode_warns_once`, the driver
+   composition suite). What no test ran was the legitimate pattern next to
+   the warning. Every warning site now has a row that names the test that
+   fires it and the test that keeps its twin silent, or says why it has no
+   twin (`test_warning_contracts`). A first draft of this lesson said "no
+   test covered the warning"; the measurement corrected it. Measure the
+   coverage claim before writing the guard for it.
+3. **A feature shared by families is asked of every family.** AC2 (class
+   keywords) and AC6 (collide methods) each worked on some families and
+   failed on others, and each family's tests asked only about its own way.
+   Asking all 34 exported Entity classes the same questions
+   (`test_subclass_parity`) found, on its first run, nine more families that
+   answered a class keyword with Python's own error (Text, the widgets,
+   Entity, Endless), a Track that accepted `color=` / `group=` on the class
+   line and dropped them, a Fire subclass that ignored `style=`, and a
+   Polygon whose own field cannot read its centre (AC14, a documented limit).
+4. **Silent acceptance is the worst answer.** The Track class keywords and
+   the Fire subclass `style=` were taken and ignored: no error, no effect. A
+   value the engine will not use raises with the fix. `Anchor.draggable =
+   False` was a no-op documented only in a docstring; it raises now (AC16).
+5. **Check the check reaches what it compares.** HV1: the pixel oracle passed
+   for every program while comparing two blank frames. An oracle that
+   compares two outputs also checks that one of them shows something.
+6. **What a program defines must die with it.** AC1: module-level caches keyed
+   by an author class kept the class, its module and every global. Per-class
+   data lives on the class; the parity guard collects a subclass of every
+   family.
+7. **White-box models need the frame phase.** The first edge and change models
+   failed on correct engine behaviour: a widget's write lands before the
+   frame's sample, an update write after it. The phase rule (see
+   [Game system tests](#game-system-tests)) is part of the model, not a
+   tolerance.
+8. **A fix gets the quick tier before the gate, and a perf A/B.** The AC7 fix
+   failed twice in `quick` (a mode idle from birth warned late; a weak-keyed
+   record held a dead act through its bound-method mode), and its A/B showed
+   the cost moved to the owner write. Each fix here was measured against the
+   pristine tree with an interleaved best-of run.
+9. **An existing suite keeps finding things while the code moves.** AC12
+   (unlink cut the readers of a field) came from `test_hyp_api`'s state
+   machine during this work, on an example that fails on the earlier code too.
+   A Hypothesis failure that also fails on HEAD is a finding, not noise.
+
+### Class guards written from the game system tests
+
+| Guard | Lesson | Found (would have caught) |
+| --- | --- | --- |
+| `test_documented_patterns` (each Guia pattern next to a warning, in real frames, warnings recorded) | 1, 2 | AC2, AC6, AC7, AC8, AC9, AC12, AC13 |
+| `test_warning_contracts` (every warning site: the test that fires it and the test of its silent twin, or a reason); `tests/warning_sites.py` measures the `fires` column | 2 | AC7, AC9, AC11, AC13 (a new warning cannot land without its silent side) |
+| `test_subclass_parity` (every exported Entity family: class keywords applied or an author error, collide methods get `(other, info)`, an own field that reads the object dies quietly, the subclass is collected) | 3, 4, 6 | AC1, AC2, AC6, AC11, AC15; pins AC14 |
+| `test_author_class_lifetime` (the caching paths) | 6 | AC1 |
+| `test_fieldref.TestUnlinkKeepsReaders` | 9 | AC12 |
+| `test_program_support.TestDrawReachesThePixels`; `cull_pixels` refuses a flat frame | 5 | HV1 |
+| `game_harness.problems` (an unexpected SCENA warning fails a game run) | 2 | — |
+
 ## Planning a new test
 
 1. **Enumerate from the source of truth**, not a hand list: slots, `__all__`,
@@ -1902,6 +2081,38 @@ gaps that **both** authors reported on their own.
 | PM16 | A method that only some member kinds have (`play`, `showing`, `add_hitbox`, `flash_text`, `focus`, `at` …), called on an **empty** group, raised AttributeError: the stand-in for "no member" is a Shape. `group["inimigos"].play("andar")` crashed once the last enemy died | BUG / found by `test_noop_cost` (the Guia: the method does nothing on an empty group) | `_empty_group_attr` treats any public method of any Entity kind as a no-op; a typo still raises. Guard: `test_noop_cost.TestEmptyGroupVerbsBuildNothing` |
 | PM17 | `Handle.velocity` keeps the last frame's value after the motion ends (by design: `on_done` reads the arrival speed); the Guia said only "neste frame" | SPEC-GAP / DOC-SILENT (found by `test_sys_frame_contracts`) | Guia `Handle.velocity` row |
 | PM18 | `canvas.background = canvas.background` raised TypeError: the read is the live stack, a write expected a material for the base. Found writing `test_noop_cost` (every world setting written back) | BUG / read and write of one name did not round-trip | Writing the stack itself keeps it; the Guia says to keep `.base` to restore later. Guards: `test_background.TestBackgroundRoundTrip`, `test_noop_cost` (no special case) |
+
+### AC — game system tests (2026-10-10)
+
+Found writing and running the three games of [Game system tests](#game-system-tests).
+Each fixed one has its regression test in the owning module; the games keep
+the pattern under load.
+
+| ID | Finding | Repro | Cause | Why tests missed it | Fix / guard |
+| --- | --- | --- | --- | --- | --- |
+| AC1 | Author classes (and with them the program's whole namespace: every module global, every shape) outlived the program: a census after `close()` saw the game alive | A program defines `class Nave(Sprite)` and builds one; after the run, `gc.get_referrers(Nave)` names a module dict | Class-keyed module caches (`entity._DEAD_ROUTES`, `_SCENA_KIND_CACHE`, `_PROPERTY_LINK_BY_CLASS`, `collision._extra_slots_for_cls`) held the class strongly | Program tests define few classes, and their censuses count actors, not classes | The tables are per-class attributes set once in `Entity.__init_subclass__` (`_cache_class_tables`); dies with the class. Guard: `test_author_class_lifetime` (author subclasses of Circle, Rect, Sprite and Entity through every caching path, collected after use). Perf: same hot-path cost (a class attribute read replaces a dict lookup) |
+| AC3 | `list(canvas.effects)` / `len(canvas.effects)` showed an internal `HitFeedback` after any `shake` / `flash` / `*_at`, and it came back on an act restore; the Guia says impacts never enter the stack | `canvas.shake(5); list(canvas.effects)` → `[HitFeedback]` | `PostFxStack.__iter__` / `__len__` walked the internal list that also holds the impacts' post | Tests read the stack only through `_effects` or before any impact | The author views skip `_hit`. Guard: `test_postfx.TestPostFxStack.test_impacts_never_join_the_authors_stack` |
+| AC6 | `on_collide` / `on_collide_stay` / `on_collide_exit` written as a **class method** got `other` = itself and `info` = the other body, on every family | `class Nave(Sprite): def on_collide(self, other, info): ...` → `other is self` | The bound method was stored as the `fn(me, other, info)` property callback and called by arity: `self` was passed twice | Existing tests defined such methods but never checked the arguments | `_install_subclass_hooks` wraps the collide hooks in `collision._pair_method_adapter`. Guard: `test_collision.TestOnCollideMethodArguments` (Shape, Sprite, SpatialFx × the three hooks) |
+| AC7 | The frozen-mode warning fired on the Guia's own pattern: a director awaiting `until_empty` for a long wave, then `fade_out(on_done=change_act)`, warned on the first idle frame | A mode that waits 4 s, then has nothing pending | The warning measured the mode's age; Actors Design says "nothing pending past `FROZEN_MODE_S`" | `test_frozen_mode_warns_once` fired the warning; no test ran the documented pattern next to it | When an owner's async body or last owned handle ends in a mode, the scheduler writes the mode time on the owner (`_mode_idle_from`, a slot next to `_frozen_warned`; reset on mode entry); idle counts from there, or from the mode's start; the cheap exit for young modes stays. Cost: ~0.1 µs per such end (interleaved A/B; the rest of the timer cycle unchanged). A first version started the idle clock only once the mode was 2 s old (a mode idle from birth warned at 4 s), and a second held the mode, a bound method of an Act, in a weak-keyed record (a dead act stayed alive): the quick tier caught both Guard: `test_process.TestFrozenModeWarning`. [Actors Design](Actors%20Design.md) sentence updated |
+| AC8 | `for g in gens: g["saida"] @= (lambda g=g: g.ganho * 2)` raised `CircularReferenceError`; `lambda g=h:` worked | as written | The formula's source extractor visited the lambda's default expressions (evaluated once, at creation) as reads: `g` resolved to the shape, a whole-object source, so the shape's own field "read itself" | Formula tests used closures, never the loop-variable default idiom | Sources come from the body only (lambda and def). Guard: `test_formula_functions.TestDefaultArgIsNotARead` |
+| AC9 | `group["coluna0"] @= lambda: ...` (the Guia's formula-group declaration) warned "No group 'coluna0'. Did you mean 'col0'?" | a group `col0` exists, then the declaration | Python evaluates `group[name]` before `@=`; the near-miss guard saw a read of an unknown name | Group formula tests used names far from any existing group | The warning branch reads the caller's bytecode for a subscript `@=` store (no hot-path cost). Guard: `test_group_name_guard.TestDeclaringAFormulaIsNotATypo` |
+| AC11 | Destroying an Entity whose own field reads the Entity (the Guia's `hero["grounded"] @= lambda: "bottom" in hero.touching_sides`) warned "Attribute … was unlinked because a formula source was removed", every time | as written, then `hero.destroy()` | `state._clean_up` counted the Entity's own scalar anchors as external dependents | Lifecycle tests linked fields to other objects | No warning for an anchor whose parent is in the dying subtree (or already gone). Guard: `test_graph_lifecycle.TestOwnFieldLinksDieQuietly` |
+| AC12 | Unlinking an ink field that another formula reads (`e["v"].unlink()` with `t @= lambda: e.v * 10`) unlinked the reader ("a formula source was removed") and froze it at a stale value | the sequence `test_hyp_api.ReactiveLinksMachine` found: link `e["v"]`, link `t` to `e.v`, unlink `e["v"]`, write `e.v` → `t` stale; write `t` → accepted | `_unlink_field` dropped the field's scalar anchor, which is also the node readers depend on | Found by the existing state machine during this work (its example fails on the pre-change HEAD too); no unit test unlinked a field that something reads | `_unlink_field` keeps an anchor that has external formula dependents (unlinks it only). Guard: `test_fieldref.TestUnlinkKeepsReaders` (ink and slot fields; an unread field still drops its anchor) |
+| AC2 | `class Energia(Orb, radius=16)` raised Python's own "takes no keyword arguments": SpatialFx subclasses had no class keywords, while Shape and Sprite do; and an author `Fire` subclass ignored `style=` silently | as written | `SpatialFx.__init_subclass__` passed every keyword up to `object` | Class keywords were tested per family where they existed; nothing asked every subclassable family the same question | Decided (2026-10-10): accept them like shapes, for consistency. `_class_defaults` (shared with Text: `scena/class_defaults.py`) + a wrapper on each kind's `__init__`; placement / unknown / bad values / `style` refused on the class line; a Fire subclass refuses another style. Guard: `test_spatial_fx.TestClassKeywords`, and the family-parity guard `test_subclass_parity` |
+| AC5 | A loose `play_sound(name="musica")` in an act's `setup` and another loose one in the act's mode are two slots: both tracks play. The same holds for `after` / `every` / `tween` | Armada's music | A slot is keyed by its place: the owner of the call, or for a loose call the actor whose mode body runs, else the game / act. The Guia said "solto no mesmo lugar" without saying what a place is | — | Decided (2026-10-10): documented, not changed (authors often want separate sounds; only a soundtrack wants one slot per act, and the engine cannot tell). Guia: vocabulário "slot" and the `play_sound` section (a soundtrack: `self.play_sound(…, name=)` in the act). Pinned: `test_act.TestNameSlotsAreByPlace` |
+| AC10 | A shape both a body of its own and a piece of `Collider([torso, head])`: the boss collided with its own torso (and would push it in a `resolve`), and `raycast` / `query_point` answered by statement order | a piece made `collidable`, or a rule naming its group, inside a multi-piece Collider | Nothing kept a body from pairing with its pieces' own bodies; queries walked registration order with a strict nearest test | Collider tests used pieces that were never bodies | Decided (2026-10-10): two boundaries, made coherent (the weak-point pattern stays). The broad phase skips body / own-piece pairs (`_multi_bodies`, `kin`); queries name multi-piece bodies first and a ray tie goes to them; `query_shape(piece)` skips its own body. An `ANYTHING` rule seeing both is documented. Guard: `test_collision.TestPieceThatIsAlsoABody` (both statement orders) |
+| AC13 | A second `tween(st["escudo"], 0, time=3, name="escudo")` while the first ran warned "tween/move_along on the same property replaces a previous in-flight tween"; the Guia says a tween in the same `name=` slot replaces the old one | Armada's random pilots (gate): two shield pickups within 3 s | The same-property preempt ran before the name slot and warned for a replacement the author asked for | Driver-composition tests fired the warning; none refreshed a named slot | `_preempt_tween_keys(slot=)` cancels a handle in the new call's own slot quietly. Guard: `test_process.TestNamedTweenSlotReplacesQuietly` (cell, field; unnamed and other slots still warn) |
+| AC14 | An own custom field cannot read its object's size fields or computed points (`r["d"] @= lambda: r.width`, `c.radius`, `r.top_left`, a Polygon's `center`): `CircularReferenceError` saying the field "would read the Rect, which already reads d", a cycle the author never wrote. Fails on the earlier code too | `test_subclass_parity` (an own field reading a part on every family), then a survey | A scalar-slot read names the whole object as the source; a Derivate part depends on the root, and the root on every child, the new field included | Own-field formulas in tests read ink fields or placement points | Decided (2026-10-10): a documented limitation. `_own_size_read_message` names it and the idiom (a class `@property`, or `update(dt)`); a real cycle keeps the generic message. Guia: reactive sources. Guards: `test_fieldref.TestOwnSizeReadIsAKnownLimit`; `test_subclass_parity.KNOWN_SELF_READ` (fails if it ever starts working) |
+| AC15 | Class keywords across families: `class Hud(Text, group="hud")` (and the six widgets, `Entity`, `Endless`) raised Python's "takes no keyword arguments"; `class Rota(Track, color="gold", group="rotas")` was accepted and both were dropped | `test_subclass_parity` on its first run | Only Shape, Sprite (and now SpatialFx) consume class keywords; `Entity.__init_subclass__` passed the rest to `object`. `Track.__init__` never read `_shape_defaults` | Each family's tests asked about its own way | `Entity._refuse_class_keywords`: an author error naming the fix ("pass them when you make one"), passing through to an author mixin's `__init_subclass__`; `Track.__init__` applies `color` / `visual` / `group` defaults. Then decided (2026-10-10): Text takes class keywords (the look), through `scena/class_defaults.py` shared with SpatialFx; the widgets, `Entity` and `Endless` keep the error. Guards: `test_subclass_parity`, `test_text.TestClassKeywords` |
+| AC16 | `anchor.draggable = False` / `handle = False` were accepted and ignored (documented only in a docstring); a link on any Anchor field was refused with "set draggable = False first", which an Anchor cannot do | `test_subclass_parity` (an own-field link on every family) | The Anchor overrode the setters as no-ops; the generic driver-conflict message assumed a switchable drag | — | Decided (2026-10-10): raise, naming `Point(x, y, visible=True)`; the Anchor's own link refusal says it takes no links. Engine writes that follow a drag callback go through `_draggable_from_callbacks` (an Anchor keeps its handle). Guard: `test_shape_interaction.TestAnchorInteraction.test_always_draggable_on_top` |
+| HV1 | Harness vacuity: every `ProgramRun` draw painted a surface nobody read (a program's `init()` rebuilt the canvas), so `cull_pixels` compared two blank frames for every program | `run.step(1, draw=True)` then read `run.world.surface` → one flat colour | The framework's drawing canvas was re-created by `init()`; the run kept reading the world's | The oracle compared two images and never asked whether either showed anything | `ProgramRun._wire_surface()` before each draw; `cull_pixels` refuses a flat frame. Guard: `test_program_support.TestDrawReachesThePixels` |
+| AC4 | The Guia's `ready` row promised "at most once per interval"; the engine carries the overshoot (Scena Design, "Clocks"), so two calls can be closer than the interval when it is not a whole number of frames (`clock.scale = 0.8`: 0.1467 s apart for 0.15) | Armada's cadence model under `clock.scale` | Engine right by design; the sentence over-promised | — | Guia `ready` row: exact on average, the leftover carried, so two `True` can come a little closer than the interval |
+
+Two harness notes from the same work: a Tier C run copies data files next to
+the program (a level `.json`) into its temporary folder; a value `Box` (read
+through `Grid.cell_at`) can still be alive at the census by GC timing, so
+`ProgramRun.close()` discounts Box values in the graph counters as it already
+did in `registry.live`.
 
 ### Open (found, not yet fixed)
 

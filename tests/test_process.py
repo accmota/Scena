@@ -2706,6 +2706,138 @@ class TestEasingCatalog(ProcessTestCase):
         self.assertAlmostEqual(out, 0.5)
 
 
+class TestFrozenModeWarning(ProcessTestCase):
+    """AC7 (game system tests): Actors Design, "Frozen-mode warning only if
+    nothing is pending past FROZEN_MODE_S" — idle time, not time in the mode.
+    The check compared the mode's age: a mode whose async body waited 2 s
+    (``await until_empty`` on a wave, the Guia's Director pattern) and then
+    started a cover fade before ``change_act`` warned on its first idle frame."""
+
+    def _frozen(self, caught):
+        return [w for w in caught if "frozen" in str(w.message)]
+
+    def test_idle_time_counts_not_mode_age(self):
+        c = self.track(Circle(radius=4, group="ac7_wave"))
+        e = self.track(Entity())
+
+        async def directing(owner):
+            await until_empty("ac7_wave")      # busy: a pending await
+
+        e.mode = directing
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            for _ in range(int(FROZEN_MODE_S / 0.1) + 6):     # 2.6 s waiting
+                _frame(0.1)
+            self.assertFalse(self._frozen(caught), "a pending await is not frozen")
+            c.destroy()
+            _frame(0.1)                                      # the body ends
+            for _ in range(int(FROZEN_MODE_S / 0.1) - 2):    # idle 1.8 s
+                _frame(0.1)
+            self.assertFalse(self._frozen(caught), "idle for less than FROZEN_MODE_S")
+            for _ in range(4):
+                _frame(0.1)
+            self.assertEqual(len(self._frozen(caught)), 1, "idle past FROZEN_MODE_S warns once")
+
+    def test_sync_mode_with_nothing_pending_still_warns(self):
+        e = self.track(Entity())
+
+        def parked(owner):
+            pass
+
+        e.mode = parked
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            # Nothing ever ran in this mode: idle since it began, so the
+            # warning comes as the mode passes FROZEN_MODE_S, not later.
+            for _ in range(int(FROZEN_MODE_S / 0.1) - 1):
+                _frame(0.1)
+            self.assertFalse(self._frozen(caught))
+            for _ in range(3):
+                _frame(0.1)
+            self.assertEqual(len(self._frozen(caught)), 1)
+            for _ in range(30):
+                _frame(0.1)
+        self.assertEqual(len(self._frozen(caught)), 1, "warns once")
+
+    def test_idle_counts_from_the_last_timer(self):
+        # A sync mode whose timer ran 1.5 s: idle from the timer's end.
+        e = self.track(Entity())
+
+        def timed(owner):
+            owner.after(1.5, lambda: None)
+
+        e.mode = timed
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            for _ in range(int((1.5 + FROZEN_MODE_S) / 0.1) - 2):    # idle 1.8 s
+                _frame(0.1)
+            self.assertFalse(self._frozen(caught), "idle for less than FROZEN_MODE_S")
+            for _ in range(4):
+                _frame(0.1)
+        self.assertEqual(len(self._frozen(caught)), 1)
+
+    def test_a_new_mode_restarts_the_idle_clock(self):
+        e = self.track(Entity())
+
+        def a(owner):
+            pass
+
+        def b(owner):
+            pass
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            e.mode = a
+            for _ in range(15):
+                _frame(0.1)
+            e.mode = b
+            for _ in range(15):
+                _frame(0.1)
+        self.assertFalse(self._frozen(caught))
+
+
+class TestNamedTweenSlotReplacesQuietly(ProcessTestCase):
+    """AC13 (game system tests, Armada's random pilots): a second
+    ``tween(st["escudo"], 0, time=3, name="escudo")`` while the first runs
+    warned "tween/move_along on the same property replaces a previous
+    in-flight tween". The Guia: a tween with the same ``name=`` in the same
+    place "substitui o anterior" — the slot is the author saying so. The
+    same-property preempt ran before the slot and warned. Two tweens on one
+    property that the author did not put in one slot still warn."""
+
+    def _warned(self, fn):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            fn()
+        return [str(w.message) for w in caught if "in-flight" in str(w.message)]
+
+    def test_same_slot_on_a_cell_is_quiet(self):
+        a = Attribute(1.0)
+        h1 = tween(a, 0.0, time=3.0, name="ac13")
+        _frame(0.5)
+        box = []
+        self.assertEqual(self._warned(lambda: box.append(tween(a, 0.0, time=3.0, name="ac13"))), [])
+        self.assertTrue(h1.cancelled)
+        self.assertFalse(box[0].cancelled)
+
+    def test_same_slot_on_a_field_is_quiet(self):
+        c = self.track(Circle(radius=4))
+        c.hp = 1.0
+        tween(c["hp"], 0.0, time=3.0, name="ac13f")
+        _frame(0.5)
+        self.assertEqual(self._warned(lambda: tween(c["hp"], 0.0, time=3.0, name="ac13f")), [])
+
+    def test_unnamed_or_other_slot_still_warns(self):
+        a = Attribute(1.0)
+        tween(a, 0.0, time=3.0)
+        _frame(0.1)
+        self.assertEqual(len(self._warned(lambda: tween(a, 0.0, time=3.0))), 1)
+        b = Attribute(1.0)
+        tween(b, 0.0, time=3.0, name="one")
+        _frame(0.1)
+        self.assertEqual(len(self._warned(lambda: tween(b, 0.0, time=3.0, name="two"))), 1)
+
+
 class TestAsyncAwait(ProcessTestCase):
     def test_await_move_to_then_continues(self):
         c = self.track(Circle(center=(0, 0), radius=8))

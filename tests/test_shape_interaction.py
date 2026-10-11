@@ -886,7 +886,12 @@ class TestAnchorInteraction(InteractionTestCase):
         self.assertAlmostEqual(a.x, ox)
         self.assertAlmostEqual(a.y, oy)
 
-        a.draggable = False
+        # Decided 2026-10-10: False raises (it was accepted and ignored).
+        for name in ("draggable", "handle"):
+            with self.assertRaises(TypeError) as ctx:
+                setattr(a, name, False)
+            self.assertIn("always a draggable handle", str(ctx.exception))
+        a.draggable = True                    # True stays a no-op
         self.assertTrue(a.draggable)
         self.assertTrue(a.handle)
 
