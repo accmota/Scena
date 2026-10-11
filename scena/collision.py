@@ -87,6 +87,12 @@ _RESOLVE_SLOP = 0.08
 # contact). Twice the slop: margin for the gap settle / snap actually leave.
 _CONTACT_SKIN = 2.0 * _RESOLVE_SLOP
 _MAX_SLIDES = 4
+# Seam lip (Collision Design § Seam lips): a grounded body that walks into the
+# side face of a still partner whose top is at most this far above its feet
+# steps onto it instead of stopping (solid) or passing into it (one-way). Two
+# tiles placed a hair apart (a rotated row, integer coordinates, a scaled hull)
+# leave such a lip at the seam. 0 turns the rule off (bench A/B).
+_SEAM_STEP = 2.0
 # Swept detection (Collision Design § Swept detection): a collider whose
 # motion-channel travel this frame exceeds this fraction of its thickness
 # (smaller proxy side, pad removed) is detected along its path. Below it two
@@ -344,6 +350,14 @@ def _only_code(spec: Any) -> str:
 def _is_static_mass(mass: float) -> bool:
     ma = float(mass)
     return not math.isfinite(ma) or ma == STATIC
+
+
+def _seam_candidate(hit: Tuple[float, float, float, Any, Any, float, float]) -> bool:
+    """A sweep hit that a seam step may climb: a side face of a still partner."""
+    _t, nx, ny, _cb, _tok, odx, ody = hit
+    if odx or ody:
+        return False
+    return abs(nx) > abs(ny)
 
 
 def _side_from_normal(nx: float, ny: float) -> Optional[str]:
@@ -5892,7 +5906,7 @@ class CollisionSystem:
                     gate, partners = self._only_view(ca, partners, only_map)
                     if not partners:
                         continue
-            self._sweep_and_slide(ca, partners, gate)
+            self._sweep_and_slide(ca, partners, gate, bool(grounded_at_start.get(id(ca))))
             self._settle_body(ca, partners, gate)
             if grounded_at_start.get(id(ca)):
                 self._floor_snap(ca, partners, gate)
@@ -6140,7 +6154,15 @@ class CollisionSystem:
         *,
         relative: bool = False,
         gate: Optional[_OnlyGate] = None,
+        deferred: Optional[List[Tuple[float, float, float, Collider, Any, float, float]]] = None,
     ) -> Optional[Tuple[float, float, float, Collider, Any, float, float]]:
+        """Earliest accepted hit of ``pas`` moving by ``(rdx, rdy)``, or None.
+
+        A hit the ``only=`` gate rejects, reached before any accepted one,
+        starts a pass. With ``deferred`` (the sweep of a grounded body) those
+        hits are appended there instead, and the caller marks them unless a
+        seam step makes them moot.
+        """
         if not pas:
             return None
         minx = min(p.aabb[0] for p in pas)
@@ -6149,7 +6171,7 @@ class CollisionSystem:
         maxy = max(p.aabb[3] for p in pas)
         sx0, sy0, sx1, sy1 = _swept_aabb((minx, miny, maxx, maxy), rdx, rdy)
         best: Optional[Tuple[float, float, float, Collider, Any, float, float]] = None
-        rejected: Optional[List[Tuple[float, Collider]]] = None
+        rejected: Optional[List[Tuple[float, float, float, Collider, Any, float, float]]] = None
         for cb, token, odx, ody in partners:
             # Partner box over the frame: union of its start (proxy - motion)
             # and end proxy, inlined — this loop visits the whole partner pool.
@@ -6193,7 +6215,9 @@ class CollisionSystem:
             ):
                 if rejected is None:
                     rejected = []
-                rejected.append((t, cb))
+                rejected.append((
+                    t, contact.normal[0], contact.normal[1], cb, token, odx, ody,
+                ))
                 continue
             if best is None or t < best[0] - 1e-12:
                 best = (
@@ -6205,9 +6229,12 @@ class CollisionSystem:
             # accepted stops it first; a later rejected hit is re-judged on
             # the next slide (from where the body really is).
             stop = best[0] - 1e-12 if best is not None else math.inf
-            for t_rej, cb_rej in rejected:
-                if t_rej < stop:
-                    gate.mark(cb_rej)
+            for rej in rejected:
+                if rej[0] < stop:
+                    if deferred is not None:
+                        deferred.append(rej)
+                    else:
+                        gate.mark(rej[3])
         return best
 
     def _sweep_and_slide(
@@ -6215,12 +6242,15 @@ class CollisionSystem:
         ca: Collider,
         partners: Sequence[Tuple[Collider, Any, float, float]],
         gate: Optional[_OnlyGate] = None,
+        grounded: bool = False,
     ) -> None:
         dx = ca._motion_dx if ca._motion_translation else 0.0
         dy = ca._motion_dy if ca._motion_translation else 0.0
         pas_end = self._world_prims(ca)
         if not pas_end:
             return
+        seam = _SEAM_STEP > 0.0
+        cid = id(ca)
         partner_moves = any(
             abs(odx) > 1e-12 or abs(ody) > 1e-12 for _cb, _tok, odx, ody in partners
         )
@@ -6238,7 +6268,27 @@ class CollisionSystem:
                 break
             moved = _copy_translate(pas, ox, oy)
             first = abs(ox) < 1e-12 and abs(oy) < 1e-12
-            hit = self._earliest_toi(moved, rdx, rdy, partners, relative=first, gate=gate)
+            # Standing (last frame, or on a floor met earlier this frame):
+            # a side face with a small lip above the feet may be a seam step.
+            ground = seam and (grounded or self._solve_bottom_count.get(cid, 0) > 0)
+            deferred = [] if ground and gate is not None else None
+            hit = self._earliest_toi(
+                moved, rdx, rdy, partners, relative=first, gate=gate, deferred=deferred,
+            )
+            if deferred:
+                # One-way: a rejected side hit at a seam lip is a step, not a
+                # pass. Anything else is marked exactly as without the step.
+                deferred.sort(key=lambda h: h[0])
+                rej = deferred[0]
+                step = None
+                if _seam_candidate(rej):
+                    step = self._try_seam_step(ca, moved, rdx, rdy, rej, partners, gate)
+                if step is None:
+                    for rej_hit in deferred:
+                        gate.mark(rej_hit[3])
+                else:
+                    ox, oy, remaining = self._take_seam_step(ca, rej, step, ox, oy)
+                    continue
             if hit is None:
                 ox += rdx
                 oy += rdy
@@ -6246,12 +6296,18 @@ class CollisionSystem:
                 break
             t, nx, ny, other, token, odx, ody = hit
             t = max(0.0, min(1.0, t))
-            ox += rdx * t
-            oy += rdy * t
             nlen = math.hypot(nx, ny)
             if nlen > 1e-12:
                 nx /= nlen
                 ny /= nlen
+            if ground and _seam_candidate(hit):
+                step = self._try_seam_step(ca, moved, rdx, rdy, hit, partners, gate)
+                if step is not None:
+                    ox, oy, remaining = self._take_seam_step(ca, hit, step, ox, oy)
+                    continue
+            ox += rdx * t
+            oy += rdy * t
+            if nlen > 1e-12:
                 ox -= nx * _RESOLVE_SLOP
                 oy -= ny * _RESOLVE_SLOP
             self._record_solve_contact(ca, other, nx, ny, 0.0)
@@ -6269,6 +6325,117 @@ class CollisionSystem:
             if side == "bottom" and abs(dx) < _STOP_ON_SLOPE_INTENT:
                 remaining = (0.0, 0.0)
         self._nudge_collider(ca, ox - dx, oy - dy)
+
+    def _try_seam_step(
+        self,
+        ca: Collider,
+        moved: List[Prim],
+        rdx: float,
+        rdy: float,
+        hit: Tuple[float, float, float, Collider, Any, float, float],
+        partners: Sequence[Tuple[Collider, Any, float, float]],
+        gate: Optional[_OnlyGate],
+    ) -> Optional[Tuple[float, float, float, float, float, float]]:
+        """Step a grounded body over a seam lip: up, forward, down onto ``hit``'s partner.
+
+        ``moved`` is the body at the start of this slide, ``(rdx, rdy)`` the
+        slide's motion, ``hit`` the side contact it met. The lift runs along
+        the side face (a rotated tile leans; straight up would scrape it) and
+        climbs ``_SEAM_STEP`` (a ceiling clips it); forward redoes the slide
+        from there; the drop must land, from above, on the same partner with
+        a ``"bottom"`` normal. Casts use a gate that never starts a pass.
+        Returns the offset from ``moved``, the landing normal and the forward
+        motion left, or None (a wall, a taller lip, a ledge, no room).
+        """
+        cb = hit[3]
+        nx, ny = hit[1], hit[2]
+        nlen = math.hypot(nx, ny)
+        if nlen < 1e-12:
+            return None
+        nx /= nlen
+        ny /= nlen
+        tx, ty = -ny, nx
+        if ty < 0.0:
+            tx, ty = ny, -nx
+        if ty < 1e-6:
+            return None
+        reach = (_SEAM_STEP + _RESOLVE_SLOP) / ty
+        lx, ly = tx * reach, ty * reach
+        fx, fy = rdx - lx, rdy
+        if fx * rdx + fy * rdy <= 0.0:
+            return None
+        # Cheap refusal first (a wall pressed every frame): from the full
+        # lift, does the same face still block? One partner, gate-free (the
+        # face is solid for this question either way).
+        face = self._earliest_toi(
+            _copy_translate(moved, lx, ly), fx, fy, [(cb, hit[4], 0.0, 0.0)],
+        )
+        if face is not None and abs(face[1]) > abs(face[2]):
+            return None
+        probe_gate = (
+            None if gate is None
+            else _QueryOnlyGate(self, ca, gate._map, gate._passing)
+        )
+        still = [(c, tok, 0.0, 0.0) for c, tok, _odx, _ody in partners]
+        up = self._earliest_toi(moved, lx, ly, still, gate=probe_gate)
+        if up is not None:
+            k = max(0.0, min(1.0, up[0]) - _RESOLVE_SLOP / reach)
+            lx *= k
+            ly *= k
+        if ly <= _RESOLVE_SLOP:
+            return None
+        fx = rdx - lx
+        if fx * rdx + fy * rdy <= 0.0:
+            return None
+        fwd = self._earliest_toi(_copy_translate(moved, lx, ly), fx, fy, still, gate=probe_gate)
+        px, py = lx + fx, ly + fy
+        rem_x = rem_y = 0.0
+        if fwd is not None:
+            ft, fnx, fny = max(0.0, min(1.0, fwd[0])), fwd[1], fwd[2]
+            flen = math.hypot(fnx, fny)
+            if flen > 1e-12:
+                fnx /= flen
+                fny /= flen
+            if fwd[3] is cb and abs(fnx) > abs(fny):
+                return None  # the same face again: the lip is taller than the lift
+            px = lx + fx * ft - fnx * _RESOLVE_SLOP
+            py = ly + fy * ft - fny * _RESOLVE_SLOP
+            rem_x, rem_y = fx * (1.0 - ft), fy * (1.0 - ft)
+        drop = ly + _SEAM_STEP + _RESOLVE_SLOP
+        down = self._earliest_toi(_copy_translate(moved, px, py), 0.0, -drop, still, gate=probe_gate)
+        if down is None or down[3] is not cb:
+            return None
+        td = max(0.0, min(1.0, down[0]))
+        if td * drop <= 1e-9:
+            return None  # began inside the partner: not above its top
+        lnx, lny = down[1], down[2]
+        llen = math.hypot(lnx, lny)
+        if llen < 1e-12:
+            return None
+        lnx /= llen
+        lny /= llen
+        if _side_from_normal(lnx, lny) != "bottom":
+            return None  # a face too steep to stand on (a 60° rise is not a step)
+        py -= drop * td
+        return (
+            px - lnx * _RESOLVE_SLOP, py - lny * _RESOLVE_SLOP,
+            lnx, lny, rem_x, rem_y,
+        )
+
+    def _take_seam_step(
+        self,
+        ca: Collider,
+        hit: Tuple[float, float, float, Collider, Any, float, float],
+        step: Tuple[float, float, float, float, float, float],
+        ox: float,
+        oy: float,
+    ) -> Tuple[float, float, Tuple[float, float]]:
+        """Commit a seam step: the body stands on the partner (no side contact)."""
+        px, py, lnx, lny, rem_x, rem_y = step
+        cb, token = hit[3], hit[4]
+        self._record_solve_contact(ca, cb, lnx, lny, 0.0)
+        self._respond_velocity(ca, cb, token, lnx, lny)
+        return ox + px, oy + py, (rem_x, rem_y)
 
     def _sweep_idle_against_partner(
         self,

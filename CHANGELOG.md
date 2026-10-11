@@ -92,6 +92,14 @@ left out.
 
 ### Fixed
 
+- A walker on a row of tiles no longer snags on, or falls into, a seam where
+  the next tile sits a hair higher (a row rotated by hand, a rounded
+  coordinate). A body standing on the ground that walks into the side of a
+  still piece rising at most 2 above its feet steps onto it, with `resolve()`
+  and with `only=` one-way platforms. Before, a 0.1 rise stopped it dead,
+  and on a one-way row it rode past the seam and dropped into the tile
+  (sooner at a higher frame rate). Taller steps are walls, as before, and
+  an airborne body gets no step.
 - A `Fire` subclass given `style=` other than `"camp"` raises, naming
   `Fire(style=...)`. Before, the style was silently ignored.
 - A shape that is a piece of a `Collider` and also a body of its own (a

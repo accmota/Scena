@@ -9242,6 +9242,7 @@ unresolve(player, "walls")</pre>
         <div class="tab-panel active" data-panel="res-basic" id="res-basic">
           <p class="one-liner"><code>.mass</code> decide <em>quem</em> cede no empurrão. <code>STATIC</code> não cede: chão, parede, plataforma.</p>
           <p>Cada frame, o Scena acompanha o caminho do movimento do par inscrito e para no impacto, desliza na superfície e desfaz o que sobrou de sobreposição. Os lados são objetos ou nomes de grupo (quem entrar no grupo depois também entra). Massa padrão <code>1.0</code>; <code>&lt;= 0</code> levanta erro. Duas massas iguais se empurram meio a meio.</p>
+          <p>Peças encostadas raramente ficam perfeitas: uma fileira de blocos girada, uma coordenada arredondada. Quem está no chão e anda contra a lateral de uma peça parada que sobe <strong>até 2</strong> acima dos pés sobe esse degrau e continua andando. Degrau maior é parede. No ar não há degrau: bater na quina de lado é parede.</p>
           <p>Coletável ou sensor não é sólido: só <code>@collide</code>. Moeda não empurra ninguém:</p>
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
@@ -9342,6 +9343,7 @@ resolve(heroi, "fina", bounce=0.0,
                 <tr><td>O topo do pulo fica dentro da plataforma</td><td>Continua atravessando e cai de volta: não passou do topo.</td></tr>
                 <tr><td>Passa do topo e cai</td><td>Os pés tocam (<code>"bottom"</code>): pisa.</td></tr>
                 <tr><td>Anda contra a lateral</td><td>Atravessa (como no Mario). Para segurar, liste os lados.</td></tr>
+                <tr><td>Anda sobre blocos encostados com um degrau de até 2</td><td>Sobe o degrau e continua em cima (não atravessa). Degrau maior é lateral: atravessa.</td></tr>
                 <tr><td>Parado em cima</td><td>Chão normal: <code>touching_sides</code>, coyote, <code>tilt = "ground"</code>, elevador.</td></tr>
                 <tr><td>Cai muito rápido</td><td>O Scena confere o caminho inteiro do frame: pega o topo e não atravessa.</td></tr>
               </tbody>

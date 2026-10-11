@@ -1762,6 +1762,7 @@ member should ask whether the siblings share the cause.
 
 | Class | Members | Guard |
 | --- | --- | --- |
+| **A solver tolerance below authoring precision** | SU1–SU3 (a seam lip above `_RESOLVE_SLOP`), F1 (a resting gap against one frame's sink) | Put the author's imprecision in the input space (lips, rotations, pacings), not only aligned geometry: `tests/test_seam_step.py`, `tests/test_sys_resting_contact.py` |
 | **A verb on a dead actor registers work or revives it** | H2 (`layer =`, `tag`), S5 (`mode =`), S8 (transient replace), S9 (`after` / `every` / `tween` / `play_sound` / `on_update`), W2 (`@=` onto a dead actor or a part it left behind), A6 (`resolve_now` re-enrolled the collider), A7 (a first read wired a dead widget into the graph; `Line(circle=dead)`; `Track.reversed()`), HB1 (hitbox writes on a dead or removed hitbox), SA10 (`center =` moved a dead shape), E14 (dead setters stored, flips), HP7 / HP9 (dead paint and hitbox reads), HP12 (`remove_hitbox` silent), GR3 / GR4 | `test_sys_hyp_world` poke rule; `test_hyp_surface.TestDeadEntityVerbs` (P6: every public method and setter of every Entity kind; canary S9); `test_refusal_atomic` (dead source: nothing changes, reads stable); teardown's `_DeadRoute` refuses every routed write |
 | **A registry keeps a dead owner** | H3 (id map; retired with ids), S1 (bound method in a `WeakKeyDictionary` value), S3 (`id(owner)` keys), S4 (dense snapshots), S6 (`_pair_targets`) | `census` / `zombies` / `assert_collected` in the system suites; `test_act.TestNoLeaks` (a busy scene — `kitchen_sink` plus timers, effects and rules made in the scene — changed N times: stable census, no zombies; 200 cycles with `SCENA_SOAK=1`) |
 | **State leaks from one act into the next** | SC1 (an unread `keyp.once` edge fired in the next act; generalized by PM3), a new canvas / clock / collision setter that an act change neither restores nor keeps on purpose | `test_act.TestSettingsClassification` (walks every settable name on `canvas` / `clock` / `collision` / `audio` / playfield / layers / effects / background and the exported `set_*` / `show_*`; each must be in `WORLD_SETTINGS`, `KEPT_SETTINGS` or the test's `NOT_SETTINGS`); `TestWorldSettings.test_the_test_changes_every_restored_setting` (guards the guard); rule: **anything the author can change globally is classified when it is added** |
@@ -1824,7 +1825,7 @@ member should ask whether the siblings share the cause.
 
 Series: **H** Hypothesis batch 1 (`test_hyp_*`), **R** regressions caused by fixes,
 **S** system suites (`test_sys_*`), **A** API surface, **D** differential, **W** world
-machine extensions (M4), **O** order / isolation (a test that depends on what ran before it), **G** geometry properties (transform algebra, round trips, invariance), **F** contact flicker (what a player sees across real frames), **CT** continuous detection (fast bodies between frames), **CS** closed surfaces (a write to a name the object does not have), **GR** graphics review (2026-10-08: Shape / Sprite / Graphic / Entity; the review's own IDs SA / SB / SC / E / HP / PA / PB are kept, members its class guards found are GR1…). "Guard" is the regression test in the owning file.
+machine extensions (M4), **O** order / isolation (a test that depends on what ran before it), **G** geometry properties (transform algebra, round trips, invariance), **F** contact flicker (what a player sees across real frames), **SU** seam lips (a walker meeting the side face of the next tile), **CT** continuous detection (fast bodies between frames), **CS** closed surfaces (a write to a name the object does not have), **GR** graphics review (2026-10-08: Shape / Sprite / Graphic / Entity; the review's own IDs SA / SB / SC / E / HP / PA / PB are kept, members its class guards found are GR1…). "Guard" is the regression test in the owning file.
 
 ### H — Hypothesis batch 1 (2026-09-25)
 
@@ -2186,6 +2187,30 @@ gaps that **both** authors reported on their own.
 | PM16 | A method that only some member kinds have (`play`, `showing`, `add_hitbox`, `flash_text`, `focus`, `at` …), called on an **empty** group, raised AttributeError: the stand-in for "no member" is a Shape. `group["inimigos"].play("andar")` crashed once the last enemy died | BUG / found by `test_noop_cost` (the Guia: the method does nothing on an empty group) | `_empty_group_attr` treats any public method of any Entity kind as a no-op; a typo still raises. Guard: `test_noop_cost.TestEmptyGroupVerbsBuildNothing` |
 | PM17 | `Handle.velocity` keeps the last frame's value after the motion ends (by design: `on_done` reads the arrival speed); the Guia said only "neste frame" | SPEC-GAP / DOC-SILENT (found by `test_sys_frame_contracts`) | Guia `Handle.velocity` row |
 | PM18 | `canvas.background = canvas.background` raised TypeError: the read is the live stack, a write expected a material for the base. Found writing `test_noop_cost` (every world setting written back) | BUG / read and write of one name did not round-trip | Writing the stack itself keeps it; the Guia says to keep `.base` to restore later. Guards: `test_background.TestBackgroundRoundTrip`, `test_noop_cost` (no special case) |
+
+### SU — seam lips (2026-10-11)
+
+Found by an author: in `examples/ninja_perigos.py` a platform of three tiles,
+rotated 15° by hand, dropped the ninja into its third tile. Measured headless
+with the real hulls (tile 3 starts 0.34 DU above tile 2), then swept over flat
+rows: any lip above the resting skin was a failure. Fixed by the seam step
+([Collision Design — Seam lips](Collision%20Design.md#seam-lips-step-up)).
+
+| ID | Bug | Repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| SU1 | One-way row (`only="bottom"` or a function): the walker fell into the next tile at a seam whose top was a hair higher | Three 80 DU tiles, the third 0.34 DU higher (or the ninja hulls at 15°), walker 38 × 70 at 250 DU/s: at the seam a pass starts, the walker rides tile 2's corner flat, then drops into tile 3 | The walker rests `_RESOLVE_SLOP` (0.08) above its floor, so its leading corner meets the next tile's side face; the sweep's normal is horizontal, `only=` rejects it, and a rejected hit before any accepted one starts a pass (S1) | `tests/test_seam_step.py` (`TestFlatLips`, `TestRotatedRows`) |
+| SU2 | Solid row: the walker stopped dead at a seam lip of 0.1 DU | Same row, `resolve(..., bounce=0)` without `only=`: `"right"` in `touching_sides`, `vel.x` zeroed every frame | Same side-face contact; a solid pair stops on it | `TestFlatLips`, `TestTallLip` (a lip above `_SEAM_STEP` still stops) |
+| SU3 | The one-way threshold depended on the frame rate: a 0.05 DU lip held at 60 Hz and dropped at 144 Hz | Flat row, lip 0.05, 144 Hz | Whether the floor hit precedes the side hit in a slide depends on that frame's fall (g·dt²) | Every case runs at 30 / 60 / 144 / 240 Hz and 5 / 28 ms |
+
+Why earlier tests missed it: `TestTileSeams` and the resting-contact walks used
+exactly aligned tiles, the one geometry an author rarely produces. The new
+module puts the lips in the input space (flat 0.1–1.9, rotated rows with random
+seams) and checks that `_SEAM_STEP = 0` brings the bug back.
+
+Two test-design traps found on the way (not engine bugs): a lip measured across
+a rotated row is a rise of `d / cos(angle)` (the step is vertical), and a walker
+that reverses on a slope keeps the slope's rise in `vel.y` and launches — the
+tests turn around from rest.
 
 ### AC — game system tests (2026-10-10)
 
