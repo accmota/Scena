@@ -10,7 +10,7 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
-## Unreleased (0.8.0)
+## 0.8.0 — 2026-10-11
 
 ### Breaking
 
@@ -190,7 +190,9 @@ left out.
   Naves V (modes, `async` / `wait`, a boss), Naves VI (acts: title, restart,
   game over, record, `until_empty`), Ninja III (a level made in the level
   editor, `Level`, a camera that follows, `pan_response`), Ninja IV (one-way
-  planks, `floor_below`, a hurtbox, electric rays, restart with an act) and
+  planks, a sloped plank with `tilt = "ground"` and
+  `hitbox_anchor="bottom"`, `floor_below`, a hurtbox, electric rays, restart
+  with an act) and
   Corredor infinito (`Endless` building a collidable world under a moving
   camera). Each ends in a new file in `examples/`.
 - New media, all CC0 and made for Scena: `synth/` (jump, coin and throw
