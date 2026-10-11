@@ -13,6 +13,21 @@ Two roots: tests/ (framework) and scena_editor/tests/ (level editor, a
 companion app). Name either kind the same way:
   python tests/run_tiers.py focused test_editor_tools test_level
 
+Job budget: each job gets the tier's timeout (quick 300 s, gate 30 min). A
+module past ~15 s at dev joins SLOW in run_tiers.py (quick skips it; gate and
+deep run it); a gate job that dominates the wall joins SPLIT (one job per
+TestCase class). A module that runs child processes in parallel is measured by
+its CPU, not its wall alone: under the tier's 8 workers its children share the
+same cores. Example: running every tutorial step is ~440 s of CPU (~2 min
+alone), and it timed out quick once tutorials 14-23 landed (2026-10-10).
+
+Tutorials: the page checks run in quick; the step runs are SLOW, one class
+(and one gate job) per page. Quick still runs each tutorial's last step, as
+its examples/ file (test_scripts_run).
+  python tests/run_tiers.py focused test_tutorials                   # the pages (~1 s)
+  python tests/run_tiers.py focused test_tutorial_steps.TestSteps05  # one page's steps
+  python tests/run_tiers.py focused test_tutorial_steps              # every step (~1 min)
+
 Avoid "python -m unittest discover -s tests" as a routine check: in one process
 the suite takes ~24 min instead of ~2 (the heap grows module after module and
 every census walks it). The deep tier still runs one such pass, to catch a

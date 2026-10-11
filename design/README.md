@@ -77,7 +77,7 @@ and nothing published points into them.
   and bench logs, `archive/scripts/` the retired labs. **History only.**
 - `workbench/guides/` — how to write a tutorial and an example (tone, step
   rules, names). The rules the tests enforce are restated where the tests are
-  (`tests/test_tutorials.py`, `examples/README.md`).
+  (`tests/test_tutorials.py`, `tests/test_tutorial_steps.py`, `examples/README.md`).
 
 **The living docs are self-contained.** When a proposal lands, its conclusion
 goes into the matching `* Design.md` **with its reason**: a fence row says why the

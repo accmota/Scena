@@ -77,6 +77,8 @@ SLOW = frozenset({
     "test_refusal_atomic",      # ~17 s: one test enumerates every kind x call x refusal source
     "test_smoke_scripts",       # ~22 s CPU in parallel children: scripts/smoke + benches
                                 # (quick keeps test_scripts_run: the examples, ~11 s CPU)
+    "test_tutorial_steps",      # ~300-500 s CPU: every tutorial step and box, 600 frames each
+                                # (quick keeps test_tutorials and the endpoints in test_scripts_run)
     # Program model tests (gate / deep run them all; quick keeps the light ones).
     "test_prog_naves", "test_prog_cadeia_de_bolas", "test_prog_platformer",
     "test_prog_galaga_acts", "test_prog_runner_story",
@@ -90,8 +92,11 @@ SLOW = frozenset({
     "test_game_coverage",        # every game under the coverage profile hook
 })
 # Modules sharded by TestCase class (big classes in chunks) in gate / deep.
-SPLIT = frozenset({"test_hyp_surface", "test_game_armada_deep", "test_game_caverna_deep",
-                   "test_game_oficina_deep"})
+SPLIT = frozenset({
+    "test_hyp_surface",
+    "test_tutorial_steps",      # one class per tutorial page: one job per page
+    "test_game_armada_deep", "test_game_caverna_deep", "test_game_oficina_deep",
+})
 CHUNK = 40  # max tests per shard of a SPLIT module
 
 

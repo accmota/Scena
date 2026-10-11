@@ -12,7 +12,7 @@ bench with argparse takes its defaults.
 Prints ``SCRIPT OK <frames>`` on success. Any author error propagates with its
 traceback and a non-zero exit.
 
-``--strict`` (``tests/test_tutorials.py``): a warning is a failure. Each one is
+``--strict`` (``tests/test_tutorial_steps.py``): a warning is a failure. Each one is
 printed as ``SCRIPT WARNING <category>: <message>`` on stderr and the exit is 3.
 A tutorial reader sees every warning in the console (a missing media file, a
 near-miss group name), so a tutorial step must run without any.

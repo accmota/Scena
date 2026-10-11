@@ -1,42 +1,44 @@
 """
-Every tutorial step runs against the real API and the reader's media, and the
-last step of each tutorial is a file in ``examples/``. The tutorial rules
-these enforce: every step is a program that runs; no invented API; the last
-step's ``code`` is a file in ``examples/``.
+What the tutorial pages say, checked without running them: the extractor sees
+every step and box, the last step of each tutorial is a file in
+``examples/``, scripts are named parts, recaps and dive boxes link into the
+Guia, focus anchors hit one line, quoted fields parse. The tutorial rules
+these enforce: every step is a program (the runs are
+``tests/test_tutorial_steps.py``); the last step's ``code`` is a file in
+``examples/``.
+
+This module is fast (no program runs) and stays in the quick tier. Running
+every step and box is ~440 s of CPU: ``test_tutorial_steps`` is ``SLOW`` and
+sharded by page in the gate (Testing Design, "Test tiers"). The quick tier
+still runs each tutorial's last step, as its ``examples/`` file
+(``test_scripts_run``, 30 frames), and this module ties the two.
 
 Bug classes guarded:
 
-* **API drift** (2026-09-28, Testing Design T4): steps kept calling API that
-  had moved on (``Aura`` on a shape, ``keyp.once("escape")``, a
-  self-referencing rotation formula, a missing ``SkyGradient`` preset).
-* **A step breaks only after time passes** (2026-10-02, TU1): the last step of
-  tutorial 05 destroyed the ship in ``@collide`` and ``update`` kept calling
-  ``nave.confine`` (``DestroyedError``). Three ``update(dt)`` calls never let a
-  shot land; the real frame loop does.
-* **The reader sees a warning** (TU2): a missing media file is a placeholder
-  and a ``RuntimeWarning``, never an error; so is a near-miss group name.
 * **The example drifts from the tutorial** (TU3): ``pegar_estrelas.py``,
   ``naves.py``, ``cadeia_de_bolas.py``, ``barras_girando.py`` had each
   grown past (or behind) the step that was meant to be them.
+* **The extractor silently skips** a step or box (a regex change), so the
+  runs in ``test_tutorial_steps`` would pass vacuously.
+* **A page that does not parse is blank for the reader** (a quote inside a
+  double-quoted field).
 
 How: each step's ``code:`` template literal is extracted from
-``docs/pt/tutorial/0*.html`` and written to a temporary folder next to ``media/``
-(a link to ``examples/media``, as the reader copies it). It runs in its own
-process through ``tests/script_harness.py --strict``: the real frame body
-(``update`` / processes / collision) for ``FRAMES`` frames, no window, and any
-warning fails. A ``try`` snippet is appended to its step and run the same way;
-a snippet that only makes sense inside one of the step's functions (it names a
-local such as ``x`` / ``forma``, or it is a bare ``return``) is compiled inside
-a function instead, and every capitalised call in it must resolve.
+``docs/pt/tutorial/NN-*.html`` (``extract_steps``). A ``try`` snippet is
+appended to its step (``append_snippet``); a snippet that only makes sense
+inside one of the step's functions (it names a local such as ``x`` /
+``forma``, or it is a bare ``return``) is compiled inside a function instead
+(``_check_fragment``), and every capitalised call in it must resolve.
 
 A box that takes the place of lines ("no lugar de…") declares them:
 ``replaces: ['folha = Sheet(', 'folha.clip(']`` (each anchor starts exactly
-one line of the step, as ``focus`` does). Such a box runs **in place**: the
-first anchored line becomes the snippet (at its indentation) and the other
-anchored lines go. Appended, it would pass even when it breaks in place
-(tutorial 11, 2026-10-09: ``Sheet("plane/Fly*.png", fps=12)`` named its clip
-``"default"``, and the step's ``play("voando")`` raised; ``TU6``). A box in a
-method body with ``replaces:`` is run, not just compiled.
+one line of the step, as ``focus`` does). Such a box runs **in place**
+(``in_place``): the first anchored line becomes the snippet (at its
+indentation) and the other anchored lines go. Appended, it would pass even
+when it breaks in place (tutorial 11, 2026-10-09: ``Sheet("plane/Fly*.png",
+fps=12)`` named its clip ``"default"``, and the step's ``play("voando")``
+raised; ``TU6``). A box in a method body with ``replaces:`` is run, not just
+compiled.
 
 A step may declare ``example: "app_x.py"``; the last step of every tutorial
 must. That file, minus its module docstring, equals the step's code.
@@ -44,27 +46,22 @@ must. That file, minus its module docstring, equals the step's code.
 Run:
 
     python tests/run_tiers.py focused test_tutorials
+    python tests/run_tiers.py focused test_tutorial_steps.TestSteps05   # run one page's steps
 """
 from __future__ import annotations
 
 import ast
 import os
 import re
-import shutil
-import subprocess
 import sys
 import tempfile
 import textwrap
 import unittest
-from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXAMPLES = os.path.join(ROOT, "examples")
 MEDIA = os.path.join(EXAMPLES, "media")
-HARNESS = os.path.join(ROOT, "tests", "script_harness.py")
-FRAMES = 600          # 10 s of game time: shots land, fleets turn, timers fire
-TIMEOUT = 120.0
 sys.path.insert(0, ROOT)
 
 from tests.source_support import iter_files  # noqa: E402
@@ -258,85 +255,6 @@ def _check_fragment(snippet: str, program: str) -> Optional[str]:
             if name[:1].isupper() and name not in known:
                 return f"unknown call {name}()"
     return None
-
-
-def _link_media(folder: str) -> None:
-    """``folder/media`` → ``examples/media`` (a copy where links are not allowed)."""
-    target = os.path.join(folder, "media")
-    try:
-        os.symlink(MEDIA, target, target_is_directory=True)
-    except (OSError, NotImplementedError):
-        shutil.copytree(MEDIA, target)
-
-
-def run_program(folder: str, name: str, program: str) -> Tuple[bool, str]:
-    """Run one program headless and strict. ``(ok, stderr tail)``."""
-    path = os.path.normpath(os.path.join(folder, name))
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(program)
-    try:
-        p = subprocess.run(
-            [sys.executable, HARNESS, path, str(FRAMES), "--strict"],
-            capture_output=True, encoding="utf-8", errors="replace", timeout=TIMEOUT, cwd=ROOT,
-            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-        )
-    except subprocess.TimeoutExpired:
-        return False, f"timed out after {TIMEOUT:.0f} s"
-    if p.returncode == 0 and f"SCRIPT OK {FRAMES}" in p.stdout:
-        return True, ""
-    lines = [ln for ln in (p.stderr or "").splitlines() if ln.strip() and "GLFW" not in ln]
-    return False, "\n".join(lines[-6:]) or f"exit {p.returncode}, no SCRIPT OK line"
-
-
-_NAME_ERROR = re.compile(r"NameError: name '(\w+)' is not defined")
-
-
-def run_all() -> List[str]:
-    """``["page:line: error", …]`` for every step and ``try`` snippet."""
-    jobs = []      # (label, program, snippet or None, step code)
-    fragment_failures = []
-    for path in tutorial_pages():
-        page = os.path.basename(path)
-        for step in extract_steps(path):
-            jobs.append((f"{page}:{step.line}", step.code, None, step.code))
-            for tline, snippet in step.tries:
-                if tline in step.places:
-                    program, why = in_place(step.code, snippet, step.places[tline])
-                    if program is None:
-                        fragment_failures.append(f"{page}:{tline}: try: {why}")
-                    else:
-                        jobs.append((f"{page}:{tline}: try (in place)", program, None, step.code))
-                    continue
-                if _reads_a_local(snippet, step.code):
-                    frag = _check_fragment(snippet, step.code)
-                    if frag:
-                        fragment_failures.append(f"{page}:{tline}: try: {frag}")
-                    continue
-                program = append_snippet(step.code, snippet)
-                jobs.append((f"{page}:{tline}: try", program, snippet, step.code))
-
-    failures = fragment_failures
-    with tempfile.TemporaryDirectory() as folder:
-        _link_media(folder)
-        workers = max(2, min(8, (os.cpu_count() or 4) - 1))
-        with ThreadPoolExecutor(workers) as pool:
-            results = list(pool.map(
-                lambda ij: run_program(folder, f"step_{ij[0]:03d}.py", ij[1][1]),
-                enumerate(jobs)))
-    for (label, _program, snippet, code), (ok, err) in zip(jobs, results):
-        if ok:
-            continue
-        if snippet is not None:
-            # A function-body fragment: compile it inside a function instead.
-            missing = _NAME_ERROR.search(err)
-            local = missing is not None and missing.group(1) in _step_locals(code)
-            if local or "outside function" in err:
-                frag = _check_fragment(snippet, code)
-                if frag:
-                    failures.append(f"{label}: {frag}")
-                continue
-        failures.append(f"{label}:\n    " + err.replace("\n", "\n    "))
-    return failures
 
 
 class TestTutorialExtraction(unittest.TestCase):
@@ -584,108 +502,6 @@ class TestTutorialFocus(unittest.TestCase):
         self.assertGreater(seen, 0, "no focus step found: the scan regex no longer matches")
 
 
-# A bounce written as ``if past_edge: v = -v`` sticks at the edge when one frame is
-# shorter than the overshoot: the shape is still past the edge, flips back, and
-# oscillates there for good. The harness runs a fixed 1/60 dt, so it never sees it.
-# This driver gives the frame right after the first flip a 1 ms dt (a real hitch),
-# then 1/60 again, and counts direction changes of ``st.velocidade``.
-_BOUNCE_DRIVER = r'''
-import inspect, os, random, runpy, sys
-random.seed(0)
-sys.path.insert(0, ROOT)
-import scena
-from scena.orchestration import ScenaFramework
-
-def headless_run(first_act=None):
-    fw = ScenaFramework.get_instance()
-    names = inspect.currentframe().f_back.f_globals
-    fw.set_auto_callbacks(names)
-    # A game of acts (tutorial 20) opens on its title: start at the act whose
-    # code moves the fleet, as a player who pressed "Jogar" would.
-    for value in list(names.values()):
-        if (isinstance(value, type) and issubclass(value, scena.Act) and value is not scena.Act
-                and MARKER in inspect.getsource(value)):
-            first_act = value
-    fw._begin_game(first_act)
-    last, flips, hitch = float(scena.st.velocidade), 0, True
-    for _ in range(60 * 20):
-        dt = 1.0 / 60.0
-        if float(scena.st.velocidade) != last:
-            flips += 1
-            last = float(scena.st.velocidade)
-            if hitch:
-                dt, hitch = 0.001, False
-        fw._simulate_frame(dt=dt)
-    print(f"FLIPS {flips}", flush=True)
-
-scena.run = headless_run
-os.chdir(os.path.dirname(os.path.abspath(sys.argv[1])))
-runpy.run_path(sys.argv[1], run_name="__main__")
-'''
-
-
-class TestFleetBounce(unittest.TestCase):
-    """Tutorial 05's fleet turns at the edges once per crossing, even after a short frame."""
-
-    MARKER = 'group["inimigos"].move_by(st.velocidade'
-
-    def _flips(self, script: str) -> int:
-        with tempfile.TemporaryDirectory() as folder:
-            driver = os.path.join(folder, "bounce_driver.py")
-            with open(driver, "w", encoding="utf-8") as f:
-                f.write(f"ROOT = {ROOT!r}\nMARKER = {self.MARKER!r}\n" + _BOUNCE_DRIVER)
-            p = subprocess.run([sys.executable, driver, script], capture_output=True,
-                               encoding="utf-8", errors="replace", timeout=TIMEOUT,
-                               env={**os.environ, "PYTHONIOENCODING": "utf-8"})
-        m = re.search(r"FLIPS (\d+)", p.stdout)
-        self.assertIsNotNone(m, p.stderr[-800:])
-        return int(m.group(1))
-
-    def test_fleet_does_not_stick_at_the_edge(self):
-        # 20 s at 80 u/s over a 290-unit lane: about 6 turns. A stuck fleet turns every frame.
-        marker = self.MARKER
-        # game_*.py are learners' games (no ``if nave:``: the update stops once the ship dies).
-        # Labels in "/" form on every OS (os.path.relpath gives "\\" on Windows).
-        programs = [(os.path.relpath(p, ROOT).replace(os.sep, "/"), p) for p in iter_files(EXAMPLES, ".py", recursive=True)
-                    if marker in _read(p) and not os.path.basename(p).startswith("game_")]
-        self.assertIn("examples/naves.py", [label for label, _ in programs])
-        steps = [s for s in extract_steps(os.path.join(TUTORIALS, "05-naves.html"))
-                 if marker in s.code]
-        self.assertGreater(len(steps), 0, "no fleet-bounce step found in tutorial 05")
-        with tempfile.TemporaryDirectory() as folder:
-            _link_media(folder)
-            for step in steps:
-                path = os.path.join(folder, f"step_{step.line}.py")
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(step.code)
-                programs.append((f"05-naves.html:{step.line}", path))
-            for label, path in programs:
-                with self.subTest(program=label):
-                    flips = self._flips(path)
-                    self.assertGreater(flips, 2, "the fleet never turned: the driver saw no bounce")
-                    self.assertLess(flips, 12, f"{flips} turns in 20 s: the fleet sticks at the edge")
-
-
-class TestTutorialsRun(unittest.TestCase):
-    def test_every_step_and_try_runs(self):
-        failures = run_all()
-        self.assertEqual(failures, [], "\n" + "\n".join(failures))
-
-    def test_the_run_catches_a_late_crash_and_a_warning(self):
-        late = ("from scena import *\nnave = Rect(center=(500, 100))\nst.t = 0\n"
-                "def update(dt):\n    st.t += dt\n    if st.t > 1 and nave:\n"
-                "        nave.destroy()\n    nave.move_by(1, 0)\nrun()\n")
-        warn = 'from scena import *\nSprite("space/no_longer_here.png")\nrun()\n'
-        ok = 'from scena import *\nSprite("space/star_gold.png")\nrun()\n'
-        with tempfile.TemporaryDirectory() as folder:
-            _link_media(folder)
-            self.assertFalse(run_program(folder, "late.py", late)[0])
-            ok_warn, err = run_program(folder, "warn.py", warn)
-            self.assertFalse(ok_warn)
-            self.assertIn("SCRIPT WARNING", err)
-            self.assertEqual(run_program(folder, "ok.py", ok), (True, ""))
-
-
 class TestTryInPlace(unittest.TestCase):
     """A box with ``replaces:`` runs where it goes, not after the program (TU6)."""
 
@@ -709,18 +525,6 @@ class TestTryInPlace(unittest.TestCase):
     def test_a_missing_or_ambiguous_anchor_is_reported(self):
         self.assertIsNone(in_place(self.STEP, "x = 1", ["nada("])[0])
         self.assertIsNone(in_place(self.STEP, "x = 1", ["folha"])[0])     # starts two lines
-
-    def test_in_place_catches_the_box_that_only_passes_appended(self):
-        bad = 'folha = Sheet("plane/Fly*.png", fps=12)'          # its one clip is "default"
-        good = 'folha = Sheet("plane/Fly*.png", fps=12, name="voando")'
-        anchors = ["folha = Sheet(", 'folha.clip("voando"']
-        with tempfile.TemporaryDirectory() as folder:
-            _link_media(folder)
-            appended = self.STEP.replace("run()", "") + "\n" + bad + "\nrun()\n"
-            self.assertTrue(run_program(folder, "appended.py", appended)[0])
-            self.assertFalse(run_program(folder, "bad.py", in_place(self.STEP, bad, anchors)[0])[0])
-            self.assertEqual(run_program(folder, "good.py", in_place(self.STEP, good, anchors)[0]),
-                             (True, ""))
 
     def test_the_pages_use_it(self):
         n = sum(len(step.places) for path in tutorial_pages() for step in extract_steps(path))

@@ -167,6 +167,23 @@ class TestShard(unittest.TestCase):
         focused = rt.plan(rt.TIERS["focused"], [mod], list_ids=_fake_ids)
         self.assertEqual([j.names for j in focused], [[f"tests.{mod}"]])
 
+    def test_tutorial_steps_run_one_job_per_page_in_gate_and_none_in_quick(self):
+        # 2026-10-10: tutorials 14-23 doubled the steps; one test ran them all
+        # (~440 s CPU) and timed out the quick tier's 300 s job. The module is
+        # SLOW, and the gate runs each page's steps as their own job.
+        from tests import test_tutorial_steps as ts
+        mod = "test_tutorial_steps"
+        loaded = unittest.defaultTestLoader.loadTestsFromName(f"tests.{mod}")
+        ids = [t.id() for t in rt._flat(loaded)]
+        self.assertNotIn(mod, rt.tier_modules(rt.TIERS["quick"], rt.discover_modules()))
+        for tier in ("gate", "deep"):
+            jobs = rt.plan(rt.TIERS[tier], [mod], list_ids=lambda _m: ids)
+            self.assertEqual(sorted(t for j in jobs for t in j.names), sorted(ids), tier)
+            for case in ts.PAGE_CASES:
+                self.assertIn([f"tests.{mod}.{case.__name__}.test_every_step_and_try_runs"],
+                              [j.names for j in jobs], f"{tier}: {case.PAGE}")
+        self.assertGreaterEqual(len(ts.PAGE_CASES), 20)
+
     def test_slowest_first_from_timings(self):
         jobs = rt.plan(rt.TIERS["quick"], ["test_a", "test_b", "test_c"],
                        list_ids=_fake_ids,
