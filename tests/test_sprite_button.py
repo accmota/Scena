@@ -450,6 +450,20 @@ class TestLabel(ButtonTestCase):
         with self.assertRaisesRegex(Exception, "label_text"):
             b.label = lambda: "x"
 
+    def test_a_state_cell_label_follows(self):
+        # 0.8.0: label=st["vidas"] binds the cell; label=st.vidas is the number
+        # of now (a snapshot, as for any value).
+        from scena import State
+        hud = State(name="hud_sb")
+        hud.vidas = 3
+        b = self.dark(label=hud["vidas"])
+        self.assertEqual(b.label, "3")
+        hud.vidas = 2
+        self.assertEqual(b.label, "2")
+        snap = self.dark(label=hud.vidas)
+        hud.vidas = 1
+        self.assertEqual(snap.label, "2")
+
     def test_style_keywords_need_a_label(self):
         with self.assertRaisesRegex(TypeError, "label="):
             self.dark(font_size=20)
