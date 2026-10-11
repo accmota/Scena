@@ -45,7 +45,6 @@ left out.
   `st.pos = Vec2(5, st.pos.y)`), and `st.pos += Vec2(1, 0)` /
   `st.itens += [x]` still update what is linked to the cell.
   `st.itens.append(x)` changes the list without telling links, as before.
-
 - `anchor.draggable = False` and `anchor.handle = False` raise `TypeError`
   (an Anchor is always a draggable handle; use `Point(x, y, visible=True)`
   for a point the pointer cannot move). Before, they were accepted and
