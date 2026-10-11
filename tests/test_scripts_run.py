@@ -13,7 +13,13 @@ Bug class guarded: a script left on a retired spelling after an API change —
 names, ``hitbox=`` — found only when someone opens the window. The API
 surface tests check the engine; this checks the scripts that teach it.
 
-    python -m unittest tests.test_scripts_run -v
+Two modules (Testing Design, "Test tiers": a module's children count by their
+CPU). This one runs ``examples/`` (the tutorials' endpoints) and is in quick
+(~11 s of CPU). ``test_smoke_scripts`` runs the rest (``scripts/smoke``, the
+bench loads, ``EXTRA``; ~22 s of CPU) and is ``SLOW``. An API rename or removal
+runs both.
+
+    python tests/run_tiers.py focused test_scripts_run test_smoke_scripts
 """
 from __future__ import annotations
 
@@ -38,13 +44,18 @@ TIMEOUT = 300.0
 EXTRA = ("scripts/bench/historical/galaga.py",)
 
 
-def scripts():
-    found = iter_files(os.path.join(ROOT, "scripts", "smoke"), ".py")
-    found += iter_files(os.path.join(ROOT, "examples"), ".py", recursive=True,
-                        skip_dirs={"media"})
-    found += iter_files(os.path.join(ROOT, "tests", "loads"), ".py")
+def scripts(smoke: bool = False):
+    """The examples (an author's scripts), or with ``smoke`` the developer's:
+    ``scripts/smoke``, the bench loads and ``EXTRA``."""
+    if smoke:
+        found = iter_files(os.path.join(ROOT, "scripts", "smoke"), ".py")
+        found += iter_files(os.path.join(ROOT, "tests", "loads"), ".py")
+    else:
+        found = iter_files(os.path.join(ROOT, "examples"), ".py", recursive=True,
+                           skip_dirs={"media"})
     found = [f for f in found if not os.path.basename(f).startswith("_")]
-    found += [os.path.join(ROOT, f) for f in EXTRA]
+    if smoke:
+        found += [os.path.join(ROOT, f) for f in EXTRA]
     return sorted(found)
 
 
@@ -65,18 +76,32 @@ def run_one(path):
     return path, False, tail
 
 
+def assert_all_run(tc, paths, least: int) -> None:
+    tc.assertGreater(len(paths), least, "script discovery found too few files")
+    workers = max(2, min(8, (os.cpu_count() or 4) - 1))
+    with ThreadPoolExecutor(workers) as pool:
+        results = list(pool.map(run_one, paths))
+    failed = [(os.path.relpath(p, ROOT), msg) for p, ok, msg in results if not ok]
+    tc.assertEqual(
+        failed, [],
+        "\n".join(f"{p}:\n    {msg}" for p, msg in failed),
+    )
+
+
 class TestScriptsRun(unittest.TestCase):
-    def test_every_script_runs_headless(self):
-        paths = scripts()
-        self.assertGreater(len(paths), 40, "script discovery found too few files")
-        workers = max(2, min(8, (os.cpu_count() or 4) - 1))
-        with ThreadPoolExecutor(workers) as pool:
-            results = list(pool.map(run_one, paths))
-        failed = [(os.path.relpath(p, ROOT), msg) for p, ok, msg in results if not ok]
-        self.assertEqual(
-            failed, [],
-            "\n".join(f"{p}:\n    {msg}" for p, msg in failed),
-        )
+    def test_every_example_runs_headless(self):
+        assert_all_run(self, scripts(), 20)
+
+    def test_the_two_halves_cover_every_script_once(self):
+        examples, smoke = set(scripts()), set(scripts(smoke=True))
+        self.assertEqual(examples & smoke, set())
+        self.assertTrue(all(os.path.relpath(p, ROOT).startswith("examples" + os.sep)
+                            for p in examples))
+        self.assertLessEqual({os.path.join(ROOT, f) for f in EXTRA}, smoke)
+        for folder in ("scripts/smoke", "tests/loads"):
+            found = {p for p in iter_files(os.path.join(ROOT, folder), ".py")
+                     if not os.path.basename(p).startswith("_")}
+            self.assertLessEqual(found, smoke, folder)
 
 
 if __name__ == "__main__":

@@ -60,14 +60,23 @@ TESTS = os.path.join(ROOT, "tests")
 TEST_ROOTS = (("tests", TESTS),
               ("scena_editor.tests", os.path.join(ROOT, "scena_editor", "tests")))
 OUT = os.path.join(ROOT, ".scena_test_runs")
+PYCACHE = os.path.join(OUT, "pycache")  # see child_env
 
-# Modules too slow for the quick tier (dev-profile seconds, one process).
+# Modules too slow for the quick tier: past ~15 s of CPU at dev, alone (``focused``;
+# a module that runs children in parallel counts their CPU). Testing Design, "Test tiers".
 SLOW = frozenset({
     "test_hyp_surface",    # ~120 s dev, ~430 s ci: one generated test per export
     "test_sys_hyp_world",  # ~35 s dev: session state machine + reach guard + canaries
     "test_guia_thumbs_render",  # ~30 s: real renders, one child process each
     "test_program_coverage",    # ~100 s: every program spec scenario under a profile hook
     "test_fuzz_corpus",         # the geometry fuzzer's corpus replay: gate only (Testing Design)
+    # Exhaustive enumerations (measured alone 2026-10-10; under quick's 8 workers ~2.5x).
+    "test_reactive_matrix_cells",  # ~22 s: every subject x field x path x order
+                                   # (quick keeps test_reactive_matrix: guards + canary targets)
+    "test_geometry_contract",   # ~18 s: the C1-C8 sweeps at fixed poses are 95 % of it
+    "test_refusal_atomic",      # ~17 s: one test enumerates every kind x call x refusal source
+    "test_smoke_scripts",       # ~22 s CPU in parallel children: scripts/smoke + benches
+                                # (quick keeps test_scripts_run: the examples, ~11 s CPU)
     # Program model tests (gate / deep run them all; quick keeps the light ones).
     "test_prog_naves", "test_prog_cadeia_de_bolas", "test_prog_platformer",
     "test_prog_galaga_acts", "test_prog_runner_story",
@@ -220,6 +229,22 @@ def tier_modules(tier: Tier, modules: Iterable[str]) -> List[str]:
     return [m for m in modules if m not in tier.exclude]
 
 
+def child_env(base: Dict[str, str], extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    """The environment of a job's process (and of the processes it starts).
+
+    The child writes its log in its stdio encoding; it is pinned so the parent
+    can read it back (Windows defaults to the locale, cp1252). A host that sets
+    ``PYTHONDONTWRITEBYTECODE`` (Claude Code does) makes every child compile
+    ``scena`` from source: ~0.7 s of CPU per process, every job and every
+    script a job starts. The children cache their bytecode under ``OUT``
+    instead, so the tree the host keeps clean gets no ``__pycache__``.
+    """
+    env = {**base, "PYTHONIOENCODING": "utf-8", **(extra or {})}
+    if env.pop("PYTHONDONTWRITEBYTECODE", None) is not None:
+        env.setdefault("PYTHONPYCACHEPREFIX", PYCACHE)
+    return env
+
+
 def tier_env(tier: Tier, profile: Optional[str] = None) -> Dict[str, str]:
     env = {
         "SCENA_HYPOTHESIS_PROFILE": profile or tier.profile,
@@ -342,7 +367,7 @@ def list_ids_subprocess(module: str) -> List[str]:
     )
     p = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True,
                        encoding="utf-8", errors="replace", timeout=600,
-                       env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+                       env=child_env(dict(os.environ)))
     if p.returncode != 0:
         raise RuntimeError(f"cannot list tests of {module}:\n{p.stderr[-2000:]}")
     return [line for line in p.stdout.splitlines() if line.startswith(package + ".")]
@@ -400,9 +425,7 @@ class Runner:
 
     def _run(self, job: Job, extra_args: Sequence[str] = ()) -> Result:
         log = os.path.join(self.out_dir, log_name(job.label))
-        # The child writes this log in its stdio encoding; pin it so the parent
-        # can read it back (Windows defaults to the locale, cp1252).
-        env = {**os.environ, "PYTHONIOENCODING": "utf-8", **job.env}
+        env = child_env(dict(os.environ), job.env)
         start = time.time()
         with open_fresh(log) as fh:
             proc = subprocess.Popen([sys.executable, os.path.join(TESTS, "run_tiers.py"), CHILD,

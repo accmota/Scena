@@ -10,6 +10,13 @@ without one. Complements ``test_diff_link_write`` (every ``geometry_support``
 kind, whole vs per-axis links) with more read orders, a cell source, unlink,
 idempotent reads and the limits.
 
+Two modules (tiers: Testing Design, "Test tiers"). This one is in quick: the
+guards (every class driven, the limits, one coercion per path, anchors, copies
+across models, link values) and ``TestCanaryTargets``, the subjects of the
+bugs that motivated the matrix (D12-D21), as quick's sample of it. The whole
+matrix (every subject x field x path x order, both read orders, whole-object
+links) is ``test_reactive_matrix_cells``, in ``SLOW`` (~20 s alone).
+
     python tests/run_tiers.py focused test_reactive_matrix
 """
 from __future__ import annotations
@@ -32,66 +39,10 @@ import reactive_matrix_support as M  # noqa: E402
 # entry, and an entry that now passes fails the suite. Empty since D16.
 KNOWN_RANGE = frozenset()
 
-
-# (subject, field) pairs that read stale when the Derivates are read BEFORE the
-# linked field after the source moved (reversed read order). SHRINK-ONLY: a fix
-# removes its entry, and an entry that now passes fails the suite.
-# Empty since D18: a Line with a linked, derived heading pulls the heading
-# before any read of the points it rewrites.
-KNOWN_STALE_READ_ORDER = frozenset()
-
 from tests.leftovers import module_sweep  # noqa: E402
 from tests.graph_support import full_collect, gc_paused  # noqa: E402
 
 setUpModule, tearDownModule = module_sweep()  # destroy what the tests made
-
-
-def _freshness_failures(subjects, reverse=False):
-    bad = []
-    for label, factory in subjects:
-        for name, path, order in M.cells(factory):
-            r = M.run_cell(factory, name, path, order, reverse)
-            if r:
-                bad.append((label, name, path, order, r))
-    return bad
-
-
-class TestLinkReadsLikeWrite(unittest.TestCase):
-    def test_every_subject_field_path_and_order(self):
-        bad = _freshness_failures(M.SUBJECTS)
-        self.assertEqual(bad, [], "linked vs written: (subject, field, path, order, diff)")
-
-    def test_reading_derivates_before_the_linked_field(self):
-        bad = _freshness_failures(M.SUBJECTS, reverse=True)
-        seen = {(label, name) for label, name, *_ in bad}
-        new = [b for b in bad if (b[0], b[1]) not in KNOWN_STALE_READ_ORDER]
-        self.assertEqual(new, [], "linked vs written, Derivates read first")
-        self.assertEqual(KNOWN_STALE_READ_ORDER - seen, set(),
-                         "fixed: remove these from KNOWN_STALE_READ_ORDER")
-
-    def test_a_whole_vector_link_keeps_length_and_angle_fresh(self):
-        for label, factory in M.SUBJECTS:
-            if label not in ("Vec2", "Point"):
-                continue
-            for order in M.ORDERS:
-                with self.subTest(subject=label, order=order):
-                    self.assertIsNone(M.run_self_cell(factory, order))
-
-    def test_the_matrix_is_not_vacuous(self):
-        n = sum(1 for _, f in M.SUBJECTS for _ in M.cells(f))
-        self.assertGreater(n, 1000)
-
-
-def _whole_failures(subjects):
-    bad = []
-    for label, factory in subjects:
-        for name, _ in M.field_names(factory()):
-            for path in M.WHOLE_PATHS:
-                for order in M.ORDERS:
-                    r = M.run_whole_cell(factory, name, path, order)
-                    if r:
-                        bad.append((label, name, path, order, r))
-    return bad
 
 
 # Copies across construction models (``d << s`` where d and s were built
@@ -140,14 +91,6 @@ def _cross_model_failures(kinds_by_class=None):
                 if df:
                     bad.append((ka, kb, df))
     return bad
-
-
-class TestWholeObjectLink(unittest.TestCase):
-    """``d @= s`` / ``d @= lambda: s``: every name of d reads like s after s
-    changes, whatever was read before (D19)."""
-
-    def test_every_subject_field_and_order(self):
-        self.assertEqual(_whole_failures(M.SUBJECTS), [])
 
 
 class TestCopyAcrossModels(unittest.TestCase):
@@ -422,28 +365,30 @@ class TestCanaries(unittest.TestCase):
 
 
 class TestCanaryTargets(unittest.TestCase):
-    """Run only under assert_catches: they must FAIL with the patch applied."""
+    """The canaries' targets: they must FAIL with the patch applied. They are
+    subsets of ``test_reactive_matrix_cells`` (the bugs' own subjects), so they
+    also run on their own: quick's sample of the matrix."""
 
     def test_vec2(self):
         vec = [(l, f) for l, f in M.SUBJECTS if l == "Vec2"]
-        self.assertEqual(_freshness_failures(vec), [])
+        self.assertEqual(M.freshness_failures(vec), [])
         for order in M.ORDERS:
             self.assertIsNone(M.run_self_cell(vec[0][1], order))
 
     def test_heading(self):
         derived = [(l, f) for l, f in M.SUBJECTS if l in (
             "Line p1,p2", "Line p1,dx,dy", "Ellipse focal_points", "Rect spine cap")]
-        self.assertEqual(_freshness_failures(derived, reverse=True), [])
+        self.assertEqual(M.freshness_failures(derived, reverse=True), [])
 
     def test_whole(self):
         rects = [(l, f) for l, f in M.SUBJECTS if l in ("Rect center", "Circle", "Line p1,p2")]
-        self.assertEqual(_whole_failures(rects), [])
+        self.assertEqual(M.whole_failures(rects), [])
 
     def test_cross_model(self):
         self.assertEqual(_cross_model_failures({"Rect", "Circle"}), [])
 
     def test_spread(self):
-        self.assertEqual(_freshness_failures(
+        self.assertEqual(M.freshness_failures(
             [(l, f) for l, f in M.SUBJECTS if l.startswith("Circle")]), [])
 
 

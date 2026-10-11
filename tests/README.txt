@@ -4,7 +4,7 @@ Running tests: use the tiered runner (one process per module, in parallel).
 Tiers and why: design/Testing Design.md, "Test tiers".
 
   python tests/run_tiers.py focused test_shapes     # after every edit (seconds)
-  python tests/run_tiers.py quick                   # before calling a change done (~25 s)
+  python tests/run_tiers.py quick                   # before calling a change done (~50 s)
   python tests/run_tiers.py gate                    # bug-loop gate: all modules, ci, canaries
   python tests/run_tiers.py deep                    # nightly / milestone (2 h +)
   python tests/run_tiers.py gate --plan             # show the jobs, run nothing
@@ -38,6 +38,14 @@ Env switches: SCENA_HYPOTHESIS_PROFILE (dev / ci / deep / replay),
 SCENA_CANARIES=0 (skip canaries and vacuity guards; default on),
 SCENA_SOAK=1 (endurance), SCENA_HYPOTHESIS_DB=0 (no example database; the
 mutation runner sets it). run_tiers.py sets the first three per tier.
+
+SLOW (quick skips it; gate and deep run it): a module past ~15 s of CPU at dev
+measured alone (focused; its child processes count). timings.json holds the
+wall under a tier, ~2x that. Quick's wall is its summed job time over the
+workers (2026-10-10: ~410 s over 8 workers), so every module adds to it.
+A host that sets PYTHONDONTWRITEBYTECODE (Claude Code does) would make every
+child compile scena from source; run_tiers.py caches the children's bytecode
+in .scena_test_runs/pycache instead (child_env).
 
 Copied trees (Windows, USB stick, SMB share): macOS leaves an AppleDouble
 "._<name>" file next to every file on volumes without extended attributes.

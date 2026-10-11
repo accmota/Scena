@@ -395,3 +395,27 @@ def run_whole_cell(factory, name: str, path: str, order: str) -> Optional[object
         return None          # not a plain-writable field on this model
     bad = diff(snapshot(linked), snapshot(source))
     return ("I1", bad) if bad else None
+
+
+def freshness_failures(subjects, reverse=False):
+    """Every ``cells`` row of ``subjects`` that reads unlike ``=`` (I1 / I6)."""
+    bad = []
+    for label, factory in subjects:
+        for name, path, order in cells(factory):
+            r = run_cell(factory, name, path, order, reverse)
+            if r:
+                bad.append((label, name, path, order, r))
+    return bad
+
+
+def whole_failures(subjects):
+    """Every whole-object link (``WHOLE_PATHS``) of ``subjects`` that reads unlike its source."""
+    bad = []
+    for label, factory in subjects:
+        for name, _ in field_names(factory()):
+            for path in WHOLE_PATHS:
+                for order in ORDERS:
+                    r = run_whole_cell(factory, name, path, order)
+                    if r:
+                        bad.append((label, name, path, order, r))
+    return bad

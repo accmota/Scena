@@ -101,6 +101,44 @@ class TestTierSettings(unittest.TestCase):
         self.assertEqual(rt.tier_env(rt.TIERS["gate"], "replay")["SCENA_HYPOTHESIS_PROFILE"],
                          "replay")
 
+    def test_children_cache_bytecode_when_the_host_turns_writes_off(self):
+        # Claude Code sets PYTHONDONTWRITEBYTECODE=1: every job compiled scena
+        # from source (~0.7 s CPU per process, measured 2026-10-10).
+        env = rt.child_env({"PYTHONDONTWRITEBYTECODE": "1", "PATH": "/bin"},
+                           {"SCENA_CANARIES": "0"})
+        self.assertNotIn("PYTHONDONTWRITEBYTECODE", env)
+        self.assertEqual(env["PYTHONPYCACHEPREFIX"], rt.PYCACHE)
+        self.assertTrue(rt.PYCACHE.startswith(rt.OUT + os.sep), "inside the git-ignored runs folder")
+        self.assertEqual((env["PATH"], env["SCENA_CANARIES"], env["PYTHONIOENCODING"]),
+                         ("/bin", "0", "utf-8"))
+        # A host's own prefix is kept; a host that writes bytecode keeps __pycache__.
+        kept = rt.child_env({"PYTHONDONTWRITEBYTECODE": "1", "PYTHONPYCACHEPREFIX": "/x"})
+        self.assertEqual(kept["PYTHONPYCACHEPREFIX"], "/x")
+        self.assertNotIn("PYTHONPYCACHEPREFIX", rt.child_env({}))
+
+    def test_every_child_process_gets_the_child_env(self):
+        seen = []
+
+        class Done(Exception):
+            pass
+
+        def popen(*_a, env=None, **_k):
+            seen.append(env)
+            raise Done
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.dict(os.environ, {"PYTHONDONTWRITEBYTECODE": "1"}), \
+                mock.patch.object(rt.subprocess, "Popen", popen), \
+                mock.patch.object(rt.subprocess, "run", lambda *a, env=None, **k: popen(env=env)):
+            runner = rt.Runner(tmp, timeout=1, workers=1, stream=io.StringIO())
+            with self.assertRaises(Done):
+                runner._run(rt.Job("x", ["tests.test_lerp"]))
+            with self.assertRaises(Done):
+                rt.list_ids_subprocess("test_lerp")
+        self.assertEqual(len(seen), 2)
+        for env in seen:
+            self.assertNotIn("PYTHONDONTWRITEBYTECODE", env)
+            self.assertEqual(env["PYTHONPYCACHEPREFIX"], rt.PYCACHE)
+
     def test_gate_is_at_least_the_old_bug_loop_gate(self):
         # The old gate: full suite (dev) + hyp / sys_hyp at ci, canaries on.
         gate = rt.TIERS["gate"]
