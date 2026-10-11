@@ -2,11 +2,12 @@
 
 A fase do tutorial 21 com perigos (media/levels/ninja_perigos.json):
 plataformas de mão única (resolve com only=), que se atravessam por baixo
-e de onde se desce com a seta para baixo; robôs que viram na beirada
-(floor_below); uma segunda caixa de colisão só para a dor (add_hitbox),
-com um tempo sem sentir depois de cada golpe (untag / tag); raios
-elétricos que ligam e desligam (ElectricField, active); e um recomeço
-com um ato (Act, change_act, jogo_novo).
+e de onde se desce com a seta para baixo; uma tábua inclinada, onde o
+desenho do ninja se inclina em volta dos pés (tilt, hitbox_anchor);
+robôs que viram na beirada (floor_below); uma segunda caixa de colisão
+só para a dor (add_hitbox), com um tempo sem sentir depois de cada golpe
+(untag / tag); raios elétricos que ligam e desligam (ElectricField,
+active); e um recomeço com um ato (Act, change_act, jogo_novo).
 
 Controles
 ---------
@@ -93,9 +94,10 @@ class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
         self.after(2, self.destroy)
 
 
-class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anchor="bottom"):
     def setup(self):
         self.vel = Vec2(0, 0)
+        self.tilt = "ground"
         self.add_hitbox(group="dor")
 
     def on_update(self, dt):

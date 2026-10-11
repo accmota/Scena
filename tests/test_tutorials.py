@@ -22,6 +22,11 @@ Bug classes guarded:
   runs in ``test_tutorial_steps`` would pass vacuously.
 * **A page that does not parse is blank for the reader** (a quote inside a
   double-quoted field).
+* **A ground lean about the waist** (TU7): ``tilt = "ground"`` on a sprite
+  whose ``hitbox_anchor`` is not the bottom face turns the art about the
+  collider's middle, so on a ramp the feet slide sideways and stay off the
+  slope (the seat needs the bottom anchor). Every tutorial step and every
+  ``examples/`` file that leans a sprite with ``"ground"`` names the anchor.
 
 How: each step's ``code:`` template literal is extracted from
 ``docs/pt/tutorial/NN-*.html`` (``extract_steps``). A ``try`` snippet is
@@ -584,6 +589,112 @@ class TestTutorialDive(unittest.TestCase):
                             self.assertIn(href.split("#", 1)[1], guide_ids,
                                           f"{page}: the Guia has no #{href.split('#', 1)[1]}")
         self.assertGreater(seen, 0, "no tutorial uses a dive box (05 'O céu' should)")
+
+
+# ``tilt = "ground"`` seats the art on the ramp only when the pivot is the
+# bottom face (Collision Design, "Ramps"); any other anchor leans it about
+# the collider's middle and the feet float (TU7).
+_GROUND = ("ground", "AUTO_GROUND")
+_BOTTOM = ("bottom", (0, -1))
+
+
+def _anchor_of(keywords) -> object:
+    for kw in keywords:
+        if kw.arg == "hitbox_anchor":
+            try:
+                return ast.literal_eval(kw.value)
+            except ValueError:
+                return "<expression>"
+    return None
+
+
+def _leans_on_ground(node) -> bool:
+    value = node.value
+    if isinstance(value, ast.Constant):
+        return value.value == "ground"
+    return isinstance(value, ast.Name) and value.id == "AUTO_GROUND"
+
+
+def ground_leans_off_the_feet(src: str) -> List[str]:
+    """Sprites in ``src`` that lean with ``tilt = "ground"`` about a non-bottom anchor.
+
+    A class with ``self.tilt = "ground"`` in its body is checked by its own
+    ``hitbox_anchor=``; ``name.tilt = "ground"`` by the call that made
+    ``name`` (``Sprite(…, hitbox_anchor=…)`` or a class from this file).
+    """
+    tree = ast.parse(src)
+    classes = {}
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            classes[node.name] = _anchor_of(node.keywords)
+    made = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+            call = node.value
+            anchor = _anchor_of(call.keywords)
+            if anchor is None and isinstance(call.func, ast.Name):
+                anchor = classes.get(call.func.id)
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    made[target.id] = anchor
+    bad = []
+    for node in tree.body:
+        scopes = [(node.name, classes[node.name], node)] if isinstance(node, ast.ClassDef) else [(None, None, node)]
+        for cls, cls_anchor, scope in scopes:
+            for sub in ast.walk(scope):
+                if not (isinstance(sub, ast.Assign) and _leans_on_ground(sub)):
+                    continue
+                for target in sub.targets:
+                    if not (isinstance(target, ast.Attribute) and target.attr == "tilt"
+                            and isinstance(target.value, ast.Name)):
+                        continue
+                    who = target.value.id
+                    if who == "self" and cls is not None:
+                        anchor, name = cls_anchor, f"class {cls}"
+                    else:
+                        anchor, name = made.get(who), who
+                    if anchor not in _BOTTOM:
+                        bad.append(f"line {sub.lineno}: {name} leans with tilt = \"ground\" "
+                                   f"but hitbox_anchor={anchor!r} (needs \"bottom\")")
+    return bad
+
+
+class TestGroundLeanHasBottomAnchor(unittest.TestCase):
+    """``tilt = "ground"`` goes with ``hitbox_anchor="bottom"`` in what a reader copies."""
+
+    def test_every_step_and_example_leans_about_the_feet(self):
+        seen = 0
+        for path in tutorial_pages():
+            page = os.path.basename(path)
+            for step in extract_steps(path):
+                if "tilt" not in step.code:
+                    continue
+                seen += 1
+                with self.subTest(page=page, line=step.line):
+                    self.assertEqual(ground_leans_off_the_feet(step.code), [], f"{page}:{step.line}")
+        for path in iter_files(EXAMPLES, ".py"):
+            if os.sep + "media" + os.sep in path:
+                continue
+            src = _read(path)
+            if "tilt" not in src:
+                continue
+            seen += 1
+            with self.subTest(example=os.path.basename(path)):
+                self.assertEqual(ground_leans_off_the_feet(src), [], path)
+        self.assertGreater(seen, 0, "no step leans a sprite (22 'A tábua inclinada' should)")
+
+    def test_the_check_catches_a_lean_about_the_waist(self):
+        cls = ('class Heroi(Sprite, hitbox_shape="rect"):\n'
+               '    def setup(self):\n'
+               '        self.tilt = "ground"\n')
+        self.assertEqual(len(ground_leans_off_the_feet(cls)), 1)
+        self.assertEqual(ground_leans_off_the_feet(cls.replace('"rect"', '"rect", hitbox_anchor="bottom"')), [])
+        top = 'heroi = Sprite(ninja, hitbox_anchor="center")\nheroi.tilt = AUTO_GROUND\n'
+        self.assertEqual(len(ground_leans_off_the_feet(top)), 1)
+        self.assertEqual(ground_leans_off_the_feet(top.replace('"center"', '(0, -1)')), [])
+        made = 'class Robo(Sprite, hitbox_anchor="bottom"):\n    pass\nr = Robo()\nr.tilt = "ground"\n'
+        self.assertEqual(ground_leans_off_the_feet(made), [])
+        self.assertEqual(ground_leans_off_the_feet('heroi.tilt = 15\n'), [])
 
 
 if __name__ == "__main__":

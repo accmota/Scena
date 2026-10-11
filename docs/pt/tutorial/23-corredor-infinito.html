@@ -408,7 +408,7 @@ run(Corrida)
           <figcaption>Em cima, cada vaga pergunta a <code>altura(x)</code>: na emenda, as duas perguntam pelo mesmo x e recebem a mesma resposta. Embaixo, cada vaga sorteia a sua altura com o <code>slot.rng</code>: o sorteio de uma não sabe do da outra, e a emenda vira um degrau.</figcaption>
         </figure>
         <p><strong>Colunas de quatro cantos.</strong> Um morro não cabe num retângulo. <code>coluna(x)</code> faz um <code>Polygon</code> (polígono) de quatro cantos: a base em y = 0 e o topo indo de <code>altura(x)</code> a <code>altura(x + 64)</code>, uma rampa curta. A grama segue a mesma rampa. <code>trecho</code> chama <code>coluna</code> para cada coluna da vaga e junta as listas numa só (<code>pecas += …</code>). O resto não mudou: a textura, o grupo, o buraco no fim da vaga.</p>
-        <p><strong>Na rampa.</strong> <code>self.tilt = "ground"</code> (inclinação: a do chão) inclina o desenho do robô para acompanhar a rampa. Só o desenho: a caixa de colisão continua em pé, presa pelos pés (<code>hitbox_anchor="bottom"</code>, a âncora da caixa embaixo), e é ela que o <code>resolve</code> segura.</p>
+        <p><strong>Na rampa.</strong> Como o ninja na tábua inclinada do 22: <code>self.tilt = "ground"</code> inclina o desenho do robô com o chão, em volta dos pés (<code>hitbox_anchor="bottom"</code>). Só o desenho: a caixa de colisão continua em pé, e é ela que o <code>resolve</code> segura.</p>
       `,
       code: `from math import sin
 from scena import *
