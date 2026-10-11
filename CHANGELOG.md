@@ -12,6 +12,16 @@ left out.
 
 ## Unreleased
 
+### Breaking
+
+- An `async def` where Scena calls a function raises `TypeError` with the
+  fix: `async def setup`, `async def on_update`, an async `@every` / `@when`
+  / `@collide` / `on_click` / `on_done=`, or a lambda that calls an async
+  method (`after(1, lambda: self.anda())`). Before, the body never ran and
+  Python only printed "coroutine ... was never awaited". Only a mode is run
+  as a script: write the waits in `async def intro(self)` and start it with
+  `self.mode = self.intro`.
+
 ### Fixed
 
 - `confine` on a `Sprite` whose sheet has an anchor (`Sheet(anchor="bottom")`,

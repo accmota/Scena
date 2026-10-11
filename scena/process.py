@@ -26,7 +26,12 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 from weakref import WeakSet, ref
 
 from .easing import Ease, TWEEN_EASES, resolve_ease
-from .validate import HINT_SCALE, clamp_magnitude, magnitude, fixed_magnitude, payload_arity, seconds
+from types import CoroutineType as _CoroutineType
+
+from .validate import (
+    HINT_SCALE, clamp_magnitude, is_async_callable, magnitude, fixed_magnitude,
+    payload_arity, refuse_async, refuse_coroutine_result, seconds,
+)
 from .closed import ClosedSurface
 
 # Seconds in a mode with nothing pending before a frozen-mode warning.
@@ -223,7 +228,9 @@ def _invoke(callback: Optional[Callable], owner=None) -> None:
     extra: list = []
     if owner is not None and not hasattr(callback, "__self__"):
         extra = [owner]
-    callback(*extra[:n])
+    result = callback(*extra[:n])
+    if result is not None and type(result) is _CoroutineType:
+        refuse_coroutine_result(result, callback)
 
 
 def _no_update() -> None:
@@ -279,15 +286,7 @@ def _callable_or_none_error(value, what: str) -> None:
         )
 
 
-def _is_async_callable(fn) -> bool:
-    if fn is None:
-        return False
-    if inspect.iscoroutinefunction(fn) or inspect.isasyncgenfunction(fn):
-        return True
-    func = getattr(fn, "__func__", None)
-    if func is not None:
-        return inspect.iscoroutinefunction(func) or inspect.isasyncgenfunction(func)
-    return False
+_is_async_callable = is_async_callable
 
 
 def _in_executing_class_body(depth: int = 2) -> bool:
@@ -355,6 +354,9 @@ def _claim_decorator_role(func: Callable, role: str) -> None:
     """
     if role not in _ROLE_LABELS:
         raise ValueError(f"unknown decorator role: {role!r}")
+    if role != "mode":
+        # Only a mode is driven as a script; every other role is called.
+        refuse_async(func, what=_ROLE_LABELS[role])
 
     if _in_executing_class_body(3):
         name = getattr(func, "__name__", None)
@@ -481,6 +483,8 @@ def _fn_and_then(fn, then, *, call_name: str, on_done=None):
         _callable_or_none_error(then, "then=")
     if callback is not None:
         _callable_or_none_error(callback, "on_done=" if on_done is not None else f"{call_name}()")
+        # No async check here (``after`` is a hot call): ``_invoke`` refuses
+        # an async callback when it fires, at no cost to the sync path.
     return callback, then
 
 

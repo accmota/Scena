@@ -561,7 +561,8 @@ shapes with cold Derivates skip the dirty walk (pose fast path). `@when` /
 Cooperative (not `asyncio`): `after` / `every` / `tween` / `play_sound` / modes / `on_update` /
 `ready` / `recently` (poll APIs; not Handles).
 `wait` / `until` run inside the async mode the engine is driving (helpers that mode
-`await`s count). Ownership: work started inside a mode body is **mode-scoped** (dies on leave);
+`await`s count). A mode is the only async entry: an `async def` hook, decorated handler or
+callback raises `TypeError` (its body would never run). Ownership: work started inside a mode body is **mode-scoped** (dies on leave);
 `e.after` / `e.every` / `e.tween` / `e.play_sound` are **entity-scoped** (survive mode change);
 a sound that ends by itself finishes when its owner ends ([Sound Design](Sound%20Design.md#when-the-owner-ends));
 `e.ready` / `e.recently` are per-instance poll memory (not Handles — die with the instance).

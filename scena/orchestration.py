@@ -3869,6 +3869,13 @@ class ScenaFramework:
             'on_mouse_down', 'on_mouse_up', 'on_mouse_click', 'on_mouse_double_click', 'on_mouse_move', 'on_mouse_drag', 'on_mouse_scroll'
         ]
         
+        # A script-level ``async def update()`` would make a coroutine each
+        # call and drop it: refuse it here, before the main loop starts.
+        from .validate import refuse_async
+        for callback in execution_callbacks + input_callbacks:
+            if callback in namespace and callable(namespace[callback]):
+                refuse_async(namespace[callback], what="script hook")
+
         # For each callback name, check if it exists in the namespace
         # Setup execution_callbacks in ScenaFramework
         for callback in execution_callbacks:

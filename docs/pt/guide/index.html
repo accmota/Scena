@@ -7910,6 +7910,7 @@ async def diving(e):
         </div>
       </details>
       <p class="gotcha"><strong><code>wait(0.4)</code> sem <code>await</code> não pausa o script.</strong> Devolve um Handle e o resto corre. Fora de um mode async (<code>update</code>, <code>on_update</code>, <code>@collide</code>, mode sync) é <code>TypeError</code>. Dentro, sem <code>await</code> (e sem passar a <code>parallel</code> / <code>race</code>) é <code>TypeError</code> com a linha e o <code>await</code> que falta. Use <code>after(…)</code> quando não há um capítulo async.</p>
+      <p class="gotcha"><strong>Só o mode é async.</strong> O Scena <em>roda</em> um mode async como script; todo o resto ele só <em>chama</em>. Por isso <code>async def setup</code>, <code>async def on_update</code>, um <code>@every</code> / <code>@when</code> / <code>@collide</code> / <code>on_click</code> / <code>on_done=</code> async, ou <code>after(1, lambda: self.anda())</code> com <code>anda</code> async são <code>TypeError</code> — o corpo nunca rodaria. Ponha as esperas num mode e entre nele: <code>self.mode = self.intro</code> (no <code>setup</code>, num handler ou com <code>then=</code>). Um helper <code>async</code> vale quando o mode o chama com <code>await</code>.</p>
     </section>
 
     <section class="section prose" id="mode-cancela">

@@ -28,7 +28,7 @@ from .state import (
     callable_assign_message,
 )
 from .scenamath import Vec2
-from .validate import expect_bool
+from .validate import expect_bool, refuse_async
 from .validate import expect_bool as _expect_flag
 
 # Names that stay real properties / instance fields (never ink Attributes).
@@ -805,8 +805,18 @@ def _iter_tagged_methods(cls, tag_attr: str):
 
 
 def _cache_actor_lookups(cls) -> None:
-    """Freeze hook + decorator discovery so construct does not walk the MRO."""
-    cls._scena_actor_hooks = {name: _lookup_actor_hook(cls, name) for name in _HOOK_LOOKUP_NAMES}
+    """Freeze hook + decorator discovery so construct does not walk the MRO.
+
+    An ``async def`` hook (``setup``, ``on_update``, ``on_click`` …) raises
+    here, at the class statement: the engine calls hooks, it does not drive
+    them, so its body would never run.
+    """
+    from .validate import refuse_async
+    hooks = {name: _lookup_actor_hook(cls, name) for name in _HOOK_LOOKUP_NAMES}
+    for hook in hooks.values():
+        if hook is not None:
+            refuse_async(hook, what=f"class {cls.__name__}:")
+    cls._scena_actor_hooks = hooks
     cls._scena_tagged_methods = {tag: _collect_tagged_methods(cls, tag) for tag in _TAG_ATTRS}
 
 
@@ -2244,6 +2254,7 @@ class Entity(Container):
             raise TypeError(
                 f"on_update expected a function, got {type(value).__name__}."
             )
+        refuse_async(value, what="on_update =")
         object.__setattr__(self, "_on_update", value)
         from .process import get_scheduler
         get_scheduler().watch_update(self, value is not None)
@@ -2259,6 +2270,7 @@ class Entity(Container):
             raise TypeError(
                 f"on_destroy expected a function, got {type(value).__name__}."
             )
+        refuse_async(value, what="on_destroy =")
         object.__setattr__(self, "_on_destroy", value)
 
     def setup(self) -> None:
@@ -2478,6 +2490,7 @@ class Entity(Container):
                     f"{attr} takes a function fn(me, other, info), or None to clear it; "
                     f"got {type(value).__name__}."
                 )
+            refuse_async(value, what=f"{attr} =")
         cbs = dict(self._collide_cbs or ())
         if value is None:
             cbs.pop(attr, None)

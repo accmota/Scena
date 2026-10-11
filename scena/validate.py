@@ -9,7 +9,7 @@ too. Author writes raise; formula and tween results clamp magnitudes to 0.
 from __future__ import annotations
 
 import math
-from types import FunctionType as _FunctionType
+from types import CoroutineType as _CoroutineType, FunctionType as _FunctionType
 from collections.abc import Mapping
 import numbers
 from enum import Enum
@@ -345,8 +345,10 @@ def check_handler_arity(fn: Callable, passes: Sequence[str], *, what: str) -> No
     ``passes`` names the payload Scena calls the handler with, in order
     (empty for a no-argument handler). A handler may take fewer (truncated
     call) but not more — otherwise the ``TypeError`` would surface frames
-    later, far from the decorator.
+    later, far from the decorator. An async handler raises too
+    (``refuse_async``): Scena calls handlers, it does not drive them.
     """
+    refuse_async(fn, what=what)
     needed = required_positional_count(fn)
     if needed is None or needed <= len(passes):
         return
@@ -700,6 +702,7 @@ def expect_callable(
         raise TypeError(
             f"{what} expected a callable, got {type(value).__name__}"
         )
+    refuse_async(value, what=what)
     return value
 
 
@@ -766,11 +769,76 @@ def call_truncated(callback: Optional[Callable], *args) -> None:
     Payload order is the documented positional list (``on_done``: shape;
     ``@collide``: me, other, info). Only parameters without a default
     receive a value; ``*args`` (or an unreadable signature) gets all of them.
+    A callback that hands back a coroutine raises (``refuse_coroutine_result``).
     """
     if callback is None:
         return
     n = payload_arity(callback)
-    callback(*(args if n is None else args[:n]))
+    result = callback(*(args if n is None else args[:n]))
+    if result is not None and type(result) is _CoroutineType:
+        refuse_coroutine_result(result, callback)
+
+
+# ``async def`` / ``async def`` + ``yield`` code flags (``inspect.CO_COROUTINE`` /
+# ``CO_ASYNC_GENERATOR``).
+_CO_ASYNC = 0x80 | 0x200
+
+_ASYNC_FIX = (
+    "Scena calls it without driving it, so its body would never run. "
+    "Write a plain def. For a sequence of waits use an async mode: "
+    "`async def intro(self): ...` started with `self.mode = self.intro` "
+    "(from setup, a handler, or then=)."
+)
+
+
+def is_async_callable(fn: Any) -> bool:
+    """True for an ``async def`` (or async generator) function, bound method or partial."""
+    if fn is None:
+        return False
+    func = getattr(fn, "__func__", fn)
+    if type(func) is _FunctionType:
+        return bool(func.__code__.co_flags & _CO_ASYNC)
+    import inspect
+
+    return inspect.iscoroutinefunction(fn) or inspect.isasyncgenfunction(fn)
+
+
+def refuse_async(fn: Any, *, what: str) -> None:
+    """Raise if ``fn`` is async where Scena calls it synchronously.
+
+    Only an async **mode** is driven as a script (``e.mode = fn``, ``then=``).
+    Anywhere else the call makes a coroutine and drops it: the body never
+    runs and Python only prints "coroutine ... was never awaited".
+    Plain functions and bound methods read one code flag (``after`` pays it).
+    """
+    func = getattr(fn, "__func__", fn)
+    if type(func) is _FunctionType:
+        if not func.__code__.co_flags & _CO_ASYNC:
+            return
+    elif not is_async_callable(fn):
+        return
+    name = getattr(fn, "__name__", None) or type(fn).__name__
+    raise TypeError(f"{what} {name}() cannot be async: {_ASYNC_FIX}")
+
+
+def refuse_coroutine_result(result: Any, callback: Any) -> None:
+    """The backstop: a sync callback returned a coroutine (``lambda: self.intro()``).
+
+    Closes it (no "never awaited" noise) and raises naming the callback.
+    Also the check for an ``async def`` handed to ``after`` / ``every`` /
+    ``on_done=``, which skip the registration check (hot calls).
+    """
+    result.close()
+    if is_async_callable(callback):
+        refuse_async(callback, what="callback")
+    name = getattr(callback, "__name__", None) or type(callback).__name__
+    inner = getattr(getattr(result, "cr_code", None), "co_name", "?")
+    raise TypeError(
+        f"callback {name}() called the async function {inner}() without await, "
+        f"so nothing in {inner}() ran. Scena does not run coroutines from "
+        f"callbacks: put the waits in an async mode and switch to it "
+        f"(self.mode = self.{inner})."
+    )
 
 
 def check_pointer_handler(fn: Any, passes: Sequence[str], *, what: str) -> Any:
