@@ -2185,7 +2185,7 @@ class TestVisuals(unittest.TestCase):
     def test_shield_draws_on_line(self):
         ln = Line(p1=(20, 64), p2=(108, 64))
         ln.line_width = 2.5
-        ln.visual = Shield("bubble")
+        ln.visual = Shield(style="bubble")
         surf = skia.Surface(128, 128)
         cnv = surf.getCanvas()
         cnv.clear(skia.ColorBLACK)
@@ -3423,6 +3423,38 @@ class TestHaloTintRoles(unittest.TestCase):
     def setUp(self):
         init(width=400, height=300)
         canvas.fx_quality = "high"
+
+    def test_halo_pulse_knobs_raise_off_pulse(self):
+        # KN3: line leaked Python's "HaloLine.__init__() got an unexpected
+        # keyword argument 'rings'"; KN4: hollow / fill / soft took them and
+        # drew nothing different. The defaults still pass.
+        for style in ("hollow", "fill", "soft", "line"):
+            for kw in ({"rings": 5}, {"speed": 2.0}):
+                with self.subTest(style=style, **kw), self.assertRaises(TypeError) as cm:
+                    Halo(style=style, **kw)
+                self.assertNotIn("__init__()", str(cm.exception))
+                self.assertIn('style="pulse"', str(cm.exception))
+            self.assertIs(Halo(style=style, rings=3, speed=1.0), Halo(style=style))
+        self.assertIsNotNone(Halo(style="pulse", rings=5, speed=2.0))
+
+    def test_shield_color_raises_on_fixed_hue_styles(self):
+        # KN4: a fixed-hue Shield took color= and drew its own palette.
+        for style in ("bubble", "nebula", "ember", "void", "molten", "cracks", "frost"):
+            with self.subTest(style=style), self.assertRaises(TypeError) as cm:
+                Shield("crimson", style=style)
+            self.assertIn('style="bands"', str(cm.exception))
+            self.assertIsNotNone(Shield(style=style))
+        for style in ("bands", "vortex", "plasma"):
+            self.assertIsNotNone(Shield("crimson", style=style))
+
+    def test_bolt_amount_raises_on_core(self):
+        # KN4: amount is filament density; core drew the same for any amount.
+        with self.assertRaises(TypeError) as cm:
+            Bolt(amount=6)
+        self.assertIn('style="filaments"', str(cm.exception))
+        self.assertIsNotNone(Bolt(amount=3.0))
+        for style in ("filaments", "tesla"):
+            self.assertIsNotNone(Bolt(style=style, amount=6))
 
     def test_halo_hollow_binds_outline(self):
         c = Circle(center=(0, 0), radius=12)

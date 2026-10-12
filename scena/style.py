@@ -1767,7 +1767,7 @@ class Texture(ClosedSurface):
             tm = TileMode.REPEAT
         self._tile_mode = tm
         self._scale = _positive_scale(scale)
-        self._tile_size = _parse_tile_size(tile_size)
+        self._tile_size = _parse_tile_size(tile_size, fit_val)
         from .validate import number
         self._angle = number(angle, "Texture angle")
         self._alpha = 1.0
@@ -2141,11 +2141,20 @@ def AuroraFill(color=None, amount: float = 1.0, speed: float = 0.9):
     return ProceduralFill(kind="aurora", amount=amount, speed=speed, color=color)
 
 
-def _parse_tile_size(value) -> Optional[Union[float, Tuple[float, float]]]:
-    """Validate ``tile_size``: ``None``, a positive width, or ``(w, h)`` in design units."""
+def _parse_tile_size(value, fit=None) -> Optional[Union[float, Tuple[float, float]]]:
+    """Validate ``tile_size``: ``None``, a positive width, or ``(w, h)`` in design units.
+
+    Only ``fit="tile"`` has tiles: with another fit the knob would change
+    nothing, so it raises (KN4, 2026-10-12; before, it was taken and ignored).
+    """
     value = as_payload(value)
     if value is None:
         return None
+    if fit is not None and fit != BackgroundFit.TILE:
+        raise TypeError(
+            f'tile_size= sizes the tiles of fit="tile"; with fit="{fit.value}" '
+            f'it changes nothing. Write fit="tile", tile_size=…, or drop tile_size.'
+        )
     if isinstance(value, (int, float)):
         w = float(value)
         if w <= 0.0:
@@ -2666,7 +2675,7 @@ class BackgroundImage:
             tm = TileMode.REPEAT
         self._tile_mode = tm
         self._scale = _positive_scale(scale)
-        self._tile_size = _parse_tile_size(tile_size)
+        self._tile_size = _parse_tile_size(tile_size, fit_val)
         self._filename = filename
         self._image = None
 

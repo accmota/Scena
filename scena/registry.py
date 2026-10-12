@@ -47,6 +47,7 @@ from .camera_response import CameraResponse, ScrollState
 from .entity import GroupTags
 from .state import DestroyedError
 from .shapes import Shape, Blank, nearest as _nearest_item
+from .validate import refuse_async as _refuse_async
 
 # Registered drawables: Shape or SpatialFx via Entity.
 RegistryObject = Any
@@ -1660,6 +1661,9 @@ def _require_pred(pred, *, what: str) -> None:
             f"{what} expected a function, got "
             f"{'None' if pred is None else type(pred).__name__}."
         )
+    # An async predicate returns a coroutine, which is truthy: every member
+    # would match and Python would only print "never awaited".
+    _refuse_async(pred, what=what)
 
 
 def _formula_result_members(registry: Registry, result) -> List[Shape]:

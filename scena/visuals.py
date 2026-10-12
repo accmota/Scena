@@ -1172,6 +1172,15 @@ class Halo(CompiledVisual):
     ):
         if cls is Halo:
             st = _normalize_halo_style(style)
+            if st != "pulse" and (rings != 3 or speed != 1.0):
+                # The rings exist only in style="pulse": elsewhere the knobs would
+                # change nothing (KN4, 2026-10-12; before, hollow / fill / soft
+                # took and ignored them, and line leaked Python's own error, KN3).
+                raise TypeError(
+                    f'Halo(style="{st}") takes no rings= / speed=: they set the '
+                    f'rings of style="pulse". Write Halo(style="pulse", rings=…), '
+                    f'or drop them.'
+                )
             if st == "fill":
                 return HaloFill(color, amount)
             if st == "soft":

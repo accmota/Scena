@@ -28,6 +28,7 @@ from .stamps import draw_body_with_stamps
 from .validate import HINT_EXTENT, HINT_SCALE, MIN_SCALE, clamp_magnitude, expect_bool, finite, magnitude, fixed_magnitude
 from .validate import expect_bool as _expect_flag
 from .validate import check_pointer_handler as _check_pointer_handler
+from .validate import refuse_async as _refuse_async
 from .entity import (
     Entity, Graphic,
     _INK_RESERVED, _SET_OBJECT,
@@ -1027,10 +1028,13 @@ def nearest(
         within_d2 = within * within
     else:
         within_d2 = None
-    if where is not None and not callable(where):
-        raise TypeError(
-            f"nearest() where= expected a function, got {type(where).__name__}."
-        )
+    if where is not None:
+        if not callable(where):
+            raise TypeError(
+                f"nearest() where= expected a function, got {type(where).__name__}."
+            )
+        # An async where= returns a (truthy) coroutine: every item would pass.
+        _refuse_async(where, what="nearest() where=")
     try:
         iterator = iter(items)
     except TypeError:

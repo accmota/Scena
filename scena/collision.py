@@ -302,6 +302,9 @@ def _normalize_only(only: Any) -> Any:
                 "Use unresolve(...) to drop the pair."
             )
     elif callable(only):
+        # An async only= returns a (truthy) coroutine: every contact would block.
+        from .validate import refuse_async
+        refuse_async(only, what="resolve() only=")
         return only
     else:
         raise TypeError(

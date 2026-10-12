@@ -170,6 +170,27 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class TestTileSizeNeedsTile(unittest.TestCase):
+    """KN4 (2026-10-12): ``tile_size=`` sizes the tiles of ``fit="tile"``.
+    With another fit it was taken and ignored; now it raises naming the fix,
+    on a Wallpaper image and on a Texture (one parser)."""
+
+    def test_tile_size_off_tile_raises(self):
+        from scena.style import Texture
+        from tests.media_support import media
+        path = media("tilesets", "BG", "BG.png")
+        for fit in (None, "cover", "contain", "stretch"):
+            kw = {} if fit is None else {"fit": fit}
+            for make in (lambda: Wallpaper.temp(path, tile_size=40, **kw),
+                         lambda: Texture(path, tile_size=40, **kw)):
+                with self.subTest(fit=fit), self.assertRaises(TypeError) as cm:
+                    make()
+                self.assertIn('fit="tile"', str(cm.exception))
+        self.assertEqual(Wallpaper.temp(path, fit="tile", tile_size=40).source.tile_size, 40.0)
+        self.assertEqual(Texture(path, fit="tile", tile_size=40).tile_size, 40.0)
+        self.assertIsNone(Wallpaper.temp(path, tile_size=None).source.tile_size)
+
+
 class TestFittedImagePastEdge(unittest.TestCase):
     """``tile_mode`` decides what a fitted image shows past its edge.
 

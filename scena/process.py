@@ -3040,6 +3040,9 @@ def wait(delay: float) -> Handle:
 def _start_until(pred, *, await_hint: str, site, what: str = "until()") -> Handle:
     from .state import Container, FieldRef, as_payload, refuse_held_payload
     if callable(pred) and not isinstance(pred, Container):
+        # An async predicate returns a (truthy) coroutine: the wait would end
+        # on its first poll.
+        refuse_async(pred, what=what)
         fn = pred
     elif isinstance(pred, Container):
         refuse_held_payload(pred, "until({cell})")

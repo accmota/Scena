@@ -2950,6 +2950,14 @@ class Shield(CompiledVisual):
         speed: float = 1.0,
     ):
         st = cls._normalize_style(style)
+        if color is not None and st != "plasma" and st not in cls._TINTED:
+            # A fixed-hue style paints its own palette: the color would change
+            # nothing (KN4, 2026-10-12; before, it was taken and ignored).
+            raise TypeError(
+                f'Shield(style="{st}") paints its own colors and takes no color. '
+                f'A tinted shield is style="bands", "vortex" or "plasma": '
+                f'Shield({color!r}, style="bands"); or drop the color.'
+            )
         if st == "plasma":
             from .visuals import _OrbHalo
             return _OrbHalo(color, amount=amount, speed=speed)
@@ -3204,7 +3212,10 @@ class HaloLine(Halo):
         )
         return _intern(cls, key, lambda: object.__new__(cls))
 
-    def __init__(self, color: Optional[ColorLike] = None, amount: float = 1.0, *, style="line"):
+    def __init__(self, color: Optional[ColorLike] = None, amount: float = 1.0, *, style="line",
+                 rings: int = 3, speed: float = 1.0):
+        # rings / speed: Halo(style="line", ...) passes them on; Halo.__new__
+        # already refused any but the defaults (they drive style="pulse").
         if getattr(self, "_ready", False):
             return
         self.amount = float(amount)
@@ -4077,6 +4088,13 @@ class Bolt(Recipe):
         style: BoltStyle = "core",
     ):
         st = _plasmashot_style(style)
+        if st == "core" and float(amount) != 3.0:
+            # Filament density: core draws no filaments, so it would change
+            # nothing (KN4, 2026-10-12; before, it was taken and ignored).
+            raise TypeError(
+                'Bolt(style="core") has no filaments, so amount= changes nothing. '
+                'Write Bolt(style="filaments", amount=…) or "tesla", or drop amount.'
+            )
         inten = _plasmashot_intensity(st, intensity)
         key = (
             "plasmashot", st,

@@ -10,6 +10,35 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
+## Unreleased
+
+### Breaking
+
+- A knob that only one style or fit reads raises with the fix on the others.
+  Before, it was taken and drew nothing different. Old → new:
+  `Shield("cyan")` (and any color on the bubble, nebula, ember, void, molten,
+  cracks or frost styles) → `Shield("cyan", style="bands")` (also `"vortex"`,
+  `"plasma"`), or `Shield()`; `Halo(rings=5)` / `speed=` on hollow, fill, soft
+  or line → `Halo(style="pulse", rings=5)`; `Bolt(amount=6)` (style core) →
+  `Bolt(style="filaments", amount=6)` (or `"tesla"`);
+  `Wallpaper("bg.png", tile_size=64)` / `Texture(…, tile_size=64)` without
+  `fit="tile"` → `fit="tile", tile_size=64`. Each raises `TypeError` naming
+  the style or fit that reads the knob.
+
+### Fixed
+
+- An `async def` handed to a function Scena asks a question raises
+  `TypeError` with the fix, like the hooks in 0.8.0: a filter
+  (`group["x"].filter` / `any` / `all` / `count_where`, `nearest(where=)`),
+  the condition of `until` / `@when`, the target of `@on_change`,
+  `resolve(only=)` and an `@=` formula. Before, its answer (a coroutine)
+  counted as True: a filter kept every member, `until` ended at once,
+  `@on_change` fired every frame, and Python only printed "coroutine … was
+  never awaited".
+- `Halo(style="line", rings=5)` (or `speed=`) names the fix, like the other
+  non-pulse styles (above). Before, Python's own `HaloLine.__init__() got an
+  unexpected keyword argument` reached the author.
+
 ## 0.8.0 — 2026-10-11
 
 ### Breaking

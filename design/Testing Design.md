@@ -42,7 +42,7 @@ Pick the test shape from where the bug would live, not from the feature.
 | Program model | Whole author programs (widgets, input, physics, camera, acts) over many frames, against expectations written **from the docs** by spec-only authors; feature interactions; doc gaps | `program_support.ProgramRun` + per-frame author-level probes + a temporal check vocabulary; L3 oracles (`program_oracles`) | `test_prog_*.py` ([Program model tests](#program-model-tests)) |
 | Game system | Many features at once under a real load (acts, modes, timers, collision, level files, audio, widgets, draw) over thousands of frames; white-box: the game carries its own side models | `game_support.Ledger` + side models inside the game; `game_harness` pilots, `run_game`, the L3 oracles, canaries | `test_game_*.py` ([Game system tests](#game-system-tests)) |
 | Signature fuzz | The whole public surface against generic contracts: junk in any one keyword is an author error with no trace, unknown keywords name themselves, construct → remove returns to baseline, every verb on a destroyed actor raises `DestroyedError` or leaves no trace, junk as the first argument of every author method is an author error | Hypothesis, one generated test per export (`scena.__all__`) | `test_hyp_surface.py` |
-| Structural guard | A whole bug class that is visible in the source or the surface (duplicate `def`, every export fuzzed, member allowlist, `float(finite(…))`, Entity-or-None as an `or` operand, a hook calling its dispatcher) | `unittest` over `ast` / `scena.__all__` | `test_entity_hooks.py`, `test_api_surface.py`, `test_api_robustness.TestNoFloatAroundFormulaValidators`; every family asked the same subclass questions (`test_subclass_parity.py`); every warning with both sides (`test_warning_contracts.py`) |
+| Structural guard | A whole bug class that is visible in the source or the surface (duplicate `def`, every export fuzzed, member allowlist, `float(finite(…))`, Entity-or-None as an `or` operand, a hook calling its dispatcher) | `unittest` over `ast` / `scena.__all__` | `test_entity_hooks.py`, `test_api_surface.py`, `test_api_robustness.TestNoFloatAroundFormulaValidators`; every family asked the same subclass questions (`test_subclass_parity.py`); every warning with both sides (`test_warning_contracts.py`); every look × style × knob reaches the pixels (`test_knobs_take_effect.py`); every callback door refuses an `async def` (`test_async_hooks.TestEveryCallbackDoor`) |
 | Soak | Slow growth over many frames | opt-in (`SCENA_SOAK=1`) | `test_sys_soak.py` |
 
 Rules of thumb:
@@ -1691,6 +1691,53 @@ fuzzer), so most findings were cells nobody had thought to write.
 | `test_program_support.TestDrawReachesThePixels`; `cull_pixels` refuses a flat frame | 5 | HV1 |
 | `game_harness.problems` (an unexpected SCENA warning fails a game run) | 2 | — |
 
+## What the fixes of 2026-10-10 / 11 taught (review of 2026-10-12)
+
+A review of every bug fixed in those two days (AC, SV, RA, SU, AL, O9, O10,
+R10, G20, TU7, AH1, KN1, KN2) against this catalogue: most had their entry and
+guard; AH1, KN1 and KN2 had none. Writing the class guard for each found more
+members (AH2, KN3, KN4).
+
+1. **A fix that lists its funnels by hand misses some.** AH1 refused an
+   `async def` at every door its author thought of (hooks, decorators,
+   `on_done=`, script hooks); the predicates, conditions and formulas were
+   not on the list, and there a coroutine is worse than ignored — it is
+   truthy (AH2). The guard enumerates the doors from the public surface
+   (`TestEveryCallbackDoor`: every parameter named like a callback or
+   annotated `Callable`, every such setter, inherited doors once) and a new
+   door fails until it has a case or a reason.
+2. **A knob is tested on the path where it works.** `Metal(color)` (KN1) and
+   `tile_mode` on a fitted Wallpaper (KN2) were accepted on every path and
+   reached the pixels on none, or one. Each test had used the one style or
+   fit where the knob mattered. The guard sweeps every exported look × every
+   `style` × every knob, and every Wallpaper fit × every image knob, and asks
+   for different pixels (`test_knobs_take_effect`). Its first run found the
+   knobs that are documented for one style only and accepted on the others
+   (KN4, now refused) and a style where the same knob raised Python's own error
+   (KN3).
+3. **Run a new guard on the pre-fix engine, case by case.** On the code
+   before AH2, the `resolve(only=)` case passed: its arm ran no frame, so
+   `only=` was never asked (and once asked, the call backstop refused it
+   anyway). A case that cannot fail is found only by watching it on the bug.
+4. **A pixel cell needs a clock and a backdrop that can show the knob.**
+   The first sweep advanced the clock between the two draws of a cell (every
+   animated look "changed"), then held it at zero (no `speed` could show);
+   the cell now runs at one clock time past zero, checks two draws of the
+   default agree, and clears to a colour no default look uses (`Stroke()` is
+   black on black).
+5. **A changed meaning turns tests vacuous quietly.** SV5 (a helper that
+   returned the number after the 0.8.0 flip), HV1 (two blank frames compared)
+   and O10 (shards that ran a quarter of the cells) all passed. Canaries and
+   the gate catch them; `quick` skips canaries. See [Recurring bug
+   classes](#recurring-bug-classes), "A test turns vacuous".
+
+### Class guards written from this review
+
+| Guard | Lesson | Found (would have caught) |
+| --- | --- | --- |
+| `test_async_hooks.TestEveryCallbackDoor` (doors from the surface; each refuses an `async def` at the call or when it fires, with no "never awaited"; canary: the group predicates without the check) | 1, 3 | AH1, AH2 |
+| `test_knobs_take_effect` (every look × style × knob, every Wallpaper fit × knob: different pixels or a listed reason; shrink-only lists; canaries: `Metal` without its tint, a fitted image that ignores `tile_mode`) | 2, 4 | KN1, KN2, KN3, KN4 |
+
 ## Planning a new test
 
 1. **Enumerate from the source of truth**, not a hand list: slots, `__all__`,
@@ -1819,13 +1866,17 @@ member should ask whether the siblings share the cause.
 | **A close path lives in a `destroy` override that `registry.destroy` bypasses** (an act change, a layer drain and a group destroy call the registry primitive) | HD5 (`Menu.destroy`) | `test_menu.TestRegistryDestroySettlesTheMenu`; rule: per-kind teardown goes in a hook the registry teardown reaches (`_settle_on_remove` from `remove_widget`), never in an override of the public verb |
 | **A manager field is cleared on some removals only** | HD4 (`last_click`), PH1 (hover target), E1 | `test_sys_holders` partial and gone enders; rule: `remove_widget` / `forget_destroyed` clear **every** field of the manager that can name a widget or shape |
 | **A constructor touches a raw input before linking it** | C1 (`Line` home `length` / `angle` via `number()`), C2 (Ellipse focal `get_xy` / `float`), C3 (Box spine `height = float()`), C4 (rotated-corner `_takein` rewrite), C5 (`corner_radius` storing a function), C6 (fixed knobs with a raw or generic message) | `tests/test_ctor_links.py` (every signature, every geometry key: a lambda follows, and a lambda of the same numbers builds the same shape) |
+| **A knob is accepted and changes nothing** (on every path, or on every style / fit but the one its test used) | KN1 (`Metal(color)` never reached the shader), KN2 (`tile_mode` on a fitted Wallpaper), KN4 (`Shield(color)` on fixed-hue styles, `Halo(rings=, speed=)` off `pulse`, `Bolt(amount=)` on `core`, `tile_size=` off `fit="tile"`: now refused), AC2 (a Fire subclass ignored `style=`), AC15 (Track class keywords dropped), AC16 (`Anchor.draggable = False`) | `tests/test_knobs_take_effect.py` (every look × style × knob, every Wallpaper fit × knob: different pixels, or a listed reason; shrink-only); `test_subclass_parity` (class keywords). Rule: a value the engine will not use raises with the fix; a knob that only one style or fit reads is tested on every style or fit |
+| **A function Scena calls is `async`** (a coroutine nobody drives: the body never runs, and as a predicate it counts as True) | AH1 (`async def setup` / `on_update` / handlers / `on_done=`), AH2 (filters, `nearest(where=)`, `until`, `@when`, the `@on_change` target, `resolve(only=)`, `@=` formulas) | `test_async_hooks.TestEveryCallbackDoor` (doors enumerated from the public surface; a new door needs a case or a reason). Rule: every door that takes a function calls `validate.refuse_async` where it takes it (or relies on the `_invoke` / `call_truncated` backstop when it is a hot call) |
+| **A doc promises a refusal no test makes** (a CHANGELOG or Guia sentence "the old spelling raises", "X now follows") | RA1 (four doors took a held `Vec2`), RA2, RA4, RA5, AC4, SV2 | One case per door the sentence names × every payload kind the door takes (`test_state_reads_value.TestHeldVec2IsNotTheCell`); the release audit (Scena Design checklist). Rule: a sentence of that form is a test to write, not a summary to trust |
+| **A test turns vacuous** (it keeps passing while it no longer reaches what it checks: a changed spelling, a blank frame, a shard list, a case that runs no frame) | SV5 (a cell helper returned the number after the 0.8.0 flip), HV1 (two blank frames compared), O10 (gate shards ran ~50 of ~190 cells), the first `resolve(only=)` case of `TestEveryCallbackDoor` (no frame ran, so `only=` was never asked) | Canaries (`diff_support.assert_catches`, gate only), `TestDrawReachesThePixels`, `test_every_split_module_really_shards`, the `> 100` reach checks of the surface sweeps. Rule: a new guard is run on the pre-fix engine and each case is seen to fail; after a change to what a spelling means, run `gate` |
 
 
 # Bug catalogue
 
 Series: **H** Hypothesis batch 1 (`test_hyp_*`), **R** regressions caused by fixes,
 **S** system suites (`test_sys_*`), **A** API surface, **D** differential, **W** world
-machine extensions (M4), **O** order / isolation (a test that depends on what ran before it), **G** geometry properties (transform algebra, round trips, invariance), **F** contact flicker (what a player sees across real frames), **SU** seam lips (a walker meeting the side face of the next tile), **CT** continuous detection (fast bodies between frames), **CS** closed surfaces (a write to a name the object does not have), **GR** graphics review (2026-10-08: Shape / Sprite / Graphic / Entity; the review's own IDs SA / SB / SC / E / HP / PA / PB are kept, members its class guards found are GR1…). "Guard" is the regression test in the owning file.
+machine extensions (M4), **O** order / isolation (a test that depends on what ran before it), **G** geometry properties (transform algebra, round trips, invariance), **F** contact flicker (what a player sees across real frames), **SU** seam lips (a walker meeting the side face of the next tile), **AH** async functions where Scena calls one, **KN** knobs that change nothing, **CT** continuous detection (fast bodies between frames), **CS** closed surfaces (a write to a name the object does not have), **GR** graphics review (2026-10-08: Shape / Sprite / Graphic / Entity; the review's own IDs SA / SB / SC / E / HP / PA / PB are kept, members its class guards found are GR1…). "Guard" is the regression test in the owning file.
 
 ### H — Hypothesis batch 1 (2026-09-25)
 
@@ -2278,6 +2329,22 @@ numbers, and the `Vec2` (a Container) walked through four doors.
 | RA4 | `if canvas.effects:` was True during a `shake` with no author effect, while `len()` was 0 (AC3 fixed `__iter__` / `__len__` only) | `PostFxStack.__bool__` returned `_is_active`, which counts the internal `_hit` | `test_postfx.test_truth_agrees_with_len_during_an_impact` |
 | RA6 | Two weak points of one `Collider` (`torso.collidable`, `head.collidable`, `Collider([torso, head])`) collided with each other every frame; `query_sector` (a wedge, or `spread=0`) still answered by statement order while Collision Design and the Guia said every query puts the body first | AC10's `kin` set held body ↔ own piece only; `_prim_hits` / `_segment_hits` returned identities in candidate order | `TestPieceThatIsAlsoABody.test_two_weak_points_of_one_body_never_touch`, `test_queries_name_the_body_first_in_either_order` (sector cases); both fail without the fix |
 | RA5 | Docs drift: tutorial 07 said `st.vidas` and `st["vidas"]` are the same thing; Guia rows promised errors that did not happen (`@=` on a number, `@on_change(c.radius)` "never sees a change" — it raises), named `ready` "at most once per N seconds", said every visual takes the object's colour (`Metal()` is chrome); the CHANGELOG named `.tile_mode` (it is `.source.tile_mode`) and missed `query_circle` / `query_shape` order, `until(<field>)`, `Text(True)`, and the `contain` band fill; 21 Guia thumbnails were stale | Prose changed in one place and not in the others | Fixed in the docs; `make_guia_thumbs.py --check` before a release (the release checklist in Scena Design) |
+
+### AH — async functions where Scena calls one (2026-10-10, 2026-10-12)
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| AH1 | `async def setup`, `async def on_update`, an async `@every` / `@when` / `@collide` / `on_click` / `on_done=`, or `after(1, lambda: self.anda())` with `anda` async: the body never ran; Python only printed "coroutine … was never awaited" (d017e2d, 2026-10-10) | Only a mode is driven as a script; every other door calls the function and drops the coroutine | `tests/test_async_hooks.py` (class hooks from `_HOOK_LOOKUP_NAMES`, decorator roles from `_ROLE_LABELS`, hook setters, script hooks, the `_invoke` / `call_truncated` backstop). Written with a hand list of the other doors: AH2 |
+| AH2 | An async predicate, condition or formula was taken: `group["g"].filter(async_fn)` kept every member (also `any` / `all` / `count_where` / `group.nearest(where=)` and the free `nearest(where=)`), `await until(async_fn)` ended on its first poll, `@on_change(async_fn)` fired every frame with a coroutine, `@when(async_fn)` raised "must evaluate to bool, got coroutine" and left the warning, an `@=` formula raised "expected a number, got coroutine". Found 2026-10-12 by the surface guard written for AH1 | A coroutine is truthy. AH1's funnels were listed by hand; these doors call the function and read its answer | `test_async_hooks.TestEveryCallbackDoor` (11 of its doors fail on the code before; canary `test_canary_group_predicates_without_the_check`). Fix: `validate.refuse_async` in `registry._require_pred`, `shapes.nearest`, `process._start_until`, `events.when` / `on_change`, `collision._normalize_only`, `state._extract_sources` (A/B: `filter` / `count_where` / `nearest(where=)` within ±1 %). `resolve(only=)` was already refused at the first contact by the `call_truncated` backstop; it now raises at the call |
+
+### KN — knobs that change nothing (2026-10-09, 2026-10-10, 2026-10-12)
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| KN1 | `Metal("gold")` drew chrome: every Metal was silver whatever its color (tutorial 23, 2026-10-09; 8e9244c) | The tint was stored on the Recipe and never set as a shader uniform | `test_visuals.test_metal_color_tints_the_metal`; class guard `test_knobs_take_effect` (canary: `_metal_tint` returning zeros). Fix: `u_tint` in the metal SkSL, `recipes._metal_tint` ([Effect System Design](Effect%20System%20Design.md)) |
+| KN2 | `Wallpaper("BG.png", tile_mode="mirror", pan_response=0.1)` went black once the camera passed the image: `fit="cover"` / `"contain"` / `"stretch"` ignored `tile_mode` (5628654, 2026-10-10) | Fitted images drew with `drawImageRect`; only `fit="tile"` used the shader that honours the mode | `test_background_image.TestFittedImagePastEdge`; class guard `test_knobs_take_effect.TestWallpaperKnobsReachThePixels` (canary: `_uses_template` back to tile-only). Fix: [Canvas Design](Canvas%20Design.md) (`style._uses_template`) |
+| KN3 | `Halo(style="line", rings=5)` (or `speed=`) raised Python's own "HaloLine.__init__() got an unexpected keyword argument 'rings'" (found 2026-10-12 by `test_knobs_take_effect`) | `Halo.__new__` returns a `HaloLine`; Python then calls `HaloLine.__init__` with every keyword, and it took only `style` | `test_visuals.TestHaloTintRoles.test_halo_pulse_knobs_raise_off_pulse`; `REFUSED_ON_STYLE` in the guard. Fix: `Halo.__new__` refuses non-default `rings` / `speed` on `line` naming `style="pulse"`; `HaloLine.__init__` takes the defaults |
+| KN4 | Knobs documented for one style or fit, taken and ignored on the others: `Shield(color)` on bubble / nebula / ember / void / molten / cracks / frost; `Halo(rings=, speed=)` on hollow / fill / soft; `Bolt(amount=)` on core; `Wallpaper(tile_size=)` / `Texture(tile_size=)` off `fit="tile"` (found 2026-10-12 by `test_knobs_take_effect`) | Each knob was read by the style or fit that needs it and dropped by the others; nothing refused it | Decided (2026-10-12, user): raise with the fix, naming the style or fit that reads the knob (breaking: CHANGELOG). `test_visuals` (`test_halo_pulse_knobs_raise_off_pulse`, `test_shield_color_raises_on_fixed_hue_styles`, `test_bolt_amount_raises_on_core`), `test_background_image.TestTileSizeNeedsTile`; `REFUSED_ON_STYLE` / `REFUSED_ON_FIT` in the guard |
 
 ### Open (found, not yet fixed)
 

@@ -579,6 +579,10 @@ def when(condition: Condition):
         def on_death():
             ...
     """
+    # An async condition returns a coroutine each poll, never a bool.
+    from .validate import refuse_async
+    refuse_async(condition, what="@when condition")
+
     def decorator(func: Callable) -> Callable:
         from .process import _claim_decorator_role, _in_executing_class_body
         if _in_executing_class_body():
@@ -629,6 +633,10 @@ def on_change(target: Condition):
         def on_radius(value):
             ...
     """
+    # An async target returns a new coroutine each poll: a change every frame.
+    from .validate import refuse_async
+    refuse_async(target, what="@on_change target")
+
     def decorator(func: Callable) -> Callable:
         from .process import _claim_decorator_role, _in_executing_class_body
         if _in_executing_class_body():

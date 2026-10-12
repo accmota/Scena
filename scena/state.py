@@ -923,7 +923,10 @@ class FormulaLink():
         import inspect
         import ast
         from .formula_check import check_formula, formula_context
+        from .validate import refuse_async
 
+        # An async formula returns a coroutine, never a value.
+        refuse_async(fn, what="@= formula")
         lambda_node = self._locate_lambda_node(fn)
         if lambda_node is None:
             # No source (REPL / ``exec``). Default-arg captures are sources
