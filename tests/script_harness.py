@@ -6,7 +6,8 @@ the real frame body (``ScenaFramework._simulate_frame``) — the same order a
 windowed run uses: ``update`` / processes / collision / flush — without a
 window or a draw. The global ``random`` is seeded (0), so a run that fails
 fails again. The script's own directory is the working directory (its
-media paths are relative to it) and ``sys.argv`` is just the script, so a
+media paths are relative to it), or the folder its ``# harness: cwd=<dir>``
+header names and ``sys.argv`` is just the script, so a
 bench with argparse takes its defaults.
 
 Prints ``SCRIPT OK <frames>`` on success. Any author error propagates with its
@@ -24,6 +25,19 @@ import os
 import runpy
 import sys
 import warnings
+
+
+def harness_cwd(script: str, root: str):
+    """``# harness: cwd=<dir>`` on a script's first lines (repo-relative), or
+    None. The game system tests and the bench games keep their art in
+    ``examples/media`` and run from there (``tests/test_media_refs`` reads the
+    same header)."""
+    with open(script, encoding="utf-8") as fh:
+        for _ in range(5):
+            line = fh.readline()
+            if line.startswith("# harness: cwd="):
+                return os.path.join(root, line.split("=", 1)[1].strip())
+    return None
 
 
 def main(argv) -> None:
@@ -60,7 +74,7 @@ def main(argv) -> None:
 
     scena.run = headless_run
     here = os.path.dirname(script)
-    os.chdir(here)
+    os.chdir(harness_cwd(script, root) or here)
     sys.path.insert(0, here)
     sys.argv = [script]
     runpy.run_path(script, run_name="__main__")

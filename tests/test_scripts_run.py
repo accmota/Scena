@@ -54,6 +54,10 @@ EXTRA = (
     "scripts/bench/perf_text.py",
     "scripts/bench/perf_background.py",
     "scripts/bench/sched.py",
+    "scripts/bench/games/horda.py",
+    "scripts/bench/games/mundo.py",
+    "scripts/bench/games/corrida.py",
+    "scripts/bench/games/festa.py",
 )
 
 
