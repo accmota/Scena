@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import inspect
 import math
+import os
 import time
 import warnings
 import weakref
@@ -139,6 +140,13 @@ _SPRITE_POSE_KEY_FAST = True
 # building world prims, as the other queries do (games.md B3). False: the old
 # walk (oracle).
 _QUERY_SHAPE_REJECT = True
+# Pose revision (Collision Design, "Pose revision"): a trusted body whose
+# ``_pose_rev`` has not moved since its proxy was built keeps it without a
+# pose key. False: always the key (oracle, A/B).
+_POSE_REV_SKIP = True
+# Test / debug mode: every skip also builds the key and raises when they
+# disagree (a pose writer that forgot ``bump_pose_rev``). run_tiers sets it.
+_POSE_REV_VERIFY = os.environ.get("SCENA_VERIFY_POSE_REV") == "1"
 # The Sprite pose hooks a fast key mirrors: a class that overrides any of
 # them keeps the generic key.
 _SPRITE_POSE_HOOKS = (
@@ -1439,6 +1447,76 @@ def _sprite_pose_key_fast(s) -> Optional[tuple]:
         1.0 if flip_y else 0.0,
         float(s._offset_x), float(s._offset_y),
     )
+
+
+def _pose_rev_kind(cls) -> int:
+    """0: not trusted; 1: Rect / Square, Circle, Ellipse; 2: a plain Sprite.
+
+    Kinds whose every pose input is written through a bumping path. Cached
+    on the class."""
+    ok = cls.__dict__.get("_scena_pose_rev_kind")
+    if ok is None:
+        from .shapes import Circle, Ellipse, Rect
+        ok = 2 if _sprite_pose_fast_class(cls) else 0
+        if not ok:
+            for base in (Rect, Circle, Ellipse):
+                if issubclass(cls, base):
+                    same = all(getattr(cls, n, None) is getattr(base, n, None)
+                               for n in ("_collision_pose_extra", "_collision_pose_anchor",
+                                         "_center_xy", "_oriented_frame", "_pull_property_anchors",
+                                         "_has_domain_frame", "_is_hitbox_part"))
+                    ok = 1 if same else 0
+                    break
+        type.__setattr__(cls, "_scena_pose_rev_kind", ok)
+    return ok
+
+
+def _pose_untrusted_part(d: dict) -> bool:
+    return bool(d.get("_field_anchors")) or d.get("_link") is not None or "_pull_owner" in d
+
+
+def _pose_rev_of(shape) -> Optional[int]:
+    """``shape``'s pose revision when it can be trusted, else None.
+
+    Trusted: a kind whose writers all bump (``_pose_rev_kind``), with no link,
+    anchor or pull owner on it or on its Defining parts (a linked value
+    changes on a pull, with no write), and no per-frame hitbox
+    (``hitbox_source="each"``). Links and anchors bump when they come or go,
+    so the check is cached per revision.
+    """
+    kind = _pose_rev_kind(type(shape))
+    if not kind:
+        return None
+    d = shape.__dict__
+    cell = d.get("_pose_cell")
+    rev = cell[0] if cell is not None else 0
+    if kind == 2 and shape._hitbox_from == "each":
+        return None
+    cached = d.get("_pose_rev_trust")
+    if cached is not None and cached[0] == rev:
+        return rev if cached[1] else None
+    trusted = not _pose_untrusted_part(d)
+    if trusted:
+        parts = d.get("_defining_part_names") or ("center",)
+        for name in parts:
+            part = d.get(name)
+            pd = getattr(part, "__dict__", None)
+            if pd is not None and _pose_untrusted_part(pd):
+                trusted = False
+                break
+    d["_pose_rev_trust"] = (rev, trusted)
+    return rev if trusted else None
+
+
+def _collider_pose_revs(shapes) -> Optional[tuple]:
+    """Every shape's trusted revision, or None if any is untrusted."""
+    out = []
+    for s in shapes:
+        r = _pose_rev_of(s)
+        if r is None:
+            return None
+        out.append(r)
+    return tuple(out)
 
 
 def _collision_pose_key(shape) -> tuple:
@@ -3970,6 +4048,7 @@ class Collider:
         "_tags_cache",
         "_proxy",
         "_proxy_key",
+        "_proxy_revs",
         "_proxy_valid",
         "_world_prims",
         "_world_key",
@@ -4039,6 +4118,7 @@ class Collider:
         self._tags_cache: Optional[frozenset] = None
         self._proxy = [0.0, 0.0, 0.0, 0.0]
         self._proxy_key: Optional[tuple] = None
+        self._proxy_revs: Optional[tuple] = None   # shapes' pose revisions at the last key
         self._proxy_valid = False
         self._world_prims: Optional[List[Prim]] = None
         self._world_key: Optional[tuple] = None
@@ -4349,6 +4429,16 @@ class CollisionSystem:
             self._partner_ident_cache.clear()
         if self._partner_only_cache:
             self._partner_only_cache.clear()
+
+    def _verify_pose_rev(self, collider: Collider, shapes) -> None:
+        """``SCENA_VERIFY_POSE_REV``: the skipped key must equal the stored one."""
+        keys = tuple(_collision_pose_key(s) for s in shapes)
+        if keys != collider._proxy_key:
+            raise AssertionError(
+                f"pose revision unchanged but the pose key moved (a writer did not "
+                f"bump_pose_rev): {[type(s).__name__ for s in shapes]} "
+                f"{collider._proxy_key} -> {keys}"
+            )
 
     def _forget_partner_entry(self, collider: Collider) -> None:
         """A leaving collider's own lists: a later collider reusing its id()
@@ -5390,8 +5480,17 @@ class CollisionSystem:
             return False
         for s in shapes:
             _sync_auto_hitbox_frame(s)
+        if _POSE_REV_SKIP and collider._proxy_valid:
+            stored = collider._proxy_revs
+            if stored is not None and stored == _collider_pose_revs(shapes):
+                if _POSE_REV_VERIFY:
+                    self._verify_pose_rev(collider, shapes)
+                if commit_motion:
+                    self._commit_pending_motion(collider)
+                return True
         keys = tuple(_collision_pose_key(s) for s in shapes)
         old = collider._proxy_key
+        collider._proxy_revs = _collider_pose_revs(shapes) if _POSE_REV_SKIP else None
         if old == keys and collider._proxy_valid:
             if commit_motion:
                 self._commit_pending_motion(collider)
@@ -6265,6 +6364,12 @@ class CollisionSystem:
         if abs(dx) < 1e-18 and abs(dy) < 1e-18:
             return
         ident = collider._identity
+        # The shifted key below is the pose only if the stored key was the
+        # pose before the move: a shape this collider shares with another
+        # body may have moved since (the other body's nudge).
+        stored_revs = collider._proxy_revs
+        revs_before = _collider_pose_revs(collider.shapes) if stored_revs is not None else None
+        key_was_fresh = stored_revs is not None and stored_revs == revs_before
         moved = False
         if ident is not None and ident is not collider:
             mb = getattr(ident, "_move_by", None)
@@ -6296,6 +6401,11 @@ class CollisionSystem:
             collider._proxy_key = shifted
         elif shapes:
             collider._proxy_key = tuple(_collision_pose_key(s) for s in shapes)
+        # A move bumped the revisions and the key above follows it. A refused
+        # move (a piece of another body) left them: the shifted key is then
+        # not the pose, so the next refresh must build it (no skip).
+        revs_after = _collider_pose_revs(shapes) if _POSE_REV_SKIP and key_was_fresh else None
+        collider._proxy_revs = revs_after if revs_after != revs_before else None
         collider._proxy_valid = True
 
     def _bump_solve_bottom(self, cid: int, delta: int) -> None:

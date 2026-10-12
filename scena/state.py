@@ -634,6 +634,53 @@ def callable_assign_message(owner: Any, field: str) -> str:
     )
 
 
+def _pose_cell_of(node) -> list:
+    """The one-element revision cell of ``node``'s root, cached on ``node``.
+
+    Parts are never reparented (``owner`` raises), so the cell a part caches
+    stays its root's; ``_invalidate_ownership_root_cache`` drops it anyway.
+    """
+    d = node.__dict__
+    root = d.get('_ownership_root_cache')
+    if root is None:
+        root = node if d.get('_owner') is None else node._ownership_root()
+    rd = root.__dict__
+    cell = rd.get('_pose_cell')
+    if cell is None:
+        cell = [0]
+        rd['_pose_cell'] = cell
+    d['_pose_cell'] = cell
+    return cell
+
+
+def pose_rev(obj) -> int:
+    """``obj``'s current pose revision (0 before the first bump)."""
+    cell = obj.__dict__.get('_pose_cell')
+    return cell[0] if cell is not None else 0
+
+
+def bump_pose_rev(node) -> None:
+    """A pose input of ``node``'s tree changed: bump its root's revision.
+
+    The revision says "something a collision pose key or a draw box reads may
+    have changed since you last looked" (Collision Design, "Pose revision").
+    Over-bumping is harmless (a cache recomputes); a missed bump is a stale
+    hull, which ``SCENA_VERIFY_POSE_REV=1`` turns into an error.
+    """
+    d = getattr(node, '__dict__', None)
+    if d is None:
+        # A slot-only part (a Hitbox): its host's pose key reads it.
+        ref = getattr(node, '_host_ref', None)
+        host = ref() if callable(ref) else None
+        if host is not None:
+            bump_pose_rev(host)
+        return
+    cell = d.get('_pose_cell')
+    if cell is None:
+        cell = _pose_cell_of(node)
+    cell[0] += 1
+
+
 def probe_private(obj, name: str, default=None):
     """``getattr(obj, name, default)`` for a private engine field, without
     ``Entity.__getattr__``: a miss there builds and raises an error message
@@ -1656,11 +1703,13 @@ class Container():
         for node in self._iter_subtree():
             node.__dict__.pop('_bare_ok', None)
             node.__dict__.pop('_scalar_bare_ok', None)
+        bump_pose_rev(self)     # a link came or went: trust is re-checked
 
     def _invalidate_ownership_root_cache(self) -> None:
         """Clear memoized ownership roots on this subtree (owner graph changed)."""
         for node in self._iter_subtree():
             node.__dict__.pop('_ownership_root_cache', None)
+            node.__dict__.pop('_pose_cell', None)
 
     def _formula_driven_ancestor(self) -> Optional['Container']:
         """Nearest owner (not self) that has a formula link, or None."""
@@ -2377,6 +2426,7 @@ class Container():
 
         self._takein_impl(new_value)   # Call _takein method of the subclass (specific implementation by subclass)
         self._takein_pose(new_value)
+        bump_pose_rev(self)
         # A copy (``<<``, ``absorb``, part ``=``) stores fields raw: dirty the
         # field anchors a FieldRef link reads, on this node and its parts.
         for node in self._iter_subtree():
@@ -2806,6 +2856,7 @@ class Container():
         if anchor is None:
             anchor = cls(self, name)
             anchors[name] = anchor
+            bump_pose_rev(self)     # an anchor came: trust is re-checked
         elif type(anchor) is not cls:
             # Formula source extraction and ``@=`` must share one node type
             # (``_PropertyAnchor`` for Graphic.angle/scale, not a dead ScalarAnchor).
@@ -2821,6 +2872,7 @@ class Container():
         if not anchors or name not in anchors:
             return
         anchor = anchors.pop(name)
+        bump_pose_rev(self)
         try:
             if anchor._link is not None:
                 anchor.unlink()
@@ -2950,6 +3002,11 @@ class Container():
                     old = d.get(name, slot.default)
                     if old != value:
                         d[name] = value
+                        # bump_pose_rev(self), inline (the per-write hot path)
+                        cell = d.get('_pose_cell')
+                        if cell is None:
+                            cell = _pose_cell_of(self)
+                        cell[0] += 1
                         if name == "angle":
                             # Shape: the pose store follows (inline: per-frame
                             # ``ship.angle = …``; no anchor on this path).
@@ -3021,6 +3078,8 @@ class Container():
                 store = self.__dict__
             if _value_changed(old, value):
                 store[name] = value
+                if store is not ink:
+                    bump_pose_rev(self)
                 if name == "angle" and store is self.__dict__:
                     pub = self._publish_angle_input
                     if pub is not None:
@@ -3765,6 +3824,7 @@ class ScalarAnchor(Container):
                                        new_value if new_value.__class__ is float
                                        else float(new_value))
             d[name] = new_value
+            bump_pose_rev(parent)
             # A raw store skips the parent's _update_impl (Reactive Design,
             # "Pull stores raw"): let it keep its computed fields in step.
             sync = parent._sync_computed

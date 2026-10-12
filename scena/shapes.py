@@ -22,6 +22,8 @@ from .state import (
     _init_scalar,
     _init_composite,
     _PropertyAnchor,
+    bump_pose_rev,
+    _pose_cell_of,
 )
 from .transients import compose_draw_mods, draw_with_transients
 from .stamps import draw_body_with_stamps
@@ -93,6 +95,12 @@ def _takein_xy_float(point, x=None, y=None) -> bool:
         if d.get('y') != fy:
             d['y'] = fy
             changed = True
+    if changed:
+        # bump_pose_rev(point), inline (every A1 move lands here)
+        cell = d.get('_pose_cell')
+        if cell is None:
+            cell = _pose_cell_of(point)
+        cell[0] += 1
     return changed
 
 
@@ -2043,6 +2051,7 @@ class Shape(Graphic, PaintState):
         # A flip is a pose write; the heading is gated only when it changes.
         _gate_pose_anchor(self, "angle" if turned != rot else None, "flip", force)
         object.__setattr__(self, flag, value)
+        bump_pose_rev(self)
         try:
             self._mirror_geometry(axis, force=force)
         except BaseException:
@@ -3365,8 +3374,14 @@ class Point(Shape):
         old_y = self.__dict__.get('y', 0.0)
 
         if old_x != x or old_y != y:
-            self.__dict__['x'] = float(x)
-            self.__dict__['y'] = float(y)
+            d = self.__dict__
+            d['x'] = float(x)
+            d['y'] = float(y)
+            # bump_pose_rev(self), inline
+            cell = d.get('_pose_cell')
+            if cell is None:
+                cell = _pose_cell_of(self)
+            cell[0] += 1
             return True
         else:
             return False

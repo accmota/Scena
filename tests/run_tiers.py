@@ -245,8 +245,14 @@ def child_env(base: Dict[str, str], extra: Optional[Dict[str, str]] = None) -> D
     ``scena`` from source: ~0.7 s of CPU per process, every job and every
     script a job starts. The children cache their bytecode under ``OUT``
     instead, so the tree the host keeps clean gets no ``__pycache__``.
+    Pose-revision verify mode is on by default (``SCENA_VERIFY_POSE_REV``).
     """
     env = {**base, "PYTHONIOENCODING": "utf-8", **(extra or {})}
+    # Every proxy kept by its pose revision also builds the key and must agree
+    # (collision._POSE_REV_VERIFY): a pose writer that forgets bump_pose_rev
+    # fails whatever test moves that kind of body (Collision Design, "Pose
+    # revision"). ``SCENA_VERIFY_POSE_REV=0`` measures the real skip.
+    env.setdefault("SCENA_VERIFY_POSE_REV", "1")
     if env.pop("PYTHONDONTWRITEBYTECODE", None) is not None:
         env.setdefault("PYTHONPYCACHEPREFIX", PYCACHE)
     return env

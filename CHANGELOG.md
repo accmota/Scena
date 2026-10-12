@@ -46,6 +46,10 @@ left out.
   in the same frame as an earlier one when a query (`floor_below`, a
   `query_*`) ran between the two spawns; it ignored the second one until
   something else enrolled.
+- Bodies that did not move cost almost nothing to collide with: Scena now
+  knows which Sprites, rectangles, circles and ellipses moved since it last
+  looked, and skips the rest. A level of 1500 tiles runs about 40 % faster
+  per frame; tutorial 22's level and the endless runner about 15 %.
 - A game with `Neon` on moving shapes no longer grows to over 1 GB of memory:
   Scena frees GPU memory nothing has drawn for a second. A bullet hell with
   300 glowing shots now stays near 250 MB.

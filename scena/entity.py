@@ -25,7 +25,7 @@ from ._pkg import is_framework_module
 from .state import (
     Attribute, CallableAssignError, Container, DestroyedError, LinkedAttributeError,
     _INK_SLOT, _FlagPropertyAnchor, _PropertyAnchor,
-    callable_assign_message, probe_private,
+    callable_assign_message, probe_private, bump_pose_rev,
 )
 from .scenamath import Vec2
 from .validate import expect_bool, refuse_async
@@ -750,6 +750,7 @@ def _bump_collision_epoch(obj) -> None:
         )
     except Exception:
         pass
+    bump_pose_rev(obj)
 
 
 def _geom_path_cache_set(obj, path, key) -> None:
@@ -3219,6 +3220,7 @@ class Graphic(Entity, ABC):
         # A flip is a pose write; the heading is gated only when it changes.
         _gate_pose_anchor(self, "angle" if new != rot else None, "flip", force)
         object.__setattr__(self, flag, value)
+        bump_pose_rev(self)
         try:
             self.rotate_to(new, force=force)
         except BaseException:
@@ -3352,6 +3354,7 @@ class Graphic(Entity, ABC):
         """
         for flag in ("_flip_x", "_flip_y"):
             object.__setattr__(self, flag, bool(getattr(source, flag, False)))
+        bump_pose_rev(self)
         # The heading as read (a Defining ``angle`` may be ahead of the pose store).
         _pose_rotation_set(self, float(source._rotation_value()))
         _pose_scale_set(self, float(source._scale))

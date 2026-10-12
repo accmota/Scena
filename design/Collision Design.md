@@ -1076,6 +1076,71 @@ cold (R7 in [Testing Design](Testing%20Design.md#bug-catalogue)). Never trim an
 extra "because rotation already bumps the epoch": a Defining slot write often does
 not bump it.
 
+**Pose revision.** A body whose pose did not change keeps its proxy without a
+pose key (`_POSE_REV_SKIP`). Every write that can change what a trusted body's
+key bumps its root's revision (`state.bump_pose_rev`; read with
+`state.pose_rev`). The revision is a one-element list in the root's `__dict__`
+(`_pose_cell`), and every part caches a reference to it, so a bump is one dict
+get and an increment. The three hottest funnels inline it. Measured write tax
+(M4, interleaved against the previous tree): `move_by` +50 ns (+4 %), a slot
+write (`width =`) +40 ns (+3 %), `center =` +1–3 %. No frame-level change in
+horda, where every body moves every frame.
+
+The bumps sit in these funnels:
+- `Container._write_field` (both stores; not author ink);
+- `Container._takein` and `Point._takein_impl` (`center =`, `<<`, part writes);
+- `_takein_xy_float` (the A1 float moves);
+- the link-pull store (`ScalarAnchor`);
+- `_bump_collision_epoch` (rotation, scale, the Sprite size / frame / offset /
+  art-angle / hitbox setters, the main hitbox's setters through its host);
+- the flip stores and `_clone_pose_from`;
+- link, anchor and pull-owner changes (`_invalidate_bare_reads`,
+  `_ensure_scalar_anchor`, `_drop_scalar_anchor`).
+
+Trusted (`_pose_rev_of`):
+- **Kinds**: plain Sprites, Rect / Square, Circle and Ellipse, and their
+  subclasses that keep the kind's pose hooks (`_pose_rev_kind`, cached on the
+  class).
+- **State**: no link, anchor or pull owner on the body or its Defining parts
+  (a linked value changes on a pull, with no write), and no
+  `hitbox_source="each"`. Cached per revision, because links and anchors bump
+  when they come or go.
+
+Everything else builds its key every time, as before: Text, Track, SpatialFx,
+hitbox parts, Polygons, Lines.
+
+`_update_proxy` stores the shapes' revisions next to the key (`_proxy_revs`).
+A solver nudge shifts the stored key and may keep the new revisions only if
+the stored key was the pose just before the move. A shape two bodies share
+(a piece of a compound body) may have been moved by the other body's nudge.
+If it was, the shifted key is not the pose and the next refresh builds it.
+The first draft missed this; the verify mode below caught it.
+
+**Verify mode.** `SCENA_VERIFY_POSE_REV=1` (`_POSE_REV_VERIFY`) makes every
+skip also build the key and raise when they disagree. `tests/run_tiers.py`
+turns it on for every tier, so a pose writer that forgets the bump fails any
+test that moves that kind of body.
+- Its first run found three gaps: `Point` overrides `_takein` (center writes
+  bypassed the funnel), the nudge rule above, and slot-only `Hitbox` objects
+  (the bump forwards to the host).
+- `SCENA_VERIFY_POSE_REV=0` measures the real skip.
+
+Measured (in-process A/B, `game_bench.py --ab scena.collision:_POSE_REV_SKIP`):
+- ninja 5.2 → 4.5 ms;
+- mundo 103 → 63 ms (`floor_below` 65 → 28 ms);
+- corrida 3.1 → 2.6 ms;
+- horda unchanged.
+
+Tests: `tests/test_pose_rev.py`:
+- random public pose operations on every trusted kind: a revision that did
+  not move means a key that did not move;
+- trust is refused for links, Text and `each`;
+- a still body builds no key;
+- canaries: the A1 funnel without its bump is caught (and so is a disabled
+  bump in state or entity).
+
+A new pose writer bumps, or the kind leaves the trusted list.
+
 **Sprite fast key.** A Sprite whose class keeps Sprite's own pose hooks
 (`_SPRITE_POSE_HOOKS`; checked once per class, cached on the class as
 `_scena_pose_key_fast`) builds its key from its fields (`_sprite_pose_key_fast`).
