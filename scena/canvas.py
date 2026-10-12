@@ -1648,7 +1648,10 @@ class Canvas(ClosedSurface, Container):
         """Skip **draw** of shapes whose AABB is outside the current view.
 
         Default **False** (safe for edged beams, glow bleed, small scenes).
-        Enable for large worlds / many off-camera actors. Draw-only: tick,
+        Enable for large worlds whose off-camera objects are expensive to
+        draw (glow, multipass visuals): the per-object test costs about as
+        much as drawing a plain sprite, so a world of plain sprites runs
+        slower with it on (Canvas Design, "Offscreen culling"). Draw-only: tick,
         formulas, collision, and SpatialFx simulation still run. Approximate
         AABB + filter / transient / multipass pads. Parallax (non-neutral)
         layers are never culled — their partial camera CTM is not

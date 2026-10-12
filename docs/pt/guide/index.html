@@ -1212,8 +1212,8 @@
     <a href="#mundo-background" class="nav-child" data-chapter="mundo" data-search="background wallpaper skygradient stars stardust chromadust nebuladust clouds nebula tunnel starfly remove clear">Background</a>
     <a href="#mundo-post" class="nav-child" data-chapter="mundo" data-search="post vignette bloom grain haze effects remove clear enabled">Post</a>
     <a href="#mundo-impactos" class="nav-child" data-chapter="mundo" data-search="impacto flash shake glitch fade_out fade_in capa wipe iris fireworks_at zap_at hit_at debris_at explosion_at burst_at bubbles_at ripple_at wave_at">Impactos</a>
-    <a href="#mundo-camera" class="nav-child" data-chapter="mundo" data-search="câmera zoom pan rotate about time ease loops yoyo frame_to pad reset_view set_origin game_view ui_view chase deadzone follow">Câmera</a>
-    <a href="#mundo-apresentacao" class="nav-child" data-chapter="mundo" data-search="framerate canvas.framerate vsync vsync60 vsync30 fps fx_quality qualidade canvas.display windowed maximized fullscreen window_scale">Apresentação</a>
+    <a href="#mundo-camera" class="nav-child" data-chapter="mundo" data-search="câmera zoom pan rotate about time ease loops yoyo frame_to pad reset_view set_origin game_view ui_view chase deadzone follow cull_offscreen">Câmera</a>
+    <a href="#mundo-apresentacao" class="nav-child" data-chapter="mundo" data-search="framerate canvas.framerate vsync vsync60 vsync30 fps fx_quality qualidade canvas.display windowed maximized fullscreen window_scale cull_offscreen canvas.cull_offscreen cull fora da vista desempenho">Apresentação</a>
     <a href="#mundo-camadas" class="nav-child" data-chapter="mundo" data-search="camadas layer acima below above número z default top ui parallax">Camadas</a>
     <a href="#mundo-sem-fim" class="nav-child" data-chapter="mundo" data-search="endless sem fim infinito infinite scroll corredor runner flappy slot vaga step seed index_at pieces carona carry terreno parallax">Mundo sem fim</a>
     <a href="#mundo-grupos" class="nav-child" data-chapter="mundo" data-search="grupos group tag untag tagged nearest filter count empty centroid box count_where index first last fatia slice obj métodos method broadcast handles lista clone move_by fórmula formula @= unlink is_linked issubset issuperset subset superset">Grupos</a>
@@ -5683,7 +5683,7 @@ canvas.frame_to(group["fleet"].box, pad=0.15)  # None = fica parado
 <tr><td><code>canvas.rotation</code></td><td class="type"><span class="t">número</span><span class="ex">1</span></td><td>leitura</td><td>Rotação da vista, em graus.</td></tr>
 <tr><td><code>canvas.game_view</code></td><td class="type"><span class="t">Box</span><span class="ex">canvas.game_view</span></td><td>leitura</td><td>O que a câmera vê agora, no mundo. Câmera parada no início: de <code>(0, 0)</code> a <code>(canvas.width, canvas.height)</code>, centro no meio. Um Box novo a cada leitura. Ver <a href="#colocar-pais">Colocar</a>.</td></tr>
 <tr><td><code>canvas.ui_view</code></td><td class="type"><span class="t">Box</span><span class="ex">canvas.ui_view</span></td><td>leitura</td><td>A janela inteira, de <code>(0, 0)</code> a <code>(width, height)</code>, para o HUD. Não se mexe com a câmera. Um Box novo a cada leitura.</td></tr>
-<tr><td><code>cull_offscreen</code></td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td>lê / escreve</td><td><code>True</code>: não desenha o que está fora da vista (mais rápido). Padrão <code>False</code>. Os objetos continuam rodando <code>update</code> e colidindo.</td></tr>
+<tr><td><code>canvas.cull_offscreen</code></td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td>lê / escreve</td><td><code>True</code>: não desenha o que está fora da vista. Padrão <code>False</code>. Os objetos continuam rodando <code>update</code> e colidindo. Só compensa com objetos caros de desenhar: <a href="#mundo-apresentacao">Apresentação</a>.</td></tr>
           </tbody>
         </table>
         <p class="name-group">Métodos</p>
@@ -5741,7 +5741,7 @@ canvas.frame_to(group["fleet"].box, pad=0.15)  # None = fica parado
 
     <section class="section prose" id="mundo-apresentacao">
       <h2>Apresentação</h2>
-      <p class="one-liner">Como o jogo aparece: o modo da janela (<code>canvas.display</code>), quantos frames por segundo (<code>canvas.framerate</code>) e a qualidade dos efeitos (<code>canvas.fx_quality</code>). Por padrão a janela é <code>"windowed"</code> e o Scena ajusta o resto sozinho (FX Auto): começa em qualidade <code>"high"</code> a ~60 fps e baixa a qualidade se o computador não der conta. Escrever <code>framerate</code> ou <code>fx_quality</code> desliga esse ajuste.</p>
+      <p class="one-liner">Como o jogo aparece: o modo da janela (<code>canvas.display</code>), quantos frames por segundo (<code>canvas.framerate</code>), a qualidade dos efeitos (<code>canvas.fx_quality</code>) e se o que está fora da vista é desenhado (<code>canvas.cull_offscreen</code>). Por padrão a janela é <code>"windowed"</code> e o Scena ajusta o resto sozinho (FX Auto): começa em qualidade <code>"high"</code> a ~60 fps e baixa a qualidade se o computador não der conta. Escrever <code>framerate</code> ou <code>fx_quality</code> desliga esse ajuste.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>init(width=1000, height=700, window_scale=1.0)
@@ -5756,7 +5756,9 @@ canvas.framerate = 30          # relógio fixo em 30 fps
 canvas.framerate = "max"       # sem teto (bench)
 
 canvas.fx_quality = "high"
-canvas.fx_quality = "medium"</pre>
+canvas.fx_quality = "medium"
+
+canvas.cull_offscreen = True   # não desenha o que está fora da vista</pre>
       </div>
       <details class="spec" open>
       <summary>canvas.display</summary>
@@ -5809,6 +5811,22 @@ canvas.fx_quality = "medium"</pre>
           </tbody>
         </table>
         </div>
+      </details>
+      <details class="spec" open>
+      <summary>canvas.cull_offscreen</summary>
+        <p>Pular o desenho do que a câmera não vê. bool. Padrão <code>False</code>. Com <code>True</code>, a cada frame o Scena testa cada objeto: se a caixa dele (com folga para brilho, contorno e efeitos) não toca a vista, ele não é desenhado naquele frame. Só o desenho muda: fora da vista, o objeto continua rodando <code>update</code>, se movendo e colidindo. Pode atribuir antes de <code>run()</code> ou durante o jogo (uma tela de opções pode mudar).</p>
+        <div class="tbl-wrap">
+          <table>
+          <thead>
+            <tr><th>Propriedade</th><th>Tipo (valor típico)</th><th>Leitura/Escrita</th><th>Significado</th></tr>
+          </thead>
+          <tbody>
+<tr><td><code>False</code></td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td>lê / escreve</td><td>Padrão. Desenha todo objeto visível; o que fica fora da janela simplesmente não aparece.</td></tr>
+<tr><td><code>True</code></td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>lê / escreve</td><td>Testa cada objeto e pula os que estão fora da vista. Camadas com parallax (<code>pan_response</code> diferente de 1), widgets, o fundo e os efeitos de tela são sempre desenhados.</td></tr>
+          </tbody>
+        </table>
+        </div>
+        <p class="gotcha">Ligar não deixa o jogo mais rápido sozinho: o teste custa quase o mesmo que desenhar um sprite ou uma forma simples. Só compensa quando o que fica fora da vista é caro de desenhar — brilho (<code>.glow</code>), visuais como <code>Neon</code>. Medido num mundo 4× mais largo que a janela, com uns 130 objetos e dois terços fora da vista: só sprites e formas simples, o frame ficou ~8% mais lento; os mesmos círculos com <code>.glow</code>, ~18% mais rápido. Meça o seu jogo antes de deixar ligado.</p>
       </details>
       <details class="spec" open>
       <summary>set_fx_auto</summary>

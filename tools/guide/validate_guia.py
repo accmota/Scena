@@ -334,6 +334,18 @@ CORE_SYMBOLS = [
      "anchor": "mundo-apresentacao", "oneLiner": "Liga/desliga o auto de fidelidade dos FX."},
     {"name": "canvas.display", "kind": "property", "chapter": "mundo", "section": "mundo-apresentacao",
      "anchor": "mundo-apresentacao", "oneLiner": "Modo da janela: windowed, maximized ou fullscreen."},
+    {"name": "canvas.fx_quality", "kind": "property", "chapter": "mundo", "section": "mundo-apresentacao",
+     "anchor": "mundo-apresentacao", "oneLiner": "Qualidade dos efeitos: low, medium, high (padrão) ou max."},
+    {"name": "canvas.cull_offscreen", "kind": "property", "chapter": "mundo", "section": "mundo-apresentacao",
+     "anchor": "mundo-apresentacao", "oneLiner": "True: não desenha o que está fora da vista. Padrão False. Só compensa com objetos caros de desenhar."},
+    {"name": "canvas.background", "kind": "property", "chapter": "mundo", "section": "mundo-background",
+     "anchor": "mundo-background", "oneLiner": "O fundo do mundo: cor, gradiente ou um campo de fundo."},
+    {"name": "canvas.effects", "kind": "property", "chapter": "mundo", "section": "mundo-post",
+     "anchor": "mundo-post", "oneLiner": "Efeitos de tela (Post) aplicados ao quadro inteiro."},
+    {"name": "canvas.layers", "kind": "property", "chapter": "mundo", "section": "mundo-camadas",
+     "anchor": "mundo-camadas", "oneLiner": "As camadas do canvas, pelo nome."},
+    {"name": "canvas.layers.create", "kind": "method", "chapter": "mundo", "section": "mundo-camadas",
+     "anchor": "mundo-camadas", "oneLiner": "Cria uma camada com nome (parallax, esconder tudo de uma vez)."},
     {"name": "collide_stay", "kind": "function", "chapter": "colisao", "section": "colisao-collide",
      "anchor": "colisao-collide", "oneLiner": "Decorator: ainda sobrepostos neste tick."},
     {"name": "collide_exit", "kind": "function", "chapter": "colisao", "section": "colisao-collide",
@@ -967,6 +979,7 @@ def core_symbols() -> list[dict]:
         "ui-widgets": "Widgets", "ui-sprite-button": "SpriteButton",
         "reativo-state": "State", "reativo-entity": "Guardar valores",
         "mundo-apresentacao": "Apresentação",
+        "mundo-camadas": "Camadas",
         "aparencia-visual": "Visual", "aparencia-paletas": "Paletas e rampas",
         "mode-async": "async / wait",
         "atos-classe": "Act", "atos-trocar": "change_act",
@@ -1743,6 +1756,22 @@ def check_symbols_described(symbols: list[dict], bags: dict) -> list[str]:
     return errors
 
 
+def check_spec_blocks_indexed(symbols: list[dict]) -> list[str]:
+    """Each ``<summary>canvas.x</summary>`` spec block has a search entry.
+
+    Bug class: ``canvas.fx_quality`` / ``canvas.cull_offscreen`` were
+    documented (a spec block, a table row) but missing from ``symbols.json``:
+    the search box found nothing for them.
+    """
+    src = HTML.read_text(encoding="utf-8")
+    names = {s["name"] for s in symbols}
+    return [
+        f"{m}: bloco <summary> sem entrada no índice de busca (CORE_SYMBOLS)"
+        for m in sorted(set(re.findall(r"<summary>(canvas\.[a-z_.]+)</summary>", src)))
+        if m not in names
+    ]
+
+
 def check_confuse_rows() -> list[str]:
     """Each "Não confundir" row names a real confusion.
 
@@ -2034,6 +2063,7 @@ def main() -> int:
     anchor_errors = check_anchors(uniq, bags)
     errors.extend(anchor_errors)
     errors.extend(check_symbols_described(uniq, bags))
+    errors.extend(check_spec_blocks_indexed(uniq))
     sig_errors, gaps = check_catalog_signatures(bags)
     errors.extend(sig_errors)
     errors.extend(check_parameter_keywords())

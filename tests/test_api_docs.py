@@ -301,6 +301,19 @@ class TestGuiaSymbolsAreDescribed(unittest.TestCase):
         planted = [{"name": "WaterFill", "anchor": "reativo-liga", "catalog": False}]
         self.assertEqual(len(self.v.check_symbols_described(planted, bags)), 1)
 
+    def test_every_canvas_spec_block_is_indexed(self):
+        # canvas.fx_quality / canvas.cull_offscreen had a spec block or a
+        # row but no search entry: searching the Guia found nothing.
+        _bags, symbols = self._symbols()
+        self.assertEqual(self.v.check_spec_blocks_indexed(symbols), [])
+        names = {s["name"] for s in symbols}
+        self.assertIn("canvas.cull_offscreen", names)
+
+    def test_canary_unindexed_spec_block_is_caught(self):
+        _bags, symbols = self._symbols()
+        planted = [s for s in symbols if s["name"] != "canvas.fx_quality"]
+        self.assertEqual(len(self.v.check_spec_blocks_indexed(planted)), 1)
+
     def test_every_export_has_a_symbol(self):
         _bags, symbols = self._symbols()
         names = {s["name"] for s in symbols}

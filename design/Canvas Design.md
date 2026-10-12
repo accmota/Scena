@@ -575,6 +575,21 @@ batching still uses a small origin hint. Tick, formulas, collision, and
 SpatialFx simulation are not gated. Widgets, background fields, and canvas
 post are not on this path.
 
+**Cost, measured (2026-10-12).** The per-object test is not free: `_cull_keeps`
+costs ~3.7 µs per Sprite (`_approx_draw_aabb` → `_oriented_frame` is about
+half, `_filter_outset` a quarter) — about what *recording the draw* of a
+plain sprite or shape costs. So culling only wins when the skipped objects are
+expensive to draw. `scripts/bench/perf_cull_level.py` (camera sweep, in-process
+A/B): the tutorial 21 level (4000 wide in a 1000 window, 129 drawn, 87
+skipped) is **+8 %** frame work with cull on; 130 plain circles **+30 %**; the
+same circles with `.glow` **−18 %**; with `Neon` −7 % (fixed-side runs — flipping
+the flag every block moves GPU latency between sides, so check a GPU-heavy
+A/B with `--only on|off`). The default stays off, and author text must not
+call it "faster" without that condition (the Guia did, until 2026-10-12). A
+cheaper test (a cached box per pose revision, nothing at all for STATIC
+bodies) would move the crossover; any such change must be measured with this
+bench.
+
 **Draw-walk hoist (2026-09-10):** when `cull_offscreen` is False, `ScenaCanvas.draw`
 builds the per-layer list from `visible` only — it does **not** call
 `_passes_cull` (whose first line would `return True`). `_cull_kept` still
