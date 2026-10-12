@@ -1062,6 +1062,154 @@ def _must_solo_draw(obj) -> bool:
         return False
 
 
+# Overlap-aware batching (Effect System Design §5.5): a look run or a one-key
+# filter segment takes later runs of the same look / key, past runs it does not
+# overlap. False: consecutive runs only (oracle, A/B).
+_BATCH_REACH = True
+_BATCH_REACH_WINDOW = 64            # units looked ahead from a run
+_INF_BOX4 = (-math.inf, -math.inf, math.inf, math.inf)
+
+
+def _unit_sig(kind: str, run: List):
+    """What a run may merge with: the interned look of a look run, the one
+    (fill key, line key) pair every member of a filter segment shares; None
+    for anything else (a mixed segment, a solo draw, a plain blit)."""
+    if kind == "look":
+        return ("look", id(getattr(run[0], "visual", None)))
+    if kind != "seg":
+        return None
+    first = None
+    for o in run:
+        fk = _filter_batch_key(getattr(o, "fill_filter", None))
+        lk = _filter_batch_key(getattr(o, "line_filter", None))
+        if fk is None and lk is None:
+            return None             # drawn alone in its segment
+        pair = (fk, lk)
+        if first is None:
+            first = pair
+        elif pair != first:
+            return None
+    return ("seg", first)
+
+
+def _unit_boxes(run: List) -> List[Tuple[float, float, float, float]]:
+    """Every pixel each member can paint lies in its box (the cull box);
+    unknown geometry is the whole plane."""
+    out = []
+    for o in run:
+        try:
+            b = _cull_box(o)
+        except Exception:
+            b = None
+        out.append(_INF_BOX4 if b is None else b)
+    return out
+
+
+def _boxes_meet(a, b) -> bool:
+    return not (a[2] < b[0] or b[2] < a[0] or a[3] < b[1] or b[3] < a[1])
+
+
+def _merge_reach(units: List[Tuple[str, List]]) -> List[Tuple[str, List]]:
+    """Pull later runs into an earlier run of the same signature.
+
+    A later run moves up only when each of its boxes misses every run it
+    passes (the runs between that stay where they are). Draws whose boxes
+    are disjoint touch disjoint pixels, so they commute: z between different
+    looks is unchanged, and only peers of one look / key relax, as they do
+    inside a run.
+    """
+    n = len(units)
+    sigs = [_unit_sig(k, r) for k, r in units]
+    later: dict = {}
+    for i in range(n - 1, -1, -1):
+        sg = sigs[i]
+        if sg is not None:
+            nxt = later.get(sg)
+            later[sg] = i
+            sigs[i] = (sg, nxt)          # signature and its next index
+    taken = [False] * n
+    boxes: List[Optional[list]] = [None] * n
+
+    def boxes_of(k):
+        b = boxes[k]
+        if b is None:
+            b = boxes[k] = _unit_boxes(units[k][1])
+        return b
+
+    out: List[Tuple[str, List]] = []
+    for i in range(n):
+        if taken[i]:
+            continue
+        kind, run = units[i]
+        entry = sigs[i]
+        if entry is None or entry[1] is None or entry[1] - i > _BATCH_REACH_WINDOW:
+            out.append((kind, run))
+            continue
+        merged = list(run)
+        passed: List[Tuple[float, float, float, float]] = []
+        ux0 = uy0 = math.inf
+        ux1 = uy1 = -math.inf
+        at = i + 1                          # next unit not yet passed or tested
+        cand = entry[1]
+        blocked = False
+        while cand is not None and cand - i <= _BATCH_REACH_WINDOW and not blocked:
+            if taken[cand]:                 # an earlier run took it
+                cand = sigs[cand][1]
+                continue
+            for k in range(at, cand):       # the runs this candidate would pass
+                if taken[k]:
+                    continue
+                bk = boxes_of(k)
+                if _INF_BOX4 in bk:
+                    blocked = True          # an unbounded draw: nothing passes it
+                    break
+                for b in bk:
+                    passed.append(b)
+                    if b[0] < ux0:
+                        ux0 = b[0]
+                    if b[1] < uy0:
+                        uy0 = b[1]
+                    if b[2] > ux1:
+                        ux1 = b[2]
+                    if b[3] > uy1:
+                        uy1 = b[3]
+            if blocked:
+                break
+            at = cand + 1
+            bc = boxes_of(cand)
+            ok = _INF_BOX4 not in bc
+            if ok:
+                for b in bc:
+                    if b[2] < ux0 or ux1 < b[0] or b[3] < uy0 or uy1 < b[1]:
+                        continue            # misses everything passed so far
+                    for p in passed:
+                        if _boxes_meet(b, p):
+                            ok = False
+                            break
+                    if not ok:
+                        break
+            nxt = sigs[cand][1]
+            if ok:
+                merged.extend(units[cand][1])
+                taken[cand] = True
+            else:                           # it stays: later candidates pass it
+                for b in bc:
+                    passed.append(b)
+                    if b[0] < ux0:
+                        ux0 = b[0]
+                    if b[1] < uy0:
+                        uy0 = b[1]
+                    if b[2] > ux1:
+                        ux1 = b[2]
+                    if b[3] > uy1:
+                        uy1 = b[3]
+                if _INF_BOX4 in bc:
+                    break
+            cand = nxt
+        out.append((kind, merged))
+    return out
+
+
 def _look_pass_groupable(obj) -> bool:
     """Interned stroke Recipe eligible for pass-major grouping on this layer.
 
@@ -2514,39 +2662,94 @@ class ScenaCanvas:
         GlowRim / Halo high enter this path: interned Blur batches, then
         ``_overlay_after_filters`` draws unfiltered rims once per segment.
         Electric* high PE-glow is a second shared Plus plate on that segment.
+        With ``batch_shared_filters``, a run also takes later runs of its own
+        look or key that overlap nothing they pass (``_merge_reach``).
         """
+        reach = self.batch_shared_filters and _BATCH_REACH
+        draw = self._draw_unit
+        buffer = None              # from the first run that can take later ones
+        looks: set = set()
+        segs = 0
+        repeats = False
+        for unit in self._iter_units(objects):
+            kind = unit[0]
+            if kind == "look":
+                look = id(getattr(unit[1][0], "visual", None))
+                repeats = repeats or look in looks
+                looks.add(look)
+            elif kind == "seg":
+                segs += 1
+                repeats = repeats or segs > 1
+            if buffer is None:
+                if reach and (kind == "look" or kind == "seg"):
+                    buffer = [unit]
+                else:
+                    draw(unit)
+            else:
+                buffer.append(unit)
+        if buffer:
+            if repeats:
+                buffer = _merge_reach(buffer)
+            for unit in buffer:
+                draw(unit)
+
+    def _draw_unit(self, unit) -> None:
+        kind, run = unit
+        if kind == "plain":
+            draw_plain = self._draw_plain_object
+            for o in run:
+                draw_plain(o)
+        elif kind == "look":
+            if len(run) >= 2:
+                self._draw_look_pass_run(run)
+            else:
+                self._draw_object(run[0])
+        elif kind == "seg":
+            self._draw_filtered_segment(run)
+        else:
+            self._draw_object(run[0])
+
+    def _batch_units(self, objects) -> Tuple[List[Tuple[str, List]], bool]:
+        """``_iter_units`` as a list, and whether a look or a filter segment
+        repeats (only then can ``_merge_reach`` merge). For tests."""
+        units = list(self._iter_units(objects))
+        looks = [id(getattr(r[0], "visual", None)) for k, r in units if k == "look"]
+        segs = sum(1 for k, _r in units if k == "seg")
+        return units, len(set(looks)) < len(looks) or segs > 1
+
+    def _iter_units(self, objects):
+        """The draw plan in z order: ``("plain", objs)`` (consecutive plain
+        blits), ``("solo", [obj])``, ``("look", run)`` (consecutive peers of
+        one interned look), ``("seg", run)`` (consecutive objects with a
+        batchable filter)."""
         i = 0
         n = len(objects)
         group_passes = self.batch_shared_filters
         while i < n:
             obj = objects[i]
             if getattr(obj, "_plain_blit", False):
-                self._draw_plain_object(obj)
-                i += 1
+                j = i + 1
+                while j < n and getattr(objects[j], "_plain_blit", False):
+                    j += 1
+                yield ("plain", objects[i:j])
+                i = j
                 continue
             if group_passes and _look_pass_groupable(obj):
                 look = getattr(obj, "visual", None)
                 j = i + 1
                 while j < n and _look_pass_groupable(objects[j]) and getattr(objects[j], "visual", None) is look:
                     j += 1
-                if j - i >= 2:
-                    self._draw_look_pass_run(objects[i:j])
-                else:
-                    self._draw_object(obj)
+                yield ("look", list(objects[i:j]))
                 i = j
                 continue
-            if _must_solo_draw(obj):
-                self._draw_object(objects[i])
-                i += 1
-                continue
-            if not _has_any_batchable_filter(objects[i]):
-                self._draw_object(objects[i])
+            if _must_solo_draw(obj) or not _has_any_batchable_filter(obj):
+                yield ("solo", [obj])
                 i += 1
                 continue
             j = i + 1
             while j < n and not _must_solo_draw(objects[j]) and _has_any_batchable_filter(objects[j]):
                 j += 1
-            self._draw_filtered_segment(objects[i:j])
+            yield ("seg", list(objects[i:j]))
             i = j
 
     def _draw_look_pass_run(self, segment: List) -> None:

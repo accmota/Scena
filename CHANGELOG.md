@@ -82,6 +82,13 @@ left out.
   longer re-checks every still tile's box, contact bounds and `touching_*`.
   A level of 1500 tiles runs about 18 % faster per frame, the endless
   runner about 12 %, and tutorial 22 about 7 %.
+- Shapes with the same `Neon` (or another stroke look) or the same glow now
+  share their glow work even when other shapes are drawn between them in
+  z order, as long as they do not overlap those shapes. A bullet hell with
+  300 glowing shots in alternating looks runs about 8 % faster. Nothing
+  changes on screen, except where two shapes with the same look overlap
+  each other: they already relaxed z among themselves when they were
+  neighbours.
 
 ## 0.8.0 — 2026-10-11
 
