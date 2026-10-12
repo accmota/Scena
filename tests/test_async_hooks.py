@@ -500,6 +500,8 @@ CASES = {
     "History.on_leave =": _setter(lambda: scena.History(duration=0.1), "on_leave"),
     **{f"Entity.{n} =": _setter(_ent, n) for n in (
         "on_update", "on_destroy", "on_collide", "on_collide_stay", "on_collide_exit")},
+    **{f"Collider.{n} =": _setter(lambda: scena.Collider([_ent()]), n) for n in (
+        "on_collide", "on_collide_stay", "on_collide_exit")},
     **{f"{owner}.{n} =": _setter(_ent, n) for owner in ("Graphic", "Shape") for n in (
         "on_click", "on_hover", "on_hover_exit", "on_drag_over", "on_drag_to", "on_drop_by")},
     "Entity.after(fn)": (lambda: _ent().after(0.05, _coro_fn), 0.3),

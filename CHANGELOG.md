@@ -72,6 +72,12 @@ left out.
   or a big crowd now looks only at the partners near it. A level of 1500
   tiles with 20 walkers resolves about 3× faster, and a crowd of 150 that
   pushes itself apart about 30 % faster. Every answer is the same as before.
+- `Collider.on_collide =` (and `on_collide_stay`, `on_collide_exit`) refuses
+  an `async def` with the fix, as `Entity.on_collide =` already did. Before,
+  the Collider kept it and each contact made a coroutine that never ran.
+- Faster `floor_below(group=)` in a world where many other things move: it
+  now updates only the bodies of the group it asks about (a level with 500
+  moving coins: `floor_below` about 40 % faster).
 
 ## 0.8.0 — 2026-10-11
 

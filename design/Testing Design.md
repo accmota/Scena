@@ -1705,7 +1705,11 @@ members (AH2, KN3, KN4).
    truthy (AH2). The guard enumerates the doors from the public surface
    (`TestEveryCallbackDoor`: every parameter named like a callback or
    annotated `Callable`, every such setter, inherited doors once) and a new
-   door fails until it has a case or a reason.
+   door fails until it has a case or a reason. A plain slot is not a setter,
+   so the scan cannot see it: `Collider.on_collide` was a slot written through
+   a class-wide `__setattr__` hook, and it took an `async def` unseen until
+   the perf campaign (2026-10-12) turned the three callbacks into properties
+   and the guard listed them. A callback the author can set is a property.
 2. **A knob is tested on the path where it works.** `Metal(color)` (KN1) and
    `tile_mode` on a fitted Wallpaper (KN2) were accepted on every path and
    reached the pixels on none, or one. Each test had used the one style or

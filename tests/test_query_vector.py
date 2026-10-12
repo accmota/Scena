@@ -151,6 +151,35 @@ class TestSameAnswers(VectorCase):
         self.assertGreater(found, compared // 10, "the scenes must find floors")
 
 
+class TestScopedRefresh(VectorCase):
+    """A query refreshes only its own group's moved bodies; the rest wait."""
+
+    def test_a_move_outside_the_group_waits_for_its_own_query(self):
+        o = 70000.0
+        chao = Rect(center=(o, o), width=200, height=20, group="chao")
+        outro = Rect(center=(o + 600, o), width=200, height=20, group="outro")
+        for g in (chao, outro):
+            g.mass = STATIC
+            self.owned.append(g)
+
+        @collide("chao", "outro")          # both indexed
+        def _pair(a, b, info):
+            pass
+
+        hero = Rect(center=(o + 600, o + 40), width=20, height=40, group="heroi")
+        hero.mass = 1.0
+        self.owned.append(hero)
+        cs = get_collision_system()
+        cs.step()
+        outro.move_by(-600, 0, force=True)          # now under the hero's start
+        hero.center = (o, o + 40)
+        self.assertIs(hero.floor_below(group="chao"), chao)
+        col = C.ensure_collider(outro)
+        self.assertIn(col, cs._stale, "a body outside the group is left for later")
+        self.assertIs(hero.floor_below(group="outro"), outro, "its own query sees the move")
+        self.assertNotIn(col, cs._stale)
+
+
 class TestCanary(VectorCase):
     def test_a_moved_body_never_marked_is_caught(self):
         def lose(self_):

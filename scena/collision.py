@@ -46,6 +46,7 @@ from .validate import finite as _finite
 from .validate import fixed_magnitude as _fixed_magnitude
 from .validate import magnitude as _magnitude
 from .validate import number as _number
+from .validate import refuse_async as _refuse_async
 from .closed import ClosedSurface
 from .state import DIRTY_POSE_CELLS, probe_private
 
@@ -209,12 +210,13 @@ class _PartnerPool:
     scan applies; the scan still applies it (the mirror is a prefilter).
     """
 
-    __slots__ = ("cs", "ident", "rows", "still")
+    __slots__ = ("cs", "ident", "rows", "members", "still")
 
-    def __init__(self, cs, ident, rows, still=False):
+    def __init__(self, cs, ident, rows, members, still=False):
         self.cs = cs
         self.ident = ident
         self.rows = rows
+        self.members = members        # ids of the partner colliders
         self.still = still
 
     def __len__(self):
@@ -238,7 +240,7 @@ class _PartnerPool:
         return (c, tok, c._motion_dx, c._motion_dy)
 
     def as_still(self):
-        return _PartnerPool(self.cs, self.ident, self.rows, True)
+        return _PartnerPool(self.cs, self.ident, self.rows, self.members, True)
 
     def moves(self) -> bool:
         """Any partner with motion this frame (the sweep's idle test)."""
@@ -4332,9 +4334,9 @@ class Collider:
     __slots__ = (
         "_shapes",
         "_pair_targets",
-        "on_collide",
-        "on_collide_stay",
-        "on_collide_exit",
+        "_on_collide",
+        "_on_collide_stay",
+        "_on_collide_exit",
         "_identity_shape",
         "_system",
         "_poly_cache",
@@ -4400,9 +4402,9 @@ class Collider:
         self._shapes = [weakref.ref(s) for s in shapes]
         # Targets from @collide / resolve: Shape | Collider | GroupOperator | str | ANYTHING
         self._pair_targets: List[Any] = []
-        object.__setattr__(self, "on_collide", None)
-        object.__setattr__(self, "on_collide_stay", None)
-        object.__setattr__(self, "on_collide_exit", None)
+        self._on_collide = None
+        self._on_collide_stay = None
+        self._on_collide_exit = None
         self._identity_shape = weakref.ref(identity) if identity is not None else None
         self._system = get_collision_system()
         # shape id → (verts_key, prims) for concave decomposition reuse
@@ -4538,10 +4540,44 @@ class Collider:
                     return True
         return False
 
-    def __setattr__(self, name: str, value) -> None:
-        object.__setattr__(self, name, value)
-        if name in ("on_collide", "on_collide_stay", "on_collide_exit"):
-            self._sync_anything_interest()
+    # The three callbacks are properties so that setting one keeps ANYTHING
+    # interest in sync; every other attribute is a plain slot write (a
+    # ``__setattr__`` hook taxed the step's ~10 writes per collider).
+    @property
+    def on_collide(self):
+        """Called on the first frame of contact with anything, or None."""
+        return self._on_collide
+
+    @on_collide.setter
+    def on_collide(self, value) -> None:
+        if value is not None:
+            _refuse_async(value, what="on_collide =")
+        self._on_collide = value
+        self._sync_anything_interest()
+
+    @property
+    def on_collide_stay(self):
+        """Called on each following frame of contact, or None."""
+        return self._on_collide_stay
+
+    @on_collide_stay.setter
+    def on_collide_stay(self, value) -> None:
+        if value is not None:
+            _refuse_async(value, what="on_collide_stay =")
+        self._on_collide_stay = value
+        self._sync_anything_interest()
+
+    @property
+    def on_collide_exit(self):
+        """Called when the contact ends, or None."""
+        return self._on_collide_exit
+
+    @on_collide_exit.setter
+    def on_collide_exit(self, value) -> None:
+        if value is not None:
+            _refuse_async(value, what="on_collide_exit =")
+        self._on_collide_exit = value
+        self._sync_anything_interest()
 
     def _unregister(self) -> None:
         self._system.unregister(self)
@@ -4663,8 +4699,8 @@ class CollisionSystem:
         # Cross-frame partner identity cache: ca_id → [(partner, bounce_token)].
         # Motion deltas are refreshed each read. Cleared on enroll / pair edits.
         self._partner_ident_cache: Dict[int, List[Tuple[Collider, Any]]] = {}
-        # id(body) → (ident list, struct version, mirror rows): _PartnerPool.
-        self._partner_rows_cache: Dict[int, Tuple[Any, int, Any]] = {}
+        # id(body) → (ident list, struct version, mirror rows, member ids).
+        self._partner_rows_cache: Dict[int, Tuple[Any, int, Any, Set[int]]] = {}
         # Same lifetime: ca_id → {partner_id: (spec, flip)} for ``only=``
         # partners, or None when no partner of ``ca`` is filtered. A set spec
         # is already in ``ca``'s view; a callable spec keeps ``flip``.
@@ -6616,7 +6652,7 @@ class CollisionSystem:
         ver = self._struct_version
         hit = self._partner_rows_cache.get(cid)
         if hit is not None and hit[0] is ident and hit[1] == ver:
-            rows = hit[2]
+            rows, members = hit[2], hit[3]
         else:
             idx = self._collider_index
             try:
@@ -6624,8 +6660,9 @@ class CollisionSystem:
                                    count=len(ident))
             except KeyError:
                 return [(c, token, c._motion_dx, c._motion_dy) for c, token in ident]
-            self._partner_rows_cache[cid] = (ident, ver, rows)
-        return _PartnerPool(self, ident, rows)
+            members = {id(c) for c, _t in ident}
+            self._partner_rows_cache[cid] = (ident, ver, rows, members)
+        return _PartnerPool(self, ident, rows, members)
 
     def _iter_near(self, ca: Collider, partners):
         """``partners`` a pass over ``ca``'s proxy may keep, in order.
@@ -7772,25 +7809,40 @@ class CollisionSystem:
                         stale.add(pc)
         cells.clear()
 
-    def _fresh_proxies(self) -> None:
-        """Between steps: make every registered proxy match its pose, touching
+    def _fresh_proxies(self, members: Optional[Set[int]] = None) -> None:
+        """Between steps: make registered proxies match their pose, touching
         only what moved (``_stale``), what can change with no write
-        (``_untrusted``) and compound bodies."""
+        (``_untrusted``) and compound bodies.
+
+        ``members`` (collider ids): only those, for a query that reads no
+        other row; the other moved colliders stay in ``_stale`` for the next
+        query (``step()`` refreshes every proxy).
+        """
         self._drain_pose_cells()
         idx = self._collider_index
         if self._stale:
-            for c in self._stale:
-                if id(c) in idx:
-                    self._update_proxy(c, commit_motion=False)
-            self._stale.clear()
+            if members is None:
+                for c in self._stale:
+                    if id(c) in idx:
+                        self._update_proxy(c, commit_motion=False)
+                self._stale.clear()
+            else:
+                done = [c for c in self._stale if id(c) in members]
+                for c in done:
+                    if id(c) in idx:
+                        self._update_proxy(c, commit_motion=False)
+                self._stale.difference_update(done)
         if self._untrusted:
             for c in list(self._untrusted):
+                if members is not None and id(c) not in members:
+                    continue
                 if id(c) in idx:
                     self._update_proxy(c, commit_motion=False)
                 else:
                     self._untrusted.discard(c)
         for c in list(self._multi_bodies.values()):
-            self._update_proxy(c, commit_motion=False)
+            if members is None or id(c) in members:
+                self._update_proxy(c, commit_motion=False)
 
     def _box_array(self):
         """numpy ``(n, 10)``, column-major (``_mirror_row``), row ``i`` =
@@ -7814,8 +7866,9 @@ class CollisionSystem:
         return self._boxes
 
     def _group_rows(self, group: Any):
-        """``(candidates, rows)`` for a query group of declared pair tags, or
-        None when the group is not such an index (the Python walk runs).
+        """``(candidates, rows, member ids)`` for a query group of declared
+        pair tags, or None when the group is not such an index (the Python
+        walk runs).
 
         Same candidates, in the same order, as ``_candidates_for_group``.
         """
@@ -7842,11 +7895,16 @@ class CollisionSystem:
                 return None
         except Exception:
             return None
+        return self._group_rows_members(tags)
+
+    def _group_rows_members(self, tags):
+        """``(candidates, rows, member ids)`` for declared pair tags, cached
+        per ``(_struct_version, _tag_version)``; None if a member has no row."""
         key = tuple(tags)
         ver = (self._struct_version, self._tag_version)
         hit = self._group_rows_cache.get(key)
         if hit is not None and hit[0] == ver:
-            return hit[1], hit[2]
+            return hit[1], hit[2], hit[3]
         seen: Set[int] = set()
         cands: List[Collider] = []
         for t in tags:
@@ -7860,8 +7918,8 @@ class CollisionSystem:
             rows = np.fromiter((idx[id(c)] for c in cands), dtype=np.intp, count=len(cands))
         except KeyError:
             return None
-        self._group_rows_cache[key] = (ver, cands, rows)
-        return cands, rows
+        self._group_rows_cache[key] = (ver, cands, rows, seen)
+        return cands, rows, seen
 
     def _candidates_in_box(self, group: Any, box) -> Optional[List[Collider]]:
         """The group's candidates whose fresh proxy meets ``box``, or None
@@ -7869,11 +7927,11 @@ class CollisionSystem:
         got = self._group_rows(group) if _QUERY_VECTOR else None
         if got is None:
             return None
-        cands, rows = got
+        cands, rows, members = got
         if _linked_parts():
             from .hitbox import _refresh_linked_parts
             _refresh_linked_parts()
-        self._fresh_proxies()
+        self._fresh_proxies(members)
         if not cands:
             return []
         return [cands[i] for i in _rows_meeting(self._box_array(), rows, 0, *box)]
@@ -8069,7 +8127,7 @@ class CollisionSystem:
         if _linked_parts():
             from .hitbox import _refresh_linked_parts
             _refresh_linked_parts()
-        self._fresh_proxies()
+        self._fresh_proxies(rp.members)
         step_max = min(_FLOOR_PROBE_STEP, max(reach, 1.0))
         near = rp.near_box(*_floor_probe_envelope(pas, dx, step_max, reach))
         ident = rp.ident
@@ -8094,7 +8152,7 @@ class CollisionSystem:
             return None
         pool = _Pool((cb, None) for cb in near
                      if not (cb is probe or cb._part is not None or cb._identity is body))
-        cands, _rows = self._group_rows(group)
+        cands = self._group_rows(group)[0]
         pool.has_others = any(
             not (cb is probe or cb._part is not None or cb._identity is body) for cb in cands
         )
