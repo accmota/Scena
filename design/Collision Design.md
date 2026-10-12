@@ -1281,8 +1281,60 @@ Tests: `tests/test_resolve_vector.py`:
   agree exactly;
 - a canary keeps the mirror stale, and it is caught.
 
-Horda's crowd stays O(n²): each body still asks numpy about the whole pool.
-A per-step pair list (a grid or sort-and-sweep) is the fenced B3.
+**Shared partner lists (2026-10-12; `_SHARED_PARTNERS`).** In a crowd under
+`resolve("e", "e")`, every enemy has the same partners but for itself. Each
+enemy that spawned or died dropped every body's list (a join to a resolve
+tag), and every body rebuilt its own: O(n) per body, O(n²) a frame, half of
+horda's resolve. The mirror rows of each list were rebuilt every frame too:
+bullets change the collider list.
+
+- **One list per signature.** The resolve pass reads one list per signature
+  (`_partner_signature`: the body's on-side flags per registration, cached
+  per body), built once per invalidation (`_shared_partners`). It is shared
+  with every body of that signature and holds them all. `_PartnerPool.owner`
+  is the reading body's position, and every view skips it, so a view is the
+  per-body list in the same order.
+- **Rows, members and the `only=` map** belong to the shared list
+  (`_resolve_only_map`).
+- **`only=` conflicts** are recorded per partner while building and raised
+  by the body that reads the list, about any partner but itself, as the
+  per-body build raised them.
+- **Per-body lists remain** (`_resolve_partner_idents`) for `floor_below`
+  and the API (`_resolve_partners`). Both caches drop together
+  (`_invalidate_partner_cache`).
+
+**One query per turn (2026-10-12; `_LOCAL_PREFILTER`).** A body's resolve turn
+asked numpy three or four times: each sweep cast, the unswept recovery, each
+settle pass, and the idle test. Each call cost ~4 µs whatever the pool size.
+`_PartnerPool.localize` asks once, at the start of the turn: the partners
+whose frame box meets the body's frame box padded by `_LOCAL_PAD` (8 DU).
+- **Later queries** whose box fits inside read that list. One that does not
+  (a long slide, a seam step) asks numpy as before.
+- **The idle test (`moves`)** reads the local list. A far mover changes
+  nothing the idle sweep would find, since the body's prims sit inside the
+  local box.
+- **Exact:** during the turn only the body and the partner being handled
+  move, and that partner already passed a test, so it is in the list. Every
+  pass still runs its own exact test, and verify mode checks each prefilter
+  against the whole pool.
+
+Measured on horda (in-process A/B, M4, resolve / work ms):
+
+| Step | n=150 | n=400 |
+|---|---|---|
+| Shared lists | 7.9 → 6.4 / 13.9 → 12.0 | 87 → 20 / 126 → 36 |
+| One query per turn | 6.1 → 3.9 / 11.6 → 9.3 | 40 → 26 |
+
+Tests:
+- `tests/test_partner_cache.py`: every body's shared view (as a pool and as
+  a list) and `only=` map equal a fresh per-body build, in order, over
+  random joins, leaves, retags and pair edits. A canary keeps shared lists
+  past a change.
+- `tests/test_resolve_vector.py`: `SameFramesShared` and `SameFramesLocal`
+  run the worlds both ways and agree bit for bit.
+
+The broad-phase fence holds: these are per-pool prefilters of the declared
+pairs, not a spatial index.
 
 Measured (in-process A/B):
 - mundo: `floor_below` 28 → 6.9 ms, frame 63 → 39 ms;

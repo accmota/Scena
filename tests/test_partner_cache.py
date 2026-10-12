@@ -49,6 +49,31 @@ def snapshot(sys_):
     return out
 
 
+def shared_view(sys_):
+    """What the resolve pass reads: each body's view of its signature's
+    shared list (``_resolve_pool``), and its ``only=`` map without itself."""
+    lists, onlys = {}, {}
+    for c in list(sys_._colliders):
+        if c._part is not None:
+            continue
+        lists[id(c)] = [(id(p[0]), repr(p[1])) for p in sys_._resolve_pool(c)]
+        m = sys_._resolve_only_map(c) or {}
+        onlys[id(c)] = {k: v for k, v in m.items() if k != id(c)}
+    return lists, onlys
+
+
+def fresh_only(sys_):
+    sys_._partner_ident_cache.clear()
+    sys_._partner_only_cache.clear()
+    out = {}
+    for c in list(sys_._colliders):
+        if c._part is not None:
+            continue
+        sys_._resolve_partners(c)
+        out[id(c)] = dict(sys_._partner_only_cache.get(id(c)) or {})
+    return out
+
+
 def fresh(sys_):
     saved = dict(sys_._partner_ident_cache), dict(sys_._partner_only_cache)
     sys_._partner_ident_cache.clear()
@@ -138,6 +163,12 @@ class SelectiveCase(unittest.TestCase):
                 got = snapshot(sys_)
                 want = fresh(sys_)
                 self.assertEqual(got, want, f"seed {seed} op {k}: cached partner lists differ")
+                # The resolve pass's shared lists (as a pool and as a list).
+                for low in (8, 10_000):
+                    with mock.patch.object(C, "_POOL_VECTOR_MIN", low):
+                        lists, onlys = shared_view(sys_)
+                    self.assertEqual(lists, want, f"seed {seed} op {k}: a shared view differs")
+                self.assertEqual(onlys, fresh_only(sys_), f"seed {seed} op {k}: only= maps differ")
                 checked += 1
         self.assertGreater(checked, ops // 4)
 
@@ -217,6 +248,25 @@ class TestUnrelatedTagsKeepTheCache(SelectiveCase):
 
 
 class TestCanary(SelectiveCase):
+    def test_a_shared_list_that_outlives_a_change_is_caught(self):
+        real = C.CollisionSystem._invalidate_partner_cache
+
+        def keep_shared(self_):
+            shared = dict(self_._shared_pools)
+            sigs = dict(self_._partner_sig_cache)
+            real(self_)
+            self_._shared_pools.update(shared)       # the shared lists survive
+            self_._partner_sig_cache.update(sigs)
+
+        case = TestCachedEqualsFresh("test_random_sequences")
+        case.setUp()
+        try:
+            with mock.patch.object(C.CollisionSystem, "_invalidate_partner_cache", keep_shared):
+                with self.assertRaises(AssertionError):
+                    case.test_random_sequences()
+        finally:
+            case.tearDown()
+
     def test_never_invalidating_is_caught(self):
         if not hasattr(C.CollisionSystem, "_partner_cache_touched_by_tag"):
             self.skipTest("selective invalidation not present")

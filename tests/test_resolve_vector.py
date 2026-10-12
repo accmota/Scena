@@ -211,6 +211,28 @@ class SameFrames(unittest.TestCase):
         self.assertTrue(calls, "fixture: the pools must take the vector path")
 
 
+class SameFramesShared(SameFrames):
+    """The shared partner lists against one list per body (``_SHARED_PARTNERS``)."""
+
+    def run_world(self, cls, seed, on, frames):
+        with mock.patch.object(C, "_SHARED_PARTNERS", on):
+            return super().run_world(cls, seed, True, frames)
+
+    def test_the_pool_is_used(self):
+        pass
+
+
+class SameFramesLocal(SameFrames):
+    """One prefilter query per body's turn against one per pass (``_LOCAL_PREFILTER``)."""
+
+    def run_world(self, cls, seed, on, frames):
+        with mock.patch.object(C, "_LOCAL_PREFILTER", on):
+            return super().run_world(cls, seed, True, frames)
+
+    def test_the_pool_is_used(self):
+        pass
+
+
 class TestCanary(unittest.TestCase):
     def test_a_stale_mirror_is_caught(self):
         """The mirror never takes dirty rows: nudged bodies keep old boxes."""

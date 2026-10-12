@@ -164,6 +164,16 @@ _SWEEP_SAT = True
 # vectorized candidates"). False: every partner in Python (oracle, A/B).
 _RESOLVE_VECTOR = True
 _POOL_VECTOR_MIN = 128
+# The resolve pass reads one partner list per signature (the on-side flags of
+# a body per registration), shared by every body with it and skipping the body
+# itself: a crowd's lists and rows are built once, not once per body, when
+# the crowd changes (Collision Design, "Shared partner lists"). False: one
+# list per body (oracle, A/B).
+_SHARED_PARTNERS = True
+# One prefilter query per body's resolve turn (``_PartnerPool.localize``): its
+# frame box padded by ``_LOCAL_PAD`` DU. False: every pass asks numpy (A/B).
+_LOCAL_PREFILTER = True
+_LOCAL_PAD = 8.0
 # The step skips still bodies where the answer is already in place: stored
 # resolve bounds of a collider whose pose key is the same object, and
 # touching_* of bodies that touch nothing now and did not before (Collision
@@ -206,6 +216,26 @@ def _rows_meeting(b, rows, c0: int, x0, y0, x1, y1) -> List[int]:
     return np.flatnonzero(mask).tolist()
 
 
+class _SharedPartners:
+    """One signature's partner list (``CollisionSystem._shared_partners``)."""
+
+    __slots__ = ("ident", "only", "conflicts", "rows", "_pos")
+
+    def __init__(self, ident, only, conflicts):
+        self.ident = ident
+        self.only = only
+        self.conflicts = conflicts
+        self.rows = None           # (ident, struct version, rows, member ids)
+        self._pos = None
+
+    def position(self, c) -> int:
+        """``c``'s index in the list, or -1."""
+        pos = self._pos
+        if pos is None:
+            pos = self._pos = {id(x): i for i, (x, _t) in enumerate(self.ident)}
+        return pos.get(id(c), -1)
+
+
 class _PartnerPool:
     """A body's resolve partners as rows of the proxy mirror (B2).
 
@@ -215,28 +245,61 @@ class _PartnerPool:
     scan applies; the scan still applies it (the mirror is a prefilter).
     """
 
-    __slots__ = ("cs", "ident", "rows", "members", "still")
+    __slots__ = ("cs", "ident", "rows", "members", "still", "owner", "local")
 
-    def __init__(self, cs, ident, rows, members, still=False):
+    def __init__(self, cs, ident, rows, members, still=False, owner=-1):
         self.cs = cs
         self.ident = ident
         self.rows = rows
         self.members = members        # ids of the partner colliders
         self.still = still
+        # ``ident`` may be a shared list (every body of one signature): the
+        # body's own position, skipped by every view, or -1.
+        self.owner = owner
+        # ``(x0, y0, x1, y1, positions)`` once ``localize`` ran: the partners
+        # whose frame box meets that box (a superset for any query inside it).
+        self.local = None
+
+    def localize(self, ca) -> None:
+        """One query for the body's whole turn: the partners near its box over
+        the frame, padded by ``_LOCAL_PAD``. A later query whose box fits
+        inside reads them (``_local``); one that does not asks numpy again.
+
+        Exact: during the turn only the body and the partner being handled
+        move, and that partner is already in the list (it passed a test).
+        """
+        if not ca._proxy_valid:
+            return
+        row = _mirror_row(ca)
+        m = _LOCAL_PAD
+        x0, y0, x1, y1 = row[6] - m, row[7] - m, row[8] + m, row[9] + m
+        got = _rows_meeting(self.cs._box_array(), self.rows, 6, x0, y0, x1, y1)
+        if self.owner >= 0 and self.owner in got:
+            got.remove(self.owner)
+        self.local = (x0, y0, x1, y1, got)
+
+    def _local(self, x0, y0, x1, y1):
+        loc = self.local
+        if loc is not None and loc[0] <= x0 and loc[1] <= y0 and loc[2] >= x1 and loc[3] >= y1:
+            return list(loc[4])
+        return None
 
     def __len__(self):
-        return len(self.ident)
+        return len(self.ident) - (self.owner >= 0)
 
     def __bool__(self):
-        return bool(self.ident)
+        return len(self) > 0
 
     def __iter__(self):
+        own = self.owner
         if self.still:
-            for c, tok in self.ident:
-                yield (c, tok, 0.0, 0.0)
+            for i, (c, tok) in enumerate(self.ident):
+                if i != own:
+                    yield (c, tok, 0.0, 0.0)
         else:
-            for c, tok in self.ident:
-                yield (c, tok, c._motion_dx, c._motion_dy)
+            for i, (c, tok) in enumerate(self.ident):
+                if i != own:
+                    yield (c, tok, c._motion_dx, c._motion_dy)
 
     def item(self, i):
         c, tok = self.ident[i]
@@ -245,18 +308,38 @@ class _PartnerPool:
         return (c, tok, c._motion_dx, c._motion_dy)
 
     def as_still(self):
-        return _PartnerPool(self.cs, self.ident, self.rows, self.members, True)
+        p = _PartnerPool(self.cs, self.ident, self.rows, self.members, True, self.owner)
+        p.local = self.local            # frame boxes hold the proxies: still a superset
+        return p
 
     def moves(self) -> bool:
         """Any partner with motion this frame (the sweep's idle test)."""
         if self.still:
             return False
-        m = self.cs._box_array()[self.rows, 4:6]
-        return bool(np.any(np.abs(m) > 1e-12))
+        loc = self.local
+        if loc is not None:
+            # The idle sweep this answers can only hit partners near the body
+            # (its prims sit in its proxy, inside the local box): a far mover
+            # changes nothing it would find.
+            ident = self.ident
+            for i in loc[4]:
+                c = ident[i][0]
+                if abs(c._motion_dx) > 1e-12 or abs(c._motion_dy) > 1e-12:
+                    return True
+            return False
+        m = np.abs(self.cs._box_array()[self.rows, 4:6]) > 1e-12
+        if self.owner >= 0:
+            m[self.owner] = False
+        return bool(np.any(m))
 
     def near_box(self, x0, y0, x1, y1):
-        """Positions whose proxy meets the box (``_proxy_aabb_overlap``)."""
-        got = _rows_meeting(self.cs._box_array(), self.rows, 0, x0, y0, x1, y1)
+        """Positions whose proxy meets the box (``_proxy_aabb_overlap``), or a
+        superset (the local list); the caller runs its own test."""
+        got = self._local(x0, y0, x1, y1)
+        if got is None:
+            got = _rows_meeting(self.cs._box_array(), self.rows, 0, x0, y0, x1, y1)
+            if self.owner >= 0 and self.owner in got:
+                got.remove(self.owner)
         if _POSE_REV_VERIFY:
             self._verify(got, lambda p, _odx, _ody: not (
                 p[0] > x1 or x0 > p[2] or p[1] > y1 or y0 > p[3]))
@@ -265,8 +348,12 @@ class _PartnerPool:
     def near_swept(self, sx0, sy0, sx1, sy1):
         """Positions whose box over the frame (start and end proxy) meets the
         swept box: ``_earliest_toi``'s reject, row for row."""
-        got = _rows_meeting(self.cs._box_array(), self.rows, 0 if self.still else 6,
-                            sx0, sy0, sx1, sy1)
+        got = self._local(sx0, sy0, sx1, sy1)
+        if got is None:
+            got = _rows_meeting(self.cs._box_array(), self.rows, 0 if self.still else 6,
+                                sx0, sy0, sx1, sy1)
+            if self.owner >= 0 and self.owner in got:
+                got.remove(self.owner)
         if _POSE_REV_VERIFY:
             def keeps(pb, odx, ody):
                 if odx > 0.0:
@@ -287,6 +374,8 @@ class _PartnerPool:
         """Verify mode: every partner the Python test keeps is in ``got``."""
         have = set(got)
         for i, (c, _tok) in enumerate(self.ident):
+            if i == self.owner:
+                continue
             odx, ody = (0.0, 0.0) if self.still else (c._motion_dx, c._motion_dy)
             p = c._proxy if c._proxy_valid else _INF_BOX
             if keeps(p, odx, ody) and i not in have:
@@ -4712,6 +4801,11 @@ class CollisionSystem:
         # Cross-frame partner identity cache: ca_id → [(partner, bounce_token)].
         # Motion deltas are refreshed each read. Cleared on enroll / pair edits.
         self._partner_ident_cache: Dict[int, List[Tuple[Collider, Any]]] = {}
+        # Resolve partners shared by every body of one signature (its on-side
+        # flags per registration): ``_shared_partners``. ``_partner_sig_cache``
+        # is each body's signature. Dropped with the per-body lists.
+        self._shared_pools: Dict[tuple, "_SharedPartners"] = {}
+        self._partner_sig_cache: Dict[int, tuple] = {}
         # Colliders whose body read a non-empty touching_* at the last publish.
         self._touching_live: Dict[int, "Collider"] = {}
         # The step's snapshot visits, besides moved (``_stale``), untrusted and
@@ -4794,6 +4888,10 @@ class CollisionSystem:
             self._partner_ident_cache.clear()
         if self._partner_only_cache:
             self._partner_only_cache.clear()
+        if self._shared_pools:
+            self._shared_pools.clear()
+        if self._partner_sig_cache:
+            self._partner_sig_cache.clear()
 
     def _verify_pose_rev(self, collider: Collider, shapes) -> None:
         """``SCENA_VERIFY_POSE_REV``: the skipped key must equal the stored one."""
@@ -4812,6 +4910,7 @@ class CollisionSystem:
         self._partner_ident_cache.pop(cid, None)
         self._partner_only_cache.pop(cid, None)
         self._partner_rows_cache.pop(cid, None)
+        self._partner_sig_cache.pop(cid, None)
 
     def _partner_cache_touched_by_tag(self, tag) -> bool:
         """Can a member joining / leaving ``tag`` change some partner list?
@@ -4834,7 +4933,7 @@ class CollisionSystem:
         The collider's tags reach the cache through ``_tag_add`` /
         ``_tag_remove``; this covers the sides that do not read tags.
         """
-        if not (self._partner_ident_cache or self._partner_only_cache):
+        if not (self._partner_ident_cache or self._partner_only_cache or self._shared_pools):
             return
         if _PARTNER_CACHE_SELECTIVE:
             pair_tag_of = self._pair_tag_of
@@ -4846,7 +4945,7 @@ class CollisionSystem:
         self._invalidate_partner_cache()
 
     def _invalidate_partner_cache_for_tag(self, tag) -> None:
-        if (self._partner_ident_cache or self._partner_only_cache) and \
+        if (self._partner_ident_cache or self._partner_only_cache or self._shared_pools) and \
                 self._partner_cache_touched_by_tag(tag):
             self._invalidate_partner_cache()
 
@@ -6649,11 +6748,13 @@ class CollisionSystem:
                 continue
             gate = None
             if has_only:
-                only_map = self._partner_only_cache.get(id(ca))
+                only_map = self._resolve_only_map(ca)
                 if only_map is not None:
                     gate, partners = self._only_view(ca, partners, only_map)
                     if not partners:
                         continue
+            if _LOCAL_PREFILTER and type(partners) is _PartnerPool:
+                partners.localize(ca)
             self._sweep_and_slide(ca, partners, gate, bool(grounded_at_start.get(id(ca))))
             self._settle_body(ca, partners, gate)
             if grounded_at_start.get(id(ca)):
@@ -6684,12 +6785,20 @@ class CollisionSystem:
     def _resolve_pool(self, ca: Collider):
         """``ca``'s partners for a resolve pass: a ``_PartnerPool`` for a
         large pool of indexed colliders, else the plain list."""
-        ident = self._resolve_partner_idents(ca)
-        if not _RESOLVE_VECTOR or len(ident) < _POOL_VECTOR_MIN:
-            return [(c, token, c._motion_dx, c._motion_dy) for c, token in ident]
-        cid = id(ca)
+        if not _SHARED_PARTNERS:
+            ident = self._resolve_partner_idents(ca)
+            own = -1
+            rows_key = id(ca)
+        else:
+            sh = self._shared_partners(ca)
+            ident = sh.ident
+            own = sh.position(ca)
+            rows_key = sh
+        n = len(ident) - (own >= 0)
+        if not _RESOLVE_VECTOR or n < _POOL_VECTOR_MIN:
+            return [(c, token, c._motion_dx, c._motion_dy) for c, token in ident if c is not ca]
         ver = self._struct_version
-        hit = self._partner_rows_cache.get(cid)
+        hit = rows_key.rows if _SHARED_PARTNERS else self._partner_rows_cache.get(rows_key)
         if hit is not None and hit[0] is ident and hit[1] == ver:
             rows, members = hit[2], hit[3]
         else:
@@ -6698,10 +6807,21 @@ class CollisionSystem:
                 rows = np.fromiter((idx[id(c)] for c, _t in ident), dtype=np.intp,
                                    count=len(ident))
             except KeyError:
-                return [(c, token, c._motion_dx, c._motion_dy) for c, token in ident]
+                return [(c, token, c._motion_dx, c._motion_dy) for c, token in ident
+                        if c is not ca]
             members = {id(c) for c, _t in ident}
-            self._partner_rows_cache[cid] = (ident, ver, rows, members)
-        return _PartnerPool(self, ident, rows, members)
+            if _SHARED_PARTNERS:
+                rows_key.rows = (ident, ver, rows, members)
+            else:
+                self._partner_rows_cache[rows_key] = (ident, ver, rows, members)
+        return _PartnerPool(self, ident, rows, members, owner=own)
+
+    def _resolve_only_map(self, ca: Collider):
+        """``ca``'s ``only=`` map (partner id → entry), or None."""
+        if _SHARED_PARTNERS:
+            return self._shared_partners(ca).only
+        self._resolve_partner_idents(ca)
+        return self._partner_only_cache.get(id(ca))
 
     def _iter_near(self, ca: Collider, partners):
         """``partners`` a pass over ``ca``'s proxy may keep, in order.
@@ -6737,49 +6857,96 @@ class CollisionSystem:
         enrolled collider. Partner *identities* are cached across frames and
         refreshed only on enroll / pair-graph edits; motion deltas are read
         live each call. First matching registration wins the bounce token.
+        The resolve pass reads the shared list instead (``_shared_partners``).
         """
         cid = id(ca)
         cached = self._partner_ident_cache.get(cid)
         if cached is None:
-            out_ids: List[Tuple[Collider, Any]] = []
-            # partner id → (only entry in ca's view, registration) for the
-            # first registration that reached it; a second one must agree.
-            seen: Dict[int, Tuple[Any, Tuple[Any, Any, Any]]] = {}
-            only_map: Dict[int, Tuple[Any, bool]] = {}
-
-            def _append_side(target, token, entry, reg) -> None:
-                for c in self._resolve_side_colliders(target):
-                    if c is ca:
-                        continue
-                    pid = id(c)
-                    first = seen.get(pid)
-                    if first is not None:
-                        if first[0] != entry:
-                            self._raise_only_conflict(ca, c, first, (entry, reg))
-                        continue
-                    seen[pid] = (entry, reg)
-                    out_ids.append((c, token))
-                    if entry is not None:
-                        only_map[pid] = entry
-
-            for ta, tb, token, only in self._resolve_pairs:
-                on_a = self._collider_on_resolve_side(ca, ta)
-                on_b = self._collider_on_resolve_side(ca, tb)
-                reg = (ta, tb, only)
-                if on_a:
-                    _append_side(tb, token, None if only is None else (only, False), reg)
-                if on_b and not (on_a and self._same_resolve_side(ta, tb)):
-                    if only is None:
-                        entry = None
-                    elif isinstance(only, frozenset):
-                        entry = (_mirror_only(only), False)
-                    else:
-                        entry = (only, True)
-                    _append_side(ta, token, entry, reg)
+            out_ids, only_map, _conflicts = self._build_partner_list(ca, skip=ca)
             self._partner_ident_cache[cid] = out_ids
             self._partner_only_cache[cid] = only_map or None
             cached = out_ids
         return cached
+
+    def _build_partner_list(self, ca: Collider, skip):
+        """``(identities, only map, conflicts)`` for a body with ``ca``'s sides.
+
+        ``skip`` is left out (the body itself) and a conflict on another
+        partner raises. With ``skip=None`` (a list shared by every body of
+        ``ca``'s signature) nothing is left out and conflicts are recorded
+        per partner instead, ``{pid: (partner, first, second)}``: the body
+        reading the list raises one about any partner but itself.
+        """
+        out_ids: List[Tuple[Collider, Any]] = []
+        # partner id → (only entry in ca's view, registration) for the
+        # first registration that reached it; a second one must agree.
+        seen: Dict[int, Tuple[Any, Tuple[Any, Any, Any]]] = {}
+        only_map: Dict[int, Tuple[Any, bool]] = {}
+        conflicts: Dict[int, tuple] = {}
+
+        def _append_side(target, token, entry, reg) -> None:
+            for c in self._resolve_side_colliders(target):
+                if c is skip:
+                    continue
+                pid = id(c)
+                first = seen.get(pid)
+                if first is not None:
+                    if first[0] != entry:
+                        if skip is None:
+                            conflicts.setdefault(pid, (c, first, (entry, reg)))
+                        else:
+                            self._raise_only_conflict(ca, c, first, (entry, reg))
+                    continue
+                seen[pid] = (entry, reg)
+                out_ids.append((c, token))
+                if entry is not None:
+                    only_map[pid] = entry
+
+        for ta, tb, token, only in self._resolve_pairs:
+            on_a = self._collider_on_resolve_side(ca, ta)
+            on_b = self._collider_on_resolve_side(ca, tb)
+            reg = (ta, tb, only)
+            if on_a:
+                _append_side(tb, token, None if only is None else (only, False), reg)
+            if on_b and not (on_a and self._same_resolve_side(ta, tb)):
+                if only is None:
+                    entry = None
+                elif isinstance(only, frozenset):
+                    entry = (_mirror_only(only), False)
+                else:
+                    entry = (only, True)
+                _append_side(ta, token, entry, reg)
+        return out_ids, only_map, conflicts
+
+    def _partner_signature(self, ca: Collider) -> tuple:
+        """``ca``'s on-side flags per registration: bodies with equal flags
+        have the same partners, but for themselves."""
+        cid = id(ca)
+        sig = self._partner_sig_cache.get(cid)
+        if sig is None:
+            sig = tuple(
+                (self._collider_on_resolve_side(ca, ta), self._collider_on_resolve_side(ca, tb))
+                for ta, tb, _token, _only in self._resolve_pairs
+            )
+            self._partner_sig_cache[cid] = sig
+        return sig
+
+    def _shared_partners(self, ca: Collider) -> "_SharedPartners":
+        """The partner list every body of ``ca``'s signature shares (``ca``
+        in it too: views skip it), built once per signature per invalidation.
+        Raises an ``only=`` conflict about any partner but ``ca``.
+        """
+        sig = self._partner_signature(ca)
+        sh = self._shared_pools.get(sig)
+        if sh is None:
+            ident, only_map, conflicts = self._build_partner_list(ca, skip=None)
+            sh = _SharedPartners(ident, only_map or None, conflicts)
+            self._shared_pools[sig] = sh
+        if sh.conflicts:
+            for pid, (cb, first, second) in sh.conflicts.items():
+                if cb is not ca:
+                    self._raise_only_conflict(ca, cb, first, second)
+        return sh
 
     def _raise_only_conflict(self, ca: Collider, cb: Collider, first, second) -> None:
         """Two registrations reach one body pair with different ``only=``.
@@ -8176,7 +8343,7 @@ class CollisionSystem:
             partners = _EMPTY_MARCH
         gate: Optional[_OnlyGate] = None
         if in_resolve and self._has_only:
-            only_map = self._partner_only_cache.get(id(existing))
+            only_map = self._resolve_only_map(existing)
             if only_map:
                 passing = self._passing.get(id(existing)) or {}
                 gate = _QueryOnlyGate(self, existing, only_map, passing)
@@ -8228,7 +8395,7 @@ class CollisionSystem:
         near = rp.near_box(*_floor_probe_envelope(pas, dx, step_max, reach))
         ident = rp.ident
         pool = _Pool(ident[i] for i in near)
-        pool.has_others = len(near) < len(ident) or any(c._proxy_valid for c, _t in pool)
+        pool.has_others = len(near) < len(rp) or any(c._proxy_valid for c, _t in pool)
         return pool
 
     def _floor_pool_near(self, body, probe, group, dx, reach):
