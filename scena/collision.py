@@ -164,6 +164,11 @@ _SWEEP_SAT = True
 # vectorized candidates"). False: every partner in Python (oracle, A/B).
 _RESOLVE_VECTOR = True
 _POOL_VECTOR_MIN = 128
+# The step skips still bodies where the answer is already in place: stored
+# resolve bounds of a collider whose pose key is the same object, and
+# touching_* of bodies that touch nothing now and did not before (Collision
+# Design, "Step cost"). False: the full walks (oracle, A/B).
+_STEP_SKIP_STILL = True
 _INF_BOX = (-math.inf, -math.inf, math.inf, math.inf)
 
 
@@ -1359,13 +1364,17 @@ _get_xy = None
 _bare_attr = None
 
 
-def _sync_auto_hitbox_frame(shape) -> None:
+def _sync_auto_hitbox_frame(shape) -> bool:
     """If a Sprite clip frame left the baked auto hull, bump epoch and rebake."""
     # Class lookup: instance getattr("_play_frames") raises via Entity.__getattr__
     # on Circle/Shape (no such slot). Sprite still syncs clip frames.
     fn = getattr(type(shape), "_sync_auto_hitbox_frame", None)
     if fn is not None:
         fn(shape)
+        # ``"clip"`` rebakes when the playing clip changes, which time alone
+        # can do (a clip end with ``next=``): the step visits it every frame.
+        return probe_private(shape, "_hitbox_from", None) == "clip"
+    return False
 
 
 def _ensure_pose_converters() -> None:
@@ -4358,6 +4367,7 @@ class Collider:
         "_motion_path",
         "_thick2",
         "_resolved_aabb",
+        "_resolved_key",
         "_in_resolve",
         "_part",
         "__weakref__",
@@ -4434,6 +4444,9 @@ class Collider:
         # Unpadded proxy at the end of the previous step. None until a step
         # has stored one. Unswept-bounds recovery reads this; it is not motion.
         self._resolved_aabb: Optional[Tuple[float, float, float, float]] = None
+        # The ``_proxy_key`` object ``_resolved_aabb`` was built from: a new
+        # pose or a nudge assigns a new key, so the same object is the same box.
+        self._resolved_key = None
         self._in_resolve = False
         # The Hitbox when this collider is a sprite's hitbox part (else None).
         self._part = None
@@ -4699,6 +4712,13 @@ class CollisionSystem:
         # Cross-frame partner identity cache: ca_id → [(partner, bounce_token)].
         # Motion deltas are refreshed each read. Cleared on enroll / pair edits.
         self._partner_ident_cache: Dict[int, List[Tuple[Collider, Any]]] = {}
+        # Colliders whose body read a non-empty touching_* at the last publish.
+        self._touching_live: Dict[int, "Collider"] = {}
+        # The step's snapshot visits, besides moved (``_stale``), untrusted and
+        # compound colliders: those with motion to commit or to reset
+        # (``_snap_hot``) and those a clock can rebake (``_timed``).
+        self._snap_hot: Set["Collider"] = set()
+        self._timed: Set["Collider"] = set()
         # id(body) → (ident list, struct version, mirror rows, member ids).
         self._partner_rows_cache: Dict[int, Tuple[Any, int, Any, Set[int]]] = {}
         # Same lifetime: ca_id → {partner_id: (spec, flip)} for ``only=``
@@ -4830,13 +4850,21 @@ class CollisionSystem:
                 self._partner_cache_touched_by_tag(tag):
             self._invalidate_partner_cache()
 
+    def _forget_step_sets(self, c: Collider) -> None:
+        """A leaving collider out of every per-step set: none may hold a body
+        the world let go (the holders guard, ``test_sys_holders``)."""
+        self._stale.discard(c)
+        self._untrusted.discard(c)
+        self._row_dirty.discard(c)
+        self._snap_hot.discard(c)
+        self._timed.discard(c)
+        self._touching_live.pop(id(c), None)
+
     def _swap_remove_collider(self, collider: Collider) -> None:
         idx_map = self._collider_index
         cid = id(collider)
         self._multi_bodies.pop(cid, None)
-        self._stale.discard(collider)
-        self._untrusted.discard(collider)
-        self._row_dirty.discard(collider)
+        self._forget_step_sets(collider)
         i = idx_map.pop(cid, None)
         if i is None:
             return
@@ -4877,9 +4905,7 @@ class CollisionSystem:
             self._dispatch_epoch += 1
             self._phase_cache = None          # holds the dropped entries' sides
             self._struct_version += 1
-            self._stale.discard(c)
-            self._untrusted.discard(c)
-            self._row_dirty.discard(c)
+            self._forget_step_sets(c)
             last = lst.pop()
             idx_map.pop(id(c), None)
             if i != len(lst):
@@ -5818,6 +5844,8 @@ class CollisionSystem:
         else:
             collider._proxy_start = None
             collider._motion_path = None
+        if dx != 0.0 or dy != 0.0 or path is not None:
+            self._snap_hot.add(collider)        # next step resets this motion
 
     def _update_proxy(self, collider: Collider, *, commit_motion: bool = True) -> bool:
         """Refresh collider proxy AABB. Translation-only mutates four floats.
@@ -5841,8 +5869,14 @@ class CollisionSystem:
                 collider._pending_path = None
                 collider._motion_path = None
             return False
+        timed = False
         for s in shapes:
-            _sync_auto_hitbox_frame(s)
+            if _sync_auto_hitbox_frame(s):
+                timed = True
+        if timed:
+            self._timed.add(collider)
+        elif self._timed:
+            self._timed.discard(collider)
         if _POSE_REV_SKIP and collider._proxy_valid:
             stored = collider._proxy_revs
             if stored is not None and stored == _collider_pose_revs(shapes):
@@ -6170,7 +6204,8 @@ class CollisionSystem:
         t_total0 = time.perf_counter()
         # Every proxy is refreshed below; what moved before now is consumed.
         self._drain_pose_cells()
-        self._stale.clear()
+        stale = self._stale
+        self._stale = set()
         self._prune_dead()
         # Linked hitbox ``active`` (``hb["active"] @= fn``): evaluated here, after
         # update / on_update / play(), so collision sees this frame's value.
@@ -6199,9 +6234,13 @@ class CollisionSystem:
         fast.clear()
         self._fast_k2 = _FAST_MOTION_FRACTION * _FAST_MOTION_FRACTION
         try:
-            for c in self._colliders:
-                if self._update_proxy(c):
-                    live.append(c)
+            if _STEP_SKIP_STILL:
+                self._snapshot_moved(stale)
+                live = [c for c in self._colliders if c._proxy_valid]
+            else:
+                for c in self._colliders:
+                    if self._update_proxy(c):
+                        live.append(c)
         finally:
             self._fast_k2 = math.inf
         ms_snapshot = (time.perf_counter() - t0) * 1000.0
@@ -6833,6 +6872,8 @@ class CollisionSystem:
         # not the pose, so the next refresh must build it (no skip).
         revs_after = _collider_pose_revs(shapes) if _POSE_REV_SKIP and key_was_fresh else None
         collider._proxy_revs = revs_after if revs_after != revs_before else None
+        if collider._proxy_revs is None:
+            self._untrusted.add(collider)       # the next refresh builds the key
         collider._proxy_valid = True
 
     def _bump_solve_bottom(self, cid: int, delta: int) -> None:
@@ -7302,9 +7343,15 @@ class CollisionSystem:
         """
         for c in self._colliders:
             if c._in_resolve:
+                key = c._proxy_key
+                if (_STEP_SKIP_STILL and key is not None and c._resolved_key is key
+                        and c._resolved_aabb is not None):
+                    continue                    # still body: same pose, same box
                 c._resolved_aabb = self._exact_bounds_aabb(c)
+                c._resolved_key = c._proxy_key
             elif c._resolved_aabb is not None:
                 c._resolved_aabb = None
+                c._resolved_key = None
 
     def _nudge_pair_along(
         self,
@@ -7537,7 +7584,22 @@ class CollisionSystem:
             return
 
         published = False
-        for c in self._colliders:
+        if _STEP_SKIP_STILL:
+            # Only bodies touching now or at the last publish: every other one
+            # already reads empty, and writing empty again changes nothing.
+            # Collider order, as the full walk (an anchored field notifies).
+            idx = self._collider_index
+            targets = dict(self._touching_live)
+            for cid in per_collider:
+                c = id_to_collider.get(cid)
+                if c is not None:
+                    targets[cid] = c
+            visit = sorted((c for cid, c in targets.items() if cid in idx),
+                           key=lambda c: idx[id(c)])
+        else:
+            visit = self._colliders
+        live: Dict[int, Collider] = {}
+        for c in visit:
             if c._part is not None:
                 # A part shares its host's identity; it must not overwrite
                 # the body's ``touching_*`` (parts never resolve).
@@ -7563,7 +7625,9 @@ class CollisionSystem:
             ident._collision_set_touching(sides, contacts)
             if sides or contacts:
                 published = True
+                live[id(c)] = c
         self._touching_published = published
+        self._touching_live = live
 
     def _collision_info_for_colliders(
         self,
@@ -7785,6 +7849,38 @@ class CollisionSystem:
         return list(self._resolve_target_to_colliders(atom))
 
     # --- moved set and vectorized candidates (B2) ---------------------------
+
+    def _snapshot_moved(self, stale: Set["Collider"]) -> None:
+        """The step's proxy refresh, O(moved): every collider that can differ
+        from its last refresh, in collider order. The rest already match their
+        pose (the revision invariant) and have no motion to commit or reset.
+
+        Verify mode refreshes the rest too and raises if one changed.
+        """
+        idx = self._collider_index
+        visit = set(stale)
+        visit |= self._snap_hot
+        visit |= self._untrusted
+        visit |= self._timed
+        visit.update(self._multi_bodies.values())
+        self._snap_hot = set()                  # commits below refill it
+        order = sorted((c for c in visit if id(c) in idx), key=lambda c: idx[id(c)])
+        for c in order:
+            self._update_proxy(c)
+        if _POSE_REV_VERIFY:
+            for c in self._colliders:
+                if c in visit:
+                    continue
+                before = (list(c._proxy), c._proxy_valid, c._motion_dx, c._motion_dy,
+                          c._motion_path, c._proxy_start, c._proxy_key)
+                self._update_proxy(c)
+                after = (list(c._proxy), c._proxy_valid, c._motion_dx, c._motion_dy,
+                         c._motion_path, c._proxy_start, c._proxy_key)
+                if after != before:
+                    raise AssertionError(
+                        f"step snapshot skipped {c!r}, whose refresh changed "
+                        f"{before} -> {after}: a pose or motion writer did not mark it"
+                    )
 
     def _drain_pose_cells(self) -> None:
         """Move the bumped revision cells into ``_stale`` (their colliders)."""
@@ -9490,6 +9586,7 @@ def note_collider_path(shape, offsets) -> None:
     if parts:
         targets.extend(p._collider for p in parts if p._collider is not None)
     for c in targets:
+        c._system._snap_hot.add(c)
         bx, by = c._pending_motion_dx, c._pending_motion_dy
         path = c._pending_path
         if path is None:
@@ -9589,6 +9686,8 @@ def note_collider_motion(shape, dx: float, dy: float) -> None:
         return
     col._pending_motion_dx += fx
     col._pending_motion_dy += fy
+    hot = col._system._snap_hot
+    hot.add(col)
     parts = shape._hitbox_parts     # ``Entity`` class default ``()``
     if parts:
         for part in parts:
@@ -9596,6 +9695,7 @@ def note_collider_motion(shape, dx: float, dy: float) -> None:
             if pc is not None:
                 pc._pending_motion_dx += fx
                 pc._pending_motion_dy += fy
+                hot.add(pc)
 
 
 def note_collider_placement(shape) -> None:

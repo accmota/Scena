@@ -1298,6 +1298,54 @@ Tests: `tests/test_query_vector.py`:
   would hide a lost move;
 - a canary drops the moved set, and it is caught.
 
+**Step cost: still bodies are skipped (2026-10-12).** Three per-collider
+walks in `step()` now visit only the colliders whose answer can have changed.
+`_STEP_SKIP_STILL = False` restores the full walks (oracle, A/B).
+
+- **Snapshot** (`_snapshot_moved`). The visit set is:
+  - moved (`_stale`);
+  - motion to commit or to reset (`_snap_hot`: filled by
+    `note_collider_motion` / `note_collider_path`, and by any commit that
+    leaves motion, a path or a swept start);
+  - `_untrusted` (which now also takes a collider whose nudge was refused,
+    so its revisions were cleared);
+  - `_timed` (a `"clip"` hitbox source rebakes when time ends a clip);
+  - compound bodies.
+
+  Visits run in collider order. `live` is every valid proxy. Every other
+  collider matches its pose (the revision invariant) and has nothing to
+  commit. Verify mode refreshes the skipped ones too and raises if one
+  changed.
+- **Stored bounds** (`_store_resolved_aabbs`). A resolve collider keeps
+  `_resolved_aabb` while `_proxy_key` is the same object (`_resolved_key`):
+  every pose change and every nudge assigns a new key.
+- **Touching publish** (`_update_touching_state`). It writes only bodies
+  that touch now, plus those that touched at the last publish
+  (`_touching_live`), in collider order. Every other body already reads
+  empty, and writing empty again changes nothing.
+
+A leaving collider is dropped from every one of these sets
+(`_forget_step_sets`): the holders guard (`test_sys_holders`) found
+`_touching_live` still holding a body after an act change.
+
+Measured (in-process A/B, M4):
+
+| Game | Work (ms) | Detail |
+|---|---|---|
+| mundo | 29.4 → 24.1 | snapshot 3.5 → 2.0 (the 500 tweened coins still move); bounds 1.6 → 0.2 |
+| ninja | 3.04 → 2.82 | |
+| corrida | 2.19 → 1.93 | |
+| horda | 14.0 → 13.6 | |
+
+Tests: `tests/test_step_skip.py`:
+- random scenes run frame by frame both ways and agree (positions, sides,
+  contacts, stored bounds, the order of `touching_sides` changes);
+- per-step invariants: stored bounds equal fresh ones, and an unvisited body
+  reads no contact;
+- canaries keep bounds past a move, or forget a toucher.
+
+Suite-wide, verify mode covers the snapshot.
+
 **Sprite fast key.** A Sprite whose class keeps Sprite's own pose hooks
 (`_SPRITE_POSE_HOOKS`; checked once per class, cached on the class as
 `_scena_pose_key_fast`) builds its key from its fields (`_sprite_pose_key_fast`).
