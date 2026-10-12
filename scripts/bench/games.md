@@ -216,7 +216,7 @@ Found on the way:
 - LP1 (below).
 
 What remains:
-- **horda:** the O(n²) crowd. A per-step pair list (a grid or sort-and-sweep) reopens the broad-phase fence (B3).
+- **horda:** shared partner lists and one prefilter query per turn (5f74e45) took resolve from 6.9 to 3.4 ms at n=150 (work 12.3 → 8.6) and from 66 to 22 ms at n=400. The pool rebuilds were the O(n²) part. What grows now is contact work in a denser crowd, so a grid (B3, fenced) would not remove it.
 - **mundo:** a 1500-tile level still pays per-collider Python loops in the broad phase (1.5 ms), 500 moving coins in the snapshot (2 ms) and drawing 1950 objects with the cull off (8 ms).
 - **festa:** a tighter paint bound per multipass look would let B5 merge more.
 
