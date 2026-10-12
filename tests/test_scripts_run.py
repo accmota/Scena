@@ -3,8 +3,8 @@
 Rule under test (Testing Design.md, Recurring bug classes: "A script is left
 on a retired spelling"; catalogue SR1–SR3): a script under
 ``scripts/smoke/``, ``examples/``, ``tests/loads/`` (bench
-loads) and the Galaga frame bench must
-construct and run with today's API. Each script runs in its own process
+loads), the Galaga frame bench and the scenes the bench pulses build
+(``EXTRA``) must construct and run with today's API. Each script runs in its own process
 (``tests/script_harness.py``): ``run()`` is replaced by the real frame body
 (``update`` / processes / collision / flush), no window and no draw.
 
@@ -40,8 +40,21 @@ FRAMES = 30
 TIMEOUT = 300.0
 
 # Scripts that drive their own loop (not ``run()``) stay out; a bench that
-# calls ``run()`` and teaches nothing else can be listed here.
-EXTRA = ("scripts/bench/historical/galaga.py",)
+# calls ``run()`` and teaches nothing else can be listed here. The pulse scenes
+# (``scripts/bench/run_all.py``) are here because a refused spelling in one
+# breaks the whole battery and nobody runs it daily (B1: ``gpu_mix`` kept
+# ``Shield(style="bubble", color=...)`` after the KN refusal, 2026-10-12).
+EXTRA = (
+    "scripts/bench/historical/galaga.py",
+    "scripts/bench/cpu_mix.py",
+    "scripts/bench/gpu_mix.py",
+    "scripts/bench/live_mix.py",
+    "scripts/bench/perf_resolve_balls.py",
+    "scripts/bench/perf_resolve_platformer.py",
+    "scripts/bench/perf_text.py",
+    "scripts/bench/perf_background.py",
+    "scripts/bench/sched.py",
+)
 
 
 def scripts(smoke: bool = False):

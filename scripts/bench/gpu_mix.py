@@ -493,7 +493,7 @@ if WANT_HEROES:
     # 1 Shield for the whole scene
     _hero(
         Circle(center=(W * 0.72, H * 0.42), radius=42),
-        Shield(style="bubble", color=(0.35, 0.75, 1.0)),
+        Shield(style="bubble"),  # paints its own colours (color= was ignored)
         "Shield",
         kind="spin", spin=18.0,
     )
