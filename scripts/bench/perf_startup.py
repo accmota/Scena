@@ -152,6 +152,10 @@ def _worker(headless: bool) -> None:
 
 def _launch(headless: bool) -> Dict[str, Any]:
     env = dict(os.environ)
+    # An author's import reads cached bytecode. A shell that disables it
+    # (Claude Code sets PYTHONDONTWRITEBYTECODE=1) compiles scena from source
+    # on every launch and doubled import_ms in the 2026-10-12 run (games.md B4).
+    env.pop("PYTHONDONTWRITEBYTECODE", None)
     env["STARTUP_WORKER"] = "1"
     cmd = [sys.executable, os.path.abspath(__file__)]
     if headless:
