@@ -601,6 +601,20 @@ surface (a write to a name it does not have raises —
 > inside one async mode stays a local. Scenes use the same rule
 > ([Act Design.md](Act%20Design.md#act-memory-on-self-ink-rule)).
 
+**Reading ink is a miss.** An ink field is not an attribute, so every read
+(`self.rumo`) misses normal lookup and runs `Entity.__getattr__`. Its first
+branch returns `ink[name]` when the full path (`_ink_read_slow`: the destroyed
+check, the `x` / `y` refusal, the retired-name hint, then ink) would return it
+too. That is when the name is in ink, the actor is not destroyed, the name is
+not `x` / `y`, and the class's merged retired map does not list it. A linked
+ink field is pulled first, as in the full path. Games read ink thousands of
+times a frame; this cuts a read from about 0.38 to 0.26 µs (M4).
+`_INK_READ_FAST = False` is the full path. Tests:
+`tests/test_ink_read_fast.py`: names × states give the same value or error
+both ways, and a linked field read inside a frame batch is pulled. A change to
+the refusals belongs in `_ink_read_slow` **and** in the fast branch's
+conditions.
+
 **Writes create; reads must exist.** `ship.hp = 3` (copy) and
 `ship["hp"] @= lambda: …` (link) both materialize a missing ink field (default `0`).
 Reading `ship.hpt` when only `hp` exists raises `AttributeError` — typos between two

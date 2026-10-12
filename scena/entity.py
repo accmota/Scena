@@ -328,6 +328,13 @@ def _pose_xy_forbidden_message(owner, name: str) -> str:
     )
 
 
+# ``Entity.__getattr__`` reads ink directly when the full path would return
+# it (tests/test_ink_read_fast.py: same value or error either way). False:
+# always the full path (oracle, A/B).
+_INK_READ_FAST = True
+_obj_getattr = object.__getattribute__
+
+
 def _retired_attr_message(owner, name: str):
     """The hint for a public name this class retired, or ``None``.
 
@@ -1784,6 +1791,32 @@ class Entity(Container):
     __setattr__._scena_private_passthrough = True
 
     def __getattr__(self, name: str):
+        # Fast path: an author field (ink) read on a live actor, when the slow
+        # path below would return it too: not destroyed, not the refused
+        # ``x`` / ``y`` alias, not a retired name (Actors Design, "Ink").
+        if _INK_READ_FAST and name != "x" and name != "y":
+            try:
+                ink = _obj_getattr(self, "_ink")       # a slot on most classes
+                destroyed = _obj_getattr(self, "_destroyed")
+            except AttributeError:
+                ink = None
+                destroyed = True
+            if ink is not None and name in ink and not destroyed:
+                d = self.__dict__
+                merged = type(self).__dict__.get("_scena_retired_merged")
+                if merged is None:
+                    retired = _retired_attr_message(self, name) is not None  # builds the map
+                else:
+                    retired = name in merged
+                if not retired:
+                    anchors = d.get("_field_anchors")
+                    if anchors and name in anchors:
+                        anchors[name]._ensure_fresh()
+                    return ink[name]
+        return self._ink_read_slow(name)
+
+    def _ink_read_slow(self, name: str):
+        """``__getattr__`` in full: refusals first, then ink."""
         try:
             destroyed = object.__getattribute__(self, "_destroyed")
         except AttributeError:
