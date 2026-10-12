@@ -8,7 +8,7 @@ Index of pulses: [balanced.md](balanced.md) · [sched.md](sched.md) · [fx.md](f
 One-command refresh: `python scripts/bench/run_all.py` (`--long` adds the 5-min `longrun`).
 
 <!-- FINGERPRINT:START -->
-Scena fingerprint now: `6eae4542094f` (2026-10-12 14:58 · Apple M4 · Darwin 26.6.2 · Py 3.12.13)
+Scena fingerprint now: `c41691d4e4ea` (2026-10-12 17:33 · Apple M4 · Darwin 26.6.2 · Py 3.12.13)
 <!-- FINGERPRINT:END -->
 
 ## Pulses
@@ -23,7 +23,7 @@ Scena fingerprint now: `6eae4542094f` (2026-10-12 14:58 · Apple M4 · Darwin 26
 | Text / HUD draw | [text.md](text.md) | text-1 | 2026-09-29 | mix 0.38 ms | 0.40, 0.38, 0.38, 0.39, 0.38 | ↓ improving | ✅ 13d |
 | Reactive-graph scaling | [graph.md](graph.md) | graph-1 | 2026-09-29 | sierpinski 7.61 ms | 7.28, 7.07, 14.64, 6.94, 7.61 | flat | ✅ 13d |
 | Resolve (balls / platformer) | [resolve.md](resolve.md) | resolve-2 | 2026-09-29 | balls 1.11 ms · platformer 2.81 ms | 0.98, 1.05, 1.07, 1.14, 1.11 | ↑ regressing | ✅ 13d |
-| Whole games (ninja + benchmark games) | [games.md](games.md) | games-1 | 2026-10-12 | ninja 5.1 · horda 17.0 · mundo 96.3 · corrida 3.0 · festa 37.2 ms | 8.90, 5.12, 5.06 | ↓ improving | ✅ 0d |
+| Whole games (ninja + benchmark games) | [games.md](games.md) | games-1 | 2026-10-12 | ninja 2.8 · horda 15.2 · mundo 23.6 · corrida 2.0 · festa 36.2 ms | 8.90, 5.12, 5.06, 2.83 | ↓ improving | ✅ 0d |
 | Background / camera / parallax | [background.md](background.md) | bg-1 | 2026-09-29 | mix 3.66 ms · sky 1.06 · parallax 1.63 | 3.58, 3.97, 4.18, 3.66 | flat | ✅ 13d |
 | Startup + warm-up | [startup.md](startup.md) | startup-1 | 2026-09-29 | ttff 474 ms · import 184 · warm-up excess 94 ms | 459.00, 401.00, 405.00, 474.00 | flat | ✅ 13d |
 | Asset first-use | [assets.md](assets.md) | assets-1 | 2026-09-29 | cold Σ 83.9 ms · worst wall_png 36.8 · warm Σ 6.5 | 105.5, 94.7, 84.3, 86.8, 83.9 | ↓ improving | ✅ 13d |

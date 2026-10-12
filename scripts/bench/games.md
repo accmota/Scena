@@ -33,6 +33,7 @@ Noise: ≲5 % is noise, ≳15 % noteworthy (auto-diff against the last row).
 
 | Date | Protocol | Host | Load | ninja | horda | mundo | corrida | festa | Notes |
 |------|----------|------|-----:|------:|------:|------:|--------:|------:|-------|
+| 2026-10-12 | `games-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 4.1 | 2.83 | 15.19 | 23.60 | 1.98 | 36.18 | after group B (B1 B2 B4 B5, swept SAT, step skips) |
 | 2026-10-12 | `games-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 2.3 | 5.06 | 16.99 | 96.26 | 3.02 | 37.21 | first runner row (HEAD after group A + B4/DG1) |
 | 2026-10-12 | `games-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 3.2 | 5.12 | 18.41 | 98.67 | 3.02 | 37.83 | after group A (A1–A9, PF1); fingerprint `6eae4542094f`; corrida max 25 ms (slot builds) |
 | 2026-10-12 | `games-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 2.3 | 8.90 | 20.01 | 156.9 | 5.34 | 38.37 | baseline before group A; fingerprint `9333a78e4e4d` |
@@ -194,6 +195,31 @@ a batch may skip intervening objects whose draw bounds do not intersect it.
 That is pixel-identical by construction, but it changes §5.5's z rules, so it
 is in the group B proposal.
 
+### After group B (2026-10-12, same reference sizes)
+
+| Game | Before A | After A | After B | x4 | What moved in B |
+|------|---------:|--------:|--------:|---:|-----------------|
+| ninja | 8.90 | 5.12 | **2.83** | 11.3 | in the budget. Swept SAT for the rounded platform-end hulls (GJK → closed form: `floor_below` 2.6 → 1.3 ms), pose revision (B1), step skips |
+| horda | 20.0 | 18.4 | 15.2 | 61 | resolve pools on the proxy mirror (10.5 → 7.0 ms); the mutual crowd stays O(n²) (B3, fenced) |
+| mundo | 156.9 | 98.7 | 23.6 | 94 | B1 (proxies skip still bodies), B2 (vectorized query candidates and resolve pools, member-scoped refresh), step skips (snapshot, stored bounds, touching), B4 makes `cull_offscreen` pay (draw 8.2 → 3.0 ms if the game turns it on) |
+| corrida | 5.34 | 3.02 | **1.98** | 7.9 | in the budget. B1, step skips |
+| festa | 38.4 | 37.8 | 36.2 | 145 | B5 overlap-aware batching (submit 23.9 → 19.8 ms); the 80 DU multipass cull pad keeps most shots in place |
+
+Each step's A/B is in its commit and design-doc section:
+- Collision Design: "Pose revision", "Polygon sweeps", "Moved set and vectorized candidates" (resolve pools, scoped refresh), "Step cost";
+- Canvas Design: "Offscreen culling";
+- Effect System Design §5.5: overlap-aware batching.
+
+Found on the way:
+- `Collider.on_collide` took an `async def` (now refused; Testing Design, AH lesson 1);
+- `_touching_live` held a body after an act change (caught by the holders guard before it shipped);
+- LP1 (below).
+
+What remains:
+- **horda:** the O(n²) crowd. A per-step pair list (a grid or sort-and-sweep) reopens the broad-phase fence (B3).
+- **mundo:** a 1500-tile level still pays per-collider Python loops in the broad phase (1.5 ms), 500 moving coins in the snapshot (2 ms) and drawing 1950 objects with the cull off (8 ms).
+- **festa:** a tighter paint bound per multipass look would let B5 merge more.
+
 ### Recommended optimizations (ranked by gain at reference size × reach ÷ risk)
 
 **A. Local, unfenced, backed by the numbers above.**
@@ -236,6 +262,35 @@ is in the group B proposal.
 | B4 (bench) | startup import time doubled in the 2026-10-12 run, likely a no-bytecode shell | confirmed artifact (with bytecode: import 179 ms, ttff 406 ms, both better than the dashboard); `perf_startup` launches now always use bytecode |
 
 ## Runs
+
+### 2026-10-12 — games-1
+
+| | |
+|---|---|
+| When | 2026-10-12 17:31 -0300 (20:31 UTC) |
+| Protocol | `games-1` (pro-forma) |
+| Host | Apple M4 · Darwin 26.6.2 · Py 3.12.13 |
+| Load | 4.09 |
+| Git | 3de337321078 |
+| Scena | `c41691d4e4ea` |
+| Scripts | fingerprint `e6ecf1585b5d` |
+
+| File | sha256[:12] |
+|------|-------------|
+| `game_bench.py` | `363e0eed2a31` |
+| `run_games.py` | `16983bab8a41` |
+| `games/horda.py` | `d1861b67aea7` |
+| `games/mundo.py` | `1c6ba949a8b6` |
+| `games/corrida.py` | `d341e6926ba1` |
+| `games/festa.py` | `cba1b8c5597b` |
+
+| Game | work | p95 | max | x4 | fps | top phases |
+|------|-----:|----:|----:|---:|----:|------------|
+| ninja  | 2.83 | 3.19 | 7.2 | 11.3 | 324 | simulate 2.04, processes 1.45, draw_frame 0.73, scene_draw 0.64 |
+| horda n=150 | 15.19 | 21.41 | 24.3 | 60.8 | 65 | simulate 13.86, collision 12.52, processes 1.25, draw_frame 1.15 |
+| mundo tiles=1500,robots=20 | 23.60 | 28.93 | 38.4 | 94.4 | 42 | simulate 15.38, collision 10.53, draw_frame 8.06, scene_draw 7.86 |
+| corrida speed=600 | 1.98 | 2.26 | 24.3 | 7.9 | 449 | simulate 1.23, draw_frame 0.69, scene_draw 0.62, processes 0.54 |
+| festa n=300 | 36.18 | 42.82 | 49.5 | 144.7 | 27 | submit 19.62, draw_frame 9.68, scene_draw 8.68, simulate 6.86 |
 
 ### 2026-10-12 — games-1
 
