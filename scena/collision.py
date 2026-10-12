@@ -157,7 +157,135 @@ _QUERY_VECTOR = True
 # closed-form swept SAT instead of conservative advancement (Collision Design,
 # "Polygon sweeps"). False: GJK advancement (oracle, A/B).
 _SWEEP_SAT = True
+# Resolve partner scans (sweep casts, settle and recovery passes, floor_below
+# without group=) prefilter a large pool on the proxy mirror, then run the
+# same exact test on what is left (Collision Design, "Moved set and
+# vectorized candidates"). False: every partner in Python (oracle, A/B).
+_RESOLVE_VECTOR = True
+_POOL_VECTOR_MIN = 128
 _INF_BOX = (-math.inf, -math.inf, math.inf, math.inf)
+
+
+def _mirror_row(c) -> Tuple[float, ...]:
+    """One proxy-mirror row: the proxy (infinite when invalid), this frame's
+    motion, and the box over the frame (start and end proxy), with the same
+    arithmetic as ``_earliest_toi``'s partner reject."""
+    p = c._proxy if c._proxy_valid else _INF_BOX
+    odx = c._motion_dx
+    ody = c._motion_dy
+    if odx > 0.0:
+        lox, hix = p[0] - odx, p[2]
+    else:
+        lox, hix = p[0], p[2] - odx
+    if ody > 0.0:
+        loy, hiy = p[1] - ody, p[3]
+    else:
+        loy, hiy = p[1], p[3] - ody
+    return (p[0], p[1], p[2], p[3], odx, ody, lox, loy, hix, hiy)
+
+
+def _rows_meeting(b, rows, c0: int, x0, y0, x1, y1) -> List[int]:
+    """Positions in ``rows`` whose box (columns ``c0``..``c0+3`` of the mirror
+    ``b``) meets ``(x0, y0, x1, y1)``, inclusive like ``_proxy_aabb_overlap``.
+
+    A pool much smaller than the mirror copies its rows; a large one masks
+    whole columns (contiguous) and then picks its rows.
+    """
+    if len(rows) * 4 < b.shape[0]:
+        b = b[rows]
+        mask = ~((b[:, c0] > x1) | (x0 > b[:, c0 + 2]) | (b[:, c0 + 1] > y1) | (y0 > b[:, c0 + 3]))
+    else:
+        mask = ~((b[:, c0] > x1) | (x0 > b[:, c0 + 2]) | (b[:, c0 + 1] > y1)
+                 | (y0 > b[:, c0 + 3]))[rows]
+    return np.flatnonzero(mask).tolist()
+
+
+class _PartnerPool:
+    """A body's resolve partners as rows of the proxy mirror (B2).
+
+    Iterates as the plain list would, ``(collider, token, odx, ody)`` in
+    partner order (``still``: motion 0, the seam step's casts). The ``near``
+    methods give the positions whose mirror row passes the same test the
+    scan applies; the scan still applies it (the mirror is a prefilter).
+    """
+
+    __slots__ = ("cs", "ident", "rows", "still")
+
+    def __init__(self, cs, ident, rows, still=False):
+        self.cs = cs
+        self.ident = ident
+        self.rows = rows
+        self.still = still
+
+    def __len__(self):
+        return len(self.ident)
+
+    def __bool__(self):
+        return bool(self.ident)
+
+    def __iter__(self):
+        if self.still:
+            for c, tok in self.ident:
+                yield (c, tok, 0.0, 0.0)
+        else:
+            for c, tok in self.ident:
+                yield (c, tok, c._motion_dx, c._motion_dy)
+
+    def item(self, i):
+        c, tok = self.ident[i]
+        if self.still:
+            return (c, tok, 0.0, 0.0)
+        return (c, tok, c._motion_dx, c._motion_dy)
+
+    def as_still(self):
+        return _PartnerPool(self.cs, self.ident, self.rows, True)
+
+    def moves(self) -> bool:
+        """Any partner with motion this frame (the sweep's idle test)."""
+        if self.still:
+            return False
+        m = self.cs._box_array()[self.rows, 4:6]
+        return bool(np.any(np.abs(m) > 1e-12))
+
+    def near_box(self, x0, y0, x1, y1):
+        """Positions whose proxy meets the box (``_proxy_aabb_overlap``)."""
+        got = _rows_meeting(self.cs._box_array(), self.rows, 0, x0, y0, x1, y1)
+        if _POSE_REV_VERIFY:
+            self._verify(got, lambda p, _odx, _ody: not (
+                p[0] > x1 or x0 > p[2] or p[1] > y1 or y0 > p[3]))
+        return got
+
+    def near_swept(self, sx0, sy0, sx1, sy1):
+        """Positions whose box over the frame (start and end proxy) meets the
+        swept box: ``_earliest_toi``'s reject, row for row."""
+        got = _rows_meeting(self.cs._box_array(), self.rows, 0 if self.still else 6,
+                            sx0, sy0, sx1, sy1)
+        if _POSE_REV_VERIFY:
+            def keeps(pb, odx, ody):
+                if odx > 0.0:
+                    if pb[0] - odx > sx1 or sx0 > pb[2]:
+                        return False
+                elif pb[0] > sx1 or sx0 > pb[2] - odx:
+                    return False
+                if ody > 0.0:
+                    if pb[1] - ody > sy1 or sy0 > pb[3]:
+                        return False
+                elif pb[1] > sy1 or sy0 > pb[3] - ody:
+                    return False
+                return True
+            self._verify(got, keeps)
+        return got
+
+    def _verify(self, got, keeps) -> None:
+        """Verify mode: every partner the Python test keeps is in ``got``."""
+        have = set(got)
+        for i, (c, _tok) in enumerate(self.ident):
+            odx, ody = (0.0, 0.0) if self.still else (c._motion_dx, c._motion_dy)
+            p = c._proxy if c._proxy_valid else _INF_BOX
+            if keeps(p, odx, ody) and i not in have:
+                raise AssertionError(
+                    f"partner prefilter lost row {i} ({c!r}): the proxy mirror is stale"
+                )
 
 
 class _Pool(list):
@@ -4535,6 +4663,8 @@ class CollisionSystem:
         # Cross-frame partner identity cache: ca_id → [(partner, bounce_token)].
         # Motion deltas are refreshed each read. Cleared on enroll / pair edits.
         self._partner_ident_cache: Dict[int, List[Tuple[Collider, Any]]] = {}
+        # id(body) → (ident list, struct version, mirror rows): _PartnerPool.
+        self._partner_rows_cache: Dict[int, Tuple[Any, int, Any]] = {}
         # Same lifetime: ca_id → {partner_id: (spec, flip)} for ``only=``
         # partners, or None when no partner of ``ca`` is filtered. A set spec
         # is already in ``ca``'s view; a callable spec keeps ``flip``.
@@ -4625,6 +4755,7 @@ class CollisionSystem:
         cid = id(collider)
         self._partner_ident_cache.pop(cid, None)
         self._partner_only_cache.pop(cid, None)
+        self._partner_rows_cache.pop(cid, None)
 
     def _partner_cache_touched_by_tag(self, tag) -> bool:
         """Can a member joining / leaving ``tag`` change some partner list?
@@ -5603,6 +5734,8 @@ class CollisionSystem:
         dy = collider._pending_motion_dy
         collider._pending_motion_dx = 0.0
         collider._pending_motion_dy = 0.0
+        if dx != collider._motion_dx or dy != collider._motion_dy:
+            self._row_dirty.add(collider)          # the mirror's motion columns
         collider._motion_dx = dx
         collider._motion_dy = dy
         collider._motion_translation = True
@@ -6436,7 +6569,7 @@ class CollisionSystem:
         # body, and the gate is read only after a hit or an overlap is found.
         has_only = self._has_only
         for ca in bodies:
-            partners = self._resolve_partners(ca)
+            partners = self._resolve_pool(ca)
             if not partners:
                 continue
             gate = None
@@ -6469,6 +6602,59 @@ class CollisionSystem:
     def _resolve_partners(
         self, ca: Collider
     ) -> List[Tuple[Collider, Any, float, float]]:
+        """``(collider, token, odx, ody)`` for each resolve partner of ``ca``."""
+        return [(c, token, c._motion_dx, c._motion_dy)
+                for c, token in self._resolve_partner_idents(ca)]
+
+    def _resolve_pool(self, ca: Collider):
+        """``ca``'s partners for a resolve pass: a ``_PartnerPool`` for a
+        large pool of indexed colliders, else the plain list."""
+        ident = self._resolve_partner_idents(ca)
+        if not _RESOLVE_VECTOR or len(ident) < _POOL_VECTOR_MIN:
+            return [(c, token, c._motion_dx, c._motion_dy) for c, token in ident]
+        cid = id(ca)
+        ver = self._struct_version
+        hit = self._partner_rows_cache.get(cid)
+        if hit is not None and hit[0] is ident and hit[1] == ver:
+            rows = hit[2]
+        else:
+            idx = self._collider_index
+            try:
+                rows = np.fromiter((idx[id(c)] for c, _t in ident), dtype=np.intp,
+                                   count=len(ident))
+            except KeyError:
+                return [(c, token, c._motion_dx, c._motion_dy) for c, token in ident]
+            self._partner_rows_cache[cid] = (ident, ver, rows)
+        return _PartnerPool(self, ident, rows)
+
+    def _iter_near(self, ca: Collider, partners):
+        """``partners`` a pass over ``ca``'s proxy may keep, in order.
+
+        A ``_PartnerPool`` yields only rows whose proxy meets ``ca``'s, and
+        asks again (later positions only) when ``ca`` moved under the pass;
+        a list is yielded whole. The pass still runs its own test.
+        """
+        if type(partners) is not _PartnerPool or not ca._proxy_valid:
+            yield from partners
+            return
+        p = ca._proxy
+        box = (p[0], p[1], p[2], p[3])
+        cands = partners.near_box(*box)
+        k = 0
+        while k < len(cands):
+            i = cands[k]
+            k += 1
+            yield partners.item(i)
+            if (p[0], p[1], p[2], p[3]) != box or not ca._proxy_valid:
+                if not ca._proxy_valid:
+                    for j in range(i + 1, len(partners)):
+                        yield partners.item(j)
+                    return
+                box = (p[0], p[1], p[2], p[3])
+                cands = [j for j in partners.near_box(*box) if j > i]
+                k = 0
+
+    def _resolve_partner_idents(self, ca: Collider) -> List[Tuple[Collider, Any]]:
         """Partners of ``ca`` from standing ``resolve()`` registrations.
 
         Tag sides walk ``_tag_colliders`` (O(declared members)), not every
@@ -6517,7 +6703,7 @@ class CollisionSystem:
             self._partner_ident_cache[cid] = out_ids
             self._partner_only_cache[cid] = only_map or None
             cached = out_ids
-        return [(c, token, c._motion_dx, c._motion_dy) for c, token in cached]
+        return cached
 
     def _raise_only_conflict(self, ca: Collider, cb: Collider, first, second) -> None:
         """Two registrations reach one body pair with different ``only=``.
@@ -6722,6 +6908,8 @@ class CollisionSystem:
         maxx = max(p.aabb[2] for p in pas)
         maxy = max(p.aabb[3] for p in pas)
         sx0, sy0, sx1, sy1 = _swept_aabb((minx, miny, maxx, maxy), rdx, rdy)
+        if type(partners) is _PartnerPool:
+            partners = [partners.item(i) for i in partners.near_swept(sx0, sy0, sx1, sy1)]
         best: Optional[Tuple[float, float, float, Collider, Any, float, float]] = None
         rejected: Optional[List[Tuple[float, float, float, Collider, Any, float, float]]] = None
         for cb, token, odx, ody in partners:
@@ -6803,9 +6991,12 @@ class CollisionSystem:
             return
         seam = _SEAM_STEP > 0.0
         cid = id(ca)
-        partner_moves = any(
-            abs(odx) > 1e-12 or abs(ody) > 1e-12 for _cb, _tok, odx, ody in partners
-        )
+        if type(partners) is _PartnerPool:
+            partner_moves = partners.moves()
+        else:
+            partner_moves = any(
+                abs(odx) > 1e-12 or abs(ody) > 1e-12 for _cb, _tok, odx, ody in partners
+            )
         if math.hypot(dx, dy) < _SLIDE_EPS:
             if partner_moves:
                 self._sweep_idle_against_partner(ca, pas_end, partners, gate)
@@ -6928,7 +7119,10 @@ class CollisionSystem:
             None if gate is None
             else _QueryOnlyGate(self, ca, gate._map, gate._passing)
         )
-        still = [(c, tok, 0.0, 0.0) for c, tok, _odx, _ody in partners]
+        if type(partners) is _PartnerPool:
+            still = partners.as_still()
+        else:
+            still = [(c, tok, 0.0, 0.0) for c, tok, _odx, _ody in partners]
         up = self._earliest_toi(moved, lx, ly, still, gate=probe_gate)
         if up is not None:
             k = max(0.0, min(1.0, up[0]) - _RESOLVE_SLOP / reach)
@@ -7127,7 +7321,7 @@ class CollisionSystem:
         # sit inside the proxy (``_nudge_collider`` keeps it synced), so a
         # disjoint proxy pair cannot pass the prim-overlap test below.
         curr_a: Optional[Tuple[float, float, float, float]] = None
-        for cb, token, _odx, _ody in partners:
+        for cb, token, _odx, _ody in self._iter_near(ca, partners):
             if not _proxy_aabb_overlap(ca, cb):
                 continue
             prev_b = cb._resolved_aabb
@@ -7179,7 +7373,7 @@ class CollisionSystem:
         self._recover_unswept_bounds(ca, partners, gate)
         for _ in range(_SETTLE_ITERS):
             deepest: Optional[Tuple[Collider, Any, CollisionInfo, float, float, float]] = None
-            for cb, token, _odx, _ody in partners:
+            for cb, token, _odx, _ody in self._iter_near(ca, partners):
                 if not _proxy_aabb_overlap(ca, cb):
                     continue
                 info = self._collision_info_for_colliders(ca, cb)
@@ -7599,12 +7793,14 @@ class CollisionSystem:
             self._update_proxy(c, commit_motion=False)
 
     def _box_array(self):
-        """numpy ``(n, 4)`` of proxy boxes, row ``i`` = ``_colliders[i]``."""
+        """numpy ``(n, 10)``, column-major (``_mirror_row``), row ``i`` =
+        ``_colliders[i]``. Every writer of a proxy or a motion marks
+        ``_row_dirty``."""
         if self._boxes is None or self._boxes_version != self._struct_version:
             cols = self._colliders
             self._boxes = np.array(
-                [c._proxy if c._proxy_valid else _INF_BOX for c in cols], dtype=float,
-            ).reshape(len(cols), 4)
+                [_mirror_row(c) for c in cols], dtype=float, order="F",
+            ).reshape((len(cols), 10), order="F")
             self._boxes_version = self._struct_version
             self._row_dirty.clear()
         elif self._row_dirty:
@@ -7613,7 +7809,7 @@ class CollisionSystem:
             for c in self._row_dirty:
                 i = idx.get(id(c))
                 if i is not None:
-                    b[i] = c._proxy if c._proxy_valid else _INF_BOX
+                    b[i] = _mirror_row(c)
             self._row_dirty.clear()
         return self._boxes
 
@@ -7680,10 +7876,7 @@ class CollisionSystem:
         self._fresh_proxies()
         if not cands:
             return []
-        b = self._box_array()[rows]
-        x0, y0, x1, y1 = box
-        mask = ~((b[:, 0] > x1) | (x0 > b[:, 2]) | (b[:, 1] > y1) | (y0 > b[:, 3]))
-        return [cands[i] for i in np.flatnonzero(mask)]
+        return [cands[i] for i in _rows_meeting(self._box_array(), rows, 0, *box)]
 
     def _candidates_for_group(self, group: Any) -> List[Collider]:
         """Colliders a query should test.
@@ -7796,14 +7989,20 @@ class CollisionSystem:
                 )
             probe = existing
             self._update_proxy(probe, commit_motion=False)
-            pool = [(c, tok) for c, tok, _odx, _ody in self._resolve_partners(probe)]
+            pool = None
+            if _FLOOR_PROBE_FAST:
+                rp = self._resolve_pool(probe)
+                if type(rp) is _PartnerPool:
+                    pool = self._floor_pool_from_partners(probe, rp, dx, reach)
+            if pool is None:
+                pool = [(c, tok) for c, tok in self._resolve_partner_idents(probe)]
         else:
             probe = existing if existing is not None else Collider(
                 [body], _register=False, _bind=False,
             )
             self._update_proxy(probe, commit_motion=False)
             if in_resolve:
-                self._resolve_partners(existing)  # fills the only= cache
+                self._resolve_partner_idents(existing)  # fills the only= cache
             pool = None
             if _FLOOR_PROBE_FAST:
                 pool = self._floor_pool_near(body, probe, group, dx, reach)
@@ -7855,6 +8054,28 @@ class CollisionSystem:
         finally:
             if fast:
                 self._trust_proxy_world = trust_before
+
+    def _floor_pool_from_partners(self, probe, rp, dx, reach):
+        """``floor_below()`` ground near the march from ``probe``'s resolve
+        partners (a ``_PartnerPool``): fresh proxies, then the mirror rows
+        that meet the march envelope. None when the probe has no prims.
+
+        ``has_others``: some partner has a proxy, so an empty pool still
+        marches (its end pose), as on the Python walk.
+        """
+        pas = self._world_prims(probe)
+        if not pas:
+            return None
+        if _linked_parts():
+            from .hitbox import _refresh_linked_parts
+            _refresh_linked_parts()
+        self._fresh_proxies()
+        step_max = min(_FLOOR_PROBE_STEP, max(reach, 1.0))
+        near = rp.near_box(*_floor_probe_envelope(pas, dx, step_max, reach))
+        ident = rp.ident
+        pool = _Pool(ident[i] for i in near)
+        pool.has_others = len(near) < len(ident) or any(c._proxy_valid for c, _t in pool)
+        return pool
 
     def _floor_pool_near(self, body, probe, group, dx, reach):
         """``floor_below(group=)`` ground near the march, from the vectorized

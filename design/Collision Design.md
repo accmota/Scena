@@ -1201,11 +1201,19 @@ Python per call (mundo: ~35,000 `_update_proxy` a frame from 21
   (bodies whose last refresh found no trusted revision: links, Text, parts,
   Polygons, an invalid proxy) and compound bodies. Every other registered
   proxy already matches its pose (the B1 invariant).
-- **Box mirror.** `_box_array` is a numpy `(n, 4)` mirror of the proxies,
-  row = `_colliders` index. It is rebuilt when the collider list changes
-  (`_struct_version`). Otherwise the rows of `_row_dirty` colliders (proxy
-  translated, rebuilt or nudged) are synced before use. An invalid proxy is an
-  infinite box: always a candidate.
+- **Box mirror.** `_box_array` is a numpy `(n, 10)` column-major mirror,
+  row = `_colliders` index (`_mirror_row`):
+  - the proxy;
+  - this frame's motion;
+  - the box over the frame (start and end proxy), built with the same
+    arithmetic as `_earliest_toi`'s partner reject.
+
+  It is rebuilt when the collider list changes (`_struct_version`).
+  Otherwise the rows of `_row_dirty` colliders are synced before use: a
+  proxy translated, rebuilt or nudged, or a motion changed
+  (`_commit_pending_motion`). An invalid proxy is an infinite box: always a
+  candidate. `_rows_meeting` masks whole columns for a large pool and copies
+  rows for a small one.
 - **Group rows.** `_group_rows(group)` gives a group's candidates (the same
   list, in the same order, as `_candidates_for_group`) and their row indices,
   cached per `(_struct_version, _tag_version)`. Only for groups made of
@@ -1221,6 +1229,53 @@ walk (oracle).
 
 Verify mode also re-walks the group and raises if the index missed a near
 body.
+
+**Resolve pools.** A body's resolve partners are scanned several times a
+frame: each sweep slide's casts, the unswept-bounds recovery, up to four
+settle passes, the floor snap, and `floor_below()` without `group=`. Each
+scan was O(pool) Python: 21 walkers × 1500 tiles in mundo, 150 × 180 in
+horda's mutual crowd.
+
+- **The pool.** With at least `_POOL_VECTOR_MIN` (128) partners,
+  `_resolve_pool` returns a `_PartnerPool`: the cached identity list, its
+  mirror rows (cached per list and `_struct_version`), and 4-tuples built
+  only for the rows a scan keeps. Below that, Python is as fast and the
+  plain list is used.
+- **Each scan prefilters with its own test, then runs that test.**
+  - `_earliest_toi` uses `near_swept` (columns 6–9, the box over the frame).
+  - The recovery and settle passes use `_iter_near`, `near_box` against the
+    body's proxy, in partner order. When the body moves under the pass (the
+    recovery nudges it), `_iter_near` asks again for later positions only.
+  - The sweep's idle test reads the motion columns (`moves`). The seam
+    step's motionless casts use `as_still`.
+- **Why the prefilter cannot drop a partner.** During one body's passes
+  only that body and the partner being handled are nudged, and both mark
+  their rows.
+- **`floor_below()` without `group=`** runs `_fresh_proxies`, then keeps
+  the pool's rows that meet the march envelope (`_floor_pool_from_partners`).
+  It no longer refreshes every partner. `floor_below(group=)` fills the
+  `only=` cache through `_resolve_partner_idents`, without building the
+  1500 tuples.
+
+`_RESOLVE_VECTOR = False` is the Python scan (oracle). Verify mode checks
+every prefilter against the Python test over the whole pool.
+
+Measured (in-process A/B, M4):
+
+| Game | Resolve (ms) | Work (ms) |
+|---|---|---|
+| mundo | 11.3 → 4.0 | 38.5 → 30.6 |
+| horda | 10.5 → 7.0 | 16.8 → 13.2 |
+| ninja (pools under 128) | unchanged | unchanged |
+
+Tests: `tests/test_resolve_vector.py`:
+- walkers on static tiles with one-way platforms and a moving lift, and a
+  mutual crowd with walls and spawn churn, run frame by frame both ways and
+  agree exactly;
+- a canary keeps the mirror stale, and it is caught.
+
+Horda's crowd stays O(n²): each body still asks numpy about the whole pool.
+A per-step pair list (a grid or sort-and-sweep) is the fenced B3.
 
 Measured (in-process A/B):
 - mundo: `floor_below` 28 → 6.9 ms, frame 63 → 39 ms;

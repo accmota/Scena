@@ -68,6 +68,10 @@ left out.
   runs about 25 % faster per frame. A sweep can stop up to 0.001 units later
   than before (the new stop is the exact one), and a body that slides past a
   corner without touching it no longer snags on it.
+- Faster `resolve()` with many partners: a body pushed out of a large level
+  or a big crowd now looks only at the partners near it. A level of 1500
+  tiles with 20 walkers resolves about 3× faster, and a crowd of 150 that
+  pushes itself apart about 30 % faster. Every answer is the same as before.
 
 ## 0.8.0 — 2026-10-11
 
