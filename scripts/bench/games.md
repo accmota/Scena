@@ -28,6 +28,7 @@ Record `uptime` with a number: peers load this machine.
 | Date | Load | Scena | ninja | horda n=150 | mundo tiles=1500 | corrida speed=600 | festa n=300 | Notes |
 |------|------|-------|------:|------:|------:|------:|------:|-------|
 | 2026-10-12 | 2.3 | `9333a78e4e4d` | 8.90 | 20.01 | 156.9 | 5.34 | 38.37 | work ms at reference size, 10 s, fb 1×; first row |
+| 2026-10-12 | 3.2 | `6eae4542094f` | 5.12 | 18.41 | 98.67 | 3.02 | 37.83 | after group A (A1–A9, PF1); corrida max 25 ms (slot builds) |
 
 ## Diagnosis 2026-10-12
 
@@ -111,12 +112,11 @@ ink dict. Festa: ~1200 misses / frame, all from `Disparo.on_update`
 
 **D8. Per-shot glow is the most expensive draw** (festa).
 - About 115 `saveLayer` per frame for about 150 same-colour `.glow` shots
-  (`_save_filter_layer`).
-- `.glow = "cyan"` makes a new `Glow` per shape (`stamps.coerce_glow`; `Neon` is interned).
-- Whether those shots batch is unconfirmed (F1).
+  (`_save_filter_layer`), plus each Neon shot drawn alone.
+- Cause (F1, see "After group A"): batches merge only consecutive objects of
+  one look, and festa's rings alternate Neon and Glow shots.
 - The effects doc already names per-projectile Glow as the expensive pattern
-  (`CheapGlow` for fleets). The question is whether the taught `.glow = color`
-  sugar defeats batching.
+  (`CheapGlow` for fleets). The engine fix is overlap-aware batching.
 
 **D9. Skia's GPU cache keeps every Neon blur mask** (festa; memory, not
 time; M1).
@@ -161,6 +161,29 @@ object costs more than drawing a plain one (D5).
 - Max frame 15–28 ms in every 30 s window: slot builds (D6).
 - To re-run on the fixed game in the milestone check.
 
+### After group A (2026-10-12, same reference sizes)
+
+| Game | Before | After A | Δ | x4 | What moved |
+|------|-------:|--------:|--:|---:|------------|
+| ninja | 8.90 | 5.12 | −42 % | 20.5 | `floor_below` 6.75 → 3.18 ms (A1 trust + envelope, A2 tile AABB prims, A4 sprite key) |
+| horda | 20.0 | 18.4 | −8 % | 73.6 | resolve 12.7 → 11.4 ms (A3 selective partner cache); the O(n²) passes remain |
+| mundo | 156.9 | 98.7 | −37 % | 395 | `floor_below` 112 → 61 ms, snapshot 8.0 → 6.3 ms (A2, A4); still O(world) per query |
+| corrida | 5.34 | 3.02 | −43 % | 12.1 | **inside the budget**; max frame still ~25 ms (a slot build: D6, A8 cut 7 %) |
+| festa | 38.4 | 37.8 | −1 % | 151 | GPU-bound (D8); RSS 433 → 254 MiB over 10 s (A9) |
+
+Each step's A/B is in its commit and design-doc section. Bugs fixed on the
+way: B6 (bench rot), PF1 (Testing Design; `ANYTHING` expansion stale after an
+enroll). Not fixed: DG1 (Guia), B2 / B4 (bench), F1 (diagnosed below).
+
+**F1, diagnosed.** `.glow = color` is interned (one `Glow` per colour), so the
+sugar is not the cause. Filter batches and Neon's pass-major runs merge only
+**consecutive** objects in a layer (`_draw_layer_batched`). Festa fires rings
+that alternate Neon and Glow shots, so every run has length 1: a `saveLayer`
+per glow shot, and Neon drawn shot by shot. The fix is overlap-aware batching:
+a batch may skip intervening objects whose draw bounds do not intersect it.
+That is pixel-identical by construction, but it changes §5.5's z rules, so it
+is in the group B proposal.
+
 ### Recommended optimizations (ranked by gain at reference size × reach ÷ risk)
 
 **A. Local, unfenced, backed by the numbers above.**
@@ -192,10 +215,11 @@ object costs more than drawing a plain one (D5).
 | ID | What | Status |
 |----|------|--------|
 | B6 (Testing Design) | `gpu_mix.py` passed `Shield(style="bubble", color=…)` after the KN refusal; `run_balanced` and `run_all` crashed | fixed 08068a5; pulse scenes now in the headless guard |
-| H1 | Every enroll / unenroll clears all resolve partner lists, any tag (D4) | open (A3) |
-| B3 | `query_shape` builds world prims for every candidate, with no proxy reject | open (A5) |
-| M1 | Neon on moving shapes grows RSS by ~1 GB (Skia GPU cache of one-use blur masks) (D9) | open (A9) |
-| F1 | `.glow = color` makes a new `Glow` per shape; per-shot glow may not batch (D8) | to investigate (B5) |
+| H1 | Every enroll / unenroll clears all resolve partner lists, any tag (D4) | fixed 0ce4670 (A3) |
+| B3 | `query_shape` builds world prims for every candidate, with no proxy reject | fixed 45881e7 (A5) |
+| M1 | Neon on moving shapes grows RSS by ~1 GB (Skia GPU cache of one-use blur masks) (D9) | mitigated 712d0b4 (A9: 1.3 → 0.77 GB); the mask per position remains |
+| PF1 (Testing Design) | `resolve(…, ANYTHING)` missed a body spawned after a query in the same frame, across frames | fixed cddf59d |
+| F1 | Interleaved looks (Neon / Glow) defeat batching: one saveLayer per glow shot (D8) | diagnosed (above); fix in the group B proposal |
 | B2 (bench) | `harness.install_phase_run` replica loop drifted from the product frame | open: move pulses to wrapping the real frame, with a protocol bump |
 | DG1 | Guia gap: `@leave_playfield` fires only for an object that was inside the playfield first. A shot born outside (a spawner behind a moving camera) never leaves, and accumulates. Corrida did that: 2 → 36 live shots in two minutes. The Guia teaches the camera-following playfield but not this rule | open: one sentence in the Guia (`#reagir-bounds`, pt and en) |
 | B4 (bench) | startup import time doubled in the 2026-10-12 run, likely a no-bytecode shell | to check: re-run with bytecode; record the flag in the row |
