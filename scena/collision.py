@@ -135,6 +135,10 @@ _PARTNER_CACHE_SELECTIVE = True
 # other state takes the generic key. Same tuple either way (Collision
 # Design, "World prims / pose keys"). False: always generic (oracle, A/B).
 _SPRITE_POSE_KEY_FAST = True
+# query_shape rejects a candidate whose proxy box misses the probe's before
+# building world prims, as the other queries do (games.md B3). False: the old
+# walk (oracle).
+_QUERY_SHAPE_REJECT = True
 # The Sprite pose hooks a fast key mirrors: a class that overrides any of
 # them keeps the generic key.
 _SPRITE_POSE_HOOKS = (
@@ -7291,6 +7295,10 @@ class CollisionSystem:
             if _is_multi_body(cb) and any(r() is shape for r in cb._shapes):
                 continue
             if not self._update_proxy(cb, commit_motion=False):
+                continue
+            # Proxies contain their prims and the test is inclusive: a pair
+            # whose boxes miss cannot touch.
+            if _QUERY_SHAPE_REJECT and not _proxy_aabb_overlap(probe, cb):
                 continue
             info = self._collision_info_for_colliders(probe, cb)
             if info is None:

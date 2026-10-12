@@ -820,7 +820,7 @@ visible = [e for e in seen if collision.raycast(guard, p2=e, group="walls") is N
 ```
 
 - **`test_collision(a, b) -> Optional[CollisionInfo]`**
-- **`collision.query_shape(shape, group=)`** — `group=` as above. The probe is not a hit against itself or its own parts.
+- **`collision.query_shape(shape, group=)`** — `group=` as above. The probe is not a hit against itself or its own parts. Like the other queries it rejects a candidate whose (fresh) proxy box misses the probe's before building world prims (`_QUERY_SHAPE_REJECT`; inclusive, and proxies contain their prims, so a touching pair still reaches the narrow phase). Before 2026-10-12 it built prims for every candidate (games.md B3; `tests/test_query_shape_reject.py`).
 - **`entity.collides_with(group=)`** — sugar for `query_shape(self, group=)`.
 
 `collision.raycast(p1, ...)` — sensor-style cast. The start is positional. The end is exactly one of `p2=` (a point-like), `vec=` (a displacement: Vec2 or `(dx, dy)`; a Point, Graphic, or mouse raises), or `length=` with optional `angle=` (degrees). `angle=` omitted uses the caster's `.angle`; a plain position then requires `angle=`. A positional second argument raises. Mixing end forms raises. A negative `length` raises.
