@@ -79,7 +79,10 @@ class Torre(Sprite, source="space/spaceBuilding_003.png", height=70, group="torr
         self.every(1.2, self.atirar)
 
     def atirar(self):
-        Bala(center=(self.center.x - 30, self.center.y + 10), layer="pista")
+        # Only on screen: a shot born outside the playfield never "leaves" it,
+        # so @leave_playfield would never clean it up.
+        if abs(self.center.x - canvas.pan_x) < W / 2:
+            Bala(center=(self.center.x - 30, self.center.y + 10), layer="pista")
 
 
 def fatia(slot):
