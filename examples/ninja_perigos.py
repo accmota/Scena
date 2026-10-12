@@ -4,10 +4,11 @@ A fase do tutorial 21 com perigos (media/levels/ninja_perigos.json):
 plataformas de mão única (resolve com only=), que se atravessam por baixo
 e de onde se desce com a seta para baixo; uma tábua inclinada, onde o
 desenho do ninja se inclina em volta dos pés (tilt, hitbox_anchor);
-robôs que viram na beirada (floor_below); uma segunda caixa de colisão
-só para a dor (add_hitbox), com um tempo sem sentir depois de cada golpe
-(untag / tag); raios elétricos que ligam e desligam (ElectricField,
-active); e um recomeço com um ato (Act, change_act, jogo_novo).
+robôs que viram na beirada
+(floor_below); uma segunda caixa de colisão só para a dor (add_hitbox),
+com um tempo sem sentir depois de cada golpe (untag / tag); raios
+elétricos que ligam e desligam (ElectricField, active); e um recomeço
+com um ato (Act, change_act, jogo_novo).
 
 Controles
 ---------
