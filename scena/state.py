@@ -634,6 +634,17 @@ def callable_assign_message(owner: Any, field: str) -> str:
     )
 
 
+def probe_private(obj, name: str, default=None):
+    """``getattr(obj, name, default)`` for a private engine field, without
+    ``Entity.__getattr__``: a miss there builds and raises an error message
+    only for ``getattr`` to swallow it. Same answer for a private name: it is
+    never ink, and every error that path raises is an ``AttributeError``."""
+    try:
+        return object.__getattribute__(obj, name)
+    except AttributeError:
+        return default
+
+
 class DestroyedError(AttributeError):
     """Read / write of an Entity after ``destroy()``.
 
@@ -3477,7 +3488,7 @@ class ContainerSlot:
             else:
                 container = self.container_class(attr_name=self.name, owner=None)
             # Prefer owner's model defining-set when present (lazy Derivate slots).
-            defining = getattr(instance, '_defining_part_names', None)
+            defining = probe_private(instance, '_defining_part_names', None)
             if defining is not None and self.name in defining:
                 container._field_type = FieldType.Defining
             elif defining is not None:

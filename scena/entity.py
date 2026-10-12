@@ -25,7 +25,7 @@ from ._pkg import is_framework_module
 from .state import (
     Attribute, CallableAssignError, Container, DestroyedError, LinkedAttributeError,
     _INK_SLOT, _FlagPropertyAnchor, _PropertyAnchor,
-    callable_assign_message,
+    callable_assign_message, probe_private,
 )
 from .scenamath import Vec2
 from .validate import expect_bool, refuse_async
@@ -649,7 +649,7 @@ def _pose_rotation_set(obj, value: float) -> None:
     d = obj.__dict__
     old = d.get("_rotation")
     if old is None:
-        old = getattr(obj, "_rotation", None)      # a class default until first written
+        old = probe_private(obj, "_rotation", None)      # a class default until first written
     if old is not None and old == value:
         return
     anchors = d.get("_field_anchors")
@@ -703,7 +703,7 @@ def _pose_scale_set(obj, value: float) -> None:
     d = obj.__dict__
     old = d.get("_scale")
     if old is None:
-        old = getattr(obj, "_scale", None)         # a class default until first written
+        old = probe_private(obj, "_scale", None)         # a class default until first written
     if old is not None and old == value:
         return
     anchors = d.get("_field_anchors")

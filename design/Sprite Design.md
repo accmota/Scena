@@ -1554,6 +1554,25 @@ at write time.
 `_needs_pull_invalidate` is set — same contract as Circle/Rect (A4). Never call
 `_takein_xy_float` unconditionally from Sprite pose methods.
 
+### Construction cost
+
+One `Sprite("tile.png", size=64, group="chao")` costs about 240 µs on the M4
+(2026-10-12; ~1 ms on the target machine). An Endless slot of ~30 pieces is
+then a visible hitch ([games.md](../scripts/bench/games.md), D6). The cost is
+spread out, with no single hot spot:
+- about 270 private attribute writes, each through the Python-level `__setattr__`;
+- the lazily built children (the center `Point` and the other containers);
+- two Style objects and the role-marker style;
+- the first collider bake and proxy.
+
+Done: private fields that may not be set yet are probed with
+`state.probe_private`, not `getattr(obj, name, default)`. A `getattr` miss fell
+into `Entity.__getattr__`, which builds an error message for `getattr` to
+swallow: 18 per Sprite, about 7 % of construction. Test:
+`tests/test_probe_private.py` (same answer as `getattr` for live, destroyed
+and plain objects). Further cuts need structure (lazy styles, cheaper
+container init) and belong with a design proposal.
+
 ### Dense tick, flood heuristic, collider swap-remove
 
 **Dense `on_update`.** `_update_dense` is `(item, fn, form)` entries, rebuilt when membership

@@ -91,7 +91,7 @@ from .style import (
     BlendMode,
     _SKIA_BLEND_MAP,
 )
-from .state import Attribute, Container, ContainerSlot, ScalarSlot, as_payload, _init_composite, batch_update_self
+from .state import Attribute, Container, ContainerSlot, ScalarSlot, as_payload, _init_composite, batch_update_self, probe_private
 from .validate import HINT_EXTENT
 from .process import _DUE_EPS, reached
 from .closed import ClosedSurface, seal
@@ -4354,7 +4354,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
 
     def look_like(self, other: PaintState) -> "Sprite":
         """Copy appearance; warm FrameFx when the copied visual needs a path/SDF."""
-        prev_vis = getattr(self, "_visual", None)
+        prev_vis = probe_private(self, "_visual", None)
         PaintState.look_like(self, other)
         self._alpha = float(getattr(other, "_alpha", 1.0))
         from .stamps import apply_gray_stamp, apply_hue_stamp
@@ -5448,7 +5448,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         blend = getattr(self, "_blend", BlendMode.NORMAL)
         alpha = float(getattr(self, "_alpha", 1.0))
         cf = getattr(self, "_blit_color_filter", None)
-        gray = getattr(self, "_blit_gray_cf", None)
+        gray = probe_private(self, "_blit_gray_cf", None)
         if blend is BlendMode.NORMAL and cf is None and gray is None and alpha >= 1.0:
             self._blit_paint = _BLIT_PAINT
             return
@@ -5460,7 +5460,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
 
     def _apply_blit_paint_extras(self, paint) -> None:
         """Stamp gray, non-default blend / alpha onto a blit Paint (every body route)."""
-        gray = getattr(self, "_blit_gray_cf", None)
+        gray = probe_private(self, "_blit_gray_cf", None)
         if gray is not None:
             inner = paint.getColorFilter()
             paint.setColorFilter(
@@ -5512,7 +5512,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         if getattr(self, "_blit_hue_live", None) is not None:
             object.__setattr__(self, "_plain_blit", False)
             return
-        st = getattr(self, "_tx_state", None)
+        st = probe_private(self, "_tx_state", None)
         if st is not None and st.any_active():
             object.__setattr__(self, "_plain_blit", False)
             return

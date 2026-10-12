@@ -11,7 +11,7 @@ from ._pkg import is_framework_module
 from .closed import ClosedSurface, check_closed_write, seal_after_init
 from ._defaults import Unset
 from .color import Color, ColorLike, ColorNames, resolve_rgb
-from .state import as_payload, as_payload_all
+from .state import as_payload, as_payload_all, probe_private
 from .validate import coerce_enum, expect_choice, magnitude, fixed_magnitude
 
 if TYPE_CHECKING:
@@ -1419,7 +1419,7 @@ _PAINT_WRITE_METHODS = ("set_alpha", "look_like", "restore_visual")
 
 def _refuse_on_dead(fn, what: str):
     def checked(self, *args, **kwargs):
-        if getattr(self, "_destroyed", False):
+        if probe_private(self, "_destroyed", False):
             from .entity import _refuse_if_destroyed
             _refuse_if_destroyed(self, what)
         return fn(self, *args, **kwargs)
