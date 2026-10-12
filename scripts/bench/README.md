@@ -12,6 +12,7 @@ Parametrized performance probes. Shared harness: [`harness.py`](harness.py).
 | Text / HUD | [text.md](text.md) | `python scripts/bench/perf_text.py --pulse` |
 | Reactive graph | [graph.md](graph.md) | `python scripts/bench/run_graph.py` |
 | Resolve (balls + platformer) | [resolve.md](resolve.md) | `python scripts/bench/run_resolve.py` |
+| Whole games (ninja + four benchmark games, real loop) | [games.md](games.md) | `python scripts/bench/run_games.py` |
 | Background / camera / parallax | [background.md](background.md) | `python scripts/bench/perf_background.py --pulse` |
 | Startup + warm-up | [startup.md](startup.md) | `python scripts/bench/perf_startup.py --pulse` |
 | Asset first-use | [assets.md](assets.md) | `python scripts/bench/perf_assets.py --pulse` |
@@ -22,6 +23,8 @@ Parametrized performance probes. Shared harness: [`harness.py`](harness.py).
 | Seam step (a grounded walker climbing a tile-seam lip; in-process `_SEAM_STEP` on / off A/B) | 2026-10-11, 30 walkers on 100 tiles: flat +0.2 %, every walker pressed into a wall every frame (worst case) +1.5 %; `lips` / `oneway` differ in behaviour (off: walkers snag / drop), not comparable (this machine) | `python scripts/bench/perf_seam_step.py [--scene all\|flat\|lips\|oneway\|walls] [--walkers 30] [--tiles 100] [--rounds 9]` |
 | Offscreen cull on a real level (`canvas.cull_offscreen`; runs an example unmodified, sweeps the camera, ON / OFF blocks replay the same views) | 2026-10-12: ninja_nivel (129 drawn, 87 skipped) draw 0.50 → 0.68 ms, work +8 %; 130 plain circles +30 %; with `.glow` −18 %; `Neon` −7 % (`--only`, see Canvas Design) | `python scripts/bench/perf_cull_level.py [--script examples/ninja_nivel.py] [--seconds 20] [--block 60] [--sweep 480] [--only on\|off]` |
 | Hitbox parts (body vs `add_hitbox` silhouette vs `px_rect` part with a linked `active`, N animated sprites) | 2026-09-28, n=100: body 0.75 ms, silhouette parts +1.09 ms, linked px parts +0.48 ms per step (this machine; ×4 target) | `python scripts/bench/perf_hitbox_parts.py [--mode body\|parts\|linked\|both\|all] [--n 100] [--rotation 1.5] [--tilt 12]` |
+
+**A whole game?** `python scripts/bench/game_bench.py <script>` times any game unmodified in the real loop (phases, collision sub-phases, queries, p95/p99, RSS; `--ladder`, `--cull ab`, `--ab module:FLAG` for an in-process A/B of a private switch, `--set module:NAME=value` per process, `--profile N`). Benchmark games and their reference sizes: [games/README.txt](games/README.txt); diagnosis and results: [games.md](games.md).
 
 **Jitter in an app?** `python scripts/bench/jitter_probe.py examples/naves.py --seconds 120` runs any script unmodified in the product loop and reports held/dropped frames against the real vsync timeline (macOS), the latch-free vblank grid check (vblanks per present), the pacer strategy and CPU %, hitches with their cause (GC / phase / pacing / present), and memory drift. A/B flags: `--present auto|vsync60|vsync30|vsync|fixed60|fixed30|none` (sets `canvas.framerate`; `none` = `"max"`), `--gc-freeze`. See [longrun.md](longrun.md) for how to read it.
 

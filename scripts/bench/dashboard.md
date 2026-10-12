@@ -8,7 +8,7 @@ Index of pulses: [balanced.md](balanced.md) · [sched.md](sched.md) · [fx.md](f
 One-command refresh: `python scripts/bench/run_all.py` (`--long` adds the 5-min `longrun`).
 
 <!-- FINGERPRINT:START -->
-Scena fingerprint now: `0275df8b0f3c` (2026-09-29 11:43 · Apple M4 · Darwin 26.6.2 · Py 3.12.13)
+Scena fingerprint now: `6eae4542094f` (2026-10-12 14:58 · Apple M4 · Darwin 26.6.2 · Py 3.12.13)
 <!-- FINGERPRINT:END -->
 
 ## Pulses
@@ -16,17 +16,18 @@ Scena fingerprint now: `0275df8b0f3c` (2026-09-29 11:43 · Apple M4 · Darwin 26
 <!-- PULSES:START -->
 | Area | Log | Protocol | Last run | Headline | Last 5 (oldest→newest) | Trend | Fresh? |
 |---|---|---|---:|---:|---|---|---|
-| Overall mix (cpu/gpu/live/soak) | [balanced.md](balanced.md) | balanced-2 | 2026-09-29 | cpu 4.79 ms · gpu 8.43 ms · live 8.39 ms | 4.32, 4.14, 5.53, 4.48, 4.79 | ↑ regressing | ✅ 0d |
-| Scheduler (process/events) | [sched.md](sched.md) | sched-1 | 2026-09-29 | mix 1.56 ms | 1.45, 1.28, 1.76, 1.45, 1.56 | ↑ regressing | ✅ 0d |
-| FX cost matrix | [fx.md](fx.md) | fx-1 | 2026-09-29 | baseline 1.04 ms @ high | 0.94, 0.93, 0.83, 0.95, 1.04 | ↑ regressing | ✅ 0d |
-| Soak (leak/inventory) | [(section inside balanced.md)](balanced.md) | balanced-2 | 2026-09-29 | RSS 177.7 MiB · Δobj 0 | 174.4, 170.7, 173.5, 171.6, 177.7 | flat | ✅ 0d |
-| Text / HUD draw | [text.md](text.md) | text-1 | 2026-09-29 | mix 0.38 ms | 0.40, 0.38, 0.38, 0.39, 0.38 | ↓ improving | ✅ 0d |
-| Reactive-graph scaling | [graph.md](graph.md) | graph-1 | 2026-09-29 | sierpinski 7.61 ms | 7.28, 7.07, 14.64, 6.94, 7.61 | flat | ✅ 0d |
-| Resolve (balls / platformer) | [resolve.md](resolve.md) | resolve-2 | 2026-09-29 | balls 1.11 ms · platformer 2.81 ms | 0.98, 1.05, 1.07, 1.14, 1.11 | ↑ regressing | ✅ 0d |
-| Background / camera / parallax | [background.md](background.md) | bg-1 | 2026-09-29 | mix 3.66 ms · sky 1.06 · parallax 1.63 | 3.58, 3.97, 4.18, 3.66 | flat | ✅ 0d |
-| Startup + warm-up | [startup.md](startup.md) | startup-1 | 2026-09-29 | ttff 474 ms · import 184 · warm-up excess 94 ms | 459.00, 401.00, 405.00, 474.00 | flat | ✅ 0d |
-| Asset first-use | [assets.md](assets.md) | assets-1 | 2026-09-29 | cold Σ 83.9 ms · worst wall_png 36.8 · warm Σ 6.5 | 105.5, 94.7, 84.3, 86.8, 83.9 | ↓ improving | ✅ 0d |
-| Long run (jitter / GC / drift) | [longrun.md](longrun.md) | longrun-1 | 2026-09-29 | held 63.78/min · hitch 0.41/min · RSS -2.80 MiB/10min | 61.58, 63.78 | flat | ✅ 0d |
+| Overall mix (cpu/gpu/live/soak) | [balanced.md](balanced.md) | balanced-2 | 2026-09-29 | cpu 4.79 ms · gpu 8.43 ms · live 8.39 ms | 4.32, 4.14, 5.53, 4.48, 4.79 | ↑ regressing | ✅ 13d |
+| Scheduler (process/events) | [sched.md](sched.md) | sched-1 | 2026-09-29 | mix 1.56 ms | 1.45, 1.28, 1.76, 1.45, 1.56 | ↑ regressing | ✅ 13d |
+| FX cost matrix | [fx.md](fx.md) | fx-1 | 2026-09-29 | baseline 1.04 ms @ high | 0.94, 0.93, 0.83, 0.95, 1.04 | ↑ regressing | ✅ 13d |
+| Soak (leak/inventory) | [(section inside balanced.md)](balanced.md) | balanced-2 | 2026-09-29 | RSS 177.7 MiB · Δobj 0 | 174.4, 170.7, 173.5, 171.6, 177.7 | flat | ✅ 13d |
+| Text / HUD draw | [text.md](text.md) | text-1 | 2026-09-29 | mix 0.38 ms | 0.40, 0.38, 0.38, 0.39, 0.38 | ↓ improving | ✅ 13d |
+| Reactive-graph scaling | [graph.md](graph.md) | graph-1 | 2026-09-29 | sierpinski 7.61 ms | 7.28, 7.07, 14.64, 6.94, 7.61 | flat | ✅ 13d |
+| Resolve (balls / platformer) | [resolve.md](resolve.md) | resolve-2 | 2026-09-29 | balls 1.11 ms · platformer 2.81 ms | 0.98, 1.05, 1.07, 1.14, 1.11 | ↑ regressing | ✅ 13d |
+| Whole games (ninja + benchmark games) | [games.md](games.md) | games-1 | 2026-10-12 | ninja 5.1 · horda 17.0 · mundo 96.3 · corrida 3.0 · festa 37.2 ms | 8.90, 5.12, 5.06 | ↓ improving | ✅ 0d |
+| Background / camera / parallax | [background.md](background.md) | bg-1 | 2026-09-29 | mix 3.66 ms · sky 1.06 · parallax 1.63 | 3.58, 3.97, 4.18, 3.66 | flat | ✅ 13d |
+| Startup + warm-up | [startup.md](startup.md) | startup-1 | 2026-09-29 | ttff 474 ms · import 184 · warm-up excess 94 ms | 459.00, 401.00, 405.00, 474.00 | flat | ✅ 13d |
+| Asset first-use | [assets.md](assets.md) | assets-1 | 2026-09-29 | cold Σ 83.9 ms · worst wall_png 36.8 · warm Σ 6.5 | 105.5, 94.7, 84.3, 86.8, 83.9 | ↓ improving | ✅ 13d |
+| Long run (jitter / GC / drift) | [longrun.md](longrun.md) | longrun-2 | — | — no row yet | — | — | 🔴 no row |
 <!-- PULSES:END -->
 
 ## Blind spots (no bench yet)

@@ -24,6 +24,7 @@ STEPS = (
     ("text", [sys.executable, str(BENCH_DIR / "perf_text.py"), "--pulse"]),
     ("graph", [sys.executable, str(BENCH_DIR / "run_graph.py")]),
     ("resolve", [sys.executable, str(BENCH_DIR / "run_resolve.py"), "--comparable", "--notes", ""]),
+    ("games", [sys.executable, str(BENCH_DIR / "run_games.py"), "--comparable", "--notes", ""]),
     ("background", [sys.executable, str(BENCH_DIR / "perf_background.py"), "--pulse"]),
     ("startup", [sys.executable, str(BENCH_DIR / "perf_startup.py"), "--pulse"]),
     ("assets", [sys.executable, str(BENCH_DIR / "perf_assets.py"), "--pulse"]),

@@ -248,6 +248,34 @@ class ResolvePulse(Pulse):
         }
 
 
+class GamesPulse(Pulse):
+    id = "games"
+    area = "Whole games (ninja + benchmark games)"
+    log = "games.md"
+    protocol = "games-1"
+
+    def parse(self, md: str) -> Dict[str, Any]:
+        rows = _filter_protocol(parse_summary_table(md), self.protocol)
+        if not rows:
+            return {}
+        latest = rows[0]
+        names = ("ninja", "horda", "mundo", "corrida", "festa")
+        vals = [parse_leading_float(latest[4 + i]) if len(latest) > 4 + i else None
+                for i in range(len(names))]
+        headline = " · ".join(f"{n} {v:.1f}" for n, v in zip(names, vals) if v is not None) + " ms"
+        ninja = [parse_leading_float(r[4]) for r in rows if len(r) > 4]
+        last5 = _last5(ninja)
+        return {
+            "date": latest[0],
+            "protocol": self.protocol,
+            "headline": headline,
+            "last5": last5,
+            "trend": trend_label(last5[0] if last5 else None, last5[-1] if last5 else None)
+            if len(last5) >= 2 else "— first row",
+            "scena_fp": latest_scena_fingerprint(md),
+        }
+
+
 class GraphPulse(Pulse):
     id = "graph"
     area = "Reactive-graph scaling"
@@ -323,6 +351,7 @@ REGISTRY: List[Pulse] = [
     TextPulse(),
     GraphPulse(),
     ResolvePulse(),
+    GamesPulse(),
     ColumnPulse(
         "background", "Background / camera / parallax", "background.md", "bg-1", 3,
         lambda rows: f"mix {_num_cell(rows, 3)} ms · sky {_num_cell(rows, 4)} · parallax {_num_cell(rows, 6)}",

@@ -25,10 +25,17 @@ Record `uptime` with a number: peers load this machine.
 
 ## Summary
 
-| Date | Load | Scena | ninja | horda n=150 | mundo tiles=1500 | corrida speed=600 | festa n=300 | Notes |
-|------|------|-------|------:|------:|------:|------:|------:|-------|
-| 2026-10-12 | 2.3 | `9333a78e4e4d` | 8.90 | 20.01 | 156.9 | 5.34 | 38.37 | work ms at reference size, 10 s, fb 1×; first row |
-| 2026-10-12 | 3.2 | `6eae4542094f` | 5.12 | 18.41 | 98.67 | 3.02 | 37.83 | after group A (A1–A9, PF1); corrida max 25 ms (slot builds) |
+Protocol `games-1`: the five games at reference size (ninja; horda n=150;
+mundo tiles=1500, robots=20; corrida speed=600; festa n=300), 10 s recorded
+after 3 s of warm-up, one fresh process each, uncapped, fb as opened (1× here).
+Cells are work ms. Runner: [`run_games.py`](run_games.py) (in `run_all.py`).
+Noise: ≲5 % is noise, ≳15 % noteworthy (auto-diff against the last row).
+
+| Date | Protocol | Host | Load | ninja | horda | mundo | corrida | festa | Notes |
+|------|----------|------|-----:|------:|------:|------:|--------:|------:|-------|
+| 2026-10-12 | `games-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 2.3 | 5.06 | 16.99 | 96.26 | 3.02 | 37.21 | first runner row (HEAD after group A + B4/DG1) |
+| 2026-10-12 | `games-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 3.2 | 5.12 | 18.41 | 98.67 | 3.02 | 37.83 | after group A (A1–A9, PF1); fingerprint `6eae4542094f`; corrida max 25 ms (slot builds) |
+| 2026-10-12 | `games-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 2.3 | 8.90 | 20.01 | 156.9 | 5.34 | 38.37 | baseline before group A; fingerprint `9333a78e4e4d` |
 
 ## Diagnosis 2026-10-12
 
@@ -223,3 +230,36 @@ is in the group B proposal.
 | B2 (bench) | `harness.install_phase_run` replica loop drifted from the product frame | open: move pulses to wrapping the real frame, with a protocol bump |
 | DG1 | Guia gap: `@leave_playfield` fires only for an object that was inside the playfield first. A shot born outside (a spawner behind a moving camera) never leaves, and accumulates. Corrida did that: 2 → 36 live shots in two minutes. The Guia teaches the camera-following playfield but not this rule | fixed: the Guia's `@leave_playfield` section says so, with both fixes (pt; the en Guia is a stub) |
 | B4 (bench) | startup import time doubled in the 2026-10-12 run, likely a no-bytecode shell | confirmed artifact (with bytecode: import 179 ms, ttff 406 ms, both better than the dashboard); `perf_startup` launches now always use bytecode |
+
+## Runs
+
+### 2026-10-12 — games-1
+
+| | |
+|---|---|
+| When | 2026-10-12 14:57 -0300 (17:57 UTC) |
+| Protocol | `games-1` (comparable) |
+| Host | Apple M4 · Darwin 26.6.2 · Py 3.12.13 |
+| Load | 2.34 |
+| Git | a40489f5088c |
+| Scena | `6eae4542094f` |
+| Scripts | fingerprint `e6ecf1585b5d` |
+
+| File | sha256[:12] |
+|------|-------------|
+| `game_bench.py` | `363e0eed2a31` |
+| `run_games.py` | `16983bab8a41` |
+| `games/horda.py` | `d1861b67aea7` |
+| `games/mundo.py` | `1c6ba949a8b6` |
+| `games/corrida.py` | `d341e6926ba1` |
+| `games/festa.py` | `cba1b8c5597b` |
+
+| Game | work | p95 | max | x4 | fps | top phases |
+|------|-----:|----:|----:|---:|----:|------------|
+| ninja  | 5.06 | 5.89 | 9.2 | 20.2 | 188 | simulate 4.26, processes 3.30, collision 0.92, draw_frame 0.73 |
+| horda n=150 | 16.99 | 22.60 | 27.0 | 68.0 | 58 | simulate 15.70, collision 14.37, processes 1.24, draw_frame 1.12 |
+| mundo tiles=1500,robots=20 | 96.26 | 105.61 | 110.6 | 385.1 | 10 | simulate 86.79, processes 60.88, collision 25.74, draw_frame 9.22 |
+| corrida speed=600 | 3.02 | 3.43 | 25.0 | 12.1 | 304 | simulate 2.24, processes 1.07, collision 1.01, draw_frame 0.72 |
+| festa n=300 | 37.21 | 43.63 | 45.8 | 148.8 | 27 | submit 22.41, draw_frame 8.13, scene_draw 7.16, simulate 6.64 |
+
+Newest first. `run_games.py` adds one section per run.
