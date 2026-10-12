@@ -8982,6 +8982,7 @@ canvas.playfield.set(canvas.game_view.outset(300))</pre>
       </div>
       <p>O retângulo é o playfield, fixo no mundo — não segue a câmera. Não é <code>canvas.game_view</code> (a janela). Layout de naves / HUD: <a href="#colocar">Colocar</a>.</p>
       <p>Câmera que anda (corredor, flappy): o playfield fica para trás. Faça-o seguir a janela com uma linha por quadro, no <code>update</code>: <code>canvas.playfield.set(canvas.game_view.outset(300))</code>.</p>
+      <p>Só sai quem esteve dentro: um objeto que nasce fora do playfield e se afasta (o tiro de uma torre que ficou para trás da câmera) nunca dispara <code>@leave_playfield</code> e fica vivo para sempre. Crie-o dentro da área (atire só quando a torre está na tela) ou destrua-o depois de um tempo (<code>tiro.after(3, tiro.destroy)</code>).</p>
       <p>Padrão (não precisa definir): o retângulo de design com <code>pad=0.25</code> em cada lado (1.5×, centrado). Só passa a valer quando algum <code>@leave_playfield</code> está em uso.</p>
       <p>Dois <code>@leave_playfield("bullet")</code> rodam os dois, na ordem em que foram escritos (como <code>@collide</code>). Um feito dentro de um ato sai na troca de ato.</p>
       <details class="spec" open>

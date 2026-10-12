@@ -85,14 +85,14 @@
           "pass": "kw",
           "type": "",
           "def": "3",
-          "doc": "Anéis (só pulse)"
+          "doc": "Anéis (só pulse; em outro style é TypeError)"
         },
         {
           "name": "speed",
           "pass": "kw",
           "type": "",
           "def": "1",
-          "doc": "Ritmo dos anéis (só pulse)"
+          "doc": "Ritmo dos anéis (só pulse; em outro style é TypeError)"
         }
       ]
     },
@@ -196,7 +196,7 @@
           "pass": 2,
           "type": "",
           "def": "3",
-          "doc": "Quantos filamentos (style filaments)"
+          "doc": "Quantos filamentos (filaments / tesla; em core é TypeError)"
         },
         {
           "name": "speed",
@@ -617,7 +617,7 @@
           "pass": 1,
           "type": "",
           "def": "—",
-          "doc": "Cor do escudo — só nos estilos bands e vortex; os outros têm cores próprias"
+          "doc": "Cor do escudo — só nos estilos bands, vortex e plasma; os outros têm cores próprias, e uma cor neles é TypeError"
         },
         {
           "name": "style",
@@ -4515,7 +4515,7 @@
           "pass": "kw",
           "type": "",
           "def": "¼ do lado menor",
-          "doc": "Só imagem / fit=\"tile\": célula em unidades de design."
+          "doc": "Só imagem / fit=\"tile\": célula em unidades de design. Com outro fit é TypeError."
         },
         {
           "name": "underlay",
