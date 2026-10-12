@@ -12,19 +12,6 @@ left out.
 
 ## Unreleased
 
-### Breaking
-
-- A knob that only one style or fit reads raises with the fix on the others.
-  Before, it was taken and drew nothing different. Old → new:
-  `Shield("cyan")` (and any color on the bubble, nebula, ember, void, molten,
-  cracks or frost styles) → `Shield("cyan", style="bands")` (also `"vortex"`,
-  `"plasma"`), or `Shield()`; `Halo(rings=5)` / `speed=` on hollow, fill, soft
-  or line → `Halo(style="pulse", rings=5)`; `Bolt(amount=6)` (style core) →
-  `Bolt(style="filaments", amount=6)` (or `"tesla"`);
-  `Wallpaper("bg.png", tile_size=64)` / `Texture(…, tile_size=64)` without
-  `fit="tile"` → `fit="tile", tile_size=64`. Each raises `TypeError` naming
-  the style or fit that reads the knob.
-
 ### Fixed
 
 - An `async def` handed to a function Scena asks a question raises
@@ -35,9 +22,18 @@ left out.
   counted as True: a filter kept every member, `until` ended at once,
   `@on_change` fired every frame, and Python only printed "coroutine … was
   never awaited".
-- `Halo(style="line", rings=5)` (or `speed=`) names the fix, like the other
-  non-pulse styles (above). Before, Python's own `HaloLine.__init__() got an
-  unexpected keyword argument` reached the author.
+- A knob that only one style or fit reads raises `TypeError` with the fix on
+  the others. Before, it was taken and drew nothing different, so code that
+  passed it never did what it said. Old → new: `Shield("cyan")` (any color on
+  the bubble, nebula, ember, void, molten, cracks or frost styles) →
+  `Shield("cyan", style="bands")` (also `"vortex"`, `"plasma"`), or
+  `Shield()`; `Halo(rings=5)` / `speed=` on hollow, fill, soft or line →
+  `Halo(style="pulse", rings=5)`; `Bolt(amount=6)` (style core) →
+  `Bolt(style="filaments", amount=6)` (or `"tesla"`);
+  `Wallpaper("bg.png", tile_size=64)` / `Texture(…, tile_size=64)` without
+  `fit="tile"` → `fit="tile", tile_size=64`. The error names the style or fit
+  that reads the knob. On `Halo(style="line")` the message replaces Python's
+  own `HaloLine.__init__() got an unexpected keyword argument`.
 
 ## 0.8.0 — 2026-10-11
 
