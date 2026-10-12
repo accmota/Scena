@@ -102,6 +102,8 @@ def _takein_xy_float(point, x=None, y=None) -> bool:
         if cell is None:
             cell = _pose_cell_of(point)
         cell[0] += 1
+        if d.get('_pose_mover'):
+            cell[4] += 1                 # a translation of its root (the cull shifts)
         if not cell[1]:
             cell[1] = True
             DIRTY_POSE_CELLS.append(cell)
@@ -3386,6 +3388,8 @@ class Point(Shape):
             if cell is None:
                 cell = _pose_cell_of(self)
             cell[0] += 1
+            if d.get('_pose_mover'):
+                cell[4] += 1             # a translation of its root (the cull shifts)
             if not cell[1]:
                 cell[1] = True
                 DIRTY_POSE_CELLS.append(cell)

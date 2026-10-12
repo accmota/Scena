@@ -60,8 +60,11 @@ left out.
   Scena keeps the off-screen test's box of a body that did not move or change
   its look, so a still tile, platform or circle costs almost nothing to test.
   A level of 1500 tiles draws in 3 ms instead of 8. 130 still circles in a
-  world 4× the window draw ~2.5× faster. Bodies that move every frame still
-  cost about what drawing them costs. The default stays `False`.
+  world 4× the window draw ~2.5× faster. A body that only moved reuses its
+  box too, shifted by the move: with culling on, 25 bouncing balls draw
+  about 20 % faster and a bullet hell of 300 glowing shots about 8 % faster
+  per frame. A body that turns or changes size every frame still costs about
+  what drawing it costs. The default stays `False`.
 - Faster `floor_below` and walkers on tiles whose image is not a full
   square (rounded platform ends, slopes cut in the art). A box meeting such a
   tile, a turned box or a `Polygon` is now swept in closed form. Tutorial 22

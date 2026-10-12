@@ -620,13 +620,56 @@ Measured (draw ms, `game_bench.py --cull ab`, M4):
 | tutorial 21 level (129 objects) | 0.50 | — | 0.39 (frame −7 %) |
 | mundo (1950 objects, 1820 off view) | 8.2 | — | 3.0 |
 
-Culling now pays off when much of the world is still (scenery, platforms).
-Bodies that move every frame still cost about what drawing them costs. The
-default stays off (an author-facing change, decided separately). Tests:
-`tests/test_cull_cache.py` (random pose and paint operations: the box used
-equals the computed one; a still body reads the cache; a key without the look
-revision is caught), `tests/test_cull.py`, `tests/test_diff_draw.py` (its
-canary now also plants the draw loop's `_cull_box`).
+Culling pays off when much of the world is still (scenery, platforms).
+
+**Moving bodies: the shifted box (2026-10-12; `_CULL_SHIFT`).** A body that
+only moved keeps its cached box, shifted by how far its center moved.
+
+- **"Only moved" is counted, not guessed.** The pose cell has a fifth slot,
+  `moves`. A center Point the cull marked (`_pose_mover`) adds one there on
+  each x / y write, in the A1 funnel (`_takein_xy_float`) and in
+  `Point._takein_impl`. Every other pose write moves only the revision. When
+  the revision and `moves` advanced by the same amount since the box was
+  built, every change was a move of that center.
+- **Marked only where a center write is a translation** (`_cull_mover`): a
+  root Sprite, and the center models of Circle (`CENTER_RADIUS`), Rect /
+  Square and Ellipse (`CENTER_WH`). The model is stored with the box and
+  checked on use. A Circle by center and perimeter point changes its radius
+  when the center moves, so it is not marked.
+- **Rounding.** The shift starts from the box as built, with the total move,
+  so rounding does not pile up. The result is padded out by
+  `_CULL_SHIFT_EPS` (1e-6 DU). Verify mode checks that it holds the fresh
+  box and stays within 4 pads of it.
+- **When a body's shape changes** (turn, resize, look), it recomputes. It
+  caches again after a frame whose changes were only moves.
+- **Cost.** A marked body pays one more dict probe and an add per center
+  write: `move_by` 1.34 → 1.39 µs. Whole games with the cull off: unchanged
+  (ninja, corrida, horda, measured old vs new code in separate processes).
+
+Draw with the cull on, shift off → on (in-process A/B):
+
+| Game | Draw (ms) |
+|---|---:|
+| bolas | 0.41 → 0.33 |
+| pegar_estrelas | 0.076 → 0.050 |
+| naves | 0.28 → 0.26 (its 24 enemies pulse their scale: a real shape change) |
+| festa | 7.9 → 6.7 (work 35.0 → 32.3; B5 reads the same boxes) |
+
+The default stays off (an author-facing change, decided separately).
+
+Tests:
+- `tests/test_cull_cache.py`:
+  - random pose and paint operations: the box used holds the computed one,
+    within 4 shift pads;
+  - a still body reads the cache;
+  - a mover is shifted, never recomputed, near and far;
+  - a turn or resize after moves recomputes;
+  - a perimeter circle is not shifted;
+  - canaries: a key without the look revision, and a resize counted as a
+    move.
+- `tests/test_cull.py`.
+- `tests/test_diff_draw.py`: its canary also plants the draw loop's
+  `_cull_box`.
 
 ### GPU memory
 

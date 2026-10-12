@@ -895,8 +895,49 @@ def _cull_cache_key(obj):
     return (rev, look)
 
 
+# A body whose pose changed only by moves of its marked center (Point x / y
+# writes, counted in its pose cell's ``moves``) keeps its cached box, shifted
+# by the move. False: every move recomputes (oracle, A/B).
+_CULL_SHIFT = True
+# The shifted box is the cached one plus a delta: float rounding can differ
+# from a fresh box by a few ulps, so it is padded outward by this much.
+_CULL_SHIFT_EPS = 1e-6
+_SHIFT_MODELS = None
+
+
+def _cull_mover(obj, cell):
+    """``(center Point, moves, x, y, model)`` when a write to ``obj``'s center
+    is a pure translation of its box, else None. Marks the Point.
+
+    Roots only (a part's cell is shared). Sprites, and the center models of
+    Circle, Rect / Square and Ellipse: a Circle by center and perimeter point
+    changes its radius when only the center moves.
+    """
+    global _SHIFT_MODELS
+    d = obj.__dict__
+    if cell is None or d.get("_owner") is not None:
+        return None
+    cp = d.get("center")
+    if cp is None or cp.__dict__.get("_owner") is not obj:
+        return None
+    if getattr(type(obj), "_is_sprite_body", False):
+        model = None
+    else:
+        if _SHIFT_MODELS is None:
+            from .shapes import CircleModel, EllipseModel, RectModel
+            _SHIFT_MODELS = (CircleModel.CENTER_RADIUS, RectModel.CENTER_WH,
+                             EllipseModel.CENTER_WH)
+        model = getattr(type(obj), "model", None) and obj.model
+        if model not in _SHIFT_MODELS:
+            return None
+    pd = cp.__dict__
+    pd["_pose_mover"] = True
+    return (cp, cell[4], pd.get("x", 0.0), pd.get("y", 0.0), model)
+
+
 def _cull_box(obj) -> Optional[Tuple[float, float, float, float]]:
-    """``_cull_box_full``, cached when ``_cull_cache_key`` allows."""
+    """``_cull_box_full``, cached when ``_cull_cache_key`` allows; a body that
+    only moved gets its cached box shifted."""
     if _CULL_CACHE:
         d = obj.__dict__
         hit = d.get("_cull_cache")
@@ -905,26 +946,50 @@ def _cull_box(obj) -> Optional[Tuple[float, float, float, float]]:
             # revision, so the trust the key was built under still holds.
             k = hit[0]
             cell = d.get("_pose_cell")
-            if ((cell[0] if cell is not None else 0) == k[0] and d.get("_look_rev", 0) == k[1]
+            rev = cell[0] if cell is not None else 0
+            if (d.get("_look_rev", 0) == k[1]
                     and getattr(obj, "_tx_state", None) is None
                     and (len(k) == 2 or (not obj._play_frames
                                          and getattr(obj._sheet, "_layout_epoch", 0) == k[2]))):
-                if _cull_verify():
-                    full = _cull_box_full(obj)
-                    if full != hit[1]:
-                        raise AssertionError(
-                            f"cached cull box {hit[1]} != {full} for {type(obj).__name__} "
-                            f"(a pose or paint write did not move its revision)"
-                        )
-                return hit[1]
-            # A body that moves every frame would build and store a key on
-            # every draw for nothing: after its first move it takes the plain
-            # path, and caches again once its revision holds for a frame.
-            rev = cell[0] if cell is not None else 0
+                if rev == k[0]:
+                    if _cull_verify():
+                        full = _cull_box_full(obj)
+                        if full != hit[1]:
+                            raise AssertionError(
+                                f"cached cull box {hit[1]} != {full} for {type(obj).__name__} "
+                                f"(a pose or paint write did not move its revision)"
+                            )
+                    return hit[1]
+                mv = hit[2]
+                # Every revision since the box was built was a move of its center.
+                if (mv is not None and _CULL_SHIFT and rev - k[0] == cell[4] - mv[1]
+                        and (mv[4] is None or obj.model is mv[4])):
+                    pd = mv[0].__dict__
+                    dx = pd.get("x", 0.0) - mv[2]
+                    dy = pd.get("y", 0.0) - mv[3]
+                    b = hit[1]
+                    e = _CULL_SHIFT_EPS
+                    box = (b[0] + dx - e, b[1] + dy - e, b[2] + dx + e, b[3] + dy + e)
+                    if _cull_verify():
+                        full = _cull_box_full(obj)
+                        if full is None or not (box[0] <= full[0] and box[1] <= full[1]
+                                                and box[2] >= full[2] and box[3] >= full[3]
+                                                and full[0] - box[0] <= 4 * e and full[1] - box[1] <= 4 * e
+                                                and box[2] - full[2] <= 4 * e and box[3] - full[3] <= 4 * e):
+                            raise AssertionError(
+                                f"shifted cull box {box} does not hug {full} for "
+                                f"{type(obj).__name__} (a write counted as a move changed its shape)"
+                            )
+                    return box
+            # A body whose shape changes every frame (a turn, a resize) would
+            # build and store a key on every draw for nothing: after a shape
+            # change it takes the plain path, and caches again after a frame
+            # with no change but moves (a shifted box can follow those).
             if rev != k[0]:
+                moves = cell[4] if cell is not None else 0
                 seen = d.get("_cull_seen")
-                d["_cull_seen"] = rev
-                if seen != rev:
+                d["_cull_seen"] = (rev, moves)
+                if seen is None or rev - seen[0] != moves - seen[1]:
                     return _cull_box_full(obj)
         key = _cull_cache_key(obj)
         if key is not None:
@@ -940,7 +1005,7 @@ def _cull_box(obj) -> Optional[Tuple[float, float, float, float]]:
                         )
                 return hit[1]
             box = _cull_box_full(obj)
-            d["_cull_cache"] = (key, box)
+            d["_cull_cache"] = (key, box, _cull_mover(obj, d.get("_pose_cell")))
             return box
     return _cull_box_full(obj)
 
