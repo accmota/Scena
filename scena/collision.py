@@ -123,6 +123,13 @@ _FLOOR_PROBE_FAST = True
 # closed-form narrow phase and sweep instead of SAT / GJK (Collision Design,
 # "Axis-aligned hulls"). False keeps the POLY (oracle, bench A/B).
 _HULL_AABB = True
+# Resolve partner lists are dropped only by an event that can change one: a
+# member joining / leaving a tag that is a resolve() side, or an enroll /
+# leave while a side expands by identity (ANYTHING, an object, a part, a
+# snapshot group). Pair edits always drop them. False drops them on every
+# enroll and tag change (the old rule; oracle and bench A/B). Collision
+# Design, "Partners".
+_PARTNER_CACHE_SELECTIVE = True
 # Probes kept for ``show_colliders`` when nothing draws (headless).
 _FLOOR_PROBE_DEBUG_CAP = 256
 # ``show_colliders`` outline colours (RGBA).
@@ -4215,7 +4222,7 @@ class CollisionSystem:
         # expansion outlives the frame (PF1).
         if self._resolve_cache:
             self._resolve_cache.clear()
-        self._invalidate_partner_cache()
+        self._invalidate_partner_cache_for_enroll()
         self._update_proxy(collider)
 
     def unregister(self, collider: Collider) -> None:
@@ -4230,7 +4237,8 @@ class CollisionSystem:
         finally:
             self._swap_remove_collider(collider)
             self._forget_collider_tags(collider)
-            self._invalidate_partner_cache()
+            self._forget_partner_entry(collider)
+            self._invalidate_partner_cache_for_enroll()
 
     def _invalidate_partner_cache(self) -> None:
         """Drop cached resolve partner identities (enroll / pair graph changed)."""
@@ -4238,6 +4246,50 @@ class CollisionSystem:
             self._partner_ident_cache.clear()
         if self._partner_only_cache:
             self._partner_only_cache.clear()
+
+    def _forget_partner_entry(self, collider: Collider) -> None:
+        """A leaving collider's own lists: a later collider reusing its id()
+        must not inherit them."""
+        cid = id(collider)
+        self._partner_ident_cache.pop(cid, None)
+        self._partner_only_cache.pop(cid, None)
+
+    def _partner_cache_touched_by_tag(self, tag) -> bool:
+        """Can a member joining / leaving ``tag`` change some partner list?
+
+        Only when ``tag`` is a tag side of a resolve() pair. Identity sides
+        (ANYTHING, objects, parts, snapshot groups) do not read tags: their
+        lists change on enroll / leave (``_invalidate_partner_cache_for_enroll``).
+        """
+        if not _PARTNER_CACHE_SELECTIVE:
+            return True
+        pair_tag_of = self._pair_tag_of
+        for a, b, _tok, _only in self._resolve_pairs:
+            if pair_tag_of(a) == tag or pair_tag_of(b) == tag:
+                return True
+        return False
+
+    def _invalidate_partner_cache_for_enroll(self) -> None:
+        """An enroll / leave: drop every list only if a side expands by identity.
+
+        The collider's tags reach the cache through ``_tag_add`` /
+        ``_tag_remove``; this covers the sides that do not read tags.
+        """
+        if not (self._partner_ident_cache or self._partner_only_cache):
+            return
+        if _PARTNER_CACHE_SELECTIVE:
+            pair_tag_of = self._pair_tag_of
+            for a, b, _tok, _only in self._resolve_pairs:
+                if pair_tag_of(a) is None or pair_tag_of(b) is None:
+                    break
+            else:
+                return
+        self._invalidate_partner_cache()
+
+    def _invalidate_partner_cache_for_tag(self, tag) -> None:
+        if (self._partner_ident_cache or self._partner_only_cache) and \
+                self._partner_cache_touched_by_tag(tag):
+            self._invalidate_partner_cache()
 
     def _swap_remove_collider(self, collider: Collider) -> None:
         idx_map = self._collider_index
@@ -4266,7 +4318,8 @@ class CollisionSystem:
                 i += 1
                 continue
             self._forget_collider_tags(c)
-            self._invalidate_partner_cache()
+            self._forget_partner_entry(c)
+            self._invalidate_partner_cache_for_enroll()
             if c._identity is c:
                 # A compound ``Collider([a, b])`` is its own identity, still
                 # held by the author and its handlers: its survivors get their
@@ -4316,7 +4369,7 @@ class CollisionSystem:
             return
         idx_map[cid] = len(lst)
         lst.append(collider)
-        self._invalidate_partner_cache()
+        self._invalidate_partner_cache_for_tag(tag)
 
     def _tag_remove(self, tag: str, collider: Collider) -> None:
         idx_map = self._tag_index.get(tag)
@@ -4331,7 +4384,7 @@ class CollisionSystem:
         if i != len(lst):
             lst[i] = last
             idx_map[id(last)] = i
-        self._invalidate_partner_cache()
+        self._invalidate_partner_cache_for_tag(tag)
 
     def _forget_collider_tags(self, collider: Collider) -> None:
         for tag in list(self._tag_index):
@@ -4351,7 +4404,7 @@ class CollisionSystem:
             return
         idx_map[cid] = len(lst)
         lst.append(collider)
-        self._invalidate_partner_cache()
+        self._invalidate_partner_cache_for_tag(tag)
 
     def _claimed_body_remove(self, tag: str, collider: Collider) -> None:
         idx_map = self._claimed_body_index.get(tag)
@@ -4368,7 +4421,7 @@ class CollisionSystem:
         if not lst:
             del self._claimed_bodies[tag]
             del self._claimed_body_index[tag]
-        self._invalidate_partner_cache()
+        self._invalidate_partner_cache_for_tag(tag)
 
     def _enroll_claimed_body(self, host, tag: str) -> None:
         """A part answers for resolve-side ``tag``: its host's body resolves."""

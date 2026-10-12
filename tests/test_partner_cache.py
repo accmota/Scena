@@ -1,10 +1,17 @@
 """Resolve partner lists stay what a fresh build gives.
 
 Rule under test (Collision Design.md, "Resolve hot path", "Partners"): each
-body's partner identities are cached across frames and dropped on enroll /
-leave / tag / pair edits. The oracle is a fresh build: after every operation
-of a random sequence, each body's cached list must equal, in order, the list
-``_resolve_partners`` builds from scratch.
+body's partner identities are cached across frames. The cache is dropped only
+by an event that can change some list: a tag of a ``resolve()`` side gaining or
+losing a member, a body named by an object side enrolling or leaving, any edit
+of the pairs, and every enroll / leave while a side is ``ANYTHING`` (or another
+broad side). A body that only carries other tags (a bullet in ``@collide``
+pairs) enrolls and leaves without dropping anyone's list.
+
+The oracle is a fresh build: after every operation of a random sequence, each
+body's cached list must equal, in order, the list ``_resolve_partners`` builds
+from scratch. ``collision._PARTNER_CACHE_SELECTIVE = False`` drops the cache on
+every enroll (the old rule).
 
 Bug class guarded: a cache invalidated too narrowly (a stale partner, a missed
 newcomer, an id reused by a new collider). PF1 (Testing Design): the
@@ -183,6 +190,41 @@ class TestAnythingSeesNewcomers(SelectiveCase):
     def test_lands_on_the_new_crate_with_or_without_queries(self):
         self.assertAlmostEqual(self.fall(query=False), 120.0, delta=1.0)
         self.assertAlmostEqual(self.fall(query=True), 120.0, delta=1.0)
+
+
+class TestUnrelatedTagsKeepTheCache(SelectiveCase):
+    def test_bullet_enroll_and_leave_keep_partner_lists(self):
+        sys_ = get_collision_system()
+        a1 = Rect(center=(0, 0), width=20, height=20, group="a")
+        a2 = Rect(center=(40, 0), width=20, height=20, group="a")
+        self.owned += [a1, a2]
+        resolve("a", "a", bounce=0.0)
+
+        @collide("tiro", "a")
+        def _hit(t, a, info):
+            pass
+
+        sys_.step()
+        sys_._resolve_partners(C.ensure_collider(a1))
+        self.assertTrue(sys_._partner_ident_cache)
+        before = dict(sys_._partner_ident_cache)
+        shot = Circle(center=(300, 0), radius=3, group="tiro")
+        self.owned.append(shot)
+        sys_.step()
+        shot.destroy()
+        self.assertEqual(sys_._partner_ident_cache.keys(), before.keys(),
+                         "a bullet in @collide pairs only dropped the resolve partner lists")
+
+
+class TestCanary(SelectiveCase):
+    def test_never_invalidating_is_caught(self):
+        if not hasattr(C.CollisionSystem, "_partner_cache_touched_by_tag"):
+            self.skipTest("selective invalidation not present")
+        with mock.patch.object(C.CollisionSystem, "_partner_cache_touched_by_tag",
+                               lambda self, tag: False):
+            with self.assertRaises(AssertionError):
+                for seed in range(12):
+                    self.run_sequence(seed)
 
 
 if __name__ == "__main__":

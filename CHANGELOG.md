@@ -41,6 +41,13 @@ left out.
   stop is the exact one. `floor_below` also stops re-checking every tile on
   each step of its march. Tutorial 22's level runs about 30 % faster per
   frame.
+- A body under `resolve(…, ANYTHING)` no longer falls through a body spawned
+  in the same frame as an earlier one when a query (`floor_below`, a
+  `query_*`) ran between the two spawns; it ignored the second one until
+  something else enrolled.
+- Shots and pickups that are only in `@collide` pairs no longer make every
+  body of a mutual `resolve()` crowd rebuild its partner list: a crowd of 150
+  that is being shot at resolves about 12 % faster.
 
 ## 0.8.0 — 2026-10-11
 
