@@ -1039,6 +1039,10 @@ framework adds (scale < 1 or a zoom-out would show copies nobody asked for);
 the Guia tells a panning author to pass `tile_mode="mirror"`. Guard:
 `tests/test_background_image.py` (`TestFittedImagePastEdge`: every fit ×
 every extending mode × far pan / zoom-out / rotation leaves no underlay pixel).
+`tile_size=` belongs to `fit="tile"`: with another fit it raises naming the fix
+(`style._parse_tile_size`, shared with `Texture`; before 2026-10-12 it was taken
+and ignored, KN4). Every image knob × fit is swept for pixels by
+`tests/test_knobs_take_effect.py`.
 - Gradient / solid → plain `drawRect` with the paint.
 
 Construct **prewarms** the texture (`prewarm_background_image`: draw the same
@@ -1054,10 +1058,6 @@ Fences (keep):
 - **No per-build `Paint.setShader` of an image shader** on this path. skia-python
   deep-copies the shader (serialize → deserialize) into a *new* `skia.Image`: new
   ID → GPU cache miss → the lazy PNG decodes again (~35 ms for 2669×1782); a raster
-`tile_size=` belongs to `fit="tile"`: with another fit it raises naming the fix
-(`style._parse_tile_size`, shared with `Texture`; before 2026-10-12 it was taken
-and ignored, KN4). Every image knob × fit is swept for pixels by
-`tests/test_knobs_take_effect.py`.
   or GPU image is PNG-re-encoded inside `setShader` (~0.8 s at that size). Same
   hazard for any image shader elsewhere — see
   [Effect System Design.md §5.5](Effect%20System%20Design.md#55-changing-the-effect-system-without-regressing-hot-paths).
