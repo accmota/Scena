@@ -26,6 +26,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 | Floor snap / grounded flicker | [Floor snap / grounded flicker](#floor-snap--grounded-flicker) |
 | Ledge / "will I fall?" (`floor_below`) | [Floor ahead: `floor_below`](#floor-ahead-floor_below); cost: [`floor_below`: cost](#floor_below-cost) |
 | Tile hull as an AABB prim | [Axis-aligned hulls](#axis-aligned-hulls) |
+| Box vs polygon sweep (closed form, GJK skin) | [Polygon sweeps](#polygon-sweeps) |
 | Queries / raycast | [Queries](#queries-on-demand) |
 | Sprite colliders | [Sprite colliders](#sprite-colliders) |
 | Hitbox parts (detect-only) | [Hitbox parts](#hitbox-parts) |
@@ -372,6 +373,52 @@ Closed-form AABB TOI (`_aabb_toi`) has a `currently overlapping` branch: if the 
 Resolver invariant: when TOI returns `t = 0`, keep the hit **only** if this slide's relative motion is approaching along that normal (`dot(relative_motion, normal) > 0`). If motion is separating or tangential, drop the sweep hit and let settle handle any residual depth.
 
 Settle cannot substitute for that placement. It is bounded (`clamp(0.5 × (depth − slop), 0, 8 DU)` per iteration, four iterations), never writes `.vel`, and a moving partner can recreate more overlap than settle removes.
+
+### Polygon sweeps
+
+One convex polygon prim (`AABB`, `OBB`, a `POLY` ring that `_convex_ring`
+accepts) swept against another takes the closed-form **swept SAT**
+(`_toi_sat`, from `_toi_prim_sets` when each side is one prim).
+
+- **The sweep.** It projects both rings on every face normal of both, and
+  takes the latest entry and the earliest exit. The entry time is exact, and
+  the normal is the face the body enters through.
+- **A start overlap or touch** is the narrow contact, as in conservative
+  advancement. The `t = 0` rule above then applies.
+- **What advances.** Circles, ellipses, capsules, rings that are not convex,
+  and multi-prim sets keep GJK advancement (`_toi_advance`). GJK on a set
+  sweeps the hull of the union; SAT pair by pair would not, so sets are left
+  as they were.
+
+**The skin.** Advancement stops once the gap is under 1e-3, so SAT differs
+from it only inside that skin:
+- SAT is never earlier, and at most 1e-3 later along the normal.
+- The normal is the same face.
+- A pass that grazes within 1e-3 and never touches is a hit for advancement
+  (a phantom corner snag, or a swept `@collide` contact) and no hit for SAT,
+  as for two boxes, which were already exact.
+
+**Ties.** Two floors that a drop meets at the same instant (a foot corner
+exactly on a joint) tie. The first partner wins, the same as two level
+boxes. Before, the skin made a polygon beat a box by ~1e-5.
+`test_floor_below.test_walkable_slopes_are_floor` had pinned that by
+accident at two joint positions; it now accepts either floor there.
+
+Why: level tiles with rounded ends (tutorial 22's platform ends) are
+8-vertex hulls. Every walker probe against them went to GJK, at ~50 µs a
+cast. Ninja: work 4.25 → 3.17 ms, `floor_below` 2.6 → 1.5 ms. Mundo,
+corrida and horda: flat. `_SWEEP_SAT = False` is advancement (oracle, A/B:
+`game_bench.py --ab scena.collision:_SWEEP_SAT`).
+
+Tests: `tests/test_sweep_sat.py`:
+- random convex pairs against advancement (hit agreement, skin bound,
+  normal);
+- the exact entry time;
+- grazing cases at the platform end, where a SAT miss is proved by no
+  overlap along the path;
+- fallbacks and `_convex_ring`;
+- walkers over rounded tiles agree frame by frame;
+- a canary that drops one ring's axes.
 
 ### Glue loop
 

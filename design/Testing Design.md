@@ -2360,6 +2360,17 @@ after every operation.
 | --- | --- | --- | --- |
 | PF1 | A body under `resolve(hero, ANYTHING)` fell through a crate spawned in the same frame as an earlier spawn, when a query (`floor_below`) ran between them, and kept ignoring the crate after the frame | `_resolve_cache` (the step's `ANYTHING` / object expansions) was cleared when a collider left (`_swap_remove_collider`) but not when one enrolled. The query between the spawns rebuilt partner lists from the stale expansion, and the partner-identity cache keeps a list across frames (`step()` clears only the expansions) | `tests/test_partner_cache.py`: `TestAnythingSeesNewcomers` (the public repro), `TestCachedEqualsFresh` (random enroll / destroy / tag / untag / `collidable` / pair edits on every side kind; cached lists equal a fresh build, in order). Fix: `register` clears `_resolve_cache` |
 
+**A tolerance can be a hidden tie-break.** Swapping an approximate algorithm
+for an exact one (GJK advancement, which stops 1e-3 short, for the closed-form
+swept SAT) changed which of two floors a drop meets first only where both are
+met at the same instant: a foot corner exactly on a plateau–ramp joint. The
+skin had made the polygon win by ~1e-5, and
+`test_floor_below.test_walkable_slopes_are_floor` pinned the polygon at two
+joint positions (dx=20 and, falling, dx=40) without saying so. Before trusting
+an identity assertion, check that the fixture is not on an exact joint. When
+it is, assert the set of valid answers and say why
+([Collision Design, "Polygon sweeps"](Collision%20Design.md#polygon-sweeps)).
+
 ### Open (found, not yet fixed)
 
 | Found in | Issue | Planned |

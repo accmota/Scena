@@ -153,6 +153,10 @@ _POSE_REV_VERIFY = os.environ.get("SCENA_VERIFY_POSE_REV") == "1"
 # and a group's candidates are masked against the query box in numpy. False:
 # every candidate is refreshed and tested in Python (oracle, A/B).
 _QUERY_VECTOR = True
+# One convex polygon (box, turned box, hull) swept against another takes the
+# closed-form swept SAT instead of conservative advancement (Collision Design,
+# "Polygon sweeps"). False: GJK advancement (oracle, A/B).
+_SWEEP_SAT = True
 _INF_BOX = (-math.inf, -math.inf, math.inf, math.inf)
 
 
@@ -2203,6 +2207,143 @@ def _toi_fast(
     return None
 
 
+def _convex_ring(verts: Sequence[Tuple[float, float]]) -> bool:
+    """True for a strictly convex, simple vertex ring with area (either winding).
+
+    One turn sign at every corner, and the edges' x direction changes
+    exactly twice round the ring: a ring that turns one way and changes more
+    often winds round more than once (a star). Collinear runs are allowed; a
+    zero-area ring is not.
+    """
+    n = len(verts)
+    if n < 3:
+        return False
+    sign = 0.0
+    area = 0.0
+    flips = 0
+    first_dir = last_dir = 0.0
+    px, py = verts[-1]
+    pex, pey = px - verts[-2][0], py - verts[-2][1]
+    for qx, qy in verts:
+        ex, ey = qx - px, qy - py
+        cross = pex * ey - pey * ex
+        if cross > 1e-12:
+            if sign < 0.0:
+                return False
+            sign = 1.0
+        elif cross < -1e-12:
+            if sign > 0.0:
+                return False
+            sign = -1.0
+        if ex != 0.0:
+            d = 1.0 if ex > 0.0 else -1.0
+            if not first_dir:
+                first_dir = d
+            elif d != last_dir:
+                flips += 1
+            last_dir = d
+        area += px * qy - qx * py
+        px, py, pex, pey = qx, qy, ex, ey
+    if last_dir != first_dir:
+        flips += 1                        # the change across the wrap
+    return sign != 0.0 and abs(area) > 1e-12 and flips == 2
+
+
+def _sat_ring(p: Prim) -> Optional[Sequence[Tuple[float, float]]]:
+    """``p``'s vertex ring when it is one convex polygon, else None."""
+    k = p.kind
+    if k == PrimKind.AABB:
+        x0, y0, x1, y1 = p.params[0], p.params[1], p.params[2], p.params[3]
+        if not (x1 > x0 and y1 > y0):
+            return None
+        return ((x0, y0), (x1, y0), (x1, y1), (x0, y1))
+    if k == PrimKind.OBB:
+        cx, cy, hw, hh, ang = p.params
+        if not (hw > 0.0 and hh > 0.0):
+            return None
+        return _obb_corners(cx, cy, hw, hh, ang)
+    if k == PrimKind.POLY:
+        v = p.verts
+        if v and _convex_ring(v):
+            return v
+    return None
+
+
+def _toi_sat(pa: Prim, pb: Prim, dx: float, dy: float):
+    """Swept SAT: convex polygon ``pa`` moving by ``(dx, dy)`` against still ``pb``.
+
+    Same contract as ``_toi_advance`` on one prim each: a start overlap is
+    ``(0, narrow contact)``; otherwise the exact entry time and the normal
+    (a → b) of the face it enters through, with no contact points. Returns
+    ``_TOI_UNRESOLVED`` when either prim is not one convex polygon (circle,
+    ellipse, capsule, a ring that is not convex): the caller advances.
+    """
+    va = _sat_ring(pa)
+    if va is None:
+        return _TOI_UNRESOLVED
+    vb = _sat_ring(pb)
+    if vb is None:
+        return _TOI_UNRESOLVED
+    length = math.hypot(dx, dy)
+    t_enter = -math.inf
+    t_exit = math.inf
+    bnx = bny = 0.0
+    for ring in (va, vb):
+        px, py = ring[-1]
+        for qx, qy in ring:
+            ex, ey = qx - px, qy - py
+            px, py = qx, qy
+            el = math.hypot(ex, ey)
+            if el < 1e-12:
+                continue
+            nx, ny = ey / el, -ex / el
+            amin = amax = va[0][0] * nx + va[0][1] * ny
+            for x, y in va:
+                d = x * nx + y * ny
+                if d < amin:
+                    amin = d
+                elif d > amax:
+                    amax = d
+            bmin = bmax = vb[0][0] * nx + vb[0][1] * ny
+            for x, y in vb:
+                d = x * nx + y * ny
+                if d < bmin:
+                    bmin = d
+                elif d > bmax:
+                    bmax = d
+            v = dx * nx + dy * ny
+            if -1e-15 < v < 1e-15:
+                if amax < bmin or amin > bmax:
+                    return None
+                continue
+            if v > 0.0:
+                te = (bmin - amax) / v
+                tx = (bmax - amin) / v
+                sx, sy = nx, ny
+            else:
+                te = (bmax - amin) / v
+                tx = (bmin - amax) / v
+                sx, sy = -nx, -ny
+            if te > t_enter:
+                t_enter = te
+                bnx, bny = sx, sy
+            if tx < t_exit:
+                t_exit = tx
+            if t_enter > t_exit or t_exit < 0.0 or t_enter > 1.0:
+                return None
+    if t_enter == -math.inf:
+        return None                       # no motion across any face
+    if t_enter * length <= 1e-6:
+        # Touching or overlapping at the start: the narrow phase decides, as
+        # in conservative advancement (its depth and points, its normal).
+        if _aabb_overlap_tuple(pa.aabb, pb.aabb):
+            c = narrow_phase(pa, pb)
+            if c is not None:
+                return (0.0, c)
+        return (max(0.0, t_enter), Contact((bnx, bny), 0.0, []))
+    return (t_enter, Contact((bnx, bny), 0.0, []))
+
+
 def _toi_bisect(
     pas: Sequence[Prim], pbs: Sequence[Prim], dx: float, dy: float
 ) -> Optional[Tuple[float, Contact]]:
@@ -2284,6 +2425,10 @@ def _toi_prim_sets(
                 if best is None or hit[0] < best[0]:
                     best = hit
         return best
+    if _SWEEP_SAT and len(pas) == 1 and len(pbs) == 1 and (dx or dy):
+        hit = _toi_sat(pas[0], pbs[0], dx, dy)
+        if hit is not _TOI_UNRESOLVED:
+            return hit
     advanced = _toi_advance(pas, pbs, dx, dy)
     if advanced is not _TOI_UNRESOLVED:
         return advanced

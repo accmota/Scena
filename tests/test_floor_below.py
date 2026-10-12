@@ -199,9 +199,19 @@ class TestTilesAndSlopes(FloorBelowCase):
             for up in (True, False):
                 with self.subTest(up=up, mirrored=m < 0):
                     h = self._plateau_then(30.0, up, m)
-                    for dx in (20.0, 40.0, 60.0, 90.0):
-                        self.assertIs(h.floor_below(dx=m * dx), self.ramp, f"dx={m * dx}")
-                    self._clear(h)
+                    # A foot corner exactly on the joint (the right one at
+                    # dx=20; the left one at dx=40, where a falling ramp
+                    # starts) lands on both at once: either is the floor.
+                    ties = (20.0,) if up else (20.0, 40.0)
+                    try:
+                        for dx in (20.0, 40.0, 60.0, 90.0):
+                            got = h.floor_below(dx=m * dx)
+                            if dx in ties:
+                                self.assertIn(got, (self.plat, self.ramp), f"dx={m * dx}")
+                            else:
+                                self.assertIs(got, self.ramp, f"dx={m * dx}")
+                    finally:
+                        self._clear(h)
 
     def test_depth_never_turns_a_walkable_slope_into_a_ledge(self):
         """depth= is for sheer drops; sub-steps shrink with it, so ≤45° stays floor."""

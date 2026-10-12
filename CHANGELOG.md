@@ -62,6 +62,12 @@ left out.
   A level of 1500 tiles draws in 3 ms instead of 8. 130 still circles in a
   world 4× the window draw ~2.5× faster. Bodies that move every frame still
   cost about what drawing them costs. The default stays `False`.
+- Faster `floor_below` and walkers on tiles whose image is not a full
+  square (rounded platform ends, slopes cut in the art). A box meeting such a
+  tile, a turned box or a `Polygon` is now swept in closed form. Tutorial 22
+  runs about 25 % faster per frame. A sweep can stop up to 0.001 units later
+  than before (the new stop is the exact one), and a body that slides past a
+  corner without touching it no longer snags on it.
 
 ## 0.8.0 — 2026-10-11
 
