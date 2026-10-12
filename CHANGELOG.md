@@ -39,8 +39,9 @@ left out.
   against it with the closed-form test instead of the general one. A sweep
   against such a tile can stop up to ~0.04 units later than before; the new
   stop is the exact one. `floor_below` also stops re-checking every tile on
-  each step of its march. Tutorial 22's level runs about 30 % faster per
-  frame.
+  each step of its march, and checks whether a Sprite moved about twice as
+  fast. Tutorial 22's level runs about 40 % faster per frame; a level of
+  1500 tiles about 25 %.
 - A body under `resolve(…, ANYTHING)` no longer falls through a body spawned
   in the same frame as an earlier one when a query (`floor_below`, a
   `query_*`) ran between the two spawns; it ignored the second one until

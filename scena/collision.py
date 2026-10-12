@@ -130,6 +130,18 @@ _HULL_AABB = True
 # enroll and tag change (the old rule; oracle and bench A/B). Collision
 # Design, "Partners".
 _PARTNER_CACHE_SELECTIVE = True
+# A Sprite's pose key read straight from its fields where a field read would
+# return the stored value anyway (no anchor, no link, classified bare); any
+# other state takes the generic key. Same tuple either way (Collision
+# Design, "World prims / pose keys"). False: always generic (oracle, A/B).
+_SPRITE_POSE_KEY_FAST = True
+# The Sprite pose hooks a fast key mirrors: a class that overrides any of
+# them keeps the generic key.
+_SPRITE_POSE_HOOKS = (
+    "_collision_pose_extra", "_collision_pose_anchor", "_hitbox_pose_wh",
+    "_hitbox_pose_src", "_du_per_px", "_draw_angle", "_flipped_art_angle",
+    "_pull_property_anchors", "_is_hitbox_part", "_has_domain_frame",
+)
 # Probes kept for ``show_colliders`` when nothing draws (headless).
 _FLOOR_PROBE_DEBUG_CAP = 256
 # ``show_colliders`` outline colours (RGBA).
@@ -1343,6 +1355,88 @@ def _collision_graphic_extra(shape) -> tuple:
     return tuple(parts)
 
 
+def _raw_bare_scalar(d: dict, name: str) -> Optional[float]:
+    """``d[name]`` when ``ScalarSlot.__get__`` would return it stored, else None.
+
+    Mirrors the descriptor's own fast branch: no anchor on the owner, no
+    link, the field already classified bare. A plain float / int only.
+    """
+    if d.get("_field_anchors") or d.get("_link") is not None:
+        return None
+    bare = d.get("_scalar_bare_ok")
+    if bare is None or bare.get(name) is not True:
+        return None
+    v = d.get(name)
+    t = type(v)
+    if t is float:
+        return v
+    if t is int:
+        return float(v)
+    return None
+
+
+def _sprite_pose_fast_class(cls) -> bool:
+    """True when ``cls`` uses Sprite's own pose hooks (cached on the class)."""
+    ok = cls.__dict__.get("_scena_pose_key_fast")
+    if ok is None:
+        from .sprite import Sprite
+        ok = issubclass(cls, Sprite) and all(
+            getattr(cls, n, None) is getattr(Sprite, n, None) for n in _SPRITE_POSE_HOOKS
+        )
+        type.__setattr__(cls, "_scena_pose_key_fast", ok)
+    return ok
+
+
+def _sprite_pose_key_fast(s) -> Optional[tuple]:
+    """``_collision_pose_key`` of a plain Sprite, or None (take the generic one).
+
+    The same tuple, built from the fields: ``(epoch, x, y, draw angle, scale,
+    hitbox scale x / y, hitbox w / h, flip x / y, offset x / y)``.
+    """
+    d = s.__dict__
+    if d.get("_field_anchors"):
+        return None
+    if s._hitbox_from == "each" and s._play_frames:
+        return None
+    w = _raw_bare_scalar(d, "width")
+    h = _raw_bare_scalar(d, "height")
+    p = d.get("center")
+    if w is None or h is None or p is None:
+        return None
+    pd = p.__dict__
+    cx = _raw_bare_scalar(pd, "x")
+    cy = _raw_bare_scalar(pd, "y")
+    if cx is None or cy is None:
+        return None
+    scale = float(s._scale)
+    sa = abs(scale)
+    px_w = float(s._hitbox_ref_src_w) or 1.0
+    px_h = float(s._hitbox_ref_src_h) or 1.0
+    rw = float(getattr(s, "_ref_src_w", 0.0) or 0.0)
+    rh = float(getattr(s, "_ref_src_h", 0.0) or 0.0)
+    kx = abs(w) / rw if rw else 1.0
+    ky = abs(h) / rh if rh else 1.0
+    flip_x = s._flip_x
+    flip_y = s._flip_y
+    a = float(s._art_angle)
+    if flip_x:
+        a = 180.0 - a
+    if flip_y:
+        a = -a
+    hs = s._hitbox_scale
+    return (
+        int(getattr(s, "_collision_epoch", 0) or 0),
+        cx, cy,
+        float(float(s._rotation) - a),
+        scale,
+        float(hs[0]), float(hs[1]),
+        float(px_w * kx * sa), float(px_h * ky * sa),
+        1.0 if flip_x else 0.0,
+        1.0 if flip_y else 0.0,
+        float(s._offset_x), float(s._offset_y),
+    )
+
+
 def _collision_pose_key(shape) -> tuple:
     """Cache key: collision epoch + world position + non-translational pose.
 
@@ -1358,6 +1452,11 @@ def _collision_pose_key(shape) -> tuple:
     skip those lookups via ``_has_domain_frame`` on SpatialFx domain bases.
     """
     cls = type(shape)
+    if _SPRITE_POSE_KEY_FAST and cls.__dict__.get("_scena_pose_key_fast") is not False \
+            and _sprite_pose_fast_class(cls):
+        key = _sprite_pose_key_fast(shape)
+        if key is not None:
+            return key
     if getattr(cls, "_is_hitbox_part", False):
         return shape._pose_key()  # paint pose in one pass (hitbox.py)
     pull = getattr(cls, "_pull_property_anchors", None)

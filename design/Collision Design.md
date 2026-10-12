@@ -1076,6 +1076,22 @@ cold (R7 in [Testing Design](Testing%20Design.md#bug-catalogue)). Never trim an
 extra "because rotation already bumps the epoch": a Defining slot write often does
 not bump it.
 
+**Sprite fast key.** A Sprite whose class keeps Sprite's own pose hooks
+(`_SPRITE_POSE_HOOKS`; checked once per class, cached on the class as
+`_scena_pose_key_fast`) builds its key from its fields (`_sprite_pose_key_fast`).
+It does this only where each field read would return the stored value anyway
+(`_raw_bare_scalar`: no anchor on the owner, no link, the field already
+classified bare, a plain number). In every other state it answers None and the
+generic key runs: a linked `width`, `center` or `angle`, `hitbox_source="each"`
+while playing, any anchor on the sprite. **The tuple is identical** to the
+generic one; that equality is the test (`tests/test_sprite_pose_key_fast.py`:
+random poses, flips, offsets, clips with each `hitbox_source`, linked fields;
+dropped-input mutations are caught). It is about 2× faster (1.85 → 0.94 µs on
+the M4), and an unchanged `_update_proxy` 2.3 → 1.4 µs. Measured: ninja work
+−10 %, mundo −26 %, corrida −14 % ([games.md](../scripts/bench/games.md), D1 /
+D3). Adding an input to Sprite's key means adding it here too: the equality
+test fails until both agree. `_SPRITE_POSE_KEY_FAST = False` is the generic key.
+
 **Freeform vs regular polygons.** A freeform `Polygon`'s vertices are Defining, and a
 vertex write does not bump the epoch, so its extra packs every vertex relative to the
 vertex-average centroid (plus rotation / scale): stable under `move_by`, changed by a
