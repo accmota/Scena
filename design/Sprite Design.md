@@ -1556,8 +1556,12 @@ at write time.
 
 ### Dense tick, flood heuristic, collider swap-remove
 
-**Dense `on_update`.** `_update_dense` is `(item, fn)` pairs, rebuilt when membership
-changes. Tick skips `_is_entity` import, redundant `getattr("_on_update")`, and
+**Dense `on_update`.** `_update_dense` is `(item, fn, form)` entries, rebuilt when membership
+changes. `form` is the payload `_invoke_update` would pass (`()`, `(dt)` for a bound
+method, `(owner)`, `(owner, dt)`), decided once by `_update_call_form` instead of
+reading the arity every frame (`tests/test_update_call_form.py`: same call as
+`_invoke_update` for every callable shape). A hook replaced mid-frame becomes
+`(item, _no_update, _CALL_NONE)`. Tick skips `_is_entity` import, redundant `getattr("_on_update")`, and
 `time_scale` work when `_time_scale == 1.0` (almost everyone). Parked Entities stay out
 of the list. Do **not** merge 80 `every(2.4, shoot)` into one timer (see [Actors Design.md — Group fences](Actors%20Design.md#group-fences)).
 

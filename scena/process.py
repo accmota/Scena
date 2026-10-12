@@ -252,6 +252,35 @@ def _invoke_update(callback: Callable, owner, dt: float) -> None:
         callback(owner, dt)
 
 
+# ``on_update`` call forms, decided once per dense entry by the same rule as
+# ``_invoke_update``: ``fn()``, ``fn(dt)`` (bound method), ``fn(owner)``,
+# ``fn(owner, dt)``.
+_CALL_NONE, _CALL_DT, _CALL_OWNER, _CALL_OWNER_DT = 0, 1, 2, 3
+
+
+def _update_call_form(callback: Callable) -> int:
+    """The payload ``_invoke_update`` would pass ``callback`` (it never changes)."""
+    n = _argcount(callback)
+    if n is not None and n <= 0:
+        return _CALL_NONE
+    if hasattr(callback, "__self__"):
+        return _CALL_DT
+    if n == 1:
+        return _CALL_OWNER
+    return _CALL_OWNER_DT
+
+
+def _call_update(callback: Callable, form: int, owner, dt: float) -> None:
+    if form == _CALL_DT:
+        callback(dt)
+    elif form == _CALL_OWNER_DT:
+        callback(owner, dt)
+    elif form == _CALL_NONE:
+        callback()
+    else:
+        callback(owner)
+
+
 def _spawn_coro(fn, owner):
     """Call an async callable the same way ``_invoke`` would; return the coroutine."""
     n = _argcount(fn)
@@ -2156,7 +2185,7 @@ class Scheduler:
             i = self._update_pos.get(id(item))
             dense = self._update_dense
             if i is not None and i < len(dense) and dense[i][0] is item:
-                dense[i] = (item, _no_update)
+                dense[i] = (item, _no_update, _CALL_NONE)
 
     def _refresh_mode_dense(self) -> None:
         if not self._mode_dirty:
@@ -2172,9 +2201,9 @@ class Scheduler:
             fn = getattr(o, "_on_update", None)
             if fn is None or not callable(fn):
                 continue
-            dense.append((o, fn))
+            dense.append((o, fn, _update_call_form(fn)))
         self._update_dense = dense
-        self._update_pos = {id(o): i for i, (o, _fn) in enumerate(dense)}
+        self._update_pos = {id(o): i for i, (o, _fn, _form) in enumerate(dense)}
         self._update_dirty = False
 
     def start_mode_script(self, owner, coro) -> Script:
@@ -2553,7 +2582,7 @@ class Scheduler:
 
         def _run_all():
             nonlocal dead
-            for item, fn in self._update_dense:
+            for item, fn, form in self._update_dense:
                 current[0] = item
                 if not getattr(item, "is_alive", True):
                     self._update_owners.discard(item)
@@ -2568,7 +2597,7 @@ class Scheduler:
                     if ts < 0.0:
                         ts = 0.0
                     dt = world_dt * ts
-                _invoke_update(fn, item, dt)
+                _call_update(fn, form, item, dt)
 
         try:
             # One arm/disarm for the whole fleet — not per Entity (LINE tool cost).
