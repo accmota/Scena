@@ -4209,6 +4209,12 @@ class CollisionSystem:
         self._colliders.append(collider)
         if _is_multi_body(collider):
             self._multi_bodies[cid] = collider
+        # An ANYTHING / object expansion cached by a query earlier in this
+        # update must include the newcomer, as leaving drops it
+        # (``_swap_remove_collider``): a partner list rebuilt from a stale
+        # expansion outlives the frame (PF1).
+        if self._resolve_cache:
+            self._resolve_cache.clear()
         self._invalidate_partner_cache()
         self._update_proxy(collider)
 

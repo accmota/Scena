@@ -2346,6 +2346,20 @@ numbers, and the `Vec2` (a Container) walked through four doors.
 | KN3 | `Halo(style="line", rings=5)` (or `speed=`) raised Python's own "HaloLine.__init__() got an unexpected keyword argument 'rings'" (found 2026-10-12 by `test_knobs_take_effect`) | `Halo.__new__` returns a `HaloLine`; Python then calls `HaloLine.__init__` with every keyword, and it took only `style` | `test_visuals.TestHaloTintRoles.test_halo_pulse_knobs_raise_off_pulse`; `REFUSED_ON_STYLE` in the guard. Fix: `Halo.__new__` refuses non-default `rings` / `speed` on `line` naming `style="pulse"`; `HaloLine.__init__` takes the defaults |
 | KN4 | Knobs documented for one style or fit, taken and ignored on the others: `Shield(color)` on bubble / nebula / ember / void / molten / cracks / frost; `Halo(rings=, speed=)` on hollow / fill / soft; `Bolt(amount=)` on core; `Wallpaper(tile_size=)` / `Texture(tile_size=)` off `fit="tile"` (found 2026-10-12 by `test_knobs_take_effect`) | Each knob was read by the style or fit that needs it and dropped by the others; nothing refused it | Decided (2026-10-12, user): raise with the fix, naming the style or fit that reads the knob; listed under **Fixed** for 0.8.1, not Breaking (user, 2026-10-12): the code it stops already did nothing. `test_visuals` (`test_halo_pulse_knobs_raise_off_pulse`, `test_shield_color_raises_on_fixed_hue_styles`, `test_bolt_amount_raises_on_core`), `test_background_image.TestTileSizeNeedsTile`; `REFUSED_ON_STYLE` / `REFUSED_ON_FIT` in the guard |
 
+### PF — performance campaign (2026-10-12)
+
+Found while measuring whole games for speed (`scripts/bench/game_bench.py`, the
+benchmark games, [games.md](../scripts/bench/games.md)). Lesson for the class:
+**a cache keyed on "what can change this answer" must be invalidated on the way
+in as well as on the way out.** A cache cleared when a member leaves but not
+when one joins answers correctly in every test that only removes. Each cache's
+test runs a random sequence of joins, leaves and retags against a fresh build
+after every operation.
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| PF1 | A body under `resolve(hero, ANYTHING)` fell through a crate spawned in the same frame as an earlier spawn, when a query (`floor_below`) ran between them, and kept ignoring the crate after the frame | `_resolve_cache` (the step's `ANYTHING` / object expansions) was cleared when a collider left (`_swap_remove_collider`) but not when one enrolled. The query between the spawns rebuilt partner lists from the stale expansion, and the partner-identity cache keeps a list across frames (`step()` clears only the expansions) | `tests/test_partner_cache.py`: `TestAnythingSeesNewcomers` (the public repro), `TestCachedEqualsFresh` (random enroll / destroy / tag / untag / `collidable` / pair edits on every side kind; cached lists equal a fresh build, in order). Fix: `register` clears `_resolve_cache` |
+
 ### Open (found, not yet fixed)
 
 | Found in | Issue | Planned |
