@@ -34,6 +34,13 @@ left out.
   `fit="tile"` → `fit="tile", tile_size=64`. The error names the style or fit
   that reads the knob. On `Halo(style="line")` the message replaces Python's
   own `HaloLine.__init__() got an unexpected keyword argument`.
+- Faster platformers. A Sprite tile (an opaque image, unrotated) now collides
+  as an exact box, like an unrotated `Rect`: walkers and `floor_below` sweep
+  against it with the closed-form test instead of the general one. A sweep
+  against such a tile can stop up to ~0.04 units later than before; the new
+  stop is the exact one. `floor_below` also stops re-checking every tile on
+  each step of its march. Tutorial 22's level runs about 30 % faster per
+  frame.
 
 ## 0.8.0 — 2026-10-11
 

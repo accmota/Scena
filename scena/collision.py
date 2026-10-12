@@ -113,6 +113,16 @@ _FLOOR_SNAP_MIN = 16.0
 # graze it as a wall.
 _FLOOR_PROBE_STEP = 8.0
 _FLOOR_PROBE_LIFT_MARGIN = 1.0
+# ``floor_below`` fast path (Collision Design, "floor_below: cost"): trust the
+# partners' world prims for the march and drop partners outside the march
+# envelope once. False is the plain march (the oracle in
+# tests/test_floor_below_fast.py and the bench A/B switch).
+_FLOOR_PROBE_FAST = True
+# A Sprite hull (or SpatialFx "poly" spec) that is exactly an axis-aligned
+# rectangle becomes an AABB prim, like an unrotated Rect, so it takes the
+# closed-form narrow phase and sweep instead of SAT / GJK (Collision Design,
+# "Axis-aligned hulls"). False keeps the POLY (oracle, bench A/B).
+_HULL_AABB = True
 # Probes kept for ``show_colliders`` when nothing draws (headless).
 _FLOOR_PROBE_DEBUG_CAP = 256
 # ``show_colliders`` outline colours (RGBA).
@@ -1127,8 +1137,41 @@ def _prims_from_collision_specs(specs: Sequence) -> List[Prim]:
                 continue
             vlist = [(float(x), float(y)) for x, y in verts]
             aabb = _aabb_from_verts(vlist)
+            if _HULL_AABB and len(vlist) == 4 and _is_axis_rect(vlist, aabb):
+                out.append(Prim(PrimKind.AABB, aabb, aabb))
+                continue
             out.append(Prim(PrimKind.POLY, aabb, (), list(vlist)))
     return out
+
+
+def _is_axis_rect(
+    verts: Sequence[Tuple[float, float]], aabb: Tuple[float, float, float, float],
+) -> bool:
+    """True when four vertices are exactly the four corners of ``aabb``.
+
+    "Exactly" up to float noise (1e-9 of the coordinate scale): a hull turned
+    by any real angle keeps its POLY. Zero area stays a POLY too.
+    """
+    minx, miny, maxx, maxy = aabb
+    if not (maxx > minx and maxy > miny):
+        return False
+    tol = 1e-9 * max(1.0, abs(minx), abs(miny), abs(maxx), abs(maxy))
+    corners = set()
+    for x, y in verts:
+        if abs(x - minx) <= tol:
+            cx = 0
+        elif abs(x - maxx) <= tol:
+            cx = 1
+        else:
+            return False
+        if abs(y - miny) <= tol:
+            cy = 0
+        elif abs(y - maxy) <= tol:
+            cy = 1
+        else:
+            return False
+        corners.add((cx, cy))
+    return len(corners) == 4
 
 
 _get_xy = None
@@ -1393,6 +1436,31 @@ def _shift_pose_key_bundle(
             return None
         out.append((k[0], k[1] + dx, k[2] + dy) + k[3:])
     return tuple(out)
+
+
+def _floor_probe_envelope(
+    pas: Sequence["Prim"], dx: float, step_max: float, reach: float,
+) -> Tuple[float, float, float, float]:
+    """A box no cast of one ``floor_below`` march can leave (conservative).
+
+    The march has at most ``ceil(|dx| / step_max)`` sub-steps, plus one drop
+    for ``dx == 0`` and one after a wall rewind. Each lifts at most
+    ``step_max + margin`` and drops at most that plus ``reach``; sideways it
+    stays inside ``[0, dx]``. One extra sub-step of slack on each side.
+    """
+    minx = min(p.aabb[0] for p in pas)
+    miny = min(p.aabb[1] for p in pas)
+    maxx = max(p.aabb[2] for p in pas)
+    maxy = max(p.aabb[3] for p in pas)
+    lift = step_max + _FLOOR_PROBE_LIFT_MARGIN
+    n = math.ceil(abs(dx) / step_max) + 3 if step_max > 0.0 else 3
+    pad = 1.0 + _RESOLVE_SLOP
+    return (
+        minx + min(0.0, dx) - pad,
+        miny - n * (lift + reach) - pad,
+        maxx + max(0.0, dx) + pad,
+        maxy + n * lift + pad,
+    )
 
 
 def _proxy_aabb_overlap(ca: "Collider", cb: "Collider") -> bool:
@@ -7145,6 +7213,29 @@ class CollisionSystem:
             return None
 
         step_max = min(_FLOOR_PROBE_STEP, max(reach, 1.0))
+        fast = _FLOOR_PROBE_FAST
+        if fast:
+            # Every partner proxy was refreshed above and nothing moves a body
+            # until this call returns: reject on the whole march once, and let
+            # the casts reuse world prims (the narrow / resolve window).
+            ex0, ey0, ex1, ey1 = _floor_probe_envelope(pas, dx, step_max, reach)
+            kept = []
+            for item in partners:
+                pb = item[0]._proxy
+                if pb[0] > ex1 or ex0 > pb[2] or pb[1] > ey1 or ey0 > pb[3]:
+                    continue
+                kept.append(item)
+            partners = kept       # may be empty: the march still runs (its end pose)
+            trust_before = self._trust_proxy_world
+            self._trust_proxy_world = True
+        try:
+            return self._floor_march(body, pas, partners, gate, dx, reach, step_max)
+        finally:
+            if fast:
+                self._trust_proxy_world = trust_before
+
+    def _floor_march(self, body, pas, partners, gate, dx, reach, step_max):
+        """The up / across / drop march of ``floor_below`` (see there)."""
         sign = 1.0 if dx >= 0.0 else -1.0
         remaining = abs(dx)
         ox = oy = 0.0

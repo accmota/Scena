@@ -4695,7 +4695,18 @@ class TestHitboxRefinements(SpriteTestCase):
             self.assertTrue(calls)
             self.assertTrue(all(c == "poly" for c in calls))
             self.assertIsNone(s._hitbox_locked_kind)
-            self.assertEqual(snapshot_shape(s)[0].kind, PrimKind.POLY)
+            # The named hull stays a hull spec. Its prim is an AABB only when
+            # the hull is exactly an axis-aligned rectangle (Collision Design,
+            # "Axis-aligned hulls"); this blob's is.
+            self.assertTrue(all(spec[0] == "poly" for spec in s._collision_specs()))
+            prim = snapshot_shape(s)[0]
+            hull = s._collision_specs()[0][1]
+            if prim.kind == PrimKind.AABB:
+                xs = sorted({round(x, 6) for x, _ in hull})
+                ys = sorted({round(y, 6) for _, y in hull})
+                self.assertEqual((len(hull), len(xs), len(ys)), (4, 2, 2))
+            else:
+                self.assertEqual(prim.kind, PrimKind.POLY)
         finally:
             atlas._choose_auto_collider = orig
 

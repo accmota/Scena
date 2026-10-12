@@ -24,7 +24,8 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 | Spinning hazards / rotating obstacles tunnel | [Spin (not swept)](#spin-not-swept) |
 | Relative-frame sweep / glue | [Relative-frame sweep](#relative-frame-sweep) |
 | Floor snap / grounded flicker | [Floor snap / grounded flicker](#floor-snap--grounded-flicker) |
-| Ledge / "will I fall?" (`floor_below`) | [Floor ahead: `floor_below`](#floor-ahead-floor_below) |
+| Ledge / "will I fall?" (`floor_below`) | [Floor ahead: `floor_below`](#floor-ahead-floor_below); cost: [`floor_below`: cost](#floor_below-cost) |
+| Tile hull as an AABB prim | [Axis-aligned hulls](#axis-aligned-hulls) |
 | Queries / raycast | [Queries](#queries-on-demand) |
 | Sprite colliders | [Sprite colliders](#sprite-colliders) |
 | Hitbox parts (detect-only) | [Hitbox parts](#hitbox-parts) |
@@ -47,7 +48,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 | Sprite hitbox **bake** | `atlas.py` | [Sprite Design.md](Sprite%20Design.md#auto-hitbox-shapeauto) |
 | Mutual `resolve()` **cost** | `collision.py` (`_resolve_partners`, `_settle_body`, `_declared_broad_pairs`, `_world_prims`) | [Resolve hot path](#resolve-hot-path) |
 | `resolve(..., only=)` | `collision.py` (`_normalize_only`, `_OnlyGate`, `_only_view`, `_resolve_partners`) | `tests/test_resolve_only.py` |
-| `floor_below` | `collision.py` (`CollisionSystem.floor_below`, `_QueryOnlyGate`, `_note_floor_probe`) | `entity.py` (`Graphic.floor_below`), `tests/test_floor_below.py` |
+| `floor_below` | `collision.py` (`CollisionSystem.floor_below`, `_floor_march`, `_floor_probe_envelope`, `_QueryOnlyGate`, `_note_floor_probe`) | `entity.py` (`Graphic.floor_below`), `tests/test_floor_below.py`, `tests/test_floor_below_fast.py` |
 | `only=` read-only guard | `purity_check.py` (`check_read_only`, `_READING`) | `formula_check.py` (locator, context) |
 | Swept detection (fast bodies) | `collision.py` (`_commit_pending_motion`, `_declared_broad_pairs`, `_swept_contacts`, `note_collider_motion`); orbit chord: `entity.py` (`_rotate_as_motion`, `_rotate_as_placement`) | `tests/test_collision.py` (`TestSweptDetection`, `TestOrbitMotion`), `tests/test_sys_fast_shots.py` |
 
@@ -584,6 +585,33 @@ Sensors still fire **`@collide`** / **`collides_with()`** — only **`touching_*
 
 **The width is the hitbox's.** "Front edge reached the ledge" is `dx = g.hitbox.box.width` (signed). `sprite.box.width` is the drawn cell, transparent padding included, so a padded sprite would turn early ([Sprite Design.md — Measuring a sprite](Sprite%20Design.md#measuring-a-sprite)).
 
+### `floor_below`: cost
+
+A walker that asks every frame pays one call per frame per robot, so the march is
+a hot path (ninja tutorial 22: 7 calls a frame were 75 % of the frame,
+[games.md](../scripts/bench/games.md), D1). Two reductions, switched off together
+by `_FLOOR_PROBE_FAST = False` (the oracle; `game_bench.py --ab`):
+
+- **Trust the partners' world prims during the march.** Every partner proxy is
+  refreshed (`_update_proxy`) at the start of the call, and nothing moves a body
+  until it returns, so the casts run with `_trust_proxy_world` on, as the narrow
+  and resolve passes do: `_world_prims` returns the cached prims when
+  `_world_key == _proxy_key` instead of rebuilding up to 15 pose keys per partner.
+  An `only=` function runs inside that window, as it does in resolve.
+- **Reject on the whole march once.** `_floor_probe_envelope` bounds every cast:
+  the probe, `[0, dx]` sideways, and per sub-step at most `step + margin` up and
+  that plus `depth` down, over `ceil(|dx| / step) + 3` sub-steps. A partner whose
+  fresh proxy misses it is dropped before the casts, not re-tested by each.
+  The march still runs with an empty list, so the debug end pose is the same.
+
+Still O(group) per call: every candidate's proxy is refreshed first (a moved tile
+must be seen). Making that refresh cheap or skippable is the pose-revision /
+vectorized-candidate proposal, not this. Tests: `tests/test_floor_below_fast.py`
+(randomized scenes, fast vs plain: same floor and end pose; a tile moved by `=`
+just before the call is seen; canaries: a too-small envelope, a skipped refresh).
+Measured: ninja `floor_below` 6.6 → 6.0 ms per frame on its own; with
+[axis-aligned hulls](#axis-aligned-hulls) 6.2 → 3.7 ms.
+
 ### `floor_below` fences
 
 - No `@at_ledge` / `@leave_floor` event, no `facing=` knob, no auto-turn: the query stays a read the author polls; direction is the sign of `dx`. Revisit: a taught script needs an edge event that polling `floor_below` in `update()` cannot express.
@@ -850,6 +878,23 @@ sees the baked locals through `_collision_specs()` and a turned-extent proxy (**
 | `hitbox_source=` | Which art is baked. Default: **construct frame**. One frame = that frame; several = union of hole-filled masks, each placed where the blit draws it (clip display box), stored in the reference cell, fitted once. `"all"` = registered clips (else the construct frame). `"clip"` = the playing clip, rebake on switch only; with nothing playing the key is the construct frame, so a still `frame=` write does not rebake. `"each"` = re-fit every playhead tick, emitted through the playing clip's display box. A tuple of clip names unions just those. A catalog that no longer contains the spec falls back to the construct frame (one warning) instead of raising inside `step()`. |
 | `hitbox_anchor=` | Scale-about and pin. Pin target is the alpha AABB of **this bake's frames** (`source`), not the whole sheet. Authored boxes on the reference frame replace that mask AABB. `"center"` does not translate. Presets or a finite `(ax, ay)` (y-up, not clamped; `nan` / `inf` raise). Also the `.tilt` pivot. With `"bottom"` (or `(0, -1)`) a bottom contact seats the paint along `normal`; it is not slid onto a support vertex. |
 | `hitbox_scale=` | Scalar or `(sx, sy)`; getter always a pair; folded into baked locals (not emit). |
+
+#### Axis-aligned hulls
+
+A hull whose four vertices are exactly the corners of its bounding box (an opaque
+tile, unrotated; flips, scale and quarter turns keep it so) is emitted as an
+**`AABB` prim**, as an unrotated `Rect` is (`_prims_from_collision_specs`,
+`_is_axis_rect`, tolerance 1e-9 of the coordinate scale). Any other angle keeps
+the `POLY`. Same geometry: contacts agree with the `POLY` within 1e-4 (normal,
+depth, points), and a sweep takes the closed-form `_toi_fast` instead of GJK
+conservative advancement, which stops up to ~0.04 DU earlier: the AABB answer is
+the exact one. Level tiles are image Sprites, so every walker-vs-tile sweep went
+to GJK before this (ninja: work 8.3 → 5.7 ms, [games.md](../scripts/bench/games.md),
+D2). `_HULL_AABB = False` keeps the `POLY` (oracle; prims are cached, so A/B it per
+process: `game_bench.py --set scena.collision:_HULL_AABB=False`). Tests:
+`tests/test_hull_aabb.py` (prim kinds equal within tolerance against every kind,
+sprite kinds per pose, walkers on tiles agree frame by frame, a wrong box is
+caught). The spec stays `"poly"`: only the prim kind changes.
 
 **Freeze.** Bake on collision enroll. `_sync_auto_hitbox_frame` rebakes for
 `hitbox_source="each"` (every cell) and `"clip"` (when the clip changes, not every

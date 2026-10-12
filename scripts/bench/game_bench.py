@@ -25,7 +25,9 @@ load average (peers load this machine: compare runs at a similar load).
 ``--params k=v,k=v`` reaches the game as ``PARAMS`` (like ``tests/games``).
 ``--ladder k=v1,v2`` runs one fresh process per value. ``--cull ab`` flips
 ``canvas.cull_offscreen`` every ``--block`` frames and reports both sides.
-``--profile N`` adds cProfile (top N by own time, then own time per file).
+``--set module:NAME=value`` sets a switch before the game is built (a
+process-level A/B, for switches whose effect is cached). ``--ab module:FLAG`` flips a private bool switch the same way (an in-process
+A/B of one optimization: ``ab_on`` / ``ab_off``). ``--profile N`` adds cProfile (top N by own time, then own time per file).
 ``--json`` writes the result; the last stdout line is ``RESULT_JSON: {...}``.
 """
 from __future__ import annotations
@@ -157,6 +159,16 @@ class Recorder:
         self.fw = None
         self.fb = None
         self.t_rec0 = self.t_rec1 = 0.0
+        self.ab_target = None
+        self.ab_default = None
+        if args.ab:
+            import importlib
+            modname, _, attr = args.ab.partition(":")
+            mod = importlib.import_module(modname)
+            if not hasattr(mod, attr):
+                raise SystemExit(f"--ab: {modname} has no {attr}")
+            self.ab_target = (mod, attr)
+            self.ab_default = getattr(mod, attr)
 
     # -- wrappers ------------------------------------------------------------
 
@@ -313,6 +325,10 @@ class Recorder:
             from scena import canvas
             on = (self.rec_frame // a.block) % 2 == 0
             canvas.cull_offscreen = on
+        if a.ab:
+            mod, attr = self.ab_target
+            on = self.recording and (self.rec_frame // a.block) % 2 == 0
+            setattr(mod, attr, on if self.recording else self.ab_default)
         self.sim_start = now
         self.wait_start = None
         self.cur.clear()
@@ -323,6 +339,9 @@ class Recorder:
             self.rec_frame += 1
 
     def side_name(self) -> str:
+        if self.args.ab:
+            mod, attr = self.ab_target
+            return "ab_on" if getattr(mod, attr) else "ab_off"
         if self.args.cull == "ab":
             from scena import canvas
             return "cull_on" if canvas.cull_offscreen else "cull_off"
@@ -364,6 +383,7 @@ class Recorder:
             "params": params,
             "seconds": self.args.seconds,
             "cull": self.args.cull,
+            "ab": self.args.ab,
             "fb": self.fb,
             "rss_mb": [round(self.rss0, 1), round(self.rss1, 1)],
             "load": [round(x, 2) for x in os.getloadavg()],
@@ -431,8 +451,26 @@ def harness_cwd(script: str) -> Optional[str]:
     return None
 
 
+def apply_sets(sets) -> Dict[str, Any]:
+    """``--set module:NAME=value`` before the game is built (process-level A/B)."""
+    import importlib
+    done: Dict[str, Any] = {}
+    for item in sets or ():
+        target, _, raw = item.partition("=")
+        modname, _, attr = target.partition(":")
+        mod = importlib.import_module(modname)
+        if not hasattr(mod, attr):
+            raise SystemExit(f"--set: {modname} has no {attr}")
+        value = parse_params(f"v={raw}")["v"]
+        setattr(mod, attr, value)
+        done[target] = value
+    return done
+
+
 def run_one(args, params: Dict[str, Any]) -> Dict[str, Any]:
     script = os.path.abspath(args.script)
+    import scena  # noqa: F401
+    sets = apply_sets(args.set)
     rec = Recorder(args)
     import scena  # noqa: F401  (bootstraps the framework singleton)
     rec.install()
@@ -450,6 +488,7 @@ def run_one(args, params: Dict[str, Any]) -> Dict[str, Any]:
     if not rec.done:
         print("game_bench: the game ended before the recorded window was over", file=sys.stderr)
     rep = rec.report(script, params)
+    rep["set"] = sets
     if rec.prof is not None and args.profile:
         st = pstats.Stats(rec.prof)
         st.sort_stats("tottime").print_stats(args.profile)
@@ -500,6 +539,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--cull", choices=("game", "on", "off", "ab"), default="game",
                    help="game: leave the game's own setting")
     p.add_argument("--block", type=int, default=60, help="frames per side with --cull ab")
+    p.add_argument("--ab", default=None, metavar="MODULE:FLAG",
+                   help="flip a private bool switch every --block frames (in-process A/B), "
+                        "e.g. scena.collision:_FLOOR_PROBE_FAST")
+    p.add_argument("--set", action="append", default=[], metavar="MODULE:NAME=VALUE",
+                   help="set a private switch before the game is built (repeatable)")
     p.add_argument("--profile", type=int, default=0, metavar="N")
     p.add_argument("--json", dest="json_path", default=None)
     return p
