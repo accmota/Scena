@@ -47,6 +47,7 @@ from .validate import fixed_magnitude as _fixed_magnitude
 from .validate import magnitude as _magnitude
 from .validate import number as _number
 from .closed import ClosedSurface
+from .state import DIRTY_POSE_CELLS, probe_private
 
 
 from .purity_check import _READING as _SOLVER_READING, check_read_only, refuse_if_solver_reading
@@ -147,6 +148,21 @@ _POSE_REV_SKIP = True
 # Test / debug mode: every skip also builds the key and raises when they
 # disagree (a pose writer that forgot ``bump_pose_rev``). run_tiers sets it.
 _POSE_REV_VERIFY = os.environ.get("SCENA_VERIFY_POSE_REV") == "1"
+# Vectorized query candidates (Collision Design, "Moved set and vectorized
+# candidates"): between steps only moved / untrusted proxies are refreshed,
+# and a group's candidates are masked against the query box in numpy. False:
+# every candidate is refreshed and tested in Python (oracle, A/B).
+_QUERY_VECTOR = True
+_INF_BOX = (-math.inf, -math.inf, math.inf, math.inf)
+
+
+class _Pool(list):
+    """A candidate list that also says whether the group had any (B2)."""
+    has_others = False
+
+
+# floor_below: "the group has ground, none near" — march with no partners.
+_EMPTY_MARCH: list = []
 # The Sprite pose hooks a fast key mirrors: a class that overrides any of
 # them keeps the generic key.
 _SPRITE_POSE_HOOKS = (
@@ -4329,6 +4345,18 @@ class CollisionSystem:
         self._last_aabb: Optional[np.ndarray] = None  # collider proxy AABBs
         # Cleared at the start of each step — caches object-literal expansions.
         self._resolve_cache: Dict[Any, List[Collider]] = {}
+        # Moved set (B2): colliders whose pose moved since their proxy was
+        # built (drained from state.DIRTY_POSE_CELLS), colliders whose pose can
+        # change with no write (links, Text, parts...: refreshed every time),
+        # and colliders whose proxy box changed since the numpy mirror.
+        self._stale: Set["Collider"] = set()
+        self._untrusted: Set["Collider"] = set()
+        self._row_dirty: Set["Collider"] = set()
+        self._boxes = None                   # numpy (n, 4), row i = _colliders[i]
+        self._boxes_version = -1
+        self._struct_version = 0             # _colliders order / membership
+        self._tag_version = 0                # tag index membership
+        self._group_rows_cache: Dict[Any, tuple] = {}
         # Object-literal @collide targets that were already warned as destroyed.
         self._dead_target_warned: Set[int] = set()
         # Last-step contacts from sweep/settle (feeds touching_*).
@@ -4397,6 +4425,7 @@ class CollisionSystem:
             return
         self._collider_index[cid] = len(self._colliders)
         self._colliders.append(collider)
+        self._struct_version += 1
         if _is_multi_body(collider):
             self._multi_bodies[cid] = collider
         # An ANYTHING / object expansion cached by a query earlier in this
@@ -4488,9 +4517,13 @@ class CollisionSystem:
         idx_map = self._collider_index
         cid = id(collider)
         self._multi_bodies.pop(cid, None)
+        self._stale.discard(collider)
+        self._untrusted.discard(collider)
+        self._row_dirty.discard(collider)
         i = idx_map.pop(cid, None)
         if i is None:
             return
+        self._struct_version += 1
         self._dispatch_epoch += 1
         self._phase_cache = None          # holds the dropped entries' sides
         if self._resolve_cache:
@@ -4526,6 +4559,10 @@ class CollisionSystem:
                 self._end_contacts_of(c, emit=False)
             self._dispatch_epoch += 1
             self._phase_cache = None          # holds the dropped entries' sides
+            self._struct_version += 1
+            self._stale.discard(c)
+            self._untrusted.discard(c)
+            self._row_dirty.discard(c)
             last = lst.pop()
             idx_map.pop(id(c), None)
             if i != len(lst):
@@ -4549,6 +4586,7 @@ class CollisionSystem:
         self._pair_tags.add(tag)
         self._tag_colliders.setdefault(tag, [])
         self._tag_index.setdefault(tag, {})
+        self._tag_version += 1
 
     def _tag_add(self, tag: str, collider: Collider) -> None:
         lst = self._tag_colliders.get(tag)
@@ -4562,6 +4600,7 @@ class CollisionSystem:
             return
         idx_map[cid] = len(lst)
         lst.append(collider)
+        self._tag_version += 1
         self._invalidate_partner_cache_for_tag(tag)
 
     def _tag_remove(self, tag: str, collider: Collider) -> None:
@@ -4577,6 +4616,7 @@ class CollisionSystem:
         if i != len(lst):
             lst[i] = last
             idx_map[id(last)] = i
+        self._tag_version += 1
         self._invalidate_partner_cache_for_tag(tag)
 
     def _forget_collider_tags(self, collider: Collider) -> None:
@@ -4597,6 +4637,7 @@ class CollisionSystem:
             return
         idx_map[cid] = len(lst)
         lst.append(collider)
+        self._tag_version += 1
         self._invalidate_partner_cache_for_tag(tag)
 
     def _claimed_body_remove(self, tag: str, collider: Collider) -> None:
@@ -4614,6 +4655,7 @@ class CollisionSystem:
         if not lst:
             del self._claimed_bodies[tag]
             del self._claimed_body_index[tag]
+        self._tag_version += 1
         self._invalidate_partner_cache_for_tag(tag)
 
     def _enroll_claimed_body(self, host, tag: str) -> None:
@@ -5468,6 +5510,8 @@ class CollisionSystem:
         shapes = collider.shapes
         if not shapes:
             collider._proxy_valid = False
+            self._untrusted.add(collider)
+            self._row_dirty.add(collider)
             if commit_motion:
                 collider._motion_dx = 0.0
                 collider._motion_dy = 0.0
@@ -5490,12 +5534,18 @@ class CollisionSystem:
                 return True
         keys = tuple(_collision_pose_key(s) for s in shapes)
         old = collider._proxy_key
-        collider._proxy_revs = _collider_pose_revs(shapes) if _POSE_REV_SKIP else None
+        revs = _collider_pose_revs(shapes) if _POSE_REV_SKIP else None
+        collider._proxy_revs = revs
+        if revs is None:
+            self._untrusted.add(collider)
+        elif self._untrusted:
+            self._untrusted.discard(collider)
         if old == keys and collider._proxy_valid:
             if commit_motion:
                 self._commit_pending_motion(collider)
             return True
         delta = _keys_uniform_translation(old, keys) if collider._proxy_valid else None
+        self._row_dirty.add(collider)
         if delta is not None:
             dx, dy = delta
             p = collider._proxy
@@ -5799,6 +5849,9 @@ class CollisionSystem:
 
     def step(self) -> None:
         t_total0 = time.perf_counter()
+        # Every proxy is refreshed below; what moved before now is consumed.
+        self._drain_pose_cells()
+        self._stale.clear()
         self._prune_dead()
         # Linked hitbox ``active`` (``hb["active"] @= fn``): evaluated here, after
         # update / on_update / play(), so collision sees this frame's value.
@@ -6386,6 +6439,7 @@ class CollisionSystem:
         p[1] += dy
         p[2] += dx
         p[3] += dy
+        self._row_dirty.add(collider)
         shapes = collider.shapes
         shifted = _shift_pose_key_bundle(collider._proxy_key, dx, dy)
         if collider._world_prims:
@@ -7349,6 +7403,138 @@ class CollisionSystem:
             return self._colliders_for_members(None, list(atom))
         return list(self._resolve_target_to_colliders(atom))
 
+    # --- moved set and vectorized candidates (B2) ---------------------------
+
+    def _drain_pose_cells(self) -> None:
+        """Move the bumped revision cells into ``_stale`` (their colliders)."""
+        cells = DIRTY_POSE_CELLS
+        if not cells:
+            return
+        stale = self._stale
+        for cell in cells:
+            cell[1] = False
+            ref = cell[2]
+            root = ref() if ref is not None else None
+            if root is None:
+                continue
+            col = probe_private(root, "_collider", None)
+            if col is not None:
+                stale.add(col)
+            parts = probe_private(root, "_hitbox_parts", None)
+            if parts:
+                for part in parts:
+                    pc = probe_private(part, "_collider", None)
+                    if pc is not None:
+                        stale.add(pc)
+        cells.clear()
+
+    def _fresh_proxies(self) -> None:
+        """Between steps: make every registered proxy match its pose, touching
+        only what moved (``_stale``), what can change with no write
+        (``_untrusted``) and compound bodies."""
+        self._drain_pose_cells()
+        idx = self._collider_index
+        if self._stale:
+            for c in self._stale:
+                if id(c) in idx:
+                    self._update_proxy(c, commit_motion=False)
+            self._stale.clear()
+        if self._untrusted:
+            for c in list(self._untrusted):
+                if id(c) in idx:
+                    self._update_proxy(c, commit_motion=False)
+                else:
+                    self._untrusted.discard(c)
+        for c in list(self._multi_bodies.values()):
+            self._update_proxy(c, commit_motion=False)
+
+    def _box_array(self):
+        """numpy ``(n, 4)`` of proxy boxes, row ``i`` = ``_colliders[i]``."""
+        if self._boxes is None or self._boxes_version != self._struct_version:
+            cols = self._colliders
+            self._boxes = np.array(
+                [c._proxy if c._proxy_valid else _INF_BOX for c in cols], dtype=float,
+            ).reshape(len(cols), 4)
+            self._boxes_version = self._struct_version
+            self._row_dirty.clear()
+        elif self._row_dirty:
+            b = self._boxes
+            idx = self._collider_index
+            for c in self._row_dirty:
+                i = idx.get(id(c))
+                if i is not None:
+                    b[i] = c._proxy if c._proxy_valid else _INF_BOX
+            self._row_dirty.clear()
+        return self._boxes
+
+    def _group_rows(self, group: Any):
+        """``(candidates, rows)`` for a query group of declared pair tags, or
+        None when the group is not such an index (the Python walk runs).
+
+        Same candidates, in the same order, as ``_candidates_for_group``.
+        """
+        atoms = _parse_query_group(group)
+        if atoms is None:
+            return None
+        tags = []
+        for atom in atoms:
+            if isinstance(atom, str):
+                tag = atom
+            else:
+                from .registry import GroupOperator
+                if (not isinstance(atom, GroupOperator) or atom._formula_name is not None
+                        or atom._group_id is None):
+                    return None
+                tag = atom._group_id
+            if tag not in self._pair_tags:
+                return None
+            tags.append(tag)
+        try:
+            from .canvas import ScenaCanvas
+            registry = ScenaCanvas.get_current().registry
+            if any(registry.has_group_formula(t) for t in tags):
+                return None
+        except Exception:
+            return None
+        key = tuple(tags)
+        ver = (self._struct_version, self._tag_version)
+        hit = self._group_rows_cache.get(key)
+        if hit is not None and hit[0] == ver:
+            return hit[1], hit[2]
+        seen: Set[int] = set()
+        cands: List[Collider] = []
+        for t in tags:
+            for c in self._tag_colliders.get(t) or ():
+                cid = id(c)
+                if cid not in seen:
+                    seen.add(cid)
+                    cands.append(c)
+        idx = self._collider_index
+        try:
+            rows = np.fromiter((idx[id(c)] for c in cands), dtype=np.intp, count=len(cands))
+        except KeyError:
+            return None
+        self._group_rows_cache[key] = (ver, cands, rows)
+        return cands, rows
+
+    def _candidates_in_box(self, group: Any, box) -> Optional[List[Collider]]:
+        """The group's candidates whose fresh proxy meets ``box``, or None
+        (the group is not an index: the caller walks it)."""
+        got = self._group_rows(group) if _QUERY_VECTOR else None
+        if got is None:
+            return None
+        cands, rows = got
+        if _linked_parts():
+            from .hitbox import _refresh_linked_parts
+            _refresh_linked_parts()
+        self._fresh_proxies()
+        if not cands:
+            return []
+        b = self._box_array()[rows]
+        x0, y0, x1, y1 = box
+        mask = ~((b[:, 0] > x1) | (x0 > b[:, 2]) | (b[:, 1] > y1) | (y0 > b[:, 3]))
+        return [cands[i] for i in np.flatnonzero(mask)]
+
     def _candidates_for_group(self, group: Any) -> List[Collider]:
         """Colliders a query should test.
 
@@ -7468,15 +7654,23 @@ class CollisionSystem:
             self._update_proxy(probe, commit_motion=False)
             if in_resolve:
                 self._resolve_partners(existing)  # fills the only= cache
-            pool = []
-            for cb in self._candidates_for_group(group):
-                if cb is probe or cb._part is not None or cb._identity is body:
-                    continue
-                pool.append((cb, None))
+            pool = None
+            if _FLOOR_PROBE_FAST:
+                pool = self._floor_pool_near(body, probe, group, dx, reach)
+            if pool is None:
+                pool = []
+                for cb in self._candidates_for_group(group):
+                    if cb is probe or cb._part is not None or cb._identity is body:
+                        continue
+                    pool.append((cb, None))
         partners: List[Tuple[Collider, Any, float, float]] = []
         for cb, tok in pool:
             if self._update_proxy(cb, commit_motion=False):
                 partners.append((cb, tok, 0.0, 0.0))
+        if not partners and getattr(pool, "has_others", False):
+            # The group has ground, none near: march anyway (the end pose the
+            # debug draw shows is the march's, as on the Python walk).
+            partners = _EMPTY_MARCH
         gate: Optional[_OnlyGate] = None
         if in_resolve and self._has_only:
             only_map = self._partner_only_cache.get(id(existing))
@@ -7484,11 +7678,13 @@ class CollisionSystem:
                 passing = self._passing.get(id(existing)) or {}
                 gate = _QueryOnlyGate(self, existing, only_map, passing)
         pas = list(self._world_prims(probe))
-        if not pas or not partners:
+        if not pas or (not partners and partners is not _EMPTY_MARCH):
             self._note_floor_probe(body, pas, False)
             return None
 
         step_max = min(_FLOOR_PROBE_STEP, max(reach, 1.0))
+        if partners is _EMPTY_MARCH:
+            partners = []
         fast = _FLOOR_PROBE_FAST
         if fast:
             # Every partner proxy was refreshed above and nothing moves a body
@@ -7509,6 +7705,50 @@ class CollisionSystem:
         finally:
             if fast:
                 self._trust_proxy_world = trust_before
+
+    def _floor_pool_near(self, body, probe, group, dx, reach):
+        """``floor_below(group=)`` ground near the march, from the vectorized
+        index (B2), or None when the group is not an index.
+
+        The pool carries ``has_others``: the group has ground somewhere, so an
+        empty pool still marches (the end pose), as the Python walk does.
+        """
+        pas = self._world_prims(probe)
+        if not pas:
+            return None
+        step_max = min(_FLOOR_PROBE_STEP, max(reach, 1.0))
+        env = _floor_probe_envelope(pas, dx, step_max, reach)
+        near = self._candidates_in_box(group, env)
+        if near is None:
+            return None
+        pool = _Pool((cb, None) for cb in near
+                     if not (cb is probe or cb._part is not None or cb._identity is body))
+        cands, _rows = self._group_rows(group)
+        pool.has_others = any(
+            not (cb is probe or cb._part is not None or cb._identity is body) for cb in cands
+        )
+        if _POSE_REV_VERIFY:
+            self._verify_near(group, env, probe, body, pool)
+        return pool
+
+    def _verify_near(self, group, env, probe, body, pool) -> None:
+        """``SCENA_VERIFY_POSE_REV``: the index found what the walk finds."""
+        walk = set()
+        x0, y0, x1, y1 = env
+        for cb in self._candidates_for_group(group):
+            if cb is probe or cb._part is not None or cb._identity is body:
+                continue
+            if not self._update_proxy(cb, commit_motion=False):
+                continue
+            p = cb._proxy
+            if not (p[0] > x1 or x0 > p[2] or p[1] > y1 or y0 > p[3]):
+                walk.add(id(cb))
+        got = {id(cb) for cb, _t in pool}
+        if not walk <= got:
+            raise AssertionError(
+                f"vectorized candidates missed {len(walk - got)} of {len(walk)} near "
+                f"{group!r} (a proxy was stale or a row out of date)"
+            )
 
     def _floor_march(self, body, pas, partners, gate, dx, reach, step_max):
         """The up / across / drop march of ``floor_below`` (see there)."""

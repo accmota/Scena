@@ -24,6 +24,7 @@ from .state import (
     _PropertyAnchor,
     bump_pose_rev,
     _pose_cell_of,
+    DIRTY_POSE_CELLS,
 )
 from .transients import compose_draw_mods, draw_with_transients
 from .stamps import draw_body_with_stamps
@@ -101,6 +102,9 @@ def _takein_xy_float(point, x=None, y=None) -> bool:
         if cell is None:
             cell = _pose_cell_of(point)
         cell[0] += 1
+        if not cell[1]:
+            cell[1] = True
+            DIRTY_POSE_CELLS.append(cell)
     return changed
 
 
@@ -3382,6 +3386,9 @@ class Point(Shape):
             if cell is None:
                 cell = _pose_cell_of(self)
             cell[0] += 1
+            if not cell[1]:
+                cell[1] = True
+                DIRTY_POSE_CELLS.append(cell)
             return True
         else:
             return False

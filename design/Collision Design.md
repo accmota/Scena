@@ -1141,6 +1141,54 @@ Tests: `tests/test_pose_rev.py`:
 
 A new pose writer bumps, or the kind leaves the trusted list.
 
+**Moved set and vectorized candidates.** A query between two steps needs
+fresh proxies for its candidates. Refreshing every candidate was O(group)
+Python per call (mundo: ~35,000 `_update_proxy` a frame from 21
+`floor_below`). Now:
+- **Moved set.** A revision cell is `[rev, dirty, weakref(root)]`. The first
+  bump since the last drain appends it to `state.DIRTY_POSE_CELLS` (one branch
+  on the write path). `_drain_pose_cells` turns those into `_stale` colliders,
+  the root's body and its hitbox parts. `step()` drains at its start, so the
+  list is bounded by the roots that moved in a frame.
+- **Fresh proxies.** `_fresh_proxies` refreshes only `_stale`, `_untrusted`
+  (bodies whose last refresh found no trusted revision: links, Text, parts,
+  Polygons, an invalid proxy) and compound bodies. Every other registered
+  proxy already matches its pose (the B1 invariant).
+- **Box mirror.** `_box_array` is a numpy `(n, 4)` mirror of the proxies,
+  row = `_colliders` index. It is rebuilt when the collider list changes
+  (`_struct_version`). Otherwise the rows of `_row_dirty` colliders (proxy
+  translated, rebuilt or nudged) are synced before use. An invalid proxy is an
+  infinite box: always a candidate.
+- **Group rows.** `_group_rows(group)` gives a group's candidates (the same
+  list, in the same order, as `_candidates_for_group`) and their row indices,
+  cached per `(_struct_version, _tag_version)`. Only for groups made of
+  declared pair tags with no group formula; any other group walks as before.
+- **Query.** `_candidates_in_box` masks the group's rows against the query box
+  in numpy. A Python loop costs 37 ns per row; numpy costs ~3 µs plus 1.6 ns per
+  row, so it wins above ~100 rows.
+
+Used by `floor_below(group=)` (`_floor_pool_near`, the march envelope as the
+box). When the group has ground but none is near, the march still runs with no
+partners, as the walk did (its debug end pose). `_QUERY_VECTOR = False` is the
+walk (oracle).
+
+Verify mode also re-walks the group and raises if the index missed a near
+body.
+
+Measured (in-process A/B):
+- mundo: `floor_below` 28 → 6.9 ms, frame 63 → 39 ms;
+- corrida: 0.47 → 0.29 ms;
+- ninja (91 tiles): unchanged, since the march's casts dominate there.
+
+Tests: `tests/test_query_vector.py`:
+- random worlds of declared-tag ground (Sprites, Rects, Circles, Polygons,
+  linked Rects) are mutated between queries (moves, placement, resize, links,
+  enroll, destroy, retag), and the index answers like the walk, end pose
+  included;
+- the index is queried first, because the walk refreshes what it touches and
+  would hide a lost move;
+- a canary drops the moved set, and it is caught.
+
 **Sprite fast key.** A Sprite whose class keeps Sprite's own pose hooks
 (`_SPRITE_POSE_HOOKS`; checked once per class, cached on the class as
 `_scena_pose_key_fast`) builds its key from its fields (`_sprite_pose_key_fast`).

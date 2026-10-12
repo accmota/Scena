@@ -634,8 +634,14 @@ def callable_assign_message(owner: Any, field: str) -> str:
     )
 
 
+# Revision cells bumped since the collision system last drained them (its
+# moved set: ``CollisionSystem._drain_pose_cells``). A cell joins once until
+# drained (its flag), so the list is bounded by the roots that moved.
+DIRTY_POSE_CELLS: list = []
+
+
 def _pose_cell_of(node) -> list:
-    """The one-element revision cell of ``node``'s root, cached on ``node``.
+    """``[revision, dirty, weakref(root)]`` of ``node``'s root, cached on ``node``.
 
     Parts are never reparented (``owner`` raises), so the cell a part caches
     stays its root's; ``_invalidate_ownership_root_cache`` drops it anyway.
@@ -647,7 +653,11 @@ def _pose_cell_of(node) -> list:
     rd = root.__dict__
     cell = rd.get('_pose_cell')
     if cell is None:
-        cell = [0]
+        try:
+            ref = weakref.ref(root)
+        except TypeError:
+            ref = None
+        cell = [0, False, ref]
         rd['_pose_cell'] = cell
     d['_pose_cell'] = cell
     return cell
@@ -679,6 +689,9 @@ def bump_pose_rev(node) -> None:
     if cell is None:
         cell = _pose_cell_of(node)
     cell[0] += 1
+    if not cell[1]:
+        cell[1] = True
+        DIRTY_POSE_CELLS.append(cell)
 
 
 def probe_private(obj, name: str, default=None):
@@ -3007,6 +3020,9 @@ class Container():
                         if cell is None:
                             cell = _pose_cell_of(self)
                         cell[0] += 1
+                        if not cell[1]:
+                            cell[1] = True
+                            DIRTY_POSE_CELLS.append(cell)
                         if name == "angle":
                             # Shape: the pose store follows (inline: per-frame
                             # ``ship.angle = …``; no anchor on this path).
