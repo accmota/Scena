@@ -590,6 +590,28 @@ cheaper test (a cached box per pose revision, nothing at all for STATIC
 bodies) would move the crossover; any such change must be measured with this
 bench.
 
+### GPU memory
+
+Skia keeps GPU resources in its cache until a 256 MiB budget, and the driver
+turns that budget into far more process memory. A look that makes a new
+resource for every position (Neon's blur mask on a moving shape) filled it
+with one-use masks: RSS 270 MiB → 1.3 GB in ~4 s, then a plateau (games.md
+D9 / M1). The run loop now frees resources unused for `GPU_PURGE_IDLE_S`
+(1 s), checked every `GPU_PURGE_EVERY_S` (0.5 s) of wall time
+(`ScenaFramework._purge_idle_gpu`, after the present; 0 turns it off).
+Textures drawn in the last second are never touched.
+
+Measured (M4):
+- moving Neon: 1.3 GB → 0.77 GB;
+- festa: stays near 255 MiB (it grew to 877 MiB over 40 s);
+- ninja, aviao_paisagem, mundo: unchanged in time and memory.
+
+A lower `setResourceCacheLimit` was rejected: at 64 MiB festa's frame grows
+~10 %, because masks are reused within a second. A shorter idle age (250 ms)
+costs festa ~18 %. The remaining cost is the mask per position, and the fix
+belongs in the look, not in the cache. Test: `tests/test_gpu_purge.py`
+(cadence, the `timedelta` unit, headless and failing contexts).
+
 **Draw-walk hoist (2026-09-10):** when `cull_offscreen` is False, `ScenaCanvas.draw`
 builds the per-layer list from `visible` only — it does **not** call
 `_passes_cull` (whose first line would `return True`). `_cull_kept` still

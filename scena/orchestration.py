@@ -2,6 +2,7 @@ import glfw
 import skia
 from OpenGL import GL
 import time
+from datetime import timedelta as _timedelta
 import math
 from enum import Enum
 import builtins
@@ -1328,6 +1329,11 @@ class ShapeInteractionManager:
         self._wheel_while_pressed = True
         return True
 
+# GPU memory: free resources unused for GPU_PURGE_IDLE_S, checked every
+# GPU_PURGE_EVERY_S of wall time (``_purge_idle_gpu``; 0 turns it off).
+GPU_PURGE_IDLE_S = 1.0
+GPU_PURGE_EVERY_S = 0.5
+
 # ``canvas.framerate`` tokens (one spelling each; scena/pacing.py does the work):
 #   "vsync60" — locked to the display, vblank divisor nearest 60 Hz (default,
 #               FX Auto's 60 rungs): 60 Hz → every vblank, 120 → every 2nd,
@@ -1533,6 +1539,7 @@ class ScenaFramework:
         
         # canvas.framerate: a FRAMERATE_TOKENS token or a fixed fps.
         self._framerate = DEFAULT_FRAMERATE
+        self._gpu_purge_t = 0.0             # last idle-GPU purge (wall time)
         self._pacer = FramePacer(
             set_swap_interval=self._set_swap_interval,
             display_link_factory=self._make_display_link,
@@ -3644,6 +3651,7 @@ class ScenaFramework:
             pacer.wait_for_present()
             glfw.swap_buffers(self._window)
             pacer.presented()
+            self._purge_idle_gpu(time.perf_counter())
 
             # FX Auto after the present: it also needs whether this present
             # overran its vblank (the frame did not fit) and the present overhead.
@@ -3657,6 +3665,25 @@ class ScenaFramework:
                     self._flash_system_feedback(f"FX Auto: {rung.label}")
 
             self.frame_count += 1
+
+    def _purge_idle_gpu(self, now: float) -> None:
+        """Every ``GPU_PURGE_EVERY_S``, free GPU resources unused for
+        ``GPU_PURGE_IDLE_S`` (Canvas Design, "GPU memory").
+
+        Skia keeps one-use resources (Neon's blur mask at each new position)
+        until its 256 MiB budget, which the driver turns into ~1 GB of process
+        memory. Textures drawn in the last second are not touched.
+        """
+        if now - self._gpu_purge_t < GPU_PURGE_EVERY_S:
+            return
+        self._gpu_purge_t = now
+        ctx = self._context
+        if ctx is None or GPU_PURGE_IDLE_S <= 0.0:
+            return
+        try:
+            ctx.purgeResourcesNotUsedInMs(_timedelta(seconds=GPU_PURGE_IDLE_S))
+        except Exception:
+            pass
 
     def _simulate_frame(self, now: Optional[float] = None, dt: Optional[float] = None,
                         smooth=None) -> None:
