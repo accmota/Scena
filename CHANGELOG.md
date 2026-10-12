@@ -56,6 +56,12 @@ left out.
 - Shots and pickups that are only in `@collide` pairs no longer make every
   body of a mutual `resolve()` crowd rebuild its partner list: a crowd of 150
   that is being shot at resolves about 12 % faster.
+- `canvas.cull_offscreen = True` now pays off in a world with still scenery.
+  Scena keeps the off-screen test's box of a body that did not move or change
+  its look, so a still tile, platform or circle costs almost nothing to test.
+  A level of 1500 tiles draws in 3 ms instead of 8. 130 still circles in a
+  world 4× the window draw ~2.5× faster. Bodies that move every frame still
+  cost about what drawing them costs. The default stays `False`.
 
 ## 0.8.0 — 2026-10-11
 

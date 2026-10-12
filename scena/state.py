@@ -641,7 +641,10 @@ DIRTY_POSE_CELLS: list = []
 
 
 def _pose_cell_of(node) -> list:
-    """``[revision, dirty, weakref(root)]`` of ``node``'s root, cached on ``node``.
+    """``[revision, dirty, weakref(root), trust epoch]`` of ``node``'s root,
+    cached on ``node``. The trust epoch moves only when a link, anchor or pull
+    owner comes or goes (``bump_pose_trust``): trust is cached on it, so a
+    move does not re-check it.
 
     Parts are never reparented (``owner`` raises), so the cell a part caches
     stays its root's; ``_invalidate_ownership_root_cache`` drops it anyway.
@@ -657,7 +660,7 @@ def _pose_cell_of(node) -> list:
             ref = weakref.ref(root)
         except TypeError:
             ref = None
-        cell = [0, False, ref]
+        cell = [0, False, ref, 0]
         rd['_pose_cell'] = cell
     d['_pose_cell'] = cell
     return cell
@@ -692,6 +695,19 @@ def bump_pose_rev(node) -> None:
     if not cell[1]:
         cell[1] = True
         DIRTY_POSE_CELLS.append(cell)
+
+
+def bump_pose_trust(node) -> None:
+    """A link, anchor or pull owner came or went on ``node``'s tree: the
+    revision moves and so does the trust epoch (trust is re-checked)."""
+    d = getattr(node, '__dict__', None)
+    if d is None:
+        return
+    cell = d.get('_pose_cell')
+    if cell is None:
+        cell = _pose_cell_of(node)
+    cell[3] += 1
+    bump_pose_rev(node)
 
 
 def probe_private(obj, name: str, default=None):
@@ -1716,7 +1732,7 @@ class Container():
         for node in self._iter_subtree():
             node.__dict__.pop('_bare_ok', None)
             node.__dict__.pop('_scalar_bare_ok', None)
-        bump_pose_rev(self)     # a link came or went: trust is re-checked
+        bump_pose_trust(self)   # a link came or went: trust is re-checked
 
     def _invalidate_ownership_root_cache(self) -> None:
         """Clear memoized ownership roots on this subtree (owner graph changed)."""
@@ -2869,7 +2885,7 @@ class Container():
         if anchor is None:
             anchor = cls(self, name)
             anchors[name] = anchor
-            bump_pose_rev(self)     # an anchor came: trust is re-checked
+            bump_pose_trust(self)   # an anchor came: trust is re-checked
         elif type(anchor) is not cls:
             # Formula source extraction and ``@=`` must share one node type
             # (``_PropertyAnchor`` for Graphic.angle/scale, not a dead ScalarAnchor).
@@ -2885,7 +2901,7 @@ class Container():
         if not anchors or name not in anchors:
             return
         anchor = anchors.pop(name)
-        bump_pose_rev(self)
+        bump_pose_trust(self)
         try:
             if anchor._link is not None:
                 anchor.unlink()

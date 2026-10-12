@@ -590,6 +590,44 @@ cheaper test (a cached box per pose revision, nothing at all for STATIC
 bodies) would move the crossover; any such change must be measured with this
 bench.
 
+**The cache (2026-10-12, B4).** `_cull_box(obj)` keeps the padded box on the
+object (`_cull_cache`) keyed by its pose revision (Collision Design, "Pose
+revision"), its look revision (`_look_rev`, bumped after every paint write by
+the `style._refuse_on_dead` wrapper every paint property and method goes
+through), and for a Sprite the sheet layout epoch.
+
+No cache:
+- an untrusted pose (links, Polygons, Lines, Text, SpatialFx);
+- an active transient or a custom `_cull_pad` (they change with time and move
+  the shield gate);
+- a playing clip (the cell and pivot follow time).
+
+A still body's test is then a dict read and three compares. A body that moved
+since its cached key takes the plain path and is not re-cached until its
+revision holds for one frame (`_cull_seen`). Without that, a mover paid a key
+and a store every frame.
+
+The draw loop reads the view edges once and compares inline. Verify mode
+(`SCENA_VERIFY_POSE_REV=1`) recomputes every cached box and raises on a
+difference. `_CULL_CACHE = False` is the plain path.
+
+Measured (draw ms, `game_bench.py --cull ab`, M4):
+
+| Scene | Cull off | Cull on, plain path | Cull on, cache |
+|---|---:|---:|---:|
+| 130 still circles, world 4× the window | 0.43 | 0.60 | 0.16 |
+| 130 circles moving every frame | 0.41 | 0.54 | 0.57 |
+| tutorial 21 level (129 objects) | 0.50 | — | 0.39 (frame −7 %) |
+| mundo (1950 objects, 1820 off view) | 8.2 | — | 3.0 |
+
+Culling now pays off when much of the world is still (scenery, platforms).
+Bodies that move every frame still cost about what drawing them costs. The
+default stays off (an author-facing change, decided separately). Tests:
+`tests/test_cull_cache.py` (random pose and paint operations: the box used
+equals the computed one; a still body reads the cache; a key without the look
+revision is caught), `tests/test_cull.py`, `tests/test_diff_draw.py` (its
+canary now also plants the draw loop's `_cull_box`).
+
 ### GPU memory
 
 Skia keeps GPU resources in its cache until a 256 MiB budget, and the driver

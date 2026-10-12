@@ -1422,7 +1422,14 @@ def _refuse_on_dead(fn, what: str):
         if probe_private(self, "_destroyed", False):
             from .entity import _refuse_if_destroyed
             _refuse_if_destroyed(self, what)
-        return fn(self, *args, **kwargs)
+        try:
+            return fn(self, *args, **kwargs)
+        finally:
+            # Every paint write moves the look revision: the cached cull box
+            # keys on it (Canvas Design, "Offscreen culling", the cache).
+            d = getattr(self, "__dict__", None)
+            if d is not None:
+                d["_look_rev"] = d.get("_look_rev", 0) + 1
     checked.__name__, checked.__qualname__, checked.__doc__ = fn.__name__, fn.__qualname__, fn.__doc__
     return checked
 

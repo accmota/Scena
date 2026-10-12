@@ -266,7 +266,9 @@ class TestDrawCanaries(unittest.TestCase):
                        # Both doors: the one-object check and the draw loop's
                        # per-object step (review 2026-10-09 S9-10 hoisted it).
                        [(eng_cls, "_passes_cull", lambda self, obj, layer=None: False),
-                        ("scena.canvas", "_cull_keeps", lambda obj, vb: False)],
+                        ("scena.canvas", "_cull_keeps", lambda obj, vb: False),
+                        # The draw loop reads the (cached) box itself.
+                        ("scena.canvas", "_cull_box", lambda obj: (1e18, 1e18, 1e18 + 1, 1e18 + 1))],
                        "a cull that drops visible shapes")
 
     def test_flag_suite_catches_a_stale_flag(self):

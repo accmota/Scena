@@ -1497,19 +1497,24 @@ def _pose_rev_of(shape) -> Optional[int]:
     Trusted: a kind whose writers all bump (``_pose_rev_kind``), with no link,
     anchor or pull owner on it or on its Defining parts (a linked value
     changes on a pull, with no write), and no per-frame hitbox
-    (``hitbox_source="each"``). Links and anchors bump when they come or go,
-    so the check is cached per revision.
+    (``hitbox_source="each"``). Links, anchors and pull owners move the trust
+    epoch when they come or go (``state.bump_pose_trust``), so the check is
+    cached per trust epoch: a move does not re-check it.
     """
     kind = _pose_rev_kind(type(shape))
     if not kind:
         return None
     d = shape.__dict__
     cell = d.get("_pose_cell")
-    rev = cell[0] if cell is not None else 0
+    if cell is None:
+        rev = epoch = 0
+    else:
+        rev = cell[0]
+        epoch = cell[3]
     if kind == 2 and shape._hitbox_from == "each":
         return None
     cached = d.get("_pose_rev_trust")
-    if cached is not None and cached[0] == rev:
+    if cached is not None and cached[0] == epoch:
         return rev if cached[1] else None
     trusted = not _pose_untrusted_part(d)
     if trusted:
@@ -1520,7 +1525,7 @@ def _pose_rev_of(shape) -> Optional[int]:
             if pd is not None and _pose_untrusted_part(pd):
                 trusted = False
                 break
-    d["_pose_rev_trust"] = (rev, trusted)
+    d["_pose_rev_trust"] = (epoch, trusted)
     return rev if trusted else None
 
 

@@ -840,22 +840,123 @@ def _stroke_reach_factor(obj) -> float:
     return factor
 
 
+# Cull boxes cached per (pose revision, look revision) on bodies whose pose
+# revision is trusted (Canvas Design, "Offscreen culling", the cache). False:
+# every box is computed (oracle, A/B).
+_CULL_CACHE = True
+
+
+def _cull_box_full(obj) -> Optional[Tuple[float, float, float, float]]:
+    """The padded draw box the cull tests, or None (unknown: keep drawing)."""
+    box = _approx_draw_aabb(obj)
+    if box is None:
+        return None
+    pad = _filter_outset(obj)
+    if getattr(obj, "_tx_state", None) is not None:
+        from .transients import transient_cull_pad
+        pad += float(transient_cull_pad(obj) or 0.0)
+    extra = _probe(obj, "_cull_pad")
+    if extra is not None:
+        pad += float(extra())
+    box = _expand_aabb_for_shield_oval(box, obj, pad)
+    return _pad_aabb(box, pad)
+
+
+_pose_rev_of = None
+_collision_mod = None
+
+
+def _cull_cache_key(obj):
+    """What the cached box depends on, or None (compute it every time).
+
+    A trusted pose revision (no link, a kind whose writers bump), the look
+    revision (every paint write), and for a Sprite the sheet layout. Not with
+    a transient or a custom cull pad (they change over time and move the
+    shield gate), nor while a clip plays (the cell and pivot follow time).
+    """
+    global _pose_rev_of, _collision_mod
+    if _pose_rev_of is None:
+        import sys
+        from .collision import _pose_rev_of as fn
+        _collision_mod = sys.modules[fn.__module__]   # the module (scena.collision is the facade)
+        _pose_rev_of = fn
+    rev = _pose_rev_of(obj)
+    if rev is None:
+        return None
+    if getattr(obj, "_tx_state", None) is not None or _probe(obj, "_cull_pad") is not None:
+        return None
+    d = obj.__dict__
+    look = d.get("_look_rev", 0)
+    if getattr(type(obj), "_is_sprite_body", False):
+        if obj._play_frames:
+            return None
+        sheet = getattr(obj, "_sheet", None)
+        return (rev, look, getattr(sheet, "_layout_epoch", 0))
+    return (rev, look)
+
+
+def _cull_box(obj) -> Optional[Tuple[float, float, float, float]]:
+    """``_cull_box_full``, cached when ``_cull_cache_key`` allows."""
+    if _CULL_CACHE:
+        d = obj.__dict__
+        hit = d.get("_cull_cache")
+        if hit is not None:
+            # Fast check of the stored key: a trust change (a link) moves the
+            # revision, so the trust the key was built under still holds.
+            k = hit[0]
+            cell = d.get("_pose_cell")
+            if ((cell[0] if cell is not None else 0) == k[0] and d.get("_look_rev", 0) == k[1]
+                    and getattr(obj, "_tx_state", None) is None
+                    and (len(k) == 2 or (not obj._play_frames
+                                         and getattr(obj._sheet, "_layout_epoch", 0) == k[2]))):
+                if _cull_verify():
+                    full = _cull_box_full(obj)
+                    if full != hit[1]:
+                        raise AssertionError(
+                            f"cached cull box {hit[1]} != {full} for {type(obj).__name__} "
+                            f"(a pose or paint write did not move its revision)"
+                        )
+                return hit[1]
+            # A body that moves every frame would build and store a key on
+            # every draw for nothing: after its first move it takes the plain
+            # path, and caches again once its revision holds for a frame.
+            rev = cell[0] if cell is not None else 0
+            if rev != k[0]:
+                seen = d.get("_cull_seen")
+                d["_cull_seen"] = rev
+                if seen != rev:
+                    return _cull_box_full(obj)
+        key = _cull_cache_key(obj)
+        if key is not None:
+            d = obj.__dict__
+            hit = d.get("_cull_cache")
+            if hit is not None and hit[0] == key:
+                if _cull_verify():
+                    full = _cull_box_full(obj)
+                    if full != hit[1]:
+                        raise AssertionError(
+                            f"cached cull box {hit[1]} != {full} for {type(obj).__name__} "
+                            f"(a pose or paint write did not move its revision)"
+                        )
+                return hit[1]
+            box = _cull_box_full(obj)
+            d["_cull_cache"] = (key, box)
+            return box
+    return _cull_box_full(obj)
+
+
+def _cull_verify() -> bool:
+    return _collision_mod is not None and _collision_mod._POSE_REV_VERIFY
+
+
 def _cull_keeps(obj, vb) -> bool:
     """Per object, on a layer that culls: does its padded draw AABB meet the
     view window ``vb``? Fail open (keep drawing) on unknown geometry."""
     try:
-        box = _approx_draw_aabb(obj)
+        box = _cull_box(obj)
         if box is None:
             return True
-        pad = _filter_outset(obj)
-        if getattr(obj, "_tx_state", None) is not None:
-            from .transients import transient_cull_pad
-            pad += float(transient_cull_pad(obj) or 0.0)
-        extra = _probe(obj, "_cull_pad")
-        if extra is not None:
-            pad += float(extra())
-        box = _expand_aabb_for_shield_oval(box, obj, pad)
-        return _aabb_intersects_view(_pad_aabb(box, pad), vb)
+        return _aabb_intersects_view(box, vb)
     except Exception:
         return True
 
@@ -2302,13 +2403,19 @@ class ScenaCanvas:
                 # (review 2026-10-09 S9-10).
                 if vb is None:
                     vb = self.visible_bounds
-                keep = _cull_keeps
+                    vl, vbt, vr, vt = vb.left, vb.bottom, vb.right, vb.top
+                cull_box = _cull_box
                 append = objs.append
                 skipped = 0
                 for o in layer._objects:
                     if not _drawn(o):
                         continue
-                    if keep(o, vb):
+                    try:
+                        box = cull_box(o)
+                    except Exception:
+                        box = None                  # fail open
+                    if box is None or not (box[2] < vl or box[0] > vr
+                                           or box[3] < vbt or box[1] > vt):
                         append(o)
                     else:
                         skipped += 1
