@@ -553,7 +553,8 @@ Author catalog: [Guia da API](../docs/pt/guide/index.html#util-chase).
 
 ### Offscreen culling
 
-**Offscreen culling** (`canvas.cull_offscreen`, default **off**). Draw-only
+**Offscreen culling** (`canvas.cull_offscreen`, default **on** since
+2026-10-12, with the backoff below; it was opt-in). Draw-only
 AABB skip against `visible_bounds` (rotated camera uses the AABB of the four
 view corners — over-inclusive, never under). Pad is the largest of the filter
 `_batch_outset`, the visual `_cull_outset`, and the glow `_cull_outset`, then
@@ -655,7 +656,57 @@ Draw with the cull on, shift off → on (in-process A/B):
 | naves | 0.28 → 0.26 (its 24 enemies pulse their scale: a real shape change) |
 | festa | 7.9 → 6.7 (work 35.0 → 32.3; B5 reads the same boxes) |
 
-The default stays off (an author-facing change, decided separately).
+**On by default, with a backoff (2026-10-12).** The cache and the shift made
+the test cheap, but a one-screen game still paid for testing bodies that were
+all in view. A layer whose cull skipped less than 1/`_CULL_BACKOFF_RATIO`
+(16) of what it tested draws the next 1, 2, 4 … up to `_CULL_BACKOFF_MAX`
+(32) frames without testing (`layer.__dict__["_cull_wait"]` /
+`["_cull_backoff"]`; Layer guards `setattr`). A cull that skips more resets
+it.
+- "Less than 1/16" includes nothing at all and also a stray shot below the
+  screen (naves: 1 of 29).
+- The decision is a counter per layer per frame.
+- It is safe whatever it decides: a frame that skips the test only draws
+  more. The cost of a wrong guess is a few bodies (under 1/16) drawn off
+  screen for at most 32 frames.
+
+`_CULL_BACKOFF = False` tests every frame; the tests that count culled
+bodies, and the cull-conservative differentials, run that way.
+
+Two older gaps were fixed on the way, since a default-on cull draws every
+game through them:
+- **Clip cells and tilt.**
+  - A Sprite's box came from `_oriented_frame`: `width` / `height` as set at
+    `play()`. A clip whose cells differ in size (a mixed strip, a trimmed
+    atlas) drew past it: a 91 px cell in a box sized for a 9 px one.
+  - It also left out the paint tilt and seat.
+  - `Sprite._draw_aabb` now maps the cell on show through the paint
+    transform (cell size, trim and pivot, `offset`, flips, heading, tilt,
+    seat), in float64. `_approx_draw_aabb` reads it before
+    `_oriented_frame`, and the filter-batch bounds use it too.
+- **Tilt writes and the cache.**
+  - `tilt =` now bumps the pose revision.
+  - An `"auto_ground"` tilt (it leans with the live contacts) is never
+    cached.
+  - A playing clip keys its cached box on the cell on show
+    (`_CULL_CLIP_CELL`): an animated body reuses its box, and its shift,
+    until the cell changes.
+
+Measured, cull on vs off (in-process A/B, work ms):
+
+| Game | Off (ms) | On (ms) |
+|---|---:|---:|
+| naves | 1.18 | 1.23 |
+| naves_escudo | 1.60 | 1.60 |
+| ninja (one screen) | 0.464 | 0.468 |
+| ligue4 | 0.365 | 0.366 |
+| bolas | 1.333 | 1.334 |
+| pegar_estrelas | 0.264 | 0.268 |
+| horda | 13.61 | 13.45 (animated enemies now cache) |
+| corrida | 1.92 | 1.71 |
+| tutorial 22 level | 2.83 | 2.58 |
+| festa | 34.8 | 32.3 |
+| mundo | 24.3 | 18.8 |
 
 Tests:
 - `tests/test_cull_cache.py`:
@@ -667,7 +718,16 @@ Tests:
   - a perimeter circle is not shifted;
   - canaries: a key without the look revision, and a resize counted as a
     move.
-- `tests/test_cull.py`.
+- `tests/test_cull_cache.py`, playing clips: a clip of mixed cell sizes
+  keys on the cell, the box is reused while the cell holds, and a check that
+  ignores the cell is caught.
+- `tests/test_cull_cache.TestSpriteDrawBox`: every pixel a Sprite paints
+  lies in `_draw_aabb` (mixed cells, flips, heading, tilt, scale, offset).
+  The box sized at `play()` is caught.
+- `tests/test_cull.py`: `TestDefault` (a fresh process reads `True`), and
+  `TestBackoff` (waits 1, 2, 4 … 32 when all in view; a stray body still
+  backs off; something truly off screen is tested every frame; a body
+  leaving is culled within the wait).
 - `tests/test_diff_draw.py`: its canary also plants the draw loop's
   `_cull_box`.
 

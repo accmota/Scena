@@ -5683,7 +5683,7 @@ canvas.frame_to(group["fleet"].box, pad=0.15)  # None = fica parado
 <tr><td><code>canvas.rotation</code></td><td class="type"><span class="t">número</span><span class="ex">1</span></td><td>leitura</td><td>Rotação da vista, em graus.</td></tr>
 <tr><td><code>canvas.game_view</code></td><td class="type"><span class="t">Box</span><span class="ex">canvas.game_view</span></td><td>leitura</td><td>O que a câmera vê agora, no mundo. Câmera parada no início: de <code>(0, 0)</code> a <code>(canvas.width, canvas.height)</code>, centro no meio. Um Box novo a cada leitura. Ver <a href="#colocar-pais">Colocar</a>.</td></tr>
 <tr><td><code>canvas.ui_view</code></td><td class="type"><span class="t">Box</span><span class="ex">canvas.ui_view</span></td><td>leitura</td><td>A janela inteira, de <code>(0, 0)</code> a <code>(width, height)</code>, para o HUD. Não se mexe com a câmera. Um Box novo a cada leitura.</td></tr>
-<tr><td><code>canvas.cull_offscreen</code></td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td>lê / escreve</td><td><code>True</code>: não desenha o que está fora da vista. Padrão <code>False</code>. Os objetos continuam rodando <code>update</code> e colidindo. Compensa num mundo com muito cenário parado ou com objetos caros de desenhar: <a href="#mundo-apresentacao">Apresentação</a>.</td></tr>
+<tr><td><code>canvas.cull_offscreen</code></td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>lê / escreve</td><td>Não desenha o que está fora da vista. Padrão <code>True</code>. Os objetos continuam rodando <code>update</code> e colidindo. <code>False</code> desenha tudo: <a href="#mundo-apresentacao">Apresentação</a>.</td></tr>
           </tbody>
         </table>
         <p class="name-group">Métodos</p>
@@ -5758,7 +5758,7 @@ canvas.framerate = "max"       # sem teto (bench)
 canvas.fx_quality = "high"
 canvas.fx_quality = "medium"
 
-canvas.cull_offscreen = True   # não desenha o que está fora da vista</pre>
+canvas.cull_offscreen = False  # desenha tudo, até o que está fora da vista</pre>
       </div>
       <details class="spec" open>
       <summary>canvas.display</summary>
@@ -5814,19 +5814,19 @@ canvas.cull_offscreen = True   # não desenha o que está fora da vista</pre>
       </details>
       <details class="spec" open>
       <summary>canvas.cull_offscreen</summary>
-        <p>Pular o desenho do que a câmera não vê. bool. Padrão <code>False</code>. Com <code>True</code>, a cada frame o Scena testa cada objeto: se a caixa dele (com folga para brilho, contorno e efeitos) não toca a vista, ele não é desenhado naquele frame. Só o desenho muda: fora da vista, o objeto continua rodando <code>update</code>, se movendo e colidindo. Pode atribuir antes de <code>run()</code> ou durante o jogo (uma tela de opções pode mudar).</p>
+        <p>Pular o desenho do que a câmera não vê. bool. Padrão <code>True</code>. O Scena testa cada objeto: se a caixa dele (com folga para brilho, contorno e efeitos) não toca a vista, ele não é desenhado naquele frame. Só o desenho muda: fora da vista, o objeto continua rodando <code>update</code>, se movendo e colidindo. Pode atribuir antes de <code>run()</code> ou durante o jogo (uma tela de opções pode mudar).</p>
         <div class="tbl-wrap">
           <table>
           <thead>
             <tr><th>Propriedade</th><th>Tipo (valor típico)</th><th>Leitura/Escrita</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td><code>False</code></td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td>lê / escreve</td><td>Padrão. Desenha todo objeto visível; o que fica fora da janela simplesmente não aparece.</td></tr>
-<tr><td><code>True</code></td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>lê / escreve</td><td>Testa cada objeto e pula os que estão fora da vista. Camadas com parallax (<code>pan_response</code> diferente de 1), widgets, o fundo e os efeitos de tela são sempre desenhados.</td></tr>
+<tr><td><code>True</code></td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>lê / escreve</td><td>Padrão. Testa os objetos e pula os que estão fora da vista. Camadas com parallax (<code>pan_response</code> diferente de 1), widgets, o fundo e os efeitos de tela são sempre desenhados.</td></tr>
+<tr><td><code>False</code></td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td>lê / escreve</td><td>Desenha todo objeto visível; o que fica fora da janela simplesmente não aparece.</td></tr>
           </tbody>
         </table>
         </div>
-        <p class="gotcha">Objetos parados (cenário, plataformas, tiles) custam quase nada para testar: o Scena guarda a caixa de cada um até ele se mexer ou mudar de visual. Quem se move a cada frame paga o teste inteiro, quase o mesmo que desenhá-lo. Por isso compensa num mundo maior que a janela com muito cenário parado, e com objetos caros de desenhar (brilho, <code>.glow</code>, visuais como <code>Neon</code>). Medido: 130 círculos parados num mundo 4× mais largo que a janela desenham ~2,5× mais rápido com <code>True</code>; os mesmos círculos andando a cada frame, ~35% mais devagar; a fase do tutorial 21, ~7% mais rápida. Meça o seu jogo antes de deixar ligado.</p>
+        <p class="gotcha">O teste quase não custa nada. Um objeto parado guarda a caixa até mudar; um que só anda leva a caixa junto. Numa camada em que nada (ou quase nada) ficou fora da vista, o Scena espera alguns frames antes de testar de novo. Por isso um jogo de uma tela só fica praticamente igual, e um mundo maior que a janela fica bem mais rápido. Medido: uma fase de 1500 tiles desenha em 3 ms em vez de 8; a fase do tutorial 22 roda ~9% mais rápida; um bullet hell com tiros que saem da tela, ~7%. <code>False</code> serve para comparar.</p>
       </details>
       <details class="spec" open>
       <summary>set_fx_auto</summary>

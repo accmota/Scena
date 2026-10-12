@@ -193,6 +193,111 @@ class TestShiftedBox(unittest.TestCase):
             o.destroy()
 
 
+class TestPlayingClip(unittest.TestCase):
+    def test_a_playing_clip_keys_on_the_cell(self):
+        """The box follows the cell on show; it is reused while the cell holds."""
+        from scena import clock
+        # Cells of different sizes: a box kept past a cell change is wrong.
+        space = os.path.join(MEDIA, "space")
+        sheet = Sheet(anchor="bottom", pixel_size=0.5)
+        sheet.strip("run", [os.path.join(space, f) for f in
+                            ("laserRed01.png", "ufoYellow.png", "star_gold.png")], fps=12)
+        sheet.strip("idle", os.path.join(NINJA, "Idle__*.png"), fps=8)
+        o = Sprite(sheet, center=(0, 0))
+        try:
+            o.play("run")
+            real = CV._cull_box_full
+            computed = steps = 0
+            for k in range(90):
+                clock.advance(1.0 / 60.0)
+                if k % 3 == 0:
+                    o.move_by(4.0, 0.0)
+                if k == 45:
+                    o.play("idle")
+                calls = []
+                with mock.patch.object(CV, "_cull_box_full", lambda x: calls.append(1) or real(x)), \
+                        mock.patch.object(CV, "_cull_verify", lambda: False):
+                    got = CV._cull_box(o)
+                assert_hugs(self, got, real(o), f"step {k} cell {o._current_frame_index()}")
+                computed += bool(calls)
+                steps += 1
+            self.assertLess(computed, steps // 2, "the box was recomputed on most frames")
+        finally:
+            o.destroy()
+
+
+class TestSpriteDrawBox(unittest.TestCase):
+    """``Sprite._draw_aabb`` holds every pixel the blit paints: the cell on
+    show (cells of different sizes), offset, flips, heading, tilt, scale."""
+
+    W, H = 400, 300
+
+    def drawn_bbox(self, o):
+        import numpy as np
+        import skia
+        eng = sys.modules["scena.canvas"].ScenaCanvas.get_current()
+        surf = skia.Surface(self.W, self.H)
+        saved = eng.skia_canvas
+        eng.skia_canvas = surf.getCanvas()
+        eng.skia_canvas.clear(skia.Color4f(0, 0, 0, 0))
+        try:
+            eng._draw_object(o)
+        finally:
+            eng.skia_canvas = saved
+        a = np.asarray(surf.makeImageSnapshot().toarray(colorType=skia.kRGBA_8888_ColorType))
+        ys, xs = np.nonzero(a[..., 3] > 0)
+        if not len(xs):
+            return None
+        return (xs.min(), ys.min(), xs.max() + 1, ys.max() + 1)
+
+    def sheet(self):
+        space = os.path.join(MEDIA, "space")
+        sh = Sheet(anchor="bottom", pixel_size=0.5)
+        sh.strip("mix", [os.path.join(space, f) for f in
+                         ("laserRed01.png", "ufoYellow.png", "star_gold.png")], fps=12)
+        return sh
+
+    def test_drawn_pixels_inside_the_box(self, draw_box=None):
+        from scena import clock
+        import random as _r
+        r = _r.Random(8)
+        checked = 0
+        for case in range(40):
+            o = Sprite(self.sheet(), center=(200.0, 150.0))
+            try:
+                o.play("mix")
+                o.flip_x = r.random() < 0.5
+                o.flip_y = r.random() < 0.3
+                o.angle = r.choice((0.0, 30.0, 90.0, r.uniform(-180, 180)))
+                o.scale = r.choice((0.7, 1.0, 1.6))
+                o.offset = (r.uniform(-15, 15), r.uniform(-15, 15))
+                if r.random() < 0.5:
+                    o.tilt = r.uniform(-40, 40)
+                for k in range(3):
+                    clock.advance(1.0 / 12.0)
+                    got = self.drawn_bbox(o)
+                    if got is None:
+                        continue
+                    box = (draw_box or Sprite._draw_aabb)(o)
+                    ctx = f"case {case} cell {o._current_frame_index()}"
+                    self.assertLessEqual(box[0], got[0] + 1, ctx)
+                    self.assertLessEqual(box[1], got[1] + 1, ctx)
+                    self.assertGreaterEqual(box[2], got[2] - 1, ctx)
+                    self.assertGreaterEqual(box[3], got[3] - 1, ctx)
+                    checked += 1
+            finally:
+                o.destroy()
+        self.assertGreater(checked, 80)
+
+    def test_canary_the_box_sized_at_play(self):
+        """The old box (``_oriented_frame``: the size from ``play()``) is caught."""
+        def oriented(o):
+            cx, cy, w, h, ang = o._oriented_frame()
+            return CV._aabb_from_oriented(cx, cy, w, h, ang)
+        with self.assertRaises(AssertionError):
+            self.test_drawn_pixels_inside_the_box(draw_box=oriented)
+
+
 class TestCanary(unittest.TestCase):
     def test_a_resize_counted_as_a_move_is_caught(self):
         """Every revision read as a move: a resized body keeps its old box."""

@@ -680,6 +680,15 @@ def _approx_draw_aabb(obj) -> Optional[Tuple[float, float, float, float]]:
         except Exception:
             pass
 
+    drawn = _probe(obj, "_draw_aabb")
+    if callable(drawn):
+        try:
+            box = drawn()
+            if box is not None:
+                return box
+        except Exception:
+            pass
+
     oriented = _probe(obj, '_oriented_frame')
     if callable(oriented):
         try:
@@ -844,6 +853,14 @@ def _stroke_reach_factor(obj) -> float:
 # revision is trusted (Canvas Design, "Offscreen culling", the cache). False:
 # every box is computed (oracle, A/B).
 _CULL_CACHE = True
+# The cull backoff: a layer whose cull skipped less than 1/``_CULL_BACKOFF_RATIO``
+# of what it tested (nothing off screen, or a stray shot) draws the next 1, 2,
+# 4 … up to ``_CULL_BACKOFF_MAX`` frames without testing; a cull that skips
+# more resets it. Skipping a test only draws more, never less. False: test
+# every frame (oracle; the tests that count culled objects).
+_CULL_BACKOFF = True
+_CULL_BACKOFF_MAX = 32
+_CULL_BACKOFF_RATIO = 16
 
 
 def _cull_box_full(obj) -> Optional[Tuple[float, float, float, float]]:
@@ -870,9 +887,10 @@ def _cull_cache_key(obj):
     """What the cached box depends on, or None (compute it every time).
 
     A trusted pose revision (no link, a kind whose writers bump), the look
-    revision (every paint write), and for a Sprite the sheet layout. Not with
-    a transient or a custom cull pad (they change over time and move the
-    shield gate), nor while a clip plays (the cell and pivot follow time).
+    revision (every paint write), and for a Sprite the sheet layout and, while
+    a clip plays, the cell on show (the size and pivot follow it; the draw
+    reads the same cell this frame). Not with a transient or a custom cull pad
+    (they change over time and move the shield gate).
     """
     global _pose_rev_of, _collision_mod
     if _pose_rev_of is None:
@@ -888,9 +906,13 @@ def _cull_cache_key(obj):
     d = obj.__dict__
     look = d.get("_look_rev", 0)
     if getattr(type(obj), "_is_sprite_body", False):
+        if getattr(obj, "_tilt_mode", "angle") == "auto_ground":
+            return None                      # leans with the live contacts
+        sheet = getattr(obj, "_sheet", None)
+        if obj._play_frames and _CULL_CLIP_CELL:
+            return (rev, look, getattr(sheet, "_layout_epoch", 0), obj._current_frame_index())
         if obj._play_frames:
             return None
-        sheet = getattr(obj, "_sheet", None)
         return (rev, look, getattr(sheet, "_layout_epoch", 0))
     return (rev, look)
 
@@ -899,6 +921,9 @@ def _cull_cache_key(obj):
 # writes, counted in its pose cell's ``moves``) keeps its cached box, shifted
 # by the move. False: every move recomputes (oracle, A/B).
 _CULL_SHIFT = True
+# A playing clip keys its cached box on the cell on show (an animated body
+# reuses its box until the cell changes). False: no cache while a clip plays.
+_CULL_CLIP_CELL = True
 # The shifted box is the cached one plus a delta: float rounding can differ
 # from a fresh box by a few ulps, so it is padded outward by this much.
 _CULL_SHIFT_EPS = 1e-6
@@ -949,8 +974,10 @@ def _cull_box(obj) -> Optional[Tuple[float, float, float, float]]:
             rev = cell[0] if cell is not None else 0
             if (d.get("_look_rev", 0) == k[1]
                     and getattr(obj, "_tx_state", None) is None
-                    and (len(k) == 2 or (not obj._play_frames
-                                         and getattr(obj._sheet, "_layout_epoch", 0) == k[2]))):
+                    and (len(k) == 2
+                         or (getattr(obj._sheet, "_layout_epoch", 0) == k[2]
+                             and (obj._current_frame_index() == k[3] if len(k) == 4
+                                  else not obj._play_frames)))):
                 if rev == k[0]:
                     if _cull_verify():
                         full = _cull_box_full(obj)
@@ -1961,11 +1988,11 @@ class Canvas(ClosedSurface, Container):
     def cull_offscreen(self) -> bool:
         """Skip **draw** of shapes whose AABB is outside the current view.
 
-        Default **False** (safe for edged beams, glow bleed, small scenes).
-        Enable for large worlds whose off-camera objects are expensive to
-        draw (glow, multipass visuals): the per-object test costs about as
-        much as drawing a plain sprite, so a world of plain sprites runs
-        slower with it on (Canvas Design, "Offscreen culling"). Draw-only: tick,
+        Default **True**. A still body keeps its tested box, a moving one
+        shifts it, and a layer where nothing was off screen waits a few
+        frames before testing again, so a one-screen game pays almost
+        nothing. ``False`` draws everything (Canvas Design, "Offscreen
+        culling"). Draw-only: tick,
         formulas, collision, and SpatialFx simulation still run. Approximate
         AABB + filter / transient / multipass pads. Parallax (non-neutral)
         layers are never culled — their partial camera CTM is not
@@ -2441,9 +2468,10 @@ class ScenaCanvas:
 
         # Draw opts; ``batch_shared_filters`` is owned by ``fx_quality`` presets
         # (True for low/high, False for max). Framework overwrites on init.
-        # ``cull_offscreen``: opt-in skip of off-view AABBs (large worlds).
+        # ``cull_offscreen``: skip off-view AABBs; on by default, and a layer
+        # where it skipped nothing waits before testing again (``_CULL_BACKOFF``).
         self.batch_shared_filters = True
-        self.cull_offscreen = False
+        self.cull_offscreen = True
         # Mirrored from ScenaFramework debug-zoom cycle; skip cull when True.
         # Hot path reads the bool only — never compares the zoom float.
         self._debug_zoom_active = False
@@ -2607,10 +2635,20 @@ class ScenaCanvas:
             objs = []
             if getattr(layer, "_tombstones", 0):
                 layer._compact()
-            # Default ``cull_offscreen=False``: skip the per-object ``_passes_cull``
-            # call (its first line is ``return True``). Counters still count kept
-            # visibles so draw instrumentation stays honest.
-            if self.cull_offscreen and not self._layer_never_culled(layer):
+            # ``cull_offscreen=False``: skip the per-object ``_passes_cull`` call
+            # (its first line is ``return True``). Counters still count kept
+            # visibles so draw instrumentation stays honest. A layer whose last
+            # cull skipped (almost) nothing waits ``_cull_wait`` frames before
+            # the next (Canvas Design, "Offscreen culling": the backoff).
+            ld = layer.__dict__                 # Layer guards setattr: engine state
+            wait = ld.get("_cull_wait", 0)
+            if wait and self.cull_offscreen and _CULL_BACKOFF:
+                ld["_cull_wait"] = wait - 1
+                for o in layer._objects:
+                    if _drawn(o):
+                        objs.append(o)
+                self._cull_kept += len(objs)
+            elif self.cull_offscreen and not self._layer_never_culled(layer):
                 # The view window and the layer checks once per layer, not per
                 # object: they cost more than the blit they could skip
                 # (review 2026-10-09 S9-10).
@@ -2634,6 +2672,13 @@ class ScenaCanvas:
                         skipped += 1
                 self._cull_kept += len(objs)
                 self._cull_skipped += skipped
+                if _CULL_BACKOFF:
+                    if skipped * _CULL_BACKOFF_RATIO >= len(objs) + skipped:
+                        ld["_cull_backoff"] = 0
+                    else:                   # (almost) all in view: wait 1, 2, 4 … frames
+                        nb = min(_CULL_BACKOFF_MAX, 2 * ld.get("_cull_backoff", 0) or 1)
+                        ld["_cull_backoff"] = nb
+                        ld["_cull_wait"] = nb
             elif self.cull_offscreen:
                 for o in layer._objects:
                     if _drawn(o):

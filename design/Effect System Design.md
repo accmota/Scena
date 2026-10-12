@@ -1405,9 +1405,10 @@ Priority ideas from status-quo analysis + 2026-08-07 matrix (not committed work)
 7. Expand canvas/visual catalog carefully; register stage + zero-arg visual + matrix row.
 8. Optional extra transient styles if gameplay demos demand them (keep channel model stable).
 9. Recipe multipass: paint slot pool + Discrete PE cache — **done** (interned PE by seed; rotating stroke/fill paints). Stroke/fill `Color4f` from tuples (no per-stroke `Color()`); interned-seed bake + `setAlphaf` for pulse — **done** (2026-09-09). Look-pass grouping of interned Laser / Neon / Ink — **done** (2026-09-09; `batch_shared_filters` escape). Look-pass buckets kind-pure by `_world_stroke_kind` — **done** (2026-09-10). Electric* overlay-glow batch — **done** (2026-09-09; shared Plus `Blur(σ=2.2)` plate). `Graphic.draw` stamp/transient probes — **done** (2026-09-09). Neon `_vivid_rgb` / energy HSV helpers + look-pass center hoist — **done** (2026-09-10). Plain Shape/Sprite `_blit_plain` + PropertyAnchor pull; cull-off draw-walk hoist — **done** (2026-09-10). Live recolor of seeded Neon / Halo / HaloFill / HaloSoft (`_unseed` + `_deseed_active_visual`) — **done** (2026-09-10). Lessons: [§5.6](#56-recipe-draw-hot-path--lessons). Remaining: `_unseed()` on other role-A/B looks (Laser, HaloLine, GlowRimVisual, …); optional LRU on intern caches — [§9](#9-known-rules--gaps) rules 18–19.
-10. ~~Large-world~~ `canvas.cull_offscreen` — **shipped** (opt-in, default off;
-  draw-only AABB + pads; parallax layers never culled; when off, draw walk skips
-  `_passes_cull`). Demo: `scripts/smoke/world_view.py` (also `app_scene_realistic --cull`).
+10. ~~Large-world~~ `canvas.cull_offscreen` — **shipped** (default on since
+  2026-10-12 with a per-layer backoff, opt-in before; draw-only AABB + pads;
+  parallax layers never culled; when off, draw walk skips `_passes_cull`;
+  [Canvas Design.md — Offscreen culling](Canvas%20Design.md#offscreen-culling)). Demo: `scripts/smoke/world_view.py` (also `app_scene_realistic --cull`).
 11. Vignette edge shaders cached (no new half-res variant; rim strips already cheap).
 12. Product regression scene: `scripts/bench/gpu_mix.py` (`--suite` / `--profile` / shape_fx_RT counters).
 13. :class:`~scena.visuals.Shield(style="plasma")` / :class:`~scena.recipes.Shield` —
@@ -1482,7 +1483,7 @@ Do not read this table as a license to open the whole cluster. Hub map:
 | SpatialFx                  | Sticky soft domains on world layers; tick after transients; not visuals/post                                                                                                           |
 | BackgroundFields           | Pre-scene full-screen SkSL; pan/zoom response knobs; empty stack free; not layers/post                                                                                                     |
 | Parallax Layers            | Create-only camera knobs on shape layers; decoration-only (no hit/collision); zero cost when unused; never `cull_offscreen`                                                            |
-| Offscreen cull             | Opt-in `canvas.cull_offscreen`; draw-only AABB + pads; default off; fail-open; when off, draw walk skips `_passes_cull`                                                                                                          |
+| Offscreen cull             | `canvas.cull_offscreen`; draw-only AABB + pads; default on (backoff when a layer is all in view); fail-open; when off, draw walk skips `_passes_cull`                                                                                                          |
 | Post FX                    | `canvas.effects` hybrid; empty stack free; active stack pays scene RT                                                                                                                  |
 | Canvas cover               | `fade_in` / `fade_out`; after widgets; hold until uncover; not post; no scene RT                                                                                                       |
 | Quality                    | 4-step algorithmic ladder **low / medium / high** + **max** escape; **Auto** policy over fidelity×rate (work_ms, on by default at high@60, ~2 s startup warmup) — see §4                |

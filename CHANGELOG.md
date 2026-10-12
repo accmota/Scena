@@ -12,6 +12,15 @@ left out.
 
 ## Unreleased
 
+### Changed
+
+- `canvas.cull_offscreen` is now `True` by default: Scena skips drawing what
+  is outside the view. A level bigger than the window draws much faster (1500
+  tiles: 3 ms instead of 8; tutorial 22 about 9 % faster per frame). A game
+  on one screen stays the same: a layer where nothing is off screen tests
+  again only every few frames. Objects off screen still run `update` and
+  collide, as before. `canvas.cull_offscreen = False` draws everything.
+
 ### Fixed
 
 - An `async def` handed to a function Scena asks a question raises
@@ -64,7 +73,11 @@ left out.
   box too, shifted by the move: with culling on, 25 bouncing balls draw
   about 20 % faster and a bullet hell of 300 glowing shots about 8 % faster
   per frame. A body that turns or changes size every frame still costs about
-  what drawing it costs. The default stays `False`.
+  what drawing it costs.
+- An animated Sprite whose frames have different sizes (a strip made of
+  separate images, a trimmed atlas) is no longer hidden by
+  `cull_offscreen` while part of it is still in view: the off-screen test
+  used the size of the frame shown at `play()`, and ignored `tilt`.
 - Faster `floor_below` and walkers on tiles whose image is not a full
   square (rounded platform ends, slopes cut in the art). A box meeting such a
   tile, a turned box or a `Polygon` is now swept in closed form. Tutorial 22

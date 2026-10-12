@@ -27,6 +27,7 @@ from __future__ import annotations
 import os
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -223,6 +224,11 @@ class TestCullIsConservative(unittest.TestCase):
             frames = []
             eng = w.fw._scena_draw
             saved = canvas.cull_offscreen, eng.batch_shared_filters
+            # Test this frame: the backoff could skip the test, which only
+            # draws more and would hide an aggressive cull.
+            backoff = mock.patch.object(sys.modules["scena.canvas"], "_CULL_BACKOFF", False)
+            backoff.start()
+            self.addCleanup(backoff.stop)
             # Vary ONLY the cull switch. With shared-filter batching on, culling
             # an off-screen member changes a batched blur layer's bounds, which
             # moves edge pixels of the OTHER members by a level or two — that is

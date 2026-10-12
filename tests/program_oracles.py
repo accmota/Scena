@@ -18,6 +18,7 @@ design/Testing Design.md, "Program model tests".
 """
 from __future__ import annotations
 
+import sys
 import math
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -161,6 +162,8 @@ def cull_pixels(program: str, spec_ns, scenario: str) -> List[str]:
         eng.batch_shared_filters = False
         shots = []
         run._wire_surface()          # the program's init() rebuilt the canvas
+        cv = sys.modules["scena.canvas"]
+        saved_backoff, cv._CULL_BACKOFF = cv._CULL_BACKOFF, False   # cull this very frame
         try:
             for cull in (False, True):
                 canvas.cull_offscreen = cull
@@ -168,6 +171,7 @@ def cull_pixels(program: str, spec_ns, scenario: str) -> List[str]:
                 shots.append(_screen(run))
         finally:
             canvas.cull_offscreen, eng.batch_shared_filters = saved
+            cv._CULL_BACKOFF = saved_backoff
         return shots
     _t, (off, on) = _run(program, spec_ns, scenario, probes={}, draw=True, at_end=frames)
     if not np.ptp(off[:, :, :3]):

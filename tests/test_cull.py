@@ -8,8 +8,10 @@ Run headless (no window):
 import os
 import sys
 import unittest
+from unittest import mock
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
 
 from scena import canvas, init
 from scena.canvas import ScenaCanvas, _approx_draw_aabb
@@ -19,6 +21,8 @@ from scena.shapes import Circle, Line, Polygon
 from scena.spatial_fx import Fire, tick_all_spatial_fx
 from scena import spatial_fx as sfx
 from scena import transients as tx
+
+CV = sys.modules["scena.canvas"]
 
 
 def _engine():
@@ -35,6 +39,10 @@ class CullTestCase(unittest.TestCase):
         canvas.reset_view()
         canvas.cull_offscreen = False
         self._owned = []
+        # These tests count what one frame culls: test every frame.
+        backoff = mock.patch.object(CV, "_CULL_BACKOFF", False)
+        backoff.start()
+        self.addCleanup(backoff.stop)
 
     def tearDown(self):
         for s in list(self._owned):
@@ -67,7 +75,20 @@ class CullTestCase(unittest.TestCase):
         return obj
 
 
-class TestDefaultOff(CullTestCase):
+class TestDefault(unittest.TestCase):
+    def test_a_new_canvas_culls(self):
+        """On by default (2026-10-12): a fresh process reads True."""
+        import subprocess
+        out = subprocess.run(
+            [sys.executable, "-c", "import scena; from scena import canvas, init; "
+             "init(width=200, height=100); print(canvas.cull_offscreen)"],
+            capture_output=True, text=True, encoding="utf-8", cwd=ROOT,
+            env={**os.environ, "SDL_VIDEODRIVER": "dummy"},
+        )
+        self.assertEqual(out.stdout.strip().splitlines()[-1], "True", out.stderr[-500:])
+
+
+class TestOff(CullTestCase):
     def test_far_shape_passes_when_cull_off(self):
         eng = _engine()
         far = self.track(Circle(center=(50000, 50000), radius=10))
@@ -246,6 +267,78 @@ class TestFailOpenAndCounters(CullTestCase):
         eng.draw()
         self.assertEqual(eng._cull_skipped, 0)
         self.assertGreaterEqual(eng._cull_kept, 2)
+
+
+class TestBackoff(CullTestCase):
+    """A layer whose cull skipped less than 1/16 of what it tested waits 1, 2,
+    4 … 32 frames before testing again; a test that skips more resets it
+    (Canvas Design, "Offscreen culling": the backoff). Skipping a test only
+    draws more."""
+
+    def setUp(self):
+        super().setUp()
+        on = mock.patch.object(CV, "_CULL_BACKOFF", True)
+        on.start()
+        self.addCleanup(on.stop)
+        _default_layer().__dict__.pop("_cull_wait", None)
+        _default_layer().__dict__.pop("_cull_backoff", None)
+
+    def _frames_tested(self, eng, n):
+        """Which of ``n`` draws ran the per-object test (counted by _cull_box)."""
+        seen = []
+        real = CV._cull_box
+        for i in range(n):
+            calls = []
+            with mock.patch.object(CV, "_cull_box", lambda o: calls.append(1) or real(o)):
+                eng.draw()
+            seen.append(bool(calls))
+        return seen
+
+    def test_all_in_view_backs_off_to_one_test_in_33(self):
+        eng = _engine()
+        eng.cull_offscreen = True
+        self.track(Circle(center=(500, 400), radius=20))
+        seen = self._frames_tested(eng, 200)
+        tested = [i for i, t in enumerate(seen) if t]
+        gaps = [b - a - 1 for a, b in zip(tested, tested[1:])]
+        self.assertEqual(gaps[:6], [1, 2, 4, 8, 16, 32])
+        self.assertTrue(all(g == CV._CULL_BACKOFF_MAX for g in gaps[5:]), gaps)
+
+    def test_something_off_screen_is_tested_every_frame(self):
+        eng = _engine()
+        eng.cull_offscreen = True
+        self.track(Circle(center=(500, 400), radius=20))
+        self.track(Circle(center=(50000, 50000), radius=10))
+        self.assertTrue(all(self._frames_tested(eng, 40)))
+
+    def test_a_stray_body_off_screen_still_backs_off(self):
+        """One shot below the screen among 40 bodies: not worth a test a frame."""
+        eng = _engine()
+        eng.cull_offscreen = True
+        for i in range(40):
+            self.track(Circle(center=(100 + 20 * i, 400), radius=5))
+        self.track(Circle(center=(500, -500), radius=5))
+        seen = self._frames_tested(eng, 80)
+        self.assertLess(sum(seen), 12, "it kept testing every frame")
+
+    def test_a_body_leaving_is_culled_within_the_wait(self):
+        eng = _engine()
+        eng.cull_offscreen = True
+        c = self.track(Circle(center=(500, 400), radius=20))
+        self._frames_tested(eng, 120)                # backed off to the longest wait
+        c.move_to(50000, 50000)
+        for i in range(CV._CULL_BACKOFF_MAX + 2):
+            eng.draw()
+            if eng._cull_skipped:
+                break
+        self.assertTrue(eng._cull_skipped, "the leaving body was never culled")
+        self.assertTrue(all(self._frames_tested(eng, 10)), "a cull that skips tests every frame")
+
+    def test_off_means_no_test(self):
+        eng = _engine()
+        canvas.cull_offscreen = False
+        self.track(Circle(center=(50000, 50000), radius=10))
+        self.assertFalse(any(self._frames_tested(eng, 5)))
 
 
 class TestPlainBlitCull(CullTestCase):

@@ -91,7 +91,7 @@ from .style import (
     BlendMode,
     _SKIA_BLEND_MAP,
 )
-from .state import Attribute, Container, ContainerSlot, ScalarSlot, as_payload, _init_composite, batch_update_self, probe_private
+from .state import Attribute, Container, ContainerSlot, ScalarSlot, as_payload, _init_composite, batch_update_self, probe_private, bump_pose_rev
 from .validate import HINT_EXTENT
 from .process import _DUE_EPS, reached
 from .closed import ClosedSurface, seal
@@ -4199,6 +4199,14 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
 
     @tilt.setter
     def tilt(self, value) -> None:
+        try:
+            self._set_tilt(value)
+        finally:
+            # The paint lean is a draw-box input (the cull keys its box on
+            # the pose revision; Canvas Design, "Offscreen culling").
+            bump_pose_rev(self)
+
+    def _set_tilt(self, value) -> None:
         from .collision import TouchingContact
 
         if value is AUTO_GROUND or value == "ground":
@@ -5129,6 +5137,45 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         lx = (0.5 - px) * w + self._offset_x
         ly = (py - 0.5) * h + self._offset_y
         return self._apply_local_flip(lx, ly)
+
+    def _draw_aabb(self) -> Optional[Tuple[float, float, float, float]]:
+        """World AABB of what ``_blit_image`` draws this frame: the cell on
+        show (its own size, trim and pivot), ``offset``, flips, heading, tilt
+        and seat, mapped through the paint transform (``_apply_paint_xform``).
+        None when nothing is drawn. The cull and the filter-batch bounds read
+        it (``canvas._approx_draw_aabb``): a clip whose cells differ in size
+        drew past a box sized at ``play()``.
+        """
+        loc = self._blit_local_dst()
+        if loc is None:
+            return None
+        cx, cy, _ang, fx, fy, dst, _fr, _idx = loc
+        # The paint transform, applied to the corners in float64 (a skia Rect
+        # is float32): translate · heading · seat · tilt about its pivot · flip.
+        draw_ang = self._draw_angle()
+        sx, sy = self._tilt_seat_local(cx, cy)
+        tilt = self._tilt_angle_for_paint()
+        if abs(tilt) > 1e-12:
+            px, py = self._tilt_pivot_local()
+            rt = math.radians(tilt)
+            ct, st_ = math.cos(rt), math.sin(rt)
+        if draw_ang:
+            ra = math.radians(draw_ang)
+            ca, sa = math.cos(ra), math.sin(ra)
+        l, t, r, b = float(dst.left()), float(dst.top()), float(dst.right()), float(dst.bottom())
+        xs = []
+        ys = []
+        for x, y in ((l, t), (r, t), (r, b), (l, b)):
+            x, y = fx * x, -fy * y
+            if abs(tilt) > 1e-12:
+                x, y = x - px, y - py
+                x, y = x * ct - y * st_ + px, x * st_ + y * ct + py
+            x, y = x + sx, y + sy
+            if draw_ang:
+                x, y = x * ca - y * sa, x * sa + y * ca
+            xs.append(x + cx)
+            ys.append(y + cy)
+        return (min(xs), min(ys), max(xs), max(ys))
 
     def _oriented_frame(self) -> Tuple[float, float, float, float, float]:
         """``(cx, cy, w, h, ang_deg)`` of the drawn sprite (scale + pivot applied)."""
