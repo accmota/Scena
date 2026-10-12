@@ -166,7 +166,10 @@ object costs more than drawing a plain one (D5).
 - Work drifts 5.1 → 6.2 ms, colliders 129 → 205 and layer slots 153 → 230 as
   shots born outside the playfield pile up.
 - Max frame 15–28 ms in every 30 s window: slot builds (D6).
-- To re-run on the fixed game in the milestone check.
+- Re-run on the fixed game, after group A (2026-10-12):
+  - flat: work 2.6–3.2 ms per 30 s window (p99 3.4–4.2), colliders 118–140, RSS 270–294 MiB;
+  - no drift over 5 minutes;
+  - the max frame is still 12–26 ms in every window: slot builds (D6).
 
 ### After group A (2026-10-12, same reference sizes)
 
