@@ -33,6 +33,11 @@ left out.
   turned to that color (`Shield("cyan")` is a cyan bubble). Without a color
   the bubble is unchanged. In 0.8.0 a color on the bubble was taken and
   ignored; code that passed one now draws in it.
+- `move_by(distance=d)` without `angle=` moves forward, along the object's
+  `angle` (read at the call); a negative distance backs up without turning.
+  Before, it raised and you wrote `move_by(angle=x.angle, distance=d)`.
+  `face=True` in this form raises with the fix (the direction already is the
+  heading; on a back-up it would flip the object every call).
 
 ### Changed
 

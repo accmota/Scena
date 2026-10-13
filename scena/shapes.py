@@ -2351,9 +2351,12 @@ class Shape(Graphic, PaintState):
     ) -> Union['Shape', 'Handle']:
         """
         Move by a cartesian delta (dx/dy or Vec2) or polar ``angle=`` + ``distance=``.
-        Families are exclusive. A Point, Graphic, or mouse is a location — use ``move_to``.
+        ``distance=`` alone moves along the heading (``.angle``, read at the call);
+        negative backs up. Families are exclusive. A Point, Graphic, or mouse is a
+        location — use ``move_to``.
         With ``time=``, interpolate the frozen delta and return a Handle.
-        ``face=True`` aims ``.angle`` at the travel direction (zero delta holds).
+        ``face=True`` aims ``.angle`` at the travel direction (zero delta holds);
+        it needs an explicit ``angle=`` in the polar family.
         force=True unlinks Defining parts that must be written (default: raise).
         """
         if time is None and (then is not None or on_done is not None or ease != "linear"):
@@ -2396,10 +2399,22 @@ class Shape(Graphic, PaintState):
                 "move_by(v), or move_by(angle=…, distance=…)."
             )
         if polar:
-            if angle is None or distance is None:
+            if distance is None:
                 raise TypeError(
-                    "move_by polar family requires both angle= and distance=."
+                    "move_by(angle=…) needs distance=. Write move_by(angle=…, distance=…), "
+                    "or move_by(distance=…) to move along the heading."
                 )
+            if angle is None:
+                # ``distance=`` alone moves along the heading, read now (like
+                # ``raycast(length=)``). ``face=`` would write the heading it read.
+                if face:
+                    raise TypeError(
+                        "move_by(distance=…) without angle= already moves along the "
+                        "heading; face=True would turn the shape by its own motion. "
+                        "Drop face=True (back up with a negative distance), or turn "
+                        "first with rotate_by(180), or pass angle= explicitly."
+                    )
+                angle = self.angle
             ang = finite(angle, "move_by angle=")
             dist = finite(distance, "move_by distance=")
             if callable(ang) or callable(dist):

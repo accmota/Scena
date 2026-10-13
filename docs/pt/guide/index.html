@@ -1236,7 +1236,7 @@
 
   <a href="#mover" class="nav-top" data-chapter="mover" data-search="mover move_to move_by move_along rotate_to rotate_by scale_to scale_by tween ease time pose path confine clamp bounce wrap loops yoyo force about">Mover</a>
   <div class="nav-block" data-nav="mover">
-    <a href="#mover-pose" class="nav-child" data-chapter="mover" data-search="move_to move_by rotate_to rotate_by scale_to scale_by rotate scale reset_rotation rest_heading placement motion coloca viaja about polar">move / rotate / scale</a>
+    <a href="#mover-pose" class="nav-child" data-chapter="mover" data-search="move_to move_by frente forward ré rotate_to rotate_by scale_to scale_by rotate scale reset_rotation rest_heading placement motion coloca viaja about polar">move / rotate / scale</a>
     <a href="#suite" class="nav-child" data-chapter="mover" data-search="suíte suite time ease loops yoyo face then on_done about force duration">Parâmetros de tempo (time=)</a>
     <a href="#mover-move-along" class="nav-child" data-chapter="mover" data-search="move_along path track trilha preset eight circle span phase at cursor velocity speed heading lap frota">move_along</a>
     <a href="#mover-confine" class="nav-child" data-chapter="mover" data-search="confine clamp bounce wrap by box center overlap Box limites tela">confine</a>
@@ -2259,6 +2259,7 @@ c.visual = Neon()</pre>
               <button class="copy-btn" type="button">copiar</button>
 <pre>c.move_by(200 * dt, 0)
 c.move_by(angle=90, distance=40)
+c.move_by(distance=120 * dt)
 c.rotate_by(30 * dt)</pre>
             </div>
           </div>
@@ -6978,7 +6979,7 @@ def update(dt):
         <table>
           <thead><tr><th></th><th>Absoluto (destino)</th><th>Relativo (delta)</th></tr></thead>
           <tbody>
-            <tr><td>Mover</td><td><code>move_to(x, y)</code> — <code>Vec2</code> / <code>Point</code>, <code>about=</code></td><td><code>move_by(dx, dy)</code> — <code>Vec2</code>, polar <code>angle=</code> / <code>distance=</code></td></tr>
+            <tr><td>Mover</td><td><code>move_to(x, y)</code> — <code>Vec2</code> / <code>Point</code>, <code>about=</code></td><td><code>move_by(dx, dy)</code> — <code>Vec2</code>, polar <code>angle=</code> / <code>distance=</code>, só <code>distance=</code> (para a frente)</td></tr>
             <tr><td>Girar</td><td><code>rotate_to(θ)</code> — arco curto</td><td><code>rotate_by(dθ)</code> — como escrito</td></tr>
             <tr><td>Escalar</td><td><code>scale_to(s)</code></td><td><code>scale_by(f)</code></td></tr>
             <tr><td>Por uma curva</td><td colspan="2"><a href="#mover-move-along"><code>move_along(track, time=)</code></a></td></tr>
@@ -7022,18 +7023,20 @@ missile.move_to(target, time=1.2, face=True)</pre>
           </div>
         </div>
         <div class="tab-panel" data-panel="pose-move-by" id="pose-move-by">
-          <p class="one-liner">Desloca o objeto a partir de onde ele está — é um deslocamento, não um destino. É sempre uma viagem: uma parede de <code>resolve()</code> o para no meio. Escreva o deslocamento de um destes jeitos, um por chamada: <code>dx, dy</code> · um <code>Vec2</code> · <code>angle=</code> e <code>distance=</code>. Com <code>time=</code>, o deslocamento é calculado no início e não muda durante a viagem.</p>
+          <p class="one-liner">Desloca o objeto a partir de onde ele está — é um deslocamento, não um destino. É sempre uma viagem: uma parede de <code>resolve()</code> o para no meio. Escreva o deslocamento de um destes jeitos, um por chamada: <code>dx, dy</code> · um <code>Vec2</code> · <code>angle=</code> e <code>distance=</code> · só <code>distance=</code>, para onde o objeto aponta. Com <code>time=</code>, o deslocamento é calculado no início e não muda durante a viagem.</p>
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
 <pre>c.move_by(40, 0)                        # dx, dy
 c.move_by(Vec2(40, 0))                  # Vec2 no 1º
 c.move_by(angle=90, distance=40)        # polar (os dois juntos)
+nave.move_by(distance=200 * dt)         # para a frente (sem angle=: usa nave.angle)
+nave.move_by(distance=-80 * dt)         # ré: anda para trás, sem virar
 c.move_by(200 * dt, 0)
 c.move_by(0, 80, time=0.4)
 c.move_by(40, 0, time=0.5, loops="forever", yoyo=True)
 bolt.move_by(angle=45, distance=500, time=1.0, face=True)</pre>
           </div>
-          <p class="sig"><code>move_by(dx, dy, *, time=None, ease="linear", loops=1, yoyo=False, face=False, then=, on_done=, force=False)</code> · <code>move_by(Vec2, *, …)</code> · <code>move_by(angle=, distance=, *, …)</code></p>
+          <p class="sig"><code>move_by(dx, dy, *, time=None, ease="linear", loops=1, yoyo=False, face=False, then=, on_done=, force=False)</code> · <code>move_by(Vec2, *, …)</code> · <code>move_by(angle=, distance=, *, …)</code> · <code>move_by(distance=, *, …)</code></p>
           <div class="tbl-wrap wrap-first">
             <table>
           <thead>
@@ -7042,7 +7045,7 @@ bolt.move_by(angle=45, distance=500, time=1.0, face=True)</pre>
           <tbody>
 <tr><td><code>dx</code>, <code>dy</code></td><td>1º · 2º</td><td class="type"><span class="t">número</span><span class="ex">20</span></td><td>Deslocamento cartesiano.</td></tr>
 <tr><td><code>Vec2</code></td><td>1º</td><td class="type"><span class="t">Vec2</span></td><td>Delta num único argumento. <code>Point</code> levanta <code>TypeError</code> — use <code>move_to</code>. Tupla <code>(dx, dy)</code> não entra.</td></tr>
-<tr><td><code>angle=</code>, <code>distance=</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">90</span></td><td>Polar: os dois juntos. Graus, 0 = +x. Não misture com <code>dx</code>/<code>dy</code> na mesma chamada.</td></tr>
+<tr><td><code>angle=</code>, <code>distance=</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">90</span></td><td>Polar. Graus, 0 = +x. Sem <code>angle=</code>, anda para onde o objeto aponta: lê o <code>angle</code> na hora da chamada (como <code>raycast(length=)</code>); negativo dá ré e a direção não muda. <code>angle=</code> sem <code>distance=</code> levanta <code>TypeError</code>. Não misture com <code>dx</code>/<code>dy</code> na mesma chamada.</td></tr>
 <tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> · <code>ease=</code> · <code>loops=</code> · <code>yoyo=</code> · <code>face=</code> · <code>then=</code> · <code>on_done=</code> · <code>force=</code>. Sem <code>about=</code>.</td></tr>
           </tbody>
         </table>
@@ -7176,6 +7179,7 @@ ship["scale"] @= lambda: 1.0 + 0.15 * st.pulse</pre>
 <thead><tr><th>Parece</th><th>É</th><th>Não é</th></tr></thead>
 <tbody>
 <tr><td><code>move_by(p)</code> com Point</td><td><code>TypeError</code>. Destino é <code>move_to(p)</code>. Delta: <code>dx, dy</code>, <code>Vec2</code> ou <code>angle=</code>/<code>distance=</code>. Tupla nua não entra em <code>move_by</code>. Polar não existe em <code>move_to</code>.</td><td>delta com Point</td></tr>
+<tr><td><code>move_by(distance=…, face=True)</code> vira para onde anda</td><td><code>TypeError</code>. Sem <code>angle=</code> a direção já é o <code>angle</code>; <code>face=</code> giraria o objeto pelo próprio movimento (com distância negativa, meia-volta a cada chamada). Ré: tire <code>face=</code>. Meia-volta: <code>rotate_by(180)</code> antes. Ou passe <code>angle=</code>.</td><td>virar</td></tr>
 <tr><td><code>move_to(..., about=, face=True)</code> gira em torno do centro</td><td>Gira em torno do ponto <code>about=</code> — senão a âncora sairia do destino no instante da rotação. Só <code>move_to</code> tem <code>about=</code> entre os verbos de mover.</td><td>o centro</td></tr>
 <tr><td><code>turret["angle"] @= …</code> gira em volta de qualquer ponto</td><td>A ligação (<code>@=</code>) escreve o campo: o ponto de posicionamento fica parado (ou gira pelo centro, onde a direção vem dos pontos). Outro pivô: chame o verbo com <code>about=</code>.</td><td><code>rotate_to(…, about=)</code></td></tr>
 <tr><td><code>x.angle = 30</code> faz o mesmo que <code>x.rotate_to(30)</code></td><td>Só num objeto posicionado pelo centro. Um Rect <code>top_left=</code> mantém o <code>top_left</code> com <code>angle =</code>; <code>rotate_to</code> gira pelo centro — como <code>top_left =</code> e <code>move_to</code>.</td><td>—</td></tr>
