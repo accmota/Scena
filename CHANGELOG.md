@@ -40,7 +40,8 @@ left out.
   same trip as `time=` (`ease=`, `loops=`, `yoyo=`, `on_done=` all work; with
   an `ease`, `speed` is the average). `time=` and `speed=` together raise.
   `move_along` now takes either one (before, `time=` was required).
-  `scale_*`, `zoom_*` and `tween` have no `speed=`.
+  `scale_*`, `zoom_*` and `tween` have no `speed=`. Like `time=`, it does
+  not follow a target that moves: for that, `approach` in `update`.
 
 ### Changed
 
