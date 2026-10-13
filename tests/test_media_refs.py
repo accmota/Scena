@@ -289,7 +289,7 @@ class TestMediaRefs(unittest.TestCase):
         self.assertEqual(dead_paths(script, src), ["3: space/gone.png", "6: space/vanished.png"])
 
     def test_a_box_is_read_where_it_runs(self):
-        # 2026-10-09 (tutorials 14-20): a box that only parses in its place
+        # 2026-10-09 (tutorials 17-23): a box that only parses in its place
         # (a bare ``if`` line with replaces:) raised SyntaxError here, so
         # authors bent boxes to please the scan. It is read the way
         # test_tutorials runs it.

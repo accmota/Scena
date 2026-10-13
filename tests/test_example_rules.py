@@ -18,7 +18,7 @@ Bug classes guarded (catalogue: Testing Design, TU):
   ``test_tutorials.TestOneShotClipPlaysOnce``): the dying ninja played
   ``"morto"`` in mid air, and asked again every frame it would loop. It falls
   to the ground first, then holds the clip's last cell.
-* **The moving platform** (tutorial 22, "O elevador"): the ninja rides the
+* **The moving platform** (tutorial 25, "O elevador"): the ninja rides the
   elevator up and down with its feet on it every frame, and reaches the star
   only the elevator gets to. A fall into the water on the last life sinks
   instead of sending the ninja back to the start.

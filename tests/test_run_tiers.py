@@ -168,7 +168,7 @@ class TestShard(unittest.TestCase):
         self.assertEqual([j.names for j in focused], [[f"tests.{mod}"]])
 
     def test_tutorial_steps_run_one_job_per_page_in_gate_and_none_in_quick(self):
-        # 2026-10-10: tutorials 14-23 doubled the steps; one test ran them all
+        # 2026-10-10: tutorials 17-26 doubled the steps; one test ran them all
         # (~440 s CPU) and timed out the quick tier's 300 s job. The module is
         # SLOW, and the gate runs each page's steps as their own job.
         from tests import test_tutorial_steps as ts

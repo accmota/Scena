@@ -1,4 +1,4 @@
-"""Ligue 4 — tutorial 16.
+"""Ligue 4 — tutorial 19.
 
 Um jogo de tabuleiro para dois jogadores, vermelho e azul. Cada um, na sua
 vez, arrasta a bola do lado do tabuleiro e a solta numa coluna; a bola cai

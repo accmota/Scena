@@ -216,6 +216,7 @@ Line(p1=lambda: ponta1.center, p2=lambda: ponta2.center)  # ao vivo`
       body: `
         <p>Primeiro movimento do compasso: a ponta seca em <code>ponta1</code>, a abertura até <code>ponta2</code>. Em código, é o círculo de dois pontos do primeiro script: <code>center</code> na primeira ponta, <code>perimeter_point</code> na segunda. Assim o raio é sempre o comprimento do segmento. As duas posições são <code>lambda</code>, então o círculo segue as âncoras: afaste-as, e ele cresce.</p>
         <p><strong>Só o contorno.</strong> Na construção, o que interessa é a borda do círculo; um disco pintado cobriria o resto. <code>fill</code> (preenchimento) é a tinta de dentro da forma. <code>None</code> (nenhum) é o valor do Python para “nada”, então o círculo fica oco, só com o contorno, num tom mais escuro da cor. <code>line_width = 2</code> engrossa um pouco esse contorno, para ele aparecer bem sobre o fundo.</p>
+        <p><strong>Uma chamada em várias linhas.</strong> O <code>Circle(</code> agora ocupa várias linhas, uma informação por linha. Enquanto um parêntese está aberto, o Python continua lendo na linha de baixo; assim a chamada longa fica fácil de ler. A vírgula depois da última informação é permitida (e ajuda: para acrescentar uma linha, não precisa mexer na de cima).</p>
         <p>Rode: o segmento sai do centro do círculo e termina exatamente na borda.</p>
       `,
       code: `from scena import *
