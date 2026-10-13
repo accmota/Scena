@@ -5,6 +5,7 @@ Run headless:
     python -m unittest tests.test_track tests.test_curves -v
 """
 
+import math
 import os
 import sys
 import unittest
@@ -1336,6 +1337,237 @@ class TestFloatingShapeWrap(TrackTestCase):
         self.assertTrue(_xy_close(
             (float(template.center.x), float(template.center.y)), (200, 100), places=1,
         ))
+
+
+# ---------------------------------------------------------------------------
+# KN9 — a placement after construction anchors an inferred float
+# ---------------------------------------------------------------------------
+
+_PLACE = (600.0, 200.0)
+
+
+def _inferred_floats():
+    """Every way to make a track that floats by inference (no placement)."""
+    return (
+        ("Track()", lambda: Track()),
+        ("eight", lambda: Track.eight(width=80, height=40)),
+        ("circle", lambda: Track.circle(radius=40)),
+        ("arc", lambda: Track.arc(radius=30)),
+        ("star", lambda: Track.star(radius=30)),
+        ("spiral", lambda: Track.spiral(radius=30)),
+        ("shuttle", lambda: Track.shuttle(length=80)),
+        ("line", lambda: Track.line(length=100)),
+        ("line vec", lambda: Track.line(vec=Vec2(60, 30))),
+        ("wave", lambda: Track.wave()),
+        ("vectors", lambda: Track(vectors=[(50, 0), (0, 80)], smooth=0)),
+    )
+
+
+def _placements(anchor):
+    """Every author spelling that gives a track's center a place (at ``_PLACE``).
+
+    ``anchor`` is a Point sitting on ``_PLACE`` (the link source)."""
+    def by(t, dx, dy):
+        t.move_by(dx - float(t.center.x), dy - float(t.center.y))
+
+    def xy(t):
+        t.center.x = _PLACE[0]
+        t.center.y = _PLACE[1]
+
+    def lshift(t):
+        t.center << _PLACE
+
+    def link_x_y(t):
+        t.center["x"] @= lambda: anchor.x
+        t.center["y"] @= lambda: anchor.y
+
+    def link_dot(t):
+        t.center @= anchor
+
+    def link_bracket(t):
+        t["center"] @= lambda: (anchor.x, anchor.y)
+
+    return (
+        ('["center"] @= lambda', link_bracket),
+        (".center @= point", link_dot),
+        ('center["x"] / ["y"] @=', link_x_y),
+        (".center =", lambda t: setattr(t, "center", _PLACE)),
+        ("move_to", lambda t: t.move_to(*_PLACE)),
+        ("move_by", lambda t: by(t, *_PLACE)),
+        ("center.x / .y =", xy),
+        ("center <<", lshift),
+    )
+
+
+class TestPlacementAnchorsInferredFloat(TrackTestCase):
+    """KN9: ``orbit = Track.circle(radius=120); orbit["center"] @= …`` kept the
+    track floating, so its rider circled its own start and ignored the link.
+    A placement after construction is the placement the track was made
+    without: it anchors, as ``center=`` would have."""
+
+    def tearDown(self):
+        self._owned.reverse()       # tracks before their link sources: no unlink warnings
+        super().tearDown()
+
+    def _anchor(self):
+        return self.track(Point(*_PLACE))
+
+    def _assert_rides_on_track(self, t, msg):
+        bug = self.track(Circle(center=(900, 900), radius=3))
+        h = bug.move_along(t, time=1.0)
+        _frame(0.1)
+        self.assertTrue(_xy_close(
+            (float(bug.center.x), float(bug.center.y)), t.at(h.u), places=1,
+        ), msg)
+        h.cancel()
+        return bug
+
+    def test_every_preset_every_placement_anchors(self):
+        for kind, make in _inferred_floats():
+            for how, place in _placements(self._anchor()):
+                msg = f"{kind} + {how}"
+                with self.subTest(msg):
+                    t = self.track(make())
+                    self.assertTrue(t.is_floating, msg)
+                    place(t)
+                    self.assertFalse(t.is_floating, msg)
+                    self.assertTrue(_xy_close(
+                        (float(t.center.x), float(t.center.y)), _PLACE, places=1,
+                    ), msg)
+                    self._assert_rides_on_track(t, msg)
+
+    def test_placement_onto_the_spot_it_has_still_anchors(self):
+        # The default pose is the canvas center: placing an orbit there is a
+        # natural line and changes no value, so only the call can tell.
+        spellings = (
+            (".center =", lambda t, xy: setattr(t, "center", xy)),
+            ("move_to", lambda t, xy: t.move_to(*xy)),
+        )
+        for kind, make in _inferred_floats():
+            for how, place in spellings:
+                with self.subTest(f"{kind} + {how}"):
+                    t = self.track(make())
+                    here = (float(t.center.x), float(t.center.y))
+                    place(t, here)
+                    self.assertFalse(t.is_floating, f"{kind} + {how}")
+            with self.subTest(f"{kind} + link"):
+                t = self.track(make())
+                spot = self.track(Point(float(t.center.x), float(t.center.y)))
+                t["center"] @= lambda: (spot.x, spot.y)
+                self.assertFalse(t.is_floating, kind)
+
+    def test_link_follows_the_source(self):
+        earth = self.track(Circle(center=(300, 300), radius=20))
+        moon = self.track(Circle(center=(700, 300), radius=8))
+        orbit = self.track(Track.circle(radius=120))
+        orbit["center"] @= lambda: earth.center
+        moon.move_along(orbit, time=4, loops="forever")
+        for _ in range(8):
+            earth.move_by(10, 0)
+            _frame(0.1)
+        d = math.hypot(float(moon.center.x) - float(earth.center.x),
+                       float(moon.center.y) - float(earth.center.y))
+        self.assertAlmostEqual(d, 120.0, delta=0.5)   # the circle is a sampled polyline
+
+    def test_placement_after_the_ride_began_pulls_the_rider(self):
+        for how, place in _placements(self._anchor()):
+            with self.subTest(how):
+                t = self.track(Track.circle(radius=50))
+                bug = self.track(Circle(center=(100, 100), radius=3))
+                h = bug.move_along(t, time=4, loops="forever")
+                _frame(0.1)
+                place(t)
+                _frame(0.1)
+                self.assertTrue(_xy_close(
+                    (float(bug.center.x), float(bug.center.y)), t.at(h.u), places=1,
+                ), how)
+                h.cancel()
+
+    def test_is_floating_false_after_the_ride_began_pulls_the_rider(self):
+        t = self.track(Track.circle(radius=50, center=_PLACE, floating=True))
+        bug = self.track(Circle(center=(100, 100), radius=3))
+        h = bug.move_along(t, time=4, loops="forever")
+        _frame(0.1)
+        t.is_floating = False
+        _frame(0.1)
+        self.assertTrue(_xy_close(
+            (float(bug.center.x), float(bug.center.y)), t.at(h.u), places=1,
+        ))
+
+    def test_said_floating_never_flips(self):
+        for how, place in _placements(self._anchor()):
+            with self.subTest(f"floating=True + {how}"):
+                t = self.track(Track.circle(radius=40, floating=True))
+                place(t)
+                self.assertTrue(t.is_floating, how)
+            with self.subTest(f"is_floating = True + {how}"):
+                t = self.track(Track.circle(radius=40))
+                t.is_floating = True
+                place(t)
+                self.assertTrue(t.is_floating, how)
+
+    def test_said_floating_rider_still_roots_at_itself(self):
+        t = self.track(Track.circle(radius=40, floating=True))
+        t.center = _PLACE
+        bug = self.track(Circle(center=(100, 100), radius=3))
+        bug.move_along(t, time=1.0)
+        self.assertTrue(_xy_close(
+            (float(bug.center.x), float(bug.center.y)), (100, 100), places=1,
+        ))
+
+    def test_pose_and_window_are_not_placements(self):
+        t = self.track(Track.eight(width=80, height=40))
+        src = self.track(Circle(center=(0, 0), radius=20))
+        t.rotate_by(30)
+        t.scale_by(1.5)
+        t.angle = 45
+        t["u"] @= lambda: src.radius / 100
+        t.begin = 0.2
+        t.end = 0.8
+        t.flip_x = True
+        self.assertTrue(t.is_floating)
+
+    def test_a_link_that_fails_does_not_anchor(self):
+        t = self.track(Track.circle(radius=40))
+        with self.assertRaises(TypeError):
+            t["center"] @= lambda: (1, 2)       # no reactive source
+        self.assertTrue(t.is_floating)
+
+    def test_reversed_view_shares_the_anchoring(self):
+        host = self.track(Track.eight())
+        view = host.reversed()
+        anchor = self._anchor()
+        view["center"] @= lambda: (anchor.x, anchor.y)
+        self.assertFalse(host.is_floating)
+        self.assertFalse(view.is_floating)
+        host2 = self.track(Track.eight())
+        view2 = host2.reversed()
+        view2.move_to(*_PLACE)
+        self.assertFalse(host2.is_floating)
+        self._assert_rides_on_track(view2, "reversed view")
+
+    def test_clone_and_copy_keep_the_inference(self):
+        t = self.track(Track.eight())
+        c = self.track(t.clone())
+        self.assertTrue(c.is_floating)
+        c.move_to(*_PLACE)
+        self.assertFalse(c.is_floating)
+        self.assertTrue(t.is_floating)
+        t.move_by(5, 0)
+        self.assertFalse(self.track(t.clone()).is_floating)
+        a = self.track(Track.circle(radius=10, center=(0, 0)))
+        a << self.track(Track.eight())
+        self.assertTrue(a.is_floating)
+        a.center = _PLACE
+        self.assertFalse(a.is_floating)
+
+    def test_at_on_a_placed_track_raises(self):
+        t = self.track(Track.eight())
+        t.move_to(*_PLACE)
+        bug = self.track(Circle(center=(0, 0), radius=3))
+        with self.assertRaises(TypeError) as cm:
+            bug.move_along(t, time=0.2, at=(10, 10))
+        self.assertIn("floating", str(cm.exception))
 
 
 class TestLinkedPointsCenterDerivate(TrackTestCase):

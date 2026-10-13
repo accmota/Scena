@@ -4453,6 +4453,10 @@ def timed_move_along(
         floating=floating, root_x=root_x, root_y=root_y,
         span0=span0, span1=span1, phase=phase, face=bool(face), wrap=wrap,
     )
+    if floating:
+        # Anchoring the track later (a placement, ``is_floating = False``)
+        # switches this ride to the track's place (KN9).
+        path._pose_host()._list_floating_ride(ride)
     # Start on the track: first delta is from the rider's current pose to u0.
     cx0, cy0 = shape._center_xy()
     ride.prev_x, ride.prev_y = cx0, cy0

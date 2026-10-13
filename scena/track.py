@@ -254,6 +254,15 @@ def _resolve_anchored(*, placement_given: bool, floating, anchored) -> bool:
     return bool(placement_given)
 
 
+class _TrackCenterSlot(ContainerSlot):
+    """``track.center = …`` is a placement (``Track._note_placed``), even onto
+    the spot the track already has (a move of 0 changes no value)."""
+
+    def __set__(self, instance, value):
+        super().__set__(instance, value)
+        instance._note_placed()
+
+
 def _line_center_from_p1(p1, length: float, angle: float) -> Tuple[float, float]:
     """Defining pose so ``at(0)`` lands on ``p1`` for a sizes-form line."""
     sx, sy = _point_xy_static(p1)
@@ -479,7 +488,9 @@ class Track(Shape):
 
     Construction infers anchored vs floating from the preset's placement
     keyword (``center=`` / ``p1=`` / ``start=``). Sizes only → floating;
-    placement given → anchored. ``floating=`` explicit always wins.
+    placement given → anchored. A sizes-only track given a place later (a
+    link on ``center``, ``center =``, ``move_to`` / ``move_by``) is anchored
+    there. ``floating=`` explicit always wins.
     ``points=`` is world-space absolute; ``vectors=`` is a turtle walk of deltas.
     Bare ``Track()`` is ``Track.eight()``.
 
@@ -537,7 +548,7 @@ class Track(Shape):
         ),
     }
 
-    center = ContainerSlot(Point)
+    center = _TrackCenterSlot(Point)
     radius = ScalarSlot(magnitude=True, hint=HINT_EXTENT, label="Track.radius")
     length = ScalarSlot(FieldType.Derivate)
     u = ScalarSlot()
@@ -798,6 +809,10 @@ class Track(Shape):
         finally:
             if getattr(self, "_defining_part_names", None):
                 self._init_draw_window(begin, end)
+            if floating is None and _anchored is None and not self._anchored:
+                # Floats by inference (no placement given): the first
+                # placement anchors it (``_note_placed``).
+                self._float_mark = self._float_mark_now()
             if angle is not None:
                 if callable(angle) and not isinstance(angle, Attribute):
                     self._link_field("angle", angle)   # like every shape's angle=
@@ -1065,6 +1080,10 @@ class Track(Shape):
                 host._update_impl()
 
     def _update_impl(self) -> None:
+        if self._float_mark is not None:
+            # A write dirtied an inferred float that is being ridden
+            # (``_list_floating_ride`` flags it): a moved center anchors it.
+            self._settle_inferred()
         key = (self._geom_key(), self._local_mirror())
         if key != self._baked_key or not self._xs:
             self._flatten_now()
@@ -1310,12 +1329,91 @@ class Track(Shape):
 
     @property
     def is_floating(self) -> bool:
-        """``True``: the track rides with whoever follows it (relative); ``False``: fixed in the world."""
-        return not self._pose_host()._anchored
+        """``True``: the track rides with whoever follows it (relative); ``False``: fixed in the world.
+
+        Writing it is final; a sizes-only track not written here anchors
+        when it is given a place (link / write / move of ``center``)."""
+        host = self._pose_host()
+        if host._float_mark is not None:
+            host._settle_inferred()
+        return not host._anchored
 
     @is_floating.setter
     def is_floating(self, value) -> None:
-        self._pose_host()._anchored = not _expect_flag(value, 'is_floating')
+        host = self._pose_host()
+        host._anchored = not _expect_flag(value, 'is_floating')
+        host._float_mark = None           # said by the author: no placement flips it
+        if host._anchored:
+            host._pull_floating_rides()
+
+    # -- placement anchors an inferred float ---------------------------------
+    # A track made without a placement (``Track.circle(radius=120)``) floats
+    # by inference. Giving it a place later -- a link on ``center`` (or its
+    # x / y), ``center =``, ``move_to``, or any move of its center -- is the
+    # placement it was made without: it anchors, as ``center=`` would have.
+    # Until 2026-10 the track kept floating and its riders ignored the place
+    # (``orbit["center"] @= lambda: earth.center`` did nothing, KN9).
+    # ``floating=`` / ``is_floating =`` said by the author never flip.
+
+    # ``(center.__dict__, x, y)`` at construction while the float is inferred,
+    # else None. Class default: construction runs before the inference.
+    _float_mark = None
+
+    def _float_mark_now(self):
+        d = self.__dict__["center"].__dict__
+        return (d, d.get("x"), d.get("y"))
+
+    def _note_placed(self) -> None:
+        """An author placement of the center (link, ``center =``, ``move_to``)."""
+        host = self._pose_host()
+        if host._float_mark is not None:
+            host._float_mark = None
+            host._anchored = True
+            host._pull_floating_rides()
+
+    def _list_floating_ride(self, ride) -> None:
+        """``move_along`` began a floating ride here (weakly held; ride start only).
+
+        An inferred float also takes a pull consumer: a write to its center
+        (``center.x =``, ``center << p``, ``move_by``, a tween) then dirties
+        it, and the ride's next sample refreshes it (``_update_impl``), which
+        anchors a moved center. No check on a clean tick."""
+        rides = self.__dict__.get("_floating_rides")
+        if rides is None:
+            from weakref import WeakSet
+            rides = self._floating_rides = WeakSet()
+        rides.add(ride)
+        if self._float_mark is not None:
+            self._flag_pull_consumers()
+
+    def _pull_floating_rides(self) -> None:
+        """Anchored now: rides that began floating join the track where it is."""
+        rides = self.__dict__.get("_floating_rides")
+        if rides:
+            for ride in tuple(rides):
+                ride.floating = False
+            rides.clear()
+
+    def _settle_inferred(self) -> None:
+        """The lazy half of ``_note_placed``: the center moved since construction
+        by a spelling with no hook of its own (``center.x =``, ``center << p``,
+        ``move_by``, a tween)."""
+        # Bare floats: while inferred the center has no link (a link anchors
+        # at once). Asked at ride start, on ``is_floating`` and on a refresh
+        # after a write (``_update_impl``), never on a clean tick.
+        d, x0, y0 = self._float_mark
+        if d.get("x") != x0 or d.get("y") != y0:
+            self._note_placed()
+
+    def _part_link_changed(self, node) -> None:
+        """A link on ``center`` (or ``center.x`` / ``.y``) is a placement."""
+        if self._float_mark is None or node._link is None:
+            return
+        center = self.__dict__.get("center")
+        while node is not None and node is not center:
+            node = node._owner
+        if node is not None:
+            self._note_placed()
 
     @property
     def smooth(self) -> float:
@@ -1487,7 +1585,9 @@ class Track(Shape):
         cloned._ctrl_local = local
         cloned._invalidate_bake()
         if "floating" not in kw:
-            cloned._anchored = host._anchored
+            cloned._anchored = not host.is_floating     # settles a moved inferred float
+            if host._float_mark is not None:
+                cloned._float_mark = cloned._float_mark_now()
         # Effective window: a reversed() view does not own begin/end.
         a, b, _full = self._draw_window()
         cloned.begin = a
@@ -1553,7 +1653,9 @@ class Track(Shape):
         cx, cy = get_xy(host.center, bare=True)
         dx = None if x is None else float(x) - cx
         dy = None if y is None else float(y) - cy
-        return self._move_by(dx or 0.0, dy or 0.0, force=force)
+        out = self._move_by(dx or 0.0, dy or 0.0, force=force)
+        self._note_placed()       # a placement even onto the spot it has
+        return out
 
     def _parts_written_by_drag(self) -> Tuple:
         host = self._table_host()
@@ -1585,8 +1687,10 @@ class Track(Shape):
             self._invalidate_bare_reads()
         self._closed = other._table_host()._closed
         self._smooth = 0.0
-        self._anchored = other._pose_host()._anchored
+        src = other._pose_host()
+        self._anchored = not src.is_floating      # settles a moved inferred float
         self.center._takein(other.center)
+        self._float_mark = None if src._float_mark is None else self._float_mark_now()
         a, b, _full = other._draw_window()
         self.begin = a
         self.end = b
@@ -2179,22 +2283,15 @@ def _resolve_move_along_target(target):
         raise TypeError(
             'move_along preset "zigzag" was removed; use "eight" (Track.eight()).'
         )
-    if name == "circle":
-        return Track.circle(_register=False)
-    if name == "eight":
-        return Track.eight(_register=False)
-    if name == "star":
-        return Track.star(_register=False)
-    if name == "wave":
-        return Track.wave(_register=False)
-    if name == "spiral":
-        return Track.spiral(_register=False)
-    if name == "arc":
-        return Track.arc(_register=False)
-    if name == "line":
-        return Track.line(_register=False)
-    if name == "shuttle":
-        return Track.shuttle(_register=False)
+    make = {
+        "circle": Track.circle, "eight": Track.eight, "star": Track.star,
+        "wave": Track.wave, "spiral": Track.spiral, "arc": Track.arc,
+        "line": Track.line, "shuttle": Track.shuttle,
+    }.get(name)
+    if make is not None:
+        track = make(_register=False)
+        track._float_mark = None    # no author handle: nothing can place it (KN9)
+        return track
     allowed = ", ".join(repr(n) for n in _MOVE_ALONG_PRESET_NAMES)
     raise TypeError(
         f"move_along preset string expected one of {allowed}, got {name!r}. "
@@ -2276,7 +2373,9 @@ class RideState:
     """Per-handle travel along a Track / Shape outline.
 
     Always motion: ticks apply ``_move_by`` deltas. Floating tracks freeze a
-    world root at start; anchored tracks read the path pose live.
+    world root at start; anchored tracks read the path pose live. A floating
+    ride whose track is anchored later is switched to the live pose by the
+    track (``Track._pull_floating_rides``), one way, at no per-tick cost.
     """
 
     __slots__ = (
@@ -2285,6 +2384,7 @@ class RideState:
         "prev_x", "prev_y", "baked",
         "frozen_xs", "frozen_ys", "frozen_s", "frozen_closed", "frozen_rev",
         "frozen_cx", "frozen_cy", "frozen_rot", "frozen_scale",
+        "__weakref__",      # a floating ride is listed on its track's host
     )
 
     def __init__(self, rider, path, *, floating, root_x, root_y,
