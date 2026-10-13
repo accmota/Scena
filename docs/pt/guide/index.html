@@ -3239,7 +3239,7 @@ mix = Sheet("ninja/Idle__*.png", "ninja/Dead__009.png")</pre>
         <button class="tab" type="button" data-tab="spr-size">Tamanhos diferentes</button>
       </div>
       <div class="tab-panel active" data-panel="spr-clip" id="spr-clip">
-        <p class="one-liner">Sequência nomeada no Sheet; <code>play</code> no Sprite. O mesmo clip de novo não faz nada — seguro chamar em <code>update</code>.</p>
+        <p class="one-liner">Sequência nomeada no Sheet; <code>play</code> no Sprite. O mesmo clip de novo, enquanto toca, não faz nada — seguro chamar em <code>update</code>. Um clip de <code>loops=1</code> que já acabou recomeça: para tocar uma vez só a partir do <code>update</code>, pergunte antes (<code>if not heroi.showing("morto"):</code>).</p>
         <div class="code-panel">
           <button class="copy-btn" type="button">copiar</button>
 <pre>hero = Sheet("hero.png", cols=4, rows=3)
