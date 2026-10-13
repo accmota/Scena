@@ -43,6 +43,15 @@ its last step here.
 The appendices (`A-…` to `F-…` in the same folder) are reference pages made of
 short programs; they end in no file here.
 
+## Other examples
+
+No tutorial ends in these; each docstring says what to try.
+
+| File | What it shows |
+| --- | --- |
+| `entropia.py` | Two colours of balls mix once the middle wall goes; the panel counts each side every 5 s (mix, pressure, temperature, energy). Gravity, loose walls that the pressure blows off, a piston. |
+| `app_pitagoras.py` | The Pythagorean theorem by rearranging triangles (drag, wheel to turn). |
+
 ```bash
 python examples/naves.py
 ```

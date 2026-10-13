@@ -324,6 +324,13 @@ left out.
 
 ### Documentation
 
+- New example `examples/entropia.py`: blue balls on one side, red on the
+  other, a middle wall to take away and put back. Every 5 seconds two
+  invisible rectangles count the colours on each side (`collides_with`), and
+  the panel shows the mix (entropy), pressure, temperature and energy.
+  Checkboxes turn on gravity, loose outer walls (nothing holds them: the
+  pressure pushes them off and the box bursts) and a free middle wall that
+  moves like a piston.
 - Guia, "Tornar sólido": `resolve(hero, ANYTHING)` makes every enrolled body
   solid, coins, shots and sensors included (the hero shoves the coin instead
   of passing through it; its `@collide` still fires). Name the solid groups
