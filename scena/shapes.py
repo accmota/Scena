@@ -2967,6 +2967,22 @@ def _is_xy_scalar(v: Any) -> bool:
     return isinstance(v, (int, float, Attribute))
 
 
+_MARKER_FILLS: Dict[tuple, Color] = {}
+
+
+def _marker_fill(color, alpha) -> Color:
+    """``Color(color).with_alpha(alpha)``, one per (color, alpha) value: what
+    ``fill = Color(color)`` then ``set_alpha(alpha)`` gave a marker Point."""
+    try:
+        key = (color, float(alpha))
+        hit = _MARKER_FILLS.get(key)
+    except TypeError:                     # an unhashable color spec
+        return Color(color).with_alpha(alpha)
+    if hit is None:
+        hit = _MARKER_FILLS[key] = Color(color).with_alpha(alpha)
+    return hit
+
+
 class Point(Shape):
     """XY locus. Undrawn by default (``layer=None``, ``visible=False``) for efficiency.
 
@@ -3152,11 +3168,13 @@ class Point(Shape):
             # Dormant seed (matches legacy / Anchor default until shown).
             color, alpha = self.HANDLE_COLOR, self.HANDLE_ALPHA
 
-        # Bypass set_color so we keep _marker_style_auto True.
-        fill = Color(color)
-        self.fill = fill
+        # Bypass set_color so we keep _marker_style_auto True. The faded
+        # marker Color is built once per (color, alpha): a Color is a value
+        # (immutable, shared like the default paint), and parsing it plus
+        # ``set_alpha`` cost ~20 µs per Graphic built, since every Graphic's
+        # center Point paints its marker at construction (C4a).
+        self.fill = _marker_fill(color, alpha)
         self.line = None  # no_line already; keep stroke off
-        self.set_alpha(alpha)
 
     def set_color(self, *args) -> 'Point':
         """Author color override — stops automatic guide/handle painting.

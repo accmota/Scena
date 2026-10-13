@@ -89,5 +89,58 @@ class TestResolveImagePath(unittest.TestCase):
         self.assertIsNone(_resolve_image_path(None))  # type: ignore[arg-type]
 
 
+
+class TestCandidatesMemo(unittest.TestCase):
+    """``_image_candidates`` keeps the list of places per (name, script folder,
+    working directory); the search answers exactly as without it (C4a)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old_cwd = os.getcwd()
+        self.script = os.path.join(self._tmp.name, "game")
+        os.makedirs(os.path.join(self.script, "media"))
+
+    def tearDown(self):
+        os.chdir(self._old_cwd)
+        self._tmp.cleanup()
+
+    def test_a_file_that_appears_higher_up_wins(self):
+        cwd = os.path.join(self._tmp.name, "launch")
+        os.makedirs(cwd)
+        os.chdir(cwd)
+        low = _touch(os.path.join(cwd, "hero.png"))
+        with patch("scena.sprite._script_dir", return_value=self.script):
+            self.assertEqual(os.path.realpath(_resolve_image_path("hero.png")), os.path.realpath(low))
+            high = _touch(os.path.join(self.script, "media", "hero.png"))
+            self.assertEqual(os.path.realpath(_resolve_image_path("hero.png")), os.path.realpath(high))
+            os.remove(high)
+            self.assertEqual(os.path.realpath(_resolve_image_path("hero.png")), os.path.realpath(low))
+
+    def test_a_new_working_directory_is_searched(self):
+        for k in range(6):
+            # A folder made, used and deleted, again and again: an inode can
+            # come back for the next folder (a stale list would miss its file).
+            cwd = os.path.join(self._tmp.name, f"run{k}")
+            os.makedirs(cwd)
+            os.chdir(cwd)
+            hit = _touch(os.path.join(cwd, f"only{k % 2}.png"))
+            with patch("scena.sprite._script_dir", return_value=self.script):
+                self.assertEqual(os.path.realpath(_resolve_image_path(f"only{k % 2}.png")),
+                                 os.path.realpath(hit), f"run {k}")
+                self.assertIsNone(_resolve_image_path(f"only{1 - k % 2}.png"), f"run {k}")
+            os.chdir(self._tmp.name)
+            import shutil
+            shutil.rmtree(cwd)
+
+    def test_a_new_script_folder_is_searched(self):
+        other = os.path.join(self._tmp.name, "game2")
+        hit = _touch(os.path.join(other, "hero.png"))
+        os.chdir(self._tmp.name)
+        with patch("scena.sprite._script_dir", return_value=self.script):
+            self.assertIsNone(_resolve_image_path("hero.png"))
+        with patch("scena.sprite._script_dir", return_value=other):
+            self.assertEqual(os.path.realpath(_resolve_image_path("hero.png")), os.path.realpath(hit))
+
+
 if __name__ == "__main__":
     unittest.main()

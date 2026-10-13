@@ -1674,8 +1674,52 @@ Done: private fields that may not be set yet are probed with
 into `Entity.__getattr__`, which builds an error message for `getattr` to
 swallow: 18 per Sprite, about 7 % of construction. Test:
 `tests/test_probe_private.py` (same answer as `getattr` for live, destroyed
-and plain objects). Further cuts need structure (lazy styles, cheaper
-container init) and belong with a design proposal.
+and plain objects).
+
+**C4a (2026-10-13).** Measured inside a 228 µs `Sprite(…, group=…)`:
+- the center `Point`: 60 µs (its marker style alone 22 µs);
+- the group enroll: 49 µs (the hitbox bake 17 µs);
+- the image path: 19 µs;
+- the rest is the Sprite body, two Styles and ~440 `__setattr__`.
+
+Two cuts that change no answer:
+- **Image path.** `_image_candidates` keeps its list of places per (name,
+  script folder, working directory's device, inode and change time).
+  `os.getcwd()` cost ~6 µs on macOS; `os.stat(".")` costs ~0.7 µs. The change
+  time is in the key because a deleted folder's inode can come back as a new
+  folder's. Only the list is kept: `_resolve_image_path` still asks
+  `isfile` of each place in order, so a file that appears higher up or goes
+  away is seen as before. Tests: `tests/test_image_path.py`
+  (`TestCandidatesMemo`; a name-only key fails two of them).
+- **Point marker.** `Point._apply_role_marker_style` assigns a faded marker
+  Color built once per (color, alpha) (`shapes._marker_fill`), not
+  `Color(color)` then `set_alpha`. A Color is a value (immutable, shared
+  like the default paint), and a paint write gives the one Point a new
+  material. Tests: `tests/test_marker_fill.py` (role colors as before, a
+  write on one Point leaves the others).
+
+Result (M4, HEAD before vs after, in the same session):
+
+| | Before | After |
+|---|---:|---:|
+| `Rect` | 138–145 µs | 122–129 µs (−11 %) |
+| `Sprite` | 181–186 µs | 154–158 µs (−15 %) |
+| `Sprite(…, group=)` | 241–250 µs | 214 µs (−12 %) |
+| a `Sprite` subclass with a group | 185–194 µs | 157–158 µs (−17 %) |
+
+Considered and left out:
+- **Interning the hitbox bake.** Its ~8 µs is spread over shaping, the
+  base, the radius and ~37 private writes, with no single hot spot, and a
+  shared bake would key on many inputs (the GR7 class).
+- **Baking the collider on the first step.** A slot built this frame is
+  stepped this frame, so the cost only moves inside the frame.
+- **Lazy Styles and fewer private writes.** These touch every paint reader
+  (the R5 risk). Measure a profile first, if construction matters again.
+
+Corrida's slot build is still a hitch on the target machine (~4× the M4).
+Ending it would need building one slot over several frames (a generator
+builder for `Endless`), which is an author-surface change. It is not
+planned: corrida is a stress test, and the cost is acceptable.
 
 ### Dense tick, flood heuristic, collider swap-remove
 

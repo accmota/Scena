@@ -494,12 +494,32 @@ def _true_case_path(ap: str, written: str) -> str:
     return real
 
 
-def _image_candidates(filename: str) -> List[str]:
+# ``_image_candidates`` answers, keyed by the name, the script folder and the
+# working directory's identity (device, inode, change time: a deleted folder's
+# inode can come back as a new folder's, which has another change time).
+# ``os.getcwd()`` costs ~6 µs on macOS and ran once per Sprite built;
+# ``os.stat(".")`` costs ~0.7 µs. Only the list of places is kept: which of
+# them holds the file is still asked on every call, so a file that appears or
+# goes away is seen as before.
+_CANDIDATES: Dict[tuple, Tuple[str, ...]] = {}
+_CANDIDATES_MAX = 4096
+
+
+def _image_candidates(filename: str) -> Tuple[str, ...]:
     """Absolute paths ``_resolve_image_path`` tries, in order, without repeats."""
     if os.path.isabs(filename):
-        return [os.path.abspath(filename)]
-    candidates: List[str] = []
+        return (os.path.abspath(filename),)
     script = _script_dir()
+    try:
+        here = os.stat(".")
+    except OSError:
+        here = None                       # no working directory: no memo
+    if here is not None:
+        key = (filename, script, here.st_dev, here.st_ino, here.st_ctime_ns)
+        hit = _CANDIDATES.get(key)
+        if hit is not None:
+            return hit
+    candidates: List[str] = []
     if script:
         candidates.append(os.path.join(script, filename))
         candidates.append(os.path.join(script, "media", filename))
@@ -509,7 +529,12 @@ def _image_candidates(filename: str) -> List[str]:
         ap = os.path.abspath(p)
         if ap not in out:
             out.append(ap)
-    return out
+    found = tuple(out)
+    if here is not None:
+        if len(_CANDIDATES) >= _CANDIDATES_MAX:
+            _CANDIDATES.clear()
+        _CANDIDATES[key] = found
+    return found
 
 
 # ---------------------------------------------------------------------------

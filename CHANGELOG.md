@@ -154,6 +154,11 @@ left out.
   about 25 %, and a crowd of walking enemies about 7 %. A sprite that turns
   or changes size every frame costs the same as before. Nothing looks
   different: the picture is the same to the pixel.
+- Building a Sprite or a shape is faster: about 15 % for a Sprite and 11 %
+  for a `Rect`. Scena no longer asks the operating system for the working
+  folder each time it looks up an image, and no longer rebuilds each shape's
+  center-marker color. The endless runner builds a stretch of track about
+  10 % faster.
 - An animated Sprite whose frames have different sizes (a strip made of
   separate images, a trimmed atlas) is no longer hidden by
   `cull_offscreen` while part of it is still in view: the off-screen test
