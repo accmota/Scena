@@ -147,6 +147,13 @@ left out.
   about 20 % faster and a bullet hell of 300 glowing shots about 8 % faster
   per frame. A body that turns or changes size every frame still costs about
   what drawing it costs.
+- Sprites on screen draw faster when they did not change since the last
+  frame, or only moved: Scena keeps where and how big each one is drawn
+  instead of working it out again. 2000 still sprites draw in 4 ms instead of
+  10; the endless runner draws about 35 % faster, a tile platformer level
+  about 25 %, and a crowd of walking enemies about 7 %. A sprite that turns
+  or changes size every frame costs the same as before. Nothing looks
+  different: the picture is the same to the pixel.
 - An animated Sprite whose frames have different sizes (a strip made of
   separate images, a trimmed atlas) is no longer hidden by
   `cull_offscreen` while part of it is still in view: the off-screen test

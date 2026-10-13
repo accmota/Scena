@@ -135,6 +135,56 @@ _PLACEHOLDER_SIDE = 64
 _CHECKER_CELLS = 8
 
 _SAMPLING = skia.SamplingOptions(skia.FilterMode.kLinear)
+# The cached blit plan (Sprite Design, "Blit plan cache"). False: every blit
+# computes its transform (oracle, A/B).
+_BLIT_PLAN = True
+_pose_rev_of_fn = None
+_cull_mover_fn = None
+_collision_mod = None
+
+
+def _plan_verify() -> bool:
+    """Verify mode (``SCENA_VERIFY_POSE_REV=1``): a cached blit plan is
+    recomputed and compared on every use."""
+    global _collision_mod
+    mod = _collision_mod
+    if mod is None:
+        from .collision import _pose_rev_of
+        mod = _collision_mod = sys.modules[_pose_rev_of.__module__]
+    return mod._POSE_REV_VERIFY
+
+
+def _draw_blit(skia_canvas, cx, cy, ops, image, paint) -> None:
+    """One Sprite blit from ``Sprite._blit_geometry``: the steps of
+    ``_apply_paint_xform`` at ``(cx, cy)``, then a rotated cell's turn. A
+    cached plan and a fresh blit both draw here, so they issue the same
+    calls (Sprite Design, "Blit plan cache")."""
+    draw_ang, seat, lean, fx, fy, turn, src, dst = ops
+    skia_canvas.save()
+    skia_canvas.translate(cx, cy)
+    if draw_ang:
+        skia_canvas.rotate(draw_ang)
+    if seat is not None:
+        skia_canvas.translate(seat[0], seat[1])
+    if lean is not None:
+        px, py, tilt = lean
+        skia_canvas.translate(px, py)
+        skia_canvas.rotate(tilt)
+        skia_canvas.translate(-px, -py)
+    skia_canvas.scale(fx, -fy)
+    if turn is not None:
+        skia_canvas.translate(turn[0], turn[1])
+        skia_canvas.rotate(-90.0)
+    skia_canvas.drawImageRect(image, src, dst, _SAMPLING, paint)
+    skia_canvas.restore()
+
+
+def _plain_geo(geo):
+    """``_blit_geometry``'s answer with the rects as tuples (comparable)."""
+    if geo is None:
+        return None
+    cx, cy, (draw_ang, seat, lean, fx, fy, turn, src, dst) = geo
+    return (cx, cy, draw_ang, seat, lean, fx, fy, turn, tuple(src), tuple(dst))
 _BLIT_PAINT = skia.Paint(AntiAlias=True)
 _MAX_GRID_CELLS = 1024
 _HITBOX_CHOICES = ("auto", "rect", "ellipse", "circle", "hull")
@@ -3576,6 +3626,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         '_alpha',
         '_saved_alpha',
         '_src_rect_cache',
+        '_blit_plan',
         '_flip_x',
         '_flip_y',
         '_art_angle',
@@ -3869,6 +3920,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         self._blit_hue_live = None
         self._alpha = 1.0
         self._src_rect_cache = None
+        object.__setattr__(self, "_blit_plan", None)
         self._frame_fx_warm_key = None
 
         self._set_hitbox(hitbox, what="hitbox_shape")
@@ -6025,17 +6077,72 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         if getattr(self, "_blit_hue_live", None) is not None and paint is self._blit_paint:
             self._blit_hue_sksl(skia_canvas)
             return
-        cx, cy = get_xy(self.center, bare=True)
         if self._play_frames:
             idx = self._current_frame_index()
             self._frame = idx
         else:
             idx = int(self._frame)
+        sheet = self._sheet
+        plan = self._blit_plan
+        if plan is not None and _BLIT_PLAN:
+            # A cached plan (Sprite Design, "Blit plan cache"): valid while the
+            # pose revision, the cell and the sheet layout hold. The paint is
+            # read live, so a paint write keeps it. A revision that moved only
+            # by moves of the marked center (the pose cell's ``moves``, as the
+            # cull's shift) keeps the plan at the new center.
+            d = self.__dict__
+            cell = d.get("_pose_cell")
+            if (cell is not None and plan[2] == idx and plan[3] is sheet
+                    and plan[4] == sheet._layout_epoch):
+                rev = cell[0]
+                if rev == plan[0]:
+                    cx = plan[5]
+                    cy = plan[6]
+                elif plan[1] >= 0 and rev - plan[0] == cell[4] - plan[1]:
+                    pd = d["center"].__dict__
+                    cx = pd.get("x", 0.0)
+                    cy = pd.get("y", 0.0)
+                    plan = (rev, cell[4], idx, sheet, plan[4], cx, cy, plan[7])
+                    object.__setattr__(self, "_blit_plan", plan)
+                else:
+                    plan = None
+            else:
+                plan = None
+            if plan is not None:
+                if _plan_verify():
+                    self._verify_blit_plan(plan, idx)
+                _draw_blit(skia_canvas, cx, cy, plan[7],
+                           gpu_image(sheet._image_for_frame(idx), skia_canvas), paint)
+                return
+            object.__setattr__(self, "_blit_plan", None)
+        if _BLIT_PLAN:
+            # Stored once the pose held, or moved only by moves of the
+            # marked center, since the last draw: ``revision - moves`` did
+            # not change. A body that turns or resizes every frame pays this
+            # compare and one store, and draws inline below.
+            cell = self.__dict__.get("_pose_cell")
+            if cell is not None:
+                still = cell[0] - cell[4]
+                seen = cell[5]
+                if seen == still:
+                    geo = self._blit_geometry(idx)
+                    if geo is None:
+                        return
+                    self._store_blit_plan(idx, sheet, geo, cell)
+                    _draw_blit(skia_canvas, geo[0], geo[1], geo[2],
+                               gpu_image(sheet._image_for_frame(idx), skia_canvas), paint)
+                    return
+                cell[5] = still
+                if seen is None:
+                    self._mark_blit_mover(cell)
+        # The same steps as ``_blit_geometry`` + ``_draw_blit``, inline: the
+        # path of a body that changes every frame (tests compare the two).
+        cx, cy = get_xy(self.center, bare=True)
         cache = self._src_rect_cache
-        epoch = self._sheet._layout_epoch
+        epoch = sheet._layout_epoch
         if cache is None or cache[0] != idx or cache[3] != epoch:
-            fr = self._sheet._frame_at(idx)
-            src = self._sheet._src_rect(idx)
+            fr = sheet._frame_at(idx)
+            src = sheet._src_rect(idx)
             self._src_rect_cache = (idx, src, fr, epoch)
         else:
             src = cache[1]
@@ -6055,19 +6162,95 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
 
         skia_canvas.save()
         self._apply_paint_xform(skia_canvas, cx, cy, fx, fy)
-        dst = skia.Rect.MakeXYWH(left + ox, top - oy, dw, dh)
         if fr.rotated:
-            skia_canvas.save()
             skia_canvas.translate(left + ox + dw * 0.5, top - oy + dh * 0.5)
             skia_canvas.rotate(-90.0)
             dst = skia.Rect.MakeXYWH(-dh * 0.5, -dw * 0.5, dh, dw)
-
+        else:
+            dst = skia.Rect.MakeXYWH(left + ox, top - oy, dw, dh)
         skia_canvas.drawImageRect(
-            gpu_image(self._sheet._image_for_frame(idx), skia_canvas), src, dst, _SAMPLING, paint,
+            gpu_image(sheet._image_for_frame(idx), skia_canvas), src, dst, _SAMPLING, paint,
         )
-        if fr.rotated:
-            skia_canvas.restore()
         skia_canvas.restore()
+
+    def _blit_geometry(self, idx: int):
+        """``(cx, cy, ops)`` of the cell ``idx`` at the current pose, or None
+        when the scale is degenerate (nothing draws). ``ops`` are the
+        transform steps after the translation to ``(cx, cy)`` (the same as
+        ``_apply_paint_xform``, then a packed atlas's rotated cell) with the
+        source and destination rects; ``_draw_blit`` applies them."""
+        cx, cy = get_xy(self.center, bare=True)
+        cache = self._src_rect_cache
+        epoch = self._sheet._layout_epoch
+        if cache is None or cache[0] != idx or cache[3] != epoch:
+            fr = self._sheet._frame_at(idx)
+            src = self._sheet._src_rect(idx)
+            self._src_rect_cache = (idx, src, fr, epoch)
+        else:
+            src = cache[1]
+            fr = cache[2]
+        sx, sy = self._pixel_scale(fr)
+        if sx <= 0.0 or sy <= 0.0:
+            return None
+        left = (float(fr.src_x) - float(fr.pivot_x) * float(fr.src_w)) * sx
+        top = (float(fr.src_y) - float(fr.pivot_y) * float(fr.src_h)) * sy
+        packed_w = float(fr.h if fr.rotated else fr.w)
+        packed_h = float(fr.w if fr.rotated else fr.h)
+        dw = packed_w * sx
+        dh = packed_h * sy
+        ox, oy = self._offset_x, self._offset_y
+        fx = -1.0 if self._flip_x else 1.0
+        fy = -1.0 if self._flip_y else 1.0
+        draw_ang = self._draw_angle()
+        tilt = self._tilt_angle_for_paint()
+        seat_x, seat_y = self._tilt_seat_local(cx, cy)
+        seat = (seat_x, seat_y) if abs(seat_x) > 1e-12 or abs(seat_y) > 1e-12 else None
+        lean = (*self._tilt_pivot_local(), tilt) if abs(tilt) > 1e-12 else None
+        if fr.rotated:
+            turn = (left + ox + dw * 0.5, top - oy + dh * 0.5)
+            dst = skia.Rect.MakeXYWH(-dh * 0.5, -dw * 0.5, dh, dw)
+        else:
+            turn = None
+            dst = skia.Rect.MakeXYWH(left + ox, top - oy, dw, dh)
+        return cx, cy, (draw_ang, seat, lean, fx, fy, turn, src, dst)
+
+    def _mark_blit_mover(self, cell) -> None:
+        """First draw: mark the center so its moves are counted in the pose
+        cell (the cull's shift marks it the same way, ``canvas._cull_mover``),
+        so a body that moves from birth still gets a plan."""
+        global _pose_rev_of_fn, _cull_mover_fn
+        if _cull_mover_fn is None:
+            from .collision import _pose_rev_of as rev_of
+            from .canvas import _cull_mover as mover
+            _pose_rev_of_fn = rev_of
+            _cull_mover_fn = mover
+        _cull_mover_fn(self, cell)
+
+    def _store_blit_plan(self, idx: int, sheet, geo, cell) -> None:
+        """Keep ``geo`` as the blit plan when the pose revision can be
+        trusted: a plain Sprite kind with no link or anchor
+        (``collision._pose_rev_of``), no transient, and a bare tilt angle (a
+        contact tilt or seat leans with live contacts)."""
+        if _pose_rev_of_fn is None:
+            self._mark_blit_mover(cell)
+        raw = cell[0]
+        if (_pose_rev_of_fn(self) != raw or getattr(self, "_tx_state", None) is not None
+                or self._tilt_mode != "angle"):
+            return
+        # A body whose center cannot be marked (seated) keeps the plan per
+        # revision only.
+        moves = cell[4] if _cull_mover_fn(self, cell) is not None else -1
+        object.__setattr__(self, "_blit_plan", (
+            raw, moves, idx, sheet, sheet._layout_epoch, geo[0], geo[1], geo[2]))
+
+    def _verify_blit_plan(self, plan, idx: int) -> None:
+        """Verify mode: a cached plan must equal a fresh one."""
+        fresh = _plain_geo(self._blit_geometry(idx))
+        used = _plain_geo((plan[5], plan[6], plan[7]))
+        if fresh != used:
+            raise AssertionError(
+                f"cached blit plan {used} != fresh {fresh} for {self!r}: "
+                "a draw input changed with no pose revision")
 
     def _blit_hue_sksl(self, skia_canvas: skia.Canvas) -> None:
         from ._sksl_shape import procedural_builder

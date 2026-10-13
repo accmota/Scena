@@ -645,7 +645,9 @@ only moved keeps its cached box, shifted by how far its center moved.
   each x / y write, in the A1 funnel (`_takein_xy_float`) and in
   `Point._takein_impl`. Every other pose write moves only the revision. When
   the revision and `moves` advanced by the same amount since the box was
-  built, every change was a move of that center.
+  built, every change was a move of that center. A sixth slot, `draw seen`,
+  belongs to the Sprite blit plan, which reads `moves` the same way
+  ([Sprite Design.md — Blit plan cache](Sprite%20Design.md#blit-plan-cache)).
 - **Marked only where a center write is a translation** (`_cull_mover`): a
   root Sprite, and the center models of Circle (`CENTER_RADIUS`), Rect /
   Square and Ellipse (`CENTER_WH`). The model is stored with the box and

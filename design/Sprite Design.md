@@ -1499,7 +1499,7 @@ Draw loop (`ScenaCanvas.draw` / `_draw_layer_batched`): if `_plain_blit`, call
 
 | Kind | `_blit_plain` |
 | --- | --- |
-| **Sprite** | `_pull_property_anchors()` then `_blit_image` (cached src rect; skip `_current_frame_index` when not playing) |
+| **Sprite** | `_pull_property_anchors()` then `_blit_image` (cached blit plan, [Blit plan cache](#blit-plan-cache); skip `_current_frame_index` when not playing) |
 | **Shape** | `_pull_property_anchors()` then `_geometry_draw` (same paint as full `draw`, no ceremony) |
 
 **PaintState on Sprite (blend + alpha):** `.blend` composites the **image blit**, not only silhouette fill/stroke. Read and write are the string (`sprite.blend = "add"`; `sprite.blend == "add"`); the enum is internal. Non-`NORMAL` uses a cached per-instance blit paint; the sprite stays `_plain_blit` eligible (same as static HueShift). Default `NORMAL` keeps the shared `_BLIT_PAINT` singleton — no per-draw branch on `_blend`.
@@ -1519,9 +1519,108 @@ stuck. Unlinked cost is one `__dict__.get` miss. Tests:
 When `cull_offscreen` is **on**, cull still runs for plain blits (skip envelope
 only). When **off** (default), the draw walk never enters `_passes_cull` —
 [Canvas Design.md — Offscreen culling](Canvas%20Design.md#offscreen-culling).
-No GPU sprite batcher (Skia still one call per image; the win is Python).
+No GPU sprite batcher (Skia still one call per image; the win is Python —
+`drawAtlas` was measured and not adopted, see [Blit plan cache](#blit-plan-cache)).
 Multipass recipes, GlowRim overlays, and wasps with Tail / `fade_in` keep the
 envelope. Shape detail: [Shapes Design.md — Plain draw](Shapes%20Design.md#plain-draw-_blit_plain).
+
+### Blit plan cache
+
+A still Sprite on screen used to recompute its blit every frame:
+- the center (`get_xy`, 0.46 µs);
+- the pixel scale (two reactive reads of `width` / `height` in `_du_per_px`,
+  0.46 µs);
+- the heading, tilt and seat;
+- the source and destination rects.
+
+That is ~2.9 µs of Python per blit, before Skia.
+
+`Sprite._blit_plan` (a slot) keeps the result of `_blit_geometry(idx)`:
+`(cx, cy, ops)`, where `ops` are the steps of `_apply_paint_xform`, a packed
+atlas's rotated-cell turn, and the src / dst rects. The tuple also holds
+`(pose revision, moves, cell, sheet, sheet layout epoch)`.
+
+**Key.** It is the cull cache's (Canvas Design, "Offscreen culling") minus
+the look revision:
+- the **trusted** pose revision (`collision._pose_rev_of`: a plain Sprite
+  kind, no link, anchor or pull owner);
+- the cell on show (`idx`);
+- the `Sheet` object, and its `_layout_epoch` (`clip(offset=)`, `anchor`).
+
+No plan with a transient (`_tx_state`) or a non-`"angle"` tilt mode (contact
+or auto tilt and the seat lean with live contacts).
+
+**The paint is not in the key.** `_blit_paint` (alpha, blend, hue, gray) is
+passed in on every call and never cached, so a fading or recoloring sprite
+keeps its plan. Only geometry is cached.
+
+**Hit.** The cell index (as before), four compares, then `_draw_blit`:
+`save`, `translate`, `rotate`, `scale`, `drawImageRect`, `restore`.
+Measured: 0.99 µs instead of 2.93 µs per still blit.
+
+**Moves.** A revision that advanced exactly as much as the pose cell's
+`moves` changed only by moves of the marked center (the cull's shift). The
+plan is kept, at the center read from the Point's bare floats. A shot or a
+walker that only translates then costs ~1.6 µs less per frame (move + blit
+4.75 → 2.9 µs). The first draw marks the center through `canvas._cull_mover`,
+so a body that moves from birth is counted. A seated body (contact plane)
+cannot be marked and keeps its plan per revision only.
+
+**Store, and the cost for a body that changes every frame.** The pose cell
+has a sixth slot, `draw seen`: `revision - moves` at the last blit. A plan is
+stored only when `draw seen` held since the last draw, that is, when nothing
+but moves happened. A body that turns or resizes every frame pays that
+compare and one list store, then draws by the inline path, the code from
+before the cache.
+
+Two earlier versions were measured and rejected:
+- **Concat a stored `skia.Matrix`**: +0.4 µs per blit for a turning body.
+  Building a Matrix costs ~0.17 µs, plus ~0.1 µs per pre-op.
+- **A store bookkeeping call per draw**: +7 % draw for 2000 turning sprites.
+
+**One sequence of calls.** The inline path and `_draw_blit` issue the same
+Skia calls, so a cached blit is bit-identical to a fresh one.
+`tests/test_blit_plan.py` compares them pixel for pixel after random pose,
+paint, clip, link and time operations.
+
+`_BLIT_PLAN = False` neither reads nor stores (oracle, A/B). Verify mode
+(`SCENA_VERIFY_POSE_REV=1`, on in every test tier) recomputes the geometry on
+every hit and raises on a difference (`_verify_blit_plan`).
+
+**Adding a draw input.** A new field that `_blit_image` reads must be a
+bumping pose write (it moves the revision: `bump_pose_rev` or
+`_bump_collision_epoch`), or part of the key. A write that does neither draws
+the sprite where it was (R5 / GR7 class). The canaries in
+`tests/test_blit_plan.py` drop the cell, the layout epoch, the moves check
+and the pose bump of `offset` / `art_angle`. Each must fail.
+
+Measured, `scene_draw` (in-process A/B, M4):
+
+| Scene | Effect |
+|---|---|
+| 2000 still sprites | 9.7 → 4.0 ms |
+| corrida | −34 to −37 % (work −7 to −10 %) |
+| ninja_nivel | −26 % |
+| horda | −6 to −8 % |
+| mundo | −7 % |
+
+Bodies that change every frame, against the code before (separate
+processes, alternating):
+
+| Scene | Effect |
+|---|---|
+| 2000 turning and moving sprites | 9.09 → 9.21 ms (noise) |
+| naves | 0.221 → 0.195 ms |
+
+**`drawAtlas`: evaluated 2026-10-13, not adopted.** One `drawAtlas` per run
+of plain sprites sharing an image costs 0.05 µs per item in Skia, against
+~1 µs for `drawImageRect`. But the ~3 µs of Python per sprite stays.
+- Neighbours with different images make one-item calls: 4 alternating images
+  drew 29 % slower, and corrida and ninja_nivel 8–13 % slower.
+- `drawAtlas` also drops quad-edge AA: a rotated opaque edge aliases.
+
+The plan cache removed the Python instead, with no change to a pixel.
+Revisit only for long same-image swarms, together with shared texture pages.
 
 **Teardown:** `layer._objects.remove` is O(n). Painter order within a layer is a contract
 (append = on top), so not unordered swap-remove. Store `_draw_index` on the object;

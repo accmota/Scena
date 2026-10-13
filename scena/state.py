@@ -641,13 +641,15 @@ DIRTY_POSE_CELLS: list = []
 
 
 def _pose_cell_of(node) -> list:
-    """``[revision, dirty, weakref(root), trust epoch, moves]`` of ``node``'s
-    root, cached on ``node``. The trust epoch moves only when a link, anchor or
+    """``[revision, dirty, weakref(root), trust epoch, moves, draw seen]`` of
+    ``node``'s root, cached on ``node``. The trust epoch moves only when a link, anchor or
     pull owner comes or goes (``bump_pose_trust``): trust is cached on it, so a
     move does not re-check it. ``moves`` counts the revisions that were an A1
     write of a center Point the cull marked (``_pose_mover``): a pure
     translation, which the cull box follows by a shift (Canvas Design,
-    "Offscreen culling").
+    "Offscreen culling"). ``draw seen`` is ``revision - moves`` at the last
+    Sprite blit, or None before the first: the blit plan is stored once it
+    holds (Sprite Design, "Blit plan cache").
 
     Parts are never reparented (``owner`` raises), so the cell a part caches
     stays its root's; ``_invalidate_ownership_root_cache`` drops it anyway.
@@ -663,7 +665,7 @@ def _pose_cell_of(node) -> list:
             ref = weakref.ref(root)
         except TypeError:
             ref = None
-        cell = [0, False, ref, 0, 0]
+        cell = [0, False, ref, 0, 0, None]
         rd['_pose_cell'] = cell
     d['_pose_cell'] = cell
     return cell
