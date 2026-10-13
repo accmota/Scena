@@ -536,6 +536,86 @@ class TestSetColorIsColorParam(unittest.TestCase):
                     before.destroy()
                     after.destroy()
 
+    # Stroke and blend knobs: a look sets some in its package (Rim's width,
+    # Halo's ADD, Shield's dash) and reads others (Neon's width).
+    _KNOBS = (("line_width", 6.0), ("blend", "screen"), ("dash", "dash"),
+              ("line_cap", "square"), ("line_join", "bevel"))
+
+    def test_knob_write_order_does_not_matter(self):
+        """Decided 2026-10-13 (user): a knob written under a look re-applies
+        it, as ``.fill`` / ``.line``. Where the look sets the knob itself it
+        wins (``Rim(width=)`` is how to change it); the author's value shows
+        where the look reads it, and after ``visual = None``. Before, a write
+        after ``visual =`` overrode the package (23 / 18 / 11 of 42 cells for
+        line_width / blend / dash) and ``visual = None`` dropped it (every
+        cell, every knob)."""
+        forced = 0
+        for cls, base, look in self._cells(seeded=False):
+            plain = Circle(center=(64, 64), radius=40, color="blue")
+            plain.visual = look
+            worn = _draw(plain)
+            plain.destroy()
+            for knob, value in self._KNOBS:
+                with self.subTest(visual=cls.__name__, **base, knob=knob):
+                    before = Circle(center=(64, 64), radius=40, color="blue")
+                    setattr(before, knob, value)
+                    before.visual = look
+                    after = Circle(center=(64, 64), radius=40, color="blue")
+                    after.visual = look
+                    setattr(after, knob, value)
+                    got = _draw(after)
+                    self.assertLessEqual(int(np.abs(got - _draw(before)).max()), 2)
+                    forced += int(np.abs(got - worn).max()) <= 2
+                    before.visual = after.visual = None
+                    self.assertEqual(getattr(after, knob), value, "visual = None dropped the write")
+                    self.assertEqual(getattr(before, knob), value)
+                    before.destroy()
+                    after.destroy()
+        self.assertGreater(forced, 60, "the sweep stopped reaching looks that set the knob")
+
+    def test_knob_in_the_constructor_is_written_before_the_look(self):
+        """``Circle(visual=Rim(), line_width=6)`` is ``line_width = 6`` then
+        ``visual = Rim()``: the width is the shape's, the look keeps its own."""
+        for look in (scena.Rim(), scena.Halo(), scena.Neon()):
+            with self.subTest(visual=type(look).__name__):
+                made = Circle(center=(64, 64), radius=40, visual=look, line_width=6)
+                ref = Circle(center=(64, 64), radius=40)
+                ref.line_width = 6
+                ref.visual = look
+                self.assertLessEqual(int(np.abs(_draw(made) - _draw(ref)).max()), 2)
+                made.visual = None
+                self.assertEqual(made.line_width, 6.0)
+                made.destroy()
+                ref.destroy()
+
+    def test_sprite_knob_write_survives_the_look(self):
+        """On a Sprite a write under a look is kept by ``visual = None``, and
+        the body blit takes the author's blend in either order."""
+        n = 0
+        for cls, base, look in self._cells(seeded=False):
+            probe = Sprite()
+            try:
+                probe.visual = look
+            except TypeError:
+                continue                    # shape-only look
+            finally:
+                probe.destroy()
+            for knob, value in self._KNOBS:
+                with self.subTest(visual=cls.__name__, **base, knob=knob):
+                    before = Sprite()
+                    setattr(before, knob, value)
+                    before.visual = look
+                    after = Sprite()
+                    after.visual = look
+                    setattr(after, knob, value)
+                    self.assertEqual(after._blit_paint.getBlendMode(), before._blit_paint.getBlendMode())
+                    after.visual = None
+                    self.assertEqual(getattr(after, knob), value)
+                    n += 1
+                    before.destroy()
+                    after.destroy()
+        self.assertGreater(n, 20, "the sprite sweep stopped reaching the looks")
+
     def test_write_on_its_channel_beats_the_seed(self):
         """``Rim("red")`` then ``.line = "lime"`` is ``.line = "lime"`` then
         ``Rim()``; ``Neon("red")`` then ``.fill = "lime"`` likewise."""
@@ -625,6 +705,16 @@ class TestSetColorIsColorParam(unittest.TestCase):
             self, "test_visual_color_param.TestSetColorIsColorParam.test_channel_write_order_does_not_matter",
             [(_style.PaintState, "_look_channel_written", lambda self, channel: None)],
             ".line / .fill under a look skipping the look (before 2026-10-13)")
+
+    def test_canary_raw_knob_write_again(self):
+        import diff_support
+        orig = _style.PaintState._patch_look_identity
+        diff_support.assert_catches(
+            self, "test_visual_color_param.TestSetColorIsColorParam.test_knob_write_order_does_not_matter",
+            [(_style.PaintState, "_patch_look_identity",
+              lambda self, **ch: False if not ch.keys() & {"fill", "line"}
+              else orig(self, **ch))],
+            "line_width / blend / dash under a look skipping it (before 2026-10-13)")
 
     def test_canary_outline_seed_dyes_the_body_again(self):
         import diff_support

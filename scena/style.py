@@ -791,6 +791,8 @@ class PaintState:
     def line_width(self, value: float) -> None:
         self._line_width = fixed_magnitude(value, "line_width")
         self._invalidate_line_paint()
+        if self._patch_look_identity(line_width=self._line_width):
+            self._look_channel_written("line_width")
 
     @property
     def dash(self) -> str:
@@ -801,6 +803,8 @@ class PaintState:
     def dash(self, value: Union[DashStyle, str]) -> None:
         self._dash = coerce_enum(value, DashStyle, what="dash")
         self._invalidate_line_paint()
+        if self._patch_look_identity(dash=self._dash):
+            self._look_channel_written("dash")
 
     @property
     def line_cap(self) -> str:
@@ -811,6 +815,8 @@ class PaintState:
     def line_cap(self, value: Union[LineCapStyle, str]) -> None:
         self._line_cap = coerce_enum(value, LineCapStyle, what="line_cap")
         self._invalidate_line_paint()
+        if self._patch_look_identity(line_cap=self._line_cap):
+            self._look_channel_written("line_cap")
 
     @property
     def line_join(self) -> str:
@@ -821,6 +827,8 @@ class PaintState:
     def line_join(self, value: Union[LineJoinStyle, str]) -> None:
         self._line_join = coerce_enum(value, LineJoinStyle, what="line_join")
         self._invalidate_line_paint()
+        if self._patch_look_identity(line_join=self._line_join):
+            self._look_channel_written("line_join")
 
     @property
     def line(self) -> Optional["PaintMaterial"]:
@@ -860,11 +868,14 @@ class PaintState:
         self._invalidate_fill_paint()
         # Looks rewrite ``.blend`` for fill/line wash while ``_in_visual_apply``.
         # Sprite body blit stays on the author package (Halo fill: NORMAL blit,
-        # not ADD wash). Identity restore / author writes still rebuild.
+        # not ADD wash). Identity restore / author writes still rebuild — the
+        # blit before the re-apply below, so it takes the author's blend.
         if not getattr(self, "_in_visual_apply", False):
             fn = getattr(self, "_rebuild_blit_paint", None)
             if callable(fn):
                 fn()
+        if self._patch_look_identity(blend=self._blend):
+            self._look_channel_written("blend")
 
     @property
     def line_filter(self) -> Optional['FilterEffect']:
@@ -915,9 +926,12 @@ class PaintState:
             fn()
 
     def _look_channel_written(self, channel: str) -> None:
-        """An author write to ``.fill`` / ``.line`` under a look: re-apply the
-        look on the new channel, so writing before or after ``visual =`` draws
-        the same. A seed on the written channel gives way (``Rim("red")`` then
+        """An author write to ``.fill`` / ``.line`` (or ``line_width`` /
+        ``blend`` / ``dash`` / ``line_cap`` / ``line_join``) under a look:
+        re-apply the look on the new value, so writing before or after
+        ``visual =`` draws the same. A look that sets the knob itself keeps its
+        own (Rim's width, Halo's ADD); the value shows after ``visual = None``.
+        A seed on the written colour channel gives way (``Rim("red")`` then
         ``.line = "blue"`` is a blue rim), as in ``set_color``. Installers
         (Paint / Fill / Stroke) wrote the channels once: a later write stands.
         Looks' own writes (``_in_visual_apply``) and ``set_color``'s
