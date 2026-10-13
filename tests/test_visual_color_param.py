@@ -17,6 +17,7 @@ import unittest
 import warnings
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
 import skia
@@ -55,6 +56,11 @@ def _public_visual_classes():
 
 def _rgb(shape):
     return tuple(round(float(v), 3) for v in tuple(shape.color.rgb)[:3])
+
+
+def _nebula_shield():
+    """A Shield style that paints its own palette and takes no color (Role D)."""
+    return scena.Shield(style="nebula")
 
 
 def _draw(shape):
@@ -211,7 +217,7 @@ class TestRecolorUnderOwnColors(unittest.TestCase):
                     self.assertGreater(changed, 500, f"{name} is Role E but set_color did not show")
 
     def test_role_d_set_color_warns_once_per_look(self):
-        for cls in (scena.Flame, scena.Swell, scena.Water, scena.Shield):
+        for cls in (scena.Flame, scena.Swell, scena.Water, _nebula_shield):
             with self.subTest(visual=cls.__name__):
                 c = Circle(color="blue")
                 c.visual = cls()
@@ -223,7 +229,7 @@ class TestRecolorUnderOwnColors(unittest.TestCase):
                     d = Circle(color="blue")
                     d.visual = cls()
                     d.set_color("green")
-                hits = [w for w in got if cls.__name__ in str(w.message)]
+                hits = [w for w in got if type(d.visual).__name__ in str(w.message)]
                 self.assertEqual(len(hits), 1, [str(w.message) for w in got])
                 self.assertIs(hits[0].category, RuntimeWarning)
                 self.assertIn("visual = None", str(hits[0].message))
@@ -241,7 +247,7 @@ class TestRecolorUnderOwnColors(unittest.TestCase):
 
     def test_color_reads_author_color_under_material(self):
         """``.color`` once read navy (0, 0, 0.5) under Flame / Swell."""
-        for cls in (scena.Flame, scena.Swell, scena.Water, scena.Shield):
+        for cls in (scena.Flame, scena.Swell, scena.Water, _nebula_shield, scena.Shield, scena.Metal):
             with self.subTest(visual=cls.__name__):
                 c = Circle(color="blue")
                 c.visual = cls()
@@ -252,6 +258,217 @@ class TestRecolorUnderOwnColors(unittest.TestCase):
                 self.assertEqual(_rgb(c), (0.0, 1.0, 0.0))
                 c.visual = None
                 self.assertEqual(_rgb(c), (0.0, 1.0, 0.0))
+
+
+# Seeded looks where ``set_color`` still loses to the seed: the colour is
+# written to the shape and shows after ``visual = None``, but the look keeps
+# drawing the seed (no ``_unseed`` yet: "Phase 2", Effect System Design §9).
+# Outline looks (Rim, Ink, …) repaint the body and keep the seeded outline,
+# which a changed-pixel count mistakes for "shows": compare with the look
+# worn on the new colour instead.
+# Shrink-only: a look that starts to show set_color must leave the list.
+SEED_WINS = {
+    ("Aurora", None), ("Bolt", "core"), ("Bolt", "filaments"), ("Bolt", "tesla"),
+    ("DashRing", None), ("ElectricBolt", None), ("ElectricField", None),
+    ("Extrude", None), ("GearShell", None), ("Gel", None), ("Halo", "line"),
+    ("Ink", None), ("InkBleed", None), ("InsetRim", None), ("Laser", None),
+    ("MultiBorder", None), ("OrganicOutline", None), ("Rim", None),
+    ("Shield", "bands"), ("Shield", "vortex"), ("Shield", "plasma"),
+    ("Sphere", None), ("Tracer", None), ("Wave", None),
+}
+
+
+def _wearable_cells():
+    """(class, style) for every public look a Circle can wear, every style."""
+    from tests.test_knobs_take_effect import shape_visuals, _styles
+    for name in shape_visuals():
+        cls = getattr(scena, name)
+        for style in _styles(cls):
+            yield cls, style
+
+
+def _takes_color(cls, style) -> bool:
+    if "color" not in inspect.signature(cls.__init__).parameters:
+        return False
+    try:
+        cls("deepskyblue", **({} if style is None else {"style": style}))
+    except TypeError:
+        return False            # refused on this style (KN4)
+    return True
+
+
+def _recolor_shows(look) -> tuple:
+    """(pixels changed by set_color, warnings) for a blue Circle wearing ``look``."""
+    c = Circle(center=(64, 64), radius=40, color="blue")
+    try:
+        c.visual = look
+        before = _draw(c)
+        with warnings.catch_warnings(record=True) as got:
+            warnings.simplefilter("always")
+            c.set_color(0, 1, 0)
+        changed = int((np.abs(before - _draw(c)).sum(axis=2) > 30).sum())
+        return changed, [str(w.message) for w in got]
+    finally:
+        c.destroy()
+
+
+def _worn(look, color):
+    c = Circle(center=(64, 64), radius=40, color=color)
+    try:
+        c.visual = look
+        return _draw(c)
+    finally:
+        c.destroy()
+
+
+def _recolored(look, color):
+    c = Circle(center=(64, 64), radius=40, color="blue")
+    try:
+        c.visual = look
+        c.set_color(color)
+        return _draw(c)
+    finally:
+        c.destroy()
+
+
+class TestSetColorShowsWhereColorIsTaken(unittest.TestCase):
+    """Rule (2026-10-13): a look that takes ``color=`` shows ``set_color``; a
+    look that takes none paints its own colors and warns.
+
+    Bug class: ``Metal()`` / ``Metal("gold")`` + ``set_color`` changed nothing
+    and said nothing (labelled Role A); the role test above only looked at
+    zero-arg Role D / E looks, on the default style.
+    """
+
+    def setUp(self):
+        _style._RECOLOR_HIDDEN_WARNED.clear()
+        self._clock = _recipes._clock
+        _recipes._clock = lambda: 0.37
+
+    def tearDown(self):
+        _recipes._clock = self._clock
+        _style._RECOLOR_HIDDEN_WARNED.clear()
+
+    def test_unseeded_every_look_and_style(self):
+        cells = list(_wearable_cells())
+        self.assertGreater(len(cells), 30, "the sweep stopped reaching the surface")
+        for cls, style in cells:
+            base = {} if style is None else {"style": style}
+            with self.subTest(visual=cls.__name__, style=style), warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                look = cls(**base)
+            _style._RECOLOR_HIDDEN_WARNED.clear()
+            changed, warned = _recolor_shows(look)
+            with self.subTest(visual=cls.__name__, style=style):
+                if _takes_color(cls, style):
+                    self.assertGreater(changed, 500, "takes color= but set_color did not show")
+                    self.assertEqual(warned, [])
+                    self.assertNotEqual(look._color_role, "D")
+                else:
+                    self.assertEqual(changed, 0, "takes no color but set_color showed")
+                    self.assertEqual(look._color_role, "D")
+                    self.assertTrue(any("paints its own colors" in w for w in warned), warned)
+
+    def test_seeded_every_look_and_style(self):
+        shows, hidden = set(), set()
+        for cls, style in _wearable_cells():
+            if not _takes_color(cls, style):
+                continue
+            base = {} if style is None else {"style": style}
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                got = _recolored(cls("deepskyblue", **base), "lime")
+                # Shown = what the look draws on a lime shape: the unseeded
+                # look (tint looks) or the look given lime (palette / paint).
+                want = (_worn(cls(**base), "lime"), _worn(cls("lime", **base), "blue"))
+            ok = any(np.abs(got - w).max() <= 2 for w in want)
+            (shows if ok else hidden).add((cls.__name__, style))
+        self.assertIn(("Neon", None), shows)
+        unlisted = sorted(hidden - SEED_WINS, key=str)
+        self.assertFalse(unlisted, f"seeded looks where set_color does not show: {unlisted}")
+        stale = sorted(SEED_WINS & shows, key=str)
+        self.assertFalse(stale, f"SEED_WINS looks that now show set_color: remove them: {stale}")
+
+    def test_canary_metal_recolor_silent_again(self):
+        import diff_support
+        from scena.recipes import Metal
+        diff_support.assert_catches(
+            self, "test_visual_color_param.TestSetColorShowsWhereColorIsTaken.test_unseeded_every_look_and_style",
+            [(Metal, "_unseed", lambda self: None)],
+            "Metal() + set_color that changes nothing (before 2026-10-13)")
+
+
+class TestPaletteLooks(unittest.TestCase):
+    """Metal and Shield(style="bubble"): own palette without color=, tinted with it.
+
+    ``set_color`` swaps either one for its shape-following sibling: one
+    interned instance for every colour, never back to the palette.
+    """
+
+    LOOKS = (
+        ("Metal", lambda c=None: scena.Metal(c, speed=0)),
+        ("bubble", lambda c=None: scena.Shield(c, style="bubble")),
+    )
+
+    def setUp(self):
+        self._clock = _recipes._clock
+        _recipes._clock = lambda: 0.37
+
+    def tearDown(self):
+        _recipes._clock = self._clock
+
+    def test_no_color_keeps_the_shape_color(self):
+        for name, make in self.LOOKS:
+            with self.subTest(visual=name):
+                c = Circle(color="blue")
+                c.visual = make()
+                self.assertEqual(_rgb(c), (0.0, 0.0, 1.0), "the default must not overwrite the shape")
+                c.visual = None
+                self.assertEqual(_rgb(c), (0.0, 0.0, 1.0))
+                c.destroy()
+
+    def test_color_becomes_the_shape_color(self):
+        for name, make in self.LOOKS:
+            with self.subTest(visual=name):
+                c = Circle(color="blue")
+                c.visual = make("red")
+                self.assertEqual(_rgb(c), (1.0, 0.0, 0.0))
+                c.visual = None
+                self.assertEqual(_rgb(c), (1.0, 0.0, 0.0), "visual=None keeps the given color")
+                c.destroy()
+
+    def test_set_color_retints_through_one_shared_sibling(self):
+        for name, make in self.LOOKS:
+            for seed in (None, "red"):
+                with self.subTest(visual=name, seed=seed):
+                    c = Circle(center=(64, 64), radius=40, color="blue")
+                    c.visual = make(seed)
+                    c.set_color(0, 1, 0)
+                    sibling = c.visual
+                    self.assertTrue(sibling._follows_shape)
+                    self.assertIsNot(sibling, make(seed))
+                    green = _draw(c)[40:88, 40:88, :3].reshape(-1, 3).sum(axis=0)
+                    self.assertGreater(green[1], 1.5 * max(green[0], green[2]), green)
+                    for i in range(40):
+                        c.set_color(i / 40, 0.2, 0.6)
+                    self.assertIs(c.visual, sibling, "a recolor interned a new look")
+                    c.set_color("red")
+                    c.visual = None
+                    self.assertEqual(_rgb(c), (1.0, 0.0, 0.0))
+                    c.destroy()
+
+    def test_sibling_draws_like_the_seeded_look(self):
+        """Recoloring to X draws what ``look(X)`` draws."""
+        for name, make in self.LOOKS:
+            with self.subTest(visual=name):
+                a = Circle(center=(64, 64), radius=40, color="blue")
+                a.visual = make("dodgerblue")
+                b = Circle(center=(64, 64), radius=40, color="blue")
+                b.visual = make()
+                b.set_color("dodgerblue")
+                np.testing.assert_array_equal(_draw(a), _draw(b))
+                a.destroy()
+                b.destroy()
 
 
 if __name__ == "__main__":

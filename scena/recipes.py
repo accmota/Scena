@@ -513,6 +513,13 @@ def _procedural_shader(
                 b.setUniform("u_color", list(col[:3]))
             except Exception:
                 pass
+        if kind == "shield_bubble":
+            try:
+                extra = getattr(fill, "_extra_rgb", None) or Shield._BUBBLE_PALETTE
+                for name in ("u_lime", "u_yell", "u_film"):
+                    b.setUniform(name, list(extra[name[2:]][:3]))
+            except Exception:
+                pass
         # Multi-stop shield palettes (nebula family / cracks shell)
         if kind in ("shield_stars", "shield_nebula_mist"):
             try:
@@ -708,6 +715,11 @@ _OUTLINE_SWELL = 1.5
 _OUTLINE_FIRE = 1.5
 _OUTLINE_METAL = 1.5
 _METAL_EDGE = (0.75, 0.78, 0.82, 0.95)  # chrome rim; Line and closed share this
+# Internal colour argument of a palette look's recolor sibling (Metal, bubble
+# Shield): ``set_color`` swaps the look for the one interned instance that
+# tints from the shape's live colour. Not an author spelling: ``Metal()`` is
+# the palette; ``Metal(color)`` a fixed tint.
+_FOLLOW_SHAPE = Unset("<follows the shape>")
 _OUTLINE_GEL = 2.0
 _OUTLINE_WAVE = 1.5
 _OUTLINE_AURORA = 1.5
@@ -2870,6 +2882,12 @@ class Shield(CompiledVisual):
 
     Constructor: ``Shield(color=None, *, style="bubble", amount=1.0, speed=1.0)``.
     ``style`` is keyword-only so a positional first argument is always the tint seed.
+
+    Colour, by style: ``bands`` / ``vortex`` / ``plasma`` follow the shape's
+    color (tint looks); ``bubble`` is a palette look — its own lime film
+    without ``color``, the palette rotated onto ``color`` with it, and
+    ``set_color`` retints it (like :class:`Metal`); the other styles paint
+    their own palette and take no color (Role D).
     """
 
     _fidelity_sensitive = True
@@ -2877,6 +2895,8 @@ class Shield(CompiledVisual):
 
     _styles = SHIELD_STYLES
     _TINTED = frozenset({"bands", "vortex"})
+    # Palette looks: own palette without color=, rotated onto color= with it.
+    _PALETTE_TINTED = frozenset({"bubble"})
     _NEBULA_FAMILY = frozenset({"nebula", "ember", "void"})
     _CRACKS_FAMILY = frozenset({"cracks", "frost"})
 
@@ -2900,6 +2920,16 @@ class Shield(CompiledVisual):
     _RIM_FIXED = {
         "bubble": (0.42, 0.88, 0.18, 1.0),
         "molten": (1.0, 0.9, 0.25, 1.0),
+    }
+
+    # shield_bubble film (u_lime / u_yell / u_film) and rim. ``lime`` is the
+    # slot a tint lands on; the others keep their hue / saturation / value
+    # offsets from it (_shift_palette). No color = these values, exactly.
+    _BUBBLE_PALETTE = {
+        "lime": (0.26, 0.84, 0.07),
+        "yell": (0.78, 0.92, 0.10),
+        "film": (0.38, 0.82, 0.18),
+        "rim": (0.42, 0.88, 0.18),
     }
 
     _NEBULA_PALETTES = {
@@ -2954,19 +2984,24 @@ class Shield(CompiledVisual):
         speed: float = 1.0,
     ):
         st = cls._normalize_style(style)
-        if color is not None and st != "plasma" and st not in cls._TINTED:
+        if (color is not None and st != "plasma" and st not in cls._TINTED
+                and st not in cls._PALETTE_TINTED):
             # A fixed-hue style paints its own palette: the color would change
             # nothing (KN4, 2026-10-12; before, it was taken and ignored).
             raise TypeError(
                 f'Shield(style="{st}") paints its own colors and takes no color. '
-                f'A tinted shield is style="bands", "vortex" or "plasma": '
-                f'Shield({color!r}, style="bands"); or drop the color.'
+                f'A tinted shield is style="bubble", "bands", "vortex" or "plasma": '
+                f'Shield({color!r}, style="bubble"); or drop the color.'
             )
         if st == "plasma":
             from .visuals import _OrbHalo
             return _OrbHalo(color, amount=amount, speed=speed)
         if st in cls._TINTED:
             ckey = _tint_intern_key(color, cls._DEFAULT_TINT[st])
+        elif st in cls._PALETTE_TINTED and color is _FOLLOW_SHAPE:
+            ckey = ("host",)
+        elif st in cls._PALETTE_TINTED and color is not None:
+            ckey = tuple(round(c, 3) for c in _resolve_color(color, cls._RIM_FIXED[st]))
         else:
             ckey = ("fixed",)
         key = (
@@ -3004,7 +3039,14 @@ class Shield(CompiledVisual):
         self.style = self._normalize_style(style)
         self.amount = float(amount)
         self.speed = float(speed)
-        if self.style in self._TINTED:
+        self._follows_shape = color is _FOLLOW_SHAPE
+        if self.style in self._PALETTE_TINTED:
+            self._seed_color = (
+                None if color is None or self._follows_shape
+                else _resolve_color(color, self._RIM_FIXED[self.style])
+            )
+            self.color = self._bubble_rim(self._seed_color)
+        elif self.style in self._TINTED:
             default = self._DEFAULT_TINT[self.style]
             if color is None:
                 self._seed_color = None
@@ -3023,7 +3065,8 @@ class Shield(CompiledVisual):
                 pal_key = self._style_palette_key(self.style)
                 pal = self._CRACKS_PALETTES.get(pal_key) or self._CRACKS_PALETTES["magma"]
                 self.color = pal["rim"]
-        if self.style in self._TINTED:
+        # A (set_color shows): tint looks and the palette look; D: own palette only.
+        if self.style in self._TINTED or self.style in self._PALETTE_TINTED:
             self._color_role = "A"
         else:
             self._color_role = "D"
@@ -3039,6 +3082,10 @@ class Shield(CompiledVisual):
     def _batch_key(self) -> tuple:
         if self.style in self._TINTED:
             ckey = ("host",) if self._seed_color is None else tuple(round(c, 3) for c in self.color)
+        elif self._follows_shape:
+            ckey = ("host",)
+        elif self._seed_color is not None:
+            ckey = tuple(round(c, 3) for c in self._seed_color)
         else:
             ckey = ("fixed",)
         return (
@@ -3046,8 +3093,40 @@ class Shield(CompiledVisual):
             round(self.amount, 2), round(self.speed, 2),
         )
 
+    def _unseed(self) -> Optional["Shield"]:
+        # Palette look: set_color moves to the shape-following sibling (one
+        # interned instance for every colour), never back to the lime palette,
+        # which would drop the colour just written.
+        if self.style not in self._PALETTE_TINTED or self._follows_shape:
+            return None
+        return type(self)(_FOLLOW_SHAPE, style=self.style, amount=self.amount, speed=self.speed)
+
+    @classmethod
+    def _bubble_rim(cls, tint) -> Tuple[float, float, float, float]:
+        if tint is None:
+            return cls._RIM_FIXED["bubble"]
+        return (*_shift_palette(cls._BUBBLE_PALETTE, "lime", tint)["rim"], 1.0)
+
+    def _palette_tint(self, shape) -> Optional[Tuple[float, float, float]]:
+        """Palette look: seed, live shape color (recolor sibling), or None (own palette)."""
+        if self._seed_color is not None:
+            return tuple(float(c) for c in self._seed_color[:3])
+        if not self._follows_shape:
+            return None
+        live = sample_body_rgba(shape)
+        if live is not None:
+            return (float(live[0]), float(live[1]), float(live[2]))
+        # Re-apply over our own film: the tint is stored on it.
+        fill = getattr(shape, "_fill", None)
+        pc = getattr(fill, "_color", None)
+        if pc is not None and len(pc) >= 3:
+            return (float(pc[0]), float(pc[1]), float(pc[2]))
+        return None
+
     def _primary_tint(self, shape) -> Tuple[float, float, float, float]:
         """Host / seed / default tint (compat with Recipe shell looks)."""
+        if self.style in self._PALETTE_TINTED:
+            return self._rim_rgba(shape)
         if self.style not in self._TINTED:
             return tuple(float(c) for c in self.color)
         live = sample_body_rgba(shape)
@@ -3065,6 +3144,8 @@ class Shield(CompiledVisual):
     def _rim_rgba(self, shape) -> Tuple[float, float, float, float]:
         if self.style in self._TINTED:
             return self._primary_tint(shape)
+        if self.style in self._PALETTE_TINTED:
+            return self._bubble_rim(self._palette_tint(shape))
         if self.style in self._NEBULA_FAMILY:
             pal_key = self._style_palette_key(self.style)
             pal = self._NEBULA_PALETTES.get(pal_key) or self._NEBULA_PALETTES["classic"]
@@ -3147,7 +3228,14 @@ class Shield(CompiledVisual):
             )
         else:
             fill = ProceduralFill(kind=kind, amount=inten, speed=self.speed)
-            if self.style in self._NEBULA_FAMILY:
+            if self.style in self._PALETTE_TINTED:
+                tint = self._palette_tint(shape)
+                if tint is None:
+                    fill._extra_rgb = dict(self._BUBBLE_PALETTE)
+                else:
+                    fill._extra_rgb = _shift_palette(self._BUBBLE_PALETTE, "lime", tint)
+                    fill._color = tint      # read back on a re-apply over this film
+            elif self.style in self._NEBULA_FAMILY:
                 pal_key = self._style_palette_key(self.style)
                 pal = self._NEBULA_PALETTES.get(pal_key) or self._NEBULA_PALETTES["classic"]
                 fill._extra_rgb = {
@@ -5253,17 +5341,52 @@ class Gel(Recipe):
 
 
 
+def _shift_palette(palette: dict, base: str, tint) -> dict:
+    """``palette`` rotated so its ``base`` slot lands on ``tint``.
+
+    Every other slot keeps its offset from the base: hue added, saturation
+    and value scaled (HSV). A grey tint gives a grey palette. The look's own
+    palette is passed as is, never through here, so "no color" stays exact.
+    """
+    bh, bs, bv = colorsys.rgb_to_hsv(*palette[base][:3])
+    th, ts, tv = colorsys.rgb_to_hsv(*(float(c) for c in tint[:3]))
+    out = {}
+    for name, rgb in palette.items():
+        h, s, v = colorsys.rgb_to_hsv(*rgb[:3])
+        out[name] = colorsys.hsv_to_rgb(
+            (th + h - bh) % 1.0,
+            min(1.0, s * ts / bs) if bs > 0 else ts,
+            min(1.0, v * tv / bv) if bv > 0 else tv,
+        )
+    return out
+
+
 def _metal_tint(fill) -> list:
     """The metal shader's ``u_tint``: rgb + 1 for ``Metal(color)``, zeros (chrome) without."""
     rgb = (getattr(fill, "_extra_rgb", None) or {}).get("tint")
     return [0.0, 0.0, 0.0, 0.0] if rgb is None else [*rgb, 1.0]
 
 
+def _metal_edge(tint) -> Tuple[float, float, float, float]:
+    """Rim for a tinted metal: 60 % from the shader's tinted base toward its
+    tinted highlight, the place the chrome rim holds between chrome's own
+    (``_METAL_EDGE`` ~ mix(0.50, 0.92, 0.6)). Before 2026-10-13 a gold Metal
+    kept the chrome rim."""
+    if tint is None:
+        return _METAL_EDGE
+    r, g, b = (float(c) for c in tint[:3])
+    return (0.68 * r + 0.3, 0.68 * g + 0.3, 0.68 * b + 0.3, _METAL_EDGE[3])
+
+
 class Metal(Recipe):
     """Chrome: brushed metal fill + shared world light + chrome rim.
 
-    Role A (body). Grain is painted on the body (rotates with the shape).
-    On ``Sprite``: fills the alpha silhouette (replaces the bitmap).
+    Palette look (Role A): ``Metal()`` is chrome whatever the shape's color;
+    ``Metal(color)`` tints body and rim and becomes the shape's color.
+    ``set_color`` retints either one live (the look swaps to its
+    shape-following sibling, ``_FOLLOW_SHAPE``). Grain is painted on the body
+    (rotates with the shape). On ``Sprite``: fills the alpha silhouette
+    (replaces the bitmap).
 
     Args:
         color: Tint (any color form; default: chrome, whatever the shape's
@@ -5279,6 +5402,8 @@ class Metal(Recipe):
     def __new__(cls, color: Optional[ColorLike] = None, amount: float = 1.0, speed: float = 1.0):
         if color is None:
             ckey = ("chrome",)
+        elif color is _FOLLOW_SHAPE:
+            ckey = ("host",)
         else:
             c = Color(color)
             ckey = tuple(round(float(x), 3) for x in c.rgb)
@@ -5289,26 +5414,49 @@ class Metal(Recipe):
         if getattr(self, "_ready", False):
             return
         from .style import ProceduralFill
-        self._metal_seed = None if color is None else Color(color)
+        self._follows_shape = color is _FOLLOW_SHAPE
+        self._metal_seed = None if color is None or self._follows_shape else Color(color)
         self.amount = float(amount)
         self.speed = float(speed)
         fill_speed = 1.15 * self.speed if self.speed > 0 else 0.0
         self._fill = ProceduralFill(
             kind="metal", amount=self.amount, speed=fill_speed,
         )
+        # Per-look tint and rim, resolved once (the shape-following sibling
+        # reads its tint per draw).
+        self._seed_rgb = None
         if self._metal_seed is not None:
+            self._seed_rgb = tuple(float(c) for c in self._metal_seed.rgb[:3])
             # The shader mixes its chrome palette toward the tint. Before
             # 2026-10-09 the tint never reached it: Metal("gold") drew silver.
-            self._fill._extra_rgb = {"tint": tuple(float(c) for c in self._metal_seed.rgb[:3])}
+            self._fill._extra_rgb = {"tint": self._seed_rgb}
+        self._edge = _metal_edge(self._seed_rgb)
         self._ready = True
 
     @property
     def _batch_key(self) -> tuple:
-        if self._metal_seed is None:
+        if self._follows_shape:
+            ckey = ("host",)
+        elif self._metal_seed is None:
             ckey = ("chrome",)
         else:
             ckey = tuple(round(c, 3) for c in self._metal_seed.rgb)
         return ("metal", ckey, round(self.amount, 2), round(self.speed, 2))
+
+    def _unseed(self) -> Optional["Metal"]:
+        # A palette look's recolor sibling tints from the shape (one interned
+        # instance for every colour): chrome is not "unseeded" here, it would
+        # drop the colour set_color just wrote (silent before 2026-10-13).
+        if self._follows_shape:
+            return None
+        return type(self)(_FOLLOW_SHAPE, self.amount, self.speed)
+
+    def _live_tint(self, shape) -> Optional[Tuple[float, float, float]]:
+        """Shape-following sibling: the shape's live color (None: chrome)."""
+        live = sample_body_rgba(shape)
+        if live is None:
+            return None
+        return (float(live[0]), float(live[1]), float(live[2]))
 
     def _apply(self, shape) -> None:
         # Metal has no tint_channel seed path — still install standard outline.
@@ -5332,8 +5480,15 @@ class Metal(Recipe):
 
     def _render(self, shape, skia_canvas) -> None:
         cx, cy, r = _center_radius(shape)
+        edge = self._edge
+        if self._follows_shape:
+            tint = self._live_tint(shape)
+            edge = _metal_edge(tint)
+            # One shared fill for every shape on this sibling: set its tint
+            # just before the shader is built (draws are sequential).
+            self._fill._extra_rgb = None if tint is None else {"tint": tint}
         rim = self._stroke_paint(
-            color=_METAL_EDGE, width=_OUTLINE_METAL, **_host_stroke_knobs(shape),
+            color=edge, width=_OUTLINE_METAL, **_host_stroke_knobs(shape),
         )
         if _is_line_shape(shape):
             shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=rim)

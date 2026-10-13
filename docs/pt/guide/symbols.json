@@ -617,7 +617,7 @@
           "pass": 1,
           "type": "",
           "def": "—",
-          "doc": "Cor do escudo — só nos estilos bands, vortex e plasma; os outros têm cores próprias, e uma cor neles é TypeError"
+          "doc": "Cor do escudo. bubble: sem ela, a película verde-limão de sempre; com ela, a mesma película nessa cor. bands, vortex e plasma: sem ela, seguem a cor do objeto. Os outros estilos têm cores próprias, e uma cor neles é TypeError"
         },
         {
           "name": "style",
@@ -783,7 +783,7 @@
       "section": "aparencia-visual",
       "sectionTitle": "Visual",
       "anchor": "visual-metal",
-      "oneLiner": "Metal escovado com um aro cromado — placas, moedas, botões de metal.",
+      "oneLiner": "Metal escovado com um aro cromado — placas, moedas, botões de metal. Com cor, corpo e aro ganham a cor (Metal(\"gold\") é ouro com aro dourado).",
       "search": "metal cromado",
       "family": "visual",
       "catalog": true,
@@ -793,7 +793,7 @@
           "pass": 1,
           "type": "",
           "def": "cromado",
-          "doc": "Cor do metal (sem ela, cromado, qualquer que seja a cor da forma)"
+          "doc": "Cor do metal, no corpo e no aro (sem ela, cromado, qualquer que seja a cor da forma; set_color depois recolore o metal)"
         },
         {
           "name": "amount",

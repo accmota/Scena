@@ -2027,6 +2027,14 @@ class ProceduralFill:
                     b.setUniform(name, list(rgb[:3]))
             except Exception:
                 pass
+        if self._kind == "shield_bubble":
+            try:
+                from .recipes import Shield
+                extra = self._extra_rgb or Shield._BUBBLE_PALETTE
+                for name in ("u_lime", "u_yell", "u_film"):
+                    b.setUniform(name, list(extra[name[2:]][:3]))
+            except Exception:
+                pass
         if self._kind == "shield_cracks":
             try:
                 from .recipes import _CRACKS_UNIFORMS

@@ -580,11 +580,16 @@ half4 main(float2 coord) {
 # ---------------------------------------------------------------------------
 
 # Iridescent bubble: hollow center, lime/yellow blotches, green membrane rim.
+# Palette from u_lime / u_yell / u_film (Shield._BUBBLE_PALETTE without
+# color=; rotated onto the tint with it).
 _SRCS["shield_bubble"] = """
 uniform float2 u_resolution;
 uniform float u_time;
 uniform float u_amount;
 uniform float u_seed;
+uniform half3 u_lime;
+uniform half3 u_yell;
+uniform half3 u_film;
 
 half4 main(float2 coord) {
     float2 uv = 0.5 + coord / max(u_resolution, float2(1.0));
@@ -606,11 +611,8 @@ half4 main(float2 coord) {
     float blotch = pow(max(n, 0.0), 2.4) * rim * u_amount;
 
     // lime → yellow film; slightly below max green (toxic, not fluorescent)
-    half3 lime = half3(0.26, 0.84, 0.07);
-    half3 yell = half3(0.78, 0.92, 0.10);
-    half3 film = half3(0.38, 0.82, 0.18);
-    half3 col = mix(lime, yell, half(smoothstep(0.2, 0.75, blotch)));
-    col = mix(col, film, half(pow(rim, 2.5) * 0.22 * (1.0 - blotch * 0.5)));
+    half3 col = mix(u_lime, u_yell, half(smoothstep(0.2, 0.75, blotch)));
+    col = mix(col, u_film, half(pow(rim, 2.5) * 0.22 * (1.0 - blotch * 0.5)));
 
     float centerClear = mix(0.04, 1.0, smoothstep(0.25, 0.78, rr));
     float a = clamp(rim * (0.22 + blotch * 1.2) * centerClear, 0.0, 0.92);

@@ -67,7 +67,8 @@ ALTERNATIVES = {
     "width": 6.0, "material": "crimson",
 }
 
-_SHIELD_FIXED_HUE = ("bubble", "nebula", "ember", "void", "molten", "cracks", "frost")
+# bubble left this list on 2026-10-13: it takes color= (palette look, like Metal).
+_SHIELD_FIXED_HUE = ("nebula", "ember", "void", "molten", "cracks", "frost")
 
 # (class, style, knob) -> why it draws nothing different. Shrink-only.
 KNOWN_NO_EFFECT: dict = {}
@@ -77,7 +78,7 @@ KNOWN_NO_EFFECT: dict = {}
 # unexpected keyword" is not an author message (KN3). Decided 2026-10-12: a
 # knob that one style reads raises on the others (KN4).
 REFUSED_ON_STYLE = {
-    **{("Shield", s, "color"): "bands" for s in _SHIELD_FIXED_HUE},
+    **{("Shield", s, "color"): 'style="bubble"' for s in _SHIELD_FIXED_HUE},
     **{("Halo", s, k): "pulse"
        for s in ("hollow", "fill", "soft", "line") for k in ("rings", "speed")},
     ("Bolt", "core", "amount"): "filaments",
@@ -197,7 +198,11 @@ class TestVisualKnobsReachThePixels(SystemTestCase, unittest.TestCase):
         from diff_support import assert_catches
         assert_catches(
             self, "test_knobs_take_effect.TestVisualKnobsReachThePixels.test_every_knob_changes_the_pixels",
-            [("scena.recipes", "_metal_tint", lambda fill: [0.0, 0.0, 0.0, 0.0])],
+            # Body and rim: since the rim takes the tint (2026-10-13) a body
+            # without it still changes the pixels here; test_visuals'
+            # test_metal_color_tints_the_metal reads the body on its own.
+            [("scena.recipes", "_metal_tint", lambda fill: [0.0, 0.0, 0.0, 0.0]),
+             ("scena.recipes", "_metal_edge", lambda tint: (0.75, 0.78, 0.82, 0.95))],
             "Metal(color) that never reaches the shader (2026-10-09)")
 
 

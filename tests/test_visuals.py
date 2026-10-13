@@ -1798,6 +1798,86 @@ class TestVisuals(unittest.TestCase):
             self.assertLess(max(chrome) - min(chrome), 25, chrome)    # gray, whatever the shape
         self.assertIsNot(Metal("gold"), Metal("crimson"))
 
+    def test_metal_color_tints_the_rim(self):
+        """``Metal("gold")`` has a gold rim; ``Metal()`` keeps the chrome one.
+
+        Bug (2026-10-13): the tint reached the body but the rim stayed chrome,
+        a silver outline around gold metal. On a Line the rim is the whole look.
+        """
+        from scena.recipes import _METAL_EDGE, _metal_edge
+
+        def line_rgb(visual):
+            ln = Line(p1=(10, 32), p2=(54, 32))
+            ln.visual = visual
+            surf = skia.Surface(64, 64)
+            surf.getCanvas().clear(skia.ColorBLACK)
+            ln.draw(surf.getCanvas())
+            ln.destroy()
+            px = surf.makeImageSnapshot().toarray(colorType=skia.kRGBA_8888_ColorType)[..., :3]
+            lit = px.reshape(-1, 3)[px.reshape(-1, 3).sum(axis=1) > 60]
+            return lit.mean(axis=0)
+
+        r, g, b = line_rgb(Metal("gold"))
+        self.assertGreater(r, b + 80, (r, g, b))
+        chrome = line_rgb(Metal())
+        self.assertLess(max(chrome) - min(chrome), 25, chrome)
+        self.assertEqual(_metal_edge(None), _METAL_EDGE)
+        # Same hue as the tint, lighter than the tinted body (0.95 x tint).
+        import colorsys
+        for tint in ((1.0, 0.84, 0.0), (0.86, 0.08, 0.24), (0.12, 0.56, 1.0)):
+            edge = _metal_edge(tint)[:3]
+            self.assertAlmostEqual(colorsys.rgb_to_hsv(*edge)[0], colorsys.rgb_to_hsv(*tint)[0], delta=0.02)
+            self.assertGreater(sum(edge), 0.95 * sum(tint))
+
+    def test_bubble_shield_color_rotates_its_palette(self):
+        """``Shield(color, style="bubble")``: the film follows the tint's hue;
+        no color is the lime palette, exactly (2026-10-13)."""
+        import colorsys
+        from scena import recipes
+        from scena.recipes import _shift_palette
+
+        pal = Shield._BUBBLE_PALETTE
+        for name, rgb in _shift_palette(pal, "lime", pal["lime"]).items():
+            for got, want in zip(rgb, pal[name]):
+                self.assertAlmostEqual(got, want, places=9)
+        c = Circle(center=(64, 64), radius=40)
+        c.visual = Shield(style="bubble")
+        self.assertEqual(c.fill._extra_rgb, pal)
+        c.destroy()
+        # A bare ProceduralFill(kind="shield_bubble") (no palette set) keeps
+        # the lime film: the shader's colours are uniforms now, never zeros.
+        from scena import ProceduralFill
+        c = Circle(center=(64, 64), radius=40)
+        c.fill = ProceduralFill(kind="shield_bubble")
+        surf = skia.Surface(128, 128)
+        surf.getCanvas().clear(skia.ColorBLACK)
+        c.draw(surf.getCanvas())
+        c.destroy()
+        px = surf.makeImageSnapshot().toarray(colorType=skia.kRGBA_8888_ColorType)[..., :3]
+        r, g, b = px.reshape(-1, 3).astype(float).sum(axis=0)
+        self.assertGreater(g, 1.5 * max(r, b), (r, g, b))
+
+        old_clock = recipes._clock
+        recipes._clock = lambda: 0.37
+        try:
+            for tint in ("dodgerblue", "red", "magenta", "gold"):
+                with self.subTest(tint=tint):
+                    c = Circle(center=(64, 64), radius=40, color="gray")
+                    c.visual = Shield(tint, style="bubble")
+                    surf = skia.Surface(128, 128)
+                    surf.getCanvas().clear(skia.ColorBLACK)
+                    c.draw(surf.getCanvas())
+                    c.destroy()
+                    px = surf.makeImageSnapshot().toarray(colorType=skia.kRGBA_8888_ColorType)
+                    rgb = px[..., :3].reshape(-1, 3).astype(float)
+                    rim = rgb[rgb.sum(axis=1) > 120].mean(axis=0) / 255.0
+                    got = colorsys.rgb_to_hsv(*rim)[0]
+                    want = colorsys.rgb_to_hsv(*Color(tint).rgb[:3])[0]
+                    gap = min(abs(got - want), 1 - abs(got - want))
+                    self.assertLess(gap, 0.08, (tint, rim))
+        finally:
+            recipes._clock = old_clock
+
     def test_tail_size_scales_span(self):
         """size drives ghost spacing (span = 22 × size)."""
         small = Tail(angle=45, size=0.5)
@@ -3439,12 +3519,13 @@ class TestHaloTintRoles(unittest.TestCase):
 
     def test_shield_color_raises_on_fixed_hue_styles(self):
         # KN4: a fixed-hue Shield took color= and drew its own palette.
-        for style in ("bubble", "nebula", "ember", "void", "molten", "cracks", "frost"):
+        # bubble takes it since 2026-10-13 (palette look, like Metal).
+        for style in ("nebula", "ember", "void", "molten", "cracks", "frost"):
             with self.subTest(style=style), self.assertRaises(TypeError) as cm:
                 Shield("crimson", style=style)
-            self.assertIn('style="bands"', str(cm.exception))
+            self.assertIn('style="bubble"', str(cm.exception))
             self.assertIsNotNone(Shield(style=style))
-        for style in ("bands", "vortex", "plasma"):
+        for style in ("bubble", "bands", "vortex", "plasma"):
             self.assertIsNotNone(Shield("crimson", style=style))
 
     def test_bolt_amount_raises_on_core(self):

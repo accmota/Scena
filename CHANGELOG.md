@@ -12,6 +12,13 @@ left out.
 
 ## Unreleased
 
+### Added
+
+- `Shield(color)` on the bubble style (the default): the same lime film,
+  turned to that color (`Shield("cyan")` is a cyan bubble). Without a color
+  the bubble is unchanged. In 0.8.0 a color on the bubble was taken and
+  ignored; code that passed one now draws in it.
+
 ### Changed
 
 - `canvas.cull_offscreen` is now `True` by default: Scena skips drawing what
@@ -20,9 +27,22 @@ left out.
   on one screen stays the same: a layer where nothing is off screen tests
   again only every few frames. Objects off screen still run `update` and
   collide, as before. `canvas.cull_offscreen = False` draws everything.
+- One rule for color: a visual that takes `color=` shows `set_color`; a
+  visual that takes none (`Flame`, `Water`, `Swell`, `Shield(style="nebula")`
+  and the other fixed-palette shield styles) keeps the color, warns, and
+  shows it once the visual is removed. New under the rule: `set_color` on a
+  shape wearing a bubble `Shield` (with or without a color) turns the bubble
+  to the new color; before, it warned and stayed lime. `Metal()` and
+  `Shield()` without a color keep their own palette and leave the shape's
+  color as it was.
 
 ### Fixed
 
+- `set_color` on a shape wearing `Metal()` or `Metal("gold")` turns the
+  metal to the new color. Before, the metal did not change and nothing said
+  why.
+- `Metal("gold")` has a gold rim. Before, every tinted metal kept the chrome
+  outline.
 - Maximized and fullscreen (`canvas.display`) keep the bands around the game
   black. Before, a body half outside the screen showed its outer half in the
   bands, and `Grain`, `Scanlines`, `Fog` and `Vignette` drew over them.
@@ -42,10 +62,11 @@ left out.
   where a copy of the same circle read −270).
 - A knob that only one style or fit reads raises `TypeError` with the fix on
   the others. Before, it was taken and drew nothing different, so code that
-  passed it never did what it said. Old → new: `Shield("cyan")` (any color on
-  the bubble, nebula, ember, void, molten, cracks or frost styles) →
+  passed it never did what it said. Old → new: `Shield("cyan",
+  style="nebula")` (any color on the nebula, ember, void, molten, cracks or
+  frost styles) → `Shield("cyan")` (the bubble, see Added) or
   `Shield("cyan", style="bands")` (also `"vortex"`, `"plasma"`), or
-  `Shield()`; `Halo(rings=5)` / `speed=` on hollow, fill, soft or line →
+  `Shield(style="nebula")`; `Halo(rings=5)` / `speed=` on hollow, fill, soft or line →
   `Halo(style="pulse", rings=5)`; `Bolt(amount=6)` (style core) →
   `Bolt(style="filaments", amount=6)` (or `"tesla"`);
   `Wallpaper("bg.png", tile_size=64)` / `Texture(…, tile_size=64)` without
