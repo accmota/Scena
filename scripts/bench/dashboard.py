@@ -252,18 +252,29 @@ class GamesPulse(Pulse):
     id = "games"
     area = "Whole games (ninja + benchmark games)"
     log = "games.md"
-    protocol = "games-1"
+    protocol = "games-2"
 
     def parse(self, md: str) -> Dict[str, Any]:
+        from run_games import CELLS, FB_COL, FIRST_CELL
+
         rows = _filter_protocol(parse_summary_table(md), self.protocol)
         if not rows:
             return {}
         latest = rows[0]
-        names = ("ninja", "horda", "mundo", "corrida", "festa")
-        vals = [parse_leading_float(latest[4 + i]) if len(latest) > 4 + i else None
-                for i in range(len(names))]
-        headline = " · ".join(f"{n} {v:.1f}" for n, v in zip(names, vals) if v is not None) + " ms"
-        ninja = [parse_leading_float(r[4]) for r in rows if len(r) > 4]
+        col = {key: FIRST_CELL + i for i, (key, _g, _f) in enumerate(CELLS)}
+
+        def val(cells: Sequence[str], key: str) -> Optional[float]:
+            i = col[key]
+            return parse_leading_float(cells[i]) if len(cells) > i else None
+
+        parts = [(n, val(latest, f"{n}_work_ms")) for n in ("ninja", "horda", "mundo", "corrida", "festa")]
+        headline = " · ".join(f"{n} {v:.1f}" for n, v in parts if v is not None) + " ms"
+        cmax = val(latest, "corrida_max_ms")
+        if cmax is not None:
+            headline += f" · corrida max {cmax:.1f}"
+        fb = latest[FB_COL].strip() if len(latest) > FB_COL else "?"
+        headline += f" · festa FB {fb}"
+        ninja = [val(r, "ninja_work_ms") for r in rows]
         last5 = _last5(ninja)
         return {
             "date": latest[0],

@@ -12,7 +12,7 @@ Parametrized performance probes. Shared harness: [`harness.py`](harness.py).
 | Text / HUD | [text.md](text.md) | `python scripts/bench/perf_text.py --pulse` |
 | Reactive graph | [graph.md](graph.md) | `python scripts/bench/run_graph.py` |
 | Resolve (balls + platformer) | [resolve.md](resolve.md) | `python scripts/bench/run_resolve.py` |
-| Whole games (ninja + four benchmark games, real loop) | [games.md](games.md) | `python scripts/bench/run_games.py` |
+| Whole games (ninja + four benchmark games at reference size, horda / mundo stress rungs, real loop; median of 3, FB-stamped) | [games.md](games.md) | `python scripts/bench/run_games.py` (~6 min) |
 | Background / camera / parallax | [background.md](background.md) | `python scripts/bench/perf_background.py --pulse` |
 | Startup + warm-up | [startup.md](startup.md) | `python scripts/bench/perf_startup.py --pulse` |
 | Asset first-use | [assets.md](assets.md) | `python scripts/bench/perf_assets.py --pulse` |

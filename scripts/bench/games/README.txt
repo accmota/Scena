@@ -36,7 +36,9 @@ Each game:
 Sizes: a reference size that must fit the frame budget (<= 4 ms of work on
 the M4 the logs come from, about 16 ms on a machine four times slower), and
 a ladder that only shows how the cost grows (linear or not, where a cliff
-starts). Optimizations are justified at the reference size.
+starts). Optimizations are justified at the reference size. The games
+pulse (scripts/bench/run_games.py, protocol games-2) runs every reference
+size plus one stress rung: horda n=400 and mundo tiles=4000.
 
   game      reference                         ladder
   horda     n=150 enemies                     n=50,150,400,1000

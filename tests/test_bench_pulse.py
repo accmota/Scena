@@ -1,4 +1,4 @@
-"""Bench pulse auto-diff: framebuffer guard (scripts/bench/pulse.py, run_balanced.py).
+"""Bench pulse auto-diff: framebuffer guard (scripts/bench/pulse.py, run_balanced.py, run_games.py).
 
 Regression for 2026-09-28: a ``balanced-2`` run whose window opened on another
 display rendered the GPU cells at FB 1200×800 (1×) instead of 2400×1600
@@ -247,6 +247,149 @@ class TestAutodiffEndToEnd(unittest.TestCase):
         line = next(l for l in text.splitlines() if "gpu_work_ms:" in l and "→" in l)
         self.assertIn("2026-09-27", line)
         self.assertNotIn("environment noise", line)
+
+
+import run_games as rg  # noqa: E402
+
+
+def _game_rep(work, *, fb_w=2006, win_w=1003, mx=None, rss_end=270.0, load=2.0):
+    """Shape of game_bench.py's RESULT_JSON (the fields run_games reads)."""
+    return {
+        "fb": [fb_w, fb_w * 3 // 4, win_w, win_w * 3 // 4],
+        "rss_mb": [250.0, rss_end],
+        "load": [load, load, load],
+        "sides": {"all": {
+            "work_ms": work, "work_p95": work * 1.2, "work_p99": work * 1.3,
+            "work_max": work * 2 if mx is None else mx, "x4_ms": 4 * work, "fps": 1000 / work,
+            "phases": {"simulate": work * 0.6, "draw_frame": work * 0.3},
+        }},
+    }
+
+
+def _games(scale=2, festa=45.0, ninja=2.5, rss=275.0):
+    fb_w = 1003 * scale
+    out = {}
+    for gid, _script, _params in rg.GAMES:
+        work = {"ninja": ninja, "festa": festa}.get(gid, 10.0)
+        reps = [_game_rep(work * f, fb_w=fb_w, mx=24.0 if gid == "corrida" else None,
+                          rss_end=rss) for f in (0.9, 1.0, 1.2)]
+        out[gid] = rg.summarize_game(reps)
+    return out
+
+
+def _games_log(*rows):
+    return (
+        "## Summary\n\n"
+        "| Date | Protocol | Host | Load | FB | " + " | ".join(k for k, _g, _f in rg.CELLS)
+        + " | Notes |\n|" + "---|" * (6 + len(rg.CELLS)) + "\n" + "".join(r + "\n" for r in rows)
+        + "\nRetired:\n\n| Date | Protocol | Host | Load | ninja | Notes |\n|---|---|---|---|---|---|\n"
+        "| 2026-10-12 | `games-1` | h | 4.1 | 2.83 |  |\n\n## Runs\n"
+    )
+
+
+def _games_row(date, games):
+    meta = {"date": date, "host": HOST}
+    return rg.summary_row(games, meta, "")
+
+
+class TestGamesPulse(unittest.TestCase):
+    """``games-2`` (run_games.py): median of interleaved repeats, a framebuffer
+    stamp per row, festa compared only at the same scale.
+
+    Regression for 2026-10-13: ``games-1`` logged festa at 36.2 ms (FB 1×);
+    the next run opened at FB 2× (4K display) and read ~45 ms, submit 19.6 →
+    26.3 ms. The row did not say the scale, so the auto-diff would have
+    reported a +25 % festa move for a display change.
+    """
+
+    def test_median_of_repeats_and_framebuffer(self):
+        g = rg.summarize_game([_game_rep(w) for w in (12.0, 10.0, 30.0)])
+        self.assertEqual(g["work_ms"], 12.0)            # median, not mean (17.3)
+        self.assertEqual(g["works"], [12.0, 10.0, 30.0])
+        self.assertEqual(g["fb_tag"], "2006x1504")
+
+    def test_tag_is_the_framebuffer_not_fb_over_design(self):
+        # First games-2 run, one 4K display: the window is fitted to the
+        # display, so fb / design width read 2.006, 2.236 and 2.506 for games
+        # that all ran at the same backing scale. The pixel count is the workload.
+        a = _game_rep(5.0, fb_w=2006, win_w=1000)
+        b = _game_rep(5.0, fb_w=2506, win_w=1000)
+        self.assertEqual(rg.run_fb_tag(a), "2006x1504")
+        self.assertNotEqual(rg.run_fb_tag(a), rg.run_fb_tag(b))
+
+    def test_repeats_on_different_displays_are_mixed(self):
+        g = rg.summarize_game([_game_rep(5.0), _game_rep(5.0, fb_w=1003)])
+        self.assertEqual(g["fb_tag"], "mixed")
+        games = _games()
+        games["festa"] = g
+        self.assertEqual(rg.row_fb_tag(games), "mixed")
+
+    def test_fb_column_follows_festa_only(self):
+        games = _games(scale=2)
+        games["ninja"] = rg.summarize_game([_game_rep(2.5, fb_w=2506, win_w=1000)])
+        self.assertEqual(rg.row_fb_tag(games), "2006x1504")
+
+    def test_row_round_trips_every_cell(self):
+        games = _games()
+        prev, labels, notes = rg.prev_metrics(_games_log(_games_row("2026-10-13", games)), "2006x1504")
+        want = rg.metrics(games)
+        self.assertEqual(set(prev), set(want))
+        for k, v in want.items():
+            self.assertAlmostEqual(prev[k], v, delta=0.51 if k.endswith("_mb") else 0.006, msg=k)
+        self.assertEqual(prev["corrida_max_ms"], 24.0)
+        self.assertEqual((labels, notes), ({}, []))
+
+    def test_festa_skips_a_row_at_another_scale(self):
+        log = _games_log(_games_row("2026-10-14", _games(scale=1, festa=36.0)),
+                         _games_row("2026-10-13", _games(scale=2, festa=45.0, ninja=2.6)))
+        prev, labels, notes = rg.prev_metrics(log, "2006x1504")
+        self.assertAlmostEqual(prev["ninja_work_ms"], 2.5)     # CPU cells: newest row
+        self.assertAlmostEqual(prev["festa_work_ms"], 45.0)    # festa: last 2× row
+        self.assertIn("2026-10-13", labels["festa_work_ms"])
+        self.assertTrue(any("compared with the 2026-10-13 row" in n for n in notes))
+
+    def test_no_row_at_that_scale_is_not_compared(self):
+        log = _games_log(_games_row("2026-10-13", _games(scale=1)))
+        for tag in ("2006x1504", "mixed"):
+            with self.subTest(tag=tag):
+                prev, _labels, notes = rg.prev_metrics(log, tag)
+                self.assertNotIn("festa_work_ms", prev)
+                self.assertNotIn("festa_rss_mb", prev)
+                self.assertIn("ninja_work_ms", prev)
+                self.assertEqual(sum("not compared" in n for n in notes), 2)
+
+    def test_retired_protocol_rows_are_not_read(self):
+        self.assertEqual(rg.prev_metrics(_games_log(), "2006x1504"), (None, {}, []))
+
+    def _autodiff(self, log, games):
+        out = io.StringIO()
+        with mock.patch.object(rg, "latest_scena_fingerprint", lambda _t: "old"), \
+                contextlib.redirect_stdout(out):
+            rg.report_autodiff(games, log, "new")
+        return out.getvalue()
+
+    def test_fb_change_is_not_reported_as_a_move(self):
+        log = _games_log(_games_row("2026-10-12", _games(scale=1, festa=36.2)))
+        out = self._autodiff(log, _games(scale=2, festa=45.0))
+        self.assertNotIn("festa_work_ms: 36", out)
+        self.assertIn("not compared", out)
+
+    def test_same_fb_move_is_still_reported(self):
+        log = _games_log(_games_row("2026-10-12", _games(scale=2, festa=36.2, rss=270.0)))
+        out = self._autodiff(log, _games(scale=2, festa=45.0, ninja=3.5, rss=700.0))
+        self.assertIn("festa_work_ms: 36.200 → 45.000", out)
+        self.assertIn("ninja_work_ms: 2.500 → 3.500", out)
+        self.assertIn("festa_rss_mb", out)
+
+    def test_dashboard_reads_the_new_row(self):
+        import dashboard
+        log = _games_log(_games_row("2026-10-13", _games(scale=1)))
+        got = dashboard.GamesPulse().parse(log)
+        self.assertEqual(got["protocol"], "games-2")
+        self.assertIn("ninja 2.5", got["headline"])
+        self.assertIn("corrida max 24.0", got["headline"])
+        self.assertIn("festa FB 1003x752", got["headline"])
+        self.assertEqual(got["last5"], [2.5])
 
 
 class TestFingerprintRowLabel(unittest.TestCase):

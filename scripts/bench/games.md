@@ -25,11 +25,42 @@ Record `uptime` with a number: peers load this machine.
 
 ## Summary
 
-Protocol `games-1`: the five games at reference size (ninja; horda n=150;
-mundo tiles=1500, robots=20; corrida speed=600; festa n=300), 10 s recorded
-after 3 s of warm-up, one fresh process each, uncapped, fb as opened (1× here).
-Cells are work ms. Runner: [`run_games.py`](run_games.py) (in `run_all.py`).
+Protocol `games-2` (since 2026-10-13). Every game at its reference size (ninja;
+horda n=150; mundo tiles=1500, robots=20; corrida speed=600; festa n=300) plus
+one stress size for the two games whose cost grows with size (horda n=400, the
+crowd; mundo tiles=4000, the world): a regression of the growth shape shows
+there long before it moves the reference size. Each run is 10 s recorded after
+3 s of warm-up, one fresh process, uncapped. Three interleaved rounds (every
+game once per round), median of each metric: a single run of horda or mundo
+moves ±10–15 % with the machine load. Cells are work ms, except **corrida max**
+(the max frame: a track slot build, i.e. Sprite construction, D6) and **festa
+RSS** (MiB at the end of the run: Skia GPU cache and image pins, D9). **FB** is
+festa's framebuffer in pixels. festa is GPU-bound, so its two cells are
+compared only with a row at the same FB; the other cells are CPU-bound. The tag
+is the size, not a scale: the window is fitted to the display, so fb / design
+width read 2.0×, 2.24× and 2.51× for games on one 4K display.
+Runner: [`run_games.py`](run_games.py) (in `run_all.py`, about 6 minutes).
 Noise: ≲5 % is noise, ≳15 % noteworthy (auto-diff against the last row).
+
+| Date | Protocol | Host | Load | FB | ninja | horda | horda 400 | mundo | mundo 4000 | corrida | corrida max | festa | festa RSS | Notes |
+|------|----------|------|-----:|----|------:|------:|----------:|------:|-----------:|--------:|------------:|------:|----------:|-------|
+| 2026-10-13 | `games-2` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 2.6 | 2006x1504 | 2.59 | 11.14 | 71.84 | 18.62 | 41.21 | 1.77 | 23.85 | 44.27 | 278 | first games-2 row (HEAD af106c9) |
+
+Why these cells (2026-10-13, three rounds per size on the M4, load 1.7–3.1):
+ninja 2.45–2.61 (±3 %); horda n=150 9.9–11.9 and mundo 1500 17.9–24.1, both
+following the load (hence the median); horda n=400 67–78, a steady 6.6–7.0× the
+n=150 cost (still about quadratic); mundo 4000 41–43 (2.0× mundo 1500 for 2.7×
+the tiles); corrida's mean 1.7–1.8 duplicates ninja's signal, its max frame
+23.7–24.9 ms (about 96 ms on the target) is the worst hitch in the set; festa
+44.7–46.3 at fb 2006×1504 (2×), against 36.2 in the last `games-1` row at 1×: submit
+19.6 → 26.3 ms. Most likely the scale (four times the pixels), not the code;
+`games-1` did not record the scale, so it could not tell.
+Left out of the pulse, on demand: the full ladders, `--cull ab`, `--profile`,
+corrida speed=3000 (its p99 shows how often a slot build hitches; the max at
+600 already holds its cost) and corrida's 5-minute run (flat after DG1).
+
+Retired `games-1` rows (one run per game, reference sizes only, FB 1×; not
+compared with `games-2`):
 
 | Date | Protocol | Host | Load | ninja | horda | mundo | corrida | festa | Notes |
 |------|----------|------|-----:|------:|------:|------:|--------:|------:|-------|
@@ -264,6 +295,39 @@ What remains:
 | B4 (bench) | startup import time doubled in the 2026-10-12 run, likely a no-bytecode shell | confirmed artifact (with bytecode: import 179 ms, ttff 406 ms, both better than the dashboard); `perf_startup` launches now always use bytecode |
 
 ## Runs
+
+### 2026-10-13 — games-2
+
+| | |
+|---|---|
+| When | 2026-10-13 12:44 -0300 (15:44 UTC) |
+| Protocol | `games-2` (comparable) |
+| Host | Apple M4 · Darwin 26.6.2 · Py 3.12.13 |
+| Load | 2.60 (median of runs) |
+| FB | festa 2006x1504 (the gated cells) |
+| Repeats | 3 (interleaved; median) |
+| Git | af106c9f706a |
+| Scena | `3edb458c356b` |
+| Scripts | fingerprint `76c946243a83` |
+
+| File | sha256[:12] |
+|------|-------------|
+| `game_bench.py` | `363e0eed2a31` |
+| `run_games.py` | `5b54a940b73d` |
+| `games/horda.py` | `d1861b67aea7` |
+| `games/mundo.py` | `1c6ba949a8b6` |
+| `games/corrida.py` | `d341e6926ba1` |
+| `games/festa.py` | `cba1b8c5597b` |
+
+| Game | work | runs | p95 | p99 | max | x4 | fps | RSS end | FB | top phases |
+|------|-----:|------|----:|----:|----:|---:|----:|--------:|----|------------|
+| ninja  | 2.59 | 2.99 / 2.59 / 2.59 | 2.89 | 3.13 | 7.2 | 10.4 | 321 | 409 | mixed | simulate 2.04, processes 1.44, collision 0.55, present 0.52 |
+| horda n=150 | 11.14 | 11.84 / 10.16 / 11.14 | 14.47 | 15.60 | 17.6 | 44.6 | 83 | 246 | 2006x1504 | simulate 9.74, collision 8.45, draw_frame 1.22, processes 1.19 |
+| horda400 n=400 | 71.84 | 71.84 / 70.55 / 73.78 | 131.34 | 143.46 | 144.3 | 287.4 | 14 | 255 | 2006x1504 | simulate 66.71, collision 62.84, draw_frame 4.77, scene_draw 4.51 |
+| mundo tiles=1500,robots=20 | 18.62 | 18.08 / 18.71 / 18.62 | 21.18 | 21.92 | 25.4 | 74.5 | 51 | 341 | 2006x1504 | simulate 14.73, collision 9.92, processes 4.71, draw_frame 3.73 |
+| mundo4000 tiles=4000,robots=20 | 41.21 | 41.21 / 40.76 / 41.94 | 46.70 | 49.53 | 57.5 | 164.9 | 24 | 389 | 2006x1504 | simulate 30.94, collision 23.75, draw_frame 10.06, scene_draw 9.78 |
+| corrida speed=600 | 1.77 | 1.77 / 1.77 / 1.82 | 2.05 | 2.48 | 23.9 | 7.1 | 468 | 320 | 2506x1504 | simulate 1.24, collision 0.54, processes 0.53, draw_frame 0.46 |
+| festa n=300 | 44.27 | 43.91 / 44.27 / 45.70 | 50.92 | 53.41 | 56.7 | 177.1 | 22 | 278 | 2006x1504 | submit 26.62, draw_frame 9.93, scene_draw 8.89, simulate 7.68 |
 
 ### 2026-10-12 — games-1
 
