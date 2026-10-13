@@ -821,6 +821,7 @@ SWEEP_POSES = (
     {"x": -120.0, "y": 75.0, "s": 2.5, "r": -90.0},
     {"x": 40.0, "y": -160.0, "s": 1.0, "r": 135.0},
     {"x": 0.0, "y": 0.0, "s": 0.5, "r": 1.0},       # gate: Rect spine << loses the turn count
+    {"x": 0.0, "y": 0.0, "s": 0.5, "r": 153.0},     # deep: a vertical diameter's flip_x kept 450 (GX21)
 )
 
 SWEEPS = {"C1": sweep_c1, "C2": sweep_c2, "C3": sweep_c3, "C4": sweep_c4,

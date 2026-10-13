@@ -270,6 +270,57 @@ class TestFlipHeadingEdges(unittest.TestCase):
             self.assertAlmostEqual(float(ln.angle), h - 180.0)
             self.assertAlmostEqual(float(ln._rotation), float(ln.angle))
 
+    def test_a_flip_that_moves_no_point_rewrites_a_warm_heading(self):
+        # GX21: placement points on the mirror axis (a vertical diameter under
+        # flip_x, a horizontal one under flip_y) do not move, so nothing
+        # refreshed a heading read before the flip: it kept 450 while the store
+        # (and a clone, whose points moved by 1e-15) read -270.
+        kinds = {   # placement parts on x = 0; flip_y swaps each pair (on y = 0)
+            "Circle two_points": (Circle, {"p1": (0, 5), "p2": (0, -5)}),
+            "Circle center_perimeter": (Circle, {"center": (0, 0), "perimeter_point": (0, 5)}),
+            "Ellipse foci": (Ellipse, {"fp1": (0, -5), "fp2": (0, 5), "major_axis": 14}),
+            "Line p1/p2": (Line, {"p1": (0, -5), "p2": (0, 5)}),
+            "Line p1/vec": (Line, {"p1": (0, -5), "vec": (0, 10)}),
+            "Rect spine": (Rect, {"p1": (0, -5), "p2": (0, 5), "height": 4, "anchor": "cap"}),
+        }
+        for name, (kind, kw) in kinds.items():
+            for axis in ("x", "y"):
+                parts = {k: (v[::-1] if axis == "y" else v) for k, v in kw.items()
+                         if isinstance(v, tuple)}
+                for turns in (0.0, 360.0, -720.0):
+                    obj = kind(**{**kw, **parts})
+                    obj.rotate_by(turns)
+                    for part, here in parts.items():
+                        setattr(obj, part, here)     # back exactly on the axis
+                    # Read twice: the first read makes the Derivate live and
+                    # leaves the shape dirty; the second leaves it clean.
+                    float(obj.angle)
+                    h = float(obj.angle)
+                    setattr(obj, f"flip_{axis}", True)
+                    want = 180.0 - h if axis == "x" else -h
+                    msg = f"{name} flip_{axis} from {h}"
+                    self.assertAlmostEqual(float(obj.angle), want, msg=msg)
+                    self.assertEqual(float(obj.angle), float(obj._rotation), msg=msg)
+
+    def test_a_clone_flips_its_heading_like_its_source(self):
+        # GX21 as the C7 contract found it (deep profile, r=153): the source's
+        # diameter was exactly vertical, the clone's 1e-15 off.
+        def polar(r, a):
+            return (r * 0.5 * math.cos(math.radians(a)), r * 0.5 * math.sin(math.radians(a)))
+        src = Circle(p1=polar(9, 193), p2=polar(9, 373))
+        src.flip_x = True
+        src.rotate_by(20)
+        src.scale_by(1.25)
+        cp = src.clone()
+        for act in (lambda o, a: o.move_by(7, -3), lambda o, a: o.rotate_to(a + 50),
+                    lambda o, a: o.rotate_by(33), lambda o, a: o.scale_by(1.5),
+                    lambda o, a: setattr(o, "flip_x", not o.flip_x)):
+            a = float(src.angle)
+            act(src, a)
+            act(cp, a)
+            self.assertEqual(float(src.angle), float(cp.angle))
+        self.assertEqual(float(src.angle), -270.0)
+
     def test_a_zero_length_tangent_line_refuses_a_flip_like_any_length(self):
         # GX3: its points sat on the pivot, so the gate let the flip through
         # and the store left the drawn (tangent) heading.

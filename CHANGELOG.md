@@ -34,6 +34,12 @@ left out.
   counted as True: a filter kept every member, `until` ended at once,
   `@on_change` fired every frame, and Python only printed "coroutine … was
   never awaited".
+- `flip_x` / `flip_y` turn `angle` by the usual rule (`180 − angle` /
+  `−angle`) on a Circle placed by `p1=, p2=` or `perimeter_point=`, an
+  Ellipse placed by its foci, or a Line placed by its ends, when those
+  points lie on the mirror line (a vertical diameter under `flip_x`). Before,
+  if `angle` had been read, it kept its old value after such a flip (450
+  where a copy of the same circle read −270).
 - A knob that only one style or fit reads raises `TypeError` with the fix on
   the others. Before, it was taken and drew nothing different, so code that
   passed it never did what it said. Old → new: `Shield("cyan")` (any color on

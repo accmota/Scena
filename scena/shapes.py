@@ -2114,6 +2114,7 @@ class Shape(Graphic, PaintState):
         for part in self._mirror_scalar_parts(axis):
             _ensure_writable(part, "flip", force=force)
         names = getattr(self, "_defining_part_names", ()) or ()
+        turned = False
         if "angle" not in names:
             # A heading kept only as pose (Point, Polygon, a p1/p2 Line) mirrors
             # by the convention too — it used to stay put. Set it before the
@@ -2121,14 +2122,24 @@ class Shape(Graphic, PaintState):
             # and a zero-length segment has no direction of its own, so it reads
             # the store as it is during the update (GX2 in Testing Design).
             rot = float(self._rotation)
-            _pose_rotation_set(self, (180.0 - rot) if axis == "x" else -rot)
+            new = (180.0 - rot) if axis == "x" else -rot
+            _pose_rotation_set(self, new)
+            turned = new != rot
+        moved = False
         for pt in points:
             x, y = get_xy(pt, bare=True)
-            if axis == "x":
-                pt._takein((2.0 * cx - x, y))
-            else:
-                pt._takein((x, 2.0 * cy - y))
+            nxy = (2.0 * cx - x, y) if axis == "x" else (x, 2.0 * cy - y)
+            if nxy != (x, y):
+                moved = True
+                pt._takein(nxy)
         self._mirror_scalars(axis, names)
+        if turned and not moved:
+            # A point write is what refreshes a derived heading. With none (a
+            # zero-length segment, a diameter on the mirror axis) a warm
+            # ``angle`` kept its pre-flip value while the store turned (GX2,
+            # GX21). A batch around the writes did it too, but cost every
+            # flip 3-7 us.
+            self.update()
 
     def _center_xy(self) -> Tuple[float, float]:
         """Bare center from current Defining pose when possible.
@@ -3782,10 +3793,6 @@ class _HeadingFromGeometry:
 
 # Line models whose heading follows a circle (a flip gates their points with no pivot).
 _LINE_TANGENT_MODELS = frozenset({LineModel.TANGENT_ANGLE, LineModel.TANGENT_POINT})
-# Line models whose ``angle`` is derived from the segment (a zero-length one reads the pose store).
-_LINE_DERIVED_HEADING_MODELS = frozenset({
-    LineModel.POINT_POINT, LineModel.POINT_VEC, LineModel.POINT_DX_DY,
-})
 
 # Line models whose about-center turn writes only free inputs (SB11 fast path).
 _LINE_FAST_TURN_MODELS = frozenset({
@@ -4634,24 +4641,9 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
             # heading (GX3 in Testing Design): gate them as at any length.
             for pt in self._mirror_points():
                 _ensure_writable(pt, "flip", force=force)
+        # A zero-length segment moves no point: the generic mirror refreshes
+        # the derived heading from the mirrored store itself (GX2).
         Shape._mirror_geometry(self, axis, force=force)
-        if model in _LINE_DERIVED_HEADING_MODELS and self._defining_span_is_zero():
-            # A zero-length segment: no point moved, so nothing recomputed
-            # the derived heading from the mirrored pose store (GX2).
-            self.update()
-
-    def _defining_span_is_zero(self) -> bool:
-        # The raw Defining stores (a flip runs after its gate, so no link is
-        # pending); reading a Derivate end would warm it.
-        d = self.__dict__
-        model = self.model
-        if model is LineModel.POINT_POINT:
-            a, b = d['p1'].__dict__, d['p2'].__dict__
-            return a['x'] == b['x'] and a['y'] == b['y']
-        if model is LineModel.POINT_VEC:
-            v = d['vec'].__dict__
-            return v['x'] == 0 and v['y'] == 0
-        return _bare_num(self.dx) == 0 and _bare_num(self.dy) == 0
 
     def _heading_driven_parts(self) -> Tuple:
         # The parts rotate_by writes where ``angle`` is derived (see rotate_by).
