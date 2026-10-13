@@ -18,7 +18,7 @@ from random import uniform
 from scena import *
 
 init(width=1000, height=700, title="Bolhas")
-Wallpaper(Gradient("teal", "dark navy", angle=90))
+Wallpaper(Gradient("dark navy", "teal", angle=90))
 
 
 class Bolha(Circle, radius=30, visual=Halo("sky blue")):

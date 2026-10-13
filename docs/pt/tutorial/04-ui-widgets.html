@@ -871,7 +871,7 @@ marcador.caneta = every(0.15, lambda: rastro.snapshot(mouse))`
       fresh: true,
       body: `
         <p>Último script do tutorial, num arquivo novo, e mais um widget: um campo para digitar. Você escreve uma frase, aperta Enter, e ela vira um letreiro colorido que passeia pela tela desenhando um oito.</p>
-        <p><strong>O letreiro.</strong> É um <code>Text</code>, como o placar do tutorial 02, agora com <code>center=</code> (centro): o meio do texto fica nesse ponto. <code>font_size=80</code> (tamanho da fonte) deixa as letras grandes. O fundo é um degradê, como o da cadeia; <code>angle=90</code> (ângulo) o põe em pé, com as cores mudando de cima para baixo.</p>
+        <p><strong>O letreiro.</strong> É um <code>Text</code>, como o placar do tutorial 02, agora com <code>center=</code> (centro): o meio do texto fica nesse ponto. <code>font_size=80</code> (tamanho da fonte) deixa as letras grandes. O fundo é um degradê, como o da cadeia; <code>angle=90</code> (ângulo) o põe em pé, de baixo para cima: a primeira cor embaixo, a segunda no alto.</p>
         <p><strong>O campo.</strong> <code>TextInput</code> (entrada de texto) é uma caixa de uma linha onde se digita. <code>placeholder</code> (o que guarda o lugar) é a dica cinza que aparece com a caixa vazia; <code>width</code> (largura) é o tamanho da caixa. Sem posição, ela entra na coluna do canto, como os widgets da cadeia.</p>
         <p><strong>O foco.</strong> Clique na caixa: aparece um cursor piscando. A caixa tem o <strong>foco</strong>, quer dizer, recebe o teclado: cada letra que você digita vai para ela. Esc ou um clique fora da caixa devolvem o teclado ao programa.</p>
         <p>Rode, clique na caixa e escreva. As letras aparecem no campo, mas o Enter ainda não muda o letreiro: os dois ainda não estão ligados.</p>
@@ -879,7 +879,7 @@ marcador.caneta = every(0.15, lambda: rastro.snapshot(mouse))`
       code: `from scena import *
 
 init(width=1000, height=700, title="Letreiro")
-Wallpaper(Gradient("navy", "black", angle=90))
+Wallpaper(Gradient("black", "navy", angle=90))
 
 letreiro = Text("Olá!", center=(500, 350), font_size=80)
 
@@ -909,7 +909,7 @@ run()
       code: `from scena import *
 
 init(width=1000, height=700, title="Letreiro")
-Wallpaper(Gradient("navy", "black", angle=90))
+Wallpaper(Gradient("black", "navy", angle=90))
 
 letreiro = Text("Olá!", center=(500, 350), font_size=80)
 
@@ -934,7 +934,7 @@ run()
       code: `from scena import *
 
 init(width=1000, height=700, title="Letreiro")
-Wallpaper(Gradient("navy", "black", angle=90))
+Wallpaper(Gradient("black", "navy", angle=90))
 
 letreiro = Text("Olá!", center=(500, 350), font_size=80)
 
@@ -963,7 +963,7 @@ run()
       code: `from scena import *
 
 init(width=1000, height=700, title="Letreiro")
-Wallpaper(Gradient("navy", "black", angle=90))
+Wallpaper(Gradient("black", "navy", angle=90))
 
 letreiro = Text("Olá!", center=(500, 350), font_size=80, font="space/kenvector_future.ttf")
 letreiro.fill = Gradient("sunset", angle=90)
@@ -1022,7 +1022,7 @@ letreiro.glow = Glow("cyan", radius=8, amount=2)`
       code: `from scena import *
 
 init(width=1000, height=700, title="Letreiro")
-Wallpaper(Gradient("navy", "black", angle=90))
+Wallpaper(Gradient("black", "navy", angle=90))
 
 letreiro = Text("Olá!", center=(500, 350), font_size=80, font="space/kenvector_future.ttf")
 letreiro.fill = Gradient("sunset", angle=90)
