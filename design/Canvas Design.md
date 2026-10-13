@@ -1207,8 +1207,11 @@ identical to today's single CTM.
 
 Non-neutral layers are **decoration only**. Interactive flags (`clickable` /
 `draggable` / `droppable` / `wheel_rotate`) and collision enrollment are
-structurally forbidden (`ParallaxLayerError`). This is not a v1 gap — it is a
-permanent architectural choice so:
+structurally forbidden (`ParallaxLayerError`). The error covers an actor named
+in `@collide` / `resolve`; a shape there that is only a group's member gets no
+body and is skipped silently (Collision Design, S9-1), so a hero falls through
+ground drawn on such a layer. This is not a v1 gap — it is a permanent
+architectural choice so:
 
 - `screen_to_world_coords`, hit-testing, and the entire collision system stay
 world-space under one global camera (no per-layer inverse math). The pointer
