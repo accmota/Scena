@@ -14,7 +14,7 @@ from enum import Enum, auto
 from typing import Callable, Any, Dict, Optional, Tuple, Union
 
 from ._defaults import Unset
-from .state import Container, Attribute, DestroyedError, FieldRef
+from .state import Container, Attribute, DestroyedError, FieldRef, field_ref_label
 
 
 class EventKind(Enum):
@@ -231,10 +231,21 @@ class EventRegistration:
             callback, () if kind is EventKind.WHEN else ("value",), what=label,
         )
         try:
-            seeded = _unwrap_event_value(_eval_condition(condition))
+            raw = _eval_condition(condition)
         except _SOURCE_GONE:
             self.release()
             return
+        if raw.__class__ is FieldRef and condition.__class__ is not FieldRef:
+            # ``@on_change(lambda: st["wave"])``: a lambda returning the handle.
+            # The bare handle is the watch spelling (``@on_change(st["wave"])``);
+            # inside a lambda it is the dot, as in every formula. Checked once,
+            # here, so a poll pays nothing.
+            raise TypeError(
+                f"{label}(lambda: …) returns {field_ref_label(raw)[0]}, the "
+                f"handle: inside the lambda write {field_ref_label(raw)[1]}, or "
+                f"pass the handle with no lambda: {label}({field_ref_label(raw)[0]})."
+            )
+        seeded = _unwrap_event_value(raw)
         if kind is EventKind.WHEN:
             _when_bool(seeded)
         self._old_value = _snapshot_value(seeded)

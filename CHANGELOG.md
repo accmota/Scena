@@ -37,6 +37,15 @@ left out.
 
 ### Changed
 
+- `Text(st["score"])` shows the cell in one direction, like
+  `placar["text"] @= st["score"]`. Before, the text *was* the cell, so
+  `placar.text = "oi"` silently wrote `st.score` (a display that changed the
+  game state, and a later `st.score + 1` failed far away). Now that write
+  raises `LinkedAttributeError`, naming the cell: to change what the text
+  shows, change the cell (`st.score = 7`). `SpriteButton(label=st["vidas"])`
+  follows the same rule. If you wrote to such a text on purpose, write the
+  cell instead, or call `placar["text"].unlink()` first. Widgets (`Slider`,
+  `CheckBox`, `TextInput`, …) still write to their cell: editing it is their job.
 - `canvas.cull_offscreen` is now `True` by default: Scena skips drawing what
   is outside the view. A level bigger than the window draws much faster (1500
   tiles: 3 ms instead of 8; tutorial 25 about 9 % faster per frame). A game
@@ -90,6 +99,21 @@ left out.
 
 ### Fixed
 
+- A bracket field used as a value now raises, with the dot spelling, instead
+  of misbehaving in silence. `st.score` is the value; `st["score"]` is the
+  field itself, for what follows or writes it (`Slider`, `Text`,
+  `@on_change`, `tween`, `@=`). Inside a lambda the dot is the only spelling:
+  the lambda already keeps it live. Before, `Text(lambda: f"Pontos:
+  {st['score']}")` showed `<field State(...)['score']>`, `if st["vivo"]:` was
+  always true, and `@when(lambda: st["score"] == 5)` never fired. Now a
+  formula with a bracket inside (`@=`, `Text(lambda)`, a constructor lambda)
+  raises at the line that links it; a `@when` / `@on_change` lambda that
+  returns `st["x"]` raises when it is registered; and any other use of a
+  bracket field as a number or text (`+`, `==`, `bool`, an f-string, `print`)
+  raises `TypeError` naming `st.score`. Relied on it: `lambda: st["score"]`
+  (a bare bracket, no arithmetic) used to link, and `@on_change(lambda:
+  st["x"])` used to fire; write `lambda: st.score`, or pass the field with no
+  lambda: `x["r"] @= st["score"]`, `@on_change(st["x"])`.
 - A `Gradient` on a `Wallpaper` (and `canvas.background = Gradient(...)`)
   now runs the way it does on a shape: `angle=90` goes from the bottom up,
   as the Guia says. Before, a Wallpaper drew it upside down:

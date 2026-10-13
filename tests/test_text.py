@@ -230,15 +230,41 @@ class TestTextCell(TextTestCase):
         hud.text = "paused"
         self.assertEqual(hud.value, "paused")
 
-    def test_identity_bind_shares_text_cell(self):
+    def test_cell_text_links_one_way(self):
+        # ``Text(st["x"])`` is ``t["text"] @= st["x"]``: it shows the cell and
+        # follows it, and a write to the text raises naming the cell. It used
+        # to share the cell, so ``lab.text = "Hi"`` wrote ``st.<name>``: a
+        # display that changed the game state, with the error far away.
         name = self.key("title")
         st.create(name, initial="Hello")
         attr = st._resolve_cell(name)
         lab = self.track(Text(st[name], top_left=(20, 400)))
-        self.assertIs(lab.text, attr)
+        self.assertIsNot(lab.text, attr)
+        self.assertTrue(lab["text"].is_linked)
         self.assertEqual(lab.value, "Hello")
+        setattr(st, name, "Bye")
+        self.assertEqual(lab.value, "Bye")
+        for write in (lambda: setattr(lab, "text", "Hi"),
+                      lambda: setattr(lab, "value", "Hi")):
+            with self.assertRaises(LinkedAttributeError) as ctx:
+                write()
+            msg = str(ctx.exception)
+            self.assertIn(f"st[{name!r}]", msg)
+            self.assertIn(f"st.{name} = ", msg)
+        self.assertEqual(attr.value, "Bye")
+        lab["text"].unlink()
         lab.text = "Hi"
-        self.assertEqual(attr.value, "Hi")
+        self.assertEqual(lab.value, "Hi")
+        self.assertEqual(attr.value, "Bye")
+
+    def test_number_cell_shows_as_text(self):
+        name = self.key("pts")
+        st.create(name, initial=3)
+        lab = self.track(Text(st[name], top_left=(20, 400)))
+        self.assertEqual(lab.value, 3)
+        setattr(st, name, 12)
+        self.assertEqual(lab.value, 12)
+        self.assertEqual(getattr(st, name), 12)
 
     def test_assignment_and_concat(self):
         lab = self.track(Text(text="ab", top_left=(20, 80), font_size=16))

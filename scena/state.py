@@ -1385,6 +1385,21 @@ def _normalize_link_rhs(source):
         refuse_held_payload(source, "… @= {cell}")
     return source
 
+def _follows_cell_hint(cell) -> str:
+    """`` — it shows st['score']: write st.score …`` when ``cell`` is linked
+    straight to a State cell (``Text(st["score"])``), else ``""``. Error path only."""
+    link = getattr(cell, "_link", None)
+    if not isinstance(link, DirectLink):
+        return ""
+    bag_ref = getattr(link.source, "_state_bag", None)
+    bag = bag_ref() if bag_ref is not None else None
+    key = getattr(link.source, "attr_name", None)
+    if bag is None or not key:
+        return ""
+    return (f". It shows {bag.name}[{key!r}] (one way): to change what it "
+            f"shows, write {bag.name}.{key} = …")
+
+
 def _formula_source_of(obj):
     """The graph node of a value that lives off the graph, or None.
 
@@ -1458,6 +1473,71 @@ class FieldRef:
 
     def __repr__(self) -> str:
         return f"<field {self.owner!r}[{self.name!r}]>"
+
+    # The handle is not the value. Before, a handle used as a value was silent
+    # (``f"{st['score']}"`` showed the repr, ``if st["alive"]:`` was always
+    # true, ``@when(lambda: st["score"] == 5)`` never fired) or raised Python's
+    # bare "unsupported operand". Each use now raises with the dot spelling.
+    # ``__repr__`` stays for debugging, and ``__hash__`` is the identity one.
+    # Nothing here is on a hot path: the engine reads a handle with
+    # ``isinstance`` and ``.value``.
+    def _not_a_value(self, *_args):
+        raise TypeError(field_ref_value_message(self))
+
+    __bool__ = __str__ = __format__ = _not_a_value
+    __int__ = __float__ = __index__ = __round__ = __iter__ = __len__ = _not_a_value
+    __eq__ = __ne__ = __lt__ = __le__ = __gt__ = __ge__ = _not_a_value
+    __add__ = __radd__ = __sub__ = __rsub__ = __mul__ = __rmul__ = _not_a_value
+    __truediv__ = __rtruediv__ = __floordiv__ = __rfloordiv__ = _not_a_value
+    __mod__ = __rmod__ = __pow__ = __rpow__ = _not_a_value
+    __divmod__ = __rdivmod__ = __and__ = __rand__ = __or__ = __ror__ = _not_a_value
+    __xor__ = __rxor__ = __lshift__ = __rlshift__ = __rshift__ = __rrshift__ = _not_a_value
+    __neg__ = __pos__ = __abs__ = __invert__ = _not_a_value
+    __trunc__ = __floor__ = __ceil__ = __contains__ = _not_a_value
+    __hash__ = object.__hash__
+
+    def __getitem__(self, key):
+        # ``st["pos"]["x"]``: the bracket is on the value (``st.pos["x"]``).
+        raise TypeError(field_ref_value_message(self, f"[{key!r}]"))
+
+    def __getattr__(self, attr):
+        # Only names the slots and the class lack reach here: ``st["pos"].x``.
+        if attr.startswith("_"):
+            raise AttributeError(attr)
+        raise AttributeError(field_ref_value_message(self, f".{attr}"))
+
+
+def field_ref_label(ref: 'FieldRef') -> Tuple[str, str]:
+    """``("st['score']", "st.score")`` for a handle, in the author's words."""
+    owner = ref.owner
+    base = getattr(owner, "name", None)
+    if not isinstance(base, str) or not base:
+        base = type(owner).__name__
+    if not isinstance(owner, State):
+        base = base[:1].lower() + base[1:]
+    name = ref.name
+    dot = f"{base}.{name}" if name.isidentifier() else f"{base}[{name!r}].value"
+    return f"{base}[{name!r}]", dot
+
+
+def field_ref_value_message(ref: 'FieldRef', use: str = "") -> str:
+    """Refusal for a bracket handle used as its value (bool, ``+``, f-string)."""
+    bracket, dot = field_ref_label(ref)
+    head = f"{bracket}{use}: " if use else ""
+    return (
+        f"{head}{bracket} is the field itself (the handle), not its value. To "
+        f"read the value write {dot}{use} — inside a lambda too: the lambda "
+        f"already keeps it live. {FIELD_REF_USES}"
+    )
+
+
+# Where a bracket handle goes, for the refusals above and in formula_check.
+FIELD_REF_USES = (
+    "The brackets hand the field, outside any lambda, to what follows or "
+    "writes it: Slider(st[\"volume\"]), Text(st[\"score\"]), "
+    "@on_change(st[\"wave\"]), tween(st[\"x\"], …), st[\"b\"] @= …, "
+    "and a lone right side (c[\"r\"] @= st[\"r\"])."
+)
 
 
 
@@ -2513,6 +2593,7 @@ class Container():
         hint = blocker._author_unlink_hint()
         raise LinkedAttributeError(
             f"{blocker.name} is linked — call {hint} first"
+            + _follows_cell_hint(blocker)
         )
 
     def _assign_value(self, new_value):
@@ -3063,6 +3144,7 @@ class Container():
             if self._field_is_linked(name):
                 raise LinkedAttributeError(
                     f"{self.name}.{name} is linked — call {self.name}['{name}'].unlink() first"
+                    + _follows_cell_hint(self.__dict__.get(name))
                 )
             # Parent / ancestor formulas: author ``=`` raises. Batched
             # ``_update_impl`` must still refresh Derivate leaves (e.g. Vec2.length

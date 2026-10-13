@@ -97,7 +97,6 @@ class TestRawFieldStoresAreAllowlisted(unittest.TestCase):
         ("state.py", "ContainerSlot.__get__"): "lazy part creation",
         ("state.py", "ScalarAnchor._takein_impl"): "the link pull's raw store (after the slot's coercion)",
         ("state.py", "_init_scalar"): "construction (after the slot's coercion)",
-        ("text.py", "Text.__init__"): "construction",
         ("uiwidget.py", "UIWidget._bind_data"): "binds the data cell (the part itself, not a value)",
     }
 

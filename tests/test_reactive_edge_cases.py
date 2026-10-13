@@ -106,12 +106,17 @@ class TestPullResolve(ReactiveEdgeCaseTest):
         if a._node_id is not None and b._node_id is not None:
             self.assertNotIn(b._node_id, graph.dependents.get(a._node_id, ()))
 
-    def test_state_subscript_is_a_formula_source(self):
+    def test_state_subscript_in_a_formula_is_refused(self):
+        # Inside a formula the bracket is the handle, not the value: refused at
+        # link time naming the dot spelling (it used to link a bare
+        # ``lambda: st["score"]`` and silently break any arithmetic on it).
         st = State(name="bag")
         st.score = 4
         sink = Attribute(0.0)
-        sink @= (lambda: st["score"])
-        self.assertEqual(sink.value, 4)
+        with self.assertRaises(TypeError) as ctx:
+            sink @= (lambda: st["score"])
+        self.assertIn("st.score", str(ctx.exception))  # the author's spelling
+        sink @= (lambda: st.score)
         st.score = 9
         self.assertEqual(sink.value, 9)
 

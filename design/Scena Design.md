@@ -250,6 +250,11 @@ Both surfaces **read the value** (`ship.hp`, `st.score`: `st.mic is None` works)
 name the field with brackets (`ship["hp"]`, `st["score"]`): the handle that links,
 binds (`Slider(st["volume"])`, `Text(st["score"])`) and watches (`@on_change(st["wave"])`).
 `st` read the cell itself before 0.8.0 ([Reactive Design — State bag](Reactive%20Design.md#state-bag)).
+**Inside a lambda, the dot**: the lambda keeps its reads live, so a bracket there is a
+handle used as a value and raises with the dot spelling (at link time for a formula, at
+registration for an event lambda, and on any value use of the handle: `bool`, `+`, an
+f-string). A widget binds the cell (it edits it); `Text(st["score"])` links one way, so
+a write to its text raises naming the cell ([Reactive Design — The handle is not the value](Reactive%20Design.md#the-handle-is-not-the-value)).
 Creation has a near-miss guard (once per class and name) and look properties
 that belong to another actor kind (`circle.alpha`, `text.alpha`) raise instead of
 landing in a dead attribute. `enable` / `enabled` are explicit aliases of

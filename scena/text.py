@@ -363,7 +363,8 @@ class Text(Graphic, PaintState):
             center = (cx, cy)
 
         # Positional / text=: a cell (``st["score"]``, a standalone Attribute)
-        # identity-binds; anything else is the text, or a function that links.
+        # links one way, as ``t["text"] @= st["score"]`` would; anything else is
+        # the text, or a function that links.
         initial_text = None
         bounded: Optional[Attribute] = bound_cell(text)
         if bounded is None:
@@ -482,7 +483,12 @@ class Text(Graphic, PaintState):
             self.set_color(color)
 
         if bounded is not None:
-            self.__dict__["text"] = bounded
+            # One way, like every other link: the text shows the cell, and
+            # ``t.text = …`` raises LinkedAttributeError naming the cell. Before,
+            # the text *was* the cell, so ``t.text = "oi"`` wrote ``st.score``
+            # (a display that edited the game state, far from any error).
+            self.text.value = ""
+            self._link_field("text", bounded)
         elif callable(initial_text):
             # ``Text(lambda: f"Pontos {st.pontos}")``: a function links, the
             # same link as ``t["text"] @= fn`` (same source rules), before the

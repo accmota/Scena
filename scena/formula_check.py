@@ -12,7 +12,7 @@ stale. This module keeps that contract honest:
 * ``check_formula(fn, node)`` — refuses shapes whose reads cannot be seen
   (loops, comprehensions, writes, nested functions, calls into code Scena
   cannot read, group reads, variable indexes into collections of Scena
-  objects). Returns the helper functions the formula calls, so the extractor
+  objects, a bracket handle read as a value: ``st["score"] * 2``). Returns the helper functions the formula calls, so the extractor
   can collect their sources too.
 
 Only link time pays for this. Evaluating a formula is a plain call.
@@ -635,7 +635,10 @@ class _Checker(ast.NodeVisitor):
             )
 
     def visit_Subscript(self, node):
-        if _constant_key(node.slice) is _MISSING:
+        key = _constant_key(node.slice)
+        if isinstance(key, str) and isinstance(node.ctx, ast.Load):
+            self._refuse_handle_as_value(node, key)
+        if key is _MISSING:
             coll, _is_local = _resolve_chain(node.value, self.ctx, self.local)
             if coll is not _MISSING and _holds_scena_objects(coll):
                 self._refuse(
@@ -644,6 +647,31 @@ class _Checker(ast.NodeVisitor):
                     "Name the object directly, or choose it in update().",
                 )
         self.generic_visit(node)
+
+    def _refuse_handle_as_value(self, node: ast.Subscript, key: str) -> None:
+        """``lambda: f"{st['score']}"``: inside a formula the bracket gives the
+        handle, not the number, so the formula would show its repr, compare
+        False, or raise a bare TypeError each time it runs. Refused at link time,
+        with the line; the handle's own dunders catch what is never parsed
+        (``@when`` lambdas, the REPL). ``st["x"].value`` is refused too: the
+        reader follows ``.value`` to the number and finds no source, and the
+        dot is the one spelling inside a formula."""
+        value, _is_local = _resolve_chain(node, self.ctx, self.local)
+        from .state import FieldRef, FIELD_REF_USES
+        if not isinstance(value, FieldRef):
+            return
+        bracket = ast.unparse(node)
+        base = ast.unparse(node.value)
+        dot = f"{base}.{key}" if key.isidentifier() else f"{bracket}.value"
+        line = getattr(node, "lineno", None)
+        where = f" (line {line})" if line else ""
+        raise TypeError(
+            f"formula {_label(self.fn)}{where} reads {bracket}: inside a formula "
+            f"the brackets give the field itself (the handle), not its value, "
+            f"so the formula would get the handle each time it runs. Write "
+            f"{dot}: the lambda already keeps it live (Scena reads its code and "
+            f"follows {dot}). {FIELD_REF_USES}"
+        )
 
     def visit_Call(self, node):
         self._check_callee(node)
