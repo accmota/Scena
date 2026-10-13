@@ -1408,12 +1408,12 @@ class TestVisuals(unittest.TestCase):
         self.assertGreater(t0[1], 0.7)
         self.assertLess(t0[0], 0.4)
         activate_quality("medium")
-        c.visual._apply(c)
+        c._reapply_visual()
         t1 = c.visual._tint_rgba(c)
         self.assertGreater(t1[1], 0.7)
         self.assertLess(t1[0], 0.4)
         activate_quality("high")
-        c.visual._apply(c)
+        c._reapply_visual()
         t2 = c.visual._tint_rgba(c)
         self.assertGreater(t2[1], 0.7)
         self.assertLess(t2[0], 0.4)
@@ -1997,7 +1997,7 @@ class TestVisuals(unittest.TestCase):
         self.assertEqual(c.blend, "add")
 
         activate_quality("medium")
-        c.visual._apply(c)
+        c._reapply_visual()
         self.assertIsInstance(c.line_filter, Blur)
         self.assertFalse(c.visual._is_multipass)
         self.assertTrue(c.visual._overlay_glow_batch)
@@ -2007,12 +2007,12 @@ class TestVisuals(unittest.TestCase):
         c.draw(surf.getCanvas())
 
         activate_quality("high")
-        c.visual._apply(c)
+        c._reapply_visual()
         self.assertIsInstance(c.line_filter, Blur)
         self.assertTrue(c.visual._overlay_glow_batch)
         self.assertEqual(c.blend, "add")
         activate_quality("low")
-        c.visual._apply(c)
+        c._reapply_visual()
         self.assertIsNone(c.line_filter)
         self.assertTrue(c.visual._is_multipass)
         self.assertFalse(c.visual._overlay_glow_batch)
@@ -2026,12 +2026,12 @@ class TestVisuals(unittest.TestCase):
         activate_quality("high")
         ln.visual = ElectricBolt()
         activate_quality("medium")
-        ln.visual._apply(ln)
+        ln._reapply_visual()
         self.assertIsInstance(ln.line_filter, Blur)
         self.assertEqual(ln.blend, "add")
         ln.draw(surf.getCanvas())
         activate_quality("low")
-        ln.visual._apply(ln)
+        ln._reapply_visual()
         self.assertIsNone(ln.line_filter)
         self.assertEqual(ln.blend, "normal")
         self.assertAlmostEqual(float(ln.line_width), 4.0, places=1)
@@ -2950,13 +2950,16 @@ class TestLookIdentity(unittest.TestCase):
         self.assertNotIsInstance(c.fill, ProceduralFill)
 
     def test_aura_seed_not_wash(self):
+        """The seed of an outline look dyes the outline only, never the wash
+        (2026-10-13: before, it dyed the body too)."""
         c = Circle(center=(0, 0), radius=10).set_color("coral")
         c.line_width = 2.0
         c.visual = Halo("cyan")
         self.assertLess(float(c.fill.rgb[3]), 0.35)
         c.visual = None
-        self.assertEqual(self._rgb(c.fill), self._rgb("cyan"))
+        self.assertEqual(self._rgb(c.fill), self._rgb("coral"))
         self.assertGreater(float(c.fill.rgb[3]), 0.9)
+        self.assertEqual(self._rgb(c.line), self._rgb("cyan"))
         self.assertAlmostEqual(float(c.line_width), 2.0, places=2)
 
     def test_replace_costume_keeps_original_identity(self):
@@ -3027,11 +3030,13 @@ class TestLookIdentity(unittest.TestCase):
         self.assertEqual(self._rgb(c.fill), coral)
 
     def test_halo_red_dyes_identity(self):
+        """Halo("red") leaves what line = "red" then Halo() leaves: a red
+        outline on the coral body (2026-10-13; before, a red body)."""
         c = Circle(center=(0, 0), radius=10).set_color("coral")
         c.visual = Halo("red")
         c.visual = None
-        self.assertEqual(self._rgb(c.fill), self._rgb("red"))
-        self.assertNotEqual(self._rgb(c.fill), self._rgb("coral"))
+        self.assertEqual(self._rgb(c.line), self._rgb("red"))
+        self.assertEqual(self._rgb(c.fill), self._rgb("coral"))
 
     def test_halo_plain_restores_host(self):
         c = Circle(center=(0, 0), radius=10).set_color("coral")
@@ -3130,9 +3135,10 @@ class TestSeededVisualRecolorBaseline(unittest.TestCase):
         c.visual = Halo("blue")
         c.set_color("red")
         tint = c.visual._tint_rgba(c)
-        self.assertEqual(self._tint_rgb(tint), self._rgb("red"))
-        self.assertEqual(self._rgb(c.fill), self._rgb("red"))
+        self.assertEqual(self._tint_rgb(tint), self._rgb(Color("red").contrast_tone(intensity=0.2)))
         self.assertIsNone(c.visual._seed)
+        c.visual = None
+        self.assertEqual(self._rgb(c.fill), self._rgb("red"))
 
     def test_set_color_retints_seeded_halo_fill(self):
         c = Circle(center=(0, 0), radius=10)
@@ -3147,7 +3153,8 @@ class TestSeededVisualRecolorBaseline(unittest.TestCase):
         c.visual = Halo("blue", style="soft")
         c.color = "red"
         tint = c.visual._tint_rgba(c)
-        self.assertEqual(self._tint_rgb(tint), self._rgb("red"))
+        # Outline look: follows the outline color="red" derives (2026-10-13).
+        self.assertEqual(self._tint_rgb(tint), self._rgb(Color("red").contrast_tone(intensity=0.2)))
         self.assertIsNone(c.visual._seed)
 
     def test_visual_none_after_live_recolor_keeps_new_color(self):
@@ -3218,7 +3225,8 @@ class TestSeededVisualRecolorBaseline(unittest.TestCase):
         c = Circle(center=(0, 0), radius=10)
         c.visual = Halo("blue", style="line")
         c.color = "red"
-        self.assertEqual(self._rgb(c.line), self._rgb("red"))
+        # color= "red" derives the outline; the outline look follows it.
+        self.assertEqual(self._rgb(c.line), self._rgb(Color("red").contrast_tone(intensity=0.2)))
         self.assertIs(c.visual, Halo(style="line"))
 
     def test_phase2_recolor_shares_one_instance(self):
@@ -3470,8 +3478,8 @@ class TestSetColorLook(unittest.TestCase):
         c.visual = Halo()
         c.set_color("lime")
         tint = c.visual._tint_rgba(c)
-        self.assertGreater(tint[1], 0.7)
-        self.assertLess(tint[0], 0.4)
+        want = Color("lime").contrast_tone(intensity=0.2).rgb
+        self.assertEqual(tuple(round(v, 3) for v in tint[:3]), tuple(round(v, 3) for v in want[:3]))
         c.visual = None
         self.assertEqual(self._rgb(c.fill), self._rgb("lime"))
 
@@ -3637,13 +3645,15 @@ class TestVisualDrawCoverage(unittest.TestCase):
         self.assertGreater(r + g + b, 10)
 
     def test_set_color_lime_on_halo_still_draws(self):
+        """An outline look follows the outline set_color derives, as color=
+        does (2026-10-13; before, set_color wrote the exact lime line)."""
         c = Circle(center=(64, 64), radius=40).set_color("coral")
         c.line = Color("red")
         c.visual = Halo()
         c.set_color("lime")
         tint = c.visual._tint_rgba(c)
-        self.assertGreater(tint[1], 0.7)
-        self.assertLess(tint[0], 0.4)
+        want = Color("lime").contrast_tone(intensity=0.2).rgb
+        self.assertEqual(tuple(round(v, 3) for v in tint[:3]), tuple(round(v, 3) for v in want[:3]))
         r, g, b = self._center_rgb(c)
         self.assertGreater(r + g + b, 20)
 

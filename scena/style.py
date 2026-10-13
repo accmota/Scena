@@ -624,12 +624,27 @@ class PaintState:
                 return self
 
         if role == "A":
-            self._apply_primary_paint(material)
+            self._in_recolor = True
+            try:
+                self._apply_primary_paint(material)
+            finally:
+                self._in_recolor = False
             self._deseed_active_visual()
             self._reapply_visual()
             return self
         if role == "B":
-            self._recolor_outline_look(material, outline_only=outline_only)
+            # Same package as color= (fill + derived outline; a ring keeps its
+            # ring): the outline look then follows that outline. Before
+            # 2026-10-13 it wrote the exact line, so the shape kept a line no
+            # color= gives once the look was removed.
+            self._in_recolor = True
+            try:
+                if outline_only:
+                    self._recolor_outline_only(material)
+                else:
+                    self._apply_primary_paint(material)
+            finally:
+                self._in_recolor = False
             self._deseed_active_visual()
             self._reapply_visual()
             return self
@@ -683,25 +698,6 @@ class PaintState:
             c = material if isinstance(material, Color) else Color(material)
             self.line = c
         self.fill = None
-
-    def _recolor_outline_look(self, material, *, outline_only: bool) -> None:
-        """Role B: exact line color; dye fill only when identity had a fill."""
-        if outline_only:
-            self._recolor_outline_only(material)
-            return
-        if isinstance(material, (Gradient, Texture, ProceduralFill)):
-            self.line = material
-            if not self._is_outline_only():
-                self.fill = material
-            return
-        c = material if isinstance(material, Color) else Color(material)
-        self.line = c
-        ident = getattr(self, "_look_identity", None)
-        had_fill = True
-        if ident is not None:
-            had_fill = ident.get("fill") is not None
-        if had_fill:
-            self.fill = c
 
     def _deseed_active_visual(self) -> None:
         """If the active look was constructed with an explicit color=, swap it for
@@ -835,7 +831,8 @@ class PaintState:
     def line(self, value: Optional["PaintMaterial"]) -> None:
         self._line = _coerce_channel_paint(value)
         self._invalidate_line_paint()
-        self._patch_look_identity(line=self._line)
+        if self._patch_look_identity(line=self._line):
+            self._look_channel_written("line")
 
     @property
     def fill(self) -> Optional["PaintMaterial"]:
@@ -846,7 +843,8 @@ class PaintState:
     def fill(self, value: Optional["PaintMaterial"]) -> None:
         self._fill = _coerce_channel_paint(value)
         self._invalidate_fill_paint()
-        self._patch_look_identity(fill=self._fill)
+        if self._patch_look_identity(fill=self._fill):
+            self._look_channel_written("fill")
 
     @property
     def blend(self) -> str:
@@ -916,18 +914,42 @@ class PaintState:
         if callable(fn) and not getattr(self, "_in_visual_apply", False):
             fn()
 
-    def _patch_look_identity(self, **channels) -> None:
+    def _look_channel_written(self, channel: str) -> None:
+        """An author write to ``.fill`` / ``.line`` under a look: re-apply the
+        look on the new channel, so writing before or after ``visual =`` draws
+        the same. A seed on the written channel gives way (``Rim("red")`` then
+        ``.line = "blue"`` is a blue rim), as in ``set_color``. Installers
+        (Paint / Fill / Stroke) wrote the channels once: a later write stands.
+        Looks' own writes (``_in_visual_apply``) and ``set_color``'s
+        (``_in_recolor``) do not come here."""
+        if getattr(self, "_in_recolor", False):
+            return
+        from .visuals import Visual, Paint, Fill, Stroke
+        vis = getattr(self, "_visual", None)
+        if not isinstance(vis, Visual) or isinstance(vis, (Paint, Fill, Stroke)):
+            return
+        role = getattr(vis, "_color_role", None)
+        bound = "line" if role == "B" or self._primary_is_stroke() else "fill"
+        if role in ("A", "B") and channel == bound and vis._seeded():
+            self._deseed_active_visual()
+        self._reapply_visual()
+
+    def _patch_look_identity(self, **channels) -> bool:
         """Keep the author snapshot in sync with explicit fill/line edits.
+        True when it patched: an author write under a look (the snapshot
+        exists only while a look is on), so the setter re-applies it — a
+        shape without a look pays nothing more than this lookup.
 
         Costume ``_apply()`` writes channels with ``_in_visual_apply`` set so
         wash / filters / procedural fills do not overwrite identity.
         """
         ident = getattr(self, "_look_identity", None)
         if ident is None or getattr(self, "_in_visual_apply", False):
-            return
+            return False
         patch = dict(ident)
         patch.update(channels)
         self._look_identity = patch
+        return True
 
     def _look_identity_from_live(self) -> dict:
         # Prefer stamp bases so GlowFilter from stamps is not snapshotted as identity.
@@ -991,7 +1013,10 @@ class PaintState:
         self._look_identity = self._look_identity_from_live()
 
     def _identity_patch_seed(self, rgba, *, channel: str = "auto") -> None:
-        """Dye identity as the set_color package (outline-only keeps a ring)."""
+        """Dye identity with a look's seed: a body look (Role A) as the
+        set_color package (outline-only keeps a ring); an outline look
+        (Role B, or ``channel="line"``) on the outline only, exact —
+        ``Rim("red")`` leaves what ``line = "red"`` then ``Rim()`` leaves."""
         ident = getattr(self, "_look_identity", None)
         if ident is None or rgba is None:
             return
@@ -1004,10 +1029,15 @@ class PaintState:
             and patch.get("fill") is None
             and patch.get("line") is not None
         )
+        if channel == "auto":
+            vis = getattr(self, "_visual", None)
+            channel = "line" if getattr(vis, "_color_role", None) == "B" else "fill"
         if self._primary_is_stroke() or outline_only:
             patch["line"] = col
             if self._primary_is_stroke():
                 patch["fill"] = None
+        elif channel == "line":
+            patch["line"] = col
         else:
             patch["fill"] = col
             if patch.get("line") is not None:

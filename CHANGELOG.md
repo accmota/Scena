@@ -39,14 +39,36 @@ left out.
   color (`Laser("red")`, `Rim("gold")`, `Ink`, `Gel`, `Sphere`, `Bolt`,
   `Extrude`, `Halo("blue", style="line")`, `Shield("cyan", style="bands")`
   and every other visual that takes `color=`) turns the visual to the new
-  color, and from then on it follows the shape's color, as `Neon("red")` and
+  color, and from then on it follows the shape, as `Neon("red")` and
   `Halo("blue")` already did. Before, the visual kept drawing its first
   color, and the new one showed only once the visual was removed. To go back
-  to the first color, set the visual again: `shape.visual = Laser("red")`
-  (it makes the shape red, as at first).
+  to the first color, set the visual again: `shape.visual = Laser("red")`.
+- `set_color(X)` gives the shape what `color=X` gives, whatever visual it
+  wears: the interior X and the outline derived from it (darker on a light
+  color, lighter on a dark one). An outline visual (`Rim`, `Laser`, `Ink`,
+  `Halo`, `ElectricBolt`, `Tracer`, …) follows that outline, so after
+  `set_color("red")` a `Rim()` draws the pinkish rim of
+  `Circle(color="red")` with `Rim()`. Before, `set_color` under an outline
+  visual put X itself on the outline, and the shape kept that outline after
+  `visual = None`. For an outline in X itself: `Rim("red")` or
+  `.line = "red"`.
+- The color of an outline visual is the shape's outline only: `Rim("red")`
+  draws and leaves what `.line = "red"` and then `Rim()` do. Once the
+  visual is removed, the shape keeps its own interior and a red outline;
+  before, the interior turned red too. `Halo("red", style="soft")` keeps
+  the shape's interior (before, it painted it red), and
+  `ElectricBolt("red")` no longer mixes the shape's old outline into the
+  bolt. Body visuals (`Neon("red")`, `Gel`, `Metal("gold")`, …) are
+  unchanged: their color becomes the shape's color.
 
 ### Fixed
 
+- `.line = X` or `.fill = X` on a shape already wearing a visual draws what
+  writing it before `shape.visual = …` draws. Before, the write skipped the
+  visual: under a `Rim` the rim lost its softness, under a `Halo` the inner
+  glow kept the old color, and a `Rim("red")` stayed red after
+  `.line = "blue"`. `line_width`, `blend` and `dash` written after a visual
+  still differ from writing them before.
 - `set_color` on a shape wearing `Metal()` or `Metal("gold")` turns the
   metal to the new color. Before, the metal did not change and nothing said
   why.

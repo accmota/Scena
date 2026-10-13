@@ -1575,6 +1575,21 @@ def _sample_channel_rgba(shape, channel: str) -> Optional[Tuple[float, float, fl
     return sample_body_rgba(shape)
 
 
+def _apply_at_draw(shape, apply, *args) -> None:
+    """Run ``apply(*args)``, a look's package rewritten at draw time (fidelity
+    switch inside ``_render``), under ``_in_visual_apply`` like ``visual =``:
+    its channel writes neither patch identity nor re-apply the look
+    (``PaintState._look_channel_written``)."""
+    if getattr(shape, "_in_visual_apply", False):
+        apply(*args)
+        return
+    shape._in_visual_apply = True
+    try:
+        apply(*args)
+    finally:
+        shape._in_visual_apply = False
+
+
 def _write_role_color(shape, role: str, rgba: Tuple[float, float, float, float]) -> None:
     """Seed live channels for identity visuals (assignment-time)."""
     col = Color(
@@ -2735,7 +2750,7 @@ class ElectricField(Recipe):
     def _render(self, shape, skia_canvas) -> None:
         gr = self._glowrim()
         if gr is not None:
-            gr._apply(shape)
+            _apply_at_draw(shape, gr._apply, shape)
             gr._render(shape, skia_canvas)
             return
         if self._SURVIVAL_CHEAP_LINE:
@@ -3735,7 +3750,11 @@ class ElectricBolt(GlowRimVisual):
         self._apply_high(shape, BlendMode)
 
     def _outline_rgba(self, shape) -> Tuple[float, float, float, float]:
-        """Host outline: stashed line paint (solid or Gradient first stop)."""
+        """Host outline: stashed line paint (solid or Gradient first stop); a
+        seed is the outline (``ElectricBolt("red")`` draws ``line = "red"``
+        then ``ElectricBolt()``; before 2026-10-13 it mixed the host line in)."""
+        if self._seed is not None:
+            return self._tint_rgba(shape)
         lp = getattr(shape, self._HOST_LINE_ATTR, None)
         sampled = _channel_paint_rgba(lp) if lp is not None else None
         if sampled is not None:
@@ -4340,7 +4359,7 @@ class Bolt(Recipe):
 
     def _render(self, shape, skia_canvas) -> None:
         if not fidelity_is_lite():
-            self._high._apply(shape)
+            _apply_at_draw(shape, self._high._apply, shape)
             self._high._render(shape, skia_canvas)
             return
         t = _clock() * self.speed
@@ -5072,9 +5091,12 @@ class Rim(Recipe):
         _stroke_host_v2(skia_canvas, shape, core)
 
     def _render(self, shape, skia_canvas) -> None:
+        _apply_at_draw(shape, self._draw_package, shape)
+        self._high._render(shape, skia_canvas)
+
+    def _draw_package(self, shape) -> None:
         self._high._apply(shape)
         self._bake_darken(shape)
-        self._high._render(shape, skia_canvas)
 
 
 # ---------------------------------------------------------------------------
