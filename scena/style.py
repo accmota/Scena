@@ -3109,7 +3109,7 @@ def build_background_fill(
         sx = (w / design_width) if design_width else 1.0
         # The fill is in device pixels (y down); the gradient's local frame is
         # y-up, as on a shape: ``angle=90`` runs from the bottom up everywhere.
-        # Before 0.9.0 a Wallpaper skipped this flip and drew it top-down.
+        # Before 0.8.1 a Wallpaper skipped this flip and drew it top-down.
         sy = -((h / design_height) if design_height else 1.0)
         m = skia.Matrix()
         m.setTranslate(w * 0.5, h * 0.5)

@@ -1141,7 +1141,7 @@ and ignored, KN4). Every image knob × fit is swept for pixels by
 device pixels (y down), so `build_background_fill` flips y in the gradient's
 local matrix: a Gradient keeps the y-up frame it has on a shape, and
 `angle=90` runs bottom → top on a Wallpaper too (sweep turns CCW). Before
-0.9.0 the flip was missing: the same `Gradient("red", "blue", angle=90)` was
+0.8.1 the flip was missing: the same `Gradient("red", "blue", angle=90)` was
 red at the bottom of a shape and at the top of a Wallpaper. `SkyGradient` keeps
 its stops top → bottom with `angle=-90`. Any new surface that draws a Gradient
 outside a shape's transform joins `tests/test_gradient_direction.py`.

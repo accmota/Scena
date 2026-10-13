@@ -12,21 +12,6 @@ left out.
 
 ## Unreleased
 
-### Breaking
-
-- A `Gradient` on a `Wallpaper` (and `canvas.background = Gradient(...)`)
-  now runs the way it does on a shape: `angle=90` goes from the bottom up,
-  as the Guia says. Before, a Wallpaper drew it upside down:
-  `Wallpaper(Gradient("red", "blue", angle=90))` was red at the **top**, while
-  `rect.fill = Gradient("red", "blue", angle=90)` was red at the bottom. Your
-  wallpaper flips, with no error: to keep the old picture, swap the colors
-  (`Gradient("blue", "red", angle=90)`) or write `angle=-90`. A preset sky
-  reads top first: `canvas.background = Gradient("sunset", angle=-90)`.
-  Only the up/down part flips: `angle=0` (left to right) and radial gradients
-  look the same as before, `angle=45` now heads to the upper right, and a
-  `type="sweep"` wallpaper turns counter-clockwise, as on a shape.
-  `SkyGradient` is unchanged.
-
 ### Added
 
 - `Shield(color)` on the bubble style (the default): the same lime film,
@@ -83,6 +68,19 @@ left out.
 
 ### Fixed
 
+- A `Gradient` on a `Wallpaper` (and `canvas.background = Gradient(...)`)
+  now runs the way it does on a shape: `angle=90` goes from the bottom up,
+  as the Guia says. Before, a Wallpaper drew it upside down:
+  `Wallpaper(Gradient("red", "blue", angle=90))` was red at the **top**, while
+  `rect.fill = Gradient("red", "blue", angle=90)` was red at the bottom. Your
+  wallpaper flips, with no error. If you wrote your wallpaper against the old
+  direction (the tutorials did), swap the colors to keep the old picture
+  (`Gradient("blue", "red", angle=90)`) or write `angle=-90`. A preset sky
+  reads top first: `canvas.background = Gradient("sunset", angle=-90)`.
+  Only the up/down part flips: `angle=0` (left to right) and radial gradients
+  look the same as before, `angle=45` now heads to the upper right, and a
+  `type="sweep"` wallpaper turns counter-clockwise, as on a shape.
+  `SkyGradient` is unchanged.
 - The key `on_key_down(key)` receives can be written into a field.
   `st.nome = key` over `st.nome = "x"`, or `t.text = key` on a
   `Text("Aperte")`, raised `ValueError` ("on_key receives 'X', not 'x'",
