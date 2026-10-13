@@ -2870,11 +2870,16 @@ class BackgroundFill:
     def fill(self, canvas: skia.Canvas, rect: skia.Rect) -> None:
         if self._image is not None:
             # Fitted image: only its dst rect paints (the underlay shows around it).
-            canvas.drawImageRect(
-                gpu_image(self._image, canvas), self._src, self._dst, skia.SamplingOptions(),
-                self.paint,
-                skia.Canvas.kFast_SrcRectConstraint,
-            )
+            # ``matrix`` here is the Texture's turn about the frame center.
+            if self._matrix is None:
+                self._draw_image(canvas)
+                return
+            canvas.save()
+            try:
+                canvas.concat(self._matrix)
+                self._draw_image(canvas)
+            finally:
+                canvas.restore()
         elif self._matrix is not None:
             if self._inverse is None:
                 return
@@ -2886,6 +2891,13 @@ class BackgroundFill:
                 canvas.restore()
         else:
             canvas.drawRect(rect, self.paint)
+
+    def _draw_image(self, canvas: skia.Canvas) -> None:
+        canvas.drawImageRect(
+            gpu_image(self._image, canvas), self._src, self._dst, skia.SamplingOptions(),
+            self.paint,
+            skia.Canvas.kFast_SrcRectConstraint,
+        )
 
 
 def prewarm_background_image(source) -> None:
@@ -3029,6 +3041,22 @@ def _prewarm(ctx, img: skia.Image, tile: bool, tile_mode: TileMode) -> None:
         c.drawImageRect(img, _UNIT_RECT, skia.SamplingOptions())
 
 
+def _texture_turn(source) -> float:
+    """A wallpaper image's rotation in degrees (a Texture's ``angle``; else 0)."""
+    return float(getattr(source, "_angle", 0.0) or 0.0)
+
+
+def _texture_knobs_paint(paint: skia.Paint, source) -> skia.Paint:
+    """``paint`` with a Texture's alpha and ``shift`` (as a shape fill takes them)."""
+    if isinstance(source, Texture):
+        if source.alpha < 1.0:
+            paint.setAlphaf(float(source.alpha))
+        cf = source._shift_color_filter
+        if cf is not None:
+            paint.setColorFilter(cf)
+    return paint
+
+
 def build_background_fill(
     source,
     w: int,
@@ -3048,6 +3076,8 @@ def build_background_fill(
     Tiled images use ``tile_size`` design units (default ¼ of the shorter design
     side); ``scale`` is a unitless extra zoom. ``rest_x`` / ``rest_y`` phase
     tiles so world ``(0, 0)`` is a cell corner (defaults to design center).
+    A Texture keeps what a shape fill takes from it: ``angle`` (y-up CCW, about
+    the frame center; a tile turns about world ``(0, 0)``), ``shift`` and alpha.
     Used by :class:`~scena.background_kinds.Wallpaper`.
     """
     rect = skia.Rect.MakeWH(float(w), float(h))
@@ -3058,6 +3088,11 @@ def build_background_fill(
         ih = max(img.height(), 1)
         fit = source._fit
         user_scale = source.scale if source.scale > 0 else 1.0
+        # Texture knobs a shape fill honours (``angle``, ``shift``, alpha): the
+        # same here, baked once per build. ``angle`` is y-up CCW, as on a
+        # shape; the device frame is y-down, hence ``-angle``.
+        angle = _texture_turn(source)
+        turn = abs(angle) > 1e-9
         if fit == BackgroundFit.TILE:
             m = _tile_local_matrix(
                 image_width=iw,
@@ -3071,7 +3106,11 @@ def build_background_fill(
                 rest_x=rest_x,
                 rest_y=rest_y,
             )
-            paint = skia.Paint(_image_template_paint(img, source._tile_mode))
+            if turn:
+                # About world (0, 0), so a cell corner stays there.
+                px, py = m.mapXY(0.0, float(ih))
+                m.postRotate(-angle, px, py)
+            paint = _texture_knobs_paint(skia.Paint(_image_template_paint(img, source._tile_mode)), source)
             paint.setAntiAlias(False)
             # kSrc replaces prior frame contents without a separate clear when opaque.
             paint.setBlendMode(skia.BlendMode.kSrc)
@@ -3092,15 +3131,18 @@ def build_background_fill(
             # placement as the dst rect below, through the template shader.
             m = skia.Matrix.Translate(tx, ty)
             m.preScale(sx, sy)
-            paint = skia.Paint(_image_template_paint(img, source._tile_mode))
+            if turn:
+                m.postRotate(-angle, w * 0.5, h * 0.5)
+            paint = _texture_knobs_paint(skia.Paint(_image_template_paint(img, source._tile_mode)), source)
             paint.setAntiAlias(False)
             return BackgroundFill(paint, rect, underlay, matrix=m)
         # DECAL: pan/zoom can reveal outside the fitted image: nothing is drawn
         # there, so the underlay shows as clean surroundings (no edge smear).
         dst = skia.Rect.MakeXYWH(tx, ty, iw * sx, ih * sy)
-        paint = skia.Paint()
+        paint = _texture_knobs_paint(skia.Paint(), source)
         paint.setAntiAlias(False)
-        return BackgroundFill(paint, rect, underlay, image=img, dst=dst)
+        m = skia.Matrix.RotateDeg(-angle, skia.Point(w * 0.5, h * 0.5)) if turn else None
+        return BackgroundFill(paint, rect, underlay, image=img, dst=dst, matrix=m)
 
     paint = skia.Paint()
     paint.setAntiAlias(False)  # fullscreen rect; AA not needed

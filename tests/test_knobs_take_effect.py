@@ -12,7 +12,10 @@ Enumerated from the surface, not a hand list:
   ``style`` annotation) × every constructor knob: the default and another
   value draw different pixels at the same clock time;
 * every ``Wallpaper`` image ``fit`` × every image knob: some camera (rest, a
-  far pan, a zoom-out, a rotation) shows the difference.
+  far pan, a zoom-out, a rotation) shows the difference;
+* every ``Wallpaper(Texture(...))`` ``fit`` × every ``Texture`` knob (and
+  ``set_alpha``): the same, so a Texture keeps on a Wallpaper what it does on a
+  shape (``angle``, ``shift`` and alpha were taken and dropped: SK4).
 
 A cell with no effect is in ``KNOWN_NO_EFFECT`` (a decision pending, or a
 documented "only on style X"), ``SAME_VALUE`` (the alternative *is* the
@@ -305,6 +308,33 @@ KNOWN_WALLPAPER: dict = {}
 # (KN4, decided 2026-10-12).
 REFUSED_ON_FIT = {(f, "tile_size", 100.0): 'fit="tile"' for f in ("cover", "contain", "stretch")}
 
+# Texture knobs on a Wallpaper: the constructor's, read from its signature, plus
+# ``set_alpha`` (a method on the same object). Values are built per cell.
+TEXTURE_KNOBS = {
+    "tile_mode": ("mirror", "repeat", "clamp", "decal"),
+    "scale": (2.0, 0.5),
+    "tile_size": (100.0,),
+    "angle": (30.0, -90.0),
+    "shift": ("hue", "recolor"),
+    "color": ("red",),
+    "set_alpha": (0.3,),
+}
+TEXTURE_SOURCE_ARGS = {"source", "filename", "image", "fit"}
+
+# (fit, knob, value) -> why no pixel changes is right.
+TEXTURE_NO_PIXELS = {
+    **{(f, "color", "red"): "a proxy hue for looks that sample the host; a "
+                            "Wallpaper wears no look (Texture docstring)"
+       for f in FITS},
+}
+
+
+def _texture_value(knob, v):
+    if knob == "shift":
+        from scena import HueShift, Recolor
+        return HueShift(0.33) if v == "hue" else Recolor("cyan", "gold")  # BG.png is mostly green-cyan
+    return v
+
 
 class TestWallpaperKnobsReachThePixels(unittest.TestCase):
     W, H = 200, 150
@@ -364,6 +394,65 @@ class TestWallpaperKnobsReachThePixels(unittest.TestCase):
         self.assertFalse(unexplained, f"Wallpaper knobs accepted that change nothing: {unexplained}")
         stale = sorted((set(SAME_VALUE) | set(KNOWN_WALLPAPER)) - no_effect, key=str)
         self.assertFalse(stale, f"listed cells that now draw: remove them: {stale}")
+
+    def _texture_wallpaper(self, fit, knob=None, v=None):
+        from scena import Texture
+        kw = {} if knob in (None, "set_alpha") else {knob: _texture_value(knob, v)}
+        tex = Texture(self.path, fit=fit, **kw)
+        if knob == "set_alpha":
+            tex.set_alpha(v)
+        return Wallpaper.temp(tex, pan_response=0.1, zoom_response=1.0,
+                              rotation_response=1.0)
+
+    def test_the_texture_knob_list_is_the_signature(self):
+        from scena import Texture
+        params = set(inspect.signature(Texture.__init__).parameters) - {"self"}
+        self.assertEqual(set(TEXTURE_KNOBS) - {"set_alpha"}, params - TEXTURE_SOURCE_ARGS)
+
+    def test_every_texture_knob_changes_some_camera_on_every_fit(self):
+        no_effect = set()
+        cams = self._cams()
+        for fit in FITS:
+            base = self._texture_wallpaper(fit)
+            shots = [self._shot(base, c) for c in cams]
+            for knob, values in TEXTURE_KNOBS.items():
+                for v in values:
+                    with self.subTest(fit=fit, knob=knob, value=v):
+                        if (fit, knob, v) in REFUSED_ON_FIT:
+                            with self.assertRaises(TypeError) as cm:
+                                self._texture_wallpaper(fit, knob, v)
+                            self.assertIn(REFUSED_ON_FIT[fit, knob, v], str(cm.exception))
+                            continue
+                        wp = self._texture_wallpaper(fit, knob, v)
+                        if all(np.array_equal(s, self._shot(wp, c)) for s, c in zip(shots, cams)):
+                            no_effect.add((fit, knob, v))
+        explained = {c for c in SAME_VALUE if c[1] in TEXTURE_KNOBS} | set(TEXTURE_NO_PIXELS)
+        unexplained = sorted(no_effect - explained, key=str)
+        self.assertFalse(unexplained, f"Texture knobs a Wallpaper takes and drops: {unexplained}")
+        stale = sorted(explained - no_effect, key=str)
+        self.assertFalse(stale, f"listed cells that now draw: remove them: {stale}")
+
+    def test_set_alpha_after_the_wallpaper_drew(self):
+        # The built fill is cached per Wallpaper; a later set_alpha on the same
+        # Texture must rebuild it, as a shape repaints.
+        from scena import Texture
+        cam = self._cams()[0]
+        for fit in FITS:
+            with self.subTest(fit=fit):
+                tex = Texture(self.path, fit=fit)
+                wp = Wallpaper.temp(tex)
+                before = self._shot(wp, cam)
+                tex.set_alpha(0.3)
+                self.assertFalse(np.array_equal(before, self._shot(wp, cam)))
+
+    def test_canary_wallpaper_drops_texture_knobs(self):
+        from diff_support import assert_catches
+        assert_catches(
+            self, "test_knobs_take_effect.TestWallpaperKnobsReachThePixels."
+                  "test_every_texture_knob_changes_some_camera_on_every_fit",
+            [("scena.style", "_texture_turn", lambda source: 0.0),
+             ("scena.style", "_texture_knobs_paint", lambda paint, source: paint)],
+            "a Wallpaper that drops a Texture's angle, shift and alpha (SK4, 2026-10-13)")
 
     def test_canary_fitted_image_ignores_tile_mode(self):
         from diff_support import assert_catches

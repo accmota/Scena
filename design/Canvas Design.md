@@ -1137,6 +1137,18 @@ every extending mode × far pan / zoom-out / rotation leaves no underlay pixel).
 (`style._parse_tile_size`, shared with `Texture`; before 2026-10-12 it was taken
 and ignored, KN4). Every image knob × fit is swept for pixels by
 `tests/test_knobs_take_effect.py`.
+A `Texture` source keeps what a shape fill takes from it, baked into the
+cached fill (no per-frame cost): `angle` turns the image counter-clockwise
+(y-up, as on a shape; the device frame is y-down, so `-angle`) about the frame
+center on cover / contain / stretch, and about world `(0, 0)` on tile so a
+cell corner stays there; `shift` is the paint's color filter and `set_alpha`
+the paint's alpha (`style._texture_turn`, `_texture_knobs_paint`). A turned
+cover image leaves its corners to the underlay, as on a shape (corners
+transparent); `tile_mode="mirror"` or `"repeat"` fills them. A later
+`set_alpha` on the same Texture rebuilds the fill (alpha is in the Wallpaper's
+cache key). Before 0.9.0 a Wallpaper dropped all three (SK4). Guards:
+`test_gradient_direction.TestTextureAngleTurnsTheSameWay` (shape and Wallpaper
+turn the same way, every fit), the Texture sweep in `test_knobs_take_effect`.
 - Gradient / solid → plain `drawRect` with the paint. The fill is built in
 device pixels (y down), so `build_background_fill` flips y in the gradient's
 local matrix: a Gradient keeps the y-up frame it has on a shape, and

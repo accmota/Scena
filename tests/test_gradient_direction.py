@@ -1,10 +1,13 @@
-"""One ``angle`` for a Gradient wherever it is drawn (SK3 in Testing Design).
+"""One ``angle`` for a Gradient or a Texture wherever it is drawn (SK3, SK4 in Testing Design).
 
 ``Gradient("red", "blue", angle=90)`` runs from the bottom up: red at the
 bottom, blue at the top, in Scena's y-up frame. A shape fill did; a Wallpaper
 (and ``canvas.background = Gradient``) drew it top-down, because the wallpaper
 fill is built in device pixels (y down) and skipped the flip a shape gets from
 the canvas. Every surface that draws a Gradient is rendered here and read back.
+
+``Texture(..., angle=90)`` turns the image a quarter counter-clockwise (y-up)
+on a shape; a Wallpaper took the angle and drew the image unturned (SK4).
 
     python tests/run_tiers.py focused test_gradient_direction
 """
@@ -22,7 +25,7 @@ import numpy as np  # noqa: E402
 import skia  # noqa: E402
 
 from scena import (  # noqa: E402
-    Circle, Gradient, Menu, Rect, SkyGradient, Wallpaper, canvas,
+    Circle, Gradient, Menu, Rect, SkyGradient, Texture, Wallpaper, canvas,
 )
 from scena import background_kinds  # noqa: E402
 from scena.style import GradientType  # noqa: E402
@@ -153,6 +156,86 @@ class TestAngle90RunsBottomUpEverywhere(unittest.TestCase):
                 else:
                     # "day": deep blue zenith over a pale horizon.
                     self.assertLess(top.sum(), bottom.sum())
+
+
+def _red_left_blue_right() -> skia.Image:
+    """64 x 64: the image's +x half is blue. A quarter CCW turn puts blue on top."""
+    surf = skia.Surface(64, 64)
+    c = surf.getCanvas()
+    c.drawRect(skia.Rect.MakeXYWH(0, 0, 32, 64), skia.Paint(Color=skia.ColorRED))
+    c.drawRect(skia.Rect.MakeXYWH(32, 0, 32, 64), skia.Paint(Color=skia.ColorBLUE))
+    return surf.makeImageSnapshot()
+
+
+class TestTextureAngleTurnsTheSameWay(unittest.TestCase):
+    """``angle=90`` puts the image's +x (blue) on top: red bottom, so ``"up"``."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.img = _red_left_blue_right()
+
+    def _tex(self, angle, **kw):
+        return Texture(image=self.img, angle=angle, **kw)
+
+    def _shape(self, angle, **kw):
+        with system_world(draw=True) as w:
+            Wallpaper("lime")
+            Rect(center=(200, 150), width=160, height=160).fill = self._tex(angle, **kw)
+            a = _frame(w)
+            return _ramp(a, *_box(a, _not_green(a)))
+
+    def _wallpaper(self, angle, **kw):
+        with system_world(draw=True) as w:
+            Wallpaper(self._tex(angle, **kw))
+            a = _frame(w)
+            return _ramp(a, *_full(a))
+
+    # Every way a Wallpaper draws an image: the fitted DECAL image (drawImageRect),
+    # a fitted image through the template shader (clamp), and tiles.
+    FITS = {
+        "cover": {"fit": "cover"},
+        "contain": {"fit": "contain"},
+        "stretch": {"fit": "stretch"},
+        "cover, clamp": {"fit": "cover", "tile_mode": "clamp"},
+        "stretch, mirror": {"fit": "stretch", "tile_mode": "mirror"},
+    }
+
+    def test_shape_and_wallpaper_agree_on_every_fit(self):
+        for label, kw in self.FITS.items():
+            for angle, want in ((90, "up"), (-90, "down")):
+                with self.subTest(fit=label, angle=angle):
+                    self.assertEqual(self._shape(angle, **kw), want)
+                    self.assertEqual(self._wallpaper(angle, **kw), want)
+
+    def test_tiles_turn_the_same_way(self):
+        # One cell as tall as the design: a quarter turn about world (0, 0)
+        # (the frame's bottom-left at rest) leaves red below the middle.
+        with system_world():
+            dh = float(canvas.height)
+        for angle, want in ((90, "up"), (-90, "down")):
+            with self.subTest(angle=angle):
+                self.assertEqual(self._shape(angle, fit="tile", tile_size=160), want)
+                self.assertEqual(self._wallpaper(angle, fit="tile", tile_size=dh), want)
+
+    def test_unturned_texture_has_no_vertical_ramp(self):
+        with system_world(draw=True) as w:
+            Wallpaper(self._tex(0, fit="stretch"))
+            a = _frame(w)
+            with self.assertRaisesRegex(AssertionError, "no vertical ramp"):
+                _ramp(a, *_full(a))
+
+    def test_canary_wallpaper_ignores_the_angle(self):
+        from tests.diff_support import assert_catches
+        assert_catches(
+            self, "test_gradient_direction.TestTextureAngleTurnsTheSameWay."
+                  "test_shape_and_wallpaper_agree_on_every_fit",
+            [("scena.style", "_texture_turn", lambda source: 0.0)],
+            "a Wallpaper that draws a Texture unturned (SK4, 2026-10-13)")
+        assert_catches(
+            self, "test_gradient_direction.TestTextureAngleTurnsTheSameWay."
+                  "test_tiles_turn_the_same_way",
+            [("scena.style", "_texture_turn", lambda source: -source._angle)],
+            "a Wallpaper tile turned clockwise")
 
 
 class TestCanaries(unittest.TestCase):

@@ -467,13 +467,15 @@ class Wallpaper(BackgroundField):
         tile_size = getattr(self.source, "tile_size", None)
         src_scale = getattr(self.source, "scale", None)
         src_fit = getattr(self.source, "fit", None)
+        # Texture.set_alpha changes the same object: rebuild on a new alpha.
+        src_alpha = getattr(self.source, "alpha", None)
         rest_x = float(cam.rest_x)
         rest_y = float(cam.rest_y)
         key = (
             wi, hi, src_id,
             float(design_width), float(design_height),
             rest_x, rest_y,
-            tile_size, src_scale, src_fit,
+            tile_size, src_scale, src_fit, src_alpha,
         )
         if key != self._cache_key or self._base_fill is None:
             self._base_fill = build_background_fill(

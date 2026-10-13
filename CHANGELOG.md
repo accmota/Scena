@@ -78,6 +78,13 @@ left out.
 
 ### Fixed
 
+- A `Texture` on a `Wallpaper` keeps its `angle`, `shift=` and `set_alpha`,
+  as on a shape. Before, `Wallpaper(Texture("x.png", fit="tile", angle=30))`
+  drew the image unturned, and a `HueShift` / `Recolor` or a faded Texture
+  drew the plain image. The angle turns counter-clockwise, about the middle of
+  the screen (a tile turns about the point `(0, 0)` of the world). A turned
+  `fit="cover"` image leaves its corners to the underlay, as a shape leaves
+  them empty; `tile_mode="mirror"` fills them.
 - The key `on_key_down(key)` receives can be written into a field.
   `st.nome = key` over `st.nome = "x"`, or `t.text = key` on a
   `Text("Aperte")`, raised `ValueError` ("on_key receives 'X', not 'x'",
