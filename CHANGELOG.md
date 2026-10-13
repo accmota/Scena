@@ -23,6 +23,9 @@ left out.
 
 ### Fixed
 
+- Maximized and fullscreen (`canvas.display`) keep the bands around the game
+  black. Before, a body half outside the screen showed its outer half in the
+  bands, and `Grain`, `Scanlines`, `Fog` and `Vignette` drew over them.
 - An `async def` handed to a function Scena asks a question raises
   `TypeError` with the fix, like the hooks in 0.8.0: a filter
   (`group["x"].filter` / `any` / `all` / `count_where`, `nearest(where=)`),
