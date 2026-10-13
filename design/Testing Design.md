@@ -2446,6 +2446,21 @@ an identity assertion, check that the fixture is not on an exact joint. When
 it is, assert the set of valid answers and say why
 ([Collision Design, "Polygon sweeps"](Collision%20Design.md#polygon-sweeps)).
 
+### CB — author class body and constructor (2026-10-13)
+
+Found writing tutorial 06 (classes): two ways an author class looks right in
+Python and is silently not what it says. Both fixed for every family at once
+([Actors Design, "Current design choices"](Actors%20Design.md#current-design-choices)).
+
+| ID | Finding | Repro | Cause | Why tests missed it | Fix / guard |
+| --- | --- | --- | --- | --- | --- |
+| CB1 | An author `__init__` that never called Scena's own built an empty object: never registered, nothing drew, `on_update` never ran, no warning even in strict mode. With `on_click` defined, an internal `AttributeError: no attribute '_clickable'`. `Bolha(center=…)` against it said "Write Bolha()" — straight into the silent case | `class Bolha(Circle, radius=30): def __init__(self): self.velocidade = 100`, then `Bolha()` | The actor wrapper runs the finish step (hooks, `setup`) after the most-derived `__init__` whether or not `_construct` ran; the keyword rewrite took the author's `__init__` signature as the whole truth | Every test `__init__` called `super().__init__(**kw)` (rollback, mixin adoption, class defaults); no test wrote the beginner's version | `_finish_actor_construct` refuses an object whose `_actor_constructed` was never set (`getattr` default `None`: same cost on the built path), naming `setup` and `super().__init__(**kwargs)`; `_explain_author_init_keywords` names the same fix for Scena keywords; a read of `self` before the build (`self.radius`, a method's `'_owner'`) does too (`_ink_read_slow`, a branch normal construction never reaches). Not refused at class definition: `__init__` + `super()` is legitimate (parameters of one's own). Guard: `test_subclass_parity.TestAuthorInit` (every exported family: refused, census unchanged; with `super()` it takes its own parameter and `setup` runs once; an author mixin's `__init__` is named; `self` used before `super()` is named, every family; a typo keeps the near-miss) |
+| CB2 | A class-body value under a property's name was never read: `class Bolha(Circle): radius = 30` gave the default radius, `class Tiro(Sprite, source=…): height = 28` gave 48, `visible = False` read `False` while the shape drew, `center = (1, 2)` crashed with an internal error. The Guia said it "esconde a propriedade" | as written | Construction writes Scena's field through its setter; the class value only shadows some reads | Nothing looked at an author class body; the Guia's warning described a guess, not a run | `Entity.__init_subclass__` → `_refuse_class_body_values`: every non-descriptor value in an author class (or author mixin) whose name is in the kind's `_setattr_route` raises on the class line, with the class keyword (`_class_keywords()`, keeping the class's own keywords) or `setup(self)`. Guard: `test_subclass_parity.TestClassBodyValues` (every family × every Scena-owned name, ~4,400 classes in 0.3 s; the class-keyword table agrees with what the class line takes; own fields, methods and properties stay) |
+
+Lesson: a pattern from general Python (`__init__`, class attributes as
+defaults) that the framework handles differently needs a test written the way
+a newcomer writes it, not the way the framework's own tests do.
+
 ### Open (found, not yet fixed)
 
 | Found in | Issue | Planned |

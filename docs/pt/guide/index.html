@@ -3827,7 +3827,7 @@ class Tiro(Sprite, source=space, frame="laserBlue01.png", height=18,
 Tiro(center=nave.center)
 Tiro(center=nave.center, frame="laserRed01.png")   # a instância vence</pre>
         </div>
-        <p>Valem na linha da classe: <code>source</code>, <code>frame</code>, <code>height</code> / <code>width</code> / <code>size</code>, os quatro parâmetros de hitbox, <code>offset</code>, <code>visual</code>, <code>shield_scale</code>, <code>group</code>, <code>flip_x</code> / <code>flip_y</code>, <code>art_angle</code>. Uma subclasse herda e sobrescreve. Colocação (<code>center</code>, <code>layer</code>, <code>box</code>) é recusada na classe. Não escreva <code>frame = …</code> ou <code>height = …</code> como atributo no corpo da classe — isso esconde a propriedade; passe na linha <code>class</code>.</p>
+        <p>Valem na linha da classe: <code>source</code>, <code>frame</code>, <code>height</code> / <code>width</code> / <code>size</code>, os quatro parâmetros de hitbox, <code>offset</code>, <code>visual</code>, <code>shield_scale</code>, <code>group</code>, <code>flip_x</code> / <code>flip_y</code>, <code>art_angle</code>. Uma subclasse herda e sobrescreve. Colocação (<code>center</code>, <code>layer</code>, <code>box</code>) é recusada na classe. Não escreva <code>frame = …</code> ou <code>height = …</code> como atributo no corpo da classe: o Scena não lê o valor dali, e a definição da classe levanta <code>TypeError</code> com a correção. Passe na linha <code>class</code>.</p>
       </div>
       <div class="tab-panel" data-panel="spr-svg" id="spr-svg">
         <p class="one-liner"><code>Svg</code> é um Sprite cujo corpo vem de um SVG: markup <code>&lt;svg …&gt;</code> ou arquivo. Uma imagem parada: sem clips, sem <code>play</code>.</p>
@@ -4484,7 +4484,7 @@ spawner = Spawner(group="spawners")
 <tr><td><code>goto_mode(fn)</code></td><td class="sig"><span class="params">Parâmetros: fn (função do capítulo)</span></td><td>—</td><td>Força saída+entrada, mesmo se já estiver nesse mode. Ver <a href="#mode">Mode</a>.</td></tr>
 <tr><td><code>after</code> / <code>every</code></td><td class="sig"><span class="params">Parâmetros: segundos (número), fn (função)</span></td><td>Handle</td><td>Timers neste Entity — sobrevivem a troca de mode; morrem no <code>destroy</code> / <code>cancel_process</code>. Ver <a href="#mode-cancela">escopo</a>.</td></tr>
 <tr><td><code>tween</code></td><td class="sig"><span class="params">Parâmetros: target (alvo, Attribute ou Point), to (mesmo tipo do valor atual)</span></td><td>Handle</td><td>Interpola Attribute / Point neste Entity (número, tupla, <code>Vec2</code>, <code>Color</code>…). Ver <a href="#mover-tween">tween</a>.</td></tr>
-<tr><td><code>setup(self)</code></td><td class="sig"><span class="params">Parâmetros: self (este objeto)</span></td><td>—</td><td>Depois do construtor. Aqui nascem os campos próprios: <code>self.hp = 3</code>.</td></tr>
+<tr><td><code>setup(self)</code></td><td class="sig"><span class="params">Parâmetros: self (este objeto)</span></td><td>—</td><td>Depois do construtor. Aqui nascem os campos próprios: <code>self.hp = 3</code>. Escreva <code>setup</code>, não <code>__init__</code>: um <code>__init__</code> que não chama <code>super().__init__(**kwargs)</code> levanta <code>TypeError</code> ao criar o objeto.</td></tr>
 <tr><td><code>on_update(self, dt)</code></td><td class="sig"><span class="params">Parâmetros: self (este objeto), dt (número)</span></td><td>—</td><td>A cada frame, nesta Entity. Ver <a href="#frame-clock">Frame</a>.</td></tr>
 <tr><td><code>on_destroy(self)</code></td><td class="sig"><span class="params">Parâmetros: self (este objeto)</span></td><td>—</td><td>Uma vez, de dentro de <code>destroy()</code>. Não dispara em troca de mode.</td></tr>
           </tbody>
@@ -4514,7 +4514,7 @@ Nave(center=(x, y))</pre>
           <tbody>
             <tr><td><code>color</code> <code>visual</code> <code>group</code></td><td><code>center</code> <code>layer</code></td></tr>
             <tr><td>Tamanho: <code>radius</code> <code>width</code>/<code>height</code> <code>length</code>/<code>angle</code></td><td>Pose por instância (<code>center=</code>)</td></tr>
-            <tr><td>Sprite: <code>source=</code> <code>frame=</code> <code>height=</code></td><td><code>class Bolt(Circle): radius = 8</code> — esconde a propriedade</td></tr>
+            <tr><td>Sprite: <code>source=</code> <code>frame=</code> <code>height=</code></td><td><code>class Bolt(Circle): radius = 8</code> — <code>TypeError</code> na classe: vai na linha <code>class</code></td></tr>
             <tr><td>Text: <code>font_size</code> <code>font</code> <code>color</code> <code>background</code> <code>glow</code> <code>align</code> <code>width</code> <code>group</code></td><td>O texto e a posição (<code>center</code> <code>top_left</code> … <code>box</code> <code>layer</code> <code>stack</code> <code>angle</code>)</td></tr>
             <tr><td>—</td><td>Widgets, <code>Entity</code>, <code>Endless</code>: sem parâmetros de classe (erro com a correção); passe na instância</td></tr>
             <tr><td>SpatialFx: os parâmetros do tipo (<code>radius</code> <code>amount</code> <code>color</code> <code>length</code>…), <code>group</code> <code>soft_edge</code></td><td>Pontos (<code>center</code> <code>p1</code> <code>p2</code> <code>origin</code>); <code>style=</code> de <code>Fire</code> — escolhe outra classe: escreva <code>Fire(style=…)</code></td></tr>
@@ -4527,7 +4527,8 @@ Nave(center=(x, y))</pre>
 <table class="confuse">
 <thead><tr><th>Parece</th><th>É</th><th>Não é</th></tr></thead>
 <tbody>
-<tr><td><code>class Bolt(Circle): radius = 8</code></td><td>Kwargs da classe, não atributos de corpo. <code>class Bolt(Circle): radius = 8</code> esconde a propriedade.</td><td>—</td></tr>
+<tr><td><code>class Bolt(Circle): radius = 8</code></td><td>Parâmetros da linha <code>class</code>, não atributos de corpo. Um valor no corpo com um nome do Scena (<code>radius = 8</code>, <code>visible = False</code>, <code>group = "x"</code>) levanta <code>TypeError</code> na definição da classe, com a correção: a linha <code>class</code> (<code>class Bolt(Circle, radius=8)</code>) ou o <code>setup</code> (<code>self.visible = False</code>).</td><td>—</td></tr>
+<tr><td><code>def __init__(self):</code> numa subclasse</td><td>Substitui o construtor do Scena. O que o objeto faz ao nascer vai em <code>def setup(self):</code>, que o Scena chama com o objeto pronto. Um <code>__init__</code> seu (para parâmetros próprios) recebe <code>**kwargs</code> e chama <code>super().__init__(**kwargs)</code>; sem essa chamada, criar o objeto levanta <code>TypeError</code> com a correção.</td><td>—</td></tr>
 </tbody>
 </table>
 </div>

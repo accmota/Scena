@@ -204,6 +204,29 @@ left out.
 - A `Collider` subclass that defines `on_collide` (or `on_collide_stay`,
   `on_collide_exit`) as a method now gets those calls, as if it had assigned
   them. Before, the method was ignored.
+- A class of your own whose `__init__` never calls Scena's
+  (`class Bolha(Circle)` with `def __init__(self): self.velocidade = 100`)
+  now raises `TypeError` when you make one, with the fix: put that code in
+  `def setup(self):`, or give your `__init__` `**kwargs` and call
+  `super().__init__(**kwargs)`. Before, `Bolha()` made an empty object that
+  was never in the game (nothing drew, `on_update` never ran) and said
+  nothing, or raised an internal `AttributeError` (`'_clickable'`) when the
+  class had `on_click`; `Bolha(center=…)` said "Write Bolha()", which led to
+  the empty object. Using `self` in `__init__` before Scena's `__init__` ran
+  (`self.radius`) says the same; before, `AttributeError: 'Bolha' object has
+  no attribute 'radius'`. A program with such a class ran without those objects;
+  it now stops at the first one. An `__init__` that calls
+  `super().__init__(**kwargs)` works as before.
+- A value in a class body under a name Scena owns
+  (`class Bolha(Circle): radius = 30`, `class Tiro(Sprite, …): height = 28`,
+  `visible = False`, `group = "tiro"`) now raises `TypeError` on the class
+  line, with the fix: the class keyword when the kind takes it
+  (`class Bolha(Circle, radius=30)`), else `setup(self)`
+  (`self.visible = False`). Before, the value was never applied: the object
+  kept the default, and a few reads returned the class value while the
+  object drew otherwise (`visible`). A program with such a line ran without
+  it; it now stops at the class. Fields of your own (`velocidade = 100`),
+  methods and properties in the class body are unchanged.
 
 ### Documentation
 

@@ -268,6 +268,10 @@ class Text(Graphic, PaintState):
     _CLASS_PLACEMENT = frozenset({"center", "top_left", "top_center", "top_right",
                                   "box", "layer", "stack", "angle"})
 
+    @classmethod
+    def _class_keywords(cls) -> frozenset:
+        return Text._CLASS_KEYS
+
     def __init_subclass__(cls, **kwargs):
         from ._pkg import is_framework_module
         if not is_framework_module(cls.__module__):

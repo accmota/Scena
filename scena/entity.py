@@ -133,6 +133,157 @@ def _refuse_class_keywords(cls, kwargs) -> None:
     )
 
 
+def _framework_kind(cls: type) -> type:
+    """The nearest Scena class in ``cls``'s MRO (``Bolha`` → ``Circle``)."""
+    from ._pkg import is_framework_module
+    return next((k for k in cls.__mro__ if is_framework_module(k.__module__)), Entity)
+
+
+def _kind_route(kind: type) -> Dict[str, Any]:
+    """The Scena kind's setter routes: every public name Scena owns on it."""
+    route = kind.__dict__.get("_setattr_route")
+    if route is None:
+        _install_setattr_route(kind)
+        route = kind._setattr_route  # type: ignore[attr-defined]
+    return route
+
+
+def _refuse_class_body_values(cls: type) -> None:
+    """A value in an author class body under a name Scena owns (``radius = 30``,
+    ``visible = False``, ``group = "laser"``) is never the object's: construction
+    writes Scena's own field, and the class value only hides it from reads
+    (``radius`` read the default; ``visible`` read ``False`` while the shape
+    drew). Refused on the class line with the fix (CB2). Methods, properties
+    and other descriptors are the author's to define."""
+    from ._pkg import is_framework_module
+    kind = _framework_kind(cls)
+    route = _kind_route(kind)
+    for k in cls.__mro__:
+        if k is object or is_framework_module(k.__module__):
+            continue
+        for name, value in k.__dict__.items():
+            if not name or name[0] == "_" or name not in route:
+                continue
+            if hasattr(type(value), "__get__"):     # a method, property, descriptor
+                continue
+            raise TypeError(_class_body_value_message(cls, kind, name, value, route[name]))
+
+
+def _class_body_value_message(cls: type, kind: type, name: str, value: Any, route: Any) -> str:
+    shown = repr(value)
+    if len(shown) > 40:
+        shown = "..."
+    bases = ", ".join(b.__name__ for b in cls.__bases__)
+    head = f"class {cls.__name__}({bases}): {name} = {shown} in the class body"
+    if isinstance(route, _RouteRefusal):
+        return f"{head}: {route.message.format(cls=kind.__name__)}"
+    if route is _LOOK_MISSING:
+        return f"{head}: {_look_missing_text(kind.__name__, name)}"
+    why = (f"{head} does not change {name}: Scena keeps {name} on each "
+           f"{cls.__name__}, not on the class.")
+    if name in cls._class_keywords():
+        line = "".join(f", {k}={v!r}" for k, v in _own_class_keywords(cls).items()
+                       if k != name)
+        return (f"{why} Put it on the class line: "
+                f"class {cls.__name__}({bases}{line}, {name}={shown}).")
+    return f"{why} Set it in setup(self): self.{name} = {shown}."
+
+
+# Where each family keeps the merged class keywords of a subclass.
+_CLASS_DEFAULT_TABLES = ("_shape_defaults", "_sprite_defaults", "_class_defaults")
+
+
+def _own_class_keywords(cls: type) -> Dict[str, Any]:
+    """The keywords ``cls``'s own class line set (its table minus its parent's)."""
+    own: Dict[str, Any] = {}
+    parent = cls.__mro__[1]
+    for attr in _CLASS_DEFAULT_TABLES:
+        mine = cls.__dict__.get(attr) or {}
+        theirs = getattr(parent, attr, None) or {}
+        own.update((k, v) for k, v in mine.items() if k not in theirs or theirs[k] is not v)
+    return own
+
+
+def _init_owner(fn, cls: type) -> str:
+    """The class whose ``__init__`` ``fn`` is (``Bolha``; an author mixin's own name)."""
+    parts = getattr(fn, "__qualname__", "").split(".")
+    return parts[-2] if len(parts) >= 2 else cls.__name__
+
+
+def _never_built_message(item) -> str:
+    """An author ``__init__`` that never ran Scena's own (CB1)."""
+    cls = type(item)
+    kind = _framework_kind(cls)
+    owner = _init_owner(inspect.unwrap(cls.__init__), cls)
+    return (
+        f"{owner}.__init__ never called {kind.__name__}'s own __init__, so this "
+        f"{cls.__name__} was not built: it is not in the game (nothing draws, "
+        f"on_update never runs). Drop __init__ and write def setup(self): Scena "
+        f"calls it once the {cls.__name__} is built. An __init__ of your own must "
+        f"take **kwargs and call super().__init__(**kwargs)."
+    )
+
+
+def _never_built(item) -> bool:
+    """``_construct`` never ran on ``item`` (it sets ``_actor_constructed``)."""
+    try:
+        object.__getattribute__(item, "_actor_constructed")
+    except AttributeError:
+        return True
+    return False
+
+
+def _read_before_built_message(item, name: str) -> str:
+    """``self.radius`` (or a method, which reads Scena's private fields) in an
+    author ``__init__`` before Scena's own ran (CB1)."""
+    cls = type(item)
+    kind = _framework_kind(cls)
+    owner = _init_owner(inspect.unwrap(cls.__init__), cls)
+    what = f"has no {name} yet" if name[:1] != "_" else "is not built yet"
+    ready = f", with {name} ready" if name[:1] != "_" else ""
+    return (
+        f"{cls.__name__} {what}: {owner}.__init__ has not called "
+        f"{kind.__name__}'s own __init__, which builds it. Drop __init__ and write "
+        f"def setup(self): Scena calls it once the {cls.__name__} is built{ready}. "
+        f"An __init__ of your own must call super().__init__(**kwargs) before it "
+        f"uses self."
+    )
+
+
+def _explain_author_init_keywords(orig, cls: type, kwargs: dict, exc: TypeError) -> None:
+    """``Bolha(center=…)`` against an author ``def __init__(self)``: Python's
+    complaint names the author's ``__init__``, and the generic rewrite said
+    "Write Bolha()" — advice that led straight to the object never built (CB1).
+    Raises only for keywords Scena owns; a typo of the author's own parameter
+    falls through to the near-miss rewrite."""
+    from ._pkg import is_framework_module
+    fn = inspect.unwrap(orig)
+    if is_framework_module(getattr(fn, "__module__", "") or ""):
+        return
+    if not str(exc).startswith(f"{getattr(fn, '__qualname__', '')}()"):
+        return
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return
+    if any(p.kind is p.VAR_KEYWORD for p in params.values()):
+        return
+    kind = _framework_kind(cls)
+    route = _kind_route(kind)
+    theirs = [k for k in kwargs if k not in params and k in route]
+    if not theirs:
+        return
+    owner = _init_owner(fn, cls)
+    got = ", ".join(f"{k}=" for k in theirs)
+    raise TypeError(
+        f"{cls.__name__}() got {got}, but {owner}.__init__ does not take "
+        f"{'it' if len(theirs) == 1 else 'them'}: it replaced {kind.__name__}'s own "
+        f"__init__, which does. Drop __init__ and write def setup(self): Scena "
+        f"calls it once the {cls.__name__} is built. An __init__ of your own must "
+        f"take **kwargs and call super().__init__(**kwargs)."
+    ) from None
+
+
 def _cache_class_tables(cls: type) -> None:
     """Per-class tables the hot paths read as plain class attributes.
 
@@ -356,7 +507,10 @@ def _retired_attr_message(owner, name: str):
 
 
 def _look_missing_message(owner, name: str) -> str:
-    kind = type(owner).__name__
+    return _look_missing_text(type(owner).__name__, name)
+
+
+def _look_missing_text(kind: str, name: str) -> str:
     hint = _INK_LINK_FORBIDDEN_HINTS.get(name, "")
     return (
         f"{kind} has no {name!r} — that look property belongs to other actor "
@@ -1455,9 +1609,15 @@ def _finish_actor_construct(item) -> None:
 
     Order: fixed hooks → ``@every`` / ``@after`` / ``@collide_with*`` → ``setup()`` (ink) →
     ``@when`` / ``@on_change`` → group collision enroll.
+
+    ``_construct`` sets ``_actor_constructed``; an author ``__init__`` that never
+    called Scena's own left it unset, and the object was never built (CB1).
     """
-    if getattr(item, "_actor_constructed", False):
+    done = getattr(item, "_actor_constructed", None)
+    if done:
         return
+    if done is None:
+        raise TypeError(_never_built_message(item))
     object.__setattr__(item, "_actor_constructed", True)
     _install_subclass_hooks(item)
     _install_method_every(item)
@@ -1514,6 +1674,7 @@ def _wrap_actor_init(cls) -> None:
             orig(self, *args, **kwargs)
         except TypeError as exc:
             if type(self).__init__ is wrapped:
+                _explain_author_init_keywords(orig, type(self), kwargs, exc)
                 # Python's "Polygon.__init__() got an unexpected keyword"
                 # → Did you mean / Valid (validate.install_friendly_constructor).
                 from .validate import explain_raw_call_error
@@ -1617,6 +1778,9 @@ class Entity(Container):
         if kwargs:
             _refuse_class_keywords(cls, kwargs)
         super().__init_subclass__(**kwargs)
+        from ._pkg import is_framework_module
+        if not is_framework_module(cls.__module__):
+            _refuse_class_body_values(cls)
         _adopt_mixin_init(cls)         # a mixin's __init__ becomes this class's own
         _wrap_construct_rollback(cls)  # inner: undo registration on raise
         _wrap_actor_init(cls)          # outer: setup() / watches after __init__
@@ -1625,6 +1789,12 @@ class Entity(Container):
         _claim_deferred_every_specs(cls)
         _claim_deferred_after_specs(cls)
         _cache_actor_lookups(cls)
+
+    @classmethod
+    def _class_keywords(cls) -> frozenset:
+        """Names an author subclass may set on its class line (``class Bolha(Circle,
+        radius=30)``); a family that takes class keywords overrides this."""
+        return frozenset()
 
     def __init__(
         self,
@@ -1834,6 +2004,10 @@ class Entity(Container):
         try:
             ink = object.__getattribute__(self, "_ink")
         except AttributeError:
+            if _never_built(self):
+                # ``self.radius`` / ``self.move_by(…)`` in an author ``__init__``
+                # before (or without) ``super().__init__`` (CB1).
+                raise AttributeError(_read_before_built_message(self, name)) from None
             raise AttributeError(
                 f"{type(self).__name__!r} object has no attribute {name!r}"
             ) from None
