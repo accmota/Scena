@@ -54,6 +54,14 @@ class TestRejectedTimedVerbs(SystemTestCase, unittest.TestCase):
         ("scale_by", lambda c: c.scale_by(2, time=1), lambda c: c.scale_by(3, time=float("nan"))),
         ("tween", lambda c: tween(c["width"], 100, time=1),
          lambda c: tween(c["width"], 50, time=-1)),
+        ("move_to speed", lambda c: c.move_to(300, 0, time=1), lambda c: c.move_to(0, 300, speed=0)),
+        ("move_by speed", lambda c: c.move_by(300, 0, time=1),
+         lambda c: c.move_by(0, 300, time=1, speed=5)),
+        ("rotate_to speed", lambda c: c.rotate_to(90, time=1),
+         lambda c: c.rotate_to(10, speed=float("nan"))),
+        ("rotate_by speed", lambda c: c.rotate_by(90, time=1), lambda c: c.rotate_by(10, speed=-1)),
+        ("move_along speed", lambda c: c.move_along("circle", time=1),
+         lambda c: c.move_along("circle", speed=0)),
     )
 
     def test_a_rejected_call_keeps_the_job_in_flight(self):

@@ -1186,7 +1186,7 @@ class Track(Shape):
         """Turn by ``angle`` degrees about a pivot (default: center). Same verb as every Graphic;
         a control-point track turns about the center and its points orbit the pivot."""
         shift = None
-        if kwargs.get("time") is None:
+        if kwargs.get("time") is None and kwargs.get("speed") is None:
             a = math.radians(_number(angle, "rotate_by angle"))
             shift = self._orbit_points(kwargs.get("about"), lambda cx, cy, px, py: (
                 px + (cx - px) * math.cos(a) - (cy - py) * math.sin(a),
@@ -1196,7 +1196,7 @@ class Track(Shape):
         out = super().rotate_by(angle, *args, **kwargs)
         if shift is not None:
             self._move_by(shift[0], shift[1], force=kwargs.get("force", False))
-        if kwargs.get("time") is None:
+        if kwargs.get("time") is None and kwargs.get("speed") is None:
             self._pose_moved()
         return out
 

@@ -348,6 +348,8 @@ _BAD_VERB_CALLS = [
     ("scale_by(bad)", lambda o, v: o.scale_by(v)),
     ("move_to((1,1), time=bad)", lambda o, v: o.move_to((1, 1), time=v)),
     ("rotate_by(10, time=bad)", lambda o, v: o.rotate_by(10, time=v)),
+    ("move_to((1,1), speed=bad)", lambda o, v: o.move_to((1, 1), speed=v)),
+    ("rotate_by(10, speed=bad)", lambda o, v: o.rotate_by(10, speed=v)),
     ("flash(duration=bad)", lambda o, v: o.flash(duration=v)),
 ]
 

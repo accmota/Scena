@@ -23,6 +23,17 @@ left out.
   Before, it raised and you wrote `move_by(angle=x.angle, distance=d)`.
   `face=True` in this form raises with the fix (the direction already is the
   heading; on a back-up it would flip the object every call).
+- `speed=` on the timed verbs that cover a distance: `move_to`, `move_by`,
+  `move_along`, `rotate_to`, `rotate_by`, `reset_rotation`, and the camera's
+  `pan_to` / `pan_by`. Give the speed instead of the duration (units per
+  second, or degrees per second on a turn) and the trip lasts distance ÷
+  speed: `hero.move_to(mouse, speed=200)` takes longer the farther it goes,
+  and enemies returning to their slots with the same `speed=` all fly at the
+  same pace. The distance is read once, at the call; after that it is the
+  same trip as `time=` (`ease=`, `loops=`, `yoyo=`, `on_done=` all work; with
+  an `ease`, `speed` is the average). `time=` and `speed=` together raise.
+  `move_along` now takes either one (before, `time=` was required).
+  `scale_*`, `zoom_*` and `tween` have no `speed=`.
 
 ### Changed
 

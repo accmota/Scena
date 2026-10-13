@@ -269,6 +269,9 @@ class TestSpritePartFrames(unittest.TestCase):
 _HERE = "test_sys_frame_contracts"
 # A distinctive piece of the sentence -> "module.Class.test" or "prose: why".
 FRAME_PROMISES = {
+    "com speed= ele termina no frame seguinte": "test_timed_speed.TestSameTweenAfterwards.test_empty_group_is_a_finished_timer",
+    "Distância zero termina no frame seguinte": "test_timed_speed.TestSameTweenAfterwards.test_zero_distance_finishes_on_the_next_tick",
+    "quanto o objeto andou neste frame, por segundo": "test_timed_speed.TestSameTweenAfterwards.test_linear_readout_reads_the_requested_speed",
     'keyp("A") é True em todo frame em que a tecla está segurada': "test_keyp.TestOnceIsFrameScopedInFrames.test_a_press_read_in_its_frame_fires_once",
     'keyp.once("A") só no frame em que A foi apertada': "test_keyp.TestOnceIsFrameScopedInFrames.test_a_press_nobody_read_does_not_fire_later",
     "True só no frame do aperto de A": "test_keyp.TestOnceIsFrameScopedInFrames.test_a_press_nobody_read_does_not_fire_later",

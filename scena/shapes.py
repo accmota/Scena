@@ -2251,54 +2251,56 @@ class Shape(Graphic, PaintState):
         """
         self.rotate_to(_finite_deg(value, "angle"))
 
-    def rotate_to(self, value: float, *, time: Optional[float] = None, ease: str = "linear", then=None, on_done=None, about: Optional[GeneralPoint] = None, force: bool = False, loops: object = 1, yoyo: bool = False) -> Union['Shape', 'Handle']:
+    def rotate_to(self, value: float, *, time: Optional[float] = None, speed: Optional[float] = None, ease: str = "linear", then=None, on_done=None, about: Optional[GeneralPoint] = None, force: bool = False, loops: object = 1, yoyo: bool = False) -> Union['Shape', 'Handle']:
         """
         Set absolute rotation in degrees about a pivot (default: center).
         With ``time=``, interpolate the shortest arc (CCW+; 180° tie → CCW) and return a Handle.
+        ``speed=`` (degrees per second) instead of ``time=``: the duration is that arc ÷ speed.
         force=True unlinks Defining parts that must be written (default: raise).
         """
         if force is not False and force is not True:      # "no" is truthy: it unlinked
             force = _expect_flag(force, "rotate_to(force=)")
-        if time is not None:
+        if time is not None or speed is not None:
             from .process import timed_rotate_to
             return timed_rotate_to(
-                self, value, time=time, ease=ease, then=then, on_done=on_done,
+                self, value, time=time, speed=speed, ease=ease, then=then, on_done=on_done,
                 about=about, force=force, loops=loops, yoyo=yoyo,
             )
         if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="rotate_to")
+            _require_timed_completion(time=time, speed=speed, then=then, on_done=on_done, ease=ease, call_name="rotate_to")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
-            _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="rotate_to")
+            _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, speed=speed, call_name="rotate_to")
         delta = _finite_deg(value, "rotate_to angle") - float(self.angle)
         if about is not None:
             # Placement: the orbit this turn makes is not motion.
             return _rotate_as_placement(self.rotate_by, delta, about=about, force=force)
         return self.rotate_by(delta, about=about, force=force)
 
-    def rotate_by(self, angle: float, *, time: Optional[float] = None, ease: str = "linear", then=None, on_done=None, about: Optional[GeneralPoint] = None, force: bool = False, loops: object = 1, yoyo: bool = False) -> Union['Shape', 'Handle']:
+    def rotate_by(self, angle: float, *, time: Optional[float] = None, speed: Optional[float] = None, ease: str = "linear", then=None, on_done=None, about: Optional[GeneralPoint] = None, force: bool = False, loops: object = 1, yoyo: bool = False) -> Union['Shape', 'Handle']:
         """Rotate by angle degrees about a pivot (default: center).
 
         With ``time=``, interpolate the signed delta as written (Handle).
+        ``speed=`` (degrees per second) instead of ``time=``: the duration is |angle| ÷ speed.
         Default Graphic path (Sprite): CTM ``_rotation``; orbit ``center`` when
         ``about`` is not the pose pivot. Geometry subclasses override.
         """
         if force is not False and force is not True:      # "no" is truthy: it unlinked
             force = _expect_flag(force, "rotate_by(force=)")
-        if time is not None:
+        if time is not None or speed is not None:
             from .process import timed_rotate_by
             return timed_rotate_by(
-                self, angle, time=time, ease=ease, then=then, on_done=on_done,
+                self, angle, time=time, speed=speed, ease=ease, then=then, on_done=on_done,
                 about=about, force=force, loops=loops, yoyo=yoyo,
             )
         _refuse_if_destroyed(self, "rotate_by")
         if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="rotate_by")
+            _require_timed_completion(time=time, speed=speed, then=then, on_done=on_done, ease=ease, call_name="rotate_by")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
-            _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="rotate_by")
+            _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, speed=speed, call_name="rotate_by")
         if about is not None:
             # Orbit: the outermost call notes the center's chord as motion.
             return _rotate_as_motion(
@@ -2398,6 +2400,7 @@ class Shape(Graphic, PaintState):
         angle: Optional[float] = None,
         distance: Optional[float] = None,
         time: Optional[float] = None,
+        speed: Optional[float] = None,
         ease: str = "linear",
         then=None,
         on_done=None,
@@ -2412,16 +2415,19 @@ class Shape(Graphic, PaintState):
         negative backs up. Families are exclusive. A Point, Graphic, or mouse is a
         location — use ``move_to``.
         With ``time=``, interpolate the frozen delta and return a Handle.
+        ``speed=`` (units per second) instead of ``time=``: the duration is the
+        delta's length ÷ speed, read at the call.
         ``face=True`` aims ``.angle`` at the travel direction (zero delta holds);
         it needs an explicit ``angle=`` in the polar family.
         force=True unlinks Defining parts that must be written (default: raise).
         """
-        if time is None and (then is not None or on_done is not None or ease != "linear"):
+        if time is None and (then is not None or on_done is not None or ease != "linear") \
+                and speed is None:
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="move_by")
-        if time is None and (loops != 1 or yoyo):
+            _require_timed_completion(time=time, speed=speed, then=then, on_done=on_done, ease=ease, call_name="move_by")
+        if time is None and (loops != 1 or yoyo) and speed is None:
             from .process import _require_loop_kwargs
-            _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="move_by")
+            _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, speed=speed, call_name="move_by")
         if dx is not None and dy is None and not isinstance(dx, (int, float, Vec2)):
             # Locations (Point, Graphic, mouse, (x, y)) are move_to, not a delta.
             # Numbers and Vec2 stay on the paths below — this branch is the miss.
@@ -2493,11 +2499,11 @@ class Shape(Graphic, PaintState):
 
         step_dx = 0.0 if to_dx is None else to_dx
         step_dy = 0.0 if to_dy is None else to_dy
-        if time is not None:
+        if time is not None or speed is not None:
             from .process import timed_move_by
             return timed_move_by(
                 self, step_dx, step_dy,
-                time=time, ease=ease, then=then, on_done=on_done, force=force,
+                time=time, speed=speed, ease=ease, then=then, on_done=on_done, force=force,
                 loops=loops, yoyo=yoyo, face=face,
             )
         _refuse_if_destroyed(self, "move_by")
@@ -2516,6 +2522,7 @@ class Shape(Graphic, PaintState):
         *,
         about: Optional[GeneralPoint] = None,
         time: Optional[float] = None,
+        speed: Optional[float] = None,
         ease: str = "linear",
         then=None,
         on_done=None,
@@ -2530,16 +2537,20 @@ class Shape(Graphic, PaintState):
         Graphic, mouse). ``move_to(x)`` with a number still sets x only.
         ``about=`` names a different point that lands on the target instead.
         With ``time=``, interpolate and return a Handle; otherwise returns self.
+        ``speed=`` (units per second) instead of ``time=``: the duration is the
+        distance to the target ÷ speed, read at the call (the target does not
+        move with it afterwards).
         ``face=True`` aims ``.angle`` at the travel direction (zero delta holds).
         Combined with ``about=``, the face-rotation pivots about the same point.
         force=True unlinks Defining parts that must be written (default: raise).
         """
-        if time is None and (then is not None or on_done is not None or ease != "linear"):
+        if time is None and (then is not None or on_done is not None or ease != "linear") \
+                and speed is None:
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="move_to")
-        if time is None and (loops != 1 or yoyo):
+            _require_timed_completion(time=time, speed=speed, then=then, on_done=on_done, ease=ease, call_name="move_to")
+        if time is None and (loops != 1 or yoyo) and speed is None:
             from .process import _require_loop_kwargs
-            _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="move_to")
+            _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, speed=speed, call_name="move_to")
         if x is None and y is None:
             # ``move_to(info.point)`` with a missing point: say so, do not no-op.
             # One axis may be None (``move_to(None, 5)`` keeps x).
@@ -2569,10 +2580,10 @@ class Shape(Graphic, PaintState):
             if callable(to_x) or callable(to_y):
                 raise TypeError("move_to expected a number, got a function")
 
-        if time is not None:
+        if time is not None or speed is not None:
             from .process import timed_move_to
             return timed_move_to(
-                self, to_x, to_y, about=about, time=time, ease=ease, then=then, on_done=on_done,
+                self, to_x, to_y, about=about, time=time, speed=speed, ease=ease, then=then, on_done=on_done,
                 force=force, loops=loops, yoyo=yoyo, face=face,
             )
         _refuse_if_destroyed(self, "move_to")
@@ -2881,7 +2892,8 @@ class Shape(Graphic, PaintState):
         self,
         target,
         *,
-        time: float,
+        time: Optional[float] = None,
+        speed: Optional[float] = None,
         ease: str = "linear",
         span: Tuple[float, float] = (0.0, 1.0),
         phase: float = 0.0,
@@ -2899,14 +2911,16 @@ class Shape(Graphic, PaintState):
         (``"eight"`` → ``Track.eight()``, ``"shuttle"`` → ``Track.shuttle()``, …). Same
         defaults as the classmethod — ``loops=1`` unless you pass ``loops=``.
 
-        Slide to a point: ``move_to(..., time=)``. ``time=`` is one lap.
+        Slide to a point: ``move_to(..., time=)``. ``time=`` is one lap;
+        ``speed=`` (units per second along the track) instead sets the lap to
+        ``length × |span window| ÷ speed``, read at the call. One of the two is required.
         ``span=(1, 0)`` reverses this trip; ``phase=`` is a per-rider u-offset.
         ``loops="forever"`` never fires ``on_done``. ``yoyo=True`` swaps
         start/end each odd lap (flips ``span``, not ``phase``).
         """
         from .process import timed_move_along
         return timed_move_along(
-            self, target, time=time, ease=ease, span=span, phase=phase,
+            self, target, time=time, speed=speed, ease=ease, span=span, phase=phase,
             loops=loops, yoyo=yoyo, face=face, at=at, then=then, on_done=on_done,
             force=force,
         )

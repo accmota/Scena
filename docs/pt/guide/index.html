@@ -1237,7 +1237,7 @@
   <a href="#mover" class="nav-top" data-chapter="mover" data-search="mover move_to move_by move_along rotate_to rotate_by scale_to scale_by tween ease time pose path confine clamp bounce wrap loops yoyo force about">Mover</a>
   <div class="nav-block" data-nav="mover">
     <a href="#mover-pose" class="nav-child" data-chapter="mover" data-search="move_to move_by frente forward ré rotate_to rotate_by scale_to scale_by rotate scale reset_rotation rest_heading placement motion coloca viaja about polar">move / rotate / scale</a>
-    <a href="#suite" class="nav-child" data-chapter="mover" data-search="suíte suite time ease loops yoyo face then on_done about force duration">Parâmetros de tempo (time=)</a>
+    <a href="#suite" class="nav-child" data-chapter="mover" data-search="suíte suite time speed velocidade ease loops yoyo face then on_done about force duration">Parâmetros de tempo (time=)</a>
     <a href="#mover-move-along" class="nav-child" data-chapter="mover" data-search="move_along path track trilha preset eight circle span phase at cursor velocity speed heading lap frota">move_along</a>
     <a href="#mover-confine" class="nav-child" data-chapter="mover" data-search="confine clamp bounce wrap by box center overlap Box limites tela">confine</a>
     <a href="#mover-tween" class="nav-child" data-chapter="mover" data-search="tween ease attribute placement center loops yoyo force name">tween</a>
@@ -1478,10 +1478,10 @@ run()</pre>
 <tr><td>ponto</td><td>Onde a API pede um lugar (<code>move_to</code>, <code>center=</code>, <code>about=</code>, <code>query_point</code>…), vale qualquer um destes: uma tupla <code>(x, y)</code>, um <code>Point</code>, um <code>Vec2</code>, um Graphic (vale o centro dele) ou <code>mouse</code>. A posição é copiada naquele instante; para acompanhar, use <code>lambda:</code> (<a href="#reativo">Reativo</a>). Mais em <a href="#ponto-like">Pontos</a>.</td></tr>
 <tr><td>campo / Attribute</td><td>Um valor que o Scena acompanha: <code>st.score</code>, <code>ship.hp</code>, <code>c.radius</code>. Quando ele muda, quem depende dele (uma fórmula <code>@=</code>, um <code>@when</code>, um widget) fica sabendo. <code>Attribute</code> é o nome da classe por trás.</td></tr>
 <tr><td>ligar (<code>@=</code>)</td><td>Fazer um campo seguir uma fórmula: <code>c["radius"] @= lambda: ship.hp</code> refaz a conta sempre que <code>ship.hp</code> muda. O oposto de <code>=</code>, que copia o valor uma vez.</td></tr>
-<tr><td>Handle</td><td>O objeto que os verbos que levam tempo devolvem (<code>after</code>, <code>tween</code>, <code>move_to(…, time=)</code>, <code>play_sound</code>…): serve para cancelar, pausar ou esperar aquela tarefa. Ver <a href="#agendar-handle">Handle</a>.</td></tr>
+<tr><td>Handle</td><td>O objeto que os verbos que levam tempo devolvem (<code>after</code>, <code>tween</code>, <code>move_to(…, time=)</code> ou <code>speed=</code>, <code>play_sound</code>…): serve para cancelar, pausar ou esperar aquela tarefa. Ver <a href="#agendar-handle">Handle</a>.</td></tr>
 <tr><td>mode</td><td>O capítulo de comportamento em que uma Entity está agora (<code>e.mode = e.mergulhando</code>). O que ele começa (timers, movimentos) para quando ele acaba. Ver <a href="#mode">Mode</a>.</td></tr>
 <tr><td>slot (<code>name=</code>)</td><td>Um nome que guarda uma tarefa só: <code>after(2, dica, name="dica")</code> chamado de novo com o mesmo nome <em>substitui</em> o anterior em vez de somar outro. O slot é de um <em>lugar</em>: o objeto da chamada (<code>nave.after(…, name=)</code>); numa chamada solta, quem está no mode que roda (dentro do corpo de um mode, inclusive o mode de um ato); fora de mode (topo do script, <code>setup</code> do ato, callbacks), o jogo / o ato atual. O mesmo nome em dois lugares são dois slots: um <code>play_sound(…, name="musica")</code> solto no <code>setup</code> do ato e outro solto no mode do ato tocam juntos. Para uma tarefa só, chame sempre do mesmo lugar — a trilha de um ato com <code>self.play_sound(…, name="musica")</code>, que é o mesmo slot de uma chamada solta no mode do ato.</td></tr>
-<tr><td>colocar × viajar</td><td>Colocar põe o objeto direto no lugar (<code>center = …</code>, <code>move_to</code> sem <code>time=</code>) e atravessa paredes. Viajar anda até lá (<code>move_by</code>, <code>move_to(…, time=)</code>, <code>move_along</code>), e uma parede de <a href="#colisao-resolve"><code>resolve()</code></a> para no meio; o <code>@collide</code> de quem viaja rápido confere o caminho inteiro (<a href="#colisao-rapido">Objeto rápido</a>). Girar no lugar e escalar (<code>rotate_*</code> / <code>scale_*</code>) nunca são parados pela parede: ela só afasta o objeto depois. Girar em volta de outro ponto (<code>rotate_by(…, about=)</code>) leva o centro junto, e isso é viajar.</td></tr>
+<tr><td>colocar × viajar</td><td>Colocar põe o objeto direto no lugar (<code>center = …</code>, <code>move_to</code> sem <code>time=</code>) e atravessa paredes. Viajar anda até lá (<code>move_by</code>, <code>move_to(…, time=)</code> ou <code>speed=</code>, <code>move_along</code>), e uma parede de <a href="#colisao-resolve"><code>resolve()</code></a> para no meio; o <code>@collide</code> de quem viaja rápido confere o caminho inteiro (<a href="#colisao-rapido">Objeto rápido</a>). Girar no lugar e escalar (<code>rotate_*</code> / <code>scale_*</code>) nunca são parados pela parede: ela só afasta o objeto depois. Girar em volta de outro ponto (<code>rotate_by(…, about=)</code>) leva o centro junto, e isso é viajar.</td></tr>
 <tr><td>segurando × no frame do aperto</td><td><code>keyp("A")</code> é <code>True</code> em todo frame em que a tecla está segurada; <code>keyp.once("A")</code> só no frame em que ela foi apertada. <code>@when</code> dispara quando a condição <em>passa</em> de <code>False</code> para <code>True</code>, não enquanto continua <code>True</code>.</td></tr>
 <tr><td>canal</td><td>Nos <a href="#aparencia-transientes">Transientes</a>, a vaga de um tipo de efeito: um <code>flash</code> novo substitui o <code>flash</code> em curso, mas convive com um <code>pop</code>.</td></tr>
 <tr><td>HUD</td><td>Textos e controles presos à janela (placar, vidas, menus), na camada <code>"ui"</code>: não andam com a câmera.</td></tr>
@@ -5651,6 +5651,7 @@ canvas.pan_by(40, 0)                        # dx, dy
 canvas.pan_by((40, 0))                      # tupla
 canvas.pan_by(Vec2(40, 0))                  # Vec2 — não Point
 canvas.pan_to(200, 80, time=0.8, ease="ease_out")
+canvas.pan_to(door, speed=300)               # mesma velocidade, perto ou longe
 canvas.zoom_to(2.0, about=(mouse.x, mouse.y), time=0.6)
 canvas.pan_to(400, 300, time=1.0, loops="forever", yoyo=True)
 await parallel(
@@ -5663,7 +5664,7 @@ canvas.reset_view(time=0.5)
 canvas.frame_to(group["fleet"].box, pad=0.15)  # None = fica parado
 # margem em unidades (não fração): canvas.frame_to(box.outset(40))</pre>
       </div>
-      <p><strong>Seguir um objeto.</strong> Não há <code>canvas.follow</code>, e <code>time=</code> não serve (o destino é lido uma vez, no momento da chamada, e a câmera vai até onde o alvo estava). Chame <code>pan_to</code> a cada frame no <code>update</code>, com folga (<a href="#util-deadzone"><code>deadzone</code></a>) e atraso (<a href="#util-chase"><code>chase</code></a>):</p>
+      <p><strong>Seguir um objeto.</strong> Não há <code>canvas.follow</code>, e <code>time=</code> / <code>speed=</code> não servem (o destino é lido uma vez, no momento da chamada, e a câmera vai até onde o alvo estava). Chame <code>pan_to</code> a cada frame no <code>update</code>, com folga (<a href="#util-deadzone"><code>deadzone</code></a>) e atraso (<a href="#util-chase"><code>chase</code></a>):</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>def update(dt):
@@ -5697,8 +5698,8 @@ canvas.frame_to(group["fleet"].box, pad=0.15)  # None = fica parado
           <tbody>
 <tr><td><code>set_origin(where, *, time=None, ease="linear", loops=1, yoyo=False, then=, on_done=)</code></td><td class="sig"><span class="params">Parâmetros: where (str), time, ease, loops, yoyo, then, on_done</span></td><td>—</td><td>Só pan. <code>"corner"</code>: (0, 0) no canto inferior esquerdo. <code>"center"</code>: no meio da janela. Zoom e rotação ficam. Com <code>time=</code>, os fundos e camadas com <code>pan_response</code> acompanham a câmera durante a animação, sem salto no fim. Sem <code>force=</code>.</td></tr>
 <tr><td><code>zoom_to</code> / <code>zoom_by</code></td><td class="sig"><span class="params">Parâmetros: valor (número), time, ease, loops, yoyo, then, on_done, about</span></td><td>—</td><td>Absoluto / multiplica. <code>about=</code> é o ponto âncora (mundo): <code>(x, y)</code>, Point, Vec2 ou Graphic (centro). Omitido: o centro da vista — o pan não muda. <a href="#suite">Parâmetros de tempo</a>: <code>time=</code> / <code>ease=</code> / <code>loops=</code> / <code>yoyo=</code> / <code>then=</code> / <code>on_done=</code> / <code>about=</code>. Sem <code>force=</code>.</td></tr>
-<tr><td><code>pan_to</code></td><td class="sig"><span class="params">x, y · (x, y) · Vec2 · Point · Graphic; time, ease, loops, yoyo, then, on_done</span></td><td>—</td><td>Coloca o mundo no centro. Formas: dois números; tupla <code>(x, y)</code>; <code>Vec2</code>; <code>Point</code>; Graphic (usa o centro). <a href="#suite">Parâmetros de tempo</a>: <code>time=</code> / <code>ease=</code> / <code>loops=</code> / <code>yoyo=</code> / <code>then=</code> / <code>on_done=</code>. Não aceita ângulo + distância. Sem <code>about=</code> / <code>force=</code>.</td></tr>
-<tr><td><code>pan_by</code></td><td class="sig"><span class="params">dx, dy · (dx, dy) · Vec2; time, ease, loops, yoyo, then, on_done</span></td><td>—</td><td>Desloca o conteúdo. Formas: dois números; tupla <code>(dx, dy)</code>; <code>Vec2</code>. Não Point nem Graphic. Aceita os mesmos parâmetros de tempo de <code>pan_to</code>. Não aceita ângulo + distância. Sem <code>about=</code> / <code>force=</code>.</td></tr>
+<tr><td><code>pan_to</code></td><td class="sig"><span class="params">x, y · (x, y) · Vec2 · Point · Graphic; time, speed, ease, loops, yoyo, then, on_done</span></td><td>—</td><td>Coloca o mundo no centro. Formas: dois números; tupla <code>(x, y)</code>; <code>Vec2</code>; <code>Point</code>; Graphic (usa o centro). <a href="#suite">Parâmetros de tempo</a>: <code>time=</code> ou <a href="#suite-speed"><code>speed=</code></a> (unidades do mundo por segundo; a duração é a distância do olhar atual até o destino ÷ <code>speed</code>) / <code>ease=</code> / <code>loops=</code> / <code>yoyo=</code> / <code>then=</code> / <code>on_done=</code>. Não aceita ângulo + distância. Sem <code>about=</code> / <code>force=</code>.</td></tr>
+<tr><td><code>pan_by</code></td><td class="sig"><span class="params">dx, dy · (dx, dy) · Vec2; time, speed, ease, loops, yoyo, then, on_done</span></td><td>—</td><td>Desloca o conteúdo. Formas: dois números; tupla <code>(dx, dy)</code>; <code>Vec2</code>. Não Point nem Graphic. Aceita os mesmos parâmetros de tempo de <code>pan_to</code>, inclusive <code>speed=</code> (o tamanho do deslocamento ÷ <code>speed</code>). Não aceita ângulo + distância. Sem <code>about=</code> / <code>force=</code>.</td></tr>
 <tr><td><code>rotate_to</code> / <code>rotate_by</code></td><td class="sig"><span class="params">Parâmetros: valor (número), time, ease, loops, yoyo, then, on_done, about</span></td><td>—</td><td>Gira a vista, em graus. <code>about=</code> opcional (padrão: centro da vista); o mesmo tipo de ponto do zoom. Com <code>time=</code>: arco curto em <code>rotate_to</code>; <code>rotate_by</code> usa o sinal escrito. Aceita os <a href="#suite">parâmetros de tempo</a> e <code>about=</code>. Sem <code>force=</code>.</td></tr>
 <tr><td><code>frame_to(alvo, *, pad=0, rotate=False, time=None, ease="linear", loops=1, yoyo=False, then=, on_done=)</code></td><td class="sig"><span class="params">Parâmetros: target (alvo: shape, Box, retângulo ou None), pad (número), rotate (True/False), time, ease, loops, yoyo, then, on_done</span></td><td>—</td><td>Enquadra. Alvo: shape / Box / tupla <code>(left, top, w, h)</code>, ou <code>None</code> (nada a enquadrar: fica parado; com <code>time=</code> um Handle que não move nada pelo tempo todo — ainda ocupa os três movimentos). <code>pad</code> é fração do alvo em cada lado (<code>0.1</code> → 10%; tamanho × <code>(1+2p)</code>) — mesma família de <code>playfield.pad</code>. Negativo aperta o enquadramento. Ar em unidades de design: <code>frame_to(box.outset(40))</code>, não <code>pad=</code>. Box colapsado (largura/altura 0) enquadra apertado, sem erro. <code>rotate=True</code> alinha o ângulo do alvo. O destino é lido no início. Sem <code>force=</code>.</td></tr>
 <tr><td><code>reset_view(*, time=None, ease="linear", loops=1, yoyo=False, then=, on_done=)</code></td><td class="sig"><span class="params">Parâmetros: time, ease, loops, yoyo, then, on_done</span></td><td>—</td><td>Volta a câmera ao início: zoom 1, rotação 0, origem no canto. Com <code>time=</code>, os fundos e camadas com <code>pan_response</code> acompanham a câmera durante a animação, sem salto no fim. Sem <code>force=</code>.</td></tr>
@@ -6200,6 +6201,9 @@ group["wasp"].tag("shielded")  # do grupo: tag em todos</pre>
 handles = group["wasp"].move_by(0, 80, time=0.4)
 await parallel(*handles)
 
+# com speed=: cada um calcula a própria duração (o de longe demora mais)
+handles = group["wasp"].move_to(400, 120, speed=250)
+
 # move_along sempre devolve Handle → lista
 handles = group["wasp"].move_along(track, time=4)
 await parallel(*handles)
@@ -6207,7 +6211,7 @@ await parallel(*handles)
 # clone devolve uma cópia → lista de cópias
 copies = group["wasp"].clone()</pre>
           </div>
-          <p>Ler um atributo: um membro → o valor; vários → lista de valores. Escrever (<code>group["wasp"].hp = 3</code>) põe o mesmo valor em todos. Quem não tiver o método (ou o nome) dá erro. Num grupo vazio não há membro para chamar: o método não faz nada e devolve <code>None</code> — nem o grupo nem uma lista (com <code>time=</code>, devolve um Handle só); ler qualquer campo (<code>center</code>, <code>angle</code>, <code>hp</code>…) levanta <code>AttributeError</code> dizendo que o grupo está vazio — não há membro de onde ler. Para a posição de um grupo que pode esvaziar, use <code>centroid</code> ou <code>box</code> (<code>None</code> se vazio). Se você vai usar o retorno (ex.: <code>await parallel(*handles)</code>), teste <code>group["wasp"].empty</code> antes.</p>
+          <p>Ler um atributo: um membro → o valor; vários → lista de valores. Escrever (<code>group["wasp"].hp = 3</code>) põe o mesmo valor em todos. Quem não tiver o método (ou o nome) dá erro. Num grupo vazio não há membro para chamar: o método não faz nada e devolve <code>None</code> — nem o grupo nem uma lista (com <code>time=</code> ou <code>speed=</code>, devolve um Handle só; com <code>speed=</code> ele termina no frame seguinte, pois não há distância a percorrer); ler qualquer campo (<code>center</code>, <code>angle</code>, <code>hp</code>…) levanta <code>AttributeError</code> dizendo que o grupo está vazio — não há membro de onde ler. Para a posição de um grupo que pode esvaziar, use <code>centroid</code> ou <code>box</code> (<code>None</code> se vazio). Se você vai usar o retorno (ex.: <code>await parallel(*handles)</code>), teste <code>group["wasp"].empty</code> antes.</p>
           <p><code>.destroy()</code>, <code>.tag()</code>, <code>.untag()</code>, <code>.nearest()</code>, <code>.filter()</code>, <code>.index()</code>, <code>.first</code> / <code>.last</code> são do <em>grupo</em> (ver referência), não “chama em cada um e junta”.</p>
           <p class="gotcha">Argumentos iguais para todos. Fase, destino ou tempo diferente por membro: escreva o <code>for</code>. Não há <code>group.every</code> / <code>group.on_update</code>: o loop da frota fica em <code>update</code> ou num Director.</p>
         </div>
@@ -6975,7 +6979,7 @@ def update(dt):
 
     <section class="section prose" id="mover-pose">
       <h2>move / rotate / scale</h2>
-      <p class="one-liner">Verbos que mudam a posição, o ângulo e o tamanho de um Graphic (Shape, Sprite, Text). Um SpatialFx se move pelo <code>.center</code> — ver <a href="#desenhar-spatial">SpatialFx</a>. Sem <code>time=</code> a mudança é na hora e o verbo devolve o próprio objeto. Com <code>time=</code> ela acontece aos poucos durante esses segundos e o verbo devolve um <a href="#agendar-handle">Handle</a>; aceita também <code>ease=</code> / <code>loops=</code> / <code>yoyo=</code> / <code>then=</code> / <code>on_done=</code> / <code>force=</code> (ver <a href="#suite">Parâmetros de tempo</a>).</p>
+      <p class="one-liner">Verbos que mudam a posição, o ângulo e o tamanho de um Graphic (Shape, Sprite, Text). Um SpatialFx se move pelo <code>.center</code> — ver <a href="#desenhar-spatial">SpatialFx</a>. Sem <code>time=</code> a mudança é na hora e o verbo devolve o próprio objeto. Com <code>time=</code> ela acontece aos poucos durante esses segundos e o verbo devolve um <a href="#agendar-handle">Handle</a>; aceita também <code>ease=</code> / <code>loops=</code> / <code>yoyo=</code> / <code>then=</code> / <code>on_done=</code> / <code>force=</code> (ver <a href="#suite">Parâmetros de tempo</a>). Mover e girar também viajam por velocidade: <code>speed=</code> no lugar de <code>time=</code> (unidades ou graus por segundo), e a duração sai da distância.</p>
       <div class="tbl-wrap wrap-first">
         <table>
           <thead><tr><th></th><th>Absoluto (destino)</th><th>Relativo (delta)</th></tr></thead>
@@ -6983,11 +6987,11 @@ def update(dt):
             <tr><td>Mover</td><td><code>move_to(x, y)</code> — <code>Vec2</code> / <code>Point</code>, <code>about=</code></td><td><code>move_by(dx, dy)</code> — <code>Vec2</code>, polar <code>angle=</code> / <code>distance=</code>, só <code>distance=</code> (para a frente)</td></tr>
             <tr><td>Girar</td><td><code>rotate_to(θ)</code> — arco curto</td><td><code>rotate_by(dθ)</code> — como escrito</td></tr>
             <tr><td>Escalar</td><td><code>scale_to(s)</code></td><td><code>scale_by(f)</code></td></tr>
-            <tr><td>Por uma curva</td><td colspan="2"><a href="#mover-move-along"><code>move_along(track, time=)</code></a></td></tr>
+            <tr><td>Por uma curva</td><td colspan="2"><a href="#mover-move-along"><code>move_along(track, time=)</code></a> ou <code>move_along(track, speed=)</code></td></tr>
           </tbody>
         </table>
       </div>
-      <p><strong>Colisão: colocar × viajar.</strong> Na hora (<code>=</code> / <code>*_to</code> sem <code>time=</code>) <strong>coloca</strong> — atravessa a parede. <code>move_by</code>, <code>move_along</code> e <code>move_to(…, time=)</code> <strong>viajam</strong> — a parede de <code>resolve()</code> para no meio, e o <code>@collide</code> de quem viaja rápido confere o caminho (<a href="#colisao-rapido">Objeto rápido</a>). Girar no lugar e escalar (<code>rotate_*</code> / <code>scale_*</code>, com ou sem <code>time=</code>) nunca são parados pela parede: ela só afasta o objeto depois, se ele ficou encostado. Girar em volta de outro ponto (<code>rotate_by(…, about=)</code>) viaja: o centro anda, e a parede o para. Reset / respawn: <code>hero.center = nascer</code>. Ver <a href="#res-place">Colocar × viajar</a>.</p>
+      <p><strong>Colisão: colocar × viajar.</strong> Na hora (<code>=</code> / <code>*_to</code> sem <code>time=</code>) <strong>coloca</strong> — atravessa a parede. <code>move_by</code>, <code>move_along</code> e <code>move_to(…, time=)</code> (ou <code>speed=</code>) <strong>viajam</strong> — a parede de <code>resolve()</code> para no meio, e o <code>@collide</code> de quem viaja rápido confere o caminho (<a href="#colisao-rapido">Objeto rápido</a>). Girar no lugar e escalar (<code>rotate_*</code> / <code>scale_*</code>, com ou sem <code>time=</code>) nunca são parados pela parede: ela só afasta o objeto depois, se ele ficou encostado. Girar em volta de outro ponto (<code>rotate_by(…, about=)</code>) viaja: o centro anda, e a parede o para. Reset / respawn: <code>hero.center = nascer</code>. Ver <a href="#res-place">Colocar × viajar</a>.</p>
       <div class="tabs" data-tabs>
         <div class="tab-bar">
           <button class="tab active" type="button" data-tab="pose-move-to">move_to</button>
@@ -6998,7 +7002,7 @@ def update(dt):
           <button class="tab" type="button" data-tab="pose-scale-by">scale_by</button>
         </div>
         <div class="tab-panel active" data-panel="pose-move-to" id="pose-move-to">
-          <p class="one-liner">Lugar absoluto. Sem <code>time=</code> <strong>coloca</strong>. Com <code>time=</code> <strong>viaja</strong> — a cada frame ele anda um pedaço, a parede pode parar no meio. Por padrão, o centro chega no destino; <code>about=</code> escolhe outro ponto do shape.</p>
+          <p class="one-liner">Lugar absoluto. Sem <code>time=</code> <strong>coloca</strong>. Com <code>time=</code> <strong>viaja</strong> — a cada frame ele anda um pedaço, a parede pode parar no meio. Com <code>speed=</code> no lugar de <code>time=</code>, viaja a essa velocidade (unidades por segundo): longe demora mais, perto chega logo. Por padrão, o centro chega no destino; <code>about=</code> escolhe outro ponto do shape.</p>
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
 <pre>c.move_to(400, 200)                 # x, y
@@ -7006,9 +7010,11 @@ c.move_to(Vec2(400, 200))           # Vec2 no 1º
 c.move_to(p)                        # Point no 1º
 c.move_to(400, 200, time=1.2, ease="ease_out")
 c.move_to(400, 200, time=1.0, loops="forever", yoyo=True)
-missile.move_to(target, time=1.2, face=True)</pre>
+missile.move_to(target, time=1.2, face=True)
+hero.move_to(mouse.click_pos, speed=220)     # clicar para andar
+nave.move_to(nave.vaga, speed=300, ease="ease_out")   # todas voltam no mesmo passo</pre>
           </div>
-          <p class="sig"><code>move_to(x, y, *, time=None, ease="linear", loops=1, yoyo=False, face=False, then=, on_done=, about=, force=False)</code> · <code>move_to(ponto, *, …)</code></p>
+          <p class="sig"><code>move_to(x, y, *, time=None, speed=None, ease="linear", loops=1, yoyo=False, face=False, then=, on_done=, about=, force=False)</code> · <code>move_to(ponto, *, …)</code></p>
           <div class="tbl-wrap wrap-first">
             <table>
           <thead>
@@ -7018,13 +7024,13 @@ missile.move_to(target, time=1.2, face=True)</pre>
 <tr><td><code>x</code>, <code>y</code></td><td>1º · 2º</td><td class="type"><span class="t">número</span><span class="ex">400</span></td><td>Destino em duas coordenadas.</td></tr>
 <tr><td>ponto</td><td>1º</td><td class="type"><span class="t">ponto</span></td><td>Destino num único argumento: qualquer <a href="#vocabulario">ponto</a> — tupla <code>(x, y)</code>, <code>Point</code>, <code>Vec2</code>, um Graphic (vale o centro dele) ou <code>mouse</code>. Não aceita <code>angle=</code> / <code>distance=</code> (isso é do <code>move_by</code>).</td></tr>
 <tr><td><a href="#suite-about"><code>about=</code></a></td><td>nome=</td><td class="type"><span class="t">ponto ou None</span></td><td>O ponto que chega exatamente no destino (não o que fica fixo). Padrão: centro do shape. Com <code>face=True</code>, a rotação é em torno desse ponto.</td></tr>
-<tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> · <code>ease=</code> · <code>loops=</code> · <code>yoyo=</code> · <code>face=</code> · <code>then=</code> · <code>on_done=</code> · <code>force=</code>.</td></tr>
+<tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> ou <a href="#suite-speed"><code>speed=</code></a> (distância do ponto que viaja até o destino, medida na chamada; um eixo <code>None</code> não conta) · <code>ease=</code> · <code>loops=</code> · <code>yoyo=</code> · <code>face=</code> · <code>then=</code> · <code>on_done=</code> · <code>force=</code>.</td></tr>
           </tbody>
         </table>
           </div>
         </div>
         <div class="tab-panel" data-panel="pose-move-by" id="pose-move-by">
-          <p class="one-liner">Desloca o objeto a partir de onde ele está — é um deslocamento, não um destino. É sempre uma viagem: uma parede de <code>resolve()</code> o para no meio. Escreva o deslocamento de um destes jeitos, um por chamada: <code>dx, dy</code> · um <code>Vec2</code> · <code>angle=</code> e <code>distance=</code> · só <code>distance=</code>, para onde o objeto aponta. Com <code>time=</code>, o deslocamento é calculado no início e não muda durante a viagem.</p>
+          <p class="one-liner">Desloca o objeto a partir de onde ele está — é um deslocamento, não um destino. É sempre uma viagem: uma parede de <code>resolve()</code> o para no meio. Escreva o deslocamento de um destes jeitos, um por chamada: <code>dx, dy</code> · um <code>Vec2</code> · <code>angle=</code> e <code>distance=</code> · só <code>distance=</code>, para onde o objeto aponta. Com <code>time=</code> (ou <code>speed=</code>), o deslocamento é calculado no início e não muda durante a viagem.</p>
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
 <pre>c.move_by(40, 0)                        # dx, dy
@@ -7035,9 +7041,10 @@ nave.move_by(distance=-80 * dt)         # ré: anda para trás, sem virar
 c.move_by(200 * dt, 0)
 c.move_by(0, 80, time=0.4)
 c.move_by(40, 0, time=0.5, loops="forever", yoyo=True)
-bolt.move_by(angle=45, distance=500, time=1.0, face=True)</pre>
+bolt.move_by(angle=45, distance=500, time=1.0, face=True)
+guarda.move_by(300, 0, speed=60, loops="forever", yoyo=True)   # patrulha a 60 por segundo</pre>
           </div>
-          <p class="sig"><code>move_by(dx, dy, *, time=None, ease="linear", loops=1, yoyo=False, face=False, then=, on_done=, force=False)</code> · <code>move_by(Vec2, *, …)</code> · <code>move_by(angle=, distance=, *, …)</code> · <code>move_by(distance=, *, …)</code></p>
+          <p class="sig"><code>move_by(dx, dy, *, time=None, speed=None, ease="linear", loops=1, yoyo=False, face=False, then=, on_done=, force=False)</code> · <code>move_by(Vec2, *, …)</code> · <code>move_by(angle=, distance=, *, …)</code> · <code>move_by(distance=, *, …)</code></p>
           <div class="tbl-wrap wrap-first">
             <table>
           <thead>
@@ -7047,20 +7054,21 @@ bolt.move_by(angle=45, distance=500, time=1.0, face=True)</pre>
 <tr><td><code>dx</code>, <code>dy</code></td><td>1º · 2º</td><td class="type"><span class="t">número</span><span class="ex">20</span></td><td>Deslocamento cartesiano.</td></tr>
 <tr><td><code>Vec2</code></td><td>1º</td><td class="type"><span class="t">Vec2</span></td><td>Delta num único argumento. <code>Point</code> levanta <code>TypeError</code> — use <code>move_to</code>. Tupla <code>(dx, dy)</code> não entra.</td></tr>
 <tr><td><code>angle=</code>, <code>distance=</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">90</span></td><td>Polar. Graus, 0 = +x. Sem <code>angle=</code>, anda para onde o objeto aponta: lê o <code>angle</code> na hora da chamada (como <code>raycast(length=)</code>); negativo dá ré e a direção não muda. <code>angle=</code> sem <code>distance=</code> levanta <code>TypeError</code>. Não misture com <code>dx</code>/<code>dy</code> na mesma chamada.</td></tr>
-<tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> · <code>ease=</code> · <code>loops=</code> · <code>yoyo=</code> · <code>face=</code> · <code>then=</code> · <code>on_done=</code> · <code>force=</code>. Sem <code>about=</code>.</td></tr>
+<tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> ou <a href="#suite-speed"><code>speed=</code></a> (o tamanho do deslocamento ÷ <code>speed</code>) · <code>ease=</code> · <code>loops=</code> · <code>yoyo=</code> · <code>face=</code> · <code>then=</code> · <code>on_done=</code> · <code>force=</code>. Sem <code>about=</code>.</td></tr>
           </tbody>
         </table>
           </div>
         </div>
         <div class="tab-panel" data-panel="pose-rotate-to" id="pose-rotate-to">
-          <p class="one-liner">Gira o objeto até o ângulo θ (graus, anti-horário, 0 = para a direita). Sem <code>time=</code> gira na hora; com <code>time=</code> gira aos poucos pelo caminho mais curto (com exatamente 180° de diferença, gira no sentido anti-horário). Uma parede de <code>resolve()</code> não interrompe o giro: ela só afasta o objeto depois, se ele ficou encostado.</p>
+          <p class="one-liner">Gira o objeto até o ângulo θ (graus, anti-horário, 0 = para a direita). Sem <code>time=</code> gira na hora; com <code>time=</code> gira aos poucos pelo caminho mais curto (com exatamente 180° de diferença, gira no sentido anti-horário). Com <code>speed=</code> (graus por segundo), a duração é esse arco curto ÷ <code>speed</code>. Uma parede de <code>resolve()</code> não interrompe o giro: ela só afasta o objeto depois, se ele ficou encostado.</p>
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
 <pre>c.rotate_to(45)
 c.rotate_to(180, time=0.6, ease="ease_in_out")
-c.rotate_to(90, time=0.5, loops="forever", yoyo=True)</pre>
+c.rotate_to(90, time=0.5, loops="forever", yoyo=True)
+turret.rotate_to(alvo_ang, speed=90)   # torre gira a 90° por segundo</pre>
           </div>
-          <p class="sig"><code>rotate_to(θ, *, time=None, ease="linear", loops=1, yoyo=False, then=, on_done=, about=, force=False)</code></p>
+          <p class="sig"><code>rotate_to(θ, *, time=None, speed=None, ease="linear", loops=1, yoyo=False, then=, on_done=, about=, force=False)</code></p>
           <div class="tbl-wrap wrap-first">
             <table>
           <thead>
@@ -7069,7 +7077,7 @@ c.rotate_to(90, time=0.5, loops="forever", yoyo=True)</pre>
           <tbody>
 <tr><td><code>θ</code></td><td>1º</td><td class="type"><span class="t">número</span><span class="ex">45</span></td><td>Ângulo absoluto.</td></tr>
 <tr><td><a href="#suite-about"><code>about=</code></a></td><td>nome=</td><td class="type"><span class="t">ponto ou None</span></td><td>O ponto em torno do qual o objeto gira; ele fica parado. Padrão: o centro do objeto.</td></tr>
-<tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> · <code>ease=</code> · <code>loops=</code> · <code>yoyo=</code> · <code>then=</code> · <code>on_done=</code> · <code>force=</code>.</td></tr>
+<tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> ou <a href="#suite-speed"><code>speed=</code></a> (graus por segundo) · <code>ease=</code> · <code>loops=</code> · <code>yoyo=</code> · <code>then=</code> · <code>on_done=</code> · <code>force=</code>.</td></tr>
           </tbody>
         </table>
           </div>
@@ -7080,9 +7088,10 @@ c.rotate_to(90, time=0.5, loops="forever", yoyo=True)</pre>
             <button class="copy-btn" type="button">copiar</button>
 <pre>c.rotate_by(30 * dt)
 c.rotate_by(360, time=1.2)
-c.rotate_by(45, time=0.4, loops=4, yoyo=True)</pre>
+c.rotate_by(45, time=0.4, loops=4, yoyo=True)
+roda.rotate_by(-720, speed=180)         # duas voltas a 180° por segundo: 4 s</pre>
           </div>
-          <p class="sig"><code>rotate_by(dθ, *, time=None, ease="linear", loops=1, yoyo=False, then=, on_done=, about=, force=False)</code></p>
+          <p class="sig"><code>rotate_by(dθ, *, time=None, speed=None, ease="linear", loops=1, yoyo=False, then=, on_done=, about=, force=False)</code></p>
           <div class="tbl-wrap wrap-first">
             <table>
           <thead>
@@ -7091,7 +7100,7 @@ c.rotate_by(45, time=0.4, loops=4, yoyo=True)</pre>
           <tbody>
 <tr><td><code>dθ</code></td><td>1º</td><td class="type"><span class="t">número</span><span class="ex">30</span></td><td>Graus a somar.</td></tr>
 <tr><td><a href="#suite-about"><code>about=</code></a></td><td>nome=</td><td class="type"><span class="t">ponto ou None</span></td><td>O ponto em torno do qual o objeto gira; ele fica parado. Padrão: o centro do objeto.</td></tr>
-<tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> · <code>ease=</code> · <code>loops=</code> · <code>yoyo=</code> · <code>then=</code> · <code>on_done=</code> · <code>force=</code>.</td></tr>
+<tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> ou <a href="#suite-speed"><code>speed=</code></a> (graus por segundo; o tamanho de dθ ÷ <code>speed</code>, também com <code>about=</code>) · <code>ease=</code> · <code>loops=</code> · <code>yoyo=</code> · <code>then=</code> · <code>on_done=</code> · <code>force=</code>.</td></tr>
           </tbody>
         </table>
           </div>
@@ -7113,7 +7122,7 @@ c.scale_to(1.05, time=0.45, ease="steps", loops="forever", yoyo=True)</pre>
           <tbody>
 <tr><td><code>value</code></td><td>1º</td><td class="type"><span class="t">número</span><span class="ex">1.5</span></td><td>Fator absoluto (1 = tamanho original).</td></tr>
 <tr><td><a href="#suite-about"><code>about=</code></a></td><td>nome=</td><td class="type"><span class="t">ponto ou None</span></td><td>O ponto a partir do qual o objeto cresce ou encolhe; ele fica parado. Padrão: o centro do objeto.</td></tr>
-<tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> · <code>ease=</code> · <code>loops=</code> · <code>yoyo=</code> · <code>then=</code> · <code>on_done=</code> · <code>force=</code>.</td></tr>
+<tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> · <code>ease=</code> · <code>loops=</code> · <code>yoyo=</code> · <code>then=</code> · <code>on_done=</code> · <code>force=</code>. Sem <code>speed=</code>: escala é razão, não distância.</td></tr>
           </tbody>
         </table>
           </div>
@@ -7135,7 +7144,7 @@ c.scale_by(1.1, time=0.3, loops="forever", yoyo=True)</pre>
           <tbody>
 <tr><td><code>factor</code></td><td>1º</td><td class="type"><span class="t">número</span><span class="ex">1.2</span></td><td>Fator relativo (2 = dobro do atual).</td></tr>
 <tr><td><a href="#suite-about"><code>about=</code></a></td><td>nome=</td><td class="type"><span class="t">ponto ou None</span></td><td>O ponto a partir do qual o objeto cresce ou encolhe; ele fica parado. Padrão: o centro do objeto.</td></tr>
-<tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> · <code>ease=</code> · <code>loops=</code> · <code>yoyo=</code> · <code>then=</code> · <code>on_done=</code> · <code>force=</code>.</td></tr>
+<tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> · <code>ease=</code> · <code>loops=</code> · <code>yoyo=</code> · <code>then=</code> · <code>on_done=</code> · <code>force=</code>. Sem <code>speed=</code>: escala é razão, não distância.</td></tr>
           </tbody>
         </table>
           </div>
@@ -7169,7 +7178,7 @@ ship["scale"] @= lambda: 1.0 + 0.15 * st.pulse</pre>
             <tr><th>Método</th><th>Assinatura</th><th>Retorna</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td><code>reset_rotation(*, time=None, ease="linear", then=, on_done=, about=, force=False)</code></td><td class="sig"><span class="params">Parâmetros: time (número), ease (str), then, on_done, about (ponto), force</span></td><td>—</td><td>Desfaz a rotação: volta o objeto ao ângulo de <code>rest_heading</code> (Shape: 0; Sprite: a direção da arte). Zera também <code>.tilt</code>. Não limpa flip. Aceita os mesmos <a href="#suite">parâmetros de tempo</a> de <code>rotate_to</code>, sem <code>loops=</code> / <code>yoyo=</code> (destino único).</td></tr>
+<tr><td><code>reset_rotation(*, time=None, speed=None, ease="linear", then=, on_done=, about=, force=False)</code></td><td class="sig"><span class="params">Parâmetros: time (número), speed (graus por segundo), ease (str), then, on_done, about (ponto), force</span></td><td>—</td><td>Desfaz a rotação: volta o objeto ao ângulo de <code>rest_heading</code> (Shape: 0; Sprite: a direção da arte). Zera também <code>.tilt</code>. Não limpa flip. Aceita os mesmos <a href="#suite">parâmetros de tempo</a> de <code>rotate_to</code> (inclusive <code>speed=</code>), sem <code>loops=</code> / <code>yoyo=</code> (destino único).</td></tr>
           </tbody>
         </table>
         </div>
@@ -7191,22 +7200,25 @@ ship["scale"] @= lambda: 1.0 + 0.15 * st.pulse</pre>
 
     <section class="section prose" id="suite">
       <h2>Parâmetros de tempo (time=)</h2>
-      <p class="one-liner">Os parâmetros que todo verbo que leva tempo aceita: quanto dura (<code>time=</code>), com que curva (<code>ease=</code>), quantas vezes repete (<code>loops=</code>, <code>yoyo=</code>) e o que fazer no fim (<code>then=</code>, <code>on_done=</code>). Valem para <code>move_to</code>, <code>move_by</code>, <code>rotate_to</code>, <code>rotate_by</code>, <code>scale_to</code>, <code>scale_by</code>, <code>move_along</code>, <code>reset_rotation</code> (sem <code>loops=</code> / <code>yoyo=</code>), <code>tween</code> e a <a href="#mundo-camera">câmera</a> (sem <code>force=</code>).</p>
+      <p class="one-liner">Os parâmetros que todo verbo que leva tempo aceita: quanto dura (<code>time=</code>) ou, em vez disso, a que velocidade vai (<code>speed=</code>), com que curva (<code>ease=</code>), quantas vezes repete (<code>loops=</code>, <code>yoyo=</code>) e o que fazer no fim (<code>then=</code>, <code>on_done=</code>). Valem para <code>move_to</code>, <code>move_by</code>, <code>rotate_to</code>, <code>rotate_by</code>, <code>scale_to</code>, <code>scale_by</code>, <code>move_along</code>, <code>reset_rotation</code> (sem <code>loops=</code> / <code>yoyo=</code>), <code>tween</code> e a <a href="#mundo-camera">câmera</a> (sem <code>force=</code>). <code>speed=</code> vale só nos verbos que percorrem uma distância: <code>move_to</code>, <code>move_by</code>, <code>move_along</code>, <code>rotate_to</code>, <code>rotate_by</code>, <code>reset_rotation</code> e, na câmera, <code>pan_to</code> / <code>pan_by</code>.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>h = ship.move_to(400, 200, time=1.2, ease="ease_out")
 ship.rotate_by(360, time=1.0, loops="forever")
 ship.scale_to(1.2, time=0.3, loops=4, yoyo=True)
-ship.move_to(600, 200, time=1.0, on_done=lambda: play_sound("pop"))</pre>
+ship.move_to(600, 200, time=1.0, on_done=lambda: play_sound("pop"))
+hero.move_to(mouse, speed=200)          # 200 unidades por segundo: longe demora mais
+turret.rotate_to(90, speed=45)          # 45 graus por segundo</pre>
       </div>
-      <p>Sem <code>time=</code> (exceto <code>move_along</code> e <code>tween</code>, que exigem): na hora, devolve o objeto. Com <code>time=</code>: interpola e devolve <a href="#agendar-handle">Handle</a>. <code>ease=</code> / <code>then=</code> / <code>on_done=</code> / <code>loops=</code> / <code>yoyo=</code> exigem <code>time=</code> (sem <code>time=</code> não há curva: <code>rotate_by(10, ease="in_out")</code> levanta erro). <code>start=</code> existe só em <code>tween</code> — para colocar e depois viajar com um verbo de pose, use duas linhas (<code>center = …</code> e depois <code>move_to(..., time=)</code>). O contrato de fim: <a href="#agendar-fim">Ao terminar</a>.</p>
+      <p>Sem <code>time=</code> nem <code>speed=</code> (exceto <code>move_along</code>, que exige um dos dois, e <code>tween</code>, que exige <code>time=</code>): na hora, devolve o objeto. Com <code>time=</code> ou <code>speed=</code>: interpola e devolve <a href="#agendar-handle">Handle</a>. <code>time=</code> e <code>speed=</code> juntos levantam <code>TypeError</code>: os dois dizem quanto dura. <code>ease=</code> / <code>then=</code> / <code>on_done=</code> / <code>loops=</code> / <code>yoyo=</code> exigem <code>time=</code> ou <code>speed=</code> (sem eles não há curva: <code>rotate_by(10, ease="ease_in_out")</code> levanta erro). <code>start=</code> existe só em <code>tween</code> — para colocar e depois viajar com um verbo de pose, use duas linhas (<code>center = …</code> e depois <code>move_to(..., time=)</code>). O contrato de fim: <a href="#agendar-fim">Ao terminar</a>.</p>
       <div class="tbl-wrap wrap-first">
         <table>
           <thead>
             <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr id="suite-time"><td><code>time=</code></td><td>nome=</td><td class="type"><span class="t">número ou None</span><span class="ex">None</span></td><td>Segundos de <em>uma</em> volta. Sem: na hora. Com: interpola e devolve Handle. Em <code>move_along</code> / <code>tween</code> é obrigatório.</td></tr>
+<tr id="suite-time"><td><code>time=</code></td><td>nome=</td><td class="type"><span class="t">número ou None</span><span class="ex">None</span></td><td>Segundos de <em>uma</em> volta. Sem: na hora. Com: interpola e devolve Handle. Em <code>tween</code> é obrigatório; em <code>move_along</code>, passe <code>time=</code> ou <code>speed=</code>.</td></tr>
+<tr id="suite-speed"><td><code>speed=</code></td><td>nome=</td><td class="type"><span class="t">número &gt; 0 ou None</span><span class="ex">None</span></td><td>Velocidade em vez de duração: unidades por segundo (em <code>move_to</code> / <code>move_by</code> / <code>move_along</code> / <code>pan_to</code> / <code>pan_by</code>) ou graus por segundo (em <code>rotate_to</code> / <code>rotate_by</code> / <code>reset_rotation</code>). A duração é a distância ÷ <code>speed</code>, medida <em>uma vez</em>, na chamada: em <code>move_to</code>, do ponto que viaja até o destino (um eixo <code>None</code> não conta; com <code>about=</code>, a partir desse ponto); em <code>move_by</code>, o tamanho do delta; em <code>move_along</code>, o comprimento da trilha × o trecho do <code>span</code>; em <code>rotate_to</code>, o arco curto. Depois disso é a mesma viagem de <code>time=</code>: o destino não muda se o alvo se mexer, e uma trilha que cresce depois não muda a duração. Com <code>ease=</code>, <code>speed</code> é a velocidade <em>média</em> (no meio ela passa disso). Com <code>loops=</code>, vale por volta (por perna com <code>yoyo=</code>). Distância zero termina no frame seguinte, com <code>on_done</code>. <code>0</code>, negativo, <code>nan</code> ou texto levantam erro. Não existe em <code>scale_*</code>, <code>tween</code> nem nos outros verbos da câmera (escala e zoom são razões, não distâncias): lá, <code>speed=</code> levanta <code>TypeError</code>.</td></tr>
 <tr id="suite-ease"><td><code>ease=</code></td><td>nome=</td><td class="type"><span class="t">nome da curva ou função</span><span class="ex">"linear"</span></td><td>Curva. Padrão <code>"linear"</code>. Nomes: <code>linear</code> · <code>ease_in</code> · <code>ease_out</code> · <code>ease_in_out</code> · <code>quad</code> · <code>inv_quad</code> · <code>smoothstep</code> · <code>sigmoid</code> · <code>bounce</code> · <code>elastic</code> · <code>steps</code> · <code>xpsin</code> · <code>erratic</code>, ou uma função sua que recebe <code>t</code> de 0 a 1 (o tempo já passado) e devolve quanto do caminho já foi feito (0 a 1). Nome desconhecido → <code>ValueError</code> com a lista. <code>spring</code> / <code>wobble</code> não entram aqui — só em <a href="#util-remap"><code>remap(…, modifier=)</code></a>. Com <code>loops=</code> / <code>yoyo=</code>, a curva corre para a frente em cada perna (não é espelhada no tempo).</td></tr>
 <tr id="suite-loops"><td><code>loops=</code></td><td>nome=</td><td class="type"><span class="t">1, N ou "forever"</span><span class="ex">1</span></td><td>Mesma grafia de <code>move_along</code> / <a href="#som-play"><code>play_sound</code></a>. Padrão <code>1</code>. <code>"forever"</code> nunca dispara <code>then=</code> / <code>on_done=</code> — pare com <code>handle.cancel()</code> ou <code>destroy</code>.</td></tr>
 <tr id="suite-yoyo"><td><code>yoyo=</code></td><td>nome=</td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td>Voltas ímpares invertem a direção (trocam início/fim) em vez de recomeçar. Precisa <code>loops</code> &gt; 1 (ou <code>"forever"</code>); com <code>loops=1</code> levanta erro. <code>loops=N</code> finito: pousa no início se N é par, no fim se N é ímpar. Em <code>move_along</code>, inverte o <code>span</code>, não o <code>phase</code>.</td></tr>
@@ -7224,7 +7236,10 @@ ship.move_to(600, 200, time=1.0, on_done=lambda: play_sound("pop"))</pre>
 <thead><tr><th>Parece</th><th>É</th><th>Não é</th></tr></thead>
 <tbody>
 <tr><td><code>time=</code> e <code>duration</code> são a mesma coisa</td><td>Um verbo de pose <em>leva</em> <code>time=</code> (segundos da viagem). Um transiente ou uma capa <em>dura</em> <code>duration</code> (segundos em que o efeito fica). <code>sprite.flash(duration)</code> e <code>canvas.flash(intensity)</code> não têm o mesmo primeiro argumento: no sprite é a duração; no canvas, a intensidade.</td><td>sinônimos</td></tr>
-<tr><td>O Handle de uma viagem escreve <code>.vel</code></td><td>Com <code>time=</code>, <code>h.velocity</code> / <code>h.speed</code> / <code>h.heading</code> dizem o que este frame andou, em unidades por segundo — mas não escrevem <code>.vel</code>. Para física: <code>rider.vel = h.velocity</code>. Ver <a href="#agendar-handle">Handle</a>.</td><td><code>.vel</code></td></tr>
+<tr><td><code>speed=</code> e <code>h.speed</code> são a mesma coisa</td><td><code>speed=</code> é o pedido: a velocidade média da viagem, convertida em duração na chamada. <code>h.speed</code> é a leitura: quanto o objeto andou neste frame, por segundo. Com <code>ease="linear"</code> os dois coincidem; com uma curva, <code>h.speed</code> começa abaixo e passa do pedido no meio.</td><td>o mesmo número sempre</td></tr>
+<tr><td><code>move_to(alvo, speed=)</code> persegue o alvo</td><td>O destino é copiado na chamada, como com <code>time=</code>. Se o alvo andar, o objeto chega aonde o alvo <em>estava</em>. Para perseguir um alvo que se move, ande um pouco a cada frame em <code>update(dt)</code> com <code>move_by</code> (por exemplo, na direção do alvo, <code>speed * dt</code> unidades).</td><td>perseguir</td></tr>
+<tr><td><code>time=</code> e <code>speed=</code> juntos</td><td>Escolha um: <code>time=</code> fixa a duração e a velocidade sai da distância; <code>speed=</code> fixa a velocidade e a duração sai da distância. Os dois juntos levantam <code>TypeError</code>.</td><td>combinação</td></tr>
+<tr><td>O Handle de uma viagem escreve <code>.vel</code></td><td>Com <code>time=</code> ou <code>speed=</code>, <code>h.velocity</code> / <code>h.speed</code> / <code>h.heading</code> dizem o que este frame andou, em unidades por segundo — mas não escrevem <code>.vel</code>. Para física: <code>rider.vel = h.velocity</code>. Ver <a href="#agendar-handle">Handle</a>.</td><td><code>.vel</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -7232,7 +7247,7 @@ ship.move_to(600, 200, time=1.0, on_done=lambda: play_sound("pop"))</pre>
 
     <section class="section prose" id="mover-move-along">
       <h2>move_along</h2>
-      <p class="one-liner">Faz o objeto percorrer uma curva: uma <a href="#desenhar-track"><code>Track</code></a>, o contorno de qualquer Shape, ou uma forma pronta pelo nome (<code>"eight"</code>, <code>"circle"</code>…). <code>time=</code> é quanto dura uma volta. É sempre uma viagem: uma parede de <code>resolve()</code> para o objeto no caminho. Para ir até um ponto em linha reta: <code>move_to(..., time=)</code>.</p>
+      <p class="one-liner">Faz o objeto percorrer uma curva: uma <a href="#desenhar-track"><code>Track</code></a>, o contorno de qualquer Shape, ou uma forma pronta pelo nome (<code>"eight"</code>, <code>"circle"</code>…). <code>time=</code> é quanto dura uma volta; ou passe <code>speed=</code> (unidades por segundo ao longo da trilha) e a volta dura o comprimento ÷ <code>speed</code>. É sempre uma viagem: uma parede de <code>resolve()</code> para o objeto no caminho. Para ir até um ponto em linha reta: <code>move_to(..., time=)</code>.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre># primeiro passo: string = preset flutuante (loops=1)
@@ -7243,9 +7258,12 @@ wasp.move_along(Track.eight(width=90, height=40), time=2.5)
 ship.move_along(Track.circle(center=(400, 300), radius=120), time=4, loops="forever")
 bug.move_along(hexagon, time=3, phase=0.2)
 ship.move_along(Track(vectors=[(80, 0), (0, 50), (-30, 20)], smooth=0), time=1.2)
-moon.move_along(orbit, time=6, face=True, loops="forever", yoyo=True)</pre>
+moon.move_along(orbit, time=6, face=True, loops="forever", yoyo=True)
+# mesma velocidade em trilhas de tamanhos diferentes
+small.move_along(Track.circle(radius=60), speed=80, loops="forever")
+big.move_along(Track.circle(radius=200), speed=80, loops="forever")</pre>
       </div>
-      <p class="sig"><code>move_along(target, *, time=, ease="linear", span=(0, 1), phase=0, loops=1, yoyo=False, face=False, at=None, then=, on_done=, force=False)</code></p>
+      <p class="sig"><code>move_along(target, *, time=None, speed=None, ease="linear", span=(0, 1), phase=0, loops=1, yoyo=False, face=False, at=None, then=, on_done=, force=False)</code></p>
       <div class="tbl-wrap wrap-first">
         <table>
           <thead>
@@ -7256,7 +7274,7 @@ moon.move_along(orbit, time=6, face=True, loops="forever", yoyo=True)</pre>
 <tr><td><code>span=</code></td><td>nome=</td><td class="type"><span class="t">(u0, u1)</span><span class="ex">(0, 1)</span></td><td>Que trecho da trilha percorrer, de 0 (início) a 1 (fim): <code>(0, 1)</code> é a volta inteira, <code>(0, 0.5)</code> só a primeira metade, <code>(1, 0)</code> percorre ao contrário — só nesta viagem; a trilha não muda.</td></tr>
 <tr><td><code>phase=</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0.15</span></td><td>Quanto este objeto sai adiantado na trilha, em fração da volta (0 a 1): <code>0.25</code> começa a um quarto do caminho. Para uma fila de objetos na mesma trilha, dê a cada um um <code>phase=</code> diferente num <code>for</code> (veja o exemplo abaixo). <code>yoyo=</code> não muda o <code>phase=</code>.</td></tr>
 <tr><td><code>at=</code></td><td>nome=</td><td class="type"><span class="t">ponto ou None</span></td><td>Onde o começo do trecho (<code>span</code>) é posto — qualquer <a href="#vocabulario">ponto</a>, copiado agora. Padrão: onde o objeto está quando a viagem começa. Só vale para trilhas sem lugar fixo (<em>flutuantes</em>: os nomes prontos, um <code>Track.eight(width=…)</code> só com tamanho, ou <code>Track(…, floating=True)</code>). Numa trilha com lugar fixo (criada com <code>center=</code> / <code>start=</code>, ou o contorno de um Shape) levanta <code>TypeError</code> — envolva com <code>Track(fonte, floating=True)</code>.</td></tr>
-<tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> (obrigatório) · <code>ease=</code> · <code>loops=</code> (padrão <code>1</code>) · <code>yoyo=</code> (inverte o <code>span</code>) · <code>face=</code> (tangente) · <code>then=</code> / <code>on_done=</code> (fim das voltas finitas) · <code>force=</code>. Sem <code>about=</code>.</td></tr>
+<tr><td><a href="#suite">parâmetros de tempo</a></td><td>nome=</td><td class="type"><span class="t">—</span></td><td><code>time=</code> ou <code>speed=</code> (um dos dois; com <code>speed=</code>, uma volta dura <code>track.length</code> × o tamanho do <code>span</code> ÷ <code>speed</code>, medido na chamada — <code>phase=</code> não muda a conta) · <code>ease=</code> · <code>loops=</code> (padrão <code>1</code>) · <code>yoyo=</code> (inverte o <code>span</code>) · <code>face=</code> (tangente) · <code>then=</code> / <code>on_done=</code> (fim das voltas finitas) · <code>force=</code>. Sem <code>about=</code>.</td></tr>
           </tbody>
         </table>
       </div>
@@ -7268,7 +7286,7 @@ moon.move_along(orbit, time=6, face=True, loops="forever", yoyo=True)</pre>
             <tr><td>Preset aberto em loop</td><td><code>"wave"</code> / <code>"spiral"</code> / <code>"arc"</code> / <code>"line"</code> com <code>loops="forever"</code>: passe <code>yoyo=True</code> — senão a costura do caminho aberto salta. Fechados (<code>"eight"</code>, <code>"circle"</code>, <code>"shuttle"</code>, …) envolvem sozinhos.</td></tr>
             <tr><td>Mesma chave de <code>move_to</code></td><td>Um <code>move_along</code> e um <code>move_to(..., time=)</code> no mesmo objeto se cancelam: o último vence.</td></tr>
             <tr><td>O Shape seguido some</td><td>Se o Shape cujo contorno o objeto segue for destruído, o objeto continua pela última forma que o contorno tinha. A viagem só é cancelada se o Shape sumir antes do primeiro frame dela.</td></tr>
-            <tr><td>Handle</td><td>Reporta o que este frame andou: <code>h.velocity</code> (unidades por segundo), <code>h.speed</code>, <code>h.heading</code> (tangente — a mesma de <code>face=</code>), <code>h.u</code> (parâmetro da trilha) e <code>h.lap</code> (volta começando em 0; <code>loops="forever"</code> continua a contar). Não escreve <code>.vel</code>.</td></tr>
+            <tr><td>Handle</td><td>Reporta o que este frame andou: <code>h.velocity</code> (unidades por segundo), <code>h.speed</code>, <code>h.heading</code> (tangente — a mesma de <code>face=</code>), <code>h.u</code> (parâmetro da trilha) e <code>h.lap</code> (volta começando em 0; <code>loops="forever"</code> continua a contar). Com <code>speed=</code> e <code>ease="linear"</code>, <code>h.speed</code> lê a velocidade pedida. Não escreve <code>.vel</code>.</td></tr>
           </tbody>
         </table>
       </div>
@@ -10663,7 +10681,7 @@ canvas.pan_to(look)</pre>
 <table class="confuse">
 <thead><tr><th>Parece</th><th>É</th><th>Não é</th></tr></thead>
 <tbody>
-<tr><td><code>canvas.follow(hero)</code> faz a câmera seguir</td><td>esse verbo não existe. Perseguir é <code>chase</code> + <code>pan_to</code> todo frame. <code>pan_to(..., time=)</code> congela o destino no momento da chamada.</td><td><code>pan_to(..., time=)</code> sozinho</td></tr>
+<tr><td><code>canvas.follow(hero)</code> faz a câmera seguir</td><td>esse verbo não existe. Perseguir é <code>chase</code> + <code>pan_to</code> todo frame. <code>pan_to(..., time=)</code> (ou <code>speed=</code>) congela o destino no momento da chamada.</td><td><code>pan_to(..., time=)</code> sozinho</td></tr>
 </tbody>
 </table>
 </div>

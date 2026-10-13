@@ -127,7 +127,7 @@ These are today’s choices, not irrevocable commitments. Challenge them when a 
 | Teardown hook | **`on_destroy`**. Fixed name, like `on_update`. Fires from `destroy()` only, before cancellation. |
 | Mode marker / exit | **`@on_mode`** (tag, no runtime effect). **`@exit_mode(enter_fn)`** (optional cleanup on leave). Mode identity stays a callable. |
 | Clock | `clock.scale` / `paused`; `dt`/`time` scaled; `real_dt`/`real_time` wall; `ready` / `recently` use `clock.time`. |
-| Timed pose | Suite `time=` / `ease=` / `then=` / `on_done=` / `loops=` / `yoyo=` on `move_to` / `move_by` / `move_along` / `rotate_to` / `rotate_by` / `scale_to` / `scale_by` / `tween()`. `ease=`/`then=`/`on_done=`/`loops=`/`yoyo=` require `time=` (an instant `rotate_by(10, ease="in_out")` raises: it had no curve and ignored `ease=`; guard `test_value_validation.TestEaseNeedsTime`, every verb with `time=` and `ease=`, camera included). `yoyo=` and `force=` are real bools. `yoyo=True` needs `loops` > 1 (or `"forever"`). `face=True` on `move_to` / `move_by` / `move_along` aims `.angle` at travel direction (works instant too on `move_to` / `move_by`; zero delta holds). `reset_rotation` has no `loops=`/`yoyo=` (single fixed destination). `move_along` is always motion; `time=` is one lap (`loops="forever"` has no finite whole-run). Same suite on canvas camera (`pan_*` / `zoom_*` / `rotate_*` / `frame_to` / `set_origin` / `reset_view`) — not Entity pose; channels in [Canvas Design.md](Canvas%20Design.md#timed-camera). `start=` is **`tween()` only** (optional initial value, same shape as `to`); not on pose verbs — place then travel stays two lines (`center = …` then `move_to(..., time=)`). |
+| Timed pose | Suite `time=` / `ease=` / `then=` / `on_done=` / `loops=` / `yoyo=` on `move_to` / `move_by` / `move_along` / `rotate_to` / `rotate_by` / `scale_to` / `scale_by` / `tween()`. `speed=` instead of `time=` on the verbs that cover a distance (`move_to` / `move_by` / `move_along` / `rotate_to` / `rotate_by` / `reset_rotation`, camera `pan_to` / `pan_by`): see [Rate instead of duration](#rate-instead-of-duration-speed). `ease=`/`then=`/`on_done=`/`loops=`/`yoyo=` require `time=` or `speed=` (an instant `rotate_by(10, ease="in_out")` raises: it had no curve and ignored `ease=`; guard `test_value_validation.TestEaseNeedsTime`, every verb with `time=` and `ease=`, camera included; the message names `speed=` only on a verb that takes it). `yoyo=` and `force=` are real bools. `yoyo=True` needs `loops` > 1 (or `"forever"`). `face=True` on `move_to` / `move_by` / `move_along` aims `.angle` at travel direction (works instant too on `move_to` / `move_by`; zero delta holds). `reset_rotation` has no `loops=`/`yoyo=` (single fixed destination). `move_along` is always motion; `time=` is one lap (`loops="forever"` has no finite whole-run); it needs `time=` or `speed=`. Same suite on canvas camera (`pan_*` / `zoom_*` / `rotate_*` / `frame_to` / `set_origin` / `reset_view`) — not Entity pose; channels in [Canvas Design.md](Canvas%20Design.md#timed-camera). `start=` is **`tween()` only** (optional initial value, same shape as `to`); not on pose verbs — place then travel stays two lines (`center = …` then `move_to(..., time=)`). |
 | Timed `rotate_to` | Shortest arc (degrees, CCW+). Exact 180° → CCW. When it finishes it stores exactly the target: a finished `rotate_to(θ, time=)` reads `θ`, like the instant form (from `400`, `rotate_to(30, time=…)` ends at `30`, not `390`; Q2 of the geometry campaign). `rotate_by(dθ, time=)` signed as written. Camera `rotate_*` matches. A flip during a running rotation does not mirror the motion: the rest of the turn runs as written (`rotate_by(90, time=1)` with `flip_x = True` halfway ends at `171`, not `90`; Q4). |
 | Missing sprite file | Legal. Magenta/black checker, warn once, **do not crash**. |
 | Missing atlas / unknown frame | Same: warn once, checker placeholder, still a full Entity. |
@@ -797,8 +797,52 @@ body is legal. They are **not** an entry in `update` / `on_update` / `@collide` 
 call site and `await …` (the Handle is cancelled and the script aborted). A Handle
 the author already `cancel()`ed is not a forgotten await. `__del__` remains a backstop. Bare `wait(0.4)` does not block.
 
+#### Rate instead of duration (`speed=`)
+
+`speed=` is the author's other way to say how long a trip takes: units per
+second on a translation (`move_to` / `move_by` / `move_along`, camera `pan_to` /
+`pan_by`), degrees per second on a turn (`rotate_to` / `rotate_by` /
+`reset_rotation`). The verb turns it into a duration **once, at the call**:
+`time = distance / speed`, with the distance the verb already freezes — the
+`move_to` travel from the point that lands (a `None` axis is a zero delta;
+`about=` measures from that pivot), the `move_by` delta, the `rotate_to` short
+arc, `|angle|` on `rotate_by` (an orbit too: the rate is the turn's), the
+camera look-at delta, and on `move_along` `track.length × |span1 − span0|`
+(`phase=` does not change it). From there it is the tween `time=` builds, so
+`ease=` (then `speed` is the average), `loops=` / `yoyo=` (per leg), `then=`,
+`pause()`, `time_scale` and the motion readout need no code of their own; with
+`ease="linear"` `h.speed` reads the rate asked for. Rules:
+
+- **Frozen like the target.** A target that moves later, or a track that grows
+  later, does not change the duration (the same rule as the snapshot of a
+  `move_to` target). Pursuit at a rate is per-frame work in `update(dt)`.
+- **One of the two.** `time=` and `speed=` together raise `TypeError`;
+  `move_along` with neither raises naming both.
+- **A rate is a positive finite number** (`validate.fixed_magnitude`,
+  `positive=True`): `0`, negative, NaN / inf, bool, text or a function raise
+  naming `<verb> speed=`. It is checked before the verb touches the job in
+  flight (`_check_speed` runs first in every timed helper; the distance is read
+  without writing), so a refused rate leaves no trace.
+- **Zero distance** is a zero duration: done on the next tick with `on_done`,
+  and a zero-length `loops="forever"` finishes instead of spinning (the
+  `time=0` path of `Handle._tick_tween`). An empty group's verb is the same
+  zero-length timer.
+- **Not on ratios.** `scale_*`, `zoom_*`, `tween()`, camera `rotate_*` /
+  `frame_to` / `set_origin` / `reset_view` have no `speed=`: a scale or zoom is
+  a ratio, not a distance, and the others move several channels at once. The
+  subclass pose wrapper (`entity._install_timed_pose`) refuses `speed=` on a
+  scale with a sentence; an explicit signature lets Python's unknown-keyword
+  error stand (no refuse-only keyword in `help()`).
+- **Messages quote the call.** A claim conflict names `move_to(speed=50)`, not
+  the derived duration (`_motion_label`).
+
+Guard: `tests/test_timed_speed.py` — contract per verb and kind, refusals,
+and `TestEveryTimedVerbIsClassified`, which walks every public method with
+`time=` (camera included) and fails until a new one is in `SPEED_VERBS` (and
+takes `speed=`) or in `NO_SPEED` (and refuses it).
+
 **Motion readout.** Translation motion tweens (`move_along`, `move_to(..., time=)`,
-`move_by(..., time=)`) stash this tick’s pose delta as three floats. `.velocity` /
+`move_by(..., time=)`, and the same with `speed=`) stash this tick’s pose delta as three floats. `.velocity` /
 `.speed` / `.heading` compute on read (`Vec2.temp` / hypot / atan2, or the track
 tangent — same quantity as `face=`). Ride handles also expose `.u` (mapped track
 parameter) and `.lap` (0-based; `loops="forever"` keeps counting). Non-motion

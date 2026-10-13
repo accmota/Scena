@@ -43,6 +43,7 @@ API a row below forbids without evidence that matches the **Revisit** bar.
 | All-in-one `Sky` / celestial wallpaper kinds | Composition stays author-owned | [Effects — Background inventory](Effect%20System%20Design.md#inventory-high-quality-only) |
 | Soft-plate CheapGlow / smart glow tiling; `post_fx_mode` | CheapGlow = filterless ADD on `.glow`; composition is hybrid | [Effects §5.2](Effect%20System%20Design.md#52-what-one-batch-costs) |
 | `moon.orbit` / `Group.move_along` / `stagger=` / path algebra | Real scripts show modifiers + `phase=` loops are not enough | [Tracks — Deferred](Tracks%20Design.md#deferred) |
+| `speed=` on `scale_*` / `zoom_*` / `tween()` / camera `rotate_*` / `frame_to` / `reset_view`; a live `speed=` that re-reads a moving target or a growing track | A taught script needs a constant-rate scale or zoom, or a rate that follows a live track, that `time=` or per-frame `update(dt)` work cannot express | [Actors — Rate instead of duration](Actors%20Design.md#rate-instead-of-duration-speed) |
 | `move_along(point-or-tuple)` | Evidence `move_to(..., time=)` cannot express it (it already does, point-for-point) | [Tracks — Travel](Tracks%20Design.md#travel) |
 | `Track(stroke=)` / `Track(fill=)` | Evidence `color=` (writes the stroke) and `.fill` after a showing keyword (`color=` / `visual=` / `line_width=` / `visible=True`) are not enough | [Tracks Design.md](Tracks%20Design.md) |
 | Writable `Handle.paused = …` | Never — second spelling of `pause()` / `resume()` | [Actors — Process semantics](Actors%20Design.md#process-semantics) |

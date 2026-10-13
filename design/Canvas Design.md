@@ -466,6 +466,11 @@ Author `Canvas` mutators (`pan_to` / `pan_by` / `zoom_to` / `zoom_by` /
 `rotate_to` / `rotate_by` / `set_origin` / `frame_to` / `reset_view`) take the
 same pose suite as Graphic: omit `time=` → snap, return `canvas`; pass `time=`
 → tween, return a `Handle` (`ease=` / `then=` / `on_done=` / `loops=` / `yoyo=`).
+`pan_to` / `pan_by` also take `speed=` (world units per second): the duration is
+the look-at delta ÷ speed, read at the call (`timed_camera_pan_*`; rules in
+[Actors Design.md — Rate instead of duration](Actors%20Design.md#rate-instead-of-duration-speed)).
+The other camera verbs keep `time=` only (a zoom is a ratio; `frame_to` /
+`reset_view` move several channels at once).
 `ScenaCanvas` stays instant; writers live next to the camera in `canvas.py` and
 call `_start_tween`. Destinations (`about=`, `pan_to` / `pan_by` point-likes,
 `frame_to` target) freeze at call time. `pan_to` / `pan_by` take two floats **or**

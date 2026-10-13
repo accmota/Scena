@@ -58,6 +58,7 @@ Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-
 | `center=` on a centered preset | focal / middle pose | `p1=` / `start=` (started presets) |
 | `p1=` on `Track.line` | plants `u=0` | `.center` (geometric middle) |
 | `time=` on `move_along` | **one lap** | whole-run duration when `loops="forever"` |
+| `speed=` on `move_along` | units per second along the track; one lap lasts `length × \|span1 − span0\| / speed`, read at the call | a live rate that follows a growing track |
 | `move_along(point)` | TypeError — slide with `move_to(..., time=)` | a Track / Shape / preset string |
 | `History` / `Contrail` | live stamp buffer (+ optional polyline) | a Track / `points=` path definition |
 
@@ -285,7 +286,7 @@ Tests: `tests/test_curves.py`, `tests/test_track.py`.
 # Travel
 
 ```python
-shape.move_along(target, time=, ease="linear", span=(0, 1), phase=0,
+shape.move_along(target, time=None, speed=None, ease="linear", span=(0, 1), phase=0,
                  loops=1, yoyo=False, face=False, at=None, then=, on_done=)
 ```
 
@@ -306,7 +307,11 @@ for a zero-arg floating Track constructor). Slide to a point:
 
 Exact lowercase only. `"zigzag"` raises with a hint pointing at `"eight"`. Custom size: graduate to `Track.eight(width=…)` — swapping
 the string for the classmethod with the same kwargs must not change the ride.
-Defaults stay shared: **`time=` required**, **`loops=1`** (one lap, then stop).
+Defaults stay shared: **`time=` or `speed=` required** (one of the two;
+`speed=` makes the lap `track.length × |Δspan| / speed`, frozen at the call —
+a track that is scaled or rebaked later keeps that duration; see
+[Actors Design.md — Rate instead of duration](Actors%20Design.md#rate-instead-of-duration-speed)),
+**`loops=1`** (one lap, then stop).
 Forever is always explicit (`loops="forever"`). Open presets (`wave` / `spiral` /
 `arc` / `line`) with forever need author `yoyo=True` (otherwise the open path
 snaps at the seam); do not auto-yoyo. Closed `shuttle` needs no `yoyo=` for forever.

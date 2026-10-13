@@ -1358,7 +1358,7 @@ class Text(Graphic, PaintState):
         unlinks). Timed verbs step through here on every tick.
         """
         anchor = self._anchor_part()
-        if kwargs.get("time") is not None or anchor is None:
+        if kwargs.get("time") is not None or kwargs.get("speed") is not None or anchor is None:
             return verb(amount, *args, **kwargs)
         self._refresh_layout()
         qx, qy = self._pivot_xy(kwargs.get("about"))       # validates the pivot

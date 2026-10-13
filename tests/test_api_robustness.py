@@ -728,6 +728,9 @@ class TestLeakedInternalErrors(unittest.TestCase):
             "rotate_to": lambda v: c.rotate_to(10, time=v),
             "pan_to": lambda v: canvas.pan_to((0, 0), time=v),
             "flash": lambda v: c.flash(duration=v),
+            "move_to speed": lambda v: c.move_to((1, 1), speed=v),
+            "rotate_to speed": lambda v: c.rotate_to(10, speed=v),
+            "pan_to speed": lambda v: canvas.pan_to((0, 0), speed=v),
         }
         for name, call in calls.items():
             with self.subTest(call=name):
@@ -863,6 +866,9 @@ class TestPhase3SilentPaths(unittest.TestCase):
         with self.assertRaises(TypeError) as ctx:
             c.move_to(0, 0, time="a")
         self.assertIn("move_to time=", str(ctx.exception))
+        with self.assertRaises(TypeError) as ctx:
+            c.move_to(0, 0, speed="a")
+        self.assertIn("move_to speed=", str(ctx.exception))
 
     def test_chase_rate_sign(self):
         from scena import chase

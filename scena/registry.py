@@ -1762,7 +1762,7 @@ def _empty_group_attr(name: str, label: str):
         # with no enemy left did raise AttributeError (the stand-in is a Shape;
         # found by test_noop_cost). A typo still raises below.
         def _noop(*args, **kwargs):
-            if on_blank and kwargs.get("time") is not None:
+            if on_blank and (kwargs.get("time") is not None or kwargs.get("speed") is not None):
                 from .process import _empty_group_timed
                 handle = _empty_group_timed(kwargs)
                 if handle is not None:

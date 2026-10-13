@@ -4365,6 +4365,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         self,
         *,
         time: Optional[float] = None,
+        speed: Optional[float] = None,
         ease: str = "linear",
         then=None,
         on_done=None,
@@ -4374,8 +4375,9 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         """Turn back to the rest heading (``art_angle``) and clear the tilt. The flip stays.
 
         Args:
-            time: seconds to turn (omit for instant); then the usual
-                ``ease=`` / ``then=`` / ``on_done=`` / ``about=`` / ``force=``.
+            time: seconds to turn (omit for instant), or ``speed=`` in degrees
+                per second; then the usual ``ease=`` / ``then=`` / ``on_done=`` /
+                ``about=`` / ``force=``.
         """
         tilt_fields = ("_tilt", "_tilt_mode", "_tilt_contact_point", "_tilt_contact_angle",
                        "_tilt_contact_normal", "_tilt_contact_side")
@@ -4388,7 +4390,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         self._tilt_contact_side = None
         try:
             return super().reset_rotation(
-                time=time, ease=ease, then=then, on_done=on_done,
+                time=time, speed=speed, ease=ease, then=then, on_done=on_done,
                 about=about, force=force,
             )
         except BaseException:

@@ -521,39 +521,54 @@ def _fn_and_then(fn, then, *, call_name: str, on_done=None):
     return callback, then
 
 
-def _require_timed_completion(*, time, then, on_done, call_name: str, ease="linear") -> None:
+# Default of the ``speed=`` argument below for the verbs that have no
+# ``speed=`` (scale, zoom, ``tween``): their messages keep saying ``time=``.
+_NO_SPEED = object()
+
+
+def _timing_words(speed) -> str:
+    """``time=`` or, on a verb that also takes ``speed=``, ``time= or speed=``."""
+    return "time=" if speed is _NO_SPEED else "time= or speed="
+
+
+def _require_timed_completion(*, time, then, on_done, call_name: str, ease="linear",
+                              speed=_NO_SPEED) -> None:
     """``then=`` / ``on_done=`` / ``ease=`` only make sense with ``time=``
-    (an instant verb took ``ease=`` and ignored it: graphics review E18)."""
-    if time is not None:
+    (or ``speed=``, which becomes a ``time=``): an instant verb took ``ease=``
+    and ignored it (graphics review E18)."""
+    if time is not None or (speed is not None and speed is not _NO_SPEED):
         return
+    words = _timing_words(speed)
     if then is not None or on_done is not None:
         raise TypeError(
-            f"{call_name} then= / on_done= require time=. "
-            f"Omit them for an instant call, or pass time= to tween."
+            f"{call_name} then= / on_done= require {words}. "
+            f"Omit them for an instant call, or pass {words} to tween."
         )
     if ease != "linear":
         raise TypeError(
-            f"{call_name} ease= requires time=: an instant call has no curve. "
-            f"Omit ease=, or pass time= to tween."
+            f"{call_name} ease= requires {words}: an instant call has no curve. "
+            f"Omit ease=, or pass {words} to tween."
         )
 
 
-def _require_loop_kwargs(*, loops, yoyo, time, call_name: str) -> int:
+def _require_loop_kwargs(*, loops, yoyo, time, call_name: str, speed=_NO_SPEED) -> int:
     """Validate ``loops=`` / ``yoyo=``; return the parsed loop count (``-1`` = forever).
 
-    ``loops`` / ``yoyo`` require ``time=``. ``yoyo=True`` needs ``loops`` > 1
-    (or ``\"forever\"``) — there is nothing to bounce against on a single lap.
+    ``loops`` / ``yoyo`` require ``time=`` (or ``speed=``). ``yoyo=True`` needs
+    ``loops`` > 1 (or ``\"forever\"``) — there is nothing to bounce against on
+    a single lap.
     """
     from .track import _parse_loops
 
     from .validate import expect_bool
     yoyo = expect_bool(yoyo, f"{call_name} yoyo")      # "no" is truthy
     default_loops = loops is None or loops == 1
-    if time is None:
+    if time is None and (speed is None or speed is _NO_SPEED):
         if not default_loops or yoyo:
+            words = _timing_words(speed)
             raise TypeError(
-                f"{call_name} loops= / yoyo= require time=. "
-                f"Omit them for an instant call, or pass time= to tween."
+                f"{call_name} loops= / yoyo= require {words}. "
+                f"Omit them for an instant call, or pass {words} to tween."
             )
         return 1
     n_loops = _parse_loops(1 if loops is None else loops)
@@ -563,6 +578,30 @@ def _require_loop_kwargs(*, loops, yoyo, time, call_name: str) -> int:
             f"got loops=1 — nothing to bounce against."
         )
     return n_loops
+
+
+def _check_speed(time, speed, call_name: str) -> Optional[float]:
+    """The ``speed=`` of a timed verb, checked at the call: ``None`` when the
+    author wrote ``time=``, else a positive finite number (units, or degrees
+    on a turn, per second). ``time=`` and ``speed=`` together raise: they
+    are two ways to say the same duration."""
+    if speed is None:
+        return None
+    if time is not None:
+        raise TypeError(
+            f"{call_name} got both time= and speed=. Pass one: time= sets the "
+            f"duration, speed= sets the rate and the duration follows from the distance."
+        )
+    from .validate import fixed_magnitude
+    return float(fixed_magnitude(
+        speed, f"{call_name} speed=", positive=True,
+        hint="speed= is a rate per second (> 0); the target sets the direction",
+    ))
+
+
+def _speed_duration(speed: float, distance: float) -> float:
+    """Seconds to cover ``distance`` at ``speed`` (a zero distance is 0 s)."""
+    return abs(float(distance)) / speed
 
 
 class Handle:
@@ -3504,8 +3543,11 @@ def _empty_group_timed(kwargs: dict) -> Optional[Handle]:
             or kwargs.get("yoyo"):
         return None
     owner, scope = _infer_owner()
+    time = kwargs.get("time")
+    if _check_speed(time, kwargs.get("speed"), "tween") is not None:
+        time = 0.0                          # nothing to move: no distance to cover
     checked = _validate_timed(
-        time=kwargs.get("time"), ease=kwargs.get("ease", "linear"), then=None,
+        time=time, ease=kwargs.get("ease", "linear"), then=None,
         on_done=kwargs.get("on_done"), owner=owner)
     on_done, _then, duration, _ease = checked
     handle = Handle._make(kind="after", delay=duration, fn=on_done, owner=owner, scope=scope)
@@ -3534,6 +3576,7 @@ def _start_tween(
     target=None,
     what: str = "tween time=",
     checked: Optional[tuple] = None,
+    speed: Optional[float] = None,
 ) -> Handle:
     """``target=``, when given, is the Entity this tween actually writes to
     (e.g. the shape a ``move_to`` moves) — checked every tick independently
@@ -3575,16 +3618,21 @@ def _start_tween(
     )
     if claim_targets:
         verb = claim_verb or claim_kind
-        handle._claim_label = _motion_label(verb, duration, loops)
+        handle._claim_label = _motion_label(verb, duration, loops, speed=speed)
         # ``tween(part, …)`` places every tick; the pose verbs push deltas.
         handle._claim_writes = "sets" if verb == "tween" else "pushes"
         claim_process_driver(handle, *claim_targets, kind=claim_kind)
     return get_scheduler().add(handle)
 
 
-def _motion_label(verb: str, duration: float, loops: int) -> str:
-    """The motion call as the author wrote it: ``move_by(time=2, loops="forever")``."""
-    text = f"{verb}(time={float(duration):g}"
+def _motion_label(verb: str, duration: float, loops: int,
+                  speed: Optional[float] = None) -> str:
+    """The motion call as the author wrote it: ``move_by(time=2, loops="forever")``
+    (``speed=`` when the author gave the rate)."""
+    if speed is not None:
+        text = f"{verb}(speed={float(speed):g}"
+    else:
+        text = f"{verb}(time={float(duration):g}"
     if loops == -1:
         text += ', loops="forever"'
     elif loops != 1:
@@ -3959,7 +4007,8 @@ def timed_move_to(
     to_y: Optional[float],
     *,
     about=None,
-    time: float,
+    time: Optional[float] = None,
+    speed: Optional[float] = None,
     ease: Ease = "linear",
     then=None,
     on_done=None,
@@ -3970,11 +4019,10 @@ def timed_move_to(
 ) -> Handle:
     from .collision import note_collider_motion
 
+    speed = _check_speed(time, speed, "move_to")
     n_loops = _require_loop_kwargs(
-        loops=loops, yoyo=yoyo, time=time, call_name="move_to",
+        loops=loops, yoyo=yoyo, time=time, speed=speed, call_name="move_to",
     )
-    checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
-                              owner=shape, what="move_to time=")
     if about is None:
         # The point the instant ``_move_to`` places: a sheet-anchored sprite's
         # ``center``, not its art frame (the old probe jumped it there first).
@@ -3984,6 +4032,11 @@ def timed_move_to(
         px, py = shape._pivot_xy(about)
     x1 = px if to_x is None else float(to_x)
     y1 = py if to_y is None else float(to_y)
+    if speed is not None:
+        # The distance is the frozen travel, read before anything moves.
+        time = _speed_duration(speed, math.hypot(x1 - px, y1 - py))
+    checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
+                              owner=shape, what="move_to time=")
     key = _center_pose_key(shape)
     # Same-kind replace before writability probe.
     _preempt_tween_keys(key)
@@ -4036,6 +4089,7 @@ def timed_move_to(
         claim_kind="tween", claim_verb="move_to",
         target=shape,
         what="move_to time=",
+        speed=speed,
     )
     bound[0] = handle
     return handle
@@ -4046,7 +4100,8 @@ def timed_move_by(
     dx: float,
     dy: float,
     *,
-    time: float,
+    time: Optional[float] = None,
+    speed: Optional[float] = None,
     ease: Ease = "linear",
     then=None,
     on_done=None,
@@ -4058,13 +4113,16 @@ def timed_move_by(
     """Interpolate a frozen cartesian delta (same tween_key as ``timed_move_to``)."""
     from .collision import note_collider_motion
 
+    speed = _check_speed(time, speed, "move_by")
     n_loops = _require_loop_kwargs(
-        loops=loops, yoyo=yoyo, time=time, call_name="move_by",
+        loops=loops, yoyo=yoyo, time=time, speed=speed, call_name="move_by",
     )
-    checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
-                              owner=shape)
     dx = float(dx)
     dy = float(dy)
+    if speed is not None:
+        time = _speed_duration(speed, math.hypot(dx, dy))
+    checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
+                              owner=shape)
     key = _center_pose_key(shape)
     _preempt_tween_keys(key)
     # Probe writability on the instant path.
@@ -4110,6 +4168,7 @@ def timed_move_by(
         ),
         claim_kind="tween", claim_verb="move_by",
         target=shape,
+        speed=speed,
     )
     bound[0] = handle
     return handle
@@ -4152,7 +4211,8 @@ def timed_rotate_to(
     shape,
     value: float,
     *,
-    time: float,
+    time: Optional[float] = None,
+    speed: Optional[float] = None,
     ease: Ease = "linear",
     then=None,
     on_done=None,
@@ -4161,16 +4221,19 @@ def timed_rotate_to(
     loops: object = 1,
     yoyo: bool = False,
 ) -> Handle:
+    speed = _check_speed(time, speed, "rotate_to")
     n_loops = _require_loop_kwargs(
-        loops=loops, yoyo=yoyo, time=time, call_name="rotate_to",
+        loops=loops, yoyo=yoyo, time=time, speed=speed, call_name="rotate_to",
     )
+    start = float(shape._rotation_value())
+    end = float(value)
+    delta = shortest_delta_deg(start, end)
+    if speed is not None:
+        time = _speed_duration(speed, delta)        # degrees per second
     checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
                               owner=shape)
     _preempt_tween_keys((id(shape), "angle"))
     _probe_rotate_writable(shape, about=about, force=force, verb="rotate_to")
-    start = float(shape._rotation_value())
-    end = float(value)
-    delta = shortest_delta_deg(start, end)
     applied = [0.0]
     owner, scope = _pose_owner_scope(shape)
 
@@ -4197,6 +4260,7 @@ def timed_rotate_to(
             shape, about=about, force=False, verb="rotate_to")),
         claim_kind="tween", claim_verb="rotate_to",
         target=shape,
+        speed=speed,
     )
 
 
@@ -4204,7 +4268,8 @@ def timed_rotate_by(
     shape,
     angle: float,
     *,
-    time: float,
+    time: Optional[float] = None,
+    speed: Optional[float] = None,
     ease: Ease = "linear",
     then=None,
     on_done=None,
@@ -4213,14 +4278,17 @@ def timed_rotate_by(
     loops: object = 1,
     yoyo: bool = False,
 ) -> Handle:
+    speed = _check_speed(time, speed, "rotate_by")
     n_loops = _require_loop_kwargs(
-        loops=loops, yoyo=yoyo, time=time, call_name="rotate_by",
+        loops=loops, yoyo=yoyo, time=time, speed=speed, call_name="rotate_by",
     )
+    delta = float(angle)
+    if speed is not None:
+        time = _speed_duration(speed, delta)        # degrees per second
     checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
                               owner=shape)
     _preempt_tween_keys((id(shape), "angle"))
     _probe_rotate_writable(shape, about=about, force=force, verb="rotate_by")
-    delta = float(angle)
     applied = [0.0]
     owner, scope = _pose_owner_scope(shape)
 
@@ -4240,6 +4308,7 @@ def timed_rotate_by(
             shape, about=about, force=False, verb="rotate_by")),
         claim_kind="tween", claim_verb="rotate_by",
         target=shape,
+        speed=speed,
     )
 
 
@@ -4342,7 +4411,8 @@ def timed_move_along(
     shape,
     target,
     *,
-    time: float,
+    time: Optional[float] = None,
+    speed: Optional[float] = None,
     ease: Ease = "linear",
     span=(0.0, 1.0),
     phase: float = 0.0,
@@ -4359,14 +4429,22 @@ def timed_move_along(
     from .track import Track, RideState, _point_xy_static, _resolve_move_along_target
     from .shapes import Point as ShapePoint, Shape
 
+    if time is None and speed is None:
+        raise TypeError(
+            "move_along needs time= (one lap, in seconds) or speed= (units per "
+            "second along the track). Write move_along(track, time=2) or "
+            "move_along(track, speed=120)."
+        )
+    speed = _check_speed(time, speed, "move_along")
     n_loops = _require_loop_kwargs(
-        loops=loops, yoyo=yoyo, time=time, call_name="move_along",
+        loops=loops, yoyo=yoyo, time=time, speed=speed, call_name="move_along",
     )
     span0, span1 = float(span[0]), float(span[1])
     phase = float(phase)
-    time = seconds(time, "move_along time=")
-    if time < 0.0:
-        raise ValueError("move_along time= must be >= 0")
+    if speed is None:
+        time = seconds(time, "move_along time=")
+        if time < 0.0:
+            raise ValueError("move_along time= must be >= 0")
 
     key = _center_pose_key(shape)
     _preempt_tween_keys(key, *((id(shape), "angle"),) if face else ())
@@ -4411,6 +4489,11 @@ def timed_move_along(
             "move_along target expected Track, Shape, or preset string, "
             f"got {type(target).__name__}"
         )
+
+    if speed is not None:
+        # One lap covers the span window of the track as it is now (a track
+        # that grows later keeps this duration, like move_to's frozen target).
+        time = _speed_duration(speed, float(path.length) * abs(span1 - span0))
 
     u0 = span0 + phase
     if wrap:
@@ -4527,6 +4610,7 @@ def timed_move_along(
         ),
         claim_kind="move_along",
         target=shape,
+        speed=speed,
     )
     bound[0] = handle
     handle._last_u = u0

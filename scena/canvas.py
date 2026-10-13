@@ -152,17 +152,24 @@ def _camera_tween(
     call_name: str = "camera",
     loops: object = 1,
     yoyo: bool = False,
+    speed=None,
 ):
+    """``speed=`` is the rate a pan verb already turned into ``time=``; the
+    other camera verbs pass none (their messages keep saying ``time=``)."""
     from .process import (
+        _NO_SPEED,
         _infer_owner,
         _require_loop_kwargs,
         _require_timed_completion,
         _start_tween,
     )
 
-    _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name=call_name)
+    if speed is None:
+        speed = _NO_SPEED
+    _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease,
+                              call_name=call_name, speed=speed)
     n_loops = _require_loop_kwargs(
-        loops=loops, yoyo=yoyo, time=time, call_name=call_name,
+        loops=loops, yoyo=yoyo, time=time, call_name=call_name, speed=speed,
     )
     owner, scope = _infer_owner()
     return _start_tween(
@@ -184,16 +191,21 @@ def timed_camera_pan_to(
     x: float,
     y: float,
     *,
-    time: float,
+    time: Optional[float] = None,
+    speed: Optional[float] = None,
     ease: str = "linear",
     then=None,
     on_done=None,
     loops: object = 1,
     yoyo: bool = False,
 ) -> "Handle":
+    from .process import _check_speed, _speed_duration
+    speed = _check_speed(time, speed, "pan_to")
     eng = canvas._engine
     x0, y0 = eng._look_x, eng._look_y
     x1, y1 = _finite_number(x, "pan"), _finite_number(y, "pan")
+    if speed is not None:
+        time = _speed_duration(speed, math.hypot(x1 - x0, y1 - y0))
 
     def write(u, e=eng, ax=x0, ay=y0, bx=x1, by=y1):
         e.pan_to(ax + (bx - ax) * u, ay + (by - ay) * u)
@@ -208,6 +220,7 @@ def timed_camera_pan_to(
         call_name="pan_to",
         loops=loops,
         yoyo=yoyo,
+        speed=speed,
     )
 
 
@@ -216,15 +229,20 @@ def timed_camera_pan_by(
     dx: float,
     dy: float,
     *,
-    time: float,
+    time: Optional[float] = None,
+    speed: Optional[float] = None,
     ease: str = "linear",
     then=None,
     on_done=None,
     loops: object = 1,
     yoyo: bool = False,
 ) -> "Handle":
+    from .process import _check_speed, _speed_duration
+    speed = _check_speed(time, speed, "pan_by")
     eng = canvas._engine
     dx, dy = _finite_number(dx, "pan"), _finite_number(dy, "pan")
+    if speed is not None:
+        time = _speed_duration(speed, math.hypot(dx, dy))
     applied = [0.0, 0.0]
 
     def write(u, e=eng, ddx=dx, ddy=dy, box=applied):
@@ -244,6 +262,7 @@ def timed_camera_pan_by(
         call_name="pan_by",
         loops=loops,
         yoyo=yoyo,
+        speed=speed,
     )
 
 
@@ -2273,6 +2292,7 @@ class Canvas(ClosedSurface, Container):
         y=None,
         *,
         time: Optional[float] = None,
+        speed: Optional[float] = None,
         ease: str = "linear",
         then=None,
         on_done=None,
@@ -2284,19 +2304,21 @@ class Canvas(ClosedSurface, Container):
         Two numbers ``(x, y)``, or one point-like: ``(x, y)`` tuple, Point,
         Vec2, Graphic (``.center``), or an object with ``.x``/``.y``.
         With ``time=``, the destination freezes at call time (not follow-cam).
+        ``speed=`` (world units per second) instead of ``time=``: the duration
+        is the distance from the current look-at ÷ speed.
         """
         x, y = _look_xy(x, y)
-        if time is not None:
+        if time is not None or speed is not None:
             return timed_camera_pan_to(
-                self, x, y, time=time, ease=ease, then=then, on_done=on_done,
+                self, x, y, time=time, speed=speed, ease=ease, then=then, on_done=on_done,
                 loops=loops, yoyo=yoyo,
             )
         if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="pan_to")
+            _require_timed_completion(time=time, speed=speed, then=then, on_done=on_done, ease=ease, call_name="pan_to")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
-            _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="pan_to")
+            _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, speed=speed, call_name="pan_to")
         self._engine.pan_to(x, y)
         return self
 
@@ -2306,6 +2328,7 @@ class Canvas(ClosedSurface, Container):
         dy=None,
         *,
         time: Optional[float] = None,
+        speed: Optional[float] = None,
         ease: str = "linear",
         then=None,
         on_done=None,
@@ -2315,20 +2338,21 @@ class Canvas(ClosedSurface, Container):
         """Shift content by ``(dx, dy)`` in world/design units.
 
         Two numbers, or one Vec2 / ``(dx, dy)`` tuple. A Point or Graphic is
-        a location — use ``pan_to``.
+        a location — use ``pan_to``. ``speed=`` (units per second) instead of
+        ``time=``: the duration is the shift's length ÷ speed.
         """
         dx, dy = _delta_xy(dx, dy)
-        if time is not None:
+        if time is not None or speed is not None:
             return timed_camera_pan_by(
-                self, dx, dy, time=time, ease=ease, then=then, on_done=on_done,
+                self, dx, dy, time=time, speed=speed, ease=ease, then=then, on_done=on_done,
                 loops=loops, yoyo=yoyo,
             )
         if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
-            _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="pan_by")
+            _require_timed_completion(time=time, speed=speed, then=then, on_done=on_done, ease=ease, call_name="pan_by")
         if loops != 1 or yoyo:
             from .process import _require_loop_kwargs
-            _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="pan_by")
+            _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, speed=speed, call_name="pan_by")
         self._engine.pan_by(dx, dy)
         return self
 

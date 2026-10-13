@@ -2898,7 +2898,8 @@ def _rotate_as_placement(fn, *args, **kwargs):
 
 
 def _install_timed_pose(cls) -> None:
-    """Add ``time=`` / ``ease=`` / ``then=`` / ``on_done=`` / ``loops=`` / ``yoyo=`` to subclass pose overrides."""
+    """Add ``time=`` / ``ease=`` / ``then=`` / ``on_done=`` / ``loops=`` / ``yoyo=`` to subclass pose overrides
+    (and ``speed=`` to the turns: a scale has no distance to cover at a rate)."""
     specs = (
         ("rotate_to", "timed_rotate_to"),
         ("rotate_by", "timed_rotate_by"),
@@ -2914,6 +2915,7 @@ def _install_timed_pose(cls) -> None:
             # Only a turn about a pivot can carry the pose anchor (orbit).
             orbit = name == "rotate_by"
             placement = name == "rotate_to"
+            turn = orbit or placement
 
             @wraps(orig_fn)
             def wrapped(
@@ -2926,16 +2928,32 @@ def _install_timed_pose(cls) -> None:
                     f = kwargs.get("force", False)
                     if f is not False and f is not True:    # force="no" is truthy: it unlinked
                         kwargs["force"] = expect_bool(f, f"{name}(force=)")
+                    if "speed" in kwargs:
+                        if not turn:
+                            raise TypeError(
+                                f"{name}() has no speed=: a scale has no distance to "
+                                f"cover at a rate. Pass time= (seconds)."
+                            )
+                        if kwargs["speed"] is not None:
+                            # A turn at a rate: the timed helper reads speed=.
+                            from . import process as _proc
+                            return getattr(_proc, helper)(
+                                self, value, time=time, ease=ease, then=then,
+                                on_done=on_done, loops=loops, yoyo=yoyo, **kwargs,
+                            )
+                        del kwargs["speed"]
                 if time is None:
                     if then is not None or on_done is not None or ease != "linear":
-                        from .process import _require_timed_completion
+                        from .process import _NO_SPEED, _require_timed_completion
                         _require_timed_completion(
                             time=time, then=then, on_done=on_done, ease=ease, call_name=name,
+                            speed=None if turn else _NO_SPEED,
                         )
                     if loops != 1 or yoyo:
-                        from .process import _require_loop_kwargs
+                        from .process import _NO_SPEED, _require_loop_kwargs
                         _require_loop_kwargs(
                             loops=loops, yoyo=yoyo, time=time, call_name=name,
+                            speed=None if turn else _NO_SPEED,
                         )
                     if kwargs.get("about") is not None:
                         if orbit:
@@ -3342,6 +3360,7 @@ class Graphic(Entity, ABC):
         self,
         *,
         time: Optional[float] = None,
+        speed: Optional[float] = None,
         ease: str = "linear",
         then=None,
         on_done=None,
@@ -3350,11 +3369,13 @@ class Graphic(Entity, ABC):
     ) -> "Graphic":
         """``rotate_to(rest_heading)`` — untilt without clearing flip.
 
+        ``speed=`` (degrees per second) instead of ``time=``, as on ``rotate_to``.
         No ``loops=`` / ``yoyo=``: a single fixed destination has nothing to bounce toward.
         """
         return self.rotate_to(
             self.rest_heading,
             time=time,
+            speed=speed,
             ease=ease,
             then=then,
             on_done=on_done,

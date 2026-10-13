@@ -429,6 +429,9 @@ class TestNamedLeaks(unittest.TestCase):
 
 # Verbs whose one required argument is a point (``pan_by((dx, dy))``).
 _POINT_FIRST = {"pan_by", "pan_to"}
+# Verbs that need one of ``time=`` / ``speed=`` (no instant form): ``ease=``
+# alone is refused by the missing-timing error, which names ``time=``.
+_TIMING_REQUIRED = {"move_along": ("circle",)}
 
 
 def ease_without_time_violations() -> dict:
@@ -457,11 +460,13 @@ def ease_without_time_violations() -> dict:
                 if "ease" not in params or "time" not in params:
                     continue
                 if params["time"].default is params["time"].empty:
-                    continue                    # time= is required (tween, move_along)
+                    continue                    # time= is required (tween)
                 need = [p for p in params.values() if p.default is p.empty
                         and p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD)]
                 if attr in _POINT_FIRST:
                     args, kwargs = [(1.0, 1.0)], {}
+                elif attr in _TIMING_REQUIRED:
+                    args, kwargs = list(_TIMING_REQUIRED[attr]), {}
                 elif any(p.name not in guesses for p in need):
                     out[f"{label}.{attr}"] = "no argument guess (add one)"
                     continue
@@ -473,8 +478,9 @@ def ease_without_time_violations() -> dict:
                     with quiet():
                         getattr(factory(), attr)(*args, **kwargs, ease="in_out")
                 except TypeError as e:
-                    if "ease" not in str(e):
-                        out[f"{label}.{attr}"] = f"TypeError, not about ease: {str(e)[:60]}"
+                    word = "time=" if attr in _TIMING_REQUIRED else "ease"
+                    if word not in str(e):
+                        out[f"{label}.{attr}"] = f"TypeError, not about {word}: {str(e)[:60]}"
                     continue
                 except Exception as e:  # noqa: BLE001
                     out[f"{label}.{attr}"] = f"{type(e).__name__}: {str(e)[:60]}"
