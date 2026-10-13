@@ -76,11 +76,25 @@ Contains the main application class (`ScenaFramework`), the event loop, and subs
 
 Canonical frame order: [Scena Design.md — Datapath](Scena%20Design.md#datapath).
 Scene-specific after `flush()`: tick transients / SpatialFx / cover, then wallpaper +
-background fields, camera + world layers, optional post, then the **view pass**.
+background fields, camera + world layers, optional post, then the **view pass**
+(`ui` Graphics + widgets), then cover. Looks / post: [Effect System Design.md](Effect%20System%20Design.md).
 Background and the camera CTM are applied inside `_draw_frame`, after `update` /
 flush, on both the direct window path and the post path (the scene never paints
 under the previous frame's camera).
-(`ui` Graphics + widgets), then cover. Looks / post: [Effect System Design.md](Effect%20System%20Design.md).
+
+**Letterbox bands stay black.** In maximized / fullscreen the framebuffer is wider
+or taller than the design rectangle. The background clears it black and paints
+the wallpaper inside the design rectangle only. The world pass is not clipped:
+the scene, the post compose (Grain / Scanlines / Fog / Vignette draw over the
+whole framebuffer), the `top` layer and the debug overlays all draw past the
+rectangle. So `_draw_frame` paints the bands black once
+(`_mask_letterbox_bands`), after the world pass and before the view pass.
+Without it, a body half outside the design rectangle showed its outer half in the
+bands (LB1; `cull_offscreen` only drops bodies wholly outside). The view pass
+(`ui` Graphics, widgets) and the cover are not masked. A `clipRect` on the world
+pass was measured first: about +1 % per frame in letterbox, a scissor on every
+world draw. The two band rects cost nothing measurable. Pinned by
+`tests/test_diff_pipeline.py` (`TestLetterboxBands`, with a canary).
 
 Widgets and Graphics on the reserved **`ui`** layer draw last (before canvas cover), in **view** space (camera-immune HUD). Decorative `Text` captions are
 unboxed by default (`color=` is ink only). ``font=`` is a family name or a

@@ -1486,6 +1486,10 @@ def fit_windowed_geom(
     return cw, ch, pos_x, pos_y
 
 
+# Display letterbox bands (maximized / fullscreen): opaque black, no AA.
+_BAND_PAINT = skia.Paint(Color=skia.ColorBLACK, AntiAlias=False)
+
+
 def letterbox_view(win_w, win_h, design_w, design_h):
     """Uniform view_scale + window-space pads for a possibly non-design-aspect window.
 
@@ -1825,6 +1829,40 @@ class ScenaFramework:
 
     def _uses_letterbox(self) -> bool:
         return self._display_mode in (DISPLAY_MAXIMIZED, DISPLAY_FULLSCREEN)
+
+    def _mask_letterbox_bands(self, skia_canvas) -> None:
+        """Paint the display letterbox bands black over the world image (LB1).
+
+        Maximized / fullscreen letterbox the design rectangle and the bands
+        stay black: a body half outside the rectangle, or a full-FB post
+        overlay (Grain, Scanlines, Fog …), must not show in them. Runs once
+        after the world pass (scene, post compose, ``top``, debug overlays)
+        and before the widget pass. Two opaque rects instead of a clip on the
+        world pass: a clip costs ~1 % per frame in letterbox (scissor state on
+        every world draw); the rects cost nothing measurable. Windowed: no-op
+        (the window is the design rectangle).
+        """
+        if not self._uses_letterbox():
+            return
+        pr = float(self.pixel_ratio) or 1.0
+        x0 = float(self._letterbox_pad_x) * pr
+        y0 = float(self._letterbox_pad_y) * pr
+        s = float(self.view_scale) * pr
+        x1 = x0 + float(self.design_width) * s
+        y1 = y0 + float(self.design_height) * s
+        fb_w, fb_h = float(self.fb_width), float(self.fb_height)
+        skia_canvas.save()
+        skia_canvas.resetMatrix()
+        # One rect per side with a gap (one axis in a real letterbox).
+        if x0 > 0.0:
+            skia_canvas.drawRect(skia.Rect.MakeLTRB(0.0, 0.0, x0, fb_h), _BAND_PAINT)
+        if x1 < fb_w:
+            skia_canvas.drawRect(skia.Rect.MakeLTRB(x1, 0.0, fb_w, fb_h), _BAND_PAINT)
+        if y0 > 0.0:
+            skia_canvas.drawRect(skia.Rect.MakeLTRB(0.0, 0.0, fb_w, y0), _BAND_PAINT)
+        if y1 < fb_h:
+            skia_canvas.drawRect(skia.Rect.MakeLTRB(0.0, y1, fb_w, fb_h), _BAND_PAINT)
+        skia_canvas.restore()
 
     def _apply_view_transform(self, skia_canvas=None, *, camera=True):
         """Map y-up design coords → y-down window/framebuffer.
@@ -3883,6 +3921,7 @@ class ScenaFramework:
             self._apply_view_transform()
             self._scena_draw.draw(t=self.clock.time)
         self._draw_collision_debug(self._drawing_canvas)
+        self._mask_letterbox_bands(self._drawing_canvas)
         # Widgets + ui Graphics: view space only (no camera) so HUD stays fixed.
         self._apply_view_transform(camera=False)
         self._draw_ui_layer(self._drawing_canvas)

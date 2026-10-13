@@ -614,6 +614,19 @@ it (`world_to_view_coords`, `_layer_partial_matrix`, the design point, then
 `pad + view_scale · flipY`). Every cell agrees within 3 px. Canary: a scene
 drawn without the letterbox offset.
 
+**LB1 (2026-10-12): the bands.** The class 6 cells set the pads but left the
+display windowed, and they checked only where the bright pixel lands, never what
+lies outside the design rectangle. So a body half outside the rectangle spilling
+into the maximized / fullscreen bands passed. Confirmed on a real window, then
+fixed (Canvas Design, "Letterbox bands stay black"). `TestLetterboxBands`: red
+bodies straddle the four edges on a world and a parallax layer, zoomed out, with
+pads from `letterbox_view` (pad x and pad y), display maximized / fullscreen,
+post off / on (`Grain` draws over the whole framebuffer). Every pixel outside
+the rectangle must be black. The inner halves must draw, and the same frame
+windowed must reach outside (not vacuous). Canary: the band mask removed. Lesson:
+a pixel oracle for a transform also checks the region the transform must leave
+untouched, and display cells set the display mode, not only its pads.
+
 **Class 5 (2026-10-09).** `test_sys_pointer_pipeline`: three displays
 (window scale and letterbox pads) × six cameras (identity, zoom, pan,
 rotation, origin, all three) × three targets (a world shape, a shape on

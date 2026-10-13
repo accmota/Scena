@@ -30,7 +30,7 @@ from diff_support import assert_catches  # noqa: E402
 from hypothesis_support import registry  # noqa: E402
 from system_support import SystemTestCase, quiet  # noqa: E402
 
-from scena import Rect, Vignette, canvas  # noqa: E402
+from scena import Grain, Rect, Vignette, canvas  # noqa: E402
 
 DISPLAYS: Dict[str, Tuple[float, Tuple[float, float]]] = {
     "1:1": (1.0, (0.0, 0.0)),
@@ -151,6 +151,99 @@ for _l in LAYERS:
                 (lambda l, p: lambda self: self._matrix(l, p))(_l, _p))
 
 
+class TestLetterboxBands(SystemTestCase, unittest.TestCase):
+    """LB1: in display letterbox (maximized / fullscreen) the bands stay black.
+
+    Red bodies straddle the four edges of the design rectangle (half in, half
+    out) on a world layer and a parallax layer, under a zoomed-out camera, with
+    post FX off / on (``Grain`` draws over the whole framebuffer). Every pixel
+    outside the design rectangle must be black; the inner halves must draw (not
+    vacuous). Pads come from ``letterbox_view``, as the real window gets them.
+    """
+    world_draw = True
+    FBS = {"pad x": (2000, 1200), "pad y": (1600, 1600)}
+
+    def setUp(self):
+        super().setUp()
+        fw = self.w.fw
+        self._saved = (fw.view_scale, fw._letterbox_pad_x, fw._letterbox_pad_y,
+                       fw._display_mode, fw.fb_width, fw.fb_height,
+                       fw._drawing_surface, fw._drawing_canvas, fw._scena_draw.skia_canvas)
+        canvas.layers.create("lb_bg", pan_response=0.4, below="default")
+
+    def tearDown(self):
+        fw = self.w.fw
+        with quiet():
+            (fw.view_scale, fw._letterbox_pad_x, fw._letterbox_pad_y,
+             fw._display_mode, fw.fb_width, fw.fb_height,
+             fw._drawing_surface, fw._drawing_canvas, fw._scena_draw.skia_canvas) = self._saved
+            canvas.reset_view()
+            canvas.effects.clear()
+            if "lb_bg" in canvas.layers:
+                canvas.layers["lb_bg"].delete(destroy_shapes=True)
+        super().tearDown()
+
+    def _frame(self, fb: str, display: str, post: str) -> Tuple[np.ndarray, Tuple[int, int, int, int]]:
+        from scena.orchestration import letterbox_view
+        fw = self.w.fw
+        w, h = self.FBS[fb]
+        surf = skia.Surface(w, h)
+        fw.fb_width, fw.fb_height = w, h
+        fw._drawing_surface, fw._drawing_canvas = surf, surf.getCanvas()
+        fw._scena_draw.skia_canvas = fw._drawing_canvas
+        W, H = float(fw.design_width), float(fw.design_height)
+        fw.view_scale, fw._letterbox_pad_x, fw._letterbox_pad_y = letterbox_view(w, h, W, H)
+        fw._display_mode = display
+        canvas.reset_view()
+        canvas.effects.clear()
+        if post == "post on":
+            canvas.effects.add(Grain(amount=0.5))
+        canvas.zoom_to(0.9)
+        r = 0.12 * min(W, H)
+        edges = ((0.0, H / 2), (W, H / 2), (W / 2, 0.0), (W / 2, H))
+        with quiet():
+            shapes = [self.track(Rect(center=c, width=2 * r, height=2 * r, color="red",
+                                      line_width=0, layer=layer))
+                      for layer in ("default", "lb_bg") for c in edges]
+        try:
+            self.w.step(1)
+            img = _screen(surf)
+        finally:
+            with quiet():
+                for sh in shapes:
+                    sh.destroy()
+            self.w.step(1, draw=False)
+        vs, px, py = fw.view_scale, fw._letterbox_pad_x, fw._letterbox_pad_y
+        rect = (int(math.ceil(px)), int(math.ceil(py)),
+                int(math.floor(px + W * vs)), int(math.floor(py + H * vs)))
+        return img, rect
+
+    def _cell(self, fb: str, post: str, display: str = "maximized") -> int:
+        img, (x0, y0, x1, y1) = self._frame(fb, display, post)
+        outside = np.ones(img.shape[:2], bool)
+        outside[y0:y1, x0:x1] = False
+        lit = img[..., :3].max(axis=-1) > 8
+        red = (img[..., 0] > 120) & (img[..., 1] < 80)
+        inside = red[y0:y1, x0:x1]
+        self.assertGreater(int(inside.sum()), 1000, f"{fb} | {post}: no body drew inside")
+        return int((lit & outside).sum())
+
+    def test_bands_stay_black(self):
+        for display in ("maximized", "fullscreen"):
+            for fb in self.FBS:
+                for post in POST:
+                    with self.subTest(display=display, fb=fb, post=post):
+                        n = self._cell(fb, post, display)
+                        self.assertEqual(n, 0, f"{display} | {fb} | {post}: {n} lit pixels "
+                                         "in the letterbox bands")
+
+    def test_windowed_draws_past_the_design_rect(self):
+        """Not vacuous: the same frame windowed (no bands) does reach outside."""
+        for fb in self.FBS:
+            with self.subTest(fb=fb):
+                self.assertGreater(self._cell(fb, "post off", "windowed"), 1000)
+
+
 class TestAxes(unittest.TestCase):
     def test_known_keys_name_cells(self):
         for key in KNOWN:
@@ -174,6 +267,12 @@ class TestCanaries(unittest.TestCase):
         assert_catches(self, "test_diff_pipeline.TestPixelOracle.test_world_post_off",
                        [(orch.ScenaFramework, "_apply_view_transform", no_pad)],
                        "a scene drawn without the letterbox offset")
+
+    def test_catches_bands_left_unmasked(self):
+        import scena.orchestration as orch
+        assert_catches(self, "test_diff_pipeline.TestLetterboxBands.test_bands_stay_black",
+                       [(orch.ScenaFramework, "_mask_letterbox_bands", lambda self, c: None)],
+                       "world geometry spilling into the letterbox bands (LB1)")
 
 
 if __name__ == "__main__":
