@@ -859,6 +859,12 @@ _CULL_CACHE = True
 # more resets it. Skipping a test only draws more, never less. False: test
 # every frame (oracle; the tests that count culled objects).
 _CULL_BACKOFF = True
+# A batched layer plans its units with its culled objects in place (planned,
+# not drawn), so the cull never changes how the drawn ones batch
+# (a mixed filter segment, a look run, a reach merge). False: culled objects
+# leave the plan (A/B only: the units then differ with the cull, and the
+# backoff makes a still scene flicker).
+_CULL_IN_PLAN = True
 _CULL_BACKOFF_MAX = 32
 _CULL_BACKOFF_RATIO = 16
 
@@ -868,6 +874,11 @@ def _cull_box_full(obj) -> Optional[Tuple[float, float, float, float]]:
     box = _approx_draw_aabb(obj)
     if box is None:
         return None
+    glow = getattr(obj, "_glow", None)
+    if glow is not None:
+        grow = getattr(glow, "_cull_grow", None)
+        if grow is not None:
+            box = grow(obj, box)        # a look that scales the host (CheapGlow)
     pad = _filter_outset(obj)
     if getattr(obj, "_tx_state", None) is not None:
         from .transients import transient_cull_pad
@@ -946,6 +957,9 @@ def _cull_mover(obj, cell):
     if cp is None or cp.__dict__.get("_owner") is not obj:
         return None
     if getattr(type(obj), "_is_sprite_body", False):
+        seat = getattr(obj, "_tilt_seat_contact", None)
+        if seat is not None and seat() is not None:
+            return None             # seated on a contact plane: a move is not a shift
         model = None
     else:
         if _SHIFT_MODELS is None:
@@ -1032,7 +1046,11 @@ def _cull_box(obj) -> Optional[Tuple[float, float, float, float]]:
                         )
                 return hit[1]
             box = _cull_box_full(obj)
-            d["_cull_cache"] = (key, box, _cull_mover(obj, d.get("_pose_cell")))
+            # A shift follows a finite box only (an unbounded look's is the plane).
+            mover = (_cull_mover(obj, d.get("_pose_cell"))
+                     if box is not None and math.isfinite(box[0] + box[1] + box[2] + box[3])
+                     else None)
+            d["_cull_cache"] = (key, box, mover)
             return box
     return _cull_box_full(obj)
 
@@ -1049,7 +1067,9 @@ def _cull_keeps(obj, vb) -> bool:
         if box is None:
             return True
         return _aabb_intersects_view(box, vb)
-    except Exception:
+    except Exception as exc:
+        if isinstance(exc, AssertionError) and _cull_verify():
+            raise                           # verify mode: a stale box is a failure
         return True
 
 
@@ -1162,10 +1182,45 @@ _BATCH_REACH_WINDOW = 64            # units looked ahead from a run
 _INF_BOX4 = (-math.inf, -math.inf, math.inf, math.inf)
 
 
+class _Run(list):
+    """A unit's drawn members, plus ``culled``: its members the cull skipped
+    (``ScenaCanvas._draw_layer``). A batched layer plans its units with the
+    culled objects in place, as if nothing were culled, and draws only the
+    rest: culled members still count for a run's signature and boxes (``_unit_sig``,
+    ``_unit_boxes``), so culling, and the backoff that turns it on and off,
+    never change how the drawn objects batch."""
+
+    __slots__ = ("culled",)
+
+
+def _without_culled(run: List, drawn_ids) -> List:
+    """``run`` without its culled members (a ``_Run`` holding them), or
+    ``run`` itself when it has none. ``drawn_ids``: the drawn objects."""
+    if len(run) == 1:                       # most units: one object
+        if id(run[0]) in drawn_ids:
+            return run
+        out = _Run()
+        out.culled = run
+        return out
+    drawn = [o for o in run if id(o) in drawn_ids]
+    if len(drawn) == len(run):
+        return run
+    out = _Run(drawn)
+    out.culled = [o for o in run if id(o) not in drawn_ids]
+    return out
+
+
+def _run_members(run: List) -> List:
+    """Drawn and culled members of a run (the plan's view)."""
+    g = getattr(run, "culled", None)
+    return run if g is None else list(run) + g
+
+
 def _unit_sig(kind: str, run: List):
     """What a run may merge with: the interned look of a look run, the one
     (fill key, line key) pair every member of a filter segment shares; None
     for anything else (a mixed segment, a solo draw, a plain blit)."""
+    run = _run_members(run)
     if kind == "look":
         return ("look", id(getattr(run[0], "visual", None)))
     if kind != "seg":
@@ -1188,10 +1243,12 @@ def _unit_boxes(run: List) -> List[Tuple[float, float, float, float]]:
     """Every pixel each member can paint lies in its box (the cull box);
     unknown geometry is the whole plane."""
     out = []
-    for o in run:
+    for o in _run_members(run):
         try:
             b = _cull_box(o)
-        except Exception:
+        except Exception as exc:
+            if isinstance(exc, AssertionError) and _cull_verify():
+                raise                       # verify mode: a stale box is a failure
             b = None
         out.append(_INF_BOX4 if b is None else b)
     return out
@@ -1201,7 +1258,7 @@ def _boxes_meet(a, b) -> bool:
     return not (a[2] < b[0] or b[2] < a[0] or a[3] < b[1] or b[3] < a[1])
 
 
-def _merge_reach(units: List[Tuple[str, List]]) -> List[Tuple[str, List]]:
+def _merge_reach(units: List[Tuple[str, List]], view=None) -> List[Tuple[str, List]]:
     """Pull later runs into an earlier run of the same signature.
 
     A later run moves up only when each of its boxes misses every run it
@@ -1209,6 +1266,11 @@ def _merge_reach(units: List[Tuple[str, List]]) -> List[Tuple[str, List]]:
     are disjoint touch disjoint pixels, so they commute: z between different
     looks is unchanged, and only peers of one look / key relax, as they do
     inside a run.
+
+    Culled members (``_Run.culled``) take part with their boxes, as if drawn.
+    ``view`` ``(left, bottom, right, top)``: the window they were culled
+    against. Their boxes lie outside it, so a drawn box inside it cannot meet
+    one: that test is skipped (the same answer, without the cost).
     """
     n = len(units)
     sigs = [_unit_sig(k, r) for k, r in units]
@@ -1220,12 +1282,16 @@ def _merge_reach(units: List[Tuple[str, List]]) -> List[Tuple[str, List]]:
             later[sg] = i
             sigs[i] = (sg, nxt)          # signature and its next index
     taken = [False] * n
-    boxes: List[Optional[list]] = [None] * n
+    boxes: List[Optional[tuple]] = [None] * n
+    if view is not None:
+        vl, vb, vr, vt = view
 
     def boxes_of(k):
+        """``(boxes, d)``: the drawn members' boxes are ``boxes[:d]``."""
         b = boxes[k]
         if b is None:
-            b = boxes[k] = _unit_boxes(units[k][1])
+            run = units[k][1]
+            b = boxes[k] = (_unit_boxes(run), len(run))
         return b
 
     out: List[Tuple[str, List]] = []
@@ -1238,9 +1304,12 @@ def _merge_reach(units: List[Tuple[str, List]]) -> List[Tuple[str, List]]:
             out.append((kind, run))
             continue
         merged = list(run)
+        # Boxes passed so far: drawn members' (``passed``, union ``u*``) and
+        # culled members' (``off``, union ``o*``).
         passed: List[Tuple[float, float, float, float]] = []
-        ux0 = uy0 = math.inf
-        ux1 = uy1 = -math.inf
+        off: List[Tuple[float, float, float, float]] = []
+        ux0 = uy0 = ox0 = oy0 = math.inf
+        ux1 = uy1 = ox1 = oy1 = -math.inf
         at = i + 1                          # next unit not yet passed or tested
         cand = entry[1]
         blocked = False
@@ -1251,11 +1320,11 @@ def _merge_reach(units: List[Tuple[str, List]]) -> List[Tuple[str, List]]:
             for k in range(at, cand):       # the runs this candidate would pass
                 if taken[k]:
                     continue
-                bk = boxes_of(k)
+                bk, d = boxes_of(k)
                 if _INF_BOX4 in bk:
                     blocked = True          # an unbounded draw: nothing passes it
                     break
-                for b in bk:
+                for b in (bk if d == len(bk) else bk[:d]):
                     passed.append(b)
                     if b[0] < ux0:
                         ux0 = b[0]
@@ -1265,16 +1334,37 @@ def _merge_reach(units: List[Tuple[str, List]]) -> List[Tuple[str, List]]:
                         ux1 = b[2]
                     if b[3] > uy1:
                         uy1 = b[3]
+                if d < len(bk):
+                    for b in bk[d:]:
+                        off.append(b)
+                        if b[0] < ox0:
+                            ox0 = b[0]
+                        if b[1] < oy0:
+                            oy0 = b[1]
+                        if b[2] > ox1:
+                            ox1 = b[2]
+                        if b[3] > oy1:
+                            oy1 = b[3]
             if blocked:
                 break
             at = cand + 1
-            bc = boxes_of(cand)
+            bc, dc = boxes_of(cand)
             ok = _INF_BOX4 not in bc
             if ok:
-                for b in bc:
-                    if b[2] < ux0 or ux1 < b[0] or b[3] < uy0 or uy1 < b[1]:
-                        continue            # misses everything passed so far
-                    for p in passed:
+                for j, b in enumerate(bc):
+                    if not (b[2] < ux0 or ux1 < b[0] or b[3] < uy0 or uy1 < b[1]):
+                        for p in passed:
+                            if _boxes_meet(b, p):
+                                ok = False
+                                break
+                        if not ok:
+                            break
+                    if not off or b[2] < ox0 or ox1 < b[0] or b[3] < oy0 or oy1 < b[1]:
+                        continue            # misses every culled box passed so far
+                    if (j < dc and view is not None and b[0] >= vl and b[2] <= vr
+                            and b[1] >= vb and b[3] <= vt):
+                        continue            # drawn and inside the view: culled boxes are out
+                    for p in off:
                         if _boxes_meet(b, p):
                             ok = False
                             break
@@ -1285,7 +1375,8 @@ def _merge_reach(units: List[Tuple[str, List]]) -> List[Tuple[str, List]]:
                 merged.extend(units[cand][1])
                 taken[cand] = True
             else:                           # it stays: later candidates pass it
-                for b in bc:
+                bk, d = bc, dc
+                for b in (bk if d == len(bk) else bk[:d]):
                     passed.append(b)
                     if b[0] < ux0:
                         ux0 = b[0]
@@ -1295,6 +1386,17 @@ def _merge_reach(units: List[Tuple[str, List]]) -> List[Tuple[str, List]]:
                         ux1 = b[2]
                     if b[3] > uy1:
                         uy1 = b[3]
+                if d < len(bk):
+                    for b in bk[d:]:
+                        off.append(b)
+                        if b[0] < ox0:
+                            ox0 = b[0]
+                        if b[1] < oy0:
+                            oy0 = b[1]
+                        if b[2] > ox1:
+                            ox1 = b[2]
+                        if b[3] > oy1:
+                            oy1 = b[3]
                 if _INF_BOX4 in bc:
                     break
             cand = nxt
@@ -2633,6 +2735,8 @@ class ScenaCanvas:
                 sk.concat(partial)
 
             objs = []
+            drawn = None                # batched, culled objects planned too: ids of the drawn ones
+            view = None
             if getattr(layer, "_tombstones", 0):
                 layer._compact()
             # ``cull_offscreen=False``: skip the per-object ``_passes_cull`` call
@@ -2658,22 +2762,39 @@ class ScenaCanvas:
                 cull_box = _cull_box
                 append = objs.append
                 skipped = 0
+                # Batched: culled objects stay in the plan, not drawn (``_Run``),
+                # so the units do not depend on the cull.
+                planned = [] if self.batch_shared_filters and _CULL_IN_PLAN else None
+                plan_add = planned.append if planned is not None else None
                 for o in layer._objects:
                     if not _drawn(o):
                         continue
                     try:
                         box = cull_box(o)
-                    except Exception:
+                    except Exception as exc:
+                        if isinstance(exc, AssertionError) and _cull_verify():
+                            raise                   # verify mode: a stale box is a failure
                         box = None                  # fail open
+                    if plan_add is not None:
+                        plan_add(o)
                     if box is None or not (box[2] < vl or box[0] > vr
                                            or box[3] < vbt or box[1] > vt):
                         append(o)
                     else:
                         skipped += 1
-                self._cull_kept += len(objs)
+                kept = len(objs)
+                # Culled objects change no unit when every drawn one is a plain
+                # blit (strict order, no run to join): plan with them only
+                # when a kept object can batch.
+                if skipped and planned is not None and objs and any(
+                        not getattr(o, "_plain_blit", False) for o in objs):
+                    drawn = {id(o) for o in objs}
+                    objs = planned
+                    view = (vl, vbt, vr, vt)
+                self._cull_kept += kept
                 self._cull_skipped += skipped
                 if _CULL_BACKOFF:
-                    if skipped * _CULL_BACKOFF_RATIO >= len(objs) + skipped:
+                    if skipped * _CULL_BACKOFF_RATIO >= kept + skipped:
                         ld["_cull_backoff"] = 0
                     else:                   # (almost) all in view: wait 1, 2, 4 … frames
                         nb = min(_CULL_BACKOFF_MAX, 2 * ld.get("_cull_backoff", 0) or 1)
@@ -2691,7 +2812,7 @@ class ScenaCanvas:
                 self._cull_kept += len(objs)
             try:
                 if self.batch_shared_filters:
-                    self._draw_layer_batched(objs)
+                    self._draw_layer_batched(objs, drawn, view)
                 else:
                     # Strict painter's order: still use saveLayer / shape-FX RT per
                     # shape (not paint ImageFilters). Paint-filter draws on the
@@ -2762,7 +2883,7 @@ class ScenaCanvas:
     def _draw_object(self, obj) -> None:
         obj.draw(self.skia_canvas)
 
-    def _draw_layer_batched(self, objects) -> None:
+    def _draw_layer_batched(self, objects, drawn=None, view=None) -> None:
         """Two-pass filter batching; solid shapes draw without saveLayer.
 
         Shapes with a multipass ``visual`` or active transient draw fully via ``obj.draw``
@@ -2774,6 +2895,9 @@ class ScenaCanvas:
         Electric* high PE-glow is a second shared Plus plate on that segment.
         With ``batch_shared_filters``, a run also takes later runs of its own
         look or key that overlap nothing they pass (``_merge_reach``).
+        ``drawn``: when given, ``objects`` also holds culled objects, planned
+        but not drawn, and ``drawn`` is the ids of the drawn ones; ``view``
+        is the window they were culled against (``_merge_reach``).
         """
         reach = self.batch_shared_filters and _BATCH_REACH
         draw = self._draw_unit
@@ -2781,10 +2905,10 @@ class ScenaCanvas:
         looks: set = set()
         segs = 0
         repeats = False
-        for unit in self._iter_units(objects):
+        for unit in self._iter_units(objects, drawn):
             kind = unit[0]
             if kind == "look":
-                look = id(getattr(unit[1][0], "visual", None))
+                look = id(getattr(_run_members(unit[1])[0], "visual", None))
                 repeats = repeats or look in looks
                 looks.add(look)
             elif kind == "seg":
@@ -2799,18 +2923,22 @@ class ScenaCanvas:
                 buffer.append(unit)
         if buffer:
             if repeats:
-                buffer = _merge_reach(buffer)
+                buffer = _merge_reach(buffer, view if drawn is not None else None)
             for unit in buffer:
                 draw(unit)
 
     def _draw_unit(self, unit) -> None:
         kind, run = unit
+        if not run:
+            return                          # every member culled
         if kind == "plain":
             draw_plain = self._draw_plain_object
             for o in run:
                 draw_plain(o)
         elif kind == "look":
-            if len(run) >= 2:
+            if len(run) >= 2 or getattr(run, "culled", None):
+                # A planned run of several draws pass-major even when the cull
+                # left one: its emit differs from a solo render (LP1).
                 self._draw_look_pass_run(run)
             else:
                 self._draw_object(run[0])
@@ -2819,19 +2947,28 @@ class ScenaCanvas:
         else:
             self._draw_object(run[0])
 
-    def _batch_units(self, objects) -> Tuple[List[Tuple[str, List]], bool]:
+    def _batch_units(self, objects, drawn=None) -> Tuple[List[Tuple[str, List]], bool]:
         """``_iter_units`` as a list, and whether a look or a filter segment
         repeats (only then can ``_merge_reach`` merge). For tests."""
-        units = list(self._iter_units(objects))
-        looks = [id(getattr(r[0], "visual", None)) for k, r in units if k == "look"]
+        units = list(self._iter_units(objects, drawn))
+        looks = [id(getattr(_run_members(r)[0], "visual", None)) for k, r in units if k == "look"]
         segs = sum(1 for k, _r in units if k == "seg")
         return units, len(set(looks)) < len(looks) or segs > 1
 
-    def _iter_units(self, objects):
+    def _iter_units(self, objects, drawn=None):
         """The draw plan in z order: ``("plain", objs)`` (consecutive plain
         blits), ``("solo", [obj])``, ``("look", run)`` (consecutive peers of
         one interned look), ``("seg", run)`` (consecutive objects with a
-        batchable filter)."""
+        batchable filter). ``drawn`` (the ids of the drawn objects, when
+        ``objects`` holds culled ones too): the culled are planned in place
+        and left out of each run's drawn members (``_Run``)."""
+        if drawn is not None:
+            for kind, run in self._plan_units(objects):
+                yield kind, _without_culled(run, drawn)
+        else:
+            yield from self._plan_units(objects)
+
+    def _plan_units(self, objects):
         i = 0
         n = len(objects)
         group_passes = self.batch_shared_filters

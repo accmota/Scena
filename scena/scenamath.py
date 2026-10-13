@@ -1,7 +1,7 @@
 from typing import Any, Optional, Union, Tuple, overload, List, Dict, Any, Iterator, Set, TypeVar, Generic, Callable
 from .state import (
     Attribute, Container, FieldType, ScalarSlot, ScalarAnchor,
-    batch_update_self, ephemeral_creation, _init_scalar, as_payload,
+    batch_update_self, ephemeral_creation, _init_scalar, as_payload, bump_pose_rev,
 )
 from .closed import _DEPTH, _SEALED, make_closed_setattr, seal_after_init
 import inspect
@@ -687,6 +687,10 @@ class Vec2(Container):
         if old_x != x or old_y != y:
             d['x'] = x
             d['y'] = y
+            if d.get('_owner') is not None:
+                # A part (``rect.vec``) is a pose input: this override skips the
+                # funnel's bump (Container._takein), as Point's did (B1).
+                bump_pose_rev(self)
             self._sync_computed()
             return True
         return False

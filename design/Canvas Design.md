@@ -692,6 +692,55 @@ game through them:
     (`_CULL_CLIP_CELL`): an animated body reuses its box, and its shift,
     until the cell changes.
 
+**The plan keeps culled objects (review 2026-10-12; `_CULL_IN_PLAN`).** A
+culled object still shaped how the rest batched. With it gone, two filter
+segments it separated merged into one mixed segment (which composites
+differently), a culled Blur shape no longer made a segment mixed (so reach
+pulled a DropShadow peer into it), and a look run closed or stayed open.
+The backoff then toggled the cull frame by frame: a still scene flickered
+(up to 239/255). Now a batched layer whose drawn objects include one that can
+batch (not a plain blit) plans with its culled objects in place
+(`_plan_units` over every drawn object). Each run draws only its kept members
+(`_Run.culled` holds the rest), and the culled ones still count for the run's
+signature and reach boxes (`_unit_sig`, `_unit_boxes`), so the units are
+those of the same frame drawn with the cull off.
+- `_merge_reach` keeps culled boxes apart: they lie outside the view, so a
+  drawn box inside the view cannot meet them, and that test is skipped.
+- A look run the cull left with one drawn member still draws pass-major:
+  a run's emit and a solo render differ in edge AA (LP1, up to 49/255).
+- A layer of plain blits only (scenery) skips the plan: strict order, no run
+  to join.
+- Cost: festa draw +0.36 ms (8.0 → 8.4; ~90 shots culled among 360 Neon /
+  Glow shots), work within noise; mundo, horda, ninja and corrida unchanged.
+- Left: a filter segment's saveLayer bounds come from its drawn members, so
+  culling one can move a blur edge by 1–4/255 (fuzz, 20 seeds × 12 scenes).
+
+**Boxes that were short of the paint (review 2026-10-12).** Pre-existing
+with the cull opt-in; a default-on cull draws every game through them:
+- **Extrude** reaches a share of the way to the vanishing point, so how far
+  depends on where the body is: `_cull_outset = inf`. Never culled, and no
+  reach passes it (it painted up to 165 px into the view, and reach drew a
+  Neon peer under its slabs).
+- **Sprite SDF looks** (Halo, Rim, Laser bands) paint one quad, the cell
+  padded by the SDF border (`_draw_sprite_sdf_bands`). `Sprite._draw_aabb`
+  adds that pad, sized from the frame as the mask is, with no bake
+  (`_sdf_quad_pad`; Rim lost a 5 px band at 63/255).
+- **CheapGlow** scales the host about its anchor (`_draw_scaled`), past a
+  constant pad when the anchor is off center or the cell outgrows `width`:
+  `_cull_grow` maps the box through the widest band.
+- **Stale cached boxes:** `shield_scale =` and the Sprite's lazy auto-bake
+  (the tilt pivot reads the hull) now bump the pose revision; a Sprite seated
+  on a stored contact plane (`tilt = contact`) is not shifted, since its feet
+  stay on the plane while the center moves (`_cull_mover`).
+- Left: Shield on a playing clip, ≤3/255 at the oval's fringe.
+
+**Verify mode inside a frame.** The draw loop and the reach boxes fail open
+on an exception, so a verify-mode `AssertionError` (a stale box) used to be
+swallowed: the frame drew correctly and every pixel test passed. Under
+verify mode it now propagates (`_cull_keeps`, the draw loop, `_unit_boxes`).
+
+Tests: `tests/test_cache_gaps.py` (`TestCullBoxes`, `TestCullPlan`).
+
 Measured, cull on vs off (in-process A/B, work ms):
 
 | Game | Off (ms) | On (ms) |

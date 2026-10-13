@@ -209,6 +209,7 @@ class TestSamePixels(unittest.TestCase):
 class _FakeEng:
     batch_shared_filters = True
     _iter_units = CV.ScenaCanvas._iter_units
+    _plan_units = CV.ScenaCanvas._plan_units
 
 
 class TestCanary(unittest.TestCase):

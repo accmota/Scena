@@ -24,6 +24,11 @@ from scena import level_source  # noqa: E402
 from scena.audio_capture import Microphone  # noqa: E402
 from scena.level_source import LEVEL_SOURCES, LevelSource  # noqa: E402
 from system_support import SystemTestCase, system_world, tone  # noqa: E402
+from leftovers import module_sweep  # noqa: E402
+
+# Its tests build Rects and Recorders the world teardown does not reach: a later
+# module counting a layer's objects (test_cull's backoff) saw them.
+setUpModule, tearDownModule = module_sweep()
 
 
 def _block(amp: float, n: int = 800) -> bytes:

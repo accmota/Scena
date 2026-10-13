@@ -2080,6 +2080,10 @@ class Extrude(Recipe):
     _color_role = "A"
     _allows_sprite = True
     _needs_sprite_path = True
+    # The slabs reach a share of the way to the vanishing point: how far
+    # depends on where the body is, with no bound. Never culled, and no batch
+    # draws past it (Canvas Design, "Offscreen culling").
+    _cull_outset = math.inf
 
     def __new__(
         cls,

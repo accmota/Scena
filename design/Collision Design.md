@@ -384,7 +384,10 @@ accepts) swept against another takes the closed-form **swept SAT**
   takes the latest entry and the earliest exit. The entry time is exact, and
   the normal is the face the body enters through.
 - **A start overlap or touch** is the narrow contact, as in conservative
-  advancement. The `t = 0` rule above then applies.
+  advancement. The `t = 0` rule above then applies. A motion that crosses no
+  face (float residue under 1e-15, a rider moving with its platform) with an
+  overlapping start goes to advancement too: SAT has no entry time to give,
+  and it answered "no hit" (review 2026-10-12).
 - **What advances.** Circles, ellipses, capsules, rings that are not convex,
   and multi-prim sets keep GJK advancement (`_toi_advance`). GJK on a set
   sweeps the hull of the union; SAT pair by pair would not, so sets are left
@@ -1087,7 +1090,7 @@ The partner **list** for a ball in a 40-ball pool is the other 39 balls plus wal
 | Unswept bounds | **current** proxy AABB, then the stored boxes (`_resolved_aabb`, must have been clear), then current **prim** AABBs, then the prims themselves. The proxy is only a reject: prims sit inside it, so a disjoint proxy pair cannot pass the prim test. The decision is never made on the proxy or on a rotated body's bounding box alone |
 | Floor snap | no current-overlap cull (snap volume is the search) |
 
-Partner **identities** `(collider, bounce_token)` are cached across frames in `_partner_ident_cache` (and, with the same lifetime, the `only=` map in `_partner_only_cache` — never in the partner tuple; see [One-way pairs](#one-way-pairs-only)). Each `_resolve_partners` call reuses that list and only refreshes `(motion_dx, motion_dy)`. The cache is not cleared every `step()`. It is cleared **only by an event that can change some list** (`_PARTNER_CACHE_SELECTIVE`; False clears it on every enroll and tag change, the old rule): a member joining or leaving a tag that is a side of some `resolve()` pair (`_tag_add` / `_tag_remove` / claimed bodies → `_partner_cache_touched_by_tag`); an enroll or leave while some side expands by identity (`ANYTHING`, an object, a part, a snapshot group: `_invalidate_partner_cache_for_enroll`); and every pair edit (`resolve` / `unresolve`, act pair drops). A leaving collider's own entry is always dropped (`_forget_partner_entry`: a reused `id()` must not inherit it). A bullet whose tags are only in `@collide` pairs enrolls and leaves without touching any list. Before, every such enroll made every body of a mutual pool rebuild its O(n) list next frame (horda, [games.md](../scripts/bench/games.md) D4: resolve −12 %). The step's `ANYTHING` / object expansions (`_resolve_cache`) are cleared on enroll as well as on leave: a list rebuilt from a stale expansion outlives the frame (PF1 in [Testing Design](Testing%20Design.md#pf--performance-campaign-2026-10-12)). Guard: `tests/test_partner_cache.py` (random joins, leaves, retags and pair edits on every side kind; cached lists equal a fresh build, in order).
+Partner **identities** `(collider, bounce_token)` are cached across frames in `_partner_ident_cache` (and, with the same lifetime, the `only=` map in `_partner_only_cache` — never in the partner tuple; see [One-way pairs](#one-way-pairs-only)). Each `_resolve_partners` call reuses that list and only refreshes `(motion_dx, motion_dy)`. The cache is not cleared every `step()`. It is cleared **only by an event that can change some list** (`_PARTNER_CACHE_SELECTIVE`; False clears it on every enroll and tag change, the old rule): a member joining or leaving a tag that is a side of some `resolve()` pair (`_tag_add` / `_tag_remove` / claimed bodies → `_partner_cache_touched_by_tag`), or any tag while a side is a formula group (`group["x"] @= …` reads other groups' tags: a retag moves a body in or out of it with no enroll; the selective rule missed it, review 2026-10-12); an enroll or leave while some side expands by identity (`ANYTHING`, an object, a part, a snapshot group: `_invalidate_partner_cache_for_enroll`); and every pair edit (`resolve` / `unresolve`, act pair drops). A leaving collider's own entry is always dropped (`_forget_partner_entry`: a reused `id()` must not inherit it). A bullet whose tags are only in `@collide` pairs enrolls and leaves without touching any list. Before, every such enroll made every body of a mutual pool rebuild its O(n) list next frame (horda, [games.md](../scripts/bench/games.md) D4: resolve −12 %). The step's `ANYTHING` / object expansions (`_resolve_cache`) are cleared on enroll as well as on leave: a list rebuilt from a stale expansion outlives the frame (PF1 in [Testing Design](Testing%20Design.md#pf--performance-campaign-2026-10-12)). Guard: `tests/test_partner_cache.py` (random joins, leaves, retags and pair edits on every side kind; cached lists equal a fresh build, in order).
 
 `_apply_auto_resolve` builds its movable-body list from declared resolve sides (`_handler_colliders` on each registration), not a scan of every enrolled collider. Static-mass members still seed `grounded_at_start` but are not swept.
 
@@ -1135,12 +1138,17 @@ horda, where every body moves every frame.
 
 The bumps sit in these funnels:
 - `Container._write_field` (both stores; not author ink);
-- `Container._takein` and `Point._takein_impl` (`center =`, `<<`, part writes);
+- `Container._takein`, and the overrides that store without it:
+  `Point._takein_impl` and `Vec2._takein_impl` on a part (`center =`, `<<`,
+  `rect.vec =`, part writes);
 - `_takein_xy_float` (the A1 float moves);
 - the link-pull store (`ScalarAnchor`);
 - `_bump_collision_epoch` (rotation, scale, the Sprite size / frame / offset /
   art-angle / hitbox setters, the main hitbox's setters through its host);
 - the flip stores and `_clone_pose_from`;
+- the Sprite's lazy auto-bake (`_ensure_auto_baked`: the hitbox reference size
+  the key reads, the hull the tilt pivot reads), `tilt =` and `shield_scale =`
+  (draw-box inputs: the cull cache shares the revision);
 - link, anchor and pull-owner changes (`_invalidate_bare_reads`,
   `_ensure_scalar_anchor`, `_drop_scalar_anchor`).
 
@@ -1170,6 +1178,13 @@ test that moves that kind of body.
 - Its first run found three gaps: `Point` overrides `_takein` (center writes
   bypassed the funnel), the nudge rule above, and slot-only `Hitbox` objects
   (the bump forwards to the host).
+- It only sees what a test exercises. The 2026-10-12 review found two more
+  writers no test reached: `Vec2._takein` (a `Rect(p1=, vec=)` resized by
+  `vec =` kept its hull) and the lazy bake (enrolled on a later clip). An
+  override of `_takein` / `_takein_impl` that stores a pose input bumps.
+- Kinds and fast keys are cached on the class (`_pose_rev_kind`,
+  `_sprite_pose_fast_class`): a pose hook patched onto a class after its first
+  key is not seen.
 - `SCENA_VERIFY_POSE_REV=0` measures the real skip.
 
 Measured (in-process A/B, `game_bench.py --ab scena.collision:_POSE_REV_SKIP`):
@@ -1195,12 +1210,22 @@ Python per call (mundo: ~35,000 `_update_proxy` a frame from 21
 - **Moved set.** A revision cell is `[rev, dirty, weakref(root)]`. The first
   bump since the last drain appends it to `state.DIRTY_POSE_CELLS` (one branch
   on the write path). `_drain_pose_cells` turns those into `_stale` colliders,
-  the root's body and its hitbox parts. `step()` drains at its start, so the
-  list is bounded by the roots that moved in a frame.
+  the root's body and its hitbox parts. `step()` drains just before its
+  snapshot, after the prune and the linked hitbox refresh: an exit handler the
+  prune fires and a linked `active` write poses too, and drained at the top
+  their bodies were seen a step late (review 2026-10-12). The list is bounded
+  by the roots that moved in a frame; a program that never steps keeps one
+  cell per moved root.
 - **Fresh proxies.** `_fresh_proxies` refreshes only `_stale`, `_untrusted`
   (bodies whose last refresh found no trusted revision: links, Text, parts,
-  Polygons, an invalid proxy) and compound bodies. Every other registered
-  proxy already matches its pose (the B1 invariant).
+  Polygons, an invalid proxy), `_timed` (a `"clip"` hitbox: time alone can end
+  a clip and rebake it, with no write), `_unbound` and compound bodies. Every
+  other registered proxy already matches its pose (the B1 invariant).
+- **Unbound colliders.** The drain reaches a body through `root._collider`.
+  `Collider([shape])` on a shape already enrolled takes its `_collider` and
+  leaves the implicit collider registered (both answer): that one is in
+  `_unbound`, refreshed by every query and step. Missing it, an `@collide`
+  of the shape's tag never fired after a move (review 2026-10-12).
 - **Scoped to the query.** A query passes its members' ids (the group's,
   cached with its rows, or the resolve pool's). Only those are refreshed;
   other moved bodies stay in `_stale` for the query that reads them, and
@@ -1362,6 +1387,7 @@ walks in `step()` now visit only the colliders whose answer can have changed.
   - `_untrusted` (which now also takes a collider whose nudge was refused,
     so its revisions were cleared);
   - `_timed` (a `"clip"` hitbox source rebakes when time ends a clip);
+  - `_unbound` (registered, no revision cell reaches it);
   - compound bodies.
 
   Visits run in collider order. `live` is every valid proxy. Every other

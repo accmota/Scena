@@ -2364,6 +2364,33 @@ after every operation.
 | --- | --- | --- | --- |
 | PF1 | A body under `resolve(hero, ANYTHING)` fell through a crate spawned in the same frame as an earlier spawn, when a query (`floor_below`) ran between them, and kept ignoring the crate after the frame | `_resolve_cache` (the step's `ANYTHING` / object expansions) was cleared when a collider left (`_swap_remove_collider`) but not when one enrolled. The query between the spawns rebuilt partner lists from the stale expansion, and the partner-identity cache keeps a list across frames (`step()` clears only the expansions) | `tests/test_partner_cache.py`: `TestAnythingSeesNewcomers` (the public repro), `TestCachedEqualsFresh` (random enroll / destroy / tag / untag / `collidable` / pair edits on every side kind; cached lists equal a fresh build, in order). Fix: `register` clears `_resolve_cache` |
 | PF2 | A playing Sprite whose clip cells differ in size (a mixed strip, a trimmed atlas) drew past its cull box: a 91 px cell in a box sized for a 9 px one. The box also ignored the paint tilt and seat. With `cull_offscreen` on, the body could vanish while partly in view, and B5's overlap test could move a draw over it | The box came from `_oriented_frame` (`width` / `height`, set at `play()`), not from the cell the blit draws. Found while making the cull default on | `tests/test_cull_cache.TestSpriteDrawBox` (every painted pixel lies in `Sprite._draw_aabb`; the `play()`-sized box is the canary), `TestPlayingClip`. Fix: `_draw_aabb` maps the cell on show through the paint transform |
+| PF3 | A `Rect(p1=, vec=)` resized by `vec =` / `vec <<` kept its old hull: no `@collide`, no query hit | `Vec2._takein` overrides the funnel that bumps the pose revision (the gap B1 had fixed for `Point`) | `tests/test_cache_gaps.py` `TestPoseWriters`. Fix: `Vec2._takein_impl` bumps on a part |
+| PF4 | A linked hitbox `active` (`hb["active"] @= …`) and a move made by an exit handler the step's prune fires took effect one step late | `step()` drained the moved set before `_prune_dead` and the linked hitbox refresh, which write poses too | `tests/test_cache_gaps.py` `TestStepDrain`. Fix: drain just before the snapshot |
+| PF5 | `floor_below(group=)` missed a `"clip"` hitbox that time had switched (a clip ending with `next=`) | queries refreshed moved and untrusted bodies, not `_timed` ones; a clip switch by time has no write | `tests/test_cache_gaps.py` `TestQueriesSeeEveryBody`. Fix: `_fresh_proxies` refreshes `_timed` |
+| PF6 | After `Collider([shape])` on an enrolled shape, the shape's own collider (still registered) stopped moving: its `@collide` never fired | the moved set reaches a body through `root._collider`, which the explicit Collider took | same class. Fix: `_unbound`, visited by every query and step |
+| PF7 | A formula group as a `resolve()` side (`group["x"] @= lambda: group["a"]`) ignored a body that joined or left it by a tag change | H1's selective drop (A3) dropped lists only for tags that are resolve sides; a formula side reads other tags | `tests/test_cache_gaps.py` `TestPartnerLists`. Fix: any tag event drops the lists while a side is a formula group |
+| PF8 | A still scene flickered (up to 239/255) with the cull on, and a culled object changed how its neighbours batched (mixed segments, reach merges) | the cull removed objects before planning the units; the backoff toggled it frame by frame | `tests/test_cache_gaps.py` `TestCullPlan`. Fix: culled objects stay in the plan, not drawn (`_CULL_IN_PLAN`) |
+| PF9 | Culled while in view: Extrude slabs (up to 165 px), Rim / Halo on Sprites, CheapGlow on a playing clip; stale cached boxes after `shield_scale =`, a lazy bake under tilt, and a move of a contact-seated Sprite | boxes short of the paint (pre-existing, exposed by the default-on cull); writers with no revision bump; a shift where the move is not a translation | `tests/test_cache_gaps.py` `TestCullBoxes`. Fixes in [Canvas Design, "Offscreen culling"](Canvas%20Design.md#offscreen-culling) |
+| PF10 | Verify mode passed scenes with stale cull boxes | the draw loop fails open on any exception, so the verify `AssertionError` was swallowed and the frame drew correctly | `tests/test_cache_gaps.py` `TestCullBoxes.test_verify_mode_raises_inside_a_frame`. Fix: under verify mode an `AssertionError` propagates |
+| PF11 | `untag` of the last member of a group a formula group reads raised `KeyError` after a step | the nested `notify_group_remove` had already dropped the emptied entry | `tests/test_cache_gaps.py` `TestPartnerLists.test_leaving_the_formula_by_an_untag`. Fix: `remove_from_group` pops with a default |
+
+Found by the review of groups A and B (2026-10-12): four adversarial reviewers
+with throw-away old-vs-new differentials ([games.md](../scripts/bench/games.md)).
+Lessons for the class:
+- **A verify mode sees only what a test exercises.** `SCENA_VERIFY_POSE_REV`
+  ran the whole gate green while PF3–PF6 stood: no test wrote `vec`, linked
+  `active`, or switched a clip by time between a step and a query. A skip
+  needs a writer census (every override of a funnel), not only a verify run.
+- **A check inside a fail-open path must escape it** (PF10).
+- **A cache that drops items also drops their effect on the neighbours**
+  (PF8): planning, signatures and overlap tests read the dropped item too.
+- **A test that counts a layer must not assume it empty.** The deep tier's
+  serial pass ran `test_cull.TestBackoff` after `test_audio_level_source`,
+  which left 19 Rects and Recorders on the default layer: one off-screen
+  body fell under the backoff's 1/16 and the test failed only there. The
+  module now sweeps (`module_sweep`), and the test hides what it did not
+  make. A pixel test compares two draws of one frame, not a frame with an
+  earlier one (an earlier module may leave a sky that moves).
 
 **A tolerance can be a hidden tie-break.** Swapping an approximate algorithm
 for an exact one (GJK advancement, which stops 1e-3 short, for the closed-form

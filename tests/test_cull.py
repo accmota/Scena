@@ -282,6 +282,16 @@ class TestBackoff(CullTestCase):
         self.addCleanup(on.stop)
         _default_layer().__dict__.pop("_cull_wait", None)
         _default_layer().__dict__.pop("_cull_backoff", None)
+        # The ratio counts the layer: an earlier module's leftovers (the
+        # serial pass allows a few) would dilute one off-screen body under
+        # 1/16. Hidden while these tests run.
+        for o in list(_default_layer()._objects):
+            if getattr(o, "visible", False) is True:
+                try:
+                    o.visible = False
+                except Exception:
+                    continue
+                self.addCleanup(setattr, o, "visible", True)
 
     def _frames_tested(self, eng, n):
         """Which of ``n`` draws ran the per-object test (counted by _cull_box)."""

@@ -2560,7 +2560,9 @@ def _toi_sat(pa: Prim, pb: Prim, dx: float, dy: float):
             if t_enter > t_exit or t_exit < 0.0 or t_enter > 1.0:
                 return None
     if t_enter == -math.inf:
-        return None                       # no motion across any face
+        # No motion across any face and overlapping on every axis: a start
+        # overlap under float-residue motion. Advancement answers it (0, contact).
+        return _TOI_UNRESOLVED
     if t_enter * length <= 1e-6:
         # Touching or overlapping at the start: the narrow phase decides, as
         # in conservative advancement (its depth and points, its normal).
@@ -4545,12 +4547,23 @@ class Collider:
         # reuse this instance instead of creating a second one. Queries pass
         # _bind=False so a probe does not become an ANYTHING partner.
         if _bind:
+            bound = shapes[0] if identity is None and len(shapes) == 1 else identity
+            prev = getattr(bound, "_collider", None) if bound is not None else None
+            if prev is not None and prev is not self:
+                sysm = prev._system
+                if id(prev) in sysm._collider_index:
+                    sysm._unbound.add(prev)     # still registered, now unreachable
             if identity is None and len(shapes) == 1:
                 shapes[0]._collider = self
                 shapes[0]._collidable = True
             elif identity is not None:
                 identity._collider = self
                 identity._collidable = True
+        if type(self) is not Collider:
+            # A subclass may define ``on_collide`` & co. as methods (they
+            # override the properties): they count as set callbacks, with
+            # ANYTHING interest, as an assignment would.
+            self._sync_anything_interest()
 
     __init__.__signature__ = inspect.Signature([
         inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD),
@@ -4813,6 +4826,10 @@ class CollisionSystem:
         # (``_snap_hot``) and those a clock can rebake (``_timed``).
         self._snap_hot: Set["Collider"] = set()
         self._timed: Set["Collider"] = set()
+        # Registered colliders no revision cell reaches: a shape's implicit
+        # collider after ``Collider([shape])`` took its ``_collider`` (the
+        # drain maps a moved root to ``root._collider`` only). Visited always.
+        self._unbound: Set["Collider"] = set()
         # id(body) → (ident list, struct version, mirror rows, member ids).
         self._partner_rows_cache: Dict[int, Tuple[Any, int, Any, Set[int]]] = {}
         # Same lifetime: ca_id → {partner_id: (spec, flip)} for ``only=``
@@ -4925,6 +4942,11 @@ class CollisionSystem:
         for a, b, _tok, _only in self._resolve_pairs:
             if pair_tag_of(a) == tag or pair_tag_of(b) == tag:
                 return True
+            # A formula group (``group["x"] @= …``) reads other groups' tags:
+            # a retag can move a body in or out of it with no enroll.
+            if (getattr(a, "_formula_name", None) is not None
+                    or getattr(b, "_formula_name", None) is not None):
+                return True
         return False
 
     def _invalidate_partner_cache_for_enroll(self) -> None:
@@ -4957,6 +4979,9 @@ class CollisionSystem:
         self._row_dirty.discard(c)
         self._snap_hot.discard(c)
         self._timed.discard(c)
+        self._unbound.discard(c)
+        if self._group_rows_cache:
+            self._group_rows_cache.clear()  # its candidate lists may hold c
         self._touching_live.pop(id(c), None)
 
     def _swap_remove_collider(self, collider: Collider) -> None:
@@ -6301,10 +6326,6 @@ class CollisionSystem:
 
     def step(self) -> None:
         t_total0 = time.perf_counter()
-        # Every proxy is refreshed below; what moved before now is consumed.
-        self._drain_pose_cells()
-        stale = self._stale
-        self._stale = set()
         self._prune_dead()
         # Linked hitbox ``active`` (``hb["active"] @= fn``): evaluated here, after
         # update / on_update / play(), so collision sees this frame's value.
@@ -6328,6 +6349,13 @@ class CollisionSystem:
         # ``_fast_k2`` lets ``_commit_pending_motion`` list this step's fast
         # colliders (swept detection); a commit outside this loop never does.
         t0 = time.perf_counter()
+        # Every proxy is refreshed below; what moved before now is consumed.
+        # Drained here, not at the top: the prune's exit handlers and the
+        # linked hitbox refresh above write poses too (their bumps belong to
+        # this snapshot, not the next one).
+        self._drain_pose_cells()
+        stale = self._stale
+        self._stale = set()
         live: List[Collider] = []
         fast = self._fast_colliders
         fast.clear()
@@ -6843,8 +6871,10 @@ class CollisionSystem:
             yield partners.item(i)
             if (p[0], p[1], p[2], p[3]) != box or not ca._proxy_valid:
                 if not ca._proxy_valid:
-                    for j in range(i + 1, len(partners)):
-                        yield partners.item(j)
+                    own = partners.owner      # a shared list holds the body too
+                    for j in range(i + 1, len(partners.ident)):
+                        if j != own:
+                            yield partners.item(j)
                     return
                 box = (p[0], p[1], p[2], p[3])
                 cands = [j for j in partners.near_box(*box) if j > i]
@@ -8029,6 +8059,7 @@ class CollisionSystem:
         visit |= self._snap_hot
         visit |= self._untrusted
         visit |= self._timed
+        visit |= self._unbound
         visit.update(self._multi_bodies.values())
         self._snap_hot = set()                  # commits below refill it
         order = sorted((c for c in visit if id(c) in idx), key=lambda c: idx[id(c)])
@@ -8075,7 +8106,9 @@ class CollisionSystem:
     def _fresh_proxies(self, members: Optional[Set[int]] = None) -> None:
         """Between steps: make registered proxies match their pose, touching
         only what moved (``_stale``), what can change with no write
-        (``_untrusted``) and compound bodies.
+        (``_untrusted``, and ``_timed``: a "clip" hitbox rebakes when time
+        switches the clip), what no revision cell reaches (``_unbound``) and
+        compound bodies.
 
         ``members`` (collider ids): only those, for a query that reads no
         other row; the other moved colliders stay in ``_stale`` for the next
@@ -8095,14 +8128,16 @@ class CollisionSystem:
                     if id(c) in idx:
                         self._update_proxy(c, commit_motion=False)
                 self._stale.difference_update(done)
-        if self._untrusted:
-            for c in list(self._untrusted):
+        for always in (self._untrusted, self._timed, self._unbound):
+            if not always:
+                continue
+            for c in list(always):
                 if members is not None and id(c) not in members:
                     continue
                 if id(c) in idx:
                     self._update_proxy(c, commit_motion=False)
                 else:
-                    self._untrusted.discard(c)
+                    always.discard(c)
         for c in list(self._multi_bodies.values()):
             if members is None or id(c) in members:
                 self._update_proxy(c, commit_motion=False)

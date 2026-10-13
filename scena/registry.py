@@ -1329,8 +1329,10 @@ class Registry:
                     notify_group_remove(obj, groupid)
                 except Exception:
                     pass
-            if not self.group_map[groupid]:
-                del self.group_map[groupid]
+            # The notify above can reach a formula group's refresh, which may
+            # already have dropped the emptied entry (untag of a last member).
+            if not self.group_map.get(groupid):
+                self.group_map.pop(groupid, None)
 
     def clear_group(self, groupid: str) -> None:
         """Remove group membership from all members (shapes stay on canvas)."""

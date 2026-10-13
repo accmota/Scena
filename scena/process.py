@@ -259,7 +259,11 @@ _CALL_NONE, _CALL_DT, _CALL_OWNER, _CALL_OWNER_DT = 0, 1, 2, 3
 
 
 def _update_call_form(callback: Callable) -> int:
-    """The payload ``_invoke_update`` would pass ``callback`` (it never changes)."""
+    """The payload ``_invoke_update`` would pass ``callback``, cached with
+    the entry: a function's signature is taken as fixed once registered (a
+    reassigned ``__code__`` / ``__defaults__``, or a slotted callable whose
+    class ``__call__`` is swapped, keeps the old form; ``payload_arity``
+    caches the same way)."""
     n = _argcount(callback)
     if n is not None and n <= 0:
         return _CALL_NONE

@@ -108,6 +108,17 @@ left out.
   changes on screen, except where two shapes with the same look overlap
   each other: they already relaxed z among themselves when they were
   neighbours.
+- `canvas.cull_offscreen` no longer hides a body that is still partly in
+  view: an `Extrude` look (its depth reaches toward the vanishing point, so it
+  is never culled now), `Rim` / `Halo` on a Sprite, and `CheapGlow` on an
+  animated Sprite drew past the box the off-screen test used. Nothing that
+  is drawn changes either: with the cull on, every shape batches with its
+  neighbours as with it off.
+- `untag()` no longer raises `KeyError` when it removes the last member of a
+  group that a formula group (`group["x"] @= …`) reads.
+- A `Collider` subclass that defines `on_collide` (or `on_collide_stay`,
+  `on_collide_exit`) as a method now gets those calls, as if it had assigned
+  them. Before, the method was ignored.
 
 ## 0.8.0 — 2026-10-11
 

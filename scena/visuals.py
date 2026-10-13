@@ -999,6 +999,17 @@ class CheapGlow(CompiledVisual):
     def _cull_outset(self) -> float:
         return float(self._pad) + 2.0
 
+    def _cull_grow(self, shape, box):
+        """``box`` under the largest fill band: the host scaled about its
+        anchor (``_draw_scaled``), which reaches past a constant pad when the
+        anchor is off center or the drawn cell outgrows ``width`` / ``height``."""
+        if scena_kind(shape) == "Text" or _host_uses_stroke_filter(shape):
+            return box
+        k = 1.0 + float(self._pad) / self._host_radius(shape) * max(f for f, _a in self._FILL_BANDS)
+        ax, ay = _aura_anchor(shape)
+        return (min(box[0], ax + k * (box[0] - ax)), min(box[1], ay + k * (box[1] - ay)),
+                max(box[2], ax + k * (box[2] - ax)), max(box[3], ay + k * (box[3] - ay)))
+
     def _add_paint(self):
         import skia
 

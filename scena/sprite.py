@@ -190,6 +190,21 @@ _SPRITE_SHIELD_SCALE = 1.4
 AUTO_GROUND = "ground"
 
 
+def _sdf_quad_pad(fr, dw: float, dh: float) -> Tuple[float, float]:
+    """``(pad_x, pad_y)`` of the SDF band quad around a ``dw`` x ``dh`` cell
+    drawn from frame ``fr``, sized as ``atlas.frame_fx_for_frame`` sizes the
+    mask (no bake): the SDF border over the mask side, in draw units."""
+    from .atlas import _FX_MAX_SIDE, _FX_SDF_PAD
+    w = max(1, int(fr.w))
+    h = max(1, int(fr.h))
+    scale = min(1.0, float(_FX_MAX_SIDE) / float(max(w, h)))
+    tw = max(1, int(round(w * scale)))
+    th = max(1, int(round(h * scale)))
+    if fr.rotated:                          # the mask is turned to the display
+        tw, th = th, tw
+    return abs(dw) * _FX_SDF_PAD / tw, abs(dh) * _FX_SDF_PAD / th
+
+
 def _uses_shield_envelope(shape) -> bool:
     """True when the host has a Shield costume envelope (Sprite-only).
 
@@ -3228,6 +3243,16 @@ class _HitboxBakeMixin:
                 indices = (int(self._construct_frame),)
         if not indices:
             indices = (self._construct_hitbox_index(),)
+        try:
+            self._bake_hitbox(spec, indices)
+        finally:
+            # A bake sets the hitbox reference size the pose key reads and the
+            # prims the tilt pivot reads (the draw box): a pose input changed
+            # with no other write (Collision Design, "Pose revision").
+            bump_pose_rev(self)
+
+    def _bake_hitbox(self, spec, indices) -> None:
+        """``_ensure_auto_baked``'s bake of ``indices`` (the frames it reads)."""
         self._hitbox_frame = int(indices[0])
         self._clear_auto_hitbox()
         sheet = self._sheet
@@ -4088,6 +4113,9 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
     @shield_scale.setter
     def shield_scale(self, value) -> None:
         self._shield_scale = _parse_shield_scale(value)
+        # The shield oval is a draw-box input (the cull keys its box on the
+        # pose revision; Canvas Design, "Offscreen culling").
+        bump_pose_rev(self)
 
     def _set_hitbox(self, value, what: str = "shape") -> None:
         # Omitted hitbox: atlas JSON/XML boxes if present, else default auto.
@@ -5163,6 +5191,12 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
             ra = math.radians(draw_ang)
             ca, sa = math.cos(ra), math.sin(ra)
         l, t, r, b = float(dst.left()), float(dst.top()), float(dst.right()), float(dst.bottom())
+        vis = probe_private(self, "_visual", None)
+        if vis is not None and getattr(vis, "_needs_sprite_sdf", False):
+            # SDF bands paint one quad, the cell padded by the SDF border
+            # (``_draw_sprite_sdf_bands``): its size follows the cell, no bake.
+            px_l, px_t = _sdf_quad_pad(_fr, r - l, b - t)
+            l, t, r, b = l - px_l, t - px_t, r + px_l, b + px_t
         xs = []
         ys = []
         for x, y in ((l, t), (r, t), (r, b), (l, b)):
