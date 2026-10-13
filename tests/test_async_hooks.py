@@ -384,7 +384,7 @@ NOT_A_CALLBACK = {
         "Graphic.resolve_now(target)", "collide_with(target)",
         "collide_with_exit(target)", "collide_with_stay(target)")},
     **{k: "a number or point" for k in (
-        "chase(target)", "deadzone(target)", "heading(target)",
+        "chase(target)", "approach(target)", "deadzone(target)", "heading(target)",
         "Endless.index_at(where)")},
     "Canvas.set_origin(where)": "a placement word (\"corner\" / \"center\")",
     "Entity.tween(target)": "the field or cell to tween",

@@ -1,4 +1,4 @@
-"""Easing catalog, ``remap``, ``lerp``, ``chase``, and ``deadzone``.
+"""Easing catalog, ``remap``, ``lerp``, ``chase``, ``approach``, and ``deadzone``.
 
 Author tween/pose ``ease=`` is a ``Literal`` name or a callable ``[0,1] → float``.
 ``spring`` / ``wobble`` settle at 0.5 — they stay on ``MappingFunctions`` for
@@ -6,10 +6,11 @@ Author tween/pose ``ease=`` is a ``Literal`` name or a callable ``[0,1] → floa
 
 ``lerp`` is the shared on-demand interpolator (scalars, flat tuples/lists,
 ``Vec2``, ``Color``, pose ``Point`` → ``(x, y)``). ``tween`` uses it for
-Attribute / FieldRef targets. ``chase`` / ``deadzone`` are stateless math
-helpers in the same family as ``Graphic.confine`` — call them yourself;
-they do not register, do not run later in the frame, and are not camera-only.
-Omitted ``chase(..., dt)`` uses this frame's world ``clock.dt``.
+Attribute / FieldRef targets. ``chase`` / ``approach`` / ``deadzone`` are
+stateless math helpers in the same family as ``Graphic.confine`` — call them
+yourself; they do not register, do not run later in the frame, and are not
+camera-only. Omitted ``chase(..., dt)`` / ``approach(..., dt)`` use this
+frame's world ``clock.dt``.
 """
 
 from __future__ import annotations
@@ -380,6 +381,75 @@ def chase(current, target, rate: float, dt: Optional[float] = None):
     if dt_f == 0.0 or rate_f == 0.0:
         return current
     return lerp(current, target, 1.0 - math.exp(-rate_f * dt_f))
+
+
+def approach(current, target, speed: float, dt: Optional[float] = None):
+    """Step ``current`` toward ``target`` at a constant ``speed``; land on it exactly.
+
+    The sibling of ``chase``: ``chase`` brakes near the target and never quite
+    lands; ``approach`` moves ``speed * dt`` per call and, once the target is
+    that close, returns the target itself (never overshoots, never jitters).
+    Called every frame with a live target, it pursues at a fixed speed.
+
+    Numbers step along the line. Points (Point, ``Vec2``, ``(x, y)``, mouse, a
+    cell, an object with ``.center``) step in a **straight line** — one call
+    for the whole point, never one per axis (a per-axis step runs the diagonal
+    √2 faster and lands one axis first). A number returns a ``float``; a
+    ``Vec2`` returns a ``Vec2``; any other point returns a plain ``(x, y)``.
+
+    ``speed`` is in units per second. Omitted ``dt`` uses this frame's world
+    ``clock.dt``; pass ``dt=`` for an entity ``time_scale`` step. ``speed < 0``
+    raises (a speed is a magnitude). ``speed == 0`` or ``dt == 0`` returns
+    ``current``. ``dt < 0`` raises. A ``Color`` raises (a colour has no
+    distance unit — ease it with ``chase`` or a tween). Angles do not wrap:
+    350 → 10 goes the long way round.
+    """
+    from .validate import number, fixed_magnitude
+    from .state import as_payload
+    if dt is None:
+        dt = _world_dt()
+    speed_f = fixed_magnitude(speed, "approach speed")
+    dt_f = number(dt, "approach dt")
+    if dt_f < 0.0:
+        raise ValueError(f"approach dt must be >= 0, got {dt_f}")
+    if dt_f == 0.0 or speed_f == 0.0:
+        return current
+    step = speed_f * dt_f
+
+    a = as_payload(current)
+    b = as_payload(target)
+    if _is_number(a) or _is_number(b):
+        if not (_is_number(a) and _is_number(b)):
+            raise TypeError(
+                f"approach: {type(a).__name__} vs {type(b).__name__} — both "
+                "sides must match (two numbers, or two points)"
+            )
+        a_f = number(a, "approach current")
+        b_f = number(b, "approach target")
+        gap = b_f - a_f
+        if abs(gap) <= step:
+            return b_f
+        return a_f + math.copysign(step, gap)
+
+    from .color import Color
+    if isinstance(a, Color) or isinstance(b, Color):
+        raise TypeError(
+            "approach does not move a Color (a colour has no distance unit); "
+            "ease it with chase(color, target, rate) or a tween"
+        )
+    from .scenamath import Vec2, _as_xy
+    cx, cy = _as_xy(a)
+    tx, ty = _as_xy(b)
+    dx, dy = tx - cx, ty - cy
+    dist = math.hypot(dx, dy)
+    if dist <= step:
+        nx, ny = tx, ty
+    else:
+        k = step / dist
+        nx, ny = cx + dx * k, cy + dy * k
+    if isinstance(a, Vec2):
+        return Vec2.temp(nx, ny)
+    return (nx, ny)
 
 
 def deadzone(current, target, size):

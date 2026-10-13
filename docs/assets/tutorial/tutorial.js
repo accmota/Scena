@@ -16,7 +16,7 @@ const API = new Set([
   "Text", "group", "every", "collide", "destroy", "flash", "pop", "after", "untag",
   "ANYTHING", "intersection", "intersections", "middle_point",
   "show_handles", "no_handles", "set_color",
-  "Slider", "Button", "CheckBox", "DropDown", "ui", "chase",
+  "Slider", "Button", "CheckBox", "DropDown", "ui", "chase", "approach",
   "Plasma", "Grain", "MotionTrail", "Color",
   "Sheet", "SkyGradient", "Stars", "Vignette", "Bloom", "Crt", "Scanlines",
   "confine", "ready", "scale_to", "rotate_to", "burst_at", "explosion_at", "inset",

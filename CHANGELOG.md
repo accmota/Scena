@@ -23,6 +23,13 @@ left out.
   Before, it raised and you wrote `move_by(angle=x.angle, distance=d)`.
   `face=True` in this form raises with the fix (the direction already is the
   heading; on a back-up it would flip the object every call).
+- `approach(current, target, speed)`: the sibling of `chase` that moves at a
+  constant speed (units per second) and lands exactly on the target, never
+  past it. Called in `update`, it pursues a moving target at a fixed speed:
+  `inimigo.move_to(approach(inimigo.center, jogador.center, 120))` replaces the
+  hand-written distance / normalize / clamp. Points step in a straight line
+  (pass the whole point, not x and y apart); numbers work too
+  (`bar.width = approach(bar.width, hp * 2, 80)`).
 - `speed=` on the timed verbs that cover a distance: `move_to`, `move_by`,
   `move_along`, `rotate_to`, `rotate_by`, `reset_rotation`, and the camera's
   `pan_to` / `pan_by`. Give the speed instead of the duration (units per

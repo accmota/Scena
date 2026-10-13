@@ -220,6 +220,8 @@ Geometry properties living in unit modules (Hypothesis, same profiles):
   test_canvas.TestScreenWorldRoundTripProperty world -> screen -> world, pan point,
                                                game_view = window corners
   test_easing.TestChaseProperties             chase is frame-rate independent
+  test_easing.TestApproachProperties          approach: straight line, constant
+                                               speed, lands exactly
 
 Shared infrastructure: tests/hypothesis_support.py (profiles, strategies,
 WorldTracker reset, assert_author_error). Every module that uses @given or a

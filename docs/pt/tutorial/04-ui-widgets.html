@@ -43,7 +43,14 @@ def update(dt):
 
 
 run()
-`
+`,
+      try: [
+        {
+          note: "No lugar das três linhas do <code>update</code>. <code>approach</code> (aproximar) anda até o alvo sempre na mesma velocidade, aqui 300 por segundo, e chega exato: a bola não freia. Ela recebe o ponto inteiro, não o x e o y separados.",
+          replaces: ['x = chase(', 'y = chase(', 'ponta.move_to('],
+          code: `ponta.move_to(approach(ponta.center, mouse, 300))`
+        }
+      ]
     },
     {
       title: "A cadeia",

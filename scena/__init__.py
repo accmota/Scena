@@ -17,7 +17,7 @@ from .state import (
     State, remap, lerp, MappingFunctions, Attribute, Container, FieldRef,
     LinkedAttributeError, DerivedAttributeError, CallableAssignError, DestroyedError,
 )
-from .easing import chase, deadzone
+from .easing import approach, chase, deadzone
 from .process import (
     after, every, tween, Handle, ReadyManager, RememberedManager, Cancelled,
     wait, until, until_empty, parallel, race, set_watchdog,
@@ -135,7 +135,7 @@ FRAMEWORK_EXPORTS = [
 ]
 
 STATE_EXPORTS = [
-    "State", "remap", "lerp", "chase", "deadzone", "Attribute",
+    "State", "remap", "lerp", "chase", "approach", "deadzone", "Attribute",
     "LinkedAttributeError", "DerivedAttributeError", "CallableAssignError", "DestroyedError",
 ]
 

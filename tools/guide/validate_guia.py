@@ -262,6 +262,8 @@ CORE_SYMBOLS = [
      "anchor": "util-chance", "oneLiner": "Sim/não. 0 a 1."},
     {"name": "chase", "kind": "function", "chapter": "util", "section": "util-chase",
      "anchor": "util-chase", "oneLiner": "Persegue o alvo com atraso exponencial."},
+    {"name": "approach", "kind": "function", "chapter": "util", "section": "util-approach",
+     "anchor": "util-approach", "oneLiner": "Anda até o alvo a velocidade constante e chega exato."},
     {"name": "deadzone", "kind": "function", "chapter": "util", "section": "util-deadzone",
      "anchor": "util-deadzone", "oneLiner": "Folga: só empurra o alvo fora da caixa."},
     {"name": "lerp", "kind": "function", "chapter": "util", "section": "util-lerp",

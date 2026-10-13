@@ -56,7 +56,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 - Sprite / Sheet / hitbox / clone / mass path → [Sprite Design.md](Sprite%20Design.md)
 - Collision engine → [Collision Design.md](Collision%20Design.md)
 - Measuring `group[...].box` → [Box Design.md](Box%20Design.md#bridge)
-- Follow math (`chase` / `deadzone`) → [Canvas Design.md](Canvas%20Design.md#follow-math-chase--deadzone)
+- Follow math (`chase` / `approach` / `deadzone`) → [Canvas Design.md](Canvas%20Design.md#follow-math-chase--deadzone)
 - Author catalogs → [Guia da API](../docs/pt/guide/index.html#agendar) (process), [Guia da API](../docs/pt/guide/index.html#desenhar-entity) (Entity)
 
 

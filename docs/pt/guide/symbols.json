@@ -8260,6 +8260,20 @@
       "params": []
     },
     {
+      "name": "approach",
+      "kind": "function",
+      "chapter": "util",
+      "section": "util-approach",
+      "anchor": "util-approach",
+      "oneLiner": "Anda até o alvo a velocidade constante e chega exato.",
+      "public": true,
+      "chapterTitle": "Utilitários",
+      "sectionTitle": "util-approach",
+      "search": "approach",
+      "catalog": false,
+      "params": []
+    },
+    {
       "name": "deadzone",
       "kind": "function",
       "chapter": "util",

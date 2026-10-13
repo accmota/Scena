@@ -329,7 +329,7 @@ A pose verb with no target at all (`move_to(None)`, `move_to()`, `move_by(None)`
 
 If the direction is in the name (`inset`, `outset`, `beside(side=)`, `strip(side=)`), the number is a magnitude. If it is not (`move_by`, `rotate_by`, `dist`, camera or playfield `pad`), the number is a signed delta.
 
-`flip_x` / `flip_y` on every Graphic mirror about `center` — except Text, which cannot be mirrored (`True` raises `TypeError` with a hint to turn it instead; `False` is a no-op). `Rect(p1=, p2=)` and `Rect(p1=, vec=)` keep `p1` / `p2` / `vec` where you put them (a value or a lambda — the constructor does not rewrite a stored input). A rect (or Box) names its corners the first time one is used, as they look then; from then on each name (`bottom_left`, `top_center`, …) stays with its point through drags, links, rotations and flips ([Shapes Design — Named points](Shapes%20Design.md#named-points)). Amounts in `[0, 1]` (alpha, `Track.begin` / `end`) are clamped; that is the only silent change of a value you write. A colour name is read the same with or without spaces, case or hyphens, and so are its `dark` / `light` / `faded` prefixes (`"lightcyan"` is `"light cyan"`, as `"deepskyblue"` is `"deep sky blue"`; a table name wins over peeling a prefix); a near typo resolves to the closest name with a warning whose suggestion keeps the prefix (`"lightcyna"` → `light cyan`). An unknown colour name, and a malformed hex string (`"#"`, `"#000:00"`), warns and falls back to magenta (including FX and look constructors) — the result is visibly wrong, and the warning is the signal. `chase` rate is a magnitude (`rate < 0` raises); `rate == 0` and `dt == 0` stay still; `dt < 0` raises.
+`flip_x` / `flip_y` on every Graphic mirror about `center` — except Text, which cannot be mirrored (`True` raises `TypeError` with a hint to turn it instead; `False` is a no-op). `Rect(p1=, p2=)` and `Rect(p1=, vec=)` keep `p1` / `p2` / `vec` where you put them (a value or a lambda — the constructor does not rewrite a stored input). A rect (or Box) names its corners the first time one is used, as they look then; from then on each name (`bottom_left`, `top_center`, …) stays with its point through drags, links, rotations and flips ([Shapes Design — Named points](Shapes%20Design.md#named-points)). Amounts in `[0, 1]` (alpha, `Track.begin` / `end`) are clamped; that is the only silent change of a value you write. A colour name is read the same with or without spaces, case or hyphens, and so are its `dark` / `light` / `faded` prefixes (`"lightcyan"` is `"light cyan"`, as `"deepskyblue"` is `"deep sky blue"`; a table name wins over peeling a prefix); a near typo resolves to the closest name with a warning whose suggestion keeps the prefix (`"lightcyna"` → `light cyan`). An unknown colour name, and a malformed hex string (`"#"`, `"#000:00"`), warns and falls back to magenta (including FX and look constructors) — the result is visibly wrong, and the warning is the signal. `chase` rate and `approach` speed are magnitudes (`< 0` raises); a zero rate / speed and `dt == 0` stay still; `dt < 0` raises.
 
 ## Public means author-facing
 
@@ -642,7 +642,7 @@ in that file. Locating code: [Appendix: module map](#appendix-module-map).
 | [Act Design.md](Act%20Design.md) | `Act` / `change_act` / `run(Titulo)`: what an act change removes / restores / keeps; the world-settings table; where the top level ends |
 | [Sprite Design.md](Sprite%20Design.md) | Sheet, play, clone, auto hitbox, mass path |
 | [Collision Design.md](Collision%20Design.md) | Shared collision pipeline |
-| [Canvas Design.md](Canvas%20Design.md) | Canvas, camera, `chase` / `deadzone`, layers, cull, backgrounds |
+| [Canvas Design.md](Canvas%20Design.md) | Canvas, camera, `chase` / `approach` / `deadzone`, layers, cull, backgrounds |
 | [Effect System Design.md](Effect%20System%20Design.md) | Looks, transients, SpatialFx, post, quality; **§5.5** before changing filters / draw bounds |
 | [Effect Handles.md](Effect%20Handles.md) | Post / background mutate-hide-remove |
 | [Sound Design.md](Sound%20Design.md) | `play_sound`, mixer, mic, audio FX |
@@ -676,8 +676,8 @@ Do not read this appendix as a license to open the whole cluster.
 | Frame pacing / VSync / world `dt` from the display | `pacing.py` | `_display_link.py` (macOS), `orchestration.py` (`_run_loop`, `set_glfw_fps`), `fx_auto.py` (ladder) | [Frame pacing and GC](#frame-pacing-and-gc) |
 | GC freeze after build | `gc_policy.py` | `orchestration.py` (`_begin_game`, `_cleanup`), `act.py` (`change`) | [Frame pacing and GC](#frame-pacing-and-gc) |
 | `Act` / `change_act` / `run(Titulo)` | `act.py` | `orchestration.py` (`_begin_game`), `registry.py` | [Act Design.md](Act%20Design.md) |
-| Camera, layers, cull, draw walk | `canvas.py` | `registry.py`, `easing.py` (`chase` / `deadzone`) | [Canvas Design.md](Canvas%20Design.md) |
-| `chase` / `deadzone` | `easing.py` | `scenamath.py` (`_as_xy`) | [Canvas Design.md](Canvas%20Design.md#follow-math-chase--deadzone) |
+| Camera, layers, cull, draw walk | `canvas.py` | `registry.py`, `easing.py` (`chase` / `approach` / `deadzone`) | [Canvas Design.md](Canvas%20Design.md) |
+| `chase` / `approach` / `deadzone` | `easing.py` | `scenamath.py` (`_as_xy`) | [Canvas Design.md](Canvas%20Design.md#follow-math-chase--deadzone) |
 | Parallax layer CTM | `camera_response.py` | `registry.py`, `canvas.py` | [Canvas Design.md](Canvas%20Design.md) |
 | Wallpaper / background fields | `background_kinds.py` | `background.py` | [Canvas Design.md](Canvas%20Design.md), [Effect System Design.md](Effect%20System%20Design.md) |
 | Cover fade/wipe | `cover.py` | `orchestration.py` (draw slot) | [Effect System Design.md](Effect%20System%20Design.md) |
@@ -698,7 +698,7 @@ Do not read this appendix as a license to open the whole cluster.
 | `SpriteButton` | `sprite_button.py` | `orchestration.py` (press), `canvas.py` (solo draw) | [Sprite Design.md](Sprite%20Design.md#spritebutton) |
 | `@=` / Attribute / pull graph | `state.py` | — | [Reactive Design.md](Reactive%20Design.md) |
 | `@=` formula source reading (cache, named functions, refusals) | `formula_check.py` | `state.py` (`FormulaLink._extract_sources`) | [Reactive Design.md](Reactive%20Design.md#formula-visibility-named-functions-helpers-refusals) |
-| `after` / `every` / tween / modes / `ready` / `recently` | `process.py` | `easing.py` (`ease=`, `remap`, `lerp`, `chase`, `deadzone`) | [Actors Design.md](Actors%20Design.md) |
+| `after` / `every` / tween / modes / `ready` / `recently` | `process.py` | `easing.py` (`ease=`, `remap`, `lerp`, `chase`, `approach`, `deadzone`) | [Actors Design.md](Actors%20Design.md) |
 | `play_sound` / `Sound` / `audio` | `audio.py` | `audio_mixer.py` | [Sound Design.md](Sound%20Design.md) |
 | Microphone | `audio_capture.py` | `audio.py` | [Sound Design.md](Sound%20Design.md) |
 | `@= lambda: mic.level` / `audio.level` / `h.level` | `level_source.py` | `state.py` (`_formula_source_of`), `orchestration.py` (frame step 1) | [Sound Design.md — Levels as formula sources](Sound%20Design.md#levels-as-formula-sources) |
@@ -738,7 +738,7 @@ Do not read this appendix as a license to open the whole cluster.
 | Registry / `group` | `registry.py` | draw/camera (`canvas.py`) or the loop (`orchestration.py`) |
 | `group("name")` | migration `TypeError` | `group["name"]` |
 | `group["name"] @=` | `GroupOperator` (`registry.py`) | Attribute / `FieldRef` (`state.py`) |
-| `canvas.follow` | does not exist | `chase` / `deadzone` + `pan_to` (`easing.py`) |
+| `canvas.follow` | does not exist | `chase` / `approach` / `deadzone` + `pan_to` (`easing.py`) |
 | Background **kind** | `background_kinds.py` | stack/attachment (`background.py`) |
 | SpatialFx **kind** | `spatial_fx_effects.py` | host/registration (`spatial_fx.py`) |
 | Post **kind** | `effects.py` | stack (`postfx.py`) |

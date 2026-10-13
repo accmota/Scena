@@ -13,7 +13,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 | --- | --- |
 | Design space / HUD / `ui` | [Run loop and design space](#run-loop-and-design-space) |
 | Camera (timed) / `frame_to(None)` | [Timed camera](#timed-camera) |
-| Follow sugar (`chase` / `deadzone`) | [Follow math](#follow-math-chase--deadzone) |
+| Follow sugar (`chase` / `approach` / `deadzone`) | [Follow math](#follow-math-chase--deadzone) |
 | Offscreen cull | [Offscreen culling](#offscreen-culling) |
 | Leave bounds | [Playfield leave bounds](#playfield-leave-bounds) |
 | Measuring Box / views | [Box Design.md](Box%20Design.md) |
@@ -36,7 +36,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 | --- | --- | --- |
 | `run()` / window / frame order | `orchestration.py` | [Scena Design.md — Datapath](Scena%20Design.md#datapath) |
 | Camera, layers, cull, draw walk | `canvas.py` | `registry.py` |
-| `chase` / `deadzone` (follow math) | `easing.py` | `scenamath.py` (`_as_xy`), `canvas.py` |
+| `chase` / `approach` / `deadzone` (follow math) | `easing.py` | `scenamath.py` (`_as_xy`), `canvas.py` |
 | Parallax layer CTM | `camera_response.py` | `registry.py`, `canvas.py` |
 | Wallpaper / background stack | `background.py` | `background_kinds.py` (kinds) |
 | HUD `Text` | `text.py` | `uiwidget.py` |
@@ -543,27 +543,36 @@ Tests: `tests/test_canvas.py` (`TestFrameTo`, `TestTimedCamera`), `tests/test_ea
 
 ### Follow math (`chase` / `deadzone`)
 
-Two small generic functions in `scena/easing.py`, exported next to `lerp` /
+Three small generic functions in `scena/easing.py`, exported next to `lerp` /
 `remap`. Same citizen as `Graphic.confine`: stateless math — the author calls them
 in `update`; they do not register, do not run later, and do not arbitrate against
 camera tweens. Not camera-specific (health-bar width, zoom factor, turret aim, a
-leashed pet are in scope). Point/`Vec2`/`(x, y)` coercion for `deadzone` lives in
-`scenamath.py` (`_as_xy`).
+leashed pet, an enemy closing in are in scope). Point/`Vec2`/`(x, y)` coercion for
+`deadzone` and `approach` lives in `scenamath.py` (`_as_xy`). The heading keeps its
+first two names: its anchor is cited across the docs.
 
 | Helper | Contract |
 | --- | --- |
 | `chase(current, target, rate, dt=None)` | Exponential ease: `lerp(current, target, 1 - exp(-rate * dt))`. `rate` is a 1/time constant (required). Omitted `dt` uses this frame's world `clock.dt`; pass `dt=` for entity `time_scale` or a made-up step. Shape-polymorphic like `lerp` (numbers, tuples, `Vec2`, `Color`, Point → plain `(x, y)`). `dt <= 0` or `rate <= 0` returns `current` unchanged. Non-finite `rate` or `dt` raises `ValueError`. |
 | `deadzone(current, target, size)` | Nudge `target` only enough to keep it within `size` of `current`. `size` is a number (square: `160` ≡ `(160, 160)`) or `(w, h)`. `float("inf")` on an axis locks it (return stays at `current` on that axis). `nan` or a negative width/height raises `ValueError` (checked on the raw `w`/`h`, not the derived half-extents — a negative size must not silently become "always inside"). Inside the box returns `current` — composing with `chase` does not oscillate at rest. Bad `size` raises `TypeError`. |
+| `approach(current, target, speed, dt=None)` | Constant-speed step: moves `speed * dt` toward `target` and, when the target is that close, returns the target itself (exact landing, never overshoots, never jitters; `==` works on arrival). Two numbers, or two points (`_as_xy`: Point, `Vec2`, `(x, y)`, mouse, a cell, `.center`) stepped in a **straight line** — never one call per axis, which runs the diagonal √2 faster (guarded by `test_easing.TestApproachPropertyCanaries`). Returns `float`, `Vec2.temp` when `current` is a `Vec2`, else plain `(x, y)`. `speed` is a magnitude (`fixed_magnitude`: `< 0` → `ValueError`, function / `True` → `TypeError`); `speed == 0` or `dt == 0` returns `current`; `dt < 0` raises; omitted `dt` is the world `clock.dt` (as `chase`). Number × point → `TypeError`; `Color` → `TypeError` pointing at `chase` / tween. Angles do not wrap. |
 
 Genre rules stay inline (e.g. ignore Y while grounded). Destinations of timed
 `pan_to(..., time=)` still freeze at call time — lag follow is the untimed
-`pan_to(chase(...))` every tick.
-Author catalog: [Guia da API](../docs/pt/guide/index.html#util-chase).
+`pan_to(chase(...))` every tick. The same freeze holds for any timed `move_to`:
+pursuing a moving target at a fixed speed is `move_to(approach(...))` every tick.
+`chase` and `approach` are not two spellings of one sum: `chase` brakes and never
+quite lands; `approach` keeps its speed and lands exactly.
+Author catalog: [Guia da API](../docs/pt/guide/index.html#util-chase),
+[`approach`](../docs/pt/guide/index.html#util-approach).
 
 | Not taken | Why not |
 | --- | --- |
 | `canvas.follow(target, lag=, deadzone=)` / persistent `pan_toward` | A camera-owned per-frame process (same reject as group-scoped `every`) that would have to arbitrate the pan tween (`pan_to(time=)` / `set_origin` / `about=`) every tick. And a flat `lag=` / `deadzone=` config cannot hold the genre hatches (axis lock, ignore Y while grounded, lookahead), so it would not even replace the hand-written body. Genre hatches stay in the author’s `if`. |
 | A `FollowCamera(...)` object, or camera-only variants of the helpers | Two functions, not a new concept; a camera-only signature would lose their best case (health bar, zoom factor, turret aim). |
+| `move_toward` as the name of `approach` | Reads as one more method of the `move_to` / `move_by` family and invites `shape.move_toward(target, speed)`, a shape-only second spelling of `move_to(approach(...))` that loses the number cases (bar width, zoom, volume). |
+| `approach` on a `Color` | A speed in colour units has no meaning an author can pick; `chase` or a tween eases a colour. |
+| Angle wrap (`approach_angle`, Godot's `rotate_toward`) | Rare in taught code so far; `approach(350, 10, …)` goes the long way, documented in the Guia gotcha. **Bar to revisit:** taught turrets repeating the same hand-written wrap before `approach`. |
 | Upright-follow sugar (camera turns to keep a ship upright) | `canvas.rotate_to(-ship.angle, about=ship.center)` already expresses it; rarer than follow, and a spinning view can disorient the player. |
 
 **Bar to revisit:** several taught games copy-paste the *exact same unmodified*

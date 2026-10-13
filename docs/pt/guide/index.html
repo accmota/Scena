@@ -1320,11 +1320,12 @@
     <a href="#ui-stack-column" class="nav-child" data-chapter="ui" data-search="stack_column coluna próxima empilhar pilha return">ui.stack_column</a>
   </div>
 
-  <a href="#util" class="nav-top" data-chapter="util" data-search="utilitários remap lerp chase deadzone chance probabilidade escala interpolar">Utilitários</a>
+  <a href="#util" class="nav-top" data-chapter="util" data-search="utilitários remap lerp chase approach deadzone chance probabilidade escala interpolar">Utilitários</a>
   <div class="nav-block" data-nav="util">
     <a href="#util-remap" class="nav-child" data-chapter="util" data-search="remap escala intervalo modifier curva ease_in ease_out smoothstep spring wobble">remap</a>
     <a href="#util-lerp" class="nav-child" data-chapter="util" data-search="lerp interpolar mistura Color Vec2 tupla tween">lerp</a>
     <a href="#util-chase" class="nav-child" data-chapter="util" data-search="chase perseguir lag câmera rate dt">chase</a>
+    <a href="#util-approach" class="nav-child" data-chapter="util" data-search="approach aproximar perseguir velocidade constante chegar exato move_toward">approach</a>
     <a href="#util-deadzone" class="nav-child" data-chapter="util" data-search="deadzone folga slack eixo inf câmera">deadzone</a>
     <a href="#util-chance" class="nav-child" data-chapter="util" data-search="chance probabilidade sorte">chance</a>
   </div>
@@ -1697,8 +1698,8 @@ cursor["center"] @= mouse
 twin["angle"] @= (lambda h=host: h.angle)</pre>
       </div>
       <p>Num <code>for</code>, cada lambda precisa do seu objeto: <code>lambda h=host: h.angle</code> — ver <a href="#reativo-lambda">Lambda</a>.</p>
-
       <p><strong>Dentro da fórmula, ponto.</strong> A <code>lambda</code> já mantém a conta viva: o Scena lê <code>st.score</code> no código e refaz a conta quando a célula muda. Colchetes dentro dela (<code>lambda: st["score"] * 2</code>, <code>f"{st['score']}"</code>, <code>c["radius"]</code>) dariam a célula, não o número: o <code>@=</code> (e a <code>lambda</code> de um construtor) recusa com <code>TypeError</code>, apontando a linha e a grafia com ponto. Um colchete sozinho à direita, sem <code>lambda</code>, é a ligação direta: <code>c["radius"] @= st["raio"]</code>.</p>
+
       <p class="name-group">Formas mais curtas, também legais</p>
       <p>Funcionam, mas não são o caminho sugerido. Sem <code>lambda</code>, os dois lados precisam já ser objetos que o Scena acompanha (um campo, um Point, um Vec2) — o Python não calcula a expressão antes:</p>
       <div class="code-panel">
@@ -5665,7 +5666,7 @@ canvas.reset_view(time=0.5)
 canvas.frame_to(group["fleet"].box, pad=0.15)  # None = fica parado
 # margem em unidades (não fração): canvas.frame_to(box.outset(40))</pre>
       </div>
-      <p><strong>Seguir um objeto.</strong> Não há <code>canvas.follow</code>, e <code>time=</code> / <code>speed=</code> não servem (o destino é lido uma vez, no momento da chamada, e a câmera vai até onde o alvo estava). Chame <code>pan_to</code> a cada frame no <code>update</code>, com folga (<a href="#util-deadzone"><code>deadzone</code></a>) e atraso (<a href="#util-chase"><code>chase</code></a>):</p>
+      <p><strong>Seguir um objeto.</strong> Não há <code>canvas.follow</code>, e <code>time=</code> / <code>speed=</code> não servem (o destino é lido uma vez, no momento da chamada, e a câmera vai até onde o alvo estava). Chame <code>pan_to</code> a cada frame no <code>update</code>, com folga (<a href="#util-deadzone"><code>deadzone</code></a>) e atraso (<a href="#util-chase"><code>chase</code></a>; para seguir em velocidade fixa, <a href="#util-approach"><code>approach</code></a> no lugar de <code>chase</code>):</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>def update(dt):
@@ -10577,11 +10578,12 @@ Text("Mais uma")</pre>
   <article class="chapter" id="util" data-chapter="util">
   <header class="chapter-head">
     <h1>Utilitários</h1>
-    <p class="lede">Pequenas contas que aparecem em todo jogo: converter um valor de uma faixa para outra (<code>remap</code>), misturar dois valores (<code>lerp</code>), perseguir um alvo suavemente (<code>chase</code>), dar folga a uma câmera (<code>deadzone</code>) e sortear sim ou não (<code>chance</code>). Contas com pontos e vetores: <a href="#geometria">Geometria</a>.</p>
+    <p class="lede">Pequenas contas que aparecem em todo jogo: converter um valor de uma faixa para outra (<code>remap</code>), misturar dois valores (<code>lerp</code>), perseguir um alvo suavemente (<code>chase</code>) ou em velocidade constante (<code>approach</code>), dar folga a uma câmera (<code>deadzone</code>) e sortear sim ou não (<code>chance</code>). Contas com pontos e vetores: <a href="#geometria">Geometria</a>.</p>
     <p class="which">
       Remapear intervalo → <a href="#util-remap">remap</a><br>
       Misturar dois valores → <a href="#util-lerp">lerp</a><br>
       Perseguir com atraso → <a href="#util-chase">chase</a><br>
+      Perseguir a velocidade constante → <a href="#util-approach">approach</a><br>
       Folga de câmera → <a href="#util-deadzone">deadzone</a><br>
       Sim/não → <a href="#util-chance">chance</a>
     </p>
@@ -10683,6 +10685,51 @@ canvas.pan_to(look)</pre>
 <thead><tr><th>Parece</th><th>É</th><th>Não é</th></tr></thead>
 <tbody>
 <tr><td><code>canvas.follow(hero)</code> faz a câmera seguir</td><td>esse verbo não existe. Perseguir é <code>chase</code> + <code>pan_to</code> todo frame. <code>pan_to(..., time=)</code> (ou <code>speed=</code>) congela o destino no momento da chamada.</td><td><code>pan_to(..., time=)</code> sozinho</td></tr>
+<tr><td><code>chase</code> anda sempre na mesma velocidade</td><td>não: freia perto do alvo e, em tese, nunca chega exato. Velocidade constante e chegada exata é <a href="#util-approach"><code>approach</code></a>.</td><td><code>approach</code></td></tr>
+</tbody>
+</table>
+</div>
+  </section>
+
+  <section class="section prose" id="util-approach">
+    <h2>approach</h2>
+    <p class="one-liner"><code>approach</code> (aproximar) anda de <code>current</code> até <code>target</code> sempre na mesma velocidade, <code>speed</code> unidades por segundo, e chega exato: quando falta um passo ou menos, devolve o próprio alvo. Chamada a cada frame com um alvo que se move, persegue em velocidade constante. É a irmã de <a href="#util-chase"><code>chase</code></a>, que freia ao chegar.</p>
+    <div class="code-panel">
+      <button class="copy-btn" type="button">copiar</button>
+<pre>inimigo.move_to(approach(inimigo.center, jogador.center, 120))
+bar.width = approach(bar.width, hp * 2, 80)
+
+pos = approach(elevador.center, (400, 120), 90)
+elevador.move_to(pos)
+if pos == (400, 120):
+    print("chegou")</pre>
+    </div>
+    <details class="spec" open>
+      <summary>Assinatura</summary>
+      <p class="sig"><code>approach(current, target, speed, dt=None)</code></p>
+      <p class="sig-hint">Parâmetros: current, target (dois números ou dois pontos); speed (número); dt (número, opcional). Retorna número, <code>Vec2</code> (se <code>current</code> é <code>Vec2</code>) ou <code>(x, y)</code>.</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
+          </thead>
+          <tbody>
+<tr><td><code>current</code>, <code>target</code></td><td>1º, 2º</td><td class="type"><span class="t">número ou ponto</span><span class="ex">hero.center</span></td><td>De onde e para onde. Dois números, ou dois pontos: Point, <code>Vec2</code>, <code>(x, y)</code>, <code>mouse</code> ou o <code>.center</code> de uma forma. <code>Color</code> → <code>TypeError</code> (use <code>chase</code>).</td></tr>
+<tr><td><code>speed</code></td><td>3º</td><td class="type"><span class="t">número</span><span class="ex">120</span></td><td>Velocidade, em unidades por segundo. Cada chamada anda <code>speed * dt</code>. Negativo → <code>ValueError</code>.</td></tr>
+<tr><td><code>dt</code></td><td>4º ou nome=</td><td class="type"><span class="t">número</span><span class="ex">clock.dt</span></td><td>Opcional. Omitido = passo do mundo (<code>clock.dt</code>, o mesmo <code>dt</code> que o <code>update(dt)</code> recebe). Passe <code>dt=</code> no <code>on_update</code> se a Entity tem <code>time_scale</code>. <code>dt == 0</code> (jogo pausado) ou <code>speed == 0</code> devolve <code>current</code>; <code>dt</code> negativo → <code>ValueError</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Um ponto anda em linha reta até o alvo; na diagonal, na mesma velocidade que na horizontal. Nunca passa do alvo nem treme em volta dele, e a chegada é exata: o valor devolvido é igual ao alvo (dá para testar com <code>==</code>, como <code>pos == (400, 120)</code>), e <code>move_to(pos)</code> põe o centro exatamente ali. Compare o valor devolvido, não <code>elevador.center == (400, 120)</code>: um Point nunca é igual a uma tupla. Chame você no <code>update</code>. Não registra, não corre depois, não disputa com tween. Combina com <a href="#util-deadzone"><code>deadzone</code></a> para um pet na coleira.</p>
+    </details>
+    <p class="gotcha"><strong>Passe o ponto inteiro, não x e y separados.</strong> <code>approach(bola.center.x, mouse.x, 300)</code> e outra chamada para o y fazem a diagonal andar mais rápido (√2 vezes) e chegam num eixo antes do outro. Com <code>chase</code> separar os eixos dá no mesmo; com <code>approach</code>, não. Ângulos também não dão a volta curta: de 350 para 10, <code>approach</code> passa por 180.</p>
+    <p class="name-group">Não confundir</p>
+    <div class="tbl-wrap confuse-wrap">
+<table class="confuse">
+<thead><tr><th>Parece</th><th>É</th><th>Não é</th></tr></thead>
+<tbody>
+<tr><td><code>approach</code> e <code>chase</code> fazem o mesmo</td><td><code>chase</code> freia perto do alvo e não chega exato; <code>approach</code> anda em velocidade constante e chega exato.</td><td>duas grafias da mesma conta</td></tr>
+<tr><td><code>move_to(alvo, time=2)</code> persegue</td><td>não: <code>time=</code> lê o destino uma vez, na chamada. Para seguir um alvo que se move, <code>approach</code> no <code>update</code>, todo frame.</td><td><code>move_to(..., time=)</code></td></tr>
 </tbody>
 </table>
 </div>

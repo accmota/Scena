@@ -1,4 +1,4 @@
-"""``chase`` / ``deadzone`` — stateless math helpers next to ``lerp``.
+"""``chase`` / ``approach`` / ``deadzone`` — stateless math helpers next to ``lerp``.
 
 Run:
 
@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hypothesis_support  # noqa: E402,F401  (loads the Hypothesis profile)
 from hypothesis import given, strategies as hst  # noqa: E402
 
-from scena import Circle, Point, Vec2, chase, clock, deadzone, lerp, init
+from scena import Circle, Point, Vec2, approach, chase, clock, deadzone, lerp, init
 from scena.easing import MappingFunctions, TWEEN_EASES, lerp as easing_lerp
 
 
@@ -164,6 +164,185 @@ class TestChasePropertyCanaries(unittest.TestCase):
 
         assert_catches(self, "test_easing.TestChaseProperties.test_two_frames_equal_one_frame_of_their_sum",
                        [("scena", "chase", naive)], "chase with t = rate * dt")
+
+
+class TestApproach(unittest.TestCase):
+    """``approach`` — constant speed, lands exactly, never one call per axis."""
+
+    def test_number_steps_by_speed_dt(self):
+        self.assertEqual(approach(0.0, 100.0, 50.0, dt=0.1), 5.0)
+        self.assertEqual(approach(100.0, 0.0, 50.0, dt=0.1), 95.0)
+
+    def test_number_lands_exactly(self):
+        self.assertEqual(approach(98.0, 100.0, 50.0, dt=0.1), 100.0)
+        self.assertEqual(approach(100.0, 100.0, 50.0, dt=0.1), 100.0)
+        self.assertIsInstance(approach(1, 3, 50, dt=0.1), float)
+
+    def test_point_steps_in_a_straight_line(self):
+        x, y = approach((0.0, 0.0), (30.0, 40.0), 10.0, dt=1.0)
+        self.assertAlmostEqual(x, 6.0)
+        self.assertAlmostEqual(y, 8.0)
+
+    def test_diagonal_is_not_faster(self):
+        # One call per axis would move sqrt(2) * step on the diagonal.
+        x, y = approach((0.0, 0.0), (100.0, 100.0), 10.0, dt=1.0)
+        self.assertAlmostEqual(math.hypot(x, y), 10.0)
+
+    def test_point_lands_exactly(self):
+        target = (3.0, 4.0)
+        self.assertEqual(approach((0.0, 0.0), target, 5.0, dt=1.0), target)
+        self.assertEqual(approach((0.0, 0.0), target, 500.0, dt=1.0), target)
+
+    def test_zero_distance_does_not_divide(self):
+        self.assertEqual(approach((7.0, 7.0), (7.0, 7.0), 10.0, dt=0.1), (7.0, 7.0))
+
+    def test_point_returns_plain_tuple(self):
+        out = approach(Point(0, 0), Point(100, 0), 10.0, dt=1.0)
+        self.assertIsInstance(out, tuple)
+        self.assertEqual(out, (10.0, 0.0))
+
+    def test_vec2_returns_vec2(self):
+        out = approach(Vec2.temp(0, 0), Vec2.temp(0, 50), 10.0, dt=1.0)
+        self.assertIsInstance(out, Vec2)
+        self.assertAlmostEqual(float(out.y), 10.0)
+
+    def test_follows_a_graphic_center(self):
+        init()
+        alvo = Circle(center=(100, 0), radius=5)
+        try:
+            self.assertEqual(approach((0, 0), alvo.center, 10.0, dt=1.0), (10.0, 0.0))
+        finally:
+            alvo.destroy()
+
+    def test_move_to_lands_the_center_bit_exactly(self):
+        # SPEC-GAP found by both snake_chain spec authors: the Guia promises
+        # ``==`` on arrival, which holds only if move_to stores the point as is.
+        init()
+        bola = Circle(center=(80, 80), radius=10)
+        try:
+            for alvo in ((500.0, 700.0), (0.1 + 0.2, 1 / 3), (123.456789, 987.654321)):
+                pos = approach(bola.center, alvo, 1e9, dt=1.0)
+                self.assertEqual(pos, alvo)
+                bola.move_to(pos)
+                self.assertEqual((bola.center.x, bola.center.y), alvo)
+        finally:
+            bola.destroy()
+
+    def test_dt_zero_and_speed_zero_unchanged(self):
+        cur = (10.0, 20.0)
+        self.assertIs(approach(cur, (0.0, 0.0), 6.0, dt=0.0), cur)
+        self.assertIs(approach(cur, (0.0, 0.0), 0.0, dt=0.5), cur)
+
+    def test_bad_speed_and_dt_raise(self):
+        with self.assertRaises(ValueError):
+            approach(0.0, 1.0, -1.0, dt=0.1)
+        with self.assertRaises(ValueError):
+            approach(0.0, 1.0, 1.0, dt=-0.1)
+        with self.assertRaises(ValueError):
+            approach(0.0, 1.0, float("nan"), dt=0.1)
+        with self.assertRaises(TypeError):
+            approach(0.0, 1.0, True, dt=0.1)
+        with self.assertRaises(TypeError):
+            approach(0.0, 1.0, lambda: 3, dt=0.1)
+
+    def test_mismatched_sides_raise(self):
+        with self.assertRaises(TypeError):
+            approach(0.0, (1.0, 1.0), 1.0, dt=0.1)
+        with self.assertRaises(TypeError):
+            approach((0.0, 0.0), 1.0, 1.0, dt=0.1)
+
+    def test_color_raises_with_a_hint(self):
+        from scena import Color
+        with self.assertRaisesRegex(TypeError, "chase"):
+            approach(Color("red"), Color("blue"), 1.0, dt=0.1)
+
+    def test_cells_count_as_their_value(self):
+        from scena import st
+        st.ap_cur = 0
+        st.ap_alvo = 10
+        try:
+            self.assertEqual(approach(st.ap_cur, st.ap_alvo, 4, dt=1), 4.0)
+        finally:
+            st.remove("ap_cur")
+            st.remove("ap_alvo")
+
+    def test_omitted_dt_uses_clock(self):
+        clock.advance(0.05)
+        self.assertEqual(approach(0.0, 100.0, 60.0), approach(0.0, 100.0, 60.0, dt=clock.dt))
+
+    def test_omitted_dt_when_clock_zero_unchanged(self):
+        prev_paused = clock.paused
+        clock.paused = True
+        try:
+            clock.advance(0.1)
+            cur = (3.0, 4.0)
+            self.assertIs(approach(cur, (9.0, 9.0), 6.0), cur)
+        finally:
+            clock.paused = prev_paused
+
+    def test_exported_from_scena(self):
+        import scena
+        self.assertIn("approach", scena.__all__)
+        self.assertIs(scena.approach, approach)
+
+
+_speed = hst.floats(0.0, 500.0, allow_nan=False, allow_infinity=False)
+
+
+class TestApproachProperties(unittest.TestCase):
+    """Constant speed and exact landing: the docstring's whole promise."""
+
+    @given(cur=hst.tuples(_value, _value), target=hst.tuples(_value, _value),
+           speed=_speed, dt=_step)
+    def test_moves_min_of_step_and_gap_toward_target(self, cur, target, speed, dt):
+        out = approach(cur, target, speed, dt)
+        gap = math.dist(cur, target)
+        moved = math.dist(cur, out)
+        slack = 1e-9 * max(1.0, *map(abs, cur + target))
+        self.assertLessEqual(abs(moved - min(speed * dt, gap)), slack,
+                             f"moved {moved}, step {speed * dt}, gap {gap}")
+        self.assertLessEqual(math.dist(out, target), max(0.0, gap - speed * dt) + slack,
+                             "approach left the straight line to the target")
+
+    @given(cur=_value, target=_value, speed=_speed,
+           steps=hst.lists(_step, min_size=1, max_size=30))
+    def test_never_crosses_and_lands_exactly(self, cur, target, speed, steps):
+        x = cur
+        for dt in steps:
+            x = approach(x, target, speed, dt)
+            self.assertGreaterEqual((target - x) * (target - cur), 0.0,
+                                    "approach overshot the target")
+        if speed * math.fsum(steps) >= abs(target - cur) * (1 + 1e-9) + 1e-9:
+            self.assertEqual(x, target, "approach did not land exactly")
+
+
+class TestApproachPropertyCanaries(unittest.TestCase):
+    """A per-axis step and an unclamped step are both caught."""
+
+    def test_per_axis_approach_is_caught(self):
+        from diff_support import assert_catches
+
+        def per_axis(current, target, speed, dt=None):
+            def one(a, b):
+                step = speed * dt
+                return b if abs(b - a) <= step else a + math.copysign(step, b - a)
+            if isinstance(current, (int, float)):
+                return one(current, target)
+            return tuple(one(a, b) for a, b in zip(current, target))
+
+        assert_catches(self, "test_easing.TestApproachProperties.test_moves_min_of_step_and_gap_toward_target",
+                       [("scena", "approach", per_axis)], "approach one call per axis")
+
+    def test_unclamped_approach_is_caught(self):
+        from diff_support import assert_catches
+
+        def unclamped(current, target, speed, dt=None):
+            if target == current:
+                return current
+            return current + math.copysign(speed * dt, target - current)
+
+        assert_catches(self, "test_easing.TestApproachProperties.test_never_crosses_and_lands_exactly",
+                       [("scena", "approach", unclamped)], "approach without landing on the target")
 
 
 class TestDeadzone(unittest.TestCase):

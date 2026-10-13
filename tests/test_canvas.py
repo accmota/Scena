@@ -72,7 +72,7 @@ class TestCanvasFacade(CanvasTestCase):
         import scena
         for name in (
             "ComposeFx", "vec_from_angle", "chance",
-            "chase", "deadzone",
+            "chase", "approach", "deadzone",
             "middle_point", "distance", "heading", "nearest",
             "intersections", "intersection", "closest_point",
             "LinkedAttributeError", "ui",

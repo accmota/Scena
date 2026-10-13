@@ -38,6 +38,11 @@ def crescer():
     acrescentar()
 
 
+# --- farejador: segue a ponta sempre na mesma velocidade -------------------
+VELOCIDADE_FAREJADOR = 150
+farejador = Circle(center=(80, 80), radius=10, color="gold")
+
+
 def update(dt):
     bolas = group["bolas"]
     ponta = bolas[0]
@@ -68,6 +73,9 @@ def update(dt):
         x = chase(bola.center.x, da_frente.center.x, rate=8)
         y = chase(bola.center.y, da_frente.center.y, rate=8)
         bola.move_to(x, y)
+
+    # o farejador anda até a ponta, nem mais rápido nem mais devagar
+    farejador.move_to(approach(farejador.center, ponta.center, VELOCIDADE_FAREJADOR))
 
 
 run()

@@ -53,6 +53,7 @@ CASES = {
     "amp_db": lambda w: ((0.5,), {"floor": -40.0}),
     "chance": lambda w: ((1.0,), {}),
     "chase": lambda w: ((2.0, 10.0), {"rate": 8.0, "dt": 0.1}),
+    "approach": lambda w: ((2.0, 10.0), {"speed": 8.0, "dt": 0.1}),
     "deadzone": lambda w: (((0.0, 0.0), (300.0, 90.0), (40.0, 120.0)), {}),
     "distance": lambda w: (((0.0, 0.0), (3.0, 4.0)), {}),
     "heading": lambda w: (((0.0, 0.0), (3.0, 4.0)), {}),

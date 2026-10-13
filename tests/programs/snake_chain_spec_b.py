@@ -26,6 +26,10 @@ FILES_READ = [
     "docs/pt/guide/index.html (move_by polar angle=/distance= signature)",
     "docs/pt/guide/index.html (keyp table, after/every table)",
     "docs/pt/guide/guia-api-catalogs.js#visual-sphere",
+    # farejador (approach) addendum
+    "docs/pt/guide/index.html#util-approach",
+    "docs/pt/guide/index.html#util-chase ('Nao confundir' row: approach = constant speed, exact arrival)",
+    "docs/pt/guide/index.html (move_to signature: move_to(ponto); colocar x viajar)",
 ]
 
 # ---- program constants (copied from the program; the program is the spec input)
@@ -53,6 +57,10 @@ PROBES = {
     "giro": lambda p: p.st.giro,
     "vel": lambda p: p.st.velocidade,
     "head_angle": lambda p: float(_bolas(p)[0].angle),
+    # farejador (approach addendum)
+    "far": lambda p: (float(p.farejador.center.x), float(p.farejador.center.y)),
+    "far_r": lambda p: float(p.farejador.radius),
+    "far_in_bolas": lambda p: any(b is p.farejador for b in _bolas(p)),
 }
 
 SCENARIOS = {
@@ -74,6 +82,12 @@ SCENARIOS = {
     # long left turn while accelerating: a spiral that may reach the walls
     "spiral": Scenario(seed=0, steps=[key_down("UP"), key_down("LEFT"), wait(240),
                                       key_up("LEFT"), wait(200), key_up("UP"), wait(30)]),
+    # farejador: UP 120 frames -> head at 380 u/s (> 150) runs away straight up,
+    # is pinned at the top, then the farejador catches it (~frame 303)
+    "fuga": Scenario(seed=0, steps=[key("UP", frames=120), wait(240)]),
+    # farejador: LEFT 45 frames turns the head to ~255 deg (down-left, toward the
+    # farejador at 80 u/s); they meet (~frame 161) and it stays glued to the head
+    "encontro": Scenario(seed=0, steps=[key("LEFT", frames=45), wait(330)]),
 }
 
 
@@ -280,6 +294,179 @@ def _head_inside(cs):
     return _inside_all(cs[:1])
 
 
+# ---------------------------------------------------------------- farejador helpers
+FAR0 = (80.0, 80.0)
+FAR_SPEED = 150.0
+FAR_STEP = FAR_SPEED * DT          # 2.5 units per frame
+
+
+def _approach(c, tg, step):
+    """docs #util-approach: straight line, constant step, the target itself when
+    less than a step remains."""
+    dx, dy = tg[0] - c[0], tg[1] - c[1]
+    d = math.hypot(dx, dy)
+    if d <= step:
+        return (tg[0], tg[1])
+    return (c[0] + dx / d * step, c[1] + dy / d * step)
+
+
+def _far_rows(t):
+    """[(frame, far_old, head_new, far_new, vel)] with far_old of frame 1 = (80, 80)."""
+    heads = dict((f, cs) for f, _tm, cs in _series(t, "centers"))
+    vel = dict((f, v) for f, _tm, v in _series(t, "vel"))
+    rows, prev = [], FAR0
+    for f, _tm, fv in _series(t, "far"):
+        cs = heads.get(f)
+        if not (isinstance(fv, tuple) and len(fv) == 2 and isinstance(cs, tuple) and cs):
+            return None, "probe failed at frame %d: far=%r centers=%r" % (f, fv, cs)
+        rows.append((f, prev, cs[0], fv, vel.get(f)))
+        prev = fv
+    return rows, None
+
+
+def _check_far_start(t):
+    rows, err = _far_rows(t)
+    if err:
+        return err
+    f, old, head, new, _v = rows[0]
+    if f != 1:
+        return "first sample is frame %d" % f
+    ex = _approach(FAR0, head, FAR_STEP)
+    if abs(new[0] - ex[0]) > 1e-6 or abs(new[1] - ex[1]) > 1e-6:
+        return "frame 1: farejador at %r, expected %r (2.5 from (80,80) toward head %r)" % (new, ex, head)
+    return True
+
+
+def _check_far_model(t):
+    rows, err = _far_rows(t)
+    if err:
+        return err
+    for f, old, head, new, _v in rows:
+        ex = _approach(old, head, FAR_STEP)
+        if abs(new[0] - ex[0]) > 1e-6 or abs(new[1] - ex[1]) > 1e-6:
+            return ("frame %d: farejador %r, expected approach(%r, head-this-frame %r, 150) = %r"
+                    % (f, new, old, head, ex))
+    return True
+
+
+def _check_far_speed(t):
+    rows, err = _far_rows(t)
+    if err:
+        return err
+    for f, old, head, new, _v in rows:
+        step = math.hypot(new[0] - old[0], new[1] - old[1])
+        if step > FAR_STEP + 1e-6:
+            return "frame %d: farejador stepped %.6f > 2.5" % (f, step)
+        landed = (new[0] == head[0] and new[1] == head[1])
+        if not landed and abs(step - FAR_STEP) > 1e-6:
+            return "frame %d: farejador stepped %.6f without landing on the head (expected exactly 2.5)" % (f, step)
+    return True
+
+
+def _check_far_direction(t):
+    rows, err = _far_rows(t)
+    if err:
+        return err
+    for f, old, head, new, _v in rows:
+        gx, gy = head[0] - old[0], head[1] - old[1]
+        sx, sy = new[0] - old[0], new[1] - old[1]
+        gap = math.hypot(gx, gy)
+        step = math.hypot(sx, sy)
+        if step < 1e-12:
+            continue
+        cross = gx * sy - gy * sx
+        if abs(cross) > 1e-6 * max(1.0, gap):
+            return "frame %d: step %r is not along the line to the head %r (cross %.3g)" % (f, (sx, sy), (gx, gy), cross)
+        if gx * sx + gy * sy <= 0:
+            return "frame %d: step points away from the head" % f
+        if step > gap + 1e-9:
+            return "frame %d: overshoot: stepped %.6f with only %.6f to go" % (f, step, gap)
+        after = math.hypot(head[0] - new[0], head[1] - new[1])
+        if abs(after - max(0.0, gap - FAR_STEP)) > 1e-6:
+            return "frame %d: %.6f left after the step, expected max(0, %.6f - 2.5)" % (f, after, gap)
+    return True
+
+
+def _check_far_lands(t):
+    rows, err = _far_rows(t)
+    if err:
+        return err
+    for f, old, head, new, _v in rows:
+        gap = math.hypot(head[0] - old[0], head[1] - old[1])
+        if gap < FAR_STEP - 1e-9 and not (new[0] == head[0] and new[1] == head[1]):
+            return "frame %d: %.6f (< 2.5) to go but farejador at %r != head %r" % (f, gap, new, head)
+    return True
+
+
+def _check_far_glued(t):
+    """Once on the head, it stays on it while the head moves <= 2.5 per frame (vel <= 150)."""
+    rows, err = _far_rows(t)
+    if err:
+        return err
+    on = False
+    for f, old, head, new, v in rows:
+        if on and _num(v) and v < FAR_SPEED and not (new[0] == head[0] and new[1] == head[1]):
+            return "frame %d: farejador left the head (%r vs %r) although velocidade is %.3f <= 150" % (f, new, head, v)
+        on = (new[0] == head[0] and new[1] == head[1])
+    return True
+
+
+def _first_on_head(rows):
+    for f, _old, head, new, _v in rows:
+        if new[0] == head[0] and new[1] == head[1]:
+            return f
+    return None
+
+
+def _check_far_catch(lo, hi, end_check=True, head_end=None):
+    def fn(t):
+        rows, err = _far_rows(t)
+        if err:
+            return err
+        if head_end is not None and not (abs(rows[-1][2][0] - head_end[0]) < 1e-6
+                                         and abs(rows[-1][2][1] - head_end[1]) < 1e-6):
+            return ("assumption failed: the window was derived with the head pinned by its centre at %r "
+                    "(spec E28), but it ends at %r" % (head_end, rows[-1][2]))
+        first = _first_on_head(rows)
+        if first is None:
+            return "the farejador never landed on the head"
+        if not (lo <= first <= hi):
+            return "farejador first on the head at frame %d, expected %d..%d" % (first, lo, hi)
+        if end_check:
+            for f, _old, head, new, _v in rows:
+                if f >= first and not (new[0] == head[0] and new[1] == head[1]):
+                    return "frame %d: farejador %r left the head %r after catching it at %d" % (f, new, head, first)
+        return True
+    return fn
+
+
+def _check_far_outrun(t):
+    rows, err = _far_rows(t)
+    if err:
+        return err
+    gaps = [(f, math.hypot(head[0] - new[0], head[1] - new[1])) for f, _o, head, new, _v in rows]
+    grew = [f for (pf, a), (f, b) in zip(gaps, gaps[1:]) if b > a + 1e-9]
+    if len(grew) < 30:
+        return "distance to the head grew on only %d frames, expected >= 30 while the head runs at up to 380" % len(grew)
+    if max(g for _f, g in gaps) < gaps[0][1] + 30.0:
+        return "max distance %.3f is not 30 above the frame-1 distance %.3f" % (max(g for _f, g in gaps), gaps[0][1])
+    return True
+
+
+def _check_far_grows_only_if_head_fast(t):
+    rows, err = _far_rows(t)
+    if err:
+        return err
+    prev_head, prev_gap = (CX, CY), math.hypot(CX - FAR0[0], CY - FAR0[1])
+    for f, _old, head, new, _v in rows:
+        gap = math.hypot(head[0] - new[0], head[1] - new[1])
+        hstep = math.hypot(head[0] - prev_head[0], head[1] - prev_head[1])
+        if gap > prev_gap + 1e-9 and hstep <= FAR_STEP + 1e-9:
+            return "frame %d: distance grew %.6f -> %.6f though the head moved only %.6f (<= 2.5)" % (f, prev_gap, gap, hstep)
+        prev_head, prev_gap = head, gap
+    return True
+
+
 EXPECT = [
     # ---------------- startup
     Expect(id="E1", level="L0", cite="docs/pt/guide/index.html#after-every (@every: 'No módulo: o timer começa já')",
@@ -411,4 +598,45 @@ EXPECT = [
            check=custom(lambda t: (lambda vs: True if all(b >= a - 1e-9 for a, b in zip([90.0] + vs, vs))
                                    else "angulo decreased")(t.values("angulo"))),
            scenarios=("spiral", "left")),
+    # ---------------- farejador (approach addendum)
+    Expect(id="E34", level="L1", cite="docs/pt/guide/index.html#util-approach (one-liner; speed*dt per call; dt omitted = clock.dt)",
+           text="Frame 1: the farejador, made at (80,80), has moved 150/60 = 2.5 units straight toward the head's frame-1 centre.",
+           check=custom(_check_far_start), scenarios=("*",)),
+    Expect(id="E35", level="L0", cite="docs/pt/guide/index.html#mundo-grupos (group[...] holds only what joined the tag); #circle",
+           text="The farejador (no group=) is never a member of group['bolas'] and keeps radius 10.",
+           check=all_of(always("far_in_bolas", lambda v: v is False),
+                        always("far_r", lambda r: abs(r - 10.0) < 1e-9)),
+           scenarios=("*",)),
+    Expect(id="E36", level="L1", cite="docs/pt/guide/index.html#util-approach; program update (approach runs after the head moved)",
+           text="Every frame farejador = approach(previous farejador, head centre of THIS frame, 150) with dt = 1/60 (tol 1e-6).",
+           check=custom(_check_far_model), scenarios=("*",)),
+    Expect(id="E37", level="L2", cite="docs/pt/guide/index.html#util-approach ('sempre na mesma velocidade'; 'Cada chamada anda speed * dt')",
+           text="Constant speed: each frame the farejador moves exactly 2.5 units unless it landed on the head, and never more than 2.5 (slop 1e-6 for float).",
+           check=custom(_check_far_speed), scenarios=("*",)),
+    Expect(id="E38", level="L2", cite="docs/pt/guide/index.html#util-approach ('anda em linha reta'; 'Nunca passa do alvo nem treme')",
+           text="Each step lies on the straight line toward the head's current centre, points at it, never overshoots, and leaves max(0, gap - 2.5) to go (slop 1e-6).",
+           check=custom(_check_far_direction), scenarios=("*",)),
+    Expect(id="E39", level="L0", cite="docs/pt/guide/index.html#util-approach ('quando falta menos que um passo, devolve o proprio alvo'; 'da para testar com ==')",
+           text="Whenever less than 2.5 units remain to the head, the farejador's centre == the head's centre exactly (move_to(ponto) places, no travel).",
+           check=custom(_check_far_lands), scenarios=("*",)),
+    Expect(id="E40", level="L0", cite="docs/pt/guide/index.html#util-approach (exact arrival; chamada a cada frame persegue)",
+           text="Once on the head, the farejador stays exactly on it on every next frame where velocidade < 150 (the head then moves < 2.5 per frame).",
+           check=custom(_check_far_glued), scenarios=("*",)),
+    Expect(id="E41", level="L1", cite="docs/pt/guide/index.html#util-approach; #mover-confine (head held at (500,700) from ~frame 263)",
+           text="Idle: the farejador (start gap ~497.5, closing 70..150 u/s) lands on the head pinned at the top around frame 309 (306..312) and stays there to the end.",
+           check=custom(_check_far_catch(306, 312, head_end=(500.0, 700.0))), scenarios=("idle",)),
+    Expect(id="E42", level="L1", cite="docs/pt/guide/index.html#util-approach; docs/pt/guide/index.html#util-chase (wheel lag)",
+           text="Encontro: LEFT 45 frames turns the head to ~255 deg toward the farejador; they meet around frame 161 (150..172) and it stays glued to the moving head to the end.",
+           check=custom(_check_far_catch(150, 172)), scenarios=("encontro",)),
+    Expect(id="E43", level="L2", cite="docs/pt/guide/index.html#util-approach (constant speed 150 cannot gain on a faster target)",
+           text="Fuga/accel: with the head running straight up at up to 380 u/s (> 150) the distance to it grows on >= 30 frames and peaks >= 30 above its frame-1 value.",
+           check=custom(_check_far_outrun), scenarios=("fuga", "accel")),
+    Expect(id="E44", level="L2", cite="docs/pt/guide/index.html#util-approach (each call closes 2.5 toward the head's new spot)",
+           text="The farejador-head distance can grow on a frame only if the head itself moved more than 2.5 units that frame (triangle inequality, slop 1e-9).",
+           check=custom(_check_far_grows_only_if_head_fast), scenarios=("*",)),
+    Expect(id="E45", level="L1", cite="docs/pt/guide/index.html#util-approach; #mover-confine",
+           text="Fuga: after the head is pinned at (500,700) the farejador lands on it around frame 303 (299..307) and stays there to the end; it never leaves the game view.",
+           check=all_of(custom(_check_far_catch(299, 307, head_end=(500.0, 700.0))),
+                        always("far", lambda c: -1e-6 <= c[0] <= W + 1e-6 and -1e-6 <= c[1] <= H + 1e-6)),
+           scenarios=("fuga",)),
 ]

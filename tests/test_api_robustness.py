@@ -880,6 +880,16 @@ class TestPhase3SilentPaths(unittest.TestCase):
         with self.assertRaises(TypeError):
             chase(0, 10, True, dt=0.1)
 
+    def test_approach_speed_sign(self):
+        from scena import approach
+        self.assertEqual(approach(0, 10, 0, dt=0.1), 0)
+        with self.assertRaises(ValueError):
+            approach(0, 10, -1, dt=0.1)
+        with self.assertRaises(ValueError):
+            approach(0, 10, 1, dt=-0.1)
+        with self.assertRaises(TypeError):
+            approach(0, 10, True, dt=0.1)
+
     def test_color_over_255_hints(self):
         from scena import Color
         with self.assertRaises(ValueError) as ctx:
@@ -1523,6 +1533,8 @@ class TestSurfaceFuzzFindings(unittest.TestCase):
         "canvas.flash(fn)": lambda: scena.canvas.flash(lambda: 1),
         "canvas.zoom_by(fn)": lambda: scena.canvas.zoom_by(lambda: 2),
         "chase(rate=fn)": lambda: scena.chase(1, 2, lambda: 1),
+        "approach(dt=fn)": lambda: scena.approach(1, 2, 1, dt=lambda: 1),
+        "approach(speed=fn)": lambda: scena.approach(1, 2, lambda: 1),
         "scale_to(fn, time=1)": lambda: scena.Circle(radius=2).scale_to(lambda: 2, time=1),
         "Ellipse(from_rect=False)": lambda: scena.Ellipse(from_rect=False),
         "Ellipse(from_rect=Circle)": lambda: scena.Ellipse(from_rect=scena.Circle(radius=2)),
