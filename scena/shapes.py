@@ -1273,15 +1273,17 @@ class Shape(Graphic, PaintState):
             owner=owner,
         )
 
+        # Thickness is not part of the primary package. Omit keeps the prototype.
+        # Written before the look: after it, the write would re-apply the look
+        # (same picture, one more apply).
+        if line_width is not None:
+            self.line_width = line_width
         # Appearance: color= writes the primary paint package (not a Paint costume).
         # Mutually exclusive with visual=. set_color uses fill on area shapes, stroke on Line.
         if color is not None:
             self.set_color(color)
         elif visual is not None:
             self.visual = visual
-        # Thickness is not part of the primary package. Omit keeps the prototype.
-        if line_width is not None:
-            self.line_width = line_width
 
         # All shapes expose ``center`` (Point or Point-like) for pivots / drag / move_to.
         # Subclasses must implement it (ContainerSlot, property alias, etc.).

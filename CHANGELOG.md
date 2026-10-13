@@ -67,8 +67,19 @@ left out.
   writing it before `shape.visual = …` draws. Before, the write skipped the
   visual: under a `Rim` the rim lost its softness, under a `Halo` the inner
   glow kept the old color, and a `Rim("red")` stayed red after
-  `.line = "blue"`. `line_width`, `blend` and `dash` written after a visual
-  still differ from writing them before.
+  `.line = "blue"`.
+- `.line_width`, `.blend`, `.dash`, `.line_cap` and `.line_join` written on a
+  shape or sprite already wearing a visual draw what writing them before
+  `shape.visual = …` draws, and stay on the shape after `visual = None`.
+  Before, the value was lost when the visual was removed, and a write after
+  the visual overrode the visual's own setting: `visual = Rim()` then
+  `line_width = 3` drew a thinner rim than `line_width = 3` then
+  `visual = Rim()`. Now a visual that sets the knob itself keeps its own while
+  it is on (Rim's width, Halo's and Shield's blend, Shield's dash; change
+  the rim with `Rim(width=…)`); a visual that uses the knob (`Neon`,
+  `Laser`, …) follows the new value, as before. Code that set one of these
+  knobs after a visual to change that visual draws the visual's own setting
+  now. `Circle(visual=…, line_width=…)` sets the width before the visual.
 - `set_color` on a shape wearing `Metal()` or `Metal("gold")` turns the
   metal to the new color. Before, the metal did not change and nothing said
   why.
