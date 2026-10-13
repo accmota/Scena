@@ -17,7 +17,7 @@ from random import choice
 from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()

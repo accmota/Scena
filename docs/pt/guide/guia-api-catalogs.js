@@ -633,7 +633,7 @@ const SPATIAL = [
       ] },
     { id: "bg-wallpaper", kind: "base", family: "field", name: "Wallpaper",
       idea: "A base do fundo: cor, gradient, arquivo de imagem ou texture. Criar já o põe como <code>canvas.background.base</code>. Sem args: preto opaco. String com <code>.</code> ou <code>/</code> é arquivo; senão é cor. Depois de criado, dá para mudar <code>.source</code>, os ajustes de câmera e <code>enabled</code>. <code>fit</code> / <code>tile_mode</code> / <code>scale</code> / <code>tile_size</code> / <code>underlay</code> / <code>filename</code> / <code>image</code> ficam fixos — para mudar, troque <code>.source</code> ou crie outro Wallpaper. Com câmera que anda (<code>pan_response</code> / <code>zoom_response</code>), passe <code>tile_mode=\"mirror\"</code>: sem ele, além da borda da imagem aparece o <code>underlay</code> (preto).",
-      code: "Wallpaper(\"navy\")\nWallpaper(Gradient(\"navy\", \"black\", angle=90), pan_response=0.05)\nWallpaper(\"space.jpg\", tile_mode=\"mirror\", pan_response=0.15, zoom_response=0.3)\nWallpaper(\"bg2.png\", fit=\"contain\")\nWallpaper(path, fit=\"tile\", tile_size=200, tile_mode=\"mirror\")",
+      code: "Wallpaper(\"navy\")\nWallpaper(Gradient(\"black\", \"navy\", angle=90), pan_response=0.05)\nWallpaper(\"space.jpg\", tile_mode=\"mirror\", pan_response=0.15, zoom_response=0.3)\nWallpaper(\"bg2.png\", fit=\"contain\")\nWallpaper(path, fit=\"tile\", tile_size=200, tile_mode=\"mirror\")",
       search: "wallpaper base cor imagem texture fit tile cover contain",
       params: [
         P("source", "preto", "Nome de cor, tuple, Color, Gradient, Texture, arquivo (str com . ou /) ou Image. Visual / SpatialFx / filtro levantam TypeError.", 1, "cor / Gradient / arquivo / Texture"),

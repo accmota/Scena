@@ -3102,6 +3102,8 @@ class Container():
                     cache[name] = True
             if isinstance(value, Attribute):
                 value = value.value
+            elif value.__class__ is _KEY_NAME:
+                value = str(value)
             if isinstance(slot, ScalarSlot):
                 value = _coerce_magnitude_slot(
                     slot, value, clamp=self._in_batch_update, owner=self,
@@ -3821,6 +3823,8 @@ class ScalarAnchor(Container):
         name = self._scalar_name
         ink = getattr(parent, '_ink', None)
         if isinstance(ink, dict) and name in ink:
+            if new_value.__class__ is _KEY_NAME:
+                new_value = str(new_value)
             old = ink.get(name)
             if _value_changed(old, new_value):
                 ink[name] = new_value
@@ -4149,8 +4153,15 @@ class Attribute(ClosedSurface, Container):  # Use string literal for forward ref
         # Only update if validation was successful and value changed. ``True ==
         # 1.0``: a flag and a number differ (a cell holding ``True`` kept it
         # through ``= 1.0``, so a link it fed stayed refused).
+        if new_value.__class__ is _KEY_NAME:
+            new_value = str(new_value)
         old_value = self._raw_value
-        if old_value != new_value or (type(old_value) is bool) is not (type(new_value) is bool):
+        try:
+            changed = (old_value != new_value
+                       or (type(old_value) is bool) is not (type(new_value) is bool))
+        except KeyNameMismatch:     # a key nested in a tuple / list / dict
+            changed = True
+        if changed:
             if old_value.__class__ is _HELD_BY_VALUE or new_value.__class__ is _HELD_BY_VALUE:
                 # A cell holds a Vec2 by value: an object's own Vec2 (``st.v0 =
                 # ball.vel``) is copied, or the held-payload guard would sit on
@@ -4573,6 +4584,24 @@ def unbound_value_hint(call: str, value, example: str = "volume") -> str:
 _VALUE_TYPES = (float, int, str, bool, tuple, type(None))
 
 
+# ``input`` sets it to ``KeyName``, the ``str`` an ``on_key_*`` handler
+# receives. Its ``==`` is loud (``key == "ESCAPE"`` raises with the fix), which
+# helps in the handler and nowhere else: a field stores the key as a plain
+# ``str`` (``st.nome = key``, ``t.text = key``), so a later change check or an
+# author compare (``st.nome != "nenhuma"``) is an ordinary ``str`` compare
+# (IN2 in Testing Design).
+_KEY_NAME: Optional[type] = None
+
+
+class KeyNameMismatch(ValueError):
+    """A ``KeyName`` compared with a string ``on_key_*`` can never deliver.
+
+    Raised only when the strings differ, so a change check that meets it —
+    a key nested in a tuple, list or dict, which the field does not unwrap —
+    reads it as "changed" instead of crashing the write.
+    """
+
+
 def _value_changed(old, new) -> bool:
     """Should a field store ``new`` over ``old``? Immutable values compare by
     value (a repeated ``ship.pos = (1, 2)`` notifies nothing); anything else —
@@ -4584,7 +4613,10 @@ def _value_changed(old, new) -> bool:
     if type(new) in _VALUE_TYPES and type(old) in _VALUE_TYPES:
         # ``True == 1.0``: a flag and a number are different values, or a cell
         # holding ``True`` kept it through ``= 1.0`` (and a link refused on).
-        return old != new or (type(old) is bool) is not (type(new) is bool)
+        try:
+            return old != new or (type(old) is bool) is not (type(new) is bool)
+        except KeyNameMismatch:     # a key nested in a tuple met an ordinary string
+            return True
     return True
 
 

@@ -543,7 +543,7 @@ class SkyGradient(BackgroundField):
 
     Construction becomes ``canvas.background.base`` (last wallpaper wins).
 
-    Sugar for a full-frame ``Gradient(..., type=GradientType.LINEAR, angle=90)`` wallpaper
+    Sugar for a full-frame ``Gradient(..., type=GradientType.LINEAR, angle=-90)`` wallpaper
     (``top`` at the zenith, ``middle`` on ``horizon``, ``bottom`` below a short blend)::
 
         canvas.background.base = SkyGradient("sunset")
@@ -724,10 +724,11 @@ class SkyGradient(BackgroundField):
 
     def _make_gradient(self) -> Gradient:
         args = [(p, Color(*c)) for p, c in self._ramp_stops()]
-        return Gradient(*args, type=GradientType.LINEAR, angle=90.0)
+        # Stops run top → bottom: ``angle=-90`` (y-up, like every Gradient).
+        return Gradient(*args, type=GradientType.LINEAR, angle=-90.0)
 
     def _sync_gradient(self, design_height: float = 0.0) -> None:
-        # Auto-fit LINEAR angle=90 covers the frame; rebuild only when the ramp changes.
+        # Auto-fit LINEAR angle=-90 covers the frame; rebuild only when the ramp changes.
         key = self._ramp_key()
         if key == self._grad_key:
             return

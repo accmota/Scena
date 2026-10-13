@@ -2233,7 +2233,7 @@ class TextInput(UIWidget):
                 f"TextInput.text takes a str, got {type(value).__name__} {value!r}. "
                 f"To set the value, write the cell (st.name = {value!r})."
             )
-        self._text = value
+        self._text = str(value)   # a KeyName (on_key_down) is kept as a plain str
         n = len(value)
         self._cursor_pos = min(self._cursor_pos, n)
         self._anchor = min(self._anchor, n)

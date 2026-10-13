@@ -4572,7 +4572,7 @@ Nave(center=(x, y))</pre>
       <button class="copy-btn" type="button">copiar</button>
 <pre>c = Circle(color="coral")
 c.set_color("tomato")
-c.fill = Gradient("sunset", angle=90)
+c.fill = Gradient("sunset", angle=-90)
 c.fill = Texture("tex2.png", fit="tile", tile_size=40)</pre>
     </div>
     <div class="tabs" data-tabs>
@@ -4643,7 +4643,7 @@ gold = Color("gold").lighter(0.15)</pre>
 Gradient("navy", "cyan", angle=90)
 Gradient("plasma", type="radial")
 Gradient("heat", type="radial", size=700)
-c.fill = Gradient("sunset", angle=90)
+c.fill = Gradient("sunset", angle=-90)
 bloco.visual = Gradient("ruby")          # fill + contorno mais escuro
 g = Gradient("ocean").darker(0.15)     # nova rampa (cada stop)</pre>
         </div>
@@ -4659,7 +4659,7 @@ g = Gradient("ocean").darker(0.15)     # nova rampa (cada stop)</pre>
           <tbody>
             <tr><td><code>*cores</code></td><td>1º, 2º…</td><td class="type"><span class="t">str ou Color</span><span class="ex">"rdyl"</span></td><td>Um nome de preset, ou a rampa. Uma cor: escuro → claro.</td></tr>
             <tr><td><code>type</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">"linear"</span></td><td><code>linear</code> · <code>radial</code> · <code>sweep</code>.</td></tr>
-            <tr><td><code>angle</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Graus. Linear e sweep. 90 = de baixo para cima.</td></tr>
+            <tr><td><code>angle</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Graus. Linear e sweep. 0 = da esquerda para a direita; 90 = de baixo para cima (a primeira cor embaixo); -90 = de cima para baixo. O mesmo numa forma e no <code>Wallpaper</code>. Os presets de céu (<code>"sunset"</code>, <code>"day"</code>) começam pelo alto: <code>angle=-90</code>.</td></tr>
             <tr><td><code>size</code></td><td>nome=</td><td class="type"><span class="t">número ou None</span><span class="ex">cabe no objeto</span></td><td>Em unidades de design. Linear: a distância do centro até cada ponta do degradê. Radial: o raio. Sweep ignora.</td></tr>
               </tbody>
         </table>
@@ -5400,7 +5400,7 @@ cl.remove()
 canvas.background.remove(cl)   # igual
 canvas.background.clear()      # só extras; a base fica
 canvas.set_fly(Tunnel())
-Wallpaper(Gradient("navy", "black", angle=90), pan_response=0.05)
+Wallpaper(Gradient("black", "navy", angle=90), pan_response=0.05)
 Wallpaper("bg1.jpg", tile_mode="mirror", pan_response=0.15)</pre>
         </div>
         <p>Poeira espacial: <code>Stardust</code> (duas cores), <code>Chromadust</code> (paleta que gira; <code>reflect=True</code> faz vai-e-volta), <code>Nebuladust</code> (três cores em manchas). Não são SpatialFx <code>Starburst</code>, o post <code>Chroma</code> nem <code>Nebula</code> (faixas).</p>
@@ -5412,7 +5412,7 @@ Wallpaper("bg1.jpg", tile_mode="mirror", pan_response=0.15)</pre>
 <pre>canvas.background = "navy"
 canvas.background = (0.1, 0.1, 0.15)
 canvas.background = Color("black")
-canvas.background = Gradient("sunset", angle=90)
+canvas.background = Gradient("sunset", angle=-90)
 Wallpaper("bg1.jpg", fit="cover")
 canvas.background.base = Color(0.05, 0.05, 0.08)</pre>
           </div>
@@ -5452,7 +5452,7 @@ canvas.background.base = Color(0.05, 0.05, 0.08)</pre>
         <div class="code-panel">
           <button class="copy-btn" type="button">copiar</button>
 <pre>Wallpaper("navy")
-Wallpaper(Gradient("navy", "black", angle=90), pan_response=0.05)
+Wallpaper(Gradient("black", "navy", angle=90), pan_response=0.05)
 Wallpaper("space.jpg", tile_mode="mirror", pan_response=0.15, zoom_response=0.3)
 Wallpaper("bg2.png", fit="contain")
 Wallpaper(path, fit="tile", tile_size=200, tile_mode="mirror")</pre>

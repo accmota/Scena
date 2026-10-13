@@ -1,7 +1,8 @@
 import glfw
 import math
 import time
-from .state import Container
+from .state import Container, KeyNameMismatch
+from . import state as _state
 from .validate import expect_bool as _expect_flag
 from .closed import ClosedSurface
 
@@ -204,7 +205,7 @@ def _reject_undeliverable_key(other: str) -> None:
     if _is_delivered_name(other):
         return
     if "+" in other:
-        raise ValueError(
+        raise KeyNameMismatch(
             f"{other!r} is not one key. on_key receives one key at a time; "
             f"chords are keyp(\"CTRL+S\")."
         )
@@ -213,19 +214,19 @@ def _reject_undeliverable_key(other: str) -> None:
     # A side spelling (``LSHIFT``, ``LEFT_OPTION``) arrives as its family.
     family = _SPECIFIC_TO_FAMILY.get(spelled)
     if family is not None:
-        raise ValueError(
+        raise KeyNameMismatch(
             f"on_key receives {family!r}, not {other!r}. "
             f"keyp({spelled!r}) still queries that side."
         )
     if spelled != canon:
-        raise ValueError(
+        raise KeyNameMismatch(
             f"on_key receives {spelled!r}, not {other!r}. Scena calls it {spelled!r}."
         )
     if _is_delivered_name(canon):
-        raise ValueError(f"on_key receives {canon!r}, not {other!r}.")
+        raise KeyNameMismatch(f"on_key receives {canon!r}, not {other!r}.")
     from .validate import did_you_mean
     hint = did_you_mean(canon or other, _DELIVERED_CANDIDATES)
-    raise ValueError(f"on_key({other!r}): unknown key.{hint}")
+    raise KeyNameMismatch(f"on_key({other!r}): unknown key.{hint}")
 
 
 class KeyName(str):
@@ -253,6 +254,9 @@ class KeyName(str):
         if eq is NotImplemented:
             return NotImplemented
         return not eq
+
+
+_state._KEY_NAME = KeyName
 
 
 def _is_key_word(part: str) -> bool:

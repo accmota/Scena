@@ -24,7 +24,7 @@ from math import sin
 from scena import *
 
 init(width=960, height=540, title="Corredor")
-Wallpaper(Gradient("#9fd4f0", "#3d97d6", angle=90))
+Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
 
 folha = Sheet(anchor="bottom", pixel_size=0.16)
 folha.strip("correndo", "robot/Run (*).png", fps=14)

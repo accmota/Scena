@@ -488,7 +488,7 @@ class TestBackgroundKindsDefaults(_UnplacedTest):
         self.assertEqual(ramp[-1][1], tuple(half.bottom))
         half._sync_gradient(900.0)
         self.assertIsNone(half._wallpaper.source.size)
-        self.assertAlmostEqual(half._wallpaper.source._angle, 90.0)
+        self.assertAlmostEqual(half._wallpaper.source._angle, -90.0)  # stops top → bottom (y-up)
         # fade=0 restores coincident mid/bottom stops (hard cut).
         crisp = SkyGradient("day", horizon=0.5, fade=0.0)
         crisp_ramp = crisp._ramp_stops()
@@ -912,7 +912,7 @@ class TestBackgroundKindsDefaults(_UnplacedTest):
         sg = SkyGradient("sunset")
         self.assertEqual(len(sg.top), 3)
         from scena.style import GradientType
-        self.assertAlmostEqual(sg._wallpaper.source._angle, 90.0)
+        self.assertAlmostEqual(sg._wallpaper.source._angle, -90.0)
         self.assertEqual(sg._wallpaper.source._type, GradientType.LINEAR)
         from scena.gradient_presets import get_preset, sample_stops_rgb
         z, h, btm = sample_stops_rgb(get_preset("sunset"))

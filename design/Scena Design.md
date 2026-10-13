@@ -424,7 +424,19 @@ deliver (`"A"`, `"SPACE"`, `"SHIFT"`). A name they cannot deliver raises
 (`"SHIFT"` / `"ALT"`; `keyp("LEFT_SHIFT")` still queries that side),
 `"CTRL+S"` → a chord is `keyp(...)`, anything else did-you-mean.
 Widgets keep a plain `str`. Dict lookup and `key.lower()` are plain `str`
-compares and do not raise.
+compares and do not raise. The loud compare is for the handler's argument,
+not for data: a **field stores the key as a plain `str`** (`st` cell, `Text.text`,
+an ink field, `Button.label`, `TextInput.text` — `Attribute._takein_impl`,
+`Entity.__setattr__`, the ink `_write_field` path unwrap `state._KEY_NAME`).
+Otherwise the write's own change check (`"x" != key`) raised, and so did a
+later `st.nome != "nenhuma"` (IN2). A key nested in a tuple / list / dict is not
+unwrapped (no deep scan per write); the compare raises `KeyNameMismatch`
+(a `ValueError`, only when the strings differ), which `_value_changed` and
+`Attribute` read as "changed". A new engine change check on author values
+catches `KeyNameMismatch` the same way; a new field that stores author text
+unwraps the key (`test_key_name_fields` sweeps every public `str` field).
+A module global (`ultima = key`) keeps the `KeyName` — it is the author's
+variable, not a field.
 `mouse.press(button)` takes an int `0–7` (`Mouse.BTN_LEFT`); `"left"` raises
 with that hint.
 

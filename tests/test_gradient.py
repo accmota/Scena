@@ -180,7 +180,7 @@ class TestSkyGradientAutoFit(unittest.TestCase):
     def test_sky_gradient_size_is_auto(self):
         sky = SkyGradient("day", horizon=0.5)
         self.assertIsNone(sky._wallpaper.source.size)
-        self.assertAlmostEqual(sky._wallpaper.source._angle, 90.0)
+        self.assertAlmostEqual(sky._wallpaper.source._angle, -90.0)  # top → bottom, y-up
         src = sky._wallpaper.source
         sky._sync_gradient(900.0)
         self.assertIs(sky._wallpaper.source, src)

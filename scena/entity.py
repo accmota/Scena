@@ -1749,6 +1749,8 @@ class Entity(Container):
         # Unknown public name → ink (lazy bag of bare scalars).
         try:
             object.__getattribute__(self, name)
+            if value.__class__ is _state_module._KEY_NAME:
+                value = str(value)      # see the ink store below
             object.__setattr__(self, name, value)
             return
         except AttributeError:
@@ -1786,6 +1788,11 @@ class Entity(Container):
             return
         else:
             _check_ink_near_miss(type(self), name, route_map)
+        # A key from ``on_key_*`` is stored as a plain ``str``: its loud ``==``
+        # is for the handler, not for every later compare (IN2 in Testing
+        # Design). A rewrite unwraps it in ``_write_field``.
+        if value.__class__ is _state_module._KEY_NAME:
+            value = str(value)
         ink[name] = value
 
     # Private names go straight to object.__setattr__ (state._container_dict_init).

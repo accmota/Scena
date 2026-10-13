@@ -55,9 +55,9 @@ run()
 `,
       try: [
         {
-          note: "Um por vez, no lugar da linha do <code>Wallpaper</code>. O primeiro é uma cor em hex (hexadecimal), que o passo Cor explica. O segundo é um <code>Gradient</code> (degradê), que passa do navy ao preto; <code>angle=90</code> (ângulo) põe o degradê na vertical, em vez de da esquerda para a direita.",
+          note: "Um por vez, no lugar da linha do <code>Wallpaper</code>. O primeiro é uma cor em hex (hexadecimal), que o passo Cor explica. O segundo é um <code>Gradient</code> (degradê), que passa do preto, embaixo, ao navy, em cima: <code>angle=90</code> (ângulo) põe o degradê na vertical, de baixo para cima, em vez de da esquerda para a direita.",
           code: `Wallpaper("#1a1430")
-Wallpaper(Gradient("navy", "black", angle=90))`
+Wallpaper(Gradient("black", "navy", angle=90))`
         }
       ]
     },

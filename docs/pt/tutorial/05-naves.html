@@ -87,14 +87,14 @@ if keyp("RIGHT") and nave.center.x < 960:
       title: "O céu",
       body: `
         <p>O jogo funciona, mas o fundo é chapado. Este passo não muda o jogo, só o céu: um degradê, estrelas passando e três efeitos de tela.</p>
-        <p><strong>O degradê.</strong> <code>Gradient</code> (degradê) vai de uma cor a outra; ele apareceu num Experimente também do tutorial 01. <code>angle=90</code> (ângulo) põe a transição na vertical: preto numa borda, azul quase preto na outra. Cada <code>dark</code> (escuro) no nome da cor escurece mais um pouco, e <code>"dark dark blue"</code> é um azul bem fechado.</p>
+        <p><strong>O degradê.</strong> <code>Gradient</code> (degradê) vai de uma cor a outra; ele apareceu num Experimente também do tutorial 01. <code>angle=90</code> (ângulo) põe a transição na vertical, de baixo para cima: a primeira cor embaixo (azul quase preto), a segunda no alto (preto). Cada <code>dark</code> (escuro) no nome da cor escurece mais um pouco, e <code>"dark dark blue"</code> é um azul bem fechado.</p>
         <p><strong>As estrelas.</strong> <code>Stars</code> (estrelas) espalha um campo de pontos de luz pelo fundo. <code>scroll</code> (rolar) é quanto o campo anda sozinho, um <code>(x, y)</code> em pixels por segundo: <code>(0.0, -38.0)</code> desce 38 por segundo. As estrelas descem, e a nave parece voar para a frente. <code>pan_response</code> (resposta ao movimento da câmera) em 0 prende o campo à tela.</p>
         <p><strong>Os efeitos de tela.</strong> <code>Grain</code>, <code>Bloom</code> e <code>Scanlines</code> não desenham uma forma: mexem na imagem inteira, depois que tudo foi desenhado. <code>Grain</code> (grão) você viu nas barras do tutorial 04, um chuvisco fraco. <code>Bloom</code> (florescer) faz o que é claro vazar luz em volta: o brilho que a nave vai ganhar no próximo passo e, mais adiante, os lasers. <code>Scanlines</code> (linhas de varredura) risca a tela com linhas horizontais finas, como num fliperama antigo. Basta a linha para o efeito ligar.</p>
       `,
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()
@@ -168,7 +168,7 @@ CosmicBloom("orchid", "cyan")  # manchas de nebulosa e brilhos, em duas cores`
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()
@@ -218,7 +218,7 @@ nave.tail = Tail("cyan", size=1.5, amount=1.5)`
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()
@@ -258,7 +258,7 @@ Sprite("space/laserRed01.png", height=28, center=(nave.center.x, nave.center.y +
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()
@@ -302,7 +302,7 @@ run()
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()
@@ -353,7 +353,7 @@ run()
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()
@@ -433,7 +433,7 @@ run()
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()
@@ -497,7 +497,7 @@ inimigo.gray = True`
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()
@@ -555,7 +555,7 @@ run()
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()
@@ -610,7 +610,7 @@ run()
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()
@@ -673,7 +673,7 @@ run()
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()
@@ -742,7 +742,7 @@ run()
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()
@@ -835,7 +835,7 @@ canvas.shake(8)`
 from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()
@@ -935,7 +935,7 @@ def frota_atira():
 from scena import *
 
 init(width=1000, height=800, title="Naves")
-Wallpaper(Gradient("black", "dark dark blue", angle=90))
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
 Stars(pan_response=0.0, scroll=(0.0, -38.0))
 Grain()
 Bloom()

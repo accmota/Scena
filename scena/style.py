@@ -3041,7 +3041,8 @@ def build_background_fill(
     """Build the full-surface fill (+ optional letterbox underlay) for a wallpaper source.
 
     Coordinates are device pixels of the target surface (identity CTM).
-    Gradient sizes authored in design units are scaled by ``w / design_width``.
+    A Gradient keeps its y-up local frame (``angle=90`` runs bottom → top, as
+    on a shape). Gradient sizes authored in design units are scaled by ``w / design_width``.
     Omitted Gradient ``size`` fits the design frame first (LINEAR along ``angle``,
     RADIAL to the nearer edge), then that pixel scale.
     Tiled images use ``tile_size`` design units (default ¼ of the shorter design
@@ -3106,7 +3107,10 @@ def build_background_fill(
     paint.setBlendMode(skia.BlendMode.kSrc)
     if isinstance(source, Gradient):
         sx = (w / design_width) if design_width else 1.0
-        sy = (h / design_height) if design_height else 1.0
+        # The fill is in device pixels (y down); the gradient's local frame is
+        # y-up, as on a shape: ``angle=90`` runs from the bottom up everywhere.
+        # Before 0.9.0 a Wallpaper skipped this flip and drew it top-down.
+        sy = -((h / design_height) if design_height else 1.0)
         m = skia.Matrix()
         m.setTranslate(w * 0.5, h * 0.5)
         if source._needs_host_fit:
