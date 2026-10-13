@@ -79,11 +79,24 @@ def script_literals(path):
     return out
 
 
+# A wrong name on purpose: appendix A presses SPACE to paint "laranja" and show
+# the SCENA WARNING banner it raises (the step test never presses SPACE).
+_DELIBERATE = {("A-depuracao.html", "laranja")}
+
+
+def _in_html_tag(line: str, at: int) -> bool:
+    """The match sits inside an HTML/SVG tag (``<path fill="none" …>``), not in code."""
+    return line.rfind("<", 0, at) > line.rfind(">", 0, at)
+
+
 def doc_literals(path):
     out = []
+    page = os.path.basename(path)
     with open(path, encoding="utf-8") as fh:
         for i, line in enumerate(fh, 1):
-            out.extend((i, m.group(1)) for m in _DOC_RE.finditer(line))
+            out.extend((i, m.group(1)) for m in _DOC_RE.finditer(line)
+                       if not _in_html_tag(line, m.start())
+                       and (page, m.group(1)) not in _DELIBERATE)
     return out
 
 
@@ -100,6 +113,8 @@ class TestColorLiterals(unittest.TestCase):
             [n for _l, n in doc_literals_from_text('code: "Fog(color=\\"dim gray\\")"')],
             ["dim gray"],
         )
+        self.assertTrue(_in_html_tag('<path class="ray" fill="none" d="M 0 0"/>', 17))
+        self.assertFalse(_in_html_tag('r.fill = "none"', 2))
 
     def test_script_color_names_exist(self):
         seen, bad = 0, []

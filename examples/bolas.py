@@ -1,4 +1,4 @@
-"""Bolas — tutorial 09.
+"""Bolas — tutorial 10.
 
 Vinte bolas quicam nas paredes e umas nas outras: duas regras de
 resolve, uma para bola com parede e outra para bola com bola. Cada batida

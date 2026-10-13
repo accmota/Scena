@@ -1,4 +1,4 @@
-"""Barras girando — retângulos recursivos. Tutorial 04.
+"""Barras girando — retângulos recursivos. Tutorial 13.
 
 Uma função cria uma barra e chama a si mesma para criar duas menores,
 uma em cada ponta (left_square_center / right_square_center): o centro

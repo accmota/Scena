@@ -14,7 +14,7 @@
 <script src="../../assets/tutorial/tutorial.js"></script>
 <script>
 Tutorial.mount({
-  n: "09",
+  n: "10",
   title: "Bolas",
   steps: [
     {
@@ -179,6 +179,7 @@ run()
       title: "Bola com bola",
       body: `
         <p>Mais uma regra, agora do grupo com ele mesmo: <code>resolve("bola", "bola", bounce=1)</code>. Duas bolas que se tocam se separam, e as setas das duas mudam: a que bateu recua, a que foi atingida sai andando.</p>
+        <p><strong>Em câmera lenta.</strong> As batidas são rápidas demais para o olho. <kbd>Ctrl+Shift+P</kbd> muda o tempo do jogo: roda → pausa → um quarto da velocidade → roda. Em ¼ dá para ver cada bola chegar, tocar e sair. Com <kbd>Ctrl+Shift+7</kbd>, você vê também o contorno que o Scena usa em cada uma. As outras teclas estão no <a href="A-depuracao.html">Apêndice A</a>.</p>
         <p><strong>A massa.</strong> Toda bola tem massa 1 (o padrão), então duas bolas se empurram por igual. Uma bola mais pesada empurra mais e é menos empurrada. Na caixa, uma bola grande de massa 8 abre caminho entre as pequenas.</p>
       `,
       code: `from random import uniform
@@ -335,8 +336,9 @@ escolhida.tail = True`
     {
       title: "Um traço de verdade",
       body: `
-        <p>O <code>Tail</code> é feito de cópias da bola e só mostra o último instante. Para ver o caminho, o <code>Contrail</code> (rastro de avião) do osciloscópio, no 04: uma linha que passa pelas últimas posições.</p>
+        <p>O <code>Tail</code> é feito de cópias da bola e só mostra o último instante. Para ver o caminho, o <code>Contrail</code> (rastro de avião) do Desenho, no 04: uma linha que passa pelas últimas posições.</p>
         <p><strong>Quem guarda.</strong> <code>escolhida.every(0.05, …)</code> guarda a posição da escolhida 20 vezes por segundo, com <code>snapshot</code> (instantâneo). No 04 o <code>every</code> era solto, no arquivo; aqui ele é <strong>da bola</strong>: o timer é dela, e para sozinho se ela for destruída.</p>
+        <p><strong>Por que a <code>lambda</code>.</strong> O <code>every</code> precisa de uma função para chamar mais tarde. Sem parênteses (<code>rastro.snapshot</code>) não dá para dizer <em>de quem</em> guardar a posição; com parênteses (<code>rastro.snapshot(escolhida)</code>) a chamada rodaria agora, uma vez só. A <code>lambda</code> embrulha a chamada inteira, com o argumento, para o <code>every</code> rodá-la a cada vez. Regra prática: uma função sem argumentos vai sem parênteses; uma com argumentos vai dentro de uma <code>lambda:</code>.</p>
         <p><strong>Quanto dura.</strong> <code>duration=8</code> (duração) guarda só os últimos 8 segundos, e <code>fade=True</code> (esmaecer) apaga a ponta velha aos poucos.</p>
       `,
       code: `from random import uniform, choice
@@ -499,7 +501,7 @@ def update(dt):
           <li><code>canvas.zoom_by</code> — a câmera aproxima; os objetos não mudam de lugar.</li>
         </ul>
         <p><strong>No Guia:</strong> <a href="../guide/index.html#colisao-resolve">Tornar sólido (resolve)</a> · <a href="../guide/index.html#geo-vec2">Vec2</a> · <a href="../guide/index.html#aparencia-selos">Complementos</a> · <a href="../guide/index.html#contrail">Contrail</a> · <a href="../guide/index.html#mundo-camera">Câmera</a> · <a href="../guide/index.html#frame-mouse">Mouse</a>.</p>
-        <p><strong>No próximo:</strong> o Ateliê (10) ainda está em preparação. O 11 é outro jogo: um avião entre pilares, com uma hélice que gira e um manche com inércia.</p>
+        <p><strong>No próximo:</strong> o mouse num lugar só: clicar, passar por cima, arrastar e uma grade que acende a casa sob o mouse (Interação).</p>
       `
     }
   ]

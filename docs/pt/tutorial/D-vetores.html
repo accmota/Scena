@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vetores e pontos — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Apêndice",
+  n: "D",
+  title: "Vetores e pontos",
+  steps: [
+    {
+      title: "Onde fica cada ponto",
+      part: "Pontos",
+      body: `
+        <p>Este apêndice não constrói um jogo. Cada seção é um programa curto que mostra uma ideia sobre <strong>pontos</strong> (lugares na tela) e <strong>vetores</strong> (setas: para onde e quanto andar). Rode cada um, mude os números e rode de novo. As contas daqui aparecem em todo jogo: a bola que anda, a nave que aponta para o inimigo, o tiro que sai da ponta do canhão.</p>
+        <p><strong>As coordenadas.</strong> Um ponto é um par de números, <code>(x, y)</code>. O <code>x</code> cresce para a direita; o <code>y</code> cresce <strong>para cima</strong>. O ponto <code>(0, 0)</code> é o canto de baixo, à esquerda. Numa janela de 1000 por 700, o canto de cima, à direita, é <code>(1000, 700)</code>, e o meio é <code>(500, 350)</code>.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 230" role="img" aria-label="Um eixo x horizontal crescendo para a direita e um eixo y vertical crescendo para cima, com a origem (0, 0) no canto de baixo à esquerda; um ponto marcado em (500, 350), com linhas tracejadas até os dois eixos">
+            <line class="ray" x1="40" y1="200" x2="370" y2="200"/>
+            <polygon class="dot" points="378,200 368,195 368,205"/>
+            <line class="ray" x1="40" y1="200" x2="40" y2="20"/>
+            <polygon class="dot" points="40,12 35,22 45,22"/>
+            <line class="guide" x1="200" y1="90" x2="200" y2="200"/>
+            <line class="guide" x1="40" y1="90" x2="200" y2="90"/>
+            <circle class="hot" cx="200" cy="90" r="5"/>
+            <text x="208" y="84">(500, 350)</text>
+            <text x="40" y="218" text-anchor="middle">(0, 0)</text>
+            <text x="352" y="218">x</text>
+            <text x="50" y="22">y</text>
+            <text x="200" y="218" text-anchor="middle">500</text>
+            <text x="34" y="94" text-anchor="end">350</text>
+          </svg>
+          <figcaption>O <code>x</code> conta da esquerda para a direita; o <code>y</code>, de baixo para cima.</figcaption>
+        </figure>
+        <p><strong>O programa.</strong> A função <code>marca(x, y, cor)</code> desenha uma bolinha no ponto e escreve as coordenadas logo acima dela (<code>y + 28</code>: 28 unidades mais para cima). O <code>f"({x}, {y})"</code> é uma <em>f-string</em>: um texto com um <code>f</code> na frente, onde o que está entre chaves é trocado pelo valor. Com <code>x = 100</code> e <code>y = 550</code>, ele vira <code>"(100, 550)"</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Pontos")
+Wallpaper("dark navy")
+
+
+def marca(x, y, cor):
+    Circle(center=(x, y), radius=8, color=cor)
+    Text(f"({x}, {y})", center=(x, y + 28), font_size=16)
+
+
+marca(100, 100, "coral")
+marca(500, 350, "gold")
+marca(900, 550, "turquoise")
+marca(100, 550, "orchid")
+marca(900, 100, "sky blue")
+
+run()
+`,
+      try: [
+        {
+          note: "Mais marcas. Antes de rodar, adivinhe onde cada uma vai cair. A última fica na borda de baixo: a bolinha aparece pela metade.",
+          code: `marca(500, 600, "white")
+marca(250, 350, "white")
+marca(500, 0, "white")`
+        }
+      ]
+    },
+    {
+      title: "O mouse também é um ponto",
+      body: `
+        <p><code>mouse</code> é a posição do mouse, nas mesmas coordenadas. <code>mouse.x</code> e <code>mouse.y</code> são os dois números.</p>
+        <p>A bolinha branca usa <code>center=lambda: mouse</code>: a <code>lambda</code> (do 03) diz ao Scena para ler o mouse de novo a cada quadro, e a bolinha vai junto. O texto faz o mesmo: recebe uma <code>lambda</code> que monta o texto, e o Scena a lê de novo a cada quadro. <code>top_left</code> é o canto de cima, à esquerda, do texto.</p>
+        <p>Rode e passeie com o mouse: perto do canto de baixo, à esquerda, os dois números ficam pequenos; para cima, o <code>y</code> cresce.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Pontos")
+Wallpaper("dark navy")
+
+
+def marca(x, y, cor):
+    Circle(center=(x, y), radius=8, color=cor)
+    Text(f"({x}, {y})", center=(x, y + 28), font_size=16)
+
+
+marca(100, 100, "coral")
+marca(500, 350, "gold")
+marca(900, 550, "turquoise")
+marca(100, 550, "orchid")
+marca(900, 100, "sky blue")
+
+Circle(center=lambda: mouse, radius=6, color="white")
+Text(lambda: f"mouse ({round(mouse.x)}, {round(mouse.y)})", top_left=(20, 680), font_size=20)
+
+run()
+`
+    },
+    {
+      title: "Point: um ponto que vive no jogo",
+      body: `
+        <p>Até aqui, os pontos eram <strong>tuplas</strong>: <code>(500, 350)</code> são só dois números escritos juntos, entre parênteses. O Python não sabe que eles são um lugar.</p>
+        <p><code>Point(300, 250)</code> é um ponto que <strong>vive no jogo</strong>. Ele guarda <code>.x</code> e <code>.y</code>, pode aparecer (<code>color=</code> o mostra como uma bolinha) e ser arrastado (<code>handle = True</code>, alça ligada). Outras coisas podem ler a posição dele: o texto ao lado lê <code>p.x</code> e <code>p.y</code> e anda junto.</p>
+        <p>Rode e arraste a bolinha dourada. <code>round</code> arredonda: o mouse anda em passos quebrados (300.4…), e o texto mostra o número inteiro.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Pontos")
+Wallpaper("dark navy")
+
+
+def marca(x, y, cor):
+    Circle(center=(x, y), radius=8, color=cor)
+    Text(f"({x}, {y})", center=(x, y + 28), font_size=16)
+
+
+marca(100, 100, "coral")
+marca(500, 350, "gold")
+marca(900, 550, "turquoise")
+marca(100, 550, "orchid")
+marca(900, 100, "sky blue")
+
+Circle(center=lambda: mouse, radius=6, color="white")
+Text(lambda: f"mouse ({round(mouse.x)}, {round(mouse.y)})", top_left=(20, 680), font_size=20)
+
+p = Point(300, 250, color="gold")
+p.handle = True
+Text(lambda: f"p ({round(p.x)}, {round(p.y)})", center=lambda: (p.x, p.y + 28), font_size=16)
+
+run()
+`,
+      try: [
+        {
+          note: "<code>Anchor</code> (âncora) é o atalho do 03: um <code>Point</code> que já nasce visível e arrastável. No lugar das duas linhas do <code>p</code>.",
+          replaces: ['p = Point(', 'p.handle = True'],
+          code: `p = Anchor(300, 250)`
+        }
+      ]
+    },
+    {
+      title: "O centro de uma forma",
+      body: `
+        <p>Toda forma tem um <code>center</code> (centro), e ele é um <code>Point</code>. <code>bola.center.x</code> é o <code>x</code> do centro da bola. O mesmo vale para as pontas de uma linha (<code>linha.p1</code>, <code>linha.p2</code>) e os cantos de um retângulo (<code>caixa.top_left</code>).</p>
+        <p><code>bola.draggable = True</code> (arrastável) deixa pegar a bola inteira com o mouse. Arraste-a: o texto de baixo lê o centro e acompanha.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Pontos")
+Wallpaper("dark navy")
+
+
+def marca(x, y, cor):
+    Circle(center=(x, y), radius=8, color=cor)
+    Text(f"({x}, {y})", center=(x, y + 28), font_size=16)
+
+
+marca(100, 100, "coral")
+marca(500, 350, "gold")
+marca(900, 550, "turquoise")
+marca(100, 550, "orchid")
+marca(900, 100, "sky blue")
+
+Circle(center=lambda: mouse, radius=6, color="white")
+Text(lambda: f"mouse ({round(mouse.x)}, {round(mouse.y)})", top_left=(20, 680), font_size=20)
+
+p = Point(300, 250, color="gold")
+p.handle = True
+Text(lambda: f"p ({round(p.x)}, {round(p.y)})", center=lambda: (p.x, p.y + 28), font_size=16)
+
+bola = Circle(center=(700, 300), radius=40, color="coral")
+bola.draggable = True
+Text(lambda: f"bola.center ({round(bola.center.x)}, {round(bola.center.y)})", top_left=(20, 650), font_size=20)
+
+run()
+`
+    },
+    {
+      title: "Ponto mais deslocamento",
+      fresh: true,
+      part: "Ponto + (dx, dy)",
+      body: `
+        <p>Um programa novo. Muitas vezes você quer um lugar <strong>perto</strong> de outro: o tiro sai um pouco acima da nave, o nome fica embaixo do herói. Para isso, some ao ponto um par de números: <code>sol.center + (200, 0)</code> é o ponto 200 para a direita do centro do sol.</p>
+        <p>O par é um <strong>deslocamento</strong>, <code>(dx, dy)</code>: quanto andar em x e em y (o <code>d</code> vem de <em>delta</em>, a letra grega que os matemáticos usam para diferença). Número negativo anda para o outro lado: <code>(-200, -150)</code> vai 200 para a esquerda e 150 para baixo.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="Um sol no meio; à direita dele, uma bolinha a (200, 0); acima, outra a (0, 150); embaixo à esquerda, uma terceira a (-200, -150); linhas tracejadas do sol até cada uma">
+            <circle class="bar" cx="200" cy="110" r="22"/>
+            <line class="guide" x1="200" y1="110" x2="330" y2="110"/>
+            <line class="guide" x1="200" y1="110" x2="200" y2="20"/>
+            <line class="guide" x1="200" y1="110" x2="80" y2="180"/>
+            <circle class="hot" cx="330" cy="110" r="7"/>
+            <circle class="hot" cx="200" cy="20" r="7"/>
+            <circle class="hot" cx="80" cy="180" r="7"/>
+            <text x="300" y="134">+ (200, 0)</text>
+            <text x="212" y="24">+ (0, 150)</text>
+            <text x="94" y="194">+ (-200, -150)</text>
+          </svg>
+          <figcaption>O mesmo ponto, mais três deslocamentos: três lugares novos em volta dele.</figcaption>
+        </figure>
+        <p>O resultado é um <code>Point</code> novo, calculado <strong>agora</strong>: as bolinhas nascem ali e ficam ali. O próximo passo as faz acompanhar o sol.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Ponto + deslocamento")
+Wallpaper("dark navy")
+
+sol = Circle(center=(500, 350), radius=50, color="gold")
+
+Circle(center=sol.center + (200, 0), radius=16, color="coral")
+Text("+ (200, 0)", center=sol.center + (200, 40), font_size=16)
+Circle(center=sol.center + (0, 150), radius=16, color="turquoise")
+Text("+ (0, 150)", center=sol.center + (0, 190), font_size=16)
+Circle(center=sol.center + (-200, -150), radius=16, color="orchid")
+Text("+ (-200, -150)", center=sol.center + (-200, -110), font_size=16)
+
+run()
+`,
+      try: [
+        {
+          note: "Subtrair anda para o outro lado: <code>sol.center - (200, 0)</code> é o ponto 200 para a esquerda.",
+          code: `Circle(center=sol.center - (200, 0), radius=16, color="white")`
+        }
+      ]
+    },
+    {
+      title: "Acompanhar",
+      body: `
+        <p>Agora o sol pode ser arrastado, e as luas vão junto. A conta é a mesma; a diferença é a <code>lambda</code>. Com <code>center=lambda: sol.center + (200, 0)</code>, o Scena refaz a conta a cada quadro, lendo o centro do sol de agora. Os textos também.</p>
+        <p>Rode e arraste o sol. Sem a <code>lambda</code> (o passo anterior), a conta acontece uma vez só, quando a lua nasce.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Ponto + deslocamento")
+Wallpaper("dark navy")
+
+sol = Circle(center=(500, 350), radius=50, color="gold")
+sol.draggable = True
+
+Circle(center=lambda: sol.center + (200, 0), radius=16, color="coral")
+Text("+ (200, 0)", center=lambda: sol.center + (200, 40), font_size=16)
+Circle(center=lambda: sol.center + (0, 150), radius=16, color="turquoise")
+Text("+ (0, 150)", center=lambda: sol.center + (0, 190), font_size=16)
+Circle(center=lambda: sol.center + (-200, -150), radius=16, color="orchid")
+Text("+ (-200, -150)", center=lambda: sol.center + (-200, -110), font_size=16)
+
+run()
+`,
+      dive: [
+        {
+          title: "Quem sabe somar um deslocamento",
+          body: `
+            <p><strong>Sabem:</strong> um <code>Point</code>, o <code>center</code> de qualquer forma ou sprite, as pontas de uma linha (<code>linha.p2 + (0, 10)</code>), os cantos de um retângulo, e um <code>Vec2</code> (a seta da próxima seção).</p>
+            <p><strong>Não sabem:</strong> a tupla e o mouse. <code>(500, 350) + (200, 0)</code> não dá erro, mas é a conta do Python para tuplas: ele <em>gruda</em> as duas e devolve <code>(500, 350, 200, 0)</code>, quatro números. Com o mouse, some à mão: <code>(mouse.x + 200, mouse.y)</code>. Ou guarde o lugar num <code>Point</code>: <code>Point(500, 350) + (200, 0)</code> funciona.</p>
+            <p><strong>Colocar e andar.</strong> <code>sol.center += (10, 0)</code> dá erro de propósito. Para pôr o sol num lugar novo, escreva a conta inteira: <code>sol.center = sol.center + (10, 0)</code>. Para ele <em>andar</em> até lá (e uma parede de <code>resolve</code> poder pará-lo no caminho), use <code>sol.move_by(10, 0)</code>.</p>
+            <p>No Guia: <a href="../guide/index.html#geo-helpers">Pontos</a>.</p>
+          `,
+          try: [
+            {
+              note: "Um anel que pula 10 para a direita a cada clique. No fim do programa.",
+              code: `anel = Circle(center=(150, 600), radius=20, color="white")
+
+
+@click(anel)
+def pular():
+    anel.center = anel.center + (10, 0)`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "Uma seta",
+      fresh: true,
+      part: "Vetores",
+      body: `
+        <p>Um ponto diz <strong>onde</strong>. Um <strong>vetor</strong> diz <strong>quanto andar e para onde</strong>: é uma seta, com uma direção e um tamanho. No Scena, um vetor é um <code>Vec2</code> (vetor de 2 números). <code>Vec2(200, 100)</code> é a seta que anda 200 para a direita e 100 para cima.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 190" role="img" aria-label="Uma seta saindo de um ponto embaixo à esquerda até um ponto em cima à direita; uma linha tracejada horizontal mostra a parte x, 200, e uma vertical mostra a parte y, 100">
+            <line class="guide" x1="60" y1="160" x2="320" y2="160"/>
+            <line class="guide" x1="320" y1="160" x2="320" y2="30"/>
+            <line class="ray" x1="60" y1="160" x2="312" y2="34"/>
+            <polygon class="dot" points="322,29 306,30 312,43"/>
+            <circle class="dot" cx="60" cy="160" r="4"/>
+            <text x="170" y="178">x: 200</text>
+            <text x="330" y="100">y: 100</text>
+            <text x="60" y="70">Vec2(200, 100)</text>
+          </svg>
+          <figcaption>A seta <code>Vec2(200, 100)</code>: 200 para a direita, 100 para cima.</figcaption>
+        </figure>
+        <p><strong>Uma seta não é um lugar.</strong> O programa desenha a mesma seta <code>v</code> três vezes, saindo de três pontos diferentes. São iguais: o mesmo tamanho, a mesma direção. Por isso um vetor serve para <em>mover</em> (a velocidade de uma bola) e para <em>medir</em> (de um ponto a outro), mas não para dizer onde uma coisa está.</p>
+        <p><strong>A função <code>seta</code>.</strong> O Scena não tem uma forma "seta"; a função desenha uma com duas peças: uma <code>Line</code> do início até o fim, e um <code>EquilateralTriangle</code> (triângulo equilátero) na ponta, virado para o lado da seta (<code>vetor.angle</code>, o ângulo da seta; logo abaixo). O fim é o início mais o vetor: <code>inicio + vetor</code>, a conta da seção anterior com uma seta no lugar do par. Por isso o início é um <code>Point(…)</code>, e não uma tupla: a tupla não sabe somar.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Vetores")
+Wallpaper("dark navy")
+
+
+def seta(inicio, vetor, cor):
+    fim = inicio + vetor
+    Line(p1=inicio, p2=fim, color=cor, line_width=4)
+    EquilateralTriangle(center=fim, radius=12, angle=vetor.angle, color=cor)
+
+
+v = Vec2(200, 100)
+
+seta(Point(100, 400), v, "gold")
+seta(Point(400, 150), v, "gold")
+seta(Point(650, 450), v, "gold")
+Text("v = Vec2(200, 100)", top_left=(20, 680), font_size=20)
+
+run()
+`
+    },
+    {
+      title: "Tamanho e ângulo",
+      body: `
+        <p>Uma seta tem um tamanho e uma direção, e o <code>Vec2</code> sabe dizer os dois. <code>v.length</code> (comprimento) é o tamanho da seta: de <code>(200, 100)</code>, cerca de 224. <code>v.angle</code> (ângulo) é a direção, em graus: 0 é para a direita, 90 é para cima. Esta seta sobe um pouco, cerca de 27 graus. A seção <strong>Ângulos</strong>, mais abaixo, mostra a volta inteira.</p>
+        <p><code>v.x</code> e <code>v.y</code> leem as duas partes, como num ponto.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Vetores")
+Wallpaper("dark navy")
+
+
+def seta(inicio, vetor, cor):
+    fim = inicio + vetor
+    Line(p1=inicio, p2=fim, color=cor, line_width=4)
+    EquilateralTriangle(center=fim, radius=12, angle=vetor.angle, color=cor)
+
+
+v = Vec2(200, 100)
+
+seta(Point(100, 400), v, "gold")
+seta(Point(400, 150), v, "gold")
+seta(Point(650, 450), v, "gold")
+Text("v = Vec2(200, 100)", top_left=(20, 680), font_size=20)
+Text(f"comprimento {round(v.length)}   ângulo {round(v.angle)}", top_left=(20, 650), font_size=20)
+
+run()
+`,
+      try: [
+        {
+          note: "Outras setas, uma por vez, no lugar do <code>v</code>. Veja o comprimento e o ângulo de cada uma. <code>Vec2(0, 150)</code> sobe reto (90 graus); <code>Vec2(-200, 0)</code> vai para a esquerda (180); com <code>y</code> negativo, a seta desce e o ângulo fica negativo.",
+          replaces: ['v = Vec2('],
+          code: `v = Vec2(0, 150)
+v = Vec2(-200, 0)
+v = Vec2(150, -150)`
+        }
+      ],
+      dive: [
+        {
+          title: "De onde vem o comprimento",
+          body: `
+            <p>As duas partes da seta e a própria seta formam um triângulo retângulo: 200 deitado, 100 em pé, e a seta é o lado comprido. O comprimento sai do teorema de Pitágoras: a raiz de 200 × 200 + 100 × 100, que dá 223,6. Você não precisa fazer a conta: <code>v.length</code> faz.</p>
+            <p><code>v.length</code> e <code>v.angle</code> são só de leitura: <code>v.length = 50</code> dá erro e mostra a forma certa. Para uma seta de outro tamanho, faça outra seta (a seção <strong>Esticar e encolher</strong> mostra como).</p>
+            <p>No Guia: <a href="../guide/index.html#geo-vec2">Vec2</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Somar setas",
+      fresh: true,
+      part: "Somar",
+      body: `
+        <p>Somar duas setas é andar uma e depois a outra. Ande <code>a</code> (laranja); do fim dela, ande <code>b</code> (turquesa). A seta dourada, <code>a + b</code>, vai direto do começo ao fim do caminho.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="Uma seta a quase deitada, depois uma seta b subindo a partir da ponta de a; uma terceira seta, a + b, vai do início de a até a ponta de b, fechando um triângulo">
+            <line class="ray" x1="40" y1="180" x2="262" y2="150"/>
+            <polygon class="dot" points="272,148 259,143 261,157"/>
+            <line class="ray" x1="272" y1="148" x2="341" y2="36"/>
+            <polygon class="dot" points="346,28 334,37 345,44"/>
+            <line class="guide" x1="40" y1="180" x2="338" y2="34"/>
+            <circle class="dot" cx="40" cy="180" r="4"/>
+            <text x="150" y="186">a</text>
+            <text x="318" y="110">b</text>
+            <text x="150" y="98">a + b</text>
+          </svg>
+          <figcaption>Andar <code>a</code> e depois <code>b</code> leva ao mesmo lugar que andar <code>a + b</code> de uma vez.</figcaption>
+        </figure>
+        <p>A conta é parte por parte: os <code>x</code> somam e os <code>y</code> somam. <code>Vec2(300, 50) + Vec2(100, 250)</code> é <code>Vec2(400, 300)</code>. O texto mostra os números com <code>.0</code> no fim: o <code>Vec2</code> guarda números com vírgula (<code>300.0</code> é o mesmo 300).</p>
+        <p>Repare no começo da seta turquesa: <code>inicio + a</code>, o ponto onde a seta <code>a</code> termina.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Somar")
+Wallpaper("dark navy")
+
+
+def seta(inicio, vetor, cor):
+    fim = inicio + vetor
+    Line(p1=inicio, p2=fim, color=cor, line_width=4)
+    EquilateralTriangle(center=fim, radius=12, angle=vetor.angle, color=cor)
+
+
+a = Vec2(300, 50)
+b = Vec2(100, 250)
+inicio = Point(250, 150)
+
+seta(inicio, a, "coral")
+seta(inicio + a, b, "turquoise")
+seta(inicio, a + b, "gold")
+Text(f"a = {a}", top_left=(20, 680), font_size=20, color="coral")
+Text(f"b = {b}", top_left=(20, 650), font_size=20, color="turquoise")
+Text(f"a + b = {a + b}", top_left=(20, 620), font_size=20, color="gold")
+
+run()
+`,
+      try: [
+        {
+          note: "Na outra ordem: ande <code>b</code> primeiro, depois <code>a</code>. O caminho é outro, e o fim é o mesmo. No fim do programa.",
+          code: `seta(inicio, b, "white")
+seta(inicio + b, a, "white")`
+        }
+      ]
+    },
+    {
+      title: "De A até B",
+      fresh: true,
+      part: "De um ponto a outro",
+      body: `
+        <p>A seta que vai de um ponto <code>A</code> até um ponto <code>B</code> é <strong>B menos A</strong>: <code>b.center - a.center</code>. A ordem importa: é o destino menos a origem. <code>a.center - b.center</code> é a seta de volta, de B até A.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 180" role="img" aria-label="Dois pontos, A embaixo à esquerda e B em cima à direita; uma seta de A até B, com o rótulo B menos A">
+            <line class="ray" x1="70" y1="140" x2="310" y2="52"/>
+            <polygon class="dot" points="320,48 304,46 309,60"/>
+            <circle class="hot" cx="70" cy="140" r="6"/>
+            <circle class="hot" cx="320" cy="48" r="6"/>
+            <text x="58" y="164">A</text>
+            <text x="330" y="44">B</text>
+            <text x="200" y="118">b.center - a.center</text>
+          </svg>
+          <figcaption>Destino menos origem: a seta que leva de <code>A</code> até <code>B</code>.</figcaption>
+        </figure>
+        <p>Por que menos? Porque é a pergunta "quanto falta andar". Se A está em <code>(200, 200)</code> e B em <code>(700, 450)</code>, falta andar 700 − 200 = 500 em x e 450 − 200 = 250 em y.</p>
+        <p>As duas pontas são <code>Anchor</code>: arraste-as. A seta e o texto acompanham. O texto vem de uma função, <code>de_a_ate_b</code>, que o <code>Text</code> chama a cada quadro: ela faz a conta e devolve o texto pronto.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="De A até B")
+Wallpaper("dark navy")
+
+a = Anchor(200, 200)
+b = Anchor(700, 450, color="lime")
+Text("A", center=lambda: a.center + (0, -30), font_size=20)
+Text("B", center=lambda: b.center + (0, 30), font_size=20)
+
+Line(p1=lambda: a.center, p2=lambda: b.center, color="gold", line_width=4)
+EquilateralTriangle(center=lambda: b.center, radius=14, angle=lambda: (b.center - a.center).angle, color="gold")
+
+
+def de_a_ate_b():
+    d = b.center - a.center
+    return f"b.center - a.center = Vec2({round(d.x)}, {round(d.y)})"
+
+
+Text(de_a_ate_b, top_left=(20, 680), font_size=20)
+
+run()
+`,
+      dive: [
+        {
+          title: "Ponto menos ponto, ponto menos par",
+          body: `
+            <p><strong>Ponto menos ponto</strong> dá uma seta (<code>Vec2</code>): <code>b.center - a.center</code>. Os dois precisam ser pontos de verdade (um <code>Point</code>, o <code>center</code> de uma forma).</p>
+            <p><strong>Ponto menos par</strong> dá um ponto: <code>b.center - (200, 200)</code> é o lugar 200 à esquerda e 200 abaixo de B (é a conta da seção <strong>Ponto + (dx, dy)</strong>). Para a seta que sai de um lugar escrito em números, guarde o lugar num <code>Point</code>: <code>b.center - Point(200, 200)</code> é a seta de <code>(200, 200)</code> até B.</p>
+            <p><strong>Ponto mais ponto</strong> dá erro: não existe "somar dois lugares". O ponto do meio é <code>middle_point(a, b)</code>.</p>
+            <p>No Guia: <a href="../guide/index.html#geo-helpers">Pontos</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Distância e rumo",
+      body: `
+        <p>Duas perguntas aparecem em todo jogo: <strong>quão longe</strong> está o inimigo, e <strong>para que lado</strong> ele está. O Scena tem uma função para cada uma.</p>
+        <p><code>distance(a, b)</code> (distância) é o tamanho da seta de A até B: o mesmo que <code>(b.center - a.center).length</code>. <code>heading(a, b)</code> (rumo) é o ângulo dessa seta, em graus: para onde apontar, de A, para olhar para B. É o mesmo que <code>(b.center - a.center).angle</code>.</p>
+        <p>As duas aceitam pontos, tuplas, formas (usam o <code>center</code>) e o <code>mouse</code>. No <code>heading</code>, a ordem importa: <code>heading(b, a)</code> é o rumo de volta, meia volta (180 graus) de diferença.</p>
+        <p>Arraste as âncoras e veja os números. Com B bem acima de A, o rumo é 90; à esquerda, perto de 180; abaixo, negativo (perto de −90).</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="De A até B")
+Wallpaper("dark navy")
+
+a = Anchor(200, 200)
+b = Anchor(700, 450, color="lime")
+Text("A", center=lambda: a.center + (0, -30), font_size=20)
+Text("B", center=lambda: b.center + (0, 30), font_size=20)
+
+Line(p1=lambda: a.center, p2=lambda: b.center, color="gold", line_width=4)
+EquilateralTriangle(center=lambda: b.center, radius=14, angle=lambda: (b.center - a.center).angle, color="gold")
+
+
+def de_a_ate_b():
+    d = b.center - a.center
+    return f"b.center - a.center = Vec2({round(d.x)}, {round(d.y)})"
+
+
+Text(de_a_ate_b, top_left=(20, 680), font_size=20)
+Text(lambda: f"distance(a, b) = {round(distance(a, b))}", top_left=(20, 650), font_size=20)
+Text(lambda: f"heading(a, b) = {round(heading(a, b))}", top_left=(20, 620), font_size=20)
+
+run()
+`,
+      try: [
+        {
+          note: "O triângulo pode usar o <code>heading</code> no lugar da conta da seta. Dá o mesmo.",
+          replaces: ['EquilateralTriangle('],
+          code: `EquilateralTriangle(center=lambda: b.center, radius=14, angle=lambda: heading(a, b), color="gold")`
+        },
+        {
+          note: "Uma bolinha que acende quando B chega perto de A (menos de 150). No fim do programa.",
+          code: `luz = Circle(center=(900, 640), radius=20, color="gray")
+
+
+def update(dt):
+    if distance(a, b) < 150:
+        luz.color = "lime"
+    else:
+        luz.color = "gray"`
+        }
+      ]
+    },
+    {
+      title: "Multiplicar por um número",
+      fresh: true,
+      part: "Esticar e encolher",
+      body: `
+        <p>Multiplicar uma seta por um número muda o <strong>tamanho</strong> e mantém a <strong>direção</strong>. <code>v * 2</code> é a mesma seta, duas vezes mais comprida; <code>v * 0.5</code>, a metade. Com um número negativo, ela vira para o lado contrário: <code>v * -1</code> aponta para trás.</p>
+        <p>A conta é parte por parte, como na soma: <code>Vec2(160, 60) * 2</code> é <code>Vec2(320, 120)</code>. Dividir também vale: <code>v / 2</code> é o mesmo que <code>v * 0.5</code>. O número vai sempre <strong>depois</strong> da seta: <code>2 * v</code> dá erro.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Esticar e encolher")
+Wallpaper("dark navy")
+
+
+def seta(inicio, vetor, cor):
+    fim = inicio + vetor
+    Line(p1=inicio, p2=fim, color=cor, line_width=4)
+    EquilateralTriangle(center=fim, radius=12, angle=vetor.angle, color=cor)
+
+
+v = Vec2(160, 60)
+
+seta(Point(100, 560), v, "gold")
+Text("v", center=(330, 600), font_size=20)
+seta(Point(100, 380), v * 2, "coral")
+Text("v * 2", center=(500, 470), font_size=20)
+seta(Point(100, 200), v * 0.5, "turquoise")
+Text("v * 0.5", center=(260, 230), font_size=20)
+seta(Point(450, 120), v * -1, "orchid")
+Text("v * -1", center=(330, 120), font_size=20)
+
+run()
+`
+    },
+    {
+      title: "Só a direção",
+      body: `
+        <p>Às vezes você quer a direção de uma seta e um tamanho seu: a bala vai <em>para o lado do</em> inimigo, sempre a 400 por segundo, esteja ele perto ou longe.</p>
+        <p><code>v.normalize()</code> (normalizar) devolve uma seta na mesma direção, com comprimento 1. Multiplique pelo tamanho que você quer: <code>v.normalize() * 150</code> tem comprimento 150. À direita, as setas cinzentas <code>v</code> e <code>w</code> têm tamanhos diferentes; as brancas, feitas com <code>normalize() * 150</code>, têm o mesmo tamanho e as mesmas direções.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Esticar e encolher")
+Wallpaper("dark navy")
+
+
+def seta(inicio, vetor, cor):
+    fim = inicio + vetor
+    Line(p1=inicio, p2=fim, color=cor, line_width=4)
+    EquilateralTriangle(center=fim, radius=12, angle=vetor.angle, color=cor)
+
+
+v = Vec2(160, 60)
+
+seta(Point(100, 560), v, "gold")
+Text("v", center=(330, 600), font_size=20)
+seta(Point(100, 380), v * 2, "coral")
+Text("v * 2", center=(500, 470), font_size=20)
+seta(Point(100, 200), v * 0.5, "turquoise")
+Text("v * 0.5", center=(260, 230), font_size=20)
+seta(Point(450, 120), v * -1, "orchid")
+Text("v * -1", center=(330, 120), font_size=20)
+
+w = Vec2(60, 400)
+seta(Point(650, 150), v, "gray")
+seta(Point(650, 150), w, "gray")
+seta(Point(650, 150), v.normalize() * 150, "white")
+seta(Point(650, 150), w.normalize() * 150, "white")
+Text(f"v: {round(v.length)}   w: {round(w.length)}   brancas: 150", top_left=(600, 680), font_size=20)
+
+run()
+`,
+      try: [
+        {
+          note: "Para só <em>limitar</em> o tamanho (uma velocidade máxima, por exemplo), <code>clamp_length(menor, maior)</code> (prender o comprimento) prende o tamanho entre dois números. No fim do programa: a seta <code>w</code>, que tem 404, sai com 250.",
+          code: `seta(Point(850, 150), w.clamp_length(0, 250), "lime")`
+        }
+      ]
+    },
+    {
+      title: "A volta inteira",
+      fresh: true,
+      part: "Ângulos",
+      body: `
+        <p>O Scena mede ângulos em <strong>graus</strong>. Uma volta inteira tem 360. O 0 aponta para a direita, e os ângulos crescem no sentido <strong>anti-horário</strong> (o contrário dos ponteiros do relógio): 90 é para cima, 180 para a esquerda, 270 para baixo. Um ângulo negativo gira para o outro lado: −90 também é para baixo.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 220" role="img" aria-label="Oito setas saindo do mesmo centro, a cada 45 graus; 0 aponta para a direita, 90 para cima, 180 para a esquerda e 270 para baixo; uma seta curva mostra o sentido anti-horário">
+            <line class="ray" x1="200" y1="110" x2="290" y2="110"/>
+            <line class="ray" x1="200" y1="110" x2="200" y2="20"/>
+            <line class="ray" x1="200" y1="110" x2="110" y2="110"/>
+            <line class="ray" x1="200" y1="110" x2="200" y2="200"/>
+            <line class="guide" x1="200" y1="110" x2="264" y2="46"/>
+            <line class="guide" x1="200" y1="110" x2="136" y2="46"/>
+            <line class="guide" x1="200" y1="110" x2="136" y2="174"/>
+            <line class="guide" x1="200" y1="110" x2="264" y2="174"/>
+            <polygon class="dot" points="298,110 288,105 288,115"/>
+            <polygon class="dot" points="200,12 195,22 205,22"/>
+            <polygon class="dot" points="102,110 112,105 112,115"/>
+            <polygon class="dot" points="200,208 195,198 205,198"/>
+            <path class="guide" d="M 245 110 A 45 45 0 0 0 200 65"/>
+            <text x="304" y="114">0</text>
+            <text x="208" y="18">90</text>
+            <text x="98" y="114" text-anchor="end">180</text>
+            <text x="208" y="210">270 (ou −90)</text>
+            <text x="268" y="42">45</text>
+            <text x="132" y="42" text-anchor="end">135</text>
+          </svg>
+          <figcaption>0 para a direita e a volta no sentido anti-horário: 90 em cima, 180 à esquerda, 270 embaixo.</figcaption>
+        </figure>
+        <p><strong>Uma seta a partir de um ângulo.</strong> <code>vec_from_angle(angulo, length=200)</code> (vetor a partir de um ângulo) faz a seta que aponta para esse ângulo, com esse comprimento (<em>length</em>). É o caminho contrário do <code>.angle</code>.</p>
+        <p><strong>O <code>for</code>.</strong> <code>range(0, 360, 45)</code> conta de 0 até antes de 360, de 45 em 45: 0, 45, 90, … 315. São oito ângulos, e o <code>for</code> desenha uma seta para cada um. O número de cada seta fica um pouco além da ponta: no mesmo ângulo, com comprimento 245.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Ângulos")
+Wallpaper("dark navy")
+
+
+def seta(inicio, vetor, cor):
+    fim = inicio + vetor
+    Line(p1=inicio, p2=fim, color=cor, line_width=4)
+    EquilateralTriangle(center=fim, radius=12, angle=vetor.angle, color=cor)
+
+
+centro = Point(500, 350)
+
+for angulo in range(0, 360, 45):
+    seta(centro, vec_from_angle(angulo, length=200), "gold")
+    Text(f"{angulo}", center=centro + vec_from_angle(angulo, length=245), font_size=18)
+
+run()
+`,
+      try: [
+        {
+          note: "Mude o passo do <code>range</code>: de 30 em 30 são 12 setas, como as horas de um relógio. No lugar da linha do <code>for</code>.",
+          replaces: ['for angulo in range('],
+          code: `for angulo in range(0, 360, 30):`
+        }
+      ]
+    },
+    {
+      title: "Apontar para o mouse",
+      body: `
+        <p>O triângulo do meio gira para olhar o mouse. O ângulo dele é <code>heading(centro, mouse)</code>: o rumo do centro até o mouse. Como o ângulo vem de uma <code>lambda</code>, ele é refeito a cada quadro.</p>
+        <p>O <code>heading</code> devolve um número entre −180 e 180. Com o mouse embaixo do centro, o rumo é negativo: −90 é o mesmo lugar que 270.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Ângulos")
+Wallpaper("dark navy")
+
+
+def seta(inicio, vetor, cor):
+    fim = inicio + vetor
+    Line(p1=inicio, p2=fim, color=cor, line_width=4)
+    EquilateralTriangle(center=fim, radius=12, angle=vetor.angle, color=cor)
+
+
+centro = Point(500, 350)
+
+for angulo in range(0, 360, 45):
+    seta(centro, vec_from_angle(angulo, length=200), "gold")
+    Text(f"{angulo}", center=centro + vec_from_angle(angulo, length=245), font_size=18)
+
+EquilateralTriangle(center=(500, 350), radius=50, angle=lambda: heading(centro, mouse), color="coral")
+Text(lambda: f"heading(centro, mouse) = {round(heading(centro, mouse))}", top_left=(20, 680), font_size=20)
+
+run()
+`,
+      dive: [
+        {
+          title: "Girar uma seta",
+          body: `
+            <p><code>v.rotate(30)</code> (girar) devolve a mesma seta, girada 30 graus no sentido anti-horário; com −30, no outro sentido. O tamanho não muda. A seção <strong>Velocidade</strong>, a seguir, gira a velocidade de uma bola um pouco a cada quadro.</p>
+            <p><code>vec_from_angle</code> também aceita <code>reference_vec=</code> (seta de referência): o ângulo passa a contar a partir dela. <code>vec_from_angle(90, reference_vec=frente)</code> é a seta 90 graus à esquerda de <code>frente</code>.</p>
+            <p>No Guia: <a href="../guide/index.html#geo-vec2">Vec2</a> · <a href="../guide/index.html#geo-helpers">Pontos</a>.</p>
+          `,
+          try: [
+            {
+              note: "A seta para cima (90 graus), girada 60 graus para cada lado: duas setas brancas, uma a 30 e outra a 150 graus. No fim do programa.",
+              code: `cima = vec_from_angle(90, length=200)
+seta(Point(150, 150), cima.rotate(-60), "white")
+seta(Point(150, 150), cima.rotate(60), "white")`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "Andar com uma seta",
+      fresh: true,
+      part: "Velocidade",
+      body: `
+        <p>A velocidade de uma coisa é uma seta: quanto ela anda <strong>por segundo</strong>, em x e em y. É o <code>vel</code> do 10 (de <em>velocity</em>, velocidade). Aqui a bola guarda a sua em <code>bola.vel</code>.</p>
+        <p><strong>Um quadro de cada vez.</strong> O <code>update(dt)</code> roda a cada quadro, e <code>dt</code> é o tempo do quadro, em segundos (perto de 1/60). <code>bola.vel * dt</code> é o pedaço da seta que cabe num quadro, e <code>move_by</code> (mover por) anda esse pedaço. Em um segundo, os pedaços somam a seta inteira: 180 para a direita, 120 para cima.</p>
+        <p><strong>A borda.</strong> <code>confine</code> (confinar, do 05) segura a bola dentro da janela (<code>canvas.game_view</code>, a vista do jogo); com <code>action="bounce"</code> (quicar), ela vira a parte da velocidade que bateu na borda. A linha dourada mostra a seta <code>vel</code> saindo da bola: veja-a mudar a cada batida.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Velocidade")
+Wallpaper("dark navy")
+
+bola = Circle(center=(500, 250), radius=20, color="coral")
+bola.vel = Vec2(180, 120)
+
+Line(p1=lambda: bola.center, p2=lambda: bola.center + bola.vel, color="gold", line_width=3)
+Text(lambda: f"vel = Vec2({round(bola.vel.x)}, {round(bola.vel.y)})", top_left=(20, 680), font_size=20)
+
+
+def update(dt):
+    bola.move_by(bola.vel * dt)
+    bola.confine(canvas.game_view, by="box", action="bounce")
+
+
+run()
+`,
+      dive: [
+        {
+          title: "Colocar ou andar",
+          body: `
+            <p>A conta da posição nova é <code>bola.center + bola.vel * dt</code>: o lugar de agora mais o pedaço da seta. Dá para escrevê-la assim, <code>bola.center = bola.center + bola.vel * dt</code>, e a bola anda do mesmo jeito.</p>
+            <p>A diferença aparece com paredes. Escrever no <code>center</code> <strong>coloca</strong> a bola no lugar novo: ela atravessa uma parede de <code>resolve</code>. <code>move_by</code> <strong>anda</strong> até lá, e a parede a para no caminho. Por isso o movimento vai no <code>move_by</code>.</p>
+            <p>No Guia: <a href="../guide/index.html#mover-confine">confine</a> · <a href="../guide/index.html#geo-vec2">Vec2</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Uma seta que gira",
+      body: `
+        <p>Uma linha a mais: a cada quadro, a velocidade gira um pouco, <code>bola.vel.rotate(60 * dt)</code>, 60 graus por segundo. O tamanho da seta não muda, só a direção. A bola, que andava reto, passa a andar em curva, e dá uma volta inteira a cada 6 segundos (360 ÷ 60).</p>
+        <p>É assim que se pensa movimento com vetores: a posição muda pela velocidade, e a velocidade muda pelo que você decidir (girar, crescer, cair).</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Velocidade")
+Wallpaper("dark navy")
+
+bola = Circle(center=(500, 250), radius=20, color="coral")
+bola.vel = Vec2(180, 120)
+
+Line(p1=lambda: bola.center, p2=lambda: bola.center + bola.vel, color="gold", line_width=3)
+Text(lambda: f"vel = Vec2({round(bola.vel.x)}, {round(bola.vel.y)})", top_left=(20, 680), font_size=20)
+
+
+def update(dt):
+    bola.vel = bola.vel.rotate(60 * dt)
+    bola.move_by(bola.vel * dt)
+    bola.confine(canvas.game_view, by="box", action="bounce")
+
+
+run()
+`,
+      try: [
+        {
+          note: "Gravidade no lugar do giro: a velocidade ganha uma seta para baixo a cada quadro, e a bola cai em curva. No lugar da linha do <code>rotate</code>.",
+          replaces: ['bola.vel = bola.vel.rotate('],
+          code: `bola.vel = bola.vel + Vec2(0, -300) * dt`
+        },
+        {
+          note: "Sempre para o mouse, a 200 por segundo: a seta é refeita a cada quadro, com o rumo até o mouse. Quando chega, a bola treme em volta dele: passa um pouco, volta, passa de novo. O <code>chase</code> do Apêndice E é o jeito de chegar devagar. No lugar da linha do <code>rotate</code>.",
+          replaces: ['bola.vel = bola.vel.rotate('],
+          code: `bola.vel = vec_from_angle(heading(bola, mouse), length=200)`
+        }
+      ]
+    }
+  ]
+});
+</script>
+</body>
+</html>

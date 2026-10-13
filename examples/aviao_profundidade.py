@@ -1,6 +1,6 @@
-"""Avião II · Profundidade — tutorial 12.
+"""Avião II · Profundidade — tutorial 15.
 
-O avião do tutorial 11 com profundidade: três faixas de cenário (nuvens,
+O avião do tutorial 14 com profundidade: três faixas de cenário (nuvens,
 montes, mato), cada uma numa camada que anda uma fração da velocidade do
 voo, cheias sem fim pelo Endless. Na batida, tudo freia junto, o avião cai
 pegando fogo e a música abaixa.

@@ -3673,6 +3673,10 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
     # Unknown keyword (``Sprite("a.png", fps=6)``): the actor wrapper names the fix.
     _call_hints = _SPRITE_CATALOG_HINTS
 
+    @classmethod
+    def _class_keywords(cls) -> frozenset:
+        return frozenset(_SPRITE_DEFAULT_KEYS)
+
     def __init_subclass__(cls, **kwargs):
         incoming: Dict[str, Any] = {}
         unexpected: Dict[str, Any] = {}

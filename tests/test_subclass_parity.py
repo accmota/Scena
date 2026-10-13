@@ -12,6 +12,11 @@ family's tests only ask about that family's own way.
 * AC11: an object whose own field reads the object warned on destroy.
 * AC1: an author class outlived the program (``test_author_class_lifetime``
   checks the caching paths; here every family's subclass is collected).
+* CB1: an author ``__init__`` that never called Scena's own built an empty
+  object, silently (or with an internal ``AttributeError`` once a hook such
+  as ``on_click`` was defined).
+* CB2: a class-body value under a name Scena owns (``radius = 30``) was never
+  read: the object kept the default.
 
 Every exported ``Entity`` class (``scena.__all__``) is subclassed in an
 author module and asked the same questions. A family that cannot answer one
@@ -36,7 +41,7 @@ import scena  # noqa: E402
 from scena import Rect  # noqa: E402
 from scena.entity import Entity  # noqa: E402
 from hypothesis_support import leak_message  # noqa: E402
-from system_support import SystemTestCase, full_collect  # noqa: E402
+from system_support import SystemTestCase, census, full_collect  # noqa: E402
 
 AUTHOR_MODULE = "author_game"
 
@@ -89,14 +94,18 @@ def author_subclass(kind, body=None, **class_kw):
     return type("Meu" + kind.__name__, (kind,), ns, **class_kw)
 
 
+def endless_layer():
+    if "parity_pista" not in scena.canvas.layers:
+        scena.canvas.layers.create("parity_pista", below="default")
+    return "parity_pista"
+
+
 def make(cls):
     """One instance of ``cls`` (an author subclass of an exported kind)."""
     if issubclass(cls, scena.Menu):
         return cls(options=["a", "b"])
     if issubclass(cls, scena.Endless):
-        if "parity_pista" not in scena.canvas.layers:
-            scena.canvas.layers.create("parity_pista", below="default")
-        return cls("parity_pista", lambda slot: [], step=100)
+        return cls(endless_layer(), lambda slot: [], step=100)
     return cls()
 
 
@@ -242,6 +251,190 @@ class TestOwnFieldsDieQuietly(SystemTestCase, unittest.TestCase):
                     self.w.step(1)
                 bad = [str(w.message) for w in caught if "was unlinked" in str(w.message)]
                 self.assertEqual(bad, [])
+
+
+class TestAuthorInit(SystemTestCase, unittest.TestCase):
+    """CB1 for every family: an ``__init__`` of your own either calls Scena's
+    (``super().__init__(**kwargs)``: parameters of your own) or the object is
+    refused at construction, naming ``setup``. Before: built empty, silently."""
+
+    world_draw = False
+
+    def test_init_without_super_is_refused_and_leaves_nothing(self):
+        for kind in kinds():
+            with self.subTest(kind=kind.__name__):
+                def __init__(self, *args, **kwargs):
+                    self.velocidade = 100
+
+                def on_update(self, dt):
+                    pass
+
+                cls = author_subclass(kind, {"__init__": __init__, "on_update": on_update})
+                endless_layer()
+                before = census()
+                with self.assertRaises(TypeError) as ctx:
+                    make(cls)
+                msg = str(ctx.exception)
+                self.assertIsNone(leak_message(ctx.exception), msg)
+                self.assertIn(f"never called {kind.__name__}'s own __init__", msg)
+                self.assertIn("def setup(self)", msg)
+                self.assertIn("super().__init__(**kwargs)", msg)
+                self.assertCensusEqual(before)
+
+    def test_using_self_before_super_names_the_fix(self):
+        # Before: AttributeError: 'Bolha' object has no attribute 'radius'
+        # (or '_owner' for a method call).
+        for kind in kinds():
+            with self.subTest(kind=kind.__name__):
+                def __init__(self, *args, **kwargs):
+                    self.ligado = self.visible
+                    super(cls, self).__init__(*args, **kwargs)
+
+                cls = author_subclass(kind, {"__init__": __init__})
+                endless_layer()
+                before = census()
+                with self.assertRaises(AttributeError) as ctx:
+                    make(cls)
+                msg = str(ctx.exception)
+                self.assertIsNone(leak_message(ctx.exception), msg)
+                self.assertIn(f"has not called {kind.__name__}'s own __init__", msg)
+                self.assertIn("def setup(self)", msg)
+                self.assertCensusEqual(before)
+        for body in (lambda self: self.radius, lambda self: self.move_by(0, 1)):
+            cls = author_subclass(scena.Circle, {"__init__": body})
+            with self.assertRaises(AttributeError) as ctx:
+                cls()
+            self.assertIn("before it uses self", str(ctx.exception))
+
+    def test_a_hook_does_not_turn_it_into_an_internal_error(self):
+        # Before: ``on_click`` gave AttributeError: no attribute '_clickable'.
+        for kind in (scena.Circle, scena.Sprite, scena.Text):
+            with self.subTest(kind=kind.__name__):
+                cls = author_subclass(kind, {"__init__": lambda self: None,
+                                             "on_click": lambda self: None})
+                with self.assertRaises(TypeError) as ctx:
+                    cls()
+                self.assertIn("def setup(self)", str(ctx.exception))
+
+    def test_an_author_mixin_init_is_named(self):
+        class Vida:
+            def __init__(self, *args, **kwargs):
+                self.hp = 3
+
+        cls = type("Inimigo", (Vida, scena.Circle), {"__module__": AUTHOR_MODULE})
+        with self.assertRaises(TypeError) as ctx:
+            cls()
+        self.assertIn("Vida.__init__ never called Circle's own __init__", str(ctx.exception))
+
+    def test_init_with_super_takes_parameters_of_its_own(self):
+        for kind in kinds():
+            with self.subTest(kind=kind.__name__):
+                runs = []
+
+                def __init__(self, *args, hp=3, **kwargs):
+                    super(cls, self).__init__(*args, **kwargs)
+                    self.hp = hp
+
+                def setup(self, runs=runs):
+                    runs.append(self.hp)
+
+                cls = author_subclass(kind, {"__init__": __init__, "setup": setup})
+                obj = make(cls)
+                try:
+                    self.assertTrue(obj.is_alive)
+                    self.assertEqual(runs, [3], "setup runs once, after the whole __init__")
+                finally:
+                    destroy(obj)
+
+    def test_scena_keywords_against_an_init_of_your_own_name_setup(self):
+        # Before: "Bolha() takes no keyword arguments; got center=. Write
+        # Bolha()." — and Bolha() was the silent empty object.
+        for kind in (scena.Circle, scena.Sprite, scena.Text):
+            with self.subTest(kind=kind.__name__):
+                cls = author_subclass(kind, {"__init__": lambda self: None})
+                with self.assertRaises(TypeError) as ctx:
+                    cls(center=(1, 2))
+                msg = str(ctx.exception)
+                self.assertIn("got center=", msg)
+                self.assertIn(f"replaced {kind.__name__}'s own __init__", msg)
+                self.assertIn("def setup(self)", msg)
+                self.assertNotIn(f"Write {cls.__name__}()", msg)
+
+    def test_a_typo_of_your_own_parameter_keeps_the_near_miss(self):
+        def __init__(self, vida):
+            super(cls, self).__init__()
+
+        cls = author_subclass(scena.Circle, {"__init__": __init__})
+        with self.assertRaises(TypeError) as ctx:
+            cls(vidda=3)
+        self.assertIn("Did you mean 'vida'", str(ctx.exception))
+
+
+class TestClassBodyValues(unittest.TestCase):
+    """CB2 for every family and every name Scena owns on it: a value in the
+    class body is refused on the class line with the fix — the class keyword
+    when the family takes one, else ``setup``. Before: never read."""
+
+    def test_every_scena_name_is_refused(self):
+        from scena.entity import _LOOK_MISSING, _RouteRefusal, _kind_route
+        wrong = []
+        for kind in kinds():
+            keywords = kind._class_keywords()
+            for name, route in _kind_route(kind).items():
+                try:
+                    author_subclass(kind, {name: 7})
+                except TypeError as exc:
+                    msg = str(exc)
+                    if leak_message(exc) or f"{name} = 7 in the class body" not in msg:
+                        wrong.append(f"{kind.__name__}.{name}: {msg}")
+                    elif name in keywords and f", {name}=7)" not in msg:
+                        wrong.append(f"{kind.__name__}.{name} (class keyword): {msg}")
+                    elif (name not in keywords and not isinstance(route, _RouteRefusal)
+                          and route is not _LOOK_MISSING
+                          and f"setup(self): self.{name} = 7" not in msg):
+                        wrong.append(f"{kind.__name__}.{name} (setup): {msg}")
+                else:
+                    wrong.append(f"{kind.__name__}.{name}: class body value accepted")
+        self.assertEqual(wrong, [])
+
+    def test_the_fix_keeps_the_class_line(self):
+        with self.assertRaises(TypeError) as ctx:
+            author_subclass(scena.Sprite, {"height": 28}, source="tiro.png", group="tiro")
+        self.assertIn("class MeuSprite(Sprite, source='tiro.png', group='tiro', height=28)",
+                      str(ctx.exception))
+        with self.assertRaises(TypeError) as ctx:
+            author_subclass(scena.Circle, {"radius": 30})
+        self.assertIn("Put it on the class line: class MeuCircle(Circle, radius=30)",
+                      str(ctx.exception))
+
+    def test_the_class_line_is_what_the_fix_says(self):
+        # The fix names the class line only for a family that takes it.
+        for kind in kinds():
+            with self.subTest(kind=kind.__name__):
+                try:
+                    author_subclass(kind, group="parity")
+                except TypeError:
+                    self.assertEqual(kind._class_keywords(), frozenset())
+                else:
+                    self.assertIn("group", kind._class_keywords())
+
+    def test_an_author_mixin_value_is_refused_too(self):
+        class Grande:
+            radius = 30
+
+        with self.assertRaises(TypeError) as ctx:
+            type("Bolha", (Grande, scena.Circle), {"__module__": AUTHOR_MODULE})
+        self.assertIn("radius = 30 in the class body", str(ctx.exception))
+
+    def test_fields_methods_and_properties_of_your_own_stay(self):
+        def andar(self):
+            return 1
+
+        for kind in kinds():
+            with self.subTest(kind=kind.__name__):
+                cls = author_subclass(kind, {"hp": 3, "velocidade": 100, "andar": andar,
+                                             "forca": property(lambda self: 2)})
+                self.assertEqual((cls.hp, cls.velocidade), (3, 100))
 
 
 class TestSubclassesAreFreed(unittest.TestCase):

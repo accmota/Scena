@@ -19,7 +19,7 @@ deep run it); a gate job that dominates the wall joins SPLIT (one job per
 TestCase class). A module that runs child processes in parallel is measured by
 its CPU, not its wall alone: under the tier's 8 workers its children share the
 same cores. Example: running every tutorial step is ~440 s of CPU (~2 min
-alone), and it timed out quick once tutorials 14-23 landed (2026-10-10).
+alone), and it timed out quick once tutorials 17-26 landed (2026-10-10).
 
 Tutorials: the page checks run in quick; the step runs are SLOW, one class
 (and one gate job) per page. Quick still runs each tutorial's last step, as

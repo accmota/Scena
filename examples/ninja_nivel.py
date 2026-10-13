@@ -1,6 +1,6 @@
-"""Ninja III · O nível — tutorial 21.
+"""Ninja III · O nível — tutorial 24.
 
-O ninja do tutorial 15 numa fase quatro vezes mais larga que a tela,
+O ninja do tutorial 18 numa fase quatro vezes mais larga que a tela,
 desenhada no editor de fases (media/levels/ninja.json): o código lê a fase
 (Level), cria as peças de cada grupo (make) e decide o que elas são. A
 câmera segue o ninja com folga e atraso (deadzone e chase), o HUD fica

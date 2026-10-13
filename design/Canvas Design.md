@@ -595,7 +595,7 @@ costs ~3.7 µs per Sprite (`_approx_draw_aabb` → `_oriented_frame` is about
 half, `_filter_outset` a quarter) — about what *recording the draw* of a
 plain sprite or shape costs. So culling only wins when the skipped objects are
 expensive to draw. `scripts/bench/perf_cull_level.py` (camera sweep, in-process
-A/B): the tutorial 21 level (4000 wide in a 1000 window, 129 drawn, 87
+A/B): the tutorial 24 level (4000 wide in a 1000 window, 129 drawn, 87
 skipped) is **+8 %** frame work with cull on; 130 plain circles **+30 %**; the
 same circles with `.glow` **−18 %**; with `Neon` −7 % (fixed-side runs — flipping
 the flag every block moves GPU latency between sides, so check a GPU-heavy
@@ -632,7 +632,7 @@ Measured (draw ms, `game_bench.py --cull ab`, M4):
 |---|---:|---:|---:|
 | 130 still circles, world 4× the window | 0.43 | 0.60 | 0.16 |
 | 130 circles moving every frame | 0.41 | 0.54 | 0.57 |
-| tutorial 21 level (129 objects) | 0.50 | — | 0.39 (frame −7 %) |
+| tutorial 24 level (129 objects) | 0.50 | — | 0.39 (frame −7 %) |
 | mundo (1950 objects, 1820 off view) | 8.2 | — | 3.0 |
 
 Culling pays off when much of the world is still (scenery, platforms).
@@ -769,7 +769,7 @@ Measured, cull on vs off (in-process A/B, work ms):
 | pegar_estrelas | 0.264 | 0.268 |
 | horda | 13.61 | 13.45 (animated enemies now cache) |
 | corrida | 1.92 | 1.71 |
-| tutorial 22 level | 2.83 | 2.58 |
+| tutorial 25 level | 2.83 | 2.58 |
 | festa | 34.8 | 32.3 |
 | mundo | 24.3 | 18.8 |
 
@@ -1342,7 +1342,7 @@ at construction, unchanged; a piece that is only a group's member, such as
 `Rect(..., group="chao")` under a standing `resolve(hero, "chao")`, has no
 body there and is skipped silently, Collision Design S9-1, so a hero falls
 through ground built on a `pan_response=` / `scroll=` layer: the collidable
-world goes on a neutral layer, tutorial 23); a returned piece the author put on another layer is
+world goes on a neutral layer, tutorial 26); a returned piece the author put on another layer is
 moved. `Endless` **never moves** its pieces.
 
 **Image size.** An image piece is `Sprite(path)`, so it takes Sprite's
@@ -1350,7 +1350,7 @@ size: 48 units on its longer side unless `height=` / `width=` / `size=` are
 given (passed to every piece and to the measuring probe, so the slot width
 always equals the built width). A band of background art wants
 `height=` of the screen (`Endless("montes", "montes.png", height=360)`); the
-first draft of tutorial 12 got a row of 48-unit thumbnails from the bare form
+first draft of tutorial 15 got a row of 48-unit thumbnails from the bare form
 (2026-10-09), and the Guia's own `predios` example had the same gap. With a
 builder the three raise `TypeError` (the builder sizes its own pieces), like
 `bottom=` / `group=`.

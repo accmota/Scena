@@ -267,7 +267,7 @@ const Tutorial = {
             <a href="index.html">Scena</a>
             <span class="sub">Tutoriais</span>
           </div>
-          <div class="tut-label">Tutorial ${cfg.n || ""}</div>
+          <div class="tut-label">${esc(cfg.label || "Tutorial")} ${cfg.n || ""}</div>
           <div class="tut-title">${esc(cfg.title)}</div>
           <nav><ol class="steps"></ol></nav>
         </aside>

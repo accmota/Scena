@@ -363,6 +363,11 @@ class SpatialFx(Entity):
     _class_defaults: Dict[str, Any] = {}
     _class_kind: Optional[type] = None
 
+    @classmethod
+    def _class_keywords(cls) -> frozenset:
+        kind = next((k for k in cls.__mro__ if is_framework_module(k.__module__)), SpatialFx)
+        return _fx_class_keys(kind)
+
     def __init_subclass__(cls, **kwargs):
         if is_framework_module(cls.__module__):
             if "__init__" in cls.__dict__:

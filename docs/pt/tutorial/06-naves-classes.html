@@ -18,11 +18,316 @@ Tutorial.mount({
   title: "Naves II · Classes",
   steps: [
     {
-      title: "O jogo do 05",
+      title: "Três bolhas",
+      part: "Script 1 · Moldes",
       body: `
-        <p>Novo script, o mesmo jogo: o jogo de naves do tutorial 05, inteiro, como ele terminou. Este tutorial quase não muda a tela. Ele <strong>reorganiza o código</strong>, e só no último passo a nave ganha uma peça nova.</p>
+        <p>Este tutorial é sobre <strong>classes</strong> e <strong>objetos</strong>: o jeito do Python de dar a cada coisa do jogo o seu próprio comportamento. São dois scripts. Neste primeiro, pequeno, bolhas sobem do fundo do mar e estouram com um clique; é nele que as ideias aparecem, uma por passo. No segundo, o jogo de naves do tutorial 05 é reorganizado com elas.</p>
+        <p><strong>Você já usa objetos.</strong> Comece com três círculos, do jeito que você já sabe. Os três têm o mesmo raio e o mesmo visual (o <code>Halo</code> do tutorial 01, um anel de luz que aqui parece bolha); só o centro muda. <code>Circle</code> é uma <strong>classe</strong> do Scena: um <strong>molde</strong>. O molde diz o que todo círculo tem (um centro, um raio, uma aparência) e o que todo círculo sabe fazer (aparecer, mover-se, ser clicado). Cada <code>Circle(…)</code> usa o molde para fazer um círculo de verdade, com os seus próprios valores. Esse círculo feito é um <strong>objeto</strong>.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="À esquerda, um retângulo chamado class Circle, o molde, com center e radius escritos dentro; linhas tracejadas saem dele até três círculos à direita, em alturas diferentes, cada um com o seu centro escrito embaixo">
+            <rect class="bar" x="14" y="58" width="128" height="84" rx="6"/>
+            <text x="78" y="86" text-anchor="middle">class Circle</text>
+            <text x="78" y="106" text-anchor="middle">(o molde)</text>
+            <text x="78" y="126" text-anchor="middle">center · radius</text>
+            <line class="guide" x1="142" y1="100" x2="212" y2="146"/>
+            <line class="guide" x1="142" y1="100" x2="282" y2="96"/>
+            <line class="guide" x1="142" y1="100" x2="352" y2="48"/>
+            <circle class="bar child" cx="230" cy="150" r="18"/>
+            <circle class="bar child" cx="300" cy="95" r="18"/>
+            <circle class="bar child" cx="370" cy="45" r="18"/>
+            <text x="230" y="184" text-anchor="middle">(300, 150)</text>
+            <text x="300" y="129" text-anchor="middle">(500, 250)</text>
+            <text x="362" y="79" text-anchor="middle">(700, 100)</text>
+          </svg>
+          <figcaption>Um molde, três objetos. A classe <code>Circle</code> diz o que todo círculo tem; cada <code>Circle(…)</code> faz um objeto com os seus próprios valores (aqui, o centro).</figcaption>
+        </figure>
+
+        <p>Então, desde o tutorial 01, cada <code>Circle(…)</code>, cada <code>Sprite(…)</code> e cada <code>Text(…)</code> que você escreveu fez um objeto de uma classe do Scena. Três linhas, três objetos, um molde. Rode: três bolhas paradas. Repare na repetição: <code>radius=30, visual=Halo("sky blue")</code> está escrito três vezes. No próximo passo, as bolhas ganham um molde só delas.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Bolhas")
+Wallpaper(Gradient("teal", "dark navy", angle=90))
+
+Circle(center=(300, 150), radius=30, visual=Halo("sky blue"))
+Circle(center=(500, 250), radius=30, visual=Halo("sky blue"))
+Circle(center=(700, 100), radius=30, visual=Halo("sky blue"))
+
+run()
+`
+    },
+    {
+      title: "Um molde seu",
+      body: `
+        <p>Agora o molde é seu: uma classe <code>Bolha</code>, e cada bolha sai dela.</p>
+        <p><strong>A linha da classe.</strong> A palavra <code>class</code> (classe) faz para um molde o que <code>def</code> faz para uma função: dá um nome e abre um bloco, com dois pontos e recuo. Por costume, nome de classe começa com maiúscula, como <code>Circle</code> e <code>Sprite</code>; assim se vê de longe que é um molde, e não uma variável.</p>
+        <p><strong>Os parênteses.</strong> O primeiro nome dentro deles, <code>Circle</code>, diz de onde o molde começa: uma bolha é um círculo do Scena e sabe tudo o que um círculo sabe. Depois da vírgula vêm os <strong>padrões</strong>, os parâmetros que toda bolha recebe sem que você precise escrever: o raio 30 e o <code>Halo</code>. Por isso criar uma bolha ficou curto. <code>Bolha(center=(300, 150))</code> só diz onde ela nasce; cada <code>Bolha(…)</code> faz um objeto novo com o molde.</p>
+        <p><strong>O <code>pass</code>.</strong> Todo bloco do Python precisa de ao menos uma linha. Esta classe ainda não tem nada a dizer além da primeira linha, então o corpo é <code>pass</code> (passar): uma linha que não faz nada, só segura o lugar. No próximo passo ela sai. Rode: a mesma tela do passo anterior, com metade do texto.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Bolhas")
+Wallpaper(Gradient("teal", "dark navy", angle=90))
+
+
+class Bolha(Circle, radius=30, visual=Halo("sky blue")):
+    pass
+
+
+Bolha(center=(300, 150))
+Bolha(center=(500, 250))
+Bolha(center=(700, 100))
+
+run()
+`,
+      dive: [
+        {
+          title: "O que vai na linha da classe",
+          body: `
+            <p>Na linha da classe vão os parâmetros do próprio Scena, os mesmos que o <code>Circle(…)</code> aceita: o tamanho (<code>radius</code>), a cor (<code>color</code>) ou o visual (<code>visual</code>), o grupo (<code>group</code>). São números, textos, cores e tuplas. O lugar (<code>center</code>) não vai: cada bolha nasce num lugar, então ele fica na criação. Se você o puser na linha da classe, o Scena para com um erro que diz exatamente isso.</p>
+            <p>O padrão é só o começo: o que a criação passa vence o que a linha diz. <code>Bolha(center=(500, 250), radius=50)</code> é uma bolha maior, só aquela. E os padrões vão <em>na linha</em>, não escritos dentro da classe: <code>radius = 30</code> numa linha do corpo é um erro: o Scena não o leria, então para na definição da classe e mostra a linha certa, <code>class Bolha(Circle, radius=30)</code>.</p>
+            <p>No Guia: <a href="../guide/index.html#desenhar-entity">Entity</a>, em “Subclasse de Shape / Sprite / SpatialFx / Text”.</p>
+          `
+        }
+      ],
+      try: [
+          {
+            note: "Uma bolha maior, só esta: no lugar da segunda <code>Bolha(…)</code>.",
+            replaces: ['Bolha(center=(500, 250))'],
+            code: `Bolha(center=(500, 250), radius=50)`
+          },
+          {
+            note: "Outro molde, no lugar da linha da classe: as três bolhas mudam juntas.",
+            replaces: ['class Bolha('],
+            code: `class Bolha(Circle, radius=20, visual=Halo("pink")):`
+          }
+        ]
+    },
+    {
+      title: "Subir",
+      body: `
+        <p>Agora o comportamento. Toda bolha sobe; então subir é do molde, e vai dentro da classe, no lugar do <code>pass</code>.</p>
+        <p><strong>Uma função que mora na classe.</strong> <code>def on_update(self, dt):</code> é uma função escrita dentro da classe, com recuo. Uma função que mora numa classe tem um nome próprio, <strong>método</strong>; é só isso, uma função que pertence ao molde. Este método tem um nome que o Scena conhece: <code>on_update</code> (ao atualizar). Lembra do <code>update(dt)</code> do tutorial 01? O Scena chama o <code>update</code> do arquivo a cada quadro, uma vez, para o jogo inteiro. O <code>on_update</code> ele também chama a cada quadro, mas uma vez para <em>cada</em> bolha. Com três bolhas, três chamadas por quadro. Você não chama <code>on_update</code> em lugar nenhum; o Scena chama.</p>
+        <p><strong>O <code>self</code>.</strong> Se o método é um só para as três, como ele sabe qual bolha mover? Pelo primeiro parâmetro. A cada chamada, o Scena entrega ali a bolha da vez, e o nome dele, <code>self</code> (si mesmo), quer dizer <strong>este aqui</strong>: esta bolha. <code>self.move_by(0, 60 * dt)</code> é “esta bolha sobe 60 pixels por segundo”. O <code>dt</code> é o de sempre: o tempo desde o último quadro.</p>
+        <p><strong>Cada uma olha para si.</strong> O <code>if</code> pergunta a altura <em>desta</em> bolha: passou de 760, um pouco acima do alto da janela? Então ela desce 820 pixels, para baixo da tela, e volta a subir de lá. Cada bolha faz a pergunta sobre si, na sua vez. Rode: as três sobem sem fim, sempre na mesma formação, porque o 60 está escrito no molde e vale para todas.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Bolhas")
+Wallpaper(Gradient("teal", "dark navy", angle=90))
+
+
+class Bolha(Circle, radius=30, visual=Halo("sky blue")):
+    def on_update(self, dt):
+        self.move_by(0, 60 * dt)
+        if self.center.y > 760:
+            self.move_by(0, -820)
+
+
+Bolha(center=(300, 150))
+Bolha(center=(500, 250))
+Bolha(center=(700, 100))
+
+run()
+`
+    },
+    {
+      title: "Cada uma com a sua velocidade",
+      body: `
+        <p>Para cada bolha subir no seu ritmo, a velocidade não pode estar no molde: tem de estar em cada bolha.</p>
+        <p><strong>Um campo.</strong> <code>bolha.velocidade = uniform(40, 160)</code> guarda um número <em>dentro</em> desta bolha, com o nome <code>velocidade</code>. Um valor guardado num objeto se chama <strong>campo</strong>. Você já usa campos: <code>st.pontos</code> é um campo do <code>st</code>, e <code>center</code> é um campo que o Scena dá a todo círculo. Este é seu: o nome, você escolhe. (<code>uniform</code> é o sorteio do tutorial 02: um número qualquer entre 40 e 160.)</p>
+        <p><strong>Dentro e fora, o mesmo campo.</strong> Fora da classe, a bolha tem o nome da variável: <code>bolha.velocidade</code>. Dentro do método, a mesma bolha se chama <code>self</code>: <code>self.velocidade</code>. É o mesmo número, visto de dois lugares. No <code>on_update</code>, <code>self.velocidade * dt</code> fica no lugar do 60: cada bolha sobe com a velocidade que é dela.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 400 210" role="img" aria-label="Três bolhas lado a lado, cada uma com uma seta para cima de comprimento diferente e, embaixo, o seu campo velocidade: 52, 97 e 141">
+            <circle class="bar child" cx="70" cy="158" r="16"/>
+            <circle class="bar child" cx="200" cy="158" r="16"/>
+            <circle class="bar child" cx="330" cy="158" r="16"/>
+            <line class="ray" x1="70" y1="136" x2="70" y2="108"/>
+            <line class="ray" x1="64" y1="114" x2="70" y2="108"/>
+            <line class="ray" x1="76" y1="114" x2="70" y2="108"/>
+            <line class="ray" x1="200" y1="136" x2="200" y2="74"/>
+            <line class="ray" x1="194" y1="80" x2="200" y2="74"/>
+            <line class="ray" x1="206" y1="80" x2="200" y2="74"/>
+            <line class="ray" x1="330" y1="136" x2="330" y2="30"/>
+            <line class="ray" x1="324" y1="36" x2="330" y2="30"/>
+            <line class="ray" x1="336" y1="36" x2="330" y2="30"/>
+            <text x="70" y="196" text-anchor="middle">velocidade 52</text>
+            <text x="200" y="196" text-anchor="middle">velocidade 97</text>
+            <text x="330" y="196" text-anchor="middle">velocidade 141</text>
+          </svg>
+          <figcaption>O mesmo molde, três bolhas, três campos. O <code>on_update</code> é um só; o <code>self.velocidade</code> de cada bolha é dela.</figcaption>
+        </figure>
+
+        <p><strong>Muitas cópias.</strong> Com um molde, nove bolhas são um <code>for</code>, como a frota do tutorial 05: <code>range(9)</code> conta nove números, de 0 a 8, e <code>coluna</code> vale um de cada vez; e cada volta faz uma bolha 100 pixels à direita da anterior, logo abaixo da tela (y = −50), e sorteia a velocidade dela. Rode: as bolhas saem do fundo em ritmos diferentes e se espalham.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Bolhas")
+Wallpaper(Gradient("teal", "dark navy", angle=90))
+
+
+class Bolha(Circle, radius=30, visual=Halo("sky blue")):
+    def on_update(self, dt):
+        self.move_by(0, self.velocidade * dt)
+        if self.center.y > 760:
+            self.move_by(0, -820)
+
+
+for coluna in range(9):
+    bolha = Bolha(center=(100 + coluna * 100, -50))
+    bolha.velocidade = uniform(40, 160)
+
+run()
+`
+    },
+    {
+      title: "setup: a bolha se prepara",
+      body: `
+        <p>O passo anterior tem um defeito: quem dá a velocidade à bolha é o laço, de fora. Se outra parte do programa fizer uma <code>Bolha(…)</code> e esquecer a segunda linha, o <code>on_update</code> procura <code>self.velocidade</code>, não acha, e o programa para com erro. O que toda bolha precisa ter ao nascer deveria ser da própria bolha.</p>
+        <p><strong>O <code>setup</code>.</strong> <code>setup</code> (preparar) é outro método com nome que o Scena conhece. O Scena o chama <strong>uma vez</strong>, quando o objeto nasce, antes do primeiro <code>on_update</code>. E chama quando a bolha já está pronta: já tem o lugar, o raio e o visual que a criação e a linha da classe deram. Por isso o <code>setup</code> pode ler <code>self.radius</code>, o raio desta bolha. Um campo seu, como a velocidade, nasce aqui, e não na linha da classe: lá ficam só os parâmetros do Scena.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 400 140" role="img" aria-label="Uma linha do tempo da esquerda para a direita: Bolha(…) pede; o Scena monta o círculo com lugar e raio; o setup roda uma vez; depois, on_update a cada quadro, em vários tracinhos">
+            <rect class="bar" x="4" y="40" width="80" height="44" rx="6"/>
+            <text x="44" y="66" text-anchor="middle">Bolha(…)</text>
+            <line class="ray" x1="84" y1="62" x2="100" y2="62"/>
+            <rect class="bar" x="100" y="40" width="112" height="44" rx="6"/>
+            <text x="156" y="58" text-anchor="middle">o Scena monta</text>
+            <text x="156" y="74" text-anchor="middle">lugar · raio</text>
+            <line class="ray" x1="212" y1="62" x2="228" y2="62"/>
+            <rect class="bar child" x="228" y="40" width="58" height="44" rx="6"/>
+            <text x="257" y="66" text-anchor="middle">setup</text>
+            <text x="257" y="104" text-anchor="middle">uma vez</text>
+            <line class="ray" x1="286" y1="62" x2="302" y2="62"/>
+            <rect class="bar child" x="304" y="48" width="8" height="28" rx="2"/>
+            <rect class="bar child" x="320" y="48" width="8" height="28" rx="2"/>
+            <rect class="bar child" x="336" y="48" width="8" height="28" rx="2"/>
+            <rect class="bar child" x="352" y="48" width="8" height="28" rx="2"/>
+            <rect class="bar child" x="368" y="48" width="8" height="28" rx="2"/>
+            <text x="350" y="32" text-anchor="middle">on_update</text>
+            <text x="350" y="104" text-anchor="middle">a cada quadro</text>
+          </svg>
+          <figcaption>A vida de uma bolha. <code>Bolha(…)</code> pede; o Scena monta o círculo; quando ele está pronto, chama o <code>setup</code> uma vez e, depois, o <code>on_update</code> a cada quadro.</figcaption>
+        </figure>
+
+        <p><strong>A regra nova.</strong> Cada bolha nasce agora com um raio sorteado na criação (<code>radius=uniform(15, 45)</code>, que vence o padrão 30), e o <code>setup</code> calcula a velocidade a partir dele: <code>self.radius * 4</code>. Bolha grande sobe mais rápido, como na água de verdade. O laço voltou a ter uma linha. Rode: bolhas de vários tamanhos, as grandes passando as pequenas.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Bolhas")
+Wallpaper(Gradient("teal", "dark navy", angle=90))
+
+
+class Bolha(Circle, radius=30, visual=Halo("sky blue")):
+    def setup(self):
+        self.velocidade = self.radius * 4
+
+    def on_update(self, dt):
+        self.move_by(0, self.velocidade * dt)
+        if self.center.y > 760:
+            self.move_by(0, -820)
+
+
+for coluna in range(9):
+    Bolha(center=(100 + coluna * 100, -50), radius=uniform(15, 45))
+
+run()
+`,
+      dive: [
+        {
+          title: "Por que não __init__",
+          body: `
+            <p>Quem já leu classes de Python em outro lugar talvez tenha visto <code>def __init__(self):</code>, com dois sublinhados de cada lado. <code>__init__</code> (de <em>initialize</em>, iniciar) é o nome que o Python reserva para a função que monta o objeto, no instante do <code>Bolha(…)</code>. Parece o lugar certo para a velocidade. Não é, numa classe do Scena.</p>
+            <p><strong>O teste.</strong> Troque <code>def setup(self):</code> por <code>def __init__(self):</code> e rode. O programa para na criação: <code>TypeError: Bolha() got center=, radius=, but Bolha.__init__ does not take them: it replaced Circle's own __init__, which does.</code> (“Bolha() recebeu center= e radius=, mas o Bolha.__init__ não os aceita: ele tomou o lugar do __init__ do Circle, que aceita”). O círculo do Scena já tem o seu <code>__init__</code>: é ele que recebe <code>center</code> e <code>radius</code>, põe o círculo no mundo e o entrega ao Scena para ser desenhado e atualizado. O seu <code>__init__</code> tomou o lugar dele, e o seu não sabe o que é <code>center</code>. A mensagem continua e já diz a saída: <code>Drop __init__ and write def setup(self)</code> (“tire o __init__ e escreva def setup(self)”).</p>
+            <p>E se você tirar os parâmetros e escrever só <code>Bolha()</code>? Também para, por outro motivo. Com a linha do raio: <code>AttributeError: Bolha has no radius yet</code> (“a Bolha ainda não tem raio”), porque ninguém montou o círculo. Com uma linha que não lê nada (<code>self.velocidade = 100</code>): <code>TypeError: Bolha.__init__ never called Circle's own __init__, so this Bolha was not built</code> (“o Bolha.__init__ nunca chamou o do Circle, então esta Bolha não foi montada”). Sem esse aviso, o objeto nasceria vazio, sem lugar e fora da tela, e o Scena nunca chamaria o <code>on_update</code> dele.</p>
+            <p><strong>Por isso o <code>setup</code>.</strong> Dá para consertar o <code>__init__</code>, chamando o do Scena por dentro (<code>super().__init__(**kwargs)</code>, como a mensagem diz), mas é uma linha a mais, fácil de esquecer. Com o <code>setup</code>, o Scena faz esse trabalho: monta o objeto inteiro e, quando ele está pronto, chama o seu <code>setup</code>. A regra: numa classe sua, nunca <code>__init__</code>; o que o objeto faz ao nascer vai no <code>setup</code>.</p>
+            <p>No Guia: <a href="../guide/index.html#reagir-callbacks-entity">Callbacks da Entity</a>.</p>
+          `
+        }
+      ],
+      try: [
+          {
+            note: "Uma bolha que respira: no <code>setup</code>, depois da velocidade. É o pulso dos inimigos do tutorial 05; cada bolha começa o seu quando nasce.",
+            code: `self.scale_to(1.15, time=0.5, loops="forever", yoyo=True)`
+          }
+        ]
+    },
+    {
+      title: "Estourar",
+      example: "bolhas.py",
+      body: `
+        <p>Último método do script: estourar a bolha com um clique.</p>
+        <p><strong><code>on_click</code></strong> (ao clicar) é mais um nome que o Scena conhece. Escrito dentro da classe, ele vale para todas as bolhas, e o Scena o chama quando alguém clica em <em>uma</em> delas, com <code>self</code> sendo a clicada. É o <code>@click</code> do tutorial 01 visto de dentro: lá, a função ficava fora e recebia a forma clicada; aqui, a função é da bolha.</p>
+        <p><strong>O estouro.</strong> <code>canvas.bubbles_at(self, …)</code> (bolhas em) é um impacto, da família do <code>burst_at</code> do tutorial 05: uma espuma de bolhinhas que sobe do ponto e some sozinha. Depois, <code>self.destroy()</code> tira esta bolha do jogo. O Scena para de chamar o <code>on_update</code> dela; as outras seguem subindo.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Bolhas")
+Wallpaper(Gradient("teal", "dark navy", angle=90))
+
+
+class Bolha(Circle, radius=30, visual=Halo("sky blue")):
+    def setup(self):
+        self.velocidade = self.radius * 4
+
+    def on_update(self, dt):
+        self.move_by(0, self.velocidade * dt)
+        if self.center.y > 760:
+            self.move_by(0, -820)
+
+    def on_click(self):
+        canvas.bubbles_at(self, color="sky blue")
+        self.destroy()
+
+
+for coluna in range(9):
+    Bolha(center=(100 + coluna * 100, -50), radius=uniform(15, 45))
+
+run()
+`,
+      try: [
+        {
+          note: "Uma bolha nova nasce no fundo a cada estouro: no <code>on_click</code>, no lugar do <code>destroy</code>. A bolha nova é feita antes do <code>destroy</code>, enquanto esta ainda tem lugar para ser lido. Um molde pode ser usado em qualquer lugar, até dentro dele mesmo.",
+          replaces: ['self.destroy()'],
+          code: `Bolha(center=(self.center.x, -50), radius=uniform(15, 45))
+self.destroy()`
+        },
+        {
+          note: "Outros estouros, um por vez, no lugar do <code>bubbles_at</code>: a explosão pequena do tutorial 05 e uma onda que entorta a água em volta. No Guia: <a href='../guide/index.html#mundo-impactos'>Impactos</a>.",
+          replaces: ['canvas.bubbles_at('],
+          code: `canvas.burst_at(self, radius=self.radius * 2)
+canvas.ripple_at(self, amount=0.3, radius=150)`
+        }
+      ],
+      closing: `
+        <p>Clique numa bolha para estourá-la. As outras continuam subindo e voltando pelo fundo.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Circle</code> — uma classe: um molde do Scena. Cada <code>Circle(…)</code> faz um objeto, com os seus próprios valores.</li>
+          <li><code>class Bolha(Circle, …)</code> — um molde seu, que começa do círculo do Scena; os parâmetros da linha são o padrão, e a criação pode trocá-los.</li>
+          <li><code>self</code> — este aqui: a bolha que o Scena está chamando agora.</li>
+          <li><code>self.velocidade</code> — um campo: um valor guardado em cada objeto, cada um com o seu.</li>
+          <li><code>setup</code> e <code>on_update</code> — o Scena chama: o primeiro uma vez, quando o objeto está pronto (nunca <code>__init__</code>); o segundo a cada quadro, para cada um.</li>
+          <li><code>on_click</code> — o Scena chama quando alguém clica neste objeto.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#desenhar-entity">Entity</a> (e “Subclasse de Shape / Sprite”) · <a href="../guide/index.html#reagir-callbacks-entity">Callbacks da Entity</a> · <a href="../guide/index.html#reagir-pointer">Clique</a> · <a href="../guide/index.html#mundo-impactos">Impactos</a>.</p>
+        <p><strong>No próximo script:</strong> o jogo de naves do tutorial 05, com um molde para o tiro, um para o inimigo e um para a nave.</p>
+      `
+    },
+    {
+      title: "O jogo do 05",
+      part: "Script 2 · Naves em classes",
+      fresh: true,
+      body: `
+        <p>Aqui começa o segundo script, num arquivo novo: o jogo de naves do tutorial 05, inteiro, como ele terminou. Este script quase não muda a tela. Ele <strong>reorganiza o código</strong> com os moldes do Script 1, e só no último passo a nave ganha uma peça nova.</p>
         <p><strong>Onde dói.</strong> Leia o <code>update</code>. Ele lê as setas, move a nave, segura a cerca, cria os tiros, move os tiros dos dois lados, move a frota e vira a frota nas bordas. Tudo o que acontece a cada quadro, com todo mundo, mora numa função só. E o <code>if nave:</code> está lá porque o <code>update</code> não sabe se a nave ainda existe: depois do <code>destroy</code>, ele precisa perguntar. Num jogo maior, com vidas, escudo e um chefe, essa função vira uma lista que ninguém consegue ler.</p>
-        <p><strong>A ideia.</strong> Cada tipo de coisa do jogo vai carregar o próprio comportamento: o tiro sabe subir, o inimigo sabe pulsar e explodir, a nave sabe ler as setas. Para isso o Python tem as <strong>classes</strong>. Rode o script para lembrar do jogo; o próximo passo começa pelo mais simples, o tiro.</p>
+        <p><strong>A ideia.</strong> É o que as bolhas fizeram no Script 1: cada tipo de coisa do jogo ganha um molde e carrega o próprio comportamento. O tiro sabe subir, o inimigo sabe pulsar e explodir, a nave sabe ler as setas. Rode o script para lembrar do jogo; o próximo passo começa pelo mais simples, o tiro.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -116,26 +421,8 @@ run()
       title: "A primeira classe: Tiro",
       body: `
         <p>O tiro é o mais simples: nasce e sobe. Hoje, nascer está no <code>update</code> (o <code>Sprite(…)</code> com a imagem, a altura e o grupo) e subir também (<code>group["tiros"].move_by</code>). Uma classe junta as duas coisas num lugar só.</p>
-        <p><strong>O molde.</strong> Uma <strong>classe</strong> é um molde: cada <code>Tiro(…)</code> sai igual, com a mesma imagem e o mesmo comportamento. A primeira linha diz o que o molde é e o que todo tiro tem. <code>class Tiro(Sprite, …)</code> é um sprite; depois da vírgula vêm os parâmetros que todo tiro recebe: a imagem (<code>source</code>, a fonte), a altura e o grupo. São os mesmos que o <code>Sprite(…)</code> recebia. Criar um tiro agora é só dizer onde: <code>Tiro(center=…)</code>.</p>
-
-        <figure class="fig">
-          <svg viewBox="0 0 400 200" role="img" aria-label="À esquerda, um retângulo chamado class Tiro, com on_update dentro; linhas tracejadas saem dele até três tiros em alturas diferentes, à direita; um dos tiros está destacado e tem o rótulo self">
-            <rect class="bar" x="20" y="62" width="130" height="76" rx="6"/>
-            <text x="85" y="94" text-anchor="middle">class Tiro</text>
-            <text x="85" y="114" text-anchor="middle">on_update</text>
-            <line class="guide" x1="150" y1="100" x2="252" y2="150"/>
-            <line class="guide" x1="150" y1="100" x2="302" y2="100"/>
-            <line class="guide" x1="150" y1="100" x2="352" y2="50"/>
-            <rect class="bar child" x="248" y="132" width="8" height="36" rx="3"/>
-            <rect class="hot" x="298" y="82" width="8" height="36" rx="3"/>
-            <rect class="bar child" x="348" y="32" width="8" height="36" rx="3"/>
-            <text x="302" y="136" text-anchor="middle">self</text>
-            <text x="300" y="190" text-anchor="middle">Tiro(center=…)</text>
-          </svg>
-          <figcaption>Um molde, muitos tiros. Cada tiro tem o seu lugar; o comportamento é o mesmo. Quando o Scena chama <code>on_update</code> de um deles, <code>self</code> é aquele tiro.</figcaption>
-        </figure>
-
-        <p><strong>O comportamento.</strong> Dentro da classe, <code>def on_update(self, dt)</code> é como o <code>update</code>: o Scena chama a cada quadro, mas uma vez para <em>cada</em> tiro. <code>self</code> quer dizer <strong>este aqui</strong>: o tiro que está sendo atualizado agora. <code>self.move_by(0, 640 * dt)</code> diz “este tiro sobe 640 pixels por segundo”. Com dez tiros na tela, o Scena chama dez vezes, cada vez com o seu <code>self</code>.</p>
+        <p><strong>O molde.</strong> É a <code>Bolha</code> do Script 1, agora começando de um <code>Sprite</code>: <code>class Tiro(Sprite, …)</code>. Depois da vírgula vêm os padrões de todo tiro: a imagem (<code>source</code>, a fonte), a altura e o grupo, os mesmos parâmetros que o <code>Sprite(…)</code> recebia. Criar um tiro agora é só dizer onde: <code>Tiro(center=…)</code>.</p>
+        <p><strong>O comportamento.</strong> Como a bolha, o tiro sobe no seu <code>on_update</code>: <code>self.move_by(0, 640 * dt)</code> é “este tiro sobe 640 pixels por segundo”. Com dez tiros na tela, o Scena chama dez vezes por quadro, cada vez com o seu <code>self</code>.</p>
         <p>A linha <code>group["tiros"].move_by</code> saiu do <code>update</code>. Rode e segure espaço: os tiros sobem como antes. Nada mudou na tela; mudou quem cuida do tiro.</p>
       `,
       code: `from random import choice
@@ -235,7 +522,7 @@ run()
       title: "O tiro da frota e o inimigo",
       body: `
         <p>Mais dois moldes, do mesmo jeito. O laser da frota vira a classe <code>TiroInimigo</code>: desce 400 pixels por segundo, no <code>on_update</code>, e a linha do grupo sai do <code>update</code>.</p>
-        <p><strong>Quando nasce.</strong> O laser vermelho precisava de meia volta (<code>rotate_to(180)</code>) logo depois de criado. Na classe, isso vai em <code>setup</code> (preparar): o Scena chama <code>setup</code> <strong>uma vez</strong>, quando o objeto nasce, antes do primeiro <code>on_update</code>. É o lugar do que cada um faz ao chegar ao jogo. O <code>frota_atira</code> fica com uma linha: <code>TiroInimigo(center=…)</code>.</p>
+        <p><strong>Quando nasce.</strong> O laser vermelho precisava de meia volta (<code>rotate_to(180)</code>) logo depois de criado. Na classe, isso vai no <code>setup</code>, como a velocidade da bolha: o Scena o chama uma vez, quando o tiro nasce e já está pronto. O <code>frota_atira</code> fica com uma linha: <code>TiroInimigo(center=…)</code>.</p>
         <p><strong>O inimigo.</strong> <code>Inimigo</code> leva para o seu <code>setup</code> o pulso (<code>scale_to</code> com <code>yoyo</code>): todo inimigo respira ao nascer. Ele não tem <code>on_update</code>, porque um inimigo não anda sozinho: quem anda é a frota inteira. A imagem também não está na linha da classe, porque muda de uma linha da frota para a outra; o laço a passa na hora de criar, <code>Inimigo(FROTA[linha % 2], center=…)</code>.</p>
         <p><strong>A cor fica fora.</strong> O <code>hue</code> continua no laço. A cor de cada inimigo depende da coluna, e só o laço sabe a coluna. É a regra deste tutorial: o que é de cada um (pulsar) vai para a classe; o que é do conjunto (a arrumação da frota) fica fora.</p>
       `,
@@ -339,8 +626,7 @@ run()
         {
           title: "A linha da classe",
           body: `
-            <p>Os parâmetros na linha da <code>class</code> são o <strong>padrão</strong> daquele molde: todo <code>Tiro</code> nasce com aquela imagem, aquela altura e aquele grupo. Ao criar um, você pode passar outro valor, e o que a criação passa vence o padrão: <code>Tiro(center=…, height=40)</code> é um tiro maior, só aquele. <code>Inimigo</code> não tem imagem na linha, então cada criação dá a sua.</p>
-            <p>A posição (<code>center</code>) não vai na linha da classe: cada um nasce num lugar. E o padrão vai na linha, não como uma variável no corpo da classe: <code>height = 28</code> escrito ali dentro esconderia a altura do sprite em vez de mudá-la.</p>
+            <p>Num <code>Sprite</code>, a linha da classe leva a imagem (<code>source</code>), a altura (<code>height</code>) e o grupo; vale o que a bolha do Script 1 mostrou: o que a criação passa vence o padrão (<code>Tiro(center=…, height=40)</code> é um tiro maior, só aquele), o lugar fica na criação, e <code>height = 28</code> escrito no corpo da classe é um erro: o Scena não o leria, então para na definição da classe e mostra a linha certa. <code>Inimigo</code> não tem imagem na linha, então cada criação dá a sua.</p>
             <p>No Guia: <a href="../guide/index.html#spr-class">Subclasse de Sprite</a>.</p>
           `
         }
@@ -686,7 +972,7 @@ run()
                      angle=270, length=60, width=22, amount=3, color="cyan")`
           },
           {
-            note: "O jato que mostra a velocidade: forte quando a nave anda, fraco quando ela para. No <code>on_update</code> do <code>Heroi</code>, depois das setas.",
+            note: "O jato que mostra a velocidade: forte quando a nave anda, fraco quando ela para. No <code>on_update</code> do <code>Heroi</code>, depois das setas. <code>or</code> (ou): basta uma das duas; <code>else</code> (senão): o que roda quando o <code>if</code> não vale.",
             code: `if keyp("LEFT") or keyp("RIGHT"):
     self.propulsor.amount = 3
 else:
@@ -704,9 +990,8 @@ self.propulsor = Sparks(center=lambda: (self.center.x, self.center.y - 22), radi
       `,
       recap: `
         <ul>
-          <li><code>class</code> — um molde: cada <code>Tiro(…)</code> sai igual; os parâmetros da linha da classe são o padrão, e a criação pode trocá-los.</li>
-          <li><code>self</code> — este aqui: o tiro, o inimigo ou a nave que o Scena está chamando agora.</li>
-          <li><code>setup</code> e <code>on_update</code> — o Scena chama: o primeiro uma vez, quando nasce; o segundo a cada quadro, só enquanto está no jogo. Por isso o <code>if nave:</code> sumiu.</li>
+          <li><code>class Tiro(Sprite, …)</code> — o molde de um sprite: imagem, altura e grupo na linha da classe; cada criação só diz onde.</li>
+          <li><code>on_update</code> — só para quem está no jogo: uma nave destruída para de receber a chamada. Por isso o <code>if nave:</code> sumiu.</li>
           <li><code>@collide_with</code> — a colisão vista de dentro da classe: este objeto e o outro.</li>
           <li><code>on_destroy</code> — chamado uma vez pelo <code>destroy</code>; apaga as partes do objeto.</li>
           <li><code>Jet</code> — um <code>SpatialFx</code>: um efeito que vive num lugar do mundo, apontado por um ponto e um ângulo.</li>

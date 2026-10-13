@@ -44,7 +44,7 @@ A box that takes the place of lines ("no lugar de…") declares them:
 one line of the step, as ``focus`` does). Such a box runs **in place**
 (``in_place``): the first anchored line becomes the snippet (at its
 indentation) and the other anchored lines go. Appended, it would pass even
-when it breaks in place (tutorial 11, 2026-10-09: ``Sheet("plane/Fly*.png",
+when it breaks in place (tutorial 14, 2026-10-09: ``Sheet("plane/Fly*.png",
 fps=12)`` named its clip ``"default"``, and the step's ``play("voando")``
 raised; ``TU6``). A box in a method body with ``replaces:`` is run, not just
 compiled.
@@ -78,7 +78,15 @@ from tests import repo_layout as layout  # noqa: E402
 
 TUTORIALS = layout.TUTORIAL
 
-_PAGE = re.compile(r"\d\d-.*\.html")
+# ``NN-slug.html`` is a tutorial; ``A-slug.html`` (one capital letter) is an
+# appendix: reference fragments that run like steps, with no example file and
+# no recap (tutorial-authoring.md, "Apêndices").
+_PAGE = re.compile(r"(\d\d|[A-Z])-.*\.html")
+
+
+def is_appendix(path: str) -> bool:
+    """An appendix page (``A-slug.html``), not a numbered tutorial."""
+    return os.path.basename(path)[0].isalpha()
 
 
 class Step(NamedTuple):
@@ -90,7 +98,7 @@ class Step(NamedTuple):
 
 
 def tutorial_pages() -> list:
-    """``docs/pt/tutorial/NN-*.html``, sorted."""
+    """``docs/pt/tutorial/NN-*.html`` and the appendices ``A-*.html``, sorted."""
     return [p for p in iter_files(TUTORIALS, ".html") if _PAGE.fullmatch(os.path.basename(p))]
 
 
@@ -101,7 +109,7 @@ _ANCHORS = re.compile(r'"([^"]*)"|\'([^\']*)\'')
 _LIST_REST = re.compile(r'\s*((?:\'[^\']*\'|"[^"]*")(?:\s*,\s*(?:\'[^\']*\'|"[^"]*"))*)\s*\]')
 _CODE = re.compile(r"\bcode:\s*`((?:\\.|[^`\\])*)`", re.S)
 # A program's last line: ``run()``, or ``run(Fase)`` in a game made of acts
-# (tutorial 20 on). A box never has one at column 0.
+# (tutorial 23 on). A box never has one at column 0.
 _RUN = re.compile(r"^run\(\w*\)[ \t]*$", re.M)
 
 
@@ -305,7 +313,7 @@ class TestTutorialExtraction(unittest.TestCase):
         self.assertFalse(_reads_a_local("return", program))
 
     def test_a_game_of_acts_ends_in_run_with_its_first_act(self):
-        # Tutorial 20 (2026-10-09): ``run(Fase)`` / ``run(Titulo)``. The
+        # Tutorial 23 (2026-10-09): ``run(Fase)`` / ``run(Titulo)``. The
         # extractor took a step without a bare ``run()`` for a box of the
         # step before, and an appended box went after ``run(Titulo)``.
         html = ("steps: [ { code: `from scena import *\nrun()\n`, try: [ { code: `x = 1` } ] },\n"
@@ -327,11 +335,33 @@ class TestTutorialExtraction(unittest.TestCase):
         self.assertEqual(strip_docstring("from scena import *\n"), "from scena import *\n")
 
 
+class TestAppendixPages(unittest.TestCase):
+    """``A-slug.html`` is an appendix: found with the tutorials, named by its letter."""
+
+    def test_the_page_pattern_takes_numbers_and_one_capital_letter(self):
+        for name, ok in [("05-naves.html", True), ("A-depuracao.html", True),
+                         ("F-formas.html", True), ("index.html", False),
+                         ("AB-x.html", False), ("a-minusculo.html", False)]:
+            with self.subTest(name=name):
+                self.assertEqual(bool(_PAGE.fullmatch(name)), ok)
+        self.assertTrue(is_appendix("/x/A-depuracao.html"))
+        self.assertFalse(is_appendix("/x/05-naves.html"))
+
+    def test_an_appendix_gets_its_own_steps_class(self):
+        from tests.test_tutorial_steps import page_case_name
+        self.assertEqual(page_case_name("/x/A-depuracao.html"), "TestStepsA")
+        self.assertEqual(page_case_name("/x/05-naves.html"), "TestSteps05")
+
+
 class TestTutorialEndsInAnExample(unittest.TestCase):
     def test_last_step_is_an_example_file(self):
         for path in tutorial_pages():
             page = os.path.basename(path)
             steps = extract_steps(path)
+            if is_appendix(path):
+                self.assertTrue(all(step.example is None for step in steps),
+                                f"{page}: an appendix ends in no example file")
+                continue
             with self.subTest(page=page):
                 self.assertIsNotNone(
                     steps[-1].example,
@@ -432,6 +462,9 @@ class TestTutorialRecap(unittest.TestCase):
                              "a step object the recap scan did not see")
             with self.subTest(page=page):
                 have = [i for i, r in enumerate(recaps) if r is not None]
+                if is_appendix(path):
+                    self.assertEqual(have, [], f"{page}: an appendix has no recap")
+                    continue
                 self.assertEqual(
                     have, script_ends(path),
                     f"{page}: recap goes on the last step of every script (steps {script_ends(path)}), "
@@ -490,7 +523,6 @@ class TestTutorialFocus(unittest.TestCase):
     """A reading step (``focus``) lights paragraphs of the script the reader already has."""
 
     def test_focus_anchors_start_one_line_of_an_unchanged_script(self):
-        seen = 0
         for path in tutorial_pages():
             page = os.path.basename(path)
             steps, focus = extract_steps(path), step_focus(path)
@@ -498,7 +530,6 @@ class TestTutorialFocus(unittest.TestCase):
             for i, (step, anchors) in enumerate(zip(steps, focus)):
                 if anchors is None:
                     continue
-                seen += 1
                 with self.subTest(page=page, line=step.line):
                     self.assertTrue(anchors, "an empty focus list")
                     self.assertGreater(i, 0, "the first step has no script to re-read")
@@ -508,7 +539,35 @@ class TestTutorialFocus(unittest.TestCase):
                     for anchor in anchors:
                         hits = sum(1 for ln in lines if ln.startswith(anchor))
                         self.assertEqual(hits, 1, f"focus {anchor!r} starts {hits} lines (needs exactly 1)")
-        self.assertGreater(seen, 0, "no focus step found: the scan regex no longer matches")
+
+    def test_the_scan_still_sees_a_focus_step(self):
+        # No page re-reads a script today (2026-10-13: 04's guided readings were
+        # rebuilt step by step in 13), so the scan is checked on a sample page:
+        # a regex that stopped matching would pass every page vacuously.
+        page = textwrap.dedent("""\
+            Tutorial.mount({
+              steps: [
+                {
+                  title: "Um",
+                  code: `from scena import *
+            run()
+            `
+                },
+                {
+                  title: "Dois",
+                  focus: ["run()"],
+                  code: `from scena import *
+            run()
+            `
+                }
+              ]
+            });
+            """)
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "01-amostra.html")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(page)
+            self.assertEqual(step_focus(path), [None, ["run()"]])
 
 
 class TestTryInPlace(unittest.TestCase):

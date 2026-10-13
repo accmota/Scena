@@ -1,4 +1,4 @@
-"""Avião — tutorial 11.
+"""Avião — tutorial 14.
 
 Um avião voa entre pilares. Ele não anda para a frente: o mundo anda, e o
 manche sobe e desce o nariz, com inércia (chase). Cada par de pilares

@@ -1,4 +1,4 @@
-"""Naves V · Capítulos e sequências — tutorial 19.
+"""Naves V · Capítulos e sequências — tutorial 22.
 
 O jogo de naves do tutorial 08 com capítulos (modos): cada inimigo fica
 na formação, de vez em quando mergulha na direção da nave com o jato
@@ -146,7 +146,7 @@ class Chefe(Sprite, source=folha, frame="ufoRed.png", height=110, group="chefe")
         every(1.0, self.rajada)
 
     def rajada(self):
-        for dx in (-40, 0, 40):
+        for dx in [-40, 0, 40]:
             TiroInimigo(center=(self.center.x + dx, self.center.y - 50))
         play_sound("audio/laser7.wav")
 
