@@ -61,7 +61,8 @@ left out.
   per frame; tutorial 22's level and the endless runner about 15 %.
 - A game with `Neon` on moving shapes no longer grows to over 1 GB of memory:
   Scena frees GPU memory nothing has drawn for a second. A bullet hell with
-  300 glowing shots now stays near 250 MB.
+  300 glowing shots now stays near 250 MB. Pictures loaded from files stay on
+  the GPU, so a background shown again after a pause is not uploaded again.
 - Shots and pickups that are only in `@collide` pairs no longer make every
   body of a mutual `resolve()` crowd rebuild its partner list: a crowd of 150
   that is being shot at resolves about 12 % faster.

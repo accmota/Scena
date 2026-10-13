@@ -791,6 +791,35 @@ D9 / M1). The run loop now frees resources unused for `GPU_PURGE_IDLE_S`
 (`ScenaFramework._purge_idle_gpu`, after the present; 0 turns it off).
 Textures drawn in the last second are never touched.
 
+**Loaded images are exempt (pinned).** A raster image's upload is a cache
+resource like any other, so the purge freed a texture not drawn for a second
+and the next draw uploaded it again: a background shown after a pause menu,
+or an act returned to, cost one slow frame (2048²: 0.5 → 3.7 ms; 4096²: ~10
+ms). Holding a `makeTextureImage` copy does not keep the raster's own upload
+(measured: the raster still uploads again), so the draw sites draw the copy:
+- `style.gpu_image(img, canvas)` returns, on a GPU canvas, a texture copy of
+  a decoded file image, made once per image and context (`_PINNED`) and
+  unbudgeted, so it neither counts against Skia's budget nor gets purged.
+  Elsewhere (a raster canvas, a generated image) it returns `img`.
+- Pinnable: what the decode caches hold for the session anyway
+  (`style._load_image`, `sprite._decode_image` → `_pinnable`). CPU readers
+  (masks, hitbox bakes, frame FX) keep the raster.
+- Draw sites: the Sprite blit, fitted wallpapers (`BackgroundFill.fill`),
+  menu icons. Tiled wallpapers and `Texture` fills sample a shared shader
+  copy (the `setShader` note in `style.py`) and stay purgeable.
+- The canvas's context is memoized (the last canvas): a pinned draw costs
+  ~90 ns. Ninja, corrida and mundo draw time unchanged (in-process A/B,
+  `--ab scena.style:_PIN_IMAGES`).
+- Pinned copies are pixel-identical (no mipmaps: Scena samples linear), and a
+  4096² image draws in 2–3 ms after a purge against 9–12 ms raster.
+- Pins are freed when `run()` ends (`_drop_pins`, before the context is
+  abandoned); a second `run()` makes new ones.
+- Memory: every file image drawn once stays on the GPU for the session, as
+  its decode stays in memory.
+
+The purge runs after the present, outside `work_ms`, so FX Auto does not see
+its cost.
+
 Measured (M4):
 - moving Neon: 1.3 GB → 0.77 GB;
 - festa: stays near 255 MiB (it grew to 877 MiB over 40 s);

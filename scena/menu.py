@@ -16,7 +16,7 @@ from .color import Color
 from .process import Handle
 from .shapes import Point, get_xy
 from .state import Attribute, _init_composite
-from .style import Gradient, Texture, _coerce_panel_material, _material_paint_for_rect
+from .style import Gradient, Texture, _coerce_panel_material, _material_paint_for_rect, gpu_image
 from .uiwidget import (
     UIWidget,
     _make_ui_font,
@@ -617,7 +617,7 @@ class Menu(UIWidget):
                 iy = cy + self._cell_h - side
                 src = skia.Rect.MakeWH(float(img.width()), float(img.height()))
                 dst = skia.Rect.MakeXYWH(ix, iy, side, side)
-                canvas.drawImageRect(img, src, dst, skia.SamplingOptions())
+                canvas.drawImageRect(gpu_image(img, canvas), src, dst, skia.SamplingOptions())
                 label_h = self._cell_h - side
             draw_string_upright(
                 canvas,

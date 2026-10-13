@@ -90,6 +90,7 @@ from .style import (
     coerce_visual,
     BlendMode,
     _SKIA_BLEND_MAP,
+    gpu_image,
 )
 from .state import Attribute, Container, ContainerSlot, ScalarSlot, as_payload, _init_composite, batch_update_self, probe_private, bump_pose_rev
 from .validate import HINT_EXTENT
@@ -291,6 +292,8 @@ def _reject_unexpected_sprite_kwargs(
 def reset_sprite_caches() -> None:
     """Test hook: drop decoded images, missing-file warnings, interned sheets."""
     _IMAGE_CACHE.clear()
+    from .style import _unpin_images
+    _unpin_images()
     _MISSING_WARNED.clear()
     _SVG_WARNED.clear()
     _STALE_HITBOX_WARNED.clear()
@@ -659,11 +662,13 @@ def _decode_image(path: str) -> skia.Image:
         # Texture / wallpaper keep the lazy image. setShader of a raster
         # image PNG-encodes (§5.5). Sprite blits want a one-time decode.
         _style._IMAGE_CACHE[key] = shared
+        _style._pinnable(shared)
     lazy = getattr(shared, "isLazyGenerated", None)
     raster = shared.makeRasterImage() if callable(lazy) and lazy() else shared
     if raster is None:
         raster = shared
     _IMAGE_CACHE[key] = raster
+    _style._pinnable(raster)
     return raster
 
 
@@ -6058,7 +6063,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
             dst = skia.Rect.MakeXYWH(-dh * 0.5, -dw * 0.5, dh, dw)
 
         skia_canvas.drawImageRect(
-            self._sheet._image_for_frame(idx), src, dst, _SAMPLING, paint,
+            gpu_image(self._sheet._image_for_frame(idx), skia_canvas), src, dst, _SAMPLING, paint,
         )
         if fr.rotated:
             skia_canvas.restore()

@@ -2321,6 +2321,7 @@ def _load_image(filename: str, *, kind: str = "image") -> skia.Image:
         if img is None:
             raise ValueError(f"Failed to load {kind}: {filename}")
         _IMAGE_CACHE[key] = img
+        _pinnable(img)
         return img
     except Exception as e:
         key = filename
@@ -2818,7 +2819,8 @@ class BackgroundFill:
         if self._image is not None:
             # Fitted image: only its dst rect paints (the underlay shows around it).
             canvas.drawImageRect(
-                self._image, self._src, self._dst, skia.SamplingOptions(), self.paint,
+                gpu_image(self._image, canvas), self._src, self._dst, skia.SamplingOptions(),
+                self.paint,
                 skia.Canvas.kFast_SrcRectConstraint,
             )
         elif self._matrix is not None:
@@ -2885,6 +2887,75 @@ def _live_gr_context():
     except Exception:
         return None
     return getattr(ScenaFramework._instance, "_context", None)
+
+
+# Pinned GPU textures of loaded images (Canvas Design, "GPU memory"). The
+# idle purge frees what was not drawn for a second, and a raster image's
+# upload is such a resource: a background shown again after a pause menu was
+# uploaded again (2048²: 0.5 → 3.7 ms that frame). Holding a texture copy does
+# not keep the raster's own upload, so the draw sites below draw the copy
+# itself, on a GPU canvas: an unbudgeted texture, made once per image and
+# context, that no purge touches. Only decoded files (the decode caches hold
+# them for the session anyway); CPU readers keep the raster. False: draw the
+# raster (A/B).
+_PIN_IMAGES = True
+_PINNABLE: dict = {}        # id(image) -> image: decoded file images
+_PINNED: dict = {}          # id(image) -> (context, texture copy)
+_PIN_CANVAS: list = [None, None]    # last canvas asked, and its context (None: raster)
+
+
+def _pinnable(img) -> None:
+    """``img`` is a decoded file image (a decode cache holds it)."""
+    if img is not None:
+        _PINNABLE[id(img)] = img
+
+
+def _drop_pins() -> None:
+    """Free the pinned textures (their context is closing)."""
+    _PINNED.clear()
+    _PIN_CANVAS[0] = _PIN_CANVAS[1] = None
+
+
+def _unpin_images() -> None:
+    """Drop every pin (the decode caches were cleared)."""
+    _PINNABLE.clear()
+    _drop_pins()
+
+
+def _pin_canvas(canvas) -> None:
+    """Remember ``canvas`` and the live context it draws with (None: raster)."""
+    surf = canvas.getSurface()
+    gpu = surf is not None and surf.recordingContext() is not None
+    _PIN_CANVAS[0] = canvas
+    _PIN_CANVAS[1] = _live_gr_context() if gpu else None
+
+
+def gpu_image(img, canvas):
+    """The image to draw for ``img`` on ``canvas``: its pinned texture when
+    ``img`` is a decoded file and ``canvas`` draws on the GPU, else ``img``."""
+    if not _PIN_IMAGES:
+        return img
+    memo = _PIN_CANVAS
+    if memo[0] is not canvas:
+        _pin_canvas(canvas)
+    ctx = memo[1]
+    if ctx is None:
+        return img
+    key = id(img)
+    pin = _PINNED.get(key)
+    if pin is not None and pin[0] is ctx:
+        return pin[1]
+    if key not in _PINNABLE:
+        return img
+    try:
+        tex = img.makeTextureImage(ctx, skia.GrMipmapped.kNo, skia.Budgeted.kNo)
+    except Exception:
+        tex = None
+    if tex is None:
+        _PINNABLE.pop(key, None)            # not uploadable: draw the raster
+        return img
+    _PINNED[key] = (ctx, tex)
+    return tex
 
 
 def _prewarm(ctx, img: skia.Image, tile: bool, tile_mode: TileMode) -> None:

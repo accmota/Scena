@@ -3526,6 +3526,8 @@ class ScenaFramework:
             pass  # environment: no audio output device
 
         def abandon_gpu_context():
+            from .style import _drop_pins
+            _drop_pins()                    # pinned image textures, while the context lives
             if self._context is not None:
                 self._context.abandonContext()
 
@@ -3672,7 +3674,9 @@ class ScenaFramework:
 
         Skia keeps one-use resources (Neon's blur mask at each new position)
         until its 256 MiB budget, which the driver turns into ~1 GB of process
-        memory. Textures drawn in the last second are not touched.
+        memory. Textures drawn in the last second are not touched, nor the
+        pinned textures of loaded images (``style.gpu_image``): a background
+        shown again after a pause is not uploaded again.
         """
         if now - self._gpu_purge_t < GPU_PURGE_EVERY_S:
             return
