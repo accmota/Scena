@@ -23,7 +23,7 @@ import numpy as np
 import skia
 
 import scena
-from scena import Beat, Circle, Liquify, Neon, Sprite
+from scena import Beat, Circle, Color, Liquify, Neon, Sprite
 from scena import recipes as _recipes
 from scena import style as _style
 from scena.visuals import Visual
@@ -262,20 +262,15 @@ class TestRecolorUnderOwnColors(unittest.TestCase):
 
 # Seeded looks where ``set_color`` still loses to the seed: the colour is
 # written to the shape and shows after ``visual = None``, but the look keeps
-# drawing the seed (no ``_unseed`` yet: "Phase 2", Effect System Design §9).
-# Outline looks (Rim, Ink, …) repaint the body and keep the seeded outline,
-# which a changed-pixel count mistakes for "shows": compare with the look
-# worn on the new colour instead.
-# Shrink-only: a look that starts to show set_color must leave the list.
-SEED_WINS = {
-    ("Aurora", None), ("Bolt", "core"), ("Bolt", "filaments"), ("Bolt", "tesla"),
-    ("DashRing", None), ("ElectricBolt", None), ("ElectricField", None),
-    ("Extrude", None), ("GearShell", None), ("Gel", None), ("Halo", "line"),
-    ("Ink", None), ("InkBleed", None), ("InsetRim", None), ("Laser", None),
-    ("MultiBorder", None), ("OrganicOutline", None), ("Rim", None),
-    ("Shield", "bands"), ("Shield", "vortex"), ("Shield", "plasma"),
-    ("Sphere", None), ("Tracer", None), ("Wave", None),
-}
+# drawing the seed. Empty since 2026-10-13: every look that takes ``color=``
+# has an ``_unseed`` (Effect System Design §9 rule 18). Shrink-only: a new
+# look that takes ``color=`` and keeps its seed on set_color fails the sweep.
+SEED_WINS: set = set()
+
+# Paint / Fill / Stroke are installers, not looks with a seed: set_color
+# replaces them with the installer built on the new material.
+from scena.visuals import Fill as _Fill, Paint as _Paint, Stroke as _Stroke  # noqa: E402
+_INSTALLERS = (_Paint, _Fill, _Stroke)
 
 
 def _wearable_cells():
@@ -310,6 +305,27 @@ def _recolor_shows(look) -> tuple:
         return changed, [str(w.message) for w in got]
     finally:
         c.destroy()
+
+
+def _knobs_of(look) -> dict:
+    """A look's public non-colour knobs, as stored."""
+    return {k: v for k, v in vars(look).items() if not k.startswith("_") and k != "color"}
+
+
+def _follower(cls, base):
+    """The look a recolor ends on: the unseeded look, or a palette look's
+    shape-following sibling."""
+    plain = cls(**base)
+    return plain._unseed() or plain
+
+
+def _state(shape) -> tuple:
+    """(fill, line) as rounded RGBA (None for no paint)."""
+    def one(p):
+        if p is None:
+            return None
+        return tuple(round(float(v), 3) for v in p.rgb) if isinstance(p, Color) else type(p).__name__
+    return one(shape.fill), one(shape.line)
 
 
 def _worn(look, color):
@@ -372,22 +388,70 @@ class TestSetColorShowsWhereColorIsTaken(unittest.TestCase):
     def test_seeded_every_look_and_style(self):
         shows, hidden = set(), set()
         for cls, style in _wearable_cells():
-            if not _takes_color(cls, style):
-                continue
+            if not _takes_color(cls, style) or issubclass(cls, _INSTALLERS):
+                continue            # installers: set_color rebuilds them (style.py)
             base = {} if style is None else {"style": style}
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 got = _recolored(cls("deepskyblue", **base), "lime")
-                # Shown = what the look draws on a lime shape: the unseeded
-                # look (tint looks) or the look given lime (palette / paint).
-                want = (_worn(cls(**base), "lime"), _worn(cls("lime", **base), "blue"))
-            ok = any(np.abs(got - w).max() <= 2 for w in want)
+                # Shown = what the shape-following look draws on a shape made
+                # with color="lime" (set_color is color=, 2026-10-13).
+                want = _worn(_follower(cls, base), "lime")
+            ok = np.abs(got - want).max() <= 2
             (shows if ok else hidden).add((cls.__name__, style))
         self.assertIn(("Neon", None), shows)
         unlisted = sorted(hidden - SEED_WINS, key=str)
         self.assertFalse(unlisted, f"seeded looks where set_color does not show: {unlisted}")
         stale = sorted(SEED_WINS & shows, key=str)
         self.assertFalse(stale, f"SEED_WINS looks that now show set_color: remove them: {stale}")
+
+    def test_deseed_keeps_every_knob(self):
+        """``_unseed`` returns the sibling built from the same non-colour knobs:
+        ``Rim("red", width=8)`` + ``set_color`` is ``Rim(width=8)``, not
+        ``Rim()``. Bug class: a sibling that drops a knob (it would still
+        pass the default-knob sweep above)."""
+        from tests.test_knobs_take_effect import visual_cells
+        n = 0
+        for name, style, knob, alt in visual_cells():
+            if knob == "color":
+                continue
+            cls = getattr(scena, name)
+            kw = {knob: alt, **({} if style is None else {"style": style})}
+            with self.subTest(visual=name, style=style, knob=knob), warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                if not _takes_color(cls, style) or issubclass(cls, _INSTALLERS):
+                    continue            # installers: set_color rebuilds them (style.py)
+                try:
+                    seeded, plain = cls("deepskyblue", **kw), cls(**kw)
+                except TypeError:
+                    continue            # knob refused on this style (KN4)
+                want = plain._unseed() or plain     # palette looks: shape-following
+                got = seeded._unseed()
+                self.assertIs(type(got), type(want))
+                # Knobs as stored (clamped: Extrude(layers=10) keeps 7 and
+                # interns apart from layers=7; one key clamp cost ~0.3 µs per
+                # construction, 2026-10-13, so the twin interns stay).
+                self.assertEqual(_knobs_of(got), _knobs_of(want))
+                if _knobs_of(plain).get(knob, alt) == alt:     # not clamped
+                    self.assertIs(got, want)
+                self.assertIsNone(want._unseed(), "already unseeded: no new intern")
+                n += 1
+        self.assertGreater(n, 40, "the knob sweep stopped reaching the surface")
+
+    def test_canary_seed_wins_again(self):
+        import diff_support
+        diff_support.assert_catches(
+            self, "test_visual_color_param.TestSetColorShowsWhereColorIsTaken.test_seeded_every_look_and_style",
+            [(_recipes.Rim, "_unseed", lambda self: None), (_recipes.Laser, "_unseed", lambda self: None)],
+            "Rim / Laser seeds that win over set_color (before 2026-10-13)")
+
+    def test_canary_deseed_drops_a_knob(self):
+        import diff_support
+        diff_support.assert_catches(
+            self, "test_visual_color_param.TestSetColorShowsWhereColorIsTaken.test_deseed_keeps_every_knob",
+            [(_recipes.Rim, "_unseed",
+              lambda self: None if self._seed_color is None else _recipes.Rim(None, self.amount))],
+            "Rim._unseed that forgets width= / darken=")
 
     def test_canary_metal_recolor_silent_again(self):
         import diff_support
@@ -396,6 +460,180 @@ class TestSetColorShowsWhereColorIsTaken(unittest.TestCase):
             self, "test_visual_color_param.TestSetColorShowsWhereColorIsTaken.test_unseeded_every_look_and_style",
             [(Metal, "_unseed", lambda self: None)],
             "Metal() + set_color that changes nothing (before 2026-10-13)")
+
+
+class TestSetColorIsColorParam(unittest.TestCase):
+    """Decided 2026-10-13: ``set_color(X)`` gives what ``color=X`` gives, under
+    any look; an outline look (Role B) follows the outline, which ``color=``
+    derives; ``.fill`` / ``.line`` written before or after ``visual =`` draw
+    the same; an outline look's seed dyes the outline only.
+
+    Bug class: the shape's paint depending on the order of author writes.
+    Before, set_color under an outline look wrote the exact line (a shape no
+    ``color=`` gives, kept after ``visual = None``), a ``.line`` write under
+    a look skipped the look's package (Rim lost its alpha, Halo kept its old
+    wash), and ``Rim("red")`` left a red *body* once removed.
+    """
+
+    def setUp(self):
+        _style._RECOLOR_HIDDEN_WARNED.clear()
+        self._clock = _recipes._clock
+        _recipes._clock = lambda: 0.37
+        warnings.simplefilter("ignore")
+
+    def tearDown(self):
+        _recipes._clock = self._clock
+        _style._RECOLOR_HIDDEN_WARNED.clear()
+        warnings.resetwarnings()
+
+    @staticmethod
+    def _cells(seeded=None):
+        """(cls, base, look) for every wearable look and style, installers out
+        (set_color rebuilds them; a later write to them stands)."""
+        for cls, style in _wearable_cells():
+            if issubclass(cls, _INSTALLERS):
+                continue
+            base = {} if style is None else {"style": style}
+            try:
+                plain = cls(**base)
+            except TypeError:
+                continue
+            if seeded is not True:
+                yield cls, base, plain
+            if seeded is not False and _takes_color(cls, style):
+                yield cls, base, cls("deepskyblue", **base)
+
+    def test_set_color_gives_what_color_param_gives(self):
+        n = 0
+        for cls, base, look in self._cells():
+            with self.subTest(visual=cls.__name__, **base, seeded=look._seeded()):
+                ref = Circle(center=(64, 64), radius=40, color="lime")
+                ref.visual = _follower(cls, base)
+                got = Circle(center=(64, 64), radius=40, color="blue")
+                got.visual = look
+                got.set_color("lime")
+                self.assertLessEqual(int(np.abs(_draw(got) - _draw(ref)).max()), 2)
+                got.visual = None
+                self.assertEqual(_state(got), _state(Circle(radius=40, color="lime")))
+                n += 1
+                got.destroy()
+                ref.destroy()
+        self.assertGreater(n, 60, "the sweep stopped reaching the surface")
+
+    def test_channel_write_order_does_not_matter(self):
+        for cls, base, look in self._cells(seeded=False):
+            for channel in ("fill", "line"):
+                with self.subTest(visual=cls.__name__, **base, channel=channel):
+                    before = Circle(center=(64, 64), radius=40, color="blue")
+                    setattr(before, channel, "red")
+                    before.visual = look
+                    after = Circle(center=(64, 64), radius=40, color="blue")
+                    after.visual = look
+                    setattr(after, channel, "red")
+                    self.assertLessEqual(int(np.abs(_draw(after) - _draw(before)).max()), 2)
+                    before.visual = after.visual = None
+                    self.assertEqual(_state(after), _state(before))
+                    before.destroy()
+                    after.destroy()
+
+    def test_write_on_its_channel_beats_the_seed(self):
+        """``Rim("red")`` then ``.line = "lime"`` is ``.line = "lime"`` then
+        ``Rim()``; ``Neon("red")`` then ``.fill = "lime"`` likewise."""
+        for cls, base, look in self._cells(seeded=True):
+            if look._color_role not in ("A", "B"):
+                continue
+            channel = "line" if look._color_role == "B" else "fill"
+            with self.subTest(visual=cls.__name__, **base, channel=channel):
+                got = Circle(center=(64, 64), radius=40, color="blue")
+                got.visual = look
+                setattr(got, channel, "lime")
+                # A body look's seed is the shape color (outline derived from
+                # it, as color=); an outline look's seed is the outline only.
+                ref = Circle(center=(64, 64), radius=40,
+                             color="deepskyblue" if channel == "fill" else "blue")
+                setattr(ref, channel, "lime")
+                ref.visual = _follower(cls, base)
+                self.assertLessEqual(int(np.abs(_draw(got) - _draw(ref)).max()), 2)
+                got.destroy()
+                ref.destroy()
+
+    def test_outline_seed_dyes_the_outline_only(self):
+        """``look("red")`` is ``line = "red"`` then ``look()`` for an outline
+        look, on screen and once removed; a body look's seed stays the shape
+        color, as ``color="red"``."""
+        n = 0
+        for cls, base, look in self._cells(seeded=True):
+            with self.subTest(visual=cls.__name__, **base, role=look._color_role):
+                got = Circle(center=(64, 64), radius=40, color="blue")
+                got.visual = cls("red", **base)
+                if look._color_role == "B":
+                    ref = Circle(center=(64, 64), radius=40, color="blue")
+                    ref.line = "red"
+                    ref.visual = _follower(cls, base)
+                    self.assertLessEqual(int(np.abs(_draw(got) - _draw(ref)).max()), 2)
+                    ref.visual = None
+                    n += 1
+                else:
+                    ref = Circle(center=(64, 64), radius=40, color="red")
+                got.visual = None
+                self.assertEqual(_state(got), _state(ref))
+                got.destroy()
+                ref.destroy()
+        self.assertGreater(n, 10, "the outline looks left the sweep")
+
+    def test_drawing_never_reapplies(self):
+        """Looks rewrite their package at draw time (``_apply_at_draw``) under
+        the apply guard: no draw, at any quality, runs a re-apply."""
+        from scena.fx_quality import activate_quality
+        calls = []
+        orig = _style.PaintState._reapply_visual
+        _style.PaintState._reapply_visual = lambda s: (calls.append(type(s._visual).__name__), orig(s))[1]
+        try:
+            for q in ("low", "medium", "high", "max"):
+                activate_quality(q)
+                for cls, base, look in self._cells():
+                    c = Circle(center=(64, 64), radius=40, color="blue")
+                    c.visual = look
+                    _draw(c)
+                    _draw(c)
+                    c.destroy()
+                self.assertEqual(calls, [], q)
+        finally:
+            _style.PaintState._reapply_visual = orig
+            activate_quality("high")
+
+    def test_canary_exact_line_again(self):
+        import diff_support
+
+        orig = _style.PaintState._apply_primary_paint
+
+        def exact(self, material, **kw):
+            if getattr(self, "_visual", None) is None:
+                return orig(self, material, **kw)
+            c = Color(material)
+            self.fill = c
+            self.line = c
+            return self
+        diff_support.assert_catches(
+            self, "test_visual_color_param.TestSetColorIsColorParam.test_set_color_gives_what_color_param_gives",
+            [(_style.PaintState, "_apply_primary_paint", exact)],
+            "set_color writing the exact line (before 2026-10-13)")
+
+    def test_canary_raw_channel_write_again(self):
+        import diff_support
+        diff_support.assert_catches(
+            self, "test_visual_color_param.TestSetColorIsColorParam.test_channel_write_order_does_not_matter",
+            [(_style.PaintState, "_look_channel_written", lambda self, channel: None)],
+            ".line / .fill under a look skipping the look (before 2026-10-13)")
+
+    def test_canary_outline_seed_dyes_the_body_again(self):
+        import diff_support
+        orig = _style.PaintState._identity_patch_seed
+        diff_support.assert_catches(
+            self, "test_visual_color_param.TestSetColorIsColorParam.test_outline_seed_dyes_the_outline_only",
+            [(_style.PaintState, "_identity_patch_seed",
+              lambda self, rgba, channel="auto": orig(self, rgba, channel="fill"))],
+            "Rim(\"red\") leaving a red body (before 2026-10-13)")
 
 
 class TestPaletteLooks(unittest.TestCase):

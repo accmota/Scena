@@ -532,6 +532,14 @@ class Visual:
         supported — set_color() falls back to today's re-apply behavior."""
         return None
 
+    def _seeded(self) -> bool:
+        """True when built with an author ``color=`` (the seed attribute each
+        family stores: ``_seed_color`` Recipes / HaloLine, ``_seed`` Halo /
+        GlowRim, ``_metal_seed`` Metal)."""
+        return (getattr(self, "_seed_color", None) is not None
+                or getattr(self, "_seed", None) is not None
+                or getattr(self, "_metal_seed", None) is not None)
+
     def _apply(self, shape) -> None:
         """Write style package (and seed multipass tints). Called on visual assignment."""
         pass
@@ -1235,9 +1243,8 @@ class Halo(CompiledVisual):
         self._ready = True
 
     def _unseed(self) -> Optional["Halo"]:
-        # HaloLine (Phase 2) uses ``_seed_color``, not ``_seed``. A missing
-        # seed means live-tracking is already on, or this subclass is out of
-        # Phase 1 scope — do not intern a sibling.
+        # A missing seed means live-tracking is already on: do not intern a
+        # sibling. HaloLine stores ``_seed_color`` and has its own _unseed.
         if getattr(self, "_seed", None) is None:
             return None
         return type(self)(None, self.amount)
@@ -1806,7 +1813,9 @@ class HaloFill(Halo):
             shape.line = line_paint
         else:
             # Original fill — solid gets a light vibrant boost; else leave as-is.
-            if self._seed is not None:
+            # A seed paints the body on the body look (HaloFill, Role A) only:
+            # HaloSoft (Role B) keeps the host body, its seed is the outline.
+            if self._seed is not None and self._color_role == "A":
                 shape.fill = self._vivid_color(rgba)
             elif isinstance(host_fill, (Gradient, Texture, ProceduralFill)):
                 shape.fill = host_fill
@@ -2467,6 +2476,11 @@ class _OrbHalo(GlowRimVisual):
             color, amount=amount, speed=speed, radius=radius, sigma=sigma,
         )
         self._ready = True
+
+    def _unseed(self) -> Optional["_OrbHalo"]:
+        if self._seed is None:
+            return None
+        return type(self)(None, amount=self.amount, speed=self.speed, radius=self.radius, sigma=self.sigma)
 
     def _apply_high(self, shape, BlendMode) -> None:
         from .style import ProceduralFill

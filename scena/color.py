@@ -8,7 +8,7 @@ import warnings
 import skia
 
 from .state import as_payload, as_payload_all
-from .closed import ClosedSurface
+from .closed import ClosedSurface, seal
 
 # Oklab conversions (_linear_srgb_to_oklab / _oklab_to_linear_srgb) follow
 # Björn Ottosson's reference code, which he placed in the public domain (MIT
@@ -597,7 +597,25 @@ class Color(ClosedSurface):
         l = _clamp01(float(l))
         a = _clamp01(float(a))
         r, g, b = colorsys.hls_to_rgb(h, l, s)  # Note: HLS uses different order
+        if cls is Color:
+            return Color._unit(r, g, b, a)
         return cls(r, g, b, a)
+
+    @staticmethod
+    def _unit(r: float, g: float, b: float, a: float) -> 'Color':
+        """A Color from components already in [0, 1], without parsing: the
+        derived outline of every ``color=`` / ``set_color`` comes through
+        here (``contrast_tone`` → ``darker`` / ``lighter`` → ``from_hsl``),
+        ~3 µs less than ``Color(r, g, b, a)`` (2026-10-13). Same values."""
+        c = object.__new__(Color)
+        d = c.__dict__
+        d["_is_none"] = False
+        d["_r"] = _clamp01(float(r))
+        d["_g"] = _clamp01(float(g))
+        d["_b"] = _clamp01(float(b))
+        d["_a"] = _clamp01(float(a))
+        seal(c)
+        return c
 
     @classmethod
     def from_hsv(cls, h: float, s: float, v: float, a: float = 1.0) -> 'Color':
