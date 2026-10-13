@@ -20,7 +20,7 @@ Tutorial.mount({
     {
       title: "O jogo do 21",
       body: `
-        <p>A fase do 21 é grande, mas fácil: as plataformas são duras por baixo, os robôs andam sempre o mesmo pedaço, e encostar num deles só manda o ninja de volta ao começo. Neste tutorial, a fase fica perigosa e mais justa: plataformas de passar por baixo, robôs que viram na beirada, uma caixa só para a dor, raios elétricos que ligam e desligam, e um recomeço com um ato.</p>
+        <p>A fase do 21 é grande, mas fácil: as plataformas são duras por baixo, os robôs andam sempre o mesmo pedaço, e encostar num deles só manda o ninja de volta ao começo. Neste tutorial, a fase fica perigosa e mais justa: plataformas de passar por baixo, robôs que viram na beirada, uma caixa só para a dor, raios elétricos que ligam e desligam, um elevador, e um recomeço com um ato.</p>
         <p>O ponto de partida é o jogo do 21, como ficou.</p>
       `,
       code: `from scena import *
@@ -88,6 +88,8 @@ class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
 
     @collide_with("kunai")
     def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
         kunai.destroy()
         self.untag("robo")
         self.vel.x = 0
@@ -102,6 +104,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
     def on_update(self, dt):
         if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
             return
 
         if keyp("LEFT"):
@@ -165,7 +171,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
             self.blink(1)
         else:
             play_sound("audio/gameover.wav")
-            self.play("morto", loops=1)
             aviso.text = "Fim de jogo"
 
 
@@ -215,7 +220,7 @@ run()
     {
       title: "Tábuas de mão única",
       body: `
-        <p><strong>A fase nova.</strong> No editor, a fase do 21 ganhou quatro mudanças, e foi salva com outro nome, <code>levels/ninja_perigos.json</code> (também na pasta <code>media</code>). As peças das plataformas saíram do grupo <code>chao</code> e foram para um grupo só delas, <code>plataforma</code>; três retângulos finos, no grupo <code>raio</code>, esperam pelo passo 7; os dois robôs do fim mudaram de lugar; e uma plataforma do meio ficou inclinada (o passo 4 cuida dela). O código cria as plataformas num <code>for</code> próprio, com <code>STATIC</code> também.</p>
+        <p><strong>A fase nova.</strong> No editor, a fase do 21 ganhou cinco mudanças, e foi salva com outro nome, <code>levels/ninja_perigos.json</code> (também na pasta <code>media</code>). As peças das plataformas saíram do grupo <code>chao</code> e foram para um grupo só delas, <code>plataforma</code>; três retângulos finos, no grupo <code>raio</code>, esperam pelo passo 7; os dois robôs do fim mudaram de lugar; uma plataforma do meio ficou inclinada (o passo 4 cuida dela); e, no fim da fase, um retângulo chamado <code>elevador</code> espera pelo passo 8, embaixo de uma estrela alta demais para um pulo. O código cria as plataformas num <code>for</code> próprio, com <code>STATIC</code> também.</p>
         <p><strong>Só pelos pés.</strong> Uma regra nova: <code>resolve("heroi", "plataforma", bounce=0, only="bottom")</code>. <code>only=</code> (só) diz de que lados do herói o par segura. Com <code>"bottom"</code>, só os pés: o ninja que pula de baixo atravessa a plataforma (a cabeça, <code>"top"</code>, não segura), e o que cai de cima pisa nela. O lado é o do primeiro nome do <code>resolve</code>, o herói, não o da plataforma: <code>"bottom"</code> quer dizer “os pés do ninja”.</p>
 
         <figure class="fig">
@@ -306,6 +311,8 @@ class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
 
     @collide_with("kunai")
     def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
         kunai.destroy()
         self.untag("robo")
         self.vel.x = 0
@@ -320,6 +327,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
     def on_update(self, dt):
         if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
             return
 
         if keyp("LEFT"):
@@ -383,7 +394,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
             self.blink(1)
         else:
             play_sound("audio/gameover.wav")
-            self.play("morto", loops=1)
             aviso.text = "Fim de jogo"
 
 
@@ -508,6 +518,8 @@ class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
 
     @collide_with("kunai")
     def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
         kunai.destroy()
         self.untag("robo")
         self.vel.x = 0
@@ -522,6 +534,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
     def on_update(self, dt):
         if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
             return
 
         if keyp("LEFT"):
@@ -587,7 +603,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
             self.blink(1)
         else:
             play_sound("audio/gameover.wav")
-            self.play("morto", loops=1)
             aviso.text = "Fim de jogo"
 
 
@@ -732,6 +747,8 @@ class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
 
     @collide_with("kunai")
     def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
         kunai.destroy()
         self.untag("robo")
         self.vel.x = 0
@@ -747,6 +764,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
 
     def on_update(self, dt):
         if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
             return
 
         if keyp("LEFT"):
@@ -812,7 +833,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
             self.blink(1)
         else:
             play_sound("audio/gameover.wav")
-            self.play("morto", loops=1)
             aviso.text = "Fim de jogo"
 
 
@@ -936,6 +956,8 @@ class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
 
     @collide_with("kunai")
     def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
         kunai.destroy()
         self.untag("robo")
         self.vel.x = 0
@@ -951,6 +973,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
 
     def on_update(self, dt):
         if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
             return
 
         if keyp("LEFT"):
@@ -1016,7 +1042,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
             self.blink(1)
         else:
             play_sound("audio/gameover.wav")
-            self.play("morto", loops=1)
             aviso.text = "Fim de jogo"
 
 
@@ -1071,7 +1096,7 @@ run()
         <p><strong>A armadilha.</strong> O jeito óbvio de “não sentir” seria tirar o ninja do grupo <code>heroi</code> por um tempo. Mas o grupo <code>heroi</code> é o que o <code>resolve</code> segura no chão: fora dele, o ninja cairia através da fase.</p>
         <p><strong>Uma segunda caixa.</strong> <code>self.add_hitbox(group="dor")</code> (acrescentar uma caixa de colisão), no <code>setup</code> do <code>Heroi</code>, dá ao ninja um segundo colisor, que só detecta: ele segue o desenho de cada quadro e responde pelo grupo <code>dor</code>. A caixa principal continua pisando no chão. <code>Ctrl+Shift+7</code> mostra as duas: a principal em dourado, a da dor em ciano.</p>
         <p><strong>Quem machuca.</strong> <code>@collide("robo", "dor")</code>, no topo do arquivo, chama <code>perder</code> quando um robô toca a caixa da dor. O <code>@collide_with("robo")</code> do <code>Heroi</code> sai: ele usava a caixa principal. Em <code>perder</code>, <code>self.untag("dor")</code> tira o ninja do grupo <code>dor</code> (os robôs param de achá-lo), e <code>self.after(1.5, …)</code> o põe de volta com <code>self.tag("dor")</code> (pôr a etiqueta). O chão nem fica sabendo.</p>
-        <p><strong>O buraco.</strong> Cair na água continua levando o ninja de volta ao começo: as duas linhas que o põem lá passam do <code>perder</code> para o próprio <code>if</code> do buraco, antes de chamar <code>perder</code>.</p>
+        <p><strong>O buraco.</strong> Cair na água continua levando o ninja de volta ao começo: as duas linhas que o põem lá passam do <code>perder</code> para o próprio <code>if</code> do buraco, depois de chamar <code>perder</code> e só se sobrou vida (<code>if st.vidas &gt; 0</code>). Na última vida, o ninja não volta: afunda na água, como no 15.</p>
       `,
       code: `from scena import *
 
@@ -1141,6 +1166,8 @@ class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
 
     @collide_with("kunai")
     def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
         kunai.destroy()
         self.untag("robo")
         self.vel.x = 0
@@ -1157,6 +1184,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
 
     def on_update(self, dt):
         if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
             return
 
         if keyp("LEFT"):
@@ -1186,9 +1217,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
         if self.center.y < 30:
-            self.center = fase["inicio"].center
-            self.vel = Vec2(0, 0)
             self.perder()
+            if st.vidas > 0:
+                self.center = fase["inicio"].center
+                self.vel = Vec2(0, 0)
 
         if self.showing("jogando"):
             return
@@ -1220,7 +1252,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
             self.after(1.5, lambda: self.tag("dor"))
         else:
             play_sound("audio/gameover.wav")
-            self.play("morto", loops=1)
             aviso.text = "Fim de jogo"
 
 
@@ -1349,6 +1380,8 @@ class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
 
     @collide_with("kunai")
     def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
         kunai.destroy()
         self.untag("robo")
         self.vel.x = 0
@@ -1365,6 +1398,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
 
     def on_update(self, dt):
         if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
             return
 
         if keyp("LEFT"):
@@ -1394,9 +1431,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
         if self.center.y < 30:
-            self.center = fase["inicio"].center
-            self.vel = Vec2(0, 0)
             self.perder()
+            if st.vidas > 0:
+                self.center = fase["inicio"].center
+                self.vel = Vec2(0, 0)
 
         if self.showing("jogando"):
             return
@@ -1428,7 +1466,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
             self.after(1.5, lambda: self.tag("dor"))
         else:
             play_sound("audio/gameover.wav")
-            self.play("morto", loops=1)
             aviso.text = "Fim de jogo"
 
 
@@ -1503,11 +1540,253 @@ run()
         ]
     },
     {
+      title: "O elevador",
+      body: `
+        <p>No fim da fase, uma estrela brilha alta demais para qualquer pulo. Para chegar lá, um elevador: uma tábua de metal dourado que sobe e desce sem parar.</p>
+        <p><strong>Da fase, pelo nome.</strong> No editor, o elevador é um retângulo com nome, <code>elevador</code>, e sem grupo. <code>fase["elevador"]</code> pega a peça pelo nome, como o ponto <code>inicio</code>. <code>make(group="plataforma", visual=Metal("gold"))</code> a cria no grupo das plataformas, com um visual de metal escovado (<code>Metal</code>) tingido de dourado (<code>gold</code>, ouro). Ela nasce antes da linha <code>group["plataforma"].mass = STATIC</code>, então também fica <code>STATIC</code>: o ninja pisa nela sem empurrá-la para baixo.</p>
+        <p><strong>Sobe e desce.</strong> <code>move_by(0, 360, time=3, …)</code> leva o elevador 360 para cima em 3 segundos. <code>loops="forever"</code> e <code>yoyo=True</code> são os das estrelas: repetir para sempre, indo e voltando. <code>ease="ease_in_out"</code> faz cada viagem começar e terminar devagar: nas pontas, o elevador freia em vez de virar de uma vez, e o ninja não descola dele na virada.</p>
+        <p><strong>Quem carrega.</strong> Nenhuma linha nova no ninja. O <code>resolve</code> das plataformas já segura os pés dele, e um <code>move_by</code> com <code>time=</code> é viagem, não teleporte: o Scena sabe quanto o elevador andou em cada quadro, e o ninja em cima vai junto. Como é do grupo <code>plataforma</code>, o elevador também é de mão única: dá para pular nele por baixo, e a seta para baixo desce dele.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("longe", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="longe")
+
+fase = Level("levels/ninja_perigos.json")
+canvas.playfield.set(fase.box)
+
+for enfeite in fase.group("enfeite"):
+    enfeite.make()
+for peca in fase.group("chao"):
+    peca.make()
+for peca in fase.group("plataforma"):
+    peca.make()
+elevador = fase["elevador"].make(group="plataforma", visual=Metal("gold"))
+elevador.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+for lugar in fase.group("parede"):
+    parede = lugar.make(group="chao")
+    parede.visible = False
+group["chao"].mass = STATIC
+group["plataforma"].mass = STATIC
+
+st.estrelas = 0
+st.vidas = 3
+st.descer = False
+
+placar = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+placar["text"] @= lambda: f"Estrelas {st.estrelas}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+vidas = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+vidas["text"] @= lambda: f"x {st.vidas}"
+aviso = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+ninja.strip("jogando", "ninja/Throw__*.png", fps=24)
+ninja.strip("morto", "ninja/Dead__*.png", fps=12)
+
+robo = Sheet(anchor="bottom", pixel_size=0.16)
+robo.strip("andando", "robot/Run (*).png", fps=12)
+robo.strip("quebrado", "robot/Dead (*).png", fps=12)
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        seta = vec_from_angle(self.angle, length=700)
+        self.move_by(seta.x * dt, 0)
+
+
+class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("andando")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["chao", "plataforma"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["chao", "plataforma"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
+        kunai.destroy()
+        self.untag("robo")
+        self.vel.x = 0
+        self.play("quebrado", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.add_hitbox(group="dor")
+
+    def on_update(self, dt):
+        if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
+            return
+
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.descer = recently("descer", keyp.once("DOWN"), hold=0.2)
+
+        no_chao = "bottom" in self.touching_sides
+        pode_pular = recently("no_chao", no_chao, hold=0.12)
+        if keyp.once("UP") and pode_pular:
+            self.vel.y = 900
+            recently.reset("no_chao")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and ready("kunai", 0.4):
+            self.play("jogando", loops=1, next="parado")
+            kunai = Kunai(center=(self.center.x, self.center.y + 50))
+            kunai.rotate_to(self.angle)
+            play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+        if self.center.y < 30:
+            self.perder()
+            if st.vidas > 0:
+                self.center = fase["inicio"].center
+                self.vel = Vec2(0, 0)
+
+        if self.showing("jogando"):
+            return
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    @collide_with("estrela")
+    def pegou(self, estrela):
+        estrela.destroy()
+        st.estrelas += 1
+        play_sound("synth/coin.wav")
+        if st.estrelas == len(fase.group("estrela")):
+            aviso.text = "Todas as estrelas!"
+            play_sound("audio/Victory.mp3")
+
+    def perder(self):
+        if st.vidas == 0:
+            return
+        st.vidas -= 1
+        canvas.shake(6)
+        if st.vidas > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("dor")
+            self.after(1.5, lambda: self.tag("dor"))
+        else:
+            play_sound("audio/gameover.wav")
+            aviso.text = "Fim de jogo"
+
+
+resolve("heroi", "chao", bounce=0)
+resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
+
+heroi = Heroi(center=fase["inicio"].center)
+
+for lugar in fase.group("estrela"):
+    estrela = Sprite("k-rolling-ball/star.png", height=36, center=lugar.center, group="estrela")
+    estrela.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+for lugar in fase.group("robo"):
+    Robo(center=lugar.center)
+
+for agua in fase.group("agua"):
+    agua.make()
+
+for lugar in fase.group("raio"):
+    lugar.make(visual=ElectricField("cyan", amount=10))
+
+
+@every(1.5)
+def piscar():
+    for raio in group["raio"]:
+        raio.active = not raio.active
+
+
+st.seguir = False
+canvas.frame_to(fase.box)
+
+
+@after(2)
+def comecar():
+    canvas.zoom_to(1, time=1)
+    st.seguir = True
+
+
+def update(dt):
+    if not st.seguir:
+        return
+    olhar = (canvas.pan_x, canvas.pan_y)
+    x, y = deadzone(olhar, heroi.center, size=200)
+    x = max(x, 500)
+    x = min(x, 3500)
+    canvas.pan_to(chase(olhar, (x, 375), rate=5))
+
+
+@collide("robo", "dor")
+def encostou(robo, heroi, info):
+    heroi.perder()
+
+
+@collide("raio", "dor")
+def choque(raio, heroi, info):
+    heroi.perder()
+
+
+@leave_playfield("kunai")
+def saiu(kunai):
+    kunai.destroy()
+
+
+run()
+`,
+      try: [
+          {
+            note: "Um elevador que anda de lado, no lugar da linha do <code>move_by</code>. O ninja em cima vai junto para os lados também.",
+            replaces: ['elevador.move_by('],
+            code: `elevador.move_by(-300, 0, time=3, ease="ease_in_out", loops="forever", yoyo=True)`
+          },
+          {
+            note: "Outros metais, um por vez, no lugar da linha do <code>make</code>: <code>Metal()</code> sem cor é cromo; qualquer cor tinge o metal.",
+            replaces: ['elevador = fase["elevador"].make('],
+            code: `elevador = fase["elevador"].make(group="plataforma", visual=Metal())`
+          }
+        ]
+    },
+    {
       title: "De novo, com um ato",
       example: "ninja_perigos.py",
       body: `
         <p>Sem vidas, até agora, era rodar o jogo outra vez. Com um ato, como no 20, a tecla R recomeça a qualquer hora.</p>
-        <p><strong>O palco e o ato.</strong> O que fica o jogo todo continua no topo do arquivo: o fundo, a camada das árvores ao longe, a leitura da fase, o HUD, as folhas, as classes, as regras (<code>resolve</code>, <code>@collide</code>, <code>@leave_playfield</code>). O que deve começar do zero a cada vez vai para o <code>setup</code> da <code>class Fase(Act)</code>: as peças da fase, o ninja, as estrelas, os robôs, a água, os raios e a entrada da câmera. Na troca de ato, tudo o que o ato criou sai sozinho, e a câmera volta a como o topo a deixou. Nenhuma lista de limpeza.</p>
+        <p><strong>O palco e o ato.</strong> O que fica o jogo todo continua no topo do arquivo: o fundo, a camada das árvores ao longe, a leitura da fase, o HUD, as folhas, as classes, as regras (<code>resolve</code>, <code>@collide</code>, <code>@leave_playfield</code>). O que deve começar do zero a cada vez vai para o <code>setup</code> da <code>class Fase(Act)</code>: as peças da fase (o elevador também), o ninja, as estrelas, os robôs, a água, os raios e a entrada da câmera. Na troca de ato, tudo o que o ato criou sai sozinho, e a câmera volta a como o topo a deixou. Nenhuma lista de limpeza.</p>
         <p><strong>O que muda de lugar.</strong> O <code>@every</code> dos raios e o <code>comecar</code> passam a ser do ato (<code>self.after(2, self.comecar)</code>). A câmera sai do <code>update</code> e vai para o <code>on_update</code> do ato; como o ninja nasce no <code>setup</code>, o ato o guarda em <code>self.heroi</code> para a câmera saber quem seguir, e <code>self.seguir</code> é a memória do ato no lugar de <code>st.seguir</code>.</p>
         <p><strong>Os dados.</strong> <code>jogo_novo()</code> põe em <code>st</code> os números de um jogo que começa: estrelas, vidas, o <code>descer</code> e o texto do aviso. O aviso agora é ligado a <code>st.aviso</code> com <code>@=</code>, então zerar <code>st</code> também o apaga. R chama <code>jogo_novo()</code> e <code>change_act(Fase)</code>: uma <code>Fase</code> nova, do começo. <code>run(Fase)</code> começa o jogo pelo ato.</p>
       `,
@@ -1575,6 +1854,8 @@ class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
 
     @collide_with("kunai")
     def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
         kunai.destroy()
         self.untag("robo")
         self.vel.x = 0
@@ -1591,6 +1872,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
 
     def on_update(self, dt):
         if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
             return
 
         if keyp("LEFT"):
@@ -1620,9 +1905,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
         if self.center.y < 30:
-            self.center = fase["inicio"].center
-            self.vel = Vec2(0, 0)
             self.perder()
+            if st.vidas > 0:
+                self.center = fase["inicio"].center
+                self.vel = Vec2(0, 0)
 
         if self.showing("jogando"):
             return
@@ -1654,7 +1940,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
             self.after(1.5, lambda: self.tag("dor"))
         else:
             play_sound("audio/gameover.wav")
-            self.play("morto", loops=1)
             st.aviso = "Fim de jogo · R recomeça"
 
 
@@ -1685,6 +1970,8 @@ class Fase(Act):
             peca.make()
         for peca in fase.group("plataforma"):
             peca.make()
+        elevador = fase["elevador"].make(group="plataforma", visual=Metal("gold"))
+        elevador.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
         for lugar in fase.group("parede"):
             parede = lugar.make(group="chao")
             parede.visible = False
@@ -1736,7 +2023,7 @@ class Fase(Act):
 run(Fase)
 `,
       closing: `
-        <p>A fase inteira aparece e a câmera mergulha no ninja. Setas para os lados andam; seta para cima pula (e atravessa as plataformas por baixo); seta para baixo desce de uma plataforma; espaço joga uma kunai. Robôs e raios ligados tiram uma vida e deixam o ninja piscando, sem sentir nada, por 1,5 segundo; cair na água tira uma vida e volta ao começo. R recomeça.</p>
+        <p>A fase inteira aparece e a câmera mergulha no ninja. Setas para os lados andam; seta para cima pula (e atravessa as plataformas por baixo); seta para baixo desce de uma plataforma; espaço joga uma kunai. O elevador dourado, no fim, leva até a estrela mais alta. Robôs e raios ligados tiram uma vida e deixam o ninja piscando, sem sentir nada, por 1,5 segundo; cair na água tira uma vida e volta ao começo. R recomeça.</p>
       `,
       recap: `
         <ul>
@@ -1746,9 +2033,10 @@ run(Fase)
           <li><code>floor_below</code> — o chão à frente, ou <code>None</code>: o robô vira antes de cair.</li>
           <li><code>add_hitbox(group="dor")</code>, <code>untag</code> e <code>tag</code> — uma caixa só para a dor; tirar a etiqueta por um tempo deixa o ninja sem sentir, sem tirá-lo do chão.</li>
           <li><code>ElectricField</code> e <code>active</code> — o raio que liga e desliga: estacionado, ele some e não colide.</li>
+          <li><code>fase["elevador"]</code> e <code>move_by</code> com <code>loops="forever"</code> e <code>yoyo=True</code> — uma peça pelo nome, que viaja sem parar; o <code>resolve</code> leva o ninja junto.</li>
           <li><code>Act</code>, <code>change_act</code> e <code>jogo_novo</code> — o ato monta a fase; trocar de ato limpa tudo, e <code>st</code> recomeça com a função.</li>
         </ul>
-        <p><strong>No Guia:</strong> <a href="../guide/index.html#colisao-resolve">Tornar sólido (only=)</a> · <a href="../guide/index.html#spr-tilt">Inclinar</a> · <a href="../guide/index.html#colisao-floor">Chão à frente</a> · <a href="../guide/index.html#spr-hit">Hitbox do Sprite (partes)</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#atos-classe">Act</a> · <a href="../guide/index.html#atos-palco">O palco e o ato</a>.</p>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#colisao-resolve">Tornar sólido (only=)</a> · <a href="../guide/index.html#spr-tilt">Inclinar</a> · <a href="../guide/index.html#colisao-floor">Chão à frente</a> · <a href="../guide/index.html#spr-hit">Hitbox do Sprite (partes)</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#mover-pose">Mover</a> · <a href="../guide/index.html#atos-classe">Act</a> · <a href="../guide/index.html#atos-palco">O palco e o ato</a>.</p>
         <p><strong>No próximo:</strong> o robô vira herói, num corredor que não acaba nunca, montado pelo <code>Endless</code> enquanto a câmera anda.</p>
       `
     }

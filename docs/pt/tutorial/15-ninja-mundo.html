@@ -571,6 +571,7 @@ run()
         <p><strong>O movimento.</strong> Um clip novo, <code>"jogando"</code>, com os arquivos <code>Throw__</code>. <code>play("jogando", loops=1, next="parado")</code> toca uma vez (<code>loops=1</code>) e depois passa para o parado (<code>next</code>, o próximo). Mas o fim do <code>on_update</code> escolhe um clip a cada quadro e trocaria o arremesso logo no quadro seguinte. <code>self.showing("jogando")</code> (mostrando) diz se o desenho na tela é do arremesso: enquanto for, o <code>return</code> sai do <code>on_update</code> antes da escolha.</p>
         <p><strong>A kunai.</strong> O desenho dela aponta para cima; <code>art_angle=90</code> (o ângulo da arte) avisa o Scena, e daí o ângulo da kunai é para onde ela aponta no mundo. Ela nasce na altura do peito do ninja e gira para o mesmo ângulo dele: <code>kunai.rotate_to(self.angle)</code>. O ninja espelhado para a esquerda tem ângulo 180; para a direita, 0. No <code>on_update</code>, ela anda para onde aponta, como o avião do 11. <code>ready("kunai", 0.4)</code> (do 05) deixa jogar uma a cada 0,4 segundo, e <code>@leave_playfield</code> destrói as que saem da tela.</p>
         <p><strong>O robô quebra.</strong> A folha do robô ganha o clip <code>"quebrado"</code>. Com dois clips, ele não toca nenhum sozinho: o <code>setup</code> pede o <code>"andando"</code>. Atingido, o robô para, toca o <code>"quebrado"</code> uma vez (sem <code>next</code>, fica no último desenho, caído) e se destrói 2 segundos depois. <code>self.untag("robo")</code> (tirar a etiqueta) o tira do grupo <code>robo</code>: caído, ele não machuca mais o ninja.</p>
+        <p><strong>Uma vez só.</strong> O <code>untag</code> não para as kunais: o <code>@collide_with("kunai")</code> é do próprio robô, e continua valendo. Sem cuidado, uma segunda kunai no robô que já está caindo o quebraria de novo, com outro estrondo e o clip recomeçando. Por isso <code>atingido</code> começa perguntando <code>self.showing("quebrado")</code>: se o robô já está quebrando, a função sai, e a kunai passa por ele.</p>
       `,
       code: `from scena import *
 
@@ -644,6 +645,8 @@ class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
 
     @collide_with("kunai")
     def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
         kunai.destroy()
         self.untag("robo")
         self.vel.x = 0
@@ -739,8 +742,8 @@ run()
       example: "ninja_mundo.py",
       body: `
         <p>Cair na água ou encostar num robô agora custa uma vida. São as vidas do 07: <code>st.vidas</code> começa em 3, e o HUD mostra um ninja pequeno e <code>x 3</code>, ligado com <code>@=</code>.</p>
-        <p><strong>Perder.</strong> A função <code>perder</code> cresce, como o nome amplo prometia. Ela tira uma vida e treme a tela. Se sobrou alguma, o ninja volta ao começo, piscando (<code>blink</code>, do 07). Na última, o clip <code>"morto"</code> (os arquivos <code>Dead__</code>) toca uma vez e o aviso diz que o jogo acabou.</p>
-        <p><strong>Depois do fim.</strong> Com <code>st.vidas</code> em 0, o <code>on_update</code> sai logo na primeira linha: as setas e o espaço não fazem mais nada, e o ninja fica caído. Um robô ainda pode passar por ele e chamar <code>perder</code> de novo; a primeira linha de <code>perder</code> não deixa as vidas ficarem negativas.</p>
+        <p><strong>Perder.</strong> A função <code>perder</code> cresce, como o nome amplo prometia. Ela tira uma vida e treme a tela. Se sobrou alguma, o ninja volta ao começo, piscando (<code>blink</code>, do 07). Na última, o aviso diz que o jogo acabou.</p>
+        <p><strong>Depois do fim.</strong> Com <code>st.vidas</code> em 0, o <code>on_update</code> começa por um <code>if</code> que termina em <code>return</code>: as setas e o espaço não fazem mais nada. Mas a gravidade continua: um ninja atingido no meio de um pulo cai até o chão, e só então o clip <code>"morto"</code> (os arquivos <code>Dead__</code>) toca, uma vez. O <code>not self.showing("morto")</code> é o que deixa tocar uma vez só: chamar <code>play</code> num clip de <code>loops=1</code> que já acabou o toca de novo, e a morte se repetiria sem parar. Um robô ainda pode passar por ele e chamar <code>perder</code> de novo; a primeira linha de <code>perder</code> não deixa as vidas ficarem negativas.</p>
       `,
       code: `from scena import *
 
@@ -819,6 +822,8 @@ class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
 
     @collide_with("kunai")
     def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
         kunai.destroy()
         self.untag("robo")
         self.vel.x = 0
@@ -833,6 +838,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
     def on_update(self, dt):
         if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
             return
 
         if keyp("LEFT"):
@@ -896,7 +905,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
             self.blink(1)
         else:
             play_sound("audio/gameover.wav")
-            self.play("morto", loops=1)
             aviso.text = "Fim de jogo"
 
 

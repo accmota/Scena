@@ -86,6 +86,8 @@ class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
 
     @collide_with("kunai")
     def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
         kunai.destroy()
         self.untag("robo")
         self.vel.x = 0
@@ -100,6 +102,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
     def on_update(self, dt):
         if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
             return
 
         if keyp("LEFT"):
@@ -163,7 +169,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
             self.blink(1)
         else:
             play_sound("audio/gameover.wav")
-            self.play("morto", loops=1)
             aviso.text = "Fim de jogo"
 
 

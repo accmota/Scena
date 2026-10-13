@@ -268,7 +268,12 @@ any multi-cell sheet. Default is `0`. Writing `.frame` stops playback. Until
 `.play` takes a clip name already registered (`clip`, `strip`, or constructor
 `fps=`). Tempo lives on that clip; another tempo is another clip. `loops`,
 `next`, `min_hold`, and `resume` stay keyword-only. The same clip again is a
-no-op (see below).
+no-op **while it runs** (see below). A `loops=1` clip that has finished is not
+running: `play` of it again restarts it (a hit or throw clip must replay on
+every trigger). So a `play(..., loops=1)` written every frame from a state that
+lasts (a death pose in `on_update`) loops the clip; the taught guard is
+`if not self.showing("morto"): self.play("morto", loops=1)` (tutorials 15, 21,
+22; the dying ninja replayed its death every 0.8 s before 2026-10-13).
 
 `Sprite(sheet)` with **0** clips stays on `frame` (default `0`). With clips and
 no `frame=`, the sprite starts on the **first cell of the sheet's first registered

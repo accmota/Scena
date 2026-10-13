@@ -3239,7 +3239,7 @@ mix = Sheet("ninja/Idle__*.png", "ninja/Dead__009.png")</pre>
         <button class="tab" type="button" data-tab="spr-size">Tamanhos diferentes</button>
       </div>
       <div class="tab-panel active" data-panel="spr-clip" id="spr-clip">
-        <p class="one-liner">Sequência nomeada no Sheet; <code>play</code> no Sprite. O mesmo clip de novo não faz nada — seguro chamar em <code>update</code>.</p>
+        <p class="one-liner">Sequência nomeada no Sheet; <code>play</code> no Sprite. O mesmo clip de novo, enquanto toca, não faz nada — seguro chamar em <code>update</code>. Um clip de <code>loops=1</code> que já acabou recomeça: para tocar uma vez só a partir do <code>update</code>, pergunte antes (<code>if not heroi.showing("morto"):</code>).</p>
         <div class="code-panel">
           <button class="copy-btn" type="button">copiar</button>
 <pre>hero = Sheet("hero.png", cols=4, rows=3)
@@ -9270,6 +9270,7 @@ def caught(me, star, info):
     star.destroy()
     st.score += 1</pre>
           </div>
+          <p class="gotcha"><code>resolve(hero, ANYTHING)</code> torna sólido <strong>tudo</strong> que está inscrito, inclusive moeda, tiro e sensor: o herói empurra a moeda em vez de passar por ela (o <code>@collide</code> da moeda continua disparando). Não há como marcar um corpo como “não sólido”: nomeie os grupos sólidos, <code>resolve(hero, ["walls", "crates"])</code>. <code>ANYTHING</code> serve quando tudo no mundo é sólido (um mundo só de blocos e paredes).</p>
         </div>
         <div class="tab-panel" data-panel="colisao-bounce" id="colisao-bounce">
           <p class="one-liner"><code>bounce=</code> diz o que acontece com <code>.vel</code> no contato. Omitido é outra coisa que <code>0</code>.</p>

@@ -182,6 +182,28 @@ left out.
   `on_collide_exit`) as a method now gets those calls, as if it had assigned
   them. Before, the method was ignored.
 
+### Documentation
+
+- Guia, "Tornar sólido": `resolve(hero, ANYTHING)` makes every enrolled body
+  solid, coins, shots and sensors included (the hero shoves the coin instead
+  of passing through it; its `@collide` still fires). Name the solid groups
+  instead: `resolve(hero, ["walls", "crates"])`.
+- Guia, "Clips": the same clip again does nothing only while it plays; a
+  `loops=1` clip that has finished starts over. To play it once from
+  `update`, ask `showing` first.
+- Tutorial 16 (Ligue 4): four in a diagonal wins too (`quatro(x, y, 1, 1)`
+  and `(1, -1)`, with `l < 0` for the one going down). Before, only rows and
+  columns counted.
+- Tutorials 15, 21 and 22 (Ninja): a kunai that hits a robot already
+  breaking passes through it (before, it broke the robot again and restarted
+  the clip); with no lives left the ninja falls to the ground before the
+  `"morto"` clip, and plays it once (before, it died in mid air, and in 22 a
+  fall into the water on the last life sent it back to the start first).
+- Tutorial 22 has a new step, "O elevador": a gold `Metal` plank from the
+  level (`fase["elevador"]`) that rides up and down forever
+  (`move_by(..., loops="forever", yoyo=True)`) and carries the ninja to a new
+  star. `media/levels/ninja_perigos.json` has the elevator and the star.
+
 ## 0.8.0 — 2026-10-11
 
 ### Breaking
