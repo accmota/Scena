@@ -17,7 +17,7 @@ Uso
 from scena import *
 
 init(width=1000, height=700, title="Letreiro")
-Wallpaper(Gradient("navy", "black", angle=90))
+Wallpaper(Gradient("black", "navy", angle=90))
 
 letreiro = Text("Olá!", center=(500, 350), font_size=80, font="space/kenvector_future.ttf")
 letreiro.fill = Gradient("sunset", angle=90)
