@@ -7239,7 +7239,7 @@ turret.rotate_to(90, speed=45)          # 45 graus por segundo</pre>
 <tbody>
 <tr><td><code>time=</code> e <code>duration</code> são a mesma coisa</td><td>Um verbo de pose <em>leva</em> <code>time=</code> (segundos da viagem). Um transiente ou uma capa <em>dura</em> <code>duration</code> (segundos em que o efeito fica). <code>sprite.flash(duration)</code> e <code>canvas.flash(intensity)</code> não têm o mesmo primeiro argumento: no sprite é a duração; no canvas, a intensidade.</td><td>sinônimos</td></tr>
 <tr><td><code>speed=</code> e <code>h.speed</code> são a mesma coisa</td><td><code>speed=</code> é o pedido: a velocidade média da viagem, convertida em duração na chamada. <code>h.speed</code> é a leitura: quanto o objeto andou neste frame, por segundo. Com <code>ease="linear"</code> os dois coincidem; com uma curva, <code>h.speed</code> começa abaixo e passa do pedido no meio.</td><td>o mesmo número sempre</td></tr>
-<tr><td><code>move_to(alvo, speed=)</code> persegue o alvo</td><td>O destino é copiado na chamada, como com <code>time=</code>. Se o alvo andar, o objeto chega aonde o alvo <em>estava</em>. Para perseguir um alvo que se move, ande um pouco a cada frame em <code>update(dt)</code> com <code>move_by</code> (por exemplo, na direção do alvo, <code>speed * dt</code> unidades).</td><td>perseguir</td></tr>
+<tr><td><code>move_to(alvo, speed=)</code> persegue o alvo</td><td>O destino é copiado na chamada, como com <code>time=</code>. Se o alvo andar, o objeto chega aonde o alvo <em>estava</em>. Para perseguir um alvo que se move na mesma velocidade, chame <a href="#util-approach"><code>approach</code></a> no <code>update</code>, todo frame: <code>inimigo.move_to(approach(inimigo.center, jogador.center, 120))</code>.</td><td>perseguir</td></tr>
 <tr><td><code>time=</code> e <code>speed=</code> juntos</td><td>Escolha um: <code>time=</code> fixa a duração e a velocidade sai da distância; <code>speed=</code> fixa a velocidade e a duração sai da distância. Os dois juntos levantam <code>TypeError</code>.</td><td>combinação</td></tr>
 <tr><td>O Handle de uma viagem escreve <code>.vel</code></td><td>Com <code>time=</code> ou <code>speed=</code>, <code>h.velocity</code> / <code>h.speed</code> / <code>h.heading</code> dizem o que este frame andou, em unidades por segundo — mas não escrevem <code>.vel</code>. Para física: <code>rider.vel = h.velocity</code>. Ver <a href="#agendar-handle">Handle</a>.</td><td><code>.vel</code></td></tr>
 </tbody>
@@ -10729,7 +10729,7 @@ if pos == (400, 120):
 <thead><tr><th>Parece</th><th>É</th><th>Não é</th></tr></thead>
 <tbody>
 <tr><td><code>approach</code> e <code>chase</code> fazem o mesmo</td><td><code>chase</code> freia perto do alvo e não chega exato; <code>approach</code> anda em velocidade constante e chega exato.</td><td>duas grafias da mesma conta</td></tr>
-<tr><td><code>move_to(alvo, time=2)</code> persegue</td><td>não: <code>time=</code> lê o destino uma vez, na chamada. Para seguir um alvo que se move, <code>approach</code> no <code>update</code>, todo frame.</td><td><code>move_to(..., time=)</code></td></tr>
+<tr><td><code>move_to(alvo, time=2)</code> persegue</td><td>não: <code>time=</code> (e também <code>speed=</code>) lê o destino uma vez, na chamada. Para seguir um alvo que se move, <code>approach</code> no <code>update</code>, todo frame.</td><td><code>move_to(..., time=)</code></td></tr>
 </tbody>
 </table>
 </div>

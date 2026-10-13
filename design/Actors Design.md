@@ -815,7 +815,8 @@ camera look-at delta, and on `move_along` `track.length × |span1 − span0|`
 
 - **Frozen like the target.** A target that moves later, or a track that grows
   later, does not change the duration (the same rule as the snapshot of a
-  `move_to` target). Pursuit at a rate is per-frame work in `update(dt)`.
+  `move_to` target). Pursuit at a rate is per-frame work in `update(dt)`:
+  `approach(current, target, speed)` (`easing.py`), the Guia's answer.
 - **One of the two.** `time=` and `speed=` together raise `TypeError`;
   `move_along` with neither raises naming both.
 - **A rate is a positive finite number** (`validate.fixed_magnitude`,
