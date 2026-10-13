@@ -854,10 +854,13 @@ def known_still_fail(game: str, results: Sequence[GameResult]) -> List[str]:
 # ---------------------------------------------------------------------------
 
 def run_patched(game: str, scenario: str, patches: Sequence[Tuple[Any, str, Any]]) -> GameResult:
-    """``run_game`` with ``mock.patch.object(target, attr, new)`` for each patch."""
+    """``run_game`` with ``mock.patch.object(target, attr, new)`` for each patch,
+    on empty look intern caches (``hypothesis_support.fresh_interns``)."""
     import contextlib
     from unittest import mock
+    from hypothesis_support import fresh_interns
     with contextlib.ExitStack() as stack:
+        stack.enter_context(fresh_interns())
         for target, attr, new in patches:
             stack.enter_context(mock.patch.object(target, attr, new))
         return run_game(game, scenario)

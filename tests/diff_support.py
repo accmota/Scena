@@ -31,7 +31,7 @@ from typing import Any, Callable, Iterator, List, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from hypothesis_support import boot, quiet, require_canaries  # noqa: E402
+from hypothesis_support import boot, fresh_interns, quiet, require_canaries  # noqa: E402
 
 REL = 1e-9
 ABS = 1e-7
@@ -292,7 +292,9 @@ def assert_catches(tc, test_id: str, patches, what: str, *, profile="canary") ->
     the plant: a machine whose steps depend on object addresses (not only on
     the seed) finds its plant at one budget in one process and at another in
     the next (the Vec2 canary in the deep serial pass, 2026-10-09).
-    Skipped when ``SCENA_CANARIES=0`` (the quick tier).
+    Skipped when ``SCENA_CANARIES=0`` (the quick tier). The plant runs on
+    empty look intern caches (``fresh_interns``): a look an earlier test
+    interned does not hide it, and the looks it builds do not outlive it.
     """
     require_canaries(tc)
     profiles = (profile,) if isinstance(profile, str) else tuple(profile)
@@ -307,30 +309,29 @@ def _plant_survives(test_id: str, patches, profile: str) -> bool:
     import unittest
     from unittest import mock
     from hypothesis import settings as hsettings
-    stack = []
+    import contextlib
     previous = hsettings.get_current_profile_name()
     hsettings.load_profile(profile)
     try:
-        for target, attr, value in patches:
-            owner = sys.modules[target] if isinstance(target, str) else target
-            p = mock.patch.object(owner, attr, value)
-            p.start()
-            stack.append(p)
-        # Run a fresh private copy of the test module: re-running the SAME
-        # @given function from another TestCase instance trips Hypothesis's
-        # differing_executors check on the suite's own later run.
-        import importlib.util
-        mod_name, _, rest = test_id.partition(".")
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), mod_name + ".py")
-        spec = importlib.util.spec_from_file_location(f"_canary_{mod_name}", path)
-        copy = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(copy)
-        suite = unittest.defaultTestLoader.loadTestsFromName(rest, copy)
-        result = unittest.TestResult()
-        suite.run(result)
+        # Looks built under the plant, and only those (``fresh_interns``).
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(fresh_interns())
+            for target, attr, value in patches:
+                owner = sys.modules[target] if isinstance(target, str) else target
+                stack.enter_context(mock.patch.object(owner, attr, value))
+            # Run a fresh private copy of the test module: re-running the SAME
+            # @given function from another TestCase instance trips Hypothesis's
+            # differing_executors check on the suite's own later run.
+            import importlib.util
+            mod_name, _, rest = test_id.partition(".")
+            path = os.path.join(os.path.dirname(os.path.abspath(__file__)), mod_name + ".py")
+            spec = importlib.util.spec_from_file_location(f"_canary_{mod_name}", path)
+            copy = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(copy)
+            suite = unittest.defaultTestLoader.loadTestsFromName(rest, copy)
+            result = unittest.TestResult()
+            suite.run(result)
     finally:
-        for p in reversed(stack):
-            p.stop()
         hsettings.load_profile(previous)
     return result.wasSuccessful()
 

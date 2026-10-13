@@ -103,6 +103,34 @@ def require_canaries(tc) -> None:
     if not CANARIES:
         tc.skipTest("canaries off (SCENA_CANARIES=0)")
 
+
+# The look intern caches: a look is built once per key and bakes some of its
+# state in ``__init__`` (Metal's rim from ``_metal_edge``).
+_INTERN_CACHES = (("scena.recipes", "_RECIPE_CACHE"),
+                  ("scena.visuals", "_VISUAL_CACHE"),
+                  ("scena.filters", "_FILTER_CACHE"))
+
+
+@contextmanager
+def fresh_interns() -> Iterable[None]:
+    """Empty the look intern caches for a canary's plant, then put the old
+    entries back. Without it a plant on a function a look calls at
+    construction misses a look an earlier test interned, and a look built
+    under the plant stays interned for every later test (the Metal rim
+    canary after ``test_visual_color_param``, 2026-10-13)."""
+    import importlib
+    saved = []
+    for mod_name, attr in _INTERN_CACHES:
+        cache = getattr(importlib.import_module(mod_name), attr)
+        saved.append((cache, dict(cache)))
+        cache.clear()
+    try:
+        yield
+    finally:
+        for cache, old in saved:
+            cache.clear()
+            cache.update(old)
+
 # --------------------------------------------------------------------------
 # Scena bootstrap + world reset
 # --------------------------------------------------------------------------

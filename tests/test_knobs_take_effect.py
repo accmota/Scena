@@ -196,6 +196,11 @@ class TestVisualKnobsReachThePixels(SystemTestCase, unittest.TestCase):
 
     def test_canary_metal_without_its_tint(self):
         from diff_support import assert_catches
+        # The sweep's seeded Metal, interned before the plant as another
+        # module would (test_visual_color_param): it baked its rim from the
+        # real _metal_edge, and the plant must still reach the sweep.
+        seeded = scena.Metal("deepskyblue")
+        edge = seeded._edge
         assert_catches(
             self, "test_knobs_take_effect.TestVisualKnobsReachThePixels.test_every_knob_changes_the_pixels",
             # Body and rim: since the rim takes the tint (2026-10-13) a body
@@ -204,6 +209,71 @@ class TestVisualKnobsReachThePixels(SystemTestCase, unittest.TestCase):
             [("scena.recipes", "_metal_tint", lambda fill: [0.0, 0.0, 0.0, 0.0]),
              ("scena.recipes", "_metal_edge", lambda tint: (0.75, 0.78, 0.82, 0.95))],
             "Metal(color) that never reaches the shader (2026-10-09)")
+        # ... and the Metal built under the plant (chrome rim) did not stay
+        # interned for later tests.
+        self.assertIs(scena.Metal("deepskyblue"), seeded)
+        self.assertEqual(seeded._edge, edge)
+
+
+class TestCanaryPlantsReachInternedLooks(unittest.TestCase):
+    """A canary plant runs on empty look intern caches and leaves them as it
+    found them (``hypothesis_support.fresh_interns``; the Metal rim canary
+    failed after test_visual_color_param, and its plant leaked a chrome-rimmed
+    ``Metal("deepskyblue")`` into later tests, 2026-10-13)."""
+
+    def test_a_look_built_before_the_plant_does_not_hide_it(self):
+        from unittest import mock
+        from hypothesis_support import fresh_interns
+        import scena.recipes as R
+        before = scena.Metal("deepskyblue")
+        planted = (0.75, 0.78, 0.82, 0.95)
+        with fresh_interns(), mock.patch.object(R, "_metal_edge", lambda tint: planted):
+            under = scena.Metal("deepskyblue")
+            self.assertIsNot(under, before)
+            self.assertEqual(under._edge, planted)
+        self.assertIs(scena.Metal("deepskyblue"), before)
+        self.assertNotEqual(before._edge, planted)
+
+    def test_every_intern_cache_is_emptied_and_given_back(self):
+        import importlib
+        from hypothesis_support import _INTERN_CACHES, fresh_interns
+        scena.Metal("gold"), scena.Halo(), scena.Grayscale(0.5)   # one per cache
+        caches = [getattr(importlib.import_module(m), a) for m, a in _INTERN_CACHES]
+        saved = [dict(c) for c in caches]
+        self.assertTrue(all(saved), "a cache the sweep names was never filled")
+        with fresh_interns():
+            self.assertEqual([len(c) for c in caches], [0] * len(caches))
+            scena.Metal("gold"), scena.Halo(), scena.Grayscale(0.5)
+        for c, old in zip(caches, saved):
+            self.assertEqual(c, old)
+            self.assertTrue(all(c[k] is old[k] for k in old))
+
+    def test_the_cache_list_holds_every_interned_look(self):
+        # A look interned in a cache fresh_interns does not clear would
+        # bring the bug class back: every exported look and filter built
+        # with its defaults sits in one of _INTERN_CACHES when it is interned.
+        import importlib
+        from scena.filters import FilterEffect
+        from hypothesis_support import _INTERN_CACHES
+        held = {id(v) for m, a in _INTERN_CACHES
+                for v in getattr(importlib.import_module(m), a).values()}
+        checked = 0
+        for name in scena.__all__:
+            cls = getattr(scena, name)
+            if not (inspect.isclass(cls) and issubclass(cls, (Visual, FilterEffect))):
+                continue
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    obj = cls()
+            except Exception:
+                continue
+            if obj.__dict__.get("_interned"):
+                checked += 1
+                held |= {id(v) for m, a in _INTERN_CACHES
+                         for v in getattr(importlib.import_module(m), a).values()}
+                self.assertIn(id(obj), held, f"{name}() is interned outside _INTERN_CACHES")
+        self.assertGreater(checked, 20, "the sweep stopped reaching interned looks")
 
 
 # ---------------------------------------------------------------------------
