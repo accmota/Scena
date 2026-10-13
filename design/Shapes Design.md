@@ -317,6 +317,19 @@ For **in-`__init__` model-relation wiring** written as `self.<part>.assign_formu
   The heading still turns: `rotate_by(a)` about itself adds `a` to `angle`, as
   `rotate_to` sets it (raycast's default `angle` reads it). Bug G1.
 - Arithmetic uses `Point.temp` under `ephemeral_creation` (never linked, not on canvas).
+- **`==` is identity** (and so is the hash: `__hash__ = object.__hash__`,
+  restated because a class that defines `__eq__` loses it). A Point is an
+  object, and the engine relies on that: the registry scans `layer._interactive`
+  and the debug-point lists with `in` / `remove` while handles share a spot,
+  and weak sets / dicts (`act._game_entities`, `spatial_fx`, `bounds`) key on
+  Points. Value `==` would remove the wrong handle; a position hash breaks when
+  the point moves. Author code that compares a Point with a tuple / list /
+  `Vec2` (either side: `Vec2.__eq__` returns `NotImplemented` for a Point), or
+  with another Point at the same position, gets a warning once per line
+  (`_point_compare_site`: the comparing frame is outside `scena/`; a cell's
+  `__eq__` is looked through) naming `distance(a, b) == 0` and `a is b`.
+  Engine compares stay silent. The price: an author `p in pontos` holding
+  another Point on the same spot warns too. Bug PE1 (Testing Design).
 - `shape.show_handles()` / `no_handles()` bulk-opt free Defining Points.
 - `shape.show_points()` / `hide_points()` — debug: all Point parts (incl. Derivates);
   materializes cold Derivates while shown; hide releases liveness if unused.

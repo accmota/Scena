@@ -601,6 +601,8 @@ class Vec2(Container):
             return self.x == other.x and self.y == other.y
         elif isinstance(other, tuple) and len(other) == 2:
             return self.x == other[0] and self.y == other[1]
+        elif getattr(type(other), "_point_eq_warns", False):
+            return NotImplemented       # Point.__eq__ answers (and warns: PE1)
         else:
             return False
 

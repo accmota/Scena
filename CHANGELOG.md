@@ -65,6 +65,17 @@ left out.
   `ElectricBolt("red")` no longer mixes the shape's old outline into the
   bolt. Body visuals (`Neon("red")`, `Gel`, `Metal("gold")`, …) are
   unchanged: their color becomes the shape's color.
+- Comparing a Point with a position now warns. `==` on a Point compares the
+  object, not its position, so `elevador.center == (400, 120)` was always
+  False (and `!=` always True), even with the elevator there, and nothing
+  said so. It still is: Points stay objects, which sets, dicts and the engine
+  rely on. What is new is the SCENA WARNING, once per line, when your code
+  compares a Point with a tuple, a list or a `Vec2` (either side), or with
+  another Point at the same position. To test the position:
+  `distance(elevador.center, (400, 120)) == 0`, or `< 1` when the motion
+  does not land exactly. For the same object: `a is b`. The undocumented
+  `Point.eq()` and `Point.get_hash()` are gone (`get_hash` hashed the
+  position, which changes when the point moves): use `distance`.
 
 ### Fixed
 

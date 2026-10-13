@@ -277,7 +277,7 @@ class TestHistoryOwnership(HistoryTestCase):
         pt = Point.temp(3, 4)
         h.add(pt)
         h.add("next")
-        self.assertIn(pt, left)
+        self.assertTrue(any(v is pt for v in left))   # identity: left also holds (1, 2)
         self.assertTrue(pt.is_alive)
 
     def test_snapshot_copies_off_graph(self):

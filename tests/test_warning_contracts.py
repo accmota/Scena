@@ -80,6 +80,7 @@ CONTRACTS: Dict[str, W] = {
     "state:Container._assign_formula": W(fires="test_graph_lifecycle", twin="a first link on a field is silent: every link test"),
     "state:UpdateManager.flush": W(fires="test_reactive_edge_cases", silent="test_reactive_edge_cases.TestEvents.test_destroyed_source_retires_quietly"),
     "shapes:_ensure_writable": W(fires="test_pose_fast_path", twin="only with force=True: the author asked to unlink"),
+    "shapes:_warn_point_compare": W(fires="test_point_equality", silent="test_point_equality.TestEngineStaysSilent.test_handles_on_one_spot"),
     "registry:GroupOperator.__getitem__": W(fires="test_group_name_guard", silent="test_group_name_guard.TestDeclaringAFormulaIsNotATypo.test_formula_declaration_does_not_warn"),
     "registry:Registry.set_group_formula": W(fires="test_registry_layers", twin="a first group formula is silent: every formula-group test"),
     # --- collision ----------------------------------------------------------------

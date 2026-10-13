@@ -1,5 +1,7 @@
 import inspect
 import math
+import os
+import sys
 import warnings
 from typing import Any, Optional, Union, Tuple, overload, List, Callable, Dict, Set, Literal, TYPE_CHECKING
 from enum import Enum
@@ -45,6 +47,7 @@ from .entity import (
     _parked, _stash_flag,
     _wrap_actor_init, _finish_actor_construct,
     _rotate_as_motion, _rotate_as_placement,
+    _is_scena_file,
 )
 
 
@@ -785,6 +788,60 @@ _POINT_IADD_MSG = (
     "Use `ship.move_by(dx, dy)` to move, "
     "or `ship.center = ship.center + (dx, dy)` to place."
 )
+
+
+# ``Point ==`` keeps identity (PE1): the engine needs it (weak sets and weak
+# dicts key on Points, the registry scans its lists with ``in`` / ``remove``,
+# and two handles often share a spot). Author code that compares a Point with
+# a position (``c.center == (400, 120)``), or with another Point on the same
+# spot, meant the position and would get a silent always-False: it gets a
+# warning instead, once per line. Engine compares stay silent.
+_POINT_EQ_WARNED: Set[Tuple[str, int]] = set()
+# Code that compares for its caller (``cell == point`` → ``cell.value == point``).
+_POINT_EQ_PASSTHROUGH: Set[Any] = set()
+_POINT_EQ_WARN_SKIP = (os.path.dirname(os.path.abspath(__file__)) + os.sep,)
+
+
+def _point_compare_site() -> Optional[Tuple[str, int]]:
+    """``(file, line)`` of the author code whose ``==`` reached ``Point.__eq__``.
+
+    ``None`` for engine code. Frame 2 is the comparing code: ``==``, ``in``
+    and ``list.remove`` run in C and add no frame of their own.
+    """
+    if not _POINT_EQ_PASSTHROUGH:
+        _POINT_EQ_PASSTHROUGH.add(Attribute.__eq__.__code__)
+    try:
+        f = sys._getframe(2)
+    except ValueError:
+        return None
+    while f is not None and f.f_code in _POINT_EQ_PASSTHROUGH:
+        f = f.f_back
+    if f is None:
+        return None
+    fn = f.f_code.co_filename
+    if _is_scena_file(fn):
+        return None
+    return (fn, f.f_lineno)
+
+
+def _warn_point_compare(point: 'Point', other: Any, site: Tuple[str, int]) -> None:
+    if site in _POINT_EQ_WARNED:
+        return
+    _POINT_EQ_WARNED.add(site)
+    if isinstance(other, Point):
+        msg = (
+            f"two different Points at the same position ({point.x:g}, {point.y:g}) "
+            "are not ==: == on Points compares the objects, not their positions. "
+            "Same position: distance(a, b) == 0. Same object: a is b."
+        )
+    else:
+        kind = "Vec2" if isinstance(other, Vec2) else type(other).__name__
+        msg = (
+            f"Point == {kind} is always False (and != always True): == on a Point "
+            "compares the object, not its position. Test the position with "
+            "distance(point, (x, y)) == 0, or < 1 when the motion does not land exactly."
+        )
+    warnings.warn(msg, RuntimeWarning, skip_file_prefixes=_POINT_EQ_WARN_SKIP)
 
 
 def _point_delta(other: Any, *, op: str) -> Tuple[float, float]:
@@ -3566,15 +3623,26 @@ class Point(Shape):
         """Bearing toward another position in degrees (same as free ``heading``)."""
         return heading(self, other)
 
-    def eq(self, other: Any) -> bool:
-        """Check if two points have the same coordinates."""
-        if not isinstance(other, Point):
-            return False
-        return self.x == other.x and self.y == other.y
+    # Identity ``==`` and hash; author compares with a position warn (PE1,
+    # ``_point_compare_site``). ``Vec2 == point`` hands over here.
+    _point_eq_warns = True
 
-    def get_hash(self) -> int:
-        """Make Point hashable (useful for sets and dict keys)."""
-        return hash((self.x, self.y))
+    def __eq__(self, other: Any) -> bool:
+        if other is self:
+            return True
+        if isinstance(other, (Point, Vec2)) or (
+            isinstance(other, (tuple, list)) and len(other) == 2
+        ):
+            site = _point_compare_site()
+            if site is not None and (
+                not isinstance(other, Point)
+                or (other.x == self.x and other.y == self.y)
+            ):
+                _warn_point_compare(self, other, site)
+            return False
+        return NotImplemented
+
+    __hash__ = object.__hash__
 
     def _assign_formula(self, formula: Union['Container', Tuple[float, float], Callable[[], Any]]):
         if isinstance(formula, tuple):

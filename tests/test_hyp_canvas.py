@@ -422,9 +422,9 @@ class RegistryMachine(RuleBasedStateMachine):
                 if not alive or self.model[obj].parked:
                     for key in list(sc.layers):
                         layer = sc.layers.get(key)
-                        assert part not in layer._interactive, f"{label}: still clickable on {key!r}"
+                        assert all(o is not part for o in layer._interactive), f"{label}: still clickable on {key!r}"
                         layer._compact()
-                        assert part not in layer._objects, f"{label}: still drawn on {key!r}"
+                        assert all(o is not part for o in layer._objects), f"{label}: still drawn on {key!r}"
 
     @invariant()
     def draw_lists_match_model(self):
