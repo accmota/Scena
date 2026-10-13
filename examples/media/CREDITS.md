@@ -1,6 +1,6 @@
 # Media credits and licenses
 
-The images and sounds in `examples/media/` are **not** under Scena's MIT
+The images, sounds and fonts in `examples/media/` are **not** under Scena's MIT
 license (`LICENSE` at the repository root covers the code and docs only).
 Each folder keeps the original license notice of its files. This file lists
 them all in one place.
@@ -76,6 +76,26 @@ clouds-bank.png, clouds-low.png and vegetation_b.png modified for Scena.
 OGA-BY 3.0 is CC BY 3.0 without the clause against DRM: the same credit
 rules apply.
 
+## Fonts: SIL OFL 1.1 and Apache 2.0
+
+The fonts in `fonts/` are free to use, embed and ship with any game,
+commercial ones included. No credit screen is needed, but a game that ships
+one of these `.ttf` files ships its license text with it (from
+`fonts/Licenses/`). An OFL font may not be sold on its own, and a modified
+OFL font must stay under the OFL and drop its Reserved Font Name. Copyright
+lines and sources are in `fonts/license.txt`.
+
+| Files | Author | License |
+|---|---|---|
+| `fonts/HennyPenny-Regular.ttf` | Brownfox (Olga Umpeleva) | OFL 1.1 |
+| `fonts/Metamorphous-Regular.ttf` | Sorkin Type Co (James Grieshaber) | OFL 1.1 |
+| `fonts/Quantico-*.ttf` | Matthew Desmond (MADtype) | OFL 1.1 |
+| `fonts/Rye-Regular.ttf` | Sorkin Type Co (Nicole Fally) | OFL 1.1 |
+| `fonts/VastShadow-Regular.ttf` | Sorkin Type Co (Nicole Fally) | OFL 1.1 |
+| `fonts/Kranky-Regular.ttf` | Font Diner / Sideshow (Squid) | Apache 2.0 |
+
+`fonts/kenvector_future.ttf` is CC0: see the table below.
+
 ## CC0 (no conditions)
 
 CC0 is a public-domain dedication: copy, modify, redistribute and sell, with
@@ -92,6 +112,7 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | `planets/` | Kenney | https://www.kenney.nl ("Planets") |
 | `shooter/` | Kenney | https://www.kenney.nl ("Space Shooter Extension") |
 | `space/` | Kenney | https://www.kenney.nl ("Space Shooter Redux") |
+| `fonts/kenvector_future.ttf` | Kenney | https://www.kenney.nl ("Space Shooter Redux"; its metadata names FontStruct's default license, Kenney released it as CC0) |
 | `ninja/` | GameArt2D | https://www.gameart2d.com/ninja-adventure---free-sprites.html |
 | `robot/` | GameArt2D | https://www.gameart2d.com/the-robot---free-sprites.html |
 | `plane/` | GameArt2D | https://www.gameart2d.com/free-plane-sprite.html |
@@ -120,6 +141,7 @@ no credit required. Credit is still welcome, and the authors are listed here.
 Every folder here needs a license file (`license.txt` or `License.txt`) that
 names the source and license of each file. A test checks this
 (`tests/test_media_licenses.py`). Only add files you can redistribute: CC0,
-CC-BY or CC-BY-SA are fine. **NC** (non-commercial) and **ND** (no
+CC-BY or CC-BY-SA are fine, and for fonts SIL OFL 1.1 or Apache 2.0 (with
+the license text next to the font). **NC** (non-commercial) and **ND** (no
 derivatives) licenses, or files with no license, are not. Anything that needs
 attribution goes in the section above, with its credit block ready to copy.

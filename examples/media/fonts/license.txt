@@ -1,0 +1,52 @@
+Fonts in this folder. The full license texts are in Licenses/.
+
+Every font here may be used, embedded and shipped with a game, including a
+commercial one. A game that ships an OFL or Apache font file keeps its
+license text next to it; an OFL font may not be sold on its own.
+
+---
+
+SIL Open Font License 1.1 (Licenses/OFL-<name>.txt)
+
+HennyPenny-Regular.ttf
+  Copyright (c) 2011-2012, Brownfox (www.brownfox.org),
+  with Reserved Font Name "Henny Penny". Design: Olga Umpeleva.
+
+Metamorphous-Regular.ttf
+  Copyright (c) 2011-2012, Sorkin Type Co (www.sorkintype.com),
+  with Reserved Font Name "Metamorphous". Design: James Grieshaber.
+
+Quantico-Regular.ttf, Quantico-Bold.ttf, Quantico-Italic.ttf
+  Copyright (c) 2011, Matthew Desmond (www.madtype.com),
+  with Reserved Font Name "Quantico".
+
+Rye-Regular.ttf
+  Copyright (c) 2010-2011, Sorkin Type Co (www.sorkintype.com),
+  with Reserved Font Name "Rye". Design: Nicole Fally.
+
+VastShadow-Regular.ttf
+  Copyright (c) 2010-2011, Sorkin Type Co (www.sorkintype.com),
+  with Reserved Font Names "Vast" and "Vast Shadow". Design: Nicole Fally.
+
+Source: Google Fonts (https://fonts.google.com). A modified version of one of
+these fonts must stay under the OFL and must not use its Reserved Font Name.
+
+---
+
+Apache License 2.0 (Licenses/LICENSE-Kranky.txt)
+
+Kranky-Regular.ttf
+  Copyright (c) 2010, Font Diner, Inc DBA Sideshow. Design: Squid.
+
+Source: Google Fonts (https://fonts.google.com).
+
+---
+
+CC0 1.0 (Licenses/license-kenvector.txt)
+
+kenvector_future.ttf
+  KenVector Future by Kenney (www.kenney.nl), from "Space Shooter Redux,
+  plus fonts and sounds" (the same file as space/kenvector_future.ttf).
+  The font was built with FontStruct, and its embedded metadata still names
+  FontStruct's default license; Kenney released it as CC0 in the pack.
+  Credit to Kenney is welcome but not required.
