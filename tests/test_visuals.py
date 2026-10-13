@@ -3212,12 +3212,35 @@ class TestSeededVisualRecolorBaseline(unittest.TestCase):
         self.assertAlmostEqual(c.visual.width, 20.0)
         self.assertIs(c.visual, Neon(None, 2.0, 20))
 
-    def test_haloline_seed_still_wins(self):
-        """Phase 2: HaloLine is not de-seeded yet; constructor seed still wins."""
+    def test_haloline_recolor_shows(self):
+        """Phase 2 (2026-10-13): HaloLine stores ``_seed_color`` (not ``_seed``)
+        and de-seeds like Halo; before, the blue seed won over set_color."""
         c = Circle(center=(0, 0), radius=10)
         c.visual = Halo("blue", style="line")
         c.color = "red"
-        self.assertEqual(self._rgb(c.line), self._rgb("blue"))
+        self.assertEqual(self._rgb(c.line), self._rgb("red"))
+        self.assertIs(c.visual, Halo(style="line"))
+
+    def test_phase2_recolor_shares_one_instance(self):
+        """Every role-A/B look de-seeds to one interned sibling per knob set:
+        shapes recolored from different seeds keep batching together
+        (look-pass groups key ``.visual is``), and a recolor loop interns
+        nothing new."""
+        from scena import Laser, Rim
+        from scena.recipes import _RECIPE_CACHE
+        for make in (lambda c: Laser(c), lambda c: Rim(c, width=6.0)):
+            a = Circle(center=(0, 0), radius=10)
+            a.visual = make("red")
+            b = Circle(center=(20, 0), radius=10)
+            b.visual = make("blue")
+            a.color = "lime"
+            b.color = "lime"
+            self.assertIs(a.visual, b.visual)
+            self.assertIs(a.visual, make(None))
+            before = len(_RECIPE_CACHE)
+            for i in range(200):
+                a.color = (i / 200.0, 0.2, 0.8)
+            self.assertEqual(len(_RECIPE_CACHE), before)
 
 
 class TestSaveVisual(unittest.TestCase):

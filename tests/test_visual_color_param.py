@@ -262,20 +262,15 @@ class TestRecolorUnderOwnColors(unittest.TestCase):
 
 # Seeded looks where ``set_color`` still loses to the seed: the colour is
 # written to the shape and shows after ``visual = None``, but the look keeps
-# drawing the seed (no ``_unseed`` yet: "Phase 2", Effect System Design §9).
-# Outline looks (Rim, Ink, …) repaint the body and keep the seeded outline,
-# which a changed-pixel count mistakes for "shows": compare with the look
-# worn on the new colour instead.
-# Shrink-only: a look that starts to show set_color must leave the list.
-SEED_WINS = {
-    ("Aurora", None), ("Bolt", "core"), ("Bolt", "filaments"), ("Bolt", "tesla"),
-    ("DashRing", None), ("ElectricBolt", None), ("ElectricField", None),
-    ("Extrude", None), ("GearShell", None), ("Gel", None), ("Halo", "line"),
-    ("Ink", None), ("InkBleed", None), ("InsetRim", None), ("Laser", None),
-    ("MultiBorder", None), ("OrganicOutline", None), ("Rim", None),
-    ("Shield", "bands"), ("Shield", "vortex"), ("Shield", "plasma"),
-    ("Sphere", None), ("Tracer", None), ("Wave", None),
-}
+# drawing the seed. Empty since 2026-10-13: every look that takes ``color=``
+# has an ``_unseed`` (Effect System Design §9 rule 18). Shrink-only: a new
+# look that takes ``color=`` and keeps its seed on set_color fails the sweep.
+SEED_WINS: set = set()
+
+# Paint / Fill / Stroke are installers, not looks with a seed: set_color
+# replaces them with the installer built on the new material.
+from scena.visuals import Fill as _Fill, Paint as _Paint, Stroke as _Stroke  # noqa: E402
+_INSTALLERS = (_Paint, _Fill, _Stroke)
 
 
 def _wearable_cells():
@@ -310,6 +305,11 @@ def _recolor_shows(look) -> tuple:
         return changed, [str(w.message) for w in got]
     finally:
         c.destroy()
+
+
+def _knobs_of(look) -> dict:
+    """A look's public non-colour knobs, as stored."""
+    return {k: v for k, v in vars(look).items() if not k.startswith("_") and k != "color"}
 
 
 def _worn(look, color):
@@ -379,8 +379,13 @@ class TestSetColorShowsWhereColorIsTaken(unittest.TestCase):
                 warnings.simplefilter("ignore")
                 got = _recolored(cls("deepskyblue", **base), "lime")
                 # Shown = what the look draws on a lime shape: the unseeded
-                # look (tint looks) or the look given lime (palette / paint).
-                want = (_worn(cls(**base), "lime"), _worn(cls("lime", **base), "blue"))
+                # look (tint looks) or the look given lime (palette / paint);
+                # outline looks (Role B): the unseeded look given the same
+                # set_color, which writes the exact line colour where
+                # Circle(color=) derives a darker outline. A seed that wins
+                # differs from all three.
+                want = (_worn(cls(**base), "lime"), _worn(cls("lime", **base), "blue"),
+                        _recolored(cls(**base), "lime"))
             ok = any(np.abs(got - w).max() <= 2 for w in want)
             (shows if ok else hidden).add((cls.__name__, style))
         self.assertIn(("Neon", None), shows)
@@ -388,6 +393,54 @@ class TestSetColorShowsWhereColorIsTaken(unittest.TestCase):
         self.assertFalse(unlisted, f"seeded looks where set_color does not show: {unlisted}")
         stale = sorted(SEED_WINS & shows, key=str)
         self.assertFalse(stale, f"SEED_WINS looks that now show set_color: remove them: {stale}")
+
+    def test_deseed_keeps_every_knob(self):
+        """``_unseed`` returns the sibling built from the same non-colour knobs:
+        ``Rim("red", width=8)`` + ``set_color`` is ``Rim(width=8)``, not
+        ``Rim()``. Bug class: a sibling that drops a knob (it would still
+        pass the default-knob sweep above)."""
+        from tests.test_knobs_take_effect import visual_cells
+        n = 0
+        for name, style, knob, alt in visual_cells():
+            if knob == "color":
+                continue
+            cls = getattr(scena, name)
+            kw = {knob: alt, **({} if style is None else {"style": style})}
+            with self.subTest(visual=name, style=style, knob=knob), warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                if not _takes_color(cls, style) or issubclass(cls, _INSTALLERS):
+                    continue            # installers: set_color rebuilds them (style.py)
+                try:
+                    seeded, plain = cls("deepskyblue", **kw), cls(**kw)
+                except TypeError:
+                    continue            # knob refused on this style (KN4)
+                want = plain._unseed() or plain     # palette looks: shape-following
+                got = seeded._unseed()
+                self.assertIs(type(got), type(want))
+                # Knobs as stored (clamped: Extrude(layers=10) keeps 7 and
+                # interns apart from layers=7; one key clamp cost ~0.3 µs per
+                # construction, 2026-10-13, so the twin interns stay).
+                self.assertEqual(_knobs_of(got), _knobs_of(want))
+                if _knobs_of(plain).get(knob, alt) == alt:     # not clamped
+                    self.assertIs(got, want)
+                self.assertIsNone(want._unseed(), "already unseeded: no new intern")
+                n += 1
+        self.assertGreater(n, 40, "the knob sweep stopped reaching the surface")
+
+    def test_canary_seed_wins_again(self):
+        import diff_support
+        diff_support.assert_catches(
+            self, "test_visual_color_param.TestSetColorShowsWhereColorIsTaken.test_seeded_every_look_and_style",
+            [(_recipes.Rim, "_unseed", lambda self: None), (_recipes.Laser, "_unseed", lambda self: None)],
+            "Rim / Laser seeds that win over set_color (before 2026-10-13)")
+
+    def test_canary_deseed_drops_a_knob(self):
+        import diff_support
+        diff_support.assert_catches(
+            self, "test_visual_color_param.TestSetColorShowsWhereColorIsTaken.test_deseed_keeps_every_knob",
+            [(_recipes.Rim, "_unseed",
+              lambda self: None if self._seed_color is None else _recipes.Rim(None, self.amount))],
+            "Rim._unseed that forgets width= / darken=")
 
     def test_canary_metal_recolor_silent_again(self):
         import diff_support

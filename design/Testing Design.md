@@ -1762,7 +1762,7 @@ members (AH2, KN3, KN4).
 | --- | --- | --- |
 | `test_async_hooks.TestEveryCallbackDoor` (doors from the surface; each refuses an `async def` at the call or when it fires, with no "never awaited"; canary: the group predicates without the check) | 1, 3 | AH1, AH2 |
 | `test_knobs_take_effect` (every look × style × knob, every Wallpaper fit × knob: different pixels or a listed reason; shrink-only lists; canaries: `Metal` without its tint, a fitted image that ignores `tile_mode`) | 2, 4 | KN1, KN2, KN3, KN4 |
-| `test_visual_color_param.TestSetColorShowsWhereColorIsTaken` (every wearable look × style: takes `color=` ⇔ `set_color` shows and no warning; seeded looks must draw like the look worn on the new color, or sit in the shrink-only `SEED_WINS`; canary: `Metal._unseed` → `None`) | 2, 6 | KN5 |
+| `test_visual_color_param.TestSetColorShowsWhereColorIsTaken` (every wearable look × style: takes `color=` ⇔ `set_color` shows and no warning; seeded looks must draw like the look worn on the new color or the unseeded look given the same `set_color`, or sit in the shrink-only `SEED_WINS`, empty since 2026-10-13; `test_deseed_keeps_every_knob`: the sibling keeps every non-colour knob; canaries: `Metal._unseed` → `None`, `Rim` / `Laser._unseed` → `None`, a `Rim._unseed` that drops `width=`) | 2, 6 | KN5 |
 
 ## Planning a new test
 

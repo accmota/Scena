@@ -1235,9 +1235,8 @@ class Halo(CompiledVisual):
         self._ready = True
 
     def _unseed(self) -> Optional["Halo"]:
-        # HaloLine (Phase 2) uses ``_seed_color``, not ``_seed``. A missing
-        # seed means live-tracking is already on, or this subclass is out of
-        # Phase 1 scope — do not intern a sibling.
+        # A missing seed means live-tracking is already on: do not intern a
+        # sibling. HaloLine stores ``_seed_color`` and has its own _unseed.
         if getattr(self, "_seed", None) is None:
             return None
         return type(self)(None, self.amount)
@@ -2467,6 +2466,11 @@ class _OrbHalo(GlowRimVisual):
             color, amount=amount, speed=speed, radius=radius, sigma=sigma,
         )
         self._ready = True
+
+    def _unseed(self) -> Optional["_OrbHalo"]:
+        if self._seed is None:
+            return None
+        return type(self)(None, amount=self.amount, speed=self.speed, radius=self.radius, sigma=self.sigma)
 
     def _apply_high(self, shape, BlendMode) -> None:
         from .style import ProceduralFill

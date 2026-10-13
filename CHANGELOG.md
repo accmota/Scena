@@ -35,6 +35,15 @@ left out.
   to the new color; before, it warned and stayed lime. `Metal()` and
   `Shield()` without a color keep their own palette and leave the shape's
   color as it was.
+- `set_color` (and `.color =`) on a shape wearing a visual made with a
+  color (`Laser("red")`, `Rim("gold")`, `Ink`, `Gel`, `Sphere`, `Bolt`,
+  `Extrude`, `Halo("blue", style="line")`, `Shield("cyan", style="bands")`
+  and every other visual that takes `color=`) turns the visual to the new
+  color, and from then on it follows the shape's color, as `Neon("red")` and
+  `Halo("blue")` already did. Before, the visual kept drawing its first
+  color, and the new one showed only once the visual was removed. To go back
+  to the first color, set the visual again: `shape.visual = Laser("red")`
+  (it makes the shape red, as at first).
 
 ### Fixed
 

@@ -2055,6 +2055,11 @@ class MultiBorder(Recipe):
         self.spread = float(spread)
         self._ready = True
 
+    def _unseed(self) -> Optional["MultiBorder"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.layers, self.spread)
+
     @property
     def _batch_key(self) -> tuple:
         ckey = ("host",) if self._seed_color is None else tuple(round(c, 3) for c in self.color)
@@ -2142,6 +2147,11 @@ class Extrude(Recipe):
         self.edges = bool(edges)
         self.darken = max(0.0, min(float(darken), 1.0))
         self._ready = True
+
+    def _unseed(self) -> Optional["Extrude"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.depth, self.focus, self.layers, self.edges, self.darken, self.angle)
 
     @property
     def _use_host(self) -> bool:
@@ -2258,6 +2268,11 @@ class DashRing(Recipe):
         self.speed = float(speed)
         self.width = float(width)
         self._ready = True
+
+    def _unseed(self) -> Optional["DashRing"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.speed, self.width)
 
     @property
     def _batch_key(self) -> tuple:
@@ -2382,6 +2397,11 @@ class GearShell(Recipe):
         self.speed = float(speed)
         self.amount = float(amount)
         self._ready = True
+
+    def _unseed(self) -> Optional["GearShell"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.speed, self.amount)
 
     @property
     def _batch_key(self) -> tuple:
@@ -2631,6 +2651,11 @@ class ElectricField(Recipe):
         self._med = _ElectricFieldHigh3(color, amount=amount, speed=speed)
         self._high = _ElectricFieldHigh2(color, amount=amount, speed=speed)
         self._ready = True
+
+    def _unseed(self) -> Optional["ElectricField"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.amount, self.speed)
 
     @property
     def _batch_key(self) -> tuple:
@@ -3094,6 +3119,10 @@ class Shield(CompiledVisual):
         )
 
     def _unseed(self) -> Optional["Shield"]:
+        if self.style in self._TINTED:
+            if self._seed_color is None:
+                return None
+            return type(self)(None, style=self.style, amount=self.amount, speed=self.speed)
         # Palette look: set_color moves to the shape-following sibling (one
         # interned instance for every colour), never back to the lime palette,
         # which would drop the colour just written.
@@ -3325,6 +3354,11 @@ class HaloLine(Halo):
         )
         self._ready = True
 
+    def _unseed(self) -> Optional["HaloLine"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.amount)
+
     @property
     def _batch_key(self) -> tuple:
         ckey = ("host",) if self._seed_color is None else tuple(round(c, 3) for c in self.color)
@@ -3405,6 +3439,11 @@ class OrganicOutline(Recipe):
         self.speed = float(speed)
         self._ready = True
 
+    def _unseed(self) -> Optional["OrganicOutline"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.amount, self.speed)
+
     @property
     def _batch_key(self) -> tuple:
         ckey = ("host",) if self._seed_color is None else tuple(round(c, 3) for c in self.color)
@@ -3470,6 +3509,11 @@ class Tracer(Recipe):
         self.gap = float(gap)
         self.width = float(width)
         self._ready = True
+
+    def _unseed(self) -> Optional["Tracer"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.speed, self.gap, self.width)
 
     @property
     def _batch_key(self) -> tuple:
@@ -3589,6 +3633,11 @@ class ElectricBolt(GlowRimVisual):
         self.speed = float(speed)
         self._fallback = _ElectricLineAdd(color, amount=amount, speed=speed)
         self._ready = True
+
+    def _unseed(self) -> Optional["ElectricBolt"]:
+        if self._seed is None:
+            return None
+        return type(self)(None, self.amount, self.speed)
 
     def _halo_rgb(self, rgb):
         t = _energy_rgb((rgb[0], rgb[1], rgb[2], 1.0))
@@ -4222,6 +4271,11 @@ class Bolt(Recipe):
         )
         self._ready = True
 
+    def _unseed(self) -> Optional["Bolt"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.amount, self.speed, self.intensity, style=self.style)
+
     @property
     def _batch_key(self) -> tuple:
         ckey = ("host",) if self._seed_color is None else tuple(round(c, 3) for c in self.color)
@@ -4338,6 +4392,11 @@ class Laser(Recipe):
         self._init_tint(color, (0.95, 0.12, 0.1, 1.0), channel=_TINT_LINE)
         self.amount = float(amount)
         self._ready = True
+
+    def _unseed(self) -> Optional["Laser"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.amount)
 
     @property
     def _batch_key(self) -> tuple:
@@ -4494,6 +4553,11 @@ class Ink(Recipe):
         self.speed = float(speed)
         self._ready = True
 
+    def _unseed(self) -> Optional["Ink"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.amount, self.speed)
+
     @property
     def _batch_key(self) -> tuple:
         ckey = ("host",) if self._seed_color is None else tuple(round(c, 3) for c in self.color)
@@ -4588,6 +4652,11 @@ class InkBleed(Recipe):
             skia.kNormal_BlurStyle, max(1.2, 1.6 + a * 0.35),
         )
         self._ready = True
+
+    def _unseed(self) -> Optional["InkBleed"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.amount)
 
     @property
     def _batch_key(self) -> tuple:
@@ -4906,6 +4975,11 @@ class Rim(Recipe):
         self.darken = float(darken)
         self._high = _RimHigh(color, amount=amount, width=width, darken=darken)
         self._ready = True
+
+    def _unseed(self) -> Optional["Rim"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.amount, self.width, self.darken)
 
     @property
     def _batch_key(self) -> tuple:
@@ -5228,6 +5302,11 @@ class InsetRim(Recipe):
         self.amount = max(0.05, float(amount))
         self._ready = True
 
+    def _unseed(self) -> Optional["InsetRim"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.fill_scale, self.width, self.amount)
+
     @property
     def _batch_key(self) -> tuple:
         ckey = ("host",) if self._seed_color is None else tuple(round(c, 3) for c in self.color)
@@ -5300,6 +5379,11 @@ class Gel(Recipe):
         self._init_tint(color, (0.35, 0.85, 0.75, 1.0), channel=_TINT_BODY)
         self.amount = float(amount)
         self._ready = True
+
+    def _unseed(self) -> Optional["Gel"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.amount)
 
     @property
     def _batch_key(self) -> tuple:
@@ -5536,6 +5620,11 @@ class Sphere(Recipe):
         )
         self._ready = True
 
+    def _unseed(self) -> Optional["Sphere"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.amount, self.speed)
+
     @property
     def _batch_key(self) -> tuple:
         ckey = ("host",) if self._seed_color is None else tuple(round(c, 3) for c in self.color)
@@ -5599,6 +5688,11 @@ class Wave(Recipe):
         self._fill = WaveFill(color=self.color[:3], amount=self.amount, speed=self.speed)
         self._ready = True
 
+    def _unseed(self) -> Optional["Wave"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.amount, self.speed)
+
     @property
     def _batch_key(self) -> tuple:
         ckey = ("host",) if self._seed_color is None else tuple(round(c, 3) for c in self.color)
@@ -5656,6 +5750,11 @@ class Aurora(Recipe):
         self.speed = float(speed)
         self._fill = AuroraFill(color=self.color[:3], amount=self.amount, speed=self.speed)
         self._ready = True
+
+    def _unseed(self) -> Optional["Aurora"]:
+        if self._seed_color is None:
+            return None
+        return type(self)(None, self.amount, self.speed)
 
     @property
     def _batch_key(self) -> tuple:
