@@ -80,7 +80,11 @@ Two independent knobs:
 
 Every Track has a real `center` (never `None`). Floating only says that position is not load-bearing for riders. A floating track still draws at `center` when visible.
 
-`is_floating` changes **only** by explicit author action: constructor `floating=True`/`False`, or `track.is_floating = …`. `.move_to()` / `.center = …` never flip it.
+`is_floating` said by the author — constructor `floating=True`/`False`, or `track.is_floating = …` — is never flipped by anything else: moving a declared-floating track only moves its drawing.
+
+**A placement after construction anchors an inferred float.** A track that floats only because it was made without a placement keyword is anchored the first time its center gets a place: a link (`track["center"] @= …`, `track.center @= p`, a link on `center.x` / `.y`), `track.center = …`, `move_to` (even onto the spot it has), or any move of the center (`move_by`, `center.x =`, `center << p`, a tween, a drag, a push). That is the placement the inference found missing, given late, so the rule is still "placement given → anchored". Rotate / scale / flip about its own center, `angle`, `u`, `begin` / `end` are pose or window, not placement (a turn about another pivot moves the center, so it places). Rides that began while it floated switch to the track's place at once (the rider moves onto it; motion, like the first step of any anchored ride). Until 2026-10 the placement was taken and ignored — `orbit = Track.circle(radius=120); orbit["center"] @= lambda: earth.center` left the moon circling its own start (KN9 in [Testing Design](Testing%20Design.md)).
+
+How it is seen, at no per-tick cost (`scena/track.py`, "placement anchors an inferred float"): a link fires `_part_link_changed`; `center =` (the `_TrackCenterSlot`) and `move_to` call `_note_placed`; any other write changes the center from the value kept at construction (`_float_mark`), read when a ride starts, on `is_floating`, and — for a track being ridden, which takes a pull consumer so a write dirties it — in the refresh that write causes (`_update_impl`). Running floating rides are listed weakly on the host (`_list_floating_ride`) and switched by `_pull_floating_rides`; a ride never checks per tick. A preset string (`move_along("eight")`) is not inferred: the author has no handle to place it.
 
 Inference when `floating=` is omitted:
 
@@ -307,6 +311,8 @@ Forever is always explicit (`loops="forever"`). Open presets (`wave` / `spiral` 
 `arc` / `line`) with forever need author `yoyo=True` (otherwise the open path
 snaps at the seam); do not auto-yoyo. Closed `shuttle` needs no `yoyo=` for forever.
 
+A ride reads `is_floating` when it starts. A floating ride whose track is anchored later — a placement on an inferred float, or `is_floating = False` — joins the track at its place on the next sample; `is_floating = True` on an anchored ride's track leaves that ride on the track (it binds future riders).
+
 `at=` on a **floating** target plants that ride's `u0` sample on the given point (same formula as natural floating, parameterized by the point instead of the rider). `at=` on a non-floating target **raises** (`TypeError`; wrap as `Track(source, floating=True)`). Raw `Shape` outlines stay anchored; floating a shape's outline is `Track(shape, floating=True)` first. Do not add `floating=` to `move_along`.
 
 Shares `tween_key=id(shape.center)` with `move_to` / `move_by` (and `(id(shape),
@@ -370,7 +376,7 @@ recursed forever on a control-point track, G11).
 
 # Implementation status
 
-**Implemented.** Tests: `tests/test_track.py` (`TestTrackLinePreset`, `TestTrackVectors`, `TestFloatingInference`, `TestShuttle`, `TestMoveAlongAt`). `tests/test_curves.py`, `tests/test_handle_motion.py`.
+**Implemented.** Tests: `tests/test_track.py` (`TestTrackLinePreset`, `TestTrackVectors`, `TestFloatingInference`, `TestPlacementAnchorsInferredFloat`, `TestShuttle`, `TestMoveAlongAt`). `tests/test_curves.py`, `tests/test_handle_motion.py`.
 Smoke: `scripts/smoke/tracks.py`, `scripts/smoke/tracks_collide.py`.
 Draw window (`begin` / `end`): stroke window (draw + hit-test + collision);
 `TestDrawWindow` / `TestSubpolyline` / `TestTrackStrokeCollision`; smoke ring in
@@ -395,7 +401,8 @@ Settled nos, with the reason. Reopen only with a script the current surface cann
 | A public `Shape.path` next to `Track(shape)` | Two spellings for one conversion |
 | A `relative=` flag, or a second "template" type, for absolute vs relative | Already inferred the way `move_to` / `move_by` draw that line (placement given or not); see [Anchored vs floating](#anchored-vs-floating) |
 | `floating=` on `move_along` | `at=` already owns the per-ride root |
-| Inferring floating from usage (one rider vs several), or flipping it on `move_to` / `center=` | Floating changes only by explicit author action; a write that silently changed what riders do would surprise |
+| Inferring floating from usage (one rider vs several), or flipping a **declared** float on `move_to` / `center=` | What the author said (`floating=` / `is_floating =`) changes only by the author. An inferred float is different: the late placement is the missing placement, and taking it while riders ignored it was the bug (KN9) |
+| Raising on a placement of an inferred float ("give `center=` when you make it") | Breaks drawing a sizes-only track and moving it (`Track.wave(color=…)` then `move_to`), where floating does not matter; anchoring costs that author nothing and gives the rider what the link said |
 | `center` as `Optional[Point]` for a floating track | Pose code (`_center_xy`, `rotate_to`, `scale_to`) assumes every Shape has a center |
 | `center=` and `p1=` / `start=` on one preset, or one placement keyword for every preset | A started path plants `u=0`, which is not its middle; `.center` / `move_to` stay the geometric middle everywhere |
 | Catmull-Rom `alpha` (uniform / chordal) as a parameter | Centripetal (`scena/curves.py`) is the "always works" default; the others ask a beginner to understand parameterization to avoid a problem the default avoids |
