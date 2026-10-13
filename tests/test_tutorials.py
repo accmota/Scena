@@ -27,6 +27,10 @@ Bug classes guarded:
   collider's middle, so on a ramp the feet slide sideways and stay off the
   slope (the seat needs the bottom anchor). Every tutorial step and every
   ``examples/`` file that leans a sprite with ``"ground"`` names the anchor.
+* **A one-shot clip that loops** (TU8): ``play("morto", loops=1)`` written
+  every frame from a state that lasts (the dead ninja's ``on_update``)
+  starts the clip over each time it ends, since only a clip still playing
+  makes ``play`` a no-op. Such a call asks ``showing`` first.
 
 How: each step's ``code:`` template literal is extracted from
 ``docs/pt/tutorial/NN-*.html`` (``extract_steps``). A ``try`` snippet is
@@ -695,6 +699,96 @@ class TestGroundLeanHasBottomAnchor(unittest.TestCase):
         made = 'class Robo(Sprite, hitbox_anchor="bottom"):\n    pass\nr = Robo()\nr.tilt = "ground"\n'
         self.assertEqual(ground_leans_off_the_feet(made), [])
         self.assertEqual(ground_leans_off_the_feet('heroi.tilt = 15\n'), [])
+
+
+def _parents(tree) -> Dict[int, ast.AST]:
+    up = {}
+    for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            up[id(child)] = node
+    return up
+
+
+def _asks_showing(test, clip) -> bool:
+    for sub in ast.walk(test):
+        if (isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute)
+                and sub.func.attr == "showing" and sub.args
+                and isinstance(sub.args[0], ast.Constant) and sub.args[0].value == clip):
+            return True
+    return False
+
+
+def replays_a_finished_clip(src: str) -> List[str]:
+    """``play(clip, loops=1)`` with no ``next=``, every frame, without asking ``showing``.
+
+    In ``update`` / ``on_update`` such a call runs again after the clip ends,
+    and a finished ``loops=1`` clip starts over (only a clip that is still
+    playing makes ``play`` a no-op): the dying ninja replayed its death every
+    0.8 s. The call must sit under an ``if`` that asks ``showing(clip)``.
+    """
+    tree = ast.parse(src)
+    up = _parents(tree)
+    bad = []
+    for fn in ast.walk(tree):
+        if not (isinstance(fn, ast.FunctionDef) and fn.name in ("update", "on_update")):
+            continue
+        for call in ast.walk(fn):
+            if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+                    and call.func.attr == "play" and call.args
+                    and isinstance(call.args[0], ast.Constant)):
+                continue
+            kws = {kw.arg: kw.value for kw in call.keywords}
+            loops = kws.get("loops")
+            if not (isinstance(loops, ast.Constant) and loops.value == 1) or "next" in kws:
+                continue
+            clip, node, asked = call.args[0].value, call, False
+            while node is not fn and not asked:
+                node = up[id(node)]
+                asked = isinstance(node, ast.If) and _asks_showing(node.test, clip)
+            if not asked:
+                bad.append(f"line {call.lineno}: play({clip!r}, loops=1) in {fn.name} "
+                           f"replays once it ends (ask showing({clip!r}) first)")
+    return bad
+
+
+class TestOneShotClipPlaysOnce(unittest.TestCase):
+    """A ``loops=1`` clip played from the frame loop is guarded by ``showing``."""
+
+    def test_every_step_and_example_asks_before_replaying(self):
+        seen = 0
+        for path in tutorial_pages():
+            page = os.path.basename(path)
+            for step in extract_steps(path):
+                if "loops=1" not in step.code:
+                    continue
+                seen += 1
+                with self.subTest(page=page, line=step.line):
+                    self.assertEqual(replays_a_finished_clip(step.code), [], f"{page}:{step.line}")
+        for path in iter_files(EXAMPLES, ".py"):
+            if os.sep + "media" + os.sep in path:
+                continue
+            src = _read(path)
+            if "loops=1" not in src:
+                continue
+            seen += 1
+            with self.subTest(example=os.path.basename(path)):
+                self.assertEqual(replays_a_finished_clip(src), [], path)
+        self.assertGreater(seen, 0, "no step plays a one-shot clip (15 'Três vidas' should)")
+
+    def test_the_check_catches_the_death_that_loops(self):
+        dying = ('class Heroi(Sprite):\n'
+                 '    def on_update(self, dt):\n'
+                 '        if st.vidas == 0:\n'
+                 '            if "bottom" in self.touching_sides:\n'
+                 '                self.play("morto", loops=1)\n'
+                 '            return\n')
+        self.assertEqual(len(replays_a_finished_clip(dying)), 1)
+        fixed = dying.replace('self.touching_sides:', 'self.touching_sides and not self.showing("morto"):')
+        self.assertEqual(replays_a_finished_clip(fixed), [])
+        self.assertEqual(replays_a_finished_clip(dying.replace('loops=1)', 'loops=1, next="parado")')), [])
+        other = fixed.replace('showing("morto")', 'showing("jogando")')
+        self.assertEqual(len(replays_a_finished_clip(other)), 1)
+        self.assertEqual(replays_a_finished_clip('def setup():\n    heroi.play("morto", loops=1)\n'), [])
 
 
 if __name__ == "__main__":

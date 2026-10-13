@@ -2,8 +2,9 @@
 
 Um jogo de tabuleiro para dois jogadores, vermelho e azul. Cada um, na sua
 vez, arrasta a bola do lado do tabuleiro e a solta numa coluna; a bola cai
-até a casa livre mais baixa. Quatro bolas da mesma cor em linha, deitadas
-ou em pé, ganham o jogo e acendem. As regras ficam numa lista por coluna.
+até a casa livre mais baixa. Quatro bolas da mesma cor em linha, deitadas,
+em pé ou na diagonal, ganham o jogo e acendem. As regras ficam numa lista
+por coluna.
 
 Controles
 ---------
@@ -87,7 +88,7 @@ def quatro(x, y, dx, dy):
     for passo in range(4):
         c = x + passo * dx
         l = y + passo * dy
-        if c > 6 or l >= len(colunas[c]) or colunas[c][l].dono != st.vez:
+        if c > 6 or l < 0 or l >= len(colunas[c]) or colunas[c][l].dono != st.vez:
             return False
         bolas.append(colunas[c][l])
     for bola in bolas:
@@ -99,6 +100,8 @@ def conferir():
     for x in range(7):
         for y in range(6):
             if quatro(x, y, 1, 0) or quatro(x, y, 0, 1):
+                st.fim = True
+            if quatro(x, y, 1, 1) or quatro(x, y, 1, -1):
                 st.fim = True
 
 

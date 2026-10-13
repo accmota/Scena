@@ -7,8 +7,11 @@ desenho do ninja se inclina em volta dos pés (tilt, hitbox_anchor);
 robôs que viram na beirada
 (floor_below); uma segunda caixa de colisão só para a dor (add_hitbox),
 com um tempo sem sentir depois de cada golpe (untag / tag); raios
-elétricos que ligam e desligam (ElectricField, active); e um recomeço
-com um ato (Act, change_act, jogo_novo).
+elétricos que ligam e desligam (ElectricField, active); um elevador
+dourado que sobe e desce para sempre (fase["elevador"], Metal, move_by
+com loops e yoyo) até uma estrela alta; e um recomeço com um ato (Act,
+change_act, jogo_novo). Sem vidas, o ninja cai até o chão antes do clip
+"morto".
 
 Controles
 ---------
@@ -87,6 +90,8 @@ class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
 
     @collide_with("kunai")
     def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
         kunai.destroy()
         self.untag("robo")
         self.vel.x = 0
@@ -103,6 +108,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
 
     def on_update(self, dt):
         if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
             return
 
         if keyp("LEFT"):
@@ -132,9 +141,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
         if self.center.y < 30:
-            self.center = fase["inicio"].center
-            self.vel = Vec2(0, 0)
             self.perder()
+            if st.vidas > 0:
+                self.center = fase["inicio"].center
+                self.vel = Vec2(0, 0)
 
         if self.showing("jogando"):
             return
@@ -166,7 +176,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
             self.after(1.5, lambda: self.tag("dor"))
         else:
             play_sound("audio/gameover.wav")
-            self.play("morto", loops=1)
             st.aviso = "Fim de jogo · R recomeça"
 
 
@@ -197,6 +206,8 @@ class Fase(Act):
             peca.make()
         for peca in fase.group("plataforma"):
             peca.make()
+        elevador = fase["elevador"].make(group="plataforma", visual=Metal("gold"))
+        elevador.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
         for lugar in fase.group("parede"):
             parede = lugar.make(group="chao")
             parede.visible = False

@@ -114,6 +114,7 @@
   {"kind": "point", "groups": ["estrela"], "center": [3100, 380]},
   {"kind": "point", "groups": ["estrela"], "center": [3400, 550]},
   {"kind": "point", "groups": ["estrela"], "center": [3940, 200]},
+  {"kind": "point", "groups": ["estrela"], "center": [3900, 640]},
   {"kind": "point", "groups": ["robo"], "center": [840, 80]},
   {"kind": "point", "groups": ["robo"], "center": [720, 419]},
   {"kind": "point", "groups": ["robo"], "center": [1250, 80]},
@@ -123,5 +124,6 @@
   {"kind": "point", "groups": ["robo"], "center": [3700, 289]},
   {"kind": "rect", "groups": ["raio"], "center": [1350, 205], "width": 16, "height": 250},
   {"kind": "rect", "groups": ["raio"], "center": [2350, 205], "width": 16, "height": 250},
-  {"kind": "rect", "groups": ["raio"], "center": [3200, 205], "width": 16, "height": 250}
+  {"kind": "rect", "groups": ["raio"], "center": [3200, 205], "width": 16, "height": 250},
+  {"kind": "rect", "name": "elevador", "center": [3900, 200], "width": 120, "height": 24}
 ]}

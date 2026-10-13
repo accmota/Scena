@@ -384,8 +384,10 @@ run()
       body: `
         <p>Falta a regra que termina o jogo. Tudo o que ela precisa já está nas listas: a regra é Python puro.</p>
         <p><strong>De quem é a bola.</strong> Cada bola nova guarda o seu dono: <code>nova.dono = st.vez</code>. Um campo novo num objeto é só um nome e um valor, como o <code>self.fogo</code> do avião (12).</p>
-        <p><strong>Quatro seguidas.</strong> <code>quatro(x, y, dx, dy)</code> começa numa casa e dá quatro passos de <code>(dx, dy)</code>, como um <code>move_by</code> de casa em casa. Aqui, <code>x</code> é a coluna e <code>y</code> é o lugar na lista, contado de baixo para cima, como o y da tela. A cada passo, <code>c</code> e <code>l</code> são a coluna e o lugar na lista daquela casa, e ela olha o que tem lá. Se a casa sai do tabuleiro pela direita (<code>c &gt; 6</code>), está vazia (a lista da coluna é mais curta) ou é do outro jogador, não são quatro: a função devolve <code>False</code>. Se os quatro passos dão certo, as quatro bolas acendem (<code>glow</code>, o brilho do 05, aqui dourado) e ela devolve <code>True</code>.</p>
-        <p><strong>No tabuleiro todo.</strong> <code>conferir()</code> experimenta cada casa como começo, em duas direções: <code>(1, 0)</code> anda para a direita (quatro deitadas, numa linha) e <code>(0, 1)</code> anda para cima (quatro em pé, numa coluna). Ela só olha as bolas de quem acabou de jogar, porque só ele pode ter feito uma linha nova; por isso o <code>pousou</code> confere antes de trocar a vez.</p>
+        <p><strong>Quatro seguidas.</strong> <code>quatro(x, y, dx, dy)</code> começa numa casa e dá quatro passos de <code>(dx, dy)</code>, como um <code>move_by</code> de casa em casa. Aqui, <code>x</code> é a coluna e <code>y</code> é o lugar na lista, contado de baixo para cima, como o y da tela. A cada passo, <code>c</code> e <code>l</code> são a coluna e o lugar na lista daquela casa, e ela olha o que tem lá. Se a casa sai do tabuleiro pela direita (<code>c &gt; 6</code>) ou por baixo (<code>l &lt; 0</code>), está vazia (a lista da coluna é mais curta) ou é do outro jogador, não são quatro: a função devolve <code>False</code>. Se os quatro passos dão certo, as quatro bolas acendem (<code>glow</code>, o brilho do 05, aqui dourado) e ela devolve <code>True</code>.</p>
+        <p><strong>No tabuleiro todo.</strong> <code>conferir()</code> experimenta cada casa como começo, em quatro direções. As retas: <code>(1, 0)</code> anda para a direita (quatro deitadas, numa linha) e <code>(0, 1)</code> anda para cima (quatro em pé, numa coluna). As diagonais: <code>(1, 1)</code> sobe para a direita e <code>(1, -1)</code> desce para a direita. Não é preciso andar para a esquerda: a mesma linha, lida a partir da outra ponta, já foi conferida.</p>
+        <p><strong>Por baixo.</strong> A diagonal que desce é a única que pode sair por baixo do tabuleiro, e ela pede o <code>l &lt; 0</code>. Sem ele, o erro não aparece: um lugar negativo conta do fim da lista (<code>coluna[-1]</code> é a bola de cima, não “nenhuma”), e a função acharia quatro bolas onde não há.</p>
+        <p><strong>Quem acabou de jogar.</strong> <code>conferir()</code> só olha as bolas de quem acabou de jogar, porque só ele pode ter feito uma linha nova; por isso o <code>pousou</code> confere antes de trocar a vez.</p>
         <p><strong>O fim.</strong> Com quatro em linha, <code>st.fim</code> fica verdadeiro. O <code>pousou</code> toca a música da vitória e não troca a vez, e o <code>soltou</code> manda qualquer bola de volta. O aviso agora tem duas frases, e escolher entre elas pede um <code>if</code>: a fórmula do <code>@=</code> vira uma função com nome, <code>mensagem</code>. O <code>@=</code> aceita qualquer função que devolva o texto, e a chama de novo quando <code>st.vez</code> ou <code>st.fim</code> mudam.</p>
       `,
       code: `from scena import *
@@ -460,7 +462,7 @@ def quatro(x, y, dx, dy):
     for passo in range(4):
         c = x + passo * dx
         l = y + passo * dy
-        if c > 6 or l >= len(colunas[c]) or colunas[c][l].dono != st.vez:
+        if c > 6 or l < 0 or l >= len(colunas[c]) or colunas[c][l].dono != st.vez:
             return False
         bolas.append(colunas[c][l])
     for bola in bolas:
@@ -472,6 +474,8 @@ def conferir():
     for x in range(7):
         for y in range(6):
             if quatro(x, y, 1, 0) or quatro(x, y, 0, 1):
+                st.fim = True
+            if quatro(x, y, 1, 1) or quatro(x, y, 1, -1):
                 st.fim = True
 
 
@@ -558,7 +562,7 @@ def quatro(x, y, dx, dy):
     for passo in range(4):
         c = x + passo * dx
         l = y + passo * dy
-        if c > 6 or l >= len(colunas[c]) or colunas[c][l].dono != st.vez:
+        if c > 6 or l < 0 or l >= len(colunas[c]) or colunas[c][l].dono != st.vez:
             return False
         bolas.append(colunas[c][l])
     for bola in bolas:
@@ -570,6 +574,8 @@ def conferir():
     for x in range(7):
         for y in range(6):
             if quatro(x, y, 1, 0) or quatro(x, y, 0, 1):
+                st.fim = True
+            if quatro(x, y, 1, 1) or quatro(x, y, 1, -1):
                 st.fim = True
 
 
@@ -610,28 +616,16 @@ def arrastando(bola, alvo, pos):
           body: `
             <p>O jogo tem as regras mínimas. Daqui em diante, ele é seu. Algumas ideias, da mais simples para a mais trabalhosa:</p>
             <ul>
-              <li><strong>Diagonais.</strong> A diagonal que sobe é mais uma direção, <code>(1, 1)</code> (na caixa abaixo). A que desce, <code>(1, -1)</code>, pede um cuidado a mais: <code>l</code> pode ficar negativo, e um índice negativo conta do fim da lista (<code>coluna[-1]</code> é a última bola, não “nenhuma”). Acrescente <code>l &lt; 0 or</code> no começo do <code>if</code> de <code>quatro</code>.</li>
               <li><strong>Empate.</strong> As sete colunas cheias e ninguém com quatro: o jogo acaba empatado. No <code>pousou</code>, conte as bolas das listas; 42 é o tabuleiro cheio.</li>
               <li><strong>Placar.</strong> As vitórias de cada jogador em <code>st</code>, num texto com <code>@=</code>, que o <code>novo_jogo</code> não zera.</li>
               <li><strong>Uma festa para quem ganhou.</strong> As quatro bolas pulsando (<code>scale_to</code> com <code>loops="forever"</code>, como a frota do 05), ou um efeito no meio delas.</li>
               <li><strong>O computador.</strong> Um adversário que joga sozinho na vez do azul. A função <code>soltou</code> é sua, e dá para chamá-la à mão: <code>soltou(proxima, None, casa.center)</code> joga na coluna daquela casa. No <code>pousou</code>, um <code>after</code> espera um pouco e o computador escolhe uma coluna. Comece sorteando uma coluna que não esteja cheia; depois, ensine-o a completar as suas linhas de três e a fechar as do adversário.</li>
             </ul>
           `,
-          try: [
-            {
-              note: "As diagonais que sobem: mais uma direção no <code>if</code>. No lugar de <code>conferir</code>:",
-              replaces: ['def conferir():', 'for x in range(7):', 'for y in range(6):', 'if quatro(x, y, 1, 0)', 'st.fim = True'],
-              code: `def conferir():
-    for x in range(7):
-        for y in range(6):
-            if quatro(x, y, 1, 0) or quatro(x, y, 0, 1) or quatro(x, y, 1, 1):
-                st.fim = True`
-            }
-          ]
         }
       ],
       closing: `
-        <p>Arraste a bola do lado esquerdo e solte-a em cima de uma coluna: ela cai até a casa livre mais baixa, e a vez passa para o outro jogador. Quatro bolas da mesma cor em linha, deitadas ou em pé, ganham o jogo e acendem. <strong>Novo jogo</strong> limpa o tabuleiro.</p>
+        <p>Arraste a bola do lado esquerdo e solte-a em cima de uma coluna: ela cai até a casa livre mais baixa, e a vez passa para o outro jogador. Quatro bolas da mesma cor em linha, deitadas, em pé ou na diagonal, ganham o jogo e acendem. <strong>Novo jogo</strong> limpa o tabuleiro.</p>
       `,
       recap: `
         <ul>

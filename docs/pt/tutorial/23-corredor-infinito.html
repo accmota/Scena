@@ -511,7 +511,7 @@ return 160 - 90 * sin(x / 900) ** 8`
         <p><strong>Mão única.</strong> A tábua segura o robô como o chão, com mais um <code>resolve</code>, e é de mão única como as tábuas do 22: <code>only="bottom"</code> (só embaixo) segura só os pés. O pulo que sai da beira do buraco passa por baixo e atravessa a tábua; caindo, o robô pisa nela. Sólida dos quatro lados, ela pararia o robô no meio do pulo, de lado, e o derrubaria no buraco. Por isso ela tem um grupo só dela, <code>tabua</code>.</p>
         <p><strong>Onde.</strong> <code>x</code> é sorteado com <code>slot.rng.uniform</code> entre as bordas do chão da vaga, 40 para dentro de cada lado (o buraco fica fora). A altura vem de <code>altura(x)</code>: a função que fez o chão diz onde ele está naquele x, e a caixa e o enfeite ficam em pé nele. As moedas ficam 120 acima: só se pega no pulo.</p>
         <p><strong>As três.</strong> Em 40% das vagas, três moedas: <code>moedas(x, y)</code> faz a fileira, cada uma um <code>Circle</code> com o visual <code>Sphere</code> (esfera) laranja, que dá volume e um brilho de ouro; a mesma função põe as moedas da plataforma. Das outras, a partir da quarta vaga, metade ganha uma caixa (<code>Crate.png</code>, da pasta <code>tilesets/Object/</code>); o resto, uma moita, um cogumelo ou uma placa, sorteados da lista <code>MOITAS</code>, sem grupo: só enfeite.</p>
-        <p><strong>Pegar e bater.</strong> No <code>Robo</code>, <code>@collide_with("moeda")</code> destrói a moeda, soma uma e toca um som; o placar mostra as moedas. <code>@collide_with("caixa")</code> acaba a corrida, com um tremor de tela. A caixa não entra no <code>resolve</code>: ela não segura o robô, só o derruba. Sem corrida, o desenho troca para <code>caindo</code>, o clip novo (<code>Dead (*).png</code>), tocado uma vez (<code>loops=1</code>): o robô desaba e fica no chão.</p>
+        <p><strong>Pegar e bater.</strong> No <code>Robo</code>, <code>@collide_with("moeda")</code> destrói a moeda, soma uma e toca um som; o placar mostra as moedas. <code>@collide_with("caixa")</code> acaba a corrida, com um tremor de tela. A caixa não entra no <code>resolve</code>: ela não segura o robô, só o derruba. Sem corrida, o desenho troca para <code>caindo</code>, o clip novo (<code>Dead (*).png</code>), tocado uma vez (<code>loops=1</code>): o robô desaba e fica no chão. O <code>on_update</code> passa por ali a cada quadro, e um clip de <code>loops=1</code> que já acabou recomeça se for pedido de novo; por isso a pergunta antes, <code>if not self.showing("caindo")</code> (se o desenho ainda não é da queda), como o ninja morto do 15.</p>
         <p><strong>O sorteio da vaga, de novo.</strong> Todos os sorteios são do <code>slot.rng</code>, como no 13. Mas neste jogo o robô só vai para a frente: uma vaga que ficou para trás nunca volta, e o <code>random</code> solto também funcionaria. O <code>slot.rng</code> vale assim mesmo. Com <code>seed=</code> (caixa abaixo), a pista inteira se repete, buraco por buraco, moeda por moeda, porque cada vaga tira tudo do seu próprio sorteio. E se o jogo mudar (uma tecla que deixa o robô voltar, uma câmera que recua para mostrar o caminho), toda vaga que voltar à tela volta igual.</p>
       `,
       code: `from math import sin
@@ -600,7 +600,8 @@ class Robo(Sprite, source=folha, hitbox_shape="rect", hitbox_anchor="bottom"):
             play_sound("synth/jump.wav")
         self.vel.y -= 2200 * dt
         if not st.correndo:
-            self.play("caindo", loops=1)
+            if not self.showing("caindo"):
+                self.play("caindo", loops=1)
         elif no_chao:
             self.play("correndo")
         else:
@@ -764,7 +765,8 @@ class Robo(Sprite, source=folha, hitbox_shape="rect", hitbox_anchor="bottom"):
             play_sound("synth/jump.wav")
         self.vel.y -= 2200 * dt
         if not st.correndo:
-            self.play("caindo", loops=1)
+            if not self.showing("caindo"):
+                self.play("caindo", loops=1)
         elif no_chao:
             self.play("correndo")
         else:
@@ -940,7 +942,8 @@ class Robo(Sprite, source=folha, hitbox_shape="rect", hitbox_anchor="bottom"):
             play_sound("synth/jump.wav")
         self.vel.y -= 2200 * dt
         if not st.correndo:
-            self.play("caindo", loops=1)
+            if not self.showing("caindo"):
+                self.play("caindo", loops=1)
         elif no_chao:
             self.play("correndo")
         else:

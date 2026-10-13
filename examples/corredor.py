@@ -129,7 +129,8 @@ class Robo(Sprite, source=folha, hitbox_shape="rect", hitbox_anchor="bottom"):
             play_sound("synth/jump.wav")
         self.vel.y -= 2200 * dt
         if not st.correndo:
-            self.play("caindo", loops=1)
+            if not self.showing("caindo"):
+                self.play("caindo", loops=1)
         elif no_chao:
             self.play("correndo")
         else:
