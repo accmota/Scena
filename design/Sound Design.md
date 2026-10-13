@@ -337,7 +337,7 @@ a mixer reset) gets `update()`. `.level` stays a live read; the node only says
   follows the cell only, and a later `g.mic = other` / `st.mic = other`
   leaves the formula on the first mic's level (link again after replacing a
   mic). A mic opened on demand links where it
-  opens: tutorial 18 writes `st["voz"] @= lambda: amp_db(self.mic.level)`
+  opens: tutorial 21 writes `st["voz"] @= lambda: amp_db(self.mic.level)`
   right after `Microphone()` in the R handler, and the meter, the light and
   the `@when` read `st.voz` (0 until then). Opening the mic at the top of the
   file would warn on a machine with no input (and the tutorial runner has

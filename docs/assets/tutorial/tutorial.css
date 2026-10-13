@@ -565,6 +565,14 @@ pre.code {
   margin-bottom: 2rem;
 }
 
+/* A second list on the index (the appendices), after the tutorials. */
+.index-wrap .index-section {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin: 3.5rem 0 0.45rem;
+}
+
 .card {
   display: block;
   background: var(--bg-elev);

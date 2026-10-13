@@ -1189,11 +1189,14 @@ class Shape(Graphic, PaintState):
     _HOME_OPTIONAL_KEYS: frozenset = frozenset()
     _HOME_SIZE_KEYS: frozenset = frozenset()
 
+    @classmethod
+    def _class_keywords(cls) -> frozenset:
+        return _SHAPE_STYLE_KEYS | (getattr(cls, '_HOME_SIZE_KEYS', frozenset()) or frozenset())
+
     def __init_subclass__(cls, **kwargs):
         incoming: Dict[str, Any] = {}
         unexpected: Dict[str, Any] = {}
-        size_keys = getattr(cls, '_HOME_SIZE_KEYS', frozenset()) or frozenset()
-        allowed = _SHAPE_STYLE_KEYS | set(size_keys)
+        allowed = cls._class_keywords()
         for key in list(kwargs):
             if key in allowed:
                 incoming[key] = kwargs.pop(key)

@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Giros — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "13",
+  title: "Giros",
+  steps: [
+    {
+      title: "Uma barra que gira",
+      part: "Script 1 · Barras girando",
+      fresh: true,
+      body: `
+        <p>Este tutorial é sobre <strong>giros que se somam</strong>. São dois scripts, os dois de arte, não de jogo. No primeiro, uma barra gira; em cada ponta dela nasce uma barra menor, que também gira; nas pontas dessas, outras, e assim por diante. Sessenta e três barras desenham laços que parecem complicados, e saem de uma regra curta. No segundo, um ponto dá uma volta grande e uma pequena ao mesmo tempo, e um rastro mostra a figura que os dois giros fazem juntos.</p>
+        <p>Começamos com uma barra só.</p>
+        <p><strong>A barra.</strong> <code>Rect</code> (retângulo) no centro da janela, com <code>width</code> (largura) 500 e <code>height</code> (altura) 33: comprida e fina.</p>
+        <p><strong>Graus.</strong> <code>angle</code> (ângulo) é quanto a barra está girada, em <strong>graus</strong>. Uma volta inteira tem 360 graus. Com 0, a barra fica deitada; com 90 (um quarto de volta), fica em pé; com 180 (meia volta), deitada de novo, virada ao contrário. Quando o ângulo cresce, a barra gira no sentido contrário ao dos ponteiros do relógio.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 360 210" role="img" aria-label="Uma barra girada de 30 graus no centro de um círculo marcado com 0, 90, 180 e 270 graus">
+            <circle class="guide" cx="180" cy="110" r="80"/>
+            <rect class="bar" x="-70" y="-6" width="140" height="12" transform="translate(180 110) rotate(-30)"/>
+            <line class="ray" x1="180" y1="110" x2="262" y2="110"/>
+            <path class="guide" d="M 222 110 A 42 42 0 0 0 216.4 89"/>
+            <circle class="dot" cx="180" cy="110" r="3"/>
+            <text x="268" y="114">0°</text>
+            <text x="180" y="22" text-anchor="middle">90°</text>
+            <text x="92" y="114" text-anchor="end">180°</text>
+            <text x="180" y="206" text-anchor="middle">270°</text>
+            <text x="230" y="104">30°</text>
+          </svg>
+          <figcaption>O ângulo em graus. 0 é a barra deitada; o ângulo cresce no sentido contrário ao dos ponteiros do relógio, e 360 é uma volta inteira.</figcaption>
+        </figure>
+        <p><strong>O giro.</strong> A linha <code>barra["angle"] @= …</code> liga o ângulo a uma fórmula. Com <code>@=</code>, o Scena refaz a conta a cada quadro, como no placar do tutorial 2; o nome do campo vai entre colchetes, para apontar o campo que recebe a fórmula. A fórmula lê <code>clock.time</code> (relógio, tempo): quantos segundos se passaram desde o início. Vezes 26, a barra gira 26 graus por segundo, e uma volta leva uns 14 segundos.</p>
+        <p><strong>O <code>%</code>.</strong> É o <strong>resto da divisão</strong>. <code>370 % 360</code> é 10: 370 cabe uma vez em 360 e sobram 10. Depois de 20 segundos, <code>clock.time * 26</code> dá 520, e <code>520 % 360</code> dá 160. É a mesma posição: 520 graus são uma volta inteira mais 160. O Scena aceitaria 520 também; o <code>%</code> só mantém o número entre 0 e 360, fácil de ler quando você quiser mostrá-lo num <code>print</code>.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Barras girando")
+
+barra = Rect(center=(W / 2, H / 2), width=500, height=33)
+barra["angle"] @= lambda: (clock.time * 26) % 360
+
+run()
+`,
+      try: [
+        {
+          note: "No lugar da fórmula. Um número negativo gira para o outro lado, no sentido dos ponteiros do relógio. 90 graus por segundo é um quarto de volta por segundo.",
+          replaces: ['barra["angle"] @='],
+          code: `barra["angle"] @= lambda: (clock.time * -90) % 360`
+        }
+      ]
+    },
+    {
+      title: "Uma receita para barras",
+      body: `
+        <p>Vamos precisar de muitas barras, todas feitas do mesmo jeito: muda só o tamanho, o lugar e o giro. Em vez de copiar as linhas da barra várias vezes, escrevemos uma <strong>função</strong>, uma receita que se usa quantas vezes quiser.</p>
+        <p><strong>Parâmetros.</strong> Você já escreveu funções com <code>def</code>. Esta recebe informações: <code>nivel</code> e <code>centro</code>, entre os parênteses, são os <strong>parâmetros</strong>. Na chamada <code>criar_barra(1, (180, 150))</code>, o <code>nivel</code> vale 1 e o <code>centro</code> vale <code>(180, 150)</code>. A função roda as mesmas linhas com esses valores. As três chamadas no fim criam três barras, cada uma com o seu nível e o seu lugar. A linha da barra antiga sai: agora quem cria barras é a função.</p>
+        <p><strong>O tamanho do nível.</strong> A barra do nível 0 é a grande, com <code>COMPRIMENTO</code> (metade da largura da janela). Cada nível seguinte tem a metade do anterior. Quem faz a conta é <code>FATOR_TAMANHO ** nivel</code>: <code>**</code> é a <strong>potência</strong> do Python, um número multiplicado por ele mesmo tantas vezes. <code>2 ** 0</code> é 1, <code>2 ** 1</code> é 2, <code>2 ** 2</code> é 4. Dividindo 500 por esses números, os comprimentos são 500, 250 e 125. A altura é sempre 1/15 do comprimento (<code>PROPORCAO</code>): as barras têm o mesmo formato, só o tamanho muda.</p>
+        <p><strong>O giro do nível.</strong> A fórmula do ângulo ganha <code>FATOR_GIRO ** nivel</code>, com <code>FATOR_GIRO = -1.5</code>. No nível 0, isso dá 1; no nível 1, −1,5; no nível 2, 2,25 (negativo vezes negativo dá positivo). O sinal alterna: cada nível gira ao contrário do anterior, e um pouco mais rápido. Rode: a barra grande gira como antes, a média gira para o outro lado, e a pequena volta ao sentido da grande, mais depressa.</p>
+        <p><strong>Constantes.</strong> Os nomes em maiúsculas no topo (<code>PROPORCAO</code>, <code>VELOCIDADE</code>…) são números que não mudam enquanto o programa roda. Ficam juntos no topo para você experimentar outros valores sem caçá-los no meio do código. As maiúsculas são um costume do Python para dizer “isto não muda”.</p>
+        <p>O <code>Rect(</code> agora ocupa várias linhas, uma por parâmetro. Dentro de parênteses, o Python deixa quebrar a linha onde quiser; numa chamada longa, fica mais fácil de ler.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Barras girando")
+
+PROPORCAO = 1 / 15  # altura / comprimento
+FATOR_TAMANHO = 2
+COMPRIMENTO = W * 0.5
+
+VELOCIDADE = 26
+FATOR_GIRO = -1.5
+
+
+def criar_barra(nivel, centro):
+    comprimento = COMPRIMENTO / (FATOR_TAMANHO ** nivel)
+    altura = comprimento * PROPORCAO
+
+    barra = Rect(
+        center=centro,
+        width=comprimento,
+        height=altura,
+    )
+
+    barra["angle"] @= lambda: (clock.time * VELOCIDADE * (FATOR_GIRO ** nivel)) % 360
+
+
+criar_barra(0, (W / 2, H / 2))
+criar_barra(1, (180, 150))
+criar_barra(2, (820, 150))
+run()
+`,
+      try: [
+        {
+          note: "Troque o <code>FATOR_GIRO</code> no topo, um por vez. Positivo: todos os níveis giram para o mesmo lado. −1: todos na mesma velocidade, com sentidos alternados.",
+          code: `FATOR_GIRO = 1.5
+FATOR_GIRO = -1`
+        }
+      ]
+    },
+    {
+      title: "A função chama a si mesma",
+      body: `
+        <p>Apague as duas chamadas de teste do fim; fica só a barra do nível 0. As filhas vão nascer de outro jeito: dentro de <code>criar_barra</code> entra uma chamada a <code>criar_barra</code>. A função chama a si mesma. Isso tem nome: <strong>recursão</strong>. O Python deixa: uma função é uma receita, e dentro dela vale usar qualquer receita, até ela mesma.</p>
+        <p><strong>Siga as chamadas.</strong> A linha do fim, <code>criar_barra(0, (W / 2, H / 2))</code>, cria a barra do nível 0. Antes de terminar, a função pergunta: <code>nivel &lt; RECURSOES</code>? 0 é menor que 2, então ela chama <code>criar_barra(nivel + 1, …)</code>, com nível 1. Essa segunda chamada cria a barra 1 e faz a mesma pergunta: 1 é menor que 2, então chama a do nível 2. A terceira cria a barra 2 e pergunta de novo: 2 não é menor que 2. Dessa vez a função não chama ninguém e termina. Cada chamada, ao terminar, devolve o controle a quem a chamou, até voltar à linha do fim. Resultado: três barras.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 440 190" role="img" aria-label="Três chamadas de criar_barra em escada, do nível 0 ao 2; a última para">
+            <rect class="bar" x="10" y="12" width="170" height="32" rx="4"/>
+            <rect class="bar" x="50" y="78" width="170" height="32" rx="4"/>
+            <rect class="bar child" x="90" y="144" width="170" height="32" rx="4"/>
+            <text x="95" y="32" text-anchor="middle">criar_barra(0, …)</text>
+            <text x="135" y="98" text-anchor="middle">criar_barra(1, …)</text>
+            <text x="175" y="164" text-anchor="middle">criar_barra(2, …)</text>
+            <line class="ray" x1="40" y1="44" x2="64" y2="76"/>
+            <line class="ray" x1="64" y1="76" x2="56" y2="72"/>
+            <line class="ray" x1="64" y1="76" x2="63" y2="67"/>
+            <line class="ray" x1="80" y1="110" x2="104" y2="142"/>
+            <line class="ray" x1="104" y1="142" x2="96" y2="138"/>
+            <line class="ray" x1="104" y1="142" x2="103" y2="133"/>
+            <text x="194" y="32">barra 0 · 0 &lt; 2? sim</text>
+            <text x="234" y="98">barra 1 · 1 &lt; 2? sim</text>
+            <text x="274" y="164">barra 2 · 2 &lt; 2? não</text>
+            <text x="274" y="182">a cadeia para</text>
+          </svg>
+          <figcaption>Cada chamada cria a sua barra e pergunta se ainda pode descer. A do nível 2 responde que não, e a cadeia para.</figcaption>
+        </figure>
+        <p><strong>O freio.</strong> Esse <code>if</code> é o freio da recursão. Sem ele, cada chamada criaria uma barra e chamaria a próxima, para sempre. O Python não deixa ir tão longe: depois de umas mil chamadas, ele interrompe o programa com um erro, <code>RecursionError</code>. Toda recursão precisa de uma pergunta que, em algum momento, responde “chega”. Aqui ela chega porque o nível cresce 1 a cada chamada (<code>nivel + 1</code>) e um dia alcança <code>RECURSOES</code>.</p>
+        <p><strong>Onde a filha nasce.</strong> O segundo valor da chamada é o centro da filha: <code>barra.right_square_center</code> (centro do quadrado da direita), um ponto perto da ponta direita da mãe. O próximo passo mostra esse ponto com calma.</p>
+        <p>Rode e olhe com atenção. As filhas nascem na ponta da mãe, mas ficam lá: a mãe gira e se afasta, e as filhas continuam girando no lugar onde a ponta estava no começo. É que <code>barra.right_square_center</code> é lido uma vez só, na hora da chamada. A filha recebe uma cópia daquele ponto, um lugar fixo. O próximo passo conserta isso.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Barras girando")
+
+RECURSOES = 2
+PROPORCAO = 1 / 15  # altura / comprimento
+FATOR_TAMANHO = 2
+COMPRIMENTO = W * 0.5
+
+VELOCIDADE = 26
+FATOR_GIRO = -1.5
+
+
+def criar_barra(nivel, centro):
+    comprimento = COMPRIMENTO / (FATOR_TAMANHO ** nivel)
+    altura = comprimento * PROPORCAO
+
+    barra = Rect(
+        center=centro,
+        width=comprimento,
+        height=altura,
+    )
+
+    barra["angle"] @= lambda: (clock.time * VELOCIDADE * (FATOR_GIRO ** nivel)) % 360
+
+    if nivel < RECURSOES:
+        criar_barra(nivel + 1, barra.right_square_center)
+
+
+criar_barra(0, (W / 2, H / 2))
+run()
+`,
+      dive: [
+        {
+          title: "Recursão em miniatura",
+          body: `
+            <p>Uma recursão bem pequena, sem barras. <code>contar(3)</code> mostra o 3 e chama <code>contar(2)</code>, que mostra o 2 e chama <code>contar(1)</code>, e assim até o 0, quando a pergunta <code>n &gt; 0</code> dá falso e ninguém mais é chamado. As três partes de toda recursão estão aqui: o trabalho da vez (<code>print</code>), a pergunta que freia (<code>if</code>) e a chamada com um valor que anda em direção ao freio (<code>n - 1</code>).</p>
+            <p>Cole no fim do script, antes do <code>run()</code>, e veja os números no console.</p>
+          `,
+          try: [
+            {
+              code: `def contar(n):
+    print(n)
+    if n > 0:
+        contar(n - 1)
+
+
+contar(3)`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "Presa à mãe",
+      body: `
+        <p>Uma palavra resolve o problema: <code>lambda</code>. A filha deixa de receber um ponto e passa a receber uma fórmula, <code>lambda: barra.right_square_center</code>. Como as linhas do tutorial de geometria, um <code>center</code> com <code>lambda</code> acompanha o que lê: o Scena refaz a conta a cada quadro. A mãe gira, a ponta dela anda, e a filha vai junto.</p>
+        <p><strong>O quadrado da ponta.</strong> Imagine um quadrado em cada ponta da barra, com o lado igual à altura dela. <code>left_square_center</code> e <code>right_square_center</code> (centro do quadrado da esquerda / da direita) são os centros desses quadrados: dois pontos um pouco para dentro das pontas, que giram junto com a barra. Como o centro da filha fica sobre o corpo da mãe, a filha parece pregada nela, como uma peça presa por um eixo. Por enquanto usamos só o da direita; o da esquerda entra no próximo passo.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 420 150" role="img" aria-label="Uma barra com um quadrado tracejado em cada ponta; uma barra menor nasce no centro de cada quadrado">
+            <rect class="bar child" x="-60" y="-4" width="120" height="8" transform="translate(70 92) rotate(20)"/>
+            <rect class="bar child" x="-60" y="-4" width="120" height="8" transform="translate(350 92) rotate(20)"/>
+            <rect class="bar" x="60" y="82" width="300" height="20"/>
+            <rect class="guide" x="60" y="82" width="20" height="20"/>
+            <rect class="guide" x="340" y="82" width="20" height="20"/>
+            <circle class="dot" cx="70" cy="92" r="3.5"/>
+            <circle class="dot" cx="350" cy="92" r="3.5"/>
+            <line class="ray" x1="70" y1="86" x2="70" y2="34"/>
+            <line class="ray" x1="350" y1="86" x2="350" y2="34"/>
+            <text x="70" y="26" text-anchor="middle">left_square_center</text>
+            <text x="350" y="26" text-anchor="middle">right_square_center</text>
+            <text x="210" y="122" text-anchor="middle">mãe</text>
+            <text x="22" y="134">filha</text>
+            <text x="398" y="134" text-anchor="end">filha</text>
+          </svg>
+          <figcaption>Um quadrado imaginário em cada ponta, com o lado igual à altura da barra. A filha nasce no centro de um deles e, com a <code>lambda</code>, continua lá quando a mãe gira.</figcaption>
+        </figure>
+        <p><strong>Cada chamada tem a sua barra.</strong> Na fórmula, <code>barra</code> é qual barra? Cada chamada de uma função tem as suas próprias variáveis. O <code>barra</code> da chamada do nível 0 é a barra grande; o da chamada do nível 1 é a média. A <code>lambda</code> criada dentro de uma chamada lembra o <code>barra</code> daquela chamada. Por isso cada filha segue a sua mãe, e não a última barra criada.</p>
+        <p><strong>Dois movimentos.</strong> Rode. Cada filha gira em volta do próprio centro, pela fórmula do ângulo dela, e ao mesmo tempo é carregada pela ponta da mãe. A pequena faz isso duas vezes: gira, é carregada pela média, que é carregada pela grande. Somados, esses giros fazem o braço dobrar e desdobrar.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Barras girando")
+
+RECURSOES = 2
+PROPORCAO = 1 / 15  # altura / comprimento
+FATOR_TAMANHO = 2
+COMPRIMENTO = W * 0.5
+
+VELOCIDADE = 26
+FATOR_GIRO = -1.5
+
+
+def criar_barra(nivel, centro):
+    comprimento = COMPRIMENTO / (FATOR_TAMANHO ** nivel)
+    altura = comprimento * PROPORCAO
+
+    barra = Rect(
+        center=centro,
+        width=comprimento,
+        height=altura,
+    )
+
+    barra["angle"] @= lambda: (clock.time * VELOCIDADE * (FATOR_GIRO ** nivel)) % 360
+
+    if nivel < RECURSOES:
+        criar_barra(nivel + 1, lambda: barra.right_square_center)
+
+
+criar_barra(0, (W / 2, H / 2))
+run()
+`
+    },
+    {
+      title: "Duas filhas",
+      body: `
+        <p>Agora a segunda filha: mais uma chamada dentro do <code>if</code>, com <code>left_square_center</code>, a ponta esquerda. Cada barra que passa no <code>if</code> chama a função <strong>duas</strong> vezes, e cada filha faz o mesmo com as suas.</p>
+        <p><strong>Contando.</strong> O nível 0 tem 1 barra. Ela tem 2 filhas (nível 1), e cada filha tem 2 (nível 2): 4. A cada nível, o número dobra. Com <code>RECURSOES = 2</code>, são 1 + 2 + 4 = 7 barras. A figura mostra quem chama quem.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 560 210" role="img" aria-label="Árvore de chamadas: uma barra no nível 0, duas no nível 1, quatro no nível 2, numeradas pela ordem em que nascem">
+            <line class="ray" x1="355" y1="44" x2="245" y2="94"/>
+            <line class="ray" x1="355" y1="44" x2="465" y2="94"/>
+            <line class="ray" x1="245" y1="118" x2="190" y2="164"/>
+            <line class="ray" x1="245" y1="118" x2="300" y2="164"/>
+            <line class="ray" x1="465" y1="118" x2="410" y2="164"/>
+            <line class="ray" x1="465" y1="118" x2="520" y2="164"/>
+            <rect class="bar" x="315" y="20" width="80" height="24" rx="4"/>
+            <rect class="bar child" x="205" y="94" width="80" height="24" rx="4"/>
+            <rect class="bar child" x="425" y="94" width="80" height="24" rx="4"/>
+            <rect class="bar" x="155" y="164" width="70" height="24" rx="4"/>
+            <rect class="bar" x="265" y="164" width="70" height="24" rx="4"/>
+            <rect class="bar" x="375" y="164" width="70" height="24" rx="4"/>
+            <rect class="bar" x="485" y="164" width="70" height="24" rx="4"/>
+            <text x="355" y="36" text-anchor="middle">1</text>
+            <text x="245" y="110" text-anchor="middle">2</text>
+            <text x="190" y="180" text-anchor="middle">3</text>
+            <text x="300" y="180" text-anchor="middle">4</text>
+            <text x="465" y="110" text-anchor="middle">5</text>
+            <text x="410" y="180" text-anchor="middle">6</text>
+            <text x="520" y="180" text-anchor="middle">7</text>
+            <text x="282" y="64" text-anchor="end">esquerda</text>
+            <text x="428" y="64">direita</text>
+            <text x="8" y="36">nível 0 · 1 barra</text>
+            <text x="8" y="110">nível 1 · 2 barras</text>
+            <text x="8" y="180">nível 2 · 4 barras</text>
+          </svg>
+          <figcaption>As chamadas com <code>RECURSOES = 2</code>. Cada barra que passa no <code>if</code> chama duas filhas. O número é a ordem em que as barras nascem.</figcaption>
+        </figure>
+        <p><strong>A ordem.</strong> Repare nos números. O Python só passa para a linha seguinte quando a chamada da linha atual termina. A barra 1 chama a filha da esquerda (2), e essa chamada só termina depois de criar as filhas dela (3 e 4). Só então a barra 1 chega à segunda linha do <code>if</code> e chama a filha da direita (5), que cria 6 e 7. Cada ramo desce até o fim antes de o próximo começar.</p>
+        <p>Rode: duas filhas giram nas pontas da barra grande, e quatro netas nas pontas delas.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Barras girando")
+
+RECURSOES = 2
+PROPORCAO = 1 / 15  # altura / comprimento
+FATOR_TAMANHO = 2
+COMPRIMENTO = W * 0.5
+
+VELOCIDADE = 26
+FATOR_GIRO = -1.5
+
+
+def criar_barra(nivel, centro):
+    comprimento = COMPRIMENTO / (FATOR_TAMANHO ** nivel)
+    altura = comprimento * PROPORCAO
+
+    barra = Rect(
+        center=centro,
+        width=comprimento,
+        height=altura,
+    )
+
+    barra["angle"] @= lambda: (clock.time * VELOCIDADE * (FATOR_GIRO ** nivel)) % 360
+
+    if nivel < RECURSOES:
+        criar_barra(nivel + 1, lambda: barra.left_square_center)
+        criar_barra(nivel + 1, lambda: barra.right_square_center)
+
+
+criar_barra(0, (W / 2, H / 2))
+run()
+`,
+      try: [
+        {
+          note: "Um nível a mais: com 3, são 1 + 2 + 4 + 8 = 15 barras.",
+          code: `RECURSOES = 3`
+        }
+      ]
+    },
+    {
+      title: "Mais níveis, uma cor por nível",
+      body: `
+        <p><strong>Cinco níveis.</strong> Com <code>RECURSOES = 5</code>, a conta continua dobrando: 1 + 2 + 4 + 8 + 16 + 32 = 63 barras. Duas linhas de código dentro do <code>if</code> fazem todas elas. As menores têm 1/32 do comprimento da grande.</p>
+        <p><strong>Uma cor por nível.</strong> Com 63 barras da mesma cor, fica difícil ver quem é filha de quem. <code>PALETA</code> é uma <code>Palette</code> (paleta): um punhado de cores tiradas, em degraus iguais, de um degradê pronto. <code>"lisboa"</code> passa por creme, âmbar, azul-claro, rosa-antigo, azul-petróleo e verde-escuro. Sem dizer quantas, a paleta tira seis cores, uma para cada nível (0 a 5). <code>PALETA[nivel]</code> pega a cor daquele nível, como numa lista, e vai para o <code>color</code> (cor) da barra. Se o número passar da última cor, a paleta volta para a primeira, então nenhum nível fica sem cor.</p>
+        <p>Rode: a barra creme no meio, as âmbar nas pontas dela, as azuis nas pontas das âmbar. As menores, verde-escuro, desenham os laços mais apertados: giram mais rápido e são carregadas por cinco barras.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Barras girando")
+
+RECURSOES = 5
+PROPORCAO = 1 / 15  # altura / comprimento
+FATOR_TAMANHO = 2
+COMPRIMENTO = W * 0.5
+
+VELOCIDADE = 26
+FATOR_GIRO = -1.5
+
+PALETA = Palette("lisboa")
+
+
+def criar_barra(nivel, centro):
+    comprimento = COMPRIMENTO / (FATOR_TAMANHO ** nivel)
+    altura = comprimento * PROPORCAO
+
+    barra = Rect(
+        center=centro,
+        width=comprimento,
+        height=altura,
+        color=PALETA[nivel],
+    )
+
+    barra["angle"] @= lambda: (clock.time * VELOCIDADE * (FATOR_GIRO ** nivel)) % 360
+
+    if nivel < RECURSOES:
+        criar_barra(nivel + 1, lambda: barra.left_square_center)
+        criar_barra(nivel + 1, lambda: barra.right_square_center)
+
+
+criar_barra(0, (W / 2, H / 2))
+run()
+`,
+      try: [
+        {
+          note: "Outro degradê para a <code>PALETA</code>: <code>\"plasma\"</code>, <code>\"ocean\"</code> (oceano), <code>\"neon\"</code> ou <code>\"rdyl\"</code> (do vermelho ao amarelo). <code>steps</code> (passos) diz quantas cores tirar: com <code>steps=3</code>, as cores se repetem de três em três níveis.",
+          code: `PALETA = Palette("plasma", steps=3)`
+        }
+      ]
+    },
+    {
+      title: "Fundo, brilho e rastro",
+      body: `
+        <p>O movimento está pronto. Este passo muda só a maneira como ele aparece.</p>
+        <p><strong>O fundo.</strong> <code>Wallpaper</code> (papel de parede) com <code>Gradient("ocean", …)</code>, um degradê pronto do Scena, o ocean (oceano). <code>type="radial"</code> faz as cores saírem do centro em círculos, em vez de atravessar a tela de um lado a outro, e <code>size=1000</code> (tamanho) é o raio desse círculo. <code>Grain()</code> (grão) espalha por cima um chuvisco fraco e animado, como num filme antigo.</p>
+        <p><strong>O rastro.</strong> <code>MotionTrail()</code> (rastro de movimento) não desenha nada sozinho: ele mistura cada quadro com os anteriores, que vão se apagando aos poucos. Tudo que se mexe deixa um fantasma, e o que está parado continua igual. As barras pequenas, que andam depressa, viram fitas de luz. O efeito fica guardado em <code>mt</code>, para podermos desligá-lo no próximo passo.</p>
+        <p><strong>O brilho.</strong> <code>Aurora()</code> é o visual de cada barra: uma luz que ondula por dentro, na cor da própria barra. Fica dentro da função, então cada barra ganha o seu.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Barras girando")
+
+Wallpaper(Gradient("ocean", type="radial", size=1000))
+Grain()
+mt = MotionTrail()
+
+RECURSOES = 5
+PROPORCAO = 1 / 15  # altura / comprimento
+FATOR_TAMANHO = 2
+COMPRIMENTO = W * 0.5
+
+VELOCIDADE = 26
+FATOR_GIRO = -1.5
+
+PALETA = Palette("lisboa")
+
+
+def criar_barra(nivel, centro):
+    comprimento = COMPRIMENTO / (FATOR_TAMANHO ** nivel)
+    altura = comprimento * PROPORCAO
+
+    barra = Rect(
+        center=centro,
+        width=comprimento,
+        height=altura,
+        color=PALETA[nivel],
+    )
+
+    barra.visual = Aurora()
+    barra["angle"] @= lambda: (clock.time * VELOCIDADE * (FATOR_GIRO ** nivel)) % 360
+
+    if nivel < RECURSOES:
+        criar_barra(nivel + 1, lambda: barra.left_square_center)
+        criar_barra(nivel + 1, lambda: barra.right_square_center)
+
+
+criar_barra(0, (W / 2, H / 2))
+run()
+`,
+      try: [
+        {
+          note: "Outros fundos, um por vez: o mesmo degradê radial com o preset <code>nebula</code>, ou o <code>ocean</code> sem <code>type</code> (de um lado a outro). A última linha alonga o rastro: <code>fade</code> (desbotar) é quanto do fantasma sobra a cada quadro. O padrão é 0.9; perto de 1, ele demora a sumir.",
+          code: `Wallpaper(Gradient("nebula", type="radial", size=1000))
+Wallpaper(Gradient("ocean"))
+mt.fade = 0.97`
+        }
+      ]
+    },
+    {
+      title: "Painel e tecla",
+      example: "barras_girando.py",
+      body: `
+        <p>Por fim, controles para brincar com o desenho enquanto ele roda.</p>
+        <p><strong>Os sliders.</strong> As constantes <code>VELOCIDADE</code> e <code>FATOR_GIRO</code> saem do topo e viram <code>st.velocidade</code> e <code>st.fator_giro</code>. Dois <code>Slider</code> (o controle deslizante do tutorial 4) escrevem nesses valores, e a fórmula do ângulo passa a lê-los. Como a fórmula é refeita a cada quadro, o desenho muda no mesmo instante em que você arrasta, sem botão de aplicar.</p>
+        <p><strong>Um pulo.</strong> Arraste <strong>Velocidade</strong> depois de um tempo rodando: as barras pulam de lugar, em vez de só acelerar. É que o ângulo é <code>clock.time</code> vezes a velocidade. Depois de 100 segundos, passar a velocidade de 26 para 27 soma 100 graus de uma vez. O osciloscópio, no próximo script, mostra como evitar esse pulo.</p>
+        <p><strong>A tecla M.</strong> <code>@when</code> (quando) roda a função no momento em que a condição passa de falsa para verdadeira, então <code>muda_rastro</code> roda uma vez por toque em <code>M</code>: segurar não repete. <code>mt.enabled</code> (habilitado) liga e desliga o rastro, e <code>not</code> inverte o valor: o que era verdadeiro vira falso, e vice-versa.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Barras girando")
+
+Wallpaper(Gradient("ocean", type="radial", size=1000))
+Grain()
+mt = MotionTrail()
+
+RECURSOES = 5
+PROPORCAO = 1 / 15  # altura / comprimento
+FATOR_TAMANHO = 2
+COMPRIMENTO = W * 0.5
+
+st.velocidade = 26
+st.fator_giro = -1.5
+
+PALETA = Palette("lisboa")
+
+Slider(st["velocidade"], label="Velocidade", min_value=0, max_value=80)
+Slider(st["fator_giro"], label="Giro", min_value=-3, max_value=3)
+
+
+@when(lambda: keyp("M"))
+def muda_rastro():
+    mt.enabled = not mt.enabled
+
+
+def criar_barra(nivel, centro):
+    comprimento = COMPRIMENTO / (FATOR_TAMANHO ** nivel)
+    altura = comprimento * PROPORCAO
+
+    barra = Rect(
+        center=centro,
+        width=comprimento,
+        height=altura,
+        color=PALETA[nivel],
+    )
+
+    barra.visual = Aurora()
+    barra["angle"] @= lambda: (clock.time * st.velocidade * (st.fator_giro ** nivel)) % 360
+
+    if nivel < RECURSOES:
+        criar_barra(nivel + 1, lambda: barra.left_square_center)
+        criar_barra(nivel + 1, lambda: barra.right_square_center)
+
+
+criar_barra(0, (W / 2, H / 2))
+run()
+`,
+      closing: `
+        <p>Arraste <strong>Velocidade</strong> até 0: tudo para, e o rastro some. Leve <strong>Giro</strong> para 1: os níveis giram juntos, para o mesmo lado, como uma peça só. Valores negativos alternam os sentidos. <code>M</code> liga e desliga o rastro.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>angle</code> com <code>@=</code> — o ângulo, em graus, vira uma fórmula de <code>clock.time</code>, refeita a cada quadro; <code>%</code> mantém o número dentro de uma volta.</li>
+          <li>Parâmetros — <code>criar_barra(nivel, centro)</code> é uma receita: as mesmas linhas, com os valores de cada chamada; <code>**</code> faz cada nível ter a metade do tamanho e girar ao contrário.</li>
+          <li>Recursão — a função chama a si mesma até o <code>if</code> dizer “chega”; com duas chamadas, o número de barras dobra a cada nível.</li>
+          <li><code>lambda: barra.right_square_center</code> — um centro que é fórmula acompanha a mãe; sem a <code>lambda</code>, a filha fica onde a ponta estava.</li>
+          <li><code>Palette</code>, <code>Aurora</code>, <code>MotionTrail</code> — uma cor por nível, uma luz dentro da barra, um rastro na tela inteira.</li>
+          <li><code>Slider</code> que escreve em <code>st</code> mexe no desenho ao vivo: a fórmula lê o <code>st</code> a cada quadro.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#reativo-liga">Ligar (@=)</a> · <a href="../guide/index.html#reativo-lambda">Lambda</a> · <a href="../guide/index.html#frame-clock">clock</a> · <a href="../guide/index.html#shape-rect">Rect</a> · <a href="../guide/index.html#aparencia-palette">Palette</a> · <a href="../guide/index.html#mundo-post">Efeitos de tela</a> · <a href="../guide/index.html#ui-slider">Slider</a>.</p>
+        <p><strong>No próximo script:</strong> o osciloscópio — um ponto com dois giros somados e um rastro que desenha a figura.</p>
+      `
+    },
+    {
+      title: "Um ponto num círculo",
+      part: "Script 2 · Osciloscópio",
+      fresh: true,
+      body: `
+        <p>Segundo script. Pense na Lua: ela gira em volta da Terra, que gira em volta do Sol. Vista do Sol, a Lua não faz um círculo; faz um círculo com ondas. Aqui vamos construir isso: um ponto que dá uma volta grande em volta de uma bola e, ao mesmo tempo, uma volta pequena, e um rastro que mostra o caminho. O nome vem do osciloscópio, o aparelho que desenha sinais elétricos numa tela, com figuras parecidas. Primeiro, uma volta só.</p>
+        <p><strong>Um ponto num círculo.</strong> Para pôr um ponto num círculo de raio 200 em volta da bola, num certo ângulo <code>a</code>, anda-se um pedaço para o lado e um pedaço para cima. Quem diz o tamanho dos pedaços são duas funções da matemática: <code>cos</code> (cosseno) e <code>sin</code> (seno). Para cada ângulo, elas dão um número entre −1 e 1. No ângulo 0, <code>cos</code> é 1 e <code>sin</code> é 0: o ponto fica todo para a direita. Num quarto de volta, <code>cos</code> é 0 e <code>sin</code> é 1: o ponto fica em cima. Em meia volta, <code>cos</code> é −1: à esquerda. Multiplicando pelo raio, x = 200 · cos(a) e y = 200 · sin(a), contados a partir da bola.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 360 250" role="img" aria-label="Um círculo em volta da bola; a ponta no ângulo a; um pedaço horizontal 200 vezes cos de a e um vertical 200 vezes sin de a">
+            <circle class="guide" cx="130" cy="150" r="100"/>
+            <line class="ray" x1="130" y1="150" x2="206.6" y2="85.7"/>
+            <line class="guide" x1="130" y1="150" x2="206.6" y2="150"/>
+            <line class="guide" x1="206.6" y1="150" x2="206.6" y2="85.7"/>
+            <path class="guide" d="M 162 150 A 32 32 0 0 0 154.5 129.4"/>
+            <circle class="hot" cx="130" cy="150" r="8"/>
+            <circle class="dot" cx="206.6" cy="85.7" r="5"/>
+            <text x="116" y="154" text-anchor="end">bola</text>
+            <text x="168" y="145">a</text>
+            <text x="152" y="108" text-anchor="end">200</text>
+            <text x="168" y="168" text-anchor="middle">200 · cos(a)</text>
+            <text x="214" y="122">200 · sin(a)</text>
+            <text x="214" y="80">ponta</text>
+          </svg>
+          <figcaption>A ponta no ângulo <code>a</code>: anda 200 · cos(a) para o lado e 200 · sin(a) para cima, a partir da bola.</figcaption>
+        </figure>
+        <p><strong>Radianos.</strong> As funções <code>cos</code> e <code>sin</code> do Python medem o ângulo em <strong>radianos</strong>, não em graus como o <code>angle</code> das barras. É só outra régua: uma volta inteira vale 6.28 radianos (duas vezes π, que é 3.14), meia volta vale 3.14, e um quarto de volta, 1.57. Aqui o ângulo é <code>clock.time</code>: a ponta anda 1 radiano por segundo e dá uma volta em 6.28 segundos. Guarde o 6.28, ele volta no rastro.</p>
+        <p><strong>A ponta.</strong> <code>cos</code> e <code>sin</code> vêm do Python, não do Scena: <code>from math import cos, sin</code>, na linha 2. <code>Point()</code> (ponto) cria um ponto invisível, e <code>ponta @= lambda: (…)</code> liga o ponto inteiro a uma fórmula que devolve <code>(x, y)</code>. A fórmula lê <code>bola</code>: se a bola se mexer, o círculo vai junto.</p>
+        <p><strong>O ponteiro.</strong> Como o ponto é invisível, uma <code>Line</code> (linha) mostra onde ele está: <code>p1</code> e <code>p2</code> (ponto 1 e ponto 2), cada um uma <code>lambda</code>, uma ponta na bola e a outra na <code>ponta</code>. Rode: um ponteiro de relógio, girando ao contrário.</p>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Osciloscópio")
+
+bola = Circle(center=(W * 0.6, H * 0.5), radius=20, color="red")
+
+ponta = Point()
+ponta @= lambda: (
+    bola.center.x + 200 * cos(clock.time),
+    bola.center.y + 200 * sin(clock.time),
+)
+
+feixe = Line(p1=lambda: bola.center, p2=lambda: ponta)
+
+run()
+`,
+      dive: [
+        {
+          title: "cos, sin e vec_from_angle",
+          body: `
+            <p>No tutorial 10, a velocidade das bolas veio de <code>vec_from_angle(graus, comprimento)</code>, uma seta a partir de um ângulo. Ela faz por dentro a mesma conta com <code>cos</code> e <code>sin</code>, com o ângulo em graus. A caixa abaixo põe a ponta no mesmo lugar: <code>clock.time * 57.3</code> converte radianos em graus (1 radiano tem uns 57,3 graus), e a seta de comprimento 200 somada ao centro da bola dá o ponto do círculo.</p>
+            <p>Por que, então, <code>cos</code> e <code>sin</code>? Porque no passo 4 o x e o y vão ganhar giros pequenos diferentes, cada um com o seu tamanho. Com as duas contas separadas, isso é só mudar um número em cada linha.</p>
+            <p>No Guia: <a href="../guide/index.html#geo-vec2">Vec2 e vec_from_angle</a> · <a href="../guide/index.html#shape-point">Point</a>.</p>
+          `,
+          try: [
+            {
+              note: "No lugar da fórmula da ponta.",
+              replaces: ['ponta @= lambda: (', 'bola.center.x + 200', 'bola.center.y + 200', ')'],
+              code: `ponta @= lambda: bola.center + vec_from_angle(clock.time * 57.3, 200)`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "O tempo da ponta",
+      body: `
+        <p>A ponta gira devagar, e no fim um slider vai controlar a velocidade. Para isso, o ângulo deixa de ser <code>clock.time</code> e passa a ser um tempo nosso, <code>st.tempo</code>, que anda <code>st.n</code> radianos por segundo.</p>
+        <p><strong>O <code>update</code>.</strong> A cada quadro, <code>update</code> soma <code>dt * st.n</code> em <code>st.tempo</code>. Lembre do tutorial 1: <code>dt</code> é quantos segundos se passaram desde o quadro anterior, então somar <code>dt * st.n</code> a cada quadro dá <code>st.n</code> por segundo. Com <code>n</code> em 4, uma volta (6.28) leva 6.28 / 4, pouco mais de um segundo e meio.</p>
+        <p><strong>Por que somar aos poucos?</strong> Nas barras, o ângulo era <code>clock.time</code> vezes a velocidade, e mexer na velocidade fazia tudo pular. Aqui seria igual: depois de 100 segundos, mudar <code>n</code> de 4 para 5 somaria 100 radianos ao ângulo de uma vez. Somando a cada quadro, mudar <code>n</code> só muda quanto se soma daqui para frente: a ponta acelera, sem pular.</p>
+        <p><strong>Por que <code>st</code>?</strong> O <code>update</code> muda o tempo a cada quadro. Uma variável comum, criada fora da função, não pode ser mudada lá dentro sem <code>global</code>; o <code>st</code> é o lugar do Scena para guardar o que muda. <code>st.n</code> também fica nele, no topo, porque o slider vai escrever ali.</p>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Osciloscópio")
+
+st.n = 4
+
+
+bola = Circle(center=(W * 0.6, H * 0.5), radius=20, color="red")
+
+st.tempo = 0
+
+
+def update(dt):
+    st.tempo += dt * st.n
+
+
+ponta = Point()
+ponta @= lambda: (
+    bola.center.x + 200 * cos(st.tempo),
+    bola.center.y + 200 * sin(st.tempo),
+)
+
+feixe = Line(p1=lambda: bola.center, p2=lambda: ponta)
+
+run()
+`
+    },
+    {
+      title: "O rastro",
+      body: `
+        <p>Um ponteiro não mostra o caminho. Para ver por onde a ponta passa, um rastro.</p>
+        <p><strong>O <code>Contrail</code>.</strong> Você já o viu no tutorial 4 (o desenho) e no 10 (a bola escolhida): <code>Contrail</code> (rastro, como o de um avião no céu) é uma linha que passa pelos pontos que você dá a ele. Ele não segue nada sozinho. <code>rastro.snapshot(ponta)</code> (foto instantânea) guarda onde a ponta está agora, e <code>every(intervalo, função)</code> (a cada) chama a função de tempos em tempos. Aqui é <code>ponta.every(…)</code>: o timer é da ponta e para sozinho se um dia ela for destruída.</p>
+        <p><strong>Os números.</strong> O intervalo é <code>6.28 / (st.n * 100)</code>: o tempo de uma volta dividido por 100, cem fotos por volta. <code>duration</code> (duração) diz por quantos segundos cada foto fica no traço: <code>6.28 / 4</code> é o tempo de uma volta com <code>n</code> em 4, então o rastro guarda exatamente uma volta e fecha um círculo. <code>fade=True</code> (desbotar) apaga o traço aos poucos, da cabeça (a foto mais nova) até a cauda (a mais velha). <code>visual=Neon("red")</code> é o visual de tubo de neon, e <code>line_width</code> é a espessura.</p>
+        <p>Rode: o rastro persegue o ponteiro e fecha um círculo vermelho.</p>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Osciloscópio")
+
+st.n = 4
+
+
+bola = Circle(center=(W * 0.6, H * 0.5), radius=20, color="red")
+
+st.tempo = 0
+
+
+def update(dt):
+    st.tempo += dt * st.n
+
+
+ponta = Point()
+ponta @= lambda: (
+    bola.center.x + 200 * cos(st.tempo),
+    bola.center.y + 200 * sin(st.tempo),
+)
+
+feixe = Line(p1=lambda: bola.center, p2=lambda: ponta)
+
+rastro = Contrail(duration=6.28 / 4, fade=True, visual=Neon("red"), line_width=2.5)
+ponta.every(6.28 / (st.n * 100), lambda: rastro.snapshot(ponta))
+
+run()
+`,
+      try: [
+        {
+          note: "Outros rastros, um por vez, no lugar do <code>rastro</code>. O primeiro guarda as últimas 80 fotos, sem desbotar. O segundo dura 5 segundos, com <code>Laser</code> e retas em vez de curva (<code>smooth=0</code>); <code>ease</code> (suavização) deixa o traço forte quase todo e só o apaga perto da cauda.",
+          replaces: ['rastro = Contrail('],
+          code: `rastro = Contrail(max_points=80, color="cyan", line_width=4)
+rastro = Contrail(duration=5, fade=True, ease="ease_out", visual=Laser("lime"), smooth=0)`
+        }
+      ]
+    },
+    {
+      title: "Dois giros somados",
+      body: `
+        <p>Agora o segundo giro, por cima do primeiro. Cada linha da fórmula ganha mais uma parcela: <code>st.x1 * cos(st.tempo * st.tx1)</code> no x e <code>st.y1 * sin(st.tempo * st.ty1)</code> no y.</p>
+        <p><strong>O giro pequeno.</strong> A primeira parcela, <code>200 * cos(st.tempo)</code>, é o círculo grande em volta da bola. A nova é um círculo pequeno, de raio <code>x1</code> (60), com o ângulo <code>tx1</code> vezes mais rápido: ele dá 6 voltas a cada volta grande. Somar as duas é pôr o centro do círculo pequeno no caminho do grande, como a Lua que gira em volta da Terra enquanto a Terra gira em volta do Sol.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 380 250" role="img" aria-label="Um círculo grande em volta da bola e um círculo pequeno em volta de um ponto do grande; a ponta fica no círculo pequeno">
+            <circle class="guide" cx="160" cy="135" r="100"/>
+            <circle class="guide" cx="246.6" cy="85" r="34"/>
+            <line class="ray" x1="160" y1="135" x2="246.6" y2="85"/>
+            <line class="ray" x1="246.6" y1="85" x2="263.6" y2="55.6"/>
+            <circle class="hot" cx="160" cy="135" r="8"/>
+            <circle class="dot" cx="246.6" cy="85" r="3"/>
+            <circle class="dot" cx="263.6" cy="55.6" r="5"/>
+            <text x="160" y="160" text-anchor="middle">bola</text>
+            <text x="196" y="102" text-anchor="middle">200</text>
+            <text x="268" y="76">x1</text>
+            <text x="272" y="50">ponta</text>
+          </svg>
+          <figcaption>O giro grande (raio 200) carrega o centro do giro pequeno (raio <code>x1</code>), que dá <code>tx1</code> voltas a cada volta grande.</figcaption>
+        </figure>
+        <p><strong>A flor.</strong> Rode: o rastro desenha uma flor de cinco pétalas. Por que cinco, se o giro pequeno dá seis voltas? Porque o giro grande vai no mesmo sentido e “gasta” uma delas: vista da bola, a ponta só dá cinco laços. Com <code>tx1</code> negativo, o giro pequeno vai ao contrário e soma uma volta: com −3, saem quatro pontas.</p>
+        <p><strong>x e y separados.</strong> O x usa <code>x1</code> e <code>tx1</code>; o y, <code>y1</code> e <code>ty1</code>. Com os mesmos valores nos dois, o giro pequeno é um círculo. Com valores diferentes, ele vira uma elipse ou uma figura torta, e a flor se deforma. Os quatro estão em <code>st</code> porque o painel, no último passo, vai mexer neles.</p>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Osciloscópio")
+
+st.n = 4
+st.x1 = 60
+st.tx1 = 6
+st.y1 = 60
+st.ty1 = 6
+
+
+bola = Circle(center=(W * 0.6, H * 0.5), radius=20, color="red")
+
+st.tempo = 0
+
+
+def update(dt):
+    st.tempo += dt * st.n
+
+
+ponta = Point()
+ponta @= lambda: (
+    bola.center.x + 200 * cos(st.tempo) + st.x1 * cos(st.tempo * st.tx1),
+    bola.center.y + 200 * sin(st.tempo) + st.y1 * sin(st.tempo * st.ty1),
+)
+
+feixe = Line(p1=lambda: bola.center, p2=lambda: ponta)
+
+rastro = Contrail(duration=6.28 / 4, fade=True, visual=Neon("red"), line_width=2.5)
+ponta.every(6.28 / (st.n * 100), lambda: rastro.snapshot(ponta))
+
+run()
+`,
+      try: [
+        {
+          note: "Outras voltas para o giro pequeno: com as duas linhas, −3 em x e em y, sai uma estrela de quatro pontas. Depois troque um dos dois por outro número e veja a estrela entortar.",
+          code: `st.tx1 = -3
+st.ty1 = -3`
+        }
+      ]
+    },
+    {
+      title: "O clique liga",
+      body: `
+        <p>Até aqui, tudo começa sozinho. Agora a bola espera: ela pulsa, convidando ao clique, e só o clique liga o feixe e o rastro.</p>
+        <p><strong>A bola pulsa.</strong> <code>Beat()</code> (batida) é um visual que faz a bola crescer e encolher, como um coração. Ele mantém a cor que a bola já tem.</p>
+        <p><strong>O feixe.</strong> O ponteiro ganha o visual <code>ElectricField</code> (campo elétrico): faíscas amarelas em volta da linha. <code>feixe.visible = False</code> (visível) o esconde até o clique.</p>
+        <p><strong>O clique.</strong> <code>@click(bola)</code> roda <code>ligar</code> quando você clica na bola, como no tutorial 1. A função mostra o feixe, tira o visual da bola (<code>bola.visual = None</code>: some a batida, fica o vermelho) e começa as fotos do rastro: a linha do <code>ponta.every</code> desce para dentro de <code>ligar</code>.</p>
+        <p><strong>Um clique só.</strong> Um segundo clique criaria outro <code>every</code>, e o rastro ganharia o dobro de fotos. Para isso não acontecer, há <code>st.ligado</code>. No primeiro clique ele vira <code>True</code>; nos seguintes, o <code>return</code> (retornar) sai da função antes de tudo.</p>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Osciloscópio")
+
+st.n = 4
+st.x1 = 60
+st.tx1 = 6
+st.y1 = 60
+st.ty1 = 6
+st.ligado = False
+
+
+bola = Circle(center=(W * 0.6, H * 0.5), radius=20, color="red")
+bola.visual = Beat()
+
+st.tempo = 0
+
+
+def update(dt):
+    st.tempo += dt * st.n
+
+
+ponta = Point()
+ponta @= lambda: (
+    bola.center.x + 200 * cos(st.tempo) + st.x1 * cos(st.tempo * st.tx1),
+    bola.center.y + 200 * sin(st.tempo) + st.y1 * sin(st.tempo * st.ty1),
+)
+
+feixe = Line(p1=lambda: bola.center, p2=lambda: ponta)
+feixe.visual = ElectricField("yellow")
+feixe.visible = False
+
+rastro = Contrail(duration=6.28 / 4, fade=True, visual=Neon("red"), line_width=2.5)
+
+
+@click(bola)
+def ligar():
+    if st.ligado:
+        return
+    st.ligado = True
+    feixe.visible = True
+    bola.visual = None
+    ponta.every(6.28 / (st.n * 100), lambda: rastro.snapshot(ponta))
+
+
+run()
+`,
+      try: [
+        {
+          note: "Outro feixe e uma batida mais forte. Em <code>Beat</code>, <code>amount</code> (quantidade) é quanto a bola cresce, e <code>speed</code> (velocidade) é o ritmo.",
+          code: `feixe.visual = Laser("cyan")
+bola.visual = Beat(amount=0.3, speed=2)`
+        }
+      ]
+    },
+    {
+      title: "O painel",
+      example: "osciloscopio.py",
+      body: `
+        <p>Por fim, um <code>Slider</code> para cada valor que a fórmula da ponta lê. Como nas barras, não há botão de aplicar: o slider escreve em <code>st</code>, a <code>ponta</code> lê <code>st</code>, e o <code>feixe</code> e o <code>rastro</code> leem a <code>ponta</code>. Um gesto no painel atravessa o desenho inteiro. E, graças ao <code>st.tempo</code> somado no <code>update</code>, mudar <code>n</code> acelera a ponta sem pulo.</p>
+        <p><strong>Os limites.</strong> <code>x1</code> e <code>y1</code> vão de −100 a 100: um raio negativo começa o giro pequeno do lado oposto. <code>tx1</code> e <code>ty1</code> têm <code>only_int=True</code> (só inteiros): com voltas inteiras, a figura fecha a cada volta grande, e o rastro redesenha sempre o mesmo caminho. Com 2,5 voltas, ela não fecharia, e a figura ficaria girando.</p>
+        <p><strong>O tamanho do painel.</strong> Cinco sliders ocupam espaço. <code>ui.scale</code> (escala) muda o tamanho de todos os widgets de uma vez: 1 é o normal, e 0.9 é um pouco menor. A linha precisa vir antes de criar os widgets.</p>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Osciloscópio")
+
+ui.scale = 0.9
+
+st.n = 4
+st.x1 = 60
+st.tx1 = 6
+st.y1 = 60
+st.ty1 = 6
+st.ligado = False
+Slider(st["n"], label="n", min_value=1, max_value=6)
+Slider(st["x1"], label="x1", min_value=-100, max_value=100)
+Slider(st["tx1"], label="tx1", min_value=-10, max_value=10, only_int=True)
+Slider(st["y1"], label="y1", min_value=-100, max_value=100)
+Slider(st["ty1"], label="ty1", min_value=-10, max_value=10, only_int=True)
+
+
+bola = Circle(center=(W * 0.6, H * 0.5), radius=20, color="red")
+bola.visual = Beat()
+
+st.tempo = 0
+
+
+def update(dt):
+    st.tempo += dt * st.n
+
+
+ponta = Point()
+ponta @= lambda: (
+    bola.center.x + 200 * cos(st.tempo) + st.x1 * cos(st.tempo * st.tx1),
+    bola.center.y + 200 * sin(st.tempo) + st.y1 * sin(st.tempo * st.ty1),
+)
+
+feixe = Line(p1=lambda: bola.center, p2=lambda: ponta)
+feixe.visual = ElectricField("yellow")
+feixe.visible = False
+
+rastro = Contrail(duration=6.28 / 4, fade=True, visual=Neon("red"), line_width=2.5)
+
+
+@click(bola)
+def ligar():
+    if st.ligado:
+        return
+    st.ligado = True
+    feixe.visible = True
+    bola.visual = None
+    ponta.every(6.28 / (st.n * 100), lambda: rastro.snapshot(ponta))
+
+
+run()
+`,
+      closing: `
+        <p>Clique na bola para ligar. Depois arraste os sliders: <code>n</code> muda a velocidade; <code>x1</code> e <code>y1</code>, o tamanho do giro pequeno; <code>tx1</code> e <code>ty1</code>, quantas voltas ele dá.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>cos</code> e <code>sin</code> — põem um ponto num círculo: x = raio · cos(a), y = raio · sin(a), com o ângulo em radianos (uma volta = 6.28).</li>
+          <li><code>Point</code> com <code>@=</code> — um ponto invisível ligado a uma fórmula; a <code>Line</code> e o rastro o seguem.</li>
+          <li><code>st.tempo</code> somado no <code>update</code> com <code>dt</code> — a velocidade pode mudar sem a ponta pular.</li>
+          <li>Dois giros somados — o grande carrega o centro do pequeno; o número de voltas do pequeno decide a figura.</li>
+          <li><code>Contrail</code> + <code>snapshot</code> + <code>ponta.every</code> — uma linha pelos pontos que você guarda, de tempos em tempos.</li>
+          <li><code>@click</code> com <code>st.ligado</code> — o clique liga uma vez só; <code>ui.scale</code> encolhe o painel.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#shape-point">Point</a> · <a href="../guide/index.html#frame-clock">clock e dt</a> · <a href="../guide/index.html#contrail">Contrail</a> · <a href="../guide/index.html#agendar-timers">after / every</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#ui-slider">Slider</a> · <a href="../guide/index.html#ui-stack">Coluna</a>.</p>
+        <p><strong>No próximo:</strong> o avião — um jogo com arte desenhada, que voa entre pilares.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

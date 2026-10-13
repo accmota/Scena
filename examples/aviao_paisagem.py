@@ -1,6 +1,6 @@
-"""Avião III · Paisagem sem fim — tutorial 13.
+"""Avião III · Paisagem sem fim — tutorial 16.
 
-O avião do tutorial 12 com uma paisagem que não se repete: as faixas de
+O avião do tutorial 15 com uma paisagem que não se repete: as faixas de
 nuvens e de campo sorteiam a imagem de cada vaga (Endless com uma lista),
 árvores, casas e torres soltas são montadas por uma função (Endless com
 slot.rng e slot.chance), e o mato passa na frente do avião, numa camada

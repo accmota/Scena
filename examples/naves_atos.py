@@ -1,6 +1,6 @@
-"""Naves VI · Atos — tutorial 20.
+"""Naves VI · Atos — tutorial 23.
 
-O jogo de naves do tutorial 19 dividido em atos: um título com um botão
+O jogo de naves do tutorial 22 dividido em atos: um título com um botão
 JOGAR, a fase e o fim de jogo. Recomeçar é trocar de ato, sem código de
 limpeza; os pontos, as vidas e o recorde ficam no st, que atravessa os
 atos. A fase tem dois capítulos (modos async): a frota, até o grupo
@@ -144,7 +144,7 @@ class Chefe(Sprite, source=folha, frame="ufoRed.png", height=110, group="chefe")
         every(1.0, self.rajada)
 
     def rajada(self):
-        for dx in (-40, 0, 40):
+        for dx in [-40, 0, 40]:
             TiroInimigo(center=(self.center.x + dx, self.center.y - 50))
         play_sound("audio/laser7.wav")
 

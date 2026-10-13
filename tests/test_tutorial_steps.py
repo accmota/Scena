@@ -135,8 +135,9 @@ def run_all(paths: Optional[Sequence[str]] = None) -> List[str]:
 
 
 def page_case_name(path: str) -> str:
-    """``.../05-naves.html`` → ``TestSteps05`` (the number names the page)."""
-    return "TestSteps" + os.path.basename(path)[:2]
+    """``.../05-naves.html`` → ``TestSteps05`` (the number names the page);
+    an appendix ``.../A-depuracao.html`` → ``TestStepsA``."""
+    return "TestSteps" + os.path.basename(path).split("-")[0]
 
 
 def _page_case(path: str) -> type:
@@ -216,7 +217,7 @@ def headless_run(first_act=None):
     fw = ScenaFramework.get_instance()
     names = inspect.currentframe().f_back.f_globals
     fw.set_auto_callbacks(names)
-    # A game of acts (tutorial 20) opens on its title: start at the act whose
+    # A game of acts (tutorial 23) opens on its title: start at the act whose
     # code moves the fleet, as a player who pressed "Jogar" would.
     for value in list(names.values()):
         if (isinstance(value, type) and issubclass(value, scena.Act) and value is not scena.Act

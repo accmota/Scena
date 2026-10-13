@@ -219,7 +219,7 @@ def confine_graphic(
     # "overlap" (the extents are measured about it). A Sprite with a sheet
     # anchor has the two apart (anchor="bottom": center is the feet), and
     # ``_move_to`` places the pose point, so the correction is applied as a
-    # delta to it. Before (2026-10-09, tutorial 14), the drawn middle was
+    # delta to it. Before (2026-10-09, tutorial 17), the drawn middle was
     # written back as the feet: every clamp lifted the sprite by half its
     # height, a frame at a time.
     pose = getattr(type(graphic), "_move_to_xy", None)

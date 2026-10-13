@@ -14,7 +14,7 @@
 <script src="../../assets/tutorial/tutorial.js"></script>
 <script>
 Tutorial.mount({
-  n: "11",
+  n: "14",
   title: "Avião",
   steps: [
     {
@@ -94,7 +94,7 @@ run()
       body: `
         <p>O avião ganha comportamento, então vira uma classe, como o <code>Heroi</code> do 06: <code>Aviao</code>, com a folha e a altura na linha da classe. O clip começa no <code>setup</code>.</p>
         <p><strong>O nariz.</strong> As setas para cima e para baixo escolhem um <code>alvo</code> (o ângulo pedido): 30 graus para cima, 30 para baixo, ou reto (0) se nada está apertado. <code>rotate_to(alvo)</code> gira o avião até lá.</p>
-        <p><strong>Sobe para onde aponta.</strong> <code>vec_from_angle</code> (do 09) faz uma seta na direção do nariz, de comprimento 220. Dela, o avião usa só a parte de cima, <code>seta.y</code>: com o nariz reto, zero; a 30 graus, 110 por segundo. Para a frente, ele não vai. <code>confine</code> (do 05) o segura dentro da tela.</p>
+        <p><strong>Sobe para onde aponta.</strong> <code>vec_from_angle</code> (do 10) faz uma seta na direção do nariz, de comprimento 220. Dela, o avião usa só a parte de cima, <code>seta.y</code>: com o nariz reto, zero; a 30 graus, 110 por segundo. Para a frente, ele não vai. <code>confine</code> (do 05) o segura dentro da tela.</p>
         <p>Voe um pouco. Funciona, mas o nariz pula de uma posição para a outra, como um brinquedo. Um avião de verdade demora a virar.</p>
       `,
       code: `from scena import *
@@ -411,7 +411,7 @@ run()
         <p>Bater num pilar, ou no chão, acaba o voo.</p>
         <p><strong>Voando ou não.</strong> <code>st.voando</code> diz se o avião ainda voa. O <code>update</code> só move os pilares, e o <code>@every</code> só faz pilares novos, enquanto ele voa. O manche também: depois da batida, as setas não fazem nada.</p>
         <p><strong>Cair.</strong> <code>cair</code> é uma função da própria classe, que nós chamamos (<code>self.cair()</code>), de dois lugares: do <code>@collide_with("pilar")</code> e do <code>on_update</code>, quando o avião desce abaixo de 30, o chão. Ela muda <code>st.voando</code>, troca o clip para <code>"caindo"</code> (o avião quebrado), treme a tela e toca a batida. O <code>if st.voando</code> do <code>bateu</code> evita uma segunda batida enquanto ele cai encostado no pilar.</p>
-        <p><strong>A queda.</strong> Sem voar, o <code>on_update</code> faz outra coisa: o nariz persegue -60 graus (aponta para o chão) e o avião desce até o chão, e para ali.</p>
+        <p><strong>A queda.</strong> Sem voar, o <code>on_update</code> faz outra coisa: o nariz persegue -60 graus (aponta para o chão) e o avião desce até o chão, e para ali. Quem escolhe é o <code>elif</code> (de <em>else if</em>, senão, se): ele só é perguntado quando o <code>if</code> de cima foi falso. Voando, o primeiro bloco roda; caído e ainda acima do chão, o segundo; no chão, nenhum.</p>
       `,
       code: `from random import uniform
 from scena import *

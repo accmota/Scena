@@ -23,7 +23,7 @@ left out.
 
 - `canvas.cull_offscreen` is now `True` by default: Scena skips drawing what
   is outside the view. A level bigger than the window draws much faster (1500
-  tiles: 3 ms instead of 8; tutorial 22 about 9 % faster per frame). A game
+  tiles: 3 ms instead of 8; tutorial 25 about 9 % faster per frame). A game
   on one screen stays the same: a layer where nothing is off screen tests
   again only every few frames. Objects off screen still run `update` and
   collide, as before. `canvas.cull_offscreen = False` draws everything.
@@ -121,7 +121,7 @@ left out.
   against such a tile can stop up to ~0.04 units later than before; the new
   stop is the exact one. `floor_below` also stops re-checking every tile on
   each step of its march, and checks whether a Sprite moved about twice as
-  fast. Tutorial 22's level runs about 40 % faster per frame; a level of
+  fast. Tutorial 25's level runs about 40 % faster per frame; a level of
   1500 tiles about 25 %.
 - A body under `resolve(…, ANYTHING)` no longer falls through a body spawned
   in the same frame as an earlier one when a query (`floor_below`, a
@@ -130,7 +130,7 @@ left out.
 - Bodies that did not move cost almost nothing to collide with: Scena now
   knows which Sprites, rectangles, circles and ellipses moved since it last
   looked, and skips the rest. A level of 1500 tiles runs about 40 % faster
-  per frame; tutorial 22's level and the endless runner about 15 %.
+  per frame; tutorial 25's level and the endless runner about 15 %.
 - A game with `Neon` on moving shapes no longer grows to over 1 GB of memory:
   Scena frees GPU memory nothing has drawn for a second. A bullet hell with
   300 glowing shots now stays near 250 MB. Pictures loaded from files stay on
@@ -165,7 +165,7 @@ left out.
   used the size of the frame shown at `play()`, and ignored `tilt`.
 - Faster `floor_below` and walkers on tiles whose image is not a full
   square (rounded platform ends, slopes cut in the art). A box meeting such a
-  tile, a turned box or a `Polygon` is now swept in closed form. Tutorial 22
+  tile, a turned box or a `Polygon` is now swept in closed form. Tutorial 25
   runs about 25 % faster per frame. A sweep can stop up to 0.001 units later
   than before (the new stop is the exact one), and a body that slides past a
   corner without touching it no longer snags on it.
@@ -185,7 +185,7 @@ left out.
 - Each frame's collision step now skips bodies that did not move: it no
   longer re-checks every still tile's box, contact bounds and `touching_*`.
   A level of 1500 tiles runs about 18 % faster per frame, the endless
-  runner about 12 %, and tutorial 22 about 7 %.
+  runner about 12 %, and tutorial 25 about 7 %.
 - Shapes with the same `Neon` (or another stroke look) or the same glow now
   share their glow work even when other shapes are drawn between them in
   z order, as long as they do not overlap those shapes. A bullet hell with
@@ -204,6 +204,29 @@ left out.
 - A `Collider` subclass that defines `on_collide` (or `on_collide_stay`,
   `on_collide_exit`) as a method now gets those calls, as if it had assigned
   them. Before, the method was ignored.
+- A class of your own whose `__init__` never calls Scena's
+  (`class Bolha(Circle)` with `def __init__(self): self.velocidade = 100`)
+  now raises `TypeError` when you make one, with the fix: put that code in
+  `def setup(self):`, or give your `__init__` `**kwargs` and call
+  `super().__init__(**kwargs)`. Before, `Bolha()` made an empty object that
+  was never in the game (nothing drew, `on_update` never ran) and said
+  nothing, or raised an internal `AttributeError` (`'_clickable'`) when the
+  class had `on_click`; `Bolha(center=…)` said "Write Bolha()", which led to
+  the empty object. Using `self` in `__init__` before Scena's `__init__` ran
+  (`self.radius`) says the same; before, `AttributeError: 'Bolha' object has
+  no attribute 'radius'`. A program with such a class ran without those objects;
+  it now stops at the first one. An `__init__` that calls
+  `super().__init__(**kwargs)` works as before.
+- A value in a class body under a name Scena owns
+  (`class Bolha(Circle): radius = 30`, `class Tiro(Sprite, …): height = 28`,
+  `visible = False`, `group = "tiro"`) now raises `TypeError` on the class
+  line, with the fix: the class keyword when the kind takes it
+  (`class Bolha(Circle, radius=30)`), else `setup(self)`
+  (`self.visible = False`). Before, the value was never applied: the object
+  kept the default, and a few reads returned the class value while the
+  object drew otherwise (`visible`). A program with such a line ran without
+  it; it now stops at the class. Fields of your own (`velocidade = 100`),
+  methods and properties in the class body are unchanged.
 - A track made without a place (`Track.circle(radius=120)`, `Track.eight()`,
   any preset with sizes only) is anchored when you give it one later: a link
   (`orbit["center"] @= lambda: earth.center`), `orbit.center = …`,
@@ -221,18 +244,48 @@ left out.
 - Guia, "Clips": the same clip again does nothing only while it plays; a
   `loops=1` clip that has finished starts over. To play it once from
   `update`, ask `showing` first.
-- Tutorial 16 (Ligue 4): four in a diagonal wins too (`quatro(x, y, 1, 1)`
+- Tutorial 19 (Ligue 4): four in a diagonal wins too (`quatro(x, y, 1, 1)`
   and `(1, -1)`, with `l < 0` for the one going down). Before, only rows and
   columns counted.
-- Tutorials 15, 21 and 22 (Ninja): a kunai that hits a robot already
+- Tutorials 18, 24 and 25 (Ninja): a kunai that hits a robot already
   breaking passes through it (before, it broke the robot again and restarted
   the clip); with no lives left the ninja falls to the ground before the
-  `"morto"` clip, and plays it once (before, it died in mid air, and in 22 a
+  `"morto"` clip, and plays it once (before, it died in mid air, and in 25 a
   fall into the water on the last life sent it back to the start first).
-- Tutorial 22 has a new step, "O elevador": a gold `Metal` plank from the
+- Tutorial 25 has a new step, "O elevador": a gold `Metal` plank from the
   level (`fase["elevador"]`) that rides up and down forever
   (`move_by(..., loops="forever", yoyo=True)`) and carries the ninja to a new
   star. `media/levels/ninja_perigos.json` has the elevator and the star.
+- The tutorials are reorganized (Portuguese). New: **09 Fórmulas** (the
+  reactive system in depth: cells and formulas as in a spreadsheet,
+  `st["x"]` × `st.x`, `=` × `@=`, `@on_change`, `@when`, `unlink`, the
+  rules), **11 Interação** (click, hover, the right button, drag, drop, a
+  grid that lights the cell under the mouse), **12 Órbitas** (tracks in
+  depth, `rotate_by` forever, `tween`, `nearest`, `heading`,
+  `ElectricBolt`) and **13 Giros** (the rotating bars, recursion built step
+  by step, and the oscilloscope with `cos` / `sin`). 04 drops the bars and
+  the oscilloscope (now built step by step in 13) for two new scripts,
+  **Desenho** (`Contrail`, `every` + `cancel`) and **Letreiro**
+  (`TextInput`, `Text` with gradient and glow, `move_along` on a `Track`).
+  06 opens with a script on classes and objects (`bolhas.py`: the mold, the
+  copies, fields, `setup` / `on_update`, why not `__init__`). The old 09–23
+  are now 10 and 14–26: the page addresses changed (`09-bolas.html` →
+  `10-bolas.html`, `11-aviao.html` → `14-aviao.html`, …). Six appendices
+  are new: **A** debug keys, **B** useful commands (window, full screen,
+  colors, random, clock, key names, volume), **C** where to find art and
+  sound (sites, licenses), **D** points and vectors, **E** helpers
+  (`remap`, `lerp`, `chase`…), **F** shape constructors in detail.
+  `examples/app_draw.py` is now `examples/desenho.py`; new examples
+  `letreiro.py`, `bolhas.py`, `formulas.py`, `interacao.py`, `orbitas.py`.
+- Tutorials: Python words a beginner meets are explained where they first
+  appear (`nome=valor`, the decimal point, `+=`, f-strings, comments,
+  `range`, indexes, `not`, `in`, `!=`, `elif`, unpacking a pair, a `lambda`
+  that delays a call, `int`, `**`, `sin` in radians).
+- Guia: `on_mouse_*` callbacks get `button` as a number
+  (`Mouse.BTN_LEFT`, `Mouse.BTN_RIGHT`…), not a string; `@drag_over` runs
+  on each mouse move during a drag (not each frame), with `to=None` off
+  every target; `@click` answers the left button only; the key-name table
+  lists `"ENTER"`, `"TAB"`, `"BACKSPACE"` and the other special keys.
 
 ## 0.8.0 — 2026-10-11
 

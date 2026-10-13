@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arte e som — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Apêndice",
+  n: "C",
+  title: "Arte e som",
+  steps: [
+    {
+      title: "Uma vitrine",
+      part: "Onde encontrar",
+      body: `
+        <p>Quase toda a arte e todo o som dos tutoriais vieram de sites que oferecem <em>assets</em> (recursos: imagens, animações, sons, músicas, fontes) para quem faz jogos. Este programa é uma vitrine: uma peça de cada site, com o nome dele embaixo. Espaço toca um som. Os sites, com o que se acha em cada um:</p>
+        <ul>
+          <li><a href="https://www.kenney.nl">kenney.nl</a> — o Kenney publica milhares de peças em pacotes que combinam entre si: naves, plataformas, cartas, botões de interface, sons, fontes. Tudo em <strong>CC0</strong>: use como quiser, sem pedir nem dar crédito. As naves, os planetas e as bolas dos tutoriais vêm daqui. Os pacotes trazem cada peça num arquivo e também uma folha com todas (veja “Folhas de sprites”, adiante).</li>
+          <li><a href="https://www.gameart2d.com">gameart2d.com</a> — personagens animados e cenários de plataforma, de um artista só. A seção <em>Freebies</em> (grátis) é CC0; o resto é pago. O ninja, o robô, o avião e os blocos de chão dos tutoriais vêm daqui, um arquivo por quadro de animação.</li>
+          <li><a href="https://opengameart.org">opengameart.org</a> — um site comunitário: muita gente diferente publica sprites, texturas, músicas e sons. Cada peça tem a sua licença, escrita na página dela (CC0, CC-BY, CC-BY-SA e outras). A busca deixa filtrar pela licença. Os tijolos desta vitrine vêm daqui.</li>
+          <li><a href="https://itch.io/game-assets">itch.io</a> — uma loja de criadores independentes, com uma seção enorme de assets, muitos grátis ou “pague quanto quiser”. Cada autor escreve a sua licença na página do pacote: leia antes. O troféu vem do pacote <em>Pixel Adventure</em>, da Pixel Frog (CC0).</li>
+          <li><a href="https://craftpix.net">craftpix.net</a> — um catálogo grande de arte 2D, quase toda paga, com uma seção de grátis. Tem licença própria, diferente das Creative Commons: leia a página de licença do site antes de usar. A grama desta vitrine é da CraftPix, publicada no OpenGameArt com licença de crédito.</li>
+          <li><a href="https://freesound.org">freesound.org</a> — sons gravados ou criados por milhares de pessoas: explosões, passos, portas, vozes, ambientes. Baixar pede uma conta (grátis). Cada som mostra a licença; a busca filtra por ela. Várias explosões dos tutoriais vêm daqui.</li>
+        </ul>
+        <p><strong>Dicas.</strong> Prefira um pacote inteiro do mesmo autor a peças soltas de vários: o estilo combina. Antes de baixar, olhe a licença; ao baixar, anote de onde veio (a seção “Licenças” mostra como). E veja o arquivo de licença que vem dentro do pacote, em geral <code>License.txt</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Vitrine")
+Wallpaper("dark steel blue")
+
+Sprite("backgrounds/mountains/grass.png", width=1000, center=(500, 281))
+
+Sprite("space/playerShip1_red.png", height=90, center=(150, 400))
+Sprite("ninja/Idle__000.png", height=140, center=(330, 400))
+Sprite("textures/Brick_01.png", height=110, center=(510, 400))
+Sprite("pixel_adv/End (Idle).png", height=110, center=(690, 400))
+
+Text("Kenney", top_center=(150, 310), font_size=22)
+Text("GameArt2D", top_center=(330, 310), font_size=22)
+Text("OpenGameArt", top_center=(510, 310), font_size=22)
+Text("itch.io", top_center=(690, 310), font_size=22)
+Text("CraftPix (a grama)", top_center=(500, 120), font_size=22)
+Text("ESPAÇO: um som do Freesound", top_left=(20, 580), font_size=22)
+
+
+def update(dt):
+    if keyp.once("SPACE"):
+        play_sound("audio/explosion02.wav")
+
+
+run()
+`
+    },
+    {
+      title: "CC0, BY, SA, NC",
+      part: "Licenças",
+      fresh: true,
+      body: `
+        <p>Um arquivo que você baixa tem dono: quem o fez. A <strong>licença</strong> é a permissão que o autor dá, por escrito, dizendo o que você pode fazer com ele. A maioria dos sites de assets usa as licenças <em>Creative Commons</em> (CC), que são montadas com algumas siglas:</p>
+        <ul>
+          <li><strong>CC0</strong> (zero) — o autor abriu mão de tudo. Use, mude, publique e até venda, sem pedir nem dar crédito. Dar crédito continua sendo gentil.</li>
+          <li><strong>BY</strong> (“por”, de autoria) — use à vontade, mas dê crédito: o nome do autor, o nome ou o link da peça e a licença. CC-BY é a mais comum depois da CC0.</li>
+          <li><strong>SA</strong> (<em>share alike</em>, compartilhe igual) — se você <em>modificar</em> o arquivo (cortar um som, recolorir uma imagem), a versão modificada tem que sair com a mesma licença. Só tocar o som no jogo não é modificar.</li>
+          <li><strong>NC</strong> (<em>non commercial</em>, não comercial) — não pode ser usado em nada vendido ou que dê dinheiro. Para um jogo de estudo, tudo bem; para um jogo que você talvez venda um dia, evite.</li>
+          <li><strong>ND</strong> (<em>no derivatives</em>, sem derivados) — não pode ser modificado.</li>
+        </ul>
+        <p><strong>Sem licença, não.</strong> Uma imagem achada numa busca qualquer, sem licença escrita, pertence ao autor: não pode ir para o seu jogo. Na dúvida, procure a mesma ideia num dos sites da seção anterior.</p>
+        <p><strong>A tela de créditos.</strong> O jeito mais simples de dar o crédito que o BY pede é uma tela de créditos no jogo, ou um arquivo de texto que vai junto com ele. Este programa toca, no espaço, o laser <code>audio/laser4.wav</code>, que é CC-BY, e mostra o crédito dele e o da grama da vitrine: autor, link, licença.</p>
+        <p><strong>O arquivo de créditos.</strong> Ao baixar um arquivo que não é CC0, anote na hora, num <code>creditos.txt</code> ao lado do jogo: o nome do arquivo, o autor, o link e a licença. Depois de cinquenta arquivos, ninguém lembra de onde veio cada um. A tela de créditos sai pronta desse arquivo.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Créditos")
+Wallpaper("dark navy")
+
+Text("Créditos", top_center=(500, 560), font_size=40)
+Text("Laser Fire, por dklon\\nopengameart.org/content/laser-fire\\nCC BY 3.0", top_center=(500, 440), font_size=22)
+Text("Grama, por CraftPix.net 2D Game Assets\\nopengameart.org/content/summer-pixel-art-seamless-background\\nOGA-BY 3.0", top_center=(500, 300), font_size=22)
+Text("ESPAÇO: o laser", top_left=(20, 40), font_size=20)
+
+
+def update(dt):
+    if keyp.once("SPACE"):
+        play_sound("audio/laser4.wav")
+
+
+run()
+`
+    },
+    {
+      title: "A pasta media",
+      part: "Organizar os arquivos",
+      fresh: true,
+      body: `
+        <p><strong>Onde o Scena procura.</strong> Quando você escreve <code>Sprite("space/star_gold.png")</code>, o Scena procura o arquivo primeiro ao lado do seu script e depois numa pasta chamada <code>media</code> ao lado dele. Por isso os tutoriais pedem que você copie a pasta <code>media</code> dos exemplos para junto dos seus scripts. Faça o mesmo com o que você baixar:</p>
+        <ul>
+          <li><code>meu_jogo.py</code></li>
+          <li><code>creditos.txt</code></li>
+          <li><code>media/</code>
+            <ul>
+              <li><code>space/</code> — um pacote do Kenney, com o <code>License.txt</code> dele</li>
+              <li><code>k-rolling-ball/</code> — outro pacote</li>
+              <li><code>audio/</code> — os sons</li>
+            </ul>
+          </li>
+        </ul>
+        <p><strong>Uma subpasta por pacote.</strong> Cada pacote baixado vai numa subpasta própria, com o arquivo de licença que veio nele. No código, o nome leva a subpasta: <code>"space/star_gold.png"</code>. O Scena não procura sozinho dentro das subpastas, então ela tem que estar no nome. O programa mostra três imagens de três subpastas, cada uma com o nome escrito embaixo.</p>
+        <p><strong>Nomes.</strong> O nome no código tem que ser igual ao do arquivo, letra por letra, com maiúsculas, espaços e parênteses: <code>"robot/Idle (1).png"</code>. Manter os nomes originais do pacote ajuda a achar o crédito depois; se for renomear, prefira nomes curtos, sem acento e sem espaço. Um nome errado não para o jogo: aparece um quadriculado no lugar da imagem (ou silêncio, no som) e um aviso (Apêndice A, “Avisos”).</p>
+      `,
+      code: `from scena import *
+
+init(width=900, height=500, title="Pastas")
+Wallpaper("dark navy")
+
+Sprite("space/star_gold.png", height=90, center=(180, 290))
+Sprite("k-rolling-ball/ball_blue_large.png", height=90, center=(450, 290))
+Sprite("robot/Idle (1).png", height=120, center=(720, 290))
+
+Text("space/star_gold.png", top_center=(180, 200), font_size=18)
+Text("k-rolling-ball/ball_blue_large.png", top_center=(450, 200), font_size=18)
+Text("robot/Idle (1).png", top_center=(720, 200), font_size=18)
+
+run()
+`
+    },
+    {
+      title: "PNG, JPG, sons e fontes",
+      part: "Formatos",
+      fresh: true,
+      body: `
+        <p>O formato é o tipo do arquivo, e aparece no fim do nome, depois do ponto. O Scena abre estes:</p>
+        <ul>
+          <li><strong>PNG</strong> (<code>.png</code>) — o formato dos sprites. Guarda transparência: em volta da nave não há fundo, e o céu aparece por trás.</li>
+          <li><strong>JPG</strong> (<code>.jpg</code>, <code>.jpeg</code>) — fotos e pinturas, arquivos menores. Não tem transparência: serve para fundos, como o <code>Wallpaper</code> deste programa, e não para sprites.</li>
+          <li><strong>SVG</strong> (<code>.svg</code>) — desenho feito de formas, e não de pixels, nítido em qualquer tamanho. Abre com <code>Svg("arquivo.svg")</code>, no lugar de <code>Sprite</code>.</li>
+          <li><strong>Sons</strong> — <code>.wav</code>, <code>.ogg</code>, <code>.mp3</code> e <code>.flac</code>. WAV é comum nos efeitos curtos; OGG e MP3, menores, nas músicas.</li>
+          <li><strong>Fontes</strong> — <code>.ttf</code> e <code>.otf</code>, as letras de um texto: <code>Text(…, font="space/kenvector_future.ttf")</code>. O pacote de naves do Kenney traz esta.</li>
+        </ul>
+        <p>Rode: o fundo é um JPG, a nave um PNG, o título usa a fonte do Kenney, e as teclas 1 e 2 tocam um OGG e um WAV.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Formatos")
+Wallpaper("images/bg3.jpg")
+
+Sprite("space/playerShip1_red.png", height=120, center=(500, 280))
+Text("FORMATOS", top_center=(500, 560), font="space/kenvector_future.ttf", font_size=56)
+Text("1: som OGG   2: som WAV", top_left=(20, 50), font_size=22)
+
+
+def update(dt):
+    if keyp.once("1"):
+        play_sound("space/sfx_laser1.ogg")
+    if keyp.once("2"):
+        play_sound("synth/coin.wav")
+
+
+run()
+`
+    },
+    {
+      title: "Uma folha de quadros",
+      part: "Folhas de sprites",
+      fresh: true,
+      body: `
+        <p>Um personagem que anda não é uma imagem: são várias, trocadas depressa, como num desenho animado. Cada imagem é um <strong>quadro</strong> (<em>frame</em>). Os pacotes entregam os quadros de três jeitos, e o Scena junta todos num <code>Sheet</code> (folha), o catálogo dos quadros. O <code>Sprite</code> mostra um quadro da folha, ou toca uma sequência.</p>
+        <p><strong>1. Uma faixa.</strong> Os quadros lado a lado numa imagem só, todos do mesmo tamanho. A cereja da Pixel Frog é uma faixa de 17 quadros: <code>cols=17</code> (colunas) diz em quantos pedaços cortar, e <code>fps=20</code> (quadros por segundo) já monta uma animação com todos. A explosão do tutorial 07 é feita assim. Se a grade tiver várias linhas, acrescente <code>rows=</code> (linhas).</p>
+        <p>Para saber o número de quadros, abra a imagem: a cereja tem 544 pixels de largura e cada quadro, 32; 544 ÷ 32 = 17. Muitos pacotes escrevem o tamanho do quadro no nome do arquivo, como <code>(64x64)</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=900, height=500, title="Folhas")
+Wallpaper("dark navy")
+
+cereja = Sheet("pixel_adv/Cherries.png", cols=17, fps=20)
+Sprite(cereja, height=200, center=(170, 250))
+
+run()
+`
+    },
+    {
+      title: "Um arquivo por quadro",
+      body: `
+        <p><strong>2. Um arquivo por quadro.</strong> O jeito da GameArt2D: <code>Run (1).png</code>, <code>Run (2).png</code>… até <code>Run (8).png</code>. Em vez de escrever os oito nomes, o <code>*</code> (asterisco) quer dizer “qualquer coisa aqui”: <code>"robot/Run (*).png"</code> pega todos os arquivos daquela pasta cujo nome casa, em ordem, um quadro por arquivo. O avião (tutorial 14) e o ninja (tutorial 17) são feitos assim; o ninja tem uma animação por nome (<code>Idle</code>, <code>Run</code>, <code>Jump</code>), cada uma no seu <code>strip</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=900, height=500, title="Folhas")
+Wallpaper("dark navy")
+
+cereja = Sheet("pixel_adv/Cherries.png", cols=17, fps=20)
+Sprite(cereja, height=200, center=(170, 250))
+
+robo = Sheet("robot/Run (*).png", fps=12)
+Sprite(robo, height=160, center=(450, 250))
+
+run()
+`
+    },
+    {
+      title: "Um atlas",
+      body: `
+        <p><strong>3. Um atlas.</strong> Os quadros arrumados numa imagem só, de tamanhos diferentes, como peças num quebra-cabeça, e um segundo arquivo (<code>.xml</code> ou <code>.json</code>) que diz onde está cada um e como se chama. É o jeito dos pacotes do Kenney: <code>sheet.png</code> com <code>sheet.xml</code>. <code>atlas=</code> dá o segundo arquivo, e <code>frame=</code> escolhe uma peça pelo nome (os nomes estão no XML; abra-o num editor de texto). O tutorial 07 monta todas as naves de um jogo com um atlas.</p>
+        <p><strong>Qual usar?</strong> O que o pacote trouxer. Não há um melhor: o <code>Sheet</code> aceita os três, e o <code>Sprite</code> funciona igual com qualquer um. O Guia tem os seis jeitos, um por tipo de pacote, em <a href="../guide/index.html#sprite-carregar">Carregar sprites</a>.</p>
+      `,
+      code: `from scena import *
+
+init(width=900, height=500, title="Folhas")
+Wallpaper("dark navy")
+
+cereja = Sheet("pixel_adv/Cherries.png", cols=17, fps=20)
+Sprite(cereja, height=200, center=(170, 250))
+
+robo = Sheet("robot/Run (*).png", fps=12)
+Sprite(robo, height=160, center=(450, 250))
+
+naves = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+Sprite(naves, frame="playerShip1_red.png", height=70, center=(730, 300))
+Sprite(naves, frame="enemyGreen1.png", height=60, center=(730, 180))
+
+run()
+`
+    },
+    {
+      title: "Efeitos e música",
+      part: "Sons",
+      fresh: true,
+      body: `
+        <p><code>play_sound("…")</code> (tocar som) toca um arquivo uma vez e pronto: não precisa criar nada antes. Os sons de um jogo são de dois tipos.</p>
+        <p><strong>Efeitos.</strong> Sons curtos que respondem a alguma coisa: o pulo, a moeda, a explosão. Teclas 1, 2 e 3. <code>pitch=</code> (altura) muda o tom: 1 é o original, acima de 1 fica mais agudo e mais rápido. Sortear um pouco o tom a cada vez (<code>uniform(0.9, 1.1)</code>) evita que o mesmo som, repetido, canse o ouvido. <code>volume=</code> deixa um som mais baixo (0.5 é metade).</p>
+        <p><strong>Música.</strong> Um som longo, que repete: <code>loops="forever"</code> (repetições: para sempre). A tecla M liga a música. <code>name="musica"</code> dá um nome à vaga dela: apertar M de novo começa a música de novo no lugar da que tocava, em vez de somar uma segunda por cima.</p>
+        <p>Os tutoriais 07 (o estrondo da explosão), 20 (as notas de um piano) e 21 (a sua voz) usam sons em jogos. Para o volume de tudo e uma tecla de mudo, veja o Apêndice B, “Volume”.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=900, height=500, title="Sons")
+Wallpaper("dark navy")
+
+Text("1: pulo   2: moeda   3: explosão   M: música", center=(450, 250), font_size=26)
+
+
+def update(dt):
+    if keyp.once("1"):
+        play_sound("synth/jump.wav", pitch=uniform(0.9, 1.1))
+    if keyp.once("2"):
+        play_sound("synth/coin.wav", pitch=uniform(0.9, 1.1))
+    if keyp.once("3"):
+        play_sound("audio/explosion02.wav", volume=0.5)
+    if keyp.once("M"):
+        play_sound("audio/Victory.mp3", loops="forever", name="musica")
+
+
+run()
+`
+    }
+  ]
+});
+</script>
+</body>
+</html>

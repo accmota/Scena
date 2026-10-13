@@ -1,9 +1,10 @@
-"""Osciloscópio — uma ponta gira em volta da bola e deixa rastro. Tutorial 04.
+"""Osciloscópio — uma ponta gira em volta da bola e deixa rastro. Tutorial 13.
 
 A ponta é um Point com fórmula: um círculo de raio 200 em volta da bola,
 mais um círculo menor (x1, y1) que dá tx1 / ty1 voltas a cada volta grande.
-O painel grava em st; a fórmula lê st a cada frame. O clique na bola liga
-o feixe e o rastro.
+O ângulo, st.tempo, anda no update, então mudar a velocidade não faz a
+ponta pular. O painel grava em st; a fórmula lê st a cada frame. O clique
+na bola liga o feixe e o rastro.
 
 Controles
 ---------
@@ -25,10 +26,10 @@ init(width=W, height=H, title="Osciloscópio")
 ui.scale = 0.9
 
 st.n = 4
-st.x1 = 50
-st.tx1 = 2
-st.y1 = 50
-st.ty1 = 2
+st.x1 = 60
+st.tx1 = 6
+st.y1 = 60
+st.ty1 = 6
 st.ligado = False
 Slider(st["n"], label="n", min_value=1, max_value=6)
 Slider(st["x1"], label="x1", min_value=-100, max_value=100)
@@ -37,8 +38,7 @@ Slider(st["y1"], label="y1", min_value=-100, max_value=100)
 Slider(st["ty1"], label="ty1", min_value=-10, max_value=10, only_int=True)
 
 
-bola = Circle(center=(W * 0.6, H * 0.5), radius=20)
-bola.visual = "red"
+bola = Circle(center=(W * 0.6, H * 0.5), radius=20, color="red")
 bola.visual = Beat()
 
 st.tempo = 0
@@ -58,14 +58,8 @@ feixe = Line(p1=lambda: bola.center, p2=lambda: ponta)
 feixe.visual = ElectricField("yellow")
 feixe.visible = False
 
-rastro = Contrail(
-    duration=6.28 / 4,
-    fade=True,
-    ease="ease_out",
-    visual=Neon("red"),
-    line_width=2.5,
-    smooth=True,
-)
+rastro = Contrail(duration=6.28 / 4, fade=True, visual=Neon("red"), line_width=2.5)
+
 
 @click(bola)
 def ligar():
@@ -73,8 +67,8 @@ def ligar():
         return
     st.ligado = True
     feixe.visible = True
-    bola.visual = "red"
-    every(6.28 / (st.n * 100), lambda: rastro.snapshot(ponta))
+    bola.visual = None
+    ponta.every(6.28 / (st.n * 100), lambda: rastro.snapshot(ponta))
 
 
 run()

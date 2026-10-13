@@ -16,25 +16,32 @@ its last step here.
 | 01 Primeiro script | `primeiro_script.py` |
 | 02 Pegar estrelas | `pegar_estrelas.py` |
 | 03 Geometria | `ponto_medio.py` |
-| 04 UI Widgets | `cadeia_de_bolas.py`, `barras_girando.py`, `osciloscopio.py` |
+| 04 UI Widgets | `cadeia_de_bolas.py`, `desenho.py`, `letreiro.py` |
 | 05 Naves | `naves.py` |
-| 06 Naves II · Classes | `naves_classes.py` |
+| 06 Naves II · Classes | `bolhas.py`, `naves_classes.py` |
 | 07 Naves III · Atlas, explosão, vidas | `naves_vidas.py` |
 | 08 Naves IV · Escudo | `naves_escudo.py` |
-| 09 Bolas | `bolas.py` |
-| 11 Avião | `aviao.py` |
-| 12 Avião II · Profundidade | `aviao_profundidade.py` |
-| 13 Avião III · Paisagem sem fim | `aviao_paisagem.py` |
-| 14 Ninja | `ninja.py` |
-| 15 Ninja II · O mundo | `ninja_mundo.py` |
-| 16 Ligue 4 | `ligue4.py` |
-| 17 Estúdio · Piano | `piano.py` |
-| 18 Estúdio II · Voz | `estudio_voz.py` |
-| 19 Naves V · Capítulos e sequências | `naves_modos.py` |
-| 20 Naves VI · Atos | `naves_atos.py` |
-| 21 Ninja III · O nível | `ninja_nivel.py` |
-| 22 Ninja IV · Perigos | `ninja_perigos.py` |
-| 23 Corredor infinito | `corredor.py` |
+| 09 Fórmulas | `formulas.py` |
+| 10 Bolas | `bolas.py` |
+| 11 Interação | `interacao.py` |
+| 12 Órbitas | `orbitas.py` |
+| 13 Giros | `barras_girando.py`, `osciloscopio.py` |
+| 14 Avião | `aviao.py` |
+| 15 Avião II · Profundidade | `aviao_profundidade.py` |
+| 16 Avião III · Paisagem sem fim | `aviao_paisagem.py` |
+| 17 Ninja | `ninja.py` |
+| 18 Ninja II · O mundo | `ninja_mundo.py` |
+| 19 Ligue 4 | `ligue4.py` |
+| 20 Estúdio · Piano | `piano.py` |
+| 21 Estúdio II · Voz | `estudio_voz.py` |
+| 22 Naves V · Capítulos e sequências | `naves_modos.py` |
+| 23 Naves VI · Atos | `naves_atos.py` |
+| 24 Ninja III · O nível | `ninja_nivel.py` |
+| 25 Ninja IV · Perigos | `ninja_perigos.py` |
+| 26 Corredor infinito | `corredor.py` |
+
+The appendices (`A-…` to `F-…` in the same folder) are reference pages made of
+short programs; they end in no file here.
 
 ```bash
 python examples/naves.py

@@ -36,7 +36,7 @@ C = sys.modules["scena.collision"]   # the module (``scena.collision`` is the fa
 P, K = C.Prim, C.PrimKind
 TILES = os.path.join(ROOT, "examples", "media", "tilesets", "Tiles")
 ROUND = ("13.png", "15.png", "1.png", "3.png", "9.png")     # hulls that are not boxes
-# Tutorial 22's platform end (tile 15 at 80 DU): the hull walkers probe.
+# Tutorial 25's platform end (tile 15 at 80 DU): the hull walkers probe.
 END = [(760.0, 419.0625), (837.5, 419.0625), (840.0, 416.5353260869565),
        (840.0, 401.3722826086956), (837.5, 393.7907608695652),
        (830.0, 386.20923913043475), (780.0, 360.9375), (760.0, 360.9375)]

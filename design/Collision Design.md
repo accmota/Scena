@@ -409,7 +409,7 @@ boxes. Before, the skin made a polygon beat a box by ~1e-5.
 `test_floor_below.test_walkable_slopes_are_floor` had pinned that by
 accident at two joint positions; it now accepts either floor there.
 
-Why: level tiles with rounded ends (tutorial 22's platform ends) are
+Why: level tiles with rounded ends (tutorial 25's platform ends) are
 8-vertex hulls. Every walker probe against them went to GJK, at ~50 µs a
 cast. Ninja: work 4.25 → 3.17 ms, `floor_below` 2.6 → 1.5 ms. Mundo,
 corrida and horda: flat. `_SWEEP_SAT = False` is advancement (oracle, A/B:
@@ -640,7 +640,7 @@ Sensors still fire **`@collide`** / **`collides_with()`** — only **`touching_*
 ### `floor_below`: cost
 
 A walker that asks every frame pays one call per frame per robot, so the march is
-a hot path (ninja tutorial 22: 7 calls a frame were 75 % of the frame,
+a hot path (ninja tutorial 25: 7 calls a frame were 75 % of the frame,
 [games.md](../scripts/bench/games.md), D1). Two reductions, switched off together
 by `_FLOOR_PROBE_FAST = False` (the oracle; `game_bench.py --ab`):
 
@@ -837,7 +837,7 @@ The leading `heroi.tilt = 0` is required: `tilt = c` stores the contact's angle.
 
 `reset_rotation()` also clears `tilt` (back to angle mode at 0).
 
-All three spellings rotate about the anchor on the baked hitbox **as drawn** (mirrored under `flip_x` / `flip_y`, the same point the emitted collider uses), not a point on the PNG and not a support vertex. None of them move `center`. The seat is along the contact normal only: a hull's toe and the upright box's resting corner do not drag the art sideways. `"center"` and `"top"` are not dropped onto the floor. Teach `hitbox_anchor="bottom"` for walkers so the pivot is the feet and the lean sits on the ramp. The two lines go together: with the default `"center"`, `"ground"` leans the art about the collider's middle, so on a slope the feet slide sideways and float (the 0.8.0 ninja: ~11 DU sideways, ~5 DU up on a 15° plank). Tutorial 22 ("A tábua inclinada") teaches the pair; `test_tutorials.TestGroundLeanHasBottomAnchor` (TU7) keeps every step and example honest. Do **not** auto Y-scale the hitbox from `tilt` — the upright collider is the gameplay geometry; a taller yellow debug box than the leaned silhouette is expected, not a cue to shrink `hitbox_scale.y` each frame.
+All three spellings rotate about the anchor on the baked hitbox **as drawn** (mirrored under `flip_x` / `flip_y`, the same point the emitted collider uses), not a point on the PNG and not a support vertex. None of them move `center`. The seat is along the contact normal only: a hull's toe and the upright box's resting corner do not drag the art sideways. `"center"` and `"top"` are not dropped onto the floor. Teach `hitbox_anchor="bottom"` for walkers so the pivot is the feet and the lean sits on the ramp. The two lines go together: with the default `"center"`, `"ground"` leans the art about the collider's middle, so on a slope the feet slide sideways and float (the 0.8.0 ninja: ~11 DU sideways, ~5 DU up on a 15° plank). Tutorial 25 ("A tábua inclinada") teaches the pair; `test_tutorials.TestGroundLeanHasBottomAnchor` (TU7) keeps every step and example honest. Do **not** auto Y-scale the hitbox from `tilt` — the upright collider is the gameplay geometry; a taller yellow debug box than the leaned silhouette is expected, not a cue to shrink `hitbox_scale.y` each frame.
 
 A rigid axis-aligned box on a slope still rests on **one corner**. The art's bottom-centre is seated on the plane through that corner; the collider is not.
 

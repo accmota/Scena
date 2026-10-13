@@ -32,7 +32,7 @@
   <a class="card" href="04-ui-widgets.html">
     <div class="num">04</div>
     <h2>UI Widgets</h2>
-    <p><code>Slider</code>, <code>CheckBox</code>, <code>DropDown</code> e <code>Button</code> — um painel sobre o desenho. Três scripts: a cadeia, construída passo a passo; as barras e o osciloscópio, prontos, para ler por partes.</p>
+    <p><code>Slider</code>, <code>CheckBox</code>, <code>DropDown</code>, <code>Button</code>, <code>Menu</code> e <code>TextInput</code>. Três scripts: a cadeia com painel; um desenho com o mouse (<code>Contrail</code>, <code>every</code>); um letreiro que passeia numa trilha (<code>Track</code>, <code>move_along</code>).</p>
   </a>
   <a class="card" href="05-naves.html">
     <div class="num">05</div>
@@ -42,7 +42,7 @@
   <a class="card" href="06-naves-classes.html">
     <div class="num">06</div>
     <h2>Naves II · Classes</h2>
-    <p>O mesmo jogo, reorganizado: cada tiro, inimigo e a nave carregam o próprio comportamento. <code>setup</code>, <code>on_update</code>, <code>@collide_with</code> e um propulsor (<code>Jet</code>).</p>
+    <p>Classes e objetos: bolhas feitas de um molde, cada uma com a sua velocidade (<code>setup</code>, <code>on_update</code>, por que não <code>__init__</code>); depois o jogo de naves reorganizado em classes, com um propulsor (<code>Jet</code>).</p>
   </a>
   <a class="card" href="07-naves-vidas.html">
     <div class="num">07</div>
@@ -54,80 +54,127 @@
     <h2>Naves IV · Escudo</h2>
     <p>Um presente que cai liga um escudo que se gasta: <code>active</code>, <code>@on_change</code>, a colisão com <code>info</code> e um impacto onde o laser bateu.</p>
   </a>
-  <a class="card" href="09-bolas.html">
+  <a class="card" href="09-formulas.html">
     <div class="num">09</div>
+    <h2>Fórmulas</h2>
+    <p>Uma máquina de formas ligadas, como uma planilha: células e fórmulas, colchetes × ponto (<code>st["x"]</code> × <code>st.x</code>), <code>=</code> × <code>@=</code>, <code>@on_change</code>, <code>@when</code>, <code>unlink</code> e as regras do sistema reativo. Não é um jogo.</p>
+  </a>
+  <a class="card" href="10-bolas.html">
+    <div class="num">10</div>
     <h2>Bolas</h2>
     <p>Bolas que quicam nas paredes e umas nas outras: <code>resolve</code>, <code>vel</code>, <code>mass</code>, um rastro com <code>Tail</code> e o zoom da câmera.</p>
   </a>
-  <div class="card">
-    <div class="num">10</div>
-    <h2>Ateliê</h2>
-    <p>O mouse num lugar só: desenhar, arrastar, escrever. Em preparação.</p>
-  </div>
-  <a class="card" href="11-aviao.html">
+  <a class="card" href="11-interacao.html">
     <div class="num">11</div>
+    <h2>Interação</h2>
+    <p>O mouse num lugar só: clicar, passar por cima (<code>@hover</code>), o botão direito, arrastar, soltar numa lixeira (<code>@drop_by</code>) e uma grade que marca a casa sob o mouse (<code>Box</code>, <code>cell_at</code>). Sem jogo: um recurso por passo.</p>
+  </a>
+  <a class="card" href="12-orbitas.html">
+    <div class="num">12</div>
+    <h2>Órbitas</h2>
+    <p>Trilhas a fundo (formas prontas, caminhos seus, ioiô, pêndulo, fila) e um sistema solar: <code>tween</code>, <code>rotate_by</code> sem fim e uma sonda que aponta para o planeta mais perto (<code>nearest</code>, <code>heading</code>) e solta faíscas quando chega perto.</p>
+  </a>
+  <a class="card" href="13-giros.html">
+    <div class="num">13</div>
+    <h2>Giros</h2>
+    <p>Uma barra que cria barras nas próprias pontas (recursão, passo a passo, com a árvore de chamadas) e um ponto com dois giros somados que desenha flores com seno e cosseno. Dois scripts, nenhum jogo.</p>
+  </a>
+  <a class="card" href="14-aviao.html">
+    <div class="num">14</div>
     <h2>Avião</h2>
     <p>Um avião entre pilares: uma folha de arquivos com dois clips, um manche com inércia (<code>chase</code>), pontos, a batida e recomeçar.</p>
   </a>
-  <a class="card" href="12-aviao-profundidade.html">
-    <div class="num">12</div>
+  <a class="card" href="15-aviao-profundidade.html">
+    <div class="num">15</div>
     <h2>Avião II · Profundidade</h2>
     <p>O cenário em camadas que andam em velocidades diferentes (parallax), cheias sem fim pelo <code>Endless</code>; fogo na queda e música.</p>
   </a>
-  <a class="card" href="13-aviao-paisagem.html">
-    <div class="num">13</div>
+  <a class="card" href="16-aviao-paisagem.html">
+    <div class="num">16</div>
     <h2>Avião III · Paisagem sem fim</h2>
     <p>Uma paisagem que não se repete: imagens sorteadas, árvores e casas montadas por uma função (<code>slot.rng</code>) e uma camada na frente do avião.</p>
   </a>
-  <a class="card" href="14-ninja.html">
-    <div class="num">14</div>
+  <a class="card" href="17-ninja.html">
+    <div class="num">17</div>
     <h2>Ninja</h2>
     <p>Um jogo de plataforma: a gravidade escrita à mão, o chão que segura (<code>resolve</code>), o pulo só com os pés no chão (<code>touching_sides</code>) e animações de arquivos de tamanhos diferentes.</p>
   </a>
-  <a class="card" href="15-ninja-mundo.html">
-    <div class="num">15</div>
+  <a class="card" href="18-ninja-mundo.html">
+    <div class="num">18</div>
     <h2>Ninja II · O mundo</h2>
     <p>Um mundo para o ninja: um buraco com água, uma folga na beirada (<code>recently</code>), estrelas, robôs que patrulham, kunais e três vidas.</p>
   </a>
-  <a class="card" href="16-ligue4.html">
-    <div class="num">16</div>
+  <a class="card" href="19-ligue4.html">
+    <div class="num">19</div>
     <h2>Ligue 4</h2>
     <p>Um jogo de tabuleiro: as casas de uma grade (<code>Box</code>, <code>grid</code>), uma bola que se arrasta e se solta numa coluna (<code>@drag_to</code>), a queda com <code>move_to</code> e as regras numa lista por coluna.</p>
   </a>
-  <a class="card" href="17-estudio-piano.html">
-    <div class="num">17</div>
+  <a class="card" href="20-estudio-piano.html">
+    <div class="num">20</div>
     <h2>Estúdio · Piano</h2>
     <p>Um piano no teclado e no mouse: uma nota só, tocada em oito alturas (<code>pitch=</code>), e teclas que acendem enquanto a nota soa.</p>
   </a>
-  <a class="card" href="18-estudio-voz.html">
-    <div class="num">18</div>
+  <a class="card" href="21-estudio-voz.html">
+    <div class="num">21</div>
     <h2>Estúdio II · Voz</h2>
     <p>O som manda na tela: o microfone grava a sua voz para o piano, uma barra ligada com <code>@=</code> mostra quão alto você fala, uma estrela dança numa trilha (<code>Track</code>) e uma palma solta um sol.</p>
   </a>
-  <a class="card" href="19-naves-modos.html">
-    <div class="num">19</div>
+  <a class="card" href="22-naves-modos.html">
+    <div class="num">22</div>
     <h2>Naves V · Capítulos e sequências</h2>
     <p>Os inimigos ganham capítulos (<code>mode</code>): formação, mergulho com jato, uma frota que chega em sequência (<code>async</code>) e um chefe que chega, luta e cai em etapas.</p>
   </a>
-  <a class="card" href="20-naves-atos.html">
-    <div class="num">20</div>
+  <a class="card" href="23-naves-atos.html">
+    <div class="num">23</div>
     <h2>Naves VI · Atos</h2>
     <p>O jogo em atos (<code>Act</code>): título, fase e fim de jogo, recomeçar sem código de limpeza, o recorde no <code>st</code> e a fase como uma sequência com <code>until_empty</code>.</p>
   </a>
-  <a class="card" href="21-ninja-nivel.html">
-    <div class="num">21</div>
+  <a class="card" href="24-ninja-nivel.html">
+    <div class="num">24</div>
     <h2>Ninja III · O nível</h2>
     <p>Uma fase quatro vezes maior que a tela, desenhada no editor de fases (<code>Level</code>), uma câmera que segue o ninja com folga (<code>deadzone</code>, <code>chase</code>) e um fundo que anda mais devagar (<code>pan_response</code>).</p>
   </a>
-  <a class="card" href="22-ninja-perigos.html">
-    <div class="num">22</div>
+  <a class="card" href="25-ninja-perigos.html">
+    <div class="num">25</div>
     <h2>Ninja IV · Perigos</h2>
     <p>Tábuas de passar por baixo (<code>only=</code>), robôs que viram na beirada (<code>floor_below</code>), uma caixa só para a dor (<code>add_hitbox</code>), raios elétricos, um elevador e um recomeço com um ato.</p>
   </a>
-  <a class="card" href="23-corredor-infinito.html">
-    <div class="num">23</div>
+  <a class="card" href="26-corredor-infinito.html">
+    <div class="num">26</div>
     <h2>Corredor infinito</h2>
     <p>Um robô corre por uma pista que nunca acaba: o <code>Endless</code> monta o chão, os buracos e as plataformas à frente da câmera e os destrói atrás; a altura do chão é uma função do x.</p>
+  </a>
+  <h2 class="index-section" id="apendices">Apêndices</h2>
+  <p class="lede">Para consultar quando precisar: partes do Scena que nenhum jogo parou para explicar. Cada trecho é um programa curto; mude um número e rode de novo.</p>
+  <a class="card" href="A-depuracao.html">
+    <div class="num">A</div>
+    <h2>Teclas de depuração</h2>
+    <p>As teclas <kbd>Ctrl+Shift</kbd> que mostram o jogo por dentro: painel, colisores, trilhas, zoom de inspeção, câmera lenta, avisos e tela cheia.</p>
+  </a>
+  <a class="card" href="B-comandos.html">
+    <div class="num">B</div>
+    <h2>Comandos úteis</h2>
+    <p>Janela, tela cheia, fundo, cores, sorteios, relógio, padrões, valores no console e na tela, nomes das teclas e volume: o que todo jogo usa e nenhum tutorial parou para explicar.</p>
+  </a>
+  <a class="card" href="C-arte-e-som.html">
+    <div class="num">C</div>
+    <h2>Arte e som</h2>
+    <p>Onde baixar sprites e sons, o que as licenças permitem, como organizar a pasta <code>media</code> e como o Scena abre imagens, folhas de sprites, sons e fontes.</p>
+  </a>
+  <a class="card" href="D-vetores.html">
+    <div class="num">D</div>
+    <h2>Vetores e pontos</h2>
+    <p>Pontos, deslocamentos e setas: somar, subtrair, medir distância e rumo, girar e andar com uma velocidade.</p>
+  </a>
+  <a class="card" href="E-ajudantes.html">
+    <div class="num">E</div>
+    <h2>Ajudantes</h2>
+    <p><code>lerp</code>, <code>remap</code>, <code>chase</code> e <code>deadzone</code>: misturar valores, trocar de escala, perseguir com suavidade e dar folga a quem segue.</p>
+  </a>
+  <a class="card" href="F-formas.html">
+    <div class="num">F</div>
+    <h2>Formas</h2>
+    <p>Cada forma do Scena e os jeitos de pô-la na tela, lado a lado: centro, cantos, dois pontos, focos, regiões e as opções que todas aceitam.</p>
   </a>
 </div>
 </body>

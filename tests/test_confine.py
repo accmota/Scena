@@ -239,7 +239,7 @@ class TestAnchoredSprite(ConfineTestCase):
     """A Sprite whose sheet has an anchor: ``center`` is the pivot, not the
     middle of the drawing (anchor="bottom" puts it at the feet).
 
-    Bug (2026-10-09, tutorial 14): confine compared the drawn middle and wrote
+    Bug (2026-10-09, tutorial 17): confine compared the drawn middle and wrote
     it back as the pivot, so every clamp lifted the sprite by half its height.
     A ninja walking into the screen edge climbed ~1900 units/s to the top.
     Bug class: a pose writer fed a point measured in another frame (drawn box
