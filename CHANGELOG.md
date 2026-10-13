@@ -151,6 +151,13 @@ left out.
   `on_collide_exit`) as a method now gets those calls, as if it had assigned
   them. Before, the method was ignored.
 
+### Documentation
+
+- Guia, "Tornar sólido": `resolve(hero, ANYTHING)` makes every enrolled body
+  solid, coins, shots and sensors included (the hero shoves the coin instead
+  of passing through it; its `@collide` still fires). Name the solid groups
+  instead: `resolve(hero, ["walls", "crates"])`.
+
 ## 0.8.0 — 2026-10-11
 
 ### Breaking

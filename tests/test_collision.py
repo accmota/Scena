@@ -300,6 +300,45 @@ class TestAnythingInterestLifecycle(CollisionTestCase):
         self.assertNotIn("un_wall", a._collider._pair_targets)
 
 
+class TestResolveAnythingIsSolid(CollisionTestCase):
+    """resolve(x, ANYTHING) is kept on purpose and makes every enrolled body
+    solid, a @collide-only collectable included (Collision Design, "Standing
+    resolve"; the Guia warns at #res-basic). Decided 2026-10-13: not refused,
+    unlike @leave_playfield(ANYTHING)."""
+
+    def coin_pass(self, solid_side):
+        hero = self.track(Rect(center=self.at(0, 0), width=20, height=20, group="ra_hero"))
+        coin = self.track(Circle(center=self.at(12, 0), radius=10, group="ra_coin"))
+        hits = []
+
+        @collide(hero, "ra_coin")
+        def pick(me, other, info):
+            hits.append(other)
+
+        resolve(hero, solid_side)
+        self.step()
+        return hero, coin, hits
+
+    def test_anything_pushes_a_collide_only_coin_and_the_handler_still_fires(self):
+        hero, coin, hits = self.coin_pass(ANYTHING)
+        self.assertEqual(hits, [coin])
+        self.assertLess(float(hero.center.x), self.origin - 1.0)
+        self.assertGreater(float(coin.center.x), self.origin + 13.0)
+
+    def test_named_solid_groups_leave_the_coin_alone(self):
+        hero, coin, hits = self.coin_pass(["ra_wall", "ra_crate"])
+        self.assertEqual(hits, [coin])
+        self.assertEqual(float(hero.center.x), float(self.origin))
+        self.assertEqual(float(coin.center.x), float(self.origin + 12))
+
+    def test_anything_on_both_sides_is_accepted_and_separates(self):
+        a = self.track(Rect(center=self.at(0, 0), width=20, height=20))
+        b = self.track(Rect(center=self.at(10, 0), width=20, height=20))
+        a.collidable = b.collidable = True
+        resolve(ANYTHING, ANYTHING)
+        self.step()
+        self.assertGreaterEqual(float(b.center.x) - float(a.center.x), 19.5)
+
 
 class TestDispatchHandlerIndex(CollisionTestCase):
     """Review 2026-10-09 perf: ``_dispatch`` walks this phase's handlers from a
