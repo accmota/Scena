@@ -45,6 +45,8 @@ class TestRejectedTimedVerbs(SystemTestCase, unittest.TestCase):
         ("move_to", lambda c: c.move_to(300, 0, time=1), lambda c: c.move_to(0, 300, time=-1)),
         ("move_by", lambda c: c.move_by(300, 0, time=1),
          lambda c: c.move_by(0, 300, time=1, ease="nope")),
+        ("move_by heading face", lambda c: c.move_by(300, 0, time=1),
+         lambda c: c.move_by(distance=-300, time=1, face=True)),
         ("rotate_to", lambda c: c.rotate_to(90, time=1), lambda c: c.rotate_to(10, time=-1)),
         ("rotate_by", lambda c: c.rotate_by(90, time=1),
          lambda c: c.rotate_by(10, time=1, on_done=5)),
@@ -70,6 +72,10 @@ class TestRejectedTimedVerbs(SystemTestCase, unittest.TestCase):
         before = c.angle
         with self.assertRaises(ValueError):
             c.move_to(0, 300, time=-1, face=True)
+        self.assertEqual(c.angle, before)
+        # face= with the heading as the direction is refused before the snap.
+        with self.assertRaises(TypeError):
+            c.move_by(distance=-300, time=1, face=True)
         self.assertEqual(c.angle, before)
 
     def test_then_on_an_actor_verb_still_works(self):

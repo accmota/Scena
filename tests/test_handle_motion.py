@@ -252,6 +252,30 @@ class TestStraightFace(HandleMotionTestCase):
         self.assertTrue(_ang_close(s.angle, 0.0, tol=0.5))
 
 
+class TestTimedMoveByHeading(HandleMotionTestCase):
+    """``move_by(distance=, time=)`` freezes the heading's delta at the call."""
+
+    def test_turning_mid_move_does_not_curve(self):
+        c = self.track(Circle(center=(0, 0), radius=8))
+        c.rotate_to(0)
+        h = c.move_by(distance=100, time=0.4)
+        _frame(0.1)
+        c.rotate_to(90)
+        _frame(0.5)
+        self.assertTrue(h.done)
+        self.assertAlmostEqual(float(c.center.x), 100.0, places=4)
+        self.assertAlmostEqual(float(c.center.y), 0.0, places=4)
+        self.assertTrue(_ang_close(c.angle, 90.0, tol=0.5))
+
+    def test_negative_distance_backs_up_over_time(self):
+        c = self.track(Circle(center=(0, 0), radius=8))
+        c.rotate_to(90)
+        c.move_by(distance=-40, time=0.2)
+        _frame(0.3)
+        self.assertAlmostEqual(float(c.center.y), -40.0, places=4)
+        self.assertTrue(_ang_close(c.angle, 90.0, tol=0.5))
+
+
 class TestRideMotionReadout(HandleMotionTestCase):
     def test_circle_speed_matches_arc_length(self):
         path = self.track(Track.circle(center=(0, 0), radius=50))

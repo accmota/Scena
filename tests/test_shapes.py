@@ -523,14 +523,13 @@ class TestMoveByFamilies(ShapeTestCase):
         with self.assertRaises(TypeError):
             p.move_by(Vec2(1, 0), angle=90, distance=10)
 
-    def test_half_polar_raises(self):
+    def test_angle_without_distance_raises(self):
         p = Point(0, 0)
         with self.assertRaises(TypeError) as ctx:
             p.move_by(angle=90)
-        self.assertIn("angle=", str(ctx.exception))
         self.assertIn("distance=", str(ctx.exception))
-        with self.assertRaises(TypeError):
-            p.move_by(distance=40)
+        self.assertIn("heading", str(ctx.exception))
+        self.assertPointAlmost(p, 0, 0)
 
     def test_polar_on_circle(self):
         c = Circle(center=(0, 0), radius=8)
@@ -545,6 +544,127 @@ class TestMoveByFamilies(ShapeTestCase):
             dst.move_by(angle=0, distance=1)
         dst.move_by(angle=0, distance=1, force=True)
         self.assertPointAlmost(dst, 2, 1)
+
+
+class TestMoveByHeading(ShapeTestCase):
+    """``move_by(distance=d)`` with ``angle=`` omitted moves along ``.angle``
+    (read at the call, like ``raycast(length=)``); the heading never changes."""
+
+    def _shapes(self):
+        from scena import Sprite, Text, Track
+        yield "Point", Point(0, 0)
+        yield "Rect", Rect(center=(0, 0), width=20, height=10)
+        yield "Circle", Circle(center=(0, 0), radius=8)
+        yield "Polygon", Polygon(points=[(0, 0), (10, 0), (5, 8)])
+        yield "Text", Text("hi", center=(0, 0))
+        yield "Sprite", Sprite(center=(0, 0), size=32)
+        yield "Track", Track.circle(center=(0, 0), radius=20)
+
+    def test_each_kind_moves_along_its_heading(self):
+        for heading in (0, 90, 210):
+            for name, shape in self._shapes():
+                with self.subTest(kind=name, heading=heading):
+                    try:
+                        shape.rotate_to(heading)
+                        c0 = (shape.center.x, shape.center.y)
+                        shape.move_by(distance=10)
+                        rad = math.radians(heading)
+                        self.assertPointAlmost(
+                            shape.center, c0[0] + 10 * math.cos(rad),
+                            c0[1] + 10 * math.sin(rad), places=5)
+                        self.assertAlmostEqual(shape.angle % 360, heading % 360, places=6)
+                    finally:
+                        shape.destroy()
+
+    def test_negative_distance_backs_up(self):
+        r = Rect(center=(5, 5), width=20, height=10, angle=90)
+        r.move_by(distance=-30)
+        self.assertPointAlmost(r.center, 5, -25)
+        self.assertAlmostEqual(r.angle, 90)
+
+    def test_same_as_explicit_angle(self):
+        a = Rect(center=(0, 0), width=20, height=10, angle=37)
+        b = Rect(center=(0, 0), width=20, height=10, angle=37)
+        a.move_by(distance=12.5)
+        b.move_by(angle=37, distance=12.5)
+        self.assertPointAlmost(a.center, b.center.x, b.center.y)
+
+    def test_derived_line_heading_is_p1_to_p2(self):
+        line = Line(p1=(0, 0), p2=(3, 4))
+        line.move_by(distance=5)
+        self.assertPointAlmost(line.p1, 3, 4)
+        self.assertPointAlmost(line.p2, 6, 8)
+
+    def test_sprite_art_angle_and_flip(self):
+        # ``.angle`` already folds art_angle and the flip mirror: forward is
+        # where the art points.
+        from scena import Sprite
+        s = Sprite(center=(0, 0), size=32, art_angle=90)
+        f = Sprite(center=(0, 0), size=32)
+        try:
+            s.move_by(distance=10)
+            self.assertPointAlmost(s.center, 0, 10)
+            f.rotate_to(30)
+            f.flip_x = True
+            f.move_by(distance=10)
+            rad = math.radians(150)
+            self.assertPointAlmost(f.center, 10 * math.cos(rad), 10 * math.sin(rad))
+        finally:
+            s.destroy()
+            f.destroy()
+
+    def test_linked_heading_is_read_and_kept(self):
+        from scena import State
+        st = State()
+        st.a = 90.0
+        r = Rect(center=(0, 0), width=20, height=10)
+        r["angle"] @= lambda: st.a
+        r.move_by(distance=10)
+        self.assertPointAlmost(r.center, 0, 10)
+        self.assertTrue(r["angle"].is_linked)
+
+    def test_reversed_track_uses_the_host_heading(self):
+        from scena import Track
+        tr = Track.circle(center=(0, 0), radius=20)
+        try:
+            tr.rotate_to(90)
+            tr.reversed().move_by(distance=5)
+            self.assertPointAlmost(tr.center, 0, 5)
+        finally:
+            tr.destroy()
+
+    def test_group_members_use_their_own_heading(self):
+        from scena import group
+        a = Rect(center=(0, 0), width=4, height=4, angle=0)
+        b = Rect(center=(0, 0), width=4, height=4, angle=90)
+        try:
+            a.tag("move_by_heading")
+            b.tag("move_by_heading")
+            group["move_by_heading"].move_by(distance=10)
+            self.assertPointAlmost(a.center, 10, 0)
+            self.assertPointAlmost(b.center, 0, 10)
+        finally:
+            a.destroy()
+            b.destroy()
+
+    def test_face_without_angle_raises_and_changes_nothing(self):
+        # face= would write the heading it just read: a no-op for d > 0, a
+        # 180° flip every call for d < 0. Refused whatever the sign.
+        for d in (10, -10, 0):
+            with self.subTest(distance=d):
+                r = Rect(center=(0, 0), width=20, height=10, angle=30)
+                with self.assertRaises(TypeError) as ctx:
+                    r.move_by(distance=d, face=True)
+                msg = str(ctx.exception)
+                for hint in ("face=True", "rotate_by(180)", "angle="):
+                    self.assertIn(hint, msg)
+                self.assertPointAlmost(r.center, 0, 0)
+                self.assertAlmostEqual(r.angle, 30)
+
+    def test_face_with_explicit_angle_still_turns(self):
+        r = Rect(center=(0, 0), width=20, height=10, angle=0)
+        r.move_by(angle=120, distance=10, face=True)
+        self.assertAlmostEqual(r.angle, 120)
 
 
 # ---------------------------------------------------------------------------

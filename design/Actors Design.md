@@ -822,7 +822,9 @@ On `move_along`, yoyo flips the effective
 `face=True` flips heading 180° when travel is reverse (yoyo odd lap or
 `span=(1, 0)` on `move_along`). The same `face=` lives on `move_to` /
 `move_by` (instant or timed): heading is `atan2(dy, dx)` of the frozen
-travel delta; zero delta holds rotation. Multi-key tween
+travel delta; zero delta holds rotation. `move_by(distance=)` without
+`angle=` (the delta *is* the heading) refuses `face=True` — see
+[Shapes — move_by](Shapes%20Design.md). Multi-key tween
 (`id(center)` + `(id(shape), "angle")`) matches `move_along` so a
 concurrent `rotate_*` cancels the face ride.
 
