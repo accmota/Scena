@@ -204,6 +204,13 @@ left out.
 - A `Collider` subclass that defines `on_collide` (or `on_collide_stay`,
   `on_collide_exit`) as a method now gets those calls, as if it had assigned
   them. Before, the method was ignored.
+- A track made without a place (`Track.circle(radius=120)`, `Track.eight()`,
+  any preset with sizes only) is anchored when you give it one later: a link
+  (`orbit["center"] @= lambda: earth.center`), `orbit.center = …`,
+  `move_to` or `move_by`. Its riders follow it, also those already riding.
+  Before, the place was taken and ignored: the moon circled its own start
+  and `is_floating` stayed `True`. To draw a track somewhere while each
+  rider still starts from where it is, say so: `floating=True`.
 
 ### Documentation
 
