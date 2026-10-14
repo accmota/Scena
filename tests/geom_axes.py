@@ -221,7 +221,7 @@ def _degenerate(obj, w) -> bool:
 
 def _names_crossed(obj, w) -> bool:
     model = getattr(getattr(obj, "model", None), "name", None)
-    if type(obj).__name__ not in ("Rect", "Box") or model != "CORNER_CORNER":
+    if type(obj).__name__ not in ("Rect", "Concave", "Box") or model != "CORNER_CORNER":
         return False
     obj.top_left                     # names fixed at first use
     p1 = (float(obj.p1.x), float(obj.p1.y))
@@ -237,6 +237,7 @@ def _copy_cross_model(obj, w):
     twin_kind = {
         "Line": "Line center_length", "Circle": "Circle two_points", "Ellipse": "Ellipse focal_points",
         "Rect": "Rect corner_corner", "Square": "Square top_left_length",
+        "Concave": "Concave corner_corner reversed",
         "RegularPolygon": "RegularPolygon vertex_side", "Triangle": "Triangle vertex_side",
         "Polygon": "Polygon",
     }.get(type(obj).__name__)

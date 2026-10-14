@@ -147,6 +147,50 @@ class TestCreate(unittest.TestCase):
         drag(e, (500, 500), (503, 503))                    # a drag (> 3 px) to radius 0: dropped
         self.assertEqual(len(e.doc.items), 2)
 
+    def test_concave_draws_like_a_rect_and_the_panel_sets_scoop_and_rim(self):
+        """A concave is a box with a scoop: drawn like a rect (top-left scoop,
+        no rim), Scoop and Rim are panel fields, one undo step each."""
+        e = ed()
+        e.set_tool("concave")
+        drag(e, (11, 19), (98, 51))
+        item = e.single()
+        self.assertEqual((item["kind"], item["scoop"], item["rim"]), ("concave", "top_left", (0, 0)))
+        self.assertEqual(geo.aabb(item), (10, 20, 100, 50))
+        self.assertTrue(e.set_field("scoop", "bottom_center"))
+        self.assertTrue(e.set_field("rim", "20, 5"))
+        self.assertEqual((e.single()["scoop"], e.single()["rim"]), ("bottom_center", (20, 5)))
+        self.assertTrue(e.set_field("rim", "8"))
+        self.assertEqual(e.single()["rim"], (8, 8))
+        self.assertFalse(e.set_field("rim", "1, 2, 3"))
+        self.assertIn("Rim", e.message)
+        self.assertFalse(e.set_field("rim", "-4"))         # level_format refuses it
+        self.assertFalse(e.set_field("scoop", "center"))
+        self.assertEqual(e.single()["rim"], (8, 8))
+        self.assertTrue(e.undo())
+        self.assertEqual(e.single()["rim"], (20, 5))
+        e.set_tool("concave")
+        click(e, (12, 208))                                 # a click: 100 x 100, top-left there
+        self.assertEqual((e.single()["center"], e.single()["width"]), ((60, 160), 100))
+        self.assertEqual(e.tool, "select")
+
+    def test_concave_hit_test_follows_the_scoop(self):
+        item = {"kind": "concave", "center": (0, 0), "width": 100, "height": 100, "angle": 0.0,
+                "scoop": "top_left", "rim": (0.0, 0.0)}
+        self.assertFalse(geo.contains(item, -45, 45))      # in the scoop: a miss
+        self.assertTrue(geo.contains(item, 45, -45))       # the solid corner
+        turned = dict(item, angle=90.0)                    # the scoop turns to the bottom left
+        self.assertFalse(geo.contains(turned, -45, -45))
+        self.assertTrue(geo.contains(turned, 45, 45))
+        decked = dict(item, rim=(30.0, 0.0))               # a 30-wide deck along the top
+        self.assertTrue(geo.contains(decked, 35, 49))
+        self.assertFalse(geo.contains(decked, 15, 49))
+
+    def test_group_scale_scales_a_concave_rim(self):
+        item = {"kind": "concave", "center": (0, 0), "width": 100, "height": 60, "angle": 0.0,
+                "scoop": "top_left", "rim": (10.0, 4.0)}
+        out = geo.scale_item(item, (0, 0), 2.0)
+        self.assertEqual((out["width"], out["height"], out["rim"]), (200.0, 120.0, (20.0, 8.0)))
+
     def test_regular_polygon_handles_resize_and_turn(self):
         e = ed()
         a = e.doc.add({"kind": "regular_polygon", "center": (100, 100), "radius": 50, "n": 5,
@@ -888,6 +932,14 @@ class TestPanel(unittest.TestCase):
         self.assertEqual(e.doc.get(c)["center"], (500, 500))
         e.undo()
         self.assertEqual(e.doc.get(a)["center"], (10, 10))
+
+    def test_copy_code_concave(self):
+        e = ed()
+        e.doc.add({"kind": "concave", "name": "rampa", "center": (1, 2), "width": 30, "height": 20,
+                   "scoop": "top_right", "rim": (4, 0)})
+        e.selection = [e.doc.items[0]["id"]]
+        self.assertEqual(e.copy_code(),
+                         "rampa = Concave(center=(1, 2), width=30, height=20, scoop='top_right', rim=(4, 0))")
 
     def test_copy_code(self):
         e = ed()

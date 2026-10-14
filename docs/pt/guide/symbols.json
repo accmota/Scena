@@ -7294,6 +7294,20 @@
       "params": []
     },
     {
+      "name": "Concave",
+      "kind": "class",
+      "chapter": "desenhar",
+      "section": "desenhar-shapes",
+      "anchor": "shape-concave",
+      "oneLiner": "Caixa com concha (scoop=, rim=): rampa, half-pipe, canto curvo.",
+      "public": true,
+      "chapterTitle": "Desenhar",
+      "sectionTitle": "Shapes",
+      "search": "concave",
+      "catalog": false,
+      "params": []
+    },
+    {
       "name": "Point",
       "kind": "class",
       "chapter": "desenhar",

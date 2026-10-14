@@ -38,11 +38,11 @@ def _allowlist_types():
     """
     from .box import Box
     from .shapes import (
-        Circle, Ellipse, Line, Polygon, Rect,
+        Circle, Concave, Ellipse, Line, Polygon, Rect,
         RegularPolygon, Square, Triangle,
     )
     return (
-        Line, Circle, Ellipse, Rect, Square,
+        Line, Circle, Ellipse, Rect, Square, Concave,
         Polygon, RegularPolygon, Triangle, Box,
     )
 
@@ -590,9 +590,11 @@ def _polygon_verts(shape) -> List[Point2]:
 def _outline_verts(shape) -> Optional[List[Point2]]:
     """Closed outline vertices, or None for Line / Circle / Ellipse."""
     from .box import Box
-    from .shapes import Line, Circle, Ellipse, Rect, Square, Polygon
+    from .shapes import Line, Circle, Concave, Ellipse, Rect, Square, Polygon
     if isinstance(shape, (Line, Circle, Ellipse)):
         return None
+    if isinstance(shape, Concave):
+        return shape._world_ring()     # the curve as chords within 0.01 DU
     if isinstance(shape, (Rect, Square, Box)):
         return _oriented_box_verts(shape)
     if isinstance(shape, Polygon):
@@ -621,13 +623,13 @@ def _outline_segments(shape) -> List[Segment]:
 
 def _shape_center(shape) -> Point2:
     from .box import Box
-    from .shapes import Circle, Ellipse, Line, Polygon, Rect, Square
-    if isinstance(shape, (Line, Circle, Ellipse, Rect, Square, Box, Polygon)):
+    from .shapes import Circle, Concave, Ellipse, Line, Polygon, Rect, Square
+    if isinstance(shape, (Line, Circle, Ellipse, Rect, Square, Concave, Box, Polygon)):
         # RegularPolygon shadows center; free Polygon aliases centroid.
         return _bare_xy(shape.center)
     raise TypeError(
         f"no center to project from on {type(shape).__name__}; "
-        f"supported: Line, Circle, Ellipse, Rect, Square, Box, Polygon"
+        f"supported: Line, Circle, Ellipse, Rect, Square, Concave, Box, Polygon"
     )
 
 
@@ -796,7 +798,7 @@ def intersections(a, b) -> List[Point2]:
         TypeError: if either argument is outside the allowlist.
 
     Args:
-        a: A Line, Circle, Ellipse, Rect, Square, Polygon or Box.
+        a: A Line, Circle, Ellipse, Rect, Square, Concave, Polygon or Box.
         b: Another one.
     """
     _require_allowed(a, fn="intersections")
@@ -822,7 +824,7 @@ def intersection(a, b, i: int = 0) -> Point2:
         ValueError: if ``i < 0``.
 
     Args:
-        a: A Line, Circle, Ellipse, Rect, Square, Polygon or Box.
+        a: A Line, Circle, Ellipse, Rect, Square, Concave, Polygon or Box.
         b: Another one.
         i: Which crossing (default 0, the first).
     """
@@ -892,8 +894,9 @@ def closest_point(shape, p) -> Point2:
         c2, s2 = math.cos(rad2), math.sin(rad2)
         return (cx + clx * c2 - cly * s2, cy + clx * s2 + cly * c2)
 
-    # Polygon / RegularPolygon / Triangle
-    verts = _polygon_verts(shape)
+    # Polygon / RegularPolygon / Triangle; a Concave's outline (its curve as chords)
+    from .shapes import Concave
+    verts = shape._world_ring() if isinstance(shape, Concave) else _polygon_verts(shape)
     if len(verts) < 3:
         if verts:
             return verts[0]

@@ -15,7 +15,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 | Status / which shape has models | [Status](#status) |
 | Defining vs Derivate / CTM | [Defining vs Derivate](#defining-vs-derivate-multi-model), [Lazy Derivates](#lazy-derivates-and-ctm-draw) |
 | Plain draw (no visual) | [Plain draw](#plain-draw-_blit_plain) |
-| Per-shape models | [Point](#point) … [RegularPolygon](#regularpolygon--triangle), [Track](#track) |
+| Per-shape models | [Point](#point) … [RegularPolygon](#regularpolygon--triangle), [Concave](#concave), [Track](#track) |
 | Which point is `top_right` (names vs points, flips) | [Named points](#named-points) |
 | What every kind / verb must satisfy | [Geometry contract](#geometry-contract) |
 | Transforms / clone | [Transform API](#transform-api-shape) |
@@ -70,6 +70,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 | **Line** | yes (multi-model, incl. 5 cross-shape relational models) | yes | world `p1`→`p2` |
 | **Rect** | yes (multi-model; lazy Derivate corners/mids/end-squares) | yes | CTM local frame |
 | **Square** | yes (`Rect` subclass; `length` Defining, `width`/`height` Derivate) | yes | CTM (inherited) |
+| **Concave** | yes (Rect's models via `_RectBody`; `rim` Defining in every model; plain `scoop`) | yes | CTM local path (true arc); collision as convex pieces |
 | **Circle** | yes (multi-model, optional arc window) | yes | world center/radius |
 | **Ellipse** | yes (multi-model) | yes | CTM local frame |
 | **Polygon** | yes (dynamic-arity Defining vertices) | yes | world vertices |
@@ -228,7 +229,7 @@ Style/group apply on every path; size defaults apply on the home path only (so
 
 Every drawable multi-model shape accepts `ShapeName()` with no geometry kwargs. That path picks the simplest free model and builds a **visible**, medium-sized shape at the **design-space center** (not a degenerate zero-extent object).
 
-**Collapsed geometry** (zero extent after construct or parametric size) is legal and **silent** — no warning / HUD. Read `.is_collapsed` (`True` when there is no interior): Rect/Square via oriented frame (`w == 0 or h == 0`); Ellipse either axis `0`; Circle / RegularPolygon `radius == 0`; Line `length == 0`. Point, free Polygon, and Track stay `False` (intentionally dimensionless ≠ collapsed). Same name and rule on `Box` — [Box Design.md — Remainder](Box%20Design.md#remainder). Empty constructors above still build a medium **non-collapsed** shape.
+**Collapsed geometry** (zero extent after construct or parametric size) is legal and **silent** — no warning / HUD. Read `.is_collapsed` (`True` when there is no interior): Rect/Square/Concave via oriented frame (`w == 0 or h == 0`); Ellipse either axis `0`; Circle / RegularPolygon `radius == 0`; Line `length == 0`. Point, free Polygon, and Track stay `False` (intentionally dimensionless ≠ collapsed). Same name and rule on `Box` — [Box Design.md — Remainder](Box%20Design.md#remainder). Empty constructors above still build a medium **non-collapsed** shape.
 
 Size comes from `_default_pose()`: `unit = 0.06 * min(design_width, design_height)` (≈72 on the default 2000×1200 canvas).
 
@@ -239,6 +240,7 @@ Size comes from `_default_pose()`: `unit = 0.06 * min(design_width, design_heigh
 | `Rect()` / `Rect(center=…)` / `Rect(width=, height=)` | `CENTER_WH` | `2*unit` × `1.25*unit` unless both given |
 | `Square()` / `Square(center=…)` / `Square(length=…)` | `CENTER_LENGTH` | length `1.5*unit` unless given |
 | `Ellipse()` / `Ellipse(center=…)` / `Ellipse(width=, height=)` | `CENTER_WH` | same extents as default `Rect` |
+| `Concave()` / `Concave(center=…)` / `Concave(width=, height=)` | `CENTER_WH` | same box as default `Rect`; `scoop="top_left"`, `rim=0` |
 | `Polygon()` | free vertices | irregular quad (centroid at center) |
 | `RegularPolygon()` / `(n=k)` / `(center=…)` / `(radius=…)` | `CENTER_RADIUS` | hexagon if `n` omitted; radius `unit` unless given |
 | `Triangle()` | `CENTER_RADIUS` | radius `unit`; `base_ratio=1` (equilateral) |
@@ -424,6 +426,7 @@ Model-dependent `p1`/`p2` (and sometimes `top_left` / `center`) may be Defining 
 - `_oriented_frame()` returns `(cx, cy, w, h, ang)` with **non-negative** drawn extents. Paint, hit test, collision, `is_collapsed`, geometry queries and `region_frame` read it; they do not depend on names.
 - **The pose store follows `angle`.** On every kind whose `angle` is a Defining input in the current model (Rect, Square, Ellipse by size, Line by length, RegularPolygon, Circle by radius) an `angle =` write publishes the pose store `_rotation` too, inline in the shared slot write (`Container._write_field`; `Shape._publish_angle_input` off the fast path). It lagged until the next verb: nothing drew wrong, since each verb rereads `angle`, but a reader of `_rotation` in between saw the old heading. Batched verbs publish themselves (`_pose_rotation_add` / `_set`), so a verb that writes `angle` outside a batch must not add the turn again (the Line about-center fast path). Guard: `test_heading_link.TestPoseStoreFollowsTheHeading` (every kind, any two pose verbs; a Track view reads its host). Cost: about 0.15 µs per `angle =` write.
 - The name frame (`_RectNames` mixin, shared with `Box`): `_name_half_extents(w, h)` → `(a, b)`; `_name_frame()` → `(cx, cy, a, b, ang)`; `_effective_name_signs()` → the signs of `(a, b)`.
+- The shape body (`_RectBody`, the private base of `Rect` and `Concave`): slots, signatures, pose verbs, flips, clone and `<<` ([Concave](#concave)).
 - The frame model (`_RectFrame` mixin, shared with `Box`): the construction models (`_init_model`, one signature table), `_oriented_frame`, `_top_left_offset`, Derivate materialization and the five `_update_impl_*`. Hooks: `_publish_heading(ang)` (Rect writes its pose store; Box has none) and `_pull_heading` (Rect's derived-heading link). Box overrides only `_oriented_frame`, to read a snapshot's center as floats. Do not copy these methods back into Box or Rect: `tests/test_rect_frame.py` fails (Box carried a near-copy that ignored mirrored names on its `top_left` model, D23). `rotate_by` and the `<<` copy are merged too (review 2026-10-09 S7-3: Box's copy of `rotate_by` passed no `pivot=` to the gate, so a linked corner on the pivot was refused on Box and allowed on Rect): `_RectFrame._rotate_frame` is the one per-model turn (Rect wraps it in its batch and publishes the pose store; Box calls it bare), and `_RectFrame._take_frame_parts` is the one per-model copy of Defining inputs (each `_takein_impl` keeps only its own prologue: Rect's corner radius and dead-target refusal, Box's type check). `_wh_signed` moved there as well.
 
 `_apply_oriented_corners(cx, cy, w, h, ang)` writes only live Derivate named points, Derivate `p1`/`p2` and `vec` (skips Defining and cold/unregistered slots). It names nothing unless a named point is live: naming happens at first use, never at the first update. Every `_update_impl_*` refreshes a live Derivate `vec` through it (`_refresh_live_vec`); `_update_impl_*` uses `_takein_live_derivate` for the other optional mirrors (`width`/…).
@@ -475,6 +478,34 @@ Optional AABB scalars (`left`/`right`/`top`/`bottom`) are deferred — oriented 
 Named points follow Rect's rule ([Named points](#named-points)): visual until a flip mirrors them; `clone()` / `_takein` copy the name signs (a `TOP_LEFT_LENGTH` copy needs them to place its center from `top_left`).
 
 `_update_impl` mirrors `length` into `width`/`height` (inside `@batch_update_attrs('width', 'height')`, to bypass the Derivate write-guard) and then calls `Rect._update_impl` unchanged. `move_by`/`rotate_by`/`draw` are inherited from `Rect` (CTM draw, including `corner_radius`). Only `scale_by` is overridden: it delegates to `Rect.scale_by` for the geometry, then multiplies Defining `length` by the same non-negative geometry factor.
+
+
+# Concave
+=========
+
+`Concave(_RectBody)` (0.9.0) — a box with a concave **scoop**: part of a circle or an ellipse taken out of it (a quarter-pipe, a pinball corner fill, the inside corner of a race track, a half-pipe). It is placed exactly like a Rect (every Rect model, the named points, `angle`, `box=`, `.box`) and is **not a `Rect`**: it does not collide as a box, so `isinstance(c, Rect)` is false (LSP, as `Triangle` is not a `RegularPolygon`).
+
+**The shared base.** `_RectBody(_DerivedRotationRoute, _RectFrame, _RectNames, Shape)` holds Rect's slots, construction signatures, home fill, pose verbs (`_move_by`, `rotate_by`, `scale_by`, flips), `clone`, `<<` and the drag / wheel parts. `Rect` adds `corner_radius` (paint and pointer) and the box draw / hit test; `Concave` adds the scoop. Per-kind hooks: `_read_frame_extras` / `_apply_frame_extras` (`<<`), `_clone_extra_kwargs` (`clone()`), `_scale_extras` / `_scale_gate_extras` (`scale_by`, only when `_SCALES_EXTRAS`, so Rect pays one class-attribute read). Engine code that means "the oriented box frame" tests `_RectBody` (the broad-phase bound); code that means the box itself tests `Rect` (the OBB prim, the geom box outline, a Track's rounded-rect outline). Frame-kind lists keyed by name (`box._FRAME_GRAPHIC_NAMES`, `region_frame`) list `"Concave"`.
+
+**Inputs.**
+
+| Input | Kind | Rule |
+|-------|------|------|
+| `scoop` | plain constructor string, fixed (like `n`) | A named point of the box: a corner (`top_left` …) takes a quarter out; an edge middle (`top_center` …) takes a half out. Default `top_left`. Read case-insensitively (`expect_choice`), a near miss names the fix; `"center"` is refused (a hole is not one convex-piece region). `c.scoop = …` raises with the fix (`flip_x` / `flip_y` mirror it). Class default allowed (`class Ramp(Concave, scoop="top_right")`). Other kinds refuse `.scoop` (`entity._SHAPE_WORDS`) |
+| `rim` | Defining `Vec2` part in **every** model (`_RimPair`, appended by `_set_defining_parts`) | The solid left at the scoop's ends, along the box's local x / y. A number is both axes; a pair `(x, y)`. Author writes (`=`, the constructor) must be finite and `>= 0` (`_concave_rim_pair`); a link (`rim @=`, a lambda in the constructor, a component lambda) or a component write below 0 counts as 0 at use (`_rim_xy`). Scales with `scale_by` (abs factor); a linked rim refuses `scale_by` unless `force`. Not reserved on other kinds: `rim` is a common author field name (`test_route_table.GENERIC`) |
+
+**The shape (local frame, the drawn box, center at the origin).** The scoop's center is the named point's local offset `(dx·w/2, dy·h/2)`, with `(dx, dy)` the name's direction times `_effective_name_signs()` — so the scoop follows its point through flips, a `p1`/`p2` crossing and copies. The constructor freezes the names (the scoop is a use of a name). Radii along local x / y: a corner reaches the far sides, `(w − rim.x, h − rim.y)`; an edge middle reaches half the box along its edge, `(w/2 − rim.x, h − rim.y)` for top / bottom, `(w − rim.x, h/2 − rim.y)` for left / right; each clamped at 0 (no scoop: the plain box). So a square box gives a quarter circle, any other an ellipse; an edge scoop is a half circle at 2:1. `_scoop_layout(w, h)` returns this as a canonical frame — the curve is `(ox, oy) + re·cos t·e + rn·sin t·n`, `e` along the edge through the scoop, `n` into the box, `t ∈ [0, 90°]` (corner) or `[0, 180°]` (edge) — that the ring, the pieces and the draw path all read.
+
+**Consumers.**
+
+- **Draw**: CTM like Rect, a cached local `skia.Path` (`_geom_path`, key `(w, h, layout)`): the true elliptical arc (`arcTo`), then the box path. Looks draw through `_geometry_draw` (best-effort silhouette).
+- **Pointer** (`_hit_test_xy`): exact — inside the box and not strictly inside the ellipse.
+- **Collision** (`collision._concave_prims` from `Concave._world_pieces`): convex POLY prims, chords within `_CONCAVE_COLLISION_TOL = 0.25` DU of the arc (the partial-Circle / `query_sector` rule, at most 64 per quarter). A corner scoop is a **fan of triangles from the far corner of the scoop's own box** (every chord is seen from there: an affine map makes the ellipse a circle, whose tangents from that corner touch exactly the quarter's ends), plus at most two strips for the rim. Seams stay inside the solid; an **outer face is split at most once** (at that far corner). An edge scoop is two mirrored corner halves. Local pieces are cached by `(w, h, layout, tol)`; world pieces are that cache rotated and translated. The pose extra adds the rim and the name signs (a flip at `angle = 90` keeps the angle and moves the scoop). The broad-phase bound is the box (`_RectBody`). Not a trusted pose-revision kind (`_pose_rev_kind` 0: the key is compared).
+- **Sweeps against a Concave** are pair by pair (`collision._toi_prim_pairs`): a set's GJK distance is its convex hull's, which made a ball meet the chord from the foot to the lip and fly off at 45° (CV1, [Collision Design](Collision%20Design.md#polygon-sweeps)).
+- **Track / `move_along`, geom queries**: the outline ring (`_world_ring`), chords within `_CONCAVE_OUTLINE_TOL = 0.01` DU (up to 512 per quarter), counter-clockwise, **`u = 0` where the curve begins** (counter-clockwise travel meets the curve first). `closest_point` inside returns `p`; the allowlist includes `Concave` ([Geometry queries](#geometry-queries)).
+- **Level files / editor**: the `"concave"` kind (`center`, `width`, `height`, optional `angle`, `scoop`, `rim`); `LevelItem.scoop` / `.rim`; `make()` → `Concave`. Editor tool **U** ([Editor Design](Editor%20Design.md)).
+
+Guards: `tests/test_concave.py` (the shape against an independent model from the public API; every Rect model; validation; flips, rotation, crossing, clone, `<<`; rim links and scale; every consumer against the model after random verbs — draw path, pieces, ring, `closest_point`, bounds; pieces convex and CCW; outer faces split at most once; caches on a rim write and on a same-angle flip; a ball rides a quarter-pipe and comes back, swings in a half-pipe, drops into a U polygon). The generic contract / shadow / reactive suites build Concave forms (`geometry_support.KINDS`); the radial hit test and the "prims = drawn vertices" check skip Concave (its center can sit in the scoop; its chord count follows its size), which `test_concave` covers instead.
 
 
 # Circle
@@ -1054,7 +1085,8 @@ answer (decided 2026-10-09, review S6-8). Sprite samples the **current frame's a
 (oriented visual rect first; a transparent texel misses), not the baked
 hitbox. Circle's pointer test follows the filled arc (pie or chord);
 `intersections` stays the full circumference. Rect `corner_radius` rounds
-the pointer fill; collision stays the oriented box.
+the pointer fill; collision stays the oriented box. A Concave's pointer test
+is its exact curve (collision is chords within 0.25 DU of it).
 
 **The point is in world coordinates; a `ui` shape is hit in view coordinates.**
 The pointer walk passes a `ui`-layer Graphic the view pointer and a world one
@@ -1385,7 +1417,7 @@ Author helpers in [`scena/geom.py`](../scena/geom.py) (exported next to
 | `intersection(a, b, i=0)` | always `(x, y)` | Slot for constructors / `@=` |
 | `closest_point(shape, p)` | always `(x, y)` | Filled-body projection toward `p` |
 
-**Allowlist:** `Line`, `Circle`, `Ellipse`, `Rect`, `Square`, `Polygon`, `RegularPolygon`, `Triangle`, `Box`.
+**Allowlist:** `Line`, `Circle`, `Ellipse`, `Rect`, `Square`, `Concave`, `Polygon`, `RegularPolygon`, `Triangle`, `Box`.
 Anything else → `TypeError`. Out of scope: `Point` (no outline), `Track` (a path, not one closed outline), Sprite (pixel silhouette), SpatialFx (not geometry), arcs, stroke-aware hits.
 
 Adding a type to `_allowlist_types()` requires the matrix test to pass and both doc lists to match (enforced by `TestAllowlistDocs`).
@@ -1401,7 +1433,8 @@ Adding a type to `_allowlist_types()` requires the matrix test to pass and both 
 circumference (ignore `angle`/`spread`). `Ellipse` is the full rotated outline
 from `_oriented_frame`; a collapsed ellipse (either axis `0`) is its major-axis
 segment. Rect/Square/Box use the oriented box edges (the outline ignores
-`corner_radius`; the pointer follows it).
+`corner_radius`; the pointer follows it). A Concave is its outline ring: the
+box edges and the curve as chords within 0.01 DU (`Concave._world_ring`).
 
 **Order.** A `Line` in the pair sorts hits along that segment (`p1→p2`; if both
 are lines, along the first). Two circles keep left-then-right of the centre

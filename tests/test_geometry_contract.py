@@ -572,7 +572,9 @@ def sweep_c6(kinds, p):
                 if min(gap, 360.0 - gap) > 1e-6:
                     out[f"{kind} | frame | box.angle is not rotation"] = f"{frame} vs {rot}"
             # Hit test: just inside the outline is in, just outside is out.
-            if kind in G.AREA_KINDS and fam != "Polygon":
+            # Not for a Concave: its center can sit in the scoop (test_concave
+            # checks its hit test against the curve).
+            if kind in G.AREA_KINDS and fam not in ("Polygon", "Concave"):
                 for q in d[:: max(1, len(d) // 8)]:
                     if _dist(q, c) < 1e-9:
                         continue
@@ -587,7 +589,9 @@ def sweep_c6(kinds, p):
             # Collision prims: polygons / boxes share the drawn vertices; conics the drawn frame.
             if kind in G.AREA_KINDS:
                 pts, conics = _prim_points(obj)
-                if pts and not G.same_set(G.as_set(pts), G.as_set(d), 1e-4) and fam not in ("Circle", "Ellipse"):
+                # A Concave's prims are chords of its curve plus the inner corners
+                # of its convex pieces (test_concave checks them against the shape).
+                if pts and not G.same_set(G.as_set(pts), G.as_set(d), 1e-4) and fam not in ("Circle", "Ellipse", "Concave"):
                     out[f"{kind} | collision prims | vertices"] = ""
                 for ck, params in conics:
                     if ck == "circle":

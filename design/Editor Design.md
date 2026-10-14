@@ -71,6 +71,7 @@ conversion anywhere.
 {"format": "scena-level", "version": 1, "size": [3600, 1500], "items": [
   {"kind": "rect",    "groups": ["plataforma"], "center": [1000, 150], "width": 220, "height": 24, "angle": 20},
   {"kind": "ellipse", "name": "lago", "center": [500, 60], "width": 300, "height": 80},
+  {"kind": "concave", "name": "rampa", "center": [1600, 100], "width": 200, "height": 200, "scoop": "top_right", "rim": [20, 0]},
   {"kind": "circle",  "center": [10, 10], "radius": 16},
   {"kind": "line",    "p1": [0, 0], "p2": [10, 10]},
   {"kind": "polygon", "name": "morro", "points": [[0, 0], [100, 0], [50, 80]]},
@@ -89,7 +90,10 @@ conversion anywhere.
 - Common keys: `name` (optional, unique in the file), `groups` (optional list,
   no repeats), `locked` (editor-only).
 - Per kind (required, then optional with default): rect / ellipse
-  `center, width, height` · `angle=0`; circle `center, radius`; line
+  `center, width, height` · `angle=0`; concave `center, width, height` ·
+  `angle=0`, `scoop="top_left"` (a named point of the box, as
+  `Concave(scoop=)`; a near miss names the fix), `rim=[0, 0]` (a pair ≥ 0;
+  Copy as code writes one number when both agree); circle `center, radius`; line
   `p1, p2`; polygon `points` (≥ 3); regular_polygon `center, radius, n`
   (sides, a whole number ≥ 3) · `angle=0` (toward vertex 0, as
   `RegularPolygon`); track `points` (≥ 2) · `closed=false`
@@ -137,15 +141,16 @@ drone.move_along(fase["rota_drone"].points, time=6)
 - **`LevelItem`** — `kind`, `name`, `groups`, `center` (a line's midpoint, a
   polygon's / track's bounding-box middle — of its points, not of a smooth
   curve), and per kind `width` / `height` /
-  `angle`, `radius`, `n`, `p1` / `p2`, `points` (new list of `Vec2`),
+  `angle`, `scoop` / `rim` (a `Vec2`), `radius`, `n`, `p1` / `p2`, `points` (new list of `Vec2`),
   `closed`, `smooth`,
   `image` (absolute). A field of another kind raises `AttributeError`
   listing what the item has. Every read is a copy.
 - **`item.box`** — fresh oriented `Box(center, width, height, angle)` for
-  rect / ellipse / image; a circle's square. Lines, polygons, regular
+  rect / ellipse / concave / image; a circle's square. Lines, polygons, regular
   polygons, tracks and points raise (only those four kinds are regions).
 - **`item.make(**kwargs)`** — builds the shape as drawn: rect → `Rect`,
-  ellipse → `Ellipse`, circle → `Circle`, line → `Line`, polygon → `Polygon`,
+  ellipse → `Ellipse`, concave → `Concave(center, width, height, angle, scoop, rim)`,
+  circle → `Circle`, line → `Line`, polygon → `Polygon`,
   regular_polygon → `RegularPolygon(n, center, radius, angle)`,
   track → `Track(points, smooth, closed)` (`smooth` always written: the
   file's default is 0, `Track`'s own is 1), point → `Point`, image →
@@ -185,7 +190,7 @@ guard, no zombies) and `test_editor_dialogs`. v1:
 
 - `python -m scena_editor [fase1.json]`, a Scena program (1280×800 design
   units). English UI through `t(key)` (one table per language).
-- Tools: Select (V), Pan (H), Rect (R), Ellipse (E), Circle (C), Line (L),
+- Tools: Select (V), Pan (H), Rect (R), Ellipse (E), Concave (U), Circle (C), Line (L),
   Polygon (G), Regular polygon (N), Track (A), Point (P), Image (I). Point
   has P because it is used most; T is left free for a Text tool. Panel: name, groups
   (comma-separated), numeric geometry, locked, guide; Copy as code,
@@ -193,7 +198,7 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   Row / Column. Status bar: cursor in Scena units, zoom,
   file and unsaved mark.
 - **Layout:** the left toolbar holds only what you create — Rect, Ellipse,
-  Circle, Line, Polygon, Regular polygon, Track, Point, a gap, Image (it
+  Concave, Circle, Line, Polygon, Regular polygon, Track, Point, a gap, Image (it
   opens a file dialog).
   The top bar: New / Open / Save / Save as │ Undo / Redo │ Snap, grid step │
   Select, Pan, Fit, 100% │ Select group [▾]. Undo / Redo are text Buttons, faded (`enabled`)
@@ -369,6 +374,22 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   is that spoke's direction, not "the top" as for rects). Panel: Sides,
   Radius, Angle. `geometry.regular_vertices` places the corners as
   `RegularPolygon` does (`test_regular_polygon_matches_scena_and_sides_field`).
+- **Concave** (2026-10-14): a box with a scoop, its own kind (`Concave`,
+  [Shapes Design — Concave](Shapes%20Design.md#concave)). Drawn like a rect
+  (a click makes 100 × 100, top-left there), scooped at its top left, no rim;
+  the rect's handles (it is in `geometry.AREA`). Panel: **Scoop** (a drop-down
+  of the eight names, in the Radius row — a concave has no radius) and **Rim**
+  (text: `20` for both axes or `20, 0`, `tools._rim_text`; a bad value or a
+  negative axis is refused with a message, no step). Each commit is one undo
+  step (the fields commit before the drop-down in the same frame). The scoop
+  is part of the view's shape key (`Concave.scoop` is fixed: a change makes a
+  new shape); the rim is set on the live shape. Hit tests follow the scoop
+  (`geometry.concave_scoop`, the same radii as `Concave`); the group scale
+  scales the rim with the box, as `Concave.scale_by` does. Key U (for the U
+  of a half-pipe; Q, K were free too). Guards: `test_editor_tools`
+  (draw, panel fields, undo, hit test, group scale, Copy as code),
+  `test_editor_system` in `scena_editor/tests/` (`TestConcaveOnFrames`: the real panel on frames),
+  `test_level` / `test_level_codegen` (the kind, `make()`, copied code).
 - **Smooth tracks:** the panel's Smooth field (tracks only; 0–1, refused
   outside with the format's message) is `Track.smooth`. The view draws the
   item with it; hit tests follow the drawn curve (`geometry.track_curve`,

@@ -40,12 +40,21 @@ _BOOL = "bool"
 _TEXT = "text"        # a non-empty string
 _FRACTION = "fraction"  # a number from 0 to 1
 _SIDES = "sides"      # a whole number >= 3
+_SCOOP = "scoop"      # a named point of the box (Concave scoop=)
+_RIM = "rim"          # a pair [x, y] of numbers >= 0 (Concave rim=)
+
+# Where a concave item's scoop may sit (Concave's ``scoop=``).
+SCOOPS = ("top_left", "top_right", "bottom_left", "bottom_right",
+          "top_center", "bottom_center", "left_center", "right_center")
 
 KINDS: Dict[str, Dict[str, Any]] = {
     "rect": {"required": {"center": _POINT, "width": _SIZE, "height": _SIZE},
              "optional": {"angle": (_NUMBER, 0.0)}},
     "ellipse": {"required": {"center": _POINT, "width": _SIZE, "height": _SIZE},
                 "optional": {"angle": (_NUMBER, 0.0)}},
+    "concave": {"required": {"center": _POINT, "width": _SIZE, "height": _SIZE},
+                "optional": {"angle": (_NUMBER, 0.0), "scoop": (_SCOOP, "top_left"),
+                             "rim": (_RIM, (0.0, 0.0))}},
     "circle": {"required": {"center": _POINT, "radius": _SIZE}, "optional": {}},
     "line": {"required": {"p1": _POINT, "p2": _POINT}, "optional": {}},
     "polygon": {"required": {"points": _POINTS}, "optional": {}},
@@ -62,14 +71,15 @@ MIN_POINTS = {"polygon": 3, "track": 2}
 # Common to every kind. ``locked`` is editor-only (the game ignores it).
 COMMON_OPTIONAL = {"name": None, "groups": (), "locked": False}
 # Kinds whose item is a region (``LevelItem.box``).
-AREA_KINDS = frozenset({"rect", "ellipse", "circle", "image"})
+AREA_KINDS = frozenset({"rect", "ellipse", "concave", "circle", "image"})
 # Keys and kinds from before a rename: refused with the new spelling (no
 # silent rewrite, no alias).
 _RENAMED = {"rotation": "angle"}
 _RENAMED_KINDS = {"path": "track"}
 # Key order when writing (readable diffs).
 _KEY_ORDER = ("kind", "name", "groups", "file", "center", "p1", "p2", "points",
-              "width", "height", "radius", "n", "angle", "closed", "smooth", "guide", "locked")
+              "width", "height", "radius", "n", "angle", "scoop", "rim", "closed", "smooth",
+              "guide", "locked")
 
 
 class LevelFormatError(ValueError):
@@ -135,6 +145,18 @@ def _field(kind_of: str, value: Any, what: str) -> Any:
         if not isinstance(value, str) or not value.strip():
             raise LevelFormatError(f"{what} must be a non-empty string, got {value!r}")
         return value
+    if kind_of == _SCOOP:
+        if value not in SCOOPS:
+            raise LevelFormatError(
+                f"{what} must be one of {', '.join(SCOOPS)}, got {value!r}."
+                + did_you_mean(value, SCOOPS)
+            )
+        return value
+    if kind_of == _RIM:
+        x, y = _point(value, what)
+        if x < 0 or y < 0:
+            raise LevelFormatError(f"{what} must be >= 0 on both axes, got {value!r}")
+        return (x, y)
     raise AssertionError(kind_of)
 
 
@@ -324,6 +346,16 @@ def constructor_for(item: Dict[str, Any], *, image: Optional[str] = None
         if item["angle"]:
             kwargs["angle"] = item["angle"]
         return ("Rect" if kind == "rect" else "Ellipse"), (), kwargs, {}
+    if kind == "concave":
+        kwargs = {"center": item["center"], "width": item["width"], "height": item["height"]}
+        if item["angle"]:
+            kwargs["angle"] = item["angle"]
+        if item["scoop"] != "top_left":
+            kwargs["scoop"] = item["scoop"]
+        mx, my = item["rim"]
+        if mx or my:
+            kwargs["rim"] = mx if mx == my else (mx, my)
+        return "Concave", (), kwargs, {}
     if kind == "circle":
         return "Circle", (), {"center": item["center"], "radius": item["radius"]}, {}
     if kind == "line":

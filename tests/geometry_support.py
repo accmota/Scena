@@ -21,7 +21,7 @@ import warnings
 from typing import Callable, Dict, List, Optional, Tuple
 
 from scena import (
-    Anchor, Box, Circle, Ellipse, Triangle, Line, Point, Polygon, Rect,
+    Anchor, Box, Circle, Concave, Ellipse, Triangle, Line, Point, Polygon, Rect,
     RegularPolygon, Sprite, Square, Svg, Text, Track, clock,
 )
 from scena.process import reset_process_scheduler, tick_processes
@@ -132,6 +132,12 @@ KINDS: Dict[str, Callable] = {
     "Rect spine side_right": lambda p: Rect(p1=(p["x"], p["y"]), p2=_polar(p, 40, p["r"]), height=12 * p["s"], anchor="side_right"),
     "Square center_length": lambda p: Square(center=(p["x"], p["y"]), length=20 * p["s"], angle=p["r"]),
     "Square top_left_length": lambda p: Square(top_left=(p["x"], p["y"]), length=20 * p["s"], angle=p["r"]),
+    # A box with a scoop: the Rect frame, a curve on a named point.
+    "Concave center_wh": lambda p: Concave(center=(p["x"], p["y"]), width=40 * p["s"], height=16 * p["s"], angle=p["r"]),
+    "Concave top_left_wh edge": lambda p: Concave(top_left=(p["x"], p["y"]), width=40 * p["s"], height=16 * p["s"], angle=p["r"], scoop="bottom_center", rim=(0, 3 * p["s"])),
+    "Concave point_vec": lambda p: Concave(p1=(p["x"], p["y"]), vec=(40 * p["s"], -16 * p["s"]), angle=p["r"], scoop="right_center", rim=(0, 2 * p["s"])),
+    "Concave corner_corner reversed": lambda p: Concave(p1=_at(p, 40, 0), p2=_at(p, 0, 16), angle=p["r"], scoop="top_right", rim=2 * p["s"]),
+    "Concave spine side_left": lambda p: Concave(p1=(p["x"], p["y"]), p2=_polar(p, 40, p["r"]), height=12 * p["s"], anchor="side_left", scoop="left_center"),
     "Track line point_point": lambda p: Track.line(p1=(p["x"], p["y"]), p2=_polar(p, 40, p["r"])),
     "Track line length": lambda p: Track.line(length=40 * p["s"], angle=p["r"], p1=(p["x"], p["y"])),
     "Track circle": lambda p: _rotated(Track.circle(radius=12 * p["s"], center=(p["x"], p["y"])), p["r"]),
@@ -154,9 +160,9 @@ KINDS: Dict[str, Callable] = {
 
 # Kinds with an area (hit test / collapse / box containment make sense).
 AREA_KINDS = {k for k in KINDS if k.split()[0] in (
-    "Circle", "Ellipse", "Polygon", "RegularPolygon", "Triangle", "Rect", "Square")}
+    "Circle", "Ellipse", "Polygon", "RegularPolygon", "Triangle", "Rect", "Square", "Concave")}
 FRAME_KINDS = {k for k in KINDS if k.split()[0] in (
-    "Rect", "Square", "Ellipse", "Circle", "Sprite", "Svg", "Text")}
+    "Rect", "Square", "Concave", "Ellipse", "Circle", "Sprite", "Svg", "Text")}
 
 
 def build(kind: str, p: Optional[dict] = None):
@@ -247,7 +253,7 @@ def point_parts(obj) -> Dict[str, Callable[[], XY]]:
         for k in range(len(obj.points)):
             out[f"points[{k}]"] = (lambda o=obj, k=k: xy(o.points[k]))
     if not is_box(obj) and type(obj).__name__ in (
-            "Rect", "Square", "Ellipse", "Circle", "Sprite", "Svg", "Text"):
+            "Rect", "Square", "Concave", "Ellipse", "Circle", "Sprite", "Svg", "Text"):
         for n in BOX_NAMES:
             out[f"box.{n}"] = (lambda o=obj, n=n: xy(getattr(o.box, n)))
     return out
@@ -299,7 +305,7 @@ def angle_keeps(obj):
     """
     model = getattr(getattr(obj, "model", None), "name", None)
     kind = type(obj).__name__
-    if kind in ("Rect", "Square"):
+    if kind in ("Rect", "Square", "Concave"):
         return {"CENTER_WH": obj.center, "TOP_LEFT_WH": obj.top_left,
                 "POINT_VEC": obj.p1, "CORNER_CORNER": "lean"}.get(model)
     if kind == "Ellipse" and model == "CENTER_WH":
@@ -337,6 +343,23 @@ def _sample_conic(cx, cy, rx, ry, ang_deg, n=24) -> List[XY]:
     return out
 
 
+def _concave_drawn(obj) -> List[XY]:
+    """The box's corners and the curve at fixed parameters (its outline ring
+    has a chord count that follows the size, so it is not a stable set)."""
+    cx, cy, w, h, ang = obj._oriented_frame()
+    pts = frame_corners(cx, cy, w, h, ang)
+    layout = obj._scoop_layout(w, h)
+    re, rn, quarters = layout[6], layout[7], layout[8]
+    if re > 0 and rn > 0:
+        to_local = obj._scoop_map(layout)
+        a = math.radians(ang)
+        for k in range(4 * quarters + 1):
+            t = math.radians(22.5 * k)
+            lx, ly = to_local(re * math.cos(t), rn * math.sin(t))
+            pts.append((cx + lx * math.cos(a) - ly * math.sin(a), cy + lx * math.sin(a) + ly * math.cos(a)))
+    return pts
+
+
 def drawn(obj) -> List[XY]:
     """Point set that fixes the painted geometry (order-free)."""
     from scena.box import region_frame
@@ -365,6 +388,8 @@ def drawn(obj) -> List[XY]:
     if isinstance(obj, Ellipse):
         cx, cy, w, h, ang = obj._oriented_frame()
         return _sample_conic(cx, cy, abs(w) / 2, abs(h) / 2, ang, 24)
+    if isinstance(obj, Concave):
+        return _concave_drawn(obj)
     verts, _closed = shape_outline(obj, samples=64)
     return [(float(x), float(y)) for x, y in verts]
 

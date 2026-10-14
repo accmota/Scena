@@ -2622,6 +2622,17 @@ hook was mapped to its class form, and the drag rows did not work.
 | --- | --- | --- | --- | --- | --- |
 | CH1 | In a class, `def on_click(self)` made the shape clickable, but `def on_drag_to(self, alvo, pos)` / `on_drag_over` / `def on_drop_by(self, peca, pos)` turned nothing on; with `draggable = True` set by hand, `on_drag_to` received `(self, alvo)` | `class Bola(Circle): def on_drag_to(self, alvo, pos): …` — `bola.draggable` is `False`; drag it anyway: `alvo is bola` | The drag names were not in `entity._ACTOR_HOOK_NAMES` (never installed through the setter), and dispatch read the attribute, which the class method shadows, and called it with the instance payload `(from, to, pos)` | Drag tests used the decorators or the instance assignment; the class-hook tests checked names, not behaviour | The three names are discovered hooks, installed through the setter with `entity._drag_method_adapter` (drops the side `self` already is); dispatch reads the slots (Shapes Design, "As a class method"). Guard: `tests/test_class_gesture_hooks.py` (every pointer property of a Graphic is a discovered hook; each method sets the instance form's flag on Shape, Sprite and Text; the payload; the top-level signature raises) |
 
+### CV — concave partners in the sweep (2026-10-14)
+
+Found building `Concave` (a box with a scoop): a ball rolled into a
+quarter-pipe and flew off at 45°, peaking at half the height its speed
+allows. The same ball rolled into a `Polygon` with the same outline did the
+same, while the outline's pieces as separate Polygons were fine.
+
+| ID | Finding | Repro | Cause | Why tests missed it | Fix / guard |
+| --- | --- | --- | --- | --- | --- |
+| CV1 | A body swept against a concave multi-prim partner (an ear-clipped concave `Polygon`, a `Concave`, any set whose union is not convex) stopped on the partner's **convex hull**: a ball could not ride into a scoop (thrown off the hull's chord) nor drop into a U notch (it rested on the hull's top) | `Concave(top_left=(0, 200), width=200, height=200)` + floor, `resolve`, a ball at 500 DU/s → velocity (250, 250) at the foot, peak 80 (ideal 149); a ball over a U `Polygon` stops 50 above the notch's floor | `_toi_prim_sets` sent multi-prim sets to `_toi_advance` as sets; `_gjk_distance` on a set is the distance between the sets' convex hulls (the support function runs over the union). Collision Design said "GJK on a set sweeps the hull of the union", kept as it was | Sweep tests used one prim per side or convex sets; the Polygon tests checked detection and settle, not a body entering a notch; the multi-prim test in `test_sweep_sat` pinned the hull path (it asserted SAT was never used on a set) | Sets are swept pair by pair (`collision._toi_prim_pairs`), each pair by the single-pair rules, earliest wins, swept-box pruning ([Collision Design — Polygon sweeps](Collision%20Design.md#polygon-sweeps)). Guards: `test_sweep_sat` (`test_multi_prim_sets_sweep_pair_by_pair`, `test_a_body_enters_a_concave_set` under both `_SWEEP_SAT` values), `test_concave.TestRides` (quarter-pipe ride and return, half-pipe swing, U polygon drop); all fail on the old set sweep. Class: **A set is treated as its hull** |
+
 ### PG — game-behaviour probe campaign (2026-10-13/14)
 
 Probes written as real author games and apps, each played under real input

@@ -4,9 +4,10 @@ Rule under test (Collision Design.md, "Polygon sweeps"): one convex polygon
 prim (AABB, OBB, a convex POLY ring) moving against another is swept in
 closed form (``_toi_sat``): a start overlap is the narrow contact; otherwise
 the exact entry time and the normal of the face it enters through. Circles,
-ellipses, capsules, rings that are not convex and multi-prim sets keep
-conservative advancement (GJK). ``collision._SWEEP_SAT = False`` is the
-oracle.
+ellipses, capsules and rings that are not convex keep conservative
+advancement (GJK). A multi-prim set is swept pair by pair, each pair by these
+rules (CV1: GJK on a set swept the hull of the union, so a body could not
+enter a concave partner). ``collision._SWEEP_SAT = False`` is the oracle.
 
 Advancement stops once the gap is under 1e-3, so the two differ only inside
 that skin: SAT is never earlier, at most 1e-3 later along the normal, and
@@ -217,11 +218,40 @@ class TestFallbacks(unittest.TestCase):
         self.assertFalse(C._convex_ring([(0, 0), (2, 0), (1, 0.5), (2, 2), (0, 2)]))
         self.assertFalse(C._convex_ring([(0, 0), (1, 0), (2, 0)]), "no area")
 
-    def test_multi_prim_sets_advance(self):
+    def test_multi_prim_sets_sweep_pair_by_pair(self):
+        """A set is swept pair by pair: each convex pair takes SAT (CV1)."""
         a = [box(-5, -5, 5, 5)]
         pair = [poly([(10, -5), (20, -5), (20, 5)]), poly([(10, -5), (20, 5), (10, 5)])]
-        with mock.patch.object(C, "_toi_sat", side_effect=AssertionError("SAT on a set")):
-            C._toi_prim_sets(a, pair, 30.0, 0.0)
+        seen = []
+        real = C._toi_sat
+
+        def spy(pa, pb, dx, dy):
+            seen.append(pb)
+            return real(pa, pb, dx, dy)
+
+        with mock.patch.object(C, "_toi_sat", side_effect=spy):
+            hit = C._toi_prim_sets(a, pair, 30.0, 0.0)
+        self.assertEqual(len(seen), 2, "one SAT per pair, never one on the set")
+        self.assertAlmostEqual(hit[0], 5.0 / 30.0, places=9)
+        self.assertEqual(hit[1].normal, (1.0, 0.0))
+
+    def test_a_body_enters_a_concave_set(self):
+        """A box falling into the notch of a U of three prims lands on its floor.
+
+        GJK on the set measured the hull of the U (a full box), so the body
+        stopped on the hull's top, 20 above the notch's floor (CV1).
+        """
+        def rect(x0, y0, x1, y1):
+            return poly([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
+
+        u = [rect(0, 0, 10, 30), rect(10, 0, 30, 10), rect(30, 0, 40, 30)]
+        body = [rect(14, 32, 26, 44)]
+        for sat in (True, False):
+            with self.subTest(sweep_sat=sat), mock.patch.object(C, "_SWEEP_SAT", sat):
+                t, contact = C._toi_prim_sets(body, u, 0.0, -25.0)
+                self.assertAlmostEqual(t, 22.0 / 25.0, delta=2e-3 / 25.0)
+                self.assertAlmostEqual(contact.normal[0], 0.0, places=6)
+                self.assertAlmostEqual(contact.normal[1], -1.0, places=6)
 
 
 class SpriteCase(unittest.TestCase):

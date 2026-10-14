@@ -431,6 +431,11 @@ def _start_at_bottom_left(shape, verts: List[Tuple[float, float]]) -> List[Tuple
     return verts[cut:] + verts[:cut]
 
 
+def _concave_class():
+    from .shapes import Concave
+    return Concave
+
+
 def shape_outline(shape, *, samples: int = SAMPLES_HIGH * 4) -> Tuple[List[Tuple[float, float]], bool]:
     """World-space outline vertices and whether the outline is closed.
 
@@ -439,6 +444,7 @@ def shape_outline(shape, *, samples: int = SAMPLES_HIGH * 4) -> Tuple[List[Tuple
     Rect/Square with ``corner_radius > 0`` follows the rounded paint silhouette;
     ``r == 0`` stays the sharp 4-gon (same verts as ``geom._oriented_box_verts``).
     Rect/Square start at the named ``bottom_left`` (after its fillet when rounded).
+    A Concave starts where its curve begins.
     """
     from .entity import scena_kind
     if isinstance(shape, Track) or scena_kind(shape) == "Track":  # reload-safe
@@ -452,6 +458,10 @@ def shape_outline(shape, *, samples: int = SAMPLES_HIGH * 4) -> Tuple[List[Tuple
         return _ellipse_verts(shape, samples), True
     if isinstance(shape, Line):
         return [get_xy(shape.p1, bare=True), get_xy(shape.p2, bare=True)], False
+    if isinstance(shape, _concave_class()):
+        # The box with its curve as chords within 0.01 DU; u = 0 where the
+        # curve begins (counter-clockwise travel meets the curve first).
+        return shape._world_ring(), True
     if isinstance(shape, (Rect, Square)):
         r = max(0.0, float(getattr(shape, "corner_radius", 0.0) or 0.0))
         if r > 0.0:

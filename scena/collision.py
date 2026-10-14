@@ -1267,13 +1267,13 @@ def _load_proxy_kinds() -> tuple:
     """Kinds ``_proxy_aabb_for_shape`` dispatches on, imported once (cycles)."""
     global _proxy_kinds
     from .shapes import (
-        Circle, Ellipse, Line, Point, Polygon, Rect, _RadialPolygon, Square,
+        Circle, Ellipse, Line, Point, Polygon, _RectBody, _RadialPolygon,
         get_xy, _bare_num,
     )
     from .sprite import Sprite
     from .track import Track
     _proxy_kinds = (
-        Circle, Ellipse, Line, Point, Polygon, Rect, _RadialPolygon, Square,
+        Circle, Ellipse, Line, Point, Polygon, _RectBody, _RadialPolygon,
         get_xy, _bare_num, Sprite, Track,
     )
     return _proxy_kinds
@@ -1290,7 +1290,7 @@ def _proxy_aabb_for_shape(shape) -> Optional[Tuple[float, float, float, float]]:
     # spinner, every frame): a per-call ``from … import`` block costs about
     # as much as the bound itself.
     (
-        Circle, Ellipse, Line, Point, Polygon, Rect, _RadialPolygon, Square,
+        Circle, Ellipse, Line, Point, Polygon, _RectBody, _RadialPolygon,
         get_xy, _bare_num, Sprite, Track,
     ) = _proxy_kinds or _load_proxy_kinds()
 
@@ -1359,7 +1359,7 @@ def _proxy_aabb_for_shape(shape) -> Optional[Tuple[float, float, float, float]]:
         ang = math.radians(rot_e)
         return _aabb_from_obb(cx, cy, rx, ry, ang)
 
-    if isinstance(shape, (Rect, Square)):
+    if isinstance(shape, _RectBody):        # Rect / Square / Concave: the box
         oriented = getattr(shape, "_oriented_frame", None)
         if callable(oriented):
             cx, cy, w, h, ang_deg = oriented()
@@ -2745,7 +2745,9 @@ def _toi_prim_sets(
                 if best is None or hit[0] < best[0]:
                     best = hit
         return best
-    if _SWEEP_SAT and len(pas) == 1 and len(pbs) == 1 and (dx or dy):
+    if len(pas) > 1 or len(pbs) > 1:
+        return _toi_prim_pairs(pas, pbs, dx, dy)
+    if _SWEEP_SAT and (dx or dy):
         hit = _toi_sat(pas[0], pbs[0], dx, dy)
         if hit is not _TOI_UNRESOLVED:
             return hit
@@ -2753,6 +2755,32 @@ def _toi_prim_sets(
     if advanced is not _TOI_UNRESOLVED:
         return advanced
     return _toi_bisect(pas, pbs, dx, dy)
+
+
+def _toi_prim_pairs(
+    pas: Sequence[Prim], pbs: Sequence[Prim], dx: float, dy: float
+) -> Optional[Tuple[float, Contact]]:
+    """Earliest hit over the prim pairs of two sets, each pair swept alone.
+
+    A set's GJK distance is the distance between the sets' convex hulls, so
+    advancing two sets at once stopped a body on the hull of a concave
+    partner: a ball rolling into a ``Concave`` scoop (or an ear-clipped
+    ``Polygon``) met the hull's chord and was thrown off it (CV1 in Testing
+    Design). The union's first contact is the earliest pair's. Pairs whose
+    swept boxes miss are skipped.
+    """
+    best: Optional[Tuple[float, Contact]] = None
+    for pa in pas:
+        sx0, sy0, sx1, sy1 = _swept_aabb(pa.aabb, dx, dy)
+        one_a = (pa,)
+        for pb in pbs:
+            b = pb.aabb
+            if b[0] > sx1 or sx0 > b[2] or b[1] > sy1 or sy0 > b[3]:
+                continue
+            hit = _toi_prim_sets(one_a, (pb,), dx, dy)
+            if hit is not None and (best is None or hit[0] < best[0]):
+                best = hit
+    return best
 
 
 def _skin_back_off(
@@ -3034,7 +3062,7 @@ def _snapshot_shape_uncached(
     if sys is not None:
         sys._debug_hull_builds += 1
     from .shapes import (
-        Circle, Ellipse, Line, Point, Polygon, Rect, _RadialPolygon, Square,
+        Circle, Concave, Ellipse, Line, Point, Polygon, Rect, _RadialPolygon, Square,
         get_xy, _bare_num, _clamped_spread, _is_full_turn,
     )
     from .spatial_fx import PointDomainFx, PadDomainFx, BeamDomainFx
@@ -3091,6 +3119,11 @@ def _snapshot_shape_uncached(
         ang = math.radians(rot_e)
         aabb = _aabb_from_obb(cx, cy, rx, ry, ang)
         return [Prim(PrimKind.ELLIPSE, aabb, (cx, cy, rx, ry, ang))]
+
+    if isinstance(shape, Concave):
+        # Convex pieces (a fan under the curve, strips for the rim): chords
+        # within 0.25 DU of the drawn arc, as a partial Circle's wedges.
+        return _concave_prims(shape)
 
     if isinstance(shape, (Rect, Square)):
         oriented = getattr(shape, "_oriented_frame", None)
@@ -3168,6 +3201,16 @@ def _snapshot_shape_uncached(
         return _snapshot_polygon_verts(verts, cache_owner=cache_owner, shape_id=id(shape))
 
     return []
+
+
+def _concave_prims(shape) -> List[Prim]:
+    """One POLY prim per convex piece of a Concave (``Concave._world_pieces``)."""
+    prims = []
+    for poly in shape._world_pieces():
+        xs = [p[0] for p in poly]
+        ys = [p[1] for p in poly]
+        prims.append(Prim(PrimKind.POLY, (min(xs), min(ys), max(xs), max(ys)), (), poly))
+    return prims
 
 
 def _clone_prims(prims: List[Prim]) -> List[Prim]:

@@ -9,7 +9,13 @@ import math
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 Pt = Tuple[float, float]
-AREA = ("rect", "ellipse", "image")
+AREA = ("rect", "ellipse", "concave", "image")
+# A concave item's scoop: its named point, as a local direction from the
+# center (``Concave``'s table, for items that are never flipped).
+SCOOP_DIRS = {
+    "top_left": (-1, 1), "top_right": (1, 1), "bottom_left": (-1, -1), "bottom_right": (1, -1),
+    "top_center": (0, 1), "bottom_center": (0, -1), "left_center": (-1, 0), "right_center": (1, 0),
+}
 # Handle sign pairs, counter-clockwise from bottom-left (local frame).
 HANDLE_SIGNS = ((-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0))
 CORNER_SIGNS = ((-1, -1), (1, -1), (1, 1), (-1, 1))
@@ -142,6 +148,18 @@ def _in_polygon(p: Pt, pts: Sequence[Pt]) -> bool:
     return inside_
 
 
+def concave_scoop(item: Dict[str, Any]) -> Tuple[Pt, Pt]:
+    """A concave item's curve in its own frame: ``((ox, oy), (rx, ry))``, the
+    ellipse center (its scoop point) and radii along local x / y — the box's
+    reach from the scoop minus the rim, as ``Concave`` draws it."""
+    dx, dy = SCOOP_DIRS[item["scoop"]]
+    w, h = item["width"], item["height"]
+    mx, my = item["rim"]
+    rx = (w if dx else w / 2) - mx
+    ry = (h if dy else h / 2) - my
+    return (dx * w / 2, dy * h / 2), (max(rx, 0.0), max(ry, 0.0))
+
+
 def local(item: Dict[str, Any], x: float, y: float) -> Pt:
     """A world point in an area item's own frame (origin at its center)."""
     cx, cy, _w, _h, r = frame(item)
@@ -155,6 +173,16 @@ def contains(item: Dict[str, Any], x: float, y: float, tol: float = 0.0) -> bool
         lx, ly = local(item, x, y)
         _cx, _cy, w, h, _r = frame(item)
         return abs(lx) <= w / 2 + tol and abs(ly) <= h / 2 + tol
+    if kind == "concave":
+        lx, ly = local(item, x, y)
+        w, h = item["width"], item["height"]
+        if abs(lx) > w / 2 + tol or abs(ly) > h / 2 + tol:
+            return False
+        (ox, oy), (rx, ry) = concave_scoop(item)
+        rx, ry = rx - tol, ry - tol
+        if rx <= 0 or ry <= 0:
+            return True
+        return ((lx - ox) / rx) ** 2 + ((ly - oy) / ry) ** 2 >= 1.0
     if kind == "ellipse":
         lx, ly = local(item, x, y)
         a, b = item["width"] / 2 + tol, item["height"] / 2 + tol
@@ -368,6 +396,8 @@ def scale_item(item: Dict[str, Any], origin: Pt, s: float) -> Dict[str, Any]:
     if kind in AREA:
         out["width"] = item["width"] * s
         out["height"] = item["height"] * s
+        if kind == "concave":                    # its flats are lengths too (Concave.scale_by)
+            out["rim"] = (item["rim"][0] * s, item["rim"][1] * s)
     elif kind in ("circle", "regular_polygon"):
         out["radius"] = item["radius"] * s
     return out

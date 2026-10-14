@@ -70,6 +70,7 @@ GENERIC = {
     "text": "a label an author may keep on any actor", "cursor": "same as u",
     "begin": "a Track span; a common author name", "end": "same as begin",
     "spread": "a Circle arc; a common author name",
+    "rim": "a Concave's flats; a common author name (a wheel's rim)",
     "angle": "every Graphic has it", "center": "every Graphic has it",
 }
 

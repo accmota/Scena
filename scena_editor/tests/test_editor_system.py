@@ -26,8 +26,9 @@ from scena_editor.app import App  # noqa: E402
 from scena_editor.tools import ALT_LABEL  # noqa: E402
 from scena_editor.view import DESIGN  # noqa: E402
 
-KIND_CLASS = {"rect": "Rect", "ellipse": "Ellipse", "circle": "Circle", "line": "Line",
-              "polygon": "Polygon", "track": "Track", "point": "Circle", "image": "Sprite"}
+KIND_CLASS = {"rect": "Rect", "ellipse": "Ellipse", "concave": "Concave", "circle": "Circle",
+              "line": "Line", "polygon": "Polygon", "track": "Track", "point": "Circle",
+              "image": "Sprite"}
 
 from tests.leftovers import module_sweep  # noqa: E402
 
@@ -92,6 +93,42 @@ class EditorSystemCase(SystemTestCase, unittest.TestCase):
             if "center" in item and item["kind"] != "point":
                 self.assertAlmostEqual(shape.center.x, item["center"][0], places=6)
                 self.assertAlmostEqual(shape.center.y, item["center"][1], places=6)
+
+
+class TestConcaveOnFrames(EditorSystemCase):
+    def test_draw_a_concave_and_set_scoop_and_rim_in_the_panel(self):
+        app = self.app
+        app.choose_tool("concave")
+        self.frame()
+        self.drag_view((300, 300), (420, 400))
+        item = app.editor.single()
+        self.assertEqual(item["kind"], "concave")
+        self.assertViewMatchesDoc()
+        shape = app.view.items[item["id"]].shape
+        self.assertEqual(shape.scoop, "top_left")
+        panel = app.panel
+        self.frame()
+        scoop = panel.choices["scoop"]
+        rim = panel.fields["rim"]
+        self.assertTrue(scoop.visible and rim.visible)
+        self.assertFalse(panel.fields["radius"].visible)   # the Scoop row is the Radius row
+        self.assertEqual((scoop.input.data.value, rim.input.data.value), ("top_left", "0"))
+        scoop.input.data.value = "bottom_center"           # the user picks another scoop
+        rim.input.data.value = "10, 4"
+        self.frame(2)
+        item = app.editor.single()
+        self.assertEqual((item["scoop"], item["rim"]), ("bottom_center", (10, 4)))
+        shape = app.view.items[item["id"]].shape            # the scoop is fixed: a new shape
+        self.assertEqual((shape.scoop, (shape.rim.x, shape.rim.y)), ("bottom_center", (10.0, 4.0)))
+        self.assertViewMatchesDoc()
+        app.editor.undo()                                   # one step each: the scoop came last
+        self.frame(2)
+        self.assertEqual(app.view.items[item["id"]].shape.scoop, "top_left")
+        self.assertEqual(app.editor.single()["rim"], (10, 4))
+        app.editor.undo()
+        self.frame(2)
+        self.assertEqual(app.editor.single()["rim"], (0, 0))
+        self.assertViewMatchesDoc()
 
 
 class TestEditorOnFrames(EditorSystemCase):

@@ -1182,6 +1182,7 @@
     <a href="#shape-polygon" class="nav-child nav-grand" data-chapter="desenhar" data-search="polygon polígono">Polygon</a>
     <a href="#shape-regular" class="nav-child nav-grand" data-chapter="desenhar" data-search="regularpolygon regular n">RegularPolygon</a>
     <a href="#shape-triangle" class="nav-child nav-grand" data-chapter="desenhar" data-search="triangle triângulo equilátero isósceles base_ratio">Triangle</a>
+    <a href="#shape-concave" class="nav-child nav-grand" data-chapter="desenhar" data-search="concave côncavo concha scoop rim rampa quarter-pipe half-pipe pinball curva canto">Concave</a>
     <a href="#shape-point" class="nav-child nav-grand" data-chapter="desenhar" data-search="point ponto anchor">Point</a>
     <a href="#desenhar-sprite" class="nav-child" data-chapter="desenhar" data-search="sprite sheet arquivo media png frame play clip strip atlas cols rows cell fps yoyo nframes names frame_index offset box is_collapsed blend alpha">Sprite</a>
     <a href="#sprite-carregar" class="nav-child nav-grand" data-chapter="desenhar" data-search="carregar png arquivos atlas xml json grade cols rows cell strip still frame kenney padrão asterisco * pasta quadros soltos">Carregar</a>
@@ -1477,7 +1478,7 @@ run()</pre>
 <tr><td>Entity</td><td>Todo objeto do jogo: Shape, Sprite, Text, SpatialFx, widgets e o <a href="#desenhar-entity"><code>Entity()</code></a> sem desenho. Toda Entity pode ter campos próprios (<code>ship.hp</code>), timers (<code>after</code> / <code>every</code>), <a href="#mode">mode</a>, grupos e <code>destroy()</code>.</td></tr>
 <tr><td>Graphic</td><td>Uma Entity com corpo desenhado e pose: Shape, Sprite (e Svg) e Text. Só um Graphic pode ser clicado ou arrastado, andar com <code>move_to</code> e ter <code>.box</code>. SpatialFx e widgets não são Graphic.</td></tr>
 <tr><td>pose</td><td>Onde o objeto está e como está virado: <code>center</code>, <code>angle</code>, <code>scale</code> e o espelho (<code>flip_x</code> / <code>flip_y</code>). Os verbos de <a href="#mover-pose">Mover</a> mudam a pose; cor e visual não fazem parte dela.</td></tr>
-<tr><td>Shape</td><td>Um Graphic geométrico: Circle, Rect, Square, Line, Ellipse, Polygon, RegularPolygon, Triangle, Point, Track.</td></tr>
+<tr><td>Shape</td><td>Um Graphic geométrico: Circle, Rect, Square, Concave, Line, Ellipse, Polygon, RegularPolygon, Triangle, Point, Track.</td></tr>
 <tr><td>ponto</td><td>Onde a API pede um lugar (<code>move_to</code>, <code>center=</code>, <code>about=</code>, <code>query_point</code>…), vale qualquer um destes: uma tupla <code>(x, y)</code>, um <code>Point</code>, um <code>Vec2</code>, um Graphic (vale o centro dele) ou <code>mouse</code>. A posição é copiada naquele instante; para acompanhar, use <code>lambda:</code> (<a href="#reativo">Reativo</a>). Mais em <a href="#ponto-like">Pontos</a>.</td></tr>
 <tr><td>campo / Attribute</td><td>Um valor que o Scena acompanha: <code>st.score</code>, <code>ship.hp</code>, <code>c.radius</code>. Quando ele muda, quem depende dele (uma fórmula <code>@=</code>, um <code>@when</code>, um widget) fica sabendo. <code>Attribute</code> é o nome da classe por trás.</td></tr>
 <tr><td>ligar (<code>@=</code>)</td><td>Fazer um campo seguir uma fórmula: <code>c["radius"] @= lambda: ship.hp</code> refaz a conta sempre que <code>ship.hp</code> muda. O oposto de <code>=</code>, que copia o valor uma vez.</td></tr>
@@ -1860,6 +1861,7 @@ Line(p1=(50, 50), p2=lambda: bola.center)</pre>
             <tr><td>Shape — Rect / Square / Ellipse</td><td>geometria do modelo: <code>center</code>, <code>width</code>, <code>height</code>, <code>angle</code>, <code>top_left</code>, <code>p1</code>, <code>p2</code>, <code>vec</code>, <code>length</code>, …</td><td><code>color</code>, <code>corner_radius</code> (não liga), <code>layer</code> / <code>group</code>, <code>box</code>, <code>anchor</code></td></tr>
             <tr><td>Shape — Line</td><td><code>center</code>, <code>angle</code>, <code>length</code>, <code>p1</code>, <code>p2</code>, <code>vec</code>, <code>dx</code>, <code>dy</code>, <code>dist</code></td><td><code>color</code>, <code>layer</code> / <code>group</code>; relações (<code>parallel_to=</code>, <code>circle=</code>…) já observam sozinhas — não são lambda do autor</td></tr>
             <tr><td>Shape — Polygon</td><td>cada vértice em <code>points=</code> (pode misturar: uns lambda, uns copiados)</td><td>quantidade de vértices (trava na construção)</td></tr>
+            <tr><td>Shape — Concave</td><td>geometria do modelo (a do Rect) e <code>rim</code></td><td><code>scoop</code> (trava na construção), <code>color</code>, <code>layer</code> / <code>group</code>, <code>box</code></td></tr>
             <tr><td>Shape — RegularPolygon / Triangle</td><td><code>center</code>, <code>radius</code>, <code>side</code>, <code>vertex</code>, <code>angle</code> (Triangle: também <code>base_ratio</code>)</td><td><code>n=</code> (RegularPolygon; lados: inteiro, trava na construção)</td></tr>
             <tr><td>Point</td><td>o ponto inteiro: <code>Point(lambda: …)</code>; um eixo: <code>Point(lambda: mouse.x, 0)</code>; par: <code>Point((lambda: src.x, 10))</code></td><td><code>Point(outro_ponto)</code> copia (não acompanha)</td></tr>
             <tr><td>Vec2</td><td>cada componente: <code>Vec2(lambda: a.x, lambda: a.y)</code>; o vetor inteiro: <code>Vec2(lambda: v1 + v2)</code></td><td>resultado de conta já feita (<code>Vec2(v1.x, v1.y)</code> copia os floats)</td></tr>
@@ -2226,6 +2228,7 @@ set_defaults("coral", line_width=2.0, dash="dot")</pre>
         <button class="tab" type="button" data-tab="polygon">Polygon</button>
         <button class="tab" type="button" data-tab="regular">RegularPolygon</button>
         <button class="tab" type="button" data-tab="triangle">Triangle</button>
+        <button class="tab" type="button" data-tab="concave">Concave</button>
         <button class="tab" type="button" data-tab="point">Point</button>
       </div>
 
@@ -2746,6 +2749,85 @@ t.rotate_by(30 * dt)</pre>
           </div>
         </details>
         <p class="gotcha">Não passe <code>n=</code>: é sempre 3 (TypeError). Três cantos livres: <code>Polygon(points=[…])</code>. <code>EquilateralTriangle</code> virou <code>Triangle</code> na 0.9.0 (o nome antigo levanta TypeError com a correção).</p>
+      </div>
+
+      <div class="tab-panel" data-panel="concave" id="shape-concave">
+        <p class="one-liner">Uma caixa com uma concha (<code>scoop</code>): um pedaço de círculo ou de elipse tirado dela. Quarter-pipe, o canto curvo de uma mesa de pinball, a curva de dentro de uma pista, um half-pipe. Põe-se como um <code>Rect</code> (todos os modelos, os pontos nomeados, <code>angle</code>); a curva vem da caixa.</p>
+        <div class="code-panel">
+          <button class="copy-btn" type="button">copiar</button>
+<pre>Concave()
+rampa = Concave(top_left=(0, 200), width=200, height=200)          # quarter-pipe
+canto = Concave(top_left=(0, 600), width=80, height=80, scoop="bottom_right")
+halfpipe = Concave(center=(400, 100), width=400, height=250,
+                   scoop="top_center", rim=(0, 50))                # chão de 50
+deck = Concave(top_left=(0, 200), width=200, height=200, rim=(20, 0))</pre>
+        </div>
+        <details class="spec" open>
+      <summary>Construtor</summary>
+          <p class="sig"><code>Concave(center=, width=, height=, angle=, scoop=, rim=, color=, layer=, group=)</code></p>
+          <p class="sig-hint">Nome com <code>=</code>: passe pelo nome. Os modelos são os do <code>Rect</code>.</p>
+          <div class="tbl-wrap">
+            <table>
+          <thead>
+                <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
+              </thead>
+          <tbody>
+            <tr><td><code>center</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">centro do design</span></td><td>Ponto</td></tr>
+            <tr><td><code>width</code> / <code>height</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">tamanho médio</span></td><td>Lados da caixa. A curva chega até os lados de lá: caixa quadrada dá um quarto de círculo; outra proporção, um quarto de elipse.</td></tr>
+            <tr><td><code>scoop</code></td><td>nome=</td><td class="type"><span class="t">texto</span><span class="ex">"top_left"</span></td><td>O ponto nomeado onde fica o centro da curva. Um canto (<code>"top_left"</code>, <code>"top_right"</code>, <code>"bottom_left"</code>, <code>"bottom_right"</code>) tira um quarto; o meio de uma aresta (<code>"top_center"</code>, <code>"bottom_center"</code>, <code>"left_center"</code>, <code>"right_center"</code>) tira meia elipse — é um semicírculo quando a caixa é 2:1. Trava na construção.</td></tr>
+            <tr><td><code>rim</code></td><td>nome=</td><td class="type"><span class="t">número ou par</span><span class="ex">0</span></td><td>O sólido que sobra nas pontas da curva, ao longo da largura e da altura: <code>rim=0</code> deixa as pontas finas como faca; <code>rim=(20, 0)</code> dá ao quarter-pipe um deck de 20 no alto e nenhum degrau no chão. O raio da curva em cada eixo é o alcance da caixa menos o rim. ≥ 0 (negativo: ValueError). Liga com <code>@=</code>; <code>scale_by</code> o escala.</td></tr>
+            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box</span><span class="ex">cell</span></td><td>Preenche a região, como o <code>Rect</code>. <a href="#colocar-fit">box=</a>.</td></tr>
+            <tr><td><code>angle</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Graus, anti-horário</td></tr>
+              </tbody>
+        </table>
+          </div>
+        </details>
+        <details class="spec" open>
+      <summary>Modelos de construção</summary>
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr><th>Chamada</th><th>Significado</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>Concave()</code></td><td>Centro do design, tamanho médio, concha em <code>top_left</code></td></tr>
+                <tr><td><code>center=, width=, height=</code></td><td>O caminho usual</td></tr>
+                <tr><td><code>top_left=, width=, height=</code></td><td>Canto + tamanho</td></tr>
+                <tr><td><code>p1=, p2=</code></td><td>Cantos opostos, como no <a href="#shape-rect">Rect</a>. A concha fica no seu ponto nomeado mesmo que <code>p1</code> passe de <code>p2</code>.</td></tr>
+                <tr><td><code>p1=, vec=</code></td><td>Canto preso + extensão local (largura, altura)</td></tr>
+                <tr><td><code>p1=, p2=, height=, anchor=</code></td><td>Eixo <code>p1→p2</code> + espessura; as âncoras do <a href="#shape-rect">Rect</a></td></tr>
+                <tr><td><code>box=</code></td><td>Preenche. Ver <a href="#colocar-fit">Colocar</a></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        <details class="spec" open>
+      <summary>Neste Concave</summary>
+          <div class="tbl-wrap">
+            <table>
+          <thead>
+            <tr><th>Propriedade</th><th>Tipo (valor típico)</th><th>Leitura/Escrita</th><th>Significado</th></tr>
+          </thead>
+          <tbody>
+<tr><td><code>.center</code> <code>.width</code> <code>.height</code> <code>.angle</code></td><td class="type"><span class="t">ponto ou número</span><span class="ex">(400, 300)</span></td><td>lê / escreve</td><td>A caixa, como no <code>Rect</code>. Os cantos e meios de aresta (<code>.top_left</code>, <code>.top_center</code>…) são os da caixa — o do <code>scoop</code> é o centro da curva, fora do sólido.</td></tr>
+<tr><td><code>.scoop</code></td><td class="type"><span class="t">texto</span><span class="ex">"top_left"</span></td><td>leitura</td><td>Onde fica a curva. Escrever levanta erro (faça outro <code>Concave</code>). <code>flip_x</code> / <code>flip_y</code> espelham a forma: o nome segue o seu ponto.</td></tr>
+<tr><td><code>.rim</code></td><td class="type"><span class="t">Vec2</span><span class="ex">Vec2(20, 0)</span></td><td>lê / escreve</td><td>Aceita um número (os dois eixos) ou um par; <code>c.rim.x</code> é um eixo. Liga com <code>c.rim @= lambda: …</code>.</td></tr>
+<tr><td><code>.box</code></td><td class="type"><span class="t">Box</span><span class="ex">rampa.box</span></td><td>leitura</td><td>A moldura da caixa, com os nomes.</td></tr>
+          </tbody>
+        </table>
+          </div>
+        </details>
+        <p class="name-group">Não confundir</p>
+        <div class="tbl-wrap confuse-wrap">
+<table class="confuse">
+<thead><tr><th>Parece</th><th>É</th><th>Não é</th></tr></thead>
+<tbody>
+<tr><td>Um <code>Concave</code> é um <code>Rect</code></td><td>Usa a mesma moldura, mas não colide como caixa: a curva é sólida até ela. <code>isinstance(c, Rect)</code> é <code>False</code>. Cantos arredondados (convexos) são <code>Rect(corner_radius=)</code>; <code>Concave</code> não tem <code>corner_radius</code>.</td><td>—</td></tr>
+<tr><td>A colisão segue a curva desenhada</td><td>Quase: a curva é desenhada como arco de verdade e colide como cordas a no máximo 0,25 unidade dela (como a pizza do <code>Circle</code>). O clique (<code>contains_point</code>) segue a curva exata. Uma bola sobe a rampa e volta.</td><td>Uma caixa</td></tr>
+<tr><td><code>scoop</code> muda depois</td><td>Trava na construção, como o <code>n</code> do RegularPolygon. Para espelhar: <code>flip_x</code> / <code>flip_y</code>. O <code>rim</code> muda à vontade.</td><td>—</td></tr>
+</tbody>
+</table>
+</div>
       </div>
 
       <div class="tab-panel" data-panel="point" id="shape-point">
@@ -6634,10 +6716,10 @@ rota = fase["rota_drone"].points        # lista de Vec2 para move_along</pre>
             <tr><th>Membro</th><th>Retorna</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td><code>.kind</code></td><td>texto</td><td><code>"rect"</code> · <code>"ellipse"</code> · <code>"circle"</code> · <code>"line"</code> · <code>"polygon"</code> · <code>"regular_polygon"</code> · <code>"track"</code> · <code>"point"</code> · <code>"image"</code></td></tr>
+<tr><td><code>.kind</code></td><td>texto</td><td><code>"rect"</code> · <code>"ellipse"</code> · <code>"concave"</code> · <code>"circle"</code> · <code>"line"</code> · <code>"polygon"</code> · <code>"regular_polygon"</code> · <code>"track"</code> · <code>"point"</code> · <code>"image"</code></td></tr>
 <tr><td><code>.name</code> · <code>.groups</code></td><td>texto ou None · tupla</td><td>Nome e grupos dados no editor. Um item pode estar em vários grupos.</td></tr>
 <tr><td><code>.center</code></td><td>Vec2</td><td>Centro. Linha: o meio; polígono e caminho: o meio da caixa que os envolve; ponto: o próprio ponto.</td></tr>
-<tr><td><code>make(**kwargs)</code></td><td>o shape novo</td><td>Cria o shape <strong>como foi desenhado</strong>, nos grupos do item: rect → <code>Rect</code>, ellipse → <code>Ellipse</code>, circle → <code>Circle</code>, line → <code>Line</code>, polygon → <code>Polygon</code>, regular_polygon → <code>RegularPolygon</code>, track → <code>Track</code> (com o <code>smooth</code> do item; 0 se o arquivo não tem), point → <code>Point</code>, image → <code>Sprite</code> (tamanho e giro do editor). Outras palavras-chave passam adiante (<code>layer=</code>, <code>color=</code>, <code>visual=</code>); <code>group=</code> <em>soma</em> aos grupos do item. Geometria (<code>center=</code>, <code>width=</code> …) levanta <code>TypeError</code>: ela vem da fase. Mesma tabela do “Copiar como código” do editor.</td></tr>
+<tr><td><code>make(**kwargs)</code></td><td>o shape novo</td><td>Cria o shape <strong>como foi desenhado</strong>, nos grupos do item: rect → <code>Rect</code>, ellipse → <code>Ellipse</code>, concave → <code>Concave</code> (com <code>scoop</code> e <code>rim</code>), circle → <code>Circle</code>, line → <code>Line</code>, polygon → <code>Polygon</code>, regular_polygon → <code>RegularPolygon</code>, track → <code>Track</code> (com o <code>smooth</code> do item; 0 se o arquivo não tem), point → <code>Point</code>, image → <code>Sprite</code> (tamanho e giro do editor). Outras palavras-chave passam adiante (<code>layer=</code>, <code>color=</code>, <code>visual=</code>); <code>group=</code> <em>soma</em> aos grupos do item. Geometria (<code>center=</code>, <code>width=</code> …) levanta <code>TypeError</code>: ela vem da fase. Mesma tabela do “Copiar como código” do editor.</td></tr>
           </tbody>
         </table>
           <p class="name-group">LevelItem — por tipo</p>
@@ -6647,6 +6729,7 @@ rota = fase["rota_drone"].points        # lista de Vec2 para move_along</pre>
           </thead>
           <tbody>
 <tr><td>rect · ellipse</td><td><code>.width</code> <code>.height</code> <code>.angle</code></td><td>Box orientado (com o giro)</td></tr>
+<tr><td>concave</td><td><code>.width</code> <code>.height</code> <code>.angle</code> <code>.scoop</code> (texto) <code>.rim</code> (Vec2)</td><td>Box orientado (a caixa)</td></tr>
 <tr><td>image</td><td><code>.image</code> (caminho absoluto) <code>.width</code> <code>.height</code> <code>.angle</code></td><td>Box orientado</td></tr>
 <tr><td>circle</td><td><code>.radius</code></td><td>o quadrado em volta</td></tr>
 <tr><td>line</td><td><code>.p1</code> <code>.p2</code> (Vec2)</td><td>não tem — levanta <code>AttributeError</code> com dica</td></tr>
@@ -6660,7 +6743,7 @@ rota = fase["rota_drone"].points        # lista de Vec2 para move_along</pre>
       <p class="name-group">O editor de fases</p>
       <p>O editor vem junto com o Scena (<code>pip install scena</code>). No terminal, qualquer uma das duas formas abre (ou cria) a fase: <code>scena-editor fase1.json</code> ou <code>python -m scena_editor fase1.json</code> — a segunda sempre funciona, porque usa o mesmo Python dos seus jogos.</p>
       <p>Um ícone para abrir o editor com dois cliques: rode uma vez <code>scena-editor --shortcut</code> (ou <code>python -m scena_editor --shortcut</code>). No Windows ele aparece no menu Iniciar e na área de trabalho; no macOS, em Aplicativos (<code>~/Applications</code>); no Linux, no menu de aplicativos. Se reinstalar o Python, rode de novo. Erros do editor ficam num arquivo de log, cujo caminho aparece na barra de status.</p>
-      <p>Ferramentas (à esquerda, ícones com a tecla no canto): Retângulo (R), Elipse (E), Círculo (C), Linha (L), Polígono (G), Polígono regular (N), Trilha (A), Ponto (P), Imagem (I). Arrastar desenha; um clique cria a forma com 100 de lado. Na barra de cima: Desfazer / Refazer, Selecionar (V) e Mover a vista (H, ou Espaço+arrastar). O painel à direita dá nome, grupos (separados por vírgula), posição e tamanho. Shift ao arrastar: sem grade. Cmd/Ctrl+C copia os itens — e o código que os cria (<code>Rect(center=…)</code>) vai para a área de transferência. Os números do editor são os mesmos do código.</p>
+      <p>Ferramentas (à esquerda, ícones com a tecla no canto): Retângulo (R), Elipse (E), Côncavo (U: uma caixa com concha; <em>Scoop</em> e <em>Rim</em> no painel), Círculo (C), Linha (L), Polígono (G), Polígono regular (N), Trilha (A), Ponto (P), Imagem (I). Arrastar desenha; um clique cria a forma com 100 de lado. Na barra de cima: Desfazer / Refazer, Selecionar (V) e Mover a vista (H, ou Espaço+arrastar). O painel à direita dá nome, grupos (separados por vírgula), posição e tamanho. Shift ao arrastar: sem grade. Cmd/Ctrl+C copia os itens — e o código que os cria (<code>Rect(center=…)</code>) vai para a área de transferência. Os números do editor são os mesmos do código.</p>
       <p class="name-group">Não confundir</p>
       <div class="tbl-wrap confuse-wrap">
 <table class="confuse">
@@ -9913,8 +9996,8 @@ def update(dt):
             <tr><th>Tema</th><th>Regra</th></tr>
           </thead>
           <tbody>
-            <tr><td>Permitidos</td><td><code>Line</code>, <code>Circle</code>, <code>Ellipse</code>, <code>Rect</code>, <code>Square</code>, <code>Polygon</code>, <code>RegularPolygon</code>, <code>Triangle</code>, <code>Box</code>. Outro tipo (Point, Track, Sprite) → TypeError.</td></tr>
-            <tr><td>Contorno</td><td><code>Line</code> = segmento <code>p1→p2</code> (ignora espessura). <code>Circle</code> = circunferência cheia (ignora arco). <code>Ellipse</code> = contorno inteiro, com rotação. Elipse achatada a zero = segmento do eixo maior. Caixa / n-gon = arestas (ignora <code>corner_radius</code>).</td></tr>
+            <tr><td>Permitidos</td><td><code>Line</code>, <code>Circle</code>, <code>Ellipse</code>, <code>Rect</code>, <code>Square</code>, <code>Concave</code>, <code>Polygon</code>, <code>RegularPolygon</code>, <code>Triangle</code>, <code>Box</code>. Outro tipo (Point, Track, Sprite) → TypeError.</td></tr>
+            <tr><td>Contorno</td><td><code>Line</code> = segmento <code>p1→p2</code> (ignora espessura). <code>Circle</code> = circunferência cheia (ignora arco). <code>Ellipse</code> = contorno inteiro, com rotação. Elipse achatada a zero = segmento do eixo maior. Caixa / n-gon = arestas (ignora <code>corner_radius</code>). <code>Concave</code> = a caixa com a curva, em cordas a 0,01 unidade dela.</td></tr>
             <tr><td>Ordem</td><td>Com <code>Line</code>: ao longo dela. Dois círculos: esquerda → direita do eixo dos centros. Primeiro é <code>Circle</code> / <code>Ellipse</code>: ao longo dele, a partir do +x local, no sentido da rotação. Senão: ao longo do primeiro.</td></tr>
             <tr><td>Quantos</td><td>Elipse × círculo ou elipse: até 4 pontos. Tangente conta 1.</td></tr>
             <tr><td>O que <code>intersection</code> devolve</td><td><code>hits[i]</code> se existir; senão o último cruzamento (numa tangente, 0 e 1 dão o mesmo ponto); senão um ponto próximo das duas formas.</td></tr>

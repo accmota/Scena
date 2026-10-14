@@ -96,7 +96,7 @@ from .scenamath import Vec2, vec_from_angle, chance
 from .input import Mouse, KeyPressed, Clock
 from .entity import Entity
 from .shapes import (
-    Shape, Point, Line, Rect, Square, Circle, Ellipse, Polygon, RegularPolygon,
+    Shape, Point, Line, Rect, Square, Concave, Circle, Ellipse, Polygon, RegularPolygon,
     Triangle, Anchor, Pos, XPos, middle_point, distance, heading, nearest,
     RETIRED_NAMES as _SHAPES_RETIRED_NAMES,
 )
@@ -208,7 +208,7 @@ INPUT_EXPORTS = ["Mouse", "KeyPressed", "Clock"]
 
 SHAPES_EXPORTS = [
     "Box", "Grid",
-    "Shape", "Point", "Line", "Rect", "Square", "Circle", "Ellipse",
+    "Shape", "Point", "Line", "Rect", "Square", "Concave", "Circle", "Ellipse",
     "Polygon", "RegularPolygon", "Triangle", "Anchor",
     "XPos", "middle_point", "distance", "heading", "nearest",
     "intersections", "intersection", "closest_point",

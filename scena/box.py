@@ -80,7 +80,7 @@ _FILL_MIX_KEYS = frozenset({
 })
 
 _FRAME_GRAPHIC_NAMES = frozenset({
-    "Rect", "Square", "Ellipse", "Circle", "Sprite", "Svg", "Text",
+    "Rect", "Square", "Concave", "Ellipse", "Circle", "Sprite", "Svg", "Text",
 })
 
 
@@ -161,7 +161,7 @@ def region_frame(obj) -> Tuple[float, float, float, float, float]:
             pull(obj)
     name = frame_kind(obj)
     oriented = getattr(obj, "_oriented_frame", None)
-    if callable(oriented) and name in ("Rect", "Square"):
+    if callable(oriented) and name in ("Rect", "Square", "Concave"):
         return oriented()
     if name == "Ellipse":
         # The cold reader (Defining inputs only). Reading the public Derivates
@@ -195,8 +195,8 @@ def region_frame(obj) -> Tuple[float, float, float, float, float]:
         ang = float(getattr(obj, "_rotation", 0.0) or 0.0)
         return (cx, cy, w, h, ang)
     raise TypeError(
-        f"box= / .box supports Box, Rect, Square, Ellipse, Circle, Sprite, Svg, "
-        f"Text; got {type(obj).__name__}"
+        f"box= / .box supports Box, Rect, Square, Concave, Ellipse, Circle, Sprite, "
+        f"Svg, Text; got {type(obj).__name__}"
     )
 
 
@@ -232,7 +232,7 @@ def box_from_graphic(graphic) -> "Box":
     if frame_kind(graphic) not in _FRAME_GRAPHIC_NAMES:
         raise TypeError(
             f"{name}.box is unsupported — Box needs a rectangular frame. "
-            "Use Rect, Square, Ellipse, Circle, Sprite, Svg, or Text."
+            "Use Rect, Square, Concave, Ellipse, Circle, Sprite, Svg, or Text."
         )
     cx, cy, w, h, ang = region_frame(graphic)
     return Box._snapshot(cx, cy, w, h, ang, name_signs=region_name_signs(graphic))

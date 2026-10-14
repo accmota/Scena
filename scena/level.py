@@ -32,6 +32,7 @@ __all__ = ["Level", "LevelItem", "LevelFormatError"]
 _KIND_FIELDS = {
     "rect": ("box", "width", "height", "angle"),
     "ellipse": ("box", "width", "height", "angle"),
+    "concave": ("box", "width", "height", "angle", "scoop", "rim"),
     "circle": ("box", "radius"),
     "line": ("p1", "p2"),
     "polygon": ("points",),
@@ -74,8 +75,8 @@ class LevelItem:
     # -- identity -----------------------------------------------------------
     @property
     def kind(self) -> str:
-        """``"rect"``, ``"ellipse"``, ``"circle"``, ``"line"``, ``"polygon"``,
-        ``"regular_polygon"``, ``"track"``, ``"point"`` or ``"image"``."""
+        """``"rect"``, ``"ellipse"``, ``"concave"``, ``"circle"``, ``"line"``,
+        ``"polygon"``, ``"regular_polygon"``, ``"track"``, ``"point"`` or ``"image"``."""
         return self._item["kind"]
 
     @property
@@ -93,7 +94,7 @@ class LevelItem:
         if field not in _KIND_FIELDS[self.kind]:
             has = ", ".join(_COMMON_FIELDS + _KIND_FIELDS[self.kind])
             hint = {
-                "box": " Only rects, ellipses, circles and images are regions (a line,"
+                "box": " Only rects, ellipses, concaves, circles and images are regions (a line,"
                        " polygon, track or point: its points; a regular polygon: its"
                        " center and radius).",
             }.get(field, "")
@@ -121,7 +122,7 @@ class LevelItem:
 
     @property
     def box(self):
-        """The region as a fresh oriented ``Box`` (rect, ellipse, image, circle).
+        """The region as a fresh oriented ``Box`` (rect, ellipse, concave, image, circle).
 
         ``Rect(box=item.box)``, ``Sprite("x.png", box=item.box)``,
         ``hero.confine(item.box)``. A circle's box is the square around it.
@@ -138,19 +139,19 @@ class LevelItem:
 
     @property
     def width(self) -> float:
-        """Width in design units (rect, ellipse, image)."""
+        """Width in design units (rect, ellipse, concave, image)."""
         self._need("width")
         return self._item["width"]
 
     @property
     def height(self) -> float:
-        """Height in design units (rect, ellipse, image)."""
+        """Height in design units (rect, ellipse, concave, image)."""
         self._need("height")
         return self._item["height"]
 
     @property
     def angle(self) -> float:
-        """Angle in degrees, counter-clockwise (rect, ellipse, image, regular_polygon:
+        """Angle in degrees, counter-clockwise (rect, ellipse, concave, image, regular_polygon:
         toward its first vertex) — like ``Graphic.angle``."""
         self._need("angle")
         return self._item["angle"]
@@ -194,6 +195,18 @@ class LevelItem:
         return self._item["n"]
 
     @property
+    def scoop(self) -> str:
+        """The named point the curve is centered on (concave) — ``Concave(scoop=)``."""
+        self._need("scoop")
+        return self._item["scoop"]
+
+    @property
+    def rim(self):
+        """The solid left at the scoop's ends as a ``Vec2`` (concave) — ``Concave(rim=)``."""
+        self._need("rim")
+        return _vec(self._item["rim"])
+
+    @property
     def smooth(self) -> float:
         """Corner rounding, 0 = straight segments, 1 = a smooth curve (track) —
         ``Track.smooth``."""
@@ -211,7 +224,8 @@ class LevelItem:
     def make(self, **kwargs):
         """Create the shape exactly as drawn, in the item's groups.
 
-        rect → ``Rect``, ellipse → ``Ellipse``, circle → ``Circle``,
+        rect → ``Rect``, ellipse → ``Ellipse``, concave → ``Concave`` (its
+        scoop and rim), circle → ``Circle``,
         line → ``Line``, polygon → ``Polygon``, regular_polygon →
         ``RegularPolygon``, track → ``Track`` (its
         ``smooth``, 0 when the file has none),

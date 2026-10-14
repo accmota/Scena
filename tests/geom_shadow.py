@@ -97,7 +97,7 @@ def placement_name(obj) -> Optional[str]:
     """The part ``angle =`` keeps fixed, by name (None: a turn about the center)."""
     model = getattr(getattr(obj, "model", None), "name", None)
     kind = type(obj).__name__
-    if kind in ("Rect", "Square"):
+    if kind in ("Rect", "Square", "Concave"):
         return {"CENTER_WH": "center", "TOP_LEFT_WH": "top_left", "POINT_VEC": "p1",
                 "CORNER_CORNER": "lean"}.get(model)
     if kind == "Ellipse" and model == "CENTER_WH":
@@ -408,7 +408,7 @@ def step_runner(kind: str, step: str, obj=None) -> Callable:
 # Kinds whose hit test is their filled region. A Line or Track is picked by a
 # stroke tolerance that does not follow ``scale`` (a pick width, not geometry).
 _HIT_FAMILIES = {"Circle", "Ellipse", "Polygon", "RegularPolygon", "Triangle",
-                 "Rect", "Square", "Sprite", "Svg", "Text"}
+                 "Rect", "Square", "Concave", "Sprite", "Svg", "Text"}
 
 
 def _hit_samples(obj, center, drawn) -> List[Tuple[XY, bool]]:
@@ -444,8 +444,11 @@ def _hit_samples(obj, center, drawn) -> List[Tuple[XY, bool]]:
 
 def _prim_vertices(obj):
     """Collision prim points and conic centers (rigid under every pose verb)."""
-    if type(obj).__name__ not in _HIT_FAMILIES - {"Sprite", "Svg", "Text"}:
-        return None             # a Line / Track prim is a stroke: its width does not scale
+    if type(obj).__name__ not in _HIT_FAMILIES - {"Sprite", "Svg", "Text", "Concave"}:
+        # A Line / Track prim is a stroke: its width does not scale. A Concave's
+        # chord count follows its size (test_concave checks its pieces against
+        # the shape after the verbs).
+        return None
     try:
         pts, conics = G.prim_points(obj)
     except Exception:  # noqa: BLE001
@@ -530,7 +533,7 @@ def check(obj, s: Shadow, order: List[str], tol: float = 1e-6) -> Dict[str, str]
         span = max(1.0, max(abs(c) for q in want for c in q))
         if now is None or not G.same_set(G.as_set(now, 6), G.as_set(want, 6), 1e-4 * span):
             out["collision prims"] = ""
-    if type(obj).__name__ in ("Rect", "Square", "Ellipse", "Circle", "Sprite", "Svg", "Text"):
+    if type(obj).__name__ in ("Rect", "Square", "Concave", "Ellipse", "Circle", "Sprite", "Svg", "Text"):
         d = G.safe(lambda: G.drawn(obj))
         if not isinstance(d, G.ReadError):
             span = max(1.0, max(abs(c) for q in d for c in q))

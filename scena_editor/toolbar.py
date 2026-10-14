@@ -11,7 +11,7 @@ from __future__ import annotations
 import time
 from typing import Any, Callable, List, Optional, Tuple
 
-from scena import Circle, Color, Ellipse, Line, Polygon, Rect, RegularPolygon, Text, Track
+from scena import Circle, Color, Concave, Ellipse, Line, Polygon, Rect, RegularPolygon, Text, Track
 
 from .view import DESIGN
 
@@ -73,6 +73,12 @@ def _icon_rect(cx, cy, s) -> List[Part]:
 
 def _icon_ellipse(cx, cy, s) -> List[Part]:
     return [_stroke(Ellipse(center=(cx, cy), width=2 * s, height=1.3 * s, layer="ui"))]
+
+
+def _icon_concave(cx, cy, s) -> List[Part]:
+    # A quarter-pipe: the curve rises from the bottom left to the top right.
+    return [_stroke(Concave(center=(cx, cy), width=1.8 * s, height=1.8 * s, rim=(0.25 * s, 0),
+                            layer="ui"))]
 
 
 def _icon_circle(cx, cy, s) -> List[Part]:
@@ -147,6 +153,7 @@ def _icon_hand(cx, cy, s) -> List[Part]:
 
 ICONS = {
     "select": _icon_select, "hand": _icon_hand, "rect": _icon_rect, "ellipse": _icon_ellipse,
+    "concave": _icon_concave,
     "circle": _icon_circle, "line": _icon_line, "polygon": _icon_polygon, "regular_polygon": _icon_regular_polygon,
     "track": _icon_track,
     "point": _icon_point, "image": _icon_image,

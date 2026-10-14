@@ -36,7 +36,7 @@ from scena.geom import (
 )
 from scena.shapes import (
     Circle, Ellipse, Triangle, Line, Point, Polygon, Rect,
-    RegularPolygon, Square,
+    RegularPolygon, Square, Concave,
 )
 from scena.scenamath import Vec2
 from scena.track import Track
@@ -418,6 +418,8 @@ def _matrix_shape(cls, *, far=False):
         return Rect(center=(x, 0), width=30, height=18, angle=-10)
     if name == "Square":
         return Square(center=(x, 0), length=28, angle=12)
+    if name == "Concave":
+        return Concave(center=(x, 0), width=32, height=20, angle=6, rim=(4, 0))
     if name == "Polygon":
         return Polygon(points=[
             (x - 12, -8), (x + 14, -6), (x + 10, 12), (x - 8, 9),

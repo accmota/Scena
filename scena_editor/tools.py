@@ -17,9 +17,10 @@ Gesture rules (Editor Design.md — Editor):
   scale them evenly about the opposite corner, a knob that turns them about
   the frame's center.
 - Shape tools: drag draws; a click makes a ``DEFAULT_SIZE`` shape (rect /
-  ellipse: top-left at the click; circle, regular polygon: centered; line:
+  ellipse / concave: top-left at the click; circle, regular polygon: centered; line:
   rightwards). A regular polygon is drawn from the center out: a hexagon
-  (``SIDES``) with a vertex on top; Sides is a panel field.
+  (``SIDES``) with a vertex on top; Sides is a panel field. A concave is drawn
+  like a rect (scooped at its top left); Scoop and Rim are panel fields.
 - Shift while dragging turns snapping off. Snapping puts the corner you hold
   on the grid: the dragged corner when drawing or resizing; when moving, the
   corner of the selection's box nearest the press. Rotation snaps to 15°.
@@ -40,10 +41,11 @@ from .doc import LevelDoc, NameTaken
 from .i18n import t
 from .undo import History
 
-TOOLS = ("select", "hand", "rect", "ellipse", "circle", "line", "polygon", "regular_polygon",
-         "track", "point",
+TOOLS = ("select", "hand", "rect", "ellipse", "concave", "circle", "line", "polygon",
+         "regular_polygon", "track", "point",
          "image")
-TOOL_KEYS = {"V": "select", "H": "hand", "R": "rect", "E": "ellipse", "C": "circle", "L": "line",
+TOOL_KEYS = {"V": "select", "H": "hand", "R": "rect", "E": "ellipse", "U": "concave",
+             "C": "circle", "L": "line",
              "G": "polygon", "N": "regular_polygon", "A": "track", "P": "point",
              "I": "image"}
 KEY_OF = {tool: key for key, tool in TOOL_KEYS.items()}
@@ -51,10 +53,31 @@ PRIMARY = "CMD" if sys.platform == "darwin" else "CTRL"
 REDO = "CMD+SHIFT+Z" if sys.platform == "darwin" else "CTRL+Y"   # Ctrl+Shift+Z quits Scena
 ALT_LABEL = "Option" if sys.platform == "darwin" else "Alt"      # Alt+drag copies
 # Holding Primary in Pan or a drawing tool makes a press a Select press.
-SPRING_TOOLS = ("hand", "rect", "ellipse", "circle", "line", "polygon", "regular_polygon",
-                "track", "point")
+SPRING_TOOLS = ("hand", "rect", "ellipse", "concave", "circle", "line", "polygon",
+                "regular_polygon", "track", "point")
 SIDES = 6            # a new regular polygon: a hexagon…
 HEADING = 90.0       # …with a vertex on top (a triangle / pentagon points up)
+
+
+def _rim_text(value: Any) -> Tuple[float, float]:
+    """The panel's Rim field: ``"20"`` (both axes) or ``"20, 0"`` (x, y)."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return (float(value), float(value))
+    parts = [p for p in re.split(r"[,;\s]+", str(value).strip()) if p]
+    if len(parts) == 1:
+        parts = parts * 2
+    if len(parts) != 2:
+        raise ValueError(t("error.rim", value=str(value)))
+    try:
+        return (float(parts[0]), float(parts[1]))
+    except ValueError:
+        raise ValueError(t("error.rim", value=str(value))) from None
+
+
+def rim_text(rim: Tuple[float, float]) -> str:
+    """A rim as the panel shows it: ``"20"`` when both axes agree, else ``"20, 0"``."""
+    mx, my = (f"{v:g}" for v in rim)
+    return mx if mx == my else f"{mx}, {my}"
 
 
 def key_label(combo: str) -> str:
@@ -245,7 +268,7 @@ class Editor:
             # Polygon / path points drawn so far stay: a Select press between
             # clicks neither adds a point nor drops them.
             self._select_down(x, y, shift, alt)
-        elif self.tool in ("rect", "ellipse", "circle", "line", "regular_polygon"):
+        elif self.tool in ("rect", "ellipse", "concave", "circle", "line", "regular_polygon"):
             start = geo.snap_point((x, y), self._grid(shift))
             self.gesture = {"kind": "create", "start": start, "id": None, "press": (x, y)}
         elif self.tool in ("polygon", "track"):
@@ -394,7 +417,7 @@ class Editor:
         sx, sy = g["start"]
         ex, ey = geo.snap_point((x, y), grid)
         tool = self.tool
-        if tool in ("rect", "ellipse"):
+        if tool in ("rect", "ellipse", "concave"):
             fields = {"center": ((sx + ex) / 2, (sy + ey) / 2),
                       "width": abs(ex - sx), "height": abs(ey - sy)}
         elif tool == "regular_polygon":
@@ -697,6 +720,8 @@ class Editor:
                 self.doc.update(item["id"], **geo.translate(item, dx, dy))
             elif field == "groups":
                 return self.set_groups(value, [item["id"]])
+            elif field == "rim":
+                self.doc.update(item["id"], rim=_rim_text(value))
             else:
                 self.doc.update(item["id"], **{field: value})
         except NameTaken as e:

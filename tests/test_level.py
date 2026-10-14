@@ -20,11 +20,12 @@ from media_support import media  # noqa: E402
 from hypothesis import given, strategies as hst  # noqa: E402
 
 from scena import (  # noqa: E402
+    Concave,
     Box, Circle, Ellipse, Level, Line, Point, Polygon, Rect, Sprite, Track,
     canvas, group, init,
 )
 from scena.level_format import (  # noqa: E402
-    FORMAT, KINDS, LEGACY_FORMATS, VERSION, LevelFormatError, parse, serialize,
+    FORMAT, KINDS, LEGACY_FORMATS, SCOOPS, VERSION, LevelFormatError, parse, serialize,
 )
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -41,6 +42,8 @@ SAMPLE_ITEMS = [
     {"kind": "rect", "name": "elevador", "groups": ["plataforma", "especial"],
      "center": [1300, 90], "width": 120, "height": 20},
     {"kind": "ellipse", "name": "lago", "center": [500, 60], "width": 300, "height": 80},
+    {"kind": "concave", "name": "rampa", "center": [1600, 100],
+     "width": 200, "height": 200, "scoop": "top_right", "rim": [20, 0]},
     {"kind": "circle", "name": "moeda", "center": [10, 10], "radius": 16},
     {"kind": "line", "name": "laser", "p1": [0, 0], "p2": [10, 20]},
     {"kind": "polygon", "name": "morro", "points": [[0, 0], [100, 0], [50, 80]]},
@@ -215,6 +218,14 @@ class TestMake(LevelTestCase):
         self.assertEqual((r.center.x, r.center.y, r.width, r.height, r.angle),
                          (1000.0, 150.0, 220.0, 24.0, 20.0))
         self.assertIsInstance(self.made(lv["lago"].make()), Ellipse)
+        ramp = self.made(lv["rampa"].make())
+        self.assertIsInstance(ramp, Concave)
+        self.assertEqual((ramp.scoop, (ramp.rim.x, ramp.rim.y), ramp.width, ramp.height),
+                         ("top_right", (20.0, 0.0), 200.0, 200.0))
+        self.assertEqual((lv["rampa"].scoop, tuple(lv["rampa"].rim)), ("top_right", (20.0, 0.0)))
+        self.assertAlmostEqual(lv["rampa"].box.width, 200.0)
+        with self.assertRaisesRegex(AttributeError, "no scoop"):
+            lv["lago"].scoop
         c = self.made(lv["moeda"].make())
         self.assertIsInstance(c, Circle)
         self.assertEqual(c.radius, 16.0)
@@ -358,10 +369,15 @@ _group_pool = hst.lists(hst.sampled_from(["g1", "g2", "plataforma"]), unique=Tru
 def _item(draw):
     kind = draw(hst.sampled_from(sorted(KINDS)))
     item = {"kind": kind}
-    if kind in ("rect", "ellipse", "image"):
+    if kind in ("rect", "ellipse", "concave", "image"):
         item.update(center=draw(_pt), width=draw(_size), height=draw(_size))
         if draw(hst.booleans()):
             item["angle"] = draw(_coord)
+    if kind == "concave":
+        if draw(hst.booleans()):
+            item["scoop"] = draw(hst.sampled_from(SCOOPS))
+        if draw(hst.booleans()):
+            item["rim"] = [draw(_size), draw(_size)]
     if kind == "image":
         item["file"] = draw(hst.sampled_from(["a.png", "arte/b.png"]))
         if draw(hst.booleans()):

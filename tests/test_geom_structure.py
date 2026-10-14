@@ -143,6 +143,7 @@ class TestModelAdoptedBeforeWrites(unittest.TestCase):
         "Blank": "empty-group stand-in: takes nothing",
         "Track": "a copy is a free points track (Tracks Design)",
         "_ReversedTrack": "refuses every copy",
+        "_RimPair": "a Vec2 part (Concave.rim): one model",
     }
 
     def test_adopt_comes_first(self):

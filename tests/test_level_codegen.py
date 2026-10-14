@@ -26,7 +26,7 @@ from hypothesis import given, strategies as hst  # noqa: E402
 
 import scena  # noqa: E402
 from scena import Level, canvas, init  # noqa: E402
-from scena.level_format import FORMAT, VERSION, code_for, parse  # noqa: E402
+from scena.level_format import FORMAT, SCOOPS, VERSION, code_for, parse  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STAR = media("space", "star_gold.png")
@@ -38,6 +38,10 @@ def geometry(shape):
     if name in ("Rect", "Ellipse", "Sprite"):
         return (name, round(shape.center.x, 6), round(shape.center.y, 6),
                 round(shape.width, 6), round(shape.height, 6), round(shape.angle % 360, 6))
+    if name == "Concave":
+        return (name, round(shape.center.x, 6), round(shape.center.y, 6),
+                round(shape.width, 6), round(shape.height, 6), round(shape.angle % 360, 6),
+                shape.scoop, (round(shape.rim.x, 6), round(shape.rim.y, 6)))
     if name == "Circle":
         return (name, round(shape.center.x, 6), round(shape.center.y, 6), round(shape.radius, 6))
     if name == "Line":
@@ -64,6 +68,9 @@ def expected(item):
     if k in ("rect", "ellipse", "image"):
         cls = {"rect": "Rect", "ellipse": "Ellipse", "image": "Sprite"}[k]
         return (cls, *item["center"], item["width"], item["height"], item["angle"] % 360)
+    if k == "concave":
+        return ("Concave", *item["center"], item["width"], item["height"], item["angle"] % 360,
+                item["scoop"], tuple(item["rim"]))
     if k == "circle":
         return ("Circle", *item["center"], item["radius"])
     if k == "line":
@@ -145,6 +152,11 @@ class TestEveryKind(CodegenCase):
             {"kind": "rect", "center": [450, 170], "width": 220, "height": 24, "angle": 20,
              "groups": ["plataforma"]},
             {"kind": "ellipse", "center": [1, 2], "width": 30, "height": 10, "angle": 45},
+            {"kind": "concave", "center": [1, 2], "width": 30, "height": 10},
+            {"kind": "concave", "center": [1, 2], "width": 30, "height": 10, "angle": 15,
+             "scoop": "right_center", "rim": [4, 4], "groups": ["chao"]},
+            {"kind": "concave", "center": [1, 2], "width": 30, "height": 10,
+             "scoop": "bottom_left", "rim": [0, 3]},
             {"kind": "circle", "center": [5, 6], "radius": 7, "groups": ["a", "b"]},
             {"kind": "line", "p1": [0, 0], "p2": [10, 5]},
             {"kind": "polygon", "points": [[0, 0], [10, 0], [5, 8]]},
@@ -175,12 +187,16 @@ _groups = hst.lists(hst.sampled_from(["g1", "g2", "g3"]), unique=True, max_size=
 
 @hst.composite
 def _raw_item(draw):
-    kind = draw(hst.sampled_from(["rect", "ellipse", "circle", "line", "polygon", "regular_polygon",
-                                  "track", "point", "image"]))
+    kind = draw(hst.sampled_from(["rect", "ellipse", "concave", "circle", "line", "polygon",
+                                  "regular_polygon", "track", "point", "image"]))
     raw = {"kind": kind, "groups": draw(_groups)}
-    if kind in ("rect", "ellipse", "image"):
+    if kind in ("rect", "ellipse", "concave", "image"):
         raw.update(center=draw(_p), width=draw(_s), height=draw(_s),
                    angle=draw(hst.floats(-359, 359).map(lambda v: round(v, 2))))
+    if kind == "concave":
+        raw["scoop"] = draw(hst.sampled_from(SCOOPS))
+        rim = draw(hst.tuples(_s, _s))
+        raw["rim"] = list(rim) if draw(hst.booleans()) else [rim[0], rim[0]]
     if kind == "image":
         raw["file"] = "star.png"
     if kind == "circle":

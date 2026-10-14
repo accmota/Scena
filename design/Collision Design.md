@@ -438,7 +438,7 @@ Settle cannot substitute for that placement. It is bounded (`clamp(0.5 × (depth
 
 One convex polygon prim (`AABB`, `OBB`, a `POLY` ring that `_convex_ring`
 accepts) swept against another takes the closed-form **swept SAT**
-(`_toi_sat`, from `_toi_prim_sets` when each side is one prim).
+(`_toi_sat`, from `_toi_prim_sets` for each pair of prims).
 
 - **The sweep.** It projects both rings on every face normal of both, and
   takes the latest entry and the earliest exit. The entry time is exact, and
@@ -448,10 +448,26 @@ accepts) swept against another takes the closed-form **swept SAT**
   face (float residue under 1e-15, a rider moving with its platform) with an
   overlapping start goes to advancement too: SAT has no entry time to give,
   and it answered "no hit" (review 2026-10-12).
-- **What advances.** Circles, ellipses, capsules, rings that are not convex,
-  and multi-prim sets keep GJK advancement (`_toi_advance`). GJK on a set
-  sweeps the hull of the union; SAT pair by pair would not, so sets are left
-  as they were.
+- **What advances.** Circles, ellipses, capsules and rings that are not
+  convex keep GJK advancement (`_toi_advance`), one pair at a time.
+- **Sets are swept pair by pair** (`_toi_prim_pairs`, when either side has
+  more than one prim): each pair takes the rules above, and the earliest pair
+  is the union's first contact; pairs whose swept boxes miss are skipped.
+  GJK on a set measures the distance between the sets' **convex hulls**, so a
+  concave partner swept as one set stopped the body on its hull: a ball
+  rolling into a `Concave` scoop met the chord from the foot to the lip and
+  flew off at 45° (peak 80 of 149), and a ball could not drop into the notch
+  of a U-shaped `Polygon` (it rested on the hull's top) — CV1 in
+  [Testing Design](Testing%20Design.md). A convex partner's own pieces meet
+  at shared vertices and coplanar faces; a body sliding across them keeps
+  going by the `t = 0` rule above (a touch with tangential motion is not a
+  stop). Cost (2026-10-14, in-process interleaved, 30 balls, 240 frames):
+  a 2-wedge half-disk partner (same behaviour both ways) −10 %; six
+  quarter-pipes, where the balls now ride the curve every frame instead of
+  flying off the hull, +7.6 %. Single-prim pairs take the same one length
+  test as before. Guards: `tests/test_sweep_sat.py`
+  (`test_multi_prim_sets_sweep_pair_by_pair`, `test_a_body_enters_a_concave_set`),
+  `tests/test_concave.py` (`TestRides`).
 
 **The skin.** Advancement stops once the gap is under 1e-3, so SAT differs
 from it only inside that skin:
@@ -982,6 +998,7 @@ Why this is right for `bounce=0`: `velocity_split` changes only an approaching v
 ## Specs by body kind
 
 - **Shape** — geometry prims from the active model.
+- **Concave** — one convex `POLY` prim per piece (`_concave_prims` ← `Concave._world_pieces`): a fan of triangles under the curve from the far corner of the scoop's box, plus at most two rim strips; chords within 0.25 DU of the drawn arc. The proxy is the box. [Shapes Design — Concave](Shapes%20Design.md#concave).
 - **Circle** — one `CIRCLE` prim when clamped `spread` is a full turn (omitted or `>= 360 − 1e-6`), including `radius == 0` (a point). A shorter positive opening is the filled arc: `query_sector` wedges when `use_center` (the default), or one convex chord segment when `use_center=False`. `spread` of `0` emits no prims. The broad-phase proxy stays the circumdisk. Pointer `contains_point` follows the same filled arc.
 - **Sprite** — see **Sprite colliders** below.
 - **Hitbox part** — `Hitbox._collision_specs()` (body locals placed by the paint transform); proxy is the body's extent box (`_hitbox_extents_for_pose`) placed by the same paint transform and padded by `hypot(offset)` (`Hitbox._proxy_aabb`), so a rebake does not build prims until something overlaps. The pose key is built in one pass (`Hitbox._pose_key`, special-cased in `_collision_pose_key`). See [Hitbox parts](#hitbox-parts).

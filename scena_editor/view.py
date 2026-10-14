@@ -15,7 +15,7 @@ import zlib
 from typing import Any, Dict, List, Optional, Tuple
 
 from scena import (
-    Circle, Color, Ellipse, Line, Polygon, Rect, RegularPolygon, Sprite, Track, canvas,
+    Circle, Color, Concave, Ellipse, Line, Polygon, Rect, RegularPolygon, Sprite, Track, canvas,
 )
 
 from . import geometry as geo
@@ -323,6 +323,8 @@ def _shape_key(item: Dict[str, Any], doc) -> tuple:
         return (kind, doc.image_path(item))
     if kind == "regular_polygon":
         return (kind, item["n"])              # n is fixed at construction
+    if kind == "concave":
+        return (kind, item["scoop"])          # so is the scoop
     return (kind,)
 
 
@@ -332,6 +334,8 @@ def _make_shape(item: Dict[str, Any], doc):
         return Rect(center=(0, 0), width=1, height=1, layer=ITEM_LAYER)
     if kind == "ellipse":
         return Ellipse(center=(0, 0), width=1, height=1, layer=ITEM_LAYER)
+    if kind == "concave":
+        return Concave(center=(0, 0), width=1, height=1, scoop=item["scoop"], layer=ITEM_LAYER)
     if kind in ("circle", "point"):
         return Circle(center=(0, 0), radius=1, layer=ITEM_LAYER)
     if kind == "line":
@@ -350,11 +354,13 @@ def _make_shape(item: Dict[str, Any], doc):
 
 def _apply(shape, item: Dict[str, Any]) -> None:
     kind = item["kind"]
-    if kind in ("rect", "ellipse", "image"):
+    if kind in ("rect", "ellipse", "concave", "image"):
         shape.center = item["center"]
         shape.width = item["width"]
         shape.height = item["height"]
         shape.angle = item["angle"]
+        if kind == "concave":
+            shape.rim = item["rim"]
         if kind == "image":
             shape.alpha = 0.5 if item["guide"] else 1.0
     elif kind == "circle":
@@ -385,5 +391,5 @@ def _style(shape, item: Dict[str, Any], selected: bool) -> None:
         return
     shape.line = color
     shape.line_width = width
-    if kind in ("rect", "ellipse", "circle", "polygon", "regular_polygon"):
+    if kind in ("rect", "ellipse", "concave", "circle", "polygon", "regular_polygon"):
         shape.fill = translucent(color, 0.22)

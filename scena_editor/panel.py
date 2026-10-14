@@ -16,15 +16,16 @@ from .i18n import t
 from .geometry import union_aabb as geo_box
 from .toolbar import BG, Tooltip, ToolButton, _rect, _safe, attach_tip
 from .tools import (GRID_SIZES, KEY_OF, PRIMARY, REDO, Editor, _center, key_label,
-                    partial_groups, shared_groups)
+                    partial_groups, rim_text, shared_groups)
+from scena.level_format import SCOOPS
 from .view import DESIGN, PANEL_BOTTOM, PANEL_LEFT, PANEL_RIGHT, PANEL_TOP
 
 W, H = DESIGN
 SEPARATOR = Color(1, 1, 1, 0.12)
 # Left toolbar: what you create (shapes, a gap, then Image). Select and Pan
 # live in the top bar, with Undo / Redo and the view controls.
-CREATE_TOOLS = ("rect", "ellipse", "circle", "line", "polygon", "regular_polygon", "track",
-                "point", "image")
+CREATE_TOOLS = ("rect", "ellipse", "concave", "circle", "line", "polygon", "regular_polygon",
+                "track", "point", "image")
 ROW = 30.0
 X0 = W - PANEL_RIGHT + 10          # right panel content left edge
 LABEL_W = 78.0
@@ -118,6 +119,38 @@ class _Field:
             return None
         self.shown = value
         return value
+
+
+class _Choice:
+    """A labelled drop-down in the properties panel (a concave's Scoop)."""
+
+    def __init__(self, key: str, label: str, y: float, options):
+        self.key = key
+        self.label = Text(label, top_left=(X0, y - 4), font_size=13)
+        self.input = DropDown(top_left=(X0 + LABEL_W, y), width=FIELD_W, height=24,
+                              options=list(options), initial=options[0])
+        self.shown: Any = options[0]
+        self.owner: Any = None
+
+    @property
+    def visible(self) -> bool:
+        return self.input.visible
+
+    def show(self, visible: bool) -> None:
+        self.label.visible = visible
+        self.input.visible = visible
+
+    def set(self, value: str, owner: Any) -> None:
+        self.owner = owner
+        if self.input.data.value != value:
+            self.input.data.value = value
+        self.shown = value
+
+    def committed(self) -> Optional[str]:
+        if not self.input.visible or self.input.data.value == self.shown:
+            return None
+        self.shown = self.input.data.value
+        return self.shown
 
 
 class _Check:
@@ -265,8 +298,13 @@ class Panel:
             ("angle", t("panel.angle"), 7, True),
             ("smooth", t("panel.smooth"), 4, True),   # tracks only (no width there)
             ("n", t("panel.sides"), 4, True),         # regular polygons only
+            ("rim", t("panel.rim"), 8, False),        # concaves only (no checks there)
         ):
             self.fields[key] = _Field(key, label, rows - row * ROW, number=number)
+        # A concave's Scoop sits in the Radius row (a concave has no radius).
+        self.choices: Dict[str, _Choice] = {
+            "scoop": _Choice("scoop", t("panel.scoop"), rows - 6 * ROW, SCOOPS),
+        }
         cy = rows - 8 * ROW - 4
         self.checks: Dict[str, _Check] = {}
         for i, (key, label) in enumerate((
@@ -352,7 +390,7 @@ class Panel:
                 # Show the field as stored ("a;b" → "a, b", "7.0" → 7) even
                 # when the edit changed nothing and the doc did not bump.
                 self._seen = None
-        for c in self.checks.values():
+        for c in list(self.checks.values()) + list(self.choices.values()):
             value = c.committed()
             if value is not None and c.owner is not None:
                 ed.set_field(c.key, value, item_id=c.owner)
@@ -410,7 +448,7 @@ class Panel:
         want: Dict[Any, bool] = {}
         for f in self.fields.values():
             want[f] = False
-        for c in self.checks.values():
+        for c in list(self.checks.values()) + list(self.choices.values()):
             want[c] = False
         want[self.level_w] = want[self.level_h] = False
         for f in self.many.values():
@@ -457,6 +495,10 @@ class Panel:
             for k in ("width", "height", "radius", "angle", "smooth", "n"):
                 if k in single:
                     values[k] = single[k]
+            if kind == "concave":
+                values["rim"] = rim_text(single["rim"])
+                self.choices["scoop"].set(single["scoop"], owner)
+                want[self.choices["scoop"]] = True
             for k, v in values.items():
                 self.fields[k].set(v, owner)
                 want[self.fields[k]] = True

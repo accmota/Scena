@@ -26,7 +26,7 @@ import warnings
 import geometry_support as G
 import scena
 from media_support import media
-from scena import Box, Circle, Ellipse, Triangle, Line, Point, Polygon
+from scena import Box, Circle, Concave, Ellipse, Triangle, Line, Point, Polygon
 from scena import Rect, RegularPolygon, Sprite, Square, State, Svg, Text, Track, Vec2
 from scena.state import ContainerSlot, ScalarSlot
 
@@ -63,6 +63,8 @@ SUBJECTS: List[Tuple[str, Callable[[], object]]] = [
     ("Rect top_left", lambda: Rect(top_left=(0, 0), width=4, height=3, angle=30)),
     ("Rect p1,vec", lambda: Rect(p1=(0, 0), vec=(4, 3), angle=30)),
     ("Square", lambda: Square(center=(0, 0), length=10, angle=30)),
+    ("Concave center", lambda: Concave(center=(0, 0), width=40, height=30, angle=30, rim=(4, 2))),
+    ("Concave p1,p2 edge", lambda: Concave(p1=(0, 0), p2=(40, 30), scoop="top_center", rim=3)),
     ("Box corner_corner", lambda: Box(p1=(0, 0), p2=(4, 3), angle=30)),
     ("Box center", lambda: Box(center=(0, 0), width=4, height=3, angle=30)),
     ("Polygon", _tri),
@@ -86,7 +88,7 @@ SUBJECTS: List[Tuple[str, Callable[[], object]]] = [
 
 # Classes whose reactive slots are covered by a subject above (guard).
 COVERED = frozenset({
-    "Vec2", "Point", "Line", "Circle", "Ellipse", "Rect", "Square", "Box",
+    "Vec2", "Point", "Line", "Circle", "Ellipse", "Rect", "Square", "Concave", "Box",
     "Polygon", "RegularPolygon", "Triangle", "Track", "Sprite", "Svg", "Text",
 })
 # Reactive classes the matrix does not drive, each with the reason.

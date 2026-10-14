@@ -837,7 +837,7 @@ _POINT_WORDS = ("top_left", "top_right", "bottom_left", "bottom_right",
                 "vertex", "centroid", "perimeter_point", "vec")
 _RELATION_WORDS = ("dist", "at_angle", "signed_area", "perimeter_length")
 # Shape inputs of one kind: ``circle.base_ratio = 0.6`` would be a dead attribute.
-_SHAPE_WORDS = {"base_ratio": "Triangle"}
+_SHAPE_WORDS = {"base_ratio": "Triangle", "scoop": "Concave"}
 
 
 def _install_setattr_route(cls: type) -> None:

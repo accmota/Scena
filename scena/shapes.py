@@ -8366,72 +8366,18 @@ def _mirror_rotation_store(obj, axis: str) -> None:
     object.__setattr__(obj, '_rotation', (180.0 - r) if axis == "x" else -r)
 
 
-class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
-    """
-    Oriented rectangle with multi-model constructors (Line-style).
+class _RectBody(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
+    """The oriented-box Shape: Rect's models, named points and frame verbs.
 
-    Models:
-      - CORNER_CORNER: p1, p2 are opposite corners, exactly where the author put them
-        (a value or a link). angle is the direction of the width side; width and
-        height follow from those three and read 0 when the diagonal lies along a side
-        (a legal collapsed box). rotate_by / rotate_to turn the box with its corners;
-        writing or linking angle keeps the corners and changes the size.
-      - TOP_LEFT_WH: top_left is the world position of the local top-left corner (-w/2, +h/2);
-        width, height are local edge lengths; angle is orientation about center.
-      - CENTER_WH: center, width, height are Defining; angle orients about center (mirrors
-        TOP_LEFT_WH's Derivate set, using center instead of top_left as the position anchor).
-        Derivate p1/p2 track oriented opposite corners (same loci as bottom_left / top_right).
-      - POINT_VEC: p1, vec, angle are Defining. p1 stays where the author put it;
-        vec is the signed local (width, height) extent along the rotated sides
-        (not a world-axis delta — that is Line(p1=, vec=)). p2 = p1 + R(angle) @ vec.
-        The drawn frame uses abs of each component.
-      - SPINE: p1, p2, height are Defining (no separate angle -- orientation comes from
-        p1->p2). Required plain ``anchor`` selects how p1/p2 sit on the rectangle:
-          * "cap": p1, p2 are midpoints of the short walls (caps).
-          * "square": p1, p2 are centers of the height×height end squares
-            (same loci as Derivate left_square_center / right_square_center).
-          * "side_left": p1, p2 are corners of one long edge; box extends left of p1→p2.
-          * "side_right": same, box extends right of p1→p2.
-        height is a non-negative cross-axis magnitude. Derivate width is the along-axis
-        extent (d for cap/side_*; d+height for square). Matches the width=local-x /
-        height=local-y rule of the frame-anchored models.
+    Private base of ``Rect`` and ``Concave`` (a box with a scoop), which share
+    every construction model, named point, move / rotate / scale / flip and
+    clone, and differ in what they draw and collide with. ``Concave`` is not a
+    ``Rect`` (it does not collide as a box), so engine code that serves both
+    tests ``_RectBody``; code that means the box itself tests ``Rect``.
 
-    Named points (top_left, top_right, …, top_center, …): a rect names its
-    corners the first time one is used, as they look then (in its own rotated
-    frame). From then on each name stays with its point through drags, link
-    updates, rotations, scales and flips — p1 keeps being bottom_left even when
-    it is dragged past p2. Only p1/p2 and p1+vec rects can cross; the other
-    models start visual and change names only when a flip mirrors them.
-
-    Optional angle defaults to 0 when omitted from the constructor.
-    Plain (non-reactive) ``corner_radius`` (default 0) rounds paint and the
-    pointer fill via ``drawRRect``. Collision and linked corners stay the
-    sharp box.
-
-
-    Args:
-        center: Where the shape sits (a point, or a function that returns one).
-            ``center=`` alone gives a default-size shape there.
-        layer: Draw layer name or number (default: ``"default"``).
-        group: Group tag or list of tags (``group["enemies"]``).
-        visual: A look (``Neon()``, ``Glow()``, …), a color, ``Gradient`` or
-            ``Texture``.
-        color: Solid color (fill on area shapes, stroke on lines).
-        line_width: Outline thickness in design units (default 1.5).
-        box: Fit into a Box (or a frame-like shape) instead of giving position and size
-            — its own form.
-        p1: One corner (with ``p2``; or a spine end with ``p2`` + ``height`` +
-            ``anchor``).
-        p2: The opposite corner.
-        angle: Heading in degrees (counter-clockwise). Setting it keeps the point
-            the shape was placed by; ``rotate_to`` turns it about its center.
-        corner_radius: Rounded corners (0 = sharp).
-        top_left: Top-left corner (with ``width`` / ``height``).
-        width: Width in design units.
-        height: Height in design units.
-        vec: From ``p1``: the diagonal as a vector.
-        anchor: With ``p1`` + ``p2`` + ``height``: how the ends sit — ``"cap"`` ·
-            ``"square"`` · ``"side_left"`` · ``"side_right"``.
+    Kind hooks: ``_read_frame_extras`` / ``_apply_frame_extras`` (a ``<<``
+    copy), ``_clone_extra_kwargs`` (``clone()``), ``_scale_extras`` /
+    ``_scale_gate_extras`` (``scale_by``, when ``_SCALES_EXTRAS``).
     """
 
     p1 = ContainerSlot(Point)
@@ -8451,8 +8397,6 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
     right_center = ContainerSlot(Point, FieldType.Derivate)
     left_square_center = ContainerSlot(Point, FieldType.Derivate)
     right_square_center = ContainerSlot(Point, FieldType.Derivate)
-
-    _CTOR_EXTRA_KEYS = frozenset({"corner_radius"})
 
     # Home model = CENTER_WH (same as Rect()).
     _HOME_KEYS = frozenset({"center", "width", "height"})
@@ -8479,57 +8423,6 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
             "width": 2.0 * unit,
             "height": 1.25 * unit,
         }
-
-    @overload
-    def __new__(cls, *, center: Optional[GeneralPoint] = None, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Rect': ...
-
-    @overload
-    def __new__(cls, *, p1: GeneralPoint, p2: GeneralPoint, angle: float = 0.0, corner_radius: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Rect': ...
-
-    @overload
-    def __new__(cls, *, top_left: GeneralPoint, width: float, height: float, angle: float = 0.0, corner_radius: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Rect': ...
-
-    @overload
-    def __new__(cls, *, center: GeneralPoint, width: float, height: float, angle: float = 0.0, corner_radius: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Rect': ...
-
-    @overload
-    def __new__(cls, *, p1: GeneralPoint, vec: Vec2, angle: float = 0.0, corner_radius: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Rect': ...
-
-    @overload
-    def __new__(cls, *, p1: GeneralPoint, p2: GeneralPoint, height: float, anchor: str, corner_radius: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Rect': ...
-
-    def __new__(cls, *args, **kwargs):
-        return super().__new__(cls)
-
-    def __init__(self, *args, **kwargs):
-        _reject_positional_shape_args(type(self), args)
-        from .box import apply_box_to_shape_kwargs
-        box_names = apply_box_to_shape_kwargs("Rect", kwargs, family="fill")
-        base_params, signature = self._extract_common_params_and_signature(
-            kwargs=kwargs,
-            valid_signatures=self._CONSTRUCTOR_SIGNATURES
-        )
-        super().__init__(**base_params)
-
-        self._anchor = None  # set only for SPINE
-        self._init_corner_radius(kwargs)
-
-        self._init_model(signature, kwargs)
-
-        if box_names is not None:
-            # box= places the rect into a region *and* takes its names.
-            self.__dict__['_name_signs'] = box_names
-
-        if self.model == RectModel.SPINE:
-            # Angle is Derivate — compute from Defining p1→p2 (A4 / cold-Derivate).
-            x1, y1 = get_xy(self.p1, bare=True)
-            x2, y2 = get_xy(self.p2, bare=True)
-            _pose_rotation_set(
-                self,
-                _deg(math.atan2(y2 - y1, x2 - x1)) if (x1 != x2 or y1 != y2) else 0.0,
-            )
-        else:
-            _pose_rotation_set(self, _bare_num(self.angle))
 
     _PART_NAMES = (
         'p1', 'p2', 'top_left', 'top_right', 'bottom_left', 'bottom_right', 'vec',
@@ -8562,25 +8455,7 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
             return (self.p1, self.p2)
         return ()
 
-    def _init_corner_radius(self, kwargs: Dict[str, Any]) -> None:
-        """Paint-only radius; Square must call this (it skips Rect.__init__)."""
-        self.corner_radius = kwargs.get('corner_radius', 0.0)
-
-    @property
-    def corner_radius(self) -> float:
-        """Rounded-corner radius in design units (0 = sharp). A plain number (no ``@=`` link)."""
-        return self._corner_radius
-
-    @corner_radius.setter
-    def corner_radius(self, value: float) -> None:
-        # Paint only — a lambda must not be stored (it used to crash at draw).
-        if callable(value) and not isinstance(value, type):
-            raise CallableAssignError(
-                _ink_link_forbidden_message(self, "corner_radius")
-            )
-        self._corner_radius = fixed_magnitude(value, "corner_radius")
-
-    def _takein_impl(self, other: 'Rect') -> None:
+    def _takein_impl(self, other) -> None:
         """Copy only the defining attributes for the current model.
 
         The names travel too (a copy is a use): every named point of the copy
@@ -8594,12 +8469,12 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
         _refuse_if_destroyed(self, "set")
         signs = other._freeze_names()
         anchor = getattr(other, "_anchor", None)          # SPINE only (None elsewhere)
-        corner = getattr(other, "_corner_radius", self._corner_radius)   # a Box keeps ours
+        extras = self._read_frame_extras(other)           # the kind's own inputs
         self.__dict__['_name_signs'] = signs
         self._adopt_model_of(other)
         self._anchor = anchor
-        self._corner_radius = corner
         self._take_frame_parts(other)
+        self._apply_frame_extras(other, extras)
 
     # The pose store follows every update. Bound directly (no extra frame on a
     # per-update path): self._publish_heading(ang) is _pose_rotation_publish(self, ang),
@@ -8613,67 +8488,6 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
         A use: names the corners if nothing has yet (see Named points).
         """
         return [self.top_left, self.top_right, self.bottom_left, self.bottom_right]
-
-    def _geometry_draw(self, skia_canvas, fill_paint=_STYLE_PAINT, stroke_paint=_STYLE_PAINT):
-        """Draw via local-frame CTM (Defining pose); world Derivate corners stay lazy."""
-        cx, cy, w, h, ang = self._oriented_frame()
-        skia_canvas.save()
-        skia_canvas.translate(cx, cy)
-        if ang:
-            skia_canvas.rotate(ang)
-        rect = skia.Rect.MakeLTRB(-w / 2.0, -h / 2.0, w / 2.0, h / 2.0)
-        r = self._corner_radius
-        if r > 0.0:
-            rx = min(r, w * 0.5, h * 0.5)
-            rrect = skia.RRect.MakeRectXY(rect, rx, rx)
-            skia_fill_paint = self._to_skia_fill_paint() if fill_paint is _STYLE_PAINT else fill_paint
-            if skia_fill_paint:
-                skia_canvas.drawRRect(rrect, skia_fill_paint)
-            skia_line_paint = self._to_skia_line_paint() if stroke_paint is _STYLE_PAINT else stroke_paint
-            if skia_line_paint:
-                skia_canvas.drawRRect(rrect, skia_line_paint)
-        else:
-            skia_fill_paint = self._to_skia_fill_paint() if fill_paint is _STYLE_PAINT else fill_paint
-            if skia_fill_paint:
-                skia_canvas.drawRect(rect, skia_fill_paint)
-            skia_line_paint = self._to_skia_line_paint() if stroke_paint is _STYLE_PAINT else stroke_paint
-            if skia_line_paint:
-                skia_canvas.drawRect(rect, skia_line_paint)
-
-        skia_canvas.restore()
-
-    def _hit_test_xy(self, x: float, y: float) -> bool:
-        """Hit-test the oriented box, or the rounded fill when ``corner_radius`` > 0."""
-        cx, cy, w, h, ang = self._oriented_frame()
-        if w == 0.0 or h == 0.0:
-            return False
-        dx = x - cx
-        dy = y - cy
-        if ang:
-            cos_a = math.cos(_rad(-ang))
-            sin_a = math.sin(_rad(-ang))
-            lx = dx * cos_a - dy * sin_a
-            ly = dx * sin_a + dy * cos_a
-        else:
-            lx, ly = dx, dy
-        # Rotated corners land ~1 ulp outside the exact half-extent.
-        slack = 1e-6
-        hw, hh = w * 0.5, h * 0.5
-        ax, ay = abs(lx), abs(ly)
-        r = self._corner_radius
-        if r <= 0.0:
-            return ax <= hw + slack and ay <= hh + slack
-        # Same clamp as drawRRect. The cut corner is a pointer miss;
-        # collision stays this oriented box.
-        rx = min(r, hw, hh)
-        ix, iy = hw - rx, hh - rx
-        if ax <= ix + slack and ay <= hh + slack:
-            return True
-        if ay <= iy + slack and ax <= hw + slack:
-            return True
-        dx, dy = ax - ix, ay - iy
-        limit = rx + slack
-        return dx * dx + dy * dy <= limit * limit
 
     def _parts_written_by_drag(self) -> Tuple[Container, ...]:
         match self.model:
@@ -8726,7 +8540,7 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
             case _:
                 cx, cy, w, h, ang = self._oriented_frame()
                 geometry = dict(center=(cx, cy), width=w, height=h, angle=ang)
-        clone = cls(corner_radius=self._corner_radius, **geometry, **kwargs)
+        clone = cls(**self._clone_extra_kwargs(), **geometry, **kwargs)
         # The clone's extents may be magnitudes: carry the names as signs.
         signs = (self._effective_name_signs() if self.model == RectModel.CENTER_WH
                  else self._freeze_names())
@@ -8994,6 +8808,8 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
                 self.height = _bare_num(self.height) * factor
             case _:
                 raise ValueError(f"Unknown rect model: {self.model}")
+        if self._SCALES_EXTRAS:
+            self._scale_extras(factor)
 
         _pose_scale_set(self, store)
         return self
@@ -9020,10 +8836,245 @@ class Rect(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
                 _ensure_writable(self.p1, "scale_by", force=force, pivot=pivot)
                 _ensure_writable(self.p2, "scale_by", force=force, pivot=pivot)
                 _ensure_writable(self["height"], "scale_by", force=force)
+        if self._SCALES_EXTRAS:
+            self._scale_gate_extras(force)
 
     def scale_to(self, value: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Rect':
         """Set absolute uniform scale about a pivot."""
         return _scale_to_via(self, value, about=about, force=force)
+
+    # --- kind hooks (Rect: corner_radius; Concave: scoop and rim) ---
+
+    _SCALES_EXTRAS = False
+
+    def _read_frame_extras(self, other):
+        """A ``<<`` copy reads the kind's own inputs before the first write."""
+        return None
+
+    def _apply_frame_extras(self, other, extras) -> None:
+        """A ``<<`` copy writes what ``_read_frame_extras`` read."""
+
+    def _clone_extra_kwargs(self) -> Dict[str, Any]:
+        """Constructor keywords ``clone()`` adds for the kind's own inputs."""
+        return {}
+
+    def _scale_extras(self, factor: float) -> None:
+        """``scale_by``: scale the kind's own lengths (``_SCALES_EXTRAS``)."""
+
+    def _scale_gate_extras(self, force: bool) -> None:
+        """``scale_by``: refuse before any write when an own length is linked."""
+
+
+class Rect(_RectBody):
+    """
+    Oriented rectangle with multi-model constructors (Line-style).
+
+    Models:
+      - CORNER_CORNER: p1, p2 are opposite corners, exactly where the author put them
+        (a value or a link). angle is the direction of the width side; width and
+        height follow from those three and read 0 when the diagonal lies along a side
+        (a legal collapsed box). rotate_by / rotate_to turn the box with its corners;
+        writing or linking angle keeps the corners and changes the size.
+      - TOP_LEFT_WH: top_left is the world position of the local top-left corner (-w/2, +h/2);
+        width, height are local edge lengths; angle is orientation about center.
+      - CENTER_WH: center, width, height are Defining; angle orients about center (mirrors
+        TOP_LEFT_WH's Derivate set, using center instead of top_left as the position anchor).
+        Derivate p1/p2 track oriented opposite corners (same loci as bottom_left / top_right).
+      - POINT_VEC: p1, vec, angle are Defining. p1 stays where the author put it;
+        vec is the signed local (width, height) extent along the rotated sides
+        (not a world-axis delta — that is Line(p1=, vec=)). p2 = p1 + R(angle) @ vec.
+        The drawn frame uses abs of each component.
+      - SPINE: p1, p2, height are Defining (no separate angle -- orientation comes from
+        p1->p2). Required plain ``anchor`` selects how p1/p2 sit on the rectangle:
+          * "cap": p1, p2 are midpoints of the short walls (caps).
+          * "square": p1, p2 are centers of the height×height end squares
+            (same loci as Derivate left_square_center / right_square_center).
+          * "side_left": p1, p2 are corners of one long edge; box extends left of p1→p2.
+          * "side_right": same, box extends right of p1→p2.
+        height is a non-negative cross-axis magnitude. Derivate width is the along-axis
+        extent (d for cap/side_*; d+height for square). Matches the width=local-x /
+        height=local-y rule of the frame-anchored models.
+
+    Named points (top_left, top_right, …, top_center, …): a rect names its
+    corners the first time one is used, as they look then (in its own rotated
+    frame). From then on each name stays with its point through drags, link
+    updates, rotations, scales and flips — p1 keeps being bottom_left even when
+    it is dragged past p2. Only p1/p2 and p1+vec rects can cross; the other
+    models start visual and change names only when a flip mirrors them.
+
+    Optional angle defaults to 0 when omitted from the constructor.
+    Plain (non-reactive) ``corner_radius`` (default 0) rounds paint and the
+    pointer fill via ``drawRRect``. Collision and linked corners stay the
+    sharp box.
+
+
+    Args:
+        center: Where the shape sits (a point, or a function that returns one).
+            ``center=`` alone gives a default-size shape there.
+        layer: Draw layer name or number (default: ``"default"``).
+        group: Group tag or list of tags (``group["enemies"]``).
+        visual: A look (``Neon()``, ``Glow()``, …), a color, ``Gradient`` or
+            ``Texture``.
+        color: Solid color (fill on area shapes, stroke on lines).
+        line_width: Outline thickness in design units (default 1.5).
+        box: Fit into a Box (or a frame-like shape) instead of giving position and size
+            — its own form.
+        p1: One corner (with ``p2``; or a spine end with ``p2`` + ``height`` +
+            ``anchor``).
+        p2: The opposite corner.
+        angle: Heading in degrees (counter-clockwise). Setting it keeps the point
+            the shape was placed by; ``rotate_to`` turns it about its center.
+        corner_radius: Rounded corners (0 = sharp).
+        top_left: Top-left corner (with ``width`` / ``height``).
+        width: Width in design units.
+        height: Height in design units.
+        vec: From ``p1``: the diagonal as a vector.
+        anchor: With ``p1`` + ``p2`` + ``height``: how the ends sit — ``"cap"`` ·
+            ``"square"`` · ``"side_left"`` · ``"side_right"``.
+    """
+
+    _CTOR_EXTRA_KEYS = frozenset({"corner_radius"})
+
+
+    @overload
+    def __new__(cls, *, center: Optional[GeneralPoint] = None, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Rect': ...
+
+    @overload
+    def __new__(cls, *, p1: GeneralPoint, p2: GeneralPoint, angle: float = 0.0, corner_radius: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Rect': ...
+
+    @overload
+    def __new__(cls, *, top_left: GeneralPoint, width: float, height: float, angle: float = 0.0, corner_radius: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Rect': ...
+
+    @overload
+    def __new__(cls, *, center: GeneralPoint, width: float, height: float, angle: float = 0.0, corner_radius: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Rect': ...
+
+    @overload
+    def __new__(cls, *, p1: GeneralPoint, vec: Vec2, angle: float = 0.0, corner_radius: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Rect': ...
+
+    @overload
+    def __new__(cls, *, p1: GeneralPoint, p2: GeneralPoint, height: float, anchor: str, corner_radius: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Rect': ...
+
+    def __new__(cls, *args, **kwargs):
+        return super().__new__(cls)
+
+    def __init__(self, *args, **kwargs):
+        _reject_positional_shape_args(type(self), args)
+        from .box import apply_box_to_shape_kwargs
+        box_names = apply_box_to_shape_kwargs("Rect", kwargs, family="fill")
+        base_params, signature = self._extract_common_params_and_signature(
+            kwargs=kwargs,
+            valid_signatures=self._CONSTRUCTOR_SIGNATURES
+        )
+        super().__init__(**base_params)
+
+        self._anchor = None  # set only for SPINE
+        self._init_corner_radius(kwargs)
+
+        self._init_model(signature, kwargs)
+
+        if box_names is not None:
+            # box= places the rect into a region *and* takes its names.
+            self.__dict__['_name_signs'] = box_names
+
+        if self.model == RectModel.SPINE:
+            # Angle is Derivate — compute from Defining p1→p2 (A4 / cold-Derivate).
+            x1, y1 = get_xy(self.p1, bare=True)
+            x2, y2 = get_xy(self.p2, bare=True)
+            _pose_rotation_set(
+                self,
+                _deg(math.atan2(y2 - y1, x2 - x1)) if (x1 != x2 or y1 != y2) else 0.0,
+            )
+        else:
+            _pose_rotation_set(self, _bare_num(self.angle))
+
+    def _init_corner_radius(self, kwargs: Dict[str, Any]) -> None:
+        """Paint-only radius; Square must call this (it skips Rect.__init__)."""
+        self.corner_radius = kwargs.get('corner_radius', 0.0)
+
+    @property
+    def corner_radius(self) -> float:
+        """Rounded-corner radius in design units (0 = sharp). A plain number (no ``@=`` link)."""
+        return self._corner_radius
+
+    @corner_radius.setter
+    def corner_radius(self, value: float) -> None:
+        # Paint only — a lambda must not be stored (it used to crash at draw).
+        if callable(value) and not isinstance(value, type):
+            raise CallableAssignError(
+                _ink_link_forbidden_message(self, "corner_radius")
+            )
+        self._corner_radius = fixed_magnitude(value, "corner_radius")
+
+
+    def _read_frame_extras(self, other):
+        return getattr(other, "_corner_radius", self._corner_radius)   # a Box keeps ours
+
+    def _apply_frame_extras(self, other, extras) -> None:
+        self._corner_radius = extras
+
+    def _clone_extra_kwargs(self) -> Dict[str, Any]:
+        return {"corner_radius": self._corner_radius}
+
+    def _geometry_draw(self, skia_canvas, fill_paint=_STYLE_PAINT, stroke_paint=_STYLE_PAINT):
+        """Draw via local-frame CTM (Defining pose); world Derivate corners stay lazy."""
+        cx, cy, w, h, ang = self._oriented_frame()
+        skia_canvas.save()
+        skia_canvas.translate(cx, cy)
+        if ang:
+            skia_canvas.rotate(ang)
+        rect = skia.Rect.MakeLTRB(-w / 2.0, -h / 2.0, w / 2.0, h / 2.0)
+        r = self._corner_radius
+        if r > 0.0:
+            rx = min(r, w * 0.5, h * 0.5)
+            rrect = skia.RRect.MakeRectXY(rect, rx, rx)
+            skia_fill_paint = self._to_skia_fill_paint() if fill_paint is _STYLE_PAINT else fill_paint
+            if skia_fill_paint:
+                skia_canvas.drawRRect(rrect, skia_fill_paint)
+            skia_line_paint = self._to_skia_line_paint() if stroke_paint is _STYLE_PAINT else stroke_paint
+            if skia_line_paint:
+                skia_canvas.drawRRect(rrect, skia_line_paint)
+        else:
+            skia_fill_paint = self._to_skia_fill_paint() if fill_paint is _STYLE_PAINT else fill_paint
+            if skia_fill_paint:
+                skia_canvas.drawRect(rect, skia_fill_paint)
+            skia_line_paint = self._to_skia_line_paint() if stroke_paint is _STYLE_PAINT else stroke_paint
+            if skia_line_paint:
+                skia_canvas.drawRect(rect, skia_line_paint)
+
+        skia_canvas.restore()
+
+    def _hit_test_xy(self, x: float, y: float) -> bool:
+        """Hit-test the oriented box, or the rounded fill when ``corner_radius`` > 0."""
+        cx, cy, w, h, ang = self._oriented_frame()
+        if w == 0.0 or h == 0.0:
+            return False
+        dx = x - cx
+        dy = y - cy
+        if ang:
+            cos_a = math.cos(_rad(-ang))
+            sin_a = math.sin(_rad(-ang))
+            lx = dx * cos_a - dy * sin_a
+            ly = dx * sin_a + dy * cos_a
+        else:
+            lx, ly = dx, dy
+        # Rotated corners land ~1 ulp outside the exact half-extent.
+        slack = 1e-6
+        hw, hh = w * 0.5, h * 0.5
+        ax, ay = abs(lx), abs(ly)
+        r = self._corner_radius
+        if r <= 0.0:
+            return ax <= hw + slack and ay <= hh + slack
+        # Same clamp as drawRRect. The cut corner is a pointer miss;
+        # collision stays this oriented box.
+        rx = min(r, hw, hh)
+        ix, iy = hw - rx, hh - rx
+        if ax <= ix + slack and ay <= hh + slack:
+            return True
+        if ay <= iy + slack and ax <= hw + slack:
+            return True
+        dx, dy = ax - ix, ay - iy
+        limit = rx + slack
+        return dx * dx + dy * dy <= limit * limit
 
 
 class Square(Rect):
@@ -9243,6 +9294,479 @@ class Square(Rect):
     def _scale_gate(self, about, force: bool, pivot=None) -> None:
         _ensure_writable(self["length"], "scale_by", force=force)
         super()._scale_gate(about, force, pivot)
+
+
+# ---------------------------------------------------------------------------
+# Concave: a box with a scoop (Shapes Design — Concave)
+# ---------------------------------------------------------------------------
+
+# Where a scoop may sit: a named point of the box (corner → quarter scoop,
+# edge middle → half scoop), with its local direction from the center in the
+# frame where ``top_right`` is ``(+, +)``.
+_CONCAVE_SCOOPS = {
+    'top_left': (-1, 1), 'top_right': (1, 1),
+    'bottom_left': (-1, -1), 'bottom_right': (1, -1),
+    'top_center': (0, 1), 'bottom_center': (0, -1),
+    'left_center': (-1, 0), 'right_center': (1, 0),
+}
+# Collision chords stay within this distance of the curve (the query_sector /
+# partial-Circle rule); geometry queries and Track outlines are finer.
+_CONCAVE_COLLISION_TOL = 0.25
+_CONCAVE_OUTLINE_TOL = 0.01
+_CONCAVE_MAX_CHORDS = 64          # per quarter turn, collision
+_CONCAVE_MAX_OUTLINE_CHORDS = 512  # per quarter turn, geometry queries / Track
+
+
+def _concave_chords(re: float, rn: float, quarters: int, tol: float,
+                    cap: int = _CONCAVE_MAX_CHORDS) -> int:
+    """Chords for ``quarters`` × 90° of the curve, each within ``tol`` of it
+    (at most ``cap`` per quarter)."""
+    r = max(re, rn)
+    if r <= tol:
+        per = 2
+    else:
+        step = 2.0 * math.acos(1.0 - tol / r)        # radians per chord
+        per = int(math.ceil((0.5 * math.pi) / step))
+    return quarters * max(2, min(cap, per))
+
+
+def _ccw(poly: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+    """``poly`` with counter-clockwise winding (shoelace sign)."""
+    a = 0.0
+    n = len(poly)
+    for i in range(n):
+        x1, y1 = poly[i]
+        x2, y2 = poly[(i + 1) % n]
+        a += x1 * y2 - x2 * y1
+    return poly if a >= 0.0 else poly[::-1]
+
+
+def _concave_rim_pair(value, what: str = "rim") -> Tuple[Any, Any]:
+    """An author rim: a number (both axes) or a pair, finite and ``>= 0``."""
+    if isinstance(value, (tuple, list)):
+        if len(value) != 2:
+            raise TypeError(f"{what} takes a number or a pair (x, y), got {len(value)} values")
+        pair = (value[0], value[1])
+    elif isinstance(value, Vec2):
+        pair = (value.x, value.y)
+    else:
+        pair = (value, value)
+    out = []
+    for v in pair:
+        if callable(v) and not isinstance(v, type):
+            out.append(v)                     # a linked component (checked when it runs)
+            continue
+        v = fixed_magnitude(v, what)          # number, finite, not a bool
+        if v < 0.0:
+            raise ValueError(f"{what} must be >= 0 (the solid left at the scoop's ends), got {v}")
+        out.append(float(v))
+    return out[0], out[1]
+
+
+class _RimPair(Vec2):
+    """``Concave.rim``: a pair; a single number is the same rim on both axes."""
+
+    def _assign_value(self, value):
+        # ``rim @= f`` stores the part itself back: that is not a value.
+        if value is not self and (not callable(value) or isinstance(value, type)):
+            if not isinstance(value, Attribute):
+                value = _concave_rim_pair(value, "Concave.rim")
+        return super()._assign_value(value)
+
+    def _takein_impl(self, other) -> bool:
+        # Links write here directly (``Link.evaluate_and_update``).
+        if isinstance(other, (int, float)) and not isinstance(other, bool):
+            other = (other, other)      # a linked number: both axes
+        return super()._takein_impl(other)
+
+
+class Concave(_RectBody):
+    """
+    A box with a concave scoop: part of a circle or an ellipse taken out of
+    it. A quarter-pipe, a pinball corner fill, the inside corner of a race
+    track, a half-pipe. Placed and sized like a ``Rect`` (every Rect model,
+    named points, ``angle``); the curve comes from the box.
+
+    ``scoop`` is the named point the curve is centered on. A corner
+    (``"top_left"``, …) takes a quarter out; an edge middle
+    (``"top_center"``, …) takes a half out. The curve reaches the box's
+    far sides, so a square box gives a quarter circle and any other box an
+    ellipse (an edge scoop is a circle when the box is 2:1).
+
+    ``rim`` is the solid left at the scoop's ends, a number or a pair
+    ``(x, y)`` along the box's width and height: ``rim=0`` (the default)
+    leaves knife-thin tips; ``rim=(20, 0)`` gives a quarter-pipe a flat
+    deck 20 wide at its lip and no step at the floor. Each axis's curve
+    radius is the box's reach minus the rim. ``rim`` is linkable and
+    scales with ``scale_by``; ``scoop`` is fixed at construction.
+
+    The curve draws as a true arc and collides as chords within 0.25
+    design units of it. ``contains_point`` follows the exact curve.
+
+    Example:
+        ramp = Concave(top_left=(0, 200), width=200, height=200)
+        halfpipe = Concave(center=(400, 100), width=400, height=250,
+                           scoop="top_center", rim=(0, 50))
+
+    Args:
+        center: Where the shape sits (a point, or a function that returns one).
+            ``center=`` alone gives a default-size shape there.
+        scoop: The named point the curve is centered on: a corner
+            (``"top_left"`` · ``"top_right"`` · ``"bottom_left"`` ·
+            ``"bottom_right"``, a quarter scoop) or an edge middle
+            (``"top_center"`` · ``"bottom_center"`` · ``"left_center"`` ·
+            ``"right_center"``, a half scoop). Default ``"top_left"``.
+        rim: Solid left at the scoop's ends: a number, or ``(x, y)`` along
+            the width and the height (default 0: knife-thin tips).
+        layer: Draw layer name or number (default: ``"default"``).
+        group: Group tag or list of tags (``group["enemies"]``).
+        visual: A look (``Neon()``, ``Glow()``, …), a color, ``Gradient`` or
+            ``Texture``.
+        color: Solid color (fill on area shapes, stroke on lines).
+        line_width: Outline thickness in design units (default 1.5).
+        box: Fit into a Box (or a frame-like shape) instead of giving position and size
+            — its own form.
+        p1: One corner (with ``p2``; or a spine end with ``p2`` + ``height`` +
+            ``anchor``).
+        p2: The opposite corner.
+        angle: Heading in degrees (counter-clockwise). Setting it keeps the point
+            the shape was placed by; ``rotate_to`` turns it about its center.
+        top_left: Top-left corner (with ``width`` / ``height``).
+        width: Width in design units.
+        height: Height in design units.
+        vec: From ``p1``: the diagonal as a vector.
+        anchor: With ``p1`` + ``p2`` + ``height``: how the ends sit — ``"cap"`` ·
+            ``"square"`` · ``"side_left"`` · ``"side_right"``.
+    """
+
+    rim = ContainerSlot(_RimPair)
+
+    _CTOR_EXTRA_KEYS = frozenset({"scoop", "rim"})
+    _HOME_SIZE_KEYS = frozenset({"width", "height", "angle", "scoop", "rim"})
+    _PART_NAMES = _RectBody._PART_NAMES + ('rim',)
+    _SCALES_EXTRAS = True
+
+    @overload
+    def __new__(cls, *, center: Optional[GeneralPoint] = None, scoop: str = "top_left", rim: Union[float, Tuple[float, float]] = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Concave': ...
+
+    @overload
+    def __new__(cls, *, p1: GeneralPoint, p2: GeneralPoint, angle: float = 0.0, scoop: str = "top_left", rim: Union[float, Tuple[float, float]] = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None) -> 'Concave': ...
+
+    @overload
+    def __new__(cls, *, top_left: GeneralPoint, width: float, height: float, angle: float = 0.0, scoop: str = "top_left", rim: Union[float, Tuple[float, float]] = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None) -> 'Concave': ...
+
+    @overload
+    def __new__(cls, *, center: GeneralPoint, width: float, height: float, angle: float = 0.0, scoop: str = "top_left", rim: Union[float, Tuple[float, float]] = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None) -> 'Concave': ...
+
+    @overload
+    def __new__(cls, *, p1: GeneralPoint, vec: Vec2, angle: float = 0.0, scoop: str = "top_left", rim: Union[float, Tuple[float, float]] = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None) -> 'Concave': ...
+
+    @overload
+    def __new__(cls, *, p1: GeneralPoint, p2: GeneralPoint, height: float, anchor: str, scoop: str = "top_left", rim: Union[float, Tuple[float, float]] = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None) -> 'Concave': ...
+
+    def __new__(cls, *args, **kwargs):
+        return super().__new__(cls)
+
+    def __init__(self, *args, **kwargs):
+        _reject_positional_shape_args(type(self), args)
+        if 'corner_radius' in kwargs:
+            raise TypeError(
+                "Concave has no corner_radius=: its curve is the scoop (scoop= / rim=). "
+                "For a box with rounded corners write Rect(corner_radius=…)."
+            )
+        defaults = getattr(type(self), '_shape_defaults', None) or {}
+        scoop = kwargs.pop('scoop', defaults.get('scoop', 'top_left'))
+        if not isinstance(scoop, str):
+            raise TypeError(
+                f"Concave scoop= takes a named point such as 'top_left' or 'top_center', "
+                f"got {type(scoop).__name__}"
+            )
+        from .validate import expect_choice
+        scoop = expect_choice(scoop, tuple(_CONCAVE_SCOOPS), what="Concave scoop")
+        rim = kwargs.pop('rim', defaults.get('rim', 0.0))
+        if not (callable(rim) and not isinstance(rim, type)):
+            rim = _concave_rim_pair(rim, "Concave rim")
+        from .box import apply_box_to_shape_kwargs
+        box_names = apply_box_to_shape_kwargs("Concave", kwargs, family="fill")
+        base_params, signature = self._extract_common_params_and_signature(
+            kwargs=kwargs,
+            valid_signatures=self._CONSTRUCTOR_SIGNATURES
+        )
+        super().__init__(**base_params)
+
+        self._anchor = None  # set only for SPINE
+        self._scoop = scoop
+        self._init_model(signature, kwargs)
+        with self._batch_update():
+            _init_composite(self.rim, rim)
+
+        if box_names is not None:
+            self.__dict__['_name_signs'] = box_names
+        # The scoop is a use of a name: it stays on its point from now on
+        # (through drags, flips, p1 / p2 crossing).
+        self._freeze_names()
+
+        if self.model == RectModel.SPINE:
+            x1, y1 = get_xy(self.p1, bare=True)
+            x2, y2 = get_xy(self.p2, bare=True)
+            _pose_rotation_set(
+                self,
+                _deg(math.atan2(y2 - y1, x2 - x1)) if (x1 != x2 or y1 != y2) else 0.0,
+            )
+        else:
+            _pose_rotation_set(self, _bare_num(self.angle))
+
+    def _set_defining_parts(self, *defining: str) -> None:
+        """``rim`` is an input of every model."""
+        names = defining if 'rim' in defining else (*defining, 'rim')
+        super()._set_defining_parts(*names)
+
+    @property
+    def scoop(self) -> str:
+        """The named point the curve is centered on (fixed at construction)."""
+        return self._scoop
+
+    @scoop.setter
+    def scoop(self, value) -> None:
+        raise AttributeError(
+            "Concave.scoop is fixed at construction (it shapes the collision "
+            "hull): build a new Concave(scoop=…), or flip_x / flip_y to mirror it."
+        )
+
+    # --- geometry (local frame: the drawn box, center at the origin) ---
+
+    def _rim_xy(self) -> Tuple[float, float]:
+        """The rim in use: each axis ``>= 0`` (a linked value below 0 counts as 0)."""
+        mx, my = get_xy(self.rim, bare=True)
+        return (mx if mx > 0.0 else 0.0, my if my > 0.0 else 0.0)
+
+    def _scoop_layout(self, w: float, h: float):
+        """``(ox, oy, e, n, E, N, re, rn, quarters)`` in the drawn frame.
+
+        The curve is ``(ox, oy) + re·cos t·e + rn·sin t·n``: ``e`` runs along
+        the box edge through the scoop, ``n`` into the box; ``E`` / ``N`` are
+        the box's reach along them (a half width for an edge scoop's ``e``).
+        ``quarters`` is 1 for a corner scoop, 2 for an edge one.
+        """
+        dx, dy = _CONCAVE_SCOOPS[self._scoop]
+        sa, sb = self._effective_name_signs()
+        dx *= sa
+        dy *= sb
+        mx, my = self._rim_xy()
+        hw, hh = 0.5 * w, 0.5 * h
+        ox, oy = dx * hw, dy * hh
+        if dx and dy:
+            e, n, E, N = (-dx, 0), (0, -dy), w, h
+            re, rn = w - mx, h - my
+            quarters = 1
+        elif dy:
+            e, n, E, N = (1, 0), (0, -dy), hw, h
+            re, rn = hw - mx, h - my
+            quarters = 2
+        else:
+            e, n, E, N = (0, 1), (-dx, 0), hh, w
+            re, rn = hh - my, w - mx
+            quarters = 2
+        return (ox, oy, e, n, E, N, max(re, 0.0), max(rn, 0.0), quarters)
+
+    @staticmethod
+    def _scoop_map(layout):
+        ox, oy, (ex, ey), (nx, ny) = layout[0], layout[1], layout[2], layout[3]
+
+        def to_local(x: float, y: float) -> Tuple[float, float]:
+            return (ox + x * ex + y * nx, oy + x * ey + y * ny)
+        return to_local
+
+    def _local_ring(self, w: float, h: float, tol: float) -> List[Tuple[float, float]]:
+        """The outline, counter-clockwise, starting where the curve begins."""
+        hw, hh = 0.5 * w, 0.5 * h
+        layout = self._scoop_layout(w, h)
+        _ox, _oy, (ex, ey), (nx, ny), E, N, re, rn, quarters = layout
+        if re <= 0.0 or rn <= 0.0 or w <= 0.0 or h <= 0.0:
+            return [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)]
+        steps = _concave_chords(re, rn, quarters, tol, _CONCAVE_MAX_OUTLINE_CHORDS)
+        top = 0.5 * math.pi * quarters
+        arc = [(re * math.cos(top * (1.0 - i / steps)), rn * math.sin(top * (1.0 - i / steps)))
+               for i in range(steps + 1)]
+        arc[-1] = (re, 0.0)
+        if quarters == 1:
+            arc[0] = (0.0, rn)
+            rest = [(E, 0.0), (E, N), (0.0, N)]
+        else:
+            arc[0] = (-re, 0.0)
+            arc[steps // 2] = (0.0, rn)
+            rest = [(E, 0.0), (E, N), (-E, N), (-E, 0.0)]
+        ends = (arc[0], arc[-1])
+        eps = 1e-9 * max(1.0, E, N)
+        rest = [p for p in rest
+                if all(abs(p[0] - q[0]) > eps or abs(p[1] - q[1]) > eps for q in ends)]
+        to_local = self._scoop_map(layout)
+        arc_l = [to_local(x, y) for x, y in arc]
+        rest_l = [to_local(x, y) for x, y in rest]
+        if ex * ny - ey * nx < 0:          # a mirrored frame: travel the other way
+            return arc_l[::-1] + rest_l[::-1]
+        return arc_l + rest_l
+
+    def _local_pieces(self, w: float, h: float, tol: float) -> List[List[Tuple[float, float]]]:
+        """Convex pieces covering the shape (counter-clockwise each).
+
+        A corner scoop is a fan of triangles from the far corner of the
+        scoop's own box (every chord is seen from there), plus at most two
+        strips for the rim: an outer face is split at most once.
+        """
+        key = (w, h, self._scoop_layout(w, h), tol)
+        cached = self.__dict__.get('_concave_pieces')
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        layout = key[2]
+        hw, hh = 0.5 * w, 0.5 * h
+        _ox, _oy, _e, _n, E, N, re, rn, quarters = layout
+        if re <= 0.0 or rn <= 0.0 or w <= 0.0 or h <= 0.0:
+            pieces = [[(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)]] if w > 0.0 and h > 0.0 else []
+        else:
+            steps = _concave_chords(re, rn, 1, tol)
+            arc = [(re * math.cos(0.5 * math.pi * i / steps), rn * math.sin(0.5 * math.pi * i / steps))
+                   for i in range(steps + 1)]
+            arc[0], arc[-1] = (re, 0.0), (0.0, rn)
+            far = (re, rn)
+            half = [[far, arc[i], arc[i + 1]] for i in range(steps)]
+            eps = 1e-9 * max(1.0, E, N)
+            if E - re > eps:
+                half.append([(re, 0.0), (E, 0.0), (E, N), (re, N)])
+            if N - rn > eps:
+                half.append([(0.0, rn), (re, rn), (re, N), (0.0, N)])
+            canon = half if quarters == 1 else half + [[(-x, y) for x, y in p] for p in half]
+            to_local = self._scoop_map(layout)
+            pieces = []
+            for p in canon:
+                poly = _ccw([to_local(x, y) for x, y in p])
+                pieces.append(poly)
+        self.__dict__['_concave_pieces'] = (key, pieces)
+        return pieces
+
+    def _world_of_local(self, cx: float, cy: float, ang: float):
+        rad = _rad(ang)
+        c, s = math.cos(rad), math.sin(rad)
+
+        def world(lx: float, ly: float) -> Tuple[float, float]:
+            return (cx + lx * c - ly * s, cy + lx * s + ly * c)
+        return world
+
+    def _world_ring(self, tol: float = _CONCAVE_OUTLINE_TOL) -> List[Tuple[float, float]]:
+        """World outline (counter-clockwise, ``u = 0`` where the curve begins)."""
+        cx, cy, w, h, ang = self._oriented_frame()
+        world = self._world_of_local(cx, cy, ang)
+        return [world(x, y) for x, y in self._local_ring(w, h, tol)]
+
+    def _world_pieces(self, tol: float = _CONCAVE_COLLISION_TOL) -> List[List[Tuple[float, float]]]:
+        """World convex pieces for collision."""
+        cx, cy, w, h, ang = self._oriented_frame()
+        world = self._world_of_local(cx, cy, ang)
+        return [[world(x, y) for x, y in p] for p in self._local_pieces(w, h, tol)]
+
+    def _geometry_draw(self, skia_canvas, fill_paint=_STYLE_PAINT, stroke_paint=_STYLE_PAINT):
+        """Draw via local-frame CTM; the curve is a true elliptical arc."""
+        cx, cy, w, h, ang = self._oriented_frame()
+        layout = self._scoop_layout(w, h)
+        key = ('concave', w, h, layout)
+        if self._geom_path is None or self._geom_path_key != key:
+            _geom_path_cache_set(self, self._local_path(w, h, layout), key)
+        path = self._geom_path
+        skia_canvas.save()
+        skia_canvas.translate(cx, cy)
+        if ang:
+            skia_canvas.rotate(ang)
+        skia_fill_paint = self._to_skia_fill_paint() if fill_paint is _STYLE_PAINT else fill_paint
+        if skia_fill_paint:
+            skia_canvas.drawPath(path, skia_fill_paint)
+        skia_line_paint = self._to_skia_line_paint() if stroke_paint is _STYLE_PAINT else stroke_paint
+        if skia_line_paint:
+            skia_canvas.drawPath(path, skia_line_paint)
+        skia_canvas.restore()
+
+    def _local_path(self, w: float, h: float, layout) -> 'skia.Path':
+        hw, hh = 0.5 * w, 0.5 * h
+        ox, oy, (ex, ey), (nx, ny), E, N, re, rn, quarters = layout
+        path = skia.Path()
+        if re <= 0.0 or rn <= 0.0 or w <= 0.0 or h <= 0.0:
+            path.addRect(skia.Rect.MakeLTRB(-hw, -hh, hw, hh))
+            return path
+        # Local radii of the ellipse and the local angle of canonical t.
+        if ey == 0:
+            rx_l, ry_l = re, rn
+
+            def phi(t: float) -> float:
+                return math.degrees(math.atan2(ny * math.sin(t), ex * math.cos(t)))
+        else:
+            rx_l, ry_l = rn, re
+
+            def phi(t: float) -> float:
+                return math.degrees(math.atan2(ey * math.cos(t), nx * math.sin(t)))
+        top = 0.5 * math.pi * quarters
+        start = phi(top)
+        sweep = -90.0 * quarters * (1 if (ex * ny - ey * nx) > 0 else -1)
+        oval = skia.Rect.MakeLTRB(ox - rx_l, oy - ry_l, ox + rx_l, oy + ry_l)
+        path.arcTo(oval, start, sweep, True)
+        if quarters == 1:
+            rest = [(E, 0.0), (E, N), (0.0, N)]
+        else:
+            rest = [(E, 0.0), (E, N), (-E, N), (-E, 0.0)]
+        to_local = self._scoop_map(layout)
+        for x, y in rest:
+            path.lineTo(*to_local(x, y))
+        path.close()
+        return path
+
+    def _hit_test_xy(self, x: float, y: float) -> bool:
+        """Inside the box and not strictly inside the scoop (the exact curve)."""
+        cx, cy, w, h, ang = self._oriented_frame()
+        if w == 0.0 or h == 0.0:
+            return False
+        dx = x - cx
+        dy = y - cy
+        if ang:
+            cos_a = math.cos(_rad(-ang))
+            sin_a = math.sin(_rad(-ang))
+            lx = dx * cos_a - dy * sin_a
+            ly = dx * sin_a + dy * cos_a
+        else:
+            lx, ly = dx, dy
+        slack = 1e-6
+        if abs(lx) > 0.5 * w + slack or abs(ly) > 0.5 * h + slack:
+            return False
+        ox, oy, (ex, ey), (nx, ny), _E, _N, re, rn, _q = self._scoop_layout(w, h)
+        if re <= 0.0 or rn <= 0.0:
+            return True
+        px, py = lx - ox, ly - oy
+        u = (px * ex + py * ey) / re
+        v = (px * nx + py * ny) / rn
+        return u * u + v * v >= 1.0 - 1e-9
+
+    def _collision_pose_extra(self) -> Tuple:
+        """The box extra plus the rim and the names (a flip moves the scoop)."""
+        mx, my = self._rim_xy()
+        return _RectBody._collision_pose_extra(self) + (mx, my, self.__dict__.get('_name_signs'))
+
+    # --- kind hooks ---
+
+    def _read_frame_extras(self, other):
+        return getattr(other, '_scoop', None)
+
+    def _apply_frame_extras(self, other, extras) -> None:
+        if extras is not None:            # another Concave: its scoop and rim
+            self._scoop = extras
+            self.rim._takein(other.rim)
+
+    def _clone_extra_kwargs(self) -> Dict[str, Any]:
+        return {"scoop": self._scoop, "rim": get_xy(self.rim, bare=True)}
+
+    def _scale_extras(self, factor: float) -> None:
+        mx, my = get_xy(self.rim, bare=True)
+        f = abs(float(factor))
+        self.rim._takein((mx * f, my * f))
+
+    def _scale_gate_extras(self, force: bool) -> None:
+        _ensure_writable(self.rim, "scale_by", force=force)
 
 
 _TRIANGLE_RATIO_HINT = (
@@ -9794,7 +10318,7 @@ def _publish_shape_signature(cls: type) -> None:
     )
 
 
-for _shape_cls in (Line, Circle, Ellipse, RegularPolygon, Rect, Square, Triangle):
+for _shape_cls in (Line, Circle, Ellipse, RegularPolygon, Rect, Square, Concave, Triangle):
     _publish_shape_signature(_shape_cls)
 
 
