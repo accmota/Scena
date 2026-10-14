@@ -414,3 +414,29 @@ def group_scale(box: Tuple[float, float, float, float], signs: Tuple[int, int],
         ratios.append((p[1] - anchor[1]) * sy / h)
     s = max(ratios) if ratios else 1.0
     return max(s, MIN_SCALE), anchor
+
+
+# ---------------------------------------------------------------------------
+# Row / Column: edge to edge, no gaps
+# ---------------------------------------------------------------------------
+
+def pack(items: Sequence[Dict[str, Any]], axis: str) -> Dict[int, Pt]:
+    """``{id: (dx, dy)}`` that puts ``items`` edge to edge along ``axis``
+    (``"x"``: a row, left to right; ``"y"``: a column, bottom to top — y up).
+
+    Order: the boxes' near edge on that axis (ties: the other axis, then the
+    given order). The first item stays; each next one's near edge goes to the
+    previous one's far edge. The other axis does not change. Boxes are the
+    items' bounding boxes (a rotated item's, a smooth track's points').
+    """
+    i = 0 if axis == "x" else 1
+    boxes = [aabb(it) for it in items]
+    order = sorted(range(len(items)), key=lambda k: (boxes[k][i], boxes[k][1 - i], k))
+    out: Dict[int, Pt] = {}
+    edge: Optional[float] = None
+    for k in order:
+        b = boxes[k]
+        d = 0.0 if edge is None else edge - b[i]
+        edge = b[i + 2] + d
+        out[items[k]["id"]] = (d, 0.0) if i == 0 else (0.0, d)
+    return out

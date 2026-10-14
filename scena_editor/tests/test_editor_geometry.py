@@ -323,3 +323,33 @@ class TestGroupTransform(unittest.TestCase):
         knob = [h for h in hs if h.role == "group_rotate"]
         self.assertEqual(len(knob), 1)
         self.assertTrue(close((knob[0].x, knob[0].y), (10.0, 45.0)))
+
+
+class TestPack(unittest.TestCase):
+    @given(items=hst.lists(_items, min_size=2, max_size=6), axis=hst.sampled_from("xy"))
+    def test_boxes_touch_in_order_from_the_first_and_keep_the_other_axis(self, items, axis):
+        items = [{**it, "id": k + 1} for k, it in enumerate(items)]
+        i = 0 if axis == "x" else 1
+        shifts = geo.pack(items, axis)
+        before = [geo.aabb(it) for it in items]
+        order = sorted(range(len(items)), key=lambda k: (before[k][i], before[k][1 - i], k))
+        after = [geo.aabb({**items[k], **geo.translate(items[k], *shifts[items[k]["id"]])})
+                 for k in order]
+        self.assertTrue(close(after[0], before[order[0]], 1e-9))     # the first stays
+        for prev, nxt in zip(after, after[1:]):
+            # Gap 0, never an overlap: the near edge sits on the previous far edge.
+            self.assertAlmostEqual(nxt[i], prev[i + 2], places=6)
+        for it in items:
+            self.assertEqual(shifts[it["id"]][1 - i], 0.0)        # other axis kept
+
+    def test_a_row_keeps_the_leftmost_and_butts_the_rest(self):
+        items = [{"id": 1, "kind": "rect", "center": (500, 10), "width": 20, "height": 20},
+                 {"id": 2, "kind": "rect", "center": (100, 50), "width": 40, "height": 10},
+                 {"id": 3, "kind": "circle", "center": (300, 0), "radius": 5}]
+        self.assertEqual(geo.pack(items, "x"), {2: (0.0, 0.0), 3: (-175.0, 0.0),
+                                               1: (-360.0, 0.0)})
+
+    def test_a_column_goes_up_from_the_lowest(self):
+        items = [{"id": 1, "kind": "point", "center": (0, 90)},
+                 {"id": 2, "kind": "rect", "center": (0, 10), "width": 5, "height": 20}]
+        self.assertEqual(geo.pack(items, "y"), {2: (0.0, 0.0), 1: (0.0, -70.0)})

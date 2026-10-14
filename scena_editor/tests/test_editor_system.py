@@ -339,13 +339,28 @@ class TestEditorOnFrames(EditorSystemCase):
         app = self.app
         started = []
         app.dialogs.start = lambda fn, then: started.append(fn) or True
-        a = app.editor.doc.add({"kind": "rect", "center": (100, 100), "width": 40, "height": 20})
+        ed = app.editor
+        raws = ({"kind": "rect", "center": (100, 100), "width": 40, "height": 20},
+                {"kind": "rect", "center": (300, 100), "width": 40, "height": 20})
+
+        def select_two():
+            # Two items: the panel shows its buttons, Row / Column included
+            # (a Delete click removes them: put them back).
+            ids = [i for i in ed.selection if ed.doc.has(i)]
+            while len(ids) < 2:
+                ids.append(ed.doc.add(raws[len(ids)]))
+            ed.selection = ids[:2]
+            self.frame()
+
+        select_two()
         wm = ScenaFramework.get_instance().widget_manager
         buttons = [w for w in list(wm.widgets) if isinstance(w, Button) and w.visible]
-        self.assertGreaterEqual(len(buttons), 8)   # file 4, Undo / Redo, Fit, 100%
+        labels = {b.label for b in buttons}
+        # file 4, Undo / Redo, Fit, 100%, and the panel's for several items
+        for label in ("Save", "Fit", "Copy as code", "Delete", "Front", "Row", "Column"):
+            self.assertIn(label, labels)
         for btn in buttons:
-            app.editor.selection = [a] if app.editor.doc.has(a) else []
-            self.frame()
+            select_two()
             if not btn.visible:
                 continue
             x, y = btn.box.center.x, btn.box.center.y

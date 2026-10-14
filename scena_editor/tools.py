@@ -533,6 +533,23 @@ class Editor:
         self.doc.restack(self.selection, front=front)
         self.history.commit()
 
+    def pack(self, axis: str) -> bool:
+        """Row (``"x"``) / Column (``"y"``): the selected items that move, edge to
+        edge with no gaps, from the leftmost / bottom one (``geometry.pack``).
+        One undo step; none when nothing moved."""
+        movable = self._movable()
+        if len(movable) < 2:
+            return False
+        shifts = geo.pack(movable, axis)
+        for it in movable:
+            dx, dy = shifts[it["id"]]
+            if dx or dy:
+                self.doc.update(it["id"], **geo.translate(it, dx, dy))
+        if not self.history.commit():
+            return False
+        self.message = t("note.row" if axis == "x" else "note.column", count=len(movable))
+        return True
+
     def nudge(self, dx: float, dy: float) -> None:
         for it in self.selected_items():
             if not it["locked"]:

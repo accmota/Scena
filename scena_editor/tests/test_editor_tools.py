@@ -505,6 +505,36 @@ class TestGroupHandles(unittest.TestCase):
         self.assertEqual(e.doc.get(a)["angle"], 90)
 
 
+class TestRowColumn(unittest.TestCase):
+    def test_row_and_column_are_one_step_and_skip_locked(self):
+        e = ed()
+        a = e.doc.add({"kind": "rect", "center": (10, 10), "width": 20, "height": 20})
+        b = e.doc.add({"kind": "rect", "center": (100, 40), "width": 20, "height": 20})
+        c = e.doc.add({"kind": "rect", "center": (60, 400), "width": 20, "height": 20,
+                       "locked": True})
+        e.history.reset(e.doc)
+        e.selection = [a, b, c]
+        self.assertTrue(e.pack("x"))
+        self.assertEqual(e.doc.get(b)["center"], (30, 40))       # a spans 0..20
+        self.assertEqual(e.doc.get(c)["center"], (60, 400))      # locked: stays
+        self.assertEqual(e.message, "Placed 2 items in a row")
+        self.assertFalse(e.pack("x"))                            # already a row: no step
+        self.assertTrue(e.pack("y"))
+        self.assertEqual(e.doc.get(b)["center"], (30, 30))       # on top of a (y up)
+        self.assertEqual(e.message, "Placed 2 items in a column")
+        e.undo()
+        e.undo()
+        self.assertEqual(e.doc.get(b)["center"], (100, 40))
+        self.assertFalse(e.history.can_undo)
+
+    def test_needs_two_items_that_move(self):
+        e = ed()
+        a = e.doc.add({"kind": "point", "center": (0, 0)})
+        b = e.doc.add({"kind": "point", "center": (50, 0), "locked": True})
+        e.selection = [a, b]
+        self.assertFalse(e.pack("x"))
+
+
 class TestToolsAndImages(unittest.TestCase):
     def test_choosing_select_clears_the_selection(self):
         e = ed()
@@ -898,6 +928,7 @@ _action = hst.one_of(
     hst.tuples(hst.just("redo")),
     hst.tuples(hst.just("dup")),
     hst.tuples(hst.just("all")),
+    hst.tuples(hst.just("pack"), hst.sampled_from("xy")),
     hst.tuples(hst.just("handle"), hst.integers(0, 9), _point, hst.booleans()),
 )
 
@@ -926,6 +957,8 @@ class TestUndoProperty(unittest.TestCase):
                 e.redo()
             elif a[0] == "all":
                 e.select_all()
+            elif a[0] == "pack":
+                e.pack(a[1])
             elif a[0] == "handle":
                 hs = e.handles()
                 if hs:

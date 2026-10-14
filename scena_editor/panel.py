@@ -276,6 +276,16 @@ class Panel:
                 attach_tip(b, self.tooltip, _keys_tip(label, keys), side="left",
                            edge=W - PANEL_RIGHT - 8)
             self.buttons.append(b)
+        # Several selected: Row / Column (the slot of the image row below).
+        self.pack_buttons: List[Button] = []
+        for col, (label, axis, tip) in enumerate((
+            (t("panel.row"), "x", t("tip.row")),
+            (t("panel.column"), "y", t("tip.column")),
+        )):
+            b = Button(top_left=(X0 + col * (bw + 6), by - 3 * 34), width=bw, height=28,
+                       label=label, on_click=_safe(app.pack, axis, say=app.say))
+            attach_tip(b, self.tooltip, tip, side="left", edge=W - PANEL_RIGHT - 8)
+            self.pack_buttons.append(b)
         # One image selected: its file, and a way to pick another.
         self.image_file = Text("", top_left=(X0, by - 3 * 34 + 2), font_size=12)
         self.change_image = Button(top_left=(X0, by - 3 * 34 - 18), width=PANEL_RIGHT - 20,
@@ -379,6 +389,8 @@ class Panel:
         want[self.some] = want[self._some_hover] = False
         for b in self.buttons:
             want[b] = bool(items)
+        for b in self.pack_buttons:
+            want[b] = len(items) > 1
         is_image = single is not None and single["kind"] == "image"
         want[self.change_image] = want[self.image_file] = is_image
         if is_image:

@@ -308,6 +308,9 @@ class App:
     def restack(self, front: bool) -> None:
         self.editor.restack(front=front)
 
+    def pack(self, axis: str) -> None:
+        self.editor.pack(axis)
+
     # -- unsaved changes ------------------------------------------------------------------
     def _ask_unsaved(self, then: Callable[[], None]) -> None:
         if not self.editor.doc.dirty:

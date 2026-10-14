@@ -40,6 +40,8 @@ STRINGS = {
         "tip.snap": "Hold Shift while dragging: no snap",
         "tip.fit": "Fit the level in view",
         "tip.actual": "Actual size",
+        "tip.row": "Edge to edge, left to right from the leftmost item, no gaps",
+        "tip.column": "Edge to edge, bottom to top from the lowest item, no gaps",
         # top bar
         "edit.undo": "Undo",
         "edit.redo": "Redo",
@@ -78,6 +80,8 @@ STRINGS = {
         "panel.back": "Back",
         "panel.selected": "{count} selected",
         "panel.some": "Some: {groups}",
+        "panel.row": "Row",
+        "panel.column": "Column",
         # status
         "status.cursor": "({x}, {y})",
         "status.grid": "grid {step}",
@@ -94,6 +98,8 @@ STRINGS = {
         "note.group_added": "added \"{name}\" to {items}",
         "note.group_removed": "removed \"{name}\" from {items}",
         "note.new_group": "\"{name}\" is a new group.",
+        "note.row": "Placed {count} items in a row",
+        "note.column": "Placed {count} items in a column",
         "note.item_one": "1 item",
         "note.item_many": "{count} items",
         # dialogs and prompts
