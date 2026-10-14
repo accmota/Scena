@@ -179,6 +179,30 @@ class TestDecidedClocks(unittest.TestCase):
             ready.remove("up_burst")
             self.assertEqual(hits, 1)
 
+    def test_ready_after_a_short_gap_restarts_the_cadence(self):
+        # Fire held, let go, press again one frame after the cooldown: the
+        # next held shot is a full interval later, not one frame early (the
+        # overshoot of the reopen is not carried: PG-RD1).
+        from scena import ready
+        with system_world(draw=False) as w:
+            fired = []
+
+            def hold(on):
+                w.on_update((lambda dt: fired.append(w.frames_run) if ready("up_gap", 0.15) else None)
+                            if on else None)
+            hold(True)
+            w.step(3)                                # fire at frame 0
+            hold(False)
+            w.step(7)                                # frames 3..9: not polled
+            hold(True)
+            w.step(30)
+            w.on_update(None)
+            ready.remove("up_gap")
+        gaps = [b - a for a, b in zip(fired[1:], fired[2:])]
+        self.assertEqual(fired[0], 0)
+        self.assertTrue(gaps, fired)
+        self.assertEqual(set(gaps), {9}, fired)
+
     def test_a_fast_orbit_hits_a_target_on_its_arc_under_a_hitch(self):
         from scena import collide
         for name, dts in (("steady", [1 / 60] * 30), ("hitch", [0.25] + [1 / 60] * 15)):

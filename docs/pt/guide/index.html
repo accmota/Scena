@@ -7642,7 +7642,7 @@ def drop():
 
     <section class="section prose" id="agendar-ready">
       <h2>ready</h2>
-      <p class="one-liner"><code>ready(nome, intervalo)</code> é um tempo de recarga: devolve <code>True</code> uma vez por intervalo — “já posso atirar de novo?”. O ritmo é exato na média: a sobra de um frame conta para o próximo, então dois <code>True</code> seguidos podem vir um pouco mais perto que o intervalo quando ele não é um número inteiro de frames. A primeira chamada já devolve <code>True</code>. Conta no tempo do jogo (pausa vale). Chamado todo frame (botão segurado), mantém o ritmo em qualquer taxa de quadros; depois de um tempo sem chamar, volta a dar <code>True</code> uma vez, sem rajada.</p>
+      <p class="one-liner"><code>ready(nome, intervalo)</code> é um tempo de recarga: devolve <code>True</code> uma vez por intervalo — “já posso atirar de novo?”. O ritmo é exato na média: a sobra de um frame conta para o próximo, então dois <code>True</code> seguidos podem vir um pouco mais perto que o intervalo quando ele não é um número inteiro de frames. A primeira chamada já devolve <code>True</code>. Conta no tempo do jogo (pausa vale). Chamado todo frame (botão segurado), mantém o ritmo em qualquer taxa de quadros; depois de um tempo sem chamar (soltou o botão, nem que por um frame), volta a dar <code>True</code> uma vez, sem rajada, e o ritmo recomeça desse <code>True</code>.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>def update(dt):

@@ -195,6 +195,7 @@ left out.
 
 ### Fixed
 
+- `ready` held after a short release: letting the button go and pressing it again one frame after the cooldown made the next held shot come one frame early (the late frame was carried over). Now any gap in polling restarts the cadence at the `True` that ends it.
 - A bracket field used as a value now raises, with the dot spelling, instead
   of misbehaving in silence. `st.score` is the value; `st["score"]` is the
   field itself, for what follows or writes it (`Slider`, `Text`,

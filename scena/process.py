@@ -4734,6 +4734,11 @@ def _now() -> float:
     return float(getattr(clock, "time", 0.0) or 0.0) if clock is not None else 0.0
 
 
+def _frame_now() -> int:
+    clock = _clock()
+    return int(getattr(clock, "_frame", 0) or 0) if clock is not None else 0
+
+
 def _require_poll_name(name, call: str) -> None:
     if not isinstance(name, str):
         raise TypeError(
@@ -4781,9 +4786,16 @@ def _ready_poll(
             "interval": _validate_ready_interval(interval),
             "last_called": now,
             "enabled": True,
+            "polled": _frame_now(),
         }
         return True
     timer = timers[name]
+    # A gap in polling (the button was let go for a frame or more): the
+    # cadence restarts at the True that ends it, with no overshoot carried.
+    frame = _frame_now()
+    polled = timer.get("polled")
+    timer["polled"] = frame
+    gap = polled is not None and frame - polled > 1
     if timer["interval"] is None:
         # Disabled before its first poll (``ready.disable``): this call
         # supplies the interval; the timer starts when it is enabled.
@@ -4810,8 +4822,11 @@ def _ready_poll(
         # dropped, so the rate depended on the frame rate: review 2026-10-09
         # W-T2). After a pause in polling (the button was not held) it opens
         # one interval from now: no burst of catch-up True.
+        # A gap in polling, however short, restarts the cadence at this True
+        # (a release and a press one frame late must not carry that frame
+        # into the next shot: PG-RD1).
         nxt = timer["last_called"] + interval
-        timer["last_called"] = nxt if now - nxt < interval else now
+        timer["last_called"] = nxt if (not gap and now - nxt < interval) else now
         return True
     return False
 
