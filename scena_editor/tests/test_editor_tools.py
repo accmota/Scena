@@ -567,14 +567,82 @@ class TestPanel(unittest.TestCase):
         self.assertEqual(e.doc.get(b)["p1"], (95, 0))
         self.assertFalse(e.set_field("radius", 3))       # a line has no radius
 
-    def test_add_and_remove_group_on_many(self):
+    def test_groups_field_on_many_adds_and_removes_only_shared_groups(self):
         e = ed()
-        ids = [e.doc.add({"kind": "point", "center": (i, 0)}) for i in range(3)]
+        a = e.doc.add({"kind": "point", "groups": ["robo", "chao"], "center": (0, 0)})
+        b = e.doc.add({"kind": "point", "groups": ["robo", "agua"], "center": (5, 0)})
+        e.selection = [a, b]
+        # The field showed "robo" (both have it); chao / agua are partial.
+        self.assertTrue(e.set_groups("robo, estrela"))
+        self.assertEqual(e.doc.get(a)["groups"], ("robo", "chao", "estrela"))
+        self.assertEqual(e.doc.get(b)["groups"], ("robo", "agua", "estrela"))
+        self.assertEqual(e.message, 'Added "estrela" to 2 items')
+        self.assertTrue(e.set_groups("estrela"))         # "robo" deleted from the field
+        self.assertEqual(e.doc.get(a)["groups"], ("chao", "estrela"))
+        self.assertEqual(e.doc.get(b)["groups"], ("agua", "estrela"))
+        self.assertEqual(e.message, 'Removed "robo" from 2 items')
+        e.undo()
+        self.assertEqual(e.doc.get(a)["groups"], ("robo", "chao", "estrela"))
+
+    def test_groups_field_on_many_counts_only_items_that_change(self):
+        e = ed()
+        a = e.doc.add({"kind": "point", "groups": ["x"], "center": (0, 0)})
+        b = e.doc.add({"kind": "point", "center": (5, 0)})
+        c = e.doc.add({"kind": "point", "center": (9, 0)})
+        e.selection = [a, b, c]
+        self.assertTrue(e.set_groups("x"))     # x was partial: added where missing
+        self.assertEqual(e.message, 'Added "x" to 2 items')
+        self.assertTrue(all(e.doc.get(i)["groups"] == ("x",) for i in (a, b, c)))
+
+    def test_groups_field_with_no_change_is_no_step(self):
+        e = ed()
+        ids = [e.doc.add({"kind": "point", "groups": ["g"], "center": (i, 0)})
+               for i in range(2)]
+        e.history.reset(e.doc)                  # the items are the starting state
         e.selection = ids
-        e.change_groups("estrela", add=True)
-        self.assertTrue(all(e.doc.get(i)["groups"] == ("estrela",) for i in ids))
-        e.change_groups("estrela", add=False)
-        self.assertTrue(all(e.doc.get(i)["groups"] == () for i in ids))
+        self.assertFalse(e.set_groups(" g ,g"))
+        self.assertFalse(e.history.can_undo)
+        self.assertFalse(e.set_field("groups", "g"))   # one item: same rule
+
+    def test_groups_field_on_one_item_says_the_groups_it_has(self):
+        e = ed()
+        a = e.doc.add({"kind": "point", "center": (0, 0)})
+        e.selection = [a]
+        self.assertTrue(e.set_field("groups", "chao, moving enemies"))
+        # A name with a space is one group: the note shows it in « ».
+        self.assertEqual(e.message, "Groups: chao, «moving enemies»")
+        self.assertTrue(e.set_field("groups", ""))
+        self.assertEqual(e.message, "No groups")
+
+    def test_groups_field_hints_a_typo_of_an_existing_group(self):
+        e = ed()
+        e.doc.add({"kind": "point", "groups": ["plataforma"], "center": (0, 0)})
+        a = e.doc.add({"kind": "point", "center": (5, 0)})
+        e.selection = [a]
+        self.assertTrue(e.set_field("groups", "plataform"))
+        self.assertIn('"plataform" is a new group.', e.message)
+        self.assertIn("Did you mean 'plataforma'?", e.message)
+        self.assertEqual(e.doc.get(a)["groups"], ("plataform",))   # a hint, not a refusal
+        self.assertTrue(e.set_field("groups", "estrela"))           # nothing close: no hint
+        self.assertNotIn("Did you mean", e.message)
+        self.assertTrue(e.set_field("groups", "Plataforma"))        # case differs: hint
+        self.assertIn("Did you mean 'plataforma'?", e.message)
+
+    def test_selection_x_y_moves_the_box_center_and_skips_locked(self):
+        e = ed()
+        a = e.doc.add({"kind": "rect", "center": (10, 10), "width": 20, "height": 20})
+        b = e.doc.add({"kind": "point", "center": (40, 30)})
+        c = e.doc.add({"kind": "point", "center": (500, 500), "locked": True})
+        e.history.reset(e.doc)
+        e.selection = [a, b, c]
+        # Box of the movable items: (0, 0) → (40, 30), center (20, 15).
+        self.assertTrue(e.move_selection_to("x", 120))
+        self.assertFalse(e.move_selection_to("y", 15))    # already there: no step
+        self.assertEqual(e.doc.get(a)["center"], (110, 10))
+        self.assertEqual(e.doc.get(b)["center"], (140, 30))
+        self.assertEqual(e.doc.get(c)["center"], (500, 500))
+        e.undo()
+        self.assertEqual(e.doc.get(a)["center"], (10, 10))
 
     def test_copy_code(self):
         e = ed()

@@ -28,6 +28,7 @@ import sys
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 
 from scena.level_format import code_for
+from scena.validate import did_you_mean
 
 from . import geometry as geo
 from .doc import LevelDoc, NameTaken
@@ -556,7 +557,7 @@ class Editor:
                 dy = float(value) - cy if field == "y" else 0.0
                 self.doc.update(item["id"], **geo.translate(item, dx, dy))
             elif field == "groups":
-                self.doc.update(item["id"], groups=_groups_text(value))
+                return self.set_groups(value, [item["id"]])
             else:
                 self.doc.update(item["id"], **{field: value})
         except NameTaken as e:
@@ -568,19 +569,72 @@ class Editor:
         self.history.commit()
         return True
 
-    def change_groups(self, name: str, *, add: bool) -> None:
-        """Add or remove one group on every selected item (multi-select panel)."""
-        name = name.strip()
-        if not name:
-            return
-        for it in self.selected_items():
-            groups = list(it["groups"])
-            if add and name not in groups:
-                groups.append(name)
-            elif not add and name in groups:
-                groups.remove(name)
-            self.doc.update(it["id"], groups=groups)
-        self.history.commit()
+    def set_groups(self, value: Any, ids: Optional[List[int]] = None) -> bool:
+        """The panel's Groups field (comma-separated text) for one or many items.
+
+        One item: its groups become exactly the typed list. Several: the field
+        showed the groups **every** item has; a name typed there is added to
+        all of them, a name deleted from it is removed from all of them, and
+        groups only some items have stay as they are. One undo step (none when
+        nothing changed). ``message`` says what happened, and a name new to
+        the level that is close to an existing group gets a did-you-mean.
+        """
+        ids = list(self.selection if ids is None else ids)
+        items = [self.doc.get(i) for i in ids if self.doc.has(i)]
+        if not items:
+            return False
+        typed = _groups_text(value)
+        before = self.doc.groups()
+        if len(items) == 1:
+            self.doc.update(items[0]["id"], groups=typed)
+            note = (t("note.groups", groups=", ".join(_quote_group(g) for g in typed))
+                    if typed else t("note.no_groups"))
+        else:
+            common = shared_groups(items)
+            added = [g for g in typed if g not in common]
+            removed = [g for g in common if g not in typed]
+            parts = []
+            for g in added:
+                count = sum(1 for it in items if g not in it["groups"])
+                parts.append(t("note.group_added", name=g, items=_items(count)))
+            for g in removed:
+                parts.append(t("note.group_removed", name=g, items=_items(len(items))))
+            for it in items:
+                groups = [g for g in it["groups"] if g not in removed]
+                groups += [g for g in added if g not in groups]
+                self.doc.update(it["id"], groups=groups)
+            note = " · ".join(parts)
+        if not self.history.commit():
+            return False
+        for g in typed:
+            if g not in before:
+                hint = did_you_mean(g, before)
+                if hint:
+                    note += " · " + t("note.new_group", name=g) + hint
+        self.message = note[:1].upper() + note[1:] if note else None
+        return True
+
+    def move_selection_to(self, axis: str, value: float,
+                          ids: Optional[List[int]] = None) -> bool:
+        """Move the unlocked items among ``ids`` (default: the selection) so the
+        center of their bounding box has ``axis`` (``"x"`` / ``"y"``) = ``value``.
+        One undo step (the panel's X / Y for several items)."""
+        ids = list(self.selection if ids is None else ids)
+        movable = [self.doc.get(i) for i in ids if self.doc.has(i) and not self.doc.get(i)["locked"]]
+        box = geo.union_aabb(movable)
+        if box is None:
+            return False
+        try:
+            value = float(value)
+        except (TypeError, ValueError) as e:
+            self.message = str(e)
+            return False
+        cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+        dx = value - cx if axis == "x" else 0.0
+        dy = value - cy if axis == "y" else 0.0
+        for it in movable:
+            self.doc.update(it["id"], **geo.translate(it, dx, dy))
+        return self.history.commit()
 
     def set_size(self, width: float, height: float) -> bool:
         try:
@@ -665,6 +719,34 @@ def _center(item: Dict[str, Any]) -> geo.Pt:
         return tuple(item["center"])
     x0, y0, x1, y1 = geo.aabb(item)
     return (x0 + x1) / 2, (y0 + y1) / 2
+
+
+def shared_groups(items: List[Dict[str, Any]]) -> List[str]:
+    """The groups every item has, in the first item's order."""
+    if not items:
+        return []
+    return [g for g in items[0]["groups"] if all(g in it["groups"] for it in items[1:])]
+
+
+def partial_groups(items: List[Dict[str, Any]]) -> List[str]:
+    """Groups some of the items have but not all, in first-use order."""
+    common = set(shared_groups(items))
+    out: List[str] = []
+    for it in items:
+        for g in it["groups"]:
+            if g not in common and g not in out:
+                out.append(g)
+    return out
+
+
+def _quote_group(name: str) -> str:
+    """A group name as a note shows it: «…» when it holds a space, so
+    ``moving enemies`` reads as one group, not two."""
+    return f"«{name}»" if any(c.isspace() for c in name) else name
+
+
+def _items(count: int) -> str:
+    return t("note.item_one") if count == 1 else t("note.item_many", count=count)
 
 
 def _groups_text(value: Any) -> List[str]:

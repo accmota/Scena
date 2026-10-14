@@ -77,8 +77,7 @@ STRINGS = {
         "panel.front": "Front",
         "panel.back": "Back",
         "panel.selected": "{count} selected",
-        "panel.add_group": "Add group",
-        "panel.remove_group": "Remove group",
+        "panel.some": "Some: {groups}",
         # status
         "status.cursor": "({x}, {y})",
         "status.grid": "grid {step}",
@@ -89,6 +88,14 @@ STRINGS = {
         "status.copied": "Copied — Cmd/Ctrl+V pastes here; the code is on the clipboard",
         "status.pasted": "Pasted {count}",
         "status.saved": "Saved {file}",
+        # notes after an edit (status bar)
+        "note.groups": "Groups: {groups}",
+        "note.no_groups": "No groups",
+        "note.group_added": "added \"{name}\" to {items}",
+        "note.group_removed": "removed \"{name}\" from {items}",
+        "note.new_group": "\"{name}\" is a new group.",
+        "note.item_one": "1 item",
+        "note.item_many": "{count} items",
         # dialogs and prompts
         "dialog.busy": "A file dialog is open — finish it first.",
         "dialog.open_title": "Open level",

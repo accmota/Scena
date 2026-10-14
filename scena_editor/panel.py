@@ -13,8 +13,10 @@ from typing import Any, Dict, List, Optional, Tuple
 from scena import Button, CheckBox, Color, DropDown, Text, TextInput
 
 from .i18n import t
+from .geometry import union_aabb as geo_box
 from .toolbar import BG, Tooltip, ToolButton, _rect, _safe, attach_tip
-from .tools import GRID_SIZES, KEY_OF, PRIMARY, REDO, Editor, _center, key_label
+from .tools import (GRID_SIZES, KEY_OF, PRIMARY, REDO, Editor, _center, key_label,
+                    partial_groups, shared_groups)
 from .view import DESIGN, PANEL_BOTTOM, PANEL_LEFT, PANEL_RIGHT, PANEL_TOP
 
 W, H = DESIGN
@@ -279,12 +281,22 @@ class Panel:
         self.change_image = Button(top_left=(X0, by - 3 * 34 - 18), width=PANEL_RIGHT - 20,
                                    height=28, label=t("panel.change_image"),
                                    on_click=_safe(app.change_image, say=app.say))
-        # Several selected: add / remove a group on all of them.
-        gy = rows
-        self.add_group = TextInput(top_left=(X0, gy), width=FIELD_W + 20, height=24,
-                                   initial="", placeholder=t("panel.add_group"))
-        self.remove_group = TextInput(top_left=(X0, gy - ROW), width=FIELD_W + 20, height=24,
-                                      initial="", placeholder=t("panel.remove_group"))
+        # Several selected: the groups they all share (the same field and
+        # parsing as for one item), the ones only some have, and X / Y of the
+        # selection's box. Owners are tuples of ids.
+        self.many: Dict[str, _Field] = {
+            "groups": _Field("groups", t("panel.groups"), rows, number=False),
+            "x": _Field("x", t("panel.x"), rows - 2 * ROW, number=True),
+            "y": _Field("y", t("panel.y"), rows - 3 * ROW, number=True),
+        }
+        some_top = rows - ROW + 2
+        self._some_hover = _rect(X0, some_top - 18, W - 10, some_top, BG)
+        self._some_full = ""
+        self._some_hover.on_hover = lambda: self.tooltip.request(
+            self._some_hover, self._some_full,
+            (W - PANEL_RIGHT - 8, some_top - 9), "left")
+        self._some_hover.on_hover_exit = lambda: self.tooltip.leave(self._some_hover)
+        self.some = Text("", top_left=(X0, some_top), font_size=12)
         # Level size (nothing selected).
         self.level_w = _Field("level_w", t("panel.width"), rows, number=True)
         self.level_h = _Field("level_h", t("panel.height"), rows - ROW, number=True)
@@ -320,11 +332,14 @@ class Panel:
         if w is not None or h is not None:
             size = ed.doc.size
             ed.set_size(w if w is not None else size[0], h if h is not None else size[1])
-        for box, add in ((self.add_group, True), (self.remove_group, False)):
-            text = box.data.value
-            if box.visible and isinstance(text, str) and text.strip():
-                ed.change_groups(text, add=add)
-                box.data.value = ""
+        for key, f in self.many.items():
+            value = f.committed()
+            if value is None or not f.owner:
+                continue
+            if key == "groups":
+                ed.set_groups(value, list(f.owner))
+            else:
+                ed.move_selection_to(key, value, list(f.owner))
         snap = bool(self.grid_check.data.value)
         size = str(self.grid_size.data.value)
         if (snap, size) != self._grid_shown:
@@ -359,7 +374,9 @@ class Panel:
         for c in self.checks.values():
             want[c] = False
         want[self.level_w] = want[self.level_h] = False
-        want[self.add_group] = want[self.remove_group] = False
+        for f in self.many.values():
+            want[f] = False
+        want[self.some] = want[self._some_hover] = False
         for b in self.buttons:
             want[b] = bool(items)
         is_image = single is not None and single["kind"] == "image"
@@ -393,7 +410,22 @@ class Panel:
                 want[self.checks["guide"]] = True
         elif items:
             self.title.text = t("panel.selected", count=len(items))
-            want[self.add_group] = want[self.remove_group] = True
+            owner = tuple(it["id"] for it in items)
+            self.many["groups"].set(", ".join(shared_groups(items)), owner)
+            want[self.many["groups"]] = True
+            some = partial_groups(items)
+            if some:
+                self._some_full = ", ".join(some)
+                text = t("panel.some", groups=self._some_full)
+                self.some.text = text
+                if self.some.box.right > W - 12:
+                    _fit_end(self.some, text, W - 12)
+                want[self.some] = want[self._some_hover] = True
+            box = geo_box([it for it in items if not it["locked"]])
+            if box is not None:
+                self.many["x"].set((box[0] + box[2]) / 2, owner)
+                self.many["y"].set((box[1] + box[3]) / 2, owner)
+                want[self.many["x"]] = want[self.many["y"]] = True
         else:
             self.title.text = t("panel.level")
             w, h = ed.doc.size

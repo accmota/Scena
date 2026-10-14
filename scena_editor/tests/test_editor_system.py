@@ -203,6 +203,87 @@ class TestEditorOnFrames(EditorSystemCase):
         self.assertTrue(focused.visible)
         fw.widget_manager.set_focus(None)
 
+    def test_many_groups_field_commits_to_the_items_it_showed(self):
+        # Same bug class as the single field: the commit and a new selection
+        # land in one event; the edit belongs to the items the field showed.
+        app = self.app
+        ed = app.editor
+        a = ed.doc.add({"kind": "point", "groups": ["robo", "chao"], "center": (0, 0)})
+        b = ed.doc.add({"kind": "point", "groups": ["robo"], "center": (50, 0)})
+        c = ed.doc.add({"kind": "point", "center": (90, 0)})
+        ed.history.commit()
+        ed.selection = [a, b]
+        self.frame()
+        field = app.panel.many["groups"]
+        self.assertTrue(field.visible)
+        self.assertFalse(app.panel.fields["groups"].visible)
+        self.assertEqual(field.input.data.value, "robo")      # what both have
+        self.assertTrue(app.panel.some.visible)
+        self.assertEqual(str(app.panel.some.text), "Some: chao")
+        field.input.data.value = "robo, estrela"
+        ed.selection = [c]
+        self.frame()
+        self.assertEqual(ed.doc.get(a)["groups"], ("robo", "chao", "estrela"))
+        self.assertEqual(ed.doc.get(b)["groups"], ("robo", "estrela"))
+        self.assertEqual(ed.doc.get(c)["groups"], ())
+        self.assertFalse(field.visible)
+        self.assertFalse(app.panel.some.visible)
+
+    def test_many_x_field_moves_the_selection(self):
+        app = self.app
+        ed = app.editor
+        a = ed.doc.add({"kind": "point", "center": (0, 0)})
+        b = ed.doc.add({"kind": "point", "center": (40, 20)})
+        ed.history.commit()
+        ed.selection = [a, b]
+        self.frame()
+        self.assertEqual(app.panel.many["x"].input.data.value, 20.0)
+        self.assertEqual(app.panel.many["y"].input.data.value, 10.0)
+        app.panel.many["x"].input.data.value = 120.0
+        self.frame()
+        self.assertEqual(ed.doc.get(a)["center"], (100, 0))
+        self.assertEqual(ed.doc.get(b)["center"], (140, 20))
+
+    def test_tab_from_the_many_groups_field_reaches_x_and_keeps_focus(self):
+        import glfw
+        app = self.app
+        ed = app.editor
+        ids = [ed.doc.add({"kind": "point", "center": (i * 10, 0)}) for i in range(2)]
+        ed.history.commit()
+        ed.selection = ids
+        self.frame()
+        groups = app.panel.many["groups"].input
+        groups.focus()
+        fw = self.w.fw
+        for ch in "g":
+            fw._handle_char(None, ord(ch))
+        fw._handle_key(None, glfw.KEY_TAB, 0, glfw.PRESS, 0)
+        fw._handle_key(None, glfw.KEY_TAB, 0, glfw.RELEASE, 0)
+        self.frame(2)
+        self.assertTrue(all(ed.doc.get(i)["groups"] == ("g",) for i in ids))
+        self.assertIs(fw.widget_manager.focused_widget, app.panel.many["x"].input)
+        fw.widget_manager.set_focus(None)
+
+    def test_some_line_is_cut_and_its_tooltip_lists_every_group(self):
+        app = self.app
+        ed = app.editor
+        p = app.panel
+        names = [f"grupo_comprido_{i}" for i in range(8)]
+        a = ed.doc.add({"kind": "point", "groups": names, "center": (0, 0)})
+        b = ed.doc.add({"kind": "point", "center": (50, 0)})
+        ed.selection = [a, b]
+        now = self._fake_clock()
+        self.frame()
+        self.assertTrue(str(p.some.text).endswith("…"))
+        self.assertLessEqual(p.some.box.right, DESIGN[0])
+        self._point(p.some.box.left + 10, (p.some.box.top + p.some.box.bottom) / 2)
+        now[0] += p.tooltip.DELAY + 0.1
+        self.frame()
+        self.assertTrue(p.tooltip.visible)
+        self.assertEqual(str(p.tooltip.text.text), ", ".join(names))
+        r = p.tooltip.box
+        self.assertGreaterEqual(r.center.x - r.width / 2, 0)
+
     def test_save_writes_a_level_the_game_reads(self):
         from scena import Level
         app = self.app
