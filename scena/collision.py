@@ -2201,21 +2201,69 @@ def _prim_gap(pa: Prim, pb: Prim) -> Tuple[float, float, float]:
 
 def _skin_contact(
     pas: Sequence[Prim], pbs: Sequence[Prim], skin: float,
+    ox: float = 0.0, oy: float = 0.0, floor_sign: float = 0.0,
 ) -> Optional[Contact]:
     """Resting contact for prims that do not overlap: the closest prim pair
     within ``skin``, as a zero-depth contact (normal A → B, witness filled by
-    ``_points_or_witness``). ``None`` when every gap is larger."""
+    ``_points_or_witness``). ``None`` when every gap is larger.
+
+    ``(ox, oy, floor_sign)`` is the frame's carry opening (``_carry_opening``):
+    a floor gap (``n · floor_sign >= |nx|``, 45° included) counts up to
+    ``skin`` plus the opening along its normal, never less than ``skin``.
+    """
     best: Optional[Tuple[float, float, float]] = None
+    pad = skin + abs(ox) + abs(oy)
     for pa in pas:
         for pb in pbs:
-            if not _aabb_near_tuple(pa.aabb, pb.aabb, skin):
+            if not _aabb_near_tuple(pa.aabb, pb.aabb, pad):
                 continue
             gap, nx, ny = _prim_gap(pa, pb)
-            if gap <= skin and (best is None or gap < best[0]):
+            limit = skin
+            if floor_sign and ny * floor_sign >= abs(nx):
+                opening = ox * nx + oy * ny
+                if opening > 0.0:
+                    limit += opening
+            if gap <= limit and (best is None or gap < best[0]):
                 best = (gap, nx, ny)
     if best is None:
         return None
     return Contact((best[1], best[2]), 0.0, [])
+
+
+def _immovable(c: "Collider") -> bool:
+    ident = c._identity
+    mass = getattr(ident, "_mass", None)
+    if mass is None:
+        mass = getattr(ident, "mass", 1.0)
+    return _is_static_mass(mass)
+
+
+def _carry_opening(ca: "Collider", cb: "Collider") -> Tuple[float, float, float]:
+    """How far floor snap's floor moved away from its rider this frame, for
+    the resting skin (PB4): ``(ox, oy, sign)``.
+
+    Only an immovable (``STATIC``) side's motion-channel travel, and only
+    when the other side is movable and was grounded at the start of the
+    frame — exactly the case floor snap pulls back onto the floor. A gap
+    normal ``n`` (A → B) opened by ``(ox, oy) · n``; ``sign`` is ``-1`` when
+    A is the rider (``n`` must point down) and ``+1`` when B is (``n`` must
+    point up). ``(0, 0, 0)`` otherwise: a rider's own motion (a jump off the
+    lift) and a wall moving away are not a carry.
+    """
+    if ca._motion_translation and _immovable(ca):
+        floor, rider, sign = ca, cb, 1.0
+    elif cb._motion_translation and _immovable(cb):
+        floor, rider, sign = cb, ca, -1.0
+    else:
+        return 0.0, 0.0, 0.0
+    if _immovable(rider):
+        return 0.0, 0.0, 0.0
+    sides = getattr(rider._identity, "touching_sides", None)
+    if not sides or "bottom" not in sides:
+        return 0.0, 0.0, 0.0
+    if floor is cb:
+        return floor._motion_dx, floor._motion_dy, sign
+    return -floor._motion_dx, -floor._motion_dy, sign
 
 
 def _prims_near(pas: Sequence[Prim], pbs: Sequence[Prim], pad: float) -> bool:
@@ -4734,9 +4782,19 @@ class CollisionSystem:
         self._left_tags: Dict[int, Tuple[Collider, Dict[str, Set[int]]]] = {}
         self._left_tags_old: Dict[int, Tuple[Collider, Dict[str, Set[int]]]] = {}
         # Bumped when a collider leaves or a pair handler is removed: a
-        # dispatch whose epoch moved re-checks liveness and registration
-        # before each later handler (S8-2, S4-1). One int compare otherwise.
+        # dispatch whose epoch moved re-checks registration before each later
+        # exit handler (S4-1); the ``_phase_handlers`` snapshot is keyed by it.
         self._dispatch_epoch = 0
+        # Bumped on every act change (``drop_act_pair_handlers``): an enter /
+        # stay dispatch that saw it stops on a dead side and skips handlers
+        # the act took with it (S4-1). A destroy alone does not (PB5).
+        self._act_change_epoch = 0
+        # This step's detection contacts while its handlers run (enter / stay
+        # / exit loops), else None: a resolve partner a handler removes there
+        # leaves a ghost contact for the survivor's velocity response (PE5).
+        self._dispatch_current: Optional[Dict[Tuple[int, int], "CollisionInfo"]] = None
+        self._dispatch_ids: Optional[Dict[int, Collider]] = None
+        self._ghost_contacts: List[Tuple[Any, ...]] = []
         self._show = False
         self._debug_shapes: List[Any] = []  # legacy shape-based overlay (cleared on disable)
         self._debug_overlay: List[Tuple[Any, Prim]] = ()
@@ -5417,6 +5475,10 @@ class CollisionSystem:
         Called on an act change. Top-level (game) entries stay. Pair targets
         the removed entries implied are pruned from the surviving colliders.
         """
+        self._act_change_epoch += 1
+        # A ghost contact (PE5) of the leaving act's bodies does not reach
+        # the new act's step.
+        self._ghost_contacts = []
         doomed = self._act_pair_handlers
         if not doomed:
             return 0
@@ -5744,6 +5806,8 @@ class CollisionSystem:
         them behind to fire again).
         """
         cid = id(col)
+        if emit and col._in_resolve and self._dispatch_current is not None:
+            self._note_ghost_contacts(col)
         keys = [k for k in self._prev_contacts if cid in k]
         # This step's enters not dispatched yet: no enter ran, so no exit.
         if self._enter_pending:
@@ -5775,6 +5839,114 @@ class CollisionSystem:
                 a=ca._identity, b=cb._identity, normal=Vec2.temp(0, 0), depth=0.0,
             )
             self._dispatch(ca, cb, info, _PHASE_EXIT)
+
+    def _note_ghost_contacts(self, col: Collider) -> None:
+        """``col`` leaves collision from a handler of this step (destroy, park,
+        ``collidable = False``): keep what each resolve partner it touched
+        this frame needs for its velocity response (PE5).
+
+        Handlers run before resolve, so a brick destroyed in ``@collide``
+        was gone when the solver ran, and a ``bounce=`` ball ploughed through
+        every brick it broke. The survivor still gets this contact's velocity
+        response; a dead body pushes nothing. Read here, while ``col`` still
+        has its tags and its pose: the registration, its detection prims, its
+        frame motion, its mass and velocity.
+        """
+        current = self._dispatch_current
+        ids = self._dispatch_ids
+        cid = id(col)
+        for key, info in current.items():
+            if cid != key[0] and cid != key[1]:
+                continue
+            surv = ids.get(key[1] if key[0] == cid else key[0])
+            if surv is None or not surv._in_resolve:
+                continue
+            reg = self._resolve_reg_for(surv, col)
+            if reg is None:
+                continue
+            token, only_entry = reg
+            if token is _RESOLVE_POSITION_ONLY or token is None:
+                continue
+            ident = col._identity
+            try:
+                mass = float(getattr(ident, "mass", STATIC))
+            except Exception:                  # noqa: BLE001
+                mass = STATIC
+            vb = getattr(ident, "_vel", None)
+            vel = None if vb is None else (float(vb.x), float(vb.y))
+            moving = col._motion_translation
+            self._ghost_contacts.append((
+                surv, col, info, col._world_prims, token, only_entry, mass, vel,
+                col._motion_dx if moving else 0.0, col._motion_dy if moving else 0.0,
+            ))
+
+    def _resolve_reg_for(self, ca: Collider, cb: Collider):
+        """``(bounce token, only entry in ca's view)`` of the first standing
+        registration pairing ``ca`` with ``cb`` (as ``_resolve_partners``
+        reads it), or None."""
+        for ta, tb, token, only in self._resolve_pairs:
+            if self._collider_on_resolve_side(ca, ta) and self._collider_on_resolve_side(cb, tb):
+                return token, None if only is None else (only, False)
+            if self._collider_on_resolve_side(ca, tb) and self._collider_on_resolve_side(cb, ta):
+                if only is None:
+                    return token, None
+                if isinstance(only, frozenset):
+                    return token, (_mirror_only(only), False)
+                return token, (only, True)
+        return None
+
+    def _apply_ghost_contacts(self) -> None:
+        """Velocity response of each survivor to a resolve partner a handler
+        removed this step (PE5): ``bounce=`` as if the partner were still
+        there for this contact, written on the survivor only, no push.
+
+        The contact the handlers saw answers, along the normal of the hit on
+        the frame's relative path when the survivor reached the partner this
+        frame (as the sweep would), else the detection normal (an end-pose
+        overlap, or a resting-skin gap: touching, F1). ``velocity_split``
+        changes only an approaching velocity, so a body moving away from or
+        along the removed partner keeps its speed, and an ``only=`` pair
+        answers only on a side it blocks.
+        """
+        ghosts = self._ghost_contacts
+        self._ghost_contacts = []
+        for surv, dead, info, pbs, token, only_entry, mb, vel_b, ddx, ddy in ghosts:
+            ident = surv._identity
+            va = getattr(ident, "_vel", None)
+            if va is None or not self._collider_in_play(surv):
+                continue
+            ma = float(getattr(ident, "mass", 1.0))
+            if _is_static_mass(ma):
+                continue
+            nx = ny = None
+            pas = self._world_prims(surv)
+            if pas and pbs:
+                sdx = surv._motion_dx if surv._motion_translation else 0.0
+                sdy = surv._motion_dy if surv._motion_translation else 0.0
+                rdx, rdy = sdx - ddx, sdy - ddy
+                if rdx or rdy:
+                    hit = _toi_prim_sets(_copy_translate(pas, -rdx, -rdy), pbs, rdx, rdy)
+                    if hit is not None and hit[1] is not None and hit[0] > 1e-12:
+                        nx, ny = float(hit[1].normal[0]), float(hit[1].normal[1])
+            if nx is None:
+                inx, iny = _normal_components(info.normal)
+                if info.a is ident:
+                    nx, ny = inx, iny
+                else:
+                    nx, ny = -inx, -iny
+            if only_entry is not None:
+                gate = _OnlyGate(self, surv, {id(dead): only_entry},
+                                 self._passing.get(id(surv)) or {})
+                if not gate.ok(dead, nx, ny):
+                    continue
+            contact = CollisionInfo(a=ident, b=dead._identity,
+                                    normal=Vec2.temp(nx, ny), depth=0.0)
+            nva, _nvb = contact.velocity_split(
+                mass_a=ma, mass_b=STATIC if vel_b is None else mb,
+                bounce=float(token), vel_a=va,
+                vel_b=(0.0, 0.0) if vel_b is None else vel_b,
+            )
+            va.x, va.y = float(nva.x), float(nva.y)
 
     def _prune_pair_targets(self, collider: "Collider") -> None:
         """Drop targets no registered pair implies for ``collider`` any more
@@ -6492,15 +6664,26 @@ class CollisionSystem:
                 # short of its partner, so a standing resolve pair within the
                 # skin is still a contact. Otherwise @collide on a resting body
                 # flickers with frame time. Sensors stay strict overlap.
+                # An immovable partner that moved away this frame (a lift going
+                # down) opened the gap by up to its travel before resolve, and
+                # floor snap keeps the rider on it: the skin widens by that
+                # opening along the gap normal (PB4). Still pairs: no extra.
                 if ca._in_resolve and cb._in_resolve and self._resolve_enabled:
                     ida, idb = id(ca), id(cb)
                     key = (ida, idb) if ida < idb else (idb, ida)
-                    if (
-                        key not in contact_keys
-                        and _prims_near(pas, pbs, _CONTACT_SKIN)
-                        and self._resolve_bounce_for(ca, cb) is not None
-                    ):
-                        contact = _skin_contact(pas, pbs, _CONTACT_SKIN)
+                    if key not in contact_keys:
+                        if ca._motion_translation or cb._motion_translation:
+                            ox, oy, floor_sign = _carry_opening(ca, cb)
+                        else:
+                            ox = oy = floor_sign = 0.0
+                        if (
+                            _prims_near(pas, pbs, _CONTACT_SKIN + abs(ox) + abs(oy))
+                            and self._resolve_bounce_for(ca, cb) is not None
+                        ):
+                            contact = _skin_contact(pas, pbs, _CONTACT_SKIN,
+                                                    ox, oy, floor_sign)
+                        else:
+                            contact = None
                         if contact is not None:
                             skin_n += 1
                             current[key] = _collision_info_from_contact(
@@ -6597,6 +6780,50 @@ class CollisionSystem:
         self._enter_pending = set(entered)
         self._exit_pending = set(exited)
         self._author_ran = False
+        # A resolve partner a handler removes from here to the exit loop's
+        # end leaves a ghost contact for the survivor's velocity (PE5).
+        self._ghost_contacts = []
+        self._dispatch_current = current
+        self._dispatch_ids = id_to_collider
+        try:
+            self._dispatch_step(current, entered_order, stayed, exited,
+                                colliders_for_key, _sort_keys, id_to_collider)
+        finally:
+            self._dispatch_current = None
+            self._dispatch_ids = None
+
+        t0 = time.perf_counter()
+        if self._resolve_enabled:
+            if self._ghost_contacts:
+                self._apply_ghost_contacts()      # handlers ran: poses validated
+            self._trust_proxy_world = True
+            try:
+                self._apply_auto_resolve(current, id_to_collider)
+            finally:
+                self._trust_proxy_world = False
+        elif self._ghost_contacts:
+            self._ghost_contacts = []
+        self.last_stats["ms_resolve"] = (time.perf_counter() - t0) * 1000.0
+        t0 = time.perf_counter()
+        # No author code runs between resolve and here, so proxies still match
+        # the solver's nudges and world prims can skip the pose-key walk.
+        self._trust_proxy_world = True
+        try:
+            self._store_resolved_aabbs()
+        finally:
+            self._trust_proxy_world = False
+        self.last_stats["ms_bounds"] = (time.perf_counter() - t0) * 1000.0
+        self.last_stats["ms_total"] = (time.perf_counter() - t_total0) * 1000.0
+        self._update_touching_state(self._solve_contacts, id_to_collider)
+        # The step's group / object expansions are this step's: a query in the
+        # next update() must not test a body parked or opted out meanwhile
+        # (review 2026-10-09 S8-8).
+        if self._resolve_cache:
+            self._resolve_cache.clear()
+
+    def _dispatch_step(self, current, entered_order, stayed, exited,
+                       colliders_for_key, _sort_keys, id_to_collider) -> None:
+        """This step's enter, stay and exit loops (``step()``)."""
         for key in entered_order:
             if key not in self._enter_pending:
                 continue                  # its body left mid-step: no enter, no exit
@@ -6622,31 +6849,6 @@ class CollisionSystem:
                 continue
             info = CollisionInfo(a=ca._identity, b=cb._identity, normal=Vec2.temp(0, 0), depth=0.0)
             self._dispatch(ca, cb, info, _PHASE_EXIT)
-
-        t0 = time.perf_counter()
-        if self._resolve_enabled:
-            self._trust_proxy_world = True
-            try:
-                self._apply_auto_resolve(current, id_to_collider)
-            finally:
-                self._trust_proxy_world = False
-        self.last_stats["ms_resolve"] = (time.perf_counter() - t0) * 1000.0
-        t0 = time.perf_counter()
-        # No author code runs between resolve and here, so proxies still match
-        # the solver's nudges and world prims can skip the pose-key walk.
-        self._trust_proxy_world = True
-        try:
-            self._store_resolved_aabbs()
-        finally:
-            self._trust_proxy_world = False
-        self.last_stats["ms_bounds"] = (time.perf_counter() - t0) * 1000.0
-        self.last_stats["ms_total"] = (time.perf_counter() - t_total0) * 1000.0
-        self._update_touching_state(self._solve_contacts, id_to_collider)
-        # The step's group / object expansions are this step's: a query in the
-        # next update() must not test a body parked or opted out meanwhile
-        # (review 2026-10-09 S8-8).
-        if self._resolve_cache:
-            self._resolve_cache.clear()
 
     def _swept_contacts(
         self,
@@ -8729,16 +8931,16 @@ class CollisionSystem:
         if acts.changing and self._both_leave_with_act(ca, cb, acts.dying_ids):
             # Act teardown: two bodies leaving together owe each other no exit.
             return
+        if phase != _PHASE_EXIT:
+            self._dispatch_contact(ca, cb, info, phase)
+            return
+        # Exit handlers are chosen before any of them runs: one that destroys
+        # or untags a side must not hide the rest (PB3), and a tag a side left
+        # while touching still matches (PB1). A handler dropped meanwhile (an
+        # act change, a destroy) does not run (S4-1): checked only after the
+        # dispatch epoch moved, by one int compare per handler.
         attr = _PHASE_CALLBACK[phase]
-        if phase == _PHASE_EXIT:
-            # Exit handlers are chosen before any of them runs: one that
-            # destroys or untags a side must not hide the rest (PB3), and a
-            # tag a side left while touching still matches (PB1).
-            exit_matches = self._exit_matches(ca, cb)
-        # A handler may destroy or park a side, or change act (which drops
-        # the act's handlers). Checked after each handler that ran, by one
-        # int compare: a dead side ends enter / stay (S8-2), and a handler no
-        # longer registered does not run (S4-1).
+        exit_matches = self._exit_matches(ca, cb)
         epoch = self._dispatch_epoch
         changed = False
         for me_c, other_c in ((ca, cb), (cb, ca)):
@@ -8749,22 +8951,39 @@ class CollisionSystem:
                 _call(cb_fn, me_c._identity, other_c._identity, oriented)
                 if self._dispatch_epoch != epoch:
                     changed = True
-                    if phase != _PHASE_EXIT and (
-                            not self._collider_in_play(ca) or not self._collider_in_play(cb)):
-                        return
+        for ta, tb, handler, me, other in exit_matches:
+            if changed and not self._handler_registered(ta, tb, handler):
+                continue
+            oriented = self._oriented_info(me, other, ca, info, phase)
+            self._author_ran = True
+            _call(handler, me._identity, other._identity, oriented)
+            if self._dispatch_epoch != epoch:
+                changed = True
 
-        if phase == _PHASE_EXIT:
-            for ta, tb, handler, me, other in exit_matches:
-                if changed and not any(
-                        e[2] is handler and e[0] is ta and e[1] is tb for e in self._pair_handlers):
-                    continue
-                oriented = self._oriented_info(me, other, ca, info, phase)
-                self._author_ran = True
-                _call(handler, me._identity, other._identity, oriented)
-                if self._dispatch_epoch != epoch:
-                    changed = True
-            return
+    def _handler_registered(self, ta, tb, handler) -> bool:
+        return any(e[2] is handler and e[0] is ta and e[1] is tb for e in self._pair_handlers)
 
+    def _dispatch_contact(self, ca: Collider, cb: Collider, info: CollisionInfo, phase: str) -> None:
+        """Enter / stay of one contact: every handler of it runs (PB5).
+
+        The handlers that match are listed *before* the first one runs, so a
+        handler that destroys or parks a side does not hide the rest: they run
+        with the dead-but-readable partner, and the outcome does not depend on
+        which body was made first or whether a rule is a class method or a
+        module ``@collide`` (``Tiro`` destroys itself, ``Inimigo`` scores).
+        A body destroyed here enters no *other* pair (``_dispatch`` checks play
+        before each contact, S8-2). An act change mid-dispatch is the
+        exception: the old act is gone, so a dead side ends the contact and a
+        handler the act took with it does not run (S4-1).
+        """
+        attr = _PHASE_CALLBACK[phase]
+        runs = None
+        for me_c, other_c in ((ca, cb), (cb, ca)):
+            cb_fn = getattr(me_c, attr, None)
+            if cb_fn is not None and other_c._part is None:
+                if runs is None:
+                    runs = []
+                runs.append((None, None, cb_fn, me_c, other_c))
         # This phase's handlers only, from a snapshot rebuilt when the list
         # changes (review 2026-10-09 perf: every contact copied and filtered
         # every handler of every phase).
@@ -8778,21 +8997,24 @@ class CollisionSystem:
                 idx = tag_index.get(key_tag)
                 if not idx or (ida not in idx and idb not in idx):
                     continue
-            if changed and not any(
-                    e[2] is handler and e[0] is ta and e[1] is tb for e in self._pair_handlers):
-                continue
             matched = self._pair_matches(ta, tb, ca, cb)
             if not matched:
                 continue
-            me, other = matched
+            if runs is None:
+                runs = []
+            runs.append((ta, tb, handler, matched[0], matched[1]))
+        if runs is None:
+            return
+        act_epoch = self._act_change_epoch
+        for ta, tb, fn, me, other in runs:
+            if self._act_change_epoch != act_epoch:
+                if not self._collider_in_play(ca) or not self._collider_in_play(cb):
+                    return
+                if ta is not None and not self._handler_registered(ta, tb, fn):
+                    continue
             oriented = self._oriented_info(me, other, ca, info, phase)
             self._author_ran = True
-            _call(handler, me._identity, other._identity, oriented)
-            if self._dispatch_epoch != epoch:
-                changed = True
-                if phase != _PHASE_EXIT and (
-                        not self._collider_in_play(ca) or not self._collider_in_play(cb)):
-                    return
+            _call(fn, me._identity, other._identity, oriented)
 
     def _exit_matches(self, ca: Collider, cb: Collider) -> list:
         """The exit handlers matching ``ca`` × ``cb`` now, as

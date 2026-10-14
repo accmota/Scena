@@ -6990,11 +6990,14 @@ class TestExitAfterGroupChange(unittest.TestCase):
 
 
 class TestDispatchSeesWhatHandlersDid(unittest.TestCase):
-    """One dispatch, several handlers: a handler that destroys a side or
-    changes act stops the rest of that enter / stay; an exit is delivered
-    only for a pair whose enter ran (review 2026-10-09 S8-2, S8-3)."""
+    """One dispatch, several handlers. Every enter / stay handler of a
+    contact runs, also after one destroyed a side (PB5, 2026-10-14: S8-2
+    stopped the rest, so who scored depended on spawn order); a body
+    destroyed there enters no other pair, and an exit is delivered only for
+    a pair whose enter ran (review 2026-10-09 S8-2, S8-3). An act change
+    still stops the old act's handlers (test_act.TestChangeInsideADispatch)."""
 
-    def test_later_pair_handlers_skip_a_destroyed_side(self):
+    def test_later_pair_handlers_see_a_destroyed_side(self):
         from scena import Circle, collide
         from tests.system_support import system_world
         seen = []
@@ -7017,9 +7020,10 @@ class TestDispatchSeesWhatHandlersDid(unittest.TestCase):
 
             w.step(2, dt=1 / 60)
             hero.destroy()
-        self.assertEqual(seen, [("first", True), ("kill", True)])
+        # PB5: ``score`` runs too, with the dead-but-readable enemy.
+        self.assertEqual(seen, [("first", True), ("kill", True), ("score", False)])
 
-    def test_mutual_kill_runs_no_handler_on_a_dead_side(self):
+    def test_mutual_kill_kills_both(self):
         from scena import Circle
         from tests.system_support import system_world
         calls = []
@@ -7029,10 +7033,11 @@ class TestDispatchSeesWhatHandlersDid(unittest.TestCase):
             a.on_collide = lambda me, other, info: (calls.append((me.is_alive, other.is_alive)), other.destroy())
             b.on_collide = lambda me, other, info: (calls.append((me.is_alive, other.is_alive)), other.destroy())
             w.step(2, dt=1 / 60)
-            for o in (a, b):
-                o.destroy()
-        self.assertEqual(len(calls), 1)
-        self.assertEqual(calls[0], (True, True))
+            # PB5: both callbacks run (the second on a dead ``me``), so each
+            # kills the other whichever was made first. Before, only one ran.
+            self.assertEqual(calls, [(True, True), (False, True)])
+            self.assertFalse(a.is_alive)
+            self.assertFalse(b.is_alive)
 
     def test_no_exit_without_its_enter(self):
         from scena import Circle, collide, collide_exit
@@ -7059,6 +7064,374 @@ class TestDispatchSeesWhatHandlersDid(unittest.TestCase):
         exited = [f for k, f in log if k == "exit"]
         self.assertEqual(len(entered), 1)
         self.assertEqual(exited, entered)
+
+
+class TestEveryEnterHandlerOfAContactRuns(unittest.TestCase):
+    """PB5 (2026-10-14): the enter handlers of one contact all run, so the
+    outcome does not depend on which body was spawned first or on whether
+    a rule is a class method or a module ``@collide``."""
+
+    def _shooter(self, shot_first):
+        from scena import Circle, Rect, collide_with, st
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            st.pb5_pontos = 0
+
+            class Tiro(Circle, radius=5, group="pb5_tiros"):
+                @collide_with("pb5_inimigos")
+                def bateu(self, inimigo):
+                    self.destroy()
+
+            class Inimigo(Rect, width=40, height=40, group="pb5_inimigos"):
+                @collide_with("pb5_tiros")
+                def atingido(self, tiro):
+                    self.destroy()
+                    st.pb5_pontos += 1
+
+            if shot_first:
+                shots = [Tiro(center=(0, 0)), Tiro(center=(200, 0))]
+                foes = [Inimigo(center=(0, 0)), Inimigo(center=(200, 0))]
+            else:
+                foes = [Inimigo(center=(0, 0)), Inimigo(center=(200, 0))]
+                shots = [Tiro(center=(0, 0)), Tiro(center=(200, 0))]
+            w.step(2, dt=1 / 60)
+            alive = [o.is_alive for o in shots + foes]
+            for o in shots + foes:
+                if o.is_alive:
+                    o.destroy()
+            return st.pb5_pontos, alive
+
+    def test_shooter_outcome_does_not_depend_on_spawn_order(self):
+        for shot_first in (True, False):
+            with self.subTest(shot_first=shot_first):
+                pontos, alive = self._shooter(shot_first)
+                self.assertEqual(pontos, 2)
+                self.assertEqual(alive, [False] * 4)
+
+    def test_module_rule_and_class_method_in_either_order(self):
+        from scena import Circle, Rect, collide, collide_with, st
+        from tests.system_support import system_world
+        for rule_first in (True, False):
+            with self.subTest(rule_first=rule_first), system_world(draw=False) as w:
+                st.pb5_pts = 0
+
+                class Inimigo(Rect, width=40, height=40, group="pb5m_inimigos"):
+                    @collide_with("pb5m_tiros")
+                    def atingido(self, tiro):
+                        st.pb5_pts += 1
+
+                def rule():
+                    @collide("pb5m_tiros", "pb5m_inimigos")
+                    def some(tiro, inimigo, info):
+                        tiro.destroy()
+
+                if rule_first:
+                    rule()
+                a = Inimigo(center=(0, 0))
+                if not rule_first:
+                    rule()
+                b = Inimigo(center=(300, 0))
+                s1 = Circle(center=(0, 0), radius=5, group="pb5m_tiros")
+                s2 = Circle(center=(300, 0), radius=5, group="pb5m_tiros")
+                w.step(2, dt=1 / 60)
+                self.assertEqual(st.pb5_pts, 2)
+                self.assertFalse(s1.is_alive)
+                self.assertFalse(s2.is_alive)
+                a.destroy()
+                b.destroy()
+
+    def test_two_methods_of_the_dying_body_both_run(self):
+        from scena import Circle, Rect, collide_with
+        from tests.system_support import system_world
+        log = []
+        with system_world(draw=False) as w:
+            class Tiro(Circle, radius=5, group="pb5d_tiros"):
+                @collide_with("pb5d_alvo")
+                def a_some(self, alvo):
+                    log.append("some")
+                    self.destroy()
+
+                @collide_with("pb5d_alvo")
+                def b_faisca(self, alvo):
+                    log.append(("faisca", self.is_alive))
+
+            alvo = Rect(center=(0, 0), width=40, height=40, group="pb5d_alvo")
+            Tiro(center=(0, 0))
+            w.step(2, dt=1 / 60)
+            alvo.destroy()
+        self.assertEqual(log, ["some", ("faisca", False)])
+
+    def test_one_shot_still_damages_one_enemy(self):
+        """A shot destroyed in its first contact's handlers enters no other
+        pair this step (S8-2's purpose, kept)."""
+        from scena import Circle, collide, st
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            st.pb5_dano = 0
+            shot = Circle(center=(0, 0), radius=5, group="pb5o_shot")
+            e1 = Circle(center=(-6, 0), radius=4, group="pb5o_foe")
+            e2 = Circle(center=(6, 0), radius=4, group="pb5o_foe")
+
+            @collide("pb5o_shot", "pb5o_foe")
+            def hit(s, f, info):
+                s.destroy()
+
+            @collide("pb5o_foe", "pb5o_shot")
+            def hurt(f, s, info):
+                st.pb5_dano += 1
+
+            w.step(2, dt=1 / 60)
+            self.assertFalse(shot.is_alive)
+            self.assertEqual(st.pb5_dano, 1)
+            e1.destroy()
+            e2.destroy()
+
+    def test_stay_handlers_of_a_contact_all_run(self):
+        from scena import Circle, collide_stay
+        from tests.system_support import system_world
+        log = []
+        with system_world(draw=False) as w:
+            hero = Circle(center=(0, 0), radius=5)
+            lava = Circle(center=(4, 0), radius=10)
+
+            @collide_stay(hero, lava)
+            def burn(h, l, info):
+                log.append("burn")
+                if len(log) > 1:
+                    h.destroy()
+
+            @collide_stay(lava, hero)
+            def hiss(l, h, info):
+                log.append(("hiss", h.is_alive))
+
+            w.step(4, dt=1 / 60)
+            lava.destroy()
+        self.assertEqual(log, ["burn", ("hiss", True), "burn", ("hiss", False)])
+
+
+class TestBounceOffAPartnerAHandlerRemoved(unittest.TestCase):
+    """PE5 (2026-10-14): handlers run before resolve, so a ``bounce=`` ball
+    whose ``@collide`` destroyed the brick found no brick to bounce off and
+    ploughed through the wall. A resolve partner a handler of this step
+    removes still gives the survivor this contact's velocity response;
+    it pushes nothing."""
+
+    def _breakout(self, dt, speed, leave="destroy"):
+        from scena import Circle, Rect, STATIC, Vec2, collide, resolve
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            ball = Circle(center=(0, 0), radius=5, group="pe5_ball")
+            ball.vel = Vec2(0, speed)
+            bricks = []
+            for i in range(4):
+                b = Rect(center=(0, 60 + 16 * i), width=40, height=14, group="pe5_brick")
+                b.mass = STATIC
+                bricks.append(b)
+            floor = Rect(center=(0, -60), width=400, height=20, group="pe5_wall")
+            floor.mass = STATIC
+            resolve(ball, ["pe5_brick", "pe5_wall"], bounce=1.0)
+            hits = []
+
+            @collide(ball, "pe5_brick")
+            def hit(me, brick, info):
+                hits.append(w.frames_run)
+                if leave == "destroy":
+                    brick.destroy()
+                else:
+                    brick.active = False
+
+            w.on_update(lambda dt_: ball.move_by(ball.vel.x * dt_, ball.vel.y * dt_))
+            flips = []                             # per step with a hit
+            for _ in range(int(1200.0 / speed / dt)):
+                vy = ball.vel.y
+                n = len(hits)
+                w.step(1, dt=dt)
+                if len(hits) > n:
+                    flips.append(ball.vel.y * vy < 0)
+            self.assertEqual(len(hits), 4, "one hit per brick, from below")
+            alive = sum(1 for b in bricks if b.is_alive and b.active)
+            for b in bricks + [floor]:
+                if b.is_alive:
+                    b.destroy()
+            ball.destroy()
+            return flips, alive
+
+    def test_every_broken_brick_reflects_the_ball(self):
+        for hz in (30, 60, 144):
+            for speed in (300.0, 900.0):
+                with self.subTest(hz=hz, speed=speed):
+                    flips, alive = self._breakout(1 / hz, speed)
+                    self.assertTrue(flips and all(flips), flips)
+                    self.assertEqual(alive, 0)
+
+    def test_a_brick_parked_in_the_handler_reflects_too(self):
+        flips, alive = self._breakout(1 / 60, 300.0, leave="park")
+        self.assertTrue(flips and all(flips), flips)
+        self.assertEqual(alive, 0)
+
+    def test_no_push_from_the_dead_brick(self):
+        from scena import Circle, Rect, STATIC, Vec2, collide, resolve
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            ball = Circle(center=(0, 50), radius=5, group="pe5p_ball")
+            ball.vel = Vec2(0, 600)
+            brick = Rect(center=(0, 67), width=40, height=14, group="pe5p_brick")
+            brick.mass = STATIC
+            resolve(ball, "pe5p_brick", bounce=1.0)
+
+            @collide(ball, "pe5p_brick")
+            def hit(me, b, info):
+                b.destroy()
+
+            ball.move_by(0, 10)                    # reaches the brick this frame
+            w.step(1, dt=1 / 60)
+            self.assertFalse(brick.is_alive)
+            self.assertAlmostEqual(ball.center.y, 60.0, places=6, msg="the dead brick pushed")
+            self.assertAlmostEqual(ball.vel.y, -600.0, places=6)
+            ball.destroy()
+
+    def test_bounce_zero_floor_broken_on_landing_stops_the_fall_once(self):
+        """A crumbling floor destroyed on landing answers that landing as a
+        live one would (``bounce=0``: the fall stops this frame); the hero is
+        not lifted, and falls from rest next frame."""
+        from scena import Rect, STATIC, Vec2, collide, resolve
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            hero = Rect(center=(0, 25), width=10, height=10, group="pe5c_hero")
+            hero.vel = Vec2(0, -300)
+            floor = Rect(center=(0, 0), width=100, height=20, group="pe5c_floor")
+            floor.mass = STATIC
+            resolve(hero, "pe5c_floor", bounce=0.0)
+
+            @collide(hero, "pe5c_floor")
+            def crumble(h, f, info):
+                f.destroy()
+
+            hero.move_by(0, -10)                   # 5 DU above, lands this frame
+            w.step(1, dt=1 / 60)
+            self.assertFalse(floor.is_alive)
+            self.assertAlmostEqual(hero.vel.y, 0.0, places=6)
+            self.assertAlmostEqual(hero.center.y, 15.0, places=6)
+            hero.destroy()
+
+    def test_skin_contact_answers_as_the_handler_saw_it(self):
+        """A resting-skin contact is touching (F1): the handler saw it, so it
+        answers too (a 144 Hz ball meets a brick at the skin first)."""
+        from scena import Rect, STATIC, Vec2, collide_stay, resolve
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            floor = Rect(center=(0, 0), width=100, height=20, group="pe5s_floor")
+            floor.mass = STATIC
+            hero = Rect(center=(0, 15.12), width=10, height=10, group="pe5s_hero")
+            hero.vel = Vec2(0, -1.0)
+            resolve(hero, "pe5s_floor", bounce=0.0)
+            w.step(1, dt=1 / 60)                   # skin contact opens (gap 0.12)
+            seen = []
+
+            @collide_stay(hero, "pe5s_floor")
+            def crumble(h, f, info):
+                seen.append(info.depth)
+                f.destroy()
+
+            hero.move_by(0, -0.01)                 # still in the skin
+            w.step(1, dt=1 / 60)
+            self.assertEqual(seen, [0.0])
+            self.assertAlmostEqual(hero.vel.y, 0.0, places=9)
+            hero.destroy()
+
+    def test_a_jump_along_a_removed_wall_keeps_its_speed(self):
+        """Only the approaching component answers: a hero jumping up along
+        a wall a handler removes is not stopped in mid-air."""
+        from scena import Rect, STATIC, Vec2, collide_stay, resolve
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            wall = Rect(center=(0, 0), width=20, height=200, group="pe5j_wall")
+            wall.mass = STATIC
+            hero = Rect(center=(15.1, 0), width=10, height=10, group="pe5j_hero")
+            hero.vel = Vec2(-1.0, 0)
+            resolve(hero, "pe5j_wall", bounce=0.0)
+            for _ in range(3):
+                hero.move_by(-0.5, 0)
+                w.step(1, dt=1 / 60)               # pressed on the wall
+            self.assertIn("left", hero.touching_sides)
+
+            @collide_stay(hero, "pe5j_wall")
+            def gone(h, wl, info):
+                wl.destroy()
+
+            hero.vel = Vec2(0, 300)
+            hero.move_by(0, 5)
+            w.step(1, dt=1 / 60)
+            self.assertFalse(wall.is_alive)
+            self.assertEqual((hero.vel.x, hero.vel.y), (0.0, 300.0))
+            hero.destroy()
+
+    def test_one_way_pass_keeps_its_speed(self):
+        """A one-way platform (``only="bottom"``) a body jumps up through and
+        a handler destroys gives no response: it would not have blocked."""
+        from scena import Rect, STATIC, Vec2, collide, resolve
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            plat = Rect(center=(0, 0), width=100, height=10, group="pe5o_plat")
+            plat.mass = STATIC
+            hero = Rect(center=(0, -12), width=10, height=10, group="pe5o_hero")
+            hero.vel = Vec2(0, 300)
+            resolve(hero, "pe5o_plat", only="bottom", bounce=0.0)
+
+            @collide(hero, "pe5o_plat")
+            def poof(h, p, info):
+                p.destroy()
+
+            hero.move_by(0, 5)
+            w.step(1, dt=1 / 60)
+            self.assertFalse(plat.is_alive)
+            self.assertAlmostEqual(hero.vel.y, 300.0, places=6)
+            hero.destroy()
+
+    def test_finite_mass_partner_splits_as_if_alive(self):
+        """Equal masses, ``bounce=1``: the mover hands its speed to the box
+        whether or not a handler removes the box (written on the survivor)."""
+        from scena import Circle, Rect, Vec2, collide, resolve
+        from tests.system_support import system_world
+        out = {}
+        for kill in (False, True):
+            with system_world(draw=False) as w:
+                ball = Circle(center=(0, 0), radius=5, group="pe5m_ball")
+                ball.vel = Vec2(300, 0)
+                box = Rect(center=(20, 0), width=10, height=10, group="pe5m_box")
+                box.vel = Vec2(0, 0)
+                resolve(ball, "pe5m_box", bounce=1.0)
+                if kill:
+                    @collide(ball, "pe5m_box")
+                    def hit(me, b, info):
+                        b.destroy()
+                ball.move_by(12, 0)                # reaches the box this frame
+                w.step(1, dt=1 / 60)
+                out[kill] = (ball.vel.x, ball.vel.y)
+                ball.destroy()
+                if box.is_alive:
+                    box.destroy()
+        self.assertAlmostEqual(out[True][0], out[False][0], places=6)
+        self.assertAlmostEqual(out[True][0], 0.0, places=6)
+
+    def test_position_only_pair_writes_no_velocity(self):
+        from scena import Circle, Rect, STATIC, Vec2, collide, resolve
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            ball = Circle(center=(0, 50), radius=5, group="pe5n_ball")
+            ball.vel = Vec2(0, 600)
+            brick = Rect(center=(0, 67), width=40, height=14, group="pe5n_brick")
+            brick.mass = STATIC
+            resolve(ball, "pe5n_brick")
+
+            @collide(ball, "pe5n_brick")
+            def hit(me, b, info):
+                b.destroy()
+
+            ball.move_by(0, 10)
+            w.step(1, dt=1 / 60)
+            self.assertEqual((ball.vel.x, ball.vel.y), (0.0, 600.0))
+            ball.destroy()
 
 
 class TestParkExitSeesAParkedActor(unittest.TestCase):

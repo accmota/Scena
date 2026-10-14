@@ -214,5 +214,124 @@ class TestCollideDoesNotFlicker(unittest.TestCase):
         _collide_flicker(self, "circle", PACINGS["5 / 28 ms"], 0.0, walk=True)
 
 
+SETTLE = 10            # frames on a still lift before it moves
+
+
+def ride(kind, *, pacing, lift_v, frames=120, yoyo=False, gravity=GRAVITY):
+    """A hero rests on a ``STATIC`` lift that moves by ``move_by`` (down at
+    ``lift_v`` DU/s, or up and down when ``yoyo``) once the hero has landed.
+    Returns the per-frame samples ``(open @collide contact, "bottom" in
+    touching_sides)`` while the lift moves and the ``@collide`` /
+    ``@collide_exit`` events."""
+    events, samples = [], []
+    with system_world(draw=False) as w:
+        with quiet():
+            lift = w.track(Rect(center=(0.0, 0.0), width=100, height=20, group="lift"))
+            lift.mass = STATIC
+            if kind == "rect":
+                hero = Rect(center=(0.0, 10 + 20 + 0.08), width=30, height=40, group="rider")
+            else:
+                hero = Circle(center=(0.0, 10 + 12 + 0.08), radius=12, group="rider")
+            hero = w.track(hero)
+            hero.vel = Vec2(0.0, 0.0)
+        resolve("rider", "lift", bounce=0.0)
+        open_ = [False]
+        frame = [0]
+
+        @collide("rider", "lift")
+        def _enter(a, b, info=None):
+            open_[0] = True
+            events.append((frame[0], "enter"))
+
+        @collide_exit("rider", "lift")
+        def _exit(a, b, info=None):
+            open_[0] = False
+            events.append((frame[0], "exit"))
+
+        t = 0.0
+        for k in range(frames):
+            frame[0] = k
+            dt = pacing[k % len(pacing)]
+            t += dt
+            hero.vel.y -= gravity * dt
+            hero.move_by(0.0, hero.vel.y * dt)
+            v = lift_v if k >= SETTLE else 0.0      # lands on a still lift first
+            if yoyo and (t % 1.0) >= 0.5:
+                v = -v
+            lift.move_by(0.0, v * dt)
+            w.step(1, dt=dt)
+            if k >= SETTLE:
+                samples.append((open_[0], "bottom" in hero.touching_sides))
+        seen = list(events)
+    return samples, seen
+
+
+class TestRiderOnAMovingLift(unittest.TestCase):
+    """PB4 (2026-10-14): a rider on a descending ``STATIC`` lift is grounded
+    (floor snap) but its pre-resolve gap is the slop plus the lift's drop
+    minus its own fall, past the fixed skin: ``touching_sides`` said
+    "bottom" while ``@collide`` exited (60 DU/s at 60 Hz; 30 DU/s at 144 Hz;
+    a yoyo lift exited at the top and never re-entered on the way down).
+    The skin widens by how far an immovable partner moved away this frame."""
+
+    def test_descending_lift_keeps_the_contact(self):
+        for kind in KINDS:
+            for name, pacing in PACINGS.items():
+                for v in (-30.0, -60.0, -100.0, -200.0):
+                    with self.subTest(kind=kind, pacing=name, lift_v=v):
+                        samples, events = ride(kind, pacing=pacing, lift_v=v)
+                        grounded = [k for k, (_, g) in enumerate(samples) if g]
+                        self.assertEqual(len(grounded), len(samples), "rider left the lift")
+                        lost = [k for k, (o, g) in enumerate(samples) if g and not o]
+                        self.assertEqual(lost, [], "grounded, but no open @collide contact")
+                        self.assertEqual([e for _, e in events], ["enter"])
+
+    def test_yoyo_lift_keeps_the_contact(self):
+        for kind in KINDS:
+            for name, pacing in PACINGS.items():
+                with self.subTest(kind=kind, pacing=name):
+                    samples, events = ride(kind, pacing=pacing, lift_v=60.0,
+                                           yoyo=True, frames=240)
+                    lost = [k for k, (o, g) in enumerate(samples) if g and not o]
+                    self.assertEqual(lost, [])
+                    self.assertEqual([e for _, e in events], ["enter"])
+
+    def test_the_carry_is_what_keeps_the_contact(self):
+        """Guard for the guard: with no carry opening, 30 DU/s at 144 Hz
+        loses the contact again."""
+        from unittest import mock
+        with mock.patch("scena.collision._carry_opening", lambda a, b: (0.0, 0.0, 0.0)):
+            samples, events = ride("rect", pacing=PACINGS["144 Hz"], lift_v=-30.0)
+        self.assertTrue(any(g and not o for o, g in samples))
+
+    def test_jumping_off_a_descending_lift_exits(self):
+        """The widening counts only the lift's motion: a rider that leaves
+        it (here: jumps) exits on that frame."""
+        with system_world(draw=False) as w:
+            with quiet():
+                lift = w.track(Rect(center=(0.0, 0.0), width=100, height=20, group="lift"))
+                lift.mass = STATIC
+                hero = w.track(Rect(center=(0.0, 30.08), width=30, height=40, group="rider"))
+                hero.vel = Vec2(0.0, 0.0)
+            resolve("rider", "lift", bounce=0.0)
+            log = []
+
+            @collide_exit("rider", "lift")
+            def _exit(a, b, info=None):
+                log.append(w.frames_run)
+
+            for k in range(20):
+                hero.vel.y -= GRAVITY / 60
+                hero.move_by(0.0, hero.vel.y / 60)
+                lift.move_by(0.0, -1.0 if k >= SETTLE else 0.0)
+                w.step(1, dt=1 / 60)
+            self.assertEqual(log, [])
+            hero.vel.y = 300.0
+            hero.move_by(0.0, 5.0)
+            lift.move_by(0.0, -1.0)
+            w.step(1, dt=1 / 60)
+            self.assertEqual(log, [20])
+
+
 if __name__ == "__main__":
     unittest.main()
