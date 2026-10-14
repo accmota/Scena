@@ -2110,7 +2110,7 @@ ship.destroy()</pre>
 <tr><td><code>on_update</code></td><td class="sig"><span class="params">Parâmetros: e (objeto), dt (número)</span></td><td>—</td><td><code>fn(e, dt)</code> a cada frame, inclusive durante <code>await</code>. Ver <a href="#frame-clock">Frame</a>.</td></tr>
 <tr><td><code>on_destroy</code></td><td class="sig"><span class="params">Parâmetros: e (objeto)</span></td><td>—</td><td>Uma vez, de dentro de <code>destroy()</code>.</td></tr>
 <tr><td><code>setup(self)</code></td><td class="sig"><span class="params">Parâmetros: self (este objeto)</span></td><td>—</td><td>Método que você escreve numa subclasse; o Scena o chama logo depois do construtor. Não é o <code>setup(canvas)</code> do script.</td></tr>
-<tr><td><code>clone()</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>o objeto copiado</td><td>Cópia. Roda <code>setup()</code>. Sem timers / mode / callbacks de clique. Não em SpatialFx.</td></tr>
+<tr><td><code>clone(center=, scale=, layer=, group=)</code></td><td class="sig"><span class="params">Parâmetros: center (ponto, opcional), scale (número), layer (str), group (str ou lista)</span></td><td>o objeto copiado</td><td>Cópia. <code>center=</code> põe a cópia nesse ponto (omitido: onde está o original). Roda <code>setup()</code>. Sem timers / mode / callbacks de clique. Não em SpatialFx. <a href="#spr-clone">Clone</a>.</td></tr>
 <tr><td><code>look_like(outro)</code></td><td class="sig"><span class="params">Parâmetros: other (outro)</span></td><td>—</td><td>Copia a aparência de outro objeto (cor, contorno, visual, complementos). Não em SpatialFx.</td></tr>
 <tr><td><code>prepare_fx(*visuals)</code></td><td class="sig"><span class="params">Parâmetros: visuals (Visual)</span></td><td>—</td><td>Calcula antes a silhueta do Sprite para esses visuais (evita um engasgo na primeira troca). Não faz nada em Shape / Entity.</td></tr>
           </tbody>
@@ -2206,7 +2206,7 @@ set_defaults("coral", line_width=2.0, dash="dot")</pre>
           <tbody>
 <tr><td><code>set_color(…)</code></td><td class="sig"><span class="params">Parâmetros: cores (nome, Color ou RGB; posicionais)</span></td><td>—</td><td>Muda a cor do objeto: interior, contorno e o visual — o mesmo que <code>color=</code> no construtor, com ou sem visual (o contorno é derivado da cor, e um visual de contorno segue esse contorno). Todo visual que aceita <code>color=</code> mostra a nova cor: um visual criado com cor (<code>Neon("red")</code>, <code>Laser("blue")</code>, <code>Rim("gold")</code>…) passa a seguir o objeto, <code>Metal()</code> vira metal da nova cor. Um visual sem <code>color=</code> (<code>Flame</code>, <code>Water</code>, <code>Shield(style="nebula")</code>…) guarda a cor e avisa: ela aparece quando o visual sai. Mesmas formas de cor.</td></tr>
 <tr><td><code>show_handles()</code> / <code>no_handles()</code> / <code>show_points()</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>—</td><td><code>show_handles()</code> mostra marcadores arrastáveis nos pontos que definem o shape (centro, pontas, vértices), para você ajustar com o mouse; <code>no_handles()</code> esconde. <code>show_points()</code> mostra todos os pontos, só para ver. Os marcadores somem com o shape no <code>destroy()</code>.</td></tr>
-<tr><td><code>clone()</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>o objeto copiado</td><td>Cópia livre (a geometria é copiada agora, sem ligações). Não herda timers nem mode.</td></tr>
+<tr><td><code>clone(center=, scale=, layer=, group=)</code></td><td class="sig"><span class="params">Parâmetros: center (ponto, opcional), scale (número), layer (str), group (str ou lista)</span></td><td>o objeto copiado</td><td>Cópia livre (a geometria é copiada agora, sem ligações). <code>center=</code> move a cópia para esse ponto (o centro geométrico cai lá, como em <code>move_to</code>); uma função levanta TypeError (ligue depois: <code>copia.center @= …</code>). Não herda timers nem mode. <code>frame=</code> é só do Sprite.</td></tr>
 <tr><td><code>look_like(outro)</code></td><td class="sig"><span class="params">Parâmetros: other (outro)</span></td><td>—</td><td>Copia a aparência de outro objeto (cor, contorno, visual, complementos).</td></tr>
 <tr><td><code>save_visual()</code> / <code>restore_visual()</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>—</td><td>Lembra a aparência atual (inclui complementos) e volta depois (guarda uma só aparência). Segundo <code>save_visual</code> não faz nada até <code>restore_visual</code>. Diferente de <code>.visual = None</code> (tira o visual; complementos ficam).</td></tr>
           </tbody>
@@ -2643,7 +2643,7 @@ Polygon(points=[(0, 0), (80, 0), (40, 60)], visual=Neon())</pre>
             <tr><th>Propriedade</th><th>Tipo (valor típico)</th><th>Leitura/Escrita</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td><code>.points</code></td><td class="type"><span class="t">lista</span><span class="ex">[(0, 0), (40, 10), (20, 50)]</span></td><td>leitura</td><td>Vértices</td></tr>
+<tr><td><code>.points</code></td><td class="type"><span class="t">lista</span><span class="ex">[(0, 0), (40, 10), (20, 50)]</span></td><td>leitura</td><td>Vértices (um Point cada; a quantidade é fixa). Ligar um vértice: <code>tri.points[1] @= lambda: a.center</code>. Mover um: <code>tri.points[1].move_to(x, y)</code>. <code>tri.points[1] = …</code> e <code>tri["points"] @= …</code> levantam erro com essas formas.</td></tr>
 <tr><td><code>.center</code></td><td class="type"><span class="t">ponto</span><span class="ex">(400, 300)</span></td><td>leitura</td><td>O centro do polígono: a média dos vértices. Só leitura; para mover, use <code>move_to</code> / <code>move_by</code>.</td></tr>
           </tbody>
         </table>
@@ -2789,6 +2789,7 @@ b = Anchor(500, 300, color="lime")</pre>
           </thead>
           <tbody>
 <tr><td><code>.x</code> <code>.y</code></td><td class="type"><span class="t">número</span><span class="ex">400</span></td><td>lê / escreve</td><td>Coordenadas</td></tr>
+<tr><td><code>x, y = p</code></td><td class="type"><span class="t">dois números</span><span class="ex">x, y = ship.center</span></td><td>leitura</td><td>Desempacota as coordenadas de agora (como <code>tuple(p)</code>): uma cópia, os nomes não acompanham o ponto. Vale para Vec2 e <code>mouse</code>. <code>p[0]</code> levanta TypeError: use <code>p.x</code>. Passar o próprio Point continua igual (cópia em <code>center=</code>, ligação em <code>@=</code> / <code>lambda</code>).</td></tr>
 <tr><td><code>.center</code></td><td class="type"><span class="t">ponto</span><span class="ex">p</span></td><td>leitura</td><td>O próprio Point (<code>p.center is p</code>): existe para todo objeto ter <code>.center</code>, como Circle e Sprite. Para mover, escreva <code>.x</code> / <code>.y</code> ou use <code>move_to</code>.</td></tr>
 <tr><td><code>.visible</code></td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td>lê / escreve</td><td>Guia na tela. Sem <code>handle</code>.</td></tr>
 <tr><td><code>.handle</code></td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>lê / escreve</td><td><code>True</code>: o Point aparece e pode ser arrastado com o mouse. Num Point ligado com <code>@=</code>, levanta <code>LinkedAttributeError</code>.</td></tr>
@@ -2842,6 +2843,7 @@ Line(p1=lambda: a.center, p2=lambda: b.center)   # segue o arraste</pre>
 <tr><td><code>Point(canvas.game_view.center)</code> acompanha a vista</td><td>Copia a posição uma vez (<code>game_view</code> é um Box novo a cada leitura). Para acompanhar: <code>Point(lambda: canvas.game_view.center)</code> ou <code>@=</code>. Um único lambda liga o Point inteiro; para um eixo só: <code>Point(lambda: mouse.x, 0)</code>.</td><td>ligação</td></tr>
 <tr><td><code>Point(…, color=…)</code> pode ser arrastado</td><td><code>color=</code> só mostra o marcador. Para arrastar: <code>p.handle = True</code> ou <code>Anchor(…)</code>. Todos os pontos de um shape: <code>shape.show_handles()</code>.</td><td>handle</td></tr>
 <tr><td><code>p.handle()</code></td><td><code>handle</code> é propriedade: <code>p.handle = True</code>.</td><td>método</td></tr>
+<tr><td><code>x, y = ship.center</code> acompanha a nave</td><td>Dois números de agora (uma cópia). Para acompanhar, leia <code>ship.center.x</code> onde precisar ou ligue com <code>@=</code> / <code>lambda</code>.</td><td>ligação</td></tr>
 </tbody>
 </table>
 </div>
@@ -3816,7 +3818,7 @@ naveC = _NAVE.clone(center=(360, 400))</pre>
           </table>
         </div>
         <p><code>layer=</code> é colocação: omitido, usa o padrão da classe; <code>layer=None</code> fica fora da tela (carimbo). <code>group=</code> substitui os grupos inteiros. Clone um carimbo limpo, não um herói já marcado (<code>"shielded"</code> viria junto). Para atirar, construa de novo: <code>Tiro(center=…)</code> custa o mesmo que <code>clone()</code>.</p>
-        <p>Formas, <code>Text</code> e <code>Track</code> seguem a mesma regra: o clone fica igual ao original, com a mesma pose e os mesmos pontos (o <code>p1</code> de um <code>Rect</code> continua sendo o <code>p1</code>). Um <code>Text</code> preso por <code>top_left=</code> gera um clone preso pelo mesmo canto.</p>
+        <p>Formas, <code>Text</code> e <code>Track</code> seguem a mesma regra: o clone fica igual ao original, com a mesma pose e os mesmos pontos (o <code>p1</code> de um <code>Rect</code> continua sendo o <code>p1</code>), e <code>center=</code> o põe em outro lugar (<code>_ROCHA.clone(center=(300, 50))</code>). <code>frame=</code> só existe no Sprite: nos outros levanta TypeError. Um <code>Text</code> preso por <code>top_left=</code> gera um clone preso pelo mesmo canto.</p>
       </div>
       <div class="tab-panel" data-panel="spr-class" id="spr-class">
         <p class="one-liner">Os padrões de aparência vão na linha da classe. Cada instância só diz onde fica.</p>
@@ -5688,7 +5690,7 @@ canvas.frame_to(group["fleet"].box, pad=0.15)  # None = fica parado
 <tr><td><code>canvas.zoom</code></td><td class="type"><span class="t">número</span><span class="ex">1</span></td><td>leitura</td><td>Escala uniforme. <code>1</code> = identidade.</td></tr>
 <tr><td><code>canvas.pan_x</code> / <code>.pan_y</code></td><td class="type"><span class="t">número</span><span class="ex">80</span></td><td>leitura</td><td>Ponto do mundo agora no centro da janela.</td></tr>
 <tr><td><code>canvas.rotation</code></td><td class="type"><span class="t">número</span><span class="ex">1</span></td><td>leitura</td><td>Rotação da vista, em graus.</td></tr>
-<tr><td><code>canvas.game_view</code></td><td class="type"><span class="t">Box</span><span class="ex">canvas.game_view</span></td><td>leitura</td><td>O que a câmera vê agora, no mundo. Câmera parada no início: de <code>(0, 0)</code> a <code>(canvas.width, canvas.height)</code>, centro no meio. Um Box novo a cada leitura. Ver <a href="#colocar-pais">Colocar</a>.</td></tr>
+<tr><td><code>canvas.game_view</code></td><td class="type"><span class="t">Box</span><span class="ex">canvas.game_view</span></td><td>leitura</td><td>O que a câmera vê agora, no mundo. Câmera parada no início: de <code>(0, 0)</code> a <code>(canvas.width, canvas.height)</code>, centro no meio. Um Box novo a cada leitura. Com a câmera girada é o retângulo reto (sem giro) que contém a vista: os cantos dele ficam fora da tela. Ver <a href="#colocar-pais">Colocar</a>.</td></tr>
 <tr><td><code>canvas.ui_view</code></td><td class="type"><span class="t">Box</span><span class="ex">canvas.ui_view</span></td><td>leitura</td><td>A janela inteira, de <code>(0, 0)</code> a <code>(width, height)</code>, para o HUD. Não se mexe com a câmera. Um Box novo a cada leitura.</td></tr>
 <tr><td><code>canvas.cull_offscreen</code></td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>lê / escreve</td><td>Não desenha o que está fora da vista. Padrão <code>True</code>. Os objetos continuam rodando <code>update</code> e colidindo. <code>False</code> desenha tudo: <a href="#mundo-apresentacao">Apresentação</a>.</td></tr>
           </tbody>
@@ -6575,7 +6577,7 @@ band = canvas.playfield.strip("top", 80)  # cópia; .pad não muda</pre>
           <tbody>
 <tr><td><code>canvas.width</code> / <code>.height</code></td><td class="type"><span class="t">número</span><span class="ex">2000</span></td><td>leitura</td><td>Tamanho do espaço de design. Defina em <a href="#init"><code>init(width=…, height=…)</code></a> antes de <code>run()</code>. A janela OS é outra coisa: <a href="#init"><code>window_scale</code></a> e <a href="#mundo-apresentacao"><code>canvas.display</code></a>.</td></tr>
 <tr><td><code>canvas.aspect_ratio</code></td><td class="type"><span class="t">número</span><span class="ex">1.67</span></td><td>leitura</td><td><code>width / height</code>.</td></tr>
-<tr><td><code>canvas.game_view</code></td><td class="type"><span class="t">Box novo</span><span class="ex">canvas.game_view</span></td><td>leitura</td><td>Janela no <strong>mundo</strong> (o que a câmera vê). Para naves, formações, “topo da tela”. Cada leitura é um Box novo.</td></tr>
+<tr><td><code>canvas.game_view</code></td><td class="type"><span class="t">Box novo</span><span class="ex">canvas.game_view</span></td><td>leitura</td><td>Janela no <strong>mundo</strong> (o que a câmera vê). Para naves, formações, “topo da tela”. Cada leitura é um Box novo. Câmera girada: é o retângulo reto que contém a vista girada, maior que a tela.</td></tr>
 <tr><td><code>canvas.ui_view</code></td><td class="type"><span class="t">Box novo</span><span class="ex">canvas.ui_view</span></td><td>leitura</td><td>Janela na <strong>vista</strong> <code>[0, W] × [0, H]</code>. HUD / <code>layer="ui"</code> / Text de vista. Não se mexe com a câmera.</td></tr>
 <tr><td><code>canvas.playfield</code></td><td class="type"><span class="t">playfield</span><span class="ex">canvas.playfield</span></td><td>leitura</td><td>Área de saída para <a href="#reagir-bounds"><code>@leave_playfield</code></a>, fixa no mundo (padrão: o espaço do <code>init</code> com uma margem de 25% em cada lado, ou seja 1,5× maior; não segue a câmera). <strong>Não é Box</strong>. <code>inset</code> / <code>outset</code> / <code>grid</code> / <code>beside</code> / <code>strip</code> devolvem cópias Box e não escrevem <code>.pad</code>. Alias: <code>canvas.bounds</code>.</td></tr>
           </tbody>
@@ -6584,6 +6586,7 @@ band = canvas.playfield.strip("top", 80)  # cópia; .pad não muda</pre>
       </details>
       <p>Não há <code>canvas.center</code> / <code>canvas.screen</code> / <code>canvas.view</code>. Centro do que você vê: <code>canvas.game_view.center</code> (mundo) ou <code>canvas.ui_view.center</code> (HUD).</p>
       <p class="gotcha"><strong>Box cortado de <code>game_view</code> no setup fica no mundo quando a câmera anda.</strong> Em geral o que uma formação quer. Relayout que segue a vista: leia <code>game_view</code> de novo no <code>update</code>. HUD com mundo depois de pan fica errado. Sair da fase: <a href="#reagir-bounds"><code>@leave_playfield</code></a>.</p>
+      <p class="gotcha"><strong>Câmera girada: <code>game_view</code> é maior que a tela.</strong> Ele é o retângulo reto (sem giro) que contém a vista girada, então os cantos dele, e as células de uma grade feita dele, ficam fora da tela; <code>confine(canvas.game_view)</code> deixa o objeto sair pelos cantos. Para prender na tela com a câmera girada, gire a região junto: <code>Box(center=canvas.game_view.center, width=canvas.width / canvas.zoom, height=canvas.height / canvas.zoom, angle=-canvas.rotation)</code>.</p>
     </section>
 
     <section class="section prose" id="colocar-fase">
@@ -6896,7 +6899,7 @@ def on_mouse_scroll(xoffset, yoffset):
     factor = 1.1 if yoffset > 0 else 1 / 1.1
     canvas.zoom_by(factor, about=mouse)</pre>
       </div>
-      <p><code>mouse</code> é um <a href="#ponto-like">ponto</a>: vale onde a API espera um lugar (<code>move_to(mouse)</code>, <code>query_point(mouse)</code>, <code>about=mouse</code>…). Isso copia a posição agora. Para acompanhar: <code>Circle(center=lambda: mouse)</code> ou <code>center @= mouse</code>.</p>
+      <p><code>mouse</code> é um <a href="#ponto-like">ponto</a>: vale onde a API espera um lugar (<code>move_to(mouse)</code>, <code>query_point(mouse)</code>, <code>about=mouse</code>…). Isso copia a posição agora. Para acompanhar: <code>Circle(center=lambda: mouse)</code> ou <code>center @= mouse</code>. Dois números de uma vez: <code>x, y = mouse</code> (também uma cópia).</p>
       <details class="spec" open>
       <summary>Neste mouse</summary>
         <div class="tbl-wrap">
@@ -6906,7 +6909,7 @@ def on_mouse_scroll(xoffset, yoffset):
             <tr><th>Propriedade</th><th>Tipo (valor típico)</th><th>Leitura/Escrita</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td><code>mouse.x</code> / <code>.y</code></td><td class="type"><span class="t">número</span><span class="ex">300</span></td><td>leitura</td><td>Posição do ponteiro em unidades de design, no espaço do mundo (a câmera já é levada em conta).</td></tr>
+<tr><td><code>mouse.x</code> / <code>.y</code></td><td class="type"><span class="t">número</span><span class="ex">300</span></td><td>leitura</td><td>Posição do ponteiro em unidades de design, no espaço do mundo (a câmera já é levada em conta). Lida uma vez por frame: depois de <code>canvas.pan_by</code> / <code>zoom_by</code> no mesmo <code>update</code>, <code>mouse.x</code> ainda é o valor de antes da câmera andar, até o próximo frame. <code>x, y = mouse</code> copia os dois de uma vez.</td></tr>
 <tr><td><code>mouse.dx</code> / <code>.dy</code></td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>leitura</td><td>Quanto o ponteiro andou desde o frame anterior, em unidades.</td></tr>
           </tbody>
         </table>
@@ -6951,7 +6954,7 @@ def update(dt):
             </tbody>
           </table>
         </div>
-        <p class="gotcha"><strong><code>["center"] @= mouse</code> é <strong>colocação</strong>.</strong> Como é colocar (não viajar), o objeto atravessa as paredes de <code>resolve()</code>. Para clicar ou arrastar um objeto: <a href="#reagir-pointer">Clique / arraste</a>. <code>mouse.x</code> / <code>.y</code> estão no espaço do mundo; um objeto do HUD (camada <code>"ui"</code>) fica preso à janela, então essas coordenadas não servem direto nele.</p>
+        <p class="gotcha"><strong><code>["center"] @= mouse</code> é <strong>colocação</strong>.</strong> Como é colocar (não viajar), o objeto atravessa as paredes de <code>resolve()</code>. Para clicar ou arrastar um objeto: <a href="#reagir-pointer">Clique / arraste</a>. <code>mouse.x</code> / <code>.y</code> estão no espaço do mundo; um objeto do HUD (camada <code>"ui"</code>) fica preso à janela, então essas coordenadas não servem direto nele: com a câmera em pan / zoom, <code>botao.contains_point(mouse)</code> responde no mundo e erra. Para saber se o ponteiro está sobre um objeto do HUD, leia <code>botao.pointer_hover</code> (o clique e o hover já usam a vista).</p>
         <p class="gotcha"><strong><code>@=</code> para <code>mouse</code> / <code>mouse.x</code> está vivo no primeiro frame desenhado.</strong> O motor amostra o ponteiro quando a janela abre (e de novo se a câmera andar com o cursor parado). <code>Circle(center=mouse)</code> ou <code>center=(mouse.x, mouse.y)</code> no corpo do script ainda é <code>(0, 0)</code>: não há janela no <code>init</code>. <code>mouse.dx</code> / <code>on_mouse_move</code> não disparam nessa amostra.</p>
       </details>
       <p class="name-group">Não confundir</p>
@@ -8843,7 +8846,7 @@ def unlit(card):
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
 <pre>if ship.contains_point(mouse):
-    ...  # este objeto (pelo desenho). Também contains_point(x, y)
+    ...  # este objeto (pelo desenho), no mundo. Também contains_point(x, y)
 
 def on_update(self, dt):
     self.set_color("gold" if self.pointer_hover else "gray")  # nível, não evento
@@ -8972,7 +8975,7 @@ token.on_drag_to = on_drag</pre>
             <tr><th>Método</th><th>Assinatura</th><th>Retorna</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td><code>contains_point(x, y=None)</code></td><td class="sig"><span class="params">Parâmetros: x (um ponto, ou o número x com y)</span></td><td>True/False</td><td>Este objeto contém o ponto? Geometria de <em>desenho</em> (o mesmo teste do clique). Point, tupla, mouse, Graphic. Sprite: alfa do frame atual, não o retângulo do PNG nem o hitbox. Circle: a fatia pintada (pizza ou segmento). Rect <code>corner_radius</code>: o clique segue o canto; a colisão continua o retângulo.</td></tr>
+<tr><td><code>contains_point(x, y=None)</code></td><td class="sig"><span class="params">Parâmetros: x (um ponto, ou o número x com y)</span></td><td>True/False</td><td>Este objeto contém o ponto? Geometria de <em>desenho</em> (a mesma forma que o clique testa). Point, tupla, mouse, Graphic. O ponto está no mundo: num objeto da camada <code>"ui"</code> com a câmera em pan / zoom / giro, <code>contains_point(mouse)</code> não é o clique — use <code>pointer_hover</code>. Sprite: alfa do frame atual, não o retângulo do PNG nem o hitbox. Circle: a fatia pintada (pizza ou segmento). Rect <code>corner_radius</code>: o clique segue o canto; a colisão continua o retângulo.</td></tr>
 <tr><td><code>show_handles()</code> / <code>show_points()</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>—</td><td><code>show_handles()</code> mostra os pontos livres que definem a forma (cantos, centro, pontas) como alças de arraste: bolinhas que você arrasta com o mouse para mudar a forma. <code>show_points()</code> só marca todos os pontos, sem arraste, para conferir a geometria. Uma <code>Anchor</code> já nasce como alça de arraste, na camada <code>top</code>.</td></tr>
 <tr><td><code>move_to_front()</code> / <code>move_to_back()</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>—</td><td>Ordem dentro da camada. Um objeto em <code>layer="top"</code> fica por cima dos da camada <code>"default"</code> (a padrão), seja qual for a ordem.</td></tr>
           </tbody>
@@ -9313,6 +9316,7 @@ def caught(me, star, info):
             </table>
           </div>
           <p>“Sem bounce” em português costuma significar <code>bounce=0.0</code>; omitir o parâmetro é <em>só posição</em>. <code>.mass</code> decide <em>quem</em> absorve o choque; <code>bounce=</code> decide <em>quanto</em> da velocidade normal sobrevive. Duas massas iguais com <code>bounce=0</code> terminam juntas — não é bug.</p>
+          <p class="gotcha"><strong>Não há atrito.</strong> As superfícies são lisas: <code>bounce=0</code> tira só a velocidade que entra na parede, e a de lado fica para sempre — a bola escorrega rampa abaixo e uma pilha nunca para. Freie você mesmo no <code>on_update(self, dt)</code>: <code>self.vel.x *= 0.5 ** dt</code> (perde metade da velocidade de lado por segundo, igual em qualquer taxa de quadros).</p>
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
 <pre>ball = Circle(center=(200, 200), radius=15)
@@ -9835,7 +9839,7 @@ v &lt;&lt; vec_from_angle(90, v.length)   # muda só o rumo (comprimento fica 2)
 <tr><td><code>.reflect_about(normal)</code></td><td class="sig"><span class="params">Parâmetros: normal (Vec2)</span></td><td>Vec2</td><td>Quique numa superfície com essa normal: <code>Vec2(1, -1).reflect_about(Vec2(0, 1))</code> → <code>(1, 1)</code>.</td></tr>
 <tr><td><code>.perp_left()</code> / <code>.perp_right()</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>Vec2</td><td>Perpendicular à esquerda / à direita.</td></tr>
 <tr><td><code>.clamp_length(min_length, max_length)</code></td><td class="sig"><span class="params">Parâmetros: min_length (número), max_length (número)</span></td><td>Vec2</td><td>Mesmo rumo, comprimento preso entre <code>min_length</code> e <code>max_length</code>: <code>vel.clamp_length(0, 300)</code> limita a velocidade a 300.</td></tr>
-<tr><td><code>.to_tuple()</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>(x, y)</td><td>Par de números.</td></tr>
+<tr><td><code>.to_tuple()</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>(x, y)</td><td>Par de números. Também <code>x, y = v</code> (cópia de agora). <code>v[0]</code> levanta TypeError: use <code>v.x</code>.</td></tr>
           </tbody>
         </table>
       </div>
@@ -9942,7 +9946,7 @@ abaixo = nave.center - (0, 20)</pre>
 <tr><td><code>ponto + (dx, dy)</code></td><td class="sig"><span class="params">(dx, dy) ou Vec2</span></td><td>Point</td><td>Translação. Também <code>(dx, dy) + ponto</code>. <code>ponto - (dx, dy)</code> anda para o outro lado. <code>ponto - outro</code> é o Vec2 entre os dois. <code>ponto + outro</code> levanta <code>TypeError</code> — para o meio, use <code>middle_point</code>. O resultado não entra no jogo.</td></tr>
 <tr><td><code>ponto += (dx, dy)</code></td><td class="sig"><span class="params">—</span></td><td>erro</td><td><code>TypeError</code>, de propósito: <code>+=</code> colocaria o objeto direto no lugar, atravessando paredes. Viajar: <code>move_by</code>. Colocar: <code>center = center + (dx, dy)</code>.</td></tr>
 <tr><td><code>ponto == outro</code></td><td class="sig"><span class="params">—</span></td><td>True/False</td><td>Num Point, <code>==</code> compara o objeto, não a posição: <code>c.center == (400, 120)</code> é sempre False, e dois Points diferentes no mesmo lugar também não são iguais (o Scena avisa nos dois casos). Mesma posição: <code>distance(c.center, (400, 120)) == 0</code>, ou <code>&lt; 1</code> se o movimento não chega exato. Mesmo objeto: <code>a is b</code>. Num <code>Vec2</code> ou numa tupla, <code>==</code> compara a posição.</td></tr>
-<tr><td><code>shape.contains_point(x, y=None)</code></td><td class="sig"><span class="params">Parâmetros: x (um ponto, ou o número x com y)</span></td><td>True/False</td><td>Este objeto contém o ponto? Clique / desenho — <a href="#reagir-pointer">Clique / arraste</a>. Não é <code>closest_point</code> nem <code>query_point</code>.</td></tr>
+<tr><td><code>shape.contains_point(x, y=None)</code></td><td class="sig"><span class="params">Parâmetros: x (um ponto, ou o número x com y)</span></td><td>True/False</td><td>Este objeto contém o ponto (no mundo)? Desenho — <a href="#reagir-pointer">Clique / arraste</a>. Não é <code>closest_point</code> nem <code>query_point</code>. Objeto da camada <code>"ui"</code> sob câmera: <code>pointer_hover</code>.</td></tr>
 <tr><td><code>box.contains_point(x, y=None)</code></td><td class="sig"><span class="params">Parâmetros: x (um ponto, ou o número x com y)</span></td><td>True/False</td><td><code>True</code> se o ponto está dentro desta caixa. Um Box é só uma área: não recebe cliques. Para saber a casa de um tabuleiro: <code>grid.cell_at</code> — <a href="#colocar-box">Colocar</a>.</td></tr>
           </tbody>
         </table>

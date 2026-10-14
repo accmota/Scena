@@ -489,6 +489,9 @@ offset / `flip_x` / `flip_y` / `art_angle`), then `look_like()`. Passing the res
 re-parse. Hitbox re-bake is a cache hit when `frame` is unchanged. Same cost class as
 constructing the same path again — `clone()` is not a cheaper spawn. Class look defaults
 do **not** re-bind a clone: the instance sheet and live flip / `art_angle` win.
+`center=` places the copy on every kind (Sprite / Svg / Text through the
+constructor; a Shape is moved there after its pose — [Shapes — clone](Shapes%20Design.md#clone));
+`frame=` is Sprite-only and refuses elsewhere (`_clone_takes_frame`).
 
 Does **not** own the source. No `Template` type, no registry, no “first live instance is
 the proto.” Not on bare `Entity` (no visual/geometry worth cloning; `scale=` / style do

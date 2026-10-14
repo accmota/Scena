@@ -330,6 +330,23 @@ For **in-`__init__` model-relation wiring** written as `self.<part>.assign_formu
   `__eq__` is looked through) naming `distance(a, b) == 0` and `a is b`.
   Engine compares stay silent. The price: an author `p in pontos` holding
   another Point on the same spot warns too. Bug PE1 (Testing Design).
+- **Unpacking is a value snapshot.** `x, y = ship.center`, `tuple(p)`, `print(*p)`
+  read the two floats now (like `track.at()`); the names do not follow the point.
+  `Vec2` and `mouse` iterate the same way (PB6 / PD8 / PC4, 2026-10-14: Python's
+  old iteration fallback called `p[0]` through the field bracket and raised
+  "field name must be a str, got int"). `p[0]` raises `TypeError` naming `p.x` /
+  `x, y = p`; `p["x"] @= …` still links an axis. A Graphic does not iterate
+  (`x, y = ship` names `ship.center`; the `.x` / `.y` fence below). A field
+  handle (`st["pos"]`, `p["x"]`) is not a value and does not iterate.
+  **The protocol does not change what a Point means as an argument.** Every
+  entry reads a point by type (`_read_xy`, `get_xy`, `_init_composite`,
+  `lerp`, `_pair_numbers` take a tuple / list only), so `center=A` still copies,
+  `center @= A` / `lambda: A` still link, `middle_point(A, B)` in a formula
+  still follows. Iterable but not a `Sequence` (no `__len__`): `hitbox` /
+  frame / numpy paths keep refusing a Point. An entry that takes a **list of
+  points** tests `_scena_point_value` (Point, Vec2, Mouse) first, so one point
+  is not read as two items: `Polygon(points=p)`, `nearest(origin, p)` refuse.
+  Guard: `tests/test_point_unpack.py`.
 - `shape.show_handles()` / `no_handles()` bulk-opt free Defining Points.
 - `shape.show_points()` / `hide_points()` — debug: all Point parts (incl. Derivates);
   materializes cold Derivates while shown; hide releases liveness if unused.
@@ -514,6 +531,19 @@ Derivate: `centroid` (`Point`, **vertex average** — not the true area centroid
 
 `center` is a plain `@property` aliasing `centroid` (uniform pivot API, matching `Point`/`Rect`/`Circle`/`Ellipse`).
 
+**Linking a vertex: `poly.points[i] @= f`.** `.points` is a `_VertexTuple` (a
+tuple of the vertex Points): Python runs `points[i] @= f` as `v = points[i];
+v @= f; points[i] = v`, and the view takes its own vertex back, as `line.p1 @= f`
+stores `p1` back through its route. A plain tuple refused that store after the
+link was installed (PC3, 2026-10-14: "'tuple' object does not support item
+assignment", against W3). Any other store (`points[i] = (x, y)`) refuses with
+`points[i].move_to(x, y)` / `@=`. The vertex count is fixed: `poly["points"] @=`
+and `poly["v1"] @=` refuse naming `points[i] @=` (`_ink_name_refusal`; they made
+dead ink, PC2), and so does `poly.v1 = …`. Fence: no `poly["v1"]` vertex
+spelling — one way to name a vertex, `points[i]`. A RegularPolygon's vertices
+are computed: `rp.points[i] @= f` raises `DerivedAttributeError` before the
+store, and `rp.points[i] = …` names center / radius / angle.
+
 Construction pitfall: all N vertices must be created and registered as parts (`owner=self`) *before* any of them are wired with `assign_formula`, otherwise the first `assign_formula` call triggers a premature `_update_impl` against a partial (or empty) vertex list. See the two-pass loop in `Polygon.__init__`.
 
 ## Transforms
@@ -639,7 +669,7 @@ for transforms, drag grab-offset, and `set_center`.
 | `scale_by(f, *, about=None, force=False)` | Multiply scale about pivot |
 | `angle` / `scale` setters | `angle` is the heading field (Geometry contract — "Setting `angle`"). Where it is one of the model's inputs (`Rect` / `Square` / `Ellipse` placed by center / `RegularPolygon` / `EquilateralTriangle` / `Line` placed by `center` or `p1` + `angle` / `Circle` placed by center), it **is** the geometry slot: `=`, `@=` and the constructor keyword agree, and setting it keeps the model's other inputs (center, `top_left`, `p1`, `vertex`; a `p1=, p2=` Rect leans). Where the heading is derived from the placement points (Line `p1=, p2=`, Rect spine, Ellipse foci, a Circle placed by its rim, a free Polygon), setting it is `rotate_to` about the center and `@=` drives `rotate_to` through a `_PropertyAnchor` (`_DerivedRotationRoute`, `_HEADING_FIELD = "angle"`; it used to raise `DerivedAttributeError`). Kinds with no heading input (Point, Sprite, Svg, Track) alias `rotate_to` about center through the Graphic `angle` property; `Text.angle` turns about its anchor when it has one. `scale` everywhere aliases `scale_to` **about center** via `_PropertyAnchor` (no `about=`). Constructor `angle=` exists on every kind with a heading input and on Sprite / Svg / Text / Track (`Graphic._init_heading`: a number sets, a function links); not on free Polygon or derived models (it would rewrite the given points, K5). `Track.line` / `Track.shuttle` build the segment along +x and take `angle=` as the heading. A field write to a property-backed name (`Graphic._write_field` — e.g. a `tween(shape["angle"], …)` tick) goes through the property setter too; `_resolve_field` still reports the ink-shaped slot for linking, so the ink write path must never see these names (system-test finding S10: every such tween crashed on its first tick) |
 | `rest_heading` / `reset_rotation()` | `rest_heading` is `0`; `reset_rotation()` → `rotate_to(0)` |
-| `clone(*, scale=1.0, layer=…, group=…)` | Free value+style copy (no formula links); optional uniform scale about center. Omit `group=` to copy source groups; omit `layer=` for the class default; `layer=None` is undrawn |
+| `clone(*, center=None, scale=1.0, layer=…, group=…)` | Free value+style copy (no formula links); `center=` places the copy (a point, read now); optional uniform scale about center. Omit `group=` to copy source groups; omit `layer=` for the class default; `layer=None` is undrawn |
 
 Default pivot (`about=None`) is `shape.center` (Point: self). For `rotate_*` / `scale_*` that point stays fixed; for `move_to` that point lands on the target. Override with any `GeneralPoint` (`about=rect.top_left`, a tuple, a `Vec2`, mouse). `move_to` also takes one point-like in place of `(x, y)` (Point, Vec2, tuple, Graphic, mouse). `move_to(x)` with a number still sets x only. `move_by` does not take a location.
 
@@ -678,6 +708,15 @@ c3 = circle.clone(scale=1.2)  # 120% about center
   Track copies freeze the drawn table in the track's own frame and keep the pose
   as pose ([Tracks Design](Tracks%20Design.md)); Text copies keep their anchor
   form ([Canvas Design](Canvas%20Design.md)).
+- **`clone(center=)` places the copy** on every kind (PC1, 2026-10-14: a Shape's
+  recipe ignored it, while Sprite / Svg / Text honoured it). Sprite / Svg / Text
+  pass it to their constructor; a Shape (`_clone_places_center`) copies the
+  geometry where it is, takes the pose, then `move_to(center)` — the true
+  geometric center lands there, as for `move_to` (`clone(scale=)` scales about
+  it after). The point is read before the copy exists (`Graphic._clone_center_xy`:
+  any point-like, a snapshot); a function refuses (link the copy after:
+  `copy.center @= …`). `frame=` refuses on every kind without sheet frames
+  (`_clone_takes_frame`: Sprite only), where it was ignored.
 - Does **not** copy interaction callbacks / flags (except Anchor, which is
   always draggable by construction).
 - Omit `group=` copies the source's current groups; `group=` replaces (not a merge).
@@ -979,6 +1018,17 @@ answer (decided 2026-10-09, review S6-8). Sprite samples the **current frame's a
 hitbox. Circle's pointer test follows the filled arc (pie or chord);
 `intersections` stays the full circumference. Rect `corner_radius` rounds
 the pointer fill; collision stays the oriented box.
+
+**The point is in world coordinates; a `ui` shape is hit in view coordinates.**
+The pointer walk passes a `ui`-layer Graphic the view pointer and a world one
+the world pointer (`_still_hovered`, the hit lists). `contains_point` itself
+takes one point and never changes its space, so on a `ui` shape under a panned
+/ zoomed / turned camera `contains_point(mouse)` (world) is not the click test
+(PC7, 2026-10-14). The HUD test is `pointer_hover`. Fence: `contains_point(mouse)`
+does not read the view pointer because its argument is the `mouse` object — the
+same call with `(mouse.x, mouse.y)` would then answer differently (a silent
+rewrite by argument identity); revisit if a taught HUD needs a hover test that
+`pointer_hover` cannot express.
 
 | Kind | Test |
 |------|------|

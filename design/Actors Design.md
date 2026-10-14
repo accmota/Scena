@@ -632,7 +632,18 @@ with the same first letter, and for candidates ≥ 5 letters one **adjacent swap
 away at any position (`anlge`, `widht`, `aplha`, `lyaer`, `gruop`, `nagle` →
 `angle`; `scena.closed.transposed`). Never for `on_*` or plurals, and checked
 once per (class, name) — so `hp`, `player`, `flame`, `weight` stay ink, and so do
-plain deletions on short names (`coor`, `laer`). **Look-family** names that belong to another kind (`circle.alpha`,
+plain deletions on short names (`coor`, `laer`). **An exact name of the class
+is never ink** (PC2): a method (`c["move_to"] @=`), a read-only property
+(`tri["points"] @=`, `poly["pointer_hover"] @=`, `rect["box"] @=`), a settable
+property `@=` cannot link (`track["is_floating"] @=`), or a size / point word
+the kind lacks (`circle["top_left"] @=`) refuses the bracket with the message
+`=` gives (`_ink_exact_name_message`, read from the route table, before the
+near-miss rules; strict kinds `Point` / `Line` too). A class can name its own
+near-fields first (`_ink_name_refusal`: Polygon `points` / `v0`…`vN` point to
+`poly.points[i] @=`). Before, `=` refused through the route (R8) but `@=` made
+a dead ink field beside the method or property. Guard:
+`test_fieldref.TestBracketRefusesWhatAssignRefuses` (every kind × every refused
+route name). **Look-family** names that belong to another kind (`circle.alpha`,
 `text.alpha`, `entity.line_width`) raise too: they would otherwise land on a dead
 attribute (`_LOOK_MISSING` route). **`x` / `y` on a Graphic or SpatialFx** raise
 `AttributeError` and do not become ink — position is `.center` (`ship.center.x`,
