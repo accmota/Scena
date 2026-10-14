@@ -81,8 +81,21 @@ class TestActRefusesTheTopLevelSpellings(unittest.TestCase):
                 def update(self, dt):
                     pass
         msg = str(cm.exception)
-        self.assertIn("Fase.update(self, dt) would never be called", msg)
+        self.assertIn("Fase.update(self, dt): update is reserved", msg)
         self.assertIn("on_update(self, dt)", msg)
+
+    def test_update_of_any_signature_is_refused_and_quoted(self):
+        # An act is a Container too: a helper ``def update(self)`` shadows the
+        # engine's recalculation of linked fields. The message quotes the
+        # method as written (release audit C15).
+        for body, quoted in (("def update(self):\n    pass", "Fase.update(self)"),
+                             ("def update(self, a, b):\n    pass", "Fase.update(self, a, b)")):
+            with self.subTest(quoted=quoted), self.assertRaises(TypeError) as cm:
+                ns = {}
+                exec(body, ns)
+                type("Fase", (Act,), {"update": ns["update"], "__module__": __name__})
+            self.assertIn(quoted, str(cm.exception))
+            self.assertIn("another name", str(cm.exception))
 
     def test_every_top_level_input_callback_names_the_act_way(self):
         for name in _TOP_LEVEL_INPUT_HOOKS:

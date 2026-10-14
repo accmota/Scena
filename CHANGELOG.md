@@ -48,7 +48,7 @@ left out.
   point. Before, it raised "field name must be a str, got int". Passing the
   point itself is unchanged: `center=p` copies, `center @= p` and
   `lambda: p` follow. `p[0]` raises `TypeError` naming `p.x` (a point has no
-  index), and `x, y = ship` names `ship.center`.
+  index), and `x, y = ship` points to the object's position (`ship.center`).
 
 ### Changed
 
@@ -104,7 +104,8 @@ left out.
   object, not its position, so `elevador.center == (400, 120)` was always
   False (and `!=` always True), even with the elevator there, and nothing
   said so. It still is: Points stay objects, which sets, dicts and the engine
-  rely on. What is new is the SCENA WARNING, once per line, when your code
+  rely on. What is new is a warning in the console (a Python `RuntimeWarning`
+  pointing at your line), once per line, when your code
   compares a Point with a tuple, a list or a `Vec2` (either side), or with
   another Point at the same position. To test the position:
   `distance(elevador.center, (400, 120)) == 0`, or `< 1` when the motion
@@ -123,9 +124,9 @@ left out.
   `change_act` in a handler still stops the leaving act's handlers. The
   contact's `@collide_exit` now runs after its remaining handlers, so an
   enter `+= 1` / exit `-= 1` counter reads enter, then exit (before, the exit
-  ran inside the `destroy()`, ahead of them); only the destroyed object's own
-  exit hooks (`on_collide_exit`, `@collide_with_exit`) still run inside its
-  `destroy()`, while it exists.
+  ran inside the `destroy()`, ahead of them). Still inside its `destroy()`,
+  while it exists: the destroyed object's own exit hooks (`on_collide_exit`,
+  `@collide_with_exit`) and the exits of its other contacts.
 - Shift held no longer hides a bare key: `keyp("RIGHT")`, `keyp.once("SPACE")`,
   `"SPACE" in keyp` and `on_key_down("SPACE")` / `on_key` read True / arrive
   while Shift is held, so "hold Shift to run" keeps walking and jumping.
@@ -152,7 +153,7 @@ left out.
   is in the space of the shape whose handler runs: the dragged shape's for
   `@drag_to` / `@drag_over`, the target's for `@drop_by` (the same point when
   both share a space, or with no camera).
-- A lambda (or a nested `def`, or a `functools.partial`) that uses `self`
+- A lambda (or a nested `def`, or a `functools.partial` of `self`'s method) that uses `self`
   inside an actor's method is owned by that actor, like the method itself:
   `after(0.1, lambda: self.set_color("red"))` in `on_update` now ends when the
   actor is destroyed, as `after(0.1, self.piscar)` already did. Before, it
@@ -173,8 +174,10 @@ left out.
   SCENA WARNING (the amber banner) and names the unlink spelling
   (`Text['text'].unlink()`).
 - A class-body method the engine would never call raises `TypeError` at the
-  class line, naming the right hook: `def update(self, dt)` in any actor or
-  act class (the hook is `on_update`; on a Shape or Sprite, `update` replaced
+  class line, naming the right hook: a method named `update` (any signature,
+  even a helper `def update(self)`) in any actor or act class (`update` is
+  Scena's own recalculation of linked fields; the per-frame hook is
+  `on_update`; on a Shape or Sprite, `update` replaced
   Scena's own recalculation and the object crashed when made, with "missing 1
   required positional argument: 'dt'"); a top-of-file input function
   (`on_key_down`, `on_mouse_click`, …) in a class (in an act: `keyp.once` /

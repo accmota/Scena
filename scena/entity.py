@@ -322,6 +322,15 @@ def _plain_function(raw) -> bool:
     )
 
 
+def _signature_text(fn) -> str:
+    """``(self, dt)`` as written, for a message; ``(...)`` if unreadable."""
+    import inspect
+    try:
+        return str(inspect.signature(fn))
+    except (TypeError, ValueError):
+        return "(...)"
+
+
 def _check_class_hook_names(cls) -> None:
     """Refuse a class-body method the engine would never call, at the class
     line (review 2026-10-14 PA3 / PC5).
@@ -349,16 +358,23 @@ def _check_class_hook_names(cls) -> None:
         if not _plain_function(raw):
             continue
         if name == "update":
+            # Any signature: ``update`` is ``Container.update`` (the graph
+            # recalculation) on an act as on an actor, so even a helper
+            # ``def update(self)`` shadows it (release audit C15).
+            sig = _signature_text(raw)
             if is_act:
                 raise TypeError(
-                    f"{who}.update(self, dt) would never be called: in an act the "
-                    f"per-frame hook is on_update(self, dt). (update(dt) is the "
-                    f"top-of-file spelling.) Rename it on_update."
+                    f"{who}.update{sig}: update is reserved in an act too (it is the "
+                    f"engine's own recalculation of linked fields), so the engine "
+                    f"would not call it per frame. The per-frame hook is "
+                    f"on_update(self, dt) (update(dt) is the top-of-file spelling); "
+                    f"a helper of your own needs another name."
                 )
             raise TypeError(
-                f"{who}.update(self, dt): an actor's per-frame hook is "
+                f"{who}.update{sig}: an actor's per-frame hook is "
                 f"on_update(self, dt). update is reserved: it is the engine's own "
-                f"recalculation of the object's linked fields. Rename it on_update."
+                f"recalculation of the object's linked fields. Rename it on_update "
+                f"(a helper of your own needs another name)."
             )
         if name in _TOP_LEVEL_INPUT_HOOKS:
             raise TypeError(_top_level_hook_message(who, name, is_act))
