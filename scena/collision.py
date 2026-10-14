@@ -4726,6 +4726,13 @@ class CollisionSystem:
         # An author handler ran in this step's dispatch (W-G1).
         self._author_ran = False
         self._exit_pending: Set[Tuple[int, int]] = set()
+        # Tags a collider left while touching (``untag`` / group change):
+        # {id(collider): (collider, {tag: {partner ids touching then}})}. The
+        # exit of such a contact still matches that tag's handlers (PB1); a
+        # contact begun later does not. Two generations, rotated per step: a
+        # tag left in a handler of step N is matched by step N + 1's exit.
+        self._left_tags: Dict[int, Tuple[Collider, Dict[str, Set[int]]]] = {}
+        self._left_tags_old: Dict[int, Tuple[Collider, Dict[str, Set[int]]]] = {}
         # Bumped when a collider leaves or a pair handler is removed: a
         # dispatch whose epoch moved re-checks liveness and registration
         # before each later handler (S8-2, S4-1). One int compare otherwise.
@@ -4908,6 +4915,11 @@ class CollisionSystem:
             self._forget_collider_tags(collider)
             self._forget_partner_entry(collider)
             self._invalidate_partner_cache_for_enroll()
+            if self._left_tags or self._left_tags_old:
+                # Its exits ran above; hold no dead body (a registry keeps
+                # a dead owner).
+                self._left_tags.pop(id(collider), None)
+                self._left_tags_old.pop(id(collider), None)
 
     def _invalidate_partner_cache(self) -> None:
         """Drop cached resolve partner identities (enroll / pair graph changed)."""
@@ -6336,6 +6348,9 @@ class CollisionSystem:
 
     def step(self) -> None:
         t_total0 = time.perf_counter()
+        if self._left_tags or self._left_tags_old:
+            self._left_tags_old = self._left_tags
+            self._left_tags = {}
         self._prune_dead()
         # Linked hitbox ``active`` (``hb["active"] @= fn``): evaluated here, after
         # update / on_update / play(), so collision sees this frame's value.
@@ -8715,6 +8730,11 @@ class CollisionSystem:
             # Act teardown: two bodies leaving together owe each other no exit.
             return
         attr = _PHASE_CALLBACK[phase]
+        if phase == _PHASE_EXIT:
+            # Exit handlers are chosen before any of them runs: one that
+            # destroys or untags a side must not hide the rest (PB3), and a
+            # tag a side left while touching still matches (PB1).
+            exit_matches = self._exit_matches(ca, cb)
         # A handler may destroy or park a side, or change act (which drops
         # the act's handlers). Checked after each handler that ran, by one
         # int compare: a dead side ends enter / stay (S8-2), and a handler no
@@ -8732,6 +8752,18 @@ class CollisionSystem:
                     if phase != _PHASE_EXIT and (
                             not self._collider_in_play(ca) or not self._collider_in_play(cb)):
                         return
+
+        if phase == _PHASE_EXIT:
+            for ta, tb, handler, me, other in exit_matches:
+                if changed and not any(
+                        e[2] is handler and e[0] is ta and e[1] is tb for e in self._pair_handlers):
+                    continue
+                oriented = self._oriented_info(me, other, ca, info, phase)
+                self._author_ran = True
+                _call(handler, me._identity, other._identity, oriented)
+                if self._dispatch_epoch != epoch:
+                    changed = True
+            return
 
         # This phase's handlers only, from a snapshot rebuilt when the list
         # changes (review 2026-10-09 perf: every contact copied and filtered
@@ -8761,6 +8793,77 @@ class CollisionSystem:
                 if phase != _PHASE_EXIT and (
                         not self._collider_in_play(ca) or not self._collider_in_play(cb)):
                     return
+
+    def _exit_matches(self, ca: Collider, cb: Collider) -> list:
+        """The exit handlers matching ``ca`` × ``cb`` now, as
+        ``(ta, tb, handler, me, other)``. A tag either side left while
+        touching the other (``_note_left_tag``) still counts as a member."""
+        left_a = self._left_tags_of(ca, cb)
+        left_b = self._left_tags_of(cb, ca)
+        tag_index = self._tag_index
+        ida, idb = id(ca), id(cb)
+        out = []
+        for ta, tb, handler, _phase, key_tag in self._phase_handlers(_PHASE_EXIT):
+            if key_tag is not None and not left_a and not left_b:
+                idx = tag_index.get(key_tag)
+                if not idx or (ida not in idx and idb not in idx):
+                    continue
+            if left_a or left_b:
+                matched = self._pair_matches_left(ta, tb, ca, cb, left_a, left_b)
+            else:
+                matched = self._pair_matches(ta, tb, ca, cb)
+            if matched:
+                out.append((ta, tb, handler, matched[0], matched[1]))
+        return out
+
+    def _left_tags_of(self, c: Collider, partner: Collider):
+        """Tags ``c`` left while touching ``partner`` (recent steps), or None."""
+        found = None
+        pid = id(partner)
+        for gen in (self._left_tags, self._left_tags_old):
+            entry = gen.get(id(c))
+            if entry is None or entry[0] is not c:
+                continue
+            for tag, partners in entry[1].items():
+                if pid in partners:
+                    if found is None:
+                        found = set()
+                    found.add(tag)
+        return found
+
+    def _pair_matches_left(self, ta, tb, ca, cb, left_a, left_b):
+        def on(c, target, left):
+            if self._collider_on_side(c, target):
+                return True
+            if not left:
+                return False
+            tag = self._pair_tag_of(target)
+            return tag is not None and tag in left
+        if on(ca, ta, left_a) and on(cb, tb, left_b):
+            return ca, cb
+        if on(cb, ta, left_b) and on(ca, tb, left_a):
+            return cb, ca
+        return None
+
+    def _note_left_tag(self, c: Collider, tag: str) -> None:
+        """``c`` is leaving ``tag``: remember its current partners, so the
+        exit of those contacts still runs that tag's handlers (PB1)."""
+        idx = self._tag_index.get(tag)
+        if not idx or id(c) not in idx or not self._prev_contacts:
+            return
+        cid = id(c)
+        partners = set()
+        for k in self._prev_contacts:
+            if k[0] == cid:
+                partners.add(k[1])
+            elif k[1] == cid:
+                partners.add(k[0])
+        if not partners:
+            return
+        entry = self._left_tags.get(cid)
+        if entry is None or entry[0] is not c:
+            entry = self._left_tags[cid] = (c, {})
+        entry[1].setdefault(tag, set()).update(partners)
 
     def _phase_handlers(self, phase: str) -> tuple:
         """The pair handlers of ``phase``, as a tuple (a snapshot: a handler
@@ -9878,6 +9981,7 @@ def notify_group_remove(item, tag: str) -> None:
     c = getattr(routed if routed is not None else item, "_collider", None)
     if c is None:
         return
+    sys._note_left_tag(c, tag)
     sys._tag_remove(tag, c)
     sys._prune_pair_targets(c)  # D6: targets that tag implied go too
     if getattr(item, "_resolve_enrolled", False):

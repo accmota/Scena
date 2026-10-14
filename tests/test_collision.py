@@ -6865,6 +6865,130 @@ class TestDyingBodyExits(unittest.TestCase):
         self.assertEqual(seen, [(0, True)])
 
 
+class TestExitAfterGroupChange(unittest.TestCase):
+    """An exit matches the handlers its contact entered under: ``untag``
+    mid-contact fires the exit of the tag it left (PB1), and a handler that
+    destroys or untags a side does not hide the other exit handlers (PB3)."""
+
+    def _run(self, act, *, part=False, cls=False):
+        from scena import Rect, collide, collide_exit, collide_with, collide_with_exit
+        from tests.system_support import system_world
+        log = []
+        with system_world(draw=False) as w:
+            if cls:
+                class Spike(Rect, width=40, height=40, group="xg_spike"):
+                    @collide_with("xg_hero")
+                    def hit(self, other):
+                        log.append("enter")
+
+                    @collide_with_exit("xg_hero")
+                    def left(self, other):
+                        log.append("exit")
+                spike = Spike(center=(0, 0))
+            else:
+                spike = Rect(center=(0, 0), width=40, height=40, group="xg_spike")
+
+                @collide("xg_spike", "xg_hero")
+                def hit(s, h, info):
+                    log.append("enter")
+
+                @collide_exit("xg_spike", "xg_hero")
+                def left(s, h, info):
+                    log.append("exit")
+            hero = Rect(center=(0, 0), width=20, height=20, group="xg_hero")
+            w.begin_game()
+            w.step(2)
+            act(hero)
+            w.step(2)
+            hero.tag("xg_hero")
+            w.step(2)
+            seen = list(log)
+            for o in (spike, hero):
+                o.destroy()
+        return seen
+
+    def test_untag_mid_contact_fires_exit(self):
+        self.assertEqual(self._run(lambda h: h.untag("xg_hero")), ["enter", "exit", "enter"])
+
+    def test_untag_mid_contact_fires_class_exit(self):
+        self.assertEqual(self._run(lambda h: h.untag("xg_hero"), cls=True),
+                         ["enter", "exit", "enter"])
+
+    def test_untag_and_retag_in_one_frame_is_no_change(self):
+        def flick(h):
+            h.untag("xg_hero")
+            h.tag("xg_hero")
+        log = self._run(flick)
+        self.assertEqual(log, ["enter"])
+
+    def test_untag_then_destroy_fires_one_exit(self):
+        from scena import Rect, collide, collide_exit
+        from tests.system_support import system_world
+        log = []
+        with system_world(draw=False) as w:
+            spike = Rect(center=(0, 0), width=40, height=40, group="xg_spike")
+            hero = Rect(center=(0, 0), width=20, height=20, group="xg_hero")
+
+            @collide_exit("xg_spike", "xg_hero")
+            def left(s, h, info):
+                log.append("exit")
+            w.step(2)
+            hero.untag("xg_hero")
+            hero.destroy()
+            w.step(3)
+            spike.destroy()
+        self.assertEqual(log, ["exit"])
+
+    def test_a_later_contact_does_not_match_the_left_tag(self):
+        from scena import Rect, collide_exit
+        from tests.system_support import system_world
+        log = []
+        with system_world(draw=False) as w:
+            spike = Rect(center=(0, 0), width=40, height=40, group="xg_spike")
+            other = Rect(center=(300, 0), width=40, height=40, group="xg_spike")
+            hero = Rect(center=(0, 0), width=20, height=20, group="xg_hero")
+
+            @collide_exit("xg_spike", "xg_hero")
+            def left(s, h, info):
+                log.append(s)
+            w.step(2)
+            hero.untag("xg_hero")
+            w.step(1)
+            hero.move_to(300, 0)          # touches ``other`` untagged: no pair
+            w.step(3)
+            hero.move_to(600, 0)
+            w.step(3)
+            for o in (spike, other, hero):
+                o.destroy()
+        self.assertEqual(log, [spike])
+
+    def test_destroy_in_one_exit_handler_keeps_the_others(self):
+        from scena import Circle, Rect, collide_exit
+        from tests.system_support import system_world
+        for victim in ("ball", "zone"):
+            log = []
+            with system_world(draw=False) as w:
+                ball = Circle(center=(0, 0), radius=10, group="xg_ball")
+                zone = Rect(center=(0, 0), width=50, height=50, group="xg_zone")
+
+                @collide_exit("xg_ball", "xg_zone")
+                def first(b, z, info):
+                    log.append("first")
+                    (b if victim == "ball" else z).destroy()
+
+                @collide_exit("xg_ball", "xg_zone")
+                def second(b, z, info):
+                    log.append("second")
+                w.begin_game()
+                w.step(2)
+                ball.move_by(300, 0)
+                w.step(2)
+                for o in (ball, zone):
+                    if o.is_alive:
+                        o.destroy()
+            self.assertEqual(log, ["first", "second"], victim)
+
+
 class TestDispatchSeesWhatHandlersDid(unittest.TestCase):
     """One dispatch, several handlers: a handler that destroys a side or
     changes act stops the rest of that enter / stay; an exit is delivered
