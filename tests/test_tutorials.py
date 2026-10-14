@@ -80,13 +80,25 @@ TUTORIALS = layout.TUTORIAL
 
 # ``NN-slug.html`` is a tutorial; ``A-slug.html`` (one capital letter) is an
 # appendix: reference fragments that run like steps, with no example file and
-# no recap (tutorial-authoring.md, "Apêndices").
-_PAGE = re.compile(r"(\d\d|[A-Z])-.*\.html")
+# no recap (tutorial-authoring.md, "Apêndices"). ``NNi-slug.html`` is an
+# interlude: a concept page between tutorial NN and the next, made of
+# fragments like an appendix (tutorial-authoring.md, "Interlúdios").
+_PAGE = re.compile(r"(\d\di?|[A-Z])-.*\.html")
 
 
 def is_appendix(path: str) -> bool:
     """An appendix page (``A-slug.html``), not a numbered tutorial."""
     return os.path.basename(path)[0].isalpha()
+
+
+def is_interlude(path: str) -> bool:
+    """An interlude page (``05i-slug.html``), between tutorial 05 and 06."""
+    return bool(re.fullmatch(r"\d\di-.*\.html", os.path.basename(path)))
+
+
+def is_fragment_page(path: str) -> bool:
+    """An appendix or an interlude: fragments, no example file, no recap."""
+    return is_appendix(path) or is_interlude(path)
 
 
 class Step(NamedTuple):
@@ -340,17 +352,23 @@ class TestAppendixPages(unittest.TestCase):
 
     def test_the_page_pattern_takes_numbers_and_one_capital_letter(self):
         for name, ok in [("05-naves.html", True), ("A-depuracao.html", True),
-                         ("F-formas.html", True), ("index.html", False),
+                         ("F-formas.html", True), ("05i-grupos.html", True),
+                         ("index.html", False), ("05x-grupos.html", False),
                          ("AB-x.html", False), ("a-minusculo.html", False)]:
             with self.subTest(name=name):
                 self.assertEqual(bool(_PAGE.fullmatch(name)), ok)
         self.assertTrue(is_appendix("/x/A-depuracao.html"))
         self.assertFalse(is_appendix("/x/05-naves.html"))
+        self.assertTrue(is_interlude("/x/05i-grupos.html"))
+        self.assertFalse(is_interlude("/x/05-naves.html"))
+        self.assertTrue(is_fragment_page("/x/05i-grupos.html"))
+        self.assertFalse(is_fragment_page("/x/05-naves.html"))
 
     def test_an_appendix_gets_its_own_steps_class(self):
         from tests.test_tutorial_steps import page_case_name
         self.assertEqual(page_case_name("/x/A-depuracao.html"), "TestStepsA")
         self.assertEqual(page_case_name("/x/05-naves.html"), "TestSteps05")
+        self.assertEqual(page_case_name("/x/05i-grupos.html"), "TestSteps05i")
 
 
 class TestTutorialEndsInAnExample(unittest.TestCase):
@@ -358,9 +376,9 @@ class TestTutorialEndsInAnExample(unittest.TestCase):
         for path in tutorial_pages():
             page = os.path.basename(path)
             steps = extract_steps(path)
-            if is_appendix(path):
+            if is_fragment_page(path):
                 self.assertTrue(all(step.example is None for step in steps),
-                                f"{page}: an appendix ends in no example file")
+                                f"{page}: an appendix or interlude ends in no example file")
                 continue
             with self.subTest(page=page):
                 self.assertIsNotNone(
@@ -462,8 +480,8 @@ class TestTutorialRecap(unittest.TestCase):
                              "a step object the recap scan did not see")
             with self.subTest(page=page):
                 have = [i for i, r in enumerate(recaps) if r is not None]
-                if is_appendix(path):
-                    self.assertEqual(have, [], f"{page}: an appendix has no recap")
+                if is_fragment_page(path):
+                    self.assertEqual(have, [], f"{page}: an appendix or interlude has no recap")
                     continue
                 self.assertEqual(
                     have, script_ends(path),
@@ -597,6 +615,34 @@ class TestTryInPlace(unittest.TestCase):
     def test_the_pages_use_it(self):
         n = sum(len(step.places) for path in tutorial_pages() for step in extract_steps(path))
         self.assertGreater(n, 0, "no box declares replaces: (the scan no longer matches)")
+
+
+class TestTutorialIndex(unittest.TestCase):
+    """The index lists every page, in order, and only pages that exist.
+
+    Bug class: a page added, split or renumbered (the 2026-10-14 restructure
+    moved most of the series) that the reader cannot reach from the index, or
+    a card left pointing at an old file name. Cards come in file order:
+    tutorials and their interludes (``05-…``, ``05i-…``, ``06-…``), then the
+    appendices.
+    """
+
+    _HREF = re.compile(r'<a class="card[^"]*" href="([^"]+)"')
+
+    def test_every_page_has_one_card_in_order(self):
+        index = _read(os.path.join(TUTORIALS, "index.html"))
+        cards = self._HREF.findall(index)
+        pages = [os.path.basename(p) for p in tutorial_pages()]
+        numbered = sorted(p for p in pages if not is_appendix(p))
+        appendices = sorted(p for p in pages if is_appendix(p))
+        self.assertEqual(cards, numbered + appendices)
+
+    def test_an_interlude_card_is_marked(self):
+        index = _read(os.path.join(TUTORIALS, "index.html"))
+        for match in re.finditer(r'<a class="card([^"]*)" href="([^"]+)"', index):
+            classes, href = match.groups()
+            with self.subTest(card=href):
+                self.assertEqual("interlude" in classes.split(), is_interlude(href))
 
 
 class TestTutorialPageSyntax(unittest.TestCase):

@@ -921,6 +921,18 @@ def frota_atira():
     s = Sprite("space/laserRed01.png", height=28,
            center=(inimigo.center.x, inimigo.center.y - 20), group="tiros_inimigos")
     s.rotate_to(180)`
+        },
+        {
+          note: "No máximo três lasers vermelhos no ar ao mesmo tempo: mais uma guarda, antes da que já existe. <code>group[\"tiros_inimigos\"].count</code> conta os lasers que ainda existem; com três, a função sai sem atirar. A frota passa a atirar em rajadas, e não sem parar.",
+          replaces: ['if group["inimigos"].count == 0:'],
+          code: `if group["tiros_inimigos"].count >= 3:
+    return
+if group["inimigos"].count == 0:`
+        },
+        {
+          note: "Outra escrita da guarda: <code>empty</code> (vazio) é <code>True</code> quando o grupo não tem ninguém, o mesmo que <code>count == 0</code>. O que mais um grupo sabe responder está no interlúdio Grupos, logo depois deste tutorial.",
+          replaces: ['if group["inimigos"].count == 0:'],
+          code: `if group["inimigos"].empty:`
         }
       ]
     },

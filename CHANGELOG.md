@@ -101,6 +101,17 @@ left out.
 - Each release now has a GitHub Release with `scena-examples.zip`: the
   examples and only the images and sounds they use (about 17 MB instead of the
   whole repository). The README links the latest one.
+- Tutorials: lists of parallel items are tables (Appendix A's debug keys,
+  Appendix F's ways to build each shape), and lists in the prose are spaced.
+  Interação (11) has a third script, the mouse on the canvas with no object
+  under it (`on_mouse_click`, `on_mouse_double_click`, `on_mouse_drag`,
+  `on_mouse_scroll`; `examples/ceu_estrelado.py`). The Piano (20) plays a
+  click through the key's own `on_click` and ends with an equalizer
+  (`audio.spectrum`). New boxes: a cap on the fleet's shots with
+  `group[…].count` and `.empty` (05), the `Text` options (`width`, `align`,
+  `background`, `top_center` / `top_right`) and a `TextInput` bound to a
+  cell (04), and a note in the oscilloscope that the trigonometry can be
+  skipped.
 
 ## 0.8.1 — 2026-10-14
 

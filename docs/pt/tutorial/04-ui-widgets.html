@@ -1002,6 +1002,31 @@ letreiro.fill = Gradient("cyan", "magenta")`
           code: `letreiro.glow = Glow("gold", radius=20)
 letreiro.glow = Glow("cyan", radius=8, amount=2)`
         }
+      ],
+      dive: [
+        {
+          title: "Outras opções do Text",
+          body: `
+            <p>O letreiro usa <code>center</code>: o texto fica centrado nesse ponto. Um <code>Text</code> tem mais alguns ajustes, úteis para placares, avisos e instruções.</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Opção</th><th>O que faz</th></tr></thead>
+              <tbody>
+                <tr><td><code>top_left</code>, <code>top_center</code>, <code>top_right</code></td><td>Onde o texto se prende: o canto de cima à esquerda, o meio de cima, o canto de cima à direita. O texto cresce para baixo a partir dali. <code>top_right</code> é bom para um placar no canto direito: o número cresce para a esquerda e não sai da tela.</td></tr>
+                <tr><td><code>width</code></td><td>A largura (em inglês, <em>width</em>) da caixa do texto. Com ela, uma frase comprida quebra a linha sozinha, em vez de passar da tela.</td></tr>
+                <tr><td><code>align</code></td><td>O alinhamento (<em>align</em>) das linhas dentro dessa largura: <code>"left"</code> (esquerda, o normal), <code>"center"</code> (centro) ou <code>"right"</code> (direita).</td></tr>
+                <tr><td><code>background</code></td><td>Uma cor de fundo (<em>background</em>) atrás das letras: o texto fica legível em cima de qualquer cenário.</td></tr>
+              </tbody>
+            </table></div>
+            <p>No Guia: <a href="../guide/index.html#desenhar-text">Text</a>.</p>
+          `,
+          try: [
+            {
+              note: "Uma instrução no canto de baixo, que quebra a linha sozinha, e um aviso centrado, com fundo. No fim do programa.",
+              code: `Text("Escreva no campo e aperte Enter. Esc solta o teclado.", top_left=(40, 120), width=320)
+Text("Novo!", top_center=(500, 200), width=200, align="center", background="#3A4A6B")`
+            }
+          ]
+        }
       ]
     },
     {
@@ -1079,6 +1104,22 @@ trilha = Track.shuttle(length=500)`
               replaces: ['trilha = Track.eight(', 'letreiro.move_along('],
               code: `trilha = Track.spiral(turns=3, radius=200)
 letreiro.move_along(trilha, time=8, loops="forever", yoyo=True)`
+            }
+          ]
+        },
+        {
+          title: "Um campo ligado a uma célula",
+          body: `
+            <p>O letreiro recebe a frase pelo <code>on_submit</code>: a função do Enter copia o texto para ele. Há outro jeito, o mesmo do <code>Slider</code> do Script 1. <code>Slider(st["n_bolas"])</code> escrevia o número numa célula do <code>st</code>; um <code>TextInput</code> também pode escrever numa célula: <code>TextInput(st["legenda"])</code>.</p>
+            <p>Quando você aperta Enter (ou clica fora da caixa), o que foi digitado vai para a célula <code>legenda</code>. E <code>Text(st["legenda"])</code> é um texto que mostra essa célula: muda sozinho a cada Enter. Ninguém precisa escrever a função do Enter.</p>
+            <p>Os colchetes entregam a célula, e não o texto de agora: o campo escreve nela, o texto a mostra. O tutorial 09 explica isso com calma.</p>
+          `,
+          try: [
+            {
+              note: "Uma legenda embaixo do letreiro, ligada a uma célula. Sem posição, o campo novo entra na coluna, logo abaixo do primeiro. No fim do programa.",
+              code: `st.legenda = "um letreiro"
+TextInput(st["legenda"], label="Legenda", width=400)
+Text(st["legenda"], center=(500, 250), font_size=30)`
             }
           ]
         }

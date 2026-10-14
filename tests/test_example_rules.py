@@ -22,6 +22,10 @@ Bug classes guarded (catalogue: Testing Design, TU):
   elevator up and down with its feet on it every frame, and reaches the star
   only the elevator gets to. A fall into the water on the last life sinks
   instead of sending the ninja back to the start.
+* **Mouse input no step run gives** (tutorial 11, Script 3; tutorial 20):
+  the canvas callbacks (a click lights a star, a drag is not a click, the
+  wheel sets the size, a double click clears the stars its own clicks lit)
+  and a key's ``on_click`` with the equalizer rising under the note.
 
 Run:
 
@@ -186,3 +190,48 @@ class TestNinjaElevator(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCeuEstreladoMouseOnTheCanvas(unittest.TestCase):
+    """Tutorial 11, Script 3: the canvas callbacks do what the steps say.
+
+    A click lights a star where it landed; the wheel sets the next star's
+    size; a drag leaves dust and no star (a drag is not a click); a double
+    click clears the sky, including the two stars its own clicks lit.
+    """
+
+    def stars(self, run):
+        return [s for s in run.ns["group"]["estrelas"] if s.radius >= 6]
+
+    def test_click_scroll_drag_and_double_click(self):
+        from program_support import click, drag, scroll, wait
+        with ProgramRun("examples/ceu_estrelado.py") as run:
+            run.step(2)
+            run.play([click(300, 300), wait(2)])
+            self.assertEqual([(s.center.x, s.center.y, s.radius) for s in self.stars(run)],
+                             [(300, 300, 6)])
+            run.play([scroll(3), click(600, 400), wait(2)])
+            self.assertEqual(run.ns["st"].raio, 9)
+            self.assertEqual(sorted(s.radius for s in self.stars(run)), [6, 9])
+            before = run.ns["group"]["estrelas"].count
+            run.play([drag(100, 100, 400, 150, frames=6), wait(2)])
+            self.assertEqual(len(self.stars(run)), 2, "a drag lit a star")
+            self.assertGreater(run.ns["group"]["estrelas"].count, before, "no dust")
+            run.play([click(800, 200), click(800, 200), wait(2)])
+            self.assertTrue(run.ns["group"]["estrelas"].empty)
+
+
+class TestPianoClickAndEqualizer(unittest.TestCase):
+    """Tutorial 20: a click on a key plays it (``on_click`` in the class), and
+    the equalizer's bars rise with the note."""
+
+    def test_a_clicked_key_lights_and_the_bars_rise(self):
+        from program_support import click, wait
+        from scena import Color
+        with ProgramRun("examples/piano.py") as run:
+            run.step(2)
+            run.play([click(94, 190), wait(6)])
+            teclas = list(run.ns["group"]["teclas"])
+            gold = Color("gold").rgb
+            self.assertEqual([t.letra for t in teclas if t.color.rgb == gold], ["A"])
+            self.assertGreater(max(b.height for b in run.ns["barras"]), 20)

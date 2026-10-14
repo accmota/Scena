@@ -208,6 +208,53 @@ main h1 {
 .explain p + p { margin-top: 0.55rem; }
 .explain strong { color: var(--text); font-weight: 600; }
 
+/* Lists in the prose: spaced, so each item reads on its own. */
+.explain ul, .explain ol,
+.dive-body ul, .dive-body ol {
+  margin: 0.65rem 0 0.85rem;
+  padding-left: 1.4rem;
+}
+.explain li, .dive-body li { margin: 0.5rem 0; padding-left: 0.2rem; }
+.dive-body li { font-size: 0.95rem; }
+.explain li::marker, .dive-body li::marker { color: var(--accent); }
+
+/* A table in the prose (a key and what it does; a constructor and what it
+   takes): wrapped in <div class="tbl"> so a narrow screen scrolls it. */
+.tbl { overflow-x: auto; margin: 0.8rem 0 1rem; }
+.tbl table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.95rem;
+}
+.tbl th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: 0 0.75rem 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.tbl td {
+  vertical-align: top;
+  padding: 0.55rem 0.75rem 0.55rem 0;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--muted);
+}
+.tbl td:first-child { white-space: nowrap; color: var(--text); }
+.tbl tr:last-child td { border-bottom: none; }
+
+kbd {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.05em 0.4em;
+  color: var(--text);
+  white-space: nowrap;
+}
+
 /* A drawing in the explanation: inline SVG, theme colors through classes. */
 .fig { margin: 1rem 0 1.1rem; text-align: center; }
 .fig svg { width: 100%; max-width: 27rem; height: auto; }
@@ -609,6 +656,16 @@ div.card:hover { border-color: var(--border); }
 }
 
 .card p { color: var(--muted); font-size: 0.95rem; }
+
+/* An interlude (NNi-slug.html): a short concept page between two tutorials,
+   in the list where it is needed. */
+.card.interlude {
+  margin-left: 1.5rem;
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--accent-line);
+}
+.card.interlude .num { color: var(--warn); }
 
 @media (max-width: 860px) {
   .page { grid-template-columns: 1fr; }

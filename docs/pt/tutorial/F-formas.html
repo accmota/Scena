@@ -25,13 +25,16 @@ Tutorial.mount({
         <p>Este apêndice mostra as formas do Scena e os jeitos de pôr cada uma na tela. Cada seção é um programa que desenha as variantes de uma forma lado a lado, cada uma com o seu nome embaixo. Rode, mude os números e rode de novo.</p>
         <p><strong>Modelos.</strong> Uma forma pode ser dada de vários jeitos: pelo centro e pelo tamanho, por um canto, por dois pontos. Cada jeito é um <strong>modelo</strong> (de construção). O desenho pode sair igual, mas a forma guarda coisas diferentes, e isso aparece quando você a arrasta ou a liga a outra (o passo seguinte mostra).</p>
         <p><strong>O Circle (círculo).</strong> Da esquerda para a direita:</p>
-        <ul>
-          <li><code>center</code> e <code>radius</code> (centro e raio): o caminho de sempre.</li>
-          <li><code>center</code> e <code>perimeter_point</code> (ponto do perímetro, da borda): o raio é a distância até esse ponto.</li>
-          <li><code>p1</code> e <code>p2</code>: as duas pontas de um diâmetro (a linha que atravessa o círculo pelo meio).</li>
-          <li><code>angle</code> e <code>spread</code> (ângulo e abertura): uma fatia, como de pizza. <code>angle</code> é para onde a fatia aponta (0 é para a direita, 180 para a esquerda) e <code>spread</code> é quanto ela abre, em graus: 300 é quase tudo, faltando uma boca de 60.</li>
-          <li><code>use_center=False</code> (sem usar o centro): a fatia vira um <em>segmento</em>, cortado por uma reta em vez de duas retas até o centro. Com <code>angle=90</code> e <code>spread=240</code>, é um círculo com o fundo cortado.</li>
-        </ul>
+        <div class="tbl"><table>
+          <thead><tr><th>Você dá</th><th>O que é</th></tr></thead>
+          <tbody>
+            <tr><td><code>center</code>, <code>radius</code></td><td>Centro e raio: o caminho de sempre.</td></tr>
+            <tr><td><code>center</code>, <code>perimeter_point</code></td><td>Centro e um ponto da borda (perímetro): o raio é a distância até esse ponto.</td></tr>
+            <tr><td><code>p1</code>, <code>p2</code></td><td>As duas pontas de um diâmetro, a linha que atravessa o círculo pelo meio.</td></tr>
+            <tr><td><code>angle</code>, <code>spread</code></td><td>Uma fatia, como de pizza. <code>angle</code> (ângulo) é para onde ela aponta (0 é para a direita, 180 para a esquerda); <code>spread</code> (abertura) é quanto ela abre, em graus: 300 é quase tudo, faltando uma boca de 60.</td></tr>
+            <tr><td><code>use_center=False</code></td><td>A fatia vira um <em>segmento</em>: cortada por uma reta, em vez de duas retas até o centro. Com <code>angle=90</code> e <code>spread=240</code>, é um círculo com o fundo cortado.</td></tr>
+          </tbody>
+        </table></div>
         <p><code>Circle()</code> sozinho também vale: nasce no meio da tela, num tamanho médio.</p>
       `,
       code: `from scena import *
@@ -109,14 +112,20 @@ run()
       part: "Rect",
       body: `
         <p>O <code>Rect</code> (retângulo) tem mais modelos. Os pontinhos brancos marcam os pontos que você deu.</p>
-        <p><strong>Em cima:</strong></p>
-        <ul>
-          <li><code>center</code>, <code>width</code>, <code>height</code> (centro, largura, altura): o caminho de sempre.</li>
-          <li><code>top_left</code> (canto de cima, à esquerda), <code>width</code>, <code>height</code>: o retângulo cresce do canto para a direita e para baixo. Bom para alinhar coisas pela borda.</li>
-          <li><code>p1</code>, <code>p2</code>: dois cantos opostos, exatamente onde você os pôs. A largura e a altura saem deles.</li>
-          <li><code>p1</code>, <code>p2</code>, <code>height</code>, <code>anchor="cap"</code>: uma barra deitada de um ponto a outro, com essa espessura. <code>anchor</code> (âncora) diz onde os pontos ficam: com <code>"cap"</code> (tampa), no meio das pontas curtas.</li>
-        </ul>
-        <p><strong>Embaixo:</strong> <code>angle</code> gira o retângulo em volta do centro; <code>corner_radius</code> (raio do canto) arredonda os cantos; <code>p1</code> com <code>vec</code> (vetor) dá um canto e o tamanho, <code>(largura, altura)</code>; e <code>anchor="square"</code> (quadrado) põe cada ponto no centro de um quadrado da ponta, então a barra passa dos pontos meia espessura de cada lado.</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Você dá</th><th>O que é</th></tr></thead>
+          <tbody>
+            <tr><td><code>center</code>, <code>width</code>, <code>height</code></td><td>Centro, largura e altura: o caminho de sempre.</td></tr>
+            <tr><td><code>top_left</code>, <code>width</code>, <code>height</code></td><td>O canto de cima, à esquerda: o retângulo cresce dali para a direita e para baixo. Bom para alinhar coisas pela borda.</td></tr>
+            <tr><td><code>p1</code>, <code>p2</code></td><td>Dois cantos opostos, exatamente onde você os pôs. A largura e a altura saem deles.</td></tr>
+            <tr><td><code>p1</code>, <code>p2</code>, <code>height</code>, <code>anchor="cap"</code></td><td>Uma barra deitada de um ponto a outro, com essa espessura. <code>anchor</code> (âncora) diz onde os pontos ficam: com <code>"cap"</code> (tampa), no meio das pontas curtas.</td></tr>
+            <tr><td><code>angle</code></td><td>Gira o retângulo em volta do centro.</td></tr>
+            <tr><td><code>corner_radius</code></td><td>Arredonda os cantos (raio do canto).</td></tr>
+            <tr><td><code>p1</code>, <code>vec</code></td><td>Um canto e o tamanho, como uma seta (vetor): <code>(largura, altura)</code>.</td></tr>
+            <tr><td><code>anchor="square"</code></td><td>Cada ponto fica no centro de um quadrado da ponta: a barra passa dos pontos meia espessura de cada lado.</td></tr>
+          </tbody>
+        </table></div>
+        <p>As quatro primeiras estão em cima; as outras, embaixo.</p>
       `,
       code: `from scena import *
 
@@ -174,7 +183,16 @@ run()
       fresh: true,
       part: "Square",
       body: `
-        <p>O <code>Square</code> (quadrado) é um retângulo de lados iguais. O tamanho é um número só, <code>length</code> (comprimento do lado). Dá para pôr pelo centro ou pelo canto (<code>top_left</code>), girar (<code>angle</code>) e arredondar os cantos (<code>corner_radius</code>), como no <code>Rect</code>.</p>
+        <p>O <code>Square</code> (quadrado) é um retângulo de lados iguais. O tamanho é um número só, <code>length</code> (comprimento do lado).</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Você dá</th><th>O que é</th></tr></thead>
+          <tbody>
+            <tr><td><code>center</code>, <code>length</code></td><td>Centro e lado.</td></tr>
+            <tr><td><code>top_left</code>, <code>length</code></td><td>O canto de cima, à esquerda, e o lado.</td></tr>
+            <tr><td><code>angle</code></td><td>Gira, como no <code>Rect</code>.</td></tr>
+            <tr><td><code>corner_radius</code></td><td>Arredonda os cantos, como no <code>Rect</code>.</td></tr>
+          </tbody>
+        </table></div>
         <p>Num quadrado, <code>width</code> e <code>height</code> só leem o lado: <code>q.width = 50</code> dá erro. Para mudar o tamanho, escreva <code>q.length</code>.</p>
       `,
       code: `from scena import *
@@ -202,13 +220,16 @@ run()
       body: `
         <p>A <code>Line</code> (linha) é um segmento: um traço reto entre duas pontas, <code>p1</code> e <code>p2</code>. Ela só tem traço, sem recheio: <code>color</code> pinta o traço e <code>line_width</code> (largura da linha) é a espessura (aqui, 4).</p>
         <p><strong>Em cima</strong>, cinco jeitos de dar uma linha sozinha:</p>
-        <ul>
-          <li><code>p1</code>, <code>p2</code>: as duas pontas.</li>
-          <li><code>center</code>, <code>length</code>, <code>angle</code>: o meio, o comprimento e a direção.</li>
-          <li><code>p1</code>, <code>angle</code>, <code>length</code>: uma ponta, e dali uma direção e um comprimento.</li>
-          <li><code>p1</code>, <code>vec</code>: uma ponta e uma seta (<code>Vec2</code>, Apêndice D) até a outra.</li>
-          <li><code>p1</code>, <code>dx</code>, <code>dy</code>: o mesmo, com os dois números soltos.</li>
-        </ul>
+        <div class="tbl"><table>
+          <thead><tr><th>Você dá</th><th>O que é</th></tr></thead>
+          <tbody>
+            <tr><td><code>p1</code>, <code>p2</code></td><td>As duas pontas.</td></tr>
+            <tr><td><code>center</code>, <code>length</code>, <code>angle</code></td><td>O meio, o comprimento e a direção.</td></tr>
+            <tr><td><code>p1</code>, <code>angle</code>, <code>length</code></td><td>Uma ponta, e dali uma direção e um comprimento.</td></tr>
+            <tr><td><code>p1</code>, <code>vec</code></td><td>Uma ponta e uma seta (<code>Vec2</code>, Apêndice D) até a outra.</td></tr>
+            <tr><td><code>p1</code>, <code>dx</code>, <code>dy</code></td><td>O mesmo, com os dois números soltos.</td></tr>
+          </tbody>
+        </table></div>
         <p><strong>Embaixo</strong>, linhas feitas a partir de outra forma. A <code>base</code> (branca) é uma linha comum. A dourada é paralela a ela (<code>parallel_to</code>, paralela a), afastada 50 (<code>dist</code>, distância; positivo é à esquerda de quem anda de <code>p1</code> para <code>p2</code>). A laranja sai do meio da base, perpendicular (<code>perpendicular_to</code>: em ângulo reto). À direita, duas <strong>tangentes</strong> à <code>roda</code>, linhas que só encostam no círculo: uma pelo ponto da borda a 45 graus (<code>at_angle</code>), outra saindo de um ponto de fora (<code>from_point</code>, o pontinho branco) até tocar o círculo; <code>side</code> (lado) escolhe qual das duas tangentes possíveis.</p>
       `,
       code: `from scena import *
@@ -261,7 +282,16 @@ traco.line_cap = "round"`
       fresh: true,
       part: "Ellipse",
       body: `
-        <p>A <code>Ellipse</code> (elipse) é um círculo esticado: um oval. <code>width</code> e <code>height</code> são a largura e a altura inteiras, e <code>angle</code> gira.</p>
+        <p>A <code>Ellipse</code> (elipse) é um círculo esticado: um oval.</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Você dá</th><th>O que é</th></tr></thead>
+          <tbody>
+            <tr><td><code>center</code>, <code>width</code>, <code>height</code></td><td>Centro, largura e altura inteiras.</td></tr>
+            <tr><td><code>angle</code></td><td>Gira a elipse.</td></tr>
+            <tr><td><code>fp1</code>, <code>fp2</code>, <code>major_axis</code></td><td>Os dois focos e o eixo maior (abaixo).</td></tr>
+            <tr><td><code>from_rect</code>, <code>padding</code></td><td>Dentro de um <code>Rect</code>, ligada a ele, com uma folga (abaixo).</td></tr>
+          </tbody>
+        </table></div>
         <p><strong>Pelos focos.</strong> Toda elipse tem dois pontos especiais dentro dela, os <strong>focos</strong> (os pontinhos brancos). De qualquer ponto da borda, a distância até um foco mais a distância até o outro dá sempre o mesmo número: o eixo maior (<code>major_axis</code>), a largura da elipse. Com <code>fp1</code>, <code>fp2</code> (foco 1, foco 2) e <code>major_axis</code>, você dá os focos e esse número. Focos mais afastados, elipse mais achatada.</p>
         <p><strong>Dentro de um retângulo.</strong> <code>from_rect=caixa</code> põe a elipse dentro do <code>Rect</code> e a liga a ele; <code>padding=10</code> (enchimento) deixa uma folga de 10 de cada lado. A caixa é arrastável: arraste-a, e a elipse vai junto.</p>
       `,
@@ -342,7 +372,16 @@ run()
       part: "RegularPolygon",
       body: `
         <p>O <code>RegularPolygon</code> (polígono regular) tem todos os lados iguais. <code>n</code> é o número de lados: 3 é um triângulo, 4 um quadrado (em pé numa ponta), 5 um pentágono, 6 um hexágono. Em cima, o <code>for</code> desenha de 3 a 8 lados, cada um 160 mais para a direita que o anterior (<code>x = 100 + (n - 3) * 160</code>).</p>
-        <p><code>radius</code> é a distância do centro até cada vértice. <strong>Embaixo</strong>, outros modelos: <code>side</code> (lado) dá o tamanho pelo lado; <code>vertex</code> (vértice) com <code>side</code> põe o polígono pelo primeiro vértice (o pontinho branco), em vez do centro; e <code>angle</code> é para onde aponta o primeiro vértice (0 é para a direita; com 90, o pentágono fica em pé).</p>
+        <p>Em cima, todos com <code>radius</code>. Embaixo, os outros modelos:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Você dá</th><th>O que é</th></tr></thead>
+          <tbody>
+            <tr><td><code>n</code>, <code>center</code>, <code>radius</code></td><td>O número de lados, o centro, e a distância do centro até cada vértice.</td></tr>
+            <tr><td><code>side</code></td><td>O tamanho pelo lado, no lugar do <code>radius</code>.</td></tr>
+            <tr><td><code>vertex</code>, <code>side</code></td><td>Pelo primeiro vértice (o pontinho branco), em vez do centro.</td></tr>
+            <tr><td><code>angle</code></td><td>Para onde aponta o primeiro vértice: 0 é para a direita; com 90, o pentágono fica em pé.</td></tr>
+          </tbody>
+        </table></div>
       `,
       code: `from scena import *
 
@@ -371,7 +410,16 @@ run()
       part: "Triangle",
       body: `
         <p>O <code>Triangle</code> (triângulo), sem mais nada, é equilátero: os três lados iguais, como o polígono regular de 3 lados. Tem um nome próprio porque aparece muito: em naves, setas e ponteiros. O <code>angle</code> é para onde aponta a ponta (o ápice): 0 é para a direita, 90 para cima. Por isso ele mostra bem um giro.</p>
-        <p>Os modelos são os do polígono regular: <code>radius</code> (do centro até cada ponta) ou <code>side</code> (o lado); e <code>vertex</code> com <code>side</code> põe o triângulo pelo ápice (o pontinho branco). Ele sempre tem 3 lados: não passe <code>n=</code>.</p>
+        <p>Os modelos são os do polígono regular (ele sempre tem 3 lados: não passe <code>n=</code>):</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Você dá</th><th>O que é</th></tr></thead>
+          <tbody>
+            <tr><td><code>center</code>, <code>radius</code></td><td>Centro, e a distância do centro até cada ponta.</td></tr>
+            <tr><td><code>angle</code></td><td>Para onde aponta o ápice.</td></tr>
+            <tr><td><code>side</code></td><td>O tamanho pelo lado.</td></tr>
+            <tr><td><code>vertex</code>, <code>side</code></td><td>Pelo ápice (o pontinho branco), em vez do centro.</td></tr>
+          </tbody>
+        </table></div>
       `,
       code: `from scena import *
 
@@ -434,12 +482,15 @@ run()
       part: "Point e Anchor",
       body: `
         <p>O <code>Point</code> (ponto) é uma posição que vive no jogo, sem corpo: não tem tamanho, não colide. Serve de peça para as outras formas (a ponta de uma linha, o centro de um círculo). O Apêndice D mostra como fazer contas com ele.</p>
-        <ul>
-          <li><code>Point(125, 420)</code>: invisível. Existe, mas não aparece (por isso só o nome, sem bolinha).</li>
-          <li><code>color=</code>: aparece como uma bolinha dessa cor, para marcar um lugar. (<code>p.visible = True</code>, visível, também mostra, com a cor automática dos guias, escura: num fundo escuro quase não se vê.)</li>
-          <li><code>handle = True</code> (alça): aparece e pode ser arrastado com o mouse.</li>
-          <li><code>Anchor</code> (âncora): o atalho para um ponto que já nasce visível e arrastável.</li>
-        </ul>
+        <div class="tbl"><table>
+          <thead><tr><th>Como</th><th>O ponto</th></tr></thead>
+          <tbody>
+            <tr><td><code>Point(125, 420)</code></td><td>Invisível: existe, mas não aparece (por isso só o nome, sem bolinha).</td></tr>
+            <tr><td><code>color=</code></td><td>Aparece como uma bolinha dessa cor, para marcar um lugar.</td></tr>
+            <tr><td><code>handle = True</code></td><td>Aparece e pode ser arrastado com o mouse (alça).</td></tr>
+            <tr><td><code>Anchor</code></td><td>O atalho para um ponto que já nasce visível e arrastável (âncora).</td></tr>
+          </tbody>
+        </table></div>
         <p>A linha cinza liga o ponto de alça à âncora com <code>lambda</code>: arraste um e outro, e ela acompanha. E <code>Point(lambda: (mouse.x, mouse.y), …)</code> é um ponto ligado ao mouse: o branco, que anda com ele.</p>
       `,
       code: `from scena import *
@@ -470,13 +521,16 @@ run()
       body: `
         <p>Algumas opções valem para todas as formas.</p>
         <p><strong>Em cima, a aparência:</strong></p>
-        <ul>
-          <li><code>color=</code> (cor) pinta o recheio, e o Scena faz um contorno num tom de contraste.</li>
-          <li><code>visual=</code> põe um visual (<code>Neon</code>, <code>Halo</code>, <code>Metal</code>…) no lugar da cor. Use um ou outro, não os dois.</li>
-          <li><code>line_width=</code> é a espessura do contorno. Com <code>.fill = None</code> (sem recheio), sobra só o contorno: um anel.</li>
-          <li><code>.line</code> é a cor só do contorno: aqui, branco em volta do roxo.</li>
-          <li><code>.dash</code> deixa o contorno tracejado.</li>
-        </ul>
+        <div class="tbl"><table>
+          <thead><tr><th>Opção</th><th>O que faz</th></tr></thead>
+          <tbody>
+            <tr><td><code>color=</code></td><td>Pinta o recheio, e o Scena faz um contorno num tom de contraste.</td></tr>
+            <tr><td><code>visual=</code></td><td>Um visual (<code>Neon</code>, <code>Halo</code>, <code>Metal</code>…) no lugar da cor. Use um ou outro, não os dois.</td></tr>
+            <tr><td><code>line_width=</code></td><td>A espessura do contorno. Com <code>.fill = None</code> (sem recheio), sobra só o contorno: um anel.</td></tr>
+            <tr><td><code>.line</code></td><td>A cor só do contorno: aqui, branco em volta do roxo.</td></tr>
+            <tr><td><code>.dash</code></td><td>O contorno tracejado.</td></tr>
+          </tbody>
+        </table></div>
         <p><strong>Embaixo:</strong> <code>angle=</code> gira (vale nas formas com uma direção: retângulos, elipses, polígonos regulares, linhas). <code>layer=</code> (camada) escolhe a ordem do desenho: o quadrado nasceu antes do círculo, mas fica por cima, porque está na camada <code>"top"</code> (topo). <code>group=</code> (grupo) põe a forma num grupo, e o grupo muda todas de uma vez: as duas bolas nasceram com cores diferentes, e <code>group["bolas"].color = "lime"</code> pinta as duas.</p>
         <p><code>.fill</code>, <code>.line</code> e <code>.dash</code> não entram nos parênteses: escreva-os depois que a forma existe, numa linha própria.</p>
       `,
@@ -545,12 +599,15 @@ set_defaults("coral", line_width=3, dash="dot")`
       body: `
         <p>O último jeito de pôr uma forma vale para quase todas: <code>box=</code> (caixa) encaixa a forma numa região retangular. Uma região é um <code>Box</code>: um retângulo que não aparece, só mede. <code>zona.grid(4, 2, gap=(20, 60))</code> fatia a zona numa grade de 4 colunas e 2 linhas, com um vão (<code>gap</code>) de 20 entre as colunas e 60 entre as linhas; <code>casas.cell(1, 0)</code> é a casa da coluna 1, linha 0 (a de cima; as duas contam a partir de 0).</p>
         <p>A função <code>casa(col, linha, texto)</code> desenha a moldura cinza da casa (um <code>Rect</code> sem recheio, com o mesmo <code>box=</code>), escreve o texto embaixo (<code>regiao.bottom_center</code> é o meio da borda de baixo; o texto fica 20 abaixo dele) e devolve a região. Cada forma se encaixa do seu jeito:</p>
-        <ul>
-          <li><code>Rect</code> e <code>Ellipse</code> <strong>preenchem</strong> a região inteira.</li>
-          <li><code>Circle</code>, <code>Square</code> e os polígonos regulares ficam <strong>inscritos</strong>: do tamanho do lado menor, no meio.</li>
-          <li>Com um tamanho dado (<code>radius=30</code>), a forma só fica <strong>no centro</strong> da região.</li>
-          <li><code>.inset(20)</code> (recuo) encolhe a região 20 de cada lado antes: uma folga.</li>
-        </ul>
+        <div class="tbl"><table>
+          <thead><tr><th>Forma</th><th>Na região</th></tr></thead>
+          <tbody>
+            <tr><td><code>Rect</code>, <code>Ellipse</code></td><td><strong>Preenchem</strong> a região inteira.</td></tr>
+            <tr><td><code>Circle</code>, <code>Square</code>, polígonos regulares</td><td>Ficam <strong>inscritos</strong>: do tamanho do lado menor, no meio.</td></tr>
+            <tr><td>com um tamanho dado (<code>radius=30</code>)</td><td>A forma só fica <strong>no centro</strong> da região.</td></tr>
+            <tr><td><code>.inset(20)</code></td><td>Encolhe a região 20 de cada lado antes (recuo): uma folga.</td></tr>
+          </tbody>
+        </table></div>
       `,
       code: `from scena import *
 

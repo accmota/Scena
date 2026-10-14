@@ -134,11 +134,9 @@ self.after(0.3, self.apagar)`
     },
     {
       title: "O mouse também",
-      example: "piano.py",
       body: `
-        <p>Um clique numa tecla também toca. <code>@click</code> é o do tutorial 01, agora com um grupo: <code>@click(group["teclas"])</code> chama <code>clicou</code> quando qualquer tecla do grupo é clicada, e entrega a tecla clicada. A função só pede que ela toque: <code>tecla.tocar()</code>, a mesma que a letra chama.</p>
-        <p><strong>Depois do <code>for</code>.</strong> O <code>@click</code> olha o grupo na hora em que é lido: as oito teclas já precisam existir. Por isso ele vem depois do laço.</p>
-        <p><strong>E a letra?</strong> A letra fica por cima da tecla, mas não pega o clique: um <code>Text</code> sem <code>@click</code> deixa o clique passar para o que está embaixo dele.</p>
+        <p>Um clique numa tecla também toca. Como a letra, o clique é de cada tecla: por isso ele mora na classe, num método com nome fixo, <code>on_click</code> (ao clicar). O Scena o chama quando <em>esta</em> tecla é clicada, como o <code>on_click</code> das bolhas do tutorial 06. Ele só pede <code>self.tocar()</code>, a mesma função que a letra chama.</p>
+        <p><strong>E a letra?</strong> A letra fica por cima da tecla, mas não pega o clique: um <code>Text</code> sem clique deixa o clique passar para o que está embaixo dele.</p>
       `,
       code: `from scena import *
 
@@ -154,6 +152,9 @@ class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
         if keyp.once(self.letra):
             self.tocar()
 
+    def on_click(self):
+        self.tocar()
+
     def tocar(self):
         play_sound("audio/nota.wav", pitch=self.nota, on_done=self.apagar)
         self.color = "gold"
@@ -168,16 +169,79 @@ for i in range(8):
     tecla.nota = NOTAS[i]
     Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
 
-
-@click(group["teclas"])
+run()
+`,
+      try: [
+        {
+          note: "Outra escrita, a do tutorial 11: um clique no topo do arquivo, para o grupo inteiro. A função recebe a tecla clicada. Ela vem depois do <code>for</code>, porque o <code>@click</code> olha o grupo na hora em que é lido, e as oito teclas já precisam existir. No lugar do <code>on_click</code> da classe:",
+          code: `@click(group["teclas"])
 def clicou(tecla):
-    tecla.tocar()
+    tecla.tocar()`
+        }
+      ]
+    },
+    {
+      title: "O equalizador",
+      example: "piano.py",
+      body: `
+        <p>Até aqui a tela mostra a tecla. Agora ela vai mostrar o próprio som, numa fileira de barras que pulam, como no painel de um aparelho de som.</p>
+        <p><strong>O som em faixas.</strong> <code>audio</code> é o som do jogo inteiro: tudo o que está tocando agora, somado. <code>audio.spectrum(bins=12)</code> (espectro, em 12 faixas) divide esse som em faixas, dos graves (os sons grossos) à esquerda até os agudos (os finos) à direita. Ele devolve uma lista de 12 números de 0 a 1: quanto som há em cada faixa neste momento.</p>
+        <p><strong>Doze barras.</strong> Um <code>for</code> cria doze retângulos baixinhos e os guarda na lista <code>barras</code>. No <code>update</code>, a cada quadro, cada barra ganha a altura da sua faixa. <code>amp_db</code> (Apêndice E) passa o número para a escala do ouvido: sem ele, um som baixo mal moveria a barra. Mudar a altura de um retângulo o faz crescer a partir do centro, para cima e para baixo.</p>
+        <p>Rode e toque. O A acende as barras da esquerda; subindo até o K, a luz anda para a direita. Uma nota não acende uma faixa só: um som de piano tem vários sons juntos, um grave e outros mais finos por cima, e cada um cai na sua faixa.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Piano")
+Wallpaper("dark navy")
+
+LETRAS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTAS = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+
+class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
+    def on_update(self, dt):
+        if keyp.once(self.letra):
+            self.tocar()
+
+    def on_click(self):
+        self.tocar()
+
+    def tocar(self):
+        play_sound("audio/nota.wav", pitch=self.nota, on_done=self.apagar)
+        self.color = "gold"
+
+    def apagar(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    tecla = Tecla(center=(94 + i * 116, 190))
+    tecla.letra = LETRAS[i]
+    tecla.nota = NOTAS[i]
+    Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+barras = []
+for i in range(12):
+    barras.append(Rect(center=(82 + i * 76, 470), width=60, height=4, color="turquoise"))
+
+
+def update(dt):
+    faixas = audio.spectrum(bins=12)
+    for i in range(12):
+        barras[i].height = 4 + 150 * amp_db(faixas[i])
 
 
 run()
 `,
+      try: [
+        {
+          note: "Uma barra só, com o volume do som todo: <code>audio.level</code> (nível), de 0 a 1. A largura é ligada com <code>@=</code> (tutorial 09): o Scena confere o nível a cada quadro e refaz a conta. No fim do programa.",
+          code: `nivel = Rect(center=(500, 575), width=10, height=12, color="gold")
+nivel["width"] @= lambda: 10 + 900 * amp_db(audio.level)`
+        }
+      ],
       closing: `
-        <p>As letras A S D F G H J K tocam as oito notas, do dó ao dó seguinte; um clique numa tecla também toca. A tecla fica dourada enquanto a nota soa.</p>
+        <p>As letras A S D F G H J K tocam as oito notas, do dó ao dó seguinte; um clique numa tecla também toca. A tecla fica dourada enquanto a nota soa, e as barras de cima mostram o som em faixas, dos graves aos agudos.</p>
       `,
       recap: `
         <ul>
@@ -185,9 +249,10 @@ run()
           <li><code>tecla.nota</code> — um campo: um nome novo depois do ponto guarda um valor naquele objeto, um em cada tecla.</li>
           <li><code>keyp.once(self.letra)</code> — cada tecla pergunta pela sua letra, uma vez por aperto.</li>
           <li><code>on_done=</code> — o som chama a função quando acaba: a tecla apaga.</li>
-          <li><code>@click(group["teclas"])</code> — um clique em qualquer tecla do grupo, e a função recebe a tecla clicada.</li>
+          <li><code>on_click</code> — o clique de cada tecla, um método da classe.</li>
+          <li><code>audio.spectrum</code> — o som do jogo em faixas, dos graves aos agudos; <code>amp_db</code> o põe na escala do ouvido.</li>
         </ul>
-        <p><strong>No Guia:</strong> <a href="../guide/index.html#som-play">play_sound</a> · <a href="../guide/index.html#reativo-entity">Guardar valores</a> · <a href="../guide/index.html#frame-teclado">Teclado</a> · <a href="../guide/index.html#reagir-pointer">Clique / arraste</a>.</p>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#som-play">play_sound</a> · <a href="../guide/index.html#reativo-entity">Guardar valores</a> · <a href="../guide/index.html#frame-teclado">Teclado</a> · <a href="../guide/index.html#reagir-pointer">Clique / arraste</a> · <a href="../guide/index.html#som-audio">audio</a>.</p>
         <p><strong>No próximo:</strong> o piano toca a sua voz, e uma estrela dança com uma luz que cresce quando você fala.</p>
       `
     }

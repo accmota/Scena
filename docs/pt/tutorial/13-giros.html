@@ -530,6 +530,7 @@ run()
       fresh: true,
       body: `
         <p>Segundo script. Pense na Lua: ela gira em volta da Terra, que gira em volta do Sol. Vista do Sol, a Lua não faz um círculo; faz um círculo com ondas. Aqui vamos construir isso: um ponto que dá uma volta grande em volta de uma bola e, ao mesmo tempo, uma volta pequena, e um rastro que mostra o caminho. O nome vem do osciloscópio, o aparelho que desenha sinais elétricos numa tela, com figuras parecidas. Primeiro, uma volta só.</p>
+        <p><strong>Se você ainda não viu trigonometria</strong> (seno, cosseno, radianos), tudo bem: pode pular as explicações de matemática deste script. Copie o código, rode, mude os números e olhe o que acontece. O desenho ensina sozinho: um número maior gira mais rápido, um raio menor faz a onda menor. A conta pode esperar a escola.</p>
         <p><strong>Um ponto num círculo.</strong> Para pôr um ponto num círculo de raio 200 em volta da bola, num certo ângulo <code>a</code>, anda-se um pedaço para o lado e um pedaço para cima. Quem diz o tamanho dos pedaços são duas funções da matemática: <code>cos</code> (cosseno) e <code>sin</code> (seno). Para cada ângulo, elas dão um número entre −1 e 1. No ângulo 0, <code>cos</code> é 1 e <code>sin</code> é 0: o ponto fica todo para a direita. Num quarto de volta, <code>cos</code> é 0 e <code>sin</code> é 1: o ponto fica em cima. Em meia volta, <code>cos</code> é −1: à esquerda. Multiplicando pelo raio, x = 200 · cos(a) e y = 200 · sin(a), contados a partir da bola.</p>
 
         <figure class="fig">

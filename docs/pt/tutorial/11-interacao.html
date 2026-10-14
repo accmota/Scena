@@ -21,7 +21,7 @@ Tutorial.mount({
       title: "Três formas e um clique",
       part: "Script 1 · Clique e hover",
       body: `
-        <p>Este tutorial não é um jogo. É uma bancada para o mouse: cada passo apresenta um recurso, você escreve as linhas, roda e vê o recurso funcionando. As formas não fazem nada de interessante, e é de propósito: assim só o recurso aparece. São dois scripts. Neste primeiro, clicar e passar o mouse por cima. No segundo, arrastar, soltar e uma grade.</p>
+        <p>Este tutorial não é um jogo. É uma bancada para o mouse: cada passo apresenta um recurso, você escreve as linhas, roda e vê o recurso funcionando. As formas não fazem nada de interessante, e é de propósito: assim só o recurso aparece. São três scripts. Neste primeiro, clicar e passar o mouse por cima. No segundo, arrastar, soltar e uma grade. No terceiro, o mouse no canvas, sem objeto nenhum.</p>
         <p><strong>As formas.</strong> Um hexágono, um quadrado e um triângulo, os três no grupo <code>"formas"</code>. O quadrado cobre um pedaço do hexágono, também de propósito: é ali que vamos ver quem recebe o mouse quando duas formas estão no mesmo lugar.</p>
         <p><strong>Clique no grupo.</strong> No tutorial 1, o <code>@click</code> recebia as formas separadas por vírgula. Ele também aceita um grupo: <code>@click(group["formas"])</code> vale para cada forma do grupo, e o parâmetro <code>forma</code> recebe a que foi clicada. O grupo é lido no momento em que o <code>@click</code> é escrito; por isso as formas nascem antes dele.</p>
         <p><strong>Quem recebe.</strong> Rode e clique nas três: cada clique sorteia uma cor. Depois clique onde o quadrado cobre o hexágono: só o quadrado muda. O clique vai para um objeto só, o que está desenhado por cima. E quem nasce depois é desenhado por cima: no script, o quadrado vem depois do hexágono.</p>
@@ -541,6 +541,175 @@ run()
           <li><code>cell_at</code> — o caminho inverso: do ponto para a casa, ou <code>None</code> fora da grade.</li>
         </ul>
         <p><strong>No Guia:</strong> <a href="../guide/index.html#ptr-drag">Arrastar</a> · <a href="../guide/index.html#colocar-box">Box</a> · <a href="../guide/index.html#colocar-grid">Grid</a> · <a href="../guide/index.html#colocar-fit">box=</a>.</p>
+      `
+    },
+    {
+      title: "Um clique no canvas",
+      part: "Script 3 · O mouse no canvas",
+      fresh: true,
+      body: `
+        <p>Terceiro script, e nenhuma forma para clicar. Até aqui o mouse sempre falava com um objeto: o <code>@click</code> num grupo, o hover, o arraste. Às vezes você quer saber o que o mouse faz <em>em qualquer lugar da janela</em>, sem objeto nenhum embaixo dele: clicou aqui, arrastou dali até ali, girou a roda. Para isso existem as funções de mouse do canvas. Vamos fazer um céu: cada clique acende uma estrela.</p>
+        <p><strong>Uma função com nome fixo.</strong> <code>on_mouse_click</code> (ao clicar o mouse) é como o <code>update</code>: você escreve a função com esse nome no topo do arquivo, e o Scena a chama sozinho. Não é preciso <code>@</code> nenhum: o nome já diz quando ela roda. O Scena a chama a cada clique no canvas e entrega três coisas: <code>x</code> e <code>y</code>, onde foi o clique, e <code>button</code> (botão), qual botão do mouse.</p>
+        <p><strong>Uma estrela onde clicou.</strong> A função cria um círculo pequeno, com brilho, no ponto <code>(x, y)</code>, no grupo <code>"estrelas"</code>. Rode e clique pelo céu.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Céu estrelado")
+Wallpaper("black")
+
+
+def on_mouse_click(x, y, button):
+    estrela = Circle(center=(x, y), radius=6, color="white", group="estrelas")
+    estrela.glow = True
+
+
+run()
+`,
+      try: [
+        {
+          note: "O <code>button</code> diz qual botão foi: o direito (<code>Mouse.BTN_RIGHT</code>, como no Script 1) acende uma estrela dourada. No lugar da linha da <code>estrela</code>:",
+          replaces: ['estrela = Circle('],
+          code: `cor = "white"
+if button == Mouse.BTN_RIGHT:
+    cor = "gold"
+estrela = Circle(center=(x, y), radius=6, color=cor, group="estrelas")`
+        }
+      ]
+    },
+    {
+      title: "Clique duplo",
+      body: `
+        <p>Um clique duplo apaga o céu. <code>on_mouse_double_click</code> (ao clicar duas vezes) é chamada quando dois cliques chegam rápidos, um perto do outro. <code>group["estrelas"].destroy()</code> destrói todas as estrelas do grupo de uma vez.</p>
+        <p><strong>Os dois cliques chegam antes.</strong> Rode, acenda algumas estrelas e dê um clique duplo. Os dois cliques do clique duplo são cliques também: o <code>on_mouse_click</code> roda duas vezes e acende duas estrelas; logo depois chega o clique duplo e apaga tudo, inclusive essas duas. Por isso um clique duplo serve bem para uma ação que <em>inclui</em> o que o clique simples faz, como aqui.</p>
+        <p><strong>Numa forma?</strong> O Scena não tem um clique duplo para um objeto, como o <code>@click</code>. O clique duplo é do canvas: para saber se ele caiu numa forma, pergunte a cada uma com <code>contains_point</code>, como a borracha do Script 1.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Céu estrelado")
+Wallpaper("black")
+
+
+def on_mouse_click(x, y, button):
+    estrela = Circle(center=(x, y), radius=6, color="white", group="estrelas")
+    estrela.glow = True
+
+
+def on_mouse_double_click(x, y, button):
+    group["estrelas"].destroy()
+
+
+run()
+`,
+      try: [
+        {
+          note: "O clique duplo apaga só as estrelas embaixo do mouse. No lugar da linha do <code>destroy</code>:",
+          replaces: ['group["estrelas"].destroy()'],
+          code: `for estrela in group["estrelas"]:
+    if estrela.contains_point(x, y):
+        estrela.destroy()`
+        }
+      ]
+    },
+    {
+      title: "Arrastar no canvas",
+      body: `
+        <p>Agora, poeira de estrelas. <code>on_mouse_drag</code> (ao arrastar o mouse) é chamada a cada movimento do mouse com um botão apertado, onde quer que ele esteja. Cada chamada deixa um grãozinho no ponto <code>(x, y)</code>.</p>
+        <p><strong>Arrastar não é clicar.</strong> Rode e arraste: sai um rastro de poeira, e nenhuma estrela. Um clique é apertar e soltar no mesmo lugar; quem aperta, anda e solta longe arrastou, e o <code>on_mouse_click</code> não é chamado.</p>
+        <p><strong>O canvas, não um objeto.</strong> No Script 2, o arraste era de uma peça: <code>draggable</code> a levava junto com o mouse. Aqui ninguém é levado: a função só fica sabendo por onde o mouse passa.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Céu estrelado")
+Wallpaper("black")
+
+
+def on_mouse_click(x, y, button):
+    estrela = Circle(center=(x, y), radius=6, color="white", group="estrelas")
+    estrela.glow = True
+
+
+def on_mouse_double_click(x, y, button):
+    group["estrelas"].destroy()
+
+
+def on_mouse_drag(x, y, button):
+    Circle(center=(x, y), radius=2, color="light steel blue", group="estrelas")
+
+
+run()
+`
+    },
+    {
+      title: "A roda do mouse",
+      example: "ceu_estrelado.py",
+      body: `
+        <p>Por último, a roda do mouse escolhe o tamanho da próxima estrela. <code>on_mouse_scroll</code> (ao rolar o mouse) é chamada quando a roda gira. <code>yoffset</code> diz quanto e para que lado: positivo para cima, negativo para baixo. Num trackpad, é o deslizar com dois dedos.</p>
+        <p><strong>O tamanho numa célula.</strong> <code>st.raio</code> guarda o raio da próxima estrela. A roda soma <code>yoffset</code> a ele; <code>max(2, …)</code> (o maior dos dois) não o deixa ficar menor que 2. O clique usa <code>radius=st.raio</code>.</p>
+        <p><strong>Um pincel que mostra.</strong> <code>pincel</code> é um anel (um círculo sem recheio) que anda com o mouse (<code>center=lambda: mouse</code>, do tutorial 04) e tem o raio da célula (<code>radius=lambda: st.raio</code>): você vê o tamanho antes de clicar. Ele não é clicável, então o clique passa para o canvas.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Céu estrelado")
+Wallpaper("black")
+
+st.raio = 6
+pincel = Circle(center=lambda: mouse, radius=lambda: st.raio, color="white")
+pincel.fill = None
+
+
+def on_mouse_click(x, y, button):
+    estrela = Circle(center=(x, y), radius=st.raio, color="white", group="estrelas")
+    estrela.glow = True
+
+
+def on_mouse_double_click(x, y, button):
+    group["estrelas"].destroy()
+
+
+def on_mouse_drag(x, y, button):
+    Circle(center=(x, y), radius=2, color="light steel blue", group="estrelas")
+
+
+def on_mouse_scroll(xoffset, yoffset):
+    st.raio = max(2, st.raio + yoffset)
+
+
+run()
+`,
+      dive: [
+        {
+          title: "As funções de mouse do canvas",
+          body: `
+            <p>Todas se escrevem no topo do arquivo, com o nome exato, e o Scena as chama quando a coisa acontece em qualquer lugar da janela:</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Função</th><th>Quando o Scena chama</th></tr></thead>
+              <tbody>
+                <tr><td><code>on_mouse_click(x, y, button)</code></td><td>Um clique: apertar e soltar no mesmo lugar.</td></tr>
+                <tr><td><code>on_mouse_double_click(x, y, button)</code></td><td>Dois cliques rápidos, um perto do outro (depois dos dois cliques simples).</td></tr>
+                <tr><td><code>on_mouse_down(x, y, button)</code></td><td>Um botão desceu (o desenho do tutorial 04).</td></tr>
+                <tr><td><code>on_mouse_up(x, y, button)</code></td><td>Um botão subiu.</td></tr>
+                <tr><td><code>on_mouse_drag(x, y, button)</code></td><td>O mouse andou com um botão apertado.</td></tr>
+                <tr><td><code>on_mouse_move(x, y)</code></td><td>O mouse andou, com ou sem botão.</td></tr>
+                <tr><td><code>on_mouse_scroll(xoffset, yoffset)</code></td><td>A roda girou (o zoom do tutorial 10).</td></tr>
+              </tbody>
+            </table></div>
+            <p><strong>Evento ou leitura?</strong> Essas funções são eventos: rodam uma vez, no instante em que a coisa acontece. O Script 1 lia o mouse de outro jeito, a cada quadro, no <code>update</code>: <code>mouse.press(…)</code> (o botão está apertado agora?) e o próprio <code>mouse</code> como ponto. Uma coisa que acontece uma vez (acender uma estrela) cabe num evento; uma coisa que dura enquanto o botão está apertado (a borracha) lê o estado no <code>update</code>.</p>
+            <p><strong>Objeto ou canvas?</strong> Quando o clique é numa coisa (uma tecla, uma peça), use o clique do objeto: <code>@click</code>, ou o <code>on_click</code> de uma classe. Ele já entrega a coisa clicada. Quando o clique é no lugar (um ponto no céu, um tiro na direção do mouse), use a função do canvas.</p>
+            <p>No Guia: <a href="../guide/index.html#reagir-callbacks">Callbacks do script</a> · <a href="../guide/index.html#frame-mouse">Mouse</a>.</p>
+          `
+        }
+      ],
+      closing: `
+        <p>Clique para acender uma estrela; arraste para espalhar poeira; gire a roda para mudar o tamanho da próxima estrela; um clique duplo apaga o céu.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>on_mouse_click</code> — uma função com nome fixo no topo do arquivo: um clique em qualquer lugar da janela, com <code>x</code>, <code>y</code> e <code>button</code>.</li>
+          <li><code>on_mouse_double_click</code> — o clique duplo, que chega depois dos dois cliques simples.</li>
+          <li><code>on_mouse_drag</code> — o mouse andando com um botão apertado; arrastar não é clicar.</li>
+          <li><code>on_mouse_scroll</code> — a roda; <code>yoffset</code> positivo é para cima.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#reagir-callbacks">Callbacks do script</a> · <a href="../guide/index.html#frame-mouse">Mouse</a>.</p>
         <p><strong>No próximo:</strong> órbitas — formas que andam em trilhas.</p>
       `
     }

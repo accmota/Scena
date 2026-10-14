@@ -24,17 +24,22 @@ Tutorial.mount({
       body: `
         <p>Todo jogo Scena traz um painel de ferramentas escondido: teclas que mostram o que o jogo está fazendo por dentro. Elas não mudam o seu código nem o resultado do jogo; só mostram. Servem para responder as perguntas que o olho sozinho não responde. Quantas coisas existem agora? Por que esse meteoro atravessou a nave sem bater? Para onde foi a estrela que sumiu? Depurar (em inglês, <em>debug</em>) é isto: procurar por que o programa faz o que faz.</p>
         <p><strong>Ctrl+Shift.</strong> Todas as teclas são <kbd>Ctrl+Shift</kbd> mais um número ou uma letra: segure Ctrl e Shift juntos e aperte a terceira tecla. É igual no PC e no Mac (no Mac também é a tecla Control, não a Command). Funcionam em qualquer jogo Scena, sem escrever nada.</p>
-        <ul>
-          <li><kbd>Ctrl+Shift+1</kbd> — o painel do sistema (HUD): quadros por segundo, quantos objetos existem, onde está o mouse.</li>
-          <li><kbd>Ctrl+Shift+2</kbd> — liga e desliga o ajuste automático de qualidade (FX Auto).</li>
-          <li><kbd>Ctrl+Shift+3</kbd> — a qualidade dos efeitos: low → medium → high.</li>
-          <li><kbd>Ctrl+Shift+4</kbd> — o ritmo dos quadros: vsync → vsync60 → vsync30 → 60 → 30 → max.</li>
-          <li><kbd>Ctrl+Shift+7</kbd> — desenha o invisível: colisores, a moldura da tela, a cruz da origem, as trilhas e o campo de jogo.</li>
-          <li><kbd>Ctrl+Shift+8</kbd> — afasta a vista (100% → 50% → 25%), para ver o que está fora da janela.</li>
-          <li><kbd>Ctrl+Shift+P</kbd> — o tempo: roda → pausa → ¼ da velocidade → roda.</li>
-          <li><kbd>Ctrl+Shift+E</kbd> — fecha a faixa de aviso (SCENA WARNING).</li>
-          <li><kbd>Ctrl+Shift+F</kbd> — tela cheia. <kbd>Ctrl+Shift+M</kbd> — janela maximizada. <kbd>Ctrl+Shift+Z</kbd> — sai do jogo.</li>
-        </ul>
+        <div class="tbl"><table>
+          <thead><tr><th>Tecla</th><th>O que faz</th><th>Quando ajuda</th></tr></thead>
+          <tbody>
+            <tr><td><kbd>Ctrl+Shift+1</kbd></td><td>O painel do sistema (HUD): quadros por segundo, quantos objetos existem, onde está o mouse.</td><td>O jogo ficou lento? Algo que devia sumir continua existindo?</td></tr>
+            <tr><td><kbd>Ctrl+Shift+2</kbd></td><td>Liga e desliga o ajuste automático de qualidade (FX Auto).</td><td>Para comparar o jogo com e sem o ajuste.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+3</kbd></td><td>A qualidade dos efeitos: low → medium → high.</td><td>Para ver quanto um efeito custa.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+4</kbd></td><td>O ritmo dos quadros: vsync → vsync60 → vsync30 → 60 → 30 → max.</td><td>Para testar o jogo num computador mais lento.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+7</kbd></td><td>Desenha o invisível: colisores, a moldura da tela, a cruz da origem, as trilhas e o campo de jogo.</td><td>Uma colisão que não acontece; uma trilha que faz uma volta estranha.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+8</kbd></td><td>Afasta a vista (100% → 50% → 25%).</td><td>Para ver o que acontece fora da janela.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+P</kbd></td><td>O tempo: roda → pausa → ¼ da velocidade → roda.</td><td>Para ver com calma um choque rápido.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+E</kbd></td><td>Fecha a faixa de aviso (SCENA WARNING).</td><td>Depois de ler o aviso.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+F</kbd></td><td>Tela cheia.</td><td></td></tr>
+            <tr><td><kbd>Ctrl+Shift+M</kbd></td><td>Janela maximizada.</td><td></td></tr>
+            <tr><td><kbd>Ctrl+Shift+Z</kbd></td><td>Sai do jogo.</td><td>Em tela cheia, onde não há botão de fechar.</td></tr>
+          </tbody>
+        </table></div>
         <p><strong>O laboratório.</strong> Para ver cada tecla funcionando, vamos montar um pequeno laboratório: uma nave, meteoros que caem, um disco voador que dá voltas. Cada passo acrescenta uma peça e apresenta a tecla que a mostra por dentro. Começamos pela nave, que anda com as setas.</p>
       `,
       code: `from scena import *

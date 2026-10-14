@@ -20,7 +20,7 @@ Tutorial.mount({
     {
       title: "O piano do 20",
       body: `
-        <p>Novo script: o piano do tutorial 20, com o título <code>"Estúdio"</code>. No 20, você tocava e o som saía. Agora é o contrário: <strong>o som manda na tela</strong>. O piano vai tocar a sua voz, uma barra vai mostrar quão alto você fala, e uma estrela vai dançar com uma luz que cresce com a voz.</p>
+        <p>Novo script: o piano do tutorial 20, com o título <code>"Estúdio"</code>, sem o equalizador (a parte de cima da tela vai ganhar outras coisas). No 20, você tocava e o som saía. Agora é o contrário: <strong>o som manda na tela</strong>. O piano vai tocar a sua voz, uma barra vai mostrar quão alto você fala, e uma estrela vai dançar com uma luz que cresce com a voz.</p>
         <p>Duas coisas novas: o <strong>microfone</strong> e as <strong>trilhas</strong> (um caminho que um objeto percorre sozinho). E o <code>@=</code>, que você já usou no placar, visto de perto.</p>
       `,
       code: `from scena import *
@@ -37,6 +37,9 @@ class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
         if keyp.once(self.letra):
             self.tocar()
 
+    def on_click(self):
+        self.tocar()
+
     def tocar(self):
         play_sound("audio/nota.wav", pitch=self.nota, on_done=self.apagar)
         self.color = "gold"
@@ -50,11 +53,6 @@ for i in range(8):
     tecla.letra = LETRAS[i]
     tecla.nota = NOTAS[i]
     Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
-
-
-@click(group["teclas"])
-def clicou(tecla):
-    tecla.tocar()
 
 
 run()
@@ -83,6 +81,9 @@ class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
         if keyp.once(self.letra):
             self.tocar()
 
+    def on_click(self):
+        self.tocar()
+
     def tocar(self):
         play_sound("audio/nota.wav", pitch=self.nota, on_done=self.apagar)
         self.color = "gold"
@@ -96,11 +97,6 @@ for i in range(8):
     tecla.letra = LETRAS[i]
     tecla.nota = NOTAS[i]
     Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
-
-
-@click(group["teclas"])
-def clicou(tecla):
-    tecla.tocar()
 
 
 aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="silver")
@@ -155,6 +151,9 @@ class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
         if keyp.once(self.letra):
             self.tocar()
 
+    def on_click(self):
+        self.tocar()
+
     def tocar(self):
         play_sound(gravador.som, pitch=self.nota, on_done=self.apagar)
         self.color = "gold"
@@ -168,11 +167,6 @@ for i in range(8):
     tecla.letra = LETRAS[i]
     tecla.nota = NOTAS[i]
     Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
-
-
-@click(group["teclas"])
-def clicou(tecla):
-    tecla.tocar()
 
 
 aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="silver")
@@ -223,7 +217,7 @@ self.som = self.gravacao.bake(HighPass())`
       title: "O medidor",
       body: `
         <p>Uma barra em cima, à esquerda, mostra quão alto você está falando agora. Ela começa a andar depois do primeiro R, quando o microfone abre.</p>
-        <p><strong>Quão alto.</strong> <code>self.mic.level</code> (nível) diz quão alto está o som que chega ao microfone, de 0 (silêncio) a 1, já suavizado. Nessa conta, a fala é pequena, poucos centésimos, e a barra mal sairia do lugar. <code>amp_db</code> passa o nível para a escala do ouvido, também de 0 a 1: o silêncio fica perto de 0, a fala no meio, um grito perto de 1.</p>
+        <p><strong>Quão alto.</strong> <code>self.mic.level</code> (nível) diz quão alto está o som que chega ao microfone, de 0 (silêncio) a 1, já suavizado. É o mesmo medidor do som do jogo, <code>audio.level</code> (tutorial 20), mas do que chega ao microfone. Nessa conta, a fala é pequena, poucos centésimos, e a barra mal sairia do lugar. <code>amp_db</code> passa o nível para a escala do ouvido, também de 0 a 1: o silêncio fica perto de 0, a fala no meio, um grito perto de 1.</p>
         <p><strong>Uma fórmula, não uma cópia.</strong> <code>barra["width"] @= lambda: 300 * st.voz</code> é a primeira regra das Fórmulas (09): o <code>=</code> faria a conta uma vez, com <code>st.voz</code> ainda 0; o <code>@=</code> guarda a fórmula, e o Scena a refaz toda vez que <code>st.voz</code> muda.</p>
         <p><strong>A voz numa célula.</strong> O Scena sabe quando refazer uma fórmula porque acompanha o que ela lê: uma célula do <code>st</code>, um campo de um objeto, o <code>mouse</code>, o teclado, e também o nível do microfone, que ele confere uma vez por quadro. Quando o primeiro R abre o microfone, o gravador liga a célula <code>st["voz"]</code> a ele: <code>st["voz"] @= lambda: amp_db(self.mic.level)</code>. São duas fórmulas em fila: a barra segue <code>st.voz</code>, e <code>st.voz</code> segue o microfone. Nenhuma linha copia nada.</p>
         <p><strong>Por que não ligar a barra direto no microfone?</strong> Uma fórmula aprende o que vai seguir na hora em que é ligada. No começo do programa ainda não há microfone: <code>gravador.mic</code> é <code>None</code>, e uma fórmula com <code>gravador.mic.level</code> daria erro. Por isso o <code>@=</code> do microfone fica no <code>gravar</code>, logo depois de abri-lo. A barra se liga a <code>st.voz</code>, que existe desde o começo e vale 0 até o primeiro R. E a voz ganha um nome só, para a barra e para o que vier depois.</p>
@@ -245,6 +239,9 @@ class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
         if keyp.once(self.letra):
             self.tocar()
 
+    def on_click(self):
+        self.tocar()
+
     def tocar(self):
         play_sound(gravador.som, pitch=self.nota, on_done=self.apagar)
         self.color = "gold"
@@ -258,11 +255,6 @@ for i in range(8):
     tecla.letra = LETRAS[i]
     tecla.nota = NOTAS[i]
     Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
-
-
-@click(group["teclas"])
-def clicou(tecla):
-    tecla.tocar()
 
 
 aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="silver")
@@ -387,6 +379,9 @@ class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
         if keyp.once(self.letra):
             self.tocar()
 
+    def on_click(self):
+        self.tocar()
+
     def tocar(self):
         play_sound(gravador.som, pitch=self.nota, on_done=self.apagar)
         self.color = "gold"
@@ -400,11 +395,6 @@ for i in range(8):
     tecla.letra = LETRAS[i]
     tecla.nota = NOTAS[i]
     Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
-
-
-@click(group["teclas"])
-def clicou(tecla):
-    tecla.tocar()
 
 
 aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="silver")
@@ -492,6 +482,9 @@ class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
         if keyp.once(self.letra):
             self.tocar()
 
+    def on_click(self):
+        self.tocar()
+
     def tocar(self):
         play_sound(gravador.som, pitch=self.nota, on_done=self.apagar)
         self.color = "gold"
@@ -505,11 +498,6 @@ for i in range(8):
     tecla.letra = LETRAS[i]
     tecla.nota = NOTAS[i]
     Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
-
-
-@click(group["teclas"])
-def clicou(tecla):
-    tecla.tocar()
 
 
 aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="silver")

@@ -1,7 +1,8 @@
 """Estúdio · Piano — tutorial 20.
 
 Um piano de oito teclas: uma nota só (audio/nota.wav) tocada em oito
-alturas com pitch=; a tecla acende enquanto a nota soa (on_done=).
+alturas com pitch=; a tecla acende enquanto a nota soa (on_done=); um
+equalizador mostra o som do jogo em doze faixas (audio.spectrum).
 
 Controles
 ---------
@@ -27,6 +28,9 @@ class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
         if keyp.once(self.letra):
             self.tocar()
 
+    def on_click(self):
+        self.tocar()
+
     def tocar(self):
         play_sound("audio/nota.wav", pitch=self.nota, on_done=self.apagar)
         self.color = "gold"
@@ -41,10 +45,15 @@ for i in range(8):
     tecla.nota = NOTAS[i]
     Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
 
+barras = []
+for i in range(12):
+    barras.append(Rect(center=(82 + i * 76, 470), width=60, height=4, color="turquoise"))
 
-@click(group["teclas"])
-def clicou(tecla):
-    tecla.tocar()
+
+def update(dt):
+    faixas = audio.spectrum(bins=12)
+    for i in range(12):
+        barras[i].height = 4 + 150 * amp_db(faixas[i])
 
 
 run()

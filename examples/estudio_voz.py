@@ -33,6 +33,9 @@ class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
         if keyp.once(self.letra):
             self.tocar()
 
+    def on_click(self):
+        self.tocar()
+
     def tocar(self):
         play_sound(gravador.som, pitch=self.nota, on_done=self.apagar)
         self.color = "gold"
@@ -46,11 +49,6 @@ for i in range(8):
     tecla.letra = LETRAS[i]
     tecla.nota = NOTAS[i]
     Text(text=LETRAS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
-
-
-@click(group["teclas"])
-def clicou(tecla):
-    tecla.tocar()
 
 
 aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="silver")

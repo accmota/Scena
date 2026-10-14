@@ -9,6 +9,7 @@ examples/barras_girando.py
 examples/bolas.py
 examples/bolhas.py
 examples/cadeia_de_bolas.py
+examples/ceu_estrelado.py
 examples/corredor.py
 examples/desenho.py
 examples/entropia.py
