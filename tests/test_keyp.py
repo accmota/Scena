@@ -36,17 +36,32 @@ class TestKeypBareHeldChord(unittest.TestCase):
         self.assertTrue(k("RIGHT"))
         self.assertFalse(k.only("LEFT"))
 
-    def test_shift_does_not_satisfy_bare_play(self):
+    def test_shift_does_not_hide_a_bare_play_key(self):
+        # PD6 (0.8.1): "hold Shift to run" keeps keyp("LEFT"); the chord
+        # still reads, keyp.only stays exclusive.
         k = self.k
         k._press("SHIFT")
         k._press("LEFT")
-        self.assertFalse(k("LEFT"))
+        self.assertTrue(k("LEFT"))
+        self.assertTrue("LEFT" in k)
         self.assertTrue(k.held("LEFT"))
         self.assertTrue(k("SHIFT"))
         self.assertTrue(k("SHIFT+LEFT"))
         self.assertFalse(k("CTRL+LEFT"))
+        self.assertFalse(k.only("LEFT"))
+        self.assertTrue(k.only("SHIFT+LEFT"))
 
-    def test_ctrl_same_as_shift_for_bare(self):
+    def test_shift_keeps_a_chord_exact(self):
+        # PD6: only a bare key ignores Shift. Cmd+Shift+Z is not CMD+Z.
+        k = self.k
+        k._press("CMD")
+        k._press("SHIFT")
+        k._press("Z")
+        self.assertFalse(k("CMD+Z"))
+        self.assertTrue(k("CMD+SHIFT+Z"))
+        self.assertFalse(k("Z"))                 # Cmd still hides the bare key
+
+    def test_ctrl_hides_a_bare_play_key(self):
         k = self.k
         k._press("CTRL")
         k._press("R")
@@ -54,6 +69,16 @@ class TestKeypBareHeldChord(unittest.TestCase):
         self.assertTrue(k.held("R"))
         self.assertTrue(k("CTRL+R"))
         self.assertFalse(k("SHIFT+R"))
+
+    def test_alt_and_cmd_hide_a_bare_play_key(self):
+        for mod in ("ALT", "CMD"):
+            with self.subTest(mod):
+                k = KeyPressed()
+                k._press(mod)
+                k._press("SPACE")
+                self.assertFalse(k("SPACE"))
+                self.assertFalse(k.once("SPACE"))
+                self.assertTrue(k(f"{mod}+SPACE"))
 
     def test_shift_family_either_side(self):
         k = self.k
@@ -132,7 +157,8 @@ class TestKeypBareHeldChord(unittest.TestCase):
         k._press("A")
         k._press("B")
         self.assertTrue(k("SHIFT"))
-        self.assertFalse(k("A"))
+        self.assertTrue(k("A"))                  # Shift does not hide it (PD6)
+        self.assertFalse(k.only("A"))
 
     def test_bool_any_physical(self):
         k = self.k
@@ -200,12 +226,29 @@ class TestKeypOnce(unittest.TestCase):
 
     def test_held_once(self):
         k = self.k
-        k._press("SHIFT")
+        k._press("CTRL")
         k._press("LEFT")
         self.assertFalse(k.once("LEFT"))
         self.assertTrue(k.held.once("LEFT"))
         self.assertFalse(k.held.once("LEFT"))
         self.assertTrue(k.held("LEFT"))
+
+    def test_once_with_shift_held(self):
+        # PD6: Shift held, then SPACE: the jump fires once; pressing Shift
+        # under a held key is not a new press either.
+        k = self.k
+        k._press("SHIFT")
+        k._press("SPACE")
+        self.assertTrue(k.once("SPACE"))
+        self.assertFalse(k.once("SPACE"))
+        k._release("SPACE")
+        k._release("SHIFT")
+        k._press("RIGHT")
+        self.assertTrue(k.once("RIGHT"))
+        k._press("SHIFT")
+        self.assertFalse(k.once("RIGHT"))
+        k._release("SHIFT")
+        self.assertFalse(k.once("RIGHT"))
 
     def test_held_contains(self):
         k = self.k
@@ -494,7 +537,8 @@ _ORACLE_FAMILIES = {
 
 
 def _down_together(spec, down) -> bool:
-    """Independent model: the spec's keys are down and no other modifier is."""
+    """Independent model: the spec's keys are down and no other modifier is
+    (a bare key, no modifier listed, ignores Shift: PD6)."""
     parts = spec.split("+")
     families = {p for p in parts if p in _ORACLE_FAMILIES}
     for part in parts:
@@ -504,6 +548,8 @@ def _down_together(spec, down) -> bool:
         elif part not in down:
             return False
     extra = {f for f, names in _ORACLE_FAMILIES.items() if names & down} - families
+    if not families:
+        extra.discard("SHIFT")
     return not extra
 
 

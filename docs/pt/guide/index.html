@@ -6761,7 +6761,7 @@ st["pulse"] @= lambda: abs(sin(clock.time * 3))</pre>
 
     <section class="section prose" id="frame-teclado">
       <h2>Teclado</h2>
-      <p class="one-liner"><code>keyp</code> diz, no <code>update</code>, como está o teclado. <code>keyp("A")</code> é <code>True</code> enquanto A está segurada (sem Shift / Ctrl / Alt / Cmd); <code>keyp.once("A")</code> só no frame em que A foi apertada (para pular, atirar uma vez); <code>keyp.only("A")</code> exige que nenhuma outra tecla esteja segurada; <code>keyp("CTRL+R")</code> lê um atalho. Também entra numa fórmula <code>@=</code> (abaixo).</p>
+      <p class="one-liner"><code>keyp</code> diz, no <code>update</code>, como está o teclado. <code>keyp("A")</code> é <code>True</code> enquanto A está segurada (Shift junto não atrapalha; Ctrl / Alt / Cmd sim); <code>keyp.once("A")</code> só no frame em que A foi apertada (para pular, atirar uma vez); <code>keyp.only("A")</code> exige que nenhuma outra tecla esteja segurada; <code>keyp("CTRL+R")</code> lê um atalho. Também entra numa fórmula <code>@=</code> (abaixo).</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>def update(dt):

@@ -81,8 +81,16 @@ class App:
             self.editor.zoom_wheel(yoffset, mouse.x, mouse.y)
 
     def on_key(self, key):
-        """Keys with no modifier (Scena delivers modified keys to keyp only)."""
+        """Keys with no Cmd / Ctrl / Alt (Scena delivers those to keyp only).
+
+        Shift does not block a key (0.8.1): Shift+arrow nudges by the grid
+        here, on the press and its repeats; another Shift+key does nothing.
+        """
         if self.blocked:
+            return
+        if keyp("SHIFT"):
+            if key in ("LEFT", "RIGHT", "UP", "DOWN"):
+                self.editor.key(key, shift=True)
             return
         if key == "F":
             self.editor.fit_view()
@@ -120,10 +128,6 @@ class App:
             ed.select_all()
         elif keyp.once(f"{p}+0"):
             ed.actual_size()
-        else:
-            for name in ("LEFT", "RIGHT", "UP", "DOWN"):
-                if keyp.once(f"SHIFT+{name}"):
-                    ed.key(name, shift=True)
 
     # -- per frame ---------------------------------------------------------------------
     def update(self, dt):

@@ -283,7 +283,12 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   and the edit lands afterwards
   (`test_undo_button_lands_a_pending_field_edit_first`).
 - **Shortcuts:** Primary = Cmd on macOS, Ctrl elsewhere. Redo is
-  Cmd+Shift+Z / Ctrl+Y (Ctrl+Shift+Z is Scena's reserved quit).
+  Cmd+Shift+Z / Ctrl+Y (Ctrl+Shift+Z is Scena's reserved quit). Arrows nudge
+  the selection 1 unit, Shift+arrow one grid step, on the press and its
+  repeats (`App.on_key`). Scena delivers a Shift+key to `on_key` (Shift does
+  not block a bare key since 0.8.1), so `on_key` reads `keyp("SHIFT")`
+  itself and ignores other Shift+keys
+  (`test_shift_arrow_nudges_by_the_grid_once`).
 - **Dialogs:** `crossfiledialog` (a Scena dependency; osascript on
   macOS, COM on Windows, zenity / kdialog on Linux), tkinter in a child
   process as the fallback, behind `scena_editor/dialogs.py`. Run in a worker

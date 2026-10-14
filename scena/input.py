@@ -348,9 +348,9 @@ class _HeldView(ClosedSurface):
 class KeyPressed(ClosedSurface, Container):
     """The keyboard, as the global ``keyp``: level queries, not events.
 
-    ``keyp("SPACE")`` is ``True`` while the key is down; ``keyp.held("A")``
-    ignores modifiers; ``keyp.once("SPACE")`` is ``True`` once per press;
-    chords are ``keyp("CTRL+S")``. Unknown key names raise with the closest
+    ``keyp("SPACE")`` is ``True`` while the key is down and no Ctrl / Alt /
+    Cmd is (Shift does not hide it); ``keyp.held("A")`` ignores modifiers;
+    ``keyp.once("SPACE")`` is ``True`` once per press; chords are ``keyp("CTRL+S")``. Unknown key names raise with the closest
     name. For one callback per press, define ``on_key_down(key)`` in the script.
     """
 
@@ -408,16 +408,18 @@ class KeyPressed(ClosedSurface, Container):
         if not was_down:
             self._pending_edges[physical] = frozenset(self._pressed_keys)
         if physical in _SPECIFIC_TO_FAMILY:
-            # Modifier down: this hold of any already-down play key is not a
-            # new unmodified press (lifting the modifier must not fire once).
-            # A play key whose own press is still pending (same poll, never
-            # read) keeps its unmodified edge: it was pressed alone, and
-            # on_key_down already reported it so (review 2026-10-09 S3-9).
-            pending = self._pending_edges
-            for name in self._pressed_keys:
-                if name not in _SPECIFIC_TO_FAMILY and name not in pending:
-                    self._once_fired.add(self._token(name, False))
-        elif self._active_families():
+            if _SPECIFIC_TO_FAMILY[physical] != "SHIFT":
+                # Modifier down: this hold of any already-down play key is not
+                # a new unmodified press (lifting the modifier must not fire
+                # once). A play key whose own press is still pending (same
+                # poll, never read) keeps its unmodified edge: it was pressed
+                # alone, and on_key_down already reported it so (review
+                # 2026-10-09 S3-9). Shift does not hide a bare key (PD6).
+                pending = self._pending_edges
+                for name in self._pressed_keys:
+                    if name not in _SPECIFIC_TO_FAMILY and name not in pending:
+                        self._once_fired.add(self._token(name, False))
+        elif self._active_families() - {"SHIFT"}:
             self._once_fired.add(self._token(physical, False))
         self.update()
 
@@ -530,6 +532,12 @@ class KeyPressed(ClosedSurface, Container):
         if not play_parts:
             return True
         extra = self._active_families(keys=source) - listed_families
+        if not listed_families:
+            # A bare play key ignores Shift: "hold Shift to run" keeps
+            # ``keyp("RIGHT")`` and the jump (bug PD6). Ctrl / Alt / Cmd still
+            # hide it (they make shortcuts); a chord stays exact, so
+            # ``keyp("CMD+Z")`` is not Cmd+Shift+Z.
+            extra.discard("SHIFT")
         return not extra
 
     def _physicals_for(self, spec) -> set:
@@ -715,7 +723,7 @@ class KeyPressed(ClosedSurface, Container):
         """Whether a play-key press/repeat should reach script ``on_key_*``.
 
         Same filter as ``keyp(name)``: modifiers always deliver; a play key
-        delivers only when unmodified.
+        delivers only without Ctrl / Alt / Cmd (Shift does not block, PD6).
         """
         if not isinstance(physical, str):
             return False

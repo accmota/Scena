@@ -392,6 +392,18 @@ actor never reads. Position is `.center` (`ship.center.x` to read;
 Entity still stores `e.x` as ink. `ship.center + (dx, dy)` is a new point
 (placement, not motion). `ship.center += …` raises — use `move_by`.
 
+**Modifier filter.** A bare play key (`keyp("RIGHT")`, `keyp.once("SPACE")`,
+`in keyp`, and the `on_key_down` / `on_key` delivery) reads False while Ctrl,
+Alt or Cmd is held — they make shortcuts — but **Shift does not block it**:
+"hold Shift to run" keeps walking and jumping (bug PD6, 0.8.1; before, any
+modifier hid it). So with Shift and R held, `keyp("R")` and `keyp("SHIFT+R")`
+are both True; `keyp.only("R")` stays exclusive (no other physical key, Shift
+included). A spec that lists a modifier is an exact chord: an unlisted family,
+Shift included, makes it False, so `keyp("CMD+Z")` is not Cmd+Shift+Z.
+`keyp.held` ignores every modifier. Shift going down under a held play key
+does not latch its `once` (it is not a new press, and lifting it fires
+nothing); Ctrl / Alt / Cmd still do (`KeyPressed._press`).
+
 Key specs are validated on every query (`keyp`, `.once`, `.only`, `keyp.held`,
 `in keyp`): a non-str raises `TypeError`; an unknown or empty name raises
 `ValueError` with the Scena spelling (`"ESCAPE"` → `"ESC"`, `"RETURN"` →

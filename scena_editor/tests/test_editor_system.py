@@ -434,6 +434,32 @@ class TestEditorOnFrames(EditorSystemCase):
             self.assertIsNone(seen.get(label), label)
         self.assertEqual(seen["polygon"], "Polygon (G)")
 
+    def test_shift_arrow_nudges_by_the_grid_once(self):
+        # Scena 0.8.1 delivers Shift+arrow to on_key (Shift no longer blocks a
+        # bare key, PD6): one grid step per key event, not a 1-unit nudge too.
+        from scena import keyp
+        app = self.app
+        app.choose_tool("rect")
+        self.drag_view((300, 300), (420, 360))
+        ed = app.editor
+        item = ed.selected_items()[0]
+        x0 = item["center"][0]
+        tool = ed.tool
+        keyp._press("LEFT_SHIFT")
+        try:
+            app.on_key("RIGHT")
+            self.frame()
+            app.on_key("R")                          # Shift+letter: no tool switch
+            self.frame()
+        finally:
+            keyp._release("LEFT_SHIFT")
+        item = ed.selected_items()[0]
+        self.assertAlmostEqual(item["center"][0] - x0, ed.grid)
+        self.assertEqual(ed.tool, tool)
+        app.on_key("RIGHT")
+        self.frame()
+        self.assertAlmostEqual(ed.selected_items()[0]["center"][0] - x0, ed.grid + 1.0)
+
     def test_active_tool_follows_keys_and_creation(self):
         app = self.app
         active = lambda: [b.tool for b in app.panel.tool_buttons if b.active]  # noqa: E731
