@@ -257,13 +257,13 @@ class Heroi(Sprite, source=NINJA, group="heroi", hitbox_shape="rect", hitbox_sou
         elif esquerda and not direita:
             self.flip_x = True
         self.vel.y = max(self.vel.y - GRAVIDADE * dt, -1400.0)
-        carona = 0.0
+        # On the lift: resolve() carries the ninja (Guia, "Tornar sólido": quem
+        # está em cima vai junto). Adding the lift's step here moved it twice.
         h = ELEVADOR["h"]
         if no_chao and h is not None and any(c.other is HUD.get("elevador") for c in contatos
                                              if c.side == "bottom"):
-            carona = h.velocity.x * dt
             G.hit("elevador.carona")
-        self.move_by(self.vel.x * dt + carona, self.vel.y * dt)
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
         if keyp.once("X") and self.ready("golpe", 0.5):
             self.play("golpe", loops=1, next="parado")
             G.hit("golpe")

@@ -128,11 +128,17 @@ class TestEntropiaPiston(unittest.TestCase):
             ns["st"].meio_movel = True
             meio = ns["meio"]
             height = meio.center.y
-            run.step(6 * SECOND)
+            run.step(5 * SECOND)
+            drift = []
+            for _ in range(SECOND):
+                run.step(1)
+                drift.append(abs(meio.center.y - height))
             self.assertGreater(meio.center.x, ns["MEIO"] + 60, "the hot side did not push it")
             # Every ball's knock also shoves it sideways; the piston keeps its height
-            # (a drift opened a gap at one end and let balls through).
-            self.assertAlmostEqual(meio.center.y, height, delta=1.0)
+            # (a drift opened a gap at one end and let balls through). One frame's
+            # knock can leave it a DU or so off before update() puts it back, so
+            # the height is read over the last second, not on one frame.
+            self.assertLess(sum(drift) / len(drift), 1.0)
             half = ns["st"].bolas // 2
             self.assertEqual(side_counts(ns), {"esq": (half, 0), "dir": (0, half)})
 

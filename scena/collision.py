@@ -163,6 +163,39 @@ _SWEEP_SAT = True
 # body takes its share and the partner is pushed by the rest. False: the body
 # swept first takes it all, whatever the masses (the old rule; A/B).
 _SWEEP_MASS_SPLIT = True
+# Settle with no remembered contact normal pushes a pair apart along the
+# minimum-overlap axis (PE1). False: the old rule, which flipped that axis
+# when the pair's velocities separated along it, so two overlapping bodies
+# moving apart (or a ball spawned in a wall, moving into the room) were
+# pushed through each other (oracle, canary).
+_SETTLE_MIN_OVERLAP = True
+# A body standing on a moving resolve partner moves with it (PB2, Collision
+# Design "Riders"): ``_carry_riders`` adds the partner's displacement to the
+# rider's motion before the sweeps. False: the old rule, where the only carry
+# was the relative sweep's leftover ``d_other x (1 - t)``, so a sideways lift
+# carried its rider 97 % at 30 fps and 1 % at 240 (oracle, A/B).
+_RIDER_CARRY = True
+# Riders stacked on riders deeper than this are not carried (a guard, not a
+# limit any game meets).
+_CARRY_DEPTH = 16
+# A body that stops on a floor (no sideways intent) or is snapped onto one
+# backs off along its own motion, not the normal, so an idle body on a slope
+# does not creep downhill by ``slop * sin(slope)`` a frame (PE2). Only when the
+# motion meets the surface within 60 degrees of its normal (a walkable floor
+# under a fall always does). False: always along the normal (oracle, A/B).
+_SKIN_ALONG_MOTION = True
+_SKIN_MOTION_COS = 0.5
+# Settle and unswept recovery split a correction between two movable bodies
+# without pushing either into a STATIC partner of its own (PE3,
+# ``_nudge_pair_along``); the other takes the rest. False: the plain mass
+# split, which pressed a light crate under a heavy one into the floor
+# (oracle, A/B).
+_SETTLE_STATIC_CLAMP = True
+# A sweep stop between two movable bodies sweeps the body's unswept travel
+# (the leftover it inherits from the partner, plus its follow) against its own
+# STATIC partners, and the partner takes back what it could not travel (PE4,
+# ``_share_sweep_stop``). False: that travel is placed (oracle, A/B).
+_SWEEP_INHERIT_CLAMP = True
 # Resolve partner scans (sweep casts, settle and recovery passes, floor_below
 # without group=) prefilter a large pool on the proxy mirror, then run the
 # same exact test on what is left (Collision Design, "Moved set and
@@ -2718,6 +2751,30 @@ def _toi_prim_sets(
     return _toi_bisect(pas, pbs, dx, dy)
 
 
+def _skin_back_off(
+    nx: float, ny: float, mx: float, my: float, along_motion: bool,
+) -> Tuple[float, float]:
+    """The offset that leaves ``_RESOLVE_SLOP`` of skin after a stop.
+
+    ``(nx, ny)`` is the unit contact normal (body toward partner), ``(mx, my)``
+    the motion that met it. A body that stops there (a floor met with no
+    sideways intent, a floor snap) backs off along its own motion, by the
+    length that opens the skin along the normal: an idle body on a slope
+    then ends exactly where its fall met the surface. Backing off along the
+    normal moved it downhill by ``slop * sin(slope)`` every frame, and the
+    next fall kept it: the idle creep (PE2). A body that slides on backs off
+    along the normal, which leaves its slide untouched.
+    """
+    if along_motion and _SKIN_ALONG_MOTION:
+        m = math.hypot(mx, my)
+        if m > 1e-12:
+            c = (mx * nx + my * ny) / m
+            if c >= _SKIN_MOTION_COS:
+                k = _RESOLVE_SLOP / (c * m)
+                return -mx * k, -my * k
+    return -nx * _RESOLVE_SLOP, -ny * _RESOLVE_SLOP
+
+
 def _remove_normal_component(
     rx: float, ry: float, nx: float, ny: float
 ) -> Tuple[float, float]:
@@ -4876,6 +4933,11 @@ class CollisionSystem:
         self._swept_ids: Set[int] = set()
         self._pass_statics: List["Collider"] = []
         self._pass_static_rows = None
+        self._push_wall_normal = (0.0, 0.0)     # the last clamped push's wall
+        self._pass_members: Dict[int, Any] = {}   # _push_reach: partner ids per body
+        # This pass's riders (PB2): id(rider) -> (carrier, carry_x, carry_y),
+        # or None when nobody is carried (``_carry_riders``).
+        self._pass_carry: Optional[Dict[int, Tuple["Collider", float, float]]] = None
         # Standing resolve on/off. Detection, queries, and @collide stay live.
         self._resolve_enabled = True
         # Fast colliders of the current step (swept detection). Filled by
@@ -7005,6 +7067,7 @@ class CollisionSystem:
         bodies: List[Collider] = []
         statics: List[Collider] = []
         grounded_at_start: Dict[int, bool] = {}
+        grounded: List[Collider] = []
         seen: Set[int] = set()
         for ta, tb, _tok, _only in self._resolve_pairs:
             for side in (ta, tb):
@@ -7016,11 +7079,14 @@ class CollisionSystem:
                     ident = c._identity
                     mass = float(getattr(ident, "mass", 1.0)) if ident is not None else 1.0
                     sides = getattr(ident, "touching_sides", frozenset()) or frozenset()
-                    grounded_at_start[cid] = "bottom" in sides
+                    on_floor = "bottom" in sides
+                    grounded_at_start[cid] = on_floor
                     if _is_static_mass(mass):
                         statics.append(c)
                         continue
                     bodies.append(c)
+                    if on_floor:
+                        grounded.append(c)
         bodies.sort(key=lambda c: self._collider_index.get(id(c), id(c)))
         if self._author_ran:
             # A handler may have moved or grown a body (a respawn in a hazard
@@ -7037,6 +7103,11 @@ class CollisionSystem:
         swept.clear()
         self._pass_statics = statics
         self._pass_static_rows = None
+        self._pass_members = {}
+        self._pass_carry = (
+            self._carry_riders(grounded, grounded_at_start)
+            if _RIDER_CARRY and grounded else None
+        )
         for ca in bodies:
             swept.add(id(ca))
             partners = self._resolve_pool(ca)
@@ -7534,6 +7605,16 @@ class CollisionSystem:
             return
         seam = _SEAM_STEP > 0.0
         cid = id(ca)
+        # A rider's motion channel holds its carry (``_carry_riders``); the
+        # stop-on-slope intent is its own motion, and its carrier's hit leaves
+        # the relative leftover (the carry is already travelled).
+        carry = self._pass_carry.get(cid) if self._pass_carry else None
+        if carry is None:
+            carrier = None
+            own_dx = dx
+        else:
+            carrier = carry[0]
+            own_dx = dx - carry[1]
         if type(partners) is _PartnerPool:
             partner_moves = partners.moves()
         else:
@@ -7548,12 +7629,17 @@ class CollisionSystem:
         ox = 0.0
         oy = 0.0
         remaining = (dx, dy)
-        for _ in range(_MAX_SLIDES):
+        # A rider's carry still to travel (None: not a rider).
+        carry_left = (carry[1], carry[2]) if carry is not None else None
+        for slide in range(_MAX_SLIDES):
             rdx, rdy = remaining
             if math.hypot(rdx, rdy) < _SLIDE_EPS:
                 break
             moved = _copy_translate(pas, ox, oy)
-            first = abs(ox) < 1e-12 and abs(oy) < 1e-12
+            # Only the first slide is relative. Not "the body has not moved":
+            # a stop whose unswept travel a wall cut to nothing (PE4) leaves
+            # it where it started, and the next slide is still a later one.
+            first = slide == 0
             # Standing (last frame, or on a floor met earlier this frame):
             # a side face with a small lip above the feet may be a seam step.
             ground = seam and (grounded or self._solve_bottom_count.get(cid, 0) > 0)
@@ -7593,32 +7679,78 @@ class CollisionSystem:
                     continue
             ox += rdx * t
             oy += rdy * t
+            side = _side_from_normal(nx, ny)
+            stop = side == "bottom" and abs(own_dx) < _STOP_ON_SLOPE_INTENT
+            if first:
+                mx, my = rdx - odx, rdy - ody
+            else:
+                mx, my = rdx, rdy
+            bx = by = 0.0
             if nlen > 1e-12:
-                ox -= nx * _RESOLVE_SLOP
-                oy -= ny * _RESOLVE_SLOP
+                bx, by = _skin_back_off(nx, ny, mx, my, stop)
+                ox += bx
+                oy += by
             self._record_solve_contact(ca, other, nx, ny, 0.0)
             self._respond_velocity(ca, other, token, nx, ny)
-            leftover_x = rdx * (1.0 - t)
-            leftover_y = rdy * (1.0 - t)
-            remaining = _remove_normal_component(leftover_x, leftover_y, nx, ny)
+            # What the body slides on: this slide's motion past the stop, its
+            # part along the normal removed (stop-on-slope: nothing).
+            leftover_x = mx * (1.0 - t) if first else rdx * (1.0 - t)
+            leftover_y = my * (1.0 - t) if first else rdy * (1.0 - t)
+            if first and other is carrier:
+                # A rider meeting its carrier (PB2): the slide is the motion
+                # relative to it (a walk on the lift), and the carrier's own
+                # leftover is travelled on the next slides, not placed, so a
+                # wall on the lift's path stops the rider.
+                remaining = (0.0, 0.0) if stop else _remove_normal_component(
+                    leftover_x, leftover_y, nx, ny)
+                carry_left = (odx * (1.0 - t), ody * (1.0 - t))
+                remaining = (remaining[0] + carry_left[0], remaining[1] + carry_left[1])
+                inherit = False
+            else:
+                inherit = first and (odx or ody)
+                shared = (inherit and carry_left is not None
+                          and self._pass_carry.get(id(other)) is not None)
+                if first:
+                    leftover_x = rdx * (1.0 - t)
+                    leftover_y = rdy * (1.0 - t)
+                    if shared:
+                        # Both ride: the partner's leftover, inherited below,
+                        # already holds the carry; slide on by the own motion.
+                        leftover_x -= carry_left[0] * (1.0 - t)
+                        leftover_y -= carry_left[1] * (1.0 - t)
+                remaining = (0.0, 0.0) if stop else _remove_normal_component(
+                    leftover_x, leftover_y, nx, ny)
+                if shared:
+                    carry_left = None               # delivered by the inheritance
+                if carry_left is not None:
+                    # The part of this slide that is still the carry: a stop
+                    # on a floor ends the rider's own motion, not the ride.
+                    carry_left = _remove_normal_component(
+                        carry_left[0] * (1.0 - t), carry_left[1] * (1.0 - t), nx, ny)
+                    if stop:
+                        remaining = carry_left
             # Relative-frame TOI is against the partner's start-of-frame pose.
             # Convert back to world space by inheriting the partner's leftover
             # displacement — every contact side, not only a standing rider.
-            if first and (odx or ody):
+            ix, iy = bx, by                 # what the body travels unswept
+            if inherit:
                 ox += odx * (1.0 - t)
                 oy += ody * (1.0 - t)
+                ix += odx * (1.0 - t)
+                iy += ody * (1.0 - t)
             if _SWEEP_MASS_SPLIT and nlen > 1e-12:
                 if first:
                     gap = ((rdx - odx) * nx + (rdy - ody) * ny) * (1.0 - t)
                 else:
                     gap = (rdx * nx + rdy * ny) * (1.0 - t)
-                if gap > 0.0:
-                    sx, sy = self._share_sweep_stop(ca, other, nx, ny, gap)
+                # A closing gap is split; an inheritance alone is still swept
+                # against the body's walls (``_share_sweep_stop``).
+                if gap > 0.0 or (inherit and _SWEEP_INHERIT_CLAMP):
+                    sx, sy = self._share_sweep_stop(
+                        ca, other, nx, ny, gap, ix, iy, ox - ix - dx, oy - iy - dy,
+                    )
                     ox += sx
                     oy += sy
-            side = _side_from_normal(nx, ny)
-            if side == "bottom" and abs(dx) < _STOP_ON_SLOPE_INTENT:
-                remaining = (0.0, 0.0)
         self._nudge_collider(ca, ox - dx, oy - dy)
 
     def _try_seam_step(
@@ -7761,16 +7893,150 @@ class CollisionSystem:
         oy = ody * (1.0 - t) - ny * _RESOLVE_SLOP
         if _SWEEP_MASS_SPLIT and nlen > 1e-12:
             gap = -(odx * nx + ody * ny) * (1.0 - t)
-            if gap > 0.0:
-                sx, sy = self._share_sweep_stop(ca, other, nx, ny, gap)
+            if gap > 0.0 or _SWEEP_INHERIT_CLAMP:
+                sx, sy = self._share_sweep_stop(ca, other, nx, ny, gap, ox, oy)
                 ox += sx
                 oy += sy
         self._record_solve_contact(ca, other, nx, ny, 0.0)
         self._respond_velocity(ca, other, token, nx, ny)
         self._nudge_collider(ca, ox, oy)
 
+    def _carry_riders(
+        self,
+        grounded: List[Collider],
+        grounded_at_start: Dict[int, bool],
+    ) -> Optional[Dict[int, Tuple[Collider, float, float]]]:
+        """Move each rider with the partner it stood on (PB2); the carries, or None.
+
+        A body that ended the last step on top of a resolve partner (a
+        ``"bottom"`` contact) and is not leaving it moves with that partner's
+        displacement this frame, as motion: the carry joins its pose and its
+        motion channel before any sweep, so its own sweep travels it (a wall
+        on the platform's path stops the rider) and every relative sweep
+        against the rider sees it. Collision Design, "Riders".
+        """
+        carries: Dict[int, Tuple[Collider, float, float]] = {}
+        done: Dict[int, Tuple[float, float]] = {}
+        for c in grounded:
+            self._rider_carry(c, grounded_at_start, carries, done, 0)
+        if not carries:
+            return None
+        for c in grounded:
+            got = carries.get(id(c))
+            if got is None:
+                continue
+            _carrier, cx, cy = got
+            if c._motion_translation:
+                c._motion_dx += cx
+                c._motion_dy += cy
+            else:
+                c._motion_dx = cx
+                c._motion_dy = cy
+                c._motion_translation = True
+            self._nudge_collider(c, cx, cy)
+            self._snap_hot.add(c)               # the next step resets this motion
+        return carries
+
+    def _rider_carry(
+        self,
+        c: Collider,
+        grounded_at_start: Dict[int, bool],
+        carries: Dict[int, Tuple[Collider, float, float]],
+        done: Dict[int, Tuple[float, float]],
+        depth: int,
+    ) -> Tuple[float, float]:
+        """The carry of the grounded body ``c`` this frame (memoized in ``done``).
+
+        The carrier is the first ``"bottom"`` contact of the last step whose
+        partner moves. What it passes on:
+
+        - a ``STATIC`` partner: its whole displacement (it is never blocked);
+        - a movable partner with no ``.vel`` (moved by pose movers or
+          ``move_by``): the part of its motion along the contact surface; the
+          sweep, settle and floor snap already handle the part along the
+          normal, and a blocked push or gravity step there is not travel;
+        - a movable partner with ``.vel`` (a physics body): only the carry it
+          rides on itself, along the surface (a stack of riders on a lift).
+          Its own velocity is not a platform's motion: a crate pushed along a
+          floor, or a ball falling with another, carries nothing.
+
+        Not carried: a body leaving the partner, by the floor snap's leave
+        gate (a jump, a bounce off a moving paddle).
+        """
+        cid = id(c)
+        got = done.get(cid)
+        if got is not None:
+            return got
+        done[cid] = (0.0, 0.0)              # a contact cycle carries nothing
+        if depth > _CARRY_DEPTH:
+            return done[cid]
+        ident = c._identity
+        contacts = getattr(ident, "_touching_contacts", None) if ident is not None else None
+        if not contacts:
+            return done[cid]
+        for tc in contacts:
+            if tc.side != "bottom":
+                continue
+            other = tc.other
+            oc = getattr(other, "_collider", None)
+            if oc is None or oc is c or not oc._in_resolve or oc._part is not None:
+                continue
+            omass = float(getattr(other, "mass", 1.0))
+            surface = not _is_static_mass(omass)
+            if not surface:
+                if not oc._motion_translation:
+                    continue
+                ddx, ddy = oc._motion_dx, oc._motion_dy
+            elif getattr(other, "_vel", None) is None:
+                ddx = oc._motion_dx if oc._motion_translation else 0.0
+                ddy = oc._motion_dy if oc._motion_translation else 0.0
+                if grounded_at_start.get(id(oc)):
+                    ux, uy = self._rider_carry(oc, grounded_at_start, carries, done, depth + 1)
+                    ddx += ux
+                    ddy += uy
+            elif grounded_at_start.get(id(oc)):
+                ddx, ddy = self._rider_carry(oc, grounded_at_start, carries, done, depth + 1)
+            else:
+                continue
+            if ddx == 0.0 and ddy == 0.0:
+                continue
+            nx, ny = _vec2_components(tc.normal)
+            cx, cy = ddx, ddy
+            if surface:
+                dn = cx * nx + cy * ny
+                cx -= dn * nx
+                cy -= dn * ny
+                if cx * cx + cy * cy < 1e-18:
+                    continue
+            token = self._resolve_bounce_for(c, oc)
+            if token is None:
+                continue
+            vel = getattr(ident, "_vel", None)
+            if vel is not None:
+                # The floor snap's leave gate, along last step's normal (body
+                # toward partner): a body leaving the partner is not carried.
+                vx, vy = _vec2_components(vel)
+                ovel = getattr(other, "_vel", None)
+                ovx, ovy = (0.0, 0.0) if ovel is None else _vec2_components(ovel)
+                own_x = c._motion_dx if c._motion_translation else 0.0
+                own_y = c._motion_dy if c._motion_translation else 0.0
+                rel_dx = own_x - ddx
+                rel_dy = own_y - ddy
+                if _floor_snap_should_refuse(
+                    leave_v=-((vx - ovx) * nx + (vy - ovy) * ny),
+                    leave_d=-(rel_dx * nx + rel_dy * ny),
+                    rel_motion_len=math.hypot(rel_dx, rel_dy),
+                    token=token,
+                ):
+                    continue
+            carries[cid] = (oc, cx, cy)
+            done[cid] = (cx, cy)
+            break
+        return done[cid]
+
     def _share_sweep_stop(
         self, ca: Collider, cb: Collider, nx: float, ny: float, gap: float,
+        ix: float = 0.0, iy: float = 0.0, at_x: float = 0.0, at_y: float = 0.0,
     ) -> Tuple[float, float]:
         """Push a movable partner by its share of a sweep stop; returns the push.
 
@@ -7789,12 +8055,47 @@ class CollisionSystem:
         ia = ca._identity
         ma = float(getattr(ia, "mass", 1.0)) if ia is not None else 1.0
         inv_b = 1.0 / mb
-        k = (gap + _RESOLVE_SLOP) * inv_b / (1.0 / ma + inv_b)
-        k *= self._push_reach(ca, cb, nx * k, ny * k)
+        if gap > 0.0:
+            k = (gap + _RESOLVE_SLOP) * inv_b / (1.0 / ma + inv_b)
+            k *= self._push_reach(ca, cb, nx * k, ny * k)
+            if k < 0.0:
+                k = 0.0
+        else:
+            k = 0.0                         # nothing to split: the inheritance only
+        fx = nx * k                         # the body follows the push
+        fy = ny * k
+        if _SWEEP_INHERIT_CLAMP and self._pass_statics:
+            # The body's unswept travel (the partner's leftover it inherits,
+            # the skin, the follow) is swept against its own STATIC partners
+            # (PE4): a light ball hit by a fast heavy one stops at the floor or
+            # wall behind it, and the partner comes back by what the body
+            # could not travel along the normal, so the contact holds.
+            ux = ix + fx
+            uy = iy + fy
+            if ux or uy:
+                ax, ay, cut = self._travel_to_walls(cb, ca, ux, uy, at_x, at_y)
+                if cut:
+                    short = (ux - ax) * nx + (uy - ay) * ny
+                    fx = ax - ix
+                    fy = ay - iy
+                    k2 = k - short
+                    if k2 > k:
+                        k2 *= self._push_reach(ca, cb, nx * k2, ny * k2)
+                    k = max(0.0, k2)
+                    if k <= 0.0:
+                        return fx, fy
         if k <= 0.0:
-            return 0.0, 0.0
+            return fx, fy
         sx = nx * k
         sy = ny * k
+        self._push_partner(cb, sx, sy)
+        return fx, fy
+
+    def _push_partner(self, cb: Collider, sx: float, sy: float) -> None:
+        """Move a partner by a solver push. A partner whose turn is still to
+        come carries it in its motion channel too (``_snap_hot`` resets it next
+        step): its own sweep travels it from where it started, so a wall behind
+        it stops it, instead of starting past it."""
         self._nudge_collider(cb, sx, sy)
         if id(cb) not in self._swept_ids:
             if cb._motion_translation:
@@ -7805,9 +8106,45 @@ class CollisionSystem:
                 cb._motion_dy = sy
                 cb._motion_translation = True
             self._snap_hot.add(cb)          # the next step resets this motion
-        return sx, sy
 
-    def _push_reach(self, ca: Collider, cb: Collider, sx: float, sy: float) -> float:
+    def _travel_to_walls(
+        self, ca: Collider, cb: Collider, ux: float, uy: float,
+        at_x: float, at_y: float,
+    ) -> Tuple[float, float, bool]:
+        """``cb``'s travel ``(ux, uy)`` swept against its STATIC partners: up
+        to a wall, then along it (only the part into a wall is lost, so a
+        rider's carry along the floor it rests on is kept), at most three
+        walls. Returns the travel and whether a wall cut it."""
+        tx = ty = 0.0
+        rx, ry = ux, uy
+        cut = False
+        for _ in range(3):
+            fa = self._push_reach(ca, cb, rx, ry, at_x + tx, at_y + ty)
+            tx += fa * rx
+            ty += fa * ry
+            if fa >= 1.0:
+                return tx, ty, cut
+            cut = True
+            rx *= 1.0 - fa
+            ry *= 1.0 - fa
+            wx, wy = self._push_wall_normal
+            wl = math.hypot(wx, wy)
+            if wl < 1e-12:
+                return tx, ty, cut
+            wx /= wl
+            wy /= wl
+            into = rx * wx + ry * wy
+            if into > 0.0:
+                rx -= into * wx
+                ry -= into * wy
+            if rx * rx + ry * ry < 1e-12:
+                return tx, ty, cut
+        return tx, ty, cut
+
+    def _push_reach(
+        self, ca: Collider, cb: Collider, sx: float, sy: float,
+        at_x: float = 0.0, at_y: float = 0.0,
+    ) -> float:
         """How much of the push ``(sx, sy)`` the partner ``cb`` travels before a
         STATIC partner of its own stops it (1.0: all of it).
 
@@ -7822,14 +8159,21 @@ class CollisionSystem:
         statics = self._pass_statics
         if not statics:
             return 1.0
-        pbs = self._world_prims(cb)
-        if not pbs:
-            return 1.0
-        minx = min(p.aabb[0] for p in pbs)
-        miny = min(p.aabb[1] for p in pbs)
-        maxx = max(p.aabb[2] for p in pbs)
-        maxy = max(p.aabb[3] for p in pbs)
-        x0, y0, x1, y1 = _swept_aabb((minx, miny, maxx, maxy), sx, sy)
+        pbs = None
+        if cb._proxy_valid:
+            # The proxy holds the prims: a reject on it needs no prims (most
+            # pushes in a pile meet no wall).
+            p = cb._proxy
+            box = (p[0] + at_x, p[1] + at_y, p[2] + at_x, p[3] + at_y)
+        else:
+            pbs = self._world_prims(cb)
+            if not pbs:
+                return 1.0
+            if at_x or at_y:
+                pbs = _copy_translate(pbs, at_x, at_y)
+            box = (min(q.aabb[0] for q in pbs), min(q.aabb[1] for q in pbs),
+                   max(q.aabb[2] for q in pbs), max(q.aabb[3] for q in pbs))
+        x0, y0, x1, y1 = _swept_aabb(box, sx, sy)
         rows = self._pass_static_rows
         if rows is None and len(statics) >= _POOL_VECTOR_MIN:
             idx = self._collider_index
@@ -7849,14 +8193,25 @@ class CollisionSystem:
             near = [statics[i] for i in _rows_meeting(self._box_array(), rows, 0, x0, y0, x1, y1)]
         if not near:
             return 1.0
-        pool = self._resolve_pool(cb)
-        if type(pool) is _PartnerPool:
-            members = pool.members
-        else:
-            members = {id(c) for c, _tok, _odx, _ody in pool}
+        members = self._pass_members.get(id(cb))
+        if members is None:
+            # ``cb``'s partners do not change during the pass: read once.
+            pool = self._resolve_pool(cb)
+            if type(pool) is _PartnerPool:
+                members = pool.members
+            else:
+                members = {id(c) for c, _tok, _odx, _ody in pool}
+            self._pass_members[id(cb)] = members
         walls = [(c, None, 0.0, 0.0) for c in near if c is not ca and id(c) in members]
         if not walls:
             return 1.0
+        if pbs is None:
+            pbs = self._world_prims(cb)
+            if not pbs:
+                return 1.0
+            if at_x or at_y:
+                # ``cb`` is the body in its turn: the sweep has not placed it yet.
+                pbs = _copy_translate(pbs, at_x, at_y)
         gate = None
         if self._has_only:
             only_map = self._resolve_only_map(cb)
@@ -7868,6 +8223,7 @@ class CollisionSystem:
         dist = math.hypot(sx, sy)
         if dist < 1e-12:
             return 1.0
+        self._push_wall_normal = (hit[1], hit[2])
         return max(0.0, min(1.0, hit[0]) - _RESOLVE_SLOP / dist)
 
     def _settle_normal(
@@ -7886,15 +8242,16 @@ class CollisionSystem:
             if id(ca) > id(cb):
                 mx, my = -mx, -my
             return mx, my
-        ia = ca._identity
-        ib = cb._identity
-        va = getattr(ia, "_vel", None) if ia is not None else None
-        vb = getattr(ib, "_vel", None) if ib is not None else None
-        vax, vay = (0.0, 0.0) if va is None else _vec2_components(va)
-        vbx, vby = (0.0, 0.0) if vb is None else _vec2_components(vb)
-        vn = (vax - vbx) * nx + (vay - vby) * ny
-        if vn < 0.0:
-            nx, ny = -nx, -ny
+        if not _SETTLE_MIN_OVERLAP:
+            ia = ca._identity
+            ib = cb._identity
+            va = getattr(ia, "_vel", None) if ia is not None else None
+            vb = getattr(ib, "_vel", None) if ib is not None else None
+            vax, vay = (0.0, 0.0) if va is None else _vec2_components(va)
+            vbx, vby = (0.0, 0.0) if vb is None else _vec2_components(vb)
+            vn = (vax - vbx) * nx + (vay - vby) * ny
+            if vn < 0.0:
+                nx, ny = -nx, -ny
         nlen = math.hypot(nx, ny)
         if nlen < 1e-12:
             return 0.0, 1.0
@@ -7942,7 +8299,15 @@ class CollisionSystem:
         ny: float,
         corr: float,
     ) -> None:
-        """Split ``corr`` along ``n`` (from ``ca`` toward ``cb``), same masses as settle."""
+        """Split ``corr`` along ``n`` (from ``ca`` toward ``cb``) by inverse mass.
+
+        Between two movable bodies, neither share may carry its body into a
+        ``STATIC`` partner of its own (PE3, the settle counterpart of
+        ``_push_reach``): a share that would is cut where the wall stops it,
+        and the other body takes the rest of the correction, up to its own
+        wall. A crate under a heavy crate is not pressed into the floor; a body
+        squeezed between two walls keeps the overlap (no share can move).
+        """
         ia = ca._identity
         ib = cb._identity
         ma = float(getattr(ia, "mass", 1.0)) if ia is not None else 1.0
@@ -7957,10 +8322,30 @@ class CollisionSystem:
             inv_a = 1.0 / ma
             inv_b = 1.0 / mb
             total = inv_a + inv_b
-            wa = inv_a / total
-            wb = inv_b / total
-            self._nudge_collider(ca, -nx * corr * wa, -ny * corr * wa)
-            self._nudge_collider(cb, nx * corr * wb, ny * corr * wb)
+            da = corr * inv_a / total
+            db = corr * inv_b / total
+            if not _SETTLE_STATIC_CLAMP:
+                self._nudge_collider(ca, -nx * da, -ny * da)
+                self._nudge_collider(cb, nx * db, ny * db)
+                return
+            # A partner whose turn is still to come carries its share in its
+            # motion channel: its own sweep travels it from where it started,
+            # against its walls. Placed, it moved that start (into a floor).
+            later = id(cb) not in self._swept_ids
+            if self._pass_statics:
+                ra = corr * self._push_reach(cb, ca, -nx * corr, -ny * corr)
+                rb = corr if later else corr * self._push_reach(ca, cb, nx * corr, ny * corr)
+                if da > ra:
+                    da = ra
+                    db = min(corr - da, rb)
+                elif db > rb:
+                    db = rb
+                    da = min(corr - db, ra)
+            self._nudge_collider(ca, -nx * da, -ny * da)
+            if later:
+                self._push_partner(cb, nx * db, ny * db)
+            else:
+                self._nudge_collider(cb, nx * db, ny * db)
 
     def _recover_unswept_bounds(
         self,
@@ -8059,22 +8444,7 @@ class CollisionSystem:
             had_contact = key in self._solve_contacts
             if depth > 0.0:
                 corr = min(_SETTLE_BIAS * depth, _SETTLE_MAX)
-                ia = ca._identity
-                ib = cb._identity
-                ma = float(getattr(ia, "mass", 1.0)) if ia is not None else 1.0
-                mb = float(getattr(ib, "mass", 1.0)) if ib is not None else 1.0
-                a_inf = _is_static_mass(ma)
-                b_inf = _is_static_mass(mb)
-                if a_inf and not b_inf:
-                    self._nudge_collider(cb, nx * corr, ny * corr)
-                elif b_inf and not a_inf:
-                    self._nudge_collider(ca, -nx * corr, -ny * corr)
-                elif not a_inf and not b_inf:
-                    inv_a = 1.0 / ma
-                    inv_b = 1.0 / mb
-                    total = inv_a + inv_b
-                    self._nudge_collider(ca, -nx * corr * (inv_a / total), -ny * corr * (inv_a / total))
-                    self._nudge_collider(cb, nx * corr * (inv_b / total), ny * corr * (inv_b / total))
+                self._nudge_pair_along(ca, cb, nx, ny, corr)
             self._record_solve_contact(
                 ca, cb, nx, ny, max(0.0, float(info.depth)), points=list(info.points),
             )
@@ -8137,8 +8507,9 @@ class CollisionSystem:
             ):
                 return
         t = max(0.0, min(1.0, t))
-        self._nudge_collider(ca, 0.0, -snap * t)
-        self._nudge_collider(ca, -nx * _RESOLVE_SLOP, -ny * _RESOLVE_SLOP)
+        # The snap is a straight drop: the skin is taken back up it (PE2).
+        bx, by = _skin_back_off(nx, ny, 0.0, -1.0, True)
+        self._nudge_collider(ca, bx, -snap * t + by)
         self._record_solve_contact(ca, other, nx, ny, 0.0)
         self._respond_velocity(ca, other, token, nx, ny)
 

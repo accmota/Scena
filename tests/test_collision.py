@@ -3423,21 +3423,31 @@ class TestResolution(CollisionTestCase):
         self.assertGreater(ball.vel.y, -40.0)
         self.assertGreater(ball.center.y, floor.center.y)
 
-    def test_resolve_lifts_body_sunk_past_floor_midpoint(self):
-        """Deep overlap past the floor center lifts a falling body, not pushes it through."""
-        # Wide floor, squat body: vertical overlap is the MTV (not a side-exit).
-        # Body center is slightly below the floor center, falling — geometric SAT
-        # would push down through the bottom; resolve must lift instead.
-        mob = self.track(Rect(center=self.at(0, -2), width=30, height=20, group="mob"))
-        floor = self.track(Rect(center=self.at(0, 0), width=200, height=40, group="floor"))
-        mob.mass = 1.0
-        floor.mass = 1000.0
-        mob.vel = Vec2(0, -180)
-        y_before = float(mob.center.y)
-        resolve("mob", "floor", bounce=0.2)
-        self.step()
-        self.assertGreater(float(mob.center.y), y_before)
-        self.assertGreater(float(mob.vel.y), -50.0)
+    def test_settle_of_a_body_placed_past_floor_midpoint_ignores_its_velocity(self):
+        """A body placed (spawned) sunk past a floor's middle leaves by the
+        minimum overlap, whatever its ``.vel`` says (PE1). The old settle flipped
+        the axis when the velocity separated along it, so a falling body was
+        lifted here, and two overlapping balls moving apart were pushed through
+        each other. Placement carries no direction: only the overlap does."""
+        for vy in (-180.0, 0.0, 180.0):
+            with self.subTest(vy=vy):
+                # Wide floor, squat body: the vertical overlap is the minimum.
+                mob = self.track(Rect(center=self.at(0, -2), width=30, height=20, group="mob"))
+                floor = self.track(Rect(center=self.at(0, 0), width=200, height=40, group="floor"))
+                mob.mass = 1.0
+                floor.mass = 1000.0
+                mob.vel = Vec2(0, vy)
+                y_before = float(mob.center.y)
+                resolve("mob", "floor")
+                for _ in range(12):
+                    self.step()
+                self.assertLess(float(mob.center.y), y_before)
+                # Out the near (bottom) face, within the settle's skin.
+                self.assertLessEqual(float(mob.center.y) + 10.0,
+                                     float(floor.center.y) - 20.0 + 2 * _RESOLVE_SLOP)
+                unresolve("mob", "floor")
+                mob.destroy()
+                floor.destroy()
 
     def test_query_collision_returns_info(self):
         a = self.track(Circle(center=self.at(0, 0), radius=20))
@@ -5516,7 +5526,10 @@ class TestReviewedCollisionFixes(CollisionTestCase):
             idle.vel.y -= 900.0 * dt
             idle.move_by(0.0, idle.vel.y * dt)
             self.step()
-        self.assertLess(abs(float(idle.center.x) - ix), 3.0)
+        # Not a drift allowance: the idle body stays put (PE2: it slid
+        # slop * sin(22 deg) = 0.03 DU a frame; more angles and rates in
+        # test_resolve_solver.TestIdleSlope).
+        self.assertLess(abs(float(idle.center.x) - ix), 1e-6)
         self.assertLess(abs(float(idle.vel.x)), 40.0)
 
     def test_inside_aabb_normal_is_outward(self):
