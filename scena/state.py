@@ -461,6 +461,12 @@ class State:
 # handled the notice (no generic warning then). ``None`` = generic warning.
 _UNLINK_NOTICE_HOOK: Optional[Callable[[Any, Any], bool]] = None
 
+# Set by ``act.ActManager._seal`` in a game with acts: ``FieldRef.__imatmul__``
+# calls it with ``(owner, name)`` before linking; it returns a callable to run
+# once the link is installed (or None). An act's link on a game object is
+# undone at the act change (Act Design, Removed; review 2026-10-14 PA1).
+_ACT_LINK_HOOK: Optional[Callable[[Any, str], Optional[Callable[[], None]]]] = None
+
 
 # ------------------------------------------------------------------------------------------------
 
@@ -1457,7 +1463,16 @@ class FieldRef:
         self.name = name
 
     def __imatmul__(self, source):
+        hook = _ACT_LINK_HOOK
+        if hook is None:
+            self.owner._link_field(self.name, _normalize_link_rhs(source))
+            return self
+        # An act's link on a game object leaves with the act (PA1): the act
+        # manager snapshots what the field had, then records the new link.
+        commit = hook(self.owner, self.name)
         self.owner._link_field(self.name, _normalize_link_rhs(source))
+        if commit is not None:
+            commit()
         return self
 
     @property
@@ -2685,7 +2700,13 @@ class Container():
 
         # If we have a direct or formula link, clear it before setting
         if self._link is not None:
-            warnings.warn(f"Attribute {self.name} received a formula that overrides its previous link", RuntimeWarning)
+            from .process import report_author_warning
+            report_author_warning(
+                "@=",
+                f"{self.name} received a formula that overrides its previous link "
+                f"(the new one replaces it). To replace a link on purpose, call "
+                f"{self._author_unlink_hint()} first.",
+            )
             self.unlink()
         # Snapshot sticky pull flags so a failed install does not poison A2.
         pull_flags = []
@@ -2808,7 +2829,14 @@ class Container():
         _refuse_link_on_dead(self, "@=")
         if self.__class__ is _HELD_BY_VALUE:
             refuse_held_payload(self, "{cell} @= …")
+        hook = _ACT_LINK_HOOK
+        owner = self._owner
+        commit = None
+        if hook is not None and owner is not None and self.attr_name:
+            commit = hook(owner, self.attr_name)       # ``c.center @= …`` (PA1)
         self._assign_formula(other)
+        if commit is not None:
+            commit()
         return self
 
     def __lshift__(self, other: Any) -> 'Container':

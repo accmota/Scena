@@ -907,7 +907,26 @@ class TestBatchTeardown(ActTestCase):
         self.begin(ComInk)
         self.assertEqual(self.change_recording(Vazia), [])
 
+    def test_an_acts_link_on_a_game_object_leaves_with_the_act(self):
+        """Before 2026-10-14 (PA1) this was the warning case below: the link
+        was dropped and its last value ("HP 7") stayed."""
+        placar = Text("", top_left=(10, 290))
+
+        class Fase2(Act):
+            def setup(self):
+                heroi = Circle(center=(50, 50))
+                heroi.hp = 7
+                placar["text"] @= lambda: f"HP {heroi.hp}"
+
+        self.begin(Fase2)
+        self.w.step(1)
+        self.assertEqual(self.change_recording(Vazia), [])
+        self.assertEqual(placar.text, "", "back to how the top of the file left it")
+        placar.destroy()
+
     def test_game_object_linked_to_an_act_object_gets_a_scena_warning(self):
+        """A link the act did not make (here: one the game's own code made
+        while the act ran, outside ``@=``) still reads an act object."""
         placar = Text("", top_left=(10, 290))
         made = {}
 
@@ -916,7 +935,7 @@ class TestBatchTeardown(ActTestCase):
                 heroi = Circle(center=(50, 50))
                 heroi.hp = 7
                 made["heroi"] = heroi
-                placar["text"] @= lambda: f"HP {heroi.hp}"
+                placar._link_field("text", lambda: f"HP {heroi.hp}")
 
         self.begin(Fase2)
         self.w.step(1)
@@ -1917,6 +1936,124 @@ class TestActCallablesOnGameObjects(ActTestCase):
         self.w.step(20, dt=1 / 60)
         self.assertTrue(ticks)
         heroi.destroy()
+
+
+class TestActLinksOnGameObjects(ActTestCase):
+    """An act's ``obj["field"] @= …`` on a game object leaves with the act:
+    the field gets back the game's link or value (review 2026-10-14 PA1).
+    Before, a restart warned "overrides its previous link" every time, and
+    the next act's ``hud.text = …`` raised LinkedAttributeError."""
+
+    def _caught(self, fn):
+        with warnings.catch_warnings(record=True) as ws:
+            warnings.simplefilter("always")
+            fn()
+        return [str(w.message) for w in ws]
+
+    def test_restart_links_again_silently(self):
+        st.pontos = 7
+        hud = Text("", top_left=(10, 290))
+
+        class FaseHud(Act):
+            def setup(self):
+                hud["text"] @= lambda: f"Pontos {st.pontos}"
+
+        self.begin(FaseHud)
+        self.assertEqual(hud.text, "Pontos 7")
+        msgs = self._caught(lambda: [change_act(FaseHud) for _ in range(3)])
+        self.assertEqual(msgs, [])
+        st.pontos = 8
+        self.assertEqual(hud.text, "Pontos 8")
+        change_act(Vazia)
+        self.assertEqual(hud.text, "", "the top of the file left it empty")
+        self.assertFalse(hud["text"].is_linked)
+        hud.text = "NAVES"                    # used to raise LinkedAttributeError
+        hud.destroy()
+
+    def test_a_link_reading_act_objects_leaves_without_a_warning(self):
+        barra = Rect(top_left=(10, 270), width=1, height=5)
+        hud = Text("", top_left=(10, 290))
+
+        class FaseVida(Act):
+            def setup(self):
+                self.pontos = 3
+                h = Circle(center=(100, 100), radius=5)
+                h.vida = 10
+                barra["width"] @= lambda: h.vida * 2
+                hud["text"] @= lambda: f"Pontos {self.pontos}"
+
+        self.begin(FaseVida)
+        self.assertEqual(barra.width, 20)
+        msgs = self._caught(lambda: change_act(Vazia))
+        self.assertEqual(msgs, [])
+        self.assertEqual(barra.width, 1)
+        self.assertEqual(hud.text, "")
+        barra.width = 50
+        hud.text = "NAVES"
+        barra.destroy()
+        hud.destroy()
+
+    def test_a_game_link_the_act_replaced_comes_back(self):
+        st.titulo = "jogo"
+        hud = Text("", top_left=(10, 290))
+        hud["text"] @= lambda: st.titulo
+
+        class FaseOutra(Act):
+            def setup(self):
+                hud["text"] @= lambda: f"ato {st.titulo}"
+
+        msgs = self._caught(lambda: self.begin(FaseOutra))
+        self.assertEqual(hud.text, "ato jogo")
+        # The replace inside the act still says so, as a SCENA WARNING.
+        self.assertTrue(any(m.startswith("SCENA WARNING: @=:") and
+                            "overrides its previous link" in m for m in msgs), msgs)
+        msgs = self._caught(lambda: change_act(Vazia))
+        self.assertEqual(msgs, [])
+        self.assertTrue(hud["text"].is_linked)
+        st.titulo = "de novo"
+        self.assertEqual(hud.text, "de novo")
+        hud.destroy()
+
+    def test_a_point_field_gets_its_place_back(self):
+        alvo = Circle(center=(50, 60), radius=5)
+
+        class FaseSegue(Act):
+            def setup(self):
+                guia = Circle(center=(200, 100), radius=3)
+                alvo["center"] @= guia["center"]
+
+        self.begin(FaseSegue)
+        self.assertEqual((alvo.center.x, alvo.center.y), (200, 100))
+        msgs = self._caught(lambda: change_act(Vazia))
+        self.assertEqual(msgs, [])
+        self.assertEqual((alvo.center.x, alvo.center.y), (50, 60))
+        alvo.move_to(1, 2)
+        alvo.destroy()
+
+    def test_the_object_spelling_of_a_part_link_leaves_too(self):
+        alvo = Circle(center=(50, 60), radius=5)
+
+        class FaseSegue2(Act):
+            def setup(self):
+                guia = Circle(center=(200, 100), radius=3)
+                alvo.center @= guia.center
+
+        self.begin(FaseSegue2)
+        self.assertEqual((alvo.center.x, alvo.center.y), (200, 100))
+        self.assertEqual(self._caught(lambda: change_act(Vazia)), [])
+        self.assertEqual((alvo.center.x, alvo.center.y), (50, 60))
+        alvo.destroy()
+
+    def test_links_on_act_objects_and_top_level_links_are_untouched(self):
+        st.n = 1
+        hud = Text("", top_left=(10, 290))
+        hud["text"] @= lambda: f"n={st.n}"
+        self.begin(Vazia)
+        change_act(Vazia)
+        st.n = 2
+        self.assertEqual(hud.text, "n=2")
+        self.assertEqual(get_act_manager()._act_links, {})
+        hud.destroy()
 
 
 class TestNamedSlotsAcrossTheSeal(ActTestCase):

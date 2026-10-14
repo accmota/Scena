@@ -8243,7 +8243,7 @@ run(Titulo)</pre>
         </table>
       </div>
       <p>Trabalho sem dono (<code>after(…)</code>, <code>play_sound(…)</code>, <code>tween(…)</code> soltos) tem <code>h.scope == "game"</code> quando nasce no topo e <code>"act"</code> depois — o <code>"act"</code> sai na troca. O SCENA WARNING de um trabalho sem dono diz <code>&lt;game&gt;</code> / <code>&lt;act&gt;</code> do mesmo jeito.</p>
-      <p class="gotcha">Um objeto do palco ligado (<code>@=</code>) a um objeto do ato: na troca a ligação cai, o último valor fica, e um SCENA WARNING diz qual objeto lia qual e de que ato. Crie esse objeto no <code>setup</code> para ele sair junto — ou leia <code>st</code>.</p>
+      <p class="gotcha">Um <code>@=</code> que o ato faz num objeto do palco (<code>hud["text"] @= lambda: f"Pontos {st.pontos}"</code> no <code>setup</code>) é do ato: na troca a ligação sai e o campo volta ao que era antes dela — a ligação do palco, se havia, ou o valor (<code>hud.text</code> volta a <code>""</code>). Recomeçar o ato liga de novo sem aviso, e o próximo ato pode escrever <code>hud.text = "NAVES"</code>. Vale também quando a fórmula lia um objeto do ato ou o próprio ato (<code>self.pontos</code>).</p>
     </section>
 
     <section class="section prose" id="atos-dados">

@@ -124,6 +124,12 @@ class ActManager:
         self._game_layers: frozenset = frozenset()
         self._game_ready_keys: frozenset = frozenset()
         self._game_recently_keys: frozenset = frozenset()
+        # Links the current act put on game objects (``hud["text"] @= …``),
+        # keyed by ``(id(owner), field)``; undone at the change (PA1).
+        self._act_links: Dict[Tuple[int, str], "_ActLink"] = {}
+        self._act_link_nodes: set = set()
+        from . import state
+        state._ACT_LINK_HOOK = None
         from .process import _set_top_level_ended
         _set_top_level_ended(False)
 
@@ -150,6 +156,9 @@ class ActManager:
         self.act_mode = bool(act_mode)
         self.sealed = True
         _set_top_level_ended(True)
+        if self.act_mode:
+            from . import state
+            state._ACT_LINK_HOOK = _note_act_link
 
     # --- building --------------------------------------------------------------
 
@@ -204,6 +213,11 @@ class ActManager:
         # act's own teardown clears that ink.
         batch = self._doomed()
         self.dying_ids = {id(o) for o in batch}
+        # A game object's link the act installed unlinks silently when what
+        # it reads leaves (it is undone in 2b anyway).
+        self._act_link_nodes = {
+            id(r.node) for r in self._act_links.values() if r.link is not None
+        }
         if leaving is not None:
             self.dying_ids.add(id(leaving))
         try:
@@ -222,6 +236,9 @@ class ActManager:
                 #     with the act.
                 if leaving is not None:
                     self._drop_act_callables(leaving)
+                # 2c. Links the act put on game objects leave with it: the
+                #     field gets back the link or value it had (PA1).
+                self._undo_act_links()
                 # 3. World settings back to their top-level values.
                 self._restore()
             # 4. Layers the act created leave with it (a restart creates them
@@ -278,6 +295,37 @@ class ActManager:
                     continue
                 if _belongs_to(value, act):
                     setattr(obj, name, None)
+
+    def _undo_act_links(self) -> None:
+        """An act's ``obj["field"] @= …`` on a game object goes, and the field
+        gets back what it had before the act's first link: the game's own
+        link, or its value. The restart then links again with no "overrides"
+        warning, and the next act can write the field (review 2026-10-14
+        PA1). Best effort: a link the game cannot take back (its source was
+        destroyed) leaves the field at its last value."""
+        records = list(self._act_links.values())
+        self._act_links.clear()
+        self._act_link_nodes = set()
+        for rec in records:
+            owner = rec.owner()
+            if rec.link is None or owner is None or not _is_live(owner):
+                continue
+            node = rec.node
+            current = getattr(node, "_link", None)
+            try:
+                if current is rec.link:
+                    owner._unlink_field(rec.name)
+                elif current is not None:
+                    continue            # not the act's link
+                if rec.prior_rhs is not None:
+                    src = rec.prior_rhs
+                    if getattr(src, "_destroyed", False):
+                        continue
+                    owner._link_field(rec.name, src)
+                elif rec.has_value:
+                    setattr(owner, rec.name, rec.prior_value)
+            except Exception:  # noqa: BLE001 — keep the last value; finish the change
+                continue
 
     def _drop_act_layers(self, first_error):
         """Delete every layer created after the seal. A game object still on
@@ -687,6 +735,86 @@ KEPT_SETTINGS: Dict[str, str] = {
 _manager = ActManager()
 
 
+class _ActLink:
+    """What a game object's field had before the current act first linked it."""
+
+    __slots__ = ("owner", "name", "prior_rhs", "prior_value", "has_value",
+                 "node", "link")
+
+    def __init__(self, owner, name: str) -> None:
+        self.owner = weakref.ref(owner)
+        self.name = name
+        self.prior_rhs = None
+        self.prior_value = None
+        self.has_value = False
+        self.node = None
+        self.link = None
+        node = _field_node(owner, name)
+        link = getattr(node, "_link", None) if node is not None else None
+        if link is not None:
+            from .state import DirectLink
+            self.prior_rhs = link.source if isinstance(link, DirectLink) else link.expression_fn
+            return
+        try:
+            value = owner._read_field(name)
+        except Exception:       # a new ink field: nothing to give back
+            return
+        from .state import Container
+        if isinstance(value, Container):
+            x, y = getattr(value, "x", None), getattr(value, "y", None)
+            if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+                return
+            value = (float(x), float(y))
+        self.prior_value = value
+        self.has_value = True
+
+    def commit(self) -> None:
+        owner = self.owner()
+        node = _field_node(owner, self.name) if owner is not None else None
+        if node is not None and node._link is not None:
+            self.node = node
+            self.link = node._link
+
+
+def _field_node(owner, name: str):
+    """The graph node that holds ``owner[name]``'s link, or None."""
+    anchors = owner.__dict__.get("_field_anchors")
+    if anchors and name in anchors:
+        return anchors[name]
+    try:
+        slot = owner._resolve_field(name)
+    except Exception:
+        return None
+    getter = getattr(slot, "__get__", None)
+    if getter is None:
+        return None
+    from .state import Container, ScalarSlot
+    if isinstance(slot, ScalarSlot):
+        return None
+    try:
+        target = getter(owner, type(owner))
+    except Exception:
+        return None
+    return target if isinstance(target, Container) else None
+
+
+def _note_act_link(owner, name: str):
+    """``state._ACT_LINK_HOOK``: an act links a field of a game object."""
+    m = _manager
+    if not m.sealed or m.changing or m.current is None:
+        return None
+    from .entity import _actor_of
+    actor = _actor_of(owner)
+    if actor is None or actor not in m._game_entities:
+        return None
+    key = (id(owner), name)
+    rec = m._act_links.get(key)
+    if rec is None or rec.owner() is not owner:
+        rec = _ActLink(owner, name)
+        m._act_links[key] = rec
+    return rec.commit
+
+
 def _unlink_notice(dep, source) -> bool:
     """``state._UNLINK_NOTICE_HOOK``: auto-unlink notices during an act change.
 
@@ -698,6 +826,8 @@ def _unlink_notice(dep, source) -> bool:
     m = _manager
     if not m.changing:
         return False
+    if id(dep) in m._act_link_nodes:
+        return True             # the act's own link: undone and restored (PA1)
     from .entity import _actor_of, entity_label, part_path
     holder = _actor_of(dep)
     if holder is not None and (
