@@ -1248,10 +1248,28 @@ class ShapeInteractionManager:
 
         shape.move_to(x + self._grab_dx, y + self._grab_dy)
         self._drag_xy = (x, y)
-        hit_fn = self.hit_test_ui if self._press_in_ui else self.hit_test
-        to_shape = hit_fn(x, y, exclude=shape, droppable=True)
+        to_shape, _at = self._drop_target(shape)
         self._call(shape.on_drag_over, shape, to_shape, (x, y))
         return True
+
+    def _drop_target(self, shape):
+        """``(target, pos)``: the topmost droppable under the pointer, ``ui``
+        (view) first, then world, whichever space the drag started in — a
+        HUD seed drops on a world plot, a world piece on a HUD bin (PD5).
+        ``pos`` is the pointer in the target's space; ``(None, None)`` when
+        nothing droppable is under it. Uses the pointer both spaces last
+        recorded (``note_pointer``; the framework records both before a
+        move or a release)."""
+        view, world = self._ptr_view, self._ptr_world
+        if view is not None:
+            hit = self.hit_test_ui(*view, exclude=shape, droppable=True)
+            if hit is not None:
+                return hit, view
+        if world is not None:
+            hit = self.hit_test(*world, exclude=shape, droppable=True)
+            if hit is not None:
+                return hit, world
+        return None, None
 
     def handle_mouse_up(self, x, y, button, *, ui: bool = False):
         from .input import Mouse
@@ -1263,6 +1281,10 @@ class ShapeInteractionManager:
             return False
         if bool(ui) != self._press_in_ui:
             return False
+        if ui:
+            self.note_pointer(view_xy=(x, y))
+        else:
+            self.note_pointer(world_xy=(x, y))
 
         if self._press_lost(shape):
             # Destroyed, or draggable = False mid-drag: the drag ended there.
@@ -1285,16 +1307,18 @@ class ShapeInteractionManager:
             # A disabled button: the press and its release end here.
             return True
 
-        hit_fn = self.hit_test_ui if ui else self.hit_test
         if was_dragging:
-            to_shape = hit_fn(x, y, exclude=shape, droppable=True)
-            pos = (x, y)
-            self._call(shape.on_drag_to, shape, to_shape, pos)
+            # Across spaces too (PD5). Each handler reads ``pos`` in its own
+            # shape's space: the dragged shape's for ``on_drag_to``, the
+            # target's for ``on_drop_by`` (the same point when both share
+            # a space).
+            to_shape, drop_pos = self._drop_target(shape)
+            self._call(shape.on_drag_to, shape, to_shape, (x, y))
             # ``on_drag_to`` may have destroyed either side or changed act:
             # no drop on a dead party (review 2026-10-09 S1-2).
             if (to_shape is not None and getattr(to_shape, "is_alive", True)
                     and getattr(shape, "is_alive", True)):
-                self._call(to_shape.on_drop_by, shape, to_shape, pos)
+                self._call(to_shape.on_drop_by, shape, to_shape, drop_pos)
             return True
 
         # Click: press+release inside; wheel while held means rotate, not click.
@@ -3316,6 +3340,8 @@ class ScenaFramework:
         self.widget_manager.handle_mouse_move(view_x, view_y)
         if self.widget_manager._modal_consumes():
             return
+        # Both spaces first: a drag finds its drop target in either (PD5).
+        self.shape_manager.note_pointer((view_x, view_y), (world_x, world_y))
         self.shape_manager.handle_mouse_move(view_x, view_y, ui=True)
         self.shape_manager.handle_mouse_move(world_x, world_y, ui=False)
         self.canvas_manager.handle_mouse_move(world_x, world_y)
@@ -3351,7 +3377,9 @@ class ScenaFramework:
                 return
             to_script = False
             if not self.widget_manager.handle_mouse_up(view_x, view_y, button):
-                # Prefer the space that owns the press (ui vs world).
+                # Prefer the space that owns the press (ui vs world); the drop
+                # target may be in either (PD5).
+                self.shape_manager.note_pointer((view_x, view_y), (world_x, world_y))
                 if self.shape_manager._pressed_shape is not None:
                     if self.shape_manager._press_in_ui:
                         self.shape_manager.handle_mouse_up(

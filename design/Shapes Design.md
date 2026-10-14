@@ -1063,11 +1063,13 @@ State machine (left button):
 1. Press on a pressable Graphic → pending
 2. Move past a small Manhattan threshold **and** `draggable` → dragging (`move_to` with grab offset). The grab offset is taken from the shape's center **at the crossing** (`center_now − press_xy`), not at the press: a motion may have carried the shape meanwhile, and the press-time offset would snap it back. At the crossing the hold starts: motion on the drag parts is held ([Pointer hold](#persistent-drivers-vs-linked-pose)). A wheel tick while pressed holds motion on the wheel parts
 3. Release without having dragged → click if `clickable` and still inside
-4. Release while dragging → the hold ends first, then `on_drag_to` on the dragged Graphic; if a droppable is under the pointer, also `on_drop_by` on that target — unless `on_drag_to` destroyed either side (or changed act): no drop on a dead party (review 2026-10-09 S1-2)
+4. Release while dragging → the hold ends first, then `on_drag_to` on the dragged Graphic; if a droppable is under the pointer, also `on_drop_by` on that target — unless `on_drag_to` destroyed either side (or changed act): no drop on a dead party (review 2026-10-09 S1-2). The target is the topmost droppable under the pointer, `ui` (view) first, then world, **whichever space the drag started in** (`_drop_target`): a HUD seed (`layer="ui"`) drops on a world plot, a world rock on a HUD bin (bug PD5 — before, a drag only saw targets in its own space and a cross-space drop silently gave `to=None` and no `@drop_by`)
 5. `draggable = False` or destroy mid-drag → the drag ends there (hold ended at once, the shape stops following, release fires no drag callbacks). Before this, the drag kept going after `draggable = False` and the next pointer event after a destroy raised `DestroyedError` (`ShapeInteractionManager._press_lost` / `_drop_press`)
 
 While dragging, each move calls `on_drag_over` on the dragged Graphic with the
-current droppable under the pointer (or `None`).
+current droppable under the pointer (or `None`), found the same way, across
+spaces. The framework records the pointer in both spaces (`note_pointer`)
+before it dispatches a move or a release, so the other space's point is fresh.
 
 Shared callback signature for drag/drop events:
 
@@ -1081,8 +1083,17 @@ Shared callback signature for drag/drop events:
 | `drag_over` | dragged Graphic (`from_shape`) | each move during a drag |
 | `drop_by` | drop target (`to_shape`) | mouse release over a droppable |
 
-`pos` is `(x, y)` in design space at the event. `to_shape` may be `None` for
-`drag_to` / `drag_over` when nothing droppable is under the pointer.
+`pos` is the pointer `(x, y)` at the event, **in the space of the Graphic whose
+handler runs**: the dragged shape's for `drag_to` / `drag_over` (so
+`from_shape.center = pos` lands under the cursor), the target's for `drop_by`
+(so `Plant(center=pos)` grows on the world plot a HUD seed was dropped on).
+World coordinates for a world Graphic, view coordinates for a `ui` one; for a
+same-space drag (and any drag under an identity camera) both are the same
+point. (Rejected: `pos` in the target's space for all three — it breaks
+`from_shape.center = pos` in `drag_to` for a cross-space drop; one shared
+space for both — whichever it is, one of the two idioms lands in the wrong
+place under a camera.) `to_shape` may be `None` for `drag_to` / `drag_over`
+when nothing droppable is under the pointer.
 
 ## Decorators (`scena.interaction`)
 

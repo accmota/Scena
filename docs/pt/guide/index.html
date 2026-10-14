@@ -8904,8 +8904,8 @@ hud = Rect(center=(930, 170), width=85, height=65, layer="top", color="navy")</p
           </thead>
           <tbody>
 <tr><td><code>from</code></td><td>1º</td><td class="type"><span class="t">Shape</span><span class="ex">token</span></td><td>O shape que está sendo arrastado.</td></tr>
-<tr><td><code>to</code></td><td>2º</td><td class="type"><span class="t">Shape ou None</span><span class="ex">zone</span></td><td>O <code>droppable</code> mais em cima sob o ponteiro. <code>None</code> se não houver.</td></tr>
-<tr><td><code>pos</code></td><td>3º</td><td class="type"><span class="t">ponto</span><span class="ex">(mouse.x, mouse.y)</span></td><td><code>(x, y)</code> no mundo — onde o ponteiro está (over) ou soltou (to / drop).</td></tr>
+<tr><td><code>to</code></td><td>2º</td><td class="type"><span class="t">Shape ou None</span><span class="ex">zone</span></td><td>O <code>droppable</code> mais em cima sob o ponteiro: primeiro os da camada <code>ui</code>, depois os do mundo, venha o arraste de onde vier — a semente do inventário (<code>layer="ui"</code>) cai no canteiro do mundo, a pedra do mundo cai na lixeira do HUD. <code>None</code> se não houver.</td></tr>
+<tr><td><code>pos</code></td><td>3º</td><td class="type"><span class="t">ponto</span><span class="ex">(mouse.x, mouse.y)</span></td><td><code>(x, y)</code> onde o ponteiro está (over) ou soltou (to / drop), no espaço do objeto dono da função: em <code>drag_to</code> / <code>drag_over</code> o do arrastado (por isso <code>from_shape.center = pos</code> funciona), em <code>drop_by</code> o do alvo (<code>Planta(center=pos)</code> nasce no canteiro). Mundo para objetos do mundo, tela (view) para <code>layer="ui"</code>; sem câmera os dois coincidem.</td></tr>
           </tbody>
         </table>
         </div>
