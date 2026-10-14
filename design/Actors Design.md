@@ -1257,6 +1257,7 @@ A hit-flash handler must not abort a dive. Cosmetic FX are not modes (use transi
 | Bound method of a *different* Entity — `after(0.4, bomb.destroy)` from wasp's mode | that other Entity | **entity** |
 | Plain `after(2, drop)` at script level (lambda / free fn, no mode running) | none | **game** before the top level ends; **act** after it (ends on the next act change) — [Act Design](Act%20Design.md#lifetime-the-game-and-the-act) |
 | `setup` / `on_update` / `@collide` / `@when` | receiver or script | **entity** or script — no ambient mode |
+| A lambda / nested def / `functools.partial` whose closure holds the method's `self` (`after(0.1, lambda: self.set_color("red"))` in `on_update`) | that Entity, exactly as the bound method `after(0.1, self.piscar)` | **entity** (from inside its own mode body: **mode**). Only the closure cell named `self` counts: `lambda: alvo.destroy()` keeps the row above. Inside the actor's own `on_destroy` the closure keeps the plain rule (work "after I am gone" runs after the death). Before 2026-10-14 the closure was act work: it outlived the actor and raised DestroyedError, or made a dead enemy shoot (review PA4) |
 
 `destroy()` and `cancel_process()` both cancel **all** handles owned by the item —
 get the owner right at schedule time. `destroy()` also drops the owner from the

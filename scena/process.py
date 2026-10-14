@@ -2816,6 +2816,49 @@ def call_without_owner(fn: Callable, *args):
         return fn(*args)
 
 
+# Actors whose ``on_destroy`` is running (innermost last). Work an
+# ``on_destroy`` starts with a lambda over ``self`` is "after I am gone"
+# work: it keeps the plain owner rule instead of dying with ``self`` (PA4).
+_ON_DESTROY_RUNNING: List[object] = []
+
+
+def run_on_destroy(hook: Callable, item) -> None:
+    """Call an actor's ``on_destroy`` hook (no ambient owner; ``_fire_on_destroy``)."""
+    _ON_DESTROY_RUNNING.append(item)
+    try:
+        call_without_owner(_invoke, hook, item)
+    finally:
+        _ON_DESTROY_RUNNING.pop()
+
+
+def _closure_self(fn) -> Optional[object]:
+    """The Entity a lambda / nested def closes over under the name ``self``
+    (the method's own receiver), or None. A ``functools.partial`` is read
+    through to its function. Only ``self``: a closure over another actor
+    (``lambda: alvo.destroy()``) keeps its owner rule (PA4)."""
+    func = getattr(fn, "func", None)
+    if func is not None and getattr(fn, "args", None) is not None:
+        own = getattr(func, "__self__", None)
+        if _is_entity(own):
+            return own
+        fn = func
+    code = getattr(fn, "__code__", None)
+    if code is None:
+        return None
+    names = code.co_freevars
+    if "self" not in names:
+        return None
+    try:
+        value = fn.__closure__[names.index("self")].cell_contents
+    except (AttributeError, IndexError, TypeError, ValueError):
+        return None
+    if not _is_entity(value):
+        return None
+    if _ON_DESTROY_RUNNING and any(x is value for x in _ON_DESTROY_RUNNING):
+        return None
+    return value
+
+
 def _infer_owner(fn: Optional[Callable] = None) -> Tuple[object, str]:
     """Resolve owner/scope for bare ``after`` / ``every`` / ``wait`` / ``tween`` / …
 
@@ -2824,9 +2867,20 @@ def _infer_owner(fn: Optional[Callable] = None) -> Tuple[object, str]:
     this via ``*_on`` (always entity). A bound method on a *different*
     Entity than the running mode stays entity-scoped on that other Entity
     (``after(0.4, bomb.destroy)`` from wasp's mode does not die with wasp).
+    A closure over a method's ``self`` counts as that bound method
+    (``_closure_self``, PA4).
     """
     ctx = _owner_ctx.get()
-    self = getattr(fn, "__self__", None) if fn is not None else None
+    self = None
+    if fn is not None:
+        self = getattr(fn, "__self__", None)
+        if not _is_entity(self):
+            # A lambda / nested def over a method's ``self`` is owned like
+            # the bound method: ``after(0.1, lambda: self.set_color("red"))``
+            # in ``on_update`` ends with the actor, as ``after(0.1,
+            # self.piscar)`` does. As act work it outlived the actor and
+            # reached it destroyed (review 2026-10-14 PA4).
+            self = _closure_self(fn)
     # Bound method of another Entity → that Entity (entity-scoped).
     # Bound method of the *current* mode actor → still mode-scoped
     # (``after(0.4, self.shoot)`` inside formation dies when leaving).
@@ -2923,7 +2977,8 @@ def after(
     Ownership (same rule as ``wait`` / ``tween`` / timed pose): called from
     inside a mode body → mode-scoped (dies on leave). ``e.after(...)`` →
     always entity-scoped (survives mode change; dies on ``destroy``). Bound
-    method on another Entity → that Entity. Else act.
+    method on another Entity → that Entity; a lambda / nested def over a
+    method's ``self`` → that Entity, like the bound method. Else act.
 
     Args:
         delay: World seconds to wait (>= 0).

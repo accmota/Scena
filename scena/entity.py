@@ -1604,8 +1604,8 @@ def _fire_on_destroy(item) -> None:
     if hook is None:
         return
     object.__setattr__(item, "_on_destroy", None)
-    from .process import _invoke, call_without_owner
-    call_without_owner(_invoke, hook, item)
+    from .process import run_on_destroy
+    run_on_destroy(hook, item)
 
 
 def _install_subclass_hooks(item) -> None:

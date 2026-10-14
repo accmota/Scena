@@ -989,6 +989,99 @@ class TestOwnership(ProcessTestCase):
         self.assertFalse(c.active)
 
 
+class TestClosureOverSelfIsOwnedLikeTheBoundMethod(ProcessTestCase):
+    """A lambda / nested def over a method's ``self`` is owned by that actor,
+    like ``after(d, self.method)`` (review 2026-10-14 PA4). It was act work:
+    ``after(0.1, lambda: self.set_color("red"))`` in ``on_update`` outlived
+    the actor and raised DestroyedError, and ``lambda: self.atirar()`` made a
+    dead enemy shoot."""
+
+    def test_every_closure_shape_is_entity_owned_and_dies_with_the_actor(self):
+        import functools
+        fired = []
+        for label in ("lambda", "nested def", "partial", "every", "on_done="):
+            with self.subTest(label):
+                reset_process_scheduler()
+
+                class Ini(Circle):
+                    def on_update(self, dt):
+                        if getattr(self, "armed", False):
+                            return
+                        self.armed = True
+                        if label == "lambda":
+                            after(0.2, lambda: self.set_color("red"))
+                        elif label == "nested def":
+                            def pisca():
+                                fired.append(self)
+                                self.set_color("red")
+                            after(0.2, pisca)
+                        elif label == "every":
+                            every(0.2, lambda: self.set_color("red"))
+                        elif label == "on_done=":
+                            after(0.2, on_done=lambda: self.set_color("red"))
+                        else:
+                            after(0.2, functools.partial(self.set_color, "red"))
+
+                ini = self.track(Ini(radius=5))
+                _frame(0.05)
+                h = next(h for h in get_scheduler()._handles if not h.done)
+                self.assertIs(h.owner, ini)
+                self.assertEqual(h.scope, SCOPE_ENTITY)
+                ini.destroy()
+                _frame(0.5)          # used to raise DestroyedError
+                self.assertTrue(h.cancelled)
+        self.assertEqual(fired, [])
+
+    def test_a_closure_over_another_actor_keeps_its_rule(self):
+        alvo = self.track(Circle(radius=5))
+
+        class Ini(Circle):
+            def on_update(self, dt):
+                if not getattr(self, "armed", False):
+                    self.armed = True
+                    after(0.2, lambda: alvo.set_color("red"))
+
+        ini = self.track(Ini(radius=5))
+        _frame(0.05)
+        h = next(h for h in get_scheduler()._handles if not h.done)
+        self.assertIsNone(h.owner)
+        ini.destroy()
+        _frame(0.5)
+        self.assertTrue(h.done and not h.cancelled)
+
+    def test_in_a_mode_body_a_closure_over_self_is_mode_scoped(self):
+        class Ini(Circle):
+            pass
+
+        ini = self.track(Ini(radius=5))
+
+        def idle(e):
+            pass
+
+        def mira(self):
+            after(0.2, lambda: self.set_color("red"))
+
+        ini.mode = mira
+        h = next(h for h in get_scheduler()._handles if not h.done)
+        self.assertIs(h.owner, ini)
+        self.assertEqual(h.scope, "mode")
+        ini.mode = idle
+        self.assertTrue(h.cancelled)
+
+    def test_on_destroy_work_over_self_still_runs_after_the_death(self):
+        """``on_destroy`` work is "after I am gone": it keeps the plain rule."""
+        seen = []
+
+        class Ini(Circle):
+            def on_destroy(self):
+                after(0.1, lambda: seen.append(self.is_alive))
+
+        ini = Ini(radius=5)
+        ini.destroy()
+        _frame(0.3)
+        self.assertEqual(seen, [False])
+
+
 class TestReadyAndClock(ProcessTestCase):
     def test_ready_first_call_true_then_interval(self):
         self.assertTrue(ready("fire", 0.25))
