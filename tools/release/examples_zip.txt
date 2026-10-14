@@ -1,0 +1,230 @@
+# Files in scena-examples.zip (repo-relative), one per line.
+# Made by: python tools/release/make_examples_zip.py --update
+# Guard: tests/test_examples_zip.py (a stale list fails).
+examples/app_pitagoras.py
+examples/aviao.py
+examples/aviao_paisagem.py
+examples/aviao_profundidade.py
+examples/barras_girando.py
+examples/bolas.py
+examples/bolhas.py
+examples/cadeia_de_bolas.py
+examples/corredor.py
+examples/desenho.py
+examples/entropia.py
+examples/estudio_voz.py
+examples/formulas.py
+examples/interacao.py
+examples/letreiro.py
+examples/ligue4.py
+examples/media/CREDITS.md
+examples/media/audio/License.txt
+examples/media/audio/SuperHero_original_no_Intro.ogg
+examples/media/audio/Victory.mp3
+examples/media/audio/explosion01.wav
+examples/media/audio/explosion02.wav
+examples/media/audio/explosion03.wav
+examples/media/audio/fx1.wav
+examples/media/audio/fx2.wav
+examples/media/audio/gameover.wav
+examples/media/audio/impactBell_heavy_000.ogg
+examples/media/audio/impactGeneric_light_003.ogg
+examples/media/audio/impactPlank_medium_002.ogg
+examples/media/audio/laser-big.wav
+examples/media/audio/laser4.wav
+examples/media/audio/laser7.wav
+examples/media/audio/nota.wav
+examples/media/audio/sfx-hit-2.wav
+examples/media/backgrounds/kn/License.txt
+examples/media/backgrounds/kn/bgElements_spritesheet.png
+examples/media/backgrounds/kn/bgElements_spritesheet.xml
+examples/media/backgrounds/mountains/grass.png
+examples/media/backgrounds/mountains/license.txt
+examples/media/backgrounds/mountains/mountains1.png
+examples/media/fonts/Licenses/LICENSE-Kranky.txt
+examples/media/fonts/Licenses/OFL-HennyPenny.txt
+examples/media/fonts/Licenses/OFL-Metamorphous.txt
+examples/media/fonts/Licenses/OFL-Quantico.txt
+examples/media/fonts/Licenses/OFL-Rye.txt
+examples/media/fonts/Licenses/OFL-VastShadow.txt
+examples/media/fonts/Licenses/license-kenvector.txt
+examples/media/fonts/kenvector_future.ttf
+examples/media/fonts/license.txt
+examples/media/images/bg2.png
+examples/media/images/bg3.jpg
+examples/media/images/license.txt
+examples/media/k-rolling-ball/License.txt
+examples/media/k-rolling-ball/ball_blue_large.png
+examples/media/k-rolling-ball/button_blue.png
+examples/media/k-rolling-ball/rollingBall_sheet@2.png
+examples/media/k-rolling-ball/rollingBall_sheet@2.xml
+examples/media/k-rolling-ball/star.png
+examples/media/k-textures/License.txt
+examples/media/k-textures/floor_ground_dirt.png
+examples/media/k-textures/wall_rock.png
+examples/media/k-textures/wall_stone.png
+examples/media/levels/license.txt
+examples/media/levels/ninja.json
+examples/media/levels/ninja_perigos.json
+examples/media/misc/exp4.png
+examples/media/misc/license.txt
+examples/media/ninja/Dead__000.png
+examples/media/ninja/Dead__001.png
+examples/media/ninja/Dead__002.png
+examples/media/ninja/Dead__003.png
+examples/media/ninja/Dead__004.png
+examples/media/ninja/Dead__005.png
+examples/media/ninja/Dead__006.png
+examples/media/ninja/Dead__007.png
+examples/media/ninja/Dead__008.png
+examples/media/ninja/Dead__009.png
+examples/media/ninja/Glide_000.png
+examples/media/ninja/Glide_001.png
+examples/media/ninja/Glide_002.png
+examples/media/ninja/Glide_003.png
+examples/media/ninja/Glide_004.png
+examples/media/ninja/Glide_005.png
+examples/media/ninja/Glide_006.png
+examples/media/ninja/Glide_007.png
+examples/media/ninja/Glide_008.png
+examples/media/ninja/Glide_009.png
+examples/media/ninja/Idle__000.png
+examples/media/ninja/Idle__001.png
+examples/media/ninja/Idle__002.png
+examples/media/ninja/Idle__003.png
+examples/media/ninja/Idle__004.png
+examples/media/ninja/Idle__005.png
+examples/media/ninja/Idle__006.png
+examples/media/ninja/Idle__007.png
+examples/media/ninja/Idle__008.png
+examples/media/ninja/Idle__009.png
+examples/media/ninja/Jump__000.png
+examples/media/ninja/Jump__001.png
+examples/media/ninja/Jump__002.png
+examples/media/ninja/Jump__003.png
+examples/media/ninja/Jump__004.png
+examples/media/ninja/Jump__005.png
+examples/media/ninja/Jump__006.png
+examples/media/ninja/Jump__007.png
+examples/media/ninja/Jump__008.png
+examples/media/ninja/Jump__009.png
+examples/media/ninja/Kunai.png
+examples/media/ninja/Run__000.png
+examples/media/ninja/Run__001.png
+examples/media/ninja/Run__002.png
+examples/media/ninja/Run__003.png
+examples/media/ninja/Run__004.png
+examples/media/ninja/Run__005.png
+examples/media/ninja/Run__006.png
+examples/media/ninja/Run__007.png
+examples/media/ninja/Run__008.png
+examples/media/ninja/Run__009.png
+examples/media/ninja/Throw__000.png
+examples/media/ninja/Throw__001.png
+examples/media/ninja/Throw__002.png
+examples/media/ninja/Throw__003.png
+examples/media/ninja/Throw__004.png
+examples/media/ninja/Throw__005.png
+examples/media/ninja/Throw__006.png
+examples/media/ninja/Throw__007.png
+examples/media/ninja/Throw__008.png
+examples/media/ninja/Throw__009.png
+examples/media/ninja/license.txt
+examples/media/pixel_adv/Cherries.png
+examples/media/pixel_adv/End (Idle).png
+examples/media/pixel_adv/license.txt
+examples/media/plane/Dead.png
+examples/media/plane/Fly1.png
+examples/media/plane/Fly2.png
+examples/media/plane/license.txt
+examples/media/robot/Dead (1).png
+examples/media/robot/Dead (10).png
+examples/media/robot/Dead (2).png
+examples/media/robot/Dead (3).png
+examples/media/robot/Dead (4).png
+examples/media/robot/Dead (5).png
+examples/media/robot/Dead (6).png
+examples/media/robot/Dead (7).png
+examples/media/robot/Dead (8).png
+examples/media/robot/Dead (9).png
+examples/media/robot/Idle (1).png
+examples/media/robot/Jump (1).png
+examples/media/robot/Jump (10).png
+examples/media/robot/Jump (2).png
+examples/media/robot/Jump (3).png
+examples/media/robot/Jump (4).png
+examples/media/robot/Jump (5).png
+examples/media/robot/Jump (6).png
+examples/media/robot/Jump (7).png
+examples/media/robot/Jump (8).png
+examples/media/robot/Jump (9).png
+examples/media/robot/Run (1).png
+examples/media/robot/Run (2).png
+examples/media/robot/Run (3).png
+examples/media/robot/Run (4).png
+examples/media/robot/Run (5).png
+examples/media/robot/Run (6).png
+examples/media/robot/Run (7).png
+examples/media/robot/Run (8).png
+examples/media/robot/license.txt
+examples/media/shooter/License.txt
+examples/media/shooter/sheet.png
+examples/media/shooter/sheet.xml
+examples/media/space/kenvector_future.ttf
+examples/media/space/laserBlue03.png
+examples/media/space/laserGreen02.png
+examples/media/space/laserRed01.png
+examples/media/space/license.txt
+examples/media/space/meteorBrown_big3.png
+examples/media/space/playerShip1_red.png
+examples/media/space/sfx_laser1.ogg
+examples/media/space/star_gold.png
+examples/media/space/ufoYellow.png
+examples/media/synth/coin.wav
+examples/media/synth/jump.wav
+examples/media/synth/license.txt
+examples/media/synth/throw.wav
+examples/media/textures/236.jpg
+examples/media/textures/Brick_01.png
+examples/media/textures/Brick_04.png
+examples/media/textures/license.txt
+examples/media/tilesets/BG/BG.png
+examples/media/tilesets/Object/Bush (1).png
+examples/media/tilesets/Object/Bush (2).png
+examples/media/tilesets/Object/Bush (3).png
+examples/media/tilesets/Object/Bush (4).png
+examples/media/tilesets/Object/Crate.png
+examples/media/tilesets/Object/Mushroom_1.png
+examples/media/tilesets/Object/Mushroom_2.png
+examples/media/tilesets/Object/Sign_1.png
+examples/media/tilesets/Object/Sign_2.png
+examples/media/tilesets/Object/Stone.png
+examples/media/tilesets/Object/Tree_1.png
+examples/media/tilesets/Object/Tree_2.png
+examples/media/tilesets/Object/Tree_3.png
+examples/media/tilesets/Tiles/1.png
+examples/media/tilesets/Tiles/13.png
+examples/media/tilesets/Tiles/14.png
+examples/media/tilesets/Tiles/15.png
+examples/media/tilesets/Tiles/17.png
+examples/media/tilesets/Tiles/2.png
+examples/media/tilesets/Tiles/3.png
+examples/media/tilesets/Tiles/5.png
+examples/media/tilesets/licence.txt
+examples/naves.py
+examples/naves_atos.py
+examples/naves_classes.py
+examples/naves_escudo.py
+examples/naves_modos.py
+examples/naves_vidas.py
+examples/ninja.py
+examples/ninja_mundo.py
+examples/ninja_nivel.py
+examples/ninja_perigos.py
+examples/orbitas.py
+examples/osciloscopio.py
+examples/pegar_estrelas.py
+examples/piano.py
+examples/ponto_medio.py
+examples/primeiro_script.py
+examples/trilhas.py

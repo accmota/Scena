@@ -91,6 +91,17 @@ left out.
   now takes the box's angle, as `RegularPolygon(box=…)` does; it compared
   class names and missed subclasses.
 
+### Documentation
+
+- The README (GitHub and PyPI) is rewritten: 2D games first, what an author
+  writes and what Scena takes care of, new sections (geometry, rules and time,
+  collision, mouse and widgets, the level editor), one look on a circle, a
+  pentagon and a sprite, and Ninja IV and Connect Four in the gallery. Every
+  clip is recorded from the code beside it, the editor's included.
+- Each release now has a GitHub Release with `scena-examples.zip`: the
+  examples and only the images and sounds they use (about 17 MB instead of the
+  whole repository). The README links the latest one.
+
 ## 0.8.1 — 2026-10-14
 
 ### Added

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "scena"
 # The number lives in scena/_version.py ([tool.setuptools.dynamic] below).
 dynamic = ["version"]
-description = "A beginner-friendly framework for creative graphics and 2D games in Python"
+description = "2D games and creative graphics in Python, built for learning to program"
 readme = { file = "README.md", content-type = "text/markdown" }
 # PEP 639 (setuptools 77+). The code only: examples/media/ is not packaged
 # and keeps its own licenses (examples/media/CREDITS.md).

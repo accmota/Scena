@@ -56,7 +56,8 @@ Folder map only — not a hop list. Open **only** if that folder is the task.
 | `design/` | These docs | Contributors |
 | `docs/` | The author site, published with GitHub Pages: `docs/<lang>/guide/` (the Guia), `docs/<lang>/tutorial/`, `docs/assets/` (thumbnails, tutorial css/js — shared by every language). `pt` is written first; `en` mirrors it | Authors |
 | `tools/guide/` | The Guia's generators and checks: `validate_guia.py` (catalog checks, search index), `make_guia_thumbs.py` (thumbnails) | Contributors |
-| `tools/readme/` | `make_readme_media.py`: the clips `README.md` shows (`docs/assets/readme/`), recorded from the programs they show | Contributors |
+| `tools/readme/` | `make_readme_media.py`: the clips `README.md` shows (`docs/assets/readme/`), recorded from the programs they show; `editor_ninja.py`, the level editor's clip program | Contributors |
+| `tools/release/` | `make_examples_zip.py`: `scena-examples.zip` (the examples and only the media they use), zipped on a release from the list `examples_zip.txt` | Contributors |
 | `examples/` | Published beginner games; each tutorial ends in one of them | Authors |
 | `drafts/` | Private: game examples in development (a `media` link to `examples/media` lets them run). A game moves to `examples/` when it is ready | The maintainer |
 | `workbench/` | Private (below) | The maintainer |
@@ -255,10 +256,35 @@ file does not exist.
   pilot → render again.
 - **The code on the page is the code of its picture.** The block right after
   `<!-- clip: <id> -->` is that clip's program (run as a file in `examples/`, so
-  its art resolves from `examples/media`).
+  its art resolves from `examples/media`). The level editor's clip is no
+  exception: `tools/readme/editor_ninja.py` starts the editor the way
+  `scena-editor` does, with Ninja IV's level open, and a pilot zooms, box-selects
+  and drags in it.
+- **A pilot plays like a player.** It reads the game's globals each frame and
+  holds keys or moves the mouse; places it acts on are world points of the
+  level (`run_jump_and_throw`, `edit_a_level`), put on screen through the
+  game's own camera. A clip that shows a death, a stuck hero or an idle
+  screen is a pilot bug: look at frames from the clip before keeping it.
 - **Code on the page runs.** A complete program (`from scena import *` …
   `run()`) plays 2 s headless and must not warn. A fragment must use exported
-  names, accepted keywords and existing attributes of scena globals.
+  names, accepted keywords and existing attributes of scena globals. A block
+  inside a list item (indented fences) is read dedented. The fragment check is
+  static: before writing a fragment, run it once inside a program. A check
+  that only reads names passed `bar["color"] @= …`, and appearance cannot be
+  linked (`color`, `visual`, `glow`: [Reactive Design.md](Reactive%20Design.md)).
+- **The pitch says what Scena is, not what it does for you.** The author writes
+  the game; Scena gives the vocabulary and runs the machinery (loop, drawing,
+  timers, cleanup). Avoid lines that read as the framework making the game
+  ("Scena does every detail"); performance is "enough for typical games at
+  60 fps on an ordinary computer", never "fast".
+- **The examples download is a release asset.** The README links
+  `releases/latest/download/scena-examples.zip`. The release workflow's
+  `examples` job (after PyPI) zips the files in `tools/release/examples_zip.txt`
+  with the standard library and attaches the zip to the tag's GitHub Release.
+  The list is made here by `python tools/release/make_examples_zip.py --update`
+  (the media scanner of `tests/test_media_refs`, level files followed to their
+  images, each used folder's license, `CREDITS.md`); `tests/test_examples_zip.py`
+  fails while it is stale and plays the level examples from the unzipped folder.
 - **Claims match the code.** "Mistakes explain themselves" is true only where
   the near-miss message exists; check a claim before writing it.
 - **Docs links go to `pt`** until the English tutorial and Guia exist; the

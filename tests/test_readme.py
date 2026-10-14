@@ -33,6 +33,7 @@ import inspect
 import os
 import re
 import sys
+import textwrap
 import unittest
 import warnings
 
@@ -49,7 +50,8 @@ _REPO_URL = re.compile(
 # An image goes through github.com/.../raw/main/ (a redirect GitHub signs for a
 # logged-in viewer): raw.githubusercontent.com answers 404 while the repo is private.
 _IMG_SRC = re.compile(r"""<img\s[^>]*src=["']([^"']+)["']""")
-_BLOCK = re.compile(r"```python\n(.*?)\n```", re.S)
+# A block may sit inside a list item (indented fences); its code is dedented.
+_BLOCK = re.compile(r"^([ \t]*)```python\n(.*?)\n\1```", re.S | re.M)
 # Globals whose attributes are the author's own (``st.score``): any name is legal.
 _OPEN = frozenset({"st"})
 _ATTR = re.compile(r"""(?:src|href)=["']([^"']+)["']|\]\(([^)\s]+)\)""")
@@ -60,8 +62,9 @@ def _readme() -> str:
         return fh.read()
 
 
-def _blocks() -> list[str]:
-    return [m.group(1) + "\n" for m in _BLOCK.finditer(_readme())]
+def _blocks(text: str | None = None) -> list[str]:
+    return [textwrap.dedent(m.group(2)) + "\n" for m in _BLOCK.finditer(
+        _readme() if text is None else text)]
 
 
 def _is_program(code: str) -> bool:
@@ -148,6 +151,11 @@ class TestReadmeCode(unittest.TestCase):
                 seen = [f"{w.category.__name__}: {w.message}" for w in caught
                         if w.category.__name__ != "GLFWError"]
                 self.assertEqual(seen, [], f"README block {i} warns")
+
+    def test_an_indented_block_is_read_whole(self):
+        """A block in a list item: its own closing fence ends it, never a later one."""
+        text = "- item\n\n  ```python\n  a = 1\n  b = 2\n  ```\n\n```python\nc = 3\n```\n"
+        self.assertEqual(_blocks(text), ["a = 1\nb = 2\n", "c = 3\n"])
 
     def test_every_fragment_uses_current_names(self):
         scena = _scena()

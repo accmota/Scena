@@ -15,7 +15,9 @@ changes, the clips are rendered again.
 A clip's program is an example file (``examples/bolas.py``) or a README code
 block: the block that follows ``<!-- clip: <id> -->`` in README.md runs as if
 it were a file in ``examples/`` (its art resolves from ``examples/media``).
-The README never shows code that is not the code of its picture.
+The README never shows code that is not the code of its picture. The level
+editor's clip runs ``tools/readme/editor_ninja.py``: the editor as
+``scena-editor`` starts it, with a level file open.
 
 Staleness hashes the *inputs* (the program text, the clip spec, the pilot's
 source, the render settings), never pixels: GPU jitter does not churn the repo.
@@ -68,12 +70,17 @@ CLIPS = {
               "seconds": 6.0, "lead": 1.0, "pilot": "watch"},
     "aviao_paisagem": {"program": "examples/aviao_paisagem.py", "size": (480, 270),
                        "seconds": 7.0, "lead": 3.0, "pilot": "fly_the_gaps"},
-    "barras_girando": {"program": "examples/barras_girando.py", "size": (600, 420),
-                       "seconds": 6.0, "lead": 1.0, "pilot": "watch"},
     "osciloscopio": {"program": "examples/osciloscopio.py", "size": (600, 432),
                      "seconds": 6.0, "lead": 0.3, "pilot": "click_the_ball"},
-    "ponto_medio": {"program": "examples/ponto_medio.py", "size": (600, 420),
-                    "seconds": 6.0, "lead": 0.3, "pilot": "drag_an_end"},
+    "ninja_perigos": {"program": "examples/ninja_perigos.py", "size": (600, 450),
+                      "seconds": 7.2, "lead": 1.0, "pilot": "run_jump_and_throw"},
+    "ligue4": {"program": "examples/ligue4.py", "size": (500, 380),
+               "seconds": 8.5, "lead": 0.0, "pilot": "play_connect_four"},
+    "electric-hosts": {"program": "README.md#electric-hosts", "size": (720, 240),
+                       "seconds": 3.0, "lead": 0.5, "pilot": "watch"},
+    # Not an example: the editor as ``scena-editor`` starts it, with a level open.
+    "scena-editor": {"program": "tools/readme/editor_ninja.py", "size": (800, 500),
+                     "seconds": 6.0, "lead": 0.0, "pilot": "edit_a_level"},
 }
 
 
@@ -126,17 +133,6 @@ def click_the_ball(game, t):
         game.drag_slider("ty1", 2, -3, start=4.2, end=4.8, now=t)
 
 
-def drag_an_end(game, t):
-    """Grab one end of the segment and swing it around the other end."""
-    if t < 0.1:
-        game.mouse(580, 380)
-        game.press()
-        return
-    r = 171 + 25 * math.sin(1.7 * (t - 0.1))
-    a = 0.359 + 0.9 * (t - 0.1)
-    game.mouse(420 + r * math.cos(a), 320 + r * math.sin(a))
-
-
 def fly_the_gaps(game, t):
     """Steer the plane toward the next gap between pillars (or the middle)."""
     aviao = game.ns["aviao"]
@@ -149,8 +145,102 @@ def fly_the_gaps(game, t):
     game.hold(*keys)
 
 
+def edit_a_level(game, t):
+    """Zoom into the level, box-select three platforms, lift them, pick a star.
+
+    Targets are world points of ``ninja_perigos.json``, put on screen through the
+    editor's own camera (``view_point``) each frame.
+    """
+    from scena_editor.view import view_point
+
+    def at(wx, wy):
+        game.mouse(*view_point(wx, wy))
+
+    if t < 1.0:
+        at(1250, 260)
+        if int(t * 60) % 6 == 0:
+            game.run.scroll(0, 1)                  # wheel: zoom about the cursor
+    elif t < 1.3:
+        at(1425, 360)
+    elif t < 1.9:                                  # drag on empty canvas: box select
+        if t - 1.3 < 1 / 60:
+            game.press()
+        k = (t - 1.3) / 0.6
+        at(1425 + 270 * k, 360 - 110 * k)
+    elif t < 2.2:
+        if t - 1.9 < 1 / 60:
+            game.release()
+        at(1560, 300)
+    elif t < 3.4:                                  # lift the three together
+        if t - 2.2 < 1 / 60:
+            game.press()
+        k = min(1.0, (t - 2.2) / 1.0)
+        at(1560, 300 + 90 * k)
+    elif t < 4.2:
+        if t - 3.4 < 1 / 60:
+            game.release()
+        at(1100, 330)
+    elif t < 4.3:                                  # a click selects one star
+        if t - 4.2 < 1 / 60:
+            game.press()
+    elif t - 4.3 < 1 / 60:
+        game.release()
+
+
+def play_connect_four(game, t):
+    """Red and blue take turns; red fills the bottom row from column 1 to 4 and wins.
+
+    One move a second: grab the waiting ball, carry it over a column, let go.
+    """
+    columns = (3, 3, 4, 4, 2, 5, 1)
+    move, k = int(t), t - int(t)
+    if move >= len(columns):
+        return
+    ball = game.ns["proxima"]
+    start = game.ns["INICIO"]
+    above = game.ns["grade"].cell(columns[move], 0).center
+    if k < 0.1:
+        game.mouse(*start)
+        if k < 1 / 60 and ball.visible:
+            game.press()
+    elif k < 0.45:
+        q = (k - 0.1) / 0.35
+        game.mouse(start[0] + (above.x - start[0]) * q, start[1] + (above.y - start[1]) * q)
+    elif k - 0.45 < 1 / 60:
+        game.release()
+
+
+def run_jump_and_throw(game, t):
+    """The ninja runs right through the start of Ninja IV: up onto the first
+    platforms, over the water, throws at each robot ahead, waits for the
+    electric barrier to switch off, and stops before the second pool. Jumps
+    happen at fixed places of the level (``ninja_perigos.json``):
+    ``(from x, to x, lowest y, highest y)`` of the feet."""
+    jumps = ((230, 262, 70, 90), (440, 478, 240, 260))
+    if t < 2.4 or not list(game.ns["group"]["heroi"]):   # overview, then the zoom
+        game.hold()
+        return
+    hero = list(game.ns["group"]["heroi"])[0]
+    x, y = hero.center.x, hero.center.y
+    on_ground = "bottom" in hero.touching_sides
+    if on_ground and any(0 < r.center.x - x < 420 and abs(r.center.y - y) < 60
+                         for r in game.ns["group"]["robo"]):
+        game.hold("SPACE")
+        return
+    if on_ground and any(0 < b.center.x - x < 110 and b.active
+                         for b in game.ns["group"]["raio"]):
+        game.hold()
+        return
+    if x > 1420:                                   # the second pool: the clip ends here
+        game.hold()
+        return
+    jump = on_ground and any(x0 < x < x1 and y0 < y < y1 for x0, x1, y0, y1 in jumps)
+    game.hold("RIGHT", "UP" if jump else None)
+
+
 PILOTS = {f.__name__: f for f in (watch, follow_stars, fly_fire_and_catch, click_the_ball,
-                                   drag_an_end, fly_the_gaps)}
+                                   fly_the_gaps, edit_a_level, play_connect_four,
+                                   run_jump_and_throw)}
 
 
 # ── README blocks ──────────────────────────────────────────────────────────

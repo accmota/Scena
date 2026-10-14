@@ -1,8 +1,8 @@
 <h1 align="center">Scena</h1>
 
 <p align="center">
-  <b>Creative graphics and 2D games in Python, made for learning to program.</b><br>
-  Easy to begin. Space to grow.
+  <b>2D games and creative graphics in Python.</b><br>
+  Built for learning to program, and for fun. Easy to begin, room to grow.
 </p>
 
 <p align="center">
@@ -16,12 +16,15 @@
   <img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/naves_escudo.webp" width="600" alt="Naves: a space shooter from the tutorial. A red ship fires at a breathing fleet, enemies explode, and a plasma shield catches the enemy fire.">
 </p>
 
-Scena is a Python framework for drawing, animating and making games, written for
-people who are learning to program. You write
-what is on the screen and what should happen; Scena runs the loop, draws every
-frame, moves the animations, checks the collisions and cleans up after you. It
-draws with [Skia](https://skia.org) (the engine behind Chrome and Android), so even a
-first program looks good.
+Scena is a Python framework for 2D games and creative graphics, built for
+learning to program and for making good games without the complications.
+
+You write the game: what is on the screen, how it moves, what happens when two
+things touch, what comes next. Scena gives you a vocabulary in which each of
+these is a line or two that says what it means, and it takes care of the
+machinery underneath: the loop, the drawing, the timers, the cleanup. A first
+program is three lines, a whole game fits on one screen, and with over 100
+ready-made looks, effects and backgrounds it looks good from the start.
 
 ## A whole game, one screen of code
 
@@ -78,92 +81,208 @@ clean up. The label is a formula (`@=`): it keeps up with the score by itself.
 
 ## Why Scena
 
-- **Made for learning.** The first program is a few lines; the concepts arrive one
-  at a time, in the order a learner needs them. Speed is the framework's job, not
-  the beginner's.
+- **Built for learning.** The first program is a few lines; the concepts arrive
+  one at a time, in the order a learner needs them. Programming is the point, so
+  nothing is hidden behind a wizard.
 - **Simple things are simple.** `Circle()` draws a circle. `Sprite("ship.png")`
-  shows a ship. No setup, no boilerplate, no classes to inherit before anything
-  appears.
-- **Easy to begin, space to grow.** Parameters are gradual: start with
-  `Circle()`, then `Circle(center=(200, 150), radius=40)`, then
-  `circle.visual = Neon("cyan")`. Add detail only when you want it.
-- **Say what should happen.** `@collide`, `@when`, `@every` and `@click` read like
-  the rules of the game. A formula (`label["text"] @= lambda: ...`) is written once
-  and stays true.
-- **No magic.** Code does what it looks like it does. Scena never adds behavior or
-  content you did not ask for: it gives you rich vocabulary, and the scene is yours.
+  shows a ship. Parameters are gradual: start with `Circle()`, then
+  `Circle(center=(200, 150), radius=40)`, then `circle.visual = Neon("cyan")`.
+  Add detail only when you want it.
+- **Code that says what it means.** `@collide`, `@when`, `@every` and `@click`
+  read like the rules of the game. A formula (`@=`) states a relation once, and
+  it stays true. A health bar that rides above the hero and shrinks with each
+  hit, with no update code:
+
+  ```python
+  bar = Rect(width=60, height=6, color="lime green")
+  bar["center"] @= lambda: hero.center + (0, 40)    # rides above the hero
+  bar["width"] @= lambda: 60 * st.life / 100        # shrinks with each hit
+  ```
+- **You write the game.** Scena handles the machinery, never the decisions. It
+  does not invent content or behavior you did not ask for: what is on the
+  screen is what your code says.
 - **Mistakes explain themselves.** A misspelled key, color or parameter gets a
   message that says what was wrong and suggests the closest right name.
-- **Batteries included.** Collision, animation, effects, camera, layers, UI
-  widgets, sound and a level editor are in the box, and they work together.
 
 ## What's in the box
 
 **Shapes and sprites.** Circles, rectangles, polygons, lines, text, images and
 sprite sheets. Every one draws with nothing but defaults, and takes more when you
-want more.
+want more. A sprite animates from a strip, a grid, one file per frame or a packed
+atlas (TexturePacker JSON, Kenney XML), and its hitbox can come from the art.
 
 ```python
-ball = Circle()                          # a circle in the middle of the window
+ball = Circle()                                     # a circle in the middle of the window
 ball.color = "coral"
-ball.visual = Neon("cyan")               # one of 30+ looks
-ship = Sprite("space/playerShip1_red.png", height=45, center=(400, 60))
-ship.glow = True
+ball.visual = Neon("cyan")                          # one of 30 looks
+hero = Sprite(Sheet("ninja/Run__*.png", fps=12))    # an animation from its frames
+hero.glow = True
 ```
 
-**Events that read like rules.** Collisions, timers, clicks, conditions and
-objects leaving the screen, each one a decorator.
+**Geometry.** Build a shape the way you think of it (center and radius, two
+points, a point, an angle and a length), lay things out with boxes and grids, and
+ask for intersections, closest points, midpoints and tangents. With points you
+can drag and a few formulas, a compass-and-ruler construction stays live as you
+move it.
 
 ```python
-@collide("shots", "enemies")
-def hit(shot, enemy):
-    canvas.burst_at(enemy, radius=40)
-    shot.destroy()
-    enemy.destroy()
+a = Anchor(420, 320)                                # points you can drag
+b = Anchor(580, 380)
+c1 = Circle(center=lambda: a.center, perimeter_point=lambda: b.center)
+c2 = Circle(center=lambda: b.center, perimeter_point=lambda: a.center)
+bisector = Line(p1=lambda: intersection(c1, c2, 0), p2=lambda: intersection(c1, c2, 1))
+```
 
+**Animation in one line.** Move by an offset, to a place, or along a track or a
+shape's outline; by time or by speed; with easing, loops and yoyo, facing the way
+you go. Turn, scale and fade the same way, or tween any number. Effects such as
+`pop`, `flash`, `dissolve_out` and `explosion_at` clean up after themselves.
 
+```python
+ship.move_to(400, 300, time=1.5, ease="ease_in_out")             # to a place, in a time
+ship.move_by(0, 200, speed=300)                                  # by an offset, at a speed
+probe.move_along(orbit, time=4, loops="forever", face=True)      # along a path, facing ahead
+enemy.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+```
+
+**Rules and time.** Conditions and timers are decorators, and `after`, `every`,
+`wait`, `until`, `race` and `parallel` say how things happen over time. A
+sequence reads like a script, top to bottom, with no state machine to build: a
+boss arrives, waits, and starts the fight.
+
+```python
 @when(lambda: st.score >= 10)
 def level_up():
     st.speed *= 1.5
+
+
+class Boss(Sprite):
+    def setup(self):
+        self.mode = self.arriving
+
+    @on_mode
+    async def arriving(self):
+        await self.move_to(750, 600, time=2, ease="ease_out")
+        await wait(0.5)
+        self.pop(scale=1.3)
+        self.mode = self.fighting
 ```
 
-**Formulas.** Link a value to others once; Scena keeps it up to date.
+**Formulas.** Link a value to others once, in the constructor or later with
+`@=`; Scena keeps it up to date.
 
 ```python
 a = Circle(center=(200, 300), radius=8)
 b = Circle(center=(600, 300), radius=8)
-bridge = Line(p1=lambda: a.center, p2=lambda: b.center)   # follows a and b
+bridge = Line(p1=lambda: a.center, p2=lambda: b.center)     # follows a and b
+size = Text(text="", font_size=18)
+size["text"] @= lambda: f"{distance(a, b):.0f} px"          # measures it
+size["center"] @= lambda: middle_point(a, b)                # and sits in the middle
 ```
 
-**Animation in one line.** Move, turn, scale and fade over time, with easing,
-loops and yoyo. Effects such as `pop`, `flash`, `dissolve_out` and `explosion_at`
-clean up after themselves.
+**Collision.** A collision between objects or groups is one decorator. Ask for
+automatic resolution and walls stop the hero; one-way platforms are one rule.
+Hitboxes are made from the art, or shaped by hand when you want.
 
 ```python
-ship.move_to(400, 300, time=1.5, ease="ease_in_out")
-enemy.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+resolve("hero", "walls")
+resolve("hero", "platforms", only=lambda c: c.side == "bottom")    # one-way
+
+
+@collide("shots", "enemies")
+def hit(shot, enemy):
+    canvas.explosion_at(enemy)
+    shot.destroy()
+    enemy.destroy()
 ```
 
-**Looks, effects and backgrounds.** Visuals for shapes, screen effects, animated
-backgrounds and one-shot explosions, all composable.
+**Looks, effects and backgrounds.** Over 100 ready to use: looks for shapes,
+screen effects, animated backgrounds and one-shot explosions, all composable.
+Any look works on any shape or sprite.
+
+<!-- clip: electric-hosts -->
+```python
+from scena import *
+
+init(width=900, height=300, title="One look, any host")
+Wallpaper("dark navy")
+
+ball = Circle(center=(150, 150), radius=70, color="royal blue")
+star = RegularPolygon(n=5, center=(450, 150), radius=85, color="gold")
+plane = Sprite("plane/Fly1.png", height=110, center=(750, 150))
+
+for thing in (ball, star, plane):
+    thing.visual = ElectricField()
+
+run()
+```
+
+<p align="center">
+  <img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/electric-hosts.webp" width="720" alt="The program above running: electric arcs flicker around a blue circle, a gold pentagon and a red plane.">
+</p>
 
 <table>
   <tr>
     <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/visual-flame.anim.webp" width="240" alt="A circle with the Flame look"><br><code>visual = Flame()</code></td>
-    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/visual-electricfield.anim.webp" width="240" alt="A circle with the ElectricField look"><br><code>visual = ElectricField()</code></td>
     <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/spatial-portal.anim.webp" width="240" alt="A swirling portal"><br><code>Portal()</code></td>
+    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/post-explosion.anim.webp" width="240" alt="An explosion"><br><code>canvas.explosion_at(x, y)</code></td>
   </tr>
   <tr>
-    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/post-fireworks.anim.webp" width="240" alt="Fireworks over a picture"><br><code>canvas.fireworks_at(x, y)</code></td>
-    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/bg-borealis.anim.webp" width="240" alt="An aurora background"><br><code>Borealis()</code></td>
+    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/bg-stardust.webp" width="240" alt="A stardust background"><br><code>Stardust()</code></td>
+    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/visual-water.anim.webp" width="240" alt="A shape with the Water look"><br><code>visual = Water()</code></td>
     <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/fx-dissolve-out.anim.webp" width="240" alt="A ship dissolving"><br><code>ship.dissolve_out(0.5)</code></td>
   </tr>
 </table>
 
-**And more.** A camera, layers and endless scrolling worlds; boxes, grids and
-geometry (intersections, midpoints, tangents); sliders, buttons, menus and
-check boxes; sound effects, music and the microphone; acts for menus and levels;
-and `scena-editor`, a level editor whose files a game reads with `Level`.
+**Mouse and widgets.** Everything a good interface, a board game or a strategy
+game needs, made simple. Click, hover, drag, drop and wheel-rotate work on any
+shape, sprite or group. Buttons, sliders, check boxes, drop-downs, menus and text
+inputs bind straight to your game's state.
+
+```python
+@drag_to(token)                        # the token can be dragged; this runs when it is let go
+def dropped(token, target, pos):
+    if target is None:
+        token.move_to(home, time=0.3)  # nowhere to go: back home
+
+
+@hover(group["cards"])
+def lift(card):
+    card.scale_to(1.1, time=0.1)
+
+
+Slider(st["radius"], label="Radius", min_value=10, max_value=100)
+Button(label="New game", on_click=new_game)
+```
+
+Scena's own level editor is built with Scena.
+
+**And more.** A camera that pans, zooms, shakes and frames; layers and
+parallax; `Endless` worlds that build themselves as the camera moves and rebuild
+the same piece when you walk back; tracks to follow; platform helpers (the floor
+ahead, which sides touch, leaning on slopes); acts for menus and levels; sound
+effects, music, filters and the microphone.
+
+## Level editor
+
+`scena-editor` comes with Scena. Draw platforms, place points and images, give
+them names and groups, and save a level file. The editor places geometry; your
+code decides what each piece becomes.
+
+<p align="center">
+  <img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/scena-editor.webp" width="720" alt="The level editor with the Ninja IV level open: the view zooms in, three platforms are selected with a box and lifted together, then a star point is selected and its group shows in the side panel.">
+</p>
+
+```bash
+scena-editor levels/ninja.json
+```
+
+```python
+level = Level("levels/ninja.json")
+for piece in level.group("ground"):
+    piece.make()                                   # the shape as drawn
+lift = level["lift"].make(visual=Metal("gold"))    # or as you choose
+```
 
 ## Gallery
 
@@ -174,14 +293,14 @@ last step of a tutorial.
 <table>
   <tr>
     <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/naves_escudo.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/naves_escudo.webp" width="380" alt="Naves"></a><br><b>Naves</b>: a space shooter with lives, explosions and a shield</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/ninja_perigos.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ninja_perigos.webp" width="380" alt="Ninja IV"></a><br><b>Ninja IV</b>: a platformer built in the level editor, with robots and electric traps</td>
+  </tr>
+  <tr>
     <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/aviao_paisagem.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/aviao_paisagem.webp" width="380" alt="Plane"></a><br><b>Plane</b>: fly between pillars over an endless, layered landscape</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/ligue4.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ligue4.webp" width="380" alt="Connect Four"></a><br><b>Connect Four</b>: a board game for two, played by dragging the balls</td>
   </tr>
   <tr>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/barras_girando.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/barras_girando.webp" width="380" alt="Spinning bars"></a><br><b>Spinning bars</b>: recursion you can watch</td>
     <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/osciloscopio.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/osciloscopio.webp" width="380" alt="Oscilloscope"></a><br><b>Oscilloscope</b>: two circles make a curve</td>
-  </tr>
-  <tr>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/ponto_medio.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ponto_medio.webp" width="380" alt="Midpoint"></a><br><b>Midpoint</b>: a compass-and-ruler construction you can drag</td>
     <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/bolas.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/bolas.webp" width="380" alt="Balls"></a><br><b>Balls</b>: twenty balls bounce off the walls and each other</td>
   </tr>
 </table>
@@ -194,16 +313,16 @@ Scena needs Python 3.12 or newer, on Windows, macOS or Linux.
 pip install scena
 ```
 
-To try the examples, get a copy of this repository and run one:
+Then, in any script: `from scena import *`.
+
+To try the examples, download
+[`scena-examples.zip`](https://github.com/accmota/Scena/releases/latest/download/scena-examples.zip)
+(the examples of the latest release and the images and sounds they use), unzip it
+and run one:
 
 ```bash
-git clone https://github.com/accmota/Scena.git
-cd Scena
-pip install -e .
-python examples/naves_escudo.py
+python scena-examples/naves_escudo.py
 ```
-
-Then, in any script: `from scena import *`.
 
 ## Learn
 
@@ -220,10 +339,22 @@ progress. The API itself (every name you type) is in English.
 
 ## Is Scena for you?
 
-Scena is a good fit for learning to program, small 2D games and creative coding. It is not trying to be a
-professional engine: it is 2D only, runs on the desktop (not in the browser or on
-phones), and is made for scenes with tens to hundreds of objects. Simple games stay
-simple, even if that means less power for very large ones.
+Scena is for learning to program, for small 2D games and for creative coding,
+and for having fun doing it.
+
+- **Simple code, smooth games.** Your code is about the game's logic, not about
+  the machine. Scena is written in Python and does a lot for you, and it is made
+  to run typical games (tens to hundreds of objects) at 60 fps on an ordinary
+  computer. When a scene asks for more than the machine has, it lowers the
+  detail of its effects before it drops frames.
+- **Scripts or classes, both simple.** Scena was built for both. A flat script
+  with no classes is a complete game (the one above). When an enemy deserves its
+  own behavior, `class Enemy(Sprite)` with `setup` and `on_update` is all a class
+  needs. Events, modes and acts work the same in either style.
+- **What it is not.** It is not trying to be a professional engine: it is 2D
+  only, runs on the desktop, and is made for scenes with tens to hundreds of
+  objects. Simple games stay simple, even if that means less power for very
+  large ones.
 
 ## License
 

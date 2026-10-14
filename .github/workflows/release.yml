@@ -1,7 +1,9 @@
 # Publishes to PyPI when a version tag is pushed: `git tag v0.7.0 && git push
 # origin v0.7.0`. No token is stored: PyPI trusts this workflow ("Trusted
 # Publishing", set up on pypi.org for accmota/Scena, release.yml, environment
-# `pypi`). Procedure: design/Scena Design.md, "Compatibility and versions".
+# `pypi`). Then it makes the tag's GitHub Release with scena-examples.zip, the
+# file README.md links (releases/latest/download/scena-examples.zip).
+# Procedure: design/Scena Design.md, "Compatibility and versions".
 name: Release
 
 on:
@@ -60,3 +62,32 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  # The examples and only the media they use, zipped from the committed list
+  # (tools/release/examples_zip.txt, kept current by tests/test_examples_zip.py)
+  # with the standard library alone. After PyPI took the version, so the zip
+  # never belongs to a version pip cannot install; a failure here leaves PyPI as is.
+  examples:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: python tools/release/make_examples_zip.py
+      - name: Attach the zip to the tag's GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/scena-examples.zip --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/scena-examples.zip --verify-tag \
+              --title "Scena $version" \
+              --notes "pip install scena==$version. What changed: https://github.com/accmota/Scena/blob/$GITHUB_REF_NAME/CHANGELOG.md. scena-examples.zip holds the examples and the images and sounds they use."
+          fi
