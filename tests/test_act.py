@@ -2056,6 +2056,62 @@ class TestActLinksOnGameObjects(ActTestCase):
         hud.destroy()
 
 
+class TestMessagesNameTheAct(ActTestCase):
+    """An act is built by the framework: messages say "act Fase", never the
+    raw ``<__main__.Fase object at 0x…>`` or "the Fase made at
+    system_support.py:364" (review 2026-10-14 PA5)."""
+
+    def test_label_and_repr(self):
+        from scena.entity import entity_label
+        self.begin(Vazia)
+        self.assertEqual(entity_label(current()), "act Vazia")
+        self.assertEqual(repr(current()), "act Vazia")
+        self.assertEqual(str(current()), "act Vazia")
+
+    def test_the_watchdog_names_the_act(self):
+        import scena.process as proc
+
+        class Presa(Act):
+            def setup(self):
+                self.mode = self.gira
+
+            @on_mode
+            async def gira(self):
+                while True:
+                    pass
+
+        old = proc.WATCHDOG_RESUME_S
+        proc.WATCHDOG_RESUME_S = 0.05
+        try:
+            with warnings.catch_warnings(record=True) as ws:
+                warnings.simplefilter("always")
+                self.begin(Presa)
+                self.w.step(1)
+        finally:
+            proc.WATCHDOG_RESUME_S = old
+        msgs = [str(w.message) for w in ws if "without awaiting" in str(w.message)]
+        self.assertTrue(msgs)
+        self.assertIn("async mode 'gira' on act Presa ran", msgs[0])
+        self.assertNotIn("object at 0x", msgs[0])
+
+    def test_a_dropped_link_that_read_the_act_names_it(self):
+        placar = Text("", top_left=(10, 290))
+
+        class ComPontos(Act):
+            def setup(self):
+                self.pontos = 2
+                # Not an act's @= (that one is undone silently, PA1).
+                placar._link_field("text", lambda: f"P {self.pontos}")
+
+        self.begin(ComPontos)
+        with quiet():
+            change_act(Vazia)
+        msg = last_author_error()["message"]
+        self.assertIn("read act ComPontos, which ended when the game changed to Vazia", msg)
+        self.assertNotIn("made at", msg.split(" read ")[1])
+        placar.destroy()
+
+
 class TestNamedSlotsAcrossTheSeal(ActTestCase):
     """An act's ownerless timer with a game timer's name replaces it for the
     act only; the act change gives the game's back (review 2026-10-09 S2-6)."""

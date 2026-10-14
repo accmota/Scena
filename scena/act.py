@@ -842,10 +842,15 @@ def _unlink_notice(dep, source) -> bool:
         what = f"{part_path(dep, holder)} of {entity_label(holder)}"
     else:
         what = str(getattr(dep, "name", dep))
+    if getattr(src, "_scena_is_act", False):
+        gone = (f"{what} read act {type(src).__name__}, which ended when the "
+                f"game changed to {entering}.")
+    else:
+        gone = (f"{what} read {entity_label(src)}, which belonged to act {leaving} "
+                f"and was removed when the game changed to {entering}.")
     report_author_warning(
         "change_act",
-        f"{what} read {entity_label(src)}, which belonged to act {leaving} "
-        f"and was removed when the game changed to {entering}. The link was "
+        f"{gone} The link was "
         f"dropped (the last value stays). Create it in {leaving}.setup() so it "
         f"leaves with the act.",
         owner=holder,
@@ -936,8 +941,17 @@ class Act(Entity):
     """
 
     # Read by ``entity._check_class_hook_names``: an act's messages name the
-    # act spellings (``on_update``, ``keyp.once``).
+    # act spellings (``on_update``, ``keyp.once``); ``entity_label`` names an
+    # act "act Fase".
     _scena_is_act = True
+
+    def __repr__(self) -> str:
+        # Messages name an act by its class: the framework builds it, so a
+        # construction line ("made at system_support.py:364") or the raw
+        # ``<__main__.Fase object at 0x…>`` says nothing (PA5).
+        return f"act {type(self).__name__}"
+
+    __str__ = __repr__
 
     def __init_subclass__(cls, **kwargs):
         for key in _CLASS_KEYWORDS:

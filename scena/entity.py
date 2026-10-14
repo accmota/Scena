@@ -1543,6 +1543,8 @@ def entity_label(obj) -> str:
     if actor is None:
         return str(getattr(obj, "name", obj))
     cls = type(actor).__name__
+    if getattr(actor, "_scena_is_act", False):
+        return f"act {cls}"        # built by the framework: no author line (PA5)
     d = actor.__dict__
     site = d.get("_site")
     if site is None:
