@@ -1001,6 +1001,23 @@ Assigning a callback also sets the matching flag; clearing the callback to
 | `on_drop_by` | `droppable` |
 | `on_hover` / `on_hover_exit` | no flag — joins the interactive list as a **hover-only** target (see [Hover](#hover-pointer_hover-hover--hover_exit)) |
 
+**As a class method.** Each of these names is also a class-body hook
+(`entity._ACTOR_HOOK_NAMES`): `_install_subclass_hooks` assigns the bound
+method through the property setter, so a method sets its flag exactly as
+the instance assignment does. `self` is already one side of the gesture, so
+a method takes only what is left: `on_click(self)`, `on_hover(self)`,
+`on_drag_to(self, to_shape, pos)` and `on_drag_over(self, to_shape, pos)` (on
+the dragged Graphic), `on_drop_by(self, from_shape, pos)` (on the target) —
+the drag ones through `entity._drag_method_adapter`, as `on_collide*` drop
+`me` through `_pair_method_adapter`. The engine dispatches drag payloads from
+the stored slot (`_on_drag_to` / `_on_drag_over` / `_on_drop_by`), not the
+attribute, which a class method shadows. A method with the top-level
+signature (`on_drag_to(self, peca, alvo, pos)`) raises `TypeError` at
+construction. Bug CH1 (2026-10-14): the drag methods were not installed (no
+flag) and, with the flag set by hand, got `(self, alvo)`. Guard:
+`tests/test_class_gesture_hooks.py` (every pointer property is a discovered
+hook; a method sets the instance form's flag on Shape, Sprite and Text).
+
 Every pointer handler is validated where it is set (setter, constructor,
 decorator: `validate.check_pointer_handler`): callable, and needing at most the
 positional payload Scena passes. It is called through `call_truncated`, so it

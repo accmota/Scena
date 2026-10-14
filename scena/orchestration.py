@@ -1320,7 +1320,7 @@ class ShapeInteractionManager:
         shape.move_to(x + self._grab_dx, y + self._grab_dy)
         self._drag_xy = (x, y)
         to_shape, _at = self._drop_target(shape)
-        self._call(shape.on_drag_over, shape, to_shape, (x, y))
+        self._call(getattr(shape, "_on_drag_over", None), shape, to_shape, (x, y))
         return True
 
     def _drop_target(self, shape):
@@ -1384,12 +1384,12 @@ class ShapeInteractionManager:
             # target's for ``on_drop_by`` (the same point when both share
             # a space).
             to_shape, drop_pos = self._drop_target(shape)
-            self._call(shape.on_drag_to, shape, to_shape, (x, y))
+            self._call(getattr(shape, "_on_drag_to", None), shape, to_shape, (x, y))
             # ``on_drag_to`` may have destroyed either side or changed act:
             # no drop on a dead party (review 2026-10-09 S1-2).
             if (to_shape is not None and getattr(to_shape, "is_alive", True)
                     and getattr(shape, "is_alive", True)):
-                self._call(to_shape.on_drop_by, shape, to_shape, drop_pos)
+                self._call(getattr(to_shape, "_on_drop_by", None), shape, to_shape, drop_pos)
             return True
 
         # Click: press+release inside; wheel while held means rotate, not click.

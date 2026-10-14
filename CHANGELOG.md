@@ -90,6 +90,14 @@ left out.
 - `box=` on an author subclass of `RegularPolygon` (`class Hex(RegularPolygon)`)
   now takes the box's angle, as `RegularPolygon(box=…)` does; it compared
   class names and missed subclasses.
+- The drag gestures as class methods work like `on_click`: `def
+  on_drag_to(self, alvo, pos)` and `def on_drag_over(self, alvo, pos)` make
+  the object draggable, and `def on_drop_by(self, peca, pos)` makes it
+  droppable. Before, the methods turned nothing on, and with `draggable =
+  True` set by hand `on_drag_to` received `(self, alvo)` instead of
+  `(alvo, pos)`. A method that also asks for the dragged piece
+  (`on_drag_to(self, peca, alvo, pos)`) now raises `TypeError` when the
+  object is made.
 
 ### Documentation
 

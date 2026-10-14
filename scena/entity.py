@@ -1115,6 +1115,9 @@ _ACTOR_HOOK_NAMES = (
     "on_click",
     "on_hover",
     "on_hover_exit",
+    "on_drag_to",
+    "on_drag_over",
+    "on_drop_by",
     "on_collide",
     "on_collide_stay",
     "on_collide_exit",
@@ -1622,6 +1625,31 @@ def _tag_names(names, verb: str):
 
 _COLLIDE_HOOKS = ("on_collide", "on_collide_stay", "on_collide_exit")
 
+# A drag gesture as a class method: ``self`` is already one side of the drag,
+# so the method takes the other side and ``pos`` — ``on_drag_to(self, alvo,
+# pos)``, ``on_drag_over(self, alvo, pos)``, ``on_drop_by(self, peca, pos)`` —
+# as ``on_collide`` takes ``(other, info)``. Installed through the property
+# setter, the method turns ``draggable`` / ``droppable`` on, like ``on_click``
+# turns ``clickable`` on (CH1, 2026-10-14: a class method did neither, and the
+# engine passed it ``(self, alvo)``).
+_DRAG_HOOKS = ("on_drag_to", "on_drag_over", "on_drop_by")
+
+
+def _drag_method_adapter(bound, name: str):
+    """Engine payload ``(from_shape, to_shape, pos)`` → the method's ``(other, pos)``."""
+    from .validate import call_truncated, check_handler_arity
+    dropped_on = name == "on_drop_by"
+    check_handler_arity(bound, ("from_shape" if dropped_on else "to_shape", "pos"),
+                        what=f"{type(bound.__self__).__name__}.{name}")
+    if dropped_on:
+        def handler(from_shape, to_shape, pos):
+            call_truncated(bound, from_shape, pos)
+    else:
+        def handler(from_shape, to_shape, pos):
+            call_truncated(bound, to_shape, pos)
+    handler.__name__ = getattr(bound, "__name__", name)
+    return handler
+
 
 def _keep_collide_callbacks(item, col) -> None:
     """Copy ``col``'s callbacks onto the actor before ``col`` is dropped (E1).
@@ -1780,6 +1808,8 @@ def _install_subclass_hooks(item) -> None:
             # does (AC6: it received ``other = self``).
             from .collision import _pair_method_adapter
             bound = _pair_method_adapter(bound)
+        elif name in _DRAG_HOOKS:
+            bound = _drag_method_adapter(bound, name)
         assigned = False
         for c in cls.__mro__:
             desc = c.__dict__.get(name)
