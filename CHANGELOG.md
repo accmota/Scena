@@ -42,6 +42,13 @@ left out.
   `move_along` now takes either one (before, `time=` was required).
   `scale_*`, `zoom_*` and `tween` have no `speed=`. Like `time=`, it does
   not follow a target that moves: for that, `approach` in `update`.
+- A point unpacks: `x, y = ship.center`, `tuple(p)`, `print(*p)`, and the
+  same for a `Vec2` (`x, y = v`) and the `mouse` (`x, y = mouse`). The names
+  get a copy of the two numbers (like `track.at()`): they do not follow the
+  point. Before, it raised "field name must be a str, got int". Passing the
+  point itself is unchanged: `center=p` copies, `center @= p` and
+  `lambda: p` follow. `p[0]` raises `TypeError` naming `p.x` (a point has no
+  index), and `x, y = ship` names `ship.center`.
 
 ### Changed
 
@@ -104,6 +111,87 @@ left out.
   does not land exactly. For the same object: `a is b`. The undocumented
   `Point.eq()` and `Point.get_hash()` are gone (`get_hash` hashed the
   position, which changes when the point moves): use `distance`.
+- Every `@collide` / `@collide_stay` handler of a contact runs, also after an
+  earlier one destroys (or parks) one of the two: the later ones get the dead
+  object, which can still be read (`destroy()` on it again does nothing).
+  Before, the rest of that contact's handlers were skipped, so with a `Tiro`
+  whose `@collide_with("inimigos")` does `self.destroy()` and an `Inimigo`
+  whose `@collide_with("tiros")` destroys itself and scores, a hit scored or
+  not depending on which of the two was made first (the same with a module
+  `@collide` next to a class method). A body destroyed in a contact still
+  starts no other contact that frame (one shot hits one enemy), and a
+  `change_act` in a handler still stops the leaving act's handlers. The
+  contact's `@collide_exit` now runs after its remaining handlers, so an
+  enter `+= 1` / exit `-= 1` counter reads enter, then exit (before, the exit
+  ran inside the `destroy()`, ahead of them); only the destroyed object's own
+  exit hooks (`on_collide_exit`, `@collide_with_exit`) still run inside its
+  `destroy()`, while it exists.
+- Shift held no longer hides a bare key: `keyp("RIGHT")`, `keyp.once("SPACE")`,
+  `"SPACE" in keyp` and `on_key_down("SPACE")` / `on_key` read True / arrive
+  while Shift is held, so "hold Shift to run" keeps walking and jumping.
+  Before, any modifier hid the key (the Guia said "sem Shift / Ctrl / Alt /
+  Cmd"). Ctrl, Alt and Cmd still hide it (they make shortcuts). What else
+  differs: with Shift and R held, `keyp("R")` and `keyp("SHIFT+R")` are now
+  both True (a game that reads both should test the chord first, or use
+  `keyp.only("R")`, which stays exclusive: no other key, Shift included); a
+  chord stays exact (`keyp("CMD+Z")` is not Cmd+Shift+Z); pressing Shift
+  under a held key is not a new press of that key (`once` does not fire
+  again).
+- `mouse.press(button)` reads False while a HUD widget owns that press
+  (dragging a `Slider`, holding a `Button`), until the button goes up, as a
+  focused `TextInput` hides its keys from `keyp`; `mouse.click_pos` does not
+  record such a press. A paint app that paints while
+  `mouse.press(Mouse.BTN_LEFT)` no longer paints under the slider. A press on
+  a shape (your own drag or click target) still reads True.
+- A drag drops across the HUD and the world: the drop target is the topmost
+  `droppable` under the pointer, `layer="ui"` first, then the world, whichever
+  space the drag started in. A HUD inventory seed dropped on a world plot
+  gets `@drop_by`, and a world piece dropped on a HUD bin too. Before, a drag
+  saw only targets in its own space (`to` was `None`, no `@drop_by`). `pos`
+  is in the space of the shape whose handler runs: the dragged shape's for
+  `@drag_to` / `@drag_over`, the target's for `@drop_by` (the same point when
+  both share a space, or with no camera).
+- A lambda (or a nested `def`, or a `functools.partial`) that uses `self`
+  inside an actor's method is owned by that actor, like the method itself:
+  `after(0.1, lambda: self.set_color("red"))` in `on_update` now ends when the
+  actor is destroyed, as `after(0.1, self.piscar)` already did. Before, it
+  belonged to the act: it ran after the death and raised `DestroyedError`, or
+  made a destroyed enemy fire one last shot. Applies to `after`, `every`,
+  `on_done=` and `play_sound(on_done=)`. Inside the actor's own `on_destroy`
+  such a lambda keeps running after the death ("after I am gone" work). A
+  lambda that uses another actor (`lambda: alvo.destroy()`) is unchanged.
+- An act's `@=` on an object made at the top of the file leaves with the act:
+  `hud["text"] @= lambda: f"Pontos {st.pontos}"` in `Fase.setup` is undone at
+  `change_act`, and the field gets back what it had (the game's own link, or
+  its value: `hud.text` is `""` again). A restart links again without the
+  "overrides its previous link" warning, and the next act can write
+  `hud.text = "NAVES"` (it raised `LinkedAttributeError`). A formula that
+  reads an act object or the act itself leaves the same way, now without a
+  SCENA WARNING.
+- The "received a formula that overrides its previous link" warning is a
+  SCENA WARNING (the amber banner) and names the unlink spelling
+  (`Text['text'].unlink()`).
+- A class-body method the engine would never call raises `TypeError` at the
+  class line, naming the right hook: `def update(self, dt)` in any actor or
+  act class (the hook is `on_update`; on a Shape or Sprite, `update` replaced
+  Scena's own recalculation and the object crashed when made, with "missing 1
+  required positional argument: 'dt'"); a top-of-file input function
+  (`on_key_down`, `on_mouse_click`, …) in a class (in an act: `keyp.once` /
+  `mouse.press()` in `on_update`; on an actor: `on_click`); a name one letter
+  from a hook (`on_colide`, `on_updat`, `on_destory`) or another engine's
+  name (`on_collision`); a plain method named `collide_with`. Before, the
+  method was never called and nothing said so. Your own helpers (`on_hit`,
+  `on_frame`) are fine.
+- `obj["name"] @= …` on a name the object already has as a method, a
+  read-only or settable property, or a size / point word its kind lacks
+  (`circle["move_to"]`, `tri["points"]`, `poly["pointer_hover"]`,
+  `rect["box"]`, `circle["top_left"]`) raises the same error as
+  `obj.name = …`. Before, it made a new field of your own that nothing read,
+  so the link did nothing. `poly["v1"] @= …` and `poly.v1 = …` raise too,
+  naming the vertex spelling `poly.points[1] @= …`. If you used such a name
+  as a field of your own, rename it.
+- `clone(frame=)` on a kind without frames (shapes, `Svg`, `Text`) raises
+  `TypeError`; it was ignored.
 
 ### Fixed
 
@@ -332,6 +420,59 @@ left out.
   moving platform must not give, make it `STATIC`: left at the default
   mass `1`, it now yields under an equal mass in every order (before, only
   when it was made first).
+- `@collide_exit` (and `@collide_with_exit`) runs when a side leaves, while
+  touching, the tag its contact entered under: `heroi.untag("heroi")` (or a
+  group change) on a spike fires the spike–hero exit. Before, the contact
+  ended with no exit, so an "on the spike" flag or an enter / exit counter
+  stayed on. Untag and tag again in the same frame is no change, and the left
+  tag matches only that contact's exit, never a contact begun after. An exit
+  handler that destroys or untags a side no longer hides the other exit
+  handlers of that contact: they all run.
+- A `resolve(..., bounce=)` body bounces off a partner that an `@collide`
+  handler destroys (or parks) in the same frame. The Breakout pattern
+  `resolve(bola, "tijolo", bounce=1)` + `@collide(bola, "tijolo")` with
+  `tijolo.destroy()` let the ball plough through every brick it broke,
+  because handlers run before resolve. The contact still gives this frame's
+  `.vel` response; the dead brick pushes nothing. A body moving away from or
+  along the removed partner keeps its speed, and a one-way (`only=`) platform
+  answers only on the side it blocks.
+- A rider on a `STATIC` lift going down (`lift.move_by(0, -v * dt)`) keeps its
+  `@collide` contact: `@collide_stay` fires every frame while `touching_sides`
+  says `"bottom"`. Before, the lift's drop each frame opened the gap past the
+  resting-contact skin (from 60 units/s at 60 Hz, 30 units/s at 144 Hz), so
+  the contact exited while the rider stood on it, and a lift going up and
+  down exited at the top and never entered again on the way down.
+- A hold-to-fire `Button(st["firing"])` destroyed while held, or ended by
+  `change_act` while held, writes `value_off` (no click). Before, `st.firing`
+  stayed `True` into the next act.
+- Holding Enter on a `TextInput` whose `on_submit` focuses another box (or
+  changes to an act that focuses one) no longer submits that box empty on
+  the keyboard's auto-repeat: a key's repeats go only to the box that got its
+  press.
+- A widget under the cursor (a `Button`, …) loses its hover, and gets
+  `on_hover_exit`, when the cursor leaves the window without a last motion
+  event. Shapes already did.
+- A key held across `change_act` gets its `on_key_up` (and a mouse button its
+  `on_mouse_up`), as the Guia says: walking right into the door that loads
+  the next level, `on_key_up("RIGHT")` still stops the walk. Nothing else of
+  the old press reaches the new act: no `on_key` repeat, no `on_mouse_drag`,
+  no click.
+- The freeze watchdog stops a busy loop written on one line
+  (`while not st.pronto: pass`, `while n < 10**9: n += 1`) in an async mode,
+  as it already did for a loop on several lines. Before, the loop ran until
+  it ended on its own and froze the game.
+- Messages name an act "act Fase": the watchdog said
+  `<__main__.Fase object at 0x…>`, and the act-change warning named the line
+  inside Scena that made the act ("the Fase made at …").
+- `shape.clone(center=(x, y))` puts the copy there for every shape (`Circle`,
+  `Rect`, `Square`, `Ellipse`, `Polygon`, `RegularPolygon`, `Line`, `Point`,
+  `Track`). Before, `center=` was ignored and the copy sat on the original
+  (Sprite, Svg and Text already honoured it). A function there raises: link
+  the copy after (`copia.center @= …`).
+- `tri.points[1] @= lambda: …` links that vertex cleanly. Before, it linked
+  the vertex and then raised "'tuple' object does not support item
+  assignment". `tri.points[1] = (x, y)` raises with the spellings that work
+  (`tri.points[1].move_to(x, y)`, `@=`).
 
 ### Documentation
 
@@ -394,6 +535,14 @@ left out.
   on each mouse move during a drag (not each frame), with `to=None` off
   every target; `@click` answers the left button only; the key-name table
   lists `"ENTER"`, `"TAB"`, `"BACKSPACE"` and the other special keys.
+- Guia: the `DestroyedError` row says `play_sound` on a destroyed actor is a
+  quiet no-op (an already cancelled Handle), like `after`. Under a turned
+  camera `canvas.game_view` is the upright box around the view (bigger than
+  the screen), and the Guia shows how to confine to the screen. On a `ui`
+  shape under a moved camera, `contains_point(mouse)` tests the world: use
+  `pointer_hover`. `mouse.x` read right after `pan_by` in the same update is
+  still the frame's sample. Surfaces have no friction: damp `vel.x` yourself
+  (`self.vel.x *= 0.5 ** dt`).
 
 ## 0.8.0 — 2026-10-11
 
