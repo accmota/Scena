@@ -789,6 +789,12 @@ class Mouse(ClosedSurface, Container):
         # from ``press`` / ``click_pos`` until that button goes up, so the
         # click that closed a menu does not also fire in the game.
         self._mask_latch_buttons = set()
+        # Buttons whose press a HUD widget took (a Slider being dragged, a
+        # Button held): hidden from ``press`` / ``click_pos`` until that
+        # button goes up, as a focused TextInput hides its keys from ``keyp``
+        # — a paint app does not paint under the slider (PD2). A press on a
+        # shape (the author's own drag) stays visible.
+        self._widget_buttons = set()
 
     @property
     def x(self):
@@ -858,26 +864,30 @@ class Mouse(ClosedSurface, Container):
         self.update()
 
     def _button_hidden(self, button) -> bool:
-        return self._input_masked or button in self._mask_latch_buttons
+        return (self._input_masked or button in self._mask_latch_buttons
+                or button in self._widget_buttons)
 
     def press(self, button=None):
         """Check if any/specific button is pressed"""
         if button is None:
             if self._input_masked:
                 return False
-            return any(b not in self._mask_latch_buttons for b in self._pressed_buttons)
+            return any(b not in self._mask_latch_buttons and b not in self._widget_buttons
+                       for b in self._pressed_buttons)
         _check_button(button, "mouse.press")
         if self._button_hidden(button):
             return False
         return button in self._pressed_buttons
 
-    def _button_down(self, button, x, y):
-        """Register button press"""
+    def _button_down(self, button, x, y, *, widget: bool = False):
+        """Register button press (``widget``: a HUD widget takes it, PD2)."""
         self._pressed_buttons[button] = True
-        if self._input_masked:
-            # A click the game never got (a modal took it) is not the game's
-            # last click: ``click_pos`` after the menu closes must not report
-            # it (review 2026-10-09 S3-11).
+        if widget:
+            self._widget_buttons.add(button)
+        if self._input_masked or widget:
+            # A click the game never got (a modal or a widget took it) is not
+            # the game's last click: ``click_pos`` must not report it (review
+            # 2026-10-09 S3-11, PD2).
             self.update()
             return
         # Transfer last1 state to last2 if it exists
@@ -893,6 +903,7 @@ class Mouse(ClosedSurface, Container):
         """Register button release"""
         self._pressed_buttons.pop(button, None)
         self._mask_latch_buttons.discard(button)
+        self._widget_buttons.discard(button)
         self.update()
 
     def click_pos(self, button=None):
@@ -903,11 +914,11 @@ class Mouse(ClosedSurface, Container):
             return None
         if button is None:
             for btn in self._pressed_buttons:
-                if btn in self._mask_latch_buttons:
+                if btn in self._mask_latch_buttons or btn in self._widget_buttons:
                     continue
                 return self._last1_click_pos[btn]
             return None
-        if button in self._mask_latch_buttons:
+        if button in self._mask_latch_buttons or button in self._widget_buttons:
             return None
         return self._last1_click_pos.get(button)
 

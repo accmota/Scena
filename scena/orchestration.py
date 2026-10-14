@@ -90,8 +90,14 @@ class WidgetManager:
         # Alt / Super). Set by ScenaFramework._handle_key before any widget
         # hook runs; TextInput reads it for Shift-select, clipboard, word moves.
         self._key_mods = 0
-        # Keys whose press a widget claimed: their release goes to the widget.
-        self._claimed_down = set()
+        # View point of the last motion / level sample the hover was resolved
+        # at: the per-frame sample re-resolves only when it differs (PD4).
+        self._ptr_seen = None
+        # Keys whose press a widget claimed → that widget. The key's repeats
+        # and release belong to it (and to it only while it keeps focus): a
+        # held Enter that submitted one box, which focused another, does not
+        # repeat into the new box (bug PD3; the widget side of W-P4).
+        self._claimed_down = {}
 
         # Define double click parameters
         self.double_click_time_threshold = 0.5  # Maximum time between clicks (in seconds)
@@ -361,7 +367,11 @@ class WidgetManager:
             self.mouse_over_widget = None
         for button, ev in list(self.mouse_down_widget_by_button.items()):
             if ev.widget is widget:
+                # The release still ends here (nothing under it gets it), but
+                # the widget lets go now: a held Button writes ``value_off``
+                # (bug PD1).
                 self.mouse_down_widget_by_button[button] = ev._replace(widget=None)
+                widget._abandon_press(button)
         if self.last_click is not None and self.last_click.widget is widget:
             self.last_click = None                       # HD4: no double click on a dead widget
         # A menu closed by any destroy path (an act change, a layer drain, a
@@ -718,6 +728,7 @@ class WidgetManager:
         return True
 
     def handle_mouse_move(self, x, y):
+        self._ptr_seen = (x, y)
         # Handle mouse drag
         if self.pressed_widget:
             pressed = self.pressed_widget
@@ -761,9 +772,12 @@ class WidgetManager:
     def refresh_hover(self, x, y) -> None:
         """Re-resolve the hovered widget at a still pointer (no move or drag
         callbacks): a widget shown, created or enabled under the cursor takes
-        hover, one hidden under it gives it up."""
+        hover, one hidden under it gives it up. Also the per-frame pointer
+        sample when the cursor moved with no motion event (it left the
+        window: the hovered Button gets its exit, PD4)."""
         if self.pressed_widget:
-            return
+            return      # not recorded: re-resolved once the press ends (S3-5)
+        self._ptr_seen = (x, y)
         widget = self.get_widget_at(x, y)
         old = self.mouse_over_widget
         if widget is old:
@@ -811,6 +825,14 @@ class CanvasManager:
         # shortcut or a filtered chord sends none: review 2026-10-09 S3-7,
         # S1-10).
         self._keys_down: set = set()
+        # Script presses and keys made before the last act change. The script
+        # hooks are top-level, so they live on in the new act: such a key
+        # still gets its ``on_key_up`` and such a button its ``on_mouse_up``
+        # (the handler saw the down, bug PD7), but nothing that continues the
+        # old press: no ``on_key`` repeat (W-P4), no ``on_mouse_drag``, no
+        # click (S3-8).
+        self._old_act_keys: set = set()
+        self._old_act_presses: set = set()
         self._last_click = None  # (button, view_x, view_y, time)
         # Same thresholds as widget double click (view-space points, seconds).
         self.click_distance_threshold = 5
@@ -838,6 +860,7 @@ class CanvasManager:
     def handle_mouse_down(self, x, y, button, view=None):
         vx, vy = view if view is not None else (x, y)
         self._presses[button] = (x, y, vx, vy, time.perf_counter())
+        self._old_act_presses.discard(button)
         callback_if_exists(self, 'on_mouse_down', x, y, button)
 
     def handle_mouse_up(self, x, y, button, view=None):
@@ -848,7 +871,14 @@ class CanvasManager:
             # no up without its down (review 2026-10-09 X-life-3).
             return
         click_x, click_y = press[0], press[1]
+        old_act = button in self._old_act_presses
+        if old_act:
+            self._old_act_presses.discard(button)
         callback_if_exists(self, 'on_mouse_up', x, y, button, click_x, click_y)
+        if old_act:
+            # Pressed in the previous act: the up pairs its down (PD7), but
+            # it is not a click in this act (S3-8).
+            return
         vx, vy = view if view is not None else (x, y)
         if math.hypot(vx - press[2], vy - press[3]) > self.click_distance_threshold:
             return
@@ -857,14 +887,42 @@ class CanvasManager:
     def forget_press(self, button):
         """Drop a script press whose release went to a widget / shape."""
         self._presses.pop(button, None)
+        self._old_act_presses.discard(button)
 
     def forget_act_input(self) -> None:
-        """An act change: a press or key the old act's script got does not
-        complete as a click / up in the new act (review 2026-10-09 S3-8; keys
-        already swallow their ``once`` edge)."""
+        """An act change: a press or key the script got in the old act does not
+        continue in the new one: no click, drag or ``on_key`` repeat (review
+        2026-10-09 S3-8, W-P4; keys also swallow their ``once`` edge). Its up
+        still comes: the top-level handler that saw the down lives on, and a
+        state it set on the down (walking right) must be undone (bug PD7)."""
+        self._old_act_presses.update(self._presses)
+        self._old_act_keys.update(self._keys_down)
+        self._last_click = None
+
+    def clear_input(self) -> None:
+        """Forget every script press and key (a fresh world: test harnesses)."""
         self._presses.clear()
         self._keys_down.clear()
+        self._old_act_presses.clear()
+        self._old_act_keys.clear()
         self._last_click = None
+
+    def note_key_down(self, key_name) -> None:
+        """The script got ``key_name``'s down (a fresh press, in this act)."""
+        self._keys_down.add(key_name)
+        self._old_act_keys.discard(key_name)
+
+    def take_key_up(self, key_name) -> bool:
+        """``key_name`` went up: True when the script got its down (send the up)."""
+        if key_name not in self._keys_down:
+            return False
+        self._keys_down.discard(key_name)
+        self._old_act_keys.discard(key_name)
+        return True
+
+    def repeats_to_script(self, key_name) -> bool:
+        """A repeat reaches ``on_key`` only for a key pressed in this act (W-P4)."""
+        return key_name in self._keys_down and key_name not in self._old_act_keys
 
     def handle_mouse_click(self, x, y, button, view=None):
         vx, vy = view if view is not None else (x, y)
@@ -888,7 +946,8 @@ class CanvasManager:
     def handle_mouse_move(self, x, y):
         callback_if_exists(self, 'on_mouse_move', x, y)
         for button in tuple(self._presses):
-            self.handle_mouse_drag(x, y, button)
+            if button not in self._old_act_presses:
+                self.handle_mouse_drag(x, y, button)
 
     def handle_mouse_drag(self, x, y, button):
         callback_if_exists(self, 'on_mouse_drag', x, y, button)
@@ -3201,24 +3260,42 @@ class ScenaFramework:
         if action == glfw.RELEASE:
             self.keys._release(key_name)
             if key_name in wm._claimed_down:
-                wm._claimed_down.discard(key_name)
-                wm.handle_key_up(key_name)
-            elif key_name in self.canvas_manager._keys_down:
-                # Every script down gets its up, modal or not.
-                self.canvas_manager._keys_down.discard(key_name)
+                owner = wm._claimed_down.pop(key_name)
+                if owner is wm._keyboard_widget():
+                    wm.handle_key_up(key_name)
+            elif self.canvas_manager.take_key_up(key_name):
+                # Every script down gets its up, modal or not, also when the
+                # act changed in between (PD7).
                 self.canvas_manager.handle_key_up(script_key)
             return
         if action not in (glfw.PRESS, glfw.REPEAT):
             return
+
+        if action == glfw.REPEAT:
+            owner = wm._claimed_down.get(key_name)
+            if owner is not None:
+                # A repeat goes to the widget that got the press, while it
+                # keeps focus; never to a box focused since (bug PD3).
+                if owner is wm._keyboard_widget() and wm.claims_key(key_name, mods):
+                    wm.handle_key(key_name)
+                return
+            if wm.claims_key(key_name, mods):
+                # Pressed before the focused box took focus: its repeats stay
+                # with whoever got the press (the script door below, which
+                # needs the script's down), never typed into the box.
+                if self.canvas_manager.repeats_to_script(key_name) and (
+                        not modal and self.keys._delivers_script_key(key_name)):
+                    self.canvas_manager.handle_key(script_key)
+                return
 
         # A focused keyboard widget (TextInput) keeps only the keys it claims:
         # its editing keys, keys that type text, its own Primary shortcuts.
         # Everything else (Cmd+S, F-keys, a modifier alone) goes on to keyp and
         # on_key, after the widget commits its pending text.
         if wm.claims_key(key_name, mods):
-            if action == glfw.PRESS:
-                wm._claimed_down.add(key_name)
-                wm.handle_key_down(key_name)
+            # PRESS (a REPEAT returned above).
+            wm._claimed_down[key_name] = wm._keyboard_widget()
+            wm.handle_key_down(key_name)
             wm.handle_key(key_name)
             return
         wm.key_leaves_widget(key_name)
@@ -3227,12 +3304,13 @@ class ScenaFramework:
         # After _press: delivery reads the held state (a play key only unmodified).
         delivers = not modal and self.keys._delivers_script_key(key_name)
         if action == glfw.PRESS and delivers:
-            self.canvas_manager._keys_down.add(key_name)
+            self.canvas_manager.note_key_down(key_name)
             self.canvas_manager.handle_key_down(script_key)
         # ``on_key`` (press and repeats) follows the same door as the up: a key
-        # the script never saw go down (pressed under a modal, or in an old
-        # act) sends no repeats when the mask lifts (review 2026-10-09 W-P4).
-        if delivers and (action == glfw.PRESS or key_name in self.canvas_manager._keys_down):
+        # the script never saw go down (pressed under a modal) sends no
+        # repeats when the mask lifts, nor does a key pressed in an old act
+        # (review 2026-10-09 W-P4).
+        if delivers and (action == glfw.PRESS or self.canvas_manager.repeats_to_script(key_name)):
             self.canvas_manager.handle_key(script_key)
 
     def _pointer_from_glfw(self, glfw_x, glfw_y):
@@ -3266,6 +3344,14 @@ class ScenaFramework:
             self.widget_manager.handle_mouse_move(view_x, view_y)
             self.shape_manager.handle_mouse_move(view_x, view_y, ui=True)
             self.shape_manager.handle_mouse_move(world_x, world_y, ui=False)
+        else:
+            wm = self.widget_manager
+            if wm is not None and wm._ptr_seen != (view_x, view_y):
+                # The cursor moved with no motion event (it left the window):
+                # widget hover follows the sample, as Graphic hover does
+                # through ``note_pointer`` (PD4). A still cursor costs a
+                # tuple compare; a camera pan does not move the view point.
+                wm.refresh_hover(view_x, view_y)
 
     def _resync_input_from_os(self):
         """After a poll cut short: keys and mouse buttons as the OS has them
@@ -3293,9 +3379,12 @@ class ScenaFramework:
                 wm = self.widget_manager
                 for name in released:
                     if cm is not None:
-                        cm._presses.pop(name, None)
+                        cm.forget_press(name)
                     if wm is not None:
-                        wm.mouse_down_widget_by_button.pop(name, None)
+                        ev = wm.mouse_down_widget_by_button.pop(name, None)
+                        held = getattr(ev, "widget", None)
+                        if held is not None and held is not _SWALLOWED_PRESS:
+                            held._abandon_press(name)       # PD1
                 if not mouse._pressed_buttons:
                     if wm is not None:
                         wm.pressed_widget = None
@@ -3353,8 +3442,13 @@ class ScenaFramework:
         button = get_glfw_mouse_button(glfw_button)
 
         if action == glfw.PRESS:
-            self.mouse._button_down(button, world_x, world_y)
-            if not self.widget_manager.handle_mouse_down(view_x, view_y, button):
+            wm = self.widget_manager
+            # A press a HUD widget takes (a disabled one blocks it too) is
+            # hidden from ``mouse.press`` until it goes up (PD2).
+            self.mouse._button_down(
+                button, world_x, world_y,
+                widget=wm.get_widget_at(view_x, view_y) is not None)
+            if not wm.handle_mouse_down(view_x, view_y, button):
                 if not self.shape_manager.handle_mouse_down(
                     view_x, view_y, button, ui=True
                 ):

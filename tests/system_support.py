@@ -154,6 +154,7 @@ def reset_input_state() -> None:
         # first click a double click.
         m._input_masked = False
         m._mask_latch_buttons.clear()
+        m._widget_buttons.clear()
         for hist in (m._last1_click_pos, m._last1_click_time,
                      m._last2_click_pos, m._last2_click_time):
             hist.clear()
@@ -171,7 +172,7 @@ def reset_input_state() -> None:
         sm._resolved_sig = None
     cm = getattr(fw, "canvas_manager", None)
     if cm is not None:
-        cm.forget_act_input()
+        cm.clear_input()
     wm = getattr(fw, "widget_manager", None)
     if wm is not None:
         wm.mouse_over_widget = None

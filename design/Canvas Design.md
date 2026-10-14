@@ -223,7 +223,7 @@ any outside read), so it can lag a string change by one frame. Tests:
 construct-time column on `WidgetManager`. A widget is an Entity (`group=`,
 `visible`, `destroy()`, timers) drawn here, not on a registry layer. `visible=False`
 skips draw and input. A modal widget (see Menu) is the only pointer target;
-misses are consumed, and `keyp` / `mouse.press` read False until it closes. `group["opts"].visible` / `.destroy()` covers widgets and
+misses are consumed, and `keyp` / `mouse.press` read False until it closes. A press any widget takes is hidden from `mouse.press` / `click_pos` until the button goes up (a paint app does not paint under a dragged Slider; PD2), and a widget removed while it holds a press undoes what the press set with no click (`_abandon_press`: a hold-to-fire `Button(cell)` writes `value_off`; PD1) — [Scena Design, pointer](Scena%20Design.md). `group["opts"].visible` / `.destroy()` covers widgets and
 HUD `Text` in that group together. Every item is placed by its visual
 top-left: omit `top_left=` to stack downward (y-up, default origin
 `(20, design_h - 40)`); an explicit `top_left=` (or a Text anchor on `ui`)
@@ -355,11 +355,19 @@ graph alias; `.data` / the bound cell is the value.
   with the text still pending plus an explicit `box.commit()` — a save
   shortcut that forgets the call writes the old value while the box shows the
   new one, silently.)
-  A release goes where its press went (`WidgetManager._claimed_down`) and
-  always reaches `keyp`. The decision is by modifiers because the key event
-  arrives before the char event: Scena cannot know yet whether a character
-  will follow. `delivers` (play key reaches `on_key` only unmodified) is read
-  **after** `keys._press` — it reads the held state.
+  A key stream belongs to whoever got its press: `WidgetManager._claimed_down`
+  maps a claimed key to the widget that claimed it, and its repeats and its
+  release go to that widget only while it keeps focus; the release always
+  reaches `keyp`. A repeat never reaches a box that did not see the press:
+  a held Enter that submits one box whose `on_submit` focuses the next (or
+  changes act to one that focuses a box) does not submit the next box empty
+  on the OS auto-repeat (bug PD3, the widget side of W-P4). A repeat of a key
+  pressed before the box took focus stays with the script door (`on_key` if
+  the script got that down), never typed into the box. The decision is by
+  modifiers because the key event arrives before the char event: Scena
+  cannot know yet whether a character will follow. `delivers` (play key
+  reaches `on_key` only without Ctrl / Alt / Cmd — Shift does not block, PD6)
+  is read **after** `keys._press` — it reads the held state.
 - **Clipboard** goes through `_clipboard_get` / `_clipboard_set`
   (`glfw.get/set_clipboard_string`); with no window (headless tests) they use
   a module buffer.

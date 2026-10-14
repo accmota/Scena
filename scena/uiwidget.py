@@ -1070,6 +1070,12 @@ class UIWidget(Entity):
         """Handle mouse click events. Return True if handled."""
         return False
 
+    def _abandon_press(self, button) -> None:
+        """This widget held ``button``'s press and leaves before its release
+        (destroyed, its act ended, the release was lost): undo what the press
+        set, with no release callback and no click (bug PD1)."""
+        return
+
     def _on_mouse_double_click(self, x, y, button):
         """Handle mouse double click events. Return True if handled."""
         return False
@@ -1867,14 +1873,23 @@ class Button(UIWidget):
 
     def _on_mouse_up(self, x, y, button, click_x, click_y):
         if button == Mouse.BTN_LEFT:
-            self._clicked = False  # Clear clicked state
-            if not self._data_is_linked():
-                if self.value_off is not None:
-                    self.data.value = self.value_off
-                else:
-                    self.data.value = self._clicked
+            self._write_released()
             return True
         return False
+
+    def _write_released(self) -> None:
+        self._clicked = False  # Clear clicked state
+        if not self._data_is_linked():
+            if self.value_off is not None:
+                self.data.value = self.value_off
+            else:
+                self.data.value = self._clicked
+
+    def _abandon_press(self, button) -> None:
+        # A hold-to-fire button destroyed (or its act ended) while held lets
+        # go of its cell: ``value_off``, no click (bug PD1).
+        if button == Mouse.BTN_LEFT and self._clicked:
+            self._write_released()
 
     def _on_mouse_click(self, x, y, button):
         if button == Mouse.BTN_LEFT:
