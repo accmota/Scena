@@ -284,6 +284,33 @@ class TestEditorOnFrames(EditorSystemCase):
         r = p.tooltip.box
         self.assertGreaterEqual(r.center.x - r.width / 2, 0)
 
+    def test_group_frame_and_handles_follow_a_group_turn(self):
+        app = self.app
+        ed = app.editor
+        view = app.view
+        a = ed.doc.add({"kind": "rect", "center": (50, 50), "width": 100, "height": 100})
+        b = ed.doc.add({"kind": "image", "file": "x.png", "center": (200, 50),
+                        "width": 100, "height": 100})
+        ed.history.commit()
+        ed.selection = [a, b]
+        self.frame()
+        self.assertTrue(view._group_frame.visible)
+        self.assertTrue(view._rotate_knob.visible)
+        self.assertEqual(sum(1 for r in view._handles if r.visible), 4)
+        knob = next(h for h in ed.handles() if h.role == "group_rotate")
+        ed.pointer_down(knob.x, knob.y)
+        ed.pointer_move(125 - 100, 50 + 3.5)              # a quarter turn (snapped)
+        self.frame()
+        self.assertAlmostEqual(float(view._group_frame.angle), 90.0)
+        self.assertTrue(all(abs(float(r.angle) - 90.0) < 1e-9 for r in view._handles if r.visible))
+        ed.pointer_up(125 - 100, 50 + 3.5)
+        self.frame()
+        self.assertViewMatchesDoc()
+        self.assertAlmostEqual(float(view._group_frame.angle), 0.0)
+        ed.selection = [a]
+        self.frame()
+        self.assertFalse(view._group_frame.visible)
+
     def test_save_writes_a_level_the_game_reads(self):
         from scena import Level
         app = self.app

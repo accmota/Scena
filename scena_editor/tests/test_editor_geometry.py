@@ -205,3 +205,121 @@ class TestHandles(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# -- a group selection: rotate and scale together ---------------------------------
+
+_pt = hst.tuples(_coord, _coord)
+
+
+def _item(kind, c, size, r, pts):
+    if kind in ("rect", "ellipse", "image"):
+        item = {"kind": kind, "center": c, "width": size, "height": size / 2 + 1, "angle": r}
+        if kind == "image":
+            item["file"] = "a.png"
+        return item
+    if kind == "circle":
+        return {"kind": kind, "center": c, "radius": size}
+    if kind == "regular_polygon":
+        return {"kind": kind, "center": c, "radius": size, "n": 5, "angle": r}
+    if kind == "line":
+        return {"kind": kind, "p1": pts[0], "p2": pts[1]}
+    if kind in ("polygon", "track"):
+        return {"kind": kind, "points": tuple(pts)}
+    return {"kind": "point", "center": c}
+
+
+_items = hst.builds(_item, hst.sampled_from(("rect", "ellipse", "image", "circle", "regular_polygon",
+                                             "line", "polygon", "track", "point")),
+                    _pt, _extent, _angle, hst.lists(_pt, min_size=3, max_size=5))
+
+
+def _refs(item):
+    """The places a group transform moves: ends, points, or the center."""
+    if item["kind"] == "line":
+        return [item["p1"], item["p2"]]
+    if item["kind"] in ("polygon", "track"):
+        return list(item["points"])
+    return [item["center"]]
+
+
+def _turned(p, origin, deg):
+    dx, dy = geo.rot(p[0] - origin[0], p[1] - origin[1], deg)
+    return origin[0] + dx, origin[1] + dy
+
+
+class TestGroupTransform(unittest.TestCase):
+    @given(item=_items, origin=_pt, deg=_angle)
+    def test_rotate_turns_places_and_angle_and_keeps_the_kind(self, item, origin, deg):
+        new = {**item, **geo.rotate_item(item, origin, deg)}
+        self.assertEqual(set(new), set(item))
+        for a, b in zip(_refs(item), _refs(new)):
+            self.assertTrue(close(_turned(a, origin, deg), b, 1e-6))
+        if "angle" in item:
+            d = (new["angle"] - item["angle"] - deg) % 360.0
+            self.assertTrue(min(d, 360.0 - d) < 1e-6)
+        for k in ("width", "height", "radius", "n"):
+            if k in item:
+                self.assertEqual(new[k], item[k])
+
+    @given(item=_items, origin=_pt, deg=_angle)
+    def test_rotate_there_and_back_is_the_identity(self, item, origin, deg):
+        there = {**item, **geo.rotate_item(item, origin, deg)}
+        back = {**there, **geo.rotate_item(there, origin, -deg)}
+        for a, b in zip(_refs(item), _refs(back)):
+            self.assertTrue(close(a, b, 1e-6))
+
+    @given(item=_items, origin=_pt, s=hst.floats(0.1, 10))
+    def test_scale_moves_places_and_sizes_evenly(self, item, origin, s):
+        new = {**item, **geo.scale_item(item, origin, s)}
+        self.assertEqual(set(new), set(item))
+        for a, b in zip(_refs(item), _refs(new)):
+            want = (origin[0] + (a[0] - origin[0]) * s, origin[1] + (a[1] - origin[1]) * s)
+            self.assertTrue(close(want, b, 1e-6))
+        for k in ("width", "height", "radius"):
+            if k in item:
+                self.assertAlmostEqual(new[k], item[k] * s, places=6)
+        if "angle" in item:
+            self.assertEqual(new["angle"], item["angle"])
+        back = {**new, **geo.scale_item(new, origin, 1 / s)}
+        for a, b in zip(_refs(item), _refs(back)):
+            self.assertTrue(close(a, b, 1e-6))
+
+    @given(items=hst.lists(_items, min_size=2, max_size=4),
+           signs=hst.sampled_from(geo.CORNER_SIGNS), p=_pt,
+           grid=hst.sampled_from([0.0, 10.0]))
+    def test_group_scale_keeps_the_anchor_and_scales_the_box(self, items, signs, p, grid):
+        box = geo.union_aabb(items)
+        assume(box[2] - box[0] > 1 and box[3] - box[1] > 1)
+        s, anchor = geo.group_scale(box, signs, p, grid)
+        self.assertGreaterEqual(s, geo.MIN_SCALE)
+        new = [{**it, **geo.scale_item(it, anchor, s)} for it in items]
+        nb = geo.union_aabb(new)
+        want = (anchor[0] + (box[0] - anchor[0]) * s, anchor[1] + (box[1] - anchor[1]) * s,
+                anchor[0] + (box[2] - anchor[0]) * s, anchor[1] + (box[3] - anchor[1]) * s)
+        self.assertTrue(close(nb, want, 1e-6 * max(1.0, s) * 1000), (nb, want))
+
+    def test_group_scale_puts_the_dragged_corner_on_the_grid(self):
+        box = (0.0, 0.0, 100.0, 50.0)
+        s, anchor = geo.group_scale(box, (1, 1), (203.0, 60.0), 10.0)
+        self.assertEqual(anchor, (0.0, 0.0))
+        self.assertAlmostEqual(s, 2.0)            # x stretches most: the corner's x is 200
+        s, anchor = geo.group_scale(box, (-1, -1), (-12.0, -40.0), 10.0)
+        self.assertEqual(anchor, (100.0, 50.0))
+        self.assertAlmostEqual(s, 1.8)            # y: 50 − (−40) = 90 = 1.8 × 50
+
+    def test_group_scale_never_mirrors(self):
+        s, _ = geo.group_scale((0.0, 0.0, 100.0, 100.0), (1, 1), (-50.0, -50.0), 0.0)
+        self.assertEqual(s, geo.MIN_SCALE)
+
+    def test_a_row_of_points_scales_on_its_one_axis(self):
+        s, anchor = geo.group_scale((0.0, 5.0, 100.0, 5.0), (1, 1), (150.0, 900.0), 0.0)
+        self.assertAlmostEqual(s, 1.5)
+
+    def test_group_handles_are_the_corners_and_a_knob_above(self):
+        hs = geo.group_handles((10.0, 20.0, 100.0, 40.0, 0.0), 5.0)
+        corners = {(h.x, h.y) for h in hs if h.role == "group_resize"}
+        self.assertEqual(corners, {(-40.0, 0.0), (60.0, 0.0), (60.0, 40.0), (-40.0, 40.0)})
+        knob = [h for h in hs if h.role == "group_rotate"]
+        self.assertEqual(len(knob), 1)
+        self.assertTrue(close((knob[0].x, knob[0].y), (10.0, 45.0)))

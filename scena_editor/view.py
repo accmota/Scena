@@ -125,6 +125,11 @@ class LevelView:
         self._rotate_knob.fill = SELECTED
         self._rotate_knob.line = "black"
         self._rotate_knob.visible = False
+        # A group selection's frame: the box its corner handles and knob belong to.
+        self._group_frame = Rect(center=(0, 0), width=1, height=1, layer=OVERLAY_LAYER)
+        self._group_frame.fill = None
+        self._group_frame.line = SELECTED
+        self._group_frame.visible = False
         self._band = Rect(center=(0, 0), width=1, height=1, layer=OVERLAY_LAYER)
         self._band.fill = Color(1, 0.85, 0.3, 0.12)
         self._band.line = SELECTED
@@ -221,21 +226,20 @@ class LevelView:
     def _sync_overlay(self, ed: Editor) -> None:
         size = HANDLE_PX / canvas.zoom
         handles = ed.handles()
-        resize = [h for h in handles if h.role != "rotate"]
-        knob = [h for h in handles if h.role == "rotate"]
+        knob = [h for h in handles if h.role in ("rotate", "group_rotate")]
+        resize = [h for h in handles if h not in knob]
         while len(self._handles) < len(resize):
             r = Rect(center=(0, 0), width=1, height=1, layer=OVERLAY_LAYER)
             r.fill = "white"
             r.line = "black"
             self._handles.append(r)
-        item = ed.single()
-        angle = item.get("angle", 0.0) if item is not None else 0.0
+        angle = ed.handles_angle()
         for i, r in enumerate(self._handles):
             if i < len(resize):
                 h = resize[i]
                 r.center = (h.x, h.y)
                 r.width = r.height = size
-                r.angle = angle if h.role == "resize" else 0.0
+                r.angle = angle if h.role in ("resize", "group_resize") else 0.0
                 r.line_width = 1.0 / canvas.zoom
                 r.visible = True
             else:
@@ -245,6 +249,15 @@ class LevelView:
             self._rotate_knob.radius = size * 0.6
             self._rotate_knob.line_width = 1.0 / canvas.zoom
         self._rotate_knob.visible = bool(knob)
+        box_frame = ed.group_frame() if handles else None
+        if box_frame is not None:
+            cx, cy, w, h, r = box_frame
+            self._group_frame.center = (cx, cy)
+            self._group_frame.width = max(w, 1e-3)
+            self._group_frame.height = max(h, 1e-3)
+            self._group_frame.angle = r
+            self._group_frame.line_width = 1.0 / canvas.zoom
+        self._group_frame.visible = box_frame is not None
         if ed.band is not None:
             x0, y0, x1, y1 = ed.band
             self._band.center = ((x0 + x1) / 2, (y0 + y1) / 2)

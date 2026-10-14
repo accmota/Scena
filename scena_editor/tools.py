@@ -93,6 +93,9 @@ class Editor:
         # Primary held (the host sets it): in Pan or a drawing tool a press
         # acts as Select — decided at the press, so a gesture never switches.
         self.select_held = False
+        self._handles_key: Any = None
+        self._handles: List[geo.Handle] = []
+        self._frame: Optional[Tuple[float, float, float, float, float]] = None
 
     # -- document -------------------------------------------------------------
     def set_doc(self, doc: LevelDoc) -> None:
@@ -126,11 +129,53 @@ class Editor:
         return [it for it in reversed(self.doc.items) if geo.contains(it, x, y, tol)]
 
     def handles(self) -> List[geo.Handle]:
-        """Handles of the selected item (one unlocked item), else none."""
+        """Handles of the selection: one unlocked item's own; for several, the
+        group's corners and rotate knob (around the items that move); else none.
+        Cached: the view and the cursor ask every frame."""
+        key = (id(self.doc), self.doc.version, tuple(self.selection), self.zoom,
+               self.gesture.get("delta") if self.gesture else None)
+        if self._handles_key == key:
+            return self._handles
+        box_frame = self._group_frame_now()
+        self._frame = box_frame
+        if box_frame is not None:
+            out = geo.group_handles(box_frame, self._px(ROTATE_PX))
+        else:
+            item = self.single()
+            out = [] if item is None or item["locked"] else geo.handles(item, self._px(ROTATE_PX))
+        self._handles_key, self._handles = key, out
+        return out
+
+    def _movable(self) -> List[Dict[str, Any]]:
+        return [it for it in self.selected_items() if not it["locked"]]
+
+    def group_frame(self) -> Optional[Tuple[float, float, float, float, float]]:
+        """``(cx, cy, w, h, angle)`` of a group selection's handles: the box of
+        the items that move (two or more selected), turned while a group
+        rotation runs. None for one item, or when the box is a single point."""
+        self.handles()                 # computes it with the handles (cached)
+        return self._frame
+
+    def _group_frame_now(self) -> Optional[Tuple[float, float, float, float, float]]:
+        g = self.gesture
+        if g is not None and g["kind"] == "group_rotate":
+            (cx, cy), (w, h) = g["origin"], g["size"]
+            return cx, cy, w, h, g["delta"]
+        if len(self.selection) < 2:
+            return None
+        box = geo.union_aabb(self._movable())
+        if box is None or (box[2] - box[0] <= 0 and box[3] - box[1] <= 0):
+            return None
+        return ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2,
+                box[2] - box[0], box[3] - box[1], 0.0)
+
+    def handles_angle(self) -> float:
+        """How far the handle squares turn: the group frame's, else the item's."""
+        box_frame = self.group_frame()
+        if box_frame is not None:
+            return box_frame[4]
         item = self.single()
-        if item is None or item["locked"]:
-            return []
-        return geo.handles(item, self._px(ROTATE_PX))
+        return item.get("angle", 0.0) if item is not None else 0.0
 
     def handle_at(self, x: float, y: float) -> Optional[geo.Handle]:
         """The handle under the pointer. On a small shape the handles cover its
@@ -145,9 +190,11 @@ class Editor:
         if best is None:
             return None
         d, h = best
-        item = self.single()
-        if h.role in ("resize", "radius") and math.dist((x, y), _center(item)) < d:
-            return None
+        if h.role in ("resize", "radius", "group_resize"):
+            box_frame = self.group_frame()
+            center = box_frame[:2] if box_frame is not None else _center(self.single())
+            if math.dist((x, y), center) < d:
+                return None
         return h
 
     def _filter_selection(self) -> None:
@@ -200,6 +247,19 @@ class Editor:
 
     def _select_down(self, x: float, y: float, shift: bool) -> None:
         h = self.handle_at(x, y)
+        if h is not None and h.role.startswith("group_"):
+            movable = self._movable()
+            box = geo.union_aabb(movable)
+            orig = [dict(it) for it in movable]
+            if h.role == "group_resize":
+                self.gesture = {"kind": "group_scale", "signs": h.key, "box": box, "orig": orig}
+            else:
+                origin = ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
+                self.gesture = {"kind": "group_rotate", "origin": origin,
+                                "size": (box[2] - box[0], box[3] - box[1]),
+                                "a0": geo.angle_toward(origin, (x, y)), "delta": 0.0,
+                                "orig": orig}
+            return
         if h is not None:
             item = self.single()
             g = {"kind": h.role, "key": h.key, "id": item["id"], "orig": dict(item)}
@@ -283,6 +343,16 @@ class Editor:
         elif kind == "rotate":
             angle = geo.heading_toward(g["orig"], (x, y))
             self.doc.update(g["id"], angle=geo.snap_angle(angle) if grid else angle)
+        elif kind == "group_scale":
+            factor, anchor = geo.group_scale(g["box"], g["signs"], (x, y), grid)
+            for orig in g["orig"]:
+                self.doc.update(orig["id"], **geo.scale_item(orig, anchor, factor))
+        elif kind == "group_rotate":
+            delta = geo.angle_toward(g["origin"], (x, y)) - g["a0"]
+            delta = geo.snap_angle(delta) if grid else delta % 360.0
+            g["delta"] = delta
+            for orig in g["orig"]:
+                self.doc.update(orig["id"], **geo.rotate_item(orig, g["origin"], delta))
         elif kind == "radius":
             r = math.dist(g["orig"]["center"], (x, y))
             self.doc.update(g["id"], radius=max(geo.snap(r, grid), 0.0))
@@ -328,7 +398,8 @@ class Editor:
             elif g.get("cycle_to") is not None:
                 self.selection = [g["cycle_to"]]
             return
-        if kind in ("move", "resize", "rotate", "radius", "end", "vertex"):
+        if kind in ("move", "resize", "rotate", "radius", "end", "vertex", "group_scale",
+                    "group_rotate"):
             self.history.commit()
             return
         if kind == "create":
@@ -695,10 +766,12 @@ class Editor:
                 return "move"
             if kind in ("band", "create", "place"):
                 return "cross"
-            if kind == "rotate":
+            if kind in ("rotate", "group_rotate"):
                 return "rotate"
             if kind == "resize":
                 return geo.resize_cursor(self.doc.get(g["id"]), g["key"])
+            if kind == "group_scale":
+                return geo.frame_cursor(1.0, 1.0, 0.0, g["signs"])
             return "cross"
         if space:
             return "move"
@@ -706,10 +779,12 @@ class Editor:
             return "cross"
         h = self.handle_at(x, y)
         if h is not None:
-            if h.role == "rotate":
+            if h.role in ("rotate", "group_rotate"):
                 return "rotate"
             if h.role == "resize":
                 return geo.resize_cursor(self.single(), h.key)
+            if h.role == "group_resize":
+                return geo.frame_cursor(1.0, 1.0, 0.0, h.key)
             return "cross"
         return "move" if self.items_at(x, y) else "arrow"
 

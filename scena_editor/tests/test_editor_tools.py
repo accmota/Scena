@@ -405,6 +405,106 @@ class TestHandles(unittest.TestCase):
         self.assertEqual(e.doc.get(p)["points"][2], (50, 100))
 
 
+class TestGroupHandles(unittest.TestCase):
+    def _two(self, e):
+        a = e.doc.add({"kind": "rect", "center": (50, 50), "width": 100, "height": 100})
+        b = e.doc.add({"kind": "circle", "center": (200, 50), "radius": 50})
+        e.history.reset(e.doc)
+        e.selection = [a, b]
+        return a, b
+
+    def _handle(self, e, role, key=None):
+        return next(h for h in e.handles() if h.role == role and (key is None or h.key == key))
+
+    def test_several_selected_show_corners_and_a_knob_around_what_moves(self):
+        e = ed()
+        a, b = self._two(e)
+        roles = sorted(h.role for h in e.handles())
+        self.assertEqual(roles, ["group_resize"] * 4 + ["group_rotate"])
+        self.assertEqual(e.group_frame(), (125.0, 50.0, 250.0, 100.0, 0.0))
+        c = e.doc.add({"kind": "point", "center": (900, 900), "locked": True})
+        e.selection = [a, b, c]                  # a locked item is not in the box
+        self.assertEqual(e.group_frame(), (125.0, 50.0, 250.0, 100.0, 0.0))
+        e.selection = [a]
+        self.assertIsNone(e.group_frame())
+        self.assertTrue(all(not h.role.startswith("group_") for h in e.handles()))
+        p = e.doc.add({"kind": "point", "center": (5, 5)})
+        q = e.doc.add({"kind": "point", "center": (5, 5)})
+        e.selection = [p, q]                     # a box that is one point: no handles
+        self.assertEqual(e.handles(), [])
+
+    def test_corner_drag_scales_evenly_and_lands_the_corner_on_the_grid(self):
+        e = ed()
+        a, b = self._two(e)
+        h = self._handle(e, "group_resize", (1, 1))       # top-right: (250, 100)
+        self.assertEqual(e.cursor(h.x, h.y), "nesw")
+        drag(e, (h.x, h.y), (497, 130))                   # x stretches most: 500 = 2 ×
+        self.assertEqual(e.doc.get(a)["center"], (100, 100))
+        self.assertEqual((e.doc.get(a)["width"], e.doc.get(a)["height"]), (200, 200))
+        self.assertEqual(e.doc.get(b)["center"], (400, 100))
+        self.assertEqual(e.doc.get(b)["radius"], 100)
+        self.assertEqual(e.doc.get(b)["kind"], "circle")
+        self.assertTrue(e.undo())                         # one step
+        self.assertEqual(e.doc.get(a)["width"], 100)
+        self.assertFalse(e.history.can_undo)
+
+    def test_shift_scales_without_snap_and_past_the_anchor_does_not_mirror(self):
+        e = ed()
+        a, b = self._two(e)
+        h = self._handle(e, "group_resize", (1, 1))
+        drag(e, (h.x, h.y), (378, 77), shift=True)        # 378 / 250 = 1.512
+        self.assertAlmostEqual(e.doc.get(a)["width"], 151.2, places=2)
+        e.undo()
+        h = self._handle(e, "group_resize", (1, 1))
+        drag(e, (h.x, h.y), (-300, -300))
+        self.assertGreater(e.doc.get(a)["width"], 0)
+        self.assertGreaterEqual(e.doc.get(a)["center"][0], 0)   # stays right of the anchor
+
+    def test_knob_turns_the_group_about_its_center_in_15_degree_steps(self):
+        e = ed()
+        a, b = self._two(e)
+        h = self._handle(e, "group_rotate")
+        self.assertEqual(e.cursor(h.x, h.y), "rotate")
+        cx, cy = 125.0, 50.0
+        # Pointer just above straight left of the center: 88°, snapped to 90°.
+        e.pointer_down(h.x, h.y)
+        e.pointer_move(cx - 100, cy + 3.5)
+        self.assertEqual(e.group_frame()[4], 90.0)       # the frame turns with it
+        self.assertEqual(e.cursor(cx - 100, cy), "rotate")
+        e.pointer_up(cx - 100, cy + 3.5)
+        self.assertEqual(e.doc.get(a)["angle"], 90)
+        self.assertEqual(e.doc.get(a)["center"], (125, -25))
+        self.assertEqual(e.doc.get(b)["center"], (125, 125))
+        self.assertEqual(e.group_frame()[4], 0.0)        # then a new upright box
+        self.assertTrue(e.undo())
+        self.assertEqual(e.doc.get(a)["center"], (50, 50))
+
+    def test_shift_turns_freely_and_esc_puts_everything_back(self):
+        e = ed()
+        a, b = self._two(e)
+        h = self._handle(e, "group_rotate")
+        cx, cy = 125.0, 50.0
+        e.pointer_down(h.x, h.y, shift=True)
+        e.pointer_move(cx - 100, cy + 3.5, shift=True)
+        self.assertAlmostEqual(e.doc.get(a)["angle"], 88.0, places=0)
+        e.key("ESC")
+        self.assertEqual(e.doc.get(a)["center"], (50, 50))
+        self.assertEqual(e.doc.get(a)["angle"], 0)
+        self.assertFalse(e.history.can_undo)
+
+    def test_locked_items_stay_put(self):
+        e = ed()
+        a, b = self._two(e)
+        c = e.doc.add({"kind": "rect", "center": (600, 600), "width": 10, "height": 10,
+                       "locked": True})
+        e.history.reset(e.doc)
+        e.selection = [a, b, c]
+        h = self._handle(e, "group_rotate")
+        drag(e, (h.x, h.y), (25, 50))
+        self.assertEqual(e.doc.get(c)["center"], (600, 600))
+        self.assertEqual(e.doc.get(a)["angle"], 90)
+
+
 class TestToolsAndImages(unittest.TestCase):
     def test_choosing_select_clears_the_selection(self):
         e = ed()
@@ -797,6 +897,8 @@ _action = hst.one_of(
     hst.tuples(hst.just("undo")),
     hst.tuples(hst.just("redo")),
     hst.tuples(hst.just("dup")),
+    hst.tuples(hst.just("all")),
+    hst.tuples(hst.just("handle"), hst.integers(0, 9), _point, hst.booleans()),
 )
 
 
@@ -822,6 +924,13 @@ class TestUndoProperty(unittest.TestCase):
                 e.undo()
             elif a[0] == "redo":
                 e.redo()
+            elif a[0] == "all":
+                e.select_all()
+            elif a[0] == "handle":
+                hs = e.handles()
+                if hs:
+                    h = hs[a[1] % len(hs)]
+                    drag(e, (h.x, h.y), a[2], shift=a[3])
             else:
                 e.duplicate()
             parse({"format": "scena-level", "version": 1, "size": list(e.doc.size),

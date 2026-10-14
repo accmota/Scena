@@ -315,6 +315,102 @@ def resize_cursor(item: Dict[str, Any], signs: Tuple[int, int]) -> str:
     """``"ew"`` / ``"ns"`` / ``"nesw"`` / ``"nwse"`` for a handle, following the
     item's angle (y up, no camera rotation)."""
     _cx, _cy, w, h, r = frame(item)
+    return frame_cursor(w, h, r, signs)
+
+
+def frame_cursor(w: float, h: float, angle: float, signs: Tuple[int, int]) -> str:
+    """The resize cursor for handle ``signs`` of a ``w`` × ``h`` frame turned ``angle``."""
+    r = angle
     hx, hy = rot(signs[0] * max(w, 1e-9) / 2, signs[1] * max(h, 1e-9) / 2, r)
     a = math.degrees(math.atan2(hy, hx)) % 180.0
     return ("ew", "nesw", "ns", "nwse")[int(((a + 22.5) % 180.0) // 45.0)]
+
+
+# ---------------------------------------------------------------------------
+# A group selection: rotate and scale together
+# ---------------------------------------------------------------------------
+# Several items turn about the center of their box and scale evenly about the
+# corner opposite the dragged one. Even scaling only: a circle, a regular
+# polygon, a rotated area or an image cannot stretch by different amounts in
+# x and y and stay what it is (an ellipse, a parallelogram), so the group has
+# corner handles only.
+
+MIN_SCALE = 0.01     # a group never shrinks to nothing or turns inside out
+
+
+def group_handles(box_frame: Tuple[float, float, float, float, float],
+                  rotate_offset: float) -> List[Handle]:
+    """Corner handles (``"group_resize"``, key = sign pair) and the rotate
+    knob (``"group_rotate"``) of a selection's frame ``(cx, cy, w, h, angle)``."""
+    cx, cy, w, h, r = box_frame
+    out = []
+    for sx, sy in CORNER_SIGNS:
+        dx, dy = rot(sx * w / 2, sy * h / 2, r)
+        out.append(Handle("group_resize", (sx, sy), cx + dx, cy + dy))
+    dx, dy = rot(0, h / 2 + rotate_offset, r)
+    out.append(Handle("group_rotate", None, cx + dx, cy + dy))
+    return out
+
+
+def scale_item(item: Dict[str, Any], origin: Pt, s: float) -> Dict[str, Any]:
+    """The changed fields of ``item`` scaled by ``s`` about ``origin``: places
+    and sizes; angles stay. Every kind stays its kind (images keep their aspect)."""
+    ox, oy = origin
+
+    def sc(p):
+        return (ox + (p[0] - ox) * s, oy + (p[1] - oy) * s)
+    kind = item["kind"]
+    if kind == "line":
+        return {"p1": sc(item["p1"]), "p2": sc(item["p2"])}
+    if kind in ("polygon", "track"):
+        return {"points": tuple(sc(p) for p in item["points"])}
+    out: Dict[str, Any] = {"center": sc(item["center"])}
+    if kind in AREA:
+        out["width"] = item["width"] * s
+        out["height"] = item["height"] * s
+    elif kind in ("circle", "regular_polygon"):
+        out["radius"] = item["radius"] * s
+    return out
+
+
+def rotate_item(item: Dict[str, Any], origin: Pt, deg: float) -> Dict[str, Any]:
+    """The changed fields of ``item`` turned ``deg`` (counter-clockwise) about
+    ``origin``: places turn, and so does ``angle`` where the kind has one."""
+    ox, oy = origin
+
+    def turn(p):
+        dx, dy = rot(p[0] - ox, p[1] - oy, deg)
+        return (ox + dx, oy + dy)
+    kind = item["kind"]
+    if kind == "line":
+        return {"p1": turn(item["p1"]), "p2": turn(item["p2"])}
+    if kind in ("polygon", "track"):
+        return {"points": tuple(turn(p) for p in item["points"])}
+    out: Dict[str, Any] = {"center": turn(item["center"])}
+    if kind in AREA or kind == "regular_polygon":
+        out["angle"] = (item.get("angle", 0.0) + deg) % 360.0
+    return out
+
+
+def group_scale(box: Tuple[float, float, float, float], signs: Tuple[int, int],
+                pointer: Pt, grid: float) -> Tuple[float, Pt]:
+    """``(s, anchor)`` for dragging corner ``signs`` of ``box`` to ``pointer``.
+
+    The anchor is the opposite corner. ``s`` is the larger stretch of the two
+    axes (as an image's corner handle keeps its aspect), from the snapped
+    pointer: the dragged corner lands on the grid on that axis. A zero-size
+    axis (a row of points) does not count. Never below ``MIN_SCALE``: dragging
+    past the anchor does not mirror the group.
+    """
+    x0, y0, x1, y1 = box
+    sx, sy = signs
+    anchor = (x1 if sx < 0 else x0, y1 if sy < 0 else y0)
+    w, h = x1 - x0, y1 - y0
+    p = snap_point(pointer, grid)
+    ratios = []
+    if w > 0:
+        ratios.append((p[0] - anchor[0]) * sx / w)
+    if h > 0:
+        ratios.append((p[1] - anchor[1]) * sy / h)
+    s = max(ratios) if ratios else 1.0
+    return max(s, MIN_SCALE), anchor
