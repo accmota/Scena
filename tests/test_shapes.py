@@ -3227,6 +3227,73 @@ class TestShapeClone(ShapeTestCase):
         self.assertNumAlmost(copy.radius, 30)
         self.assertEqual(str(copy.fill), str(c.fill))
 
+    # Every kind ``clone(center=)`` reaches. PC1 (2026-10-14): a Shape's
+    # recipe dropped ``center=`` silently (Sprite / Svg / Text honoured it).
+    @staticmethod
+    def _clone_kinds():
+        from scena.track import Track
+        from scena.text import Text
+        return {
+            "Circle": lambda: Circle(center=(100, 100), radius=10),
+            "Rect": lambda: Rect(center=(100, 100), width=20, height=10, angle=30),
+            "Rect p1/p2": lambda: Rect(p1=(90, 95), p2=(110, 105)),
+            "Square": lambda: Square(center=(100, 100), length=10),
+            "Ellipse": lambda: Ellipse(center=(100, 100), width=20, height=10),
+            "Polygon": lambda: Polygon(points=[(90, 90), (110, 90), (100, 110)]),
+            "RegularPolygon": lambda: RegularPolygon(center=(100, 100), radius=10, n=5),
+            "EquilateralTriangle": lambda: EquilateralTriangle(center=(100, 100), radius=10),
+            "Line": lambda: Line(p1=(90, 100), p2=(110, 100)),
+            "Point": lambda: Point(100, 100),
+            "Anchor": lambda: Anchor(100, 100),
+            "Track": lambda: Track(points=[(90, 100), (110, 100)]),
+            "Text": lambda: Text("hi", center=(100, 100), layer="default"),
+        }
+
+    def test_clone_center_places_every_kind(self):
+        for kind, make in self._clone_kinds().items():
+            with self.subTest(kind=kind):
+                src = make()
+                sx, sy = get_xy(src.center)
+                copy = src.clone(center=(300, 50))
+                self.assertPointAlmost(copy.center, 300, 50)
+                self.assertPointAlmost(src.center, sx, sy)       # the source stays
+                self.assertNumAlmost(copy.angle, src.angle)
+                if hasattr(src, "radius"):
+                    self.assertNumAlmost(copy.radius, src.radius)
+
+    def test_clone_center_takes_any_point_and_composes_with_scale(self):
+        src = Rect(center=(0, 0), width=20, height=10)
+        target = Circle(center=(40, 60), radius=1)
+        for at in ((40, 60), Point(40, 60), Vec2(40, 60), target, target.center):
+            with self.subTest(at=type(at).__name__):
+                copy = src.clone(center=at)
+                self.assertPointAlmost(copy.center, 40, 60)
+                self.assertIsNone(copy.center._link)                # a snapshot
+        big = src.clone(center=(5, 5), scale=2.0)
+        self.assertPointAlmost(big.center, 5, 5)
+        self.assertNumAlmost(big.width, 40)
+
+    def test_clone_center_refusals_build_nothing(self):
+        from scena.canvas import ScenaCanvas
+        reg = ScenaCanvas.get_current().registry
+
+        def live():
+            return len([o for o in reg.live_objects() if isinstance(o, Circle)])
+        src = Circle(center=(0, 0), radius=5)
+        before = live()
+        for bad, words in ((lambda: (1, 2), "link it after"), ((1, 2, 3), "expected a point")):
+            with self.subTest(bad=bad):
+                with self.assertRaises(TypeError) as cm:
+                    src.clone(center=bad)
+                self.assertIn(words, str(cm.exception))
+        with self.assertRaises(TypeError) as cm:
+            src.clone(frame=2)
+        self.assertIn("no frames", str(cm.exception))
+        from scena.text import Text
+        with self.assertRaises(TypeError):
+            Text("hi", center=(0, 0), layer="default").clone(frame=1)
+        self.assertEqual(live(), before)
+
     def test_rect_clone_preserves_angle_in_degrees(self):
         r = Rect(center=(5, 5), width=40, height=20, angle=45)
         copy = r.clone()

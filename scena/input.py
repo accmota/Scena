@@ -756,6 +756,7 @@ class Mouse(ClosedSurface, Container):
     """
 
     _closed_who = "mouse"
+    _scena_point_value = True       # iterates as (x, y); see Point
     # Constants
     BTN_LEFT = 0
     BTN_RIGHT = 1
@@ -795,6 +796,20 @@ class Mouse(ClosedSurface, Container):
         # — a paint app does not paint under the slider (PD2). A press on a
         # shape (the author's own drag) stays visible.
         self._widget_buttons = set()
+
+    def __iter__(self):
+        """``x, y = mouse`` / ``tuple(mouse)``: the pointer now, in world
+        coordinates (a value snapshot; the names do not follow the pointer).
+        ``mouse`` itself, passed where a point goes, is still read by type
+        (``center @= mouse`` follows it)."""
+        return iter((float(self._x), float(self._y)))
+
+    def __getitem__(self, key):
+        # A number is not an index (``mouse[0]``); ``mouse.x`` / ``mouse.y``.
+        if not isinstance(key, str):
+            from .state import _point_index_refusal
+            raise TypeError(_point_index_refusal(self, key))
+        return Container.__getitem__(self, key)
 
     @property
     def x(self):

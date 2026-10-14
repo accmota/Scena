@@ -2,6 +2,7 @@ from typing import Any, Optional, Union, Tuple, overload, List, Dict, Any, Itera
 from .state import (
     Attribute, Container, FieldType, ScalarSlot, ScalarAnchor,
     batch_update_self, ephemeral_creation, _init_scalar, as_payload, bump_pose_rev,
+    _point_index_refusal,
 )
 from .closed import _DEPTH, _SEALED, make_closed_setattr, seal_after_init
 import inspect
@@ -83,6 +84,7 @@ class Vec2(Container):
     x = ScalarSlot()
     y = ScalarSlot()
     length = ScalarSlot(FieldType.Derivate)
+    _scena_point_value = True       # iterates as (x, y); see Point
     angle = ScalarSlot(FieldType.Derivate)
 
     # Closed surface (scena.closed): ``v.lenght = 5`` raises. The axes pass
@@ -581,6 +583,17 @@ class Vec2(Container):
 
     def __neg__(self) -> 'Vec2':
         return Vec2.temp(x=-self.x, y=-self.y)
+
+    def __iter__(self):
+        """``x, y = v`` / ``tuple(v)``: the components now, as two floats (a
+        value snapshot; the names do not follow the vector)."""
+        return iter((float(self.x), float(self.y)))
+
+    def __getitem__(self, key):
+        # ``v["x"] @= …`` links a component; a number is not an index.
+        if not isinstance(key, str):
+            raise TypeError(_point_index_refusal(self, key))
+        return Container.__getitem__(self, key)
 
     # Comparison operations
     # Value __eq__; mutable vector — not a dict/set key.

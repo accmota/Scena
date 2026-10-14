@@ -3558,6 +3558,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
     """
 
     _is_sprite_body = True
+    _clone_takes_frame = True       # clone(frame=) picks the copy's sheet frame
 
     # The main hitbox's knobs live on ``sprite.hitbox`` (a Hitbox). The old
     # flat names would otherwise become ink and silently do nothing.
@@ -6467,6 +6468,7 @@ class Svg(Sprite):
     """
 
     __slots__ = ("_svg",)
+    _clone_takes_frame = False      # a still: clone(frame=) refuses (Graphic.clone)
 
     def __init__(
         self,

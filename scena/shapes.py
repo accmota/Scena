@@ -27,6 +27,7 @@ from .state import (
     bump_pose_rev,
     _pose_cell_of,
     DIRTY_POSE_CELLS,
+    _point_index_refusal,
 )
 from .transients import compose_draw_mods, draw_with_transients
 from .stamps import draw_body_with_stamps
@@ -1106,6 +1107,12 @@ def nearest(
             )
         # An async where= returns a (truthy) coroutine: every item would pass.
         _refuse_async(where, what="nearest() where=")
+    if getattr(type(items), "_scena_point_value", False):
+        # A Point / Vec2 / mouse iterates as its (x, y): not a list of items.
+        raise TypeError(
+            f"items must be a list (or group) of actors or points, got one "
+            f"{type(items).__name__}. Write nearest(origin, [a, b, ...])."
+        )
     try:
         iterator = iter(items)
     except TypeError:
@@ -1364,8 +1371,13 @@ class Shape(Graphic, PaintState):
             f"{type(self).__name__} must implement a center Point (slot or property)"
         )
 
+    # ``clone(center=)`` moves the geometry copy there (``Graphic.clone``, PC1).
+    _clone_places_center = True
+
     def _clone_recipe(self, *, center=None, frame=None, **kwargs) -> 'Shape':
-        """Shape clone builds via ``_clone_geometry`` (``center=`` / ``frame=`` ignored)."""
+        """Shape clone builds via ``_clone_geometry``. ``Graphic.clone`` reads
+        ``center=`` first and moves the copy after its pose; a Shape has no
+        frames (``frame=`` refuses there)."""
         return self._clone_geometry(**kwargs)
 
     def _publish_angle_input(self) -> None:
@@ -3115,6 +3127,9 @@ class Point(Shape):
     # Empty _update_impl — dirty visits only need to fan out to dependents.
     _passthrough_update = True
     _ink_strict = True          # bracket typos stay AttributeError (Entity.__getitem__)
+    # Iterates as its (x, y) value (``x, y = p``). An entry that takes "a list
+    # of points" tests this first: one point is not a list of two numbers.
+    _scena_point_value = True
 
     def __setattr__(self, name: str, value: Any) -> None:
         # ``x`` / ``y`` are the motion hot path (Line/Circle centers). Bypass
@@ -3622,6 +3637,21 @@ class Point(Shape):
             return Vec2.temp(x=self.x - other.x, y=self.y - other.y)
         dx, dy = _point_delta(other, op="subtract")
         return Point.temp(self.x - dx, self.y - dy)
+
+    def __iter__(self):
+        """``x, y = p`` / ``tuple(p)``: the coordinates now, as two floats.
+
+        A value snapshot, like ``track.at()``: the names do not follow the
+        point. Passing the Point itself keeps its meaning everywhere (a place
+        to copy, a source to link with ``@=`` or a lambda): every entry reads
+        a Point by type, never by iterating it (Shapes Design, "Point")."""
+        return iter((_bare_num(self.x), _bare_num(self.y)))
+
+    def __getitem__(self, key):
+        # ``p["x"] @= …`` links an axis; a number is not an index.
+        if not isinstance(key, str):
+            raise TypeError(_point_index_refusal(self, key))
+        return Shape.__getitem__(self, key)
 
     def __iadd__(self, other: Any) -> 'Point':
         raise TypeError(_POINT_IADD_MSG)
@@ -6410,6 +6440,39 @@ class Ellipse(_DerivedRotationRoute, Shape):
         return _scale_to_via(self, value, about=about, force=force)
 
 
+class _VertexTuple(tuple):
+    """``Polygon.points``: a tuple of the vertex Points that takes back its own
+    vertex, so ``poly.points[i] @= f`` links vertex ``i`` the way
+    ``line.p1 @= f`` links an endpoint.
+
+    Python runs ``points[i] @= f`` as ``v = points[i]; v @= f; points[i] = v``:
+    the link is on the vertex before the store. A plain tuple refused the
+    store with "'tuple' object does not support item assignment" after the
+    link was already installed (PC3). Any other store refuses with the fix.
+    """
+
+    __slots__ = ()
+
+    def __setitem__(self, index, value) -> None:
+        try:
+            current = tuple.__getitem__(self, index)
+        except (IndexError, TypeError):
+            current = None
+        if value is current and current is not None:
+            return                          # ``points[i] @= f``: already linked
+        raise TypeError(_vertex_store_message(index))
+
+    def __delitem__(self, index) -> None:
+        raise TypeError(_vertex_store_message(index))
+
+
+def _vertex_store_message(index) -> str:
+    i = index if isinstance(index, int) else "i"
+    return (f"poly.points[{i}] = …: the vertex list is fixed (one Point per vertex). "
+            f"Move a vertex with poly.points[{i}].move_to(x, y), or link it with "
+            f"poly.points[{i}] @= lambda: ….")
+
+
 class Polygon(Shape):
     """
     Polygon with a fixed-at-construction number of owned, Defining vertex Points.
@@ -6435,6 +6498,29 @@ class Polygon(Shape):
 
     # Computed fields come from the vertices (``Container._derived_field_message``).
     _derived_from = "points"
+
+    @classmethod
+    def _ink_name_refusal(cls, name: str) -> Optional[str]:
+        """``poly["points"] @= f`` / ``poly["v1"] @= f`` linked a new ink field
+        that nothing reads (PC2). A vertex is linked through ``points[i]``."""
+        if name == "points":
+            index = "i"
+        elif name[:1] == "v" and name[1:].isdigit():
+            index = str(int(name[1:]))
+        else:
+            return None
+        who = cls.__name__
+        if issubclass(cls, RegularPolygon):
+            return (f"{who}.{name}: the vertices of a {who} are computed from its "
+                    f"center, radius and angle; link one of those instead "
+                    f"(poly.center @= lambda: ...).")
+        what = ("is the fixed vertex list (one Point per vertex), not a field"
+                if name == "points" else f"is not a field (vertex {index} is "
+                f"poly.points[{index}])")
+        return (f"{who}.{name} {what}. Link one vertex: poly.points[{index}] @= "
+                f"lambda: ..., move it: poly.points[{index}].move_to(x, y), or build "
+                f"the polygon with linked vertices: "
+                f"Polygon(points=[lambda: a.center, (0, 0), (5, 0)]).")
 
     centroid = ContainerSlot(Point, FieldType.Derivate)
     signed_area = ScalarSlot(FieldType.Derivate)
@@ -6477,7 +6563,9 @@ class Polygon(Shape):
             if not isinstance(points, (list, tuple)):
                 # A generator / range of points is read once (it leaked "has no
                 # len()"); a string or a mapping is not a list of points (SC9).
-                if isinstance(points, (str, bytes, dict)) or not hasattr(points, "__iter__"):
+                # One Point / Vec2 / mouse iterates as its (x, y): not a list.
+                if (isinstance(points, (str, bytes, dict)) or not hasattr(points, "__iter__")
+                        or getattr(type(points), "_scena_point_value", False)):
                     raise TypeError(f"Polygon points= takes a list of points, got "
                                     f"{type(points).__name__}")
                 points = list(points)
@@ -6506,8 +6594,11 @@ class Polygon(Shape):
 
     @property
     def points(self) -> Tuple[Point, ...]:
-        """The polygon's vertex Points, in order (read-only view; count is fixed)."""
-        return tuple(self._vertices)
+        """The polygon's vertex Points, in order (read-only view; count is fixed).
+
+        A ``_VertexTuple``: ``poly.points[i] @= f`` links that vertex (Python
+        stores the vertex back after ``@=``, which the view accepts)."""
+        return _VertexTuple(self._vertices)
 
     @property
     def center(self) -> Point:
@@ -6781,6 +6872,14 @@ class _LazyRegularPolygonPoints(Sequence):
             index = int(index)
         self._poly._ensure_vertex_live(index)
         return self._poly._vertices[index]
+
+    def __setitem__(self, index, value) -> None:
+        # ``rp.points[i] @= f`` refuses in the ``@=`` (a computed vertex);
+        # a plain store gets the reason, not "does not support item assignment".
+        raise TypeError(
+            f"RegularPolygon.points[{index!r:.20}] = …: the vertices are computed "
+            f"from its center, radius and angle. Move or turn the polygon "
+            f"(move_to, rotate_to), or link its center: poly.center @= lambda: ….")
 
 
 class RegularPolygon(Polygon):

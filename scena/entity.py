@@ -534,8 +534,36 @@ def _one_edit_apart(a: str, b: str) -> bool:
     return False
 
 
+def _ink_exact_name_message(cls: type, name: str, known) -> Optional[str]:
+    """A new ink name that is exactly a name of the class (PC2, 2026-10-14).
+
+    ``=`` on a method or a read-only property refuses through the route table
+    (R8), but ``obj["name"] @= f`` (and a plain write the route does not see)
+    went to ink: a link nothing reads, beside the method or property that
+    keeps the name. Same refusal as ``=``. A class may name its own
+    near-fields first (``_ink_name_refusal``: Polygon ``points`` / ``vN``).
+    """
+    own = getattr(cls, "_ink_name_refusal", None)
+    if own is not None:
+        msg = own(name)
+        if msg is not None:
+            return msg
+    hit = known.get(name)
+    if isinstance(hit, _RouteRefusal):
+        return hit.message.format(cls=cls.__name__)
+    if hit is not None and hit is not _SET_OBJECT and hit is not _LOOK_MISSING:
+        # A settable property (Track.is_floating …): ink would hide behind it.
+        who = cls.__name__
+        return (f"{who}.{name} is a property: set it with {who.lower()}.{name} = …; "
+                f"@= cannot link it. A field of your own needs another name.")
+    return None
+
+
 def _ink_near_miss_message(cls: type, name: str, known) -> Optional[str]:
     who = cls.__name__
+    exact = _ink_exact_name_message(cls, name, known)
+    if exact is not None:
+        return exact
     fix = _INK_SPELLINGS.get(name)
     if fix is not None and fix in known:
         if name == "font":
@@ -2036,7 +2064,19 @@ class Entity(Container):
             if retired is not None:
                 raise AttributeError(retired, name=key, obj=None)
         if type(self).__dict__.get("_ink_strict", False):  # own class only: subclasses add ink
-            self._resolve_field(key)
+            try:
+                self._resolve_field(key)
+            except AttributeError:
+                # No ink here: name a method / read-only property as ``=`` does.
+                if isinstance(key, str) and not key.startswith("_"):
+                    route_map = getattr(type(self), "_setattr_route", None)
+                    if route_map is None:
+                        _install_setattr_route(type(self))
+                        route_map = type(self)._setattr_route
+                    exact = _ink_exact_name_message(type(self), key, route_map)
+                    if exact is not None:
+                        raise AttributeError(exact) from None
+                raise
         else:
             try:
                 self._resolve_field(key)
@@ -2990,6 +3030,12 @@ class Graphic(Entity, ABC):
     _pose_xy_guard = True
     _RETIRED_ATTRS = {"rotation": _ROTATION_RETIRED}
 
+    # ``clone(frame=)`` picks a sheet frame (Sprite only; the others refuse it).
+    _clone_takes_frame = False
+    # ``clone(center=)``: the constructor places a Sprite / Svg / Text copy; a
+    # Shape copy is moved there after the geometry copy (``Graphic.clone``).
+    _clone_places_center = False
+
     def __init__(
         self,
         *,
@@ -3504,6 +3550,19 @@ class Graphic(Entity, ABC):
             scale = number(scale, "clone(scale=)")
             if scale < 0.0:
                 raise ValueError(f"clone(scale=) is a magnitude: got {scale:g} (>= 0)")
+        if frame is not None and not type(self)._clone_takes_frame:
+            # Only a Sprite has sheet frames; the others ignored frame= (PC1).
+            kind = type(self).__name__
+            raise TypeError(
+                f"{kind}.clone(frame=): a {kind} has no frames to pick (frame= "
+                f"chooses a Sprite's sheet frame). Leave it out.")
+        place = None
+        if center is not None and type(self)._clone_places_center:
+            # A Shape's recipe copies the geometry where it is; ``center=`` then
+            # moves the copy (PC1: it was ignored). Read now, before the copy
+            # exists, so a bad point builds nothing.
+            place = self._clone_center_xy(center)
+            center = None
         kwargs: Dict[str, Any] = {}
         if layer is not _USE_LAYER_DEFAULT:
             kwargs["layer"] = layer
@@ -3536,9 +3595,12 @@ class Graphic(Entity, ABC):
         # resume (E9: a clone of a parked actor was invisible).
         saved = getattr(self, "_active_saved_visible", None) if _parked(self) else None
         copy.visible = self._visible if saved is None else bool(saved)
-        if scale != 1.0:
+        if place is not None or scale != 1.0:
             try:
-                copy.scale_by(float(scale))
+                if place is not None:
+                    copy.move_to(*place)
+                if scale != 1.0:
+                    copy.scale_by(float(scale))
             except BaseException:
                 # A scale the copy's sizes cannot take (``1e308`` overflows):
                 # the copy leaves, nothing half-built stays (review S5-6, E9).
@@ -3560,6 +3622,23 @@ class Graphic(Entity, ABC):
         # The heading as read (a Defining ``angle`` may be ahead of the pose store).
         _pose_rotation_set(self, float(source._rotation_value()))
         _pose_scale_set(self, float(source._scale))
+
+    def _clone_center_xy(self, center) -> Tuple[float, float]:
+        """``clone(center=)`` for a kind that moves its copy: one point, read now
+        (Point, Vec2, ``(x, y)``, a Graphic's center, mouse, a state cell)."""
+        kind = type(self).__name__
+        if callable(center) and not isinstance(center, type):
+            raise TypeError(
+                f"{kind}.clone(center=) takes a point to put the copy at, read "
+                f"now, not a function. To make the copy follow something, link "
+                f"it after the clone: copy.center @= lambda: ….")
+        from .shapes import _read_xy
+        xy = _read_xy(center)
+        if xy is None:
+            raise TypeError(
+                f"{kind}.clone(center=) expected a point — (x, y), a Point, a "
+                f"Vec2 or an actor — got {type(center).__name__} {center!r:.60}.")
+        return xy
 
     def _clone_recipe(self, *, center=None, frame=None, **kwargs) -> "Graphic":
         """Construct the free copy. Shape uses ``_clone_geometry``; Sprite overrides."""

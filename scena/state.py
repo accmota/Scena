@@ -1566,6 +1566,33 @@ def _snake_name(class_name: str) -> str:
     return "".join(out)
 
 
+def _field_key_refusal(owner: Any, key: Any) -> str:
+    """Why ``owner[key]`` with a non-string key is refused.
+
+    Brackets name a field (``ship["hp"] @= …``). A number reaches here from
+    ``ship[0]`` and from Python's old iteration fallback (``x, y = ship``:
+    ``iter()`` on a class with ``__getitem__`` and no ``__iter__`` calls
+    ``obj[0]``), which used to read "field name must be a str, got int".
+    """
+    kind = type(owner).__name__
+    var = _snake_name(kind)
+    msg = (f"{kind}[{key!r}]: a {kind} is not a sequence; brackets take a field "
+           f"name, as in {var}['hp'] @= lambda: ….")
+    if getattr(type(owner), "_scena_is_graphic", False):
+        msg += (f" Its position is {var}.center: x, y = {var}.center "
+                f"(or read {var}.center.x / {var}.center.y).")
+    return msg
+
+
+def _point_index_refusal(owner: Any, key: Any) -> str:
+    """``p[0]`` on a Point / Vec2 / mouse: the axes have names, not indexes."""
+    kind = type(owner).__name__
+    var = "mouse" if kind == "Mouse" else ("v" if hasattr(owner, "length") else "p")
+    return (f"{kind}[{key!r}]: a {kind.lower() if kind == 'Mouse' else kind} has no "
+            f"index. Read {var}.x / {var}.y, or unpack it: x, y = {var} (a snapshot "
+            f"of the current value).")
+
+
 def _join_names(names, word: str) -> str:
     """``a, b and c`` / ``a, b or c``."""
     names = list(names)
@@ -2948,7 +2975,7 @@ class Container():
     def _resolve_field(self, key: str):
         """Return the slot descriptor for ``key``, or raise AttributeError."""
         if not isinstance(key, str):
-            raise TypeError(f"field name must be a str, got {type(key).__name__}")
+            raise TypeError(_field_key_refusal(self, key))
         slot = self._field_slots().get(key)
         if slot is not None:
             return slot

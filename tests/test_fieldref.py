@@ -1150,6 +1150,20 @@ class TestVelIsNotLinkable(unittest.TestCase):
                 except AttributeError:
                     pass
                 with self.subTest(kind=kind_name, prop=name):
+                    try:
+                        fresh = getattr(obj, name) is not part
+                    except Exception:
+                        fresh = False
+                    if fresh:
+                        # A measurement handed out fresh on every read
+                        # (``rect.box``): ``rect.box @= f`` links a throwaway
+                        # copy (a measured Box is linkable as a value), then
+                        # Python's store-back refuses (read-only). PC2 made
+                        # the bracket refuse these names too (it made dead ink).
+                        with self.assertRaises(AttributeError):
+                            setattr(obj, name, part)
+                        checked.add((kind_name, name))
+                        continue
                     with self.assertRaises((AttributeError, DerivedAttributeError)):
                         part @= (lambda p=part: p)   # what ``obj.prop @= f`` runs first
                     self.assertIsNone(part._link)
@@ -1157,6 +1171,126 @@ class TestVelIsNotLinkable(unittest.TestCase):
         # Canary: the walk reached the parts this guard exists for.
         for kind_name in ("Circle", "Rect", "Sprite", "Text"):
             self.assertIn((kind_name, "vel"), checked)
+
+
+class TestBracketRefusesWhatAssignRefuses(unittest.TestCase):
+    """PC2 (2026-10-14): ``obj["name"] @= f`` made a new ink field — a link
+    nothing reads — when ``name`` is a method (``c["move_to"]``), a read-only
+    property (``tri["points"]``, ``poly["pointer_hover"]``) or a Polygon
+    vertex name (``tri["v1"]``), while ``obj.name = …`` refuses. The route
+    guard (R8) covered ``=`` only."""
+
+    def _kinds(self):
+        import scena
+        from scena.entity import Entity
+        for kind_name in scena.__all__:
+            kind = getattr(scena, kind_name)
+            if not (isinstance(kind, type) and issubclass(kind, Entity)):
+                continue
+            try:
+                yield kind_name, kind()
+            except Exception:
+                continue   # needs arguments; the shapes that matter build bare
+
+    def test_every_refused_route_name_refuses_the_bracket(self):
+        """Bug class: every name ``=`` refuses through the route table (a
+        method, a read-only property, a size / point word the kind lacks)
+        refuses ``obj[name] @=`` with the same message, and makes no ink."""
+        from scena.entity import _INK_RESERVED, _RouteRefusal, _install_setattr_route
+        checked = set()
+        for kind_name, obj in self._kinds():
+            cls = type(obj)
+            if "_setattr_route" not in cls.__dict__:
+                _install_setattr_route(cls)
+            for name, route in cls._setattr_route.items():
+                if not isinstance(route, _RouteRefusal):
+                    continue
+                try:
+                    obj._resolve_field(name)
+                    continue        # a field by design (a widget's ``value``)
+                except AttributeError:
+                    pass
+                with self.subTest(kind=kind_name, name=name):
+                    with self.assertRaises(AttributeError) as cm:
+                        obj[name] @= (lambda: 1.0)
+                    own = getattr(cls, "_ink_name_refusal", None)
+                    if name not in _INK_RESERVED and (own is None or own(name) is None):
+                        # Reserved names keep their own @= message.
+                        self.assertEqual(str(cm.exception),
+                                         route.message.format(cls=cls.__name__))
+                    ink = getattr(obj, "_ink", None) or {}
+                    self.assertNotIn(name, ink)
+                    checked.add((kind_name, name))
+        for row in (("Circle", "move_to"), ("Polygon", "pointer_hover"),
+                    ("Polygon", "contains_point"), ("Circle", "top_left")):
+            self.assertIn(row, checked)
+
+    def test_examples_from_the_report(self):
+        from scena import Anchor, Circle, Polygon
+        b = Anchor(100, 0)
+        c = Circle(center=(0, 0), radius=5)
+        with self.assertRaisesRegex(AttributeError, "is a method"):
+            c["move_to"] @= lambda: b.center.x
+        tri = Polygon(points=[(0, 0), (10, 0), (0, 10)])
+        for name, words in (("points", "points[i] @="), ("v1", "points[1] @="),
+                            ("pointer_hover", "read-only")):
+            with self.subTest(name=name):
+                with self.assertRaises(AttributeError) as cm:
+                    tri[name] @= lambda: (b.center.x, b.center.y)
+                self.assertIn(words, str(cm.exception))
+        # The plain write of a vertex name refuses too (it was ink).
+        with self.assertRaisesRegex(AttributeError, r"points\[1\]"):
+            tri.v1 = (1, 1)
+        self.assertFalse(getattr(tri, "_ink", None))
+
+    def test_settable_property_is_not_ink(self):
+        from scena import Track
+        tr = Track(points=[(0, 0), (10, 0)])
+        with self.assertRaisesRegex(AttributeError, "is a property"):
+            tr["is_floating"] @= lambda: True
+
+    def test_ink_still_links(self):
+        from scena import Anchor, Circle
+        b = Anchor(3, 0)
+        c = Circle(center=(0, 0), radius=5)
+        c["hp"] @= lambda: b.center.x * 2
+        self.assertEqual(c.hp, 6.0)
+
+
+class TestPolygonVertexLink(unittest.TestCase):
+    """PC3 (2026-10-14): ``tri.points[1] @= f`` raised "'tuple' object does
+    not support item assignment" although the link was installed (Python runs
+    ``@=`` on the vertex, then stores it back into ``points``). The view takes
+    its own vertex back, so the statement links cleanly, like ``line.p1 @= f``."""
+
+    def test_vertex_link_through_points(self):
+        from scena import Anchor, Polygon
+        b = Anchor(100, 0)
+        tri = Polygon(points=[(0, 0), (10, 0), (0, 10)])
+        tri.points[1] @= lambda: b.center
+        b.move_to(200, 50)
+        self.assertEqual((tri.points[1].x, tri.points[1].y), (200.0, 50.0))
+        self.assertIsInstance(tri.points, tuple)
+        self.assertEqual(len(tri.points), 3)
+
+    def test_plain_store_refuses_and_changes_nothing(self):
+        from scena import Polygon, RegularPolygon
+        tri = Polygon(points=[(0, 0), (10, 0), (0, 10)])
+        with self.assertRaises(TypeError) as cm:
+            tri.points[1] = (5, 5)
+        self.assertIn("points[1].move_to", str(cm.exception))
+        self.assertEqual((tri.points[1].x, tri.points[1].y), (10.0, 0.0))
+        hexa = RegularPolygon(center=(0, 0), radius=5, n=6)
+        with self.assertRaisesRegex(TypeError, "computed from its center"):
+            hexa.points[0] = (1, 1)
+
+    def test_derived_vertex_link_refuses_and_installs_nothing(self):
+        from scena import Anchor, RegularPolygon
+        b = Anchor(1, 1)
+        hexa = RegularPolygon(center=(0, 0), radius=5, n=6)
+        with self.assertRaises(DerivedAttributeError):
+            hexa.points[1] @= lambda: b.center
+        self.assertIsNone(hexa.points[1]._link)
 
 
 class TestFormulaLinkNamedFunction(unittest.TestCase):
