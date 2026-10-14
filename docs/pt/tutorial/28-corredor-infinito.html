@@ -674,7 +674,7 @@ tabua.visual = InsetRim()`
         <p>A corrida precisa de pressa e de placar.</p>
         <p><strong>Mais rápido.</strong> No <code>on_update</code> do ato, enquanto o robô corre, <code>st.velocidade</code> cresce 6 por segundo: 320 na largada, 500 depois de meio minuto, 680 depois de um. O pulo continua o mesmo, então ele vai mais longe; mas as caixas chegam mais depressa, e a hora de pular fica mais curta.</p>
         <p><strong>Metros.</strong> A distância é o x do robô: <code>int(self.robo.center.x / 64)</code>, uma coluna de chão por metro. <code>int</code> (de <em>integer</em>, inteiro) corta a parte depois do ponto: 12.7 vira 12. O placar liga os três números com <code>@=</code>, como no 07.</p>
-        <p><strong>Recorde.</strong> <code>st.recorde = 0</code> fica no topo do arquivo, fora do ato. O <code>setup</code> do ato zera os dados de cada corrida, mas o <code>st</code> sobrevive à troca de ato (23): o recorde vale de uma corrida para a outra. No fim de cada uma, <code>acabou</code> guarda o maior.</p>
+        <p><strong>Recorde.</strong> <code>st.recorde = 0</code> fica no topo do arquivo, fora do ato. O <code>setup</code> do ato zera os dados de cada corrida, mas o <code>st</code> sobrevive à troca de ato (25): o recorde vale de uma corrida para a outra. No fim de cada uma, <code>acabou</code> guarda o maior.</p>
       `,
       code: `from math import sin
 from scena import *
@@ -831,7 +831,7 @@ run(Corrida)
         <p>Atrás da pista, só céu. Duas faixas de cenário dão profundidade, com as silhuetas claras da folha de enfeites do 17 (<code>backgrounds/kn/</code>): montanhas, morros, castelos, torres e árvores, num azul muito claro, como coisas vistas de longe.</p>
         <p><strong>Camadas que andam menos.</strong> As camadas do 26: com <code>pan_response=0.1</code>, a camada anda um décimo do que a câmera anda; com <code>0.3</code>, três décimos. A serra quase não sai do lugar, os morros passam devagar, a pista passa inteira. É o parallax do 16, agora feito pela câmera, sem <code>scroll=</code>.</p>
         <p><strong>Um Endless em cada uma.</strong> Como a pista. A diferença está nas coordenadas: numa camada de parallax, <code>slot.left</code> é medido na camada, que anda menos que o mundo, e as vagas dela passam devagar. <code>longe(slot)</code> põe uma serra de 1400 de largura em cada vaga de 1400 (uma emenda na outra) e uma nuvem sorteada (<code>slot.rng.randint(1, 9)</code> sorteia um número inteiro de 1 a 9, os dois inclusos, e a f-string monta o nome do quadro, de <code>cloud1.png</code> a <code>cloud9.png</code>); <code>colinas(slot)</code>, uma faixa de morros e três silhuetas em pé atrás dela. É só enfeite: nada ali entra num <code>resolve</code> ou num <code>@collide</code>, pelo motivo do passo 2.</p>
-        <p><strong>A ordem.</strong> As camadas novas são criadas antes da pista, de trás para a frente: a ordem de <code>create</code> é a ordem do desenho (16). <code>serra.set_alpha(0.6)</code> (transparência) deixa o céu aparecer através da serra, e ela parece mais longe ainda.</p>
+        <p><strong>A ordem.</strong> As camadas novas são criadas antes da pista, de trás para a frente: a ordem de <code>create</code> é a ordem do desenho (17). <code>serra.set_alpha(0.6)</code> (transparência) deixa o céu aparecer através da serra, e ela parece mais longe ainda.</p>
       `,
       code: `from math import sin
 from scena import *

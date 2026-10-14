@@ -135,6 +135,7 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | `audio/nota.wav` | made for Scena (synthesized by a script) | this repository; see `audio/License.txt` |
 | `synth/` | made for Scena (synthesized by a script) | this repository; see `synth/license.txt` |
 | `levels/` | made for Scena (level files) | this repository; see `levels/license.txt` |
+| `svg/` | made for Scena (drawn for Appendix G) | this repository; see `svg/license.txt` |
 
 ## Adding media
 

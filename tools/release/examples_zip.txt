@@ -132,6 +132,7 @@ examples/media/ninja/Throw__007.png
 examples/media/ninja/Throw__008.png
 examples/media/ninja/Throw__009.png
 examples/media/ninja/license.txt
+examples/media/pixel_adv/Checkpoint (Flag Idle)(64x64).png
 examples/media/pixel_adv/Cherries.png
 examples/media/pixel_adv/End (Idle).png
 examples/media/pixel_adv/license.txt
@@ -182,6 +183,8 @@ examples/media/space/playerShip1_red.png
 examples/media/space/sfx_laser1.ogg
 examples/media/space/star_gold.png
 examples/media/space/ufoYellow.png
+examples/media/svg/foguete.svg
+examples/media/svg/license.txt
 examples/media/synth/coin.wav
 examples/media/synth/jump.wav
 examples/media/synth/license.txt

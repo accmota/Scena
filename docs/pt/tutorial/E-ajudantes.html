@@ -427,7 +427,7 @@ run()
         {
           title: "Na câmera",
           body: `
-            <p>Num jogo, o "centro da caixa" é o lugar para onde a câmera olha, e o alvo é o herói. A receita do Guia: <code>look = (canvas.pan_x, canvas.pan_y)</code>, depois <code>canvas.pan_to(chase(look, deadzone(look, heroi.center, size=(160, 90)), rate=6))</code>, a cada quadro. O Ninja III (24) usa a câmera assim.</p>
+            <p>Num jogo, o "centro da caixa" é o lugar para onde a câmera olha, e o alvo é o herói. A receita do Guia: <code>look = (canvas.pan_x, canvas.pan_y)</code>, depois <code>canvas.pan_to(chase(look, deadzone(look, heroi.center, size=(160, 90)), rate=6))</code>, a cada quadro. O Ninja III (26) usa a câmera assim.</p>
             <p><code>size</code> também aceita um número só: <code>size=200</code> é uma caixa quadrada, de 200 por 200.</p>
             <p>No Guia: <a href="../guide/index.html#util-deadzone">deadzone</a> · <a href="../guide/index.html#util-chase">chase</a>.</p>
           `
@@ -460,7 +460,7 @@ run()
         {
           title: "Onde o nível aparece",
           body: `
-            <p>O nível vem de um som que toca (<code>musica = play_sound(…)</code>, depois <code>musica.level</code>), de tudo o que toca (<code>audio.level</code>) ou do microfone (<code>mic.level</code>). Uma barra que pula com a música: <code>barra.height = 300 * amp_db(audio.level)</code>, no <code>update</code>. O Estúdio II (21) faz um medidor assim com o microfone; o Apêndice C mostra onde achar arquivos de som.</p>
+            <p>O nível vem de um som que toca (<code>musica = play_sound(…)</code>, depois <code>musica.level</code>), de tudo o que toca (<code>audio.level</code>) ou do microfone (<code>mic.level</code>). Uma barra que pula com a música: <code>barra.height = 300 * amp_db(audio.level)</code>, no <code>update</code>. O Estúdio II (23) faz um medidor assim com o microfone; o Apêndice C mostra onde achar arquivos de som.</p>
             <p>No Guia: <a href="../guide/index.html#som-audio">audio</a>.</p>
           `
         }

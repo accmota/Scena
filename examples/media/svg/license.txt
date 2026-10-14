@@ -1,0 +1,4 @@
+foguete.svg — drawn for the Scena tutorials (Appendix G).
+
+License: CC0 1.0 Universal (public domain dedication).
+https://creativecommons.org/publicdomain/zero/1.0/

@@ -109,20 +109,33 @@ left out.
 - Each release now has a GitHub Release with `scena-examples.zip`: the
   examples and only the images and sounds they use (about 17 MB instead of the
   whole repository). The README links the latest one.
-- Tutorials: lists of parallel items are tables (Appendix A's debug keys,
-  Appendix F's ways to build each shape), and lists in the prose are spaced.
-  Interação (11) has a third script, the mouse on the canvas with no object
-  under it (`on_mouse_click`, `on_mouse_double_click`, `on_mouse_drag`,
-  `on_mouse_scroll`; `examples/ceu_estrelado.py`). The Piano (20) plays a
-  click through the key's own `on_click` and ends with an equalizer
-  (`audio.spectrum`). New boxes: a cap on the fleet's shots with
-  `group[…].count` and `.empty` (05), the `Text` options (`width`, `align`,
-  `background`, `top_center` / `top_right`) and a `TextInput` bound to a
-  cell (04), and a note in the oscilloscope that the trigonometry can be
-  skipped. Fórmulas (09) drops minor cases, builds the classic trap of a
-  `lambda` inside a `for` (every copy reads the loop's last value; the fix
-  is `lambda i=i:`), and ends with a step that gathers its ideas in light
-  boxes with examples instead of a dense list of rules.
+- Tutorials, restructured (the page addresses change):
+  - **New chapters:** 12 Movimento (a ship that flies where you click:
+    placing or travelling with `time=` / `speed=`, `ease=`, `face=`,
+    `on_done=`, the trip's control with `cancel`, and following the mouse
+    with `approach`) and 20 Colisão (a lab: the three phases of a touch,
+    `query_point`, `query_circle`, `raycast`).
+  - **Interludes**, short concept pages between two tutorials: Grupos after
+    05 (`count`, `empty`, `nearest`, `filter`, `count_where`, `any`) and
+    Ganchos na classe after 11 (every hook in a class, and an `Entity` with
+    no drawing that owns its timers).
+  - **Appendix G** Imagens e hitboxes: the common ways to load images (one
+    file, a file per frame, a strip, several animations, an atlas, SVG) and
+    the hitbox shapes, with figures. Appendix C points there.
+  - The old 12 Órbitas is split into 13 Trilhas and 14 Órbitas, where the
+    moon leaves a trail kept by a `History`. Giros moves to the end (29), and
+    the oscilloscope says the trigonometry can be skipped. Every other
+    tutorial from 14 on moves up one or two numbers.
+  - Interação (11) has a third script, the mouse on the canvas
+    (`on_mouse_click`, `on_mouse_double_click`, `on_mouse_drag`,
+    `on_mouse_scroll`). The Piano (22) plays a click through the key's own
+    `on_click` and ends with an equalizer (`audio.spectrum`). Fórmulas (09)
+    builds the trap of a `lambda` inside a `for` (fixed with `lambda i=i:`)
+    and ends with its ideas in light boxes instead of a dense list of rules.
+  - New boxes: the `Text` options and a `TextInput` bound to a cell (04),
+    a cap on the fleet's shots with `count` and `.empty` (05), a named
+    `tween` (14). Lists of parallel items are tables (Appendix A's debug
+    keys, Appendix F's shape models), and lists in the prose are spaced.
 
 ## 0.8.1 — 2026-10-14
 

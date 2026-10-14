@@ -24,7 +24,7 @@ Tutorial.mount({
       body: `
         <p>Quase toda a arte e todo o som dos tutoriais vieram de sites que oferecem <em>assets</em> (recursos: imagens, animações, sons, músicas, fontes) para quem faz jogos. Este programa é uma vitrine: uma peça de cada site, com o nome dele embaixo. Espaço toca um som. Os sites, com o que se acha em cada um:</p>
         <ul>
-          <li><a href="https://www.kenney.nl">kenney.nl</a> — o Kenney publica milhares de peças em pacotes que combinam entre si: naves, plataformas, cartas, botões de interface, sons, fontes. Tudo em <strong>CC0</strong>: use como quiser, sem pedir nem dar crédito. As naves, os planetas e as bolas dos tutoriais vêm daqui. Os pacotes trazem cada peça num arquivo e também uma folha com todas (veja “Folhas de sprites”, adiante).</li>
+          <li><a href="https://www.kenney.nl">kenney.nl</a> — o Kenney publica milhares de peças em pacotes que combinam entre si: naves, plataformas, cartas, botões de interface, sons, fontes. Tudo em <strong>CC0</strong>: use como quiser, sem pedir nem dar crédito. As naves, os planetas e as bolas dos tutoriais vêm daqui. Os pacotes trazem cada peça num arquivo e também uma folha com todas (o Apêndice G mostra como usar cada jeito).</li>
           <li><a href="https://www.gameart2d.com">gameart2d.com</a> — personagens animados e cenários de plataforma, de um artista só. A seção <em>Freebies</em> (grátis) é CC0; o resto é pago. O ninja, o robô, o avião e os blocos de chão dos tutoriais vêm daqui, um arquivo por quadro de animação.</li>
           <li><a href="https://opengameart.org">opengameart.org</a> — um site comunitário: muita gente diferente publica sprites, texturas, músicas e sons. Cada peça tem a sua licença, escrita na página dela (CC0, CC-BY, CC-BY-SA e outras). A busca deixa filtrar pela licença. Os tijolos desta vitrine vêm daqui.</li>
           <li><a href="https://itch.io/game-assets">itch.io</a> — uma loja de criadores independentes, com uma seção enorme de assets, muitos grátis ou “pague quanto quiser”. Cada autor escreve a sua licença na página do pacote: leia antes. O troféu vem do pacote <em>Pixel Adventure</em>, da Pixel Frog (CC0).</li>
@@ -144,14 +144,18 @@ run()
       fresh: true,
       body: `
         <p>O formato é o tipo do arquivo, e aparece no fim do nome, depois do ponto. O Scena abre estes:</p>
-        <ul>
-          <li><strong>PNG</strong> (<code>.png</code>) — o formato dos sprites. Guarda transparência: em volta da nave não há fundo, e o céu aparece por trás.</li>
-          <li><strong>JPG</strong> (<code>.jpg</code>, <code>.jpeg</code>) — fotos e pinturas, arquivos menores. Não tem transparência: serve para fundos, como o <code>Wallpaper</code> deste programa, e não para sprites.</li>
-          <li><strong>SVG</strong> (<code>.svg</code>) — desenho feito de formas, e não de pixels, nítido em qualquer tamanho. Abre com <code>Svg("arquivo.svg")</code>, no lugar de <code>Sprite</code>.</li>
-          <li><strong>Sons</strong> — <code>.wav</code>, <code>.ogg</code>, <code>.mp3</code> e <code>.flac</code>. WAV é comum nos efeitos curtos; OGG e MP3, menores, nas músicas.</li>
-          <li><strong>Fontes</strong> — <code>.ttf</code> e <code>.otf</code>, as letras de um texto: <code>Text(…, font="space/kenvector_future.ttf")</code>. O pacote de naves do Kenney traz esta.</li>
-        </ul>
+        <div class="tbl"><table>
+          <thead><tr><th>Formato</th><th>Para quê</th></tr></thead>
+          <tbody>
+            <tr><td><strong>PNG</strong> (<code>.png</code>)</td><td>O formato dos sprites. Guarda transparência: em volta da nave não há fundo, e o céu aparece por trás.</td></tr>
+            <tr><td><strong>JPG</strong> (<code>.jpg</code>, <code>.jpeg</code>)</td><td>Fotos e pinturas, arquivos menores. Não tem transparência: serve para fundos, como o <code>Wallpaper</code> deste programa, e não para sprites.</td></tr>
+            <tr><td><strong>SVG</strong> (<code>.svg</code>)</td><td>Desenho feito de formas, e não de pixels, nítido em qualquer tamanho. Abre com <code>Svg("arquivo.svg")</code>, no lugar de <code>Sprite</code>.</td></tr>
+            <tr><td><strong>Sons</strong> (<code>.wav</code>, <code>.ogg</code>, <code>.mp3</code>, <code>.flac</code>)</td><td>WAV é comum nos efeitos curtos; OGG e MP3, menores, nas músicas.</td></tr>
+            <tr><td><strong>Fontes</strong> (<code>.ttf</code>, <code>.otf</code>)</td><td>As letras de um texto: <code>Text(…, font="space/kenvector_future.ttf")</code>. O pacote de naves do Kenney traz esta.</td></tr>
+          </tbody>
+        </table></div>
         <p>Rode: o fundo é um JPG, a nave um PNG, o título usa a fonte do Kenney, e as teclas 1 e 2 tocam um OGG e um WAV.</p>
+        <p><strong>Animações e folhas.</strong> Um personagem animado vem em vários arquivos, numa faixa ou num atlas. Os jeitos de carregar cada um, com figuras, e a forma com que uma imagem colide estão no Apêndice G.</p>
       `,
       code: `from scena import *
 
@@ -169,69 +173,6 @@ def update(dt):
     if keyp.once("2"):
         play_sound("synth/coin.wav")
 
-
-run()
-`
-    },
-    {
-      title: "Uma folha de quadros",
-      part: "Folhas de sprites",
-      fresh: true,
-      body: `
-        <p>Um personagem que anda não é uma imagem: são várias, trocadas depressa, como num desenho animado. Cada imagem é um <strong>quadro</strong> (<em>frame</em>). Os pacotes entregam os quadros de três jeitos, e o Scena junta todos num <code>Sheet</code> (folha), o catálogo dos quadros. O <code>Sprite</code> mostra um quadro da folha, ou toca uma sequência.</p>
-        <p><strong>1. Uma faixa.</strong> Os quadros lado a lado numa imagem só, todos do mesmo tamanho. A cereja da Pixel Frog é uma faixa de 17 quadros: <code>cols=17</code> (colunas) diz em quantos pedaços cortar, e <code>fps=20</code> (quadros por segundo) já monta uma animação com todos. A explosão do tutorial 07 é feita assim. Se a grade tiver várias linhas, acrescente <code>rows=</code> (linhas).</p>
-        <p>Para saber o número de quadros, abra a imagem: a cereja tem 544 pixels de largura e cada quadro, 32; 544 ÷ 32 = 17. Muitos pacotes escrevem o tamanho do quadro no nome do arquivo, como <code>(64x64)</code>.</p>
-      `,
-      code: `from scena import *
-
-init(width=900, height=500, title="Folhas")
-Wallpaper("dark navy")
-
-cereja = Sheet("pixel_adv/Cherries.png", cols=17, fps=20)
-Sprite(cereja, height=200, center=(170, 250))
-
-run()
-`
-    },
-    {
-      title: "Um arquivo por quadro",
-      body: `
-        <p><strong>2. Um arquivo por quadro.</strong> O jeito da GameArt2D: <code>Run (1).png</code>, <code>Run (2).png</code>… até <code>Run (8).png</code>. Em vez de escrever os oito nomes, o <code>*</code> (asterisco) quer dizer “qualquer coisa aqui”: <code>"robot/Run (*).png"</code> pega todos os arquivos daquela pasta cujo nome casa, em ordem, um quadro por arquivo. O avião (tutorial 15) e o ninja (tutorial 18) são feitos assim; o ninja tem uma animação por nome (<code>Idle</code>, <code>Run</code>, <code>Jump</code>), cada uma no seu <code>strip</code>.</p>
-      `,
-      code: `from scena import *
-
-init(width=900, height=500, title="Folhas")
-Wallpaper("dark navy")
-
-cereja = Sheet("pixel_adv/Cherries.png", cols=17, fps=20)
-Sprite(cereja, height=200, center=(170, 250))
-
-robo = Sheet("robot/Run (*).png", fps=12)
-Sprite(robo, height=160, center=(450, 250))
-
-run()
-`
-    },
-    {
-      title: "Um atlas",
-      body: `
-        <p><strong>3. Um atlas.</strong> Os quadros arrumados numa imagem só, de tamanhos diferentes, como peças num quebra-cabeça, e um segundo arquivo (<code>.xml</code> ou <code>.json</code>) que diz onde está cada um e como se chama. É o jeito dos pacotes do Kenney: <code>sheet.png</code> com <code>sheet.xml</code>. <code>atlas=</code> dá o segundo arquivo, e <code>frame=</code> escolhe uma peça pelo nome (os nomes estão no XML; abra-o num editor de texto). O tutorial 07 monta todas as naves de um jogo com um atlas.</p>
-        <p><strong>Qual usar?</strong> O que o pacote trouxer. Não há um melhor: o <code>Sheet</code> aceita os três, e o <code>Sprite</code> funciona igual com qualquer um. O Guia tem os seis jeitos, um por tipo de pacote, em <a href="../guide/index.html#sprite-carregar">Carregar sprites</a>.</p>
-      `,
-      code: `from scena import *
-
-init(width=900, height=500, title="Folhas")
-Wallpaper("dark navy")
-
-cereja = Sheet("pixel_adv/Cherries.png", cols=17, fps=20)
-Sprite(cereja, height=200, center=(170, 250))
-
-robo = Sheet("robot/Run (*).png", fps=12)
-Sprite(robo, height=160, center=(450, 250))
-
-naves = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
-Sprite(naves, frame="playerShip1_red.png", height=70, center=(730, 300))
-Sprite(naves, frame="enemyGreen1.png", height=60, center=(730, 180))
 
 run()
 `

@@ -21,7 +21,7 @@ Tutorial.mount({
       title: "O tabuleiro",
       body: `
         <p>Novo script, e um jogo de tabuleiro: o <strong>Ligue 4</strong>. Dois jogadores, o vermelho e o azul, jogam uma bola por vez numa grade de 7 colunas e 6 linhas; a bola cai pela coluna até a casa livre mais baixa. Quem fizer quatro bolas em linha primeiro ganha.</p>
-        <p>Neste tutorial: um tabuleiro feito de casas, uma bola que você arrasta e solta numa coluna, e as regras do jogo escritas em Python simples, com listas. As peças vêm da folha que os pilares do Avião (14) já usavam: ela também tem buracos e bolas.</p>
+        <p>Neste tutorial: um tabuleiro feito de casas, uma bola que você arrasta e solta numa coluna, e as regras do jogo escritas em Python simples, com listas. As peças vêm da folha que os pilares do Avião (15) já usavam: ela também tem buracos e bolas.</p>
         <p><strong>Uma caixa que não aparece.</strong> <code>Box</code> (caixa) é um retângulo que não se desenha: serve para medir e posicionar. Ele se escreve como um <code>Rect</code>, com <code>center=</code>, <code>width=</code> e <code>height=</code>. A <code>zona</code> é o lugar das casas: 560 por 480.</p>
         <p><strong>A moldura.</strong> O tabuleiro é um <code>Rect</code> feito da zona. <code>box=zona.outset(14)</code> é a zona alargada 14 para fora (<code>outset</code>) de cada lado, e <code>corner_radius=24</code> (raio do canto) arredonda os cantos. Os números ficam num lugar só: mude a zona, e a moldura vai junto.</p>
         <p><strong>A grade.</strong> É a grade da Interação (11), agora para um tabuleiro de verdade. <code>zona.grid(7, 6)</code> fatia a zona em 7 colunas e 6 linhas iguais e devolve a grade (<code>grid</code>). Cada casa é também um <code>Box</code>, de 80 por 80. O <code>for</code> passa pelas 42 casas e põe um buraco em cada uma (o quadro <code>hole_large.png</code>). <code>box=casa</code> encaixa o sprite na casa: no centro dela, do tamanho dela.</p>
@@ -383,7 +383,7 @@ run()
       title: "Quatro em linha",
       body: `
         <p>Falta a regra que termina o jogo. Tudo o que ela precisa já está nas listas: a regra é Python puro.</p>
-        <p><strong>De quem é a bola.</strong> Cada bola nova guarda o seu dono: <code>nova.dono = st.vez</code>. Um campo novo num objeto é só um nome e um valor, como o <code>self.fogo</code> do avião (15).</p>
+        <p><strong>De quem é a bola.</strong> Cada bola nova guarda o seu dono: <code>nova.dono = st.vez</code>. Um campo novo num objeto é só um nome e um valor, como o <code>self.fogo</code> do avião (16).</p>
         <p><strong>Quatro seguidas.</strong> <code>quatro(x, y, dx, dy)</code> começa numa casa e dá quatro passos de <code>(dx, dy)</code>, como um <code>move_by</code> de casa em casa. Aqui, <code>x</code> é a coluna e <code>y</code> é o lugar na lista, contado de baixo para cima, como o y da tela. A cada passo, <code>c</code> e <code>l</code> são a coluna e o lugar na lista daquela casa, e ela olha o que tem lá. Se a casa sai do tabuleiro pela direita (<code>c &gt; 6</code>) ou por baixo (<code>l &lt; 0</code>), está vazia (a lista da coluna é mais curta) ou é do outro jogador, não são quatro: a função devolve <code>False</code>. Se os quatro passos dão certo, as quatro bolas acendem (<code>glow</code>, o brilho do 05, aqui dourado) e ela devolve <code>True</code>.</p>
         <p><strong>No tabuleiro todo.</strong> <code>conferir()</code> experimenta cada casa como começo, em quatro direções. As retas: <code>(1, 0)</code> anda para a direita (quatro deitadas, numa linha) e <code>(0, 1)</code> anda para cima (quatro em pé, numa coluna). As diagonais: <code>(1, 1)</code> sobe para a direita e <code>(1, -1)</code> desce para a direita. Não é preciso andar para a esquerda: a mesma linha, lida a partir da outra ponta, já foi conferida.</p>
         <p><strong>Por baixo.</strong> A diagonal que desce é a única que pode sair por baixo do tabuleiro, e ela pede o <code>l &lt; 0</code>. Sem ele, o erro não aparece: um lugar negativo conta do fim da lista (<code>coluna[-1]</code> é a bola de cima, não “nenhuma”), e a função acharia quatro bolas onde não há.</p>
@@ -488,7 +488,7 @@ run()
       body: `
         <p>Uma partida acabou; falta começar outra. Um <code>Button</code> (botão, o do 04) chama <code>novo_jogo</code>.</p>
         <p><strong>Voltar ao começo.</strong> As bolas jogadas entram num grupo, <code>group="jogadas"</code>, e o grupo inteiro é destruído de uma vez. As listas ficam vazias (<code>clear</code>, limpar). A vez volta para o vermelho, <code>st.fim</code> volta a falso, e a <code>proxima</code> volta vermelha e visível. Esta última linha conta: se o botão for clicado com uma bola caindo, a bola é destruída no meio da queda, o <code>pousou</code> não chega a rodar, e a <code>proxima</code> ficaria escondida para sempre.</p>
-        <p>É um recomeço à mão, como o do Avião (14): uma lista do que desfazer. Num jogo com atos (23), trocar de ato faz isso por você.</p>
+        <p>É um recomeço à mão, como o do Avião (15): uma lista do que desfazer. Num jogo com atos (25), trocar de ato faz isso por você.</p>
       `,
       code: `from scena import *
 

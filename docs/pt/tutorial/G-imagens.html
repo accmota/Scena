@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Imagens e hitboxes — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "G",
+  label: "Apêndice",
+  title: "Imagens e hitboxes",
+  steps: [
+    {
+      title: "Uma imagem",
+      part: "Uma imagem",
+      body: `
+        <p>Este apêndice mostra os jeitos mais comuns de pôr imagens no Scena: uma imagem parada, uma animação feita de vários arquivos, uma faixa, uma folha com várias animações, um atlas e um desenho SVG. No fim, a forma com que uma imagem colide, a <strong>hitbox</strong>. Cada seção é um programa curto; rode, mude e rode de novo. Os arquivos estão na pasta <code>media</code> dos exemplos (Apêndice C).</p>
+        <p><strong>Uma imagem parada.</strong> Uma nave, uma poção, um tiro: um arquivo, uma imagem. <code>Sprite("space/playerShip1_red.png")</code> a põe na tela. O nome traz a subpasta dentro de <code>media</code>.</p>
+        <p><strong>O tamanho.</strong> Sem tamanho, o lado maior da imagem fica com 48, qualquer que seja o tamanho do arquivo. Assim, uma imagem enorme baixada da internet não toma a tela inteira.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=500, title="Uma imagem")
+Wallpaper("dark navy")
+
+Sprite("space/playerShip1_red.png", center=(500, 250))
+
+run()
+`
+    },
+    {
+      title: "O tamanho",
+      body: `
+        <p>Quatro naves, quatro jeitos de dar o tamanho:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Você dá</th><th>A imagem</th></tr></thead>
+          <tbody>
+            <tr><td>nada</td><td>O lado maior fica com 48.</td></tr>
+            <tr><td><code>height=120</code></td><td>A altura fica com 120; a largura acompanha, sem deformar.</td></tr>
+            <tr><td><code>width=200</code></td><td>A largura fica com 200; a altura acompanha.</td></tr>
+            <tr><td><code>width=200, height=80</code></td><td>Largura e altura, as duas: a imagem estica para caber.</td></tr>
+          </tbody>
+        </table></div>
+        <p>Quase sempre, dê só um dos lados (<code>height=</code> ou <code>width=</code>): a imagem fica com a proporção do desenho. Há ainda <code>size=</code> (tamanho), que é o lado maior, seja ele qual for.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=500, title="Uma imagem")
+Wallpaper("dark navy")
+
+Sprite("space/playerShip1_red.png", center=(120, 250))
+Sprite("space/playerShip1_red.png", height=120, center=(330, 250))
+Sprite("space/playerShip1_red.png", width=200, center=(600, 250))
+Sprite("space/playerShip1_red.png", width=200, height=80, center=(860, 250))
+
+run()
+`
+    },
+    {
+      title: "Um arquivo por quadro",
+      part: "Um arquivo por quadro",
+      fresh: true,
+      body: `
+        <p>Uma animação é uma sequência de imagens trocadas depressa, como num desenho animado. Cada imagem é um <strong>quadro</strong>. Muitos pacotes entregam um arquivo por quadro: <code>Run (1).png</code>, <code>Run (2).png</code>… até <code>Run (8).png</code>.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 130" role="img" aria-label="Oito arquivos lado a lado, Run (1) a Run (8), viram oito quadros numa folha, tocados em ordem">
+            <rect class="bar child" x="10" y="14" width="38" height="34"/><rect class="bar child" x="54" y="14" width="38" height="34"/><rect class="bar child" x="98" y="14" width="38" height="34"/><rect class="bar child" x="142" y="14" width="38" height="34"/>
+            <rect class="bar child" x="186" y="14" width="38" height="34"/><rect class="bar child" x="230" y="14" width="38" height="34"/><rect class="bar child" x="274" y="14" width="38" height="34"/><rect class="bar child" x="318" y="14" width="38" height="34"/>
+            <text x="29" y="64" text-anchor="middle">(1)</text><text x="73" y="64" text-anchor="middle">(2)</text><text x="117" y="64" text-anchor="middle">(3)</text><text x="337" y="64" text-anchor="middle">(8)</text>
+            <line class="ray" x1="183" y1="72" x2="183" y2="88"/>
+            <rect class="bar" x="10" y="92" width="346" height="28"/>
+            <text x="183" y="111" text-anchor="middle">Sheet: quadros 0, 1, 2 … 7, tocados a 12 por segundo</text>
+          </svg>
+          <figcaption>Cada arquivo é um quadro. O <code>*</code> pega todos os que casam com o nome, em ordem, e o <code>Sheet</code> os põe em fila.</figcaption>
+        </figure>
+        <p><strong>A folha.</strong> <code>Sheet</code> (folha) é o catálogo dos quadros. <code>Sheet("robot/Run (*).png", fps=12)</code> pega todos os arquivos daquela pasta que casam com o nome; o <code>*</code> (asterisco) quer dizer “qualquer coisa aqui”. <code>fps=12</code> (quadros por segundo) já monta uma animação com todos eles. O <code>Sprite</code> recebe a folha no lugar do nome do arquivo e toca a animação.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=500, title="Arquivos")
+Wallpaper("dark navy")
+
+robo = Sheet("robot/Run (*).png", fps=12)
+Sprite(robo, height=260, center=(500, 250))
+
+run()
+`
+    },
+    {
+      title: "Uma faixa",
+      part: "Uma faixa",
+      fresh: true,
+      body: `
+        <p>Outro jeito comum: todos os quadros numa imagem só, lado a lado, do mesmo tamanho. É uma <strong>faixa</strong>.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 120" role="img" aria-label="Uma imagem comprida, cortada em pedaços iguais por linhas tracejadas: cada pedaço é um quadro">
+            <rect class="bar" x="10" y="20" width="360" height="40"/>
+            <line class="guide" x1="55" y1="20" x2="55" y2="60"/><line class="guide" x1="100" y1="20" x2="100" y2="60"/><line class="guide" x1="145" y1="20" x2="145" y2="60"/><line class="guide" x1="190" y1="20" x2="190" y2="60"/>
+            <line class="guide" x1="235" y1="20" x2="235" y2="60"/><line class="guide" x1="280" y1="20" x2="280" y2="60"/><line class="guide" x1="325" y1="20" x2="325" y2="60"/>
+            <text x="32" y="45" text-anchor="middle">0</text><text x="77" y="45" text-anchor="middle">1</text><text x="122" y="45" text-anchor="middle">2</text><text x="347" y="45" text-anchor="middle">…</text>
+            <text x="190" y="84" text-anchor="middle">cols=8: oito pedaços iguais, da esquerda para a direita</text>
+            <text x="190" y="104" text-anchor="middle">cell=(64, 64): pedaços de 64 por 64 pixels</text>
+          </svg>
+          <figcaption>Uma faixa é uma imagem só, com os quadros lado a lado. <code>cols=</code> diz em quantos pedaços cortar; <code>cell=</code> diz o tamanho de cada pedaço, e o Scena conta quantos cabem.</figcaption>
+        </figure>
+        <p><strong>Contar os pedaços.</strong> A cereja é uma faixa de 17 quadros: <code>cols=17</code> (colunas). Para saber o número, abra a imagem: ela tem 544 pixels de largura, e cada quadro, 32; 544 ÷ 32 = 17.</p>
+        <p><strong>Ou dar o tamanho.</strong> Muitos pacotes escrevem o tamanho do quadro no nome do arquivo, como a bandeira: <code>(64x64)</code>. Com <code>cell=(64, 64)</code> (célula), o Scena corta em pedaços desse tamanho e conta quantos cabem. Uma imagem em grade, com várias linhas de quadros, leva também <code>rows=</code> (linhas).</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=500, title="Faixas")
+Wallpaper("dark navy")
+
+cereja = Sheet("pixel_adv/Cherries.png", cols=17, fps=20)
+Sprite(cereja, height=160, center=(280, 250))
+
+bandeira = Sheet("pixel_adv/Checkpoint (Flag Idle)(64x64).png", cell=(64, 64), fps=12)
+Sprite(bandeira, height=220, center=(700, 260))
+
+run()
+`
+    },
+    {
+      title: "Várias animações",
+      part: "Várias animações",
+      fresh: true,
+      body: `
+        <p>Um personagem tem várias animações: parado, correndo, pulando. O pacote do ninja tem um arquivo por quadro, com um nome por animação: <code>Idle__000.png</code>, <code>Run__000.png</code>, <code>Jump__000.png</code>…</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 140" role="img" aria-label="Três grupos de arquivos, Idle, Run e Jump, entram numa folha só; cada grupo vira uma animação com nome: parado, correndo, pulando">
+            <rect class="bar child" x="10" y="12" width="110" height="26"/><text x="65" y="30" text-anchor="middle">Idle__*.png</text>
+            <rect class="bar child" x="135" y="12" width="110" height="26"/><text x="190" y="30" text-anchor="middle">Run__*.png</text>
+            <rect class="bar child" x="260" y="12" width="110" height="26"/><text x="315" y="30" text-anchor="middle">Jump__*.png</text>
+            <line class="ray" x1="65" y1="40" x2="65" y2="70"/><line class="ray" x1="190" y1="40" x2="190" y2="70"/><line class="ray" x1="315" y1="40" x2="315" y2="70"/>
+            <rect class="bar" x="10" y="72" width="360" height="36"/>
+            <text x="65" y="94" text-anchor="middle">"parado"</text><text x="190" y="94" text-anchor="middle">"correndo"</text><text x="315" y="94" text-anchor="middle">"pulando"</text>
+            <text x="190" y="128" text-anchor="middle">uma folha, três animações; play("correndo") escolhe uma</text>
+          </svg>
+          <figcaption>Cada <code>strip</code> acrescenta à folha uma animação com nome. O <code>Sprite</code> toca uma de cada vez, com <code>play</code>.</figcaption>
+        </figure>
+        <p><strong>Uma folha vazia, três faixas.</strong> <code>Sheet()</code> começa sem nada. Cada <code>strip</code> (faixa) acrescenta uma animação com nome: <code>ninja.strip("correndo", "ninja/Run__*.png", fps=12)</code>. O nome é seu, e é ele que o <code>play</code> usa: <code>sprite.play("correndo")</code> (tocar). Os três ninjas usam a mesma folha, cada um tocando uma animação.</p>
+        <p>O tutorial 18 faz o ninja trocar de animação conforme anda e pula.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=500, title="Animações")
+Wallpaper("dark navy")
+
+ninja = Sheet()
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+
+Sprite(ninja, height=200, center=(220, 250)).play("parado")
+Sprite(ninja, height=200, center=(500, 250)).play("correndo")
+Sprite(ninja, height=200, center=(780, 250)).play("pulando")
+
+run()
+`
+    },
+    {
+      title: "Um atlas",
+      part: "Um atlas",
+      fresh: true,
+      body: `
+        <p>O último jeito: muitas imagens diferentes empacotadas numa imagem só, como peças de um quebra-cabeça, e um segundo arquivo (<code>.xml</code> ou <code>.json</code>) que diz onde está cada uma e como se chama. É um <strong>atlas</strong>, o formato dos pacotes do Kenney.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 150" role="img" aria-label="Uma imagem grande com peças de tamanhos diferentes, cada uma com um nome; ao lado, o arquivo XML lista o nome e o retângulo de cada peça">
+            <rect class="bar" x="10" y="10" width="200" height="130"/>
+            <rect class="bar child" x="20" y="20" width="70" height="50"/><text x="55" y="49" text-anchor="middle">nave</text>
+            <rect class="bar child" x="100" y="20" width="100" height="40"/><text x="150" y="44" text-anchor="middle">ufo</text>
+            <rect class="bar child" x="20" y="80" width="50" height="50"/><text x="45" y="109" text-anchor="middle">tiro</text>
+            <rect class="bar child" x="80" y="70" width="120" height="60"/><text x="140" y="104" text-anchor="middle">meteoro</text>
+            <text x="225" y="34">sheet.xml:</text>
+            <text x="225" y="56">nave   x=20  y=20 …</text>
+            <text x="225" y="74">ufo    x=100 y=20 …</text>
+            <text x="225" y="92">tiro   x=20  y=80 …</text>
+            <text x="225" y="110">meteoro x=80 y=70 …</text>
+          </svg>
+          <figcaption>Num atlas, as peças têm tamanhos diferentes e um nome cada. O <code>.xml</code> diz onde está cada uma; <code>frame=</code> escolhe pelo nome.</figcaption>
+        </figure>
+        <p><strong>Pelo nome.</strong> <code>atlas=</code> dá o segundo arquivo. <code>frame=</code> (quadro) escolhe uma peça pelo nome. Os nomes estão no <code>.xml</code>: abra-o num editor de texto. Uma folha só serve para o jogo inteiro: as naves, os inimigos, os meteoros. O tutorial 07 monta um jogo de naves assim.</p>
+        <p><strong>Qual usar?</strong> O que o pacote trouxer. Para o <code>Sprite</code>, tanto faz: ele funciona igual com qualquer folha. O Guia mostra os seis jeitos em <a href="../guide/index.html#sprite-carregar">Carregar sprites</a>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=500, title="Atlas")
+Wallpaper("dark navy")
+
+naves = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+Sprite(naves, frame="playerShip1_red.png", height=90, center=(200, 250))
+Sprite(naves, frame="enemyGreen1.png", height=80, center=(420, 250))
+Sprite(naves, frame="ufoBlue.png", height=80, center=(620, 250))
+Sprite(naves, frame="meteorBrown_big1.png", height=100, center=(830, 250))
+
+run()
+`
+    },
+    {
+      title: "Desenhos SVG",
+      part: "SVG",
+      fresh: true,
+      body: `
+        <p>Além de PNG e JPG, o Scena abre <strong>SVG</strong> (<code>.svg</code>). Um PNG é feito de pixels, quadradinhos de cor; um SVG é feito de formas (linhas, curvas, cores) descritas num arquivo de texto.</p>
+        <p><strong>Nítido em qualquer tamanho.</strong> Compare os dois grandes: o foguete SVG continua com as bordas limpas; a nave PNG, esticada muito além do tamanho do arquivo, fica borrada. O SVG é redesenhado no tamanho pedido; o PNG só pode esticar os pixels que tem.</p>
+        <p><code>Svg("svg/foguete.svg")</code> funciona como o <code>Sprite</code>: centro, tamanho, ângulo, hitbox, grupos. Desenhos em SVG se fazem em programas como o Inkscape (gratuito) ou se baixam prontos; ícones e formas simples ficam ótimos assim. Para arte com textura e sombreado, o PNG continua sendo o comum.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=500, title="SVG")
+Wallpaper("dark navy")
+
+Svg("svg/foguete.svg", height=100, center=(120, 250))
+Svg("svg/foguete.svg", height=420, center=(400, 250))
+Sprite("space/playerShip1_red.png", height=420, center=(780, 250))
+
+run()
+`
+    },
+    {
+      title: "A forma da colisão",
+      part: "Hitboxes",
+      fresh: true,
+      body: `
+        <p>Quando duas imagens se tocam, o Scena não compara os pixels: ele usa uma forma simples para cada uma, a <strong>hitbox</strong> (a caixa do golpe). <code>collision.show_colliders(True)</code> as desenha, em verde; é o mesmo que <kbd>Ctrl+Shift+7</kbd> (Apêndice A). Uma imagem só ganha hitbox quando entra na colisão; aqui, <code>collidable = True</code> faz isso.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 160" role="img" aria-label="Uma imagem com partes transparentes nos cantos. A caixa da imagem é maior que o desenho; a hitbox automática segue o desenho; a de círculo e a de retângulo são formas simples">
+            <rect class="guide" x="20" y="20" width="100" height="100"/>
+            <polygon class="bar" points="70,28 82,60 112,74 112,92 82,92 70,112 58,92 28,92 28,74 58,60"/>
+            <text x="70" y="140" text-anchor="middle">a imagem e o desenho</text>
+            <polygon class="bar" points="200,28 212,60 242,74 242,92 212,92 200,112 188,92 158,92 158,74 188,60"/>
+            <ellipse class="guide" cx="200" cy="70" rx="12" ry="40"/>
+            <ellipse class="guide" cx="200" cy="83" rx="42" ry="10"/>
+            <text x="200" y="140" text-anchor="middle">auto: segue o desenho</text>
+            <polygon class="bar" points="320,28 332,60 362,74 362,92 332,92 320,112 308,92 278,92 278,74 308,60"/>
+            <rect class="guide" x="278" y="28" width="84" height="84"/>
+            <text x="320" y="140" text-anchor="middle">rect: a caixa</text>
+          </svg>
+          <figcaption>A imagem é um retângulo, mas o desenho dentro dela não: os cantos são transparentes. A hitbox <code>"auto"</code> cobre o desenho com formas simples (aqui, duas elipses) e deixa os cantos vazios de fora. <code>"rect"</code> é a caixa do desenho inteira.</figcaption>
+        </figure>
+        <div class="tbl"><table>
+          <thead><tr><th>Você dá</th><th>A hitbox</th></tr></thead>
+          <tbody>
+            <tr><td>nada (<code>"auto"</code>)</td><td>O Scena olha o desenho e escolhe, entre círculos, elipses e retângulos, a forma que melhor o cobre. Ele prefere errar para dentro: um toque que não aconteceu incomoda mais que um que passou raspando.</td></tr>
+            <tr><td><code>hitbox_shape="circle"</code></td><td>Um círculo. Bom para coisas redondas e para o que gira.</td></tr>
+            <tr><td><code>hitbox_shape="rect"</code></td><td>A caixa do desenho. Bom para personagens que andam e pisam no chão.</td></tr>
+            <tr><td><code>hitbox_scale=0.6</code></td><td>A mesma forma, encolhida. Um herói com hitbox menor que o desenho perdoa os quase-toques.</td></tr>
+          </tbody>
+        </table></div>
+        <p>Nos jogos: o ninja (tutorial 18) usa <code>"rect"</code>, para pisar firme; o escudo em forma de anel (tutorial 08) usa <code>"circle"</code>, porque a forma automática de um anel fica com um pedaço dele só.</p>
+        <p>No Guia: <a href="../guide/index.html#spr-hit">Hitbox do Sprite</a>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=500, title="Hitboxes")
+Wallpaper("dark navy")
+collision.show_colliders(True)
+
+auto = Sprite("space/playerShip1_red.png", height=150, center=(140, 260))
+circulo = Sprite("space/playerShip1_red.png", height=150, center=(380, 260), hitbox_shape="circle")
+caixa = Sprite("space/playerShip1_red.png", height=150, center=(620, 260), hitbox_shape="rect")
+menor = Sprite("space/playerShip1_red.png", height=150, center=(860, 260), hitbox_scale=0.6)
+for nave in [auto, circulo, caixa, menor]:
+    nave.collidable = True
+
+run()
+`
+    }
+  ]
+});
+</script>
+</body>
+</html>
