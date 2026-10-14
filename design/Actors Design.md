@@ -1363,9 +1363,15 @@ audio device, clock hitches.
 | `if actor:` | Same check as `is_alive`. Boolean context means "usable", the same way an empty group is falsy — not a second lifetime API. `actor or other` skips a dead actor. |
 | `e.after` / `every` / `tween` / timed pose / `move_along` / `play_sound` / `on_update` / a transient on a destroyed actor (e.g. from a dying body’s own `@collide_exit`) | Quiet no-op: the Handle comes back **already cancelled** and is never registered; nothing fires, nothing holds the dead actor. |
 
-Watchdog uses `sys.monitoring` LINE events (Python 3.12+); non-author code
-(`stage.*`, stdlib) returns `DISABLE` after first touch so bulk `Sprite(...)` waves stay
-lean. Async mode resume is guarded by default; script `update(dt)` and `on_update`
+Watchdog uses `sys.monitoring` LINE and JUMP events (Python 3.12+); non-author code
+(`scena.*`, stdlib) returns `DISABLE` after first touch so bulk `Sprite(...)` waves stay
+lean. JUMP is for a loop on one line (`while not st.pronto: pass`, `while n < 10**9:
+n += 1`): it emits no new LINE event, only its back jump, and escaped the guard
+(review 2026-10-14 PA2). Only a back jump that lands on its own line counts; a forward
+jump, or a back jump to another line (LINE already fires every iteration), returns
+`DISABLE` on first touch, so a multi-line loop pays the JUMP callback once
+(`_watchdog_on_jump`; interleaved A/B of 400 async-mode actors, half running a
+20-step loop per frame: within noise, best frames 21.0–21.7 ms either way). Async mode resume is guarded by default; script `update(dt)` and `on_update`
 require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena.__all__`; off by default — ~10–15% frame cost when on).
 `set_watchdog(False)` for benchmarks.
 
