@@ -3608,6 +3608,70 @@ class TestAsyncAwait(ProcessTestCase):
             proc.WATCHDOG_RESUME_S = old
             proc.WATCHDOG_CHECK_EVERY = old_every
 
+    def test_watchdog_stops_a_loop_on_one_line(self):
+        """A one-line loop emits no new LINE event, only its jump back: it
+        ran for as long as it liked (review 2026-10-14 PA2). Each loop is
+        capped at 2 s so a regression fails instead of hanging."""
+        import time
+        import scena.process as proc
+        old = proc.WATCHDOG_RESUME_S
+        old_every = proc.WATCHDOG_CHECK_EVERY
+        proc.WATCHDOG_RESUME_S = 0.05
+        proc.WATCHDOG_CHECK_EVERY = 64
+        proc.set_watchdog(True)
+        st_pronto = []
+
+        async def espera(e):
+            t0 = time.perf_counter()
+            while not st_pronto and time.perf_counter() - t0 < 2: pass  # noqa: E701
+            e.ran = time.perf_counter() - t0
+
+        async def conta(e):
+            n, t0 = 0, time.perf_counter()
+            while n < 10**9 and time.perf_counter() - t0 < 2: n += 1  # noqa: E701
+            e.ran = time.perf_counter() - t0
+
+        try:
+            for body in (espera, conta):
+                with self.subTest(body=body.__name__):
+                    c = self.track(Circle())
+                    c.ran = None
+                    t0 = time.perf_counter()
+                    with warnings.catch_warnings(record=True) as caught:
+                        warnings.simplefilter("always")
+                        c.mode = body
+                    took = time.perf_counter() - t0
+                    msgs = [str(w.message) for w in caught]
+                    self.assertTrue(any("CANCELLED" in m for m in msgs), msgs)
+                    self.assertIsNone(c.ran, "the loop ran to its own end")
+                    self.assertLess(took, 1.0)
+        finally:
+            proc.WATCHDOG_RESUME_S = old
+            proc.WATCHDOG_CHECK_EVERY = old_every
+
+    def test_sync_watchdog_stops_a_loop_on_one_line(self):
+        import time
+        import scena.process as proc
+        old = proc.WATCHDOG_RESUME_S
+        old_every = proc.WATCHDOG_CHECK_EVERY
+        proc.WATCHDOG_RESUME_S = 0.05
+        proc.WATCHDOG_CHECK_EVERY = 64
+        proc.set_sync_watchdog(True)
+
+        def spin():
+            t0 = time.perf_counter()
+            while time.perf_counter() - t0 < 2: pass  # noqa: E701
+
+        try:
+            t0 = time.perf_counter()
+            with self.assertRaises(proc._Watchdog):
+                proc._run_with_watchdog(spin, sync=True)
+            self.assertLess(time.perf_counter() - t0, 1.0)
+        finally:
+            proc.WATCHDOG_RESUME_S = old
+            proc.WATCHDOG_CHECK_EVERY = old_every
+            proc.set_sync_watchdog(False)
+
     def test_on_update_watchdog_disables_hook(self):
         import scena.process as proc
         c = self.track(Circle())

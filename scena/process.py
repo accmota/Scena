@@ -1813,6 +1813,7 @@ def _ensure_watchdog_tool() -> None:
             pass
         mon.use_tool_id(_WATCHDOG_TOOL_ID, _WATCHDOG_TOOL_NAME)
     mon.register_callback(_WATCHDOG_TOOL_ID, mon.events.LINE, _watchdog_on_line)
+    mon.register_callback(_WATCHDOG_TOOL_ID, mon.events.JUMP, _watchdog_on_jump)
     _watchdog_tool_ready = True
 
 
@@ -1826,6 +1827,58 @@ def _watchdog_on_line(code, line_number):
         if time.perf_counter() > _wd_deadline:
             raise _Watchdog()
     return None
+
+
+# ``id(code)`` → (weak ref to the code, offsets of its one-line back jumps).
+# Weak: an author's code (and with it the module) must not outlive the
+# program (AC1).
+_WD_ONE_LINE_JUMPS: Dict[int, Tuple[Any, set]] = {}
+
+
+def _line_at(code, offset: int) -> Optional[int]:
+    for start, end, line in code.co_lines():
+        if start <= offset < end:
+            return line
+    return None
+
+
+def _watchdog_on_jump(code, src, dest):
+    """JUMP callback: a loop on one line (``while not st.pronto: pass``,
+    ``while n < 10**9: n += 1``) emits no new LINE event, only its backward
+    jump, and escaped the watchdog (review 2026-10-14 PA2).
+
+    Only a backward jump that lands on its own line counts: a forward jump
+    never loops, and a back jump to another line fires LINE on every
+    iteration already. Those locations return ``DISABLE`` on first touch,
+    so a multi-line loop pays the JUMP callback once, not per iteration."""
+    global _wd_author_lines
+    if dest >= src or _is_ignored_filename(code.co_filename):
+        return sys.monitoring.DISABLE
+    entry = _WD_ONE_LINE_JUMPS.get(id(code))
+    if entry is None or entry[0]() is not code or src not in entry[1]:
+        if _line_at(code, src) != _line_at(code, dest):
+            return sys.monitoring.DISABLE
+        if entry is None or entry[0]() is not code:
+            entry = _WD_ONE_LINE_JUMPS[id(code)] = (ref(code), set())
+        entry[1].add(src)
+    _wd_author_lines += 1
+    if _wd_author_lines % _wd_check_every == 0:
+        if time.perf_counter() > _wd_deadline:
+            raise _Watchdog()
+    return None
+
+
+# LINE | JUMP: every author line, and every jump (a one-line loop has only
+# jumps). A/B switch for scripts/bench (``_WD_EVENTS = LINE`` is the old guard).
+_WD_EVENTS = None
+
+
+def _watchdog_events() -> int:
+    ev = _WD_EVENTS
+    if ev is None:
+        mon = sys.monitoring
+        ev = mon.events.LINE | mon.events.JUMP
+    return ev
 
 
 def _run_with_watchdog(
@@ -1853,7 +1906,7 @@ def _run_with_watchdog(
     _wd_check_every = max(1, int(WATCHDOG_CHECK_EVERY))
     prev_events = mon.get_events(_WATCHDOG_TOOL_ID)
     _watchdog_resume_depth += 1
-    mon.set_events(_WATCHDOG_TOOL_ID, mon.events.LINE)
+    mon.set_events(_WATCHDOG_TOOL_ID, _watchdog_events())
     try:
         return fn(*args, **kwargs)
     finally:
