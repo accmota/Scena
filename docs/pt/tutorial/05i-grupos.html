@@ -189,7 +189,7 @@ run()
       title: "Só as grandes",
       body: `
         <p>As bolhas grandes ficam douradas.</p>
-        <p><strong>Escolher alguns.</strong> <code>filter</code> (filtrar) recebe uma pergunta e devolve só os membros para os quais a resposta é sim. A pergunta é uma <code>lambda</code> com um nome, como as do <code>@when</code>: <code>lambda bolha: bolha.radius &gt; 30</code> pergunta, para cada bolha, se o raio dela passa de 30. O que volta também é um grupo, então aceita as mesmas ordens: <code>.color = "gold"</code> pinta só as escolhidas.</p>
+        <p><strong>Escolher alguns.</strong> <code>filter</code> (filtrar) recebe uma pergunta e devolve só os membros para os quais a resposta é sim. A pergunta é uma <code>lambda</code>, mas com uma novidade: um nome antes dos dois-pontos. Em <code>lambda bolha: bolha.radius &gt; 30</code>, o <code>filter</code> entrega as bolhas à pergunta, uma de cada vez, e <code>bolha</code> é o nome que cada uma recebe lá dentro, como o parâmetro de um <code>def</code>. Para cada bolha, a resposta é sim se o raio dela passa de 30. O que volta também é um grupo, então aceita as mesmas ordens: <code>.color = "gold"</code> pinta só as escolhidas.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -233,7 +233,7 @@ run()
       body: `
         <p>Mais duas perguntas que usam a mesma <code>lambda</code>.</p>
         <p><strong>Quantas.</strong> <code>count_where</code> (contar onde) conta os membros para os quais a resposta é sim: aqui, quantas bolhas grandes existem agora.</p>
-        <p><strong>Alguma.</strong> <code>any</code> (alguma) responde <code>True</code> se pelo menos um membro diz sim. Quando alguma bolha passa de 600 de altura, perto do topo, um aviso aparece no canto: <code>alerta.visible</code> (visível) recebe a resposta, <code>True</code> ou <code>False</code>, a cada quadro. A pergunta inversa é <code>all</code> (todas): <code>True</code> só se todos dizem sim.</p>
+        <p><strong>Alguma.</strong> <code>any</code> (alguma) responde <code>True</code> se pelo menos um membro diz sim. Quando alguma bolha passa de 600 de altura, perto do topo, um aviso aparece no canto: <code>alerta.visible</code> (visível) recebe a resposta, <code>True</code> ou <code>False</code>, a cada quadro. Ao lado dela está <code>all</code> (todas): <code>True</code> só se <em>todas</em> dizem sim. <code>any(lambda bolha: bolha.radius &gt; 30)</code> pergunta “alguma é grande?”; <code>all(lambda bolha: bolha.radius &gt; 30)</code>, “todas são grandes?”.</p>
         <p>No Guia: <a href="../guide/index.html#mundo-grupos">Grupos</a>.</p>
       `,
       code: `from random import uniform

@@ -292,7 +292,7 @@ run()
 `,
       try: [
         {
-          note: "Uma bolha nova nasce no fundo a cada estouro: no <code>on_click</code>, no lugar do <code>destroy</code>. A bolha nova é feita antes do <code>destroy</code>, enquanto esta ainda tem lugar para ser lido. Um molde pode ser usado em qualquer lugar, até dentro dele mesmo.",
+          note: "Uma bolha nova nasce no fundo a cada estouro: no <code>on_click</code>, no lugar do <code>destroy</code>. Um molde pode ser usado em qualquer lugar, até dentro dele mesmo.",
           replaces: ['self.destroy()'],
           code: `Bolha(center=(self.center.x, -50), radius=uniform(15, 45))
 self.destroy()`
