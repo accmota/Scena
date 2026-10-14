@@ -28,6 +28,7 @@ Gesture rules (Editor Design.md — Editor):
 from __future__ import annotations
 
 import math
+import re
 import sys
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 
@@ -98,6 +99,7 @@ class Editor:
         # Primary held (the host sets it): in Pan or a drawing tool a press
         # acts as Select — decided at the press, so a gesture never switches.
         self.select_held = False
+        self.picked_group: Optional[str] = None   # selected_group's tie-breaker
         self._handles_key: Any = None
         self._handles: List[geo.Handle] = []
         self._frame: Optional[Tuple[float, float, float, float, float]] = None
@@ -560,14 +562,20 @@ class Editor:
         self.message = t("note.row" if axis == "x" else "note.column", count=len(movable))
         return True
 
-    def select_group(self, name: str) -> None:
-        """Select every item in group ``name``, in file order (not an undo step)."""
-        self.selection = [it["id"] for it in self.doc.items if name in it["groups"]]
+    def select_group(self, name: Optional[str]) -> None:
+        """Select every item in group ``name``, in file order; ``None`` selects
+        nothing (not an undo step). The name is kept as :meth:`selected_group`'s
+        tie-breaker."""
+        self.picked_group = name
+        self.selection = ([] if name is None else
+                          [it["id"] for it in self.doc.items if name in it["groups"]])
 
     def selected_group(self) -> Optional[str]:
         """The group whose items are exactly the selection, else None — computed
         from the selection, never remembered: a Shift+click more and it is None.
-        Two groups with the same items: the first A–Z."""
+        Two groups with the same items: the one last picked with
+        :meth:`select_group` when it is one of them (you chose "xyz", it says
+        "xyz", not "abc"), else the first A–Z."""
         chosen = set(self.selection)
         if not chosen:
             return None
@@ -576,6 +584,8 @@ class Editor:
             for g in it["groups"]:
                 members.setdefault(g, set()).add(it["id"])
         exact = [g for g, ids in members.items() if ids == chosen]
+        if self.picked_group in exact:
+            return self.picked_group
         return min(exact, key=lambda g: (g.casefold(), g)) if exact else None
 
     def nudge(self, dx: float, dy: float) -> None:
@@ -869,10 +879,13 @@ def _items(count: int) -> str:
 
 
 def _groups_text(value: Any) -> List[str]:
+    """The Groups field's text as names. "," separates them, and so does ";"
+    (the list separator where "," is the decimal one, as in pt-BR); the field
+    and the note then show the result with commas."""
     if isinstance(value, (list, tuple)):
         parts = list(value)
     else:
-        parts = str(value).split(",")
+        parts = re.split(r"[,;]", str(value))
     out: List[str] = []
     for p in parts:
         p = str(p).strip()

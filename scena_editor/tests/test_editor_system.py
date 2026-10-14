@@ -337,7 +337,8 @@ class TestEditorOnFrames(EditorSystemCase):
 
     def test_select_group_shows_the_group_the_selection_is(self):
         """Top bar "Select group [▾]": its value is computed from the selection —
-        the group's name while the selection is exactly its items, else "—"."""
+        the group's name while the selection is exactly its items, else None;
+        choosing None while a group shows selects nothing. No tooltip."""
         from scena.uiwidget import UIWidget
         app = self.app
         ed = app.editor
@@ -346,14 +347,15 @@ class TestEditorOnFrames(EditorSystemCase):
         self.frame()
         self.assertTrue(pick.visible)
         self.assertFalse(pick.enabled)                      # no groups yet: faded
-        self.assertEqual(pick.data.value, "—")
+        self.assertEqual(pick.data.value, "None")
+        self.assertIsNone(getattr(pick, "on_hover", None))  # no tip over an open list
         a = ed.doc.add({"kind": "point", "groups": ["robo"], "center": (0, 0)})
         b = ed.doc.add({"kind": "point", "groups": ["robo"], "center": (9, 0)})
         c = ed.doc.add({"kind": "point", "groups": ["chao"], "center": (5, 0)})
         ed.history.commit()
         self.frame()
         self.assertTrue(pick.enabled)
-        self.assertEqual(pick.options, ["—", "chao", "robo"])   # A–Z
+        self.assertEqual(pick.options, ["None", "chao", "robo"])   # A–Z
         pick.data.value = "robo"                                # the user picks it
         self.frame(2)
         self.assertEqual(ed.selection, [a, b])
@@ -361,17 +363,23 @@ class TestEditorOnFrames(EditorSystemCase):
         self.assertIn("robo", str(p.title.text))
         ed.selection = [a, b, c]                                # Shift+click one more
         self.frame()
-        self.assertEqual(pick.data.value, "—")                  # no longer a group
+        self.assertEqual(pick.data.value, "None")               # no longer a group
+        pick.data.value = "chao"
+        self.frame(2)
+        pick.data.value = "None"                                # None while "chao" shows
+        self.frame(2)
+        self.assertEqual(ed.selection, [])                      # selects nothing
+        self.assertEqual(pick.data.value, "None")
+        ed.selection = [a, c]                                   # not a group: None shows
+        self.frame()
+        pick.data.value = "None"                                # None while None: no change
+        self.frame(2)
+        self.assertEqual(ed.selection, [a, c])
         ed.selection = [c]
         self.frame()
-        self.assertEqual(pick.data.value, "chao")               # one item can be a group
-        pick.data.value = "—"                                   # choosing "—" selects nothing
-        self.frame(2)
-        self.assertEqual(ed.selection, [c])
-        self.assertEqual(pick.data.value, "chao")               # still the truth
         p.fields["groups"].input.data.value = "inimigo"         # rename under it
         self.frame(2)
-        self.assertEqual(pick.options, ["—", "inimigo", "robo"])
+        self.assertEqual(pick.options, ["None", "inimigo", "robo"])
         self.assertEqual(pick.data.value, "inimigo")
         # Fixed in the top bar, inside the window, clear of the other widgets.
         wm = self.w.fw.widget_manager
@@ -384,6 +392,46 @@ class TestEditorOnFrames(EditorSystemCase):
             wb = w.box
             self.assertFalse(box.left < wb.right and wb.left < box.right
                              and box.bottom < wb.top and wb.bottom < box.top, w)
+
+    def test_select_group_shows_the_group_picked_when_two_have_the_same_items(self):
+        app = self.app
+        ed = app.editor
+        pick = app.panel.group_pick
+        a = ed.doc.add({"kind": "point", "groups": ["abc", "xyz"], "center": (0, 0)})
+        ed.history.commit()
+        self.frame()
+        pick.data.value = "xyz"                   # "abc" is the same items, first A–Z
+        self.frame(2)
+        self.assertEqual(ed.selection, [a])
+        self.assertEqual(pick.data.value, "xyz")  # what was chosen, not "abc"
+
+    def test_groups_field_shows_semicolons_as_commas_even_with_no_change(self):
+        app = self.app
+        ed = app.editor
+        a = ed.doc.add({"kind": "point", "groups": ["chao", "robo"], "center": (0, 0)})
+        ed.history.reset(ed.doc)
+        ed.selection = [a]
+        self.frame()
+        field = app.panel.fields["groups"].input
+        field.data.value = "chao;robo"              # the same groups: no doc change
+        self.frame(2)
+        self.assertEqual(field.data.value, "chao, robo")
+        self.assertFalse(ed.history.can_undo)
+
+    def test_a_group_named_none_keeps_its_name_in_the_list(self):
+        app = self.app
+        ed = app.editor
+        pick = app.panel.group_pick
+        a = ed.doc.add({"kind": "point", "groups": ["None"], "center": (0, 0)})
+        ed.history.commit()
+        self.frame()
+        self.assertEqual(pick.options, ["(None)", "None"])
+        pick.data.value = "None"
+        self.frame(2)
+        self.assertEqual(ed.selection, [a])
+        pick.data.value = "(None)"
+        self.frame(2)
+        self.assertEqual(ed.selection, [])
 
     def test_save_writes_a_level_the_game_reads(self):
         from scena import Level

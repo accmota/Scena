@@ -40,7 +40,6 @@ STRINGS = {
         "tip.snap": "Hold Shift while dragging: no snap",
         "tip.fit": "Fit the level in view",
         "tip.actual": "Actual size",
-        "tip.select_group": "Selects every item in a group; shows the group while the selection is exactly its items",
         "tip.row": "Edge to edge, left to right from the leftmost item, no gaps",
         "tip.column": "Edge to edge, bottom to top from the lowest item, no gaps",
         # top bar
@@ -54,7 +53,7 @@ STRINGS = {
         "view.fit": "Fit",
         "view.actual": "100%",
         "view.select_group": "Select group",
-        "view.no_group": "—",
+        "view.no_group": "None",
         # panel
         "panel.level": "Level",
         "panel.width": "Width",

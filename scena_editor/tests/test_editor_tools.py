@@ -598,6 +598,14 @@ class TestAltDragAndSelectGroup(unittest.TestCase):
         self.assertIsNone(e.selected_group())
         e.selection = [c, b]                                   # chao and Bloco: same items
         self.assertEqual(e.selected_group(), "Bloco")          # the first A–Z (any case)
+        e.select_group("chao")                                 # picked: it wins the tie
+        self.assertEqual(e.selected_group(), "chao")
+        e.select_group("robo")
+        e.selection = [c, b]                                   # the pick is not a match
+        self.assertEqual(e.selected_group(), "Bloco")
+        e.select_group(None)                                   # None selects nothing
+        self.assertEqual(e.selection, [])
+        e.selection = [c, b]
         e.set_groups("robo", [b])                              # the group changes under it
         self.assertIsNone(e.selected_group())
 
@@ -800,6 +808,15 @@ class TestPanel(unittest.TestCase):
         self.assertFalse(e.set_groups(" g ,g"))
         self.assertFalse(e.history.can_undo)
         self.assertFalse(e.set_field("groups", "g"))   # one item: same rule
+
+    def test_groups_field_takes_semicolons_as_commas(self):
+        # "," is the decimal separator in pt-BR, so ";" is the list one there.
+        e = ed()
+        a = e.doc.add({"kind": "point", "center": (0, 0)})
+        e.selection = [a]
+        self.assertTrue(e.set_field("groups", "chao; robo ;;estrela, chao"))
+        self.assertEqual(e.doc.get(a)["groups"], ("chao", "robo", "estrela"))
+        self.assertEqual(e.message, "Groups: chao, robo, estrela")
 
     def test_groups_field_on_one_item_says_the_groups_it_has(self):
         e = ed()

@@ -218,14 +218,15 @@ class Panel:
         # Select group [robo ▾]: a selection command beside the Select tool, as
         # in the reference editors. Its value is computed from the selection
         # (Editor.selected_group): the group's name while the selection is
-        # exactly that group, else "—"; choosing a group selects it.
+        # exactly that group, else None; choosing a group selects it, choosing
+        # None selects nothing. No tooltip: the label says it, and a tip that
+        # pops up while the list is open is in the way.
         self.no_group = t("view.no_group")
         self.group_label = Text(t("view.select_group"), top_left=(x, y - 7), font_size=13)
         x = self.group_label.box.right + 8
         self.group_pick = DropDown(top_left=(x, y), width=GROUP_W, height=28,
                                    options=[self.no_group], initial=self.no_group,
                                    enabled=False)
-        attach_tip(self.group_pick, self.tooltip, t("tip.select_group"))
         self._pick_shown = self.no_group
         self.top_bar_right = x + GROUP_W
         self._grid_shown = (ed.snap, str(int(ed.grid)))
@@ -348,6 +349,9 @@ class Panel:
             value = f.committed()
             if value is not None and f.owner is not None:
                 ed.set_field(f.key, value, item_id=f.owner)
+                # Show the field as stored ("a;b" → "a, b", "7.0" → 7) even
+                # when the edit changed nothing and the doc did not bump.
+                self._seen = None
         for c in self.checks.values():
             value = c.committed()
             if value is not None and c.owner is not None:
@@ -361,16 +365,20 @@ class Panel:
             value = f.committed()
             if value is None or not f.owner:
                 continue
+            self._seen = None
             if key == "groups":
                 ed.set_groups(value, list(f.owner))
             else:
                 ed.move_selection_to(key, value, list(f.owner))
         chosen = self.group_pick.data.value
         if chosen != self._pick_shown:
+            # The control mirrors the selection: a group selects it; None while
+            # a group shows selects nothing (None while None shows: no change).
+            was = self._pick_shown
             self._pick_shown = chosen
-            if chosen != self.no_group:
-                ed.select_group(chosen)
-            self._seen = None        # show what the selection now is ("—" picked: as before)
+            if chosen != self.no_group or was != self.no_group:
+                ed.select_group(None if chosen == self.no_group else chosen)
+            self._seen = None        # show what the selection now is
         snap = bool(self.grid_check.data.value)
         size = str(self.grid_size.data.value)
         if (snap, size) != self._grid_shown:
@@ -409,6 +417,13 @@ class Panel:
             want[f] = False
         want[self.some] = want[self._some_hover] = False
         groups = ed.doc.groups()
+        none = t("view.no_group")
+        while none in groups:            # a group named "None" keeps its name
+            none = f"({none})"
+        if none != self.no_group:
+            if self._pick_shown == self.no_group:
+                self._pick_shown = none
+            self.no_group = none
         options = [self.no_group] + sorted(groups, key=str.casefold)   # easy to scan
         pick = self.group_pick
         if pick.options != options:

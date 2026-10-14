@@ -62,13 +62,15 @@ left out.
 - **Level editor:** Alt+drag (Option+drag on macOS) moves copies and leaves
   the originals in place.
 - **Level editor:** **Select group [▾]** in the top bar selects every item
-  in a group. It shows the group's name while the selection is exactly that
-  group's items, and "—" otherwise.
+  in a group, and None selects nothing. It shows the group's name while the
+  selection is exactly that group's items, and None otherwise.
 - A `DropDown` list too long for the window now stops at the window edge
   and scrolls with the mouse wheel or trackpad, with a scroll bar on the
   right; opening it shows the current option. Before, the rows past the edge
   could not be reached. A list that fits looks the same. This also fixes the
   editor's **Select group** with many groups.
+- **Level editor:** the Groups field takes ";" between names as well as
+  "," (a group name can no longer hold ";" by accident).
 - **Level editor:** after a groups edit, the status bar says what changed. A
   name with a space shows as «moving enemies» (one group). A new name close
   to an existing group gets a hint: `"plataform" is a new group. Did you

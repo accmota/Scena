@@ -366,8 +366,13 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   `LevelItem.center` is the points' box middle too. `points` of a smooth
   track are its control points: `move_along(item.make())` follows the curve.
 - **Groups field, one item or several:** the same field and parsing (split
-  on commas, trimmed, no empties or repeats; any other character is legal —
-  Scena takes any non-empty name, accents and spaces included). One item:
+  on commas **or semicolons**, trimmed, no empties or repeats; any other
+  character is legal — Scena takes any non-empty name, accents and spaces
+  included). ";" separates too because it is the list separator where "," is
+  the decimal one (pt-BR spreadsheets); taken as part of a name it made a
+  group nobody meant. The field then shows the result with commas, even when
+  the edit changed nothing. Cost, accepted: a hand-written file's group
+  `"a;b"` (the format still reads it) splits if edited in the field. One item:
   its groups become the typed list. Several: the field shows the groups
   **every** item has; a typed name is added to all, a deleted one removed
   from all, and groups only some items have stay — they are listed read-only
@@ -386,16 +391,21 @@ guard, no zombies) and `test_editor_dialogs`. v1:
 - **Select group [▾]** (top bar, after 100%): a selection command beside the
   Select tool — where the reference editors keep "select by …" (Illustrator
   Select ▸ Same, Figma "Select matching layers"), not in the inspector; fixed,
-  so it never moves with the panel. The list: "—" and the level's groups A–Z
-  (faded when there are none). Choosing a group selects its items in file
-  order. **Its value is computed from the selection, never remembered**
-  (`Editor.selected_group`): the group's name while the selection is exactly
-  that group's items (two groups with the same items: the first A–Z), else
-  "—". A remembered pick would lie the moment a Shift+click changed the
-  selection. (A first version lived in the panel, showed "Select group…"
-  always and reset after a pick: no feedback, and it jumped between two
-  rows.) Choosing "—" selects nothing. A long list scrolls (Scena's
-  DropDown stops at the window edge and scrolls with the wheel).
+  so it never moves with the panel. The list: None and the level's groups A–Z
+  (faded when there are none; a group named "None" keeps its name and the
+  entry becomes "(None)"). **The control mirrors the selection:** choosing a
+  group selects its items in file order; choosing None while a group shows
+  selects nothing (while None shows, it changes nothing). **Its value is
+  computed from the selection, never remembered** (`Editor.selected_group`):
+  the group's name while the selection is exactly that group's items, else
+  None. A remembered pick would lie the moment a Shift+click changed the
+  selection. The last pick is only a tie-breaker: when two groups have the
+  same items it shows the one you chose ("xyz", not "abc"), else the first
+  A–Z. No tooltip: the label says it, and a tip that popped up while the
+  list was open got in the way. (A first version lived in the panel, showed
+  "Select group…" always and reset after a pick: no feedback, and it jumped
+  between two rows.) A long list scrolls (Scena's DropDown stops at the
+  window edge and scrolls with the wheel).
 - **Panel:** a line shows X1 / Y1 / X2 / Y2 (other kinds X / Y = center); an
   image path is shortened in the middle to fit; the unsaved-changes prompt
   uses a lighter panel and a smaller font than the Menu default.
