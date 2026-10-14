@@ -14,15 +14,15 @@
 <script src="../../assets/tutorial/tutorial.js"></script>
 <script>
 Tutorial.mount({
-  n: "24",
+  n: "26",
   title: "Ninja III · O nível",
   steps: [
     {
-      title: "O jogo do 18",
+      title: "O jogo do 19",
       body: `
-        <p>O mundo do ninja, no 18, cabia numa tela, e cada peça do chão era uma linha de código: um <code>for</code> para o chão, uma função para as plataformas, cinco pontos escritos à mão para as estrelas. Para um nível de verdade, quatro vezes mais largo que a tela, isso vira centenas de números.</p>
+        <p>O mundo do ninja, no 19, cabia numa tela, e cada peça do chão era uma linha de código: um <code>for</code> para o chão, uma função para as plataformas, cinco pontos escritos à mão para as estrelas. Para um nível de verdade, quatro vezes mais largo que a tela, isso vira centenas de números.</p>
         <p>Neste tutorial, duas ideias. O nível é desenhado num <strong>editor de fases</strong>, e o código só decide o que cada peça faz. E um nível maior que a tela precisa de uma <strong>câmera que segue</strong> o ninja.</p>
-        <p>O ponto de partida é o jogo do 18, como ficou.</p>
+        <p>O ponto de partida é o jogo do 19, como ficou.</p>
       `,
       code: `from scena import *
 
@@ -217,7 +217,7 @@ run()
         <p><strong>Ler a fase.</strong> <code>Level("levels/ninja.json")</code> (nível, fase) lê o arquivo e não cria nada na tela. O código decide. <code>fase.group("chao")</code> é a lista das peças que estão no grupo <code>chao</code> no editor (as peças do chão e das plataformas), e <code>make()</code> (fazer) cria cada uma como foi desenhada: o <code>Sprite</code> com aquela imagem, naquele lugar, naquele tamanho, já no grupo <code>chao</code>. O mesmo para os enfeites (antes, para ficarem atrás) e para a água (depois do ninja, para ficar na frente). O <code>resolve</code> e o <code>STATIC</code> continuam como estavam: eles falam do grupo, e o grupo agora vem da fase.</p>
         <p><strong>As paredes.</strong> No editor, as duas paredes são retângulos, um logo antes do começo da fase e outro logo depois do fim, no grupo <code>parede</code>. O código decide o resto: <code>make(group="chao")</code> soma o grupo <code>chao</code> (o ninja para nelas), e <code>visible = False</code> as esconde. É a ideia do tutorial numa linha: o editor põe, o código decide o que é.</p>
         <p><strong>A área de jogo.</strong> <code>canvas.playfield.set(fase.box)</code> faz a área de jogo do <code>@leave_playfield</code> ser a fase inteira. Sem isso, ela seria a tela com uma margem, até x = 1250; uma kunai jogada além dali nasceria fora da área, nunca “sairia” dela e nunca seria destruída.</p>
-        <p>As estrelas e os robôs ainda são os do 18. Rode e ande para a direita: o ninja passa da borda da tela e some, num mundo que a câmera não mostra. É o buraco deste passo.</p>
+        <p>As estrelas e os robôs ainda são os do 19. Rode e ande para a direita: o ninja passa da borda da tela e some, num mundo que a câmera não mostra. É o buraco deste passo.</p>
       `,
       code: `from scena import *
 
@@ -592,8 +592,8 @@ run()
     {
       title: "Folga e atraso",
       body: `
-        <p><strong>Folga.</strong> <code>deadzone</code> (zona morta) deixa o ninja andar livre numa caixa em volta do meio da câmera, de 200 de largura (<code>size=200</code>). Enquanto ele está dentro, o resultado é o próprio meio da câmera, <code>olhar</code>: nada se mexe. Quando ele sai da caixa, o resultado anda o bastante para trazê-lo de volta à borda dela. A função devolve um par, x e y; <code>x, y = deadzone(…)</code> abre o par em dois nomes, como o <code>for x, y</code> das estrelas no 18. O y não serve aqui (a câmera só anda para os lados).</p>
-        <p><strong>Atraso.</strong> No lugar de pular para o lugar novo, a câmera o persegue com <code>chase</code>, como o nariz do avião do 14: anda muito quando está longe e pouco quando está perto. Com <code>rate=5</code>, ela chega em pouco mais de meio segundo. Um pulo pequeno não mexe a tela; uma corrida longa a leva junto, macia.</p>
+        <p><strong>Folga.</strong> <code>deadzone</code> (zona morta) deixa o ninja andar livre numa caixa em volta do meio da câmera, de 200 de largura (<code>size=200</code>). Enquanto ele está dentro, o resultado é o próprio meio da câmera, <code>olhar</code>: nada se mexe. Quando ele sai da caixa, o resultado anda o bastante para trazê-lo de volta à borda dela. A função devolve um par, x e y; <code>x, y = deadzone(…)</code> abre o par em dois nomes, como o <code>for x, y</code> das estrelas no 19. O y não serve aqui (a câmera só anda para os lados).</p>
+        <p><strong>Atraso.</strong> No lugar de pular para o lugar novo, a câmera o persegue com <code>chase</code>, como o nariz do avião do 15: anda muito quando está longe e pouco quando está perto. Com <code>rate=5</code>, ela chega em pouco mais de meio segundo. Um pulo pequeno não mexe a tela; uma corrida longa a leva junto, macia.</p>
 
         <figure class="fig">
           <svg viewBox="0 0 400 200" role="img" aria-label="Uma faixa comprida, a fase; um retângulo menor dentro dela, a câmera; no meio da câmera, uma caixa estreita tracejada, a folga; o ninja, um ponto, está na borda da folga, e uma seta mostra que, se ele sair, a câmera anda">
@@ -809,7 +809,7 @@ canvas.pan_to(chase(olhar, (x, 375), rate=12))`
     {
       title: "Tudo no lugar",
       body: `
-        <p>As estrelas e os robôs agora também vêm da fase. No editor, cada estrela é um <strong>ponto</strong> no grupo <code>estrela</code>, e cada robô um ponto no grupo <code>robo</code>: um ponto é só um lugar. O código decide o que nasce ali: <code>lugar.center</code> é o ponto, e no lugar de cada um nasce uma estrela que pulsa, ou um <code>Robo</code>, que patrulha em volta de onde nasceu, como no 18.</p>
+        <p>As estrelas e os robôs agora também vêm da fase. No editor, cada estrela é um <strong>ponto</strong> no grupo <code>estrela</code>, e cada robô um ponto no grupo <code>robo</code>: um ponto é só um lugar. O código decide o que nasce ali: <code>lugar.center</code> é o ponto, e no lugar de cada um nasce uma estrela que pulsa, ou um <code>Robo</code>, que patrulha em volta de onde nasceu, como no 19.</p>
         <p><strong>Um lugar com nome.</strong> O começo do ninja é um ponto chamado <code>inicio</code>: <code>fase["inicio"]</code> é esse item, e <code>fase["inicio"].center</code>, o lugar. Ele serve duas vezes: onde o ninja nasce e para onde ele volta, no <code>perder</code>.</p>
         <p><strong>Quantas.</strong> A vitória não é mais “na quinta”: <code>len(fase.group("estrela"))</code> conta os pontos de estrela da fase (são 13). Ponha uma estrela a mais no editor, e o jogo pede 14, sem mudar o código.</p>
       `,
@@ -998,7 +998,7 @@ run()
         <p>Com a câmera andando, o fundo parado parece um cartaz colado na janela. No mundo de verdade, o que está longe passa devagar, e o que está perto passa depressa.</p>
         <p><strong>O fundo.</strong> <code>pan_response=0.1</code> (resposta ao deslocamento) faz o <code>Wallpaper</code> andar um décimo do que a câmera anda: as montanhas mal se mexem. Como ele anda, a imagem precisa continuar além das bordas: <code>fit="tile"</code> (ladrilho) a repete, <code>tile_size=(1000, 750)</code> dá a cada cópia o tamanho da tela, e <code>tile_mode="mirror"</code> (espelho) espelha uma cópia sim, outra não, para a emenda não aparecer.</p>
         <p><strong>Uma camada no meio.</strong> <code>canvas.layers.create("longe", pan_response=0.5, below="default")</code> cria uma camada que anda metade do que a câmera anda, atrás da camada dos objetos do jogo. Nela, uma fileira de árvores menores, a cada 300 (<code>range(100, 2600, 300)</code>: o terceiro número é o passo, então x vale 100, 400, 700… até antes de 2600): elas passam mais devagar que o chão e mais depressa que as montanhas.</p>
-        <p><strong>Comparando com o avião.</strong> No 15, a câmera ficava parada, e cada camada andava sozinha, com <code>scroll=</code>. Aqui, quem anda é a câmera, e cada camada responde a ela com o seu <code>pan_response</code>: 0 fica colada na janela, 1 anda junto com o mundo. Parado o ninja, parada a câmera, tudo para.</p>
+        <p><strong>Comparando com o avião.</strong> No 16, a câmera ficava parada, e cada camada andava sozinha, com <code>scroll=</code>. Aqui, quem anda é a câmera, e cada camada responde a ela com o seu <code>pan_response</code>: 0 fica colada na janela, 1 anda junto com o mundo. Parado o ninja, parada a câmera, tudo para.</p>
       `,
       code: `from scena import *
 

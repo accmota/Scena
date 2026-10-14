@@ -14,14 +14,14 @@
 <script src="../../assets/tutorial/tutorial.js"></script>
 <script>
 Tutorial.mount({
-  n: "18",
+  n: "19",
   title: "Ninja II · O mundo",
   steps: [
     {
-      title: "O jogo do 17",
+      title: "O jogo do 18",
       body: `
-        <p>O ninja do 17 corre, pula e pisa no chão, mas não tem o que fazer. Neste tutorial, ele ganha um mundo para viver: um buraco com água, estrelas para pegar, robôs que patrulham, kunais (as facas de arremesso do ninja) para jogar e três vidas.</p>
-        <p>O ponto de partida é o jogo do 17, como ficou. Rode e lembre: setas para os lados andam, seta para cima pula.</p>
+        <p>O ninja do 18 corre, pula e pisa no chão, mas não tem o que fazer. Neste tutorial, ele ganha um mundo para viver: um buraco com água, estrelas para pegar, robôs que patrulham, kunais (as facas de arremesso do ninja) para jogar e três vidas.</p>
+        <p>O ponto de partida é o jogo do 18, como ficou. Rode e lembre: setas para os lados andam, seta para cima pula.</p>
       `,
       code: `from scena import *
 
@@ -93,7 +93,7 @@ run()
       body: `
         <p><strong>O buraco.</strong> O chão agora vem em dois pedaços, com um vão de duas peças entre eles. Nas beiradas do vão, duas peças com o lado de terra à mostra: <code>3.png</code> fecha o pedaço da esquerda, <code>1.png</code> abre o da direita. Lá embaixo, duas peças de água (<code>17.png</code>), mais baixas que o chão. Uma terceira plataforma, lá no alto, completa o cenário.</p>
         <p><strong>Quem fica na frente.</strong> O que nasce depois é desenhado na frente. A árvore, as moitas, a placa e o cogumelo nascem antes do chão: ficam atrás de tudo, só de enfeite, sem grupo e sem colisão. A água nasce depois do ninja, então o ninja que cai afunda <em>atrás</em> dela.</p>
-        <p><strong>Cair no buraco.</strong> Quando os pés descem abaixo de y = 30, o ninja caiu na água: o <code>on_update</code> chama <code>self.perder()</code>, uma função da própria classe, como o <code>cair()</code> do avião no 14. Por enquanto ela só põe o ninja de volta no começo, parado. <code>self.center = (100, 400)</code> <strong>coloca</strong>: o ninja some de um lugar e aparece no outro, sem atravessar o caminho; o <code>resolve</code> só segura quem viaja (<code>move_by</code>). E a <code>vel</code> volta a zero, senão ele chegaria lá caindo depressa.</p>
+        <p><strong>Cair no buraco.</strong> Quando os pés descem abaixo de y = 30, o ninja caiu na água: o <code>on_update</code> chama <code>self.perder()</code>, uma função da própria classe, como o <code>cair()</code> do avião no 15. Por enquanto ela só põe o ninja de volta no começo, parado. <code>self.center = (100, 400)</code> <strong>coloca</strong>: o ninja some de um lugar e aparece no outro, sem atravessar o caminho; o <code>resolve</code> só segura quem viaja (<code>move_by</code>). E a <code>vel</code> volta a zero, senão ele chegaria lá caindo depressa.</p>
       `,
       code: `from scena import *
 
@@ -569,7 +569,7 @@ run()
       body: `
         <p>Espaço joga uma kunai. Três coisas acontecem juntas: o ninja faz o movimento de jogar, a kunai sai voando, e um robô atingido quebra.</p>
         <p><strong>O movimento.</strong> Um clip novo, <code>"jogando"</code>, com os arquivos <code>Throw__</code>. <code>play("jogando", loops=1, next="parado")</code> toca uma vez (<code>loops=1</code>) e depois passa para o parado (<code>next</code>, o próximo). Mas o fim do <code>on_update</code> escolhe um clip a cada quadro e trocaria o arremesso logo no quadro seguinte. <code>self.showing("jogando")</code> (mostrando) diz se o desenho na tela é do arremesso: enquanto for, o <code>return</code> sai do <code>on_update</code> antes da escolha.</p>
-        <p><strong>A kunai.</strong> O desenho dela aponta para cima; <code>art_angle=90</code> (o ângulo da arte) avisa o Scena, e daí o ângulo da kunai é para onde ela aponta no mundo. Ela nasce na altura do peito do ninja e gira para o mesmo ângulo dele: <code>kunai.rotate_to(self.angle)</code>. O ninja espelhado para a esquerda tem ângulo 180; para a direita, 0. No <code>on_update</code>, ela anda para onde aponta, como o avião do 14. <code>ready("kunai", 0.4)</code> (do 05) deixa jogar uma a cada 0,4 segundo, e <code>@leave_playfield</code> destrói as que saem da tela.</p>
+        <p><strong>A kunai.</strong> O desenho dela aponta para cima; <code>art_angle=90</code> (o ângulo da arte) avisa o Scena, e daí o ângulo da kunai é para onde ela aponta no mundo. Ela nasce na altura do peito do ninja e gira para o mesmo ângulo dele: <code>kunai.rotate_to(self.angle)</code>. O ninja espelhado para a esquerda tem ângulo 180; para a direita, 0. No <code>on_update</code>, ela anda para onde aponta, como o avião do 15. <code>ready("kunai", 0.4)</code> (do 05) deixa jogar uma a cada 0,4 segundo, e <code>@leave_playfield</code> destrói as que saem da tela.</p>
         <p><strong>O robô quebra.</strong> A folha do robô ganha o clip <code>"quebrado"</code>. Com dois clips, ele não toca nenhum sozinho: o <code>setup</code> pede o <code>"andando"</code>. Atingido, o robô para, toca o <code>"quebrado"</code> uma vez (sem <code>next</code>, fica no último desenho, caído) e se destrói 2 segundos depois. <code>self.untag("robo")</code> (tirar a etiqueta) o tira do grupo <code>robo</code>: caído, ele não machuca mais o ninja.</p>
         <p><strong>Uma vez só.</strong> O <code>untag</code> não para as kunais: o <code>@collide_with("kunai")</code> é do próprio robô, e continua valendo. Sem cuidado, uma segunda kunai no robô que já está caindo o quebraria de novo, com outro estrondo e o clip recomeçando. Por isso <code>atingido</code> começa perguntando <code>self.showing("quebrado")</code>: se o robô já está quebrando, a função sai, e a kunai passa por ele.</p>
       `,
@@ -943,7 +943,7 @@ run()
           <li><code>untag</code> — tira um objeto de um grupo: o robô caído não machuca.</li>
         </ul>
         <p><strong>No Guia:</strong> <a href="../guide/index.html#colisao-resolve">Tornar sólido (colocar × viajar)</a> · <a href="../guide/index.html#agendar-recently">recently</a> · <a href="../guide/index.html#sprite-animar">Animar sprites</a> · <a href="../guide/index.html#sprite-orientar">Orientar sprites</a> · <a href="../guide/index.html#mundo-grupos">Grupos</a>.</p>
-        <p><strong>No próximo:</strong> um jogo de tabuleiro, o Ligue 4. O ninja volta no 24, num nível maior que a tela, montado no editor de níveis, com uma câmera que o segue.</p>
+        <p><strong>No próximo:</strong> um jogo de tabuleiro, o Ligue 4. O ninja volta no 26, num nível maior que a tela, montado no editor de níveis, com uma câmera que o segue.</p>
       `
     }
   ]

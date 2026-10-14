@@ -44,7 +44,7 @@ A box that takes the place of lines ("no lugar de…") declares them:
 one line of the step, as ``focus`` does). Such a box runs **in place**
 (``in_place``): the first anchored line becomes the snippet (at its
 indentation) and the other anchored lines go. Appended, it would pass even
-when it breaks in place (tutorial 14, 2026-10-09: ``Sheet("plane/Fly*.png",
+when it breaks in place (tutorial 15, 2026-10-09: ``Sheet("plane/Fly*.png",
 fps=12)`` named its clip ``"default"``, and the step's ``play("voando")``
 raised; ``TU6``). A box in a method body with ``replaces:`` is run, not just
 compiled.
@@ -121,7 +121,7 @@ _ANCHORS = re.compile(r'"([^"]*)"|\'([^\']*)\'')
 _LIST_REST = re.compile(r'\s*((?:\'[^\']*\'|"[^"]*")(?:\s*,\s*(?:\'[^\']*\'|"[^"]*"))*)\s*\]')
 _CODE = re.compile(r"\bcode:\s*`((?:\\.|[^`\\])*)`", re.S)
 # A program's last line: ``run()``, or ``run(Fase)`` in a game made of acts
-# (tutorial 23 on). A box never has one at column 0.
+# (tutorial 25 on). A box never has one at column 0.
 _RUN = re.compile(r"^run\(\w*\)[ \t]*$", re.M)
 
 
@@ -325,7 +325,7 @@ class TestTutorialExtraction(unittest.TestCase):
         self.assertFalse(_reads_a_local("return", program))
 
     def test_a_game_of_acts_ends_in_run_with_its_first_act(self):
-        # Tutorial 23 (2026-10-09): ``run(Fase)`` / ``run(Titulo)``. The
+        # Tutorial 25 (2026-10-09): ``run(Fase)`` / ``run(Titulo)``. The
         # extractor took a step without a bare ``run()`` for a box of the
         # step before, and an appended box went after ``run(Titulo)``.
         html = ("steps: [ { code: `from scena import *\nrun()\n`, try: [ { code: `x = 1` } ] },\n"

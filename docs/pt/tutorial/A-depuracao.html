@@ -165,7 +165,7 @@ run()
       title: "Colisores",
       body: `
         <p>Agora a nave leva a pancada: <code>@collide("nave", "meteoros")</code> apaga o meteoro que encosta nela, e a nave pisca.</p>
-        <p><strong>Ctrl+Shift+7.</strong> Rode, aperte <kbd>Ctrl+Shift+7</kbd> e deixe alguns meteoros passarem perto da nave. Por cima de cada imagem aparece um contorno fino: é o <strong>colisor</strong>, a forma que o Scena usa para decidir se duas coisas se tocam. A colisão não olha o desenho; olha essa forma. As cores dizem o tipo: verde é uma forma que só avisa o toque (<code>@collide</code>, como aqui); dourado é uma forma sólida, que não deixa passar (<code>resolve</code>, do tutorial 10); ciano é uma parte extra (<code>add_hitbox</code>, do tutorial 25).</p>
+        <p><strong>Ctrl+Shift+7.</strong> Rode, aperte <kbd>Ctrl+Shift+7</kbd> e deixe alguns meteoros passarem perto da nave. Por cima de cada imagem aparece um contorno fino: é o <strong>colisor</strong>, a forma que o Scena usa para decidir se duas coisas se tocam. A colisão não olha o desenho; olha essa forma. As cores dizem o tipo: verde é uma forma que só avisa o toque (<code>@collide</code>, como aqui); dourado é uma forma sólida, que não deixa passar (<code>resolve</code>, do tutorial 10); ciano é uma parte extra (<code>add_hitbox</code>, do tutorial 27).</p>
         <p><strong>Por que não bateu?</strong> Para uma imagem, o Scena calcula o colisor a partir dos pixels do desenho e prefere errar para dentro: as pontas das asas da nave e as bordas do meteoro podem ficar de fora. Se um meteoro raspou na asa e nada aconteceu, o 7 responde: as duas formas não se tocaram. E se a colisão aconteceu “de longe”, o 7 também mostra por quê. É a primeira tecla a apertar quando uma colisão surpreende.</p>
         <p><strong>A moldura e a origem.</strong> O mesmo desenho traz mais duas coisas. A moldura é o retângulo do <code>init</code>, 1000 × 700: tudo o que fica dentro dela aparece na janela. A cruz marca a origem, o ponto (0, 0), no canto de baixo, à esquerda. Com a vista afastada (8), as duas ajudam a ver onde a tela acaba e onde o mundo começa.</p>
       `,
@@ -216,7 +216,7 @@ run()
     {
       title: "Trilhas",
       body: `
-        <p>Um disco voador entra em cena e faz um oito no alto da tela. <code>move_along</code> (mover ao longo de) leva o disco por uma trilha, um <code>Track</code>; <code>Track.eight(…)</code> é uma trilha pronta em forma de oito (<em>eight</em>), de 600 de largura e 160 de altura, que começa onde o disco está. <code>loops="forever"</code> repete para sempre. O tutorial 12 conta as trilhas a fundo.</p>
+        <p>Um disco voador entra em cena e faz um oito no alto da tela. <code>move_along</code> (mover ao longo de) leva o disco por uma trilha, um <code>Track</code>; <code>Track.eight(…)</code> é uma trilha pronta em forma de oito (<em>eight</em>), de 600 de largura e 160 de altura, que começa onde o disco está. <code>loops="forever"</code> repete para sempre. O tutorial 13 conta as trilhas a fundo.</p>
         <p><strong>Ctrl+Shift+7, de novo.</strong> A trilha é invisível: ela guia o disco, mas não é desenhada. Com <kbd>Ctrl+Shift+7</kbd>, ela aparece em magenta, inteira. Você vê o caminho todo de uma vez, e não só o pedaço que o disco já percorreu. Ajuda quando o disco faz uma volta inesperada: a trilha está mesmo onde você pensava?</p>
         <p>O zoom de inspeção (8) não desenha as trilhas; só o 7.</p>
       `,

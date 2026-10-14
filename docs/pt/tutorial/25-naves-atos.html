@@ -14,14 +14,14 @@
 <script src="../../assets/tutorial/tutorial.js"></script>
 <script>
 Tutorial.mount({
-  n: "23",
+  n: "25",
   title: "Naves VI · Atos",
   steps: [
     {
-      title: "O jogo do 22",
+      title: "O jogo do 24",
       body: `
-        <p>Novo script: o jogo do tutorial 22, com a frota que chega em sequência, os mergulhos e o chefe. Até aqui ele é uma tela só: quando a nave morre, aparece FIM DE JOGO, e para jogar de novo é preciso fechar e abrir o programa. Neste tutorial o jogo ganha <strong>atos</strong>: uma tela de título, a fase, o fim de jogo, e o caminho entre eles.</p>
-        <p>O recomeço espera desde o tutorial 02. O avião do 14 recomeçava com uma função que desfazia o jogo, coisa por coisa. Com atos, essa lista some.</p>
+        <p>Novo script: o jogo do tutorial 24, com a frota que chega em sequência, os mergulhos e o chefe. Até aqui ele é uma tela só: quando a nave morre, aparece FIM DE JOGO, e para jogar de novo é preciso fechar e abrir o programa. Neste tutorial o jogo ganha <strong>atos</strong>: uma tela de título, a fase, o fim de jogo, e o caminho entre eles.</p>
+        <p>O recomeço espera desde o tutorial 02. O avião do 15 recomeçava com uma função que desfazia o jogo, coisa por coisa. Com atos, essa lista some.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -294,7 +294,7 @@ run()
         <p><strong>O começo.</strong> <code>run(Fase)</code> no lugar do <code>run()</code>: o jogo começa pelo ato <code>Fase</code>. Quem monta o ato é o Scena, chamando o <code>setup</code>; ninguém escreve <code>Fase()</code>.</p>
         <p><strong>O palco e o ato.</strong> O que o topo do arquivo cria fica o jogo todo: o fundo, as estrelas, os efeitos de tela, as folhas. Esse é o <strong>palco</strong>. O que nasce depois, no <code>setup</code> do ato ou por qualquer código enquanto ele está valendo (um tiro, uma explosão, o chefe), é do ato. As classes ficam no topo: são só moldes.</p>
         <p><strong>O que é da fase vai para a fase.</strong> O <code>update</code> que balançava a frota virou o <code>on_update</code> da fase: um <code>update</code> no topo rodaria em todo ato, e quem balança a frota é a fase. O <code>@when</code> do chefe também entrou na classe, com <code>lambda self:</code>, como os da nave. No topo, ele valeria em todo ato: num ato sem frota, como o fim de jogo que vem daqui a pouco, o grupo vazio chamaria um chefe. Dentro da fase, ele liga quando ela começa e sai com ela. O <code>@leave_playfield</code> fica no topo: ele só apaga tiros, e onde não há tiros não faz nada.</p>
-        <p><strong>A nave sem nome.</strong> A variável <code>nave</code> sumiu; <code>Heroi(center=(500, 70))</code> basta. Ninguém lia a variável: os inimigos acham a nave pelo grupo, com o <code>nearest</code> do 22.</p>
+        <p><strong>A nave sem nome.</strong> A variável <code>nave</code> sumiu; <code>Heroi(center=(500, 70))</code> basta. Ninguém lia a variável: os inimigos acham a nave pelo grupo, com o <code>nearest</code> do 24.</p>
         <p>Rode: o jogo é o mesmo, e nada mudou na tela.</p>
       `,
       code: `from random import uniform
@@ -565,7 +565,7 @@ run(Fase)
     {
       title: "Recomeçar",
       body: `
-        <p>Agora o recomeço. No fim do <code>on_update</code> da fase, R chama <code>change_act(Fase)</code> (trocar de ato). O ato que está valendo sai com tudo o que criou: a nave, a frota, os tiros no ar, as explosões, o chefe, se ele já tinha chegado, e os timers de todos eles. Um ato <code>Fase</code> novo é montado do zero, pelo mesmo <code>setup</code>. Nenhuma linha de limpeza: compare com o <code>recomecar()</code> do avião do 14, que apagava os pilares, zerava os pontos e punha o avião no lugar, um por um.</p>
+        <p>Agora o recomeço. No fim do <code>on_update</code> da fase, R chama <code>change_act(Fase)</code> (trocar de ato). O ato que está valendo sai com tudo o que criou: a nave, a frota, os tiros no ar, as explosões, o chefe, se ele já tinha chegado, e os timers de todos eles. Um ato <code>Fase</code> novo é montado do zero, pelo mesmo <code>setup</code>. Nenhuma linha de limpeza: compare com o <code>recomecar()</code> do avião do 15, que apagava os pilares, zerava os pontos e punha o avião no lugar, um por um.</p>
         <p><code>keyp.once("R")</code> (uma vez) é verdadeiro só no frame em que a tecla é apertada, como na caixa do tutorial 01. E o <code>change_act</code> vem por último: depois dele o ato velho já saiu, e não há mais nada dele para mexer.</p>
 
         <figure class="fig">

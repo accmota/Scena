@@ -196,7 +196,7 @@ run()
     {
       title: "Um arquivo por quadro",
       body: `
-        <p><strong>2. Um arquivo por quadro.</strong> O jeito da GameArt2D: <code>Run (1).png</code>, <code>Run (2).png</code>… até <code>Run (8).png</code>. Em vez de escrever os oito nomes, o <code>*</code> (asterisco) quer dizer “qualquer coisa aqui”: <code>"robot/Run (*).png"</code> pega todos os arquivos daquela pasta cujo nome casa, em ordem, um quadro por arquivo. O avião (tutorial 14) e o ninja (tutorial 17) são feitos assim; o ninja tem uma animação por nome (<code>Idle</code>, <code>Run</code>, <code>Jump</code>), cada uma no seu <code>strip</code>.</p>
+        <p><strong>2. Um arquivo por quadro.</strong> O jeito da GameArt2D: <code>Run (1).png</code>, <code>Run (2).png</code>… até <code>Run (8).png</code>. Em vez de escrever os oito nomes, o <code>*</code> (asterisco) quer dizer “qualquer coisa aqui”: <code>"robot/Run (*).png"</code> pega todos os arquivos daquela pasta cujo nome casa, em ordem, um quadro por arquivo. O avião (tutorial 15) e o ninja (tutorial 18) são feitos assim; o ninja tem uma animação por nome (<code>Idle</code>, <code>Run</code>, <code>Jump</code>), cada uma no seu <code>strip</code>.</p>
       `,
       code: `from scena import *
 
@@ -244,7 +244,7 @@ run()
         <p><code>play_sound("…")</code> (tocar som) toca um arquivo uma vez e pronto: não precisa criar nada antes. Os sons de um jogo são de dois tipos.</p>
         <p><strong>Efeitos.</strong> Sons curtos que respondem a alguma coisa: o pulo, a moeda, a explosão. Teclas 1, 2 e 3. <code>pitch=</code> (altura) muda o tom: 1 é o original, acima de 1 fica mais agudo e mais rápido. Sortear um pouco o tom a cada vez (<code>uniform(0.9, 1.1)</code>) evita que o mesmo som, repetido, canse o ouvido. <code>volume=</code> deixa um som mais baixo (0.5 é metade).</p>
         <p><strong>Música.</strong> Um som longo, que repete: <code>loops="forever"</code> (repetições: para sempre). A tecla M liga a música. <code>name="musica"</code> dá um nome à vaga dela: apertar M de novo começa a música de novo no lugar da que tocava, em vez de somar uma segunda por cima.</p>
-        <p>Os tutoriais 07 (o estrondo da explosão), 20 (as notas de um piano) e 21 (a sua voz) usam sons em jogos. Para o volume de tudo e uma tecla de mudo, veja o Apêndice B, “Volume”.</p>
+        <p>Os tutoriais 07 (o estrondo da explosão), 22 (as notas de um piano) e 23 (a sua voz) usam sons em jogos. Para o volume de tudo e uma tecla de mudo, veja o Apêndice B, “Volume”.</p>
       `,
       code: `from random import uniform
 from scena import *

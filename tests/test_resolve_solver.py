@@ -133,7 +133,7 @@ class TestRiderCarry(_Plain):
                 self.assertAlmostEqual(hdx, ldx, delta=1e-6)
 
     def test_one_way_lift_carries_its_rider(self):
-        """Tutorial 25's elevator is a one-way platform (``only="bottom"``)."""
+        """Tutorial 27's elevator is a one-way platform (``only="bottom"``)."""
         for fps in FPS:
             with self.subTest(fps=fps):
                 hdx, ldx = self.lift_ride(fps, only="bottom")

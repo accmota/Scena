@@ -1,4 +1,4 @@
-"""Estúdio · Piano — tutorial 20.
+"""Estúdio · Piano — tutorial 22.
 
 Um piano de oito teclas: uma nota só (audio/nota.wav) tocada em oito
 alturas com pitch=; a tecla acende enquanto a nota soa (on_done=); um

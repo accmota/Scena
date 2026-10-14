@@ -356,7 +356,7 @@ drawn `.box` about its own middle; either way the correction moves the pivot
 by the same amount (the pose writer places `center`). Before 2026-10-09 the
 drawn middle was written back as the pivot, so every clamp lifted an anchored
 sprite by half its height, a frame at a time (a ninja walking into the screen
-edge climbed to the top; tutorial 17). Guard: `tests/test_confine.py`
+edge climbed to the top; tutorial 18). Guard: `tests/test_confine.py`
 `TestAnchoredSprite`. The pose point is read from the class
 (`type(g)._move_to_xy`), so a shape pays one type lookup.
 

@@ -217,7 +217,7 @@ def headless_run(first_act=None):
     fw = ScenaFramework.get_instance()
     names = inspect.currentframe().f_back.f_globals
     fw.set_auto_callbacks(names)
-    # A game of acts (tutorial 23) opens on its title: start at the act whose
+    # A game of acts (tutorial 25) opens on its title: start at the act whose
     # code moves the fleet, as a player who pressed "Jogar" would.
     for value in list(names.values()):
         if (isinstance(value, type) and issubclass(value, scena.Act) and value is not scena.Act

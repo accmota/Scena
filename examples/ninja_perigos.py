@@ -1,6 +1,6 @@
-"""Ninja IV · Perigos — tutorial 25.
+"""Ninja IV · Perigos — tutorial 27.
 
-A fase do tutorial 24 com perigos (media/levels/ninja_perigos.json):
+A fase do tutorial 26 com perigos (media/levels/ninja_perigos.json):
 plataformas de mão única (resolve com only=), que se atravessam por baixo
 e de onde se desce com a seta para baixo; uma tábua inclinada, onde o
 desenho do ninja se inclina em volta dos pés (tilt, hitbox_anchor);

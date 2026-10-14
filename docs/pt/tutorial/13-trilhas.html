@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trilhas — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "13",
+  title: "Trilhas",
+  steps: [
+    {
+      title: "Uma trilha",
+      body: `
+        <p>Este tutorial é sobre <strong>movimento por caminhos</strong>, sem jogo: um mostruário de trilhas. O que é uma trilha, as formas prontas, os caminhos seus e os jeitos de percorrê-los. No próximo, as trilhas viram um sistema solar.</p>
+        <p><strong>A trilha.</strong> No letreiro do 04 você conheceu a <code>Track</code> (trilha): um caminho invisível que alguém percorre. Este script a vê a fundo. <code>Track.circle(center=(170, 520), radius=110)</code> é uma trilha em forma de círculo (<em>circle</em>), com centro e raio como o <code>Circle</code>. Ela não aparece na tela: é só o desenho do caminho, como o <code>Point</code> do 03 é só uma posição.</p>
+        <p><strong>Presa num lugar.</strong> O oito do letreiro tinha só tamanho, e por isso começava onde o letreiro estava: era uma trilha <em>solta</em>. Esta tem <code>center=</code> e está <strong>presa</strong> num lugar da tela. Quem a percorre vai até ela; por isso a bola nem precisa de <code>center=</code>.</p>
+        <p><strong>Percorrer.</strong> <code>bola.move_along(roda, time=4, loops="forever")</code> (mover ao longo de) é o do letreiro: uma volta inteira a cada 4 segundos (<code>time=4</code>) e, quando a volta acaba, outra (<code>loops="forever"</code>). Nenhuma linha no <code>update</code>: a bola anda sozinha.</p>
+        
+        <figure class="fig">
+          <svg viewBox="0 0 360 220" role="img" aria-label="Uma trilha em círculo, com o centro marcado e o raio até a borda direita; a viagem começa no ponto da direita e segue no sentido anti-horário">
+            <circle class="guide" cx="180" cy="110" r="80"/>
+            <line class="ray" x1="180" y1="110" x2="260" y2="110"/>
+            <circle class="dot" cx="180" cy="110" r="3.5"/>
+            <circle class="hot" cx="260" cy="110" r="7"/>
+            <path class="ray" fill="none" d="M 269.3 77.5 A 95 95 0 0 0 212.5 20.7"/>
+            <line class="ray" x1="212.5" y1="20.7" x2="218.3" y2="27.6"/>
+            <line class="ray" x1="212.5" y1="20.7" x2="221.4" y2="19.1"/>
+            <text x="176" y="128" text-anchor="end">center</text>
+            <text x="206" y="104">radius</text>
+            <text x="272" y="114">começa aqui</text>
+            <text x="250" y="34">sentido da volta</text>
+          </svg>
+          <figcaption>A trilha <code>Track.circle</code>: um centro e um raio. A bola entra no ponto da direita e dá a volta no sentido anti-horário, o contrário dos ponteiros do relógio.</figcaption>
+        </figure>
+        <p>Rode: a bola dá voltas em torno de um centro que não se vê.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Trilhas")
+Wallpaper("#141b2d")
+
+roda = Track.circle(center=(170, 520), radius=110)
+bola = Circle(radius=14, color="coral")
+bola.move_along(roda, time=4, loops="forever")
+
+run()
+`,
+      try: [
+        {
+          note: "Duas trilhas soltas, como a do letreiro: cada bola dança um oito em volta do lugar onde nasceu. O nome de uma forma pronta, como texto (<code>\"eight\"</code>), é o atalho para uma trilha solta no tamanho padrão. No fim do arquivo, antes do <code>run()</code>.",
+          code: `danca = Circle(center=(500, 200), radius=10, color="white")
+danca.move_along(Track.eight(width=120, height=50), time=3, loops="forever")
+outra = Circle(center=(750, 200), radius=10, color="white")
+outra.move_along("eight", time=3, loops="forever")`
+        }
+      ]
+    },
+    {
+      title: "Ver a trilha",
+      body: `
+        <p>Uma trilha invisível é o certo quando ela só serve para o movimento: uma lua não deixa um risco no céu. Mas, enquanto você monta o caminho, vê-lo ajuda.</p>
+        <p><strong>Com cor.</strong> Basta dar um estilo: <code>color="dim gray"</code> (cinza apagado) pinta o traço, e a trilha passa a ser desenhada como uma linha. <code>line_width</code> (largura da linha, do 03) e <code>dash</code> (tracejado) também valem. Agora o caminho aparece, e a bola corre em cima dele.</p>
+        <p><strong>Sem mexer no desenho.</strong> O <code>show_tracks(True)</code> da caixa do letreiro desenha todas as trilhas em magenta, até as invisíveis. Com o programa rodando, <kbd>Ctrl+Shift+7</kbd> faz o mesmo sem escrever nada, junto com os contornos de colisão; aperte de novo para esconder. As duas são ajudas para você montar, não parte do desenho.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Trilhas")
+Wallpaper("#141b2d")
+
+roda = Track.circle(center=(170, 520), radius=110, color="dim gray")
+bola = Circle(radius=14, color="coral")
+bola.move_along(roda, time=4, loops="forever")
+
+run()
+`,
+      try: [
+        {
+          note: "Outros traços, um por vez, no lugar da linha da <code>roda</code>. O tracejado do 03 também vale numa trilha.",
+          replaces: ['roda = Track.circle('],
+          code: `roda = Track.circle(center=(170, 520), radius=110, color="dim gray", line_width=4)
+roda = Track.circle(center=(170, 520), radius=110, color="gold", line_width=2)`
+        }
+      ]
+    },
+    {
+      title: "Formas prontas",
+      body: `
+        <p>O círculo é uma das formas prontas da <code>Track</code>, os <strong>presets</strong> (predefinições) que a caixa do letreiro listou. Agora três delas vão para a tela, cada uma presa no seu lugar e com uma bola.</p>
+        <ul>
+          <li><code>Track.eight</code> — um oito (<em>eight</em>) deitado, com <code>width</code> (largura) e <code>height</code> (altura). A bola entra no cruzamento do meio.</li>
+          <li><code>Track.star</code> — uma estrela (<em>star</em>). <code>points=5</code> (pontas) é o número de pontas, não uma lista de pontos.</li>
+          <li><code>Track.shuttle</code> — o vaivém (<em>shuttle</em>, a lançadeira do tear): um traço reto de <code>length</code> (comprimento) 300 que a bola percorre indo e voltando.</li>
+        </ul>
+        <p>Todas recebem <code>center=</code>, o lugar da trilha na tela. <code>time=</code> muda de uma para outra: a estrela é longa e ganha 8 segundos por volta; o vaivém, curto, leva 3.</p>
+        <p><strong>Uma volta é uma volta.</strong> <code>time=</code> é o tempo da volta inteira, seja a trilha grande ou pequena. Por isso uma trilha maior, no mesmo tempo, deixa a bola mais rápida: ela precisa cobrir mais caminho nos mesmos segundos.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Trilhas")
+Wallpaper("#141b2d")
+
+roda = Track.circle(center=(170, 520), radius=110, color="dim gray")
+bola = Circle(radius=14, color="coral")
+bola.move_along(roda, time=4, loops="forever")
+
+oito = Track.eight(width=300, height=120, center=(500, 540), color="dim gray")
+carro = Circle(radius=12, color="gold")
+carro.move_along(oito, time=6, loops="forever")
+
+estrela = Track.star(points=5, radius=110, center=(830, 520), color="dim gray")
+cometa = Circle(radius=12, color="turquoise")
+cometa.move_along(estrela, time=8, loops="forever")
+
+vaivem = Track.shuttle(length=300, center=(500, 380), color="dim gray")
+pistao = Circle(radius=12, color="orchid")
+pistao.move_along(vaivem, time=3, loops="forever")
+
+run()
+`,
+      try: [
+        {
+          note: "Outras formas no lugar da estrela, uma por vez. Com <code>inner</code> (de dentro), a estrela fica mais gorda ou mais magra; um oito mais alto que largo fica de pé.",
+          replaces: ['estrela = Track.star('],
+          code: `estrela = Track.star(points=8, radius=110, inner=70, center=(830, 520), color="dim gray")
+estrela = Track.eight(width=120, height=240, center=(830, 520), color="dim gray")
+estrela = Track.circle(radius=60, center=(830, 520), color="dim gray")`
+        }
+      ]
+    },
+    {
+      title: "Um caminho seu",
+      body: `
+        <p>Além das formas prontas, uma trilha pode passar pelos pontos que você escolher. <code>Track(points=[…])</code> recebe uma lista de pontos, cada um um <code>(x, y)</code>, e liga todos em ordem, numa curva suave que passa por cima de cada um.</p>
+        <p><strong>Aberta.</strong> Esta trilha tem começo e fim: o primeiro ponto, embaixo à esquerda, e o último, à direita. As formas prontas do passo anterior são <strong>fechadas</strong>: o fim encontra o começo, e a volta seguinte continua sem emenda. Numa trilha aberta, não.</p>
+        <p>Rode e olhe a formiga verde: ela chega ao fim do caminho e <strong>salta</strong> de volta ao começo, para a próxima volta. O <code>loops="forever"</code> recomeça a viagem, e o começo fica longe do fim. O próximo passo resolve.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Trilhas")
+Wallpaper("#141b2d")
+
+roda = Track.circle(center=(170, 520), radius=110, color="dim gray")
+bola = Circle(radius=14, color="coral")
+bola.move_along(roda, time=4, loops="forever")
+
+oito = Track.eight(width=300, height=120, center=(500, 540), color="dim gray")
+carro = Circle(radius=12, color="gold")
+carro.move_along(oito, time=6, loops="forever")
+
+estrela = Track.star(points=5, radius=110, center=(830, 520), color="dim gray")
+cometa = Circle(radius=12, color="turquoise")
+cometa.move_along(estrela, time=8, loops="forever")
+
+vaivem = Track.shuttle(length=300, center=(500, 380), color="dim gray")
+pistao = Circle(radius=12, color="orchid")
+pistao.move_along(vaivem, time=3, loops="forever")
+
+caminho = Track(points=[(60, 100), (160, 290), (260, 120), (380, 240)], color="dim gray")
+formiga = Circle(radius=12, color="light green")
+formiga.move_along(caminho, time=3, loops="forever")
+
+run()
+`,
+      try: [
+        {
+          note: "No lugar do <code>caminho</code>. Com <code>smooth=0</code> (suave: zero), a trilha liga os pontos com retas, em vez de curvas. Repare que, com curva, o caminho passa um pouco além dos pontos para fazer a volta.",
+          replaces: ['caminho = Track('],
+          code: `caminho = Track(points=[(60, 100), (160, 290), (260, 120), (380, 240)], smooth=0, color="dim gray")`
+        }
+      ]
+    },
+    {
+      title: "Ida e volta",
+      body: `
+        <p><code>yoyo=True</code> (ioiô) é o do pulso das naves no 05: em vez de recomeçar do começo, a volta seguinte percorre o caminho <strong>ao contrário</strong>. A formiga vai até o fim, dá meia-volta e vem de volta pelo mesmo traço, sem saltar.</p>
+        <p><strong>Quando usar.</strong> Numa trilha aberta com <code>loops="forever"</code>, quase sempre com <code>yoyo=True</code>. Numa fechada, não precisa: o fim já encosta no começo.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Trilhas")
+Wallpaper("#141b2d")
+
+roda = Track.circle(center=(170, 520), radius=110, color="dim gray")
+bola = Circle(radius=14, color="coral")
+bola.move_along(roda, time=4, loops="forever")
+
+oito = Track.eight(width=300, height=120, center=(500, 540), color="dim gray")
+carro = Circle(radius=12, color="gold")
+carro.move_along(oito, time=6, loops="forever")
+
+estrela = Track.star(points=5, radius=110, center=(830, 520), color="dim gray")
+cometa = Circle(radius=12, color="turquoise")
+cometa.move_along(estrela, time=8, loops="forever")
+
+vaivem = Track.shuttle(length=300, center=(500, 380), color="dim gray")
+pistao = Circle(radius=12, color="orchid")
+pistao.move_along(vaivem, time=3, loops="forever")
+
+caminho = Track(points=[(60, 100), (160, 290), (260, 120), (380, 240)], color="dim gray")
+formiga = Circle(radius=12, color="light green")
+formiga.move_along(caminho, time=3, loops="forever", yoyo=True)
+
+run()
+`
+    },
+    {
+      title: "O pêndulo",
+      body: `
+        <p>Um pêndulo: um peso que balança na ponta de um fio. O caminho do peso é um pedaço de círculo, um arco.</p>
+        <p><strong>O arco.</strong> <code>Track.arc</code> (arco) é o círculo cortado entre dois ângulos: <code>from_angle=225</code> (do ângulo) até <code>to_angle=315</code> (até o ângulo). Os ângulos contam como no resto do Scena: 0 é para a direita, 90 para cima, 270 para baixo. De 225 a 315 é o pedaço de baixo do círculo, com 270 bem no meio. O arco é aberto, então vai com <code>yoyo=True</code>.</p>
+        <p><strong>A curva do tempo.</strong> Um pêndulo de verdade não anda sempre na mesma velocidade: ele freia nas pontas, onde para e volta, e corre embaixo. <code>ease="ease_in_out"</code> (suavizar na entrada e na saída) faz isso: a viagem sai devagar, acelera no meio e freia ao chegar. Sem <code>ease=</code>, o padrão é <code>"linear"</code>, a mesma velocidade do começo ao fim, que é o que as outras bolas fazem.</p>
+        <p><strong>O fio.</strong> Uma <code>Line</code> do ponto fixo até o peso. A ponta presa ao peso é uma <code>lambda</code>, como as linhas do 03: o Scena lê o centro do peso a cada quadro, e o fio acompanha.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Trilhas")
+Wallpaper("#141b2d")
+
+roda = Track.circle(center=(170, 520), radius=110, color="dim gray")
+bola = Circle(radius=14, color="coral")
+bola.move_along(roda, time=4, loops="forever")
+
+oito = Track.eight(width=300, height=120, center=(500, 540), color="dim gray")
+carro = Circle(radius=12, color="gold")
+carro.move_along(oito, time=6, loops="forever")
+
+estrela = Track.star(points=5, radius=110, center=(830, 520), color="dim gray")
+cometa = Circle(radius=12, color="turquoise")
+cometa.move_along(estrela, time=8, loops="forever")
+
+vaivem = Track.shuttle(length=300, center=(500, 380), color="dim gray")
+pistao = Circle(radius=12, color="orchid")
+pistao.move_along(vaivem, time=3, loops="forever")
+
+caminho = Track(points=[(60, 100), (160, 290), (260, 120), (380, 240)], color="dim gray")
+formiga = Circle(radius=12, color="light green")
+formiga.move_along(caminho, time=3, loops="forever", yoyo=True)
+
+arco = Track.arc(center=(560, 330), radius=200, from_angle=225, to_angle=315, color="dim gray")
+peso = Circle(radius=18, color="sky blue")
+peso.move_along(arco, time=1.2, loops="forever", yoyo=True, ease="ease_in_out")
+fio = Line(p1=(560, 330), p2=lambda: peso.center, color="white")
+
+run()
+`,
+      try: [
+        {
+          note: "Outra curva, no lugar da linha do <code>peso.move_along</code>: <code>\"bounce\"</code> (quicar) quica ao chegar a cada ponta. Troque também por <code>\"linear\"</code>, e o pêndulo vira um limpador de para-brisa, ou por <code>\"elastic\"</code> (elástico), que passa do ponto e volta.",
+          replaces: ['peso.move_along('],
+          code: `peso.move_along(arco, time=1.2, loops="forever", yoyo=True, ease="bounce")`
+        }
+      ]
+    },
+    {
+      title: "Uma fila",
+      body: `
+        <p>Várias bolas na <strong>mesma</strong> trilha, uma atrás da outra, como os vagões de um trem. A trilha é um caminho seu, agora fechado: <code>closed=True</code> (fechado) liga o último ponto de volta ao primeiro, e a curva vira um laço.</p>
+        <p><strong>Oito vagões.</strong> O <code>for i in range(8)</code> é o do 10: repete o bloco oito vezes, com <code>i</code> valendo 0, 1, 2… até 7. Cada volta cria um vagão e o põe na trilha.</p>
+        <p><strong>A fase.</strong> Se todos saíssem do começo, ficariam um em cima do outro, e você veria uma bola só. <code>phase=</code> (fase) diz quanto o vagão sai adiantado, em fração da volta: <code>0</code> sai do começo, <code>0.5</code> sai da metade do caminho. <code>i / 8</code> é uma divisão: para o vagão 0 dá 0; para o 1, 0.125 (um oitavo); para o 4, 0.5. Cada vagão sai um oitavo de volta à frente do anterior, e os oito se espalham pelo laço inteiro.</p>
+        
+        <figure class="fig">
+          <svg viewBox="0 0 360 220" role="img" aria-label="Oito bolinhas igualmente espaçadas numa trilha em círculo; cada uma tem um rótulo com a sua fase, de 0 a sete oitavos, no sentido anti-horário">
+            <circle class="guide" cx="180" cy="110" r="72"/>
+            <circle class="hot" cx="252" cy="110" r="6"/>
+            <circle class="dot" cx="230.9" cy="59.1" r="5"/>
+            <circle class="dot" cx="180" cy="38" r="5"/>
+            <circle class="dot" cx="129.1" cy="59.1" r="5"/>
+            <circle class="dot" cx="108" cy="110" r="5"/>
+            <circle class="dot" cx="129.1" cy="160.9" r="5"/>
+            <circle class="dot" cx="180" cy="182" r="5"/>
+            <circle class="dot" cx="230.9" cy="160.9" r="5"/>
+            <text x="264" y="114">i = 0 → fase 0</text>
+            <text x="243" y="50">1/8</text>
+            <text x="180" y="24" text-anchor="middle">2/8</text>
+            <text x="117" y="50" text-anchor="end">3/8</text>
+            <text x="96" y="114" text-anchor="end">4/8</text>
+            <text x="117" y="178" text-anchor="end">5/8</text>
+            <text x="180" y="204" text-anchor="middle">6/8</text>
+            <text x="243" y="178">7/8</text>
+          </svg>
+          <figcaption>Oito vagões numa trilha, com <code>phase=i / 8</code>. Cada um começa um oitavo de volta à frente do anterior; a fila fica espaçada por igual e anda junta.</figcaption>
+        </figure>
+        <p>Rode: os oito andam juntos, sempre à mesma distância um do outro, medida ao longo do caminho, porque todos levam os mesmos 8 segundos por volta.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Trilhas")
+Wallpaper("#141b2d")
+
+roda = Track.circle(center=(170, 520), radius=110, color="dim gray")
+bola = Circle(radius=14, color="coral")
+bola.move_along(roda, time=4, loops="forever")
+
+oito = Track.eight(width=300, height=120, center=(500, 540), color="dim gray")
+carro = Circle(radius=12, color="gold")
+carro.move_along(oito, time=6, loops="forever")
+
+estrela = Track.star(points=5, radius=110, center=(830, 520), color="dim gray")
+cometa = Circle(radius=12, color="turquoise")
+cometa.move_along(estrela, time=8, loops="forever")
+
+vaivem = Track.shuttle(length=300, center=(500, 380), color="dim gray")
+pistao = Circle(radius=12, color="orchid")
+pistao.move_along(vaivem, time=3, loops="forever")
+
+caminho = Track(points=[(60, 100), (160, 290), (260, 120), (380, 240)], color="dim gray")
+formiga = Circle(radius=12, color="light green")
+formiga.move_along(caminho, time=3, loops="forever", yoyo=True)
+
+arco = Track.arc(center=(560, 330), radius=200, from_angle=225, to_angle=315, color="dim gray")
+peso = Circle(radius=18, color="sky blue")
+peso.move_along(arco, time=1.2, loops="forever", yoyo=True, ease="ease_in_out")
+fio = Line(p1=(560, 330), p2=lambda: peso.center, color="white")
+
+anel = Track(points=[(760, 80), (940, 120), (900, 300), (720, 260)], closed=True, color="dim gray")
+for i in range(8):
+    vagao = Circle(radius=8, color="gold")
+    vagao.move_along(anel, time=8, loops="forever", phase=i / 8)
+
+run()
+`,
+      try: [
+        {
+          note: "Um trem curto: os vagões ocupam só um quarto do laço. No lugar da linha do <code>vagao.move_along</code>.",
+          replaces: ['vagao.move_along('],
+          code: `vagao.move_along(anel, time=8, loops="forever", phase=i / 32)`
+        }
+      ]
+    },
+    {
+      title: "De frente",
+      example: "trilhas.py",
+      body: `
+        <p>Uma bola parece igual de qualquer lado. Uma forma com ponta, não: o carro do oito vira um triângulo dourado, e ele deve apontar para onde anda. A caixa do letreiro, no 04, já mostrou o jeito.</p>
+        <p><strong>Encarar o caminho.</strong> <code>face=True</code> (encarar, ficar de frente) faz o <code>move_along</code> girar o objeto a cada quadro, na direção da trilha naquele ponto. O <code>Triangle</code> (triângulo equilátero) aponta para a direita quando o ângulo é 0, a mesma direção do 0 das trilhas; por isso a ponta segue o caminho. Rode e olhe o triângulo inclinar nas curvas do oito.</p>
+        <p>As outras bolas ficam como estão: girar um círculo não muda nada na tela.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Trilhas")
+Wallpaper("#141b2d")
+
+roda = Track.circle(center=(170, 520), radius=110, color="dim gray")
+bola = Circle(radius=14, color="coral")
+bola.move_along(roda, time=4, loops="forever")
+
+oito = Track.eight(width=300, height=120, center=(500, 540), color="dim gray")
+carro = Triangle(radius=16, color="gold")
+carro.move_along(oito, time=6, loops="forever", face=True)
+
+estrela = Track.star(points=5, radius=110, center=(830, 520), color="dim gray")
+cometa = Circle(radius=12, color="turquoise")
+cometa.move_along(estrela, time=8, loops="forever")
+
+vaivem = Track.shuttle(length=300, center=(500, 380), color="dim gray")
+pistao = Circle(radius=12, color="orchid")
+pistao.move_along(vaivem, time=3, loops="forever")
+
+caminho = Track(points=[(60, 100), (160, 290), (260, 120), (380, 240)], color="dim gray")
+formiga = Circle(radius=12, color="light green")
+formiga.move_along(caminho, time=3, loops="forever", yoyo=True)
+
+arco = Track.arc(center=(560, 330), radius=200, from_angle=225, to_angle=315, color="dim gray")
+peso = Circle(radius=18, color="sky blue")
+peso.move_along(arco, time=1.2, loops="forever", yoyo=True, ease="ease_in_out")
+fio = Line(p1=(560, 330), p2=lambda: peso.center, color="white")
+
+anel = Track(points=[(760, 80), (940, 120), (900, 300), (720, 260)], closed=True, color="dim gray")
+for i in range(8):
+    vagao = Circle(radius=8, color="gold")
+    vagao.move_along(anel, time=8, loops="forever", phase=i / 8)
+
+run()
+`,
+      try: [
+        {
+          note: "O pistão do vaivém virado para onde vai: nas pontas, ele dá meia-volta. No lugar da linha do <code>pistao</code> e do <code>move_along</code> dele.",
+          replaces: ['pistao = Circle(', 'pistao.move_along('],
+          code: `pistao = Triangle(radius=14, color="orchid")
+pistao.move_along(vaivem, time=3, loops="forever", face=True)`
+        }
+      ],
+      closing: `
+        <p>Sete trilhas visíveis, cada uma com o seu passageiro: um círculo, um oito com um triângulo que aponta o caminho, uma estrela, um vaivém, um caminho aberto em ida e volta, um pêndulo e um trem de oito vagões. <code>Ctrl+Shift+7</code> mostra as trilhas em magenta.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Track</code> — um caminho; nasce invisível, e <code>color=</code> o desenha.</li>
+          <li><code>move_along</code> — percorre a trilha; <code>time=</code> é o tempo de uma volta, e <code>loops="forever"</code> não para.</li>
+          <li><code>Track.circle</code>, <code>Track.eight</code>, <code>Track.star</code>, <code>Track.shuttle</code>, <code>Track.arc</code> — formas prontas, com <code>center=</code> e tamanhos.</li>
+          <li><code>points=</code> — um caminho seu, em curva pelos pontos; aberto, a não ser com <code>closed=True</code>.</li>
+          <li><code>yoyo=True</code> — a volta seguinte vem ao contrário: o jeito de repetir um caminho aberto.</li>
+          <li><code>ease=</code>, <code>phase=</code>, <code>face=True</code> — a curva do tempo, a saída adiantada de cada um numa fila, e a ponta que segue o caminho.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#shape-track">Track</a> · <a href="../guide/index.html#track-preset">Presets</a> · <a href="../guide/index.html#mover-move-along">move_along</a> · <a href="../guide/index.html#suite">Parâmetros de tempo</a> · <a href="../guide/index.html#debug-metodos">Debug</a>.</p>
+        <p><strong>Experimente também:</strong> <code>Track.spiral</code> (espiral) e <code>Track.wave</code> (onda), duas formas abertas; <code>span=</code> no <code>move_along</code>, para percorrer só um trecho.</p>
+        <p><strong>No próximo:</strong> um sistema solar, com órbitas, uma lua que deixa rastro e uma sonda.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

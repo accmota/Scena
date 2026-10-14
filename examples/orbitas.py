@@ -1,7 +1,8 @@
-"""Órbitas — tutorial 12, script 2.
+"""Órbitas — tutorial 14.
 
 Um sistema solar: planetas com degradê radial e Halo(style="fill") em
-órbitas circulares, uma lua numa órbita que anda com a Terra, um anel que
+órbitas circulares, uma lua numa órbita que anda com a Terra e deixa um
+rastro de bolinhas (History), um anel que
 gira para sempre (rotate_by) e um sol que pulsa (tween); as órbitas se
 desenham ao começar. Uma sonda percorre um oito, aponta (heading) para o
 planeta mais perto (nearest) e fica ligada a ele por uma linha, que vira
@@ -42,6 +43,15 @@ orbita_lua = Track.circle(center=lambda: terra.center, radius=40)
 lua = Circle(radius=7, group="planeta")
 lua.fill = Gradient("white", "gray", type="radial")
 lua.move_along(orbita_lua, time=2, loops="forever")
+
+rastro = History(max_points=80, on_leave=lambda bolinha: bolinha.dissolve_out(0.4))
+
+
+def soltar_bolinha():
+    rastro.add(Circle(center=lua.center, radius=2, color="light gray"))
+
+
+every(0.05, soltar_bolinha)
 
 anel = Circle(center=lambda: gigante.center, radius=40, color="khaki")
 anel.fill = None

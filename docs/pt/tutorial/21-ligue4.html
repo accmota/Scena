@@ -14,7 +14,7 @@
 <script src="../../assets/tutorial/tutorial.js"></script>
 <script>
 Tutorial.mount({
-  n: "19",
+  n: "21",
   title: "Ligue 4",
   steps: [
     {
@@ -57,7 +57,7 @@ run()
     {
       title: "Uma bola para arrastar",
       body: `
-        <p>A bola do jogador espera ao lado do tabuleiro. É outro quadro da mesma folha, <code>ball_red_large.png</code>. <code>INICIO</code> guarda o lugar dela; o nome em maiúsculas avisa que esse valor não muda durante o jogo (como as listas do 16).</p>
+        <p>A bola do jogador espera ao lado do tabuleiro. É outro quadro da mesma folha, <code>ball_red_large.png</code>. <code>INICIO</code> guarda o lugar dela; o nome em maiúsculas avisa que esse valor não muda durante o jogo (como as listas do 17).</p>
         <p><code>draggable = True</code> é o do tutorial 03: dá para pegar a bola com o mouse e levá-la a qualquer lugar. Rode e experimente. Por enquanto, ela fica onde você a solta, em cima do tabuleiro ou fora dele: soltar ainda não quer dizer nada.</p>
       `,
       code: `from scena import *
@@ -86,7 +86,7 @@ run()
         <p><strong>Quando solta.</strong> <code>@drag_to(proxima)</code> (arrastou até), do encaixe na grade da Interação (11), diz ao Scena: quando o arraste desta bola acabar, chame a função. Ela recebe três coisas: a bola arrastada; o alvo (<code>alvo</code>, um objeto marcado para receber coisas soltas em cima dele; aqui não há nenhum, então ele vem <code>None</code>); e <code>pos</code>, o ponto onde o mouse soltou. O <code>@drag_to</code> já liga o <code>draggable</code> sozinho; a linha do passo anterior pode ficar.</p>
         <p><strong>Que casa é essa?</strong> <code>grade.cell_at(pos)</code> (a casa em) faz a conta da grade ao contrário: recebe um ponto e devolve a casa que está embaixo dele, ou <code>None</code> (nada), se o ponto cai fora do tabuleiro.</p>
         <p><strong>Fora, volta.</strong> Solta fora do tabuleiro, a bola volta ao seu lugar: <code>move_to(INICIO, time=0.3)</code> (mover até). Como no <code>scale_to</code> do 05, com <code>time=</code> ela não pula: desliza até lá em 0.3 segundo. O <code>return</code> termina a função ali mesmo. Solta numa casa, nasce uma bola no centro dela, e a <code>proxima</code> volta na hora para o lugar, pronta para outra jogada.</p>
-        <p><strong>Por cima.</strong> As bolas novas nascem depois da <code>proxima</code>, e quem nasce depois é desenhado na frente: arrastada sobre uma delas, a <code>proxima</code> passaria por baixo. <code>layer="top"</code> (a camada de cima) a põe numa camada acima da do jogo, como as camadas do 15.</p>
+        <p><strong>Por cima.</strong> As bolas novas nascem depois da <code>proxima</code>, e quem nasce depois é desenhado na frente: arrastada sobre uma delas, a <code>proxima</code> passaria por baixo. <code>layer="top"</code> (a camada de cima) a põe numa camada acima da do jogo, como as camadas do 16.</p>
         <p>A bola ainda fica na casa onde você a solta, até no meio de uma coluna vazia, como num jogo da velha. Falta a gravidade.</p>
       `,
       code: `from scena import *
@@ -320,7 +320,7 @@ run()
         <p>Dois jogadores, uma bola de cada vez. De quem é a vez fica em <code>st.vez</code>: <code>"vermelho"</code> ou <code>"azul"</code>.</p>
         <p><strong>O aviso.</strong> O texto acima do tabuleiro diz de quem é a vez. O <code>@=</code> é o do placar do 02: ele liga o texto a uma função, e quando <code>st.vez</code> muda, o texto muda sozinho.</p>
         <p><strong>Trocar.</strong> <code>trocar_vez()</code> passa a vez para o outro jogador e troca a imagem da <code>proxima</code>: <code>frame</code> (o quadro) escolhe outro quadro da folha, agora depois de criada. A bola nova copia o quadro da que você arrastou, <code>frame=bola.frame</code>: vermelha na vez do vermelho, azul na vez do azul.</p>
-        <p><strong>Esperar a queda.</strong> A vez troca quando a bola pousa, em <code>pousou</code>. Enquanto ela cai, a <code>proxima</code> fica escondida (<code>visible = False</code>, como a porta do 14), e não dá para jogar de novo: um objeto invisível não recebe o mouse. Quando a queda termina, ela reaparece no lugar, já na cor do outro jogador.</p>
+        <p><strong>Esperar a queda.</strong> A vez troca quando a bola pousa, em <code>pousou</code>. Enquanto ela cai, a <code>proxima</code> fica escondida (<code>visible = False</code>, como a porta do 15), e não dá para jogar de novo: um objeto invisível não recebe o mouse. Quando a queda termina, ela reaparece no lugar, já na cor do outro jogador.</p>
       `,
       code: `from scena import *
 

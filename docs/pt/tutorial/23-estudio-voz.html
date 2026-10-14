@@ -14,13 +14,13 @@
 <script src="../../assets/tutorial/tutorial.js"></script>
 <script>
 Tutorial.mount({
-  n: "21",
+  n: "23",
   title: "Estúdio II · Voz",
   steps: [
     {
-      title: "O piano do 20",
+      title: "O piano do 22",
       body: `
-        <p>Novo script: o piano do tutorial 20, com o título <code>"Estúdio"</code>, sem o equalizador (a parte de cima da tela vai ganhar outras coisas). No 20, você tocava e o som saía. Agora é o contrário: <strong>o som manda na tela</strong>. O piano vai tocar a sua voz, uma barra vai mostrar quão alto você fala, e uma estrela vai dançar com uma luz que cresce com a voz.</p>
+        <p>Novo script: o piano do tutorial 22, com o título <code>"Estúdio"</code>, sem o equalizador (a parte de cima da tela vai ganhar outras coisas). No 22, você tocava e o som saía. Agora é o contrário: <strong>o som manda na tela</strong>. O piano vai tocar a sua voz, uma barra vai mostrar quão alto você fala, e uma estrela vai dançar com uma luz que cresce com a voz.</p>
         <p>Duas coisas novas: o <strong>microfone</strong> e as <strong>trilhas</strong> (um caminho que um objeto percorre sozinho). E o <code>@=</code>, que você já usou no placar, visto de perto.</p>
       `,
       code: `from scena import *
@@ -64,7 +64,7 @@ run()
         <p><strong>O gravador.</strong> Um ponto no canto de cima, à direita: a luz de gravação. A classe <code>Gravador</code> cuida de tudo que é do microfone. No <code>on_update</code>, R chama <code>gravar</code>; enquanto grava, a luz fica vermelha e o aviso diz "Fale!".</p>
         <p><strong>Abrir o microfone.</strong> <code>Microphone()</code> (microfone) abre o microfone do computador; nada é captado antes dessa linha. O gravador o abre na primeira vez que você aperta R, e não no começo do programa: o programa só ouve quando você pede. Até lá, <code>self.mic</code> é <code>None</code> (nada), e <code>if not self.mic</code> pergunta se ele ainda não foi aberto.</p>
         <p><strong>Na primeira vez</strong>, o sistema pergunta se o programa que roda o seu script (o Terminal, o VS Code…) pode usar o microfone. Responda que sim (se a pergunta apareceu no meio da gravação e ela saiu muda, aperte R de novo). Se você negar, o microfone fica mudo e o Scena avisa no console; para mudar de ideia, no Mac: Ajustes do Sistema › Privacidade e Segurança › Microfone; no Windows: Configurações › Privacidade e segurança › Microfone.</p>
-        <p><strong>Gravar.</strong> <code>self.mic.record(seconds=2, on_done=self.gravou)</code> (gravar) grava dois segundos e devolve a gravação, guardada em <code>self.gravacao</code>. Ela ainda está sendo feita: só dá para tocar quando acabar. Por isso o <code>on_done</code>, como o do som no 20: quando os dois segundos terminam, o Scena chama <code>gravou</code>, que toca o que você disse e apaga a luz.</p>
+        <p><strong>Gravar.</strong> <code>self.mic.record(seconds=2, on_done=self.gravou)</code> (gravar) grava dois segundos e devolve a gravação, guardada em <code>self.gravacao</code>. Ela ainda está sendo feita: só dá para tocar quando acabar. Por isso o <code>on_done</code>, como o do som no 22: quando os dois segundos terminam, o Scena chama <code>gravou</code>, que toca o que você disse e apaga a luz.</p>
         <p><strong>Uma de cada vez.</strong> <code>self.mic.recording</code> (gravando) é verdadeiro enquanto a gravação não acabou. Um R no meio dela não começa outra: o <code>return</code> sai de <code>gravar</code> antes.</p>
       `,
       code: `from scena import *
@@ -134,7 +134,7 @@ run()
     {
       title: "As teclas cantam",
       body: `
-        <p>Em vez de tocar a gravação uma vez, o gravador a guarda: <code>self.som</code> é o som que o piano toca. Ele começa como a nota do 20, <code>"audio/nota.wav"</code>; <code>gravou</code> troca pela gravação.</p>
+        <p>Em vez de tocar a gravação uma vez, o gravador a guarda: <code>self.som</code> é o som que o piano toca. Ele começa como a nota do 22, <code>"audio/nota.wav"</code>; <code>gravou</code> troca pela gravação.</p>
         <p><strong>A tecla toca o som do gravador.</strong> Em <code>tocar</code>, <code>play_sound(gravador.som, pitch=self.nota)</code>. <code>play_sound</code> aceita o nome de um arquivo ou um som gravado, e o <code>pitch=</code> vale para os dois. Grave "lá", e o piano canta: a sua voz nas oito alturas, do A ao K. No K, <code>pitch=2</code>, ela sai duas vezes mais rápida, uma oitava acima.</p>
       `,
       code: `from scena import *
@@ -217,7 +217,7 @@ self.som = self.gravacao.bake(HighPass())`
       title: "O medidor",
       body: `
         <p>Uma barra em cima, à esquerda, mostra quão alto você está falando agora. Ela começa a andar depois do primeiro R, quando o microfone abre.</p>
-        <p><strong>Quão alto.</strong> <code>self.mic.level</code> (nível) diz quão alto está o som que chega ao microfone, de 0 (silêncio) a 1, já suavizado. É o mesmo medidor do som do jogo, <code>audio.level</code> (tutorial 20), mas do que chega ao microfone. Nessa conta, a fala é pequena, poucos centésimos, e a barra mal sairia do lugar. <code>amp_db</code> passa o nível para a escala do ouvido, também de 0 a 1: o silêncio fica perto de 0, a fala no meio, um grito perto de 1.</p>
+        <p><strong>Quão alto.</strong> <code>self.mic.level</code> (nível) diz quão alto está o som que chega ao microfone, de 0 (silêncio) a 1, já suavizado. É o mesmo medidor do som do jogo, <code>audio.level</code> (tutorial 22), mas do que chega ao microfone. Nessa conta, a fala é pequena, poucos centésimos, e a barra mal sairia do lugar. <code>amp_db</code> passa o nível para a escala do ouvido, também de 0 a 1: o silêncio fica perto de 0, a fala no meio, um grito perto de 1.</p>
         <p><strong>Uma fórmula, não uma cópia.</strong> <code>barra["width"] @= lambda: 300 * st.voz</code> é a primeira regra das Fórmulas (09): o <code>=</code> faria a conta uma vez, com <code>st.voz</code> ainda 0; o <code>@=</code> guarda a fórmula, e o Scena a refaz toda vez que <code>st.voz</code> muda.</p>
         <p><strong>A voz numa célula.</strong> O Scena sabe quando refazer uma fórmula porque acompanha o que ela lê: uma célula do <code>st</code>, um campo de um objeto, o <code>mouse</code>, o teclado, e também o nível do microfone, que ele confere uma vez por quadro. Quando o primeiro R abre o microfone, o gravador liga a célula <code>st["voz"]</code> a ele: <code>st["voz"] @= lambda: amp_db(self.mic.level)</code>. São duas fórmulas em fila: a barra segue <code>st.voz</code>, e <code>st.voz</code> segue o microfone. Nenhuma linha copia nada.</p>
         <p><strong>Por que não ligar a barra direto no microfone?</strong> Uma fórmula aprende o que vai seguir na hora em que é ligada. No começo do programa ainda não há microfone: <code>gravador.mic</code> é <code>None</code>, e uma fórmula com <code>gravador.mic.level</code> daria erro. Por isso o <code>@=</code> do microfone fica no <code>gravar</code>, logo depois de abri-lo. A barra se liga a <code>st.voz</code>, que existe desde o começo e vale 0 até o primeiro R. E a voz ganha um nome só, para a barra e para o que vier depois.</p>
@@ -306,7 +306,7 @@ run()
         {
           title: "O que dá para ligar",
           body: `
-            <p>As regras do <code>@=</code> (o que vai à esquerda, entre colchetes; o que a fórmula pode ler; o que não liga, como a pintura e o <code>active</code>) estão nas Fórmulas (09), no passo “O relógio” e na caixa “As regras”. A fonte nova deste tutorial é o nível do microfone (<code>self.mic.level</code>), que o Scena confere uma vez por quadro, como o relógio. Também não liga o <code>scroll</code> das camadas do 15: ele é escrito no <code>update</code>, a cada quadro.</p>
+            <p>As regras do <code>@=</code> (o que vai à esquerda, entre colchetes; o que a fórmula pode ler; o que não liga, como a pintura e o <code>active</code>) estão nas Fórmulas (09), no passo “O relógio” e na caixa “As regras”. A fonte nova deste tutorial é o nível do microfone (<code>self.mic.level</code>), que o Scena confere uma vez por quadro, como o relógio. Também não liga o <code>scroll</code> das camadas do 16: ele é escrito no <code>update</code>, a cada quadro.</p>
             <p>No Guia: <a href="../guide/index.html#reativo-liga">Ligar</a> · <a href="../guide/index.html#reativo-fontes">O que pode ser ligado</a>.</p>
           `,
           try: [

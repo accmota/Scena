@@ -1,4 +1,4 @@
-"""Naves V · Capítulos e sequências — tutorial 22.
+"""Naves V · Capítulos e sequências — tutorial 24.
 
 O jogo de naves do tutorial 08 com capítulos (modos): cada inimigo fica
 na formação, de vez em quando mergulha na direção da nave com o jato

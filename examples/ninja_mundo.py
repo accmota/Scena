@@ -1,6 +1,6 @@
-"""Ninja II · O mundo — tutorial 18.
+"""Ninja II · O mundo — tutorial 19.
 
-O ninja do tutorial 17 num mundo para viver: um buraco com água no meio
+O ninja do tutorial 18 num mundo para viver: um buraco com água no meio
 do chão, uma folga para pular na beirada (recently, o tempo do coiote),
 cinco estrelas para pegar, dois robôs que patrulham, kunais que os
 quebram (um clip que toca uma vez e volta) e três vidas. Cair na água ou

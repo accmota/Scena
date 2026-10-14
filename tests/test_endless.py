@@ -474,7 +474,7 @@ class TestImages(EndlessCase):
 
     def test_height_sizes_every_piece_and_the_slot_follows(self):
         # A band of background art wants the size of the screen; a bare
-        # Sprite(path) is 48 units on its longer side (tutorial 15, 2026-10-09:
+        # Sprite(path) is 48 units on its longer side (tutorial 16, 2026-10-09:
         # one line of Endless gave a row of 48-unit thumbnails).
         e = Endless("pista", [STAR, SHIP], height=120, bottom=0, seed=4)
         keys = sorted(e._live)

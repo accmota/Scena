@@ -1,4 +1,4 @@
-"""Corredor infinito — tutorial 26.
+"""Corredor infinito — tutorial 28.
 
 Um robô corre sozinho por uma pista que nunca acaba, cada vez mais rápido.
 A pista é montada vaga por vaga por um Endless à frente da câmera e destruída

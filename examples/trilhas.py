@@ -1,4 +1,4 @@
-"""Trilhas — tutorial 12, script 1.
+"""Trilhas — tutorial 13.
 
 Um mostruário de trilhas (Track) e de jeitos de percorrê-las com
 move_along: um círculo, um oito com um triângulo que aponta o caminho

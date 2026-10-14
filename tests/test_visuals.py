@@ -1772,7 +1772,7 @@ class TestVisuals(unittest.TestCase):
     def test_metal_color_tints_the_metal(self):
         """``Metal("crimson")`` draws red metal; ``Metal()`` stays chrome.
 
-        Bug (2026-10-09, tutorial 26): the tint never reached the shader, so
+        Bug (2026-10-09, tutorial 28): the tint never reached the shader, so
         ``Metal("gold")`` drew silver though the Guia says ``color`` is the
         metal's color. ``Metal()`` stays chrome on any shape color (every
         published Metal is chrome).

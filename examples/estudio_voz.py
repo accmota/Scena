@@ -1,6 +1,6 @@
-"""Estúdio II · Voz — tutorial 21.
+"""Estúdio II · Voz — tutorial 23.
 
-O piano do tutorial 20 com a sua voz: R abre o microfone (na primeira
+O piano do tutorial 22 com a sua voz: R abre o microfone (na primeira
 vez, o sistema pede licença) e grava dois segundos; depois as teclas
 tocam a gravação em oito alturas. Um medidor mostra quão alto você fala
 (st.voz, ligado ao microfone com @=), uma estrela percorre um oito (Track +

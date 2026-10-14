@@ -193,7 +193,7 @@ class TestMicLevelIsASource(SystemTestCase, unittest.TestCase):
         self.assertAlmostEqual(bar.width, 300 * mic.level)
 
     def test_source_less_lambda_through_an_entity(self):
-        """Tutorial 21 run from a string: ``lambda: amp_db(self.mic.level)``
+        """Tutorial 23 run from a string: ``lambda: amp_db(self.mic.level)``
         inside a method found only ``self`` (the Entity) and froze."""
         mic = self.mic
         ns = {"mic": mic}

@@ -18,11 +18,11 @@ Bug classes guarded (catalogue: Testing Design, TU):
   ``test_tutorials.TestOneShotClipPlaysOnce``): the dying ninja played
   ``"morto"`` in mid air, and asked again every frame it would loop. It falls
   to the ground first, then holds the clip's last cell.
-* **The moving platform** (tutorial 25, "O elevador"): the ninja rides the
+* **The moving platform** (tutorial 27, "O elevador"): the ninja rides the
   elevator up and down with its feet on it every frame, and reaches the star
   only the elevator gets to. A fall into the water on the last life sinks
   instead of sending the ninja back to the start.
-* **Mouse input no step run gives** (tutorial 11, Script 3; tutorial 20):
+* **Mouse input no step run gives** (tutorial 11, Script 3; tutorial 22):
   the canvas callbacks (a click lights a star, a drag is not a click, the
   wheel sets the size, a double click clears the stars its own clicks lit)
   and a key's ``on_click`` with the equalizer rising under the note.
@@ -222,7 +222,7 @@ class TestCeuEstreladoMouseOnTheCanvas(unittest.TestCase):
 
 
 class TestPianoClickAndEqualizer(unittest.TestCase):
-    """Tutorial 20: a click on a key plays it (``on_click`` in the class), and
+    """Tutorial 22: a click on a key plays it (``on_click`` in the class), and
     the equalizer's bars rise with the note."""
 
     def test_a_clicked_key_lights_and_the_bars_rise(self):

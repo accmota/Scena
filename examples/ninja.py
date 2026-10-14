@@ -1,4 +1,4 @@
-"""Ninja — tutorial 17.
+"""Ninja — tutorial 18.
 
 Um ninja num jogo de plataforma: a gravidade escrita à mão (uma velocidade
 que cresce para baixo a cada quadro), o chão e as plataformas que seguram

@@ -228,7 +228,7 @@ run()
         <p>Entre as pontas, o <code>remap</code> anda reto: o meio de uma régua cai no meio da outra. Com <code>modifier=</code> (modificador), o caminho entre as pontas <strong>curva</strong>. As pontas não mudam; muda o jeito de ir de uma à outra.</p>
         <p>Cada quadrado desenha uma curva. A régua de origem é a largura do quadrado (de 0 a 1); a de destino, a altura (de 0 a 200). Os pontinhos azuis são 41 contas do <code>remap</code>, de <code>t = 0</code> a <code>t = 1</code>, de 0.025 em 0.025 (<code>i / 40</code>). A bola dourada usa o mouse: mexa-o da esquerda para a direita e veja as seis bolas fazerem o mesmo caminho em ritmos diferentes.</p>
         <p><strong>Os nomes.</strong> <code>"linear"</code> é a reta (o mesmo que não passar <code>modifier=</code>). <code>"ease_in"</code> (entrar devagar) começa lento e acelera; <code>"ease_out"</code> (sair devagar) começa rápido e freia; <code>"ease_in_out"</code> faz os dois. <code>"bounce"</code> (quicar) bate no fim e volta, como uma bola no chão; <code>"elastic"</code> passa do fim e balança, como uma mola.</p>
-        <p>São os mesmos nomes do <code>ease=</code> dos movimentos com tempo (<code>move_to(…, time=1, ease="bounce")</code>, a queda da peça no 19).</p>
+        <p>São os mesmos nomes do <code>ease=</code> dos movimentos com tempo (<code>move_to(…, time=1, ease="bounce")</code>, a queda da peça no 21).</p>
       `,
       code: `from scena import *
 
@@ -342,7 +342,7 @@ run()
           title: "chase e lerp",
           body: `
             <p>O <code>chase</code> é um <code>lerp</code> com um <code>t</code> escolhido para você. A cada quadro, ele anda uma fração do caminho que falta; a fração depende do <code>rate</code> e do tempo do quadro (<code>dt</code>). Por isso o ritmo é o mesmo num computador rápido e num lento: com quadros mais curtos, cada passo é menor.</p>
-            <p>Como o <code>lerp</code>, ele aceita números, tuplas, pontos, <code>Vec2</code> e cores. Uma barra de vida que desce suave: <code>barra.width = chase(barra.width, vida, rate=8)</code>. Uma câmera que segue o herói: <code>canvas.pan_to(chase(…, heroi.center, rate=6))</code> (o 24 faz assim).</p>
+            <p>Como o <code>lerp</code>, ele aceita números, tuplas, pontos, <code>Vec2</code> e cores. Uma barra de vida que desce suave: <code>barra.width = chase(barra.width, vida, rate=8)</code>. Uma câmera que segue o herói: <code>canvas.pan_to(chase(…, heroi.center, rate=6))</code> (o 26 faz assim).</p>
             <p>No Guia: <a href="../guide/index.html#util-chase">chase</a>.</p>
           `,
           try: [
@@ -439,7 +439,7 @@ run()
       fresh: true,
       part: "amp_db",
       body: `
-        <p>O último ajudante é do som. O <strong>nível</strong> de um som (quão alto ele está agora) é um número de 0 (silêncio) a 1 (o máximo): <code>audio.level</code> para tudo o que toca, <code>mic.level</code> para o microfone (o 21 usa). O ouvido não escuta esse número em linha reta: um som com nível 0.01 já se ouve bem, e numa barra ele seria um risco de 1% da altura.</p>
+        <p>O último ajudante é do som. O <strong>nível</strong> de um som (quão alto ele está agora) é um número de 0 (silêncio) a 1 (o máximo): <code>audio.level</code> para tudo o que toca, <code>mic.level</code> para o microfone (o 23 usa). O ouvido não escuta esse número em linha reta: um som com nível 0.01 já se ouve bem, e numa barra ele seria um risco de 1% da altura.</p>
         <p><code>amp_db</code> (o nome vem de amplitude e decibel, a unidade de quão alto é um som) converte o nível para a escala do ouvido, também de 0 a 1, pronta para a altura de uma barra. Os sons baixos ganham espaço: <code>amp_db(0.01)</code> é cerca de 0.33, um terço da barra.</p>
         <p>O programa não toca som: o mouse faz o papel do nível (<code>mouse.x / 1000</code>, de 0 a 1). A barra da esquerda mostra o nível como ele é; a da direita, depois do <code>amp_db</code>. Mexa o mouse perto da borda esquerda: a primeira barra quase some, a segunda já está alta. Cada barra é um <code>Rect</code> por dois cantos (<code>p1</code> embaixo, <code>p2</code> em cima, numa <code>lambda</code>).</p>
       `,

@@ -1,6 +1,6 @@
-"""Naves VI · Atos — tutorial 23.
+"""Naves VI · Atos — tutorial 25.
 
-O jogo de naves do tutorial 22 dividido em atos: um título com um botão
+O jogo de naves do tutorial 24 dividido em atos: um título com um botão
 JOGAR, a fase e o fim de jogo. Recomeçar é trocar de ato, sem código de
 limpeza; os pontos, as vidas e o recorde ficam no st, que atravessa os
 atos. A fase tem dois capítulos (modos async): a frota, até o grupo

@@ -14,14 +14,14 @@
 <script src="../../assets/tutorial/tutorial.js"></script>
 <script>
 Tutorial.mount({
-  n: "17",
+  n: "18",
   title: "Ninja",
   steps: [
     {
       title: "O chão e as plataformas",
       body: `
         <p>Outro jogo: um ninja que anda, pula e cai. É um jogo de plataforma, e este tutorial é sobre o que todo jogo de plataforma precisa: <strong>gravidade</strong> e <strong>chão</strong>. Primeiro, o cenário.</p>
-        <p><strong>O fundo.</strong> Como no 14, o espaço do jogo tem o tamanho da imagem do fundo: <code>init(width=1000, height=750)</code>, e o <code>Wallpaper</code> com o arquivo cobre a tela inteira.</p>
+        <p><strong>O fundo.</strong> Como no 15, o espaço do jogo tem o tamanho da imagem do fundo: <code>init(width=1000, height=750)</code>, e o <code>Wallpaper</code> com o arquivo cobre a tela inteira.</p>
         <p><strong>O chão em peças.</strong> A arte do chão vem em <strong>peças</strong> (<em>tiles</em>, ladrilhos): quadrados de 128 pixels, desenhados para se encaixar lado a lado. O <code>for</code> põe 13 peças de 80 de altura, uma ao lado da outra: os centros vão de x = 40 a x = 1000, de 80 em 80. Todas entram no grupo <code>chao</code>.</p>
         <p><strong>Plataformas.</strong> Uma plataforma solta no ar tem três peças: a ponta esquerda (<code>13.png</code>), o meio (<code>14.png</code>) e a ponta direita (<code>15.png</code>). A função <code>plataforma(x, y)</code> monta as três em volta do ponto (x, y); duas chamadas, duas plataformas. Elas também vão para o grupo <code>chao</code>: para o ninja, tudo isso é chão.</p>
         <p>O ninja, por enquanto, é um sprite parado. O chão termina em y = 80, e o centro do ninja está 44 acima (metade da altura dele): de pé.</p>
@@ -53,7 +53,7 @@ run()
     {
       title: "Gravidade",
       body: `
-        <p>O ninja vai ganhar comportamento, então vira uma classe, como o <code>Aviao</code> do 14: <code>Heroi</code>, com a imagem e a altura na linha da classe. Ele começa no alto (y = 400), para a queda aparecer.</p>
+        <p>O ninja vai ganhar comportamento, então vira uma classe, como o <code>Aviao</code> do 15: <code>Heroi</code>, com a imagem e a altura na linha da classe. Ele começa no alto (y = 400), para a queda aparecer.</p>
         <p><strong>A velocidade.</strong> Como a bola do 10, o ninja tem uma <code>vel</code>: uma seta que diz quanto ele anda por segundo. Ela nasce parada, <code>Vec2(0, 0)</code>, no <code>setup</code>. A cada quadro, o <code>on_update</code> anda o pedaço da seta que cabe naquele quadro: <code>vel.y * dt</code>.</p>
         <p><strong>A gravidade.</strong> Uma linha: <code>self.vel.y -= 2200 * dt</code>. A cada segundo, a velocidade para baixo cresce 2200; a cada quadro (um sexagésimo de segundo), um pouco mais de 36. Por isso a queda começa devagar e vai acelerando. O Scena não tem uma gravidade pronta: são estas duas linhas, e o número é seu.</p>
         <p><strong>Um pulo é uma velocidade.</strong> A mesma linha explica o pulo, que vem daqui a pouco: dar ao ninja 900 de <code>vel.y</code>, para cima. A gravidade gasta essa velocidade aos poucos; quando ela chega a zero, o ninja está no alto; daí em diante, a mesma conta a faz crescer para baixo, e ele desce.</p>
@@ -338,7 +338,7 @@ self.vel.y = 1100`
       title: "Correr e pular de verdade",
       example: "ninja.py",
       body: `
-        <p>O ninja tem dez desenhos para cada movimento, cada um num arquivo: <code>Idle__000.png</code> a <code>Idle__009.png</code> (parado), <code>Run__000.png</code> a <code>Run__009.png</code> (correndo), <code>Jump__000.png</code> a <code>Jump__009.png</code> (pulando). No 14, o avião tinha três arquivos, escritos um por um; aqui são trinta.</p>
+        <p>O ninja tem dez desenhos para cada movimento, cada um num arquivo: <code>Idle__000.png</code> a <code>Idle__009.png</code> (parado), <code>Run__000.png</code> a <code>Run__009.png</code> (correndo), <code>Jump__000.png</code> a <code>Jump__009.png</code> (pulando). No 15, o avião tinha três arquivos, escritos um por um; aqui são trinta.</p>
         <p><strong>Um padrão.</strong> O <code>*</code> (qualquer coisa no lugar) pega todos os arquivos que casam, em ordem: <code>"ninja/Idle__*.png"</code> são os dez do parado. <code>strip</code> (faixa) acrescenta à folha uma animação: o nome do clip, os arquivos e o <code>fps</code>. A folha começa vazia, <code>Sheet(…)</code> sem arquivo, e ganha uma linha por animação. O resto do nome vale letra por letra: <code>"ninja/Jump__*.png"</code> não pega <code>Jump_Throw__000.png</code> (pular jogando).</p>
         <p><strong>Tamanhos diferentes.</strong> Os desenhos não têm o mesmo tamanho: o parado tem 439 pixels de altura, o correndo 458, o pulando 483, e as larguras mudam mais ainda. Dois ajustes na folha resolvem. <code>pixel_size=0.2</code> (tamanho do pixel): cada pixel do desenho vale 0,2 no jogo, então o parado fica com 88 e o pulando com 97, cada desenho no seu tamanho de verdade; o <code>height=</code> sai da classe. <code>anchor="bottom"</code> (âncora embaixo): o <code>center</code> do ninja passa a ser o meio da base de cada desenho, os pés. Trocar de desenho não tira o ninja do chão.</p>
 
