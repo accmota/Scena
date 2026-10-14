@@ -56,7 +56,7 @@ from scena.collision import (
     _snapshot_shape_uncached,
 )
 from scena.shapes import (
-    Circle, Ellipse, EquilateralTriangle, Line, Point, Polygon, Rect,
+    Circle, Ellipse, Triangle, Line, Point, Polygon, Rect,
     RegularPolygon, Square,
 )
 from scena.track import Track
@@ -1979,11 +1979,11 @@ class TestSnapshot(CollisionTestCase):
             Polygon._collision_pose_extra,
         )
         self.assertIsNot(
-            EquilateralTriangle._collision_pose_extra,
+            Triangle._collision_pose_extra,
             Polygon._collision_pose_extra,
         )
         self.assertTrue(callable(RegularPolygon._collision_pose_extra))
-        self.assertTrue(callable(EquilateralTriangle._collision_pose_extra))
+        self.assertTrue(callable(Triangle._collision_pose_extra))
 
     def test_irregular_polygon_vertex_move_rebuilds_cached_poly(self):
         poly = self.track(Polygon(points=[
@@ -2071,7 +2071,7 @@ class TestSnapshot(CollisionTestCase):
     def test_equilateral_triangle_linked_rotation_rebuilds_cached_poly(self):
         from scena.state import Attribute
 
-        tri = self.track(EquilateralTriangle(center=self.at(0, 0), radius=50, angle=0))
+        tri = self.track(Triangle(center=self.at(0, 0), radius=50, angle=0))
         tri.collidable = True
         owner = tri._collider
         p0 = snapshot_shape(tri, cache_owner=owner)[0]

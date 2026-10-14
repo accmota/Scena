@@ -418,13 +418,14 @@ class TestNamedLeaks(unittest.TestCase):
             src.destroy()
             c.destroy()
 
-    def test_equilateral_triangle_does_not_publish_n(self):
+    def test_triangle_does_not_publish_n(self):
         import inspect
-        self.assertNotIn("n", inspect.signature(scena.EquilateralTriangle).parameters)
+        params = inspect.signature(scena.Triangle).parameters
+        self.assertNotIn("n", params)
+        self.assertEqual(params["base_ratio"].default, 1.0)
         with fresh_world():
-            t = scena.EquilateralTriangle(center=(0, 0), radius=5, n=3)    # still accepted
-            self.assertEqual(len(t.points), 3)
-            t.destroy()
+            with self.assertRaises(TypeError):
+                scena.Triangle(center=(0, 0), radius=5, n=3)   # 0.9.0: n= is refused
 
 
 # Verbs whose one required argument is a point (``pan_by((dx, dy))``).

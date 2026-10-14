@@ -603,7 +603,7 @@ def _is_circle_like(shape) -> bool:
     """True only for ``Circle``.
 
     Do not duck-type on ``center`` + ``radius``: ``RegularPolygon`` /
-    ``EquilateralTriangle`` also expose a circumradius, but must use the
+    ``Triangle`` also expose a ``radius``, but must use the
     best-effort silhouette path (not ``drawCircle``). ``Ellipse`` is a
     separate ``_forcefield_kind`` branch (oval + angle), not circle-like.
     """

@@ -52,7 +52,7 @@ for i, spec in enumerate(specs):
     elif kind == "circle":
         shp = Circle(center=(x, y), radius=spec["size"])
     else:  # triangle
-        shp = EquilateralTriangle(center=(x, y), radius=spec["size"], angle=spec["angle0"])
+        shp = Triangle(center=(x, y), radius=spec["size"], angle=spec["angle0"])
         rotating.append((shp, spec))
 
     shp.fill = spec["color"]

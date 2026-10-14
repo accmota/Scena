@@ -44,7 +44,7 @@ from hypothesis.stateful import (
 )
 
 from scena import (
-    Box, Circle, Ellipse, Entity, EquilateralTriangle, Line, Point, Polygon, Rect,
+    Box, Circle, Ellipse, Entity, Triangle, Line, Point, Polygon, Rect,
     RegularPolygon, Square, Text, after, chance, every, keyp,
 )
 from scena.state import (
@@ -64,7 +64,7 @@ FACTORIES = {
     "Square": lambda: Square(center=(0, 0), length=8),
     "Ellipse": lambda: Ellipse(center=(0, 0), width=10, height=6),
     "RegularPolygon": lambda: RegularPolygon(center=(0, 0), radius=5, n=5),
-    "EquilateralTriangle": lambda: EquilateralTriangle(center=(0, 0), side=6),
+    "Triangle": lambda: Triangle(center=(0, 0), side=6),
 }
 
 # (kind, slot) pairs whose value is a magnitude and is Defining in the model
@@ -79,7 +79,7 @@ MAGNITUDE_SLOTS = [
     ("Ellipse", "width"),
     ("Ellipse", "height"),
     ("RegularPolygon", "radius"),
-    ("EquilateralTriangle", "side"),
+    ("Triangle", "side"),
 ]
 
 SIGNED_SLOTS = [
@@ -463,7 +463,7 @@ def _valid_value(param):
     return None
 
 
-CONSTRUCTORS = [Circle, Rect, Square, Ellipse, Line, RegularPolygon, EquilateralTriangle]
+CONSTRUCTORS = [Circle, Rect, Square, Ellipse, Line, RegularPolygon, Triangle]
 
 
 def _fuzzable_params(cls):

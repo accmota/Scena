@@ -131,7 +131,7 @@ for row in range(ROWS):
                 n=6, center=(cx, cy), radius=22, angle=rng.uniform(0, 60),
             ).set_color(cname))
         elif kind == 6:
-            driver = _count(EquilateralTriangle(
+            driver = _count(Triangle(
                 center=(cx, cy), side=40, angle=rng.uniform(0, 60),
             ).set_color(cname))
         else:

@@ -113,7 +113,7 @@ def observe(obj, warm_cache: bool) -> dict:
         else:
             prims = _uncached_prims(obj)
         out["~prims"] = _prim_rows(prims)
-    if type(obj).__name__ in ("Polygon", "RegularPolygon", "EquilateralTriangle", "Rect", "Square"):
+    if type(obj).__name__ in ("Polygon", "RegularPolygon", "Triangle", "Rect", "Square"):
         from scena.geom import _outline_verts
         out["~outline"] = G.safe(lambda: G.as_set(list(_outline_verts(obj) or ()), 5))
     if type(obj).__name__ in ("Track", "_ReversedTrack"):

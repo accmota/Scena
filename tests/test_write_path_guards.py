@@ -91,7 +91,7 @@ class TestRawFieldStoresAreAllowlisted(unittest.TestCase):
         ("shapes.py", "Point._takein_impl"): "the pull's raw store (the caller notifies)",
         ("shapes.py", "_takein_xy_float"): "the A1 pose fast path itself (gated: TestPoseFastPathsAreGated)",
         ("shapes.py", "Circle.rotate_by"): "A1 fast turn, only when not _requires_pull_invalidate()",
-        ("shapes.py", "RegularPolygon.rotate_by"): "A1 fast turn, only when not _requires_pull_invalidate()",
+        ("shapes.py", "_RadialPolygon.rotate_by"): "A1 fast turn, only when not _requires_pull_invalidate()",
         ("shapes.py", "_DerivedRotationRoute._write_field"): "the model's own refresh of a derived heading, inside the update batch",
         ("state.py", "Container._write_field"): "the base write path (after the slot's coercion)",
         ("state.py", "ContainerSlot.__get__"): "lazy part creation",
@@ -301,14 +301,14 @@ def _derivate_names_by_class():
         for name, slot in obj._field_slots().items():
             if obj._field_is_derivate(name, slot):
                 names.add(name)
-        if type(obj).__name__ == "RegularPolygon":
+        if type(obj).__name__ in ("RegularPolygon", "Triangle"):
             names.add("points")         # lazy: builds a Point per vertex
     return out
 
 
 def cold_reader_violations() -> dict:
     derived = _derivate_names_by_class()
-    # A subclass inherits its parents' rule (EquilateralTriangle reads like RegularPolygon).
+    # A subclass inherits its parents' rule (Triangle reads like RegularPolygon).
     import scena
     out = {}
     for fname, qual, fn in _functions():
@@ -317,7 +317,8 @@ def cold_reader_violations() -> dict:
         cls_name, meth = qual.split(".")[0], qual.split(".")[-1]
         if not _COLD_METHODS.match(meth):
             continue
-        cls = getattr(scena, cls_name, None)
+        # Private bases (``_RadialPolygon``) live in scena.shapes only.
+        cls = getattr(scena, cls_name, None) or getattr(scena.shapes, cls_name, None)
         names = set()
         for c in (cls.__mro__ if isinstance(cls, type) else ()):
             names |= derived.get(c.__name__, set())

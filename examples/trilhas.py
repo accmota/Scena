@@ -24,7 +24,7 @@ bola = Circle(radius=14, color="coral")
 bola.move_along(roda, time=4, loops="forever")
 
 oito = Track.eight(width=300, height=120, center=(500, 540), color="dim gray")
-carro = EquilateralTriangle(radius=16, color="gold")
+carro = Triangle(radius=16, color="gold")
 carro.move_along(oito, time=6, loops="forever", face=True)
 
 estrela = Track.star(points=5, radius=110, center=(830, 520), color="dim gray")

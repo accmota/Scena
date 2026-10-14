@@ -336,7 +336,7 @@ def _make_orbiter(i: int, *, cx: float, cy: float, r: float, ang0: float):
     elif kind == 1:
         shp = Square(center=(x, y), length=12 + (i % 4), angle=i * 11)
     elif kind == 2:
-        shp = EquilateralTriangle(center=(x, y), radius=10, angle=i * 7)
+        shp = Triangle(center=(x, y), radius=10, angle=i * 7)
     elif kind == 3:
         shp = RegularPolygon(n=5, center=(x, y), radius=9, angle=i * 9)
     else:
@@ -572,7 +572,7 @@ if WANT_HEROES:
         kind="bob", amp=6.0, base_y=H * 0.62, speed=1.3,
     )
     _hero(
-        EquilateralTriangle(center=(W * 0.34, H * 0.88), radius=22, angle=0),
+        Triangle(center=(W * 0.34, H * 0.88), radius=22, angle=0),
         Extrude(depth=18, layers=4),
         "Extrude",
         kind="spin", spin=28.0,
@@ -643,7 +643,7 @@ if WANT_HEROES_MASS:
         elif kind == 1:
             shp = Square(center=(x, y), length=28 + (i % 4), angle=i * 9)
         elif kind == 2:
-            shp = EquilateralTriangle(center=(x, y), radius=18, angle=i * 7)
+            shp = Triangle(center=(x, y), radius=18, angle=i * 7)
         else:
             shp = RegularPolygon(n=5 + (i % 3), center=(x, y), radius=16, angle=i * 5)
         try:

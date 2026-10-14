@@ -3,7 +3,7 @@
 "seed": 600000293,
 "subjects": [
 {
-"kind": "EquilateralTriangle vertex_side",
+"kind": "Triangle vertex_side",
 "base": "names_crossed",
 "link": "none"
 },

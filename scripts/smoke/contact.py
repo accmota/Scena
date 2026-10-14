@@ -98,7 +98,7 @@ meteor = Sprite(
 probe_sq = Square(
     center=(90, 140), length=44, angle=18, group="mover",
 ).set_color("gold")
-probe_tri = EquilateralTriangle(
+probe_tri = Triangle(
     center=(180, 140), radius=30, angle=-20, group="mover",
 ).set_color("hot pink")
 

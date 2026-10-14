@@ -122,8 +122,8 @@ CORE_SYMBOLS = [
      "anchor": "shape-polygon", "oneLiner": "Polígono livre. Vértices não mudam depois."},
     {"name": "RegularPolygon", "kind": "class", "chapter": "desenhar", "section": "desenhar-shapes",
      "anchor": "shape-regular", "oneLiner": "Polígono regular. n= não muda depois."},
-    {"name": "EquilateralTriangle", "kind": "class", "chapter": "desenhar", "section": "desenhar-shapes",
-     "anchor": "shape-triangle", "oneLiner": "Triângulo equilátero. Sempre n=3."},
+    {"name": "Triangle", "kind": "class", "chapter": "desenhar", "section": "desenhar-shapes",
+     "anchor": "shape-triangle", "oneLiner": "Triângulo isósceles; equilátero por padrão (base_ratio=1)."},
     {"name": "Point", "kind": "class", "chapter": "desenhar", "section": "desenhar-shapes",
      "anchor": "shape-point", "oneLiner": "Ponto. Point(pt) copia — não acompanha a fonte."},
     {"name": "Anchor", "kind": "class", "chapter": "desenhar", "section": "desenhar-shapes",
@@ -1666,8 +1666,9 @@ def check_parameter_rows(src: str | None = None) -> list[str]:
 _ROW_SHARED_ALL = frozenset({"layer", "group"})
 _ROW_SHARED_SHAPE = frozenset({"color", "visual", "line_width"})
 _ROW_SHARED_WIDGET = frozenset({"top_left"})
-# Keywords a class takes only to refuse them with the fix (``n=`` on the triangle).
-_ROW_REFUSED = {"EquilateralTriangle": frozenset({"n"})}
+# Keywords a class publishes only to refuse them with the fix (none today:
+# ``Triangle`` refuses ``n=`` without publishing it).
+_ROW_REFUSED: dict = {}
 
 
 def _row_shared(scena, name: str, obj) -> frozenset:
@@ -1924,7 +1925,7 @@ _ACCESS_SECTION_OBJECTS = {
     "shape-ellipse": ("Ellipse(center=(0, 0), width=10, height=6)",),
     "shape-polygon": ("Polygon(points=[(0, 0), (10, 0), (0, 10)])",),
     "shape-regular": ("RegularPolygon(n=5, center=(0, 0), radius=10)",),
-    "shape-triangle": ("EquilateralTriangle(center=(0, 0), radius=10)",),
+    "shape-triangle": ("Triangle(center=(0, 0), radius=10)",),
     "shape-point": ("Point(0, 0)",),
     "desenhar-track": ("Track.circle(radius=50)", "Track(points=[(0, 0), (50, 0), (50, 50)])"),
     "desenhar-text": ("Text('hi')", "Text('hi', top_left=(10, 10))"),
@@ -1969,7 +1970,7 @@ def check_access_column(src: str | None = None) -> list[str]:
         "Circle(center=(0, 0), radius=10)", "Rect(center=(0, 0), width=10, height=10)",
         "Square(center=(0, 0), length=10)", "Line(p1=(0, 0), p2=(10, 0))",
         "Ellipse(center=(0, 0), width=10, height=6)", "Polygon(points=[(0, 0), (10, 0), (0, 10)])",
-        "RegularPolygon(n=5, center=(0, 0), radius=10)", "EquilateralTriangle(center=(0, 0), radius=10)",
+        "RegularPolygon(n=5, center=(0, 0), radius=10)", "Triangle(center=(0, 0), radius=10)",
         "Point(0, 0)", "Sprite('x.png')", "Track.circle(radius=50)", "Text('hi')", "Entity()",
         "History(max_points=3)", "Contrail(max_points=3)", "Box(center=(0, 0), width=10, height=10)",
         "Color('red')", "Gradient('sunset')", "Palette('plasma')", "Vec2(1, 2)",

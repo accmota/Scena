@@ -28,7 +28,7 @@ from hypothesis import strategies as hst  # noqa: E402
 from scena.shapes import (
     Point, Anchor, Line, LineModel, Rect, RectModel, Square, Circle, CircleModel,
     Ellipse, EllipseModel, Polygon, RegularPolygon, RegularPolygonModel,
-    EquilateralTriangle, get_xy, distance, heading, middle_point, nearest,
+    Triangle, get_xy, distance, heading, middle_point, nearest,
 )
 from scena.state import LinkedAttributeError, DerivedAttributeError, Attribute
 from scena.scenamath import Vec2
@@ -963,7 +963,7 @@ class TestShowPoints(ShapeTestCase):
         sq.center.move_to(40, 40)
         self.assertPointAlmost(sq.top_left, 25, 55)
 
-        tri = EquilateralTriangle(vertex=(0, 0), side=60, angle=0)
+        tri = Triangle(vertex=(0, 0), side=60, angle=0)
         tri.show_handles()
         tri.show_points()
         tri.no_points()
@@ -1005,7 +1005,7 @@ class TestShowPoints(ShapeTestCase):
         """center (handle) and centroid must not both paint at the same locus."""
         from scena.canvas import ScenaCanvas
         from scena.shapes import get_xy
-        tri = EquilateralTriangle(center=(50, 60), radius=20)
+        tri = Triangle(center=(50, 60), radius=20)
         tri.show_handles()
         tri.show_points()
         top = ScenaCanvas.get_current().registry.layers['top']._objects
@@ -2860,35 +2860,37 @@ class TestRegularPolygon(ShapeTestCase):
 
 
 # ---------------------------------------------------------------------------
-# EquilateralTriangle
+# Triangle
 # ---------------------------------------------------------------------------
-class TestEquilateralTriangle(ShapeTestCase):
+class TestTriangleEquilateralDefault(ShapeTestCase):
     def test_always_three_vertices(self):
-        tri = EquilateralTriangle(center=(0, 0), side=10)
+        tri = Triangle(center=(0, 0), side=10)
         self.assertEqual(len(tri.points), 3)
 
     def test_default_construction(self):
         from scena.shapes import _default_pose
         (cx, cy), unit = _default_pose()
-        tri = EquilateralTriangle()
+        tri = Triangle()
         self.assertEqual(len(tri.points), 3)
         self.assertEqual(tri.model, RegularPolygonModel.CENTER_RADIUS)
         self.assertPointAlmost(tri.center, cx, cy)
         self.assertNumAlmost(tri.radius, unit)
 
-    def test_conflicting_n_raises(self):
-        with self.assertRaises(ValueError):
-            EquilateralTriangle(n=4, center=(0, 0), side=10)
+    def test_any_n_raises_with_the_fix(self):
+        for n in (3, 4, 3.9):
+            with self.assertRaises(TypeError) as cm:
+                Triangle(n=n, center=(0, 0), side=10)
+            self.assertIn("RegularPolygon(n=", str(cm.exception))
 
     def test_side_length_between_vertices(self):
-        tri = EquilateralTriangle(center=(0, 0), side=10, angle=0.0)
+        tri = Triangle(center=(0, 0), side=10, angle=0.0)
         p0, p1 = tri.points[0], tri.points[1]
         d = math.hypot(p1.x - p0.x, p1.y - p0.y)
         self.assertAlmostEqual(d, 10.0, places=5)
 
     def test_rotation_zero_points_right(self):
         """rotation is where the apex points, like every heading: 0 → +x."""
-        tri = EquilateralTriangle(center=(0, 0), radius=10, angle=0.0)
+        tri = Triangle(center=(0, 0), radius=10, angle=0.0)
         self.assertPointAlmost(tri.points[0], 10, 0, places=5)
         same = RegularPolygon(center=(0, 0), radius=10, n=3, angle=0.0)
         for a, b in zip(tri.points, same.points):
@@ -2896,7 +2898,7 @@ class TestEquilateralTriangle(ShapeTestCase):
 
     def test_rotation_ninety_has_flat_base(self):
         """angle=90 → the upright pose: apex on +y, base parallel to the x-axis."""
-        tri = EquilateralTriangle(center=(0, 0), radius=10, angle=90.0)
+        tri = Triangle(center=(0, 0), radius=10, angle=90.0)
         ys = sorted(v.y for v in tri.points)
         self.assertAlmostEqual(ys[0], ys[1], places=5)  # two base verts share y
         self.assertGreater(ys[2], ys[0])  # apex above base
@@ -2906,20 +2908,20 @@ class TestEquilateralTriangle(ShapeTestCase):
         self.assertPointAlmost(tri.points[0], 0, 10, places=5)
 
     def test_face_motion_flies_apex_first(self):
-        tri = EquilateralTriangle(center=(0, 0), radius=10)
+        tri = Triangle(center=(0, 0), radius=10)
         tri.move_by(30, 30, face=True)
         cx, cy = tri._center_xy()
         apex = tri.points[0]
         self.assertAlmostEqual(math.degrees(math.atan2(apex.y - cy, apex.x - cx)), 45.0, places=5)
 
     def test_vertex_side_model(self):
-        tri = EquilateralTriangle(vertex=(0, 0), side=10, angle=0.0)
+        tri = Triangle(vertex=(0, 0), side=10, angle=0.0)
         self.assertPointAlmost(tri.points[0], 0, 0, places=5)
         # Apex at vertex, pointing right; the center sits behind it.
         self.assertPointAlmost(tri.center, -tri.radius, 0, places=5)
 
     def test_inherits_regular_polygon_transforms(self):
-        tri = EquilateralTriangle(center=(0, 0), side=10)
+        tri = Triangle(center=(0, 0), side=10)
         tri.move_by(5, 5)
         self.assertPointAlmost(tri.center, 5, 5)
         tri.scale_by(2)
@@ -2950,7 +2952,7 @@ class TestMoveToAnchor(ShapeTestCase):
         self.assertGreater(math.hypot(poly.vertex.x - 100.0, poly.vertex.y - 80.0), 1.0)
 
     def test_equilateral_vertex_side_move_to_places_center(self):
-        tri = EquilateralTriangle(vertex=(0, 0), side=60, angle=0.0)
+        tri = Triangle(vertex=(0, 0), side=60, angle=0.0)
         self.assertGreater(abs(tri._center_xy()[0]), 1.0)
         tri.move_to(100, 100)
         cx, cy = tri._center_xy()
@@ -3241,7 +3243,9 @@ class TestShapeClone(ShapeTestCase):
             "Ellipse": lambda: Ellipse(center=(100, 100), width=20, height=10),
             "Polygon": lambda: Polygon(points=[(90, 90), (110, 90), (100, 110)]),
             "RegularPolygon": lambda: RegularPolygon(center=(100, 100), radius=10, n=5),
-            "EquilateralTriangle": lambda: EquilateralTriangle(center=(100, 100), radius=10),
+            "Triangle": lambda: Triangle(center=(100, 100), radius=10),
+            "Triangle base_ratio": lambda: Triangle(center=(100, 100), radius=10,
+                                                    base_ratio=0.6),
             "Line": lambda: Line(p1=(90, 100), p2=(110, 100)),
             "Point": lambda: Point(100, 100),
             "Anchor": lambda: Anchor(100, 100),
@@ -3446,7 +3450,7 @@ class TestShapeClassDefaults(ShapeTestCase):
         for build in (
             lambda: Rect(center=(0, 0), width=10, height=10, rotation=30),
             lambda: Square(center=(0, 0), length=10, rotation=15),
-            lambda: EquilateralTriangle(center=(0, 0), radius=10, rotation=0),
+            lambda: Triangle(center=(0, 0), radius=10, rotation=0),
             lambda: Ellipse(center=(0, 0), width=10, height=4, rotation=5),
             lambda: Line(center=(0, 0), length=10, rotation=5),
             lambda: Circle(center=(0, 0), radius=4, rotation=5),
@@ -3816,11 +3820,9 @@ class TestGeometryEdgeFixes(ShapeTestCase):
             RegularPolygon(n=5.9, center=(0, 0), radius=10)
         with self.assertRaises(ValueError):
             RegularPolygon(n=2, center=(0, 0), radius=10)
-        with self.assertRaises(ValueError):
-            EquilateralTriangle(n=3.9, center=(0, 0), side=10)
-        with self.assertRaises(ValueError):
-            EquilateralTriangle(n=4, center=(0, 0), side=10)
-        tri = EquilateralTriangle(center=(0, 0), side=10)
+        with self.assertRaises(TypeError):
+            Triangle(n=3.9, center=(0, 0), side=10)
+        tri = Triangle(center=(0, 0), side=10)
         self.assertEqual(tri._n, 3)
 
     def test_regpoly_non_finite_radius_rejected(self):

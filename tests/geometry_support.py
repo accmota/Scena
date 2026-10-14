@@ -21,7 +21,7 @@ import warnings
 from typing import Callable, Dict, List, Optional, Tuple
 
 from scena import (
-    Anchor, Box, Circle, Ellipse, EquilateralTriangle, Line, Point, Polygon, Rect,
+    Anchor, Box, Circle, Ellipse, Triangle, Line, Point, Polygon, Rect,
     RegularPolygon, Sprite, Square, Svg, Text, Track, clock,
 )
 from scena.process import reset_process_scheduler, tick_processes
@@ -112,9 +112,14 @@ KINDS: Dict[str, Callable] = {
     "RegularPolygon center_radius": lambda p: RegularPolygon(center=(p["x"], p["y"]), radius=6 * p["s"], n=5, angle=p["r"]),
     "RegularPolygon center_side": lambda p: RegularPolygon(center=(p["x"], p["y"]), side=6 * p["s"], n=4, angle=p["r"]),
     "RegularPolygon vertex_side": lambda p: RegularPolygon(vertex=(p["x"], p["y"]), side=6 * p["s"], n=6, angle=p["r"]),
-    "EquilateralTriangle center_radius": lambda p: EquilateralTriangle(center=(p["x"], p["y"]), radius=6 * p["s"], angle=p["r"]),
-    "EquilateralTriangle center_side": lambda p: EquilateralTriangle(center=(p["x"], p["y"]), side=6 * p["s"], angle=p["r"]),
-    "EquilateralTriangle vertex_side": lambda p: EquilateralTriangle(vertex=(p["x"], p["y"]), side=6 * p["s"], angle=p["r"]),
+    "Triangle center_radius": lambda p: Triangle(center=(p["x"], p["y"]), radius=6 * p["s"], angle=p["r"]),
+    "Triangle center_side": lambda p: Triangle(center=(p["x"], p["y"]), side=6 * p["s"], angle=p["r"]),
+    "Triangle vertex_side": lambda p: Triangle(vertex=(p["x"], p["y"]), side=6 * p["s"], angle=p["r"]),
+    # Isosceles (base_ratio != 1): not a regular n-gon, so every reader that
+    # kept a regular-polygon formula of its own disagrees here.
+    "Triangle center_radius ship": lambda p: Triangle(center=(p["x"], p["y"]), radius=6 * p["s"], angle=p["r"], base_ratio=0.6),
+    "Triangle center_side wide": lambda p: Triangle(center=(p["x"], p["y"]), side=6 * p["s"], angle=p["r"], base_ratio=1.7),
+    "Triangle vertex_side ship": lambda p: Triangle(vertex=(p["x"], p["y"]), side=6 * p["s"], angle=p["r"], base_ratio=0.45),
     "Rect center_wh": lambda p: Rect(center=(p["x"], p["y"]), width=40 * p["s"], height=16 * p["s"], angle=p["r"]),
     "Rect top_left_wh": lambda p: Rect(top_left=(p["x"], p["y"]), width=40 * p["s"], height=16 * p["s"], angle=p["r"]),
     "Rect corner_corner": lambda p: Rect(p1=(p["x"], p["y"]), p2=_at(p, 40, 16), angle=p["r"]),
@@ -149,7 +154,7 @@ KINDS: Dict[str, Callable] = {
 
 # Kinds with an area (hit test / collapse / box containment make sense).
 AREA_KINDS = {k for k in KINDS if k.split()[0] in (
-    "Circle", "Ellipse", "Polygon", "RegularPolygon", "EquilateralTriangle", "Rect", "Square")}
+    "Circle", "Ellipse", "Polygon", "RegularPolygon", "Triangle", "Rect", "Square")}
 FRAME_KINDS = {k for k in KINDS if k.split()[0] in (
     "Rect", "Square", "Ellipse", "Circle", "Sprite", "Svg", "Text")}
 
@@ -299,7 +304,7 @@ def angle_keeps(obj):
                 "POINT_VEC": obj.p1, "CORNER_CORNER": "lean"}.get(model)
     if kind == "Ellipse" and model == "CENTER_WH":
         return obj.center
-    if kind in ("RegularPolygon", "EquilateralTriangle"):
+    if kind in ("RegularPolygon", "Triangle"):
         return obj.vertex if model == "VERTEX_SIDE" else obj.center
     if kind == "Line":
         return {"CENTER_LENGTH_ANGLE": obj.center, "POINT_ANGLE_LENGTH": obj.p1}.get(model)

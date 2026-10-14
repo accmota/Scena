@@ -24,7 +24,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scena import (  # noqa: E402
-    Circle, Ellipse, EquilateralTriangle, Line, Point, Polygon, Rect, RegularPolygon,
+    Circle, Ellipse, Triangle, Line, Point, Polygon, Rect, RegularPolygon,
     Square, Text, Track, canvas, collide, collide_exit, collide_stay, group, init,
     resolve, test_collision, unresolve,
 )
@@ -42,7 +42,7 @@ FAMILIES = {
     "Line": lambda: Line(p1=(10, 10), p2=(60, 30)),
     "Polygon": lambda: Polygon(points=[(0, 0), (30, 0), (15, 20)]),
     "RegularPolygon": lambda: RegularPolygon(n=5, center=(40, 40), radius=12),
-    "EquilateralTriangle": lambda: EquilateralTriangle(center=(40, 40), radius=12),
+    "Triangle": lambda: Triangle(center=(40, 40), radius=12),
     "Text": lambda: Text("hi", center=(40, 40)),
     "Track": lambda: Track.circle(center=(40, 40), radius=12),
 }

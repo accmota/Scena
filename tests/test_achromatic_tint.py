@@ -39,7 +39,7 @@ import numpy as np
 import skia
 
 import scena
-from scena import EquilateralTriangle, Halo, Recolor, Sprite, Texture
+from scena import Triangle, Halo, Recolor, Sprite, Texture
 from scena import recipes as _recipes
 from scena.color import Color, ColorSpace, Colormap, _ACHROMATIC_S, _chroma_weight
 from scena.recipes import _energy_rgb, _energy_spark_rgb, _vivid_rgb
@@ -276,13 +276,13 @@ class TestLooksKeepGraysGray(unittest.TestCase):
         checked = []
         for cls in _public_looks():
             try:
-                EquilateralTriangle().visual = cls()
+                Triangle().visual = cls()
             except TypeError:
                 continue  # stamps and sprite-only looks: covered below
             checked.append(cls.__name__)
 
             def make(host, cls=cls):
-                t = EquilateralTriangle(center=(64, 64), radius=36, angle=90)
+                t = Triangle(center=(64, 64), radius=36, angle=90)
                 t.color = "gold"
                 t.visual = cls()
                 t.color = host          # recolor after the look (tutorial 01)
@@ -294,7 +294,7 @@ class TestLooksKeepGraysGray(unittest.TestCase):
     def test_halo_styles(self):
         for style in ("hollow", "fill", "soft", "line", "pulse"):
             def make(host, style=style):
-                t = EquilateralTriangle(center=(64, 64), radius=36, angle=90)
+                t = Triangle(center=(64, 64), radius=36, angle=90)
                 t.color = host
                 t.visual = Halo(style=style)
                 return t
@@ -304,7 +304,7 @@ class TestLooksKeepGraysGray(unittest.TestCase):
         for slot, cls in (("glow", scena.Glow), ("glow", scena.CheapGlow),
                           ("shadow", scena.Shadow), ("tail", scena.Tail)):
             def make(host, slot=slot, cls=cls):
-                t = EquilateralTriangle(center=(64, 64), radius=30, angle=90)
+                t = Triangle(center=(64, 64), radius=30, angle=90)
                 t.color = host
                 setattr(t, slot, cls())
                 return t
@@ -331,7 +331,7 @@ class TestLooksKeepGraysGray(unittest.TestCase):
             for host_kind in ("shape", "sprite"):
                 def make(gray, cls=cls, host_kind=host_kind):
                     if host_kind == "shape":
-                        o = EquilateralTriangle(center=(64, 64), radius=36, angle=90)
+                        o = Triangle(center=(64, 64), radius=36, angle=90)
                         o.color = gray
                     else:
                         o = Sprite(sprite_png, size=48, center=(64, 64))

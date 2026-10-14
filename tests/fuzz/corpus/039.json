@@ -8,7 +8,7 @@
 "link": "whole"
 },
 {
-"kind": "EquilateralTriangle center_radius noangle",
+"kind": "Triangle center_radius noangle",
 "base": "collidable",
 "link": "whole"
 }

@@ -29,7 +29,7 @@ from scena.shapes import (
     Anchor,
     Circle,
     Ellipse,
-    EquilateralTriangle,
+    Triangle,
     Line,
     Point,
     Polygon,
@@ -546,7 +546,7 @@ class TestClickDragDrop(InteractionTestCase):
 
     def test_drag_vertex_side_triangle_follows_center(self):
         ox, oy = self.at(0, 0)
-        tri = self.track(EquilateralTriangle(vertex=(ox, oy), side=60, angle=0))
+        tri = self.track(Triangle(vertex=(ox, oy), side=60, angle=0))
         tri.draggable = True
         self.sim.drag_threshold = 1.0
         cx, cy = float(tri.center.x), float(tri.center.y)

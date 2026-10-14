@@ -8,7 +8,7 @@ const KW = new Set([
 
 const API = new Set([
   "init", "run", "Circle", "Rect", "Square", "Ellipse", "Line",
-  "EquilateralTriangle", "RegularPolygon", "Polygon", "Point", "Anchor",
+  "Triangle", "RegularPolygon", "Polygon", "Point", "Anchor",
   "Sprite", "Wallpaper",
   "Halo", "Neon", "Aura", "Flame", "Metal", "Sphere", "Gel", "ElectricBolt",
   "Shield", "Aurora", "Wave", "Bolt", "DashRing", "ElectricField",

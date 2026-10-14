@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scena.shapes import (
     Point, Line, Rect, Square, Circle, Ellipse, Polygon, RegularPolygon,
-    EquilateralTriangle, get_xy,
+    Triangle, get_xy,
 )
 from scena.sprite import Sprite
 from scena.state import (
@@ -138,7 +138,7 @@ class TestOutboundCenterCanonical(PoseLinkCase):
 
     def test_equilateral(self):
         self.assertOutboundCenterTracks(
-            EquilateralTriangle(center=(0, 0), radius=8, angle=0)
+            Triangle(center=(0, 0), radius=8, angle=0)
         )
 
     def test_sprite_center(self):

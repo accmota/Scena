@@ -342,7 +342,7 @@ run()
       example: "trilhas.py",
       body: `
         <p>Uma bola parece igual de qualquer lado. Uma forma com ponta, não: o carro do oito vira um triângulo dourado, e ele deve apontar para onde anda. A caixa do letreiro, no 04, já mostrou o jeito.</p>
-        <p><strong>Encarar o caminho.</strong> <code>face=True</code> (encarar, ficar de frente) faz o <code>move_along</code> girar o objeto a cada quadro, na direção da trilha naquele ponto. O <code>EquilateralTriangle</code> (triângulo equilátero) aponta para a direita quando o ângulo é 0, a mesma direção do 0 das trilhas; por isso a ponta segue o caminho. Rode e olhe o triângulo inclinar nas curvas do oito.</p>
+        <p><strong>Encarar o caminho.</strong> <code>face=True</code> (encarar, ficar de frente) faz o <code>move_along</code> girar o objeto a cada quadro, na direção da trilha naquele ponto. O <code>Triangle</code> (triângulo equilátero) aponta para a direita quando o ângulo é 0, a mesma direção do 0 das trilhas; por isso a ponta segue o caminho. Rode e olhe o triângulo inclinar nas curvas do oito.</p>
         <p>As outras bolas ficam como estão: girar um círculo não muda nada na tela.</p>
       `,
       code: `from scena import *
@@ -355,7 +355,7 @@ bola = Circle(radius=14, color="coral")
 bola.move_along(roda, time=4, loops="forever")
 
 oito = Track.eight(width=300, height=120, center=(500, 540), color="dim gray")
-carro = EquilateralTriangle(radius=16, color="gold")
+carro = Triangle(radius=16, color="gold")
 carro.move_along(oito, time=6, loops="forever", face=True)
 
 estrela = Track.star(points=5, radius=110, center=(830, 520), color="dim gray")
@@ -386,7 +386,7 @@ run()
         {
           note: "O pistão do vaivém virado para onde vai: nas pontas, ele dá meia-volta. No lugar da linha do <code>pistao</code> e do <code>move_along</code> dele.",
           replaces: ['pistao = Circle(', 'pistao.move_along('],
-          code: `pistao = EquilateralTriangle(radius=14, color="orchid")
+          code: `pistao = Triangle(radius=14, color="orchid")
 pistao.move_along(vaivem, time=3, loops="forever", face=True)`
         }
       ],
@@ -757,7 +757,7 @@ run()
       title: "A sonda",
       body: `
         <p>Agora a ideia do tutorial: uma sonda que passeia entre os planetas e fica ligada, por uma linha, ao planeta que estiver mais perto dela.</p>
-        <p><strong>A sonda.</strong> Um <code>EquilateralTriangle</code> branco que percorre um oito grande, de 820 por 520, por cima do sistema inteiro. A trilha <code>passeio</code> não tem cor: é só o caminho. O oito começa no cruzamento do meio, então a sonda nasce em cima do sol e passa por ele a cada meia volta. A <code>linha</code> tem uma ponta presa à sonda por uma <code>lambda</code>; a outra começa no sol.</p>
+        <p><strong>A sonda.</strong> Um <code>Triangle</code> branco que percorre um oito grande, de 820 por 520, por cima do sistema inteiro. A trilha <code>passeio</code> não tem cor: é só o caminho. O oito começa no cruzamento do meio, então a sonda nasce em cima do sol e passa por ele a cada meia volta. A <code>linha</code> tem uma ponta presa à sonda por uma <code>lambda</code>; a outra começa no sol.</p>
         <p><strong>O mais perto.</strong> No <code>update</code>, <code>group["planeta"].nearest(sonda)</code> (o mais perto) olha todos os objetos do grupo <code>planeta</code> e devolve o que está mais perto da sonda. Para isso, a função <code>planeta</code> e a lua ganharam <code>group="planeta"</code>: os três planetas e a lua estão no grupo; o sol, não. O resultado vai para <code>alvo</code>, e <code>linha.p2 = alvo.center</code> põe a segunda ponta da linha no centro dele.</p>
         <p><strong>Por que no update.</strong> Quem é o mais perto muda o tempo todo, e a resposta depende de olhar o grupo inteiro. Uma <code>lambda</code> não pode olhar um grupo: o Scena lê uma fórmula uma vez, para saber de quem ela depende, e um grupo muda de membros. Se você tentar, ele recusa e explica. Contas sobre um grupo vão no <code>update</code>, que roda a cada quadro.</p>
         <p>Rode: a linha pula de um planeta para outro conforme a sonda passa.</p>
@@ -801,7 +801,7 @@ anel.dash = "dash"
 anel.rotate_by(360, time=1.0, loops="forever")
 
 passeio = Track.eight(width=820, height=520, center=(500, 350))
-sonda = EquilateralTriangle(radius=14, color="white")
+sonda = Triangle(radius=14, color="white")
 sonda.move_along(passeio, time=14, loops="forever")
 
 linha = Line(p1=lambda: sonda.center, p2=sol.center, color="light cyan")
@@ -878,7 +878,7 @@ anel.dash = "dash"
 anel.rotate_by(360, time=1.0, loops="forever")
 
 passeio = Track.eight(width=820, height=520, center=(500, 350))
-sonda = EquilateralTriangle(radius=14, color="white")
+sonda = Triangle(radius=14, color="white")
 sonda.move_along(passeio, time=14, loops="forever")
 
 linha = Line(p1=lambda: sonda.center, p2=sol.center, color="light cyan")
@@ -941,7 +941,7 @@ anel.dash = "dash"
 anel.rotate_by(360, time=1.0, loops="forever")
 
 passeio = Track.eight(width=820, height=520, center=(500, 350))
-sonda = EquilateralTriangle(radius=14, color="white")
+sonda = Triangle(radius=14, color="white")
 sonda.move_along(passeio, time=14, loops="forever")
 
 linha = Line(p1=lambda: sonda.center, p2=sol.center, color="light cyan")

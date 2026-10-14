@@ -486,7 +486,7 @@ def _mk_shape(i, x, y):
     if kind == 1:
         return Square(center=(x, y), length=18 + (i % 3), angle=i * 7)
     if kind == 2:
-        return EquilateralTriangle(center=(x, y), radius=12, angle=i * 5)
+        return Triangle(center=(x, y), radius=12, angle=i * 5)
     return RegularPolygon(n=5, center=(x, y), radius=11, angle=i * 9)
 
 

@@ -293,7 +293,7 @@ def pular():
           <figcaption>A seta <code>Vec2(200, 100)</code>: 200 para a direita, 100 para cima.</figcaption>
         </figure>
         <p><strong>Uma seta não é um lugar.</strong> O programa desenha a mesma seta <code>v</code> três vezes, saindo de três pontos diferentes. São iguais: o mesmo tamanho, a mesma direção. Por isso um vetor serve para <em>mover</em> (a velocidade de uma bola) e para <em>medir</em> (de um ponto a outro), mas não para dizer onde uma coisa está.</p>
-        <p><strong>A função <code>seta</code>.</strong> O Scena não tem uma forma "seta"; a função desenha uma com duas peças: uma <code>Line</code> do início até o fim, e um <code>EquilateralTriangle</code> (triângulo equilátero) na ponta, virado para o lado da seta (<code>vetor.angle</code>, o ângulo da seta; logo abaixo). O fim é o início mais o vetor: <code>inicio + vetor</code>, a conta da seção anterior com uma seta no lugar do par. Por isso o início é um <code>Point(…)</code>, e não uma tupla: a tupla não sabe somar.</p>
+        <p><strong>A função <code>seta</code>.</strong> O Scena não tem uma forma "seta"; a função desenha uma com duas peças: uma <code>Line</code> do início até o fim, e um <code>Triangle</code> (triângulo equilátero) na ponta, virado para o lado da seta (<code>vetor.angle</code>, o ângulo da seta; logo abaixo). O fim é o início mais o vetor: <code>inicio + vetor</code>, a conta da seção anterior com uma seta no lugar do par. Por isso o início é um <code>Point(…)</code>, e não uma tupla: a tupla não sabe somar.</p>
       `,
       code: `from scena import *
 
@@ -304,7 +304,7 @@ Wallpaper("dark navy")
 def seta(inicio, vetor, cor):
     fim = inicio + vetor
     Line(p1=inicio, p2=fim, color=cor, line_width=4)
-    EquilateralTriangle(center=fim, radius=12, angle=vetor.angle, color=cor)
+    Triangle(center=fim, radius=12, angle=vetor.angle, color=cor)
 
 
 v = Vec2(200, 100)
@@ -332,7 +332,7 @@ Wallpaper("dark navy")
 def seta(inicio, vetor, cor):
     fim = inicio + vetor
     Line(p1=inicio, p2=fim, color=cor, line_width=4)
-    EquilateralTriangle(center=fim, radius=12, angle=vetor.angle, color=cor)
+    Triangle(center=fim, radius=12, angle=vetor.angle, color=cor)
 
 
 v = Vec2(200, 100)
@@ -397,7 +397,7 @@ Wallpaper("dark navy")
 def seta(inicio, vetor, cor):
     fim = inicio + vetor
     Line(p1=inicio, p2=fim, color=cor, line_width=4)
-    EquilateralTriangle(center=fim, radius=12, angle=vetor.angle, color=cor)
+    Triangle(center=fim, radius=12, angle=vetor.angle, color=cor)
 
 
 a = Vec2(300, 50)
@@ -453,7 +453,7 @@ Text("A", center=lambda: a.center + (0, -30), font_size=20)
 Text("B", center=lambda: b.center + (0, 30), font_size=20)
 
 Line(p1=lambda: a.center, p2=lambda: b.center, color="gold", line_width=4)
-EquilateralTriangle(center=lambda: b.center, radius=14, angle=lambda: (b.center - a.center).angle, color="gold")
+Triangle(center=lambda: b.center, radius=14, angle=lambda: (b.center - a.center).angle, color="gold")
 
 
 def de_a_ate_b():
@@ -496,7 +496,7 @@ Text("A", center=lambda: a.center + (0, -30), font_size=20)
 Text("B", center=lambda: b.center + (0, 30), font_size=20)
 
 Line(p1=lambda: a.center, p2=lambda: b.center, color="gold", line_width=4)
-EquilateralTriangle(center=lambda: b.center, radius=14, angle=lambda: (b.center - a.center).angle, color="gold")
+Triangle(center=lambda: b.center, radius=14, angle=lambda: (b.center - a.center).angle, color="gold")
 
 
 def de_a_ate_b():
@@ -513,8 +513,8 @@ run()
       try: [
         {
           note: "O triângulo pode usar o <code>heading</code> no lugar da conta da seta. Dá o mesmo.",
-          replaces: ['EquilateralTriangle('],
-          code: `EquilateralTriangle(center=lambda: b.center, radius=14, angle=lambda: heading(a, b), color="gold")`
+          replaces: ['Triangle('],
+          code: `Triangle(center=lambda: b.center, radius=14, angle=lambda: heading(a, b), color="gold")`
         },
         {
           note: "Uma bolinha que acende quando B chega perto de A (menos de 150). No fim do programa.",
@@ -546,7 +546,7 @@ Wallpaper("dark navy")
 def seta(inicio, vetor, cor):
     fim = inicio + vetor
     Line(p1=inicio, p2=fim, color=cor, line_width=4)
-    EquilateralTriangle(center=fim, radius=12, angle=vetor.angle, color=cor)
+    Triangle(center=fim, radius=12, angle=vetor.angle, color=cor)
 
 
 v = Vec2(160, 60)
@@ -578,7 +578,7 @@ Wallpaper("dark navy")
 def seta(inicio, vetor, cor):
     fim = inicio + vetor
     Line(p1=inicio, p2=fim, color=cor, line_width=4)
-    EquilateralTriangle(center=fim, radius=12, angle=vetor.angle, color=cor)
+    Triangle(center=fim, radius=12, angle=vetor.angle, color=cor)
 
 
 v = Vec2(160, 60)
@@ -650,7 +650,7 @@ Wallpaper("dark navy")
 def seta(inicio, vetor, cor):
     fim = inicio + vetor
     Line(p1=inicio, p2=fim, color=cor, line_width=4)
-    EquilateralTriangle(center=fim, radius=12, angle=vetor.angle, color=cor)
+    Triangle(center=fim, radius=12, angle=vetor.angle, color=cor)
 
 
 centro = Point(500, 350)
@@ -684,7 +684,7 @@ Wallpaper("dark navy")
 def seta(inicio, vetor, cor):
     fim = inicio + vetor
     Line(p1=inicio, p2=fim, color=cor, line_width=4)
-    EquilateralTriangle(center=fim, radius=12, angle=vetor.angle, color=cor)
+    Triangle(center=fim, radius=12, angle=vetor.angle, color=cor)
 
 
 centro = Point(500, 350)
@@ -693,7 +693,7 @@ for angulo in range(0, 360, 45):
     seta(centro, vec_from_angle(angulo, length=200), "gold")
     Text(f"{angulo}", center=centro + vec_from_angle(angulo, length=245), font_size=18)
 
-EquilateralTriangle(center=(500, 350), radius=50, angle=lambda: heading(centro, mouse), color="coral")
+Triangle(center=(500, 350), radius=50, angle=lambda: heading(centro, mouse), color="coral")
 Text(lambda: f"heading(centro, mouse) = {round(heading(centro, mouse))}", top_left=(20, 680), font_size=20)
 
 run()

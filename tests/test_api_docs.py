@@ -703,7 +703,7 @@ class TestSignaturesReadWell(unittest.TestCase):
     def test_shape_models_are_all_optional_and_overloads_cover_gradual_forms(self):
         from typing import get_overloads
         for cls in (scena.Line, scena.Circle, scena.Ellipse, scena.Rect, scena.Square,
-                    scena.RegularPolygon, scena.EquilateralTriangle):
+                    scena.RegularPolygon, scena.Triangle):
             with self.subTest(cls=cls.__name__):
                 required = [p.name for p in inspect.signature(cls).parameters.values()
                             if p.default is p.empty and p.kind is not p.VAR_POSITIONAL]

@@ -36,7 +36,7 @@ from .validate import expect_bool as _expect_flag
 # those remain linkable via ``obj["width"] @=`` when ``_resolve_field`` finds a slot.
 # Graphic ``angle`` (the heading) / ``scale`` are property-backed (via
 # ``_PropertyAnchor``) unless the subclass declares a real ScalarSlot of the
-# same name (Rect / Ellipse / Square / RegularPolygon / EquilateralTriangle /
+# same name (Rect / Ellipse / Square / RegularPolygon / Triangle /
 # Line / Circle: ``angle``). ``shape["angle"] @=`` / ``shape["scale"] @=``
 # link either way. ``rotation`` is retired on Graphics (``_RETIRED_ATTRS``).
 _INK_RESERVED = frozenset({
@@ -836,6 +836,8 @@ _POINT_WORDS = ("top_left", "top_right", "bottom_left", "bottom_right",
                 "left_square_center", "right_square_center", "p1", "p2", "fp1", "fp2",
                 "vertex", "centroid", "perimeter_point", "vec")
 _RELATION_WORDS = ("dist", "at_angle", "signed_area", "perimeter_length")
+# Shape inputs of one kind: ``circle.base_ratio = 0.6`` would be a dead attribute.
+_SHAPE_WORDS = {"base_ratio": "Triangle"}
 
 
 def _install_setattr_route(cls: type) -> None:
@@ -895,6 +897,11 @@ def _install_setattr_route(cls: type) -> None:
                 route[word] = _RouteRefusal(
                     f"{{cls}} has no {word} (a Line / Polygon field). A field of "
                     f"your own needs another name.")
+        for word, kind in _SHAPE_WORDS.items():
+            if word not in seen:
+                route[word] = _RouteRefusal(
+                    f"{{cls}} has no {word} (a {kind} field). A field of your own "
+                    f"needs another name.")
     for name in _LOOK_FAMILY:
         route.setdefault(name, _LOOK_MISSING)
     for name in _INK_RESERVED:

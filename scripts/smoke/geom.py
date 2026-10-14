@@ -82,7 +82,7 @@ orange_line = _stroke(
 
 # --- Violet group ------------------------------------------------------------
 tri = _stroke(
-    EquilateralTriangle(center=(980, 620), radius=70), "violet",
+    Triangle(center=(980, 620), radius=70), "violet",
 )
 hexagon = _stroke(
     RegularPolygon(n=6, center=(1180, 560), radius=65, angle=10),

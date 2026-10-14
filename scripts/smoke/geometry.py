@@ -305,7 +305,7 @@ def _flip_kinds():
         ("Ellipse foci", lambda: Ellipse(fp1=(-35, -10), fp2=(30, 15), major_axis=110), lambda o: o.fp1),
         ("Polygon", lambda: Polygon(points=[(-50, -30), (45, -30), (55, 25), (-30, 35)]), lambda o: o.points[0]),
         ("RegularPolygon vertex=", lambda: RegularPolygon(vertex=(-20, -40), side=45, n=5, angle=15), lambda o: o.points[0]),
-        ("EquilateralTriangle", lambda: EquilateralTriangle(center=(0, 0), radius=50, angle=10), lambda o: o.points[0]),
+        ("Triangle", lambda: Triangle(center=(0, 0), radius=50, angle=10), lambda o: o.points[0]),
         ("Rect spine", lambda: Rect(p1=(-55, -15), p2=(50, 20), height=40, anchor="side_left"), lambda o: o.top_right),
         ("Square top_left=", lambda: Square(top_left=(-40, 40), length=80, angle=15), lambda o: o.top_left),
     ]
@@ -383,7 +383,7 @@ def page_heading():
         ("Line", Line(p1=(160, 560), p2=(300, 610), color="white")),
         ("Circle arc", Circle(center=(470, 580), radius=60, angle=0, spread=100, color="orchid")),
         ("RegularPolygon", RegularPolygon(center=(720, 580), radius=60, n=5, color="medium orchid")),
-        ("EquilateralTriangle", EquilateralTriangle(center=(980, 580), radius=60, color="orange")),
+        ("Triangle", Triangle(center=(980, 580), radius=60, color="orange")),
         ("Rect", Rect(center=(1220, 580), width=120, height=50, color="steel blue")),
         ("Ellipse", Ellipse(center=(230, 330), width=130, height=60, color="tomato")),
         ("Polygon (pose heading)", Polygon(points=[(430, 290), (540, 300), (520, 370), (440, 360)], color="sea green")),
@@ -398,7 +398,7 @@ def page_heading():
         live_cap(lambda o=o: f"angle {float(o.angle):.1f}°", (float(o.center.x), float(o.center.y) - 122))
     d = dict(objs)
     line, arc, poly, tri, rect, text = (d["Line"], d["Circle arc"], d["RegularPolygon"],
-                                        d["EquilateralTriangle"], d["Rect"], d["Text"])
+                                        d["Triangle"], d["Rect"], d["Text"])
 
     check("Line: p1→p2", lambda: same_angle(direction(line.p1, line.p2), line.angle))
     check("arc: p1 at heading", lambda: same_angle(direction(arc.center, arc.p1), arc.angle))
@@ -835,7 +835,7 @@ def page_tracks():
       f"{COMMON_KEYS}  ·  C clone  ·  X flip sources  ·  Q/W rotate sources")
 def page_clones():
     rect = own(Rect(p1=(110, 560), p2=(260, 640), color="steel blue"))
-    tri = own(EquilateralTriangle(center=(400, 600), radius=55, color="orange"))
+    tri = own(Triangle(center=(400, 600), radius=55, color="orange"))
     ship = own(Sprite(space, frame="playerShip1_blue.png", center=(600, 600), height=70, art_angle=90))
     text = own(Text("clone me", top_left=(740, 640), layer="default", font_size=28, color="white"))
     trk = own(Track.eight(width=150, height=70, center=(1050, 600), color="cyan", line_width=2))

@@ -65,7 +65,7 @@ Wallpaper(Gradient("black", "navy", angle=90))`
     {
       title: "Três formas",
       body: `
-        <p>Agora as primeiras formas: <code>Rect</code> (retângulo), <code>Circle</code> (círculo) e <code>EquilateralTriangle</code> (triângulo equilátero, com os três lados iguais). Cada linha já faz a sua forma aparecer na tela. Guardamos cada uma numa variável (<code>retangulo</code>, <code>circulo</code>, <code>triangulo</code>) porque, nos próximos passos, vamos pintá-las e mexer nelas pelo nome.</p>
+        <p>Agora as primeiras formas: <code>Rect</code> (retângulo), <code>Circle</code> (círculo) e <code>Triangle</code> (triângulo; sem mais nada, ele é equilátero, com os três lados iguais). Cada linha já faz a sua forma aparecer na tela. Guardamos cada uma numa variável (<code>retangulo</code>, <code>circulo</code>, <code>triangulo</code>) porque, nos próximos passos, vamos pintá-las e mexer nelas pelo nome.</p>
         <p><strong>Onde.</strong> <code>center</code> (centro) é o ponto do meio da forma, escrito como <code>(x, y)</code>. O x conta da esquerda para a direita. O y conta <strong>de baixo para cima</strong>: <code>(0, 0)</code> é o canto de baixo, à esquerda, e o canto de cima, à direita, é <code>(1000, 700)</code>, o tamanho que demos ao <code>init</code>. As três formas têm y = 480, então ficam numa fileira na parte de cima da janela. Se você já desenhou em outro programa, atenção: em muitos deles o y cresce para baixo. No Scena, cresce para cima, como nos gráficos da escola.</p>
         <figure class="fig">
           <svg viewBox="0 0 400 272" role="img" aria-label="A janela como um retângulo de 1000 por 700; a origem (0, 0) no canto de baixo à esquerda; x cresce para a direita e y para cima; as três formas numa fileira em y = 480">
@@ -103,7 +103,7 @@ retangulo = Rect(center=(160, 480), width=90, height=70)
 
 circulo = Circle(center=(300, 480), radius=40)
 
-triangulo = EquilateralTriangle(center=(440, 480), radius=48, angle=90)
+triangulo = Triangle(center=(440, 480), radius=48, angle=90)
 
 run()
 `,
@@ -133,7 +133,7 @@ retangulo.color = "coral"
 circulo = Circle(center=(300, 480), radius=40)
 circulo.color = "#FF83FA"
 
-triangulo = EquilateralTriangle(center=(440, 480), radius=48, angle=90)
+triangulo = Triangle(center=(440, 480), radius=48, angle=90)
 triangulo.color = "gold"
 
 run()
@@ -167,7 +167,7 @@ circulo = Circle(center=(300, 480), radius=40)
 circulo.color = "#FF83FA"
 circulo.glow = True
 
-triangulo = EquilateralTriangle(center=(440, 480), radius=48, angle=90)
+triangulo = Triangle(center=(440, 480), radius=48, angle=90)
 triangulo.color = "gold"
 triangulo.visual = Neon()
 
@@ -204,7 +204,7 @@ circulo = Circle(center=(300, 480), radius=40)
 circulo.color = "#FF83FA"
 circulo.glow = True
 
-triangulo = EquilateralTriangle(center=(440, 480), radius=48, angle=90)
+triangulo = Triangle(center=(440, 480), radius=48, angle=90)
 triangulo.color = "gold"
 triangulo.visual = Neon()
 
@@ -242,7 +242,7 @@ circulo = Circle(center=(300, 480), radius=40)
 circulo.color = "#FF83FA"
 circulo.glow = True
 
-triangulo = EquilateralTriangle(center=(440, 480), radius=48, angle=90)
+triangulo = Triangle(center=(440, 480), radius=48, angle=90)
 triangulo.color = "gold"
 triangulo.visual = Neon()
 
@@ -284,7 +284,7 @@ circulo = Circle(center=(300, 480), radius=40)
 circulo.color = "#FF83FA"
 circulo.glow = True
 
-triangulo = EquilateralTriangle(center=(440, 480), radius=48, angle=90)
+triangulo = Triangle(center=(440, 480), radius=48, angle=90)
 triangulo.color = "gold"
 triangulo.visual = Neon()
 
@@ -319,7 +319,7 @@ circulo = Circle(center=(300, 480), radius=40)
 circulo.color = "#FF83FA"
 circulo.glow = True
 
-triangulo = EquilateralTriangle(center=(440, 480), radius=48, angle=90)
+triangulo = Triangle(center=(440, 480), radius=48, angle=90)
 triangulo.color = "gold"
 triangulo.visual = Neon()
 
@@ -369,7 +369,7 @@ circulo = Circle(center=(300, 480), radius=40)
 circulo.color = "#FF83FA"
 circulo.glow = True
 
-triangulo = EquilateralTriangle(center=(440, 480), radius=48, angle=90)
+triangulo = Triangle(center=(440, 480), radius=48, angle=90)
 triangulo.color = "gold"
 triangulo.visual = Neon()
 
@@ -422,7 +422,7 @@ circulo = Circle(center=(300, 480), radius=40)
 circulo.color = "#FF83FA"
 circulo.glow = True
 
-triangulo = EquilateralTriangle(center=(440, 480), radius=48, angle=90)
+triangulo = Triangle(center=(440, 480), radius=48, angle=90)
 triangulo.color = "gold"
 triangulo.visual = Neon()
 
@@ -470,7 +470,7 @@ circulo = Circle(center=(300, 480), radius=40)
 circulo.color = "#FF83FA"
 circulo.glow = True
 
-triangulo = EquilateralTriangle(center=(440, 480), radius=48, angle=90)
+triangulo = Triangle(center=(440, 480), radius=48, angle=90)
 triangulo.color = "gold"
 triangulo.visual = Neon()
 
@@ -524,7 +524,7 @@ circulo = Circle(center=(300, 480), radius=40)
 circulo.color = "#FF83FA"
 circulo.glow = True
 
-triangulo = EquilateralTriangle(center=(440, 480), radius=48, angle=90)
+triangulo = Triangle(center=(440, 480), radius=48, angle=90)
 triangulo.color = "gold"
 triangulo.visual = Neon()
 

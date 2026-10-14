@@ -143,7 +143,7 @@ panel["width"] @= st["rect_w"]
 square = Square(center=(880, 480), length=70, angle=12).set_color("gold")
 oval = Ellipse(center=(520, 340), width=110, height=56, angle=-18).set_color("magenta")
 hexagon = RegularPolygon(n=6, center=(680, 340), radius=44).set_color("lime")
-triangle = EquilateralTriangle(center=(840, 340), radius=48).set_color("orange")
+triangle = Triangle(center=(840, 340), radius=48).set_color("orange")
 poly = Polygon(
     points=[(960, 310), (1040, 330), (1020, 390), (940, 380)],
 ).set_color("violet")

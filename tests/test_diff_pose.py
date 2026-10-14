@@ -38,7 +38,7 @@ from hypothesis_support import quiet  # noqa: E402
 from hypothesis import given, note, strategies as hst  # noqa: E402
 
 from scena import (  # noqa: E402
-    Circle, Ellipse, EquilateralTriangle, Line, Polygon, Rect, RegularPolygon,
+    Circle, Ellipse, Triangle, Line, Polygon, Rect, RegularPolygon,
     Sprite, Square, Text, Vec2, clock,
 )
 from scena.process import reset_process_scheduler, tick_processes  # noqa: E402
@@ -66,7 +66,7 @@ MODELS = {
     "RegularPolygon center_radius": lambda: RegularPolygon(center=(0, 0), radius=6, n=5),
     "RegularPolygon center_side": lambda: RegularPolygon(center=(0, 0), side=6, n=5),
     "RegularPolygon vertex_side": lambda: RegularPolygon(vertex=(0, 0), side=6, n=5),
-    "EquilateralTriangle": lambda: EquilateralTriangle(center=(0, 0), side=6),
+    "Triangle": lambda: Triangle(center=(0, 0), side=6),
     "Sprite": lambda: Sprite("diff_missing.png", center=(5, 5)),
     "Text": lambda: Text("hi", center=(0, 0)),
 }

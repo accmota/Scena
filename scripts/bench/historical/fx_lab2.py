@@ -135,7 +135,7 @@ for i in range(_filled_count):
     elif kind == 2:
         shp = Rect(center=(x, y), width=size * 1.4, height=size * 0.7, angle=ang)
     elif kind == 3:
-        shp = EquilateralTriangle(center=(x, y), radius=size * 0.55, angle=ang)
+        shp = Triangle(center=(x, y), radius=size * 0.55, angle=ang)
     elif kind == 4:
         shp = RegularPolygon(n=5 + (i % 3), center=(x, y), radius=size * 0.5, angle=ang)
     else:

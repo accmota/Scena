@@ -3809,6 +3809,7 @@ class ScalarSlot:
         hint: Optional[str] = None,
         label: Optional[str] = None,
         out_of_range: str = "raise",
+        maximum_open: bool = False,
     ):
         if out_of_range not in ("raise", "clamp"):
             raise ValueError(f"out_of_range must be 'raise' or 'clamp', got {out_of_range!r}")
@@ -3832,6 +3833,9 @@ class ScalarSlot:
         # link cannot raise mid-frame (Track ``begin`` / ``end``, Circle ``spread``).
         self.maximum = maximum
         self.minimum = minimum
+        # ``maximum_open``: ``maximum`` itself is out of range (Triangle
+        # ``base_ratio < 2``); a clamp lands just below it.
+        self.maximum_open = maximum_open
         self.hint = hint
         self.name = None
 
@@ -4820,10 +4824,15 @@ def _coerce_constrained(slot, value, clamp: bool, *, link: bool = False):
     hi = slot.maximum
     lo = slot.minimum
     soft = clamp or slot.out_of_range == "clamp"
-    if hi is not None and value > hi:
-        if not soft:
-            raise ValueError(f"{what} must be <= {hi:g}, got {float(value)}")
-        value = float(hi)
+    if hi is not None and (value > hi or (value == hi and slot.maximum_open)):
+        if slot.maximum_open:
+            if not soft:
+                raise ValueError(f"{what} must be < {hi:g}, got {float(value)}")
+            value = math.nextafter(float(hi), -_INF)
+        else:
+            if not soft:
+                raise ValueError(f"{what} must be <= {hi:g}, got {float(value)}")
+            value = float(hi)
     if lo is not None and value < lo:
         if not soft:
             raise ValueError(f"{what} must be >= {lo:g}, got {float(value)}")

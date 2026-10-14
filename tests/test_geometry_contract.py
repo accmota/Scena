@@ -509,8 +509,8 @@ def _equivalents(p):
             ("center_side", lambda: RegularPolygon(center=(x, y), side=side, n=5, angle=r)),
             ("vertex_side", lambda: RegularPolygon(vertex=v0, side=side, n=5, angle=r)),
         ],
-        "EquilateralTriangle": [
-            ("EquilateralTriangle", lambda: __import__("scena").EquilateralTriangle(center=(x, y), radius=6 * s, angle=r)),
+        "Triangle": [
+            ("Triangle", lambda: __import__("scena").Triangle(center=(x, y), radius=6 * s, angle=r)),
             ("RegularPolygon n=3", lambda: RegularPolygon(center=(x, y), radius=6 * s, n=3, angle=r)),
         ],
     }
@@ -600,7 +600,7 @@ def sweep_c6(kinds, p):
                                 and G.close(params[2], abs(ww) / 2, 1e-6) and G.close(params[3], abs(hh) / 2, 1e-6)):
                             out[f"{kind} | collision prims | ellipse"] = str(params)
             # geom outline agrees with the Track outline (polygonal kinds).
-            if fam in ("Polygon", "RegularPolygon", "EquilateralTriangle", "Rect", "Square"):
+            if fam in ("Polygon", "RegularPolygon", "Triangle", "Rect", "Square"):
                 gv = _outline_verts(obj)
                 if gv is not None and not G.same_set(G.as_set(list(gv)), G.as_set(d), 1e-4):
                     out[f"{kind} | geom outline | vertices"] = ""

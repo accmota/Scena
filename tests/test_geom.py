@@ -35,7 +35,7 @@ from scena.geom import (
     intersections,
 )
 from scena.shapes import (
-    Circle, Ellipse, EquilateralTriangle, Line, Point, Polygon, Rect,
+    Circle, Ellipse, Triangle, Line, Point, Polygon, Rect,
     RegularPolygon, Square,
 )
 from scena.scenamath import Vec2
@@ -222,7 +222,7 @@ class TestWithPolygons(GeomTestCase):
         self.assertGreaterEqual(len(hits), 2)
 
     def test_equilateral_triangle(self):
-        t = EquilateralTriangle(center=(0, 0), radius=20)
+        t = Triangle(center=(0, 0), radius=20)
         line = Line(p1=(-30, 0), p2=(30, 0))
         hits = intersections(line, t)
         self.assertGreaterEqual(len(hits), 1)
@@ -424,8 +424,8 @@ def _matrix_shape(cls, *, far=False):
         ])
     if name == "RegularPolygon":
         return RegularPolygon(n=5, center=(x, 0), radius=16, angle=8)
-    if name == "EquilateralTriangle":
-        return EquilateralTriangle(center=(x, 0), radius=18, angle=-15)
+    if name == "Triangle":
+        return Triangle(center=(x, 0), radius=18, angle=-15)
     if name == "Box":
         return Box(center=(x, 0), width=24, height=14, angle=15)
     raise AssertionError(f"no matrix pose for {name}")

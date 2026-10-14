@@ -13,7 +13,7 @@
 "link": "whole"
 },
 {
-"kind": "EquilateralTriangle vertex_side",
+"kind": "Triangle vertex_side",
 "base": "collidable",
 "link": "none"
 }

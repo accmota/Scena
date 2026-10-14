@@ -6,8 +6,8 @@ before, the shape does not move, and flipping twice is the identity. Rect /
 Square also mirror each named point (``test_rect_names``); here the check is
 the drawn geometry of every kind.
 
-Testing Design G6: EquilateralTriangle mirrored ``angle`` instead of its
-apex heading (a different triangle); RegularPolygon / EquilateralTriangle
+Testing Design G6: Triangle mirrored ``angle`` instead of its
+apex heading (a different triangle); RegularPolygon / Triangle
 ``vertex=`` left the Defining vertex in place (the polygon swung about it).
 
     python -m unittest tests.test_flip_mirror -v
@@ -25,7 +25,7 @@ import hypothesis_support  # noqa: E402,F401  (loads the Hypothesis profile)
 from hypothesis import example, given, strategies as hst  # noqa: E402
 
 from scena import (  # noqa: E402
-    Circle, Ellipse, EquilateralTriangle, Line, Polygon, Rect, RegularPolygon, Square,
+    Circle, Ellipse, Triangle, Line, Polygon, Rect, RegularPolygon, Square,
 )
 from scena.shapes import get_xy  # noqa: E402
 
@@ -66,7 +66,7 @@ def drawn(obj):
         pts = [xy(obj.center), xy(obj.fp1), xy(obj.fp2)]
     elif isinstance(obj, (Rect, Square)):
         pts = _box_corners(obj)
-    else:  # Polygon, RegularPolygon, EquilateralTriangle
+    else:  # Polygon, RegularPolygon, Triangle
         pts = [xy(p) for p in obj.points]
     return sorted((round(x, 6) + 0.0, round(y, 6) + 0.0) for x, y in pts)
 
@@ -80,9 +80,11 @@ KINDS = {
     "RegularPolygon center_radius": lambda rot: RegularPolygon(center=(3, 4), radius=6, n=5, angle=rot),
     "RegularPolygon center_side": lambda rot: RegularPolygon(center=(3, 4), side=6, n=4, angle=rot),
     "RegularPolygon vertex_side": lambda rot: RegularPolygon(vertex=(3, 4), side=6, n=5, angle=rot),
-    "EquilateralTriangle center_radius": lambda rot: EquilateralTriangle(center=(3, 4), radius=6, angle=rot),
-    "EquilateralTriangle center_side": lambda rot: EquilateralTriangle(center=(3, 4), side=6, angle=rot),
-    "EquilateralTriangle vertex_side": lambda rot: EquilateralTriangle(vertex=(3, 4), side=6, angle=rot),
+    "Triangle center_radius": lambda rot: Triangle(center=(3, 4), radius=6, angle=rot),
+    "Triangle center_side": lambda rot: Triangle(center=(3, 4), side=6, angle=rot),
+    "Triangle vertex_side": lambda rot: Triangle(vertex=(3, 4), side=6, angle=rot),
+    "Triangle center_radius ship": lambda rot: Triangle(center=(3, 4), radius=6, angle=rot, base_ratio=0.6),
+    "Triangle vertex_side wide": lambda rot: Triangle(vertex=(3, 4), side=6, angle=rot, base_ratio=1.7),
     "Rect point_vec": lambda rot: Rect(p1=(3, 4), vec=(40, 16), angle=rot),
     "Rect spine side_left": lambda rot: Rect(p1=(0, 0), p2=(40, 10), height=12, anchor="side_left").rotate_by(rot),
     "Square top_left_length": lambda rot: Square(top_left=(0, 20), length=20, angle=rot),
@@ -108,8 +110,8 @@ class TestFlipMirrorsEveryKind(unittest.TestCase):
         axis=hst.sampled_from(["x", "y"]),
     )
     # G6: the triangle drew a different triangle; vertex= models moved.
-    @example(kind="EquilateralTriangle center_radius", rot=10, axis="x")
-    @example(kind="EquilateralTriangle vertex_side", rot=0, axis="y")
+    @example(kind="Triangle center_radius", rot=10, axis="x")
+    @example(kind="Triangle vertex_side", rot=0, axis="y")
     @example(kind="RegularPolygon vertex_side", rot=10, axis="x")
     def test_flip_draws_the_mirror_in_place(self, kind, rot, axis):
         obj = KINDS[kind](rot)
@@ -125,14 +127,14 @@ class TestFlipMirrorsEveryKind(unittest.TestCase):
     def test_triangle_flip_mirrors_the_apex_heading(self):
         # G6 repro: a flipped triangle is the triangle whose apex heading is mirrored.
         for axis, heading in (("x", 170), ("y", -10)):
-            t = EquilateralTriangle(center=(0, 0), radius=10, angle=10)
+            t = Triangle(center=(0, 0), radius=10, angle=10)
             setattr(t, "flip_" + axis, True)
-            want = drawn(EquilateralTriangle(center=(0, 0), radius=10, angle=heading))
+            want = drawn(Triangle(center=(0, 0), radius=10, angle=heading))
             self.assertSamePoints(drawn(t), want, f"triangle flip_{axis}")
 
 
 INDEXED = {k: v for k, v in KINDS.items()
-           if k.startswith(("Polygon", "RegularPolygon", "EquilateralTriangle"))}
+           if k.startswith(("Polygon", "RegularPolygon", "Triangle"))}
 
 
 class TestVerticesFollowTheirPoints(unittest.TestCase):
@@ -169,7 +171,7 @@ class TestVerticesFollowTheirPoints(unittest.TestCase):
 
     def test_winding_shows_in_signed_area_and_survives_clone(self):
         for obj in (RegularPolygon(center=(1, 2), radius=5, n=5, angle=10),
-                    EquilateralTriangle(vertex=(3, 4), side=6, angle=20)):
+                    Triangle(vertex=(3, 4), side=6, angle=20)):
             with self.subTest(kind=type(obj).__name__):
                 area = float(obj.signed_area)
                 self.assertGreater(area, 0.0)
@@ -212,7 +214,7 @@ class TestRegularPolygonStatsMatchAFreePolygon(unittest.TestCase):
     def test_vertex_is_points_zero_in_every_model(self):
         for obj in (RegularPolygon(center=(3, 4), radius=6, n=5, angle=10),
                     RegularPolygon(center=(3, 4), side=6, n=4, angle=10),
-                    EquilateralTriangle(center=(3, 4), radius=6, angle=10)):
+                    Triangle(center=(3, 4), radius=6, angle=10)):
             with self.subTest(model=obj.model):
                 self.assertTrue(abs(obj.vertex.x - obj.points[0].x) < 1e-9 and abs(obj.vertex.y - obj.points[0].y) < 1e-9)
                 obj.rotate_by(30)

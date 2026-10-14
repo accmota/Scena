@@ -179,7 +179,7 @@ for i in range(args.n):
     elif kind == 1:
         shp = Square(center=(x, y), length=14 + (i % 3), angle=i * 7)
     elif kind == 2:
-        shp = EquilateralTriangle(center=(x, y), radius=10, angle=i * 5)
+        shp = Triangle(center=(x, y), radius=10, angle=i * 5)
     else:
         shp = RegularPolygon(n=5, center=(x, y), radius=9, angle=i * 9)
     color = ("cyan", "magenta", "lime", "orange", "dodger blue", "orchid")[i % 6]

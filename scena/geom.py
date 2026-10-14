@@ -38,12 +38,12 @@ def _allowlist_types():
     """
     from .box import Box
     from .shapes import (
-        Circle, Ellipse, EquilateralTriangle, Line, Polygon, Rect,
-        RegularPolygon, Square,
+        Circle, Ellipse, Line, Polygon, Rect,
+        RegularPolygon, Square, Triangle,
     )
     return (
         Line, Circle, Ellipse, Rect, Square,
-        Polygon, RegularPolygon, EquilateralTriangle, Box,
+        Polygon, RegularPolygon, Triangle, Box,
     )
 
 
@@ -576,21 +576,13 @@ def _oriented_box_verts(shape) -> List[Point2]:
 
 
 def _regular_poly_verts(shape) -> List[Point2]:
-    cx, cy, r, phi0 = shape._placement_params()
-    r = abs(float(r))
-    n = int(shape._n)
-    phi0_rad = math.radians(float(phi0))
-    delta = 2.0 * math.pi / n
-    return [
-        (cx + r * math.cos(phi0_rad + i * delta),
-         cy + r * math.sin(phi0_rad + i * delta))
-        for i in range(n)
-    ]
+    """RegularPolygon / Triangle: closed-form vertices (the shape owns the formula)."""
+    return shape._closed_form_verts()
 
 
 def _polygon_verts(shape) -> List[Point2]:
-    from .shapes import RegularPolygon
-    if isinstance(shape, RegularPolygon):
+    from .shapes import _RadialPolygon
+    if isinstance(shape, _RadialPolygon):
         return _regular_poly_verts(shape)
     return [_bare_xy(v) for v in shape._vertices]
 
@@ -900,7 +892,7 @@ def closest_point(shape, p) -> Point2:
         c2, s2 = math.cos(rad2), math.sin(rad2)
         return (cx + clx * c2 - cly * s2, cy + clx * s2 + cly * c2)
 
-    # Polygon / RegularPolygon / EquilateralTriangle
+    # Polygon / RegularPolygon / Triangle
     verts = _polygon_verts(shape)
     if len(verts) < 3:
         if verts:

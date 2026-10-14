@@ -244,12 +244,15 @@ def apply_box_to_shape_kwargs(
     *,
     family: str,
     size_keys: Sequence[str] = (),
+    heading: bool = False,
 ) -> Optional[Tuple[int, int]]:
     """Consume ``box=`` and inject pose/size keys. Mutates ``kwargs``.
 
     Returns the region's name signs (``region_name_signs``) so a Rect /
     Square placed by ``box=`` takes the region's names, or ``None`` when
-    there is no ``box=``.
+    there is no ``box=``. ``heading``: an inscribed kind whose ``angle`` is
+    a model input (RegularPolygon / Triangle and their subclasses) takes the
+    region's angle.
     """
     if "box" not in kwargs:
         return None
@@ -284,7 +287,7 @@ def apply_box_to_shape_kwargs(
             kwargs.setdefault("angle", ang)
         else:
             kwargs.setdefault("radius", side * 0.5)
-            if cls_name in ("RegularPolygon", "EquilateralTriangle"):
+            if heading:
                 kwargs.setdefault("angle", ang)
         return names
     raise ValueError(f"unknown box= family {family!r}")

@@ -8,7 +8,7 @@
 "link": "part"
 },
 {
-"kind": "EquilateralTriangle center_radius noangle",
+"kind": "Triangle center_radius noangle",
 "base": "names_crossed",
 "link": "none"
 },

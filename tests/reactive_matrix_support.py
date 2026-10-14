@@ -26,7 +26,7 @@ import warnings
 import geometry_support as G
 import scena
 from media_support import media
-from scena import Box, Circle, Ellipse, EquilateralTriangle, Line, Point, Polygon
+from scena import Box, Circle, Ellipse, Triangle, Line, Point, Polygon
 from scena import Rect, RegularPolygon, Sprite, Square, State, Svg, Text, Track, Vec2
 from scena.state import ContainerSlot, ScalarSlot
 
@@ -67,7 +67,7 @@ SUBJECTS: List[Tuple[str, Callable[[], object]]] = [
     ("Box center", lambda: Box(center=(0, 0), width=4, height=3, angle=30)),
     ("Polygon", _tri),
     ("RegularPolygon", lambda: RegularPolygon(n=5, center=(0, 0), radius=10)),
-    ("EquilateralTriangle", lambda: EquilateralTriangle(center=(0, 0), radius=10)),
+    ("Triangle", lambda: Triangle(center=(0, 0), radius=10)),
     ("Track", lambda: Track(points=[(0, 0), (10, 0), (10, 10)])),
     # Derived headings (angle read off the points): a linked angle drives rotate_to.
     ("Line p1,dx,dy", lambda: G.build("Line point_dx_dy")),
@@ -87,7 +87,7 @@ SUBJECTS: List[Tuple[str, Callable[[], object]]] = [
 # Classes whose reactive slots are covered by a subject above (guard).
 COVERED = frozenset({
     "Vec2", "Point", "Line", "Circle", "Ellipse", "Rect", "Square", "Box",
-    "Polygon", "RegularPolygon", "EquilateralTriangle", "Track", "Sprite", "Svg", "Text",
+    "Polygon", "RegularPolygon", "Triangle", "Track", "Sprite", "Svg", "Text",
 })
 # Reactive classes the matrix does not drive, each with the reason.
 NOT_DRIVEN = {
@@ -141,6 +141,8 @@ def values_for(name: str, slot, is_pair: bool):
         return 90.0, 180.0
     if name in ("begin", "end", "u"):
         return 0.2, 0.6
+    if name == "base_ratio":
+        return 0.6, 1.4
     if getattr(slot, "magnitude", False):
         return 5.0, 9.0
     return 2.0, 7.0
@@ -286,7 +288,9 @@ def _clamped(slot, v: float) -> float:
         lo = 0.0
     if lo is not None and v < lo:
         v = lo
-    if hi is not None and v > hi:
+    if hi is not None and getattr(slot, "maximum_open", False) and v >= hi:
+        v = math.nextafter(hi, -math.inf)
+    elif hi is not None and v > hi:
         v = hi
     return v
 

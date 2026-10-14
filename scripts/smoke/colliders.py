@@ -122,7 +122,7 @@ _place(
     0, 1, spin=80, orbit=40, omega=0.95, phase=0.4,
 )
 _place(
-    _style(EquilateralTriangle(radius=44, angle=0), _COLORS[5]),
+    _style(Triangle(radius=44, angle=0), _COLORS[5]),
     1, 1, spin=-65, orbit=38, omega=1.15, phase=1.1,
 )
 _poly = _style(

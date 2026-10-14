@@ -721,6 +721,11 @@ def _approx_draw_aabb(obj) -> Optional[Tuple[float, float, float, float]]:
         try:
             cx, cy, r, _phi = placement()
             r = abs(float(r))
+            # Triangle: past base_ratio 1 the base corners reach beyond radius.
+            # Only radial polygons have ``_placement_params``: read the class.
+            reach = type(obj)._reach_factor
+            if reach is not None:
+                r *= reach(obj)
             return (cx - r, cy - r, cx + r, cy + r)
         except Exception:
             pass

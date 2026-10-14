@@ -141,7 +141,7 @@ SHAPES_NAV = """    <a href="#desenhar-shapes" class="nav-child" data-chapter="d
     <a href="#shape-ellipse" class="nav-child nav-grand" data-chapter="desenhar" data-search="ellipse elipse">Ellipse</a>
     <a href="#shape-polygon" class="nav-child nav-grand" data-chapter="desenhar" data-search="polygon polígono">Polygon</a>
     <a href="#shape-regular" class="nav-child nav-grand" data-chapter="desenhar" data-search="regularpolygon regular n">RegularPolygon</a>
-    <a href="#shape-triangle" class="nav-child nav-grand" data-chapter="desenhar" data-search="equilateraltriangle triângulo">EquilateralTriangle</a>
+    <a href="#shape-triangle" class="nav-child nav-grand" data-chapter="desenhar" data-search="triangle triângulo equilátero isósceles base_ratio">Triangle</a>
     <a href="#shape-point" class="nav-child nav-grand" data-chapter="desenhar" data-search="point ponto anchor">Point</a>
 """
 

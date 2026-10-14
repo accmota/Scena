@@ -1181,7 +1181,7 @@
     <a href="#shape-ellipse" class="nav-child nav-grand" data-chapter="desenhar" data-search="ellipse elipse">Ellipse</a>
     <a href="#shape-polygon" class="nav-child nav-grand" data-chapter="desenhar" data-search="polygon polígono">Polygon</a>
     <a href="#shape-regular" class="nav-child nav-grand" data-chapter="desenhar" data-search="regularpolygon regular n">RegularPolygon</a>
-    <a href="#shape-triangle" class="nav-child nav-grand" data-chapter="desenhar" data-search="equilateraltriangle triângulo">EquilateralTriangle</a>
+    <a href="#shape-triangle" class="nav-child nav-grand" data-chapter="desenhar" data-search="triangle triângulo equilátero isósceles base_ratio">Triangle</a>
     <a href="#shape-point" class="nav-child nav-grand" data-chapter="desenhar" data-search="point ponto anchor">Point</a>
     <a href="#desenhar-sprite" class="nav-child" data-chapter="desenhar" data-search="sprite sheet arquivo media png frame play clip strip atlas cols rows cell fps yoyo nframes names frame_index offset box is_collapsed blend alpha">Sprite</a>
     <a href="#sprite-carregar" class="nav-child nav-grand" data-chapter="desenhar" data-search="carregar png arquivos atlas xml json grade cols rows cell strip still frame kenney padrão asterisco * pasta quadros soltos">Carregar</a>
@@ -1396,7 +1396,7 @@ init(width=1200, height=800)
 SkyGradient("night")
 Stars()
 Vignette()
-t = EquilateralTriangle(center=(400, 300), radius=50, color="cyan")
+t = Triangle(center=(400, 300), radius=50, color="cyan")
 
 def update(dt):
     t.rotate_by(30 * dt)
@@ -1477,7 +1477,7 @@ run()</pre>
 <tr><td>Entity</td><td>Todo objeto do jogo: Shape, Sprite, Text, SpatialFx, widgets e o <a href="#desenhar-entity"><code>Entity()</code></a> sem desenho. Toda Entity pode ter campos próprios (<code>ship.hp</code>), timers (<code>after</code> / <code>every</code>), <a href="#mode">mode</a>, grupos e <code>destroy()</code>.</td></tr>
 <tr><td>Graphic</td><td>Uma Entity com corpo desenhado e pose: Shape, Sprite (e Svg) e Text. Só um Graphic pode ser clicado ou arrastado, andar com <code>move_to</code> e ter <code>.box</code>. SpatialFx e widgets não são Graphic.</td></tr>
 <tr><td>pose</td><td>Onde o objeto está e como está virado: <code>center</code>, <code>angle</code>, <code>scale</code> e o espelho (<code>flip_x</code> / <code>flip_y</code>). Os verbos de <a href="#mover-pose">Mover</a> mudam a pose; cor e visual não fazem parte dela.</td></tr>
-<tr><td>Shape</td><td>Um Graphic geométrico: Circle, Rect, Square, Line, Ellipse, Polygon, RegularPolygon, EquilateralTriangle, Point, Track.</td></tr>
+<tr><td>Shape</td><td>Um Graphic geométrico: Circle, Rect, Square, Line, Ellipse, Polygon, RegularPolygon, Triangle, Point, Track.</td></tr>
 <tr><td>ponto</td><td>Onde a API pede um lugar (<code>move_to</code>, <code>center=</code>, <code>about=</code>, <code>query_point</code>…), vale qualquer um destes: uma tupla <code>(x, y)</code>, um <code>Point</code>, um <code>Vec2</code>, um Graphic (vale o centro dele) ou <code>mouse</code>. A posição é copiada naquele instante; para acompanhar, use <code>lambda:</code> (<a href="#reativo">Reativo</a>). Mais em <a href="#ponto-like">Pontos</a>.</td></tr>
 <tr><td>campo / Attribute</td><td>Um valor que o Scena acompanha: <code>st.score</code>, <code>ship.hp</code>, <code>c.radius</code>. Quando ele muda, quem depende dele (uma fórmula <code>@=</code>, um <code>@when</code>, um widget) fica sabendo. <code>Attribute</code> é o nome da classe por trás.</td></tr>
 <tr><td>ligar (<code>@=</code>)</td><td>Fazer um campo seguir uma fórmula: <code>c["radius"] @= lambda: ship.hp</code> refaz a conta sempre que <code>ship.hp</code> muda. O oposto de <code>=</code>, que copia o valor uma vez.</td></tr>
@@ -1860,7 +1860,7 @@ Line(p1=(50, 50), p2=lambda: bola.center)</pre>
             <tr><td>Shape — Rect / Square / Ellipse</td><td>geometria do modelo: <code>center</code>, <code>width</code>, <code>height</code>, <code>angle</code>, <code>top_left</code>, <code>p1</code>, <code>p2</code>, <code>vec</code>, <code>length</code>, …</td><td><code>color</code>, <code>corner_radius</code> (não liga), <code>layer</code> / <code>group</code>, <code>box</code>, <code>anchor</code></td></tr>
             <tr><td>Shape — Line</td><td><code>center</code>, <code>angle</code>, <code>length</code>, <code>p1</code>, <code>p2</code>, <code>vec</code>, <code>dx</code>, <code>dy</code>, <code>dist</code></td><td><code>color</code>, <code>layer</code> / <code>group</code>; relações (<code>parallel_to=</code>, <code>circle=</code>…) já observam sozinhas — não são lambda do autor</td></tr>
             <tr><td>Shape — Polygon</td><td>cada vértice em <code>points=</code> (pode misturar: uns lambda, uns copiados)</td><td>quantidade de vértices (trava na construção)</td></tr>
-            <tr><td>Shape — RegularPolygon / EquilateralTriangle</td><td><code>center</code>, <code>radius</code>, <code>side</code>, <code>vertex</code>, <code>angle</code></td><td><code>n=</code> (lados: inteiro, trava na construção)</td></tr>
+            <tr><td>Shape — RegularPolygon / Triangle</td><td><code>center</code>, <code>radius</code>, <code>side</code>, <code>vertex</code>, <code>angle</code> (Triangle: também <code>base_ratio</code>)</td><td><code>n=</code> (RegularPolygon; lados: inteiro, trava na construção)</td></tr>
             <tr><td>Point</td><td>o ponto inteiro: <code>Point(lambda: …)</code>; um eixo: <code>Point(lambda: mouse.x, 0)</code>; par: <code>Point((lambda: src.x, 10))</code></td><td><code>Point(outro_ponto)</code> copia (não acompanha)</td></tr>
             <tr><td>Vec2</td><td>cada componente: <code>Vec2(lambda: a.x, lambda: a.y)</code>; o vetor inteiro: <code>Vec2(lambda: v1 + v2)</code></td><td>resultado de conta já feita (<code>Vec2(v1.x, v1.y)</code> copia os floats)</td></tr>
             <tr><td>Sprite / Svg</td><td>só <code>center=</code></td><td><code>width</code> / <code>height</code> / <code>size</code> (números na hora), <code>frame</code>, <code>hitbox</code>, arquivo, <code>color</code> / <code>visual</code>. <code>fps=</code> / <code>cols=</code> / <code>atlas=</code> vão no <code>Sheet</code>. Depois: <code>sprite["width"] @=</code> / <code>["angle"] @=</code> / <code>["scale"] @=</code></td></tr>
@@ -2225,7 +2225,7 @@ set_defaults("coral", line_width=2.0, dash="dot")</pre>
         <button class="tab" type="button" data-tab="ellipse">Ellipse</button>
         <button class="tab" type="button" data-tab="polygon">Polygon</button>
         <button class="tab" type="button" data-tab="regular">RegularPolygon</button>
-        <button class="tab" type="button" data-tab="triangle">EquilateralTriangle</button>
+        <button class="tab" type="button" data-tab="triangle">Triangle</button>
         <button class="tab" type="button" data-tab="point">Point</button>
       </div>
 
@@ -2712,20 +2712,21 @@ RegularPolygon(n=5, center=(400, 300), radius=50, color="cyan")</pre>
 </tbody>
 </table>
 </div>
-        <p class="gotcha"><code>n=</code> não muda depois. Triângulo: EquilateralTriangle.</p>
+        <p class="gotcha"><code>n=</code> não muda depois. Triângulo (também isósceles): Triangle.</p>
       </div>
 
       <div class="tab-panel" data-panel="triangle" id="shape-triangle">
-        <p class="one-liner">Um triângulo de lados iguais. <code>angle</code> é para onde a ponta (o ápice) aponta, como em todo rumo: <code>0</code> para a direita, <code>90</code> em pé. Bom para naves e setas: o giro aparece.</p>
+        <p class="one-liner">Um triângulo isósceles: dois lados iguais (<code>side</code>) e a base, oposta ao ápice, com <code>base_ratio</code> vezes esse tamanho. Sem <code>base_ratio</code> é equilátero (três lados iguais). <code>angle</code> é para onde a ponta (o ápice) aponta, como em todo rumo: <code>0</code> para a direita, <code>90</code> em pé. Bom para naves e setas: o giro aparece.</p>
         <div class="code-panel">
           <button class="copy-btn" type="button">copiar</button>
-<pre>EquilateralTriangle()
-EquilateralTriangle(center=(400, 300), radius=50, color="cyan")
+<pre>Triangle()
+Triangle(center=(400, 300), radius=50, color="cyan")
+nave = Triangle(center=(400, 300), radius=30, angle=90, base_ratio=0.6)
 t.rotate_by(30 * dt)</pre>
         </div>
         <details class="spec" open>
       <summary>Construtor</summary>
-          <p class="sig"><code>EquilateralTriangle(center=, radius=, angle=, color=, layer=, group=)</code></p>
+          <p class="sig"><code>Triangle(center=, radius=, angle=, base_ratio=, color=, layer=, group=)</code></p>
           <p class="sig-hint">Nome com <code>=</code>: passe pelo nome.</p>
           <div class="tbl-wrap">
             <table>
@@ -2734,16 +2735,17 @@ t.rotate_by(30 * dt)</pre>
               </thead>
           <tbody>
             <tr><td><code>center</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">centro do design</span></td><td>Ponto</td></tr>
-            <tr><td><code>radius</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">tamanho médio</span></td><td>Distância do centro a cada vértice (circunraio).</td></tr>
-            <tr><td><code>side</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">60</span></td><td>Ou o tamanho pelo lado, no lugar de <code>radius=</code>.</td></tr>
-            <tr><td><code>vertex</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">(0, 0)</span></td><td>Com <code>side=</code>: põe o triângulo por um vértice (o ápice) em vez do centro.</td></tr>
-            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box</span><span class="ex">cell</span></td><td>Inscreve. <a href="#colocar-fit">box=</a>.</td></tr>
+            <tr><td><code>radius</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">tamanho médio</span></td><td>Distância do centro ao ápice. O centro é o centróide (o ponto de equilíbrio). No equilátero, é o circunraio.</td></tr>
+            <tr><td><code>side</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">60</span></td><td>Ou o tamanho pelos dois lados iguais, no lugar de <code>radius=</code>.</td></tr>
+            <tr><td><code>vertex</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">(0, 0)</span></td><td>Com <code>side=</code>: põe o triângulo pelo ápice em vez do centro.</td></tr>
+            <tr><td><code>base_ratio</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">1</span></td><td>A base dividida pelo <code>side</code>, entre 0 e 2 (fora disso, ValueError). 1 é equilátero; menor fica mais pontudo, maior mais aberto. Mudar depois mantém o que posicionou o triângulo: com <code>radius</code>, o centro e o ápice; com <code>side</code>, os lados iguais. Liga com <code>@=</code> e anima com <code>tween</code>.</td></tr>
+            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box</span><span class="ex">cell</span></td><td>Inscreve, com o <code>base_ratio</code> dado: o triângulo inteiro cabe na caixa. <a href="#colocar-fit">box=</a>.</td></tr>
             <tr><td><code>angle</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Para onde o ápice aponta: 0 → direita, 90 → em pé. <code>face=True</code> voa de ápice para a frente.</td></tr>
               </tbody>
         </table>
           </div>
         </details>
-        <p class="gotcha">Não passe <code>n=</code>. É sempre 3.</p>
+        <p class="gotcha">Não passe <code>n=</code>: é sempre 3 (TypeError). Três cantos livres: <code>Polygon(points=[…])</code>. <code>EquilateralTriangle</code> virou <code>Triangle</code> na 0.9.0 (o nome antigo levanta TypeError com a correção).</p>
       </div>
 
       <div class="tab-panel" data-panel="point" id="shape-point">
@@ -9909,7 +9911,7 @@ def update(dt):
             <tr><th>Tema</th><th>Regra</th></tr>
           </thead>
           <tbody>
-            <tr><td>Permitidos</td><td><code>Line</code>, <code>Circle</code>, <code>Ellipse</code>, <code>Rect</code>, <code>Square</code>, <code>Polygon</code>, <code>RegularPolygon</code>, <code>EquilateralTriangle</code>, <code>Box</code>. Outro tipo (Point, Track, Sprite) → TypeError.</td></tr>
+            <tr><td>Permitidos</td><td><code>Line</code>, <code>Circle</code>, <code>Ellipse</code>, <code>Rect</code>, <code>Square</code>, <code>Polygon</code>, <code>RegularPolygon</code>, <code>Triangle</code>, <code>Box</code>. Outro tipo (Point, Track, Sprite) → TypeError.</td></tr>
             <tr><td>Contorno</td><td><code>Line</code> = segmento <code>p1→p2</code> (ignora espessura). <code>Circle</code> = circunferência cheia (ignora arco). <code>Ellipse</code> = contorno inteiro, com rotação. Elipse achatada a zero = segmento do eixo maior. Caixa / n-gon = arestas (ignora <code>corner_radius</code>).</td></tr>
             <tr><td>Ordem</td><td>Com <code>Line</code>: ao longo dela. Dois círculos: esquerda → direita do eixo dos centros. Primeiro é <code>Circle</code> / <code>Ellipse</code>: ao longo dele, a partir do +x local, no sentido da rotação. Senão: ao longo do primeiro.</td></tr>
             <tr><td>Quantos</td><td>Elipse × círculo ou elipse: até 4 pontos. Tangente conta 1.</td></tr>

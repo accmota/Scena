@@ -330,7 +330,7 @@ line["p1"] @= lambda: rect.top_left          # same form at Point level
 - **FieldRef RHS** (legal, not taught first): `dst["x"] @= src["x"]` resolves to the source field's graph node (`ScalarAnchor` / part Container) and installs a `DirectLink`
 - Forbids competing formulas on the same ownership ancestor↔descendant chain
 - Rejects cycles via the dependency graph
-- Installs `_link` on a `ScalarAnchor` (bare scalars, and a Defining `angle` on Rect/Ellipse/Square/RegularPolygon/EquilateralTriangle/Line/Circle), `_PropertyAnchor` (`Graphic.scale` everywhere; `angle` on Point/Sprite/Svg/Text/Track/free Polygon and on derived headings), or the part `Container`
+- Installs `_link` on a `ScalarAnchor` (bare scalars, and a Defining `angle` on Rect/Ellipse/Square/RegularPolygon/Triangle/Line/Circle), `_PropertyAnchor` (`Graphic.scale` everywhere; `angle` on Point/Sprite/Svg/Text/Track/free Polygon and on derived headings), or the part `Container`
 
 `=` on a linked field raises `LinkedAttributeError`. Use `obj["field"].unlink()` / `unlink_all()` to drop formulas deliberately.
 
@@ -1294,7 +1294,7 @@ draw (pose write tax, not draw — A4 below).
 Fast paths cover:
 
 - Center models: `Rect`/`Square` `CENTER_WH`, `Circle` `CENTER_RADIUS`,
-  `RegularPolygon`/`EquilateralTriangle` center models, `Ellipse`
+  `RegularPolygon`/`Triangle` center models, `Ellipse`
   `CENTER_WH`/`FROM_RECT`, `Line` `CENTER_LENGTH_ANGLE`, **`Sprite.center`**
 - Two-point models: `Line` `POINT_POINT`, `Circle` `TWO_POINTS` /
   `CENTER_PERIMETER`, `Ellipse` `FOCAL_POINTS`, `Rect` `CORNER_CORNER` /

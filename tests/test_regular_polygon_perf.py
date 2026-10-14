@@ -21,7 +21,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scena.shapes import (
-    Point, RegularPolygon, RegularPolygonModel, EquilateralTriangle, get_xy,
+    Point, RegularPolygon, RegularPolygonModel, Triangle, get_xy,
 )
 from scena.state import get_scena_system
 
@@ -56,7 +56,7 @@ class TestDeferredVertexWiring(unittest.TestCase):
         self.assertEqual(_shape_vertex_dependents(poly), set())
 
     def test_equilateral_triangle_also_defers_wiring(self):
-        tri = EquilateralTriangle(center=(0, 0), radius=10)
+        tri = Triangle(center=(0, 0), radius=10)
         self.assertEqual(len(tri._wired_vertices), 0)
         self.assertEqual(_shape_vertex_dependents(tri), set())
 

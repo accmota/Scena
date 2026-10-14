@@ -102,7 +102,7 @@ def placement_name(obj) -> Optional[str]:
                 "CORNER_CORNER": "lean"}.get(model)
     if kind == "Ellipse" and model == "CENTER_WH":
         return "center"
-    if kind in ("RegularPolygon", "EquilateralTriangle"):
+    if kind in ("RegularPolygon", "Triangle"):
         return "vertex" if model == "VERTEX_SIDE" else "center"
     if kind == "Line":
         return {"CENTER_LENGTH_ANGLE": "center", "POINT_ANGLE_LENGTH": "p1"}.get(model)
@@ -407,7 +407,7 @@ def step_runner(kind: str, step: str, obj=None) -> Callable:
 
 # Kinds whose hit test is their filled region. A Line or Track is picked by a
 # stroke tolerance that does not follow ``scale`` (a pick width, not geometry).
-_HIT_FAMILIES = {"Circle", "Ellipse", "Polygon", "RegularPolygon", "EquilateralTriangle",
+_HIT_FAMILIES = {"Circle", "Ellipse", "Polygon", "RegularPolygon", "Triangle",
                  "Rect", "Square", "Sprite", "Svg", "Text"}
 
 

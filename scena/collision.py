@@ -1267,13 +1267,13 @@ def _load_proxy_kinds() -> tuple:
     """Kinds ``_proxy_aabb_for_shape`` dispatches on, imported once (cycles)."""
     global _proxy_kinds
     from .shapes import (
-        Circle, Ellipse, Line, Point, Polygon, Rect, RegularPolygon, Square,
+        Circle, Ellipse, Line, Point, Polygon, Rect, _RadialPolygon, Square,
         get_xy, _bare_num,
     )
     from .sprite import Sprite
     from .track import Track
     _proxy_kinds = (
-        Circle, Ellipse, Line, Point, Polygon, Rect, RegularPolygon, Square,
+        Circle, Ellipse, Line, Point, Polygon, Rect, _RadialPolygon, Square,
         get_xy, _bare_num, Sprite, Track,
     )
     return _proxy_kinds
@@ -1290,7 +1290,7 @@ def _proxy_aabb_for_shape(shape) -> Optional[Tuple[float, float, float, float]]:
     # spinner, every frame): a per-call ``from … import`` block costs about
     # as much as the bound itself.
     (
-        Circle, Ellipse, Line, Point, Polygon, Rect, RegularPolygon, Square,
+        Circle, Ellipse, Line, Point, Polygon, Rect, _RadialPolygon, Square,
         get_xy, _bare_num, Sprite, Track,
     ) = _proxy_kinds or _load_proxy_kinds()
 
@@ -1375,9 +1375,13 @@ def _proxy_aabb_for_shape(shape) -> Optional[Tuple[float, float, float, float]]:
             return (cx - hw, cy - hh, cx + hw, cy + hh)
         return _aabb_from_obb(cx, cy, hw, hh, ang)
 
-    if isinstance(shape, RegularPolygon):
+    if isinstance(shape, _RadialPolygon):   # RegularPolygon / Triangle
         cx, cy, r, _phi0 = shape._placement_params()
-        return _aabb_from_circle(cx, cy, abs(float(r)))
+        r = abs(float(r))
+        reach = type(shape)._reach_factor
+        if reach is not None:               # Triangle: base corners past radius
+            r *= reach(shape)
+        return _aabb_from_circle(cx, cy, r)
 
     if isinstance(shape, Line):
         # Closed-form thin OBB from Defining endpoints — same math as exact
@@ -3030,7 +3034,7 @@ def _snapshot_shape_uncached(
     if sys is not None:
         sys._debug_hull_builds += 1
     from .shapes import (
-        Circle, Ellipse, Line, Point, Polygon, Rect, RegularPolygon, Square,
+        Circle, Ellipse, Line, Point, Polygon, Rect, _RadialPolygon, Square,
         get_xy, _bare_num, _clamped_spread, _is_full_turn,
     )
     from .spatial_fx import PointDomainFx, PadDomainFx, BeamDomainFx
@@ -3133,22 +3137,26 @@ def _snapshot_shape_uncached(
     if isinstance(shape, BeamDomainFx):
         return _prims_from_collision_specs(shape._collision_specs())
 
-    # RegularPolygon / EquilateralTriangle: closed-form verts from center/radius/angle.
+    # RegularPolygon / Triangle: closed-form verts from the Defining inputs.
     # Avoid shape.points — that materializes Derivate vertex Points via the reactive
-    # graph (~10× slower than reading Defining params once).
-    if isinstance(shape, RegularPolygon):
+    # graph (~10× slower than reading Defining params once). The shape owns the
+    # formula (``_world_verts``): a Triangle is not a regular n-gon.
+    if isinstance(shape, _RadialPolygon):
         cx, cy, r, phi0 = shape._placement_params()
         r = abs(float(r))
         n = int(shape._n)
         if n < 3 or r <= 0.0:
             return []
-        phi0_rad = math.radians(float(phi0))
-        delta = 2.0 * math.pi / n
-        verts = [
-            (cx + r * math.cos(phi0_rad + i * delta),
-             cy + r * math.sin(phi0_rad + i * delta))
-            for i in range(n)
-        ]
+        if type(shape)._reach_factor is not None:     # Triangle: not a regular n-gon
+            verts = shape._world_verts(cx, cy, r, phi0)
+        else:
+            phi0_rad = math.radians(float(phi0))
+            delta = 2.0 * math.pi / n
+            verts = [
+                (cx + r * math.cos(phi0_rad + i * delta),
+                 cy + r * math.sin(phi0_rad + i * delta))
+                for i in range(n)
+            ]
         return _snapshot_polygon_verts(verts, cache_owner=cache_owner, shape_id=id(shape))
 
     if isinstance(shape, Polygon):

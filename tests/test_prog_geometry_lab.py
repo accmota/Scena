@@ -1,5 +1,5 @@
 """Program model test: geometry playground (API-first: Ellipse, Polygon, RegularPolygon,
-Square, EquilateralTriangle, Anchor, Contrail, History, Hitbox, Svg, Texture, lerp, remap,
+Square, Triangle, Anchor, Contrail, History, Hitbox, Svg, Texture, lerp, remap,
 deadzone, distance, heading, closest_point, middle_point, intersection(s), nearest, XPos, clock).
 
 Program: tests/programs/geometry_lab.py (written from the Guia for the coverage pass).

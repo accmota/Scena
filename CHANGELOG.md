@@ -12,7 +12,41 @@ left out.
 
 ## Unreleased
 
+### Breaking
+
+- `EquilateralTriangle` is now `Triangle`, equilateral by default and
+  isosceles with `base_ratio=` (one class: the old name would have been a
+  second spelling of `Triangle()`). Before:
+  `EquilateralTriangle(center=(440, 480), radius=48, angle=90)`. After:
+  `Triangle(center=(440, 480), radius=48, angle=90)` — the same keywords,
+  models, `angle` (the apex heading) and vertex order. With
+  `from scena import *` the old name is gone (`NameError: name
+  'EquilateralTriangle' is not defined`); `scena.EquilateralTriangle` /
+  `from scena import EquilateralTriangle` raise with the fix: `TypeError:
+  EquilateralTriangle was renamed to Triangle in 0.9.0 (equilateral by
+  default; base_ratio= makes it isosceles). Write Triangle(center=…,
+  radius=…).` (a subclass: `Write class Nave(Triangle).`).
+- `Triangle(n=…)` raises `TypeError` with the fix (`RegularPolygon(n=…)`);
+  `EquilateralTriangle(n=3)` was accepted. `Triangle` is no longer an
+  `isinstance` of `RegularPolygon` (an isosceles triangle is not regular);
+  `RegularPolygon(n=3)` is still the regular triangle.
+- `base_ratio` is now a Triangle field: on any other kind,
+  `x.base_ratio = …` raises with a hint (it was a plain attribute nothing
+  read), like `circle.width = …`.
+
 ### Added
+
+- `Triangle(…, base_ratio=)`: an isosceles triangle. `side` is the length
+  of the two equal sides and the base is `base_ratio * side`, with
+  `0 < base_ratio < 2` (1, the default, is equilateral; below 1 is sharper,
+  like a ship; above 1 wider). `Triangle(center=(0, 0), side=40,
+  base_ratio=0.6)` has legs of 40 and a base of 24. It is reactive (`=`,
+  `@=`, `tween`), and changing it keeps what placed the triangle: with
+  `radius`, the center and the apex; with `side`, the equal sides; with
+  `vertex`, the apex and the sides. `radius` is the distance from the center
+  (the centroid) to the apex. `box=` fits the triangle inside the box with
+  its `base_ratio`. A class default works like `n`:
+  `class Nave(Triangle, base_ratio=0.6)`.
 
 - **Level editor, several items selected:**
   - A frame with **corner handles and a rotate knob**. The corners scale
@@ -41,6 +75,12 @@ left out.
   selected item has: type a name to add it to all of them, delete one to
   remove it from all of them. Groups only some items have are listed below
   the field (`Some: …`) and are left alone.
+
+### Fixed
+
+- `box=` on an author subclass of `RegularPolygon` (`class Hex(RegularPolygon)`)
+  now takes the box's angle, as `RegularPolygon(box=…)` does; it compared
+  class names and missed subclasses.
 
 ## 0.8.1 — 2026-10-14
 

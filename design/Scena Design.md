@@ -62,7 +62,7 @@ The release number lives in `scena/_version.py` (`scena.__version__`); `pyprojec
 
 **Rules for a breaking change:**
 
-- **Loud, never silent.** A renamed or removed name, keyword, or field raises with the new spelling in the message — the existing pattern (`_RETIRED_ATTRS` on Sprite, `hitbox._RETIRED_KNOBS`, the `group("name")` migration `TypeError`; a retired top-level name answers `stage.<old>` / `from scena import <old>` with a raising stub through the module `__getattr__`, `act.RETIRED_NAMES` for the 0.6.0 Act rename — star-import code gets a plain `NameError`). The old spelling does **not** keep working as an alias: [Fences.md](Fences.md) still allows one spelling, and the retired-name error is the migration path. Keep that error at least until 1.0.
+- **Loud, never silent.** A renamed or removed name, keyword, or field raises with the new spelling in the message — the existing pattern (`_RETIRED_ATTRS` on Sprite, `hitbox._RETIRED_KNOBS`, the `group("name")` migration `TypeError`; a retired top-level name answers `stage.<old>` / `from scena import <old>` with a raising stub through the module `__getattr__` — `act.RETIRED_NAMES` for the 0.6.0 Act rename, `shapes.RETIRED_NAMES` for `EquilateralTriangle` → `Triangle` in 0.9.0, merged in `scena/__init__.py` — star-import code gets a plain `NameError`). The old spelling does **not** keep working as an alias: [Fences.md](Fences.md) still allows one spelling, and the retired-name error is the migration path. Keep that error at least until 1.0.
 - **Same spelling, new meaning is the most expensive kind.** Old code keeps running and does something else, with nothing to tell the author. Prefer a new name (and retire the old one loudly); if the meaning must change in place, the case for it has to be strong and the changelog entry says exactly what behaves differently.
 - **Level files** keep loading: a format change bumps the file's `version` and the loader reads the older versions. A rename of the `format` tag alone is not a format change: the loader reads the old tag too and the version stays (`level_format.LEGACY_FORMATS`: `"stage-level"`, from before the 0.6.0 rename to Scena; the editor writes the new tag).
 - **A package rename** (Stage → Scena, 0.6.0) has no alias package: a `stage` shim would hide the unrelated `stage` on PyPI. The old import fails with `ModuleNotFoundError`, and the CHANGELOG gives the fix (`from scena import *`; `pip uninstall stage`). Names the code keeps for old data or old installs say so (`level_format.LEGACY_FORMATS`, `shortcut.LEGACY_APP_NAME`); `test_message_vocabulary.TestNoStageBrand` keeps the old brand from coming back.
@@ -304,7 +304,7 @@ Custom ink (`ship.hp`) and geometry slots (`rect.width`, `line.p1.x`, `shape["an
 setting it (`=`, `@=`, the constructor keyword, a `tween`) keeps the point the actor was
 placed by, like `width`; the verbs `rotate_to` / `rotate_by` turn the whole actor about its
 center (or `about=`). Where `angle` is a model input (Rect / Ellipse / Square /
-RegularPolygon / EquilateralTriangle / Line / Circle) it is a plain geometry `ScalarSlot`;
+RegularPolygon / Triangle / Line / Circle) it is a plain geometry `ScalarSlot`;
 on Point / Sprite / Svg / Text / Track / free Polygon and derived headings it is
 property-backed (`_PropertyAnchor` → `rotate_to`), as `scale` is on every Graphic (→
 `scale_to`). `rotation` is retired on Graphics: every spelling raises with a hint

@@ -43,7 +43,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import geometry_support as G  # noqa: E402
 from scena import (  # noqa: E402
-    Box, Circle, Ellipse, EquilateralTriangle, Line, Point, Rect, RegularPolygon, Square,
+    Box, Circle, Ellipse, Triangle, Line, Point, Rect, RegularPolygon, Square,
     State, Track,
 )
 from scena.validate import MIN_SCALE  # noqa: E402
@@ -76,9 +76,9 @@ EXTRA_KINDS: Dict[str, Callable] = {
     "RegularPolygon center_radius noangle": lambda p: RegularPolygon(center=(p["x"], p["y"]), radius=6 * p["s"], n=5),
     "RegularPolygon center_side noangle": lambda p: RegularPolygon(center=(p["x"], p["y"]), side=6 * p["s"], n=4),
     "RegularPolygon vertex_side noangle": lambda p: RegularPolygon(vertex=(p["x"], p["y"]), side=6 * p["s"], n=6),
-    "EquilateralTriangle center_radius noangle": lambda p: EquilateralTriangle(center=(p["x"], p["y"]), radius=6 * p["s"]),
-    "EquilateralTriangle center_side noangle": lambda p: EquilateralTriangle(center=(p["x"], p["y"]), side=6 * p["s"]),
-    "EquilateralTriangle vertex_side noangle": lambda p: EquilateralTriangle(vertex=(p["x"], p["y"]), side=6 * p["s"]),
+    "Triangle center_radius noangle": lambda p: Triangle(center=(p["x"], p["y"]), radius=6 * p["s"]),
+    "Triangle center_side noangle": lambda p: Triangle(center=(p["x"], p["y"]), side=6 * p["s"]),
+    "Triangle vertex_side noangle": lambda p: Triangle(vertex=(p["x"], p["y"]), side=6 * p["s"]),
 }
 
 def _sheet_sprite(anchor):
@@ -152,7 +152,7 @@ def every_signature_row() -> List[Tuple[str, str]]:
     """Every constructor row of every in-scope class, read from the classes."""
     import scena.box as box_mod
     out = []
-    for cls in (Line, Circle, Ellipse, Rect, Square, RegularPolygon, EquilateralTriangle):
+    for cls in (Line, Circle, Ellipse, Rect, Square, RegularPolygon, Triangle):
         for name, _keys in cls._CONSTRUCTOR_SIGNATURES:
             out.append((cls.__name__, name))
     for name, _keys in box_mod._CONSTRUCTOR_SIGNATURES:
@@ -237,7 +237,7 @@ def _copy_cross_model(obj, w):
     twin_kind = {
         "Line": "Line center_length", "Circle": "Circle two_points", "Ellipse": "Ellipse focal_points",
         "Rect": "Rect corner_corner", "Square": "Square top_left_length",
-        "RegularPolygon": "RegularPolygon vertex_side", "EquilateralTriangle": "EquilateralTriangle vertex_side",
+        "RegularPolygon": "RegularPolygon vertex_side", "Triangle": "Triangle vertex_side",
         "Polygon": "Polygon",
     }.get(type(obj).__name__)
     if twin_kind is None:

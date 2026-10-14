@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scena import (
     init, Circle, Rect, Square, Ellipse, Line, Polygon, RegularPolygon,
-    EquilateralTriangle, Point, Sprite, Text,
+    Triangle, Point, Sprite, Text,
 )
 from scena.box import Box, _CONSTRUCTOR_SIGNATURES as BOX_SIGNATURES
 from scena.state import CallableAssignError
@@ -172,12 +172,12 @@ class TestConstructorLinks(unittest.TestCase):
             (RegularPolygon, dict(n=5, center=(0, 0), side=12, angle=15)),
             (RegularPolygon, dict(n=5, vertex=(0, 20), side=12)),
             (RegularPolygon, dict(n=5, vertex=(0, 20), side=12, angle=15)),
-            (EquilateralTriangle, dict(center=(0, 0), radius=20)),
-            (EquilateralTriangle, dict(center=(0, 0), radius=20, angle=15)),
-            (EquilateralTriangle, dict(center=(0, 0), side=12)),
-            (EquilateralTriangle, dict(center=(0, 0), side=12, angle=15)),
-            (EquilateralTriangle, dict(vertex=(0, 20), side=12)),
-            (EquilateralTriangle, dict(vertex=(0, 20), side=12, angle=15)),
+            (Triangle, dict(center=(0, 0), radius=20)),
+            (Triangle, dict(center=(0, 0), radius=20, angle=15)),
+            (Triangle, dict(center=(0, 0), side=12)),
+            (Triangle, dict(center=(0, 0), side=12, angle=15)),
+            (Triangle, dict(vertex=(0, 20), side=12)),
+            (Triangle, dict(vertex=(0, 20), side=12, angle=15)),
             (Box, dict(p1=(0, 0), p2=(80, 40))),
             (Box, dict(p1=(0, 0), p2=(80, 40), angle=30)),
             (Box, dict(top_left=(0, 0), width=40, height=20)),
@@ -195,7 +195,7 @@ class TestConstructorLinks(unittest.TestCase):
             covered.setdefault(cls, set()).add(_matched_signature(cls, kwargs))
         classes = (
             Line, Circle, Ellipse, Rect, Square, RegularPolygon,
-            EquilateralTriangle, Box,
+            Triangle, Box,
         )
         for cls in classes:
             missing = {name for name, _ in _signatures(cls)} - covered.get(cls, set())

@@ -290,10 +290,10 @@ def plant(name):
     """Patch a known bug back in; returns an undo function."""
     from unittest import mock
     import scena.shapes as SH
-    from scena import RegularPolygon
-    from scena.shapes import Shape
+    from scena.shapes import Shape, _RadialPolygon
     if name == "flip":
-        p = mock.patch.object(RegularPolygon, "_mirror_geometry", Shape._mirror_geometry)
+        # The shared base: RegularPolygon and Triangle (not a RegularPolygon) both flip here.
+        p = mock.patch.object(_RadialPolygon, "_mirror_geometry", Shape._mirror_geometry)
     elif name == "pivot":
         p = mock.patch.object(SH, "_scale_xy", lambda x, y, cx, cy, f: (x * f, y * f))
     elif name == "fast":

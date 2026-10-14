@@ -3,7 +3,7 @@
 "seed": 178208277,
 "subjects": [
 {
-"kind": "EquilateralTriangle center_side",
+"kind": "Triangle center_side",
 "base": "collidable",
 "link": "source"
 }

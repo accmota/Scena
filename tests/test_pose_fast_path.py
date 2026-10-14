@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scena.shapes import (
     Point, Line, Rect, Square, Circle, Ellipse, Polygon, RegularPolygon,
-    EquilateralTriangle, get_xy,
+    Triangle, get_xy,
 )
 from scena.state import (
     LinkedAttributeError, DerivedAttributeError, Attribute, get_scena_system,
@@ -97,7 +97,7 @@ class TestColdDerivateConstructionBugs(PoseTestCase):
         self.assertPointAlmost(poly.center, 40, 50)
 
     def test_equilateral_move_to_does_not_enable_pull(self):
-        tri = EquilateralTriangle(center=(1, 2), radius=10, angle=0)
+        tri = Triangle(center=(1, 2), radius=10, angle=0)
         tri.move_to(7, 8)
         tri.rotate_by(10)
         self.assertFalse(tri._needs_pull_invalidate)
@@ -181,7 +181,7 @@ class TestPoseFastPathA(PoseTestCase):
             Circle(center=(0, 0), radius=5),
             Square(center=(0, 0), length=10, angle=0),
             RegularPolygon(n=6, center=(0, 0), radius=9, angle=0),
-            EquilateralTriangle(center=(0, 0), radius=8, angle=0),
+            Triangle(center=(0, 0), radius=8, angle=0),
             Ellipse(center=(0, 0), width=12, height=8, angle=0),
             Line(p1=(0, 0), p2=(10, 0)),
             Line(center=(0, 0), length=20, angle=0),
@@ -297,7 +297,7 @@ class TestB1PromotionContract(PoseTestCase):
             Circle(center=(0, 0), radius=5),
             Square(center=(0, 0), length=12, angle=0),
             RegularPolygon(n=5, center=(0, 0), radius=9, angle=15),
-            EquilateralTriangle(center=(0, 0), radius=7, angle=0),
+            Triangle(center=(0, 0), radius=7, angle=0),
             Ellipse(center=(0, 0), width=14, height=6, angle=0),
         ]
         for s in shapes:

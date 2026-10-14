@@ -148,7 +148,7 @@ c1 = Circle(center=(120, 620), radius=40, group="pool").set_color("cyan")
 r1 = Rect(center=(260, 620), width=90, height=65, group="pool").set_color("orange")
 sq1 = Square(center=(400, 620), length=60, angle=15, group="pool").set_color("lime")
 e1 = Ellipse(center=(120, 470), width=100, height=55, angle=20, group="pool").set_color("magenta")
-t1 = EquilateralTriangle(center=(260, 470), radius=48, group="pool").set_color("gold")
+t1 = Triangle(center=(260, 470), radius=48, group="pool").set_color("gold")
 hex1 = RegularPolygon(n=6, center=(400, 470), radius=44, group="pool").set_color("coral")
 line1 = Line(p1=(60, 330), p2=(200, 370), group="pool").set_color("sky blue")
 line1.line_width = 12

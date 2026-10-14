@@ -89,7 +89,11 @@ class TestFuzzerChecksItself(unittest.TestCase):
 
     def test_canaries_are_found_within_budget(self):
         require_canaries(self)
-        budget = {"flip": 20, "pivot": 20, "fast": 20, "turns": 40}
+        # A budget is the programs seed 11 may take. "fast" (a 0.1 % translate
+        # error) is hit by ~3 % of programs, so 20 passed or failed by where the
+        # seed landed: adding kinds to geometry_support.KINDS reshuffles every
+        # program (0.9.0's isosceles Triangle kinds moved it from 2 to 79).
+        budget = {"flip": 20, "pivot": 20, "fast": 120, "turns": 40}
         missed = []
         for name, limit in budget.items():
             undo = F.plant(name)

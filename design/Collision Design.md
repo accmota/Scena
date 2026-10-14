@@ -1518,7 +1518,7 @@ test fails until both agree. `_SPRITE_POSE_KEY_FAST = False` is the generic key.
 vertex write does not bump the epoch, so its extra packs every vertex relative to the
 vertex-average centroid (plus rotation / scale): stable under `move_by`, changed by a
 vertex drag. World-space vertices would rebuild the hull on every translate.
-`RegularPolygon` / `EquilateralTriangle` override it with an extra of their Defining
+`RegularPolygon` / `Triangle` override it with an extra of their Defining
 slots (`angle` / `radius` / `side`) and never walk vertices: there the vertices are
 Derivates, and reading them (`shape.points`) would warm them for good (~10× slower;
 [Reactive Design](Reactive%20Design.md)). Tests:

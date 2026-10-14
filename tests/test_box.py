@@ -16,7 +16,7 @@ import hypothesis_support  # noqa: E402,F401  (loads the Hypothesis profile)
 from hypothesis import assume, given, strategies as hst  # noqa: E402
 
 from scena import (
-    Box, Grid, Circle, Rect, Square, Ellipse, RegularPolygon, EquilateralTriangle,
+    Box, Grid, Circle, Rect, Square, Ellipse, RegularPolygon, Triangle,
     Line, Polygon, Sprite, Text, canvas, init, Entity,
 )
 from scena.entity import Graphic
@@ -734,7 +734,7 @@ class TestBoxFitContract(BoxTestCase):
 
     def test_equilateral_triangle_inscribes(self):
         cell = Box(center=(200, 150), width=80, height=40)
-        t = self.track(EquilateralTriangle(box=cell))
+        t = self.track(Triangle(box=cell))
         self.assertAlmostEqual(float(t.radius), 20.0)
 
     def test_sprite_height_override(self):

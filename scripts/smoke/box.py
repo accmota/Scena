@@ -173,7 +173,7 @@ def _stamp_into(cell: Box):
     elif kind == "Hexagon inscribe":
         r = RegularPolygon(box=region, n=6, color="medium orchid")
     elif kind == "Triangle inscribe":
-        r = EquilateralTriangle(box=region, color="orange")
+        r = Triangle(box=region, color="orange")
     elif kind == "Sprite contain":
         r = Sprite(space, frame="playerShip1_blue.png", box=region, art_angle=90)
     elif kind == "Sprite height=36":
@@ -541,7 +541,7 @@ def _p_fit():
         ("Sprite contain", lambda c: Sprite(space, frame="playerShip1_blue.png", box=c, art_angle=90)),
         ("Sprite h=36", lambda c: Sprite(space, frame="ufoGreen.png", box=c, height=36)),
         ("Circle r=14", lambda c: Circle(box=c, radius=14, color="cyan")),
-        ("Triangle inscr.", lambda c: EquilateralTriangle(box=c, color="orange")),
+        ("Triangle inscr.", lambda c: Triangle(box=c, color="orange")),
         ("Rect + pad", lambda c: Rect(box=c.inset(8), color="steel blue", corner_radius=10)),
     )
     zone = Box(center=(CONTENT_CX, CONTENT_CY + 10), width=980, height=520)

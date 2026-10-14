@@ -49,7 +49,7 @@ slider = Square(center=(CX - 220, CY), length=70, group="shape")
 slider.fill = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=35)
 
 # A triangle orbits the ellipse centre, nose along its path; a Contrail follows it.
-tri = EquilateralTriangle(center=(CX + 230, CY), radius=26, color="cyan", group="shape")
+tri = Triangle(center=(CX + 230, CY), radius=26, color="cyan", group="shape")
 tri["center"] @= lambda: (CX + 230 * cos(clock.time * st.speed),
                           CY + 150 * sin(clock.time * st.speed))
 trail = Contrail(max_points=40, duration=1.5, fade=True, color="cyan", line_width=3)

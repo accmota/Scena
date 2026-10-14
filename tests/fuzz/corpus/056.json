@@ -3,7 +3,7 @@
 "seed": 272812826,
 "subjects": [
 {
-"kind": "EquilateralTriangle center_radius",
+"kind": "Triangle center_radius",
 "base": "names_crossed",
 "link": "part"
 },

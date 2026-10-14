@@ -382,7 +382,7 @@ for i, (x, y) in enumerate(centers):
         elif kind == 1:
             shp = Square(center=(x, y), length=half_extent * 1.6, angle=i * 7)
         else:
-            shp = EquilateralTriangle(
+            shp = Triangle(
                 center=(x, y), radius=half_extent, angle=i * 5
             )
         shp.set_color(("tomato", "deepskyblue", "gold", "lime")[i % 4])

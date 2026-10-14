@@ -19,7 +19,7 @@ circulo = Circle(center=(300, 480), radius=40, color="#FF83FA")
 circulo.glow = True
 circulo.color = "green"
 
-triangulo = EquilateralTriangle(center=(440, 480), radius=48, angle=90, color="gold")  # 90: em pé
+triangulo = Triangle(center=(440, 480), radius=48, angle=90, color="gold")  # 90: em pé
 triangulo.visual = Neon()
 
 

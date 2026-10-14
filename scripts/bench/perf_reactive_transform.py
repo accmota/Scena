@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scena import (  # noqa: E402
-    Circle, EquilateralTriangle, Rect, RegularPolygon, Square, init,
+    Circle, Triangle, Rect, RegularPolygon, Square, init,
 )
 
 
@@ -65,9 +65,9 @@ def main() -> None:
             lambda i, vn=vn: RegularPolygon(n=vn, center=(i % 50, i // 50), radius=10),
             n, iters, lambda s: s.rotate_by(1.0),
         )
-    results_rot["EquilateralTriangle"] = _bench(
-        "EquilateralTriangle",
-        lambda i: EquilateralTriangle(center=(i % 50, i // 50), radius=10),
+    results_rot["Triangle"] = _bench(
+        "Triangle",
+        lambda i: Triangle(center=(i % 50, i // 50), radius=10),
         n, iters, lambda s: s.rotate_by(1.0),
     )
     results_rot["Circle"] = _bench(
@@ -94,8 +94,8 @@ def main() -> None:
             n, iters, lambda s: s.move_by(0.1, 0.1),
         )
     _bench(
-        "EquilateralTriangle",
-        lambda i: EquilateralTriangle(center=(i % 50, i // 50), radius=10),
+        "Triangle",
+        lambda i: Triangle(center=(i % 50, i // 50), radius=10),
         n, iters, lambda s: s.move_by(0.1, 0.1),
     )
     _bench(

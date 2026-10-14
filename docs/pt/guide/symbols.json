@@ -7280,16 +7280,16 @@
       "params": []
     },
     {
-      "name": "EquilateralTriangle",
+      "name": "Triangle",
       "kind": "class",
       "chapter": "desenhar",
       "section": "desenhar-shapes",
       "anchor": "shape-triangle",
-      "oneLiner": "Triângulo equilátero. Sempre n=3.",
+      "oneLiner": "Triângulo isósceles; equilátero por padrão (base_ratio=1).",
       "public": true,
       "chapterTitle": "Desenhar",
       "sectionTitle": "Shapes",
-      "search": "equilateraltriangle",
+      "search": "triangle",
       "catalog": false,
       "params": []
     },

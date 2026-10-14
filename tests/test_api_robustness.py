@@ -27,7 +27,7 @@ import scena
 from scena import (
     init, canvas, st, keyp, mouse, audio, group, Mouse,
     Circle, Rect, Square, Ellipse, Line, Polygon, RegularPolygon,
-    EquilateralTriangle, Point, Sprite, Text, Entity, Vec2, Sheet,
+    Triangle, Point, Sprite, Text, Entity, Vec2, Sheet,
     Slider, DropDown, Button, CheckBox, TextInput, SkyGradient, Fire,
     when, on_change, collide, collide_with, on_mode, exit_mode,
     chance, ready, recently, play_sound, set_fx_auto, State,
@@ -177,7 +177,7 @@ class TestShapesAreKeywordOnly(unittest.TestCase):
 
     def test_positional_values_raise_with_example(self):
         for cls in (Circle, Rect, Square, Ellipse, Line, Polygon,
-                    RegularPolygon, EquilateralTriangle):
+                    RegularPolygon, Triangle):
             with self.subTest(cls=cls.__name__):
                 with self.assertRaises(TypeError) as ctx:
                     cls(10)
@@ -342,7 +342,7 @@ class TestPoseSetters(unittest.TestCase):
             Line(p1=(0, 0), p2=(10, 0)),
             Polygon(points=[(0, 0), (10, 0), (0, 10)]),
             RegularPolygon(center=(0, 0), radius=5, n=5),
-            EquilateralTriangle(center=(0, 0), side=5),
+            Triangle(center=(0, 0), side=5),
             Point(3, 4),
             Box(center=(0, 0), width=10, height=5),
             Text("hi"),
@@ -1857,6 +1857,7 @@ class TestBareMagnitudeOnlyOnReactivePaths(unittest.TestCase):
         ("state.py", "_coerce_magnitude_slot"): "ScalarSlot write / constructor slot (links a formula)",
         ("state.py", "_coerce_constrained"): "ScalarSlot write / constructor slot (links a formula)",
         ("shapes.py", "_reject_bad_spread"): "callables return before the check",
+        ("shapes.py", "_reject_bad_base_ratio"): "callables return before the check",
         ("validate.py", "fixed_magnitude"): "the fixed wrapper itself",
     }
 

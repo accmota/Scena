@@ -12,7 +12,7 @@ from .orchestration import (
     run, init, set_fx_auto,
     flush,
 )
-from .act import Act, change_act, RETIRED_NAMES as _RETIRED_NAMES
+from .act import Act, change_act, RETIRED_NAMES as _ACT_RETIRED_NAMES
 from .state import (
     State, remap, lerp, MappingFunctions, Attribute, Container, FieldRef,
     LinkedAttributeError, DerivedAttributeError, CallableAssignError, DestroyedError,
@@ -97,7 +97,8 @@ from .input import Mouse, KeyPressed, Clock
 from .entity import Entity
 from .shapes import (
     Shape, Point, Line, Rect, Square, Circle, Ellipse, Polygon, RegularPolygon,
-    EquilateralTriangle, Anchor, Pos, XPos, middle_point, distance, heading, nearest,
+    Triangle, Anchor, Pos, XPos, middle_point, distance, heading, nearest,
+    RETIRED_NAMES as _SHAPES_RETIRED_NAMES,
 )
 from .box import Box, Grid
 from .geom import intersections, intersection, closest_point
@@ -208,7 +209,7 @@ INPUT_EXPORTS = ["Mouse", "KeyPressed", "Clock"]
 SHAPES_EXPORTS = [
     "Box", "Grid",
     "Shape", "Point", "Line", "Rect", "Square", "Circle", "Ellipse",
-    "Polygon", "RegularPolygon", "EquilateralTriangle", "Anchor",
+    "Polygon", "RegularPolygon", "Triangle", "Anchor",
     "XPos", "middle_point", "distance", "heading", "nearest",
     "intersections", "intersection", "closest_point",
     "Track",
@@ -310,9 +311,13 @@ ui = builtins.ui
 audio = builtins.audio
 
 # Retired author names (``Scene`` → ``Act``, ``change_scene`` → ``change_act``,
-# 0.6.0): ``scena.Scene`` / ``from scena import Scene`` get a stub that raises
-# with the new spelling. Not in ``__all__`` and not in builtins: star-import
-# code gets Python's own ``NameError``.
+# 0.6.0; ``EquilateralTriangle`` → ``Triangle``, 0.9.0): ``scena.Scene`` /
+# ``from scena import Scene`` get a stub that raises with the new spelling.
+# Not in ``__all__`` and not in builtins: star-import code gets Python's own
+# ``NameError``.
+_RETIRED_NAMES = {**_ACT_RETIRED_NAMES, **_SHAPES_RETIRED_NAMES}
+
+
 def __getattr__(name):
     stub = _RETIRED_NAMES.get(name)
     if stub is not None:

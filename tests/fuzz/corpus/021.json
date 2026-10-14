@@ -8,7 +8,7 @@
 "link": "none"
 },
 {
-"kind": "EquilateralTriangle center_side",
+"kind": "Triangle center_side",
 "base": "copied",
 "link": "part"
 },

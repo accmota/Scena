@@ -36,7 +36,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 COPY_TWINS = {
     "Line": "Line center_length", "Circle": "Circle two_points", "Ellipse": "Ellipse focal_points",
     "Rect": "Rect corner_corner", "Square": "Square top_left_length",
-    "EquilateralTriangle": "EquilateralTriangle vertex_side",
+    "Triangle": "Triangle vertex_side",
 }
 
 

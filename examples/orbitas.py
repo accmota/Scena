@@ -50,7 +50,7 @@ anel.dash = "dash"
 anel.rotate_by(360, time=1.0, loops="forever")
 
 passeio = Track.eight(width=820, height=520, center=(500, 350))
-sonda = EquilateralTriangle(radius=14, color="white")
+sonda = Triangle(radius=14, color="white")
 sonda.move_along(passeio, time=14, loops="forever")
 
 linha = Line(p1=lambda: sonda.center, p2=sol.center, color="light cyan")

@@ -26,7 +26,7 @@ circulo = Circle(center=(300, 480), radius=40)
 circulo.color = "#FF83FA"
 circulo.glow = True
 
-triangulo = EquilateralTriangle(center=(440, 480), radius=48, angle=90)
+triangulo = Triangle(center=(440, 480), radius=48, angle=90)
 triangulo.color = "gold"
 triangulo.visual = Neon()
 

@@ -368,23 +368,23 @@ run()
     {
       title: "Triângulos",
       fresh: true,
-      part: "EquilateralTriangle",
+      part: "Triangle",
       body: `
-        <p>O <code>EquilateralTriangle</code> (triângulo equilátero) é o polígono regular de 3 lados, com um nome próprio porque aparece muito: em naves, setas e ponteiros. O <code>angle</code> é para onde aponta a ponta (o ápice): 0 é para a direita, 90 para cima. Por isso ele mostra bem um giro.</p>
+        <p>O <code>Triangle</code> (triângulo), sem mais nada, é equilátero: os três lados iguais, como o polígono regular de 3 lados. Tem um nome próprio porque aparece muito: em naves, setas e ponteiros. O <code>angle</code> é para onde aponta a ponta (o ápice): 0 é para a direita, 90 para cima. Por isso ele mostra bem um giro.</p>
         <p>Os modelos são os do polígono regular: <code>radius</code> (do centro até cada ponta) ou <code>side</code> (o lado); e <code>vertex</code> com <code>side</code> põe o triângulo pelo ápice (o pontinho branco). Ele sempre tem 3 lados: não passe <code>n=</code>.</p>
       `,
       code: `from scena import *
 
-init(width=1000, height=700, title="EquilateralTriangle")
+init(width=1000, height=700, title="Triangle")
 Wallpaper("dark navy")
 
-EquilateralTriangle(center=(120, 380), radius=70, color="coral")
+Triangle(center=(120, 380), radius=70, color="coral")
 Text("center, radius", center=(120, 270), font_size=15)
-EquilateralTriangle(center=(330, 380), radius=70, angle=90, color="gold")
+Triangle(center=(330, 380), radius=70, angle=90, color="gold")
 Text("angle=90", center=(330, 270), font_size=15)
-EquilateralTriangle(center=(530, 380), side=100, color="turquoise")
+Triangle(center=(530, 380), side=100, color="turquoise")
 Text("side=100", center=(530, 270), font_size=15)
-EquilateralTriangle(vertex=(800, 380), side=100, color="orchid")
+Triangle(vertex=(800, 380), side=100, color="orchid")
 Point(800, 380, color="white")
 Text("vertex, side", center=(750, 270), font_size=15)
 
@@ -393,9 +393,40 @@ run()
       try: [
         {
           note: "Um ponteiro que olha para o mouse: o <code>angle</code> numa <code>lambda</code> com o rumo até ele (<code>heading</code>, Apêndice D). No fim do programa.",
-          code: `EquilateralTriangle(center=(500, 600), radius=40, angle=lambda: heading((500, 600), mouse), color="white")`
+          code: `Triangle(center=(500, 600), radius=40, angle=lambda: heading((500, 600), mouse), color="white")`
         }
       ]
+    },
+    {
+      title: "Triângulos isósceles",
+      body: `
+        <p>Com <code>base_ratio</code> (razão da base), o triângulo fica isósceles: dois lados iguais, que são o <code>side</code>, e a base (o lado oposto ao ápice) com <code>base_ratio</code> vezes esse tamanho. Com <code>side=90</code> e <code>base_ratio=0.5</code>, os dois lados medem 90 e a base mede 45.</p>
+        <p>Sem ele, vale 1 e o triângulo é equilátero. Menor que 1, fica mais pontudo, como uma nave; maior que 1, mais aberto. Ele fica sempre entre 0 e 2: a base precisa ser menor que os dois lados juntos. O <code>radius</code> continua indo do centro até o ápice, então uma nave pontuda gira e voa pelo bico.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Triangle")
+Wallpaper("dark navy")
+
+Triangle(center=(120, 380), radius=70, color="coral")
+Text("center, radius", center=(120, 270), font_size=15)
+Triangle(center=(330, 380), radius=70, angle=90, color="gold")
+Text("angle=90", center=(330, 270), font_size=15)
+Triangle(center=(530, 380), side=100, color="turquoise")
+Text("side=100", center=(530, 270), font_size=15)
+Triangle(vertex=(800, 380), side=100, color="orchid")
+Point(800, 380, color="white")
+Text("vertex, side", center=(750, 270), font_size=15)
+
+Triangle(center=(200, 560), side=90, angle=90, base_ratio=0.5, color="coral")
+Text("base_ratio=0.5", center=(200, 490), font_size=15)
+Triangle(center=(500, 560), side=90, angle=90, color="gold")
+Text("base_ratio=1", center=(500, 490), font_size=15)
+Triangle(center=(800, 560), side=90, angle=90, base_ratio=1.6, color="turquoise")
+Text("base_ratio=1.6", center=(800, 490), font_size=15)
+
+run()
+`
     },
     {
       title: "Pontos e âncoras",
@@ -543,7 +574,7 @@ Ellipse(box=casa(1, 0, "Ellipse"), color="gold")
 Circle(box=casa(2, 0, "Circle"), color="turquoise")
 Square(box=casa(3, 0, "Square"), color="orchid")
 RegularPolygon(n=6, box=casa(0, 1, "RegularPolygon"), color="sky blue")
-EquilateralTriangle(box=casa(1, 1, "EquilateralTriangle"), color="coral")
+Triangle(box=casa(1, 1, "Triangle"), color="coral")
 Circle(box=casa(2, 1, "radius=30"), radius=30, color="gold")
 Rect(box=casa(3, 1, "inset(20)").inset(20), color="turquoise")
 

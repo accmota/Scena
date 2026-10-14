@@ -334,7 +334,7 @@ def _make_shape(i: int):
         shp = RegularPolygon(n=5 + (i % 4), center=(x, y), radius=s * 0.5, group="geom")
         _bind_shape(shp, home_r=s * 0.5)
     else:
-        shp = EquilateralTriangle(center=(x, y), radius=s * 0.5, group="geom")
+        shp = Triangle(center=(x, y), radius=s * 0.5, group="geom")
         _bind_shape(shp, home_r=s * 0.5)
     shp.set_color(color)
     shp.fill_alpha = 0.78

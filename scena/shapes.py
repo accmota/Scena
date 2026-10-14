@@ -282,7 +282,7 @@ _POSITIONAL_EXAMPLES = {
     "RegularPolygon": "RegularPolygon(center=(0, 0), radius=30, n=6)",
     "Rect": "Rect(center=(0, 0), width=10, height=20)",
     "Square": "Square(center=(0, 0), length=10)",
-    "EquilateralTriangle": "EquilateralTriangle(center=(0, 0), radius=30)",
+    "Triangle": "Triangle(center=(0, 0), radius=30)",
     "Polygon": "Polygon(points=[(0, 0), (40, 0), (20, 30)])",
 }
 
@@ -6510,9 +6510,9 @@ class Polygon(Shape):
         else:
             return None
         who = cls.__name__
-        if issubclass(cls, RegularPolygon):
+        if issubclass(cls, _RadialPolygon):         # RegularPolygon, Triangle
             return (f"{who}.{name}: the vertices of a {who} are computed from its "
-                    f"center, radius and angle; link one of those instead "
+                    f"{cls._computed_from}; link one of those instead "
                     f"(poly.center @= lambda: ...).")
         what = ("is the fixed vertex list (one Point per vertex), not a field"
                 if name == "points" else f"is not a field (vertex {index} is "
@@ -6867,7 +6867,7 @@ class _LazyRegularPolygonPoints(Sequence):
         if type(index) is not int:
             if isinstance(index, bool) or not isinstance(index, int):
                 # rp.points['a'] leaked "'<' not supported" (graphics review SC9)
-                raise TypeError(f"RegularPolygon.points takes a whole-number index or a slice, "
+                raise TypeError(f"{self._poly._KIND_LABEL}.points takes a whole-number index or a slice, "
                                 f"got {type(index).__name__} {index!r:.20}")
             index = int(index)
         self._poly._ensure_vertex_live(index)
@@ -6876,58 +6876,29 @@ class _LazyRegularPolygonPoints(Sequence):
     def __setitem__(self, index, value) -> None:
         # ``rp.points[i] @= f`` refuses in the ``@=`` (a computed vertex);
         # a plain store gets the reason, not "does not support item assignment".
+        poly = self._poly
         raise TypeError(
-            f"RegularPolygon.points[{index!r:.20}] = …: the vertices are computed "
-            f"from its center, radius and angle. Move or turn the polygon "
+            f"{poly._KIND_LABEL}.points[{index!r:.20}] = …: the vertices are computed "
+            f"from its {poly._computed_from}. Move or turn the polygon "
             f"(move_to, rotate_to), or link its center: poly.center @= lambda: ….")
 
 
-class RegularPolygon(Polygon):
+class _RadialPolygon(Polygon):
+    """Shared machinery of ``RegularPolygon`` and ``Triangle``: a Polygon whose
+    vertices are always Derivate, placed in closed form from ``center`` /
+    ``vertex``, ``radius`` / ``side`` and ``angle`` (the heading of vertex[0]).
+
+    Models (``RegularPolygonModel``): CENTER_RADIUS, CENTER_SIDE, VERTEX_SIDE.
+    ``radius`` is the center-to-vertex[0] distance. The defaults below are the
+    regular n-gon; ``Triangle`` overrides the shape hooks
+    (``_placement_params`` / ``_side_from_radius`` / ``_vertex_xy`` /
+    ``_world_verts`` / ``_local_verts`` / ``_reach_factor`` / the hit test and
+    the pose extra) and adds ``base_ratio``; the regular formulas stay inline
+    here, so a RegularPolygon pays no hook. Private: never instantiated directly.
     """
-    Regular (equilateral, equiangular) n-gon: a Polygon subclass whose N vertices are always
-    Derivate, computed from center/radius-or-side/angle + a fixed vertex count `n`.
 
-    `angle` is always the direction from center to vertex[0] (degrees, 0 = +x axis); vertices
-    proceed counter-clockwise from there (vertex[i] at angle + i * 360/n), matching Polygon's
-    positive-signed_area convention. `radius` is the circumradius (center-to-vertex distance,
-    per project convention).
-
-    Models:
-      - CENTER_RADIUS: center, radius, angle are Defining. Derivate: side (chord length).
-      - CENTER_SIDE: center, side, angle are Defining. Derivate: radius.
-      - VERTEX_SIDE: vertex (= vertex[0]'s world position), side, angle are Defining.
-        Derivate: center (= vertex - radius * (cos(angle), sin(angle))), radius.
-
-    `n` (vertex count, >= 3) is a fixed, non-reactive constructor argument -- like Polygon's
-    vertex count, it never changes over the shape's life. ``RegularPolygon()`` defaults to
-    ``n=6`` with a visible hexagon at the design center; ``RegularPolygon(n=k)`` uses the
-    same pose with that vertex count. Geometry signatures still require an explicit ``n``.
-
-    Reuses Polygon's centroid/signed_area/perimeter_length/points/draw/_move_to unchanged
-    (they only read self._vertices / self.centroid); center shadows Polygon's centroid-alias
-    property with a real Defining/Derivate ContainerSlot (numerically identical for a regular
-    polygon, by symmetry). _move_by/rotate_by/scale_by are overridden to update
-    center/radius/side/angle/vertex directly instead of per-vertex, since vertices here are
-    always computed outputs.
-
-    Args:
-        n: Number of sides (default 6).
-        center: Where the shape sits (a point, or a function that returns one).
-            ``center=`` alone gives a default-size shape there.
-        layer: Draw layer name or number (default: ``"default"``).
-        group: Group tag or list of tags (``group["enemies"]``).
-        visual: A look (``Neon()``, ``Glow()``, …), a color, ``Gradient`` or
-            ``Texture``.
-        color: Solid color (fill on area shapes, stroke on lines).
-        line_width: Outline thickness in design units (default 1.5).
-        box: Fit into a Box (or a frame-like shape) instead of giving position and size
-            — its own form.
-        radius: Center-to-vertex distance.
-        angle: Heading in degrees (counter-clockwise). Setting it keeps the point
-            the shape was placed by; ``rotate_to`` turns it about its center.
-        side: Side length (instead of ``radius``).
-        vertex: Position of vertex 0 (with ``side``).
-    """
+    _KIND_LABEL = "RegularPolygon"
+    _computed_from = "center, radius and angle"     # refusal text (points[i] =, poly["points"])
 
     # Model inputs (center / vertex, radius / side, angle), not free points.
     _derived_from = None
@@ -6949,7 +6920,6 @@ class RegularPolygon(Polygon):
         does not slide a stale hull. Do not inherit ``Polygon``'s
         centroid-relative verts: those are Derivate outputs here.
         """
-        d = self.__dict__
         try:
             rot = float(self._rotation)
         except Exception:
@@ -6958,20 +6928,7 @@ class RegularPolygon(Polygon):
             scale = float(self._scale)
         except Exception:
             scale = 1.0
-        anchors = d.get("_field_anchors")
-
-        def _slot(name: str) -> float:
-            if anchors:
-                anchor = anchors.get(name)
-                if anchor is not None:
-                    anchor._ensure_fresh()
-            else:
-                bare_ok = d.get("_scalar_bare_ok")
-                if bare_ok is not None and bare_ok.get(name) is False:
-                    self._refresh_scalar(name)
-            val = d.get(name, 0.0)
-            return 0.0 if val is None else float(val)
-
+        _slot = self._fresh_scalar
         return (
             rot,
             scale,
@@ -6980,12 +6937,24 @@ class RegularPolygon(Polygon):
             _slot("side"),
         )
 
-    _CTOR_EXTRA_KEYS = frozenset({"n"})
+    def _fresh_scalar(self, name: str) -> float:
+        """A Defining scalar's current value, refreshing a link first."""
+        d = self.__dict__
+        anchors = d.get("_field_anchors")
+        if anchors:
+            anchor = anchors.get(name)
+            if anchor is not None:
+                anchor._ensure_fresh()
+        else:
+            bare_ok = d.get("_scalar_bare_ok")
+            if bare_ok is not None and bare_ok.get(name) is False:
+                self._refresh_scalar(name)
+        val = d.get(name, 0.0)
+        return 0.0 if val is None else float(val)
 
-    # Home model = CENTER_RADIUS (same as RegularPolygon() / RegularPolygon(n=k)).
+    # Home model = CENTER_RADIUS (same as RegularPolygon() / Triangle()).
     _HOME_KEYS = frozenset({"center", "radius"})
     _HOME_OPTIONAL_KEYS = frozenset({"angle"})
-    _HOME_SIZE_KEYS = frozenset({"radius", "angle", "n"})
 
     _CONSTRUCTOR_SIGNATURES = [
         ("center_radius",       {"center", "radius"}),
@@ -7001,41 +6970,14 @@ class RegularPolygon(Polygon):
         (cx, cy), unit = _default_pose()
         return {"center": (cx, cy), "radius": unit}
 
-    @overload
-    def __new__(cls, *, n: int = 6, center: Optional[GeneralPoint] = None, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'RegularPolygon': ...
-
-    @overload
-    def __new__(cls, *, n: int, center: GeneralPoint, radius: float, angle: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'RegularPolygon': ...
-
-    @overload
-    def __new__(cls, *, n: int, center: GeneralPoint, side: float, angle: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'RegularPolygon': ...
-
-    @overload
-    def __new__(cls, *, n: int, vertex: GeneralPoint, side: float, angle: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'RegularPolygon': ...
-
-    def __new__(cls, *args, **kwargs):
-        return super().__new__(cls)
-
-    def __init__(self, *args, **kwargs):
-        _reject_positional_shape_args(type(self), args)
-        defaults = getattr(type(self), '_shape_defaults', None) or {}
-        if 'n' not in kwargs and 'n' in defaults:
-            kwargs['n'] = defaults['n']
-        if 'n' not in kwargs:
-            kwargs['n'] = 6  # RegularPolygon() / (center=…) → hexagon
-        n_raw = kwargs['n']
-        # Strict int: int(5.9) used to truncate to 5. bool is an int subclass.
-        if isinstance(n_raw, bool) or not isinstance(n_raw, int):
-            raise TypeError(f"RegularPolygon n must be an int >= 3, got {n_raw!r}")
-        n = n_raw
-        if n < 3:
-            raise ValueError(f"RegularPolygon requires n >= 3, got {n}")
+    def _init_radial(self, n: int, kwargs: Dict[str, Any]) -> None:
+        """Build the model from ``kwargs`` once the subclass resolved ``n``."""
         self._n = n
 
         from .box import apply_box_to_shape_kwargs
         apply_box_to_shape_kwargs(
             type(self).__name__, kwargs, family="inscribe",
-            size_keys=("radius", "side"),
+            size_keys=("radius", "side"), heading=True,
         )
         base_params, signature = self._extract_common_params_and_signature(
             kwargs=kwargs,
@@ -7068,32 +7010,38 @@ class RegularPolygon(Polygon):
                 self._set_defining_parts('center', 'radius', 'angle')
                 with self._batch_update():
                     _init_composite(self.center, kwargs['center'])
-                    _reject_non_finite(kwargs['radius'], what="RegularPolygon.radius")
+                    _reject_non_finite(kwargs['radius'], what=f"{self._KIND_LABEL}.radius")
                     _init_scalar(self, 'radius', kwargs['radius'])
                     _init_scalar(self, 'angle', kwargs.get('angle', 0.0))
+                    self._init_shape_inputs(kwargs)
 
             case "center_side" | "center_side_angle":
                 self.model = RegularPolygonModel.CENTER_SIDE
                 self._set_defining_parts('center', 'side', 'angle')
                 with self._batch_update():
                     _init_composite(self.center, kwargs['center'])
-                    _reject_non_finite(kwargs['side'], what="RegularPolygon.side")
+                    _reject_non_finite(kwargs['side'], what=f"{self._KIND_LABEL}.side")
                     _init_scalar(self, 'side', kwargs['side'])
                     _init_scalar(self, 'angle', kwargs.get('angle', 0.0))
+                    self._init_shape_inputs(kwargs)
 
             case "vertex_side" | "vertex_side_angle":
                 self.model = RegularPolygonModel.VERTEX_SIDE
                 self._set_defining_parts('vertex', 'side', 'angle')
                 with self._batch_update():
                     _init_composite(self.vertex, kwargs['vertex'])
-                    _reject_non_finite(kwargs['side'], what="RegularPolygon.side")
+                    _reject_non_finite(kwargs['side'], what=f"{self._KIND_LABEL}.side")
                     _init_scalar(self, 'side', kwargs['side'])
                     _init_scalar(self, 'angle', kwargs.get('angle', 0.0))
+                    self._init_shape_inputs(kwargs)
 
             case _:
                 raise ValueError(f"Unknown signature: {signature}")
 
         _pose_rotation_set(self, _bare_num(self.angle))
+
+    def _init_shape_inputs(self, kwargs: Dict[str, Any]) -> None:
+        """Hook inside the construction batch (Triangle sets ``base_ratio``)."""
 
     _PART_NAMES = ('center', 'radius', 'side', 'angle', 'vertex')
 
@@ -7112,6 +7060,38 @@ class RegularPolygon(Polygon):
         verts = [(cx + r * math.cos(a0 + i * step), cy + r * math.sin(a0 + i * step))
                  for i in range(self._n)]
         return _point_in_polygon(x, y, verts)
+
+    def _world_verts(self, cx: float, cy: float, r: float, phi0: float,
+                     winding: int = 1) -> List[Tuple[float, float]]:
+        """Closed-form world vertices (``winding=1``: counter-clockwise from vertex[0]).
+
+        Every consumer that needs the outline (hit test, collision hull,
+        ``geom``, ``Track(shape)``) reads it here, never a regular-n-gon formula
+        of its own: a ``Triangle`` with ``base_ratio != 1`` is not regular.
+        """
+        step = winding * 2.0 * math.pi / self._n
+        a0 = _rad(phi0)
+        return [(cx + r * math.cos(a0 + i * step), cy + r * math.sin(a0 + i * step))
+                for i in range(self._n)]
+
+    def _closed_form_verts(self) -> List[Tuple[float, float]]:
+        """Counter-clockwise world vertices from the Defining inputs."""
+        cx, cy, r, phi0 = self._placement_params()
+        return self._world_verts(cx, cy, r, phi0)
+
+    # Bounds (culling, broad-phase) are a circle of ``radius`` about the
+    # center. A kind whose vertices reach past ``radius`` (Triangle with
+    # base_ratio > 1) defines ``_reach_factor()`` → bounds radius / radius;
+    # None here keeps the regular path one attribute read.
+    _reach_factor = None
+
+    def _side_from_radius(self, r: float) -> float:
+        return 2.0 * r * math.sin(math.pi / self._n)
+
+    def _vertex_xy(self, idx: int, cx: float, cy: float, r: float, phi0: float) -> Tuple[float, float]:
+        """World position of ``vertex[idx]`` in the current numbering."""
+        a = _rad(phi0) + idx * self._winding() * (2.0 * math.pi / self._n)
+        return (cx + r * math.cos(a), cy + r * math.sin(a))
 
     def _include_point_slot_in_debug(self, name: str) -> bool:
         """Skip inactive alternate-model inputs and centroid (duplicates center)."""
@@ -7149,7 +7129,7 @@ class RegularPolygon(Polygon):
         """Copy only the defining attributes for the current model (n must match)."""
         if self._n != other._n:
             raise ValueError(
-                f"Cannot take in a RegularPolygon with a different n ({other._n} vs {self._n})"
+                f"Cannot take in a {other._KIND_LABEL} with a different n ({other._n} vs {self._n})"
             )
         self._adopt_model_of(other)
         match self.model:
@@ -7165,7 +7145,11 @@ class RegularPolygon(Polygon):
             case _:
                 raise ValueError(f"Unknown regular polygon model: {self.model}")
         _init_scalar(self, 'angle', other.angle)
+        self._takein_shape_inputs(other)
         self.__dict__['_vertex_winding'] = other._winding()
+
+    def _takein_shape_inputs(self, other) -> None:
+        """Hook: copy shape inputs past the model's (Triangle: ``base_ratio``)."""
 
     def _winding(self) -> int:
         """``+1``: ``vertex[k]`` runs counter-clockwise from vertex[0]; ``-1`` after an odd
@@ -7253,16 +7237,15 @@ class RegularPolygon(Polygon):
         if idx < 0:
             idx += self._n
         if idx < 0 or idx >= self._n:
-            raise IndexError(f"RegularPolygon vertex index {idx} out of range: it has {self._n} "
+            raise IndexError(f"{self._KIND_LABEL} vertex index {idx} out of range: it has {self._n} "
                              f"vertices (0 … {self._n - 1})")
         self._wire_vertex(idx)
         vtx = self._vertices[idx]
         vtx._derivate_live = True
         vtx._flag_pull_consumers()
         cx, cy, r, phi0 = self._placement_params()
-        a = _rad(phi0) + idx * self._winding() * (2.0 * math.pi / self._n)
         with self._no_update():
-            vtx._takein((cx + r * math.cos(a), cy + r * math.sin(a)))
+            vtx._takein(self._vertex_xy(idx, cx, cy, r, phi0))
 
     def _materialize_derivate_part(self, name: str) -> None:
         """Fill a Derivate part on first access / link (named slot or v{i})."""
@@ -7329,7 +7312,7 @@ class RegularPolygon(Polygon):
         self._place_vertices(cx, cy, r, phi0)
         self._refresh_live_vertex(cx, cy, r, phi0)
         if self._field_is_derivate('side'):
-            self.side = 2.0 * r * math.sin(math.pi / self._n)
+            self.side = self._side_from_radius(r)
         if self._stats_live():
             super()._update_impl()
 
@@ -7364,17 +7347,23 @@ class RegularPolygon(Polygon):
         if self._stats_live():
             super()._update_impl()
 
+    def _local_path_key(self, r: float):
+        """Cache key of the local-frame path: everything but the pose."""
+        return (self._n, round(float(r), 4))
+
+    def _local_verts(self, r: float) -> List[Tuple[float, float]]:
+        """Counter-clockwise vertices in the local frame (vertex[0] on +x)."""
+        delta = 2.0 * math.pi / self._n
+        return [(r * math.cos(i * delta), r * math.sin(i * delta)) for i in range(self._n)]
+
     def _geometry_draw(self, skia_canvas, fill_paint=_STYLE_PAINT, stroke_paint=_STYLE_PAINT):
-        """Draw via local-frame CTM; path is cached by (r, n)."""
+        """Draw via local-frame CTM; path is cached by ``_local_path_key``."""
         cx, cy, r, phi0 = self._placement_params()
 
-        key = (self._n, round(float(r), 4))
+        key = self._local_path_key(r)
         if self._geom_path is None or self._geom_path_key != key:
             path = skia.Path()
-            delta = 2.0 * math.pi / self._n
-            for i in range(self._n):
-                a = i * delta
-                px, py = r * math.cos(a), r * math.sin(a)
+            for i, (px, py) in enumerate(self._local_verts(r)):
                 if i == 0:
                     path.moveTo(px, py)
                 else:
@@ -7418,13 +7407,16 @@ class RegularPolygon(Polygon):
         # Same model and pose, same vertex numbering (a flipped polygon's clone too).
         return self._adopt_winding(self._clone_geometry_same_model(**kwargs))
 
+    def _clone_shape_kwargs(self) -> Dict[str, Any]:
+        """Keywords a same-model clone passes besides the model's inputs."""
+        return {"n": self._n}
+
     def _clone_geometry_same_model(self, **kwargs) -> 'RegularPolygon':
-        n = self._n
+        kwargs = {**self._clone_shape_kwargs(), **kwargs}
         cls = type(self)
         match self.model:
             case RegularPolygonModel.CENTER_RADIUS:
                 return cls(
-                    n=n,
                     center=get_xy(self.center, bare=True),
                     radius=_bare_num(self.radius),
                     angle=_bare_num(self.angle),
@@ -7432,7 +7424,6 @@ class RegularPolygon(Polygon):
                 )
             case RegularPolygonModel.CENTER_SIDE:
                 return cls(
-                    n=n,
                     center=get_xy(self.center, bare=True),
                     side=_bare_num(self.side),
                     angle=_bare_num(self.angle),
@@ -7440,7 +7431,6 @@ class RegularPolygon(Polygon):
                 )
             case RegularPolygonModel.VERTEX_SIDE:
                 return cls(
-                    n=n,
                     vertex=get_xy(self.vertex, bare=True),
                     side=_bare_num(self.side),
                     angle=_bare_num(self.angle),
@@ -7672,6 +7662,88 @@ class RegularPolygon(Polygon):
     def scale_to(self, value: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'RegularPolygon':
         """Set absolute uniform scale about a pivot."""
         return _scale_to_via(self, value, about=about, force=force)
+
+
+class RegularPolygon(_RadialPolygon):
+    """
+    Regular (equilateral, equiangular) n-gon: a Polygon subclass whose N vertices are always
+    Derivate, computed from center/radius-or-side/angle + a fixed vertex count `n`.
+
+    `angle` is always the direction from center to vertex[0] (degrees, 0 = +x axis); vertices
+    proceed counter-clockwise from there (vertex[i] at angle + i * 360/n), matching Polygon's
+    positive-signed_area convention. `radius` is the circumradius (center-to-vertex distance,
+    per project convention).
+
+    Models:
+      - CENTER_RADIUS: center, radius, angle are Defining. Derivate: side (chord length).
+      - CENTER_SIDE: center, side, angle are Defining. Derivate: radius.
+      - VERTEX_SIDE: vertex (= vertex[0]'s world position), side, angle are Defining.
+        Derivate: center (= vertex - radius * (cos(angle), sin(angle))), radius.
+
+    `n` (vertex count, >= 3) is a fixed, non-reactive constructor argument -- like Polygon's
+    vertex count, it never changes over the shape's life. ``RegularPolygon()`` defaults to
+    ``n=6`` with a visible hexagon at the design center; ``RegularPolygon(n=k)`` uses the
+    same pose with that vertex count. Geometry signatures still require an explicit ``n``.
+
+    Reuses Polygon's centroid/signed_area/perimeter_length/points/draw/_move_to unchanged
+    (they only read self._vertices / self.centroid); center shadows Polygon's centroid-alias
+    property with a real Defining/Derivate ContainerSlot (numerically identical for a regular
+    polygon, by symmetry). _move_by/rotate_by/scale_by are overridden to update
+    center/radius/side/angle/vertex directly instead of per-vertex, since vertices here are
+    always computed outputs.
+
+    Args:
+        n: Number of sides (default 6).
+        center: Where the shape sits (a point, or a function that returns one).
+            ``center=`` alone gives a default-size shape there.
+        layer: Draw layer name or number (default: ``"default"``).
+        group: Group tag or list of tags (``group["enemies"]``).
+        visual: A look (``Neon()``, ``Glow()``, …), a color, ``Gradient`` or
+            ``Texture``.
+        color: Solid color (fill on area shapes, stroke on lines).
+        line_width: Outline thickness in design units (default 1.5).
+        box: Fit into a Box (or a frame-like shape) instead of giving position and size
+            — its own form.
+        radius: Center-to-vertex distance.
+        angle: Heading in degrees (counter-clockwise). Setting it keeps the point
+            the shape was placed by; ``rotate_to`` turns it about its center.
+        side: Side length (instead of ``radius``).
+        vertex: Position of vertex 0 (with ``side``).
+    """
+
+    _CTOR_EXTRA_KEYS = frozenset({"n"})
+    _HOME_SIZE_KEYS = frozenset({"radius", "angle", "n"})
+
+    @overload
+    def __new__(cls, *, n: int = 6, center: Optional[GeneralPoint] = None, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'RegularPolygon': ...
+
+    @overload
+    def __new__(cls, *, n: int, center: GeneralPoint, radius: float, angle: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'RegularPolygon': ...
+
+    @overload
+    def __new__(cls, *, n: int, center: GeneralPoint, side: float, angle: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'RegularPolygon': ...
+
+    @overload
+    def __new__(cls, *, n: int, vertex: GeneralPoint, side: float, angle: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'RegularPolygon': ...
+
+    def __new__(cls, *args, **kwargs):
+        return super().__new__(cls)
+
+    def __init__(self, *args, **kwargs):
+        _reject_positional_shape_args(type(self), args)
+        defaults = getattr(type(self), '_shape_defaults', None) or {}
+        if 'n' not in kwargs and 'n' in defaults:
+            kwargs['n'] = defaults['n']
+        if 'n' not in kwargs:
+            kwargs['n'] = 6  # RegularPolygon() / (center=…) → hexagon
+        n_raw = kwargs['n']
+        # Strict int: int(5.9) used to truncate to 5. bool is an int subclass.
+        if isinstance(n_raw, bool) or not isinstance(n_raw, int):
+            raise TypeError(f"RegularPolygon n must be an int >= 3, got {n_raw!r}")
+        n = n_raw
+        if n < 3:
+            raise ValueError(f"RegularPolygon requires n >= 3, got {n}")
+        self._init_radial(n, kwargs)
 
 
 class RectModel(Enum):
@@ -9173,21 +9245,70 @@ class Square(Rect):
         super()._scale_gate(about, force, pivot)
 
 
-class EquilateralTriangle(RegularPolygon):
+_TRIANGLE_RATIO_HINT = (
+    "base_ratio is base / side: 1 is equilateral, below 1 sharper, above 1 "
+    "wider, always below 2"
+)
+
+
+def _reject_bad_base_ratio(value) -> None:
+    """Author ``base_ratio`` is in ``(0, 2)``. A formula passes through.
+
+    The slot enforces the same rule on every later ``=``; this check runs at
+    construction so ``box=`` can size the triangle from a valid number. A
+    linked or tweened value outside the range is clamped (``maximum_open``).
     """
-    Equilateral triangle: a RegularPolygon fixed at n=3 (side, center/vertex-based
-    models are otherwise identical -- see RegularPolygon's docstring).
+    if callable(value) and not isinstance(value, type):
+        return
+    if isinstance(value, Attribute):
+        value = value.value
+        if callable(value) and not isinstance(value, type):
+            return
+    from .validate import magnitude
+    k = magnitude(value, "Triangle.base_ratio", positive=True, hint=_TRIANGLE_RATIO_HINT)
+    if isinstance(k, bool) or not isinstance(k, (int, float)):
+        return
+    if float(k) >= 2.0:
+        raise ValueError(
+            f"Triangle.base_ratio must be < 2, got {float(k)}: the base of an "
+            f"isosceles triangle is shorter than its two equal sides together"
+        )
+
+
+def _triangle_reach(k: float) -> float:
+    """Farthest vertex from the centroid, per unit ``radius`` (1 when ``k <= 1``)."""
+    hb = 0.75 * k / math.sqrt(1.0 - 0.25 * k * k)   # half base / radius
+    return max(1.0, math.hypot(0.5, hb))
+
+
+# A linked ``base_ratio`` is clamped below 2 by its slot; placement keeps a
+# margin so ``1 - k²/4`` never reaches 0 (the legs would be infinite).
+_TRIANGLE_K_TOP = 2.0 - 1e-9
+
+
+class Triangle(_RadialPolygon):
+    """
+    Isosceles triangle, equilateral by default. ``side`` is the length of the
+    two equal sides; ``base_ratio`` sets the third, the base opposite the
+    apex: ``base = base_ratio * side``. ``base_ratio=1`` (the default) is the
+    equilateral triangle, below 1 is sharper (a ship, an arrow), above 1 is
+    wider, and it is always ``0 < base_ratio < 2``. For three free corners use
+    ``Polygon(points=[…])``; for an n-sided regular polygon ``RegularPolygon(n=…)``.
 
     ``angle`` is where the apex (vertex[0]) points, like every other heading
     in Scena: ``angle=0`` points right (+x), ``angle=90`` is the upright
-    pose with a flat base. Same as ``RegularPolygon(n=3)``, so ``face=True``
-    motion flies a triangle apex first.
+    pose with a flat base. ``face=True`` motion flies a triangle apex first.
+    ``center`` is the centroid; ``radius`` is the center-to-apex distance
+    (the circumradius when ``base_ratio=1``).
 
-    Models:
-      - CENTER_RADIUS: center, radius, angle are Defining.
-      - CENTER_SIDE: center, side, angle are Defining.
+    Models (changing ``base_ratio`` keeps each model's inputs in place):
+      - CENTER_RADIUS: center, radius, angle — the center and the apex stay.
+      - CENTER_SIDE: center, side, angle — the center and the equal sides stay.
       - VERTEX_SIDE: vertex (= vertex[0]'s world position, the apex),
-        side, angle are Defining.
+        side, angle — the apex and the equal sides stay.
+
+    Example:
+        ship = Triangle(center=(400, 300), radius=20, angle=90, base_ratio=0.6)
 
     Args:
         center: Where the shape sits (a point, or a function that returns one).
@@ -9199,26 +9320,40 @@ class EquilateralTriangle(RegularPolygon):
         color: Solid color (fill on area shapes, stroke on lines).
         line_width: Outline thickness in design units (default 1.5).
         box: Fit into a Box (or a frame-like shape) instead of giving position and size
-            — its own form.
-        radius: Center-to-vertex distance.
-        angle: Heading in degrees (counter-clockwise). Setting it keeps the point
-            the shape was placed by; ``rotate_to`` turns it about its center.
-        side: Side length (instead of ``radius``).
-        vertex: Position of vertex 0 (with ``side``).
-        n: Always 3 (accepted for symmetry with ``RegularPolygon``).
+            — its own form. The triangle keeps its ``base_ratio`` and fits inside.
+        radius: Center-to-apex distance.
+        angle: Heading of the apex in degrees (counter-clockwise). Setting it keeps
+            the point the shape was placed by; ``rotate_to`` turns it about its center.
+        side: Length of the two equal sides (instead of ``radius``).
+        vertex: Position of the apex (with ``side``).
+        base_ratio: Base / side, in ``(0, 2)`` (default 1: equilateral).
     """
 
-    @overload
-    def __new__(cls, *, center: Optional[GeneralPoint] = None, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'EquilateralTriangle': ...
+    _KIND_LABEL = "Triangle"
+    _computed_from = "center, radius, angle and base_ratio"
+
+    radius = ScalarSlot(magnitude=True, hint=HINT_EXTENT, label="Triangle.radius")
+    side = ScalarSlot(magnitude=True, hint=HINT_EXTENT, label="Triangle.side")
+    base_ratio = ScalarSlot(
+        default=1.0, magnitude=True, positive=True, maximum=2.0, maximum_open=True,
+        hint=_TRIANGLE_RATIO_HINT, label="Triangle.base_ratio",
+    )
+
+    _CTOR_EXTRA_KEYS = frozenset({"base_ratio"})
+    _HOME_SIZE_KEYS = frozenset({"radius", "angle", "base_ratio"})
+    _PART_NAMES = _RadialPolygon._PART_NAMES + ('base_ratio',)
 
     @overload
-    def __new__(cls, *, center: GeneralPoint, radius: float, angle: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'EquilateralTriangle': ...
+    def __new__(cls, *, center: Optional[GeneralPoint] = None, base_ratio: float = 1.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Triangle': ...
 
     @overload
-    def __new__(cls, *, center: GeneralPoint, side: float, angle: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'EquilateralTriangle': ...
+    def __new__(cls, *, center: GeneralPoint, radius: float, angle: float = 0.0, base_ratio: float = 1.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Triangle': ...
 
     @overload
-    def __new__(cls, *, vertex: GeneralPoint, side: float, angle: float = 0.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'EquilateralTriangle': ...
+    def __new__(cls, *, center: GeneralPoint, side: float, angle: float = 0.0, base_ratio: float = 1.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Triangle': ...
+
+    @overload
+    def __new__(cls, *, vertex: GeneralPoint, side: float, angle: float = 0.0, base_ratio: float = 1.0, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Triangle': ...
 
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls)
@@ -9226,14 +9361,179 @@ class EquilateralTriangle(RegularPolygon):
     def __init__(self, *args, **kwargs):
         _reject_positional_shape_args(type(self), args)
         if 'n' in kwargs:
-            n_raw = kwargs['n']
-            # Reject before RegularPolygon truncates: int(3.9) == 3.
-            if isinstance(n_raw, bool) or not isinstance(n_raw, int) or n_raw != 3:
-                raise ValueError(
-                    f"EquilateralTriangle is always a 3-gon, got n={n_raw!r}"
-                )
-        kwargs['n'] = 3
-        super().__init__(*args, **kwargs)
+            raise TypeError(
+                "Triangle always has 3 vertices: drop n=. For a regular polygon "
+                "with n sides write RegularPolygon(n=…, center=…, radius=…)."
+            )
+        free = [k for k in ('p1', 'p2', 'p3', 'points') if k in kwargs]
+        if free:
+            raise TypeError(
+                f"Triangle has no {free[0]}=: it is placed by center / vertex, "
+                f"radius / side and angle (base_ratio makes it isosceles). For three "
+                f"free corners write Polygon(points=[(x1, y1), (x2, y2), (x3, y3)])."
+            )
+        defaults = getattr(type(self), '_shape_defaults', None) or {}
+        if 'base_ratio' not in kwargs:
+            kwargs['base_ratio'] = defaults.get('base_ratio', 1.0)
+        k = kwargs['base_ratio']
+        _reject_bad_base_ratio(k)
+        if 'box' in kwargs and 'radius' not in kwargs and 'side' not in kwargs:
+            # Fit inside the box's inscribed circle, as a regular polygon does:
+            # past base_ratio 1 the base corners reach farther than the apex.
+            from .box import apply_box_to_shape_kwargs
+            apply_box_to_shape_kwargs(
+                type(self).__name__, kwargs, family="inscribe",
+                size_keys=("radius", "side"), heading=True,
+            )
+            if isinstance(k, (int, float)) and not isinstance(k, bool) and k > 1.0:
+                kwargs['radius'] = kwargs['radius'] / _triangle_reach(float(k))
+        self._init_radial(3, kwargs)
+
+    def _init_shape_inputs(self, kwargs: Dict[str, Any]) -> None:
+        _init_scalar(self, 'base_ratio', kwargs['base_ratio'])
+
+    def _set_defining_parts(self, *defining: str) -> None:
+        """``base_ratio`` is an input of every model."""
+        names = defining if 'base_ratio' in defining else (*defining, 'base_ratio')
+        super()._set_defining_parts(*names)
+
+    def _tri(self) -> Tuple[float, float, float, float, float]:
+        """``(k, kp, hb, reach, rps)`` for the current ``base_ratio`` ``k``:
+        ``kp`` placed (kept in ``[0, 2)``), ``hb`` half base / radius,
+        ``reach`` farthest vertex / radius, ``rps`` radius / side. Cached by
+        ``k``: every placement reads it, and a ``base_ratio`` read is the
+        slot's (the bare fast path below is ``ScalarSlot.__get__``'s own)."""
+        d = self.__dict__
+        k = None
+        if not d.get('_field_anchors') and d.get('_link') is None:
+            ok = d.get('_scalar_bare_ok')
+            if ok is not None and ok.get('base_ratio') is True:
+                k = d.get('base_ratio', 1.0)
+        if k is None:
+            k = _bare_num(self.base_ratio)
+        c = d.get('_tri_consts')
+        if c is not None and c[0] == k:
+            return c
+        kp = 0.0 if k <= 0.0 else (k if k < _TRIANGLE_K_TOP else _TRIANGLE_K_TOP)
+        q = math.sqrt(1.0 - 0.25 * kp * kp)       # height / side
+        hb = 0.75 * kp / q
+        c = (k, kp, hb, max(1.0, math.hypot(0.5, hb)), (2.0 / 3.0) * q)
+        d['_tri_consts'] = c
+        return c
+
+    # --- shape hooks (the regular n-gon formulas stay inline on _RadialPolygon) ---
+
+    def _placement_params(self) -> Tuple[float, float, float, float]:
+        """``(cx, cy, r, phi0)``: ``r`` is centroid → apex; ``radius = 2/3`` of
+        the height, height = ``side * sqrt(1 - k²/4)``."""
+        phi0 = _bare_num(self.angle)
+        match self.model:
+            case RegularPolygonModel.CENTER_RADIUS:
+                cx, cy = get_xy(self.center, bare=True)
+                r = abs(_bare_num(self.radius))
+            case RegularPolygonModel.CENTER_SIDE:
+                cx, cy = get_xy(self.center, bare=True)
+                r = abs(_bare_num(self.side)) * self._tri()[4]
+            case RegularPolygonModel.VERTEX_SIDE:
+                vx, vy = get_xy(self.vertex, bare=True)
+                r = abs(_bare_num(self.side)) * self._tri()[4]
+                cx = vx - r * math.cos(_rad(phi0))
+                cy = vy - r * math.sin(_rad(phi0))
+            case _:
+                raise ValueError(f"Unknown triangle model: {self.model}")
+        return cx, cy, r, phi0
+
+    def _side_from_radius(self, r: float) -> float:
+        return r / self._tri()[4]
+
+    def _local_verts(self, r: float) -> List[Tuple[float, float]]:
+        """Apex on +x, base at x = -r/2 (the centroid sits 1/3 of the height up)."""
+        hb = self._tri()[2] * r
+        return [(r, 0.0), (-0.5 * r, hb), (-0.5 * r, -hb)]
+
+    def _world_verts(self, cx: float, cy: float, r: float, phi0: float,
+                     winding: int = 1) -> List[Tuple[float, float]]:
+        a = _rad(phi0)
+        co, si = math.cos(a), math.sin(a)
+        hb = winding * self._tri()[2] * r
+        bx, by = cx - 0.5 * r * co, cy - 0.5 * r * si    # the base's midpoint
+        return [(cx + r * co, cy + r * si),
+                (bx - hb * si, by + hb * co),
+                (bx + hb * si, by - hb * co)]
+
+    def _vertex_xy(self, idx: int, cx: float, cy: float, r: float, phi0: float) -> Tuple[float, float]:
+        return self._world_verts(cx, cy, r, phi0, self._winding())[idx]
+
+    def _place_vertices(self, cx: float, cy: float, r: float, phi0: float) -> None:
+        verts = self._world_verts(cx, cy, r, phi0, self._winding())
+        place_all = self._stats_live()
+        for vtx, xy in zip(self._vertices, verts):
+            if place_all or vtx._is_derivate_live():
+                vtx._takein(xy)
+
+    def _hit_test_xy(self, x: float, y: float) -> bool:
+        cx, cy, r, phi0 = self._placement_params()
+        return _point_in_polygon(x, y, self._world_verts(cx, cy, r, phi0))
+
+    def _reach_factor(self) -> float:
+        return self._tri()[3]
+
+    def _local_path_key(self, r: float):
+        return (3, round(float(r), 4), self._tri()[1])
+
+    def _collision_pose_extra(self) -> Tuple[float, ...]:
+        """The radial extra plus ``base_ratio``: a ratio write alone must change
+        the key, or the translate fast path slides a stale hull."""
+        extra = _RadialPolygon._collision_pose_extra(self)
+        d = self.__dict__
+        if not d.get('_field_anchors'):
+            ok = d.get('_scalar_bare_ok')
+            if ok is None or ok.get('base_ratio') is not False:
+                return extra + (float(d.get('base_ratio', 1.0)),)
+        return extra + (self._fresh_scalar('base_ratio'),)
+
+    def _clone_shape_kwargs(self) -> Dict[str, Any]:
+        return {"base_ratio": _bare_num(self.base_ratio)}
+
+    def _takein_shape_inputs(self, other) -> None:
+        k = other.base_ratio if isinstance(other, Triangle) else 1.0
+        _init_scalar(self, 'base_ratio', k)
+
+
+# ---------------------------------------------------------------------------
+# Retired name (0.9.0): EquilateralTriangle → Triangle
+# ---------------------------------------------------------------------------
+#
+# Loud, never silent (Scena Design, "Compatibility and versions"). ``scena/
+# __init__.py`` answers ``scena.EquilateralTriangle`` / ``from scena import
+# EquilateralTriangle`` with this stub (module ``__getattr__``). Not in
+# ``__all__`` nor in builtins: a star import gives a plain ``NameError``.
+# Keep it at least until 1.0.
+
+def _retired_equilateral_triangle_message(name: Optional[str] = None) -> str:
+    fix = (f"Write class {name}(Triangle)" if name
+           else "Write Triangle(center=…, radius=…)")
+    return (
+        f"EquilateralTriangle was renamed to Triangle in 0.9.0 (equilateral by "
+        f"default; base_ratio= makes it isosceles). {fix}."
+    )
+
+
+class _RetiredEquilateralTriangle:
+    """``EquilateralTriangle`` was renamed ``Triangle`` in 0.9.0; using it raises with the fix."""
+
+    def __init_subclass__(cls, **kwargs):
+        raise TypeError(_retired_equilateral_triangle_message(cls.__name__))
+
+    def __new__(cls, *args, **kwargs):
+        raise TypeError(_retired_equilateral_triangle_message())
+
+
+_RetiredEquilateralTriangle.__name__ = _RetiredEquilateralTriangle.__qualname__ = "EquilateralTriangle"
+
+RETIRED_NAMES: Dict[str, Any] = {
+    "EquilateralTriangle": _RetiredEquilateralTriangle,
+}
 
 
 def _refuse_anchor_off(anchor, name: str) -> None:
@@ -9472,10 +9772,6 @@ def _publish_shape_signature(cls: type) -> None:
     if "n" in collected and collected["n"].default is inspect.Parameter.empty:
         if cls.__name__ == "RegularPolygon":
             collected["n"] = collected["n"].replace(default=6)
-    if cls.__name__ == "EquilateralTriangle":
-        # Always 3: ``n=3`` is still accepted, but help() showed ``n=None`` as a
-        # knob (graphics review SC11).
-        collected.pop("n", None)
     # One flat signature cannot say "radius= needs center=": every model
     # keyword is optional here (``Circle()`` / ``Circle(center=…)`` work), and
     # the per-model forms are the ``@overload`` stubs editors show.
@@ -9498,7 +9794,7 @@ def _publish_shape_signature(cls: type) -> None:
     )
 
 
-for _shape_cls in (Line, Circle, Ellipse, RegularPolygon, Rect, Square, EquilateralTriangle):
+for _shape_cls in (Line, Circle, Ellipse, RegularPolygon, Rect, Square, Triangle):
     _publish_shape_signature(_shape_cls)
 
 

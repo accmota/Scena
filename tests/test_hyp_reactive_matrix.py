@@ -79,6 +79,8 @@ def coeffs(name, slot, is_pair):
         return (360.0, 0.0), None
     if name in ("begin", "end", "u"):
         return (1.0, 0.0), None
+    if name == "base_ratio":                  # Triangle: 0 < base_ratio < 2
+        return (0.8, 0.6), None
     if getattr(slot, "magnitude", False):
         return (49.0, 1.0), None
     return (40.0, -20.0), None

@@ -293,7 +293,7 @@ def _p_rect():
     _spin_by(rr, 0.35)
 
 
-@_page("Square · RegularPolygon · Triangle", "Square + RegularPolygon models + EquilateralTriangle; drag Anchors")
+@_page("Square · RegularPolygon · Triangle", "Square + RegularPolygon models + Triangle; drag Anchors")
 def _p_poly_reg():
     _cap("Square center / top_left", 60, 640)
     sq_c = _anchor(160, 480)
@@ -316,12 +316,12 @@ def _p_poly_reg():
     oct_v = _anchor(920, 420)
     _track(RegularPolygon(n=8, vertex=lambda: oct_v, side=40).set_color("yellow"))
 
-    _cap("EquilateralTriangle center / vertex", 1040, 640)
+    _cap("Triangle center / vertex", 1040, 640)
     tri_c = _anchor(1140, 470)
-    tri = _track(EquilateralTriangle(center=lambda: tri_c, side=110).set_color("lime"))
+    tri = _track(Triangle(center=lambda: tri_c, side=110).set_color("lime"))
     _spin_by(tri)
     triv = _anchor(1300, 420)
-    _track(EquilateralTriangle(vertex=lambda: triv, side=90).set_color("sea green"))
+    _track(Triangle(vertex=lambda: triv, side=90).set_color("sea green"))
 
 
 @_page("Polygon + hub", "Free Polygon; hub Anchor spokes to centers (formula links)")

@@ -41,7 +41,7 @@ def on_bc(me, other, info):
 def on_ep(me, other, info):
     pass
 
-player = EquilateralTriangle(center=(W / 2, 60), radius=28, angle=90, group="player").set_color("dodger blue")
+player = Triangle(center=(W / 2, 60), radius=28, angle=90, group="player").set_color("dodger blue")
 ceiling = Rect(center=(W / 2, H + 50), width=W + 200, height=60, group="ceiling")
 ceiling.visible = False
 

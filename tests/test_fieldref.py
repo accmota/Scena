@@ -1292,6 +1292,49 @@ class TestPolygonVertexLink(unittest.TestCase):
             hexa.points[1] @= lambda: b.center
         self.assertIsNone(hexa.points[1]._link)
 
+    def test_every_computed_vertex_kind_says_computed(self):
+        """Bug class (0.9.0 merge): Triangle left ``RegularPolygon`` for the
+        shared ``_RadialPolygon``, and refusals keyed on ``RegularPolygon``
+        gave it the free-vertex advice ("link one vertex: points[i] @=") or
+        named the wrong kind. Every computed-vertex kind, author subclasses
+        included, refuses a vertex write as computed, under its own name."""
+        from scena import Anchor, RegularPolygon, Triangle
+
+        class Hex(RegularPolygon):
+            pass
+
+        class Nave(Triangle, base_ratio=0.6):
+            pass
+
+        b = Anchor(1, 1)
+        for make, label, inputs in (
+                (lambda: RegularPolygon(center=(0, 0), radius=5, n=6),
+                 "RegularPolygon", "center, radius and angle"),
+                (lambda: Hex(center=(0, 0), radius=5, n=6),
+                 "Hex", "center, radius and angle"),
+                (lambda: Triangle(center=(0, 0), radius=5),
+                 "Triangle", "center, radius, angle and base_ratio"),
+                (lambda: Nave(center=(0, 0), radius=5),
+                 "Nave", "center, radius, angle and base_ratio")):
+            poly = make()
+            for name in ("points", "v1"):
+                with self.subTest(kind=label, name=name):
+                    with self.assertRaises(AttributeError) as cm:
+                        poly[name] @= lambda: (b.center.x, b.center.y)
+                    msg = str(cm.exception)
+                    self.assertIn(f"computed from its {inputs}", msg)
+                    self.assertIn(f"{label}.{name}", msg)
+                    self.assertNotIn("points[1] @=", msg)
+                    self.assertFalse(getattr(poly, "_ink", None))
+            with self.subTest(kind=label, store="points[0] ="):
+                with self.assertRaises(TypeError) as cm:
+                    poly.points[0] = (1, 1)
+                self.assertIn(f"computed from its {inputs}", str(cm.exception))
+            kind = poly._KIND_LABEL
+            with self.subTest(kind=label, index="'a'"):
+                with self.assertRaisesRegex(TypeError, rf"^{kind}\.points takes"):
+                    poly.points["a"]
+
 
 class TestFormulaLinkNamedFunction(unittest.TestCase):
     def test_named_function_links_like_a_lambda(self):
