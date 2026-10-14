@@ -58,6 +58,9 @@ class TestGameClaims(unittest.TestCase):
     def test_oficina(self):
         self._check("oficina")
 
+    def test_canteiro(self):
+        self._check("canteiro")
+
 
 if __name__ == "__main__":
     unittest.main()

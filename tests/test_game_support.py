@@ -380,6 +380,26 @@ class TestGeom(unittest.TestCase):
         # Grid: row 0 at the top (y up), gap between cells
         self.assertEqual(self.g.grid_cell(0, 100, 210, 100, 2, 1, 10, 1, 0), (160.0, 50.0, 100.0, 100.0))
 
+    def test_sweep_circle_box(self):
+        s = self.g.sweep_circle_box
+        # straight up into a box's bottom face: touches when the top reaches it
+        t, n = s((0, -10), (0, 10), 1, 0, 5, 4, 2)
+        self.assertAlmostEqual(t, (4 - 1 - (-10)) / 20.0)
+        self.assertEqual(n, (0.0, -1.0))
+        # sideways into the left face
+        t, n = s((-10, 5), (10, 5), 1, 0, 5, 4, 2)
+        self.assertEqual(n, (-1.0, 0.0))
+        self.assertAlmostEqual(t, (-2 - 1 + 10) / 20.0)
+        # straight at the bottom-right corner (2, 4): the normal leaves the corner
+        t, n = s((5, 1), (0, 6), 1, 0, 5, 4, 2)
+        self.assertAlmostEqual(t, (3 * math.sqrt(2) - 1) / (5 * math.sqrt(2)))
+        self.assertAlmostEqual(n[0], math.sqrt(0.5))
+        self.assertAlmostEqual(n[1], -math.sqrt(0.5))
+        # a miss, a path that stops short, and a start already overlapping
+        self.assertIsNone(s((10, -10), (10, 10), 1, 0, 5, 4, 2))
+        self.assertIsNone(s((0, -10), (0, 0), 1, 0, 5, 4, 2))
+        self.assertIsNone(s((0, 4.5), (0, 10), 1, 0, 5, 4, 2))
+
     def test_amp_db_agrees_with_scena(self):
         import scena
         for x in (0.0, -1.0, 1e-4, 0.001, 0.01, 0.1, 0.5, 1.0, 2.0):
@@ -409,6 +429,43 @@ class TestHarnessRules(unittest.TestCase):
     def test_known_still_fail_names_the_entries_no_run_hits(self):
         with mock.patch.dict(gh.KNOWN, {("armada", "old.bug"): "a reason long enough"}):
             self.assertEqual(gh.known_still_fail("armada", [self._result()]), ["old.bug"])
+
+    def test_os_level_run_sends_what_a_window_sends(self):
+        """GameRun with ``os_level``: a window (the per-frame pointer sample
+        runs), Shift held goes in as ``MOD_SHIFT``, ``key_repeat`` is an OS
+        repeat, ``place`` moves the cursor with no motion callback, and
+        ``glfw.get_key`` reports the held keys; all given back at close."""
+        import glfw
+        import scena.orchestration as orch
+        calls = []
+        r = gh.GameRun(gh.game_path("canteiro"), {}, probes={}, seed=1)
+        r.os_level = True
+        r.start()
+        try:
+            fw = r.world.fw
+            window = fw._window
+            self.assertIsNotNone(window)
+            real_key, real_move = fw._handle_key, fw._handle_mouse_move
+            fw._handle_key = lambda w, k, s, a, m: (calls.append(("key", k, a, m)), real_key(w, k, s, a, m))
+            fw._handle_mouse_move = lambda w, x, y: (calls.append(("move",)), real_move(w, x, y))
+            r.key_down("LEFT_SHIFT")
+            r.key_down("RIGHT")
+            r.key_repeat("RIGHT")
+            r.place(10.0, 20.0)
+            r.step(1)
+            self.assertEqual(calls, [("key", glfw.KEY_LEFT_SHIFT, glfw.PRESS, glfw.MOD_SHIFT),
+                                     ("key", glfw.KEY_RIGHT, glfw.PRESS, glfw.MOD_SHIFT),
+                                     ("key", glfw.KEY_RIGHT, glfw.REPEAT, glfw.MOD_SHIFT)])
+            self.assertEqual(orch.glfw.get_key(fw._window, glfw.KEY_RIGHT), glfw.PRESS)
+            self.assertEqual(tuple(r._cursor), r._to_screen(10.0, 20.0))
+            r.key_up("RIGHT")
+            r.key_up("LEFT_SHIFT")
+            r.step(1)
+            self.assertEqual(orch.glfw.get_key(fw._window, glfw.KEY_RIGHT), glfw.RELEASE)
+            fw._handle_key, fw._handle_mouse_move = real_key, real_move
+        finally:
+            r.close(strict=False)
+        self.assertIsNot(fw._window, window)
 
     def test_every_game_has_its_tables(self):
         for name, make in gh.GAMES.items():

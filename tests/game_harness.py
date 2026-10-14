@@ -511,6 +511,249 @@ class OficinaPilot(Pilot):
 
 
 # ---------------------------------------------------------------------------
+# Canteiro pilot
+# ---------------------------------------------------------------------------
+
+class CanteiroPilot(Pilot):
+    """Plays Canteiro by the clock of the act (seconds, so every pacing plays
+    the same session): the HUD first (the Zoom slider, the crate icon onto the
+    plot, two stakes, a crate into the trash, the Jato held until it breaks,
+    hover in and out of the window, Enter held with repeats in the Nome box),
+    then the walk: through the spikes (a stop on them), up the ramp (a stop on
+    it), Shift + SPACE, onto the pit lift (a few steps on it), onto the shaft
+    lift for a full cycle, to the door with RIGHT held (released in the shed).
+    While walking it wanders the cursor over the moving world and clicks.
+
+    It writes ``CURSOR`` in the game (where the cursor is, in view units, and
+    what owns the press): the truth of the game's pointer models."""
+
+    WANDER = ((420.0, 330.0), (610.0, 260.0), (300.0, 380.0), (720.0, 420.0), (520.0, 210.0))
+
+    def __init__(self, *, hud: bool = True, shift: bool = True, wander: bool = True) -> None:
+        super().__init__()
+        self.hud = hud
+        self.shift = shift
+        self.wander = wander
+        self.script = None
+
+    def act(self, run: ProgramRun) -> None:
+        if self.script is None:
+            self.script = self.plan(run)
+        try:
+            next(self.script)
+        except StopIteration:
+            pass
+
+    # cursor and buttons, told to the game -----------------------------------
+    def _cur(self, run, x, y, **kw):
+        c = run.view.CURSOR
+        c["view"] = (float(x), float(y))
+        c.update(kw)
+
+    def move_to(self, run, x, y):
+        run.move(x, y)
+        self._cur(run, x, y)
+
+    def place(self, run, x, y):
+        run.place(x, y)
+        self._cur(run, x, y)
+
+    def down(self, run, x, y, dono):
+        run.press(x, y)
+        self._cur(run, x, y, botao=True, dono=dono)
+
+    def up(self, run):
+        run.release()
+        run.view.CURSOR["botao"] = False
+
+    # time ------------------------------------------------------------------
+    def now(self, run):
+        return float(run.view.clock.time)
+
+    def wait_s(self, run, s):
+        end = self.now(run) + s
+        while self.now(run) < end - 1e-9:
+            yield
+
+    def click(self, run, x, y, dono):
+        self.down(run, x, y, dono)
+        yield
+        self.up(run)
+        yield
+
+    def drag(self, run, p0, p1, dono, frames=8):
+        self.down(run, *p0, dono)
+        yield
+        for i in range(1, frames + 1):
+            f = i / frames
+            p = p1() if callable(p1) else p1
+            self.move_to(run, p0[0] + (p[0] - p0[0]) * f, p0[1] + (p[1] - p0[1]) * f)
+            yield
+        self.up(run)
+        yield
+
+    def tap_key(self, run, name, frames=1):
+        run.key_down(name)
+        for _ in range(frames):
+            yield
+        run.key_up(name)
+        yield
+
+    def to_view(self, run, x, y):
+        return run.world.fw.world_to_view_coords(x, y)
+
+    # the session -------------------------------------------------------------
+    def plan(self, run):
+        v = run.view
+        rodada = 0
+        while True:
+            while v.PILOTO.get("ato") != "Patio" or "x" not in v.PILOTO:
+                yield
+            rodada += 1
+            yield from self.wait_s(run, 0.3)
+            if self.hud and rodada == 1:
+                yield from self.hud_phase(run)
+            yield from self.walk(run)
+            # the shed: RIGHT is still held across the act change; let go there
+            yield from self.wait_s(run, 0.3)
+            for k in sorted(self.held):
+                self.hold(run, k, False)
+            yield
+
+    def hud_phase(self, run):
+        v = run.view
+        w = run.widget("Zoom")
+        yield from self.drag(run, slider_x_for(w, w.value), slider_x_for(w, 0.85), "widget", frames=6)
+        yield from self.wait_s(run, 0.1)
+        icone = v.CENA["icone"]
+        casa = (icone.center.x, icone.center.y)
+        yield from self.drag(run, casa, lambda: self.to_view(run, 250.0, 130.0), "ui")
+        self.done.append("icone")
+        yield from self.wait_s(run, 0.7)
+        for p in ((520.0, 330.0), (700.0, 380.0)):
+            yield from self.click(run, *p, "mundo")
+            yield from self.wait_s(run, 0.1)
+        caixotes = [c for c in v.group["caixote"] if c.visible]
+        if caixotes:
+            c = caixotes[-1]
+            p0 = self.to_view(run, c.center.x, c.center.y)
+            yield from self.drag(run, p0, (940.0, 60.0), "mundo")
+            self.done.append("lixeira")
+        yield from self.wait_s(run, 0.2)
+        jx, jy = run.widget_center("Jato")
+        self.down(run, jx, jy, "widget")
+        yield from self.wait_s(run, 0.6)
+        self.up(run)
+        yield
+        self.done.append("jato")
+        yield from self.wait_s(run, 1.2)
+        for off in ((500.0, 680.0), (-60.0, 300.0)):
+            jx, jy = run.widget_center("Jato")
+            self.move_to(run, jx, jy)
+            yield from self.wait_s(run, 0.15)
+            self.place(run, *off)
+            yield from self.wait_s(run, 0.15)
+        self.move_to(run, 500.0, 300.0)
+        yield
+        nome = run.widget("Nome")
+        yield from self.click(run, *widget_center(nome), "widget")
+        for k in ("A", "B"):
+            yield from self.tap_key(run, k)
+        run.key_down("ENTER")
+        yield
+        for _ in range(3):
+            run.key_repeat("ENTER")
+            yield
+        run.key_up("ENTER")
+        yield
+        yield from self.tap_key(run, "ESC")
+        self.done.append("caixas")
+        yield from self.wait_s(run, 0.1)
+
+    def walk(self, run):
+        v = run.view
+        P = v.PILOTO
+        stage, mark, fases, jumped, walked = "espinho", 0.0, [], False, False
+        last_wander, wi = self.now(run), 0
+        while P.get("ato") == "Patio" and "x" in P:
+            x, chao, t = P["x"], P["chao"], P["t"]
+            right, shift = False, False
+            if stage == "espinho":
+                right = True
+                if x >= 455:
+                    stage, mark = "espinho_parado", t
+            elif stage == "espinho_parado":
+                if t - mark >= 0.8:
+                    stage = "rampa"
+            elif stage == "rampa":
+                right, shift = True, self.shift
+                if not jumped and 520 < x < 560 and chao:
+                    self.tap(run, "SPACE")           # with Shift held (PD6)
+                    jumped = True
+                if 700 <= x <= 760 and chao:
+                    stage, mark = "rampa_parado", t
+            elif stage == "rampa_parado":
+                if t - mark >= 1.0:
+                    stage = "fosso"
+            elif stage == "fosso":
+                lado = P["lado_x"]
+                if x > 875 and not chao:
+                    right = False                     # off the ramp's end: fall straight
+                elif x < 925:
+                    right = True
+                elif lado <= 1030:
+                    right, shift = True, True
+                    stage = "embarca_lado"
+            elif stage == "embarca_lado":
+                right, shift = True, True
+                if x >= P["lado_x"] - 20:
+                    stage, mark = "carona_lado", t
+            elif stage == "carona_lado":
+                if not walked and t - mark >= 0.5:
+                    right = x < P["lado_x"] + 30
+                    if t - mark >= 0.75:
+                        walked = True
+                if P["lado_x"] >= 1270.0 and P["lado_dir"] > 0:
+                    stage = "beiral"                  # step off as it reaches the far end
+            elif stage == "beiral":
+                right, shift = x < 1415, True
+                if not right and P["sobe_fase"] == "baixo" and P["sobe_t"] < 0.5:
+                    stage = "embarca_sobe"
+            elif stage == "embarca_sobe":
+                right, shift = x < 1515, True
+                if not right:
+                    stage, fases = "carona_sobe", [P["sobe_fase"]]
+            elif stage == "carona_sobe":
+                if P["sobe_fase"] != fases[-1]:
+                    fases.append(P["sobe_fase"])
+                if fases.count("cima") >= 2:
+                    stage = "alto"
+            elif stage == "alto":
+                right, shift = True, self.shift
+            self.hold(run, "LEFT_SHIFT", shift and right)
+            self.hold(run, "RIGHT", right)
+            # the cursor wanders over the moving world; a click now and then
+            if self.wander and self.now(run) - last_wander >= 0.4 and self._release_at is None:
+                last_wander = self.now(run)
+                p = self.WANDER[wi % len(self.WANDER)]
+                wi += 1
+                if wi % 4 == 0:
+                    self.down(run, *p, "mundo")
+                    self._release_at = self.t + 1
+                    self._wander_up = True
+                else:
+                    self.move_to(run, *p)
+            yield
+
+    def __call__(self, run: ProgramRun) -> None:
+        if getattr(self, "_wander_up", False) and self._release_at is not None \
+                and self.t >= self._release_at:
+            run.view.CURSOR["botao"] = False
+            self._wander_up = False
+        super().__call__(run)
+
+
+# ---------------------------------------------------------------------------
 # Game registry
 # ---------------------------------------------------------------------------
 
@@ -522,6 +765,7 @@ class GameSpec:
     reach: Dict[str, Dict[str, int]] = field(default_factory=dict)
     checks: Dict[str, Sequence[str]] = field(default_factory=dict)
     claims: Sequence[str] = ()
+    os_level: bool = False      # GameRun with a window and OS key / button state
 
     def spec_ns(self) -> Dict[str, Any]:
         """What ``program_oracles`` reads (``SCENARIOS`` and ``PROBES``)."""
@@ -694,8 +938,67 @@ def _oficina() -> GameSpec:
                     reach, checks, claims)
 
 
+CANTEIRO_S = 32.0     # one Patio round, HUD included, plus the shed (seconds of game time)
+
+
+def canteiro_scenario(hz: float = 60.0, *, rounds: int = 1, seconds: float = CANTEIRO_S,
+                      seed: int = 1, params: Optional[Dict[str, Any]] = None, **pilot) -> Scenario:
+    """The pilot's session at ``hz`` frames per second: the same game time at
+    every pacing (Testing Design, "What the game-behaviour probes taught", 3)."""
+    p = {"rounds": rounds}
+    p.update(params or {})
+    return Scenario(params=p, seed=seed, dt=1.0 / hz,
+                    steps=[drive(lambda: CanteiroPilot(**pilot), int(round(seconds * rounds * hz)))])
+
+
+def _canteiro() -> GameSpec:
+    curta = canteiro_scenario(60.0)
+    parado = Scenario(params={}, seed=3,
+                      steps=[wait(30), key("RIGHT", 90), wait(20), click(520, 330), wait(40),
+                             key("SPACE", 2), wait(60)])
+    probes = {
+        "ledger": lambda p: p.G.digest(),
+        "x": lambda p: p.PILOTO.get("x"),
+        "y": lambda p: p.PILOTO.get("y"),
+        "pontos": lambda p: p.st.pontos,
+        "pan_x": lambda p: p.canvas.pan_x,
+    }
+    walk = {"act": 2, "fim": 1, "espinho.enter": 1, "espinho.untag": 1, "espinho.exit": 1,
+            "rampa.parado": 20, "carona.lado": 30, "carona.sobe": 60, "carona.descendo": 20,
+            "elevador.stay": 60, "tecla.space_com_shift": 1, "tecla.correndo": 10,
+            "tecla.up_no_ato_novo": 1, "estaca": 2}
+    stations = {"bolha.estourou": 10, "bolha.separou": 10, "tijolo.quebrado": 5,
+                "tijolo.quique": 5, "torre.disparo": 20, "balanca.contou": 20, "pesos.soltos": 5,
+                "carga.medida": 100, "ponteiro.medido": 200, "pedra.medida": 20, "bate.volta": 5,
+                "bate.medido": 100}
+    hud = {"drop.caixote": 1, "drop.lixeira": 1, "jato.quebrou_segurado": 1, "jato.hover_exit": 2,
+           "jato.consertado": 1, "jato.fora_medido": 2, "nome.enviado": 1, "nota.medida": 10,
+           "widget.aperto_medido": 10}
+    reach = {"curta": {**walk, **stations, **hud},
+             "parado": {"bolha.estourou": 1, "torre.disparo": 3}}
+    checks = {
+        "curta": ("rider.carried_x", "lift.contact_open", "lift.foot_on_top", "ramp.idle_no_creep",
+                  "static.shelf_holds", "static.thin_wall_holds", "settle.pair_keeps_sides",
+                  "settle.pair_separates", "settle.ball_in_a_wall_leaves_into_the_room",
+                  "breakout.bounce_off_destroyed", "breakout.ball_inside", "spikes.exit_on_untag",
+                  "exit.every_rule_runs", "collide.every_enter_rule_runs", "closure.owned_by_actor",
+                  "button.destroyed_writes_off", "mouse.widget_press_hidden",
+                  "textinput.repeat_stays_with_its_press", "hover.alternates",
+                  "hover.leaves_with_the_cursor", "drop.world_pos",
+                  "drop.ui_pos", "clone.center_places", "paint.at_pointer", "paint.only_on_world",
+                  "mouse.world_under_camera", "mouse.sampled_once", "keys.keyp_twin",
+                  "keys.once_twin", "timer.fire_frame", "act.objects_removed", "act.camera_restored",
+                  "change.pontos.fires", "hud.fresh"),
+    }
+    claims = ("Act", "change_act", "Rect", "Circle", "Text", "Slider", "Button", "TextInput",
+              "resolve", "STATIC", "collide", "collide_stay", "collide_exit", "collide_with",
+              "keyp", "mouse", "Mouse", "chase", "on_change", "after", "every", "Vec2", "Color")
+    return GameSpec("canteiro", {"curta": curta, "parado": parado}, probes, reach, checks, claims,
+                    os_level=True)
+
+
 GAMES: Dict[str, Callable[[], GameSpec]] = {"armada": _armada, "caverna": _caverna,
-                                            "oficina": _oficina}
+                                            "oficina": _oficina, "canteiro": _canteiro}
 
 
 def spec(game: str) -> GameSpec:
@@ -720,7 +1023,89 @@ class GameResult:
 
 class GameRun(ProgramRun):
     """``ProgramRun`` plus the game-only steps (a click on a SpriteButton the
-    game names in ``BOTOES``)."""
+    game names in ``BOTOES``) and, with ``os_level``, the OS side of input as a
+    real window has it (``tests/input_driver.py`` does the same for system
+    tests): a window, so the framework samples the cursor every frame (a
+    camera that moves under a still cursor moves ``mouse``; a cursor that
+    leaves with no motion event ends widget hover); ``glfw.get_key`` /
+    ``get_mouse_button`` report what is held; a key goes in with the modifier
+    bits of the modifiers held (Shift held: ``MOD_SHIFT``); ``key_repeat``
+    sends an OS auto-repeat; ``place`` puts the cursor somewhere with no
+    motion callback."""
+
+    os_level = False
+    _MODS = {"LEFT_SHIFT": 0x0001, "RIGHT_SHIFT": 0x0001, "LEFT_CONTROL": 0x0002,
+             "RIGHT_CONTROL": 0x0002, "LEFT_ALT": 0x0004, "RIGHT_ALT": 0x0004,
+             "LEFT_SUPER": 0x0008, "RIGHT_SUPER": 0x0008}
+
+    def start(self) -> None:
+        super().start()
+        if not self.os_level:
+            return
+        import glfw
+        from unittest import mock
+        import scena.orchestration as orch
+        self._held_keys: set = set()
+        self._held_buttons: set = set()
+        for attr, fn in (("get_key", lambda _w, k: glfw.PRESS if k in self._held_keys else glfw.RELEASE),
+                         ("get_mouse_button",
+                          lambda _w, b: glfw.PRESS if b in self._held_buttons else glfw.RELEASE)):
+            p = mock.patch.object(orch.glfw, attr, new=fn)
+            p.start()
+            self._patches.append(p)
+        fw = self.world.fw
+        self._window_before = fw._window
+        fw._window = object()
+
+    def close(self, strict: bool = True) -> None:
+        if self.os_level and self.world is not None and hasattr(self, "_window_before"):
+            self.world.fw._window = self._window_before
+            del self._window_before
+        super().close(strict=strict)
+
+    def key_repeat(self, name: str) -> None:
+        import glfw
+        self._pending.append(("key", (name.upper() if len(name) == 1 else name, glfw.REPEAT)))
+
+    def place(self, x: float, y: float) -> None:
+        self._pending.append(("place", (x, y)))
+
+    def _deliver(self, *a) -> None:
+        if not self.os_level:
+            return super()._deliver(*a)
+        import glfw
+        from program_support import _KEY_CODES
+        pending, self._pending = self._pending, []
+        fw = self.world.fw
+        for kind, args in pending:
+            if kind == "key":
+                self.trace.inputs.append((self.frames + 1, f"{kind} {args}"))
+                name, action = args
+                code = _KEY_CODES[name]
+                if action == glfw.PRESS:
+                    self._held_keys.add(code)
+                elif action == glfw.RELEASE:
+                    self._held_keys.discard(code)
+                mods = 0
+                for held_name, bit in self._MODS.items():
+                    if _KEY_CODES.get(held_name) in self._held_keys:
+                        mods |= bit
+                fw._handle_key(fw._window, code, 0, action, mods)
+                if action == glfw.PRESS and len(name) == 1 and name.isalnum():
+                    fw._handle_char(fw._window, ord(name.lower()))
+            elif kind == "place":
+                self.trace.inputs.append((self.frames + 1, f"{kind} {args}"))
+                self._cursor[:] = list(self._to_screen(*args))
+            else:
+                if kind == "button":
+                    button, action = args
+                    if action == glfw.PRESS:
+                        self._held_buttons.add(button)
+                    else:
+                        self._held_buttons.discard(button)
+                self._pending = [(kind, args)]
+                super()._deliver(*a)
+        self._pending = []
 
     def play(self, steps):
         rest = []
@@ -747,6 +1132,7 @@ def run_game(game: str, scenario: str, *, params: Optional[Dict[str, Any]] = Non
         p.update(params)
     run = GameRun(game_path(game), p, probes=sp.probes if probes is None else probes,
                   seed=sc.seed, dt=sc.dt if dt is None else dt)
+    run.os_level = sp.os_level
     if before_start is not None:
         before_start(run)
     caught: List[str] = []

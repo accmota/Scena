@@ -828,6 +828,61 @@ class geom:
         return geom.dist(p, b) <= ra + rb
 
     @staticmethod
+    def sweep_circle_box(p0, p1, r, cx, cy, w, h) -> Optional[Tuple[float, Tuple[float, float]]]:
+        """A circle of radius ``r`` moving ``p0 -> p1`` against an axis-aligned
+        box (centre ``cx, cy``, size ``w`` x ``h``): ``(t, normal)`` of the first
+        touch, ``t`` in [0, 1] along the path, ``normal`` the unit vector from
+        the box to the circle there (a face's normal, or from a corner to the
+        centre). None when it never touches, or already overlaps at ``p0``.
+        The centre is a ray against the box grown by ``r`` with round corners."""
+        (x0, y0), (x1, y1) = _xy(p0), _xy(p1)
+        hw, hh = w / 2.0, h / 2.0
+        l, rt, b, t = cx - hw, cx + hw, cy - hh, cy + hh
+        qx, qy = min(max(x0, l), rt), min(max(y0, b), t)
+        if (x0 - qx) ** 2 + (y0 - qy) ** 2 < r * r:
+            return None
+        dx, dy = x1 - x0, y1 - y0
+        best = None
+        # the four faces, pushed out by r (slab entry)
+        for axis, lo, hi in ((0, l - r, rt + r), (1, b - r, t + r)):
+            d = dx if axis == 0 else dy
+            o = x0 if axis == 0 else y0
+            if abs(d) < 1e-15:
+                continue
+            for plane, sign in ((lo, -1.0), (hi, 1.0)):
+                tt = (plane - o) / d
+                if not (0.0 <= tt <= 1.0) or (d > 0) != (sign < 0):
+                    continue
+                px, py = x0 + dx * tt, y0 + dy * tt
+                if axis == 0 and b <= py <= t:
+                    cand = (tt, (sign, 0.0))
+                elif axis == 1 and l <= px <= rt:
+                    cand = (tt, (0.0, sign))
+                else:
+                    continue
+                if best is None or cand[0] < best[0]:
+                    best = cand
+        # the four corners, as circles of radius r
+        a = dx * dx + dy * dy
+        if a > 0:
+            for kx, ky in ((l, b), (rt, b), (rt, t), (l, t)):
+                fx, fy = x0 - kx, y0 - ky
+                bb = 2 * (fx * dx + fy * dy)
+                cc = fx * fx + fy * fy - r * r
+                disc = bb * bb - 4 * a * cc
+                if disc < 0:
+                    continue
+                tt = (-bb - math.sqrt(disc)) / (2 * a)
+                if not (0.0 <= tt <= 1.0):
+                    continue
+                px, py = x0 + dx * tt, y0 + dy * tt
+                if (l <= px <= rt) or (b <= py <= t):
+                    continue          # that touch is on a face, found above
+                if best is None or tt < best[0]:
+                    best = (tt, ((px - kx) / r, (py - ky) / r))
+        return best
+
+    @staticmethod
     def grid_cell(left, top, w, h, cols, rows, gap, col, row) -> Tuple[float, float, float, float]:
         """Guia "Grid": row 0 at the top; cells of equal size with ``gap`` between.
         Returns (center x, center y, cell width, cell height)."""

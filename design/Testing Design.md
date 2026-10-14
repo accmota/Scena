@@ -262,7 +262,15 @@ Games are not examples or tutorials, and are never copied into either.
   schedules, fires, cancels.
 - `tests/game_harness.py`: `GAMES` (scenarios, probes, reach minimums, checks
   that must run, claims), one pilot class per game, `run_game`, `problems`,
-  canary helpers.
+  canary helpers. A game with `os_level` (`GameSpec`) runs in a `GameRun`
+  that also plays the OS side of input, as `tests/input_driver.py` does for
+  system tests: a window (so the per-frame pointer sample runs: a camera
+  that moves under a still cursor moves `mouse`, a cursor that leaves with no
+  motion event ends widget hover), `glfw.get_key` / `get_mouse_button`
+  reporting what is held, the modifier bits of held modifiers on every key
+  (Shift held: `MOD_SHIFT`), `key_repeat` (an OS auto-repeat) and `place`
+  (the cursor moved with no motion callback). The program oracles run a plain
+  `ProgramRun`, so they take only an `os_level` game's static scenario.
 - Drivers flat in `tests/`: `test_game_<name>.py` (quick: a short scripted run,
   a static run, teardown) and `test_game_<name>_deep.py` (`SLOW` + `SPLIT`: the
   long run, L3 oracles, random pilots, canaries); `test_game_support.py` (the
@@ -299,7 +307,14 @@ Games are not examples or tutorials, and are never copied into either.
 - **Pilots are deterministic** and read only the game's state and their own
   counters (`drive(factory, frames)`: `pilot(run)` before each frame, input
   through the real handlers). A pilot's generator holds the namespace: the
-  harness releases pilots before `close()`.
+  harness releases pilots before `close()`. A pilot may tell the game what
+  only the player knows (Canteiro's `CURSOR`: where the cursor is in view
+  units, what owns the press): that is the truth a pointer model compares
+  `mouse` with, never a value read back from the engine.
+- **Time, not frames, where pacing is a variable.** A pilot that acts by the
+  act's clock plays the same session at any `dt`, so one scenario runs at
+  30, 60, 144 and 240 Hz (`canteiro_scenario(hz)`; [lesson 3 of the
+  game-behaviour probes](#what-the-game-behaviour-probes-taught-2026-10-14)).
 - **Draw at checkpoints only.** `run.step(1, dt=0.0, draw=True)` and a pixel
   read: the drawing surface is re-pointed first (HV1).
 - **`KNOWN` is shrink-only** (`game_harness.KNOWN`, `WARN_OK`): an entry
@@ -310,7 +325,16 @@ Games are not examples or tutorials, and are never copied into either.
   timer rounding back, a custom ease ignored, CCD off, AC3 and AC6 put back
   (Armada); PM8 through a plain `every`, a Level angle negated, `deadzone`
   and `recently` broken, `floor_below` off (Caverna); `intersections` dropping a point, the
-  hover step skipped, `amp_db` skewed, a stale pull (Oficina).
+  hover step skipped, `amp_db` skewed, a stale pull (Oficina); every PG fix
+  Canteiro guards, through the engine's own switch where the fix has one
+  (`_RIDER_CARRY`, `_SKIN_ALONG_MOTION`, `_SETTLE_MIN_OVERLAP`,
+  `_SETTLE_STATIC_CLAMP`, `_SWEEP_INHERIT_CLAMP`) and the old behaviour by
+  `mock` otherwise (no carry opening, no ghost contact, a left tag
+  forgotten, the first exit rule hiding the rest, a dead side stopping the
+  dispatch, a closure over `self` not owned, `clone` ignoring `center=`, a
+  destroyed Button left on, a widget press visible, hover only on motion,
+  drops only in the press space, Shift blocking a bare key, an act change
+  dropping the up, no pointer resample).
 
 **L3 oracles.** `spec_ns()` gives `program_oracles` what it reads, so replay,
 `probe_neutral`, `dt_split`, `reactive_config`, `teardown`, `tier_c`,
@@ -318,7 +342,7 @@ Games are not examples or tutorials, and are never copied into either.
 `dt_split` on continuous probes only, with tolerances (input lands half a
 coarse frame earlier); `time_scaled` not on Armada (the cover runs on
 presentation time); `camera_moved` on Oficina only (the others place by the
-view).
+view); Canteiro's oracles run its static scenario only (`os_level`, above).
 
 **The three games (2026-10-10).**
 
@@ -332,7 +356,35 @@ Together they reach 123 of 249 exports, 28 that no program reaches (Level,
 Microphone, the audio effects, SpatialFx, Fill / Stroke / Paint, Chroma / Wash
 / Crt / Pixelate …).
 
-**Value so far.** Writing and running the three games found eight engine bugs
+**The fourth game (2026-10-14): Canteiro.** The [PG](#pg--game-behaviour-probe-campaign-2026-101314)
+probes found ~35 bugs at seams none of the three games crossed, and each fix
+left a per-bug regression test only. Canteiro keeps those seams under load,
+each against an independent model:
+
+| Seam (PG id) | Load | Model (its truth) |
+| --- | --- | --- |
+| Riders (PB2, PB4) | a STATIC lift sliding across a pit, one climbing a shaft with rests at both ends (`move_by` in the act's `on_update`); the hero rides a full cycle, walking on the sliding one | displacement = the lift's + the hero's own step unless it jumped (Guia, "Tornar sólido"); bottom on a lift ⇒ the `@collide` contact is open; the foot on the top through the descent |
+| Idle slope (PE2) | a ramp (`ramp_angle`), the hero stopped on it a second | no displacement between frames (1e-6) |
+| Settle (PE1) | bubble pairs spawned 5 units into each other moving apart; a stone spawned inside a 4-unit wall moving into the room | sides kept, apart in 8 frames; the stone leaves into the room |
+| STATIC holds (PE3, PE4) | crates of mass 1, 5, 20 and a light ball under a mass-30 one on 10-unit shelves, the heavy ones re-dropped every 3 s; a light ball (made first) rammed at 6000 units/s into a 2-unit wall | nothing sits deeper than the slop in a shelf; the light ball's face never passes the wall, the ram never passes it |
+| Bounce off a removed partner (PE5) | a ball in a brick box, `@collide` destroys the brick | the velocity along the swept contact normal (`geom.sweep_circle_box`) leaves the brick |
+| Every enter / exit rule (PB5, PB3, PB1) | a turret whose shot and target are made in alternating order, each with its own `@collide_with` method; parcels through a scale with two exit rules, the first destroying; spikes whose enter untags the hero | both rules count each hit and the score is the targets hit; the second exit rule runs every time; after the untag no contact is open |
+| Ownership (PA4, PD1) | a bubble's `after(…, lambda: self…)`; the Jato Button destroyed while held | the bubble's timer is cancelled with it; `st.segurando` reads `value_off` |
+| Input streams (PD2, PD3, PD4, PD5, PD6, PD7) | the Zoom Slider dragged, the Jato held; Enter held with repeats in Nome, whose `on_submit` focuses Nota; the cursor placed outside the window; the crate icon (ui) dropped on the plot (world) and a crate on the trash (ui); Shift held while walking and jumping; RIGHT held through the door into the shed | `mouse.press` False under a widget's press; Nota stays empty; the Jato unhovered; `pos` is the camera map of the release point in the target's space; `keyp` / `keyp.once` agree with the hooks; every down gets its up, across the act change |
+| Pointer under a moving camera (PC8, PB6, PC1) | the camera chases the hero, zooms with the Slider and turns (`giro`); the pilot wanders and clicks | `mouse` = the float64 camera map of the cursor (Canvas Design); `mouse.x` unchanged after a pan in the same update; a stake lands at the pointer; `clone(center=)` places the crate |
+
+Building it found no engine bug; it found one model error worth keeping:
+a brick's `info.normal` is the detection normal, and where two bricks meet
+(or a slot is empty) it can be a face's while the bounce uses the corner of
+the swept path. At 30 Hz the ball "did not flip along the normal" while it
+bounced correctly. The model now sweeps the ball's circle itself. Two
+canaries first missed their bug and made the game stronger: `self.after`
+is owned by the call (PA4 was the module `after` with a closure over
+`self`), and the settle and thin-wall bugs needed the exact setups of their
+regression tests' canaries (a stone inside a wall; a light ball made before
+its 6000 units/s pusher), not merely similar ones.
+
+**Value so far.** Writing and running the first three games found eight engine bugs
 (AC1, AC3, AC6–AC9, AC11, AC13; AC12 came from an existing suite during the same work; [AC](#ac--game-system-tests-2026-10-10)), a
 harness vacuity (HV1: every `ProgramRun` draw painted a surface nobody read,
 so `cull_pixels` compared two blank frames), a doc sentence that over-promised
@@ -2611,6 +2663,9 @@ cited as PG-PB5 and so on.
 | RD1 | Hold fire, let go, press again one frame after the cooldown: the next held shot came one frame early (8 frames for a 0.15 s cadence at 60 Hz); found by the armada random pilot in gate (`ready.cadence`), present since W-T2 | `ready("tiro", 0.15)` polled while SPACE is held; release for 7 frames; hold again | `_ready_poll` re-anchored only when the overshoot reached a whole interval, so the reopen True carried its one-frame lateness into the next shot | `test_ready_after_a_pause_in_polling_does_not_burst` paused for a whole second; no test let go for less than one interval | `_ready_poll` notes the frame of each poll; a gap of a frame or more restarts the cadence at the True that ends it. Guard: `test_uneven_pacing.TestDecidedClocks.test_ready_after_a_short_gap_restarts_the_cadence`; the armada model (`modelo_ready`) checks it under random pilots |
 
 Lesson: see [What the game-behaviour probes taught](#what-the-game-behaviour-probes-taught-2026-10-14).
+Kept under load, beside the per-finding guards, by the fourth game system
+test, Canteiro ([Game system tests](#game-system-tests), "The fourth game"),
+with a canary per fix.
 
 ### Open (found, not yet fixed)
 

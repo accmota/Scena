@@ -89,6 +89,7 @@ SLOW = frozenset({
     # Game system tests (tests/games/): quick runs test_game_<name>; the long
     # runs, L3 oracles, random pilots and canaries are gate / deep.
     "test_game_armada_deep", "test_game_caverna_deep", "test_game_oficina_deep",
+    "test_game_canteiro_deep",
     "test_game_coverage",        # every game under the coverage profile hook
 })
 # Modules sharded by TestCase class (big classes in chunks) in gate / deep.
@@ -98,6 +99,7 @@ SPLIT = frozenset({
     "test_prog_isolation",      # one class per program read (B)
     "test_tutorial_steps",      # one class per tutorial page: one job per page
     "test_game_armada_deep", "test_game_caverna_deep", "test_game_oficina_deep",
+    "test_game_canteiro_deep",
 })
 CHUNK = 40  # max tests per shard of a SPLIT module
 
