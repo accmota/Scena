@@ -48,6 +48,29 @@ left out.
   its `base_ratio`. A class default works like `n`:
   `class Nave(Triangle, base_ratio=0.6)`.
 
+- `Concave`: a box with a concave scoop — a quarter-pipe, a pinball corner
+  fill, the inside corner of a race track, a half-pipe. It is placed like a
+  `Rect` (every Rect model, the named points, `angle`, `box=`, `.box`).
+  `scoop=` is the named point the curve is centered on: a corner
+  (`"top_left"`, the default) takes a quarter out, an edge middle
+  (`"top_center"` …) a half. The curve reaches the box's far sides, so a
+  square box gives a quarter circle and any other box an ellipse.
+  `rim=` (a number or a pair, default 0) is the solid left at the curve's
+  ends: `Concave(top_left=(0, 200), width=200, height=200, rim=(20, 0))` is
+  a quarter-pipe with a 20-wide deck and no step at the floor. `rim` is
+  linkable (`c.rim @= …`) and scales with `scale_by`; `scoop` is fixed at
+  construction (`flip_x` / `flip_y` mirror it). The curve draws as a true
+  arc, `contains_point` follows it exactly, and collision uses chords within
+  0.25 design units of it, so a ball rides up the ramp and comes back.
+  A `Concave` is not a `Rect` (`isinstance` is false: it does not collide as
+  a box). `intersections`, `closest_point`, `Track(concave)` and
+  `move_along` accept it.
+- Level files: the `"concave"` kind (`center`, `width`, `height`, optional
+  `angle`, `scoop`, `rim`); `LevelItem.scoop` / `.rim`; `make()` builds a
+  `Concave`. **Level editor:** the Concave tool (key U), drawn like a rect,
+  with **Scoop** and **Rim** in the panel; Copy as code prints
+  `Concave(…, scoop='top_right', rim=(20, 0))`.
+
 - **Level editor, several items selected:**
   - A frame with **corner handles and a rotate knob**. The corners scale
     the items evenly (a circle stays a circle, an image keeps its shape;
@@ -98,6 +121,12 @@ left out.
   `(alvo, pos)`. A method that also asks for the dragged piece
   (`on_drag_to(self, peca, alvo, pos)`) now raises `TypeError` when the
   object is made.
+- A body moving into a concave shape that collides as several pieces (a
+  concave `Polygon`, a `Concave`) is no longer stopped on the shape's
+  outer hull. A ball rolling into a U-shaped `Polygon` dropped onto the
+  hull's top instead of into the notch, and a ball rolling into a curve was
+  thrown off along the straight line from its foot to its top. `resolve()`
+  now sweeps such a shape piece by piece.
 
 ### Documentation
 
@@ -136,6 +165,11 @@ left out.
     a cap on the fleet's shots with `count` and `.empty` (05), a named
     `tween` (14). Lists of parallel items are tables (Appendix A's debug
     keys, Appendix F's shape models), and lists in the prose are spaced.
+  - A pass over every page trims what a beginner does not need there
+    (rare error names, special cases, asset sizes, re-explanations of an
+    earlier tutorial) and keeps the explanations in full prose. `@on_change`
+    is now taught in 08, where the shield needs it; Appendix F lists the
+    line models in a table.
 
 ## 0.8.1 — 2026-10-14
 

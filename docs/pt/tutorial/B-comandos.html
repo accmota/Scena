@@ -128,7 +128,7 @@ run()
         <p>O fundo é o que fica atrás de tudo. Desde o tutorial 01, <code>Wallpaper("dark navy")</code> (papel de parede) o pinta de uma cor. O mesmo <code>Wallpaper</code> aceita mais coisas:</p>
         <ul>
           <li>uma cor: <code>Wallpaper("dark navy")</code>;</li>
-          <li>um degradê, que passa de uma cor a outra: <code>Wallpaper(Gradient("black", "navy", angle=90))</code>. <code>Gradient</code> (degradê) passa de uma cor à outra; <code>angle=90</code> (ângulo, em graus) põe a passagem na vertical, de baixo para cima (a primeira cor embaixo), em vez de da esquerda para a direita;</li>
+          <li>um degradê (<code>Gradient</code>), que passa de uma cor a outra: <code>Wallpaper(Gradient("black", "navy", angle=90))</code>. <code>angle=90</code> (ângulo, em graus) põe a passagem na vertical, de baixo para cima (a primeira cor embaixo), em vez de da esquerda para a direita;</li>
           <li>um arquivo de imagem: <code>Wallpaper("images/bg3.jpg")</code>. A imagem cobre a tela inteira, cortando o que sobrar.</li>
         </ul>
         <p><strong>Um fundo só.</strong> Um <code>Wallpaper</code> novo substitui o anterior: o último criado vale. Por isso dá para trocar o fundo no meio do jogo, numa fase nova ou num fim de jogo. O tutorial 05 mostra os fundos animados (céus, estrelas, nuvens), que se somam por cima deste.</p>
@@ -144,17 +144,13 @@ run()
 `,
       try: [
         {
-          note: "No lugar do <code>Wallpaper</code>, um por vez: uma imagem da pasta <code>media</code>, um degradê pronto pelo nome (<code>\"sunset\"</code>, pôr do sol; <code>angle=-90</code> o desenha de cima para baixo, com o céu no alto) e o fundo escrito direto no <code>canvas</code>, que é o mesmo que <code>Wallpaper(\"dark green\")</code>.",
+          note: "No lugar do <code>Wallpaper</code>, um por vez: uma imagem da pasta <code>media</code>, um degradê pronto pelo nome (<code>\"sunset\"</code>, pôr do sol; <code>angle=-90</code> o desenha de cima para baixo, com o céu no alto).",
           replaces: ['Wallpaper('],
           code: `Wallpaper("images/bg3.jpg")`
         },
         {
           replaces: ['Wallpaper('],
           code: `Wallpaper(Gradient("sunset", angle=-90))`
-        },
-        {
-          replaces: ['Wallpaper('],
-          code: `canvas.background = "dark green"`
         }
       ]
     },

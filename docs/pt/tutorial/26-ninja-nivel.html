@@ -216,7 +216,7 @@ run()
         <p><strong>Desenhar, não escrever.</strong> O Scena vem com um editor de fases, um programa à parte onde você põe as peças com o mouse: imagens, retângulos, pontos. Cada coisa pode ter um nome e grupos. O editor salva tudo num arquivo <code>.json</code>, e o jogo lê esse arquivo. A caixa abaixo conta como abrir o editor e desenhar; a fase deste tutorial já vem pronta, na pasta <code>media</code>: <code>levels/ninja.json</code>, com 4000 de largura e a altura da tela.</p>
         <p><strong>Ler a fase.</strong> <code>Level("levels/ninja.json")</code> (nível, fase) lê o arquivo e não cria nada na tela. O código decide. <code>fase.group("chao")</code> é a lista das peças que estão no grupo <code>chao</code> no editor (as peças do chão e das plataformas), e <code>make()</code> (fazer) cria cada uma como foi desenhada: o <code>Sprite</code> com aquela imagem, naquele lugar, naquele tamanho, já no grupo <code>chao</code>. O mesmo para os enfeites (antes, para ficarem atrás) e para a água (depois do ninja, para ficar na frente). O <code>resolve</code> e o <code>STATIC</code> continuam como estavam: eles falam do grupo, e o grupo agora vem da fase.</p>
         <p><strong>As paredes.</strong> No editor, as duas paredes são retângulos, um logo antes do começo da fase e outro logo depois do fim, no grupo <code>parede</code>. O código decide o resto: <code>make(group="chao")</code> soma o grupo <code>chao</code> (o ninja para nelas), e <code>visible = False</code> as esconde. É a ideia do tutorial numa linha: o editor põe, o código decide o que é.</p>
-        <p><strong>A área de jogo.</strong> <code>canvas.playfield.set(fase.box)</code> faz a área de jogo do <code>@leave_playfield</code> ser a fase inteira. Sem isso, ela seria a tela com uma margem, até x = 1250; uma kunai jogada além dali nasceria fora da área, nunca “sairia” dela e nunca seria destruída.</p>
+        <p><strong>A área de jogo.</strong> <code>canvas.playfield.set(fase.box)</code> faz a área de jogo do <code>@leave_playfield</code> ser a fase inteira. Sem isso, a área seria só a tela, e as kunais jogadas mais adiante nunca seriam apagadas.</p>
         <p>As estrelas e os robôs ainda são os do 19. Rode e ande para a direita: o ninja passa da borda da tela e some, num mundo que a câmera não mostra. É o buraco deste passo.</p>
       `,
       code: `from scena import *
@@ -393,11 +393,10 @@ run()
         {
           title: "O editor de fases",
           body: `
-            <p><strong>Abrir.</strong> O editor vem junto com o Scena. No terminal, na pasta do seu jogo: <code>python -m scena_editor media/levels/ninja.json</code> abre esta fase; com outro nome, ele cria uma fase nova. (<code>python -m scena_editor --shortcut</code>, uma vez, cria um ícone para abrir com dois cliques.)</p>
-            <p><strong>As ferramentas</strong> ficam à esquerda, cada uma com a sua tecla: Imagem (I) põe um arquivo de imagem, como as peças do chão; Retângulo (R), como as paredes; Ponto (P), um lugar, como o começo do ninja; e ainda Círculo, Elipse, Linha, Polígono e Trilha. Arrastar desenha; Espaço e arrastar move a vista.</p>
+            <p><strong>Abrir.</strong> O editor vem junto com o Scena. No terminal, na pasta do seu jogo: <code>python -m scena_editor media/levels/ninja.json</code> abre esta fase; com outro nome, ele cria uma fase nova.</p>
+            <p><strong>As ferramentas</strong> ficam à esquerda, cada uma com a sua tecla: Imagem (I) põe um arquivo de imagem, como as peças do chão; Retângulo (R), como as paredes; Ponto (P), um lugar, como o começo do ninja. Arrastar desenha; Espaço e arrastar move a vista.</p>
             <p><strong>O painel à direita</strong> dá a cada item um nome (único na fase) e grupos, separados por vírgula, além da posição e do tamanho. Os números são os do código: unidades do jogo, y para cima, o centro de cada coisa.</p>
             <p><strong>Esta fase</strong> tem estes grupos: <code>chao</code> (peças do chão e das plataformas), <code>enfeite</code>, <code>agua</code>, <code>parede</code>, <code>estrela</code> e <code>robo</code> (pontos), e um ponto com nome, <code>inicio</code>. Os grupos são só rótulos: quem decide o que um grupo faz é o seu código.</p>
-            <p><strong>As imagens</strong> são guardadas com o caminho a partir da pasta da fase (<code>../tilesets/Tiles/2.png</code>): a pasta <code>media</code> pode ir junto com o jogo para qualquer lugar.</p>
             <p>No Guia: <a href="../guide/index.html#colocar-fase">Level e o editor de fases</a>.</p>
           `
         }
@@ -408,7 +407,7 @@ run()
       body: `
         <p>A câmera escolhe que parte do mundo aparece na janela. Ela não move os objetos, só o olhar. <code>canvas.pan_to(x, 375)</code> (deslocar a vista até) põe o ponto (x, 375) do mundo no meio da janela; chamado a cada quadro, no <code>update</code>, com o x do ninja, faz a câmera seguir. O y fica em 375, o meio da tela: a fase tem a altura da tela, e a câmera só anda para os lados.</p>
         <p><strong>As pontas.</strong> A janela tem 1000 de largura. Com o meio em 500, ela mostra a fase de 0 a 1000; com o meio em 3500, de 3000 a 4000. Fora disso, ela mostraria o que está além das pontas. <code>max(x, 500)</code> e <code>min(x, 3500)</code> seguram o meio entre esses dois números.</p>
-        <p><strong>O HUD fica.</strong> O que está na camada <code>ui</code> fica preso à janela, e a câmera não o leva. Um <code>Text</code> criado com <code>top_left=</code> já nasce lá, como o placar e as vidas. O ícone do ninja e o aviso (criado com <code>center=</code>) nasciam no mundo e iriam ficando para trás: <code>layer="ui"</code> os põe na camada da janela.</p>
+        <p><strong>O HUD fica.</strong> O que está na camada <code>ui</code> fica preso à janela, e a câmera não o leva. O placar e as vidas já estavam lá; o ícone do ninja e o aviso nasciam no mundo e iriam ficando para trás: <code>layer="ui"</code> os põe na camada da janela.</p>
         <p>Corra: a câmera vai junto. Mas cada passo do ninja mexe a tela inteira, e um pulo para trás também. Dá para fazer melhor.</p>
       `,
       code: `from scena import *
@@ -996,8 +995,8 @@ run()
       title: "Ao longe",
       body: `
         <p>Com a câmera andando, o fundo parado parece um cartaz colado na janela. No mundo de verdade, o que está longe passa devagar, e o que está perto passa depressa.</p>
-        <p><strong>O fundo.</strong> <code>pan_response=0.1</code> (resposta ao deslocamento) faz o <code>Wallpaper</code> andar um décimo do que a câmera anda: as montanhas mal se mexem. Como ele anda, a imagem precisa continuar além das bordas: <code>fit="tile"</code> (ladrilho) a repete, <code>tile_size=(1000, 750)</code> dá a cada cópia o tamanho da tela, e <code>tile_mode="mirror"</code> (espelho) espelha uma cópia sim, outra não, para a emenda não aparecer.</p>
-        <p><strong>Uma camada no meio.</strong> <code>canvas.layers.create("longe", pan_response=0.5, below="default")</code> cria uma camada que anda metade do que a câmera anda, atrás da camada dos objetos do jogo. Nela, uma fileira de árvores menores, a cada 300 (<code>range(100, 2600, 300)</code>: o terceiro número é o passo, então x vale 100, 400, 700… até antes de 2600): elas passam mais devagar que o chão e mais depressa que as montanhas.</p>
+        <p><strong>O fundo.</strong> <code>pan_response=0.1</code> (resposta ao deslocamento) faz o <code>Wallpaper</code> andar um décimo do que a câmera anda: as montanhas mal se mexem. Como ele anda, a imagem precisa continuar além das bordas, e <code>fit="tile"</code> (ladrilho) a repete quantas vezes for preciso.</p>
+        <p><strong>Uma camada no meio.</strong> <code>canvas.layers.create("longe", pan_response=0.5, below="default")</code> cria uma camada que anda metade do que a câmera anda, atrás da camada dos objetos do jogo. Nela, uma fileira de árvores menores, a cada 300: elas passam mais devagar que o chão e mais depressa que as montanhas.</p>
         <p><strong>Comparando com o avião.</strong> No 16, a câmera ficava parada, e cada camada andava sozinha, com <code>scroll=</code>. Aqui, quem anda é a câmera, e cada camada responde a ela com o seu <code>pan_response</code>: 0 fica colada na janela, 1 anda junto com o mundo. Parado o ninja, parada a câmera, tudo para.</p>
       `,
       code: `from scena import *

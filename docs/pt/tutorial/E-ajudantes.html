@@ -43,7 +43,7 @@ Tutorial.mount({
           </svg>
           <figcaption>O <code>t</code> diz quanto do caminho de <code>a</code> até <code>b</code> já foi andado.</figcaption>
         </figure>
-        <p><strong>O programa.</strong> As pontas são duas <code>Anchor</code> (âncoras, do 03): arraste-as. A função <code>marca(t, cor)</code> põe uma bolinha em <code>lerp(a.center, b.center, t)</code> e o número logo acima. Com dois pontos, o <code>lerp</code> devolve uma tupla <code>(x, y)</code>. O número fica no mesmo <code>t</code> de um caminho 35 unidades mais alto: <code>a.center + (0, 35)</code> até <code>b.center + (0, 35)</code>.</p>
+        <p><strong>O programa.</strong> As pontas são duas <code>Anchor</code> (âncoras, do 03): arraste-as. A função <code>marca(t, cor)</code> põe uma bolinha em <code>lerp(a.center, b.center, t)</code> e o número logo acima. Com dois pontos, o <code>lerp</code> devolve uma tupla <code>(x, y)</code>.</p>
       `,
       code: `from scena import *
 
@@ -108,8 +108,7 @@ run()
         {
           title: "lerp e middle_point",
           body: `
-            <p>O meio de dois pontos é <code>lerp(a, b, 0.5)</code>. O Scena também tem <code>middle_point(a, b)</code> (ponto do meio), que faz a mesma conta e lê melhor quando é o meio que você quer. Com <code>weight=</code> (peso), ele é o próprio <code>lerp</code>: <code>middle_point(a, b, weight=0.25)</code>.</p>
-            <p>Um <code>Vec2</code> também mistura: <code>v.lerp(w, 0.5)</code> é a seta do meio entre <code>v</code> e <code>w</code>.</p>
+            <p>O meio de dois pontos é <code>lerp(a, b, 0.5)</code>. O Scena também tem <code>middle_point(a, b)</code> (ponto do meio), que faz a mesma conta e lê melhor quando é o meio que você quer.</p>
             <p>No Guia: <a href="../guide/index.html#util-lerp">lerp</a> · <a href="../guide/index.html#geo-helpers">Pontos</a>.</p>
           `
         }
@@ -214,7 +213,7 @@ run()
           title: "Fora da régua",
           body: `
             <p>O <code>remap</code> não trava nas pontas: um valor além da régua de origem cai além da régua de destino. <code>remap(1200, 0, 1000, 10, 200)</code> dá 238. Com o mouse isso não acontece (ele não sai da janela), mas com a vida de um herói, a velocidade de uma nave ou o volume de um som, pode acontecer. Para travar, compare você: <code>min(raio, 200)</code> é o menor dos dois números.</p>
-            <p>Os nomes dos dois primeiros números são <code>in_min</code> e <code>in_max</code> (a entrada); os dois últimos, <code>out_min</code> e <code>out_max</code> (a saída). Se a régua de origem tem tamanho zero (<code>in_min</code> igual a <code>in_max</code>), a resposta é <code>out_min</code>.</p>
+            <p>Os nomes dos dois primeiros números são <code>in_min</code> e <code>in_max</code> (a entrada); os dois últimos, <code>out_min</code> e <code>out_max</code> (a saída).</p>
             <p>No Guia: <a href="../guide/index.html#util-remap">remap</a>.</p>
           `
         }
@@ -226,7 +225,7 @@ run()
       part: "Curvas",
       body: `
         <p>Entre as pontas, o <code>remap</code> anda reto: o meio de uma régua cai no meio da outra. Com <code>modifier=</code> (modificador), o caminho entre as pontas <strong>curva</strong>. As pontas não mudam; muda o jeito de ir de uma à outra.</p>
-        <p>Cada quadrado desenha uma curva. A régua de origem é a largura do quadrado (de 0 a 1); a de destino, a altura (de 0 a 200). Os pontinhos azuis são 41 contas do <code>remap</code>, de <code>t = 0</code> a <code>t = 1</code>, de 0.025 em 0.025 (<code>i / 40</code>). A bola dourada usa o mouse: mexa-o da esquerda para a direita e veja as seis bolas fazerem o mesmo caminho em ritmos diferentes.</p>
+        <p>Cada quadrado desenha uma curva. A régua de origem é a largura do quadrado (de 0 a 1); a de destino, a altura (de 0 a 200). Os pontinhos azuis desenham a curva. A bola dourada usa o mouse: mexa-o da esquerda para a direita e veja as seis bolas fazerem o mesmo caminho em ritmos diferentes.</p>
         <p><strong>Os nomes.</strong> <code>"linear"</code> é a reta (o mesmo que não passar <code>modifier=</code>). <code>"ease_in"</code> (entrar devagar) começa lento e acelera; <code>"ease_out"</code> (sair devagar) começa rápido e freia; <code>"ease_in_out"</code> faz os dois. <code>"bounce"</code> (quicar) bate no fim e volta, como uma bola no chão; <code>"elastic"</code> passa do fim e balança, como uma mola.</p>
         <p>São os mesmos nomes do <code>ease=</code> dos movimentos com tempo (<code>move_to(…, time=1, ease="bounce")</code>, a queda da peça no 21).</p>
       `,
@@ -256,7 +255,7 @@ run()
 `,
       try: [
         {
-          note: "Outras curvas, no lugar de um dos nomes: <code>\"quad\"</code>, <code>\"smoothstep\"</code>, <code>\"sigmoid\"</code>, <code>\"steps\"</code>, <code>\"erratic\"</code>. E duas que só o <code>remap</code> tem, <code>\"spring\"</code> (mola) e <code>\"wobble\"</code> (bambolear): começam e terminam no meio da régua de destino e balançam em volta dele.",
+          note: "Outras curvas, no lugar de um dos nomes: <code>\"quad\"</code>, <code>\"smoothstep\"</code>, <code>\"sigmoid\"</code>, <code>\"steps\"</code>, <code>\"erratic\"</code> ou, como abaixo, <code>\"spring\"</code> (mola), que balança em volta do meio da régua de destino.",
           replaces: ['painel("elastic"'],
           code: `painel("spring", 730, 60)`
         },
@@ -460,7 +459,7 @@ run()
         {
           title: "Onde o nível aparece",
           body: `
-            <p>O nível vem de um som que toca (<code>musica = play_sound(…)</code>, depois <code>musica.level</code>), de tudo o que toca (<code>audio.level</code>) ou do microfone (<code>mic.level</code>). Uma barra que pula com a música: <code>barra.height = 300 * amp_db(audio.level)</code>, no <code>update</code>. O Estúdio II (23) faz um medidor assim com o microfone; o Apêndice C mostra onde achar arquivos de som.</p>
+            <p>Um som que toca tem o seu nível: <code>musica = play_sound(…)</code>, depois <code>musica.level</code>. Uma barra que pula com a música: <code>barra.height = 300 * amp_db(musica.level)</code>, no <code>update</code>. O Estúdio II (23) faz um medidor assim com o microfone; o Apêndice C mostra onde achar arquivos de som.</p>
             <p>No Guia: <a href="../guide/index.html#som-audio">audio</a>.</p>
           `
         }

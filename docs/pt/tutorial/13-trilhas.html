@@ -68,8 +68,8 @@ outra.move_along("eight", time=3, loops="forever")`
       title: "Ver a trilha",
       body: `
         <p>Uma trilha invisível é o certo quando ela só serve para o movimento: uma lua não deixa um risco no céu. Mas, enquanto você monta o caminho, vê-lo ajuda.</p>
-        <p><strong>Com cor.</strong> Basta dar um estilo: <code>color="dim gray"</code> (cinza apagado) pinta o traço, e a trilha passa a ser desenhada como uma linha. <code>line_width</code> (largura da linha, do 03) e <code>dash</code> (tracejado) também valem. Agora o caminho aparece, e a bola corre em cima dele.</p>
-        <p><strong>Sem mexer no desenho.</strong> O <code>show_tracks(True)</code> da caixa do letreiro desenha todas as trilhas em magenta, até as invisíveis. Com o programa rodando, <kbd>Ctrl+Shift+7</kbd> faz o mesmo sem escrever nada, junto com os contornos de colisão; aperte de novo para esconder. As duas são ajudas para você montar, não parte do desenho.</p>
+        <p><strong>Com cor.</strong> Basta dar um estilo: <code>color="dim gray"</code> (cinza apagado) pinta o traço, e a trilha passa a ser desenhada como uma linha. Agora o caminho aparece, e a bola corre em cima dele.</p>
+        <p><strong>Sem mexer no desenho.</strong> Com o programa rodando, <kbd>Ctrl+Shift+7</kbd> desenha todas as trilhas em magenta, até as invisíveis, sem você escrever nada; aperte de novo para esconder. É uma ajuda para você montar, não parte do desenho (as outras teclas estão no <a href="A-depuracao.html">Apêndice A</a>).</p>
       `,
       code: `from scena import *
 
@@ -216,8 +216,8 @@ run()
       title: "O pêndulo",
       body: `
         <p>Um pêndulo: um peso que balança na ponta de um fio. O caminho do peso é um pedaço de círculo, um arco.</p>
-        <p><strong>O arco.</strong> <code>Track.arc</code> (arco) é o círculo cortado entre dois ângulos: <code>from_angle=225</code> (do ângulo) até <code>to_angle=315</code> (até o ângulo). Os ângulos contam como no resto do Scena: 0 é para a direita, 90 para cima, 270 para baixo. De 225 a 315 é o pedaço de baixo do círculo, com 270 bem no meio. O arco é aberto, então vai com <code>yoyo=True</code>.</p>
-        <p><strong>A curva do tempo.</strong> Um pêndulo de verdade não anda sempre na mesma velocidade: ele freia nas pontas, onde para e volta, e corre embaixo. É o <code>ease="ease_in_out"</code> da nave do 12: a viagem sai devagar, acelera no meio e freia ao chegar. As outras bolas, sem <code>ease=</code>, andam sempre na mesma velocidade.</p>
+        <p><strong>O arco.</strong> <code>Track.arc</code> (arco) é o círculo cortado entre dois ângulos: <code>from_angle=225</code> (do ângulo) até <code>to_angle=315</code> (até o ângulo). Os ângulos são em graus, como sempre: de 225 a 315 é o pedaço de baixo do círculo, com 270, o ponto mais baixo, bem no meio. O arco é aberto, então vai com <code>yoyo=True</code>.</p>
+        <p><strong>A curva do tempo.</strong> Um pêndulo de verdade não anda sempre na mesma velocidade: ele freia nas pontas, onde para e volta, e corre embaixo. É o <code>ease="ease_in_out"</code> da nave do 12: a viagem sai devagar, acelera no meio e freia ao chegar.</p>
         <p><strong>O fio.</strong> Uma <code>Line</code> do ponto fixo até o peso. A ponta presa ao peso é uma <code>lambda</code>, como as linhas do 03: o Scena lê o centro do peso a cada quadro, e o fio acompanha.</p>
       `,
       code: `from scena import *
@@ -289,7 +289,7 @@ run()
           </svg>
           <figcaption>Oito vagões numa trilha, com <code>phase=i / 8</code>. Cada um começa um oitavo de volta à frente do anterior; a fila fica espaçada por igual e anda junta.</figcaption>
         </figure>
-        <p>Rode: os oito andam juntos, sempre à mesma distância um do outro, medida ao longo do caminho, porque todos levam os mesmos 8 segundos por volta.</p>
+        <p>Rode: os oito andam juntos, sempre à mesma distância um do outro.</p>
       `,
       code: `from scena import *
 
@@ -342,7 +342,6 @@ run()
       body: `
         <p>Uma bola parece igual de qualquer lado. Uma forma com ponta, não: o carro do oito vira um triângulo dourado, e ele deve apontar para onde anda.</p>
         <p><strong>Encarar o caminho.</strong> É o <code>face=True</code> da nave do 12. Numa viagem reta, ele vira o objeto uma vez, no começo; numa trilha, o <code>move_along</code> o gira a cada quadro, na direção da trilha naquele ponto. O <code>Triangle</code> (triângulo equilátero) aponta para a direita quando o ângulo é 0, a mesma direção do 0 das trilhas; por isso a ponta segue o caminho. Rode e olhe o triângulo inclinar nas curvas do oito.</p>
-        <p>As outras bolas ficam como estão: girar um círculo não muda nada na tela.</p>
       `,
       code: `from scena import *
 
@@ -390,7 +389,7 @@ pistao.move_along(vaivem, time=3, loops="forever", face=True)`
         }
       ],
       closing: `
-        <p>Sete trilhas visíveis, cada uma com o seu passageiro: um círculo, um oito com um triângulo que aponta o caminho, uma estrela, um vaivém, um caminho aberto em ida e volta, um pêndulo e um trem de oito vagões. <code>Ctrl+Shift+7</code> mostra as trilhas em magenta.</p>
+        <p>Sete trilhas visíveis, cada uma com o seu passageiro: um círculo, um oito com um triângulo que aponta o caminho, uma estrela, um vaivém, um caminho aberto em ida e volta, um pêndulo e um trem de oito vagões.</p>
       `,
       recap: `
         <ul>
@@ -402,7 +401,6 @@ pistao.move_along(vaivem, time=3, loops="forever", face=True)`
           <li><code>ease=</code>, <code>phase=</code>, <code>face=True</code> — a curva do tempo, a saída adiantada de cada um numa fila, e a ponta que segue o caminho.</li>
         </ul>
         <p><strong>No Guia:</strong> <a href="../guide/index.html#shape-track">Track</a> · <a href="../guide/index.html#track-preset">Presets</a> · <a href="../guide/index.html#mover-move-along">move_along</a> · <a href="../guide/index.html#suite">Parâmetros de tempo</a> · <a href="../guide/index.html#debug-metodos">Debug</a>.</p>
-        <p><strong>Experimente também:</strong> <code>Track.spiral</code> (espiral) e <code>Track.wave</code> (onda), duas formas abertas; <code>span=</code> no <code>move_along</code>, para percorrer só um trecho.</p>
         <p><strong>No próximo:</strong> um sistema solar, com órbitas, uma lua que deixa rastro e uma sonda.</p>
       `
     }

@@ -566,7 +566,7 @@ run(Fase)
       title: "Recomeçar",
       body: `
         <p>Agora o recomeço. No fim do <code>on_update</code> da fase, R chama <code>change_act(Fase)</code> (trocar de ato). O ato que está valendo sai com tudo o que criou: a nave, a frota, os tiros no ar, as explosões, o chefe, se ele já tinha chegado, e os timers de todos eles. Um ato <code>Fase</code> novo é montado do zero, pelo mesmo <code>setup</code>. Nenhuma linha de limpeza: compare com o <code>recomecar()</code> do avião do 15, que apagava os pilares, zerava os pontos e punha o avião no lugar, um por um.</p>
-        <p><code>keyp.once("R")</code> (uma vez) é verdadeiro só no frame em que a tecla é apertada, como na caixa do tutorial 01. E o <code>change_act</code> vem por último: depois dele o ato velho já saiu, e não há mais nada dele para mexer.</p>
+        <p>O R usa o <code>keyp.once</code> do 01, que vale uma vez por aperto. E o <code>change_act</code> vem por último: depois dele o ato velho já saiu, e não há mais nada dele para mexer.</p>
 
         <figure class="fig">
           <svg viewBox="0 0 410 190" role="img" aria-label="O tempo corre para a direita. Em cima, o palco, do começo ao fim. No meio, o st, também do começo ao fim. Embaixo, dois atos Fase, um depois do outro, cada um com a sua nave, frota, HUD e tiros; entre os dois, a tecla R">
@@ -1143,7 +1143,7 @@ run(Fase)
       title: "Fim de jogo",
       body: `
         <p>O fim de jogo vira um ato, <code>FimDeJogo</code>. O <code>setup</code> escreve FIM DE JOGO em vermelho, os pontos e um convite; o <code>on_update</code> começa um jogo novo com espaço. O <code>Text</code> de FIM DE JOGO saiu do <code>atingido</code> da nave: ela só explode.</p>
-        <p><strong>Quando as vidas acabam.</strong> Na fase, <code>@when(lambda self: st.vidas == 0)</code>: quando as vidas chegam a zero, <code>self.after(2, …)</code> espera dois segundos (a explosão, o fogo no destroço) e troca de ato. A troca vai numa <code>lambda</code> porque o <code>after</code> pede uma função para chamar depois. Esse <code>after</code> é do ato: se o R recomeçar antes, ele sai junto com a fase e não troca nada.</p>
+        <p><strong>Quando as vidas acabam.</strong> Na fase, <code>@when(lambda self: st.vidas == 0)</code>: quando as vidas chegam a zero, <code>self.after(2, …)</code> espera dois segundos (a explosão, o fogo no destroço) e troca de ato. Esse <code>after</code> é do ato: se o R recomeçar antes, ele sai junto com a fase e não troca nada.</p>
         <p><strong>Um cuidado.</strong> <code>@when</code> roda quando a condição <em>passa</em> a ser verdadeira. Uma fase que já começasse com zero vidas nunca veria essa passagem, e o jogo ficaria preso nela. Por isso o espaço chama <code>jogo_novo()</code> antes do <code>change_act(Fase)</code>.</p>
       `,
       code: `from random import uniform
@@ -1439,9 +1439,9 @@ run(Fase)
     {
       title: "Título",
       body: `
-        <p>O jogo agora começa por um título: <code>run(Titulo)</code>. O ato <code>Titulo</code> tem o nome do jogo e um botão. <code>SpriteButton</code> (botão de imagem) é um botão feito de uma imagem: cresce quando o ponteiro passa por cima e afunda no clique, como o <code>Button</code> do 04, mas com cara de jogo. <code>label=</code> (rótulo) é o texto; <code>label_inset</code> (margem do rótulo) tira 8 pixels de baixo, o degrau da imagem, para o texto ficar no meio da parte de cima. <code>on_click=comecar</code> é o que o clique faz.</p>
+        <p>O jogo agora começa por um título: <code>run(Titulo)</code>. O ato <code>Titulo</code> tem o nome do jogo e um botão. <code>SpriteButton</code> (botão de imagem) é um botão feito de uma imagem: cresce quando o ponteiro passa por cima e afunda no clique, como o <code>Button</code> do 04, mas com cara de jogo. <code>label=</code> (rótulo) é o texto, e <code>on_click=comecar</code> é o que o clique faz.</p>
         <p><strong>Uma função para começar.</strong> <code>comecar()</code> são as duas linhas de um jogo novo: <code>jogo_novo()</code> e <code>change_act(Fase)</code>. O botão a chama, e o R também.</p>
-        <p><strong>De volta ao título.</strong> O fim de jogo agora volta ao título: com espaço, ou sozinho, depois de 10 segundos (<code>self.after(10, …)</code>). O timer é do ato: se o jogador apertar espaço antes, ele sai junto com o fim de jogo e não troca nada duas vezes.</p>
+        <p><strong>De volta ao título.</strong> O fim de jogo agora volta ao título: com espaço, ou sozinho, depois de 10 segundos (<code>self.after(10, …)</code>).</p>
         <p>Repare no que não mudou: as classes, o palco, o <code>@leave_playfield</code>. Cada ato só monta a sua parte.</p>
       `,
       code: `from random import uniform
@@ -2397,8 +2397,7 @@ Orb(center=self.center, radius=60, color="gold")`
           title: "Ato e modo",
           body: `
             <p>Os dois são capítulos, em escalas diferentes. Um <strong>modo</strong> é um capítulo da vida de um objeto: o mergulho de um inimigo, a chegada do chefe, a batalha da fase. Troca com <code>self.mode = …</code>; o mesmo modo de novo não faz nada; o que ele começa (timers, movimentos) para quando ele acaba.</p>
-            <p>Um <strong>ato</strong> é a parte do jogo em que o jogador está: o título, a fase, o fim. Troca com <code>change_act(…)</code>; é sempre um ato novo, mesmo que seja o mesmo nome; tudo o que nasce nele, objetos e timers, sai com ele, e o que ele mudou no mundo (a câmera, o fundo) volta ao que o topo deixou.</p>
-            <p>Não existe <code>then=</code> para atos: a troca é sempre um <code>change_act</code>, onde uma chamada cabe (num <code>on_update</code>, numa <code>lambda</code> de um <code>after</code>, na última linha de um modo).</p>
+            <p>Um <strong>ato</strong> é a parte do jogo em que o jogador está: o título, a fase, o fim. Troca com <code>change_act(…)</code>; é sempre um ato novo, mesmo que seja o mesmo nome; tudo o que nasce nele, objetos e timers, sai com ele.</p>
             <p>No Guia: <a href="../guide/index.html#atos-palco">o palco e o ato</a> · <a href="../guide/index.html#atos-regras">regras do ato</a>.</p>
           `
         }

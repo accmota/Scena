@@ -42,7 +42,7 @@ run()
       title: "O piano",
       body: `
         <p><strong>Um molde para as teclas.</strong> Cada tecla vai ter a sua letra, a sua nota e um comportamento: tocar quando a letra é apertada. Muitas coisas iguais, cada uma com o seu comportamento: é o caso de uma classe (tutorial 06). <code>Tecla</code> traz na linha da classe o que é igual em todas: o tamanho, a cor e o grupo <code>"teclas"</code>.</p>
-        <p><strong>O que é de cada uma.</strong> No <code>for</code>, depois de criar a tecla, <code>tecla.letra = LETRAS[i]</code> e <code>tecla.nota = NOTAS[i]</code>. Um nome novo depois do ponto cria um <strong>campo</strong> da tecla: um valor que fica guardado nela. Cada uma das oito guarda a sua letra e a sua nota.</p>
+        <p><strong>O que é de cada uma.</strong> No <code>for</code>, depois de criar a tecla, <code>tecla.letra = LETRAS[i]</code> e <code>tecla.nota = NOTAS[i]</code> guardam nela dois <strong>campos</strong>, como no 06: cada uma das oito teclas fica com a sua letra e a sua nota.</p>
         <p><strong>Cada tecla ouve a sua letra.</strong> No <code>on_update</code>, a tecla pergunta <code>keyp.once(self.letra)</code>: a letra <em>desta</em> tecla foi apertada agora? <code>once</code> (uma vez), como no tutorial 01: só no quadro do aperto, então segurar a tecla não repete a nota. Oito teclas, oito perguntas, cada uma pela sua letra.</p>
         <p><strong>Uma nota, oito alturas.</strong> Há um arquivo só, <code>audio/nota.wav</code>: uma nota de piano, um dó. <code>pitch=</code> (altura) muda a altura do som ao tocar. Com <code>pitch=1</code>, a nota sai como foi gravada; com <code>pitch=2</code>, ela toca duas vezes mais rápido e sai uma oitava acima, o dó seguinte. Os números de <code>NOTAS</code>, de 1 a 2, são as oito notas de uma oitava: dó, ré, mi, fá, sol, lá, si, dó. Cada tecla toca um pouco mais alto que a anterior.</p>
         <p>O som vai em <code>tocar</code>, uma função da tecla, e não direto no <code>on_update</code>: daqui a dois passos o mouse também vai tocar.</p>
@@ -235,7 +235,7 @@ run()
 `,
       try: [
         {
-          note: "Uma barra só, com o volume do som todo: <code>audio.level</code> (nível), de 0 a 1. A largura é ligada com <code>@=</code> (tutorial 09): o Scena confere o nível a cada quadro e refaz a conta. No fim do programa.",
+          note: "Uma barra só, com o volume do som todo: <code>audio.level</code> (nível), de 0 a 1. A largura é ligada com <code>@=</code> (tutorial 09), e a barra acompanha o som. No fim do programa.",
           code: `nivel = Rect(center=(500, 575), width=10, height=12, color="gold")
 nivel["width"] @= lambda: 10 + 900 * amp_db(audio.level)`
         }
@@ -246,7 +246,7 @@ nivel["width"] @= lambda: 10 + 900 * amp_db(audio.level)`
       recap: `
         <ul>
           <li><code>pitch=</code> — a altura do som: 1 é o som como foi gravado; 2 toca duas vezes mais rápido, uma oitava acima.</li>
-          <li><code>tecla.nota</code> — um campo: um nome novo depois do ponto guarda um valor naquele objeto, um em cada tecla.</li>
+          <li><code>tecla.nota</code> — um campo, como no 06: cada tecla guarda a sua nota.</li>
           <li><code>keyp.once(self.letra)</code> — cada tecla pergunta pela sua letra, uma vez por aperto.</li>
           <li><code>on_done=</code> — o som chama a função quando acaba: a tecla apaga.</li>
           <li><code>on_click</code> — o clique de cada tecla, um método da classe.</li>

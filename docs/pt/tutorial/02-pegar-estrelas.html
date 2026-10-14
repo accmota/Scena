@@ -21,7 +21,7 @@ Tutorial.mount({
       title: "A barra",
       body: `
         <p>Começa um script novo, e desta vez é um jogo: estrelas caem do alto, e você as pega com uma barra que corre perto do chão. Este primeiro passo só monta a barra, com peças do tutorial 01: janela, fundo, sprite e setas no <code>update</code>.</p>
-        <p>A barra é um <code>Sprite</code> com <code>width=80</code>: 80 pixels de largura, e a altura acompanha a proporção da imagem. Em <code>center=(500, 80)</code>, ela fica no meio da janela, logo acima da borda de baixo. Só há duas setas, esquerda e direita, porque a barra só anda de lado, a 380 pixels por segundo. A imagem vem da pasta <code>media/</code> que você copiou para junto do script: <code>k-rolling-ball/button_blue.png</code> é o arquivo <code>media/k-rolling-ball/button_blue.png</code>.</p>
+        <p>A barra é um <code>Sprite</code> com <code>width=80</code>: 80 pixels de largura, e a altura acompanha a proporção da imagem. Em <code>center=(500, 80)</code>, ela fica no meio da janela, logo acima da borda de baixo. Só há duas setas, esquerda e direita, porque a barra só anda de lado, a 380 pixels por segundo.</p>
       `,
       code: `from scena import *
 
@@ -189,7 +189,7 @@ run()
       title: "Colisão",
       body: `
         <p>As estrelas caem e a barra anda, mas uma atravessa a outra. Falta o jogo de verdade: quando a barra toca uma estrela, a estrela é pega.</p>
-        <p><strong>Um grupo para a barra.</strong> A barra ganha <code>group="heroi"</code>. O grupo tem um nome diferente da variável (<code>barra</code>): ele diz o papel dela no jogo.</p>
+        <p><strong>Um grupo para a barra.</strong> A barra também entra num grupo, <code>group="heroi"</code>, como as estrelas, porque a colisão logo abaixo fala de grupos, e não de variáveis.</p>
         <p><strong>O toque.</strong> <code>@collide("heroi", "estrelas")</code> (colidir) em cima da função diz ao Scena: quando algo do grupo <code>"heroi"</code> encostar em algo do grupo <code>"estrelas"</code>, rode <code>pegou</code>. A função recebe os dois que se tocaram, na mesma ordem dos grupos: primeiro a barra, depois aquela estrela. Ela roda uma vez, no momento em que os dois começam a se tocar, e não de novo a cada quadro enquanto continuam encostados.</p>
         <p><strong>Apagar.</strong> <code>estrela.destroy()</code> (destruir) tira a estrela do jogo: ela some da tela e sai do grupo, então o <code>for</code> não a encontra mais. Rode e pegue algumas. Para ver por onde o Scena mede o toque, aperte <kbd>Ctrl+Shift+7</kbd>: ele desenha por cima de cada sprite o contorno que usa na colisão.</p>
       `,
@@ -335,9 +335,9 @@ def caiu(chao, estrela):
       title: "Placar",
       body: `
         <p>O jogo funciona, mas não diz como você está indo. Vamos contar as estrelas pegas e as perdidas, e mostrar as duas contas na tela.</p>
-        <p><strong>Onde guardar.</strong> <code>st</code> é o lugar do Scena para guardar informações do jogo: pontos, vidas, o que o script precisar. <code>st.pontos = 0</code> cria um valor chamado <code>pontos</code>, começando em zero. Qualquer função do script lê e muda esse valor: <code>pegou</code> soma 1 em <code>st.pontos</code> (<code>st.pontos += 1</code> é um jeito curto de escrever <code>st.pontos = st.pontos + 1</code>: o valor de agora, mais um), e o <code>if</code> das perdidas soma 1 em <code>st.perdidas</code>. O <code>st</code> tem recursos extras, que vêm mais adiante.</p>
+        <p><strong>Onde guardar.</strong> <code>st</code> é o lugar do Scena para guardar informações do jogo: pontos, vidas, o que o script precisar. <code>st.pontos = 0</code> cria um valor chamado <code>pontos</code>, começando em zero. Qualquer função do script lê e muda esse valor: <code>pegou</code> soma 1 em <code>st.pontos</code> (<code>st.pontos += 1</code> é um jeito curto de escrever <code>st.pontos = st.pontos + 1</code>: o valor de agora, mais um), e o <code>if</code> das perdidas soma 1 em <code>st.perdidas</code>.</p>
         <p><strong>O texto.</strong> <code>Text</code> (texto) escreve na tela. <code>top_left=(20, 780)</code> é o canto de cima, à esquerda, do texto; o texto cresce para a direita e para baixo a partir dali, então y = 780 o deixa encostado no topo da janela. <code>font_size=20</code> (tamanho da fonte) é o tamanho da letra. O texto começa vazio, <code>""</code>, porque quem o escreve é a linha seguinte.</p>
-        <p><strong>A fórmula.</strong> <code>lambda</code> é uma palavra-chave do Python para atribuir uma função: algo que calcula um valor a partir do que lê. Esta monta a frase do placar com os dois números (o <code>f</code> antes das aspas faz uma <em>f-string</em>: cada <code>{…}</code> é trocado pelo valor que está lá dentro; com 3 pontos, <code>f"Pontos: {st.pontos}"</code> vira <code>"Pontos: 3"</code>). <code>placar["text"] @= …</code> liga o texto a essa função: quando o número muda, o texto muda. Os colchetes apontam o campo que recebe a fórmula, o <code>text</code> do placar. Por isso o <code>update</code> não precisa reescrever o placar: rode, e ele conta sozinho a cada estrela pega ou perdida.</p>
+        <p><strong>A fórmula.</strong> A <code>lambda</code> é a mesma que você viu no <code>@when</code> do 01: uma função curta que calcula um valor a partir do que lê. Esta monta a frase do placar com os dois números (o <code>f</code> antes das aspas faz uma <em>f-string</em>: cada <code>{…}</code> é trocado pelo valor que está lá dentro; com 3 pontos, <code>f"Pontos: {st.pontos}"</code> vira <code>"Pontos: 3"</code>). <code>placar["text"] @= …</code> liga o texto a essa função: quando o número muda, o texto muda. Os colchetes apontam o campo que recebe a fórmula, o <code>text</code> do placar. Por isso o <code>update</code> não precisa reescrever o placar: rode, e ele conta sozinho a cada estrela pega ou perdida.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -393,9 +393,9 @@ run()
       example: "pegar_estrelas.py",
       body: `
         <p>O jogo está completo. Este último passo cuida da resposta visual: a barra reage quando pega, e a estrela perdida avisa antes de sumir. O Scena tem uma biblioteca de efeitos que servem em qualquer forma ou sprite; aqui entram dois, e muitos outros vêm mais adiante.</p>
-        <p><strong>A barra salta.</strong> Em <code>pegou</code>, <code>barra.pop(scale=1.25)</code> (estalo) faz a barra crescer até 1,25 vez o seu tamanho e voltar, em menos de dois décimos de segundo. É só desenho: a barra não muda de tamanho para a colisão.</p>
+        <p><strong>A barra salta.</strong> Em <code>pegou</code>, <code>barra.pop(scale=1.25)</code> (estalo) faz a barra crescer até 1,25 vez o seu tamanho e voltar, em menos de dois décimos de segundo.</p>
         <p><strong>A perdida pisca.</strong> Antes, a estrela sumia já fora da tela, sem você ver. Agora o <code>if</code> pergunta <code>y &lt; 40</code>, com a estrela ainda visível no fundo, e chama <code>perdeu</code>, uma função comum, sem nada em cima: roda quando o código a chama. Dentro dela, <code>flash(0.2)</code> (clarão) clareia a estrela por 0.2 segundo, e <code>after(0.2, estrela.destroy)</code> (depois) espera esses mesmos 0.2 segundo e a apaga. <code>every</code> repete; <code>after</code> é uma vez. Repare em <code>estrela.destroy</code> sem parênteses: você entrega a função para o <code>after</code> chamar mais tarde. Com parênteses, ela rodaria agora, e a estrela sumiria sem piscar.</p>
-        <p><strong>Fora do grupo.</strong> A primeira linha de <code>perdeu</code> segura o resto. <code>untag("estrelas")</code> (tirar a etiqueta) tira a estrela do grupo, mas não da tela. O <code>for</code> não a encontra mais: ela para de cair, e o <code>if</code> não chama <code>perdeu</code> de novo no quadro seguinte, o que contaria a mesma estrela a cada quadro. Fora do grupo, a barra também não a pega durante o clarão.</p>
+        <p><strong>Fora do grupo.</strong> A primeira linha de <code>perdeu</code> segura o resto. <code>untag("estrelas")</code> (tirar a etiqueta) tira a estrela do grupo, mas não da tela. O <code>for</code> não a encontra mais: ela para de cair, e o <code>if</code> não chama <code>perdeu</code> de novo no quadro seguinte, o que contaria a mesma estrela a cada quadro.</p>
         <p><strong>Um comentário.</strong> O que vem depois de <code>#</code>, até o fim da linha, é um <strong>comentário</strong>: uma nota para quem lê o código. O Python ignora. <code># o if não dispara de novo</code> lembra por que aquela linha está ali.</p>
       `,
       code: `from random import uniform
@@ -449,10 +449,6 @@ run()
 `,
       try: [
         {
-          note: "No lugar do <code>after</code>: o próprio <code>flash</code> chama o <code>destroy</code> quando termina (<code>on_done</code>, ao terminar).",
-          code: `estrela.flash(0.2, on_done=estrela.destroy)`
-        },
-        {
           note: "Estrelas que brilham e balançam. Em <code>soltar_estrela</code>, troque a linha do <code>Sprite</code> por estas três: a estrela ganha um nome para receber o resto. <code>glow</code> liga o brilho. <code>move_by</code> com <code>time=0.4</code> (tempo) faz o deslocamento aos poucos, em 0.4 segundo, em vez de tudo de uma vez; <code>loops=\"forever\"</code> (repetições, para sempre) repete, e <code>yoyo=True</code> (ioiô) volta pelo mesmo caminho. A estrela balança 100 pixels para o lado enquanto cai.",
           code: `estrela = Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="estrelas")
 estrela.glow = True
@@ -472,7 +468,6 @@ estrela.move_by(100, 0, time=0.4, loops="forever", yoyo=True)`
           <li><code>pop</code> e <code>flash</code> — efeitos curtos sobre uma coisa, sem mudar o que ela é.</li>
         </ul>
         <p><strong>No Guia:</strong> <a href="../guide/index.html#agendar-timers">after / every</a> · <a href="../guide/index.html#mundo-grupos">Grupos</a> · <a href="../guide/index.html#colisao-collide">Detectar colisão</a> · <a href="../guide/index.html#reativo-entity">st e campos da Entity</a> · <a href="../guide/index.html#reativo-liga">Ligar (@=)</a> · <a href="../guide/index.html#desenhar-text">Text</a> · <a href="../guide/index.html#aparencia-transientes">Transientes</a>.</p>
-        <p><strong>Experimente também:</strong> há outros efeitos curtos além de <code>pop</code> e <code>flash</code>, como <code>blink</code> e <code>pulse_outline</code> — a seção de transientes do Guia mostra todos.</p>
         <p><strong>No próximo:</strong> geometria — formas que você pega com o mouse e formas que dependem umas das outras.</p>
       `
     }

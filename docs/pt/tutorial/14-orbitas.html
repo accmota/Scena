@@ -40,7 +40,7 @@ run()
 `,
       try: [
         {
-          note: "Outros sóis, um por vez, no lugar da linha do <code>sol.fill</code>. Um degradê pode ter mais de duas cores; <code>\"plasma\"</code> é um degradê pronto. Sem <code>type=</code>, ele é <code>\"linear\"</code>, de um lado ao outro, como o do fundo.",
+          note: "Outros sóis, um por vez, no lugar da linha do <code>sol.fill</code>. Um degradê pode ter mais de duas cores; <code>\"plasma\"</code> é um degradê pronto.",
           replaces: ['sol.fill = '],
           code: `sol.fill = Gradient("white", "gold", "red", type="radial")
 sol.fill = Gradient("plasma", type="radial")
@@ -164,7 +164,7 @@ run()
         <p>Vista de longe, que caminho a lua faz? Ela gira em volta da Terra enquanto a Terra gira em volta do sol, e as duas voltas juntas desenham uma curva com laçadas. Para vê-la, a lua vai deixar um rastro de bolinhas.</p>
         <p><strong>Uma bolinha a cada instante.</strong> <code>every(0.05, soltar_bolinha)</code> (a cada) chama a função 20 vezes por segundo, como o <code>every</code> do desenho do 04. Cada chamada cria um círculo pequeno onde a lua está agora.</p>
         <p><strong>Uma fila com tamanho máximo.</strong> Se nada apagasse as bolinhas, elas se acumulariam para sempre, e o céu ficaria cheio. <code>History</code> (histórico) guarda as últimas coisas que você acrescenta com <code>add</code> (acrescentar). <code>max_points=80</code> (no máximo 80): quando chega a 81ª, a mais velha sai da fila e é destruída. O rastro tem sempre as 80 bolinhas mais novas, os últimos 4 segundos da viagem.</p>
-        <p><strong>Uma saída suave.</strong> <code>on_leave=</code> (ao sair) é uma função que recebe cada bolinha que sai. <code>dissolve_out(0.4)</code> (dissolver) a apaga aos poucos, em 0,4 segundo, em vez de sumir de uma vez. O History espera o efeito acabar para destruí-la.</p>
+        <p><strong>Uma saída suave.</strong> <code>on_leave=</code> (ao sair) é uma função que recebe cada bolinha que sai. <code>dissolve_out(0.4)</code> (dissolver) a apaga aos poucos, em 0,4 segundo, em vez de sumir de uma vez.</p>
         <p>Rode e olhe a curva: a lua anda para trás um pouco a cada volta, e o rastro faz uma laçada.</p>
       `,
       code: `from scena import *
@@ -231,7 +231,7 @@ run()
       title: "O anel",
       body: `
         <p>O gigante ganha um anel: um círculo vazio, de traço mais grosso e tracejado, em volta dele (<code>fill = None</code>, <code>line_width</code> e <code>dash</code>, do 03), com o centro preso ao gigante por uma <code>lambda</code>, como a órbita da lua.</p>
-        <p><strong>O giro.</strong> <code>rotate_by(360, time=1.0, loops="forever")</code> (girar por) gira a forma 360 graus, uma volta inteira, em 1 segundo. Sem <code>time=</code>, o giro seria na hora, de uma vez só, como <code>rotate_by(50 * dt)</code> no <code>update</code>, que você viu numa caixa do 10. Com <code>time=</code>, ele é uma animação, como o <code>scale_to</code> do pulso das naves no 05. E <code>loops="forever"</code> emenda uma volta na outra, para sempre, sem nenhuma linha no <code>update</code>.</p>
+        <p><strong>O giro.</strong> <code>rotate_by(360, time=1.0, loops="forever")</code> (girar por) gira a forma 360 graus, uma volta inteira, em 1 segundo. Com <code>time=</code>, o giro é uma viagem, como as da nave no 12, e <code>loops="forever"</code> emenda uma volta na outra, para sempre, sem nenhuma linha no <code>update</code>.</p>
         <p><strong>Por que tracejado.</strong> Um círculo liso girando no próprio centro parece parado: cada pedaço da borda é trocado por um igual. Os tracinhos mostram o giro.</p>
       `,
       code: `from scena import *
@@ -317,7 +317,7 @@ run()
           </svg>
           <figcaption>O <code>tween</code> do raio do sol. A linha tracejada é o caminho em linha reta (<code>"linear"</code>); com <code>ease="ease_in_out"</code>, o número sai devagar, acelera no meio e freia ao chegar. <code>yoyo=True</code> faz a volta; <code>loops="forever"</code> repete para sempre.</figcaption>
         </figure>
-        <p><strong>O resto.</strong> Os outros parâmetros são os que você já usou no <code>move_along</code> e no <code>rotate_by</code>: <code>ease="ease_in_out"</code> sai devagar e freia no fim, <code>yoyo=True</code> volta de 52 a 44, e <code>loops="forever"</code> repete. As órbitas não se mexem: elas leram o centro do sol, e o centro não muda; só o tamanho.</p>
+        <p><strong>O resto.</strong> Os outros parâmetros são os que você já usou no <code>move_along</code> e no <code>rotate_by</code>, e a figura mostra o que cada um faz aqui. As órbitas não se mexem: elas leram o centro do sol, e o centro não muda; só o tamanho.</p>
       `,
       code: `from scena import *
 
@@ -371,9 +371,8 @@ run()
         {
           title: "tween e os verbos de movimento",
           body: `
-            <p>Você já animou coisas com tempo: <code>move_to</code> e <code>move_by</code> (posição), <code>rotate_by</code> (ângulo), <code>scale_to</code> (tamanho), todos com <code>time=</code>. São <strong>verbos</strong> com nome, um para cada coisa, e eles cuidam do que é especial nela: o <code>move_to</code> anda e respeita as paredes do <code>resolve</code>; o <code>scale_to</code> aumenta a forma inteira, seja ela qual for.</p>
-            <p>O <code>tween</code> é o caso geral: anima <strong>qualquer número</strong> de um objeto, mesmo os que não têm verbo, como o raio, a <code>line_width</code> ou um número seu. Para posição, ângulo e tamanho, prefira o verbo; para o resto, <code>tween</code>. O próximo passo usa um campo que nenhum verbo alcança.</p>
-            <p>Os mesmos parâmetros de tempo valem para todos: <code>time=</code>, <code>ease=</code>, <code>loops=</code>, <code>yoyo=</code>, <code>on_done=</code>. E todos devolvem o controle do 12, com <code>cancel()</code>.</p>
+            <p>Você já animou coisas com tempo: <code>move_to</code> e <code>move_by</code> (posição), <code>rotate_by</code> (ângulo), <code>scale_to</code> (tamanho), todos com <code>time=</code>. São <strong>verbos</strong> com nome, um para cada coisa, e eles cuidam do que é especial em cada uma.</p>
+            <p>O <code>tween</code> é o caso geral: anima <strong>qualquer número</strong> de um objeto, mesmo os que não têm verbo, como o raio, a <code>line_width</code> ou um número seu. Para posição, ângulo e tamanho, prefira o verbo; para o resto, <code>tween</code>, com os mesmos parâmetros de tempo que você conheceu no 12. O próximo passo usa um campo que nenhum verbo alcança.</p>
             <p><strong>Um nome.</strong> Um <code>tween</code> novo no mesmo campo toma o lugar do anterior, e o console avisa, como a viagem nova da nave do 12. Quando trocar é o que você quer (um sol que às vezes pulsa mais forte), dê um nome: <code>tween(…, name="pulso")</code>. Um <code>tween</code> com o mesmo nome substitui o anterior em silêncio.</p>
             <p>No Guia: <a href="../guide/index.html#mover-tween">tween</a> · <a href="../guide/index.html#suite">Parâmetros de tempo</a>.</p>
           `,
@@ -464,7 +463,7 @@ run()
         <p>Agora a ideia do tutorial: uma sonda que passeia entre os planetas e fica ligada, por uma linha, ao planeta que estiver mais perto dela.</p>
         <p><strong>A sonda.</strong> Um <code>Triangle</code> branco que percorre um oito grande, de 820 por 520, por cima do sistema inteiro. A trilha <code>passeio</code> não tem cor: é só o caminho. O oito começa no cruzamento do meio, então a sonda nasce em cima do sol e passa por ele a cada meia volta. A <code>linha</code> tem uma ponta presa à sonda por uma <code>lambda</code>; a outra começa no sol.</p>
         <p><strong>O mais perto.</strong> No <code>update</code>, <code>group["planeta"].nearest(sonda)</code> (o mais perto) olha todos os objetos do grupo <code>planeta</code> e devolve o que está mais perto da sonda. Para isso, a função <code>planeta</code> e a lua ganharam <code>group="planeta"</code>: os três planetas e a lua estão no grupo; o sol, não. O resultado vai para <code>alvo</code>, e <code>linha.p2 = alvo.center</code> põe a segunda ponta da linha no centro dele.</p>
-        <p><strong>Por que no update.</strong> Quem é o mais perto muda o tempo todo, e a resposta depende de olhar o grupo inteiro. Uma <code>lambda</code> não pode olhar um grupo: o Scena lê uma fórmula uma vez, para saber de quem ela depende, e um grupo muda de membros. Se você tentar, ele recusa e explica. Contas sobre um grupo vão no <code>update</code>, que roda a cada quadro.</p>
+        <p><strong>Por que no update.</strong> Quem é o mais perto muda o tempo todo, e a resposta depende de olhar o grupo inteiro. Isso uma <code>lambda</code> não faz: se você tentar, o Scena recusa e explica. Contas sobre um grupo vão no <code>update</code>, que roda a cada quadro.</p>
         <p>Rode: a linha pula de um planeta para outro conforme a sonda passa.</p>
       `,
       code: `from scena import *
@@ -533,7 +532,7 @@ run()
       title: "Apontar",
       body: `
         <p>A sonda anda de lado, apontando sempre para a direita. Ela deve olhar para o planeta da linha.</p>
-        <p><strong>O rumo.</strong> <code>heading(sonda, alvo)</code> (rumo, direção) devolve o ângulo de quem olha (o primeiro) para o que é olhado (o segundo), em graus, no mesmo sistema de sempre: 0 para a direita, 90 para cima, 180 para a esquerda. Escrito em <code>sonda.angle</code> (ângulo), ele gira o triângulo, e a ponta aponta para o alvo.</p>
+        <p><strong>O rumo.</strong> <code>heading(sonda, alvo)</code> (rumo, direção) devolve o ângulo de quem olha (o primeiro) para o que é olhado (o segundo), em graus, como sempre. Escrito em <code>sonda.angle</code> (ângulo), ele gira o triângulo, e a ponta aponta para o alvo.</p>
         
         <figure class="fig">
           <svg viewBox="0 0 360 200" role="img" aria-label="Um triângulo à esquerda aponta para um círculo acima e à direita; uma linha tracejada sai do triângulo para a direita, e um arco marca o ângulo entre ela e a linha até o círculo">
@@ -549,7 +548,7 @@ run()
             <text x="90" y="190" text-anchor="middle">sonda</text>
             <text x="112" y="128" text-anchor="end">ponta</text>
           </svg>
-          <figcaption><code>heading(sonda, alvo)</code> é o ângulo da linha que vai da sonda ao alvo, contado como no resto do Scena: 0 é para a direita, 90 para cima. Posto em <code>sonda.angle</code>, a ponta do triângulo aponta para lá.</figcaption>
+          <figcaption><code>heading(sonda, alvo)</code> é o ângulo da linha que vai da sonda ao alvo. Posto em <code>sonda.angle</code>, a ponta do triângulo aponta para lá.</figcaption>
         </figure>
         <p><strong>E o face?</strong> Nas Trilhas (13), <code>face=True</code> virava o triângulo para onde ele <em>anda</em>. Aqui queremos que ele aponte para onde ele <em>olha</em>, que é outra coisa; por isso o <code>move_along</code> da sonda não tem <code>face=</code>, e o ângulo vem do <code>update</code>.</p>
       `,
@@ -622,7 +621,6 @@ run()
       body: `
         <p>Quando a sonda chega perto de um planeta, a linha vira um raio elétrico; quando se afasta, volta a ser uma linha simples.</p>
         <p><strong>A distância.</strong> <code>distance(sonda, alvo)</code> (distância) devolve a distância entre os dois centros, em pixels: um número. O <code>if</code> compara com 120: mais perto que isso, a linha ganha o visual <code>ElectricBolt</code> (raio elétrico), o das linhas do 03; senão, <code>visual = None</code> (nenhum) tira o visual, e a linha volta a ser um traço azul-claro.</p>
-        <p><strong>Sem cor entre parênteses.</strong> <code>ElectricBolt()</code> segue a cor da linha. Com uma cor, <code>ElectricBolt("gold")</code> também pintaria a <em>linha</em> de dourado, e ela continuaria dourada depois de perder o raio.</p>
         <p>Rode: a sonda nasce no meio, perto do planeta vermelho, e a linha já estala; depois ela se afasta, a linha se acalma, e o raio volta na próxima passagem perto de um planeta ou da lua.</p>
       `,
       code: `from scena import *
@@ -719,7 +717,6 @@ linha.visual = Neon()`
           <li><code>heading</code> e <code>distance</code> — o rumo de um ponto a outro, em graus, e a distância entre os dois.</li>
         </ul>
         <p><strong>No Guia:</strong> <a href="../guide/index.html#mat-grad">Gradient</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#history">History</a> · <a href="../guide/index.html#mover-pose">rotate_by</a> · <a href="../guide/index.html#mover-tween">tween</a> · <a href="../guide/index.html#track-window">Janela do traço</a> · <a href="../guide/index.html#geo-helpers">heading, distance e nearest</a> · <a href="../guide/index.html#mundo-grupos">Grupos</a>.</p>
-        <p><strong>Experimente também:</strong> <code>nearest(…, within=200)</code> devolve o mais perto só dentro de 200 pixels, ou <code>None</code> quando não há ninguém (aí a linha precisa sumir).</p>
         <p><strong>No próximo:</strong> um avião entre pilares, o primeiro de três jogos com ele.</p>
       `
     }

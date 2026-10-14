@@ -74,6 +74,7 @@ run(Corrida)
         <p>Um retângulo mais comprido só adia a queda. O chão precisa ser feito <strong>enquanto</strong> o robô corre: um pedaço novo à frente, e os pedaços que ficaram para trás precisam sumir. É o <code>Endless</code> do 17, agora com a câmera andando.</p>
         <p><strong>A pista.</strong> <code>Endless("pista", trecho, step=384)</code> corta o mundo em vagas de 384 de largura e chama <code>trecho(slot)</code> para cada uma. A função faz um retângulo de chão que começa na borda esquerda da vaga (<code>slot.left</code>) e tem a largura dela, e o devolve. Os retângulos das vagas se encostam: cada linha fina no chão é a emenda entre duas vagas.</p>
         <p><strong>A câmera anda, o chão fica.</strong> No 17, a camada é que andava (<code>scroll=</code>), e o <code>Endless</code> enchia a janela dela. Aqui, a camada <code>pista</code> não tem <code>scroll=</code> nem <code>pan_response</code>: é neutra, anda junto com o mundo, como a <code>default</code>. Quem anda é a câmera. A cada quadro, o <code>Endless</code> olha a janela da câmera: monta cada vaga um pouco antes de ela entrar na tela e destrói as que ficaram bem para trás. Ele nunca move uma peça.</p>
+        <p><strong>O que ele destrói.</strong> É dele o que a função devolve. Uma peça que a função cria e não devolve é sua: ele não a destrói, e ela fica no mundo para sempre. Por isso tudo o que a vaga monta vai no <code>return</code>.</p>
 
         <figure class="fig">
           <svg viewBox="0 0 420 200" role="img" aria-label="Uma fileira de vagas no mundo, numeradas da esquerda para a direita. A tela é um retângulo tracejado sobre algumas delas, com o robô perto da borda esquerda. As vagas sob a tela e logo à frente dela têm chão; a última, à direita, acabou de ser montada; as da esquerda, bem para trás da tela, já foram destruídas. Uma seta diz que a câmera anda para a direita.">
@@ -104,7 +105,7 @@ run(Corrida)
           </svg>
           <figcaption>A pista é cortada em vagas de 384. A câmera anda com o robô; um pouco antes de uma vaga entrar na tela, o <code>Endless</code> chama <code>trecho(slot)</code> para ela. As vagas que ficaram bem para trás são destruídas, com tudo o que a função devolveu.</figcaption>
         </figure>
-        <p><strong>O chão colide.</strong> O que a função devolve é uma peça de verdade: o retângulo está no grupo <code>chao</code>, tem <code>mass = STATIC</code>, e o <code>resolve</code> do robô segura nele como num chão feito à mão. Por isso a pista mora numa camada neutra: numa camada de parallax (as do 16, 17 e 26), uma peça não colide, e o robô atravessaria o chão. O que colide fica numa camada neutra; camada de parallax é só para enfeite. E por que uma camada só dela, abaixo da <code>default</code>: as peças nascem no meio do jogo, e na <code>default</code> seriam pintadas por cima do robô.</p>
+        <p><strong>O chão colide.</strong> O que a função devolve é uma peça de verdade: o retângulo está no grupo <code>chao</code>, tem <code>mass = STATIC</code>, e o <code>resolve</code> do robô segura nele como num chão feito à mão. Por isso a pista mora numa camada neutra: numa camada de parallax (as do 16, 17 e 26), uma peça não colide, e o robô atravessaria o chão. E por que uma camada só dela, abaixo da <code>default</code>: as peças nascem no meio do jogo, e na <code>default</code> seriam pintadas por cima do robô.</p>
         <p>Abra o painel do sistema (<kbd>Ctrl+Shift+1</kbd>) e olhe <code>objs</code>: o número sobe no começo e depois para, por mais que o robô corra. Vagas novas entram na frente, as velhas saem atrás.</p>
       `,
       code: `from scena import *
@@ -153,18 +154,7 @@ class Corrida(Act):
 
 
 run(Corrida)
-`,
-      dive: [
-        {
-          title: "O Endless com a câmera andando",
-          body: `
-            <p>A cada quadro, o <code>Endless</code> lê a janela da camada dele. Numa camada neutra, é a janela da câmera. Toda vaga que está para entrar nela é montada, a mais perto primeiro; toda vaga que ficou bem para trás é destruída, com tudo o que a função devolveu. As peças nascem e morrem fora da vista: nada aparece nem some na tela.</p>
-            <p>Ele não move nada. Cada peça é montada uma vez, nas coordenadas do mundo da vaga (<code>slot.left</code>, <code>slot.right</code>), e fica lá. No começo, ele enche a primeira tela inteira, com vagas para os dois lados: <code>slot.i</code> é 0, 1, 2… à frente do começo e −1, −2… atrás.</p>
-            <p>É dele o que a função devolve. Uma peça que a função cria e não devolve é sua: ele não a destrói, e ela fica no mundo para sempre. Por isso tudo o que a vaga monta vai no <code>return</code>.</p>
-            <p>No Guia: <a href="../guide/index.html#mundo-sem-fim">Mundo sem fim</a> · <a href="../guide/index.html#mundo-camadas">Camadas</a>.</p>
-          `
-        }
-      ]
+`
     },
     {
       title: "Terra e grama",
@@ -229,7 +219,7 @@ run(Corrida)
 `,
       try: [
         {
-          note: "Outros chãos, um por vez, no lugar de <code>TERRA</code>: uma calçada de pedra, rocha escura, a terra desenhada da pasta <code>tilesets/</code>. Além de <code>tile</code>, o <code>fit=</code> aceita <code>cover</code> (uma imagem só cobre a forma toda) e <code>stretch</code> (estica).",
+          note: "Outros chãos, um por vez, no lugar de <code>TERRA</code>: uma calçada de pedra, rocha escura, a terra desenhada da pasta <code>tilesets/</code>.",
           replaces: ['TERRA = Texture('],
           code: `TERRA = Texture("textures/Brick_04.png", fit="tile", tile_size=96)
 TERRA = Texture("k-textures/wall_rock.png", fit="tile", tile_size=64)
@@ -306,7 +296,7 @@ run(Corrida)
       title: "Fim da corrida",
       body: `
         <p>Cair no buraco acaba a corrida. Cair é sair da área de jogo por baixo, e para isso há o <code>@leave_playfield</code> do 05, aqui na forma da classe (sem nome de grupo: vale para o robô). Quando o centro dele sai do <code>canvas.playfield</code>, o Scena chama <code>caiu</code>.</p>
-        <p><strong>A corrida acaba.</strong> <code>caiu</code> põe <code>st.correndo = False</code> e zera a velocidade: o robô para de avançar, e a câmera para com ele. No ato, <code>@when(lambda self: not st.correndo)</code> vigia esse fim e escreve o aviso. O aviso fica na camada <code>ui</code> (<code>layer="ui"</code>): um <code>Text</code> com <code>center=</code> nasce no mundo, e a câmera, que andou, o deixaria para trás.</p>
+        <p><strong>A corrida acaba.</strong> <code>caiu</code> põe <code>st.correndo = False</code> e zera a velocidade: o robô para de avançar, e a câmera para com ele. No ato, <code>@when(lambda self: not st.correndo)</code> vigia esse fim e escreve o aviso. O aviso fica na camada <code>ui</code> (<code>layer="ui"</code>), como o HUD do 26, para a câmera, que andou, não o deixar para trás.</p>
         <p><strong>Recomeçar.</strong> Espaço chama <code>change_act(Corrida)</code>, como no 25: o ato sai com tudo o que criou (a camada, o <code>Endless</code>, as peças, o robô, o aviso) e um ato novo começa, com uma pista nova. A linha vem por último no <code>on_update</code>: depois do <code>change_act</code>, o <code>self.robo</code> do ato velho já não existe.</p>
         <p><strong>A área de jogo anda junto.</strong> O <code>playfield</code> é um retângulo fixo no mundo: a tela com uma folga em volta, no lugar onde a câmera começou. Ele não segue a câmera. Rode sem a linha <code>canvas.playfield.set(…)</code> e veja: o robô "sai" dele em x = 1200, em pé no chão firme, uns três segundos depois da largada, e a corrida acaba sem motivo. A linha refaz o retângulo a cada quadro: a janela da câmera (<code>canvas.game_view</code>) com 100 de folga (<code>outset</code>, para fora) de cada lado. Agora o robô só sai dela caindo num buraco.</p>
       `,
@@ -385,7 +375,7 @@ run(Corrida)
       title: "Morro e vale",
       body: `
         <p>Chão plano cansa. A pista vai subir e descer. A pergunta é: de onde vem a altura do chão?</p>
-        <p><strong>Uma função do x.</strong> <code>altura(x)</code> devolve a altura do chão em qualquer ponto do mundo: 130, mais uma onda longa de 55 (<code>sin(x / 400)</code>), mais uma curta de 25 (<code>sin(x / 150)</code>). Somadas, as duas fazem morros que não se repetem tão cedo. O <code>sin</code> (seno) vem do <code>math</code> do Python: ele sobe e desce entre −1 e 1, para sempre, conforme o número cresce. Multiplicado por 55, vira uma onda de −55 a 55. (O <code>sin</code> conta em radianos, não em graus: dividir o x por 400 só deixa a onda longa.)</p>
+        <p><strong>Uma função do x.</strong> <code>altura(x)</code> devolve a altura do chão em qualquer ponto do mundo: 130, mais uma onda longa de 55 (<code>sin(x / 400)</code>), mais uma curta de 25 (<code>sin(x / 150)</code>). Somadas, as duas fazem morros que não se repetem tão cedo. O <code>sin</code> (seno) vem do <code>math</code> do Python: ele sobe e desce entre −1 e 1, para sempre, conforme o número cresce. Multiplicado por 55, vira uma onda de −55 a 55.</p>
         <p><strong>Por que não sortear.</strong> Cada vaga é montada sozinha, e o sorteio dela (<code>slot.rng</code>) não sabe nada da vizinha. Se cada vaga sorteasse a sua altura, toda emenda seria um degrau. A borda direita de uma vaga e a borda esquerda da seguinte são o mesmo x: perguntando à mesma função, as duas recebem a mesma resposta, e o chão continua sem degrau. A regra: <strong>o que precisa casar entre vagas é uma função do x</strong>; o sorteio da vaga é para o que fica dentro dela.</p>
 
         <figure class="fig">
@@ -408,7 +398,7 @@ run(Corrida)
           <figcaption>Em cima, cada vaga pergunta a <code>altura(x)</code>: na emenda, as duas perguntam pelo mesmo x e recebem a mesma resposta. Embaixo, cada vaga sorteia a sua altura com o <code>slot.rng</code>: o sorteio de uma não sabe do da outra, e a emenda vira um degrau.</figcaption>
         </figure>
         <p><strong>Colunas de quatro cantos.</strong> Um morro não cabe num retângulo. <code>coluna(x)</code> faz um <code>Polygon</code> (polígono) de quatro cantos: a base em y = 0 e o topo indo de <code>altura(x)</code> a <code>altura(x + 64)</code>, uma rampa curta. A grama segue a mesma rampa. <code>trecho</code> chama <code>coluna</code> para cada coluna da vaga e junta as listas numa só (<code>pecas += …</code>). O resto não mudou: a textura, o grupo, o buraco no fim da vaga.</p>
-        <p><strong>Na rampa.</strong> Como o ninja na tábua inclinada do 27: <code>self.tilt = "ground"</code> inclina o desenho do robô com o chão, em volta dos pés (<code>hitbox_anchor="bottom"</code>). Só o desenho: a caixa de colisão continua em pé, e é ela que o <code>resolve</code> segura.</p>
+        <p><strong>Na rampa.</strong> <code>self.tilt = "ground"</code> inclina o desenho do robô com o chão, em volta dos pés (<code>hitbox_anchor="bottom"</code>), e a caixa de colisão fica em pé, como a do ninja na tábua inclinada do 27.</p>
       `,
       code: `from math import sin
 from scena import *
@@ -507,12 +497,12 @@ return 160 - 90 * sin(x / 900) ** 8`
       title: "O que vai na vaga",
       body: `
         <p>Agora a vaga ganha o que fica sobre o chão: às vezes uma plataforma sobre o buraco, e sempre uma coisa sorteada entre três: uma fileira de moedas, uma caixa no caminho ou um enfeite.</p>
-        <p><strong>Plataformas.</strong> Numa vaga com buraco, em 60% das vezes, <code>plataforma</code> põe uma tábua de 128 por 24 no meio do buraco (<code>meio</code>, a 288 da borda da vaga), 100 acima da <code>altura</code> dali, com três moedas por cima. Duas caras, sorteadas pela vaga: madeira (<code>MADEIRA</code>, uma <code>Texture</code> de <code>textures/</code>) com o visual <code>Extrude</code> (extrusão), que lhe dá uma espessura em 3D para baixo (<code>angle=270</code>); ou pedra (<code>PEDRA</code>, de <code>k-textures/</code>) com o visual <code>Ink</code> (tinta), um contorno de pena irregular, de laje lascada. O visual se soma à textura: a textura pinta o interior, o visual dá o volume ou o contorno.</p>
+        <p><strong>Plataformas.</strong> Numa vaga com buraco, em 60% das vezes, <code>plataforma</code> põe uma tábua no meio do buraco (<code>meio</code>), 100 acima da <code>altura</code> dali, com três moedas por cima. Duas caras, sorteadas pela vaga: madeira com volume, pelo visual <code>Extrude</code> (extrusão), que lhe dá uma espessura em 3D; ou pedra com contorno, pelo visual <code>Ink</code> (tinta), um traço de pena irregular, de laje lascada. O visual se soma à textura: a textura pinta o interior, o visual dá o volume ou o contorno.</p>
         <p><strong>Mão única.</strong> A tábua segura o robô como o chão, com mais um <code>resolve</code>, e é de mão única como as tábuas do 27: <code>only="bottom"</code> (só embaixo) segura só os pés. O pulo que sai da beira do buraco passa por baixo e atravessa a tábua; caindo, o robô pisa nela. Sólida dos quatro lados, ela pararia o robô no meio do pulo, de lado, e o derrubaria no buraco. Por isso ela tem um grupo só dela, <code>tabua</code>.</p>
         <p><strong>Onde.</strong> <code>x</code> é sorteado com <code>slot.rng.uniform</code> entre as bordas do chão da vaga, 40 para dentro de cada lado (o buraco fica fora). A altura vem de <code>altura(x)</code>: a função que fez o chão diz onde ele está naquele x, e a caixa e o enfeite ficam em pé nele. As moedas ficam 120 acima: só se pega no pulo.</p>
         <p><strong>As três.</strong> Em 40% das vagas, três moedas: <code>moedas(x, y)</code> faz a fileira, cada uma um <code>Circle</code> com o visual <code>Sphere</code> (esfera) laranja, que dá volume e um brilho de ouro; a mesma função põe as moedas da plataforma. Das outras, a partir da quarta vaga, metade ganha uma caixa (<code>Crate.png</code>, da pasta <code>tilesets/Object/</code>); o resto, uma moita, um cogumelo ou uma placa, sorteados da lista <code>MOITAS</code>, sem grupo: só enfeite.</p>
         <p><strong>Pegar e bater.</strong> No <code>Robo</code>, <code>@collide_with("moeda")</code> destrói a moeda, soma uma e toca um som; o placar mostra as moedas. <code>@collide_with("caixa")</code> acaba a corrida, com um tremor de tela. A caixa não entra no <code>resolve</code>: ela não segura o robô, só o derruba. Sem corrida, o desenho troca para <code>caindo</code>, o clip novo (<code>Dead (*).png</code>), tocado uma vez (<code>loops=1</code>): o robô desaba e fica no chão. O <code>on_update</code> passa por ali a cada quadro, e um clip de <code>loops=1</code> que já acabou recomeça se for pedido de novo; por isso a pergunta antes, <code>if not self.showing("caindo")</code> (se o desenho ainda não é da queda), como o ninja morto do 19.</p>
-        <p><strong>O sorteio da vaga, de novo.</strong> Todos os sorteios são do <code>slot.rng</code>, como no 17. Mas neste jogo o robô só vai para a frente: uma vaga que ficou para trás nunca volta, e o <code>random</code> solto também funcionaria. O <code>slot.rng</code> vale assim mesmo. Com <code>seed=</code> (caixa abaixo), a pista inteira se repete, buraco por buraco, moeda por moeda, porque cada vaga tira tudo do seu próprio sorteio. E se o jogo mudar (uma tecla que deixa o robô voltar, uma câmera que recua para mostrar o caminho), toda vaga que voltar à tela volta igual.</p>
+        <p><strong>O sorteio da vaga, de novo.</strong> Todos os sorteios são do <code>slot.rng</code>, como no 17. Por isso, com o <code>seed=</code> da caixa abaixo, a pista inteira se repete, buraco por buraco, moeda por moeda: cada vaga tira tudo do seu próprio sorteio.</p>
       `,
       code: `from math import sin
 from scena import *
@@ -830,8 +820,8 @@ run(Corrida)
       body: `
         <p>Atrás da pista, só céu. Duas faixas de cenário dão profundidade, com as silhuetas claras da folha de enfeites do 17 (<code>backgrounds/kn/</code>): montanhas, morros, castelos, torres e árvores, num azul muito claro, como coisas vistas de longe.</p>
         <p><strong>Camadas que andam menos.</strong> As camadas do 26: com <code>pan_response=0.1</code>, a camada anda um décimo do que a câmera anda; com <code>0.3</code>, três décimos. A serra quase não sai do lugar, os morros passam devagar, a pista passa inteira. É o parallax do 16, agora feito pela câmera, sem <code>scroll=</code>.</p>
-        <p><strong>Um Endless em cada uma.</strong> Como a pista. A diferença está nas coordenadas: numa camada de parallax, <code>slot.left</code> é medido na camada, que anda menos que o mundo, e as vagas dela passam devagar. <code>longe(slot)</code> põe uma serra de 1400 de largura em cada vaga de 1400 (uma emenda na outra) e uma nuvem sorteada (<code>slot.rng.randint(1, 9)</code> sorteia um número inteiro de 1 a 9, os dois inclusos, e a f-string monta o nome do quadro, de <code>cloud1.png</code> a <code>cloud9.png</code>); <code>colinas(slot)</code>, uma faixa de morros e três silhuetas em pé atrás dela. É só enfeite: nada ali entra num <code>resolve</code> ou num <code>@collide</code>, pelo motivo do passo 2.</p>
-        <p><strong>A ordem.</strong> As camadas novas são criadas antes da pista, de trás para a frente: a ordem de <code>create</code> é a ordem do desenho (17). <code>serra.set_alpha(0.6)</code> (transparência) deixa o céu aparecer através da serra, e ela parece mais longe ainda.</p>
+        <p><strong>Um Endless em cada uma.</strong> Como a pista. A diferença está nas coordenadas: numa camada de parallax, <code>slot.left</code> é medido na camada, que anda menos que o mundo, e as vagas dela passam devagar. <code>longe(slot)</code> põe uma serra de 1400 de largura em cada vaga de 1400 (uma emenda na outra) e uma nuvem sorteada, de <code>cloud1.png</code> a <code>cloud9.png</code>; <code>colinas(slot)</code>, uma faixa de morros e três silhuetas em pé atrás dela. É só enfeite: nada ali entra num <code>resolve</code> ou num <code>@collide</code>, pelo motivo do passo 2.</p>
+        <p><strong>A ordem.</strong> As camadas novas são criadas antes da pista, de trás para a frente: a ordem de <code>create</code> é a ordem do desenho, como no 16. <code>serra.set_alpha(0.6)</code> (transparência) deixa o céu aparecer através da serra, e ela parece mais longe ainda.</p>
       `,
       code: `from math import sin
 from scena import *

@@ -21,7 +21,7 @@ Tutorial.mount({
       title: "O céu e o avião",
       body: `
         <p>Outro jogo: um avião voa entre pilares. Ele não anda para a frente; quem anda é o mundo, e o avião só sobe e desce. Cada par de pilares que ele atravessa vale um ponto, e uma batida acaba o voo.</p>
-        <p><strong>O tamanho.</strong> As imagens do cenário deste jogo (e do próximo) são <em>pixel art</em> de 640 por 360 pixels. Com <code>init(width=640, height=360)</code>, o espaço do jogo tem o mesmo tamanho do desenho, e as contas ficam simples: a imagem cobre a tela inteira. A janela continua grande; o Scena amplia tudo junto.</p>
+        <p><strong>O tamanho.</strong> As imagens do cenário deste jogo (e do próximo) são <em>pixel art</em> de 640 por 360 pixels. Com <code>init(width=640, height=360)</code>, o espaço do jogo tem o mesmo tamanho do desenho, e as contas ficam simples: a imagem cobre a tela inteira.</p>
         <p><strong>O céu.</strong> <code>Wallpaper</code> (papel de parede) com um arquivo de imagem: o céu e as montanhas lá no fundo, parados. O avião, por enquanto, é um sprite parado também.</p>
       `,
       code: `from scena import *
@@ -80,14 +80,7 @@ aviao.play("voando")
 
 
 run()
-`,
-      try: [
-          {
-            note: "Outra escrita, só para voar (a folha fica sem o avião quebrado). Com <code>*</code> (qualquer coisa no lugar), o Scena pega todos os arquivos que casam, em ordem: Fly1, Fly2. <code>fps=</code> faz um clip com todos, e <code>name=</code> (nome) dá o nome dele. No lugar das três linhas da folha:",
-            replaces: ['folha = Sheet(', 'folha.clip("voando"', 'folha.clip("caindo"'],
-            code: `folha = Sheet("plane/Fly*.png", fps=12, name="voando")`
-          }
-        ]
+`
     },
     {
       title: "O manche",
@@ -219,7 +212,7 @@ self.rotate_to(chase(self.angle, alvo, rate=10))`
       title: "Um par de pilares",
       body: `
         <p><strong>As peças.</strong> Os pilares vêm da folha de um pacote de peças (<code>rollingBall_sheet@2.png</code>, com o seu atlas, como a folha das naves no 07). O quadro <code>block_narrow.png</code> é um bloco verde, alto e estreito; com <code>height=260</code>, um pilar.</p>
-        <p><strong>Um par.</strong> <code>novo_par()</code> faz dois pilares, um em cima do outro, com um vão entre eles. <code>meio</code> é a altura do meio do vão. Cada pilar tem 260 de altura, e o seu centro fica 190 acima ou abaixo do meio: a ponta de cada um fica a 60 do meio, e o vão tem 120. Os dois nascem em x = 680, logo depois da borda direita da tela.</p>
+        <p><strong>Um par.</strong> <code>novo_par()</code> faz dois pilares, um em cima do outro, com um vão entre eles. <code>meio</code> é a altura do meio do vão: um pilar fica acima dele, o outro abaixo, à mesma distância, e o vão entre os dois tem 120. Os dois nascem em x = 680, logo depois da borda direita da tela.</p>
         <p><strong>O mundo anda.</strong> No <code>update</code>, <code>group["pilar"].move_by(-120 * dt, 0)</code> leva os pilares para a esquerda, 120 por segundo. O avião não sai do lugar; parece que ele voa.</p>
         <p>Por enquanto, um par só, e o avião passa através dele: ainda não há colisão.</p>
       `,
@@ -335,7 +328,7 @@ run()
       body: `
         <p>Passar por um par vale um ponto. Mas o que é <em>passar</em>? O avião atravessou o vão. Para o Scena ver isso, uma <strong>porta</strong>: um <code>Rect</code> estreito no vão, no grupo <code>porta</code>, que anda com os pilares. Quando o avião toca a porta, é um ponto: o <code>@collide_with("porta")</code> do <code>Aviao</code> destrói a porta (para não contar duas vezes), soma o ponto e toca um som.</p>
         <p><strong>Invisível.</strong> <code>porta.visible = False</code> (visível) esconde o desenho, mas a porta continua no jogo e continua colidindo. <code>Ctrl+Shift+7</code> desenha os colisores: a porta aparece no vão.</p>
-        <p>O placar é o do 02: <code>st.pontos</code> e um <code>Text</code> ligado a ele com <code>@=</code>. Azul-marinho (<code>color="navy"</code>), porque o céu é claro.</p>
+        <p>O placar é o do 02: <code>st.pontos</code> e um <code>Text</code> ligado a ele com <code>@=</code>.</p>
       `,
       code: `from random import uniform
 from scena import *

@@ -22,7 +22,7 @@ Tutorial.mount({
       part: "Script 1 · Círculos e linhas",
       body: `
         <p>Este tutorial é sobre geometria: formas que você pega com o mouse e formas que dependem umas das outras. São dois scripts. Neste primeiro, vamos arrastar círculos e um retângulo e ligá-los com linhas que os acompanham. No segundo, construímos o ponto médio de um segmento só com círculos, como se faz com compasso.</p>
-        <p><strong>Duas escritas.</strong> Começamos com dois círculos escritos de jeitos diferentes. O primeiro você já conhece: <code>center</code> (centro) e <code>radius</code> (raio), aqui 60. O segundo troca o raio por <code>perimeter_point</code> (ponto do perímetro, isto é, da borda): um ponto por onde o contorno passa. O Scena mede a distância do centro até esse ponto e usa essa distância como raio. De (600, 350) até (620, 400), dá cerca de 54.</p>
+        <p><strong>Duas escritas.</strong> Começamos com dois círculos escritos de jeitos diferentes. O primeiro você já conhece: <code>center</code> (centro) e <code>radius</code> (raio), aqui 60. O segundo troca o raio por <code>perimeter_point</code> (ponto do perímetro, isto é, da borda): um ponto por onde o contorno passa. O Scena mede a distância do centro até esse ponto e usa essa distância como raio.</p>
         <p>Rode: dois círculos, nada de diferente à vista. A diferença está no que o Scena guarda. O primeiro círculo é um ponto e um número; o segundo é feito de dois pontos. Isso aparece no próximo passo, quando você puder pegá-los com o mouse. E o jeito dos dois pontos volta no segundo script: é ele que faz o papel do compasso.</p>
       `,
       code: `from scena import *
@@ -56,7 +56,7 @@ Triangle(center=(400, 350), radius=70, color="gold")`
       body: `
         <p>Agora vamos pegar os círculos com o mouse. <code>show_handles()</code> (mostrar alças) desenha uma bolinha em cada ponto <em>livre</em> da forma, e cada bolinha pode ser arrastada. Livre quer dizer: um ponto que você deu ao Scena, e não um que ele calcula.</p>
         <p>No primeiro círculo aparece uma alça só, no centro. O raio é um número, não um ponto, e não há onde pegá-lo. Arraste o centro: o círculo vai junto, sempre com raio 60. No segundo aparecem duas, o centro e o ponto da borda. Arraste o ponto da borda e o círculo cresce ou encolhe. Arraste o centro e o ponto da borda fica parado, então o raio muda.</p>
-        <p>As alças mostram de que pontos cada forma é feita. Era isso que o passo anterior queria dizer com “o que o Scena guarda”.</p>
+        <p>As alças mostram, assim, de que pontos cada forma é feita: um ponto e um número no primeiro círculo, dois pontos no segundo.</p>
       `,
       code: `from scena import *
 
@@ -109,8 +109,8 @@ run()
       body: `
         <p>Até aqui, cada forma vive sozinha. Agora vamos criar formas que dependem de outras: linhas que ligam as formas e as seguem quando você arrasta.</p>
         <p><strong>A caixa.</strong> Primeiro, mais uma forma para ligar: um <code>Rect</code> escrito com dois cantos, <code>p1</code> e <code>p2</code> (ponto 1 e ponto 2). Com alças e <code>draggable</code>, como os círculos, dá para esticá-lo pelos cantos ou levá-lo inteiro.</p>
-        <p><strong>As linhas.</strong> <code>Line</code> (linha) vai de <code>p1</code> a <code>p2</code>. Com pontos prontos, a linha ficaria parada. Aqui cada ponta recebe uma <code>lambda</code>, a palavra-chave do Python que você viu no placar do tutorial 2: ela atribui uma função, algo que calcula um valor a partir do que lê. <code>lambda: c1.center</code> lê o centro de <code>c1</code>. O Scena guarda essa conta e a refaz a cada quadro, então, quando o círculo anda, a ponta da linha anda com ele.</p>
-        <p><strong>Os cantos.</strong> <code>top_left</code> (em cima, à esquerda) e <code>bottom_right</code> (embaixo, à direita) são cantos que o Scena calcula a partir de <code>p1</code> e <code>p2</code>. Por isso <code>l1</code> continua no canto de cima à esquerda mesmo que você arraste um canto da caixa para o outro lado.</p>
+        <p><strong>As linhas.</strong> <code>Line</code> (linha) vai de <code>p1</code> a <code>p2</code>. Com pontos prontos, a linha ficaria parada. Aqui cada ponta recebe uma <code>lambda</code>, como no placar do tutorial 2: uma função curta que calcula um valor a partir do que lê. <code>lambda: c1.center</code> lê o centro de <code>c1</code>. O Scena guarda essa conta e a refaz a cada quadro, então, quando o círculo anda, a ponta da linha anda com ele.</p>
+        <p><strong>Os cantos.</strong> <code>top_left</code> (em cima, à esquerda) e <code>bottom_right</code> (embaixo, à direita) são cantos que o Scena calcula a partir de <code>p1</code> e <code>p2</code>, e as linhas os leem do mesmo jeito que leem o centro de um círculo.</p>
         <p><code>ElectricBolt</code> (raio elétrico) é um visual para linhas: faíscas correndo pelo traço. Rode e arraste qualquer forma. As três linhas seguem: <code>l1</code> e <code>l2</code> ligam a caixa aos círculos, <code>l3</code> liga um círculo ao outro.</p>
       `,
       code: `from scena import *
@@ -187,7 +187,7 @@ Line(p1=lambda: caixa.top_left, p2=lambda: c1.center)  # ao vivo`
           <figcaption>A construção completa. Cada círculo tem o centro numa ponta e passa pela outra. A linha entre os dois cruzamentos corta o segmento no meio.</figcaption>
         </figure>
         <p>Vamos montá-la peça por peça, começando pelo segmento.</p>
-        <p><strong>As pontas.</strong> <code>Anchor</code> (âncora) é um ponto que já nasce visível e arrastável, com a sua alça: é o ponto de partida de uma construção, a peça que o mouse move. <code>Anchor(420, 320)</code> recebe x e y. O <code>segmento</code> é uma <code>Line</code> com <code>lambda</code> nas pontas, como as linhas do primeiro script. <code>line_width</code> (largura da linha) é a espessura do traço: o normal é 1.5, e 3 deixa o segmento mais grosso que as linhas que virão depois.</p>
+        <p><strong>As pontas.</strong> <code>Anchor</code> (âncora) é um ponto que já nasce visível e arrastável, com a sua alça: é o ponto de partida de uma construção, a peça que o mouse move. <code>Anchor(420, 320)</code> recebe x e y. O <code>segmento</code> é uma <code>Line</code> com <code>lambda</code> nas pontas, como as linhas do primeiro script. <code>line_width</code> (largura da linha) é a espessura do traço: 3 deixa o segmento mais grosso que as linhas que virão depois.</p>
         <p>Rode e arraste as duas bolinhas vermelhas. O segmento não tem alças nem <code>draggable</code>: quem se mexe são as âncoras, e ele só as segue.</p>
       `,
       code: `from scena import *
@@ -215,8 +215,8 @@ Line(p1=lambda: ponta1.center, p2=lambda: ponta2.center)  # ao vivo`
       title: "Compasso",
       body: `
         <p>Primeiro movimento do compasso: a ponta seca em <code>ponta1</code>, a abertura até <code>ponta2</code>. Em código, é o círculo de dois pontos do primeiro script: <code>center</code> na primeira ponta, <code>perimeter_point</code> na segunda. Assim o raio é sempre o comprimento do segmento. As duas posições são <code>lambda</code>, então o círculo segue as âncoras: afaste-as, e ele cresce.</p>
-        <p><strong>Só o contorno.</strong> Na construção, o que interessa é a borda do círculo; um disco pintado cobriria o resto. <code>fill</code> (preenchimento) é a tinta de dentro da forma. <code>None</code> (nenhum) é o valor do Python para “nada”, então o círculo fica oco, só com o contorno, num tom mais escuro da cor. <code>line_width = 2</code> engrossa um pouco esse contorno, para ele aparecer bem sobre o fundo.</p>
-        <p><strong>Uma chamada em várias linhas.</strong> O <code>Circle(</code> agora ocupa várias linhas, uma informação por linha. Enquanto um parêntese está aberto, o Python continua lendo na linha de baixo; assim a chamada longa fica fácil de ler. A vírgula depois da última informação é permitida (e ajuda: para acrescentar uma linha, não precisa mexer na de cima).</p>
+        <p><strong>Só o contorno.</strong> Na construção, o que interessa é a borda do círculo; um disco pintado cobriria o resto. <code>fill</code> (preenchimento) é a tinta de dentro da forma. <code>None</code> (nenhum) é o valor do Python para “nada”, então o círculo fica oco, só com o contorno. <code>line_width = 2</code> engrossa um pouco esse contorno, para ele aparecer bem sobre o fundo.</p>
+        <p><strong>Uma chamada em várias linhas.</strong> O <code>Circle(</code> agora ocupa várias linhas, uma informação por linha. Enquanto um parêntese está aberto, o Python continua lendo na linha de baixo; assim a chamada longa fica fácil de ler.</p>
         <p>Rode: o segmento sai do centro do círculo e termina exatamente na borda.</p>
       `,
       code: `from scena import *
@@ -342,7 +342,7 @@ run()
       body: `
         <p>Agora a linha que acha o meio. A <code>corda</code> é uma <code>Line</code> de um cruzamento ao outro. Desta vez cada <code>lambda</code> devolve o próprio ponto, <code>cruzamento1</code> ou <code>cruzamento2</code>, sem <code>.center</code>: um <code>Point</code> já é uma posição. Em geometria, corda é uma linha que liga dois pontos da borda de um círculo. Esta é corda dos dois círculos ao mesmo tempo.</p>
         <p><strong>Por que ela passa pelo meio.</strong> Cada cruzamento está na borda dos dois círculos. Então fica à distância de um raio de <code>ponta1</code> e à mesma distância de <code>ponta2</code>. Os pontos que ficam à mesma distância das duas pontas formam uma reta, a <strong>mediatriz</strong> do segmento, que o atravessa bem no meio e em ângulo reto. A corda liga dois pontos dessa reta, então está sobre ela.</p>
-        <p><strong>O traço.</strong> <code>dash</code> (tracejado) muda o desenho do traço: <code>"dash"</code> é em tracinhos. O comentário lista os outros: <code>"dot"</code> (pontinhos), <code>"dot-dash"</code> (ponto e traço) e <code>"solid"</code> (contínuo, o normal). Tracejada, a corda se lê como uma linha de construção, um apoio, e não como parte da figura.</p>
+        <p><strong>O traço.</strong> <code>dash</code> (tracejado) muda o desenho do traço: <code>"dash"</code> é em tracinhos. Tracejada, a corda se lê como uma linha de construção, um apoio, e não como parte da figura.</p>
         <p>Rode e gire o segmento arrastando uma ponta: a corda gira junto e continua em ângulo reto com ele.</p>
       `,
       code: `from scena import *

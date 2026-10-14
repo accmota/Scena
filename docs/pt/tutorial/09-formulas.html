@@ -95,10 +95,10 @@ run()
             <text x="79" y="70" text-anchor="middle">escreve</text>
             <text x="178" y="70" text-anchor="middle">lê</text>
           </svg>
-          <figcaption>Quem lê quem. Arraste o slider e a mudança corre na direção das setas, até o fio. (O fio também lê <code>sol.center</code>, que aqui não muda.)</figcaption>
+          <figcaption>Quem lê quem. Arraste o slider e a mudança corre na direção das setas, até o fio.</figcaption>
         </figure>
         <p><strong>Quando a conta é refeita.</strong> Não importa a ordem das linhas nem quantas fórmulas há na fila: o Scena sabe quem lê quem, e antes de desenhar o próximo quadro a cadeia inteira está em dia. Rode e arraste o slider: o sol cresce, a lua se afasta e cresce junto, e o fio estica.</p>
-        <p><strong>Uma direção só.</strong> A lua lê o sol. O sol não pode, ao mesmo tempo, ler a lua: seria uma conta que depende do próprio resultado, como pôr <code>=B1</code> dentro de B1 numa planilha. O Scena recusa na hora de ligar, com <code>CircularReferenceError</code> (erro de referência circular).</p>
+        <p><strong>Uma direção só.</strong> A lua lê o sol. O sol não pode, ao mesmo tempo, ler a lua: seria uma conta que depende do próprio resultado, como pôr <code>=B1</code> dentro de B1 numa planilha. O Scena recusa na hora de ligar.</p>
       `,
       code: `from scena import *
 
@@ -192,7 +192,6 @@ run()
         <p><code>Text(st["raio"])</code> mostra a célula como ela é: só o número, sem nome. Para escrever uma frase, ou juntar dois valores, o texto precisa de uma fórmula. <code>Text(lambda: …)</code> liga o texto a uma conta, como as pontas da linha do 03.</p>
         <p><strong>A frase.</strong> É a f-string do placar do 02: o <code>f</code> antes das aspas põe o valor de cada <code>{…}</code> dentro da frase. <code>round</code> (arredondar) tira as casas depois da vírgula, porque o raio da lua é um terço do raio do sol: com 40, dá 13,333…, e a frase mostra 13.</p>
         <p><strong>Dentro da fórmula, ponto.</strong> Quem mantém a frase viva é a <code>lambda</code>, não os colchetes. Ela guarda a conta em vez de fazê-la agora; o Scena lê o código dela uma vez, encontra <code>st.raio</code> e <code>lua.radius</code>, e refaz a conta a cada mudança. Cada vez que roda, a conta quer o número daquele momento: é exatamente o que <code>st.raio</code> dá. Com colchetes, <code>f"Sol {st['raio']}"</code>, ela receberia a caixa em vez do número. O Scena recusa na hora de ligar, com um <code>TypeError</code> que aponta a linha e diz para escrever <code>st.raio</code>.</p>
-        <p><strong>A regra inteira.</strong> Tem <code>lambda</code>? Ponto. Sem <code>lambda</code>, quando alguém precisa acompanhar ou escrever na célula? Colchetes. Os colchetes nunca mudam o número: só dizem “entrego a célula, não o valor de agora”.</p>
         <p><strong>Duas fontes.</strong> Esta fórmula lê duas coisas, a célula e o raio da lua. Qualquer uma que mude, a frase é refeita. Rode e arraste: <code>Sol 40   Lua 13</code> vira <code>Sol 90   Lua 30</code>.</p>
       `,
       code: `from scena import *
@@ -272,7 +271,6 @@ run()
               <li>o relógio e a entrada: <code>clock</code>, <code>mouse</code>, <code>keyp</code> (o teclado).</li>
             </ul>
             <p><strong>Uma variável comum não avisa quando muda.</strong> Com <code>giro = 90</code> no topo do arquivo, <code>lambda: giro * 2</code> é recusada: <code>TypeError</code>, a fórmula não tem fontes que o Scena acompanhe. Ele recusa em vez de ligar uma fórmula que ficaria parada sem você saber. A saída é guardar o valor numa célula (<code>st.giro = 90</code>) e ler <code>st.giro</code>.</p>
-            <p><strong>A fórmula só lê e devolve.</strong> Ela não muda nada (<code>sol.radius = 5</code> dentro dela é recusado) e não tem <code>for</code>: o Scena não saberia, de antemão, o que o laço vai ler. Conta com laço vai no <code>update</code>.</p>
             <p>No Guia: <a href="../guide/index.html#reativo-fontes">O que pode ser ligado</a>.</p>
           `,
           try: [
@@ -294,7 +292,7 @@ run()
       title: "A cor não liga",
       body: `
         <p>Agora queremos que a cor do sol dependa do tamanho dele. A primeira ideia seria uma fórmula, <code>sol["color"] @= lambda: …</code>. O Scena recusa: a cor é <strong>pintura</strong>, e a pintura (<code>color</code>, <code>glow</code>, <code>visual</code>) fica fora das fórmulas. A mensagem do erro diz o caminho: escrever a cor com <code>=</code>, num <code>@on_change</code> ou num <code>@when</code>.</p>
-        <p><strong>Quando mudar.</strong> <code>@on_change</code> (quando mudar), do 07 e do 08, em cima de uma função, roda a função a cada mudança da célula, e entrega o valor novo (<code>valor</code>). Ele recebe a célula, com colchetes: precisa acompanhá-la, não ler o número uma vez.</p>
+        <p><strong>Quando mudar.</strong> <code>@on_change</code> (quando mudar), do 08, em cima de uma função, roda a função a cada mudança da célula, e entrega o valor novo (<code>valor</code>). Ele recebe a célula, com colchetes: precisa acompanhá-la, não ler o número uma vez.</p>
         <p><strong>A cor de um número.</strong> <code>Color.from_hsv(matiz, saturação, brilho)</code> monta uma cor com três números de 0 a 1. A matiz dá a volta no círculo das cores: 0 é vermelho, 0,17 amarelo, 0,33 verde, 0,5 ciano, 0,67 azul. A saturação vai do cinza (0) à cor viva (1); o brilho, do preto (0) ao mais claro (1). Com <code>valor / 200</code>, o sol vai do laranja (raio 20) ao azul (raio 120).</p>
         <p><strong>Fórmula ou evento.</strong> Uma fórmula diz o que um campo <em>é</em>: o raio do sol é sempre <code>st.raio</code>. Um evento diz o que fazer <em>quando</em> algo acontece: pintar o sol, tocar um som. Por isso o sol começa dourado: a função só roda na primeira mudança. Arraste o slider e veja.</p>
       `,
@@ -331,7 +329,7 @@ run()
 `,
       try: [
         {
-          note: "Outra escrita: acompanhar o campo de um objeto. Aí vai uma <code>lambda</code>, porque <code>sol.radius</code> sozinho seria o número de agora (e o <code>@on_change</code> recusa com <code>TypeError</code>).",
+          note: "Outra escrita: acompanhar o campo de um objeto. Aí vai uma <code>lambda</code>, porque <code>sol.radius</code> sozinho seria o número de agora.",
           replaces: ['@on_change('],
           code: `@on_change(lambda: sol.radius)`
         }
@@ -411,9 +409,9 @@ run()
     {
       title: "Soltar a lua",
       body: `
-        <p>Até aqui, a lua obedece ao sol. E se você quiser pô-la em outro lugar? A primeira ideia seria <code>lua.center = (600, 200)</code>. O Scena recusa, com <code>LinkedAttributeError</code> (erro de campo ligado), e a mensagem diz o que fazer: chamar <code>unlink()</code> antes.</p>
+        <p>Até aqui, a lua obedece ao sol. E se você quiser pô-la em outro lugar? A primeira ideia seria <code>lua.center = (600, 200)</code>. O Scena recusa, e a mensagem diz o que fazer: chamar <code>unlink()</code> antes.</p>
         <p><strong>Por que recusa.</strong> Um campo ligado tem dono: a fórmula. Se o <code>=</code> passasse, a fórmula escreveria por cima no quadro seguinte, e a lua voltaria sem você entender por quê. O Scena prefere avisar na hora, na linha do <code>=</code>.</p>
-        <p><strong>Desligar.</strong> <code>lua["center"].unlink()</code> (desligar) solta o centro da fórmula. O centro fica com o último valor, e a lua fica parada onde estava. Daí em diante ela aceita <code>=</code>, <code>move_to</code> e o arraste (<code>draggable</code>, que por isso vem depois do <code>unlink</code>).</p>
+        <p><strong>Desligar.</strong> <code>lua["center"].unlink()</code> (desligar) solta o centro da fórmula. O centro fica com o último valor, e a lua fica parada onde estava. Daí em diante ela aceita <code>=</code>, <code>move_to</code> e o arraste.</p>
         <p><strong>O botão.</strong> O <code>Button</code> do 04 chama <code>soltar</code>. Rode, clique em “Soltar a lua” e arraste a lua. O fio e o ponteiro vão atrás: eles leem <code>lua.center</code>, e essas ligações continuam valendo. Mexa no slider: o sol cresce, a lua não sai do lugar, mas ainda muda de tamanho. O <code>unlink</code> cortou uma seta só, a do centro; o raio da lua continua lendo o sol.</p>
       `,
       code: `from scena import *

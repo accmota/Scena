@@ -162,7 +162,7 @@ run()
         </figure>
 
         <p><strong>Uma camada por faixa.</strong> <code>canvas.layers.create("montes", scroll=(-36, 0), below="default")</code> cria uma <strong>camada</strong> (<em>layer</em>) com nome: um plano de desenho, como uma folha de papel transparente. <code>scroll=(-36, 0)</code> (rolar) faz a camada andar sozinha, 36 por segundo para a esquerda, com tudo que está nela. <code>below="default"</code> (abaixo) a põe atrás da camada onde o jogo acontece: os pilares e o avião passam na frente. Criadas na mesma posição, a camada criada depois fica na frente da anterior: as nuvens no fundo, o mato na frente.</p>
-        <p><strong>Sem fim.</strong> Uma imagem da largura da tela, andando, acaba logo. <code>Endless("montes", "…/mountains3.png", height=360)</code> (sem fim) enche a camada com a mesma imagem, uma colada na outra: monta a próxima um pouco antes de ela aparecer na direita e destrói a que ficou bem para trás, na esquerda. <code>height=360</code> é a altura de cada imagem, a da tela. A paisagem nunca acaba, e nunca há mais que umas poucas imagens vivas.</p>
+        <p><strong>Sem fim.</strong> Uma imagem da largura da tela, andando, acaba logo. <code>Endless("montes", "…/mountains3.png", height=360)</code> (sem fim) enche a camada com a mesma imagem, uma colada na outra, sem fim: por mais que o avião voe, sempre há mais paisagem chegando pela direita. <code>height=360</code> é a altura de cada imagem, a da tela.</p>
         <p>Voe, e depois bata. O avião cai, os pilares param… e as montanhas continuam passando.</p>
       `,
       code: `from random import uniform
@@ -276,11 +276,10 @@ run()
 `,
       dive: [
         {
-          title: "Camadas e o Endless",
+          title: "Camadas",
           body: `
-            <p><strong>Camadas.</strong> Toda coisa na tela está numa camada, e as camadas decidem o que fica na frente. Três já existem: <code>default</code> (padrão, onde tudo nasce), <code>top</code> (na frente do mundo) e <code>ui</code> (o HUD, presa à janela). <code>canvas.layers.create</code> cria outras, por nome, e <code>below=</code> / <code>above=</code> (acima) dizem onde ficam.</p>
-            <p><strong>Andar sozinha.</strong> <code>scroll=</code> é uma deriva: a camada anda nessa velocidade, sem nada no jogo mexendo nela. Aqui a câmera fica parada e é o cenário que passa. Num jogo em que a câmera anda (um mundo maior que a tela), as camadas usam <code>pan_response=</code> (resposta ao movimento da câmera): 0.3 anda 30% do que a câmera anda. É a mesma ideia, para quando quem anda é a câmera.</p>
-            <p><strong>O Endless.</strong> Ele corta o caminho em <em>vagas</em> (slots), uma depois da outra, e monta o que vai em cada vaga só quando ela está para entrar na tela. Aqui, cada vaga é uma imagem. No próximo tutorial, uma lista de imagens sorteadas e peças soltas.</p>
+            <p><strong>Camadas.</strong> Toda coisa na tela está numa camada, e as camadas decidem o que fica na frente. Três já existem: <code>default</code> (padrão, onde tudo nasce), <code>top</code> (na frente do mundo) e <code>ui</code> (o HUD, presa à janela). <code>canvas.layers.create</code> cria outras, por nome, e <code>below=</code> / <code>above=</code> (acima) dizem onde ficam. Entre duas camadas do mesmo lado, vale a ordem em que foram criadas: a criada depois fica na frente. Por isso as faixas deste jogo são criadas de trás para a frente, primeiro a mais distante.</p>
+            <p><strong>Andar sozinha.</strong> <code>scroll=</code> é uma deriva: a camada anda nessa velocidade, sem nada no jogo mexendo nela. Aqui a câmera fica parada e é o cenário que passa.</p>
             <p>No Guia: <a href="../guide/index.html#mundo-camadas">Camadas</a> · <a href="../guide/index.html#mundo-sem-fim">Mundo sem fim</a>.</p>
           `
         }
@@ -297,7 +296,7 @@ run()
       title: "Uma velocidade só",
       body: `
         <p>As camadas andam cada uma no seu número, e os pilares no deles. Mas é tudo o mesmo voo: quando o avião cai, tudo deveria parar junto.</p>
-        <p><strong>Uma velocidade.</strong> <code>st.velocidade</code> é a velocidade do voo, 120. Os pilares andam essa velocidade, e cada camada anda uma <strong>fração</strong> dela, escrita no <code>update</code> a cada quadro: <code>montes.scroll = (-st.velocidade * 0.3, 0)</code>, 30% do voo. As nuvens, longe, 10%; o mato, perto, 70%. O <code>scroll=</code> da criação ainda é preciso (é ele que faz da camada uma camada que anda), mas daqui em diante quem manda é o <code>update</code>.</p>
+        <p><strong>Uma velocidade.</strong> <code>st.velocidade</code> é a velocidade do voo, 120. Os pilares andam essa velocidade, e cada camada anda uma <strong>fração</strong> dela, escrita no <code>update</code> a cada quadro: <code>montes.scroll = (-st.velocidade * 0.3, 0)</code>, 30% do voo. As nuvens, longe, 10%; o mato, perto, 70%. O <code>scroll=</code> da criação continua no lugar; daqui em diante, é o <code>update</code> que muda o valor.</p>
         <p><strong>A freada.</strong> Na queda, a velocidade persegue zero: <code>st.velocidade = chase(st.velocidade, 0, rate=2)</code>, o <code>chase</code> do manche, agora num número. Pilares e camadas freiam juntos, e param em um ou dois segundos. Recomeçar devolve os 120.</p>
       `,
       code: `from random import uniform
@@ -425,7 +424,7 @@ run()
     {
       title: "Fogo na queda",
       body: `
-        <p>O avião quebrado cai pegando fogo. <code>Fire</code> (fogo), um efeito que vive no mundo, como o fogo no destroço da nave no 07. <code>style="plume"</code> (pluma) é uma labareda que sobe, de largura 14.</p>
+        <p>O avião quebrado cai pegando fogo. <code>Fire</code> (fogo), um efeito que vive no mundo, como o fogo no destroço da nave no 07. <code>style="plume"</code> (pluma) é uma labareda que sobe.</p>
         <p><strong>Atrás do avião.</strong> <code>center=lambda: self.center</code>: o centro do fogo é uma <code>lambda</code> que lê o centro do avião, então o fogo cai junto com ele, como o propulsor do 06 seguia a nave. O fogo fica guardado em <code>self.fogo</code>, e <code>recomecar</code> o apaga.</p>
       `,
       code: `from random import uniform

@@ -218,7 +218,6 @@ run()
       body: `
         <p>Um disco voador entra em cena e faz um oito no alto da tela. <code>move_along</code> (mover ao longo de) leva o disco por uma trilha, um <code>Track</code>; <code>Track.eight(…)</code> é uma trilha pronta em forma de oito (<em>eight</em>), de 600 de largura e 160 de altura, que começa onde o disco está. <code>loops="forever"</code> repete para sempre. O tutorial 13 conta as trilhas a fundo.</p>
         <p><strong>Ctrl+Shift+7, de novo.</strong> A trilha é invisível: ela guia o disco, mas não é desenhada. Com <kbd>Ctrl+Shift+7</kbd>, ela aparece em magenta, inteira. Você vê o caminho todo de uma vez, e não só o pedaço que o disco já percorreu. Ajuda quando o disco faz uma volta inesperada: a trilha está mesmo onde você pensava?</p>
-        <p>O zoom de inspeção (8) não desenha as trilhas; só o 7.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -272,7 +271,7 @@ run()
       body: `
         <p>A batida ganha um estouro: <code>canvas.burst_at(meteoro, radius=40)</code> (estourar em) solta um anel de faíscas onde o meteoro estava. Dura um instante, rápido demais para ver direito.</p>
         <p><strong>Ctrl+Shift+P.</strong> <kbd>Ctrl+Shift+P</kbd> mexe no tempo do jogo, em ciclo: roda → pausa → ¼ da velocidade → roda. Em pausa, tudo para, mas a janela continua desenhando: ligue o 7, afaste a vista com o 8 e examine com calma onde cada coisa está. Em ¼, o jogo anda devagar: dá para ver o meteoro chegar, os dois colisores se tocarem e o estouro abrir.</p>
-        <p>O relógio do jogo inteiro muda junto: os meteoros, o <code>@every</code> que os solta, o disco no oito. Por isso o jogo fica igual, só que mais lento. Ao fechar o ciclo, o tempo volta a ser o que o seu script tinha posto.</p>
+        <p>O relógio do jogo inteiro muda junto: os meteoros, o <code>@every</code> que os solta, o disco no oito. Por isso o jogo fica igual, só que mais lento.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -330,7 +329,7 @@ run()
         <p>Um programa novo, pequeno: uma bola dourada que troca de cor quando você aperta espaço. A troca tem um erro de propósito. Rode e aperte espaço.</p>
         <p><strong>O aviso.</strong> A bola fica magenta, um rosa forte, e aparecem duas coisas: uma mensagem no console que começa com <strong>SCENA WARNING</strong> (aviso do Scena) e uma faixa âmbar no canto da janela. Os nomes de cor do Scena são em inglês, e <code>"laranja"</code> não está entre eles. O Scena não para o jogo por isso: pinta a bola de magenta, uma cor que chama a atenção de propósito, e avisa.</p>
         <p><strong>Ctrl+Shift+E.</strong> A faixa fica na tela até você ler. <kbd>Ctrl+Shift+E</kbd> a fecha. O aviso continua no console, se você precisar dele de novo.</p>
-        <p><strong>Aviso ou erro.</strong> Viram aviso os problemas que não impedem o jogo de continuar: um arquivo de imagem que falta (no lugar aparece um quadriculado), um som que falta (silêncio), um nome de cor desconhecido (magenta) ou quase certo (<code>"oragne"</code> vira a cor mais parecida, <code>"orange"</code>, e avisa). Já um erro no seu código, como um nome escrito errado (<code>bola.colr</code>) ou um parêntese que falta, não vira faixa: o programa para, e o Python mostra a mensagem de erro com a linha onde ele aconteceu.</p>
+        <p><strong>Aviso ou erro.</strong> Viram aviso os problemas que não impedem o jogo de continuar: um arquivo de imagem que falta (no lugar aparece um quadriculado), um som que falta (silêncio), um nome de cor desconhecido (magenta). Já um erro no seu código, como um nome escrito errado (<code>bola.colr</code>) ou um parêntese que falta, não vira faixa: o programa para, e o Python mostra a mensagem de erro com a linha onde ele aconteceu.</p>
       `,
       code: `from scena import *
 
@@ -365,7 +364,7 @@ run()
         <p>Outro programa novo, este cheio de efeitos: um céu, estrelas, um brilho geral na tela (<code>Bloom</code>), seis fogueiras (<code>Fire</code>) e seis bolas com brilho. Efeitos assim custam trabalho ao computador, quadro após quadro. Rode e ligue o painel (<kbd>Ctrl+Shift+1</kbd>) para acompanhar o <code>fps</code>.</p>
         <p><strong>O ajuste automático.</strong> Sem você pedir, o Scena mede quanto tempo cada quadro leva. Se o computador não dá conta, ele baixa a qualidade dos efeitos (high → medium → low) e, se ainda não bastar, o ritmo (de 60 para 30 quadros por segundo). Esse ajuste é o FX Auto, e começa ligado. <kbd>Ctrl+Shift+2</kbd> o desliga e liga de novo.</p>
         <p><strong>Ctrl+Shift+3.</strong> Troca a qualidade você mesmo: low (baixa) → medium (média) → high (alta). Olhe as fogueiras: em low, viram um brilho simples. É o mesmo jogo, mais leve.</p>
-        <p><strong>Ctrl+Shift+4.</strong> Troca o ritmo dos quadros: <code>vsync</code> (o ritmo do monitor) → <code>vsync60</code> (preso ao monitor, no ritmo mais perto de 60) → <code>vsync30</code> (no mais perto de 30) → 60 → 30 → <code>max</code> (sem limite). O <code>fps</code> do painel mostra o ritmo de verdade.</p>
+        <p><strong>Ctrl+Shift+4.</strong> Troca o ritmo dos quadros, um por aperto: o do monitor, 60, 30 ou sem limite. O <code>fps</code> do painel mostra o ritmo de verdade.</p>
         <p><strong>Para quê.</strong> Para ver como o seu jogo fica num computador mais fraco: ponha em low e 30, e jogue. Se ainda dá para jogar, ótimo. Os movimentos escritos com <code>dt</code> andam na mesma velocidade em qualquer ritmo; só ficam menos suaves.</p>
       `,
       code: `from scena import *
@@ -384,7 +383,7 @@ run()
 `,
       try: [
         {
-          note: "Os mesmos ajustes pelo código, um por vez. Escrever a qualidade ou o ritmo já desliga o FX Auto; <code>set_fx_auto(False)</code> só desliga, e deixa tudo onde está.",
+          note: "Os mesmos ajustes pelo código, um por vez. A última linha, <code>set_fx_auto(False)</code>, desliga o ajuste automático, como o <kbd>Ctrl+Shift+2</kbd>.",
           code: `canvas.fx_quality = "low"
 canvas.framerate = 30
 set_fx_auto(False)`
@@ -399,7 +398,7 @@ set_fx_auto(False)`
         <p>O último programa só desenha uma moldura dourada em volta da área do <code>init</code> (1000 × 700), para você ver onde ela fica quando a janela muda. É um <code>Rect</code> do tamanho da tela, sem preenchimento (<code>fill = None</code>, como no tutorial 03) e com o contorno (<code>line</code>) dourado.</p>
         <p><strong>Ctrl+Shift+F.</strong> Tela cheia (<em>fullscreen</em>): o jogo cobre o monitor inteiro, sem a borda da janela e sem a barra de tarefas. Apertar de novo volta à janela.</p>
         <p><strong>Ctrl+Shift+M.</strong> Maximizada (<em>maximized</em>): a janela ocupa toda a área de trabalho, mas a barra de tarefas fica. É o mesmo que o botão de maximizar da janela.</p>
-        <p><strong>As faixas pretas.</strong> Nos dois modos, o desenho não estica. O monitor quase nunca tem a mesma proporção que 1000 × 700, então o Scena aumenta o jogo até onde ele cabe e preenche o que sobra com faixas pretas, dos lados ou em cima e embaixo. A moldura dourada mostra: tudo dentro dela é o jogo; fora, só as faixas. Assim um círculo continua redondo em qualquer tela.</p>
+        <p><strong>As faixas pretas.</strong> Nos dois modos, o desenho não estica: tudo dentro da moldura dourada é o jogo, e o que sobra do monitor fica com faixas pretas. O Apêndice B, em “Os três modos”, conta por quê.</p>
         <p><strong>Ctrl+Shift+Z.</strong> Sai do jogo, como fechar a janela. É útil em tela cheia, onde não há botão de fechar à vista.</p>
       `,
       code: `from scena import *

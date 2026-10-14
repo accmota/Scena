@@ -186,7 +186,7 @@ run()
       part: "Ponto + (dx, dy)",
       body: `
         <p>Um programa novo. Muitas vezes você quer um lugar <strong>perto</strong> de outro: o tiro sai um pouco acima da nave, o nome fica embaixo do herói. Para isso, some ao ponto um par de números: <code>sol.center + (200, 0)</code> é o ponto 200 para a direita do centro do sol.</p>
-        <p>O par é um <strong>deslocamento</strong>, <code>(dx, dy)</code>: quanto andar em x e em y (o <code>d</code> vem de <em>delta</em>, a letra grega que os matemáticos usam para diferença). Número negativo anda para o outro lado: <code>(-200, -150)</code> vai 200 para a esquerda e 150 para baixo.</p>
+        <p>O par é um <strong>deslocamento</strong>, <code>(dx, dy)</code>: quanto andar em x e em y. Número negativo anda para o outro lado: <code>(-200, -150)</code> vai 200 para a esquerda e 150 para baixo.</p>
         <figure class="fig">
           <svg viewBox="0 0 400 200" role="img" aria-label="Um sol no meio; à direita dele, uma bolinha a (200, 0); acima, outra a (0, 150); embaixo à esquerda, uma terceira a (-200, -150); linhas tracejadas do sol até cada uma">
             <circle class="bar" cx="200" cy="110" r="22"/>
@@ -256,7 +256,7 @@ run()
           body: `
             <p><strong>Sabem:</strong> um <code>Point</code>, o <code>center</code> de qualquer forma ou sprite, as pontas de uma linha (<code>linha.p2 + (0, 10)</code>), os cantos de um retângulo, e um <code>Vec2</code> (a seta da próxima seção).</p>
             <p><strong>Não sabem:</strong> a tupla e o mouse. <code>(500, 350) + (200, 0)</code> não dá erro, mas é a conta do Python para tuplas: ele <em>gruda</em> as duas e devolve <code>(500, 350, 200, 0)</code>, quatro números. Com o mouse, some à mão: <code>(mouse.x + 200, mouse.y)</code>. Ou guarde o lugar num <code>Point</code>: <code>Point(500, 350) + (200, 0)</code> funciona.</p>
-            <p><strong>Colocar e andar.</strong> <code>sol.center += (10, 0)</code> dá erro de propósito. Para pôr o sol num lugar novo, escreva a conta inteira: <code>sol.center = sol.center + (10, 0)</code>. Para ele <em>andar</em> até lá (e uma parede de <code>resolve</code> poder pará-lo no caminho), use <code>sol.move_by(10, 0)</code>.</p>
+            <p><strong>Colocar.</strong> Para pôr o sol num lugar novo, escreva a conta inteira: <code>sol.center = sol.center + (10, 0)</code>; o atalho <code>sol.center += (10, 0)</code> dá erro de propósito. Andar até lá é outra coisa, e a caixa “Colocar ou andar”, na seção <strong>Velocidade</strong>, conta a diferença.</p>
             <p>No Guia: <a href="../guide/index.html#geo-helpers">Pontos</a>.</p>
           `,
           try: [
@@ -359,7 +359,6 @@ v = Vec2(150, -150)`
           title: "De onde vem o comprimento",
           body: `
             <p>As duas partes da seta e a própria seta formam um triângulo retângulo: 200 deitado, 100 em pé, e a seta é o lado comprido. O comprimento sai do teorema de Pitágoras: a raiz de 200 × 200 + 100 × 100, que dá 223,6. Você não precisa fazer a conta: <code>v.length</code> faz.</p>
-            <p><code>v.length</code> e <code>v.angle</code> são só de leitura: <code>v.length = 50</code> dá erro e mostra a forma certa. Para uma seta de outro tamanho, faça outra seta (a seção <strong>Esticar e encolher</strong> mostra como).</p>
             <p>No Guia: <a href="../guide/index.html#geo-vec2">Vec2</a>.</p>
           `
         }
@@ -470,7 +469,7 @@ run()
           title: "Ponto menos ponto, ponto menos par",
           body: `
             <p><strong>Ponto menos ponto</strong> dá uma seta (<code>Vec2</code>): <code>b.center - a.center</code>. Os dois precisam ser pontos de verdade (um <code>Point</code>, o <code>center</code> de uma forma).</p>
-            <p><strong>Ponto menos par</strong> dá um ponto: <code>b.center - (200, 200)</code> é o lugar 200 à esquerda e 200 abaixo de B (é a conta da seção <strong>Ponto + (dx, dy)</strong>). Para a seta que sai de um lugar escrito em números, guarde o lugar num <code>Point</code>: <code>b.center - Point(200, 200)</code> é a seta de <code>(200, 200)</code> até B.</p>
+            <p><strong>Ponto menos par</strong> dá um ponto: <code>b.center - (200, 200)</code> é o lugar 200 à esquerda e 200 abaixo de B (é a conta da seção <strong>Ponto + (dx, dy)</strong>).</p>
             <p><strong>Ponto mais ponto</strong> dá erro: não existe "somar dois lugares". O ponto do meio é <code>middle_point(a, b)</code>.</p>
             <p>No Guia: <a href="../guide/index.html#geo-helpers">Pontos</a>.</p>
           `
@@ -703,7 +702,6 @@ run()
           title: "Girar uma seta",
           body: `
             <p><code>v.rotate(30)</code> (girar) devolve a mesma seta, girada 30 graus no sentido anti-horário; com −30, no outro sentido. O tamanho não muda. A seção <strong>Velocidade</strong>, a seguir, gira a velocidade de uma bola um pouco a cada quadro.</p>
-            <p><code>vec_from_angle</code> também aceita <code>reference_vec=</code> (seta de referência): o ângulo passa a contar a partir dela. <code>vec_from_angle(90, reference_vec=frente)</code> é a seta 90 graus à esquerda de <code>frente</code>.</p>
             <p>No Guia: <a href="../guide/index.html#geo-vec2">Vec2</a> · <a href="../guide/index.html#geo-helpers">Pontos</a>.</p>
           `,
           try: [

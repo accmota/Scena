@@ -23,7 +23,7 @@ Tutorial.mount({
         <p>Um interlúdio é uma pausa entre dois tutoriais para olhar de perto uma ideia que o jogo acabou de usar. No 05, a frota inteira andava com uma linha, <code>group["inimigos"].move_by(…)</code>, e a guarda do tiro perguntava <code>group["inimigos"].count</code>. Aqui você vê o que mais um grupo sabe fazer, com bolhas que sobem.</p>
         <p><strong>O grupo se faz sozinho.</strong> <code>group="bolhas"</code> põe cada bolha nova no grupo <code>"bolhas"</code>. Ninguém cria o grupo antes: o nome basta. E <code>group["bolhas"]</code> são sempre as bolhas que existem <em>agora</em>. Uma bolha nova entra no grupo assim que nasce; uma bolha destruída sai dele. É como uma lista que se arruma sozinha.</p>
         <p><strong>Quantas.</strong> <code>count</code> (contagem) é quantas bolhas existem agora. O <code>update</code> escreve o número no texto a cada quadro. Rode e olhe o número subir e descer: bolhas nascem embaixo e são destruídas quando saem por cima.</p>
-        <p><strong>Por que no <code>update</code>?</strong> O placar do 02 usava uma fórmula. Um grupo não entra numa fórmula: o Scena não acompanha quem entra e sai de um grupo, e recusa a fórmula com um erro que diz isso. A contagem vai no <code>update</code>.</p>
+        <p><strong>Por que no <code>update</code>?</strong> O placar do 02 usava uma fórmula, mas um grupo não entra numa fórmula. Por isso a contagem vai no <code>update</code>, que a refaz a cada quadro.</p>
       `,
       code: `from random import uniform
 from scena import *

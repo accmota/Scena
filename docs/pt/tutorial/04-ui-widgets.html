@@ -156,7 +156,7 @@ run()
       body: `
         <p>Para o slider ter efeito, alguém precisa chamar <code>criar</code> de novo. Esse é o trabalho de um botão.</p>
         <p><code>Button</code> (botão) recebe <code>label="Rodar"</code>, o texto, e <code>on_click=criar</code> (ao clicar). Repare: <code>criar</code> sem parênteses. Com parênteses, a função rodaria agora, enquanto o botão é criado. Sem eles, você entrega a função ao botão, e o Scena a chama a cada clique. <code>ui.gap()</code> (vão) abre um espaço na coluna antes do botão, para ele não grudar no slider.</p>
-        <p>Chamar <code>criar</code> de novo, porém, somaria bolas novas às antigas. Por isso <code>criar</code> agora começa limpando: <code>group["bolas"].destroy()</code> (destruir) apaga todas as bolas do grupo. Na primeira chamada o grupo está vazio, e a linha não faz nada.</p>
+        <p>Chamar <code>criar</code> de novo, porém, somaria bolas novas às antigas. Por isso <code>criar</code> agora começa limpando: <code>group["bolas"].destroy()</code> (destruir) apaga todas as bolas do grupo.</p>
         <p>Arraste o slider para 10 e aperte Rodar: a cadeia renasce no centro, com dez bolas.</p>
       `,
       code: `from scena import *
@@ -296,7 +296,7 @@ return Bolt()`
         <p>Um enfeite: ligar cada bola à anterior com uma linha, como contas num colar. As linhas vão para o grupo <code>linhas</code>.</p>
         <p><strong>Lembrar a anterior.</strong> Para ligar, <code>criar</code> precisa saber qual foi a bola anterior. <code>anterior</code> começa <code>None</code> (nada) e, no fim de cada volta do <code>for</code>, passa a ser a bola que acabou de nascer. A primeira bola não tem anterior, e o <code>if anterior is not None</code> (se a anterior não é nada, ou seja: se já existe uma anterior) pula a linha nessa volta: trinta bolas, vinte e nove linhas.</p>
         <p><strong>Pontas que acompanham.</strong> A linha nasce com as duas pontas no centro. Logo em seguida, <code>linha["p1"] @= anterior.center</code> prende a ponta 1 ao centro da bola anterior, e <code>p2</code> ao da bola nova. É o mesmo <code>@=</code> do placar, aqui ligado a um ponto: quando as bolas andam, as pontas andam junto. Sem ele, as linhas ficariam paradas onde nasceram.</p>
-        <p><strong>A aparência.</strong> <code>layer=-1</code> (camada) desenha as linhas atrás das bolas. A cor é um degradê (<code>Gradient</code>) de vermelho a laranja; <code>set_alpha(0.3)</code> deixa a linha quase transparente (30% de opacidade); e <code>blend = "add"</code> (mistura por soma) soma a cor da linha à do que está atrás. Onde várias linhas se cruzam, a luz se acumula e brilha mais.</p>
+        <p><strong>A aparência.</strong> <code>layer=-1</code> (camada) desenha as linhas atrás das bolas, para que elas não cubram o desenho principal. As três linhas seguintes são enfeite: um degradê de vermelho a laranja, quase transparente, que brilha mais onde várias linhas se cruzam.</p>
         <p>Por fim, <code>criar</code> também apaga as linhas antigas com <code>group["linhas"].destroy()</code>. Senão, elas sobrariam a cada Rodar.</p>
       `,
       code: `from scena import *
@@ -471,7 +471,7 @@ run()
       body: `
         <p>O último widget é diferente dos outros. Slider, lista, caixa e botão ficam sempre na coluna. Um <code>Menu</code> é uma pergunta: aparece no meio da tela, espera uma resposta e some. Vamos usá-lo como menu de pausa, aberto pela tecla Esc.</p>
         <p><strong>Abrir.</strong> No <code>update</code>, <code>keyp.once("ESC")</code> é verdadeiro só no quadro em que a tecla desce, uma vez por toque. Com <code>keyp("ESC")</code>, verdadeiro enquanto a tecla está apertada, abriríamos um menu novo a cada quadro. Criar o <code>Menu</code> já o mostra: <code>title</code> (título) é a faixa de cima, e <code>options</code> (opções) são os botões. Sem <code>center</code> (centro), ele aparece no meio da vista.</p>
-        <p><strong>Pausar.</strong> <code>pause=True</code> (pausar) para o relógio do jogo enquanto o menu está aberto e o devolve como estava ao fechar: as bolas congelam. O menu também escurece o jogo atrás e segura o teclado. Com ele aberto, <code>keyp</code> responde falso, e o jogo não recebe as teclas.</p>
+        <p><strong>Pausar.</strong> <code>pause=True</code> (pausar) para o relógio do jogo enquanto o menu está aberto e o devolve como estava ao fechar: as bolas congelam.</p>
         <p><strong>Responder.</strong> Um clique numa opção fecha o menu e chama <code>on_choose</code> (ao escolher) com a opção clicada. A função <code>escolher</code> só precisa tratar <code>"Recomeçar"</code>: chama <code>criar</code>, como o botão Rodar. <code>"Continuar"</code> não precisa de nada, porque fechar o menu já é continuar.</p>
         <p>Aperte Esc e experimente as duas opções.</p>
       `,
@@ -580,7 +580,6 @@ run()
           <li><code>Menu</code> — uma pergunta que aparece, espera a resposta e some; <code>keyp.once</code> abre uma vez por toque.</li>
         </ul>
         <p><strong>No Guia:</strong> <a href="../guide/index.html#ui-widgets">Widgets</a> · <a href="../guide/index.html#ui-slider">Slider</a> · <a href="../guide/index.html#ui-dropdown">DropDown</a> · <a href="../guide/index.html#ui-checkbox">CheckBox</a> · <a href="../guide/index.html#ui-button">Button</a> · <a href="../guide/index.html#ui-menu">Menu</a> · <a href="../guide/index.html#ui-stack">Coluna</a>.</p>
-        <p><strong>Experimente também:</strong> um botão feito de imagem (<code>SpriteButton</code>) — veja o Guia.</p>
         <p><strong>No próximo script:</strong> um programa de desenho, com o mouse como caneta.</p>
       `
     },
@@ -775,7 +774,7 @@ run()
       title: "O traço que se apaga",
       example: "desenho.py",
       body: `
-        <p>Últimos ajustes, todos no <code>Contrail</code>. Com vários parâmetros, a chamada fica mais fácil de ler com um por linha; o Python aceita, porque estão todos dentro dos parênteses.</p>
+        <p>Os últimos ajustes ficam todos no <code>Contrail</code>, que agora ocupa várias linhas, uma informação por linha, como o <code>Circle</code> do compasso no tutorial 03.</p>
         <p><strong>Apagar.</strong> <code>duration=5</code> (duração) é quanto tempo cada ponto fica guardado: com 5 segundos de idade, o ponto sai, e o traço vai sumindo pela cauda até desaparecer. <code>fade=True</code> (esmaecer) deixa a linha transparente na cauda e firme na cabeça, como um cometa.</p>
         <p><strong>A linha.</strong> <code>line_width=4</code> (largura da linha) engrossa o traço. <code>visual=Rim(…)</code> troca a linha lisa por uma borda luminosa (<code>Rim</code>, aro), na cor sorteada. O <code>color=</code> sai: agora quem tem a cor é o visual, e o Contrail não aceita os dois juntos.</p>
         <p>Desenhe à vontade: cada traço brilha na sua cor e some cinco segundos depois.</p>
@@ -826,8 +825,7 @@ Halo(Color.random())`
             <ul>
               <li><code>duration</code> — quantos segundos cada ponto vive. Sem ele, os pontos ficam para sempre (foi o que você viu nos passos anteriores).</li>
               <li><code>max_points</code> (máximo de pontos) — quantos pontos cabem; quando passa, o mais velho sai. O traço fica curto e anda junto com a caneta, como uma cobra.</li>
-              <li><code>fade</code> — esmaece da cabeça para a cauda; <code>ease</code> (curva) muda o jeito de esmaecer, como <code>"ease_out"</code>.</li>
-              <li><code>smooth</code> (suave) — <code>1</code>, o padrão, passa uma curva pelos pontos; <code>0</code> liga os pontos com retas.</li>
+              <li><code>fade</code> — esmaece da cabeça para a cauda.</li>
               <li><code>line_width</code> e <code>color</code> ou <code>visual</code> — a aparência da linha.</li>
             </ul>
             <p>No Guia: <a href="../guide/index.html#contrail">Contrail</a>.</p>
@@ -899,7 +897,7 @@ run()
           title: "O teclado com o campo focado",
           body: `
             <p>Enquanto a caixa tem o foco, as teclas de texto são dela: letras, números, espaço, setas, Backspace, Enter, Esc. O resto do programa não as vê: <code>keyp("LEFT")</code> responde falso, mesmo com a seta apertada. É de propósito. Sem isso, num jogo em que o herói anda com A e D, escrever o nome "Ana" também faria o herói andar.</p>
-            <p>Num jogo com um campo de texto, então, depois de escrever, aperte Enter ou Esc (ou clique fora) para o teclado voltar ao jogo. Dentro da caixa valem os atalhos de sempre: setas e Home / End andam pelo texto, Shift seleciona, Cmd (macOS) ou Ctrl + C / V copiam e colam.</p>
+            <p>Num jogo com um campo de texto, então, depois de escrever, aperte Enter ou Esc (ou clique fora) para o teclado voltar ao jogo.</p>
             <p>No Guia: <a href="../guide/index.html#ui-textinput">TextInput</a> · <a href="../guide/index.html#frame-teclado">Teclado</a>.</p>
           `
         }
@@ -1011,7 +1009,7 @@ letreiro.glow = Glow("cyan", radius=8, amount=2)`
             <div class="tbl"><table>
               <thead><tr><th>Opção</th><th>O que faz</th></tr></thead>
               <tbody>
-                <tr><td><code>top_left</code>, <code>top_center</code>, <code>top_right</code></td><td>Onde o texto se prende: o canto de cima à esquerda, o meio de cima, o canto de cima à direita. O texto cresce para baixo a partir dali. <code>top_right</code> é bom para um placar no canto direito: o número cresce para a esquerda e não sai da tela.</td></tr>
+                <tr><td><code>top_left</code>, <code>top_center</code>, <code>top_right</code></td><td>Onde o texto se prende: o canto de cima à esquerda, o meio de cima, o canto de cima à direita. O texto cresce para baixo a partir dali.</td></tr>
                 <tr><td><code>width</code></td><td>A largura (em inglês, <em>width</em>) da caixa do texto. Com ela, uma frase comprida quebra a linha sozinha, em vez de passar da tela.</td></tr>
                 <tr><td><code>align</code></td><td>O alinhamento (<em>align</em>) das linhas dentro dessa largura: <code>"left"</code> (esquerda, o normal), <code>"center"</code> (centro) ou <code>"right"</code> (direita).</td></tr>
                 <tr><td><code>background</code></td><td>Uma cor de fundo (<em>background</em>) atrás das letras: o texto fica legível em cima de qualquer cenário.</td></tr>
@@ -1087,7 +1085,7 @@ letreiro.move_along(trilha, time=8, loops="forever", face=True)`
         {
           title: "Outras trilhas prontas",
           body: `
-            <p>Cada preset da <code>Track</code> tem os seus tamanhos: <code>circle</code> (círculo; <code>radius</code> é o raio), <code>star</code> (estrela, com <code>points</code> pontas), <code>shuttle</code> (lançadeira: vai e volta numa linha, com <code>length</code>, o comprimento), <code>spiral</code> (espiral, com <code>turns</code> voltas). Todos começam onde está o letreiro.</p>
+            <p>O oito é só uma das trilhas prontas da <code>Track</code>. Há outras, cada uma com os seus tamanhos, e os exemplos abaixo mostram algumas: um círculo, uma estrela, um vai e volta, uma espiral. Todas começam onde está o letreiro.</p>
             <p>Para ver uma trilha enquanto testa, <code>show_tracks(True)</code> (mostrar trilhas) desenha todas em magenta. É uma ajuda para você, não um enfeite: tire a linha quando o programa estiver pronto.</p>
             <p>No Guia: <a href="../guide/index.html#desenhar-track">Track</a> · <a href="../guide/index.html#mover-move-along">move_along</a>.</p>
           `,
@@ -1111,8 +1109,7 @@ letreiro.move_along(trilha, time=8, loops="forever", yoyo=True)`
           title: "Um campo ligado a uma célula",
           body: `
             <p>O letreiro recebe a frase pelo <code>on_submit</code>: a função do Enter copia o texto para ele. Há outro jeito, o mesmo do <code>Slider</code> do Script 1. <code>Slider(st["n_bolas"])</code> escrevia o número numa célula do <code>st</code>; um <code>TextInput</code> também pode escrever numa célula: <code>TextInput(st["legenda"])</code>.</p>
-            <p>Quando você aperta Enter (ou clica fora da caixa), o que foi digitado vai para a célula <code>legenda</code>. E <code>Text(st["legenda"])</code> é um texto que mostra essa célula: muda sozinho a cada Enter. Ninguém precisa escrever a função do Enter.</p>
-            <p>Os colchetes entregam a célula, e não o texto de agora: o campo escreve nela, o texto a mostra. O tutorial 09 explica isso com calma.</p>
+            <p>Quando você aperta Enter (ou clica fora da caixa), o que foi digitado vai para a célula <code>legenda</code>. E <code>Text(st["legenda"])</code> é um texto que mostra essa célula: muda sozinho a cada Enter. Ninguém precisa escrever a função do Enter; o tutorial 09 conta com calma como esses colchetes funcionam.</p>
           `,
           try: [
             {

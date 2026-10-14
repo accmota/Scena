@@ -35,7 +35,6 @@ Tutorial.mount({
             <tr><td><code>use_center=False</code></td><td>A fatia vira um <em>segmento</em>: cortada por uma reta, em vez de duas retas até o centro. Com <code>angle=90</code> e <code>spread=240</code>, é um círculo com o fundo cortado.</td></tr>
           </tbody>
         </table></div>
-        <p><code>Circle()</code> sozinho também vale: nasce no meio da tela, num tamanho médio.</p>
       `,
       code: `from scena import *
 
@@ -172,7 +171,6 @@ run()
           title: "Os pontos de um retângulo",
           body: `
             <p>Todo retângulo tem nomes para os seus pontos, em qualquer modelo: os cantos (<code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>), os meios dos lados (<code>top_center</code>, <code>left_center</code>…) e o <code>center</code>. Servem para ligar outra coisa a ele: <code>Text("Placar", top_left=lambda: painel.top_left)</code>.</p>
-            <p><strong>angle com dois cantos.</strong> No modelo <code>p1</code>, <code>p2</code>, o <code>angle=</code> não gira um retângulo pronto: ele inclina a caixa com os dois cantos presos, e a largura e a altura mudam. Para girar sem mudar o tamanho, use <code>center=</code> com <code>angle=</code>.</p>
             <p>No Guia: <a href="../guide/index.html#shape-rect">Rect</a>.</p>
           `
         }
@@ -183,7 +181,7 @@ run()
       fresh: true,
       part: "Square",
       body: `
-        <p>O <code>Square</code> (quadrado) é um retângulo de lados iguais. O tamanho é um número só, <code>length</code> (comprimento do lado).</p>
+        <p>O <code>Square</code> (quadrado) é um retângulo de lados iguais. O tamanho é um número só, <code>length</code> (comprimento do lado), e é nele que você escreve para mudar o tamanho depois: <code>q.length</code>.</p>
         <div class="tbl"><table>
           <thead><tr><th>Você dá</th><th>O que é</th></tr></thead>
           <tbody>
@@ -193,7 +191,6 @@ run()
             <tr><td><code>corner_radius</code></td><td>Arredonda os cantos, como no <code>Rect</code>.</td></tr>
           </tbody>
         </table></div>
-        <p>Num quadrado, <code>width</code> e <code>height</code> só leem o lado: <code>q.width = 50</code> dá erro. Para mudar o tamanho, escreva <code>q.length</code>.</p>
       `,
       code: `from scena import *
 
@@ -230,7 +227,16 @@ run()
             <tr><td><code>p1</code>, <code>dx</code>, <code>dy</code></td><td>O mesmo, com os dois números soltos.</td></tr>
           </tbody>
         </table></div>
-        <p><strong>Embaixo</strong>, linhas feitas a partir de outra forma. A <code>base</code> (branca) é uma linha comum. A dourada é paralela a ela (<code>parallel_to</code>, paralela a), afastada 50 (<code>dist</code>, distância; positivo é à esquerda de quem anda de <code>p1</code> para <code>p2</code>). A laranja sai do meio da base, perpendicular (<code>perpendicular_to</code>: em ângulo reto). À direita, duas <strong>tangentes</strong> à <code>roda</code>, linhas que só encostam no círculo: uma pelo ponto da borda a 45 graus (<code>at_angle</code>), outra saindo de um ponto de fora (<code>from_point</code>, o pontinho branco) até tocar o círculo; <code>side</code> (lado) escolhe qual das duas tangentes possíveis.</p>
+        <p><strong>Embaixo</strong>, linhas feitas a partir de outra forma. A <code>base</code> (branca) é uma linha comum; as da esquerda saem dela, e as da direita são <strong>tangentes</strong> à <code>roda</code>, linhas que só encostam no círculo:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Você dá</th><th>O que é</th></tr></thead>
+          <tbody>
+            <tr><td><code>parallel_to</code>, <code>dist</code></td><td>Uma paralela (paralela a), a dourada, afastada <code>dist</code> (distância) da outra linha. Positivo é à esquerda de quem anda de <code>p1</code> para <code>p2</code>.</td></tr>
+            <tr><td><code>p1</code>, <code>perpendicular_to</code>, <code>length</code></td><td>Uma perpendicular, em ângulo reto com a outra: a laranja, que sai do meio da base.</td></tr>
+            <tr><td><code>circle</code>, <code>at_angle</code>, <code>length</code></td><td>Uma tangente pelo ponto da borda nesse ângulo (aqui, 45 graus).</td></tr>
+            <tr><td><code>circle</code>, <code>from_point</code>, <code>side</code></td><td>Uma tangente que sai de um ponto de fora (o pontinho branco) até tocar o círculo; <code>side</code> (lado) escolhe qual das duas possíveis.</td></tr>
+          </tbody>
+        </table></div>
       `,
       code: `from scena import *
 
@@ -328,7 +334,7 @@ run()
       fresh: true,
       part: "Polygon",
       body: `
-        <p>O <code>Polygon</code> (polígono) liga uma lista de pontos, <code>points</code>, na ordem, e fecha o último no primeiro. Com quatro pontos, um quadrilátero; com sete, uma seta; com três, um triângulo qualquer. O número de pontos não muda depois que ele nasce.</p>
+        <p>O <code>Polygon</code> (polígono) liga uma lista de pontos, <code>points</code>, na ordem, e fecha o último no primeiro. Com quatro pontos, um quadrilátero; com sete, uma seta; com três, um triângulo qualquer.</p>
         <p><code>show_points()</code> (mostrar os pontos) marca cada vértice (canto) da seta, só para ver. O último usa <code>visual=Neon()</code> no lugar de <code>color=</code>: toda forma aceita um dos dois (o visual tem a sua cor).</p>
       `,
       code: `from scena import *
@@ -353,7 +359,6 @@ run()
           title: "A ordem dos pontos",
           body: `
             <p>O polígono segue a lista na ordem. Troque dois pontos de lugar e as arestas se cruzam: a forma vira uma gravata-borboleta. Para um polígono de lados iguais, a próxima seção tem o <code>RegularPolygon</code>, que calcula os pontos para você.</p>
-            <p><code>.center</code> de um polígono é a média dos vértices, só de leitura; para levá-lo a outro lugar, <code>move_to</code> ou <code>move_by</code>.</p>
             <p>No Guia: <a href="../guide/index.html#shape-polygon">Polygon</a>.</p>
           `,
           try: [
@@ -410,7 +415,7 @@ run()
       part: "Triangle",
       body: `
         <p>O <code>Triangle</code> (triângulo), sem mais nada, é equilátero: os três lados iguais, como o polígono regular de 3 lados. Tem um nome próprio porque aparece muito: em naves, setas e ponteiros. O <code>angle</code> é para onde aponta a ponta (o ápice): 0 é para a direita, 90 para cima. Por isso ele mostra bem um giro.</p>
-        <p>Os modelos são os do polígono regular (ele sempre tem 3 lados: não passe <code>n=</code>):</p>
+        <p>Os modelos são os do polígono regular:</p>
         <div class="tbl"><table>
           <thead><tr><th>Você dá</th><th>O que é</th></tr></thead>
           <tbody>
@@ -449,7 +454,7 @@ run()
       title: "Triângulos isósceles",
       body: `
         <p>Com <code>base_ratio</code> (razão da base), o triângulo fica isósceles: dois lados iguais, que são o <code>side</code>, e a base (o lado oposto ao ápice) com <code>base_ratio</code> vezes esse tamanho. Com <code>side=90</code> e <code>base_ratio=0.5</code>, os dois lados medem 90 e a base mede 45.</p>
-        <p>Sem ele, vale 1 e o triângulo é equilátero. Menor que 1, fica mais pontudo, como uma nave; maior que 1, mais aberto. Ele fica sempre entre 0 e 2: a base precisa ser menor que os dois lados juntos. O <code>radius</code> continua indo do centro até o ápice, então uma nave pontuda gira e voa pelo bico.</p>
+        <p>Sem ele, vale 1 e o triângulo é equilátero. Menor que 1, fica mais pontudo, como uma nave; maior que 1, mais aberto. O <code>radius</code> continua indo do centro até o ápice, então uma nave pontuda gira e voa pelo bico.</p>
       `,
       code: `from scena import *
 
@@ -575,7 +580,7 @@ Circle(center=(305, 450), radius=70, visual=Metal("gold"))
 Circle(center=(305, 450), radius=70, visual=Rim("gold"))`
         },
         {
-          note: "<code>set_defaults</code> (padrões) escolhe a aparência das formas criadas <em>depois</em> dele, para não repetir <code>color=</code> em cada uma. Logo depois do <code>Wallpaper</code>: todas as formas ganham o contorno pontilhado. A cor <code>\"coral\"</code> só vale para quem não passa <code>color=</code> (aqui, todas passam).",
+          note: "<code>set_defaults</code> (padrões) escolhe a aparência das formas criadas <em>depois</em> dele; o Apêndice B o mostra em “A aparência padrão”. Logo depois do <code>Wallpaper</code>: todas as formas ganham o contorno pontilhado. A cor <code>\"coral\"</code> só vale para quem não passa <code>color=</code> (aqui, todas passam).",
           replaces: ['Wallpaper("dark navy")'],
           code: `Wallpaper("dark navy")
 set_defaults("coral", line_width=3, dash="dot")`
@@ -586,7 +591,7 @@ set_defaults("coral", line_width=3, dash="dot")`
           title: "color, fill e line",
           body: `
             <p><code>color</code> é o atalho: pinta o recheio (<code>fill</code>) e faz um contorno (<code>line</code>) que combina. <code>fill</code> e <code>line</code> mudam cada parte sozinha, e aceitam também um degradê (<code>Gradient</code>) ou uma textura (<code>Texture</code>). Numa <code>Line</code>, que só tem traço, <code>color</code> pinta o traço.</p>
-            <p>Mudar a cor depois: <code>forma.color = "tomato"</code> ou <code>forma.set_color("tomato")</code>.</p>
+            <p>Para mudar a cor depois que a forma existe, escreva no campo dela: <code>forma.color = "tomato"</code>.</p>
             <p>No Guia: <a href="../guide/index.html#desenhar-shapes">Shapes</a> · <a href="../guide/index.html#aparencia-visual">Visual</a>.</p>
           `
         }

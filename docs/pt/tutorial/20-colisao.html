@@ -105,7 +105,7 @@ run()
       title: "Enquanto está dentro",
       body: `
         <p>Agora, o ar. Embaixo d’água, o herói gasta ar, e fora dela recupera.</p>
-        <p><strong>A fase do meio.</strong> <code>@collide_stay</code> (ficar) roda a cada quadro em que os dois <em>continuam</em> se tocando, do segundo quadro até o último antes da saída. É o lugar de uma coisa que dura: aqui, o ar cai 30 por segundo. <code>clock.dt</code> é o tempo deste quadro, o mesmo <code>dt</code> do <code>update</code>; multiplicar por ele faz o ar cair 30 por segundo, com qualquer quantidade de quadros.</p>
+        <p><strong>A fase do meio.</strong> <code>@collide_stay</code> (ficar) roda a cada quadro em que os dois <em>continuam</em> se tocando, do segundo quadro até o último antes da saída. É o lugar de uma coisa que dura: aqui, o ar cai 30 por segundo. <code>clock.dt</code> é o tempo deste quadro, o mesmo <code>dt</code> do <code>update</code>; multiplicar por ele dá a conta por segundo, com qualquer quantidade de quadros.</p>
         <p><strong>E fora.</strong> No <code>update</code>, o ar sobe 10 por segundo até 100. Dentro da poça, os dois acontecem: sobe 10 e cai 30, então o ar cai 20 por segundo. <code>min</code> e <code>max</code> (o menor e o maior dos dois) seguram o ar entre 0 e 100.</p>
         <p>Rode, entre na poça e olhe o contador no canto.</p>
       `,
@@ -179,7 +179,6 @@ Bolha(center=(250, 150))`
         <p>As regras esperam um toque acontecer. Às vezes você quer <strong>perguntar</strong>, na hora: quem está neste ponto? Um clique vai mostrar.</p>
         <p><strong>Uma pergunta ao sistema de colisão.</strong> <code>collision.query_point(x, y)</code> (consultar um ponto) devolve uma lista com todos os objetos cuja forma de colisão contém o ponto. <code>collision</code> já existe depois do <code>from scena import *</code>, como o <code>canvas</code>. A função do clique é a do canvas, do 11: cada coisa achada pisca (<code>flash</code>, do 02).</p>
         <p><strong>Quem ele vê.</strong> Clique na poça, numa caixa, no herói: cada um pisca. Clique no texto do ar: nada. O sistema de colisão só conhece quem alguma regra nomeia: o herói e a poça estão no <code>@collide</code>, as caixas no <code>resolve</code>. O texto não está em regra nenhuma.</p>
-        <p><strong>E o <code>contains_point</code>?</strong> O do 11 pergunta a <em>um</em> objeto, pelo desenho dele. O <code>query_point</code> pergunta a todos de uma vez, pela forma de colisão. Num círculo ou num retângulo, desenho e colisão são iguais; numa imagem com partes transparentes, não.</p>
       `,
       code: `from scena import *
 

@@ -88,7 +88,7 @@ if keyp("RIGHT") and nave.center.x < 960:
       body: `
         <p>O jogo funciona, mas o fundo é chapado. Este passo não muda o jogo, só o céu: um degradê, estrelas passando e três efeitos de tela.</p>
         <p><strong>O degradê.</strong> <code>Gradient</code> (degradê) vai de uma cor a outra; ele apareceu num Experimente também do tutorial 01. <code>angle=90</code> (ângulo) põe a transição na vertical, de baixo para cima: a primeira cor embaixo (azul quase preto), a segunda no alto (preto). Cada <code>dark</code> (escuro) no nome da cor escurece mais um pouco, e <code>"dark dark blue"</code> é um azul bem fechado.</p>
-        <p><strong>As estrelas.</strong> <code>Stars</code> (estrelas) espalha um campo de pontos de luz pelo fundo. <code>scroll</code> (rolar) é quanto o campo anda sozinho, um <code>(x, y)</code> em pixels por segundo: <code>(0.0, -38.0)</code> desce 38 por segundo. As estrelas descem, e a nave parece voar para a frente. <code>pan_response</code> (resposta ao movimento da câmera) em 0 prende o campo à tela.</p>
+        <p><strong>As estrelas.</strong> <code>Stars</code> (estrelas) espalha um campo de pontos de luz pelo fundo. <code>scroll</code> (rolar) é quanto o campo anda sozinho, um <code>(x, y)</code> em pixels por segundo: <code>(0.0, -38.0)</code> desce 38 por segundo. As estrelas descem, e a nave parece voar para a frente. O <code>pan_response=0.0</code> deixa o campo preso à tela, mesmo quando, em jogos maiores, a câmera andar.</p>
         <p><strong>Os efeitos de tela.</strong> <code>Grain</code>, <code>Bloom</code> e <code>Scanlines</code> não desenham uma forma: mexem na imagem inteira, depois que tudo foi desenhado. <code>Grain</code> (grão) é um chuvisco fraco, como o de um filme antigo. <code>Bloom</code> (florescer) faz o que é claro vazar luz em volta: o brilho que a nave vai ganhar no próximo passo e, mais adiante, os lasers. <code>Scanlines</code> (linhas de varredura) risca a tela com linhas horizontais finas, como num fliperama antigo. Basta a linha para o efeito ligar.</p>
       `,
       code: `from scena import *
@@ -118,7 +118,7 @@ run()
           title: "Fundos",
           body: `
             <p>O <strong>fundo</strong> é desenhado primeiro, atrás de tudo o que o jogo cria. Ele tem duas camadas. A <em>base</em> é sempre uma só: uma cor, um degradê, um céu pronto ou uma imagem, com <code>Wallpaper</code> ou <code>SkyGradient</code>. Criar outra base troca a anterior. Por cima dela vêm os <em>extras</em>, campos animados que o Scena calcula sozinho e que não acabam nunca: <code>Stars</code>, <code>Stardust</code>, <code>Nebuladust</code>, <code>Borealis</code>, <code>Clouds</code>. Os extras se empilham, na ordem em que nascem, e cada um aparece assim que é criado.</p>
-            <p>Os extras dividem os mesmos parâmetros. <code>color</code> é a cor; <code>amount</code> (quantidade) é o quanto aparece; <code>alpha</code> é a transparência; <code>speed</code> (velocidade) é o ritmo da animação; <code>scroll</code> é quanto o campo anda sozinho, em pixels por segundo; <code>pan_response</code> é quanto ele acompanha a câmera, e 0 o prende à tela. Para mudar ou tirar um extra depois, guarde o que a linha devolve: <code>nuvens = Clouds()</code>, e depois <code>nuvens.remove()</code>.</p>
+            <p>Os extras aceitam ajustes parecidos entre si, como a cor, a quantidade e o quanto o campo anda sozinho; os exemplos abaixo mostram alguns, e o Guia traz todos. Para mudar ou tirar um extra depois, guarde o que a linha devolve: <code>nuvens = Clouds()</code>, e depois <code>nuvens.remove()</code>.</p>
             <p>No Guia: <a href="../guide/index.html#mundo-background">Background</a>, com todos os fundos.</p>
           `,
           try: [
@@ -140,7 +140,7 @@ Stardust(amount=1.5)  # poeira de estrelas, mais densa`
         {
           title: "Efeitos de tela",
           body: `
-            <p>Um <strong>efeito de tela</strong> não desenha uma forma: ele muda a imagem inteira, depois que o jogo e o fundo foram desenhados. A diferença para o fundo é a ordem: o fundo é o primeiro a ser desenhado, o efeito é o último. Por isso <code>Bloom</code> consegue vazar o brilho da nave sobre o céu, e <code>Scanlines</code> risca tudo, nave e estrelas juntas.</p>
+            <p>O que separa um <strong>efeito de tela</strong> do fundo é a ordem: o fundo é o primeiro a ser desenhado, o efeito é o último, depois do jogo e do fundo. Por isso <code>Bloom</code> consegue vazar o brilho da nave sobre o céu, e <code>Scanlines</code> risca tudo, nave e estrelas juntas.</p>
             <p>Cada efeito tem um número que dá a força: <code>Grain(amount=0.07)</code> é o chuvisco; <code>Bloom(intensity=0.6, sigma=10)</code>, onde <code>intensity</code> (intensidade) é a luz que vaza e <code>sigma</code> é o alcance dela; <code>Scanlines(amount=1.0)</code>. Cada efeito é um passo a mais sobre a imagem: ligue os que o jogo pede. Para tirar todos, <code>canvas.effects.clear()</code>.</p>
             <p>No Guia: <a href="../guide/index.html#mundo-post">Post</a>, com todos os efeitos.</p>
           `,
@@ -296,9 +296,8 @@ run()
       body: `
         <p>Os lasers que saem pelo topo continuam existindo. É o mesmo vazamento das estrelas do tutorial 02, resolvido lá com um <code>if</code> na altura. Aqui usamos um recurso do Scena feito para isso.</p>
         <p><strong>Quando sai.</strong> <code>@leave_playfield</code> (sair do campo de jogo), em cima da função, diz ao Scena: quando o centro de alguém deste grupo sair do campo, rode isto. Entre parênteses vão os grupos vigiados. A função recebe quem saiu, e <code>tiro.destroy()</code> o apaga.</p>
-        <p><strong>O campo.</strong> O campo de jogo não é a janela: é a janela com uma folga de um quarto do tamanho dela em cada lado. Nesta janela de 1000 × 800, ele vai de y −200 a y 1000. O laser some 200 pixels acima da borda, já fora de vista. A folga é de propósito: o que só põe a ponta para fora e volta não é apagado.</p>
-        <p>Abra o painel do sistema com <kbd>Ctrl+Shift+1</kbd> e segure espaço. Antes, o número de objs só subia; agora sobe um pouco e para.</p>
-        <p><strong>Ver além da janela.</strong> <kbd>Ctrl+Shift+8</kbd> afasta a vista (100% → 50% → 25%, e volta): a janela vira um quadro no meio, e você vê os lasers subindo além da borda até sumirem no fim do campo. O jogo não muda; só a sua vista. Com <kbd>Ctrl+Shift+7</kbd> junto, o campo de jogo aparece desenhado. Todas as teclas estão no <a href="A-depuracao.html">Apêndice A</a>.</p>
+        <p><strong>O campo.</strong> O campo de jogo não é a janela: ele vai um pouco além dela, com uma folga em cada lado, e por isso o laser some já fora de vista. A folga é de propósito: o que só põe a ponta para fora e volta não é apagado.</p>
+        <p>Para conferir, segure espaço com o painel do sistema aberto (<kbd>Ctrl+Shift+1</kbd>, como no tutorial 02): antes, o número de objs só subia; agora sobe um pouco e para. Com <kbd>Ctrl+Shift+8</kbd> a vista se afasta, e você vê os lasers sumirem além da borda; todas as teclas estão no <a href="A-depuracao.html">Apêndice A</a>.</p>
       `,
       code: `from scena import *
 
@@ -429,7 +428,6 @@ run()
           </svg>
           <figcaption>O círculo de matiz, as cores em volta. Cada coluna gira a cor da imagem um oitavo de volta a mais que a anterior: <code>coluna / 8</code>.</figcaption>
         </figure>
-        <p><strong>A família.</strong> <code>glow</code> e <code>hue</code> são <strong>complementos</strong>: coisas que se somam à aparência, cada uma na sua propriedade, sem mexer no <code>visual</code>. Há outros, como <code>shadow</code> (sombra) e <code>gray</code> (tons de cinza); a tabela inteira está no Guia.</p>
       `,
       code: `from scena import *
 
@@ -606,7 +604,7 @@ run()
       body: `
         <p>A frota precisa voltar quando chega à borda. Para isso, a velocidade deixa de ser um número fixo no <code>move_by</code> e vai para <code>st.velocidade</code>, em <code>st</code>, onde o jogo guarda o que muda. O sinal diz o lado: 80 vai para a direita, −80 para a esquerda.</p>
         <p><strong>A pergunta.</strong> Depois de mover o grupo, o <code>for</code> passa por cada inimigo e olha o centro dele, com os mesmos limites da nave. Se algum passou de 960, a frota deve ir para a esquerda: <code>st.velocidade = -80</code>. Se algum ficou aquém de 40, deve ir para a direita: <code>st.velocidade = 80</code>. No quadro seguinte, o grupo inteiro anda para o lado novo.</p>
-        <p><strong>Por que dizer o lado.</strong> Parece mais curto inverter o sinal: <code>st.velocidade = -st.velocidade</code>. Mas a inversão não sabe para onde a frota já está indo. Se um quadro dura menos que os outros (o computador deu uma engasgada), a frota volta tão pouco que a nave da ponta continua além da borda. A inversão dispara de novo, a frota vira para fora outra vez, e fica presa ali, tremendo. Dizendo o lado, repetir não faz mal: enquanto a nave da ponta estiver além de 960, a resposta é sempre a mesma, −80. As três naves da coluna da ponta passam juntas, e tanto faz também: as três dizem a mesma coisa.</p>
+        <p><strong>Por que dizer o lado.</strong> Parece mais curto inverter o sinal: <code>st.velocidade = -st.velocidade</code>. Mas a inversão não sabe para onde a frota já está indo. Se um quadro dura menos que os outros (o computador deu uma engasgada), a frota volta tão pouco que a nave da ponta continua além da borda. A inversão dispara de novo, a frota vira para fora outra vez, e fica presa ali, tremendo. Dizendo o lado, repetir não faz mal: enquanto a nave da ponta estiver além de 960, a resposta é sempre a mesma, −80.</p>
       `,
       code: `from scena import *
 
@@ -669,7 +667,7 @@ run()
       body: `
         <p>Os tiros ainda atravessam a frota. <code>@collide</code> (colidir), do tutorial 02, liga os dois grupos: quando um tiro toca um inimigo, a função roda e recebe os dois, na ordem dos nomes.</p>
         <p>Os dois são destruídos. O tiro também precisa sumir: se ficasse, seguiria subindo e derrubaria a nave da linha de trás. Um tiro, um inimigo.</p>
-        <p>Atire na frota. Com <kbd>Ctrl+Shift+7</kbd> você vê o contorno que o Scena usa na colisão de cada sprite.</p>
+        <p>Atire na frota: cada laser derruba uma nave e some junto com ela.</p>
       `,
       code: `from scena import *
 
@@ -737,7 +735,7 @@ run()
       title: "O acerto",
       body: `
         <p>O inimigo some sem aviso. Este passo dá ao acerto um estouro e um placar.</p>
-        <p><strong>O estouro.</strong> <code>canvas.burst_at</code> (estourar em) desenha uma pequena explosão num ponto. O ponto pode ser um par <code>(x, y)</code> ou o próprio sprite: aí o estouro nasce no centro dele. <code>radius=40</code> (raio) é o tamanho em pixels, o porte de um inimigo. É um efeito local: não treme a tela, e vários podem acontecer ao mesmo tempo. A linha vem antes do <code>destroy</code>, enquanto o inimigo ainda está ali.</p>
+        <p><strong>O estouro.</strong> <code>canvas.burst_at</code> (estourar em) desenha uma pequena explosão num ponto. O ponto pode ser um par <code>(x, y)</code> ou o próprio sprite: aí o estouro nasce no centro dele. <code>radius=40</code> (raio) é o tamanho em pixels, o porte de um inimigo. A linha vem antes do <code>destroy</code>, enquanto o inimigo ainda está ali.</p>
         <p><strong>O placar.</strong> É o do tutorial 02: <code>st.pontos</code> guarda o número, e o texto ligado com <code>@=</code> acompanha sozinho. No acerto, <code>st.pontos += 1</code>.</p>
       `,
       code: `from scena import *
@@ -809,7 +807,7 @@ run()
 `,
       try: [
         {
-          note: "Os parâmetros do <code>burst_at</code>, um por vez, no lugar dele. <code>radius</code> (raio) é o tamanho do estouro, em pixels; <code>amount</code> (quantidade) é a força, e o normal é 1.2; <code>rings=True</code> (anéis) soma círculos que se abrem. O ponto pode ser o sprite ou um par <code>(x, y)</code>.",
+          note: "Os parâmetros do <code>burst_at</code>, um por vez, no lugar dele. <code>radius</code> (raio) é o tamanho do estouro, em pixels; <code>amount</code> (quantidade) é a força, e o normal é 1.2; <code>rings=True</code> (anéis) soma círculos que se abrem.",
           code: `canvas.burst_at(inimigo, radius=70, amount=2)
 canvas.burst_at(inimigo, radius=40, amount=0.6, rings=True)
 canvas.burst_at(inimigo.center.x, inimigo.center.y, radius=40)`
@@ -942,7 +940,7 @@ if group["inimigos"].count == 0:`
       body: `
         <p>Falta o perigo: o laser inimigo precisa derrubar a nave. Outro <code>@collide</code>, agora com o grupo <code>tiros_inimigos</code> de um lado e a variável <code>nave</code>, sem aspas, do outro. Um lado pode ser um grupo ou um sprite só, como no Experimente também do tutorial 02.</p>
         <p><strong>A explosão.</strong> <code>canvas.flash</code> (piscar) clareia a tela inteira por um instante; no tutorial 02, o <code>flash</code> era só da estrela. <code>0.4</code> é a força, de 0 a 1. <code>canvas.explosion_at</code> (explosão em) é a explosão grande, de cinema: bola de fogo, anéis, uma onda que entorta a imagem e a câmera tremendo. O <code>burst_at</code> do acerto é o estouro pequeno, para as naves inimigas. <code>amount</code> (quantidade) é a intensidade: 1.2 é o valor normal, e mais que isso dá uma explosão maior. Por fim, <code>nave.destroy()</code> tira a nave do jogo.</p>
-        <p><strong>Depois do destroy.</strong> A variável <code>nave</code> continua no script, mas o sprite já saiu do jogo. Ler a posição dele ainda vale; mandá-lo andar levanta erro. E o <code>update</code> continua rodando, com as setas e a cerca. <code>if nave:</code> pergunta se a nave ainda está no jogo, e depois do <code>destroy</code> a resposta é não. É uma regra do Python que vale para qualquer valor: num <code>if</code>, <code>None</code>, o zero, a lista vazia e um objeto destruído contam como falso; quase todo o resto conta como verdadeiro. Por isso o movimento, a cerca e o tiro foram para dentro do <code>if</code>, um nível mais para a direita. Os tiros e a frota ficam fora: o jogo continua sem você.</p>
+        <p><strong>Depois do destroy.</strong> A variável <code>nave</code> continua no script, mas o sprite já saiu do jogo, e mandar andar uma nave destruída é erro. E o <code>update</code> continua rodando, com as setas e a cerca. <code>if nave:</code> pergunta se a nave ainda está no jogo, e depois do <code>destroy</code> a resposta é não. É uma regra do Python que vale para qualquer valor: num <code>if</code>, <code>None</code>, o zero, a lista vazia e um objeto destruído contam como falso; quase todo o resto conta como verdadeiro. Por isso o movimento, a cerca e o tiro foram para dentro do <code>if</code>, um nível mais para a direita. Os tiros e a frota ficam fora: o jogo continua sem você.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -1045,7 +1043,6 @@ run()
           <li><code>canvas.burst_at</code> e <code>canvas.explosion_at</code> — estouros num ponto; <code>canvas.flash</code> clareia a tela inteira.</li>
         </ul>
         <p><strong>No Guia:</strong> <a href="../guide/index.html#mover-confine">confine</a> · <a href="../guide/index.html#agendar-ready">ready</a> · <a href="../guide/index.html#reagir-bounds">@leave_playfield</a> · <a href="../guide/index.html#pose-scale-to">scale_to</a> · <a href="../guide/index.html#mundo-impactos">Impactos</a> · <a href="../guide/index.html#mundo-background">Background</a> · <a href="../guide/index.html#mundo-post">Post</a> · <a href="../guide/index.html#aparencia-selos">Complementos</a>.</p>
-        <p><strong>Experimente também:</strong> outros fundos, no lugar do degradê — <code>Wallpaper("navy")</code> (uma cor), <code>Borealis(height=0.5, color="lime")</code> (uma aurora que desce do alto), <code>Stardust()</code>. <code>canvas.effects.clear()</code> tira os efeitos de tela.</p>
         <p><strong>No próximo:</strong> antes de seguir, um interlúdio sobre o que um grupo sabe fazer. Depois, as naves viram classes — cada uma carrega o seu comportamento.</p>
       `
     }

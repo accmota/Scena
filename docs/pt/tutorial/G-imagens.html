@@ -49,7 +49,7 @@ run()
             <tr><td><code>width=200, height=80</code></td><td>Largura e altura, as duas: a imagem estica para caber.</td></tr>
           </tbody>
         </table></div>
-        <p>Quase sempre, dê só um dos lados (<code>height=</code> ou <code>width=</code>): a imagem fica com a proporção do desenho. Há ainda <code>size=</code> (tamanho), que é o lado maior, seja ele qual for.</p>
+        <p>Quase sempre, dê só um dos lados (<code>height=</code> ou <code>width=</code>): a imagem fica com a proporção do desenho.</p>
       `,
       code: `from scena import *
 
@@ -230,7 +230,7 @@ run()
       part: "Hitboxes",
       fresh: true,
       body: `
-        <p>Quando duas imagens se tocam, o Scena não compara os pixels: ele usa uma forma simples para cada uma, a <strong>hitbox</strong> (a caixa do golpe). <code>collision.show_colliders(True)</code> as desenha, em verde; é o mesmo que <kbd>Ctrl+Shift+7</kbd> (Apêndice A). Uma imagem só ganha hitbox quando entra na colisão; aqui, <code>collidable = True</code> faz isso.</p>
+        <p>Quando duas imagens se tocam, o Scena não compara os pixels: ele usa uma forma simples para cada uma, a <strong>hitbox</strong> (a caixa do golpe). <code>collision.show_colliders(True)</code> as desenha, em verde; é o mesmo que <kbd>Ctrl+Shift+7</kbd> (Apêndice A). Aqui, <code>collidable = True</code> liga a colisão de cada imagem, só para mostrar a hitbox dela.</p>
         <figure class="fig">
           <svg viewBox="0 0 380 160" role="img" aria-label="Uma imagem com partes transparentes nos cantos. A caixa da imagem é maior que o desenho; a hitbox automática segue o desenho; a de círculo e a de retângulo são formas simples">
             <rect class="guide" x="20" y="20" width="100" height="100"/>

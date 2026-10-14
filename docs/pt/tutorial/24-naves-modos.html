@@ -222,7 +222,7 @@ run()
           <figcaption>Dois capítulos. A formação espera um tempo e passa ao mergulho; o mergulho, quando a viagem acaba, volta à formação.</figcaption>
         </figure>
 
-        <p><strong>De volta à vaga.</strong> A frota continua balançando durante o mergulho. Um movimento com <code>time=</code> anda um pedaço a cada frame, e o <code>move_by</code> da frota, no <code>update</code>, continua somando o dele. Por isso o inimigo volta exatamente para a sua vaga, mesmo com a frota em outro lugar.</p>
+        <p><strong>De volta à vaga.</strong> A frota continua balançando durante o mergulho, e mesmo assim o inimigo volta exatamente para a sua vaga, onde quer que a frota esteja agora.</p>
         <p>Espere uns segundos: os inimigos descem, um aqui, outro ali, e voltam. Por enquanto, em linha reta.</p>
       `,
       code: `from random import choice, uniform
@@ -415,8 +415,6 @@ run()
           title: "Modos",
           body: `
             <p>O capítulo atual de um objeto está em <code>self.mode</code>: a função do modo, ou <code>None</code> (nada) antes do primeiro. Escrever nele troca de capítulo: o velho acaba e o novo começa. Para perguntar em que capítulo um objeto está, compare com <code>==</code>: <code>if inimigo.mode == inimigo.mergulho:</code>.</p>
-            <p>Escrever o mesmo modo de novo não faz nada: um inimigo que já está na formação não recomeça a formação. Para recomeçar de propósito existe <code>goto_mode</code>. E <code>self.mode_time</code> diz há quantos segundos o objeto está no capítulo atual.</p>
-            <p><code>then=</code> aparece no <code>after</code>, nos verbos com <code>time=</code> e no <code>play_sound</code>, e recebe sempre um modo. Para chamar uma função qualquer no fim, sem trocar de capítulo, o nome é <code>on_done=</code> (ao terminar).</p>
             <p>No Guia: <a href="../guide/index.html#mode-enter">mode</a> · <a href="../guide/index.html#agendar-fim">Ao terminar</a> · <a href="../guide/index.html#mover-pose">move_to</a>.</p>
           `
         }
@@ -817,7 +815,7 @@ run()
         <p>O inimigo que mergulha deveria mostrar a força: um jato aceso nas costas, que apaga quando ele volta para a formação. É uma aparência ligada a um capítulo.</p>
         <p><strong>A peça.</strong> O jato é um <code>Jet</code>, como o propulsor da nave no 06, feito no <code>setup</code> e guardado em <code>self.jato</code>. Os inimigos apontam para baixo, então o jato sai das costas, para cima (<code>angle=90</code>). Ele nasce estacionado (<code>active = False</code>), como o escudo do 08, e o <code>on_destroy</code> o apaga junto com o inimigo.</p>
         <p><strong>Acender e apagar.</strong> O <code>mergulho</code> acende o jato. Para apagar existe <code>@exit_mode(mergulho)</code> (ao sair do modo): em cima de uma função da classe, ele diz ao Scena para rodá-la quando o inimigo sai do mergulho, por qualquer caminho. O jato não é um timer: a regra do capítulo não o apaga. Aparência e campos próprios precisam do <code>@exit_mode</code>.</p>
-        <p><strong>Destruído no meio.</strong> Um inimigo derrubado durante o mergulho não sai do modo, ele deixa de existir, e o <code>@exit_mode</code> não roda. Quem apaga o jato, nesse caso, é o <code>on_destroy</code>. Os dois juntos cobrem todo caminho.</p>
+        <p><strong>Destruído no meio.</strong> O <code>@exit_mode</code> cobre a saída do modo; o <code>on_destroy</code>, o inimigo derrubado no meio do mergulho. Os dois juntos cobrem todo caminho.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -1046,7 +1044,7 @@ run()
         </figure>
 
         <p><strong>A ordem da frota.</strong> Os inimigos nascem 500 pixels acima da vaga, fora da tela: <code>1220 - linha * 70</code> no lugar de <code>720 - linha * 70</code>. No laço, cada um ganha a sua espera, <code>inimigo.espera</code>: a linha de baixo chega primeiro e, em cada linha, da esquerda para a direita. A ordem é da frota inteira, então fica no laço, como a cor. E é o laço que põe o inimigo em <code>chegando</code>, depois de dar a espera; o <code>setup</code> não escolhe mais o modo.</p>
-        <p><strong>As regras.</strong> <code>await</code> vai na frente de cada espera. <code>wait</code> só existe dentro de um modo <code>async</code>: num <code>update</code> ou num <code>@collide_with</code> ele dá erro, e ali o jeito é o <code>after</code>. E sair do modo, ou ser destruído, cancela o resto da sequência sozinho: acerte um inimigo parado na vaga, antes do estalo, e o resto do <code>chegando</code> simplesmente não acontece.</p>
+        <p><strong>Não esqueça o await.</strong> Ele vai na frente de cada espera. Sem ele, <code>wait(0.3)</code> não espera nada, e o Scena avisa com um erro que diz a linha e o <code>await</code> que falta.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -1250,7 +1248,7 @@ run()
 `,
       try: [
           {
-            note: "A mesma chegada sem <code>async</code>, no lugar do <code>chegando</code> inteiro. Cada espera vira um <code>after</code> com outra função dentro, e o fim da sequência precisa de uma função só para ele, <code>chegou</code>. Funciona, mas lê de dentro para fora, e cada espera a mais empurra o código mais para a direita.",
+            note: "A mesma chegada sem <code>async</code>, no lugar do <code>chegando</code> inteiro. Cada espera vira um <code>after</code> com outra função dentro (no movimento, <code>on_done=</code>, ao terminar, chama uma função no fim sem trocar de capítulo), e o fim da sequência precisa de uma função só para ele, <code>chegou</code>. Funciona, mas lê de dentro para fora, e cada espera a mais empurra o código mais para a direita.",
             replaces: ['async def chegando', 'await wait(self.espera)', 'await self.move_by(0, -500', 'await wait(0.3)', 'self.pop(scale=1.3)', 'play_sound("audio/impactGeneric_light_003.ogg")', 'self.mode = self.formacao'],
             code: `def chegando(self):
     self.after(self.espera, lambda: self.move_by(0, -500, time=1.2, ease="ease_out",
@@ -1266,8 +1264,8 @@ def chegou(self):
         {
           title: "Outras esperas",
           body: `
-            <p><code>wait</code> espera um tempo. Um modo <code>async</code> pode esperar outras coisas: o fim de qualquer verbo com <code>time=</code> (o <code>move_by</code> da chegada), uma condição (<code>await until(lambda: st.vidas == 0)</code>, até que) ou um grupo vazio (<code>await until_empty("inimigos")</code>, até esvaziar). Uma função da classe também pode ser <code>async</code>, desde que o modo a chame com <code>await</code> na frente.</p>
-            <p>Sem <code>await</code>, <code>wait(0.3)</code> não espera nada, e o Scena avisa com um erro que diz a linha e o <code>await</code> que falta.</p>
+            <p><code>wait</code> espera um tempo. Um modo <code>async</code> pode esperar outras coisas: o fim de qualquer verbo com <code>time=</code> (o <code>move_by</code> da chegada), uma condição (<code>await until(lambda: st.vidas == 0)</code>, até que) ou um grupo vazio (<code>await until_empty("inimigos")</code>, até esvaziar).</p>
+            <p><code>wait</code> só existe dentro de um modo <code>async</code>: num <code>update</code> ou num <code>@collide_with</code> ele dá erro, e ali o jeito é o <code>after</code>. E sair do modo, ou ser destruído, cancela o resto da sequência sozinho: acerte um inimigo parado na vaga, antes do estalo, e o resto do <code>chegando</code> simplesmente não acontece.</p>
             <p>No Guia: <a href="../guide/index.html#mode-async">espera async</a>.</p>
           `
         }
@@ -1279,7 +1277,7 @@ def chegou(self):
         <p>Quando a frota acaba, chega o chefe: um disco grande, com a sua própria barra de vida. A chegada dele é outra sequência, agora de imagem e som: um aviso piscando com um som grave, o chefe que desce, a barra que enche, e a luta.</p>
         <p><strong>Quando a frota acaba.</strong> No fim do arquivo, um <code>@when</code> (quando), do tutorial 01: quando o grupo <code>inimigos</code> fica vazio (<code>count == 0</code>), nasce um <code>Chefe</code>, fora da tela, em cima.</p>
         <p><strong>A chegada.</strong> O <code>setup</code> do chefe começa a vida em zero, faz a barra (um <code>Rect</code> com a largura ligada à vida com <code>@=</code>, como a barra da energia) e põe o chefe em <code>chegando</code>. Ali, o aviso é um <code>Text</code> que pisca (<code>blink</code>, do 07) enquanto toca o laser grande uma oitava abaixo (<code>pitch=0.5</code>). Dois segundos depois o aviso some, o chefe desce, e a barra enche de um em um: um <code>for</code> com uma espera dentro, vinte vezes um ponto de vida e um estalo. Por fim, <code>lutando</code>.</p>
-        <p><strong>Por que uma sequência.</strong> Escrita com <code>then=</code>, a chegada seria três modos antes da luta (o aviso, a descida, a barra), um para cada espera, e o aviso teria de ficar guardado em <code>self</code> para o modo seguinte apagá-lo. Com <code>async</code> é uma função só, e o aviso é uma variável comum, apagada três linhas abaixo.</p>
+        <p><strong>Por que uma sequência.</strong> Com <code>then=</code>, cada espera pediria um modo só para ela; com <code>async</code>, a chegada inteira é uma função, lida de cima para baixo.</p>
         <p><strong>A luta.</strong> <code>lutando</code> é um modo comum, que começa duas coisas que duram: o chefe vai e volta de um lado ao outro (<code>move_by</code> em ioiô, para sempre) e solta três lasers a cada segundo (<code>rajada</code>). As duas são do capítulo.</p>
         <p>Ainda não dá para derrubar o chefe: os tiros passam por ele.</p>
       `,

@@ -136,7 +136,7 @@ run()
       title: "Cada uma com a sua velocidade",
       body: `
         <p>Para cada bolha subir no seu ritmo, a velocidade não pode estar no molde: tem de estar em cada bolha.</p>
-        <p><strong>Um campo.</strong> <code>bolha.velocidade = uniform(40, 160)</code> guarda um número <em>dentro</em> desta bolha, com o nome <code>velocidade</code>. Um valor guardado num objeto se chama <strong>campo</strong>. Você já usa campos: <code>st.pontos</code> é um campo do <code>st</code>, e <code>center</code> é um campo que o Scena dá a todo círculo. Este é seu: o nome, você escolhe. (<code>uniform</code> é o sorteio do tutorial 02: um número qualquer entre 40 e 160.)</p>
+        <p><strong>Um campo.</strong> <code>bolha.velocidade = uniform(40, 160)</code> guarda um número <em>dentro</em> desta bolha, com o nome <code>velocidade</code>. Um valor guardado num objeto se chama <strong>campo</strong>. Você já usa campos: <code>st.pontos</code> é um campo do <code>st</code>, e <code>center</code> é um campo que o Scena dá a todo círculo. Este é seu: o nome, você escolhe.</p>
         <p><strong>Dentro e fora, o mesmo campo.</strong> Fora da classe, a bolha tem o nome da variável: <code>bolha.velocidade</code>. Dentro do método, a mesma bolha se chama <code>self</code>: <code>self.velocidade</code>. É o mesmo número, visto de dois lugares. No <code>on_update</code>, <code>self.velocidade * dt</code> fica no lugar do 60: cada bolha sobe com a velocidade que é dela.</p>
 
         <figure class="fig">
@@ -160,7 +160,7 @@ run()
           <figcaption>O mesmo molde, três bolhas, três campos. O <code>on_update</code> é um só; o <code>self.velocidade</code> de cada bolha é dela.</figcaption>
         </figure>
 
-        <p><strong>Muitas cópias.</strong> Com um molde, nove bolhas são um <code>for</code>, como a frota do tutorial 05: <code>range(9)</code> conta nove números, de 0 a 8, e <code>coluna</code> vale um de cada vez; e cada volta faz uma bolha 100 pixels à direita da anterior, logo abaixo da tela (y = −50), e sorteia a velocidade dela. Rode: as bolhas saem do fundo em ritmos diferentes e se espalham.</p>
+        <p><strong>Muitas cópias.</strong> Com um molde, nove bolhas são um <code>for</code>, como a frota do tutorial 05, e cada volta faz uma bolha 100 pixels à direita da anterior, logo abaixo da tela (y = −50), e sorteia a velocidade dela. Rode: as bolhas saem do fundo em ritmos diferentes e se espalham.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -242,9 +242,8 @@ run()
           title: "Por que não __init__",
           body: `
             <p>Quem já leu classes de Python em outro lugar talvez tenha visto <code>def __init__(self):</code>, com dois sublinhados de cada lado. <code>__init__</code> (de <em>initialize</em>, iniciar) é o nome que o Python reserva para a função que monta o objeto, no instante do <code>Bolha(…)</code>. Parece o lugar certo para a velocidade. Não é, numa classe do Scena.</p>
-            <p><strong>O teste.</strong> Troque <code>def setup(self):</code> por <code>def __init__(self):</code> e rode. O programa para na criação: <code>TypeError: Bolha() got center=, radius=, but Bolha.__init__ does not take them: it replaced Circle's own __init__, which does.</code> (“Bolha() recebeu center= e radius=, mas o Bolha.__init__ não os aceita: ele tomou o lugar do __init__ do Circle, que aceita”). O círculo do Scena já tem o seu <code>__init__</code>: é ele que recebe <code>center</code> e <code>radius</code>, põe o círculo no mundo e o entrega ao Scena para ser desenhado e atualizado. O seu <code>__init__</code> tomou o lugar dele, e o seu não sabe o que é <code>center</code>. A mensagem continua e já diz a saída: <code>Drop __init__ and write def setup(self)</code> (“tire o __init__ e escreva def setup(self)”).</p>
-            <p>E se você tirar os parâmetros e escrever só <code>Bolha()</code>? Também para, por outro motivo. Com a linha do raio: <code>AttributeError: Bolha has no radius yet</code> (“a Bolha ainda não tem raio”), porque ninguém montou o círculo. Com uma linha que não lê nada (<code>self.velocidade = 100</code>): <code>TypeError: Bolha.__init__ never called Circle's own __init__, so this Bolha was not built</code> (“o Bolha.__init__ nunca chamou o do Circle, então esta Bolha não foi montada”). Sem esse aviso, o objeto nasceria vazio, sem lugar e fora da tela, e o Scena nunca chamaria o <code>on_update</code> dele.</p>
-            <p><strong>Por isso o <code>setup</code>.</strong> Dá para consertar o <code>__init__</code>, chamando o do Scena por dentro (<code>super().__init__(**kwargs)</code>, como a mensagem diz), mas é uma linha a mais, fácil de esquecer. Com o <code>setup</code>, o Scena faz esse trabalho: monta o objeto inteiro e, quando ele está pronto, chama o seu <code>setup</code>. A regra: numa classe sua, nunca <code>__init__</code>; o que o objeto faz ao nascer vai no <code>setup</code>.</p>
+            <p><strong>O teste.</strong> Troque <code>def setup(self):</code> por <code>def __init__(self):</code> e rode. O programa para na criação. O círculo do Scena já tem o seu <code>__init__</code>: é ele que recebe <code>center</code> e <code>radius</code>, põe o círculo no mundo e o entrega ao Scena para ser desenhado e atualizado. O seu <code>__init__</code> tomou o lugar dele, e o seu não sabe o que é <code>center</code>. A mensagem de erro conta isso e já diz a saída: tire o <code>__init__</code> e escreva <code>def setup(self)</code>.</p>
+            <p><strong>Por isso o <code>setup</code>.</strong> Com o <code>setup</code>, você não mexe na montagem: o Scena monta o objeto inteiro e, quando ele está pronto, chama o seu <code>setup</code>. A regra: numa classe sua, nunca <code>__init__</code>; o que o objeto faz ao nascer vai no <code>setup</code>.</p>
             <p>No Guia: <a href="../guide/index.html#reagir-callbacks-entity">Callbacks da Entity</a>.</p>
           `
         }
@@ -622,15 +621,6 @@ def atingiu(tiro, nave):
 
 run()
 `,
-      dive: [
-        {
-          title: "A linha da classe",
-          body: `
-            <p>Num <code>Sprite</code>, a linha da classe leva a imagem (<code>source</code>), a altura (<code>height</code>) e o grupo; vale o que a bolha do Script 1 mostrou: o que a criação passa vence o padrão (<code>Tiro(center=…, height=40)</code> é um tiro maior, só aquele), o lugar fica na criação, e <code>height = 28</code> escrito no corpo da classe é um erro: o Scena não o leria, então para na definição da classe e mostra a linha certa. <code>Inimigo</code> não tem imagem na linha, então cada criação dá a sua.</p>
-            <p>No Guia: <a href="../guide/index.html#spr-class">Subclasse de Sprite</a>.</p>
-          `
-        }
-      ],
       try: [
           {
             note: "Um laser da frota mais comprido, só este: o que a criação passa vence a linha da classe. No <code>frota_atira</code>, no lugar da linha do <code>TiroInimigo</code>.",
@@ -858,9 +848,9 @@ run()
       example: "naves_classes.py",
       body: `
         <p>O código está organizado. Agora uma peça nova, que a classe deixa fácil: um <strong>propulsor</strong>, um jato de fogo atrás da nave que anda com ela.</p>
-        <p><strong>Um efeito no mundo.</strong> <code>Jet</code> (jato) é um <code>SpatialFx</code>: um efeito que vive num lugar do mundo, como um objeto, apontado por um ponto e um ângulo. <code>origin</code> (origem) é o ponto de onde o jato sai. <code>angle=270</code> aponta para baixo: 0 é a direita, 90 é para cima, 270 é para baixo. <code>length</code> (comprimento) e <code>width</code> (largura) são o tamanho do jato, em pixels. <code>amount</code> (quantidade) é a força: 1 é o normal; 2 deixa o jato visível numa nave de 45 pixels.</p>
+        <p><strong>Um efeito no mundo.</strong> <code>Jet</code> (jato) é um efeito que vive num lugar do mundo, como um objeto, apontado por um ponto e um ângulo. <code>origin</code> (origem) é o ponto de onde o jato sai. <code>angle=270</code> aponta para baixo: 0 é a direita, 90 é para cima, 270 é para baixo. <code>length</code> (comprimento) e <code>width</code> (largura) são o tamanho do jato, em pixels. <code>amount</code> (quantidade) é a força do fogo.</p>
         <p><strong>Uma parte da nave.</strong> O jato nasce no <code>setup</code> do <code>Heroi</code> e fica guardado em <code>self.propulsor</code>, um campo da nave (como <code>st.pontos</code> é um campo do jogo). A origem é uma <code>lambda</code>, como as do tutorial 03: <code>lambda: (self.center.x, self.center.y - 22)</code> é sempre a traseira <em>desta</em> nave, 22 pixels abaixo do centro. A nave anda e o jato vai junto, sem nenhuma linha no <code>on_update</code>.</p>
-        <p><strong>Quando a nave sai.</strong> O jato é um objeto do jogo, não um pedaço da imagem da nave: destruir a nave não o destrói. Por isso o <code>on_destroy</code> (ao destruir): o Scena chama essa função uma vez, de dentro do <code>destroy</code>, e ela apaga o propulsor. Sem ela, a nave explode, o Scena avisa no console que a origem do jato perdeu a nave, e o jato fica aceso, sozinho, onde a nave estava.</p>
+        <p><strong>Quando a nave sai.</strong> O jato é um objeto do jogo, não um pedaço da imagem da nave: destruir a nave não o destrói. Por isso o <code>on_destroy</code> (ao destruir): o Scena chama essa função uma vez, de dentro do <code>destroy</code>, e ela apaga o propulsor. Sem ela, a nave explode e o jato fica aceso, sozinho, onde a nave estava.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -994,7 +984,7 @@ self.propulsor = Sparks(center=lambda: (self.center.x, self.center.y - 22), radi
           <li><code>on_update</code> — só para quem está no jogo: uma nave destruída para de receber a chamada. Por isso o <code>if nave:</code> sumiu.</li>
           <li><code>@collide_with</code> — a colisão vista de dentro da classe: este objeto e o outro.</li>
           <li><code>on_destroy</code> — chamado uma vez pelo <code>destroy</code>; apaga as partes do objeto.</li>
-          <li><code>Jet</code> — um <code>SpatialFx</code>: um efeito que vive num lugar do mundo, apontado por um ponto e um ângulo.</li>
+          <li><code>Jet</code> — um efeito que vive num lugar do mundo, apontado por um ponto e um ângulo.</li>
         </ul>
         <p><strong>No Guia:</strong> <a href="../guide/index.html#spr-class">Subclasse de Sprite</a> · <a href="../guide/index.html#desenhar-entity">Entity</a> · <a href="../guide/index.html#col-method">@collide_with</a> · <a href="../guide/index.html#reagir-callbacks-entity">Callbacks da Entity</a> · <a href="../guide/index.html#desenhar-spatial">SpatialFx</a>.</p>
         <p><strong>No próximo:</strong> as imagens vão para uma folha só, a frota explode em quadros, o jogo ganha som e a nave ganha vidas.</p>

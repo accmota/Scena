@@ -83,7 +83,7 @@ run()
     {
       title: "Soltar numa casa",
       body: `
-        <p><strong>Quando solta.</strong> <code>@drag_to(proxima)</code> (arrastou até), do encaixe na grade da Interação (11), diz ao Scena: quando o arraste desta bola acabar, chame a função. Ela recebe três coisas: a bola arrastada; o alvo (<code>alvo</code>, um objeto marcado para receber coisas soltas em cima dele; aqui não há nenhum, então ele vem <code>None</code>); e <code>pos</code>, o ponto onde o mouse soltou. O <code>@drag_to</code> já liga o <code>draggable</code> sozinho; a linha do passo anterior pode ficar.</p>
+        <p><strong>Quando solta.</strong> <code>@drag_to(proxima)</code> (arrastou até), do encaixe na grade da Interação (11), diz ao Scena: quando o arraste desta bola acabar, chame a função. Ela recebe três coisas: a bola arrastada; o <code>alvo</code>, que aqui vem <code>None</code>; e <code>pos</code>, o ponto onde o mouse soltou.</p>
         <p><strong>Que casa é essa?</strong> <code>grade.cell_at(pos)</code> (a casa em) faz a conta da grade ao contrário: recebe um ponto e devolve a casa que está embaixo dele, ou <code>None</code> (nada), se o ponto cai fora do tabuleiro.</p>
         <p><strong>Fora, volta.</strong> Solta fora do tabuleiro, a bola volta ao seu lugar: <code>move_to(INICIO, time=0.3)</code> (mover até). Como no <code>scale_to</code> do 05, com <code>time=</code> ela não pula: desliza até lá em 0.3 segundo. O <code>return</code> termina a função ali mesmo. Solta numa casa, nasce uma bola no centro dela, e a <code>proxima</code> volta na hora para o lugar, pronta para outra jogada.</p>
         <p><strong>Por cima.</strong> As bolas novas nascem depois da <code>proxima</code>, e quem nasce depois é desenhado na frente: arrastada sobre uma delas, a <code>proxima</code> passaria por baixo. <code>layer="top"</code> (a camada de cima) a põe numa camada acima da do jogo, como as camadas do 16.</p>
@@ -127,7 +127,7 @@ run()
             <ul>
               <li><code>@drag_to(bola)</code>, o deste passo, fica na coisa arrastada e roda uma vez, quando ela é solta: <em>onde soltaram esta bola?</em></li>
               <li><code>@drag_over(bola)</code> (arrastando sobre) também fica nela, mas roda a cada quadro enquanto ela está sendo arrastada: <em>por onde ela está passando?</em> Serve para mostrar onde a bola vai cair antes de soltar (uma caixa no último passo).</li>
-              <li><code>@drop_by(cesto)</code> (solto por) fica no alvo: liga o <code>droppable</code> (aceita soltar) do <code>cesto</code> e roda quando alguma coisa é solta em cima dele: <em>o que soltaram aqui?</em> O <code>alvo</code> dos três ganchos é esse objeto, quando o ponto está em cima dele.</li>
+              <li><code>@drop_by(cesto)</code> (solto por) fica no <strong>alvo</strong>, o objeto que recebe a coisa solta, e roda quando alguma coisa é solta em cima dele: <em>o que soltaram aqui?</em></li>
             </ul>
             <p>Os três recebem os mesmos três valores: quem foi arrastado, o alvo e o ponto. Aqui, o <code>@drag_to</code> é o que basta: a bola precisa de uma resposta onde quer que seja solta, inclusive fora do tabuleiro, para voltar. Com um <code>@drop_by</code> no tabuleiro, soltar fora não chamaria ninguém, e a bola ficaria largada lá.</p>
             <p>No Guia: <a href="../guide/index.html#ptr-drag">Arrastar</a> · <a href="../guide/index.html#colocar-grid">Grid</a>.</p>
@@ -264,7 +264,6 @@ run()
         <p>A bola já vai para a casa certa, mas aparece lá de uma vez. Agora ela nasce na boca da coluna, logo acima do tabuleiro, e cai.</p>
         <p><strong>A queda.</strong> <code>move_to(destino.center, time=0.5, ease="bounce")</code>: em meio segundo, a bola desce até o centro da casa livre. <code>ease=</code> (a curva) muda o jeito de andar: em vez da mesma velocidade do começo ao fim, a bola acelera, freia ou quica no caminho. Com <code>"bounce"</code> (quicar), ela bate no fundo e quica um pouco antes de parar.</p>
         <p><strong>Quando chega.</strong> <code>on_done=pousou</code> (ao terminar) entrega uma função ao <code>move_to</code>, e ele a chama quando a viagem acaba. <code>pousou</code> vai sem parênteses, como o <code>on_click=criar</code> do 04. Por enquanto, ela só toca o som da bola batendo, mas é o lugar do que acontece depois de cada jogada: o resto das regras vai entrar nela.</p>
-        <p>A lista recebe a bola na hora em que ela é solta, não na chegada. Ela ainda está caindo, mas a casa já é dela: se outra bola vier logo atrás, já encontra a coluna com uma bola a mais.</p>
       `,
       code: `from scena import *
 
@@ -383,8 +382,8 @@ run()
       title: "Quatro em linha",
       body: `
         <p>Falta a regra que termina o jogo. Tudo o que ela precisa já está nas listas: a regra é Python puro.</p>
-        <p><strong>De quem é a bola.</strong> Cada bola nova guarda o seu dono: <code>nova.dono = st.vez</code>. Um campo novo num objeto é só um nome e um valor, como o <code>self.fogo</code> do avião (16).</p>
-        <p><strong>Quatro seguidas.</strong> <code>quatro(x, y, dx, dy)</code> começa numa casa e dá quatro passos de <code>(dx, dy)</code>, como um <code>move_by</code> de casa em casa. Aqui, <code>x</code> é a coluna e <code>y</code> é o lugar na lista, contado de baixo para cima, como o y da tela. A cada passo, <code>c</code> e <code>l</code> são a coluna e o lugar na lista daquela casa, e ela olha o que tem lá. Se a casa sai do tabuleiro pela direita (<code>c &gt; 6</code>) ou por baixo (<code>l &lt; 0</code>), está vazia (a lista da coluna é mais curta) ou é do outro jogador, não são quatro: a função devolve <code>False</code>. Se os quatro passos dão certo, as quatro bolas acendem (<code>glow</code>, o brilho do 05, aqui dourado) e ela devolve <code>True</code>.</p>
+        <p><strong>De quem é a bola.</strong> Cada bola nova guarda o seu dono num campo, como no 06: <code>nova.dono = st.vez</code>.</p>
+        <p><strong>Quatro seguidas.</strong> <code>quatro(x, y, dx, dy)</code> começa numa casa e dá quatro passos de <code>(dx, dy)</code>, como um <code>move_by</code> de casa em casa. Aqui, <code>x</code> é a coluna e <code>y</code> é o lugar na lista, contado de baixo para cima, como o y da tela. A cada passo, <code>c</code> e <code>l</code> são a coluna e o lugar na lista daquela casa, e ela olha o que tem lá. Se essa casa está fora do tabuleiro, vazia ou é do outro jogador, não são quatro: a função devolve <code>False</code>. Se os quatro passos dão certo, as quatro bolas acendem (<code>glow</code>, o brilho do 05, aqui dourado) e ela devolve <code>True</code>.</p>
         <p><strong>No tabuleiro todo.</strong> <code>conferir()</code> experimenta cada casa como começo, em quatro direções. As retas: <code>(1, 0)</code> anda para a direita (quatro deitadas, numa linha) e <code>(0, 1)</code> anda para cima (quatro em pé, numa coluna). As diagonais: <code>(1, 1)</code> sobe para a direita e <code>(1, -1)</code> desce para a direita. Não é preciso andar para a esquerda: a mesma linha, lida a partir da outra ponta, já foi conferida.</p>
         <p><strong>Por baixo.</strong> A diagonal que desce é a única que pode sair por baixo do tabuleiro, e ela pede o <code>l &lt; 0</code>. Sem ele, o erro não aparece: um lugar negativo conta do fim da lista (<code>coluna[-1]</code> é a bola de cima, não “nenhuma”), e a função acharia quatro bolas onde não há.</p>
         <p><strong>Quem acabou de jogar.</strong> <code>conferir()</code> só olha as bolas de quem acabou de jogar, porque só ele pode ter feito uma linha nova; por isso o <code>pousou</code> confere antes de trocar a vez.</p>
@@ -488,7 +487,7 @@ run()
       body: `
         <p>Uma partida acabou; falta começar outra. Um <code>Button</code> (botão, o do 04) chama <code>novo_jogo</code>.</p>
         <p><strong>Voltar ao começo.</strong> As bolas jogadas entram num grupo, <code>group="jogadas"</code>, e o grupo inteiro é destruído de uma vez. As listas ficam vazias (<code>clear</code>, limpar). A vez volta para o vermelho, <code>st.fim</code> volta a falso, e a <code>proxima</code> volta vermelha e visível. Esta última linha conta: se o botão for clicado com uma bola caindo, a bola é destruída no meio da queda, o <code>pousou</code> não chega a rodar, e a <code>proxima</code> ficaria escondida para sempre.</p>
-        <p>É um recomeço à mão, como o do Avião (15): uma lista do que desfazer. Num jogo com atos (25), trocar de ato faz isso por você.</p>
+        <p>É um recomeço à mão, como o do Avião (15): uma lista do que desfazer.</p>
       `,
       code: `from scena import *
 

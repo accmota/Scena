@@ -22,7 +22,7 @@ Tutorial.mount({
       body: `
         <p>Um script Scena é um arquivo Python comum: você escreve as linhas, salva e roda. O Scena cuida da janela, do desenho, do teclado e do mouse. Este primeiro script tem só três linhas, e as três vão estar em todo script que você escrever daqui em diante.</p>
         <p><strong>O import.</strong> <code>from scena import *</code> traz para o seu arquivo tudo que o Scena oferece: formas, cores, teclado, mouse. O <code>*</code> quer dizer “tudo”. Graças a ele, nomes como <code>Circle</code> ou <code>keyp</code> se escrevem direto, sem prefixo.</p>
-        <p><strong>O tamanho.</strong> <code>init</code> (de <em>initialize</em>, iniciar) prepara a janela, mas ainda não a abre. <code>width</code> (largura) e <code>height</code> (altura) dão o tamanho da área de desenho, e <code>title</code> (título) é o texto na barra da janela. Os 1000 × 700 não são pixels do monitor: são a régua com que você vai posicionar tudo, e o Scena ajusta a janela à sua tela. Num monitor grande ou pequeno, o desenho sai igual.</p>
+        <p><strong>O tamanho.</strong> <code>init</code> (de <em>initialize</em>, iniciar) prepara a janela, mas ainda não a abre. <code>width</code> (largura) e <code>height</code> (altura) dão o tamanho da área de desenho, e <code>title</code> (título) é o texto na barra da janela. Os 1000 × 700 não são pixels do monitor: são a régua com que você vai posicionar tudo, e o Scena ajusta a janela à sua tela. Num monitor grande ou pequeno, o desenho sai igual. Por isso, quando um tutorial disser que algo tem 80 pixels, entenda 80 unidades dessa régua, e não pontinhos do monitor.</p>
         <p><strong>Nome e valor.</strong> Dentro dos parênteses, cada informação vai como <code>nome=valor</code>: <code>width=1000</code> quer dizer “a largura é 1000”. Com o nome escrito, a ordem não importa, e o que você não escreve fica num valor padrão que o Scena escolhe. As vírgulas separam uma informação da outra.</p>
         <p><strong>O laço.</strong> <code>run()</code> (rodar) abre a janela e põe o jogo para andar: muitas vezes por segundo, o Scena lê o teclado e o mouse e redesenha a tela. Ele só sai desse laço quando você fecha a janela. Por isso <code>run()</code> é sempre a última linha, e tudo que você criar vem antes dela.</p>
         <p>Copie, salve como <code>primeiro.py</code> e rode (<code>python primeiro.py</code>). Deve abrir uma janela vazia, de fundo preto, com o título “Mouse e teclado”. Feche a janela para encerrar o script.</p>
@@ -65,7 +65,7 @@ Wallpaper(Gradient("black", "navy", angle=90))`
     {
       title: "Três formas",
       body: `
-        <p>Agora as primeiras formas: <code>Rect</code> (retângulo), <code>Circle</code> (círculo) e <code>Triangle</code> (triângulo; sem mais nada, ele é equilátero, com os três lados iguais). Cada linha já faz a sua forma aparecer na tela. Guardamos cada uma numa variável (<code>retangulo</code>, <code>circulo</code>, <code>triangulo</code>) porque, nos próximos passos, vamos pintá-las e mexer nelas pelo nome.</p>
+        <p>Agora as primeiras formas: <code>Rect</code> (retângulo), <code>Circle</code> (círculo) e <code>Triangle</code> (triângulo). Cada linha já faz a sua forma aparecer na tela. Guardamos cada uma numa variável (<code>retangulo</code>, <code>circulo</code>, <code>triangulo</code>) porque, nos próximos passos, vamos pintá-las e mexer nelas pelo nome.</p>
         <p><strong>Onde.</strong> <code>center</code> (centro) é o ponto do meio da forma, escrito como <code>(x, y)</code>. O x conta da esquerda para a direita. O y conta <strong>de baixo para cima</strong>: <code>(0, 0)</code> é o canto de baixo, à esquerda, e o canto de cima, à direita, é <code>(1000, 700)</code>, o tamanho que demos ao <code>init</code>. As três formas têm y = 480, então ficam numa fileira na parte de cima da janela. Se você já desenhou em outro programa, atenção: em muitos deles o y cresce para baixo. No Scena, cresce para cima, como nos gráficos da escola.</p>
         <figure class="fig">
           <svg viewBox="0 0 400 272" role="img" aria-label="A janela como um retângulo de 1000 por 700; a origem (0, 0) no canto de baixo à esquerda; x cresce para a direita e y para cima; as três formas numa fileira em y = 480">
@@ -188,8 +188,8 @@ retangulo.visual = Gel()`
       title: "Um sprite",
       body: `
         <p>Formas se desenham com números. Para um desenho com detalhe, usamos uma imagem pronta: um <code>Sprite</code> (em inglês, um duende; nos jogos, uma imagem que se move pela tela). Esta estrela vai ser a personagem do script: nos próximos passos, ela anda.</p>
-        <p><strong>O arquivo.</strong> O primeiro valor é o nome do arquivo de imagem, entre aspas. O Scena o procura ao lado do seu script e, depois, numa pasta <code>media/</code> ao lado dele. Copie a pasta <code>media/</code> dos exemplos do Scena para junto do <code>primeiro.py</code>: assim, <code>"space/star_gold.png"</code> é o arquivo <code>media/space/star_gold.png</code>, uma estrela dourada. Se o arquivo não estiver lá, o script não para: no lugar da imagem aparece um xadrez magenta e preto, e o console diz qual arquivo faltou.</p>
-        <p><strong>O tamanho.</strong> A imagem tem o tamanho dela em pixels, que raramente é o que você quer na tela. <code>size=48</code> (tamanho) diz quanto deve medir o lado maior, na régua do <code>init</code>. O outro lado acompanha a proporção da imagem, sem deformar: esta estrela é quase quadrada e fica com 48 × 46. O <code>center</code> é o mesmo das formas: <code>(500, 200)</code> é o meio da janela na largura, mais para baixo.</p>
+        <p><strong>O arquivo.</strong> O primeiro valor é o nome do arquivo de imagem, entre aspas. Copie a pasta <code>media/</code> dos exemplos do Scena para junto do <code>primeiro.py</code>: assim, <code>"space/star_gold.png"</code> é o arquivo <code>media/space/star_gold.png</code>, uma estrela dourada. Se o arquivo não estiver lá, o script não para: no lugar da imagem aparece um xadrez magenta e preto, e o console diz qual arquivo faltou.</p>
+        <p><strong>O tamanho.</strong> A imagem tem o tamanho dela em pixels, que raramente é o que você quer na tela. <code>size=48</code> (tamanho) diz quanto deve medir o lado maior, na régua do <code>init</code>. O outro lado acompanha a proporção da imagem, sem deformar. O <code>center</code> é o mesmo das formas: <code>(500, 200)</code> é o meio da janela na largura, mais para baixo.</p>
       `,
       code: `from scena import *
 
@@ -268,7 +268,7 @@ triangulo.move_by(-40 * dt, 40 * dt)`
       title: "Uma tecla",
       body: `
         <p>A estrela foge sozinha. Agora ela só vai andar quando você mandar, com a seta para a direita.</p>
-        <p><code>keyp</code> (de <em>key pressed</em>, tecla pressionada) pergunta como está o teclado. <code>keyp("RIGHT")</code> (direita) responde <code>True</code> enquanto a seta direita está apertada e <code>False</code> quando ela está solta. O nome da tecla vai entre aspas, em inglês. Um nome que não existe dá erro na hora, com a sugestão do nome mais parecido.</p>
+        <p><code>keyp</code> (de <em>key pressed</em>, tecla pressionada) pergunta como está o teclado. <code>keyp("RIGHT")</code> (direita) responde <code>True</code> enquanto a seta direita está apertada e <code>False</code> quando ela está solta. O nome da tecla vai entre aspas, em inglês.</p>
         <p>O <code>if</code> põe o <code>move_by</code> de antes sob essa condição. Como o <code>update</code> roda a cada frame, a pergunta também é feita a cada frame: enquanto você segura a seta, a estrela anda; soltou, ela para. Por enquanto, só para a direita.</p>
       `,
       code: `from scena import *
@@ -352,7 +352,7 @@ run()
       title: "Clique",
       body: `
         <p>Agora o mouse. Um clique no triângulo vai trocar a cor dele por uma sorteada.</p>
-        <p><strong>O sorteio.</strong> <code>Color</code> (cor) é o tipo de cor do Scena. <code>Color.random()</code> sorteia uma cor nova a cada vez que é chamada: o tom pode ser qualquer um, mas a cor sai sempre viva, nunca cinza nem escura demais.</p>
+        <p><strong>O sorteio.</strong> <code>Color</code> (cor) é o tipo de cor do Scena. <code>Color.random()</code> sorteia uma cor nova a cada vez que é chamada, e cada clique traz uma surpresa.</p>
         <p><strong>O clique.</strong> <code>@click(triangulo)</code> (clique), escrito em cima da função, diz ao Scena quando rodá-la: quando alguém clicar no triângulo. Como no <code>update</code>, você não chama <code>clicou</code>; o Scena chama, a cada clique. E entrega a forma clicada no parâmetro, que aqui se chama <code>forma</code>. A linha de dentro é o mesmo <code>.color</code> do passo Cor, agora com uma cor sorteada.</p>
         <p>Rode e clique no triângulo algumas vezes: cada clique sorteia outra cor. As outras formas ainda não respondem ao clique.</p>
       `,
@@ -407,7 +407,7 @@ run()
       body: `
         <p>Só o triângulo responde. Para as outras duas formas, não é preciso outra função: basta pôr as três no <code>@click</code>, separadas por vírgula.</p>
         <p>É aqui que o parâmetro <code>forma</code> mostra para que serve. Ele recebe quem foi clicado: clique no círculo, e <code>forma</code> é o círculo; no retângulo, é o retângulo. A mesma linha, <code>forma.color = Color.random()</code>, pinta sempre a forma certa. Foi por isso que a função do passo anterior não escreveu <code>triangulo.color</code>.</p>
-        <p>Rode e clique nas três. Repare no retângulo: a luz do <code>Halo</code>, que era azul, passa a seguir a cor sorteada. O visual acompanha a cor da forma.</p>
+        <p>Rode e clique nas três: cada uma troca de cor quando é a clicada, e as outras ficam como estão.</p>
       `,
       code: `from scena import *
 

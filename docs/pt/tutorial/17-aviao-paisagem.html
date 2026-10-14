@@ -21,7 +21,7 @@ Tutorial.mount({
       title: "O jogo do 16",
       body: `
         <p>Novo script: o avião do tutorial 16, com o cenário em três faixas. Ele já é um cenário sem fim, mas repete sempre a mesma imagem: depois de um minuto de voo, você já viu os mesmos montes passarem vinte vezes.</p>
-        <p>Neste tutorial, a paisagem fica <strong>variada</strong>: faixas que sorteiam a sua imagem, e árvores e casas soltas pelo caminho, cada uma num lugar. Imagens novas: <code>clouds*.png</code> e <code>vegetation_*.png</code>, da pasta do céu, e uma folha de enfeites (<code>backgrounds/kn/</code>), com árvores, casas e torres.</p>
+        <p>Neste tutorial, a paisagem fica <strong>variada</strong>: faixas que sorteiam a sua imagem, e árvores e casas soltas pelo caminho, cada uma num lugar. Para isso, há imagens novas de nuvens, de campos e de enfeites: árvores, casas e torres.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -150,7 +150,7 @@ run()
       body: `
         <p>Duas faixas novas, uma de nuvens grandes e uma de campo, cada uma com mais de uma imagem.</p>
         <p><strong>Uma lista.</strong> No lugar de um arquivo, o <code>Endless</code> aceita uma lista de arquivos: <code>Endless("banco", NUVENS, height=360)</code>. A cada vaga (cada imagem nova que entra), ele sorteia uma da lista. <code>NUVENS</code> tem três versões do mesmo céu: uma nuvem alta, uma mais baixa e uma faixa de nuvens só. Elas se encaixam umas nas outras, então qualquer ordem dá certo. <code>CAMPOS</code> tem o campo com árvores e o campo sem.</p>
-        <p><strong>Onde ficam.</strong> As camadas novas entram no meio das outras, na ordem da profundidade: o banco de nuvens (20% da velocidade) entre as nuvens pequenas e os montes; o campo (50%) entre os montes e o mato. A ordem das linhas de <code>create</code> é a ordem do desenho, do fundo para a frente.</p>
+        <p><strong>Onde ficam.</strong> As camadas novas entram no meio das outras, na ordem da profundidade, como no 16: o banco de nuvens logo atrás dos montes, e o campo logo na frente deles.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -325,7 +325,7 @@ run()
           <figcaption>O caminho é cortado em vagas de 110. Para cada uma, o <code>Endless</code> chama <code>enfeite(slot)</code> um pouco antes de ela entrar na tela; o que a função devolve fica naquela vaga.</figcaption>
         </figure>
 
-        <p><strong>O sorteio da vaga.</strong> Dentro da função, os sorteios usam <code>slot.rng</code> (o sorteador da vaga) no lugar de <code>uniform</code> e <code>choice</code> soltos: <code>slot.rng.uniform(…)</code>, <code>slot.rng.choice(…)</code>. Cada vaga tem o seu sorteador. Se a mesma vaga for montada de novo (num jogo em que a câmera volta), ela sai igual, com a mesma árvore no mesmo lugar. O sorteio solto daria outra árvore.</p>
+        <p><strong>O sorteio da vaga.</strong> Dentro da função, os sorteios usam <code>slot.rng</code> (o sorteador da vaga) no lugar de <code>uniform</code> e <code>choice</code> soltos: <code>slot.rng.uniform(…)</code>, <code>slot.rng.choice(…)</code>. Cada vaga tem o seu sorteador, e é isso que deixa o <code>seed=</code>, num Experimente também do próximo passo, repetir a mesma paisagem em toda partida; o sorteio solto daria outra árvore.</p>
         <p>A folha de enfeites é um atlas, como a das naves no 07: <code>ARVORES</code> é uma lista de nomes de quadros, e o sorteio escolhe um. A camada <code>enfeites</code> anda junto com o campo (50%), para as árvores ficarem paradas no chão.</p>
       `,
       code: `from random import uniform
@@ -815,7 +815,6 @@ run()
           title: "A ordem das camadas",
           body: `
             <p>De trás para a frente: o <code>Wallpaper</code> (o céu, sempre atrás de tudo); as camadas com <code>below="default"</code>, na ordem em que foram criadas; a camada <code>default</code>, com os pilares e o avião; as camadas com <code>above="default"</code>; e o HUD (<code>ui</code>), com o placar.</p>
-            <p>Cada camada anda uma fração do voo. Atrás do jogo, menos de 1 (mais longe, mais devagar); na frente, mais de 1. É essa regra que faz a tela parecer funda: o olho lê a velocidade como distância.</p>
             <p>No Guia: <a href="../guide/index.html#mundo-camadas">Camadas</a> · <a href="../guide/index.html#mundo-sem-fim">Mundo sem fim</a>.</p>
           `
         }

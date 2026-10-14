@@ -195,7 +195,7 @@ run()
     {
       title: "O controle da viagem",
       body: `
-        <p>Até aqui, uma viagem começada ia até o fim. Mas dá para mexer nela no meio do caminho: o <code>move_to</code> com <code>time=</code> ou <code>speed=</code> devolve um <strong>controle</strong> da viagem (no Guia, um <code>Handle</code>). Com ele na mão, você pode cancelar a viagem, pausá-la, perguntar se acabou.</p>
+        <p>Até aqui, uma viagem começada ia até o fim. Mas dá para mexer nela no meio do caminho: o <code>move_to</code> com <code>time=</code> ou <code>speed=</code> devolve um <strong>controle</strong> da viagem. Com ele na mão, você pode cancelar a viagem, pausá-la, perguntar se acabou.</p>
         <p><strong>Guardar o controle.</strong> <code>nave.viagem = nave.move_to(…)</code> guarda o controle num campo da nave, como o <code>marcador.caneta</code> do desenho do 04. Antes da primeira viagem, o campo vale <code>None</code> (nada).</p>
         <p><strong>Parar.</strong> <code>parar()</code> cancela a viagem que estiver acontecendo: <code>nave.viagem.cancel()</code> (cancelar) deixa a nave onde ela está. O clique chama <code>parar()</code> antes de começar a viagem nova: assim, clicar no meio do caminho troca de destino sem aviso no console. E a tecla Espaço também para a nave.</p>
         <p>Rode, clique longe e, no meio do caminho, aperte Espaço ou clique em outro lugar.</p>
@@ -317,7 +317,6 @@ run()
               </tbody>
             </table></div>
             <p><strong>Outros verbos com tempo.</strong> Os mesmos <code>time=</code>, <code>speed=</code>, <code>ease=</code> e <code>on_done=</code> valem para <code>move_by</code> (mover por: anda tanto, a partir de onde está), <code>rotate_to</code> e <code>rotate_by</code> (girar), <code>scale_to</code> (mudar o tamanho) e para o <code>move_along</code> das trilhas, do próximo tutorial. Todos devolvem um controle.</p>
-            <p><strong>Andar como o <code>chase</code>.</strong> O <code>chase</code> do Apêndice E também persegue a cada quadro, mas com um passo que é uma fração da distância: rápido quando está longe, devagar quando chega perto.</p>
             <p>No Guia: <a href="../guide/index.html#suite">Parâmetros de tempo</a> · <a href="../guide/index.html#mover-pose">Mover e girar</a>.</p>
           `,
           try: [

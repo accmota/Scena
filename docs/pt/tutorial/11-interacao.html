@@ -85,7 +85,7 @@ run()
         <p>O <code>@hover</code> avisa uma vez, quando o mouse entra. Mas há coisas que acontecem um pouco a cada quadro, durante todo o tempo em que o mouse está ali. O triângulo vai girar enquanto o ponteiro estiver em cima dele.</p>
         <p><strong>Um estado.</strong> <code>pointer_hover</code> (ponteiro por cima) não é um evento: é uma resposta de sim ou não que vale <em>agora</em>. É <code>True</code> enquanto o mouse está sobre o triângulo e <code>False</code> no resto do tempo. O Scena a atualiza a cada quadro, e quem a lê é o <code>update</code>, que também roda a cada quadro.</p>
         <p><strong>O giro.</strong> <code>rotate_by(90 * dt)</code> (girar por) gira o triângulo 90 graus por segundo: um pedacinho a cada quadro, como a estrela do tutorial 1 andava <code>VELOCIDADE * dt</code>. Rode e pare o mouse sobre o triângulo: ele gira sem parar. Tire o mouse e ele para onde estiver.</p>
-        <p><strong>Quem tem.</strong> O <code>pointer_hover</code> só fica <code>True</code> numa forma que responde ao mouse: clicável, arrastável ou com <code>@hover</code>. O triângulo responde, porque está no grupo do <code>@click</code>. Uma forma só de enfeite, sem nada disso, fica sempre com <code>False</code>.</p>
+        <p><strong>Quem tem.</strong> O <code>pointer_hover</code> só fica <code>True</code> numa forma que responde ao mouse, e o triângulo responde, porque está no grupo do <code>@click</code>.</p>
       `,
       code: `from scena import *
 
@@ -130,7 +130,7 @@ run()
       title: "O botão direito",
       body: `
         <p>O <code>@click</code> é o clique do botão esquerdo. Para o direito, vamos ler o mouse a cada quadro, como o <code>pointer_hover</code>. <code>mouse.press(Mouse.BTN_RIGHT)</code> (apertado; <code>BTN_RIGHT</code> é o botão direito) é <code>True</code> enquanto o botão direito está apertado. É outro estado, e também se lê no <code>update</code>. Num trackpad, o botão direito é o clique com dois dedos.</p>
-        <p><strong>Uma borracha.</strong> Com o botão direito apertado, toda forma embaixo do mouse fica cinza. O <code>for</code> passa pelas três formas do grupo, e <code>forma.contains_point(mouse)</code> (contém o ponto) pergunta a cada uma: o ponto do mouse cai dentro do seu desenho? O <code>mouse</code> é um ponto, e vale onde o Scena espera um ponto.</p>
+        <p><strong>Uma borracha.</strong> Com o botão direito apertado, toda forma embaixo do mouse fica cinza. O <code>for</code> passa pelas três formas do grupo, e <code>forma.contains_point(mouse)</code> (contém o ponto) pergunta a cada uma: o ponto do mouse cai dentro do seu desenho?</p>
         <p><strong>Os dois.</strong> Rode, segure o botão direito e passe pelas formas. Depois faça isso onde o quadrado cobre o hexágono: os <em>dois</em> ficam cinza. O <code>contains_point</code> não quer saber quem está por cima; pergunta só a cada forma se o ponto está dentro dela. Compare com o clique esquerdo no mesmo lugar, que só pinta o quadrado.</p>
       `,
       code: `from scena import *
@@ -173,12 +173,8 @@ run()
         {
           title: "Três perguntas",
           body: `
-            <p>Este script fez três perguntas diferentes ao mouse. Parecem a mesma, mas cada uma responde a uma coisa:</p>
-            <ul>
-              <li><code>@click</code> e <code>@hover</code> são <strong>eventos</strong>: o Scena chama a sua função uma vez, no momento em que algo acontece (clicou, entrou, saiu). Vão para um objeto só, o de cima.</li>
-              <li><code>pointer_hover</code> é um <strong>estado</strong>: o mouse está em cima <em>agora</em>? Lido a cada quadro, no <code>update</code>. Também é de um objeto só, o de cima, e só de quem responde ao mouse.</li>
-              <li><code>contains_point</code> é uma pergunta de <strong>geometria</strong> a este objeto: o ponto cai dentro do desenho dele? Não importa quem está por cima, nem se a forma é clicável.</li>
-            </ul>
+            <p>Este script fez três perguntas diferentes ao mouse. Parecem a mesma, mas cada uma responde a uma coisa, e a diferença aparece onde duas formas se cobrem.</p>
+            <p><code>@click</code> e <code>@hover</code> são <strong>eventos</strong>: o Scena chama a sua função uma vez, no instante em que algo acontece (clicou, entrou, saiu), e só para o objeto de cima. <code>pointer_hover</code> é um <strong>estado</strong>: uma resposta de sim ou não que vale agora, lida a cada quadro no <code>update</code>, também só do objeto de cima. Já <code>contains_point</code> é uma pergunta de <strong>geometria</strong> feita a uma forma: o ponto cai dentro do desenho dela? Ela não quer saber quem está por cima, e por isso, onde o quadrado cobre o hexágono, as duas formas dizem sim.</p>
             <figure class="fig">
               <svg viewBox="0 0 460 200" role="img" aria-label="Um hexágono e, por cima dele, um quadrado que cobre uma parte; o ponteiro do mouse está na parte coberta. Ao lado, as três respostas: o clique e o hover vão só para o quadrado; pointer_hover é True só no quadrado; contains_point é True nos dois">
                 <polygon class="bar" points="190,100 155,39.4 85,39.4 50,100 85,160.6 155,160.6"/>
@@ -248,8 +244,8 @@ run()
       title: "A lixeira",
       body: `
         <p>Uma lixeira: soltar uma peça em cima dela apaga a peça.</p>
-        <p><strong>A lixeira.</strong> Um <code>Rect</code> cinza com um <code>Text</code> no meio. Desta vez o texto se posiciona por <code>center</code> (centro), como as formas, e não pelo <code>top_left</code> do placar. A lixeira nasce antes das peças para ser desenhada embaixo delas: uma peça arrastada passa por cima da lixeira, não por baixo.</p>
-        <p><strong>Soltar em cima.</strong> <code>@drop_by(lixeira)</code> (solto por) fica no <em>alvo</em>, o objeto que recebe. Ele roda a função quando alguém solta uma coisa arrastada em cima da lixeira, e liga sozinho o <code>droppable</code> (aceita soltar) dela, como o <code>@click</code> liga o clique. A função recebe três valores: a peça arrastada (<code>peca</code>), o alvo (<code>alvo</code>, aqui a própria lixeira) e o ponto onde o mouse soltou (<code>pos</code>, de posição). Aqui, só a peça interessa: <code>destroy</code> a apaga.</p>
+        <p><strong>A lixeira.</strong> Um <code>Rect</code> cinza com um <code>Text</code> no meio. A lixeira nasce antes das peças para ser desenhada embaixo delas: uma peça arrastada passa por cima da lixeira, não por baixo.</p>
+        <p><strong>Soltar em cima.</strong> <code>@drop_by(lixeira)</code> (solto por) fica no <em>alvo</em>, o objeto que recebe. Ele roda a função quando alguém solta uma coisa arrastada em cima da lixeira. A função recebe três valores: a peça arrastada (<code>peca</code>), o alvo (<code>alvo</code>, aqui a própria lixeira) e o ponto onde o mouse soltou (<code>pos</code>, de posição). Aqui, só a peça interessa: <code>destroy</code> a apaga.</p>
         <p>Rode e solte uma peça na lixeira: ela some. Solte em outro lugar: nada acontece, porque ali ninguém recebe.</p>
       `,
       code: `from scena import *
@@ -324,7 +320,7 @@ run()
       body: `
         <p>Agora a grade: um tabuleiro de 4 colunas e 3 linhas no meio da tela.</p>
         <p><strong>Uma caixa que não aparece.</strong> <code>Box</code> (caixa) é um retângulo que não se desenha: serve para medir e posicionar. Ele se escreve como um <code>Rect</code>, com <code>center</code>, <code>width</code> e <code>height</code>. A <code>zona</code> tem 400 por 300.</p>
-        <p><strong>Fatias.</strong> <code>zona.grid(4, 3, gap=8)</code> fatia a zona em 4 colunas e 3 linhas iguais e devolve a grade (<code>grid</code>). <code>gap=8</code> (vão) deixa 8 de espaço entre as casas. Cada casa também é um <code>Box</code>, de uns 94 por 94: as 12 cabem na zona, com os vãos entre elas.</p>
+        <p><strong>Fatias.</strong> <code>zona.grid(4, 3, gap=8)</code> fatia a zona em 4 colunas e 3 linhas iguais e devolve a grade (<code>grid</code>). <code>gap=8</code> (vão) deixa 8 de espaço entre as casas. Cada casa também é um <code>Box</code>.</p>
         <p><strong>Desenhar as casas.</strong> Um <code>Box</code> não aparece. Para ver as casas, o <code>for</code> passa pelas 12 e põe um <code>Rect</code> em cada uma. <code>box=casa</code> encaixa o retângulo na casa: no lugar dela, do tamanho dela. As linhas da grade vêm antes da lixeira e das peças, para ficarem embaixo delas.</p>
         <p>Rode: um tabuleiro azul. As peças ainda passam por cima dele como se ele não estivesse ali.</p>
       `,
@@ -454,7 +450,6 @@ def apagou(casa):
         <p>Último passo: soltar uma peça na grade a encaixa no centro da casa.</p>
         <p><strong>Ao soltar.</strong> <code>@drag_to(group["pecas"])</code> (arrastado até) fica nas peças, como o <code>@drag_over</code>, mas roda uma vez só, quando o arraste acaba, onde quer que a peça seja solta: na grade, na lixeira ou no vazio. Recebe os mesmos três valores; desta vez o que interessa é o <code>pos</code>, o ponto onde o mouse soltou.</p>
         <p><strong>A casa do ponto.</strong> É o <code>cell_at</code> do passo anterior, com o <code>pos</code> no lugar do <code>mouse</code>. Se o ponto caiu numa casa, a peça vai para o centro dela. Se não, <code>casa</code> é <code>None</code>, o <code>if</code> pula a linha, e a peça fica onde foi solta.</p>
-        <p><strong>E a lixeira?</strong> Uma peça solta sobre a lixeira chama as duas funções: o <code>@drag_to</code>, que não muda nada (a lixeira fica fora da grade), e o <code>@drop_by</code>, que a apaga.</p>
         <p>Rode e solte as peças na grade: cada uma encaixa no meio de uma casa. A moldura branca já mostrava, durante o arraste, onde a peça ia cair.</p>
       `,
       code: `from scena import *

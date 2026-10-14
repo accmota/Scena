@@ -161,7 +161,7 @@ run()
           <figcaption>Um atlas: uma imagem com muitas figuras (<code>sheet.png</code>) e uma lista com o nome e o retângulo de cada uma (<code>sheet.xml</code>). <code>frame="…"</code> escolhe um retângulo pelo nome.</figcaption>
         </figure>
 
-        <p><strong>A folha.</strong> <code>Sheet</code> (folha) carrega as duas coisas de uma vez: <code>Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")</code>. A folha fica numa variável, <code>folha</code>, e vale para o jogo inteiro: os pixels são lidos uma vez só, por mais sprites que usem a folha.</p>
+        <p><strong>A folha.</strong> <code>Sheet</code> (folha) carrega as duas coisas de uma vez: <code>Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")</code>. A folha fica numa variável, <code>folha</code>, e vale para o jogo inteiro: cada sprite que usa uma figura dela aponta para essa variável.</p>
         <p><strong>Um quadro.</strong> Um sprite da folha diz duas coisas: a folha, em <code>source</code>, e qual figura, em <code>frame</code> (quadro), pelo nome que está na lista. Nas classes, os dois vão para a linha da classe: <code>class Tiro(Sprite, source=folha, frame="laserBlue03.png", …)</code>. O inimigo leva só a folha; cada criação diz o quadro: <code>Inimigo(frame=FROTA[linha % 2], …)</code>, e a lista <code>FROTA</code> agora guarda nomes de quadros, não de arquivos.</p>
         <p>Rode: o jogo está igual. As figuras são as mesmas do 05, agora tiradas da folha. O ganho aparece no próximo passo.</p>
       `,
@@ -400,7 +400,7 @@ run()
       title: "Uma explosão em quadros",
       body: `
         <p>O inimigo some num estouro desenhado pelo Scena. Agora ele vai explodir com uma animação de verdade: uma explosão desenhada quadro a quadro, como num desenho animado.</p>
-        <p><strong>A faixa.</strong> <code>misc/exp4.png</code> é uma faixa de 12 quadros lado a lado, cada um com 96 pixels de lado: a explosão nasce pequena, cresce e se desfaz em fumaça. <code>Sheet("misc/exp4.png", cols=12)</code> corta a faixa em 12 colunas (<code>cols</code>). Esta folha não tem lista: os quadros se chamam pelo número, de 0 a 11.</p>
+        <p><strong>A faixa.</strong> <code>misc/exp4.png</code> é uma faixa de 12 quadros lado a lado: a explosão nasce pequena, cresce e se desfaz em fumaça. <code>Sheet("misc/exp4.png", cols=12)</code> corta a faixa em 12 colunas (<code>cols</code>). Esta folha não tem lista: os quadros se chamam pelo número, de 0 a 11.</p>
 
         <figure class="fig">
           <svg viewBox="0 0 420 150" role="img" aria-label="Uma faixa de doze quadrados numerados de 0 a 11, como um filme; círculos crescem e depois se desfazem; uma seta embaixo diz o tempo, 24 quadros por segundo">
@@ -695,7 +695,7 @@ run()
 play_sound("audio/explosion03.wav", pitch=1.5)`
           },
           {
-            note: "Cada som um pouco diferente. <code>uniform(a, b)</code> (uniforme) sorteia um número qualquer entre <code>a</code> e <code>b</code>. Com o <code>pitch</code> sorteado a cada vez, cada tiro sai um pouco mais grave ou mais agudo, e a repetição para de cansar o ouvido: é um truque dos jogos. Pouca variação no laser, mais na explosão; demais, o som desafina. Como o <code>pitch</code> muda a velocidade junto, um estrondo mais grave também dura um pouco mais. A primeira linha vai no topo, no lugar da importação; as outras, no lugar das duas linhas de som.",
+            note: "Cada som um pouco diferente, com o sorteio <code>uniform</code> do tutorial 02. Com o <code>pitch</code> sorteado a cada vez, cada tiro sai um pouco mais grave ou mais agudo, e a repetição para de cansar o ouvido: é um truque dos jogos. Pouca variação no laser, mais na explosão; demais, o som desafina. A primeira linha vai no topo, no lugar da importação; as outras, no lugar das duas linhas de som.",
             code: `from random import choice, uniform
 play_sound("audio/laser4.wav", pitch=uniform(0.9, 1.1))
 play_sound("audio/explosion01.wav", pitch=uniform(0.8, 1.2))`
@@ -839,13 +839,12 @@ run()
           title: "O st por dentro",
           body: `
             <p><code>st</code> guarda os dados do jogo como um todo: os pontos, as vidas, a velocidade da frota. Cada nome em <code>st</code> é uma <strong>célula</strong>: um lugar com um valor que o Scena acompanha. É por isso que o <code>@=</code> funciona: a conta <code>f"x {st.vidas}"</code> lê o valor da célula, e o Scena sabe que, quando a célula mudar, o texto precisa ser refeito.</p>
-            <p>Ponto e colchetes dizem coisas diferentes. <code>st.vidas</code> é o número de agora (3, 2, 1…): é com ele que você lê e muda as vidas. <code>st["vidas"]</code> é a própria célula, o lugar onde o número mora. Os colchetes vão onde alguém precisa acompanhar a célula, não só ler o número uma vez: o <code>@on_change</code> logo abaixo, os widgets (<code>Slider(st["volume"])</code>) e o <code>st["vidas"] @= …</code>. Dentro de uma <code>lambda</code>, como no placar, é sempre ponto: <code>f"x {st.vidas}"</code>. A <code>lambda</code> já mantém a conta viva, e colchetes ali dão <code>TypeError</code>.</p>
-            <p>A célula também avisa. <code>@on_change(st["vidas"])</code> (quando mudar), em cima de uma função, roda a função a cada mudança do número, venha ela de onde vier. Aqui ainda não precisamos: quem muda as vidas é só o <code>atingido</code>, e o que acontece fica escrito ali. No próximo tutorial, o escudo vai ligar e desligar sozinho com um <code>@on_change</code>.</p>
+            <p>Ponto e colchetes dizem coisas diferentes. <code>st.vidas</code> é o número de agora (3, 2, 1…): é com ele que você lê e muda as vidas. <code>st["vidas"]</code> é a própria célula, o lugar onde o número mora. Os colchetes vão onde alguém precisa acompanhar a célula, e não só ler o número uma vez, como o <code>Slider(st["n_bolas"])</code> do tutorial 04, que escrevia na célula a cada arraste. Dentro de uma <code>lambda</code>, como no placar, é sempre ponto: <code>f"x {st.vidas}"</code>. A <code>lambda</code> já mantém a conta viva, e colchetes ali são erro.</p>
             <p>No Guia: <a href="../guide/index.html#reativo-state">st</a> · <a href="../guide/index.html#reagir-on-change">@on_change</a>.</p>
           `,
           try: [
               {
-                note: "Um aviso a cada vida perdida, sem mexer no <code>atingido</code>. No fim do arquivo, antes do <code>run()</code>:",
+                note: "Um aviso a cada vida perdida, sem mexer no <code>atingido</code>. É uma prévia do <code>@on_change</code>, que o 08 usa no escudo e explica lá. No fim do arquivo, antes do <code>run()</code>:",
                 code: `@on_change(st["vidas"])
 def vidas_mudaram():
     vidas.flash_text("AI!", 0.5)`
@@ -867,8 +866,8 @@ def vidas_mudaram():
       body: `
         <p>As vidas descem para baixo de zero. Na última, a nave tem de explodir, e o jogo tem de dizer que acabou.</p>
         <p><strong>A última vida.</strong> Depois de <code>st.vidas -= 1</code>, um <code>if</code> separa os dois casos. Se ainda há vidas, é o golpe do passo anterior: piscar e o som de pancada. Se não há (<code>else</code>, senão), é o fim: o clarão e a explosão grande do tutorial 05, o som de fim de jogo, o texto <code>FIM DE JOGO</code> no meio da tela e o <code>destroy</code>. O <code>shake</code> vale para os dois casos e fica antes do <code>if</code>.</p>
-        <p><strong>O que sobra.</strong> <code>Fire</code> (fogo) é outro <code>SpatialFx</code>, como o propulsor do 06: um fogo parado num ponto do mundo. Ele nasce no centro da nave, um instante antes do <code>destroy</code>, e fica queimando onde ela caiu. <code>radius</code> (raio) é o tamanho do fogo.</p>
-        <p><strong>Depois do fim.</strong> A frota continua viva e atirando, e o propulsor sai com a nave (o <code>on_destroy</code> do 06). Para jogar de novo, feche a janela e rode outra vez: recomeçar o jogo por dentro é um assunto à parte, num tutorial adiante.</p>
+        <p><strong>O que sobra.</strong> <code>Fire</code> (fogo) é um fogo parado num ponto do mundo. Ele nasce no centro da nave, um instante antes do <code>destroy</code>, e fica queimando onde ela caiu. <code>radius</code> (raio) é o tamanho do fogo.</p>
+        <p><strong>Depois do fim.</strong> A frota continua viva e atirando, e o propulsor sai com a nave. Para jogar de novo, feche a janela e rode outra vez: recomeçar o jogo por dentro é um assunto à parte, num tutorial adiante.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -1020,7 +1019,7 @@ Fire(center=self.center, width=30, style="embers")`
           <li><code>play_sound</code> — toca um som, uma vez, sem esperar; os sons se somam.</li>
           <li><code>st.vidas</code> e <code>@=</code> — o número de vidas, guardado numa célula que o placar lê; quando ele muda, o texto muda sozinho.</li>
           <li><code>blink</code>, <code>shake</code> e <code>ready</code> — o golpe e o tempo de folga.</li>
-          <li><code>Fire</code> — um fogo parado num ponto do mundo, outro <code>SpatialFx</code>.</li>
+          <li><code>Fire</code> — um fogo parado num ponto do mundo.</li>
         </ul>
         <p><strong>No Guia:</strong> <a href="../guide/index.html#spr-atlas">Atlas</a> · <a href="../guide/index.html#spr-clip">Clips</a> · <a href="../guide/index.html#som-play">play_sound</a> · <a href="../guide/index.html#reativo-state">st</a> · <a href="../guide/index.html#aparencia-transientes">Transientes</a> · <a href="../guide/index.html#desenhar-spatial">SpatialFx</a>.</p>
         <p><strong>No próximo:</strong> um presente cai de um inimigo, e a nave ganha um escudo que se gasta.</p>

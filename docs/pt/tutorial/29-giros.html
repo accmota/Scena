@@ -25,7 +25,7 @@ Tutorial.mount({
         <p>O último tutorial é sobre <strong>giros que se somam</strong>. São dois scripts, os dois de arte, não de jogo, feitos com o que a série juntou: funções, fórmulas e um pouco de matemática. No primeiro, uma barra gira; em cada ponta dela nasce uma barra menor, que também gira; nas pontas dessas, outras, e assim por diante. Sessenta e três barras desenham laços que parecem complicados, e saem de uma regra curta. No segundo, um ponto dá uma volta grande e uma pequena ao mesmo tempo, e um rastro mostra a figura que os dois giros fazem juntos.</p>
         <p>Começamos com uma barra só.</p>
         <p><strong>A barra.</strong> <code>Rect</code> (retângulo) no centro da janela, com <code>width</code> (largura) 500 e <code>height</code> (altura) 33: comprida e fina.</p>
-        <p><strong>Graus.</strong> <code>angle</code> (ângulo) é quanto a barra está girada, em <strong>graus</strong>. Uma volta inteira tem 360 graus. Com 0, a barra fica deitada; com 90 (um quarto de volta), fica em pé; com 180 (meia volta), deitada de novo, virada ao contrário. Quando o ângulo cresce, a barra gira no sentido contrário ao dos ponteiros do relógio.</p>
+        <p><strong>Graus.</strong> <code>angle</code> (ângulo) é quanto a barra está girada, em graus, como sempre: uma volta inteira tem 360, e, quando o ângulo cresce, a barra gira no sentido contrário ao dos ponteiros do relógio.</p>
 
         <figure class="fig">
           <svg viewBox="0 0 360 210" role="img" aria-label="Uma barra girada de 30 graus no centro de um círculo marcado com 0, 90, 180 e 270 graus">
@@ -43,7 +43,7 @@ Tutorial.mount({
           <figcaption>O ângulo em graus. 0 é a barra deitada; o ângulo cresce no sentido contrário ao dos ponteiros do relógio, e 360 é uma volta inteira.</figcaption>
         </figure>
         <p><strong>O giro.</strong> A linha <code>barra["angle"] @= …</code> liga o ângulo a uma fórmula. Com <code>@=</code>, o Scena refaz a conta a cada quadro, como no placar do tutorial 2; o nome do campo vai entre colchetes, para apontar o campo que recebe a fórmula. A fórmula lê <code>clock.time</code> (relógio, tempo): quantos segundos se passaram desde o início. Vezes 26, a barra gira 26 graus por segundo, e uma volta leva uns 14 segundos.</p>
-        <p><strong>O <code>%</code>.</strong> É o <strong>resto da divisão</strong>. <code>370 % 360</code> é 10: 370 cabe uma vez em 360 e sobram 10. Depois de 20 segundos, <code>clock.time * 26</code> dá 520, e <code>520 % 360</code> dá 160. É a mesma posição: 520 graus são uma volta inteira mais 160. O Scena aceitaria 520 também; o <code>%</code> só mantém o número entre 0 e 360, fácil de ler quando você quiser mostrá-lo num <code>print</code>.</p>
+        <p><strong>O <code>%</code>.</strong> É o <strong>resto da divisão</strong>. <code>370 % 360</code> é 10: 370 cabe uma vez em 360 e sobram 10. Depois de 20 segundos, <code>clock.time * 26</code> dá 520, e <code>520 % 360</code> dá 160. É a mesma posição: 520 graus são uma volta inteira mais 160, e o <code>%</code> mantém o número dentro de uma volta.</p>
       `,
       code: `from scena import *
 
@@ -394,7 +394,7 @@ run()
       title: "Fundo, brilho e rastro",
       body: `
         <p>O movimento está pronto. Este passo muda só a maneira como ele aparece.</p>
-        <p><strong>O fundo.</strong> <code>Wallpaper</code> (papel de parede) com <code>Gradient("ocean", …)</code>, um degradê pronto do Scena, o ocean (oceano). <code>type="radial"</code> faz as cores saírem do centro em círculos, em vez de atravessar a tela de um lado a outro, e <code>size=1000</code> (tamanho) é o raio desse círculo. <code>Grain()</code> (grão) espalha por cima um chuvisco fraco e animado, como num filme antigo.</p>
+        <p><strong>O fundo.</strong> <code>Wallpaper</code> (papel de parede) com <code>Gradient("ocean", …)</code>, um degradê pronto do Scena, o ocean (oceano). <code>type="radial"</code> faz as cores saírem do centro em círculos, em vez de atravessar a tela de um lado a outro. <code>Grain()</code> (grão) espalha por cima um chuvisco fraco e animado, como num filme antigo.</p>
         <p><strong>O rastro.</strong> <code>MotionTrail()</code> (rastro de movimento) não desenha nada sozinho: ele mistura cada quadro com os anteriores, que vão se apagando aos poucos. Tudo que se mexe deixa um fantasma, e o que está parado continua igual. As barras pequenas, que andam depressa, viram fitas de luz. O efeito fica guardado em <code>mt</code>, para podermos desligá-lo no próximo passo.</p>
         <p><strong>O brilho.</strong> <code>Aurora()</code> é o visual de cada barra: uma luz que ondula por dentro, na cor da própria barra. Fica dentro da função, então cada barra ganha o seu.</p>
       `,
@@ -597,7 +597,7 @@ run()
         <p>A ponta gira devagar, e no fim um slider vai controlar a velocidade. Para isso, o ângulo deixa de ser <code>clock.time</code> e passa a ser um tempo nosso, <code>st.tempo</code>, que anda <code>st.n</code> radianos por segundo.</p>
         <p><strong>O <code>update</code>.</strong> A cada quadro, <code>update</code> soma <code>dt * st.n</code> em <code>st.tempo</code>. Lembre do tutorial 1: <code>dt</code> é quantos segundos se passaram desde o quadro anterior, então somar <code>dt * st.n</code> a cada quadro dá <code>st.n</code> por segundo. Com <code>n</code> em 4, uma volta (6.28) leva 6.28 / 4, pouco mais de um segundo e meio.</p>
         <p><strong>Por que somar aos poucos?</strong> Nas barras, o ângulo era <code>clock.time</code> vezes a velocidade, e mexer na velocidade fazia tudo pular. Aqui seria igual: depois de 100 segundos, mudar <code>n</code> de 4 para 5 somaria 100 radianos ao ângulo de uma vez. Somando a cada quadro, mudar <code>n</code> só muda quanto se soma daqui para frente: a ponta acelera, sem pular.</p>
-        <p><strong>Por que <code>st</code>?</strong> O <code>update</code> muda o tempo a cada quadro. Uma variável comum, criada fora da função, não pode ser mudada lá dentro sem <code>global</code>; o <code>st</code> é o lugar do Scena para guardar o que muda. <code>st.n</code> também fica nele, no topo, porque o slider vai escrever ali.</p>
+        <p><strong>Por que <code>st</code>?</strong> O <code>update</code> muda o tempo a cada quadro, e o <code>st</code> é o lugar do Scena para guardar o que muda. <code>st.n</code> também fica nele, no topo, porque o slider vai escrever ali.</p>
       `,
       code: `from scena import *
 from math import cos, sin
@@ -632,7 +632,7 @@ run()
       title: "O rastro",
       body: `
         <p>Um ponteiro não mostra o caminho. Para ver por onde a ponta passa, um rastro.</p>
-        <p><strong>O <code>Contrail</code>.</strong> Você já o viu no tutorial 4 (o desenho) e no 10 (a bola escolhida): <code>Contrail</code> (rastro, como o de um avião no céu) é uma linha que passa pelos pontos que você dá a ele. Ele não segue nada sozinho. <code>rastro.snapshot(ponta)</code> (foto instantânea) guarda onde a ponta está agora, e <code>every(intervalo, função)</code> (a cada) chama a função de tempos em tempos. Aqui é <code>ponta.every(…)</code>: o timer é da ponta e para sozinho se um dia ela for destruída.</p>
+        <p><strong>O <code>Contrail</code>.</strong> Você já o viu no tutorial 4 (o desenho) e no 10 (a bola escolhida): <code>Contrail</code> (rastro, como o de um avião no céu) é uma linha que passa pelos pontos que você dá a ele. Ele não segue nada sozinho. <code>rastro.snapshot(ponta)</code> (foto instantânea) guarda onde a ponta está agora, e <code>every(intervalo, função)</code> (a cada) chama a função de tempos em tempos.</p>
         <p><strong>Os números.</strong> O intervalo é <code>6.28 / (st.n * 100)</code>: o tempo de uma volta dividido por 100, cem fotos por volta. <code>duration</code> (duração) diz por quantos segundos cada foto fica no traço: <code>6.28 / 4</code> é o tempo de uma volta com <code>n</code> em 4, então o rastro guarda exatamente uma volta e fecha um círculo. <code>fade=True</code> (desbotar) apaga o traço aos poucos, da cabeça (a foto mais nova) até a cauda (a mais velha). <code>visual=Neon("red")</code> é o visual de tubo de neon, e <code>line_width</code> é a espessura.</p>
         <p>Rode: o rastro persegue o ponteiro e fecha um círculo vermelho.</p>
       `,
@@ -815,7 +815,7 @@ bola.visual = Beat(amount=0.3, speed=2)`
       example: "osciloscopio.py",
       body: `
         <p>Por fim, um <code>Slider</code> para cada valor que a fórmula da ponta lê. Como nas barras, não há botão de aplicar: o slider escreve em <code>st</code>, a <code>ponta</code> lê <code>st</code>, e o <code>feixe</code> e o <code>rastro</code> leem a <code>ponta</code>. Um gesto no painel atravessa o desenho inteiro. E, graças ao <code>st.tempo</code> somado no <code>update</code>, mudar <code>n</code> acelera a ponta sem pulo.</p>
-        <p><strong>Os limites.</strong> <code>x1</code> e <code>y1</code> vão de −100 a 100: um raio negativo começa o giro pequeno do lado oposto. <code>tx1</code> e <code>ty1</code> têm <code>only_int=True</code> (só inteiros): com voltas inteiras, a figura fecha a cada volta grande, e o rastro redesenha sempre o mesmo caminho. Com 2,5 voltas, ela não fecharia, e a figura ficaria girando.</p>
+        <p><strong>Os limites.</strong> <code>tx1</code> e <code>ty1</code> têm <code>only_int=True</code> (só inteiros): com voltas inteiras, a figura fecha a cada volta grande, e o rastro redesenha sempre o mesmo caminho. Com 2,5 voltas, ela não fecharia, e a figura ficaria girando.</p>
         <p><strong>O tamanho do painel.</strong> Cinco sliders ocupam espaço. <code>ui.scale</code> (escala) muda o tamanho de todos os widgets de uma vez: 1 é o normal, e 0.9 é um pouco menor. A linha precisa vir antes de criar os widgets.</p>
       `,
       code: `from scena import *
