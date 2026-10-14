@@ -31,6 +31,7 @@ LABEL_W = 78.0
 FILE_W = 78.0                      # New / Open / Save / Save as: one width
 EDIT_W = 56.0                      # Undo / Redo
 POINTER_W = 36.0                   # Select / Pan icon buttons (top bar)
+GROUP_W = 170.0                    # the Select group dropdown (top bar)
 TOOL_W, TOOL_H = 58.0, 44.0        # creation tool buttons (left toolbar)
 TOOL_GAP = 12.0                    # extra space before the Image button
 COORD_X = W - PANEL_RIGHT - 118    # the cursor readout starts here
@@ -212,7 +213,21 @@ class Panel:
         b = Button(top_left=(x, y), width=56, height=28, label=t("view.actual"),
                    on_click=_safe(ed.actual_size, say=app.say))
         attach_tip(b, self.tooltip, _keys_tip(t("tip.actual"), f"{p}+0"))
-        self.top_bar_right = x + 56
+        x += 56
+        x = self._separator(x)
+        # Select group [robo ▾]: a selection command beside the Select tool, as
+        # in the reference editors. Its value is computed from the selection
+        # (Editor.selected_group): the group's name while the selection is
+        # exactly that group, else "—"; choosing a group selects it.
+        self.no_group = t("view.no_group")
+        self.group_label = Text(t("view.select_group"), top_left=(x, y - 7), font_size=13)
+        x = self.group_label.box.right + 8
+        self.group_pick = DropDown(top_left=(x, y), width=GROUP_W, height=28,
+                                   options=[self.no_group], initial=self.no_group,
+                                   enabled=False)
+        attach_tip(self.group_pick, self.tooltip, t("tip.select_group"))
+        self._pick_shown = self.no_group
+        self.top_bar_right = x + GROUP_W
         self._grid_shown = (ed.snap, str(int(ed.grid)))
 
         # -- toolbar: what you create ----------------------------------------------------
@@ -310,17 +325,6 @@ class Panel:
         # Level size (nothing selected).
         self.level_w = _Field("level_w", t("panel.width"), rows, number=True)
         self.level_h = _Field("level_h", t("panel.height"), rows - ROW, number=True)
-        # "Select group…": nothing selected (under the level size) or several
-        # (under X / Y). Two widgets, one per place; both list the level's groups.
-        # Scena's DropDown does not scroll: a level with very many groups runs
-        # the open list off the window.
-        self.pick_none = t("panel.select_group")
-        self.group_picks = [
-            DropDown(top_left=(X0, rows - 2 * ROW - 6), width=PANEL_RIGHT - 20, height=26,
-                     options=[self.pick_none], initial=self.pick_none),
-            DropDown(top_left=(X0, rows - 4 * ROW - 6), width=PANEL_RIGHT - 20, height=26,
-                     options=[self.pick_none], initial=self.pick_none),
-        ]
 
         # -- status bar ------------------------------------------------------------------------
         self.status = Text("", top_left=(PANEL_LEFT + 8, PANEL_BOTTOM - 6), font_size=13)
@@ -361,11 +365,12 @@ class Panel:
                 ed.set_groups(value, list(f.owner))
             else:
                 ed.move_selection_to(key, value, list(f.owner))
-        for pick in self.group_picks:
-            chosen = pick.data.value
-            if pick.visible and chosen != self.pick_none:
-                pick.data.value = self.pick_none
+        chosen = self.group_pick.data.value
+        if chosen != self._pick_shown:
+            self._pick_shown = chosen
+            if chosen != self.no_group:
                 ed.select_group(chosen)
+            self._seen = None        # show what the selection now is ("—" picked: as before)
         snap = bool(self.grid_check.data.value)
         size = str(self.grid_size.data.value)
         if (snap, size) != self._grid_shown:
@@ -404,11 +409,17 @@ class Panel:
             want[f] = False
         want[self.some] = want[self._some_hover] = False
         groups = ed.doc.groups()
-        options = [self.pick_none] + sorted(groups, key=str.casefold)   # easy to scan
-        for pick in self.group_picks:
-            want[pick] = False
-            if pick.options != options:
-                pick.options = options
+        options = [self.no_group] + sorted(groups, key=str.casefold)   # easy to scan
+        pick = self.group_pick
+        if pick.options != options:
+            pick.options = options
+        if pick.enabled != bool(groups):
+            pick.enabled = bool(groups)
+        group = ed.selected_group()
+        shown = group if group is not None else self.no_group
+        if pick.data.value != shown:
+            pick.data.value = shown
+        self._pick_shown = shown
         for b in self.buttons:
             want[b] = bool(items)
         for b in self.pack_buttons:
@@ -443,7 +454,8 @@ class Panel:
                 self.checks["guide"].set(single["guide"], owner)
                 want[self.checks["guide"]] = True
         elif items:
-            self.title.text = t("panel.selected", count=len(items))
+            self.title.text = t("panel.selected", count=len(items)) + (
+                f"  ·  {group}" if group is not None else "")
             owner = tuple(it["id"] for it in items)
             self.many["groups"].set(", ".join(shared_groups(items)), owner)
             want[self.many["groups"]] = True
@@ -455,7 +467,6 @@ class Panel:
                 if self.some.box.right > W - 12:
                     _fit_end(self.some, text, W - 12)
                 want[self.some] = want[self._some_hover] = True
-            want[self.group_picks[1]] = bool(groups)
             box = geo_box([it for it in items if not it["locked"]])
             if box is not None:
                 self.many["x"].set((box[0] + box[2]) / 2, owner)
@@ -467,7 +478,6 @@ class Panel:
             self.level_w.set(w, "level")
             self.level_h.set(h, "level")
             want[self.level_w] = want[self.level_h] = True
-            want[self.group_picks[0]] = bool(groups)
         for element, visible in want.items():
             _set_visible(element, visible)
 

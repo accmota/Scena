@@ -584,6 +584,23 @@ class TestAltDragAndSelectGroup(unittest.TestCase):
         self.assertEqual(e.selection, [a, c])
         self.assertFalse(e.history.can_undo)
 
+    def test_selected_group_is_computed_from_the_selection(self):
+        e = ed()
+        a = e.doc.add({"kind": "point", "groups": ["robo"], "center": (0, 0)})
+        b = e.doc.add({"kind": "point", "groups": ["chao", "Bloco"], "center": (5, 0)})
+        c = e.doc.add({"kind": "point", "groups": ["chao", "robo", "Bloco"], "center": (9, 0)})
+        self.assertIsNone(e.selected_group())                 # nothing selected
+        e.select_group("robo")
+        self.assertEqual(e.selected_group(), "robo")
+        e.selection = [a, c, b]                                # one more: no longer the group
+        self.assertIsNone(e.selected_group())
+        e.selection = [a]                                      # part of it: neither
+        self.assertIsNone(e.selected_group())
+        e.selection = [c, b]                                   # chao and Bloco: same items
+        self.assertEqual(e.selected_group(), "Bloco")          # the first A–Z (any case)
+        e.set_groups("robo", [b])                              # the group changes under it
+        self.assertIsNone(e.selected_group())
+
 
 class TestToolsAndImages(unittest.TestCase):
     def test_choosing_select_clears_the_selection(self):

@@ -190,13 +190,13 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   has P because it is used most; T is left free for a Text tool. Panel: name, groups
   (comma-separated), numeric geometry, locked, guide; Copy as code,
   Duplicate, Delete, Front / Back; several selected: shared groups, X / Y,
-  Select group, Row / Column. Status bar: cursor in Scena units, zoom,
+  Row / Column. Status bar: cursor in Scena units, zoom,
   file and unsaved mark.
 - **Layout:** the left toolbar holds only what you create — Rect, Ellipse,
   Circle, Line, Polygon, Regular polygon, Track, Point, a gap, Image (it
   opens a file dialog).
   The top bar: New / Open / Save / Save as │ Undo / Redo │ Snap, grid step │
-  Select, Pan, Fit, 100%. Undo / Redo are text Buttons, faded (`enabled`)
+  Select, Pan, Fit, 100% │ Select group [▾]. Undo / Redo are text Buttons, faded (`enabled`)
   when there is nothing to undo / redo.
 - **Tool buttons are icons** (`scena_editor/toolbar.py`): each drawn with the
   Scena shape the tool makes (the Polygon button is a `Polygon`; Select an
@@ -380,13 +380,22 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   case-insensitive) — a hint, never a refusal; it leads the note, since a
   long note is cut at the status bar's end (`Editor.set_groups`).
 - **Several selected, panel:** Groups, X / Y of the box of the items that
-  move (typing moves them, `Editor.move_selection_to`), Select group, Row /
-  Column, and the item buttons.
-- **Select group…** (a DropDown, when nothing or several are selected and
-  the level has groups): the level's groups A–Z; choosing one selects its
-  items in file order and the list returns to "Select group…". A long list
-  of groups scrolls (Scena's DropDown stops at the window edge and scrolls
-  with the wheel).
+  move (typing moves them, `Editor.move_selection_to`), Row / Column, and
+  the item buttons; the title adds the group when the selection is one
+  ("4 selected · robo").
+- **Select group [▾]** (top bar, after 100%): a selection command beside the
+  Select tool — where the reference editors keep "select by …" (Illustrator
+  Select ▸ Same, Figma "Select matching layers"), not in the inspector; fixed,
+  so it never moves with the panel. The list: "—" and the level's groups A–Z
+  (faded when there are none). Choosing a group selects its items in file
+  order. **Its value is computed from the selection, never remembered**
+  (`Editor.selected_group`): the group's name while the selection is exactly
+  that group's items (two groups with the same items: the first A–Z), else
+  "—". A remembered pick would lie the moment a Shift+click changed the
+  selection. (A first version lived in the panel, showed "Select group…"
+  always and reset after a pick: no feedback, and it jumped between two
+  rows.) Choosing "—" selects nothing. A long list scrolls (Scena's
+  DropDown stops at the window edge and scrolls with the wheel).
 - **Panel:** a line shows X1 / Y1 / X2 / Y2 (other kinds X / Y = center); an
   image path is shortened in the middle to fit; the unsaved-changes prompt
   uses a lighter panel and a smaller font than the Menu default.

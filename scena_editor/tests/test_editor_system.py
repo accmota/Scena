@@ -335,33 +335,55 @@ class TestEditorOnFrames(EditorSystemCase):
         self.assertEqual(ed.doc.get(ed.selection[0])["center"], (60, 0))
         self.assertViewMatchesDoc()
 
-    def test_select_group_dropdown_selects_resets_and_follows_the_groups(self):
+    def test_select_group_shows_the_group_the_selection_is(self):
+        """Top bar "Select group [▾]": its value is computed from the selection —
+        the group's name while the selection is exactly its items, else "—"."""
+        from scena.uiwidget import UIWidget
         app = self.app
         ed = app.editor
         p = app.panel
-        none_pick, many_pick = p.group_picks
+        pick = p.group_pick
         self.frame()
-        self.assertFalse(none_pick.visible)                 # no groups yet
+        self.assertTrue(pick.visible)
+        self.assertFalse(pick.enabled)                      # no groups yet: faded
+        self.assertEqual(pick.data.value, "—")
         a = ed.doc.add({"kind": "point", "groups": ["robo"], "center": (0, 0)})
         b = ed.doc.add({"kind": "point", "groups": ["robo"], "center": (9, 0)})
-        ed.doc.add({"kind": "point", "groups": ["chao"], "center": (5, 0)})
+        c = ed.doc.add({"kind": "point", "groups": ["chao"], "center": (5, 0)})
         ed.history.commit()
         self.frame()
-        self.assertTrue(none_pick.visible)
-        self.assertEqual(none_pick.options, ["Select group…", "chao", "robo"])   # A–Z
-        none_pick.data.value = "robo"
+        self.assertTrue(pick.enabled)
+        self.assertEqual(pick.options, ["—", "chao", "robo"])   # A–Z
+        pick.data.value = "robo"                                # the user picks it
         self.frame(2)
         self.assertEqual(ed.selection, [a, b])
-        self.assertEqual(none_pick.data.value, "Select group…")
-        self.assertFalse(none_pick.visible)
-        self.assertTrue(many_pick.visible)
-        p.many["groups"].input.data.value = "inimigo"       # rename the shared group
+        self.assertEqual(pick.data.value, "robo")               # and it says so
+        self.assertIn("robo", str(p.title.text))
+        ed.selection = [a, b, c]                                # Shift+click one more
+        self.frame()
+        self.assertEqual(pick.data.value, "—")                  # no longer a group
+        ed.selection = [c]
+        self.frame()
+        self.assertEqual(pick.data.value, "chao")               # one item can be a group
+        pick.data.value = "—"                                   # choosing "—" selects nothing
         self.frame(2)
-        self.assertEqual(many_pick.options, ["Select group…", "chao", "inimigo"])
-        many_pick.data.value = "chao"
+        self.assertEqual(ed.selection, [c])
+        self.assertEqual(pick.data.value, "chao")               # still the truth
+        p.fields["groups"].input.data.value = "inimigo"         # rename under it
         self.frame(2)
-        self.assertEqual(len(ed.selection), 1)
-        self.assertFalse(many_pick.visible)
+        self.assertEqual(pick.options, ["—", "inimigo", "robo"])
+        self.assertEqual(pick.data.value, "inimigo")
+        # Fixed in the top bar, inside the window, clear of the other widgets.
+        wm = self.w.fw.widget_manager
+        box = pick.box
+        self.assertLessEqual(box.right, DESIGN[0])
+        self.assertLessEqual(p.group_label.box.right, box.left)
+        for w in wm.widgets:
+            if w is pick or not isinstance(w, UIWidget) or not w.visible:
+                continue
+            wb = w.box
+            self.assertFalse(box.left < wb.right and wb.left < box.right
+                             and box.bottom < wb.top and wb.bottom < box.top, w)
 
     def test_save_writes_a_level_the_game_reads(self):
         from scena import Level

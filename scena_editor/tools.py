@@ -564,6 +564,20 @@ class Editor:
         """Select every item in group ``name``, in file order (not an undo step)."""
         self.selection = [it["id"] for it in self.doc.items if name in it["groups"]]
 
+    def selected_group(self) -> Optional[str]:
+        """The group whose items are exactly the selection, else None — computed
+        from the selection, never remembered: a Shift+click more and it is None.
+        Two groups with the same items: the first A–Z."""
+        chosen = set(self.selection)
+        if not chosen:
+            return None
+        members: Dict[str, set] = {}
+        for it in self.doc.items:
+            for g in it["groups"]:
+                members.setdefault(g, set()).add(it["id"])
+        exact = [g for g, ids in members.items() if ids == chosen]
+        return min(exact, key=lambda g: (g.casefold(), g)) if exact else None
+
     def nudge(self, dx: float, dy: float) -> None:
         for it in self.selected_items():
             if not it["locked"]:
