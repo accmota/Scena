@@ -68,7 +68,7 @@ def _diff(before, after):
 def _trace(before, *, cursors=True):
     """Census diff vs ``before``; collect garbage only if something moved (speed).
     ``cursors=False`` ignores widget layout cursors (construct-then-remove)."""
-    d = _diff(before, surface_census(collect=False))
+    d = _diff(before, surface_census(collect=False))  # unsettled on purpose: re-checked settled
     if d:
         settle()
         d = _diff(before, surface_census())

@@ -37,6 +37,7 @@ import warnings
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from graph_support import gc_paused  # noqa: E402
 from hypothesis_support import fresh_world, quiet  # noqa: E402
 
 import geometry_support as G  # noqa: E402
@@ -283,8 +284,15 @@ def _shift(obj, src):
 _HELD = ("registry.", "collision.colliders", "collision.tag", "hitbox.", "sched.", "fx.", "bounds.")
 
 
-def _census_moved(c0) -> dict:
-    d = census_diff(c0, surface_census(collect=False))
+def _census_moved(c0, c1) -> dict:
+    """Held counts that moved from ``c0`` to ``c1``.
+
+    Both censuses skip the collect, so both count pending garbage: the roster
+    (``registry.live``) is weak, and an earlier case's throwaway (a measuring
+    Box's center Point, a reference cycle) stays in it until a full GC pass.
+    Take both inside one ``gc_paused()`` block, or a pass that lands between
+    them moves the count (O12, Testing Design)."""
+    d = census_diff(c0, c1)
     return {k: v for k, v in d.items() if k.startswith(_HELD) and k != "sched.every_sites"}
 
 
@@ -328,8 +336,10 @@ def _probe_once(kind, run, prepare, accept, skip):
         if extra is False:
             return None                       # this source does not apply to the kind
         s0 = {k: v for k, v in observable(obj).items() if k not in skip}
-        c0 = surface_census(collect=False)
-        err = run(obj)
+        with gc_paused():                     # the census window (O12)
+            c0 = surface_census(collect=False)
+            err = run(obj)
+            c1 = surface_census(collect=False)
         if err is None and not accept(None):
             return None                       # ran: other guards judge what it did
         if err is not None and not accept(err):
@@ -338,7 +348,7 @@ def _probe_once(kind, run, prepare, accept, skip):
         moved = _changed(s0, s1)
         if moved:
             return ("raised " + err if err else "ran") + ": " + ", ".join(moved[:5])
-        grew = _census_moved(c0)
+        grew = _census_moved(c0, c1)
         if grew:
             return ("raised " + err if err else "ran") + ": census " + ", ".join(sorted(grew)[:3])
         return None
@@ -413,6 +423,58 @@ class TestRefusalIsAtomic(unittest.TestCase):
                        [("scena.entity", "_refuse_if_destroyed", lambda *a, **k: None)],
                        "writes on a destroyed actor that are stored")
 
+
+def _roster_garbage():
+    """A throwaway that holds a roster entry and that only the cyclic GC frees:
+    O12's measuring Box, whose center Point registers."""
+    box = scena.Box(center=(1, 1), width=2, height=2)
+    box.center
+    return box
+
+
+class TestCensusWindowIgnoresEarlierGarbage(unittest.TestCase):
+    """O12 made deterministic. An earlier case's garbage holds roster entries
+    (``registry.live`` is weak) and a GC pass lands inside the call: what an
+    automatic pass did under parallel load, a different case each time."""
+
+    def test_planted_garbage_holds_a_roster_entry(self):
+        """Not vacuous: the plant is in an unsettled count and leaves at a collect."""
+        import gc
+        from hypothesis_support import registry
+        with fresh_world(), gc_paused():
+            n = len(registry().live)
+            _roster_garbage()
+            self.assertGreater(len(registry().live), n)
+            gc.collect()
+            self.assertEqual(len(registry().live), n)
+
+    def test_a_collection_inside_the_call_moves_nothing(self):
+        import gc
+        held = []
+
+        def plant(obj):
+            held.append(_roster_garbage())  # alive at the baseline census
+            obj.destroy()
+
+        def run(obj):
+            held.clear()                    # from here only the cyclic GC frees it
+            if gc.isenabled():              # where an automatic pass may land
+                gc.collect()
+            return _call(obj, "show_points", (), {})
+
+        with fresh_world():
+            self.assertIsNone(_probe("Anchor", run, plant, lambda e: True))
+            gc.collect()
+
+    def test_canary_a_census_window_open_to_the_gc(self):
+        import contextlib
+        from diff_support import assert_catches
+        assert_catches(self, "test_refusal_atomic.TestCensusWindowIgnoresEarlierGarbage"
+                             ".test_a_collection_inside_the_call_moves_nothing",
+                       [("graph_support", "gc_paused", contextlib.nullcontext)],
+                       "a GC pass between the two censuses")
+
+
 class TestRefusedSpriteCallsChangeNothing(unittest.TestCase):
     """R2 sites a signature cannot reach: each refusal leaves the actor as it was."""
 
@@ -472,10 +534,11 @@ class TestRefusedSpriteCallsChangeNothing(unittest.TestCase):
         # E9: clone(scale="x") left a live, registered clone; a dead source cloned.
         with fresh_world():
             c = scena.Circle(center=(0, 0), radius=3)
-            c0 = surface_census(collect=False)
-            with self.assertRaises(TypeError):
-                c.clone(scale="x")
-            self.assertEqual(_census_moved(c0), {})
+            with gc_paused():
+                c0 = surface_census(collect=False)
+                with self.assertRaises(TypeError):
+                    c.clone(scale="x")
+                self.assertEqual(_census_moved(c0, surface_census(collect=False)), {})
             c.destroy()
             with self.assertRaises(DestroyedError):
                 c.clone()

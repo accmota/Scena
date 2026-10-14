@@ -17,6 +17,11 @@ written without it, so it is checked here:
   same module that settles; or its class's ``setUp`` settles. One bare
   ``gc.collect()`` is not a settle: GC-backstop finalizers free more on a
   later pass.
+* **Static, censuses** (O12): a ``census(collect=False)`` /
+  ``surface_census(collect=False)`` follows a settle the same way, usually
+  ``gc_paused()`` around both censuses. The roster (``registry.live``) is
+  weak too: a census pair the GC can run between moved ``registry.live``
+  under parallel load, a different case each run.
 * **Dynamic**: ``run_with_collections`` plants garbage that holds graph nodes
   and forces a full collection at each ``assertRaises`` / ``assertEqual``;
   the O9 test passes under it, and O9's original shape fails (canary).
@@ -40,8 +45,9 @@ TEST_DIRS = [os.path.join(ROOT, "tests"), os.path.join(ROOT, "scena_editor", "te
 # Calls that settle the graph before a count (by name, with or without a
 # module prefix: ``full_collect`` / ``system_support.full_collect``).
 _SETTLE_NAMES = frozenset({"full_collect", "settled_graph_size", "gc_paused"})
-# A line that reads a raw count on purpose (this module's canary).
-_CANARY = "unsettled on purpose (canary)"
+# A line that reads a raw count on purpose (this module's canary, or a
+# count re-checked settled when it moves), said in a comment on the line.
+_ON_PURPOSE = "unsettled on purpose"
 
 
 def _is_count(node: ast.AST) -> bool:
@@ -54,6 +60,13 @@ def _is_count(node: ast.AST) -> bool:
             and arg.func.id == "list" and len(arg.args) == 1):
         arg = arg.args[0]
     return isinstance(arg, ast.Attribute) and arg.attr == "nodes"
+
+
+def _is_unsettled_census(node: ast.AST) -> bool:
+    """``census(collect=False)`` / ``surface_census(collect=False)``."""
+    return (isinstance(node, ast.Call) and _callee(node) in ("census", "surface_census")
+            and any(k.arg == "collect" and isinstance(k.value, ast.Constant)
+                    and k.value.value is False for k in node.keywords))
 
 
 def _callee(call: ast.Call):
@@ -89,7 +102,7 @@ def _settle_lines(fn: ast.AST, settlers: set):
 
 
 def unsettled_counts(source: str, filename: str = "<src>"):
-    """``(line, function)`` of every graph count no settle precedes."""
+    """``(line, function)`` of every graph count or unsettled census no settle precedes."""
     tree = ast.parse(source, filename)
     funcs = [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
     settlers = set(_SETTLE_NAMES)
@@ -120,7 +133,7 @@ def unsettled_counts(source: str, filename: str = "<src>"):
     out = []
     for fn in funcs:
         for node in _own_nodes(fn):
-            if not _is_count(node):
+            if not (_is_count(node) or _is_unsettled_census(node)):
                 continue
             chain, f = [], fn
             while f is not None:
@@ -142,15 +155,16 @@ class TestGraphCountsAreSettled(unittest.TestCase):
             for path in iter_files(root, ".py", recursive=True):
                 with open(path, encoding="utf-8") as fh:
                     source = fh.read()
-                if ".nodes" not in source:
+                if ".nodes" not in source and "collect=False" not in source:
                     continue
                 rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
                 lines = source.splitlines()
                 bad += [f"{rel}:{line} in {fn}()" for line, fn in unsettled_counts(source, path)
-                        if _CANARY not in lines[line - 1]]
-        self.assertEqual(bad, [], "a graph count with no settle before it (call "
-                         "tests.graph_support.settled_graph_size() / full_collect() "
-                         "first; Testing Design, Harness pitfalls, O9):\n  " + "\n  ".join(bad))
+                        if _ON_PURPOSE not in lines[line - 1]]
+        self.assertEqual(bad, [], "a graph count or unsettled census with no settle before it "
+                         "(call tests.graph_support.settled_graph_size() / full_collect() "
+                         "first, or take both censuses inside gc_paused(); Testing Design, "
+                         "Harness pitfalls, O9 / O12):\n  " + "\n  ".join(bad))
 
     def test_the_scan_tells_settled_from_unsettled(self):
         """The guard is not vacuous: the O9 shape fails, the fixed shapes pass."""
@@ -168,9 +182,19 @@ class TestGraphCountsAreSettled(unittest.TestCase):
             "def test(self):\n"
             "    before = len(graph.nodes)\n"
             "    full_collect()\n")), 1)
+        flagged = unsettled_counts(                     # O12: a census pair open to the GC
+            "def probe(run):\n"
+            "    c0 = surface_census(collect=False)\n"
+            "    run()\n"
+            "    return census_diff(c0, census(collect=False))\n")
+        self.assertEqual([line for line, _ in flagged], [2, 4])
+        self.assertEqual(unsettled_counts(              # a collecting census is settled
+            "def probe(run):\n    c0 = census()\n    c1 = census(collect=True)\n"), [])
         for ok in (
             "def test(self):\n    full_collect()\n    n = len(g.nodes)\n",
             "def test(self):\n    with gc_paused():\n        n = len(g.nodes)\n",
+            "def probe(run):\n    with gc_paused():\n        c0 = census(collect=False)\n"
+            "        run()\n        c1 = surface_census(collect=False)\n",
             "import gc\ndef test(self):\n    gc.disable()\n    n = len(g.nodes)\n",
             # a module helper that settles, called first; and the helper itself
             "def _count(g):\n    full_collect()\n    return len(g.nodes)\n"
