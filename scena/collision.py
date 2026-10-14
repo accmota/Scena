@@ -158,6 +158,11 @@ _QUERY_VECTOR = True
 # closed-form swept SAT instead of conservative advancement (Collision Design,
 # "Polygon sweeps"). False: GJK advancement (oracle, A/B).
 _SWEEP_SAT = True
+# A sweep stop between two movable bodies splits the leftover approach by
+# inverse mass, as settle does (Collision Design, "Relative-frame sweep"): the
+# body takes its share and the partner is pushed by the rest. False: the body
+# swept first takes it all, whatever the masses (the old rule; A/B).
+_SWEEP_MASS_SPLIT = True
 # Resolve partner scans (sweep casts, settle and recovery passes, floor_below
 # without group=) prefilter a large pool on the proxy mirror, then run the
 # same exact test on what is left (Collision Design, "Moved set and
@@ -4795,6 +4800,11 @@ class CollisionSystem:
         # floor-snap early-out (avoids scanning ``_solve_contacts``).
         self._solve_contact_sides: Dict[Tuple[int, int], Tuple[Optional[str], Optional[str]]] = {}
         self._solve_bottom_count: Dict[int, int] = {}
+        # Bodies whose resolve turn began this pass, and the pass's STATIC
+        # resolve bodies (``_share_sweep_stop``, ``_push_reach``).
+        self._swept_ids: Set[int] = set()
+        self._pass_statics: List["Collider"] = []
+        self._pass_static_rows = None
         # Standing resolve on/off. Detection, queries, and @collide stay live.
         self._resolve_enabled = True
         # Fast colliders of the current step (swept detection). Filled by
@@ -6742,6 +6752,7 @@ class CollisionSystem:
             return
         # Walk declared resolve members only (not every enrolled collider).
         bodies: List[Collider] = []
+        statics: List[Collider] = []
         grounded_at_start: Dict[int, bool] = {}
         seen: Set[int] = set()
         for ta, tb, _tok, _only in self._resolve_pairs:
@@ -6756,6 +6767,7 @@ class CollisionSystem:
                     sides = getattr(ident, "touching_sides", frozenset()) or frozenset()
                     grounded_at_start[cid] = "bottom" in sides
                     if _is_static_mass(mass):
+                        statics.append(c)
                         continue
                     bodies.append(c)
         bodies.sort(key=lambda c: self._collider_index.get(id(c), id(c)))
@@ -6770,7 +6782,12 @@ class CollisionSystem:
         # ``only=`` costs nothing here unless some pair has it: one bool per
         # body, and the gate is read only after a hit or an overlap is found.
         has_only = self._has_only
+        swept = self._swept_ids
+        swept.clear()
+        self._pass_statics = statics
+        self._pass_static_rows = None
         for ca in bodies:
+            swept.add(id(ca))
             partners = self._resolve_pool(ca)
             if not partners:
                 continue
@@ -7339,6 +7356,15 @@ class CollisionSystem:
             if first and (odx or ody):
                 ox += odx * (1.0 - t)
                 oy += ody * (1.0 - t)
+            if _SWEEP_MASS_SPLIT and nlen > 1e-12:
+                if first:
+                    gap = ((rdx - odx) * nx + (rdy - ody) * ny) * (1.0 - t)
+                else:
+                    gap = (rdx * nx + rdy * ny) * (1.0 - t)
+                if gap > 0.0:
+                    sx, sy = self._share_sweep_stop(ca, other, nx, ny, gap)
+                    ox += sx
+                    oy += sy
             side = _side_from_normal(nx, ny)
             if side == "bottom" and abs(dx) < _STOP_ON_SLOPE_INTENT:
                 remaining = (0.0, 0.0)
@@ -7482,9 +7508,116 @@ class CollisionSystem:
             ny /= nlen
         ox = odx * (1.0 - t) - nx * _RESOLVE_SLOP
         oy = ody * (1.0 - t) - ny * _RESOLVE_SLOP
+        if _SWEEP_MASS_SPLIT and nlen > 1e-12:
+            gap = -(odx * nx + ody * ny) * (1.0 - t)
+            if gap > 0.0:
+                sx, sy = self._share_sweep_stop(ca, other, nx, ny, gap)
+                ox += sx
+                oy += sy
         self._record_solve_contact(ca, other, nx, ny, 0.0)
         self._respond_velocity(ca, other, token, nx, ny)
         self._nudge_collider(ca, ox, oy)
+
+    def _share_sweep_stop(
+        self, ca: Collider, cb: Collider, nx: float, ny: float, gap: float,
+    ) -> Tuple[float, float]:
+        """Push a movable partner by its share of a sweep stop; returns the push.
+
+        ``gap`` is how far the pair would still close along the unit normal
+        ``(nx, ny)`` (body toward partner) after the stop. The stop placed the
+        body as if it absorbed all of it and the skin; the partner takes
+        ``inv_b / (inv_a + inv_b)`` of both instead, and the body follows by
+        the same vector, so the contact holds. A partner whose turn is still to
+        come carries the push in its motion channel too: its own sweep then
+        travels it (a wall behind it stops it) instead of starting past it.
+        """
+        ib = cb._identity
+        mb = float(getattr(ib, "mass", 1.0)) if ib is not None else 1.0
+        if _is_static_mass(mb):
+            return 0.0, 0.0
+        ia = ca._identity
+        ma = float(getattr(ia, "mass", 1.0)) if ia is not None else 1.0
+        inv_b = 1.0 / mb
+        k = (gap + _RESOLVE_SLOP) * inv_b / (1.0 / ma + inv_b)
+        k *= self._push_reach(ca, cb, nx * k, ny * k)
+        if k <= 0.0:
+            return 0.0, 0.0
+        sx = nx * k
+        sy = ny * k
+        self._nudge_collider(cb, sx, sy)
+        if id(cb) not in self._swept_ids:
+            if cb._motion_translation:
+                cb._motion_dx += sx
+                cb._motion_dy += sy
+            else:
+                cb._motion_dx = sx
+                cb._motion_dy = sy
+                cb._motion_translation = True
+            self._snap_hot.add(cb)          # the next step resets this motion
+        return sx, sy
+
+    def _push_reach(self, ca: Collider, cb: Collider, sx: float, sy: float) -> float:
+        """How much of the push ``(sx, sy)`` the partner ``cb`` travels before a
+        STATIC partner of its own stops it (1.0: all of it).
+
+        The push is swept, so a light body shoved toward a thin wall stops at
+        it instead of being placed past it. Only STATIC partners clamp: a
+        movable one in the way is met by ``cb``'s own sweep (it carries the
+        push in its motion channel) or by settle. The pass's STATIC bodies do
+        not move during it, so their boxes are tested first and ``cb``'s
+        partner list is read only when one is near (a pile's inner pushes
+        meet none).
+        """
+        statics = self._pass_statics
+        if not statics:
+            return 1.0
+        pbs = self._world_prims(cb)
+        if not pbs:
+            return 1.0
+        minx = min(p.aabb[0] for p in pbs)
+        miny = min(p.aabb[1] for p in pbs)
+        maxx = max(p.aabb[2] for p in pbs)
+        maxy = max(p.aabb[3] for p in pbs)
+        x0, y0, x1, y1 = _swept_aabb((minx, miny, maxx, maxy), sx, sy)
+        rows = self._pass_static_rows
+        if rows is None and len(statics) >= _POOL_VECTOR_MIN:
+            idx = self._collider_index
+            try:
+                rows = np.fromiter((idx[id(c)] for c in statics), dtype=np.intp,
+                                   count=len(statics))
+            except KeyError:
+                rows = False                # not all on the mirror: scan them
+            self._pass_static_rows = rows
+        if rows is None or rows is False:
+            near = []
+            for c in statics:
+                pb = c._proxy
+                if not (pb[0] > x1 or x0 > pb[2] or pb[1] > y1 or y0 > pb[3]):
+                    near.append(c)
+        else:
+            near = [statics[i] for i in _rows_meeting(self._box_array(), rows, 0, x0, y0, x1, y1)]
+        if not near:
+            return 1.0
+        pool = self._resolve_pool(cb)
+        if type(pool) is _PartnerPool:
+            members = pool.members
+        else:
+            members = {id(c) for c, _tok, _odx, _ody in pool}
+        walls = [(c, None, 0.0, 0.0) for c in near if c is not ca and id(c) in members]
+        if not walls:
+            return 1.0
+        gate = None
+        if self._has_only:
+            only_map = self._resolve_only_map(cb)
+            if only_map is not None:
+                gate = _QueryOnlyGate(self, cb, only_map, self._passing.get(id(cb), {}))
+        hit = self._earliest_toi(pbs, sx, sy, walls, gate=gate)
+        if hit is None:
+            return 1.0
+        dist = math.hypot(sx, sy)
+        if dist < 1e-12:
+            return 1.0
+        return max(0.0, min(1.0, hit[0]) - _RESOLVE_SLOP / dist)
 
     def _settle_normal(
         self,

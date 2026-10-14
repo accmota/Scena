@@ -3872,6 +3872,168 @@ class TestResolution(CollisionTestCase):
         self.assertGreater(float(hero.vel.y), 50.0)
 
 
+class TestSweepMassSplit(CollisionTestCase):
+    """A sweep stop between two movable bodies splits by inverse mass (MS1).
+
+    Bug class: the body swept first (lower ``_collider_index``) stopped at the
+    contact and inherited the partner's leftover, whatever the masses. Every
+    position outcome between two finite masses then depended on enrollment
+    order: a crate was never pushed (player first) or pushed at full player
+    speed even at mass 50 (crate first); a mass-1 floor held a rider or sank
+    under it; a spring-held wall driven by ``move_by`` was carried by a ball's
+    whole step and the box gained ~45 % energy in 10 s. Each test runs both
+    orders and asserts they agree. Collision Design, "Relative-frame sweep".
+    """
+
+    DT = 1.0 / 60.0
+
+    def fresh(self):
+        """An empty world for the next run (the two orders must not meet)."""
+        for s in self._owned:
+            try:
+                s.destroy()
+            except Exception:
+                pass
+        self._owned.clear()
+        reset_collision_system()
+
+    def enroll(self, *bodies):
+        """Enroll in this order (the sweep order)."""
+        for b in bodies:
+            b.collidable = True
+
+    def spring_box(self, wall_first: bool, k: float = 6.0, wall_mass: float = 50.0):
+        """Balls between STATIC walls and a spring-held wall moved by ``move_by``:
+        the spring reads the pose. Returns the energy ratio after 10 s."""
+        self.fresh()
+        ox, oy = self.at(0, 0)
+        home = ox + 300.0
+        fixed = [
+            self.track(Rect(center=(ox - 20, oy), width=20, height=400, group="fixo")),
+            self.track(Rect(center=(ox + 140, oy + 210), width=340, height=20, group="fixo")),
+            self.track(Rect(center=(ox + 140, oy - 210), width=340, height=20, group="fixo")),
+        ]
+        for f in fixed:
+            f.mass = STATIC
+        wall = self.track(Rect(center=(home, oy), width=20, height=400, group="mola"))
+        wall.mass = wall_mass
+        wall.vel = Vec2(0, 0)
+        balls = []
+        for i in range(6):
+            b = self.track(Circle(center=(ox + 50 + 30 * i, oy - 150 + 60 * i), radius=7,
+                                  group="bola"))
+            b.vel = Vec2(400.0 * (1 if i % 2 else -1), 37.0 * (i - 2.5))
+            balls.append(b)
+        self.enroll(*fixed, *(([wall] + balls) if wall_first else (balls + [wall])))
+        resolve("bola", ["mola", "fixo"], bounce=1)
+        resolve("bola", "bola", bounce=1)
+
+        def energy():
+            e = sum(0.5 * b.mass * b.vel.length ** 2 for b in balls)
+            x = float(wall.center.x) - home
+            return e + 0.5 * wall_mass * (wall.vel.length ** 2 + k * x * x)
+
+        e0 = energy()
+        for _ in range(600):
+            wall.vel = Vec2(wall.vel.x - (float(wall.center.x) - home) * k * self.DT, 0.0)
+            wall.move_by(wall.vel.x * self.DT, 0)
+            for b in balls:
+                b.move_by(b.vel.x * self.DT, b.vel.y * self.DT)
+            self.step()
+        return energy() / e0
+
+    def test_spring_held_body_keeps_its_energy_in_either_order(self):
+        for wall_first in (True, False):
+            with self.subTest(wall_first=wall_first):
+                self.assertAlmostEqual(self.spring_box(wall_first), 1.0, delta=0.02)
+
+    def test_mass_blind_sweep_gains_energy_canary(self):
+        """The old rule fails the energy test above: the test catches the class."""
+        from unittest import mock
+        coll = sys.modules["scena.collision"]    # ``scena.collision`` is the facade
+        with mock.patch.object(coll, "_SWEEP_MASS_SPLIT", False):
+            self.assertGreater(self.spring_box(wall_first=True), 1.2)
+
+    def push_crate(self, player_first: bool, crate_mass: float):
+        self.fresh()
+        ox, oy = self.at(0, 0)
+        player = self.track(Rect(center=(ox, oy), width=20, height=20, group="jogador"))
+        crate = self.track(Rect(center=(ox + 30.5, oy), width=20, height=20, group="caixa"))
+        crate.mass = crate_mass
+        self.enroll(*((player, crate) if player_first else (crate, player)))
+        resolve("jogador", "caixa")
+        for _ in range(30):
+            player.move_by(300.0 * self.DT, 0)
+            self.step()
+        return float(player.center.x) - ox, float(crate.center.x) - ox - 30.5
+
+    def test_push_splits_by_mass_in_either_order(self):
+        for mass in (1.0, 50.0):
+            a = self.push_crate(True, mass)
+            b = self.push_crate(False, mass)
+            with self.subTest(mass=mass):
+                self.assertAlmostEqual(a[0], b[0], places=6)
+                self.assertAlmostEqual(a[1], b[1], places=6)
+                # 150 DU of intent, ~10.5 of them before the contact: the crate
+                # takes 1 / (1 + mass) of the rest, the player keeps up with it.
+                share = 1.0 / (1.0 + mass)
+                self.assertAlmostEqual(b[1], 139.5 * share, delta=1.5)
+                self.assertAlmostEqual(a[0] - a[1], 10.42, delta=0.05)
+
+    def test_static_partner_takes_no_share(self):
+        player, crate = self.push_crate(True, STATIC)
+        self.assertEqual(crate, 0.0)
+        self.assertAlmostEqual(player, 10.42, delta=0.01)
+
+    def finite_floor(self, floor_first: bool):
+        self.fresh()
+        ox, oy = self.at(0, 0)
+        floor = self.track(Rect(center=(ox, oy), width=200, height=20, group="chao"))
+        hero = self.track(Rect(center=(ox, oy + 30.08), width=20, height=40, group="heroi"))
+        self.enroll(*((floor, hero) if floor_first else (hero, floor)))
+        floor.vel = Vec2(0, 0)
+        hero.vel = Vec2(0, 0)
+        resolve("heroi", "chao", bounce=0.0)
+        for _ in range(60):
+            hero.vel.y -= 900.0 * self.DT
+            hero.move_by(0, hero.vel.y * self.DT)
+            self.step()
+        return float(floor.center.y) - oy, float(hero.center.y) - float(floor.center.y)
+
+    def test_movable_floor_under_a_rider_is_order_free(self):
+        """A floor left at mass 1 is a body: an equal mass falling on it pushes
+        it (STATIC is the floor that does not give). Before, it held or sank
+        depending on who enrolled first."""
+        a = self.finite_floor(True)
+        b = self.finite_floor(False)
+        self.assertAlmostEqual(a[0], b[0], places=6)
+        self.assertLess(a[0], -10.0)
+        self.assertAlmostEqual(a[1], 30.08, delta=0.05)
+        self.assertAlmostEqual(b[1], 30.08, delta=0.05)
+
+    def test_push_into_a_thin_wall_stops_at_it(self):
+        """The partner's share is swept against its STATIC partners: a light
+        body shoved toward a 2 DU wall is not placed past it, and the pusher
+        stops against it."""
+        for speed in (600.0, 2400.0, 6000.0):
+            with self.subTest(speed=speed):
+                self.fresh()
+                ox, oy = self.at(0, 0)
+                wall = self.track(Rect(center=(ox + 100, oy), width=2, height=200, group="fixo"))
+                wall.mass = STATIC
+                face = ox + 99.0
+                a = self.track(Circle(center=(ox, oy), radius=8, group="bola"))
+                b = self.track(Circle(center=(face - 8 - 0.08, oy), radius=8, group="bola"))
+                b.mass = 0.2
+                self.enroll(wall, a, b)
+                resolve("bola", ["bola", "fixo"])
+                for _ in range(30):
+                    a.move_by(speed * self.DT, 0)
+                    self.step()
+                    self.assertLessEqual(float(b.center.x) + 8, face + 1e-6)
+                    self.assertLessEqual(float(a.center.x), float(b.center.x))
+
+
 class TestSweepAndSlideGates(CollisionTestCase):
     """Phase 1 gates from the sweep-and-slide rework (Collision Resolution Redesign §4 / §10).
 

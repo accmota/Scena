@@ -321,6 +321,17 @@ left out.
   Before, the place was taken and ignored: the moon circled its own start
   and `is_floating` stayed `True`. To draw a track somewhere while each
   rider still starts from where it is, say so: `floating=True`.
+- `resolve()` between two bodies that both move (neither is `STATIC`) now
+  splits the push by mass, whichever body was made first, as the Guia says
+  ("duas massas iguais se empurram meio a meio"). Before, the body checked
+  first was carried by the other's whole step, whatever the masses: a crate
+  made before the player was pushed at full speed even at mass 50, and one
+  made after it was never pushed; a wall of mass 50 held by a spring was
+  shoved by every ball and the box gained energy (+45 % in 10 s). `.vel`
+  already split by mass; now the position agrees. If a floor, wall or
+  moving platform must not give, make it `STATIC`: left at the default
+  mass `1`, it now yields under an equal mass in every order (before, only
+  when it was made first).
 
 ### Documentation
 
@@ -331,6 +342,9 @@ left out.
   Checkboxes turn on gravity, loose outer walls (nothing holds them: the
   pressure pushes them off and the box bursts) and a free middle wall that
   moves like a piston.
+- Guia, "Tornar sólido": a floor, wall or platform that must not give is
+  `STATIC`. Between two bodies that move, the push splits by mass, so one
+  left at the default mass `1` sinks under an equal-mass hero.
 - Guia, "Tornar sólido": `resolve(hero, ANYTHING)` makes every enrolled body
   solid, coins, shots and sensors included (the hero shoves the coin instead
   of passing through it; its `@collide` still fires). Name the solid groups

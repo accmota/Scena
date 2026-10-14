@@ -9,13 +9,14 @@ models here are the example's own bookkeeping (``.vel``, ``.mass``), never
 ``energia()`` or the HUD.
 
 Bug class guarded: **a position-dependent force on a body that ``resolve()``
-also pushes**. The sweep is mass-blind between two movable bodies (Collision
-Design, "Relative-frame sweep": the body swept first stops and inherits the
-partner's leftover motion), so a heavy wall swept before a light ball is
-carried by the ball's whole step. Free walls pay nothing for that shove; an
-early draft held them with a spring that read the pose, and the box gained
-~5 % energy per second. The energy check on the loose walls fails if a force
-that reads the position comes back without the fix in that section.
+also pushes**. The sweep used to be mass-blind between two movable bodies:
+the body swept first stopped and took the whole approach, so a heavy wall
+swept before a light ball was carried by the ball's whole step. An early
+draft held the walls with a spring that read the pose, and the box gained
+~5 % energy per second. The sweep now splits by mass (Collision Design,
+"Mass split between two movable bodies"; unit guard
+``test_collision.TestSweepMassSplit``); the energy check on the loose walls
+here fails if that shove comes back.
 
 Run:
 

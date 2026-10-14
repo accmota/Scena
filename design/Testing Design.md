@@ -2315,6 +2315,26 @@ a rotated row is a rise of `d / cos(angle)` (the step is vertical), and a walker
 that reverses on a slope keeps the slope's rise in `vel.y` and launches — the
 tests turn around from rest.
 
+### MS — mass split in the sweep (2026-10-13)
+
+Found writing `examples/entropia.py`: walls of mass 50 held by a spring and
+moved by `move_by` gained energy from ball hits, and balls leaked through the
+corners. Fixed by the mass split ([Collision Design — Mass split between two
+movable bodies](Collision%20Design.md#mass-split-between-two-movable-bodies)).
+
+| ID | Bug | Repro | Root cause | Guard |
+| --- | --- | --- | --- | --- |
+| MS1 | Between two non-`STATIC` bodies the position outcome depended on enrollment order: a crate pushed at full player speed (crate first, even at mass 50) or never (player first); a mass-1 floor sank 457 DU in 1 s under a falling rider (floor first) or held (rider first); a spring-held wall gained 45 % energy in 10 s (wall first) | Two bodies enrolled in each order (`collidable = True` sets `_collider_index`), the same `move_by` script | The body swept first stopped and absorbed the whole approach; settle and `velocity_split` weighed the masses, the sweep's conversion did not | `test_collision.TestSweepMassSplit`: each case in both orders must agree; a canary turns `_SWEEP_MASS_SPLIT` off and sees the energy gain |
+
+Why earlier tests missed it: every resolve test of a moving partner used a
+`STATIC` one (elevators, walls), or one creation order. The order of creation
+is an input: a test of two movable bodies runs both.
+
+A trap found on the way: the first version pushed the partner without a
+sweep, and a light ball shoved toward a 2 DU wall was placed past it (the
+pusher followed). `_push_reach` sweeps the share against the partner's
+`STATIC` partners; `test_push_into_a_thin_wall_stops_at_it` fails without it.
+
 ### AC — game system tests (2026-10-10)
 
 Found writing and running the three games of [Game system tests](#game-system-tests).
