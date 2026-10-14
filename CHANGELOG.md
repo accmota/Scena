@@ -192,6 +192,23 @@ left out.
   as a field of your own, rename it.
 - `clone(frame=)` on a kind without frames (shapes, `Svg`, `Text`) raises
   `TypeError`; it was ignored.
+- A body standing on a moving platform now moves with it, sideways too, at
+  any frame rate: `resolve(heroi, "elevador")` and an elevator moved by
+  `move_by`, `move_by(..., time=)` (eased, yoyo) or `move_along` carries the
+  hero the whole way, and the hero's own walk adds to it. Before, the carry
+  depended on the frame rate: 97 % of a sideways lift at 30 fps, 87 % at 60,
+  about 1 % at 240 (the lift slid out from under the hero). A wall in the
+  lift's way still stops the hero, and a jump ends the ride. Tutorial 25's
+  sideways elevator ("O ninja em cima vai junto para os lados também") now
+  does what it says. If your code carried a rider itself (copying the lift's
+  speed into `heroi.vel`, or `heroi.move_by(...)` with the lift's step), the
+  hero now moves twice: delete that line. Only a platform carries: a `STATIC`
+  body, or a movable one without `.vel`; a crate pushed along the floor does
+  not drag the crate on top of it. A floor moved with `move_by` under a
+  standing player carries the player too, so a "move the world" runner that
+  scrolls its platforms with `move_by` while the player stays put should move
+  the camera instead, or place the platforms with `center =` (a placement is
+  not motion: it carries nothing).
 
 ### Fixed
 
@@ -443,6 +460,24 @@ left out.
   resting-contact skin (from 60 units/s at 60 Hz, 30 units/s at 144 Hz), so
   the contact exited while the rider stood on it, and a lift going up and
   down exited at the top and never entered again on the way down.
+- An idle body on a slope stays put. With `vel.x = 0` when no key is down
+  (the ninja idiom) and gravity, a hero on a `STATIC` ramp slid slowly
+  downhill: 24 units in 10 s on a 30° ramp at 60 fps, 58 at 144. Walking up
+  and down the ramp is unchanged.
+- A `STATIC` floor or wall no longer gives way under a stack. A light crate
+  under a heavy one sank into the floor (mass 5 on top: 8 units in; mass 20:
+  almost all the way), balls at the bottom of a pile fell through a thin
+  floor, and a light ball hit by a heavy falling one went through a 10-unit
+  floor (or past a thin wall, when hit fast from the side). Crates in a stack
+  can still sink a little into each other and jitter (Scena is not a physics
+  engine); none ends inside or below a `STATIC` body.
+- Two bodies that start overlapping separate by the side they overlap on,
+  whatever their `.vel`. Before, a pair moving apart was pushed through each
+  other (two balls spawned overlapping swapped sides), a ball spawned inside
+  a thin wall and moving into the room came out on the far side, and a
+  `STATIC` paddle placed onto a ball (`paddle.center = ...`) could lose it
+  below. A body spawned more than halfway into a floor now leaves by the
+  nearer face (below a floor's middle: out the bottom), even if it is falling.
 - A hold-to-fire `Button(st["firing"])` destroyed while held, or ended by
   `change_act` while held, writes `value_off` (no click). Before, `st.firing`
   stayed `True` into the next act.
@@ -486,7 +521,11 @@ left out.
   moves like a piston.
 - Guia, "Tornar sólido": a floor, wall or platform that must not give is
   `STATIC`. Between two bodies that move, the push splits by mass, so one
-  left at the default mass `1` sinks under an equal-mass hero.
+  left at the default mass `1` sinks under an equal-mass hero. A `STATIC`
+  body holds under a stack. Riders ("Quem está em cima vai junto"), with a
+  gotcha against copying a lift's speed into the rider; the Handle examples
+  that copied a platform's `h.velocity` into a `rider` now copy it into a
+  crate let go of the platform.
 - Guia, "Tornar sólido": `resolve(hero, ANYTHING)` makes every enrolled body
   solid, coins, shots and sensors included (the hero shoves the coin instead
   of passing through it; its `@collide` still fires). Name the solid groups
