@@ -46,6 +46,7 @@ Newest first. Primary: median **work_ms** (then `draw_ms`).
 
 | Date | Protocol | Host | mix work_ms (FPS) | Notes |
 |------|----------|------|------------------:|-------|
+| 2026-10-14 | `text-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 0.420 (2381.2) `t0.00 d0.01` | mix HUD+Glow |
 | 2026-09-29 | `text-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 0.375 (2667.1) `t0.00 d0.00` | mix HUD+Glow |
 | 2026-09-28 | `text-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 0.394 (2539.8) `t0.00 d0.00` | mix HUD+Glow |
 | 2026-09-24 | `text-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 0.383 (2612.9) `t0.00 d0.00` | mix HUD+Glow |
@@ -64,6 +65,29 @@ Newest first. Primary: median **work_ms** (then `draw_ms`).
 ## Runs
 
 Newest first.
+
+### 2026-10-14 — text-1
+
+| | |
+|---|---|
+| When | 2026-10-14 11:43 -0300 (14:43 UTC) |
+| Protocol | `text-1` |
+| Host | Apple M4 · Darwin 26.6.2 · Py 3.12.13 |
+| Git | e6cd88ec85a3 |
+| Scena | `15bc8e1ffdca` |
+| Repeats | 3 (median) |
+| Scripts | `perf_text.py` `4f6d1f656712` · `harness.py` `38953009d9e9` |
+
+Frozen argv as in the protocol table. Window = design size via the phase harness; FB follows the display scale (2× on Retina) and is not recorded.
+
+#### mix (median)
+
+| Metric | Median | min–max | spread |
+|--------|------:|--------:|-------:|
+| work_ms | **0.420** | 0.418–0.456 | ±9% |
+| FPS | 2381.2 | | |
+| draw_ms | 0.006 | | |
+| tick_ms | 0.001 | | |
 
 ### 2026-09-29 — text-1
 

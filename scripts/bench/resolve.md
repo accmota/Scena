@@ -49,6 +49,7 @@ Newest first. Primary: balls **coll_ms**, then platformer **coll_ms**.
 
 | Date | Protocol | Host | balls coll_ms (FPS) | balls ms_resolve | platformer coll_ms (FPS) | platformer ms_resolve | Notes |
 |------|----------|------|--------------------:|-----------------:|-------------------------:|----------------------:|-------|
+| 2026-10-14 | `resolve-2` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 1.221 (393.2) | 0.766 | 2.839 (211.3) | 1.641 |  |
 | 2026-09-29 | `resolve-2` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 1.114 (478.1) | 0.656 | 2.815 (261.0) | 1.564 |  |
 | 2026-09-28 | `resolve-2` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 1.139 (516.4) | 0.670 | 2.580 (291.0) | 1.532 |  |
 | 2026-09-24 | `resolve-2` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 1.068 (562.3) | 0.635 | 2.393 (318.7) | 1.374 |  |
@@ -62,6 +63,30 @@ Newest first. Primary: balls **coll_ms**, then platformer **coll_ms**.
 ## Runs
 
 Newest first.
+
+### 2026-10-14 — resolve-2
+
+| | |
+|---|---|
+| When | 2026-10-14 11:44 -0300 (14:44 UTC) |
+| Protocol | `resolve-2` (comparable) |
+| Host | Apple M4 · Darwin 26.6.2 · Py 3.12.13 |
+| Git | e6cd88ec85a3 |
+| Scena | `15bc8e1ffdca` |
+| Repeats | single-shot |
+| Scripts | fingerprint `cbb76047f99a` |
+
+| File | sha256[:12] |
+|------|-------------|
+| `perf_resolve_balls.py` | `8d73628037f9` |
+| `perf_resolve_platformer.py` | `175944e6508a` |
+| `run_resolve.py` | `35cbe0dd534c` |
+| `harness.py` | `38953009d9e9` |
+
+Frozen argv as in the protocol table.
+
+- balls n=40: coll_ms **1.221**  ms_resolve **0.766**  work_ms 2.543  FPS 393.2  broad 0.141  narrow 0.039  proxy_pairs 1.7
+- platformer balls=50: coll_ms **2.839**  ms_resolve **1.641**  work_ms 4.732  FPS 211.3  broad 0.278  narrow 0.285  proxy_pairs 15.9
 
 ### 2026-09-29 — resolve-2
 

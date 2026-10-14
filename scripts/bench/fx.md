@@ -70,6 +70,7 @@ Newest first. Primary: **baseline ms @ high**.
 
 | Date | Protocol | Host | baseline ms (FPS) @ high | top-3 +ms | Notes |
 |------|----------|------|-------------------------:|-----------|-------|
+| 2026-10-14 | fx-1 | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 1.012 (988) | xf_burn +40.7 · visual_neon +11.9 · visual_neon_unique +10.9 |  |
 | 2026-09-29 | fx-1 | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 1.043 (959) | xf_burn +37.5 · visual_neon_unique +10.2 · visual_neon +9.7 |  |
 | 2026-09-28 | fx-1 | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 0.951 (1051) | xf_burn +36.6 · visual_neon_unique +10.1 · visual_neon +9.4 |  |
 | 2026-09-24 | fx-1 | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 0.826 (1210) | xf_burn +35.9 · visual_neon +9.6 · visual_neon_unique +9.5 |  |
@@ -89,6 +90,44 @@ Newest first. Primary: **baseline ms @ high**.
 ## Runs
 
 Newest first.
+
+### 2026-10-14 — fx-1
+
+| | |
+|---|---|
+| When | 2026-10-14 11:43 -0300 (14:43 UTC) |
+| Protocol | `fx-1` (comparable) |
+| Host | Apple M4 · Darwin 26.6.2 · Py 3.12.13 |
+| Git | e6cd88ec85a3 |
+| Scena | `15bc8e1ffdca` |
+| Repeats | single-shot per cell |
+| Scripts | fingerprint `0a9ae2413ca3` |
+
+| File | sha256[:12] |
+|------|-------------|
+| `perf_fx_matrix.py` | `525c8ac710fd` |
+| `run_fx.py` | `7803a6f92036` |
+
+Frozen argv as in the protocol table.
+
+#### baseline @ high
+
+- **1.012 ms**  (988 fps)
+
+#### top-10 rank
+
+| # | Effect | Cat | ms | +ms vs base |
+|--:|--------|-----|---:|------------:|
+| 1 | `xf_burn` | transient | 41.67 | +40.65 |
+| 2 | `visual_neon` | visual | 12.89 | +11.88 |
+| 3 | `visual_neon_unique` | visual | 11.92 | +10.91 |
+| 4 | `visual_ink_bleed` | visual | 8.50 | +7.49 |
+| 5 | `xf_spark` | transient | 8.43 | +7.41 |
+| 6 | `visual_shieldgear` | visual | 8.04 | +7.03 |
+| 7 | `visual_electricbolt` | visual | 6.71 | +5.70 |
+| 8 | `visual_electricfield` | visual | 5.55 | +4.53 |
+| 9 | `visual_tail` | visual | 5.26 | +4.25 |
+| 10 | `visual_water` | visual | 4.97 | +3.96 |
 
 ### 2026-09-29 — fx-1
 

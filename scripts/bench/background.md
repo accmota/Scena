@@ -48,6 +48,7 @@ Newest first. Primary: **mix work_ms** (bg / draw split in parentheses).
 
 | Date | Protocol | Host | mix work_ms (bg · d) | sky | wallpaper | parallax | Notes |
 |------|----------|------|--------------------:|----:|----------:|---------:|-------|
+| 2026-10-14 | `bg-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 3.698 (bg 0.07 · d 2.62) | 1.153 | 0.461 | 1.857 | |
 | 2026-09-29 | `bg-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 3.660 (bg 0.08 · d 2.94) | 1.062 | 0.395 | 1.634 | |
 | 2026-09-28 | `bg-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 4.177 (bg 0.10 · d 3.57) | 1.036 | 0.380 | 1.481 | |
 | 2026-09-24 | `bg-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 3.971 (bg 0.09 · d 3.41) | 1.036 | 0.381 | 1.482 | |
@@ -58,6 +59,25 @@ Newest first. Primary: **mix work_ms** (bg / draw split in parentheses).
 ## Runs
 
 Newest first.
+
+### 2026-10-14 — bg-1
+
+| | |
+|---|---|
+| When | 2026-10-14 11:49 -0300 (14:49 UTC) |
+| Protocol | `bg-1` |
+| Host | Apple M4 · Darwin 26.6.2 · Py 3.12.13 |
+| Git | e6cd88ec85a3 |
+| Scena | `15bc8e1ffdca` |
+| Repeats | 3 per mode (median) |
+| Scripts | `perf_background.py` `4e583bf9b384` · `harness.py` `38953009d9e9` |
+
+| Mode | work_ms | spread | bg_ms | draw_ms | submit_ms | FPS |
+|------|-------:|-------:|------:|--------:|----------:|----:|
+| sky | **1.153** | ±10% | 0.069 | 0.012 | 0.045 | 867 |
+| wallpaper | **0.461** | ±22% | 0.019 | 0.010 | 0.019 | 2168 |
+| parallax | **1.857** | ±1% | 0.012 | 1.219 | 0.090 | 538 |
+| mix | **3.698** | ±0% | 0.071 | 2.625 | 0.119 | 270 |
 
 ### 2026-09-29 — bg-1
 
