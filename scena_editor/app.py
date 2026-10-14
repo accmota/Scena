@@ -60,7 +60,8 @@ class App:
             return
         self.editor.message = None
         self.editor.select_held = bool(keyp(PRIMARY))     # fresh at the press
-        self.editor.pointer_down(x, y, button, shift=keyp("SHIFT"), space=keyp("SPACE"))
+        self.editor.pointer_down(x, y, button, shift=keyp("SHIFT"), space=keyp("SPACE"),
+                                 alt=keyp("ALT"))
 
     def on_mouse_move(self, x, y):
         # Motion is handled here only — Scena also calls on_mouse_drag for the

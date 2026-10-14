@@ -22,7 +22,7 @@ from hypothesis import given, settings, strategies as hst  # noqa: E402
 from scena.level_format import parse  # noqa: E402
 from scena_editor import geometry as geo  # noqa: E402
 from scena_editor.doc import LevelDoc  # noqa: E402
-from scena_editor.tools import MIDDLE, Editor  # noqa: E402
+from scena_editor.tools import ALT_LABEL, MIDDLE, Editor  # noqa: E402
 
 
 class FakeViewport:
@@ -535,6 +535,56 @@ class TestRowColumn(unittest.TestCase):
         self.assertFalse(e.pack("x"))
 
 
+class TestAltDragAndSelectGroup(unittest.TestCase):
+    def test_alt_drag_moves_copies_and_leaves_the_originals(self):
+        e = ed()
+        a = e.doc.add({"kind": "rect", "name": "bloco", "center": (50, 50), "width": 20,
+                       "height": 20})
+        b = e.doc.add({"kind": "point", "center": (100, 50)})
+        lock = e.doc.add({"kind": "point", "center": (300, 300), "locked": True})
+        e.history.reset(e.doc)
+        e.selection = [a, b, lock]
+        e.pointer_down(50, 50, alt=True)
+        for x in (60, 80, 100):
+            e.pointer_move(x, 50)
+        e.pointer_up(100, 50)
+        self.assertEqual(len(e.doc.items), 5)               # two copies; not the locked one
+        self.assertEqual(e.doc.get(a)["center"], (50, 50))
+        self.assertEqual(e.doc.get(b)["center"], (100, 50))
+        copies = [e.doc.get(i) for i in e.selection]
+        self.assertEqual([c["center"] for c in copies], [(100, 50), (150, 50)])
+        self.assertEqual(copies[0]["name"], "bloco_2")
+        self.assertTrue(e.undo())                           # copy + move: one step
+        self.assertEqual(len(e.doc.items), 3)
+        self.assertFalse(e.history.can_undo)
+
+    def test_alt_click_copies_nothing(self):
+        e = ed()
+        a = e.doc.add({"kind": "point", "center": (50, 50)})
+        e.pointer_down(50, 50, alt=True)
+        e.pointer_up(50, 50)
+        self.assertEqual(len(e.doc.items), 1)
+        self.assertEqual(e.selection, [a])
+
+    def test_alt_drag_of_a_locked_item_copies_nothing(self):
+        e = ed()
+        e.doc.add({"kind": "rect", "center": (50, 50), "width": 20, "height": 20,
+                   "locked": True})
+        e.pointer_down(50, 50, alt=True)
+        e.pointer_move(90, 50)
+        e.pointer_up(90, 50)
+        self.assertEqual(len(e.doc.items), 1)
+
+    def test_select_group_picks_its_items_in_file_order(self):
+        e = ed()
+        a = e.doc.add({"kind": "point", "groups": ["robo"], "center": (0, 0)})
+        e.doc.add({"kind": "point", "groups": ["chao"], "center": (5, 0)})
+        c = e.doc.add({"kind": "point", "groups": ["chao", "robo"], "center": (9, 0)})
+        e.select_group("robo")
+        self.assertEqual(e.selection, [a, c])
+        self.assertFalse(e.history.can_undo)
+
+
 class TestToolsAndImages(unittest.TestCase):
     def test_choosing_select_clears_the_selection(self):
         e = ed()
@@ -908,7 +958,7 @@ class TestPrimaryHeldSelects(unittest.TestCase):
         self.assertTrue(e.select_standby)
         self.assertEqual(e.cursor(100, 100), "move")           # over a shape, as Select
         self.assertEqual(e.cursor(700, 700), "arrow")
-        self.assertEqual(e.hint(), t("hint.select"))
+        self.assertEqual(e.hint(), t("hint.select", alt=ALT_LABEL))
         e.set_tool("select")
         self.assertFalse(e.select_standby)                     # Select is not "standby"
         e.set_tool("hand")

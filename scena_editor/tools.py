@@ -44,6 +44,7 @@ TOOL_KEYS = {"V": "select", "H": "hand", "R": "rect", "E": "ellipse", "C": "circ
 KEY_OF = {tool: key for key, tool in TOOL_KEYS.items()}
 PRIMARY = "CMD" if sys.platform == "darwin" else "CTRL"
 REDO = "CMD+SHIFT+Z" if sys.platform == "darwin" else "CTRL+Y"   # Ctrl+Shift+Z quits Scena
+ALT_LABEL = "Option" if sys.platform == "darwin" else "Alt"      # Alt+drag copies
 # Holding Primary in Pan or a drawing tool makes a press a Select press.
 SPRING_TOOLS = ("hand", "rect", "ellipse", "circle", "line", "polygon", "regular_polygon",
                 "track", "point")
@@ -219,11 +220,11 @@ class Editor:
 
     def hint(self) -> str:
         tool = "select" if self.select_standby else self.tool
-        return t(f"hint.{tool}", primary=key_label(PRIMARY))
+        return t(f"hint.{tool}", primary=key_label(PRIMARY), alt=ALT_LABEL)
 
     # -- pointer -----------------------------------------------------------------
     def pointer_down(self, x: float, y: float, button: int = LEFT, *,
-                     shift: bool = False, space: bool = False) -> None:
+                     shift: bool = False, space: bool = False, alt: bool = False) -> None:
         self.hover = (x, y)
         spring = self.select_held and self.tool in SPRING_TOOLS
         if button == MIDDLE or space or (button == LEFT and self.tool == "hand" and not spring):
@@ -234,7 +235,7 @@ class Editor:
         if self.tool == "select" or spring:
             # Polygon / path points drawn so far stay: a Select press between
             # clicks neither adds a point nor drops them.
-            self._select_down(x, y, shift)
+            self._select_down(x, y, shift, alt)
         elif self.tool in ("rect", "ellipse", "circle", "line", "regular_polygon"):
             start = geo.snap_point((x, y), self._grid(shift))
             self.gesture = {"kind": "create", "start": start, "id": None, "press": (x, y)}
@@ -245,7 +246,7 @@ class Editor:
         elif self.tool == "point":
             self.gesture = {"kind": "place"}
 
-    def _select_down(self, x: float, y: float, shift: bool) -> None:
+    def _select_down(self, x: float, y: float, shift: bool, alt: bool = False) -> None:
         h = self.handle_at(x, y)
         if h is not None and h.role.startswith("group_"):
             movable = self._movable()
@@ -293,7 +294,7 @@ class Editor:
         else:
             self.selection = [top["id"]]
         self.gesture = {"kind": "press", "start": (x, y), "cycle_to": cycle_to,
-                        "toggle_off": toggle_off}
+                        "toggle_off": toggle_off, "alt": alt}
 
     def pointer_move(self, x: float, y: float, *, shift: bool = False) -> None:
         """Pointer motion (call once per event — not from both move and drag)."""
@@ -316,6 +317,11 @@ class Editor:
             if not movable:
                 self.gesture = None
                 return
+            if g["alt"]:
+                # Alt / Option+drag: copies, made where the originals are, move;
+                # the originals stay. Copy and move are one undo step.
+                self.selection = self.doc.duplicate([it["id"] for it in movable], (0.0, 0.0))
+                movable = self.selected_items()
             box = geo.union_aabb(movable)
             ref = geo.nearest_corner(box, g["start"])
             self.gesture = g = {"kind": "move", "start": g["start"], "ref": ref,
@@ -549,6 +555,10 @@ class Editor:
             return False
         self.message = t("note.row" if axis == "x" else "note.column", count=len(movable))
         return True
+
+    def select_group(self, name: str) -> None:
+        """Select every item in group ``name``, in file order (not an undo step)."""
+        self.selection = [it["id"] for it in self.doc.items if name in it["groups"]]
 
     def nudge(self, dx: float, dy: float) -> None:
         for it in self.selected_items():

@@ -23,6 +23,7 @@ from system_support import SystemTestCase  # noqa: E402
 from scena import canvas  # noqa: E402
 from scena_editor import _engine  # noqa: E402
 from scena_editor.app import App  # noqa: E402
+from scena_editor.tools import ALT_LABEL  # noqa: E402
 from scena_editor.view import DESIGN  # noqa: E402
 
 KIND_CLASS = {"rect": "Rect", "ellipse": "Ellipse", "circle": "Circle", "line": "Line",
@@ -310,6 +311,57 @@ class TestEditorOnFrames(EditorSystemCase):
         ed.selection = [a]
         self.frame()
         self.assertFalse(view._group_frame.visible)
+
+    def test_alt_held_makes_a_drag_copy(self):
+        import glfw
+        app = self.app
+        ed = app.editor
+        a = ed.doc.add({"kind": "rect", "center": (0, 0), "width": 40, "height": 40})
+        ed.history.commit()
+        ed.selection = [a]
+        self.frame()
+        fw = self.w.fw
+        fw._handle_key(None, glfw.KEY_LEFT_ALT, 0, glfw.PRESS, glfw.MOD_ALT)
+        self.frame()
+        app.on_mouse_down(0, 0, 0)
+        for x in (10, 30, 60):
+            app.on_mouse_move(x, 0)
+            self.frame()
+        app.on_mouse_up(60, 0, 0, 0, 0)
+        fw._handle_key(None, glfw.KEY_LEFT_ALT, 0, glfw.RELEASE, 0)
+        self.frame()
+        self.assertEqual(len(ed.doc.items), 2)
+        self.assertEqual(ed.doc.get(a)["center"], (0, 0))
+        self.assertEqual(ed.doc.get(ed.selection[0])["center"], (60, 0))
+        self.assertViewMatchesDoc()
+
+    def test_select_group_dropdown_selects_resets_and_follows_the_groups(self):
+        app = self.app
+        ed = app.editor
+        p = app.panel
+        none_pick, many_pick = p.group_picks
+        self.frame()
+        self.assertFalse(none_pick.visible)                 # no groups yet
+        a = ed.doc.add({"kind": "point", "groups": ["robo"], "center": (0, 0)})
+        b = ed.doc.add({"kind": "point", "groups": ["robo"], "center": (9, 0)})
+        ed.doc.add({"kind": "point", "groups": ["chao"], "center": (5, 0)})
+        ed.history.commit()
+        self.frame()
+        self.assertTrue(none_pick.visible)
+        self.assertEqual(none_pick.options, ["Select group…", "chao", "robo"])   # A–Z
+        none_pick.data.value = "robo"
+        self.frame(2)
+        self.assertEqual(ed.selection, [a, b])
+        self.assertEqual(none_pick.data.value, "Select group…")
+        self.assertFalse(none_pick.visible)
+        self.assertTrue(many_pick.visible)
+        p.many["groups"].input.data.value = "inimigo"       # rename the shared group
+        self.frame(2)
+        self.assertEqual(many_pick.options, ["Select group…", "chao", "inimigo"])
+        many_pick.data.value = "chao"
+        self.frame(2)
+        self.assertEqual(len(ed.selection), 1)
+        self.assertFalse(many_pick.visible)
 
     def test_save_writes_a_level_the_game_reads(self):
         from scena import Level
@@ -618,7 +670,7 @@ class TestEditorOnFrames(EditorSystemCase):
         self.frame()
         self.assertTrue(ed.select_standby)
         self.assertTrue(select.standby)
-        self.assertEqual(ed.hint(), t("hint.select"))
+        self.assertEqual(ed.hint(), t("hint.select", alt=ALT_LABEL))
         app.on_mouse_down(100, 100, 0)
         app.on_mouse_up(100, 100, 0, 100, 100)
         self.assertEqual((ed.selection, ed.tool), ([a], "rect"))

@@ -21,7 +21,7 @@ STRINGS = {
         "tool.point": "Point",
         "tool.image": "Image",
         # tool hints (status bar)
-        "hint.select": "Click to select · drag on empty canvas to box-select · Shift adds · Space+drag pans",
+        "hint.select": "Click to select · drag on empty canvas to box-select · Shift adds · {alt}+drag copies · Space+drag pans",
         "hint.hand": "Drag to move the view · {primary}+click / drag: select",
         "hint.rect": "Drag to draw a rectangle (a click makes 100 × 100) · Shift: no snap · Esc: cancel",
         "hint.ellipse": "Drag to draw an ellipse (a click makes 100 × 100) · Shift: no snap · Esc: cancel",
@@ -80,6 +80,7 @@ STRINGS = {
         "panel.back": "Back",
         "panel.selected": "{count} selected",
         "panel.some": "Some: {groups}",
+        "panel.select_group": "Select group…",
         "panel.row": "Row",
         "panel.column": "Column",
         # status

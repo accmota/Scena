@@ -310,6 +310,17 @@ class Panel:
         # Level size (nothing selected).
         self.level_w = _Field("level_w", t("panel.width"), rows, number=True)
         self.level_h = _Field("level_h", t("panel.height"), rows - ROW, number=True)
+        # "Select group…": nothing selected (under the level size) or several
+        # (under X / Y). Two widgets, one per place; both list the level's groups.
+        # Scena's DropDown does not scroll: a level with very many groups runs
+        # the open list off the window.
+        self.pick_none = t("panel.select_group")
+        self.group_picks = [
+            DropDown(top_left=(X0, rows - 2 * ROW - 6), width=PANEL_RIGHT - 20, height=26,
+                     options=[self.pick_none], initial=self.pick_none),
+            DropDown(top_left=(X0, rows - 4 * ROW - 6), width=PANEL_RIGHT - 20, height=26,
+                     options=[self.pick_none], initial=self.pick_none),
+        ]
 
         # -- status bar ------------------------------------------------------------------------
         self.status = Text("", top_left=(PANEL_LEFT + 8, PANEL_BOTTOM - 6), font_size=13)
@@ -350,6 +361,11 @@ class Panel:
                 ed.set_groups(value, list(f.owner))
             else:
                 ed.move_selection_to(key, value, list(f.owner))
+        for pick in self.group_picks:
+            chosen = pick.data.value
+            if pick.visible and chosen != self.pick_none:
+                pick.data.value = self.pick_none
+                ed.select_group(chosen)
         snap = bool(self.grid_check.data.value)
         size = str(self.grid_size.data.value)
         if (snap, size) != self._grid_shown:
@@ -387,6 +403,12 @@ class Panel:
         for f in self.many.values():
             want[f] = False
         want[self.some] = want[self._some_hover] = False
+        groups = ed.doc.groups()
+        options = [self.pick_none] + sorted(groups, key=str.casefold)   # easy to scan
+        for pick in self.group_picks:
+            want[pick] = False
+            if pick.options != options:
+                pick.options = options
         for b in self.buttons:
             want[b] = bool(items)
         for b in self.pack_buttons:
@@ -433,6 +455,7 @@ class Panel:
                 if self.some.box.right > W - 12:
                     _fit_end(self.some, text, W - 12)
                 want[self.some] = want[self._some_hover] = True
+            want[self.group_picks[1]] = bool(groups)
             box = geo_box([it for it in items if not it["locked"]])
             if box is not None:
                 self.many["x"].set((box[0] + box[2]) / 2, owner)
@@ -444,6 +467,7 @@ class Panel:
             self.level_w.set(w, "level")
             self.level_h.set(h, "level")
             want[self.level_w] = want[self.level_h] = True
+            want[self.group_picks[0]] = bool(groups)
         for element, visible in want.items():
             _set_visible(element, visible)
 
