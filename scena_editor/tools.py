@@ -9,9 +9,13 @@ a fake in tests. The host draws what ``Editor`` exposes (``selection``,
 Gesture rules (Editor Design.md — Editor):
 
 - Select tool: click selects; Shift+click adds / removes; drag a shape moves
-  the selection; drag a handle resizes / rotates; drag empty canvas is the
-  selection box (Shift adds); a click (no drag) on the already-selected shape
-  cycles to the shape under it. Panning: Hand tool, Space+drag, middle button.
+  the selection (Alt / Option+drag moves copies); drag a handle resizes /
+  rotates; drag empty canvas is the selection box (Shift adds); a click (no
+  drag) on the already-selected shape cycles to the shape under it. Panning:
+  Hand tool, Space+drag, middle button.
+- Several selected: a frame around the items that move, corner handles that
+  scale them evenly about the opposite corner, a knob that turns them about
+  the frame's center.
 - Shape tools: drag draws; a click makes a ``DEFAULT_SIZE`` shape (rect /
   ellipse: top-left at the click; circle, regular polygon: centered; line:
   rightwards). A regular polygon is drawn from the center out: a hexagon
@@ -704,12 +708,11 @@ class Editor:
             note = " · ".join(parts)
         if not self.history.commit():
             return False
-        for g in typed:
-            if g not in before:
-                hint = did_you_mean(g, before)
-                if hint:
-                    note += " · " + t("note.new_group", name=g) + hint
-        self.message = note[:1].upper() + note[1:] if note else None
+        # A likely typo leads: a long note is cut at the status bar's end.
+        hints = [t("note.new_group", name=g) + did_you_mean(g, before)
+                 for g in typed if g not in before and did_you_mean(g, before)]
+        note = " · ".join(hints + ([note[:1].upper() + note[1:]] if note else []))
+        self.message = note or None
         return True
 
     def move_selection_to(self, axis: str, value: float,

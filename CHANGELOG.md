@@ -10,6 +10,38 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
+## Unreleased
+
+### Added
+
+- **Level editor, several items selected:**
+  - A frame with **corner handles and a rotate knob**. The corners scale
+    the items evenly (a circle stays a circle, an image keeps its shape;
+    the dragged corner snaps to the grid). The knob turns them about the
+    frame's center in 15° steps (Shift: free). Locked items stay where they
+    are.
+  - **Row** and **Column** put the items edge to edge with no gaps, from
+    the leftmost (Row) or lowest (Column) one. This helps with image tiles
+    whose size is off the grid.
+  - **X / Y** fields move the selection, and the **Groups** field edits the
+    groups they all share (below).
+  - **Select group…** lists the level's groups and selects one group's
+    items. It is also there when nothing is selected.
+- **Level editor:** Alt+drag (Option+drag on macOS) moves copies and leaves
+  the originals in place.
+- **Level editor:** after a groups edit, the status bar says what changed. A
+  name with a space shows as «moving enemies» (one group). A new name close
+  to an existing group gets a hint: `"plataform" is a new group. Did you
+  mean 'plataforma'?`.
+
+### Changed
+
+- **Level editor:** with several items selected, the "Add group" and
+  "Remove group" inputs are gone. The **Groups** field shows the groups every
+  selected item has: type a name to add it to all of them, delete one to
+  remove it from all of them. Groups only some items have are listed below
+  the field (`Some: …`) and are left alone.
+
 ## 0.8.1 — 2026-10-14
 
 ### Added

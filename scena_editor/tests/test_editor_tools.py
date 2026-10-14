@@ -800,7 +800,8 @@ class TestPanel(unittest.TestCase):
         a = e.doc.add({"kind": "point", "center": (5, 0)})
         e.selection = [a]
         self.assertTrue(e.set_field("groups", "plataform"))
-        self.assertIn('"plataform" is a new group.', e.message)
+        # The hint leads (a long note is cut at the status bar's end).
+        self.assertTrue(e.message.startswith('"plataform" is a new group.'), e.message)
         self.assertIn("Did you mean 'plataforma'?", e.message)
         self.assertEqual(e.doc.get(a)["groups"], ("plataform",))   # a hint, not a refusal
         self.assertTrue(e.set_field("groups", "estrela"))           # nothing close: no hint

@@ -25,6 +25,7 @@ Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-
 | What the editor does (v1) | [Editor](#editor-companion-app) |
 | Why the editor is not in `scena/` | [Boundary](#boundary) |
 | Settled nos | [Fences](#fences) |
+| Why no per-item values (hp, speed) in the file | [Why no values](#why-no-values-in-the-file) |
 | Locating code | [Router](#router) |
 
 ## Use
@@ -188,7 +189,8 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   Polygon (G), Regular polygon (N), Track (A), Point (P), Image (I). Point
   has P because it is used most; T is left free for a Text tool. Panel: name, groups
   (comma-separated), numeric geometry, locked, guide; Copy as code,
-  Duplicate, Delete, Front / Back. Status bar: cursor in Scena units, zoom,
+  Duplicate, Delete, Front / Back; several selected: shared groups, X / Y,
+  Select group, Row / Column. Status bar: cursor in Scena units, zoom,
   file and unsaved mark.
 - **Layout:** the left toolbar holds only what you create — Rect, Ellipse,
   Circle, Line, Polygon, Regular polygon, Track, Point, a gap, Image (it
@@ -238,12 +240,37 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   height, width from the new picture's proportions.
 - **Select:** click; Shift+click adds / removes; drag a shape moves the
   selection; handles resize (8; images 4 corners, aspect kept) and rotate (1);
-  click again cycles overlaps. Shift+**press** only adds — a selected shape
+  click again cycles overlaps. **Alt / Option+drag** moves copies made where
+  the originals are (names get `_2`); the originals stay. Copy and move are
+  one undo step; a click copies nothing; locked items are not copied (a
+  common convention, no new UI). Shift+**press** only adds — a selected shape
   is removed on release of a Shift+**click** — so Shift+drag of a selected
   shape still moves it (snap off). On a small shape the handles cover its
   middle: a handle wins only when the pointer is nearer to it than to the
   shape's center. Locked shapes select but show no handles and do not move
   or delete.
+- **Group handles** (two or more selected): a frame around the items that
+  **move** (the unlocked ones, the same set a drag moves), 4 corner handles
+  and a rotate knob. **Corners scale evenly** about the opposite corner: an
+  uneven stretch cannot be stored for a circle (it would be an ellipse), a
+  regular polygon, a rotated rect / ellipse / image (a parallelogram) or an
+  image (aspect kept), so there are no edge handles. The corner you drag
+  lands on the grid on the axis that stretches most (`geometry.group_scale`);
+  dragging past the anchor never mirrors (`MIN_SCALE`). The knob turns every
+  item about the frame's center (centers and points turn, `angle` adds up),
+  15° steps, Shift free; the frame turns with them and becomes the new
+  upright box on release. Every kind stays its kind (`scale_item`,
+  `rotate_item`). No frame when the box is a single point. `Editor.handles()`
+  is cached per (doc, version, selection, zoom, turn): the view and the
+  cursor ask every frame.
+- **Row / Column** (panel, two or more selected): edge to edge, no gaps.
+  Row sorts the items by their box's left edge, keeps the first where it is
+  and puts each next box's left edge on the previous right edge; Column does
+  the same upward from the lowest item (y up). The other axis does not move;
+  boxes are bounding boxes (rotated items, a smooth track's points); locked
+  items stay out (`geometry.pack`). For tiles whose size is off the grid
+  (images) — grid-sized rects already butt with snapping. Not named "Fit":
+  Fit frames the level.
 - **Creating:** rect / ellipse / line by dragging (a shape flat after
   snapping is dropped), circle from the center out, point by click, polygon /
   track by clicks then Enter or double-click (Esc cancels). **A click** (no
@@ -338,6 +365,28 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   and snapping stay on the points — the curve runs through every point, and
   `LevelItem.center` is the points' box middle too. `points` of a smooth
   track are its control points: `move_along(item.make())` follows the curve.
+- **Groups field, one item or several:** the same field and parsing (split
+  on commas, trimmed, no empties or repeats; any other character is legal —
+  Scena takes any non-empty name, accents and spaces included). One item:
+  its groups become the typed list. Several: the field shows the groups
+  **every** item has; a typed name is added to all, a deleted one removed
+  from all, and groups only some items have stay — they are listed read-only
+  under the field (`Some: …`, cut to fit, the whole list in its tooltip). It
+  replaced "Add group" / "Remove group" inputs, where you typed a name to
+  remove and saw nothing happen. After an edit the status bar says what
+  changed (`Groups: chao, «moving enemies»` — a name with a space in « » so
+  it reads as one group; `Added "x" to 5 items`), and a name new to the level
+  that is close to an existing group gets a did-you-mean (`validate.did_you_mean`,
+  case-insensitive) — a hint, never a refusal; it leads the note, since a
+  long note is cut at the status bar's end (`Editor.set_groups`).
+- **Several selected, panel:** Groups, X / Y of the box of the items that
+  move (typing moves them, `Editor.move_selection_to`), Select group, Row /
+  Column, and the item buttons.
+- **Select group…** (a DropDown, when nothing or several are selected and
+  the level has groups): the level's groups A–Z; choosing one selects its
+  items in file order and the list returns to "Select group…". Scena's
+  DropDown does not scroll: past ~20 groups the open list runs off the
+  window (accepted; a scrolling DropDown is a framework change).
 - **Panel:** a line shows X1 / Y1 / X2 / Y2 (other kinds X / Y = center); an
   image path is shortened in the middle to fit; the unsaved-changes prompt
   uses a lighter panel and a smaller font than the Menu default.
@@ -467,6 +516,33 @@ through `level_format.serialize`.
 | --- | --- | --- |
 | `Level(...)` creating anything at load; a bulk `level.make_all("g")` | A taught script needs a group made with no per-item change, and a two-line loop over `level.group(...)` is the friction | here |
 | `Rect(box=item)` — a `LevelItem` as a `box=` input | Never — second spelling of `item.box` | here |
-| Behavior or numbers in the file (speed, hp, custom fields) | A taught game needs per-item numbers that a name and a dict in code cannot express | here |
+| Behavior or numbers in the file (speed, hp, custom fields) — see [Why no values](#why-no-values-in-the-file) | A taught game needs non-geometric per-item numbers (time, hp, worth) on many unnamed items, where naming each one to key a dict in code is the friction | here |
 | Layers in the file / editor | A taught level needs per-layer hide or lock that groups, `locked`, guides and z-order cannot give | here |
 | Several levels per file | A taught game needs shared items across levels that one file per level cannot express | here |
+
+### Why no values in the file
+
+Weighed 2026-10-14 (per-item `hp`, speed, text). Values split an item's
+meaning between the file and the script: the reader of the game no longer
+sees every rule in the code. Free-form keys have no schema, so a typo turns
+silent (`item.get("velocidade", 90)` against a key `velocida` gives 90),
+against the format's rule that refuses unknown keys and `level.group`'s that
+a typo must not become an empty loop. And most per-item "numbers" are
+something the editor already holds better:
+
+| Looks like a value | Is really | Home |
+| --- | --- | --- |
+| an elevator's travel, a patrol range, a trigger area | a distance or a region | geometry: draw the zone (a tall rect, `item.box`), a line, a track |
+| fast / slow robots, a red door and its key | a category | groups (`robo` + `rapido`) |
+| the one boss, the start | a unique item | a name, and a dict in code keyed by it |
+
+What is left — numbers that are not distances (a delay, a phase, hp, a
+coin's worth) varying item by item over many unnamed items — is the revisit
+trigger in the table above. **If it fires:** never one value per item (the
+panel would show `Value: 120` with its meaning only in code; an item in two
+groups has one slot; the first item needing two numbers forces a second
+format). Instead a flat `name → number | string` dict, edited in one field
+parsed like Groups (`hp=3, speed=120`), a strict reader (a key no item in
+the level uses raises with did-you-mean, even through a default), ignored by
+`make()` and Copy as code, and a format version bump.
+
