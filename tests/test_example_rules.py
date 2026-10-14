@@ -25,7 +25,9 @@ Bug classes guarded (catalogue: Testing Design, TU):
 * **Mouse input no step run gives** (tutorial 11, Script 3; tutorial 22):
   the canvas callbacks (a click lights a star, a drag is not a click, the
   wheel sets the size, a double click clears the stars its own clicks lit)
-  and a key's ``on_click`` with the equalizer rising under the note.
+  and a key's ``on_click`` with the equalizer rising under the note;
+  the ship of tutorial 12 changes destination mid-trip without the
+  replace warning, stops on Space and follows the mouse.
 
 Run:
 
@@ -235,3 +237,30 @@ class TestPianoClickAndEqualizer(unittest.TestCase):
             gold = Color("gold").rgb
             self.assertEqual([t.letra for t in teclas if t.color.rgb == gold], ["A"])
             self.assertGreater(max(b.height for b in run.ns["barras"]), 20)
+
+
+class TestMovimentoTripControl(unittest.TestCase):
+    """Tutorial 12: a click mid-trip changes the destination without the
+    replace warning (``parar()`` cancels the old trip first), Space stops
+    the ship where it is, and the right button makes it follow the mouse."""
+
+    def test_retarget_stop_and_follow(self):
+        import warnings
+        from program_support import click, wait
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with ProgramRun("examples/movimento.py") as run:
+                run.step(2)
+                nave = run.ns["nave"]
+                run.play([click(800, 600), wait(20), click(200, 100), wait(200)])
+                self.assertEqual((round(nave.center.x), round(nave.center.y)), (200, 100))
+                self.assertFalse(run.ns["alvo"].visible, "the target stays after landing")
+                run.play([click(800, 100), wait(10)])
+                run.key_down("SPACE"); run.step(1); run.key_up("SPACE"); run.step(30)
+                self.assertIsNone(nave.viagem)
+                self.assertLess(nave.center.x, 400, "Space did not stop the trip")
+                run.move(100, 650); run.press(100, 650, "right"); run.step(150)
+                run.release("right"); run.step(2)
+                self.assertEqual((round(nave.center.x), round(nave.center.y)), (100, 650))
+        replaced = [w for w in caught if "replaces a previous" in str(w.message)]
+        self.assertEqual(replaced, [])

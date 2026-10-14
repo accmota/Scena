@@ -373,7 +373,8 @@ run()
           body: `
             <p>Você já animou coisas com tempo: <code>move_to</code> e <code>move_by</code> (posição), <code>rotate_by</code> (ângulo), <code>scale_to</code> (tamanho), todos com <code>time=</code>. São <strong>verbos</strong> com nome, um para cada coisa, e eles cuidam do que é especial nela: o <code>move_to</code> anda e respeita as paredes do <code>resolve</code>; o <code>scale_to</code> aumenta a forma inteira, seja ela qual for.</p>
             <p>O <code>tween</code> é o caso geral: anima <strong>qualquer número</strong> de um objeto, mesmo os que não têm verbo, como o raio, a <code>line_width</code> ou um número seu. Para posição, ângulo e tamanho, prefira o verbo; para o resto, <code>tween</code>. O próximo passo usa um campo que nenhum verbo alcança.</p>
-            <p>Os mesmos parâmetros de tempo valem para todos: <code>time=</code>, <code>ease=</code>, <code>loops=</code>, <code>yoyo=</code>. Um <code>tween</code> novo no mesmo campo cancela o anterior.</p>
+            <p>Os mesmos parâmetros de tempo valem para todos: <code>time=</code>, <code>ease=</code>, <code>loops=</code>, <code>yoyo=</code>, <code>on_done=</code>. E todos devolvem o controle do 12, com <code>cancel()</code>.</p>
+            <p><strong>Um nome.</strong> Um <code>tween</code> novo no mesmo campo toma o lugar do anterior, e o console avisa, como a viagem nova da nave do 12. Quando trocar é o que você quer (um sol que às vezes pulsa mais forte), dê um nome: <code>tween(…, name="pulso")</code>. Um <code>tween</code> com o mesmo nome substitui o anterior em silêncio.</p>
             <p>No Guia: <a href="../guide/index.html#mover-tween">tween</a> · <a href="../guide/index.html#suite">Parâmetros de tempo</a>.</p>
           `,
           try: [

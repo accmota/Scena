@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Movimento — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "12",
+  title: "Movimento",
+  steps: [
+    {
+      title: "Colocar",
+      body: `
+        <p>Até aqui, as coisas andaram de dois jeitos: um pouco a cada quadro, no <code>update</code> (a nave do 05), e sozinhas, por uma ordem dada uma vez (as naves que respiram com <code>scale_to(…, time=)</code> no 05, a trilha do letreiro do 04). Este tutorial olha de perto o segundo jeito, as <strong>viagens</strong>, e termina comparando os dois. Não é um jogo: uma nave que vai aonde você clica.</p>
+        <p><strong>Colocar.</strong> <code>on_mouse_click</code> é a função do canvas do tutorial 11: roda a cada clique, com o ponto <code>(x, y)</code>. <code>nave.move_to(x, y)</code> (mover para) põe a nave nesse ponto. Sem mais nada, é na hora: a nave some de onde estava e aparece no ponto, como se você escrevesse <code>nave.center = (x, y)</code>.</p>
+        <p>Rode e clique pela tela: a nave pula de um lugar a outro.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movimento")
+Wallpaper("#0b1020")
+Stars()
+
+nave = Sprite("space/playerShip1_red.png", width=60, center=(500, 350))
+
+
+def on_mouse_click(x, y, button):
+    nave.move_to(x, y)
+
+
+run()
+`
+    },
+    {
+      title: "Viajar",
+      body: `
+        <p>Um número a mais muda tudo: <code>time=1</code> (tempo). Agora o <code>move_to</code> não põe a nave no ponto; ele a manda <strong>viajar</strong> até lá, em 1 segundo.</p>
+        <p><strong>Uma ordem, muitos quadros.</strong> A função do clique roda uma vez e acaba na hora; quem anda com a nave é o Scena, um pouco a cada quadro, até ela chegar. Não há nenhuma linha no <code>update</code>. É o mesmo jeito do <code>move_along</code> do letreiro: você pede, o Scena cuida.</p>
+        <p>Rode e clique perto da nave, depois longe. As duas viagens duram 1 segundo: para chegar longe no mesmo tempo, a nave vai mais rápido.</p>
+        <p><strong>Clicou de novo no meio?</strong> A viagem nova toma o lugar da velha, e o console mostra um aviso dizendo isso. Daqui a alguns passos, a nave aprende a trocar de destino sem aviso.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movimento")
+Wallpaper("#0b1020")
+Stars()
+
+nave = Sprite("space/playerShip1_red.png", width=60, center=(500, 350))
+
+
+def on_mouse_click(x, y, button):
+    nave.move_to(x, y, time=1)
+
+
+run()
+`
+    },
+    {
+      title: "Mesma velocidade",
+      body: `
+        <p>Uma nave que corre mais quando o destino é longe parece estranha. <code>speed=400</code> (velocidade), no lugar do <code>time=</code>, diz a velocidade da viagem: 400 por segundo. O tempo sai da distância: 200 de distância leva meio segundo; 800 levam 2.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 150" role="img" aria-label="Duas viagens, uma curta e uma longa. Com time=1, as duas levam 1 segundo. Com speed=400, a curta leva meio segundo e a longa leva 2 segundos">
+            <text x="10" y="22">time=1</text>
+            <line class="ray" x1="20" y1="42" x2="120" y2="42"/>
+            <circle class="dot" cx="120" cy="42" r="4"/>
+            <text x="130" y="46">perto: 1 s</text>
+            <line class="ray" x1="20" y1="64" x2="300" y2="64"/>
+            <circle class="dot" cx="300" cy="64" r="4"/>
+            <text x="310" y="68">longe: 1 s</text>
+            <text x="10" y="100">speed=400</text>
+            <line class="ray" x1="20" y1="118" x2="120" y2="118"/>
+            <circle class="hot" cx="120" cy="118" r="4"/>
+            <text x="130" y="122">perto: 0,5 s</text>
+            <line class="ray" x1="20" y1="140" x2="300" y2="140"/>
+            <circle class="hot" cx="300" cy="140" r="4"/>
+            <text x="310" y="144">longe: 2 s</text>
+          </svg>
+          <figcaption>Com <code>time=</code>, toda viagem dura o mesmo, e a velocidade muda. Com <code>speed=</code>, toda viagem tem a mesma velocidade, e o tempo muda.</figcaption>
+        </figure>
+        <p>Use um ou outro, nunca os dois: os dois dizem quanto a viagem dura.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movimento")
+Wallpaper("#0b1020")
+Stars()
+
+nave = Sprite("space/playerShip1_red.png", width=60, center=(500, 350))
+
+
+def on_mouse_click(x, y, button):
+    nave.move_to(x, y, speed=400)
+
+
+run()
+`
+    },
+    {
+      title: "Arrancar e frear",
+      body: `
+        <p>A nave sai já na velocidade toda e para de repente. <code>ease="ease_in_out"</code> (suavizar na entrada e na saída) muda isso: ela sai devagar, acelera no meio e freia ao chegar. A viagem dura o mesmo tempo; só muda o ritmo dentro dela.</p>
+        <p>O nome vem de <em>easing</em>, “suavização”. Sem <code>ease=</code>, a viagem é <code>"linear"</code>: a mesma velocidade do começo ao fim.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movimento")
+Wallpaper("#0b1020")
+Stars()
+
+nave = Sprite("space/playerShip1_red.png", width=60, center=(500, 350))
+
+
+def on_mouse_click(x, y, button):
+    nave.move_to(x, y, speed=400, ease="ease_in_out")
+
+
+run()
+`,
+      try: [
+        {
+          note: "Outros ritmos, um por vez, no lugar da linha do <code>move_to</code>. <code>\"ease_out\"</code> sai rápido e freia; <code>\"bounce\"</code> (quicar) chega quicando; <code>\"elastic\"</code> (elástico) passa do ponto e volta.",
+          replaces: ['nave.move_to('],
+          code: `nave.move_to(x, y, speed=400, ease="ease_out")
+nave.move_to(x, y, speed=400, ease="bounce")
+nave.move_to(x, y, speed=400, ease="elastic")`
+        }
+      ]
+    },
+    {
+      title: "De frente",
+      body: `
+        <p>A nave viaja de lado, de costas, sempre apontando para cima. <code>face=True</code> (de frente) a vira para a direção da viagem, no começo de cada uma: o nariz aponta para onde ela vai.</p>
+        <p><strong>Para onde aponta o desenho.</strong> Para virar a nave certo, o Scena precisa saber para onde aponta o desenho na imagem. Na conta do Scena, o ângulo 0 aponta para a direita; o desenho desta nave aponta para cima, que é o ângulo 90. <code>art_angle=90</code> (o ângulo da arte) avisa isso. Sem ele, a nave viajaria de lado.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movimento")
+Wallpaper("#0b1020")
+Stars()
+
+nave = Sprite("space/playerShip1_red.png", width=60, center=(500, 350), art_angle=90)
+
+
+def on_mouse_click(x, y, button):
+    nave.move_to(x, y, speed=400, ease="ease_in_out", face=True)
+
+
+run()
+`
+    },
+    {
+      title: "Chegou",
+      body: `
+        <p>Um círculo dourado tracejado marca o destino: aparece no clique e some quando a nave chega.</p>
+        <p><strong>O alvo.</strong> O <code>alvo</code> nasce escondido (<code>visible = False</code>), antes da nave, para ficar embaixo dela. O clique o põe no ponto e o mostra.</p>
+        <p><strong>Ao chegar.</strong> <code>on_done=pousou</code> (ao terminar) entrega à viagem uma função para chamar quando ela acabar, como o <code>on_done</code> do som do Piano. A função vai sem parênteses: <code>pousou</code> é a função, para o Scena chamar depois; <code>pousou()</code> a chamaria agora.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movimento")
+Wallpaper("#0b1020")
+Stars()
+
+alvo = Circle(center=(500, 350), radius=24, color="gold")
+alvo.fill = None
+alvo.dash = "dash"
+alvo.visible = False
+
+nave = Sprite("space/playerShip1_red.png", width=60, center=(500, 350), art_angle=90)
+
+
+def pousou():
+    alvo.visible = False
+
+
+def on_mouse_click(x, y, button):
+    alvo.center = (x, y)
+    alvo.visible = True
+    nave.move_to(x, y, speed=400, ease="ease_in_out", face=True, on_done=pousou)
+
+
+run()
+`
+    },
+    {
+      title: "O controle da viagem",
+      body: `
+        <p>Até aqui, uma viagem começada ia até o fim. Mas dá para mexer nela no meio do caminho: o <code>move_to</code> com <code>time=</code> ou <code>speed=</code> devolve um <strong>controle</strong> da viagem (no Guia, um <code>Handle</code>). Com ele na mão, você pode cancelar a viagem, pausá-la, perguntar se acabou.</p>
+        <p><strong>Guardar o controle.</strong> <code>nave.viagem = nave.move_to(…)</code> guarda o controle num campo da nave, como o <code>marcador.caneta</code> do desenho do 04. Antes da primeira viagem, o campo vale <code>None</code> (nada).</p>
+        <p><strong>Parar.</strong> <code>parar()</code> cancela a viagem que estiver acontecendo: <code>nave.viagem.cancel()</code> (cancelar) deixa a nave onde ela está. O clique chama <code>parar()</code> antes de começar a viagem nova: assim, clicar no meio do caminho troca de destino sem aviso no console. E a tecla Espaço também para a nave.</p>
+        <p>Rode, clique longe e, no meio do caminho, aperte Espaço ou clique em outro lugar.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movimento")
+Wallpaper("#0b1020")
+Stars()
+
+alvo = Circle(center=(500, 350), radius=24, color="gold")
+alvo.fill = None
+alvo.dash = "dash"
+alvo.visible = False
+
+nave = Sprite("space/playerShip1_red.png", width=60, center=(500, 350), art_angle=90)
+nave.viagem = None
+
+
+def pousou():
+    alvo.visible = False
+
+
+def parar():
+    if nave.viagem:
+        nave.viagem.cancel()
+        nave.viagem = None
+    alvo.visible = False
+
+
+def on_mouse_click(x, y, button):
+    parar()
+    alvo.center = (x, y)
+    alvo.visible = True
+    nave.viagem = nave.move_to(x, y, speed=400, ease="ease_in_out", face=True, on_done=pousou)
+
+
+def update(dt):
+    if keyp.once("SPACE"):
+        parar()
+
+
+run()
+`,
+      try: [
+        {
+          note: "Pausar e continuar: dentro do <code>update</code>, a tecla P congela a viagem; R a solta, do ponto em que estava.",
+          code: `if keyp.once("P") and nave.viagem:
+    nave.viagem.pause()
+if keyp.once("R") and nave.viagem:
+    nave.viagem.resume()`
+        }
+      ]
+    },
+    {
+      title: "Seguir o mouse",
+      example: "movimento.py",
+      body: `
+        <p>Por último, o outro jeito de andar. Com o botão direito apertado, a nave persegue o mouse, mesmo enquanto ele se mexe.</p>
+        <p><strong>Uma viagem não persegue.</strong> <code>move_to(mouse, speed=400)</code> copiaria o lugar do mouse no momento do clique e iria até lá, mesmo que o mouse saísse dali. Para seguir um alvo que anda, é preciso perguntar de novo onde ele está a cada quadro.</p>
+        <p><strong>Um passo por quadro.</strong> <code>approach(nave.center, mouse, 300)</code> (aproximar) devolve um ponto um passinho mais perto do mouse: o passo de quem anda a 300 por segundo, durante este quadro. O <code>move_to</code> sem tempo põe a nave nesse ponto, e o <code>face=True</code> a vira para lá. No <code>update</code>, isso se repete a cada quadro, e a nave vai atrás do mouse para onde ele for. Antes, <code>parar()</code> cancela uma viagem que estivesse acontecendo: as duas não podem mandar na nave ao mesmo tempo.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movimento")
+Wallpaper("#0b1020")
+Stars()
+
+alvo = Circle(center=(500, 350), radius=24, color="gold")
+alvo.fill = None
+alvo.dash = "dash"
+alvo.visible = False
+
+nave = Sprite("space/playerShip1_red.png", width=60, center=(500, 350), art_angle=90)
+nave.viagem = None
+
+
+def pousou():
+    alvo.visible = False
+
+
+def parar():
+    if nave.viagem:
+        nave.viagem.cancel()
+        nave.viagem = None
+    alvo.visible = False
+
+
+def on_mouse_click(x, y, button):
+    parar()
+    alvo.center = (x, y)
+    alvo.visible = True
+    nave.viagem = nave.move_to(x, y, speed=400, ease="ease_in_out", face=True, on_done=pousou)
+
+
+def update(dt):
+    if keyp.once("SPACE"):
+        parar()
+    if mouse.press(Mouse.BTN_RIGHT):
+        parar()
+        nave.move_to(approach(nave.center, mouse, 300), face=True)
+
+
+run()
+`,
+      dive: [
+        {
+          title: "Viagem ou passo a passo?",
+          body: `
+            <p>Há dois jeitos de fazer uma coisa andar, e cada um serve para um caso.</p>
+            <div class="tbl"><table>
+              <thead><tr><th></th><th>Uma viagem</th><th>Um passo a cada quadro</th></tr></thead>
+              <tbody>
+                <tr><td>Como</td><td><code>move_to(…, time=)</code> ou <code>speed=</code>, uma vez</td><td><code>move_to(approach(…))</code> no <code>update</code></td></tr>
+                <tr><td>O destino</td><td>Copiado na hora: se ele andar, a viagem não vê</td><td>Lido de novo a cada quadro: segue um alvo que anda</td></tr>
+                <tr><td>Ritmo</td><td><code>ease=</code> para arrancar e frear</td><td>Sempre a mesma velocidade</td></tr>
+                <tr><td>No fim</td><td><code>on_done=</code> avisa</td><td>Você pergunta, a cada quadro</td></tr>
+                <tr><td>Controle</td><td>Devolve um, para cancelar ou pausar</td><td>Basta parar de chamar</td></tr>
+              </tbody>
+            </table></div>
+            <p><strong>Outros verbos com tempo.</strong> Os mesmos <code>time=</code>, <code>speed=</code>, <code>ease=</code> e <code>on_done=</code> valem para <code>move_by</code> (mover por: anda tanto, a partir de onde está), <code>rotate_to</code> e <code>rotate_by</code> (girar), <code>scale_to</code> (mudar o tamanho) e para o <code>move_along</code> das trilhas, do próximo tutorial. Todos devolvem um controle.</p>
+            <p><strong>Andar como o <code>chase</code>.</strong> O <code>chase</code> do Apêndice E também persegue a cada quadro, mas com um passo que é uma fração da distância: rápido quando está longe, devagar quando chega perto.</p>
+            <p>No Guia: <a href="../guide/index.html#suite">Parâmetros de tempo</a> · <a href="../guide/index.html#mover-pose">Mover e girar</a>.</p>
+          `,
+          try: [
+            {
+              note: "A perseguição com <code>chase</code>, no lugar da linha do <code>approach</code>: a nave corre quando o mouse está longe e chega de mansinho.",
+              replaces: ['nave.move_to(approach('],
+              code: `nave.move_to(chase(nave.center, mouse, rate=4), face=True)`
+            },
+            {
+              note: "Uma viagem relativa: <code>move_by</code> anda 200 para a direita a partir de onde está, ida e volta, para sempre. No fim do programa.",
+              code: `nave.move_by(200, 0, time=1, ease="ease_in_out", loops="forever", yoyo=True)`
+            }
+          ]
+        }
+      ],
+      closing: `
+        <p>Clique para a nave viajar até o ponto, de frente, arrancando e freando; o círculo dourado marca o destino. Clique em outro lugar no meio do caminho para trocar de destino; Espaço para a nave. Segure o botão direito e ela persegue o mouse.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>move_to(x, y)</code> — sem tempo, coloca na hora; com <code>time=</code> ou <code>speed=</code>, viaja, e o Scena anda a cada quadro.</li>
+          <li><code>time=</code> e <code>speed=</code> — a mesma duração para toda viagem, ou a mesma velocidade.</li>
+          <li><code>ease=</code> — o ritmo dentro da viagem: <code>"ease_in_out"</code> arranca e freia.</li>
+          <li><code>face=True</code> e <code>art_angle=</code> — vira o objeto para a direção da viagem; o segundo diz para onde aponta o desenho.</li>
+          <li><code>on_done=</code> — a função que a viagem chama quando acaba.</li>
+          <li>O controle da viagem — o que o <code>move_to</code> devolve: <code>cancel()</code>, <code>pause()</code>, <code>resume()</code>.</li>
+          <li><code>approach</code> — um passo por quadro na direção de um alvo que pode andar.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#suite">Parâmetros de tempo</a> · <a href="../guide/index.html#mover-pose">Mover e girar</a> · <a href="../guide/index.html#agendar-handle">Handle</a>.</p>
+        <p><strong>No próximo:</strong> viagens por caminhos curvos, as trilhas.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

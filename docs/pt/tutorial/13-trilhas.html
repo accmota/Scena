@@ -20,7 +20,7 @@ Tutorial.mount({
     {
       title: "Uma trilha",
       body: `
-        <p>Este tutorial é sobre <strong>movimento por caminhos</strong>, sem jogo: um mostruário de trilhas. O que é uma trilha, as formas prontas, os caminhos seus e os jeitos de percorrê-los. No próximo, as trilhas viram um sistema solar.</p>
+        <p>No 12, as viagens iam em linha reta até um ponto. Este tutorial é sobre <strong>viagens por caminhos</strong>, sem jogo: um mostruário de trilhas. O que é uma trilha, as formas prontas, os caminhos seus e os jeitos de percorrê-los. O que você viu nas viagens vale aqui também: <code>time=</code>, <code>speed=</code>, <code>ease=</code>, <code>face=</code> e o controle. No próximo, as trilhas viram um sistema solar.</p>
         <p><strong>A trilha.</strong> No letreiro do 04 você conheceu a <code>Track</code> (trilha): um caminho invisível que alguém percorre. Este script a vê a fundo. <code>Track.circle(center=(170, 520), radius=110)</code> é uma trilha em forma de círculo (<em>circle</em>), com centro e raio como o <code>Circle</code>. Ela não aparece na tela: é só o desenho do caminho, como o <code>Point</code> do 03 é só uma posição.</p>
         <p><strong>Presa num lugar.</strong> O oito do letreiro tinha só tamanho, e por isso começava onde o letreiro estava: era uma trilha <em>solta</em>. Esta tem <code>center=</code> e está <strong>presa</strong> num lugar da tela. Quem a percorre vai até ela; por isso a bola nem precisa de <code>center=</code>.</p>
         <p><strong>Percorrer.</strong> <code>bola.move_along(roda, time=4, loops="forever")</code> (mover ao longo de) é o do letreiro: uma volta inteira a cada 4 segundos (<code>time=4</code>) e, quando a volta acaba, outra (<code>loops="forever"</code>). Nenhuma linha no <code>update</code>: a bola anda sozinha.</p>
@@ -217,7 +217,7 @@ run()
       body: `
         <p>Um pêndulo: um peso que balança na ponta de um fio. O caminho do peso é um pedaço de círculo, um arco.</p>
         <p><strong>O arco.</strong> <code>Track.arc</code> (arco) é o círculo cortado entre dois ângulos: <code>from_angle=225</code> (do ângulo) até <code>to_angle=315</code> (até o ângulo). Os ângulos contam como no resto do Scena: 0 é para a direita, 90 para cima, 270 para baixo. De 225 a 315 é o pedaço de baixo do círculo, com 270 bem no meio. O arco é aberto, então vai com <code>yoyo=True</code>.</p>
-        <p><strong>A curva do tempo.</strong> Um pêndulo de verdade não anda sempre na mesma velocidade: ele freia nas pontas, onde para e volta, e corre embaixo. <code>ease="ease_in_out"</code> (suavizar na entrada e na saída) faz isso: a viagem sai devagar, acelera no meio e freia ao chegar. Sem <code>ease=</code>, o padrão é <code>"linear"</code>, a mesma velocidade do começo ao fim, que é o que as outras bolas fazem.</p>
+        <p><strong>A curva do tempo.</strong> Um pêndulo de verdade não anda sempre na mesma velocidade: ele freia nas pontas, onde para e volta, e corre embaixo. É o <code>ease="ease_in_out"</code> da nave do 12: a viagem sai devagar, acelera no meio e freia ao chegar. As outras bolas, sem <code>ease=</code>, andam sempre na mesma velocidade.</p>
         <p><strong>O fio.</strong> Uma <code>Line</code> do ponto fixo até o peso. A ponta presa ao peso é uma <code>lambda</code>, como as linhas do 03: o Scena lê o centro do peso a cada quadro, e o fio acompanha.</p>
       `,
       code: `from scena import *
@@ -340,8 +340,8 @@ run()
       title: "De frente",
       example: "trilhas.py",
       body: `
-        <p>Uma bola parece igual de qualquer lado. Uma forma com ponta, não: o carro do oito vira um triângulo dourado, e ele deve apontar para onde anda. A caixa do letreiro, no 04, já mostrou o jeito.</p>
-        <p><strong>Encarar o caminho.</strong> <code>face=True</code> (encarar, ficar de frente) faz o <code>move_along</code> girar o objeto a cada quadro, na direção da trilha naquele ponto. O <code>Triangle</code> (triângulo equilátero) aponta para a direita quando o ângulo é 0, a mesma direção do 0 das trilhas; por isso a ponta segue o caminho. Rode e olhe o triângulo inclinar nas curvas do oito.</p>
+        <p>Uma bola parece igual de qualquer lado. Uma forma com ponta, não: o carro do oito vira um triângulo dourado, e ele deve apontar para onde anda.</p>
+        <p><strong>Encarar o caminho.</strong> É o <code>face=True</code> da nave do 12. Numa viagem reta, ele vira o objeto uma vez, no começo; numa trilha, o <code>move_along</code> o gira a cada quadro, na direção da trilha naquele ponto. O <code>Triangle</code> (triângulo equilátero) aponta para a direita quando o ângulo é 0, a mesma direção do 0 das trilhas; por isso a ponta segue o caminho. Rode e olhe o triângulo inclinar nas curvas do oito.</p>
         <p>As outras bolas ficam como estão: girar um círculo não muda nada na tela.</p>
       `,
       code: `from scena import *
