@@ -323,6 +323,39 @@ class TestColliderSubclass(_Collision):
         self.cs.step()
         self.assertIn("sub", log)
 
+    def test_stay_and_exit_methods_are_called(self):
+        log = []
+
+        class Sub(Collider):
+            def on_collide(self, me, other, info):
+                log.append("enter")
+
+            def on_collide_stay(self, me, other, info):
+                log.append("stay")
+
+            def on_collide_exit(self, me, other):
+                log.append("exit")
+
+        wall = self.keep(Rect(center=(0, 0), width=30, height=30))
+        wall.collidable = True
+        Sub([self.keep(Rect(center=(0, 0), width=10, height=10)),
+             self.keep(Circle(center=(5, 0), radius=4))])
+        self.cs.step()
+        self.cs.step()
+        wall.center = (900, 0)
+        self.cs.step()
+        self.assertEqual(log, ["enter", "stay", "exit"])
+
+    def test_an_async_method_raises_at_the_class_line(self):
+        """``on_collide = async_fn`` refuses at the assignment; the method
+        spelling refuses at the class line (before: at the first contact)."""
+        for name in ("on_collide", "on_collide_stay", "on_collide_exit"):
+            async def cb(self, *a):
+                pass
+            with self.subTest(name=name), self.assertRaises(TypeError) as ctx:
+                type("Sub", (Collider,), {name: cb})
+            self.assertIn("cannot be async", str(ctx.exception))
+
 
 # --------------------------------------------------------------------------
 # Drawing: cull boxes and the batching plan

@@ -24,7 +24,7 @@ its last step here.
 | 09 Fórmulas | `formulas.py` |
 | 10 Bolas | `bolas.py` |
 | 11 Interação | `interacao.py` |
-| 12 Órbitas | `orbitas.py` |
+| 12 Órbitas | `trilhas.py`, `orbitas.py` |
 | 13 Giros | `barras_girando.py`, `osciloscopio.py` |
 | 14 Avião | `aviao.py` |
 | 15 Avião II · Profundidade | `aviao_profundidade.py` |

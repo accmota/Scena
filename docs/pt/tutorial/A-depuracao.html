@@ -28,7 +28,7 @@ Tutorial.mount({
           <li><kbd>Ctrl+Shift+1</kbd> — o painel do sistema (HUD): quadros por segundo, quantos objetos existem, onde está o mouse.</li>
           <li><kbd>Ctrl+Shift+2</kbd> — liga e desliga o ajuste automático de qualidade (FX Auto).</li>
           <li><kbd>Ctrl+Shift+3</kbd> — a qualidade dos efeitos: low → medium → high.</li>
-          <li><kbd>Ctrl+Shift+4</kbd> — o ritmo dos quadros: VSync → ½ → ¼ → 60 → 30 → Max.</li>
+          <li><kbd>Ctrl+Shift+4</kbd> — o ritmo dos quadros: vsync → vsync60 → vsync30 → 60 → 30 → max.</li>
           <li><kbd>Ctrl+Shift+7</kbd> — desenha o invisível: colisores, a moldura da tela, a cruz da origem, as trilhas e o campo de jogo.</li>
           <li><kbd>Ctrl+Shift+8</kbd> — afasta a vista (100% → 50% → 25%), para ver o que está fora da janela.</li>
           <li><kbd>Ctrl+Shift+P</kbd> — o tempo: roda → pausa → ¼ da velocidade → roda.</li>
@@ -360,7 +360,7 @@ run()
         <p>Outro programa novo, este cheio de efeitos: um céu, estrelas, um brilho geral na tela (<code>Bloom</code>), seis fogueiras (<code>Fire</code>) e seis bolas com brilho. Efeitos assim custam trabalho ao computador, quadro após quadro. Rode e ligue o painel (<kbd>Ctrl+Shift+1</kbd>) para acompanhar o <code>fps</code>.</p>
         <p><strong>O ajuste automático.</strong> Sem você pedir, o Scena mede quanto tempo cada quadro leva. Se o computador não dá conta, ele baixa a qualidade dos efeitos (high → medium → low) e, se ainda não bastar, o ritmo (de 60 para 30 quadros por segundo). Esse ajuste é o FX Auto, e começa ligado. <kbd>Ctrl+Shift+2</kbd> o desliga e liga de novo.</p>
         <p><strong>Ctrl+Shift+3.</strong> Troca a qualidade você mesmo: low (baixa) → medium (média) → high (alta). Olhe as fogueiras: em low, viram um brilho simples. É o mesmo jogo, mais leve.</p>
-        <p><strong>Ctrl+Shift+4.</strong> Troca o ritmo dos quadros: VSync (o ritmo do monitor) → ½ → ¼ → 60 → 30 → Max (sem limite). O <code>fps</code> do painel mostra o ritmo de verdade.</p>
+        <p><strong>Ctrl+Shift+4.</strong> Troca o ritmo dos quadros: <code>vsync</code> (o ritmo do monitor) → <code>vsync60</code> (preso ao monitor, no ritmo mais perto de 60) → <code>vsync30</code> (no mais perto de 30) → 60 → 30 → <code>max</code> (sem limite). O <code>fps</code> do painel mostra o ritmo de verdade.</p>
         <p><strong>Para quê.</strong> Para ver como o seu jogo fica num computador mais fraco: ponha em low e 30, e jogue. Se ainda dá para jogar, ótimo. Os movimentos escritos com <code>dt</code> andam na mesma velocidade em qualquer ritmo; só ficam menos suaves.</p>
       `,
       code: `from scena import *

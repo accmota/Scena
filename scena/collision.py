@@ -4574,6 +4574,15 @@ class Collider:
         "__weakref__",
     )
 
+    def __init_subclass__(cls, **kwargs) -> None:
+        # A callback method (``def on_collide``) is refused at the class line
+        # when async, as ``on_collide =`` refuses it at the assignment.
+        super().__init_subclass__(**kwargs)
+        for name in ("on_collide", "on_collide_stay", "on_collide_exit"):
+            fn = cls.__dict__.get(name)
+            if fn is not None and not isinstance(fn, property):
+                _refuse_async(fn, what=f"class {cls.__name__}: def")
+
     def __init__(
         self,
         shapes,

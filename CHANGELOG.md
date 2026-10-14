@@ -262,9 +262,13 @@ left out.
   `key == "ESCAPE"` inside the handler still raises with the fix.
 - `.line = X` or `.fill = X` on a shape already wearing a visual draws what
   writing it before `shape.visual = …` draws. Before, the write skipped the
-  visual: under a `Rim` the rim lost its softness, under a `Halo` the inner
-  glow kept the old color, and a `Rim("red")` stayed red after
-  `.line = "blue"`.
+  visual: under a `Rim` the rim lost its softness (`.line = "blue"` after
+  `Rim()` or `Rim("red")` drew a blue rim harder and brighter than the same
+  write before the look: the look's alpha was lost), and under a `Halo` the inner
+  glow kept the old color. A color given to the look and a write on that
+  look's channel: the later one wins. `.line = "blue"` then
+  `visual = Rim("red")` draws red; `Rim("red")` then `.line = "blue"` draws
+  blue.
 - `.line_width`, `.blend`, `.dash`, `.line_cap` and `.line_join` written on a
   shape or sprite already wearing a visual draw what writing them before
   `shape.visual = …` draws, and stay on the shape after `visual = None`.
@@ -284,7 +288,7 @@ left out.
   outline.
 - Maximized and fullscreen (`canvas.display`) keep the bands around the game
   black. Before, a body half outside the screen showed its outer half in the
-  bands, and `Grain`, `Scanlines`, `Fog` and `Vignette` drew over them.
+  bands, and `Grain`, `Scanlines` and `Fog` drew over them.
 - An `async def` handed to a function Scena asks a question raises
   `TypeError` with the fix, like the hooks in 0.8.0: a filter
   (`group["x"].filter` / `any` / `all` / `count_where`, `nearest(where=)`),
@@ -311,15 +315,21 @@ left out.
   `Wallpaper("bg.png", tile_size=64)` / `Texture(…, tile_size=64)` without
   `fit="tile"` → `fit="tile", tile_size=64`. The error names the style or fit
   that reads the knob. On `Halo(style="line")` the message replaces Python's
-  own `HaloLine.__init__() got an unexpected keyword argument`.
+  own `HaloLine.__init__() got an unexpected keyword argument`. A write on a
+  built look (`Bolt(style="filaments").amount = 6`) still raises, and its
+  message now suggests the same style (`Bolt(style="filaments", amount=6)`),
+  or says the style takes no such knob (`Shield(style="nebula").color = …`);
+  before, it suggested `Bolt(amount=6)` and `Shield(color=…)`, and named a
+  Halo or Shield style by an inner class (`HaloPulse(rings=5)`).
 - Faster platformers. A Sprite tile (an opaque image, unrotated) now collides
   as an exact box, like an unrotated `Rect`: walkers and `floor_below` sweep
   against it with the closed-form test instead of the general one. A sweep
   against such a tile can stop up to ~0.04 units later than before; the new
   stop is the exact one. `floor_below` also stops re-checking every tile on
   each step of its march, and checks whether a Sprite moved about twice as
-  fast. Tutorial 25's level runs about 40 % faster per frame; a level of
-  1500 tiles about 25 %.
+  fast. With the other `floor_below` and walker speed-ups of this release
+  (below), tutorial 25's level runs about 40 % faster per frame and a level
+  of 1500 tiles about 35 %.
 - A body under `resolve(…, ANYTHING)` no longer falls through a body spawned
   in the same frame as an earlier one when a query (`floor_below`, a
   `query_*`) ran between the two spawns; it ignored the second one until
@@ -330,8 +340,11 @@ left out.
   per frame; tutorial 25's level and the endless runner about 15 %.
 - A game with `Neon` on moving shapes no longer grows to over 1 GB of memory:
   Scena frees GPU memory nothing has drawn for a second. A bullet hell with
-  300 glowing shots now stays near 250 MB. Pictures loaded from files stay on
-  the GPU, so a background shown again after a pause is not uploaded again.
+  300 glowing shots now stays near 250 MB. Pictures loaded from files and
+  drawn as a Sprite, a fitted wallpaper or a menu icon stay on the GPU, so a
+  background shown again after a pause is not uploaded again; a tiled
+  wallpaper (`fit="tile"`) and a `Texture` fill can still be freed and
+  uploaded again.
 - Shots and pickups that are only in `@collide` pairs no longer make every
   body of a mutual `resolve()` crowd rebuild its partner list: a crowd of 150
   that is being shot at resolves about 12 % faster.
@@ -375,10 +388,10 @@ left out.
   frame, 400 enemies about 3× faster. Every answer is the same as before.
 - `Collider.on_collide =` (and `on_collide_stay`, `on_collide_exit`) refuses
   an `async def` with the fix, as `Entity.on_collide =` already did. Before,
-  the Collider kept it and each contact made a coroutine that never ran.
+  the assignment took it and the first contact raised `TypeError`.
 - Faster `floor_below(group=)` in a world where many other things move: it
   now updates only the bodies of the group it asks about (a level with 500
-  moving coins: `floor_below` about 40 % faster).
+  moving coins: `floor_below` about a third faster).
 - Each frame's collision step now skips bodies that did not move: it no
   longer re-checks every still tile's box, contact bounds and `touching_*`.
   A level of 1500 tiles runs about 18 % faster per frame, the endless
@@ -388,8 +401,10 @@ left out.
   z order, as long as they do not overlap those shapes. A bullet hell with
   300 glowing shots in alternating looks runs about 8 % faster. Nothing
   changes on screen, except where two shapes with the same look overlap
-  each other: they already relaxed z among themselves when they were
-  neighbours.
+  each other (they already relaxed z among themselves when they were
+  neighbours), and anti-aliased edges can differ on a few pixels, most on a
+  small `Laser` circle (a known difference between a shape drawn in a run
+  and drawn alone).
 - `canvas.cull_offscreen` no longer hides a body that is still partly in
   view: an `Extrude` look (its depth reaches toward the vanishing point, so it
   is never culled now), `Rim` / `Halo` on a Sprite, and `CheapGlow` on an
@@ -400,7 +415,8 @@ left out.
   group that a formula group (`group["x"] @= …`) reads.
 - A `Collider` subclass that defines `on_collide` (or `on_collide_stay`,
   `on_collide_exit`) as a method now gets those calls, as if it had assigned
-  them. Before, the method was ignored.
+  them; an `async def` method raises `TypeError` with the fix at the class
+  line, as the assignment does. Before, the method was ignored.
 - A class of your own whose `__init__` never calls Scena's
   (`class Bolha(Circle)` with `def __init__(self): self.velocidade = 100`)
   now raises `TypeError` when you make one, with the fix: put that code in
@@ -410,8 +426,9 @@ left out.
   nothing, or raised an internal `AttributeError` (`'_clickable'`) when the
   class had `on_click`; `Bolha(center=…)` said "Write Bolha()", which led to
   the empty object. Using `self` in `__init__` before Scena's `__init__` ran
-  (`self.radius`) says the same; before, `AttributeError: 'Bolha' object has
-  no attribute 'radius'`. A program with such a class ran without those objects;
+  (`self.radius`) still raises `AttributeError`, now with the same fix
+  ("Bolha has no radius yet: …"); before, `AttributeError: 'Bolha' object
+  has no attribute 'radius'`. A program with such a class ran without those objects;
   it now stops at the first one. An `__init__` that calls
   `super().__init__(**kwargs)` works as before.
 - A value in a class body under a name Scena owns
@@ -432,16 +449,18 @@ left out.
   and `is_floating` stayed `True`. To draw a track somewhere while each
   rider still starts from where it is, say so: `floating=True`.
 - `resolve()` between two bodies that both move (neither is `STATIC`) now
-  splits the push by mass, whichever body was made first, as the Guia says
+  splits the push by mass, in any enrollment order, as the Guia says
   ("duas massas iguais se empurram meio a meio"). Before, the body checked
-  first was carried by the other's whole step, whatever the masses: a crate
-  made before the player was pushed at full speed even at mass 50, and one
-  made after it was never pushed; a wall of mass 50 held by a spring was
+  first was carried by the other's whole step, whatever the masses, and the
+  order was the bodies' enrollment order (with `resolve()` called after both
+  exist, the order of its arguments): a crate enrolled before the player was
+  pushed at full speed even at mass 50, and one enrolled after it was never
+  pushed; a wall of mass 50 held by a spring was
   shoved by every ball and the box gained energy (+45 % in 10 s). `.vel`
   already split by mass; now the position agrees. If a floor, wall or
   moving platform must not give, make it `STATIC`: left at the default
   mass `1`, it now yields under an equal mass in every order (before, only
-  when it was made first).
+  when it was enrolled first).
 - `@collide_exit` (and `@collide_with_exit`) runs when a side leaves, while
   touching, the tag its contact entered under: `heroi.untag("heroi")` (or a
   group change) on a spike fires the spike–hero exit. Before, the contact
@@ -461,9 +480,11 @@ left out.
 - A rider on a `STATIC` lift going down (`lift.move_by(0, -v * dt)`) keeps its
   `@collide` contact: `@collide_stay` fires every frame while `touching_sides`
   says `"bottom"`. Before, the lift's drop each frame opened the gap past the
-  resting-contact skin (from 60 units/s at 60 Hz, 30 units/s at 144 Hz), so
+  resting-contact skin (e.g. from about 45 units/s at 60 Hz with strong
+  gravity; lower at higher frame rates), so
   the contact exited while the rider stood on it, and a lift going up and
-  down exited at the top and never entered again on the way down.
+  down at a constant speed exited at the top and never entered again on the
+  way down.
 - An idle body on a slope stays put. With `vel.x = 0` when no key is down
   (the ninja idiom) and gravity, a hero on a `STATIC` ramp slid slowly
   downhill: 24 units in 10 s on a 30° ramp at 60 fps, 58 at 144. Walking up
@@ -548,7 +569,7 @@ left out.
 - Tutorial 25 has a new step, "O elevador": a gold `Metal` plank from the
   level (`fase["elevador"]`) that rides up and down forever
   (`move_by(..., loops="forever", yoyo=True)`) and carries the ninja to a new
-  star. `media/levels/ninja_perigos.json` has the elevator and the star.
+  star. `examples/media/levels/ninja_perigos.json` has the elevator and the star.
 - The tutorials are reorganized (Portuguese). New: **09 Fórmulas** (the
   reactive system in depth: cells and formulas as in a spreadsheet,
   `st["x"]` × `st.x`, `=` × `@=`, `@on_change`, `@when`, `unlink`, the
@@ -569,7 +590,8 @@ left out.
   sound (sites, licenses), **D** points and vectors, **E** helpers
   (`remap`, `lerp`, `chase`…), **F** shape constructors in detail.
   `examples/app_draw.py` is now `examples/desenho.py`; new examples
-  `letreiro.py`, `bolhas.py`, `formulas.py`, `interacao.py`, `orbitas.py`.
+  `letreiro.py`, `bolhas.py`, `formulas.py`, `interacao.py`, `trilhas.py`,
+  `orbitas.py`.
 - Tutorials: Python words a beginner meets are explained where they first
   appear (`nome=valor`, the decimal point, `+=`, f-strings, comments,
   `range`, indexes, `not`, `in`, `!=`, `elif`, unpacking a pair, a `lambda`

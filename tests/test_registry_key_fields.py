@@ -195,6 +195,43 @@ class TestInternedLooksFrozen(_Case):
         self.assertIn("Neon", checked)
         self.assertIn("Blur", checked)
 
+    def test_the_suggested_call_builds_on_every_style(self):
+        """RA 0.8.1: ``Bolt(style="filaments").amount = 6`` suggested
+        ``Bolt(amount=6)`` (core: raises), ``Shield(style="nebula").color =``
+        suggested ``Shield(color=…)`` (the bubble), and a Halo style named its
+        private class (``HaloPulse(rings=5)``). Bug class: every styled look ×
+        style × knob — the suggestion builds the same style, or the message
+        carries the constructor's own refusal."""
+        import re
+        import typing
+        checked = 0
+        for name in scena.__all__:
+            cls = getattr(scena, name)
+            if not (inspect.isclass(cls) and issubclass(cls, (Visual, FilterEffect))):
+                continue
+            params = inspect.signature(cls).parameters
+            if "style" not in params:
+                continue
+            styles = typing.get_args(typing.get_type_hints(cls.__init__)["style"])
+            self.assertTrue(styles, name)
+            for st in styles:
+                look = cls(style=st)
+                for knob in params:
+                    if knob == "style" or not hasattr(look, knob):
+                        continue
+                    with self.subTest(look=name, style=st, knob=knob):
+                        with self.assertRaises(AttributeError) as cm:
+                            setattr(look, knob, getattr(look, knob))
+                        msg = str(cm.exception)
+                        self.assertTrue(msg.startswith(f"{name}.{knob} is read-only"), msg)
+                        if "cannot take it either" in msg:
+                            continue
+                        call = re.search(r"value you want, (.*), and assign", msg).group(1)
+                        built = eval(call, vars(scena))
+                        self.assertIs(type(built), type(look), msg)
+                        checked += 1
+        self.assertGreater(checked, 20)
+
     def test_private_caches_still_writable(self):
         n = scena.Neon()
         n._scratch = 1

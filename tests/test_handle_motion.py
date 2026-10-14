@@ -130,13 +130,24 @@ class TestStraightMotionReadout(HandleMotionTestCase):
 
     def test_copy_into_graphic_vel(self):
         platform = self.track(Circle(center=(0, 0), radius=8))
-        rider = self.track(Circle(center=(0, 20), radius=8))
+        caixa = self.track(Circle(center=(0, 20), radius=8))
         h = platform.move_by(80, 0, time=1.0)
         _frame(0.1)
-        rider.vel = h.velocity
-        self.assertIsInstance(rider.vel, Vec2)
-        self.assertAlmostEqual(float(rider.vel.x), 80.0, places=4)
-        self.assertAlmostEqual(float(rider.vel.y), 0.0, places=4)
+        caixa.vel = h.velocity
+        self.assertIsInstance(caixa.vel, Vec2)
+        self.assertAlmostEqual(float(caixa.vel.x), 80.0, places=4)
+        self.assertAlmostEqual(float(caixa.vel.y), 0.0, places=4)
+
+    def test_read_only_message_suggests_a_crate_not_a_rider(self):
+        """The Guia warns against copying a lift's velocity into a rider
+        (resolve carries it); the refusal suggests the crate let go."""
+        platform = self.track(Circle(center=(0, 0), radius=8))
+        h = platform.move_by(80, 0, time=1.0)
+        with self.assertRaises(TypeError) as ctx:
+            h.velocity = (1, 0)
+        msg = str(ctx.exception)
+        self.assertIn("caixa.vel = h.velocity", msg)
+        self.assertNotIn("rider.vel", msg)
 
     def test_does_not_write_graphic_vel(self):
         c = self.track(Circle(center=(0, 0), radius=8))

@@ -887,7 +887,9 @@ class Handle:
     def velocity(self, _value) -> None:
         raise TypeError(
             "Handle.velocity is read-only (DU/s this tick). "
-            "Copy it if you want physics: rider.vel = h.velocity. "
+            "Copy it if you want physics, e.g. into a crate let go of the "
+            "platform: caixa.vel = h.velocity (a body standing on it needs "
+            "nothing: resolve() carries it). "
             "Motion tweens never write Graphic.vel."
         )
 

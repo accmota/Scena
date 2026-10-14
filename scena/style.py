@@ -3234,14 +3234,61 @@ def _interned_setattr(self, name: str, value) -> None:
         if d.get("_sealed") and name not in d:
             check_closed_write(self, name)
         if d.get("_ready") and d.get("_interned"):
-            cls = type(self).__name__
-            raise AttributeError(
-                f"{cls}.{name} is read-only: {cls}(...) is shared by every "
-                f"shape built with the same arguments. Build a new one with "
-                f"the value you want, {cls}({name}={value!r}), and assign it "
-                f"where this one is used."
-            )
+            raise AttributeError(_read_only_message(self, name, value))
     object.__setattr__(self, name, value)
+
+
+def _read_only_message(look, name: str, value) -> str:
+    """The refusal of a write on an interned look, with a spelling that works.
+
+    A styled look (``Bolt``, ``Shield``) keeps its style in the suggestion, and
+    the suggestion is built once to check it: a knob that this style does not
+    read (``Bolt(style="core")`` and ``amount``, ``Shield(style="nebula")`` and
+    ``color``) gets the constructor's own refusal instead of a call that raises.
+    """
+    import inspect
+    from importlib import import_module
+    public = import_module(__package__).__dict__
+    maker, style = type(look), look.__dict__.get("style")
+    if public.get(maker.__name__) is not maker:
+        # A style's own class (``Halo(style="pulse")`` is a ``HaloPulse``,
+        # ``Shield(style="plasma")`` an ``_OrbHalo``): name the exported look
+        # and the style that makes it.
+        found = None
+        for base in list(public.values()):
+            styles = getattr(base, "_styles", None) if isinstance(base, type) else None
+            if not styles or public.get(base.__name__) is not base:
+                continue
+            for st in styles:
+                try:
+                    if type(base(style=st)) is maker:
+                        found = (base, st)
+                        break
+                except Exception:
+                    pass
+            if found:
+                maker, style = found
+                break
+    cls = maker.__name__
+    head = (f"{cls}.{name} is read-only: {cls}(...) is shared by every shape "
+            f"built with the same arguments.")
+    kwargs = {name: value}
+    if isinstance(style, str):
+        try:
+            default = inspect.signature(maker).parameters["style"].default
+        except (KeyError, TypeError, ValueError):
+            default = None
+        if style != default:
+            kwargs = {"style": style, name: value}
+        try:
+            maker(**kwargs)
+        except TypeError as e:
+            return f"{head} A new one cannot take it either: {e}"
+        except Exception:
+            pass
+    call = f"{cls}({', '.join(f'{k}={v!r}' for k, v in kwargs.items())})"
+    return (f"{head} Build a new one with the value you want, {call}, and "
+            f"assign it where this one is used.")
 
 
 class FilterEffect:
