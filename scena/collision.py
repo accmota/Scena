@@ -4794,6 +4794,12 @@ class CollisionSystem:
         # leaves a ghost contact for the survivor's velocity response (PE5).
         self._dispatch_current: Optional[Dict[Tuple[int, int], "CollisionInfo"]] = None
         self._dispatch_ids: Optional[Dict[int, Collider]] = None
+        # The contact whose enter / stay handlers are running (its key), and
+        # the exit a destroy or park of one of its sides owes it: deferred to
+        # after that contact's last handler, so a contact's handlers always
+        # read enter, then exit (PB5 follow-up).
+        self._contact_key: Optional[Tuple[int, int]] = None
+        self._deferred_exit: Optional[Tuple[Any, ...]] = None
         self._ghost_contacts: List[Tuple[Any, ...]] = []
         self._show = False
         self._debug_shapes: List[Any] = []  # legacy shape-based overlay (cleared on disable)
@@ -5830,6 +5836,7 @@ class CollisionSystem:
             return
         id_to = {id(c): c for c in self._colliders}
         id_to[cid] = col
+        current = self._contact_key
         for key in keys:
             ca = id_to.get(key[0])
             cb = id_to.get(key[1])
@@ -5838,7 +5845,34 @@ class CollisionSystem:
             info = CollisionInfo(
                 a=ca._identity, b=cb._identity, normal=Vec2.temp(0, 0), depth=0.0,
             )
+            if key == current and self._deferred_exit is None and not _act_manager().changing:
+                # The contact whose handlers are running: its exit waits for
+                # them. Its handlers are chosen now, while the leaving side
+                # still has its tags and handlers (what an exit fired here
+                # would have run). The leaving body's own exit hooks run now,
+                # while it exists (a dead actor runs no hook of its own).
+                runs = self._exit_runs(ca, cb)
+                own = [r for r in runs if self._own_hook_of(col, r)]
+                rest = [r for r in runs if not self._own_hook_of(col, r)]
+                if own:
+                    self._run_exit(ca, info, own, None)
+                if rest:
+                    was = [ta is None or self._handler_registered(ta, tb, fn)
+                           for ta, tb, fn, _m, _o in rest]
+                    self._deferred_exit = (ca, cb, info, rest, was, self._act_change_epoch)
+                continue
             self._dispatch(ca, cb, info, _PHASE_EXIT)
+
+    @staticmethod
+    def _own_hook_of(col: Collider, run) -> bool:
+        """An exit run that belongs to ``col``'s body: its ``on_collide_exit``
+        or a handler with that body (or part) as a side (``@collide_with_exit``
+        methods, ``@collide_exit(body, …)``)."""
+        ta, tb, _fn, me, _other = run
+        if ta is None:
+            return me is col
+        targets = (col, col._identity) if col._part is None else (col, col._part)
+        return any(t is x for t in (ta, tb) for x in targets)
 
     def _note_ghost_contacts(self, col: Collider) -> None:
         """``col`` leaves collision from a handler of this step (destroy, park,
@@ -8939,24 +8973,38 @@ class CollisionSystem:
         # while touching still matches (PB1). A handler dropped meanwhile (an
         # act change, a destroy) does not run (S4-1): checked only after the
         # dispatch epoch moved, by one int compare per handler.
-        attr = _PHASE_CALLBACK[phase]
-        exit_matches = self._exit_matches(ca, cb)
-        epoch = self._dispatch_epoch
-        changed = False
+        self._run_exit(ca, info, self._exit_runs(ca, cb), None)
+
+    def _exit_runs(self, ca: Collider, cb: Collider) -> list:
+        """The exit of ``ca`` × ``cb`` as ``(ta, tb, fn, me, other)`` runs:
+        the ``on_collide_exit`` callbacks (``ta`` None), then the matching
+        exit handlers. Empty for two bodies leaving with an act."""
+        acts = _act_manager()
+        if acts.changing and self._both_leave_with_act(ca, cb, acts.dying_ids):
+            return []
+        runs = []
+        attr = _PHASE_CALLBACK[_PHASE_EXIT]
         for me_c, other_c in ((ca, cb), (cb, ca)):
             cb_fn = getattr(me_c, attr, None)
             if cb_fn is not None and other_c._part is None:
-                oriented = self._oriented_info(me_c, other_c, ca, info, phase)
-                self._author_ran = True
-                _call(cb_fn, me_c._identity, other_c._identity, oriented)
-                if self._dispatch_epoch != epoch:
-                    changed = True
-        for ta, tb, handler, me, other in exit_matches:
-            if changed and not self._handler_registered(ta, tb, handler):
+                runs.append((None, None, cb_fn, me_c, other_c))
+        runs.extend(self._exit_matches(ca, cb))
+        return runs
+
+    def _run_exit(self, ca: Collider, info: CollisionInfo, runs: list, was) -> None:
+        """Run an exit's handlers. One that a handler of this exit dropped
+        does not run (S4-1); ``was`` (a deferred exit) lists which were still
+        registered when it was chosen, so the leaving side's own handlers,
+        dropped by its destroy since, still run."""
+        epoch = self._dispatch_epoch
+        changed = False
+        for i, (ta, tb, fn, me, other) in enumerate(runs):
+            if changed and ta is not None and (was is None or was[i]) \
+                    and not self._handler_registered(ta, tb, fn):
                 continue
-            oriented = self._oriented_info(me, other, ca, info, phase)
+            oriented = self._oriented_info(me, other, ca, info, _PHASE_EXIT)
             self._author_ran = True
-            _call(handler, me._identity, other._identity, oriented)
+            _call(fn, me._identity, other._identity, oriented)
             if self._dispatch_epoch != epoch:
                 changed = True
 
@@ -9005,16 +9053,31 @@ class CollisionSystem:
             runs.append((ta, tb, handler, matched[0], matched[1]))
         if runs is None:
             return
-        act_epoch = self._act_change_epoch
-        for ta, tb, fn, me, other in runs:
-            if self._act_change_epoch != act_epoch:
-                if not self._collider_in_play(ca) or not self._collider_in_play(cb):
-                    return
-                if ta is not None and not self._handler_registered(ta, tb, fn):
-                    continue
-            oriented = self._oriented_info(me, other, ca, info, phase)
-            self._author_ran = True
-            _call(fn, me._identity, other._identity, oriented)
+        ida, idb = id(ca), id(cb)
+        saved = (self._contact_key, self._deferred_exit)
+        self._contact_key = (ida, idb) if ida < idb else (idb, ida)
+        self._deferred_exit = None
+        try:
+            act_epoch = self._act_change_epoch
+            for ta, tb, fn, me, other in runs:
+                if self._act_change_epoch != act_epoch:
+                    if not self._collider_in_play(ca) or not self._collider_in_play(cb):
+                        break
+                    if ta is not None and not self._handler_registered(ta, tb, fn):
+                        continue
+                oriented = self._oriented_info(me, other, ca, info, phase)
+                self._author_ran = True
+                _call(fn, me._identity, other._identity, oriented)
+        finally:
+            deferred = self._deferred_exit
+            self._contact_key, self._deferred_exit = saved
+            if deferred is not None:
+                # A side left during this contact's handlers: its exit now,
+                # after them (enter, then exit), never lost to a raise.
+                xa, _xb, xinfo, xruns, was, x_act = deferred
+                if self._act_change_epoch != x_act:
+                    was = None              # an act change: S4-1 for all
+                self._run_exit(xa, xinfo, xruns, was)
 
     def _exit_matches(self, ca: Collider, cb: Collider) -> list:
         """The exit handlers matching ``ca`` × ``cb`` now, as

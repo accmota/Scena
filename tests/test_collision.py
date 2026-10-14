@@ -7209,6 +7209,141 @@ class TestEveryEnterHandlerOfAContactRuns(unittest.TestCase):
         self.assertEqual(log, ["burn", ("hiss", True), "burn", ("hiss", False)])
 
 
+class TestAContactsExitComesAfterItsHandlers(unittest.TestCase):
+    """PB5 follow-up (2026-10-14): a side destroyed (or parked) by one enter
+    handler of a contact gets that contact's exit after the contact's other
+    handlers, so an enter / exit counter reads +1 then -1 in either order.
+    Before, the exit fired inside the destroy: -1, then the remaining enter
+    handler's +1 (the counter went negative and the order read exit, enter)."""
+
+    def _zone(self, kill_first, leave="destroy"):
+        from scena import Circle, collide, collide_exit, st
+        from tests.system_support import system_world
+        log = []
+        with system_world(draw=False) as w:
+            st.pb5x_inside = 0
+            ball = Circle(center=(0, 0), radius=5, group="pb5x_ball")
+            zone = Circle(center=(4, 0), radius=20, group="pb5x_zone")
+
+            def kill():
+                @collide("pb5x_ball", "pb5x_zone")
+                def burst(b, z, info):
+                    log.append("burst")
+                    if leave == "destroy":
+                        b.destroy()
+                    else:
+                        b.active = False
+
+            def count():
+                @collide("pb5x_ball", "pb5x_zone")
+                def enter(b, z, info):
+                    st.pb5x_inside += 1
+                    log.append(("in", st.pb5x_inside))
+
+            @collide_exit("pb5x_ball", "pb5x_zone")
+            def out(b, z, info):
+                st.pb5x_inside -= 1
+                log.append(("out", st.pb5x_inside))
+
+            for f in ((kill, count) if kill_first else (count, kill)):
+                f()
+            w.step(3, dt=1 / 60)
+            inside = st.pb5x_inside
+            for o in (ball, zone):
+                if o.is_alive:
+                    o.destroy()
+        return log, inside
+
+    def test_counter_reads_enter_then_exit_in_either_order(self):
+        for kill_first in (True, False):
+            with self.subTest(kill_first=kill_first):
+                log, inside = self._zone(kill_first)
+                self.assertEqual(inside, 0)
+                self.assertEqual([e for e in log if e != "burst"], [("in", 1), ("out", 0)])
+
+    def test_park_defers_the_exit_too(self):
+        log, inside = self._zone(True, leave="park")
+        self.assertEqual([e for e in log if e != "burst"], [("in", 1), ("out", 0)])
+
+    def test_class_methods_in_either_spawn_order(self):
+        from scena import Circle, collide_with, collide_with_exit, st
+        from tests.system_support import system_world
+        for ball_first in (True, False):
+            with self.subTest(ball_first=ball_first), system_world(draw=False) as w:
+                st.pb5c_inside = 0
+                log = []
+
+                class Bola(Circle, radius=5, group="pb5c_ball"):
+                    @collide_with("pb5c_zone")
+                    def estoura(self, zona):
+                        self.destroy()
+
+                class Zona(Circle, radius=20, group="pb5c_zone"):
+                    @collide_with("pb5c_ball")
+                    def entrou(self, bola):
+                        st.pb5c_inside += 1
+                        log.append("in")
+
+                    @collide_with_exit("pb5c_ball")
+                    def saiu(self, bola):
+                        st.pb5c_inside -= 1
+                        log.append("out")
+
+                if ball_first:
+                    b = Bola(center=(0, 0))
+                    z = Zona(center=(4, 0))
+                else:
+                    z = Zona(center=(4, 0))
+                    b = Bola(center=(0, 0))
+                w.step(3, dt=1 / 60)
+                self.assertFalse(b.is_alive)
+                self.assertEqual(log, ["in", "out"])
+                self.assertEqual(st.pb5c_inside, 0)
+                z.destroy()
+
+    def test_other_pairs_of_the_dying_body_exit_at_the_destroy(self):
+        """Only the running contact's exit waits: the dying body's other
+        open contacts exit inside the destroy, as before."""
+        from scena import Circle, collide, collide_exit
+        from tests.system_support import system_world
+        log = []
+        with system_world(draw=False) as w:
+            ball = Circle(center=(0, 0), radius=5, group="pb5o_ball")
+            wall = Circle(center=(-6, 0), radius=4, group="pb5o_wall")
+            w.step(1, dt=1 / 60)
+
+            @collide_exit("pb5o_ball", "pb5o_wall")
+            def off_wall(b, x, info):
+                log.append("wall exit")
+
+            @collide("pb5o_ball", "pb5o_wall")
+            def on_wall(b, x, info):
+                log.append("wall enter")
+
+            w.step(1, dt=1 / 60)
+            spike = Circle(center=(6, 0), radius=4, group="pb5o_spike")
+
+            @collide("pb5o_ball", "pb5o_spike")
+            def pop(b, s, info):
+                log.append("pop")
+                b.destroy()
+                log.append("after destroy")
+
+            @collide("pb5o_ball", "pb5o_spike")
+            def later(b, s, info):
+                log.append("later")
+
+            @collide_exit("pb5o_ball", "pb5o_spike")
+            def off_spike(b, s, info):
+                log.append("spike exit")
+
+            w.step(1, dt=1 / 60)
+            for o in (wall, spike):
+                o.destroy()
+        self.assertEqual(log, ["wall enter", "pop", "wall exit", "after destroy",
+                               "later", "spike exit"])
+
+
 class TestBounceOffAPartnerAHandlerRemoved(unittest.TestCase):
     """PE5 (2026-10-14): handlers run before resolve, so a ``bounce=`` ball
     whose ``@collide`` destroyed the brick found no brick to bounce off and
