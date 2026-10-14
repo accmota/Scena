@@ -297,6 +297,9 @@ FRAME_PROMISES = {
     "Para decidir no mesmo frame, use @collide_stay com info.side": f"{_HERE}.TestCollisionFrames.test_stay_sees_the_overlap_before_the_auto_resolve",
     "o que o tween andou neste frame": "prose: names Handle.heading to tell it apart from heading()",
     "mouse.x ainda é o valor de antes da câmera andar": f"{_HERE}.TestPointerFrames.test_mouse_x_after_pan_is_the_frame_sample",
+    "Quem morreu num contato não começa outro no mesmo frame": "test_collision.TestEveryEnterHandlerOfAContactRuns.test_one_shot_still_damages_one_enemy",
+    "Esse contato ainda dá a resposta de .vel neste frame": "test_collision.TestBounceOffAPartnerAHandlerRemoved.test_every_broken_brick_reflects_the_ball",
+    "segura a queda nesse frame, e no próximo ele cai": "test_collision.TestBounceOffAPartnerAHandlerRemoved.test_bounce_zero_floor_broken_on_landing_stops_the_fall_once",
 }
 
 _PROMISE = re.compile(r"(só no frame|próximo frame|mesmo frame|neste frame|nesse frame|"
