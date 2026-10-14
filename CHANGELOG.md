@@ -111,7 +111,10 @@ left out.
   `group[…].count` and `.empty` (05), the `Text` options (`width`, `align`,
   `background`, `top_center` / `top_right`) and a `TextInput` bound to a
   cell (04), and a note in the oscilloscope that the trigonometry can be
-  skipped.
+  skipped. Fórmulas (09) drops minor cases, builds the classic trap of a
+  `lambda` inside a `for` (every copy reads the loop's last value; the fix
+  is `lambda i=i:`), and ends with a step that gathers its ideas in light
+  boxes with examples instead of a dense list of rules.
 
 ## 0.8.1 — 2026-10-14
 

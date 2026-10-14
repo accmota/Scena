@@ -4,7 +4,8 @@ Uma pequena máquina de formas ligadas por fórmulas, como as células de
 uma planilha. Um slider escreve no raio do sol; a lua, o fio, os textos
 e o ponteiro que gira leem o sol, e tudo acompanha. A cor do sol muda
 num @on_change; passar de raio 100 dispara um estouro (@when). A lua
-pode ser solta (unlink) e arrastada, e presa de novo (@=).
+pode ser solta (unlink) e arrastada, e presa de novo (@=). Cinco contas
+no fio, feitas num for, guardam cada uma o seu i (lambda i=i:).
 
 Controles
 ---------
@@ -36,6 +37,9 @@ lua = Circle(
     color="light steel blue",
 )
 fio = Line(p1=lambda: sol.center, p2=lambda: lua.center, color="white")
+
+for i in range(1, 6):
+    Circle(center=lambda i=i: lerp(sol.center, lua.center, i / 6), radius=4, color="white")
 
 Text(st["raio"])
 Text(lambda: f"Sol {st.raio}   Lua {round(lua.radius)}")
