@@ -1290,7 +1290,7 @@
   <div class="nav-block" data-nav="colisao">
     <a href="#colisao-collide" class="nav-child" data-chapter="colisao" data-search="detectar collide collide_stay collide_exit collide_with on_collide on_collide_stay on_collide_exit ANYTHING fases">Detectar</a>
     <a href="#colisao-info" class="nav-child" data-chapter="colisao" data-search="CollisionInfo a_hitbox b_hitbox point points normal depth side slope_angle tangent slide_along ramp">CollisionInfo</a>
-    <a href="#colisao-resolve" class="nav-child" data-chapter="colisao" data-search="resolve unresolve mass STATIC vel bounce restitution quique solid walls floors floor snap rampa elevador placement motion coloca viaja stick resolve_enabled only one-way mão única atravessar plataforma semisolid jump-through descer">Tornar sólido</a>
+    <a href="#colisao-resolve" class="nav-child" data-chapter="colisao" data-search="resolve unresolve mass STATIC vel bounce restitution quique solid walls floors floor snap rampa elevador carregar junto em cima rider pilha placement motion coloca viaja stick resolve_enabled only one-way mão única atravessar plataforma semisolid jump-through descer">Tornar sólido</a>
     <a href="#colisao-touching" class="nav-child" data-chapter="colisao" data-search="touching_sides touching_contacts grounded chão slope_angle point TouchingContact coyote">Tocando</a>
     <a href="#colisao-floor" class="nav-child" data-chapter="colisao" data-search="floor_below chão à frente borda beirada ledge edge plataforma cair patrulha virar inimigo depth degrau">Chão à frente</a>
     <a href="#colisao-manual" class="nav-child" data-chapter="colisao" data-search="resolve_now push_apart bounce_apart mtv_split velocity_split reflect_velocity manual ladder escada">Resolução manual</a>
@@ -7246,7 +7246,7 @@ turret.rotate_to(90, speed=45)          # 45 graus por segundo</pre>
 <tr><td><code>speed=</code> e <code>h.speed</code> são a mesma coisa</td><td><code>speed=</code> é o pedido: a velocidade média da viagem, convertida em duração na chamada. <code>h.speed</code> é a leitura: quanto o objeto andou neste frame, por segundo. Com <code>ease="linear"</code> os dois coincidem; com uma curva, <code>h.speed</code> começa abaixo e passa do pedido no meio.</td><td>o mesmo número sempre</td></tr>
 <tr><td><code>move_to(alvo, speed=)</code> persegue o alvo</td><td>O destino é copiado na chamada, como com <code>time=</code>. Se o alvo andar, o objeto chega aonde o alvo <em>estava</em>. Para perseguir um alvo que se move na mesma velocidade, chame <a href="#util-approach"><code>approach</code></a> no <code>update</code>, todo frame: <code>inimigo.move_to(approach(inimigo.center, jogador.center, 120))</code>.</td><td>perseguir</td></tr>
 <tr><td><code>time=</code> e <code>speed=</code> juntos</td><td>Escolha um: <code>time=</code> fixa a duração e a velocidade sai da distância; <code>speed=</code> fixa a velocidade e a duração sai da distância. Os dois juntos levantam <code>TypeError</code>.</td><td>combinação</td></tr>
-<tr><td>O Handle de uma viagem escreve <code>.vel</code></td><td>Com <code>time=</code> ou <code>speed=</code>, <code>h.velocity</code> / <code>h.speed</code> / <code>h.heading</code> dizem o que este frame andou, em unidades por segundo — mas não escrevem <code>.vel</code>. Para física: <code>rider.vel = h.velocity</code>. Ver <a href="#agendar-handle">Handle</a>.</td><td><code>.vel</code></td></tr>
+<tr><td>O Handle de uma viagem escreve <code>.vel</code></td><td>Com <code>time=</code> ou <code>speed=</code>, <code>h.velocity</code> / <code>h.speed</code> / <code>h.heading</code> dizem o que este frame andou, em unidades por segundo — mas não escrevem <code>.vel</code>. Para física: <code>caixa.vel = h.velocity</code>. Quem está em cima da plataforma não precisa: o <code>resolve</code> já o leva junto. Ver <a href="#agendar-handle">Handle</a>.</td><td><code>.vel</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -7766,9 +7766,8 @@ async def diving(e):
 # herdar a velocidade da viagem (o autor escreve .vel)
 h = plataforma.move_along(trilho, time=4, loops="forever")
 
-def update(dt):
-    if not h.done:
-        rider.vel = h.velocity</pre>
+def solta_caixa():
+    caixa.vel = h.velocity        # a caixa sai na velocidade da plataforma</pre>
       </div>
       <details class="spec" open>
       <summary>Neste Handle</summary>
@@ -7826,7 +7825,7 @@ def update(dt):
       <p class="gotcha"><strong><code>Cancelled</code> é <code>BaseException</code>.</strong> <code>except Exception</code> não pega. Não há <code>cancel("spawn")</code> por string: o slot é <code>name=</code>; uma tarefa específica é o Handle dela.</p>
       <p class="gotcha"><strong>Não escreva <code>h.remaining = …</code>.</strong> <code>TypeError</code>. Para renovar a duração, <code>after(2.0, fn, name="tail")</code> (o slot substitui). Para parar, <code>h.cancel()</code>.</p>
       <p class="gotcha"><strong>Não escreva <code>h.paused = …</code>.</strong> <code>TypeError</code>. Use <code>h.pause()</code> / <code>h.resume()</code>. Pausar o mundo é <code>clock.paused</code>; estacionar o Entity é <code>e.active = False</code>.</p>
-      <p class="gotcha"><strong><code>.velocity</code> não escreve <code>.vel</code> da Graphic.</strong> Copie se a física precisa: <code>rider.vel = h.velocity</code>. Só <code>bounce=</code> (colisão), <a href="#mover-confine"><code>confine(…, action="bounce")</code></a> e o seu código escrevem <code>.vel</code>. <code>after</code> / <code>every</code> / <code>rotate_*</code> / <code>scale_*</code> / <code>tween</code> levantam <code>AttributeError</code> (não têm velocidade). Handle já <code>.done</code> ou cancelado: guarda o último frame (útil no <code>on_done</code>).</p>
+      <p class="gotcha"><strong><code>.velocity</code> não escreve <code>.vel</code> da Graphic.</strong> Copie se a física precisa: <code>caixa.vel = h.velocity</code> (não para quem está em cima: o <code>resolve</code> já o leva junto). Só <code>bounce=</code> (colisão), <a href="#mover-confine"><code>confine(…, action="bounce")</code></a> e o seu código escrevem <code>.vel</code>. <code>after</code> / <code>every</code> / <code>rotate_*</code> / <code>scale_*</code> / <code>tween</code> levantam <code>AttributeError</code> (não têm velocidade). Handle já <code>.done</code> ou cancelado: guarda o último frame (útil no <code>on_done</code>).</p>
     </section>
     <p class="more"><strong>Onde mais procurar</strong> — <a href="#mover">Mover</a> · <a href="#mode">Mode</a> · <a href="#reagir">Reagir</a> · <a href="#som">Som</a></p>
 </article>
@@ -9304,6 +9303,9 @@ def caught(me, star, info):
           </div>
           <p class="gotcha"><code>resolve(hero, ANYTHING)</code> torna sólido <strong>tudo</strong> que está inscrito, inclusive moeda, tiro e sensor: o herói empurra a moeda em vez de passar por ela (o <code>@collide</code> da moeda continua disparando). Não há como marcar um corpo como “não sólido”: nomeie os grupos sólidos, <code>resolve(hero, ["walls", "crates"])</code>. <code>ANYTHING</code> serve quando tudo no mundo é sólido (um mundo só de blocos e paredes).</p>
           <p class="gotcha"><strong>Chão que não pode ceder é <code>STATIC</code>.</strong> Quando nenhum dos dois corpos é <code>STATIC</code>, o empurrão se divide pela massa, quem quer que tenha sido criado primeiro: uma caixa de massa <code>1</code> anda a metade do passo do jogador que a empurra, uma de massa <code>50</code> quase não sai do lugar. Isso vale para chão, parede e plataforma também: deixados na massa padrão <code>1</code>, eles cedem embaixo de um herói de massa <code>1</code> (a gravidade dele afunda o chão). Uma plataforma que você move com <code>move_by</code> e que deve carregar quem estiver em cima é <code>STATIC</code>.</p>
+          <p><strong>Quem está em cima vai junto.</strong> Um objeto parado em cima de outro do <code>resolve</code> (o lado <code>"bottom"</code> encostado) anda junto com ele no frame, para os lados e para cima e para baixo, com <code>move_by</code>, <code>time=</code> ou <code>move_along</code>, em qualquer taxa de quadros; o que ele mesmo anda soma (andar em cima do elevador). Uma parede no caminho do elevador segura quem está em cima. Quem pula ou quica deixa de ir junto. Uma caixa empurrada não carrega a de cima: só uma plataforma (<code>STATIC</code>, ou sem <code>.vel</code>) carrega.</p>
+          <p class="gotcha"><strong>Não copie a velocidade do elevador para quem está em cima.</strong> <code>heroi.vel.x += elevador_vel</code> (ou <code>heroi.vel = h.velocity</code>) faz o herói andar duas vezes: o <code>resolve</code> já o leva junto.</p>
+          <p>Um <code>STATIC</code> nunca cede: uma pilha de caixas pesadas não afunda a de baixo no chão, e uma bola leve atingida por uma pesada não atravessa o chão nem uma parede fina. As caixas de uma pilha ainda podem entrar um pouco uma na outra e tremer (o Scena não é um motor de física). Dois objetos que já nascem um dentro do outro se separam pelo lado em que estão sobrepostos, seja qual for a <code>.vel</code>.</p>
         </div>
         <div class="tab-panel" data-panel="colisao-bounce" id="colisao-bounce">
           <p class="one-liner"><code>bounce=</code> diz o que acontece com <code>.vel</code> no contato. Omitido é outra coisa que <code>0</code>.</p>
@@ -9346,7 +9348,7 @@ def update(dt):
             player.vel.y = 0.0   # cabeça no teto — outro está acima
     player.move_by(player.vel.x * dt, player.vel.y * dt)</pre>
           </div>
-          <p><code>.vel</code> é <code>None</code> até atribuir; o script move com <code>move_by(vel * dt)</code>. <code>move_along</code> / <code>move_to(..., time=)</code> / <code>move_by(..., time=)</code> não escrevem <code>.vel</code> — para herdar a taxa da viagem: <code>rider.vel = h.velocity</code> (<a href="#agendar-handle">Handle</a>).</p>
+          <p><code>.vel</code> é <code>None</code> até atribuir; o script move com <code>move_by(vel * dt)</code>. <code>move_along</code> / <code>move_to(..., time=)</code> / <code>move_by(..., time=)</code> não escrevem <code>.vel</code> — para herdar a taxa da viagem: <code>caixa.vel = h.velocity</code> (<a href="#agendar-handle">Handle</a>). Quem está em cima da plataforma já vai junto; não copie a velocidade dela.</p>
           <p><strong>Quebrou no contato.</strong> Destruir (ou estacionar) o parceiro no <code>@collide</code> não tira o quique: com <code>resolve(bola, "tijolo", bounce=1)</code> e <code>@collide(bola, "tijolo")</code> que faz <code>tijolo.destroy()</code>, a bola quebra o tijolo e volta. Esse contato ainda dá a resposta de <code>.vel</code> neste frame; o tijolo morto não empurra nada. Só a parte que vem de encontro muda: quem passa rente ou se afasta segue com a mesma velocidade. Com <code>bounce=0</code>, um chão que some quando o herói pousa segura a queda nesse frame, e no próximo ele cai.</p>
         </div>
         <div class="tab-panel" data-panel="res-snap" id="res-snap">

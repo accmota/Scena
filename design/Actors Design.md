@@ -861,7 +861,7 @@ parameter) and `.lap` (0-based; `loops="forever"` keeps counting). Non-motion
 handles (`after` / `every` / `wait` / rotate / scale / `tween`) raise
 `AttributeError` with a hint. Done or cancelled freezes the last tick (so
 `on_done` can still read exit speed). Movers never write `Graphic.vel` — the
-author copies if they want (`rider.vel = h.velocity`).
+author copies if they want (`crate.vel = h.velocity` for a body let go of the platform; a body standing on it is already carried by `resolve()`, Collision Design "Riders", so copying the rate there moves it twice).
 
 **`loops=` / `yoyo=`.** Shared by timed pose, `tween()`, and the camera suite
 (`1`, int `N`, or `"forever"` — same spelling as `move_along` / `play_sound`).
