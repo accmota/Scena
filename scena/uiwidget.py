@@ -598,6 +598,7 @@ class WidgetTheme:
         self.dropdownmenu_area_hover_bkg = fill(0, 100, 200)
         self.dropdownmenu_area_selected_line_drw = stroke_p((0, 122, 255), self.line_width_thick)
         self.dropdownmenu_area_border_drw = stroke_p((0, 0, 0))
+        self.dropdownmenu_scrollbar_bkg = fill(*text, 150)
 
         self.button_bkg = fill(*accent)
         self.button_hover_bkg = fill(*accent_hi)
@@ -1528,6 +1529,7 @@ class DropDown(UIWidget):
         self._enabled = enabled
         self._is_open = False
         self._hover_index = -1
+        self._scroll = 0.0  # design units the rows are shifted up (0 = first row on top)
 
         if options is not None:
             self.options = options
@@ -1585,21 +1587,29 @@ class DropDown(UIWidget):
     def _on_focus_lost(self):
         self._is_open = False
         self._hover_index = -1
+        self._scroll = 0.0
         return True
 
     def _list_span(self):
         """``(bottom, top)`` of the open list in view space (y-up).
 
         It hangs below the button unless it does not fit there and there is
-        more room above; then it opens upward. Too tall for either side, it
-        takes the larger side and runs off the edge (no scrolling).
+        more room above; then it opens upward. Too tall for the side it takes,
+        it ends at the view edge and its rows scroll (``_scroll``). A list
+        that fits is unchanged. The one source of the list rectangle: the hit
+        test, the row lookup and the drawing all read it.
         """
         from .orchestration import ScenaFramework
         h = len(self.options) * self._option_height + 2 * self._list_padding
         m = self._list_margin_top
         below = self._y1 - m
         above = ScenaFramework.get_instance().design_height - (self._y2 + m)
-        if below < h and above > below:
+        up = below < h and above > below
+        room = above if up else below
+        if h > room:
+            # At least one row shows, even with almost no room.
+            h = max(room, self._option_height + 2 * self._list_padding)
+        if up:
             bottom = self._y2 + m
             return bottom, bottom + h
         return below - h, below
@@ -1607,16 +1617,47 @@ class DropDown(UIWidget):
     def _opens_up(self) -> bool:
         return self._list_span()[0] >= self._y2
 
+    def _scroll_range(self):
+        """How far the rows can scroll (0 when they all fit)."""
+        bottom, top = self._list_span()
+        visible = top - bottom - 2 * self._list_padding
+        return max(0.0, len(self.options) * self._option_height - visible)
+
+    def _scroll_offset(self):
+        """``_scroll`` clamped to the current range (options or room may have changed)."""
+        return min(max(self._scroll, 0.0), self._scroll_range())
+
+    def _row_y(self, index):
+        """Bottom y of row ``index`` (may lie outside the visible list)."""
+        top = self._list_span()[1]
+        return (top - self._list_padding - self._option_height * (index + 1)
+                + self._scroll_offset())
+
     def _option_index_at(self, x, y):
-        """Row under ``(x, y)``, or -1. Rows run top to bottom on either side."""
-        list_top = self._list_span()[1]
-        option_y = list_top - self._list_padding - self._option_height
-        for i in range(len(self.options)):
-            if (self._x1 <= x <= self._x2 and
-                option_y <= y <= option_y + self._option_height):
-                return i
-            option_y -= self._option_height
+        """Row under ``(x, y)``, or -1. Rows run top to bottom on either side;
+        only the visible part of a row counts."""
+        if not self._x1 <= x <= self._x2:
+            return -1
+        bottom, top = self._list_span()
+        pad = self._list_padding
+        if not bottom + pad <= y <= top - pad:
+            return -1
+        i = int((top - pad + self._scroll_offset() - y) // self._option_height)
+        if 0 <= i < len(self.options):
+            return i
         return -1
+
+    def _scroll_to_selected(self):
+        """On open: the selected row in the middle of the list, if it scrolls."""
+        rng = self._scroll_range()
+        i = self.selected_index
+        if rng <= 0 or i < 0:
+            self._scroll = 0.0
+            return
+        bottom, top = self._list_span()
+        visible = top - bottom - 2 * self._list_padding
+        want = (i + 0.5) * self._option_height - visible / 2
+        self._scroll = min(max(want, 0.0), rng)
 
     def _on_mouse_move(self, x, y):
         if not self._is_open:
@@ -1627,6 +1668,17 @@ class DropDown(UIWidget):
     def _on_mouse_leave(self, x, y):
         self._hover_index = -1
 
+    def _on_mouse_scroll(self, x_scroll, y_scroll):
+        if not self._is_open:
+            return True
+        # Wheel up (positive) shows earlier rows; one row per wheel notch.
+        self._scroll = min(max(self._scroll_offset() - y_scroll * self._option_height, 0.0),
+                           self._scroll_range())
+        # The rows moved under a still pointer: hover follows (no move event comes).
+        ptr = self._widget_manager._ptr_seen
+        self._hover_index = self._option_index_at(*ptr) if ptr is not None else -1
+        return True
+
     def _on_mouse_down(self, x, y, button):
         if button != Mouse.BTN_LEFT:
             return False
@@ -1635,6 +1687,10 @@ class DropDown(UIWidget):
         if self._is_inside_main_button(x, y):
             self._is_open = not self._is_open
             self._hover_index = -1
+            if self._is_open:
+                self._scroll_to_selected()
+            else:
+                self._scroll = 0.0
             return True
 
         return False
@@ -1728,10 +1784,23 @@ class DropDown(UIWidget):
             canvas.drawRRect(list_rrect, self._theme.dropdownmenu_area_bkg)
             canvas.drawRRect(list_rrect, self._theme.dropdownmenu_area_border_drw)
 
-            # Draw options from top of list downward
-            option_y = list_top - self._list_padding - self._option_height
+            # Draw options from top of list downward; a list that scrolls
+            # clips to its inside and draws only the rows that show.
+            pad = self._list_padding
+            oh = self._option_height
+            scroll = self._scroll_offset()
+            rng = self._scroll_range()
+            first, last = 0, len(self.options)
+            if rng > 0:
+                canvas.save()
+                canvas.clipRect(skia.Rect.MakeLTRB(
+                    self._x1, list_y + pad, self._x2, list_top - pad))
+                first = int(scroll // oh)
+                last = min(last, int((scroll + list_height - 2 * pad) // oh) + 1)
+            option_y = self._row_y(first)
             text_left_padding = 15  # Increased padding to make room for selection line
-            for i, option in enumerate(self.options):
+            for i in range(first, last):
+                option = self.options[i]
                 option_rect = skia.Rect.MakeXYWH(
                     self._x1 + self._list_padding,
                     option_y,
@@ -1774,6 +1843,20 @@ class DropDown(UIWidget):
                 )
                 
                 option_y -= self._option_height
+
+            if rng > 0:
+                canvas.restore()
+                # Passive scrollbar: a thumb on the right edge, sized by the
+                # share of rows that show, placed by the scroll offset.
+                track = list_height - 2 * pad
+                thumb = max(track * track / (track + rng), min(track, oh / 2))
+                thumb_top = list_top - pad - (track - thumb) * (scroll / rng)
+                bar_w = max(2.0, pad)
+                bar = skia.Rect.MakeLTRB(
+                    self._x2 - pad / 2 - bar_w, thumb_top - thumb,
+                    self._x2 - pad / 2, thumb_top)
+                canvas.drawRRect(skia.RRect.MakeRectXY(bar, bar_w / 2, bar_w / 2),
+                                 self._theme.dropdownmenu_scrollbar_bkg)
 
     def contains_point(self, x, y):
         """Check if the given point (x, y) is within the widget's bounds, considering dropdown state."""

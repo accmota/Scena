@@ -79,7 +79,7 @@ API a row below forbids without evidence that matches the **Revisit** bar.
 | A key passing through a focused TextInput without committing it; a public `box.commit()` for shortcuts | Never — a shortcut that forgets the call reads stale data silently (the file saves `40` while the box shows `77`); the box commits before any key reaches the game | [Canvas — TextInput](Canvas%20Design.md#textinput) |
 | A per-key "let this key through" API on TextInput; plain keys reaching the game while a box has focus; undo inside the box | A taught script needs a key the claim rule (editing keys, text keys, Primary + A/C/X/V/Z/Y) keeps from the game | [Canvas — TextInput](Canvas%20Design.md#textinput) |
 | `on_enter` / `on_commit` as TextInput callback names; Enter keeping focus when `on_submit` is set | Never — `on_submit` is Enter only; Enter always drops focus, `box.focus()` keeps typing | [Canvas — TextInput](Canvas%20Design.md#textinput) |
-| DropDown list scrolling | A taught DropDown has more options than fit on screen on either side | [Canvas — HUD column](Canvas%20Design.md) |
+| DropDown `max_rows=`, thumb drag, or arrow-key / Page Up–Down scrolling | A taught DropDown list cannot be reached with the wheel or a trackpad | [Canvas — HUD column](Canvas%20Design.md) |
 | `Menu.enabled` | Never — a disabled modal Menu blocks all input with nothing to click; `destroy()` it | [Canvas — Menu](Canvas%20Design.md#menu) |
 | `TextBox` as a name or alias | Never — `TextInput` (Scena's `Box` is a measuring region) | [Canvas — HUD column](Canvas%20Design.md) |
 | Widget `box=` | A taught layout needs a grid of widgets that `top_left=` + `ui.stack_*` + `widget.box` cannot express | [Canvas — HUD column](Canvas%20Design.md) |

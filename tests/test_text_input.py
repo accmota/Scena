@@ -709,6 +709,166 @@ class TestDropDownFlip(TextInputCase):
         self.assertLessEqual(top, d._y1)
 
 
+# -- DropDown scrolling (a list taller than the room on its side) --------------------------
+
+
+class TestDropDownScroll(TextInputCase):
+    def open(self, top_left=(20, 560), n=40, **kw):
+        d = self.track(DropDown(top_left=top_left, width=200,
+                                options=[f"o{i}" for i in range(n)], **kw))
+        self.click(d)
+        self.assertTrue(d._is_open)
+        return d
+
+    def x(self, d):
+        return (d._x1 + d._x2) / 2
+
+    def wheel(self, d, y, dy):
+        self.wm.handle_mouse_move(self.x(d), y)
+        self.assertTrue(self.wm.handle_mouse_scroll(self.x(d), y, 0, dy))
+
+    def visible_rows(self, d):
+        bottom, top = d._list_span()
+        pad, oh = d._list_padding, d._option_height
+        return [i for i in range(len(d.options))
+                if d._row_y(i) + oh > bottom + pad and d._row_y(i) < top - pad]
+
+    def test_list_that_fits_is_unchanged(self):
+        d = self.open(n=6)
+        bottom, top = d._list_span()
+        self.assertAlmostEqual(top - bottom, 6 * d._option_height + 2 * d._list_padding)
+        self.assertEqual(d._scroll_range(), 0.0)
+        mid = (bottom + top) / 2
+        before = d._option_index_at(self.x(d), mid)
+        self.wheel(d, mid, -3)
+        self.assertEqual(d._scroll_offset(), 0.0)
+        self.assertEqual(d._option_index_at(self.x(d), mid), before)
+
+    def test_too_tall_below_stops_at_view_edge(self):
+        d = self.open((20, 560))
+        bottom, top = d._list_span()
+        self.assertFalse(d._opens_up())
+        self.assertAlmostEqual(bottom, 0.0)
+        self.assertAlmostEqual(top, d._y1 - d._list_margin_top)
+        self.assertGreater(d._scroll_range(), 0.0)
+        # Below the clipped list is not the DropDown any more.
+        self.assertFalse(d.contains_point(self.x(d), -5))
+
+    def test_too_tall_above_stops_at_view_edge(self):
+        from scena.orchestration import ScenaFramework
+        d = self.open((20, 60))
+        bottom, top = d._list_span()
+        self.assertTrue(d._opens_up())
+        self.assertAlmostEqual(top, ScenaFramework.get_instance().design_height)
+        self.assertGreater(d._scroll_range(), 0.0)
+
+    def test_wheel_reaches_last_row_and_clamps(self):
+        d = self.open()
+        bottom, top = d._list_span()
+        near_bottom = bottom + d._list_padding + 1
+        self.wheel(d, near_bottom, 5)          # up at the start: stays at 0
+        self.assertEqual(d._scroll_offset(), 0.0)
+        for _ in range(100):
+            self.wheel(d, near_bottom, -1)
+        self.assertAlmostEqual(d._scroll_offset(), d._scroll_range())
+        self.assertAlmostEqual(d._scroll, d._scroll_range())
+        self.assertEqual(d._option_index_at(self.x(d), near_bottom), 39)
+        self.wm.handle_mouse_down(self.x(d), near_bottom, self.btn)
+        self.wm.handle_mouse_up(self.x(d), near_bottom, self.btn)
+        self.assertEqual(d.value, "o39")
+        self.assertFalse(d._is_open)
+
+    def test_hover_follows_wheel_under_still_pointer(self):
+        d = self.open()
+        y = d._row_y(3) + d._option_height / 2
+        self.wm.handle_mouse_move(self.x(d), y)
+        self.assertEqual(d._hover_index, 3)
+        self.assertTrue(self.wm.handle_mouse_scroll(self.x(d), y, 0, -1))
+        self.assertEqual(d._hover_index, 4)
+
+    def test_trackpad_fractions_scroll_smoothly(self):
+        d = self.open()
+        self.wheel(d, d._list_span()[0] + 20, -0.25)
+        self.assertAlmostEqual(d._scroll_offset(), 0.25 * d._option_height)
+
+    def test_padding_and_clipped_rows_do_not_hit(self):
+        d = self.open()
+        self.wheel(d, d._list_span()[0] + 20, -2.5)
+        bottom, top = d._list_span()
+        x = self.x(d)
+        self.assertEqual(d._option_index_at(x, top - d._list_padding / 2), -1)
+        self.assertEqual(d._option_index_at(x, bottom + d._list_padding / 2), -1)
+        # The row cut in half at the top is still the row its visible half shows.
+        y = top - d._list_padding - 1
+        i = d._option_index_at(x, y)
+        self.assertEqual(i, 2)
+        self.assertLessEqual(d._row_y(i), y)
+        self.assertGreater(d._row_y(i) + d._option_height, y)
+
+    def test_open_scrolls_selected_into_view(self):
+        d = self.open(initial="o30")
+        self.assertIn(30, self.visible_rows(d))
+        # Closing resets; a selection at the top reopens at the top.
+        d.data = "o0"
+        self.click(d)
+        self.assertFalse(d._is_open)
+        self.assertEqual(d._scroll, 0.0)
+        self.click(d)
+        self.assertEqual(d._scroll_offset(), 0.0)
+
+    def test_options_shrink_while_open(self):
+        d = self.open(initial="o35")
+        self.assertGreater(d._scroll_offset(), 0.0)
+        d.options = ["a", "b"]
+        self.assertEqual(d._scroll_offset(), 0.0)
+        self.assertEqual(d._option_index_at(self.x(d), d._row_y(1) + 2), 1)
+        d._draw_priority(skia.Surface(1200, 800).getCanvas())
+
+    def test_wheel_on_closed_dropdown_changes_nothing(self):
+        d = self.track(DropDown(top_left=(20, 560), width=200,
+                                options=[f"o{i}" for i in range(40)]))
+        x, y = self.x(d), (d._y1 + d._y2) / 2
+        self.wm.handle_mouse_move(x, y)
+        self.assertTrue(self.wm.handle_mouse_scroll(x, y, 0, -3))
+        self.assertEqual(d._scroll, 0.0)
+        self.assertEqual(d.value, "o0")
+
+    def test_draw_paints_only_visible_rows(self):
+        d = self.open(n=200)
+        self.wheel(d, d._list_span()[0] + 20, -50)
+        drawn = []
+        real = uiw.draw_string_upright
+        uiw.draw_string_upright = lambda c, text, *a, **k: (drawn.append(text), real(c, text, *a, **k))
+        try:
+            d._draw_priority(skia.Surface(1200, 800).getCanvas())
+        finally:
+            uiw.draw_string_upright = real
+        want = [f"o{i}" for i in self.visible_rows(d)]
+        self.assertEqual(drawn, want)
+
+    @settings(max_examples=60, deadline=None)
+    @given(n=hs.integers(1, 60), y=hs.integers(40, 580),
+           steps=hs.lists(hs.floats(-4, 4, allow_nan=False), max_size=6))
+    def test_row_lookup_matches_row_layout(self, n, y, steps):
+        """Hit test, row lookup and row positions agree at any scroll (one source)."""
+        d = self.open((20, y), n=n)
+        try:
+            for dy in steps:
+                self.wheel(d, d._list_span()[0] + 1, dy)
+            bottom, top = d._list_span()
+            self.assertGreaterEqual(bottom, -1e-6)
+            self.assertLessEqual(d._scroll_offset(), d._scroll_range())
+            x = self.x(d)
+            for i in self.visible_rows(d):
+                lo = max(d._row_y(i), bottom + d._list_padding)
+                hi = min(d._row_y(i) + d._option_height, top - d._list_padding)
+                mid = (lo + hi) / 2
+                self.assertEqual(d._option_index_at(x, mid), i)
+                self.assertTrue(d.contains_point(x, mid))
+        finally:
+            self.wm.set_focus(None)
+
+
 # -- which keys reach the game while a box has focus --------------------------------------
 
 

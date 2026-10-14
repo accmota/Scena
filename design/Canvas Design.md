@@ -288,9 +288,24 @@ commits a TextInput and closes a DropDown. `visible = False` hides instead.
 (view bottom is y = 0) and there is more room above (up to `design_height`), it
 opens upward; rows keep the same top-to-bottom order and the open arrow points
 down. One helper, `DropDown._list_span()`, feeds the hit test, the row lookup
-and the drawing — never compute the list rectangle in a second place. Too tall
-for either side, it takes the larger side and runs off screen (no scrolling;
-fence).
+and the drawing — never compute the list rectangle in a second place; row
+positions come from `_row_y(i)` only (the test harness's
+`dropdown_option_center` reads it too).
+
+Too tall for the side it takes (the larger one), the list ends at the view
+edge and its rows **scroll**; a list that fits is unchanged. `_scroll` is in
+design units (0 = first row on top), so trackpad fractions scroll smoothly;
+the wheel moves one row per notch (positive = earlier rows). Every read goes
+through `_scroll_offset()`, which clamps to `_scroll_range()` — the options
+or the room can change while the list is open, so a stored offset is never
+trusted. Opening centers the selected row (clamped); closing, choosing or
+losing focus resets the offset. A wheel move under a still pointer recomputes
+the hovered row from `WidgetManager._ptr_seen` (no move event follows). A
+scrolling list clips to its inside, draws only the rows that show, and
+paints a passive thumb (`theme.dropdownmenu_scrollbar_bkg`) on the right; a
+click on the thumb picks the row under it. The wheel over a closed DropDown
+does nothing (it is not a second way to change the value). No `max_rows=`,
+thumb drag or arrow keys: the wheel and trackpad cover the case.
 
 ### TextInput
 
@@ -390,7 +405,7 @@ graph alias; `.data` / the bound cell is the value.
 Fences: no multi-line, no undo inside the box, no password mask, no IME
 pre-edit, no validators beyond int / float, no right-click menu.
 
-Tests: `tests/test_text_input.py` (also `enabled` and the DropDown flip).
+Tests: `tests/test_text_input.py` (also `enabled`, the DropDown flip and DropDown scrolling, with a property test that the hit test, row lookup and row positions agree at any scroll).
 
 ### Menu
 

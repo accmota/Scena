@@ -63,6 +63,11 @@ left out.
     items. It is also there when nothing is selected.
 - **Level editor:** Alt+drag (Option+drag on macOS) moves copies and leaves
   the originals in place.
+- A `DropDown` list too long for the window now stops at the window edge
+  and scrolls with the mouse wheel or trackpad, with a scroll bar on the
+  right; opening it shows the current option. Before, the rows past the edge
+  could not be reached. A list that fits looks the same. This also fixes the
+  editor's **Select group…** with many groups.
 - **Level editor:** after a groups edit, the status bar says what changed. A
   name with a space shows as «moving enemies» (one group). A new name close
   to an existing group gets a hint: `"plataform" is a new group. Did you

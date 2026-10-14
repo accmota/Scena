@@ -384,9 +384,9 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   Column, and the item buttons.
 - **Select group…** (a DropDown, when nothing or several are selected and
   the level has groups): the level's groups A–Z; choosing one selects its
-  items in file order and the list returns to "Select group…". Scena's
-  DropDown does not scroll: past ~20 groups the open list runs off the
-  window (accepted; a scrolling DropDown is a framework change).
+  items in file order and the list returns to "Select group…". A long list
+  of groups scrolls (Scena's DropDown stops at the window edge and scrolls
+  with the wheel).
 - **Panel:** a line shows X1 / Y1 / X2 / Y2 (other kinds X / Y = center); an
   image path is shortened in the middle to fit; the unsaved-changes prompt
   uses a lighter panel and a smaller font than the Menu default.

@@ -101,10 +101,9 @@ def widget_center(w) -> Tuple[float, float]:
 
 
 def dropdown_option_center(w, index: int) -> Tuple[float, float]:
-    """Centre of option ``index`` of an open DropDown (its own row layout)."""
-    top = w._list_span()[1]
-    y = top - w._list_padding - w._option_height * (index + 0.5)
-    return ((w._x1 + w._x2) / 2.0, y)
+    """Centre of option ``index`` of an open DropDown (its own row layout;
+    off the visible list when that row is scrolled out)."""
+    return ((w._x1 + w._x2) / 2.0, w._row_y(index) + w._option_height / 2.0)
 
 
 def slider_x_for(w, value: float) -> Tuple[float, float]:
