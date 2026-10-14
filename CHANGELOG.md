@@ -10,7 +10,7 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
-## Unreleased
+## Unreleased (0.8.1)
 
 ### Added
 
