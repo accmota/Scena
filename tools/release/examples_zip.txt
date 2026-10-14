@@ -10,6 +10,7 @@ examples/bolas.py
 examples/bolhas.py
 examples/cadeia_de_bolas.py
 examples/ceu_estrelado.py
+examples/colisao.py
 examples/corredor.py
 examples/desenho.py
 examples/entropia.py
@@ -212,6 +213,7 @@ examples/media/tilesets/Tiles/2.png
 examples/media/tilesets/Tiles/3.png
 examples/media/tilesets/Tiles/5.png
 examples/media/tilesets/licence.txt
+examples/movimento.py
 examples/naves.py
 examples/naves_atos.py
 examples/naves_classes.py

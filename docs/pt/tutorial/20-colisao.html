@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Colisão — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "20",
+  title: "Colisão",
+  steps: [
+    {
+      title: "O laboratório",
+      body: `
+        <p>Este tutorial não é um jogo. É um laboratório para ver de perto o que a colisão sabe fazer além do que os jogos usaram. Até aqui, a colisão foi uma <strong>regra</strong> que dispara quando duas coisas se tocam (<code>@collide</code>, no 02) ou que não deixa uma atravessar a outra (<code>resolve</code>, no 10). Aqui você vê as três fases de um toque (começou, continua, acabou) e as <strong>perguntas</strong>: quem está neste ponto, quem está nesta área, o que esta linha atinge primeiro.</p>
+        <p><strong>A montagem.</strong> Um herói, um círculo coral que anda com as setas, e cinco caixas. O herói guarda a sua velocidade num campo, <code>heroi.velocidade</code>, porque daqui a pouco ela vai mudar. <code>resolve("heroi", "caixa")</code> é o do tutorial 10: as caixas são sólidas, e o herói para nelas.</p>
+        <p>Rode e ande pelas caixas.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Colisão")
+Wallpaper("#1b2330")
+
+for x, y in [(520, 420), (600, 420), (680, 300), (420, 180), (760, 560)]:
+    Rect(center=(x, y), width=70, height=70, color="peru", group="caixa")
+
+heroi = Circle(center=(120, 560), radius=22, color="coral", group="heroi")
+heroi.velocidade = 260
+resolve("heroi", "caixa")
+
+
+def update(dt):
+    passo = heroi.velocidade * dt
+    if keyp("LEFT"):
+        heroi.move_by(-passo, 0)
+    if keyp("RIGHT"):
+        heroi.move_by(passo, 0)
+    if keyp("UP"):
+        heroi.move_by(0, passo)
+    if keyp("DOWN"):
+        heroi.move_by(0, -passo)
+
+
+run()
+`
+    },
+    {
+      title: "Entrar e sair",
+      body: `
+        <p>Uma poça azul no canto. Dentro dela, o herói anda devagar e fica azulado.</p>
+        <p><strong>Dois momentos.</strong> <code>@collide("heroi", "agua")</code> é o toque do 02: roda uma vez, no primeiro quadro em que os dois se tocam. <code>@collide_exit</code> (saída) roda uma vez, no quadro em que deixam de se tocar. É o mesmo par do <code>@hover</code> e do <code>@hover_exit</code> do 11: o que um faz, o outro desfaz. A entrada põe a velocidade em 110 e muda a cor; a saída devolve as duas.</p>
+        <p><strong>A poça não segura.</strong> A poça não está no <code>resolve</code>: o herói entra nela. Uma regra de toque só avisa; quem impede de atravessar é o <code>resolve</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Colisão")
+Wallpaper("#1b2330")
+
+poca = Rect(center=(250, 200), width=260, height=180, color="#2a6f97", group="agua")
+
+for x, y in [(520, 420), (600, 420), (680, 300), (420, 180), (760, 560)]:
+    Rect(center=(x, y), width=70, height=70, color="peru", group="caixa")
+
+heroi = Circle(center=(120, 560), radius=22, color="coral", group="heroi")
+heroi.velocidade = 260
+resolve("heroi", "caixa")
+
+
+def update(dt):
+    passo = heroi.velocidade * dt
+    if keyp("LEFT"):
+        heroi.move_by(-passo, 0)
+    if keyp("RIGHT"):
+        heroi.move_by(passo, 0)
+    if keyp("UP"):
+        heroi.move_by(0, passo)
+    if keyp("DOWN"):
+        heroi.move_by(0, -passo)
+
+
+@collide("heroi", "agua")
+def entrou(heroi, agua, info):
+    heroi.velocidade = 110
+    heroi.color = "light sky blue"
+
+
+@collide_exit("heroi", "agua")
+def saiu(heroi, agua, info):
+    heroi.velocidade = 260
+    heroi.color = "coral"
+
+
+run()
+`
+    },
+    {
+      title: "Enquanto está dentro",
+      body: `
+        <p>Agora, o ar. Embaixo d’água, o herói gasta ar, e fora dela recupera.</p>
+        <p><strong>A fase do meio.</strong> <code>@collide_stay</code> (ficar) roda a cada quadro em que os dois <em>continuam</em> se tocando, do segundo quadro até o último antes da saída. É o lugar de uma coisa que dura: aqui, o ar cai 30 por segundo. <code>clock.dt</code> é o tempo deste quadro, o mesmo <code>dt</code> do <code>update</code>; multiplicar por ele faz o ar cair 30 por segundo, com qualquer quantidade de quadros.</p>
+        <p><strong>E fora.</strong> No <code>update</code>, o ar sobe 10 por segundo até 100. Dentro da poça, os dois acontecem: sobe 10 e cai 30, então o ar cai 20 por segundo. <code>min</code> e <code>max</code> (o menor e o maior dos dois) seguram o ar entre 0 e 100.</p>
+        <p>Rode, entre na poça e olhe o contador no canto.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Colisão")
+Wallpaper("#1b2330")
+
+poca = Rect(center=(250, 200), width=260, height=180, color="#2a6f97", group="agua")
+
+for x, y in [(520, 420), (600, 420), (680, 300), (420, 180), (760, 560)]:
+    Rect(center=(x, y), width=70, height=70, color="peru", group="caixa")
+
+heroi = Circle(center=(120, 560), radius=22, color="coral", group="heroi")
+heroi.velocidade = 260
+resolve("heroi", "caixa")
+
+st.ar = 100
+Text(lambda: f"Ar: {round(st.ar)}", top_left=(20, 680))
+
+
+def update(dt):
+    passo = heroi.velocidade * dt
+    if keyp("LEFT"):
+        heroi.move_by(-passo, 0)
+    if keyp("RIGHT"):
+        heroi.move_by(passo, 0)
+    if keyp("UP"):
+        heroi.move_by(0, passo)
+    if keyp("DOWN"):
+        heroi.move_by(0, -passo)
+    if st.ar < 100:
+        st.ar = min(100, st.ar + 10 * dt)
+
+
+@collide("heroi", "agua")
+def entrou(heroi, agua, info):
+    heroi.velocidade = 110
+    heroi.color = "light sky blue"
+
+
+@collide_stay("heroi", "agua")
+def mergulhado(heroi, agua, info):
+    st.ar = max(0, st.ar - 30 * clock.dt)
+
+
+@collide_exit("heroi", "agua")
+def saiu(heroi, agua, info):
+    heroi.velocidade = 260
+    heroi.color = "coral"
+
+
+run()
+`,
+      try: [
+        {
+          note: "As três fases também existem numa classe, como o <code>@collide_with</code> do 06: <code>@collide_with_stay</code> e <code>@collide_with_exit</code> (o interlúdio depois do 11 mostra a tabela inteira). Uma bolha que sobe sozinha enquanto toca a água e para na borda. No fim do programa.",
+          code: `class Bolha(Circle, radius=8, color="white"):
+    @collide_with_stay("agua")
+    def subir(self, agua, info):
+        self.move_by(0, 40 * clock.dt)
+
+
+Bolha(center=(250, 150))`
+        }
+      ]
+    },
+    {
+      title: "O que está aqui?",
+      body: `
+        <p>As regras esperam um toque acontecer. Às vezes você quer <strong>perguntar</strong>, na hora: quem está neste ponto? Um clique vai mostrar.</p>
+        <p><strong>Uma pergunta ao sistema de colisão.</strong> <code>collision.query_point(x, y)</code> (consultar um ponto) devolve uma lista com todos os objetos cuja forma de colisão contém o ponto. <code>collision</code> já existe depois do <code>from scena import *</code>, como o <code>canvas</code>. A função do clique é a do canvas, do 11: cada coisa achada pisca (<code>flash</code>, do 02).</p>
+        <p><strong>Quem ele vê.</strong> Clique na poça, numa caixa, no herói: cada um pisca. Clique no texto do ar: nada. O sistema de colisão só conhece quem alguma regra nomeia: o herói e a poça estão no <code>@collide</code>, as caixas no <code>resolve</code>. O texto não está em regra nenhuma.</p>
+        <p><strong>E o <code>contains_point</code>?</strong> O do 11 pergunta a <em>um</em> objeto, pelo desenho dele. O <code>query_point</code> pergunta a todos de uma vez, pela forma de colisão. Num círculo ou num retângulo, desenho e colisão são iguais; numa imagem com partes transparentes, não.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Colisão")
+Wallpaper("#1b2330")
+
+poca = Rect(center=(250, 200), width=260, height=180, color="#2a6f97", group="agua")
+
+for x, y in [(520, 420), (600, 420), (680, 300), (420, 180), (760, 560)]:
+    Rect(center=(x, y), width=70, height=70, color="peru", group="caixa")
+
+heroi = Circle(center=(120, 560), radius=22, color="coral", group="heroi")
+heroi.velocidade = 260
+resolve("heroi", "caixa")
+
+st.ar = 100
+Text(lambda: f"Ar: {round(st.ar)}", top_left=(20, 680))
+
+
+def update(dt):
+    passo = heroi.velocidade * dt
+    if keyp("LEFT"):
+        heroi.move_by(-passo, 0)
+    if keyp("RIGHT"):
+        heroi.move_by(passo, 0)
+    if keyp("UP"):
+        heroi.move_by(0, passo)
+    if keyp("DOWN"):
+        heroi.move_by(0, -passo)
+    if st.ar < 100:
+        st.ar = min(100, st.ar + 10 * dt)
+
+
+@collide("heroi", "agua")
+def entrou(heroi, agua, info):
+    heroi.velocidade = 110
+    heroi.color = "light sky blue"
+
+
+@collide_stay("heroi", "agua")
+def mergulhado(heroi, agua, info):
+    st.ar = max(0, st.ar - 30 * clock.dt)
+
+
+@collide_exit("heroi", "agua")
+def saiu(heroi, agua, info):
+    heroi.velocidade = 260
+    heroi.color = "coral"
+
+
+def on_mouse_click(x, y, button):
+    for coisa in collision.query_point(x, y):
+        coisa.flash(0.3)
+
+
+run()
+`
+    },
+    {
+      title: "Um estouro",
+      body: `
+        <p>Um clique com o botão direito estoura as caixas perto dele.</p>
+        <p><strong>Uma área.</strong> <code>collision.query_circle(x, y, radius=90)</code> (consultar um círculo) devolve quem se sobrepõe a um círculo de raio 90 em volta do clique. Nenhum círculo é criado: é uma pergunta sobre uma área, não uma forma na tela. Quem aparece é o <code>burst_at</code> do 05, para você ver onde o estouro foi.</p>
+        <p><strong>Só as caixas.</strong> <code>group="caixa"</code> limita a pergunta a um grupo: o herói ou a poça, ali perto, não entram na lista e não são destruídos.</p>
+        <p>Rode e estoure as caixas, uma a uma ou duas de uma vez.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Colisão")
+Wallpaper("#1b2330")
+
+poca = Rect(center=(250, 200), width=260, height=180, color="#2a6f97", group="agua")
+
+for x, y in [(520, 420), (600, 420), (680, 300), (420, 180), (760, 560)]:
+    Rect(center=(x, y), width=70, height=70, color="peru", group="caixa")
+
+heroi = Circle(center=(120, 560), radius=22, color="coral", group="heroi")
+heroi.velocidade = 260
+resolve("heroi", "caixa")
+
+st.ar = 100
+Text(lambda: f"Ar: {round(st.ar)}", top_left=(20, 680))
+
+
+def update(dt):
+    passo = heroi.velocidade * dt
+    if keyp("LEFT"):
+        heroi.move_by(-passo, 0)
+    if keyp("RIGHT"):
+        heroi.move_by(passo, 0)
+    if keyp("UP"):
+        heroi.move_by(0, passo)
+    if keyp("DOWN"):
+        heroi.move_by(0, -passo)
+    if st.ar < 100:
+        st.ar = min(100, st.ar + 10 * dt)
+
+
+@collide("heroi", "agua")
+def entrou(heroi, agua, info):
+    heroi.velocidade = 110
+    heroi.color = "light sky blue"
+
+
+@collide_stay("heroi", "agua")
+def mergulhado(heroi, agua, info):
+    st.ar = max(0, st.ar - 30 * clock.dt)
+
+
+@collide_exit("heroi", "agua")
+def saiu(heroi, agua, info):
+    heroi.velocidade = 260
+    heroi.color = "coral"
+
+
+def on_mouse_click(x, y, button):
+    if button == Mouse.BTN_RIGHT:
+        canvas.burst_at((x, y), radius=90)
+        for caixa in collision.query_circle(x, y, radius=90, group="caixa"):
+            caixa.destroy()
+    else:
+        for coisa in collision.query_point(x, y):
+            coisa.flash(0.3)
+
+
+run()
+`
+    },
+    {
+      title: "O vigia",
+      example: "colisao.py",
+      body: `
+        <p>No canto de cima, um vigia dourado olha para o herói. A linha que sai dele fica vermelha quando ele vê o herói, e cinza quando uma caixa está no caminho. O herói pode se esconder atrás das caixas.</p>
+        <p><strong>Apontar.</strong> <code>heading</code> (rumo, do Apêndice D) dá o ângulo do vigia até o herói, e <code>rotate_to</code> vira o triângulo para lá.</p>
+        <p><strong>Um raio.</strong> <code>collision.raycast(vigia, p2=heroi)</code> (lançar um raio) traça uma linha reta do vigia até o herói e devolve a <em>primeira</em> coisa que ela atinge, ou <code>None</code> se não atinge nada. A resposta são três coisas juntas: o objeto atingido, quanto do caminho ele andou (<code>t</code>, de 0 a 1) e o ponto onde bateu. <code>coisa, t, ponto = batida</code> separa as três.</p>
+        <p><strong>Ver ou não ver.</strong> Se a primeira coisa atingida é o próprio herói, nada está no caminho: o vigia o vê, e a linha fica vermelha. Se é uma caixa, ela tampa a vista: a linha para no ponto da batida, cinza. A função <code>olhar</code> roda a cada quadro, no <code>update</code>.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 170" role="img" aria-label="Um vigia à direita traça uma linha até o herói à esquerda; uma caixa no caminho interrompe a linha no ponto onde ela bate">
+            <polygon class="dot" points="345,30 330,22 330,38"/>
+            <circle class="hot" cx="40" cy="140" r="12"/>
+            <rect class="bar child" x="170" y="70" width="40" height="40"/>
+            <line class="guide" x1="335" y1="30" x2="40" y2="140"/>
+            <line class="ray" x1="335" y1="30" x2="210" y2="76.6"/>
+            <circle class="dot" cx="210" cy="76.6" r="4"/>
+            <text x="300" y="58">vigia</text>
+            <text x="20" y="165">herói</text>
+            <text x="216" y="100">ponto</text>
+            <text x="150" y="62">caixa</text>
+          </svg>
+          <figcaption>O raio sai do vigia em direção ao herói. A primeira coisa que ele atinge é a caixa: o <code>raycast</code> devolve a caixa e o ponto da batida, e o herói fica escondido.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Colisão")
+Wallpaper("#1b2330")
+
+poca = Rect(center=(250, 200), width=260, height=180, color="#2a6f97", group="agua")
+
+for x, y in [(520, 420), (600, 420), (680, 300), (420, 180), (760, 560)]:
+    Rect(center=(x, y), width=70, height=70, color="peru", group="caixa")
+
+heroi = Circle(center=(120, 560), radius=22, color="coral", group="heroi")
+heroi.velocidade = 260
+resolve("heroi", "caixa")
+
+st.ar = 100
+Text(lambda: f"Ar: {round(st.ar)}", top_left=(20, 680))
+
+
+def update(dt):
+    passo = heroi.velocidade * dt
+    if keyp("LEFT"):
+        heroi.move_by(-passo, 0)
+    if keyp("RIGHT"):
+        heroi.move_by(passo, 0)
+    if keyp("UP"):
+        heroi.move_by(0, passo)
+    if keyp("DOWN"):
+        heroi.move_by(0, -passo)
+    if st.ar < 100:
+        st.ar = min(100, st.ar + 10 * dt)
+    olhar()
+
+
+@collide("heroi", "agua")
+def entrou(heroi, agua, info):
+    heroi.velocidade = 110
+    heroi.color = "light sky blue"
+
+
+@collide_stay("heroi", "agua")
+def mergulhado(heroi, agua, info):
+    st.ar = max(0, st.ar - 30 * clock.dt)
+
+
+@collide_exit("heroi", "agua")
+def saiu(heroi, agua, info):
+    heroi.velocidade = 260
+    heroi.color = "coral"
+
+
+def on_mouse_click(x, y, button):
+    if button == Mouse.BTN_RIGHT:
+        canvas.burst_at((x, y), radius=90)
+        for caixa in collision.query_circle(x, y, radius=90, group="caixa"):
+            caixa.destroy()
+    else:
+        for coisa in collision.query_point(x, y):
+            coisa.flash(0.3)
+
+
+vigia = Triangle(center=(900, 620), radius=24, color="gold")
+visao = Line(p1=vigia.center, p2=heroi.center, color="gold")
+
+
+def olhar():
+    vigia.rotate_to(heading(vigia.center, heroi.center))
+    batida = collision.raycast(vigia, p2=heroi)
+    if batida:
+        coisa, t, ponto = batida
+        visao.p2 = ponto
+        if coisa is heroi:
+            visao.color = "red"
+        else:
+            visao.color = "gray"
+
+
+run()
+`,
+      dive: [
+        {
+          title: "Regras e perguntas",
+          body: `
+            <p>Há dois jeitos de saber de uma colisão.</p>
+            <p>Uma <strong>regra</strong> fica valendo e chama a sua função quando o toque acontece: <code>@collide</code> (começou), <code>@collide_stay</code> (continua), <code>@collide_exit</code> (acabou), ou o <code>resolve</code>, que segura. Você escreve uma vez, no topo do arquivo ou na classe.</p>
+            <p>Uma <strong>pergunta</strong> é feita na hora, quando o seu código quer saber: num clique, num <code>update</code>, num evento.</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Pergunta</th><th>Responde</th></tr></thead>
+              <tbody>
+                <tr><td><code>collision.query_point(x, y)</code></td><td>Quem está neste ponto (uma lista).</td></tr>
+                <tr><td><code>collision.query_circle(x, y, radius=)</code></td><td>Quem está nesta área redonda.</td></tr>
+                <tr><td><code>collision.query_sector(…)</code></td><td>Quem está num cone, como o campo de visão de um guarda.</td></tr>
+                <tr><td><code>collision.raycast(a, p2=b)</code></td><td>A primeira coisa que a linha de <code>a</code> até <code>b</code> atinge, e onde.</td></tr>
+                <tr><td><code>forma.contains_point(p)</code></td><td>Se o ponto cai no desenho desta forma.</td></tr>
+              </tbody>
+            </table></div>
+            <p>Sem <code>group=</code>, as perguntas veem só quem alguma regra nomeia. Com <code>group=</code>, veem os membros daquele grupo, estejam ou não numa regra.</p>
+            <p>No Guia: <a href="../guide/index.html#colisao-collide">Detectar</a> · <a href="../guide/index.html#colisao-aux">Consultas</a>.</p>
+          `,
+          try: [
+            {
+              note: "Um cone de visão: o vigia vê só o que está à frente dele, numa abertura de 60 graus e até 500 de distância. <code>query_sector</code> usa o ângulo do triângulo. Dentro do <code>olhar</code>, no fim:",
+              code: `if heroi in collision.query_sector(vigia, radius=500, spread=60, group="heroi"):
+    vigia.color = "red"
+else:
+    vigia.color = "gold"`
+            }
+          ]
+        }
+      ],
+      closing: `
+        <p>Setas movem o herói. Na poça ele anda devagar e gasta ar. Um clique faz piscar o que estiver embaixo dele; o botão direito estoura as caixas em volta. O vigia, no canto, vê o herói quando nenhuma caixa está no caminho: a linha fica vermelha.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>@collide</code>, <code>@collide_stay</code>, <code>@collide_exit</code> — as três fases de um toque: começou, continua (a cada quadro), acabou.</li>
+          <li><code>clock.dt</code> — o tempo deste quadro, para uma conta por segundo fora do <code>update</code>.</li>
+          <li><code>collision.query_point</code> — uma pergunta na hora: quem está neste ponto.</li>
+          <li><code>collision.query_circle</code> com <code>group=</code> — quem está numa área, só de um grupo.</li>
+          <li><code>collision.raycast</code> — a primeira coisa que uma linha atinge, e o ponto da batida.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#colisao-collide">Detectar</a> · <a href="../guide/index.html#colisao-aux">Consultas</a> · <a href="../guide/index.html#colisao-info">CollisionInfo</a>.</p>
+        <p><strong>No próximo:</strong> um jogo de tabuleiro, o Ligue 4.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

@@ -27,7 +27,9 @@ Bug classes guarded (catalogue: Testing Design, TU):
   wheel sets the size, a double click clears the stars its own clicks lit)
   and a key's ``on_click`` with the equalizer rising under the note;
   the ship of tutorial 12 changes destination mid-trip without the
-  replace warning, stops on Space and follows the mouse.
+  replace warning, stops on Space and follows the mouse; the collision
+  lab of tutorial 20 (the pool's enter / stay / exit, the guard's ray
+  hidden by a crate, a right click that only blasts crates).
 
 Run:
 
@@ -264,3 +266,31 @@ class TestMovimentoTripControl(unittest.TestCase):
                 self.assertEqual((round(nave.center.x), round(nave.center.y)), (100, 650))
         replaced = [w for w in caught if "replaces a previous" in str(w.message)]
         self.assertEqual(replaced, [])
+
+
+class TestColisaoLab(unittest.TestCase):
+    """Tutorial 20: the three phases of a touch, and the queries.
+
+    In the pool the hero slows and loses air every frame (stay); out of it
+    the speed comes back (exit). A crate between the guard and the hero
+    hides the hero (the ray stops on the crate); a right click destroys only
+    the crates near it (``query_circle`` with ``group=``)."""
+
+    def test_pool_guard_and_blast(self):
+        from program_support import click, wait
+        with ProgramRun("examples/colisao.py") as run:
+            run.step(2)
+            ns = run.ns
+            heroi, visao = ns["heroi"], ns["visao"]
+            self.assertEqual(visao.color.rgb[:3], (1, 0, 0), "the guard sees the hero at the start")
+            heroi.center = (250, 200)
+            run.step(30)
+            self.assertEqual(heroi.velocidade, 110)
+            self.assertLess(ns["st"].ar, 95)
+            heroi.center = (450, 420)
+            run.step(3)
+            self.assertEqual(heroi.velocidade, 260)
+            self.assertEqual(visao.color.rgb[:3], (0.5, 0.5, 0.5), "a crate hides the hero")
+            run.play([click(600, 420, "right"), wait(2)])
+            self.assertEqual(ns["group"]["caixa"].count, 3)
+            self.assertIn(heroi, list(ns["group"]["heroi"]), "the blast took the hero")
