@@ -67,7 +67,7 @@ class App:
         # Motion is handled here only — Scena also calls on_mouse_drag for the
         # same event while a button is held (Editor Design.md — Spike lessons).
         if not self.blocked:
-            self.editor.pointer_move(x, y, shift=keyp("SHIFT"))
+            self.editor.pointer_move(x, y, shift=keyp("SHIFT"), straight=keyp(PRIMARY))
 
     def on_mouse_up(self, x, y, button, click_x, click_y):
         if not self.blocked:

@@ -335,6 +335,30 @@ class TestEditorOnFrames(EditorSystemCase):
         self.assertEqual(ed.doc.get(ed.selection[0])["center"], (60, 0))
         self.assertViewMatchesDoc()
 
+    def test_primary_held_keeps_a_drag_straight(self):
+        import glfw
+        app = self.app
+        ed = app.editor
+        a = ed.doc.add({"kind": "rect", "center": (0, 3), "width": 40, "height": 40})
+        ed.history.commit()
+        ed.selection = [a]
+        self.frame()
+        fw = self.w.fw
+        mac = sys.platform == "darwin"
+        key = glfw.KEY_LEFT_SUPER if mac else glfw.KEY_LEFT_CONTROL
+        mods = glfw.MOD_SUPER if mac else glfw.MOD_CONTROL
+        app.on_mouse_down(0, 3, 0)
+        fw._handle_key(None, key, 0, glfw.PRESS, mods)    # held after the press
+        self.frame()
+        for x, y in ((10, 9), (30, 16), (60, 22)):
+            app.on_mouse_move(x, y)
+            self.frame()
+        app.on_mouse_up(60, 22, 0, 0, 3)
+        fw._handle_key(None, key, 0, glfw.RELEASE, 0)
+        self.frame()
+        self.assertEqual(ed.doc.get(a)["center"], (60, 3))
+        self.assertViewMatchesDoc()
+
     def test_select_group_shows_the_group_the_selection_is(self):
         """Top bar "Select group [▾]": its value is computed from the selection —
         the group's name while the selection is exactly its items, else None;

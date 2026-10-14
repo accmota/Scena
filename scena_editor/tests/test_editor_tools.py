@@ -22,7 +22,8 @@ from hypothesis import given, settings, strategies as hst  # noqa: E402
 from scena.level_format import parse  # noqa: E402
 from scena_editor import geometry as geo  # noqa: E402
 from scena_editor.doc import LevelDoc  # noqa: E402
-from scena_editor.tools import ALT_LABEL, MIDDLE, Editor  # noqa: E402
+from scena_editor.i18n import t  # noqa: E402
+from scena_editor.tools import ALT_LABEL, MIDDLE, PRIMARY, Editor, key_label  # noqa: E402
 
 
 class FakeViewport:
@@ -557,6 +558,35 @@ class TestAltDragAndSelectGroup(unittest.TestCase):
         self.assertTrue(e.undo())                           # copy + move: one step
         self.assertEqual(len(e.doc.items), 3)
         self.assertFalse(e.history.can_undo)
+
+    def test_primary_keeps_a_move_straight_and_the_copy_lined_up(self):
+        e = ed()
+        a = e.doc.add({"kind": "rect", "center": (50, 53), "width": 20, "height": 20})  # y off grid
+        e.history.reset(e.doc)
+        e.selection = [a]
+        e.pointer_down(50, 53, alt=True)
+        e.pointer_move(80, 58, straight=True)        # mostly right
+        self.assertEqual(e.hint(), t("hint.move", primary=key_label(PRIMARY)))
+        e.pointer_move(121, 64, straight=True)
+        e.pointer_up(121, 64)
+        copy = e.doc.get(e.selection[0])
+        self.assertEqual(copy["center"][1], 53)        # exactly level with the original
+        self.assertEqual(copy["center"][0] - 10, 110)   # its left edge snapped to the grid
+        self.assertEqual(e.doc.get(a)["center"], (50, 53))
+
+    def test_straight_follows_the_longer_axis_and_can_change_mid_drag(self):
+        e = ed()
+        a = e.doc.add({"kind": "point", "center": (100, 100)})
+        e.selection = [a]
+        e.pointer_down(100, 100, shift=True)          # no snap: the numbers are exact
+        e.pointer_move(106, 140, shift=True, straight=True)
+        self.assertEqual(e.doc.get(a)["center"], (100, 140))     # mostly up: x stays
+        e.pointer_move(106, 140, shift=True, straight=False)     # let go mid-drag
+        self.assertEqual(e.doc.get(a)["center"], (106, 140))
+        e.pointer_move(150, 120, shift=True, straight=True)      # now mostly right
+        self.assertEqual(e.doc.get(a)["center"], (150, 100))
+        e.pointer_up(150, 120, shift=True)
+        self.assertEqual(e.hint(), t("hint.select", alt=ALT_LABEL))   # the drag is over
 
     def test_alt_click_copies_nothing(self):
         e = ed()

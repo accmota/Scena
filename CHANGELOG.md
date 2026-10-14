@@ -60,7 +60,8 @@ left out.
   - **X / Y** fields move the selection, and the **Groups** field edits the
     groups they all share (below).
 - **Level editor:** Alt+drag (Option+drag on macOS) moves copies and leaves
-  the originals in place.
+  the originals in place. Holding Cmd (macOS) or Ctrl while moving keeps the
+  move straight, horizontal or vertical, so a copy lines up with its original.
 - **Level editor:** **Select group [▾]** in the top bar selects every item
   in a group, and None selects nothing. It shows the group's name while the
   selection is exactly that group's items, and None otherwise.

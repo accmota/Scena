@@ -243,7 +243,18 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   click again cycles overlaps. **Alt / Option+drag** moves copies made where
   the originals are (names get `_2`); the originals stay. Copy and move are
   one undo step; a click copies nothing; locked items are not copied (a
-  common convention, no new UI). Shift+**press** only adds — a selected shape
+  common convention, no new UI). Alt on Windows and Linux; on many Linux
+  desktops (GNOME, KDE, Xfce) the window manager takes Alt+drag to move the
+  window and the editor sees a plain move — change the desktop's
+  window-move key, or Duplicate (Ctrl+D) and drag. No second copy key.
+  **Primary held during a move (Cmd / Ctrl) keeps it straight**: the move
+  keeps to the axis the pointer has gone furthest along, and the other axis
+  stays exactly where it was, even off the grid — so an Alt+drag copy lines
+  up with its original. Read every event: it can start or stop mid-drag; it
+  combines with snap (applied first) and Shift. Inkscape's split (Shift: no
+  snap; Ctrl: constrain), not Figma's Shift: here Shift already means "no
+  snap" and "add". While a move runs, the status bar says what the keys do
+  (`hint.move`). Shift+**press** only adds — a selected shape
   is removed on release of a Shift+**click** — so Shift+drag of a selected
   shape still moves it (snap off). On a small shape the handles cover its
   middle: a handle wins only when the pointer is nearer to it than to the

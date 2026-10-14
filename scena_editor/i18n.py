@@ -21,7 +21,8 @@ STRINGS = {
         "tool.point": "Point",
         "tool.image": "Image",
         # tool hints (status bar)
-        "hint.select": "Click to select · drag on empty canvas to box-select · Shift adds · {alt}+drag copies · Space+drag pans",
+        "hint.select": "Click selects · Shift adds · drag on empty canvas: box · {alt}+drag copies · Space+drag pans",
+        "hint.move": "Moving · hold {primary}: straight · Shift: no snap",
         "hint.hand": "Drag to move the view · {primary}+click / drag: select",
         "hint.rect": "Drag to draw a rectangle (a click makes 100 × 100) · Shift: no snap · Esc: cancel",
         "hint.ellipse": "Drag to draw an ellipse (a click makes 100 × 100) · Shift: no snap · Esc: cancel",

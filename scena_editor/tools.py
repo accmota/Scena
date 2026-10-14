@@ -225,7 +225,10 @@ class Editor:
         return self.select_held and self.tool in SPRING_TOOLS and self.gesture is None
 
     def hint(self) -> str:
-        tool = "select" if self.select_standby else self.tool
+        if self.gesture is not None and self.gesture["kind"] == "move":
+            tool = "move"                 # what the keys do while dragging
+        else:
+            tool = "select" if self.select_standby else self.tool
         return t(f"hint.{tool}", primary=key_label(PRIMARY), alt=ALT_LABEL)
 
     # -- pointer -----------------------------------------------------------------
@@ -302,8 +305,13 @@ class Editor:
         self.gesture = {"kind": "press", "start": (x, y), "cycle_to": cycle_to,
                         "toggle_off": toggle_off, "alt": alt}
 
-    def pointer_move(self, x: float, y: float, *, shift: bool = False) -> None:
-        """Pointer motion (call once per event — not from both move and drag)."""
+    def pointer_move(self, x: float, y: float, *, shift: bool = False,
+                     straight: bool = False) -> None:
+        """Pointer motion (call once per event — not from both move and drag).
+
+        ``straight`` (Primary held, read every event so it can start or stop
+        mid-drag): a move keeps to the axis the pointer has gone furthest
+        along; the other axis stays exactly where it was (Inkscape's Ctrl)."""
         self.hover = (x, y)
         g = self.gesture
         if g is None:
@@ -335,8 +343,13 @@ class Editor:
             kind = "move"
         if kind == "move":
             dx, dy = x - g["start"][0], y - g["start"][1]
+            along_x = abs(dx) >= abs(dy)
             if grid:
                 dx, dy = geo.snapped_delta(g["ref"], dx, dy, grid)
+            if straight:
+                # After the snap: the held axis stays put even off the grid,
+                # so a copy lines up with its original.
+                dx, dy = (dx, 0.0) if along_x else (0.0, dy)
             for orig in g["orig"]:
                 self.doc.update(orig["id"], **geo.translate(orig, dx, dy))
         elif kind == "band":
