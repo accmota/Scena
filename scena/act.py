@@ -805,6 +805,10 @@ class Act(Entity):
     current leaves with it.
     """
 
+    # Read by ``entity._check_class_hook_names``: an act's messages name the
+    # act spellings (``on_update``, ``keyp.once``).
+    _scena_is_act = True
+
     def __init_subclass__(cls, **kwargs):
         for key in _CLASS_KEYWORDS:
             if key in kwargs:

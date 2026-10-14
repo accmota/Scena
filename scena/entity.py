@@ -284,6 +284,140 @@ def _explain_author_init_keywords(orig, cls: type, kwargs: dict, exc: TypeError)
     ) from None
 
 
+# Class-body hook names the engine never calls on an actor (PA3 / PC5).
+# The top-of-file callbacks (``orchestration.set_auto_callbacks``) are read
+# from the module only; in a class body they are dead code.
+_TOP_LEVEL_INPUT_HOOKS = (
+    "on_key_down", "on_key_up", "on_key", "on_char",
+    "on_mouse_down", "on_mouse_up", "on_mouse_click", "on_mouse_double_click",
+    "on_mouse_move", "on_mouse_drag", "on_mouse_scroll",
+)
+# Hook names an actor class may define (near-miss targets). Engine bases add
+# their own ``on_*`` names (``on_drag_to``, ``on_submit``) through the MRO.
+_CLASS_HOOK_NAMES = (
+    "on_update", "on_destroy", "on_click", "on_hover", "on_hover_exit",
+    "on_collide", "on_collide_stay", "on_collide_exit",
+    "on_drag_to", "on_drag_over", "on_drop_by",
+)
+# Other engines' spellings, more than one edit from Scena's.
+_FOREIGN_HOOK_NAMES = {
+    "on_collision": "on_collide",
+    "on_collision_enter": "on_collide",
+    "on_collide_enter": "on_collide",
+    "on_collision_stay": "on_collide_stay",
+    "on_collision_exit": "on_collide_exit",
+    "on_mouse_enter": "on_hover",
+    "on_mouse_over": "on_hover",
+    "on_mouse_exit": "on_hover_exit",
+    "on_mouse_leave": "on_hover_exit",
+}
+
+
+def _plain_function(raw) -> bool:
+    return inspect.isfunction(raw) and not any(
+        getattr(raw, t, None) for t in (
+            "_every_spec", "_after_spec", "_collide_with_specs",
+            "_leave_playfield_method", "_when_specs",
+        )
+    )
+
+
+def _check_class_hook_names(cls) -> None:
+    """Refuse a class-body method the engine would never call, at the class
+    line (review 2026-10-14 PA3 / PC5).
+
+    * ``def update(self, dt)``: on an act it was silently never called; on a
+      Shape / Sprite it overrode ``Container.update`` (the graph recalculation)
+      and the construction crashed deep in ``state._batch_update``.
+    * The top-of-file input callbacks (``on_key_down``, ``on_mouse_click``, …)
+      in a class body: never called.
+    * A near miss of a hook (``on_colide``, ``on_updat``, ``on_destory``: one
+      edit or one swap away), another engine's spelling (``on_collision``),
+      and a plain method named ``collide_with`` (the decorator's name).
+
+    Author classes only; names the class's own bases define are theirs
+    (an author ``on_hit`` helper is never one edit from a hook name, and a
+    base's names were checked with the base).
+    """
+    from ._pkg import is_framework_module
+    if is_framework_module(cls.__module__):
+        return
+    ns = cls.__dict__
+    is_act = bool(getattr(cls, "_scena_is_act", False))
+    who = cls.__name__
+    for name, raw in ns.items():
+        if not _plain_function(raw):
+            continue
+        if name == "update":
+            if is_act:
+                raise TypeError(
+                    f"{who}.update(self, dt) would never be called: in an act the "
+                    f"per-frame hook is on_update(self, dt). (update(dt) is the "
+                    f"top-of-file spelling.) Rename it on_update."
+                )
+            raise TypeError(
+                f"{who}.update(self, dt): an actor's per-frame hook is "
+                f"on_update(self, dt). update is reserved: it is the engine's own "
+                f"recalculation of the object's linked fields. Rename it on_update."
+            )
+        if name in _TOP_LEVEL_INPUT_HOOKS:
+            raise TypeError(_top_level_hook_message(who, name, is_act))
+        if name == "collide_with":
+            raise TypeError(
+                f"{who}.collide_with is the name of a decorator, not a hook: the "
+                f"engine never calls this method. Write on_collide(self, other) "
+                f"for every touch, or @collide_with(\"group\") above a method of "
+                f"another name for one group."
+            )
+        if not name.startswith("on_") or name in _CLASS_HOOK_NAMES:
+            continue
+        if any(name in k.__dict__ for k in cls.__mro__[1:]):
+            continue        # the base's own name (engine or author)
+        fix = _FOREIGN_HOOK_NAMES.get(name)
+        if fix is None:
+            pool = set(_CLASS_HOOK_NAMES)
+            for k in cls.__mro__[1:]:
+                if is_framework_module(k.__module__):
+                    pool.update(n for n in k.__dict__ if n.startswith("on_"))
+            hits = sorted(c for c in pool if _one_edit_apart(name, c))
+            fix = hits[0] if hits else None
+        if fix is not None:
+            raise TypeError(
+                f"{who}.{name} is not a hook name, so the engine would never call "
+                f"it. Did you mean {fix}? (A helper of your own: give it a name "
+                f"that is not one letter away from a hook.)"
+            )
+
+
+def _top_level_hook_message(who: str, name: str, is_act: bool) -> str:
+    keys = name in ("on_key_down", "on_key_up", "on_key", "on_char")
+    if is_act:
+        if keys:
+            how = 'read the key in on_update(self, dt) with keyp.once("SPACE")'
+        else:
+            how = ("read the mouse in on_update(self, dt) (mouse.press(), mouse.x), "
+                   "or give the actor that is clicked an on_click(self)")
+        return (
+            f"{who}.{name} would never be called: the top-of-file input functions "
+            f"do not run on an act. Instead, {how}."
+        )
+    if keys:
+        how = 'read the key in on_update(self, dt) with keyp.once("SPACE")'
+    elif name in ("on_mouse_click", "on_mouse_down", "on_mouse_up",
+                  "on_mouse_double_click"):
+        how = "an actor's click hook is on_click(self)"
+    elif name == "on_mouse_move":
+        how = "an actor's pointer hooks are on_hover(self) / on_hover_exit(self)"
+    elif name == "on_mouse_drag":
+        how = "make the actor draggable = True"
+    else:
+        how = "read the mouse in on_update(self, dt)"
+    return (
+        f"{who}.{name} would never be called: it is a top-of-file function name, "
+        f"and the engine does not call it on an actor. Instead, {how}."
+    )
+
+
 def _cache_class_tables(cls: type) -> None:
     """Per-class tables the hot paths read as plain class attributes.
 
@@ -1809,6 +1943,7 @@ class Entity(Container):
         from ._pkg import is_framework_module
         if not is_framework_module(cls.__module__):
             _refuse_class_body_values(cls)
+        _check_class_hook_names(cls)   # a hook the engine would never call (PA3)
         _adopt_mixin_init(cls)         # a mixin's __init__ becomes this class's own
         _wrap_construct_rollback(cls)  # inner: undo registration on raise
         _wrap_actor_init(cls)          # outer: setup() / watches after __init__
