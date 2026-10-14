@@ -296,6 +296,7 @@ FRAME_PROMISES = {
     "no mesmo frame, a velocidade ( .vel ) aponta para longe do chão": f"{_HERE}.TestCollisionFrames.test_leaves_the_ground_only_when_it_moves_away",
     "Para decidir no mesmo frame, use @collide_stay com info.side": f"{_HERE}.TestCollisionFrames.test_stay_sees_the_overlap_before_the_auto_resolve",
     "o que o tween andou neste frame": "prose: names Handle.heading to tell it apart from heading()",
+    "mouse.x ainda é o valor de antes da câmera andar": f"{_HERE}.TestPointerFrames.test_mouse_x_after_pan_is_the_frame_sample",
 }
 
 _PROMISE = re.compile(r"(só no frame|próximo frame|mesmo frame|neste frame|nesse frame|"
@@ -306,6 +307,32 @@ def _guia_text() -> str:
     with open(GUIA, encoding="utf-8") as fh:
         raw = fh.read()
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", raw)))
+
+
+class TestPointerFrames(unittest.TestCase):
+
+    def test_mouse_x_after_pan_is_the_frame_sample(self):
+        """PC8 (2026-10-14): the pointer is sampled once per frame. After
+        ``canvas.pan_by`` in an update, ``mouse.x`` still reads the world value
+        of the frame's start; the next frame reads the moved camera."""
+        from input_driver import input_driver
+        from scena import mouse
+        with system_world(draw=False) as w, input_driver(w) as d:
+            seen = []
+
+            def update(dt):
+                before = float(mouse.x)
+                canvas.pan_by(10, 0)
+                seen.append((before, float(mouse.x)))
+            w.on_update(update)
+            w.begin_game()
+            d.move(100, 100)
+            w.step(3)
+            w.on_update(None)
+        self.assertGreaterEqual(len(seen), 3)
+        for (before, after), (nxt, _) in zip(seen[1:], seen[2:]):
+            self.assertEqual(after, before)          # same update: not moved yet
+            self.assertAlmostEqual(abs(nxt - before), 10.0)   # next frame: the pan shows
 
 
 class TestEveryFramePromiseHasATest(unittest.TestCase):
