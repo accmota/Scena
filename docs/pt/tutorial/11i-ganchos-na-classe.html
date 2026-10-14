@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ganchos na classe — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Interlúdio",
+  title: "Ganchos na classe",
+  steps: [
+    {
+      title: "Do topo para a classe",
+      body: `
+        <p>Um interlúdio, antes de seguir: você já viu quase todos os ganchos do Scena, as linhas que dizem quando uma função roda (<code>@click</code>, <code>@hover</code>, <code>@every</code>, <code>@collide</code>, <code>@when</code>…). Quase sempre no topo do arquivo. Mas o que é de cada objeto fica melhor <strong>na classe dele</strong> (tutorial 06): o vaga-lume sabe o que fazer quando é clicado, sem uma função de fora que receba “o vaga-lume clicado”. Este interlúdio mostra cada gancho dentro de uma classe, com vaga-lumes que você pega com o mouse.</p>
+        <p><strong>O clique.</strong> No topo, o clique num grupo era <code>@click(group["vagalumes"])</code> em cima de uma função que recebia o vaga-lume. Na classe, é um método com nome fixo, <code>on_click</code> (ao clicar), como o das bolhas do 06. Não leva <code>@</code>: o nome já diz quando ele roda. E não precisa receber ninguém: <code>self</code> já é o vaga-lume clicado.</p>
+        <p>Rode e pegue os seis vaga-lumes.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Vaga-lumes")
+Wallpaper("#0a0f1e")
+
+st.pegos = 0
+Text(lambda: f"Pegos: {st.pegos}", top_left=(20, 680))
+
+
+class Vagalume(Circle, radius=10, color="khaki", group="vagalumes"):
+    def on_click(self):
+        st.pegos += 1
+        self.destroy()
+
+
+for i in range(6):
+    Vagalume(center=(uniform(100, 900), uniform(100, 600)))
+
+
+run()
+`
+    },
+    {
+      title: "Passar por cima",
+      body: `
+        <p>O vaga-lume brilha quando o mouse passa por cima. No topo, eram <code>@hover</code> e <code>@hover_exit</code>, do 11. Na classe, dois métodos com nome fixo: <code>on_hover</code> (o mouse entrou) e <code>on_hover_exit</code> (o mouse saiu). O par é o mesmo: o que um acende, o outro apaga.</p>
+        <p>Os gestos de arrastar seguem a mesma regra, com os nomes <code>on_drag_to</code>, <code>on_drag_over</code> e <code>on_drop_by</code>. A tabela no fim do interlúdio mostra todos.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Vaga-lumes")
+Wallpaper("#0a0f1e")
+
+st.pegos = 0
+Text(lambda: f"Pegos: {st.pegos}", top_left=(20, 680))
+
+
+class Vagalume(Circle, radius=10, color="khaki", group="vagalumes"):
+    def on_click(self):
+        st.pegos += 1
+        self.destroy()
+
+    def on_hover(self):
+        self.glow = True
+
+    def on_hover_exit(self):
+        self.glow = False
+
+
+for i in range(6):
+    Vagalume(center=(uniform(100, 900), uniform(100, 600)))
+
+
+run()
+`
+    },
+    {
+      title: "O tempo de cada um",
+      body: `
+        <p>Agora os vaga-lumes voam (devagar, para cima, num zigue-zague sorteado a cada quadro, no <code>on_update</code>) e piscam.</p>
+        <p><strong>Um timer na classe.</strong> <code>@every(1.2)</code> em cima de um método da classe é o <code>@every</code> do 02, com uma diferença importante: o timer é <strong>de cada objeto</strong>. Cada vaga-lume ganha o seu, que começa quando ele nasce. Por isso eles não piscam todos juntos. E quando um vaga-lume é destruído, o timer dele para junto: ninguém precisa lembrar de cancelar nada. <code>flash</code> é o piscar do 02.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Vaga-lumes")
+Wallpaper("#0a0f1e")
+
+st.pegos = 0
+Text(lambda: f"Pegos: {st.pegos}", top_left=(20, 680))
+
+
+class Vagalume(Circle, radius=10, color="khaki", group="vagalumes"):
+    def on_update(self, dt):
+        self.move_by(uniform(-60, 60) * dt, 40 * dt)
+
+    def on_click(self):
+        st.pegos += 1
+        self.destroy()
+
+    def on_hover(self):
+        self.glow = True
+
+    def on_hover_exit(self):
+        self.glow = False
+
+    @every(1.2)
+    def piscar(self):
+        self.flash(0.3)
+
+
+for i in range(6):
+    Vagalume(center=(uniform(100, 900), uniform(100, 600)))
+
+
+run()
+`
+    },
+    {
+      title: "Sair da tela",
+      body: `
+        <p>Um vaga-lume que voa para fora da tela não volta. No topo do 05, era <code>@leave_playfield("tiros")</code>, com o nome do grupo. Na classe, o gancho vai <strong>sem nome</strong>: <code>@leave_playfield</code> vale para cada objeto da classe, e o método recebe só o <code>self</code>, o que saiu.</p>
+        <p>Rode e espere: os vaga-lumes que você não pega sobem até sumir.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Vaga-lumes")
+Wallpaper("#0a0f1e")
+
+st.pegos = 0
+Text(lambda: f"Pegos: {st.pegos}", top_left=(20, 680))
+
+
+class Vagalume(Circle, radius=10, color="khaki", group="vagalumes"):
+    def on_update(self, dt):
+        self.move_by(uniform(-60, 60) * dt, 40 * dt)
+
+    def on_click(self):
+        st.pegos += 1
+        self.destroy()
+
+    def on_hover(self):
+        self.glow = True
+
+    def on_hover_exit(self):
+        self.glow = False
+
+    @every(1.2)
+    def piscar(self):
+        self.flash(0.3)
+
+    @leave_playfield
+    def fugiu(self):
+        self.destroy()
+
+
+for i in range(6):
+    Vagalume(center=(uniform(100, 900), uniform(100, 600)))
+
+
+run()
+`
+    },
+    {
+      title: "Uma noite sem desenho",
+      body: `
+        <p>Os vaga-lumes acabam. Alguém precisa soltar novos de tempos em tempos. Mas soltar vaga-lumes não é de um vaga-lume: é da <strong>noite</strong>.</p>
+        <p><strong>Um objeto sem desenho.</strong> <code>Entity</code> (entidade) é o objeto mais simples do Scena: não tem forma, não aparece, não colide. Mas tem tudo o que uma classe do Scena tem: <code>setup</code>, <code>on_update</code>, timers, ganchos. <code>class Noite(Entity)</code> é um molde para um objeto invisível cujo trabalho é soltar um vaga-lume a cada 0,8 segundo. <code>noite = Noite()</code> cria a noite, e com ela o timer.</p>
+        <p><strong>Por que não um <code>@every</code> no topo?</strong> Funcionaria. Mas um objeto é dono do seu tempo: quando a noite for destruída, o timer dela para junto, como o do vaga-lume. O próximo passo usa isso.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Vaga-lumes")
+Wallpaper("#0a0f1e")
+
+st.pegos = 0
+Text(lambda: f"Pegos: {st.pegos}", top_left=(20, 680))
+
+
+class Vagalume(Circle, radius=10, color="khaki", group="vagalumes"):
+    def on_update(self, dt):
+        self.move_by(uniform(-60, 60) * dt, 40 * dt)
+
+    def on_click(self):
+        st.pegos += 1
+        self.destroy()
+
+    def on_hover(self):
+        self.glow = True
+
+    def on_hover_exit(self):
+        self.glow = False
+
+    @every(1.2)
+    def piscar(self):
+        self.flash(0.3)
+
+    @leave_playfield
+    def fugiu(self):
+        self.destroy()
+
+
+class Noite(Entity):
+    @every(0.8)
+    def soltar(self):
+        Vagalume(center=(uniform(50, 950), uniform(20, 300)))
+
+
+for i in range(6):
+    Vagalume(center=(uniform(100, 900), uniform(100, 600)))
+
+noite = Noite()
+
+
+run()
+`
+    },
+    {
+      title: "Uma condição na classe",
+      body: `
+        <p>Com dez vaga-lumes pegos, o pote enche: aparece um aviso, e a noite acaba.</p>
+        <p><strong>O <code>@when</code> na classe.</strong> No topo, era <code>@when(lambda: …)</code>, uma pergunta que o Scena confere a cada quadro. Na classe, a <code>lambda</code> recebe o objeto: <code>lambda self: st.pegos &gt;= 10</code>. Aqui a pergunta não usa o <code>self</code>, mas poderia (<code>lambda self: self.radius &gt; 20</code>). Quando a resposta vira sim, <code>cheio</code> roda uma vez.</p>
+        <p><strong>O fim da noite.</strong> <code>self.destroy()</code> destrói a noite, e o timer dela para: nenhum vaga-lume novo nasce. Os que já voam continuam até serem pegos ou saírem da tela.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Vaga-lumes")
+Wallpaper("#0a0f1e")
+
+st.pegos = 0
+Text(lambda: f"Pegos: {st.pegos}", top_left=(20, 680))
+aviso = Text("Pote cheio!", center=(500, 350), font_size=60, color="gold")
+aviso.visible = False
+
+
+class Vagalume(Circle, radius=10, color="khaki", group="vagalumes"):
+    def on_update(self, dt):
+        self.move_by(uniform(-60, 60) * dt, 40 * dt)
+
+    def on_click(self):
+        st.pegos += 1
+        self.destroy()
+
+    def on_hover(self):
+        self.glow = True
+
+    def on_hover_exit(self):
+        self.glow = False
+
+    @every(1.2)
+    def piscar(self):
+        self.flash(0.3)
+
+    @leave_playfield
+    def fugiu(self):
+        self.destroy()
+
+
+class Noite(Entity):
+    @every(0.8)
+    def soltar(self):
+        Vagalume(center=(uniform(50, 950), uniform(20, 300)))
+
+    @when(lambda self: st.pegos >= 10)
+    def cheio(self):
+        aviso.visible = True
+        self.destroy()
+
+
+for i in range(6):
+    Vagalume(center=(uniform(100, 900), uniform(100, 600)))
+
+noite = Noite()
+
+
+run()
+`,
+      dive: [
+        {
+          title: "Cada gancho, nos dois lugares",
+          body: `
+            <p>Todo gancho do topo do arquivo tem a sua forma na classe. Os gestos do mouse viram métodos com nome fixo, sem <code>@</code>; os outros continuam com <code>@</code>, mas sem o nome do grupo, porque valem para cada objeto da classe.</p>
+            <div class="tbl"><table>
+              <thead><tr><th>No topo do arquivo</th><th>Na classe</th></tr></thead>
+              <tbody>
+                <tr><td><code>@click(alvo)</code></td><td><code>def on_click(self)</code></td></tr>
+                <tr><td><code>@hover(alvo)</code> · <code>@hover_exit(alvo)</code></td><td><code>def on_hover(self)</code> · <code>def on_hover_exit(self)</code></td></tr>
+                <tr><td><code>@drag_to(peca)</code></td><td><code>def on_drag_to(self, alvo, pos)</code></td></tr>
+                <tr><td><code>@drop_by(alvo)</code></td><td><code>def on_drop_by(self, peca, pos)</code></td></tr>
+                <tr><td><code>@collide("a", "b")</code></td><td><code>@collide_with("b")</code></td></tr>
+                <tr><td><code>@collide_stay</code> · <code>@collide_exit</code></td><td><code>@collide_with_stay</code> · <code>@collide_with_exit</code></td></tr>
+                <tr><td><code>@every(1)</code> · <code>@after(2)</code></td><td><code>@every(1)</code> · <code>@after(2)</code>, de cada objeto</td></tr>
+                <tr><td><code>@leave_playfield("grupo")</code></td><td><code>@leave_playfield</code>, sem nome</td></tr>
+                <tr><td><code>@when(lambda: …)</code></td><td><code>@when(lambda self: …)</code></td></tr>
+                <tr><td><code>@on_change(st["x"])</code></td><td><code>@on_change(lambda self: …)</code></td></tr>
+                <tr><td><code>def update(dt)</code></td><td><code>def on_update(self, dt)</code></td></tr>
+                <tr><td><code>on_mouse_click</code>, <code>on_key_down</code>…</td><td>só no topo; na classe, <code>keyp</code> no <code>on_update</code></td></tr>
+              </tbody>
+            </table></div>
+            <p><strong>Qual escolher?</strong> O que é de cada um (o clique num vaga-lume, o piscar dele, a saída da tela) vai na classe. O que é do conjunto (a contagem, um placar, uma regra entre dois grupos) fica no topo, ou num objeto como a noite.</p>
+            <p>No Guia: <a href="../guide/index.html#reagir-callbacks-entity">Callbacks da Entity</a> · <a href="../guide/index.html#reagir-pointer">Clique / arraste</a>.</p>
+          `,
+          try: [
+            {
+              note: "Um vigia de mudança na classe: cada vaga-lume pisca quando outro é pego. <code>@on_change(lambda self: st.pegos)</code> roda em cada vaga-lume, a cada mudança da contagem; a função recebe o valor novo. Dentro da classe <code>Vagalume</code>, no lugar do <code>@every</code> e do <code>piscar</code>:",
+              replaces: ['@every(1.2)', 'def piscar(self):', 'self.flash(0.3)'],
+              code: `@on_change(lambda self: st.pegos)
+def assustar(self, valor):
+    self.flash(0.3)`
+            }
+          ]
+        }
+      ],
+      closing: `
+        <p>Pegue os vaga-lumes com o mouse; eles brilham quando o mouse passa e piscam sozinhos. A noite solta um novo a cada 0,8 segundo, até o pote encher com dez.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>
