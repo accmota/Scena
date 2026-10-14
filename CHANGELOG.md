@@ -138,11 +138,12 @@ left out.
   under a held key is not a new press of that key (`once` does not fire
   again).
 - `mouse.press(button)` reads False while a HUD widget owns that press
-  (dragging a `Slider`, holding a `Button`), until the button goes up, as a
+  (dragging a `Slider`, holding a `Button` or a `SpriteButton`, enabled or
+  not, on any layer), until the button goes up, as a
   focused `TextInput` hides its keys from `keyp`; `mouse.click_pos` does not
   record such a press. A paint app that paints while
-  `mouse.press(Mouse.BTN_LEFT)` no longer paints under the slider. A press on
-  a shape (your own drag or click target) still reads True.
+  `mouse.press(Mouse.BTN_LEFT)` no longer paints under the slider or a tool icon. A press on
+  any other shape or sprite (your own drag or click target) still reads True.
 - A drag drops across the HUD and the world: the drop target is the topmost
   `droppable` under the pointer, `layer="ui"` first, then the world, whichever
   space the drag started in. A HUD inventory seed dropped on a world plot

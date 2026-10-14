@@ -223,6 +223,77 @@ class TestAWidgetPressIsHiddenFromMousePress(unittest.TestCase):
             c.destroy()
 
 
+class TestASpriteButtonPressIsHiddenToo(unittest.TestCase):
+    """A SpriteButton is a HUD button: a paint app's ``mouse.press`` does not
+    paint under a tool icon, enabled or not, on the ui layer or in the world
+    under a camera; a plain Sprite with ``on_click`` stays visible (PD2)."""
+
+    ART = None
+
+    @classmethod
+    def setUpClass(cls):
+        from tests.media_support import media
+        cls.ART = media("k-rolling-ball", "button_blue.png")
+
+    def _paint_run(self, make, *, camera=False):
+        dots, clicks = [], []
+        with system_world(draw=False) as w, input_driver(w) as d:
+            if camera:
+                canvas.zoom_to(2)
+                canvas.pan_to(50, 40)
+            tool = make(clicks)
+            w.on_update(lambda dt: dots.append(1) if mouse.press(Mouse.BTN_LEFT) else None)
+            w.step(1)
+            vx, vy = w.fw.world_to_view_coords(tool.center.x, tool.center.y) \
+                if tool.layer != "ui" else (tool.center.x, tool.center.y)
+            d.move(vx, vy)
+            w.step(1)
+            d.down()
+            w.step(3)
+            hidden_click = mouse.click_pos(Mouse.BTN_LEFT)
+            d.up()
+            w.step(1)
+            w.on_update(None)
+            tool.destroy()
+            if camera:
+                canvas.reset_view()
+        return dots, clicks, hidden_click
+
+    def test_a_tool_icon_does_not_paint(self):
+        from scena import SpriteButton
+        dots, clicks, cp = self._paint_run(lambda c: SpriteButton(
+            self.ART, center=(60, 60), width=80, on_click=lambda: c.append(1)))
+        self.assertEqual(clicks, [1], "not vacuous: the button was clicked")
+        self.assertEqual(dots, [])
+        self.assertIsNone(cp)
+
+    def test_a_disabled_tool_icon_does_not_paint(self):
+        from scena import SpriteButton
+        dots, clicks, _cp = self._paint_run(lambda c: SpriteButton(
+            self.ART, center=(60, 60), width=80, enabled=False, on_click=lambda: c.append(1)))
+        self.assertEqual(clicks, [])
+        self.assertEqual(dots, [])
+
+    def test_a_world_button_under_a_camera_does_not_paint(self):
+        from scena import SpriteButton
+        dots, clicks, _cp = self._paint_run(lambda c: SpriteButton(
+            self.ART, center=(80, 60), width=60, layer="default",
+            on_click=lambda: c.append(1)), camera=True)
+        self.assertEqual(clicks, [1], "not vacuous: the button was clicked")
+        self.assertEqual(dots, [])
+
+    def test_a_clickable_sprite_stays_visible(self):
+        from scena import Sprite
+
+        def make(c):
+            s = Sprite(self.ART, center=(60, 60), width=80)
+            s.on_click = lambda *_: c.append(1)
+            return s
+        dots, clicks, _cp = self._paint_run(make)
+        self.assertEqual(clicks, [1], "not vacuous: the sprite was clicked")
+        self.assertEqual(len(dots), 3)
+
+
 class TestARepeatFollowsItsPress(unittest.TestCase):
     """PD3: holding Enter that submits one box, whose ``on_submit`` focuses
     the next box (or changes act to one that does), does not submit the next

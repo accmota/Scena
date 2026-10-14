@@ -1239,6 +1239,18 @@ class ShapeInteractionManager:
                 return shape
         return None
 
+    def button_takes_press(self, view_xy, world_xy, button) -> bool:
+        """Will this press land on a SpriteButton (enabled or not)? The same
+        target ``handle_mouse_down`` picks: the ui space first, then the world.
+        Its press is hidden from ``mouse.press`` like a widget's (PD2)."""
+        from .input import Mouse
+        if button != Mouse.BTN_LEFT:
+            return False
+        shape = self.hit_test_ui(view_xy[0], view_xy[1], pressable=True)
+        if shape is None:
+            shape = self.hit_test(world_xy[0], world_xy[1], pressable=True)
+        return shape is not None and getattr(type(shape), "_hides_press", False)
+
     def handle_mouse_down(self, x, y, button, *, ui: bool = False):
         from .input import Mouse
         if button != Mouse.BTN_LEFT:
@@ -3445,9 +3457,12 @@ class ScenaFramework:
             wm = self.widget_manager
             # A press a HUD widget takes (a disabled one blocks it too) is
             # hidden from ``mouse.press`` until it goes up (PD2).
+            # A SpriteButton is a HUD button too: its press hides the same way.
             self.mouse._button_down(
                 button, world_x, world_y,
-                widget=wm.get_widget_at(view_x, view_y) is not None)
+                widget=(wm.get_widget_at(view_x, view_y) is not None
+                        or self.shape_manager.button_takes_press(
+                            (view_x, view_y), (world_x, world_y), button)))
             if not wm.handle_mouse_down(view_x, view_y, button):
                 if not self.shape_manager.handle_mouse_down(
                     view_x, view_y, button, ui=True

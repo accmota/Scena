@@ -563,6 +563,10 @@ class SpriteButton(Sprite):
 
     # --- engine hooks ----------------------------------------------------------
 
+    # A press on it is the button's, not the game's: ``mouse.press`` reads
+    # False until it goes up, as for a HUD widget (PD2).
+    _hides_press = True
+
     def _accepts_press(self) -> bool:
         return bool(self.enabled)
 

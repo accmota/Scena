@@ -223,7 +223,7 @@ any outside read), so it can lag a string change by one frame. Tests:
 construct-time column on `WidgetManager`. A widget is an Entity (`group=`,
 `visible`, `destroy()`, timers) drawn here, not on a registry layer. `visible=False`
 skips draw and input. A modal widget (see Menu) is the only pointer target;
-misses are consumed, and `keyp` / `mouse.press` read False until it closes. A press any widget takes is hidden from `mouse.press` / `click_pos` until the button goes up (a paint app does not paint under a dragged Slider; PD2), and a widget removed while it holds a press undoes what the press set with no click (`_abandon_press`: a hold-to-fire `Button(cell)` writes `value_off`; PD1) — [Scena Design, pointer](Scena%20Design.md). `group["opts"].visible` / `.destroy()` covers widgets and
+misses are consumed, and `keyp` / `mouse.press` read False until it closes. A press any widget takes is hidden from `mouse.press` / `click_pos` until the button goes up (a paint app does not paint under a dragged Slider; PD2); so is a press that lands on a `SpriteButton`, enabled or not, ui or world (`SpriteButton._hides_press`, read by `ShapeInteractionManager.button_takes_press` with the same target order as the press: a HUD button that happens to be a Sprite), and a widget removed while it holds a press undoes what the press set with no click (`_abandon_press`: a hold-to-fire `Button(cell)` writes `value_off`; PD1) — [Scena Design, pointer](Scena%20Design.md). `group["opts"].visible` / `.destroy()` covers widgets and
 HUD `Text` in that group together. Every item is placed by its visual
 top-left: omit `top_left=` to stack downward (y-up, default origin
 `(20, design_h - 40)`); an explicit `top_left=` (or a Text anchor on `ui`)
