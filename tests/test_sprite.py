@@ -4274,10 +4274,12 @@ class TestSpriteBlitBlendAndAlpha(SpriteTestCase):
         s.alpha = 0.5
         ink = getattr(s, "_ink", None) or {}
         self.assertNotIn("alpha", ink)
-        with self.assertRaises(AttributeError) as ctx:
-            s["alpha"] @= Attribute(0.2)
-        self.assertIn("cannot be linked with @=", str(ctx.exception))
-        self.assertIn("Sprite-only", str(ctx.exception))
+        # ``alpha`` links since the appearance links: through the setter, never
+        # into ink (tests/test_paint_flag_links.py).
+        s["alpha"] @= Attribute(0.2)
+        self.assertAlmostEqual(s.alpha, 0.2)
+        self.assertNotIn("alpha", getattr(s, "_ink", None) or {})
+        s["alpha"].unlink()
         e = Entity()
         self.addCleanup(e.destroy)
         with self.assertRaises(AttributeError) as ctx:

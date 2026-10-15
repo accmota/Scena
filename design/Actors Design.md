@@ -498,6 +498,10 @@ Fence: see [Fences](Fences.md) (`id=` / `obj()` / a name registry).
   everywhere: a hidden Point on a layer leaves it. Writing it took such a Point off
   `'default'` for good (O5 in [Testing Design](Testing%20Design.md#bug-catalogue)).
   Guard: `test_process.TestParkRoundTripKeepsPlacement`.
+- **A linked `visible` follows its formula on resume**, not the stash: the formula may
+  have changed while parked (the refreshes skip a parked host, L4). Park still hides it
+  (`_engine_flag_write` passes the linked-field refusal). Guard:
+  `test_paint_flag_links.TestFrames.test_park_and_resume_follow_the_formula`.
 - While parked, a `visible` / `collidable` **write updates the stash** that resume
   restores; the actor stays hidden and out of collision. Reads report the current
   state (False while parked). Engine draw / hit-test walks read the drawn flag
@@ -722,8 +726,11 @@ intercept that without wrapping every scalar read. Always write
 `ship["grounded"] @= lambda: …`.
 
 `Shape`/`Sprite`/`Entity` use `__slots__` (no `__dict__`), so ink is the only place to
-hold ad-hoc author data on them. Paint channels are **not** ink — do not link them with
-`@=`. `@when`/`on_change`/`until` poll whatever they're given every frame regardless
+hold ad-hoc author data on them. Paint channels are **not** ink: `color`, `fill`,
+`line`, `line_width`, `visible`, the flips (and Text `background`, Sprite `alpha`) link
+with `@=` as targets that write through their setter, never into ink; looks, stamps and
+filters do not link ([Reactive Design — Appearance links](Reactive%20Design.md#appearance-paintstate-internal)).
+`@when`/`on_change`/`until` poll whatever they're given every frame regardless
 of source.
 
 ## Four rungs (parallel)

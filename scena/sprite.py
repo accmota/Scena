@@ -92,7 +92,7 @@ from .style import (
     _SKIA_BLEND_MAP,
     gpu_image,
 )
-from .state import Attribute, Container, ContainerSlot, ScalarSlot, as_payload, _init_composite, batch_update_self, probe_private, bump_pose_rev
+from .state import Attribute, Container, ContainerSlot, ScalarSlot, as_payload, _init_composite, batch_update_self, probe_private, bump_pose_rev, _pull_channel_links, _reapply_channel_links
 from .validate import HINT_EXTENT
 from .process import _DUE_EPS, reached
 from .closed import ClosedSurface, seal
@@ -3558,6 +3558,9 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
     """
 
     _is_sprite_body = True
+    # Appearance links (Reactive Design — Appearance links); the body's paint
+    # channels are a sentinel, so a sprite links its opacity, not a color.
+    _property_link_extra = frozenset({"alpha", "visible", "flip_x", "flip_y"})
     _clone_takes_frame = True       # clone(frame=) picks the copy's sheet frame
 
     # The main hitbox's knobs live on ``sprite.hitbox`` (a Hitbox). The old
@@ -3757,9 +3760,15 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         offset = _take("offset", offset, None)
         visual = _take("visual", visual, None)
         group = _take("group", group, None)
-        from .validate import expect_bool
-        flip_x = expect_bool(_take("flip_x", flip_x, False), "flip_x")
-        flip_y = expect_bool(_take("flip_y", flip_y, False), "flip_y")
+        from .validate import expect_bool, _is_formula
+        flip_x = _take("flip_x", flip_x, False)
+        flip_y = _take("flip_y", flip_y, False)
+        # A function links the flip after construction, like ``s["flip_x"] @=``
+        # (Reactive Design — Appearance links); the sprite starts unflipped.
+        flip_links = [(n, f) for n, f in (("flip_x", flip_x), ("flip_y", flip_y))
+                      if _is_formula(f)]
+        flip_x = False if _is_formula(flip_x) else expect_bool(flip_x, "flip_x")
+        flip_y = False if _is_formula(flip_y) else expect_bool(flip_y, "flip_y")
         art_angle = _parse_art_angle(_take("art_angle", art_angle, 0.0))
         box = None if box is _OMIT else box
         if box is not None and center is not None:
@@ -3790,6 +3799,8 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
             )
             if angle is not _OMIT:
                 self._init_heading(angle)
+            for name, formula in flip_links:
+                self._link_field(name, formula)
             pending = self.__dict__.pop('_box_formula_pending', None)
             if pending is not None:
                 from .box import link_sprite_box_formula
@@ -4277,6 +4288,8 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         Composes multiplicatively with ``fade_in`` / ``fade_out``. Does not
         fade ``_replaces_sprite_body`` fills or Shield / Electric* envelopes.
         """
+        if self._alinks:
+            _pull_channel_links(self, ("alpha",))
         return self._alpha
 
     @alpha.setter
@@ -4284,6 +4297,9 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         _refuse_if_destroyed(self, "alpha")
         from .validate import alpha01
         a = alpha01(value, "Sprite alpha")
+        if self._alinks:
+            from .entity import _refuse_linked_channel
+            _refuse_linked_channel(self, ("alpha",), "set alpha on")
         if abs(a - self._alpha) < 1e-6:
             return
         self._alpha = a
@@ -4306,7 +4322,7 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         """Put back the appearance from :meth:`save_visual`, body ``alpha`` included."""
         had = getattr(self, "_saved_visual", None) is not None
         PaintState.restore_visual(self)
-        if had:
+        if had and not self._channel_linked("alpha"):   # a linked alpha keeps its formula
             self.alpha = getattr(self, "_saved_alpha", self._alpha)
         return self
 
@@ -4525,6 +4541,8 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         apply_hue_stamp(self, getattr(self, "_hue", None))
         apply_gray_stamp(self, getattr(self, "_gray", None))
         self._rebuild_blit_paint()
+        if self._alinks:
+            _reapply_channel_links(self)    # a linked alpha keeps its formula
         fn = getattr(self, "_refresh_plain_blit", None)
         if callable(fn):
             fn()
@@ -6134,10 +6152,11 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         skips ``Graphic.draw``, which is otherwise the only place that refreshes
         those slots before reading raw ``_rotation`` / ``_scale``.
         """
+        # Pull first: a pulled pose or alpha rebuilds ``_blit_paint``.
+        self._pull_property_anchors()
         paint = getattr(self, "_blit_paint", None)
         if paint is None:
             return
-        self._pull_property_anchors()
         self._blit_image(skia_canvas, paint)
 
     def _blit_image(self, skia_canvas: skia.Canvas, paint) -> None:

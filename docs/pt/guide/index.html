@@ -1166,6 +1166,7 @@
     <a href="#reativo-fontes" class="nav-child" data-chapter="reativo" data-search="o que pode ser ligado fontes reativo attribute canônica função def">O que pode ser ligado</a>
     <a href="#reativo-lambda" class="nav-child" data-chapter="reativo" data-search="lambda for bola b=bola último setattr after on_done atribuição">Lambda</a>
     <a href="#reativo-construtor" class="nav-child" data-chapter="reativo" data-search="construtor lambda fórmula circle sprite vec2 point track">Fórmulas no construtor</a>
+    <a href="#reativo-aparencia" class="nav-child" data-chapter="reativo" data-search="cor ligada color fill line line_width visible alpha flip_x flip_y background barra de vida hud colormap">Cor e visibilidade ligadas</a>
     <a href="#reativo-entity" class="nav-child" data-chapter="reativo" data-search="guardar valores st State keys exists campos reativos automáticos entity tinta hp">Guardar valores</a>
     <a href="#reativo-drivers" class="nav-child" data-chapter="reativo" data-search="drivers persistentes draggable wheel_rotate tween resolve LinkedAttributeError">Drivers persistentes</a>
   </div>
@@ -1774,7 +1775,7 @@ label["text"] @= lambda: f"{hud.level}"</pre>
 <tbody>
 <tr><td><code>lambda: x + c.radius</code> com <code>x</code> comum</td><td>Vale: atualiza quando <code>c.radius</code> muda (e relê <code>x</code> nesse momento). O <code>@=</code> só recusa quando a fórmula lê <em>apenas</em> variáveis comuns e nada que o Scena acompanha.</td><td>congelado</td></tr>
 <tr><td><code>c.radius @= lambda: …</code></td><td><code>c.radius</code> já é um float: <code>TypeError</code> do Python, sem mensagem do Scena. Escalar precisa de colchetes: <code>c["radius"] @= …</code>. Composto (<code>c.center</code>, um <code>Vec2</code>, um <code>Attribute</code>) aceita <code>objeto @=</code>, mas o caminho ensinado é o mesmo colchete + lambda.</td><td>outra grafia do colchete</td></tr>
-<tr><td><code>c["glow"] @= …</code> (pintura)</td><td>Pintura (<code>.fill</code>, <code>.glow</code>, <code>.visual</code>…) não liga. Use <code>=</code> e <a href="#frame"><code>on_update</code></a> / <a href="#reagir"><code>@when</code></a>.</td><td>campo reativo</td></tr>
+<tr><td><code>c["glow"] @= …</code> (visual)</td><td>Visual, carimbos e filtros (<code>.visual</code>, <code>.glow</code>, <code>.shadow</code>…) não ligam. Use <code>=</code> e <a href="#frame"><code>on_update</code></a> / <a href="#reagir"><code>@when</code></a>. A cor e a visibilidade ligam: <a href="#reativo-aparencia">Cor e visibilidade ligadas</a>.</td><td>campo reativo</td></tr>
 <tr><td>Entrada do frame no <code>@=</code></td><td><code>clock</code> / <code>keyp</code> / <code>mouse</code> sempre dentro de <code>lambda:</code> (<code>lambda: clock.time</code>, <code>lambda: keyp("D")</code>, <code>lambda: mouse.x</code>) — nunca número cru nem <code>once</code> / <code>dx</code>. Ver <a href="#frame">Frame</a>.</td><td>valor de agora</td></tr>
 <tr><td>Widget ligado a uma fórmula</td><td>O gesto do usuário não faz nada: quem manda é a fórmula.</td><td>controle livre</td></tr>
 <tr><td><code>r["dano"] @= lambda: r.width * 2</code> (um campo do objeto lendo o tamanho dele)</td><td>Limite conhecido: um campo próprio não lê o tamanho do próprio objeto (<code>width</code>, <code>radius</code>…) nem os pontos calculados dele (cantos, o <code>center</code> de um <code>Polygon</code>) — eles saem do objeto inteiro, e o campo novo faz parte dele. <code>CircularReferenceError</code> com a explicação. Use uma propriedade na classe (<code>@property</code> <code>def dano(self): return self.width * 2</code>) ou calcule em <code>update(dt)</code>. Os campos próprios do objeto (<code>r.carga</code>), o <code>center</code> de um Rect ou Circle e os campos de outros objetos podem ser lidos.</td><td>uma referência circular sua</td></tr>
@@ -1874,7 +1875,7 @@ Line(p1=(50, 50), p2=lambda: bola.center)</pre>
           </tbody>
         </table>
       </div>
-      <p>Pintura, lugar no jogo e visual nunca ligam no construtor: <code>color=</code>, <code>fill=</code>, <code>visual=</code>, <code>glow=</code>, <code>layer=</code>, <code>group=</code>, <code>visible=</code>. Widget: o 1º argumento é o Attribute que ele lê e escreve, não um <code>lambda</code>.</p>
+      <p>Visual, carimbos e lugar no jogo nunca ligam no construtor: <code>visual=</code>, <code>glow=</code>, <code>layer=</code>, <code>group=</code>, <code>visible=</code>. A cor liga: <code>Rect(color=lambda: …, line_width=lambda: …)</code>, <code>Text(…, color=lambda: …, background=lambda: …)</code>, <code>Sprite(…, flip_x=lambda: …)</code> — ver <a href="#reativo-aparencia">Cor e visibilidade ligadas</a>. Widget: o 1º argumento é o Attribute que ele lê e escreve, não um <code>lambda</code>.</p>
     </details>
     <p class="name-group">Não confundir</p>
     <div class="tbl-wrap confuse-wrap">
@@ -1887,6 +1888,36 @@ Line(p1=(50, 50), p2=lambda: bola.center)</pre>
 </tbody>
 </table>
 </div>
+  </section>
+
+  <section class="section prose" id="reativo-aparencia">
+    <h2>Cor e visibilidade ligadas</h2>
+    <p class="one-liner">A cor, a visibilidade e o espelhamento também ligam: <code>color</code>, <code>fill</code>, <code>line</code>, <code>line_width</code> (formas e Text), o <code>background</code> do Text, o <code>alpha</code> do Sprite, <code>visible</code> e <code>flip_x</code> / <code>flip_y</code>. O <code>@=</code> é o <code>=</code> refeito sempre que a fonte muda: sob um visual, uma cor ligada dá o mesmo que <code>.color = …</code>.</p>
+    <p>Uma barra de vida só com fórmulas: o comprimento e a cor seguem <code>st.vida</code>.</p>
+    <div class="code-panel">
+      <button class="copy-btn" type="button">copiar</button>
+<pre>st.vida = 100
+st.direcao = 1
+rampa = Colormap.from_colors("red", "lime")
+
+barra = Rect(center=(120, 580), width=200, height=12)
+barra["width"] @= lambda: 200 * st.vida / 100
+barra["fill"] @= lambda: rampa.get_color(st.vida / 100)
+
+aviso = Text("VIDA BAIXA", center=(400, 300), color="red")
+aviso["visible"] @= lambda: st.vida &lt; 20
+
+heroi = Sprite("heroi.png", center=(400, 200))
+heroi["flip_x"] @= lambda: st.direcao &lt; 0</pre>
+    </div>
+    <ul>
+      <li>Enquanto ligado, escrever direto levanta <code>LinkedAttributeError</code>: <code>barra.fill = …</code>, <code>set_color</code>, <code>set_alpha</code>, <code>visual = Paint(…)</code>, um visual com cor própria (<code>Neon("red")</code>), <code>fade_out()</code> num <code>visible</code> ligado. <code>barra["fill"].unlink()</code> solta.</li>
+      <li>Numa forma, <code>color</code> escreve o fill e o contorno: ligar <code>color</code> e também <code>fill</code> ou <code>line</code> levanta na segunda ligação. No Text, <code>color</code> é só o fill.</li>
+      <li>Uma fórmula pode ler a cor de outro objeto, mas a cor não é fonte de ligação: <code>b["color"] @= a["color"]</code> levanta. Ligue os dois à mesma fórmula.</li>
+      <li>Um Point não liga nenhum destes (o Scena pinta e mostra os marcadores); um Track não liga <code>visible</code>; um Text não espelha. Visual, carimbos e filtros (<code>visual</code>, <code>glow</code>, <code>shadow</code>…) não ligam.</li>
+      <li>O valor da fórmula segue a regra do <code>=</code>: um nome, hex ou tupla vira <code>Color</code>; um <code>line_width</code> negativo lê 0 e um <code>alpha</code> fica entre 0 e 1, como em toda fórmula.</li>
+      <li>No construtor, um <code>lambda</code> liga: <code>Rect(color=lambda: …, line_width=lambda: …)</code>, <code>Text(…, color=lambda: …, background=lambda: …)</code>, <code>Sprite(…, flip_x=lambda: …)</code>.</li>
+    </ul>
   </section>
 
   <section class="section prose" id="reativo-entity">
@@ -1954,7 +1985,7 @@ ship["shield"] @= lambda: st.lives * 10</pre>
             <tr><td><code>ship["hp"] @= lambda: …</code></td><td>Liga. Cria o campo se faltar (default <code>0</code>).</td></tr>
             <tr><td><code>ship.hp @= …</code></td><td><code>TypeError</code> do Python — use colchetes. Ver <a href="#reativo-liga">Regras</a>.</td></tr>
             <tr><td><code>print(ship.hpt)</code></td><td>Nome inexistente na <em>leitura</em> → <code>AttributeError</code>. Typo aparece aqui, não no <code>=</code> / <code>@=</code>.</td></tr>
-            <tr><td>Pintura (<code>.fill</code>, <code>.glow</code>, <code>.visual</code>…)</td><td>Não é campo próprio. <code>@=</code> recusa. Use <code>=</code> e <a href="#frame"><code>on_update</code></a> / <a href="#reagir"><code>@when</code></a>.</td></tr>
+            <tr><td>Cor e visibilidade (<code>.color</code>, <code>.fill</code>, <code>.visible</code>, <code>.flip_x</code>…)</td><td>Não é campo próprio, mas liga: <code>@=</code> refaz o <code>=</code> quando a fonte muda (<a href="#reativo-aparencia">Cor e visibilidade ligadas</a>). Visual e carimbos (<code>.visual</code>, <code>.glow</code>) recusam <code>@=</code>: use <code>=</code> e <a href="#frame"><code>on_update</code></a> / <a href="#reagir"><code>@when</code></a>.</td></tr>
             <tr><td><code>ship.x = 10</code></td><td>Graphic e SpatialFx não têm <code>.x</code> / <code>.y</code> — <code>AttributeError</code>, sem criar campo. Leia <code>ship.center.x</code>. Mova com <code>move_to</code> / <code>move_by</code>. Ligue com <code>ship.center["x"] @=</code>. <code>Point.x</code> continua. Entity nua ainda guarda <code>e.x</code> como campo próprio.</td></tr>
           </tbody>
         </table>
@@ -7575,14 +7606,17 @@ if "left" in sides or "right" in sides:
 
     <section class="section prose" id="mover-tween">
       <h2>tween</h2>
-      <p class="one-liner"><code>tween(campo, valor, time=)</code> leva um campo do valor atual até <code>valor</code> em <code>time</code> segundos. O valor pode ser número, tupla / lista de números, <code>Vec2</code>, <code>Color</code> (o valor muda aos poucos, em linha reta, do atual ao final — como <a href="#util-lerp"><code>lerp</code></a>) ou um ponto. Para posição, ângulo e tamanho, prefira os verbos próprios (<code>move_to</code>…). Um tween novo no mesmo campo cancela o anterior. Aceita os <a href="#suite">parâmetros de tempo</a> dos verbos de <a href="#mover-pose">mover</a>: <code>time=</code> (obrigatório) / <code>ease=</code> / <code>loops=</code> / <code>yoyo=</code> / <code>then=</code> / <code>on_done=</code> / <code>force=</code>. Só aqui: <code>start=</code> (valor inicial; sem ele, o valor atual). O que fazer no fim: <a href="#agendar-fim">Ao terminar</a>. Cor e glow de um objeto (<code>color</code>, <code>glow</code>) não podem ser alvo — não são campos que se ligam; mude-os com <code>.color = …</code> ou <code>set_color</code>.</p>
+      <p class="one-liner"><code>tween(campo, valor, time=)</code> leva um campo do valor atual até <code>valor</code> em <code>time</code> segundos. O valor pode ser número, tupla / lista de números, <code>Vec2</code>, <code>Color</code> (o valor muda aos poucos, em linha reta, do atual ao final — como <a href="#util-lerp"><code>lerp</code></a>) ou um ponto. Para posição, ângulo e tamanho, prefira os verbos próprios (<code>move_to</code>…). Um tween novo no mesmo campo cancela o anterior. Aceita os <a href="#suite">parâmetros de tempo</a> dos verbos de <a href="#mover-pose">mover</a>: <code>time=</code> (obrigatório) / <code>ease=</code> / <code>loops=</code> / <code>yoyo=</code> / <code>then=</code> / <code>on_done=</code> / <code>force=</code>. Só aqui: <code>start=</code> (valor inicial; sem ele, o valor atual). O que fazer no fim: <a href="#agendar-fim">Ao terminar</a>. A cor, <code>visible</code> e os flips de um objeto não são alvo de tween (<code>TypeError</code> com a receita): anime uma célula de cor e ligue a cor a ela. O <code>glow</code> também não. <code>line_width</code> e o <code>alpha</code> de um Sprite são números e aceitam tween.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>tween(ship["radius"], 80, time=0.4, ease="ease_out")
 tween(ship.center, (400, 200), time=1.2)
 tween(ship.center, (400, 200), time=1.2, start=(0, 0))
 ship.tween(ship["hp"], 0, time=0.6)
-# AttributeError: cor e glow não podem ser alvo — tween(ship["color"], …) não vale
+# TypeError: tween(ship["color"], …) não vale — anime uma célula de cor e ligue:
+st.cor = Color("red")
+tween(st["cor"], Color("blue"), time=1)
+ship["color"] @= lambda: st.cor
 </pre>
       </div>
       <details class="spec" open>

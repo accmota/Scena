@@ -952,7 +952,7 @@ stability from its four knobs.
 - `clips=` / a data frame gate on `add_hitbox` (`showing=`): only if `showing()` formulas prove heavy in real scripts.
 - Pixel shapes on the body: only if the four knobs cannot express a real pack's body.
 - Pixel coordinates from the pivot: never; the numbers are the editor's.
-- Polled links on other flags (`visible`, `collidable`): a separate decision. `Hitbox.active` opens the category ("a flag linked by polling, evaluated where it is used") without committing to it.
+- Polled links on other flags: `visible` decided 2026-10-15 — it links as an appearance link, pulled where it is used (start of hover, head of the draw; [Reactive Design — Appearance links](Reactive%20Design.md#appearance-paintstate-internal)). `collidable` stays out (contacts laws). The sheet `frame` is deferred (a hot path; `play()` would be exclusive with it).
 
 **Implementation.**
 
@@ -1507,7 +1507,7 @@ Draw loop (`ScenaCanvas.draw` / `_draw_layer_batched`): if `_plain_blit`, call
 
 **PaintState on Sprite (blend + alpha):** `.blend` composites the **image blit**, not only silhouette fill/stroke. Read and write are the string (`sprite.blend = "add"`; `sprite.blend == "add"`); the enum is internal. Non-`NORMAL` uses a cached per-instance blit paint; the sprite stays `_plain_blit` eligible (same as static HueShift). Default `NORMAL` keeps the shared `_BLIT_PAINT` singleton — no per-draw branch on `_blend`.
 
-`.alpha` / `set_alpha` is **Sprite-only** sticky body opacity (0–1, default 1.0), baked into `_blit_paint` at set-time, still plain-blit eligible. `sprite.alpha = 0.5` and `sprite.set_alpha(0.5)` are equivalent (the method returns `self`). Composes multiplicatively with `fade_in` / `fade_out` (`saveLayer` `alpha_mul` sits outside the blit paint). Does **not** fade `_replaces_sprite_body` fills (`Metal`, `Flame`, …) or the Shield / Electric* costume envelope. `Shape.set_alpha` is a different knob (pushes alpha into `.fill` / `.line` materials) and is unchanged.
+`.alpha` / `set_alpha` is **Sprite-only** sticky body opacity (0–1, default 1.0), baked into `_blit_paint` at set-time, still plain-blit eligible. `sprite.alpha = 0.5` and `sprite.set_alpha(0.5)` are equivalent (the method returns `self`). Composes multiplicatively with `fade_in` / `fade_out` (`saveLayer` `alpha_mul` sits outside the blit paint). Does **not** fade `_replaces_sprite_body` fills (`Metal`, `Flame`, …) or the Shield / Electric* costume envelope. `Shape.set_alpha` is a different knob (pushes alpha into `.fill` / `.line` materials) and is unchanged. `sprite["alpha"] @= lambda: …` links it (an amount: a formula result clamps to [0, 1]); `_blit_plain` pulls before it reads `_blit_paint`, and the draw-head refresh pulls first anyway. A shape has no opacity field of its own (its alpha lives in its paint): link its `color` / `fill` with an alpha (`base.with_alpha(st.a)`).
 
 Do not clear `_plain_blit` solely because blend ≠ NORMAL or alpha ≠ 1.0. Tests: `tests/test_sprite.py` (`TestSpriteBlitBlendAndAlpha`).
 

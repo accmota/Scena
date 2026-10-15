@@ -690,8 +690,10 @@ class TestEntityInkFieldRef(unittest.TestCase):
         from scena.shapes import Circle
 
         c = Circle(center=(0, 0), radius=10)
+        # fill / line / line_width / color link since the appearance links
+        # (tests/test_paint_flag_links.py); looks and stroke knobs still refuse.
         for field in (
-            "fill", "line", "visual", "line_width", "dash", "blend",
+            "visual", "dash", "blend",
             "line_filter", "fill_filter", "glow", "shadow", "tail",
         ):
             with self.subTest(field=field):
@@ -703,12 +705,16 @@ class TestEntityInkFieldRef(unittest.TestCase):
 
     def test_paint_field_callable_assign_raises(self):
         from scena.shapes import Circle
+        from scena.state import CallableAssignError
 
         c = Circle(center=(0, 0), radius=10)
         with self.assertRaises(AttributeError) as ctx:
+            c.dash = lambda: "dash"
+        self.assertIn("cannot be linked with @=", str(ctx.exception))
+        # A linkable appearance field points at ``@=`` instead (``=`` copies).
+        with self.assertRaises(CallableAssignError) as ctx:
             c.line_width = lambda: 5.0
-        msg = str(ctx.exception)
-        self.assertIn("cannot be linked with @=", msg)
+        self.assertIn("Circle['line_width'] @= lambda", str(ctx.exception))
         self.assertEqual(c.line_width, 1.5)
 
     def test_handler_callable_assign_is_not_an_ink_link(self):
@@ -756,9 +762,13 @@ class TestEntityInkFieldRef(unittest.TestCase):
         a = Circle(center=(0, 0), radius=10)
         b = Circle(center=(100, 0), radius=1)
         with self.assertRaises(AttributeError):
-            b["line_width"] @= lambda: a.radius * 2
+            b["dash"] @= lambda: "dash" if a.radius > 5 else "solid"
         self.assertIsNone(getattr(b, "_ink", None))
-        self.assertEqual(b.line_width, 1.5)
+        self.assertEqual(b.dash, "solid")
+        # A linked appearance field writes through its setter, never into ink.
+        b["line_width"] @= lambda: a.radius * 2
+        self.assertIsNone(getattr(b, "_ink", None))
+        self.assertEqual(b.line_width, 20.0)
 
 
 class TestReactiveRotationScale(unittest.TestCase):
@@ -1239,8 +1249,12 @@ class TestReservedLinkRefusalPerKind(unittest.TestCase):
                               (("Rect", "frame"), "absent"), (("Circle", "width"), "absent"),
                               (("Circle", "corner_radius"), "absent"),
                               (("Sprite", "corner_radius"), "absent"),
-                              (("Line", "blend"), "property"), (("Rect", "color"), "property"),
-                              (("Text", "group"), "property"), (("Sprite", "alpha"), "property"),
+                              (("Line", "blend"), "property"), (("Rect", "glow"), "property"),
+                              (("Text", "group"), "property"), (("Sprite", "gray"), "property"),
+                              # Appearance links a kind excludes still refuse.
+                              (("Point", "color"), "property"), (("Point", "visible"), "property"),
+                              (("Track", "visible"), "property"), (("Text", "flip_x"), "property"),
+                              (("Sprite", "color"), "property"),
                               (("Rect", "name"), "read_only"),
                               (("Circle", "touching_sides"), "read_only")):
             self.assertEqual(checked.get(row), expected, row)
@@ -1250,8 +1264,8 @@ class TestReservedLinkRefusalPerKind(unittest.TestCase):
         c = Circle(center=(0, 0), radius=5)
         self.addCleanup(c.destroy)
         with self.assertRaises(AttributeError) as cm:
-            c["fill"] @= lambda: 1.0
-        self.assertIn(".set_color(", str(cm.exception))
+            c["glow"] @= lambda: 1.0
+        self.assertIn(".glow = True", str(cm.exception))
         with self.assertRaisesRegex(AttributeError, "Size it with radius"):
             c["height"] @= lambda: 1.0
         r = Rect(center=(0, 0), width=10, height=10)
@@ -1261,7 +1275,7 @@ class TestReservedLinkRefusalPerKind(unittest.TestCase):
         s = Sprite()
         self.addCleanup(s.destroy)
         with self.assertRaisesRegex(AttributeError, "Sprite-only"):
-            s["alpha"] @= lambda: 1.0
+            s["gray"] @= lambda: 1.0
 
     def test_callable_write_gives_the_same_answer(self):
         """``rect.text = lambda: …`` refuses as ``rect["text"] @=`` does."""
@@ -1269,7 +1283,7 @@ class TestReservedLinkRefusalPerKind(unittest.TestCase):
         from scena.state import CallableAssignError
         r = Rect(center=(0, 0), width=10, height=10)
         self.addCleanup(r.destroy)
-        for name in ("text", "line_width", "frame"):
+        for name in ("text", "dash", "frame"):
             with self.subTest(name=name):
                 with self.assertRaises(AttributeError) as bracket:
                     r[name] @= lambda: 1.0

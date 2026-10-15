@@ -372,6 +372,8 @@ then `_draw_frame` (8):
 8. Draw  
 9. Pace + present (`pacer.wait_for_present` → swap; [Frame pacing and GC](#frame-pacing-and-gc))  
 
+Linked appearance fields and flags (`rect["fill"] @=`, `visible`, `alpha`, … — [Reactive Design.md — Appearance links](Reactive%20Design.md#appearance-paintstate-internal)) are pulled at the head of the draw (`refresh_linked_channels`, before culling and look grouping), and `visible` also at the start of hover (step 5), so hover and clicks see a write made in update or a collision handler. Pulls where they are called, not a phase (Laws F2); parked and destroyed hosts are skipped. A linked flip is pose: pulled with `angle` / `scale` before collision, draw and hit-test.
+
 `init()` has no OS window. `@=` formulas linked in the script body evaluate with
 `mouse` at `(0, 0)` and `keyp` empty — honest: there is no pointer yet. When
 `open_window()` runs, the engine **seeds level** from the OS (pointer position,
@@ -817,6 +819,7 @@ Current baseline — not a freeze.
 | Reactive invalidation micro-opt (Tier 1) | **Implemented** — cheaper `mark_dirty`, change-gated pose notify, cached `_iter_subtree`, leaf `_resolve_link` / `Point.takein`, clean linked `ScalarSlot` reads; no dirty-walk short-circuit. [Reactive Design.md](Reactive%20Design.md); tests: `tests/test_reactive_tier1_characterization.py` |
 | Epoch / version change-gating | **Deferred** — graph flush measured ≈ 0 on the CPU probes, and a boolean short-circuit of the dirty walk is unsound under conditional formulas — [Reactive Design.md — Honest tradeoff](Reactive%20Design.md#honest-tradeoff) |
 | `@=` named functions + formula visibility check + parse cache | **Implemented** — [Reactive Design.md — Formula visibility](Reactive%20Design.md#formula-visibility-named-functions-helpers-refusals); `scena/formula_check.py`; tests: `tests/test_formula_functions.py` |
+| Appearance links (`color` / `fill` / `line` / `line_width`, Text `background`, Sprite `alpha`, `visible`, flips) | **Implemented** 2026-10-15 — link targets that write through the setter; draw-head + hover-start refresh — [Reactive Design.md — Appearance links](Reactive%20Design.md#appearance-paintstate-internal); tests: `tests/test_paint_flag_links.py` (canaries) |
 | One scale per sprite, `Sheet(anchor=)`, `Sheet(pixel_size=)`, `clip(offset=)`, construct cell = first clip | **Implemented** — [Sprite Design.md — Scale and registration](Sprite%20Design.md#scale-and-registration); snapshot cache keyed on sprite `center` ([Collision Design.md](Collision%20Design.md#snapshot-cache-anchor-translate-fast-path)); tests: `tests/test_sheet_scale_anchor.py` |
 | Pose fast path A1–A3 (unlinked motion) | **Implemented** — [Reactive Design.md](Reactive%20Design.md) |
 | Float pose + Attribute promotion (B1) | **Deferred** — [Reactive Design.md](Reactive%20Design.md) |

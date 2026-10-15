@@ -42,7 +42,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 | --- | --- | --- |
 | `@when` | `events.py` (flush) | `process.py` (timers/tweens) |
 | `Container.update()` | graph recalculation | `on_update` (per-frame actor hook) |
-| `.visual` / `.fill` | paint properties | ink / formula edges |
+| `.visual` / `.fill` | paint properties (`fill` links as a target: [Appearance links](#appearance-paintstate-internal)) | ink / formula sources |
 | `st["score"]` | the handle (link, bind, watch) | the value — inside a lambda write `st.score` |
 
 ## Not in this doc
@@ -1122,12 +1122,73 @@ does not invent a stroke.
 `Gradient.mean_color()` / `.darker(n)` / `.lighter(n)`: weighted stop mean, and
 stop-wise tone maps returning a **new** ramp (type / size / angle preserved).
 
-**Not in the reactive graph.** Paint channels and appearance stamps (`.glow`, `.shadow`,
-`.hue`, `.tail`) are plain properties: assignment uses `=`, not `@=`. Attempting
-`shape["fill"] @= …`, `shape["line_width"] @= …`, or `shape.glow = lambda: …` raises
-with a hint to use `=` and, when looks should track state, `on_update` / `@on_change` /
-`@when`. Custom entity ink (`ship.hp`) and geometry slots (`rect.width`, `line.p1.x`,
-`rect["angle"]`) remain linkable. `scale` (every Graphic) and `angle` on
+**Appearance links (since 0.9.0).** A built-in field links (`@=`) when its value is a
+plain value an author derives from state: `color`, `fill`, `line`, `line_width` (Shape,
+Text), Text `background`, Sprite `alpha`, `visible`, `flip_x` / `flip_y`. It stays out
+when it is identity (`name`, `owner`, `parts`, `collider`), an object with a lifetime or
+caches (`.visual`, `.glow`, `.shadow`, `.hue`, `.tail`, filters), an enum or stroke knob
+(`dash`, `blend`, `line_cap`, `align`), physics state the engine updates (`vel`, `mass`),
+or a lifecycle switch (`active`, `mode`). Those still raise with a hint to use `=` and,
+when they should track state, `on_update` / `@on_change` / `@when`. Point / Anchor take
+none of the new links (the engine styles a marker and shows a handle through these
+setters), Track no `visible` (it moves the track between layers), Text no flip.
+
+* **Meaning.** `obj["color"] @= f` is `obj.color = f()` re-run when the formula's
+  sources change: the link writes through the setter (`_ChannelAnchor`, `state.py`),
+  so a linked color under a look is exactly `set_color` under that look, and its look
+  identity follows. Values are coerced as `=` coerces them; a size (`line_width`)
+  reads 0 below zero and an amount (`alpha`) clamps to [0, 1], as formulas do (Scena
+  Design — Numbers). The anchor compares with the value it wrote last, never the
+  getter: a `Color` has no value equality (it compares by RGBA, alpha included) and a
+  parked actor's `visible` reads `False`.
+* **Link targets only.** A formula that reads `a.color` / `a.visible` follows `a` as
+  before (formula source extraction skips `_TARGET_ONLY_LINKS`); `b["color"] @=
+  a["color"]` raises with "link both fields to the same formula". As a source, no paint
+  writer would dirty the field.
+* **Exclusive.** A plain write to a linked field raises `LinkedAttributeError` before
+  anything is written (`_refuse_linked_channel`): `.color =`, `set_color`, `.fill =` /
+  `.line =`, Shape `set_alpha`, a look that brings its own color (`Paint` / `Fill` /
+  `Stroke`, a seeded `Neon("red")`), Text `color` / `background`, Sprite `alpha`,
+  `visible`, the flips, `SpriteButton.enabled`. Engine writes pass: the link's own
+  (`_writing`), a look applying itself (`_in_visual_apply`), park
+  (`_engine_flag_write`). `color` writes the fill package, so it excludes a linked
+  `fill` / `line` at link time in both orders (`_paint_fields`; on Text, `fill` only).
+* **When the value is taken.** Getters pull on read. The draw-head refresh
+  (`refresh_linked_channels`, head of `_draw_frame`) pulls every linked field before
+  culling, list building and look grouping read them, so a write anywhere in the frame
+  (update, a handler, flush, a pre-draw `on_done`) is drawn that frame. `visible` is
+  also refreshed at the start of hover, so hover and clicks see a write made in update
+  or a collision handler. A look going on (`visual =`, `_reapply_visual`) pulls first;
+  nothing pulls inside a look's apply (the identity would miss the write). Flips are
+  pose: `_pull_property_anchors` pulls them before draw, collision and hit-test. The
+  refreshes skip parked and destroyed hosts (Laws L3, L4). These are pulls where they
+  are called, not a phase (Laws F2).
+* **Copies.** `look_like` / `restore_visual` write under a linked field, then the link
+  writes it back; `clone()`, `look_like(other)` and `save_visual` pull the source
+  first. The copy has no link (Shapes Design — A copy has no links). An act's link on
+  a game object leaves with the act and gives back the field's value (PA1).
+* **Lifetime.** On resume a linked `visible` takes its formula's value, not the stash.
+  A verb that shows or hides at its end (`fade_in` / `fade_out`, `dissolve_in` /
+  `dissolve_out`, `implode`) refuses a linked `visible` at the call: its finish
+  swallows errors, so a refusal there would leave the shape shown with no word.
+  Linking `visible` while one runs refuses too.
+* **Not tweened.** `tween(shape["color"])` / `["visible"]` / a flip raise with the
+  pattern: tween a color cell and link the color to it (`st.c = Color("red");
+  tween(st["c"], Color("blue"), time=1); shape["color"] @= lambda: st.c`). `line_width`
+  and `alpha` tween like any number.
+* **Cost.** An unlinked object pays one slot read in the setters and getters
+  (`self._alinks`, a `PaintState` slot set when an appearance link is made, sticky:
+  ≈2 ns, where `self.__dict__.get("_field_anchors")` cost ≈18 ns, +60 % on a bare
+  getter — measured 2026-10-15) and nothing on the draw path; the refresh walks only
+  the hosts that have a link (`_LINKED_CHANNEL_HOSTS`). A linked field that changes
+  every frame costs what a formula costs: 1000 shapes whose `fill` follows one cell
+  changing every frame draw in ≈21.8 ms/frame, ≈17.7 ms when `update()` writes each
+  shape's color itself, ≈10.6 ms when `update()` computes one color for all (this
+  machine, 2026-10-15) — a link evaluates per shape.
+
+Guard: `tests/test_paint_flag_links.py` (every wrong implementation above has a
+canary). Custom entity ink (`ship.hp`) and geometry slots (`rect.width`,
+`line.p1.x`, `rect["angle"]`) link as before. `scale` (every Graphic) and `angle` on
 Point/Sprite/Svg/Text/Track/free Polygon (and derived headings) stay property-backed via
 `_PropertyAnchor` (the heading turns about the center — a Text's anchor);
 where `angle` is a model input it is a plain `ScalarSlot` that keeps the placement point.

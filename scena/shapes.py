@@ -28,6 +28,7 @@ from .state import (
     _pose_cell_of,
     DIRTY_POSE_CELLS,
     _point_index_refusal,
+    _pull_channel_links,
 )
 from .transients import compose_draw_mods, draw_with_transients
 from .stamps import draw_body_with_stamps
@@ -45,7 +46,7 @@ from .entity import (
     _bump_collision_epoch, _geom_path_cache_set, _placement_write,
     _USE_LAYER_DEFAULT, _COPY_GROUPS, _STYLE_PAINT,
     _fire_on_destroy, _refuse_if_destroyed,
-    _parked, _stash_flag,
+    _parked, _stash_flag, _refuse_linked_channel,
     _wrap_actor_init, _finish_actor_construct,
     _rotate_as_motion, _rotate_as_placement,
     _is_scena_file,
@@ -1257,6 +1258,10 @@ class Shape(Graphic, PaintState):
 
     # Merged class look / size defaults from ``class X(Circle, radius=8, color=…)``.
     _shape_defaults: Dict[str, Any] = {}
+    # Appearance links (``rect["fill"] @= lambda: …``; Reactive Design —
+    # Appearance links): link targets that write through their setter.
+    _property_link_extra = frozenset({
+        "color", "fill", "line", "line_width", "visible", "flip_x", "flip_y"})
     # Home-model gradual construction (None = no home fill; Point / Polygon).
     _HOME_KEYS: Optional[frozenset] = None
     _HOME_OPTIONAL_KEYS: frozenset = frozenset()
@@ -1335,8 +1340,8 @@ class Shape(Graphic, PaintState):
 
         if visual is not None and color is not None:
             raise ValueError("use color= or visual=, not both")
-        if line_width is not None:
-            from .validate import magnitude
+        from .validate import _is_formula
+        if line_width is not None and not _is_formula(line_width):   # a function links below
             line_width = fixed_magnitude(line_width, "line_width")
 
         # PaintState before Container so look/style slots exist before parts.
@@ -1352,12 +1357,20 @@ class Shape(Graphic, PaintState):
         # Thickness is not part of the primary package. Omit keeps the prototype.
         # Written before the look: after it, the write would re-apply the look
         # (same picture, one more apply).
+        # A function links the field after the package is set, like
+        # ``shape["color"] @= …`` (Reactive Design — Appearance links).
         if line_width is not None:
-            self.line_width = line_width
+            if _is_formula(line_width):
+                self._link_field("line_width", line_width)
+            else:
+                self.line_width = line_width
         # Appearance: color= writes the primary paint package (not a Paint costume).
         # Mutually exclusive with visual=. set_color uses fill on area shapes, stroke on Line.
         if color is not None:
-            self.set_color(color)
+            if _is_formula(color):
+                self._link_field("color", color)
+            else:
+                self.set_color(color)
         elif visual is not None:
             self.visual = visual
 
@@ -1506,12 +1519,18 @@ class Shape(Graphic, PaintState):
     def visible(self) -> bool:
         """Draw it or not (``True`` / ``False``). Hiding only stops drawing (and clicks);
         to take a shape out of the game, park it with ``.active = False``."""
+        if self._alinks:
+            _pull_channel_links(self, ("visible",))
         return self._visible
 
     @visible.setter 
     def visible(self, value: bool) -> None:
         _refuse_if_destroyed(self, "visible")
         value = expect_bool(value, f"{type(self).__name__}.visible")
+        if self._alinks:
+            # A linked ``visible`` follows its formula (Reactive Design —
+            # Appearance links); park hides through ``_engine_flag_write``.
+            _refuse_linked_channel(self, ("visible",), "set visible on")
         if _parked(self):
             _stash_flag(self, "visible", value)  # parked stays hidden; resume applies
             return
@@ -1613,6 +1632,7 @@ class Shape(Graphic, PaintState):
         ``_parts_written_by_*`` as FieldRefs — no per-family special case.
         """
         from .entity import entity_label, part_path
+        self._refuse_link_under_flip(target)
 
         def refuse(part, existing: str, undo: str):
             name = part_path(part, self) if not isinstance(part, FieldRef) else str(part.name)
@@ -2156,6 +2176,22 @@ class Shape(Graphic, PaintState):
         except BaseException:
             object.__setattr__(self, flag, not value)
             raise
+
+    def _flip_written_parts(self, axis: str) -> list:
+        """What a flip writes: the Defining points off the pivot (``center``),
+        the mirrored Defining scalars / vector, and a property-backed heading
+        (Graphic._flip_written_parts). Read by the flip link checks."""
+        cx, cy = self._center_xy()
+        parts = []
+        for pt in self._mirror_points():
+            d = pt.__dict__
+            x, y = d.get('x'), d.get('y')
+            if x is not None and y is not None and _near_pivot(x, y, cx, cy):
+                continue
+            parts.append(pt)
+        parts.extend(self._mirror_scalar_parts(axis))
+        parts.extend(super()._flip_written_parts(axis))
+        return parts
 
     def _mirror_points(self):
         # Parts live in the instance dict (getattr would not pull either).
@@ -3133,6 +3169,12 @@ class Point(Shape):
     """
     x = ScalarSlot()
     y = ScalarSlot()
+
+    # The engine styles a marker and shows / hides a handle through these
+    # setters (``_apply_role_marker_style``, ``show_handles``), and ``visible``
+    # moves a Point between layers: none of them is a link target here.
+    _property_link_exclude = frozenset({
+        "color", "fill", "line", "line_width", "visible", "flip_x", "flip_y"})
 
     # Handle / guide glyph.
     HANDLE_RADIUS = 8.0

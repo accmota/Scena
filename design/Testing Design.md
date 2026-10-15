@@ -60,7 +60,14 @@ Rules of thumb:
   builtin message" (`hypothesis_support.leak_message`) checks "the error names the
   fix" across the whole API with no per-call knowledge.
 - **Prove the test can fail.** A new property suite gets a canary: put a known bug
-  back by monkeypatch and assert the suite fails.
+  back by monkeypatch and assert the suite fails. A plant must reach the code the
+  test runs: `obj.x = v` on an Entity goes through the class route table
+  (`_setattr_route`), which caches the property it found, so patching the property on
+  the class changes nothing — patch the method or module function the setter calls
+  (`_apply_flip`, `entity._refuse_linked_channel`). And a plant must be wrong
+  *behaviour*: removing one of two redundant pulls (a clone's pre-pull, when
+  `look_like` pulls the source too) is not a bug the test should see
+  (`tests/test_paint_flag_links.py`, `TestCanaries`, 2026-10-15).
 
 
 # Harness map

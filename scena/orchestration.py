@@ -12,7 +12,7 @@ from typing import Optional, Tuple
 
 from .leak_detector import LeakSampler
 from .canvas import ScenaCanvas, Canvas, GroupOperator
-from .entity import _drawn
+from .entity import _drawn, refresh_linked_channels, refresh_linked_visible
 from .registry import Registry
 from .input import (
     KeyName, KeyPressed, Mouse, Clock, get_glfw_key_name, get_glfw_mouse_button,
@@ -3447,6 +3447,10 @@ class ScenaFramework:
         self.keys._seed_held(held)
 
     def _step_hover(self):
+        # A linked ``visible`` written in update / on_update / a collision
+        # handler is what hover and clicks see this frame (Reactive Design —
+        # Appearance links).
+        refresh_linked_visible()
         sm = self.shape_manager
         if sm is None:
             return
@@ -4047,6 +4051,10 @@ class ScenaFramework:
         samples the post path once, so background parallax, the camera CTM and
         the scene all use this frame's camera in every path.
         """
+        # Linked appearance fields and flags take this frame's value before
+        # culling, list building and look grouping read them (Reactive Design
+        # — Appearance links; a pull where it is used, Laws F2).
+        refresh_linked_channels()
         # macOS NSOpenGLContext can reset the viewport after resize / mode
         # changes; re-assert every frame (cheap).
         GL.glViewport(0, 0, self.fb_width, self.fb_height)

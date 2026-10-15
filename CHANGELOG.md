@@ -73,6 +73,28 @@ left out.
 
 ### Added
 
+- Colors, opacity, visibility and flips link with `@=`: a HUD bar can follow
+  the game in its length *and* its color, with formulas only.
+  `bar["width"] @= lambda: 200 * st.hp / 100` and `bar["fill"] @= lambda:
+  ramp.get_color(st.hp / 100)` (`ramp = Colormap.from_colors("red",
+  "lime")`); `warning["visible"] @= lambda: st.hp < 20`; `hero["flip_x"] @=
+  lambda: st.facing < 0`. The fields: `color`, `fill`, `line`, `line_width`
+  on shapes and Text, Text `background`, Sprite `alpha`, and `visible`,
+  `flip_x`, `flip_y` (Text cannot flip; a Point takes none of them, a Track
+  no `visible`). A link means `=` re-run whenever the formula's sources
+  change: a linked color under a look is what `.color =` gives under that
+  look. The constructors take a function there too: `Rect(color=lambda: …,
+  line_width=lambda: …)`, `Text(…, color=lambda: …, background=lambda: …)`,
+  `Sprite(…, flip_x=lambda: …)`. While linked, a plain write raises
+  (`rect.color = "red"`, `set_color`, `set_alpha`, `visual = Paint(…)`, a
+  seeded look such as `Neon("red")`, `fade_out()` on a linked `visible`),
+  like any linked field; `unlink()` frees it. A formula may read these fields,
+  but they are not link sources: `b["color"] @= a["color"]` raises (link
+  both to the same formula). `tween()` still refuses a color, `visible` or a
+  flip with the recipe (tween a color cell, `tween(st["c"], Color("blue"),
+  time=1)`, and link to it: `rect["color"] @= lambda: st.c`); `line_width`
+  and `alpha` tween.
+
 - A Box copied into an Ellipse fills it, as `Ellipse(box=)` does:
   `ellipse << hero.box` takes the box's center, width, height and angle, and
   `ellipse @= (lambda: hero.box)` follows it.
@@ -179,6 +201,11 @@ left out.
   the field (`Some: …`) and are left alone.
 
 ### Fixed
+
+- A `SpriteButton` whose `enabled` was linked (`button["enabled"] @=
+  lambda: …`) took a plain `button.enabled = False` without a word, and the
+  link overwrote it at the next read. It raises `LinkedAttributeError` now,
+  like every linked field.
 
 - A flipped Sprite or Svg placed with `box=` in a turned region drew upside
   down (and a sprite with `art_angle=` drew turned the wrong way), unless the

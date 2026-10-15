@@ -3946,6 +3946,11 @@ def _entity_written_by(target):
     return None
 
 
+# Appearance links a tween does not animate (``line_width`` / ``alpha`` do).
+_FLAG_LINKS = frozenset({"visible", "flip_x", "flip_y"})
+_UNTWEENED_LINKS = frozenset({"color", "fill", "line", "background"}) | _FLAG_LINKS
+
+
 def _tween_target(
     target,
     to,
@@ -3985,6 +3990,17 @@ def _tween_target(
         )
     if is_pose:
         refuse_held_payload(target, "tween({cell}, …)")
+    if is_fieldref and target.name in _UNTWEENED_LINKS and target.name in getattr(
+            type(target.owner), "_scena_target_only", ()):
+        # A paint or a flag links (``@=``) but does not tween: a color has no
+        # interpolation space chosen here, a flag has no in-between.
+        owner = getattr(target.owner, "name", "obj")
+        hint = (f"tween a color cell and link to it: st.c = {owner}.{target.name}; "
+                f"tween(st['c'], Color('blue'), time=…); {owner}['{target.name}'] @= "
+                f"lambda: st.c" if target.name not in _FLAG_LINKS else
+                f"set it with {owner}.{target.name} = …, or link it: "
+                f"{owner}['{target.name}'] @= lambda: …")
+        raise TypeError(f"tween() cannot animate {owner}['{target.name}']: {hint}.")
 
     n_loops = _require_loop_kwargs(
         loops=loops, yoyo=yoyo, time=time, call_name="tween",

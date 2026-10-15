@@ -11,6 +11,7 @@ import os
 import re
 import sys
 import warnings
+import weakref
 from abc import ABC
 from collections.abc import Sequence
 from functools import wraps
@@ -25,6 +26,7 @@ from ._pkg import is_framework_module
 from .state import (
     Attribute, CallableAssignError, Container, DestroyedError, LinkedAttributeError,
     _INK_SLOT, _FlagPropertyAnchor, _PropertyAnchor,
+    _PaintChannelAnchor, _AmountChannelAnchor, _FlagChannelAnchor,
     callable_assign_message, probe_private, bump_pose_rev,
 )
 from .scenamath import Vec2
@@ -105,9 +107,31 @@ _INK_LINK_FORBIDDEN_HINTS: Dict[str, str] = {
 
 
 _PROPERTY_LINK_FIELDS = frozenset({"angle", "scale"})
+# Appearance fields and flags a class may declare linkable (Reactive Design —
+# Appearance links): ``@=`` re-runs ``=`` when the formula's sources change.
+# Link targets only: a formula that reads them keeps following the object
+# itself, as before (``_TARGET_ONLY_LINKS``).
+_CHANNEL_LINK_ANCHORS = {
+    "color": _PaintChannelAnchor,
+    "fill": _PaintChannelAnchor,
+    "line": _PaintChannelAnchor,
+    "background": _PaintChannelAnchor,
+    "line_width": _AmountChannelAnchor,
+    "alpha": _AmountChannelAnchor,
+    "visible": _FlagChannelAnchor,
+    "flip_x": _FlagChannelAnchor,
+    "flip_y": _FlagChannelAnchor,
+}
+_TARGET_ONLY_LINKS = frozenset(_CHANNEL_LINK_ANCHORS)
+# The anchor class of every property link a class may declare
+# (``_property_link_extra``); ``angle`` / ``scale`` use ``_PropertyAnchor``.
+_PROPERTY_LINK_ANCHORS = dict(_CHANNEL_LINK_ANCHORS, enabled=_FlagPropertyAnchor)
 # Every name some class may declare linkable through ``_property_link_extra``
 # (a property + ``@=``); the cheap pre-check before the per-class lookup.
-_PROPERTY_LINK_ANY = _PROPERTY_LINK_FIELDS | frozenset({"enabled"})
+_PROPERTY_LINK_ANY = _PROPERTY_LINK_FIELDS | frozenset(_PROPERTY_LINK_ANCHORS)
+# Pose fields pulled before draw / collision / hit-test (``_pull_property_anchors``):
+# the heading and scale always, a flip where the class links it.
+_POSE_PULL_FLIPS = ("flip_x", "flip_y")
 # Collision's pose key reads these slots when a class declares them (live
 # angle / size); the per-class tuple is ``cls._scena_extra_slots``.
 GRAPHIC_EXTRA_SLOTS = (
@@ -449,8 +473,18 @@ def _cache_class_tables(cls: type) -> None:
             if getattr(val, "_is_field_slot", False):
                 slots.add(name)
     links = frozenset(n for n in _PROPERTY_LINK_FIELDS if n not in slots)
-    links |= frozenset(getattr(cls, "_property_link_extra", ()) or ())
+    # Union over the MRO: a subclass that adds its own (SpriteButton's
+    # ``enabled``) keeps its bases' (Sprite's ``alpha`` / ``visible`` / flips);
+    # ``_property_link_exclude`` takes names back (Point, Track, Text flips).
+    extra, exclude = set(), set()
+    for base in cls.__mro__:
+        extra.update(base.__dict__.get("_property_link_extra", ()) or ())
+        exclude.update(base.__dict__.get("_property_link_exclude", ()) or ())
+    links |= frozenset(extra - exclude)
     cls._scena_property_links = links
+    cls._scena_target_only = links & _TARGET_ONLY_LINKS
+    cls._scena_pose_pull = tuple(sorted(_PROPERTY_LINK_FIELDS)) + tuple(
+        n for n in _POSE_PULL_FLIPS if n in links)
     cls._scena_kind_name = _kind_of_class(cls)
     cls._scena_extra_slots = tuple(
         n for n in GRAPHIC_EXTRA_SLOTS
@@ -1056,6 +1090,89 @@ def _refuse_linked_pose(obj, anchors, name: str, operation: str, force: bool = F
         return
     from .shapes import _ensure_writable
     _ensure_writable(obj[name], operation, force=force)
+
+
+def _part_is_linked(part) -> bool:
+    """A part a verb would write has an ``@=`` formula on it or under it
+    (property anchors aside — their own writers gate them)."""
+    from .state import FieldRef, _PropertyAnchor
+    if isinstance(part, FieldRef):
+        return part.is_linked
+    return any(node._link is not None and not isinstance(node, _PropertyAnchor)
+               for node in part._iter_subtree())
+
+
+# Graphics with a linked appearance field or flag: the draw-head refresh
+# (``refresh_linked_channels``) pulls them once per frame, before culling and
+# look grouping read them. Pruned when a host has none left.
+_LINKED_CHANNEL_HOSTS = weakref.WeakSet()
+
+
+def refresh_linked_channels() -> None:
+    """Bring every linked appearance field / flag up to date (head of the draw;
+    ``visible`` also at the start of hover). A pull where it is used, not a new
+    phase (Laws F2). Parked and destroyed hosts are skipped (L3, L4)."""
+    if not _LINKED_CHANNEL_HOSTS:
+        return
+    for host in list(_LINKED_CHANNEL_HOSTS):
+        if getattr(host, "_destroyed", False):
+            _LINKED_CHANNEL_HOSTS.discard(host)
+            continue
+        anchors = host.__dict__.get("_field_anchors")
+        if not anchors:
+            _LINKED_CHANNEL_HOSTS.discard(host)
+            continue
+        skip = getattr(host, "_active", True) is False or host._in_visual_apply
+        linked = False
+        for name in type(host)._scena_target_only:
+            a = anchors.get(name)
+            if a is not None and a._link is not None:
+                linked = True
+                if a._dirty and not skip:   # clean: nothing to pull
+                    a._ensure_fresh()
+        if not linked:
+            _LINKED_CHANNEL_HOSTS.discard(host)
+
+
+def refresh_linked_visible() -> None:
+    """``visible`` only: hover and clicks read it right after the collision
+    handlers, before the draw-head refresh."""
+    if not _LINKED_CHANNEL_HOSTS:
+        return
+    from .state import _pull_channel_links
+    for host in list(_LINKED_CHANNEL_HOSTS):
+        if getattr(host, "_destroyed", False) or getattr(host, "_active", True) is False:
+            continue
+        _pull_channel_links(host, ("visible",))
+
+
+def _refuse_linked_channel(obj, names, operation: str) -> None:
+    """An author write to a linked appearance field or flag raises before it
+    writes anything (a formula is the only exclusive driver — Shapes Design,
+    Persistent drivers). The hot setters check the ``_alinks`` slot first, so
+    an unlinked object pays one slot read.
+
+    Passes: the link's own write (the anchor's ``_writing``) and a look
+    applying itself (``_in_visual_apply``), which writes the live channels a
+    linked ``color`` stays the identity of. Park writes ``visible`` through
+    ``_engine_flag_write``."""
+    anchors = obj.__dict__.get("_field_anchors")
+    if not anchors:
+        return
+    if getattr(obj, "_in_visual_apply", False) or obj.__dict__.get("_engine_flag_write"):
+        return
+    for name in names:
+        anchor = anchors.get(name)
+        if anchor is None or anchor._link is None:
+            continue
+        if any(a.__dict__.get("_writing") for a in anchors.values()):
+            return          # a link of this object is writing (color → fill / line)
+        from .state import driver_conflict_message
+        raise LinkedAttributeError(driver_conflict_message(
+            new=operation, subject=entity_label(obj), part=name,
+            existing="has an @= formula",
+            undo=f"Unlink it first ({obj.name}['{name}'].unlink())",
+        ))
 
 
 def _gate_pose_anchor(obj, name: str, operation: str, force: bool = False) -> None:
@@ -2698,7 +2815,12 @@ class Entity(Container):
         # hidden Point on a layer leaves it), and resume must put back exactly
         # what was there.
         if vis:
-            self.visible = False
+            d = self.__dict__
+            d["_engine_flag_write"] = True      # passes a linked ``visible``
+            try:
+                self.visible = False
+            finally:
+                d.pop("_engine_flag_write", None)
         object.__setattr__(self, "_active_saved_visible", vis)
         object.__setattr__(self, "_active_saved_collidable", col)
         object.__setattr__(self, "_active", False)
@@ -2716,8 +2838,15 @@ class Entity(Container):
         saved_col = getattr(self, "_active_saved_collidable", False)
         object.__setattr__(self, "_active_saved_visible", None)
         object.__setattr__(self, "_active_saved_collidable", None)
+        linked = getattr(self, "_channel_linked", None)
+        if linked is not None and linked("visible"):
+            # A linked ``visible`` takes its formula's value now, not the
+            # stash (the formula may have changed while parked; a read here
+            # would pull and the stash would then overwrite it).
+            from .state import _reapply_channel_links
+            _reapply_channel_links(self)
         # Hidden then and hidden now: nothing to write (see ``_park_self``).
-        if saved_vis is not None and bool(saved_vis) != bool(self.visible):
+        elif saved_vis is not None and bool(saved_vis) != bool(self.visible):
             self.visible = bool(saved_vis)
         # The stash was validated when it was written (E11); rejoin through the
         # same path as ``collidable = True`` so callbacks and every pair group
@@ -3492,6 +3621,12 @@ class Graphic(Entity, ABC):
         from .collision import get_collision_system
         return get_collision_system().floor_below(self, dx=dx, depth=depth, group=group)
 
+    def _channel_linked(self, name: str) -> bool:
+        """Is the appearance field / flag ``name`` linked (``@=``)?"""
+        anchors = self.__dict__.get("_field_anchors")
+        anchor = anchors.get(name) if anchors else None
+        return anchor is not None and anchor._link is not None
+
     def _pull_property_anchor(self, name: str) -> None:
         """Pull a linked property-backed field (``angle`` / ``scale``) on read."""
         anchors = self.__dict__.get("_field_anchors")
@@ -3502,20 +3637,31 @@ class Graphic(Entity, ABC):
             anchor._ensure_fresh()
 
     def _pull_property_anchors(self) -> None:
-        """Pull linked angle/scale so draw/collision see current geometry."""
+        """Pull the linked pose (angle / scale, and a flip where the class
+        links it) so draw / collision / hit-test see current geometry."""
         anchors = self.__dict__.get("_field_anchors")
         if not anchors:
             return
-        for name in _PROPERTY_LINK_FIELDS:
+        for name in type(self)._scena_pose_pull:
             anchor = anchors.get(name)
             if anchor is not None:
                 anchor._ensure_fresh()
 
     def _scalar_anchor_class(self, name: str):
         if name in _PROPERTY_LINK_ANY and name in type(self)._scena_property_links:
-            flags = getattr(type(self), "_property_link_flags", ())
-            return _FlagPropertyAnchor if name in flags else _PropertyAnchor
+            return _PROPERTY_LINK_ANCHORS.get(name, _PropertyAnchor)
         return super()._scalar_anchor_class(name)
+
+    def _linkable_source(self, name: str):
+        # An appearance field or flag is a link target only: as a source no
+        # writer would dirty it (Reactive Design — Appearance links).
+        if name in type(self)._scena_target_only:
+            raise TypeError(
+                f"{self.name}['{name}'] cannot be the source of a link: it is a "
+                f"link target only. Link both fields to the same formula, e.g. "
+                f"other['{name}'] @= lambda: … (the formula {self.name}['{name}'] follows)"
+            )
+        return super()._linkable_source(name)
 
     def _resolve_field(self, key: str):
         if key == "touching_sides":
@@ -3540,6 +3686,12 @@ class Graphic(Entity, ABC):
                 )
             if isinstance(value, Attribute):
                 value = value.value
+            if name == "line_width":
+                # A tween / act restore writes a size as a formula does:
+                # an overshoot below zero reads 0 (Scena Design — Numbers).
+                from .validate import clamp_magnitude
+                if not isinstance(value, bool) and isinstance(value, (int, float)):
+                    value = clamp_magnitude(value)
             setattr(self, name, value)
             return
         super()._write_field(name, value)
@@ -3550,6 +3702,21 @@ class Graphic(Entity, ABC):
         if name == "touching_sides":    # a source (``_resolve_field``), never a target
             raise AttributeError(_ink_link_forbidden_message(self, name))
         if name in _PROPERTY_LINK_ANY and name in type(self)._scena_property_links:
+            channel = name in type(self)._scena_target_only
+            if channel:
+                self._refuse_channel_link_conflict(name)
+                if name in _POSE_PULL_FLIPS:
+                    self._refuse_flip_link_conflict(name)
+                elif name == "visible":
+                    from .transients import visibility_verb_running
+                    verb = visibility_verb_running(self)
+                    if verb is not None:
+                        from .state import driver_conflict_message
+                        raise LinkedAttributeError(driver_conflict_message(
+                            new="link", subject=entity_label(self), part="visible",
+                            existing=f"{verb}() shows or hides it when it ends",
+                            undo="Link it after the effect ends (on_done=), or "
+                                 "clear_transients() first"))
             anchors = self.__dict__.get("_field_anchors")
             had_anchor = bool(anchors) and name in anchors
             anchor = self._ensure_scalar_anchor(name, anchor_cls=self._scalar_anchor_class(name))
@@ -3561,8 +3728,81 @@ class Graphic(Entity, ABC):
                 if not had_anchor:
                     self._drop_scalar_anchor(name)
                 raise
+            if channel:
+                object.__setattr__(self, "_alinks", True)      # sticky (PaintState slot)
+                _LINKED_CHANNEL_HOSTS.add(self)
             return
         super()._link_field(name, source)
+
+    def _flip_written_parts(self, axis: str) -> list:
+        """What a flip on ``axis`` writes besides its flag: the heading
+        (``rotate_to``) on a Sprite / Text. Shapes add the parts the mirror
+        moves. Link-time checks read it, both orders (never the first write)."""
+        if "angle" in type(self)._scena_property_links:
+            return [self["angle"]]
+        return []
+
+    def _flip_link_refusal(self, flip: str, part, *, linking_flip: bool):
+        from .state import driver_conflict_message, FieldRef
+        label = str(part.name) if isinstance(part, FieldRef) else part_path(part, self)
+        if linking_flip:
+            msg = driver_conflict_message(
+                new="link", subject=entity_label(self), part=flip,
+                existing=f"its {label} has an @= formula, and a flip rewrites it",
+                undo=f"Unlink {label} first, or leave {flip} unlinked")
+        else:
+            msg = driver_conflict_message(
+                new="link", subject=entity_label(self), part=label,
+                existing=f"its {flip} has an @= formula and mirrors it",
+                undo=f"Unlink {self.name}['{flip}'] first, or leave {label} unlinked")
+        return LinkedAttributeError(msg)
+
+    def _refuse_flip_link_conflict(self, name: str) -> None:
+        """Linking ``flip_x`` / ``flip_y``: the parts the flip writes must be
+        free, and so must the whole object (``obj @= other`` drives the pose)."""
+        if self._link is not None:
+            raise self._flip_link_refusal(name, self, linking_flip=True)
+        from .state import FieldRef
+        for part in self._flip_written_parts(name[-1]):
+            if _part_is_linked(part):
+                raise self._flip_link_refusal(name, part, linking_flip=True)
+
+    def _refuse_link_under_flip(self, target) -> None:
+        """The other order: a link on a part a linked flip writes (or on the
+        whole object) refuses (``_ensure_can_link_attribute``)."""
+        anchors = self.__dict__.get("_field_anchors")
+        if not anchors:
+            return
+        for flip in ("flip_x", "flip_y"):
+            anchor = anchors.get(flip)
+            if anchor is None or anchor._link is None or target is anchor:
+                continue
+            if target is self:
+                raise self._flip_link_refusal(flip, self, linking_flip=False)
+            from .shapes import _link_overlaps_part
+            for part in self._flip_written_parts(flip[-1]):
+                if _link_overlaps_part(target, part):
+                    raise self._flip_link_refusal(flip, part, linking_flip=False)
+
+    def _ensure_can_link_attribute(self, target) -> None:
+        self._refuse_link_under_flip(target)
+
+    def _refuse_channel_link_conflict(self, name: str) -> None:
+        """Two links on one paint package refuse at link time, in either order
+        (``color`` writes ``fill`` and ``line`` on a shape): never left to the
+        first write (Reactive Design — Appearance links)."""
+        fields = getattr(type(self), "_paint_fields", None)
+        if not fields:
+            return
+        for other in fields.get(name, ()):
+            if other != name and self._channel_linked(other):
+                from .state import driver_conflict_message
+                raise LinkedAttributeError(driver_conflict_message(
+                    new="link", subject=entity_label(self), part=name,
+                    existing=f"its {other} has an @= formula, and {name} writes "
+                             f"the same paint",
+                    undo=f"Link one of them, or unlink {self.name}['{other}'] first",
+                ))
 
     def _ensure_touching_sides_storage(self) -> None:
         ink = getattr(self, "_ink", None)
@@ -3724,21 +3964,33 @@ class Graphic(Entity, ABC):
 
     @property
     def flip_x(self) -> bool:
-        """Mirror left-right about ``center``. Setting it twice is the identity."""
+        """Mirror left-right about ``center``: a stored flag (setting the same
+        value again changes nothing)."""
+        if self._alinks:
+            self._pull_property_anchor("flip_x")
         return bool(getattr(self, "_flip_x", False))
 
     @flip_x.setter
     def flip_x(self, value) -> None:
-        self._apply_flip("x", expect_bool(value, f"{type(self).__name__}.flip_x"))
+        value = expect_bool(value, f"{type(self).__name__}.flip_x")
+        if self._alinks:
+            _refuse_linked_channel(self, ("flip_x",), "set flip_x on")
+        self._apply_flip("x", value)
 
     @property
     def flip_y(self) -> bool:
-        """Mirror up-down about ``center``. Setting it twice is the identity."""
+        """Mirror up-down about ``center``: a stored flag (setting the same
+        value again changes nothing)."""
+        if self._alinks:
+            self._pull_property_anchor("flip_y")
         return bool(getattr(self, "_flip_y", False))
 
     @flip_y.setter
     def flip_y(self, value) -> None:
-        self._apply_flip("y", expect_bool(value, f"{type(self).__name__}.flip_y"))
+        value = expect_bool(value, f"{type(self).__name__}.flip_y")
+        if self._alinks:
+            _refuse_linked_channel(self, ("flip_y",), "set flip_y on")
+        self._apply_flip("y", value)
 
     def _apply_flip(self, axis: str, value, *, force: bool = False) -> None:
         """Sprite / Text default: toggle the flag and mirror the heading.
@@ -3862,6 +4114,13 @@ class Graphic(Entity, ABC):
                 kwargs["group"] = groups
         else:
             kwargs["group"] = group
+        if self.__dict__.get("_field_anchors"):
+            # The copy is a snapshot of this frame's values: pull the pose
+            # (a linked flip) and the appearance links before the recipe reads
+            # them raw. The copy has no links (Shapes Design — A copy has no links).
+            from .state import _pull_channel_links
+            self._pull_property_anchors()
+            _pull_channel_links(self, type(self)._scena_target_only)
         _PENDING_CLONE_SOURCES.append(self)
         mark = len(_PENDING_CLONE_SOURCES)
         try:

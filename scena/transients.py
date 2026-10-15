@@ -680,7 +680,49 @@ def unregister_shape(shape) -> None:
         pass
 
 
+# The verb a life channel came from, for the linked-``visible`` refusal.
+_LIFE_VERBS = {
+    "Dissolve": "dissolve_out", "DissolveIn": "dissolve_in", "FadeOut": "fade_out",
+    "FadeIn": "fade_in", "Implode": "implode", "Burn": "burn",
+}
+
+
+def _refuse_linked_visible(shape, channel: TransientChannel) -> None:
+    """A verb that hides or shows its shape at the end refuses a linked
+    ``visible`` at the call: ``finish`` swallows errors, so a refusal there
+    would leave the shape shown with no word (Reactive Design — Appearance
+    links)."""
+    if not (channel.hide_on_finish or channel.show_on_finish):
+        return
+    d = getattr(shape, "__dict__", None)
+    if not d or not d.get("_field_anchors"):
+        return
+    linked = getattr(shape, "_channel_linked", None)
+    if linked is None or not linked("visible"):
+        return
+    from .entity import entity_label
+    from .state import LinkedAttributeError, driver_conflict_message
+    verb = _LIFE_VERBS.get(type(channel).__name__, type(channel).__name__)
+    raise LinkedAttributeError(driver_conflict_message(
+        new=verb, subject=entity_label(shape), part="visible",
+        existing="has an @= formula",
+        undo=f"Unlink it first ({shape.name}['visible'].unlink()), or fade it "
+             f"another way (a linked alpha / color)",
+    ))
+
+
+def visibility_verb_running(shape) -> Optional[str]:
+    """The verb name when the life slot holds an unfinished verb that hides or
+    shows the shape at its end (linking ``visible`` then refuses), else None."""
+    st = getattr(shape, "_tx_state", None)
+    ch = None if st is None else st.life
+    if ch is None or ch.done or not (ch.hide_on_finish or ch.show_on_finish):
+        return None
+    return _LIFE_VERBS.get(type(ch).__name__, type(ch).__name__)
+
+
 def _install(shape, channel_name: str, channel: TransientChannel) -> TransientChannel:
+    _refuse_linked_visible(shape, channel)
     st = _ensure_state(shape)
     outgoing = getattr(st, channel_name, None)
     live = channel

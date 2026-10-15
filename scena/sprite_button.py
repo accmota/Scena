@@ -290,7 +290,6 @@ class SpriteButton(Sprite):
     _draws_solo = True
     _draws_parts = True
     _property_link_extra = frozenset({"enabled"})
-    _property_link_flags = frozenset({"enabled"})
 
     def __init__(
         self,
@@ -441,6 +440,11 @@ class SpriteButton(Sprite):
         from .entity import _refuse_if_destroyed
         _refuse_if_destroyed(self, "enabled")
         want = _expect_flag(value, "SpriteButton enabled")
+        if self.__dict__.get("_field_anchors"):
+            # A linked ``enabled`` follows its formula: a plain write raised
+            # nowhere and was overwritten at the next pull (LK1).
+            from .entity import _refuse_linked_channel
+            _refuse_linked_channel(self, ("enabled",), "set enabled on")
         if want == self._enabled:
             return
         self._enabled = want

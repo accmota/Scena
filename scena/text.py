@@ -36,6 +36,7 @@ from .state import (
     bound_cell,
     unbound_value_hint,
     _init_composite,
+    _pull_channel_links,
 )
 from .style import PaintState
 from .uiwidget import (
@@ -194,6 +195,11 @@ class _TextPartSlot(ContainerSlot):
         return super().__get__(instance, owner)
 
 
+def _refuse_linked_text_paint(text, names, operation: str) -> None:
+    from .entity import _refuse_linked_channel
+    _refuse_linked_channel(text, names, operation)
+
+
 class Text(Graphic, PaintState):
     """Single author caption class (HUD or world).
 
@@ -249,6 +255,16 @@ class Text(Graphic, PaintState):
 
     # A caption does not collide: ``text.hitbox`` raises (measure with ``.box``).
     _has_no_hitbox = True
+    # Appearance links (Reactive Design — Appearance links). No flips: Text
+    # cannot be mirrored.
+    _property_link_extra = frozenset({
+        "color", "fill", "line", "line_width", "background", "visible"})
+    # Text's color is its fill only: a linked color leaves ``.line`` free.
+    _paint_fields = {
+        "color": ("color", "fill"),
+        "fill": ("fill", "color"),
+        "line": ("line",),
+    }
 
     # Unknown keyword (``Text("hi", x=10)``): the actor wrapper names the fix.
     _call_hints = TEXT_PLACEMENT_HINTS
@@ -464,7 +480,11 @@ class Text(Graphic, PaintState):
         default_size = 16.0 if theme is None else float(theme.font_size)
         self._font_spec = None if font is None or font == "" else str(font)
         self.font_size = default_size if font_size is None else font_size
-        self._background = None if background is None else Color(background)
+        from .validate import _is_formula
+        # A function links it after construction, like ``t["background"] @=``.
+        background_link = background if _is_formula(background) else None
+        self._background = (None if background is None or background_link is not None
+                            else Color(background))
         self._auto_layout_top = None
         self._width = fixed_width
         self._align = resolved_align
@@ -480,7 +500,12 @@ class Text(Graphic, PaintState):
         self._center_rec = None
 
         if color is not None:
-            self.set_color(color)
+            if _is_formula(color):
+                self._link_field("color", color)    # like ``t["color"] @= …``
+            else:
+                self.set_color(color)
+        if background_link is not None:
+            self._link_field("background", background_link)
 
         if bounded is not None:
             # One way, like every other link: the text shows the cell, and
@@ -1050,6 +1075,8 @@ class Text(Graphic, PaintState):
     def set_color(self, *args) -> "Text":
         """Recolor glyph fill only — no Shape contrast stroke on ``.line``."""
         _refuse_if_destroyed(self, "set_color")
+        if self._alinks:
+            _refuse_linked_text_paint(self, ("color", "fill"), "set the color of")
         from .style import Gradient, Texture, ProceduralFill
         from .state import as_payload_all
         args = as_payload_all(*args)
@@ -1124,10 +1151,14 @@ class Text(Graphic, PaintState):
     @property
     def background(self):
         """Panel color behind the text, or ``None`` for no panel. Any color form."""
+        if self._alinks:
+            _pull_channel_links(self, ("background",))
         return self._background
 
     @background.setter
     def background(self, value) -> None:
+        if self._alinks:
+            _refuse_linked_text_paint(self, ("background",), "set background on")
         self._background = None if value is None else Color(value)
 
     @property
@@ -1157,6 +1188,8 @@ class Text(Graphic, PaintState):
     @property
     def color(self):
         """Text color (solid). ``None`` resets to white. Gradients go on ``.fill``."""
+        if self._alinks:
+            _pull_channel_links(self, ("color", "fill"))
         fill = self._fill
         if isinstance(fill, Color):
             return fill
@@ -1164,6 +1197,8 @@ class Text(Graphic, PaintState):
 
     @color.setter
     def color(self, value) -> None:
+        if self._alinks:
+            _refuse_linked_text_paint(self, ("color", "fill"), "set the color of")
         if value is None:
             self.fill = Color(1.0, 1.0, 1.0, 1.0)
         else:

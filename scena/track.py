@@ -528,6 +528,8 @@ class Track(Shape):
         visible: Draw it (default: only when styled).
     """
 
+    # ``visible`` moves a Track between layers (Point-style): not a link target.
+    _property_link_exclude = frozenset({"visible"})
     # Computed fields come from the path, not from u / begin / end
     # (``Container._derived_field_message``).
     _derived_from = "path"

@@ -11,7 +11,7 @@ from ._pkg import is_framework_module
 from .closed import ClosedSurface, check_closed_write, seal_after_init
 from ._defaults import Unset
 from .color import Color, ColorLike, ColorNames, resolve_rgb
-from .state import as_payload, as_payload_all, probe_private
+from .state import as_payload, as_payload_all, probe_private, _pull_channel_links, _reapply_channel_links
 from .validate import coerce_enum, expect_choice, magnitude, fixed_magnitude
 
 if TYPE_CHECKING:
@@ -199,6 +199,19 @@ def is_sprite_body(value) -> bool:
     return value is SPRITE_BODY
 
 
+# Which linked appearance fields a read pulls / a write must not overwrite
+# (Reactive Design — Appearance links): ``color`` is the fill package's name,
+# so it reads and writes ``fill`` / ``line`` too.
+_LINE_WIDTH_FIELDS = ("line_width",)
+
+
+def _refuse_linked_paint(obj, names, operation: str) -> None:
+    """Raise before writing when an author write reaches a linked paint field
+    (callers check the ``_alinks`` slot first)."""
+    from .entity import _refuse_linked_channel
+    _refuse_linked_channel(obj, names, operation)
+
+
 def _coerce_channel_paint(value):
     """Fill/line channel: ``None`` clears; Gradient/Texture/ProceduralFill pass through."""
     value = as_payload(value)
@@ -262,9 +275,23 @@ class PaintState:
         '_tail_angle', '_tail_size', '_tail_amount',
         '_stamp_base_ff', '_stamp_base_lf',
         '_in_stamp_sync', '_tail_ghosting',
+        # True once an appearance field or flag of this object was linked
+        # (sticky): the hot getters / setters test this slot (≈2 ns), not
+        # ``__dict__.get("_field_anchors")`` (≈18 ns).
+        '_alinks',
     )
 
     _default_instance = None
+    # The linked appearance fields a write to (or a read of) each paint field
+    # reaches: ``color`` is the fill package's name on a shape, so it writes
+    # ``fill`` and ``line``, and those writes reach a linked ``color``.
+    # Text's color is its fill only (``Text._paint_fields``).
+    _paint_fields = {
+        "color": ("color", "fill", "line"),
+        "fill": ("fill", "color"),
+        "line": ("line", "color"),
+    }
+    _scena_target_only = frozenset()
 
     @classmethod
     def get_defaults(cls) -> 'PaintState':
@@ -293,6 +320,7 @@ class PaintState:
         """
         look = coerce_visual(visual) if visual is not None else None
         state = cls.__new__(cls)
+        state._alinks = False
         state._line_width = fixed_magnitude(line_width, "line_width")
         state._dash = coerce_enum(dash, DashStyle, what="dash")
         state._line_cap = coerce_enum(line_cap, LineCapStyle, what="line_cap")
@@ -346,6 +374,7 @@ class PaintState:
         )
 
     def __init__(self):
+        self._alinks = False
         defaults = self.get_defaults()
         if defaults is None:
             raise RuntimeError("No default paint state has been set yet")
@@ -438,6 +467,17 @@ class PaintState:
             raise TypeError(
                 f"look_like() takes a shape or sprite to copy, got {type(other).__name__}"
             )
+        if other._alinks:
+            # Copy this frame's linked values, not the last pulled ones.
+            _pull_channel_links(other, type(other)._scena_target_only)
+        self._copy_look_from(other)
+        if self._alinks:
+            # A linked field keeps its formula: the copy wrote under it, the
+            # link writes it back (Reactive Design — Appearance links).
+            _reapply_channel_links(self)
+        return self
+
+    def _copy_look_from(self, other: 'PaintState') -> None:
         self._line_width = other._line_width
         self._dash = other._dash
         self._line_cap = other._line_cap
@@ -481,7 +521,6 @@ class PaintState:
             init_stamp_fields(self)
         self._in_stamp_sync = False
         self._tail_ghosting = False
-        return self
 
     def save_visual(self) -> 'PaintState':
         """Remember current appearance for :meth:`restore_visual`.
@@ -493,6 +532,7 @@ class PaintState:
         if getattr(self, "_saved_visual", None) is not None:
             return self
         snap = PaintState.__new__(PaintState)
+        snap._alinks = False
         snap.look_like(self)
         self._saved_visual = snap
         return self
@@ -588,6 +628,10 @@ class PaintState:
         """
         from .entity import _refuse_if_destroyed
         _refuse_if_destroyed(self, "set_color")
+        if self._alinks:
+            # Before anything is written: a Paint installer replaced, a look
+            # de-seeded or re-applied (Reactive Design — Appearance links).
+            _refuse_linked_paint(self, type(self)._paint_fields["color"], "set the color of")
         args = as_payload_all(*args)
         if not args:
             raise TypeError(
@@ -666,6 +710,8 @@ class PaintState:
         Under a look that paints its own body (Flame, Swell, …) the live paint
         is the look's; the author's color is the identity snapshot.
         """
+        if self._alinks:
+            _pull_channel_links(self, type(self)._paint_fields["color"])
         stroke = self._primary_is_stroke()
         paint = self._line if stroke else self._fill
         if isinstance(paint, Color) and paint:
@@ -724,6 +770,9 @@ class PaintState:
         from .visuals import Visual
         if not isinstance(vis, Visual):
             return
+        if self._alinks:
+            # The re-apply samples the host's color: bring the links up to date.
+            _pull_channel_links(self, type(self)._scena_target_only)
         # Cheap restore: apply() rewrites the package; skip stamp/blit here.
         self._restore_look_identity(recompose=False)
         try:
@@ -748,6 +797,9 @@ class PaintState:
         """Update alpha on fill and line materials when they support it."""
         from .validate import alpha01
         alpha = alpha01(alpha, "set_alpha")
+        if self._alinks:
+            # It rewrites the fill and the line: a linked one keeps its formula.
+            _refuse_linked_paint(self, type(self)._paint_fields["color"], "set_alpha on")
         def _alpha_changed(paint) -> bool:
             if isinstance(paint, Color):
                 return abs(paint.alpha - alpha) >= 1e-6
@@ -785,10 +837,14 @@ class PaintState:
     @property
     def line_width(self) -> float:
         """Outline thickness in design units (>= 0; shapes default to 1.5)."""
+        if self._alinks:
+            _pull_channel_links(self, _LINE_WIDTH_FIELDS)
         return self._line_width
 
     @line_width.setter
     def line_width(self, value: float) -> None:
+        if self._alinks:
+            _refuse_linked_paint(self, _LINE_WIDTH_FIELDS, "set line_width on")
         self._line_width = fixed_magnitude(value, "line_width")
         self._invalidate_line_paint()
         if self._patch_look_identity(line_width=self._line_width):
@@ -833,10 +889,14 @@ class PaintState:
     @property
     def line(self) -> Optional["PaintMaterial"]:
         """Outline material: a color, ``Gradient``, ``Texture``, or ``None`` (no outline)."""
+        if self._alinks:
+            _pull_channel_links(self, type(self)._paint_fields["line"])
         return self._line
 
     @line.setter
     def line(self, value: Optional["PaintMaterial"]) -> None:
+        if self._alinks:
+            _refuse_linked_paint(self, type(self)._paint_fields["line"], "set line on")
         self._line = _coerce_channel_paint(value)
         self._invalidate_line_paint()
         if self._patch_look_identity(line=self._line):
@@ -845,10 +905,14 @@ class PaintState:
     @property
     def fill(self) -> Optional["PaintMaterial"]:
         """Interior material: a color, ``Gradient``, ``Texture``, a procedural fill (``WaterFill()`` …), or ``None``."""
+        if self._alinks:
+            _pull_channel_links(self, type(self)._paint_fields["fill"])
         return self._fill
 
     @fill.setter
     def fill(self, value: Optional["PaintMaterial"]) -> None:
+        if self._alinks:
+            _refuse_linked_paint(self, type(self)._paint_fields["fill"], "set fill on")
         self._fill = _coerce_channel_paint(value)
         self._invalidate_fill_paint()
         if self._patch_look_identity(fill=self._fill):
@@ -1118,6 +1182,20 @@ class PaintState:
                 f"(needs a bitmap body). {tex_hint}"
                 f"Use Halo / Rim on a Shape, or assign {name} to a Sprite."
             )
+        if self._alinks:
+            # A look that brings its own color (Paint / Fill / Stroke, a seeded
+            # ``Neon("red")``) would overwrite a linked color: refuse before
+            # anything is written. Then bring the links up to date, so the look
+            # samples this frame's color (Reactive Design — Appearance links).
+            from .visuals import Paint, Fill, Stroke
+            seeded = getattr(value, "_seeded", None)
+            if isinstance(value, (Paint, Fill, Stroke)) or (callable(seeded) and seeded()):
+                names = type(self)._paint_fields["color"]
+                if isinstance(value, Stroke) and getattr(value, "width", None) is not None:
+                    names = names + _LINE_WIDTH_FIELDS
+                _refuse_linked_paint(
+                    self, names, f"set visual = {type(value).__name__}(…) on")
+            _pull_channel_links(self, type(self)._scena_target_only)
         prev = getattr(self, "_visual", None)
         if prev is None:
             self._snapshot_look_identity()

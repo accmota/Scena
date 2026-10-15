@@ -25,7 +25,7 @@ breaks it today (a finding id says where).
 | Law | Statement | Status | Checked by | Detail |
 | --- | --- | --- | --- | --- |
 | F1 | A frame runs its phases once each, in one order: input poll (key and mouse callbacks), `update`, process tick, collision (handlers, then resolve), leave playfield, hover, flush (`@when` / `@on_change`), pre-draw (transients, covers), edge expiry; then the draw. An explicit `flush()` from author code is the author's, not a phase. | holds | model `frame.F1`; `test_sys_frame_order` | [Scena Design.md — Frame order](Scena%20Design.md#frame-order) |
-| F2 | A door that belongs to a phase runs only in it: `update`; timers and `on_update` in the tick; enter and stay handlers in collision (an exit runs where its contact ends: the step, a destroy, a park); `@leave_playfield`; `@hover`; `@when` / `@on_change` in flush; key and mouse callbacks in the poll; pre-draw callbacks. Destroy-time hooks, act builds, actor `setup` and formula pulls run where they are called. | holds | model `frame.F2` | [Scena Design.md — Frame order](Scena%20Design.md#frame-order) |
+| F2 | A door that belongs to a phase runs only in it: `update`; timers and `on_update` in the tick; enter and stay handlers in collision (an exit runs where its contact ends: the step, a destroy, a park); `@leave_playfield`; `@hover`; `@when` / `@on_change` in flush; key and mouse callbacks in the poll; pre-draw callbacks. Destroy-time hooks, act builds, actor `setup` and formula pulls run where they are called (a linked appearance field or flag is pulled at the start of hover and at the head of the draw). | holds | model `frame.F2` | [Scena Design.md — Frame order](Scena%20Design.md#frame-order) |
 
 ## Lifetime
 

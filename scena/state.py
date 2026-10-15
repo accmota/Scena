@@ -636,7 +636,7 @@ def callable_assign_message(owner: Any, field: str) -> str:
         who = getattr(owner, "name", None) or type(owner).__name__
     return (
         f"{who}.{field} cannot be linked by assigning a callable — `=` copies a value. "
-        f"Link with {who}['{field}'] @= lambda: … (or assign the number itself)."
+        f"Link with {who}['{field}'] @= lambda: … (or assign the value itself)."
     )
 
 
@@ -1253,6 +1253,11 @@ class FormulaLink():
                     try:
                         slot = parent_container._resolve_field(terminal_field)
                     except AttributeError:
+                        slot = None
+                    if slot is _INK_SLOT and terminal_field in getattr(
+                            type(parent_container), "_scena_target_only", ()):
+                        # An appearance field / flag is a link target only:
+                        # the formula follows the object, as before.
                         slot = None
                     if slot is _INK_SLOT:
                         anchor = parent_container._ensure_scalar_anchor(
@@ -4123,8 +4128,179 @@ class _FlagPropertyAnchor(_PropertyAnchor):
         new_value = expect_bool(new_value, f"{parent.name}['{name}']")
         if getattr(parent, name) == new_value:
             return False
-        setattr(parent, name, new_value)
+        # The link's own write passes the setter's linked-field refusal (a
+        # plain ``b.enabled = False`` on a linked button raises instead).
+        d = self.__dict__
+        d["_writing"] = True
+        try:
+            setattr(parent, name, new_value)
+        finally:
+            d["_writing"] = False
         return True
+
+
+_NOT_WRITTEN = object()
+
+
+class _ChannelAnchor(_PropertyAnchor):
+    """A linked appearance field or flag (``color``, ``fill``, ``line``,
+    ``line_width``, Text ``background``, Sprite ``alpha``, ``visible``,
+    ``flip_x`` / ``flip_y``): a link target only (``_TARGET_ONLY_LINKS``).
+
+    Writes through the property setter, like ``_PropertyAnchor``, so ``@=``
+    means ``=`` re-run when the formula's sources change. It compares the new
+    value with the one it wrote last, never with the getter: a ``Color`` has
+    no value equality, a parked actor's ``visible`` reads ``False``, and a look
+    may own the live paint. The first pull after linking always writes.
+    """
+
+    def __init__(self, parent: Container, field_name: str):
+        super().__init__(parent, field_name)
+        self.__dict__["_last_written"] = _NOT_WRITTEN
+
+    def _normalize(self, value):
+        return value
+
+    def _same(self, last, value) -> bool:
+        return last == value
+
+    def _forget_written(self) -> None:
+        """The next pull writes even an unchanged value (resume, a copy verb
+        that skipped the field, a look that took the channel)."""
+        self.__dict__["_last_written"] = _NOT_WRITTEN
+
+    def _takein_impl(self, new_value) -> bool:
+        if isinstance(new_value, FieldRef):
+            new_value = new_value.value
+        if isinstance(new_value, Attribute):
+            new_value = new_value.value
+        elif isinstance(new_value, Container):
+            raise TypeError(
+                f"field {self.name} cannot take a {type(new_value).__name__}; "
+                f"use a lambda that returns the value"
+            )
+        value = self._normalize(new_value)
+        d = self.__dict__
+        last = d["_last_written"]
+        if last is not _NOT_WRITTEN and self._same(last, value):
+            return False
+        parent = self._scalar_parent
+        name = self._scalar_name
+        d["_writing"] = True
+        try:
+            setattr(parent, name, value)
+        except LinkedAttributeError as exc:
+            raise LinkedAttributeError(
+                f"{parent.name}['{name}'] @= could not write {name}: {exc}"
+            ) from exc
+        finally:
+            d["_writing"] = False
+        d["_last_written"] = value
+        return True
+
+
+def _pull_channel_links(obj, names) -> None:
+    """Pull ``obj``'s linked appearance fields among ``names`` (a getter, the
+    draw-head refresh, a look about to apply). The hot callers check the
+    ``_alinks`` slot first. Never inside a look apply:
+    a link written there would skip the look identity, and ``visual = None``
+    would bring the old color back."""
+    if getattr(obj, "_in_visual_apply", False):
+        return
+    anchors = obj.__dict__.get("_field_anchors")
+    if not anchors:
+        return
+    for name in names:
+        anchor = anchors.get(name)
+        # A clean anchor has nothing to pull (``_resolve_link`` returns on
+        # ``_dirty``): skip the call — the draw path reads these getters.
+        if anchor is not None and anchor._link is not None and anchor._dirty:
+            anchor._ensure_fresh()
+
+
+def _reapply_channel_links(obj) -> None:
+    """Write every linked appearance field of ``obj`` again from its formula,
+    even unchanged: a copy verb (``look_like`` / ``restore_visual``) or an
+    engine write (park) put another value under it."""
+    anchors = obj.__dict__.get("_field_anchors")
+    if not anchors:
+        return
+    for name in type(obj)._scena_target_only:
+        anchor = anchors.get(name)
+        if anchor is not None and anchor._link is not None and not anchor._resolving:
+            anchor._forget_written()
+            ss = getattr(anchor, "_scena_system", None)
+            if ss is not None:
+                ss.update_manager.mark_dirty(anchor)
+            anchor._ensure_fresh()
+
+
+_PAINT_TYPES = None
+
+
+def _paint_types():
+    """(Color, _coerce_channel_paint), imported once (``color`` / ``style``
+    import this module)."""
+    global _PAINT_TYPES
+    if _PAINT_TYPES is None:
+        from .color import Color
+        from .style import _coerce_channel_paint
+        _PAINT_TYPES = (Color, _coerce_channel_paint)
+    return _PAINT_TYPES
+
+
+class _PaintChannelAnchor(_ChannelAnchor):
+    """``color`` / ``fill`` / ``line`` / Text ``background``: a paint material.
+
+    The value is coerced as ``=`` coerces it (a name, hex, tuple → ``Color``;
+    a ``Gradient`` / ``Texture`` / procedural fill passes through), so a
+    formula returning ``"red"`` every pull writes once. A ``Color`` compares
+    by its RGBA (alpha counts); any other material by identity.
+    """
+
+    def _normalize(self, value):
+        value = as_payload(value)
+        if value is None:
+            return None
+        Color, coerce = _paint_types()
+        if value.__class__ is Color:
+            return value            # immutable: the setter takes it as it is
+        if self._scalar_name == "background":
+            return Color(value)
+        return coerce(value)
+
+    def _same(self, last, value) -> bool:
+        if last is value:
+            return True
+        Color = _paint_types()[0]
+        if last.__class__ is Color and value.__class__ is Color:
+            return bool(last) == bool(value) and last.rgb == value.rgb
+        return False
+
+
+class _AmountChannelAnchor(_ChannelAnchor):
+    """``line_width`` (a size: negative reads 0) and Sprite ``alpha`` (an
+    amount: clamped to [0, 1]). A formula result follows the formula rule —
+    it clamps instead of raising mid-frame; NaN / inf and non-numbers raise."""
+
+    def _normalize(self, value):
+        from .validate import number
+        parent = self._scalar_parent
+        n = number(value, f"{parent.name}['{self._scalar_name}']")
+        if n < 0.0:
+            return 0.0
+        if self._scalar_name == "alpha" and n > 1.0:
+            return 1.0
+        return n
+
+
+class _FlagChannelAnchor(_ChannelAnchor):
+    """``visible`` / ``flip_x`` / ``flip_y``: a real bool (``0`` / ``1`` read
+    as a flag, like every flag)."""
+
+    def _normalize(self, value):
+        from .validate import expect_bool
+        return expect_bool(value, f"{self._scalar_parent.name}['{self._scalar_name}']")
 
 
 # A value type a cell holds by value (``scenamath`` sets it to ``Vec2``). Since
