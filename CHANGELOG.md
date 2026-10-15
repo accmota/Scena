@@ -41,6 +41,20 @@ left out.
 - `base_ratio` is now a Triangle field: on any other kind,
   `x.base_ratio = …` raises with a hint (it was a plain attribute nothing
   read), like `circle.width = …`.
+- On a Graphic (Rect, Circle, Text, Sprite, … and their subclasses),
+  writing a built-in name the kind does not have raises `AttributeError`:
+  `rect.text = "hi"` → `Rect has no field 'text' (a Text field). A field of
+  your own needs another name.` The names: `text`, `background`, `align` (Text
+  fields), `frame`, `hitboxes`, `offset`, `tilt`, `art_angle` (Sprite fields),
+  `soft_edge` (a SpatialFx field), `model` on a Text, and `collider` (no kind
+  has it: the collider is `.hitbox`). Before, the write stored a value nothing
+  in Scena read, so `rect.text = "hi"` showed nothing, while `rect["text"] @=
+  …` already refused. A program that kept its own data under one of these
+  names on a shape or sprite (`self.frame = 0` in a `Rect` subclass) now
+  raises at that line: rename the field (`self.quadro = 0`). A bare `Entity`
+  keeps them as plain fields. `=` and `@=` give the same words for every
+  missing built-in name, sizes and looks included (`circle.width = 20`:
+  `Circle has no field 'width'. Size it with radius.`).
 
 ### Added
 
@@ -202,6 +216,14 @@ left out.
   broken the frame after its `@collide` (a mark in the handler, the
   `destroy()` in `update`) also bounces the ball: if the ball ended the
   frame a hair short of the brick, it flew through it (2–5 % of hits).
+- `@=` on a built-in name says what the name is on that kind, the same on
+  every kind: `rect["text"] @= …` raises `Rect has no field 'text' (a Text
+  field)`, `circle["width"] @= …` says `Size it with radius`,
+  `rect["color"] @= …` says it is a property set with `=`, `rect["name"] @= …`
+  says it is read-only. Before, Rect, Circle, Sprite, Text and the other
+  kinds said "appearance and built-in properties stay outside the reactive
+  graph" even for a field they do not have; only Line and Point named it.
+  What links and what refuses did not change.
 
 ### Documentation
 

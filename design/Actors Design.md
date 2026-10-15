@@ -645,7 +645,24 @@ a dead ink field beside the method or property. Guard:
 `test_fieldref.TestBracketRefusesWhatAssignRefuses` (every kind × every refused
 route name). **Look-family** names that belong to another kind (`circle.alpha`,
 `text.alpha`, `entity.line_width`) raise too: they would otherwise land on a dead
-attribute (`_LOOK_MISSING` route). **`x` / `y` on a Graphic or SpatialFx** raise
+attribute (`_LOOK_MISSING` route). **Any other reserved name a Graphic kind
+does not define** refuses `=` too (RN1, 2026-10-15): `rect.text = "hi"`,
+`rect.frame = 3`, `circle.collider = 1`, `text.model = …` stored a plain
+attribute nothing reads, because every `_INK_RESERVED` name without a
+descriptor routed to a plain `object.__setattr__` (`_SET_OBJECT`). Now
+`_install_setattr_route` gives it an `absent` `_RouteRefusal`, and `=` and `@=`
+answer with the same words, built once (`_absent_reserved_text`: `Rect has no
+field 'text' (a Text field). A field of your own needs another name.`; `@=`
+adds ", so @= has nothing to link"). The E13 size words and the look family
+use the same builder (`Circle has no field 'width'. Size it with radius.`).
+"Defines" is read from the MRO, so a property of the author's own under the
+name is theirs. On a Graphic, the only reserved plain field set in `__init__`
+is `group` (routed apart); a field set in `__init__` under a reserved name must
+be declared on the class (a slot or property), or its own write refuses. A bare
+Entity and the non-Graphic kinds (SpatialFx, UI widgets) keep storing these
+names as plain fields (`e.angle = 12`). Guard:
+`test_fieldref.TestReservedWriteRefusalPerKind` (every exported Graphic kind ×
+every reserved name, oracle read from the MRO). **`x` / `y` on a Graphic or SpatialFx** raise
 `AttributeError` and do not become ink — position is `.center` (`ship.center.x`,
 `move_to` / `move_by`). `Point` keeps real axis slots. A bare Entity still
 stores `e.x` as ink. `obj.group = "a"` / `{"a", "b"}` replaces the tag

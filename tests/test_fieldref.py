@@ -961,13 +961,13 @@ class TestReactiveRotationScale(unittest.TestCase):
         e = Entity()
         with self.assertRaises(AttributeError) as ctx:
             e["angle"]
-        self.assertIn("cannot be linked with @=", str(ctx.exception))
+        self.assertIn("has no field 'angle'", str(ctx.exception))
         self.assertIn("Graphics only", str(ctx.exception))
         e.angle = 12.0
         self.assertEqual(e.angle, 12.0)
         with self.assertRaises(AttributeError) as ctx:
             e["scale"]
-        self.assertIn("cannot be linked with @=", str(ctx.exception))
+        self.assertIn("has no field 'scale'", str(ctx.exception))
         e.scale = 2.0
         self.assertEqual(e.scale, 2.0)
 
@@ -1171,6 +1171,207 @@ class TestVelIsNotLinkable(unittest.TestCase):
         # Canary: the walk reached the parts this guard exists for.
         for kind_name in ("Circle", "Rect", "Sprite", "Text"):
             self.assertIn((kind_name, "vel"), checked)
+
+
+class TestReservedLinkRefusalPerKind(unittest.TestCase):
+    """A reserved name refuses ``@=`` with the same kind of answer on every
+    Graphic kind (2026-10-15). Only Line / Point (``_ink_strict``) read the
+    route table; Rect, Circle, Sprite, Text said "appearance and built-in
+    properties" even for a field they lack (``rect["text"]``,
+    ``circle["width"]``, ``sprite["corner_radius"]``)."""
+
+    def _graphic_kinds(self):
+        import scena
+        from scena.entity import Graphic
+        for kind_name in scena.__all__:
+            kind = getattr(scena, kind_name)
+            if (isinstance(kind, type) and issubclass(kind, Graphic)
+                    and not getattr(kind, "__abstractmethods__", None)):
+                yield kind_name, kind()
+
+    @staticmethod
+    def _expected(obj, name):
+        """``absent`` / ``property`` / ``read_only``, read from the class the
+        way the route table reads it (first setter in the MRO wins)."""
+        for base in type(obj).__mro__:
+            desc = base.__dict__.get(name)
+            if desc is not None and hasattr(desc, "__set__"):
+                if isinstance(desc, property) and desc.fset is None:
+                    return "read_only"
+                return "property"
+        try:
+            object.__getattribute__(obj, name)   # a plain field or class default
+        except AttributeError:
+            return "absent"
+        return "property"
+
+    def test_every_kind_and_reserved_name(self):
+        from scena.entity import _INK_RESERVED, _RESERVED_FAMILY
+        words = {"absent": "has no field {name!r}", "property": "is a property",
+                 "read_only": "is read-only"}
+        checked = {}
+        for kind_name, obj in self._graphic_kinds():
+            self.addCleanup(obj.destroy)
+            for name in sorted(_INK_RESERVED):
+                try:
+                    obj._resolve_field(name)
+                    if name != "touching_sides":    # a formula source, never a target
+                        continue    # linkable by design (angle, center, width …)
+                except AttributeError:
+                    pass
+                expected = self._expected(obj, name)
+                with self.subTest(kind=kind_name, name=name, expected=expected):
+                    with self.assertRaises(AttributeError) as cm:
+                        obj[name] @= (lambda: 1.0)
+                    msg = str(cm.exception)
+                    self.assertIn(words[expected].format(name=name), msg)
+                    self.assertNotIn("appearance and built-in", msg)
+                    if expected == "absent" and name in _RESERVED_FAMILY:
+                        self.assertIn(f"a {_RESERVED_FAMILY[name]} field", msg)
+                    else:
+                        self.assertIn(f"{kind_name}.{name}" if expected != "absent"
+                                      else kind_name, msg)
+                    ink = getattr(obj, "_ink", None) or {}
+                    self.assertNotIn(name, ink)
+                checked[(kind_name, name)] = expected
+        # Canary: the rows of the report, and one of each answer.
+        for row, expected in ((("Rect", "text"), "absent"), (("Rect", "font_size"), "absent"),
+                              (("Rect", "frame"), "absent"), (("Circle", "width"), "absent"),
+                              (("Circle", "corner_radius"), "absent"),
+                              (("Sprite", "corner_radius"), "absent"),
+                              (("Line", "blend"), "property"), (("Rect", "color"), "property"),
+                              (("Text", "group"), "property"), (("Sprite", "alpha"), "property"),
+                              (("Rect", "name"), "read_only"),
+                              (("Circle", "touching_sides"), "read_only")):
+            self.assertEqual(checked.get(row), expected, row)
+
+    def test_hints_survive(self):
+        from scena import Circle, Rect, Sprite
+        c = Circle(center=(0, 0), radius=5)
+        self.addCleanup(c.destroy)
+        with self.assertRaises(AttributeError) as cm:
+            c["fill"] @= lambda: 1.0
+        self.assertIn(".set_color(", str(cm.exception))
+        with self.assertRaisesRegex(AttributeError, "Size it with radius"):
+            c["height"] @= lambda: 1.0
+        r = Rect(center=(0, 0), width=10, height=10)
+        self.addCleanup(r.destroy)
+        with self.assertRaisesRegex(AttributeError, "Paint only"):
+            r["corner_radius"] @= lambda: 1.0
+        s = Sprite()
+        self.addCleanup(s.destroy)
+        with self.assertRaisesRegex(AttributeError, "Sprite-only"):
+            s["alpha"] @= lambda: 1.0
+
+    def test_callable_write_gives_the_same_answer(self):
+        """``rect.text = lambda: …`` refuses as ``rect["text"] @=`` does."""
+        from scena import Rect
+        from scena.state import CallableAssignError
+        r = Rect(center=(0, 0), width=10, height=10)
+        self.addCleanup(r.destroy)
+        for name in ("text", "line_width", "frame"):
+            with self.subTest(name=name):
+                with self.assertRaises(AttributeError) as bracket:
+                    r[name] @= lambda: 1.0
+                with self.assertRaises(CallableAssignError) as write:
+                    setattr(r, name, lambda: 1.0)
+                self.assertEqual(str(write.exception), str(bracket.exception))
+
+
+class TestReservedWriteRefusalPerKind(unittest.TestCase):
+    """RN1 (2026-10-15): ``=`` on a reserved name the kind does not have stored
+    a plain attribute nothing reads (``rect.text = "hi"``, ``rect.frame = 3``,
+    ``circle.collider = 1``), while ``rect["text"] @=`` said "Rect has no field
+    'text' (a Text field)". Every exported Graphic kind × every reserved name:
+    where the kind lacks the name, ``=`` raises with the words ``@=`` answers
+    with, and nothing is stored."""
+
+    _graphic_kinds = TestReservedLinkRefusalPerKind._graphic_kinds
+    _expected = staticmethod(TestReservedLinkRefusalPerKind._expected)
+
+    def test_every_kind_and_reserved_name(self):
+        from scena.entity import _INK_RESERVED, _RESERVED_FAMILY
+        absent = set()
+        for kind_name, obj in self._graphic_kinds():
+            self.addCleanup(obj.destroy)
+            for name in sorted(_INK_RESERVED - {"group"}):
+                if self._expected(obj, name) != "absent":
+                    continue
+                with self.subTest(kind=kind_name, name=name):
+                    with self.assertRaises(AttributeError) as write:
+                        setattr(obj, name, 1)
+                    with self.assertRaises(AttributeError) as link:
+                        obj[name] @= (lambda: 1.0)
+                    msg = str(write.exception)
+                    self.assertEqual(
+                        msg, str(link.exception).replace(", so @= has nothing to link", ""))
+                    self.assertIn(f"{kind_name} has no field {name!r}", msg)
+                    if name in _RESERVED_FAMILY:
+                        self.assertIn(f"(a {_RESERVED_FAMILY[name]} field)", msg)
+                    self.assertNotIn(name, obj.__dict__)
+                    self.assertNotIn(name, getattr(obj, "_ink", None) or {})
+                absent.add((kind_name, name))
+        # Canary: the rows of the report, a size word (E13) and a look name.
+        for row in (("Rect", "text"), ("Rect", "frame"), ("Circle", "collider"),
+                    ("Rect", "background"), ("Rect", "align"), ("Rect", "hitboxes"),
+                    ("Rect", "offset"), ("Rect", "tilt"), ("Rect", "art_angle"),
+                    ("Rect", "soft_edge"), ("Text", "model"), ("Text", "frame"),
+                    ("Sprite", "text"), ("Circle", "width"), ("Rect", "font_size")):
+            self.assertIn(row, absent)
+
+    def test_fields_the_kind_has_still_write(self):
+        """Plain fields set in ``__init__`` (``Text.group``) and descriptors
+        (``Sprite.frame``, ``Text.text``) keep working."""
+        from scena import Rect, Sprite, Text
+        t = Text(text="a")
+        self.addCleanup(t.destroy)
+        t.text = "b"
+        t.group = "hud"
+        self.assertTrue(t.text == "b")
+        self.assertEqual(t.group, frozenset({"hud"}))
+        s = Sprite()
+        self.addCleanup(s.destroy)
+        s.tilt = 10
+        s.offset = (1, 2)
+        r = Rect(center=(0, 0), width=10, height=10)
+        self.addCleanup(r.destroy)
+        r.model = r.model       # every Shape has its geometry discriminant
+
+    def test_author_subclass(self):
+        """A field of the author's own under a reserved name refuses with the
+        fix; a property of the author's own under it is theirs."""
+        from scena import Rect
+
+        class Placa(Rect):
+            def setup(self):
+                self.text = "Saída"
+
+        with self.assertRaisesRegex(AttributeError, "Placa has no field 'text' "
+                                    r"\(a Text field\)\. A field of your own"):
+            Placa(center=(0, 0), width=10, height=10)
+
+        class Carta(Rect):
+            @property
+            def text(self):
+                return self.__dict__.get("_texto", "")
+
+            @text.setter
+            def text(self, v):
+                self._texto = v
+
+        c = Carta(center=(0, 0), width=10, height=10)
+        self.addCleanup(c.destroy)
+        c.text = "Ás"
+        self.assertEqual(c.text, "Ás")
+
+    def test_bare_entity_keeps_its_own_fields(self):
+        """Not a Graphic: an Entity is the author's data holder (``e.angle``)."""
+        from scena import Entity
+        e = Entity()
+        self.addCleanup(e.destroy)
+        e.frame = 3
+        e.text = "x"
+        self.assertEqual((e.frame, e.text), (3, "x"))
 
 
 class TestBracketRefusesWhatAssignRefuses(unittest.TestCase):

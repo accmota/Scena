@@ -4282,12 +4282,12 @@ class TestSpriteBlitBlendAndAlpha(SpriteTestCase):
         self.addCleanup(e.destroy)
         with self.assertRaises(AttributeError) as ctx:
             e.alpha = 5
-        self.assertIn("Sprite-only", str(ctx.exception))
+        self.assertIn("has no field 'alpha' (a Sprite field)", str(ctx.exception))
         ink_e = getattr(e, "_ink", None) or {}
         self.assertNotIn("alpha", ink_e)
         with self.assertRaises(AttributeError) as ctx:
             e["alpha"] @= Attribute(1)
-        self.assertIn("cannot be linked with @=", str(ctx.exception))
+        self.assertIn("has no field 'alpha' (a Sprite field)", str(ctx.exception))
 
     def test_alpha_pixel_and_paint(self):
         s = self._sprite(color=(255, 0, 0, 255))

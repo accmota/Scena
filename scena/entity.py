@@ -95,6 +95,7 @@ _INK_LINK_FORBIDDEN_HINTS: Dict[str, str] = {
     "visible": "Use `.visible = True` / `False`.",
     "active": "Use `.active = True` / `False` (park / unpark).",
     "touching_sides": "Engine-owned — read only.",
+    "collider": "Its collider is `.hitbox`; `.collidable = False` turns collisions off.",
     "vel": (
         "The engine writes it (`resolve(..., bounce=)`, `confine(action=\"bounce\")`), "
         "and so does `vel.y -= g * dt`. Set it where it changes: "
@@ -484,20 +485,55 @@ _ROTATION_RETIRED = (
 from .purity_check import _READING as _SOLVER_READING, refuse_if_solver_reading
 
 
+# The kind that has a reserved name another kind lacks (``rect["text"] @=``).
+_RESERVED_FAMILY = {
+    "text": "Text", "font_size": "Text", "background": "Text", "align": "Text",
+    "frame": "Sprite", "hitboxes": "Sprite", "offset": "Sprite", "tilt": "Sprite",
+    "art_angle": "Sprite", "alpha": "Sprite",
+    "corner_radius": "Rect / Square", "soft_edge": "SpatialFx", "model": "Shape",
+}
+
+
 def _ink_link_forbidden_message(owner: "Entity", field: str) -> str:
-    """Beginner-facing error when ``@=`` targets a built-in / paint property."""
-    kind = type(owner).__name__
+    """The refusal when ``@=`` (or ``= lambda``) targets a reserved name.
+
+    Read from the kind's route table, so every kind answers the same way:
+    a field it does not have, a property (set it with ``=``), or a read-only
+    value (computed for you). Before, only ``_ink_strict`` kinds (Line, Point)
+    said which; the others said "appearance and built-in properties" even for
+    a field they lack (``rect["text"]``)."""
+    cls = type(owner)
+    kind = cls.__name__
+    route_map = _kind_route(cls)
+    route = route_map.get(field)
+    if isinstance(route, _RouteRefusal) and route.kind != "absent":
+        if route.kind == "read_only":
+            return (f"{kind}.{field} cannot be linked with @= — it is read-only: "
+                    f"it is computed for you, so it cannot be set either.")
+        return route.message.format(cls=kind)
+    absent = isinstance(route, _RouteRefusal) or route is _LOOK_MISSING
+    if route is _SET_OBJECT or route is None:
+        try:
+            object.__getattribute__(owner, field)
+        except AttributeError:
+            absent = True
+    if absent:
+        size = ""
+        if field in _SIZE_WORDS:
+            own = [w for w in _SIZE_WORDS if w != "corner_radius" and w in route_map
+                   and not isinstance(route_map.get(w), _RouteRefusal)]
+            if own:
+                size = " Size it with " + " / ".join(own) + "."
+        # The words ``=`` answers with (a bare Entity's ``angle`` adds its hint).
+        return _absent_reserved_text(field, ", so @= has nothing to link", size).format(cls=kind)
     hint = _INK_LINK_FORBIDDEN_HINTS.get(field)
     if hint is None:
-        hint = f"Use plain assignment: `{field} = …`."
+        hint = f"Set it with `{kind.lower()}.{field} = …`."
     drive = (
-        "To drive looks from game state, use `on_update`, `@on_change`, or `@when`; "
+        "To drive it from game state, use `on_update`, `@on_change`, or `@when`; "
         "link custom ink (`ship.hp`) or geometry (`ship.center.x`, `rect.width`, …)."
     )
-    return (
-        f"{kind}.{field} cannot be linked with @= — appearance and built-in "
-        f"properties stay outside the reactive graph. {hint} {drive}"
-    )
+    return f"{kind}.{field} cannot be linked with @= — it is a property. {hint} {drive}"
 
 # Geometry leaf types (Point, Line) set ``_ink_strict = True`` in their own
 # class body: bracket typos stay AttributeError (no ink auto-materialize).
@@ -661,11 +697,7 @@ def _look_missing_message(owner, name: str) -> str:
 
 
 def _look_missing_text(kind: str, name: str) -> str:
-    hint = _INK_LINK_FORBIDDEN_HINTS.get(name, "")
-    return (
-        f"{kind} has no {name!r} — that look property belongs to other actor "
-        f"kinds, so the write would do nothing. {hint}".rstrip()
-    )
+    return _absent_reserved_text(name).format(cls=kind)     # what ``@=`` answers
 
 
 def _one_edit_apart(a: str, b: str) -> bool:
@@ -814,10 +846,14 @@ class _RouteRefusal:
     """A route that refuses the write with a hint (graphics review R8). It sits in
     the per-class route table, so names that are writable pay nothing for it."""
 
-    __slots__ = ("message",)
+    __slots__ = ("message", "kind")
 
-    def __init__(self, message: str):
+    def __init__(self, message: str, kind: str = "absent"):
         self.message = message
+        # "read_only" (a property without a setter), "method", or "absent"
+        # (a size / point / relation / shape word the kind lacks). The @=
+        # refusal of a reserved name reads it (``_ink_link_forbidden_message``).
+        self.kind = kind
 
     def __set__(self, obj, value) -> None:
         raise AttributeError(self.message.format(cls=type(obj).__name__))
@@ -840,6 +876,24 @@ _RELATION_WORDS = ("dist", "at_angle", "signed_area", "perimeter_length")
 _SHAPE_WORDS = {"base_ratio": "Triangle", "scoop": "Concave"}
 
 
+# Hints that still apply where the kind lacks the name ("Graphics only",
+# "Sprite-only"); the others say how to set it, which an absent name cannot.
+_ABSENT_HINTED = frozenset({"angle", "scale", "hue", "gray", "collider"})
+
+
+def _absent_reserved_text(name: str, verb: str = "", size: str = "") -> str:
+    """``{cls} has no field 'text' (a Text field).`` — the answer to ``=`` and
+    ``@=`` on a reserved name the kind lacks (``verb``: ``", so @= has nothing
+    to link"``). ``{cls}`` is filled in by the caller."""
+    family = _RESERVED_FAMILY.get(name)
+    msg = f"{{cls}} has no field {name!r}" + (f" (a {family} field)" if family else "")
+    if family:
+        size = ""
+    hint = _INK_LINK_FORBIDDEN_HINTS.get(name) if name in _ABSENT_HINTED else None
+    return (msg + verb + "." + size + (f" {hint}" if hint else "")
+            + " A field of your own needs another name.")
+
+
 def _install_setattr_route(cls: type) -> None:
     """Cache known public setters so pose writes skip a per-assign MRO walk.
 
@@ -849,7 +903,9 @@ def _install_setattr_route(cls: type) -> None:
     * a property without a setter refuses with a hint (E12 / SA17: Python's
       own "property … has no setter");
     * a method refuses (E8: ``c.tag = "boss"`` replaced the method);
-    * on a Graphic, a size word the kind lacks refuses (E13).
+    * on a Graphic, a size word the kind lacks refuses (E13), and so does any
+      other reserved name it does not define (``rect.text``, RN1), with the
+      words ``@=`` answers (``_absent_reserved_text``).
     """
     route: Dict[str, Any] = {}
     seen = set()
@@ -865,7 +921,8 @@ def _install_setattr_route(cls: type) -> None:
                 if isinstance(desc, property) and desc.fset is None:
                     route[name] = _RouteRefusal(
                         f"{{cls}}.{name} is read-only: it is computed for you, so it "
-                        f"cannot be set. A field of your own needs another name.")
+                        f"cannot be set. A field of your own needs another name.",
+                        "read_only")
                 else:
                     route[name] = desc
             elif (name not in _CALLABLE_RESERVED and name != "setup"
@@ -877,15 +934,14 @@ def _install_setattr_route(cls: type) -> None:
         if name not in route:
             route[name] = _RouteRefusal(
                 f"{{cls}}.{name} is a method: call it ({name}(...)). Writing it "
-                f"would replace the method. A field of your own needs another name.")
+                f"would replace the method. A field of your own needs another name.",
+                "method")
     if getattr(cls, "_scena_is_graphic", False):
-        own = [w for w in _SIZE_WORDS if w in seen]
+        own = [w for w in _SIZE_WORDS if w in seen and w != "corner_radius"]
         sized_by = (" Size it with " + " / ".join(own) + ".") if own else ""
         for word in _SIZE_WORDS:
-            if word not in seen:
-                route[word] = _RouteRefusal(
-                    f"{{cls}} has no {word}.{sized_by} A field of your own needs "
-                    f"another name.")
+            if word not in seen:    # the words ``@=`` answers with
+                route[word] = _RouteRefusal(_absent_reserved_text(word, size=sized_by))
         for word in _POINT_WORDS:
             if word not in seen:
                 route[word] = _RouteRefusal(
@@ -902,6 +958,12 @@ def _install_setattr_route(cls: type) -> None:
                 route[word] = _RouteRefusal(
                     f"{{cls}} has no {word} (a {kind} field). A field of your own "
                     f"needs another name.")
+        # Any other reserved name the kind does not define: ``rect.text = "hi"``,
+        # ``circle.frame = 3`` stored a plain attribute nothing reads, while
+        # ``rect["text"] @=`` already said "has no field" (RN1).
+        for name in _INK_RESERVED:
+            if name not in seen and name not in route and name not in _LOOK_FAMILY:
+                route[name] = _RouteRefusal(_absent_reserved_text(name), "absent")
     for name in _LOOK_FAMILY:
         route.setdefault(name, _LOOK_MISSING)
     for name in _INK_RESERVED:
@@ -2265,6 +2327,8 @@ class Entity(Container):
             except AttributeError:
                 # No ink here: name a method / read-only property as ``=`` does.
                 if isinstance(key, str) and not key.startswith("_"):
+                    if key in _INK_RESERVED:    # the same answer as every kind
+                        raise AttributeError(_ink_link_forbidden_message(self, key)) from None
                     route_map = getattr(type(self), "_setattr_route", None)
                     if route_map is None:
                         _install_setattr_route(type(self))
@@ -3454,10 +3518,8 @@ class Graphic(Entity, ABC):
     def _link_field(self, name: str, source) -> None:
         from .state import _refuse_link_on_dead
         _refuse_link_on_dead(self, f"{name} @=")   # also covers property anchors (W2)
-        if name == "touching_sides":
-            raise AttributeError(
-                f"{self.name}.touching_sides is engine-owned and cannot be linked with @="
-            )
+        if name == "touching_sides":    # a source (``_resolve_field``), never a target
+            raise AttributeError(_ink_link_forbidden_message(self, name))
         if name in _PROPERTY_LINK_ANY and name in type(self)._scena_property_links:
             anchors = self.__dict__.get("_field_anchors")
             had_anchor = bool(anchors) and name in anchors
