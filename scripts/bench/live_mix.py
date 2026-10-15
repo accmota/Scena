@@ -398,7 +398,7 @@ def _tune_sfx(t: float) -> None:
             fx.density = 0.25 + 0.55 * (0.5 + 0.5 * math.sin(t * 0.55))
             fx.width = 150.0 + 50.0 * math.sin(t * 0.4)
             fx.height = 180.0 + 60.0 * math.cos(t * 0.32)
-            fx.angle = 8.0 * math.sin(t * 0.5)
+            # No angle: Rain falls straight down and refuses the name (RN2).
         elif kind == "jet":
             fx.angle = 200.0 + 55.0 * math.sin(t * 0.75)
             fx.length = 80.0 + 50.0 * (0.5 + 0.5 * math.sin(t * 1.15))
