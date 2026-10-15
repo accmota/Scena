@@ -36,7 +36,7 @@ Keep `background.py` and `world_view.py` **separate**: fields catalog vs camera 
 
 | Script | Question |
 |--------|----------|
-| `shape_catalog.py` | Every shape family + constructor models (A/S pages) |
+| `shape_catalog.py` | Every shape family + constructor models (A/S pages): Line, Circle, Ellipse, Rect, Square / RegularPolygon, Triangle (`base_ratio` static + live, `box=`), Concave (every `scoop=`, `rim`), Track (models + presets), Polygon |
 | `shape_class.py` | Shape class defaults, home fill, subclass `clone()` (A/S) |
 | `shape_fx.py` | Shape looks + canvas post (A/S · Q/W) |
 | `sprite_fx.py` | Sprite looks, atlas clips, flip / class defaults, hitbox kinds, Svg file reload |

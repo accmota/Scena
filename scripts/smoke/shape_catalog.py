@@ -1,7 +1,8 @@
 """
 shape_catalog.py — smoke: paged constructor catalog for every shape family.
 
-One page per family. A/S cycles pages. H / P toggle handles / points.
+One page per family (Line, Circle, Ellipse, Rect, Square + RegularPolygon,
+Triangle, Concave, Track, Polygon). A/S cycles pages. H / P toggle handles / points.
 C toggles collider outlines (starts ON). SPACE pauses spin. R resets spin speed.
 Constructor points are always-on Anchors; drag them to reshape.
 Hold a shape and scroll to rotate (when the model's heading parts are free).
@@ -293,7 +294,7 @@ def _p_rect():
     _spin_by(rr, 0.35)
 
 
-@_page("Square · RegularPolygon · Triangle", "Square + RegularPolygon models + Triangle; drag Anchors")
+@_page("Square · RegularPolygon", "Square + RegularPolygon models; drag Anchors")
 def _p_poly_reg():
     _cap("Square center / top_left", 60, 640)
     sq_c = _anchor(160, 480)
@@ -316,12 +317,156 @@ def _p_poly_reg():
     oct_v = _anchor(920, 420)
     _track(RegularPolygon(n=8, vertex=lambda: oct_v, side=40).set_color("yellow"))
 
-    _cap("Triangle center / vertex", 1040, 640)
-    tri_c = _anchor(1140, 470)
-    tri = _track(Triangle(center=lambda: tri_c, side=110).set_color("lime"))
-    _spin_by(tri)
-    triv = _anchor(1300, 420)
-    _track(Triangle(vertex=lambda: triv, side=90).set_color("sea green"))
+    _cap("RegularPolygon box= (fits once)", 420, 280)
+    frame = Box(center=(620, 180), width=200, height=150)
+    _frame(frame)
+    _track(RegularPolygon(n=7, box=frame).set_color("tomato"))
+
+
+def _frame(box: Box) -> None:
+    """Dim Rect over a Box, so a box= fit shows the region it fitted into."""
+    fr = _track(Rect(box=box).set_color("white"), interact=False)
+    fr.set_alpha(0.15)
+
+
+@_page("Triangle", "CENTER_RADIUS · CENTER_SIDE · VERTEX_SIDE · base_ratio (static + live) · box=")
+def _p_triangle():
+    _cap("CENTER_RADIUS (spins)", 60, 640)
+    tr_c = _anchor(160, 470)
+    tr = _track(Triangle(center=lambda: tr_c, radius=70, angle=90).set_color("lime"))
+    _spin_by(tr)
+
+    _cap("CENTER_SIDE  base_ratio=0.6", 290, 640)
+    ts_c = _anchor(400, 470)
+    _track(Triangle(center=lambda: ts_c, side=120, angle=90, base_ratio=0.6).set_color("sea green"))
+
+    _cap("VERTEX_SIDE  apex on the Anchor", 540, 640)
+    tv = _anchor(640, 560)
+    _track(Triangle(vertex=lambda: tv, side=120, angle=90, base_ratio=0.8).set_color("turquoise"))
+
+    # Live base_ratio: each model keeps its own inputs while the base changes.
+    _cap("base_ratio @= 0.85 + 0.5·sin(spin)", 820, 640)
+    _cap("radius: center + apex stay · side: legs stay · vertex: apex + legs stay", 820, 615, size=11)
+    ratio = lambda: 0.85 + 0.5 * math.sin(math.radians(st.spin))
+    lr_c = _anchor(910, 470)
+    lr = _track(Triangle(center=lambda: lr_c, radius=60, angle=90).set_color("gold"))
+    lr["base_ratio"] @= ratio
+    ls_c = _anchor(1090, 470)
+    ls = _track(Triangle(center=lambda: ls_c, side=100, angle=90).set_color("orange"))
+    ls["base_ratio"] @= ratio
+    lv = _anchor(1270, 550)
+    lv_t = _track(Triangle(vertex=lambda: lv, side=100, angle=90).set_color("tomato"))
+    lv_t["base_ratio"] @= ratio
+
+    _cap("base_ratio 0.3 · 0.6 · 1 · 1.4 · 1.8  (side=70)", 60, 330)
+    for i, r in enumerate((0.3, 0.6, 1.0, 1.4, 1.8)):
+        x = 100 + 130 * i
+        _track(Triangle(center=(x, 190), side=70, angle=90, base_ratio=r).set_color("yellow green"))
+        _cap(f"{r:g}", x - 8, 95, size=11)
+
+    _cap("box= inscribed circle, box angle, keeps base_ratio", 820, 330)
+    tall = Box(center=(920, 190), width=150, height=190)
+    _frame(tall)
+    _track(Triangle(box=tall).set_color("cyan"))
+    wide = Box(center=(1180, 190), width=230, height=110, angle=15)
+    _frame(wide)
+    _track(Triangle(box=wide, base_ratio=0.5).set_color("magenta"))
+
+
+@_page("Concave", "scoop= corners + edges · rim (static + live) · Rect models · box=; drag Anchors")
+def _p_concave():
+    _cap("scoop= corner (a quarter out)", 60, 640)
+    for i, sc in enumerate(("top_left", "top_right", "bottom_left", "bottom_right")):
+        x = 110 + 140 * i
+        c = _anchor(x, 490)
+        _track(Concave(center=lambda c=c: c, width=110, height=110, scoop=sc).set_color("orange"))
+        _cap(sc, x - 45, 405, size=11)
+
+    _cap("scoop= edge middle (a half out)", 660, 640)
+    for sc, xy, wh in (
+        ("top_center", (760, 540), (160, 80)),
+        ("bottom_center", (760, 420), (160, 80)),
+        ("left_center", (960, 480), (80, 160)),
+        ("right_center", (1080, 480), (80, 160)),
+    ):
+        c = _anchor(*xy)
+        _track(Concave(center=lambda c=c: c, width=wh[0], height=wh[1], scoop=sc).set_color("gold"))
+        _cap(sc, xy[0] - 45, xy[1] - wh[1] / 2 - 30, size=11)
+
+    _cap("spins (ellipse scoop)", 1180, 640)
+    sp_c = _anchor(1270, 480)
+    sp = _track(Concave(center=lambda: sp_c, width=150, height=90, scoop="bottom_right").set_color("yellow"))
+    _spin_by(sp, 0.5)
+
+    _cap("rim=(20, 0) quarter-pipe deck", 60, 330)
+    rm = _anchor(60, 270)
+    _track(Concave(top_left=lambda: rm, width=170, height=170, rim=(20, 0)).set_color("lime"))
+
+    _cap("rim @= live (half-pipe)", 290, 330)
+    hp_c = _anchor(410, 180)
+    hp = _track(Concave(center=lambda: hp_c, width=240, height=140, scoop="top_center").set_color("sea green"))
+    hp["rim"] @= lambda: (0.0, 35.0 + 30.0 * math.sin(math.radians(st.spin)))
+
+    _cap("CORNER_CORNER p1 / p2", 580, 330)
+    pa = _anchor(600, 100)
+    pb = _anchor(740, 250)
+    _track(Concave(p1=lambda: pa, p2=lambda: pb, scoop="top_right").set_color("turquoise"))
+
+    _cap("POINT_VEC", 790, 330)
+    pv = _anchor(800, 100)
+    _track(Concave(p1=lambda: pv, vec=Vec2(140, 120), scoop="bottom_left", rim=10).set_color("cyan"))
+
+    _cap('SPINE anchor="side_left"', 980, 330)
+    s1 = _anchor(1000, 130)
+    s2 = _anchor(1160, 170)
+    _track(Concave(p1=lambda: s1, p2=lambda: s2, height=90, anchor="side_left").set_color("sky blue"))
+
+    _cap("box= (fits once)", 1200, 330)
+    bx = Box(center=(1290, 180), width=150, height=110, angle=-20)
+    _frame(bx)
+    _track(Concave(box=bx, scoop="top_center").set_color("magenta"))
+
+
+@_page("Track", "FREE (points / vectors / closed) · CIRCLE · SHAPE · presets; drag Anchors")
+def _p_track():
+    _cap("FREE points= smooth (white) / smooth=0 (orange)", 60, 640)
+    pts = [_anchor(80, 430), _anchor(170, 560), _anchor(260, 440), _anchor(350, 560)]
+    _track(Track(points=[lambda a=a: (a.center.x, a.center.y) for a in pts], color="white",
+                 line_width=2), interact=False)
+    _track(Track(points=[lambda a=a: (a.center.x, a.center.y) for a in pts],
+                        smooth=0, color="orange", line_width=2), interact=False)
+
+    _cap("vectors= from start, closed", 440, 640)
+    walk = _track(Track(vectors=[(120, 0), (0, 120), (-60, 40), (-60, -40)], start=(470, 420),
+                        closed=True, smooth=0.5, color="gold", line_width=2), interact=False)
+    # start= is a snapshot; the pose links through center.
+    wc = _anchor(walk.center.x, walk.center.y)
+    walk["center"] @= lambda: wc
+
+    _cap("CIRCLE Track.circle (center Anchor)", 700, 640)
+    cc = _anchor(820, 490)
+    _track(Track.circle(radius=75, center=lambda: cc, color="cyan", line_width=2), interact=False)
+
+    _cap("SHAPE Track(rect) follows the spin", 1010, 640)
+    host_c = _anchor(1150, 490)
+    host = _track(Rect(center=lambda: host_c, width=180, height=100, corner_radius=20).set_color("white"))
+    host.set_alpha(0.2)
+    _spin_by(host, 0.4)
+    _track(Track(host, color="magenta", line_width=3), interact=False)
+
+    _cap("presets: line · arc · eight · star · spiral · wave · shuttle", 60, 330)
+    y = 190
+    colors = ("red", "orange", "gold", "yellow", "lime", "turquoise", "violet")
+    for i, make in enumerate((
+        lambda c, **k: Track.line(length=120, angle=30, p1=(c[0] - 52, c[1] - 30), **k),
+        lambda c, **k: Track.arc(radius=60, from_angle=0, to_angle=220, center=c, **k),
+        lambda c, **k: Track.eight(width=150, height=80, center=c, **k),
+        lambda c, **k: Track.star(points=5, radius=65, center=c, **k),
+        lambda c, **k: Track.spiral(turns=3, radius=65, center=c, **k),
+        lambda c, **k: Track.wave(length=150, amplitude=25, waves=2, start=(c[0] - 75, c[1]), **k),
+        lambda c, **k: Track.shuttle(length=120, angle=-30, center=c, **k),
+    )):
+        _track(make((110 + 190 * i, y), color=colors[i], line_width=2), interact=False)
 
 
 @_page("Polygon + hub", "Free Polygon; hub Anchor spokes to centers (formula links)")
