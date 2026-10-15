@@ -40,6 +40,7 @@ _BOOL = "bool"
 _TEXT = "text"        # a non-empty string
 _FRACTION = "fraction"  # a number from 0 to 1
 _SIDES = "sides"      # a whole number >= 3
+_RATIO = "ratio"      # a number above 0 and below 2 (Triangle base_ratio=)
 _SCOOP = "scoop"      # a named point of the box (Concave scoop=)
 _RIM = "rim"          # a pair [x, y] of numbers >= 0 (Concave rim=)
 
@@ -60,6 +61,8 @@ KINDS: Dict[str, Dict[str, Any]] = {
     "polygon": {"required": {"points": _POINTS}, "optional": {}},
     "regular_polygon": {"required": {"center": _POINT, "radius": _SIZE, "n": _SIDES},
                         "optional": {"angle": (_NUMBER, 0.0)}},
+    "triangle": {"required": {"center": _POINT, "radius": _SIZE},
+                 "optional": {"angle": (_NUMBER, 0.0), "base_ratio": (_RATIO, 1.0)}},
     "track": {"required": {"points": _POINTS},
               "optional": {"closed": (_BOOL, False), "smooth": (_FRACTION, 0.0)}},
     "point": {"required": {"center": _POINT}, "optional": {}},
@@ -78,8 +81,8 @@ _RENAMED = {"rotation": "angle"}
 _RENAMED_KINDS = {"path": "track"}
 # Key order when writing (readable diffs).
 _KEY_ORDER = ("kind", "name", "groups", "file", "center", "p1", "p2", "points",
-              "width", "height", "radius", "n", "angle", "scoop", "rim", "closed", "smooth",
-              "guide", "locked")
+              "width", "height", "radius", "n", "angle", "base_ratio", "scoop", "rim", "closed",
+              "smooth", "guide", "locked")
 
 
 class LevelFormatError(ValueError):
@@ -132,6 +135,11 @@ def _field(kind_of: str, value: Any, what: str) -> Any:
         if n != int(n) or n < 3:
             raise LevelFormatError(f"{what} must be a whole number >= 3, got {value!r}")
         return int(n)
+    if kind_of == _RATIO:
+        n = _number(value, what)
+        if not 0.0 < n < 2.0:
+            raise LevelFormatError(f"{what} must be above 0 and below 2, got {value!r}")
+        return n
     if kind_of == _FRACTION:
         n = _number(value, what)
         if not 0.0 <= n <= 1.0:
@@ -367,6 +375,13 @@ def constructor_for(item: Dict[str, Any], *, image: Optional[str] = None
         if item["angle"]:
             kwargs["angle"] = item["angle"]
         return "RegularPolygon", (), kwargs, {}
+    if kind == "triangle":
+        kwargs = {"center": item["center"], "radius": item["radius"]}
+        if item["angle"]:
+            kwargs["angle"] = item["angle"]
+        if item["base_ratio"] != 1.0:
+            kwargs["base_ratio"] = item["base_ratio"]
+        return "Triangle", (), kwargs, {}
     if kind == "track":
         # smooth always written: Track's own default is 1 (a curve), the
         # file's is 0 (straight segments, as the editor draws by default).

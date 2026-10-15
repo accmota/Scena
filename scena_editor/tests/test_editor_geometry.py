@@ -222,6 +222,8 @@ def _item(kind, c, size, r, pts):
         return {"kind": kind, "center": c, "radius": size}
     if kind == "regular_polygon":
         return {"kind": kind, "center": c, "radius": size, "n": 5, "angle": r}
+    if kind == "triangle":
+        return {"kind": kind, "center": c, "radius": size, "angle": r, "base_ratio": 0.6}
     if kind == "line":
         return {"kind": kind, "p1": pts[0], "p2": pts[1]}
     if kind in ("polygon", "track"):
@@ -230,7 +232,7 @@ def _item(kind, c, size, r, pts):
 
 
 _items = hst.builds(_item, hst.sampled_from(("rect", "ellipse", "image", "circle", "regular_polygon",
-                                             "line", "polygon", "track", "point")),
+                                             "triangle", "line", "polygon", "track", "point")),
                     _pt, _extent, _angle, hst.lists(_pt, min_size=3, max_size=5))
 
 

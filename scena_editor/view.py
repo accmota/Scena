@@ -15,7 +15,8 @@ import zlib
 from typing import Any, Dict, List, Optional, Tuple
 
 from scena import (
-    Circle, Color, Concave, Ellipse, Line, Polygon, Rect, RegularPolygon, Sprite, Track, canvas,
+    Circle, Color, Concave, Ellipse, Line, Polygon, Rect, RegularPolygon, Sprite, Track, Triangle,
+    canvas,
 )
 
 from . import geometry as geo
@@ -344,6 +345,8 @@ def _make_shape(item: Dict[str, Any], doc):
         return Polygon(points=list(item["points"]), layer=ITEM_LAYER)
     if kind == "regular_polygon":
         return RegularPolygon(n=item["n"], center=(0, 0), radius=1, layer=ITEM_LAYER)
+    if kind == "triangle":
+        return Triangle(center=(0, 0), radius=1, layer=ITEM_LAYER)
     if kind == "track":
         return Track(points=list(item["points"]), smooth=item["smooth"], closed=item["closed"],
                      color=UNGROUPED, layer=ITEM_LAYER)
@@ -366,7 +369,9 @@ def _apply(shape, item: Dict[str, Any]) -> None:
     elif kind == "circle":
         shape.center = item["center"]
         shape.radius = item["radius"]
-    elif kind == "regular_polygon":
+    elif kind in ("regular_polygon", "triangle"):
+        if kind == "triangle":
+            shape.base_ratio = item["base_ratio"]
         shape.center = item["center"]
         shape.radius = item["radius"]
         shape.angle = item["angle"]
@@ -391,5 +396,5 @@ def _style(shape, item: Dict[str, Any], selected: bool) -> None:
         return
     shape.line = color
     shape.line_width = width
-    if kind in ("rect", "ellipse", "concave", "circle", "polygon", "regular_polygon"):
+    if kind in ("rect", "ellipse", "concave", "circle", "polygon", "regular_polygon", "triangle"):
         shape.fill = translucent(color, 0.22)

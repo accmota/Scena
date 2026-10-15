@@ -634,6 +634,8 @@ In both, the centroid sits `radius / 4` behind the box center (`_triangle_contai
 
 **Angle convention:** `angle` is where vertex[0] (the apex) points, as for every heading in Scena (0 = `+x`, CCW). `angle=0` points right; `angle=90` is the upright pose with a flat base. That keeps `face=True` motion apex-first and makes a triangle ship's `angle` its heading, like a Sprite's. (Until 2026-09-30 the triangle added +90°, so `angle=0` was upright and `face=True` flew it sideways.)
 
+- **Level files / editor**: the `"triangle"` kind (`center`, `radius`, optional `angle`, `base_ratio`); `LevelItem.base_ratio`; `make()` → `Triangle`. Editor tool **D** ([Editor Design](Editor%20Design.md)).
+
 Guards: `tests/test_triangle.py` (definition, models, validation, box, transforms, caches, every consumer, the retired name); isosceles rows (`Triangle … ship` / `wide`) in the `geometry_support.KINDS` matrices and `test_flip_mirror`.
 
 # Track

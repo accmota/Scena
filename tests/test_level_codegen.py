@@ -52,6 +52,9 @@ def geometry(shape):
     if name == "RegularPolygon":
         return (name, round(shape.center.x, 6), round(shape.center.y, 6),
                 round(shape.radius, 6), len(shape.points), round(shape.angle % 360, 6))
+    if name == "Triangle":
+        return (name, round(shape.center.x, 6), round(shape.center.y, 6),
+                round(shape.radius, 6), round(shape.angle % 360, 6), round(shape.base_ratio, 6))
     if name == "Track":
         # A points= Track keeps its vertices about its own center (pose 0 here).
         cx, cy = shape.center.x, shape.center.y
@@ -80,6 +83,9 @@ def expected(item):
     if k == "regular_polygon":
         return ("RegularPolygon", *item["center"], item["radius"], item["n"],
                 item["angle"] % 360)
+    if k == "triangle":
+        return ("Triangle", *item["center"], item["radius"], item["angle"] % 360,
+                item["base_ratio"])
     if k == "track":
         return ("Track", tuple(item["points"]), item["closed"], item["smooth"])
     if k == "point":
@@ -163,6 +169,9 @@ class TestEveryKind(CodegenCase):
             {"kind": "regular_polygon", "center": [5, 6], "radius": 20, "n": 6},
             {"kind": "regular_polygon", "center": [5, 6], "radius": 20, "n": 3, "angle": 90,
              "groups": ["a"]},
+            {"kind": "triangle", "center": [5, 6], "radius": 20},
+            {"kind": "triangle", "center": [5, 6], "radius": 20, "angle": 90, "base_ratio": 0.6,
+             "groups": ["naves"]},
             {"kind": "track", "points": [[0, 0], [10, 0], [10, 10]], "closed": True},
             {"kind": "track", "points": [[0, 0], [10, 3]]},
             {"kind": "track", "points": [[0, 0], [10, 0], [10, 10]], "smooth": 0.5},
@@ -188,7 +197,7 @@ _groups = hst.lists(hst.sampled_from(["g1", "g2", "g3"]), unique=True, max_size=
 @hst.composite
 def _raw_item(draw):
     kind = draw(hst.sampled_from(["rect", "ellipse", "concave", "circle", "line", "polygon",
-                                  "regular_polygon", "track", "point", "image"]))
+                                  "regular_polygon", "triangle", "track", "point", "image"]))
     raw = {"kind": kind, "groups": draw(_groups)}
     if kind in ("rect", "ellipse", "concave", "image"):
         raw.update(center=draw(_p), width=draw(_s), height=draw(_s),
@@ -209,6 +218,12 @@ def _raw_item(draw):
         raw.update(center=draw(_p), radius=draw(_s), n=draw(hst.integers(3, 12)))
         if draw(hst.booleans()):
             raw["angle"] = draw(hst.floats(-359, 359).map(lambda v: round(v, 2)))
+    if kind == "triangle":
+        raw.update(center=draw(_p), radius=draw(_s))
+        if draw(hst.booleans()):
+            raw["angle"] = draw(hst.floats(-359, 359).map(lambda v: round(v, 2)))
+        if draw(hst.booleans()):
+            raw["base_ratio"] = draw(hst.floats(0.05, 1.95).map(lambda v: round(v, 2)))
     if kind == "track":
         raw["points"] = draw(hst.lists(_p, min_size=2, max_size=5, unique_by=tuple))
         raw["closed"] = draw(hst.booleans())

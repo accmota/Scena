@@ -126,3 +126,10 @@ def track_curve(points, *, closed: bool, smooth: float):
     xs, ys = flatten_controls(points, closed=closed, smooth=smooth,
                               samples_per_segment=samples_per_segment_for("high"))
     return list(zip(xs, ys))
+
+
+def slider_dragging(slider) -> bool:
+    """True while the pointer holds ``slider``'s handle. Scena's ``Slider``
+    has no public drag-ended signal; the panel records one undo step when
+    the handle is let go."""
+    return bool(getattr(slider, "_dragging_handle", False))

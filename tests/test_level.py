@@ -21,7 +21,7 @@ from hypothesis import given, strategies as hst  # noqa: E402
 
 from scena import (  # noqa: E402
     Concave,
-    Box, Circle, Ellipse, Level, Line, Point, Polygon, Rect, Sprite, Track,
+    Box, Circle, Ellipse, Level, Line, Point, Polygon, Rect, Sprite, Track, Triangle,
     canvas, group, init,
 )
 from scena.level_format import (  # noqa: E402
@@ -49,6 +49,8 @@ SAMPLE_ITEMS = [
     {"kind": "polygon", "name": "morro", "points": [[0, 0], [100, 0], [50, 80]]},
     {"kind": "regular_polygon", "name": "favo", "center": [700, 400], "radius": 30, "n": 6,
      "angle": 90},
+    {"kind": "triangle", "name": "nave", "center": [800, 300], "radius": 20, "angle": 90,
+     "base_ratio": 0.6},
     {"kind": "track", "name": "rota_drone", "points": [[900, 600], [1300, 600]], "closed": True},
     {"kind": "point", "name": "inicio", "groups": ["spawn"], "center": [120, 70]},
     {"kind": "point", "groups": ["estrela"], "center": [330, 320]},
@@ -231,6 +233,16 @@ class TestMake(LevelTestCase):
         self.assertEqual(c.radius, 16.0)
         self.assertIsInstance(self.made(lv["laser"].make()), Line)
         self.assertIsInstance(self.made(lv["morro"].make()), Polygon)
+        ship = self.made(lv["nave"].make())
+        self.assertIsInstance(ship, Triangle)
+        self.assertEqual((ship.center.x, ship.center.y, ship.radius, ship.angle, ship.base_ratio),
+                         (800.0, 300.0, 20.0, 90.0, 0.6))
+        self.assertEqual((lv["nave"].radius, lv["nave"].angle, lv["nave"].base_ratio),
+                         (20.0, 90.0, 0.6))
+        with self.assertRaisesRegex(AttributeError, "no base_ratio"):
+            lv["favo"].base_ratio
+        with self.assertRaisesRegex(AttributeError, "a regular polygon or a triangle"):
+            lv["nave"].box
         t = self.made(lv["rota_drone"].make())
         self.assertIsInstance(t, Track)
         self.assertTrue(t.closed)
@@ -333,6 +345,15 @@ class TestFormatErrors(LevelTestCase):
         self.bad(level_doc([{"kind": "regular_polygon", "center": [0, 0], "radius": 5}]),
                  "needs 'n'")
 
+    def test_triangle_base_ratio_is_between_0_and_2(self):
+        """Triangle(base_ratio=) is open on both ends: 0 is a line, 2 is flat."""
+        for bad in (0, 2, -0.5, 2.5, True, "1"):
+            self.bad(level_doc([{"kind": "triangle", "center": [0, 0], "radius": 5,
+                                 "base_ratio": bad}]), "base_ratio must be")
+        self.bad(level_doc([{"kind": "triangle", "center": [0, 0]}]), "needs 'radius'")
+        self.bad(level_doc([{"kind": "triangle", "center": [0, 0], "radius": 5, "n": 3}]),
+                 "a triangle has no 'n'")
+
     def test_track_smooth_is_a_fraction(self):
         for bad in (-0.1, 1.5, True, "1"):
             self.bad(level_doc([{"kind": "track", "points": [[0, 0], [1, 1]], "smooth": bad}]),
@@ -396,6 +417,12 @@ def _item(draw):
         item.update(center=draw(_pt), radius=draw(_size), n=draw(hst.integers(3, 12)))
         if draw(hst.booleans()):
             item["angle"] = draw(_coord)
+    if kind == "triangle":
+        item.update(center=draw(_pt), radius=draw(_size))
+        if draw(hst.booleans()):
+            item["angle"] = draw(_coord)
+        if draw(hst.booleans()):
+            item["base_ratio"] = draw(hst.sampled_from([0.25, 0.6, 1, 1.5, 1.99]))
     if kind == "point":
         item["center"] = draw(_pt)
     groups = draw(_group_pool)
@@ -477,7 +504,7 @@ class TestFormatProperties(unittest.TestCase):
             assume(sizes)
             item[data.draw(hst.sampled_from(sizes))] = -1
         else:
-            item["kind"] = "triangle"
+            item["kind"] = "star"         # not a kind (triangle was, until it became one)
         with self.assertRaises(LevelFormatError) as ctx:
             parse(doc, source="p.json")
         hypothesis_support.assert_author_error(self, ctx.exception, call="parse(level)")

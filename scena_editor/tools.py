@@ -41,11 +41,11 @@ from .doc import LevelDoc, NameTaken
 from .i18n import t
 from .undo import History
 
-TOOLS = ("select", "hand", "rect", "ellipse", "concave", "circle", "line", "polygon",
-         "regular_polygon", "track", "point",
+TOOLS = ("select", "hand", "rect", "ellipse", "circle", "line", "polygon", "triangle",
+         "regular_polygon", "track", "concave", "point",
          "image")
 TOOL_KEYS = {"V": "select", "H": "hand", "R": "rect", "E": "ellipse", "U": "concave",
-             "C": "circle", "L": "line",
+             "C": "circle", "L": "line", "D": "triangle",
              "G": "polygon", "N": "regular_polygon", "A": "track", "P": "point",
              "I": "image"}
 KEY_OF = {tool: key for key, tool in TOOL_KEYS.items()}
@@ -54,7 +54,7 @@ REDO = "CMD+SHIFT+Z" if sys.platform == "darwin" else "CTRL+Y"   # Ctrl+Shift+Z 
 ALT_LABEL = "Option" if sys.platform == "darwin" else "Alt"      # Alt+drag copies
 # Holding Primary in Pan or a drawing tool makes a press a Select press.
 SPRING_TOOLS = ("hand", "rect", "ellipse", "concave", "circle", "line", "polygon",
-                "regular_polygon", "track", "point")
+                "triangle", "regular_polygon", "track", "point")
 SIDES = 6            # a new regular polygon: a hexagon…
 HEADING = 90.0       # …with a vertex on top (a triangle / pentagon points up)
 
@@ -268,7 +268,8 @@ class Editor:
             # Polygon / path points drawn so far stay: a Select press between
             # clicks neither adds a point nor drops them.
             self._select_down(x, y, shift, alt)
-        elif self.tool in ("rect", "ellipse", "concave", "circle", "line", "regular_polygon"):
+        elif self.tool in ("rect", "ellipse", "concave", "circle", "line", "regular_polygon",
+                           "triangle"):
             start = geo.snap_point((x, y), self._grid(shift))
             self.gesture = {"kind": "create", "start": start, "id": None, "press": (x, y)}
         elif self.tool in ("polygon", "track"):
@@ -423,6 +424,9 @@ class Editor:
         elif tool == "regular_polygon":
             fields = {"center": (sx, sy), "radius": geo.snap(math.dist((sx, sy), (x, y)), grid),
                       "n": SIDES, "angle": HEADING}
+        elif tool == "triangle":
+            fields = {"center": (sx, sy), "radius": geo.snap(math.dist((sx, sy), (x, y)), grid),
+                      "angle": HEADING}
         elif tool == "circle":
             fields = {"center": (sx, sy), "radius": geo.snap(math.dist((sx, sy), (x, y)), grid)}
         else:
@@ -467,13 +471,15 @@ class Editor:
 
     def _default_shape(self, at: Tuple[float, float]) -> Dict[str, Any]:
         """The item a click (no drag) makes: ``DEFAULT_SIZE`` wide, top-left at
-        ``at`` (circle, regular polygon: centered there; line: from there to
-        the right)."""
+        ``at`` (circle, regular polygon, triangle: centered there; line: from
+        there to the right)."""
         x, y = at
         s = DEFAULT_SIZE
         if self.tool == "regular_polygon":
             return {"kind": "regular_polygon", "center": (x, y), "radius": s / 2, "n": SIDES,
                     "angle": HEADING}
+        if self.tool == "triangle":
+            return {"kind": "triangle", "center": (x, y), "radius": s / 2, "angle": HEADING}
         if self.tool == "circle":
             return {"kind": "circle", "center": (x, y), "radius": s / 2}
         if self.tool == "line":
@@ -482,7 +488,7 @@ class Editor:
 
     def _degenerate(self, item: Dict[str, Any]) -> bool:
         a, b, c, d = geo.aabb(item)
-        if item["kind"] in ("circle", "regular_polygon"):
+        if item["kind"] in ("circle", "regular_polygon", "triangle"):
             return item["radius"] <= 0
         if item["kind"] == "line":
             return item["p1"] == item["p2"]
@@ -692,14 +698,17 @@ class Editor:
         return item_id
 
     # -- panel edits ---------------------------------------------------------------------
-    def set_field(self, field: str, value: Any, item_id: Optional[int] = None) -> bool:
+    def set_field(self, field: str, value: Any, item_id: Optional[int] = None, *,
+                  record: bool = True) -> bool:
         """Change one field of an item (panel). One undo step.
 
         ``item_id`` defaults to the single selected item. The panel passes the
         item the field was showing: clicking the canvas commits a typed value
         in the same event that changes the selection. ``x`` / ``y`` move the
         item's center (any kind); ``groups`` takes comma-separated text.
-        Errors go to ``message``; returns False.
+        Errors go to ``message``; returns False. ``record=False`` leaves the
+        step open (a slider drag: the panel calls ``history.commit()`` when
+        the handle is let go).
         """
         if item_id is not None:
             item = self.doc.get(item_id) if self.doc.has(item_id) else None
@@ -730,7 +739,8 @@ class Editor:
         except (TypeError, ValueError) as e:
             self.message = str(e)
             return False
-        self.history.commit()
+        if record:
+            self.history.commit()
         return True
 
     def set_groups(self, value: Any, ids: Optional[List[int]] = None) -> bool:

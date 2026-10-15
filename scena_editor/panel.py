@@ -10,8 +10,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from scena import Button, CheckBox, Color, DropDown, Text, TextInput
+from scena import Button, CheckBox, Color, DropDown, Slider, Text, TextInput
 
+from . import _engine
 from .i18n import t
 from .geometry import union_aabb as geo_box
 from .toolbar import BG, Tooltip, ToolButton, _rect, _safe, attach_tip
@@ -24,8 +25,8 @@ W, H = DESIGN
 SEPARATOR = Color(1, 1, 1, 0.12)
 # Left toolbar: what you create (shapes, a gap, then Image). Select and Pan
 # live in the top bar, with Undo / Redo and the view controls.
-CREATE_TOOLS = ("rect", "ellipse", "concave", "circle", "line", "polygon", "regular_polygon",
-                "track", "point", "image")
+CREATE_TOOLS = ("rect", "ellipse", "circle", "line", "polygon", "triangle", "regular_polygon",
+                "track", "concave", "point", "image")
 ROW = 30.0
 X0 = W - PANEL_RIGHT + 10          # right panel content left edge
 LABEL_W = 78.0
@@ -37,6 +38,7 @@ TOOL_W, TOOL_H = 58.0, 44.0        # creation tool buttons (left toolbar)
 TOOL_GAP = 12.0                    # extra space before the Image button
 COORD_X = W - PANEL_RIGHT - 118    # the cursor readout starts here
 FIELD_W = PANEL_RIGHT - LABEL_W - 22
+NUMBER_W = 54.0                    # the number box beside a slider
 
 
 def _keys_tip(name: str, keys: str) -> str:
@@ -119,6 +121,59 @@ class _Field:
             return None
         self.shown = value
         return value
+
+
+class _Slide(_Field):
+    """A labelled slider with a number box beside it, for a bounded ratio
+    tuned by eye (a track's Smooth, a triangle's Base ratio).
+
+    Typing in the box commits like any ``_Field`` (``committed``). Dragging
+    the slider previews: ``slid`` returns each new value (the panel applies
+    it with no undo step) and ``dragging`` stays True until the handle is let
+    go, when the panel records the drag as one step. ``lo`` / ``hi`` is the
+    slider's range, inside what the level format accepts.
+    """
+
+    def __init__(self, key: str, label: str, y: float, lo: float, hi: float):
+        self.key = key
+        self.number = True
+        self.label = Text(label, top_left=(X0, y - 4), font_size=13)
+        slide_w = FIELD_W - NUMBER_W - 6
+        self.slider = Slider(top_left=(X0 + LABEL_W, y + 2), width=slide_w, min_value=lo,
+                             max_value=hi, initial=lo, show_value=False)
+        self.input = TextInput(top_left=(X0 + LABEL_W + slide_w + 6, y), width=NUMBER_W,
+                               height=24, initial=0.0)
+        self.shown: Any = self.input.data.value
+        self.slid_shown: Any = self.slider.data.value
+        self.owner: Any = None
+        self.pending = False        # a drag changed the item, not recorded yet
+
+    def show(self, visible: bool) -> None:
+        super().show(visible)
+        self.slider.visible = visible
+
+    def set(self, value: Any, owner: Any) -> None:
+        super().set(value, owner)
+        if self.slider.data.value != self.shown:
+            self.slider.data.value = self.shown
+        self.slid_shown = self.shown
+
+    def slid(self) -> Optional[float]:
+        """The slider's value when it moved since last seen (two decimals,
+        as the editor stores numbers), else None. The box follows it."""
+        if not self.slider.visible:
+            return None
+        value = round(float(self.slider.data.value), 2)
+        if value == self.slid_shown:
+            return None
+        self.slid_shown = self.shown = value
+        if self.input.data.value != value:
+            self.input.data.value = value
+        return value
+
+    @property
+    def dragging(self) -> bool:
+        return _engine.slider_dragging(self.slider)
 
 
 class _Choice:
@@ -296,11 +351,18 @@ class Panel:
             ("height", t("panel.height"), 5, True),
             ("radius", t("panel.radius"), 6, True),
             ("angle", t("panel.angle"), 7, True),
-            ("smooth", t("panel.smooth"), 4, True),   # tracks only (no width there)
             ("n", t("panel.sides"), 4, True),         # regular polygons only
             ("rim", t("panel.rim"), 8, False),        # concaves only (no checks there)
         ):
             self.fields[key] = _Field(key, label, rows - row * ROW, number=number)
+        # Bounded ratios tuned by eye: a slider and a number box. The slider
+        # stays inside the format's range (base_ratio is open at 0 and 2; the
+        # box takes any value the format accepts).
+        for key, label, lo, hi in (
+            ("smooth", t("panel.smooth"), 0.0, 1.0),           # tracks only (no width there)
+            ("base_ratio", t("panel.base_ratio"), 0.05, 1.95),  # triangles only
+        ):
+            self.fields[key] = _Slide(key, label, rows - 4 * ROW, lo, hi)
         # A concave's Scoop sits in the Radius row (a concave has no radius).
         self.choices: Dict[str, _Choice] = {
             "scoop": _Choice("scoop", t("panel.scoop"), rows - 6 * ROW, SCOOPS),
@@ -390,6 +452,8 @@ class Panel:
                 # Show the field as stored ("a;b" → "a, b", "7.0" → 7) even
                 # when the edit changed nothing and the doc did not bump.
                 self._seen = None
+            if isinstance(f, _Slide):
+                self._poll_slide(f, ed)
         for c in list(self.checks.values()) + list(self.choices.values()):
             value = c.committed()
             if value is not None and c.owner is not None:
@@ -423,6 +487,18 @@ class Panel:
             self._grid_shown = (snap, size)
             ed.snap = snap
             ed.grid = float(size)
+
+    def _poll_slide(self, f: _Slide, ed: Editor) -> None:
+        """A slider drag changes the item live and is one undo step: each
+        move updates the document unrecorded, letting go records it (a
+        wheel turn or a click on the track, with no drag, records at once)."""
+        value = f.slid()
+        if value is not None and f.owner is not None:
+            if ed.set_field(f.key, value, item_id=f.owner, record=False):
+                f.pending = True
+        if f.pending and not f.dragging:
+            f.pending = False
+            ed.history.commit()
 
     def refresh(self) -> None:
         """Show the fields for the current selection (when it or the doc changed)."""
@@ -492,7 +568,7 @@ class Panel:
                               x2=single["p2"][0], y2=single["p2"][1])
             else:
                 values.update(x=cx, y=cy)
-            for k in ("width", "height", "radius", "angle", "smooth", "n"):
+            for k in ("width", "height", "radius", "angle", "smooth", "n", "base_ratio"):
                 if k in single:
                     values[k] = single[k]
             if kind == "concave":

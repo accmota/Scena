@@ -81,6 +81,18 @@ left out.
   with **Scoop** and **Rim** in the panel; Copy as code prints
   `Concave(…, scoop='top_right', rim=(20, 0))`.
 
+- Level files: the `"triangle"` kind (`center`, `radius`, optional `angle`,
+  `base_ratio`); `LevelItem.base_ratio`; `make()` builds a `Triangle`.
+  **Level editor:** the Triangle tool (key D), drawn from the center to the
+  apex like a regular polygon, with **Base ratio** in the panel; Copy as code
+  prints `Triangle(center=(800, 300), radius=20, angle=90, base_ratio=0.6)`.
+  The left toolbar now reads Polygon, Triangle, Regular polygon, Track,
+  Concave, and the Polygon icon is an irregular outline (it looked like the
+  Regular polygon tool's).
+- **Level editor:** Smooth (tracks) and Base ratio (triangles) are a slider
+  with a number box beside it. Dragging redraws the shape as you go and is
+  one undo step; typing a number works as before.
+
 - **Level editor, several items selected:**
   - A frame with **corner handles and a rotate knob**. The corners scale
     the items evenly (a circle stays a circle, an image keeps its shape;

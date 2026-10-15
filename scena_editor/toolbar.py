@@ -11,7 +11,8 @@ from __future__ import annotations
 import time
 from typing import Any, Callable, List, Optional, Tuple
 
-from scena import Circle, Color, Concave, Ellipse, Line, Polygon, Rect, RegularPolygon, Text, Track
+from scena import (Circle, Color, Concave, Ellipse, Line, Polygon, Rect, RegularPolygon, Text,
+                   Track, Triangle)
 
 from .view import DESIGN
 
@@ -90,10 +91,16 @@ def _icon_line(cx, cy, s) -> List[Part]:
 
 
 def _icon_polygon(cx, cy, s) -> List[Part]:
-    import math
-    pts = [(cx + s * math.cos(math.radians(90 + 72 * i)),
-            cy + s * math.sin(math.radians(90 + 72 * i)) - s * 0.05) for i in range(5)]
+    # Free corners, one notch: not a regular shape (that is the next tool's).
+    pts = [(cx - s, cy - 0.8 * s), (cx + s, cy - 0.8 * s), (cx + 0.7 * s, cy + 0.85 * s),
+           (cx + 0.05 * s, cy + 0.1 * s), (cx - 0.6 * s, cy + 0.7 * s)]
     return [_stroke(Polygon(points=pts, layer="ui"))]
+
+
+def _icon_triangle(cx, cy, s) -> List[Part]:
+    # Apex up; the centroid sits a quarter radius below the icon's middle.
+    r = 1.1 * s
+    return [_stroke(Triangle(center=(cx, cy - 0.25 * r), radius=r, angle=90, layer="ui"))]
 
 
 def _icon_regular_polygon(cx, cy, s) -> List[Part]:
@@ -153,9 +160,9 @@ def _icon_hand(cx, cy, s) -> List[Part]:
 
 ICONS = {
     "select": _icon_select, "hand": _icon_hand, "rect": _icon_rect, "ellipse": _icon_ellipse,
-    "concave": _icon_concave,
-    "circle": _icon_circle, "line": _icon_line, "polygon": _icon_polygon, "regular_polygon": _icon_regular_polygon,
-    "track": _icon_track,
+    "circle": _icon_circle, "line": _icon_line, "polygon": _icon_polygon,
+    "triangle": _icon_triangle, "regular_polygon": _icon_regular_polygon,
+    "track": _icon_track, "concave": _icon_concave,
     "point": _icon_point, "image": _icon_image,
 }
 

@@ -6,8 +6,8 @@ what it becomes.** Two parts:
 - **`Level`** (framework, `scena/level.py` + `scena/level_format.py`): reads a
   level file. Creates nothing.
 - **The level editor** (companion app, `scena_editor/`, `python -m scena_editor`):
-  draws rects, ellipses, circles, lines, polygons, regular polygons, tracks,
-  points and images on
+  draws rects, ellipses, circles, lines, polygons, triangles, regular polygons,
+  tracks, concaves, points and images on
   a level area, names and groups them, saves the file. Not part of the
   framework (see [Boundary](#boundary)).
 
@@ -76,6 +76,7 @@ conversion anywhere.
   {"kind": "line",    "p1": [0, 0], "p2": [10, 10]},
   {"kind": "polygon", "name": "morro", "points": [[0, 0], [100, 0], [50, 80]]},
   {"kind": "regular_polygon", "name": "favo", "center": [700, 400], "radius": 30, "n": 6, "angle": 90},
+  {"kind": "triangle", "name": "nave", "center": [800, 300], "radius": 20, "angle": 90, "base_ratio": 0.6},
   {"kind": "track",   "name": "rota_drone", "points": [[900, 600], [1300, 600]], "smooth": 0.5},
   {"kind": "point",   "groups": ["estrela"], "center": [330, 320]},
   {"kind": "image",   "name": "fundo", "file": "arte/fase1.png", "center": [1800, 750],
@@ -96,7 +97,8 @@ conversion anywhere.
   Copy as code writes one number when both agree); circle `center, radius`; line
   `p1, p2`; polygon `points` (≥ 3); regular_polygon `center, radius, n`
   (sides, a whole number ≥ 3) · `angle=0` (toward vertex 0, as
-  `RegularPolygon`); track `points` (≥ 2) · `closed=false`
+  `RegularPolygon`); triangle `center, radius` · `angle=0` (toward the apex),
+  `base_ratio=1` (above 0, below 2, as `Triangle`); track `points` (≥ 2) · `closed=false`
   · `smooth=0` (0 to 1, `Track.smooth`: 0 straight segments, 1 a curve);
   point `center`; image `file, center, width, height` · `angle=0`,
   `guide=false`. Sizes are magnitudes (≥ 0).
@@ -141,17 +143,18 @@ drone.move_along(fase["rota_drone"].points, time=6)
 - **`LevelItem`** — `kind`, `name`, `groups`, `center` (a line's midpoint, a
   polygon's / track's bounding-box middle — of its points, not of a smooth
   curve), and per kind `width` / `height` /
-  `angle`, `scoop` / `rim` (a `Vec2`), `radius`, `n`, `p1` / `p2`, `points` (new list of `Vec2`),
+  `angle`, `scoop` / `rim` (a `Vec2`), `radius`, `n`, `base_ratio`, `p1` / `p2`, `points` (new list of `Vec2`),
   `closed`, `smooth`,
   `image` (absolute). A field of another kind raises `AttributeError`
   listing what the item has. Every read is a copy.
 - **`item.box`** — fresh oriented `Box(center, width, height, angle)` for
   rect / ellipse / concave / image; a circle's square. Lines, polygons, regular
-  polygons, tracks and points raise (only those four kinds are regions).
+  polygons, triangles, tracks and points raise (only those four kinds are regions).
 - **`item.make(**kwargs)`** — builds the shape as drawn: rect → `Rect`,
   ellipse → `Ellipse`, concave → `Concave(center, width, height, angle, scoop, rim)`,
   circle → `Circle`, line → `Line`, polygon → `Polygon`,
   regular_polygon → `RegularPolygon(n, center, radius, angle)`,
+  triangle → `Triangle(center, radius, angle, base_ratio)`,
   track → `Track(points, smooth, closed)` (`smooth` always written: the
   file's default is 0, `Track`'s own is 1), point → `Point`, image →
   `Sprite(file, center, width, height, angle)` — every field is a
@@ -190,16 +193,21 @@ guard, no zombies) and `test_editor_dialogs`. v1:
 
 - `python -m scena_editor [fase1.json]`, a Scena program (1280×800 design
   units). English UI through `t(key)` (one table per language).
-- Tools: Select (V), Pan (H), Rect (R), Ellipse (E), Concave (U), Circle (C), Line (L),
-  Polygon (G), Regular polygon (N), Track (A), Point (P), Image (I). Point
-  has P because it is used most; T is left free for a Text tool. Panel: name, groups
+- Tools: Select (V), Pan (H), Rect (R), Ellipse (E), Circle (C), Line (L),
+  Polygon (G), Triangle (D), Regular polygon (N), Track (A), Concave (U), Point (P),
+  Image (I). Point has P because it is used most; T is left free for a Text
+  tool, so Triangle has D (Δ). Panel: name, groups
   (comma-separated), numeric geometry, locked, guide; Copy as code,
   Duplicate, Delete, Front / Back; several selected: shared groups, X / Y,
   Row / Column. Status bar: cursor in Scena units, zoom,
   file and unsaved mark.
 - **Layout:** the left toolbar holds only what you create — Rect, Ellipse,
-  Concave, Circle, Line, Polygon, Regular polygon, Track, Point, a gap, Image (it
-  opens a file dialog).
+  Circle, Line, Polygon, Triangle, Regular polygon, Track, Concave, Point, a gap,
+  Image (it opens a file dialog): the common shapes first, the three polygon
+  tools together, Concave (a special-purpose piece) after Track. Each icon is
+  drawn with the shape its tool makes; the Polygon icon is an irregular,
+  notched outline, so it does not read as the Regular polygon tool's hexagon
+  (`test_toolbar_order_and_icons`).
   The top bar: New / Open / Save / Save as │ Undo / Redo │ Snap, grid step │
   Select, Pan, Fit, 100% │ Select group [▾]. Undo / Redo are text Buttons, faded (`enabled`)
   when there is nothing to undo / redo.
@@ -374,6 +382,21 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   is that spoke's direction, not "the top" as for rects). Panel: Sides,
   Radius, Angle. `geometry.regular_vertices` places the corners as
   `RegularPolygon` does (`test_regular_polygon_matches_scena_and_sides_field`).
+- **Triangle** (2026-10-15): the `"triangle"` kind is `Triangle`
+  (isosceles, `base_ratio`), not a regular polygon with `n=3`: a
+  `regular_polygon` cannot hold `base_ratio`, and Copy as code should print
+  `Triangle(…)`. It behaves as a regular polygon in the editor
+  (`geometry.RADIAL`): drawn from the center to the apex (a click makes radius
+  50), new ones point up (`angle=90`), the radius handle on the apex and the
+  rotate knob beyond it. Panel: Radius, Angle and **Base ratio** (in the Sides
+  row, a slider + number — see below; a typed value outside (0, 2) is refused
+  with the format's message, no step).
+  `geometry.triangle_vertices` places the corners as `Triangle` does (center =
+  centroid, the base half a radius behind it), checked against Scena on random
+  poses (`test_triangle_matches_scena_and_base_ratio_field`); group scale
+  scales the radius and keeps the ratio. Guards: `test_editor_tools` (draw,
+  field, handles, hit test), `test_level` / `test_level_codegen` (the kind,
+  `make()`, `LevelItem.base_ratio`, copied code).
 - **Concave** (2026-10-14): a box with a scoop, its own kind (`Concave`,
   [Shapes Design — Concave](Shapes%20Design.md#concave)). Drawn like a rect
   (a click makes 100 × 100, top-left there), scooped at its top left, no rim;
@@ -390,7 +413,23 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   (draw, panel fields, undo, hit test, group scale, Copy as code),
   `test_editor_system` in `scena_editor/tests/` (`TestConcaveOnFrames`: the real panel on frames),
   `test_level` / `test_level_codegen` (the kind, `make()`, copied code).
-- **Smooth tracks:** the panel's Smooth field (tracks only; 0–1, refused
+- **Slider + number** (2026-10-15): a bounded ratio with no unit, tuned
+  by how it looks — Smooth (0–1) and Base ratio (0–2) — is a Scena `Slider`
+  with a number box beside it (`panel._Slide`); lengths, positions and
+  angles stay text fields (they have canvas handles, and exact values
+  matter). The file is unchanged: the control shows and sets the same
+  number, checked by the same format rules. A drag is **one undo step**, as
+  a canvas drag is: each move updates the document unrecorded
+  (`set_field(…, record=False)`, the view redraws live, the box follows),
+  and letting go of the handle records it (`history.commit()`); a click on
+  the track or a wheel turn records at once. Scena's `Slider` has no public
+  drag-ended signal, so `_engine.slider_dragging` reads it. The slider's
+  range is inside the format's (Base ratio: 0.05–1.95, the format refuses 0
+  and 2), so a drag is never refused; the box takes any accepted value and
+  commits like every field. Guards: `test_smooth_slider_drag_is_live_and_one_undo_step`,
+  `test_base_ratio_slider_stays_inside_the_format` (real presses through
+  Scena's widget manager).
+- **Smooth tracks:** the panel's Smooth control (tracks only; 0–1, refused
   outside with the format's message) is `Track.smooth`. The view draws the
   item with it; hit tests follow the drawn curve (`geometry.track_curve`,
   Scena's own sampling through `_engine.track_curve`), while bounds, X / Y
@@ -553,8 +592,9 @@ imports `scena_editor`; the editor uses the public API, and every Scena
 private it needs goes through `scena_editor/_engine.py`: the close guard
 (`ScenaFramework._close_guard`, the one hook added to `scena/` for the editor —
 asked on a window close request and on Ctrl+Shift+Z; `tests/test_close_guard.py`),
-the GLFW window for title / clipboard / focus / cursors, and
-`keyp._swallow_edges()` after a dialog. Scena has no tooltip or icon-button
+the GLFW window for title / clipboard / focus / cursors,
+`keyp._swallow_edges()` after a dialog, and whether a `Slider`'s handle is
+held (`slider_dragging`: the panel records a drag when it is let go). Scena has no tooltip or icon-button
 widget: the editor builds both from Graphics (`toolbar.py`) — a public-API
 candidate if a second program needs them. A gap that
 piles up there is a public-API candidate. The level **format** and the

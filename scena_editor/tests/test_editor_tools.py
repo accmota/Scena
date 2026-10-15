@@ -147,6 +147,66 @@ class TestCreate(unittest.TestCase):
         drag(e, (500, 500), (503, 503))                    # a drag (> 3 px) to radius 0: dropped
         self.assertEqual(len(e.doc.items), 2)
 
+    def test_triangle_click_drag_and_base_ratio(self):
+        """A click: an equilateral triangle of radius 50 on the snapped click,
+        apex up. A drag from the center sets the radius (snapped). Base ratio
+        is a panel field, one undo step, refused outside (0, 2)."""
+        e = ed()
+        e.set_tool("triangle")
+        click(e, (12, 208))
+        item = e.single()
+        self.assertEqual((item["kind"], item["center"], item["radius"], item["angle"],
+                          item["base_ratio"]), ("triangle", (10, 210), 50, 90, 1))
+        self.assertEqual(e.tool, "select")
+        e.set_tool("triangle")
+        drag(e, (300, 300), (300, 337))
+        self.assertEqual((e.single()["center"], e.single()["radius"]), ((300, 300), 40))
+        self.assertTrue(e.set_field("base_ratio", 0.6))
+        self.assertEqual(e.single()["base_ratio"], 0.6)
+        for bad in (0, 2, -1):
+            self.assertFalse(e.set_field("base_ratio", bad))
+            self.assertIn("base_ratio must be above 0 and below 2", e.message)
+        self.assertEqual(e.single()["base_ratio"], 0.6)
+        self.assertTrue(e.undo())
+        self.assertEqual(e.single()["base_ratio"], 1)
+        e.set_tool("triangle")
+        drag(e, (500, 500), (503, 503))                    # a drag (> 3 px) to radius 0: dropped
+        self.assertEqual(len(e.doc.items), 2)
+
+    def test_triangle_handles_resize_and_turn_and_keep_the_ratio(self):
+        """Radius on the apex, the rotate knob beyond it (as a regular
+        polygon); scaling and turning a group keep base_ratio."""
+        e = ed()
+        a = e.doc.add({"kind": "triangle", "center": (100, 100), "radius": 50, "angle": 90,
+                       "base_ratio": 0.5})
+        e.history.commit()
+        e.selection = [a]
+        radius, knob = geo.handles(e.doc.get(a), 20)
+        self.assertEqual((radius.role, knob.role), ("radius", "rotate"))
+        self.assertAlmostEqual(radius.x, 100)
+        self.assertAlmostEqual(radius.y, 150)               # the apex, on top
+        self.assertAlmostEqual(knob.y, 170)
+        drag(e, (radius.x, radius.y), (100, 172))
+        self.assertEqual(e.doc.get(a)["radius"], 70)
+        radius, knob = geo.handles(e.doc.get(a), 20)
+        drag(e, (knob.x, knob.y), (190, 100 + 3))           # toward +x: angle ~0, snaps 15°
+        self.assertEqual((e.doc.get(a)["angle"], e.doc.get(a)["base_ratio"]), (0, 0.5))
+        item = e.doc.get(a)
+        self.assertEqual(geo.scale_item(item, (0, 0), 2.0)["radius"], 140)
+        self.assertEqual(geo.rotate_item(item, (0, 0), 30)["angle"], 30)
+        self.assertNotIn("base_ratio", geo.scale_item(item, (0, 0), 2.0))
+
+    def test_triangle_hit_test_and_bounds_follow_the_ratio(self):
+        """A sharp triangle is hit inside its narrow base, missed beside it."""
+        item = {"kind": "triangle", "center": (0, 0), "radius": 20, "angle": 90.0,
+                "base_ratio": 0.4}
+        x0, y0, x1, y1 = geo.aabb(item)
+        self.assertEqual((round(y0, 9), round(y1, 9)), (-10, 20))   # base half a radius below
+        self.assertLess(x1 - x0, 13)                                # a narrow base
+        self.assertTrue(geo.contains(item, 0, 0))
+        self.assertFalse(geo.contains(item, 9, -9))
+        self.assertTrue(geo.contains(dict(item, base_ratio=1.9), 9, -9))
+
     def test_concave_draws_like_a_rect_and_the_panel_sets_scoop_and_rim(self):
         """A concave is a box with a scoop: drawn like a rect (top-left scoop,
         no rim), Scoop and Rim are panel fields, one undo step each."""
@@ -229,13 +289,14 @@ class TestCreate(unittest.TestCase):
         self.assertEqual(e.single()["center"], (62, 158))
 
     def test_tool_keys(self):
-        """P → Point (used most), A → Path, G → Polygon; T is free. Every key
-        names a tool, every tool has one key."""
+        """P → Point (used most), A → Path, G → Polygon, D → Triangle (Δ); T
+        is free (kept for a Text tool). Every key names a tool, every tool has
+        one key."""
         from scena_editor.tools import KEY_OF, TOOL_KEYS, TOOLS
         self.assertEqual(sorted(TOOL_KEYS.values()), sorted(TOOLS))
         self.assertEqual(len(KEY_OF), len(TOOL_KEYS))
         for key, tool in (("P", "point"), ("A", "track"), ("G", "polygon"), ("V", "select"),
-                          ("H", "hand")):
+                          ("H", "hand"), ("D", "triangle")):
             e = ed()
             self.assertTrue(e.key(key))
             self.assertEqual(e.tool, tool)
@@ -1087,7 +1148,7 @@ class TestPrimaryHeldSelects(unittest.TestCase):
 _point = hst.tuples(hst.integers(0, 900), hst.integers(0, 700))
 _action = hst.one_of(
     hst.tuples(hst.just("tool"), hst.sampled_from(["select", "rect", "ellipse", "circle",
-                                                   "line", "point"])),
+                                                   "line", "point", "triangle"])),
     hst.tuples(hst.just("drag"), _point, _point, hst.booleans()),
     hst.tuples(hst.just("click"), _point, hst.booleans()),
     hst.tuples(hst.just("key"), hst.sampled_from(["DEL", "ESC", "LEFT", "UP", "V", "R", "P", "A"])),

@@ -27,7 +27,8 @@ from scena_editor.tools import ALT_LABEL  # noqa: E402
 from scena_editor.view import DESIGN  # noqa: E402
 
 KIND_CLASS = {"rect": "Rect", "ellipse": "Ellipse", "concave": "Concave", "circle": "Circle",
-              "line": "Line", "polygon": "Polygon", "track": "Track", "point": "Circle",
+              "line": "Line", "polygon": "Polygon", "regular_polygon": "RegularPolygon",
+              "triangle": "Triangle", "track": "Track", "point": "Circle",
               "image": "Sprite"}
 
 from tests.leftovers import module_sweep  # noqa: E402
@@ -838,6 +839,74 @@ class TestEditorOnFrames(EditorSystemCase):
         self.assertEqual(ed.doc.get(a)["n"], 8)
         self.assertIn("n must be a whole number >= 3", ed.message or "")
 
+    def test_triangle_matches_scena_and_base_ratio_field(self):
+        """The editor's vertices are Triangle's (one rule for hit tests and
+        drawing); Base ratio in the panel (triangles only) redraws it."""
+        import random
+        from scena import Triangle
+        from scena_editor import geometry as geo
+        rnd = random.Random(7)
+        for _ in range(50):
+            item = {"kind": "triangle", "center": (rnd.uniform(-99, 99), rnd.uniform(-99, 99)),
+                    "radius": rnd.uniform(0.5, 80), "angle": rnd.uniform(-400, 400),
+                    "base_ratio": rnd.uniform(0.01, 1.99)}
+            shape = Triangle(center=item["center"], radius=item["radius"], angle=item["angle"],
+                             base_ratio=item["base_ratio"])
+            try:
+                for (x, y), p in zip(geo.triangle_vertices(item), shape.points):
+                    self.assertAlmostEqual(x, p.x, places=6)
+                    self.assertAlmostEqual(y, p.y, places=6)
+            finally:
+                shape.destroy()
+        app = self.app
+        ed = app.editor
+        a = ed.doc.add({"kind": "triangle", "center": (100, 50), "radius": 40, "angle": 30})
+        ed.history.commit()
+        ed.selection = [a]
+        self.frame()
+        field = app.panel.fields["base_ratio"]
+        self.assertTrue(field.visible)
+        self.assertFalse(app.panel.fields["n"].visible)
+        self.assertFalse(app.panel.fields["width"].visible)
+        field.input.data.value = 0.5
+        self.frame()
+        self.assertEqual(ed.doc.get(a)["base_ratio"], 0.5)
+        shape = app.view.items[a].shape
+        for (x, y), p in zip(geo.triangle_vertices(ed.doc.get(a)), shape.points):
+            self.assertAlmostEqual(x, p.x, places=6)
+            self.assertAlmostEqual(y, p.y, places=6)
+        field.input.data.value = 2.0
+        self.frame()
+        self.assertEqual(ed.doc.get(a)["base_ratio"], 0.5)
+        self.assertIn("base_ratio must be above 0 and below 2", ed.message or "")
+        rect = ed.doc.add({"kind": "rect", "center": (0, 0), "width": 10, "height": 10})
+        ed.selection = [rect]
+        self.frame()
+        self.assertFalse(field.visible)
+
+    def test_toolbar_order_and_icons(self):
+        """Left toolbar, top to bottom: Polygon, Triangle, Regular polygon,
+        then Track and Concave; the Polygon icon is not a regular polygon
+        (that is the Regular polygon tool's)."""
+        import math
+        p = self.app.panel
+        left = [b for b in p.tool_buttons if b.tool not in ("select", "hand")]   # top bar
+        self.assertEqual([b.tool for b in left],
+                         ["rect", "ellipse", "circle", "line", "polygon", "triangle",
+                          "regular_polygon", "track", "concave", "point", "image"])
+        ys = [(b.box[1] + b.box[3]) / 2 for b in left]
+        self.assertEqual(ys, sorted(ys, reverse=True))          # y up: top first
+        poly = next(b for b in p.tool_buttons if b.tool == "polygon").parts[0][0]
+        pts = [(q.x, q.y) for q in poly.points]
+        cx = sum(x for x, _ in pts) / len(pts)
+        cy = sum(y for _, y in pts) / len(pts)
+        spokes = [math.dist((cx, cy), q) for q in pts]
+        sides = [math.dist(pts[i], pts[(i + 1) % len(pts)]) for i in range(len(pts))]
+        self.assertGreater(max(spokes) - min(spokes), 0.2 * max(spokes))
+        self.assertGreater(max(sides) - min(sides), 0.2 * max(sides))
+        tri = next(b for b in p.tool_buttons if b.tool == "triangle").parts[0][0]
+        self.assertEqual(type(tri).__name__, "Triangle")
+
     def test_track_smooth_field_redraws_and_rejects_out_of_range(self):
         """The panel's Smooth (tracks only) changes the item and the drawn
         Track; a value outside 0–1 is refused with the format's message."""
@@ -862,6 +931,87 @@ class TestEditorOnFrames(EditorSystemCase):
         ed.selection = [rect]
         self.frame()
         self.assertFalse(field.visible)
+
+    # -- slider + number (Smooth, Base ratio) ------------------------------------------
+    def _slide(self, slider, fractions, release=True):
+        """Press the slider's track at ``fractions[0]`` of its width, move
+        through the rest (a frame after each), let go at the last."""
+        wm = self.w.fw.widget_manager
+        b = slider.box
+        y = (b.top + b.bottom) / 2
+
+        def at(f):
+            return b.left + f * (b.right - b.left)
+        wm.handle_mouse_down(at(fractions[0]), y, 0)
+        self.frame()
+        for f in fractions[1:]:
+            wm.handle_mouse_move(at(f), y)
+            self.frame()
+        if release:
+            wm.handle_mouse_up(at(fractions[-1]), y, 0)
+            self.frame()
+
+    def test_smooth_slider_drag_is_live_and_one_undo_step(self):
+        """Dragging Smooth redraws the track at every move with no undo
+        step; letting go records the whole drag as one step, so one Undo
+        goes back to the value before the press. The box shows the value."""
+        app = self.app
+        ed = app.editor
+        a = ed.doc.add({"kind": "track", "points": [(0, 0), (100, 0), (100, 100)],
+                        "smooth": 0.35})
+        ed.history.commit()
+        ed.selection = [a]
+        self.frame()
+        field = app.panel.fields["smooth"]
+        self.assertTrue(field.slider.visible)
+        self.assertEqual(field.slider.data.value, 0.35)
+        steps = len(ed.history._past)
+        self._slide(field.slider, [0.1, 0.4, 0.7, 0.9], release=False)
+        live = ed.doc.get(a)["smooth"]
+        self.assertGreater(live, 0.6)
+        self.assertEqual(app.view.items[a].shape.smooth, live)
+        self.assertEqual(field.input.data.value, live)
+        self.assertEqual(len(ed.history._past), steps)         # nothing recorded mid-drag
+        wm = self.w.fw.widget_manager
+        b = field.slider.box
+        wm.handle_mouse_up(b.left + 0.9 * (b.right - b.left), (b.top + b.bottom) / 2, 0)
+        self.frame()
+        self.assertEqual(len(ed.history._past), steps + 1)     # the drag: one step
+        self.assertTrue(ed.undo())
+        self.frame()
+        self.assertEqual(ed.doc.get(a)["smooth"], 0.35)
+        self.assertEqual((field.slider.data.value, field.input.data.value), (0.35, 0.35))
+        self._slide(field.slider, [0.0])                        # a click on the track
+        self.assertEqual(ed.doc.get(a)["smooth"], 0.0)
+        self.assertEqual(len(ed.history._past), steps + 1)
+        field.input.data.value = 0.42                           # typing still commits
+        self.frame()
+        self.assertEqual((ed.doc.get(a)["smooth"], field.slider.data.value), (0.42, 0.42))
+        self.assertEqual(len(ed.history._past), steps + 2)
+        rect = ed.doc.add({"kind": "rect", "center": (0, 0), "width": 10, "height": 10})
+        ed.selection = [rect]
+        self.frame()
+        self.assertFalse(field.visible)
+        self.assertFalse(field.slider.visible)
+
+    def test_base_ratio_slider_stays_inside_the_format(self):
+        """Base ratio is open at 0 and 2: the slider's ends are values the
+        format accepts, so a drag to either end is never refused."""
+        app = self.app
+        ed = app.editor
+        a = ed.doc.add({"kind": "triangle", "center": (100, 50), "radius": 40, "angle": 90})
+        ed.history.commit()
+        ed.selection = [a]
+        self.frame()
+        field = app.panel.fields["base_ratio"]
+        self.assertTrue(field.slider.visible)
+        self.assertFalse(app.panel.fields["smooth"].slider.visible)
+        for ends, want in (([0.5, -0.5], 0.05), ([0.5, 1.5], 1.95)):
+            ed.message = None
+            self._slide(field.slider, ends)
+            self.assertEqual(ed.doc.get(a)["base_ratio"], want)
+            self.assertIsNone(ed.message)
+            self.assertEqual(app.view.items[a].shape.base_ratio, want)
 
     def test_undo_redo_buttons_follow_history(self):
         app = self.app

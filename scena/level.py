@@ -1,8 +1,8 @@
 """``Level``: read a level file made by the level editor. Creates nothing.
 
-A level file places geometry — rects, ellipses, circles, lines, polygons,
-regular polygons, tracks, points and images — with names and groups. Game
-code reads it and decides what each item becomes::
+A level file places geometry — rects, ellipses, concaves, circles, lines,
+polygons, regular polygons, triangles, tracks, points and images — with
+names and groups. Game code reads it and decides what each item becomes::
 
     fase = Level("fase1.json")
     for p in fase.group("plataforma"):
@@ -37,6 +37,7 @@ _KIND_FIELDS = {
     "line": ("p1", "p2"),
     "polygon": ("points",),
     "regular_polygon": ("radius", "n", "angle"),
+    "triangle": ("radius", "angle", "base_ratio"),
     "track": ("points", "closed", "smooth"),
     "point": (),
     "image": ("box", "image", "width", "height", "angle"),
@@ -76,7 +77,8 @@ class LevelItem:
     @property
     def kind(self) -> str:
         """``"rect"``, ``"ellipse"``, ``"concave"``, ``"circle"``, ``"line"``,
-        ``"polygon"``, ``"regular_polygon"``, ``"track"``, ``"point"`` or ``"image"``."""
+        ``"polygon"``, ``"regular_polygon"``, ``"triangle"``, ``"track"``, ``"point"`` or
+        ``"image"``."""
         return self._item["kind"]
 
     @property
@@ -95,8 +97,8 @@ class LevelItem:
             has = ", ".join(_COMMON_FIELDS + _KIND_FIELDS[self.kind])
             hint = {
                 "box": " Only rects, ellipses, concaves, circles and images are regions (a line,"
-                       " polygon, track or point: its points; a regular polygon: its"
-                       " center and radius).",
+                       " polygon, track or point: its points; a regular polygon or a"
+                       " triangle: its center and radius).",
             }.get(field, "")
             raise AttributeError(
                 f"{self._label()} has no {field}. It has: {has}.{hint}"
@@ -151,14 +153,15 @@ class LevelItem:
 
     @property
     def angle(self) -> float:
-        """Angle in degrees, counter-clockwise (rect, ellipse, concave, image, regular_polygon:
-        toward its first vertex) — like ``Graphic.angle``."""
+        """Angle in degrees, counter-clockwise (rect, ellipse, concave, image; regular_polygon:
+        toward its first vertex; triangle: toward its apex) — like ``Graphic.angle``."""
         self._need("angle")
         return self._item["angle"]
 
     @property
     def radius(self) -> float:
-        """Radius in design units (circle; regular_polygon: center to a vertex)."""
+        """Radius in design units (circle; regular_polygon: center to a vertex;
+        triangle: center to the apex)."""
         self._need("radius")
         return self._item["radius"]
 
@@ -195,6 +198,13 @@ class LevelItem:
         return self._item["n"]
 
     @property
+    def base_ratio(self) -> float:
+        """Base / side, above 0 and below 2 (triangle; 1 is equilateral) —
+        ``Triangle(base_ratio=)``."""
+        self._need("base_ratio")
+        return self._item["base_ratio"]
+
+    @property
     def scoop(self) -> str:
         """The named point the curve is centered on (concave) — ``Concave(scoop=)``."""
         self._need("scoop")
@@ -227,7 +237,8 @@ class LevelItem:
         rect → ``Rect``, ellipse → ``Ellipse``, concave → ``Concave`` (its
         scoop and rim), circle → ``Circle``,
         line → ``Line``, polygon → ``Polygon``, regular_polygon →
-        ``RegularPolygon``, track → ``Track`` (its
+        ``RegularPolygon``, triangle → ``Triangle`` (its ``base_ratio``),
+        track → ``Track`` (its
         ``smooth``, 0 when the file has none),
         point → ``Point``, image → ``Sprite`` (that size and angle).
         Other constructor keywords pass through (``layer=``, ``color=``, …);

@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 Pt = Tuple[float, float]
 AREA = ("rect", "ellipse", "concave", "image")
+# Placed by center, radius (to vertex 0) and angle (vertex 0's heading).
+RADIAL = ("regular_polygon", "triangle")
 # A concave item's scoop: its named point, as a local direction from the
 # center (``Concave``'s table, for items that are never flipped).
 SCOOP_DIRS = {
@@ -70,11 +72,34 @@ def regular_vertices(item: Dict[str, Any]) -> List[Pt]:
              cy + r * math.sin(math.radians(a0 + i * 360.0 / n))) for i in range(n)]
 
 
+def triangle_vertices(item: Dict[str, Any]) -> List[Pt]:
+    """A triangle's corners: the apex (vertex 0) ``radius`` from the center
+    toward ``angle``, then the base, counter-clockwise — as ``Triangle``
+    places them. The center is the centroid, so the base is half a radius
+    behind it, ``base_ratio`` times as long as the equal sides."""
+    (cx, cy), r = item["center"], item["radius"]
+    ratio = item.get("base_ratio", 1.0)
+    a = math.radians(item.get("angle", 0.0))
+    ux, uy = math.cos(a), math.sin(a)
+    height = 1.5 * r
+    half = ratio * height / math.sqrt(4.0 - ratio * ratio)   # half the base
+    bx, by = cx - 0.5 * r * ux, cy - 0.5 * r * uy
+    return [(cx + r * ux, cy + r * uy), (bx - half * uy, by + half * ux),
+            (bx + half * uy, by - half * ux)]
+
+
+def radial_vertices(item: Dict[str, Any]) -> List[Pt]:
+    """The corners of a ``RADIAL`` item (regular polygon or triangle)."""
+    if item["kind"] == "triangle":
+        return triangle_vertices(item)
+    return regular_vertices(item)
+
+
 def outline(item: Dict[str, Any]) -> List[Pt]:
     """Points whose bounding box is the item's bounding box."""
     kind = item["kind"]
-    if kind == "regular_polygon":
-        return regular_vertices(item)
+    if kind in RADIAL:
+        return radial_vertices(item)
     if kind in AREA:
         return corners(item)
     if kind == "circle":
@@ -193,9 +218,8 @@ def contains(item: Dict[str, Any], x: float, y: float, tol: float = 0.0) -> bool
         return math.dist((x, y), item["center"]) <= item["radius"] + tol
     if kind == "line":
         return _dist_to_segment((x, y), item["p1"], item["p2"]) <= tol
-    if kind in ("polygon", "regular_polygon"):
-        pts = (regular_vertices(item) if kind == "regular_polygon"
-               else [tuple(p) for p in item["points"]])
+    if kind == "polygon" or kind in RADIAL:
+        pts = radial_vertices(item) if kind in RADIAL else [tuple(p) for p in item["points"]]
         if _in_polygon((x, y), pts):
             return True
         return any(_dist_to_segment((x, y), pts[i], pts[(i + 1) % len(pts)]) <= tol
@@ -276,7 +300,7 @@ def handles(item: Dict[str, Any], rotate_offset: float) -> List[Handle]:
     if kind == "circle":
         (cx, cy), radius = item["center"], item["radius"]
         return [Handle("radius", None, cx + radius, cy)]
-    if kind == "regular_polygon":
+    if kind in RADIAL:
         # Radius on vertex 0; the rotate knob further out on the same spoke.
         (cx, cy), radius = item["center"], item["radius"]
         a = math.radians(item.get("angle", 0.0))
@@ -327,8 +351,8 @@ def resize(item: Dict[str, Any], signs: Tuple[int, int], anchor: Pt, pointer: Pt
 def heading_toward(item: Dict[str, Any], pointer: Pt) -> float:
     """The ``angle`` that turns ``item``'s rotate knob to ``pointer``: an
     area's top (local +y) for rect / ellipse / image, a regular polygon's
-    vertex 0 (its ``angle`` is that direction)."""
-    if item["kind"] == "regular_polygon":
+    or a triangle's vertex 0 (its ``angle`` is that direction)."""
+    if item["kind"] in RADIAL:
         c = item["center"]
         return math.degrees(math.atan2(pointer[1] - c[1], pointer[0] - c[0])) % 360.0
     return angle_toward(item["center"], pointer)
@@ -398,7 +422,7 @@ def scale_item(item: Dict[str, Any], origin: Pt, s: float) -> Dict[str, Any]:
         out["height"] = item["height"] * s
         if kind == "concave":                    # its flats are lengths too (Concave.scale_by)
             out["rim"] = (item["rim"][0] * s, item["rim"][1] * s)
-    elif kind in ("circle", "regular_polygon"):
+    elif kind == "circle" or kind in RADIAL:
         out["radius"] = item["radius"] * s
     return out
 
@@ -417,7 +441,7 @@ def rotate_item(item: Dict[str, Any], origin: Pt, deg: float) -> Dict[str, Any]:
     if kind in ("polygon", "track"):
         return {"points": tuple(turn(p) for p in item["points"])}
     out: Dict[str, Any] = {"center": turn(item["center"])}
-    if kind in AREA or kind == "regular_polygon":
+    if kind in AREA or kind in RADIAL:
         out["angle"] = (item.get("angle", 0.0) + deg) % 360.0
     return out
 
