@@ -70,11 +70,12 @@ left out.
   fit as `box=region` (fill, inscribe, the Triangle's apex), done again
   whenever something the formula reads changes. A plain region still fits
   once, as before: a value copies, a formula links. For `Rect`, `Square`,
-  `Concave`, `Ellipse`, `Circle`, `RegularPolygon` and `Triangle`. The moves
-  refuse like on any linked shape ("its center follows its box= formula");
-  `force=True` or `unlink_all()` lets go of the region, and the shape stays
-  where it is. A Sprite, Svg or Text `box=` formula raises with the fix
-  (link `center=`).
+  `Concave`, `Ellipse`, `Circle`, `RegularPolygon`, `Triangle`, `Sprite`,
+  `Svg` and `SpriteButton`; a sprite grows by its `scale`, so its frames keep
+  one size between them. The moves refuse like on any linked shape ("its
+  center follows its box= formula"); `force=True` or `unlink_all()` lets go
+  of the region, and the object stays where it is. A `Text(box=)` formula
+  raises with the fix (link `center=`): its width sets where lines wrap.
 
 - `Triangle(…, base_ratio=)`: an isosceles triangle. `side` is the length
   of the two equal sides and the base is `base_ratio * side`, with
@@ -163,6 +164,14 @@ left out.
   the field (`Some: …`) and are left alone.
 
 ### Fixed
+
+- A flipped Sprite or Svg placed with `box=` in a turned region drew upside
+  down (and a sprite with `art_angle=` drew turned the wrong way), unless the
+  region's angle was exactly 0. It now turns with the region, flips kept.
+
+- `Svg(box=…)` rasterized at the default size whatever the region, so a big
+  box drew it blurred. It rasterizes at the region's size, like
+  `Svg(height=…)`.
 
 - A whole copy between kinds (`<<`, `absorb`, a whole `@=`) raised Python's
   own error and left the target half-changed: `Circle(...) << box`

@@ -21,11 +21,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import scena  # noqa: E402
 from scena import (  # noqa: E402
-    Box, Circle, Concave, Ellipse, Rect, RegularPolygon, Square, Text, Triangle,
-    canvas, init,
+    Box, Circle, Concave, Ellipse, Rect, RegularPolygon, Sprite, SpriteButton,
+    Square, Svg, Text, Triangle, canvas, init,
 )
 from scena.box import BOX_FORMULA_KINDS  # noqa: E402
 from scena.scenamath import Vec2  # noqa: E402
+from scena.box import region_frame  # noqa: E402
+from scena.entity import Graphic  # noqa: E402
 from scena.shapes import Point, Shape  # noqa: E402
 from scena.state import LinkedAttributeError  # noqa: E402
 
@@ -46,6 +48,28 @@ BUILDERS = {
     "Triangle ratio": lambda region: Triangle(box=region, base_ratio=0.5),
     "Triangle side": lambda region: Triangle(box=region, side=9),
 }
+
+
+_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="20">'
+        '<rect width="10" height="20"/></svg>')
+_PNG = "missing_box_formula.png"     # the placeholder art: 10 × 10 px
+
+# The Sprite family: ``box=`` contains (keeps the art's aspect).
+SPRITE_BUILDERS = {
+    "Sprite": lambda region: Sprite(_PNG, box=region),
+    "Sprite flipped": lambda region: Sprite(_PNG, box=region, flip_x=True),
+    "Sprite art_angle": lambda region: Sprite(_PNG, box=region, art_angle=90),
+    "Sprite height": lambda region: Sprite(_PNG, box=region, height=6),
+    "Sprite angle": lambda region: Sprite(_PNG, box=region, angle=15),
+    "Svg": lambda region: Svg(_SVG, box=region),
+    "SpriteButton": lambda region: SpriteButton(_PNG, box=region),
+}
+
+
+def _frame(g):
+    """What is drawn, through the public measure (pulls linked pose)."""
+    cx, cy, w, h, ang = region_frame(g)
+    return (cx, cy, w, h, ang % 360.0)
 
 
 def _inputs(shape):
@@ -101,7 +125,7 @@ class TestEveryBoxKindTakesAFormula(BoxFormulaCase):
         takes_box = set()
         for name in scena.__all__:
             cls = getattr(scena, name)
-            if not (isinstance(cls, type) and issubclass(cls, Shape)):
+            if not (isinstance(cls, type) and issubclass(cls, Graphic)):
                 continue
             try:
                 kw = {'n': 6} if cls is RegularPolygon else {}
@@ -109,8 +133,10 @@ class TestEveryBoxKindTakesAFormula(BoxFormulaCase):
             except TypeError:
                 continue
             takes_box.add(name)
-        self.assertEqual(takes_box, set(BOX_FORMULA_KINDS))
-        self.assertEqual({k.split()[0] for k in BUILDERS}, set(BOX_FORMULA_KINDS))
+        # Text takes box= but not a formula (its width is layout): it refuses.
+        self.assertEqual(takes_box, set(BOX_FORMULA_KINDS) | {"Text"})
+        built = {k.split()[0] for k in BUILDERS} | {k.split()[0] for k in SPRITE_BUILDERS}
+        self.assertEqual(built, set(BOX_FORMULA_KINDS))
 
 
 class TestFollowsTheRegion(BoxFormulaCase):
@@ -300,6 +326,154 @@ class TestTheRelationGoesAsAWhole(BoxFormulaCase):
         self.assertFree(other)
 
 
+class TestSpriteFollowsTheRegion(BoxFormulaCase):
+    """A box-linked Sprite / Svg draws where the same kind built from the
+    region now draws: center, size (by the pose scale) and heading."""
+
+    def assertSameFrame(self, a, b, msg=""):
+        fa, fb = _frame(a), _frame(b)
+        for x, y in zip(fa, fb):
+            self.assertAlmostEqual(x, y, places=5, msg=f"{msg}: {fa} vs {fb}")
+        self.assertAlmostEqual(float(a.angle) % 360.0, float(b.angle) % 360.0,
+                               places=5, msg=msg)
+
+    def test_every_sprite_kind_matches_a_fresh_fit(self):
+        for label, build in SPRITE_BUILDERS.items():
+            with self.subTest(kind=label):
+                hero = self.own(Rect(center=(100, 100), width=40, height=20, angle=10))
+                region = lambda: hero.box.beside("right", gap=5)  # noqa: E731
+                sprite = self.own(build(region))
+                steps = (
+                    lambda: hero.move_by(30, -12),
+                    lambda: setattr(hero, 'width', 70),
+                    lambda: hero.rotate_by(35),
+                    lambda: setattr(hero, 'height', 3),
+                )
+                self.assertSameFrame(sprite, self.own(build(region())), label)
+                for step in steps:
+                    step()
+                    self.assertSameFrame(sprite, self.own(build(region())), label)
+
+    def test_the_size_is_the_pose_scale(self):
+        """width / height (the size per pixel the hitbox bake keys on) stay
+        as built; the region's growth is the pose scale."""
+        hero = self.own(Rect(center=(0, 0), width=40, height=40))
+        s = self.own(Sprite(_PNG, box=lambda: hero.box))
+        size0 = (s.width, s.height, s._du_per_px())
+        hero.width = hero.height = 120
+        self.assertAlmostEqual(s.scale, 3.0)
+        self.assertEqual((s.width, s.height, s._du_per_px()), size0)
+        self.assertAlmostEqual(s.box.height, 120.0)
+        self.assertTrue(s.contains_point(50, 50))     # the hit area grew too
+
+    def test_a_collapsed_first_region_grows(self):
+        hero = self.own(Rect(center=(0, 0), width=0, height=0))
+        s = self.own(Sprite(_PNG, box=lambda: hero.box))
+        self.assertAlmostEqual(s.box.height, 0.0)
+        hero.width = hero.height = 30
+        self.assertAlmostEqual(s.box.height, 30.0)
+
+    def test_explicit_size_and_angle_stay_the_authors(self):
+        hero = self.own(Rect(center=(0, 0), width=40, height=20, angle=20))
+        h = self.own(Sprite(_PNG, box=lambda: hero.box, height=6))
+        hero.move_by(5, 0)
+        self.assertAlmostEqual(h.center.x, 5.0)
+        h.scale_to(2)                       # not linked: the author's
+        h.rotate_to(45)
+        a = self.own(Sprite(_PNG, box=lambda: hero.box, angle=15))
+        hero.rotate_by(30)
+        self.assertAlmostEqual(float(a.angle), 15.0)
+        a.rotate_to(60)
+
+    def test_one_evaluation_per_change(self):
+        hero = self.own(Rect(center=(0, 0), width=40, height=20, angle=5))
+
+        def region():
+            calls["n"] += 1
+            return hero.box.inset(2)
+
+        for label, build in SPRITE_BUILDERS.items():
+            with self.subTest(kind=label):
+                s = self.own(build(region))
+                hero.move_by(1, 0)
+                n0 = calls["n"]
+                _frame(s)
+                _frame(s)
+                self.assertEqual(calls["n"] - n0, 1, label)
+
+    def test_the_relation_goes_as_a_whole(self):
+        hero = self.own(Rect(center=(0, 0), width=40, height=20))
+        for undo in ("scale", "angle", "center", "force", "source"):
+            with self.subTest(undo=undo):
+                src = Rect(center=(0, 0), width=40, height=20) if undo == "source" else hero
+                s = self.own(Sprite(_PNG, box=lambda: src.box))
+                with self.assertRaisesRegex(LinkedAttributeError, "follows its box= formula"):
+                    s.move_by(1, 0)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
+                    if undo == "force":
+                        s.rotate_by(10, force=True)
+                    elif undo == "source":
+                        src.destroy()
+                    elif undo == "center":
+                        s.center.unlink()
+                    else:
+                        s[undo].unlink()
+                self.assertIsNone(s.__dict__.get('_box_fit'))
+                anchors = s.__dict__.get('_field_anchors') or {}
+                self.assertEqual(
+                    [n for n in [*s._iter_subtree(), *anchors.values()] if n._link is not None], [])
+                s.move_by(1, 0)             # free: verbs work
+
+    def test_destroy_lets_go_of_the_source(self):
+        hero = self.own(Rect(center=(0, 0), width=40, height=20))
+        s = Svg(_SVG, box=lambda: hero.box)
+        node = s.__dict__['_box_fit']
+        s.destroy()
+        self.assertIsNone(node._link)
+
+
+class TestSpriteBoxHeading(BoxFormulaCase):
+    """SF1: a Sprite placed by box= in a turned region draws turned by the
+    region's angle, whatever its flips and art_angle. The region angle was
+    written as the heading, so a flipped sprite (rest heading 180) drew
+    upside down unless the angle was exactly 0. Class: turning the region
+    turns the result (equivariance), including across 0."""
+
+    def test_turning_the_region_turns_the_sprite(self):
+        base = dict(center=(30, -20), width=60, height=24)
+        for flips in ({}, {"flip_x": True}, {"flip_y": True},
+                      {"flip_x": True, "flip_y": True}):
+            for art in (0, 90, -30):
+                s0 = self.own(Sprite(_PNG, box=Box(**base), art_angle=art, **flips))
+                for a in (1e-6, 30.0, -90.0, 180.0):
+                    with self.subTest(flips=flips, art=art, angle=a):
+                        sa = self.own(Sprite(_PNG, box=Box(angle=a, **base),
+                                             art_angle=art, **flips))
+                        ca = math.cos(math.radians(a))
+                        sn = math.sin(math.radians(a))
+                        for name in ("top_center", "right_center"):
+                            x0, y0 = getattr(s0.box, name)
+                            dx, dy = x0 - 30, y0 + 20
+                            want = (30 + dx * ca - dy * sn, -20 + dx * sn + dy * ca)
+                            gx, gy = getattr(sa.box, name)
+                            self.assertAlmostEqual(gx, want[0], places=4)
+                            self.assertAlmostEqual(gy, want[1], places=4)
+
+
+class TestSvgBoxRaster(BoxFormulaCase):
+    """SF2: Svg(box=) rasterized at the 128 default whatever the region, and
+    drew a big box blurred. It rasters like Svg(height=) of the same size."""
+
+    def test_box_rasters_at_the_region_size(self):
+        big = Box(center=(0, 0), width=400, height=400)
+        for region in (big, lambda: big):
+            boxed = self.own(Svg(_SVG, box=region))
+            sized = self.own(Svg(_SVG, center=(0, 0), height=boxed.height))
+            fb, fs = boxed._sheet._frame_at(0), sized._sheet._frame_at(0)
+            self.assertEqual((fb.src_w, fb.src_h), (fs.src_w, fs.src_h))
+
+
 class TestRefusals(BoxFormulaCase):
     def test_a_region_that_is_not_a_frame(self):
         with self.assertRaises(TypeError):
@@ -316,9 +490,9 @@ class TestRefusals(BoxFormulaCase):
 
     def test_kinds_without_formula_name_the_ones_with(self):
         hero = self.own(Rect(center=(0, 0), width=40, height=20))
-        with self.assertRaisesRegex(TypeError, "only by a shape's box="):
+        with self.assertRaisesRegex(TypeError, "only by box= on"):
             Text("hi", box=lambda: hero.box)
-        with self.assertRaisesRegex(TypeError, "only by a shape's box="):
+        with self.assertRaisesRegex(TypeError, "only by box= on"):
             hero.confine(lambda: hero.box)
 
 

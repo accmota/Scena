@@ -211,7 +211,7 @@ free `Polygon`, `Track`, `Point`.
 | `Rect` / `Ellipse` | **fill** the region (pose + size + rotation) | mix raises |
 | `Circle` / `Square` / regular N-gon | **inscribe** (min side; Circle does not take the region angle) | **center only** (`radius=` / `length=` / `side=`) |
 | `Triangle` | **fill** (apex along the region's +x, base = its height; `base_ratio` from the region; inherits the region angle). With `base_ratio=` (or a class default): **contain**, the largest of that ratio, outline centered | **center only** (`radius=` / `side=`; the centroid on the region center) |
-| `Sprite` / `Svg` | uniform **contain** (keep pixel aspect; inherit region angle) | **center only** (`height=` / `width=` / `size=`; no inherited angle) |
+| `Sprite` / `Svg` | uniform **contain** (keep pixel aspect; drawn at the region angle: the heading is the rest heading plus the region angle, so flips and `art_angle` stay as built — SF1; Svg rasters at the region size — SF2) | **center only** (`height=` / `width=` / `size=`; no inherited angle) |
 | `Text` | `center = region.center` (layer `ui` unless `layer=`), `width=region.width` if omitted (a zero-width region: the box follows the string), default `align="center"`; not in the HUD column | mix with `center=` / `top_left=` / `top_center=` / `top_right=` raises |
 
 A whole copy of a Box (`shape << box`, `shape @= (lambda: hero.box)`) is a
@@ -231,10 +231,11 @@ path. Zero-size region: fill/inscribe are invisible; Sprite contain is size
 formulas link: `Rect(box=cell)` fits once; `Rect(box=lambda: hero.box.beside("right"))`
 is **box-linked** — the same fit, redone whenever the formula's sources change
 (`hero`, `canvas` for `game_view`, a `State` cell picking a grid cell). The
-formula returns a `Box` or a frame-like Graphic. Shapes only: `Rect`, `Square`,
-`Concave`, `Ellipse`, `Circle`, `RegularPolygon`, `Triangle`
-(`box.BOX_FORMULA_KINDS`); a Sprite / Svg / Text, and `confine`, refuse a
-formula region with a `TypeError` naming them (link `center=` there).
+formula returns a `Box` or a frame-like Graphic. Kinds: `Rect`, `Square`,
+`Concave`, `Ellipse`, `Circle`, `RegularPolygon`, `Triangle`, `Sprite`, `Svg`,
+`SpriteButton` (`box.BOX_FORMULA_KINDS`). `Text` and `confine` refuse a formula
+region with a `TypeError` naming them: a Text `box=` sets its `width`, which is
+layout (it re-wraps the lines) and deliberately not linkable — link `center=`.
 
 - **Model.** The shape keeps its free model (`CENTER_WH`, `CENTER_RADIUS`, …).
   Every input the fit sets is linked to one fit node (`box._BoxFit`, held in
@@ -243,6 +244,18 @@ formula region with a `TypeError` naming them (link `center=` there).
   (~45 µs over a free shape with `hero.box.beside(…)` in the formula, against
   ~145 µs for a whole `rect @= lambda: box` link). An input the author gave
   (`Circle(box=f, radius=3)`) stays theirs: only `center` follows.
+- **Sprite family** (`box.link_sprite_box_formula`). A sprite's size is one
+  scale for every cell (`play()` / `frame=` move `width` / `height` to the
+  cell; `Sprite(height=lambda: …)` refuses), so the fit drives the pose
+  `scale` relative to the size built in the first region — never `width` /
+  `height`. The size per pixel (`_du_per_px`, the hitbox bake key) stays as
+  built, so a region that grows every frame does not re-bake. Linked: `center`,
+  the heading (rest heading + region angle) and `scale`; with an author size
+  (`height=`) only `center`, with an author `angle=` the heading stays theirs.
+  A collapsed first region builds at the default size with scale 0. Svg
+  rasters once, at the first region's size; growing past it softens, as
+  `scale_by` does. SpriteButton's hover / press sizes are drawn, never written
+  to `scale`, so they do not fight the link.
 - **Construction** evaluates the formula once and fits it: a region that is
   not a frame, a mixed keyword (`width=` on a fill) or a formula with no
   sources raises there. Names are the first region's.
@@ -441,7 +454,7 @@ mouse), same as Shape, snapshotted. Default pivot is the box center.
 Do not re-open without a smoke that the named surface cannot express:
 
 - Per-side / per-axis `inset` (uniform first; authored `Box(center=…, width=…, height=…)` covers unusual bands when `strip` is not enough)
-- A live `graphic.box` that tracks pose or the camera (each read is a fresh snapshot; a shape that must follow takes `box=lambda: …` — [Fit](#fit); a Sprite / Svg / Text `box=` formula waits for a smoke that `center=` links cannot express)
+- A live `graphic.box` that tracks pose or the camera (each read is a fresh snapshot; a shape that must follow takes `box=lambda: …` — [Fit](#fit); a Text `box=` formula waits for a smoke that needs a caption to re-wrap as its region resizes — `center=` links cover a caption that moves)
 - 9-point `align` / `place` — `grid(3, 3)` already covers corner cells
 - Chess-file `.cell("a1")` sugar
 - Thin `pad=` on the `box=` path (air is `box=region.inset(n)`)

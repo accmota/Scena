@@ -2979,6 +2979,17 @@ kind.
 | --- | --- | --- | --- | --- | --- |
 | CK1 | A whole copy into a kind that cannot take the source leaked Python's error through `<<`, `absorb` and a whole `@=`: `Circle << box` AttributeError (`width`), `Ellipse << box` ValueError "Unknown ellipse model: RectModel.CENTER_WH", `Triangle << box` AttributeError (`_n`); the same for most cross-kind pairs (`line << rect`, `rect << circle`, `polygon << rect`, `regular_polygon << triangle`), and the target was left with the source's model | `Circle(center=(0, 0), radius=3) << Rect(center=(100, 100), width=40, height=20).box` | Only Square, Box and Track checked the source's kind; every other `_takein_impl` adopted the source's model first, then read parts the source does not have | `sweep_c7` and `TestCopyAcrossModels` copy within a kind; the Square / Box refusals were tested one pair at a time | Shapes Design C7: a kind takes only what it can be, and an Ellipse fills a Box (as `Ellipse(box=)`); every other pair refuses before any write with a TypeError naming the fix (`_copy_kind_refusal`: `Circle(box=box)`, `rect << ellipse.box`). Guard: `test_copy_kinds`, every kind (every model) × every Box model and one source per kind × every copy door, from the kind registry (which must cover every exported kind) |
 
+### SF — Sprite / Svg `box=` (2026-10-15)
+
+Found adding `box=lambda: …` to the Sprite family: the probe compared a
+box-linked sprite with a fresh `Sprite(box=region)` across flips and turns,
+and an Svg's raster with `Svg(height=)` of the same size.
+
+| ID | Finding | Repro | Cause | Why tests missed it | Fix / guard |
+| --- | --- | --- | --- | --- | --- |
+| SF1 | A flipped Sprite / Svg placed by `box=` in a turned region drew upside down: at region angle `0` it kept its rest heading (drawn `0`), at `1e-6` it drew at `-180` (`box.top_center` below the center), at `30` at `-150`. `art_angle` sprites were off the same way | `Sprite("x.png", box=Box(center=(0, 0), width=40, height=20, angle=1e-6), flip_x=True).box.top_center` → `(0, -10)` | `_init_sprite_body` did `if inherit_angle: rotate_to(inherit_angle)`: the region angle replaced the heading instead of turning it from rest (`180` for `flip_x`), and `0` skipped the write, so the result jumped at 0 | No test placed a flipped (or `art_angle`) sprite with `box=`; the fit tests used plain sprites, whose rest heading is 0 | The heading is the rest heading plus the region angle (the contain fit lies the art along the region's axes). Guard: `test_box_formula.TestSpriteBoxHeading` — turning the region turns the result (named points rotate about the center), every flip × `art_angle` × angles across 0 (40 failures with the old line) |
+| SF2 | `Svg(box=region)` rasterized at the 128-unit default whatever the region, so a big box drew it upscaled and blurred (64 × 128 px drawn at 200 × 400) | `Svg(markup, box=Box(center=(0, 0), width=400, height=400))._sheet._frame_at(0).src_w` → 64; with `height=400` → 200 | The first raster size comes from `width=` / `height=` / `size=` only (`_svg_dest_longer_from_kwargs`); `box=` was resolved later, in the Sprite body | `test_svg` has no `box=` case, and the drawn size (what `box=` tests read) was right — only the raster behind it was small | `box=` alone rasters at the region's longer side (a formula region: its first value). Guard: `test_box_formula.TestSvgBoxRaster` (same raster as `Svg(height=)` of the drawn size) |
+
 ### Open (found, not yet fixed)
 
 | Found in | Issue | Planned |

@@ -1481,34 +1481,20 @@ class Shape(Graphic, PaintState):
         """A part's link was removed (``Container.unlink``): if it carried the
         relation, the shape becomes its free twin."""
         d = self.__dict__
-        fit = d.get('_box_fit')
-        if fit is not None and _link_reads(link, fit):
-            self._drop_box_fit()
-            return
+        if d.get('_box_fit') is not None:
+            from .box import box_fit_unlinked
+            if box_fit_unlinked(self, link):
+                return
         if d.get('_destroyed') or d.get('_ref') is None:
             return                          # its own teardown unlinks its parts
         if _link_reads(link, d['_ref']):
             self._drop_relational()
 
     def _drop_box_fit(self) -> None:
-        """A box-linked shape (``box=<formula>``) lets go of its region: every
-        input that read the fit keeps its current value, and the fit node
-        stops reading the author's formula. Reached the same ways a relation
-        goes (``_relation_unlinked``: ``force=True``, ``unlink()`` /
-        ``unlink_all()``, the shape's destroy) and from the node itself when a
-        source of the region is destroyed (``box._BoxFit.unlink``). The model
-        was free all along, so nothing converts: no hybrid stays."""
-        d = self.__dict__
-        node = d.pop('_box_fit', None)
-        if node is None:
-            return                          # the unlinks below come back here
-        if not d.get('_destroyed'):
-            for part in list(self._iter_subtree()):
-                link = part._link
-                if link is not None and _link_reads(link, node):
-                    part.unlink()           # keeps its current value
-        if node._link is not None:
-            node.unlink()
+        """The relation to a ``box=<formula>`` region goes as a whole
+        (``box.drop_box_fit``; Box Design, "Fit")."""
+        from .box import drop_box_fit
+        drop_box_fit(self)
 
     def _clone_geometry(self, **kwargs) -> 'Shape':
         """Construct a free (unlinked) copy with matching geometry. Subclasses implement."""

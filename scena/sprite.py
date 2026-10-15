@@ -3790,12 +3790,29 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
             )
             if angle is not _OMIT:
                 self._init_heading(angle)
+            pending = self.__dict__.pop('_box_formula_pending', None)
+            if pending is not None:
+                from .box import link_sprite_box_formula
+                link_sprite_box_formula(self, *pending, angle_given=angle is not _OMIT)
         except BaseException:
             try:
                 self.destroy()
             except Exception:
                 pass
             raise
+
+    def _relation_unlinked(self, link) -> None:
+        """A part's link was removed (``Container.unlink``): a box-linked
+        sprite lets go of its region as a whole (``box.box_fit_unlinked``)."""
+        if self.__dict__.get('_box_fit') is not None:
+            from .box import box_fit_unlinked
+            box_fit_unlinked(self, link)
+
+    def _drop_box_fit(self) -> None:
+        """The relation to a ``box=<formula>`` region goes as a whole
+        (``box.drop_box_fit``; Box Design, "Fit")."""
+        from .box import drop_box_fit
+        drop_box_fit(self)
 
     def _init_sprite_body(
         self,
@@ -3887,8 +3904,15 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         fr0 = sheet._frame_at(frame_idx)
         px_w, px_h = fr0.src_w, fr0.src_h
         inherit_angle = 0.0
+        box_formula = None
         if box is not None:
-            from .box import sprite_size_from_box
+            from .box import is_box_formula, sprite_size_from_box
+            asked = (width, height, size)
+            if is_box_formula(box):
+                # box=<formula>: build in the first region like a plain box=,
+                # then link center / heading / scale (``_link_box_formula``).
+                box_formula = box
+                box = box_formula()
             width, height, size, center, inherit_angle = sprite_size_from_box(
                 box, px_w, px_h, width=width, height=height, size=size,
             )
@@ -3899,7 +3923,12 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
             and width == 0.0
             and height == 0.0
         ):
-            du_w, du_h = 0.0, 0.0
+            if box_formula is not None:
+                # A collapsed first region: build at the default size and
+                # let the linked scale (0 now) grow it with the region.
+                du_w, du_h = _fit_size(px_w, px_h, width=None, height=None, size=None)
+            else:
+                du_w, du_h = 0.0, 0.0
         elif (
             pixel_size is not None
             and width is None and height is None and size is None
@@ -3918,8 +3947,18 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
                 _init_composite(self.center, center)
             self.width = du_w
             self.height = du_h
+        rest = float(self._rotation)
         if inherit_angle:
-            self.rotate_to(inherit_angle)
+            # The art lies along the region (contain fits it to the region's
+            # axes): the drawn angle is the region's, so the heading turns
+            # from rest. Writing the region angle as the heading drew a
+            # flipped sprite (rest 180) upside down unless the angle was
+            # exactly 0 (SF1 in Testing Design).
+            self.rotate_to(rest + inherit_angle)
+        if box_formula is not None:
+            w_ask, h_ask, s_ask = asked
+            self.__dict__['_box_formula_pending'] = (
+                box_formula, px_w, px_h, w_ask, h_ask, s_ask, du_w, du_h, rest)
 
         self._frame = int(frame_idx)
         self._construct_frame = int(frame_idx)
@@ -6524,6 +6563,20 @@ class Svg(Sprite):
             height=height if height is not _OMIT else defaults.get("height"),
             size=size if size is not _OMIT else defaults.get("size"),
         )
+        sized = any(
+            (v if v is not _OMIT else defaults.get(k)) is not None
+            for k, v in (("width", width), ("height", height), ("size", size))
+        )
+        if not sized and box is not _OMIT and box is not None:
+            # box= alone: the drawing fills the region, so raster at its size
+            # (it rastered at the 128 default and drew blurred in a big box:
+            # SF2 in Testing Design). A formula region: its first value.
+            from .box import is_box_formula, region_frame
+            region = box() if is_box_formula(box) else box
+            _cx, _cy, rw, rh, _a = region_frame(region)
+            longer = max(abs(float(rw)), abs(float(rh)))
+            if longer > 0.0:
+                dest_longer = longer
 
         img, ok, stored = _svg_resolve_source(text, dest_longer=dest_longer)
         sheet = _sheet_from_image(

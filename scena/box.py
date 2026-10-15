@@ -158,9 +158,9 @@ def region_frame(obj) -> Tuple[float, float, float, float, float]:
         return obj._oriented_frame()
     if is_box_formula(obj):
         raise TypeError(
-            "a formula (lambda) region is taken only by a shape's box= "
-            f"({', '.join(BOX_FORMULA_KINDS)}). Pass the Box or Graphic itself "
-            "here; on a Sprite, Svg or Text link center= instead"
+            "a formula (lambda) region is taken only by box= on "
+            f"{', '.join(BOX_FORMULA_KINDS)}. Pass the Box or Graphic itself "
+            "here; on a Text link center= instead (its width is layout)"
         )
     # A linked angle / scale is pulled before the frame is measured (``.box``,
     # ``confine``, ``box=`` placement: review 2026-10-09 W-G3 / X-writers-5).
@@ -313,6 +313,7 @@ def apply_box_to_shape_kwargs(
 
 BOX_FORMULA_KINDS = (
     "Rect", "Square", "Concave", "Ellipse", "Circle", "RegularPolygon", "Triangle",
+    "Sprite", "Svg", "SpriteButton",
 )
 
 
@@ -394,6 +395,45 @@ class _BoxFitRead:
         return _NodeReadLink(node, self)
 
 
+def _reads_node(link, node) -> bool:
+    for src in getattr(link, 'sources', None) or ():
+        if src is node or (isinstance(src, Container) and src._ownership_root() is node):
+            return True
+    return False
+
+
+def box_fit_unlinked(host, link) -> bool:
+    """``_relation_unlinked`` for a box-linked Graphic: an input that read the
+    fit node lost its link, so the whole relation goes. True when it did."""
+    fit = host.__dict__.get('_box_fit')
+    if fit is None or not _reads_node(link, fit):
+        return False
+    host._drop_box_fit()
+    return True
+
+
+def drop_box_fit(host) -> None:
+    """A box-linked Graphic (``box=<formula>``) lets go of its region: every
+    input that read the fit keeps its current value, and the fit node stops
+    reading the author's formula. Reached the same ways a relation goes
+    (``_relation_unlinked``: ``force=True``, ``unlink()`` / ``unlink_all()``,
+    the host's destroy) and from the node itself when a source of the region
+    is destroyed (``_BoxFit.unlink``). The model was free all along, so
+    nothing converts: no hybrid stays."""
+    d = host.__dict__
+    node = d.pop('_box_fit', None)
+    if node is None:
+        return                          # the unlinks below come back here
+    if not d.get('_destroyed'):
+        anchors = d.get('_field_anchors') or {}
+        for part in [*host._iter_subtree(), *anchors.values()]:
+            link = part._link
+            if link is not None and _reads_node(link, node):
+                part.unlink()           # keeps its current value
+    if node._link is not None:
+        node.unlink()
+
+
 def link_box_formula(cls_name: str, kwargs: Dict[str, Any], fit) -> Optional[Tuple[int, int]]:
     """``box=<formula>``: the box= fit, done again whenever the formula's
     sources change. Mutates ``kwargs`` like ``apply_box_to_shape_kwargs``.
@@ -430,6 +470,47 @@ def link_box_formula(cls_name: str, kwargs: Dict[str, Any], fit) -> Optional[Tup
     for i, k in enumerate(keys):
         kwargs[k] = _BoxFitRead(node, i)
     return names
+
+
+def link_sprite_box_formula(
+    sprite, fn, px_w, px_h, width, height, size, base_w, base_h, rest,
+    *, angle_given: bool,
+) -> None:
+    """``Sprite(box=<formula>)`` / ``Svg``: the contain fit, done again when the
+    formula's sources change. The sprite was built in the first region.
+
+    A sprite's size is one scale for every cell (``play`` / ``frame=`` move
+    ``width`` / ``height`` to the cell), so the fit drives the pose ``scale``
+    relative to the size built — never ``width`` / ``height``, and the hitbox
+    bake (keyed on the size per pixel) is not redone as the region grows.
+    The heading is the rest heading plus the region angle (the art lies along
+    the region). An author size (``height=``) keeps only the center linked;
+    an author ``angle=`` keeps the heading theirs.
+    """
+    explicit = width is not None or height is not None or size is not None
+    link_angle = not explicit and not angle_given
+    link_scale = not explicit
+
+    def body():
+        w, h, _s, center, ang = sprite_size_from_box(
+            fn(), px_w, px_h, width=width, height=height, size=size)
+        out = [center]
+        if link_angle:
+            out.append(rest + ang)
+        if link_scale:
+            out.append(h / base_h if base_h > 0.0 else (w / base_w if base_w > 0.0 else 0.0))
+        return tuple(out)
+
+    node = _BoxFit(None, attr_name="box")
+    node.__dict__['_name'] = f"{type(sprite).__name__}.box"
+    node._assign_formula(_BoxFitBody(fn, body))
+    sprite.center._assign_formula(_BoxFitRead(node, 0))
+    i = 1
+    if link_angle:
+        sprite._link_field('angle', _BoxFitRead(node, i))
+        i += 1
+    if link_scale:
+        sprite._link_field('scale', _BoxFitRead(node, i))
 
 
 def sprite_size_from_box(
