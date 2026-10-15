@@ -9804,6 +9804,15 @@ def _reject_bad_base_ratio(value) -> None:
 _TRIANGLE_K_TOP = 2.0 - 1e-9
 
 
+def _triangle_fill_ratio(w: float, h: float) -> float:
+    """``base_ratio`` of the isosceles triangle that fills a ``w`` × ``h`` box
+    with its apex along +x: height ``w``, base ``h``, legs ``√(w² + (h/2)²)``.
+    A box with no area gives 1 (the triangle is invisible anyway)."""
+    if w <= 0.0 or h <= 0.0:
+        return 1.0
+    return min(h / math.hypot(w, 0.5 * h), _TRIANGLE_K_TOP)
+
+
 def _triangle_contain(k: Any, center: Any, w: float, h: float,
                       angle: float) -> Tuple[float, Tuple[float, float]]:
     """``(radius, centroid)`` of the largest triangle of ratio ``k`` inside a
@@ -9858,8 +9867,10 @@ class Triangle(_RadialPolygon):
         color: Solid color (fill on area shapes, stroke on lines).
         line_width: Outline thickness in design units (default 1.5).
         box: Fit into a Box (or a frame-like shape) instead of giving position and size
-            — its own form. The largest triangle of its ``base_ratio`` that fits,
-            centered in the box, apex along the box's width.
+            — its own form. The apex points along the box's width. Without
+            ``base_ratio`` the triangle fills the box (its base is the box's
+            height) and takes its ``base_ratio`` from it; with ``base_ratio``
+            it is the largest of that ratio that fits, centered.
         radius: Center-to-apex distance.
         angle: Heading of the apex in degrees (counter-clockwise). Setting it keeps
             the point the shape was placed by; ``rotate_to`` turns it about its center.
@@ -9912,23 +9923,30 @@ class Triangle(_RadialPolygon):
                 f"free corners write Polygon(points=[(x1, y1), (x2, y2), (x3, y3)])."
             )
         defaults = getattr(type(self), '_shape_defaults', None) or {}
+        # A ratio the author chose (here or as a class default) is kept by box=.
+        ratio_given = 'base_ratio' in kwargs or 'base_ratio' in defaults
         if 'base_ratio' not in kwargs:
             kwargs['base_ratio'] = defaults.get('base_ratio', 1.0)
         k = kwargs['base_ratio']
         _reject_bad_base_ratio(k)
         if 'box' in kwargs and 'radius' not in kwargs and 'side' not in kwargs:
-            # Contain, like a Sprite: the largest triangle of this base_ratio
-            # inside the box, its outline centered, the apex along the box's
-            # +x. Centering the centroid instead (a regular polygon's inscribe)
-            # left the apex on one side and a gap on the other.
+            # The apex points along the box's +x. No ratio given: fill, like
+            # an Ellipse (the base is the box's height, the apex on the far
+            # side; base_ratio comes from the box). A ratio given: contain,
+            # like a Sprite (the largest of that ratio, outline centered).
+            # Centering the centroid (a regular polygon's inscribe) left the
+            # apex on one side and a gap on the other.
             from .box import apply_box_to_shape_kwargs, region_frame
             _cx, _cy, bw, bh, _a = region_frame(kwargs['box'])
             apply_box_to_shape_kwargs(
                 type(self).__name__, kwargs, family="inscribe",
                 size_keys=("radius", "side"), heading=True,
             )
+            bw, bh = abs(bw), abs(bh)
+            if not ratio_given:
+                k = kwargs['base_ratio'] = _triangle_fill_ratio(bw, bh)
             kwargs['radius'], kwargs['center'] = _triangle_contain(
-                k, kwargs['center'], abs(bw), abs(bh), float(kwargs['angle']))
+                k, kwargs['center'], bw, bh, float(kwargs['angle']))
         self._init_radial(3, kwargs)
 
     def _init_shape_inputs(self, kwargs: Dict[str, Any]) -> None:

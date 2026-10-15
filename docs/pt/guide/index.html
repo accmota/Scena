@@ -2742,7 +2742,7 @@ t.rotate_by(30 * dt)</pre>
             <tr><td><code>side</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">60</span></td><td>Ou o tamanho pelos dois lados iguais, no lugar de <code>radius=</code>.</td></tr>
             <tr><td><code>vertex</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">(0, 0)</span></td><td>Com <code>side=</code>: põe o triângulo pelo ápice em vez do centro.</td></tr>
             <tr><td><code>base_ratio</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">1</span></td><td>A base dividida pelo <code>side</code>, entre 0 e 2 (fora disso, ValueError). 1 é equilátero; menor fica mais pontudo, maior mais aberto. Mudar depois mantém o que posicionou o triângulo: com <code>radius</code>, o centro e o ápice; com <code>side</code>, os lados iguais. Liga com <code>@=</code> e anima com <code>tween</code>.</td></tr>
-            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box</span><span class="ex">cell</span></td><td>Cabe: o maior triângulo com o <code>base_ratio</code> dado, centrado na caixa e com o ângulo dela (o ápice aponta ao longo da largura). Com <code>radius=</code> / <code>side=</code>: só centra. <a href="#colocar-fit">box=</a>.</td></tr>
+            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box</span><span class="ex">cell</span></td><td>Preenche a caixa, com o ângulo dela: o ápice no meio do lado direito, a base é a altura da caixa (o <code>base_ratio</code> sai da caixa). Com <code>base_ratio=</code>: o maior triângulo com essa proporção que cabe, centrado. Com <code>radius=</code> / <code>side=</code>: só centra. <a href="#colocar-fit">box=</a>.</td></tr>
             <tr><td><code>angle</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Para onde o ápice aponta: 0 → direita, 90 → em pé. <code>face=True</code> voa de ápice para a frente.</td></tr>
               </tbody>
         </table>
@@ -6621,7 +6621,7 @@ for cell in squares:
           <tbody>
             <tr><td><code>Rect</code> / <code>Ellipse</code></td><td>Preenche (pose + tamanho + ângulo)</td><td>Misturar levanta erro</td></tr>
             <tr><td><code>Circle</code> / <code>Square</code> / N-gon regular</td><td>Inscreve (lado menor). Circle não herda o ângulo</td><td>Só centra (<code>radius=</code> / <code>length=</code> / <code>side=</code>)</td></tr>
-            <tr><td><code>Triangle</code></td><td>Cabe (o maior com o seu <code>base_ratio</code>, centrado; herda o ângulo, o ápice ao longo da largura)</td><td>Só centra (<code>radius=</code> / <code>side=</code>)</td></tr>
+            <tr><td><code>Triangle</code></td><td>Preenche (o ápice ao longo da largura; herda o ângulo). Com <code>base_ratio=</code>: cabe, centrado, com essa proporção</td><td>Só centra (<code>radius=</code> / <code>side=</code>)</td></tr>
             <tr><td><code>Sprite</code> / <code>Svg</code></td><td>Cabe (aspecto do PNG; herda ângulo)</td><td>Só centra (<code>height=</code> / <code>width=</code> / <code>size=</code>)</td></tr>
             <tr><td><code>Text</code></td><td><code>center=</code> o centro da região (camada <code>ui</code>); <code>align="center"</code>; <code>width</code> da região se omitido; fora da coluna</td><td>Não misture com <code>center=</code> / <code>top_left=</code> / <code>top_center=</code> / <code>top_right=</code></td></tr>
           </tbody>

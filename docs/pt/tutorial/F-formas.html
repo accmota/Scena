@@ -608,6 +608,7 @@ set_defaults("coral", line_width=3, dash="dot")`
           <thead><tr><th>Forma</th><th>Na região</th></tr></thead>
           <tbody>
             <tr><td><code>Rect</code>, <code>Ellipse</code></td><td><strong>Preenchem</strong> a região inteira.</td></tr>
+            <tr><td><code>Triangle</code></td><td>Também <strong>preenche</strong>: o ápice no meio do lado direito, a base no lado esquerdo. Com <code>base_ratio=</code>, é o maior com essa proporção que cabe, no meio.</td></tr>
             <tr><td><code>Circle</code>, <code>Square</code>, polígonos regulares</td><td>Ficam <strong>inscritos</strong>: do tamanho do lado menor, no meio.</td></tr>
             <tr><td>com um tamanho dado (<code>radius=30</code>)</td><td>A forma só fica <strong>no centro</strong> da região.</td></tr>
             <tr><td><code>.inset(20)</code></td><td>Encolhe a região 20 de cada lado antes (recuo): uma folga.</td></tr>
@@ -652,7 +653,7 @@ run()
           `,
           try: [
             {
-              note: "Outra grade: 5 colunas. As casas ficam mais estreitas; o retângulo e a elipse acompanham, e as formas inscritas encolhem com o lado menor. No lugar da linha da grade.",
+              note: "Outra grade: 5 colunas. As casas ficam mais estreitas; o retângulo, a elipse e o triângulo acompanham, e as formas inscritas encolhem com o lado menor. No lugar da linha da grade.",
               replaces: ['casas = zona.grid('],
               code: `casas = zona.grid(5, 2, gap=(20, 60))`
             }

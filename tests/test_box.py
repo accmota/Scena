@@ -732,11 +732,19 @@ class TestBoxFitContract(BoxTestCase):
         p = self.track(RegularPolygon(box=cell, n=6))
         self.assertAlmostEqual(float(p.radius), 20.0)
 
-    def test_triangle_contains(self):
-        # The largest triangle inside, outline centered: height 40 limits the
-        # base (side 40 / sqrt(3) * sqrt(3)), the centroid sits r/4 behind.
+    def test_triangle_fills(self):
+        # box= alone: base = the box's height, apex at the middle of the far side.
         cell = Box(center=(200, 150), width=80, height=40)
         t = self.track(Triangle(box=cell))
+        self.assertAlmostEqual(float(t.base_ratio), 40.0 / math.hypot(80.0, 20.0))
+        self.assertAlmostEqual(float(t.points[0].x), 240.0)
+        self.assertAlmostEqual(float(t.points[1].x), 160.0)
+
+    def test_triangle_with_a_ratio_contains(self):
+        # The largest of that ratio inside, outline centered: height 40 limits
+        # the equilateral; the centroid sits r/4 behind the center.
+        cell = Box(center=(200, 150), width=80, height=40)
+        t = self.track(Triangle(box=cell, base_ratio=1))
         r = 40.0 / math.sqrt(3.0)
         self.assertAlmostEqual(float(t.radius), r)
         self.assertAlmostEqual(float(t.center.x), 200.0 - r / 4)

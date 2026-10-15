@@ -6,7 +6,7 @@ Covers:
   - base_ratio=1 is RegularPolygon(n=3), in every model
   - changing base_ratio keeps each model's inputs in place
   - validation (0 < base_ratio < 2), clamped links, n= / free corners refused
-  - box= contains: the largest triangle of the base_ratio, centered in the box
+  - box= alone fills the box; with base_ratio it contains (the largest, centered)
   - flips, scale, clone, takein keep base_ratio
   - every outline consumer agrees with points[] (the bug class "a consumer
     still uses the regular n-gon formula"), and the bounds hold every vertex
@@ -233,12 +233,41 @@ def box_extent(t, box_center, angle):
 
 
 class TestBox(unittest.TestCase):
-    """box= contains, like a Sprite: the largest triangle of the given
-    base_ratio inside the box, its outline centered, the apex along the box's
-    +x. Centering the centroid (a regular polygon's inscribe) left the apex
-    on one side of the box and a gap on the other."""
+    """box= with base_ratio contains, like a Sprite: the largest triangle of
+    that ratio, its outline centered, the apex along the box's +x. box=
+    alone fills, like an Ellipse: base = the box's height, apex on the far
+    side, base_ratio from the box. Centering the centroid (a regular
+    polygon's inscribe) left the apex on one side and a gap on the other;
+    contain alone left a gap on one axis."""
 
     BOXES = ((80, 60, 0.0), (150, 190, 0.0), (230, 110, 15.0), (60, 200, 90.0), (90, 90, -40.0))
+
+    def test_alone_fills_the_box(self):
+        for w, h, ang in self.BOXES:
+            with self.subTest(w=w, h=h, angle=ang):
+                t = Triangle(box=Box(center=(100, 50), width=w, height=h, angle=ang))
+                self.assertAlmostEqual(float(t.angle), ang)
+                x0, x1, y0, y1 = box_extent(t, (100, 50), ang)
+                for got, want in ((x0, -w / 2), (x1, w / 2), (y0, -h / 2), (y1, h / 2)):
+                    self.assertAlmostEqual(got, want, places=9)
+                self.assertAlmostEqual(float(t.base_ratio), h / math.hypot(w, h / 2))
+                # the apex is the middle of the far side
+                a = math.radians(ang)
+                self.assertTrue(close(verts(t)[0], (100 + w / 2 * math.cos(a), 50 + w / 2 * math.sin(a))))
+
+    def test_a_class_default_ratio_is_kept(self):
+        class Nave(Triangle, base_ratio=0.6):
+            pass
+        t = Nave(box=Box(center=(0, 0), width=150, height=190))
+        self.assertAlmostEqual(float(t.base_ratio), 0.6)
+        x0, x1, y0, y1 = box_extent(t, (0, 0), 0.0)
+        self.assertAlmostEqual(x0 + x1, 0.0, places=9)
+        self.assertAlmostEqual(x1, 75.0)
+
+    def test_a_box_with_no_width_stays_valid(self):
+        for w in (0.0, 1e-12):
+            t = Triangle(box=Box(center=(0, 0), width=w, height=50))
+            self.assertLess(float(t.base_ratio), 2.0)
 
     def test_fits_inside_centered_and_keeps_the_ratio(self):
         for w, h, ang in self.BOXES:

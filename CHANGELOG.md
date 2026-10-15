@@ -30,13 +30,14 @@ left out.
   `EquilateralTriangle(n=3)` was accepted. `Triangle` is no longer an
   `isinstance` of `RegularPolygon` (an isosceles triangle is not regular);
   `RegularPolygon(n=3)` is still the regular triangle.
-- `Triangle(box=…)` is bigger and centered: the largest triangle that fits,
-  its outline centered in the box. `EquilateralTriangle(box=…)` put its
-  center (the centroid) on the box's center, inside the box's inscribed
-  circle, so the apex touched one side and a gap opened on the other.
-  Before, in an 80 × 40 box: radius 20, center on the box's center. After:
-  radius 23.1, the center 5.8 behind it. With `radius=` or `side=` nothing
-  changes (the box only centers it).
+- `Triangle(box=…)` fills the box: the apex at the middle of the far side,
+  the base along the near side, `base_ratio` set by the box.
+  `EquilateralTriangle(box=…)` put its center (the centroid) on the box's
+  center, inside the box's inscribed circle, so the apex touched one side
+  and a gap opened on the other. To keep an equilateral triangle, write
+  `Triangle(box=…, base_ratio=1)`: the largest one that fits, centered
+  (in an 80 × 40 box: radius 23.1, not 20). With `radius=` or `side=`
+  nothing changes (the box only centers it).
 - `base_ratio` is now a Triangle field: on any other kind,
   `x.base_ratio = …` raises with a hint (it was a plain attribute nothing
   read), like `circle.width = …`.
@@ -51,9 +52,10 @@ left out.
   `@=`, `tween`), and changing it keeps what placed the triangle: with
   `radius`, the center and the apex; with `side`, the equal sides; with
   `vertex`, the apex and the sides. `radius` is the distance from the center
-  (the centroid) to the apex. `box=` gives the largest triangle of its
-  `base_ratio` that fits in the box, centered in it, with the apex along
-  the box's width. A class default works like `n`:
+  (the centroid) to the apex. `box=` fills the box, with the apex at the
+  middle of its far side and the base along the near side (the box sets
+  `base_ratio`); with `base_ratio=` too, it is the largest triangle of that
+  ratio that fits, centered. A class default works like `n`:
   `class Nave(Triangle, base_ratio=0.6)`.
 
 - `Concave`: a box with a concave scoop — a quarter-pipe, a pinball corner
