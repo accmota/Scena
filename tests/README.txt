@@ -408,6 +408,22 @@ tests"; the folder: tests/games/README.txt.
   each game to the exports it claims. SCENA_GAME_CHECKS=raise raises at the
   failing check, for a debugger.
 
+Laws and equations
+------------------
+
+tests/laws/ records a discrete trace of a run from outside the engine
+(sys.monitoring tool 5; nothing in scena/ changes) and checks it: E0 (the run
+with the recorder is the run without it), then the reference model and the
+equations stage by stage. Strategy, triage (BUG / LATENT / ACADEMIC /
+DECISION) and the harness map: design/Testing Design.md, "Laws and equations".
+
+  python tests/run_tiers.py focused test_laws_quick          # the recorder, fixtures (quick)
+  python tests/run_tiers.py focused test_laws_neutrality     # E0 over programs, games, examples (SLOW)
+  python tests/script_harness.py examples/naves.py 120 --laws /tmp/t.jsonl --fingerprint
+
+  Attach to a program or game run: from laws.attach import attach;
+  run_game(game, scenario, before_start=attach); the trace is run.laws.
+
 Pitfalls, the bug loop (what to run after every fix), and the catalogue of
 findings (H / R / S / A / D / W / O series) live in design/Testing Design.md.
 Read its "Harness pitfalls" before trusting a leak failure, and follow its

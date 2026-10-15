@@ -215,6 +215,10 @@ def reset_system_globals() -> None:
     clock._time = 0.0
     clock._real_dt = 0.0
     clock._real_time = 0.0
+    # Presentation time (fades, post-fx): a fresh process starts it at 0 too.
+    # Left running, a second run's fade read ``(t - t0) / d`` on another base
+    # and differed in the last bits (found by the laws E0 equation, LW1).
+    clock._ui_time = 0.0
     clock._frame = 0
     canvas.reset_view()
     canvas.effects.clear()

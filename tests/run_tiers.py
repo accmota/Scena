@@ -91,6 +91,12 @@ SLOW = frozenset({
     "test_game_armada_deep", "test_game_caverna_deep", "test_game_oficina_deep",
     "test_game_canteiro_deep",
     "test_game_coverage",        # every game under the coverage profile hook
+    # Laws campaign (tests/laws/): quick runs test_laws_quick (the recorder, its
+    # fixtures, the models on synthetic traces); the sweeps over the three
+    # families are gate / deep.
+    "test_laws_neutrality",      # ~110 s CPU dev: E0 over programs, games, examples
+    "test_laws_families",        # the model over programs, games, examples (deep: tutorial steps)
+    "test_laws_equations",       # E3 / E4 / E8: twins, every program, every example
 })
 # Modules sharded by TestCase class (big classes in chunks) in gate / deep.
 SPLIT = frozenset({
@@ -100,6 +106,9 @@ SPLIT = frozenset({
     "test_tutorial_steps",      # one class per tutorial page: one job per page
     "test_game_armada_deep", "test_game_caverna_deep", "test_game_oficina_deep",
     "test_game_canteiro_deep",
+    "test_laws_neutrality",     # one class per family
+    "test_laws_families",       # one class per family
+    "test_laws_equations",      # one class per equation
 })
 CHUNK = 40  # max tests per shard of a SPLIT module
 

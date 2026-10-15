@@ -1,0 +1,182 @@
+"""Laws campaign, quick tier: the recorder itself (S0).
+
+The laws recorder (``tests/laws/trace.py``) watches a run from outside the
+engine through ``sys.monitoring``. Before any law can trust its trace:
+
+* it leaves nothing behind (no tool id, no event set) — so a laws test
+  cannot slow the modules that run after it in the same process;
+* it sees every door an author function comes through (update, timers,
+  contact handlers, on_destroy) and every frame;
+* it is neutral (E0): the run with it is the run without it.
+
+The canaries plant a recorder bug and require these checks to fail.
+Strategy: design/Testing Design.md, "Laws and equations".
+
+    python -m unittest tests.test_laws_quick -v
+"""
+from __future__ import annotations
+
+import os
+import sys
+import unittest
+from unittest import mock
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from hypothesis_support import require_canaries  # noqa: E402
+from laws import neutrality, trace  # noqa: E402
+from laws.attach import attach  # noqa: E402
+from program_support import ProgramRun  # noqa: E402
+
+S0 = "tests/laws/fixtures/s0_basic"
+PROBES = {"hits": lambda v: v.st.hits, "gone": lambda v: v.st.gone,
+          "ticks": lambda v: v.st.ticks}
+
+
+def _s0_run(frames: int = 90, **kw):
+    run = ProgramRun(S0, kw.pop("params", {}), probes=PROBES, **kw)
+    attach(run)
+    run.start()
+    try:
+        run.step(frames)
+        state = (run.ns["st"].hits, run.ns["st"].gone, run.ns["st"].ticks)
+    finally:
+        run.close()
+    return run, state
+
+
+def _s0_neutrality(frames: int = 90):
+    """E0 on the fixture: samples, world, leftovers, recorder self-check."""
+    import program_oracles as po
+    from program_support import Scenario
+    ns = {"SCENARIOS": {"s0": Scenario(steps=[("wait", frames)])}, "PROBES": PROBES}
+    return neutrality.program(S0, ns, "s0")
+
+
+class TestRecorderLeavesNothing(unittest.TestCase):
+
+    def test_uninstall_frees_the_tool_and_every_event(self):
+        rec = trace.install()
+        tool = trace._tool
+        codes = list(trace._hooks)
+        self.assertEqual(sys.monitoring.get_tool(tool), trace.TOOL_NAME)
+        trace.uninstall()
+        self.assertEqual(trace.assert_clean(), [])
+        self.assertIsNone(sys.monitoring.get_tool(tool))
+        self.assertTrue(codes)
+        self.assertIs(rec.errors, rec.errors)
+
+    def test_a_second_install_is_refused(self):
+        with trace.recording():
+            with self.assertRaises(RuntimeError):
+                trace.install()
+        self.assertEqual(trace.assert_clean(), [])
+
+    def test_the_engine_watchdog_id_and_the_sentinel_id_are_never_taken(self):
+        self.assertNotIn(3, trace.TOOL_IDS)
+        self.assertNotIn(4, trace.TOOL_IDS)
+
+
+class TestRecorderSeesEveryDoor(unittest.TestCase):
+    """The fixture: a ball breaks one brick, timers tick, the ball naps."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.run_, cls.state = _s0_run()
+        cls.rec = cls.run_.laws
+        cls.ev = cls.rec.events
+
+    def test_no_recorder_error_and_every_frame_seen(self):
+        self.assertEqual(self.rec.errors, [])
+        self.assertEqual(self.rec.counts["frames"], 90)
+        self.assertEqual(sum(1 for e in self.ev if e[0] == "F"), 90)
+        self.assertEqual(sum(1 for e in self.ev if e[0] == "f"), 90)
+
+    def test_the_game_did_what_it_does(self):
+        self.assertEqual(self.state[:2], (1, 1))     # one hit, one brick gone
+        self.assertGreater(self.state[2], 3)
+
+    def test_doors(self):
+        doors = {e[1] for e in self.ev if e[0] == "X"}
+        self.assertLessEqual({"update", "every", "after", "enter", "on_destroy"}, doors)
+
+    def test_a_contact_handler_names_its_pair(self):
+        hits = [e for e in self.ev if e[0] == "X" and e[1] == "enter"]
+        self.assertEqual(len(hits), 1)
+        _x, _door, phase, fn, args, _resume, method = hits[0]
+        self.assertFalse(method)                     # a module rule, not a method
+        self.assertEqual(phase, "collision")
+        self.assertTrue(fn.endswith(":hit"))
+        self.assertTrue(args[0].startswith("Circle@s0_basic.py:"))
+        self.assertTrue(args[1].startswith("Brick@s0_basic.py:"))
+
+    def test_creation_destroy_park_resume(self):
+        bricks = [e for e in self.ev if e[0] == "N" and e[2] == "Brick"]
+        self.assertEqual(len(bricks), 3)
+        hit = next(e for e in self.ev if e[0] == "X" and e[1] == "enter")[4][1]
+        kinds = [e[0] for e in self.ev if e[0] in "QDd" and e[1] == hit]
+        self.assertEqual(kinds, ["Q", "D", "d"])
+        ball = next(e[1] for e in self.ev if e[0] == "N" and e[2] == "Circle")
+        self.assertEqual([e[0] for e in self.ev if e[0] in "KR" and e[1] == ball], ["K", "R"])
+
+    def test_every_phase_opens_and_closes_in_frame_order(self):
+        order = []
+        for e in self.ev:
+            if e[0] == "F":
+                order = []
+            elif e[0] == "P":
+                order.append(e[1])
+            elif e[0] == "f":
+                break
+        self.assertEqual(order, ["update", "tick", "collision", "leave", "hover", "flush",
+                                 "predraw", "expire"])
+
+
+class TestNeutrality(unittest.TestCase):
+    """E0: the run with the recorder is the run without it."""
+
+    def test_fixture(self):
+        self.assertEqual(_s0_neutrality(), [])
+
+    def test_program(self):
+        from program_support import load_spec
+        ns = load_spec("bouncing_balls", "a")
+        self.assertEqual(neutrality.program("bouncing_balls", ns, next(iter(ns["SCENARIOS"]))), [])
+
+
+class TestCanaries(unittest.TestCase):
+    """Prove the S0 checks can fail: plant a recorder bug, watch them bite."""
+
+    def setUp(self):
+        require_canaries(self)
+
+    def test_a_disabled_frame_hook_is_caught(self):
+        real = trace._on_start
+
+        def planted(code, offset):
+            if code is trace._frame_code:
+                return sys.monitoring.DISABLE     # the plant: a hooked code disabled
+            return real(code, offset)
+
+        with mock.patch.object(trace, "_on_start", planted):
+            msgs = _s0_neutrality(30)
+        self.assertTrue(any("frames of 30" in m for m in msgs), msgs)
+
+    def test_a_recorder_that_keeps_its_objects_is_caught(self):
+        real = trace.Recorder._new_label
+        kept = []
+
+        def planted(self, obj, kind, site):
+            kept.append(obj)                      # the plant: a strong reference
+            return real(self, obj, kind, site)
+
+        try:
+            with mock.patch.object(trace.Recorder, "_new_label", planted):
+                msgs = _s0_neutrality(30)
+        finally:
+            kept.clear()
+        self.assertTrue(any("survivors" in m for m in msgs), msgs)
+
+
+if __name__ == "__main__":
+    unittest.main()

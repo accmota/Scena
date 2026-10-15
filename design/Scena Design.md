@@ -12,6 +12,7 @@ This is **today’s baseline**, not a freeze — see [Design documents are descr
 | --- | --- |
 | Locating code | [Appendix: module map](#appendix-module-map) |
 | How a frame works | [Subsystems](#subsystems), [Datapath](#datapath) |
+| The laws of time, lifetime, contacts, input and timers (short; read whole before changing them) | [Laws.md](Laws.md) |
 | Author calls | [Guia da API](../docs/pt/guide/index.html) — do not start in `scena/` |
 | Product intent | [Context](#context) |
 | Changing or removing author API; releases | [Compatibility and versions](#compatibility-and-versions) |

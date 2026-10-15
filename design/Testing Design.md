@@ -15,6 +15,7 @@ strategy, the rules, and the bug catalogue.
 | A test found a bug — what now | [Bug loop](#bug-loop) (mandatory) |
 | Whole programs against a spec written from the docs; a divergence to triage | [Program model tests](#program-model-tests) |
 | Whole games written to be tested: side models inside the game, under a real load | [Game system tests](#game-system-tests) |
+| The laws trace, the reference model, the equations; triage of what they find | [Laws and equations](#laws-and-equations) |
 | A leak test fails but the engine looks right | [Harness pitfalls](#harness-pitfalls) |
 | Do the smoke / example scripts still run? | `tests/test_scripts_run.py` (examples, quick) and `tests/test_smoke_scripts.py` (`scripts/smoke`, benches; `SLOW`) ([Recurring bug classes](#recurring-bug-classes): a script left on a retired spelling) |
 | Is this bug a known class? | [Recurring bug classes](#recurring-bug-classes), [Bug catalogue](#bug-catalogue) |
@@ -392,6 +393,147 @@ so `cull_pixels` compared two blank frames), a doc sentence that over-promised
 own code before any model ran: a pattern the Guia shows, used in a real game,
 broke (a coyote flag that reads its owner, a formula group declared with `@=`,
 an `on_collide` method, a long `until_empty` wave, a named tween refreshed).
+
+
+# Laws and equations
+
+A campaign (from 2026-10-14) that gives the engine's discrete semantics a
+written, checked form. The bugs the earlier campaigns kept finding sit in
+three concerns no feature owns: **time** (what runs in which phase, when an
+effect becomes visible), **identity and lifetime** (create, park, destroy,
+act change), and **authority** (who owns a press, a contact, a write). Three
+instruments, all test-side (nothing in `scena/` changes, so real games pay
+nothing):
+
+1. **A constitution** of short laws, each stating today's behaviour within a
+   perceptual budget, with its checkers (one per stage, from S1).
+2. **A reference model**: pure functions over a recorded trace that predict
+   what an author sees (which callbacks run, with what, in which phase) and
+   report violations, abstentions and witness counts.
+3. **Equations**: pairs of programs an author believes equivalent (another
+   frame rate, another spawn order, a handler declared another way, the
+   world mirrored) whose traces must agree. They answer the oracle problem:
+   no expected value is needed, only agreement.
+
+**Triage: real bugs, not academic ones.** The instruments find candidates.
+Every divergence is investigated to its mechanism, whatever its size (a
+small one can be the symptom of a wrong calculation); the budget decides
+whether a test fails and how urgent it is, not whether we look. Verdicts:
+**BUG** (wrong behaviour in a realistic game: a game-level repro, then the
+bug loop), **LATENT** (a plainly wrong calculation a plausible game would
+expose: fixed only if local, perf-neutral and invisible to existing games
+beyond budget), **ACADEMIC** (legitimate approximation: float order, solver
+iteration, absolute constants; listed with the reason, the engine is not
+touched), **DECISION** (the engine is consistent, the law is in question:
+to the user). No "precision" fixes.
+
+**The recorder** (`tests/laws/trace.py`). `sys.monitoring` tool 5 (fallback
+0; never 3, the engine watchdog takes it over, or 4, the sentinel):
+
+- local return events on a table of engine code objects (frame body, phase
+  functions, `Registry.register` / `destroy`, `Entity.destroy`, park /
+  resume, `ActManager._change`), and one global start / resume event that
+  keeps author functions the engine calls — every callback, whatever door —
+  and returns `DISABLE` everywhere else (never on a hooked code object:
+  DISABLE silences the location for the tool, local events included);
+- the door of an author call is the nearest labelled engine frame
+  (`contact`, `exit`, `after`, `every`, `on_destroy`, `update`, `key`, …);
+- labels `kind@file:line#n` keyed by `id()`, re-bound at each creation;
+  raw `__dict__` reads only; the callbacks swallow their own errors and
+  count them (`Recorder.errors`).
+
+Attach: `laws.attach.attach(run)` (`run_game(before_start=)`,
+`program_oracles._run(before_start=)`): installs in the run's prelude (the
+program's first line), uninstalls before `close()` (teardown is the
+harness's, not the program's). Scripts: `script_harness.py --laws out.jsonl`;
+`--fingerprint` prints the end world. Author code is everything that is not
+the engine, Python, a helper directly in `tests/` or the laws machinery
+(`tests/games`, `tests/programs`, `examples/`, `tests/laws/fixtures` and
+`twins` are author code).
+
+**E0, neutrality** (`tests/laws/neutrality.py`): the run with the recorder is
+the run without it — probe samples frame by frame, the end world, the game
+ledger and warnings, leftovers, and **survivors** (engine objects alive as
+Python objects after a full collection: the registries forget a destroyed
+actor even while something holds it, so only this count sees a recorder that
+keeps references); plus a self-check (every frame seen, no recorder error,
+nothing left installed). Quick: `test_laws_quick` (the fixture
+`tests/laws/fixtures/s0_basic.py`, one program, canaries: a DISABLEd frame
+hook, a recorder that keeps its objects). Gate: `test_laws_neutrality`
+(every program, game and example; canary: a recorder that holds author
+classes).
+
+**Overhead** where attached: canteiro `curta` 3.9 s → 4.7 s (+19 %), from
+~12 author calls a frame; a real run is unaffected (not installed).
+
+**What S0 taught** ([LW](#lw--laws-campaign-2026-10-14)): the recorder
+itself failed E0 twice before it held — once by holding author classes in
+its label table (an author class can own graph nodes: a leftover node in
+oficina), and the harness failed it once (LW1: two runs in one process did
+not start from the same presentation clock). An observer is code with bugs
+of its own; E0 stays on for every later stage.
+
+**The model** (`tests/laws/model/`): `check(events)` → `Report` (findings
+with a dedup signature, witness counts per law, abstentions). One module per
+law group; each lists its `LAWS`, and `test_laws_doc` holds them and
+[Laws.md](Laws.md) in step both ways (and the page under 45 laws / 250
+lines). The model never calls the engine function it checks; it abstains on
+a frame an exception cut short.
+
+**S1 — frame and lifetime (F1–F2, L1–L6).** Fixture
+`tests/laws/fixtures/s1_lifetime.py` (acts, a destroy twice, a park, an act
+change whose hooks read siblings) witnesses every law; synthetic traces test
+each rule both ways; canaries (`tests/laws/plants.py`, gate) plant a bug of
+each law's class through the engine — the tick skipped, timers ticked from
+the collision step, a destroy deferred to the end of the frame, `on_destroy`
+fired twice, an `on_update` fleet that keeps dead actors, a park that leaves
+the actor active, act hooks fired during the teardown, a doomed list that
+takes top-level objects — and each is named by its law. `test_laws_families`
+(SLOW + SPLIT) runs the model on every program scenario (both specs), every
+game scenario and every example at 600 frames; deep adds every tutorial
+step. Result: no engine finding for F and L.
+
+**What S1 taught.** Every first finding was the model's: a law wrongly
+worded is as loud as a broken engine. "Its own hook" first meant any call
+whose first argument is the object, which counted a module
+`@collide_exit` handed a dead `me` (the deferred exit, PB5) — now a method
+whose `self` is the object; the act's own teardown is the first of the
+change (Act Design), not a member of its batch; the top level ends at the
+first act build, not at the first frame; the public `flush()` called from a
+drop handler (toybox) is the author's, not a frame phase (the recorder marks
+whether the frame body called a phase function). Each fix moved a rule
+toward the sentence in the companion doc, which is where the law's wording
+comes from.
+
+**S2 — contacts (C1–C8) and the first equations (E3, E4, E8).** The
+recorder adds each step's commit (`C`: entered / stayed / exited as label
+pairs), the resolve markers, and the doors `enter` / `stay` / `exit` /
+`hover` / `hover_exit`; a door is found by qualified name in the engine's
+files (a plant wrapping the labelled function cannot hide it), and engine
+code between an author function and its door that is not a call helper
+makes a nested door (`enter>Entity._enter_mode`: a mode a handler started).
+Fixture `tests/laws/fixtures/s2_contacts.py`; canaries for C1, C2, C4, C5,
+C7, C8 (`plants.py`). C3 and C6 need the handler table, so their checkers
+are the unit tests and the equations. Equations (`tests/laws/equations.py`,
+`test_laws_equations`): a projection per frame (multisets of normalized
+events; formula and condition pulls are not compared), transforms that
+return a line map, twins in `tests/laws/twins/`. E3 swaps adjacent
+independent constructions (not those that draw random numbers) on the
+shooter twin, every program and every example; E4 runs one rule in three
+homes; E8 breaks a brick in its handler or between frames. Results: no
+engine finding for C1–C8 on the families and every tutorial step; LW2
+(a decision: simultaneous contacts are answered one at a time), LW3 and
+LW4 (ACADEMIC).
+
+**What S2 taught.** A plant can hide behind a second guard: a parked body
+leaves collision *and* fails the in-play check; a destroyed body's contacts
+are ended, its collider dropped *and* pruned at the next step. A canary that
+does not bite says how many guards the class has. An equation's twin can be
+wrong in ways the engine is not: the first script twin ran from a folder
+without the example's art (a placeholder hit box moved every collision), and
+the first `on_collide` twin had a partner that was never registered. Before
+blaming the engine for a divergence, run the twin twice, and run the program
+in the other harness.
 
 
 # Geometry campaign
@@ -2686,6 +2828,18 @@ Lesson: see [What the game-behaviour probes taught](#what-the-game-behaviour-pro
 Kept under load, beside the per-finding guards, by the fourth game system
 test, Canteiro ([Game system tests](#game-system-tests), "The fourth game"),
 with a canary per fix.
+
+### LW — laws campaign (2026-10-14)
+
+Findings of the laws instruments ([Laws and equations](#laws-and-equations)),
+with the triage verdict.
+
+| ID | Finding | Verdict | Cause | Fix / guard |
+| --- | --- | --- | --- | --- |
+| LW1 | Two runs of one game in one process differed in a fade's `canvas.covered` in the last bits (0.9333333333333333 vs …371), growing each frame; E0 saw it as the recorder's doing, but two bare runs differed the same way | ACADEMIC for the engine (a real game is one process, its presentation clock starts at 0); a harness isolation gap | `SystemWorld`'s reset zeroed `clock._time`, `_real_time`, `_frame` but not `_ui_time` (presentation time, added later): the second run's fade read `(t - t0) / d` on another base | `system_support` reset sets `clock._ui_time = 0.0` (a hand-kept reset list drifted from the clock; [Recurring bug classes](#recurring-bug-classes), "A hand-kept list drifts from the code"). Guard: `test_laws_neutrality` (E0 compares runs in one process) |
+| LW2 | Breakout: a ball that touches two bricks in one step (the seam between them) leaves in a direction that depends on how the bricks are broken and on which was made first. Straight up into a 4 DU seam: 29° off vertical with plain `resolve`; with a gap of 2 the ball does not bounce at all; breaking the bricks in `@collide` (the ghost response, PE5) and breaking them between frames differ by up to 90° (E8). One brick at a time agrees within 0.01° | **DECISION** (2026-10-14: design a joint response for one body's simultaneous contacts, solver and ghost path, in its own design session; the engine is unchanged until then) | Both answers resolve simultaneous contacts one at a time: `_apply_ghost_contacts` runs one `velocity_split` per removed partner (the first reflection turns the ball, the second partner is then no longer approached and is skipped); the solver's sweep / settle has the same sequential order. The result is order-dependent (creation order) and asymmetric on a symmetric hit | Open: a joint response for one body's simultaneous contacts (both paths), or a documented limit. Pinned by `test_laws_equations.TestBreakInHandlerOrLater.test_two_bricks_at_once_still_diverge_lw2`; repro: `tests/laws/twins/breakout.py` with `vy=0` |
+| LW3 | E3 (spawn order): a shot touching two enemies in one step hits the first-made one; a drone landing on two overlapping pads enters the first-made one | ACADEMIC | Below the fast gate, a body that enters two partners in one step reached both within half its thickness (a tie); the documented tie-break is collider order ([Collision Design — Swept detection](Collision%20Design.md#swept-detection-fast-bodies), "Order"). No program or example showed it outside the fixture's deliberate ties | V3 states the exception |
+| LW4 | E3 on an example swapped two `Endless(...)` lines and the scenery changed | ACADEMIC | `Endless` without `seed=` draws its seed from the author's global `random` at construction: two swapped constructions trade their numbers (no less random, no less reproducible) | E3 counts `Endless` among the calls that draw random numbers (`equations._RANDOM_NAMES`) |
 
 ### Open (found, not yet fixed)
 

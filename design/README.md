@@ -21,7 +21,8 @@ Same protocol as [Scena Design.md — Appendix](Scena%20Design.md#appendix-modul
 3. Open the matching companion **only if** invariants are unclear — then pick **one** jump-box row in that companion; do not read the rest.
 4. Treat **fences in that section** as current constraints (same weight as invariants).
 5. Stop. Do not ingest other companions, `scripts/`, `_sksl_*`, or the private `workbench/` unless that is the task.
-6. **[Fences.md](Fences.md)** is not a reading list. Open it only when proposing API sugar, a second spelling, or a silent rewrite. Do not invent API a fence forbids without evidence matching the revisit bar.
+6. **[Laws.md](Laws.md)** is short: read it **whole** before changing frame order, lifetime, contacts, input ownership or timers. A change that breaks a law is a design change: the law, its model (`tests/laws/model/`) and the companion doc change with it.
+7. **[Fences.md](Fences.md)** is not a reading list. Open it only when proposing API sugar, a second spelling, or a silent rewrite. Do not invent API a fence forbids without evidence matching the revisit bar.
 
 ## Live docs
 
@@ -44,6 +45,7 @@ Same protocol as [Scena Design.md — Appendix](Scena%20Design.md#appendix-modul
 | [Sound Design.md](Sound%20Design.md) | `play_sound`, `Sound`, mixer, mic, audio FX |
 | [Box Design.md](Box%20Design.md) | Measuring `Box` / `Grid`, `box=`, `game_view` / `ui_view` |
 | [Editor Design.md](Editor%20Design.md) | Level files, `Level` / `make()`, the level editor (companion app) |
+| [Laws.md](Laws.md) | The constitution: short, checked laws of the frame, lifetime, contacts, input ownership and timers (today's behaviour). Read it whole before changing any of them |
 | [Testing Design.md](Testing%20Design.md) | Test strategy, harnesses, bug loop, bug catalogue |
 | [Fences.md](Fences.md) | Settled nos (index). Open **only** when proposing sugar / a second spelling / a silent rewrite |
 

@@ -47,6 +47,14 @@ def iter_files(root: str, *suffixes: str, recursive: bool = False,
     return sorted(out, key=path_key)
 
 
+def iter_entries(root: str) -> List[str]:
+    """Sorted names of the real entries directly in ``root``, files and
+    folders (OS metadata skipped): a folder mirrored entry by entry (the laws
+    equations' script twins run next to the example's art)."""
+    with os.scandir(os.fspath(root)) as it:
+        return sorted(e.name for e in it if not is_junk(e.name))
+
+
 def path_key(path: str, sep: str = os.sep) -> str:
     """Sort key for paths: ``path`` in ``/`` form. ``"\\"`` sorts after
     letters and digits, ``"/"`` before them, so a plain sort puts
