@@ -9,11 +9,15 @@ from __future__ import annotations
 
 import inspect
 import math
+import weakref
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Union
 
 from .state import (
+    Attribute,
     Container,
+    ContainerSet,
     ContainerSlot,
+    FormulaLink,
     FieldType,
     ScalarSlot,
     _init_composite,
@@ -152,6 +156,12 @@ def region_frame(obj) -> Tuple[float, float, float, float, float]:
         raise TypeError("box= requires a Box, Rect, or frame-like Graphic")
     if isinstance(obj, Box):
         return obj._oriented_frame()
+    if is_box_formula(obj):
+        raise TypeError(
+            "a formula (lambda) region is taken only by a shape's box= "
+            f"({', '.join(BOX_FORMULA_KINDS)}). Pass the Box or Graphic itself "
+            "here; on a Sprite, Svg or Text link center= instead"
+        )
     # A linked angle / scale is pulled before the frame is measured (``.box``,
     # ``confine``, ``box=`` placement: review 2026-10-09 W-G3 / X-writers-5).
     d = getattr(obj, "__dict__", None)
@@ -256,6 +266,12 @@ def apply_box_to_shape_kwargs(
     """
     if "box" not in kwargs:
         return None
+    if is_box_formula(kwargs["box"]):
+        return link_box_formula(
+            cls_name, kwargs,
+            lambda kw: apply_box_to_shape_kwargs(
+                cls_name, kw, family=family, size_keys=size_keys, heading=heading),
+        )
     region = kwargs.pop("box")
     size_keyset = frozenset(size_keys)
     mixed = sorted(k for k in kwargs if k in _FILL_MIX_KEYS and k not in size_keyset)
@@ -291,6 +307,129 @@ def apply_box_to_shape_kwargs(
                 kwargs.setdefault("angle", ang)
         return names
     raise ValueError(f"unknown box= family {family!r}")
+
+
+# --- box=<formula>: a box-linked shape ---------------------------------------
+
+BOX_FORMULA_KINDS = (
+    "Rect", "Square", "Concave", "Ellipse", "Circle", "RegularPolygon", "Triangle",
+)
+
+
+def is_box_formula(region) -> bool:
+    """``box=lambda: …`` (or a named function): the region is a formula."""
+    return callable(region) and not isinstance(region, type)
+
+
+class _BoxFit(Attribute):
+    """The fitted inputs of a shape made with ``box=<formula>``.
+
+    One graph node per shape: its formula reads the author's region formula
+    and runs the kind's ``box=`` fit once per change; the shape's Defining
+    parts read their value from it (``_BoxFitRead``), so a change costs one
+    evaluation, not one per part. Not a part of the shape (no owner): the
+    shape holds it in ``_box_fit`` and it points back with ``_host_ref``.
+    """
+
+    def unlink(self):
+        had = self._link is not None
+        super().unlink()
+        if had:
+            ref = self.__dict__.get('_host_ref')
+            host = ref() if ref is not None else None
+            if host is not None:
+                # A source of the region went (destroy), or the shape let go:
+                # either way the relation is over (``Shape._drop_box_fit``).
+                host._drop_box_fit()
+
+
+class _BoxFitBody:
+    """The node's formula: the author's region formula, then the fit. Links
+    with the author's own reads (``FormulaLink`` reads and checks ``fn``)."""
+
+    __slots__ = ('fn', 'body')
+
+    def __init__(self, fn, body):
+        self.fn = fn
+        self.body = body
+
+    def __call__(self):
+        return self.body()
+
+    def _scena_make_link(self, target):
+        link = FormulaLink(self.fn)
+        link.expression_fn = self.body
+        return link
+
+
+class _NodeReadLink(FormulaLink):
+    """A link whose one source is known (the fit node): no source reading."""
+
+    def __init__(self, node, getter):
+        self.owner = None
+        self.expression_fn = getter
+        self.sources = ContainerSet([node])
+        self.old_value = None
+        self.always_update = False
+
+
+class _BoxFitRead:
+    """One fitted input (``center``, ``width``, …) of a box-linked shape."""
+
+    __slots__ = ('node', 'index')
+
+    def __init__(self, node, index):
+        self.node = node
+        self.index = index
+
+    def __call__(self):
+        return self.node.value[self.index]
+
+    def _scena_make_link(self, target):
+        node = self.node
+        host = target._ownership_root()
+        if host is not target and node.__dict__.get('_host_ref') is None:
+            host.__dict__['_box_fit'] = node
+            node.__dict__['_host_ref'] = weakref.ref(host)
+        return _NodeReadLink(node, self)
+
+
+def link_box_formula(cls_name: str, kwargs: Dict[str, Any], fit) -> Optional[Tuple[int, int]]:
+    """``box=<formula>``: the box= fit, done again whenever the formula's
+    sources change. Mutates ``kwargs`` like ``apply_box_to_shape_kwargs``.
+
+    ``fit(kw)`` is the kind's own box= injection on a copy of the author's
+    keywords with a concrete region; it runs once here (so a wrong region
+    or a mixed keyword raises at construction) and then inside the node's
+    formula. Every input the fit sets becomes a link to the node; an input
+    the author gave (``radius=`` on a Circle) stays theirs. The names the
+    shape takes are the first region's.
+    """
+    fn = kwargs.pop("box")
+    base = dict(kwargs)
+
+    def solve():
+        kw = dict(base)
+        kw["box"] = fn()
+        names = fit(kw)
+        return kw, names
+
+    first, names = solve()
+    keys = tuple(
+        k for k in first
+        if k != "box" and (k not in base or first[k] is not base[k])
+    )
+
+    def body():
+        kw = solve()[0]
+        return tuple(kw[k] for k in keys)
+
+    node = _BoxFit(None, attr_name="box")
+    node.__dict__['_name'] = f"{cls_name}.box"     # as a part reads: Rect.center
+    node._assign_formula(_BoxFitBody(fn, body))
+    for i, k in enumerate(keys):
+        kwargs[k] = _BoxFitRead(node, i)
+    return names
 
 
 def sprite_size_from_box(

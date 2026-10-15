@@ -756,7 +756,7 @@ rect.destroy()
 
 - Dependents do **not** adopt the deleted object’s identity; they always owned their own parts and only copied via takein while linked.
 - A **multi-source** formula (`a @= lambda: r1.x + r2.x`) is cleared **entirely** if any source is removed — not surgically rewritten. Remaining sources no longer drive `a` (same warning + last value).
-- A **relational shape** (Line `parallel_to=` / `perpendicular_to=` / `circle=`, Ellipse `from_rect=`) whose reference is destroyed, or that loses its relation by `unlink_all()` / unlinking a linked part / `force=True`, becomes its free twin with its current values (`Shape._drop_relational`; [Shapes Design.md — Cross-shape relational constructors](Shapes%20Design.md#cross-shape-relational-constructors)).
+- A **relational shape** (Line `parallel_to=` / `perpendicular_to=` / `circle=`, Ellipse `from_rect=`) whose reference is destroyed, or that loses its relation by `unlink_all()` / unlinking a linked part / `force=True`, becomes its free twin with its current values (`Shape._drop_relational`; [Shapes Design.md — Cross-shape relational constructors](Shapes%20Design.md#cross-shape-relational-constructors)). A **box-linked shape** (`box=lambda: …`) drops the same ways, plus its own destroy: every fitted input unlinks with its value and the fit node lets go of the region (`Shape._drop_box_fit`).
 
 
 

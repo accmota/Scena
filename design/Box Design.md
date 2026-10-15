@@ -14,7 +14,7 @@ Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-
 | Constructors / inset / outset / grid / beside / strip | [Surface](#surface) |
 | Too-small inset / grid (line / point) / `is_collapsed` | [Remainder](#remainder) |
 | `outset` (grow twin) | [Surface](#surface), [Remainder](#remainder) |
-| `box=` fill vs inscribe | [Fit](#fit) |
+| `box=` fill vs inscribe; `box=lambda: …` (box-linked) | [Fit](#fit) |
 | `game_view` / `ui_view` / `playfield` | [Parents](#parents) |
 | `graphic.box` | [Bridge](#bridge) |
 | `group[...].box` | [Bridge](#bridge) |
@@ -61,7 +61,8 @@ Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-
 | `graphic.box` | snapshot of a frame-like Graphic | a live link; not on `Line` / free `Polygon` |
 | `group[...].box` | fresh AABB snapshot (`None` if empty) | a live link; not `graphic.box`; there is no `.bounds` tuple |
 | `graphic.confine` | synchronous pose math helper | `@leave_playfield` / `resolve()` / a registration |
-| `Ellipse(from_rect=…)` | live pose link to a **Rect** | `box=` (one-shot fit) |
+| `Ellipse(from_rect=…)` | live pose link to a **Rect** | `box=region` (one-shot fit); `box=lambda: …` follows any region |
+| `Rect(box=lambda: …)` | box-linked: the fit redone when the formula's sources change | `Rect(box=region)` (a snapshot) or a whole `rect @= …` link (a copy per pull) |
 | `@click` on a region | click a **Graphic**, or `grid.cell_at` | `@click` / `on_click` on `Box` |
 | `g[col, row]` | reserved TypeError | `.cell(col, row)` |
 | `ui.gap()` | extra HUD-column gap | a measuring `Box` |
@@ -217,12 +218,46 @@ A whole copy of a Box (`shape << box`, `shape @= (lambda: hero.box)`) is a
 fill or nothing: Rect / Concave / Ellipse take the region like `box=` alone
 (Ellipse: center, width, height, angle), and Box takes a Box. A kind that only
 inscribes (Circle, Square, regular N-gon, Triangle) refuses with the fix
-(`Circle(box=box)`): a copy reproduces its source, and an inscribed shape is
-not the region (Shapes Design, C7; CK1 in Testing Design).
+(`Circle(box=box)`, or `Circle(box=lambda: …)` to follow a region that moves):
+a copy reproduces its source, and an inscribed shape is not the region (Shapes
+Design, C7; CK1 in Testing Design). A whole `@=` link copies the Box on every
+pull; `box=lambda: …` (below) is the following form for every kind.
 
 Breathing room: `Graphic(box=cell.inset(8))`. No constructor `padding=` on this
 path. Zero-size region: fill/inscribe are invisible; Sprite contain is size
 `0`; explicit size still pins. No warning.
+
+**A formula region follows** (`box=lambda: …` or a named function). Values copy,
+formulas link: `Rect(box=cell)` fits once; `Rect(box=lambda: hero.box.beside("right"))`
+is **box-linked** — the same fit, redone whenever the formula's sources change
+(`hero`, `canvas` for `game_view`, a `State` cell picking a grid cell). The
+formula returns a `Box` or a frame-like Graphic. Shapes only: `Rect`, `Square`,
+`Concave`, `Ellipse`, `Circle`, `RegularPolygon`, `Triangle`
+(`box.BOX_FORMULA_KINDS`); a Sprite / Svg / Text, and `confine`, refuse a
+formula region with a `TypeError` naming them (link `center=` there).
+
+- **Model.** The shape keeps its free model (`CENTER_WH`, `CENTER_RADIUS`, …).
+  Every input the fit sets is linked to one fit node (`box._BoxFit`, held in
+  `shape._box_fit`, not a part); the node's formula runs the author's formula
+  and the kind's fit. A change costs **one** evaluation, not one per input
+  (~45 µs over a free shape with `hero.box.beside(…)` in the formula, against
+  ~145 µs for a whole `rect @= lambda: box` link). An input the author gave
+  (`Circle(box=f, radius=3)`) stays theirs: only `center` follows.
+- **Construction** evaluates the formula once and fits it: a region that is
+  not a frame, a mixed keyword (`width=` on a fill) or a formula with no
+  sources raises there. Names are the first region's.
+- **Verbs** refuse like any linked input ("its center follows its box=
+  formula"); `force=True` frees the shape and the verb runs.
+- **The relation goes as a whole** (`Shape._drop_box_fit`, from
+  `_relation_unlinked`): unlinking any fitted input, `unlink_all()`,
+  `force=True`, a destroyed source (one warning naming `Rect.box`) or the
+  shape's own destroy unlinks every fitted input (each keeps its value) and the
+  node. No hybrid stays; a `clone()` / `<<` copy is free.
+
+Guard: `tests/test_box_formula.py` (every kind that takes `box=` takes a
+formula — enumerated from `scena.__all__`; equal to a fresh fit after moves,
+resizes and turns; one evaluation per change; graph flat over changes;
+every way the relation goes).
 
 
 # Parents
@@ -406,7 +441,7 @@ mouse), same as Shape, snapshotted. Default pivot is the box center.
 Do not re-open without a smoke that the named surface cannot express:
 
 - Per-side / per-axis `inset` (uniform first; authored `Box(center=…, width=…, height=…)` covers unusual bands when `strip` is not enough)
-- Live `box=` / `graphic.box` that tracks pose or the camera (v1 is a fresh snapshot each read; opt-in `@=` on Box parts remains the escape)
+- A live `graphic.box` that tracks pose or the camera (each read is a fresh snapshot; a shape that must follow takes `box=lambda: …` — [Fit](#fit); a Sprite / Svg / Text `box=` formula waits for a smoke that `center=` links cannot express)
 - 9-point `align` / `place` — `grid(3, 3)` already covers corner cells
 - Chess-file `.cell("a1")` sugar
 - Thin `pad=` on the `box=` path (air is `box=region.inset(n)`)
@@ -444,6 +479,7 @@ surface cannot express.
 | `.rows` / `.cols` as counts | Bare plurals read as collections; counts are `.row_count` / `.col_count`. |
 | Cell belonging as `cell.col` / `cell.row` | Too close to `g.cols` / `g.rows`; `col_index` / `row_index`. |
 | A parent-Grid reference on each cell | Lifetime and equality footgun; the author already holds `g`. |
+| `box=lambda: …` as sugar for a whole `shape @= lambda: …` link, or one link per input to the author's formula | A whole link copies the Box on every pull (~3× the cost) and only Rect / Concave / Ellipse take a Box copy; one link per input runs the formula once per input. One fit node per shape ([Fit](#fit)). |
 | `@click(box)` / click enrollment on `Box` | Re-opens Entity, hit-test and z-order; clicks stay on Graphics, `cell_at` covers the board. |
 
 `strip` and `beside` themselves were once held back as "a 1×N grid is a

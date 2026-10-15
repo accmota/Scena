@@ -48,6 +48,20 @@ left out.
   `ellipse << hero.box` takes the box's center, width, height and angle, and
   `ellipse @= (lambda: hero.box)` follows it.
 
+- `box=` takes a formula: a shape placed in a region that moves follows it.
+  `Rect(box=lambda: hero.box.beside("right", gap=8))` stays beside the hero
+  as it moves, turns and grows; `Circle(box=lambda: board.cell(st.i))`
+  jumps to the cell `st.i` names; `Rect(box=lambda:
+  canvas.game_view.strip("top", 40))` follows the camera. It is the same
+  fit as `box=region` (fill, inscribe, the Triangle's apex), done again
+  whenever something the formula reads changes. A plain region still fits
+  once, as before: a value copies, a formula links. For `Rect`, `Square`,
+  `Concave`, `Ellipse`, `Circle`, `RegularPolygon` and `Triangle`. The moves
+  refuse like on any linked shape ("its center follows its box= formula");
+  `force=True` or `unlink_all()` lets go of the region, and the shape stays
+  where it is. A Sprite, Svg or Text `box=` formula raises with the fix
+  (link `center=`).
+
 - `Triangle(…, base_ratio=)`: an isosceles triangle. `side` is the length
   of the two equal sides and the base is `base_ratio * side`, with
   `0 < base_ratio < 2` (1, the default, is equilateral; below 1 is sharper,

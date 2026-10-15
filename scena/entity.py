@@ -1476,7 +1476,13 @@ def _actor_of(node):
     while cur is not None:
         if getattr(type(cur), "_scena_is_entity", False):
             top = cur
-        cur = getattr(cur, "_owner", None)
+        nxt = getattr(cur, "_owner", None)
+        if nxt is None:
+            # An engine node held by a shape but not its part: the fit node
+            # of a ``box=<formula>`` shape (box.py ``_BoxFit``).
+            ref = getattr(cur, "__dict__", {}).get("_host_ref")
+            nxt = ref() if ref is not None else None
+        cur = nxt
     return top
 
 

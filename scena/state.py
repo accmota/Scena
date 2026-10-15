@@ -2665,7 +2665,12 @@ class Container():
         self._ensure_not_derivate("link")
         formula = _normalize_link_rhs(formula)
         # Create a link object holding the lambda expression
-        if isinstance(formula, Container):
+        make_link = getattr(type(formula), '_scena_make_link', None)
+        if make_link is not None:
+            # An engine-built formula that names its own sources
+            # (``box=<formula>``: box.py ``_BoxFitRead`` / ``_BoxFitBody``).
+            new_link = make_link(formula, self)
+        elif isinstance(formula, Container):
             new_link = DirectLink(formula)
         elif callable(formula):
             new_link = FormulaLink(formula)

@@ -613,6 +613,7 @@ def _ensure_writable(
     from .entity import _actor_of, entity_label, part_path
 
     no_force = operation in _PERSISTENT_DECLARATION_OPS
+    existing = "has an @= formula"
     if isinstance(part, FieldRef):
         if force and not no_force:
             warnings.warn(
@@ -626,6 +627,11 @@ def _ensure_writable(
                 drop()
             return
         linked_names = str(part.name)
+        fit = getattr(part.owner, "__dict__", {}).get("_box_fit")
+        anchor = (getattr(part.owner, "__dict__", {}).get("_field_anchors") or {}).get(part.name)
+        if fit is not None and anchor is not None and anchor._link is not None \
+                and _link_reads(anchor._link, fit):
+            existing = "follows its box= formula"
         if _actor_of(part.owner) is None:
             # A State bag (``hud["count"]``): its name is the author's own.
             owner_name = str(part.owner.name)
@@ -661,6 +667,9 @@ def _ensure_writable(
             return
         linked_names = ", ".join(part_path(n) for n in linked)
         subject = entity_label(part)
+        fit = getattr(_actor_of(part) or part, "__dict__", {}).get("_box_fit")
+        if fit is not None and any(_link_reads(n._link, fit) for n in linked):
+            existing = "follows its box= formula"
     undo = "Unlink it first (unlink() / unlink_all())"
     if not no_force:
         undo += ", or pass force=True"
@@ -670,7 +679,7 @@ def _ensure_writable(
             new=_OP_PHRASE.get(operation, operation),
             subject=subject + context,
             part=linked_names,
-            existing="has an @= formula",
+            existing=existing,
             undo=undo,
         )
     )
@@ -1472,10 +1481,34 @@ class Shape(Graphic, PaintState):
         """A part's link was removed (``Container.unlink``): if it carried the
         relation, the shape becomes its free twin."""
         d = self.__dict__
+        fit = d.get('_box_fit')
+        if fit is not None and _link_reads(link, fit):
+            self._drop_box_fit()
+            return
         if d.get('_destroyed') or d.get('_ref') is None:
             return                          # its own teardown unlinks its parts
         if _link_reads(link, d['_ref']):
             self._drop_relational()
+
+    def _drop_box_fit(self) -> None:
+        """A box-linked shape (``box=<formula>``) lets go of its region: every
+        input that read the fit keeps its current value, and the fit node
+        stops reading the author's formula. Reached the same ways a relation
+        goes (``_relation_unlinked``: ``force=True``, ``unlink()`` /
+        ``unlink_all()``, the shape's destroy) and from the node itself when a
+        source of the region is destroyed (``box._BoxFit.unlink``). The model
+        was free all along, so nothing converts: no hybrid stays."""
+        d = self.__dict__
+        node = d.pop('_box_fit', None)
+        if node is None:
+            return                          # the unlinks below come back here
+        if not d.get('_destroyed'):
+            for part in list(self._iter_subtree()):
+                link = part._link
+                if link is not None and _link_reads(link, node):
+                    part.unlink()           # keeps its current value
+        if node._link is not None:
+            node.unlink()
 
     def _clone_geometry(self, **kwargs) -> 'Shape':
         """Construct a free (unlinked) copy with matching geometry. Subclasses implement."""
@@ -9863,6 +9896,25 @@ def _triangle_contain(k: Any, center: Any, w: float, h: float,
     return r, (cx - 0.25 * r * math.cos(a), cy - 0.25 * r * math.sin(a))
 
 
+def _triangle_box_fit(cls_name: str, kwargs: Dict[str, Any], ratio_given: bool):
+    """Triangle ``box=`` with no size: the apex along the region's +x. No
+    ratio given: fill (base_ratio from the region); a ratio given: contain.
+    Mutates ``kwargs`` (a concrete region); returns the region's names."""
+    from .box import apply_box_to_shape_kwargs, region_frame
+    _cx, _cy, bw, bh, _a = region_frame(kwargs['box'])
+    names = apply_box_to_shape_kwargs(
+        cls_name, kwargs, family="inscribe",
+        size_keys=("radius", "side"), heading=True,
+    )
+    bw, bh = abs(bw), abs(bh)
+    k = kwargs['base_ratio']
+    if not ratio_given:
+        k = kwargs['base_ratio'] = _triangle_fill_ratio(bw, bh)
+    kwargs['radius'], kwargs['center'] = _triangle_contain(
+        k, kwargs['center'], bw, bh, float(kwargs['angle']))
+    return names
+
+
 class Triangle(_RadialPolygon):
     """
     Isosceles triangle, equilateral by default. ``side`` is the length of the
@@ -9966,17 +10018,13 @@ class Triangle(_RadialPolygon):
             # like a Sprite (the largest of that ratio, outline centered).
             # Centering the centroid (a regular polygon's inscribe) left the
             # apex on one side and a gap on the other.
-            from .box import apply_box_to_shape_kwargs, region_frame
-            _cx, _cy, bw, bh, _a = region_frame(kwargs['box'])
-            apply_box_to_shape_kwargs(
-                type(self).__name__, kwargs, family="inscribe",
-                size_keys=("radius", "side"), heading=True,
-            )
-            bw, bh = abs(bw), abs(bh)
-            if not ratio_given:
-                k = kwargs['base_ratio'] = _triangle_fill_ratio(bw, bh)
-            kwargs['radius'], kwargs['center'] = _triangle_contain(
-                k, kwargs['center'], bw, bh, float(kwargs['angle']))
+            from .box import is_box_formula, link_box_formula
+            name = type(self).__name__
+            if is_box_formula(kwargs['box']):
+                link_box_formula(
+                    name, kwargs, lambda kw: _triangle_box_fit(name, kw, ratio_given))
+            else:
+                _triangle_box_fit(name, kwargs, ratio_given)
         self._init_radial(3, kwargs)
 
     def _init_shape_inputs(self, kwargs: Dict[str, Any]) -> None:
@@ -10448,7 +10496,8 @@ def _copy_kind_refusal(dst, src, wants: str) -> TypeError:
         if inscribes:
             return TypeError(
                 f"{head}, and a {d_kind} fits a region only by inscribing it. "
-                f"Build one in the region: {d_kind}(box={s}), or write its center and size.")
+                f"Build one in the region: {d_kind}(box={s}), or write its center and size; "
+                f"to follow a region that moves: {d_kind}(box=lambda: …).")
         example = _COPY_FIX_EXAMPLES.get(d_kind)
         return TypeError(
             f"{head}, and a {d_kind} has no region placement. "

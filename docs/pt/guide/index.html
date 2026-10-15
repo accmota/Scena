@@ -1224,7 +1224,7 @@
   <div class="nav-block" data-nav="colocar">
     <a href="#colocar-box" class="nav-child" data-chapter="colocar" data-search="Box inset outset beside strip contains_point from_graphic is_collapsed remainder group.box">Box</a>
     <a href="#colocar-grid" class="nav-child" data-chapter="colocar" data-search="grid cell rows cols cell_at gap col_index row_index">Grid</a>
-    <a href="#colocar-fit" class="nav-child" data-chapter="colocar" data-search="box= fill inscribe sprite text graphic.box is_collapsed">box=</a>
+    <a href="#colocar-fit" class="nav-child" data-chapter="colocar" data-search="box= fill inscribe sprite text graphic.box is_collapsed lambda fórmula segue">box=</a>
     <a href="#colocar-pais" class="nav-child" data-chapter="colocar" data-search="game_view ui_view playfield canvas.bounds leave_playfield pais">Regiões da tela</a>
   </div>
 
@@ -2283,7 +2283,7 @@ c.rotate_by(30 * dt)</pre>
           <tbody>
             <tr><td><code>center</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">centro do design</span></td><td>Ponto <code>(x, y)</code>. Ex.: <code>center=(400, 300)</code>.</td></tr>
             <tr><td><code>radius</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">tamanho médio</span></td><td>Raio em unidades de design. Ex.: <code>radius=50</code>.</td></tr>
-            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box</span><span class="ex">cell</span></td><td>Uma região (<code>Box</code>): o círculo fica dentro dela, com raio = metade do lado menor. Com <code>radius=</code>, só centra nela. Ver <a href="#colocar-fit">box=</a>.</td></tr>
+            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box ou fórmula</span><span class="ex">cell</span></td><td>Uma região (<code>Box</code>): o círculo fica dentro dela, com raio = metade do lado menor. Com <code>radius=</code>, só centra nela. Ver Com uma fórmula (<code>box=lambda: …</code>), segue a região. <a href="#colocar-fit">box=</a>.</td></tr>
             <tr><td><code>color</code></td><td>nome=</td><td class="type"><span class="t">cor</span><span class="ex">padrão do jogo</span></td><td>Preenchimento + traço de contraste. Ex.: <code>color="cyan"</code>.</td></tr>
                         <tr><td><code>layer</code></td><td>nome=</td><td class="type"><span class="t">str ou None</span><span class="ex">"default"</span></td><td>Camada de desenho</td></tr>
             <tr><td><code>group</code></td><td>nome=</td><td class="type"><span class="t">str ou lista ou None</span></td><td>Tag, ou lista de tags</td></tr>
@@ -2372,7 +2372,7 @@ Rect(p1=(100, 300), p2=(300, 300), height=40, anchor="square")</pre>
           <tbody>
             <tr><td><code>center</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">centro do design</span></td><td>Ponto</td></tr>
             <tr><td><code>width</code> / <code>height</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">tamanho médio</span></td><td>Lados</td></tr>
-            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box</span><span class="ex">cell</span></td><td>Uma região (<code>Box</code>): o retângulo ocupa a região inteira (lugar, tamanho e ângulo dela). Ver <a href="#colocar-fit">box=</a>.</td></tr>
+            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box ou fórmula</span><span class="ex">cell</span></td><td>Uma região (<code>Box</code>): o retângulo ocupa a região inteira (lugar, tamanho e ângulo dela). Ver Com uma fórmula (<code>box=lambda: …</code>), segue a região. <a href="#colocar-fit">box=</a>.</td></tr>
             <tr><td><code>angle</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Graus, anti-horário</td></tr>
             <tr><td><code>corner_radius</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Cantos arredondados (unidades de design), só um número. O clique segue o preenchimento; a colisão continua o retângulo.</td></tr>
             <tr><td><code>color</code></td><td>nome=</td><td class="type"><span class="t">cor</span><span class="ex">padrão do jogo</span></td><td>Preenchimento</td></tr>
@@ -2455,7 +2455,7 @@ Square(center=(400, 200), length=70, corner_radius=12)</pre>
             <tr><td><code>center</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">centro do design</span></td><td>Ponto</td></tr>
             <tr><td><code>length</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">tamanho médio</span></td><td>Comprimento do lado, em unidades de design.</td></tr>
             <tr><td><code>top_left</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">(100, 200)</span></td><td>Põe o quadrado pelo canto de cima à esquerda, no lugar de <code>center=</code>.</td></tr>
-            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box</span><span class="ex">cell</span></td><td>Inscreve (lado menor). Com <code>length=</code>: só centra. <a href="#colocar-fit">box=</a>.</td></tr>
+            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box ou fórmula</span><span class="ex">cell</span></td><td>Inscreve (lado menor). Com <code>length=</code>: só centra. Com uma fórmula (<code>box=lambda: …</code>), segue a região. <a href="#colocar-fit">box=</a>.</td></tr>
             <tr><td><code>angle</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Graus</td></tr>
             <tr><td><code>corner_radius</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Cantos arredondados. O clique segue o preenchimento; a colisão continua o quadrado. Herdado do Rect.</td></tr>
               </tbody>
@@ -2577,7 +2577,7 @@ Ellipse(from_rect=box, padding=8)</pre>
           <tbody>
             <tr><td><code>center</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">centro do design</span></td><td>Ponto</td></tr>
             <tr><td><code>width</code> / <code>height</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">tamanho médio</span></td><td>Largura e altura totais (os eixos inteiros, não a metade), antes do giro.</td></tr>
-            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box</span><span class="ex">cell</span></td><td>Preenche a região uma vez. Não é <code>from_rect=</code> (ligação ao vivo). <a href="#colocar-fit">box=</a>.</td></tr>
+            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box ou fórmula</span><span class="ex">cell</span></td><td>Preenche a região uma vez (<code>from_rect=</code> segue um Rect). Com uma fórmula (<code>box=lambda: …</code>), segue a região. <a href="#colocar-fit">box=</a>.</td></tr>
             <tr><td><code>from_rect</code> / <code>padding</code></td><td>nome=</td><td class="type"><span class="t">Rect / número</span><span class="ex">— / 0</span></td><td>A elipse fica inscrita no Rect e o acompanha ao vivo (mover ou girar o Rect move a elipse). <code>padding=</code> encolhe essa caixa em cada lado: um Rect 100 × 50 com <code>padding=8</code> dá uma elipse 84 × 34.</td></tr>
             <tr><td><code>angle</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Graus</td></tr>
               </tbody>
@@ -2685,7 +2685,7 @@ RegularPolygon(n=5, center=(400, 300), radius=50, color="cyan")</pre>
             <tr><td><code>center</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">centro do design</span></td><td>Ponto</td></tr>
             <tr><td><code>radius</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">tamanho médio</span></td><td>Circunraio (centro → vértice)</td></tr>
             <tr><td><code>angle</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Rumo, em graus, do centro até o primeiro vértice (0 = um vértice apontando para a direita).</td></tr>
-            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box</span><span class="ex">cell</span></td><td>Inscreve (circunraio = metade do lado menor). <a href="#colocar-fit">box=</a>.</td></tr>
+            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box ou fórmula</span><span class="ex">cell</span></td><td>Inscreve (circunraio = metade do lado menor). Com uma fórmula (<code>box=lambda: …</code>), segue a região. <a href="#colocar-fit">box=</a>.</td></tr>
               </tbody>
         </table>
           </div>
@@ -2742,7 +2742,7 @@ t.rotate_by(30 * dt)</pre>
             <tr><td><code>side</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">60</span></td><td>Ou o tamanho pelos dois lados iguais, no lugar de <code>radius=</code>.</td></tr>
             <tr><td><code>vertex</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">(0, 0)</span></td><td>Com <code>side=</code>: põe o triângulo pelo ápice em vez do centro.</td></tr>
             <tr><td><code>base_ratio</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">1</span></td><td>A base dividida pelo <code>side</code>, entre 0 e 2 (fora disso, ValueError). 1 é equilátero; menor fica mais pontudo, maior mais aberto. Mudar depois mantém o que posicionou o triângulo: com <code>radius</code>, o centro e o ápice; com <code>side</code>, os lados iguais. Liga com <code>@=</code> e anima com <code>tween</code>.</td></tr>
-            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box</span><span class="ex">cell</span></td><td>Preenche a caixa, com o ângulo dela: o ápice no meio do lado direito, a base é a altura da caixa (o <code>base_ratio</code> sai da caixa). Com <code>base_ratio=</code>: o maior triângulo com essa proporção que cabe, centrado. Com <code>radius=</code> / <code>side=</code>: só centra. <a href="#colocar-fit">box=</a>.</td></tr>
+            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box ou fórmula</span><span class="ex">cell</span></td><td>Preenche a caixa, com o ângulo dela: o ápice no meio do lado direito, a base é a altura da caixa (o <code>base_ratio</code> sai da caixa). Com <code>base_ratio=</code>: o maior triângulo com essa proporção que cabe, centrado. Com <code>radius=</code> / <code>side=</code>: só centra. Com uma fórmula (<code>box=lambda: …</code>), segue a região. <a href="#colocar-fit">box=</a>.</td></tr>
             <tr><td><code>angle</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Para onde o ápice aponta: 0 → direita, 90 → em pé. <code>face=True</code> voa de ápice para a frente.</td></tr>
               </tbody>
         </table>
@@ -2776,7 +2776,7 @@ deck = Concave(top_left=(0, 200), width=200, height=200, rim=(20, 0))</pre>
             <tr><td><code>width</code> / <code>height</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">tamanho médio</span></td><td>Lados da caixa. A curva chega até os lados de lá: caixa quadrada dá um quarto de círculo; outra proporção, um quarto de elipse.</td></tr>
             <tr><td><code>scoop</code></td><td>nome=</td><td class="type"><span class="t">texto</span><span class="ex">"top_left"</span></td><td>O ponto nomeado onde fica o centro da curva. Um canto (<code>"top_left"</code>, <code>"top_right"</code>, <code>"bottom_left"</code>, <code>"bottom_right"</code>) tira um quarto; o meio de uma aresta (<code>"top_center"</code>, <code>"bottom_center"</code>, <code>"left_center"</code>, <code>"right_center"</code>) tira meia elipse — é um semicírculo quando a caixa é 2:1. Trava na construção.</td></tr>
             <tr><td><code>rim</code></td><td>nome=</td><td class="type"><span class="t">número ou par</span><span class="ex">0</span></td><td>O sólido que sobra nas pontas da curva, ao longo da largura e da altura: <code>rim=0</code> deixa as pontas finas como faca; <code>rim=(20, 0)</code> dá ao quarter-pipe um deck de 20 no alto e nenhum degrau no chão. O raio da curva em cada eixo é o alcance da caixa menos o rim. ≥ 0 (negativo: ValueError). Liga com <code>@=</code>; <code>scale_by</code> o escala.</td></tr>
-            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box</span><span class="ex">cell</span></td><td>Preenche a região, como o <code>Rect</code>. <a href="#colocar-fit">box=</a>.</td></tr>
+            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box ou fórmula</span><span class="ex">cell</span></td><td>Preenche a região, como o <code>Rect</code>. Com uma fórmula (<code>box=lambda: …</code>), segue a região. <a href="#colocar-fit">box=</a>.</td></tr>
             <tr><td><code>angle</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0</span></td><td>Graus, anti-horário</td></tr>
               </tbody>
         </table>
@@ -6628,8 +6628,16 @@ for cell in squares:
         </table>
         </div>
       </details>
+      <p><strong>Uma região que se move:</strong> passe uma fórmula. <code>box=cell</code> encaixa uma vez (um valor copia); <code>box=lambda: …</code> encaixa de novo sempre que algo que a fórmula lê muda (uma fórmula liga). Vale nas formas: <code>Rect</code>, <code>Square</code>, <code>Concave</code>, <code>Ellipse</code>, <code>Circle</code>, <code>RegularPolygon</code>, <code>Triangle</code>.</p>
+      <div class="code-panel">
+        <button class="copy-btn" type="button">copiar</button>
+<pre>escudo = Rect(box=lambda: heroi.box.beside("right", gap=8), color="cyan")
+marca = Circle(box=lambda: tabuleiro.cell(st.casa), color="gold")
+faixa = Rect(box=lambda: canvas.game_view.strip("top", 40), color="navy")</pre>
+      </div>
+      <p>O escudo acompanha o herói quando ele anda, gira ou cresce; a marca pula para a casa que <code>st.casa</code> diz; a faixa segue a câmera. Como qualquer forma ligada, ela recusa <code>move_by</code> / <code>rotate_by</code> / <code>scale_by</code> (“its center follows its box= formula”). Para soltá-la: <code>force=True</code> no verbo ou <code>unlink_all()</code> — ela fica onde está. Se o herói for destruído, a forma também se solta, no último lugar. Sprite, Svg e Text não aceitam fórmula em <code>box=</code>: ligue o <code>center=</code>.</p>
       <p>Quem tem quadro retangular ganha <code>.box</code> — uma cópia da moldura, tirada agora, com os nomes do Graphic (<code>rect.box.top_right</code> é <code>rect.top_right</code>; bordas da tela: <code>.left</code> / <code>.top</code> / …): <code>Rect</code>, <code>Square</code>, <code>Ellipse</code>, <code>Circle</code> (quadrado do diâmetro, girado até o ponto da borda <code>p1</code>), <code>Sprite</code>, <code>Svg</code>. <code>Line</code> / <code>Polygon</code> livre / <code>Track</code> / <code>Point</code> levantam TypeError. Verbos de layout ficam no Box (<code>panel.box.inset(8).grid(8, 8)</code>), não no Shape. Limitar a pose a um Box: <a href="#mover-confine"><code>confine</code></a>.</p>
-      <p class="gotcha"><code>box=</code> não mistura com <code>center=</code> / <code>width=</code> no Rect. <code>Ellipse(from_rect=…)</code> é outra coisa: liga a pose ao vivo a um Rect. HUD depois de pan: <code>ui_view</code>, não <code>game_view</code>. Se a região encolheu até virar uma linha ou um ponto (um <code>inset</code> grande demais), o objeto nasce invisível; confira com <code>.is_collapsed</code> no Box ou no objeto.</p>
+      <p class="gotcha"><code>box=</code> não mistura com <code>center=</code> / <code>width=</code> no Rect. <code>box=region</code> é uma cópia: o objeto não segue a região depois; para seguir, <code>box=lambda: region</code>. HUD depois de pan: <code>ui_view</code>, não <code>game_view</code>. Se a região encolheu até virar uma linha ou um ponto (um <code>inset</code> grande demais), o objeto nasce invisível; confira com <code>.is_collapsed</code> no Box ou no objeto.</p>
     </section>
 
     <section class="section prose" id="colocar-pais">
