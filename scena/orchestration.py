@@ -98,6 +98,13 @@ class WidgetManager:
         # held Enter that submitted one box, which focused another, does not
         # repeat into the new box (bug PD3; the widget side of W-P4).
         self._claimed_down = {}
+        # The last key press / repeat went somewhere other than the focused
+        # box (the script, nobody): the character the OS sends right after it
+        # is that key's, not the box's. "Press T to chat" focused the box in
+        # ``on_key_down`` and the T's own character typed into it; a game key
+        # held into focus auto-repeated its character into the box (bug LW5).
+        # Characters carry no key, so the key event before them decides.
+        self._char_to_script = False
 
         # Define double click parameters
         self.double_click_time_threshold = 0.5  # Maximum time between clicks (in seconds)
@@ -3247,7 +3254,17 @@ class ScenaFramework:
 
     def _handle_char(self, window, char_num):
         char = chr(char_num)
-        if not self.widget_manager.handle_char(char) and not self.widget_manager._modal_consumes():
+        wm = self.widget_manager
+        if wm._char_to_script:
+            # The character of a key the box did not get (the script's press,
+            # a game key held into focus): the script's, never typed (LW5).
+            # One character per key event; text with no key event (an input
+            # method's composition) types as before.
+            wm._char_to_script = False
+            if not wm._modal_consumes():
+                self.canvas_manager.handle_char(char)
+            return
+        if not wm.handle_char(char) and not wm._modal_consumes():
             self.canvas_manager.handle_char(char)
 
     def _handle_key(self, window, key, scancode, action, mods):
@@ -3259,6 +3276,9 @@ class ScenaFramework:
         # Caps Lock, GLFW_KEY_UNKNOWN) is dropped — never a raw code like "46".
         key_name = get_glfw_key_name(key)
         if key_name is None:
+            if action != glfw.RELEASE:
+                # Unnamed (a keypad digit): its character types where it did.
+                self.widget_manager._char_to_script = False
             return
         # Scripts compare this. Widgets keep the plain physical name.
         script_key = KeyName(self.keys._script_key_name(key_name))
@@ -3270,6 +3290,10 @@ class ScenaFramework:
         # Release always reaches keyp, even when a focused widget claimed the
         # press — otherwise the key sticks. The up goes where the down went.
         if action == glfw.RELEASE:
+            # A key's character comes between its press (or repeat) and its
+            # release: no later character belongs to it (LW5; text with no key
+            # event, an input method's, types into the box).
+            wm._char_to_script = False
             self.keys._release(key_name)
             if key_name in wm._claimed_down:
                 owner = wm._claimed_down.pop(key_name)
@@ -3282,6 +3306,10 @@ class ScenaFramework:
             return
         if action not in (glfw.PRESS, glfw.REPEAT):
             return
+        # The character the OS sends after this key event is the box's only
+        # when the box gets the event (the two branches below); otherwise it
+        # follows the key to the script (bug LW5).
+        wm._char_to_script = True
 
         if action == glfw.REPEAT:
             owner = wm._claimed_down.get(key_name)
@@ -3289,6 +3317,7 @@ class ScenaFramework:
                 # A repeat goes to the widget that got the press, while it
                 # keeps focus; never to a box focused since (bug PD3).
                 if owner is wm._keyboard_widget() and wm.claims_key(key_name, mods):
+                    wm._char_to_script = False
                     wm.handle_key(key_name)
                 return
             if wm.claims_key(key_name, mods):
@@ -3306,6 +3335,7 @@ class ScenaFramework:
         # on_key, after the widget commits its pending text.
         if wm.claims_key(key_name, mods):
             # PRESS (a REPEAT returned above).
+            wm._char_to_script = False
             wm._claimed_down[key_name] = wm._keyboard_widget()
             wm.handle_key_down(key_name)
             wm.handle_key(key_name)

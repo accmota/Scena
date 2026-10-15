@@ -406,6 +406,83 @@ class TestARepeatFollowsItsPress(unittest.TestCase):
             box.destroy()
 
 
+class TestACharFollowsItsKey(unittest.TestCase):
+    """LW5: a typed character follows the key event that made it. The key
+    the script got ("press T to chat": ``on_key_down`` focuses the box) does
+    not type itself into the box it focused, and a game key held into focus
+    does not auto-repeat its character into it. A character with no key event
+    (an input method's composed text) still types."""
+
+    def test_the_key_that_focuses_a_box_does_not_type_into_it(self):
+        chars = []
+        with system_world(draw=False) as w, input_driver(w) as d:
+            st.chat = ""
+            box = TextInput(st["chat"])
+            w.step(1)
+
+            def opened(key):
+                if key == "T":
+                    box.focus()
+            with script_hooks(w, on_key_down=opened, on_char=chars.append):
+                d.press(glfw.KEY_T)
+                d.char("t")
+                d.release(glfw.KEY_T)
+                w.step(1)
+            self.assertTrue(box._has_focus, "not vacuous: the key focused the box")
+            self.assertEqual(box._text, "")
+            self.assertEqual(chars, ["t"])                # the character went with its key
+            d.type_text("oi")                             # then typing works
+            w.step(1)
+            self.assertEqual(box._text, "oi")
+            box.destroy()
+
+    def test_a_game_key_held_into_focus_does_not_repeat_into_the_box(self):
+        with system_world(draw=False) as w, input_driver(w) as d:
+            st.chat = ""
+            box = TextInput(st["chat"])
+            w.step(1)
+            d.press(glfw.KEY_W)                           # the game's press (walk)
+            d.char("w")
+            box.focus()
+            for _ in range(3):                            # the OS auto-repeat
+                d.key(glfw.KEY_W, glfw.REPEAT)
+                d.char("w")
+            d.release(glfw.KEY_W)
+            w.step(1)
+            self.assertEqual(box._text, "")
+            box.destroy()
+
+    def test_typing_shift_and_composed_text_still_type(self):
+        with system_world(draw=False) as w, input_driver(w) as d:
+            st.chat = ""
+            box = TextInput(st["chat"])
+            w.step(1)
+            box.focus()
+            d.type_text("ab")
+            d.press(glfw.KEY_LEFT_SHIFT)                  # a modifier is never claimed
+            d.press(glfw.KEY_C)
+            d.char("C")
+            d.release(glfw.KEY_C)
+            d.release(glfw.KEY_LEFT_SHIFT)
+            d.char("é")                                   # composed: no key event
+            w.step(1)
+            self.assertEqual(box._text, "abCé")
+            box.destroy()
+
+    def test_a_released_game_key_does_not_eat_later_text(self):
+        with system_world(draw=False) as w, input_driver(w) as d:
+            st.chat = ""
+            box = TextInput(st["chat"])
+            w.step(1)
+            d.press(glfw.KEY_LEFT)                        # a game key, no character
+            d.release(glfw.KEY_LEFT)
+            box.focus()
+            d.char("é")                                   # composed text, no key event
+            w.step(1)
+            self.assertEqual(box._text, "é")
+            box.destroy()
+
+
 class TestWidgetHoverFollowsThePointerSample(unittest.TestCase):
     """PD4: the cursor leaves the window with no motion event: a hovered
     Button gets its exit, as a Graphic does, from the per-frame sample."""

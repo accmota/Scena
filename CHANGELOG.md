@@ -137,6 +137,13 @@ left out.
   hull's top instead of into the notch, and a ball rolling into a curve was
   thrown off along the straight line from its foot to its top. `resolve()`
   now sweeps such a shape piece by piece.
+- The key that opens a text box no longer types itself into it: with
+  `on_key_down` focusing a `TextInput` when T is pressed ("press T to chat"),
+  the box started with a "t" in it. A game key held while a box takes focus
+  no longer auto-repeats its character into the box either. A typed
+  character now follows its key: when the box did not get the key, the
+  character goes to `on_char`. Typing in a focused box, Shift and composed
+  text (an input method's) type as before.
 
 ### Documentation
 

@@ -370,6 +370,15 @@ graph alias; `.data` / the bound cell is the value.
   with the text still pending plus an explicit `box.commit()` — a save
   shortcut that forgets the call writes the old value while the box shows the
   new one, silently.)
+  A typed character follows its key (bug LW5). Characters carry no key, so
+  `WidgetManager._char_to_script` records whether the last press / repeat
+  went somewhere other than the box (the script, nobody); the character the
+  OS sends right after it is then the script's (`on_char`), never typed — the
+  key that focused the box in `on_key_down` ("press T to chat") does not type
+  itself in, and a game key held into focus does not auto-repeat into it. The
+  flag lives from a key's press or repeat to its release (one character per
+  key event), so text with no key event (an input method's composition)
+  types as before.
   A key stream belongs to whoever got its press: `WidgetManager._claimed_down`
   maps a claimed key to the widget that claimed it, and its repeats and its
   release go to that widget only while it keeps focus; the release always
