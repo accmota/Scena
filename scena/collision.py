@@ -90,6 +90,26 @@ _RESOLVE_SLOP = 0.08
 # contact). Twice the slop: margin for the gap settle / snap actually leave.
 _CONTACT_SKIN = 2.0 * _RESOLVE_SLOP
 _MAX_SLIDES = 4
+# Simultaneous contacts (Collision Design § Joint stop, LW2): the partners a
+# sweep reaches within the contact skin of its earliest hit are answered
+# together (velocity and leftover), not one after the other in partner order.
+# At most this many in one stop; more answer one at a time. False is the old
+# one-at-a-time stop (A/B, canary).
+_JOINT_RESPONSE = True
+_JOINT_MAX = 4
+# Bounce sub-step (Collision Design § Resolution, step 3; LW7): after a stop,
+# the closing part of the frame's leftover gets the restitution the velocity
+# got, so a bounce keeps the rest of its travel (``bounce=0``: the slide, as
+# before). False drops it, as before (A/B, canary).
+_BOUNCE_SUBSTEP = True
+# A resolve partner a handler removed this step is a still wall for its
+# survivor's sweep, for this step only (Collision Design § Partner removed by a
+# handler; PE5). False: the velocity-only ghost response (A/B, canary).
+_GHOST_WALLS = True
+# A resting-skin contact the handlers saw, that the sweep never reached, is
+# answered this step for an airborne body on a ``bounce > 0`` pair (Collision
+# Design § Resting contact (skin); LW8). False: not answered (A/B, canary).
+_SKIN_ANSWER = True
 # Seam lip (Collision Design § Seam lips): a grounded body that walks into the
 # side face of a still partner whose top is at most this far above its feet
 # steps onto it instead of stopping (solid) or passing into it (one-way). Two
@@ -2819,6 +2839,108 @@ def _remove_normal_component(
     return rx - dot * nx, ry - dot * ny
 
 
+def _cone_split(
+    vx: float, vy: float, ns: Sequence[Tuple[float, float]],
+) -> Tuple[float, float, List[float]]:
+    """The inelastic answer of ``(vx, vy)`` to the contacts ``ns`` (unit
+    normals, body toward partner): ``(px, py, js)``, ``p`` the nearest vector
+    to ``v`` that approaches no contact, ``v - p = sum js[i] * ns[i]`` with
+    every ``js[i] >= 0``.
+
+    In 2D ``p`` lies on one contact's face or is zero (two contacts block
+    every direction ``v`` could keep). ``p`` and ``v - p`` are orthogonal
+    (Moreau), so answering with a uniform restitution adds no energy.
+    """
+    k = len(ns)
+    js = [0.0] * k
+    dots = [vx * n[0] + vy * n[1] for n in ns]
+    if max(dots) <= 1e-12:
+        return vx, vy, js
+    best = None
+    for i in range(k):
+        d = dots[i]
+        if d <= 1e-12:
+            continue
+        px, py = vx - d * ns[i][0], vy - d * ns[i][1]
+        if all(px * m[0] + py * m[1] <= 1e-9 for m in ns):
+            if best is None or d > best[0]:
+                best = (d, i, px, py)
+    if best is not None:
+        js[best[1]] = best[0]
+        return best[2], best[3], js
+    for i in range(k):
+        for j in range(i + 1, k):
+            a0, a1 = ns[i]
+            b0, b1 = ns[j]
+            det = a0 * b1 - a1 * b0
+            if abs(det) < 1e-12:
+                continue
+            ci = (vx * b1 - vy * b0) / det
+            cj = (a0 * vy - a1 * vx) / det
+            if ci >= -1e-12 and cj >= -1e-12:
+                js[i] = max(ci, 0.0)
+                js[j] = max(cj, 0.0)
+                return 0.0, 0.0, js
+    return vx, vy, js                       # degenerate (float): answer nothing
+
+
+def _cone_response(
+    vx: float, vy: float, ns: Sequence[Tuple[float, float]], es: Sequence[float],
+) -> Tuple[float, float]:
+    """``(vx, vy)`` answered by the contacts ``ns`` together: each contact's
+    inelastic impulse (``_cone_split``) times ``1 + es[i]`` (Collision Design,
+    "Joint stop"). One contact: ``velocity_split`` against a still partner.
+    Mixed restitutions that would add energy (obtuse normals) take the
+    smallest one for all."""
+    px, py, js = _cone_split(vx, vy, ns)
+    ox, oy = vx, vy
+    for (nx, ny), j, e in zip(ns, js, es):
+        ox -= (1.0 + e) * j * nx
+        oy -= (1.0 + e) * j * ny
+    if ox * ox + oy * oy > vx * vx + vy * vy + 1e-9:
+        e = min(es)
+        ox, oy = px - e * (vx - px), py - e * (vy - py)
+    return ox, oy
+
+
+class _GhostPartner:
+    """A resolve partner a handler removed this step, frozen where it was:
+    a still wall for its survivor's sweep, for this step only (PE5). It is
+    pushed by nothing, and is in no contact (``touching_*``, settle, snap)."""
+
+    __slots__ = ("dead", "prims", "_proxy", "mass", "vel", "info", "only_entry")
+
+    def __init__(self, dead, prims, mass, vel, info, only_entry):
+        self.dead = dead                    # the removed Collider (for ``only=``)
+        self.prims = prims
+        self._proxy = (
+            min(q.aabb[0] for q in prims) - _PROXY_EPS,
+            min(q.aabb[1] for q in prims) - _PROXY_EPS,
+            max(q.aabb[2] for q in prims) + _PROXY_EPS,
+            max(q.aabb[3] for q in prims) + _PROXY_EPS,
+        )
+        self.mass = mass
+        self.vel = vel                      # (vx, vy) or None
+        self.info = info                    # the contact the handlers saw
+        self.only_entry = only_entry
+
+
+def _gate_body(cb: Any) -> Any:
+    """The collider an ``only=`` gate judges and marks for a partner."""
+    return cb.dead if type(cb) is _GhostPartner else cb
+
+
+def _partner_mass_vel(cb: Any) -> Tuple[float, Optional[Tuple[float, float]]]:
+    """``(mass, (vx, vy) or None)`` of a resolve partner, live or a ghost."""
+    if type(cb) is _GhostPartner:
+        return cb.mass, cb.vel
+    ib = cb._identity
+    if ib is None:
+        return 1.0, None
+    v = getattr(ib, "_vel", None)
+    return float(getattr(ib, "mass", 1.0)), None if v is None else (float(v.x), float(v.y))
+
+
 def _aabb_support(
     box: Sequence[float], dx: float, dy: float,
 ) -> Tuple[float, float]:
@@ -4918,6 +5040,12 @@ class CollisionSystem:
         self._contact_key: Optional[Tuple[int, int]] = None
         self._deferred_exit: Optional[Tuple[Any, ...]] = None
         self._ghost_contacts: List[Tuple[Any, ...]] = []
+        # This step's removed partners as still walls, by survivor id
+        # (``_apply_ghost_contacts``), and those the survivor's sweep met.
+        self._ghost_walls: Dict[int, List[Tuple["_GhostPartner", Any, float, float]]] = {}
+        self._ghosts_met: Set[int] = set()
+        # This step's resting-skin contact keys (``_answer_unreached``).
+        self._skin_keys: List[Tuple[int, int]] = []
         self._show = False
         self._debug_shapes: List[Any] = []  # legacy shape-based overlay (cleared on disable)
         self._debug_overlay: List[Tuple[Any, Prim]] = ()
@@ -5607,6 +5735,7 @@ class CollisionSystem:
         # A ghost contact (PE5) of the leaving act's bodies does not reach
         # the new act's step.
         self._ghost_contacts = []
+        self._ghost_walls = {}
         doomed = self._act_pair_handlers
         if not doomed:
             return 0
@@ -6051,6 +6180,104 @@ class CollisionSystem:
                 return token, (only, True)
         return None
 
+    def _answer_unreached(
+        self,
+        ca: Collider,
+        skins: Optional[List[Tuple[Tuple[int, int], CollisionInfo]]],
+        ghosts: Optional[List[Tuple[_GhostPartner, Any, float, float]]],
+        grounded: bool,
+        id_to_collider: Dict[int, Collider],
+    ) -> None:
+        """Answer the contacts the handlers saw that this body's sweep never
+        reached (LW8): the body made no stop this step, and its velocity
+        approaches a partner within the resting skin. Without this, a brick
+        broken the frame after its ``@collide`` let the ball through (it was
+        gone before the sweep that would have bounced the ball).
+
+        Which: a live skin contact on a ``bounce > 0`` pair, for a body that
+        was airborne at the start of the frame (a resting body is the floor
+        snap's; a ``bounce=0`` pair is answered by the next sweep, and
+        answering it here turned an idle body's fall into a slide down a ramp:
+        P5), and a removed partner (``ghosts``) the sweep did not meet. The
+        normal is a short cast along the velocity, the sweep's own question;
+        the detection's gap normal at a seam is a corner-to-corner artefact.
+        Answered together (``_cone_response``); a live contact is recorded,
+        so ``touching_*`` agrees with what ``@collide`` saw.
+        """
+        ident = ca._identity
+        vel = getattr(ident, "_vel", None)
+        if vel is None:
+            return
+        vx, vy = float(vel.x), float(vel.y)
+        vl = math.hypot(vx, vy)
+        if vl < 1e-9:
+            return
+        pas = self._world_prims(ca)
+        if not pas:
+            return
+        reach = 2.0 * _CONTACT_SKIN / vl
+        ux, uy = vx * reach, vy * reach
+        cid = id(ca)
+        passing = self._passing.get(cid) or {}
+        ns: List[Tuple[float, float]] = []
+        es: List[float] = []
+        recs: List[Tuple[Collider, float, float]] = []
+
+        def cast(pbs):
+            hit = _toi_prim_sets(pas, pbs, ux, uy)
+            if hit is None or hit[1] is None:
+                return None
+            nx, ny = float(hit[1].normal[0]), float(hit[1].normal[1])
+            nl = math.hypot(nx, ny)
+            if nl < 1e-12 or vx * nx + vy * ny <= 0.0:
+                return None
+            return nx / nl, ny / nl
+
+        if skins and not grounded:
+            gate = None
+            if self._has_only:
+                only_map = self._resolve_only_map(ca)
+                if only_map:
+                    gate = _OnlyGate(self, ca, only_map, passing)
+            for key, _info in skins:
+                if key in self._solve_contacts:
+                    continue
+                other = id_to_collider.get(key[1] if key[0] == cid else key[0])
+                if other is None or passing.get(id(other)) is other:
+                    continue
+                _mb, ov = _partner_mass_vel(other)
+                if ov is not None and (ov[0] or ov[1]):
+                    continue                # a moving partner: its sweep's business
+                token = self._resolve_bounce_for(ca, other)
+                if token is _RESOLVE_POSITION_ONLY or token is None or float(token) <= 0.0:
+                    continue
+                n = cast(self._world_prims(other))
+                if n is None or (gate is not None and not gate.ok(other, n[0], n[1])):
+                    continue
+                ns.append(n)
+                es.append(float(token))
+                recs.append((other, n[0], n[1]))
+        if ghosts:
+            met = self._ghosts_met
+            for g, token, _odx, _ody in ghosts:
+                if id(g) in met or token is _RESOLVE_POSITION_ONLY or token is None:
+                    continue
+                if g.vel is not None and not _is_static_mass(g.mass):
+                    continue                # a movable body: no wall to answer here
+                n = cast(g.prims)
+                if n is None:
+                    continue
+                if g.only_entry is not None and not _OnlyGate(
+                        self, ca, {id(g.dead): g.only_entry}, passing).ok(g.dead, n[0], n[1]):
+                    continue
+                ns.append(n)
+                es.append(float(token))
+        if not ns:
+            return
+        vel.x, vel.y = _cone_response(vx, vy, ns, es)
+        for other, nx, ny in recs:
+            self._record_solve_contact(ca, other, nx, ny, 0.0)
+
     def _apply_ghost_contacts(self) -> None:
         """Velocity response of each survivor to a resolve partner a handler
         removed this step (PE5): ``bounce=`` as if the partner were still
@@ -6066,6 +6293,23 @@ class CollisionSystem:
         """
         ghosts = self._ghost_contacts
         self._ghost_contacts = []
+        if _GHOST_WALLS:
+            # Each removed partner becomes a still wall for its survivor's
+            # sweep this step (``_sweep_and_slide``), once per survivor.
+            by: Dict[int, List[Tuple[_GhostPartner, Any, float, float]]] = {}
+            for surv, dead, info, pbs, token, only_entry, mb, vel_b, _ddx, _ddy in ghosts:
+                ident = surv._identity
+                if getattr(ident, "_vel", None) is None or not self._collider_in_play(surv):
+                    continue
+                if _is_static_mass(float(getattr(ident, "mass", 1.0))) or not pbs:
+                    continue
+                walls = by.setdefault(id(surv), [])
+                if any(w[0].dead is dead for w in walls):
+                    continue                # one contact each side: one wall
+                walls.append((_GhostPartner(dead, pbs, mb, vel_b, info, only_entry),
+                              token, 0.0, 0.0))
+            self._ghost_walls = by
+            return
         for surv, dead, info, pbs, token, only_entry, mb, vel_b, ddx, ddy in ghosts:
             ident = surv._identity
             va = getattr(ident, "_vel", None)
@@ -6781,6 +7025,7 @@ class CollisionSystem:
         sat_n = 0
         skin_n = 0
         n_prims = 0
+        self._skin_keys = []
 
         t0 = time.perf_counter()
         # ``_update_proxy`` just refreshed every live ``_proxy_key`` and no user
@@ -6842,6 +7087,7 @@ class CollisionSystem:
                             contact = None
                         if contact is not None:
                             skin_n += 1
+                            self._skin_keys.append(key)
                             current[key] = _collision_info_from_contact(
                                 ca, cb, contact, pas, pbs,
                             )
@@ -6959,6 +7205,8 @@ class CollisionSystem:
                 self._trust_proxy_world = False
         elif self._ghost_contacts:
             self._ghost_contacts = []
+        if self._ghost_walls:
+            self._ghost_walls = {}          # walls for this step's sweeps only
         self.last_stats["ms_resolve"] = (time.perf_counter() - t0) * 1000.0
         t0 = time.perf_counter()
         # No author code runs between resolve and here, so proxies still match
@@ -7168,23 +7416,48 @@ class CollisionSystem:
             self._carry_riders(grounded, grounded_at_start)
             if _RIDER_CARRY and grounded else None
         )
+        # Resting-skin contacts the handlers saw, by body (``_answer_unreached``).
+        skin_by: Optional[Dict[int, List[Tuple[Tuple[int, int], CollisionInfo]]]] = None
+        if _SKIN_ANSWER and self._skin_keys and any(
+            tok is not _RESOLVE_POSITION_ONLY and tok is not None and float(tok) > 0.0
+            for _a, _b, tok, _o in self._resolve_pairs
+        ):                                  # only a bouncy pair answers a skin contact
+            skin_by = {}
+            for key in self._skin_keys:
+                info = current.get(key)
+                if info is not None:
+                    skin_by.setdefault(key[0], []).append((key, info))
+                    skin_by.setdefault(key[1], []).append((key, info))
+        walls = self._ghost_walls
+        self._ghosts_met.clear()
         for ca in bodies:
-            swept.add(id(ca))
+            cid = id(ca)
+            swept.add(cid)
             partners = self._resolve_pool(ca)
-            if not partners:
+            ghosts = walls.get(cid) if walls else None
+            if not partners and not ghosts:
                 continue
             gate = None
             if has_only:
                 only_map = self._resolve_only_map(ca)
                 if only_map is not None:
                     gate, partners = self._only_view(ca, partners, only_map)
-                    if not partners:
+                    if not partners and not ghosts:
                         continue
             if _LOCAL_PREFILTER and type(partners) is _PartnerPool:
                 partners.localize(ca)
-            self._sweep_and_slide(ca, partners, gate, bool(grounded_at_start.get(id(ca))))
+            grounded = bool(grounded_at_start.get(cid))
+            stopped = self._sweep_and_slide(ca, partners, gate, grounded, ghosts)
+            skins = skin_by.get(cid) if skin_by is not None and not stopped else None
+            if ghosts or skins:
+                # A removed partner the sweep did not meet still answers what
+                # the handler saw (PE5); a live skin contact, for a body that
+                # made no stop, only with ``_SKIN_ANSWER`` (LW8).
+                self._answer_unreached(ca, skins, ghosts, grounded, id_to_collider)
+            if not partners:
+                continue
             self._settle_body(ca, partners, gate)
-            if grounded_at_start.get(id(ca)):
+            if grounded:
                 self._floor_snap(ca, partners, gate)
         if self._passing:
             # Drop bodies and partners that left the resolve world (a body
@@ -7493,6 +7766,9 @@ class CollisionSystem:
         depth: float,
         points: Optional[List[Tuple[float, float]]] = None,
     ) -> None:
+        if type(cb) is _GhostPartner:
+            self._ghosts_met.add(id(cb))    # a removed partner is in no contact
+            return
         ia, ib = id(ca), id(cb)
         if ia < ib:
             nx, ny = nx_self_to_other, ny_self_to_other
@@ -7549,6 +7825,9 @@ class CollisionSystem:
     ) -> None:
         if token is _RESOLVE_POSITION_ONLY or token is None:
             return
+        if type(cb) is _GhostPartner:
+            self._ghost_velocity(ca, cb, token, nx, ny)
+            return
         info = CollisionInfo(
             a=ca._identity,
             b=cb._identity,
@@ -7556,6 +7835,24 @@ class CollisionSystem:
             depth=0.0,
         )
         info.bounce_apart(bounce=float(token))
+
+    def _ghost_velocity(
+        self, ca: Collider, g: "_GhostPartner", token: Any, nx: float, ny: float,
+    ) -> None:
+        """A stop at a removed partner: ``velocity_split`` with its mass and
+        ``.vel`` as they were (none: immovable), written on the survivor only."""
+        ident = ca._identity
+        va = getattr(ident, "_vel", None)
+        if va is None:
+            return
+        contact = CollisionInfo(a=ident, b=g.dead._identity, normal=Vec2.temp(nx, ny), depth=0.0)
+        nva, _nvb = contact.velocity_split(
+            mass_a=float(getattr(ident, "mass", 1.0)),
+            mass_b=STATIC if g.vel is None else g.mass,
+            bounce=float(token), vel_a=va,
+            vel_b=(0.0, 0.0) if g.vel is None else g.vel,
+        )
+        va.x, va.y = float(nva.x), float(nva.y)
 
     def _earliest_toi(
         self,
@@ -7567,6 +7864,8 @@ class CollisionSystem:
         relative: bool = False,
         gate: Optional[_OnlyGate] = None,
         deferred: Optional[List[Tuple[float, float, float, Collider, Any, float, float]]] = None,
+        ties: Optional[list] = None,
+        ghosts: Optional[List[Tuple["_GhostPartner", Any, float, float]]] = None,
     ) -> Optional[Tuple[float, float, float, Collider, Any, float, float]]:
         """Earliest accepted hit of ``pas`` moving by ``(rdx, rdy)``, or None.
 
@@ -7574,6 +7873,14 @@ class CollisionSystem:
         starts a pass. With ``deferred`` (the sweep of a grounded body) those
         hits are appended there instead, and the caller marks them unless a
         seam step makes them moot.
+
+        ``ties`` (a list) receives every accepted hit within the contact skin
+        of the earliest whose normal differs from it, the earliest included,
+        as ``(t, nx, ny, partner, token, odx, ody, mdx, mdy)`` (the pair's
+        motion); it is left
+        empty when there is no such second hit (Collision Design, "Joint
+        stop"). ``ghosts``: this step's removed partners of the body, still
+        walls (``_GhostPartner``), walked after the pool.
         """
         if not pas:
             return None
@@ -7586,6 +7893,10 @@ class CollisionSystem:
             partners = [partners.item(i) for i in partners.near_swept(sx0, sy0, sx1, sy1)]
         best: Optional[Tuple[float, float, float, Collider, Any, float, float]] = None
         rejected: Optional[List[Tuple[float, float, float, Collider, Any, float, float]]] = None
+        # Ties are listed only from a second accepted hit on: the first (and
+        # its motion) is kept by reference, so a lone hit costs nothing.
+        first = None
+        fmx = fmy = 0.0
         for cb, token, odx, ody in partners:
             # Partner box over the frame: union of its start (proxy - motion)
             # and end proxy, inlined — this loop visits the whole partner pool.
@@ -7633,11 +7944,62 @@ class CollisionSystem:
                     t, contact.normal[0], contact.normal[1], cb, token, odx, ody,
                 ))
                 continue
+            if ties is not None and best is not None:
+                if not ties:
+                    ties.append(first + (fmx, fmy))
+                ties.append((t, contact.normal[0], contact.normal[1], cb, token, odx, ody,
+                             mdx, mdy))
             if best is None or t < best[0] - 1e-12:
                 best = (
                     t, contact.normal[0], contact.normal[1],
                     cb, token, odx, ody,
                 )
+                if first is None:
+                    first, fmx, fmy = best, mdx, mdy
+        if ghosts:
+            # A removed partner is still and pushes nothing: a plain sweep
+            # against its frozen prims (PE5).
+            for g, token, _odx, _ody in ghosts:
+                pb = g._proxy
+                if pb[0] > sx1 or sx0 > pb[2] or pb[1] > sy1 or sy0 > pb[3]:
+                    continue
+                hit = _toi_prim_sets(pas, g.prims, rdx, rdy)
+                if hit is None or hit[1] is None:
+                    continue
+                t, contact = hit
+                gnx, gny = contact.normal[0], contact.normal[1]
+                if t <= 1e-12 and rdx * gnx + rdy * gny <= 0.0:
+                    continue
+                if gate is not None and not gate.ok(g.dead, gnx, gny, contact.points):
+                    self._ghosts_met.add(id(g))     # passed through: nothing to answer
+                    if rejected is None:
+                        rejected = []
+                    rejected.append((t, gnx, gny, g, token, 0.0, 0.0))
+                    continue
+                if ties is not None and best is not None:
+                    if not ties:
+                        ties.append(first + (fmx, fmy))
+                    ties.append((t, gnx, gny, g, token, 0.0, 0.0, rdx, rdy))
+                if best is None or t < best[0] - 1e-12:
+                    best = (t, gnx, gny, g, token, 0.0, 0.0)
+                    if first is None:
+                        first, fmx, fmy = best, rdx, rdy
+        if ties and best is not None:
+            # The same stop, another face: a hit parallel to the earliest (a
+            # flat seam) answers alike, so only a different normal joins.
+            t0, bx, by = best[0], best[1], best[2]
+            bl = math.hypot(bx, by)
+            if bl < 1e-12:
+                ties.clear()
+            else:
+                ties[:] = [
+                    h for h in ties
+                    if (h[0] - t0) * math.hypot(h[7], h[8]) <= _CONTACT_SKIN and (
+                        h[3] is best[3]
+                        or h[1] * bx + h[2] * by < (1.0 - 1e-9) * bl * math.hypot(h[1], h[2]))
+                ]
+                if len(ties) < 2:
+                    ties.clear()
         if rejected is not None:
             # The body crosses into a rejected partner only if nothing
             # accepted stops it first; a later rejected hit is re-judged on
@@ -7648,7 +8010,7 @@ class CollisionSystem:
                     if deferred is not None:
                         deferred.append(rej)
                     else:
-                        gate.mark(rej[3])
+                        gate.mark(_gate_body(rej[3]))
         return best
 
     def _sweep_and_slide(
@@ -7657,12 +8019,28 @@ class CollisionSystem:
         partners: Sequence[Tuple[Collider, Any, float, float]],
         gate: Optional[_OnlyGate] = None,
         grounded: bool = False,
-    ) -> None:
+        ghosts: Optional[List[Tuple["_GhostPartner", Any, float, float]]] = None,
+    ) -> bool:
+        """Sweep ``ca``'s frame motion against its partners and slide (steps
+        2-3 of Resolution); ``ghosts``: its removed partners this step, still
+        walls. True when the sweep stopped somewhere (a contact, a ghost, a
+        seam step)."""
         dx = ca._motion_dx if ca._motion_translation else 0.0
         dy = ca._motion_dy if ca._motion_translation else 0.0
         pas_end = self._world_prims(ca)
         if not pas_end:
-            return
+            return False
+        if ghosts:
+            extra = {id(g.dead): g.only_entry for g, _tok, _a, _b in ghosts
+                     if g.only_entry is not None}
+            if extra:
+                # The removed partners' ``only=`` entries join this sweep's gate.
+                only_map = dict(gate._map) if gate is not None else {}
+                only_map.update(extra)
+                gate = _OnlyGate(self, ca, only_map,
+                                 gate._passing if gate is not None
+                                 else self._passing.setdefault(id(ca), {}))
+        stopped = False
         seam = _SEAM_STEP > 0.0
         cid = id(ca)
         # A rider's motion channel holds its carry (``_carry_riders``); the
@@ -7683,8 +8061,8 @@ class CollisionSystem:
             )
         if math.hypot(dx, dy) < _SLIDE_EPS:
             if partner_moves:
-                self._sweep_idle_against_partner(ca, pas_end, partners, gate)
-            return
+                return self._sweep_idle_against_partner(ca, pas_end, partners, gate)
+            return False
         pas = _copy_translate(pas_end, -dx, -dy)
         ox = 0.0
         oy = 0.0
@@ -7704,8 +8082,10 @@ class CollisionSystem:
             # a side face with a small lip above the feet may be a seam step.
             ground = seam and (grounded or self._solve_bottom_count.get(cid, 0) > 0)
             deferred = [] if ground and gate is not None else None
+            ties = [] if _JOINT_RESPONSE else None
             hit = self._earliest_toi(
                 moved, rdx, rdy, partners, relative=first, gate=gate, deferred=deferred,
+                ties=ties, ghosts=ghosts,
             )
             if deferred:
                 # One-way: a rejected side hit at a seam lip is a step, not a
@@ -7713,13 +8093,14 @@ class CollisionSystem:
                 deferred.sort(key=lambda h: h[0])
                 rej = deferred[0]
                 step = None
-                if _seam_candidate(rej):
+                if _seam_candidate(rej) and type(rej[3]) is not _GhostPartner:
                     step = self._try_seam_step(ca, moved, rdx, rdy, rej, partners, gate)
                 if step is None:
                     for rej_hit in deferred:
-                        gate.mark(rej_hit[3])
+                        gate.mark(_gate_body(rej_hit[3]))
                 else:
                     ox, oy, remaining = self._take_seam_step(ca, rej, step, ox, oy)
+                    stopped = True
                     continue
             if hit is None:
                 ox += rdx
@@ -7732,14 +8113,32 @@ class CollisionSystem:
             if nlen > 1e-12:
                 nx /= nlen
                 ny /= nlen
-            if ground and _seam_candidate(hit):
+            if ground and _seam_candidate(hit) and type(other) is not _GhostPartner:
                 step = self._try_seam_step(ca, moved, rdx, rdy, hit, partners, gate)
                 if step is not None:
                     ox, oy, remaining = self._take_seam_step(ca, hit, step, ox, oy)
+                    stopped = True
                     continue
+            stopped = True
+            if ties:
+                # Two partners or more at this stop (LW2): answered together.
+                joint = self._joint_stop(ca, ties, t, rdx, rdy, own_dx, carry_left, moved,
+                                         other, grounded)
+                if joint is not None:
+                    ox += joint[0]
+                    oy += joint[1]
+                    remaining = joint[2]
+                    continue
+            side = _side_from_normal(nx, ny)
+            # Bounce sub-step (LW7): the restitution this stop's velocity
+            # response applies, for the leftover below. Not for a body that
+            # started the frame on the floor it meets: one frame's gravity
+            # kick reflected as travel would keep it hopping (rest).
+            e_sub = 0.0
+            if _BOUNCE_SUBSTEP and not (grounded and side == "bottom"):
+                e_sub = self._substep_restitution(ca, other, token, nx, ny)
             ox += rdx * t
             oy += rdy * t
-            side = _side_from_normal(nx, ny)
             stop = side == "bottom" and abs(own_dx) < _STOP_ON_SLOPE_INTENT
             if first:
                 mx, my = rdx - odx, rdy - ody
@@ -7753,7 +8152,8 @@ class CollisionSystem:
             self._record_solve_contact(ca, other, nx, ny, 0.0)
             self._respond_velocity(ca, other, token, nx, ny)
             # What the body slides on: this slide's motion past the stop, its
-            # part along the normal removed (stop-on-slope: nothing).
+            # part along the normal removed (stop-on-slope: nothing), and with
+            # a bounce the closing part reflected by the same restitution.
             leftover_x = mx * (1.0 - t) if first else rdx * (1.0 - t)
             leftover_y = my * (1.0 - t) if first else rdy * (1.0 - t)
             if first and other is carrier:
@@ -7780,6 +8180,24 @@ class CollisionSystem:
                         leftover_y -= carry_left[1] * (1.0 - t)
                 remaining = (0.0, 0.0) if stop else _remove_normal_component(
                     leftover_x, leftover_y, nx, ny)
+                # The closing gap left after the stop, relative to the partner.
+                g_sub = (mx * nx + my * ny) * (1.0 - t)
+                if g_sub > 0.0:
+                    # The pair separates by ``e * gap`` over the rest of the
+                    # frame (a movable partner's share is ``(1 + e) * gap``,
+                    # in ``_share_sweep_stop``); bounce=0: nothing, the slide.
+                    k = -e_sub * g_sub
+                    if type(other) is _GhostPartner and other.vel is not None \
+                            and not _is_static_mass(other.mass):
+                        # A removed movable body is not pushed; the survivor
+                        # still travels as if it had pushed it.
+                        ma = float(getattr(ca._identity, "mass", 1.0))
+                        k += (1.0 + e_sub) * g_sub * (1.0 / other.mass) / (
+                            1.0 / ma + 1.0 / other.mass)
+                    if k:
+                        remaining = (remaining[0] + k * nx, remaining[1] + k * ny)
+                else:
+                    e_sub = 0.0
                 if shared:
                     carry_left = None               # delivered by the inheritance
                 if carry_left is not None:
@@ -7807,11 +8225,160 @@ class CollisionSystem:
                 # against the body's walls (``_share_sweep_stop``).
                 if gap > 0.0 or (inherit and _SWEEP_INHERIT_CLAMP):
                     sx, sy = self._share_sweep_stop(
-                        ca, other, nx, ny, gap, ix, iy, ox - ix - dx, oy - iy - dy,
+                        ca, other, nx, ny, gap * (1.0 + e_sub) if gap > 0.0 else gap,
+                        ix, iy, ox - ix - dx, oy - iy - dy,
                     )
                     ox += sx
                     oy += sy
         self._nudge_collider(ca, ox - dx, oy - dy)
+        return stopped
+
+    def _substep_restitution(
+        self, ca: Collider, cb: Any, token: Any, nx: float, ny: float,
+    ) -> float:
+        """The restitution this stop's velocity response applies along the
+        unit normal ``(nx, ny)``, for the bounce sub-step: the pair's
+        ``bounce=``, or 0 when the response changes nothing (position-only
+        pair, no ``.vel`` on the body, a velocity that does not approach: a
+        body moved by ``move_by`` alone slides as before)."""
+        if token is _RESOLVE_POSITION_ONLY or token is None:
+            return 0.0
+        e = float(token)
+        if e <= 0.0:
+            return 0.0
+        vel = getattr(ca._identity, "_vel", None)
+        if vel is None:
+            return 0.0
+        _mb, ov = _partner_mass_vel(cb)
+        rvx = float(vel.x) - (ov[0] if ov is not None else 0.0)
+        rvy = float(vel.y) - (ov[1] if ov is not None else 0.0)
+        return e if rvx * nx + rvy * ny > 0.0 else 0.0
+
+    def _joint_stop(
+        self,
+        ca: Collider,
+        ties: List[Tuple[float, float, float, Any, Any, float, float, float, float]],
+        t: float,
+        rdx: float,
+        rdy: float,
+        own_dx: float,
+        carry_left: Optional[Tuple[float, float]],
+        moved: List[Prim],
+        best_cb: Any,
+        grounded: bool,
+    ) -> Optional[Tuple[float, float, Tuple[float, float]]]:
+        """One stop against every still, immovable partner the slide reaches
+        within the skin (LW2; Collision Design, "Joint stop"): ``(ox, oy,
+        remaining)``, the offset from the slide's start and the next slide's
+        motion; the contacts are recorded and the velocity answered together.
+        None: the earliest hit answers alone (a moving or movable partner, a
+        rider, normals that turn out parallel, an obtuse wedge, more than
+        ``_JOINT_MAX`` contacts).
+
+        ``ties`` come from ``_earliest_toi`` (the earliest and the hits within
+        the skin with another normal). A tie joins only when the slide along
+        each contact runs into the other at once, both ways: what the next
+        slides of the one-at-a-time answer would meet. A tile seam's side face
+        that a walker's floor slide passes 0.08 DU above stays out (internal
+        edge); a ball's slide along one seam corner meets the other corner.
+        """
+        if carry_left is not None or len(ties) > _JOINT_MAX:
+            return None
+        ties = sorted(ties, key=lambda h: h[3] is not best_cb)     # the earliest first
+        ns: List[Tuple[float, float]] = []
+        parts: List[Tuple[Any, Any]] = []
+        for _t, hx, hy, cb, tok, odx, ody, _mx, _my in ties:
+            if odx or ody:
+                return None
+            mb, ov = _partner_mass_vel(cb)
+            if ov is not None and (ov[0] or ov[1]):
+                return None
+            if not _is_static_mass(mb) and not (type(cb) is _GhostPartner and ov is None):
+                return None                 # a movable partner takes a share: one at a time
+            hl = math.hypot(hx, hy)
+            if hl < 1e-12:
+                return None
+            ns.append((hx / hl, hy / hl))
+            parts.append((cb, tok))
+        lx, ly = rdx * (1.0 - t), rdy * (1.0 - t)
+
+        def reaches(na, cbb, nb):
+            """The slide along contact ``na`` meets ``cbb`` (normal ``nb``)
+            within the skin, from the stop backed off along ``na``."""
+            tx, ty = _remove_normal_component(lx, ly, na[0], na[1])
+            tl = math.hypot(tx, ty)
+            if tl < 1e-9:
+                return False
+            rate = (tx * nb[0] + ty * nb[1]) / tl
+            if rate <= 1e-3:
+                return False
+            k = min(2.0 * _CONTACT_SKIN / rate, 50.0 * _CONTACT_SKIN) / tl
+            px, py = tx * k, ty * k
+            start = _copy_translate(moved, rdx * t - na[0] * _RESOLVE_SLOP,
+                                    rdy * t - na[1] * _RESOLVE_SLOP)
+            pbs = cbb.prims if type(cbb) is _GhostPartner else self._world_prims(cbb)
+            hh = _toi_prim_sets(start, pbs, px, py)
+            if hh is None or hh[1] is None:
+                return False
+            return hh[0] > 1e-12 or px * hh[1].normal[0] + py * hh[1].normal[1] > 0.0
+
+        n0 = ns[0]
+        keep = [0] + [
+            i for i in range(1, len(ns))
+            if reaches(n0, parts[i][0], ns[i]) and reaches(ns[i], parts[0][0], n0)
+        ]
+        if len(keep) < 2:
+            return None
+        ns = [ns[i] for i in keep]
+        parts = [parts[i] for i in keep]
+        sx = sum(n[0] for n in ns)
+        sy = sum(n[1] for n in ns)
+        sl = math.hypot(sx, sy)
+        if sl < 1e-9:
+            return None
+        sx /= sl
+        sy /= sl
+        c = min(sx * n[0] + sy * n[1] for n in ns)
+        if c < 0.2:
+            return None                     # an obtuse wedge: one at a time
+        # The skin: back off along the summed normal, far enough to leave
+        # the slop to every contact; a stop with no sideways intent backs off
+        # along its own motion instead, as one contact does (PE2: no creep).
+        back = min(_RESOLVE_SLOP / c, 3.0 * _RESOLVE_SLOP)
+        bx, by = -sx * back, -sy * back
+        stop = abs(own_dx) < _STOP_ON_SLOPE_INTENT and any(
+            _side_from_normal(n[0], n[1]) == "bottom" for n in ns)
+        if stop and _SKIN_ALONG_MOTION:
+            ml = math.hypot(rdx, rdy)
+            cm = min((rdx * n[0] + rdy * n[1]) / ml for n in ns) if ml > 1e-12 else 0.0
+            if cm >= _SKIN_MOTION_COS:
+                k = _RESOLVE_SLOP / (cm * ml)
+                bx, by = -rdx * k, -rdy * k
+        for (cb, _tok), n in zip(parts, ns):
+            self._record_solve_contact(ca, cb, n[0], n[1], 0.0)
+        answers = [not (tok is _RESOLVE_POSITION_ONLY or tok is None) for _cb, tok in parts]
+        es = [max(0.0, float(tok)) if a else 0.0 for (_cb, tok), a in zip(parts, answers)]
+        approached = [False] * len(ns)
+        vel = getattr(ca._identity, "_vel", None)
+        if vel is not None and any(answers):
+            vx, vy = float(vel.x), float(vel.y)
+            approached = [a and vx * n[0] + vy * n[1] > 0.0 for n, a in zip(ns, answers)]
+            vel.x, vel.y = _cone_response(
+                vx, vy, [n for n, a in zip(ns, answers) if a],
+                [e for e, a in zip(es, answers) if a])
+        # The leftover takes the same answer (bounce sub-step), but a body
+        # that started the frame grounded does not bounce off its floor.
+        les = [
+            e if (ap and _BOUNCE_SUBSTEP
+                  and not (grounded and _side_from_normal(n[0], n[1]) == "bottom")) else 0.0
+            for e, ap, n in zip(es, approached, ns)
+        ]
+        rx, ry = _cone_response(lx, ly, ns, les)
+        if stop:
+            px, py, _js = _cone_split(lx, ly, ns)
+            rx -= px                        # stop-on-slope: the slide is dropped
+            ry -= py
+        return rdx * t + bx, rdy * t + by, (rx, ry)
 
     def _try_seam_step(
         self,
@@ -7933,7 +8500,7 @@ class CollisionSystem:
         pas: List[Prim],
         partners: Sequence[Tuple[Collider, Any, float, float]],
         gate: Optional[_OnlyGate] = None,
-    ) -> None:
+    ) -> bool:
         """One relative sweep when only the partner moved this frame.
 
         A fast floor into a body that did not ``move_by`` never enters the
@@ -7942,7 +8509,7 @@ class CollisionSystem:
         """
         hit = self._earliest_toi(pas, 0.0, 0.0, partners, relative=True, gate=gate)
         if hit is None:
-            return
+            return False
         t, nx, ny, other, token, odx, ody = hit
         t = max(0.0, min(1.0, t))
         nlen = math.hypot(nx, ny)
@@ -7960,6 +8527,7 @@ class CollisionSystem:
         self._record_solve_contact(ca, other, nx, ny, 0.0)
         self._respond_velocity(ca, other, token, nx, ny)
         self._nudge_collider(ca, ox, oy)
+        return True
 
     def _carry_riders(
         self,
@@ -8108,6 +8676,8 @@ class CollisionSystem:
         come carries the push in its motion channel too: its own sweep then
         travels it (a wall behind it stops it) instead of starting past it.
         """
+        if type(cb) is _GhostPartner:
+            return 0.0, 0.0                 # a removed partner is pushed by nothing
         ib = cb._identity
         mb = float(getattr(ib, "mass", 1.0)) if ib is not None else 1.0
         if _is_static_mass(mb):

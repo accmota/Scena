@@ -8,9 +8,9 @@
   module ``@collide``, a class ``@collide_with`` or an ``on_collide``
   property; the same calls in the same frames, by role.
 * E8 breaking in the handler vs between frames (``tests/laws/twins/breakout.py``,
-  PE5): the ball leaves with the same velocity, within budget (angle 2°,
-  speed 2 %), on single hits. A hit on two bricks at once is open (LW2,
-  a decision): the test pins that it still diverges, so a fix shows.
+  PE5): the ball leaves with the same velocity and on the same path, within
+  budget (angle 2°, speed 2 %, position 0.5 DU), on single hits and on a hit
+  on two bricks at once (the seam: LW2, closed 2026-10-15 by the joint stop).
 
 Canaries (gate): the old S8-2 "stop once a side died" rule (E3), a dropped
 ``on_collide_stay`` door (E4), the ghost response off (E8).
@@ -44,6 +44,7 @@ TWINS = "tests/laws/twins"
 WAIT = {"SCENARIOS": {"wait": Scenario(steps=[("wait", 150)])}, "PROBES": {}}
 ANGLE_BUDGET = 2.0           # degrees (design/Laws.md, budgets)
 SPEED_BUDGET = 0.02
+POS_BUDGET = 0.5             # DU per event
 
 
 # -- E3 -------------------------------------------------------------------------
@@ -114,7 +115,7 @@ def _exit_velocity(when, **params):
     try:
         run.step(150)
         st = run.ns["st"]
-        return st.broken, (st.vx, st.vy)
+        return st.broken, (st.vx, st.vy), (st.px, st.py)
     finally:
         run.close()
 
@@ -127,24 +128,28 @@ def _gap(a, b):
 
 
 class TestBreakInHandlerOrLater(unittest.TestCase):
+    def _agree(self, vy, bricks):
+        bh, vh, ph = _exit_velocity("handler", vy=vy)
+        bl, vl, pl = _exit_velocity("later", vy=vy)
+        self.assertEqual(bh, bl)
+        self.assertEqual(bh, bricks, "the hit is not the one this test is about (vacuous)")
+        ang, speed = _gap(vh, vl)
+        self.assertLessEqual(ang, ANGLE_BUDGET, (vh, vl))
+        self.assertLessEqual(speed, SPEED_BUDGET, (vh, vl))
+        self.assertLessEqual(math.dist(ph, pl), POS_BUDGET, (ph, pl))
+
     def test_single_hits_agree(self):
         for vy in (45.0, -30.0, 140.0):
             with self.subTest(vy=vy):
-                bh, vh = _exit_velocity("handler", vy=vy)
-                bl, vl = _exit_velocity("later", vy=vy)
-                self.assertEqual(bh, bl)
-                self.assertGreater(bh, 0, "no brick hit (vacuous)")
-                ang, speed = _gap(vh, vl)
-                self.assertLessEqual(ang, ANGLE_BUDGET, (vh, vl))
-                self.assertLessEqual(speed, SPEED_BUDGET, (vh, vl))
+                self._agree(vy, 1)
 
-    def test_two_bricks_at_once_still_diverge_lw2(self):
-        """LW2 (open, a decision): a ball on the seam of two bricks. Pinned so
-        a fix of the multi-contact response shows here (then: flip to agree)."""
-        _b, vh = _exit_velocity("handler", vy=0.0)
-        _b, vl = _exit_velocity("later", vy=0.0)
-        ang, _speed = _gap(vh, vl)
-        self.assertGreater(ang, ANGLE_BUDGET, (vh, vl))
+    def test_two_bricks_at_once_agree(self):
+        """LW2 (closed 2026-10-15): a ball on the seam of two bricks breaks
+        both and leaves straight back, whether they break in the handler or
+        a frame later (they differed by up to 46 degrees)."""
+        self._agree(0.0, 2)
+        _b, v, _p = _exit_velocity("handler", vy=0.0)
+        self.assertLessEqual(_gap(v, (-300.0, 0.0))[0], ANGLE_BUDGET, v)
 
 
 # -- E1 -------------------------------------------------------------------------
@@ -152,9 +157,10 @@ class TestBreakInHandlerOrLater(unittest.TestCase):
 # Examples whose edge events depend on the frame rate for a reason the
 # triage named (design/Testing Design.md, catalogue LW). Shrink-only.
 E1_EXCLUDED = {
-    "bolas.py": "LW7: a bounce drops the frame's leftover travel (a ball in a box runs "
-                "slower at a low frame rate), and twenty balls amplify it",
-    "entropia.py": "LW7 (as bolas) in a box of bouncing balls",
+    "bolas.py": "ACADEMIC: twenty balls bouncing off each other amplify the frame dependence "
+                "left in many-body contacts (bodies sweep one at a time; a tie with movable "
+                "partners answers one at a time); one ball in a box holds (LW7 closed)",
+    "entropia.py": "ACADEMIC (as bolas): a box of balls bouncing off each other",
     "aviao.py": "ACADEMIC: the author's own Euler step (vel.y -= g * dt) puts the plane a "
                 "few pixels apart at uneven pacing; a door passed one frame later",
     "naves_modos.py": "ACADEMIC: a self re-arming after / a mode's wait starts each period at "
@@ -167,6 +173,12 @@ E1_DEV = ("one_ball", "orbitas.py", "naves.py", "colisao.py", "ninja.py", "pegar
 class TestPacing(unittest.TestCase):
     def test_one_ball_twin(self):
         path = os.path.join(eq.ROOT_TESTS, "laws", "twins", "one_ball.py")
+        self.assertEqual(eq.e1_script(path, 600), [])
+
+    def test_two_wall_twin(self):
+        """A head-on bounce every half second at 700 DU/s: with the leftover
+        dropped at each bounce (LW7) the runs were a frame apart by 6 s."""
+        path = os.path.join(eq.ROOT_TESTS, "laws", "twins", "two_walls.py")
         self.assertEqual(eq.e1_script(path, 600), [])
 
     def test_examples(self):
@@ -274,6 +286,23 @@ class TestCanaries(unittest.TestCase):
                 fh.write(src)
             self.assertTrue(eq.e1_script(twin, 600, paces=("30",)))
 
+    def test_e1_catches_the_dropped_leftover(self):
+        # LW7's bug planted in the children: a bounce drops its leftover again.
+        path = os.path.join(eq.ROOT_TESTS, "laws", "twins", "two_walls.py")
+        with open(path, encoding="utf-8") as fh:
+            src = fh.read()
+        src = src.replace(
+            "from scena import *",
+            "from scena import *\n"
+            "import sys as _sys\n"
+            "_sys.modules['scena.collision']._BOUNCE_SUBSTEP = False", 1)
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            twin = os.path.join(tmp, "two_walls.py")
+            with open(twin, "w", encoding="utf-8") as fh:
+                fh.write(src)
+            self.assertTrue(eq.e1_script(twin, 600, paces=("144",)))
+
     def test_e5_catches_act_timers_that_start_late(self):
         from unittest import mock
         import scena.process as proc
@@ -300,8 +329,8 @@ class TestCanaries(unittest.TestCase):
         from unittest import mock
         with mock.patch.object(col.CollisionSystem, "_note_ghost_contacts",
                                lambda self, c: None):
-            _b, vh = _exit_velocity("handler", vy=45.0)
-        _b, vl = _exit_velocity("later", vy=45.0)
+            _b, vh, _p = _exit_velocity("handler", vy=45.0)
+        _b, vl, _p = _exit_velocity("later", vy=45.0)
         self.assertGreater(_gap(vh, vl)[0], ANGLE_BUDGET)
 
 

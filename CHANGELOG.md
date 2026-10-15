@@ -144,6 +144,24 @@ left out.
   character now follows its key: when the box did not get the key, the
   character goes to `on_char`. Typing in a focused box, Shift and composed
   text (an input method's) type as before.
+- A body that touches two partners at once with `resolve(..., bounce=)` (a
+  ball on the seam between two bricks, a corner) is answered by both
+  together. Before, the partner made first answered alone: a ball sent
+  straight up into a seam left 7° to 60° off to one side, the side set by
+  creation order, and a symmetric hit did not leave symmetric.
+- A bounce keeps the rest of its frame's travel. The part of the frame left
+  after the hit was dropped at every bounce, more or less by frame rate: a
+  ball in a box ran 3–6 % slow at low frame rates, and a `bounce=1` ball
+  dropped from 200 came back to 190 at 30 fps (198 at 144). Bouncing balls
+  now take the same time and height at every frame rate. With `bounce=0`
+  nothing changes.
+- A brick broken in `@collide` bounces the ball where the ball touched it,
+  as a whole brick does. Before, the ball went on into the brick's space for
+  the rest of that frame, a frame of travel off its path, and a ball near
+  the seam of two broken bricks could be sent off at a wrong angle. A brick
+  broken the frame after its `@collide` (a mark in the handler, the
+  `destroy()` in `update`) also bounces the ball: if the ball ended the
+  frame a hair short of the brick, it flew through it (2–5 % of hits).
 
 ### Documentation
 
@@ -187,6 +205,10 @@ left out.
     earlier tutorial) and keeps the explanations in full prose. `@on_change`
     is now taught in 08, where the shield needs it; Appendix F lists the
     line models in a table.
+
+- Guia, "Quebrou no contato": where the ball bounces off a brick it breaks
+  (where it touched, also when the brick breaks a frame later), and that two
+  bricks at a seam answer together.
 
 ## 0.8.1 — 2026-10-14
 

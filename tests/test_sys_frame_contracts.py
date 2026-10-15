@@ -298,7 +298,8 @@ FRAME_PROMISES = {
     "o que o tween andou neste frame": "prose: names Handle.heading to tell it apart from heading()",
     "mouse.x ainda é o valor de antes da câmera andar": f"{_HERE}.TestPointerFrames.test_mouse_x_after_pan_is_the_frame_sample",
     "Quem morreu num contato não começa outro no mesmo frame": "test_collision.TestEveryEnterHandlerOfAContactRuns.test_one_shot_still_damages_one_enemy",
-    "Esse contato ainda dá a resposta de .vel neste frame": "test_collision.TestBounceOffAPartnerAHandlerRemoved.test_every_broken_brick_reflects_the_ball",
+    "neste frame o tijolo morto ainda segura a bola": "test_collision.TestBounceOffAPartnerAHandlerRemoved.test_the_dead_brick_stops_the_ball_where_a_live_one_would",
+    "Quebrar no frame seguinte": "test_joint_response.TestSkinAnswer.test_a_brick_broken_a_frame_later_still_bounces_the_ball",
     "segura a queda nesse frame, e no próximo ele cai": "test_collision.TestBounceOffAPartnerAHandlerRemoved.test_bounce_zero_floor_broken_on_landing_stops_the_fall_once",
 }
 

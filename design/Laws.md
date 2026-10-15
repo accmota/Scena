@@ -52,7 +52,7 @@ runs the handlers, then resolves. The laws are about what the handlers see.
 | C5 | An exit runs only for a pair in contact, once per contact; a destroy, a park, an untag or a group change ends a contact with its exit. | holds | model `collision.C5`; `test_collision.TestExitAfterGroupChange` | [Collision Design.md — Pipeline](Collision%20Design.md#pipeline) |
 | C6 | An exit runs the handlers its contact entered under, even when a tag left meanwhile; an exit handler dropped meanwhile (an act change, a destroy) does not run. | holds | `test_collision.TestExitAfterGroupChange` | [Collision Design.md — Pipeline](Collision%20Design.md#pipeline) |
 | C7 | A destroyed body is in no contact after its destroy returns: no later step commits a pair with it. | holds | model `collision.C7` | [Collision Design.md — Pipeline](Collision%20Design.md#pipeline) |
-| C8 | Every handler of a step runs before that step's resolve; a resolve partner a handler removed still gives the survivor this contact's velocity response (a ghost contact: Breakout bounces off the brick it breaks). | holds | model `collision.C8`; `test_collision.TestBounceOffAPartnerAHandlerRemoved` | [Collision Design.md — Partner removed by a handler](Collision%20Design.md#partner-removed-by-a-handler-ghost-contact) |
+| C8 | Every handler of a step runs before that step's resolve; a resolve partner a handler removed is still a wall for the survivor's sweep that step (a ghost: Breakout bounces off the brick it breaks, where it touched it), and is in no contact. | holds | model `collision.C8`; `test_collision.TestBounceOffAPartnerAHandlerRemoved` | [Collision Design.md — Partner removed by a handler](Collision%20Design.md#partner-removed-by-a-handler-ghost-contact) |
 
 ## Input
 
@@ -90,16 +90,16 @@ equations: no expected value, only agreement).
 
 | Law | Statement | Status | Checked by | Detail |
 | --- | --- | --- | --- | --- |
-| V1 | A game's events (contacts, timers, creations, destroys, act changes) happen at the same game times at 30, 60 and 144 Hz and at uneven frame times, within a frame of each pacing. Known limits: a bounce drops the frame's leftover travel (LW7), an author's own Euler step and a self re-arming `after` drift by frames. | open (LW7) | equation `E1` | [Scena Design.md — Clocks](Scena%20Design.md#clocks) |
+| V1 | A game's events (contacts, timers, creations, destroys, act changes) happen at the same game times at 30, 60 and 144 Hz and at uneven frame times, within a frame of each pacing. Known limits: an author's own Euler step and a self re-arming `after` drift by frames; many bodies bouncing off each other amplify what is left of frame dependence in many-body contacts (`bolas`, `entropia`). | holds | equation `E1` | [Scena Design.md — Clocks](Scena%20Design.md#clocks) |
 | V3 | A game does not depend on the order of two independent constructions. One exception, documented: a body that enters two partners in the same step without crossing either (a tie within half its thickness) enters them in creation order. | holds | equation `E3` | [Collision Design.md — Swept detection](Collision%20Design.md#swept-detection-fast-bodies) ("Order") |
 | V4 | A contact rule acts alike declared as a module `@collide`, a class `@collide_with` or an `on_collide` property (the property reaches any *registered* body: the partner joins by a rule or `collidable = True`). | holds | equation `E4` | [Collision Design.md — Pipeline](Collision%20Design.md#pipeline) |
 | V5 | A game built at the top of the file or in its first act's `setup` runs alike while that act lasts. | holds | equation `E5` | [Act Design.md — Lifetime: the game and the act](Act%20Design.md#lifetime-the-game-and-the-act) |
 | V10 | Moving the whole world (65536, 4096) changes no motion. | holds | equation `E10` | [Collision Design.md — Resolution](Collision%20Design.md#resolution) |
 | V11 | A mirrored world moves as the mirror of the world: no left / right bias. | holds | equation `E11` | [Collision Design.md — Resolution](Collision%20Design.md#resolution) |
 | V12 | Multiplying every mass by the same factor changes no motion (only mass ratios count). | holds | equation `E12` | [Collision Design.md — Mass split](Collision%20Design.md#mass-split-between-two-movable-bodies) |
-| V13 | At 30, 60 or 144 Hz a body stays within one frame of travel of where it is at 60 Hz (over a few seconds; LW7 is inside that bound and grows with bounces). | holds | equation `E13` | [Scena Design.md — Clocks](Scena%20Design.md#clocks) |
+| V13 | At 30, 60 or 144 Hz a body stays within one frame of travel of where it is at 60 Hz (over a few seconds). | holds | equation `E13` | [Scena Design.md — Clocks](Scena%20Design.md#clocks) |
 | V14 | Doubling the world and its speeds doubles every path, within the budget: the slop and skin are absolute (0.08 DU), a difference below the budget at authoring scales. | holds | equation `E14` | [Collision Design.md — Resolution](Collision%20Design.md#resolution) |
-| V8 | Breaking a resolve partner in its handler or between frames gives the survivor the same bounce. | open (LW2: two partners at once) | equation `E8` | [Collision Design.md — Partner removed by a handler](Collision%20Design.md#partner-removed-by-a-handler-ghost-contact) |
+| V8 | Breaking a resolve partner in its handler or between frames gives the survivor the same bounce and the same path, also off two partners at once. | holds | equation `E8` | [Collision Design.md — Partner removed by a handler](Collision%20Design.md#partner-removed-by-a-handler-ghost-contact) |
 
 ## Motion
 

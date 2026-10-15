@@ -7361,8 +7361,9 @@ class TestBounceOffAPartnerAHandlerRemoved(unittest.TestCase):
     """PE5 (2026-10-14): handlers run before resolve, so a ``bounce=`` ball
     whose ``@collide`` destroyed the brick found no brick to bounce off and
     ploughed through the wall. A resolve partner a handler of this step
-    removes still gives the survivor this contact's velocity response;
-    it pushes nothing."""
+    removes is a still wall for the survivor's sweep this step (G2,
+    2026-10-15): the survivor stops and bounces where a live partner would
+    leave it; the removed body moves for nothing and is in no contact."""
 
     def _breakout(self, dt, speed, leave="destroy"):
         from scena import Circle, Rect, STATIC, Vec2, collide, resolve
@@ -7417,7 +7418,7 @@ class TestBounceOffAPartnerAHandlerRemoved(unittest.TestCase):
         self.assertTrue(flips and all(flips), flips)
         self.assertEqual(alive, 0)
 
-    def test_no_push_from_the_dead_brick(self):
+    def _hit_once(self, destroy):
         from scena import Circle, Rect, STATIC, Vec2, collide, resolve
         from tests.system_support import system_world
         with system_world(draw=False) as w:
@@ -7429,19 +7430,35 @@ class TestBounceOffAPartnerAHandlerRemoved(unittest.TestCase):
 
             @collide(ball, "pe5p_brick")
             def hit(me, b, info):
-                b.destroy()
+                if destroy:
+                    b.destroy()
 
             ball.move_by(0, 10)                    # reaches the brick this frame
             w.step(1, dt=1 / 60)
-            self.assertFalse(brick.is_alive)
-            self.assertAlmostEqual(ball.center.y, 60.0, places=6, msg="the dead brick pushed")
-            self.assertAlmostEqual(ball.vel.y, -600.0, places=6)
+            out = (brick.is_alive, float(ball.center.y), float(ball.vel.y))
+            if brick.is_alive:
+                brick.destroy()
             ball.destroy()
+            return out
+
+    def test_the_dead_brick_stops_the_ball_where_a_live_one_would(self):
+        """G2 (2026-10-15): the removed brick is a still wall for this step's
+        sweep. The ball stops where it touched and its leftover travel comes
+        back (bounce sub-step), as off a live brick; before, it went on into
+        the dead brick's space (the pose a frame of travel off)."""
+        alive, y_live, vy_live = self._hit_once(destroy=False)
+        dead, y_dead, vy_dead = self._hit_once(destroy=True)
+        self.assertTrue(alive)
+        self.assertFalse(dead)
+        self.assertAlmostEqual(y_dead, y_live, places=9)
+        self.assertAlmostEqual(y_dead, 55.0 - _RESOLVE_SLOP - 5.0, places=6)
+        self.assertAlmostEqual(vy_dead, -600.0, places=6)
+        self.assertAlmostEqual(vy_live, -600.0, places=6)
 
     def test_bounce_zero_floor_broken_on_landing_stops_the_fall_once(self):
         """A crumbling floor destroyed on landing answers that landing as a
-        live one would (``bounce=0``: the fall stops this frame); the hero is
-        not lifted, and falls from rest next frame."""
+        live one would (``bounce=0``: the fall stops this frame, at the skin
+        above it); the hero is not lifted, and falls from rest next frame."""
         from scena import Rect, STATIC, Vec2, collide, resolve
         from tests.system_support import system_world
         with system_world(draw=False) as w:
@@ -7459,7 +7476,11 @@ class TestBounceOffAPartnerAHandlerRemoved(unittest.TestCase):
             w.step(1, dt=1 / 60)
             self.assertFalse(floor.is_alive)
             self.assertAlmostEqual(hero.vel.y, 0.0, places=6)
-            self.assertAlmostEqual(hero.center.y, 15.0, places=6)
+            self.assertAlmostEqual(hero.center.y, 15.0 + _RESOLVE_SLOP, places=6)
+            self.assertNotIn("bottom", hero.touching_sides)   # a dead floor is no contact
+            hero.move_by(0, -5)
+            w.step(1, dt=1 / 60)
+            self.assertAlmostEqual(hero.center.y, 10.0 + _RESOLVE_SLOP, places=6)
             hero.destroy()
 
     def test_skin_contact_answers_as_the_handler_saw_it(self):
