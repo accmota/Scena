@@ -437,6 +437,31 @@ class TestEveryConsumerAgrees(unittest.TestCase):
                         self.assertTrue(x0 - 1e-6 <= x <= x1 + 1e-6 and y0 - 1e-6 <= y <= y1 + 1e-6)
             c.destroy()
 
+    def test_the_chords_cut_into_the_scoop_not_the_solid(self):
+        """The chord ends sit on the curve, so the collision pieces cover the
+        whole drawn solid and reach at most 0.25 DU into the scoop: a ball stops
+        up to 0.25 DU short of the drawn curve, never past it (asked by both
+        bouncing_balls spec authors, 2026-10-15)."""
+        rng = random.Random(777)
+        for _ in range(40):
+            c = random_concave(rng)
+            m = model_of(c)
+            _cx, _cy, w, h, _ang, (sx, sy), (rx, ry) = m
+            pieces = c._world_pieces()
+            if rx <= 0 or ry <= 0:
+                c.destroy()
+                continue
+            for _ in range(200):
+                t = rng.uniform(0.0, 2.0 * math.pi)
+                k = 1.0 + rng.uniform(1e-4, 0.3) / max(rx, ry)    # just on the solid side
+                lx, ly = sx + k * rx * math.cos(t), sy + k * ry * math.sin(t)
+                if min(0.5 * w - abs(lx), 0.5 * h - abs(ly)) < 1e-3:
+                    continue                                       # outside, or on a box face
+                x, y = world_of(m, lx, ly)
+                with self.subTest(scoop=c.scoop, rim=xy(c.rim), t=t):
+                    self.assertTrue(any(_point_in_polygon(x, y, p) for p in pieces))
+            c.destroy()
+
     def test_pieces_are_convex_and_counter_clockwise(self):
         from scena.collision import _convex_ring, _signed_area
         rng = random.Random(31)

@@ -2823,7 +2823,7 @@ deck = Concave(top_left=(0, 200), width=200, height=200, rim=(20, 0))</pre>
 <thead><tr><th>Parece</th><th>É</th><th>Não é</th></tr></thead>
 <tbody>
 <tr><td>Um <code>Concave</code> é um <code>Rect</code></td><td>Usa a mesma moldura, mas não colide como caixa: a curva é sólida até ela. <code>isinstance(c, Rect)</code> é <code>False</code>. Cantos arredondados (convexos) são <code>Rect(corner_radius=)</code>; <code>Concave</code> não tem <code>corner_radius</code>.</td><td>—</td></tr>
-<tr><td>A colisão segue a curva desenhada</td><td>Quase: a curva é desenhada como arco de verdade e colide como cordas a no máximo 0,25 unidade dela (como a pizza do <code>Circle</code>). O clique (<code>contains_point</code>) segue a curva exata. Uma bola sobe a rampa e volta.</td><td>Uma caixa</td></tr>
+<tr><td>A colisão segue a curva desenhada</td><td>Quase: a curva é desenhada como arco de verdade e colide como cordas a no máximo 0,25 unidade dela (como a pizza do <code>Circle</code>). As pontas das cordas ficam na curva: uma bola para até 0,25 antes da curva desenhada, nunca depois. O clique (<code>contains_point</code>) segue a curva exata; um ponto em cima da curva conta como dentro. Uma bola sobe a rampa e volta.</td><td>Uma caixa</td></tr>
 <tr><td><code>scoop</code> muda depois</td><td>Trava na construção, como o <code>n</code> do RegularPolygon. Para espelhar: <code>flip_x</code> / <code>flip_y</code>. O <code>rim</code> muda à vontade.</td><td>—</td></tr>
 </tbody>
 </table>

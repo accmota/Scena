@@ -50,6 +50,30 @@ class TestBouncingBallsCanaries(unittest.TestCase):
                 assert_catches(self, f"test_prog_bouncing_balls.TestBouncingBalls.{t}",
                                [(type(_clock), "advance", fast)], "a clock that runs at 2x")
 
+    def test_specs_catch_a_concave_colliding_as_one_hull(self):
+        # CV1's shape: the quarter-pipe met as the hull of its pieces (the
+        # chord from tip to tip), so a ball stops ~35 DU before the drawn arc.
+        def hull_prims(shape):
+            pts = sorted({p for poly in shape._world_pieces() for p in poly})
+            hull = []
+            for seq in (pts, pts[::-1]):        # monotone chain
+                part = []
+                for q in seq:
+                    while len(part) >= 2 and (
+                            (part[-1][0] - part[-2][0]) * (q[1] - part[-2][1])
+                            - (part[-1][1] - part[-2][1]) * (q[0] - part[-2][0])) <= 0:
+                        part.pop()
+                    part.append(q)
+                hull += part[:-1]
+            xs, ys = [q[0] for q in hull], [q[1] for q in hull]
+            return [_collision.Prim(_collision.PrimKind.POLY,
+                                    (min(xs), min(ys), max(xs), max(ys)), (), hull)]
+        for t in ("test_spec_a_corners", "test_spec_b_corner_one"):
+            with self.subTest(t):
+                assert_catches(self, f"test_prog_bouncing_balls.TestBouncingBalls.{t}",
+                               [("scena.collision", "_concave_prims", hull_prims)],
+                               "a Concave colliding as one hull (CV1)")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,5 @@
-"""Bouncing balls: walls, a spinning static bar, elastic resolve, sliders, a Start button.
+"""Bouncing balls: walls, rounded corners (Concave), a spinning static bar, elastic resolve,
+sliders, a Start button.
 
 Program-model test program (tests/program_support.py). PARAMS: count, size.
 """
@@ -20,6 +21,16 @@ Rect(center=(W - 16, H * 0.5), width=32, height=H, group="wall")
 group["wall"].visual = Metal()
 group["wall"].mass = STATIC
 
+# rounded corners: a quarter-pipe in each corner, its curve facing the arena
+C = 120
+for c, scoop in (((32 + C / 2, 32 + C / 2), "top_right"),
+                 ((W - 32 - C / 2, 32 + C / 2), "top_left"),
+                 ((32 + C / 2, H - 32 - C / 2), "bottom_right"),
+                 ((W - 32 - C / 2, H - 32 - C / 2), "bottom_left")):
+    Concave(center=c, width=C, height=C, scoop=scoop, group="corner")
+group["corner"].visual = Metal()
+group["corner"].mass = STATIC
+
 roda = Rect(center=(W * 0.5, H * 0.5), width=100, height=20, group="wall")
 roda.visual = Halo("blue")
 roda.mass = STATIC
@@ -32,6 +43,7 @@ Slider(st["size"], label="Size", min_value=2, max_value=48, only_int=True)
 
 
 resolve("ball", "wall", bounce=1.0)
+resolve("ball", "corner", bounce=1.0)
 resolve("ball", "ball", bounce=1.0)
 
 def start():
