@@ -54,7 +54,7 @@ def drive(program: str, steps, *, params: Optional[Dict[str, Any]] = None,
 
 def record(program: str, frames: int, *, params: Optional[Dict[str, Any]] = None,
            patches: Sequence[Tuple[Any, str, Any]] = (), probes=None,
-           areas=model.AREAS, keep_going: bool = False):
+           areas=model.AREAS, keep_going: bool = False, motion: bool = False):
     """``keep_going``: an author error ends the run, the trace so far is kept
     (a canary's plant can trip the engine's own guards; ``run.error``)."""
     state: Dict[str, Any] = {}
@@ -63,7 +63,7 @@ def record(program: str, frames: int, *, params: Optional[Dict[str, Any]] = None
             stack.enter_context(mock.patch.object(target, attr, new))
         run = ProgramRun(program, params or {}, probes=probes or {})
         run.error = None
-        attach(run)
+        attach(run, motion=motion)
         run.start()
         try:
             try:

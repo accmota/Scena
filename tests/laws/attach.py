@@ -13,8 +13,11 @@ from typing import Any, Optional
 from laws import trace
 
 
-def attach(run: Any, recorder: Optional[trace.Recorder] = None) -> None:
+def attach(run: Any, recorder: Optional[trace.Recorder] = None, *, motion: bool = False) -> None:
+    """``motion``: also record every resolve body's pose around each resolve
+    (the motion laws, S6)."""
     rec = recorder if recorder is not None else trace.Recorder()
+    rec.motion = motion or rec.motion
     run.laws = rec
     before = run.prelude
 

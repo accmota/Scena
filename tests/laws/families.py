@@ -22,7 +22,7 @@ def program(program_name: str, spec_ns: Dict[str, Any], scenario: str) -> model.
     box: Dict[str, Any] = {}
 
     def hook(run):
-        attach(run)
+        attach(run, motion=True)
         box["run"] = run
 
     po._run(program_name, spec_ns, scenario, before_start=hook)
@@ -34,7 +34,7 @@ def game(game_name: str, scenario: str, **kw) -> model.Report:
     box: Dict[str, Any] = {}
 
     def hook(run):
-        attach(run)
+        attach(run, motion=True)
         box["run"] = run
 
     gh.run_game(game_name, scenario, before_start=hook, **kw)

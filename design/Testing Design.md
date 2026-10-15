@@ -582,6 +582,32 @@ plant must be the bug class, not its caricature: zeroing `every`'s elapsed
 on each tick silenced the timer; dropping the debt after a fire is the
 class.
 
+**S6 — motion (P1–P5; P6, P7 by their tests) and E10–E14.** With
+`Recorder.motion` on (the family sweeps and script runs turn it on), each
+resolve is bracketed by `M` records: every resolve body's raw pose,
+velocity, mass and outline (real `Circle` / `Rect` only; a Sprite collides
+as its hitbox, so its overlap abstains) and the pairs the solver answered.
+The motion model checks bounds: overlap ≤ slop, no energy gained against
+still STATIC partners, momentum kept between two movables, STATIC unmoved,
+no sideways creep of an idle body (resting after the last resolve, below
+`REST_SPEED`, not riding, no sideways motion of its own). The motion twin
+(`tests/laws/twins/motion_world.py`: idle on a ramp, a stack, a head-on hit,
+a rider on a lift, a ball in a box) runs transformed copies: E10 translation,
+E11 mirror, E12 mass ×10, E14 world ×2 within the position budget, E13 at
+30 / 144 Hz within one frame of travel. Canaries through the engine's own
+switches (`_SKIN_ALONG_MOTION`, `_RIDER_CARRY`), a bounce that ignores mass
+(P3) and a one-sided bounce loss (E11). Results: E10–E12 exact to the last
+bit on every scene; E14 within 0.08 DU; the P laws hold on every program,
+game and example (P2 checked ~20 000 times, P3 ~2 000).
+
+**What S6 taught.** Every first motion finding was the model's: a Sprite's
+picture is not its hitbox (38 DU "overlaps"); a rider's carry happens inside
+resolve; a body still falling onto a ramp's corner slides there; a walker
+that moves by `move_by` keeps `vel.x` at 0. Each fix narrowed a law to the
+sentence in Collision Design. A canary plant can be mirror-symmetric by
+accident (a "leftward bounce loses 2 %" hit one bounce in each world); an
+asymmetry is a property of the contact (its normal), not of the outcome.
+
 
 # Geometry campaign
 

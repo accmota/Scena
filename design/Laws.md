@@ -94,9 +94,24 @@ equations: no expected value, only agreement).
 | V3 | A game does not depend on the order of two independent constructions. One exception, documented: a body that enters two partners in the same step without crossing either (a tie within half its thickness) enters them in creation order. | holds | equation `E3` | [Collision Design.md — Swept detection](Collision%20Design.md#swept-detection-fast-bodies) ("Order") |
 | V4 | A contact rule acts alike declared as a module `@collide`, a class `@collide_with` or an `on_collide` property (the property reaches any *registered* body: the partner joins by a rule or `collidable = True`). | holds | equation `E4` | [Collision Design.md — Pipeline](Collision%20Design.md#pipeline) |
 | V5 | A game built at the top of the file or in its first act's `setup` runs alike while that act lasts. | holds | equation `E5` | [Act Design.md — Lifetime: the game and the act](Act%20Design.md#lifetime-the-game-and-the-act) |
+| V10 | Moving the whole world (65536, 4096) changes no motion. | holds | equation `E10` | [Collision Design.md — Resolution](Collision%20Design.md#resolution) |
+| V11 | A mirrored world moves as the mirror of the world: no left / right bias. | holds | equation `E11` | [Collision Design.md — Resolution](Collision%20Design.md#resolution) |
+| V12 | Multiplying every mass by the same factor changes no motion (only mass ratios count). | holds | equation `E12` | [Collision Design.md — Mass split](Collision%20Design.md#mass-split-between-two-movable-bodies) |
+| V13 | At 30, 60 or 144 Hz a body stays within one frame of travel of where it is at 60 Hz (over a few seconds; LW7 is inside that bound and grows with bounces). | holds | equation `E13` | [Scena Design.md — Clocks](Scena%20Design.md#clocks) |
+| V14 | Doubling the world and its speeds doubles every path, within the budget: the slop and skin are absolute (0.08 DU), a difference below the budget at authoring scales. | holds | equation `E14` | [Collision Design.md — Resolution](Collision%20Design.md#resolution) |
 | V8 | Breaking a resolve partner in its handler or between frames gives the survivor the same bounce. | open (LW2: two partners at once) | equation `E8` | [Collision Design.md — Partner removed by a handler](Collision%20Design.md#partner-removed-by-a-handler-ghost-contact) |
 
-## Still to write
+## Motion
 
-Motion (P) joins with its stage;
-until then their rules live only in the companion docs.
+What `resolve` does to bodies, as bounds (an exact physics model would
+re-implement the solver): each law holds within the position budget.
+
+| Law | Statement | Status | Checked by | Detail |
+| --- | --- | --- | --- | --- |
+| P1 | After resolve, a resolved pair overlaps by at most the slop (`_RESOLVE_SLOP`). A stack (a body between two partners) may overlap more: a documented non-goal. | holds | model `motion.P1` | [Collision Design.md — Resolution](Collision%20Design.md#resolution) |
+| P2 | Resolve adds no energy: a body answered only by still STATIC partners leaves no faster than it came (`bounce` ≤ 1). | holds | model `motion.P2` | [Collision Design.md — Resolution](Collision%20Design.md#resolution) |
+| P3 | Between two movable bodies, a bounce keeps their momentum: each changes by the inverse of its mass. | holds | model `motion.P3` | [Collision Design.md — Resolution](Collision%20Design.md#resolution) |
+| P4 | A STATIC body never moves under resolve; a stack does not sink into it. | holds | model `motion.P4`; `test_resolve_solver.TestStaticHolds` | [Collision Design.md — Settle direction and STATIC under a stack](Collision%20Design.md#settle-direction-and-static-under-a-stack) |
+| P5 | An idle body resting on still STATIC partners (no sideways motion of its own, not riding) is not moved sideways: it does not creep down a ramp. A body falling onto a slope or a corner slides there (no friction). | holds | model `motion.P5`; `test_resolve_solver.TestIdleSlope` | [Collision Design.md — Resolution](Collision%20Design.md#resolution) |
+| P6 | A body standing on a moving partner moves with it, at every frame rate. | holds | `test_laws_motion.TestRiderMovesWithItsLift`; `test_resolve_solver.TestRiderCarry` | [Collision Design.md — Riders](Collision%20Design.md#riders-a-body-standing-on-a-moving-partner) |
+| P7 | A body that crosses a target within one frame still registers the contact (swept detection, past half its thickness per frame). | holds | `test_sys_fast_shots.TestFastShotsAcrossPacings` | [Collision Design.md — Swept detection](Collision%20Design.md#swept-detection-fast-bodies) |

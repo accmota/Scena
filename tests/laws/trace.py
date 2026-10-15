@@ -173,6 +173,10 @@ class Recorder:
         self._ordinal: Dict[Tuple[str, str], int] = {}
         self.counts = {"frames": 0, "author_calls": 0}
         self.input_doors: List[set] = []     # one set per OS input event being handled
+        # ``M`` events (S6): every resolve body's pose before and after each
+        # resolve. Off by default (one record per body per frame); the motion
+        # laws and their twins turn it on.
+        self.motion = False
 
     # -- labels -----------------------------------------------------------
     def label_of(self, obj) -> Optional[str]:
@@ -397,8 +401,64 @@ def _ghosts(frame):
     _rec.events.append(("S", "ghost"))
 
 
+def _bodies(ids) -> tuple:
+    """Pose, velocity and mass of each resolve body (Circle / Rect identities
+    only), from raw fields: ``(label, kind, x, y, vx, vy, mass, a, b, angle)``
+    with ``a, b`` the radius (Circle) or width, height (Rect)."""
+    out = []
+    for c in ids.values():
+        if not _slot(c, "_in_resolve", False):
+            continue
+        ident = _slot(c, "_identity_shape")
+        shape = ident() if ident is not None else None
+        if shape is None:
+            continue
+        d = _raw(shape)
+        ctr = d.get("center")
+        if ctr is None:
+            continue
+        # Only a real Circle / Rect collides as its own outline: a Sprite
+        # collides as its hitbox, not its width x height (P1 abstains there).
+        geometric = isinstance(shape, _GEOM_KINDS) and ("radius" in d or "width" in d)
+        p = _raw(ctr)
+        v = d.get("_vel")
+        vd = _raw(v) if v is not None else {}
+        try:
+            mass = float(d.get("_mass", 1.0))
+        except (TypeError, ValueError):
+            continue
+        if not geometric:
+            a, b, ang, kind = 0.0, 0.0, 0.0, "other"
+        elif "radius" in d:
+            a, b, ang = float(d["radius"]), 0.0, 0.0
+            kind = "circle"
+        else:
+            a, b, ang = float(d["width"]), float(d.get("height", 0.0)), float(d.get("angle", 0.0))
+            kind = "rect"
+        out.append((_rec.label_of(shape), kind, float(p.get("x", 0.0)), float(p.get("y", 0.0)),
+                    float(vd.get("x", 0.0)), float(vd.get("y", 0.0)), mass, a, b, ang))
+    return tuple(out)
+
+
+_GEOM_KINDS: tuple = ()
+
+
 def _resolve_start(frame):
+    global _GEOM_KINDS
+    if not _GEOM_KINDS:
+        from scena.shapes import Circle, Rect
+        _GEOM_KINDS = (Circle, Rect)
     _rec.events.append(("S", "resolve"))
+    if _rec.motion:
+        _rec.events.append(("M", "pre", _bodies(frame.f_locals.get("id_to_collider") or {})))
+
+
+def _resolve_end(frame, retval):
+    if _rec.motion:
+        ids = frame.f_locals.get("id_to_collider") or {}
+        solved = _slot(frame.f_locals.get("self"), "_solve_contacts", None) or {}
+        pairs = tuple(sorted(_pair_labels(k, ids) for k in solved))
+        _rec.events.append(("M", "post", _bodies(ids), pairs))
 
 
 # -- timers (S4): a handle's life, from raw slots (Handle has __slots__) ----
@@ -541,7 +601,7 @@ _ENGINE_HOOKS = (
     ("scena.act", "ActManager._build", _build_start, _build_end),
     ("scena.collision", "CollisionSystem._dispatch_step", _contacts_commit, None),
     ("scena.collision", "CollisionSystem._apply_ghost_contacts", _ghosts, None),
-    ("scena.collision", "CollisionSystem._apply_auto_resolve", _resolve_start, None),
+    ("scena.collision", "CollisionSystem._apply_auto_resolve", _resolve_start, _resolve_end),
     # Timers (S4).
     ("scena.process", "Scheduler.add", None, _handle_add_end),
     ("scena.process", "Scheduler._tick_once", _handle_tick, None),

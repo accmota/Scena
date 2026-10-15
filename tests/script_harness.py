@@ -164,7 +164,9 @@ def main(argv) -> None:
     rec = None
     if laws_out is not None:
         from laws import trace
-        rec = trace.install()
+        rec = trace.Recorder()
+        rec.motion = True                 # the motion laws read every resolve body's pose
+        trace.install(rec)
     try:
         runpy.run_path(script, run_name="__main__")
     finally:

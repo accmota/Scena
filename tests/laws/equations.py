@@ -16,6 +16,7 @@ line) so the twin's labels and function ids name the original lines.
 from __future__ import annotations
 
 import ast
+import math
 import re
 from collections import Counter
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -418,6 +419,79 @@ def e6_program(program: str, spec_ns: Dict, scenario: str) -> List[str]:
     twin = e6_projection(program_trace(program, spec_ns, scenario, source=twin_src))
     diff = compare(base, twin)
     return [f"E6 {program}/{scenario} ({n} callbacks): " + "; ".join(diff)] if diff else []
+
+
+# ---------------------------------------------------------------------------
+# E10–E14: motion invariances (S6), on tests/laws/twins/motion_world.py
+# ---------------------------------------------------------------------------
+
+MOTION = "tests/laws/twins/motion_world"
+MOTION_SCENES = ("ramp", "stack", "headon", "lift", "box")
+POS_BUDGET = 0.5          # DU per sample (design/Laws.md, budgets)
+
+
+def motion_trajectory(scene: str, params: Optional[Dict] = None, *, dt: float = 1 / 60,
+                      seconds: float = 4.0) -> Dict[float, List[Tuple[float, float]]]:
+    """game time -> the moving bodies' centers, mapped back to the
+    untransformed world (``home``)."""
+    from program_support import ProgramRun
+    p = dict(params or {}, scene=scene)
+    probes = {"pos": lambda v: [tuple(v.home(b.center.x, b.center.y)) for b in v.BODIES]}
+    run = ProgramRun(MOTION, p, probes=probes, dt=dt)
+    run.start()
+    try:
+        run.step(int(round(seconds / dt)))
+    finally:
+        run.close()
+    return {round(s.time, 6): s.values["pos"] for s in run.trace.samples}
+
+
+def compare_trajectories(a, b, budget: float) -> Tuple[float, str]:
+    """Largest distance between the two runs at the times both sampled."""
+    worst, where = 0.0, ""
+    for t in sorted(set(a) & set(b)):
+        for i, (pa, pb) in enumerate(zip(a[t], b[t])):
+            d = math.hypot(pa[0] - pb[0], pa[1] - pb[1])
+            if d > worst:
+                worst, where = d, f"body {i} at t={t:.3f}: {pa} vs {pb}"
+    return worst, where
+
+
+def motion_equation(scene: str, twin_params: Dict, *, budget: float = POS_BUDGET,
+                    dt: float = 1 / 60, base_dt: float = 1 / 60) -> List[str]:
+    """E10–E12, E14: the twin's trajectory within ``budget`` of the base."""
+    base = motion_trajectory(scene, dt=base_dt)
+    twin = motion_trajectory(scene, twin_params, dt=dt)
+    worst, where = compare_trajectories(base, twin, budget)
+    if worst > budget:
+        return [f"{scene} {twin_params or ''} dt={dt:.4f}: {worst:.3f} DU apart ({where})"]
+    return []
+
+
+def e13_pacing(scene: str, dt: float, *, c: float = 1.0, base_dt: float = 1 / 60) -> List[str]:
+    """E13: at another frame time the bodies stay within ``c`` frames of
+    travel of the 60 Hz run (the coarser frame, at the body's speed there),
+    plus the position budget. The bound is the claim: an author's Euler step
+    and a bounce's dropped leftover (LW7) both stay inside one frame of
+    travel over a few seconds; a body that drifts further is a finding."""
+    base = motion_trajectory(scene, dt=base_dt)
+    twin = motion_trajectory(scene, dt=dt)
+    coarse = max(dt, base_dt)
+    times = sorted(base)
+    out = []
+    for prev, t in zip(times, times[1:]):
+        if t not in twin:
+            continue
+        for i, (pa, pb) in enumerate(zip(base[t], twin[t])):
+            q = base[prev][i]
+            speed = math.hypot(pa[0] - q[0], pa[1] - q[1]) / (t - prev)
+            bound = c * speed * coarse + POS_BUDGET
+            d = math.hypot(pa[0] - pb[0], pa[1] - pb[1])
+            if d > bound:
+                out.append(f"{scene} dt={dt:.4f}: body {i} at t={t:.3f} {d:.3f} DU apart "
+                           f"(bound {bound:.3f})")
+                return out
+    return out
 
 
 def e5_projection(events) -> Dict[int, Counter]:
