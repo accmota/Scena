@@ -199,6 +199,12 @@ left out.
   selected item has: type a name to add it to all of them, delete one to
   remove it from all of them. Groups only some items have are listed below
   the field (`Some: …`) and are left alone.
+- A write to an act after its own `change_act` (more lines of `setup` after
+  `change_act(Fim)`) still raises `DestroyedError`, now with the right fix:
+  `Fase.set cannot change act Fase …: act Fase ended when the game changed
+  act, and code after change_act() runs on the act that is gone. Write
+  change_act(...) last, or return right after it.` It said "Guard the call:
+  if actor:".
 
 ### Fixed
 
@@ -215,6 +221,16 @@ left out.
   `@collide_stay` declared while two bodies touch runs from the frame after its
   first frame, like a rule whose bodies just met; give it an `@collide` too to
   act on that first frame.
+
+- A shape's `on_hover_exit` that parks or hides the shape the pointer moved
+  onto (leaving a card locks the next one) no longer lets that shape light
+  up: its `on_hover` ran while it was parked or hidden. It gets its enter
+  when it is back in play under the pointer.
+
+- An `on_collide` (or stay / exit hook) an act gave a game body as a closure
+  over the act ran once more after another hook of the same contact changed
+  the act, on an act that was gone (a write to it raised). The act's hooks
+  stop with the act; a hook that is the game's runs on, as before.
 
 - A `SpriteButton` whose `enabled` was linked (`button["enabled"] @=
   lambda: …`) took a plain `button.enabled = False` without a word, and the

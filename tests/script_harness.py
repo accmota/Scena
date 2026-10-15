@@ -117,6 +117,10 @@ def main(argv) -> None:
     # ``--pace HZ`` / ``--pace uneven``: the same game time as ``frames`` at
     # 60 Hz, in frames of 1/HZ, or alternating 5 ms / 28 ms (equation E1).
     pace, argv = _flag_value(argv, "--pace")
+    # ``--chaos plan.json``: the chaos doors (tests/laws/chaos.py): the script
+    # runs rewritten (every author return through ``__chaos__``) and the plan's
+    # commands fire at their doors; the log goes where the plan says.
+    chaos_spec, argv = _flag_value(argv, "--chaos")
     script = os.path.abspath(argv[1])
     frames = int(argv[2]) if len(argv) > 2 else 30
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -168,7 +172,12 @@ def main(argv) -> None:
         rec.motion = True                 # the motion laws read every resolve body's pose
         trace.install(rec)
     try:
-        runpy.run_path(script, run_name="__main__")
+        if chaos_spec is not None:
+            from laws import chaos
+            chaos.script_main(script, os.path.abspath(chaos_spec) if not os.path.isabs(chaos_spec)
+                              else chaos_spec, lambda go: go())
+        else:
+            runpy.run_path(script, run_name="__main__")
     finally:
         if rec is not None:
             trace.uninstall()

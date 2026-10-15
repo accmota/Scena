@@ -638,6 +638,7 @@ Every rejection says how to do it right.
 | `def setup(self, vidas=3)` on an Act | `TypeError` at class definition: "Act setup() takes no parameters. Read game data from st (st.vidas)." |
 | `change_act(...)` before `run()` | `RuntimeError`: "The game has not started. Start the first act with run(Titulo)." |
 | `change_act(...)` from an `on_destroy` during an act change | `RuntimeError`: "change_act(FimDeJogo) was called from Heroi.on_destroy while the game was leaving Fase. Put act flow in the act: @when(...)." |
+| A write to the act after its own `change_act` (more lines of `setup` after `change_act(Fim)`) | `DestroyedError`: "Fase.set cannot change act Fase (…): act Fase ended when the game changed act, and code after change_act() runs on the act that is gone. Write change_act(...) last, or return right after it." (CD5; the change is immediate, objects made after it join the new act) |
 | `Act()` / `change_act(Act)` | `TypeError`: "Act is the base class. Write class Titulo(Act): … then change_act(Titulo)." |
 | `self.destroy()` in an act | `TypeError`: "An act ends when the game changes act. Write change_act(Titulo)." |
 | `self.active = False` in an act | `TypeError`: "Acts are not parked. To pause the game, write clock.paused = True." |

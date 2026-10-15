@@ -410,6 +410,39 @@ class TestEdges(HoverTestCase):
         self.point(55, 0)                    # off the card, onto the tip
         self.assertEqual(self.log, [("enter", card), ("exit", card)])
 
+    def test_exit_that_parks_or_hides_the_next_target_gives_it_no_enter(self):
+        """CD1 (chaos doors): the old target's exit parks or hides the target
+        the pointer moved onto; that target is no hover target now, so its
+        enter does not run (L4: a parked actor runs no hover hook)."""
+        for how in ("park", "hide"):
+            with self.subTest(how=how):
+                self.log.clear()
+                card = self.watched(0, 0)
+                tip = self.watched(40, 0)
+
+                def leave(shape, tip=tip, how=how):
+                    self.log.append(("exit", shape))
+                    if how == "park":
+                        tip.active = False
+                    else:
+                        tip.visible = False
+                card.on_hover_exit = leave
+                self.point(0, 0)
+                self.point(55, 0)                # off the card, onto the tip
+                self.frame()
+                self.assertEqual(self.log, [("enter", card), ("exit", card)])
+                self.assertIsNone(self.sim._hover_target)
+                self.assertFalse(tip.pointer_hover)
+                # Back in play under a still pointer: the next frame finds it.
+                if how == "park":
+                    tip.active = True
+                else:
+                    tip.visible = True
+                self.frame()
+                self.assertEqual(self.log[-1], ("enter", tip))
+                card.destroy()
+                tip.destroy()
+
     def test_destroy_inside_its_own_exit_is_a_no_op(self):
         c = self.watched()
         c.on_hover_exit = lambda shape: shape.destroy()

@@ -97,6 +97,7 @@ SLOW = frozenset({
     "test_laws_neutrality",      # ~110 s CPU dev: E0 over programs, games, examples
     "test_laws_families",        # the model over programs, games, examples (deep: tutorial steps)
     "test_laws_equations",       # E3 / E4 / E8 / E15: twins, every program, every example
+    "test_laws_chaos_families",  # chaos doors (F3): fixtures, games, programs, examples
 })
 # Modules sharded by TestCase class (big classes in chunks) in gate / deep.
 SPLIT = frozenset({
@@ -109,6 +110,7 @@ SPLIT = frozenset({
     "test_laws_neutrality",     # one class per family
     "test_laws_families",       # one class per family
     "test_laws_equations",      # one class per equation
+    "test_laws_chaos_families",  # one class per family
 })
 CHUNK = 40  # max tests per shard of a SPLIT module
 

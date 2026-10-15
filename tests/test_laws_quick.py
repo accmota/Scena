@@ -132,6 +132,37 @@ class TestRecorderSeesEveryDoor(unittest.TestCase):
                                  "predraw", "expire"])
 
 
+class TestLabelsFollowTheObject(unittest.TestCase):
+    """A label is the object's, not its address's: once an object is freed,
+    an unlabelled object of the same type at the same ``id()`` has no label
+    (S7: a history door's Point read as a freed Point)."""
+
+    def test_a_reused_id_does_not_inherit_a_label(self):
+        class Thing:
+            pass
+        rec = trace.Recorder()
+        first = Thing()
+        rec._new_label(first, "Thing", "g.py:1")
+        old = id(first)
+        del first
+        for _ in range(10000):
+            other = Thing()
+            if id(other) == old:
+                break
+            del other
+        else:
+            self.skipTest("the allocator never reused the id")
+        self.assertIsNone(rec.label_of(other))
+
+    def test_a_live_object_keeps_its_label(self):
+        class Thing:
+            pass
+        rec = trace.Recorder()
+        obj = Thing()
+        label = rec._new_label(obj, "Thing", "g.py:1")
+        self.assertEqual(rec.label_of(obj), label)
+
+
 class TestNeutrality(unittest.TestCase):
     """E0: the run with the recorder is the run without it."""
 

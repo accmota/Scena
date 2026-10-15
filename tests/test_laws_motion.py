@@ -138,6 +138,15 @@ class TestMotionRules(unittest.TestCase):
         a1, b1 = body("A#0", 0, 0, vx=-10, mass=1), body("B#0", 19.9, 0, vx=10, mass=3)
         self.assertTrue(found(frame_pair([a0, b0], [a1, b1], [("A#0", "B#0")]), "P3"))
 
+    def test_p3_a_body_with_no_vel_is_infinite_mass(self):
+        """A brick with ``mass = 1`` and no ``.vel`` is a wall in the impulse
+        (Collision Design): the ball bouncing off it is not a lost momentum
+        (S7: the model had counted it)."""
+        ball0, ball1 = body("A#0", 0, 0, vx=300), body("A#0", 0, 0, vx=-300)
+        brick = body("B#0", 19.9, 0) + (False,)
+        self.assertEqual(found(frame_pair([ball0, brick], [ball1, brick], [("A#0", "B#0")]),
+                               "P3"), [])
+
     def test_p5_a_sideways_nudge_of_an_idle_body_is_found(self):
         rest = frame_pair([self.W, body("B#0", 0, 20.0, vy=-15)],
                           [self.W, body("B#0", 0, 20.0, vx=4.0, vy=0.0)], [("B#0", "W#0")])

@@ -484,6 +484,46 @@ eager poll per write, no second flush. Draw (8) samples the post path once and
 applies background + camera after all of the above, so the scene, background
 parallax and camera always show this frame's camera (no one-frame lag).
 
+### Commands during a pass (the snapshot rule)
+
+[Laws.md](Laws.md) F3. A command — `destroy`, park, `untag`, a group change,
+`collidable`, `change_act`, a creation, a timer, a pose write — takes effect
+for the author when it returns (L1): `brick.destroy(); if not bricks:
+change_act(Win)` sees the brick gone. An engine pass already running (a
+collision step, the timer buckets, the `on_update` fleet, a flush round, the
+leave and hover checks, one OS input event) finishes against what it chose at
+its start:
+
+- **What it owed is paid.** Every handler of the contact being dispatched
+  runs, chosen before the first one (C3); a resolve partner a handler removed
+  still answers the survivor as a ghost (C8, PE5); an exit the command caused
+  runs after that contact's handlers (C2); an input event delivers to the
+  doors it chose before the command (an `on_key_down` that changes the act
+  still gets the same press's `on_key`).
+- **What was removed starts nothing.** A destroyed or parked body joins no
+  other contact of the step (C4) and none of its own hooks runs later (L3, L4,
+  T3); the per-item re-checks (alive, active, registered) are that rule.
+- **What was made waits for its loop's next pass.** A timer made in the tick
+  first counts in the next one (T2); a body made in a handler enters next
+  step. A clone made in a timer fire gets its `on_update` this tick: the
+  fleet's pass starts after the timers'. Flush is the one pass that runs to
+  quiet: a watch a callback *affected* fires in the same flush, a watch it
+  *made* takes its baseline at registration and waits for a change. An
+  author's walk over a group (`for m in group["x"]`, bulk `destroy` / `tag`)
+  copies its members at entry.
+- **An act change cancels what the ending act owed**: its contact handlers
+  (the dispatch's act epoch, S4-1), its exits (C6), its ghosts. The game's own
+  pairs, timers and watches go on in the new world.
+
+A command buffer (Unity, Bevy: apply at the end of the frame) was weighed and
+rejected (2026-10-15). It would remove the bugs this rule took to converge
+(PB3, PB5, PE5, S8-2: each fixed and guarded by a law), but it adds a state no
+author expects, "condemned but still visible": `brick.destroy(); if not
+bricks: change_act(Win)` would never fire, the classic deferred-destroy trap.
+[Act Design — `change_act`](Act%20Design.md#change_act) rejected a deferred act
+change for the same reason. The chaos doors (Testing Design, "Laws and
+equations", S7) fire every command at every door and check this rule.
+
 ## Frame pacing and GC
 
 Two things made "runs at 60 but judders now and then" (measured on macOS and a

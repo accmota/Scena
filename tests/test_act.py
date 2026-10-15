@@ -2068,6 +2068,28 @@ class TestMessagesNameTheAct(ActTestCase):
         self.assertEqual(repr(current()), "act Vazia")
         self.assertEqual(str(current()), "act Vazia")
 
+    def test_a_write_to_an_act_after_its_change_act_names_the_change(self):
+        """CD5 (chaos doors): ``change_act`` inside an act's own ``setup``
+        ends that act at once; a write to ``self`` after it is refused with a
+        fix about the act change, not "Guard the call: if actor:"."""
+        from scena.state import DestroyedError
+
+        class Fim5(Act):
+            pass
+
+        class Fase5(Act):
+            def setup(self):
+                change_act(Fim5)
+                self.pontos = 0
+
+        with self.assertRaises(DestroyedError) as cm:
+            self.begin(Fase5)
+        msg = str(cm.exception)
+        self.assertIn("act Fase5 ended", msg)
+        self.assertIn("change_act", msg)
+        self.assertIn("return right after", msg)
+        self.assertNotIn("if actor:", msg)
+
     def test_the_watchdog_names_the_act(self):
         import scena.process as proc
 
@@ -2225,6 +2247,52 @@ class TestChangeInsideADispatch(ActTestCase):
         self.assertNotIn("Placar", log)
         bola.destroy()
         trave.destroy()
+
+    def _act_hook_on_game_bodies(self, phase):
+        """CD2 (chaos doors): the act set ``phase`` (``on_collide``, the stay
+        or the exit hook) on two game bodies, as a closure over the act (the act's own
+        hook); the hook that runs first changes the act; the other body's
+        hook, already chosen for the same contact, must not run after the
+        act is gone (``_drop_act_callables`` cleared it)."""
+        log = []
+
+        class Placar2(Act):
+            pass
+
+        p = Circle(center=(0, 0), radius=10)
+        q = Circle(center=(300, 0), radius=10)
+
+        class Fase8(Act):
+            def setup(self):
+                act = self
+
+                def hit(me, other):
+                    log.append(("p" if me is p else "q", type(current()).__name__, act.is_alive))
+                    if len(log) == 1:
+                        change_act(Placar2)
+                setattr(p, phase, hit)
+                setattr(q, phase, hit)
+
+        self.begin(Fase8)
+        self.w.step(1, dt=1 / 60)
+        q.center = (5, 0)
+        self.w.step(3, dt=1 / 60)
+        if phase == "on_collide_exit":
+            q.center = (300, 0)             # the contact ends: its exit
+            self.w.step(3, dt=1 / 60)
+        self.assertEqual(len(log), 1, log)
+        self.assertEqual(log[0][1:], ("Fase8", True))
+        p.destroy()
+        q.destroy()
+
+    def test_an_act_hook_on_a_game_body_stops_on_enter(self):
+        self._act_hook_on_game_bodies("on_collide")
+
+    def test_an_act_hook_on_a_game_body_stops_on_stay(self):
+        self._act_hook_on_game_bodies("on_collide_stay")
+
+    def test_an_act_hook_on_a_game_body_stops_on_exit(self):
+        self._act_hook_on_game_bodies("on_collide_exit")
 
     def test_leave_handlers_of_the_leaving_act_stop(self):
         import itertools

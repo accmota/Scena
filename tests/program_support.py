@@ -474,6 +474,11 @@ class ProgramRun:
         # the program's first line (a camera move, a clock scale), as if the
         # process had started that way.
         self.prelude: Optional[Callable[["ProgramRun"], None]] = None
+        # Chaos doors (tests/laws/chaos.py): an AST rewrite of the program
+        # (``tree -> tree``, every node keeps its line) compiled under the
+        # program's own path, and names put in its namespace before it runs.
+        self.transform: Optional[Callable[[Any], Any]] = None
+        self.inject: Dict[str, Any] = {}
         self.trace = Trace()
         self.trace.params = dict(self.params)
         self.ns: Dict[str, Any] = {}
@@ -569,6 +574,7 @@ class ProgramRun:
         mod = types.ModuleType("__main__")
         mod.__file__ = self.path
         mod.__dict__.update(PARAMS=dict(self.params), mark=self._mark)
+        mod.__dict__.update(self.inject)
         self._saved_main = sys.modules.get("__main__")
         sys.modules["__main__"] = mod
         if self.source is not None:
@@ -606,7 +612,11 @@ class ProgramRun:
         os.chdir(cwd)
         if self.prelude is not None:
             self.prelude(self)
-        code = compile(source, exec_path, "exec")
+        if self.transform is not None:
+            import ast
+            code = compile(self.transform(ast.parse(source, exec_path)), exec_path, "exec")
+        else:
+            code = compile(source, exec_path, "exec")
         self.ns = mod.__dict__
         exec(code, self.ns)
         if not self._began:

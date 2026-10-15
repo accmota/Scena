@@ -62,7 +62,11 @@ def check(tr: Trace, rep: Report) -> None:
     d_depth = 0
     last_exit: Optional[Tuple] = None
     handlers = 0
-    exited_once: Set = set()             # pairs whose exit ran since their last enter
+    # pair -> the exit handlers that ran since its last enter: each runs once
+    # per contact. Not "consecutive": a handler that destroys a body in two
+    # contacts runs the other contact's exits inside its own (S7 found the
+    # first rule naming the resumed handler a second exit).
+    exited_once: Dict[Tuple, Set[Tuple]] = {}
 
     for i, e in enumerate(ev):
         k = e[0]
@@ -87,7 +91,7 @@ def check(tr: Trace, rep: Report) -> None:
                     rep.find("C7", frames[i], f"dead body in contact {p}",
                              f"{kind_of(p[0])}|{kind_of(p[1])}")
             for p in entered:
-                exited_once.discard(p)
+                exited_once.pop(p, None)
             owed |= entered | stayed
         elif k == "S" and e[1] == "resolve":
             resolved = True
@@ -155,12 +159,15 @@ def check(tr: Trace, rep: Report) -> None:
                 if p not in owed and p not in exited:
                     rep.find("C5", frames[i], f"exit {e[3]} for {p}, not in contact",
                              f"stray|{e[3]}")
-                elif p in exited_once and last_exit != p:
+                elif (e[3], e[4][0]) in exited_once.get(p, ()):
                     rep.find("C5", frames[i], f"second exit {e[3]} for {p}", f"twice|{e[3]}")
                 step_exit = in_step and p in exited and not d_depth
                 if step_exit:
                     if STAGE["exit"] < stage:
                         rep.find("C2", frames[i], "exit before stays", "exit-early")
                     stage = 2
-                exited_once.add(p)
+                # A handler is its function and the side it runs as: a class
+                # rule (``@collide_with_exit``) of both bodies runs one function
+                # once from each side (the World machine's M5 found it).
+                exited_once.setdefault(p, set()).add((e[3], e[4][0]))
                 last_exit = p

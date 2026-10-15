@@ -15,6 +15,13 @@ part) and ``text``; custom layers (create / delete with and without
 an ``on_destroy`` that spawns onto its own layer (also during a layer drain);
 ``@=`` links whose outcome is checked, not swallowed.
 
+M5 (``ci`` / ``deep`` profiles; Testing Design — World machine): the laws
+recorder runs for the machine's life and the law models are an invariant
+(design/Laws.md), and ``command_later`` fires a chaos-doors command (park,
+park and resume, untag, tag, ``collidable = False``, a clone, a timer, a move,
+a group destroy; ``tests/laws/chaos.py``) from the same callbacks as
+``destroy_later``: several commands, from several doors, in one frame.
+
 Invariants after every step (Actors Design § Protections, Collision Design §
 Handlers, Reactive Design § Destroy, Canvas Design):
 
@@ -52,6 +59,7 @@ from hypothesis.stateful import (  # noqa: E402
 )
 
 from hyp_models import RegistryModel  # noqa: E402
+from hypothesis_support import PROFILE  # noqa: E402
 from system_support import (  # noqa: E402
     SystemWorld, census, describe_new_live, diff_census, format_diff, full_collect,
     roster_snapshot, quiet, tone,
@@ -70,6 +78,12 @@ TAGS = ["hs_a", "hs_b"]
 LAYERS = ["wl_a", "wl_b"]   # custom layers this machine creates / deletes
 DTS = [0.0, 1 / 60, 1 / 30, 0.3]
 CENSUS_IGNORE = ("sched.every_sites",)
+# M5: the laws as an invariant and commands from callbacks (gate / deep).
+M5 = PROFILE in ("ci", "deep")
+COMMANDS = ["destroy", "park", "park_resume", "untag", "tag", "uncollide", "clone", "timer",
+            "move", "destroy_group"]
+CONTEXTS = ["timer", "scene_timer", "when", "on_destroy_of", "collision", "flash_done",
+            "on_update"]
 
 # The probe of the running machine (class hooks are defined once, at import).
 _PROBE = [None]
@@ -141,6 +155,12 @@ class WorldMachine(RuleBasedStateMachine):
         self.custom_layers = set()
         self.links = {}                  # dst key -> [src key, frozen value or None]
         self.tearing_down = False
+        self.laws = None
+        if M5:
+            from laws import trace as laws_trace
+            self.laws = laws_trace.Recorder()
+            self.laws.author_files = {os.path.abspath(__file__)}
+            laws_trace.install(self.laws)
 
     # -- helpers ------------------------------------------------------------
     def _spawn(self, kind, tag, xy, attach):
@@ -225,9 +245,7 @@ class WorldMachine(RuleBasedStateMachine):
         with quiet():
             a.destroy()
 
-    @rule(a=actors, ctx=hst.sampled_from(["timer", "scene_timer", "when", "on_destroy_of",
-                                           "collision", "flash_done", "on_update"]),
-          other=actors)
+    @rule(a=actors, ctx=hst.sampled_from(CONTEXTS), other=actors)
     def destroy_later(self, a, ctx, other):
         note(f"destroy #{a} from {ctx} (other #{other})")
         a, other = self.get(a), self.get(other)
@@ -240,6 +258,78 @@ class WorldMachine(RuleBasedStateMachine):
             if x is not None and x.is_alive:
                 x.destroy()
 
+        self._from(ctx, a, other, kill)
+
+    @precondition(lambda self: M5)
+    @rule(a=actors, ctx=hst.sampled_from(CONTEXTS), command=hst.sampled_from(COMMANDS),
+          other=actors, settle=hst.booleans())
+    def command_later(self, a, ctx, command, other, settle):
+        """A chaos-doors command (F3, the snapshot rule) from a callback: the
+        engine pass that runs the callback must keep what it chose at its
+        start (the laws invariant and the machine's own)."""
+        # A dead pick is replaced by a fresh actor (most bundle entries are
+        # dead: see link_then_kill_source), so every command reaches a door.
+        if not self.get(a).is_alive:
+            a = self._spawn("hyp", TAGS[0], (0.0, 0.0), {"on_update"})
+        if other == a or not self.get(other).is_alive:
+            other = self._spawn("hyp", TAGS[1], (2.0, 0.0), set())
+        note(f"{command} #{a} from {ctx} (other #{other}){' settle' if settle else ''}")
+        key_a = a
+        a, other = self.get(a), self.get(other)
+        ref = weakref.ref(a)
+        sm, hook = self.sm, self.probe.hook
+
+        def fire():
+            x = ref()
+            if x is None or not x.is_alive:
+                return
+            HITS["cmd_" + command] += 1
+            try:
+                if command == "destroy":
+                    x.destroy()
+                elif command in ("park", "park_resume"):
+                    x.active = False
+                    if command == "park_resume":
+                        x.active = True
+                elif command == "untag":
+                    for g in sorted(x.group):
+                        x.untag(g)
+                        if x in sm:
+                            sm.leave(x, g)
+                elif command == "tag":
+                    x.tag("hs_b")
+                    if x in sm:
+                        sm.join(x, "hs_b")
+                elif command == "uncollide" and hasattr(x, "collidable") \
+                        and not isinstance(x, Sparks):
+                    x.collidable = False
+                elif command == "clone" and hasattr(x, "clone") and not isinstance(x, Sparks):
+                    b = x.clone()
+                    kind = self.kind_of[key_a]
+                    self._adopt(b, kind, "default" if kind in GRAPHIC else None,
+                                list(sm[x].groups) if x in sm else [])
+                elif command == "timer":
+                    x.after(0.0, hook("cmd_timer", x))
+                elif command == "move" and hasattr(x, "move_to") and not isinstance(x, Sparks):
+                    x.move_to(5000.0, 5000.0)
+                elif command == "destroy_group":
+                    group[sorted(x.group)[0] if x.group else TAGS[0]].destroy()
+            except DestroyedError:
+                HITS["cmd_refused_dead"] += 1
+
+        self._from(ctx, a, other, fire)
+        if settle:
+            # Let the callback come due now (else other rules run first and
+            # most armed commands find their actor gone: a marginal path).
+            with quiet():
+                self.w.step(5, dt=1 / 60)
+
+    def _from(self, ctx, a, other, fire):
+        """Arm ``fire`` to run from inside the ``ctx`` callback (a timer,
+        ``@when``, another actor's ``on_destroy``, a collision handler, a
+        ``flash`` ``on_done``, ``on_update``)."""
+        ref = weakref.ref(a)
+        kill = fire
         with quiet():
             if ctx == "timer":
                 a.after(0.05, kill)
@@ -660,6 +750,16 @@ class WorldMachine(RuleBasedStateMachine):
                 assert got == rec[1], f"#{key_dst}.mirror moved after its source died: {rec[1]} -> {got}"
 
     @invariant()
+    def laws_hold(self):
+        """M5: the law models over the recording so far (design/Laws.md)."""
+        if self.laws is None:
+            return
+        from laws import model
+        assert self.laws.errors == [], f"recorder errors: {self.laws.errors[:3]}"
+        rep = model.check(self.laws.events)
+        assert rep.findings == [], rep.summary()
+
+    @invariant()
     def frame_batch_closed(self):
         ss = get_scena_system()
         assert not ss.update_manager.deferring, "frame batch left open"
@@ -715,6 +815,11 @@ class WorldMachine(RuleBasedStateMachine):
             assert not alive, f"{len(alive)} actors never collected: {alive[:3]!r}"
         finally:
             _PROBE[0] = None
+            if self.laws is not None:
+                from laws import trace as laws_trace
+                if laws_trace.installed():
+                    laws_trace.uninstall()
+                self.laws = None
             self.w.teardown()
             gc.collect()
 
@@ -731,6 +836,8 @@ class TestWorldMachineReach(unittest.TestCase):
     # A floor, not "> 0": a counter drifting toward marginal fails here before
     # a source edit flips it. Lowest measured over 20 seeds is 9 (Testing Design).
     MIN_HITS = 3
+    # M5 (ci / deep): the commands from callbacks must fire.
+    REQUIRED_M5 = ("cmd_destroy", "cmd_park", "cmd_park_resume", "cmd_untag", "cmd_clone")
 
     def test_new_paths_are_reached(self):
         from hypothesis import settings as hsettings
@@ -742,7 +849,8 @@ class TestWorldMachineReach(unittest.TestCase):
         result = unittest.TestResult()
         unittest.defaultTestLoader.loadTestsFromTestCase(run).run(result)
         self.assertTrue(result.wasSuccessful(), result.failures or result.errors)
-        low = [k for k in self.REQUIRED if HITS[k] < self.MIN_HITS]
+        required = self.REQUIRED + (self.REQUIRED_M5 if M5 else ())
+        low = [k for k in required if HITS[k] < self.MIN_HITS]
         self.assertEqual(low, [], f"reached < {self.MIN_HITS} times: {low}; hits {dict(HITS)}")
 
 

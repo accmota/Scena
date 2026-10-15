@@ -329,6 +329,108 @@ def t6_dead_owner_registers() -> Patches:
     return [(proc.Scheduler, "add", add)]
 
 
+# -- F3, the snapshot rule (chaos doors, S7): a pass that does not keep what
+# it chose at its start. Run through ``laws.chaos`` with a fixed plan.
+
+def _with_globals(fn, **names):
+    """``fn`` with some of its module globals replaced (one function's view)."""
+    import types
+    g = dict(fn.__globals__)
+    g.update(names)
+    return types.FunctionType(fn.__code__, g, fn.__name__, fn.__defaults__, fn.__closure__)
+
+
+def f3_live_handlers() -> Patches:
+    """F3 / C3: each contact handler re-checks its sides before it runs, so a
+    destroy in the first hides the rest (the engine before PB5)."""
+    real = col._call
+
+    def call(fn, *args):
+        for side in args[:2]:
+            if getattr(side, "_destroyed", False) or getattr(side, "_dying", False) \
+                    or not getattr(side, "_active", True):
+                return None
+        return real(fn, *args)
+    return [(col, "_call", call)]
+
+
+def f3_no_ghost() -> Patches:
+    """F3 / C8: a resolve partner a handler removes leaves no ghost (the
+    engine before PE5: Breakout's ball does not bounce off the brick it breaks)."""
+    return [(col.CollisionSystem, "_note_ghost_contacts", lambda self, c: None)]
+
+
+def f3_act_epoch_blind() -> Patches:
+    """F3: an act change does not move the contact dispatch's act epoch, so
+    the rest of a contact's handlers run on the torn-down act (S4-1 gone)."""
+    real = col.CollisionSystem.drop_act_pair_handlers
+
+    def drop(self):
+        epoch = self._act_change_epoch
+        try:
+            return real(self)
+        finally:
+            self._act_change_epoch = epoch
+    return [(col.CollisionSystem, "drop_act_pair_handlers", drop)]
+
+
+def f3_live_flush() -> Patches:
+    """F3 / L3: a destroy no longer retires its owner's watches and a poll no
+    longer asks whether the owner is gone, so a watch whose owner an earlier
+    callback of the same flush destroyed still fires. The class has four
+    guards (the round's drop test, the watch's own, the owner test, and the
+    released callback); this breaks the two a destroy relies on."""
+    import scena.events as ev
+    return [(ev.EventSystem, "drop_owner", lambda self, owner: None),
+            (ev.EventRegistration, "_owner_gone", lambda self: False)]
+
+
+def f3_new_in_pass() -> Patches:
+    """F3 / T2: the tick walks its buckets live instead of the snapshot it
+    takes at its start, so work a fire makes is walked in the same tick."""
+    import builtins
+
+    def live(x=()):
+        return x if isinstance(x, (builtins.list, dict)) else builtins.list(x)
+    return [(proc.Scheduler, "tick", _with_globals(proc.Scheduler.tick, list=live))]
+
+
+def f3_live_group_walk() -> Patches:
+    """F3: a walk over a group yields from the live membership instead of
+    the copy it takes at its start."""
+    def iter_members(self):
+        if self._group_id is not None:
+            bucket = self._registry.group_map.get(self._group_id)
+            if bucket is not None:
+                return (r() for r in bucket._order.values() if r() is not None)
+        return iter(self._members())
+    return [(reg.GroupOperator, "_iter_members", iter_members)]
+
+
+def f3_tag_changes_forgotten() -> Patches:
+    """F3 / C5 (PB1, CD3-x): the tag changes a body made before the step are
+    forgotten at the step's start, so an untag made in a handler or in
+    ``update`` loses the left tag's exit (the bug class of PB1, on the
+    per-rule contacts of CD3: ``_rule_flux``)."""
+    real = col.CollisionSystem.step
+
+    def step(self):
+        self._rule_flux = {}
+        return real(self)
+    return [(col.CollisionSystem, "step", step)]
+
+
+F3_PLANTS: Dict[str, Callable[[], Patches]] = {
+    "live_handlers": f3_live_handlers,
+    "no_ghost": f3_no_ghost,
+    "act_epoch_blind": f3_act_epoch_blind,
+    "live_flush": f3_live_flush,
+    "new_in_pass": f3_new_in_pass,
+    "live_group_walk": f3_live_group_walk,
+    "tag_changes_forgotten": f3_tag_changes_forgotten,
+}
+
+
 PLANTS: Dict[str, Callable[[], Patches]] = {
     "T1": t1_due_without_tolerance,
     "T2": t2_new_work_ticks_at_once,

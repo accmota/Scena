@@ -12,7 +12,9 @@ P1  After resolve, a resolved pair overlaps by at most the slop (stacks are
 P2  Resolve adds no energy: a body answered only by still STATIC partners
     leaves no faster than it came (bounce ≤ 1).
 P3  Between two movable bodies answered only by each other, momentum is
-    kept.
+    kept. A body with no ``.vel`` is infinite mass in the impulse, like
+    STATIC (Collision Design, Resolution step 3): such a pair abstains (the
+    11th body field; S7 found the model counting a velocity-less brick).
 P4  A STATIC body never moves under resolve.
 P5  A body with no sideways velocity, answered only by still STATIC
     partners (and not riding a partner that moved), is not moved sideways
@@ -26,6 +28,11 @@ from typing import Dict, List, Tuple
 from laws.model.base import Report, Trace
 
 LAWS = ("P1", "P2", "P3", "P4", "P5")
+
+
+def _has_vel(body) -> bool:
+    """The body's ``.vel`` is set (recorded since S7; older traces: assume so)."""
+    return body[10] if len(body) > 10 else True
 
 SLOP = 0.08            # scena.collision._RESOLVE_SLOP, a declared parameter (pinned by a test)
 POS_BUDGET = 0.5       # DU (design/Laws.md, budgets)
@@ -136,7 +143,8 @@ def check(tr: Trace, rep: Report) -> None:
                     if d > SLOP + POS_BUDGET:
                         rep.find("P1", f, f"{a} and {b} overlap {d:.3f} after resolve",
                                  f"{a.rsplit('#', 1)[0]}|{b.rsplit('#', 1)[0]}")
-                if not math.isinf(ba[6]) and not math.isinf(bb[6]):
+                if not math.isinf(ba[6]) and not math.isinf(bb[6]) \
+                        and _has_vel(ba) and _has_vel(bb):
                     a0, b0 = pre.get(a), pre.get(b)
                     if a0 is None or b0 is None:
                         continue

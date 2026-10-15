@@ -119,6 +119,30 @@ class TestContactRules(unittest.TestCase):
             2, exited=[AB], calls=[H("exit", A, B, "g.py:9:a"), H("exit", A, B, "g.py:10:b")])
         self.assertEqual(findings(ev, "C5"), [])
 
+    def test_c5_an_exit_resumed_after_a_nested_destroys_exits_passes(self):
+        """A body in two contacts; the first exit handler of one destroys it,
+        so the other contact's exits run inside the destroy; then the first
+        contact's second handler runs. Each handler once per contact (S7:
+        the "consecutive" rule named the resumed handler a second exit)."""
+        Z2 = "Z@g.py:4#0"
+        AZ2 = (A, Z2)
+        ev = self.born + step(1, entered=[AB, AZ2]) + step(
+            2, exited=[AB, AZ2],
+            calls=[H("exit", A, B, "g.py:9:a"), H("exit", A, Z2, "g.py:9:a"),
+                   H("exit", A, Z2, "g.py:10:b"), H("exit", A, B, "g.py:10:b")])
+        self.assertEqual(findings(ev, "C5"), [])
+        again = ev[:-3] + [H("exit", A, B, "g.py:9:a")] + ev[-3:]
+        self.assertTrue(findings(again, "C5"))      # the same handler twice: found
+
+    def test_c5_one_class_rule_from_both_sides_passes(self):
+        """Two bodies of one class whose ``@collide_with_exit`` matches the
+        other: the same function runs once as each side (M5 found the rule
+        that keyed by function alone)."""
+        ev = self.born + step(1, entered=[AB]) + step(
+            2, exited=[AB], calls=[H("exit", A, B, "g.py:9:Cls.unhit"),
+                                   H("exit", B, A, "g.py:9:Cls.unhit")])
+        self.assertEqual(findings(ev, "C5"), [])
+
     def test_c5_a_second_exit_a_step_later_is_found(self):
         ev = self.born + step(1, entered=[AB]) + step(2, exited=[AB], calls=[H("exit", A, B)]) \
             + step(3, calls=[H("exit", A, B)])

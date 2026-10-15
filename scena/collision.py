@@ -10113,16 +10113,24 @@ class CollisionSystem:
         if runs:
             self._run_exit(ca, info, runs, None)
 
-    def _run_exit(self, ca: Collider, info: CollisionInfo, runs: list, was) -> None:
+    def _run_exit(self, ca: Collider, info: CollisionInfo, runs: list, was,
+                  act_epoch: Optional[int] = None) -> None:
         """Run an exit's handlers. One that a handler of this exit dropped
         does not run (S4-1); ``was`` (a deferred exit) lists which were still
         registered when it was chosen, so the leaving side's own handlers,
-        dropped by its destroy since, still run."""
+        dropped by its destroy since, still run. ``act_epoch``: the act
+        change epoch when the runs were chosen (default: now); after an act
+        change a side's own hook runs only if it still is that side's hook
+        (CD2: the act took its callable with it)."""
         epoch = self._dispatch_epoch
+        act0 = self._act_change_epoch if act_epoch is None else act_epoch
         changed = False
         for i, (ta, tb, fn, me, other) in enumerate(runs):
             if changed and ta is not None and (was is None or was[i]) \
                     and not self._handler_registered(ta, tb, fn):
+                continue
+            if ta is None and self._act_change_epoch != act0 \
+                    and getattr(me, "on_collide_exit", None) is not fn:
                 continue
             oriented = self._oriented_info(me, other, ca, info, _PHASE_EXIT)
             self._author_ran = True
@@ -10200,6 +10208,10 @@ class CollisionSystem:
                         break
                     if ta is not None and not self._handler_registered(ta, tb, fn):
                         continue
+                    if ta is None and getattr(me, attr, None) is not fn:
+                        # A side's own hook the act took with it (CD2: the
+                        # act's callable, cleared by ``_drop_act_callables``).
+                        continue
                 oriented = self._oriented_info(me, other, ca, info, phase)
                 self._author_ran = True
                 _call(fn, me._identity, other._identity, oriented)
@@ -10212,7 +10224,7 @@ class CollisionSystem:
                 xa, _xb, xinfo, xruns, was, x_act = deferred
                 if self._act_change_epoch != x_act:
                     was = None              # an act change: S4-1 for all
-                self._run_exit(xa, xinfo, xruns, was)
+                self._run_exit(xa, xinfo, xruns, was, x_act)
 
     def _exit_matches(self, ca: Collider, cb: Collider) -> list:
         """The exit handlers matching ``ca`` × ``cb``, as ``(ta, tb, handler,

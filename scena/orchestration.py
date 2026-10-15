@@ -1191,16 +1191,34 @@ class ShapeInteractionManager:
                 setter(True)
         entered = getattr(self, "_hover_entered", None)
         self._hover_entered = None
+        # Only a target whose enter ran gets an exit: an exit handler that
+        # destroys the next target must not give it an exit with no enter.
+        on_exit = getattr(old, "_on_hover_exit", None) if old is not None and entered is old \
+            else None
         try:
-            # Only a target whose enter ran gets an exit: an exit handler
-            # that destroys the next target must not give it an exit with
-            # no enter.
-            if old is not None and entered is old:
-                self._call(getattr(old, "_on_hover_exit", None), old)
+            if on_exit is not None:
+                self._call(on_exit, old)
         finally:
             if new is not None and self._hover_target is new:
-                self._hover_entered = new
-                self._call(getattr(new, "_on_hover", None), new)
+                if on_exit is not None and not self._hover_target_still_valid(new):
+                    # The exit parked, hid or unhooked the target the pointer
+                    # moved onto (CD1): it is no hover target now, so no enter
+                    # (L4); the next frame resolves again.
+                    self._resolved_sig = None
+                    self._set_hover_target(None)
+                else:
+                    self._hover_entered = new
+                    self._call(getattr(new, "_on_hover", None), new)
+
+    def _hover_target_still_valid(self, target) -> bool:
+        """``target`` was chosen this frame; is it still one after an exit
+        handler ran? Only a Graphic the hit test chose: widgets and the
+        pressed shape keep their own rules."""
+        if target is self._pressed_shape or getattr(type(target), "_scena_is_widget", False) \
+                or not hasattr(target, "contains_point"):
+            return True
+        return (getattr(target, "is_alive", False) and _drawn(target)
+                and self._hover_eligible(target))
 
     def forget_destroyed(self, obj) -> None:
         """Destroy path: drop its press, fire the exit now, while ``obj`` still exists."""

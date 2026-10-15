@@ -5,6 +5,7 @@
   cites the finding that breaks it.
 * Both directions with the model: every ``model `area.LAW` `` checker names
   a law the area checks, and every law a model area checks is on the page.
+* F3, the snapshot rule, cites only laws that are on the page.
 
     python -m unittest tests.test_laws_doc -v
 """
@@ -75,6 +76,14 @@ class TestConstitution(unittest.TestCase):
                 elif area not in areas or law not in areas[area].LAWS:
                     bad.append(f"{law}: model area {area!r} does not check it")
         self.assertEqual(bad, [])
+
+    def test_the_snapshot_rule_cites_laws_on_the_page(self):
+        """F3 names the laws that are its cases: a merge or a rename must not
+        leave it citing a law that is gone."""
+        self.assertIn("F3", self.rows)
+        cited = set(re.findall(r"\b([CLTFIVP]\d+)\b", self.rows["F3"][1])) - {"F3"}
+        self.assertGreater(len(cited), 5)
+        self.assertEqual(sorted(cited - set(self.rows)), [])
 
     def test_every_law_the_model_checks_is_on_the_page(self):
         missing = sorted(model.laws_checked() - set(self.rows))

@@ -22,10 +22,14 @@ breaks it today (a finding id says where).
 
 ## Frame
 
+F3 is the rule the C, L and T laws below are cases of: a command acts at
+once; a pass already running keeps what it chose at its start.
+
 | Law | Statement | Status | Checked by | Detail |
 | --- | --- | --- | --- | --- |
 | F1 | A frame runs its phases once each, in one order: input poll (key and mouse callbacks), `update`, process tick, collision (handlers, then resolve), leave playfield, hover, flush (`@when` / `@on_change`), pre-draw (transients, covers), edge expiry; then the draw. An explicit `flush()` from author code is the author's, not a phase. | holds | model `frame.F1`; `test_sys_frame_order` | [Scena Design.md — Frame order](Scena%20Design.md#frame-order) |
 | F2 | A door that belongs to a phase runs only in it: `update`; timers and `on_update` in the tick; enter and stay handlers in collision (an exit runs where its contact ends: the step, a destroy, a park); `@leave_playfield`; `@hover`; `@when` / `@on_change` in flush; key and mouse callbacks in the poll; pre-draw callbacks. Destroy-time hooks, act builds, actor `setup` and formula pulls run where they are called (a linked appearance field or flag is pulled at the start of hover and at the head of the draw). | holds | model `frame.F2` | [Scena Design.md — Frame order](Scena%20Design.md#frame-order) |
+| F3 | **The snapshot rule.** A command (destroy, park, `untag`, a group change, `collidable`, an act change, a creation, a timer, a pose write) takes effect for the author at once (L1). A pass already running finishes against what it chose at its start: it pays what it owed when the command came (the rest of a contact's handlers, C3; its response, a removed partner as a ghost, C8; an exit the command caused, after that contact's handlers, C2) and starts nothing new with what was removed (C4, L3, L4, T3); what the command made waits for that loop's next pass (T2): a tag or rule a handler adds counts for contacts from the next step, one it removes stops at once, its exit at the next step. Flush runs to quiet: a watch a callback affected fires in the same flush, one it made waits for a change. A walk over a group copies its members at entry. An act change cancels what the ending act owed (its handlers, its own hooks on game bodies, exits and ghosts: C6, L5); the game's own work goes on. | holds | chaos `owed`; `test_laws_chaos`, `test_laws_chaos_families` | [Scena Design.md — Commands during a pass](Scena%20Design.md#commands-during-a-pass-the-snapshot-rule) |
 
 ## Lifetime
 
@@ -99,8 +103,7 @@ equations: no expected value, only agreement).
 | V3 | A game does not depend on the order of two independent constructions. One exception, documented: a body that enters two partners in the same step without crossing either (a tie within half its thickness) enters them in creation order. | holds | equation `E3` | [Collision Design.md — Swept detection](Collision%20Design.md#swept-detection-fast-bodies) ("Order") |
 | V4 | A contact rule acts alike declared as a module `@collide`, a class `@collide_with` or an `on_collide` property (the property reaches any *registered* body: the partner joins by a rule or `collidable = True`), and whatever other rules pair the same bodies: a no-op rule beside it changes none of its calls (CD3). | holds | equations `E4`, `E15` | [Collision Design.md — Pipeline](Collision%20Design.md#pipeline) |
 | V5 | A game built at the top of the file or in its first act's `setup` runs alike while that act lasts. | holds | equation `E5` | [Act Design.md — Lifetime: the game and the act](Act%20Design.md#lifetime-the-game-and-the-act) |
-| V10 | Moving the whole world (65536, 4096) changes no motion. | holds | equation `E10` | [Collision Design.md — Resolution](Collision%20Design.md#resolution) |
-| V11 | A mirrored world moves as the mirror of the world: no left / right bias. | holds | equation `E11` | [Collision Design.md — Resolution](Collision%20Design.md#resolution) |
+| V10 | Moving the whole world (65536, 4096) or mirroring it changes no motion: a mirrored world moves as the mirror of the world (no left / right bias). | holds | equations `E10`, `E11` | [Collision Design.md — Resolution](Collision%20Design.md#resolution) |
 | V12 | Multiplying every mass by the same factor changes no motion (only mass ratios count). | holds | equation `E12` | [Collision Design.md — Mass split](Collision%20Design.md#mass-split-between-two-movable-bodies) |
 | V13 | At 30, 60 or 144 Hz a body stays within one frame of travel of where it is at 60 Hz (over a few seconds). | holds | equation `E13` | [Scena Design.md — Clocks](Scena%20Design.md#clocks) |
 | V14 | Doubling the world and its speeds doubles every path, within the budget: the slop and skin are absolute (0.08 DU), a difference below the budget at authoring scales. | holds | equation `E14` | [Collision Design.md — Resolution](Collision%20Design.md#resolution) |

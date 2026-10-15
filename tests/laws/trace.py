@@ -67,6 +67,7 @@ import json
 import os
 import sys
 import threading
+import weakref
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 mon = sys.monitoring
@@ -172,6 +173,12 @@ class Recorder:
         # or its class (an author class can hold graph nodes of its own: E0
         # found a leftover one while the recording held the class).
         self.labels: Dict[int, Tuple[str, int, str]] = {}
+        # id(obj) -> a weak reference to it, where the type allows one: an id
+        # is reused once its object is freed, and an unlabelled object of the
+        # same type at that address read as the dead one (S7 found it: a
+        # history door's Point took a freed Point's label). A weak reference
+        # keeps nothing alive.
+        self._refs: Dict[int, Any] = {}
         self._ordinal: Dict[Tuple[str, str], int] = {}
         self.counts = {"frames": 0, "author_calls": 0}
         self.input_doors: List[set] = []     # one set per OS input event being handled
@@ -179,6 +186,9 @@ class Recorder:
         # resolve. Off by default (one record per body per frame); the motion
         # laws and their twins turn it on.
         self.motion = False
+        # Files under tests/ the harness treats as author code for this
+        # recording (the World machine's hooks live in its test module).
+        self.author_files: set = set()
 
     # -- labels -----------------------------------------------------------
     def label_of(self, obj) -> Optional[str]:
@@ -187,6 +197,9 @@ class Recorder:
             return None
         t = type(obj)
         if id(t) != got[1] or t.__qualname__ != got[2]:
+            return None
+        ref = self._refs.get(id(obj))
+        if ref is not None and ref() is not obj:
             return None
         return got[0]
 
@@ -197,6 +210,10 @@ class Recorder:
         label = f"{kind}@{site}#{n}"
         t = type(obj)
         self.labels[id(obj)] = (label, id(t), t.__qualname__)
+        try:
+            self._refs[id(obj)] = weakref.ref(obj)
+        except TypeError:
+            self._refs.pop(id(obj), None)
         return label
 
     def dump(self, path: str) -> None:
@@ -248,6 +265,7 @@ _sites: Dict[str, Optional[str]] = {}                          # engine qualname
 _NO_SITE = object()
 _engine_dir = ""
 _author_cache: Dict[str, bool] = {}
+_author_extra: set = set()
 
 
 def _is_author_file(filename: str) -> bool:
@@ -260,6 +278,9 @@ def _is_author_file(filename: str) -> bool:
     if got is not None:
         return got
     f = os.path.normcase(os.path.abspath(filename)) if not filename.startswith("<") else ""
+    if f in _author_extra:
+        _author_cache[filename] = True
+        return True
     ok = bool(f) and not (
         f.startswith(_engine_dir)
         or f.startswith(_STDLIB)
@@ -413,8 +434,10 @@ def _ghosts(frame):
 
 def _bodies(ids) -> tuple:
     """Pose, velocity and mass of each resolve body (Circle / Rect identities
-    only), from raw fields: ``(label, kind, x, y, vx, vy, mass, a, b, angle)``
-    with ``a, b`` the radius (Circle) or width, height (Rect)."""
+    only), from raw fields: ``(label, kind, x, y, vx, vy, mass, a, b, angle,
+    has_vel)`` with ``a, b`` the radius (Circle) or width, height (Rect);
+    ``has_vel``: ``.vel`` is set (a body without one is infinite mass in an
+    impulse, Collision Design)."""
     out = []
     for c in ids.values():
         if not _slot(c, "_in_resolve", False):
@@ -446,7 +469,8 @@ def _bodies(ids) -> tuple:
             a, b, ang = float(d["width"]), float(d.get("height", 0.0)), float(d.get("angle", 0.0))
             kind = "rect"
         out.append((_rec.label_of(shape), kind, float(p.get("x", 0.0)), float(p.get("y", 0.0)),
-                    float(vd.get("x", 0.0)), float(vd.get("y", 0.0)), mass, a, b, ang))
+                    float(vd.get("x", 0.0)), float(vd.get("y", 0.0)), mass, a, b, ang,
+                    v is not None))
     return tuple(out)
 
 
@@ -646,11 +670,15 @@ _ENGINE_HOOKS = (
 
 # -- the callbacks -----------------------------------------------------------
 
-def _author_call(code, frame, resume: bool) -> None:
-    r = _rec
+def door_of(code, frame) -> Optional[str]:
+    """The door an author function came through, or None when no engine code
+    called it (an author helper called by author code). ``frame`` is the
+    author function's own frame, ``code`` its code. The recorder labels each
+    author call with it at start; the chaos runtime (``laws.chaos``) asks it
+    again at the return, so both agree on what a door is."""
     caller = frame.f_back
     if caller is None or not _is_engine_code(caller.f_code):
-        return
+        return None
     site = None
     nested = None
     f = caller
@@ -690,6 +718,14 @@ def _author_call(code, frame, resume: bool) -> None:
         site = getattr(caller.f_code, "co_qualname", caller.f_code.co_name)
     elif nested is not None:
         site = f"{site}>{nested}"
+    return site
+
+
+def _author_call(code, frame, resume: bool) -> None:
+    r = _rec
+    site = door_of(code, frame)
+    if site is None:
+        return
     args = ()
     n = code.co_argcount
     if n and not resume:
@@ -810,6 +846,9 @@ def install(recorder: Optional[Recorder] = None) -> Recorder:
     mon.use_tool_id(tool, TOOL_NAME)
     _tool = tool
     _rec = recorder if recorder is not None else Recorder()
+    _author_extra.clear()
+    _author_extra.update(os.path.normcase(os.path.abspath(f)) for f in _rec.author_files)
+    _author_cache.clear()
     _hooks.clear()
     _sites.clear()
     _phase_codes.clear()
@@ -860,6 +899,9 @@ def uninstall() -> Optional[Recorder]:
     _hooks.clear()
     _sites.clear()
     _phase_codes.clear()
+    if _author_extra:
+        _author_extra.clear()
+        _author_cache.clear()
     return rec
 
 

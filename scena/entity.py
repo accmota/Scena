@@ -1970,6 +1970,18 @@ def _refuse_if_destroyed(obj, action: str) -> None:
         )
         if found:
             guard = f"if {found.group(1)}:"
+    if getattr(type(obj), "_scena_is_act", False):
+        # The only way an act's own code meets its act destroyed: it ran on
+        # after change_act ended the act (immediate, Act Design), e.g. later
+        # lines of its setup (CD5). "Guard the call" was the wrong fix.
+        name = type(obj).__name__
+        base = f"{name}.{shown} cannot change act {name}"
+        if site:
+            base = f"{base} ({site})"
+        base = (f"{base}: act {name} ended when the game changed act, and code "
+                f"after change_act() runs on the act that is gone. Write "
+                f"change_act(...) last, or return right after it.")
+        raise DestroyedError(_destroyed_access_message(obj, base))
     base = f"{type(obj).__name__}.{shown} cannot change a destroyed actor"
     if site:
         base = f"{base} ({site})"

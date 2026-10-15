@@ -422,16 +422,24 @@ equations".
   quick:  test_laws_quick (the recorder, E0 on a fixture), test_laws_doc (the
           constitution stays short and in step with the model), test_laws_lifetime,
           test_laws_contacts, test_laws_input, test_laws_timers, test_laws_motion
-          (each: its fixture, synthetic traces, canaries in gate)
+          (each: its fixture, synthetic traces, canaries in gate),
+          test_laws_chaos (S7, law F3: the chaos doors' machinery, the
+          s5_doors fixture, a seeded slice of single-fault runs, the s7_cells
+          directed cells; the F3 canaries in gate)
   SLOW:   test_laws_neutrality (E0 over programs, games, examples),
           test_laws_families (the model over every program, game, example;
           deep: every tutorial step), test_laws_equations (E1 pacing, E3 spawn
           order, E4 handler home, E5 act vs top level, E6 bound vs closure,
-          E8 break in handler vs later)
+          E8 break in handler vs later), test_laws_chaos_families (chaos
+          doors over the laws fixtures, the games, the programs, the
+          examples; deep: every door x every command, every scenario, the
+          tutorial steps; seed SCENA_CHAOS_SEED)
 
   python tests/run_tiers.py focused test_laws_quick test_laws_lifetime
   python tests/script_harness.py examples/naves.py 120 --laws /tmp/t.jsonl --fingerprint
   python tests/script_harness.py examples/naves.py 600 --pace 144      # E1: same game time
+  python tests/laws/chaos.py tests/laws/fixtures/s5_doors --plan enter:0:destroy.partner
+                                     # one chaos run: what fired, what the checks found
 
   Attach to a program or game run: from laws.attach import attach;
   run_game(game, scenario, before_start=attach); the trace is run.laws

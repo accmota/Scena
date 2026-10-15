@@ -625,6 +625,113 @@ sentence in Collision Design. A canary plant can be mirror-symmetric by
 accident (a "leftward bounce loses 2 %" hit one bounce in each world); an
 asymmetry is a property of the contact (its normal), not of the outcome.
 
+**S7 — chaos doors (F3, the snapshot rule).** F3 names the hybrid the engine
+already was (commands immediate for the author, a running pass keeps what it
+chose; Scena Design, "Commands during a pass"); the chaos doors check it by
+firing, at an author callback door, one command an author could write there.
+
+- **Injection** (`tests/laws/chaos.py`): an AST rewrite compiled under the
+  program's own path. Every plain `def` and lambda routes its returns through
+  `__chaos__.ret(value)`; new nodes reuse the replaced node's location, so
+  labels, `fn` fields and the file on disk are the plain run's (no line map).
+  `ret` asks `trace.door_of` (the recorder's own site walk, factored out)
+  whether this return closes a door and counts `(door, n)`. Not
+  `sys.monitoring`: no monitoring event fires while a monitoring callback
+  runs (probe, CPython 3.12 and 3.14), so a command run from a PY_RETURN
+  callback would be invisible to the recorder. Not a wrapper: it puts a frame between
+  the engine and the author function. Generators and coroutines are not
+  rewritten (v1). Runners: `ProgramRun.transform` / `.inject`,
+  `script_harness.py --chaos plan.json`.
+- **Commands** (`chaos.COMMANDS`, each with an applicability test and, where
+  it has one, an immediacy check read raw right after it returns): destroy
+  self / partner / another, park (resumed by label two frames later), park
+  and resume in one door, `untag`, a group join, `collidable = False`,
+  `change_act`, a clone, a timer, a pose or velocity write; the group family
+  (`group[g].destroy()` from the group's own handler, bulk tag / untag, churn
+  across steps, joining a rule mid-contact, a walk that
+  destroys and clones); neutral ones (an absent untag, a held tag, `after`
+  then `cancel`). Pull doors (formula, condition) are not sampled.
+- **Passes.** Pass 0, the plain run; pass 1, the idle rewrite, which must
+  equal pass 0 (E0 for the machinery) and lists every door return; then
+  single-fault runs drawn with a weight of 1 / (that door's count), so a
+  hover or a Menu pick is drawn as often as `on_update`. Examples run one
+  multi-fault plan, shrunk by ddmin on a finding. A finding prints its repro
+  (`python tests/laws/chaos.py <program> --plan door:n:command`).
+- **Checks** (`chaos.verdict`): the law models; no engine-internal exception
+  (a `raise` in `scena/` is a refusal, recorded; an error the author's own
+  later code meets on a body the command destroyed is the C3 trade-off,
+  recorded); no zombie; **owed work** against pass 1 from the injection
+  point — the injected contact's remaining handlers run (C3: the first trace
+  checker it has), its ghost when the partner left (C8), its exit when the
+  command ended it (C5), no enter / stay with a removed body outside it, and
+  none at all after an act change; **new waits**, per loop (a clone made in a
+  timer fire runs its `on_update` this tick: the fleet starts after the
+  timers); a neutral command leaves the trace as pass 1 (its own handle
+  records aside, later handle ordinals renumbered).
+- **Fixtures.** `s5_doors.py` opens every door the other fixtures leave
+  closed (hover, leave, two `@when` in one flush and owned ones, tween and
+  Track `on_done`, a sound's end, Button, TextInput submit, Menu, script
+  keys and mouse, a two-contact step with two handlers each), driven at OS
+  level (`chaos.S5_STEPS`). `s7_cells.py`: the directed cells, one scene per
+  suspect.
+- **Canaries** (`plants.F3_PLANTS`, gate): handlers re-checked before each
+  call (pre-PB5), no ghost (pre-PE5), an act change that does not move the
+  dispatch's act epoch (S4-1), a destroy that does not retire its owner's
+  watches, a tick that walks its buckets live, a group walk over the live
+  membership, tag changes forgotten at the step (PB1, CD3-x); each caught by the
+  check named for it. A rewrite that loses a return value fails pass 1.
+- **World machine (M5)**, the messy complement: single faults cannot reach
+  compound states (several commands in one pass, a command inside another's
+  hooks, dense contacts). In the `ci` and `deep` profiles,
+  `test_sys_hyp_world` records its whole session (the recorder's
+  `author_files` makes the machine's hooks author code) with the law models
+  as an invariant, and `command_later` fires a command (destroy, park, park
+  and resume, untag, tag, `collidable = False`, a clone, a timer, a move, a
+  group destroy) from the seven callbacks `destroy_later` uses; a dead pick
+  is replaced by a fresh actor and `settle` lets the callback come due at
+  once, else most armed commands find their actor gone (reach guard
+  `REQUIRED_M5`). No baseline, so no owed check: its oracles are the laws,
+  the machine's invariants and the census. Acts are not in the machine yet.
+- **Tiers.** `test_laws_chaos` (quick, ~6 s): the machinery, the fixture, a
+  seeded slice of 40 single-fault runs, the cells; canaries in gate.
+  `test_laws_chaos_families` (SLOW + SPLIT): the laws fixtures, the four
+  games, the programs, the examples, runs per member by profile, seed
+  `SCENA_CHAOS_SEED`; deep adds every door × every command twice, every
+  scenario and the tutorial steps.
+
+Results (on the joint-response engine, 2026-10-15): the idle rewrite is the
+plain run on every fixture, game, program and example; about 1 500 single-fault runs (every door × every command on
+`s5_doors`, seeded slices on the laws fixtures and the four games) and a
+two-fault run per example found no engine-internal error and no broken model
+law at a sampled door; the M5 machine at `ci` found none either. The first
+findings were the instruments' own: a "new waits" check that took a phase for
+a pass, an exit check that looked past the command's step, and the recorder
+reading a freed object's label at a reused `id()` (now a weak reference per
+label confirms the object), P3 counting a body with no `.vel` as movable
+(it is infinite mass in the impulse; the recorder now records `has_vel`),
+and C5 reading "once per contact" as "consecutive" (a destroy in one
+contact's exit runs the other contact's exits inside it; now: each exit
+handler once per contact). The gate's `ci` runs added three of the checker's
+own: a sound's end compared across runs (it follows the audio clock, real
+time: a frame later under load), an exit "owed" to the contact whose exit was
+the one running, and a later handler's own destroy counted as the command's. The directed cells found two bugs,
+both fixed: CD1 (L4: a hover target parked by the old target's exit still
+lit) and CD2 (F3: the act's own `on_collide` already chosen for a contact ran
+after the act ended); a decision (CD3), a documented rule (CD4) and a
+message (CD5, fixed); [CD](#cd--chaos-doors-2026-10-15).
+
+**What S7 taught.** A pass is a loop, not a phase: the first "new waits"
+findings were the checker's, which took the whole tick as one pass. The
+classes have more guards than one reads off the code: a watch whose owner
+died is stopped by the round's drop test, its own drop test, the owner test
+and the callback released at destroy, so a canary breaks the two a destroy
+relies on. Single faults at sampled doors were all kept; every finding came
+from a cell built from a suspect the code reading named — the random sweep
+proves coverage, the directed cell finds the bug. A cell is a twin too
+(lesson 4): the first CD2 cell's hook did not close over the act, so it was
+the game's and ran on by design; only a hook the engine counts as the act's
+shows the bug. Read the ownership rule before writing the cell.
+
 
 # Geometry campaign
 
@@ -2299,7 +2406,7 @@ member should ask whether the siblings share the cause.
 | **A test turns vacuous** (it keeps passing while it no longer reaches what it checks: a changed spelling, a blank frame, a shard list, a case that runs no frame) | SV5 (a cell helper returned the number after the 0.8.0 flip), HV1 (two blank frames compared), O10 (gate shards ran ~50 of ~190 cells), the first `resolve(only=)` case of `TestEveryCallbackDoor` (no frame ran, so `only=` was never asked) | Canaries (`diff_support.assert_catches`, gate only), `TestDrawReachesThePixels`, `test_every_split_module_really_shards`, the `> 100` reach checks of the surface sweeps. Rule: a new guard is run on the pre-fix engine and each case is seen to fail; after a change to what a spelling means, run `gate` |
 | **An input stream loses or outlives its press owner** (repeats, drags and the release must reach the receiver that got the press — script, widget or shape — and nobody else; what the press set must be undone when its owner goes away) | S3-7 (a modal ate the up), W-P4 (repeats after a modal), X-life-3 (an up without its down), S3-8 (an old-act press clicked), PG-PD1 (a destroyed held Button never wrote `value_off`), PG-PD3 (a repeat reached a newly focused box), PG-PD7 (the up lost across `change_act`), LW5 (a typed character carries no key: it went to whatever box had focus after the key's handler moved it) | `tests/test_input_streams.py` (`TestStreamOwnershipMatrix`: owner × interruption — focus change, focus loss, destroy, act change, modal; `TestACharFollowsItsKey`); laws I1–I5 over every program and game (`tests/laws/model/input.py`). Rule: an event that carries no owner (a character) follows the event that made it, never the focus as it is now |
 | **Simultaneous things answered one at a time** (two contacts of one body in one step, or a bounce and the rest of its frame, resolved in sequence: the result depends on which came first, and on the frame rate) | LW2 (a ball on the seam of two bricks: creation order sets the deflection; breaking in the handler vs a frame later differed by up to 46°), LW7 (a bounce dropped the frame's leftover travel: a ball in a box ran 3–6 % slow by frame rate), LW8 (a skin contact the handlers saw and resolve did not answer), PG-PB5 (the dispatch side of the same shape, fixed) | Fixed 2026-10-15: the joint stop, the bounce sub-step, a removed partner as a still wall, the skin answer ([Collision Design — Joint stop](Collision%20Design.md#joint-stop-simultaneous-contacts)). Guards: `tests/test_joint_response.py` (a class and a canary per rule), `test_laws_equations` (`test_two_bricks_at_once_agree`, `test_two_wall_twin`, `test_e1_catches_the_dropped_leftover`). Left: ties with movable partners. Rule: what one step owes a body is gathered before any of it is applied; and a contact the handlers saw is a contact resolve answers |
-| **A handler's side effect hides the rest of the frame from the same contact** (a destroy, park, `untag` or group change inside a handler changes what the rest of that contact's dispatch, or `resolve`, sees) | PG-PB5 (a destroy hid the contact's other enter handlers: scoring depended on spawn order), PG-PE5 (a destroy hid the contact from `resolve`: no bounce), PG-PB3 (an exit handler's destroy / untag hid the other exit handlers), PG-PB1 (an `untag` mid-contact hid the exit) | `test_collision.TestEveryEnterHandlerOfAContactRuns` (both spawn orders), `TestAContactsExitComesAfterItsHandlers`, `TestBounceOffAPartnerAHandlerRemoved`, `TestExitAfterGroupChange`. Rule: choose what a contact owes (its handlers, its resolve response) before the first handler runs; only an act change may cancel it |
+| **A handler's side effect hides the rest of the frame from the same contact** (a destroy, park, `untag` or group change inside a handler changes what the rest of that contact's dispatch, or `resolve`, sees) | PG-PB5 (a destroy hid the contact's other enter handlers: scoring depended on spawn order), PG-PE5 (a destroy hid the contact from `resolve`: no bounce), PG-PB3 (an exit handler's destroy / untag hid the other exit handlers), PG-PB1 (an `untag` mid-contact hid the exit) | `test_collision.TestEveryEnterHandlerOfAContactRuns` (both spawn orders), `TestAContactsExitComesAfterItsHandlers`, `TestBounceOffAPartnerAHandlerRemoved`, `TestExitAfterGroupChange`; every door, not only handlers: `test_laws_chaos` / `test_laws_chaos_families` (the owed check after a command at any door) and the `F3_PLANTS` canaries. Rule: the snapshot rule ([Laws](Laws.md) F3): choose what a pass owes (a contact's handlers, its resolve response, its exit) before the first author call runs; what a command removed starts nothing new, what it made waits for that loop's next pass; only an act change cancels what the ending act owed, its own hooks on game bodies included (CD2, fixed) |
 | **A rule's outcome depends on another rule** (state kept per pair of bodies, or per contact, read as if it were per rule: a rule that begins or stops matching while the pair stays takes the pair's phase) | CD3 (a tag joined mid-contact: enter only if nothing else paired the bodies), CD3-x (a tag left while another rule keeps the pair: no exit ever), CD3-b (a blink: an exit with no enter) | Equation E15 (a no-op rule beside every program's and example's rules changes no other call; canary: the per-pair rule); `test_collision.TestARuleAContactGainsOrLosesMidContact` runs each case alone and beside four other pairings. Rule: a rule's phase is read per rule at the commit, not inherited from the pair |
 | **A name the engine looks up is silently never called** (a class-body hook misspelled, a top-of-file name written in a class, a hook name that shadows an engine method) | PG-PA3 (`def update(self, dt)` / `on_key_down` in an act; `update` on a Shape replaced the graph's recalculation), PG-PC5 (`on_colide`, `on_updat`, a plain `collide_with`); sibling of AH1 (an `async` hook) | `tests/test_class_hook_names.py` (every exported family; the near-miss pool follows `_ACTOR_HOOK_NAMES`, the top-level list follows `set_auto_callbacks`). Rule: every name the engine discovers by name is checked where it is written (the class line), against the engine's own list, and the author's own helper names stay legal |
 | **A value protocol added to a type that is also an argument** (`__iter__`, `__len__`, `__eq__` on a type the engine takes as an argument change every entry that decides "is this a sequence?" or compares by protocol) | PE1 (value `==` on a Point weighed and refused: registry scans and weak keys rely on identity), PG-PB6 (`__iter__` on Point / `Vec2` / `mouse`: every link / copy entry reads a point by type; the entries that take a list of points refuse one point first) | `test_point_unpack.TestPointKeepsItsMeaning` (link rows still follow after the source moves) + `TestNotAList`. Rule: entries read by type, never by protocol; an entry that takes "a list of X" refuses one X first |
@@ -3005,6 +3112,20 @@ and an Svg's raster with `Svg(height=)` of the same size.
 | SF1 | A flipped Sprite / Svg placed by `box=` in a turned region drew upside down: at region angle `0` it kept its rest heading (drawn `0`), at `1e-6` it drew at `-180` (`box.top_center` below the center), at `30` at `-150`. `art_angle` sprites were off the same way | `Sprite("x.png", box=Box(center=(0, 0), width=40, height=20, angle=1e-6), flip_x=True).box.top_center` → `(0, -10)` | `_init_sprite_body` did `if inherit_angle: rotate_to(inherit_angle)`: the region angle replaced the heading instead of turning it from rest (`180` for `flip_x`), and `0` skipped the write, so the result jumped at 0 | No test placed a flipped (or `art_angle`) sprite with `box=`; the fit tests used plain sprites, whose rest heading is 0 | The heading is the rest heading plus the region angle (the contain fit lies the art along the region's axes). Guard: `test_box_formula.TestSpriteBoxHeading` — turning the region turns the result (named points rotate about the center), every flip × `art_angle` × angles across 0 (40 failures with the old line) |
 | SF2 | `Svg(box=region)` rasterized at the 128-unit default whatever the region, so a big box drew it upscaled and blurred (64 × 128 px drawn at 200 × 400) | `Svg(markup, box=Box(center=(0, 0), width=400, height=400))._sheet._frame_at(0).src_w` → 64; with `height=400` → 200 | The first raster size comes from `width=` / `height=` / `size=` only (`_svg_dest_longer_from_kwargs`); `box=` was resolved later, in the Sprite body | `test_svg` has no `box=` case, and the drawn size (what `box=` tests read) was right — only the raster behind it was small | `box=` alone rasters at the region's longer side (a formula region: its first value). Guard: `test_box_formula.TestSvgBoxRaster` (same raster as `Svg(height=)` of the drawn size) |
 
+### CD — chaos doors (2026-10-15)
+
+Findings of the chaos doors ([Laws and equations](#laws-and-equations), S7),
+with the triage verdict. Directed cells: `tests/laws/fixtures/s7_cells.py`,
+pinned by `test_laws_chaos.TestCells`.
+
+| ID | Finding | Verdict | Cause | Fix / guard |
+| --- | --- | --- | --- | --- |
+| CD1 | A card's `on_hover_exit` locks (parks) the card next to it; the pointer moves straight from one to the other, and the locked card still lights: its `on_hover` runs while parked (L4). Hiding it (`visible = False`) did the same | **BUG**, fixed | `ShapeInteractionManager._set_hover_target` fired the new target's enter after the old one's exit, checking only that the target was still the same object (a destroyed one is cleared by `forget_destroyed`; a parked or hidden one was not) | After an author exit handler ran, the new target is re-checked with the hit test's own rule (`_hover_target_still_valid`: alive, drawn, hover-eligible; widgets and the pressed shape keep theirs); one that fails gets no enter and the next frame resolves again. Guard: `test_pointer_hover.TestEdges.test_exit_that_parks_or_hides_the_next_target_gives_it_no_enter`; cell `hover_park`. Cost: nothing when no exit handler runs; with one, +1.1 % of a hover-change frame (~0.4 µs per change, in-process interleaved A/B) |
+| CD2 | Two game bodies whose `on_collide` the act set as a closure over the act (the act's own hook) touch; the first hook changes the act; the second still runs, once, on the act that is gone (a write to it raises `DestroyedError`). Same for the stay and exit hooks | **BUG**, fixed | `_dispatch_contact` chose a contact's runs up front; after an act change it re-checked a tag rule's registration (S4-1) but never a side's own `on_collide*` (`ta is None`), which `_drop_act_callables` had cleared; `_run_exit` had the same gap | After the act epoch moved, a side's own hook runs only if it is still that side's hook (`_run_exit` takes the epoch its runs were chosen at). Guards: `test_act.TestChangeInsideADispatch` (`test_an_act_hook_on_a_game_body_stops_on_enter`, `…_on_stay`, `…_on_exit`); cell `act_callable`. Cost: inside the act-changed branch, plus one compare per side-hook exit run: −0.8 / −0.1 % on 60 pairs entering and exiting every other frame (A/B, noise). The first cell was the instrument's error: its hook did not close over the act, so it was the game's and ran on by design ("closest owner wins") |
+| CD3 | A body gains a tag while touching a partner a rule pairs it with: the rule's enter runs if nothing paired the two before, and never if another rule already did (only stays) | **BUG**, fixed (2026-10-16, per-rule contacts; the user's design session) | A contact was per pair of colliders, not per rule | [CD3](#cd3--a-rule-a-contact-gains-or-loses-mid-contact-2026-10-16) (with CD3-x and CD3-b); equation E15. Cell `join_rule`: `test_laws_chaos.TestCells.test_cd3_a_tag_gained_while_touching_enters_whatever_other_rules` |
+| CD4 | A game-level ball breaks an act's brick in a handler that also changes the act: the ball passes on, no bounce | today's rule (F3: an act change cancels what the ending act owed, ghosts included) | `drop_act_pair_handlers` clears `_ghost_contacts` | Documented in F3 and Scena Design, "Commands during a pass". Pinned: `test_laws_chaos.TestCells.test_cd4_an_act_change_drops_the_ending_acts_ghost` |
+| CD5 | `change_act` in an act's own `setup`, then a write to `self`: `DestroyedError` "Guard the call: if actor:" | message, fixed | The act ended inside its own setup (immediate, Act Design); objects made after the change join the new act, as documented; the refusal gave the actors' fix | `_refuse_if_destroyed` names the act change for an act: "act Fase ended when the game changed act … Write change_act(...) last, or return right after it." Guard: `test_act.TestMessagesNameTheAct.test_a_write_to_an_act_after_its_change_act_names_the_change` |
+
 ### CD3 — a rule a contact gains or loses mid-contact (2026-10-16)
 
 Set aside by the chaos-doors campaign for a design session; the user chose
@@ -3469,6 +3590,9 @@ accepted as a limitation (user decision 2026-09-29).
 | F2 | **Accepted limitation, engine unchanged (by design).** A circle walking over touching tiles with alternating 5 / 28 ms frames enters / exits the *next* tile every other frame while within ~2 DU of the seam. Rects, resting bodies and steady 60 / 144 / 200 Hz are clean after F1 | Circle r=8 hero, 12 touching 16×16 `STATIC` tiles, `resolve(..., bounce=0.0)`, `vx = 60`, `dt` alternating 0.005 / 0.028 | `@collide` reads the pre-resolve pose, which sinks by g·dt² (0.6 DU on 28 ms, none on 5 ms); against the next tile's corner the gap swings across any fixed skin. Fixing it means judging resolved pairs on the resolved pose: splits the frame-order rule, drops the enter `depth`, breaks same-frame policy in `@collide_stay`. Needs four conditions at once (curved body, seam, uneven pacing, per-tile enter / exit); the standing tile keeps its contact | `TestCollideDoesNotFlicker.test_curved_body_on_seams_with_uneven_frames` stays `expectedFailure` as a tripwire. Mitigation: the Guia teaches `touching_contacts` for "which tile am I on" ([Tocando](../docs/pt/guide/index.html#colisao-touching), "Não confundir" row); fence in [Collision Design — Resting contact (skin)](Collision%20Design.md#resting-contact-skin) |
 
 ### W — world machine extensions (M4)
+
+M5 (2026-10-15) adds the laws as an invariant and commands from callbacks:
+[Laws and equations](#laws-and-equations), S7.
 
 | ID | Bug | Shrunk repro | Root cause | Guard |
 | --- | --- | --- | --- | --- |

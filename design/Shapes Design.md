@@ -1304,8 +1304,13 @@ after those exits, and a `destroy()` from inside them is a no-op (before
 2026-10-09 it was already dead there, so the taught un-highlight raised
 `DestroyedError`, review X-life-5). An exit goes only to a target whose enter
 ran: an exit handler that destroys the next target gives it no exit (S1-4).
-The target is committed before handlers run; a raising handler propagates
-with the edge consumed.
+An exit handler that parks or hides the next target (or takes away its
+hooks and pointer flags) gives it no enter either: after an author exit
+handler ran, the new target is re-checked with the hit test's rule (alive,
+drawn, hover-eligible; `_hover_target_still_valid`), and one that fails is
+dropped until the next frame resolves again (a parked actor runs no hover
+hook, [Laws](Laws.md) L4; CD1). The target is committed before handlers
+run; a raising handler propagates with the edge consumed.
 
 **Hover-only targets are click-transparent.** A Graphic with only hover
 handlers joins hover resolution, but presses fall through to the pressable
