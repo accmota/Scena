@@ -357,6 +357,12 @@ class SpatialFx(Entity):
 
     _pose_xy_guard = True
 
+    # A reserved name the effect does not have refuses ``=`` (RN2):
+    # ``fire.color = BLUE`` stored a field nothing drew. ``soft_edge`` is a
+    # plain field of every effect (``_construct``).
+    _scena_reserved_strict = True
+    _reserved_fields = ("soft_edge",)
+
     # Class keywords of an author subclass (``class Energia(Orb, radius=16)``):
     # the kind's defaults for every instance, like Shape / Sprite (AC2;
     # ``class_defaults``).
@@ -508,6 +514,8 @@ class PointDomainFx(SpatialFx):
     center = ContainerSlot(Point)
     radius = ScalarSlot(magnitude=True)
 
+    _absent_hints = {w: "Size it with radius." for w in ("width", "height", "size")}
+
     _PART_NAMES = ("center", "radius")
 
     def _init_point_domain(
@@ -614,6 +622,8 @@ class PadDomainFx(SpatialFx):
     height = ScalarSlot(magnitude=True)
 
     _PART_NAMES = ("p1", "p2", "center", "width", "height")
+    _reserved_fields = ("model",)
+    _absent_hints = {"size": "Size it with width / height."}
 
     def _set_defining_parts(self, *defining: str) -> None:
         self._mark_defining_parts(*defining, catalog=self._PART_NAMES)
@@ -706,6 +716,12 @@ class BeamDomainFx(SpatialFx):
     width = ScalarSlot(magnitude=True)
 
     _PART_NAMES = ("p1", "p2", "origin", "angle", "length", "width")
+    _reserved_fields = ("model",)
+    _absent_hints = {
+        "center": "It is placed by p1= / p2= (or origin=).",
+        "height": "Size it with length / width.",
+        "size": "Size it with length / width.",
+    }
 
     def _set_defining_parts(self, *defining: str) -> None:
         self._mark_defining_parts(*defining, catalog=self._PART_NAMES)

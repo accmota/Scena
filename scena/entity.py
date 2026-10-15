@@ -506,6 +506,8 @@ def _ink_link_forbidden_message(owner: "Entity", field: str) -> str:
     kind = cls.__name__
     route_map = _kind_route(cls)
     route = route_map.get(field)
+    if isinstance(route, _RouteRefusal) and route.link is not None:
+        return route.link.format(cls=kind)      # built beside the ``=`` words
     if isinstance(route, _RouteRefusal) and route.kind != "absent":
         if route.kind == "read_only":
             return (f"{kind}.{field} cannot be linked with @= — it is read-only: "
@@ -846,14 +848,17 @@ class _RouteRefusal:
     """A route that refuses the write with a hint (graphics review R8). It sits in
     the per-class route table, so names that are writable pay nothing for it."""
 
-    __slots__ = ("message", "kind")
+    __slots__ = ("message", "kind", "link")
 
-    def __init__(self, message: str, kind: str = "absent"):
+    def __init__(self, message: str, kind: str = "absent", link: Optional[str] = None):
         self.message = message
         # "read_only" (a property without a setter), "method", or "absent"
         # (a size / point / relation / shape word the kind lacks). The @=
         # refusal of a reserved name reads it (``_ink_link_forbidden_message``).
         self.kind = kind
+        # The words @= answers with, when built with the write's (a closed
+        # non-Graphic kind's own hint), so both stay the same by construction.
+        self.link = link
 
     def __set__(self, obj, value) -> None:
         raise AttributeError(self.message.format(cls=type(obj).__name__))
@@ -881,15 +886,19 @@ _SHAPE_WORDS = {"base_ratio": "Triangle", "scoop": "Concave"}
 _ABSENT_HINTED = frozenset({"angle", "scale", "hue", "gray", "collider"})
 
 
-def _absent_reserved_text(name: str, verb: str = "", size: str = "") -> str:
+def _absent_reserved_text(name: str, verb: str = "", size: str = "",
+                          hint: Optional[str] = None) -> str:
     """``{cls} has no field 'text' (a Text field).`` — the answer to ``=`` and
     ``@=`` on a reserved name the kind lacks (``verb``: ``", so @= has nothing
-    to link"``). ``{cls}`` is filled in by the caller."""
+    to link"``). ``hint``: the kind's own (``"Its caption is `.label`."``;
+    ``""`` for none) in place of the Graphic one. ``{cls}`` is filled in by
+    the caller."""
     family = _RESERVED_FAMILY.get(name)
     msg = f"{{cls}} has no field {name!r}" + (f" (a {family} field)" if family else "")
     if family:
         size = ""
-    hint = _INK_LINK_FORBIDDEN_HINTS.get(name) if name in _ABSENT_HINTED else None
+    if hint is None:
+        hint = _INK_LINK_FORBIDDEN_HINTS.get(name) if name in _ABSENT_HINTED else None
     return (msg + verb + "." + size + (f" {hint}" if hint else "")
             + " A field of your own needs another name.")
 
@@ -905,7 +914,11 @@ def _install_setattr_route(cls: type) -> None:
     * a method refuses (E8: ``c.tag = "boss"`` replaced the method);
     * on a Graphic, a size word the kind lacks refuses (E13), and so does any
       other reserved name it does not define (``rect.text``, RN1), with the
-      words ``@=`` answers (``_absent_reserved_text``).
+      words ``@=`` answers (``_absent_reserved_text``);
+    * on a closed non-Graphic kind (``_scena_reserved_strict``: UI widgets,
+      SpatialFx), any reserved name it neither defines nor lists in
+      ``_reserved_fields`` refuses the same way, with the kind's own hint from
+      ``_absent_hints`` (``button.text``: "Its caption is `.label`.", RN2).
     """
     route: Dict[str, Any] = {}
     seen = set()
@@ -964,6 +977,22 @@ def _install_setattr_route(cls: type) -> None:
         for name in _INK_RESERVED:
             if name not in seen and name not in route and name not in _LOOK_FAMILY:
                 route[name] = _RouteRefusal(_absent_reserved_text(name), "absent")
+    elif getattr(cls, "_scena_reserved_strict", False):
+        # Widgets and SpatialFx keep their reserved fields in ``__init__`` as
+        # plain attributes (``button.width``, ``fire.soft_edge``), so the kind
+        # lists them; the MRO alone cannot see them (RN2).
+        held = set()
+        hints: Dict[str, str] = {}
+        for base in reversed(cls.__mro__):
+            held.update(base.__dict__.get("_reserved_fields", ()))
+            hints.update(base.__dict__.get("_absent_hints", {}))
+        for name in _INK_RESERVED:
+            if (name not in seen and name not in held and name not in route
+                    and name not in _LOOK_FAMILY and name != "group"):
+                hint = hints.get(name, "")
+                route[name] = _RouteRefusal(
+                    _absent_reserved_text(name, hint=hint), "absent",
+                    _absent_reserved_text(name, ", so @= has nothing to link", hint=hint))
     for name in _LOOK_FAMILY:
         route.setdefault(name, _LOOK_MISSING)
     for name in _INK_RESERVED:

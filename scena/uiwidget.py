@@ -731,6 +731,17 @@ class UIWidget(Entity):
 
     _scena_is_widget = True
 
+    # A reserved name a widget does not have refuses ``=`` (RN2): ``button.text
+    # = "Play"`` stored a field nothing drew. These it keeps as plain fields
+    # (the HUD column gives every widget a width; each kind adds its own).
+    _scena_reserved_strict = True
+    _reserved_fields = ("width",)
+    _absent_hints = {
+        "text": "Its caption is `.label`.",
+        "center": "It is placed by `top_left=(x, y)` when it is made.",
+        "size": "Size it with width / height.",
+    }
+
     data = ContainerSlot(Attribute)
 
     # Public fields assigned in constructors. Class defaults keep them off the
@@ -1189,6 +1200,8 @@ class Slider(UIWidget):
         group: group tag(s).
     """
 
+    _reserved_fields = ("height",)
+
     def __init__(self, cell: Attribute | None = _NO_CELL, *, label: str | None = None, 
                  top_left=None, width: float | None = None, 
                  min_value: float = None, max_value: float = None, initial: float | None = None,
@@ -1501,6 +1514,8 @@ class DropDown(UIWidget):
         enabled: ``False`` draws it faded and ignores input (default ``True``).
         group: group tag(s).
     """
+
+    _reserved_fields = ("height",)
 
     def __init__(self, cell: Attribute | None = _NO_CELL, *, top_left=None, width=None, 
                  height=None, options=None, initial=None, enabled=True, group=None):
@@ -1894,6 +1909,8 @@ class Button(UIWidget):
         group: group tag(s), like any actor.
     """
 
+    _reserved_fields = ("height",)
+
     def __init__(self, cell: Attribute | None = _NO_CELL, *, top_left=None, width=None, 
                  height=None, label="Button", on_click=None, value_on = None, value_off = None,
                  enabled=True, group=None):
@@ -2024,6 +2041,9 @@ class CheckBox(UIWidget):
     """
 
     checked = _DataAlias()
+
+    _reserved_fields = ("size",)
+    _absent_hints = {"height": "Size it with size."}
 
     def __init__(self, cell: Attribute | None = _NO_CELL, *, top_left=None, size=None, 
                  label="CheckBox", initial=None, enabled=True, group=None):
@@ -2251,6 +2271,8 @@ class TextInput(UIWidget):
     _field_x1 = 0.0
     _needed_label_space = 0.0
     _joins_label_column = False
+
+    _reserved_fields = ("height",)
 
     def __init__(self, cell: Attribute | None = _NO_CELL, *, top_left=None, width=None,
                  height=None, initial=None, placeholder="", label=None, max_length=None,

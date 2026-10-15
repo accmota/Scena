@@ -86,6 +86,13 @@ class Menu(UIWidget):
     title = None
     modal = True
 
+    _reserved_fields = ("height",)
+    _absent_hints = {
+        "text": "Its banner is `.title`.",
+        "color": "Give it when it is made: `Menu(..., color=…)`.",
+        "background": "Give it when it is made: `Menu(..., background=…)`.",
+    }
+
     def __init__(
         self,
         cell: Attribute | None = _NO_CELL,
@@ -639,3 +646,8 @@ class Menu(UIWidget):
 from .state import ContainerSlot as _ContainerSlot  # noqa: E402
 
 Menu.center = _ContainerSlot(Point)
+# The route table was built when the class was made, before ``center`` was
+# there: built again, ``menu.center = …`` reaches the slot (RN2).
+from .entity import _install_setattr_route  # noqa: E402
+
+_install_setattr_route(Menu)

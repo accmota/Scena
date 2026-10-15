@@ -658,11 +658,29 @@ use the same builder (`Circle has no field 'width'. Size it with radius.`).
 "Defines" is read from the MRO, so a property of the author's own under the
 name is theirs. On a Graphic, the only reserved plain field set in `__init__`
 is `group` (routed apart); a field set in `__init__` under a reserved name must
-be declared on the class (a slot or property), or its own write refuses. A bare
-Entity and the non-Graphic kinds (SpatialFx, UI widgets) keep storing these
-names as plain fields (`e.angle = 12`). Guard:
+be declared on the class (a slot or property), or its own write refuses. Guard:
 `test_fieldref.TestReservedWriteRefusalPerKind` (every exported Graphic kind ×
-every reserved name, oracle read from the MRO). **`x` / `y` on a Graphic or SpatialFx** raise
+every reserved name, oracle read from the MRO). **The closed non-Graphic
+kinds** (UI widgets, every SpatialFx; class flag `_scena_reserved_strict`)
+refuse the same way (RN2, 2026-10-15): `button.text = "Play"`, `slider.color`,
+`fire.color`, `jet.center`, `checkbox.frame` stored a field nothing drew.
+Unlike a Graphic, they keep some reserved names as plain fields set in
+`__init__` (`button.width` / `height`, `checkbox.size`, every effect's
+`soft_edge`, Rain / Jet `model`, Orb / Warp / Portal `glow`, Portal `angle` /
+`tilt`), which the MRO cannot see: each kind lists them in `_reserved_fields`
+(merged along the MRO), and a new one set in `__init__` must be listed there,
+or its own write refuses. `_absent_hints` (merged, a subclass wins) adds the
+kind's own fix in place of the Graphic hints: ``Button has no field 'text' (a
+Text field). Its caption is `.label`.``; a widget's `center` → placed by
+`top_left=`; a point effect's `width` / `height` / `size` → `radius`; Jet's
+`center` → `p1=` / `p2=`. The `=` and `@=` words are built together
+(`_RouteRefusal.link`). A descriptor attached to a class after it is made
+(`Menu.center = ContainerSlot(Point)`, in `menu.py`) needs the route table
+built again (`_install_setattr_route(Menu)`), or the table built at creation
+refuses the name. A bare `Entity`, `Act` and `Endless` keep storing these
+names as plain fields (`e.angle = 12`: the author's own data). Guard:
+`test_fieldref.TestReservedWriteRefusalClosedKinds` (every closed kind and Fire
+style × every reserved name; route at creation == a fresh one, every kind). **`x` / `y` on a Graphic or SpatialFx** raise
 `AttributeError` and do not become ink — position is `.center` (`ship.center.x`,
 `move_to` / `move_by`). `Point` keeps real axis slots. A bare Entity still
 stores `e.x` as ink. `obj.group = "a"` / `{"a", "b"}` replaces the tag

@@ -1374,6 +1374,174 @@ class TestReservedWriteRefusalPerKind(unittest.TestCase):
         self.assertEqual((e.frame, e.text), (3, "x"))
 
 
+class TestReservedWriteRefusalClosedKinds(unittest.TestCase):
+    """RN2 (2026-10-15): RN1 on the closed non-Graphic kinds. ``button.text =
+    "Play"``, ``slider.color = …``, ``fire.color = …``, ``jet.center = …``
+    stored a plain attribute nothing drew. Every exported UI widget and
+    SpatialFx kind (each Fire style too) × every reserved name: where the kind
+    lacks the name, ``=`` raises with the words ``@=`` answers, and nothing is
+    stored; the plain fields it keeps (``_reserved_fields``) still write."""
+
+    _closed = ("Button", "TextInput", "DropDown", "Slider", "CheckBox", "Menu",
+               "Fire", "Sunburst", "Starburst", "Rain", "Jet", "Sparks",
+               "GlowSpot", "Orb", "Warp", "Portal")
+
+    def _make(self, kind_name):
+        import scena
+        kind = getattr(scena, kind_name)
+        if kind_name in ("DropDown", "Menu"):
+            return [kind(options=["a", "b"])]
+        if kind_name in ("Rain", "Jet"):
+            return [kind(p1=(0, 0), p2=(100, 0 if kind_name == "Jet" else 80))]
+        if kind_name == "Fire":
+            from scena.spatial_fx_effects import FIRE_STYLES
+            return [kind(center=(50, 50), style=s) for s in FIRE_STYLES]
+        if issubclass(kind, scena.SpatialFx):
+            return [kind(center=(50, 50))]
+        return [kind()]
+
+    def _kinds(self):
+        for kind_name in self._closed:
+            for obj in self._make(kind_name):
+                self.addCleanup(obj.destroy)
+                yield kind_name, obj
+
+    def test_the_closed_kinds_are_every_exported_non_graphic_kind(self):
+        """A new widget or effect joins the list (and the rule) on purpose;
+        Entity, Act and Endless are the author's own and keep storing."""
+        import scena
+        from scena.entity import Entity, Graphic
+        strict, open_ = set(), set()
+        for kind_name in scena.__all__:
+            kind = getattr(scena, kind_name)
+            if (isinstance(kind, type) and issubclass(kind, Entity)
+                    and not issubclass(kind, Graphic)):
+                (strict if getattr(kind, "_scena_reserved_strict", False)
+                 else open_).add(kind_name)
+        self.assertEqual(strict - {"SpatialFx"}, set(self._closed))
+        self.assertEqual(open_, {"Entity", "Act", "Endless"})
+
+    def test_every_kind_and_reserved_name(self):
+        from scena.entity import _INK_RESERVED, _RESERVED_FAMILY
+        expected_of = TestReservedLinkRefusalPerKind._expected
+        absent, kept = set(), set()
+        for kind_name, obj in self._kinds():
+            for name in sorted(_INK_RESERVED - {"group"}):
+                if expected_of(obj, name) != "absent":
+                    if name in vars(obj):       # a plain field of __init__
+                        with self.subTest(kind=type(obj).__name__, name=name, held=True):
+                            setattr(obj, name, getattr(obj, name))
+                        kept.add((type(obj).__name__, name))
+                    continue
+                with self.subTest(kind=type(obj).__name__, name=name):
+                    with self.assertRaises(AttributeError) as write:
+                        setattr(obj, name, 1)
+                    with self.assertRaises(AttributeError) as link:
+                        obj[name] @= (lambda: 1.0)
+                    msg = str(write.exception)
+                    self.assertEqual(
+                        msg, str(link.exception).replace(", so @= has nothing to link", ""))
+                    self.assertIn(f"{type(obj).__name__} has no field {name!r}", msg)
+                    if name in _RESERVED_FAMILY:
+                        self.assertIn(f"(a {_RESERVED_FAMILY[name]} field)", msg)
+                    self.assertNotIn("Graphics only", msg)
+                    self.assertNotIn(name, obj.__dict__)
+                    self.assertNotIn(name, getattr(obj, "_ink", None) or {})
+                absent.add((type(obj).__name__, name))
+        # Canary: the rows of the report, and the fields each kind keeps.
+        for row in (("Button", "text"), ("Slider", "color"), ("CheckBox", "frame"),
+                    ("Button", "center"), ("CheckBox", "height"), ("Fire", "color"),
+                    ("Fire", "width"), ("Fire", "angle"), ("Jet", "center"),
+                    ("Orb", "scale"), ("Menu", "color"), ("Rain", "size")):
+            self.assertIn(row, absent)
+        for row in (("Button", "width"), ("Button", "height"), ("CheckBox", "size"),
+                    ("Fire", "soft_edge"), ("Rain", "model"), ("Jet", "model"),
+                    ("Orb", "glow"), ("Portal", "angle"), ("Portal", "tilt")):
+            self.assertIn(row, kept)
+
+    def test_hints_name_the_kinds_own_field(self):
+        import scena
+        cases = (
+            (scena.Button(label="Jogar"), "text", "Its caption is `.label`."),
+            (scena.Slider(), "center", "placed by `top_left=(x, y)`"),
+            (scena.CheckBox(), "height", "Size it with size."),
+            (scena.Menu(options=["a"]), "color", "Menu(..., color=…)"),
+            (scena.Fire(center=(0, 0)), "width", "Size it with radius."),
+            (scena.Fire(center=(0, 0), style="plume"), "height",
+             "Size it with width / length."),
+            (scena.Jet(p1=(0, 0), p2=(10, 0)), "center", "p1= / p2="),
+            (scena.Rain(p1=(0, 0), p2=(10, 10)), "size", "Size it with width / height."),
+        )
+        for obj, name, words in cases:
+            self.addCleanup(obj.destroy)
+            with self.subTest(kind=type(obj).__name__, name=name):
+                with self.assertRaises(AttributeError) as cm:
+                    setattr(obj, name, 1)
+                self.assertIn(words, str(cm.exception))
+
+    def test_menu_center_still_moves_it(self):
+        """``Menu.center`` is attached after the class is made; its route was
+        built before (bug class below)."""
+        import scena
+        m = scena.Menu(options=["a"])
+        self.addCleanup(m.destroy)
+        m.center = (30, 40)
+        self.assertEqual((m.center.x, m.center.y), (30, 40))
+
+    def test_route_built_at_class_creation_matches_a_fresh_one(self):
+        """Bug class: a descriptor attached to a class after it was made
+        (``Menu.center = ContainerSlot(Point)``) is missing from the route
+        table built at creation, which then refuses (or stores) the name
+        instead of reaching the descriptor. Every exported Entity kind."""
+        import scena
+        from scena.entity import Entity, _install_setattr_route
+
+        def shape(route):
+            return {k: (type(v).__name__, getattr(v, "message", None))
+                    for k, v in route.items()}
+
+        for kind_name in scena.__all__:
+            kind = getattr(scena, kind_name)
+            if not (isinstance(kind, type) and issubclass(kind, Entity)):
+                continue
+            if "_setattr_route" not in kind.__dict__:
+                continue        # built on first write, from the finished class
+            built = kind._setattr_route
+            with self.subTest(kind=kind_name):
+                try:
+                    _install_setattr_route(kind)
+                    self.assertEqual(shape(built), shape(kind._setattr_route))
+                finally:
+                    kind._setattr_route = built
+
+    def test_author_subclass(self):
+        """A field of the author's own under a reserved name refuses with the
+        fix; a property of the author's own under it is theirs."""
+        from scena import Fire, Button
+
+        class Tocha(Fire):
+            def setup(self):
+                self.color = "orange"
+
+        with self.assertRaisesRegex(AttributeError, "Tocha has no field 'color'. "
+                                    "A field of your own"):
+            Tocha(center=(0, 0))
+
+        class Botao(Button):
+            @property
+            def text(self):
+                return self.label
+
+            @text.setter
+            def text(self, v):
+                self.label = v
+
+        b = Botao()
+        self.addCleanup(b.destroy)
+        b.text = "Sair"
+        self.assertEqual(b.label, "Sair")
+
+
 class TestBracketRefusesWhatAssignRefuses(unittest.TestCase):
     """PC2 (2026-10-14): ``obj["name"] @= f`` made a new ink field — a link
     nothing reads — when ``name`` is a method (``c["move_to"]``), a read-only

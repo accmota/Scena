@@ -576,6 +576,8 @@ class _DirectedFire(Fire):
     length = ScalarSlot(magnitude=True)
     angle = ScalarSlot()
 
+    _absent_hints = {w: "Size it with width / length." for w in ("height", "size")}
+
     _LENGTH_RATIO = 2.2
 
     def _init_directed_domain(
@@ -2206,6 +2208,8 @@ class Orb(PointDomainFx):
             default).
     """
 
+    _reserved_fields = ("glow",)     # plain fields of ``__init__`` (RN2)
+
     _DEFAULT_COLOR = (1.0, 0.92, 0.65)
 
     # Default soft_edge= (help() / autocomplete read it: _publish_fx_signatures).
@@ -2426,6 +2430,8 @@ class Warp(PointDomainFx):
             default).
     """
 
+    _reserved_fields = ("glow",)     # plain fields of ``__init__`` (RN2)
+
     # Default soft_edge= (help() / autocomplete read it: _publish_fx_signatures).
     _soft_edge = 0.35
 
@@ -2619,6 +2625,8 @@ class Portal(PointDomainFx):
         soft_edge: Edge softness as a fraction of the size (each kind has its own
             default).
     """
+
+    _reserved_fields = ("glow", "angle", "tilt")     # plain fields of ``__init__`` (RN2)
 
     # Default soft_edge= (help() / autocomplete read it: _publish_fx_signatures).
     _soft_edge = 0.3

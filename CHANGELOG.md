@@ -55,6 +55,21 @@ left out.
   keeps them as plain fields. `=` and `@=` give the same words for every
   missing built-in name, sizes and looks included (`circle.width = 20`:
   `Circle has no field 'width'. Size it with radius.`).
+- The same on the UI widgets (Button, TextInput, DropDown, Slider,
+  CheckBox, Menu) and the spatial effects (Fire, Sunburst, Starburst, Rain,
+  Jet, Sparks, GlowSpot, Orb, Warp, Portal): writing a built-in name the kind
+  does not have raises `AttributeError` with the fix. `button.text = "Play"`
+  → ``Button has no field 'text' (a Text field). Its caption is `.label`. A
+  field of your own needs another name.``; `slider.center = (100, 50)` →
+  placed by `top_left=(x, y)`; `fire.width = 60` → `Size it with radius.`;
+  `jet.center = …` → placed by `p1=` / `p2=`; `fire.color = …`,
+  `button.color = …` and `checkbox.frame = 3` say the kind has no such field.
+  Before, the write stored a value nothing drew. The fields these kinds have
+  keep working (`button.width`, `checkbox.size`, `fire.soft_edge`,
+  `orb.glow`, `portal.angle`, …). A program that kept its own data under one
+  of these names on a widget or an effect (`self.color = "orange"` in a
+  `Fire` subclass) now raises at that line: rename the field. A bare
+  `Entity` and an `Act` keep them as plain fields.
 
 ### Added
 
