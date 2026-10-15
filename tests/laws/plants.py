@@ -204,7 +204,58 @@ def c8_resolve_first() -> Patches:
     return [(col.CollisionSystem, "_dispatch_step", dispatch_step)]
 
 
+def i1_act_change_drops_keys() -> Patches:
+    """I1 (PD7): an act change forgets the script's keys and presses."""
+    def forget(self):
+        self._keys_down.clear()
+        self._presses.clear()
+    return [(orch.CanvasManager, "forget_act_input", forget)]
+
+
+def i2_up_without_its_down() -> Patches:
+    """I2 (X-life-3): the script's mouse up no longer needs the script's down
+    (a press a widget took, released after the widget left, reaches it)."""
+    def handle_mouse_up(self, x, y, button, view=None):
+        orch.callback_if_exists(self, "on_mouse_up", x, y, button, x, y)
+        self._presses.pop(button, None)
+    return [(orch.CanvasManager, "handle_mouse_up", handle_mouse_up)]
+
+
+def i3_every_repeat_to_the_script() -> Patches:
+    """I3 (W-P4): every repeat reaches ``on_key``, old act or not."""
+    return [(orch.CanvasManager, "repeats_to_script", lambda self, key_name: True)]
+
+
+def i4_chars_to_the_focused_box() -> Patches:
+    """I4 (LW5): a character goes to whatever box has focus now."""
+    def handle_char(self, window, char_num):
+        char = chr(char_num)
+        wm = self.widget_manager
+        wm._char_to_script = False
+        if not wm.handle_char(char) and not wm._modal_consumes():
+            self.canvas_manager.handle_char(char)
+    return [(orch.ScenaFramework, "_handle_char", handle_char)]
+
+
+def i5_widgets_claim_a_given_up_release() -> Patches:
+    """I5: the widget side claims the release of a press its widget gave up."""
+    real = orch.WidgetManager.handle_mouse_up
+
+    def handle_mouse_up(self, x, y, button):
+        rec = self.mouse_down_widget_by_button.get(button)
+        if rec is not None and rec.widget is None:
+            self.mouse_down_widget_by_button.pop(button)
+            return True
+        return real(self, x, y, button)
+    return [(orch.WidgetManager, "handle_mouse_up", handle_mouse_up)]
+
+
 PLANTS: Dict[str, Callable[[], Patches]] = {
+    "I1": i1_act_change_drops_keys,
+    "I2": i2_up_without_its_down,
+    "I3": i3_every_repeat_to_the_script,
+    "I4": i4_chars_to_the_focused_box,
+    "I5": i5_widgets_claim_a_given_up_release,
     "C1": c1_stays_enter_again,
     "C2": c2_exits_first,
     "C4": c4_parked_body_in_play,

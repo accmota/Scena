@@ -54,6 +54,21 @@ runs the handlers, then resolves. The laws are about what the handlers see.
 | C7 | A destroyed body is in no contact after its destroy returns: no later step commits a pair with it. | holds | model `collision.C7` | [Collision Design.md — Pipeline](Collision%20Design.md#pipeline) |
 | C8 | Every handler of a step runs before that step's resolve; a resolve partner a handler removed still gives the survivor this contact's velocity response (a ghost contact: Breakout bounces off the brick it breaks). | holds | model `collision.C8`; `test_collision.TestBounceOffAPartnerAHandlerRemoved` | [Collision Design.md — Partner removed by a handler](Collision%20Design.md#partner-removed-by-a-handler-ghost-contact) |
 
+## Input
+
+Who gets a key, a character or a button, from down to up. A press belongs
+to whoever took it: the focused box (the keys it claims), a widget or a
+shape under the pointer, or the script.
+
+| Law | Statement | Status | Checked by | Detail |
+| --- | --- | --- | --- | --- |
+| I1 | Every down the script got gets exactly one up, also when the act changed, a modal opened or a box took focus in between. | holds | model `input.I1`; `test_input_streams.TestUpsCrossAnActChange` | [Scena Design.md — Frame order](Scena%20Design.md#frame-order) (pointer, keys) |
+| I2 | An up goes where its down went: a key or a button a box, a widget or a shape took never ends in the script's up, nor as a script click. | holds | model `input.I2` | [Canvas Design.md — TextInput](Canvas%20Design.md#textinput) |
+| I3 | A repeat follows its press: never to the script for a press it did not get or one made in an old act; never into a box that took focus after the script got the press. | holds | model `input.I3`; `test_input_streams.TestARepeatFollowsItsPress` | [Canvas Design.md — TextInput](Canvas%20Design.md#textinput) |
+| I4 | A typed character follows the key that made it: the character of a key the box did not get is the script's (`on_char`), never typed into the box. | holds | model `input.I4`; `test_input_streams.TestACharFollowsItsKey` | [Canvas Design.md — TextInput](Canvas%20Design.md#textinput) |
+| I5 | A press a widget gave up when it left (destroyed, act change) ends with no release to any widget and no script up; a held Button writes its `value_off`. | holds | model `input.I5`; `test_input_streams.TestAHeldButtonThatLeavesLetsGo` | [Canvas Design.md — TextInput](Canvas%20Design.md#textinput) |
+| I6 | `keyp.once` is True only in the frame of the press; an act change and a modal swallow the unread edge. | holds | `test_keyp.TestOnceIsFrameScopedInFrames` | [Scena Design.md — Frame order](Scena%20Design.md#frame-order) |
+
 ## Invariance
 
 Pairs of programs an author believes equivalent behave alike (the
@@ -67,5 +82,5 @@ equations: no expected value, only agreement).
 
 ## Still to write
 
-Input ownership (I), timers (T) and motion (P) join as their stages land;
+Timers (T) and motion (P) join as their stages land;
 until then their rules live only in the companion docs.

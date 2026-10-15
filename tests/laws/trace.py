@@ -166,6 +166,7 @@ class Recorder:
         self.labels: Dict[int, Tuple[str, int, str]] = {}
         self._ordinal: Dict[Tuple[str, str], int] = {}
         self.counts = {"frames": 0, "author_calls": 0}
+        self.input_doors: List[set] = []     # one set per OS input event being handled
 
     # -- labels -----------------------------------------------------------
     def label_of(self, obj) -> Optional[str]:
@@ -280,10 +281,20 @@ def _frame_end(frame, retval):
     _rec.events.append(("f", _rec.frame))
 
 
+# A script input hook the engine delivered (whether or not the author wrote
+# it: ``callback_if_exists`` is the delivery point).
+_SCRIPT_DOORS = {"on_key_down": "script-down", "on_key_up": "script-up", "on_key": "script-key",
+                 "on_char": "script-char", "on_mouse_down": "script-down",
+                 "on_mouse_up": "script-up", "on_mouse_click": "script-click"}
+
+
 def _update_start(frame):
-    if frame.f_locals.get("callback_name") == "update":
+    name = frame.f_locals.get("callback_name")
+    if name == "update":
         _rec.phases.append("update")
         _rec.events.append(("P", "update", True))
+    elif name in _SCRIPT_DOORS and _rec.input_doors:
+        _rec.input_doors[-1].add(_SCRIPT_DOORS[name])
 
 
 def _update_end(frame, retval):
@@ -367,6 +378,48 @@ def _resolve_start(frame):
     _rec.events.append(("S", "resolve"))
 
 
+# -- input: one event per OS key / button event, with the doors that got it --
+
+def _input_start(frame):
+    _rec.input_doors.append(set())
+
+
+def _input_end(kind):
+    def end(frame, retval):
+        doors = _rec.input_doors.pop() if _rec.input_doors else set()
+        loc = frame.f_locals
+        if kind == "key":
+            name = loc.get("key_name")
+            if name is None:              # a framework shortcut, an unnamed key
+                return
+        elif kind == "char":
+            name = loc.get("char")
+        else:
+            name = loc.get("button")
+        _rec.events.append(("I", kind, str(name), int(loc.get("action", 1)),
+                            tuple(sorted(doors))))
+    return end
+
+
+def _door(token, when_true=False):
+    """Mark the door an input reached (``when_true``: only if it returned truthy)."""
+    def mark(frame, retval=None):
+        if _rec.input_doors:
+            _rec.input_doors[-1].add(token)
+    if when_true:
+        def mark_if(frame, retval):
+            if retval and _rec.input_doors:
+                _rec.input_doors[-1].add(token)
+        return mark_if
+    return mark
+
+
+def _abandon(frame):
+    obj = frame.f_locals.get("self")
+    _rec.events.append(("O", "abandon", str(frame.f_locals.get("button")),
+                        _rec.label_of(obj)))
+
+
 def _teardown_start(frame):
     label = _rec.label_of(frame.f_locals.get("obj"))
     if label is not None:
@@ -418,6 +471,23 @@ _ENGINE_HOOKS = (
     ("scena.collision", "CollisionSystem._dispatch_step", _contacts_commit, None),
     ("scena.collision", "CollisionSystem._apply_ghost_contacts", _ghosts, None),
     ("scena.collision", "CollisionSystem._apply_auto_resolve", _resolve_start, None),
+    # Input (S3): the OS event, and the doors it reached while it was handled.
+    ("scena.orchestration", "ScenaFramework._handle_key", _input_start, _input_end("key")),
+    ("scena.orchestration", "ScenaFramework._handle_mouse_button", _input_start,
+     _input_end("button")),
+    ("scena.orchestration", "ScenaFramework._handle_char", _input_start, _input_end("char")),
+    ("scena.orchestration", "WidgetManager.handle_char", None, _door("widget-char", True)),
+    ("scena.orchestration", "WidgetManager.handle_key_down", _door("widget-down"), None),
+    ("scena.orchestration", "WidgetManager.handle_key_up", _door("widget-up"), None),
+    ("scena.orchestration", "WidgetManager.handle_key", _door("widget-key"), None),
+    ("scena.orchestration", "WidgetManager.handle_mouse_down", None, _door("widget-down", True)),
+    ("scena.orchestration", "WidgetManager.handle_mouse_up", None, _door("widget-up", True)),
+    ("scena.orchestration", "ShapeInteractionManager.handle_mouse_down", None,
+     _door("shape-down", True)),
+    ("scena.orchestration", "ShapeInteractionManager.handle_mouse_up", _door("shape-up"), None),
+    ("scena.orchestration", "CanvasManager.forget_press", _door("script-forget"), None),
+    ("scena.uiwidget", "UIWidget._abandon_press", _abandon, None),
+    ("scena.uiwidget", "Button._abandon_press", _abandon, None),
     ("scena.entity", "Entity._park_self", _park, None),
     ("scena.entity", "Entity._resume_self", _resume, None),
     ("scena.act", "ActManager._change", _act_start, _act_end),

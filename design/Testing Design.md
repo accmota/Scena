@@ -535,6 +535,25 @@ the first `on_collide` twin had a partner that was never registered. Before
 blaming the engine for a divergence, run the twin twice, and run the program
 in the other harness.
 
+**S3 — input ownership (I1–I5; I6 by its unit tests).** One record per OS
+key, character and button event, with the doors it reached while it was
+handled: the script's (`callback_if_exists` for `on_key_down` /
+`on_key_up` / `on_key` / `on_char` / `on_mouse_*`, the delivery point
+whether or not the author wrote the hook), the widgets' and shapes', plus a
+widget giving up its press. Fixture `tests/laws/fixtures/s3_input.py`,
+driven at OS level (`laws.harness.drive`: held keys, auto-repeat,
+characters) across an act change, a focus change and a held Button
+destroyed; canaries are regressions of PD7, X-life-3, W-P4, LW5 and a
+widget side claiming a given-up release. Result: LW5 (a bug, fixed); no
+other finding on every program and game scenario.
+
+**What S3 taught.** Mark the delivery point, not the entry point:
+`CanvasManager.handle_mouse_up` is entered for a press the script never got
+and returns at once (X-life-3), so "entered" read as a stray up until the
+marker moved to the hook call. A fixture driven like a player finds what
+unit tests of each stream did not: the key that focuses a box typing itself
+into it took one keystroke to show.
+
 
 # Geometry campaign
 
@@ -2840,6 +2859,7 @@ with the triage verdict.
 | LW2 | Breakout: a ball that touches two bricks in one step (the seam between them) leaves in a direction that depends on how the bricks are broken and on which was made first. Straight up into a 4 DU seam: 29° off vertical with plain `resolve`; with a gap of 2 the ball does not bounce at all; breaking the bricks in `@collide` (the ghost response, PE5) and breaking them between frames differ by up to 90° (E8). One brick at a time agrees within 0.01° | **DECISION** (2026-10-14: design a joint response for one body's simultaneous contacts, solver and ghost path, in its own design session; the engine is unchanged until then) | Both answers resolve simultaneous contacts one at a time: `_apply_ghost_contacts` runs one `velocity_split` per removed partner (the first reflection turns the ball, the second partner is then no longer approached and is skipped); the solver's sweep / settle has the same sequential order. The result is order-dependent (creation order) and asymmetric on a symmetric hit | Open: a joint response for one body's simultaneous contacts (both paths), or a documented limit. Pinned by `test_laws_equations.TestBreakInHandlerOrLater.test_two_bricks_at_once_still_diverge_lw2`; repro: `tests/laws/twins/breakout.py` with `vy=0` |
 | LW3 | E3 (spawn order): a shot touching two enemies in one step hits the first-made one; a drone landing on two overlapping pads enters the first-made one | ACADEMIC | Below the fast gate, a body that enters two partners in one step reached both within half its thickness (a tie); the documented tie-break is collider order ([Collision Design — Swept detection](Collision%20Design.md#swept-detection-fast-bodies), "Order"). No program or example showed it outside the fixture's deliberate ties | V3 states the exception |
 | LW4 | E3 on an example swapped two `Endless(...)` lines and the scenery changed | ACADEMIC | `Endless` without `seed=` draws its seed from the author's global `random` at construction: two swapped constructions trade their numbers (no less random, no less reproducible) | E3 counts `Endless` among the calls that draw random numbers (`equations._RANDOM_NAMES`) |
+| LW5 | "Press T to chat": `on_key_down` focuses a `TextInput` when T is pressed, and the box starts with a "t" in it; a game key held while a box takes focus auto-repeats its character into the box (the PD campaign's "left open" note) | **BUG**, fixed | Characters carry no key: `_handle_char` gave each one to whatever box had focus *now*, after the key's handler had moved the focus | `WidgetManager._char_to_script` (set by a press / repeat the box did not get, cleared by the box's own press / repeat and by any release): that character goes to `on_char`. Input path only (a store per key event), no frame cost. Guard: `test_input_streams.TestACharFollowsItsKey` (the opening key, a held game key, typing / Shift / composed text, a released game key does not eat later text); law I4 (`model/input.py`), canary `plants.i4_chars_to_the_focused_box`. The first version also ate the first character of text with no key event after any unclaimed key (two editor tests): the flag ends at the key's release |
 
 ### Open (found, not yet fixed)
 
