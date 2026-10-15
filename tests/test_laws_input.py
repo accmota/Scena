@@ -26,7 +26,7 @@ from hypothesis_support import require_canaries  # noqa: E402
 from laws import model  # noqa: E402
 from laws.harness import drive  # noqa: E402
 from laws.model import input as input_model  # noqa: E402
-from laws.plants import PLANTS  # noqa: E402
+from laws.plants import PLANTS, both_verify_modes  # noqa: E402
 
 S3 = "tests/laws/fixtures/s3_input"
 
@@ -127,8 +127,11 @@ class TestCanaries(unittest.TestCase):
         require_canaries(self)
 
     def _bites(self, law):
-        _run, _state, rep = drive(S3, PLAY, patches=PLANTS[law](), keep_going=True)
-        self.assertIn(law, {f.law for f in rep.findings}, rep.summary())
+        for verify in both_verify_modes():
+            with self.subTest(verify=verify):
+                run, _state, rep = drive(S3, PLAY, patches=PLANTS[law](), keep_going=True)
+                self.assertIn(law, {f.law for f in rep.findings},
+                              f"{rep.summary()} (the run stopped on: {run.error!r})")
 
     def test_i1(self):
         self._bites("I1")

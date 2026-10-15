@@ -25,7 +25,7 @@ from hypothesis_support import require_canaries  # noqa: E402
 from laws import model  # noqa: E402
 from laws.harness import record  # noqa: E402
 from laws.model import collision  # noqa: E402
-from laws.plants import PLANTS  # noqa: E402
+from laws.plants import PLANTS, both_verify_modes  # noqa: E402
 from test_laws_lifetime import X, findings  # noqa: E402
 
 S2 = "tests/laws/fixtures/s2_contacts"
@@ -140,9 +140,11 @@ class TestCanaries(unittest.TestCase):
         require_canaries(self)
 
     def _bites(self, law):
-        run, _state, rep = record(S2, FRAMES, patches=PLANTS[law](), keep_going=True)
-        self.assertIn(law, {f.law for f in rep.findings},
-                      f"{rep.summary()} (the run stopped on: {run.error!r})")
+        for verify in both_verify_modes():
+            with self.subTest(verify=verify):
+                run, _state, rep = record(S2, FRAMES, patches=PLANTS[law](), keep_going=True)
+                self.assertIn(law, {f.law for f in rep.findings},
+                              f"{rep.summary()} (the run stopped on: {run.error!r})")
 
     def test_c1(self):
         self._bites("C1")

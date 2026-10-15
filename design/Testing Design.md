@@ -488,7 +488,9 @@ each law's class through the engine — the tick skipped, timers ticked from
 the collision step, a destroy deferred to the end of the frame, `on_destroy`
 fired twice, an `on_update` fleet that keeps dead actors, a park that leaves
 the actor active, act hooks fired during the teardown, a doomed list that
-takes top-level objects — and each is named by its law. `test_laws_families`
+takes top-level objects — and each is named by its law. Every `PLANTS`
+canary runs twice, pose-revision verify off and on (`both_verify_modes`, a
+subtest each): a plant must bite in a hand run and in gate. `test_laws_families`
 (SLOW + SPLIT) runs the model on every program scenario (both specs), every
 game scenario and every example at 600 frames; deep adds every tutorial
 step. Result: no engine finding for F and L.
@@ -2122,7 +2124,16 @@ decision), LW3, LW4 (academic); harness: LW1, LW9.
    collision and fails the in-play check; a destroyed body's contacts are
    ended, its collider dropped and pruned. A plant must break every guard of
    the class, or it proves nothing; a plant must also be the class (a debt
-   dropped after a fire), not its caricature (a timer silenced).
+   dropped after a fire), not its caricature (a timer silenced). A plant
+   that keeps what the engine drops must also mark it for the engine's
+   skips: the C7 plant kept a destroyed body's collider registered, its
+   shapes emptied with no pose bump (a live engine unregisters it), so the
+   step snapshot skipped it and `SCENA_VERIFY_POSE_REV` raised before the
+   model saw the contact. The canary passed by hand (`python -m unittest`,
+   verify off) and failed in gate (canaries run only in gate and deep,
+   where `run_tiers` turns verify on). The plant now marks the kept
+   collider stale, and both modes refresh it alike. Run a new canary with
+   verify on and off.
 4. **An equation is only as good as its twin.** A twin without the example's
    art, a partner never registered, a scene by chance mirror-symmetric, a
    wall clock nobody pinned, two draws from one random stream: each looked

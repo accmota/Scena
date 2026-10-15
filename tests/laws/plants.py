@@ -11,7 +11,8 @@ from __future__ import annotations
 import importlib
 import os
 import sys
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, Iterator, List, Tuple
+from unittest import mock
 
 import scena.act as act
 import scena.entity as ent
@@ -24,6 +25,15 @@ col = sys.modules["scena.collision"]      # the package re-exports a facade by t
 
 Patches = List[Tuple[object, str, object]]
 _FIXTURES = os.path.normcase(os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures"))
+
+
+def both_verify_modes() -> Iterator[bool]:
+    """Run the loop body with the pose-revision verify off, then on: a plant
+    must bite in both (gate runs canaries under ``SCENA_VERIFY_POSE_REV=1``,
+    a hand run without it; the C7 plant once bit only without)."""
+    for on in (False, True):
+        with mock.patch.object(col, "_POSE_REV_VERIFY", on):
+            yield on
 
 
 def _registry():
@@ -189,10 +199,19 @@ def c7_dead_kept_in_contacts() -> Patches:
     # The kept collider names its body by weakref: hold the body, or a GC
     # between the steps (a loaded gate run) leaves an unnamed pair and the
     # canary sees nothing (it missed once in gate).
+    # The teardown empties the kept collider's shapes with no pose bump (a
+    # live engine unregisters it): mark it as a pose writer would, or the
+    # step snapshot skips it and SCENA_VERIFY_POSE_REV raises before the
+    # model sees the contact (gate runs set it). Marked, both modes and
+    # both step paths refresh it alike and the old key is still committed.
     kept: list = []
+
+    def drop(self, item, c):
+        kept.append(item)
+        if c is not None:
+            self._stale.add(c)
     return [(col.CollisionSystem, "_end_contacts_of", lambda self, c, emit=True: None),
-            (col.CollisionSystem, "_drop_destroyed_collider",
-             lambda self, item, c: kept.append(item)),
+            (col.CollisionSystem, "_drop_destroyed_collider", drop),
             (col.CollisionSystem, "_prune_dead", lambda self: None)]
 
 
