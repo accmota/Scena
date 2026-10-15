@@ -31,6 +31,7 @@ nave.viagem = None
 
 
 def pousou():
+    nave.viagem = None
     alvo.visible = False
 
 
