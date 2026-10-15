@@ -4297,6 +4297,8 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
         perpendicular / tangent) arrives as its free twin with no ``_ref``
         (``_free_model``): a copy has no links to follow.
         """
+        if not isinstance(other, Line):
+            raise _copy_kind_refusal(self, other, "a Line")
         # Always copy the model first
         self._adopt_model_of(other)
         same = self.model is other.model
@@ -5266,6 +5268,8 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
 
     def _takein_impl(self, other: 'Circle') -> None:
         """Copy only the defining attributes for the current model."""
+        if not isinstance(other, Circle):
+            raise _copy_kind_refusal(self, other, "a Circle")
         self._adopt_model_of(other)
         self._use_center = other._use_center
         match self.model:
@@ -6048,7 +6052,22 @@ class Ellipse(_DerivedRotationRoute, Shape):
         return ('center', 'width', 'height', 'angle')
 
     def _takein_impl(self, other: 'Ellipse') -> None:
-        """Copy only the defining attributes for the current model."""
+        """Copy only the defining attributes for the current model.
+
+        A Box is a region: the ellipse fills it, as ``Ellipse(box=)`` does
+        (Box Design, "Fit"), and keeps its own names (it has no corners)."""
+        if not isinstance(other, Ellipse):
+            from .box import Box
+            if not isinstance(other, Box):
+                raise _copy_kind_refusal(self, other, "an Ellipse or a Box")
+            cx, cy, w, h, ang = other._oriented_frame()    # read before the first write
+            self._adopt_model_of(other, EllipseModel.CENTER_WH)
+            self._ref = None
+            self.center._takein((cx, cy))
+            _init_scalar(self, 'width', w)
+            _init_scalar(self, 'height', h)
+            _init_scalar(self, 'angle', ang)
+            return
         self._adopt_model_of(other)
         self._ref = getattr(other, '_ref', None) if self.model is other.model else None
         match self.model:
@@ -6724,6 +6743,8 @@ class Polygon(Shape):
 
     def _takein_impl(self, other: 'Polygon') -> None:
         """Copy vertex values (must have the same vertex count -- arity is fixed at construction)."""
+        if not isinstance(other, Polygon):
+            raise _copy_kind_refusal(self, other, "a Polygon")
         if len(other._vertices) != len(self._vertices):
             raise ValueError(
                 f"Cannot take in a Polygon with a different vertex count "
@@ -6899,6 +6920,7 @@ class _RadialPolygon(Polygon):
 
     _KIND_LABEL = "RegularPolygon"
     _computed_from = "center, radius and angle"     # refusal text (points[i] =, poly["points"])
+    _COPY_KINDS: Tuple[type, ...] = ()               # set per kind below the classes
 
     # Model inputs (center / vertex, radius / side, angle), not free points.
     _derived_from = None
@@ -7126,7 +7148,13 @@ class _RadialPolygon(Polygon):
         self._wired_vertices.add(idx)
 
     def _takein_impl(self, other: 'RegularPolygon') -> None:
-        """Copy only the defining attributes for the current model (n must match)."""
+        """Copy only the defining attributes for the current model (n must match).
+
+        A Triangle takes a regular triangle; a RegularPolygon refuses a Triangle
+        (its ``base_ratio`` can make it isosceles: the Square / Rect rule)."""
+        kinds = self._COPY_KINDS
+        if not isinstance(other, kinds):
+            raise _copy_kind_refusal(self, other, f"a {kinds[-1].__name__}")
         if self._n != other._n:
             raise ValueError(
                 f"Cannot take in a {other._KIND_LABEL} with a different n ({other._n} vs {self._n})"
@@ -8461,6 +8489,8 @@ class _RectBody(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
         The names travel too (a copy is a use): every named point of the copy
         sits where the source's does.
         """
+        if not isinstance(other, _RectFrame):
+            raise _copy_kind_refusal(self, other, "a Rect, Square, Concave or Box")
         # Read the source before the first write (SC1: a Box has no corner
         # radius, and the raise came after the model switch: a 0 × 0 rect).
         # The raw name-sign store below is that first write: a destroyed
@@ -10354,6 +10384,10 @@ def _publish_shape_signature(cls: type) -> None:
     )
 
 
+# What a whole copy into each radial kind takes (``_RadialPolygon._takein_impl``).
+RegularPolygon._COPY_KINDS = (RegularPolygon,)
+Triangle._COPY_KINDS = (RegularPolygon, Triangle)
+
 for _shape_cls in (Line, Circle, Ellipse, RegularPolygon, Rect, Square, Concave, Triangle):
     _publish_shape_signature(_shape_cls)
 
@@ -10384,3 +10418,48 @@ def _refuse_retired_burn_kwargs(retired: dict) -> None:
         "Valid: duration, intensity=, on_done=."
     )
 
+
+# Whole copies across kinds (``<<``, ``absorb``, a whole ``@=``): Shapes
+# Design C7 "Copies". A copy reproduces its source, so a kind takes only what
+# it can be (Rect a Square / Concave / Box frame, Triangle a regular triangle,
+# Polygon any polygon of its arity) and an Ellipse also fills a Box, as
+# ``Ellipse(box=)`` does. Everything else refuses here, before any write: it
+# used to leak AttributeError / "Unknown ellipse model" and leave the target
+# with the source's model (CK1 in Testing Design).
+_COPY_FIX_EXAMPLES = {
+    "Line": "Line(p1=box.left_center, p2=box.right_center)",
+    "Polygon": "Polygon(points=[box.top_left, box.top_right, box.bottom_right, box.bottom_left])",
+}
+
+
+def _snake(kind: str) -> str:
+    return "".join(f"_{c.lower()}" if c.isupper() and i else c.lower() for i, c in enumerate(kind))
+
+
+def _copy_kind_refusal(dst, src, wants: str) -> TypeError:
+    """``dst << src`` across kinds ``dst`` cannot take: the error, naming the fix."""
+    from .entity import scena_kind
+    from .box import Box, _FRAME_GRAPHIC_NAMES, frame_kind
+    d_kind, s_kind = scena_kind(dst), scena_kind(src)
+    d, s = _snake(d_kind), _snake(s_kind)
+    head = f"{d_kind} << expected {wants}, got {s_kind}: a copy reproduces its source"
+    inscribes = isinstance(dst, (Circle, _RadialPolygon))
+    if isinstance(src, Box):
+        if inscribes:
+            return TypeError(
+                f"{head}, and a {d_kind} fits a region only by inscribing it. "
+                f"Build one in the region: {d_kind}(box={s}), or write its center and size.")
+        example = _COPY_FIX_EXAMPLES.get(d_kind)
+        return TypeError(
+            f"{head}, and a {d_kind} has no region placement. "
+            + (f"Build one from the region's points, e.g. {example}." if example
+               else f"Build the {d_kind} you want."))
+    if frame_kind(src) in _FRAME_GRAPHIC_NAMES:
+        if isinstance(dst, (_RectBody, Ellipse)):
+            return TypeError(f"{head}. To fill its frame, copy the frame: {d} << {s}.box.")
+        if inscribes:
+            return TypeError(f"{head}. To fit one in its frame: {d_kind}(box={s}.box).")
+    example = next((_POSITIONAL_EXAMPLES[k.__name__] for k in type(dst).__mro__
+                    if k.__name__ in _POSITIONAL_EXAMPLES), None)
+    return TypeError(f"{head}. Build the {d_kind} you want"
+                     + (f", e.g. {d_kind}{example[example.index('('):]}." if example else "."))

@@ -44,6 +44,10 @@ left out.
 
 ### Added
 
+- A Box copied into an Ellipse fills it, as `Ellipse(box=)` does:
+  `ellipse << hero.box` takes the box's center, width, height and angle, and
+  `ellipse @= (lambda: hero.box)` follows it.
+
 - `Triangle(…, base_ratio=)`: an isosceles triangle. `side` is the length
   of the two equal sides and the base is `base_ratio * side`, with
   `0 < base_ratio < 2` (1, the default, is equilateral; below 1 is sharper,
@@ -131,6 +135,16 @@ left out.
   the field (`Some: …`) and are left alone.
 
 ### Fixed
+
+- A whole copy between kinds (`<<`, `absorb`, a whole `@=`) raised Python's
+  own error and left the target half-changed: `Circle(...) << box`
+  (`AttributeError: 'Circle' object has no attribute 'width'`),
+  `Ellipse(...) << rect` (`ValueError: Unknown ellipse model`),
+  `Triangle(...) << box`, `line << rect`, `polygon << rect`. A copy now takes
+  only what the target can be (a Rect any Rect, Square, Concave or Box; a
+  Triangle a regular triangle; a Polygon any polygon with as many points) and
+  refuses everything else before changing anything, with a `TypeError` that
+  names the fix: `Circle(box=box)`, `rect << ellipse.box`.
 
 - `box=` on an author subclass of `RegularPolygon` (`class Hex(RegularPolygon)`)
   now takes the box's angle, as `RegularPolygon(box=…)` does; it compared

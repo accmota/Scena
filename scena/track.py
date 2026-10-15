@@ -1678,7 +1678,10 @@ class Track(Shape):
 
     def _takein_impl(self, other: "Track") -> None:
         if not isinstance(other, Track):
-            raise TypeError("Track._takein expected a Track")
+            raise TypeError(
+                f"Track << expected a Track, got {type(other).__name__}: a copy "
+                "reproduces its source. For a path along a shape build one: "
+                "Track(shape).")
         # The drawn table has the source's mirror baked in; the copy re-mirrors
         # from the flags it takes (``_clone_pose_from`` below), as clone() does
         # (``_clone_geometry``). Without this a flipped source drew twice

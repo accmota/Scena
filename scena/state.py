@@ -2920,7 +2920,7 @@ class Container():
         """Hook after a whole-object takein (``<<``, ``absorb``, a whole ``@=`` pull).
         Graphics carry the source's pose (C7); a plain Container has none."""
 
-    def _adopt_model_of(self, other) -> None:
+    def _adopt_model_of(self, other, model=None) -> None:
         """A copy (``_takein``) takes the source's construction model, and with
         it the source's Defining set. Switching only ``model`` left the old
         Defining parts in place: the copy read stale sizes / centers and
@@ -2930,8 +2930,11 @@ class Container():
         A relational source model (Line ``parallel_to=`` / ``circle=``, Ellipse
         ``from_rect=``) arrives as its free twin (``_free_model``): a copy has
         no links, and a relational model without them moved wrong (graphics
-        review SB5: a tangent copy stretched on ``move_by``)."""
-        model = self._free_model(other.model)
+        review SB5: a tangent copy stretched on ``move_by``). ``model``: the
+        model to take instead, for a source of another kind (an Ellipse that
+        fills a Box takes CENTER_WH)."""
+        if model is None:
+            model = self._free_model(other.model)
         self.model = model
         own = getattr(self, '_defining_names_for', None)
         names = own(model) if own is not None else None
