@@ -364,7 +364,7 @@ def _p_triangle():
         _track(Triangle(center=(x, 190), side=70, angle=90, base_ratio=r).set_color("yellow green"))
         _cap(f"{r:g}", x - 8, 95, size=11)
 
-    _cap("box= inscribed circle, box angle, keeps base_ratio", 820, 330)
+    _cap("box= the largest that fits, centered, box angle", 820, 330)
     tall = Box(center=(920, 190), width=150, height=190)
     _frame(tall)
     _track(Triangle(box=tall).set_color("cyan"))

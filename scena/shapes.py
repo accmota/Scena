@@ -9799,15 +9799,29 @@ def _reject_bad_base_ratio(value) -> None:
         )
 
 
-def _triangle_reach(k: float) -> float:
-    """Farthest vertex from the centroid, per unit ``radius`` (1 when ``k <= 1``)."""
-    hb = 0.75 * k / math.sqrt(1.0 - 0.25 * k * k)   # half base / radius
-    return max(1.0, math.hypot(0.5, hb))
-
-
 # A linked ``base_ratio`` is clamped below 2 by its slot; placement keeps a
 # margin so ``1 - k²/4`` never reaches 0 (the legs would be infinite).
 _TRIANGLE_K_TOP = 2.0 - 1e-9
+
+
+def _triangle_contain(k: Any, center: Any, w: float, h: float,
+                      angle: float) -> Tuple[float, Tuple[float, float]]:
+    """``(radius, centroid)`` of the largest triangle of ratio ``k`` inside a
+    ``w`` × ``h`` box centered at ``center`` and turned by ``angle``.
+
+    In the box frame the apex points along +x: the triangle spans
+    ``1.5 · radius`` along x (apex at ``+r``, base at ``-r/2``) and
+    ``2 · hb · radius`` across. Its extent's middle is ``r/4`` ahead of the
+    centroid, so the centroid sits ``r/4`` behind the box center. A linked
+    ``k`` (not a number yet) fits as equilateral.
+    """
+    kk = float(k) if isinstance(k, (int, float)) and not isinstance(k, bool) else 1.0
+    kk = min(kk, _TRIANGLE_K_TOP)
+    hb = 0.75 * kk / math.sqrt(1.0 - 0.25 * kk * kk)   # half base / radius
+    r = min(w / 1.5, h / (2.0 * hb))
+    cx, cy = get_xy(center, bare=True)
+    a = math.radians(angle)
+    return r, (cx - 0.25 * r * math.cos(a), cy - 0.25 * r * math.sin(a))
 
 
 class Triangle(_RadialPolygon):
@@ -9844,7 +9858,8 @@ class Triangle(_RadialPolygon):
         color: Solid color (fill on area shapes, stroke on lines).
         line_width: Outline thickness in design units (default 1.5).
         box: Fit into a Box (or a frame-like shape) instead of giving position and size
-            — its own form. The triangle keeps its ``base_ratio`` and fits inside.
+            — its own form. The largest triangle of its ``base_ratio`` that fits,
+            centered in the box, apex along the box's width.
         radius: Center-to-apex distance.
         angle: Heading of the apex in degrees (counter-clockwise). Setting it keeps
             the point the shape was placed by; ``rotate_to`` turns it about its center.
@@ -9902,15 +9917,18 @@ class Triangle(_RadialPolygon):
         k = kwargs['base_ratio']
         _reject_bad_base_ratio(k)
         if 'box' in kwargs and 'radius' not in kwargs and 'side' not in kwargs:
-            # Fit inside the box's inscribed circle, as a regular polygon does:
-            # past base_ratio 1 the base corners reach farther than the apex.
-            from .box import apply_box_to_shape_kwargs
+            # Contain, like a Sprite: the largest triangle of this base_ratio
+            # inside the box, its outline centered, the apex along the box's
+            # +x. Centering the centroid instead (a regular polygon's inscribe)
+            # left the apex on one side and a gap on the other.
+            from .box import apply_box_to_shape_kwargs, region_frame
+            _cx, _cy, bw, bh, _a = region_frame(kwargs['box'])
             apply_box_to_shape_kwargs(
                 type(self).__name__, kwargs, family="inscribe",
                 size_keys=("radius", "side"), heading=True,
             )
-            if isinstance(k, (int, float)) and not isinstance(k, bool) and k > 1.0:
-                kwargs['radius'] = kwargs['radius'] / _triangle_reach(float(k))
+            kwargs['radius'], kwargs['center'] = _triangle_contain(
+                k, kwargs['center'], abs(bw), abs(bh), float(kwargs['angle']))
         self._init_radial(3, kwargs)
 
     def _init_shape_inputs(self, kwargs: Dict[str, Any]) -> None:

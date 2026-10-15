@@ -6,7 +6,7 @@ Covers:
   - base_ratio=1 is RegularPolygon(n=3), in every model
   - changing base_ratio keeps each model's inputs in place
   - validation (0 < base_ratio < 2), clamped links, n= / free corners refused
-  - box= fits the triangle inside, keeping base_ratio
+  - box= contains: the largest triangle of the base_ratio, centered in the box
   - flips, scale, clone, takein keep base_ratio
   - every outline consumer agrees with points[] (the bug class "a consumer
     still uses the regular n-gon formula"), and the bounds hold every vertex
@@ -26,7 +26,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import scena  # noqa: E402
-from scena import Box, Polygon, RegularPolygon, Triangle  # noqa: E402
+from scena import Box, Circle, Polygon, RegularPolygon, Triangle  # noqa: E402
 from scena.shapes import RegularPolygonModel  # noqa: E402
 from scena.state import Attribute  # noqa: E402
 
@@ -221,15 +221,64 @@ class TestValidation(unittest.TestCase):
         self.assertIn("Triangle", str(cm.exception))
 
 
+def box_extent(t, box_center, angle):
+    """``(x0, x1, y0, y1)`` of the vertices in a box's own frame."""
+    a = math.radians(angle)
+    c, s = math.cos(a), math.sin(a)
+    loc = [((x - box_center[0]) * c + (y - box_center[1]) * s,
+            -(x - box_center[0]) * s + (y - box_center[1]) * c) for x, y in verts(t)]
+    xs = [p[0] for p in loc]
+    ys = [p[1] for p in loc]
+    return min(xs), max(xs), min(ys), max(ys)
+
+
 class TestBox(unittest.TestCase):
-    def test_fits_inside_and_keeps_the_ratio(self):
-        box = Box(center=(100, 50), width=80, height=60, angle=0)
-        for k in (0.4, 1.0, 1.8):
-            t = Triangle(box=box, base_ratio=k)
-            self.assertAlmostEqual(float(t.base_ratio), k)
-            reach = max(math.dist(p, (100, 50)) for p in verts(t))
-            self.assertLessEqual(reach, 30.0 + 1e-9, k)
-            self.assertAlmostEqual(reach, 30.0, places=9)   # touches the inscribed circle
+    """box= contains, like a Sprite: the largest triangle of the given
+    base_ratio inside the box, its outline centered, the apex along the box's
+    +x. Centering the centroid (a regular polygon's inscribe) left the apex
+    on one side of the box and a gap on the other."""
+
+    BOXES = ((80, 60, 0.0), (150, 190, 0.0), (230, 110, 15.0), (60, 200, 90.0), (90, 90, -40.0))
+
+    def test_fits_inside_centered_and_keeps_the_ratio(self):
+        for w, h, ang in self.BOXES:
+            box = Box(center=(100, 50), width=w, height=h, angle=ang)
+            for k in (0.3, 0.6, 1.0, 1.4, 1.8):
+                with self.subTest(w=w, h=h, angle=ang, k=k):
+                    t = Triangle(box=box, base_ratio=k)
+                    self.assertAlmostEqual(float(t.base_ratio), k)
+                    self.assertAlmostEqual(float(t.angle), ang)
+                    x0, x1, y0, y1 = box_extent(t, (100, 50), ang)
+                    self.assertAlmostEqual(x0 + x1, 0.0, places=9)   # centered
+                    self.assertAlmostEqual(y0 + y1, 0.0, places=9)
+                    self.assertLessEqual(x1, w / 2 + 1e-9)            # inside
+                    self.assertLessEqual(y1, h / 2 + 1e-9)
+                    # the largest: it touches the box on one axis
+                    self.assertTrue(math.isclose(x1, w / 2) or math.isclose(y1, h / 2))
+
+    def test_apex_points_along_the_box_width(self):
+        t = Triangle(box=Box(center=(0, 0), width=150, height=190), base_ratio=1.0)
+        apex = verts(t)[0]
+        self.assertAlmostEqual(apex[0], 75.0)
+        self.assertAlmostEqual(apex[1], 0.0)
+
+    def test_an_explicit_size_only_centers_the_centroid(self):
+        box = Box(center=(100, 50), width=150, height=190, angle=20)
+        for size in ({"radius": 30}, {"side": 40}):
+            t = Triangle(box=box, base_ratio=0.6, **size)
+            self.assertTrue(close(xy(t.center), (100, 50)), size)
+
+    def test_a_linked_ratio_fits_as_equilateral(self):
+        box = Box(center=(0, 0), width=150, height=190)
+        src = Circle(center=(0, 0), radius=1.0)
+        t = Triangle(box=box, base_ratio=lambda: src.radius)
+        x0, x1, y0, y1 = box_extent(t, (0, 0), 0.0)
+        self.assertAlmostEqual(x0 + x1, 0.0, places=9)
+        self.assertAlmostEqual(x1, 75.0)
+
+    def test_a_zero_box_gives_an_invisible_triangle(self):
+        t = Triangle(box=Box(center=(10, 20), width=0, height=50))
+        self.assertEqual(float(t.radius), 0.0)
 
     def test_takes_the_box_angle_on_a_subclass_too(self):
         class Seta(Triangle):

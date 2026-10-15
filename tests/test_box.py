@@ -732,10 +732,15 @@ class TestBoxFitContract(BoxTestCase):
         p = self.track(RegularPolygon(box=cell, n=6))
         self.assertAlmostEqual(float(p.radius), 20.0)
 
-    def test_equilateral_triangle_inscribes(self):
+    def test_triangle_contains(self):
+        # The largest triangle inside, outline centered: height 40 limits the
+        # base (side 40 / sqrt(3) * sqrt(3)), the centroid sits r/4 behind.
         cell = Box(center=(200, 150), width=80, height=40)
         t = self.track(Triangle(box=cell))
-        self.assertAlmostEqual(float(t.radius), 20.0)
+        r = 40.0 / math.sqrt(3.0)
+        self.assertAlmostEqual(float(t.radius), r)
+        self.assertAlmostEqual(float(t.center.x), 200.0 - r / 4)
+        self.assertAlmostEqual(float(t.center.y), 150.0)
 
     def test_sprite_height_override(self):
         cell = Box(center=(200, 150), width=80, height=40)

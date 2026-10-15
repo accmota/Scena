@@ -209,6 +209,7 @@ free `Polygon`, `Track`, `Point`.
 | --- | --- | --- |
 | `Rect` / `Ellipse` | **fill** the region (pose + size + rotation) | mix raises |
 | `Circle` / `Square` / regular N-gon | **inscribe** (min side; Circle does not take the region angle) | **center only** (`radius=` / `length=` / `side=`) |
+| `Triangle` | **contain**: the largest triangle of its `base_ratio`, outline centered, apex along the region's +x (inherits the region angle) | **center only** (`radius=` / `side=`; the centroid on the region center) |
 | `Sprite` / `Svg` | uniform **contain** (keep pixel aspect; inherit region angle) | **center only** (`height=` / `width=` / `size=`; no inherited angle) |
 | `Text` | `center = region.center` (layer `ui` unless `layer=`), `width=region.width` if omitted (a zero-width region: the box follows the string), default `align="center"`; not in the HUD column | mix with `center=` / `top_left=` / `top_center=` / `top_right=` raises |
 
