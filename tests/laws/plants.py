@@ -186,8 +186,13 @@ def c7_dead_kept_in_contacts() -> Patches:
     """C7: a destroy does not end its body's contacts nor drop its collider,
     and the step's prune skips it: the old contact is still committed at the
     next step (three guards keep it out; the plant breaks the three)."""
+    # The kept collider names its body by weakref: hold the body, or a GC
+    # between the steps (a loaded gate run) leaves an unnamed pair and the
+    # canary sees nothing (it missed once in gate).
+    kept: list = []
     return [(col.CollisionSystem, "_end_contacts_of", lambda self, c, emit=True: None),
-            (col.CollisionSystem, "_drop_destroyed_collider", lambda self, item, c: None),
+            (col.CollisionSystem, "_drop_destroyed_collider",
+             lambda self, item, c: kept.append(item)),
             (col.CollisionSystem, "_prune_dead", lambda self: None)]
 
 

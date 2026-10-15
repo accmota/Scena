@@ -2099,6 +2099,43 @@ random pilot in gate).
    tolerance from what an author would see over the length of a game, not
    from what one run happened to produce.
 
+## What the laws campaign taught (2026-10-14 / 15)
+
+A written constitution ([Laws.md](Laws.md)), a model of the discrete layer
+and equations, run over every program, game, example and tutorial step
+(details: [Laws and equations](#laws-and-equations)). Engine findings: LW5
+(a bug, fixed), LW2, LW6, LW7 (decisions), LW3, LW4 (academic); harness:
+LW1.
+
+1. **A model's first findings are its own.** In every stage the first
+   divergences were wrong laws, not engine bugs: "its own hook", the act's
+   own teardown, the seal, an explicit `flush()`, a Sprite's hitbox, a
+   carried rider, a walker without `vel.x`. Each fix moved a law to the
+   sentence in a companion doc. A law worded from the code agrees with the
+   code; worded from the doc, it finds where they part.
+2. **An observer is code with bugs of its own.** The recorder held author
+   classes, kept generator locals alive, read slots as missing, read an entry
+   point as a delivery. E0 (neutrality, survivors included) and the
+   self-checks found each one; they stay on.
+3. **A canary that does not bite counts the guards.** A parked body leaves
+   collision and fails the in-play check; a destroyed body's contacts are
+   ended, its collider dropped and pruned. A plant must break every guard of
+   the class, or it proves nothing; a plant must also be the class (a debt
+   dropped after a fire), not its caricature (a timer silenced).
+4. **An equation is only as good as its twin.** A twin without the example's
+   art, a partner never registered, a scene by chance mirror-symmetric, a
+   wall clock nobody pinned, two draws from one random stream: each looked
+   like an engine divergence. Run the twin twice, run it in the other
+   harness, and pin every clock it compares.
+5. **Agreement beats prediction.** E10–E12 hold to the last bit with no
+   expected value written; E3 found that ties go by creation order; E1 and
+   E13 measured a frame-rate dependence (LW7) no unit test had a reason to
+   look for; E8 found LW2 by comparing two ways an author breaks a brick.
+6. **Triage by cause, not by size.** A 0.1 px mirror asymmetry from a sign
+   error would be LATENT; a 1 px difference from an author's Euler step is
+   ACADEMIC; a character typed into a box is a BUG at one keystroke. Every
+   divergence was traced to its mechanism before its verdict.
+
 ## Planning a new test
 
 1. **Enumerate from the source of truth**, not a hand list: slots, `__all__`,
@@ -2234,7 +2271,8 @@ member should ask whether the siblings share the cause.
 | **A function Scena calls is `async`** (a coroutine nobody drives: the body never runs, and as a predicate it counts as True) | AH1 (`async def setup` / `on_update` / handlers / `on_done=`), AH2 (filters, `nearest(where=)`, `until`, `@when`, the `@on_change` target, `resolve(only=)`, `@=` formulas) | `test_async_hooks.TestEveryCallbackDoor` (doors enumerated from the public surface; a new door needs a case or a reason). Rule: every door that takes a function calls `validate.refuse_async` where it takes it (or relies on the `_invoke` / `call_truncated` backstop when it is a hot call) |
 | **A doc promises a refusal no test makes** (a CHANGELOG or Guia sentence "the old spelling raises", "X now follows") | RA1 (four doors took a held `Vec2`), RA2, RA4, RA5, AC4, SV2 | One case per door the sentence names × every payload kind the door takes (`test_state_reads_value.TestHeldVec2IsNotTheCell`); the release audit (Scena Design checklist). Rule: a sentence of that form is a test to write, not a summary to trust |
 | **A test turns vacuous** (it keeps passing while it no longer reaches what it checks: a changed spelling, a blank frame, a shard list, a case that runs no frame) | SV5 (a cell helper returned the number after the 0.8.0 flip), HV1 (two blank frames compared), O10 (gate shards ran ~50 of ~190 cells), the first `resolve(only=)` case of `TestEveryCallbackDoor` (no frame ran, so `only=` was never asked) | Canaries (`diff_support.assert_catches`, gate only), `TestDrawReachesThePixels`, `test_every_split_module_really_shards`, the `> 100` reach checks of the surface sweeps. Rule: a new guard is run on the pre-fix engine and each case is seen to fail; after a change to what a spelling means, run `gate` |
-| **An input stream loses or outlives its press owner** (repeats, drags and the release must reach the receiver that got the press — script, widget or shape — and nobody else; what the press set must be undone when its owner goes away) | S3-7 (a modal ate the up), W-P4 (repeats after a modal), X-life-3 (an up without its down), S3-8 (an old-act press clicked), PG-PD1 (a destroyed held Button never wrote `value_off`), PG-PD3 (a repeat reached a newly focused box), PG-PD7 (the up lost across `change_act`) | `tests/test_input_streams.py` (`TestStreamOwnershipMatrix`: owner × interruption — focus change, focus loss, destroy, act change, modal) |
+| **An input stream loses or outlives its press owner** (repeats, drags and the release must reach the receiver that got the press — script, widget or shape — and nobody else; what the press set must be undone when its owner goes away) | S3-7 (a modal ate the up), W-P4 (repeats after a modal), X-life-3 (an up without its down), S3-8 (an old-act press clicked), PG-PD1 (a destroyed held Button never wrote `value_off`), PG-PD3 (a repeat reached a newly focused box), PG-PD7 (the up lost across `change_act`), LW5 (a typed character carries no key: it went to whatever box had focus after the key's handler moved it) | `tests/test_input_streams.py` (`TestStreamOwnershipMatrix`: owner × interruption — focus change, focus loss, destroy, act change, modal; `TestACharFollowsItsKey`); laws I1–I5 over every program and game (`tests/laws/model/input.py`). Rule: an event that carries no owner (a character) follows the event that made it, never the focus as it is now |
+| **Simultaneous things answered one at a time** (two contacts of one body in one step, or a bounce and the rest of its frame, resolved in sequence: the result depends on which came first, and on the frame rate) | LW2 (a ball on the seam of two bricks: creation order sets the deflection; breaking in the handler vs between frames differs by up to 90°), LW7 (a bounce drops the frame's leftover travel: a ball in a box runs 3–6 % slow by frame rate), PG-PB5 (the dispatch side of the same shape, fixed) | Open, a decision (a joint-response design session). Pinned: `test_laws_equations.TestBreakInHandlerOrLater` (LW2), `E1_EXCLUDED` (LW7). Rule: what one step owes a body is gathered before any of it is applied |
 | **A handler's side effect hides the rest of the frame from the same contact** (a destroy, park, `untag` or group change inside a handler changes what the rest of that contact's dispatch, or `resolve`, sees) | PG-PB5 (a destroy hid the contact's other enter handlers: scoring depended on spawn order), PG-PE5 (a destroy hid the contact from `resolve`: no bounce), PG-PB3 (an exit handler's destroy / untag hid the other exit handlers), PG-PB1 (an `untag` mid-contact hid the exit) | `test_collision.TestEveryEnterHandlerOfAContactRuns` (both spawn orders), `TestAContactsExitComesAfterItsHandlers`, `TestBounceOffAPartnerAHandlerRemoved`, `TestExitAfterGroupChange`. Rule: choose what a contact owes (its handlers, its resolve response) before the first handler runs; only an act change may cancel it |
 | **A name the engine looks up is silently never called** (a class-body hook misspelled, a top-of-file name written in a class, a hook name that shadows an engine method) | PG-PA3 (`def update(self, dt)` / `on_key_down` in an act; `update` on a Shape replaced the graph's recalculation), PG-PC5 (`on_colide`, `on_updat`, a plain `collide_with`); sibling of AH1 (an `async` hook) | `tests/test_class_hook_names.py` (every exported family; the near-miss pool follows `_ACTOR_HOOK_NAMES`, the top-level list follows `set_auto_callbacks`). Rule: every name the engine discovers by name is checked where it is written (the class line), against the engine's own list, and the author's own helper names stay legal |
 | **A value protocol added to a type that is also an argument** (`__iter__`, `__len__`, `__eq__` on a type the engine takes as an argument change every entry that decides "is this a sequence?" or compares by protocol) | PE1 (value `==` on a Point weighed and refused: registry scans and weak keys rely on identity), PG-PB6 (`__iter__` on Point / `Vec2` / `mouse`: every link / copy entry reads a point by type; the entries that take a list of points refuse one point first) | `test_point_unpack.TestPointKeepsItsMeaning` (link rows still follow after the source moves) + `TestNotAList`. Rule: entries read by type, never by protocol; an entry that takes "a list of X" refuses one X first |
