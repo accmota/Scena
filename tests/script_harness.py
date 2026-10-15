@@ -27,6 +27,9 @@ holds the counts and the recorder's own errors).
 rewritten twin of an example, saved under the same name in a temporary
 folder, finds the example's media).
 
+``--pace HZ`` / ``--pace uneven``: the game time of ``frames`` at 60 Hz, in
+frames of 1/HZ, or in alternating 5 ms / 28 ms frames (equation E1).
+
 ``--fingerprint``: after the frames, print ``SCRIPT FINGERPRINT <crc>`` — the
 kind, origin and pose of every live, unowned object (the E0 neutrality
 equation compares it with and without the recorder).
@@ -75,6 +78,24 @@ def world_fingerprint() -> str:
     return f"{len(rows)}:{zlib.crc32(chr(10).join(rows).encode('utf-8')):08x}"
 
 
+def pace_schedule(frames: int, pace=None):
+    """The frame times: ``frames`` of 1/60 s, or the same game time at another
+    pace (``"30"``, ``"144"``: 1/HZ each; ``"uneven"``: 5 ms and 28 ms in turn)."""
+    total = frames / 60.0
+    if pace is None or pace == "60":
+        return [1.0 / 60.0] * frames
+    if pace == "uneven":
+        out, t, k = [], 0.0, 0
+        while t < total - 1e-9:
+            dt = min(0.005 if k % 2 == 0 else 0.028, total - t)
+            out.append(dt)
+            t += dt
+            k += 1
+        return out
+    hz = float(pace)
+    return [1.0 / hz] * int(round(total * hz))
+
+
 def _flag_value(argv, name):
     """``name value`` out of ``argv``: (value or None, the rest)."""
     if name not in argv:
@@ -93,6 +114,9 @@ def main(argv) -> None:
     # ``--cwd DIR``: run from DIR (a rewritten twin of an example, saved under
     # the example's own name elsewhere, still finds the example's media).
     cwd_override, argv = _flag_value(argv, "--cwd")
+    # ``--pace HZ`` / ``--pace uneven``: the same game time as ``frames`` at
+    # 60 Hz, in frames of 1/HZ, or alternating 5 ms / 28 ms (equation E1).
+    pace, argv = _flag_value(argv, "--pace")
     script = os.path.abspath(argv[1])
     frames = int(argv[2]) if len(argv) > 2 else 30
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -112,14 +136,22 @@ def main(argv) -> None:
 
     import scena
     from scena.orchestration import ScenaFramework
+    if laws_out is not None or pace is not None:
+        # Shape transients read the wall clock (Scena Design, "Clocks"): a
+        # headless run's dissolve ended by the machine's speed. Laws runs pin
+        # them to presentation time, as SystemWorld pins them for in-process
+        # runs, so two runs (two pacings) compare game against game (LW6).
+        from scena import clock as _clock
+        from scena import transients as _transients
+        _transients.set_now_fn(lambda: _clock._ui_time)
 
     def headless_run(first_act=None):
         fw = ScenaFramework.get_instance()
         caller = inspect.currentframe().f_back.f_globals
         fw.set_auto_callbacks(caller)
         fw._begin_game(first_act)
-        for _ in range(frames):
-            fw._simulate_frame(dt=1.0 / 60.0)
+        for dt in pace_schedule(frames, pace):
+            fw._simulate_frame(dt=dt)
         print(f"SCRIPT OK {frames}", flush=True)
         if fingerprint:
             print(f"SCRIPT FINGERPRINT {world_fingerprint()}", flush=True)

@@ -250,7 +250,67 @@ def i5_widgets_claim_a_given_up_release() -> Patches:
     return [(orch.WidgetManager, "handle_mouse_up", handle_mouse_up)]
 
 
+def t1_due_without_tolerance() -> Patches:
+    """T1 (PM8): "is it due" compares summed float time strictly."""
+    return [(proc, "reached", lambda elapsed, target: elapsed >= target)]
+
+
+def t2_new_work_ticks_at_once() -> Patches:
+    """T2: work made inside the tick is ticked in that same tick (the tick
+    walks its live buckets, not a snapshot)."""
+    real_add = proc.Scheduler.add
+    real_tick = proc.Scheduler.tick
+    made: list = []
+
+    def add(self, handle):
+        out = real_add(self, handle)
+        if getattr(self, "_iterating", False) and getattr(handle, "kind", None) == "after":
+            made.append(handle)
+        return out
+
+    def tick(self):
+        real_tick(self)
+        from scena import clock
+        while made:
+            self._tick_once(made.pop(0), clock.dt)
+    return [(proc.Scheduler, "add", add), (proc.Scheduler, "tick", tick)]
+
+
+def t3_parked_owner_ticks() -> Patches:
+    """T3: the scheduler's view of ``active`` misses the park (the actor is
+    parked; its timers keep counting and firing)."""
+    prop = ent.Entity.__dict__["active"]
+    return [(ent.Entity, "active", property(lambda self: not getattr(self, "_destroyed", False),
+                                            prop.fset))]
+
+
+def t4_every_uncapped() -> Patches:
+    """T4: one tick fires every interval a hitch owes."""
+    return [(proc, "_every_fire_budget", lambda interval: 10 ** 9)]
+
+
+def t6_dead_owner_registers() -> Patches:
+    """T6: work on a destroyed actor is registered (the add's check is gone)."""
+    real = proc.Scheduler.add
+
+    def add(self, handle):
+        owner = handle.owner
+        if owner is not None and getattr(owner, "_destroyed", False):
+            object.__setattr__(owner, "_destroyed", False)
+            try:
+                return real(self, handle)
+            finally:
+                object.__setattr__(owner, "_destroyed", True)
+        return real(self, handle)
+    return [(proc.Scheduler, "add", add)]
+
+
 PLANTS: Dict[str, Callable[[], Patches]] = {
+    "T1": t1_due_without_tolerance,
+    "T2": t2_new_work_ticks_at_once,
+    "T3": t3_parked_owner_ticks,
+    "T4": t4_every_uncapped,
+    "T6": t6_dead_owner_registers,
     "I1": i1_act_change_drops_keys,
     "I2": i2_up_without_its_down,
     "I3": i3_every_repeat_to_the_script,

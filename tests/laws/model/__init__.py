@@ -10,9 +10,9 @@ sentence in design/Laws.md. Areas: ``frame`` (F laws), ``lifetime`` (L laws).
 from __future__ import annotations
 
 from laws.model.base import Report, Trace  # noqa: F401
-from laws.model import collision, frame, input as input_, lifetime
+from laws.model import collision, frame, input as input_, lifetime, timers
 
-AREAS = (frame, lifetime, collision, input_)
+AREAS = (frame, lifetime, collision, input_, timers)
 
 
 def check(events, areas=AREAS) -> Report:

@@ -554,6 +554,34 @@ marker moved to the hook call. A fixture driven like a player finds what
 unit tests of each stream did not: the key that focuses a box typing itself
 into it took one keystroke to show.
 
+**S4 — timers (T1–T4, T6; T5 by E6) and the equations E1, E5, E6.** The
+recorder adds each handle's `add` (kind, delay / interval, owner, the phase
+it was made in), its `tick` records (world dt, the owner's time scale,
+parked, dead, paused) and its fires and cancels. The model replays `after`
+and `every` in exact rational time (each number at its rational intent:
+1/60, 1/2), so PM8 has an oracle that shares no rounding with `reached`.
+Fixture `tests/laws/fixtures/s4_timers.py` (an exact-frame `after`, an
+`every` across a 0.5 s hitch frame, chained, parked, dead and half-speed
+owners, work on a destroyed actor). Equations: E1 pacing (`script_harness
+--pace 30 | 144 | uneven`, the same game time; edge events matched in game
+time within a frame of each pacing; per-frame doors are not compared), E5
+act vs top level (`twins/act_home.py`), E6 bound method vs closure over
+`self` (an in-place rewrite of every `after` / `every` callback on every
+program and example). Results: the T laws hold on every family; E5, E6
+hold; E1 holds on 32 of 36 examples and the one-ball twin — LW6, LW7
+(decisions) and two ACADEMIC exclusions (an author's Euler step, a self
+re-arming chain).
+
+**What S4 taught.** An instance field may live in a slot: the first
+recorder read `__dict__` only and saw every parked owner as active (the
+model then "found" a missed fire); `trace._field` reads the dict or the
+slot, never a property. A pacing equation needs a pinned clock for every
+consumer it compares (the shape transients' wall clock made a headless run
+depend on the machine's load) and a pairing, not a count, at the horizon. A
+plant must be the bug class, not its caricature: zeroing `every`'s elapsed
+on each tick silenced the timer; dropping the debt after a fire is the
+class.
+
 
 # Geometry campaign
 
@@ -2860,6 +2888,8 @@ with the triage verdict.
 | LW3 | E3 (spawn order): a shot touching two enemies in one step hits the first-made one; a drone landing on two overlapping pads enters the first-made one | ACADEMIC | Below the fast gate, a body that enters two partners in one step reached both within half its thickness (a tie); the documented tie-break is collider order ([Collision Design — Swept detection](Collision%20Design.md#swept-detection-fast-bodies), "Order"). No program or example showed it outside the fixture's deliberate ties | V3 states the exception |
 | LW4 | E3 on an example swapped two `Endless(...)` lines and the scenery changed | ACADEMIC | `Endless` without `seed=` draws its seed from the author's global `random` at construction: two swapped constructions trade their numbers (no less random, no less reproducible) | E3 counts `Endless` among the calls that draw random numbers (`equations._RANDOM_NAMES`) |
 | LW5 | "Press T to chat": `on_key_down` focuses a `TextInput` when T is pressed, and the box starts with a "t" in it; a game key held while a box takes focus auto-repeats its character into the box (the PD campaign's "left open" note) | **BUG**, fixed | Characters carry no key: `_handle_char` gave each one to whatever box had focus *now*, after the key's handler had moved the focus | `WidgetManager._char_to_script` (set by a press / repeat the box did not get, cleared by the box's own press / repeat and by any release): that character goes to `on_char`. Input path only (a store per key event), no frame cost. Guard: `test_input_streams.TestACharFollowsItsKey` (the opening key, a held game key, typing / Shift / composed text, a released game key does not eat later text); law I4 (`model/input.py`), canary `plants.i4_chars_to_the_focused_box`. The first version also ate the first character of text with no key event after any unclaimed key (two editor tests): the flag ends at the key's release |
+| LW6 | E1 at 144 Hz destroyed `orbitas`' trail dots that the 60 Hz run kept, and a second run did not: shape transients (`dissolve_out`) ended by the machine's speed in headless runs | **DECISION** (asked 2026-10-15) | Shape transients read the wall clock (`transients._now_fn = perf_counter`; Scena Design, Clocks: "wall … presentation, documented: a paused menu still animates"). The presentation clock (`clock._ui_time`: unscaled, capped, runs while paused) already serves that intent for the cover and post-fx | Proposal: transients on presentation time (deterministic headless runs, the same pause behaviour). Until decided: the laws script runs pin transients to presentation time (`script_harness`, as `SystemWorld` pins them to world time) |
+| LW7 | E1 (pacing): a ball bouncing between two walls has a longer period at a lower frame rate — at 700 DU/s the ideal 0.520 s gap is 0.553 s at 30 Hz, 0.545 at 60, 0.535 at 144 (a ball in a box runs 6 % slow at 30 Hz, 3 % at 144); bolas / entropia drift by frames over a run | **DECISION** (asked 2026-10-15; with LW2) | The sweep stops at the contact, answers the velocity, and "projects leftover motion along the surface" (Collision Design, Resolution step 3): a head-on bounce has no along-surface part, so the frame's leftover travel `(1 − t) × d` is dropped at every bounce | Proposal: continue the leftover along the reflected velocity (a bounce sub-step), designed with LW2's joint response. Pinned: E1 lists bolas / entropia as excluded with this reason (`test_laws_equations.E1_EXCLUDED`) |
 
 ### Open (found, not yet fixed)
 

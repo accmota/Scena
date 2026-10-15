@@ -115,7 +115,7 @@ def game(game_name: str, scenario: str, **kw) -> List[str]:
 
 
 def run_script(path: str, frames: int, *, laws_out: str = None, timeout: float = 240,
-               cwd: str = None) -> str:
+               cwd: str = None, pace: str = None) -> str:
     """stdout of one headless run of ``path`` (``--fingerprint``); ``cwd``: the
     folder it runs from (a twin saved elsewhere under the example's name)."""
     cmd = [sys.executable, HARNESS, path, str(frames), "--fingerprint"]
@@ -123,6 +123,8 @@ def run_script(path: str, frames: int, *, laws_out: str = None, timeout: float =
         cmd += ["--laws", laws_out]
     if cwd is not None:
         cmd += ["--cwd", cwd]
+    if pace is not None:
+        cmd += ["--pace", pace]
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     p = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace",
                        timeout=timeout, env=env, cwd=ROOT)

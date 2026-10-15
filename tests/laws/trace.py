@@ -44,6 +44,12 @@ Events are tuples; the first item is the kind:
                                                any handler: sorted label pairs (``entered``
                                                in dispatch order)
   ``("S", "ghost" | "resolve")``               the step's ghost response / resolve starts
+  ``("I", kind, name, action, doors)``         an OS key / char / button event and the
+                                               doors it reached (S3)
+  ``("O", "abandon", button, widget)``         a leaving widget gave up its press
+  ``("H", "add", h, kind, delay, interval, owner, scope, refused, phase)``
+  ``("H", "tick", h, world_dt, scale, active, alive, paused, held, over)``
+  ``("H", "fire" | "cancel" | "pause" | "resume", h)``   a timed handle (S4)
 
 Contact handler doors are ``enter`` / ``stay`` (``_dispatch_contact``'s phase)
 and ``exit`` (``_run_exit``: a step's exit, a destroy's, or a deferred one).
@@ -200,6 +206,23 @@ def _raw(obj) -> dict:
         return {}
 
 
+def _field(obj, name, default=None):
+    """An instance field as stored — the instance dict or a slot — never a
+    property (a property read can pull the graph). S4 found the trap: an
+    owner's ``_active`` lives in a slot on some classes, and a dict-only read
+    saw every parked owner as active."""
+    d = _raw(obj)
+    if name in d:
+        return d[name]
+    desc = getattr(type(obj), name, None)
+    if type(desc).__name__ == "member_descriptor":
+        try:
+            return desc.__get__(obj, type(obj))
+        except AttributeError:
+            return default
+    return default
+
+
 def _site_text(site) -> str:
     if not site:
         return "-"
@@ -309,10 +332,10 @@ def _register_end(frame, retval):
     obj = retval
     if obj is None:
         return
-    d = _raw(obj)
-    owner = d.get("_owner")
-    label = _rec._new_label(obj, type(obj).__name__, _site_text(d.get("_site")))
-    _rec.events.append(("N", label, type(obj).__name__, _site_text(d.get("_site")),
+    owner = _field(obj, "_owner")
+    site = _site_text(_field(obj, "_site"))
+    label = _rec._new_label(obj, type(obj).__name__, site)
+    _rec.events.append(("N", label, type(obj).__name__, site,
                         _rec.label_of(owner) if owner is not None else None))
 
 
@@ -320,19 +343,19 @@ def _destroy_start(frame):
     obj = frame.f_locals.get("obj")
     label = _rec.label_of(obj)
     if label is not None:
-        _rec.events.append(("D", label, bool(_raw(obj).get("_dying"))))
+        _rec.events.append(("D", label, bool(_field(obj, "_dying", False))))
 
 
 def _destroy_end(frame, retval):
     obj = frame.f_locals.get("obj")
     label = _rec.label_of(obj)
     if label is not None:
-        _rec.events.append(("d", label, bool(_raw(obj).get("_destroyed"))))
+        _rec.events.append(("d", label, bool(_field(obj, "_destroyed", False))))
 
 
 def _owner_label(obj):
     """A part's owner, read when it acts (``_owner`` is set after register)."""
-    owner = _raw(obj).get("_owner")
+    owner = _field(obj, "_owner")
     return _rec.label_of(owner) if owner is not None else None
 
 
@@ -376,6 +399,54 @@ def _ghosts(frame):
 
 def _resolve_start(frame):
     _rec.events.append(("S", "resolve"))
+
+
+# -- timers (S4): a handle's life, from raw slots (Handle has __slots__) ----
+
+def _slot(obj, name, default=None):
+    try:
+        return object.__getattribute__(obj, name)
+    except AttributeError:
+        return default
+
+
+def _handle_add_end(frame, retval):
+    h = retval
+    if h is None:
+        return
+    kind = _slot(h, "kind")
+    owner = _slot(h, "_owner")
+    label = _rec._new_label(h, f"Handle:{kind}", _site_text(_slot(h, "_site")))
+    _rec.events.append(("H", "add", label, kind, float(_slot(h, "delay", 0.0) or 0.0),
+                        float(_slot(h, "interval", 0.0) or 0.0),
+                        _rec.label_of(owner) if owner is not None else None,
+                        str(_slot(h, "scope")), bool(_slot(h, "_cancelled", False)),
+                        _rec.phases[-1] if _rec.phases else None))
+
+
+def _handle_tick(frame):
+    loc = frame.f_locals
+    h = loc.get("handle")
+    label = _rec.label_of(h)
+    if label is None:
+        return
+    owner = _slot(h, "_owner")
+    # The owner's flags may live in slots, not __dict__: read them as the
+    # instance holds them (no property runs either way).
+    _rec.events.append(("H", "tick", label, float(loc.get("world_dt", 0.0)),
+                        float(_field(owner, "_time_scale", 1.0)) if owner is not None else 1.0,
+                        bool(_field(owner, "_active", True)) if owner is not None else True,
+                        not _field(owner, "_destroyed", False) if owner is not None else True,
+                        bool(_slot(h, "_paused", False)), bool(_slot(h, "_held", False)),
+                        bool(_slot(h, "_cancelled", False)) or bool(_slot(h, "_done", False))))
+
+
+def _handle_event(name):
+    def ev(frame):
+        label = _rec.label_of(frame.f_locals.get("self"))
+        if label is not None:
+            _rec.events.append(("H", name, label))
+    return ev
 
 
 # -- input: one event per OS key / button event, with the doors that got it --
@@ -471,6 +542,15 @@ _ENGINE_HOOKS = (
     ("scena.collision", "CollisionSystem._dispatch_step", _contacts_commit, None),
     ("scena.collision", "CollisionSystem._apply_ghost_contacts", _ghosts, None),
     ("scena.collision", "CollisionSystem._apply_auto_resolve", _resolve_start, None),
+    # Timers (S4).
+    ("scena.process", "Scheduler.add", None, _handle_add_end),
+    ("scena.process", "Scheduler._tick_once", _handle_tick, None),
+    ("scena.process", "Scheduler._tick_every", _handle_tick, None),
+    ("scena.process", "Handle._fire_once", _handle_event("fire"), None),
+    ("scena.process", "Handle._fire_every", _handle_event("fire"), None),
+    ("scena.process", "Handle.cancel", _handle_event("cancel"), None),
+    ("scena.process", "Handle.pause", _handle_event("pause"), None),
+    ("scena.process", "Handle.resume", _handle_event("resume"), None),
     # Input (S3): the OS event, and the doors it reached while it was handled.
     ("scena.orchestration", "ScenaFramework._handle_key", _input_start, _input_end("key")),
     ("scena.orchestration", "ScenaFramework._handle_mouse_button", _input_start,

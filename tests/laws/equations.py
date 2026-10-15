@@ -22,6 +22,9 @@ from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 LineMap = Dict[int, int]
 
+import os as _os  # noqa: E402
+ROOT_TESTS = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+
 # Pulls whose count depends on who read what when (caches, probes): not a law.
 UNCOMPARED_DOORS = frozenset({"formula", "condition"})
 
@@ -112,6 +115,99 @@ def compare(a: Dict[int, Counter], b: Dict[int, Counter], *, limit: int = 4,
 
 
 # ---------------------------------------------------------------------------
+# E1, pacing: edge events in game time
+# ---------------------------------------------------------------------------
+
+# Doors that fire once per event (an enter, a timer, a destroy), not once per
+# frame: those can be matched across frame rates. Per-frame doors (update,
+# on_update, stay, pulls, pre-draw ticks) run as often as there are frames.
+EDGE_DOORS = frozenset({"enter", "exit", "after", "every", "on_destroy", "setup", "hover",
+                        "hover_exit", "leave", "act-build", "act-teardown", "history"})
+
+
+def _strip(label):
+    """``Kind@file:line#n`` -> ``Kind@file:line`` (ordinals can differ by pacing)."""
+    return label.rsplit("#", 1)[0] if isinstance(label, str) else label
+
+
+def timed_edges(events: Sequence[tuple]) -> Tuple[Dict[tuple, List[float]], float]:
+    """key -> sorted game times of its edge events; and the run's end time."""
+    out: Dict[tuple, List[float]] = {}
+    t = 0.0
+    for e in events:
+        k = e[0]
+        if k == "F":
+            t += float(e[2] or 0.0)
+            continue
+        key = None
+        if k == "X":
+            door = e[1].split(">", 1)[0]
+            if door in EDGE_DOORS:
+                key = ("X", e[1], e[3], tuple(_strip(a) for a in e[4]))
+        elif k == "N":
+            key = ("N", e[2], _strip(e[1]))
+        elif k == "Q":
+            key = ("Q", _strip(e[1]))
+        elif k in ("A", "B"):
+            key = (k, e[1])
+        if key is not None:
+            out.setdefault(key, []).append(t)
+    return out, t
+
+
+def compare_paced(a, b, tol: float, *, limit: int = 6) -> List[str]:
+    """Edge events of two pacings agree: the same events, each within ``tol``
+    seconds. Events within ``tol`` of the end of either run are not compared
+    (one pacing may stop a frame before the other's)."""
+    (ea, ta), (eb, tb) = a, b
+    edge = min(ta, tb) - 2 * tol          # an event past here may fall on either side
+    out = []
+    for key in sorted(set(ea) | set(eb), key=repr):
+        xa, xb = ea.get(key, []), eb.get(key, [])
+        i = j = 0
+        lost_a, lost_b = [], []
+        while i < len(xa) and j < len(xb):      # two sorted lists, paired within tol
+            if abs(xa[i] - xb[j]) <= tol:
+                i += 1
+                j += 1
+            elif xa[i] < xb[j]:
+                lost_a.append(xa[i])
+                i += 1
+            else:
+                lost_b.append(xb[j])
+                j += 1
+        lost_a += xa[i:]
+        lost_b += xb[j:]
+        lost_a = [x for x in lost_a if x <= edge]
+        lost_b = [x for x in lost_b if x <= edge]
+        if lost_a or lost_b:
+            out.append(f"{key!r:.140}: unpaired within {tol:.4f} s — only in the first "
+                       f"{[round(x, 4) for x in lost_a[:3]]}, only in the second "
+                       f"{[round(x, 4) for x in lost_b[:3]]}")
+        if len(out) >= limit:
+            break
+    return out
+
+
+PACES = {"30": 1 / 30, "144": 1 / 144, "uneven": 0.028}
+
+
+def e1_script(path: str, frames: int, paces: Sequence[str] = ("30", "144", "uneven")
+              ) -> List[str]:
+    """E1 on a script: each pace's edge events match the 60 Hz run's."""
+    import os
+    base = timed_edges(script_trace(path, frames))
+    out = []
+    for pace in paces:
+        twin = timed_edges(script_trace(path, frames, pace=pace))
+        tol = 1 / 60 + PACES[pace] + 1e-6
+        diff = compare_paced(base, twin, tol)
+        if diff:
+            out.append(f"E1 {os.path.basename(path)} at {pace}: " + "; ".join(diff))
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Runs
 # ---------------------------------------------------------------------------
 
@@ -165,7 +261,8 @@ def e3_program(program: str, spec_ns: Dict, scenario: str, *, limit: Optional[in
     return out
 
 
-def script_trace(path: str, frames: int, *, source: Optional[str] = None) -> List[tuple]:
+def script_trace(path: str, frames: int, *, source: Optional[str] = None,
+                 pace: Optional[str] = None) -> List[tuple]:
     """The laws trace of a headless script run; ``source``: a twin, saved under
     the script's own name in a temporary folder and run from the script's
     folder (its media, its harness cwd)."""
@@ -177,7 +274,7 @@ def script_trace(path: str, frames: int, *, source: Optional[str] = None) -> Lis
     with tempfile.TemporaryDirectory(prefix="laws_eq_") as tmp:
         out = os.path.join(tmp, "trace.jsonl")
         if source is None:
-            run_script(path, frames, laws_out=out)
+            run_script(path, frames, laws_out=out, pace=pace)
         else:
             # The twin's folder mirrors the original's (a link per entry):
             # "next to the script" must find the same images, sounds and
@@ -194,7 +291,7 @@ def script_trace(path: str, frames: int, *, source: Optional[str] = None) -> Lis
             with open(twin, "w", encoding="utf-8") as fh:
                 fh.write(source)
             cwd = script_harness.harness_cwd(path, ROOT)
-            run_script(twin, frames, laws_out=out, cwd=cwd)
+            run_script(twin, frames, laws_out=out, cwd=cwd, pace=pace)
         events = load_trace(out)
     meta = events.pop() if events and events[-1][0] == "meta" else None
     if meta is not None and meta[2]:
@@ -256,6 +353,80 @@ def _makes_objects(stmt) -> bool:
     if not isinstance(stmt, (ast.Expr, ast.Assign, ast.AnnAssign, ast.For)):
         return False
     return any(name[:1].isupper() for name in _calls(stmt))
+
+
+def bound_to_closure(source: str) -> Tuple[str, int]:
+    """E6: every ``after`` / ``every`` whose callback is a bound method of
+    ``self`` (``after(0.9, self.atirar)``) gets a closure over ``self`` instead
+    (``lambda: self.atirar()``), in place (lines unchanged). Returns the new
+    source and how many calls changed."""
+    tree = ast.parse(source)
+    spots = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not node.args:
+            continue
+        f = node.func
+        name = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+        if name not in ("after", "every"):
+            continue
+        cb = node.args[-1]
+        if (isinstance(cb, ast.Attribute) and isinstance(cb.value, ast.Name)
+                and cb.value.id == "self" and cb.lineno == cb.end_lineno):
+            spots.append(cb)
+    lines = source.splitlines(keepends=True)
+    for cb in sorted(spots, key=lambda n: (n.lineno, n.col_offset), reverse=True):
+        line = lines[cb.lineno - 1]
+        lines[cb.lineno - 1] = (line[:cb.col_offset] + f"lambda: self.{cb.attr}()"
+                                + line[cb.end_col_offset:])
+    return "".join(lines), len(spots)
+
+
+def e6_projection(events) -> Dict[int, Counter]:
+    """Timer fires and cancels per handle, plus every door except the timer
+    callbacks themselves (a bound method vs a lambda: other functions)."""
+    out = project(events, doors=lambda d: d not in ("after", "every"))
+    frame = 0
+    for e in events:
+        if e[0] == "F":
+            frame = e[1]
+        elif e[0] == "H" and e[1] in ("fire", "cancel"):
+            out.setdefault(frame, Counter())[("H", e[1], e[2])] += 1
+    return out
+
+
+def e6_script(path: str, frames: int) -> List[str]:
+    import os
+    with open(path, encoding="utf-8") as fh:
+        source = fh.read()
+    twin_src, n = bound_to_closure(source)
+    if not n:
+        return []
+    base = e6_projection(script_trace(path, frames))
+    twin = e6_projection(script_trace(path, frames, source=twin_src))
+    diff = compare(base, twin)
+    return [f"E6 {os.path.basename(path)} ({n} callbacks): " + "; ".join(diff)] if diff else []
+
+
+def e6_program(program: str, spec_ns: Dict, scenario: str) -> List[str]:
+    from program_support import program_path
+    with open(program_path(program), encoding="utf-8") as fh:
+        source = fh.read()
+    twin_src, n = bound_to_closure(source)
+    if not n:
+        return []
+    base = e6_projection(program_trace(program, spec_ns, scenario))
+    twin = e6_projection(program_trace(program, spec_ns, scenario, source=twin_src))
+    diff = compare(base, twin)
+    return [f"E6 {program}/{scenario} ({n} callbacks): " + "; ".join(diff)] if diff else []
+
+
+def e5_projection(events) -> Dict[int, Counter]:
+    """E5: everything but the act's own machinery (its build, its setup)."""
+    out = project(events, doors=lambda d: d not in ("act-build", "setup"))
+    for c in out.values():
+        for k in [k for k in c if k[0] in ("A", "B") or (k[0] == "N" and k[1] in ("Fase",))]:
+            del c[k]
+    return out
 
 
 def swap_candidates(source: str) -> List[Tuple[int, int]]:

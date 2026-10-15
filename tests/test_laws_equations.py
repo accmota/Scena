@@ -147,6 +147,81 @@ class TestBreakInHandlerOrLater(unittest.TestCase):
         self.assertGreater(ang, ANGLE_BUDGET, (vh, vl))
 
 
+# -- E1 -------------------------------------------------------------------------
+
+# Examples whose edge events depend on the frame rate for a reason the
+# triage named (design/Testing Design.md, catalogue LW). Shrink-only.
+E1_EXCLUDED = {
+    "bolas.py": "LW7: a bounce drops the frame's leftover travel (a ball in a box runs "
+                "slower at a low frame rate), and twenty balls amplify it",
+    "entropia.py": "LW7 (as bolas) in a box of bouncing balls",
+    "aviao.py": "ACADEMIC: the author's own Euler step (vel.y -= g * dt) puts the plane a "
+                "few pixels apart at uneven pacing; a door passed one frame later",
+    "naves_modos.py": "ACADEMIC: a self re-arming after / a mode's wait starts each period at "
+                      "the frame that noticed the last one (Scena Design, Clocks: 'at least p "
+                      "apart', not a rate); uneven pacing drifts the chain",
+}
+E1_DEV = ("one_ball", "orbitas.py", "naves.py", "colisao.py", "ninja.py", "pegar_estrelas.py")
+
+
+class TestPacing(unittest.TestCase):
+    def test_one_ball_twin(self):
+        path = os.path.join(eq.ROOT_TESTS, "laws", "twins", "one_ball.py")
+        self.assertEqual(eq.e1_script(path, 600), [])
+
+    def test_examples(self):
+        paths = [p for p in scripts() if os.path.basename(p) not in E1_EXCLUDED
+                 and (FULL or os.path.basename(p) in E1_DEV)]
+        self.assertTrue(paths)
+
+        def one(path):
+            try:
+                return eq.e1_script(path, 600)
+            except Exception as e:  # noqa: BLE001
+                return [f"{os.path.basename(path)}: {type(e).__name__}: {str(e)[-300:]}"]
+
+        with ThreadPoolExecutor(max(2, min(8, (os.cpu_count() or 4) - 1))) as pool:
+            out = [m for msgs in pool.map(one, paths) for m in msgs]
+        self.assertEqual(out, [], "\n".join(m[:800] for m in out))
+
+    def test_excluded_examples_exist(self):
+        names = {os.path.basename(p) for p in scripts()}
+        self.assertEqual(sorted(set(E1_EXCLUDED) - names), [])
+
+
+# -- E5 / E6 --------------------------------------------------------------------
+
+def _home(home):
+    ns = {"SCENARIOS": {"w": Scenario(steps=[("wait", 120)], params={"home": home})},
+          "PROBES": {}}
+    return eq.e5_projection(eq.program_trace(f"{TWINS}/act_home", ns, "w"))
+
+
+class TestActHome(unittest.TestCase):
+    def test_top_and_act_run_alike(self):
+        top = _home("top")
+        self.assertGreater(sum(sum(c.values()) for c in top.values()), 50, "vacuous")
+        self.assertEqual(eq.compare(top, _home("act")), [])
+
+
+class TestBoundOrClosure(unittest.TestCase):
+    def test_twin(self):
+        W = {"SCENARIOS": {"w": Scenario(steps=[("wait", 60)])}, "PROBES": {}}
+        self.assertEqual(eq.e6_program(f"{TWINS}/closure_owner", W, "w"), [])
+
+    def test_programs_and_examples(self):
+        out = []
+        ns = load_spec("galaga_acts", "a")
+        for scenario in (list(ns["SCENARIOS"]) if FULL else list(ns["SCENARIOS"])[:2]):
+            out += eq.e6_program("galaga_acts", ns, scenario)
+        for p in scripts():
+            with open(p, encoding="utf-8") as fh:
+                has = eq.bound_to_closure(fh.read())[1]
+            if has:
+                out += eq.e6_script(p, 600)
+        self.assertEqual(out, [], "\n".join(m[:800] for m in out))
+
+
 # -- canaries -------------------------------------------------------------------
 
 class TestCanaries(unittest.TestCase):
@@ -175,6 +250,51 @@ class TestCanaries(unittest.TestCase):
             base = _roles(t._trace("module"))
             prop = _roles(t._trace("property"))
         self.assertTrue(eq.compare(base, prop))
+
+    def test_e1_catches_an_every_that_drops_its_debt(self):
+        # The plant runs in the children: a script twin carries it in its source.
+        path = os.path.join(eq.ROOT_TESTS, "laws", "twins", "one_ball.py")
+        with open(path, encoding="utf-8") as fh:
+            src = fh.read()
+        src = src.replace(
+            "from scena import *",
+            "from scena import *\n"
+            "import scena.process as _p\n"
+            "_fire = _p.Handle._fire_every\n"
+            "def _drop(self):\n"
+            "    _fire(self)\n"
+            "    self._elapsed = 0.0       # the plant: a fire drops the debt\n"
+            "_p.Handle._fire_every = _drop\n"
+            "st.beats = 0\n"
+            "every(0.05, lambda: setattr(st, 'beats', st.beats + 1))", 1)
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            twin = os.path.join(tmp, "one_ball.py")
+            with open(twin, "w", encoding="utf-8") as fh:
+                fh.write(src)
+            self.assertTrue(eq.e1_script(twin, 600, paces=("30",)))
+
+    def test_e5_catches_act_timers_that_start_late(self):
+        from unittest import mock
+        import scena.process as proc
+        real = proc.Scheduler.add
+
+        def add(self, handle):
+            out = real(self, handle)
+            if getattr(handle, "scope", None) == "act":
+                handle._elapsed = -1 / 60          # the plant: one frame late
+            return out
+        with mock.patch.object(proc.Scheduler, "add", add):
+            act = _home("act")
+        self.assertTrue(eq.compare(_home("top"), act))
+
+    def test_e6_catches_closures_without_an_owner(self):
+        from unittest import mock
+        import scena.process as proc
+        W = {"SCENARIOS": {"w": Scenario(steps=[("wait", 60)])}, "PROBES": {}}
+        with mock.patch.object(proc, "_closure_self", lambda fn: None):
+            out = eq.e6_program(f"{TWINS}/closure_owner", W, "w")
+        self.assertTrue(out)
 
     def test_e8_catches_the_ghost_off(self):
         from unittest import mock

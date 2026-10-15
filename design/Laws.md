@@ -69,6 +69,20 @@ shape under the pointer, or the script.
 | I5 | A press a widget gave up when it left (destroyed, act change) ends with no release to any widget and no script up; a held Button writes its `value_off`. | holds | model `input.I5`; `test_input_streams.TestAHeldButtonThatLeavesLetsGo` | [Canvas Design.md — TextInput](Canvas%20Design.md#textinput) |
 | I6 | `keyp.once` is True only in the frame of the press; an act change and a modal swallow the unread edge. | holds | `test_keyp.TestOnceIsFrameScopedInFrames` | [Scena Design.md — Frame order](Scena%20Design.md#frame-order) |
 
+## Timers
+
+`after` and `every` count world time (scaled by `clock.scale` and the
+owner's `time_scale`, stopped by a pause, at most `MAX_FRAME_DT` a frame).
+
+| Law | Statement | Status | Checked by | Detail |
+| --- | --- | --- | --- | --- |
+| T1 | A timer fires on the first tick where its owner's world time since its start reaches its delay: a whole number of frames lands on that frame, never a frame late or early by rounding. | holds | model `timers.T1`; `test_process.TestDueOnTheExactFrame` | [Scena Design.md — Clocks](Scena%20Design.md#clocks) |
+| T2 | A timer's time starts at the first process tick that begins after it is made: one made before the tick (in `update`, an input hook) counts that frame; one made in the tick or later counts from the next. A self re-arming `after` is "at least p apart", not a rate (use `every`). | holds | model `timers.T2` | [Scena Design.md — Clocks](Scena%20Design.md#clocks) |
+| T3 | A parked owner's timers neither fire nor gain time; a dead owner's never fire. | holds | model `timers.T3` | [Actors Design.md — `active` (park)](Actors%20Design.md#active-park) |
+| T4 | `every` fires once per interval of world time, at most `ceil(MAX_FRAME_DT / interval)` times in one tick; debt beyond that keeps only its phase. | holds | model `timers.T4`; `test_process.TestEveryCountsWorldSeconds` | [Scena Design.md — Clocks](Scena%20Design.md#clocks) |
+| T5 | A timer whose callback is a method of an actor, or a closure over its `self`, is owned by that actor and dies with it (PA4). | holds | equation `E6`; `test_process.TestClosureOverSelfIsOwnedLikeTheBoundMethod` | [Actors Design.md — Ownership](Actors%20Design.md#ownership-no-on) |
+| T6 | Work scheduled on a destroyed actor registers nothing: it never ticks, never runs. | holds | model `timers.T6` | [Actors Design.md — Ownership](Actors%20Design.md#ownership-no-on) |
+
 ## Invariance
 
 Pairs of programs an author believes equivalent behave alike (the
@@ -76,11 +90,13 @@ equations: no expected value, only agreement).
 
 | Law | Statement | Status | Checked by | Detail |
 | --- | --- | --- | --- | --- |
+| V1 | A game's events (contacts, timers, creations, destroys, act changes) happen at the same game times at 30, 60 and 144 Hz and at uneven frame times, within a frame of each pacing. Known limits: a bounce drops the frame's leftover travel (LW7), an author's own Euler step and a self re-arming `after` drift by frames. | open (LW7) | equation `E1` | [Scena Design.md — Clocks](Scena%20Design.md#clocks) |
 | V3 | A game does not depend on the order of two independent constructions. One exception, documented: a body that enters two partners in the same step without crossing either (a tie within half its thickness) enters them in creation order. | holds | equation `E3` | [Collision Design.md — Swept detection](Collision%20Design.md#swept-detection-fast-bodies) ("Order") |
 | V4 | A contact rule acts alike declared as a module `@collide`, a class `@collide_with` or an `on_collide` property (the property reaches any *registered* body: the partner joins by a rule or `collidable = True`). | holds | equation `E4` | [Collision Design.md — Pipeline](Collision%20Design.md#pipeline) |
+| V5 | A game built at the top of the file or in its first act's `setup` runs alike while that act lasts. | holds | equation `E5` | [Act Design.md — Lifetime: the game and the act](Act%20Design.md#lifetime-the-game-and-the-act) |
 | V8 | Breaking a resolve partner in its handler or between frames gives the survivor the same bounce. | open (LW2: two partners at once) | equation `E8` | [Collision Design.md — Partner removed by a handler](Collision%20Design.md#partner-removed-by-a-handler-ghost-contact) |
 
 ## Still to write
 
-Timers (T) and motion (P) join as their stages land;
+Motion (P) joins with its stage;
 until then their rules live only in the companion docs.
