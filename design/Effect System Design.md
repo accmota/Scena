@@ -553,7 +553,7 @@ Same-channel exclusivity (by design): any two life verbs (including spawn vs dea
 
 **Hard** `destroy()`**:** `Registry.destroy` runs `clear_transients` (no pending `on_done`), sets `shape.is_alive` False, then undraws and `clean_up()`. Hide-only life finish does **not** cancel other channels. Soft `undraw` does not flip `is_alive`.
 
-**Park (`active = False`):** does **not** freeze or cancel shape transients — they are presentation on wall clock, not owned process time. Prefer `dissolve_out(..., on_done=self.park)` so the FX finishes while still visible (park forces `visible=False`). Stop early with `clear_transients()`; freeze the world with `clock.paused`, not fleet-wide park. See [Actors Design.md — `active` (park)](Actors%20Design.md#active-park).
+**Park (`active = False`):** does **not** freeze or cancel shape transients — they are presentation (presentation time, like the cover: they run while the world is paused or slowed), not owned process time. Prefer `dissolve_out(..., on_done=self.park)` so the FX finishes while still visible (park forces `visible=False`). Stop early with `clear_transients()`; freeze the world with `clock.paused`, not fleet-wide park. See [Actors Design.md — `active` (park)](Actors%20Design.md#active-park).
 
 #### Dissolve styles (`style=` on dissolve_out / dissolve_in)
 

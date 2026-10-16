@@ -614,14 +614,14 @@ timed mechanism picks its row here and compares deadlines through
 | `ready` / `recently`, History / Contrail, sprite playhead and `min_hold` | world | game time; `ready` carries its overshoot like `every` (a steady cadence at any fps; after a pause in polling it reopens one interval later, no burst: review 2026-10-09 W-T2; a gap of even one frame restarts the cadence at the True that ends it, so a release and a press one frame late carry no overshoot into the next held shot: PG-RD1). A self re-arming `after` or an `await wait(p)` loop starts each period at the frame that noticed the last one: "at least `p` apart", not a rate; use `every` for a rate |
 | SpatialFx tick and shader phases | world | world actors: pause freezes the rain; their own `after` already counted world seconds. A frame feeds them at most `MAX_FRAME_DT`, the world's cap, cut into steps of at most 0.1 s for the integrators; the first tick advances by the time since birth (W-T9) |
 | Layer scroll (`advance_layer_scroll`, every non-neutral layer, hidden or not), background-field scroll (`BackgroundStack._advance_scroll_all`, every field, enabled or not) | world | scroll is world state; `visible` / `enabled` is paint; both count from birth (W-T7, W-T8) |
-| Canvas cover (`fade_in` / `fade_out`), post `shake` / `flash` / `glitch` decay (`PostFxStack._render`) | presentation | a screen transition or a hit effect runs while the world is paused (a game-over `fade_out(on_done=change_act)` after `clock.paused = True` finishes; a shake under the pause menu ends: X-writers-2) |
-| Shape transients, SpriteButton eases | wall | presentation, documented ([Effect System Design](Effect%20System%20Design.md)): a paused menu still animates |
+| Canvas cover (`fade_in` / `fade_out`), post `shake` / `flash` / `glitch` decay (`PostFxStack._render`), shape transients (`dissolve_out`, `fade_out`, `flash`, `pop`, … and their `on_done`), SpriteButton eases | presentation | a screen transition or a hit effect runs while the world is paused (a game-over `fade_out(on_done=change_act)` after `clock.paused = True` finishes; a shake under the pause menu ends: X-writers-2) |
 | Double click, FPS, frame pacing | wall | input and the display |
 
-Tests: `SystemWorld` pins only the transient clock (to world time, for
-determinism). SpatialFx and the cover read the frame clock in production too,
-so the harness tests the shipped clock (review 2026-10-09, S1-6 / S1-7):
+Tests: `SystemWorld` pins no clock: transients, SpatialFx and the cover read
+the frame clock in production, so the harness tests the shipped clock (review 2026-10-09, S1-6 / S1-7):
 `tests/test_cover.py` (`TestCoverRunsOnPresentationTime`),
+`tests/test_transients.py` (`TestTransientsRunOnPresentationTime`; LW6: they
+read the wall clock until 2026-10-16, so a stall jumped them to their end),
 `tests/test_spatial_fx.py` (`TestSpatialFxRunOnWorldTime`),
 `tests/test_process.py` (`TestEveryCountsWorldSeconds`),
 `tests/test_layer_scroll_view.py` (`test_hidden_layer_keeps_scrolling`).

@@ -140,15 +140,6 @@ def main(argv) -> None:
 
     import scena
     from scena.orchestration import ScenaFramework
-    if laws_out is not None or pace is not None:
-        # Shape transients read the wall clock (Scena Design, "Clocks"): a
-        # headless run's dissolve ended by the machine's speed. Laws runs pin
-        # them to presentation time, as SystemWorld pins them for in-process
-        # runs, so two runs (two pacings) compare game against game (LW6).
-        from scena import clock as _clock
-        from scena import transients as _transients
-        _transients.set_now_fn(lambda: _clock._ui_time)
-
     def headless_run(first_act=None):
         fw = ScenaFramework.get_instance()
         caller = inspect.currentframe().f_back.f_globals

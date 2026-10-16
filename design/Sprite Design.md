@@ -1296,7 +1296,7 @@ clears it) wraps the body in a CTM scale about the drawn-box centre plus one
 `Grayscale` matrix) and alpha — only when not identity. It never writes
 `scale`, so the author's pose, tweens and hitbox stay theirs and the click
 area does not breathe (no edge flicker). Levels (`_Ease`: hover, press, off,
-breathe weight) are **closed-form in time** (`transients._now`, wall clock —
+breathe weight) are **closed-form in time** (`transients._now`, presentation time —
 a paused game's menu still animates; `set_now_fn` in tests): each state edge
 stores `(v0, target, t0)`, draw evaluates. Several draws per frame paint the
 same picture. Breathing is `amp · sin(2π(t − t0)/period) · weight`; the weight

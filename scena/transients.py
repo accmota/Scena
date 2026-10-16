@@ -34,17 +34,42 @@ DISSOLVE_STYLES = ("noise", "vortex", "wipe", "fade")
 # Clock (injectable for tests)
 # ---------------------------------------------------------------------------
 
-_now_fn: Callable[[], float] = time.perf_counter
+_now_fn: Optional[Callable[[], float]] = None
 
 
 def set_now_fn(fn: Optional[Callable[[], float]]) -> None:
-    """Override wall clock (tests). Pass None to restore perf_counter."""
+    """Override the transient clock (tests). Pass None to restore presentation time."""
     global _now_fn
-    _now_fn = time.perf_counter if fn is None else fn
+    _now_fn = fn
 
 
 def _now() -> float:
-    return float(_now_fn())
+    """Presentation time (``clock._ui_time``), like the canvas cover.
+
+    A transient is a screen effect: it runs while the world is paused or
+    slowed (a pause menu still animates), and a frame feeds it at most
+    ``MAX_FRAME_DT``, so a hitch does not jump it to its end, and a headless
+    run is a function of its frames (LW6). ``perf_counter`` only when no
+    framework exists yet.
+    """
+    if _now_fn is not None:
+        return float(_now_fn())
+    fw = (_framework or _bind_framework())._instance
+    if fw is not None:
+        clk = getattr(fw, "clock", None)
+        if clk is not None:
+            return clk._ui_time
+    return time.perf_counter()
+
+
+_framework = None   # ScenaFramework, bound on the first read (an import cycle at load)
+
+
+def _bind_framework():
+    global _framework
+    from .orchestration import ScenaFramework
+    _framework = ScenaFramework
+    return ScenaFramework
 
 
 def _clamp_duration(duration: float, default: float) -> float:

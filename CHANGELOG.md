@@ -205,6 +205,13 @@ left out.
   act, and code after change_act() runs on the act that is gone. Write
   change_act(...) last, or return right after it.` It said "Guard the call:
   if actor:".
+- Shape transients (`dissolve_out`, `fade_out`, `flash`, `pop`, `blink`, …,
+  their `on_done`) and SpriteButton eases now run on the same clock as
+  `canvas.fade_out` and the screen shake: they still play while the game is
+  paused or in slow motion, but a stall (dragging the window, loading a big
+  file) no longer jumps them to their end, and a shape's `fade_out` and
+  `canvas.fade_out` started together end together. A game run headless now
+  plays its transients the same way on every machine.
 
 ### Fixed
 

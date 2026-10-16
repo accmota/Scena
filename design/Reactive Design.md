@@ -712,7 +712,7 @@ Two different goals: stop drawing vs leave the reactive system. Mixing them up l
 
 ### Park (`active`)
 
-`Entity.active = False` parks an Entity without teardown: no draw, no collision, owned process time pauses. `@when` / `@on_change` keep polling (watches, not owned process). Shape transients keep ticking (presentation / wall clock — finish FX with `on_done=` before park, or `clear_transients()`). Prefer park over destroy/recreate for temporary off-scene (death / restart). See [Actors Design.md — `active` (park)](Actors%20Design.md#active-park).
+`Entity.active = False` parks an Entity without teardown: no draw, no collision, owned process time pauses. `@when` / `@on_change` keep polling (watches, not owned process). Shape transients keep ticking (presentation time — finish FX with `on_done=` before park, or `clear_transients()`). Prefer park over destroy/recreate for temporary off-scene (death / restart). See [Actors Design.md — `active` (park)](Actors%20Design.md#active-park).
 
 ### Full removal
 

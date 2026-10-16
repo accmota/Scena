@@ -11,7 +11,8 @@ What lives here:
 
 * ``SystemWorld`` — a ``WorldTracker`` that also resets what the hyp suites
   leave alone (collision, bounds, cover, FX registries, clock, ready /
-  recently, camera, post stack) and pins every time source to ``clock.time``.
+  recently, camera, post stack); no time source is pinned: every one reads
+  the frame clock it reads in production (Scena Design, "Clocks").
   ``world.step(n, dt, draw)`` runs frames; ``world.probe`` records hooks.
 * ``census()`` — a snapshot of every registry that can hold an actor
   (graph, events, scheduler, collision, bounds, registry, FX, mixer, widgets).
@@ -313,13 +314,11 @@ class SystemWorld(WorldTracker):
             p = mock.patch.object(target, attr, new=_noop)
             p.start()
             self._patches.append(p)
-        # Shape transients run on wall time in production (presentation,
-        # Effect System Design); pin them to world time so runs are
-        # deterministic. SpatialFx (world time) and the cover (the clock's
-        # presentation time) read the frame clock in production too, so they
-        # are NOT pinned: a pin would test a clock the shipped code does not
-        # read (review 2026-10-09, S1-7).
-        _transients.set_now_fn(lambda: clock.time)
+        # Shape transients and the cover (presentation time), SpatialFx
+        # (world time) all read the frame clock in production, so none is
+        # pinned: a pin would test a clock the shipped code does not read
+        # (review 2026-10-09, S1-7; transients since LW6).
+        _transients.set_now_fn(None)
         _spatial_fx.set_now_fn(None)
         _cover.set_now_fn(None)
         self.frames_run = 0

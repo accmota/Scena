@@ -1100,5 +1100,103 @@ class TestDissolveMaskScale(unittest.TestCase):
         self.assertAlmostEqual(half, pivot)
 
 
+class TestTransientsRunOnPresentationTime(unittest.TestCase):
+    """Shape transients are presentation, like the cover (LW6; Scena Design,
+    "Clocks"): they run while the world is paused or slowed, a hitch
+    advances them at most MAX_FRAME_DT, and a run never reads the wall
+    clock, so a headless run is a function of its frames. No pin here: the
+    shipped clock."""
+
+    def setUp(self):
+        tx.set_now_fn(None)
+
+    def tearDown(self):
+        for s in list(tx._active_shapes):
+            tx.clear_transients(s)
+
+    def test_the_clock_is_presentation_time(self):
+        from scena import clock
+        from scena import sprite_button
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            w.step(7, dt=1 / 60)
+            self.assertEqual(tx._now(), clock._ui_time)
+            self.assertEqual(sprite_button._now(), clock._ui_time)  # the eases too
+
+    def test_a_dissolve_finishes_while_paused(self):
+        from scena import clock
+        from tests.system_support import system_world
+        done = []
+        with system_world(draw=False) as w:
+            c = Circle(center=(50, 50), radius=12)
+            clock.paused = True
+            try:
+                c.dissolve_out(0.5, on_done=lambda: done.append(w.frames_run))
+                w.step(40, dt=1 / 60)
+            finally:
+                clock.paused = False
+            self.assertEqual(len(done), 1, "dissolve_out never finished under clock.paused")
+            self.assertFalse(c.visible)      # a death verb ends hidden
+
+    def test_slow_motion_does_not_slow_it(self):
+        from scena import clock
+        from tests.system_support import system_world
+        done = []
+        with system_world(draw=False) as w:
+            c = Circle(center=(50, 50), radius=12)
+            clock.scale = 0.25
+            try:
+                c.flash(0.5, on_done=lambda: done.append(w.frames_run))
+                w.step(60, dt=1 / 60)
+            finally:
+                clock.scale = 1.0
+        self.assertTrue(done and done[0] <= 31, done)
+
+    def test_a_hitch_advances_it_at_most_max_frame_dt(self):
+        from scena import clock
+        from scena.input import MAX_FRAME_DT
+        from tests.system_support import system_world
+        with system_world(draw=False):
+            c = Circle(center=(50, 50), radius=12)
+            ch = c.fade_out(2.0)
+            clock._last_time = 0.0
+            clock._tick(5.0)                 # a 5 s stall (a drag, a GC pause, a load)
+            tx.tick_all_transients()
+            self.assertAlmostEqual(ch.progress(), MAX_FRAME_DT / 2.0)
+            self.assertTrue(c.is_alive, "a stall jumped the fade to its end")
+
+    def test_a_run_never_reads_the_wall_clock(self):
+        import types
+        from unittest import mock
+        from tests.system_support import system_world
+
+        def wall():
+            raise AssertionError("a transient read the wall clock")
+
+        done = []
+        with system_world(draw=False) as w, \
+                mock.patch.object(tx, "time", types.SimpleNamespace(perf_counter=wall)):
+            c = Circle(center=(50, 50), radius=12)
+            c.dissolve_out(0.5, on_done=lambda: done.append(w.frames_run))
+            w.step(40, dt=1 / 60)
+        self.assertEqual(len(done), 1)
+
+    def test_a_shape_fade_and_the_cover_end_on_the_same_frame(self):
+        from scena import canvas
+        from scena import cover as cv
+        from tests.system_support import system_world
+        ends = {}
+        with system_world(draw=False) as w:
+            c = Circle(center=(50, 50), radius=12)
+            try:
+                canvas.fade_out(0.5, on_done=lambda: ends.setdefault("cover", w.frames_run))
+                c.fade_out(0.5, on_done=lambda: ends.setdefault("shape", w.frames_run))
+                w.step(40, dt=1 / 60)
+            finally:
+                cv.reset_cover()
+        self.assertEqual(set(ends), {"cover", "shape"})
+        self.assertEqual(ends["cover"], ends["shape"])
+
+
 if __name__ == "__main__":
     unittest.main()

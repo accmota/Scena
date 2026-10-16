@@ -384,11 +384,27 @@ def camera_moved(program: str, spec_ns, scenario: str, cam: Dict[str, Any],
 def time_scaled(program: str, spec_ns, scenario: str, k: float = 2.0) -> List[str]:
     """``clock.scale = k`` with real frames of ``dt / k``: the same world time
     per frame, so the same trace. Catches anything that reads the real dt or
-    wall time where world time is the contract."""
+    wall time where world time is the contract.
+
+    Presentation consumers are out of its scope: shape transients and the
+    cover are unscaled by contract (Scena Design, "Clocks"), so a
+    ``dissolve_out(0.4, on_done=bola.destroy)`` lasts 0.4 real seconds in
+    slow motion and its ``on_done`` lands k times as many frames later. Both
+    runs read world time for them (the prelude: ``SystemWorld`` unpins at
+    start), so the equation keeps its power over every world-time consumer.
+    Their own clock is tested in ``test_transients`` / ``test_cover``
+    (``...RunOnPresentationTime``)."""
+    from scena import cover, transients
+
+    def prelude(scale):
+        def go(_run_):
+            transients.set_now_fn(lambda: clock.time)
+            cover.set_now_fn(lambda: clock.time)
+            clock.scale = scale
+        return lambda run: setattr(run, "prelude", go)
+
     sc = spec_ns["SCENARIOS"][scenario]
-    a, _ = _run(program, spec_ns, scenario)
-    b, _ = _run(program, spec_ns, scenario, dt=sc.dt / k,
-                before_start=lambda run: setattr(
-                    run, "prelude", lambda r: setattr(clock, "scale", k)))
+    a, _ = _run(program, spec_ns, scenario, before_start=prelude(1.0))
+    b, _ = _run(program, spec_ns, scenario, dt=sc.dt / k, before_start=prelude(k))
     return [f"time_scaled x{k}: {m}" for m in _diff_samples(a, b, tol=1e-9)]
 
