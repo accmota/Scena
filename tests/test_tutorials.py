@@ -22,6 +22,9 @@ Bug classes guarded:
   runs in ``test_tutorial_steps`` would pass vacuously.
 * **A page that does not parse is blank for the reader** (a quote inside a
   double-quoted field).
+* **A balloon or a snippet that no longer matches the code**: a note's
+  ``at`` is in exactly one line of its step, and every line of a ``{snip}``
+  in the prose is a line of the step (``TestTutorialNotes``).
 * **A ground lean about the waist** (TU7): ``tilt = "ground"`` on a sprite
   whose ``hitbox_anchor`` is not the bottom face turns the art about the
   collider's middle, so on a ramp the feet slide sideways and stay off the
@@ -588,6 +591,82 @@ class TestTutorialFocus(unittest.TestCase):
             self.assertEqual(step_focus(path), [None, ["run()"]])
 
 
+_NOTE_AT = re.compile(r'^\s*at:\s*"((?:[^"\\]|\\.)*)"', re.M)
+_SNIP = re.compile(r"\bsnip:\s*`((?:\\.|[^`\\])*)`(\s*,\s*alt:\s*true)?", re.S)
+
+
+def _unquote(src: str) -> str:
+    return re.sub(r"\\(.)", r"\1", src)
+
+
+def step_notes(path: str) -> List[Tuple[List[str], List[str]]]:
+    """``(note anchors, snippets)`` per step object.
+
+    A note (``notes: [{at, text}]``) pins a balloon to the one line of the
+    step's code that holds ``at``; a snippet (``{snip: …}`` in ``body`` or
+    ``after``) shows a piece of that code inside the prose. A snippet with
+    ``alt: true`` is a spelling the script does not use, and is left out.
+    """
+    out = []
+    for chunk in _STEP_OPEN.split(_read(path))[1:]:
+        out.append(([_unquote(a) for a in _NOTE_AT.findall(chunk)],
+                    [_unescape(s) for s, alt in _SNIP.findall(chunk) if not alt]))
+    return out
+
+
+def snippet_strays(code: str, snippet: str) -> List[str]:
+    """The snippet lines (stripped) that are not a line of ``code``; ``...`` / ``…`` stand for a gap."""
+    have = {ln.strip() for ln in code.split("\n")}
+    return [ln.strip() for ln in snippet.split("\n")
+            if ln.strip() and ln.strip() not in ("...", "…") and ln.strip() not in have]
+
+
+class TestTutorialNotes(unittest.TestCase):
+    """Note pins and prose snippets point at the code the step really has.
+
+    Bug class: the code of a step changes (a renamed variable, a new number)
+    and the balloon or the fragment in the prose keeps the old spelling, so
+    the reader is told about a line that is not there. A note's ``at`` is in
+    exactly one line (the engine pins the first one it finds); every line of
+    a snippet is a line of the step.
+    """
+
+    def test_engine_draws_notes_snippets_and_after(self):
+        js = _read(os.path.join(ROOT, "docs", "assets", "tutorial", "tutorial.js"))
+        css = _read(os.path.join(ROOT, "docs", "assets", "tutorial", "tutorial.css"))
+        for needle in ("step.notes", "step.after", "b.snip", 'class="notes"'):
+            self.assertIn(needle, js)
+        for needle in ("ol.notes", ".pin", ".mark", "pre.code.snip", "details.ask", ".fold-btn"):
+            self.assertIn(needle, css)
+
+    def test_notes_and_snippets_match_the_step_code(self):
+        notes = snippets = 0
+        for path in tutorial_pages():
+            page = os.path.basename(path)
+            steps, marks = extract_steps(path), step_notes(path)
+            self.assertEqual(len(steps), len(marks), f"{page}: a step object the notes scan did not see")
+            for step, (ats, snips) in zip(steps, marks):
+                lines = step.code.split("\n")
+                for at in ats:
+                    notes += 1
+                    with self.subTest(page=page, line=step.line, at=at):
+                        hits = sum(1 for ln in lines if at in ln)
+                        self.assertEqual(hits, 1, f"note at {at!r} is in {hits} lines (needs exactly 1)")
+                for snip in snips:
+                    snippets += 1
+                    with self.subTest(page=page, line=step.line, snip=snip[:40]):
+                        self.assertEqual(snippet_strays(step.code, snip), [],
+                                         "a snippet line the step's code does not have")
+        self.assertGreater(notes, 0, "no step has notes (05 'A nave' should): the scan no longer matches")
+        self.assertGreater(snippets, 0, "no step has a snippet (05 'Atirar' should)")
+
+    def test_the_snippet_check_catches_a_stale_line(self):
+        code = 'def update(dt):\n    if keyp("SPACE") and ready("tiro", 0.2):\n        x = 1\n'
+        self.assertEqual(snippet_strays(code, 'if keyp("SPACE") and ready("tiro", 0.2):\n    ...'), [])
+        self.assertEqual(snippet_strays(code, 'if keyp("SPACE") and ready("tiro", 0.3):'),
+                         ['if keyp("SPACE") and ready("tiro", 0.3):'])
+
+
 class TestTryInPlace(unittest.TestCase):
     """A box with ``replaces:`` runs where it goes, not after the program (TU6)."""
 
@@ -654,14 +733,14 @@ class TestTutorialPageSyntax(unittest.TestCase):
     No JavaScript engine here, so the quoted one-line fields are checked by shape.
     """
 
-    _QUOTED = re.compile(r'^\s*(note|title|part|id|example|focus):\s*"')
-    _WELL_FORMED = re.compile(r'^\s*(?:note|title|part|id|example):\s*"(?:[^"\\]|\\.)*",?\s*$')
+    _QUOTED = re.compile(r'^\s*(note|title|part|id|example|focus|at|text):\s*"')
+    _WELL_FORMED = re.compile(r'^\s*(?:note|title|part|id|example|at|text):\s*"(?:[^"\\]|\\.)*",?\s*$')
 
     def test_quoted_fields_are_one_well_formed_string(self):
         for path in tutorial_pages():
             page = os.path.basename(path)
             for n, line in enumerate(_read(path).splitlines(), 1):
-                if not re.match(r'^\s*(note|title|part|id|example):\s*"', line):
+                if not re.match(r'^\s*(note|title|part|id|example|at|text):\s*"', line):
                     continue
                 with self.subTest(page=page, line=n):
                     self.assertRegex(line, self._WELL_FORMED,

@@ -205,7 +205,7 @@ main h1 {
   max-width: 42rem;
 }
 
-.explain p + p { margin-top: 0.55rem; }
+.explain p + p { margin-top: 0.8rem; }
 .explain strong { color: var(--text); font-weight: 600; }
 
 /* Lists in the prose: spaced, so each item reads on its own. */
@@ -397,6 +397,127 @@ pre.code {
 
 .line.focus .src { color: var(--text); }
 .line.focus .ln { color: var(--accent); }
+
+/* A code fragment inside the prose: no numbers, no diff, no copy. */
+pre.code.snip {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0 0.7rem;
+  margin: 0.9rem 0 1rem;
+  max-width: 42rem;
+}
+.line.plain { grid-template-columns: 1fr; }
+pre.code.snip.alt {
+  border: 1px dashed rgba(196, 165, 116, 0.5);
+  background: transparent;
+  padding-top: 0.45rem;
+}
+pre.code.snip.alt::before {
+  content: "outra escrita, fora do script";
+  display: block;
+  padding: 0 1rem 0.3rem;
+  font: 600 10.5px var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--warn);
+}
+pre.code.snip.alt .line.plain .src { color: var(--muted); }
+.line.plain .src { color: var(--text); padding-left: 1rem; }
+
+/* Note pins: a number in the gutter of a line, and the balloon under the code. */
+.pin {
+  display: inline-block;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 0.6rem;
+  background: var(--accent-dim);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--accent);
+  font: 600 11px/1.15rem var(--sans);
+  text-align: center;
+  vertical-align: 1px;
+  user-select: none;
+  cursor: default;
+}
+.pin.lit { background: var(--accent); color: var(--bg); }
+.pin + .pin { margin-left: 0.2rem; }
+
+/* A pinned line: the pins in a third column, at the right edge of the box
+   and sticky, so they stay in view when a long line scrolls. Every line is
+   as wide as the longest one (and at least as wide as the box), so a short
+   line's pin stays at the edge when the box scrolls. The cell repaints the
+   line's own tint over the code background, to cover the text that scrolls
+   under it. */
+pre.code:not(.snip) { display: grid; grid-template-columns: minmax(max-content, auto); }
+.line.pinned { grid-template-columns: 2.6rem max-content minmax(0, 1fr); }
+.line .pins {
+  position: sticky;
+  right: 0;
+  justify-self: end;
+  padding: 0 0.6rem 0 0.8rem;
+  background: var(--bg-code);
+}
+.line.new .pins { background: linear-gradient(var(--ok-dim), var(--ok-dim)), var(--bg-code); }
+.line.focus .pins,
+.line.pinned.lit .pins { background: linear-gradient(var(--accent-dim), var(--accent-dim)), var(--bg-code); }
+.line.pinned.lit { background: var(--accent-dim); box-shadow: inset 3px 0 0 var(--accent); }
+
+/* The piece of the line a note is about. */
+.mark {
+  text-decoration: underline dotted var(--accent-line);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+  border-radius: 3px;
+}
+.mark.lit { background: var(--accent-dim); text-decoration-color: var(--accent); }
+
+ol.notes {
+  list-style: none;
+  margin: -0.55rem 0 1.4rem;
+  padding: 0;
+  max-width: 42rem;
+}
+ol.notes li {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  gap: 0.55rem;
+  align-items: start;
+  padding: 0.5rem 0.4rem;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.97rem;
+}
+ol.notes li + li { margin-top: 0.15rem; }
+ol.notes li.lit { background: var(--bg-elev); }
+ol.notes .pin { margin-top: 0.18rem; }
+
+/* Old lines folded away in a long script. */
+.fold-btn {
+  display: block;
+  width: 100%;
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  padding: 0.15rem 0 0.15rem 3.45rem;
+  background: transparent;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+}
+.fold-btn:hover { color: var(--accent); background: var(--bg-hover); }
+
+/* A question after the code; the answer opens on a click. */
+details.ask {
+  border-left: 3px solid var(--accent-line);
+  padding: 0.15rem 0 0.15rem 0.9rem;
+  margin: 0.8rem 0 1rem;
+}
+details.ask summary { cursor: pointer; color: var(--text); }
+details.ask summary::marker { color: var(--accent); }
+details.ask[open] summary { margin-bottom: 0.4rem; }
+
+.explain.after { margin-bottom: 1.3rem; }
 
 /* syntax, applied on tokens inside .src */
 .tok-kw { color: #8eb4d4; }

@@ -20,9 +20,23 @@ Tutorial.mount({
     {
       title: "A nave",
       body: `
-        <p>Novo script: um jogo de naves simples. Uma nave embaixo, uma frota inimiga em cima, tiros dos dois lados. Este primeiro passo só junta o que você já sabe: um sprite e as setas.</p>
-        <p>A nave nasce em <code>center=(500, 70)</code>, no meio da largura e perto da borda de baixo. Só as setas esquerda e direita: como nos jogos de nave clássicos de fliperama, a nave anda numa linha só e o perigo vem de cima. <code>340 * dt</code> são 340 pixels por segundo. A imagem vem de <code>media/space/</code>, ao lado do script. O fundo é o preto de sempre: o céu e o brilho da nave têm passo próprio, daqui a pouco.</p>
-        <p>Rode e segure uma seta até o fim: a nave sai da janela e some. É o assunto do próximo passo.</p>
+        <p>Um script novo: um jogo de naves. A sua fica embaixo, uma frota inimiga em cima, e os tiros vão dos dois lados. Começamos só com a nave e as setas.</p>
+        <p>Como nos fliperamas antigos, a nave anda só para os lados. O perigo vem de cima.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 215" role="img" aria-label="A janela de 1000 por 800, com o ponto (0, 0) embaixo à esquerda; a nave está no meio da largura, perto da borda de baixo, e anda para a esquerda e para a direita">
+            <rect class="ray" fill="none" x="80" y="20" width="200" height="160"/>
+            <line class="guide" x1="180" y1="20" x2="180" y2="180"/>
+            <polygon class="hot" points="180,158 171,172 189,172"/>
+            <line class="ray" x1="160" y1="166" x2="132" y2="166"/>
+            <polygon class="dot" points="128,166 135,162 135,170"/>
+            <line class="ray" x1="200" y1="166" x2="228" y2="166"/>
+            <polygon class="dot" points="232,166 225,162 225,170"/>
+            <text x="186" y="152">(500, 70)</text>
+            <text x="80" y="198" text-anchor="middle">(0, 0)</text>
+            <text x="280" y="12" text-anchor="middle">(1000, 800)</text>
+          </svg>
+          <figcaption>A janela tem 1000 de largura e 800 de altura, com o (0, 0) no canto de baixo. A nave nasce no meio da largura, a 70 pixels do chão.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -40,6 +54,20 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "def update(dt):",
+          text: "O Scena chama o <code>update</code> a cada quadro, umas 60 vezes por segundo. É ali que se lê o teclado: <code>keyp(\"LEFT\")</code> é verdadeiro enquanto a seta da esquerda está apertada."
+        },
+        {
+          at: "-340 * dt",
+          text: "<code>dt</code> é o tempo de um quadro, cerca de 1/60 de segundo. Andando <code>340 * dt</code> a cada quadro, a nave anda 340 pixels por segundo, num computador rápido ou lento. O sinal de menos é a esquerda."
+        }
+      ],
+      after: `
+        <p>Rode e segure uma seta até o fim.</p>
+        <details class="ask"><summary>O que acontece com a nave?</summary><p>Ela sai da janela e some. Nada no <code>update</code> diz onde parar; esse é o próximo passo.</p></details>
+      `,
       try: [
         {
           note: "Um por vez, no lugar do arquivo.",
@@ -52,9 +80,17 @@ nave = Sprite("space/ufoYellow.png", height=45, center=(500, 70))`
       title: "Limites",
       body: `
         <p>A nave sai da janela. Precisamos de uma cerca: um retângulo de onde o centro dela não passa.</p>
-        <p><strong>O retângulo.</strong> <code>canvas.game_view</code> (vista do jogo) é o retângulo que a janela mostra; no tutorial 04 ele dava o centro da cadeia. <code>inset(40)</code> (recuar) devolve uma cópia menor, 40 pixels para dentro em cada borda: aqui, x vai de 40 a 960. A cerca vale para o centro da nave; os 40 pixels de folga deixam a nave inteira à vista.</p>
-        <p><strong>A cerca.</strong> <code>confine</code> (confinar) olha onde a nave está agora: se o centro saiu do retângulo, ela volta para a borda dele. É uma correção feita a cada chamada, não uma regra que fica valendo sozinha. Por isso a linha vai no <code>update</code>, depois do <code>move_by</code>: primeiro a nave anda, depois a cerca corrige.</p>
-        <p>Segure uma seta: a nave para na borda.</p>
+        <p>O retângulo começa pela própria janela. <code>canvas.game_view</code> (vista do jogo) é o retângulo que ela mostra, e <code>inset(40)</code> (recuar) devolve uma cópia menor, 40 pixels para dentro em cada borda:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 205" role="img" aria-label="A janela e, dentro dela, um retângulo tracejado 40 pixels menor em cada borda; a nave está parada na borda esquerda do tracejado">
+            <rect class="ray" fill="none" x="80" y="20" width="200" height="160"/>
+            <rect class="guide" x="88" y="28" width="184" height="144"/>
+            <polygon class="hot" points="88,158 79,172 97,172"/>
+            <text x="276" y="196" text-anchor="end">x vai de 40 a 960</text>
+            <text x="276" y="44" text-anchor="end">inset(40)</text>
+          </svg>
+          <figcaption>A linha tracejada é a cerca. O centro da nave para nela, e os 40 pixels de folga deixam a nave inteira à vista.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -73,6 +109,15 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "nave.confine(",
+          text: "<code>confine</code> (confinar) olha onde a nave está agora: se o centro saiu do retângulo, ela volta para a borda dele. Não é uma regra que fica valendo sozinha; é uma correção a cada chamada. Por isso a linha fica no <code>update</code>, depois do <code>move_by</code>: primeiro a nave anda, depois a cerca corrige."
+        }
+      ],
+      after: `
+        <p>Segure uma seta: agora a nave para na borda.</p>
+      `,
       try: [
         {
           note: "O mesmo limite, no <code>if</code>. No lugar do <code>confine</code>.",
@@ -86,10 +131,27 @@ if keyp("RIGHT") and nave.center.x < 960:
     {
       title: "O céu",
       body: `
-        <p>O jogo funciona, mas o fundo é chapado. Este passo não muda o jogo, só o céu: um degradê, estrelas passando e três efeitos de tela.</p>
-        <p><strong>O degradê.</strong> <code>Gradient</code> (degradê) vai de uma cor a outra; ele apareceu num Experimente também do tutorial 01. <code>angle=90</code> (ângulo) põe a transição na vertical, de baixo para cima: a primeira cor embaixo (azul quase preto), a segunda no alto (preto). Cada <code>dark</code> (escuro) no nome da cor escurece mais um pouco, e <code>"dark dark blue"</code> é um azul bem fechado.</p>
-        <p><strong>As estrelas.</strong> <code>Stars</code> (estrelas) espalha um campo de pontos de luz pelo fundo. <code>scroll</code> (rolar) é quanto o campo anda sozinho, um <code>(x, y)</code> em pixels por segundo: <code>(0.0, -38.0)</code> desce 38 por segundo. As estrelas descem, e a nave parece voar para a frente. O <code>pan_response=0.0</code> deixa o campo preso à tela, mesmo quando, em jogos maiores, a câmera andar.</p>
-        <p><strong>Os efeitos de tela.</strong> <code>Grain</code>, <code>Bloom</code> e <code>Scanlines</code> não desenham uma forma: mexem na imagem inteira, depois que tudo foi desenhado. <code>Grain</code> (grão) é um chuvisco fraco, como o de um filme antigo. <code>Bloom</code> (florescer) faz o que é claro vazar luz em volta: o brilho que a nave vai ganhar no próximo passo e, mais adiante, os lasers. <code>Scanlines</code> (linhas de varredura) risca a tela com linhas horizontais finas, como num fliperama antigo. Basta a linha para o efeito ligar.</p>
+        <p>O jogo funciona, mas o fundo é chapado. Este passo não muda o jogo, só o céu.</p>
+        <p>A imagem da tela é feita em camadas, uma por cima da outra. Embaixo de tudo fica o fundo; por cima dele, as estrelas; depois, o jogo. Por último, os <strong>efeitos de tela</strong>, que não desenham forma nenhuma: mexem na imagem pronta, como um filtro de foto.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 440 190" role="img" aria-label="Quatro camadas empilhadas: o degradê embaixo, as estrelas, a nave, e os efeitos de tela em cima">
+            <polygon class="bar" points="70,174 230,174 270,150 110,150"/>
+            <polygon class="guide" points="70,134 230,134 270,110 110,110"/>
+            <circle class="dot" cx="130" cy="126" r="2"/>
+            <circle class="dot" cx="175" cy="118" r="2"/>
+            <circle class="dot" cx="215" cy="128" r="2"/>
+            <circle class="dot" cx="240" cy="116" r="2"/>
+            <polygon class="guide" points="70,94 230,94 270,70 110,70"/>
+            <polygon class="hot" points="170,76 163,88 177,88"/>
+            <polygon class="bar child" points="70,54 230,54 270,30 110,30"/>
+            <text x="282" y="166">Wallpaper: o degradê</text>
+            <text x="282" y="126">Stars: as estrelas</text>
+            <text x="282" y="86">o jogo</text>
+            <text x="282" y="46">Grain, Bloom, Scanlines</text>
+          </svg>
+          <figcaption>A ordem do desenho, de baixo para cima. Os efeitos vêm por último, e por isso alcançam tudo: o céu e a nave.</figcaption>
+        </figure>
+        <p>No código, cada camada é uma linha no topo do arquivo.</p>
       `,
       code: `from scena import *
 
@@ -113,6 +175,31 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "Wallpaper(Gradient(",
+          text: "O fundo. <code>Gradient</code> (degradê) vai de uma cor a outra, e <code>angle=90</code> (ângulo) põe a passagem em pé: a primeira cor embaixo, a segunda no alto. Cada <code>dark</code> (escuro) escurece mais um pouco: <code>\"dark dark blue\"</code> é um azul quase preto."
+        },
+        {
+          at: "Stars(",
+          text: "<code>Stars</code> (estrelas) espalha pontos de luz pelo céu. <code>scroll</code> (rolar) é quanto o campo anda sozinho, em pixels por segundo: <code>(0.0, -38.0)</code> desce 38 por segundo, e a nave parece voar para a frente. <code>pan_response=0.0</code> prende o campo à tela."
+        },
+        {
+          at: "Grain()",
+          text: "<code>Grain</code> (grão): um chuvisco fraco, como o de um filme antigo."
+        },
+        {
+          at: "Bloom()",
+          text: "<code>Bloom</code> (florescer): o que é claro vaza luz em volta."
+        },
+        {
+          at: "Scanlines()",
+          text: "<code>Scanlines</code> (linhas de varredura): linhas horizontais finas, como na tela de um fliperama."
+        }
+      ],
+      after: `
+        <p>Rode. O jogo é o mesmo, só o céu mudou. O <code>Bloom</code> ainda quase não aparece: ele precisa de algo claro para espalhar.</p>
+      `,
       dive: [
         {
           title: "Fundos",
@@ -161,9 +248,7 @@ CosmicBloom("orchid", "cyan")  # manchas de nebulosa e brilhos, em duas cores`
     {
       title: "O brilho",
       body: `
-        <p>A nave ainda se confunde com o céu. Ela é a personagem, e vai ficar rodeada de inimigos: vale destacá-la.</p>
-        <p><code>glow</code> (brilho) você conheceu nas formas, no tutorial 01. Em um sprite é o mesmo: <code>nave.glow = True</code> acende um halo em volta da imagem, na cor da própria nave. Ele não troca a imagem nem o que ela faz: <strong>soma-se</strong> à aparência. Por isso o <code>Bloom</code> do passo anterior ganha o que espalhar: o halo vaza luz pelo céu.</p>
-        <p>É o primeiro dos <strong>complementos</strong>, coisas que se somam ao visual, cada uma na sua propriedade. Os outros estão na caixa abaixo, e o <code>hue</code> vem adiante, junto dos inimigos.</p>
+        <p>A nave ainda se confunde com o céu. Ela é a personagem, e logo vai estar cercada de inimigos: vale destacá-la. Basta uma linha.</p>
       `,
       code: `from scena import *
 
@@ -188,6 +273,16 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "nave.glow = True",
+          text: "<code>glow</code> (brilho) acende um halo em volta da imagem, na cor da própria nave."
+        }
+      ],
+      after: `
+        <p>Rode e compare com o passo anterior. O halo vaza luz pelo céu: é o <code>Bloom</code> trabalhando, agora que tem algo claro para espalhar.</p>
+        <p>O brilho não troca a imagem nem o que a nave faz. Ele se <strong>soma</strong> à aparência. Coisas assim se chamam <strong>complementos</strong>, e cada uma tem a sua propriedade: <code>glow</code> (brilho), <code>shadow</code> (sombra), <code>tail</code> (rastro). A caixa abaixo mostra as três.</p>
+      `,
       try: [
         {
           note: "O brilho, um por vez, no lugar do <code>True</code>: uma cor, em vez da cor da nave, ou <code>Glow</code> com os números: <code>radius</code> (raio) é o alcance do halo, <code>sigma</code> é o quanto ele é macio, <code>amount</code> (quantidade) é a força.",
@@ -209,12 +304,35 @@ nave.tail = Tail("cyan", size=1.5, amount=1.5)`
     },
     {
       title: "Atirar",
-      body: `
-        <p>Agora a nave atira. Cada tiro é um sprite novo, no grupo <code>tiros</code>, criado na frente da nave enquanto a barra de espaço está apertada.</p>
-        <p><strong>A cadência.</strong> <code>keyp("SPACE")</code> é verdadeiro enquanto o espaço está segurado, e o <code>update</code> roda dezenas de vezes por segundo. Sem freio, sairia um tiro por quadro: uma fileira colada de lasers. <code>ready</code> (pronto) é o freio. <code>ready("tiro", 0.2)</code> responde verdadeiro se já passaram 0.2 s desde a última vez que respondeu verdadeiro; no meio do caminho, falso. Na primeira chamada, verdadeiro. O nome <code>"tiro"</code> identifica esse relógio: outro nome seria outro relógio, com o seu intervalo. Resultado: no máximo cinco tiros por segundo.</p>
-        <p><strong>Onde nasce.</strong> <code>nave.center.y + 28</code> põe o laser 28 pixels acima do centro, no bico da nave. O x é o da nave: o tiro sai de onde ela estiver.</p>
-        <p>Segure espaço: os lasers aparecem e ficam parados no ar. Ninguém os move ainda.</p>
-      `,
+      body: [
+        `
+        <p>Agora a nave atira. Cada tiro é um sprite novo, do grupo <code>tiros</code>, criado no bico da nave enquanto a barra de espaço está apertada.</p>
+        <p>Só que o espaço fica apertado por muitos quadros seguidos, e o <code>update</code> roda em cada um deles. Se cada quadro criasse um tiro, sairiam 60 por segundo: uma fileira colada de lasers. Precisamos de um freio, e o freio é <code>ready</code> (pronto):</p>
+        `,
+        {
+          snip: `if keyp("SPACE") and ready("tiro", 0.2):`
+        },
+        `
+        <p><code>ready("tiro", 0.2)</code> diz sim na primeira vez. Depois, só diz sim de novo quando já passaram 0.2 s desde o último sim; no meio do caminho, diz não. Com o espaço apertado, sai um tiro a cada 0.2 s:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 112" role="img" aria-label="Uma linha do tempo de um segundo com sessenta riscos, um por quadro, e seis tiros, um a cada 0.2 segundo">
+            <line class="ray" x1="30" y1="70" x2="351" y2="70" style="stroke-width: 12; stroke-dasharray: 1 4.333"/>
+            <circle class="hot" cx="30" cy="46" r="5"/>
+            <circle class="hot" cx="94" cy="46" r="5"/>
+            <circle class="hot" cx="158" cy="46" r="5"/>
+            <circle class="hot" cx="222" cy="46" r="5"/>
+            <circle class="hot" cx="286" cy="46" r="5"/>
+            <circle class="hot" cx="350" cy="46" r="5"/>
+            <text x="62" y="30" text-anchor="middle">0.2 s</text>
+            <text x="360" y="50">tiro</text>
+            <text x="360" y="74">quadro</text>
+            <text x="30" y="96" text-anchor="middle">0 s</text>
+            <text x="350" y="96" text-anchor="middle">1 s</text>
+          </svg>
+          <figcaption>Cada risco é um quadro: o <code>update</code> roda 60 vezes em um segundo. O <code>ready</code> só deixa passar um tiro a cada 0.2 s, cinco por segundo.</figcaption>
+        </figure>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
@@ -241,6 +359,20 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "ready(\"tiro\", 0.2)",
+          text: "<code>\"tiro\"</code> é o nome desse relógio. Um nome diferente seria outro relógio, com o seu próprio intervalo."
+        },
+        {
+          at: "nave.center.y + 28",
+          text: "O laser nasce 28 pixels acima do centro da nave, no bico. O x é o da nave: o tiro sai de onde ela estiver."
+        }
+      ],
+      after: `
+        <p>Segure espaço.</p>
+        <details class="ask"><summary>O que os lasers fazem?</summary><p>Nada: aparecem e ficam parados no ar. Ninguém os move ainda.</p></details>
+      `,
       try: [
         {
           note: "Um por vez, no lugar do <code>space/laserBlue03.png</code>.",
@@ -252,8 +384,7 @@ Sprite("space/laserRed01.png", height=28, center=(nave.center.x, nave.center.y +
     {
       title: "Os tiros sobem",
       body: `
-        <p>Os lasers precisam subir. Como estão todos no grupo <code>tiros</code>, uma linha move todos: <code>group["tiros"].move_by(0, 640 * dt)</code>. O segundo número é o y, positivo para cima. 640 pixels por segundo é quase o dobro da velocidade da nave: o tiro tem de ser bem mais rápido do que quem atira.</p>
-        <p>Segure espaço: os lasers atravessam o céu e saem pelo topo. Saem da vista, mas não do jogo: cada um continua subindo acima da janela, para sempre.</p>
+        <p>Os lasers precisam subir. Como todos estão no grupo <code>tiros</code>, uma linha move o grupo inteiro.</p>
       `,
       code: `from scena import *
 
@@ -283,6 +414,16 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "group[\"tiros\"].move_by(0, 640 * dt)",
+          text: "O segundo número é o y, positivo para cima. 640 pixels por segundo é quase o dobro da velocidade da nave: o tiro precisa ser bem mais rápido do que quem atira."
+        }
+      ],
+      after: `
+        <p>Segure espaço: os lasers atravessam o céu e saem pelo topo.</p>
+        <details class="ask"><summary>E depois que saem da vista?</summary><p>Continuam no jogo, subindo acima da janela para sempre. Cada laser disparado é um objeto a mais que o jogo carrega.</p></details>
+      `,
       try: [
         {
           note: "O mesmo movimento, tiro a tiro. No lugar da linha do grupo.",
@@ -293,12 +434,33 @@ run()
     },
     {
       title: "Fora da tela",
-      body: `
-        <p>Os lasers que saem pelo topo continuam existindo. É o mesmo vazamento das estrelas do tutorial 02, resolvido lá com um <code>if</code> na altura. Aqui usamos um recurso do Scena feito para isso.</p>
-        <p><strong>Quando sai.</strong> <code>@leave_playfield</code> (sair do campo de jogo), em cima da função, diz ao Scena: quando o centro de alguém deste grupo sair do campo, rode isto. Entre parênteses vão os grupos vigiados. A função recebe quem saiu, e <code>tiro.destroy()</code> o apaga.</p>
-        <p><strong>O campo.</strong> O campo de jogo não é a janela: ele vai um pouco além dela, com uma folga em cada lado, e por isso o laser some já fora de vista. A folga é de propósito: o que só põe a ponta para fora e volta não é apagado.</p>
-        <p>Para conferir, segure espaço com o painel do sistema aberto (<kbd>Ctrl+Shift+1</kbd>, como no tutorial 02): antes, o número de objs só subia; agora sobe um pouco e para. Com <kbd>Ctrl+Shift+8</kbd> a vista se afasta, e você vê os lasers sumirem além da borda; todas as teclas estão no <a href="A-depuracao.html">Apêndice A</a>.</p>
-      `,
+      body: [
+        `
+        <p>Os lasers que saem pelo topo continuam no jogo. Dá para ver: abra o painel do sistema com <kbd>Ctrl+Shift+1</kbd> e segure espaço. O número de objs só sobe.</p>
+        <p>O Scena avisa quando alguém sai do campo de jogo. Basta uma função:</p>
+        `,
+        {
+          snip: `@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()`
+        },
+        `
+        <p><code>@leave_playfield</code> (sair do campo de jogo), em cima da função, diz ao Scena quando rodá-la: quando o centro de alguém do grupo <code>tiros</code> sair do campo. A função recebe quem saiu, e <code>tiro.destroy()</code> (destruir) o apaga.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 215" role="img" aria-label="A janela e, em volta dela, o campo de jogo tracejado, um pouco maior; um laser dentro da janela, outro entre a janela e a borda do campo, e um terceiro apagado além do campo">
+            <rect class="guide" x="70" y="30" width="220" height="170"/>
+            <rect class="ray" fill="none" x="90" y="50" width="180" height="140"/>
+            <rect class="bar" x="178" y="120" width="4" height="14"/>
+            <rect class="bar" x="178" y="34" width="4" height="12"/>
+            <circle class="hot" cx="180" cy="16" r="5"/>
+            <text x="192" y="20">destroy()</text>
+            <text x="296" y="36">campo de jogo</text>
+            <text x="264" y="66" text-anchor="end">janela</text>
+          </svg>
+          <figcaption>O campo de jogo vai um pouco além da janela. O laser some da vista ao passar da janela, e é apagado quando o centro dele sai do campo.</figcaption>
+        </figure>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
@@ -332,9 +494,12 @@ def saiu(tiro):
 
 run()
 `,
+      after: `
+        <p>Segure espaço de novo, com o painel aberto: agora o número de objs sobe um pouco e para. Com <kbd>Ctrl+Shift+8</kbd> a vista se afasta, e dá para ver os lasers sumindo além da borda. Todas as teclas estão no <a href="A-depuracao.html">Apêndice A</a>.</p>
+      `,
       try: [
         {
-          note: "No lugar do <code>@leave_playfield</code> e da linha do grupo: o <code>if</code> no laço, como as estrelas do tutorial 02. Aqui a borda é a da janela, 800.",
+          note: "Outra escrita, no lugar do <code>@leave_playfield</code> e da linha do grupo: um <code>for</code> que move cada tiro e apaga o que passou da borda da janela, 800.",
           code: `for tiro in group["tiros"]:
     tiro.move_by(0, 640 * dt)
     if tiro.center.y > 800:
@@ -345,10 +510,45 @@ run()
     {
       title: "A frota",
       body: `
-        <p>Agora os inimigos: 24 naves, em três linhas de oito. Dois <code>for</code>, um dentro do outro: para cada linha, o <code>for</code> de dentro percorre as oito colunas, e cada volta cria uma nave no grupo <code>inimigos</code>.</p>
-        <p><strong>A posição.</strong> O x começa em 185 e anda 90 por coluna: de 185 a 815, uma fileira centrada na janela. O y começa em 720, perto do topo, e desce 70 por linha: 720, 650, 580.</p>
-        <p><strong>A cor.</strong> <code>FROTA</code> é a lista de imagens, uma verde e uma azul. <code>linha % 2</code> é o resto da divisão por 2: dá 0, 1, 0 nas três linhas e escolhe a imagem da lista. As cores se alternam linha a linha.</p>
-        <p>As naves aparecem e ficam paradas.</p>
+        <p>Agora os inimigos: 24 naves, em três linhas de oito, no grupo <code>inimigos</code>.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 160" role="img" aria-label="Uma grade de três linhas e oito colunas; as colunas começam em x 185 e andam 90; as linhas começam em y 720 e descem 70; a linha do meio tem outra cor">
+            <circle class="dot" cx="110" cy="40" r="6"/>
+            <circle class="dot" cx="146" cy="40" r="6"/>
+            <circle class="dot" cx="182" cy="40" r="6"/>
+            <circle class="dot" cx="218" cy="40" r="6"/>
+            <circle class="dot" cx="254" cy="40" r="6"/>
+            <circle class="dot" cx="290" cy="40" r="6"/>
+            <circle class="dot" cx="326" cy="40" r="6"/>
+            <circle class="dot" cx="362" cy="40" r="6"/>
+            <circle class="bar child" cx="110" cy="76" r="6"/>
+            <circle class="bar child" cx="146" cy="76" r="6"/>
+            <circle class="bar child" cx="182" cy="76" r="6"/>
+            <circle class="bar child" cx="218" cy="76" r="6"/>
+            <circle class="bar child" cx="254" cy="76" r="6"/>
+            <circle class="bar child" cx="290" cy="76" r="6"/>
+            <circle class="bar child" cx="326" cy="76" r="6"/>
+            <circle class="bar child" cx="362" cy="76" r="6"/>
+            <circle class="dot" cx="110" cy="112" r="6"/>
+            <circle class="dot" cx="146" cy="112" r="6"/>
+            <circle class="dot" cx="182" cy="112" r="6"/>
+            <circle class="dot" cx="218" cy="112" r="6"/>
+            <circle class="dot" cx="254" cy="112" r="6"/>
+            <circle class="dot" cx="290" cy="112" r="6"/>
+            <circle class="dot" cx="326" cy="112" r="6"/>
+            <circle class="dot" cx="362" cy="112" r="6"/>
+            <text x="90" y="44" text-anchor="end">720</text>
+            <text x="90" y="80" text-anchor="end">650</text>
+            <text x="90" y="116" text-anchor="end">580</text>
+            <text x="110" y="146" text-anchor="middle">185</text>
+            <text x="146" y="146" text-anchor="middle">275</text>
+            <text x="362" y="146" text-anchor="middle">815</text>
+            <text x="128" y="22" text-anchor="middle">+90</text>
+            <text x="376" y="62">−70</text>
+          </svg>
+          <figcaption>A frota é uma grade. Cada coluna fica 90 pixels à direita da anterior; cada linha, 70 pixels abaixo. As linhas alternam as duas imagens.</figcaption>
+        </figure>
+        <p>Para montar a grade, dois <code>for</code>, um dentro do outro.</p>
       `,
       code: `from scena import *
 
@@ -393,6 +593,23 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "for linha in range(3):",
+          text: "O <code>for</code> de fora conta as linhas: 0, 1, 2. Para cada uma, o de dentro conta as colunas, de 0 a 7. São 3 × 8 = 24 voltas, e cada volta cria uma nave."
+        },
+        {
+          at: "FROTA[linha % 2],",
+          text: "<code>%</code> é o resto da divisão. <code>linha % 2</code> dá 0, 1, 0 nas três linhas e escolhe a imagem na lista <code>FROTA</code>: verde, azul, verde."
+        },
+        {
+          at: "center=(185 + coluna * 90, 720 - linha * 70),",
+          text: "As contas da figura: o x começa em 185 e anda 90 por coluna; o y começa em 720, perto do topo, e desce 70 por linha."
+        }
+      ],
+      after: `
+        <p>Rode: a frota aparece e fica parada.</p>
+      `,
       try: [
         {
           note: "Outros arquivos, no lugar da lista.",
@@ -403,9 +620,8 @@ run()
     {
       title: "Cores",
       body: `
-        <p>Os inimigos estão parados e quase iguais: duas imagens, duas cores. O segundo complemento muda isso sem nenhum arquivo novo.</p>
-        <p><strong>O matiz.</strong> <code>hue</code> (matiz) gira as cores de uma imagem em volta do círculo de cores, como girar uma roda: o vermelho vira laranja, amarelo, verde… A medida é em <em>voltas</em>: 0 é a imagem como ela é, 0.33 é um terço de volta (um vermelho vira verde), 1 é a volta inteira, de novo a imagem original. Só funciona em sprites.</p>
-        <p><strong>Uma cor por coluna.</strong> <code>coluna / 8</code> vai de 0 a 0.875 nas oito colunas: cada nave gira um oitavo de volta a mais que a da esquerda. A mesma imagem, uma frota de arco-íris.</p>
+        <p>Os inimigos são quase iguais: duas imagens, duas cores. Um segundo complemento muda isso sem nenhum arquivo novo: <code>hue</code> (matiz).</p>
+        <p>O matiz gira as cores de uma imagem em volta do círculo de cores, como uma roda: o vermelho vira laranja, depois amarelo, depois verde… A medida é em <em>voltas</em>. Com 0, a imagem fica como é; com 0.5, meia volta; com 1, a volta inteira, de novo a imagem original.</p>
         <figure class="fig">
           <svg viewBox="0 0 380 220" role="img" aria-label="O círculo de matiz com oito pontos igualmente espaçados, numerados de 0 a 7 a partir da direita, no sentido horário; cada ponto é um oitavo de volta">
             <circle class="guide" cx="190" cy="110" r="80"/>
@@ -473,6 +689,12 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "inimigo.hue = coluna / 8",
+          text: "<code>coluna / 8</code> vai de 0 a 0.875: cada nave gira um oitavo de volta a mais que a da esquerda. A mesma imagem vira uma frota de arco-íris."
+        }
+      ],
       try: [
         {
           note: "Outras maneiras de repartir a roda, no lugar da linha do <code>hue</code>: só um pedaço da roda, ou uma cor por linha.",
@@ -488,11 +710,40 @@ inimigo.gray = True`
     },
     {
       title: "Respiram",
-      body: `
-        <p>A frota parada parece um desenho. Um pulso leve dá vida a ela, sem nenhuma linha no <code>update</code>.</p>
-        <p><code>scale_to</code> (escalar até) muda o tamanho do sprite até a escala pedida: 1 é o tamanho original, 1.08 é 8% maior. Com <code>time=0.45</code> (tempo), ele não pula: cresce aos poucos, em 0.45 segundo. O Scena cuida da animação sozinho, quadro a quadro.</p>
-        <p>Dois parâmetros fazem o pulso continuar. <code>yoyo=True</code> (ioiô) faz a animação voltar: cresce até 1.08, depois encolhe até 1. <code>loops="forever"</code> (voltas para sempre) repete isso sem parar. Ida e volta levam 0.9 s. Como as 24 naves começam juntas, a frota inteira respira no mesmo ritmo.</p>
-      `,
+      body: [
+        `
+        <p>A frota parada parece um desenho. Um pulso leve dá vida a ela, e sem nenhuma linha no <code>update</code>: uma linha pede a animação, e o Scena a toca sozinho, quadro a quadro.</p>
+        `,
+        {
+          snip: `inimigo.scale_to(1.08, time=0.45, loops="forever", yoyo=True)`
+        },
+        `
+        <p><code>scale_to</code> (escalar até) muda o tamanho do sprite até uma escala: 1 é o tamanho original. Os outros números dizem como chegar lá:</p>
+        <div class="tbl"><table><thead><tr><th>Na linha</th><th>O que faz</th></tr></thead><tbody>
+          <tr><td><code>1.08</code></td><td>o tamanho de chegada, 8% maior que o original</td></tr>
+          <tr><td><code>time=0.45</code></td><td>(tempo) cresce aos poucos, em 0.45 s, em vez de pular</td></tr>
+          <tr><td><code>yoyo=True</code></td><td>(ioiô) depois de crescer, encolhe de volta ao tamanho original</td></tr>
+          <tr><td><code>loops="forever"</code></td><td>(voltas, para sempre) repete a ida e a volta sem parar</td></tr>
+        </tbody></table></div>
+        <figure class="fig">
+          <svg viewBox="0 0 400 140" role="img" aria-label="O tamanho de uma nave ao longo do tempo: sobe de 1 a 1.08 em 0.45 segundo, desce de volta em mais 0.45, e repete">
+            <line class="guide" x1="40" y1="40" x2="370" y2="40"/>
+            <line class="guide" x1="40" y1="100" x2="370" y2="100"/>
+            <path class="ray" fill="none" d="M40 100 C80 100 80 40 120 40 C160 40 160 100 200 100 C240 100 240 40 280 40 C320 40 320 100 360 100"/>
+            <text x="34" y="44" text-anchor="end">1.08</text>
+            <text x="34" y="104" text-anchor="end">1</text>
+            <text x="80" y="28" text-anchor="middle">cresce</text>
+            <text x="160" y="28" text-anchor="middle">encolhe</text>
+            <text x="40" y="124" text-anchor="middle">0</text>
+            <text x="120" y="124" text-anchor="middle">0.45 s</text>
+            <text x="200" y="124" text-anchor="middle">0.9 s</text>
+            <text x="280" y="124" text-anchor="middle">1.35 s</text>
+            <text x="360" y="124" text-anchor="middle">1.8 s</text>
+          </svg>
+          <figcaption>O tamanho de uma nave ao longo do tempo. Cada ida leva 0.45 s, e o <code>yoyo</code> a faz voltar; o <code>loops</code> repete o par.</figcaption>
+        </figure>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
@@ -538,6 +789,9 @@ def saiu(tiro):
 
 run()
 `,
+      after: `
+        <p>As 24 naves começam juntas, e por isso a frota inteira respira no mesmo ritmo.</p>
+      `,
       try: [
         {
           note: "Na nave, depois do <code>glow</code>: um pulso maior e mais lento.",
@@ -548,8 +802,7 @@ run()
     {
       title: "A frota anda",
       body: `
-        <p>A frota precisa se mover. O jeito é o mesmo dos tiros: uma linha move o grupo inteiro. <code>80 * dt</code> no x são 80 pixels por segundo para a direita, devagar, para dar tempo de mirar.</p>
-        <p>Rode e espere. A nave da ponta direita começa em x 815; em menos de dois segundos passa de 960, e logo depois a frota sai pela borda e não volta. Ninguém mandou voltar: é o próximo passo.</p>
+        <p>A frota precisa se mover. É como os tiros: uma linha move o grupo inteiro.</p>
       `,
       code: `from scena import *
 
@@ -597,14 +850,41 @@ def saiu(tiro):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "group[\"inimigos\"].move_by(80 * dt, 0)",
+          text: "80 pixels por segundo para a direita: devagar, para dar tempo de mirar."
+        }
+      ],
+      after: `
+        <p>Rode e espere alguns segundos.</p>
+        <details class="ask"><summary>Para onde vai a frota?</summary><p>Para a direita, sem parar. A nave da ponta começa em x 815 e passa de 960 em menos de dois segundos; logo depois a frota inteira sai pela borda e não volta. Ninguém mandou voltar.</p></details>
+      `
     },
     {
       title: "Vai e volta",
       body: `
-        <p>A frota precisa voltar quando chega à borda. Para isso, a velocidade deixa de ser um número fixo no <code>move_by</code> e vai para <code>st.velocidade</code>, em <code>st</code>, onde o jogo guarda o que muda. O sinal diz o lado: 80 vai para a direita, −80 para a esquerda.</p>
-        <p><strong>A pergunta.</strong> Depois de mover o grupo, o <code>for</code> passa por cada inimigo e olha o centro dele, com os mesmos limites da nave. Se algum passou de 960, a frota deve ir para a esquerda: <code>st.velocidade = -80</code>. Se algum ficou aquém de 40, deve ir para a direita: <code>st.velocidade = 80</code>. No quadro seguinte, o grupo inteiro anda para o lado novo.</p>
-        <p><strong>Por que dizer o lado.</strong> Parece mais curto inverter o sinal: <code>st.velocidade = -st.velocidade</code>. Mas a inversão não sabe para onde a frota já está indo. Se um quadro dura menos que os outros (o computador deu uma engasgada), a frota volta tão pouco que a nave da ponta continua além da borda. A inversão dispara de novo, a frota vira para fora outra vez, e fica presa ali, tremendo. Dizendo o lado, repetir não faz mal: enquanto a nave da ponta estiver além de 960, a resposta é sempre a mesma, −80.</p>
+        <p>A frota precisa voltar quando chega à borda. Para isso, a velocidade deixa de ser um número fixo no <code>move_by</code> e passa a ser guardada em <code>st.velocidade</code>. O <code>st</code> é onde o jogo guarda o que muda, e o sinal da velocidade diz o lado: 80 vai para a direita, −80 para a esquerda.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 130" role="img" aria-label="Uma fila de naves entre as linhas 40 e 960; a última passou de 960, e uma seta mostra a frota virando para a esquerda">
+            <line class="guide" x1="40" y1="20" x2="40" y2="96"/>
+            <line class="guide" x1="360" y1="20" x2="360" y2="96"/>
+            <circle class="dot" cx="186" cy="50" r="6"/>
+            <circle class="dot" cx="216" cy="50" r="6"/>
+            <circle class="dot" cx="246" cy="50" r="6"/>
+            <circle class="dot" cx="276" cy="50" r="6"/>
+            <circle class="dot" cx="306" cy="50" r="6"/>
+            <circle class="dot" cx="336" cy="50" r="6"/>
+            <circle class="hot" cx="366" cy="50" r="6"/>
+            <line class="ray" x1="320" y1="78" x2="226" y2="78"/>
+            <polygon class="dot" points="218,78 227,73 227,83"/>
+            <text x="40" y="116" text-anchor="middle">40</text>
+            <text x="360" y="116" text-anchor="middle">960</text>
+            <text x="200" y="116" text-anchor="middle">st.velocidade = -80</text>
+          </svg>
+          <figcaption>Quando uma nave passa de 960, a frota inteira vira para a esquerda: −80. Na borda de 40, o mesmo para a direita: 80.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -660,15 +940,48 @@ def saiu(tiro):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "move_by(st.velocidade * dt, 0)",
+          text: "O grupo anda com a velocidade guardada. Quando ela muda, a frota muda de lado no quadro seguinte."
+        },
+        {
+          at: "for inimigo in group[\"inimigos\"]:",
+          text: "Depois de mover, o <code>for</code> olha cada inimigo, com os mesmos limites da nave. Se algum passou de 960, a frota vai para a esquerda; se algum ficou aquém de 40, para a direita."
+        }
+      ],
+      after: [
+        `
+        <p>Rode: a frota vai e volta entre as bordas.</p>
+        <p>Parece mais curto inverter o sinal, uma linha só para os dois lados:</p>
+        `,
+        {
+          snip: `st.velocidade = -st.velocidade`,
+          alt: true
+        },
+        `
+        <p>Mas a inversão não sabe para onde a frota já está indo. Se um quadro dura menos que os outros (o computador deu uma engasgada), a frota volta tão pouco que a nave da ponta continua além de 960. A inversão dispara de novo, a frota vira para fora outra vez e fica presa ali, tremendo. Dizendo o lado, repetir não faz mal: enquanto alguém estiver além de 960, a resposta é sempre −80.</p>
+        `
+      ]
     },
     {
       title: "Colisão",
-      body: `
-        <p>Os tiros ainda atravessam a frota. <code>@collide</code> (colidir), do tutorial 02, liga os dois grupos: quando um tiro toca um inimigo, a função roda e recebe os dois, na ordem dos nomes.</p>
+      body: [
+        `
+        <p>Os tiros ainda atravessam a frota. Falta dizer o que acontece quando um tiro toca um inimigo:</p>
+        `,
+        {
+          snip: `@collide("tiros", "inimigos")
+def acertou(tiro, inimigo):
+    tiro.destroy()
+    inimigo.destroy()`
+        },
+        `
+        <p><code>@collide</code> (colidir) liga os dois grupos. A cada toque, a função roda e recebe os dois, na ordem dos nomes: primeiro o tiro, depois o inimigo.</p>
         <p>Os dois são destruídos. O tiro também precisa sumir: se ficasse, seguiria subindo e derrubaria a nave da linha de trás. Um tiro, um inimigo.</p>
-        <p>Atire na frota: cada laser derruba uma nave e some junto com ela.</p>
-      `,
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=800, title="Naves")
@@ -729,14 +1042,15 @@ def acertou(tiro, inimigo):
 
 
 run()
-`
+`,
+      after: `
+        <p>Atire na frota: cada laser derruba uma nave e some junto com ela.</p>
+      `
     },
     {
       title: "O acerto",
       body: `
         <p>O inimigo some sem aviso. Este passo dá ao acerto um estouro e um placar.</p>
-        <p><strong>O estouro.</strong> <code>canvas.burst_at</code> (estourar em) desenha uma pequena explosão num ponto. O ponto pode ser um par <code>(x, y)</code> ou o próprio sprite: aí o estouro nasce no centro dele. <code>radius=40</code> (raio) é o tamanho em pixels, o porte de um inimigo. A linha vem antes do <code>destroy</code>, enquanto o inimigo ainda está ali.</p>
-        <p><strong>O placar.</strong> É o do tutorial 02: <code>st.pontos</code> guarda o número, e o texto ligado com <code>@=</code> acompanha sozinho. No acerto, <code>st.pontos += 1</code>.</p>
       `,
       code: `from scena import *
 
@@ -805,6 +1119,23 @@ def acertou(tiro, inimigo):
 
 run()
 `,
+      notes: [
+        {
+          at: "placar[\"text\"] @= lambda:",
+          text: "O placar é um texto ligado a <code>st.pontos</code> com <code>@=</code>: quando o número muda, o texto muda sozinho."
+        },
+        {
+          at: "canvas.burst_at(inimigo, radius=40)",
+          text: "<code>burst_at</code> (estourar em) desenha uma pequena explosão num ponto. Com o sprite no lugar do ponto, ela nasce no centro dele; <code>radius=40</code> (raio) é o porte de um inimigo. A linha vem antes do <code>destroy</code>, enquanto o inimigo ainda está ali."
+        },
+        {
+          at: "st.pontos += 1",
+          text: "Cada acerto soma um ponto, e o placar acompanha."
+        }
+      ],
+      after: `
+        <p>Atire: cada acerto estoura e soma um ponto.</p>
+      `,
       try: [
         {
           note: "Os parâmetros do <code>burst_at</code>, um por vez, no lugar dele. <code>radius</code> (raio) é o tamanho do estouro, em pixels; <code>amount</code> (quantidade) é a força, e o normal é 1.2; <code>rings=True</code> (anéis) soma círculos que se abrem.",
@@ -826,9 +1157,6 @@ canvas.shake(8)`
       title: "A frota atira",
       body: `
         <p>Até aqui só você atira. Agora a frota responde: a cada 0.4 s, uma nave sorteada solta um laser vermelho para baixo.</p>
-        <p><strong>O sorteio.</strong> <code>@every(0.4)</code> roda <code>frota_atira</code> de tempos em tempos, como as estrelas do tutorial 02. <code>choice</code> (escolha) sorteia um item de uma lista ou de um grupo: aqui, uma nave da frota. Por isso entra <code>from random import choice</code> no topo. Antes do sorteio, uma guarda: <code>count</code> (contagem) é quantos inimigos restam. Sortear num grupo vazio é erro; se a frota acabou, o <code>return</code> sai da função sem atirar.</p>
-        <p><strong>O laser.</strong> Nasce 20 pixels abaixo da nave sorteada, no grupo <code>tiros_inimigos</code>. <code>rotate_to(180)</code> (girar até) dá meia volta na imagem, para ela apontar para baixo, para onde o laser anda. Girar até um ângulo e girar por uma quantia são verbos diferentes: o interlúdio <a href="14i-girar-e-crescer.html">Girar e crescer</a>, depois do 14, compara os dois. No <code>update</code>, o grupo desce 400 pixels por segundo (y negativo). E o <code>@leave_playfield</code> ganhou um segundo nome: a mesma função apaga os dois tipos de tiro.</p>
-        <p>Os lasers vermelhos atravessam a sua nave sem efeito. Ninguém pergunta ainda se eles a tocaram.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -908,6 +1236,36 @@ def acertou(tiro, inimigo):
 
 run()
 `,
+      notes: [
+        {
+          at: "@every(0.4)",
+          text: "<code>@every(0.4)</code> (a cada) roda a função de tempos em tempos: aqui, a cada 0.4 s."
+        },
+        {
+          at: "if group[\"inimigos\"].count == 0:",
+          text: "Uma guarda. <code>count</code> (contagem) é quantos inimigos restam, e sortear num grupo vazio é erro. Com a frota abatida, o <code>return</code> sai da função sem atirar."
+        },
+        {
+          at: "inimigo = choice(group[\"inimigos\"])",
+          text: "<code>choice</code> (escolha) sorteia um item de uma lista ou de um grupo: aqui, uma nave da frota. Ele vem do Python, e por isso entra <code>from random import choice</code> no topo."
+        },
+        {
+          at: "s.rotate_to(180)",
+          text: "O laser nasce 20 pixels abaixo da nave sorteada. <code>rotate_to(180)</code> (girar até) dá meia volta na imagem, para ela apontar para baixo."
+        },
+        {
+          at: "move_by(0, -400 * dt)",
+          text: "Os lasers inimigos descem 400 pixels por segundo: y negativo."
+        },
+        {
+          at: "@leave_playfield(\"tiros\", \"tiros_inimigos\")",
+          text: "O aviso ganhou um segundo grupo: a mesma função apaga os dois tipos de tiro."
+        }
+      ],
+      after: `
+        <p>Rode e fique parado embaixo da frota.</p>
+        <details class="ask"><summary>O que acontece quando um laser vermelho chega à nave?</summary><p>Nada: ele atravessa. Ninguém pergunta ainda se um laser tocou a nave.</p></details>
+      `,
       try: [
         {
           note: "No lugar do <code>0.4</code>: um tiro a cada 1.2 s, uma frota mais calma.",
@@ -937,11 +1295,18 @@ if group["inimigos"].count == 0:`
     {
       title: "A nave explode",
       example: "naves.py",
-      body: `
-        <p>Falta o perigo: o laser inimigo precisa derrubar a nave. Outro <code>@collide</code>, agora com o grupo <code>tiros_inimigos</code> de um lado e a variável <code>nave</code>, sem aspas, do outro. Um lado pode ser um grupo ou um sprite só, como no Experimente também do tutorial 02.</p>
-        <p><strong>A explosão.</strong> <code>canvas.flash</code> (piscar) clareia a tela inteira por um instante; no tutorial 02, o <code>flash</code> era só da estrela. <code>0.4</code> é a força, de 0 a 1. <code>canvas.explosion_at</code> (explosão em) é a explosão grande, de cinema: bola de fogo, anéis, uma onda que entorta a imagem e a câmera tremendo. O <code>burst_at</code> do acerto é o estouro pequeno, para as naves inimigas. <code>amount</code> (quantidade) é a intensidade: 1.2 é o valor normal, e mais que isso dá uma explosão maior. Por fim, <code>nave.destroy()</code> tira a nave do jogo.</p>
-        <p><strong>Depois do destroy.</strong> A variável <code>nave</code> continua no script, mas o sprite já saiu do jogo, e mandar andar uma nave destruída é erro. E o <code>update</code> continua rodando, com as setas e a cerca. <code>if nave:</code> pergunta se a nave ainda está no jogo, e depois do <code>destroy</code> a resposta é não. É uma regra do Python que vale para qualquer valor: num <code>if</code>, <code>None</code>, o zero, a lista vazia e um objeto destruído contam como falso; quase todo o resto conta como verdadeiro. Por isso o movimento, a cerca e o tiro foram para dentro do <code>if</code>, um nível mais para a direita. Os tiros e a frota ficam fora: o jogo continua sem você.</p>
-      `,
+      body: [
+        `
+        <p>Falta o perigo: o laser inimigo precisa derrubar a nave.</p>
+        `,
+        {
+          snip: `@collide("tiros_inimigos", nave)
+def atingiu(tiro, nave):`
+        },
+        `
+        <p>Outro <code>@collide</code>. De um lado, o grupo <code>tiros_inimigos</code>; do outro, a variável <code>nave</code>, sem aspas. Um lado pode ser um grupo inteiro ou um sprite só.</p>
+        `
+      ],
       code: `from random import choice
 from scena import *
 
@@ -1029,6 +1394,23 @@ def atingiu(tiro, nave):
 
 run()
 `,
+      notes: [
+        {
+          at: "canvas.flash(0.4)",
+          text: "<code>canvas.flash</code> (piscar) clareia a tela inteira por um instante; 0.4 é a força, de 0 a 1."
+        },
+        {
+          at: "canvas.explosion_at(nave, amount=1.2)",
+          text: "<code>explosion_at</code> (explosão em) é a explosão grande, de cinema: bola de fogo, anéis, a imagem entortando e a câmera tremendo. <code>amount</code> (quantidade) é a força; 1.2 é o normal. O <code>burst_at</code> do acerto é o estouro pequeno."
+        },
+        {
+          at: "if nave:",
+          text: "Depois do <code>destroy</code>, a variável <code>nave</code> continua no script, mas a nave saiu do jogo, e mandar andar uma nave destruída é erro. <code>if nave:</code> pergunta se ela ainda está no jogo: num <code>if</code>, um objeto destruído conta como falso. Por isso as setas, a cerca e o tiro foram para dentro do <code>if</code>."
+        }
+      ],
+      after: `
+        <p>Os tiros e a frota ficaram fora do <code>if</code>: sem você, o jogo continua.</p>
+      `,
       closing: `
         <p>Setas movem a nave. Espaço atira. A frota respira, vai e volta e devolve tiro. Se um laser vermelho acerta a nave, ela explode, e a frota continua.</p>
       `,
