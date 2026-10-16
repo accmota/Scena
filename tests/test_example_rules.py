@@ -30,6 +30,10 @@ Bug classes guarded (catalogue: Testing Design, TU):
   replace warning, stops on Space and follows the mouse; the collision
   lab of tutorial 20 (the pool's enter / stay / exit, the guard's ray
   hidden by a crate, a right click that only blasts crates).
+* **A gauge that freezes** (tutorial 10, "O velocímetro"): the speed bar's
+  width and color are ``@=`` formulas on the chosen ball's ``vel``, which
+  only ``resolve`` changes (a ball-ball hit). Each frame the bar agrees with
+  the speed, and the speed does change, so the check is not vacuous.
 
 Run:
 
@@ -294,3 +298,20 @@ class TestColisaoLab(unittest.TestCase):
             run.play([click(600, 420, "right"), wait(2)])
             self.assertEqual(ns["group"]["caixa"].count, 3)
             self.assertIn(heroi, list(ns["group"]["heroi"]), "the blast took the hero")
+
+
+class TestBolasSpeedBar(unittest.TestCase):
+    """Tutorial 10: the bar follows the golden ball's speed after every hit."""
+
+    def test_width_and_color_follow_the_speed(self):
+        with ProgramRun("examples/bolas.py") as run:
+            ns = run.ns
+            escolhida, barra, rampa = ns["escolhida"], ns["barra"], ns["rampa"]
+            speeds = set()
+            for _ in range(60 * 20):
+                run.step(1)
+                v = escolhida.vel.length
+                speeds.add(round(v))
+                self.assertAlmostEqual(barra.width, 300 * min(v / 500, 1), places=6)
+                self.assertEqual(barra.color.rgb, rampa.get_color(v / 500).rgb)
+            self.assertGreater(len(speeds), 3, "no ball-ball hit changed the speed")

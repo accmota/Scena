@@ -405,7 +405,6 @@ run()
     },
     {
       title: "Mais perto",
-      example: "bolas.py",
       body: `
         <p>A roda do mouse aproxima e afasta. <code>on_mouse_scroll</code> (ao rolar o mouse) é uma função de nome fixo, como o <code>update</code>: o Scena a chama quando a roda gira, com quanto ela girou. <code>yoffset</code> é positivo para um lado e negativo para o outro.</p>
         <p><strong>A câmera.</strong> <code>canvas.zoom_by(1.1)</code> (aproximar por) aumenta o zoom em 10%; <code>1 / 1.1</code> desfaz. A câmera não mexe nas bolas: muda só o que a janela mostra. <code>about=mouse</code> (em volta de) segura o ponto embaixo do ponteiro, e o zoom vai para onde você aponta.</p>
@@ -486,9 +485,89 @@ roda.mass = STATIC
 def update(dt):
     roda.rotate_by(50 * dt)`
           }
+        ]
+    },
+    {
+      title: "O velocímetro",
+      example: "bolas.py",
+      body: `
+        <p>Uma barra no alto, sobre a parede, mostra a velocidade da escolhida: curta e verde quando ela anda devagar, comprida e vermelha quando corre. Ela muda nas batidas com outra bola. Na parede, com <code>bounce=1</code>, a velocidade fica a mesma: só a direção vira.</p>
+        <p><strong>A velocidade é o comprimento da seta.</strong> A <code>vel</code> é uma seta, e o tamanho dela é a velocidade. <code>escolhida.vel.length</code> (comprimento) lê de volta o <code>length=</code> do <code>vec_from_angle</code>: uma bola com <code>vel.length</code> 250 anda 250 por segundo, para onde estiver indo.</p>
+        <p><strong>Duas fórmulas.</strong> É o <code>@=</code> das Fórmulas (09): a largura e a cor da barra ficam ligadas à velocidade, e o Scena refaz as contas toda vez que a <code>vel</code> da escolhida muda. Ninguém avisa a barra: quando o <code>resolve</code> corrige a seta numa batida, a barra acompanha. A conta da largura dá 300 (o trilho inteiro) a 500 por segundo; o <code>min(…, 1)</code> segura a conta em 1, e uma bola mais rápida não passa do fim do trilho.</p>
+        <p><strong>A cor numa rampa.</strong> <code>Colormap</code> (mapa de cores) é uma rampa: <code>Colormap.from_colors("lime", "gold", "red")</code> começa no verde, passa pelo amarelo e termina no vermelho. <code>rampa.get_color(t)</code> (pegar a cor) devolve a cor no ponto <code>t</code>, de 0 (o começo) a 1 (o fim): 0.5 é o amarelo do meio, e acima de 1 a cor fica no vermelho. A rampa só escolhe a cor; quem pinta é a fórmula, no <code>color</code> da barra.</p>
+        <p><strong>Presa na janela.</strong> <code>layer="ui"</code> (camada da interface) põe a barra na janela, não no mundo: a roda do mouse aproxima as bolas e a barra fica onde está. O retângulo escuro, sem nome, é o trilho: mostra até onde a barra vai.</p>
+      `,
+      code: `from random import uniform, choice
+from scena import *
+
+init(width=1000, height=720, title="Bolas")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="parede")
+Rect(center=(500, 704), width=1000, height=32, group="parede")
+Rect(center=(16, 360), width=32, height=720, group="parede")
+Rect(center=(984, 360), width=32, height=720, group="parede")
+group["parede"].visual = Metal()
+group["parede"].mass = STATIC
+
+
+class Bola(Circle, radius=14, color="tomato", group="bola"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        canvas.hit_at(info, radius=10, style="disc")
+        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+
+
+resolve("bola", "parede", bounce=1)
+resolve("bola", "bola", bounce=1)
+
+for i in range(20):
+    Bola(center=(uniform(80, 920), uniform(80, 640)))
+
+escolhida = choice(group["bola"])
+escolhida.color = "gold"
+escolhida.tail = Tail(color="gold", size=1.4, amount=1.2)
+
+rastro = Contrail(duration=8, fade=True, color="gold", line_width=3)
+escolhida.every(0.05, lambda: rastro.snapshot(escolhida))
+
+rampa = Colormap.from_colors("lime", "gold", "red")
+
+Rect(top_left=(40, 710), width=300, height=12, color="#262B55", layer="ui")
+barra = Rect(top_left=(40, 710), width=0, height=12, layer="ui")
+barra["width"] @= lambda: 300 * min(escolhida.vel.length / 500, 1)
+barra["color"] @= lambda: rampa.get_color(escolhida.vel.length / 500)
+
+
+def on_mouse_scroll(xoffset, yoffset):
+    if yoffset > 0:
+        canvas.zoom_by(1.1, about=mouse)
+    else:
+        canvas.zoom_by(1 / 1.1, about=mouse)
+
+
+run()
+`,
+      try: [
+          {
+            note: "Um por vez, no lugar da <code>rampa</code>. Uma rampa pronta (<code>plasma</code>, do roxo ao amarelo) ou só duas cores.",
+            replaces: ['rampa = Colormap'],
+            code: `rampa = Colormap.from_preset("plasma")
+rampa = Colormap.from_colors("deep sky blue", "red")`
+          },
+          {
+            note: "O número ao lado da barra, na janela também. No fim do arquivo, antes do <code>run()</code>. <code>:.0f</code> mostra o número sem casas depois da vírgula.",
+            code: `Text(lambda: f"{escolhida.vel.length:.0f}", top_left=(352, 716), font_size=16, color="white", layer="ui")`
+          }
         ],
       closing: `
-        <p>Vinte bolas quicam nas paredes e umas nas outras, com um som a cada batida; a dourada deixa um rastro. A roda do mouse aproxima e afasta.</p>
+        <p>Vinte bolas quicam nas paredes e umas nas outras, com um som a cada batida; a dourada deixa um rastro, e a barra no alto mostra a velocidade dela. A roda do mouse aproxima e afasta.</p>
       `,
       recap: `
         <ul>
@@ -498,8 +577,10 @@ def update(dt):
           <li><code>mass</code> e <code>STATIC</code> — quem cede no empurrão; <code>STATIC</code> não cede nunca.</li>
           <li><code>Tail</code> — o rastro de cópias, com cor, tamanho e força; sem ângulo, segue o movimento.</li>
           <li><code>canvas.zoom_by</code> — a câmera aproxima; os objetos não mudam de lugar.</li>
+          <li><code>vel.length</code> e <code>@=</code> — o comprimento da seta é a velocidade; a largura e a cor da barra ficam ligadas a ela e mudam sozinhas a cada batida.</li>
+          <li><code>Colormap</code> — uma rampa de cores; <code>get_color(t)</code> dá a cor num ponto de 0 a 1.</li>
         </ul>
-        <p><strong>No Guia:</strong> <a href="../guide/index.html#colisao-resolve">Tornar sólido (resolve)</a> · <a href="../guide/index.html#geo-vec2">Vec2</a> · <a href="../guide/index.html#aparencia-selos">Complementos</a> · <a href="../guide/index.html#contrail">Contrail</a> · <a href="../guide/index.html#mundo-camera">Câmera</a> · <a href="../guide/index.html#frame-mouse">Mouse</a>.</p>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#colisao-resolve">Tornar sólido (resolve)</a> · <a href="../guide/index.html#geo-vec2">Vec2</a> · <a href="../guide/index.html#aparencia-selos">Complementos</a> · <a href="../guide/index.html#contrail">Contrail</a> · <a href="../guide/index.html#mundo-camera">Câmera</a> · <a href="../guide/index.html#frame-mouse">Mouse</a> · <a href="../guide/index.html#reativo-aparencia">Cor ligada</a> · <a href="../guide/index.html#aparencia-colormap">Colormap</a>.</p>
         <p><strong>No próximo:</strong> o mouse num lugar só: clicar, passar por cima, arrastar e uma grade que acende a casa sob o mouse (Interação).</p>
       `
     }

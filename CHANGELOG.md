@@ -278,6 +278,12 @@ left out.
 
 ### Documentation
 
+- Tutorial 10 (Bolas) ends in a new step, "O velocímetro": a bar in the
+  window (`layer="ui"`) shows the golden ball's speed. Its width and color
+  are `@=` formulas on `escolhida.vel.length`, the color sampled from a
+  `Colormap.from_colors("lime", "gold", "red")`, so the bar changes at
+  every ball-ball hit with no line that copies the speed.
+  `examples/bolas.py` is that step.
 - The README (GitHub and PyPI) is rewritten: 2D games first, what an author
   writes and what Scena takes care of, new sections (geometry, rules and time,
   collision, mouse and widgets, the level editor), one look on a circle, a

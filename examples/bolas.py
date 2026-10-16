@@ -3,7 +3,9 @@
 Vinte bolas quicam nas paredes e umas nas outras: duas regras de
 resolve, uma para bola com parede e outra para bola com bola. Cada batida
 na parede toca um som e acende um clarão onde a bola tocou. Uma bola
-sorteada é dourada e deixa dois rastros (Tail e Contrail).
+sorteada é dourada e deixa dois rastros (Tail e Contrail). Uma barra no
+alto mostra a velocidade dela: o comprimento e a cor (uma rampa de
+Colormap) estão ligados à sua vel com @=.
 
 Controles
 ---------
@@ -53,6 +55,13 @@ escolhida.tail = Tail(color="gold", size=1.4, amount=1.2)
 
 rastro = Contrail(duration=8, fade=True, color="gold", line_width=3)
 escolhida.every(0.05, lambda: rastro.snapshot(escolhida))
+
+rampa = Colormap.from_colors("lime", "gold", "red")
+
+Rect(top_left=(40, 710), width=300, height=12, color="#262B55", layer="ui")
+barra = Rect(top_left=(40, 710), width=0, height=12, layer="ui")
+barra["width"] @= lambda: 300 * min(escolhida.vel.length / 500, 1)
+barra["color"] @= lambda: rampa.get_color(escolhida.vel.length / 500)
 
 
 def on_mouse_scroll(xoffset, yoffset):
