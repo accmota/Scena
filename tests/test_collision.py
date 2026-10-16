@@ -394,8 +394,9 @@ class TestDispatchHandlerIndex(CollisionTestCase):
         @collide_stay("dx_p", "dx_q")
         def later(me, other, info):
             log.append("later")
+        self.step()                     # a rule set mid-contact: its contact begins (CD3)
         self.step()
-        self.assertEqual(log, ["stay", "stay", "later"])
+        self.assertEqual(log, ["stay", "stay", "stay", "later"])
         b.destroy()
         self._owned.remove(b)
         cs = get_collision_system()
@@ -7486,7 +7487,7 @@ class TestBounceOffAPartnerAHandlerRemoved(unittest.TestCase):
     def test_skin_contact_answers_as_the_handler_saw_it(self):
         """A resting-skin contact is touching (F1): the handler saw it, so it
         answers too (a 144 Hz ball meets a brick at the skin first)."""
-        from scena import Rect, STATIC, Vec2, collide_stay, resolve
+        from scena import Rect, STATIC, Vec2, collide, resolve
         from tests.system_support import system_world
         with system_world(draw=False) as w:
             floor = Rect(center=(0, 0), width=100, height=20, group="pe5s_floor")
@@ -7497,7 +7498,8 @@ class TestBounceOffAPartnerAHandlerRemoved(unittest.TestCase):
             w.step(1, dt=1 / 60)                   # skin contact opens (gap 0.12)
             seen = []
 
-            @collide_stay(hero, "pe5s_floor")
+            # A rule declared while touching enters at the next step (CD3).
+            @collide(hero, "pe5s_floor")
             def crumble(h, f, info):
                 seen.append(info.depth)
                 f.destroy()
@@ -7511,7 +7513,7 @@ class TestBounceOffAPartnerAHandlerRemoved(unittest.TestCase):
     def test_a_jump_along_a_removed_wall_keeps_its_speed(self):
         """Only the approaching component answers: a hero jumping up along
         a wall a handler removes is not stopped in mid-air."""
-        from scena import Rect, STATIC, Vec2, collide_stay, resolve
+        from scena import Rect, STATIC, Vec2, collide, resolve
         from tests.system_support import system_world
         with system_world(draw=False) as w:
             wall = Rect(center=(0, 0), width=20, height=200, group="pe5j_wall")
@@ -7524,7 +7526,7 @@ class TestBounceOffAPartnerAHandlerRemoved(unittest.TestCase):
                 w.step(1, dt=1 / 60)               # pressed on the wall
             self.assertIn("left", hero.touching_sides)
 
-            @collide_stay(hero, "pe5j_wall")
+            @collide(hero, "pe5j_wall")         # enters at the next step (CD3)
             def gone(h, wl, info):
                 wl.destroy()
 
@@ -7601,6 +7603,478 @@ class TestBounceOffAPartnerAHandlerRemoved(unittest.TestCase):
             w.step(1, dt=1 / 60)
             self.assertEqual((ball.vel.x, ball.vel.y), (0.0, 600.0))
             ball.destroy()
+
+
+class TestARuleAContactGainsOrLosesMidContact(unittest.TestCase):
+    """CD3: a contact is per rule. A rule that begins matching a pair that
+    already touches (a tag joined, a rule declared or an ``on_collide`` set)
+    enters, then stays from the next step; one that stops matching (a tag
+    left) exits, also while another rule keeps the pair touching. Each case
+    runs alone and beside every other way to pair the same bodies: the
+    rule's calls must not depend on them (V15)."""
+
+    OTHERS = (None, "stay", "enter", "on_collide", "exit")
+
+    def _run(self, script, *, other=None, frames=7, extra=None):
+        """Hero (a circle) inside lava (a rect); ``shield`` × ``lava`` rules
+        log ``(phase, frame)``. ``script(k, hero, lava, log)`` runs before
+        step ``k`` (as ``update`` would); ``extra()`` declares more rules."""
+        from scena import Circle, Rect, collide, collide_exit, collide_stay
+        from tests.system_support import system_world
+        log, f = [], [0]
+        with system_world(draw=False) as w:
+            hero = Circle(center=(0, 0), radius=10, group="rg_hero")
+            lava = Rect(center=(0, 0), width=80, height=80, group="rg_lava")
+            if other == "stay":
+                @collide_stay("rg_hero", "rg_lava")
+                def burning(h, l, info):
+                    pass
+            elif other == "enter":
+                @collide("rg_hero", "rg_lava")
+                def burnt(h, l, info):
+                    pass
+            elif other == "on_collide":
+                hero.on_collide_stay = lambda me, o, info: None
+            elif other == "exit":
+                @collide_exit("rg_hero", "rg_lava")
+                def cooled(h, l, info):
+                    pass
+
+            @collide("rg_shield", "rg_lava")
+            def s_in(h, l, info):
+                log.append(("enter", f[0]))
+
+            @collide_stay("rg_shield", "rg_lava")
+            def s_stay(h, l, info):
+                log.append(("stay", f[0]))
+
+            @collide_exit("rg_shield", "rg_lava")
+            def s_out(h, l, info):
+                log.append(("exit", f[0]))
+            if extra is not None:
+                extra()
+            w.begin_game()
+            for k in range(1, frames + 1):
+                f[0] = k
+                script(k, hero, lava, log)
+                w.step(1)
+            for o in (hero, lava):
+                if o.is_alive:
+                    o.destroy()
+        return log
+
+    def _alike(self, script, want, **kw):
+        for other in self.OTHERS:
+            with self.subTest(other=other):
+                self.assertEqual(self._run(script, other=other, **kw), want)
+
+    @staticmethod
+    def _away(hero):
+        hero.center = (500, 500)
+
+    def test_a_tag_gained_while_touching_enters(self):
+        def script(k, hero, lava, log):
+            if k == 3:
+                hero.tag("rg_shield")
+            if k == 6:
+                self._away(hero)
+        self._alike(script, [("enter", 3), ("stay", 4), ("stay", 5), ("exit", 6)])
+
+    def test_a_tag_left_while_touching_exits_once(self):
+        def script(k, hero, lava, log):
+            if k == 1:
+                hero.tag("rg_shield")
+            if k == 4:
+                hero.untag("rg_shield")
+            if k == 6:
+                self._away(hero)
+        self._alike(script, [("enter", 1), ("stay", 2), ("stay", 3), ("exit", 4)])
+
+    def test_untag_then_retag_a_step_later_exits_then_enters(self):
+        def script(k, hero, lava, log):
+            if k == 1:
+                hero.tag("rg_shield")
+            if k == 3:
+                hero.untag("rg_shield")
+            if k == 4:
+                hero.tag("rg_shield")
+            if k == 6:
+                self._away(hero)
+        self._alike(script, [("enter", 1), ("stay", 2), ("exit", 3), ("enter", 4),
+                             ("stay", 5), ("exit", 6)])
+
+    def test_untag_and_retag_in_one_frame_is_no_change(self):
+        def script(k, hero, lava, log):
+            if k == 1:
+                hero.tag("rg_shield")
+            if k == 3:
+                hero.untag("rg_shield")
+                hero.tag("rg_shield")
+            if k == 5:
+                self._away(hero)
+        self._alike(script, [("enter", 1), ("stay", 2), ("stay", 3), ("stay", 4), ("exit", 5)],
+                    frames=6)
+
+    def test_tag_and_untag_in_one_frame_is_no_change(self):
+        """CD3-b: the blink once gave an exit that no enter came before."""
+        def blink(k, hero, lava, log):
+            if k == 3:
+                hero.tag("rg_shield")
+                hero.untag("rg_shield")
+        self._alike(blink, [])
+
+        def blink_away(k, hero, lava, log):
+            blink(k, hero, lava, log)
+            if k == 3:
+                self._away(hero)
+        self._alike(blink_away, [])
+
+    def test_a_tag_gained_in_a_handler_enters_at_the_next_step(self):
+        """F3: what a handler makes waits for the next pass. A pickup's enter
+        tags the hero; the shield rule enters at the next step, never with a
+        stay first, whichever contact the step dispatches first."""
+        from scena import Circle, Rect, collide, collide_stay, collide_stay as _cs  # noqa: F811
+        from tests.system_support import system_world
+        for pickup_first in (True, False):
+            for other in (None, "stay"):
+                with self.subTest(pickup_first=pickup_first, other=other):
+                    log, f = [], [0]
+                    with system_world(draw=False) as w:
+                        made = []
+
+                        def pickup():
+                            made.append(Circle(center=(0, 0), radius=4, group="rg_pickup"))
+                        if pickup_first:
+                            pickup()
+                        hero = Circle(center=(0, 0), radius=10, group="rg_hero")
+                        lava = Rect(center=(0, 0), width=80, height=80, group="rg_lava")
+                        if not pickup_first:
+                            pickup()
+                        if other:
+                            @_cs("rg_hero", "rg_lava")
+                            def burning(h, l, info):
+                                pass
+
+                        @collide("rg_pickup", "rg_hero")
+                        def take(p, h, info):
+                            h.tag("rg_shield")
+                            log.append(("tagged", f[0]))
+
+                        @collide("rg_shield", "rg_lava")
+                        def s_in(h, l, info):
+                            log.append(("enter", f[0]))
+
+                        @collide_stay("rg_shield", "rg_lava")
+                        def s_stay(h, l, info):
+                            log.append(("stay", f[0]))
+                        w.begin_game()
+                        for k in range(1, 4):
+                            f[0] = k
+                            w.step(1)
+                        for o in [hero, lava] + made:
+                            o.destroy()
+                    self.assertEqual(log, [("tagged", 1), ("enter", 2), ("stay", 3)])
+
+    def test_a_tag_left_in_a_handler_stops_its_stays_and_exits_next_step(self):
+        from scena import Circle, Rect, collide, collide_exit, collide_stay
+        from tests.system_support import system_world
+        log, f = [], [0]
+        with system_world(draw=False) as w:
+            hero = Circle(center=(0, 0), radius=10, group=["rg_hero", "rg_shield"])
+            lava = Rect(center=(0, 0), width=80, height=80, group="rg_lava")
+            thorn = Circle(center=(0, 0), radius=4, group="rg_thorn")
+
+            @collide_stay("rg_hero", "rg_lava")
+            def burning(h, l, info):
+                pass
+
+            @collide_stay("rg_thorn", "rg_hero")
+            def prick(t, h, info):
+                if f[0] == 3:
+                    h.untag("rg_shield")
+                    log.append(("untag", f[0]))
+
+            @collide_stay("rg_shield", "rg_lava")
+            def s_stay(h, l, info):
+                log.append(("stay", f[0]))
+
+            @collide_exit("rg_shield", "rg_lava")
+            def s_out(h, l, info):
+                log.append(("exit", f[0]))
+            w.begin_game()
+            for k in range(1, 6):
+                f[0] = k
+                w.step(1)
+            stays_at_3 = [e for e in log if e == ("stay", 3)]
+            for o in (hero, lava, thorn):
+                o.destroy()
+        self.assertEqual(log.count(("exit", 4)), 1)
+        self.assertNotIn(("stay", 4), log)
+        self.assertNotIn(("stay", 5), log)
+        self.assertEqual([e for e in log if e[0] == "exit"], [("exit", 4)])
+        self.assertLessEqual(len(stays_at_3), 1)
+
+    def test_a_destroy_before_the_gained_enter_owes_no_exit(self):
+        """S8-3 per rule: a contact earlier in the enter loop destroys the
+        hero before its gained shield rule entered: no enter, no exit. The
+        trap is made first, so its pair sorts before hero × lava, alone or
+        beside another rule (the gained enter keeps a new contact's order)."""
+        from scena import Circle, Rect, collide, collide_exit, collide_stay
+        from tests.system_support import system_world
+        for other in (False, True):
+            with self.subTest(other=other):
+                log, f = [], [0]
+                with system_world(draw=False) as w:
+                    trap = Circle(center=(300, 0), radius=4, group="rg_trap")
+                    hero = Circle(center=(0, 0), radius=10, group="rg_hero")
+                    lava = Rect(center=(0, 0), width=80, height=80, group="rg_lava")
+
+                    # Declared first: the trap enrolls first, so its pair
+                    # sorts first (enrollment order, V3).
+                    @collide("rg_trap", "rg_hero")
+                    def snap(t, h, info):
+                        h.destroy()
+                    if other:
+                        @collide_stay("rg_hero", "rg_lava")
+                        def burning(h, l, info):
+                            pass
+
+                    @collide("rg_shield", "rg_lava")
+                    def s_in(h, l, info):
+                        log.append(("enter", f[0]))
+
+                    @collide_exit("rg_shield", "rg_lava")
+                    def s_out(h, l, info):
+                        log.append(("exit", f[0]))
+                    w.begin_game()
+                    for k in range(1, 5):
+                        f[0] = k
+                        if k == 3:
+                            hero.tag("rg_shield")
+                            trap.center = (0, 0)
+                        w.step(1)
+                    self.assertFalse(hero.is_alive)
+                    trap.destroy()
+                    lava.destroy()
+                self.assertEqual(log, [])
+
+    def test_a_gained_enter_keeps_a_new_contacts_order(self):
+        """A bolt made at frame 3 destroys the hero; hero × lava sorts first,
+        alone (a new contact) and beside another rule (a gained rule): the
+        shield enters, then exits at the destroy, in both."""
+        from scena import Circle, collide
+
+        def script(k, hero, lava, log):
+            if k == 3:
+                hero.tag("rg_shield")
+                Circle(center=(0, 0), radius=4, group="rg_bolt")
+
+        def extra():
+            @collide("rg_bolt", "rg_hero")
+            def zap(b, h, info):
+                h.destroy()
+                b.destroy()
+        for other in (None, "stay", "enter"):
+            with self.subTest(other=other):
+                log = self._run(script, other=other, frames=4, extra=extra)
+                self.assertEqual(log, [("enter", 3), ("exit", 3)])
+
+    def test_a_destroy_by_the_gained_enter_runs_its_exit(self):
+        def script(k, hero, lava, log):
+            if k == 3:
+                hero.tag("rg_shield")
+        from scena import collide
+
+        def extra():
+            @collide("rg_shield", "rg_lava")
+            def boom(h, l, info):
+                h.destroy()
+        for other in (None, "stay"):
+            with self.subTest(other=other):
+                log = self._run(script, other=other, frames=4, extra=extra)
+                self.assertEqual(log, [("enter", 3), ("exit", 3)])
+
+    def test_a_raising_gained_enter_does_not_enter_again(self):
+        from scena import Circle, Rect, collide, collide_stay
+        from tests.system_support import system_world
+        log, f = [], [0]
+        with system_world(draw=False) as w:
+            hero = Circle(center=(0, 0), radius=10, group="rg_hero")
+            lava = Rect(center=(0, 0), width=80, height=80, group="rg_lava")
+
+            @collide_stay("rg_hero", "rg_lava")
+            def burning(h, l, info):
+                pass
+
+            @collide("rg_shield", "rg_lava")
+            def s_in(h, l, info):
+                log.append(("enter", f[0]))
+                raise ValueError("boom")
+
+            @collide_stay("rg_shield", "rg_lava")
+            def s_stay(h, l, info):
+                log.append(("stay", f[0]))
+            w.begin_game()
+            f[0] = 1
+            w.step(1)
+            hero.tag("rg_shield")
+            f[0] = 2
+            with self.assertRaises(ValueError):
+                w.step(1)
+            for k in (3, 4):
+                f[0] = k
+                w.step(1)
+            hero.destroy()
+            lava.destroy()
+        self.assertEqual(log, [("enter", 2), ("stay", 3), ("stay", 4)])
+
+    def test_the_class_spelling_enters_on_a_tag_gained(self):
+        from scena import Circle, Rect, collide_stay, collide_with, collide_with_stay
+        from tests.system_support import system_world
+        for other in (False, True):
+            with self.subTest(other=other):
+                log, f = [], [0]
+                with system_world(draw=False) as w:
+                    class Lava(Rect, width=80, height=80, group="rg_lava"):
+                        @collide_with("rg_shield")
+                        def hit(self, h, info):
+                            log.append(("enter", f[0]))
+
+                        @collide_with_stay("rg_shield")
+                        def keep(self, h, info):
+                            log.append(("stay", f[0]))
+                    lava = Lava(center=(0, 0))
+                    hero = Circle(center=(0, 0), radius=10, group="rg_hero")
+                    if other:
+                        @collide_stay("rg_hero", "rg_lava")
+                        def burning(h, l, info):
+                            pass
+                    w.begin_game()
+                    for k in range(1, 5):
+                        f[0] = k
+                        if k == 2:
+                            hero.tag("rg_shield")
+                        w.step(1)
+                    hero.destroy()
+                    lava.destroy()
+                self.assertEqual(log, [("enter", 2), ("stay", 3), ("stay", 4)])
+
+    def test_a_rule_declared_while_touching_enters(self):
+        """B2: a pair handler declared mid-contact is a rule the touching pair
+        gains: its enter at the next step, its stays from the one after."""
+        from scena import Circle, Rect, collide, collide_stay
+        from tests.system_support import system_world
+        for other in (False, True):
+            with self.subTest(other=other):
+                log, f = [], [0]
+                with system_world(draw=False) as w:
+                    hero = Circle(center=(0, 0), radius=10, group="rg_hero")
+                    lava = Rect(center=(0, 0), width=80, height=80, group="rg_lava")
+                    lava.collidable = True
+                    if other:
+                        @collide_stay("rg_hero", "rg_lava")
+                        def burning(h, l, info):
+                            pass
+                    w.begin_game()
+                    for k in range(1, 6):
+                        f[0] = k
+                        if k == 3:
+                            @collide("rg_hero", "rg_lava")
+                            def late_in(h, l, info):
+                                log.append(("enter", f[0]))
+
+                            @collide_stay("rg_hero", "rg_lava")
+                            def late_stay(h, l, info):
+                                log.append(("stay", f[0]))
+                        w.step(1)
+                    hero.destroy()
+                    lava.destroy()
+                self.assertEqual(log, [("enter", 3), ("stay", 4), ("stay", 5)])
+
+    def test_an_on_collide_set_while_touching_enters(self):
+        from scena import Circle, Rect, collide_stay
+        from tests.system_support import system_world
+        for other in (False, True):
+            with self.subTest(other=other):
+                log, f = [], [0]
+                with system_world(draw=False) as w:
+                    hero = Circle(center=(0, 0), radius=10, group="rg_hero")
+                    lava = Rect(center=(0, 0), width=80, height=80, group="rg_lava")
+                    lava.collidable = True
+                    if other:
+                        @collide_stay("rg_hero", "rg_lava")
+                        def burning(h, l, info):
+                            pass
+                    w.begin_game()
+                    for k in range(1, 6):
+                        f[0] = k
+                        if k == 3:
+                            hero.on_collide = lambda me, o, info: log.append(("enter", f[0]))
+                            hero.on_collide_stay = lambda me, o, info: log.append(("stay", f[0]))
+                        w.step(1)
+                    hero.destroy()
+                    lava.destroy()
+                self.assertEqual(log, [("enter", 3), ("stay", 4), ("stay", 5)])
+
+    def test_a_hitbox_part_that_gains_the_tag_enters(self):
+        from scena import Rect, Sprite, collide, collide_stay
+        from tests.system_support import system_world
+        for other in (False, True):
+            with self.subTest(other=other):
+                log, f = [], [0]
+                with system_world(draw=False) as w:
+                    ship = Sprite(center=(0, 0), size=32, group="rg_ship")
+                    part = ship.add_hitbox(group="rg_core", shape="rect", scale=(0.5, 0.5))
+                    lava = Rect(center=(0, 0), width=80, height=80, group="rg_lava")
+                    if other:
+                        @collide_stay("rg_core", "rg_lava")
+                        def burning(h, l, info):
+                            pass
+
+                    @collide("rg_shield", "rg_lava")
+                    def s_in(h, l, info):
+                        log.append(("enter", f[0]))
+
+                    @collide_stay("rg_shield", "rg_lava")
+                    def s_stay(h, l, info):
+                        log.append(("stay", f[0]))
+                    w.begin_game()
+                    for k in range(1, 5):
+                        f[0] = k
+                        if k == 2:
+                            part.tag("rg_shield")
+                        w.step(1)
+                    ship.destroy()
+                    lava.destroy()
+                self.assertEqual(log, [("enter", 2), ("stay", 3), ("stay", 4)])
+
+    def test_a_body_spawned_with_two_pair_tags_notes_nothing(self):
+        """The ``_born`` gate: a body made since the last commit is in no
+        contact, so its tags note no rule change (spawn-heavy steps stay free)."""
+        from scena import Circle, Rect, collide
+        from scena.collision import get_collision_system
+        from tests.system_support import system_world
+        with system_world(draw=False) as w:
+            lava = Rect(center=(0, 0), width=80, height=80, group="rg_lava")
+            hero = Circle(center=(0, 0), radius=10, group="rg_hero")
+
+            @collide("rg_hero", "rg_lava")
+            def hit(h, l, info):
+                pass
+
+            @collide("rg_shield", "rg_lava")
+            def s_in(h, l, info):
+                pass
+            w.begin_game()
+            w.step(2)
+            cs = get_collision_system()
+            made = [Circle(center=(0, 0), radius=3, group=["rg_hero", "rg_shield"])
+                    for _ in range(5)]
+            self.assertEqual(cs._rule_flux, {})
+            self.assertEqual(cs._new_rules, {})
+            w.step(1)
+            for o in made + [lava, hero]:
+                o.destroy()
 
 
 class TestParkExitSeesAParkedActor(unittest.TestCase):

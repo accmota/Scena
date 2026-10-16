@@ -301,6 +301,9 @@ FRAME_PROMISES = {
     "neste frame o tijolo morto ainda segura a bola": "test_collision.TestBounceOffAPartnerAHandlerRemoved.test_the_dead_brick_stops_the_ball_where_a_live_one_would",
     "Quebrar no frame seguinte": "test_joint_response.TestSkinAnswer.test_a_brick_broken_a_frame_later_still_bounces_the_ball",
     "segura a queda nesse frame, e no próximo ele cai": "test_collision.TestBounceOffAPartnerAHandlerRemoved.test_bounce_zero_floor_broken_on_landing_stops_the_fall_once",
+    "e o stay vem a partir do frame seguinte": "test_collision.TestARuleAContactGainsOrLosesMidContact.test_a_tag_gained_while_touching_enters",
+    "Tirar e pôr a tag no mesmo frame não muda nada": "test_collision.TestARuleAContactGainsOrLosesMidContact.test_untag_and_retag_in_one_frame_is_no_change",
+    "uma tag dada dentro de um handler vale a partir do frame seguinte": "test_collision.TestARuleAContactGainsOrLosesMidContact.test_a_tag_gained_in_a_handler_enters_at_the_next_step",
 }
 
 _PROMISE = re.compile(r"(só no frame|próximo frame|mesmo frame|neste frame|nesse frame|"

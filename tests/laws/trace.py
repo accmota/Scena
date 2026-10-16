@@ -40,9 +40,11 @@ Events are tuples; the first item is the kind:
                                                first one is the seal of the top level
   ``("X", site, phase, fn, args, resume, method)``  an author function the engine called
                                                (``method``: its first parameter is ``self``)
-  ``("C", entered, stayed, exited)``           a collision step commits its contacts, before
-                                               any handler: sorted label pairs (``entered``
-                                               in dispatch order)
+  ``("C", entered, stayed, exited, gained, lost)``  a collision step commits its contacts,
+                                               before any handler: sorted label pairs
+                                               (``entered`` in dispatch order); ``gained`` /
+                                               ``lost``: touching pairs a rule began / stopped
+                                               matching (an enter / an exit while they stay)
   ``("S", "ghost" | "resolve")``               the step's ghost response / resolve starts
   ``("I", kind, name, action, doors)``         an OS key / char / button event and the
                                                doors it reached (S3)
@@ -391,10 +393,18 @@ def _pair_labels(key, ids) -> tuple:
 def _contacts_commit(frame):
     loc = frame.f_locals
     ids = loc.get("id_to_collider") or {}
-    entered = [_pair_labels(k, ids) for k in loc.get("entered_order") or ()]
+    # Touching pairs whose rules changed at this commit (CD3): a gained rule
+    # enters, a lost one exits, while the pair stays.
+    cs = loc.get("self")
+    gp = getattr(cs, "_gain_pending", None) or {}
+    lp = getattr(cs, "_lost_pending", None) or {}
+    entered = [_pair_labels(k, ids) for k in loc.get("entered_order") or () if k not in gp]
     stayed = sorted(_pair_labels(k, ids) for k in loc.get("stayed") or ())
     exited = sorted(_pair_labels(k, ids) for k in loc.get("exited") or ())
-    _rec.events.append(("C", tuple(entered), tuple(stayed), tuple(exited)))
+    gained = sorted(_pair_labels(k, ids) for k in gp)
+    lost = sorted(_pair_labels(k, ids) for k in lp)
+    _rec.events.append(("C", tuple(entered), tuple(stayed), tuple(exited),
+                        tuple(gained), tuple(lost)))
 
 
 def _ghosts(frame):

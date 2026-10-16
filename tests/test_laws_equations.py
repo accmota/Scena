@@ -12,8 +12,15 @@
   budget (angle 2°, speed 2 %, position 0.5 DU), on single hits and on a hit
   on two bricks at once (the seam: LW2, closed 2026-10-15 by the joint stop).
 
+* E15 a neutral rule (``laws.equations.e15_program`` / ``e15_script``): a
+  no-op ``@collide_stay`` between two tags the program's rules already name;
+  every other rule's calls agree (a rule's enters, stays and exits do not
+  depend on another rule pairing the same bodies: V15, CD3). On the shield
+  twin (``tests/laws/twins/shield.py``), every program and every example.
+
 Canaries (gate): the old S8-2 "stop once a side died" rule (E3), a dropped
-``on_collide_stay`` door (E4), the ghost response off (E8).
+``on_collide_stay`` door (E4), the ghost response off (E8), the old per-pair
+contact rule (E15).
 
 ``dev``: the twins, the first scenario of each program, one swap per
 example; ``ci`` / ``deep``: every scenario and swap. SLOW + SPLIT.
@@ -68,6 +75,37 @@ class TestSpawnOrder(unittest.TestCase):
         def one(path):
             try:
                 return eq.e3_script(path, 600, limit=limit)
+            except Exception as e:  # noqa: BLE001
+                return [f"{os.path.basename(path)}: {type(e).__name__}: {str(e)[-300:]}"]
+
+        with ThreadPoolExecutor(max(2, min(8, (os.cpu_count() or 4) - 1))) as pool:
+            out = [m for msgs in pool.map(one, paths) for m in msgs]
+        self.assertEqual(out, [], "\n".join(m[:800] for m in out))
+
+
+# -- E15 ------------------------------------------------------------------------
+
+class TestRuleNeutrality(unittest.TestCase):
+    def test_shield_twin(self):
+        with open(eq.program_path_of(f"{TWINS}/shield"), encoding="utf-8") as fh:
+            self.assertTrue(eq.neutral_candidates(fh.read()), "no neutral rule (vacuous)")
+        self.assertEqual(eq.e15_program(f"{TWINS}/shield", WAIT, "wait"), [])
+
+    def test_programs(self):
+        out = []
+        for program in PROGRAMS:
+            ns = load_spec(program, "a")
+            for scenario in (list(ns["SCENARIOS"]) if FULL else list(ns["SCENARIOS"])[:1]):
+                out += eq.e15_program(program, ns, scenario, limit=None if FULL else 2)
+        self.assertEqual(out, [], "\n".join(m[:800] for m in out))
+
+    def test_examples(self):
+        paths = scripts()
+        limit = None if FULL else 1
+
+        def one(path):
+            try:
+                return eq.e15_script(path, 600, limit=limit)
             except Exception as e:  # noqa: BLE001
                 return [f"{os.path.basename(path)}: {type(e).__name__}: {str(e)[-300:]}"]
 
@@ -251,6 +289,17 @@ class TestCanaries(unittest.TestCase):
 
         with mock.patch.object(col, "_call", stop_once_dead):
             out = eq.e3_program(f"{TWINS}/shooter_order", WAIT, "wait")
+        self.assertTrue(out)
+
+    def test_e15_catches_the_per_pair_contact_rule(self):
+        """CD3's old rule: a contact is per pair, so a rule gained or lost
+        mid-contact gets a stay instead of its enter and no exit."""
+        from unittest import mock
+        with mock.patch.object(col.CollisionSystem, "_rule_changes",
+                               lambda self, stayed, id_to: None), \
+                mock.patch.object(col.CollisionSystem, "_rule_filter",
+                                  lambda self, ca, cb, runs, only, skip: runs):
+            out = eq.e15_program(f"{TWINS}/shield", WAIT, "wait")
         self.assertTrue(out)
 
     def test_e4_catches_a_dropped_stay_door(self):

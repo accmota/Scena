@@ -61,10 +61,11 @@ A, B, Z = "A@g.py:1#0", "B@g.py:2#0", "Z@g.py:3#0"
 AB, AZ = (A, B), (A, Z)
 
 
-def step(n, entered=(), stayed=(), exited=(), calls=(), resolve=True, tail=()):
+def step(n, entered=(), stayed=(), exited=(), calls=(), resolve=True, tail=(),
+         gained=(), lost=()):
     """One frame whose collision step commits the given pairs, then makes the calls."""
     out = [("F", n, 1 / 60), ("P", "collision", True),
-           ("C", tuple(entered), tuple(stayed), tuple(exited))]
+           ("C", tuple(entered), tuple(stayed), tuple(exited), tuple(gained), tuple(lost))]
     out += list(calls)
     if resolve:
         out.append(("S", "resolve"))
@@ -121,6 +122,25 @@ class TestContactRules(unittest.TestCase):
     def test_c5_a_second_exit_a_step_later_is_found(self):
         ev = self.born + step(1, entered=[AB]) + step(2, exited=[AB], calls=[H("exit", A, B)]) \
             + step(3, calls=[H("exit", A, B)])
+        self.assertTrue(findings(ev, "C5"))
+
+    def test_c1_enter_of_a_staying_pair_a_rule_gained_passes(self):
+        """CD3: a tag joined while touching: that rule's enter, the pair stays."""
+        ev = self.born + step(1, entered=[AB]) + step(
+            2, stayed=[AB], gained=[AB], calls=[H("enter", A, B), H("stay", A, B)])
+        self.assertEqual(findings(ev, "C1") + findings(ev, "C2"), [])
+
+    def test_c5_exit_of_a_rule_a_staying_pair_lost_then_its_exit_passes(self):
+        """CD3: a tag left while another rule keeps the pair: that rule's
+        exit, then the pair's own exit when it separates."""
+        ev = self.born + step(1, entered=[AB]) + step(
+            2, stayed=[AB], lost=[AB], calls=[H("stay", A, B), H("exit", A, B, "g.py:9:a")]) \
+            + step(3, exited=[AB], calls=[H("exit", A, B, "g.py:10:b")])
+        self.assertEqual(findings(ev, "C5") + findings(ev, "C2"), [])
+
+    def test_c5_exit_of_a_staying_pair_no_rule_lost_is_found(self):
+        ev = self.born + step(1, entered=[AB]) + step(2, stayed=[AB], calls=[H("exit", A, B)]) \
+            + step(3, exited=[AB], calls=[H("exit", A, B)])
         self.assertTrue(findings(ev, "C5"))
 
     def test_c7_a_dead_body_in_a_later_commit_is_found(self):

@@ -12,6 +12,11 @@ line) so the twin's labels and function ids name the original lines.
 * ``spawn_swaps`` (E3): two adjacent top-level statements that make objects
   and do not read each other swap places. Statements that draw random
   numbers are left alone: their order changes the draws, not the engine.
+* ``add_neutral_rule`` (E15): a no-op ``@collide_stay(a, b)`` between two
+  tags the program's top-level rules already name (so enrollment, queries
+  and ``collidable`` do not change). Every other rule's calls must agree: a
+  rule's enters, stays and exits do not depend on another rule pairing the
+  same bodies (V15; CD3).
 """
 from __future__ import annotations
 
@@ -540,3 +545,135 @@ def swap_statements(source: str, i: int) -> Tuple[str, LineMap]:
         line_map[n] = old
         n += 1
     return "".join(new), line_map
+
+
+# ---------------------------------------------------------------------------
+# E15: a rule's calls do not depend on other rules (V15, CD3)
+# ---------------------------------------------------------------------------
+
+NEUTRAL = "_e15_neutral"
+_RULE_DECORATORS = frozenset({"collide", "collide_stay", "collide_exit"})
+
+
+def _top_level_rules(source: str):
+    """String tags named by the top-level rules (``@collide*`` decorators,
+    ``resolve(...)`` statements) in order, and the tag pairs they declare."""
+    tree = ast.parse(source)
+    tags: List[str] = []
+    pairs = set()
+    for node in tree.body:
+        calls = []
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            calls = [d for d in node.decorator_list
+                     if isinstance(d, ast.Call) and isinstance(d.func, ast.Name)
+                     and d.func.id in _RULE_DECORATORS]
+        elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call) \
+                and isinstance(node.value.func, ast.Name) and node.value.func.id == "resolve":
+            calls = [node.value]
+        for c in calls:
+            strs = [a.value for a in c.args[:2]
+                    if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+            for t in strs:
+                if t not in tags:
+                    tags.append(t)
+            if len(strs) == 2:
+                pairs.add(frozenset(strs))
+    return tags, pairs
+
+
+def neutral_candidates(source: str) -> List[Tuple[str, str]]:
+    """Tag pairs for a neutral rule: two tags the top-level rules name, a
+    pair no rule declares first (it adds contacts: the CD3 shape), then the
+    declared pairs. Empty when the program does not ``from scena import *``."""
+    if "from scena import *" not in source:
+        return []
+    tags, pairs = _top_level_rules(source)
+    fresh = [(a, b) for i, a in enumerate(tags) for b in tags[i + 1:]
+             if frozenset((a, b)) not in pairs]
+    known = sorted(tuple(sorted(p)) for p in pairs if len(p) == 2)
+    return fresh + [p for p in known if p not in fresh]
+
+
+def add_neutral_rule(source: str, a: str, b: str) -> Tuple[str, LineMap]:
+    """The program with ``@collide_stay(a, b)`` doing nothing, as a game rule
+    before its top-level ``run()`` (else at the end). Returns the source and
+    new line → old line."""
+    tree = ast.parse(source)
+    lines = source.splitlines(keepends=True)
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    at = len(lines)
+    for node in tree.body:
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call) \
+                and isinstance(node.value.func, ast.Name) and node.value.func.id == "run":
+            at = node.lineno - 1
+            break
+    block = [f"@collide_stay({a!r}, {b!r})\n", f"def {NEUTRAL}(a, b, info):\n",
+             "    pass\n", "\n"]
+    new = lines[:at] + block + lines[at:]
+    line_map: LineMap = {}
+    for old in range(at + 1, len(lines) + 1):
+        line_map[old + len(block)] = old
+    return "".join(new), line_map
+
+
+def e15_projection(events, *, line_map: Optional[LineMap] = None,
+                   file: Optional[str] = None) -> Dict[int, Counter]:
+    """Every author call and lifetime event but the neutral rule's own calls;
+    no contact commits (a rule that pairs new bodies adds contacts: per pair,
+    not per rule)."""
+    out = project(events, line_map=line_map, file=file)
+    for c in out.values():
+        for k in [k for k in c if k[0] == "C" or (k[0] == "X" and NEUTRAL in str(k[3]))]:
+            del c[k]
+    return out
+
+
+def program_path_of(program: str) -> str:
+    from program_support import program_path
+    return program_path(program)
+
+
+def e15_program(program: str, spec_ns: Dict, scenario: str, *, limit: Optional[int] = None
+                ) -> List[str]:
+    """E15 on a program: each neutral rule's twin calls every other rule alike."""
+    import os
+    from program_support import program_path
+    path = program_path(program)
+    with open(path, encoding="utf-8") as fh:
+        source = fh.read()
+    cands = neutral_candidates(source)[:limit]
+    if not cands:
+        return []
+    file = os.path.basename(path)
+    base = e15_projection(program_trace(program, spec_ns, scenario), file=file)
+    out = []
+    for a, b in cands:
+        twin_src, line_map = add_neutral_rule(source, a, b)
+        twin = e15_projection(program_trace(program, spec_ns, scenario, source=twin_src),
+                              line_map=line_map, file=file)
+        diff = compare(base, twin)
+        if diff:
+            out.append(f"E15 {program}/{scenario} neutral {a!r} x {b!r}: " + "; ".join(diff))
+    return out
+
+
+def e15_script(path: str, frames: int, *, limit: Optional[int] = None) -> List[str]:
+    """E15 on an example or a tutorial step."""
+    import os
+    with open(path, encoding="utf-8") as fh:
+        source = fh.read()
+    cands = neutral_candidates(source)[:limit]
+    if not cands:
+        return []
+    file = os.path.basename(path)
+    base = e15_projection(script_trace(path, frames), file=file)
+    out = []
+    for a, b in cands:
+        twin_src, line_map = add_neutral_rule(source, a, b)
+        twin = e15_projection(script_trace(path, frames, source=twin_src),
+                              line_map=line_map, file=file)
+        diff = compare(base, twin)
+        if diff:
+            out.append(f"E15 {file} neutral {a!r} x {b!r}: " + "; ".join(diff))
+    return out

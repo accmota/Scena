@@ -4722,6 +4722,7 @@ class Collider:
         "_on_collide_exit",
         "_identity_shape",
         "_system",
+        "_born",
         "_poly_cache",
         "_snap_cache",
         "_tags_cache",
@@ -4800,6 +4801,10 @@ class Collider:
         self._on_collide_exit = None
         self._identity_shape = weakref.ref(identity) if identity is not None else None
         self._system = get_collision_system()
+        # The commit serial at creation: a collider made since the last
+        # commit is in no contact, so its tag or hook changes note nothing
+        # (``_note_flux``; a body spawned with two pair tags stays free).
+        self._born = self._system._commit_serial
         # shape id → (verts_key, prims) for concave decomposition reuse
         self._poly_cache: Dict[int, Tuple[tuple, List[Prim]]] = {}
         # shape id → (pose_key, prims) — skip rebuild when pose/hitbox unchanged
@@ -4959,6 +4964,8 @@ class Collider:
     def on_collide(self, value) -> None:
         if value is not None:
             _refuse_async(value, what="on_collide =")
+            if value is not self._on_collide:
+                self._note_new_hook(value)
         self._on_collide = value
         self._sync_anything_interest()
 
@@ -4971,6 +4978,8 @@ class Collider:
     def on_collide_stay(self, value) -> None:
         if value is not None:
             _refuse_async(value, what="on_collide_stay =")
+            if value is not self._on_collide_stay:
+                self._note_new_hook(value)
         self._on_collide_stay = value
         self._sync_anything_interest()
 
@@ -4985,6 +4994,13 @@ class Collider:
             _refuse_async(value, what="on_collide_exit =")
         self._on_collide_exit = value
         self._sync_anything_interest()
+
+    def _note_new_hook(self, fn) -> None:
+        """An enter / stay hook set while this body may touch something: a
+        rule its touching pairs gain (CD3)."""
+        sys = self._system
+        if sys._prev_contacts and self._born < sys._commit_serial:
+            sys._new_rules[(0, id(self), id(fn))] = id(self)
 
     def _unregister(self) -> None:
         self._system.unregister(self)
@@ -5013,13 +5029,35 @@ class CollisionSystem:
         # An author handler ran in this step's dispatch (W-G1).
         self._author_ran = False
         self._exit_pending: Set[Tuple[int, int]] = set()
-        # Tags a collider left while touching (``untag`` / group change):
-        # {id(collider): (collider, {tag: {partner ids touching then}})}. The
-        # exit of such a contact still matches that tag's handlers (PB1); a
-        # contact begun later does not. Two generations, rotated per step: a
-        # tag left in a handler of step N is matched by step N + 1's exit.
-        self._left_tags: Dict[int, Tuple[Collider, Dict[str, Set[int]]]] = {}
-        self._left_tags_old: Dict[int, Tuple[Collider, Dict[str, Set[int]]]] = {}
+        # Per-rule contacts (CD3). A rule's contact with a touching pair is
+        # read at each commit (``_prev_contacts = …`` in ``step``): it begins
+        # where a commit first finds the rule matching, ends where one finds
+        # it not matching. ``_rule_flux`` holds the tag changes of colliders
+        # that may be touching since the last commit: {id(collider):
+        # (collider, {tag: [member at that commit, {partner ids it touched
+        # when it left}]})} (the first change sets the flag; a tag left
+        # counts only for a contact that had entered: PB1). ``_new_rules``
+        # holds the handlers and ``on_collide*`` hooks set since the last
+        # commit, as rule keys (``_rule_key``) → the hook's collider id, or
+        # None for a pair handler. The commit moves both to ``_flux_now`` /
+        # ``_new_rules_now``, read by that step's dispatch.
+        self._rule_flux: Dict[int, Tuple[Collider, Dict[str, list]]] = {}
+        self._new_rules: Dict[tuple, Optional[int]] = {}
+        self._flux_now: Dict[int, Tuple[Collider, Dict[str, list]]] = {}
+        self._new_rules_now: Dict[tuple, Optional[int]] = {}
+        self._commit_serial = 0
+        # This step's touching keys whose rules changed: ``_gain_pending``
+        # {key: enter rule keys gained} until the key's slot in the enter
+        # loop (an exit before it runs no gained rule: S8-3 per rule);
+        # ``_stay_skip`` {key: stay rule keys gained} (they stay from the
+        # next step, C1); ``_lost_pending`` {key: (exit runs, epoch)}
+        # until the exit loop (or an exit at a destroy) runs them;
+        # ``_exited_now`` the keys the commit found apart (their exits read
+        # the rules as of the commit before).
+        self._gain_pending: Dict[Tuple[int, int], Set[tuple]] = {}
+        self._stay_skip: Dict[Tuple[int, int], Set[tuple]] = {}
+        self._lost_pending: Dict[Tuple[int, int], tuple] = {}
+        self._exited_now: Set[Tuple[int, int]] = set()
         # Bumped when a collider leaves or a pair handler is removed: a
         # dispatch whose epoch moved re-checks registration before each later
         # exit handler (S4-1); the ``_phase_handlers`` snapshot is keyed by it.
@@ -5229,11 +5267,11 @@ class CollisionSystem:
             self._forget_collider_tags(collider)
             self._forget_partner_entry(collider)
             self._invalidate_partner_cache_for_enroll()
-            if self._left_tags or self._left_tags_old:
+            if self._rule_flux or self._flux_now:
                 # Its exits ran above; hold no dead body (a registry keeps
                 # a dead owner).
-                self._left_tags.pop(id(collider), None)
-                self._left_tags_old.pop(id(collider), None)
+                self._rule_flux.pop(id(collider), None)
+                self._flux_now.pop(id(collider), None)
 
     def _invalidate_partner_cache(self) -> None:
         """Drop cached resolve partner identities (enroll / pair graph changed)."""
@@ -5572,6 +5610,8 @@ class CollisionSystem:
             bake = getattr(item, "_ensure_auto_baked", None)
             if callable(bake):
                 bake()
+            if existing is not None:
+                self._note_flux(existing, tag, False)   # a tag joined mid-contact (CD3)
             self._tag_add(tag, c)
         self._apply_handler_targets(c, tag)
         if _tag_is_resolve_side(self, tag):
@@ -5708,6 +5748,8 @@ class CollisionSystem:
             left._add_pair_target(b)
         for right in rights:
             right._add_pair_target(a)
+        if self._prev_contacts:
+            self._note_new_rule(entry)
         return entry
 
     def _drop_pair_entries(self, entries) -> None:
@@ -6083,8 +6125,20 @@ class CollisionSystem:
             return
         for key in keys:
             self._prev_contacts.discard(key)
-        if not emit:
-            return
+        try:
+            if emit:
+                self._emit_ended(col, keys)
+        finally:
+            if self._gain_pending or self._stay_skip or self._lost_pending:
+                # Their rules' enter / exit ran above or is owed no more.
+                for key in keys:
+                    self._gain_pending.pop(key, None)
+                    self._stay_skip.pop(key, None)
+                    self._lost_pending.pop(key, None)
+
+    def _emit_ended(self, col: Collider, keys) -> None:
+        """The exits of ``col``'s contacts ``keys``, which it ends now."""
+        cid = id(col)
         id_to = {id(c): c for c in self._colliders}
         id_to[cid] = col
         current = self._contact_key
@@ -6920,9 +6974,6 @@ class CollisionSystem:
 
     def step(self) -> None:
         t_total0 = time.perf_counter()
-        if self._left_tags or self._left_tags_old:
-            self._left_tags_old = self._left_tags
-            self._left_tags = {}
         self._prune_dead()
         # Linked hitbox ``active`` (``hb["active"] @= fn``): evaluated here, after
         # update / on_update / play(), so collision sees this frame's value.
@@ -6976,6 +7027,9 @@ class CollisionSystem:
             self._last_prims = []
             self._emit_exit_keys(self._prev_contacts)
             self._prev_contacts = set()
+            self._commit_rules()
+            self._flux_now = {}
+            self._new_rules_now = {}
             self._last_aabb = None
             self.last_stats = {
                 "proxies": 0,
@@ -7148,8 +7202,16 @@ class CollisionSystem:
         stayed = contact_keys & prev
         exited = prev - contact_keys
         self._prev_contacts = contact_keys
+        self._commit_rules()
 
         id_to_collider = {id(c): c for c in self._colliders}
+        gained = None
+        if self._flux_now or self._new_rules_now:
+            # A rule that began or stopped matching a pair that keeps touching
+            # (a tag gained or left, a handler set): its enter or exit (CD3).
+            gained = self._rule_changes(stayed, id_to_collider)
+            if exited:
+                self._exited_now = exited
 
         def colliders_for_key(key: Tuple[int, int]) -> Tuple[Collider, Collider]:
             return id_to_collider[key[0]], id_to_collider[key[1]]
@@ -7169,16 +7231,20 @@ class CollisionSystem:
         # dead-pair rules (enter/stay skip bodies not in play; a destroyed body
         # has no tags for a handler to match and no hooks), and new-act bodies
         # are not in this step's contacts. Game pairs keep dispatching.
+        # A rule a touching pair gained enters among this step's enters, in
+        # the order the pair would have if it had just begun touching (CD3:
+        # alone or beside another rule, the same order).
+        enter_keys = (entered | gained) if gained else entered
         if t_enter:
             # Nearest hit first: a fast body's enters run in time-of-impact
             # order, so a shot that destroys itself hits the enemy it reached
             # first (``_dispatch`` skips enters for a body already destroyed).
             # Keys without a time (slow pairs) keep their order, after them.
             entered_order = sorted(
-                _sort_keys(entered), key=lambda k: t_enter.get(k, 1.0),
+                _sort_keys(enter_keys), key=lambda k: t_enter.get(k, 1.0),
             )
         else:
-            entered_order = _sort_keys(entered)
+            entered_order = _sort_keys(enter_keys)
         self._enter_pending = set(entered)
         self._exit_pending = set(exited)
         self._author_ran = False
@@ -7193,6 +7259,13 @@ class CollisionSystem:
         finally:
             self._dispatch_current = None
             self._dispatch_ids = None
+            if self._flux_now or self._new_rules_now or gained is not None:
+                self._flux_now = {}
+                self._new_rules_now = {}
+                self._gain_pending = {}
+                self._stay_skip = {}
+                self._lost_pending = {}
+                self._exited_now = set()
 
         t0 = time.perf_counter()
         if self._resolve_enabled:
@@ -7228,8 +7301,15 @@ class CollisionSystem:
     def _dispatch_step(self, current, entered_order, stayed, exited,
                        colliders_for_key, _sort_keys, id_to_collider) -> None:
         """This step's enter, stay and exit loops (``step()``)."""
+        gain_pending = self._gain_pending
         for key in entered_order:
             if key not in self._enter_pending:
+                if gain_pending and key in gain_pending:
+                    # A rule this touching pair gained: its enter only.
+                    rules = gain_pending.pop(key)
+                    if rules and key in current and key in self._prev_contacts:
+                        ca, cb = colliders_for_key(key)
+                        self._dispatch(ca, cb, current[key], _PHASE_ENTER, only=rules)
                 continue                  # its body left mid-step: no enter, no exit
             self._enter_pending.discard(key)
             if key not in current:
@@ -7237,11 +7317,16 @@ class CollisionSystem:
             info = current[key]
             ca, cb = colliders_for_key(key)
             self._dispatch(ca, cb, info, _PHASE_ENTER)
+        stay_skip = self._stay_skip
         for key in _sort_keys(stayed):
             if key not in current:
                 continue
             info = current[key]
             ca, cb = colliders_for_key(key)
+            if stay_skip and key in stay_skip:
+                # A rule gained this step stays from the next one (C1).
+                self._dispatch(ca, cb, info, _PHASE_STAY, skip=stay_skip[key])
+                continue
             self._dispatch(ca, cb, info, _PHASE_STAY)
         self._enter_pending = set()
         for key in _sort_keys(exited):
@@ -7253,6 +7338,16 @@ class CollisionSystem:
                 continue
             info = CollisionInfo(a=ca._identity, b=cb._identity, normal=Vec2.temp(0, 0), depth=0.0)
             self._dispatch(ca, cb, info, _PHASE_EXIT)
+        if self._lost_pending:
+            # A rule a touching pair lost (a tag left): its exit, after the
+            # step's own exits. One a destroy already ran is gone from here.
+            for key in _sort_keys(set(self._lost_pending)):
+                lost = self._lost_pending.pop(key, None)
+                if lost is None or key not in self._prev_contacts:
+                    continue
+                ca, cb = colliders_for_key(key)
+                info = CollisionInfo(a=ca._identity, b=cb._identity, normal=Vec2.temp(0, 0), depth=0.0)
+                self._run_lost_exit(ca, cb, info, lost)
 
     def _swept_contacts(
         self,
@@ -9956,7 +10051,8 @@ class CollisionSystem:
             b_hitbox=other_c._part,
         )
 
-    def _dispatch(self, ca: Collider, cb: Collider, info: CollisionInfo, phase: str) -> None:
+    def _dispatch(self, ca: Collider, cb: Collider, info: CollisionInfo, phase: str,
+                  only=None, skip=None) -> None:
         # Enter/stay must not run for a body destroyed earlier in this loop.
         # Exit still runs: separation, and the destroy-time survivor notification.
         if phase != _PHASE_EXIT:
@@ -9967,7 +10063,7 @@ class CollisionSystem:
             # Act teardown: two bodies leaving together owe each other no exit.
             return
         if phase != _PHASE_EXIT:
-            self._dispatch_contact(ca, cb, info, phase)
+            self._dispatch_contact(ca, cb, info, phase, only, skip)
             return
         # Exit handlers are chosen before any of them runs: one that destroys
         # or untags a side must not hide the rest (PB3), and a tag a side left
@@ -9990,7 +10086,32 @@ class CollisionSystem:
             if cb_fn is not None and other_c._part is None:
                 runs.append((None, None, cb_fn, me_c, other_c))
         runs.extend(self._exit_matches(ca, cb))
+        if self._lost_pending:
+            key = _pair_key(ca, cb)
+            lost = self._lost_pending.pop(key, None)
+            if lost is not None and key not in self._gain_pending:
+                # The rules this touching pair lost at the commit, whose exit
+                # the step's exit loop has not run yet (C5). Before the key's
+                # enter slot, ``_exit_matches`` reads them already.
+                runs.extend(self._lost_runs(lost))
         return runs
+
+    def _lost_runs(self, lost) -> list:
+        runs, epoch = lost
+        if epoch != self._dispatch_epoch:
+            # A handler dropped since the commit does not run (S4-1).
+            runs = [r for r in runs if self._handler_registered(r[0], r[1], r[2])]
+        return runs
+
+    def _run_lost_exit(self, ca: Collider, cb: Collider, info: CollisionInfo, lost) -> None:
+        """The exit of the rules a touching pair lost (a tag left while
+        another rule keeps the two touching: CD3)."""
+        acts = _act_manager()
+        if acts.changing and self._both_leave_with_act(ca, cb, acts.dying_ids):
+            return
+        runs = self._lost_runs(lost)
+        if runs:
+            self._run_exit(ca, info, runs, None)
 
     def _run_exit(self, ca: Collider, info: CollisionInfo, runs: list, was) -> None:
         """Run an exit's handlers. One that a handler of this exit dropped
@@ -10012,7 +10133,8 @@ class CollisionSystem:
     def _handler_registered(self, ta, tb, handler) -> bool:
         return any(e[2] is handler and e[0] is ta and e[1] is tb for e in self._pair_handlers)
 
-    def _dispatch_contact(self, ca: Collider, cb: Collider, info: CollisionInfo, phase: str) -> None:
+    def _dispatch_contact(self, ca: Collider, cb: Collider, info: CollisionInfo, phase: str,
+                          only=None, skip=None) -> None:
         """Enter / stay of one contact: every handler of it runs (PB5).
 
         The handlers that match are listed *before* the first one runs, so a
@@ -10024,7 +10146,15 @@ class CollisionSystem:
         before each contact, S8-2). An act change mid-dispatch is the
         exception: the old act is gone, so a dead side ends the contact and a
         handler the act took with it does not run (S4-1).
+
+        Per rule (CD3): ``only`` lists the rules a touching pair gained at
+        the commit (their enter alone), ``skip`` the stay rules it gained
+        (they stay from the next step); a tag or handler gained after the
+        commit, by a handler of this step, waits for the next step (F3).
         """
+        flux = self._rule_flux
+        if flux and phase == _PHASE_ENTER and only is None:
+            self._note_entered_under(ca, cb)
         attr = _PHASE_CALLBACK[phase]
         runs = None
         for me_c, other_c in ((ca, cb), (cb, ca)):
@@ -10054,6 +10184,10 @@ class CollisionSystem:
             runs.append((ta, tb, handler, matched[0], matched[1]))
         if runs is None:
             return
+        if only is not None or skip is not None or flux or self._new_rules:
+            runs = self._rule_filter(ca, cb, runs, only, skip)
+            if not runs:
+                return
         ida, idb = id(ca), id(cb)
         saved = (self._contact_key, self._deferred_exit)
         self._contact_key = (ida, idb) if ida < idb else (idb, ida)
@@ -10081,75 +10215,249 @@ class CollisionSystem:
                 self._run_exit(xa, xinfo, xruns, was)
 
     def _exit_matches(self, ca: Collider, cb: Collider) -> list:
-        """The exit handlers matching ``ca`` × ``cb`` now, as
-        ``(ta, tb, handler, me, other)``. A tag either side left while
-        touching the other (``_note_left_tag``) still counts as a member."""
-        left_a = self._left_tags_of(ca, cb)
-        left_b = self._left_tags_of(cb, ca)
+        """The exit handlers matching ``ca`` × ``cb``, as ``(ta, tb, handler,
+        me, other)``: the rules its contact is in. A tag a side left while
+        touching the other still counts (PB1), one gained since the contact's
+        last commit does not (CD3): the tags are read as of that commit."""
+        view_a = view_b = None
+        if self._rule_flux or self._flux_now:
+            key = _pair_key(ca, cb)
+            # A pair the commit found apart, or one whose gained rules have
+            # not entered yet: its rules as of the commit before.
+            both = key in self._exited_now or key in self._gain_pending
+            view_a = self._flux_view(ca, cb, both, True)
+            view_b = self._flux_view(cb, ca, both, True)
+        viewed = view_a is not None or view_b is not None
         tag_index = self._tag_index
         ida, idb = id(ca), id(cb)
         out = []
         for ta, tb, handler, _phase, key_tag in self._phase_handlers(_PHASE_EXIT):
-            if key_tag is not None and not left_a and not left_b:
+            if key_tag is not None and not viewed:
                 idx = tag_index.get(key_tag)
                 if not idx or (ida not in idx and idb not in idx):
                     continue
-            if left_a or left_b:
-                matched = self._pair_matches_left(ta, tb, ca, cb, left_a, left_b)
+            if viewed:
+                matched = self._pair_matches_as_of(ta, tb, ca, cb, view_a, view_b)
             else:
                 matched = self._pair_matches(ta, tb, ca, cb)
             if matched:
                 out.append((ta, tb, handler, matched[0], matched[1]))
         return out
 
-    def _left_tags_of(self, c: Collider, partner: Collider):
-        """Tags ``c`` left while touching ``partner`` (recent steps), or None."""
-        found = None
+    def _flux_view(self, c: Collider, partner: Collider, both: bool, exit: bool):
+        """``c``'s tag changes since the last commit (``both``: since the one
+        before, during a step's dispatch) as {tag: member then}, or None. For
+        an exit, a tag left counts only for a partner that had entered under
+        it (PB1: a contact begun after the untag does not match it)."""
+        view = None
         pid = id(partner)
-        for gen in (self._left_tags, self._left_tags_old):
+        gens = (self._flux_now, self._rule_flux) if both else (self._rule_flux,)
+        for gen in gens:
+            if not gen:
+                continue
             entry = gen.get(id(c))
             if entry is None or entry[0] is not c:
                 continue
-            for tag, partners in entry[1].items():
-                if pid in partners:
-                    if found is None:
-                        found = set()
-                    found.add(tag)
-        return found
+            for tag, rec in entry[1].items():
+                if view is None:
+                    view = {}
+                elif tag in view:
+                    continue            # the older change holds the commit's state
+                view[tag] = rec[0] and (not exit or pid in rec[1])
+        return view
 
-    def _pair_matches_left(self, ta, tb, ca, cb, left_a, left_b):
-        def on(c, target, left):
-            if self._collider_on_side(c, target):
-                return True
-            if not left:
-                return False
-            tag = self._pair_tag_of(target)
-            return tag is not None and tag in left
-        if on(ca, ta, left_a) and on(cb, tb, left_b):
+    def _pair_matches_as_of(self, ta, tb, ca, cb, view_a, view_b):
+        """``_pair_matches`` with the tags in ``view_a`` / ``view_b`` read as
+        they were (a member then, or not)."""
+        def on(c, target, view):
+            if view:
+                tag = self._pair_tag_of(target)
+                if tag is not None and tag in view:
+                    return view[tag]
+            return self._collider_on_side(c, target)
+        if on(ca, ta, view_a) and on(cb, tb, view_b):
             return ca, cb
-        if on(cb, ta, left_b) and on(ca, tb, left_a):
+        if on(cb, ta, view_b) and on(ca, tb, view_a):
             return cb, ca
         return None
 
+    def _rule_filter(self, ca: Collider, cb: Collider, runs: list, only, skip) -> list:
+        """Drop from an enter / stay the runs this contact does not owe now:
+        not in ``only``, in ``skip``, or a rule gained after the commit (a
+        handler set, or a tag joined, by a handler of this step: F3)."""
+        new = self._new_rules
+        view_a = view_b = None
+        if self._rule_flux:
+            view_a = self._flux_view(ca, cb, False, False)
+            view_b = self._flux_view(cb, ca, False, False)
+        viewed = view_a is not None or view_b is not None
+        out = []
+        for run in runs:
+            ta, tb, fn, me, _other = run
+            rk = _rule_key(ta, tb, fn, me)
+            if only is not None and rk not in only:
+                continue
+            if skip is not None and rk in skip:
+                continue
+            if new and rk in new:
+                continue
+            if viewed and ta is not None \
+                    and self._pair_matches_as_of(ta, tb, ca, cb, view_a, view_b) is None:
+                continue
+            out.append(run)
+        return out
+
+    def _note_entered_under(self, ca: Collider, cb: Collider) -> None:
+        """A contact enters while a side's tag was left and joined again
+        since the commit (no change): it enters under that tag, so its exit
+        runs that tag's handlers (the partner joins the left tag's record)."""
+        for c, other in ((ca, cb), (cb, ca)):
+            entry = self._rule_flux.get(id(c))
+            if entry is None or entry[0] is not c:
+                continue
+            idx_of = self._tag_index
+            for tag, rec in entry[1].items():
+                if rec[0]:
+                    idx = idx_of.get(tag)
+                    if idx is not None and id(c) in idx:
+                        rec[1].add(id(other))
+
     def _note_left_tag(self, c: Collider, tag: str) -> None:
-        """``c`` is leaving ``tag``: remember its current partners, so the
-        exit of those contacts still runs that tag's handlers (PB1)."""
+        """``c`` is leaving ``tag``: its contacts keep that tag's rules until
+        the next commit reads the change (their exit runs them: PB1, CD3)."""
         idx = self._tag_index.get(tag)
-        if not idx or id(c) not in idx or not self._prev_contacts:
+        if not idx or id(c) not in idx:
+            return
+        self._note_flux(c, tag, True)
+
+    def _note_flux(self, c: Collider, tag: str, member: bool) -> None:
+        """``c`` leaves (``member``: it was in ``tag``) or joins ``tag``.
+        Kept only for a collider that may be touching: one made since the
+        last commit is in no contact."""
+        if c._born >= self._commit_serial or not self._prev_contacts:
             return
         cid = id(c)
-        partners = set()
-        for k in self._prev_contacts:
-            if k[0] == cid:
-                partners.add(k[1])
-            elif k[1] == cid:
-                partners.add(k[0])
-        if not partners:
-            return
-        entry = self._left_tags.get(cid)
+        entry = self._rule_flux.get(cid)
         if entry is None or entry[0] is not c:
-            entry = self._left_tags[cid] = (c, {})
-        entry[1].setdefault(tag, set()).update(partners)
+            entry = self._rule_flux[cid] = (c, {})
+        rec = entry[1].get(tag)
+        if rec is None:
+            rec = entry[1][tag] = [member, set()]
+        if member:
+            # The partners whose contact entered under the tag: touching at
+            # the commit, and not waiting for this step's enter (S8-3).
+            pending = self._enter_pending
+            partners = rec[1]
+            for k in self._prev_contacts:
+                if k[0] == cid:
+                    other = k[1]
+                elif k[1] == cid:
+                    other = k[0]
+                else:
+                    continue
+                if pending and k in pending:
+                    continue
+                partners.add(other)
+
+    def _note_new_rule(self, entry) -> None:
+        """A pair handler registered while bodies touch: a rule a touching
+        pair it matches gains (its enter at the next step, CD3). A side that
+        is a body made since the last commit touches nothing yet."""
+        a, b, fn, phase = entry
+        if phase == _PHASE_EXIT:
+            return                      # an exit set mid-contact runs at its end
+        serial = self._commit_serial
+        for side in (a, b):
+            if side is ANYTHING or self._pair_tag_of(side) is not None:
+                continue
+            if isinstance(side, Collider):
+                col = side
+            elif hasattr(side, "_collider"):
+                col = side._collider
+            else:
+                continue                # a formula group: its members may touch
+            if col is None or col._born >= serial:
+                return
+        self._new_rules[(id(a), id(b), id(fn))] = None
+
+    def _commit_rules(self) -> None:
+        """A commit: the changes since the last one are this step's to read."""
+        self._commit_serial += 1
+        if self._rule_flux:
+            self._flux_now, self._rule_flux = self._rule_flux, {}
+        if self._new_rules:
+            self._new_rules_now, self._new_rules = self._new_rules, {}
+
+    def _rule_changes(self, stayed, id_to) -> Optional[Set[Tuple[int, int]]]:
+        """The touching pairs (``stayed``) whose rules changed since the last
+        commit: a rule gained enters this step (``_gain_pending``) and stays
+        from the next (``_stay_skip``); a rule lost exits after the step's
+        exits (``_lost_pending``). Returns the keys with a gained rule."""
+        flux = self._flux_now
+        new = self._new_rules_now
+        every = any(v is None for v in new.values())
+        watch = set(flux)
+        watch.update(v for v in new.values() if v is not None)
+        gained = None
+        enter_handlers = self._phase_handlers(_PHASE_ENTER)
+        stay_handlers = self._phase_handlers(_PHASE_STAY)
+        exit_handlers = self._phase_handlers(_PHASE_EXIT)
+        for key in stayed:
+            if not every and key[0] not in watch and key[1] not in watch:
+                continue
+            ca = id_to.get(key[0])
+            cb = id_to.get(key[1])
+            if ca is None or cb is None:
+                continue
+            va = self._flux_view(ca, cb, True, False)
+            vb = self._flux_view(cb, ca, True, False)
+            found = [None, None]
+            for i, (phase, handlers) in enumerate(((_PHASE_ENTER, enter_handlers),
+                                                   (_PHASE_STAY, stay_handlers))):
+                attr = _PHASE_CALLBACK[phase]
+                for me_c, other_c in ((ca, cb), (cb, ca)):
+                    fn = getattr(me_c, attr, None)
+                    if fn is not None and other_c._part is None:
+                        rk = (0, id(me_c), id(fn))
+                        if rk in new:
+                            if found[i] is None:
+                                found[i] = set()
+                            found[i].add(rk)
+                for ta, tb, fn, _ph, _kt in handlers:
+                    if self._pair_matches(ta, tb, ca, cb) is None:
+                        continue
+                    rk = (id(ta), id(tb), id(fn))
+                    if rk in new or (
+                            (va or vb)
+                            and self._pair_matches_as_of(ta, tb, ca, cb, va, vb) is None):
+                        if found[i] is None:
+                            found[i] = set()
+                        found[i].add(rk)
+            changed = found[0] is not None or found[1] is not None
+            lost = None
+            if va or vb:
+                xa = self._flux_view(ca, cb, True, True)
+                xb = self._flux_view(cb, ca, True, True)
+                for ta, tb, fn, _ph, _kt in exit_handlers:
+                    now = self._pair_matches(ta, tb, ca, cb)
+                    if now is None:
+                        was = self._pair_matches_as_of(ta, tb, ca, cb, xa, xb)
+                        if was is not None:
+                            if lost is None:
+                                lost = []
+                            lost.append((ta, tb, fn, was[0], was[1]))
+                    elif not changed and self._pair_matches_as_of(ta, tb, ca, cb, va, vb) is None:
+                        changed = True      # an exit rule gained: no exit before its slot
+            if changed:
+                if gained is None:
+                    gained = set()
+                gained.add(key)
+                self._gain_pending[key] = found[0] or set()
+                if found[1]:
+                    self._stay_skip[key] = found[1]
+            if lost:
+                self._lost_pending[key] = (lost, self._dispatch_epoch)
+        return gained
 
     def _phase_handlers(self, phase: str) -> tuple:
         """The pair handlers of ``phase``, as a tuple (a snapshot: a handler
@@ -11183,6 +11491,20 @@ _PHASE_CALLBACK = {
     _PHASE_EXIT: "on_collide_exit",
 }
 _ACT_MANAGER = None
+
+
+def _pair_key(ca, cb) -> Tuple[int, int]:
+    """The contact key of two colliders (lower ``id()`` first)."""
+    ida, idb = id(ca), id(cb)
+    return (ida, idb) if ida < idb else (idb, ida)
+
+
+def _rule_key(ta, tb, fn, me) -> tuple:
+    """A contact rule's identity: a pair handler's sides and function, or a
+    side's own ``on_collide*`` hook (``ta`` None) and its collider."""
+    if ta is None:
+        return (0, id(me), id(fn))
+    return (id(ta), id(tb), id(fn))
 
 
 def _act_manager():

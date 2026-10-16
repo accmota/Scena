@@ -202,6 +202,20 @@ left out.
 
 ### Fixed
 
+- A collision rule now acts the same whatever other rules pair the same
+  bodies. When a body gained a tag while already touching (`hero.tag("shield")`
+  inside the lava), `@collide("shield", "lava")` ran only if no other rule
+  joined hero and lava; with `@collide_stay("hero", "lava")` in the game it got
+  stays and never its enter. It now enters at that frame and stays from the
+  next. The same for a rule declared, or an `on_collide` set, while the two
+  touch. The other way round, `untag` while another rule kept the bodies
+  touching never ran the rule's `@collide_exit` (not even when they separated):
+  it runs at that frame now. A tag added and removed in the same frame no
+  longer runs an exit when the bodies separate. One timing moves: a
+  `@collide_stay` declared while two bodies touch runs from the frame after its
+  first frame, like a rule whose bodies just met; give it an `@collide` too to
+  act on that first frame.
+
 - A `SpriteButton` whose `enabled` was linked (`button["enabled"] @=
   lambda: …`) took a plain `button.enabled = False` without a word, and the
   link overwrote it at the next read. It raises `LinkedAttributeError` now,
