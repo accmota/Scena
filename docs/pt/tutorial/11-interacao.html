@@ -84,7 +84,7 @@ run()
       body: `
         <p>O <code>@hover</code> avisa uma vez, quando o mouse entra. Mas há coisas que acontecem um pouco a cada quadro, durante todo o tempo em que o mouse está ali. O triângulo vai girar enquanto o ponteiro estiver em cima dele.</p>
         <p><strong>Um estado.</strong> <code>pointer_hover</code> (ponteiro por cima) não é um evento: é uma resposta de sim ou não que vale <em>agora</em>. É <code>True</code> enquanto o mouse está sobre o triângulo e <code>False</code> no resto do tempo. O Scena a atualiza a cada quadro, e quem a lê é o <code>update</code>, que também roda a cada quadro.</p>
-        <p><strong>O giro.</strong> <code>rotate_by(90 * dt)</code> (girar por) gira o triângulo 90 graus por segundo: um pedacinho a cada quadro, como a estrela do tutorial 1 andava <code>VELOCIDADE * dt</code>. Rode e pare o mouse sobre o triângulo: ele gira sem parar. Tire o mouse e ele para onde estiver.</p>
+        <p><strong>O giro.</strong> <code>rotate_by(90 * dt)</code> (girar por) gira o triângulo 90 graus por segundo: um pedacinho a cada quadro, como a estrela do tutorial 1 andava <code>VELOCIDADE * dt</code>. Rode e pare o mouse sobre o triângulo: ele gira sem parar. Tire o mouse e ele para onde estiver. O interlúdio <a href="14i-girar-e-crescer.html">Girar e crescer</a>, depois do 14, põe o <code>rotate_by</code> ao lado do <code>rotate_to</code> (girar até) e do campo <code>angle</code>.</p>
         <p><strong>Quem tem.</strong> O <code>pointer_hover</code> só fica <code>True</code> numa forma que responde ao mouse, e o triângulo responde, porque está no grupo do <code>@click</code>.</p>
       `,
       code: `from scena import *

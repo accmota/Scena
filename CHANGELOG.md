@@ -321,6 +321,13 @@ left out.
   `Colormap.from_colors("lime", "gold", "red")`, so the bar changes at
   every ball-ball hit with no line that copies the speed.
   `examples/bolas.py` is that step.
+- A new interlude after tutorial 14, Girar e crescer: `rotate_to` against
+  `rotate_by` (and why `rotate_to(360, time=1)` does not move), the `angle`
+  field against the verbs (the field keeps the point the shape was placed by,
+  the verbs turn about the center or `about=`), a box held by two anchors that
+  leans and changes size beside a free one that turns whole, and the same
+  to / by pair for size (`scale_to`, `scale_by`, `scale =`). Appendix F no
+  longer says a `Rect`'s `angle` always turns it about its center.
 - The README (GitHub and PyPI) is rewritten: 2D games first, what an author
   writes and what Scena takes care of, new sections (geometry, rules and time,
   collision, mouse and widgets, the level editor), one look on a circle, a

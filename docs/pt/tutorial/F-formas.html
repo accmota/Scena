@@ -118,7 +118,7 @@ run()
             <tr><td><code>top_left</code>, <code>width</code>, <code>height</code></td><td>O canto de cima, à esquerda: o retângulo cresce dali para a direita e para baixo. Bom para alinhar coisas pela borda.</td></tr>
             <tr><td><code>p1</code>, <code>p2</code></td><td>Dois cantos opostos, exatamente onde você os pôs. A largura e a altura saem deles.</td></tr>
             <tr><td><code>p1</code>, <code>p2</code>, <code>height</code>, <code>anchor="cap"</code></td><td>Uma barra deitada de um ponto a outro, com essa espessura. <code>anchor</code> (âncora) diz onde os pontos ficam: com <code>"cap"</code> (tampa), no meio das pontas curtas.</td></tr>
-            <tr><td><code>angle</code></td><td>Gira o retângulo em volta do centro.</td></tr>
+            <tr><td><code>angle</code></td><td>Gira o retângulo em volta do ponto pelo qual ele foi posto: o centro, ou o canto <code>top_left</code>. Com <code>p1</code>, <code>p2</code>, os cantos ficam presos, e o retângulo inclina e muda de tamanho (interlúdio <a href="14i-girar-e-crescer.html">Girar e crescer</a>).</td></tr>
             <tr><td><code>corner_radius</code></td><td>Arredonda os cantos (raio do canto).</td></tr>
             <tr><td><code>p1</code>, <code>vec</code></td><td>Um canto e o tamanho, como uma seta (vetor): <code>(largura, altura)</code>.</td></tr>
             <tr><td><code>anchor="square"</code></td><td>Cada ponto fica no centro de um quadrado da ponta: a barra passa dos pontos meia espessura de cada lado.</td></tr>
@@ -187,7 +187,7 @@ run()
           <tbody>
             <tr><td><code>center</code>, <code>length</code></td><td>Centro e lado.</td></tr>
             <tr><td><code>top_left</code>, <code>length</code></td><td>O canto de cima, à esquerda, e o lado.</td></tr>
-            <tr><td><code>angle</code></td><td>Gira, como no <code>Rect</code>.</td></tr>
+            <tr><td><code>angle</code></td><td>Gira em volta do ponto dado (o centro ou o canto), como no <code>Rect</code>.</td></tr>
             <tr><td><code>corner_radius</code></td><td>Arredonda os cantos, como no <code>Rect</code>.</td></tr>
           </tbody>
         </table></div>

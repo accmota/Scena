@@ -42,7 +42,7 @@ Tutorial.mount({
           </svg>
           <figcaption>O ângulo em graus. 0 é a barra deitada; o ângulo cresce no sentido contrário ao dos ponteiros do relógio, e 360 é uma volta inteira.</figcaption>
         </figure>
-        <p><strong>O giro.</strong> A linha <code>barra["angle"] @= …</code> liga o ângulo a uma fórmula. Com <code>@=</code>, o Scena refaz a conta a cada quadro, como no placar do tutorial 2; o nome do campo vai entre colchetes, para apontar o campo que recebe a fórmula. A fórmula lê <code>clock.time</code> (relógio, tempo): quantos segundos se passaram desde o início. Vezes 26, a barra gira 26 graus por segundo, e uma volta leva uns 14 segundos.</p>
+        <p><strong>O giro.</strong> A linha <code>barra["angle"] @= …</code> liga o ângulo a uma fórmula. Com <code>@=</code>, o Scena refaz a conta a cada quadro, como no placar do tutorial 2; o nome do campo vai entre colchetes, para apontar o campo que recebe a fórmula. A fórmula lê <code>clock.time</code> (relógio, tempo): quantos segundos se passaram desde o início. Vezes 26, a barra gira 26 graus por segundo, e uma volta leva uns 14 segundos. O campo gira a barra em volta do ponto pelo qual ela foi posta, aqui o centro; o interlúdio <a href="14i-girar-e-crescer.html">Girar e crescer</a> mostra o que muda quando é outro ponto.</p>
         <p><strong>O <code>%</code>.</strong> É o <strong>resto da divisão</strong>. <code>370 % 360</code> é 10: 370 cabe uma vez em 360 e sobram 10. Depois de 20 segundos, <code>clock.time * 26</code> dá 520, e <code>520 % 360</code> dá 160. É a mesma posição: 520 graus são uma volta inteira mais 160, e o <code>%</code> mantém o número dentro de uma volta.</p>
       `,
       code: `from scena import *

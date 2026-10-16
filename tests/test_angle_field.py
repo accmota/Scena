@@ -554,5 +554,77 @@ class TestConstructorAngle(unittest.TestCase):
         self.assertAlmostEqual(float(Track.shuttle(length=40, angle=30).angle), 30.0)
 
 
+class TestWhatTheInterludeTeaches(unittest.TestCase):
+    """The claims of the tutorial interlude ``14i-girar-e-crescer.html``: the
+    to / by pairs, a box held by its corners through formulas (the field leans
+    it, the verb is refused, a free twin turns whole) and ``scale =`` about
+    the center. A change here is a change to that page."""
+
+    def test_to_goes_to_and_by_adds(self):
+        ate, por = Rect(center=(0, 0), width=40, height=4), Rect(center=(0, 0), width=40, height=4)
+        for _ in range(2):
+            ate.rotate_to(45)
+            por.rotate_by(45)
+        self.assertAlmostEqual(float(ate.angle), 45.0)
+        self.assertAlmostEqual(float(por.angle), 90.0)
+        a, b = Square(center=(0, 0), length=8), Square(center=(0, 0), length=8)
+        for _ in range(2):
+            a.scale_to(1.5)
+            b.scale_by(1.5)
+        self.assertAlmostEqual(float(a.scale), 1.5)
+        self.assertAlmostEqual(float(b.scale), 2.25)
+
+    def test_a_box_held_by_formulas_leans_and_keeps_its_corners(self):
+        import math
+        from scena.state import LinkedAttributeError
+        ponta1, ponta2 = Point(180, 300), Point(420, 400)
+        presa = Rect(p1=lambda: (ponta1.x, ponta1.y), p2=lambda: (ponta2.x, ponta2.y))
+        dx, dy = 240.0, 100.0
+        diagonal = math.degrees(math.atan2(dy, dx))
+        for theta in (30.0, 60.0, 90.0, diagonal):
+            with self.subTest(angle=theta):
+                presa.angle = theta
+                self.assertTrue(G.close(G.xy(presa.p1), (180.0, 300.0), 1e-6))
+                self.assertTrue(G.close(G.xy(presa.p2), (420.0, 400.0), 1e-6))
+                t = math.radians(theta)
+                w = abs(dx * math.cos(t) + dy * math.sin(t))
+                h = abs(-dx * math.sin(t) + dy * math.cos(t))
+                self.assertAlmostEqual(float(presa.width), w, places=6)
+                self.assertAlmostEqual(float(presa.height), h, places=6)
+        self.assertAlmostEqual(float(presa.height), 0.0, places=6)      # a line at the diagonal
+        presa.angle = 90
+        self.assertAlmostEqual(float(presa.width), 100.0, places=6)     # width and height swap
+        self.assertAlmostEqual(float(presa.height), 240.0, places=6)
+        ponta2.x = 460                                                  # dragging an anchor
+        self.assertTrue(G.close(G.xy(presa.p2), (460.0, 400.0), 1e-6))
+        before = G.drawn(presa)
+        with self.assertRaises(LinkedAttributeError) as cm:
+            presa.rotate_by(30)
+        self.assertIn("p1 has an @= formula", str(cm.exception))
+        self.assertIn("unlink", str(cm.exception))
+        self.assertTrue(G.same_set(G.drawn(presa), before))             # the refusal moved nothing
+
+    def test_a_free_twin_turns_whole(self):
+        solta = Rect(p1=(580, 300), p2=(820, 400))
+        c = G.center_of(solta)
+        solta.rotate_by(60)
+        self.assertAlmostEqual(float(solta.width), 240.0, places=6)
+        self.assertAlmostEqual(float(solta.height), 100.0, places=6)
+        self.assertTrue(G.close(G.center_of(solta), c, 1e-6))
+        self.assertFalse(G.close(G.xy(solta.p1), (580.0, 300.0), 1e-3))
+
+    def test_scale_field_is_scale_to_about_the_center(self):
+        a = Rect(top_left=(100, 100), width=160, height=60)
+        b = Rect(top_left=(100, 100), width=160, height=60)
+        c = G.center_of(a)
+        a.scale = 2
+        b.scale_to(2)
+        self.assertTrue(G.close(G.center_of(a), c, 1e-9))
+        self.assertTrue(G.same_set(G.drawn(a), G.drawn(b)))
+        grows = Square(center=(700, 260), length=100)
+        grows.scale_to(2, about=grows.bottom_center)
+        self.assertTrue(G.close(G.xy(grows.bottom_center), (700.0, 210.0), 1e-9))
+
+
 if __name__ == "__main__":
     unittest.main()
