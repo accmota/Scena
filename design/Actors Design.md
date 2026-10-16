@@ -636,7 +636,26 @@ with the same first letter, and for candidates ≥ 5 letters one **adjacent swap
 away at any position (`anlge`, `widht`, `aplha`, `lyaer`, `gruop`, `nagle` →
 `angle`; `scena.closed.transposed`). Never for `on_*` or plurals, and checked
 once per (class, name) — so `hp`, `player`, `flame`, `weight` stay ink, and so do
-plain deletions on short names (`coor`, `laer`). **An exact name of the class
+plain deletions on short names (`coor`, `laer`) unless the value rule catches them.
+**The value rule** (2026-10-16) covers the short properties a beginner writes most,
+whose one-edit neighbours are real field names (`laser` / `layer`, `owned` / `owner`,
+`modo` / `mode`, `nome`, `tempo`): a new name one edit (same first letter, not a
+plural, not the name plus digits) from `color` / `fill` / `line` refuses when its
+value is a colour (an exact colour name, `#hex`, an `(r, g, b[, a])` tuple, a
+Color / Gradient / Paint / Texture), and from `alpha` / `angle` / `scale` / `width`
+when its value is an `int` / `float` (`bool` is not). `bola.colr = "red"` raises
+"Did you mean 'color'?"; `self.laser = Rect(…)`, `self.owned = True`,
+`self.lime = 3` stay ink (`_TYPO_VALUE_KINDS`, `_is_paint_value`). Only where the kind
+has the name as a property: a bare `Entity` stores `color` plain (`_SET_OBJECT`), so
+`e.colr = "red"` stays ink. The cache entry is then the candidates, and `=` tests
+the value at each creation (+60 ns; a rewrite never enters the guard). Known misses:
+a bracket `@=` creation (the value is a formula), two-edit typos (`clr`), glued or
+fuzzy colour names as values (no fuzzy lookup there: 40–240 µs per string). Known
+false positive: a number field one edit from `scale` (`item.sale = 10`). Why a value
+test and not a lower threshold: across the examples, every tutorial step and the
+tests, a 5-letter one-edit rule hits `laser`, `later`, `owned`, `modal`, and a
+4-letter one adds `modo`, `fonte`, `trail`, `lime`; with the value test, none.
+Guard: `tests/test_ink_typo_value.py`. **An exact name of the class
 is never ink** (PC2): a method (`c["move_to"] @=`), a read-only property
 (`tri["points"] @=`, `poly["pointer_hover"] @=`, `rect["box"] @=`), a settable
 property `@=` cannot link (`track["is_floating"] @=`), or a size / point word

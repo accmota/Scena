@@ -215,6 +215,17 @@ left out.
 
 ### Fixed
 
+- A misspelled short property no longer becomes a silent field of your own.
+  `bola.colr = "red"`, `bola.angl = 45`, `bola.scal = 2` and `bola.fil = "blue"`
+  used to store a new field that nothing reads, so nothing changed on screen.
+  They now raise `AttributeError: Circle has no 'colr'. Did you mean 'color'?`.
+  The rule: a new name one letter away from `color`, `fill` or `line` holding a
+  colour, or from `alpha`, `angle`, `scale` or `width` holding a number. Real
+  fields with nearby names are not affected, because their values are another
+  kind: `self.laser = Rect(…)`, `self.owned = True`, `self.lime = 3`. A field
+  you meant to keep under such a name with such a value (`item.sale = 10`, one
+  letter from `scale`) now raises too; rename it.
+
 - A collision rule now acts the same whatever other rules pair the same
   bodies. When a body gained a tag while already touching (`hero.tag("shield")`
   inside the lava), `@collide("shield", "lava")` ran only if no other rule

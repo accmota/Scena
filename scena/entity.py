@@ -820,11 +820,79 @@ def _ink_near_miss_message(cls: type, name: str, known) -> Optional[str]:
     return None
 
 
-def _check_ink_near_miss(cls: type, name: str, route_map) -> None:
+_NO_VALUE = object()
+# Short properties whose one-edit neighbours are real field names (``laser`` /
+# ``layer``, ``owned`` / ``owner``, ``modo`` / ``mode``), so the one-edit rule
+# above skips them. A new name one edit from one of these refuses only when the
+# value is the kind the property takes: ``bola.colr = "red"`` is a typo,
+# ``self.lime = 3`` is a field (Actors Design, "Ink").
+_TYPO_VALUE_KINDS = {
+    "color": "paint", "fill": "paint", "line": "paint",
+    "alpha": "number", "angle": "number", "scale": "number", "width": "number",
+}
+_PAINT_TYPES = None
+
+
+def _is_paint_value(value) -> bool:
+    """A value ``color`` / ``fill`` / ``line`` take: an exact colour name, ``#hex``,
+    an ``(r, g, b[, a])`` tuple, a Color / Gradient / Paint / Texture. No fuzzy
+    name match: it costs 40-240 us and a near-miss value is a second typo."""
+    global _PAINT_TYPES
+    t = type(value)
+    if t is int or t is float or t is bool or value is None:
+        return False
+    if t is str:
+        from .color import ColorNames
+        if value.startswith("#"):
+            return True
+        return ColorNames._peel_modifiers(ColorNames.normalize(value))[1] in ColorNames._COLORS
+    if t is tuple:
+        return len(value) in (3, 4) and all(type(v) in (int, float) for v in value)
+    if _PAINT_TYPES is None:
+        from .color import Color
+        from .style import Gradient, Texture
+        from .visuals import Paint
+        _PAINT_TYPES = (Color, Gradient, Paint, Texture)
+    return isinstance(value, _PAINT_TYPES)
+
+
+def _value_near_miss_candidates(name: str, route_map):
+    """``((prop, kind), …)`` of ``_TYPO_VALUE_KINDS`` that ``name`` is one edit
+    from (same first letter, not a plural, not ``prop`` + digits) and that the
+    class has as a property, or ``None``."""
+    out = []
+    for prop, kind in _TYPO_VALUE_KINDS.items():
+        # A property of the kind (slot or setter). Not a reserved name stored
+        # plain (``_SET_OBJECT``: a bare Entity's inert ``color``), not a refusal.
+        route = route_map.get(prop)
+        if route is None or not hasattr(type(route), "__set__") or isinstance(route, _RouteRefusal):
+            continue
+        if name[0] != prop[0] or name == prop + "s" or prop == name + "s":
+            continue
+        if name[-1].isdigit() and name.rstrip("0123456789") == prop:
+            continue
+        if _one_edit_apart(name, prop):
+            out.append((prop, kind))
+    return tuple(out) or None
+
+
+def _value_near_miss_message(cls: type, name: str, prop: str) -> str:
+    who = cls.__name__
+    return (
+        f"{who} has no {name!r}. Did you mean {prop!r}? "
+        f"(A new name would create a field of your own; use a name that is not "
+        f"one typo away from a {who} property.)"
+    )
+
+
+def _check_ink_near_miss(cls: type, name: str, route_map, value=_NO_VALUE) -> None:
     """Raise when a new ink name is a near-miss of a real property (typo guard).
 
     Cached per ``(class, name)``: the check runs once per new ink name, never
-    on later writes of an existing ink field.
+    on later writes of an existing ink field. The entry is the refusal text,
+    ``None``, or the ``_TYPO_VALUE_KINDS`` candidates whose refusal depends on
+    ``value`` (``=`` passes it; a bracket ``@=`` creation has only a formula,
+    so it skips them).
     """
     cache = cls.__dict__.get("_scena_ink_near_miss")      # on the class (E17)
     if cache is None:
@@ -834,9 +902,18 @@ def _check_ink_near_miss(cls: type, name: str, route_map) -> None:
         msg = cache[name]
     except KeyError:
         msg = _ink_near_miss_message(cls, name, route_map)
+        if msg is None:
+            msg = _value_near_miss_candidates(name, route_map)
         cache[name] = msg
     if msg is not None:
-        raise AttributeError(msg)
+        if msg.__class__ is str:
+            raise AttributeError(msg)
+        if value is _NO_VALUE:
+            return
+        for prop, kind in msg:
+            if (_is_paint_value(value) if kind == "paint"
+                    else type(value) is int or type(value) is float):
+                raise AttributeError(_value_near_miss_message(cls, name, prop))
 
 
 # Routed names a destroyed actor may still be written with, as a quiet no-op
@@ -2394,14 +2471,14 @@ class Entity(Container):
         if callable(value) and not isinstance(value, type):
             raise CallableAssignError(_ink_callable_message(self, name, value)) from None
         if ink is None:
-            _check_ink_near_miss(type(self), name, route_map)
+            _check_ink_near_miss(type(self), name, route_map, value)
             ink = {}
             object.__setattr__(self, "_ink", ink)
         elif name in ink:
             self._write_field(name, value)
             return
         else:
-            _check_ink_near_miss(type(self), name, route_map)
+            _check_ink_near_miss(type(self), name, route_map, value)
         # A key from ``on_key_*`` is stored as a plain ``str``: its loud ``==``
         # is for the handler, not for every later compare (IN2 in Testing
         # Design). A rewrite unwraps it in ``_write_field``.
