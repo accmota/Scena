@@ -19,6 +19,7 @@ strategy, the rules, and the bug catalogue.
 | A leak test fails but the engine looks right | [Harness pitfalls](#harness-pitfalls) |
 | Do the smoke / example scripts still run? | `tests/test_scripts_run.py` (examples, quick) and `tests/test_smoke_scripts.py` (`scripts/smoke`, benches; `SLOW`) ([Recurring bug classes](#recurring-bug-classes): a script left on a retired spelling) |
 | Is this bug a known class? | [Recurring bug classes](#recurring-bug-classes), [Bug catalogue](#bug-catalogue) |
+| Is the engine converging? Findings per campaign, by verdict and by how common the pattern is | [Yield ledger](#yield-ledger) |
 | Why the rules are what they are | [Lessons learned](#lessons-learned) |
 | Planning a new test: axes, oracle, invariants, layers | [Lessons for test planning](#lessons-for-test-planning) |
 | Geometry hardening: axes, shadow oracle, sentinel, laws, fuzzer | [Geometry campaign](#geometry-campaign) |
@@ -2229,7 +2230,10 @@ A written constitution ([Laws.md](Laws.md)), a model of the discrete layer
 and equations, run over every program, game, example and tutorial step
 (details: [Laws and equations](#laws-and-equations)). Engine findings: LW5
 (a bug, fixed), LW2, LW7 (decisions, fixed 2026-10-15 with LW8), LW6 (a
-decision), LW3, LW4 (academic); harness: LW1, LW9.
+decision), LW3, LW4 (academic); harness: LW1, LW9. S7, the chaos doors
+(2026-10-15 / 16): CD1, CD2 (bugs, fixed), CD3 (a bug, fixed by per-rule
+contacts after a design session), CD4 (today's rule), CD5 (a message);
+[CD](#cd--chaos-doors-2026-10-15).
 
 1. **A model's first findings are its own.** In every stage the first
    divergences were wrong laws, not engine bugs: "its own hook", the act's
@@ -2268,6 +2272,54 @@ decision), LW3, LW4 (academic); harness: LW1, LW9.
    error would be LATENT; a 1 px difference from an author's Euler step is
    ACADEMIC; a character typed into a box is a BUG at one keystroke. Every
    divergence was traced to its mechanism before its verdict.
+
+7. **A change to what identifies a thing reaches every checker's keys.**
+   CD3 made a contact per rule. The C5 check still keyed "this handler
+   already exited" by the pair and the function, so one class method that
+   both bodies run, each under its own rule (`A.unhit(B)`, `B.unhit(A)`),
+   read as one handler running twice. The engine was right; `quick` and the
+   focused modules passed; only the world machine at `ci` (a tag gained
+   mid-contact, then a group destroyed) found it, in the merge gate. A
+   handler is now the function **and** the side it runs for. When a change
+   moves an identity (a contact, a handler, an owner, a press), search the
+   models and the equations for keys built from the old one, and add a
+   synthetic case for each direction.
+
+## Yield ledger
+
+Whether the engine converges is a curve, not a feeling. One row per campaign,
+added when it closes, with the same columns. **Catalogued** counts the rows of
+its series in the [Bug catalogue](#bug-catalogue): a row may hold a class
+with several members (PG: about 35 bugs in 32 rows), so rows are an order of
+magnitude, not a bug count. The verdict columns exist from the laws campaign
+on (its triage: BUG / LATENT / ACADEMIC / DECISION); earlier rows show `—`.
+**Where, how common** names the layer and the most common author pattern
+that reaches the bug: a taught pattern (the tutorials' games), a plausible
+one, or a rare combination.
+
+| Campaign | Dates | Instrument | Catalogued | Engine bugs | Decisions / messages | Not engine | Where, how common |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Hypothesis batch 1, system suites | 2026-09-25 | properties, state machines, scenarios | H 9, S 11 | — | — | — | |
+| API surface | 2026-09 | signature fuzz | A 40 | — | — | — | |
+| Geometry properties, differential | 2026-09-28 → | properties, fast vs slow twins | G 21, D 26 | — | — | — | |
+| Program model | 2026-10-08 | whole programs against specs from the docs | PM 20 | — | — | — | |
+| Graphics review | 2026-10-08 | white-box review | GR 49 | — | — | — | |
+| Geometry campaign | 2026-10-08 | axes, shadow oracle, sentinel | GX 21 | — | — | — | |
+| Systems review | 2026-10-09 | review, deep serial pass | RV–RV9 87, DS2 4 | — | SY 17 | — | |
+| Interaction campaign | 2026-10-09 / 10 | seam matrices | HD 5, RX 1, AL 1 | — | — | — | seams between subsystems |
+| Game system tests | 2026-10-10 | four white-box games | AC 17 | — | — | — | |
+| Performance campaign | 2026-10-12 | benches, A/B | PF 11 | — | — | — | |
+| Game-behaviour probes | 2026-10-13 / 14 | author-shaped probes under real input | PG 32 | — | — | — | collision, input, acts: taught and plausible patterns |
+| Laws, S0–S6 | 2026-10-14 / 15 | laws model, equations | LW 9 | 3 (LW2, LW5, LW8) | LW7 (applied), LW6 (open) | LW3, LW4 academic; LW1, LW9 harness; the instruments' own errors outnumbered the engine's (lessons 1, 2) | resolve: Breakout, a taught game (LW2, LW7, LW8); input: a plausible pattern (LW5) |
+| Laws S7, chaos doors | 2026-10-15 / 16 | a command injected at every door; directed cells | CD 5, CD3 3 | 3 (CD1, CD2, CD3 with CD3-x, CD3-b) | CD4 (today's rule), CD5 (message) | about six instrument fixes, then C5's key at the merge (lesson 7) | seams: hover × park, act change × dispatch, rule × contact; rare combinations, except CD3 (plausible: a shield gained while touching). Random single faults at sampled doors found none |
+
+**Reading it.** A falling yield across *different* instruments says the
+shallow bugs are gone, not that no deep ones remain: each new kind of
+instrument has found something real so far. Compare an instrument with its
+own earlier rounds, read the "where" column for the layer that keeps
+producing (resolve, every campaign since CT), and count the instruments'
+own errors too: when they outnumber the engine's, the instrument is the
+less mature side.
 
 ## Planning a new test
 
@@ -2363,7 +2415,7 @@ member should ask whether the siblings share the cause.
 | **A handle field doubles as a registry key** | K1 (`Layer.name` vs `canvas.layers`), K2 (`Handle.name` / `.owner` vs the scheduler slot `(id(owner), name)`), K3 (`shape.group` returned the live set; in-place `add` skipped `group_map`), K4 (interned look fields vs the intern key), K5 (`Entity.id` vs `id_map`) | `tests/test_registry_key_fields.py`, `test_registry_layers` (`test_name_*`); rule: a field a registry is keyed by (or mirrors) is a **property whose setter raises** with the create-and-move / re-schedule spelling, or a read-only snapshot (`GroupTags`, `frozenset`) that the registry swaps — never a plain attribute or a live container. Internal writers set the private slot |
 | **A per-frame throwaway enters the graph** (a value built to be read and dropped registers nodes; its tree is a reference cycle, so only a full GC frees them) | D11 (a measured Box's point part; views, group box and widget box were eager Boxes) | `test_box_snapshot.TestMeasuredPointsStayOffGraph` (count with the cyclic GC off); `test_leak_detector.TestGcChurnIsNotALeak`. Rule: an engine read that hands out a fresh Container every call (a snapshot, a measurement) keeps it off the graph until linked — a measured Box is `Box._snapshot` / `Box._from_aabb`, never `Box(p1=, p2=)`; its test counts graph nodes with `gc.disable()` |
 | **A fast path or cache disagrees with its reference** | D2 (poly cache), D4 (intersection GJK reused as a distance), D5 (support = first vertex within tie_eps) | `test_diff_*` + canaries |
-| **An oracle is stricter than the contract** (false positive) | D10 (prims compared in a raw-float sort order; the engine promises neither order nor bit-exact translation), G2 (contacts compared exactly across a world shift; the engine promises no answer at exact tangency) | `test_diff_collision.TestPrimsOracle` (drift + shuffle + built ties, every model); canary `test_oracle_guard_catches_a_sorted_compare`; `test_sys_hyp_collision.TestTangencyTolerance`. Rule: before calling a property failure an engine bug, check that the documented contract promises that exact answer; a float boundary (tangency, ties) needs an ε "either" band |
+| **An oracle is stricter than the contract** (false positive) | D10 (prims compared in a raw-float sort order; the engine promises neither order nor bit-exact translation), G2 (contacts compared exactly across a world shift; the engine promises no answer at exact tangency), the C5 key after CD3 (a checker kept the old identity of a handler: lesson 7 of the laws campaign) | `test_diff_collision.TestPrimsOracle` (drift + shuffle + built ties, every model); canary `test_oracle_guard_catches_a_sorted_compare`; `test_sys_hyp_collision.TestTangencyTolerance`. Rule: before calling a property failure an engine bug, check that the documented contract promises that exact answer; a float boundary (tangency, ties) needs an ε "either" band |
 | **Pull reactivity: a value depends on who read first** | D8 (`unlink` froze the unpulled value; destroy auto-unlink too) | `test_diff_reactive` link model + `chain` op; `TestUnlinkFreezesTheCurrentValue` |
 | **A mirror is applied as a rotation (or twice)** (a flip moves the shape, or relabels its parts as if turned) | G3 (`POINT_VEC` `flip_x`: `180 − θ` plus `vec.x`), G4 (`SPINE` side anchor kept its side), G6 (triangle mirrored `rotation`, not its heading; `vertex=` polygons turned about the vertex), G7 (`.box` of a flipped Graphic kept the turned angle but dropped the mirror), the pre-2026-09-29 Rect flip (`flip_x` sent `top_right` to the bottom left: names rotated 180°, not mirrored) | `test_rect_names.TestFlipMirrorsNamedPoints` + `test_flip_mirror.TestFlipMirrorsEveryKind` (every kind, drawn geometry) + canaries. Rule: a flip is checked on **every named / Defining point** (lands on its mirror about `center`) and on the region (does not move) — not on one read-back |
 | **A Derivate is missing from the update's write list** (filled on first read, then stale) | G5 (`vec` on Rect / Box / Line — also not pulled through its owner), G8 (RegularPolygon stats on their first read) | `test_rect_names.TestDerivatesMatchAFreshTwin` + canary. Rule: a new Derivate part is added to every `_update_impl_*` that owns it, and the fresh-twin check covers it |
