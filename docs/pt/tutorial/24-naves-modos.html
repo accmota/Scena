@@ -20,8 +20,7 @@ Tutorial.mount({
     {
       title: "O jogo do 08",
       body: `
-        <p>Novo script: o jogo do tutorial 08, com a frota que balança, as três vidas e o escudo que cai de presente. Neste tutorial os inimigos ganham <strong>capítulos</strong>: ficam um tempo na formação, mergulham na direção da nave e voltam. Depois, a frota passa a chegar em <strong>sequência</strong>, um inimigo depois do outro, e quando ela acaba aparece um chefe.</p>
-        <p>Nenhum arquivo novo: a folha do 07 já tem o chefe, um disco vermelho (<code>ufoRed.png</code>).</p>
+        <p>Um script novo, que começa com o jogo do 08: a frota que balança, as três vidas e o escudo que cai de presente. Agora os inimigos ganham <strong>capítulos</strong>: ficam um tempo na formação, mergulham na direção da nave e voltam. Depois, a frota passa a chegar em <strong>sequência</strong>, um inimigo depois do outro, e quando ela acaba aparece um chefe.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -194,12 +193,9 @@ run()
     },
     {
       title: "Um capítulo",
-      body: `
+      body: [
+        `
         <p>Num jogo de naves, um inimigo não faz sempre a mesma coisa. Ele fica um tempo na formação, de repente mergulha, e depois volta ao seu lugar. Cada uma dessas partes é um <strong>modo</strong> (<code>mode</code>): um capítulo da vida do inimigo.</p>
-        <p><strong>Um modo é uma função.</strong> Na classe <code>Inimigo</code>, <code>formacao</code> e <code>mergulho</code> são os dois capítulos. No <code>setup</code>, <code>self.mode = self.formacao</code> põe o inimigo no capítulo da formação. Entrar num modo roda a função uma vez, como o <code>setup</code> roda uma vez quando o objeto nasce. Repare: <code>self.formacao</code>, sem parênteses. O modo é a própria função, não uma chamada dela. O <code>@on_mode</code> (no modo) em cima de cada uma só marca: diz a quem lê que aquela função é um capítulo.</p>
-        <p><strong>Daqui a pouco, mergulhe.</strong> O corpo de <code>formacao</code> tem uma linha: <code>after(uniform(3, 12), then=self.mergulho)</code>. É o <code>after</code> do 02, com <code>then=</code> (então) no lugar da função: quando o tempo acaba, o inimigo entra no modo <code>mergulho</code>. <code>uniform(3, 12)</code> (uniforme), do <code>random</code> como o <code>choice</code>, sorteia um número qualquer entre 3 e 12: cada inimigo espera o seu tempo.</p>
-        <p><strong>O mergulho.</strong> <code>move_to</code> (mover até) com <code>time=0.9</code> (tempo) leva o inimigo até a altura 220 em 0,9 segundo, aos poucos, como o <code>scale_to</code> do 05 fazia crescer aos poucos. <code>loops=2, yoyo=True</code> são duas voltas em ioiô: a ida e a volta, pelo mesmo caminho. <code>ease="ease_in_out"</code> (suavizar) começa devagar, acelera e freia no fim. E <code>then=self.formacao</code>: quando as duas voltas acabam, o inimigo volta à formação, e a função <code>formacao</code> roda de novo, com outro tempo sorteado.</p>
-
         <figure class="fig">
           <svg viewBox="0 0 400 170" role="img" aria-label="Dois capítulos, formacao e mergulho. O setup leva à formacao; uma seta de cima vai da formacao ao mergulho, com after e then; uma seta de baixo volta do mergulho à formacao, com move_to e then">
             <line class="ray" x1="14" y1="85" x2="68" y2="85"/>
@@ -221,10 +217,19 @@ run()
           </svg>
           <figcaption>Dois capítulos. A formação espera um tempo e passa ao mergulho; o mergulho, quando a viagem acaba, volta à formação.</figcaption>
         </figure>
-
-        <p><strong>De volta à vaga.</strong> A frota continua balançando durante o mergulho, e mesmo assim o inimigo volta exatamente para a sua vaga, onde quer que a frota esteja agora.</p>
-        <p>Espere uns segundos: os inimigos descem, um aqui, outro ali, e voltam. Por enquanto, em linha reta.</p>
-      `,
+        <p>Na classe <code>Inimigo</code>, cada capítulo é uma função:</p>
+        `,
+        {
+          snip: `self.mode = self.formacao
+...
+@on_mode
+def formacao(self):
+    after(uniform(3, 12), then=self.mergulho)`
+        },
+        `
+        <p><code>self.mode = self.formacao</code> põe o inimigo no capítulo da formação, e entrar num modo roda a função uma vez, como o <code>setup</code> roda uma vez quando o objeto nasce. Repare: <code>self.formacao</code>, sem parênteses. O modo é a própria função, não uma chamada dela. O <code>@on_mode</code> (no modo) em cima só marca: diz a quem lê que aquela função é um capítulo.</p>
+        `
+      ],
       code: `from random import choice, uniform
 from scena import *
 
@@ -403,6 +408,24 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "after(uniform(3, 12), then=self.mergulho)",
+          text: "<code>after</code> com <code>then=</code> (então) no lugar da função: quando o tempo acaba, o inimigo entra no modo <code>mergulho</code>. <code>uniform(3, 12)</code> (uniforme), do <code>random</code>, sorteia um número qualquer entre 3 e 12: cada inimigo espera o seu tempo."
+        },
+        {
+          at: "self.move_to(self.center.x, 220, time=0.9",
+          text: "<code>move_to</code> (mover até) com <code>time=0.9</code> leva o inimigo até a altura 220 em 0.9 s, aos poucos. <code>ease=\"ease_in_out\"</code> (suavizar) começa devagar, acelera e freia no fim."
+        },
+        {
+          at: "loops=2, yoyo=True, then=self.formacao",
+          text: "Duas voltas em ioiô: a ida e a volta, pelo mesmo caminho. Quando acabam, <code>then=</code> leva de volta à formação, e <code>formacao</code> roda de novo, com outro tempo sorteado."
+        }
+      ],
+      after: `
+        <p>Espere uns segundos: os inimigos descem, um aqui, outro ali, e voltam. Por enquanto, em linha reta.</p>
+        <p>A frota continua balançando durante o mergulho, e mesmo assim o inimigo volta exatamente para a sua vaga, onde quer que a frota esteja agora.</p>
+      `,
       try: [
           {
             note: "Mergulhos mais frequentes, para ver melhor: no lugar do <code>after</code> da formação.",
@@ -414,7 +437,7 @@ run()
         {
           title: "Modos",
           body: `
-            <p>O capítulo atual de um objeto está em <code>self.mode</code>: a função do modo, ou <code>None</code> (nada) antes do primeiro. Escrever nele troca de capítulo: o velho acaba e o novo começa. Para perguntar em que capítulo um objeto está, compare com <code>==</code>: <code>if inimigo.mode == inimigo.mergulho:</code>.</p>
+            <p>O capítulo atual de um objeto está em <code>self.mode</code>: a função do modo, ou <code>None</code> (nada) antes do primeiro. Escrever nele troca de capítulo: o velho acaba, e o novo começa. Para perguntar em que capítulo um objeto está, compare com <code>==</code>: <code>if inimigo.mode == inimigo.mergulho:</code> é verdadeiro só enquanto aquele inimigo mergulha.</p>
             <p>No Guia: <a href="../guide/index.html#mode-enter">mode</a> · <a href="../guide/index.html#agendar-fim">Ao terminar</a> · <a href="../guide/index.html#mover-pose">move_to</a>.</p>
           `
         }
@@ -422,12 +445,17 @@ run()
     },
     {
       title: "Na direção da nave",
-      body: `
-        <p>Um mergulho de verdade vai na direção da nave. Para isso o inimigo precisa achá-la: <code>group["heroi"].nearest(self)</code> (mais perto) devolve, do grupo <code>heroi</code>, quem está mais perto deste inimigo. Só há uma nave, então é ela. A classe <code>Heroi</code> ganhou <code>group="heroi"</code> na sua linha.</p>
-        <p><strong>Pelo grupo.</strong> A variável <code>nave</code>, no fim do arquivo, também chegaria à nave. Mas procurar pelo grupo não depende de nome nenhum: o inimigo acha quem estiver no grupo, seja onde for que a nave tenha sido criada. No próximo tutorial, quando a nave mudar de lugar no arquivo, os inimigos nem vão perceber.</p>
-        <p><strong>O alvo.</strong> <code>alvo</code> é o <code>x</code> para onde o inimigo desce. Começa no <code>x</code> dele mesmo, o mergulho reto do passo anterior, e, se há uma nave, passa a ser o <code>x</code> da nave. Depois do fim de jogo a nave foi destruída, e <code>nearest</code> não acha ninguém: devolve <code>None</code> (nada), o <code>if heroi:</code> não entra, e o inimigo mergulha reto.</p>
-        <p>Fique parado e veja: os inimigos mergulham bem em cima de você.</p>
-      `,
+      body: [
+        `
+        <p>Um mergulho de verdade vai na direção da nave. Para isso o inimigo precisa achá-la:</p>
+        `,
+        {
+          snip: `heroi = group["heroi"].nearest(self)`
+        },
+        `
+        <p><code>nearest</code> (mais perto) devolve, do grupo <code>heroi</code>, quem está mais perto deste inimigo. Só há uma nave, então é ela. Para estar nesse grupo, a classe <code>Heroi</code> ganhou <code>group="heroi"</code> na sua linha.</p>
+        `
+      ],
       code: `from random import choice, uniform
 from scena import *
 
@@ -609,16 +637,64 @@ def saiu(tiro):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "height=45, group=\"heroi\"",
+          text: "A nave entra no grupo <code>heroi</code>, onde os inimigos vão procurá-la."
+        },
+        {
+          at: "alvo = self.center.x",
+          text: "<code>alvo</code> é o x para onde o inimigo desce. Começa no x dele mesmo: o mergulho reto de antes."
+        },
+        {
+          at: "if heroi:",
+          text: "Se há uma nave, o alvo passa a ser o x dela. Depois do fim de jogo, a nave foi destruída, e <code>nearest</code> não acha ninguém: devolve <code>None</code>, o <code>if</code> não entra, e o inimigo mergulha reto."
+        }
+      ],
+      after: `
+        <p>Fique parado e veja: os inimigos mergulham bem em cima de você.</p>
+        <details class="ask"><summary>A variável <code>nave</code> já chega à nave. Por que procurar pelo grupo?</summary><p>Porque o grupo não depende de nome nenhum: o inimigo acha quem estiver no grupo <code>heroi</code>, seja qual for a variável e seja onde for que a nave tenha sido criada. Se a nave mudar de nome ou de lugar no arquivo, os inimigos nem percebem.</p></details>
+      `
     },
     {
       title: "O que o capítulo começa",
-      body: `
-        <p>No 08, a frota atirava por um <code>@every</code> no fim do arquivo, que sorteava um inimigo qualquer. Agora cada inimigo atira sozinho, e só enquanto está na formação: <code>every(uniform(5, 12), self.atirar)</code>, dentro de <code>formacao</code>. O <code>frota_atira</code> do fim do arquivo saiu, e o <code>choice</code> foi com ele.</p>
-        <p><strong>A regra do capítulo.</strong> Um <code>every</code> ou um <code>after</code> escrito dentro de um modo pertence ao modo: quando o objeto sai daquele capítulo, eles param sozinhos. Quando o inimigo mergulha, o <code>every</code> da formação para. Quando ele volta, <code>formacao</code> roda de novo e começa um <code>every</code> novo. Sem essa regra, cada volta somaria mais um timer, e um inimigo que mergulhou cinco vezes atiraria cinco vezes mais. Vale também para os movimentos com <code>time=</code>.</p>
-        <p><strong>O tiro do mergulho.</strong> No <code>mergulho</code>, <code>after(0.9, self.atirar)</code>: no fundo da descida (a ida leva 0,9 segundo), o inimigo atira. Esse <code>after</code> é do capítulo do mergulho. <code>atirar</code> é uma função da classe que os dois capítulos chamam.</p>
-        <p>Os tiros agora vêm de quem está na formação e de quem desce. Quem mergulha é o mais perigoso: atira de perto.</p>
-      `,
+      body: [
+        `
+        <p>Agora cada inimigo atira sozinho, e só enquanto está na formação. O <code>@every</code> do fim do arquivo, que sorteava um atirador, saiu, e o <code>choice</code> foi com ele. O tiro passa para dentro do capítulo:</p>
+        `,
+        {
+          snip: `def formacao(self):
+    every(uniform(5, 12), self.atirar)
+    after(uniform(3, 12), then=self.mergulho)`
+        },
+        `
+        <p>Um <code>every</code> ou um <code>after</code> escrito dentro de um modo pertence ao modo: quando o objeto sai daquele capítulo, eles param sozinhos. É a regra do capítulo. Quando o inimigo mergulha, o <code>every</code> da formação para; quando ele volta, <code>formacao</code> roda de novo e começa um <code>every</code> novo:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 120" role="img" aria-label="Uma linha do tempo de um inimigo: formacao, mergulho, formacao de novo. Os tiros do every caem só nos trechos da formacao; no meio do mergulho, um tiro só, o do after">
+            <rect class="bar" x="20" y="30" width="140" height="26" rx="4"/>
+            <rect class="bar child" x="160" y="30" width="80" height="26" rx="4"/>
+            <rect class="bar" x="240" y="30" width="140" height="26" rx="4"/>
+            <text x="90" y="47" text-anchor="middle">formacao</text>
+            <text x="200" y="47" text-anchor="middle">mergulho</text>
+            <text x="310" y="47" text-anchor="middle">formacao</text>
+            <line class="ray" x1="20" y1="76" x2="380" y2="76"/>
+            <circle class="dot" cx="60" cy="76" r="4"/>
+            <circle class="dot" cx="100" cy="76" r="4"/>
+            <circle class="dot" cx="140" cy="76" r="4"/>
+            <circle class="hot" cx="200" cy="76" r="5"/>
+            <circle class="dot" cx="290" cy="76" r="4"/>
+            <circle class="dot" cx="330" cy="76" r="4"/>
+            <circle class="dot" cx="370" cy="76" r="4"/>
+            <text x="100" y="100" text-anchor="middle">every</text>
+            <text x="200" y="100" text-anchor="middle">after(0.9)</text>
+            <text x="330" y="100" text-anchor="middle">every novo</text>
+          </svg>
+          <figcaption>Os tiros de um inimigo. O <code>every</code> da formação para quando ele mergulha; na volta, começa outro. No fundo do mergulho, o tiro do <code>after</code>.</figcaption>
+        </figure>
+        <p>Sem essa regra, cada volta somaria mais um timer, e um inimigo que mergulhou cinco vezes atiraria cinco vezes mais. Ela vale também para os movimentos com <code>time=</code>.</p>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -798,11 +874,24 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "after(0.9, self.atirar)",
+          text: "No fundo da descida (a ida leva 0.9 s), o inimigo atira. Esse <code>after</code> é do capítulo do mergulho."
+        },
+        {
+          at: "def atirar(self):",
+          text: "<code>atirar</code> é uma função da classe que os dois capítulos chamam."
+        }
+      ],
+      after: `
+        <p>Rode. Os tiros agora vêm de quem está na formação e de quem desce, e quem mergulha é o mais perigoso: atira de perto.</p>
+      `,
       dive: [
         {
           title: "Do capítulo ou do objeto",
           body: `
-            <p>Um timer tem um dono. Solto dentro de um modo (<code>after(…)</code>, <code>every(…)</code>, <code>move_to(…, time=)</code>), o dono é o capítulo, e ele para na troca de modo. Com o objeto na frente (<code>self.after(…)</code>, <code>self.every(…)</code>), o dono é o objeto: atravessa as trocas de modo e só para quando o objeto é destruído. É o <code>self.after(0.5, self.destroy)</code> da <code>Explosao</code> do 07.</p>
+            <p>Um timer tem um dono. Solto dentro de um modo (<code>after(…)</code>, <code>every(…)</code>, <code>move_to(…, time=)</code>), o dono é o capítulo, e ele para na troca de modo. Com o objeto na frente (<code>self.after(…)</code>, <code>self.every(…)</code>), o dono é o objeto: atravessa as trocas de modo e só para quando o objeto é destruído. É o caso do <code>self.after(0.5, self.destroy)</code> da <code>Explosao</code>, neste mesmo script.</p>
             <p>Fora dos modos, no <code>setup</code> ou num <code>@collide_with</code>, não há capítulo. Por isso a respiração do inimigo, o <code>self.scale_to(…)</code> do <code>setup</code>, continua durante o mergulho: ela é do inimigo.</p>
             <p>No Guia: <a href="../guide/index.html#mode-cancela">escopo e cancelamento</a>.</p>
           `
@@ -811,12 +900,19 @@ run()
     },
     {
       title: "O jato do mergulho",
-      body: `
-        <p>O inimigo que mergulha deveria mostrar a força: um jato aceso nas costas, que apaga quando ele volta para a formação. É uma aparência ligada a um capítulo.</p>
-        <p><strong>A peça.</strong> O jato é um <code>Jet</code>, como o propulsor da nave no 06, feito no <code>setup</code> e guardado em <code>self.jato</code>. Os inimigos apontam para baixo, então o jato sai das costas, para cima (<code>angle=90</code>). Ele nasce estacionado (<code>active = False</code>), como o escudo do 08, e o <code>on_destroy</code> o apaga junto com o inimigo.</p>
-        <p><strong>Acender e apagar.</strong> O <code>mergulho</code> acende o jato. Para apagar existe <code>@exit_mode(mergulho)</code> (ao sair do modo): em cima de uma função da classe, ele diz ao Scena para rodá-la quando o inimigo sai do mergulho, por qualquer caminho. O jato não é um timer: a regra do capítulo não o apaga. Aparência e campos próprios precisam do <code>@exit_mode</code>.</p>
-        <p><strong>Destruído no meio.</strong> O <code>@exit_mode</code> cobre a saída do modo; o <code>on_destroy</code>, o inimigo derrubado no meio do mergulho. Os dois juntos cobrem todo caminho.</p>
-      `,
+      body: [
+        `
+        <p>O inimigo que mergulha deveria mostrar a força: um jato aceso nas costas, que apaga quando ele volta para a formação. É uma aparência ligada a um capítulo. Acender é fácil, no começo do <code>mergulho</code>. Apagar pede um gancho novo:</p>
+        `,
+        {
+          snip: `@exit_mode(mergulho)
+def fim_do_mergulho(self):
+    self.jato.active = False`
+        },
+        `
+        <p><code>@exit_mode</code> (ao sair do modo), em cima de uma função da classe, diz ao Scena para rodá-la quando o inimigo sai do mergulho, por qualquer caminho. O jato não é um timer, e a regra do capítulo não o apaga: aparência e campos próprios precisam do <code>@exit_mode</code>.</p>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -1007,6 +1103,27 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "self.jato = Jet(",
+          text: "O jato é um <code>Jet</code>, como o propulsor da nave, feito no <code>setup</code> e guardado em <code>self.jato</code>. Logo depois, <code>active = False</code> (ativo, falso) o deixa estacionado, apagado."
+        },
+        {
+          at: "angle=90, length=30",
+          text: "Os inimigos apontam para baixo, então o jato sai das costas, para cima: 90 graus."
+        },
+        {
+          at: "self.jato.active = True",
+          text: "O mergulho acende o jato logo ao começar."
+        },
+        {
+          at: "self.jato.destroy()",
+          text: "O <code>@exit_mode</code> cobre a saída do modo; o <code>on_destroy</code>, o inimigo derrubado no meio do mergulho, que leva o jato junto. Os dois juntos cobrem todo caminho."
+        }
+      ],
+      after: `
+        <p>Rode e espere um mergulho: o jato acende na descida e apaga na volta. Depois, acerte um inimigo no meio de um mergulho: o jato some com ele.</p>
+      `,
       try: [
           {
             note: "Outro jato, mais longo e mais forte, no lugar das duas linhas do <code>Jet</code>. No Guia: <a href='../guide/index.html#desenhar-spatial'>SpatialFx</a>.",
@@ -1018,10 +1135,20 @@ run()
     },
     {
       title: "A entrada em sequência",
-      body: `
+      body: [
+        `
         <p>Até aqui a frota já começa pronta, parada no lugar. Num jogo de naves ela <em>chega</em>: cada inimigo desce de fora da tela até a sua vaga, para um instante, dá um estalo e só então entra na formação. É uma sequência: faça isto, espere, faça aquilo, espere, entre na formação.</p>
-        <p><strong>Um capítulo que é uma sequência.</strong> O modo diz <em>onde</em> o inimigo está; uma sequência diz <em>o que acontece, em ordem</em>, enquanto ele está ali. <code>chegando</code> é um modo escrito com <code>async def</code> (assíncrono) no lugar de <code>def</code>. Num modo assim, <code>await</code> (aguarde) pausa o capítulo até a coisa da frente terminar, e só então segue para a linha de baixo. <code>await wait(self.espera)</code> espera um tempo (<code>wait</code>, esperar). <code>await self.move_by(0, -500, time=1.2, …)</code> espera a descida inteira: 500 pixels em 1,2 segundo. Depois mais uma espera, o estalo com um som (o <code>pop</code> do 08; <code>scale=1.3</code> é até onde ele cresce), e a última linha passa para a formação. O código lê de cima para baixo, na ordem em que as coisas acontecem.</p>
-
+        <p>O modo diz <em>onde</em> o inimigo está; uma sequência diz <em>o que acontece, em ordem</em>, enquanto ele está ali. A chegada é um modo assim:</p>
+        `,
+        {
+          snip: `@on_mode
+async def chegando(self):
+    await wait(self.espera)
+    await self.move_by(0, -500, time=1.2, ease="ease_out")
+    await wait(0.3)`
+        },
+        `
+        <p><code>chegando</code> é escrito com <code>async def</code> (assíncrono) no lugar de <code>def</code>. Num modo assim, <code>await</code> (aguarde) pausa o capítulo até a coisa da frente terminar, e só então segue para a linha de baixo. <code>wait</code> (esperar) espera um tempo; o <code>move_by</code> com <code>time=</code> é esperado inteiro, 500 pixels em 1.2 s, antes da linha seguinte:</p>
         <figure class="fig">
           <svg viewBox="0 0 420 135" role="img" aria-label="Uma linha do tempo da chegada de um inimigo, da esquerda para a direita: a espera, a descida de 1,2 segundo, uma pausa de 0,3 segundo, o estalo com som e, por fim, a formacao">
             <line class="ray" x1="10" y1="92" x2="404" y2="92"/>
@@ -1042,10 +1169,8 @@ run()
           </svg>
           <figcaption>A chegada de um inimigo. Cada <code>await</code> espera a sua parte terminar; a linha de baixo só roda depois.</figcaption>
         </figure>
-
-        <p><strong>A ordem da frota.</strong> Os inimigos nascem 500 pixels acima da vaga, fora da tela: <code>1220 - linha * 70</code> no lugar de <code>720 - linha * 70</code>. No laço, cada um ganha a sua espera, <code>inimigo.espera</code>: a linha de baixo chega primeiro e, em cada linha, da esquerda para a direita. A ordem é da frota inteira, então fica no laço, como a cor. E é o laço que põe o inimigo em <code>chegando</code>, depois de dar a espera; o <code>setup</code> não escolhe mais o modo.</p>
-        <p><strong>Não esqueça o await.</strong> Ele vai na frente de cada espera. Sem ele, <code>wait(0.3)</code> não espera nada, e o Scena avisa com um erro que diz a linha e o <code>await</code> que falta.</p>
-      `,
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -1246,9 +1371,40 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "self.pop(scale=1.3)",
+          text: "O estalo: <code>pop</code> infla o inimigo por um instante, e <code>scale=1.3</code> é até onde ele cresce. A linha de baixo passa para a formação: a sequência acabou."
+        },
+        {
+          at: "1220 - linha * 70",
+          text: "Os inimigos nascem 500 pixels acima da vaga, fora da tela: 1220 no lugar de 720."
+        },
+        {
+          at: "inimigo.espera = (2 - linha) * 0.6 + coluna * 0.08",
+          text: "Cada um ganha a sua espera: a linha de baixo (a linha 2) chega primeiro e, em cada linha, da esquerda para a direita. A ordem é da frota inteira, então fica no laço, como a cor."
+        },
+        {
+          at: "inimigo.mode = inimigo.chegando",
+          text: "É o laço que põe o inimigo em <code>chegando</code>, depois de dar a espera. O <code>setup</code> não escolhe mais o modo."
+        }
+      ],
+      after: [
+        `
+        <p>Rode: a frota chega de cima, um inimigo depois do outro, linha por linha. O código de <code>chegando</code> lê de cima para baixo, na ordem em que as coisas acontecem.</p>
+        <p>O <code>await</code> vai na frente de cada espera, e é fácil esquecê-lo:</p>
+        `,
+        {
+          snip: `    wait(0.3)`,
+          alt: true
+        },
+        `
+        <p>Sem o <code>await</code>, o <code>wait</code> não espera nada. O Scena avisa com um erro que diz a linha e o <code>await</code> que falta.</p>
+        `
+      ],
       try: [
           {
-            note: "A mesma chegada sem <code>async</code>, no lugar do <code>chegando</code> inteiro. Cada espera vira um <code>after</code> com outra função dentro (no movimento, <code>on_done=</code>, ao terminar, chama uma função no fim sem trocar de capítulo), e o fim da sequência precisa de uma função só para ele, <code>chegou</code>. Funciona, mas lê de dentro para fora, e cada espera a mais empurra o código mais para a direita.",
+            note: "A mesma chegada sem <code>async</code>, no lugar do <code>chegando</code> inteiro. Cada espera vira um <code>after</code> com outra função dentro (no movimento, <code>on_done=</code>, ao terminar), e o fim da sequência precisa de uma função só para ele, <code>chegou</code>. Funciona, mas lê de dentro para fora, e cada espera a mais empurra o código mais para a direita.",
             replaces: ['async def chegando', 'await wait(self.espera)', 'await self.move_by(0, -500', 'await wait(0.3)', 'self.pop(scale=1.3)', 'play_sound("audio/impactGeneric_light_003.ogg")', 'self.mode = self.formacao'],
             code: `def chegando(self):
     self.after(self.espera, lambda: self.move_by(0, -500, time=1.2, ease="ease_out",
@@ -1274,12 +1430,7 @@ def chegou(self):
     {
       title: "O chefe chega",
       body: `
-        <p>Quando a frota acaba, chega o chefe: um disco grande, com a sua própria barra de vida. A chegada dele é outra sequência, agora de imagem e som: um aviso piscando com um som grave, o chefe que desce, a barra que enche, e a luta.</p>
-        <p><strong>Quando a frota acaba.</strong> No fim do arquivo, um <code>@when</code> (quando), do tutorial 01: quando o grupo <code>inimigos</code> fica vazio (<code>count == 0</code>), nasce um <code>Chefe</code>, fora da tela, em cima.</p>
-        <p><strong>A chegada.</strong> O <code>setup</code> do chefe começa a vida em zero, faz a barra (um <code>Rect</code> com a largura ligada à vida com <code>@=</code>, como a barra da energia) e põe o chefe em <code>chegando</code>. Ali, o aviso é um <code>Text</code> que pisca (<code>blink</code>, do 07) enquanto toca o laser grande uma oitava abaixo (<code>pitch=0.5</code>). Dois segundos depois o aviso some, o chefe desce, e a barra enche de um em um: um <code>for</code> com uma espera dentro, vinte vezes um ponto de vida e um estalo. Por fim, <code>lutando</code>.</p>
-        <p><strong>Por que uma sequência.</strong> Com <code>then=</code>, cada espera pediria um modo só para ela; com <code>async</code>, a chegada inteira é uma função, lida de cima para baixo.</p>
-        <p><strong>A luta.</strong> <code>lutando</code> é um modo comum, que começa duas coisas que duram: o chefe vai e volta de um lado ao outro (<code>move_by</code> em ioiô, para sempre) e solta três lasers a cada segundo (<code>rajada</code>). As duas são do capítulo.</p>
-        <p>Ainda não dá para derrubar o chefe: os tiros passam por ele.</p>
+        <p>Quando a frota acaba, chega o chefe: um disco grande, com a sua própria barra de vida. A chegada dele é outra sequência, agora de imagem e som: um aviso piscando com um som grave, o chefe que desce, a barra que enche, e a luta. São dois capítulos, <code>chegando</code> e <code>lutando</code>, e o primeiro passa ao segundo.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -1521,6 +1672,37 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "self.barra[\"width\"] @= lambda: self.vida * 20",
+          text: "A vida começa em zero, e a barra tem a largura ligada a ela com <code>@=</code>, como a barra da energia: com 20 pontos de vida, 400 pixels."
+        },
+        {
+          at: "aviso.blink(2)",
+          text: "O aviso pisca (<code>blink</code>) por 2 s, enquanto toca o laser grande uma oitava abaixo (<code>pitch=0.5</code>)."
+        },
+        {
+          at: "for vez in range(20):",
+          text: "A barra enche de um em um: um <code>for</code> com uma espera dentro, vinte vezes um ponto de vida e um estalo. Depois do <code>for</code>, a luta."
+        },
+        {
+          at: "self.move_by(-500, 0, time=3",
+          text: "<code>lutando</code> é um modo comum, que começa duas coisas que duram: o chefe vai e volta de um lado ao outro, em ioiô, para sempre…"
+        },
+        {
+          at: "every(1.0, self.rajada)",
+          text: "…e solta três lasers a cada segundo. As duas coisas são do capítulo."
+        },
+        {
+          at: "@when(lambda: group[\"inimigos\"].count == 0)",
+          text: "<code>@when</code> (quando) roda a função uma vez, quando a condição fica verdadeira: o grupo <code>inimigos</code> ficou vazio. O chefe nasce fora da tela, em cima."
+        }
+      ],
+      after: `
+        <p>Derrube a frota e espere o chefe. Para chegar logo nele, use a caixa abaixo.</p>
+        <details class="ask"><summary>Por que a chegada do chefe é um modo <code>async</code>, e não uma fila de <code>then=</code>?</summary><p>Com <code>then=</code>, cada espera pediria um modo só para ela: o aviso, a descida, cada ponto da barra. Com <code>async</code>, a chegada inteira é uma função, lida de cima para baixo.</p></details>
+        <details class="ask"><summary>E os seus tiros?</summary><p>Passam pelo chefe. Nada ainda diz o que acontece quando um tiro o acerta.</p></details>
+      `,
       try: [
           {
             note: "Para chegar logo ao chefe, enquanto testa: no fim do arquivo, antes do <code>run()</code>. Três segundos depois do começo, a frota inteira some.",
@@ -1531,11 +1713,18 @@ run()
     {
       title: "O chefe cai",
       example: "naves_modos.py",
-      body: `
-        <p>O chefe ganha o seu <code>@collide_with("tiros")</code>. O tiro sempre some, mas o chefe só perde vida no capítulo da luta: <code>if self.mode != self.lutando: return</code>. Descendo, ou com a barra ainda enchendo, ele não está na briga. Cada acerto estoura onde bateu (<code>hit_at</code>, do 08), faz o chefe piscar (<code>flash</code>) e tira um ponto da barra.</p>
-        <p><strong>A queda em etapas.</strong> Com a vida em zero, o chefe entra em <code>morrendo</code>, mais um modo <code>async</code>: cinco explosões em volta do centro, cada uma com um som e uma espera; depois a tela treme (<code>shake</code>), a explosão do 07 fecha, a palavra VITÓRIA aparece e o chefe é destruído. <code>self.center + (dx, dy)</code> é o centro deslocado: um lugar sorteado perto dele.</p>
-        <p><strong>A regra do capítulo, de novo.</strong> Ao entrar em <code>morrendo</code>, o chefe sai de <code>lutando</code>. O ioiô e a rajada eram de lá, e param sozinhos: ninguém precisa mandar o chefe parar de atirar enquanto explode.</p>
-      `,
+      body: [
+        `
+        <p>O chefe ganha o seu <code>@collide_with("tiros")</code>. O tiro sempre some, mas o chefe só perde vida no capítulo da luta:</p>
+        `,
+        {
+          snip: `if self.mode != self.lutando:
+    return`
+        },
+        `
+        <p><code>!=</code> quer dizer diferente. Descendo, ou com a barra ainda enchendo, o chefe não está na briga: o <code>return</code> sai antes de qualquer dano.</p>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -1799,6 +1988,32 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "canvas.hit_at(info)",
+          text: "Cada acerto estoura onde bateu (<code>hit_at</code>), faz o chefe piscar (<code>flash</code>) e tira um ponto da barra."
+        },
+        {
+          at: "self.mode = self.morrendo",
+          text: "Com a vida em zero, o chefe entra em <code>morrendo</code>, mais um modo <code>async</code>: a queda em etapas."
+        },
+        {
+          at: "for vez in range(5):",
+          text: "Cinco explosões em volta do centro, cada uma com um som e uma espera."
+        },
+        {
+          at: "self.center + (uniform(-50, 50), uniform(-30, 30))",
+          text: "<code>self.center + (dx, dy)</code> é o centro deslocado: um lugar sorteado perto dele."
+        },
+        {
+          at: "canvas.shake(14)",
+          text: "Depois, a tela treme (<code>shake</code>), a explosão grande fecha, a palavra VITÓRIA aparece e o chefe é destruído."
+        }
+      ],
+      after: `
+        <p>Rode, espere a barra encher e derrube o chefe.</p>
+        <details class="ask"><summary>Quem manda o chefe parar de atirar enquanto explode?</summary><p>Ninguém. Ao entrar em <code>morrendo</code>, o chefe sai de <code>lutando</code>; o ioiô e a rajada eram de lá, e param sozinhos. É a regra do capítulo de novo.</p></details>
+      `,
       try: [
           {
             note: "Outros finais, um por vez, no lugar da explosão de dentro do <code>for</code>. No Guia: <a href='../guide/index.html#mundo-impactos'>Impactos</a>.",

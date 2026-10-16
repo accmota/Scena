@@ -20,8 +20,26 @@ Tutorial.mount({
     {
       title: "As paredes",
       body: `
-        <p>Outro jogo, sem naves: uma caixa com bolas que quicam nas paredes e umas nas outras. O tutorial é sobre uma ideia só, uma <strong>regra de colisão que fica valendo</strong>. Primeiro, a caixa.</p>
-        <p><strong>As paredes.</strong> Quatro <code>Rect</code> (retângulo), uma em cada borda da janela de 1000 por 720, todas no grupo <code>parede</code>. Um grupo aceita o que um objeto aceita: <code>group["parede"].visual = Metal()</code> dá o visual de metal às quatro de uma vez. <code>SkyGradient("night")</code> é o céu noturno do 05.</p>
+        <p>Outro jogo: uma caixa com bolas que quicam nas paredes e umas nas outras. O tutorial gira em torno de uma ideia só, uma regra de colisão que fica valendo. Primeiro, a caixa: quatro paredes, uma em cada borda da janela de 1000 por 720.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 225" role="img" aria-label="A janela com uma parede em cada borda; o centro de cada parede está marcado: (500, 704) em cima, (500, 16) embaixo, (16, 360) à esquerda e (984, 360) à direita">
+            <rect class="bar" x="70" y="20" width="250" height="8"/>
+            <rect class="bar" x="70" y="192" width="250" height="8"/>
+            <rect class="bar" x="70" y="20" width="8" height="180"/>
+            <rect class="bar" x="312" y="20" width="8" height="180"/>
+            <circle class="hot" cx="195" cy="24" r="3"/>
+            <circle class="hot" cx="195" cy="196" r="3"/>
+            <circle class="hot" cx="74" cy="110" r="3"/>
+            <circle class="hot" cx="316" cy="110" r="3"/>
+            <text x="195" y="44" text-anchor="middle">(500, 704)</text>
+            <text x="195" y="184" text-anchor="middle">(500, 16)</text>
+            <text x="86" y="114">(16, 360)</text>
+            <text x="304" y="114" text-anchor="end">(984, 360)</text>
+            <text x="70" y="216" text-anchor="middle">(0, 0)</text>
+            <text x="320" y="12" text-anchor="middle">(1000, 720)</text>
+          </svg>
+          <figcaption>Cada parede tem 32 de espessura e encosta na borda da janela; o ponto marcado é o centro dela. Para as bolas sobra o espaço de 32 a 968 em x e de 32 a 688 em y.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -36,15 +54,50 @@ group["parede"].visual = Metal()
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "SkyGradient(\"night\")",
+          text: "<code>SkyGradient</code> (degradê de céu) pinta o fundo; <code>\"night\"</code> (noite) é o céu escuro."
+        },
+        {
+          at: "Rect(center=(500, 16)",
+          text: "<code>Rect</code> (retângulo) tem centro, <code>width</code> (largura) e <code>height</code> (altura). A parede de baixo tem o centro a 16 do chão e 32 de altura: cobre de 0 a 32."
+        },
+        {
+          at: "group[\"parede\"].visual = Metal()",
+          text: "Um grupo aceita o que um objeto aceita: <code>visual</code> no grupo dá o metal às quatro paredes de uma vez."
+        }
+      ]
     },
     {
       title: "Uma bola",
-      body: `
-        <p><strong>Uma classe de forma.</strong> No 06, as classes vinham de <code>Sprite</code>. Uma forma também pode ser classe: <code>class Bola(Circle, …)</code> é um molde de círculo, com raio, cor e grupo na linha da classe, como o <code>height=</code> do <code>Tiro</code>.</p>
-        <p><strong>A velocidade.</strong> <code>self.vel</code> (de <em>velocity</em>, velocidade) é quanto a bola anda por segundo. <code>Vec2(200, 120)</code> é uma <strong>seta</strong> (vetor) de dois números: 200 para a direita e 120 para cima, por segundo. No <code>on_update</code>, a bola anda <code>vel.x * dt</code> e <code>vel.y * dt</code>, o pedaço da seta que cabe num quadro. É a conta do <code>move_by(340 * dt, 0)</code> das naves, agora nas duas direções. A seta nasce no <code>setup</code>: cada bola ganha a sua.</p>
-        <p>Rode: a bola anda em diagonal, atravessa a parede e some. Ainda não há nada que a segure.</p>
-      `,
+      body: [
+        `
+        <p>Agora uma bola que anda sozinha. Ela é uma classe, e o molde desta vez é uma forma, <code>Circle</code> (círculo), não um sprite. O que ela tem de novo é a velocidade, guardada numa seta:</p>
+        `,
+        {
+          snip: `self.vel = Vec2(200, 120)
+...
+self.move_by(self.vel.x * dt, self.vel.y * dt)`
+        },
+        `
+        <p><code>self.vel</code> (de <em>velocity</em>, velocidade) é quanto a bola anda por segundo. <code>Vec2(200, 120)</code> é uma seta, um vetor de dois números: 200 para a direita e 120 para cima. A cada quadro, a bola anda o pedaço da seta que cabe nele, <code>vel.x * dt</code> e <code>vel.y * dt</code>: num quadro de 1/60 de segundo, 3,3 para a direita e 2 para cima.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 180" role="img" aria-label="Uma bola e a seta da velocidade, apontando para cima e para a direita; a seta se decompõe em 200 para a direita e 120 para cima">
+            <line class="guide" x1="60" y1="150" x2="260" y2="150"/>
+            <line class="guide" x1="260" y1="150" x2="260" y2="30"/>
+            <line class="ray" x1="68" y1="145" x2="252" y2="35"/>
+            <polygon class="dot" points="260,30 254,39.4 248.9,30.9"/>
+            <circle class="hot" cx="60" cy="150" r="9"/>
+            <text x="120" y="74" text-anchor="middle">Vec2(200, 120)</text>
+            <text x="160" y="168" text-anchor="middle">200 para a direita</text>
+            <text x="268" y="94">120 para cima</text>
+          </svg>
+          <figcaption>A seta <code>Vec2(200, 120)</code>: a cada segundo, 200 para a direita e 120 para cima. A bola anda na diagonal, ao longo da seta.</figcaption>
+        </figure>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=720, title="Bolas")
@@ -69,14 +122,33 @@ Bola(center=(200, 200))
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "class Bola(Circle, radius=14",
+          text: "Raio, cor e grupo vão na linha da classe: toda bola nasce com <code>radius=14</code> (raio), cor de tomate, no grupo <code>bola</code>."
+        },
+        {
+          at: "def setup(self):",
+          text: "O Scena chama o <code>setup</code> quando cada bola nasce. A seta nasce ali, e cada bola ganha a sua."
+        }
+      ],
+      after: `
+        <p>Rode e espere a bola chegar à borda.</p>
+        <details class="ask"><summary>O que a bola faz na parede?</summary><p>Atravessa e some. A parede ainda é só um desenho: nada segura a bola.</p></details>
+      `
     },
     {
       title: "Uma regra que fica valendo",
-      body: `
-        <p><code>resolve("bola", "parede", bounce=1)</code> (resolver) é uma regra escrita uma vez, fora de qualquer função, e que vale em todos os quadros: bola e parede <strong>não se atravessam</strong>. Quando a bola chega à parede, o Scena a para no ponto do toque e corrige a sua <code>vel</code>.</p>
-        <p><strong>O resolve não move a bola.</strong> Quem anda é o <code>on_update</code>, como antes. O <code>resolve</code> só desfaz o que o movimento faria de errado: separa as duas e vira a seta. Com <code>bounce=1</code> (quique), a bola sai com a mesma força com que bateu.</p>
-
+      body: [
+        `
+        <p>A bola precisa parar na parede e voltar. Em vez de conferir a posição dela a cada quadro, escrevemos uma regra, uma vez só:</p>
+        `,
+        {
+          snip: `resolve("bola", "parede", bounce=1)`
+        },
+        `
+        <p><code>resolve</code> (resolver) fica fora de qualquer função e vale em todos os quadros: bola e parede não se atravessam. Ele não move a bola; quem anda é o <code>on_update</code>, como antes. O <code>resolve</code> só desfaz o que o movimento faria de errado: quando a bola entra na parede, ele a põe de volta no ponto do toque e vira a parte da seta que entrava.</p>
         <figure class="fig">
           <svg viewBox="0 0 400 210" role="img" aria-label="Uma bola anda em diagonal até uma parede à direita; no ponto do toque ela para; a seta de antes aponta para dentro da parede e a seta de depois aponta para fora, com a mesma parte para cima">
             <rect class="bar" x="300" y="12" width="24" height="186" rx="3"/>
@@ -97,9 +169,8 @@ run()
           </svg>
           <figcaption>A bola chega à parede; o <code>resolve</code> a para no toque e vira a parte da seta que entrava na parede. A parte para cima fica como estava.</figcaption>
         </figure>
-
-        <p><strong>Quem cede.</strong> <code>.mass</code> (massa) decide quem é empurrado quando dois se tocam. <code>STATIC</code> (estático) não cede nunca: é a massa certa para paredes e chão. Sem ela, a parede teria massa 1, como a bola, e as duas se empurrariam meio a meio.</p>
-      `,
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=720, title="Bolas")
@@ -128,6 +199,20 @@ Bola(center=(200, 200))
 
 run()
 `,
+      notes: [
+        {
+          at: "group[\"parede\"].mass = STATIC",
+          text: "<code>mass</code> (massa) decide quem cede quando dois se tocam. <code>STATIC</code> (estático) não cede nunca: é a massa certa para paredes e chão."
+        },
+        {
+          at: "bounce=1",
+          text: "<code>bounce</code> (quique) diz quanto da força sobra depois da batida. Com 1, a bola sai com a mesma força com que bateu."
+        }
+      ],
+      after: `
+        <p>Rode: a bola quica nas quatro paredes e não para mais.</p>
+        <details class="ask"><summary>E sem a linha do <code>mass</code>?</summary><p>A parede teria massa 1, como a bola, e as duas se empurrariam meio a meio. Uma parede que cede metade do empurrão não segura nada.</p></details>
+      `,
       try: [
           {
             note: "Um por vez, no lugar do <code>bounce=1</code>. Com 0.6 a bola perde força a cada batida; acima de 1, ganha.",
@@ -139,11 +224,17 @@ resolve("bola", "parede", bounce=1.2)`
     },
     {
       title: "Muitas bolas",
-      body: `
-        <p>Vinte bolas, cada uma num lugar e numa direção. <code>uniform(80, 920)</code> (do 02) sorteia o lugar.</p>
-        <p><strong>Uma seta a partir de um ângulo.</strong> A direção vem de <code>vec_from_angle</code> (seta a partir de um ângulo): <code>vec_from_angle(90, length=260)</code> é uma seta de comprimento (<em>length</em>) 260 que aponta para cima. O ângulo vem em graus, como sempre. Com um ângulo sorteado entre 0 e 360 e um comprimento entre 180 e 340, cada bola sai para um lado, na sua velocidade.</p>
-        <p>Elas quicam nas paredes, mas passam umas pelas outras. A regra fala de bola com parede; de bola com bola, ainda não.</p>
-      `,
+      body: [
+        `
+        <p>Vinte bolas, cada uma num lugar e numa direção. A seta de cada uma é montada de outro jeito:</p>
+        `,
+        {
+          snip: `self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))`
+        },
+        `
+        <p><code>vec_from_angle</code> (seta a partir de um ângulo) não diz quanto a bola anda em x e em y: diz para onde a seta aponta, em graus, e o comprimento dela (<code>length</code>). <code>vec_from_angle(90, length=260)</code> aponta para cima, e a bola anda 260 por segundo. Aqui o ângulo é sorteado entre 0 e 360 e o comprimento entre 180 e 340: cada bola sai para um lado, na sua velocidade.</p>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -173,14 +264,22 @@ for i in range(20):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "Bola(center=(uniform(80, 920), uniform(80, 640)))",
+          text: "<code>uniform</code> (uniforme) sorteia um número entre os dois. Aqui, um lugar longe das paredes."
+        }
+      ],
+      after: `
+        <p>Rode e acompanhe duas bolas que vão uma na direção da outra.</p>
+        <details class="ask"><summary>O que acontece quando elas se encontram?</summary><p>Passam uma pela outra. A regra fala de bola com parede; de bola com bola, ainda não.</p></details>
+      `
     },
     {
       title: "Bola com bola",
       body: `
-        <p>Mais uma regra, agora do grupo com ele mesmo: <code>resolve("bola", "bola", bounce=1)</code>. Duas bolas que se tocam se separam, e as setas das duas mudam: a que bateu recua, a que foi atingida sai andando.</p>
-        <p><strong>Em câmera lenta.</strong> As batidas são rápidas demais para o olho. <kbd>Ctrl+Shift+P</kbd> muda o tempo do jogo: roda → pausa → um quarto da velocidade → roda. Em ¼ dá para ver cada bola chegar, tocar e sair. As outras teclas estão no <a href="A-depuracao.html">Apêndice A</a>.</p>
-        <p><strong>A massa.</strong> Toda bola tem massa 1 (o padrão), então duas bolas se empurram por igual. Uma bola mais pesada empurra mais e é menos empurrada. Na caixa, uma bola grande de massa 8 abre caminho entre as pequenas.</p>
+        <p>Mais uma regra, agora do grupo com ele mesmo.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -213,6 +312,16 @@ for i in range(20):
 
 run()
 `,
+      notes: [
+        {
+          at: "resolve(\"bola\", \"bola\", bounce=1)",
+          text: "Os dois lados são o mesmo grupo. Quando duas bolas se tocam, o Scena as separa e muda as setas das duas: a que bateu recua, a que foi atingida sai andando."
+        }
+      ],
+      after: `
+        <p>Rode. As batidas são rápidas demais para o olho; aperte <kbd>Ctrl+Shift+P</kbd> algumas vezes. O tempo do jogo passa de rodando para pausa, depois para um quarto da velocidade, e volta a rodar. Em ¼, dá para ver cada bola chegar, tocar e sair. As outras teclas de depuração estão no <a href="A-depuracao.html">Apêndice A</a>.</p>
+        <p>Toda bola tem massa 1, o padrão, e por isso duas bolas se empurram por igual. Uma bola mais pesada empurra mais e é menos empurrada: na caixa abaixo, uma bola grande de massa 8 abre caminho entre as pequenas.</p>
+      `,
       try: [
           {
             note: "Uma bola pesada, maior e de outra cor. No fim do arquivo, antes do <code>run()</code>. O <code>radius=</code> da criação vale mais que o da linha da classe.",
@@ -223,10 +332,18 @@ pesada.mass = 8`
     },
     {
       title: "O toque",
-      body: `
-        <p>O <code>resolve</code> faz a bola quicar, mas não avisa ninguém. Para um som e um clarão a cada batida, é o <code>@collide_with</code> do 06, dentro da <code>Bola</code>: quando esta bola toca uma parede, o Scena chama <code>bateu</code>. São duas coisas diferentes, e as duas valem juntas: o <code>resolve</code> <strong>segura</strong>; o <code>@collide_with</code> <strong>avisa</strong>.</p>
-        <p><strong>Onde.</strong> O terceiro parâmetro, <code>info</code>, é o do escudo no 08: <code>canvas.hit_at(info, …)</code> marca o ponto onde a bola tocou. <code>style="disc"</code> (disco) é um impacto leve, um clarão redondo sem faíscas, bom quando há muitas batidas ao mesmo tempo.</p>
-      `,
+      body: [
+        `
+        <p>O <code>resolve</code> faz a bola quicar, mas não avisa ninguém. Para um som e um clarão a cada batida na parede, a bola precisa ficar sabendo do toque:</p>
+        `,
+        {
+          snip: `@collide_with("parede")
+def bateu(self, parede, info):`
+        },
+        `
+        <p><code>@collide_with</code> (colidir com), dentro da classe, faz o Scena chamar <code>bateu</code> quando esta bola toca uma parede. As duas linhas valem juntas, cada uma com o seu trabalho: o <code>resolve</code> segura, o <code>@collide_with</code> avisa.</p>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -263,6 +380,20 @@ for i in range(20):
 
 run()
 `,
+      notes: [
+        {
+          at: "canvas.hit_at(info, radius=10",
+          text: "<code>info</code> traz os detalhes do toque, entre eles o ponto. <code>canvas.hit_at</code> (impacto em) desenha o impacto ali; <code>style=\"disc\"</code> (disco) é o leve, um clarão redondo sem faíscas, bom quando há muitas batidas ao mesmo tempo."
+        },
+        {
+          at: "volume=0.5",
+          text: "Metade do volume: são muitas batidas por segundo."
+        }
+      ],
+      after: `
+        <p>Rode: cada batida na parede pisca e soa.</p>
+        <details class="ask"><summary>E as batidas entre duas bolas?</summary><p>Ficam mudas. O <code>@collide_with</code> só fala de <code>"parede"</code>; o <code>resolve</code> das bolas segura sem avisar.</p></details>
+      `,
       try: [
           {
             note: "Cada batida num tom diferente. No <code>bateu</code>, no lugar do <code>play_sound</code>: <code>pitch</code> (tom) acima de 1 é mais agudo.",
@@ -279,9 +410,7 @@ run()
     {
       title: "A escolhida",
       body: `
-        <p>Uma das vinte vira a escolhida: <code>choice(group["bola"])</code> (do 05) sorteia uma, que fica dourada e ganha um rastro.</p>
-        <p><strong>O rastro.</strong> <code>.tail</code> (cauda) é um complemento que apareceu na caixa do 05: cópias fantasmas atrás do objeto. Lá ele era só <code>True</code>; aqui vem com ajustes, em <code>Tail(…)</code>: <code>color</code> (cor) das cópias, <code>size</code> (tamanho: o comprimento do rastro) e <code>amount</code> (quantidade: a força das cópias).</p>
-        <p><strong>Sem ângulo.</strong> Sem <code>angle=</code> (ângulo), o rastro segue o movimento: fica sempre atrás da bola, vira junto quando ela quica e cresce quando ela corre.</p>
+        <p>No meio de vinte bolas iguais, o olho não segue nenhuma. Uma delas vira a escolhida: dourada, e com um rastro.</p>
       `,
       code: `from random import uniform, choice
 from scena import *
@@ -323,6 +452,20 @@ escolhida.tail = Tail(color="gold", size=1.4, amount=1.2)
 
 run()
 `,
+      notes: [
+        {
+          at: "choice(group[\"bola\"])",
+          text: "<code>choice</code> (escolha) sorteia um item de uma lista; aqui, uma bola do grupo."
+        },
+        {
+          at: "escolhida.tail = Tail(",
+          text: "<code>tail</code> (cauda) é um complemento: cópias fantasmas atrás do objeto, somadas à aparência. Em <code>Tail(…)</code> vão os ajustes: <code>color</code> (cor) das cópias, <code>size</code> (tamanho, o comprimento do rastro) e <code>amount</code> (quantidade, a força das cópias)."
+        }
+      ],
+      after: `
+        <p>Rode e siga a dourada por algumas batidas.</p>
+        <details class="ask"><summary>Para que lado fica o rastro?</summary><p>Sempre atrás da bola. Sem <code>angle=</code> (ângulo), o rastro segue o movimento: vira junto quando ela quica e cresce quando ela corre.</p></details>
+      `,
       try: [
           {
             note: "Um por vez, no lugar do <code>Tail</code> da escolhida. <code>angle=180</code> trava o rastro para a esquerda, ande a bola para onde andar.",
@@ -335,12 +478,17 @@ escolhida.tail = True`
     },
     {
       title: "Um traço de verdade",
-      body: `
-        <p>O <code>Tail</code> é feito de cópias da bola e só mostra o último instante. Para ver o caminho, o <code>Contrail</code> (rastro de avião) do Desenho, no 04: uma linha que passa pelas últimas posições.</p>
-        <p><strong>Quem guarda.</strong> <code>escolhida.every(0.05, …)</code> guarda a posição da escolhida 20 vezes por segundo, com <code>snapshot</code> (instantâneo). Aqui o <code>every</code> é <strong>da bola</strong>: o timer pertence a ela.</p>
-        <p><strong>Por que a <code>lambda</code>.</strong> O <code>every</code> precisa de uma função para chamar mais tarde. Sem parênteses (<code>rastro.snapshot</code>) não dá para dizer <em>de quem</em> guardar a posição; com parênteses (<code>rastro.snapshot(escolhida)</code>) a chamada rodaria agora, uma vez só. A <code>lambda</code> embrulha a chamada inteira, com o argumento, para o <code>every</code> rodá-la a cada vez. Regra prática: uma função sem argumentos vai sem parênteses; uma com argumentos vai dentro de uma <code>lambda:</code>.</p>
-        <p><strong>Quanto dura.</strong> <code>duration=8</code> (duração) guarda só os últimos 8 segundos, e <code>fade=True</code> (esmaecer) apaga a ponta velha aos poucos.</p>
-      `,
+      body: [
+        `
+        <p>O <code>Tail</code> só mostra o último instante. Para ver o caminho inteiro, uma linha que passa pelas últimas posições da escolhida: <code>Contrail</code> (rastro de avião). A linha não vê a bola sozinha; alguém precisa entregar a ela cada posição:</p>
+        `,
+        {
+          snip: `escolhida.every(0.05, lambda: rastro.snapshot(escolhida))`
+        },
+        `
+        <p><code>every</code> (a cada) chama uma função de tempos em tempos, aqui a cada 0.05 s, 20 vezes por segundo. É o <code>every</code> da bola: o timer pertence a ela. A cada chamada, <code>snapshot</code> (instantâneo) guarda no rastro a posição em que a escolhida está.</p>
+        `
+      ],
       code: `from random import uniform, choice
 from scena import *
 
@@ -384,13 +532,40 @@ escolhida.every(0.05, lambda: rastro.snapshot(escolhida))
 
 run()
 `,
+      notes: [
+        {
+          at: "duration=8",
+          text: "<code>duration=8</code> (duração) guarda só os últimos 8 segundos, e <code>fade=True</code> (esmaecer) apaga a ponta velha aos poucos. <code>line_width</code> é a espessura da linha."
+        }
+      ],
+      after: [
+        `
+        <p>Rode: atrás da dourada fica o caminho dos últimos 8 segundos, com cada batida desenhada.</p>
+        <p>E por que a <code>lambda</code>? O <code>every</code> precisa de uma função para chamar mais tarde. Estas duas escritas parecem servir, e nenhuma serve:</p>
+        `,
+        {
+          snip: `escolhida.every(0.05, rastro.snapshot)
+escolhida.every(0.05, rastro.snapshot(escolhida))`,
+          alt: true
+        },
+        `
+        <p>A primeira entrega a função, mas não diz de quem guardar a posição. A segunda tem parênteses: a chamada roda agora, uma vez só, e o <code>every</code> recebe o resultado dela, não uma função. A <code>lambda</code> embrulha a chamada inteira, com o argumento, e o <code>every</code> a roda a cada vez. Na prática: uma função sem argumentos vai sem parênteses; uma com argumentos vai dentro de uma <code>lambda:</code>.</p>
+        `
+      ],
       dive: [
         {
           title: "Tail e Contrail",
           body: `
-            <p>Os dois desenham por onde algo passou, de jeitos diferentes.</p>
-            <p><strong>Tail</strong> é um complemento: cópias da própria bola, mais fracas para trás. Não precisa de nada além de <code>bola.tail = Tail(…)</code>; ele mesmo vê o movimento. É curto (o último instante) e tem a forma do objeto.</p>
-            <p><strong>Contrail</strong> é um objeto à parte: uma linha. Você decide quando guardar um ponto (<code>snapshot</code>) e por quanto tempo (<code>duration</code>). Pode ser longo, ter cor ou visual próprio, e ficar no mundo depois que a bola passou.</p>
+            <p>Os dois desenham por onde algo passou, de jeitos diferentes. O <code>Tail</code> é um complemento da própria bola; o <code>Contrail</code> é um objeto à parte, uma linha.</p>
+            <div class="tbl"><table>
+              <thead><tr><th></th><th>Tail</th><th>Contrail</th></tr></thead>
+              <tbody>
+                <tr><td>O que desenha</td><td>cópias da bola, mais fracas para trás</td><td>uma linha pelas posições guardadas</td></tr>
+                <tr><td>Quem guarda</td><td>ele mesmo vê o movimento: basta <code>bola.tail = Tail(…)</code></td><td>você, com <code>snapshot</code>, quando quiser</td></tr>
+                <tr><td>Quanto dura</td><td>o último instante</td><td>o que <code>duration</code> mandar</td></tr>
+                <tr><td>A forma</td><td>a do objeto</td><td>uma linha, com cor ou visual próprio, que fica no mundo depois que a bola passou</td></tr>
+              </tbody>
+            </table></div>
             <p>No Guia: <a href="../guide/index.html#aparencia-selos">Complementos</a> · <a href="../guide/index.html#contrail">Contrail</a>.</p>
           `,
           try: [
@@ -406,8 +581,7 @@ run()
     {
       title: "Mais perto",
       body: `
-        <p>A roda do mouse aproxima e afasta. <code>on_mouse_scroll</code> (ao rolar o mouse) é uma função de nome fixo, como o <code>update</code>: o Scena a chama quando a roda gira, com quanto ela girou. <code>yoffset</code> é positivo para um lado e negativo para o outro.</p>
-        <p><strong>A câmera.</strong> <code>canvas.zoom_by(1.1)</code> (aproximar por) aumenta o zoom em 10%; <code>1 / 1.1</code> desfaz. A câmera não mexe nas bolas: muda só o que a janela mostra. <code>about=mouse</code> (em volta de) segura o ponto embaixo do ponteiro, e o zoom vai para onde você aponta.</p>
+        <p>Para ver as batidas de perto, a roda do mouse aproxima e afasta a câmera.</p>
       `,
       code: `from random import uniform, choice
 from scena import *
@@ -459,6 +633,20 @@ def on_mouse_scroll(xoffset, yoffset):
 
 run()
 `,
+      notes: [
+        {
+          at: "def on_mouse_scroll(xoffset, yoffset):",
+          text: "<code>on_mouse_scroll</code> (ao rolar o mouse) é uma função de nome fixo, como o <code>update</code>: o Scena a chama quando a roda gira. <code>yoffset</code> diz quanto ela girou: positivo para um lado, negativo para o outro."
+        },
+        {
+          at: "canvas.zoom_by(1.1, about=mouse)",
+          text: "<code>zoom_by(1.1)</code> (aproximar por) aumenta o zoom em 10%; o <code>1 / 1.1</code> da linha de baixo desfaz. <code>about=mouse</code> (em volta do mouse) segura o ponto embaixo do ponteiro: o zoom vai para onde você aponta."
+        }
+      ],
+      after: `
+        <p>Rode, aponte para um canto e gire a roda.</p>
+        <details class="ask"><summary>As bolas mudaram de lugar?</summary><p>Não. A câmera não mexe nos objetos: muda só o que a janela mostra. Uma bola em (300, 200) continua em (300, 200); só aparece maior.</p></details>
+      `,
       try: [
           {
             note: "R volta a câmera ao começo, em meio segundo. No fim do arquivo, antes do <code>run()</code>.",
@@ -490,13 +678,23 @@ def update(dt):
     {
       title: "O velocímetro",
       example: "bolas.py",
-      body: `
-        <p>Uma barra no alto, sobre a parede, mostra a velocidade da escolhida: curta e verde quando ela anda devagar, comprida e vermelha quando corre. Ela muda nas batidas com outra bola. Na parede, com <code>bounce=1</code>, a velocidade fica a mesma: só a direção vira.</p>
-        <p><strong>A velocidade é o comprimento da seta.</strong> A <code>vel</code> é uma seta, e o tamanho dela é a velocidade. <code>escolhida.vel.length</code> (comprimento) lê de volta o <code>length=</code> do <code>vec_from_angle</code>: uma bola com <code>vel.length</code> 250 anda 250 por segundo, para onde estiver indo.</p>
-        <p><strong>Duas fórmulas.</strong> É o <code>@=</code> das Fórmulas (09): a largura e a cor da barra ficam ligadas à velocidade, e o Scena refaz as contas toda vez que a <code>vel</code> da escolhida muda. Ninguém avisa a barra: quando o <code>resolve</code> corrige a seta numa batida, a barra acompanha. A conta da largura dá 300 (o trilho inteiro) a 500 por segundo; o <code>min(…, 1)</code> segura a conta em 1, e uma bola mais rápida não passa do fim do trilho.</p>
-        <p><strong>A cor numa rampa.</strong> <code>Colormap</code> (mapa de cores) é uma rampa: <code>Colormap.from_colors("lime", "gold", "red")</code> começa no verde, passa pelo amarelo e termina no vermelho. <code>rampa.get_color(t)</code> (pegar a cor) devolve a cor no ponto <code>t</code>, de 0 (o começo) a 1 (o fim): 0.5 é o amarelo do meio, e acima de 1 a cor fica no vermelho. A rampa só escolhe a cor; quem pinta é a fórmula, no <code>color</code> da barra.</p>
-        <p><strong>Presa na janela.</strong> <code>layer="ui"</code> (camada da interface) põe a barra na janela, não no mundo: a roda do mouse aproxima as bolas e a barra fica onde está. O retângulo escuro, sem nome, é o trilho: mostra até onde a barra vai.</p>
-      `,
+      body: [
+        `
+        <p>Uma barra no alto mostra a velocidade da escolhida: curta e verde quando ela anda devagar, comprida e vermelha quando corre. A velocidade já está na seta: é o comprimento dela.</p>
+        `,
+        {
+          snip: `barra["width"] @= lambda: 300 * min(escolhida.vel.length / 500, 1)`
+        },
+        `
+        <p><code>vel.length</code> (comprimento) lê de volta o <code>length=</code> do <code>vec_from_angle</code>: uma bola com <code>vel.length</code> 250 anda 250 por segundo, para onde estiver indo. A conta divide por 500 e multiplica pelos 300 do trilho, e <code>min(…, 1)</code> (o menor dos dois) não deixa a conta passar de 1:</p>
+        <div class="tbl"><table><thead><tr><th>Velocidade</th><th>Velocidade / 500</th><th>Largura da barra</th></tr></thead><tbody>
+          <tr><td>100</td><td>0.2</td><td>60</td></tr>
+          <tr><td>250</td><td>0.5</td><td>150, meio trilho</td></tr>
+          <tr><td>500</td><td>1</td><td>300, o trilho inteiro</td></tr>
+          <tr><td>700</td><td>1.4, e o <code>min</code> faz 1</td><td>300: não passa do fim</td></tr>
+        </tbody></table></div>
+        `
+      ],
       code: `from random import uniform, choice
 from scena import *
 
@@ -554,6 +752,28 @@ def on_mouse_scroll(xoffset, yoffset):
 
 run()
 `,
+      notes: [
+        {
+          at: "rampa = Colormap.from_colors(",
+          text: "<code>Colormap</code> (mapa de cores) é uma rampa de cores: esta começa no verde (<code>lime</code>), passa pelo amarelo e termina no vermelho."
+        },
+        {
+          at: "color=\"#262B55\", layer=\"ui\"",
+          text: "O retângulo escuro, sem nome, é o trilho: mostra até onde a barra vai. <code>layer=\"ui\"</code> (camada da interface) põe trilho e barra na janela, não no mundo: a roda do mouse aproxima as bolas, e a barra fica onde está."
+        },
+        {
+          at: "barra[\"width\"] @=",
+          text: "<code>@=</code> liga a largura à conta, como nas Fórmulas (09): toda vez que a <code>vel</code> da escolhida muda, o Scena refaz a conta. Ninguém avisa a barra; quando o <code>resolve</code> corrige a seta numa batida, ela acompanha."
+        },
+        {
+          at: "rampa.get_color(",
+          text: "<code>get_color(t)</code> (pegar a cor) devolve a cor no ponto <code>t</code> da rampa, de 0 (o começo) a 1 (o fim): 0.5 é o amarelo do meio, e acima de 1 a cor fica no vermelho. A rampa só escolhe a cor; quem pinta é esta fórmula, no <code>color</code> da barra."
+        }
+      ],
+      after: `
+        <p>Rode e olhe a barra enquanto a dourada bate.</p>
+        <details class="ask"><summary>Por que a barra só muda quando a dourada bate em outra bola?</summary><p>Na parede, com <code>bounce=1</code>, só a direção vira: a seta muda de lado, e o comprimento fica o mesmo. Numa batida com outra bola, as duas trocam força, e a velocidade muda.</p></details>
+      `,
       try: [
           {
             note: "Um por vez, no lugar da <code>rampa</code>. Uma rampa pronta (<code>plasma</code>, do roxo ao amarelo) ou só duas cores.",

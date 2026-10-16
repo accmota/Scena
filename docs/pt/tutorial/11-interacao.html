@@ -21,10 +21,8 @@ Tutorial.mount({
       title: "Três formas e um clique",
       part: "Script 1 · Clique e hover",
       body: `
-        <p>Este tutorial não é um jogo. É uma bancada para o mouse: cada passo apresenta um recurso, você escreve as linhas, roda e vê o recurso funcionando. As formas não fazem nada de interessante, e é de propósito: assim só o recurso aparece. São três scripts. Neste primeiro, clicar e passar o mouse por cima. No segundo, arrastar, soltar e uma grade. No terceiro, o mouse no canvas, sem objeto nenhum.</p>
-        <p><strong>As formas.</strong> Um hexágono, um quadrado e um triângulo, os três no grupo <code>"formas"</code>. O quadrado cobre um pedaço do hexágono, também de propósito: é ali que vamos ver quem recebe o mouse quando duas formas estão no mesmo lugar.</p>
-        <p><strong>Clique no grupo.</strong> No tutorial 1, o <code>@click</code> recebia as formas separadas por vírgula. Ele também aceita um grupo: <code>@click(group["formas"])</code> vale para cada forma do grupo, e o parâmetro <code>forma</code> recebe a que foi clicada. O grupo é lido no momento em que o <code>@click</code> é escrito; por isso as formas nascem antes dele.</p>
-        <p><strong>Quem recebe.</strong> Rode e clique nas três: cada clique sorteia uma cor. Depois clique onde o quadrado cobre o hexágono: só o quadrado muda. O clique vai para um objeto só, o que está desenhado por cima. E quem nasce depois é desenhado por cima: no script, o quadrado vem depois do hexágono.</p>
+        <p>Este tutorial não é um jogo: é uma bancada para o mouse. Cada passo traz um recurso, e as formas não fazem nada além de mostrá-lo. São três scripts: clicar e passar por cima; arrastar e soltar numa grade; o mouse no canvas, sem objeto nenhum.</p>
+        <p>Começamos com três formas e um clique. O quadrado cobre um pedaço do hexágono de propósito: é ali que se vê quem recebe o mouse quando duas formas estão no mesmo lugar.</p>
       `,
       code: `from scena import *
 
@@ -42,15 +40,57 @@ def clicou(forma):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "quadrado = Square(",
+          text: "O quadrado nasce depois do hexágono, e quem nasce depois é desenhado por cima."
+        },
+        {
+          at: "@click(group[\"formas\"])",
+          text: "<code>@click</code> (clique) também aceita um grupo: vale para cada forma dele, e o parâmetro <code>forma</code> recebe a que foi clicada. O grupo é lido quando o <code>@click</code> é escrito; por isso as formas nascem antes."
+        },
+        {
+          at: "Color.random()",
+          text: "<code>Color.random()</code> sorteia uma cor (<em>random</em> é aleatório)."
+        }
+      ],
+      after: `
+        <p>Rode e clique nas três: cada clique sorteia uma cor. Agora clique onde o quadrado cobre o hexágono.</p>
+        <details class="ask"><summary>Qual das duas muda de cor?</summary><p>Só o quadrado. O clique vai para um objeto só, o que está desenhado por cima.</p></details>
+      `
     },
     {
       title: "Passar por cima",
-      body: `
-        <p>Agora o mouse sem clicar. <code>@hover</code> (pairar, passar por cima) roda a função quando o ponteiro <em>entra</em> numa forma. <code>@hover_exit</code> (saída do hover) roda quando ele <em>sai</em>. Aqui, entrar acende o brilho (<code>glow</code>, o complemento do tutorial 5) e sair o apaga.</p>
-        <p><strong>Dois momentos.</strong> Os dois são <em>eventos</em>: cada um roda uma vez, no instante em que a coisa acontece. Enquanto o mouse fica em cima, nada roda; o brilho só continua aceso porque ninguém o apagou. Por isso eles andam em par: toda entrada tem exatamente uma saída, e o que o <code>@hover</code> acende o <code>@hover_exit</code> apaga. Sem o segundo, a forma ficaria acesa para sempre depois da primeira visita.</p>
-        <p><strong>Um de cada vez.</strong> Rode e passe o mouse pelas formas. Depois passe pela parte em que o quadrado cobre o hexágono: só o quadrado brilha. Como o clique, o hover é de um objeto só, o de cima.</p>
-      `,
+      body: [
+        `
+        <p>Agora o mouse sem clicar: a forma brilha enquanto o ponteiro está nela. São dois ganchos, um para cada borda:</p>
+        `,
+        {
+          snip: `@hover(group["formas"])
+...
+@hover_exit(group["formas"])`
+        },
+        `
+        <p><code>@hover</code> (pairar, passar por cima) roda quando o ponteiro entra numa forma; <code>@hover_exit</code> (saída do hover), quando ele sai. Os dois são eventos: cada um roda uma vez, no instante em que a coisa acontece. Enquanto o mouse fica em cima, nada roda.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 120" role="img" aria-label="Uma linha do tempo: o mouse está fora, entra na forma, fica em cima um tempo e sai; o @hover roda na entrada, o @hover_exit na saída, e no meio nada roda">
+            <line class="ray" x1="20" y1="70" x2="380" y2="70"/>
+            <rect class="bar" x="120" y="58" width="150" height="24"/>
+            <circle class="hot" cx="120" cy="70" r="5"/>
+            <circle class="hot" cx="270" cy="70" r="5"/>
+            <text x="120" y="26" text-anchor="middle">@hover</text>
+            <text x="120" y="44" text-anchor="middle">acende</text>
+            <text x="270" y="26" text-anchor="middle">@hover_exit</text>
+            <text x="270" y="44" text-anchor="middle">apaga</text>
+            <text x="195" y="104" text-anchor="middle">mouse em cima: nada roda</text>
+            <text x="20" y="104">fora</text>
+            <text x="380" y="104" text-anchor="end">fora</text>
+          </svg>
+          <figcaption>Um passeio do mouse pela forma. Cada evento roda uma vez, na borda. No meio, o brilho continua aceso só porque ninguém o apagou.</figcaption>
+        </figure>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Interação")
@@ -77,15 +117,26 @@ def saiu(forma):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "forma.glow = True",
+          text: "<code>glow</code> (brilho) é um complemento: soma um brilho à forma sem mexer na cor."
+        },
+        {
+          at: "def saiu(forma):",
+          text: "Toda entrada tem exatamente uma saída, e o que o <code>@hover</code> acende o <code>@hover_exit</code> apaga. Sem ele, a forma ficaria acesa para sempre depois da primeira visita."
+        }
+      ],
+      after: `
+        <p>Rode e passe o mouse pelas formas. Depois passe pela parte em que o quadrado cobre o hexágono.</p>
+        <details class="ask"><summary>Quantas brilham ali?</summary><p>Só o quadrado. Como o clique, o hover é de um objeto só, o de cima.</p></details>
+      `
     },
     {
       title: "Enquanto o mouse está em cima",
       body: `
-        <p>O <code>@hover</code> avisa uma vez, quando o mouse entra. Mas há coisas que acontecem um pouco a cada quadro, durante todo o tempo em que o mouse está ali. O triângulo vai girar enquanto o ponteiro estiver em cima dele.</p>
-        <p><strong>Um estado.</strong> <code>pointer_hover</code> (ponteiro por cima) não é um evento: é uma resposta de sim ou não que vale <em>agora</em>. É <code>True</code> enquanto o mouse está sobre o triângulo e <code>False</code> no resto do tempo. O Scena a atualiza a cada quadro, e quem a lê é o <code>update</code>, que também roda a cada quadro.</p>
-        <p><strong>O giro.</strong> <code>rotate_by(90 * dt)</code> (girar por) gira o triângulo 90 graus por segundo: um pedacinho a cada quadro, como a estrela do tutorial 1 andava <code>VELOCIDADE * dt</code>. Rode e pare o mouse sobre o triângulo: ele gira sem parar. Tire o mouse e ele para onde estiver. O interlúdio <a href="14i-girar-e-crescer.html">Girar e crescer</a>, depois do 14, põe o <code>rotate_by</code> ao lado do <code>rotate_to</code> (girar até) e do campo <code>angle</code>.</p>
-        <p><strong>Quem tem.</strong> O <code>pointer_hover</code> só fica <code>True</code> numa forma que responde ao mouse, e o triângulo responde, porque está no grupo do <code>@click</code>.</p>
+        <p>O triângulo vai girar enquanto o ponteiro estiver em cima dele. O <code>@hover</code> não serve: ele avisa uma vez, na entrada, e girar é um pouco a cada quadro, durante todo o tempo em que o mouse está ali.</p>
       `,
       code: `from scena import *
 
@@ -119,6 +170,20 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "if triangulo.pointer_hover:",
+          text: "<code>pointer_hover</code> (ponteiro por cima) não é um evento: é uma resposta de sim ou não que vale agora, <code>True</code> enquanto o mouse está sobre o triângulo. O Scena a atualiza a cada quadro, e o <code>update</code>, que também roda a cada quadro, a lê."
+        },
+        {
+          at: "rotate_by(90 * dt)",
+          text: "<code>rotate_by</code> (girar por) gira 90 graus por segundo: um pedacinho a cada quadro, com o mesmo <code>dt</code> de quem anda."
+        }
+      ],
+      after: `
+        <p>Rode e pare o mouse sobre o triângulo: ele gira sem parar. Tire o mouse, e ele para onde estiver.</p>
+        <p>O <code>pointer_hover</code> só fica <code>True</code> numa forma que responde ao mouse. O triângulo responde porque está no grupo do <code>@click</code>; uma forma sem nenhum gancho de mouse responderia sempre <code>False</code>.</p>
+      `,
       try: [
         {
           note: "Outra escrita do brilho, com o estado no lugar dos dois eventos. Dentro do <code>update</code>, uma linha que copia a resposta para o <code>glow</code> a cada quadro: aceso enquanto o mouse está em cima, apagado no resto do tempo.",
@@ -129,9 +194,7 @@ run()
     {
       title: "O botão direito",
       body: `
-        <p>O <code>@click</code> é o clique do botão esquerdo. Para o direito, vamos ler o mouse a cada quadro, como o <code>pointer_hover</code>. <code>mouse.press(Mouse.BTN_RIGHT)</code> (apertado; <code>BTN_RIGHT</code> é o botão direito) é <code>True</code> enquanto o botão direito está apertado. É outro estado, e também se lê no <code>update</code>. Num trackpad, o botão direito é o clique com dois dedos.</p>
-        <p><strong>Uma borracha.</strong> Com o botão direito apertado, toda forma embaixo do mouse fica cinza. O <code>for</code> passa pelas três formas do grupo, e <code>forma.contains_point(mouse)</code> (contém o ponto) pergunta a cada uma: o ponto do mouse cai dentro do seu desenho?</p>
-        <p><strong>Os dois.</strong> Rode, segure o botão direito e passe pelas formas. Depois faça isso onde o quadrado cobre o hexágono: os <em>dois</em> ficam cinza. O <code>contains_point</code> não quer saber quem está por cima; pergunta só a cada forma se o ponto está dentro dela. Compare com o clique esquerdo no mesmo lugar, que só pinta o quadrado.</p>
+        <p>Uma borracha: com o botão direito apertado, toda forma embaixo do mouse fica cinza. O <code>@click</code> é só do botão esquerdo; o direito se lê a cada quadro, no <code>update</code>, como o <code>pointer_hover</code>.</p>
       `,
       code: `from scena import *
 
@@ -169,11 +232,25 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "mouse.press(Mouse.BTN_RIGHT)",
+          text: "<code>mouse.press</code> (apertado) é outro estado: <code>True</code> enquanto o botão está apertado. <code>BTN_RIGHT</code> é o botão direito; num trackpad, o clique com dois dedos."
+        },
+        {
+          at: "forma.contains_point(mouse)",
+          text: "O <code>for</code> passa pelas três formas, e <code>contains_point</code> (contém o ponto) pergunta a cada uma: o ponto do mouse cai dentro do seu desenho?"
+        }
+      ],
+      after: `
+        <p>Rode, segure o botão direito e passe pelas formas. Depois faça isso onde o quadrado cobre o hexágono.</p>
+        <details class="ask"><summary>Quantas ficam cinza ali?</summary><p>As duas. O <code>contains_point</code> não quer saber quem está por cima; pergunta a cada forma se o ponto está dentro dela. O clique esquerdo, no mesmo lugar, só pinta o quadrado.</p></details>
+      `,
       dive: [
         {
           title: "Três perguntas",
           body: `
-            <p>Este script fez três perguntas diferentes ao mouse. Parecem a mesma, mas cada uma responde a uma coisa, e a diferença aparece onde duas formas se cobrem.</p>
+            <p>Este script fez três perguntas diferentes ao mouse. Parecem a mesma, mas a diferença aparece onde duas formas se cobrem.</p>
             <p><code>@click</code> e <code>@hover</code> são <strong>eventos</strong>: o Scena chama a sua função uma vez, no instante em que algo acontece (clicou, entrou, saiu), e só para o objeto de cima. <code>pointer_hover</code> é um <strong>estado</strong>: uma resposta de sim ou não que vale agora, lida a cada quadro no <code>update</code>, também só do objeto de cima. Já <code>contains_point</code> é uma pergunta de <strong>geometria</strong> feita a uma forma: o ponto cai dentro do desenho dela? Ela não quer saber quem está por cima, e por isso, onde o quadrado cobre o hexágono, as duas formas dizem sim.</p>
             <figure class="fig">
               <svg viewBox="0 0 460 200" role="img" aria-label="Um hexágono e, por cima dele, um quadrado que cobre uma parte; o ponteiro do mouse está na parte coberta. Ao lado, as três respostas: o clique e o hover vão só para o quadrado; pointer_hover é True só no quadrado; contains_point é True nos dois">
@@ -217,9 +294,7 @@ run()
       part: "Script 2 · Arrastar e a grade",
       fresh: true,
       body: `
-        <p>Aqui começa o segundo script, num arquivo novo: três peças, uma lixeira e uma grade. Começamos pelas peças.</p>
-        <p><strong>Arrastar.</strong> Três quadrados no grupo <code>"pecas"</code> (peças). <code>draggable</code> (arrastável) é o do tutorial 3: com <code>True</code>, você pega a peça com o mouse e a leva para onde quiser. Escrito no grupo, como o <code>visual</code> das paredes do tutorial 10, ele vale para cada peça.</p>
-        <p>Rode e arraste. A peça fica onde você a solta, e soltar ainda não quer dizer nada. Os próximos passos dão sentido ao soltar.</p>
+        <p>Segundo script, num arquivo novo: peças para arrastar, uma lixeira e uma grade. Primeiro, três peças.</p>
       `,
       code: `from scena import *
 
@@ -233,6 +308,15 @@ group["pecas"].draggable = True
 
 run()
 `,
+      notes: [
+        {
+          at: "group[\"pecas\"].draggable = True",
+          text: "<code>draggable</code> (arrastável): com <code>True</code>, você pega a peça com o mouse e a leva para onde quiser. Escrito no grupo, vale para cada peça."
+        }
+      ],
+      after: `
+        <p>Rode e arraste. A peça fica onde você a solta, e soltar ainda não quer dizer nada.</p>
+      `,
       try: [
         {
           note: "Uma linha a mais, depois do <code>draggable</code>: <code>wheel_rotate</code> (girar com a roda). Segure o botão sobre uma peça e gire a roda do mouse: a peça gira. Sem o botão apertado, a roda não mexe nela.",
@@ -244,9 +328,6 @@ run()
       title: "A lixeira",
       body: `
         <p>Uma lixeira: soltar uma peça em cima dela apaga a peça.</p>
-        <p><strong>A lixeira.</strong> Um <code>Rect</code> cinza com um <code>Text</code> no meio. A lixeira nasce antes das peças para ser desenhada embaixo delas: uma peça arrastada passa por cima da lixeira, não por baixo.</p>
-        <p><strong>Soltar em cima.</strong> <code>@drop_by(lixeira)</code> (solto por) fica no <em>alvo</em>, o objeto que recebe. Ele roda a função quando alguém solta uma coisa arrastada em cima da lixeira. A função recebe três valores: a peça arrastada (<code>peca</code>), o alvo (<code>alvo</code>, aqui a própria lixeira) e o ponto onde o mouse soltou (<code>pos</code>, de posição). Aqui, só a peça interessa: <code>destroy</code> a apaga.</p>
-        <p>Rode e solte uma peça na lixeira: ela some. Solte em outro lugar: nada acontece, porque ali ninguém recebe.</p>
       `,
       code: `from scena import *
 
@@ -268,16 +349,39 @@ def jogou(peca, alvo, pos):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "lixeira = Rect(",
+          text: "A lixeira nasce antes das peças, e por isso é desenhada embaixo delas: a peça arrastada passa por cima."
+        },
+        {
+          at: "@drop_by(lixeira)",
+          text: "<code>@drop_by</code> (solto por) fica no alvo, o objeto que recebe: roda quando alguém solta uma coisa arrastada em cima da lixeira."
+        },
+        {
+          at: "def jogou(peca, alvo, pos):",
+          text: "Três valores: a peça arrastada, o alvo (aqui, a própria lixeira) e <code>pos</code> (posição), o ponto onde o mouse soltou. Só a peça interessa: <code>destroy</code> (destruir) a apaga."
+        }
+      ],
+      after: `
+        <p>Rode e solte uma peça na lixeira: ela some. Solte em outro lugar: nada acontece, porque ali ninguém recebe.</p>
+      `
     },
     {
       title: "A lixeira acende",
-      body: `
-        <p>Seria bom saber, antes de soltar, que a peça está sobre a lixeira. <code>@drag_over</code> (arrastando sobre) fica na coisa arrastada, aqui as peças, e roda <em>durante</em> o arraste, cada vez que o mouse se mexe. Recebe os mesmos três valores do <code>@drop_by</code>.</p>
-        <p><strong>O alvo.</strong> Durante o arraste, <code>alvo</code> é o objeto que aceita soltar embaixo do mouse: a lixeira, quando a peça passa sobre ela, ou <code>None</code> (nada), em qualquer outro lugar. <code>alvo is lixeira</code> pergunta se o alvo é a própria lixeira: <code>is</code> (é) compara se as duas coisas são o mesmo objeto, como no <code>is not None</code> do tutorial 4. Sobre a lixeira, vermelho; fora dela, cinza de novo.</p>
-        <p><strong>Depois de soltar.</strong> Quando você solta a peça, o arraste acaba e o <code>@drag_over</code> não roda mais. Sem ninguém para apagar, a lixeira ficaria vermelha depois de engolir a peça. Por isso o <code>jogou</code> ganha uma linha que a deixa cinza.</p>
-        <p>Rode e passe uma peça por cima da lixeira, sem soltar, e depois tire: ela acende e apaga. Solte em cima: a peça some e a lixeira volta ao cinza.</p>
-      `,
+      body: [
+        `
+        <p>Seria bom saber, antes de soltar, que a peça está sobre a lixeira: ela acende em vermelho. Quem sabe por onde a peça passa é a própria peça:</p>
+        `,
+        {
+          snip: `@drag_over(group["pecas"])
+def passando(peca, alvo, pos):`
+        },
+        `
+        <p><code>@drag_over</code> (arrastando sobre) fica na coisa arrastada, as peças, e roda durante o arraste, cada vez que o mouse se mexe. Recebe os mesmos três valores do <code>@drop_by</code>. Agora o <code>alvo</code> é o objeto que aceita soltar embaixo do mouse: a lixeira, quando a peça passa sobre ela, ou <code>None</code> (nada) em qualquer outro lugar.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Interação")
@@ -308,6 +412,16 @@ def passando(peca, alvo, pos):
 
 run()
 `,
+      notes: [
+        {
+          at: "if alvo is lixeira:",
+          text: "<code>is</code> (é) pergunta se as duas coisas são o mesmo objeto: o alvo é a própria lixeira? Sobre ela, vermelho; fora dela, cinza de novo."
+        }
+      ],
+      after: `
+        <p>Rode e passe uma peça por cima da lixeira, sem soltar, e depois tire: ela acende e apaga. Solte em cima: a peça some, e a lixeira volta ao cinza.</p>
+        <details class="ask"><summary>Para que a linha nova no <code>jogou</code>?</summary><p>Soltar acaba o arraste, e o <code>@drag_over</code> não roda mais. Sem essa linha, ninguém apagaria a lixeira: ela ficaria vermelha depois de engolir a peça.</p></details>
+      `,
       try: [
         {
           note: "Arraste a peça de cima por cima das outras duas: ela passa por baixo, porque nasceu antes delas. <code>move_to_front()</code> (para a frente) a desenha na frente das outras. Na primeira linha de <code>passando</code>:",
@@ -318,11 +432,30 @@ run()
     {
       title: "A grade",
       body: `
-        <p>Agora a grade: um tabuleiro de 4 colunas e 3 linhas no meio da tela.</p>
-        <p><strong>Uma caixa que não aparece.</strong> <code>Box</code> (caixa) é um retângulo que não se desenha: serve para medir e posicionar. Ele se escreve como um <code>Rect</code>, com <code>center</code>, <code>width</code> e <code>height</code>. A <code>zona</code> tem 400 por 300.</p>
-        <p><strong>Fatias.</strong> <code>zona.grid(4, 3, gap=8)</code> fatia a zona em 4 colunas e 3 linhas iguais e devolve a grade (<code>grid</code>). <code>gap=8</code> (vão) deixa 8 de espaço entre as casas. Cada casa também é um <code>Box</code>.</p>
-        <p><strong>Desenhar as casas.</strong> Um <code>Box</code> não aparece. Para ver as casas, o <code>for</code> passa pelas 12 e põe um <code>Rect</code> em cada uma. <code>box=casa</code> encaixa o retângulo na casa: no lugar dela, do tamanho dela. As linhas da grade vêm antes da lixeira e das peças, para ficarem embaixo delas.</p>
-        <p>Rode: um tabuleiro azul. As peças ainda passam por cima dele como se ele não estivesse ali.</p>
+        <p>Agora a grade: um tabuleiro de 4 colunas e 3 linhas no meio da tela, fatiado de uma região de 400 por 300.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 200" role="img" aria-label="Uma região de 400 por 300 fatiada em 4 colunas e 3 linhas de casas iguais, com um vão de 8 entre elas; a casa (0, 0) fica em cima à esquerda e a (3, 2) embaixo à direita">
+            <rect class="guide" x="80" y="20" width="200" height="150"/>
+            <rect class="bar" x="80" y="20" width="47" height="47.3"/>
+            <rect class="bar" x="131" y="20" width="47" height="47.3"/>
+            <rect class="bar" x="182" y="20" width="47" height="47.3"/>
+            <rect class="bar" x="233" y="20" width="47" height="47.3"/>
+            <rect class="bar" x="80" y="71.3" width="47" height="47.3"/>
+            <rect class="bar" x="131" y="71.3" width="47" height="47.3"/>
+            <rect class="bar" x="182" y="71.3" width="47" height="47.3"/>
+            <rect class="bar" x="233" y="71.3" width="47" height="47.3"/>
+            <rect class="bar" x="80" y="122.7" width="47" height="47.3"/>
+            <rect class="bar" x="131" y="122.7" width="47" height="47.3"/>
+            <rect class="bar" x="182" y="122.7" width="47" height="47.3"/>
+            <rect class="bar" x="233" y="122.7" width="47" height="47.3"/>
+            <text x="103.5" y="48" text-anchor="middle">(0, 0)</text>
+            <text x="256.5" y="150" text-anchor="middle">(3, 2)</text>
+            <text x="180" y="192" text-anchor="middle">400</text>
+            <text x="68" y="99" text-anchor="end">300</text>
+            <text x="292" y="72">gap=8</text>
+          </svg>
+          <figcaption>A <code>zona</code>, fatiada em 4 colunas e 3 linhas iguais, com 8 de vão entre as casas. A contagem começa em (0, 0), a casa de cima à esquerda.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -359,6 +492,23 @@ def passando(peca, alvo, pos):
 
 run()
 `,
+      notes: [
+        {
+          at: "zona = Box(",
+          text: "<code>Box</code> (caixa) é um retângulo que não se desenha: serve para medir e posicionar. Escreve-se como um <code>Rect</code>, com centro, largura e altura."
+        },
+        {
+          at: "zona.grid(4, 3, gap=8)",
+          text: "<code>grid</code> (grade) fatia a zona em 4 colunas e 3 linhas iguais; <code>gap=8</code> (vão) deixa 8 entre as casas. Cada casa também é um <code>Box</code>."
+        },
+        {
+          at: "Rect(box=casa",
+          text: "Um <code>Box</code> não aparece; para ver as casas, o <code>for</code> põe um <code>Rect</code> em cada uma das 12. <code>box=casa</code> encaixa o retângulo na casa: no lugar dela, do tamanho dela."
+        }
+      ],
+      after: `
+        <p>Rode: um tabuleiro azul, embaixo da lixeira e das peças, porque nasceu antes delas. As peças passam por cima dele como se ele não estivesse ali.</p>
+      `,
       try: [
         {
           note: "Outras grades, no lugar da linha do <code>grid</code>. Mais casas, menores; sem <code>gap</code>, as casas se encostam:",
@@ -369,12 +519,17 @@ run()
     },
     {
       title: "A casa sob o mouse",
-      body: `
-        <p>Agora a casa embaixo do mouse ganha uma moldura branca.</p>
-        <p><strong>A moldura.</strong> <code>luz</code> é um <code>Rect</code> do tamanho de uma casa. <code>grade.cell(0, 0)</code> (a casa) devolve a casa da coluna 0 e da linha 0, a de cima à esquerda; aqui ela só dá a medida. Com <code>fill = None</code>, do tutorial 3, sobra só o contorno, e <code>line_width = 4</code> o engrossa. A moldura nasce escondida: <code>visible = False</code> (visível).</p>
-        <p><strong>Que casa é essa?</strong> <code>grade.cell_at(mouse)</code> (a casa em) faz a conta da grade ao contrário: recebe um ponto e devolve a casa que está embaixo dele, ou <code>None</code>, se o ponto cai fora da grade ou num vão entre duas casas. O <code>update</code> faz essa pergunta a cada quadro. Sem casa, a moldura se esconde; com casa, ela aparece e vai para o centro da casa.</p>
-        <p>Rode e passe o mouse pela grade: a moldura pula de casa em casa e some nos vãos e fora da grade. Agora arraste uma peça pela grade: a moldura mostra a casa embaixo do mouse, onde a peça seria solta.</p>
-      `,
+      body: [
+        `
+        <p>A casa embaixo do mouse ganha uma moldura branca. Para isso, a grade responde ao contrário: dado um ponto, que casa está embaixo dele?</p>
+        `,
+        {
+          snip: `casa = grade.cell_at(mouse)`
+        },
+        `
+        <p><code>cell_at</code> (a casa em) recebe um ponto e devolve a casa embaixo dele, ou <code>None</code> se o ponto cai fora da grade ou num vão entre duas casas.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Interação")
@@ -424,6 +579,23 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "luz = Rect(box=grade.cell(0, 0)",
+          text: "<code>grade.cell(0, 0)</code> (a casa) é a casa da coluna 0 e da linha 0, em cima à esquerda. Aqui ela só dá a medida da moldura."
+        },
+        {
+          at: "luz.fill = None",
+          text: "Sem recheio (<code>fill</code>), sobra o contorno; <code>line_width = 4</code> (espessura da linha) o engrossa."
+        },
+        {
+          at: "if casa is None:",
+          text: "A pergunta se repete a cada quadro, no <code>update</code>. Sem casa, a moldura se esconde (<code>visible</code>, visível); com casa, ela aparece e vai para o centro dela."
+        }
+      ],
+      after: `
+        <p>Rode e passe o mouse pela grade: a moldura pula de casa em casa e some nos vãos e fora da grade. Agora arraste uma peça pela grade: a moldura mostra a casa embaixo do mouse, onde a peça seria solta.</p>
+      `,
       try: [
         {
           note: "Outra escrita: um <code>Box</code> não recebe o mouse, mas cada casa desenhada é um <code>Rect</code>, e um <code>Rect</code> aceita <code>@hover</code>, como as formas do primeiro script. Primeiro, as casas num grupo, no lugar do <code>Rect</code> do <code>for</code>:",
@@ -446,12 +618,19 @@ def apagou(casa):
     {
       title: "Encaixar",
       example: "interacao.py",
-      body: `
-        <p>Último passo: soltar uma peça na grade a encaixa no centro da casa.</p>
-        <p><strong>Ao soltar.</strong> <code>@drag_to(group["pecas"])</code> (arrastado até) fica nas peças, como o <code>@drag_over</code>, mas roda uma vez só, quando o arraste acaba, onde quer que a peça seja solta: na grade, na lixeira ou no vazio. Recebe os mesmos três valores; desta vez o que interessa é o <code>pos</code>, o ponto onde o mouse soltou.</p>
-        <p><strong>A casa do ponto.</strong> É o <code>cell_at</code> do passo anterior, com o <code>pos</code> no lugar do <code>mouse</code>. Se o ponto caiu numa casa, a peça vai para o centro dela. Se não, <code>casa</code> é <code>None</code>, o <code>if</code> pula a linha, e a peça fica onde foi solta.</p>
-        <p>Rode e solte as peças na grade: cada uma encaixa no meio de uma casa. A moldura branca já mostrava, durante o arraste, onde a peça ia cair.</p>
-      `,
+      body: [
+        `
+        <p>Último passo do script: soltar uma peça na grade a encaixa no centro da casa.</p>
+        `,
+        {
+          snip: `@drag_to(group["pecas"])
+def soltou(peca, alvo, pos):
+    casa = grade.cell_at(pos)`
+        },
+        `
+        <p><code>@drag_to</code> (arrastado até) fica nas peças, como o <code>@drag_over</code>, mas roda uma vez só, quando o arraste acaba, onde quer que a peça caia: na grade, na lixeira ou no vazio. Desta vez o que interessa é o <code>pos</code>, o ponto onde o mouse soltou, e o <code>cell_at</code> do passo anterior diz que casa fica ali.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Interação")
@@ -508,16 +687,28 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "if casa is not None:",
+          text: "Fora da grade, <code>casa</code> é <code>None</code>: o <code>if</code> pula a linha, e a peça fica onde foi solta."
+        }
+      ],
+      after: `
+        <p>Rode e solte as peças na grade: cada uma encaixa no meio de uma casa, a que a moldura branca mostrava durante o arraste.</p>
+      `,
       dive: [
         {
           title: "Três ganchos do arraste",
           body: `
             <p>O Scena tem três ganchos para arrastar e soltar, e cada um responde a uma pergunta:</p>
-            <ul>
-              <li><code>@drag_to(peca)</code> fica na coisa arrastada e roda uma vez, quando ela é solta, em qualquer lugar: <em>onde soltaram esta peça?</em></li>
-              <li><code>@drag_over(peca)</code> também fica na coisa arrastada, mas roda durante o arraste, a cada movimento do mouse: <em>por onde ela está passando?</em></li>
-              <li><code>@drop_by(lixeira)</code> fica no alvo e roda quando alguma coisa é solta em cima dele: <em>o que soltaram aqui?</em></li>
-            </ul>
+            <div class="tbl"><table>
+              <thead><tr><th>Gancho</th><th>Fica em</th><th>Roda</th><th>A pergunta</th></tr></thead>
+              <tbody>
+                <tr><td><code>@drag_to(peca)</code></td><td>na coisa arrastada</td><td>uma vez, quando ela é solta, em qualquer lugar</td><td><em>onde soltaram esta peça?</em></td></tr>
+                <tr><td><code>@drag_over(peca)</code></td><td>na coisa arrastada</td><td>durante o arraste, a cada movimento do mouse</td><td><em>por onde ela está passando?</em></td></tr>
+                <tr><td><code>@drop_by(lixeira)</code></td><td>no alvo</td><td>quando alguma coisa é solta em cima dele</td><td><em>o que soltaram aqui?</em></td></tr>
+              </tbody>
+            </table></div>
             <p>Os três recebem os mesmos três valores: quem foi arrastado, o alvo (o objeto que aceita soltar embaixo do mouse, ou <code>None</code>) e o ponto. Escolha pela pergunta: a lixeira só se importa com o que cai nela, então o gancho é dela; a peça precisa de uma resposta onde quer que caia, até fora da grade, então o gancho é da peça.</p>
             <p>No Guia: <a href="../guide/index.html#ptr-drag">Arrastar</a>.</p>
           `
@@ -543,9 +734,7 @@ run()
       part: "Script 3 · O mouse no canvas",
       fresh: true,
       body: `
-        <p>Terceiro script, e nenhuma forma para clicar. Até aqui o mouse sempre falava com um objeto: o <code>@click</code> num grupo, o hover, o arraste. Às vezes você quer saber o que o mouse faz <em>em qualquer lugar da janela</em>, sem objeto nenhum embaixo dele: clicou aqui, arrastou dali até ali, girou a roda. Para isso existem as funções de mouse do canvas. Vamos fazer um céu: cada clique acende uma estrela.</p>
-        <p><strong>Uma função com nome fixo.</strong> <code>on_mouse_click</code> (ao clicar o mouse) é como o <code>update</code>: você escreve a função com esse nome no topo do arquivo, e o Scena a chama sozinho. Não é preciso <code>@</code> nenhum: o nome já diz quando ela roda. O Scena a chama a cada clique no canvas e entrega três coisas: <code>x</code> e <code>y</code>, onde foi o clique, e <code>button</code> (botão), qual botão do mouse.</p>
-        <p><strong>Uma estrela onde clicou.</strong> A função cria um círculo pequeno, com brilho, no ponto <code>(x, y)</code>, no grupo <code>"estrelas"</code>. Rode e clique pelo céu.</p>
+        <p>Terceiro script, e nenhuma forma para clicar. Até aqui o mouse sempre falava com um objeto. Às vezes interessa o que ele faz em qualquer lugar da janela, sem objeto nenhum embaixo: clicou aqui, arrastou dali até ali, girou a roda. Vamos fazer um céu em que cada clique acende uma estrela.</p>
       `,
       code: `from scena import *
 
@@ -560,6 +749,15 @@ def on_mouse_click(x, y, button):
 
 run()
 `,
+      notes: [
+        {
+          at: "def on_mouse_click(x, y, button):",
+          text: "<code>on_mouse_click</code> (ao clicar o mouse) é uma função de nome fixo, como o <code>update</code>: escrita no topo do arquivo, sem <code>@</code>, o Scena a chama a cada clique no canvas. Recebe onde foi o clique, <code>x</code> e <code>y</code>, e <code>button</code> (botão), qual botão."
+        }
+      ],
+      after: `
+        <p>Rode e clique pelo céu: uma estrela pequena e brilhante em cada ponto.</p>
+      `,
       try: [
         {
           note: "O <code>button</code> diz qual botão foi: o direito (<code>Mouse.BTN_RIGHT</code>, como no Script 1) acende uma estrela dourada. No lugar da linha da <code>estrela</code>:",
@@ -574,9 +772,7 @@ estrela = Circle(center=(x, y), radius=6, color=cor, group="estrelas")`
     {
       title: "Clique duplo",
       body: `
-        <p>Um clique duplo apaga o céu. <code>on_mouse_double_click</code> (ao clicar duas vezes) é chamada quando dois cliques chegam rápidos, um perto do outro. <code>group["estrelas"].destroy()</code> destrói todas as estrelas do grupo de uma vez.</p>
-        <p><strong>Os dois cliques chegam antes.</strong> Rode, acenda algumas estrelas e dê um clique duplo. Os dois cliques do clique duplo são cliques também: o <code>on_mouse_click</code> roda duas vezes e acende duas estrelas; logo depois chega o clique duplo e apaga tudo, inclusive essas duas. Por isso um clique duplo serve bem para uma ação que <em>inclui</em> o que o clique simples faz, como aqui.</p>
-        <p><strong>Numa forma?</strong> O Scena não tem um clique duplo para um objeto, como o <code>@click</code>. O clique duplo é do canvas: para saber se ele caiu numa forma, pergunte a cada uma com <code>contains_point</code>, como a borracha do Script 1.</p>
+        <p>Um clique duplo apaga o céu.</p>
       `,
       code: `from scena import *
 
@@ -595,6 +791,21 @@ def on_mouse_double_click(x, y, button):
 
 run()
 `,
+      notes: [
+        {
+          at: "def on_mouse_double_click(x, y, button):",
+          text: "<code>on_mouse_double_click</code> (ao clicar duas vezes) roda quando dois cliques chegam rápidos, um perto do outro."
+        },
+        {
+          at: "group[\"estrelas\"].destroy()",
+          text: "<code>destroy</code> no grupo destrói todas as estrelas de uma vez."
+        }
+      ],
+      after: `
+        <p>Rode, acenda algumas estrelas e dê um clique duplo.</p>
+        <details class="ask"><summary>Os dois cliques do clique duplo acendem estrelas?</summary><p>Acendem: são cliques também, e o <code>on_mouse_click</code> roda duas vezes. Logo depois chega o clique duplo e apaga tudo, inclusive essas duas. Por isso o clique duplo serve bem para uma ação que inclui o que o clique simples faz, como aqui.</p></details>
+        <p>O clique duplo é só do canvas: não há um para objetos, como o <code>@click</code>. Para saber se ele caiu numa forma, pergunte a cada uma com <code>contains_point</code>, como faz a caixa abaixo.</p>
+      `,
       try: [
         {
           note: "O clique duplo apaga só as estrelas embaixo do mouse. No lugar da linha do <code>destroy</code>:",
@@ -608,9 +819,7 @@ run()
     {
       title: "Arrastar no canvas",
       body: `
-        <p>Agora, poeira de estrelas. <code>on_mouse_drag</code> (ao arrastar o mouse) é chamada a cada movimento do mouse com um botão apertado, onde quer que ele esteja. Cada chamada deixa um grãozinho no ponto <code>(x, y)</code>.</p>
-        <p><strong>Arrastar não é clicar.</strong> Rode e arraste: sai um rastro de poeira, e nenhuma estrela. Um clique é apertar e soltar no mesmo lugar; quem aperta, anda e solta longe arrastou, e o <code>on_mouse_click</code> não é chamado.</p>
-        <p><strong>O canvas, não um objeto.</strong> No Script 2, o arraste era de uma peça: <code>draggable</code> a levava junto com o mouse. Aqui ninguém é levado: a função só fica sabendo por onde o mouse passa.</p>
+        <p>Agora, poeira de estrelas: arrastar o mouse deixa um rastro de grãos.</p>
       `,
       code: `from scena import *
 
@@ -632,15 +841,24 @@ def on_mouse_drag(x, y, button):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "def on_mouse_drag(x, y, button):",
+          text: "<code>on_mouse_drag</code> (ao arrastar o mouse) roda a cada movimento do mouse com um botão apertado, onde quer que ele esteja. Cada chamada deixa um grão no ponto <code>(x, y)</code>."
+        }
+      ],
+      after: `
+        <p>Rode e arraste pelo céu.</p>
+        <details class="ask"><summary>O arraste acende estrelas também?</summary><p>Não: sai só a poeira. Um clique é apertar e soltar no mesmo lugar; quem aperta, anda e solta longe arrastou, e o <code>on_mouse_click</code> não roda.</p></details>
+        <p>No Script 2, o arraste levava uma peça junto com o mouse (<code>draggable</code>). Aqui ninguém é levado: a função só fica sabendo por onde o mouse passa.</p>
+      `
     },
     {
       title: "A roda do mouse",
       example: "ceu_estrelado.py",
       body: `
-        <p>Por último, a roda do mouse escolhe o tamanho da próxima estrela. <code>on_mouse_scroll</code> (ao rolar o mouse) é chamada quando a roda gira. <code>yoffset</code> diz quanto e para que lado: positivo para cima, negativo para baixo. Num trackpad, é o deslizar com dois dedos.</p>
-        <p><strong>O tamanho numa célula.</strong> <code>st.raio</code> guarda o raio da próxima estrela. A roda soma <code>yoffset</code> a ele; <code>max(2, …)</code> (o maior dos dois) não o deixa ficar menor que 2. O clique usa <code>radius=st.raio</code>.</p>
-        <p><strong>Um pincel que mostra.</strong> <code>pincel</code> é um anel (um círculo sem recheio) que anda com o mouse (<code>center=lambda: mouse</code>, do tutorial 04) e tem o raio da célula (<code>radius=lambda: st.raio</code>): você vê o tamanho antes de clicar. Ele não é clicável, então o clique passa para o canvas.</p>
+        <p>Por último, a roda do mouse escolhe o tamanho da próxima estrela, e um anel em volta do ponteiro mostra esse tamanho antes do clique.</p>
       `,
       code: `from scena import *
 
@@ -671,6 +889,27 @@ def on_mouse_scroll(xoffset, yoffset):
 
 run()
 `,
+      notes: [
+        {
+          at: "st.raio = 6",
+          text: "<code>st.raio</code> guarda o raio da próxima estrela. O clique o usa em <code>radius=st.raio</code>."
+        },
+        {
+          at: "pincel = Circle(",
+          text: "O pincel é um anel que anda com o mouse (<code>center=lambda: mouse</code>) e tem o raio guardado (<code>radius=lambda: st.raio</code>). Ele não é clicável, então o clique passa para o canvas."
+        },
+        {
+          at: "def on_mouse_scroll(xoffset, yoffset):",
+          text: "<code>on_mouse_scroll</code> (ao rolar o mouse) roda quando a roda gira. <code>yoffset</code> diz quanto e para que lado: positivo para cima, negativo para baixo. Num trackpad, é deslizar com dois dedos."
+        },
+        {
+          at: "max(2, st.raio + yoffset)",
+          text: "<code>max</code> (o maior dos dois) não deixa o raio ficar menor que 2."
+        }
+      ],
+      after: `
+        <p>Rode e gire a roda: o anel cresce e encolhe. Clique, e a estrela nasce do tamanho do anel.</p>
+      `,
       dive: [
         {
           title: "As funções de mouse do canvas",
@@ -681,15 +920,15 @@ run()
               <tbody>
                 <tr><td><code>on_mouse_click(x, y, button)</code></td><td>Um clique: apertar e soltar no mesmo lugar.</td></tr>
                 <tr><td><code>on_mouse_double_click(x, y, button)</code></td><td>Dois cliques rápidos, um perto do outro (depois dos dois cliques simples).</td></tr>
-                <tr><td><code>on_mouse_down(x, y, button)</code></td><td>Um botão desceu (o desenho do tutorial 04).</td></tr>
+                <tr><td><code>on_mouse_down(x, y, button)</code></td><td>Um botão desceu.</td></tr>
                 <tr><td><code>on_mouse_up(x, y, button)</code></td><td>Um botão subiu.</td></tr>
                 <tr><td><code>on_mouse_drag(x, y, button)</code></td><td>O mouse andou com um botão apertado.</td></tr>
                 <tr><td><code>on_mouse_move(x, y)</code></td><td>O mouse andou, com ou sem botão.</td></tr>
-                <tr><td><code>on_mouse_scroll(xoffset, yoffset)</code></td><td>A roda girou (o zoom do tutorial 10).</td></tr>
+                <tr><td><code>on_mouse_scroll(xoffset, yoffset)</code></td><td>A roda girou.</td></tr>
               </tbody>
             </table></div>
-            <p><strong>Evento ou leitura?</strong> Essas funções são eventos: rodam uma vez, no instante em que a coisa acontece. O Script 1 lia o mouse de outro jeito, a cada quadro, no <code>update</code>: <code>mouse.press(…)</code> (o botão está apertado agora?) e o próprio <code>mouse</code> como ponto. Uma coisa que acontece uma vez (acender uma estrela) cabe num evento; uma coisa que dura enquanto o botão está apertado (a borracha) lê o estado no <code>update</code>.</p>
-            <p><strong>Objeto ou canvas?</strong> Quando o clique é numa coisa (uma tecla, uma peça), use o clique do objeto: <code>@click</code>, ou o <code>on_click</code> de uma classe. Ele já entrega a coisa clicada. Quando o clique é no lugar (um ponto no céu, um tiro na direção do mouse), use a função do canvas.</p>
+            <p>Essas funções são eventos: rodam uma vez, no instante em que a coisa acontece. O Script 1 lia o mouse de outro jeito, a cada quadro, no <code>update</code>: <code>mouse.press(…)</code> (o botão está apertado agora?) e o próprio <code>mouse</code> como ponto. Uma coisa que acontece uma vez, como acender uma estrela, cabe num evento; uma coisa que dura enquanto o botão está apertado, como a borracha, lê o estado no <code>update</code>.</p>
+            <p>E quando usar o clique do objeto? Quando o clique é numa coisa (uma tecla, uma peça): <code>@click</code>, ou o <code>on_click</code> de uma classe, já entrega a coisa clicada. Quando o clique é num lugar (um ponto no céu, um tiro na direção do mouse), a função do canvas é a certa.</p>
             <p>No Guia: <a href="../guide/index.html#reagir-callbacks">Callbacks do script</a> · <a href="../guide/index.html#frame-mouse">Mouse</a>.</p>
           `
         }

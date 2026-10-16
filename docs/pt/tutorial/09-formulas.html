@@ -19,9 +19,10 @@ Tutorial.mount({
   steps: [
     {
       title: "A planilha",
-      body: `
-        <p>Este tutorial não é um jogo. É uma pequena máquina de formas ligadas umas às outras: um sol, uma lua, um fio, um ponteiro que gira. Cada passo acrescenta uma ligação, e você vê a mudança correr pela máquina. Desde o tutorial 02 você usa esse jeito de programar: o <code>@=</code> do placar, a <code>lambda</code> nas pontas das linhas do 03, o <code>Slider</code> do 04, as células do <code>st</code> no 07. Aqui as peças se juntam numa ideia só. O último passo junta essas ideias de novo, com exemplos, para você voltar a elas quando precisar.</p>
-        <p><strong>A planilha.</strong> Pense numa planilha, como as do Excel ou do Google Planilhas. Cada casa (célula) tem um nome, como A1 ou B1, e guarda um número ou uma fórmula. Se B1 tem a fórmula <code>=A1/3</code>, ela mostra um terço do que está em A1. Troque o número de A1, e B1 refaz a conta sozinha. Ninguém manda B1 atualizar: a fórmula diz de onde vem o valor, e a planilha cuida do resto.</p>
+      body: [
+        `
+        <p>Este tutorial não é um jogo. É uma pequena máquina de formas ligadas umas às outras: um sol, uma lua, um fio, um ponteiro que gira. Cada passo acrescenta uma ligação, e você vê a mudança correr pela máquina. O <code>@=</code> do placar, a <code>lambda</code> que prende uma forma a outra e as células do <code>st</code> são uma ideia só, e aqui ela aparece inteira.</p>
+        <p>Pense numa planilha, como as do Excel ou do Google Planilhas. Cada casa (célula) tem um nome, como A1 ou B1, e guarda um número ou uma fórmula. Se B1 tem a fórmula <code>=A1/3</code>, ela mostra um terço do que está em A1. Troque o número de A1, e B1 refaz a conta sozinha. Ninguém manda B1 atualizar: a fórmula diz de onde vem o valor, e a planilha cuida do resto.</p>
         <figure class="fig">
           <svg viewBox="0 0 380 150" role="img" aria-label="Três células de uma planilha: A1 com 40, B1 com a fórmula =A1/3 mostrando 13, C1 com a fórmula =A1*3 mostrando 120; setas saem de A1 para B1 e para C1">
             <defs>
@@ -42,9 +43,17 @@ Tutorial.mount({
           </svg>
           <figcaption>A1 guarda um número. B1 e C1 guardam fórmulas que leem A1. As setas vão de quem é lido para quem lê: é o caminho de uma mudança.</figcaption>
         </figure>
-        <p><strong>No Scena é igual.</strong> <code>st.raio = 40</code> cria uma célula com 40: é a nossa A1. <code>radius=lambda: st.raio</code> dá ao raio do sol uma fórmula, em vez de um número: o raio vem de <code>st.raio</code>. O Scena lê a fórmula uma vez, quando ela é ligada, e anota o que ela lê (aqui, a célula <code>raio</code>). Daí em diante, cada vez que a célula muda, ele refaz a conta.</p>
-        <p><strong>Quem muda a célula.</strong> O <code>Slider</code> do 04 recebe a célula entre colchetes, <code>st["raio"]</code>, e escreve nela quando você arrasta: de 20 a 120, só inteiros (<code>only_int=True</code>). Rode e arraste. O slider escreve, o sol lê. Nenhuma linha do programa “atualiza o sol”.</p>
-      `,
+        <p>No Scena é igual:</p>
+        `,
+        {
+          snip: `st.raio = 40
+...
+sol = Circle(center=(400, 330), radius=lambda: st.raio, color="gold")`
+        },
+        `
+        <p><code>st.raio = 40</code> cria uma célula com 40: é a nossa A1. <code>radius=lambda: st.raio</code> dá ao raio do sol uma fórmula, em vez de um número: o raio vem de <code>st.raio</code>. O Scena lê a fórmula uma vez, quando ela é ligada, e anota o que ela lê, aqui a célula <code>raio</code>. Daí em diante, cada vez que a célula muda, ele refaz a conta.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Fórmulas")
@@ -57,6 +66,15 @@ sol = Circle(center=(400, 330), radius=lambda: st.raio, color="gold")
 
 run()
 `,
+      notes: [
+        {
+          at: "Slider(st[\"raio\"]",
+          text: "Quem muda a célula é o <code>Slider</code> (controle deslizante). Ele recebe a célula entre colchetes, <code>st[\"raio\"]</code>, e escreve nela quando você arrasta: de 20 a 120, só inteiros (<code>only_int</code>)."
+        }
+      ],
+      after: `
+        <p>Rode e arraste. O slider escreve, o sol lê. Nenhuma linha do programa “atualiza o sol”.</p>
+      `,
       try: [
         {
           note: "A cópia, para ver a diferença. Sem <code>lambda</code>, o Python lê <code>st.raio</code> uma vez, quando o sol nasce: o raio é 40 e fica 40, por mais que você arraste.",
@@ -68,8 +86,7 @@ run()
     {
       title: "Uma fórmula lê outra",
       body: `
-        <p>Agora a lua, que depende do sol. O <code>center</code> (centro) dela é uma fórmula que devolve um par <code>(x, y)</code>: três raios do sol à direita do centro dele, na mesma altura. O <code>radius</code> (raio) é um terço do raio do sol. O <code>fio</code> é a <code>Line</code> do 03, com uma ponta no sol e a outra na lua.</p>
-        <p><strong>A cadeia.</strong> O slider escreve em <code>st.raio</code>; o raio do sol lê <code>st.raio</code>; a lua lê o sol; o fio lê o sol e a lua. É a planilha de novo, só que com uma casa a mais na fila: uma fórmula pode ler o resultado de outra fórmula.</p>
+        <p>Agora a lua, que depende do sol, e um fio entre os dois. O slider escreve em <code>st.raio</code>; o raio do sol lê <code>st.raio</code>; a lua lê o sol; o fio lê o sol e a lua. É a planilha com mais casas na fila: uma fórmula pode ler o resultado de outra fórmula.</p>
         <figure class="fig">
           <svg viewBox="0 0 480 180" role="img" aria-label="Cadeia de fórmulas: Slider escreve em st.raio; sol.radius lê st.raio; lua.center e lua.radius leem sol.radius; fio lê lua.center">
             <defs>
@@ -97,8 +114,6 @@ run()
           </svg>
           <figcaption>Quem lê quem. Arraste o slider e a mudança corre na direção das setas, até o fio.</figcaption>
         </figure>
-        <p><strong>Quando a conta é refeita.</strong> Não importa a ordem das linhas nem quantas fórmulas há na fila: o Scena sabe quem lê quem, e antes de desenhar o próximo quadro a cadeia inteira está em dia. Rode e arraste o slider: o sol cresce, a lua se afasta e cresce junto, e o fio estica.</p>
-        <p><strong>Uma direção só.</strong> A lua lê o sol. O sol não pode, ao mesmo tempo, ler a lua: seria uma conta que depende do próprio resultado, como pôr <code>=B1</code> dentro de B1 numa planilha. O Scena recusa na hora de ligar.</p>
       `,
       code: `from scena import *
 
@@ -119,6 +134,24 @@ fio = Line(p1=lambda: sol.center, p2=lambda: lua.center, color="white")
 
 run()
 `,
+      notes: [
+        {
+          at: "sol.radius * 3, sol.center.y)",
+          text: "O <code>center</code> (centro) da lua é uma fórmula que devolve um par <code>(x, y)</code>: três raios do sol à direita do centro dele, na mesma altura."
+        },
+        {
+          at: "radius=lambda: sol.radius / 3,",
+          text: "O <code>radius</code> (raio) da lua é um terço do raio do sol."
+        },
+        {
+          at: "fio = Line(",
+          text: "O <code>fio</code> é uma <code>Line</code> (linha) com uma ponta, <code>p1</code>, no sol e a outra, <code>p2</code>, na lua."
+        }
+      ],
+      after: `
+        <p>Rode e arraste o slider: o sol cresce, a lua se afasta e cresce junto, e o fio estica. Não importa a ordem das linhas nem quantas fórmulas há na fila: o Scena sabe quem lê quem, e antes de desenhar o próximo quadro a cadeia inteira está em dia.</p>
+        <details class="ask"><summary>E se o sol também lesse a lua?</summary><p>Seria uma conta que depende do próprio resultado, como pôr <code>=B1</code> dentro de B1 numa planilha. O Scena recusa na hora de ligar: as setas andam numa direção só.</p></details>
+      `,
       try: [
         {
           note: "Outras fórmulas para a lua, uma por vez. Uma lua que encolhe quando o sol cresce:",
@@ -134,9 +167,15 @@ run()
     },
     {
       title: "A célula na tela",
-      body: `
-        <p>Uma linha nova: <code>Text(st["raio"])</code>. É um texto que mostra a célula. Sem posição, ele entra na coluna, logo abaixo do slider, e mostra 40. Arraste o slider: o número acompanha. O texto só mostra: quem muda o número é quem escreve na célula, o slider ou uma linha como <code>st.raio = 60</code>.</p>
-        <p><strong>Colchetes: a caixa. Ponto: o que está dentro.</strong> Imagine a célula como uma caixa com um nome escrito por fora. <code>st["raio"]</code>, com colchetes, é a própria caixa. <code>st.raio</code>, com ponto, é o número que está dentro dela agora, uma cópia: 40. Quem recebe a caixa pode acompanhá-la ou escrever nela. Quem recebe o número fica com 40, e a caixa não sabe mais dele.</p>
+      body: [
+        `
+        <p>Uma linha nova põe o raio na tela:</p>
+        `,
+        {
+          snip: `Text(st["raio"])`
+        },
+        `
+        <p>É um texto que mostra a célula, e os colchetes são o que importa nele. Imagine a célula como uma caixa com um nome escrito por fora. <code>st["raio"]</code>, com colchetes, é a própria caixa. <code>st.raio</code>, com ponto, é o número que está dentro dela agora, uma cópia: 40. Quem recebe a caixa pode acompanhá-la ou escrever nela. Quem recebe o número fica com 40, e a caixa não sabe mais dele.</p>
         <figure class="fig">
           <svg viewBox="0 0 400 170" role="img" aria-label="Uma caixa chamada st[raio] com 40 dentro; o Slider escreve na caixa e o Text a mostra; ao lado, st.raio tira uma cópia solta do número 40">
             <defs>
@@ -161,9 +200,8 @@ run()
           </svg>
           <figcaption>Os colchetes entregam a caixa: o slider escreve nela, o texto a mostra, e os dois veem cada mudança. O ponto tira uma cópia do número de agora; a cópia não muda mais.</figcaption>
         </figure>
-        <p><strong>E com ponto?</strong> <code>Text(st.raio)</code> entregaria só o número 40, e o texto não teria como acompanhar a célula. O Scena recusa com um <code>TypeError</code> que já diz o que fazer: os colchetes, <code>Text(st["raio"])</code>.</p>
-        <p><strong>Onde vão os colchetes.</strong> Onde alguém vai acompanhar ou escrever na célula: o <code>Slider</code> que escreve, o <code>Text</code> que mostra. No resto (ler o número, fazer uma conta, um <code>if</code>), o ponto. O próximo passo mostra um lugar importante onde é sempre ponto: dentro de uma <code>lambda</code>.</p>
-      `,
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Fórmulas")
@@ -184,15 +222,31 @@ fio = Line(p1=lambda: sol.center, p2=lambda: lua.center, color="white")
 Text(st["raio"])
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "Text(st[\"raio\"])",
+          text: "Sem posição, o <code>Text</code> (texto) entra na coluna, logo abaixo do slider. Ele só mostra: quem muda o número é quem escreve na célula, o slider ou uma linha como <code>st.raio = 60</code>."
+        }
+      ],
+      after: [
+        `
+        <p>Rode e arraste: o número acompanha. Agora, o engano que todo mundo comete uma vez, escrever com ponto:</p>
+        `,
+        {
+          snip: `Text(st.raio)`,
+          alt: true
+        },
+        `
+        <p>Assim o texto receberia só o número 40, e não teria como acompanhar a célula. O Scena recusa com um <code>TypeError</code> (erro de tipo) que já diz o que fazer: os colchetes.</p>
+        <p>Os colchetes vão onde alguém vai acompanhar ou escrever na célula: o <code>Slider</code> que escreve, o <code>Text</code> que mostra. No resto (ler o número, fazer uma conta, um <code>if</code>), o ponto.</p>
+        `
+      ]
     },
     {
       title: "Um texto com fórmula",
       body: `
-        <p><code>Text(st["raio"])</code> mostra a célula como ela é: só o número, sem nome. Para escrever uma frase, ou juntar dois valores, o texto precisa de uma fórmula. <code>Text(lambda: …)</code> liga o texto a uma conta, como as pontas da linha do 03.</p>
-        <p><strong>A frase.</strong> É a f-string do placar do 02: o <code>f</code> antes das aspas põe o valor de cada <code>{…}</code> dentro da frase. <code>round</code> (arredondar) tira as casas depois da vírgula, porque o raio da lua é um terço do raio do sol: com 40, dá 13,333…, e a frase mostra 13.</p>
-        <p><strong>Dentro da fórmula, ponto.</strong> Quem mantém a frase viva é a <code>lambda</code>, não os colchetes. Ela guarda a conta em vez de fazê-la agora; o Scena lê o código dela uma vez, encontra <code>st.raio</code> e <code>lua.radius</code>, e refaz a conta a cada mudança. Cada vez que roda, a conta quer o número daquele momento: é exatamente o que <code>st.raio</code> dá. Com colchetes, <code>f"Sol {st['raio']}"</code>, ela receberia a caixa em vez do número. O Scena recusa na hora de ligar, com um <code>TypeError</code> que aponta a linha e diz para escrever <code>st.raio</code>.</p>
-        <p><strong>Duas fontes.</strong> Esta fórmula lê duas coisas, a célula e o raio da lua. Qualquer uma que mude, a frase é refeita. Rode e arraste: <code>Sol 40   Lua 13</code> vira <code>Sol 90   Lua 30</code>.</p>
+        <p><code>Text(st["raio"])</code> mostra a célula como ela é: só o número, sem nome. Para escrever uma frase, ou juntar dois valores, o texto precisa de uma fórmula: <code>Text(lambda: …)</code>.</p>
       `,
       code: `from scena import *
 
@@ -216,9 +270,28 @@ Text(lambda: f"Sol {st.raio}   Lua {round(lua.radius)}")
 
 run()
 `,
+      notes: [
+        {
+          at: "Text(lambda: f\"Sol",
+          text: "O <code>f</code> antes das aspas faz uma f-string: o valor de cada <code>{…}</code> entra na frase. <code>round</code> (arredondar) tira as casas depois da vírgula: com o sol em 40, a lua tem 13,333… de raio, e a frase mostra 13."
+        }
+      ],
+      after: [
+        `
+        <p>Rode e arraste: <code>Sol 40   Lua 13</code> vira <code>Sol 90   Lua 30</code>. A fórmula lê duas coisas, a célula e o raio da lua; qualquer uma que mude, a frase é refeita.</p>
+        <p>Dentro da fórmula é ponto, não colchetes. Quem mantém a frase viva é a <code>lambda</code>: o Scena lê o código dela uma vez, encontra <code>st.raio</code> e <code>lua.radius</code>, e refaz a conta a cada mudança. Cada vez que a conta roda, ela quer o número daquele momento, e é isso que <code>st.raio</code> dá. Com colchetes, ela receberia a caixa em vez do número:</p>
+        `,
+        {
+          snip: `Text(lambda: f"Sol {st['raio']}   Lua {round(lua.radius)}")`,
+          alt: true
+        },
+        `
+        <p>O Scena recusa na hora de ligar, com um <code>TypeError</code> que aponta a linha e diz para escrever <code>st.raio</code>.</p>
+        `
+      ],
       try: [
         {
-          note: "A mesma ligação em duas linhas, como no placar do 02: o texto nasce vazio, e o <code>@=</code> liga o campo <code>text</code> depois. Uma <code>lambda</code> no construtor e um <code>@=</code> logo depois são a mesma coisa.",
+          note: "A mesma ligação em duas linhas, como num placar: o texto nasce vazio, e o <code>@=</code> liga o campo <code>text</code> depois. Uma <code>lambda</code> no construtor e um <code>@=</code> logo depois são a mesma coisa.",
           replaces: ['Text(lambda'],
           code: `placar = Text("")
 placar["text"] @= lambda: f"Sol {st.raio}   Lua {round(lua.radius)}"`
@@ -227,12 +300,38 @@ placar["text"] @= lambda: f"Sol {st.raio}   Lua {round(lua.radius)}"`
     },
     {
       title: "O relógio",
-      body: `
-        <p>Uma peça que se mexe sozinha: um ponteiro preso na lua, girando. É uma <code>Line</code> escrita de outro jeito: a ponta <code>p1</code> no centro da lua, <code>length</code> (comprimento) de dois raios da lua e <code>angle</code> (ângulo) 0.</p>
-        <p><strong>O <code>@=</code> depois.</strong> O ângulo nasce como uma cópia, 0, e a linha seguinte o liga a uma fórmula: <code>ponteiro["angle"] @= lambda: clock.time * 90</code>. É a forma geral, a que funciona em qualquer campo de qualquer objeto, a qualquer hora: o campo entre colchetes, à esquerda; a fórmula, à direita. Os colchetes de novo apontam a caixa, agora o campo <code>angle</code> do ponteiro: é ele que recebe a fórmula.</p>
-        <p><strong>Uma fonte que muda sempre.</strong> <code>clock.time</code> (relógio, tempo) conta os segundos desde o começo do programa: 0, 0,5, 1, 1,5… O ângulo é em graus: 0 aponta para a direita, 90 para cima, e 360 é uma volta inteira, girando para a esquerda. Com 90 graus por segundo, o ponteiro dá uma volta a cada 4 segundos. Como o relógio muda a cada quadro, essa fórmula é refeita a cada quadro. A do sol, não: só quando <code>st.raio</code> muda.</p>
-        <p><strong>Um ponto calculado.</strong> A <code>faisca</code> (faísca), com <code>glow</code> (brilho), fica na outra ponta do ponteiro, <code>ponteiro.p2</code>. Ninguém deu essa ponta ao Scena: ele a calcula a partir de <code>p1</code>, do comprimento e do ângulo. Mesmo assim, uma fórmula pode lê-la, e a faísca acompanha a ponta que gira.</p>
-      `,
+      body: [
+        `
+        <p>Uma peça que se mexe sozinha: um ponteiro preso na lua, girando, com uma faísca na ponta. O giro vem desta linha:</p>
+        `,
+        {
+          snip: `ponteiro["angle"] @= lambda: clock.time * 90`
+        },
+        `
+        <p>O <code>@=</code> liga um campo depois que o objeto já existe. É a forma geral, a que funciona em qualquer campo de qualquer objeto, a qualquer hora: o campo entre colchetes, à esquerda; a fórmula, à direita. Os colchetes de novo apontam a caixa, agora o campo <code>angle</code> (ângulo) do ponteiro: é ele que recebe a fórmula.</p>
+        <p><code>clock.time</code> (relógio, tempo) conta os segundos desde o começo do programa: 0, 0,5, 1, 1,5… O ângulo é em graus, e com 90 graus por segundo o ponteiro dá uma volta a cada 4 segundos:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 190" role="img" aria-label="Um círculo com o ponteiro apontando para a direita, em 0 grau; 90 graus fica em cima, 180 à esquerda, 270 embaixo; uma seta mostra o giro para a esquerda, contra o relógio">
+            <defs>
+              <marker id="seta-giro" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="dot" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+            <circle class="guide" cx="200" cy="100" r="60"/>
+            <line class="ray" x1="200" y1="100" x2="260" y2="100"/>
+            <circle class="dot" cx="200" cy="100" r="4"/>
+            <circle class="hot" cx="260" cy="100" r="5"/>
+            <circle class="dot" cx="200" cy="40" r="3"/>
+            <circle class="dot" cx="140" cy="100" r="3"/>
+            <circle class="dot" cx="200" cy="160" r="3"/>
+            <path class="ray" fill="none" d="M 272 76 A 75 75 0 0 0 238 35" marker-end="url(#seta-giro)"/>
+            <text x="272" y="104">0° · 0 s e 4 s</text>
+            <text x="200" y="28" text-anchor="middle">90° · 1 s</text>
+            <text x="130" y="104" text-anchor="end">180° · 2 s</text>
+            <text x="200" y="182" text-anchor="middle">270° · 3 s</text>
+          </svg>
+          <figcaption>O ângulo em graus: 0 aponta para a direita, 90 para cima, e 360 é uma volta inteira, girando para a esquerda. A 90 graus por segundo, o ponteiro passa por 90 em 1 s e volta a 0 em 4 s.</figcaption>
+        </figure>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Fórmulas")
@@ -260,6 +359,19 @@ faisca.glow = True
 
 run()
 `,
+      notes: [
+        {
+          at: "ponteiro = Line(",
+          text: "Uma <code>Line</code> escrita de outro jeito: a ponta <code>p1</code> no centro da lua, <code>length</code> (comprimento) de dois raios da lua e <code>angle</code> 0. O ângulo nasce como uma cópia, um número; a linha de baixo o liga."
+        },
+        {
+          at: "center=lambda: ponteiro.p2",
+          text: "A <code>faisca</code> (faísca) fica na outra ponta, <code>ponteiro.p2</code>. Ninguém deu essa ponta ao Scena: ele a calcula a partir de <code>p1</code>, do comprimento e do ângulo. Mesmo assim, uma fórmula pode lê-la."
+        }
+      ],
+      after: `
+        <p>Rode. Como o relógio muda a cada quadro, a fórmula do ângulo é refeita a cada quadro, e a faísca vai atrás da ponta. A fórmula do sol, não: ela só é refeita quando <code>st.raio</code> muda.</p>
+      `,
       dive: [
         {
           title: "O que uma fórmula pode ler",
@@ -270,7 +382,7 @@ run()
               <li>um campo de um objeto do Scena, dado por você ou calculado (<code>sol.radius</code>, <code>lua.center</code>, <code>ponteiro.p2</code>);</li>
               <li>o relógio e a entrada: <code>clock</code>, <code>mouse</code>, <code>keyp</code> (o teclado).</li>
             </ul>
-            <p><strong>Uma variável comum não avisa quando muda.</strong> Com <code>giro = 90</code> no topo do arquivo, <code>lambda: giro * 2</code> é recusada: <code>TypeError</code>, a fórmula não tem fontes que o Scena acompanhe. Ele recusa em vez de ligar uma fórmula que ficaria parada sem você saber. A saída é guardar o valor numa célula (<code>st.giro = 90</code>) e ler <code>st.giro</code>.</p>
+            <p>Uma variável comum não avisa quando muda. Com <code>giro = 90</code> no topo do arquivo, <code>lambda: giro * 2</code> é recusada: <code>TypeError</code>, a fórmula não tem fontes que o Scena acompanhe. Ele recusa em vez de ligar uma fórmula que ficaria parada sem você saber. A saída é guardar o valor numa célula (<code>st.giro = 90</code>) e ler <code>st.giro</code>.</p>
             <p>No Guia: <a href="../guide/index.html#reativo-fontes">O que pode ser ligado</a>.</p>
           `,
           try: [
@@ -290,12 +402,18 @@ run()
     },
     {
       title: "A cor não liga",
-      body: `
-        <p>Agora queremos que a cor do sol dependa do tamanho dele. A primeira ideia seria uma fórmula, <code>sol["color"] @= lambda: …</code>. O Scena recusa: a cor é <strong>pintura</strong>, e a pintura (<code>color</code>, <code>glow</code>, <code>visual</code>) fica fora das fórmulas. A mensagem do erro diz o caminho: escrever a cor com <code>=</code>, num <code>@on_change</code> ou num <code>@when</code>.</p>
-        <p><strong>Quando mudar.</strong> <code>@on_change</code> (quando mudar), do 08, em cima de uma função, roda a função a cada mudança da célula, e entrega o valor novo (<code>valor</code>). Ele recebe a célula, com colchetes: precisa acompanhá-la, não ler o número uma vez.</p>
-        <p><strong>A cor de um número.</strong> <code>Color.from_hsv(matiz, saturação, brilho)</code> monta uma cor com três números de 0 a 1. A matiz dá a volta no círculo das cores: 0 é vermelho, 0,17 amarelo, 0,33 verde, 0,5 ciano, 0,67 azul. A saturação vai do cinza (0) à cor viva (1); o brilho, do preto (0) ao mais claro (1). Com <code>valor / 200</code>, o sol vai do laranja (raio 20) ao azul (raio 120).</p>
-        <p><strong>Fórmula ou evento.</strong> Uma fórmula diz o que um campo <em>é</em>: o raio do sol é sempre <code>st.raio</code>. Um evento diz o que fazer <em>quando</em> algo acontece: pintar o sol, tocar um som. Por isso o sol começa dourado: a função só roda na primeira mudança. Arraste o slider e veja.</p>
-      `,
+      body: [
+        `
+        <p>Agora queremos que a cor do sol dependa do tamanho dele. A primeira ideia seria uma fórmula:</p>
+        `,
+        {
+          snip: `sol["color"] @= lambda: …`,
+          alt: true
+        },
+        `
+        <p>O Scena recusa: a cor é <strong>pintura</strong>, e a pintura (<code>color</code>, <code>glow</code>, <code>visual</code>) fica fora das fórmulas. A mensagem do erro diz o caminho: escrever a cor com <code>=</code>, dentro de um evento, uma função que o Scena roda quando algo acontece.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Fórmulas")
@@ -327,6 +445,29 @@ def colorir(valor):
 
 run()
 `,
+      notes: [
+        {
+          at: "@on_change(st[\"raio\"])",
+          text: "<code>@on_change</code> (quando mudar) roda a função a cada mudança da célula. Ele recebe a célula, com colchetes: precisa acompanhá-la, não ler o número uma vez."
+        },
+        {
+          at: "def colorir(valor):",
+          text: "O Scena entrega o valor novo da célula no parâmetro <code>valor</code>."
+        },
+        {
+          at: "Color.from_hsv(",
+          text: "<code>Color.from_hsv</code> monta uma cor com três números de 0 a 1: matiz, saturação e brilho. A tabela abaixo mostra o que cada um faz."
+        }
+      ],
+      after: `
+        <div class="tbl"><table><thead><tr><th>Número</th><th>De 0 a 1</th></tr></thead><tbody>
+          <tr><td>matiz (<code>valor / 200</code>)</td><td>dá a volta no círculo das cores: 0 é vermelho, 0,17 amarelo, 0,33 verde, 0,5 ciano, 0,67 azul</td></tr>
+          <tr><td>saturação (<code>0.8</code>)</td><td>do cinza (0) à cor viva (1)</td></tr>
+          <tr><td>brilho (<code>1</code>)</td><td>do preto (0) ao mais claro (1)</td></tr>
+        </tbody></table></div>
+        <p>Com <code>valor / 200</code>, o matiz vai de 0,1 a 0,6: o sol vai do laranja (raio 20) ao azul (raio 120). Rode e arraste o slider.</p>
+        <details class="ask"><summary>Por que o sol começa dourado?</summary><p>Porque um evento só roda quando algo acontece, e no começo nada mudou ainda: a função espera a primeira mudança. É a diferença entre fórmula e evento. Uma fórmula diz o que um campo <em>é</em>, o tempo todo: o raio do sol é sempre <code>st.raio</code>. Um evento diz o que fazer <em>quando</em> algo acontece: pintar o sol, tocar um som.</p></details>
+      `,
       try: [
         {
           note: "Outra escrita: acompanhar o campo de um objeto. Aí vai uma <code>lambda</code>, porque <code>sol.radius</code> sozinho seria o número de agora.",
@@ -338,25 +479,7 @@ run()
     {
       title: "Uma condição",
       body: `
-        <p>Um evento de outro tipo: quando o sol passa de 100, ele estoura. <code>@when</code> (quando), do tutorial 01, recebe uma pergunta de sim ou não, <code>lambda: sol.radius &gt; 100</code>, e roda a função quando a resposta vira sim. <code>canvas.burst_at</code> é o estouro do 05, com <code>rings=True</code> (anéis).</p>
-        <p><strong>Na passagem, uma vez.</strong> O Scena confere a pergunta a cada quadro, mas só dispara na passagem do não para o sim. Enquanto o sol continua grande, nada se repete. Para estourar de novo, ele precisa voltar a 100 ou menos e passar outra vez.</p>
-        <figure class="fig">
-          <svg viewBox="0 0 380 150" role="img" aria-label="O raio do sol ao longo do tempo sobe, passa de 100, fica acima, desce abaixo de 100 e sobe de novo; uma marca em cada passagem para cima">
-            <line class="ray" x1="20" y1="130" x2="370" y2="130"/>
-            <line class="guide" x1="20" y1="70" x2="370" y2="70"/>
-            <polyline class="ray" fill="none" points="20,120 80,110 120,80 150,50 200,45 230,60 260,95 290,90 320,55 360,40"/>
-            <circle class="hot" cx="130" cy="70" r="5"/>
-            <circle class="hot" cx="307" cy="70" r="5"/>
-            <text x="24" y="64">raio 100</text>
-            <text x="138" y="88">dispara</text>
-            <text x="314" y="88">dispara</text>
-            <text x="205" y="36" text-anchor="middle">acima: nada</text>
-            <text x="365" y="145" text-anchor="end">tempo</text>
-          </svg>
-          <figcaption>O <code>@when</code> dispara só nas passagens de baixo para cima. Ficar acima da linha não conta; descer não conta.</figcaption>
-        </figure>
-        <p><strong>Por que a <code>lambda</code>.</strong> Sem ela, <code>@when(sol.radius &gt; 100)</code> faria a conta uma vez, ao ler a linha, e entregaria só <code>False</code>. O Scena recusa com <code>TypeError</code>. A <code>lambda</code> guarda a pergunta para ele refazer a cada quadro.</p>
-        <p><strong>Os dois eventos.</strong> <code>@on_change</code> roda a cada mudança do valor; <code>@when</code>, quando uma condição passa a valer. Rode e leve o slider para lá e para cá em volta de 100.</p>
+        <p>Um evento de outro tipo: quando o sol passa de 100, ele estoura. <code>@when</code> (quando) recebe uma pergunta de sim ou não e roda a função quando a resposta vira sim.</p>
       `,
       code: `from scena import *
 
@@ -393,6 +516,36 @@ def grande():
 
 run()
 `,
+      notes: [
+        {
+          at: "@when(lambda: sol.radius > 100)",
+          text: "A pergunta vai numa <code>lambda</code>, para o Scena refazê-la a cada quadro. Sem ela, <code>@when(sol.radius &gt; 100)</code> faria a conta uma vez, ao ler a linha, e entregaria só <code>False</code>; o Scena recusa com <code>TypeError</code>."
+        },
+        {
+          at: "canvas.burst_at(sol, radius=150, rings=True)",
+          text: "Um estouro no sol, com anéis (<code>rings</code>)."
+        }
+      ],
+      after: `
+        <p>Rode e leve o slider para lá e para cá em volta de 100.</p>
+        <details class="ask"><summary>O sol estoura de novo enquanto continua grande?</summary><p>Não. O Scena confere a pergunta a cada quadro, mas só dispara na passagem do não para o sim. Para estourar de novo, o sol precisa voltar a 100 ou menos e passar outra vez.</p></details>
+        <figure class="fig">
+          <svg viewBox="0 0 380 150" role="img" aria-label="O raio do sol ao longo do tempo sobe, passa de 100, fica acima, desce abaixo de 100 e sobe de novo; uma marca em cada passagem para cima">
+            <line class="ray" x1="20" y1="130" x2="370" y2="130"/>
+            <line class="guide" x1="20" y1="70" x2="370" y2="70"/>
+            <polyline class="ray" fill="none" points="20,120 80,110 120,80 150,50 200,45 230,60 260,95 290,90 320,55 360,40"/>
+            <circle class="hot" cx="130" cy="70" r="5"/>
+            <circle class="hot" cx="307" cy="70" r="5"/>
+            <text x="24" y="64">raio 100</text>
+            <text x="138" y="88">dispara</text>
+            <text x="314" y="88">dispara</text>
+            <text x="205" y="36" text-anchor="middle">acima: nada</text>
+            <text x="365" y="145" text-anchor="end">tempo</text>
+          </svg>
+          <figcaption>O <code>@when</code> dispara só nas passagens de baixo para cima. Ficar acima da linha não conta; descer não conta.</figcaption>
+        </figure>
+        <p>Os dois eventos se completam: <code>@on_change</code> roda a cada mudança do valor; <code>@when</code>, quando uma condição passa a valer.</p>
+      `,
       try: [
         {
           note: "Outras perguntas, uma por vez. O estouro no espaço (o <code>@when</code> já dispara só no aperto, não enquanto a tecla fica apertada):",
@@ -408,12 +561,18 @@ run()
     },
     {
       title: "Soltar a lua",
-      body: `
-        <p>Até aqui, a lua obedece ao sol. E se você quiser pô-la em outro lugar? A primeira ideia seria <code>lua.center = (600, 200)</code>. O Scena recusa, e a mensagem diz o que fazer: chamar <code>unlink()</code> antes.</p>
-        <p><strong>Por que recusa.</strong> Um campo ligado tem dono: a fórmula. Se o <code>=</code> passasse, a fórmula escreveria por cima no quadro seguinte, e a lua voltaria sem você entender por quê. O Scena prefere avisar na hora, na linha do <code>=</code>.</p>
-        <p><strong>Desligar.</strong> <code>lua["center"].unlink()</code> (desligar) solta o centro da fórmula. O centro fica com o último valor, e a lua fica parada onde estava. Daí em diante ela aceita <code>=</code>, <code>move_to</code> e o arraste.</p>
-        <p><strong>O botão.</strong> O <code>Button</code> do 04 chama <code>soltar</code>. Rode, clique em “Soltar a lua” e arraste a lua. O fio e o ponteiro vão atrás: eles leem <code>lua.center</code>, e essas ligações continuam valendo. Mexa no slider: o sol cresce, a lua não sai do lugar, mas ainda muda de tamanho. O <code>unlink</code> cortou uma seta só, a do centro; o raio da lua continua lendo o sol.</p>
-      `,
+      body: [
+        `
+        <p>Até aqui, a lua obedece ao sol. E se você quiser pô-la em outro lugar? A primeira ideia seria mudar o centro com <code>=</code>:</p>
+        `,
+        {
+          snip: `lua.center = (600, 200)`,
+          alt: true
+        },
+        `
+        <p>O Scena recusa, e a mensagem diz o que fazer: chamar <code>unlink()</code> antes. Um campo ligado tem dono, a fórmula. Se o <code>=</code> passasse, a fórmula escreveria por cima no quadro seguinte, e a lua voltaria sem você entender por quê. O Scena prefere avisar na hora, na linha do <code>=</code>.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Fórmulas")
@@ -454,16 +613,42 @@ def soltar():
 Button(label="Soltar a lua", on_click=soltar)
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "lua[\"center\"].unlink()",
+          text: "<code>unlink</code> (desligar) solta o centro da fórmula. O centro fica com o último valor, e a lua fica parada onde estava. Daí em diante ela aceita <code>=</code>, <code>move_to</code> e o arraste."
+        },
+        {
+          at: "lua.draggable = True",
+          text: "<code>draggable</code> (arrastável) deixa arrastar a lua com o mouse."
+        },
+        {
+          at: "Button(label=\"Soltar a lua\"",
+          text: "Um <code>Button</code> (botão) que chama <code>soltar</code> a cada clique."
+        }
+      ],
+      after: `
+        <p>Rode, clique em “Soltar a lua” e arraste a lua. O fio e o ponteiro vão atrás: eles leem <code>lua.center</code>, e essas ligações continuam valendo.</p>
+        <details class="ask"><summary>Com a lua solta, mexa no slider. O que ela faz?</summary><p>Fica no lugar, mas ainda muda de tamanho. O <code>unlink</code> cortou uma seta só, a do centro; o raio da lua continua lendo o sol.</p></details>
+      `
     },
     {
       title: "Prender de novo",
-      body: `
-        <p>Para prender a lua de volta, o botão “Prender a lua” liga o centro outra vez: <code>lua["center"] @= …</code>. A fórmula seria a mesma do começo do arquivo. Em vez de escrever a conta duas vezes, ela ganha um nome.</p>
-        <p><strong>Uma fórmula com nome.</strong> <code>lugar_da_lua</code> é uma função comum, com <code>def</code> e <code>return</code>, que devolve o lugar da lua. O <code>Circle</code> e o <code>prender</code> recebem a função <strong>sem parênteses</strong>: <code>center=lugar_da_lua</code> entrega a função, para o Scena chamar quando precisar; <code>lugar_da_lua()</code>, com parênteses, entregaria o resultado de agora, um par de números, e a lua ficaria parada. O Scena lê o código da função como lê o de uma <code>lambda</code>, e sabe que ela depende do sol.</p>
-        <p><strong>Prender.</strong> Primeiro <code>draggable = False</code>: arrastar e fórmula não convivem. Depois o <code>@=</code>, e a lua pula de volta para o lugar dela. O <code>if lua.draggable</code> pergunta se a lua está solta. O <code>if</code> não deixa ligar duas vezes quando você clica em “Prender” com a lua já presa.</p>
-        <p>Rode, solte, arraste, prenda.</p>
-      `,
+      body: [
+        `
+        <p>Para prender a lua de volta, um segundo botão liga o centro outra vez com <code>@=</code>. A fórmula seria a mesma do começo do arquivo; em vez de escrever a conta duas vezes, ela ganha um nome:</p>
+        `,
+        {
+          snip: `def lugar_da_lua():
+    return (sol.center.x + sol.radius * 3, sol.center.y)
+...
+    center=lugar_da_lua,`
+        },
+        `
+        <p><code>lugar_da_lua</code> é uma função comum, com <code>def</code> e <code>return</code>, que devolve o lugar da lua. O <code>Circle</code> recebe a função <strong>sem parênteses</strong>: <code>center=lugar_da_lua</code> entrega a função, para o Scena chamar quando precisar. Ele lê o código dela como lê o de uma <code>lambda</code>, e sabe que ela depende do sol.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Fórmulas")
@@ -513,15 +698,58 @@ Button(label="Soltar a lua", on_click=soltar)
 Button(label="Prender a lua", on_click=prender)
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "if lua.draggable:",
+          text: "Pergunta se a lua está solta. Assim, clicar em “Prender” com a lua já presa não liga o centro duas vezes."
+        },
+        {
+          at: "lua.draggable = False",
+          text: "Primeiro, desligar o arraste: arrastar e fórmula não convivem."
+        },
+        {
+          at: "lua[\"center\"] @= lugar_da_lua",
+          text: "Depois, ligar de novo, com a mesma função, sem parênteses. A lua pula de volta para o lugar dela."
+        }
+      ],
+      after: [
+        `
+        <p>Rode, solte, arraste, prenda. Os parênteses são o engano que vale vigiar aqui:</p>
+        `,
+        {
+          snip: `center=lugar_da_lua(),`,
+          alt: true
+        },
+        `
+        <p>Com parênteses, o Python chama a função ali mesmo e entrega o resultado de agora, um par de números. A lua ganharia uma cópia do lugar e ficaria parada quando o sol crescesse.</p>
+        `
+      ]
     },
     {
       title: "Uma fila de contas",
       body: `
-        <p>Um enfeite: cinco contas no fio, como num colar, a distâncias iguais entre o sol e a lua. Cada conta é um <code>Circle</code> pequeno, e um <code>for</code> faz as cinco: <code>i</code> vale 1, 2, 3, 4 e 5.</p>
-        <p><strong>Onde fica cada conta.</strong> <code>lerp(a, b, t)</code> (Apêndice E) é um ponto no caminho de <code>a</code> até <code>b</code>: com <code>t</code> 0, em <code>a</code>; com 1, em <code>b</code>; com 0,5, no meio. A conta <code>i</code> fica em <code>i / 6</code> do caminho: a primeira a um sexto, a quinta a cinco sextos. O centro é uma fórmula, para as contas seguirem o sol e a lua.</p>
-        <p><strong>Rode.</strong> Aparece uma conta só, perto da lua. As cinco estão lá, mas no mesmo lugar, uma em cima da outra. Por quê?</p>
-        <p><strong>A fórmula lê o <code>i</code> depois.</strong> Uma <code>lambda</code> não faz a conta quando é escrita: ela guarda a conta, e o Scena a faz depois, quando precisa do centro. Ela guarda o <em>nome</em> <code>i</code>, e não o número que <code>i</code> valia naquela volta. Quando o Scena faz as contas, o <code>for</code> já terminou, e <code>i</code> vale 5 para todas: as cinco contas leem o mesmo número.</p>
+        <p>Um enfeite: cinco contas no fio, como num colar, a distâncias iguais entre o sol e a lua.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 110" role="img" aria-label="Um fio do sol à lua; cinco contas o dividem em seis partes iguais, em 1/6, 2/6, 3/6, 4/6 e 5/6 do caminho; o sol é t igual a 0 e a lua é t igual a 1">
+            <line class="ray" x1="50" y1="50" x2="370" y2="50"/>
+            <circle class="bar" cx="50" cy="50" r="18"/>
+            <circle class="bar child" cx="370" cy="50" r="8"/>
+            <circle class="dot" cx="103.3" cy="50" r="4"/>
+            <circle class="dot" cx="156.7" cy="50" r="4"/>
+            <circle class="dot" cx="210" cy="50" r="4"/>
+            <circle class="dot" cx="263.3" cy="50" r="4"/>
+            <circle class="dot" cx="316.7" cy="50" r="4"/>
+            <text x="103.3" y="30" text-anchor="middle">1/6</text>
+            <text x="156.7" y="30" text-anchor="middle">2/6</text>
+            <text x="210" y="30" text-anchor="middle">3/6</text>
+            <text x="263.3" y="30" text-anchor="middle">4/6</text>
+            <text x="316.7" y="30" text-anchor="middle">5/6</text>
+            <text x="50" y="90" text-anchor="middle">sol, t = 0</text>
+            <text x="370" y="90" text-anchor="middle">lua, t = 1</text>
+          </svg>
+          <figcaption>Onde cada conta deve ficar. <code>lerp(sol.center, lua.center, t)</code> anda no fio: <code>t</code> 0 é o sol, 1 é a lua, e a conta <code>i</code> fica em <code>i / 6</code> do caminho.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -575,15 +803,27 @@ Button(label="Soltar a lua", on_click=soltar)
 Button(label="Prender a lua", on_click=prender)
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "for i in range(1, 6):",
+          text: "Um <code>for</code> faz as cinco contas, cada uma um <code>Circle</code> pequeno. <code>range(1, 6)</code> conta de 1 a 5: o 6 fica de fora."
+        },
+        {
+          at: "lerp(sol.center, lua.center, i / 6)",
+          text: "<code>lerp(a, b, t)</code> é um ponto no caminho de <code>a</code> até <code>b</code>: com <code>t</code> 0, em <code>a</code>; com 1, em <code>b</code>; com 0,5, no meio. O centro é uma fórmula, para as contas seguirem o sol e a lua."
+        }
+      ],
+      after: `
+        <p>Rode.</p>
+        <details class="ask"><summary>Quantas contas aparecem?</summary><p>Uma só, perto da lua. As cinco estão lá, mas no mesmo lugar, uma em cima da outra.</p></details>
+        <p>A fórmula lê o <code>i</code> depois. Uma <code>lambda</code> não faz a conta quando é escrita: ela guarda a conta, e o Scena a faz depois, quando precisa do centro. Ela guarda o <em>nome</em> <code>i</code>, e não o número que <code>i</code> valia naquela volta. Quando o Scena faz as contas, o <code>for</code> já terminou, e <code>i</code> vale 5 para todas: as cinco contas ficam em 5/6 do caminho.</p>
+      `
     },
     {
       title: "Cada conta com o seu i",
       body: `
-        <p>A correção é pequena: <code>lambda i=i:</code>, no lugar de <code>lambda:</code>.</p>
-        <p><strong>O que o <code>i=i</code> faz.</strong> Antes dos dois-pontos de uma <code>lambda</code> podem vir nomes, como nos parênteses de um <code>def</code>. <code>i=i</code> cria um nome <code>i</code> <em>dentro</em> da <code>lambda</code> e já lhe dá um valor: o <code>i</code> do <code>for</code> naquela volta. Na primeira volta, a <code>lambda</code> nasce com o seu <code>i</code> valendo 1; na segunda, outra <code>lambda</code> nasce com 2; e assim por diante. Cada conta fica com o seu número.</p>
-        <p><strong>A regra.</strong> Uma <code>lambda</code> feita dentro de um <code>for</code>, que lê a variável do <code>for</code>, leva essa variável com <code>=</code>: <code>lambda i=i:</code>. Vale para qualquer nome (<code>lambda n=n:</code>, <code>lambda forma=forma:</code>). Os nomes que não mudam no <code>for</code>, como <code>sol</code> e <code>lua</code>, ficam como estão.</p>
-        <p>Rode: cinco contas, espaçadas no fio. Mexa no slider, solte a lua e arraste: o colar acompanha.</p>
+        <p>A correção é pequena: <code>lambda i=i:</code>, no lugar de <code>lambda:</code>. Cada conta precisa guardar o seu número na hora em que nasce.</p>
       `,
       code: `from scena import *
 
@@ -637,13 +877,23 @@ Button(label="Soltar a lua", on_click=soltar)
 Button(label="Prender a lua", on_click=prender)
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "lambda i=i:",
+          text: "Antes dos dois-pontos de uma <code>lambda</code> podem vir nomes, como nos parênteses de um <code>def</code>. <code>i=i</code> cria um <code>i</code> <em>dentro</em> da <code>lambda</code> e já lhe dá o valor do <code>i</code> do <code>for</code> naquela volta: na primeira, 1; na segunda, outra <code>lambda</code> nasce com 2; e assim por diante."
+        }
+      ],
+      after: `
+        <p>Rode: cinco contas, espaçadas no fio. Mexa no slider, solte a lua e arraste: o colar acompanha.</p>
+        <p>A regra vale para qualquer nome: uma <code>lambda</code> feita dentro de um <code>for</code>, que lê a variável do <code>for</code>, leva essa variável com <code>=</code> (<code>lambda n=n:</code>, <code>lambda forma=forma:</code>). Os nomes que não mudam no <code>for</code>, como <code>sol</code> e <code>lua</code>, ficam como estão.</p>
+      `
     },
     {
       title: "As ideias",
       example: "formulas.py",
       body: `
-        <p>A máquina está pronta. Antes de seguir, vale juntar o que ela ensinou. As caixas abaixo repetem as ideias principais, cada uma com um exemplo que você pode colar no fim do programa e rodar.</p>
+        <p>A máquina está pronta. As caixas abaixo juntam o que ela ensinou, cada ideia com um exemplo que você pode colar no fim do programa e rodar.</p>
         <p>Não precisa decorar. Quando uma fórmula não fizer o que você espera, volte aqui: quase sempre a resposta está numa destas caixas.</p>
       `,
       code: `from scena import *

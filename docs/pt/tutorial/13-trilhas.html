@@ -20,11 +20,7 @@ Tutorial.mount({
     {
       title: "Uma trilha",
       body: `
-        <p>No 12, as viagens iam em linha reta até um ponto. Este tutorial é sobre <strong>viagens por caminhos</strong>, sem jogo: um mostruário de trilhas. O que é uma trilha, as formas prontas, os caminhos seus e os jeitos de percorrê-los. O que você viu nas viagens vale aqui também: <code>time=</code>, <code>speed=</code>, <code>ease=</code>, <code>face=</code> e o controle. No próximo, as trilhas viram um sistema solar.</p>
-        <p><strong>A trilha.</strong> No letreiro do 04 você conheceu a <code>Track</code> (trilha): um caminho invisível que alguém percorre. Este script a vê a fundo. <code>Track.circle(center=(170, 520), radius=110)</code> é uma trilha em forma de círculo (<em>circle</em>), com centro e raio como o <code>Circle</code>. Ela não aparece na tela: é só o desenho do caminho, como o <code>Point</code> do 03 é só uma posição.</p>
-        <p><strong>Presa num lugar.</strong> O oito do letreiro tinha só tamanho, e por isso começava onde o letreiro estava: era uma trilha <em>solta</em>. Esta tem <code>center=</code> e está <strong>presa</strong> num lugar da tela. Quem a percorre vai até ela; por isso a bola nem precisa de <code>center=</code>.</p>
-        <p><strong>Percorrer.</strong> <code>bola.move_along(roda, time=4, loops="forever")</code> (mover ao longo de) é o do letreiro: uma volta inteira a cada 4 segundos (<code>time=4</code>) e, quando a volta acaba, outra (<code>loops="forever"</code>). Nenhuma linha no <code>update</code>: a bola anda sozinha.</p>
-        
+        <p>Um script sem jogo: um mostruário de trilhas. Uma <code>Track</code> (trilha) é um caminho invisível que alguém percorre; numa viagem comum, o objeto vai em linha reta até um ponto, e aqui ele segue o desenho do caminho. Começamos com uma bola que dá voltas num círculo.</p>
         <figure class="fig">
           <svg viewBox="0 0 360 220" role="img" aria-label="Uma trilha em círculo, com o centro marcado e o raio até a borda direita; a viagem começa no ponto da direita e segue no sentido anti-horário">
             <circle class="guide" cx="180" cy="110" r="80"/>
@@ -41,7 +37,6 @@ Tutorial.mount({
           </svg>
           <figcaption>A trilha <code>Track.circle</code>: um centro e um raio. A bola entra no ponto da direita e dá a volta no sentido anti-horário, o contrário dos ponteiros do relógio.</figcaption>
         </figure>
-        <p>Rode: a bola dá voltas em torno de um centro que não se vê.</p>
       `,
       code: `from scena import *
 
@@ -54,9 +49,26 @@ bola.move_along(roda, time=4, loops="forever")
 
 run()
 `,
+      notes: [
+        {
+          at: "Track.circle(center=(170, 520), radius=110)",
+          text: "Uma trilha em forma de círculo (<em>circle</em>), com centro e raio como o <code>Circle</code>. Ela não aparece na tela: é só o desenho do caminho. Com <code>center=</code>, fica presa nesse lugar da janela."
+        },
+        {
+          at: "bola = Circle(radius=14",
+          text: "A bola não tem <code>center=</code>: quem percorre uma trilha presa vai até ela."
+        },
+        {
+          at: "bola.move_along(",
+          text: "<code>move_along</code> (mover ao longo de) põe a bola na trilha. <code>time=4</code> é uma volta inteira a cada 4 segundos; <code>loops=\"forever\"</code> (voltas, para sempre) começa outra volta quando uma acaba."
+        }
+      ],
+      after: `
+        <p>Rode: a bola dá voltas em torno de um centro que não se vê. O script nem tem <code>update</code>: uma linha pede a viagem, e o Scena a toca sozinho, quadro a quadro.</p>
+      `,
       try: [
         {
-          note: "Duas trilhas soltas, como a do letreiro: cada bola dança um oito em volta do lugar onde nasceu. O nome de uma forma pronta, como texto (<code>\"eight\"</code>), é o atalho para uma trilha solta no tamanho padrão. No fim do arquivo, antes do <code>run()</code>.",
+          note: "Sem <code>center=</code>, a trilha é solta: começa onde o objeto está, e cada bola dança um oito em volta do lugar onde nasceu. O nome de uma forma pronta, como texto (<code>\"eight\"</code>), é o atalho para uma trilha solta no tamanho padrão. No fim do arquivo, antes do <code>run()</code>.",
           code: `danca = Circle(center=(500, 200), radius=10, color="white")
 danca.move_along(Track.eight(width=120, height=50), time=3, loops="forever")
 outra = Circle(center=(750, 200), radius=10, color="white")
@@ -68,8 +80,6 @@ outra.move_along("eight", time=3, loops="forever")`
       title: "Ver a trilha",
       body: `
         <p>Uma trilha invisível é o certo quando ela só serve para o movimento: uma lua não deixa um risco no céu. Mas, enquanto você monta o caminho, vê-lo ajuda.</p>
-        <p><strong>Com cor.</strong> Basta dar um estilo: <code>color="dim gray"</code> (cinza apagado) pinta o traço, e a trilha passa a ser desenhada como uma linha. Agora o caminho aparece, e a bola corre em cima dele.</p>
-        <p><strong>Sem mexer no desenho.</strong> Com o programa rodando, <kbd>Ctrl+Shift+7</kbd> desenha todas as trilhas em magenta, até as invisíveis, sem você escrever nada; aperte de novo para esconder. É uma ajuda para você montar, não parte do desenho (as outras teclas estão no <a href="A-depuracao.html">Apêndice A</a>).</p>
       `,
       code: `from scena import *
 
@@ -82,9 +92,19 @@ bola.move_along(roda, time=4, loops="forever")
 
 run()
 `,
+      notes: [
+        {
+          at: "color=\"dim gray\"",
+          text: "Dar um estilo basta: <code>color</code> (cor) pinta o traço, aqui <code>\"dim gray\"</code> (cinza apagado), e a trilha passa a ser desenhada como uma linha."
+        }
+      ],
+      after: `
+        <p>Rode: o caminho aparece, e a bola corre em cima dele.</p>
+        <p>Há também um jeito sem mexer no desenho. Com o programa rodando, <kbd>Ctrl+Shift+7</kbd> desenha todas as trilhas em magenta, até as invisíveis; aperte de novo para esconder. É uma ajuda para você montar, não parte do jogo (as outras teclas estão no <a href="A-depuracao.html">Apêndice A</a>).</p>
+      `,
       try: [
         {
-          note: "Outros traços, um por vez, no lugar da linha da <code>roda</code>. O tracejado do 03 também vale numa trilha.",
+          note: "Outros traços, um por vez, no lugar da linha da <code>roda</code>. <code>line_width</code> (largura da linha) engrossa o traço.",
           replaces: ['roda = Track.circle('],
           code: `roda = Track.circle(center=(170, 520), radius=110, color="dim gray", line_width=4)
 roda = Track.circle(center=(170, 520), radius=110, color="gold", line_width=2)`
@@ -94,14 +114,12 @@ roda = Track.circle(center=(170, 520), radius=110, color="gold", line_width=2)`
     {
       title: "Formas prontas",
       body: `
-        <p>O círculo é uma das formas prontas da <code>Track</code>, os <strong>presets</strong> (predefinições) que a caixa do letreiro listou. Agora três delas vão para a tela, cada uma presa no seu lugar e com uma bola.</p>
-        <ul>
-          <li><code>Track.eight</code> — um oito (<em>eight</em>) deitado, com <code>width</code> (largura) e <code>height</code> (altura). A bola entra no cruzamento do meio.</li>
-          <li><code>Track.star</code> — uma estrela (<em>star</em>). <code>points=5</code> (pontas) é o número de pontas, não uma lista de pontos.</li>
-          <li><code>Track.shuttle</code> — o vaivém (<em>shuttle</em>, a lançadeira do tear): um traço reto de <code>length</code> (comprimento) 300 que a bola percorre indo e voltando.</li>
-        </ul>
-        <p>Todas recebem <code>center=</code>, o lugar da trilha na tela. <code>time=</code> muda de uma para outra: a estrela é longa e ganha 8 segundos por volta; o vaivém, curto, leva 3.</p>
-        <p><strong>Uma volta é uma volta.</strong> <code>time=</code> é o tempo da volta inteira, seja a trilha grande ou pequena. Por isso uma trilha maior, no mesmo tempo, deixa a bola mais rápida: ela precisa cobrir mais caminho nos mesmos segundos.</p>
+        <p>O círculo é uma das formas prontas da <code>Track</code>, os <em>presets</em> (predefinições). Mais três vão para a tela, cada uma presa no seu lugar pelo <code>center=</code> e com uma bola:</p>
+        <div class="tbl"><table><thead><tr><th>Forma</th><th>O caminho</th><th>O tamanho</th></tr></thead><tbody>
+          <tr><td><code>Track.eight</code></td><td>um oito (<em>eight</em>) deitado; a bola entra no cruzamento do meio</td><td><code>width</code> (largura) e <code>height</code> (altura)</td></tr>
+          <tr><td><code>Track.star</code></td><td>uma estrela (<em>star</em>)</td><td><code>points</code> (pontas) é o número de pontas, não uma lista de pontos; <code>radius</code> (raio) vai do centro até a ponta</td></tr>
+          <tr><td><code>Track.shuttle</code></td><td>o vaivém (<em>shuttle</em>, a lançadeira do tear): um traço reto que a bola percorre indo e voltando</td><td><code>length</code> (comprimento)</td></tr>
+        </tbody></table></div>
       `,
       code: `from scena import *
 
@@ -126,9 +144,19 @@ pistao.move_along(vaivem, time=3, loops="forever")
 
 run()
 `,
+      notes: [
+        {
+          at: "cometa.move_along(estrela, time=8",
+          text: "Cada bola tem o seu <code>time=</code>: a estrela é um caminho longo e ganha 8 segundos por volta; o vaivém, curto, leva 3."
+        }
+      ],
+      after: `
+        <p>Rode: quatro trilhas, quatro ritmos.</p>
+        <details class="ask"><summary>Se a estrela ganhasse <code>time=4</code>, o cometa andaria mais devagar ou mais depressa que a bola do círculo?</summary><p>Mais depressa. <code>time=</code> é o tempo da volta inteira, seja a trilha grande ou pequena. Com os mesmos 4 segundos, o cometa tem muito mais caminho a cobrir na estrela, então precisa correr mais.</p></details>
+      `,
       try: [
         {
-          note: "Outras formas no lugar da estrela, uma por vez. Com <code>inner</code> (de dentro), a estrela fica mais gorda ou mais magra; um oito mais alto que largo fica de pé.",
+          note: "Outras formas no lugar da estrela, uma por vez. <code>inner</code> (de dentro) é o raio das dobras de dentro: com ele, a estrela fica mais gorda ou mais magra. Um oito mais alto que largo fica de pé.",
           replaces: ['estrela = Track.star('],
           code: `estrela = Track.star(points=8, radius=110, inner=70, center=(830, 520), color="dim gray")
 estrela = Track.eight(width=120, height=240, center=(830, 520), color="dim gray")
@@ -139,9 +167,21 @@ estrela = Track.circle(radius=60, center=(830, 520), color="dim gray")`
     {
       title: "Um caminho seu",
       body: `
-        <p>Além das formas prontas, uma trilha pode passar pelos pontos que você escolher. <code>Track(points=[…])</code> recebe uma lista de pontos, cada um um <code>(x, y)</code>, e liga todos em ordem, numa curva suave que passa por cima de cada um.</p>
-        <p><strong>Aberta.</strong> Esta trilha tem começo e fim: o primeiro ponto, embaixo à esquerda, e o último, à direita. As formas prontas do passo anterior são <strong>fechadas</strong>: o fim encontra o começo, e a volta seguinte continua sem emenda. Numa trilha aberta, não.</p>
-        <p>Rode e olhe a formiga verde: ela chega ao fim do caminho e <strong>salta</strong> de volta ao começo, para a próxima volta. O <code>loops="forever"</code> recomeça a viagem, e o começo fica longe do fim. O próximo passo resolve.</p>
+        <p>Além das formas prontas, uma trilha pode passar pelos pontos que você escolher. Uma formiga verde vai percorrer um caminho de quatro pontos, embaixo à esquerda:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="Quatro pontos ligados em ordem por uma curva suave: (60, 100) embaixo à esquerda, (160, 290) no alto, (260, 120) embaixo e (380, 240) à direita; o caminho começa no primeiro e acaba no último">
+            <path class="ray" fill="none" d="M 20 170 C 50 125.7 80 39.3 110 37 C 140 34.7 167 150.2 200 156 C 233 161.8 272 100 308 72"/>
+            <circle class="dot" cx="20" cy="170" r="4"/>
+            <circle class="dot" cx="110" cy="37" r="4"/>
+            <circle class="dot" cx="200" cy="156" r="4"/>
+            <circle class="dot" cx="308" cy="72" r="4"/>
+            <text x="14" y="192">começo (60, 100)</text>
+            <text x="110" y="22" text-anchor="middle">(160, 290)</text>
+            <text x="200" y="178" text-anchor="middle">(260, 120)</text>
+            <text x="308" y="54" text-anchor="middle">fim (380, 240)</text>
+          </svg>
+          <figcaption>Os quatro pontos da lista, na ordem em que aparecem. A trilha passa por cima de cada um, numa curva suave, e tem começo e fim.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -170,6 +210,16 @@ formiga.move_along(caminho, time=3, loops="forever")
 
 run()
 `,
+      notes: [
+        {
+          at: "caminho = Track(points=[",
+          text: "<code>points</code> (pontos) é uma lista de <code>(x, y)</code>. A trilha liga todos na ordem da lista."
+        }
+      ],
+      after: `
+        <p>Rode e olhe a formiga verde.</p>
+        <details class="ask"><summary>O que ela faz quando chega ao fim do caminho?</summary><p>Salta de volta ao começo. As formas prontas são fechadas: o fim encontra o começo, e a volta seguinte continua sem emenda. Esta trilha é aberta, e o <code>loops="forever"</code> recomeça a viagem lá no primeiro ponto, longe do último.</p></details>
+      `,
       try: [
         {
           note: "No lugar do <code>caminho</code>. Com <code>smooth=0</code> (suave: zero), a trilha liga os pontos com retas, em vez de curvas. Repare que, com curva, o caminho passa um pouco além dos pontos para fazer a volta.",
@@ -181,8 +231,7 @@ run()
     {
       title: "Ida e volta",
       body: `
-        <p><code>yoyo=True</code> (ioiô) é o do pulso das naves no 05: em vez de recomeçar do começo, a volta seguinte percorre o caminho <strong>ao contrário</strong>. A formiga vai até o fim, dá meia-volta e vem de volta pelo mesmo traço, sem saltar.</p>
-        <p><strong>Quando usar.</strong> Numa trilha aberta com <code>loops="forever"</code>, quase sempre com <code>yoyo=True</code>. Numa fechada, não precisa: o fim já encosta no começo.</p>
+        <p>A formiga não deve saltar: no fim do caminho, ela deve dar meia-volta e voltar pelo mesmo traço.</p>
       `,
       code: `from scena import *
 
@@ -210,15 +259,37 @@ formiga = Circle(radius=12, color="light green")
 formiga.move_along(caminho, time=3, loops="forever", yoyo=True)
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "yoyo=True",
+          text: "<code>yoyo=True</code> (ioiô): em vez de recomeçar do começo, a volta seguinte percorre o caminho ao contrário, do fim para o começo, e a outra de novo para a frente."
+        }
+      ],
+      after: `
+        <p>Rode: a formiga vai até o fim, dá meia-volta e vem de volta, sem saltar.</p>
+        <p>Numa trilha aberta que se repete, <code>yoyo=True</code> é quase sempre o que se quer. Numa fechada, não precisa: o fim já encosta no começo.</p>
+      `
     },
     {
       title: "O pêndulo",
       body: `
-        <p>Um pêndulo: um peso que balança na ponta de um fio. O caminho do peso é um pedaço de círculo, um arco.</p>
-        <p><strong>O arco.</strong> <code>Track.arc</code> (arco) é o círculo cortado entre dois ângulos: <code>from_angle=225</code> (do ângulo) até <code>to_angle=315</code> (até o ângulo). Os ângulos são em graus, como sempre: de 225 a 315 é o pedaço de baixo do círculo, com 270, o ponto mais baixo, bem no meio. O arco é aberto, então vai com <code>yoyo=True</code>.</p>
-        <p><strong>A curva do tempo.</strong> Um pêndulo de verdade não anda sempre na mesma velocidade: ele freia nas pontas, onde para e volta, e corre embaixo. É o <code>ease="ease_in_out"</code> da nave do 12: a viagem sai devagar, acelera no meio e freia ao chegar.</p>
-        <p><strong>O fio.</strong> Uma <code>Line</code> do ponto fixo até o peso. A ponta presa ao peso é uma <code>lambda</code>, como as linhas do 03: o Scena lê o centro do peso a cada quadro, e o fio acompanha.</p>
+        <p>Um pêndulo: um peso que balança na ponta de um fio. O caminho do peso é um pedaço de círculo, um arco, cortado entre dois ângulos:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 185" role="img" aria-label="Um centro no alto e, embaixo dele, um arco de círculo que vai do ângulo 225, embaixo à esquerda, ao ângulo 315, embaixo à direita; o ponto mais baixo, 270, fica no meio, e o fio liga o centro ao peso">
+            <line class="guide" x1="200" y1="24" x2="115.1" y2="108.9"/>
+            <line class="guide" x1="200" y1="24" x2="284.9" y2="108.9"/>
+            <path class="ray" fill="none" d="M 115.1 108.9 A 120 120 0 0 0 284.9 108.9"/>
+            <line class="ray" x1="200" y1="24" x2="200" y2="144"/>
+            <circle class="dot" cx="200" cy="24" r="3.5"/>
+            <circle class="hot" cx="200" cy="144" r="9"/>
+            <text x="210" y="20">(560, 330)</text>
+            <text x="106" y="114" text-anchor="end">225°</text>
+            <text x="294" y="114">315°</text>
+            <text x="200" y="174" text-anchor="middle">270°</text>
+          </svg>
+          <figcaption>O arco de 225° a 315° é o pedaço de baixo do círculo, com 270°, o ponto mais baixo, no meio. O fio vai do centro até o peso.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -252,6 +323,23 @@ fio = Line(p1=(560, 330), p2=lambda: peso.center, color="white")
 
 run()
 `,
+      notes: [
+        {
+          at: "Track.arc(",
+          text: "<code>Track.arc</code> (arco) é o círculo cortado de <code>from_angle</code> (do ângulo) até <code>to_angle</code> (até o ângulo), em graus. O arco tem começo e fim, por isso o peso vai com <code>yoyo=True</code>."
+        },
+        {
+          at: "ease=\"ease_in_out\"",
+          text: "<code>ease</code> é a curva do tempo da viagem. Um pêndulo de verdade freia nas pontas, onde para e volta, e corre embaixo: <code>\"ease_in_out\"</code> sai devagar, acelera no meio e freia ao chegar."
+        },
+        {
+          at: "p2=lambda: peso.center",
+          text: "O fio é uma <code>Line</code> do ponto fixo até o peso. A ponta <code>p2</code> é uma <code>lambda</code>: o Scena lê o centro do peso a cada quadro, e o fio acompanha."
+        }
+      ],
+      after: `
+        <p>Rode: o peso para nas pontas e corre embaixo, como um pêndulo de relógio.</p>
+      `,
       try: [
         {
           note: "Outra curva, no lugar da linha do <code>peso.move_along</code>: <code>\"bounce\"</code> (quicar) quica ao chegar a cada ponta. Troque também por <code>\"linear\"</code>, e o pêndulo vira um limpador de para-brisa, ou por <code>\"elastic\"</code> (elástico), que passa do ponto e volta.",
@@ -262,11 +350,17 @@ run()
     },
     {
       title: "Uma fila",
-      body: `
-        <p>Várias bolas na <strong>mesma</strong> trilha, uma atrás da outra, como os vagões de um trem. A trilha é um caminho seu, agora fechado: <code>closed=True</code> (fechado) liga o último ponto de volta ao primeiro, e a curva vira um laço.</p>
-        <p><strong>Oito vagões.</strong> O <code>for i in range(8)</code> é o do 10: repete o bloco oito vezes, com <code>i</code> valendo 0, 1, 2… até 7. Cada volta cria um vagão e o põe na trilha.</p>
-        <p><strong>A fase.</strong> Se todos saíssem do começo, ficariam um em cima do outro, e você veria uma bola só. <code>phase=</code> (fase) diz quanto o vagão sai adiantado, em fração da volta: <code>0</code> sai do começo, <code>0.5</code> sai da metade do caminho. <code>i / 8</code> é uma divisão: para o vagão 0 dá 0; para o 1, 0.125 (um oitavo); para o 4, 0.5. Cada vagão sai um oitavo de volta à frente do anterior, e os oito se espalham pelo laço inteiro.</p>
-        
+      body: [
+        `
+        <p>Várias bolas na mesma trilha, uma atrás da outra, como os vagões de um trem. Um <code>for</code> cria os oito vagões e põe cada um no laço:</p>
+        `,
+        {
+          snip: `for i in range(8):
+    vagao = Circle(radius=8, color="gold")
+    vagao.move_along(anel, time=8, loops="forever", phase=i / 8)`
+        },
+        `
+        <p>Se todos saíssem do começo, ficariam um em cima do outro, e você veria uma bola só. <code>phase=</code> (fase) diz quanto o vagão sai adiantado, em fração da volta: <code>0</code> sai do começo, <code>0.5</code> sai da metade do caminho. <code>i / 8</code> dá 0 para o vagão 0, 0.125 (um oitavo) para o vagão 1, 0.5 para o vagão 4. Cada um sai um oitavo de volta à frente do anterior:</p>
         <figure class="fig">
           <svg viewBox="0 0 360 220" role="img" aria-label="Oito bolinhas igualmente espaçadas numa trilha em círculo; cada uma tem um rótulo com a sua fase, de 0 a sete oitavos, no sentido anti-horário">
             <circle class="guide" cx="180" cy="110" r="72"/>
@@ -289,8 +383,8 @@ run()
           </svg>
           <figcaption>Oito vagões numa trilha, com <code>phase=i / 8</code>. Cada um começa um oitavo de volta à frente do anterior; a fila fica espaçada por igual e anda junta.</figcaption>
         </figure>
-        <p>Rode: os oito andam juntos, sempre à mesma distância um do outro.</p>
-      `,
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Trilhas")
@@ -328,6 +422,19 @@ for i in range(8):
 
 run()
 `,
+      notes: [
+        {
+          at: "closed=True",
+          text: "<code>closed=True</code> (fechado) liga o último ponto de volta ao primeiro, e o caminho vira um laço. Fechado, ele não precisa de <code>yoyo</code>."
+        },
+        {
+          at: "for i in range(8):",
+          text: "Repete o bloco oito vezes, com <code>i</code> valendo 0, 1, 2… até 7. Cada volta cria um vagão."
+        }
+      ],
+      after: `
+        <p>Rode: os oito andam juntos, sempre à mesma distância um do outro.</p>
+      `,
       try: [
         {
           note: "Um trem curto: os vagões ocupam só um quarto do laço. No lugar da linha do <code>vagao.move_along</code>.",
@@ -341,7 +448,6 @@ run()
       example: "trilhas.py",
       body: `
         <p>Uma bola parece igual de qualquer lado. Uma forma com ponta, não: o carro do oito vira um triângulo dourado, e ele deve apontar para onde anda.</p>
-        <p><strong>Encarar o caminho.</strong> É o <code>face=True</code> da nave do 12. Numa viagem reta, ele vira o objeto uma vez, no começo; numa trilha, o <code>move_along</code> o gira a cada quadro, na direção da trilha naquele ponto. O <code>Triangle</code> (triângulo equilátero) aponta para a direita quando o ângulo é 0, a mesma direção do 0 das trilhas; por isso a ponta segue o caminho. Rode e olhe o triângulo inclinar nas curvas do oito.</p>
       `,
       code: `from scena import *
 
@@ -380,6 +486,19 @@ for i in range(8):
 
 run()
 `,
+      notes: [
+        {
+          at: "carro = Triangle(",
+          text: "O <code>Triangle</code> (triângulo) aponta para a direita quando o ângulo é 0, a mesma direção do 0 das trilhas. Girado na direção do caminho, a ponta vai na frente."
+        },
+        {
+          at: "face=True",
+          text: "<code>face=True</code> (encarar): numa viagem reta, o objeto vira uma vez, no começo. Numa trilha, o <code>move_along</code> o gira a cada quadro, na direção do caminho naquele ponto."
+        }
+      ],
+      after: `
+        <p>Rode e olhe o triângulo inclinar nas curvas do oito.</p>
+      `,
       try: [
         {
           note: "O pistão do vaivém virado para onde vai: nas pontas, ele dá meia-volta. No lugar da linha do <code>pistao</code> e do <code>move_along</code> dele.",

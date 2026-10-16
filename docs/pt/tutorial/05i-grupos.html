@@ -20,10 +20,8 @@ Tutorial.mount({
     {
       title: "Um conjunto vivo",
       body: `
-        <p>Um interlúdio é uma pausa entre dois tutoriais para olhar de perto uma ideia que o jogo acabou de usar. No 05, a frota inteira andava com uma linha, <code>group["inimigos"].move_by(…)</code>, e a guarda do tiro perguntava <code>group["inimigos"].count</code>. Aqui você vê o que mais um grupo sabe fazer, com bolhas que sobem.</p>
-        <p><strong>O grupo se faz sozinho.</strong> <code>group="bolhas"</code> põe cada bolha nova no grupo <code>"bolhas"</code>. Ninguém cria o grupo antes: o nome basta. E <code>group["bolhas"]</code> são sempre as bolhas que existem <em>agora</em>. Uma bolha nova entra no grupo assim que nasce; uma bolha destruída sai dele. É como uma lista que se arruma sozinha.</p>
-        <p><strong>Quantas.</strong> <code>count</code> (contagem) é quantas bolhas existem agora. O <code>update</code> escreve o número no texto a cada quadro. Rode e olhe o número subir e descer: bolhas nascem embaixo e são destruídas quando saem por cima.</p>
-        <p><strong>Por que no <code>update</code>?</strong> O placar do 02 usava uma fórmula, mas um grupo não entra numa fórmula. Por isso a contagem vai no <code>update</code>, que a refaz a cada quadro.</p>
+        <p>Um interlúdio é uma pausa para olhar de perto uma ideia que o jogo acabou de usar. Nas Naves, uma linha movia a frota inteira: <code>group["inimigos"].move_by(…)</code>. Aqui, com bolhas que sobem, vemos o que mais um grupo sabe fazer.</p>
+        <p>Primeiro, só contar: um texto no canto diz quantas bolhas existem.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -50,14 +48,31 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "group=\"bolhas\")",
+          text: "<code>group=\"bolhas\"</code> (grupo) põe cada bolha nova no grupo <code>\"bolhas\"</code>. Ninguém cria o grupo antes: o nome basta."
+        },
+        {
+          at: "group[\"bolhas\"].move_by(0, 120 * dt)",
+          text: "Uma ordem escrita no grupo vale para cada membro: todas as bolhas sobem 120 pixels por segundo."
+        },
+        {
+          at: ".count} bolhas",
+          text: "<code>count</code> (contagem) é quantas bolhas existem agora. Um grupo não entra numa fórmula com <code>@=</code>; por isso o texto é refeito aqui, no <code>update</code>, a cada quadro."
+        }
+      ],
+      after: `
+        <p>Rode e olhe o número por alguns segundos.</p>
+        <details class="ask"><summary>Por que ele para de crescer?</summary><p>Bolhas nascem embaixo, uma a cada 0.4 s, e são destruídas quando saem por cima. Logo entram e saem no mesmo ritmo, e o número fica balançando em volta de um valor.</p></details>
+        <p><code>group["bolhas"]</code> são sempre as bolhas que existem <em>agora</em>: uma bolha nova entra assim que nasce, e uma destruída sai. É uma lista que se arruma sozinha.</p>
+      `
     },
     {
       title: "Fazer com todos",
       body: `
-        <p>A tecla Espaço estoura todas as bolhas de uma vez: <code>group["bolhas"].destroy()</code>.</p>
-        <p><strong>Uma ordem para o grupo.</strong> Uma ação escrita no grupo vale para cada um dos membros. Você já fez isso: <code>group["bolhas"].move_by(0, 120 * dt)</code> sobe todas as bolhas, como a frota do 05. Com um campo também funciona: <code>group["bolhas"].color = "white"</code> pinta todas.</p>
-        <p><strong>Ou um <code>for</code>.</strong> Quando cada membro precisa de uma coisa diferente (cada bolha sobe na sua velocidade), escreva um <code>for</code> e trate um por um. Quando todos recebem a mesma ordem, a linha no grupo é mais curta.</p>
+        <p>A tecla Espaço estoura todas as bolhas de uma vez.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -87,6 +102,28 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "keyp.once(\"SPACE\")",
+          text: "<code>keyp.once</code> (uma vez) é verdadeiro só no quadro em que a tecla desce: um estouro por toque, não um a cada quadro enquanto ela está apertada."
+        },
+        {
+          at: "group[\"bolhas\"].destroy()",
+          text: "<code>destroy</code> (destruir) no grupo destrói cada bolha que existe agora. As que nascerem depois enchem o grupo de novo."
+        }
+      ],
+      after: [
+        `
+        <p>O <code>destroy</code> é a mesma ideia do <code>move_by</code>: uma ordem escrita no grupo vale para cada membro. Com um campo também funciona; esta linha pintaria todas de branco:</p>
+        `,
+        {
+          snip: `group["bolhas"].color = "white"`,
+          alt: true
+        },
+        `
+        <p>A linha no grupo serve quando todos recebem a mesma ordem. Quando cada membro precisa de uma coisa diferente, como cada bolha subir na sua velocidade, um <code>for</code> trata um por um: a caixa abaixo mostra.</p>
+        `
+      ],
       try: [
         {
           note: "A mesma subida com um <code>for</code>, e cada bolha mais rápida quanto menor ela for. No lugar da linha do <code>move_by</code> do grupo:",
@@ -99,9 +136,7 @@ run()
     {
       title: "Vazio",
       body: `
-        <p>Depois do Espaço, o texto mostra “0 bolhas”. Melhor dizer “Nenhuma bolha”.</p>
-        <p><strong>Perguntar ao grupo.</strong> <code>empty</code> (vazio) é <code>True</code> quando o grupo não tem ninguém. É a mesma pergunta que <code>count == 0</code>, escrita do jeito que se fala. Como <code>count</code>, ela não tem parênteses: é uma resposta, não uma ação.</p>
-        <p>Rode, aperte Espaço e leia o texto antes de a próxima bolha nascer.</p>
+        <p>Depois do Espaço, o texto mostra “0 bolhas”. Melhor dizer “Nenhuma bolha”. Para isso, o <code>update</code> pergunta ao grupo se ele está vazio.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -134,6 +169,15 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "if group[\"bolhas\"].empty:",
+          text: "<code>empty</code> (vazio) é <code>True</code> quando o grupo não tem ninguém: a mesma pergunta que <code>count == 0</code>, escrita do jeito que se fala. Como <code>count</code>, não leva parênteses: é uma resposta, não uma ação."
+        }
+      ],
+      after: `
+        <p>Rode, aperte Espaço e leia o texto antes de a próxima bolha nascer.</p>
+      `,
       try: [
         {
           note: "<code>first</code> e <code>last</code> (a primeira e a última) são as bolhas mais velha e mais nova do grupo. Num grupo vazio elas não existem, e pedir uma dá erro: por isso o <code>if</code> pergunta antes. Dentro do <code>update</code>, no fim: a mais nova fica branca.",
@@ -145,9 +189,7 @@ run()
     {
       title: "A mais perto",
       body: `
-        <p>A bolha mais perto do mouse brilha.</p>
-        <p><strong>Uma pergunta com resposta.</strong> <code>group["bolhas"].nearest(mouse)</code> (a mais próxima) devolve a bolha mais perto do ponto do mouse. Num grupo vazio, ela devolve <code>None</code> (nada), e o <code>if perto:</code> não deixa acender o que não existe.</p>
-        <p><strong>Apagar antes.</strong> A mais perto muda a cada quadro. Por isso o <code>update</code> primeiro apaga o brilho de todas (uma ordem para o grupo) e só depois acende o da mais perto.</p>
+        <p>Agora a bolha mais perto do mouse brilha. O grupo sabe responder qual é ela.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -183,14 +225,52 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "nearest(mouse)",
+          text: "<code>nearest</code> (a mais próxima) devolve a bolha mais perto do ponto do mouse."
+        },
+        {
+          at: "if perto:",
+          text: "Num grupo vazio não há bolha mais perto, e <code>nearest</code> devolve <code>None</code> (nada). O <code>if</code> não deixa acender o brilho de uma bolha que não existe."
+        }
+      ],
+      after: `
+        <p>Rode e passe o mouse entre as bolhas.</p>
+        <details class="ask"><summary>Por que o <code>update</code> apaga o brilho de todas antes de acender um?</summary><p>A mais perto muda a cada quadro. Sem o <code>glow = False</code> no grupo, cada bolha que um dia foi a mais perto continuaria brilhando, e logo todas brilhariam.</p></details>
+      `
     },
     {
       title: "Só as grandes",
-      body: `
-        <p>As bolhas grandes ficam douradas.</p>
-        <p><strong>Escolher alguns.</strong> <code>filter</code> (filtrar) recebe uma pergunta e devolve só os membros para os quais a resposta é sim. A pergunta é uma <code>lambda</code>, mas com uma novidade: um nome antes dos dois-pontos. Em <code>lambda bolha: bolha.radius &gt; 30</code>, o <code>filter</code> entrega as bolhas à pergunta, uma de cada vez, e <code>bolha</code> é o nome que cada uma recebe lá dentro, como o parâmetro de um <code>def</code>. Para cada bolha, a resposta é sim se o raio dela passa de 30. O que volta também é um grupo, então aceita as mesmas ordens: <code>.color = "gold"</code> pinta só as escolhidas.</p>
-      `,
+      body: [
+        `
+        <p>As bolhas grandes ficam douradas. Para isso, o grupo escolhe só algumas, com uma pergunta:</p>
+        `,
+        {
+          snip: `group["bolhas"].filter(lambda bolha: bolha.radius > 30).color = "gold"`
+        },
+        `
+        <p><code>filter</code> (filtrar) recebe uma pergunta e devolve só os membros para os quais a resposta é sim. A pergunta é uma <code>lambda</code>, agora com uma novidade: um nome antes dos dois-pontos. O <code>filter</code> entrega as bolhas à pergunta, uma de cada vez, e <code>bolha</code> é o nome que cada uma recebe lá dentro, como o parâmetro de um <code>def</code>. A resposta é sim se o raio daquela bolha passa de 30.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 130" role="img" aria-label="Uma fila de seis bolhas de tamanhos diferentes; as três com raio maior que 30 estão destacadas, e o filter devolve só elas">
+            <circle class="dot" cx="40" cy="56" r="11"/>
+            <circle class="hot" cx="100" cy="56" r="31"/>
+            <circle class="dot" cx="166" cy="56" r="16"/>
+            <circle class="hot" cx="232" cy="56" r="34"/>
+            <circle class="dot" cx="296" cy="56" r="8"/>
+            <circle class="hot" cx="354" cy="56" r="29"/>
+            <text x="40" y="120" text-anchor="middle">12</text>
+            <text x="100" y="120" text-anchor="middle">34</text>
+            <text x="166" y="120" text-anchor="middle">18</text>
+            <text x="232" y="120" text-anchor="middle">38</text>
+            <text x="296" y="120" text-anchor="middle">9</text>
+            <text x="354" y="120" text-anchor="middle">32</text>
+          </svg>
+          <figcaption>Os números são os raios. A pergunta diz sim para as três de raio maior que 30, e o <code>filter</code> devolve um grupo só com elas.</figcaption>
+        </figure>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -226,15 +306,21 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: ".color = \"gold\"",
+          text: "O que o <code>filter</code> devolve também é um grupo, e aceita as mesmas ordens: <code>.color = \"gold\"</code> pinta só as escolhidas."
+        }
+      ],
+      after: `
+        <p>Rode: as pequenas continuam azuis, e as grandes ficam douradas.</p>
+      `
     },
     {
       title: "Quantas e alguma",
       body: `
-        <p>Mais duas perguntas que usam a mesma <code>lambda</code>.</p>
-        <p><strong>Quantas.</strong> <code>count_where</code> (contar onde) conta os membros para os quais a resposta é sim: aqui, quantas bolhas grandes existem agora.</p>
-        <p><strong>Alguma.</strong> <code>any</code> (alguma) responde <code>True</code> se pelo menos um membro diz sim. Quando alguma bolha passa de 600 de altura, perto do topo, um aviso aparece no canto: <code>alerta.visible</code> (visível) recebe a resposta, <code>True</code> ou <code>False</code>, a cada quadro. Ao lado dela está <code>all</code> (todas): <code>True</code> só se <em>todas</em> dizem sim. <code>any(lambda bolha: bolha.radius &gt; 30)</code> pergunta “alguma é grande?”; <code>all(lambda bolha: bolha.radius &gt; 30)</code>, “todas são grandes?”.</p>
-        <p>No Guia: <a href="../guide/index.html#mundo-grupos">Grupos</a>.</p>
+        <p>A mesma pergunta serve para outras coisas: contar quantas bolhas são grandes, e saber se alguma chegou perto do topo.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -277,6 +363,27 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "count_where(",
+          text: "<code>count_where</code> (contar onde) conta os membros para os quais a resposta é sim: quantas bolhas grandes existem agora."
+        },
+        {
+          at: "alerta.visible =",
+          text: "<code>any</code> (alguma) responde <code>True</code> se pelo menos uma bolha passou de 600 de altura. <code>visible</code> (visível) recebe a resposta a cada quadro: o aviso aparece e some sozinho."
+        }
+      ],
+      after: `
+        <p>Rode e espere uma bolha chegar ao topo: o aviso acende no canto e apaga quando nenhuma está lá em cima.</p>
+        <p>As perguntas que o grupo responde com uma <code>lambda</code> são quatro. A quarta, <code>all</code> (todas), não está no script, mas se lê do mesmo jeito:</p>
+        <div class="tbl"><table><thead><tr><th>Com <code>lambda bolha: bolha.radius &gt; 30</code></th><th>Responde</th></tr></thead><tbody>
+          <tr><td><code>filter</code></td><td>um grupo só com as grandes</td></tr>
+          <tr><td><code>count_where</code></td><td>quantas são grandes</td></tr>
+          <tr><td><code>any</code></td><td><code>True</code> se alguma é grande</td></tr>
+          <tr><td><code>all</code></td><td><code>True</code> só se todas são grandes</td></tr>
+        </tbody></table></div>
+        <p>No Guia: <a href="../guide/index.html#mundo-grupos">Grupos</a>.</p>
+      `,
       closing: `
         <p>Bolhas sobem e são contadas; as grandes ficam douradas, e a mais perto do mouse brilha. Espaço estoura todas. Depois deste interlúdio, o 06 organiza o jogo de naves em classes.</p>
       `

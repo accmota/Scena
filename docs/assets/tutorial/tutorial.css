@@ -176,10 +176,12 @@ code, kbd {
 .steps .part:first-child { padding-top: 0; }
 
 /* ── Main ── */
+/* The column is wide enough for a typical script line (~95 characters);
+   the prose keeps its own, narrower measure (42rem). */
 main {
   padding: 2.1rem 2.4rem 5.5rem;
   min-width: 0;
-  max-width: 52rem;
+  max-width: 64rem;
 }
 
 .kicker {

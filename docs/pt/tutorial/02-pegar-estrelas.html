@@ -20,8 +20,7 @@ Tutorial.mount({
     {
       title: "A barra",
       body: `
-        <p>Começa um script novo, e desta vez é um jogo: estrelas caem do alto, e você as pega com uma barra que corre perto do chão. Este primeiro passo só monta a barra, com peças do tutorial 01: janela, fundo, sprite e setas no <code>update</code>.</p>
-        <p>A barra é um <code>Sprite</code> com <code>width=80</code>: 80 pixels de largura, e a altura acompanha a proporção da imagem. Em <code>center=(500, 80)</code>, ela fica no meio da janela, logo acima da borda de baixo. Só há duas setas, esquerda e direita, porque a barra só anda de lado, a 380 pixels por segundo.</p>
+        <p>Um script novo, e desta vez um jogo: estrelas caem do alto, e você as pega com uma barra que corre perto do chão. Este primeiro passo monta só a barra.</p>
       `,
       code: `from scena import *
 
@@ -39,14 +38,26 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "width=80",
+          text: "80 pixels de largura; a altura acompanha a proporção da imagem."
+        },
+        {
+          at: "center=(500, 80)",
+          text: "No meio da largura, logo acima da borda de baixo."
+        },
+        {
+          at: "-380 * dt",
+          text: "Só duas setas, esquerda e direita: a barra só anda de lado, a 380 pixels por segundo."
+        }
+      ]
     },
     {
       title: "Uma estrela caindo",
       body: `
         <p>Agora a primeira estrela. Uma só, com nome, para acertar o movimento antes de multiplicá-la.</p>
-        <p>Ela nasce em <code>center=(500, 820)</code>. A janela vai até y = 800, então a estrela começa um pouco acima da borda de cima, escondida, e entra descendo. No <code>update</code>, <code>move_by(0, -220 * dt)</code> não mexe no x e tira 220 do y a cada segundo: como y cresce para cima, um número negativo desce. A queda é mais lenta que a barra (380), para dar tempo de chegar embaixo da estrela.</p>
-        <p>Rode: a estrela atravessa a janela em menos de quatro segundos e some por baixo. É uma só, e nada acontece quando ela toca a barra. Os próximos passos resolvem as duas coisas.</p>
       `,
       code: `from scena import *
 
@@ -67,15 +78,25 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "center=(500, 820)",
+          text: "A janela vai até y = 800: a estrela nasce um pouco acima da borda de cima, escondida, e entra descendo."
+        },
+        {
+          at: "-220 * dt",
+          text: "O x fica parado, e o y perde 220 por segundo: como o y cresce para cima, um número negativo desce. A queda é mais lenta que a barra (380), para dar tempo de chegar embaixo da estrela."
+        }
+      ],
+      after: `
+        <p>Rode: a estrela atravessa a janela em menos de quatro segundos e some por baixo. É uma só, e ela passa pela barra sem que nada aconteça.</p>
+      `
     },
     {
       title: "De tempos em tempos",
       body: `
         <p>Uma estrela não faz um jogo. Precisamos de uma nova a cada pouco tempo, cada uma num lugar diferente.</p>
-        <p><strong>O tempo.</strong> <code>@every(0.9)</code> (a cada) em cima da função diz ao Scena quando rodá-la: a cada 0.9 segundo, sem parar (no Python, o número com casas decimais leva <strong>ponto</strong>, <code>0.9</code>; a vírgula separa as informações dentro dos parênteses). Você não chama <code>soltar_estrela</code> em lugar nenhum; o Scena chama. É o mesmo jeito do <code>@click</code> e do <code>@when</code> do tutorial 01, só que a pergunta agora é o relógio.</p>
-        <p><strong>O lugar.</strong> <code>uniform(80, 920)</code> (uniforme) sorteia um número entre 80 e 920, todos com a mesma chance. Esse x muda a cada estrela, e as margens de 80 a mantêm longe das bordas. O y é 780, logo abaixo da borda de cima: a estrela nasce inteira dentro da janela, à vista. <code>uniform</code> vem do Python, não do Scena: por isso a linha nova no topo, <code>from random import uniform</code> (<code>random</code> = aleatório).</p>
-        <p><strong>O buraco.</strong> Rode e espere. A primeira estrela cai, como antes, e as novas vão aparecendo no alto, uma a cada 0.9 segundo, mas ficam paradas: uma fileira que cresce no topo da janela. O <code>update</code> só move <code>estrela</code>, a que tem nome; as outras ninguém mexe. Esse é o próximo problema.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -103,14 +124,38 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "from random import uniform",
+          text: "<code>uniform</code> vem do Python, não do Scena, e por isso precisa desta linha: ela o traz do módulo <code>random</code> (aleatório)."
+        },
+        {
+          at: "@every",
+          text: "<code>@every</code> (a cada), em cima da função, diz ao Scena quando rodá-la: a cada 0.9 segundo, sem parar. Você não chama <code>soltar_estrela</code> em lugar nenhum; o Scena chama."
+        },
+        {
+          at: "0.9)",
+          text: "No Python, o número com casas decimais leva <strong>ponto</strong>, e não vírgula: <code>0.9</code>. A vírgula separa as informações dentro dos parênteses."
+        },
+        {
+          at: "uniform(80, 920)",
+          text: "<code>uniform</code> (uniforme) sorteia um número entre 80 e 920, todos com a mesma chance. O x muda a cada estrela, e as margens de 80 a mantêm longe das bordas."
+        },
+        {
+          at: "center=(x, 780)",
+          text: "O y é 780, logo abaixo da borda de cima: a estrela nasce inteira dentro da janela, à vista."
+        }
+      ],
+      after: `
+        <p>Rode e espere. A primeira estrela cai como antes, e as novas vão aparecendo no alto, uma a cada 0.9 segundo.</p>
+        <details class="ask"><summary>Por que as novas ficam paradas?</summary><p>O <code>update</code> só move <code>estrela</code>, a que tem nome. As outras, ninguém mexe, e elas formam uma fileira que cresce no topo da janela. Esse é o próximo problema.</p></details>
+      `
     },
     {
       title: "Uma lista",
       body: `
         <p>Para mover todas as estrelas, o <code>update</code> precisa saber quais são. A solução é Python que você já conhece: uma lista.</p>
-        <p><code>estrelas = []</code> começa vazia. Em <code>soltar_estrela</code>, cada estrela nova recebe o nome <code>estrela</code> só pelo tempo de entrar na lista com <code>append</code> (acrescentar). No <code>update</code>, o <code>for</code> percorre a lista e dá a cada estrela o mesmo <code>move_by</code> de antes. A estrela com nome fixo saiu: agora todas nascem do <code>@every</code>.</p>
-        <p>Rode: a primeira cai depois de 0.9 segundo, e daí vem uma atrás da outra, cada uma num x.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -141,16 +186,40 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "estrelas = []",
+          text: "A lista começa vazia. A estrela com nome fixo saiu: agora todas nascem do <code>@every</code>."
+        },
+        {
+          at: "estrelas.append(estrela)",
+          text: "<code>append</code> (acrescentar) põe a estrela nova no fim da lista. O nome <code>estrela</code> só dura o tempo de ela entrar."
+        },
+        {
+          at: "for estrela in estrelas:",
+          text: "O <code>for</code> percorre a lista e dá a cada estrela o mesmo <code>move_by</code> de antes."
+        }
+      ],
+      after: `
+        <p>Rode: a primeira cai depois de 0.9 segundo, e daí vem uma atrás da outra, cada uma num x.</p>
+      `
     },
     {
       title: "Grupo",
-      body: `
-        <p>A lista funciona, mas é você quem cuida dela: criar, acrescentar e, mais tarde, tirar as estrelas que somem. O Scena pode fazer esse trabalho: é o grupo.</p>
-        <p><strong>Entrar.</strong> <code>group</code> (grupo) é um nome que junta várias coisas do jogo. Com <code>group="estrelas"</code> na criação, a estrela já nasce dentro do grupo <code>"estrelas"</code>, e a lista e o <code>append</code> saem do código. O nome é um texto entre aspas, escolhido por você; não precisa ser igual ao de nenhuma variável.</p>
-        <p><strong>Ler.</strong> <code>group["estrelas"]</code> é quem está no grupo neste momento, e o <code>for</code> percorre isso como percorria a lista. A diferença vem quando uma estrela é apagada: o grupo a tira na hora, enquanto a lista continuaria guardando uma estrela que não existe mais. E o nome do grupo serve em outros lugares do Scena, como na colisão.</p>
-        <p>Rode: o jogo é o mesmo do passo anterior. Só o código mudou.</p>
-      `,
+      body: [
+        `
+        <p>A lista funciona, mas é você quem cuida dela: criar, acrescentar e, mais tarde, tirar as estrelas que somem. O Scena pode fazer esse trabalho com um <code>group</code> (grupo), um nome que junta várias coisas do jogo. Duas linhas fazem tudo o que a lista fazia:</p>
+        `,
+        {
+          snip: `Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="estrelas")
+...
+for estrela in group["estrelas"]:`
+        },
+        `
+        <p>Com <code>group="estrelas"</code> na criação, a estrela já nasce dentro do grupo, e a lista e o <code>append</code> saem do código. <code>group["estrelas"]</code> é quem está no grupo neste momento, e o <code>for</code> percorre isso como percorria a lista.</p>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -178,6 +247,16 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "group=\"estrelas\"",
+          text: "O nome do grupo é um texto entre aspas, escolhido por você; não precisa ser igual ao de nenhuma variável."
+        }
+      ],
+      after: `
+        <p>Rode: o jogo é o mesmo do passo anterior. Só o código mudou.</p>
+        <details class="ask"><summary>Então o que o grupo ganha da lista?</summary><p>A diferença aparece quando uma estrela é apagada: o grupo a tira na hora, e a lista continuaria guardando uma estrela que não existe mais. E o nome do grupo serve em outros lugares do Scena, como na colisão.</p></details>
+      `,
       try: [
         {
           note: "No lugar do <code>for</code> inteiro: um <code>move_by</code> no grupo move cada estrela dele o mesmo tanto.",
@@ -189,9 +268,6 @@ run()
       title: "Colisão",
       body: `
         <p>As estrelas caem e a barra anda, mas uma atravessa a outra. Falta o jogo de verdade: quando a barra toca uma estrela, a estrela é pega.</p>
-        <p><strong>Um grupo para a barra.</strong> A barra também entra num grupo, <code>group="heroi"</code>, como as estrelas, porque a colisão logo abaixo fala de grupos, e não de variáveis.</p>
-        <p><strong>O toque.</strong> <code>@collide("heroi", "estrelas")</code> (colidir) em cima da função diz ao Scena: quando algo do grupo <code>"heroi"</code> encostar em algo do grupo <code>"estrelas"</code>, rode <code>pegou</code>. A função recebe os dois que se tocaram, na mesma ordem dos grupos: primeiro a barra, depois aquela estrela. Ela roda uma vez, no momento em que os dois começam a se tocar, e não de novo a cada quadro enquanto continuam encostados.</p>
-        <p><strong>Apagar.</strong> <code>estrela.destroy()</code> (destruir) tira a estrela do jogo: ela some da tela e sai do grupo, então o <code>for</code> não a encontra mais. Rode e pegue algumas. Para ver por onde o Scena mede o toque, aperte <kbd>Ctrl+Shift+7</kbd>: ele desenha por cima de cada sprite o contorno que usa na colisão.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -225,6 +301,27 @@ def pegou(barra, estrela):
 
 run()
 `,
+      notes: [
+        {
+          at: "group=\"heroi\"",
+          text: "A barra também entra num grupo, como as estrelas, porque a colisão fala de grupos, e não de variáveis."
+        },
+        {
+          at: "@collide(",
+          text: "<code>@collide</code> (colidir): quando algo do grupo <code>\"heroi\"</code> encostar em algo do grupo <code>\"estrelas\"</code>, o Scena roda <code>pegou</code>. Roda uma vez, quando os dois começam a se tocar, e não a cada quadro enquanto continuam encostados."
+        },
+        {
+          at: "def pegou(barra, estrela):",
+          text: "A função recebe os dois que se tocaram, na ordem dos grupos: primeiro a barra, depois aquela estrela."
+        },
+        {
+          at: "estrela.destroy()",
+          text: "<code>destroy</code> (destruir) tira a estrela do jogo: ela some da tela e sai do grupo, e o <code>for</code> não a encontra mais."
+        }
+      ],
+      after: `
+        <p>Rode e pegue algumas. Para ver por onde o Scena mede o toque, aperte <kbd>Ctrl+Shift+7</kbd>: ele desenha por cima de cada sprite o contorno que usa na colisão.</p>
+      `,
       try: [
         {
           note: "Um por vez, no lugar do <code>@collide</code> e da sua função. Um lado também pode ser uma coisa só, pelo nome da variável (<code>barra</code>), ou <code>ANYTHING</code> (qualquer coisa): a barra contra tudo o que ela tocar.",
@@ -241,10 +338,7 @@ def pegou(barra, outro):
     {
       title: "Além da tela",
       body: `
-        <p>Este passo não tem código novo. Ele mostra um problema que o jogo já tem e que você ainda não vê.</p>
-        <p>Rode e deixe várias estrelas passarem sem pegar. Elas saem por baixo da janela, mas não deixam de existir: continuam no grupo e continuam caindo, cada vez mais longe, porque o <code>for</code> do <code>update</code> move todas, a cada quadro.</p>
-        <p><strong>Contar.</strong> <kbd>Ctrl+Shift+1</kbd> liga o painel do sistema (HUD). Nele, <code>objs</code> é quantas coisas existem no jogo. Olhe o número por meio minuto: a cada estrela perdida ele sobe, e nunca desce. Só as estrelas pegas, apagadas pelo <code>destroy</code>, saem da conta.</p>
-        <p><strong>Ver.</strong> <kbd>Ctrl+Shift+8</kbd> afasta a visão (50%, depois 25%): a janela vira um quadro no meio, e as estrelas perdidas aparecem abaixo dele, ainda descendo. Cada uma ainda dá trabalho ao Scena, quadro após quadro. Um bom código apaga o que não precisa mais.</p>
+        <p>Este passo não tem código novo. Ele mostra um problema que o jogo já tem e que você ainda não vê: as estrelas que você deixa passar.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -277,14 +371,42 @@ def pegou(barra, estrela):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "for estrela in group[\"estrelas\"]:",
+          text: "Este <code>for</code> move todas as estrelas do grupo, a cada quadro, também as que já saíram da janela."
+        }
+      ],
+      after: `
+        <p>Rode e deixe várias estrelas passarem sem pegar. Aperte <kbd>Ctrl+Shift+1</kbd>: ele liga o painel do sistema (HUD), e nele <code>objs</code> é quantas coisas existem no jogo. Olhe o número por meio minuto.</p>
+        <details class="ask"><summary>O que acontece com <code>objs</code>?</summary><p>A cada estrela perdida ele sobe, e nunca desce. Só as estrelas pegas, apagadas pelo <code>destroy</code>, saem da conta. As outras saíram da janela, mas não do jogo: continuam no grupo e continuam caindo.</p></details>
+        <p>Para vê-las, aperte <kbd>Ctrl+Shift+8</kbd>: a visão se afasta (50%, depois 25%).</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 230" role="img" aria-label="A janela, pequena, no meio da vista afastada; abaixo dela, estrelas perdidas continuam descendo">
+            <rect class="ray" fill="none" x="200" y="20" width="100" height="80"/>
+            <rect class="bar" x="242" y="90" width="16" height="4"/>
+            <circle class="dot" cx="220" cy="45" r="3"/>
+            <circle class="dot" cx="275" cy="65" r="3"/>
+            <circle class="hot" cx="215" cy="128" r="3"/>
+            <circle class="hot" cx="262" cy="148" r="3"/>
+            <circle class="hot" cx="238" cy="174" r="3"/>
+            <circle class="hot" cx="285" cy="196" r="3"/>
+            <circle class="hot" cx="224" cy="214" r="3"/>
+            <line class="ray" x1="320" y1="120" x2="320" y2="196"/>
+            <polygon class="dot" points="320,204 315,195 325,195"/>
+            <text x="190" y="40" text-anchor="end">a janela</text>
+            <text x="190" y="168" text-anchor="end">perdidas, ainda caindo</text>
+          </svg>
+          <figcaption>Com a visão afastada, a janela vira um quadro no meio. As estrelas que você não pegou estão abaixo dele, ainda descendo.</figcaption>
+        </figure>
+        <p>Cada uma ainda dá trabalho ao Scena, quadro após quadro. Um bom código apaga o que não precisa mais.</p>
+      `
     },
     {
       title: "As perdidas",
       body: `
         <p>Agora a correção: apagar cada estrela que passa da borda de baixo.</p>
-        <p>Dentro do <code>for</code>, logo depois de mover a estrela, o <code>if</code> olha a altura dela. <code>estrela.center.y</code> é o y do centro da estrela. A borda de baixo da janela é y = 0; abaixo disso, a estrela já está saindo da tela e não volta mais. Então o mesmo <code>destroy</code> da colisão a apaga.</p>
-        <p>Rode com o HUD ligado (<kbd>Ctrl+Shift+1</kbd>). Agora <code>objs</code> sobe e desce, mas fica sempre perto do mesmo valor: as estrelas nascem no alto e são apagadas no fundo.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -320,6 +442,15 @@ def pegou(barra, estrela):
 
 run()
 `,
+      notes: [
+        {
+          at: "if estrela.center.y < 0:",
+          text: "Logo depois de mover, o <code>if</code> olha a altura: <code>estrela.center.y</code> é o y do centro da estrela. A borda de baixo da janela é y = 0; abaixo disso, a estrela está saindo e não volta mais, e o mesmo <code>destroy</code> da colisão a apaga."
+        }
+      ],
+      after: `
+        <p>Rode com o HUD ligado (<kbd>Ctrl+Shift+1</kbd>). Agora <code>objs</code> sobe e desce, mas fica sempre perto do mesmo valor: as estrelas nascem no alto e são apagadas no fundo.</p>
+      `,
       try: [
         {
           note: "No lugar do <code>if</code> no loop: uma faixa vermelha no fundo, num grupo próprio, e uma segunda colisão. A estrela que encosta no chão é apagada, como a que encosta na barra.",
@@ -333,12 +464,18 @@ def caiu(chao, estrela):
     },
     {
       title: "Placar",
-      body: `
-        <p>O jogo funciona, mas não diz como você está indo. Vamos contar as estrelas pegas e as perdidas, e mostrar as duas contas na tela.</p>
-        <p><strong>Onde guardar.</strong> <code>st</code> é o lugar do Scena para guardar informações do jogo: pontos, vidas, o que o script precisar. <code>st.pontos = 0</code> cria um valor chamado <code>pontos</code>, começando em zero. Qualquer função do script lê e muda esse valor: <code>pegou</code> soma 1 em <code>st.pontos</code> (<code>st.pontos += 1</code> é um jeito curto de escrever <code>st.pontos = st.pontos + 1</code>: o valor de agora, mais um), e o <code>if</code> das perdidas soma 1 em <code>st.perdidas</code>.</p>
-        <p><strong>O texto.</strong> <code>Text</code> (texto) escreve na tela. <code>top_left=(20, 780)</code> é o canto de cima, à esquerda, do texto; o texto cresce para a direita e para baixo a partir dali, então y = 780 o deixa encostado no topo da janela. <code>font_size=20</code> (tamanho da fonte) é o tamanho da letra. O texto começa vazio, <code>""</code>, porque quem o escreve é a linha seguinte.</p>
-        <p><strong>A fórmula.</strong> A <code>lambda</code> é a mesma que você viu no <code>@when</code> do 01: uma função curta que calcula um valor a partir do que lê. Esta monta a frase do placar com os dois números (o <code>f</code> antes das aspas faz uma <em>f-string</em>: cada <code>{…}</code> é trocado pelo valor que está lá dentro; com 3 pontos, <code>f"Pontos: {st.pontos}"</code> vira <code>"Pontos: 3"</code>). <code>placar["text"] @= …</code> liga o texto a essa função: quando o número muda, o texto muda. Os colchetes apontam o campo que recebe a fórmula, o <code>text</code> do placar. Por isso o <code>update</code> não precisa reescrever o placar: rode, e ele conta sozinho a cada estrela pega ou perdida.</p>
-      `,
+      body: [
+        `
+        <p>O jogo funciona, mas não diz como você está indo. Vamos contar as estrelas pegas e as perdidas, e mostrar as duas contas num placar que se escreve sozinho:</p>
+        `,
+        {
+          snip: `placar["text"] @= lambda: f"Estrelas {st.pontos}   Perdidas {st.perdidas}"`
+        },
+        `
+        <p>A <code>lambda</code> é uma função curta que calcula um valor a partir do que lê; esta monta a frase do placar com os dois números. O <code>f</code> antes das aspas faz uma <em>f-string</em>: cada <code>{…}</code> é trocado pelo valor que está lá dentro. Com 3 pontos e 1 perdida, a frase é “Estrelas 3   Perdidas 1”.</p>
+        <p><code>@=</code> liga o texto a essa função: quando um número muda, o texto muda. Os colchetes apontam o campo que recebe a fórmula, o <code>text</code> do placar.</p>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -381,6 +518,27 @@ def pegou(barra, estrela):
 
 run()
 `,
+      notes: [
+        {
+          at: "st.pontos = 0",
+          text: "<code>st</code> é o lugar do Scena para guardar informações do jogo: pontos, vidas, o que o script precisar. Esta linha cria um valor chamado <code>pontos</code>, começando em zero, e qualquer função do script pode lê-lo e mudá-lo."
+        },
+        {
+          at: "Text(text=\"\"",
+          text: "<code>Text</code> (texto) escreve na tela. Começa vazio, <code>\"\"</code>, porque quem o escreve é a fórmula da linha seguinte."
+        },
+        {
+          at: "top_left=(20, 780)",
+          text: "<code>top_left</code> é o canto de cima, à esquerda, do texto; o texto cresce para a direita e para baixo a partir dali, e y = 780 o deixa encostado no topo da janela. <code>font_size</code> (tamanho da fonte) é o tamanho da letra."
+        },
+        {
+          at: "st.pontos += 1",
+          text: "Um jeito curto de escrever <code>st.pontos = st.pontos + 1</code>: o valor de agora, mais um. O <code>if</code> das perdidas faz o mesmo com <code>st.perdidas</code>."
+        }
+      ],
+      after: `
+        <p>Rode: o placar conta sozinho a cada estrela pega ou perdida, sem uma linha no <code>update</code> para reescrevê-lo.</p>
+      `,
       try: [
         {
           note: "O placar na direita: <code>top_right</code> (canto de cima, à direita) fica preso, e o texto cresce para a esquerda.",
@@ -392,11 +550,7 @@ run()
       title: "Efeitos",
       example: "pegar_estrelas.py",
       body: `
-        <p>O jogo está completo. Este último passo cuida da resposta visual: a barra reage quando pega, e a estrela perdida avisa antes de sumir. O Scena tem uma biblioteca de efeitos que servem em qualquer forma ou sprite; aqui entram dois, e muitos outros vêm mais adiante.</p>
-        <p><strong>A barra salta.</strong> Em <code>pegou</code>, <code>barra.pop(scale=1.25)</code> (estalo) faz a barra crescer até 1,25 vez o seu tamanho e voltar, em menos de dois décimos de segundo.</p>
-        <p><strong>A perdida pisca.</strong> Antes, a estrela sumia já fora da tela, sem você ver. Agora o <code>if</code> pergunta <code>y &lt; 40</code>, com a estrela ainda visível no fundo, e chama <code>perdeu</code>, uma função comum, sem nada em cima: roda quando o código a chama. Dentro dela, <code>flash(0.2)</code> (clarão) clareia a estrela por 0.2 segundo, e <code>after(0.2, estrela.destroy)</code> (depois) espera esses mesmos 0.2 segundo e a apaga. <code>every</code> repete; <code>after</code> é uma vez. Repare em <code>estrela.destroy</code> sem parênteses: você entrega a função para o <code>after</code> chamar mais tarde. Com parênteses, ela rodaria agora, e a estrela sumiria sem piscar.</p>
-        <p><strong>Fora do grupo.</strong> A primeira linha de <code>perdeu</code> segura o resto. <code>untag("estrelas")</code> (tirar a etiqueta) tira a estrela do grupo, mas não da tela. O <code>for</code> não a encontra mais: ela para de cair, e o <code>if</code> não chama <code>perdeu</code> de novo no quadro seguinte, o que contaria a mesma estrela a cada quadro.</p>
-        <p><strong>Um comentário.</strong> O que vem depois de <code>#</code>, até o fim da linha, é um <strong>comentário</strong>: uma nota para quem lê o código. O Python ignora. <code># o if não dispara de novo</code> lembra por que aquela linha está ali.</p>
+        <p>O jogo está completo. Falta a resposta visual: a barra reage quando pega, e a estrela perdida pisca antes de sumir, ainda à vista.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -447,6 +601,50 @@ def perdeu(estrela):
 
 run()
 `,
+      notes: [
+        {
+          at: "if estrela.center.y < 40:",
+          text: "Antes, a estrela sumia já fora da tela, sem você ver. Agora o <code>if</code> pergunta <code>y &lt; 40</code>, com a estrela ainda visível no fundo, e chama <code>perdeu</code>."
+        },
+        {
+          at: "barra.pop(scale=1.25)",
+          text: "<code>pop</code> (estalo) faz a barra crescer até 1,25 vez o seu tamanho e voltar, em menos de dois décimos de segundo."
+        },
+        {
+          at: "def perdeu(estrela):",
+          text: "Uma função comum, sem nada em cima: roda quando o código a chama, aqui no <code>if</code> do <code>update</code>."
+        },
+        {
+          at: "estrela.untag(\"estrelas\")",
+          text: "<code>untag</code> (tirar a etiqueta) tira a estrela do grupo, mas não da tela."
+        },
+        {
+          at: "# o if não dispara de novo",
+          text: "O que vem depois de <code>#</code>, até o fim da linha, é um comentário: uma nota para quem lê o código, que o Python ignora. Este lembra por que a linha está ali."
+        },
+        {
+          at: "estrela.flash(0.2)",
+          text: "<code>flash</code> (clarão) clareia a estrela por 0.2 segundo."
+        },
+        {
+          at: "estrela.after(0.2, estrela.destroy)",
+          text: "<code>after</code> (depois) espera os mesmos 0.2 segundo e então chama <code>destroy</code>. O <code>@every</code> repete; o <code>after</code> roda uma vez."
+        }
+      ],
+      after: [
+        `
+        <p>Rode e deixe uma estrela passar: ela pisca no fundo e some.</p>
+        <p>Repare em <code>estrela.destroy</code> sem parênteses dentro do <code>after</code>: você entrega a função para o <code>after</code> chamar mais tarde. Com parênteses, ela rodaria na hora:</p>
+        `,
+        {
+          snip: `estrela.after(0.2, estrela.destroy())`,
+          alt: true
+        },
+        `
+        <p>O <code>destroy()</code> apagaria a estrela ali mesmo, e o <code>after</code> receberia o que ele devolve, que não é uma função. O Scena para com um erro que diz isso: <code>after() expected a function</code> (esperava uma função).</p>
+        <details class="ask"><summary>Para que serve o <code>untag</code>, na primeira linha de <code>perdeu</code>?</summary><p>Sem ele, a estrela continuaria no grupo durante o clarão. No quadro seguinte, o <code>for</code> a encontraria ainda abaixo de 40 e chamaria <code>perdeu</code> de novo: a mesma estrela contada a cada quadro. Fora do grupo, ela para de cair, e o <code>if</code> não a vê mais.</p></details>
+        `
+      ],
       try: [
         {
           note: "Estrelas que brilham e balançam. Em <code>soltar_estrela</code>, troque a linha do <code>Sprite</code> por estas três: a estrela ganha um nome para receber o resto. <code>glow</code> liga o brilho. <code>move_by</code> com <code>time=0.4</code> (tempo) faz o deslocamento aos poucos, em 0.4 segundo, em vez de tudo de uma vez; <code>loops=\"forever\"</code> (repetições, para sempre) repete, e <code>yoyo=True</code> (ioiô) volta pelo mesmo caminho. A estrela balança 100 pixels para o lado enquanto cai.",

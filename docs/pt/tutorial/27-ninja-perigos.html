@@ -20,8 +20,8 @@ Tutorial.mount({
     {
       title: "O jogo do 26",
       body: `
-        <p>A fase do 26 é grande, mas fácil: as plataformas são duras por baixo, os robôs andam sempre o mesmo pedaço, e encostar num deles só manda o ninja de volta ao começo. Neste tutorial, a fase fica perigosa e mais justa: plataformas de passar por baixo, robôs que viram na beirada, uma caixa só para a dor, raios elétricos que ligam e desligam, um elevador, e um recomeço com um ato.</p>
-        <p>O ponto de partida é o jogo do 26, como ficou.</p>
+        <p>A fase do ninja é grande, mas fácil: as plataformas são duras por baixo, os robôs andam sempre o mesmo pedaço, e encostar num deles só manda o ninja de volta ao começo.</p>
+        <p>Neste tutorial, a fase fica perigosa e mais justa: plataformas de passar por baixo, robôs que viram na beirada, raios elétricos que ligam e desligam, um elevador, e um recomeço com um ato. Começamos pelo jogo do tutorial 26, como ficou.</p>
       `,
       code: `from scena import *
 
@@ -215,14 +215,22 @@ def saiu(kunai):
 
 
 run()
-`
+`,
+      after: `
+        <p>Rode e pule debaixo de uma plataforma: a cabeça bate, e o ninja volta para o chão.</p>
+      `
     },
     {
       title: "Tábuas de mão única",
-      body: `
-        <p><strong>A fase nova.</strong> No editor, a fase do 26 foi salva com outro nome, <code>levels/ninja_perigos.json</code> (também na pasta <code>media</code>). Ela já traz as peças dos próximos passos, e cada passo conta a sua. Neste, as peças das plataformas saíram do grupo <code>chao</code> e foram para um grupo só delas, <code>plataforma</code>, e o código as cria num <code>for</code> próprio, com <code>STATIC</code> também.</p>
-        <p><strong>Só pelos pés.</strong> Uma regra nova: <code>resolve("heroi", "plataforma", bounce=0, only="bottom")</code>. <code>only=</code> (só) diz de que lados do herói o par segura. Com <code>"bottom"</code>, só os pés: o ninja que pula de baixo atravessa a plataforma (a cabeça, <code>"top"</code>, não segura), e o que cai de cima pisa nela. O lado é o do primeiro nome do <code>resolve</code>, o herói, não o da plataforma: <code>"bottom"</code> quer dizer “os pés do ninja”.</p>
-
+      body: [
+        `
+        <p>Primeiro, plataformas de mão única: o ninja as atravessa pulando de baixo e pisa nelas caindo de cima. Uma regra faz isso:</p>
+        `,
+        {
+          snip: `resolve("heroi", "plataforma", bounce=0, only="bottom")`
+        },
+        `
+        <p><code>only=</code> (só) diz de que lados do herói o par segura. Com <code>"bottom"</code> (embaixo), só os pés: o ninja que pula de baixo bate com a cabeça, que não segura, e atravessa; o que cai de cima pisa. O lado é o do primeiro nome do <code>resolve</code>: <code>"bottom"</code> quer dizer os pés do ninja, não a parte de baixo da plataforma.</p>
         <figure class="fig">
           <svg viewBox="0 0 380 175" role="img" aria-label="Uma plataforma. À esquerda, o ninja embaixo dela, com uma seta tracejada que a atravessa para cima: de baixo, passa. À direita, o ninja em cima dela, com os pés marcados: pisa">
             <rect class="bar child" x="90" y="84" width="200" height="16" rx="3"/>
@@ -240,9 +248,8 @@ run()
           </svg>
           <figcaption>Com <code>only="bottom"</code>, o par só segura quando o primeiro toque é dos pés do ninja. Pulando de baixo, a cabeça toca primeiro, e ele atravessa.</figcaption>
         </figure>
-
-        <p>Pule debaixo de uma plataforma: o ninja passa e para em cima dela. A fase ficou mais rápida de subir.</p>
-      `,
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=750, title="Ninja")
@@ -439,16 +446,38 @@ def saiu(kunai):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "Level(\"levels/ninja_perigos.json\")",
+          text: "Uma fase nova, salva no editor a partir da anterior. Ela já traz as peças dos próximos passos, e cada passo conta a sua."
+        },
+        {
+          at: "for peca in fase.group(\"plataforma\"):",
+          text: "No editor, as peças das plataformas saíram do grupo <code>chao</code> e foram para um grupo só delas, <code>plataforma</code>. O código as cria num <code>for</code> próprio."
+        },
+        {
+          at: "group[\"plataforma\"].mass = STATIC",
+          text: "<code>STATIC</code> (parado) também, como o chão: o ninja pisa sem empurrá-las."
+        }
+      ],
+      after: `
+        <p>Pule debaixo de uma plataforma: o ninja passa e para em cima dela. A fase ficou mais rápida de subir.</p>
+      `
     },
     {
       title: "Descer da tábua",
-      body: `
-        <p>Subir ficou fácil; agora, descer. Seta para baixo solta o ninja da plataforma em que ele está.</p>
-        <p><strong>Uma pergunta no lugar do lado.</strong> <code>only=</code> também aceita uma função: ela recebe o contato <code>c</code> e devolve <code>True</code> para segurar. <code>c.side == "bottom" and not st.descer</code>: segura pelos pés, menos quando o ninja quer descer.</p>
-        <p><strong>Um instante.</strong> <code>st.descer</code> é calculado no <code>on_update</code>: <code>recently("descer", keyp.once("DOWN"), hold=0.2)</code>, o <code>recently</code> do 19, fica verdade por 0,2 segundo depois de apertar a seta. É tempo bastante para o ninja afundar na tábua e cair através dela.</p>
-        <p><strong>Por que em <code>st</code>.</strong> A função do <code>only=</code> só pode ler, e o Scena recusa uma que escreva alguma coisa. Por isso a conta fica no <code>on_update</code>, e a função só lê o resultado. <code>st.descer</code> começa em <code>False</code>, junto com as vidas.</p>
-      `,
+      body: [
+        `
+        <p>Subir ficou fácil; agora, descer. Seta para baixo solta o ninja da plataforma em que ele está. Para isso, o <code>only=</code> recebe uma pergunta no lugar do lado:</p>
+        `,
+        {
+          snip: `resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)`
+        },
+        `
+        <p>A função recebe o contato <code>c</code> e devolve <code>True</code> para segurar. <code>c.side</code> (lado) é o lado do ninja que tocou: segura pelos pés, menos quando o ninja quer descer.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=750, title="Ninja")
@@ -648,35 +677,26 @@ def saiu(kunai):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "st.descer = False",
+          text: "Começa falso, junto com as vidas."
+        },
+        {
+          at: "st.descer = recently(",
+          text: "<code>recently</code> (recentemente) fica verdadeiro por 0,2 segundo (<code>hold</code>, segurar) depois de apertar a seta para baixo. É tempo bastante para o ninja afundar na tábua e cair através dela."
+        }
+      ],
+      after: `
+        <p>Suba numa plataforma e aperte a seta para baixo: o ninja cai através dela.</p>
+        <details class="ask"><summary>Por que não chamar o <code>recently</code> dentro da própria função do <code>only=</code>?</summary><p>A função do <code>only=</code> só pode ler: o Scena recusa uma que escreva alguma coisa, e o <code>recently</code> escreve, porque guarda o momento do aperto. Por isso a conta fica no <code>on_update</code>, guardada em <code>st.descer</code>, e a função só lê o resultado.</p></details>
+      `
     },
     {
       title: "A tábua inclinada",
       body: `
-        <p>No meio da fase, uma plataforma sobe da esquerda para a direita, inclinada 15°. O ninja já anda nela: o <code>resolve</code> segura a caixa de colisão na rampa, e o <code>"bottom" in self.touching_sides</code> continua valendo para pular. Mas o desenho fica em pé, e na rampa o ninja pisa com um pé no ar.</p>
-        <p><strong>Inclinar o desenho.</strong> <code>self.tilt = "ground"</code> (inclinação: a do chão), no <code>setup</code>, inclina o desenho do ninja com o chão que ele pisa: 15° na tábua, 0 no chão plano, 0 no ar. Basta escrever uma vez.</p>
-        <p><strong>Só o desenho.</strong> A caixa de colisão continua em pé, e é ela que o <code>resolve</code> segura. Girar o ninja inteiro (<code>angle</code>) giraria a caixa também, e ela brigaria com o <code>resolve</code>, que acabou de assentá-la na rampa. <code>Ctrl+Shift+7</code> mostra as duas coisas: a caixa em pé, o desenho inclinado.</p>
-        <p><strong>Em volta dos pés.</strong> O desenho gira em volta da âncora da caixa, e a âncora começa no meio dela, na cintura do ninja. Girado ali, o desenho escorrega para o lado e os pés continuam no ar. <code>hitbox_anchor="bottom"</code> (a âncora da caixa: embaixo), na linha da classe, põe a âncora nos pés. Com ela, o Scena gira o desenho em volta dos pés e o encosta na rampa. As duas mudanças andam juntas: uma sem a outra não assenta o ninja.</p>
-
-        <figure class="fig">
-          <svg viewBox="0 0 380 190" role="img" aria-label="Duas rampas. Em cada uma, a caixa de colisão em pé, tracejada, e o desenho inclinado. À esquerda, o ponto de giro está no meio da caixa, e o desenho inclinado fica de lado e com os pés fora da rampa. À direita, o ponto de giro está embaixo, e os pés do desenho encostam na rampa">
-            <polygon class="bar child" points="10,175 180,129.4 180,182 10,182"/>
-            <rect class="guide" x="83" y="89" width="24" height="60"/>
-            <rect class="bar" x="-12" y="-30" width="24" height="60" transform="translate(95 119) rotate(-15)"/>
-            <circle class="hot" cx="95" cy="119" r="4"/>
-            <text x="10" y="18">"center": gira na cintura</text>
-            <text x="10" y="32">os pés ficam fora</text>
-            <polygon class="bar child" points="200,175 370,129.4 370,182 200,182"/>
-            <rect class="guide" x="273" y="89" width="24" height="60"/>
-            <rect class="bar" x="-12" y="-60" width="24" height="60" transform="translate(285.8 152) rotate(-15)"/>
-            <circle class="hot" cx="285.8" cy="152" r="4"/>
-            <text x="200" y="18">"bottom": gira nos pés</text>
-            <text x="200" y="32">e encosta na rampa</text>
-          </svg>
-          <figcaption>Tracejada, a caixa de colisão, que fica em pé; cheio, o desenho inclinado pelo <code>tilt</code>. O ponto vermelho é a âncora da caixa: o desenho gira em volta dele.</figcaption>
-        </figure>
-
-        <p>Suba a tábua do meio: o ninja se inclina com ela e, no pulo, volta a ficar em pé.</p>
+        <p>No meio da fase, uma plataforma sobe da esquerda para a direita, inclinada 15°. O ninja já anda nela: o <code>resolve</code> segura a caixa de colisão na rampa, e o pulo continua valendo. Mas o desenho fica em pé, e na rampa o ninja pisa com um pé no ar. Duas mudanças o assentam, e só funcionam juntas.</p>
       `,
       code: `from scena import *
 
@@ -878,15 +898,67 @@ def saiu(kunai):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "hitbox_anchor=\"bottom\"",
+          text: "<code>hitbox_anchor</code> (a âncora da caixa de colisão) com <code>\"bottom\"</code> põe a âncora nos pés do ninja. O desenho gira em volta dela."
+        },
+        {
+          at: "self.tilt = \"ground\"",
+          text: "<code>tilt</code> (inclinação) com <code>\"ground\"</code> (chão) inclina o desenho do ninja com o chão que ele pisa: 15° na tábua, 0 no chão plano, 0 no ar. Basta escrever uma vez, no <code>setup</code>."
+        }
+      ],
+      after: `
+        <p>Suba a tábua do meio: o ninja se inclina com ela e, no pulo, volta a ficar em pé. Com <kbd>Ctrl+Shift+7</kbd>, dá para ver as duas coisas: a caixa de colisão em pé, o desenho inclinado.</p>
+        <p>Só o desenho gira. A caixa continua em pé, e é ela que o <code>resolve</code> segura na rampa. Girar o ninja inteiro, com <code>angle</code>, giraria a caixa também, e ela brigaria com o <code>resolve</code>.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 190" role="img" aria-label="Duas rampas. Em cada uma, a caixa de colisão em pé, tracejada, e o desenho inclinado. À esquerda, o ponto de giro está no meio da caixa, e o desenho inclinado fica de lado e com os pés fora da rampa. À direita, o ponto de giro está embaixo, e os pés do desenho encostam na rampa">
+            <polygon class="bar child" points="10,175 180,129.4 180,182 10,182"/>
+            <rect class="guide" x="83" y="89" width="24" height="60"/>
+            <rect class="bar" x="-12" y="-30" width="24" height="60" transform="translate(95 119) rotate(-15)"/>
+            <circle class="hot" cx="95" cy="119" r="4"/>
+            <text x="10" y="18">"center": gira na cintura</text>
+            <text x="10" y="32">os pés ficam fora</text>
+            <polygon class="bar child" points="200,175 370,129.4 370,182 200,182"/>
+            <rect class="guide" x="273" y="89" width="24" height="60"/>
+            <rect class="bar" x="-12" y="-60" width="24" height="60" transform="translate(285.8 152) rotate(-15)"/>
+            <circle class="hot" cx="285.8" cy="152" r="4"/>
+            <text x="200" y="18">"bottom": gira nos pés</text>
+            <text x="200" y="32">e encosta na rampa</text>
+          </svg>
+          <figcaption>Tracejada, a caixa de colisão, que fica em pé; cheio, o desenho inclinado pelo <code>tilt</code>. O ponto vermelho é a âncora da caixa: o desenho gira em volta dele.</figcaption>
+        </figure>
+        <p>A âncora começa no meio da caixa, na cintura do ninja. Girado ali, o desenho escorrega para o lado, e os pés continuam no ar. Com a âncora nos pés, o Scena gira o desenho em volta deles e o encosta na rampa. Por isso o <code>tilt</code> sem o <code>hitbox_anchor</code> não assenta o ninja.</p>
+      `
     },
     {
       title: "Robôs na beirada",
-      body: `
-        <p>No 19, cada robô andava 90 para cada lado de onde nasceu, e a fase tinha de ser desenhada em volta desse número. Agora, o robô anda até a beirada do que pisa e vira ali, seja o chão, seja uma plataforma.</p>
-        <p><strong>Olhar antes de andar.</strong> <code>self.floor_below(dx=40, …)</code> (o chão embaixo) responde em que chão o robô estaria se andasse 40 para a direita, ou <code>None</code> se ele cairia. 40 é mais ou menos a largura do robô: é a ponta do pé passando da borda. Andando para a direita e sem chão à frente, ele vai para a esquerda (−90) e se vira; para a esquerda, o mesmo com <code>dx=-40</code>. Cada <code>if</code> diz o lado, como no 19.</p>
-        <p><strong>O que é chão.</strong> O robô não tem <code>resolve</code>, então ele diz onde pisa: <code>group=["chao", "plataforma"]</code>. O <code>self.meio</code> sai do <code>setup</code>: não é mais preciso.</p>
-      `,
+      body: [
+        `
+        <p>Até aqui, cada robô anda 90 para cada lado de onde nasceu, e a fase tem de ser desenhada em volta desse número. Agora o robô anda até a beirada do que pisa e vira ali, seja o chão, seja uma plataforma. Antes de dar o passo, ele olha:</p>
+        `,
+        {
+          snip: `if self.vel.x > 0 and not self.floor_below(dx=40, group=["chao", "plataforma"]):`
+        },
+        `
+        <p><code>floor_below</code> (o chão embaixo) responde em que chão o robô estaria se andasse 40 para a direita, ou <code>None</code> (nada) se ele cairia. 40 é mais ou menos a largura do robô: a ponta do pé passando da borda. O robô não tem <code>resolve</code>, então ele mesmo diz onde pisa: <code>group=</code> com os dois grupos.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 170" role="img" aria-label="Um robô perto da ponta direita de uma plataforma; uma seta de 40 para a frente leva a um ponto já além da borda, e embaixo dele não há chão">
+            <rect class="bar child" x="40" y="110" width="220" height="16" rx="3"/>
+            <rect class="bar" x="225" y="66" width="30" height="44" rx="3"/>
+            <line class="ray" x1="240" y1="54" x2="282" y2="54"/>
+            <polygon class="dot" points="290,54 281,49 281,59"/>
+            <line class="guide" x1="290" y1="62" x2="290" y2="140"/>
+            <circle class="hot" cx="290" cy="140" r="5"/>
+            <text x="262" y="42" text-anchor="middle">dx=40</text>
+            <text x="302" y="144">None: vira</text>
+            <text x="40" y="150">a plataforma</text>
+          </svg>
+          <figcaption>O robô pergunta pelo chão 40 à frente dos pés. Ali já passou da borda da plataforma: a resposta é <code>None</code>, e ele vira antes de cair.</figcaption>
+        </figure>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=750, title="Ninja")
@@ -1086,17 +1158,39 @@ def saiu(kunai):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "self.vel.x = -90",
+          text: "Sem chão à frente, ele vai para a esquerda e se vira. O <code>if</code> diz o lado, e não inverte o sinal: repetir a ordem não faz mal."
+        },
+        {
+          at: "self.floor_below(dx=-40",
+          text: "Andando para a esquerda, o mesmo com <code>dx=-40</code>."
+        }
+      ],
+      after: `
+        <p>Siga um robô: ele vai até a ponta da plataforma e volta, sem cair.</p>
+      `
     },
     {
       title: "Uma caixa para a dor",
-      body: `
-        <p>Encostar num robô agora custa uma vida, mas o ninja fica onde está, pisca e, por 1,5 segundo, não sente nada: sem isso, o robô que continua encostado tiraria as três vidas em três quadros.</p>
-        <p><strong>A armadilha.</strong> O jeito óbvio de “não sentir” seria tirar o ninja do grupo <code>heroi</code> por um tempo. Mas o grupo <code>heroi</code> é o que o <code>resolve</code> segura no chão: fora dele, o ninja cairia através da fase.</p>
-        <p><strong>Uma segunda caixa.</strong> <code>self.add_hitbox(group="dor")</code> (acrescentar uma caixa de colisão), no <code>setup</code> do <code>Heroi</code>, dá ao ninja um segundo colisor, que só detecta: ele segue o desenho de cada quadro e responde pelo grupo <code>dor</code>. A caixa principal continua pisando no chão. <code>Ctrl+Shift+7</code> mostra as duas: a principal em dourado, a da dor em ciano.</p>
-        <p><strong>Quem machuca.</strong> <code>@collide("robo", "dor")</code>, no topo do arquivo, chama <code>perder</code> quando um robô toca a caixa da dor. O <code>@collide_with("robo")</code> do <code>Heroi</code> sai: ele usava a caixa principal. Em <code>perder</code>, <code>self.untag("dor")</code> tira o ninja do grupo <code>dor</code> (os robôs param de achá-lo), e <code>self.after(1.5, …)</code> o põe de volta com <code>self.tag("dor")</code> (pôr a etiqueta). A chamada vai numa <code>lambda:</code> porque leva um argumento (<code>"dor"</code>), como no 10. O chão nem fica sabendo.</p>
-        <p><strong>O buraco.</strong> Cair na água continua levando o ninja de volta ao começo: as duas linhas que o põem lá passam do <code>perder</code> para o próprio <code>if</code> do buraco, depois de chamar <code>perder</code> e só se sobrou vida (<code>if st.vidas &gt; 0</code>). Na última vida, o ninja não volta: afunda na água, como no 19.</p>
-      `,
+      body: [
+        `
+        <p>Encostar num robô agora custa uma vida, mas o ninja fica onde está, pisca, e por 1,5 segundo não sente nada. Sem esse tempo, o robô que continua encostado tiraria as três vidas em três quadros.</p>
+        <p>O jeito óbvio de não sentir seria tirar o ninja do grupo <code>heroi</code> por um tempo. Mas o grupo <code>heroi</code> é o que o <code>resolve</code> segura no chão: fora dele, o ninja cairia através da fase. A saída é uma segunda caixa de colisão, só para a dor:</p>
+        `,
+        {
+          snip: `self.add_hitbox(group="dor")
+...
+@collide("robo", "dor")
+def encostou(robo, heroi, info):
+    heroi.perder()`
+        },
+        `
+        <p><code>add_hitbox</code> (acrescentar uma caixa de colisão), no <code>setup</code> do <code>Heroi</code>, dá ao ninja um segundo colisor, que só detecta: ele segue o desenho a cada quadro e responde pelo grupo <code>dor</code>. A caixa principal continua pisando no chão. A regra no topo do arquivo chama <code>perder</code> quando um robô toca a caixa da dor.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=750, title="Ninja")
@@ -1301,15 +1395,30 @@ def saiu(kunai):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "if self.center.y < 30:",
+          text: "Cair na água continua levando o ninja de volta ao começo, mas só se sobrou vida: as duas linhas que o põem lá passaram do <code>perder</code> para cá. Na última vida, ele não volta: afunda na água."
+        },
+        {
+          at: "self.untag(\"dor\")",
+          text: "<code>untag</code> (tirar a etiqueta) tira o ninja do grupo <code>dor</code>, e os robôs param de achá-lo. O chão nem fica sabendo."
+        },
+        {
+          at: "self.after(1.5, lambda: self.tag(\"dor\"))",
+          text: "1,5 segundo depois, <code>tag</code> (pôr a etiqueta) o põe de volta. A chamada vai numa <code>lambda:</code> porque leva um argumento, <code>\"dor\"</code>: o <code>after</code> recebe a função para chamar depois, não o resultado dela."
+        }
+      ],
+      after: `
+        <p>Encoste num robô: o ninja pisca e segue em frente, e por 1,5 segundo o robô passa por ele. Com <kbd>Ctrl+Shift+7</kbd>, as duas caixas aparecem: a principal em dourado, a da dor em ciano.</p>
+        <p>O <code>@collide_with("robo")</code> que estava no <code>Heroi</code> saiu. Ele olhava a caixa principal, que nunca deixa o grupo <code>heroi</code>, e o ninja perderia as vidas do mesmo jeito.</p>
+      `
     },
     {
       title: "Raios",
       body: `
         <p>Três raios elétricos atravessam o caminho, em pé, mais altos que um pulo. Eles ligam e desligam a cada 1,5 segundo: é preciso esperar a hora de passar.</p>
-        <p><strong>Da fase.</strong> No editor, cada raio é um retângulo fino no grupo <code>raio</code>. <code>make(visual=ElectricField("cyan", amount=10))</code> o cria com um visual de arcos elétricos piscando em volta (<code>ElectricField</code>, campo elétrico; <code>amount</code>, a quantidade de arcos).</p>
-        <p><strong>Liga, desliga.</strong> <code>@every(1.5)</code> troca o <code>active</code> (ativo) de cada raio: <code>raio.active = not raio.active</code>. O <code>not</code> inverte o valor, então ligado vira desligado, e desligado vira ligado. <code>active = False</code> estaciona o raio, como o escudo do 08: ele some e não colide; <code>True</code> o traz de volta. (<code>visible = False</code> só esconderia o desenho, e o raio invisível continuaria dando choque.)</p>
-        <p><strong>O choque.</strong> <code>@collide("raio", "dor")</code> é a mesma regra dos robôs: o raio ligado que toca a caixa da dor chama <code>perder</code>, com o mesmo tempo sem sentir.</p>
       `,
       code: `from scena import *
 
@@ -1530,6 +1639,24 @@ def saiu(kunai):
 
 run()
 `,
+      notes: [
+        {
+          at: "lugar.make(visual=ElectricField(",
+          text: "No editor, cada raio é um retângulo fino no grupo <code>raio</code>. <code>ElectricField</code> (campo elétrico) o cria com um visual de arcos elétricos piscando em volta; <code>amount</code> (quantidade) é o número de arcos."
+        },
+        {
+          at: "raio.active = not raio.active",
+          text: "<code>not</code> inverte o valor: ligado vira desligado, e desligado vira ligado. <code>active = False</code> (ativo) estaciona o raio: ele some e não colide; <code>True</code> o traz de volta."
+        },
+        {
+          at: "@collide(\"raio\", \"dor\")",
+          text: "A mesma regra dos robôs: o raio ligado que toca a caixa da dor chama <code>perder</code>, com o mesmo tempo sem sentir."
+        }
+      ],
+      after: `
+        <p>Espere o raio apagar e passe.</p>
+        <details class="ask"><summary>E se o <code>@every</code> trocasse o <code>visible</code> (visível) em vez do <code>active</code>?</summary><p>O raio sumiria da tela, mas continuaria dando choque. <code>visible = False</code> só esconde o desenho; <code>active = False</code> tira o raio do jogo até ele voltar.</p></details>
+      `,
       try: [
           {
             note: "Outros visuais no lugar do <code>ElectricField</code>: <code>ElectricBolt</code> (descargas mais longas) ou um <code>Laser</code>, mais grosso. Um por vez, no lugar da linha do <code>make</code>. Mais visuais no Guia, em Visual.",
@@ -1542,9 +1669,6 @@ run()
       title: "O elevador",
       body: `
         <p>No fim da fase, uma estrela brilha alta demais para qualquer pulo. Para chegar lá, um elevador: uma tábua de metal dourado que sobe e desce sem parar.</p>
-        <p><strong>Da fase, pelo nome.</strong> No editor, o elevador é um retângulo com nome, <code>elevador</code>, e sem grupo. <code>fase["elevador"]</code> pega a peça pelo nome, como o ponto <code>inicio</code>. <code>make(group="plataforma", visual=Metal("gold"))</code> a cria no grupo das plataformas, com um visual de metal escovado (<code>Metal</code>) tingido de dourado (<code>gold</code>, ouro). Ela nasce antes da linha <code>group["plataforma"].mass = STATIC</code>, então também fica <code>STATIC</code>: o ninja pisa nela sem empurrá-la para baixo.</p>
-        <p><strong>Sobe e desce.</strong> <code>move_by(0, 360, time=3, …)</code> leva o elevador 360 para cima em 3 segundos. <code>loops="forever"</code> e <code>yoyo=True</code> são os das estrelas: repetir para sempre, indo e voltando. <code>ease="ease_in_out"</code> faz cada viagem começar e terminar devagar: nas pontas, o elevador freia em vez de virar de uma vez, e o ninja não descola dele na virada.</p>
-        <p><strong>Quem carrega.</strong> Nenhuma linha nova no ninja. O <code>resolve</code> das plataformas já segura os pés dele, e um <code>move_by</code> com <code>time=</code> é viagem, não teleporte: o Scena sabe quanto o elevador andou em cada quadro, e o ninja em cima vai junto. Como é do grupo <code>plataforma</code>, o elevador também é de mão única: dá para pular nele por baixo, e a seta para baixo desce dele.</p>
       `,
       code: `from scena import *
 
@@ -1767,6 +1891,20 @@ def saiu(kunai):
 
 run()
 `,
+      notes: [
+        {
+          at: "elevador = fase[\"elevador\"].make(",
+          text: "No editor, o elevador é um retângulo com nome, <code>elevador</code>, e sem grupo: <code>fase[\"elevador\"]</code> pega a peça pelo nome. <code>make</code> a cria no grupo das plataformas, com um visual de metal escovado, <code>Metal</code>, tingido de dourado (<code>gold</code>, ouro). Ela nasce antes da linha do <code>STATIC</code>, então também fica parada para o <code>resolve</code>: o ninja pisa nela sem empurrá-la para baixo."
+        },
+        {
+          at: "elevador.move_by(0, 360",
+          text: "360 para cima em 3 segundos, para sempre, indo e voltando. <code>ease=\"ease_in_out\"</code> (suavizar na ida e na volta) faz cada viagem começar e terminar devagar: nas pontas, o elevador freia em vez de virar de uma vez, e o ninja não descola dele na virada."
+        }
+      ],
+      after: `
+        <p>Suba no elevador e vá até a estrela alta.</p>
+        <details class="ask"><summary>Quem carrega o ninja, se nenhuma linha do <code>Heroi</code> mudou?</summary><p>O <code>resolve</code> das plataformas, que já segura os pés dele. Um <code>move_by</code> com <code>time=</code> é viagem, não teleporte: o Scena sabe quanto o elevador andou em cada quadro, e o ninja em cima vai junto. Como é do grupo <code>plataforma</code>, o elevador também é de mão única: dá para pular nele por baixo, e a seta para baixo desce dele.</p></details>
+      `,
       try: [
           {
             note: "Um elevador que anda de lado, no lugar da linha do <code>move_by</code>. O ninja em cima vai junto para os lados também.",
@@ -1784,10 +1922,11 @@ run()
       title: "De novo, com um ato",
       example: "ninja_perigos.py",
       body: `
-        <p>Sem vidas, até agora, era rodar o jogo outra vez. Com um ato, como no 25, a tecla R recomeça a qualquer hora.</p>
-        <p><strong>O palco e o ato.</strong> O que fica o jogo todo continua no topo do arquivo: o fundo, a camada das árvores ao longe, a leitura da fase, o HUD, as folhas, as classes, as regras (<code>resolve</code>, <code>@collide</code>, <code>@leave_playfield</code>). O que deve começar do zero a cada vez vai para o <code>setup</code> da <code>class Fase(Act)</code>: as peças da fase (o elevador também), o ninja, as estrelas, os robôs, a água, os raios e a entrada da câmera. A troca de ato leva tudo isso embora sozinha, como no 25, e a câmera volta a como o topo a deixou.</p>
-        <p><strong>O que muda de lugar.</strong> O <code>@every</code> dos raios e o <code>comecar</code> passam a ser do ato (<code>self.after(2, self.comecar)</code>). A câmera sai do <code>update</code> e vai para o <code>on_update</code> do ato; como o ninja nasce no <code>setup</code>, o ato o guarda em <code>self.heroi</code> para a câmera saber quem seguir, e <code>self.seguir</code> é a memória do ato no lugar de <code>st.seguir</code>.</p>
-        <p><strong>Os dados.</strong> <code>jogo_novo()</code> põe em <code>st</code> os números de um jogo que começa: estrelas, vidas, o <code>descer</code> e o texto do aviso. O aviso agora é ligado a <code>st.aviso</code> com <code>@=</code>, então zerar <code>st</code> também o apaga. R chama <code>jogo_novo()</code> e <code>change_act(Fase)</code>: uma <code>Fase</code> nova, do começo. <code>run(Fase)</code> começa o jogo pelo ato.</p>
+        <p>Sem vidas, até agora, só rodando o jogo outra vez. Com um ato, a tecla R recomeça a qualquer hora. O que fica o jogo todo continua no topo do arquivo; o que deve começar do zero a cada vez vai para o <code>setup</code> da <code>class Fase(Act)</code>:</p>
+        <div class="tbl"><table><thead><tr><th>No topo: o palco</th><th>No <code>setup</code>: o ato</th></tr></thead><tbody>
+          <tr><td>o fundo, a camada das árvores, a leitura da fase, o HUD, as folhas, as classes, as regras (<code>resolve</code>, <code>@collide</code>, <code>@leave_playfield</code>)</td><td>as peças da fase, o elevador também, o ninja, as estrelas, os robôs, a água, os raios e a entrada da câmera</td></tr>
+        </tbody></table></div>
+        <p>A troca de ato leva embora sozinha tudo o que o ato criou, e a câmera volta a como o topo a deixou.</p>
       `,
       code: `from scena import *
 
@@ -2021,6 +2160,35 @@ class Fase(Act):
 
 run(Fase)
 `,
+      notes: [
+        {
+          at: "def jogo_novo():",
+          text: "Os dados de um jogo que começa: estrelas, vidas, o <code>descer</code> e o texto do aviso."
+        },
+        {
+          at: "aviso[\"text\"] @= lambda: st.aviso",
+          text: "O aviso agora é ligado a <code>st.aviso</code> com <code>@=</code>: quando o <code>jogo_novo()</code> zera o texto, o aviso some sozinho."
+        },
+        {
+          at: "self.heroi = Heroi(",
+          text: "O ninja nasce no <code>setup</code>, e o ato o guarda em <code>self.heroi</code>: a câmera, no <code>on_update</code>, precisa saber quem seguir."
+        },
+        {
+          at: "self.after(2, self.comecar)",
+          text: "O <code>@after(2)</code> do topo virou um <code>after</code> do ato, e <code>self.seguir</code> é a memória do ato no lugar de <code>st.seguir</code>. Se o R recomeçar antes dos dois segundos, o timer sai com o ato velho."
+        },
+        {
+          at: "@every(1.5)",
+          text: "O pisca dos raios também é do ato: liga quando a fase começa e sai com ela."
+        },
+        {
+          at: "change_act(Fase)",
+          text: "Um jogo novo e uma <code>Fase</code> nova, do começo. O <code>return</code> logo depois sai do <code>on_update</code>: o ato velho já saiu, e a câmera não tem mais quem seguir."
+        }
+      ],
+      after: `
+        <p>Perca as três vidas e aperte R: tudo volta ao começo, com a mesma abertura de filme.</p>
+      `,
       closing: `
         <p>A fase inteira aparece e a câmera mergulha no ninja. Setas para os lados andam; seta para cima pula (e atravessa as plataformas por baixo); seta para baixo desce de uma plataforma; espaço joga uma kunai. O elevador dourado, no fim, leva até a estrela mais alta. Robôs e raios ligados tiram uma vida e deixam o ninja piscando, sem sentir nada, por 1,5 segundo; cair na água tira uma vida e volta ao começo. R recomeça.</p>
       `,

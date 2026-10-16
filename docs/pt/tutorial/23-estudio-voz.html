@@ -20,8 +20,7 @@ Tutorial.mount({
     {
       title: "O piano do 22",
       body: `
-        <p>Novo script: o piano do tutorial 22, com o título <code>"Estúdio"</code>, sem o equalizador (a parte de cima da tela vai ganhar outras coisas). No 22, você tocava e o som saía. Agora é o contrário: <strong>o som manda na tela</strong>. O piano vai tocar a sua voz, uma barra vai mostrar quão alto você fala, e uma estrela vai dançar com uma luz que cresce com a voz.</p>
-        <p>Duas coisas novas: o <strong>microfone</strong> e as <strong>trilhas</strong> (um caminho que um objeto percorre sozinho). E o <code>@=</code>, que você já usou no placar, visto de perto.</p>
+        <p>Um script novo, que começa com o piano do 22, sem o equalizador. No piano, você tocava e o som saía. Agora é o contrário: <strong>o som manda na tela</strong>. O piano vai tocar a sua voz, uma barra vai mostrar quão alto você fala, e uma estrela vai dançar com uma luz que cresce com a voz.</p>
       `,
       code: `from scena import *
 
@@ -60,13 +59,31 @@ run()
     },
     {
       title: "O microfone",
-      body: `
-        <p><strong>O gravador.</strong> Um ponto no canto de cima, à direita: a luz de gravação. A classe <code>Gravador</code> cuida de tudo que é do microfone. No <code>on_update</code>, R chama <code>gravar</code>; enquanto grava, a luz fica vermelha e o aviso diz "Fale!".</p>
-        <p><strong>Abrir o microfone.</strong> <code>Microphone()</code> (microfone) abre o microfone do computador; nada é captado antes dessa linha. O gravador o abre na primeira vez que você aperta R, e não no começo do programa: o programa só ouve quando você pede. Até lá, <code>self.mic</code> é <code>None</code> (nada), e <code>if not self.mic</code> pergunta se ele ainda não foi aberto.</p>
-        <p><strong>Na primeira vez</strong>, o sistema pergunta se o programa que roda o seu script (o Terminal, o VS Code…) pode usar o microfone. Responda que sim (se a pergunta apareceu no meio da gravação e ela saiu muda, aperte R de novo). Se você negar, o microfone fica mudo e o Scena avisa no console.</p>
-        <p><strong>Gravar.</strong> <code>self.mic.record(seconds=2, on_done=self.gravou)</code> (gravar) grava dois segundos e devolve a gravação, guardada em <code>self.gravacao</code>. Ela ainda está sendo feita: só dá para tocar quando acabar. Por isso o <code>on_done</code>, como o do som no 22: quando os dois segundos terminam, o Scena chama <code>gravou</code>, que toca o que você disse e apaga a luz.</p>
-        <p><strong>Uma de cada vez.</strong> Um R no meio da gravação não começa outra: enquanto <code>self.mic.recording</code> (gravando) é verdadeiro, o <code>return</code> sai de <code>gravar</code> antes.</p>
-      `,
+      body: [
+        `
+        <p>A tecla R grava dois segundos da sua voz e os toca de volta. Um ponto no canto de cima, à direita, é a luz de gravação, e a classe <code>Gravador</code> cuida de tudo o que é do microfone. A gravação começa numa linha:</p>
+        `,
+        {
+          snip: `self.gravacao = self.mic.record(seconds=2, on_done=self.gravou)`
+        },
+        `
+        <p><code>record</code> (gravar) começa a gravar e devolve a gravação na hora, guardada em <code>self.gravacao</code>. Mas ela ainda está sendo feita, e só dá para tocar quando acabar. Por isso o <code>on_done</code> (ao terminar): quando os dois segundos passam, o Scena chama <code>gravou</code>, que toca o que você disse.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 110" role="img" aria-label="Uma linha do tempo: em 0 segundo, a tecla R começa a gravação; ela dura até 2 segundos; em 2 segundos, o Scena chama gravou, que toca a gravação">
+            <line class="ray" x1="30" y1="70" x2="370" y2="70"/>
+            <rect class="bar" x="60" y="56" width="200" height="14"/>
+            <circle class="dot" cx="60" cy="70" r="4"/>
+            <circle class="hot" cx="260" cy="70" r="5"/>
+            <text x="160" y="48" text-anchor="middle">grava</text>
+            <text x="268" y="48">gravou: toca</text>
+            <text x="60" y="90" text-anchor="middle">R</text>
+            <text x="60" y="104" text-anchor="middle">0 s</text>
+            <text x="260" y="104" text-anchor="middle">2 s</text>
+          </svg>
+          <figcaption>O R só começa a gravação. A gravação existe desde o começo, mas fica pronta dois segundos depois, e é aí que o <code>gravou</code> roda.</figcaption>
+        </figure>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=600, title="Estúdio")
@@ -129,13 +146,38 @@ gravador = Gravador(center=(975, 575))
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "self.mic = None",
+          text: "Até o primeiro R, não há microfone: <code>self.mic</code> começa como <code>None</code> (nada)."
+        },
+        {
+          at: "self.mic = Microphone()",
+          text: "<code>Microphone()</code> (microfone) abre o microfone do computador; nada é captado antes dessa linha. O gravador o abre no primeiro R, e não no começo do programa: o programa só ouve quando você pede. <code>if not self.mic</code> pergunta se ele ainda não foi aberto."
+        },
+        {
+          at: "if self.mic.recording:",
+          text: "<code>recording</code> (gravando) é verdadeiro enquanto grava. Um R no meio da gravação não começa outra: o <code>return</code> sai de <code>gravar</code> antes."
+        },
+        {
+          at: "self.color = \"red\"",
+          text: "Enquanto grava, a luz fica vermelha e o aviso diz \"Fale!\". O <code>gravou</code> apaga a luz."
+        },
+        {
+          at: "play_sound(self.gravacao)",
+          text: "<code>play_sound</code> toca a gravação como tocaria um arquivo."
+        }
+      ],
+      after: `
+        <p>Rode, aperte R e fale.</p>
+        <p>Na primeira vez, o sistema pergunta se o programa que roda o seu script (o Terminal, o VS Code…) pode usar o microfone. Responda que sim. Se a pergunta apareceu no meio da gravação e ela saiu muda, aperte R de novo. Se você negar, o microfone fica mudo, e o Scena avisa no console.</p>
+      `
     },
     {
       title: "As teclas cantam",
       body: `
-        <p>Em vez de tocar a gravação uma vez, o gravador a guarda: <code>self.som</code> é o som que o piano toca. Ele começa como a nota do 22, <code>"audio/nota.wav"</code>; <code>gravou</code> troca pela gravação.</p>
-        <p><strong>A tecla toca o som do gravador.</strong> Em <code>tocar</code>, <code>play_sound(gravador.som, pitch=self.nota)</code>. <code>play_sound</code> aceita o nome de um arquivo ou um som gravado, e o <code>pitch=</code> vale para os dois. Grave "lá", e o piano canta: a sua voz nas oito alturas do 22, do A ao K.</p>
+        <p>Em vez de tocar a gravação uma vez, o gravador a guarda, e o piano passa a tocá-la. Grave "lá", e o piano canta: a sua voz nas oito alturas, do A ao K.</p>
       `,
       code: `from scena import *
 
@@ -201,6 +243,23 @@ gravador = Gravador(center=(975, 575))
 
 run()
 `,
+      notes: [
+        {
+          at: "play_sound(gravador.som",
+          text: "A tecla toca o som do gravador. <code>play_sound</code> aceita o nome de um arquivo ou um som gravado, e o <code>pitch=</code> vale para os dois."
+        },
+        {
+          at: "self.som = \"audio/nota.wav\"",
+          text: "<code>self.som</code> é o som que o piano toca. Até a primeira gravação, é a nota de piano de sempre."
+        },
+        {
+          at: "self.som = self.gravacao",
+          text: "Quando a gravação fica pronta, ela passa a ser o som do piano."
+        }
+      ],
+      after: `
+        <p>Rode, aperte R e diga "lá". Depois, passe os dedos de A a K.</p>
+      `,
       try: [
         {
           note: "A voz com um efeito. <code>bake</code> (assar) aplica o efeito uma vez e devolve um som novo, já pronto: as oito teclas tocam a voz com eco. Um por vez, no lugar da linha <code>self.som = self.gravacao</code>: <code>Echo</code> (eco), <code>Reverb</code> (sala), <code>Distortion</code> (distorção), <code>LowPass</code> (abafado) e <code>HighPass</code> (fino, de rádio).",
@@ -215,14 +274,17 @@ self.som = self.gravacao.bake(HighPass())`
     },
     {
       title: "O medidor",
-      body: `
-        <p>Uma barra em cima, à esquerda, mostra quão alto você está falando agora. Ela começa a andar depois do primeiro R, quando o microfone abre.</p>
-        <p><strong>Quão alto.</strong> <code>self.mic.level</code> (nível) diz quão alto está o som que chega ao microfone, de 0 (silêncio) a 1. É o mesmo medidor do som do jogo, <code>audio.level</code> (tutorial 22), mas do que chega ao microfone. Nessa conta, a fala é pequena, poucos centésimos, e a barra mal sairia do lugar. <code>amp_db</code> passa o nível para a escala do ouvido, também de 0 a 1: o silêncio fica perto de 0, a fala no meio, um grito perto de 1.</p>
-        <p><strong>Uma fórmula, não uma cópia.</strong> <code>barra["width"] @= lambda: 300 * st.voz</code> é a primeira regra das Fórmulas (09): o <code>=</code> faria a conta uma vez, com <code>st.voz</code> ainda 0; o <code>@=</code> guarda a fórmula, e o Scena a refaz toda vez que <code>st.voz</code> muda.</p>
-        <p><strong>A voz numa célula.</strong> O Scena sabe quando refazer uma fórmula porque acompanha o que ela lê, e o nível do microfone é uma dessas coisas. Quando o primeiro R abre o microfone, o gravador liga a célula <code>st["voz"]</code> a ele: <code>st["voz"] @= lambda: amp_db(self.mic.level)</code>. São duas fórmulas em fila: a barra segue <code>st.voz</code>, e <code>st.voz</code> segue o microfone. Nenhuma linha copia nada.</p>
-        <p><strong>Por que não ligar a barra direto no microfone?</strong> Uma fórmula aprende o que vai seguir na hora em que é ligada. No começo do programa ainda não há microfone: <code>gravador.mic</code> é <code>None</code>, e uma fórmula com <code>gravador.mic.level</code> daria erro. Por isso o <code>@=</code> do microfone fica no <code>gravar</code>, logo depois de abri-lo. A barra se liga a <code>st.voz</code>, que existe desde o começo e vale 0 até o primeiro R. E a voz ganha um nome só, para a barra e para o que vier depois.</p>
-        <p>O retângulo escuro, sem nome, é o trilho do medidor: mostra até onde a barra vai.</p>
-      `,
+      body: [
+        `
+        <p>Uma barra em cima, à esquerda, mostra quão alto você está falando agora. A largura dela é uma fórmula:</p>
+        `,
+        {
+          snip: `barra["width"] @= lambda: 300 * st.voz`
+        },
+        `
+        <p>Uma fórmula, não uma cópia: o <code>=</code> faria a conta uma vez, com <code>st.voz</code> ainda 0, e a barra ficaria parada. O <code>@=</code> guarda a fórmula, e o Scena a refaz toda vez que <code>st.voz</code> muda (as regras estão nas Fórmulas, 09). Quem faz <code>st.voz</code> mudar é outra fórmula, ligada ao microfone.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=600, title="Estúdio")
@@ -295,6 +357,33 @@ barra["width"] @= lambda: 300 * st.voz
 
 run()
 `,
+      notes: [
+        {
+          at: "st.voz = 0",
+          text: "A voz numa célula do <code>st</code>, que existe desde o começo e vale 0 até o primeiro R."
+        },
+        {
+          at: "st[\"voz\"] @= lambda: amp_db(self.mic.level)",
+          text: "Quando o primeiro R abre o microfone, a célula se liga a ele. <code>level</code> (nível) diz quão alto chega o som, de 0 a 1, mas a fala dá só poucos centésimos. <code>amp_db</code> passa o nível para a escala do ouvido: o silêncio fica perto de 0, a fala no meio, um grito perto de 1."
+        },
+        {
+          at: "color=\"#262B55\"",
+          text: "O retângulo escuro, sem nome, é o trilho do medidor: mostra até onde a barra vai."
+        }
+      ],
+      after: [
+        `
+        <p>Rode, aperte R e fale: a barra anda com a sua voz. São duas fórmulas em fila: a barra segue <code>st.voz</code>, e <code>st.voz</code> segue o microfone. Nenhuma linha copia nada.</p>
+        <p>Parece mais simples ligar a barra direto no microfone, sem a célula no meio:</p>
+        `,
+        {
+          snip: `barra["width"] @= lambda: 300 * amp_db(gravador.mic.level)`,
+          alt: true
+        },
+        `
+        <p>Mas uma fórmula começa a valer na hora em que é ligada, e no começo do programa ainda não há microfone: <code>gravador.mic</code> é <code>None</code>, e essa linha daria erro. Por isso o <code>@=</code> do microfone fica no <code>gravar</code>, logo depois de abri-lo, e a barra se liga a <code>st.voz</code>, que existe desde o começo. De quebra, a voz ganha um nome só, para a barra e para o que vier depois.</p>
+        `
+      ],
       try: [
         {
           note: "A cópia, para ver a diferença. No lugar do <code>@=</code>, a barra fica em 0 (a conta foi feita uma vez, no começo):",
@@ -306,7 +395,7 @@ run()
         {
           title: "O que dá para ligar",
           body: `
-            <p>As regras do <code>@=</code> estão nas Fórmulas (09); a fonte nova deste tutorial é o nível do microfone (<code>self.mic.level</code>), que o Scena confere uma vez por quadro, como o relógio.</p>
+            <p>Uma fórmula se refaz quando muda alguma coisa que ela lê. O nível do microfone (<code>self.mic.level</code>) é uma dessas fontes: o Scena o confere uma vez por quadro, como faz com o relógio. As teclas e o mouse também são, e as caixas abaixo trocam a voz por eles. As regras do <code>@=</code> estão nas Fórmulas (09).</p>
             <p>No Guia: <a href="../guide/index.html#reativo-liga">Ligar</a> · <a href="../guide/index.html#reativo-fontes">O que pode ser ligado</a>.</p>
           `,
           try: [
@@ -326,42 +415,7 @@ run()
     {
       title: "A luz que dança",
       body: `
-        <p><strong>Uma trilha.</strong> <code>Track.eight(width=760, height=140, center=(500, 470))</code> é uma trilha como as do tutorial 13, aqui com a forma de um oito (<em>eight</em>), de 760 de largura e 140 de altura, sobre as teclas. Lembrete: a trilha é invisível; <code>Ctrl+Shift+7</code> mostra as trilhas em magenta.</p>
-        <p><strong>Percorrer.</strong> <code>estrela.move_along(trilha, time=8, loops="forever")</code> (mover ao longo de) põe a estrela no caminho, como o letreiro do 04: uma volta inteira a cada 8 segundos (<code>time=8</code>), para sempre. Ela anda sozinha; nenhuma linha no <code>update</code>.</p>
-        <p><strong>A luz.</strong> <code>GlowSpot</code> (mancha de luz) é um efeito do mundo, como o <code>Jet</code> do 06. Um efeito não percorre trilha: ele segue a estrela, com <code>center=lambda: estrela.center</code>. O alcance (<code>radius</code>) e o brilho (<code>amount</code>) se ligam a <code>st.voz</code>, como a barra: em silêncio, uma luz pequena e fraca; quando você fala, ela cresce e acende.</p>
-
-        <figure class="fig">
-          <svg viewBox="0 0 400 170" role="img" aria-label="À esquerda, o microfone, com mic.level; uma seta marcada @= leva a st.voz, no meio; de st.voz saem três setas marcadas @=, para barra.width, luz.radius e luz.amount, à direita">
-            <rect class="bar child" x="8" y="64" width="92" height="42" rx="4"/>
-            <text x="20" y="82">microfone</text>
-            <text x="20" y="97">mic.level</text>
-            <line class="ray" x1="100" y1="85" x2="160" y2="85"/>
-            <line class="ray" x1="160" y1="85" x2="153" y2="80"/>
-            <line class="ray" x1="160" y1="85" x2="153" y2="90"/>
-            <text x="120" y="76">@=</text>
-            <rect class="bar" x="160" y="68" width="70" height="34" rx="4"/>
-            <text x="174" y="89">st.voz</text>
-            <line class="ray" x1="230" y1="85" x2="290" y2="35"/>
-            <line class="ray" x1="290" y1="35" x2="286.5" y2="43.2"/>
-            <line class="ray" x1="290" y1="35" x2="281.3" y2="37"/>
-            <line class="ray" x1="230" y1="85" x2="290" y2="85"/>
-            <line class="ray" x1="290" y1="85" x2="283" y2="80"/>
-            <line class="ray" x1="290" y1="85" x2="283" y2="90"/>
-            <line class="ray" x1="230" y1="85" x2="290" y2="135"/>
-            <line class="ray" x1="290" y1="135" x2="281.3" y2="133"/>
-            <line class="ray" x1="290" y1="135" x2="286.5" y2="126.8"/>
-            <text x="240" y="50">@=</text>
-            <text x="250" y="80">@=</text>
-            <text x="240" y="130">@=</text>
-            <circle class="dot" cx="296" cy="35" r="3"/>
-            <circle class="dot" cx="296" cy="85" r="3"/>
-            <circle class="dot" cx="296" cy="135" r="3"/>
-            <text x="304" y="39">barra.width</text>
-            <text x="304" y="89">luz.radius</text>
-            <text x="304" y="139">luz.amount</text>
-          </svg>
-          <figcaption>Quatro fórmulas, nenhuma cópia. <code>st.voz</code> está ligada ao nível do microfone; a barra e a luz estão ligadas a <code>st.voz</code>. Quando você fala, tudo muda sozinho.</figcaption>
-        </figure>
+        <p>Uma estrela percorre um caminho em forma de oito sobre as teclas, e uma luz a acompanha, crescendo com a voz.</p>
       `,
       code: `from scena import *
 
@@ -443,6 +497,59 @@ luz["amount"] @= lambda: 0.3 + st.voz
 
 run()
 `,
+      notes: [
+        {
+          at: "Track.eight(",
+          text: "<code>Track</code> (trilha) é um caminho invisível; <code>Track.eight</code> tem a forma de um oito (<em>eight</em>), de 760 de largura e 140 de altura, sobre as teclas. <kbd>Ctrl+Shift+7</kbd> mostra as trilhas em magenta."
+        },
+        {
+          at: "estrela.move_along(",
+          text: "<code>move_along</code> (mover ao longo de) põe a estrela no caminho: uma volta inteira a cada 8 segundos, para sempre. Ela anda sozinha, sem nenhuma linha no <code>update</code>."
+        },
+        {
+          at: "center=lambda: estrela.center",
+          text: "<code>GlowSpot</code> (mancha de luz) é um efeito do mundo. Um efeito não percorre trilha: ele segue a estrela, com o centro ligado ao dela por uma fórmula."
+        },
+        {
+          at: "luz[\"radius\"] @=",
+          text: "O alcance (<code>radius</code>, raio) e o brilho (<code>amount</code>, quantidade) se ligam a <code>st.voz</code>, como a barra."
+        }
+      ],
+      after: `
+        <p>Rode e fale: a luz cresce e acende; em silêncio, fica pequena e fraca. Tudo o que reage à voz passa por <code>st.voz</code>:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 170" role="img" aria-label="À esquerda, o microfone, com mic.level; uma seta marcada @= leva a st.voz, no meio; de st.voz saem três setas marcadas @=, para barra.width, luz.radius e luz.amount, à direita">
+            <rect class="bar child" x="8" y="64" width="92" height="42" rx="4"/>
+            <text x="20" y="82">microfone</text>
+            <text x="20" y="97">mic.level</text>
+            <line class="ray" x1="100" y1="85" x2="160" y2="85"/>
+            <line class="ray" x1="160" y1="85" x2="153" y2="80"/>
+            <line class="ray" x1="160" y1="85" x2="153" y2="90"/>
+            <text x="120" y="76">@=</text>
+            <rect class="bar" x="160" y="68" width="70" height="34" rx="4"/>
+            <text x="174" y="89">st.voz</text>
+            <line class="ray" x1="230" y1="85" x2="290" y2="35"/>
+            <line class="ray" x1="290" y1="35" x2="286.5" y2="43.2"/>
+            <line class="ray" x1="290" y1="35" x2="281.3" y2="37"/>
+            <line class="ray" x1="230" y1="85" x2="290" y2="85"/>
+            <line class="ray" x1="290" y1="85" x2="283" y2="80"/>
+            <line class="ray" x1="290" y1="85" x2="283" y2="90"/>
+            <line class="ray" x1="230" y1="85" x2="290" y2="135"/>
+            <line class="ray" x1="290" y1="135" x2="281.3" y2="133"/>
+            <line class="ray" x1="290" y1="135" x2="286.5" y2="126.8"/>
+            <text x="240" y="50">@=</text>
+            <text x="250" y="80">@=</text>
+            <text x="240" y="130">@=</text>
+            <circle class="dot" cx="296" cy="35" r="3"/>
+            <circle class="dot" cx="296" cy="85" r="3"/>
+            <circle class="dot" cx="296" cy="135" r="3"/>
+            <text x="304" y="39">barra.width</text>
+            <text x="304" y="89">luz.radius</text>
+            <text x="304" y="139">luz.amount</text>
+          </svg>
+          <figcaption>Quatro fórmulas, nenhuma cópia. <code>st.voz</code> está ligada ao nível do microfone; a barra e a luz estão ligadas a <code>st.voz</code>. Quando você fala, tudo muda sozinho.</figcaption>
+        </figure>
+      `,
       try: [
         {
           note: "Outras trilhas, uma por vez, no lugar da linha da <code>trilha</code>: um círculo, uma estrela de cinco pontas, um caminho seu (pontos ligados por uma curva, de volta ao começo).",
@@ -460,12 +567,32 @@ trilha = Track(points=[(120, 420), (360, 540), (640, 400), (880, 520)], closed=T
     {
       title: "Palmas",
       example: "estudio_voz.py",
-      body: `
-        <p>Bata uma palma: um sol estoura onde a estrela está.</p>
-        <p><strong>Uma vez por palma.</strong> <code>@when(lambda: st.voz > 0.75)</code> é o <code>@when</code> do 01: roda <code>palma</code> uma vez, quando a condição passa de falsa para verdadeira. Enquanto o som continua alto, não roda de novo; a palma seguinte precisa de um silêncio antes. Um <code>update</code> que testasse <code>st.voz > 0.75</code> a cada quadro soltaria um sol por quadro.</p>
-        <p><strong>O sol.</strong> <code>Sunburst</code> (explosão de sol) é outro efeito do mundo. Ele nasce no lugar onde a estrela estava (<code>center=estrela.center</code>, sem <code>lambda</code>: o sol fica, a estrela segue) e é destruído 0,8 segundo depois, como as faíscas do 08.</p>
-        <p><strong>O número.</strong> 0,75 depende do seu microfone e da sala. Olhe o medidor: três quartos da barra. Se a palma não solta o sol, baixe (0,65); se ele estoura quando você só fala, suba.</p>
-      `,
+      body: [
+        `
+        <p>Bata uma palma: um sol estoura onde a estrela está. Uma palma é a voz passando de um limite, e quem percebe isso é um <code>@when</code>:</p>
+        `,
+        {
+          snip: `@when(lambda: st.voz > 0.75)
+def palma():`
+        },
+        `
+        <p><code>@when</code> (quando) roda <code>palma</code> uma vez, no instante em que a condição passa de falsa para verdadeira. Enquanto o som continua alto, ela não roda de novo; a palma seguinte precisa de um silêncio antes.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 130" role="img" aria-label="O valor de st.voz ao longo do tempo, com uma linha tracejada em 0.75; a voz passa da linha duas vezes, e um ponto marca cada passagem para cima: palma 1 e palma 2; entre elas, a voz cai, em silêncio">
+            <line class="guide" x1="50" y1="50" x2="370" y2="50"/>
+            <path class="ray" fill="none" d="M50 100 L100 100 C115 100 120 20 135 20 C150 20 155 100 170 100 L230 100 C245 100 250 20 265 20 C280 20 285 100 300 100 L370 100"/>
+            <circle class="hot" cx="120" cy="50" r="5"/>
+            <circle class="hot" cx="250" cy="50" r="5"/>
+            <text x="44" y="54" text-anchor="end">0.75</text>
+            <text x="44" y="104" text-anchor="end">0</text>
+            <text x="200" y="92" text-anchor="middle">silêncio</text>
+            <text x="120" y="122" text-anchor="middle">palma 1</text>
+            <text x="250" y="122" text-anchor="middle">palma 2</text>
+          </svg>
+          <figcaption>A voz ao longo do tempo. O <code>@when</code> roda só nos pontos, quando a voz passa de 0.75 subindo, e não enquanto ela fica lá em cima.</figcaption>
+        </figure>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=600, title="Estúdio")
@@ -552,9 +679,35 @@ def palma():
 
 run()
 `,
+      notes: [
+        {
+          at: "sol = Sunburst(center=estrela.center",
+          text: "<code>Sunburst</code> (explosão de sol) é outro efeito do mundo. <code>center=estrela.center</code>, sem <code>lambda</code>, é uma cópia: o sol fica onde a estrela estava, e a estrela segue."
+        },
+        {
+          at: "sol.after(0.8, sol.destroy)",
+          text: "<code>after</code> (depois) chama <code>sol.destroy</code> 0.8 s mais tarde: o sol estoura e some."
+        }
+      ],
+      after: [
+        `
+        <p>Rode, aperte R uma vez para abrir o microfone e bata palmas.</p>
+        <p>O 0.75 depende do seu microfone e da sala. Olhe o medidor: três quartos da barra. Se a palma não solta o sol, baixe (0.65); se ele estoura quando você só fala, suba.</p>
+        <p>Um <code>update</code> que fizesse a mesma pergunta não serviria:</p>
+        `,
+        {
+          snip: `def update(dt):
+    if st.voz > 0.75:
+        palma()`,
+          alt: true
+        },
+        `
+        <p>Ele pergunta a cada quadro, e a palma fica acima do limite por vários quadros: sairia um sol por quadro, uma pilha deles a cada palma.</p>
+        `
+      ],
       try: [
         {
-          note: "Outros estouros, um por vez, no lugar das duas linhas do <code>Sunburst</code>: um <code>Orb</code> (um sol com coroa); um impacto do 05, que some sozinho (sem <code>destroy</code>); a tela que pisca.",
+          note: "Outros estouros, um por vez, no lugar das duas linhas do <code>Sunburst</code>: um <code>Orb</code> (um sol com coroa); um impacto, que some sozinho (sem <code>destroy</code>); a tela que pisca.",
           replaces: ['sol = Sunburst(', 'sol.after('],
           code: `sol = Orb(center=estrela.center, radius=50)
 sol.after(0.8, sol.destroy)`

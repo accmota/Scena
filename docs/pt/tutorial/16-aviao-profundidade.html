@@ -20,8 +20,7 @@ Tutorial.mount({
     {
       title: "O jogo do 15",
       body: `
-        <p>Novo script: o avião do tutorial 15, com os pilares, os pontos, a batida e o espaço para recomeçar. Neste tutorial ele ganha <strong>profundidade</strong>: o céu tem montanhas e nuvens que passam, umas mais depressa que as outras. E música.</p>
-        <p>As imagens novas são da mesma pasta do céu, <code>backgrounds/mountains/</code>: <code>mountains2.png</code> (nuvens pequenas), <code>mountains3.png</code> (montes) e <code>mountains4.png</code> (mato), cada uma do tamanho da tela, com o fundo transparente.</p>
+        <p>Novo script, que começa com o jogo do avião pronto: os pilares, os pontos, a batida e o espaço para recomeçar. Aqui ele ganha profundidade: montanhas e nuvens que passam atrás dele, umas mais depressa que as outras. E música.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -128,11 +127,11 @@ run()
     },
     {
       title: "Longe e perto",
-      body: `
-        <p>Olhe pela janela de um carro: a árvore da beira da estrada passa voando, o morro lá longe quase não anda, e a lua parece ir junto com você. Quanto mais longe, mais devagar. Desenhar o cenário em faixas que andam em velocidades diferentes dá essa sensação na tela: chama-se <strong>parallax</strong>.</p>
-
+      body: [
+        `
+        <p>Olhe pela janela de um carro: a árvore da beira da estrada passa voando, o morro lá longe quase não anda, e a lua parece ir junto com você. Quanto mais longe, mais devagar. Desenhar o cenário em faixas que andam em velocidades diferentes dá essa sensação na tela, e o nome disso é <em>parallax</em>.</p>
         <figure class="fig">
-          <svg viewBox="0 0 400 210" role="img" aria-label="Quatro faixas, da mais longe, em cima, à mais perto, embaixo: nuvens, montes, mato e pilares; cada uma tem uma seta para a esquerda, mais curta para o que está longe e mais comprida para o que está perto">
+          <svg viewBox="0 0 415 210" role="img" aria-label="Quatro faixas, da mais longe, em cima, à mais perto, embaixo: nuvens, montes, mato e pilares; cada uma tem uma seta para a esquerda, mais curta para o que está longe e mais comprida para o que está perto">
             <text x="10" y="28">longe</text>
             <text x="10" y="190">perto</text>
             <line class="guide" x1="30" y1="40" x2="30" y2="170"/>
@@ -160,11 +159,15 @@ run()
           </svg>
           <figcaption>Quanto mais longe, mais devagar. As setas são quanto cada faixa anda num segundo, para a esquerda.</figcaption>
         </figure>
-
-        <p><strong>Uma camada por faixa.</strong> <code>canvas.layers.create("montes", scroll=(-36, 0), below="default")</code> cria uma <strong>camada</strong> (<em>layer</em>) com nome: um plano de desenho, como uma folha de papel transparente. <code>scroll=(-36, 0)</code> (rolar) faz a camada andar sozinha, 36 por segundo para a esquerda, com tudo que está nela. <code>below="default"</code> (abaixo) a põe atrás da camada onde o jogo acontece: os pilares e o avião passam na frente. Criadas na mesma posição, a camada criada depois fica na frente da anterior: as nuvens no fundo, o mato na frente.</p>
-        <p><strong>Sem fim.</strong> Uma imagem da largura da tela, andando, acaba logo. <code>Endless("montes", "…/mountains3.png", height=360)</code> (sem fim) enche a camada com a mesma imagem, uma colada na outra, sem fim: por mais que o avião voe, sempre há mais paisagem chegando pela direita. <code>height=360</code> é a altura de cada imagem, a da tela.</p>
-        <p>Voe, e depois bata. O avião cai, os pilares param… e as montanhas continuam passando.</p>
-      `,
+        <p>Cada faixa vai numa camada própria:</p>
+        `,
+        {
+          snip: `montes = canvas.layers.create("montes", scroll=(-36, 0), below="default")`
+        },
+        `
+        <p>Uma camada (<em>layer</em>) é um plano de desenho com nome, como uma folha de papel transparente. <code>scroll=(-36, 0)</code> (rolar) faz a camada andar sozinha, 36 por segundo para a esquerda, com tudo que está nela. <code>below="default"</code> (abaixo da padrão) a põe atrás da camada onde o jogo acontece: os pilares e o avião passam na frente.</p>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -274,12 +277,26 @@ def saiu(coisa):
 
 run()
 `,
+      notes: [
+        {
+          at: "nuvens = canvas.layers.create(\"nuvens\"",
+          text: "As faixas são criadas de trás para a frente. Entre camadas na mesma posição, a criada depois fica na frente: as nuvens, primeiro, no fundo; o mato, por último, mais perto."
+        },
+        {
+          at: "Endless(\"montes\"",
+          text: "<code>Endless</code> (sem fim) enche a camada com a mesma imagem, uma colada na outra: por mais que o avião voe, sempre há mais paisagem chegando pela direita. Cada imagem tem o tamanho da tela e o fundo transparente; <code>height=360</code> é a altura dela."
+        }
+      ],
+      after: `
+        <p>Voe, e depois bata.</p>
+        <details class="ask"><summary>O que continua andando depois da batida?</summary><p>As montanhas. O avião cai e os pilares param, mas cada camada tem o seu <code>scroll</code> e anda sozinha, sem saber do voo.</p></details>
+      `,
       dive: [
         {
           title: "Camadas",
           body: `
-            <p><strong>Camadas.</strong> Toda coisa na tela está numa camada, e as camadas decidem o que fica na frente. Três já existem: <code>default</code> (padrão, onde tudo nasce), <code>top</code> (na frente do mundo) e <code>ui</code> (o HUD, presa à janela). <code>canvas.layers.create</code> cria outras, por nome, e <code>below=</code> / <code>above=</code> (acima) dizem onde ficam. Entre duas camadas do mesmo lado, vale a ordem em que foram criadas: a criada depois fica na frente. Por isso as faixas deste jogo são criadas de trás para a frente, primeiro a mais distante.</p>
-            <p><strong>Andar sozinha.</strong> <code>scroll=</code> é uma deriva: a camada anda nessa velocidade, sem nada no jogo mexendo nela. Aqui a câmera fica parada e é o cenário que passa.</p>
+            <p>Toda coisa na tela está numa camada, e as camadas decidem o que fica na frente. Três já existem: <code>default</code> (padrão, onde tudo nasce), <code>top</code> (na frente do mundo) e <code>ui</code> (o HUD, presa à janela). <code>canvas.layers.create</code> cria outras, por nome, e <code>below=</code> / <code>above=</code> (acima) dizem onde ficam. Entre duas camadas do mesmo lado, vale a ordem em que foram criadas: a criada depois fica na frente. Por isso as faixas deste jogo são criadas de trás para a frente, primeiro a mais distante.</p>
+            <p><code>scroll=</code> é uma deriva: a camada anda nessa velocidade, sem nada no jogo mexendo nela. Aqui a câmera fica parada e é o cenário que passa.</p>
             <p>No Guia: <a href="../guide/index.html#mundo-camadas">Camadas</a> · <a href="../guide/index.html#mundo-sem-fim">Mundo sem fim</a>.</p>
           `
         }
@@ -295,9 +312,13 @@ run()
     {
       title: "Uma velocidade só",
       body: `
-        <p>As camadas andam cada uma no seu número, e os pilares no deles. Mas é tudo o mesmo voo: quando o avião cai, tudo deveria parar junto.</p>
-        <p><strong>Uma velocidade.</strong> <code>st.velocidade</code> é a velocidade do voo, 120. Os pilares andam essa velocidade, e cada camada anda uma <strong>fração</strong> dela, escrita no <code>update</code> a cada quadro: <code>montes.scroll = (-st.velocidade * 0.3, 0)</code>, 30% do voo. As nuvens, longe, 10%; o mato, perto, 70%. O <code>scroll=</code> da criação continua no lugar; daqui em diante, é o <code>update</code> que muda o valor.</p>
-        <p><strong>A freada.</strong> Na queda, a velocidade persegue zero: <code>st.velocidade = chase(st.velocidade, 0, rate=2)</code>, o <code>chase</code> do manche, agora num número. Pilares e camadas freiam juntos, e param em um ou dois segundos. Recomeçar devolve os 120.</p>
+        <p>As camadas andam cada uma no seu número, e os pilares no deles. Mas é tudo o mesmo voo: quando o avião cai, tudo deveria parar junto. Para isso, o voo ganha uma velocidade só, <code>st.velocidade</code>, e cada faixa anda uma fração dela:</p>
+        <div class="tbl"><table><thead><tr><th>Faixa</th><th>Fração do voo</th><th>A 120 por segundo</th></tr></thead><tbody>
+          <tr><td>nuvens</td><td><code>0.1</code></td><td>12</td></tr>
+          <tr><td>montes</td><td><code>0.3</code></td><td>36</td></tr>
+          <tr><td>mato</td><td><code>0.7</code></td><td>84</td></tr>
+          <tr><td>pilares</td><td>inteira</td><td>120</td></tr>
+        </tbody></table></div>
       `,
       code: `from random import uniform
 from scena import *
@@ -414,6 +435,19 @@ def saiu(coisa):
 
 run()
 `,
+      notes: [
+        {
+          at: "st.velocidade = chase(st.velocidade, 0, rate=2)",
+          text: "Na queda, a velocidade persegue zero: o mesmo <code>chase</code> do nariz do avião, agora num número. Pilares e camadas freiam juntos e param em um ou dois segundos."
+        },
+        {
+          at: "montes.scroll = (-st.velocidade * 0.3, 0)",
+          text: "A camada anda 30% do voo. O <code>scroll=</code> da criação continua no lugar; daqui em diante, é o <code>update</code> que muda o valor, a cada quadro."
+        }
+      ],
+      after: `
+        <p>Rode, voe e bata: agora o cenário freia junto com os pilares. Recomeçar devolve os 120.</p>
+      `,
       try: [
           {
             note: "Mais depressa a cada ponto: o voo acelera 4 por ponto. No <code>passou</code> do <code>Aviao</code>, depois do <code>st.pontos += 1</code>:",
@@ -424,8 +458,7 @@ run()
     {
       title: "Fogo na queda",
       body: `
-        <p>O avião quebrado cai pegando fogo. <code>Fire</code> (fogo), um efeito que vive no mundo, como o fogo no destroço da nave no 07. <code>style="plume"</code> (pluma) é uma labareda que sobe.</p>
-        <p><strong>Atrás do avião.</strong> <code>center=lambda: self.center</code>: o centro do fogo é uma <code>lambda</code> que lê o centro do avião, então o fogo cai junto com ele, como o propulsor do 06 seguia a nave. O fogo fica guardado em <code>self.fogo</code>, e <code>recomecar</code> o apaga.</p>
+        <p>O avião quebrado cai pegando fogo, e o fogo vai com ele até o chão.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -544,6 +577,19 @@ def saiu(coisa):
 
 run()
 `,
+      notes: [
+        {
+          at: "self.fogo = Fire(",
+          text: "<code>Fire</code> (fogo) é um efeito que vive no mundo; <code>style=\"plume\"</code> (pluma) é uma labareda que sobe. O centro é uma <code>lambda</code> que lê o centro do avião, então o fogo cai junto com ele."
+        },
+        {
+          at: "aviao.fogo.destroy()",
+          text: "O fogo ficou guardado em <code>self.fogo</code>, e <code>recomecar</code> o apaga."
+        }
+      ],
+      after: `
+        <p>Bata num pilar: o fogo cai com o avião e se apaga quando o jogo recomeça.</p>
+      `,
       try: [
           {
             note: "Um de cada vez, no lugar do <code>Fire</code> em <code>cair</code>: um fogo maior, ou brasas que sobem.",
@@ -557,8 +603,7 @@ self.fogo = Fire(center=lambda: self.center, width=20, style="embers")`
       title: "Música",
       example: "aviao_profundidade.py",
       body: `
-        <p>Uma música para o voo. <code>play_sound</code> (do 07) com <code>loops="forever"</code> (repetir para sempre) toca e recomeça sozinha quando acaba. <code>volume=0.5</code>, metade, para os outros sons aparecerem.</p>
-        <p><strong>O controle do som.</strong> <code>play_sound</code> devolve um controle do som que está tocando, guardado em <code>musica</code>. <code>musica.fade_to(0.1, time=1)</code> (esmaecer até) abaixa o volume para 0.1 em um segundo, sem cortar: na queda, a música quase some. <code>recomecar</code> a traz de volta a 0.5.</p>
+        <p>Uma música para o voo, que abaixa quando o avião cai e volta quando o jogo recomeça.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -681,6 +726,23 @@ def saiu(coisa):
 
 run()
 `,
+      notes: [
+        {
+          at: "musica = play_sound(",
+          text: "Com <code>loops=\"forever\"</code> (voltas, para sempre), a música recomeça sozinha quando acaba; <code>volume=0.5</code>, metade, deixa os outros sons aparecerem. <code>play_sound</code> devolve um controle do som que está tocando, guardado em <code>musica</code>."
+        },
+        {
+          at: "musica.fade_to(0.1, time=1)",
+          text: "<code>fade_to</code> (esmaecer até) abaixa o volume para 0.1 em um segundo, sem cortar: na queda, a música quase some."
+        },
+        {
+          at: "musica.fade_to(0.5, time=1)",
+          text: "Ao recomeçar, a música volta a 0.5."
+        }
+      ],
+      after: `
+        <p>Rode com o som ligado, voe e bata.</p>
+      `,
       closing: `
         <p>Seta para cima levanta o nariz; seta para baixo o abaixa. Passe pelo vão dos pilares: cada par vale um ponto. O cenário passa em faixas, mais devagar as de longe. Batendo, o avião cai pegando fogo, tudo freia e a música abaixa; espaço recomeça.</p>
       `,

@@ -20,11 +20,35 @@ Tutorial.mount({
     {
       title: "O tabuleiro",
       body: `
-        <p>Novo script, e um jogo de tabuleiro: o <strong>Ligue 4</strong>. Dois jogadores, o vermelho e o azul, jogam uma bola por vez numa grade de 7 colunas e 6 linhas; a bola cai pela coluna até a casa livre mais baixa. Quem fizer quatro bolas em linha primeiro ganha.</p>
-        <p>Neste tutorial: um tabuleiro feito de casas, uma bola que você arrasta e solta numa coluna, e as regras do jogo escritas em Python simples, com listas. As peças vêm da folha que os pilares do Avião (15) já usavam: ela também tem buracos e bolas.</p>
-        <p><strong>Uma caixa que não aparece.</strong> <code>Box</code> (caixa) é um retângulo que não se desenha: serve para medir e posicionar. Ele se escreve como um <code>Rect</code>, com <code>center=</code>, <code>width=</code> e <code>height=</code>. A <code>zona</code> é o lugar das casas: 560 por 480.</p>
-        <p><strong>A moldura.</strong> O tabuleiro é um <code>Rect</code> feito da zona. <code>box=zona.outset(14)</code> é a zona alargada 14 para fora (<code>outset</code>) de cada lado, e <code>corner_radius=24</code> (raio do canto) arredonda os cantos. Os números ficam num lugar só: mude a zona, e a moldura vai junto.</p>
-        <p><strong>A grade.</strong> É a grade da Interação (11), agora para um tabuleiro de verdade. <code>zona.grid(7, 6)</code> fatia a zona em 7 colunas e 6 linhas iguais e devolve a grade (<code>grid</code>). Cada casa é também um <code>Box</code>, de 80 por 80. O <code>for</code> passa pelas 42 casas e põe um buraco em cada uma (o quadro <code>hole_large.png</code>). <code>box=casa</code> encaixa o sprite na casa: no centro dela, do tamanho dela.</p>
+        <p>Um script novo, e um jogo de tabuleiro: o <strong>Ligue 4</strong>. Dois jogadores, o vermelho e o azul, jogam uma bola por vez numa grade de 7 colunas e 6 linhas, e a bola cai pela coluna até a casa livre mais baixa. Quem fizer quatro bolas em linha primeiro ganha.</p>
+        <p>Começamos pelo tabuleiro: uma moldura clara com 42 buracos. Ele é medido antes de ser desenhado, a partir de um retângulo só, a zona das casas:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="A zona das casas, um retângulo tracejado de 560 por 480, cortado em 7 colunas e 6 linhas; em volta dela, um pouco maior, a moldura de cantos redondos; uma das casas, de 80 por 80, está marcada">
+            <rect class="ray" fill="none" x="110" y="24" width="180" height="156" rx="10"/>
+            <rect class="guide" fill="none" x="116" y="30" width="168" height="144"/>
+            <line class="guide" x1="140" y1="30" x2="140" y2="174"/>
+            <line class="guide" x1="164" y1="30" x2="164" y2="174"/>
+            <line class="guide" x1="188" y1="30" x2="188" y2="174"/>
+            <line class="guide" x1="212" y1="30" x2="212" y2="174"/>
+            <line class="guide" x1="236" y1="30" x2="236" y2="174"/>
+            <line class="guide" x1="260" y1="30" x2="260" y2="174"/>
+            <line class="guide" x1="116" y1="54" x2="284" y2="54"/>
+            <line class="guide" x1="116" y1="78" x2="284" y2="78"/>
+            <line class="guide" x1="116" y1="102" x2="284" y2="102"/>
+            <line class="guide" x1="116" y1="126" x2="284" y2="126"/>
+            <line class="guide" x1="116" y1="150" x2="284" y2="150"/>
+            <rect class="hot" x="237" y="55" width="22" height="22"/>
+            <line class="ray" x1="262" y1="66" x2="300" y2="66"/>
+            <text x="304" y="70">casa</text>
+            <text x="304" y="84">80 × 80</text>
+            <line class="ray" x1="98" y1="17" x2="112" y2="26"/>
+            <text x="94" y="18" text-anchor="end">moldura</text>
+            <text x="102" y="100" text-anchor="end">zona</text>
+            <text x="102" y="114" text-anchor="end">560 × 480</text>
+            <text x="200" y="196" text-anchor="middle">7 colunas × 6 linhas</text>
+          </svg>
+          <figcaption>A zona não se desenha: ela mede. A moldura é a zona alargada para fora, e a grade fatia a zona em 42 casas iguais.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -41,6 +65,28 @@ for casa in grade:
 
 run()
 `,
+      notes: [
+        {
+          at: "pecas = Sheet(",
+          text: "Uma folha (<code>Sheet</code>) com muitas imagens: buracos, bolas de várias cores. <code>frame=</code> (quadro) escolhe uma delas pelo nome."
+        },
+        {
+          at: "zona = Box(",
+          text: "<code>Box</code> (caixa) é um retângulo que não se desenha: serve para medir e posicionar. Ele se escreve como um <code>Rect</code>, com centro, largura e altura."
+        },
+        {
+          at: "zona.outset(14)",
+          text: "<code>outset</code> (alargar para fora) dá a zona 14 pixels maior de cada lado, e <code>corner_radius=24</code> (raio do canto) arredonda a moldura. Mude a zona, e a moldura vai junto."
+        },
+        {
+          at: "zona.grid(7, 6)",
+          text: "<code>grid</code> (grade) fatia a zona em 7 colunas e 6 linhas iguais. Cada casa é também um <code>Box</code>: 560 ÷ 7 = 80 de largura, 480 ÷ 6 = 80 de altura."
+        },
+        {
+          at: "box=casa",
+          text: "<code>box=casa</code> encaixa o sprite na casa: no centro dela, do tamanho dela. O <code>for</code> faz isso nas 42 casas."
+        }
+      ],
       try: [
           {
             note: "Sem a folha, os buracos podem ser formas: um círculo escuro no centro de cada casa. No lugar do <code>Sprite</code> do buraco:",
@@ -57,8 +103,7 @@ run()
     {
       title: "Uma bola para arrastar",
       body: `
-        <p>A bola do jogador espera ao lado do tabuleiro. É outro quadro da mesma folha, <code>ball_red_large.png</code>. <code>INICIO</code> guarda o lugar dela; o nome em maiúsculas avisa que esse valor não muda durante o jogo (como as listas do 17).</p>
-        <p><code>draggable = True</code> é o do tutorial 03: dá para pegar a bola com o mouse e levá-la a qualquer lugar. Rode e experimente. Por enquanto, ela fica onde você a solta, em cima do tabuleiro ou fora dele: soltar ainda não quer dizer nada.</p>
+        <p>A bola do jogador espera ao lado do tabuleiro, e você a leva com o mouse até uma coluna.</p>
       `,
       code: `from scena import *
 
@@ -78,17 +123,36 @@ proxima = Sprite(pecas, frame="ball_red_large.png", height=64, center=INICIO)
 proxima.draggable = True
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "INICIO = (110, 520)",
+          text: "O lugar onde a bola espera, à esquerda do tabuleiro. O nome em maiúsculas avisa que esse valor não muda durante o jogo."
+        },
+        {
+          at: "proxima.draggable = True",
+          text: "<code>draggable</code> (arrastável): dá para pegar a bola com o mouse e levá-la a qualquer lugar. Ela se chama <code>proxima</code> porque é sempre a próxima bola a jogar."
+        }
+      ],
+      after: `
+        <p>Rode e arraste a bola até o tabuleiro.</p>
+        <details class="ask"><summary>O que acontece quando você a solta?</summary><p>Nada: ela fica onde você a largou, em cima dos buracos ou fora do tabuleiro. Soltar ainda não quer dizer nada.</p></details>
+      `
     },
     {
       title: "Soltar numa casa",
-      body: `
-        <p><strong>Quando solta.</strong> <code>@drag_to(proxima)</code> (arrastou até), do encaixe na grade da Interação (11), diz ao Scena: quando o arraste desta bola acabar, chame a função. Ela recebe três coisas: a bola arrastada; o <code>alvo</code>, que aqui vem <code>None</code>; e <code>pos</code>, o ponto onde o mouse soltou.</p>
-        <p><strong>Que casa é essa?</strong> <code>grade.cell_at(pos)</code> (a casa em) faz a conta da grade ao contrário: recebe um ponto e devolve a casa que está embaixo dele, ou <code>None</code> (nada), se o ponto cai fora do tabuleiro.</p>
-        <p><strong>Fora, volta.</strong> Solta fora do tabuleiro, a bola volta ao seu lugar: <code>move_to(INICIO, time=0.3)</code> (mover até). Como no <code>scale_to</code> do 05, com <code>time=</code> ela não pula: desliza até lá em 0.3 segundo. O <code>return</code> termina a função ali mesmo. Solta numa casa, nasce uma bola no centro dela, e a <code>proxima</code> volta na hora para o lugar, pronta para outra jogada.</p>
-        <p><strong>Por cima.</strong> As bolas novas nascem depois da <code>proxima</code>, e quem nasce depois é desenhado na frente: arrastada sobre uma delas, a <code>proxima</code> passaria por baixo. <code>layer="top"</code> (a camada de cima) a põe numa camada acima da do jogo, como as camadas do 16.</p>
-        <p>A bola ainda fica na casa onde você a solta, até no meio de uma coluna vazia, como num jogo da velha. Falta a gravidade.</p>
-      `,
+      body: [
+        `
+        <p>Agora soltar quer dizer algo. Solta numa casa, nasce uma bola ali; solta fora do tabuleiro, a bola volta para o seu lugar. Quem avisa que o arraste acabou é um gancho novo:</p>
+        `,
+        {
+          snip: `@drag_to(proxima)
+def soltou(bola, alvo, pos):`
+        },
+        `
+        <p><code>@drag_to</code> (arrastou até) diz ao Scena: quando o arraste desta bola acabar, chame a função. Ela recebe três coisas: a bola arrastada; o <code>alvo</code>, que aqui vem <code>None</code> (nada); e <code>pos</code>, o ponto onde o mouse soltou.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=760, title="Ligue 4")
@@ -119,17 +183,39 @@ def soltou(bola, alvo, pos):
 
 run()
 `,
+      notes: [
+        {
+          at: "layer=\"top\"",
+          text: "As bolas novas nascem depois da <code>proxima</code>, e quem nasce depois é desenhado na frente: arrastada sobre uma delas, a <code>proxima</code> passaria por baixo. <code>layer=\"top\"</code> (a camada de cima) a põe acima da camada do jogo."
+        },
+        {
+          at: "grade.cell_at(pos)",
+          text: "<code>cell_at</code> (a casa em) faz a conta da grade ao contrário: recebe um ponto e devolve a casa que está embaixo dele, ou <code>None</code> se o ponto cai fora do tabuleiro."
+        },
+        {
+          at: "bola.move_to(INICIO, time=0.3)",
+          text: "<code>move_to</code> (mover até) com <code>time=</code> não pula: a bola desliza de volta em 0.3 s. O <code>return</code> da linha de baixo termina a função ali mesmo."
+        },
+        {
+          at: "bola.center = INICIO",
+          text: "Solta numa casa, a <code>proxima</code> volta na hora, sem deslizar, pronta para outra jogada. A bola que fica na casa é outra, nova."
+        }
+      ],
+      after: `
+        <p>Rode e solte a bola em várias casas, e uma vez fora do tabuleiro.</p>
+        <details class="ask"><summary>Onde fica a bola nova?</summary><p>Exatamente na casa onde você soltou, até no meio de uma coluna vazia, como num jogo da velha. Falta a gravidade.</p></details>
+      `,
       dive: [
         {
           title: "Arrastar e soltar",
           body: `
-            <p>O Scena tem três ganchos para o arraste, e cada um responde a uma pergunta.</p>
-            <ul>
-              <li><code>@drag_to(bola)</code>, o deste passo, fica na coisa arrastada e roda uma vez, quando ela é solta: <em>onde soltaram esta bola?</em></li>
-              <li><code>@drag_over(bola)</code> (arrastando sobre) também fica nela, mas roda a cada quadro enquanto ela está sendo arrastada: <em>por onde ela está passando?</em> Serve para mostrar onde a bola vai cair antes de soltar (uma caixa no último passo).</li>
-              <li><code>@drop_by(cesto)</code> (solto por) fica no <strong>alvo</strong>, o objeto que recebe a coisa solta, e roda quando alguma coisa é solta em cima dele: <em>o que soltaram aqui?</em></li>
-            </ul>
-            <p>Os três recebem os mesmos três valores: quem foi arrastado, o alvo e o ponto. Aqui, o <code>@drag_to</code> é o que basta: a bola precisa de uma resposta onde quer que seja solta, inclusive fora do tabuleiro, para voltar. Com um <code>@drop_by</code> no tabuleiro, soltar fora não chamaria ninguém, e a bola ficaria largada lá.</p>
+            <p>O Scena tem três ganchos para o arraste, e cada um responde a uma pergunta. Os três recebem os mesmos três valores: quem foi arrastado, o alvo e o ponto.</p>
+            <div class="tbl"><table><thead><tr><th>Gancho</th><th>Fica em</th><th>Roda</th><th>Pergunta</th></tr></thead><tbody>
+              <tr><td><code>@drag_to(bola)</code></td><td>na coisa arrastada</td><td>uma vez, quando ela é solta</td><td>onde soltaram esta bola?</td></tr>
+              <tr><td><code>@drag_over(bola)</code></td><td>na coisa arrastada</td><td>a cada quadro, durante o arraste</td><td>por onde ela está passando?</td></tr>
+              <tr><td><code>@drop_by(cesto)</code></td><td>no alvo, que recebe a coisa solta</td><td>quando algo é solto em cima dele</td><td>o que soltaram aqui?</td></tr>
+            </tbody></table></div>
+            <p><code>drag_over</code> quer dizer arrastando sobre; <code>drop_by</code>, solto por. Aqui, o <code>@drag_to</code> é o que basta: a bola precisa de uma resposta onde quer que seja solta, inclusive fora do tabuleiro, para voltar. Com um <code>@drop_by</code> no tabuleiro, soltar fora não chamaria ninguém, e a bola ficaria largada lá.</p>
             <p>No Guia: <a href="../guide/index.html#ptr-drag">Arrastar</a> · <a href="../guide/index.html#colocar-grid">Grid</a>.</p>
           `
         }
@@ -138,12 +224,11 @@ run()
     {
       title: "As colunas",
       body: `
-        <p>No Ligue 4, a bola não fica onde você a solta: ela cai pela coluna até a casa livre mais baixa. Para saber qual é essa casa, o jogo precisa lembrar o que já existe em cada coluna.</p>
-        <p><strong>Uma lista por coluna.</strong> <code>colunas</code> tem sete listas vazias, uma para cada coluna. Cada bola que entra numa coluna vai para o fim da lista dela (<code>append</code>). Então a lista cresce de baixo para cima, como a pilha de bolas: <code>coluna[0]</code> é a bola do fundo, e <code>len(coluna)</code> diz quantas bolas a coluna já tem.</p>
-        <p><strong>A casa livre.</strong> Cada casa sabe a sua coluna: <code>casa.col_index</code> (o número da coluna, de 0 a 6, da esquerda para a direita). As linhas, a grade conta de cima para baixo (a linha 0 é a de cima), e a lista conta de baixo para cima. Por isso, com <code>len(coluna)</code> bolas na coluna, a casa livre está na linha <code>5 - len(coluna)</code> da grade. <code>grade.cell(…)</code> (a casa) devolve a casa de uma coluna e uma linha, nessa ordem: é o <code>destino</code>.</p>
+        <p>No Ligue 4, a bola não fica onde você a solta: ela vai para a casa livre mais baixa da coluna. Para achar essa casa, o jogo precisa lembrar o que já existe em cada coluna, e a lembrança é uma lista por coluna. Cada bola que entra vai para o fim da lista dela, então a lista cresce de baixo para cima, como a pilha de bolas.</p>
+        <p>Só que a grade conta as linhas ao contrário, de cima para baixo. As duas contagens se encontram numa conta:</p>
 
         <figure class="fig">
-          <svg viewBox="0 0 400 200" role="img" aria-label="À esquerda, a grade de 7 colunas por 6 linhas, com as linhas numeradas de 0, em cima, a 5, embaixo; a coluna 2 tem duas bolas no fundo, e a casa logo acima delas, na linha 3, está marcada como a próxima. À direita, a lista da coluna 2, com dois itens empilhados de baixo para cima, 0 e 1, alinhados com as duas bolas, e um espaço livre em cima">
+          <svg viewBox="-2 0 402 206" role="img" aria-label="À esquerda, a grade de 7 colunas por 6 linhas, com as linhas numeradas de 0, em cima, a 5, embaixo; a coluna 2 tem duas bolas no fundo, e a casa logo acima delas, na linha 3, está marcada como a próxima. À direita, a lista da coluna 2, com dois itens empilhados de baixo para cima, 0 e 1, alinhados com as duas bolas, e um espaço livre em cima">
             <text x="2" y="26">linha</text>
             <circle class="guide" cx="51" cy="45" r="7"/>
             <circle class="guide" cx="51" cy="67" r="7"/>
@@ -219,8 +304,6 @@ run()
           </svg>
           <figcaption>A coluna 2 tem duas bolas, e a lista dela também: <code>[0]</code> é a do fundo. A grade conta as linhas de cima para baixo, então a casa livre é a linha 5 − 2 = 3.</figcaption>
         </figure>
-
-        <p><strong>Coluna cheia.</strong> Com seis bolas, não cabe mais nenhuma: a bola volta, como quando é solta fora. As duas condições ficam no mesmo <code>if</code>, ligadas por <code>or</code> (ou). A ordem importa: se a casa é <code>None</code>, o Python nem lê a segunda parte, que daria erro (<code>None</code> não tem coluna).</p>
       `,
       code: `from scena import *
 
@@ -256,14 +339,38 @@ def soltou(bola, alvo, pos):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "colunas = [[], [], [], [], [], [], []]",
+          text: "Sete listas vazias, uma para cada coluna. <code>colunas[2]</code> é a lista da terceira coluna, e <code>len</code> dela diz quantas bolas a coluna já tem."
+        },
+        {
+          at: "len(colunas[casa.col_index]) == 6",
+          text: "Com seis bolas, a coluna está cheia, e a bola volta, como quando é solta fora. A ordem do <code>or</code> (ou) importa: se a casa é <code>None</code>, o Python nem lê a segunda parte, que daria erro (<code>None</code> não tem coluna)."
+        },
+        {
+          at: "coluna = colunas[casa.col_index]",
+          text: "Cada casa sabe a sua coluna: <code>col_index</code> (o número da coluna) vai de 0 a 6, da esquerda para a direita."
+        },
+        {
+          at: "5 - len(coluna)",
+          text: "<code>grade.cell(coluna, linha)</code> (a casa) devolve a casa de uma coluna e uma linha, nessa ordem. A linha é a conta da figura: com duas bolas, 5 − 2 = 3."
+        },
+        {
+          at: "coluna.append(nova)",
+          text: "<code>append</code> (acrescentar) põe a bola nova no fim da lista: <code>[0]</code> continua sendo a do fundo."
+        }
+      ],
+      after: `
+        <p>Rode e solte várias bolas na mesma coluna, mesmo lá no alto: elas se empilham a partir do fundo.</p>
+        <details class="ask"><summary>E a sétima bola numa coluna?</summary><p>Volta deslizando para o seu lugar. A coluna está cheia, e o <code>if</code> manda a bola de volta antes de criar qualquer coisa.</p></details>
+      `
     },
     {
       title: "Cair",
       body: `
-        <p>A bola já vai para a casa certa, mas aparece lá de uma vez. Agora ela nasce na boca da coluna, logo acima do tabuleiro, e cai.</p>
-        <p><strong>A queda.</strong> <code>move_to(destino.center, time=0.5, ease="bounce")</code>: em meio segundo, a bola desce até o centro da casa livre. <code>ease=</code> (a curva) muda o jeito de andar: em vez da mesma velocidade do começo ao fim, a bola acelera, freia ou quica no caminho. Com <code>"bounce"</code> (quicar), ela bate no fundo e quica um pouco antes de parar.</p>
-        <p><strong>Quando chega.</strong> <code>on_done=pousou</code> (ao terminar) entrega uma função ao <code>move_to</code>, e ele a chama quando a viagem acaba. <code>pousou</code> vai sem parênteses, como o <code>on_click=criar</code> do 04. Por enquanto, ela só toca o som da bola batendo, mas é o lugar do que acontece depois de cada jogada: o resto das regras vai entrar nela.</p>
+        <p>A bola já vai para a casa certa, mas aparece lá de uma vez. Agora ela nasce na boca da coluna, logo acima do tabuleiro, e cai até a casa.</p>
       `,
       code: `from scena import *
 
@@ -305,6 +412,23 @@ def pousou():
 
 run()
 `,
+      notes: [
+        {
+          at: "center=(destino.center.x, 630)",
+          text: "A bola nova nasce na boca da coluna: o x da casa de destino, e o y 630, logo acima da moldura."
+        },
+        {
+          at: "ease=\"bounce\"",
+          text: "<code>ease=</code> (a curva) muda o jeito de andar: em vez da mesma velocidade do começo ao fim, a bola acelera, freia ou quica. Com <code>\"bounce\"</code> (quicar), ela bate no fundo e quica um pouco antes de parar."
+        },
+        {
+          at: "on_done=pousou",
+          text: "<code>on_done</code> (ao terminar) entrega uma função ao <code>move_to</code>, que a chama quando a viagem acaba. <code>pousou</code> vai sem parênteses: é a função em si, não uma chamada agora."
+        }
+      ],
+      after: `
+        <p>Rode e solte uma bola no alto do tabuleiro: ela cai, quica no fundo e, quando para, bate. O som vem do <code>pousou</code>, que roda só no fim da queda. Tudo o que acontece depois de uma jogada mora nele.</p>
+      `,
       try: [
           {
             note: "Outra curva: <code>ease_in</code> (começa devagar e acelera) é a queda de verdade, sem o quique. Também valem <code>ease_out</code> e <code>elastic</code>, uma por vez. No lugar do <code>move_to</code> da bola nova:",
@@ -316,10 +440,7 @@ run()
     {
       title: "A vez",
       body: `
-        <p>Dois jogadores, uma bola de cada vez. De quem é a vez fica em <code>st.vez</code>: <code>"vermelho"</code> ou <code>"azul"</code>.</p>
-        <p><strong>O aviso.</strong> O texto acima do tabuleiro diz de quem é a vez. O <code>@=</code> é o do placar do 02: ele liga o texto a uma função, e quando <code>st.vez</code> muda, o texto muda sozinho.</p>
-        <p><strong>Trocar.</strong> <code>trocar_vez()</code> passa a vez para o outro jogador e troca a imagem da <code>proxima</code>: <code>frame</code> (o quadro) escolhe outro quadro da folha, agora depois de criada. A bola nova copia o quadro da que você arrastou, <code>frame=bola.frame</code>: vermelha na vez do vermelho, azul na vez do azul.</p>
-        <p><strong>Esperar a queda.</strong> A vez troca quando a bola pousa, em <code>pousou</code>. Enquanto ela cai, a <code>proxima</code> fica escondida (<code>visible = False</code>, como a porta do 15), e não dá para jogar de novo: um objeto invisível não recebe o mouse. Quando a queda termina, ela reaparece no lugar, já na cor do outro jogador.</p>
+        <p>Dois jogadores, uma bola de cada vez. De quem é a vez fica em <code>st.vez</code>, <code>"vermelho"</code> ou <code>"azul"</code>, e um aviso acima do tabuleiro mostra isso.</p>
       `,
       code: `from scena import *
 
@@ -376,19 +497,51 @@ def trocar_vez():
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "aviso[\"text\"] @= lambda: f\"Vez do {st.vez}\"",
+          text: "O <code>@=</code> liga o texto a essa fórmula: quando <code>st.vez</code> muda, o aviso muda sozinho."
+        },
+        {
+          at: "frame=bola.frame",
+          text: "A bola nova copia o quadro da que você arrastou: vermelha na vez do vermelho, azul na vez do azul."
+        },
+        {
+          at: "bola.visible = False",
+          text: "Enquanto a bola nova cai, a <code>proxima</code> some (<code>visible</code>, visível). Um objeto invisível não recebe o mouse: não dá para jogar de novo no meio da queda."
+        },
+        {
+          at: "proxima.visible = True",
+          text: "No fim da queda, a vez troca e a <code>proxima</code> reaparece no lugar, já na cor do outro jogador."
+        },
+        {
+          at: "proxima.frame = \"ball_blue_large.png\"",
+          text: "<code>frame</code> (o quadro) também se troca depois de o sprite existir: a mesma <code>proxima</code> passa a mostrar a bola azul."
+        }
+      ],
+      after: `
+        <p>Rode e jogue as duas cores, uma de cada vez.</p>
+        <details class="ask"><summary>Por que a vez troca no <code>pousou</code>, e não no <code>soltou</code>?</summary><p>Porque no <code>soltou</code> a jogada ainda não acabou: a bola está caindo. Trocando no <code>pousou</code>, o aviso e a cor mudam quando a bola chega, e a <code>proxima</code> escondida garante que ninguém joga antes disso.</p></details>
+      `
     },
     {
       title: "Quatro em linha",
-      body: `
-        <p>Falta a regra que termina o jogo. Tudo o que ela precisa já está nas listas: a regra é Python puro.</p>
-        <p><strong>De quem é a bola.</strong> Cada bola nova guarda o seu dono num campo, como no 06: <code>nova.dono = st.vez</code>.</p>
-        <p><strong>Quatro seguidas.</strong> <code>quatro(x, y, dx, dy)</code> começa numa casa e dá quatro passos de <code>(dx, dy)</code>, como um <code>move_by</code> de casa em casa. Aqui, <code>x</code> é a coluna e <code>y</code> é o lugar na lista, contado de baixo para cima, como o y da tela. A cada passo, <code>c</code> e <code>l</code> são a coluna e o lugar na lista daquela casa, e ela olha o que tem lá. Se essa casa está fora do tabuleiro, vazia ou é do outro jogador, não são quatro: a função devolve <code>False</code>. Se os quatro passos dão certo, as quatro bolas acendem (<code>glow</code>, o brilho do 05, aqui dourado) e ela devolve <code>True</code>.</p>
-        <p><strong>No tabuleiro todo.</strong> <code>conferir()</code> experimenta cada casa como começo, em quatro direções. As retas: <code>(1, 0)</code> anda para a direita (quatro deitadas, numa linha) e <code>(0, 1)</code> anda para cima (quatro em pé, numa coluna). As diagonais: <code>(1, 1)</code> sobe para a direita e <code>(1, -1)</code> desce para a direita. Não é preciso andar para a esquerda: a mesma linha, lida a partir da outra ponta, já foi conferida.</p>
-        <p><strong>Por baixo.</strong> A diagonal que desce é a única que pode sair por baixo do tabuleiro, e ela pede o <code>l &lt; 0</code>. Sem ele, o erro não aparece: um lugar negativo conta do fim da lista (<code>coluna[-1]</code> é a bola de cima, não “nenhuma”), e a função acharia quatro bolas onde não há.</p>
-        <p><strong>Quem acabou de jogar.</strong> <code>conferir()</code> só olha as bolas de quem acabou de jogar, porque só ele pode ter feito uma linha nova; por isso o <code>pousou</code> confere antes de trocar a vez.</p>
-        <p><strong>O fim.</strong> Com quatro em linha, <code>st.fim</code> fica verdadeiro. O <code>pousou</code> toca a música da vitória e não troca a vez, e o <code>soltou</code> manda qualquer bola de volta. O aviso agora tem duas frases, e escolher entre elas pede um <code>if</code>: a fórmula do <code>@=</code> vira uma função com nome, <code>mensagem</code>. O <code>@=</code> aceita qualquer função que devolva o texto, e a chama de novo quando <code>st.vez</code> ou <code>st.fim</code> mudam.</p>
-      `,
+      body: [
+        `
+        <p>Falta a regra que termina o jogo: quatro bolas da mesma cor em linha. Tudo o que ela precisa já está nas listas, e a regra é Python puro. O coração dela é uma função que anda pelo tabuleiro:</p>
+        `,
+        {
+          snip: `def quatro(x, y, dx, dy):
+    bolas = []
+    for passo in range(4):
+        c = x + passo * dx
+        l = y + passo * dy`
+        },
+        `
+        <p><code>quatro</code> começa numa casa e dá quatro passos de <code>(dx, dy)</code>, como um <code>move_by</code> de casa em casa. <code>x</code> é a coluna e <code>y</code> é o lugar na lista, contado de baixo para cima, como o y da tela. A cada passo, <code>c</code> e <code>l</code> são a coluna e o lugar daquela casa. Começando em <code>(2, 0)</code> com <code>(1, 1)</code>, as casas são <code>(2, 0)</code>, <code>(3, 1)</code>, <code>(4, 2)</code> e <code>(5, 3)</code>: uma diagonal que sobe para a direita.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=760, title="Ligue 4")
@@ -479,15 +632,63 @@ def conferir():
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "aviso[\"text\"] @= mensagem",
+          text: "O aviso agora tem duas frases, e escolher entre elas pede um <code>if</code>: a fórmula vira uma função com nome, <code>mensagem</code>. O <code>@=</code> a chama de novo quando <code>st.vez</code> ou <code>st.fim</code> mudam."
+        },
+        {
+          at: "if st.fim or casa is None",
+          text: "Com o jogo acabado, qualquer bola solta volta para o seu lugar."
+        },
+        {
+          at: "nova.dono = st.vez",
+          text: "Um campo novo na bola: <code>dono</code> guarda de quem ela é. É o que a regra compara."
+        },
+        {
+          at: "play_sound(\"audio/Victory.mp3\")",
+          text: "O <code>pousou</code> confere antes de trocar a vez, porque só quem acabou de jogar pode ter feito uma linha nova. Com quatro em linha, toca a vitória, e a vez não troca: o aviso diz quem venceu."
+        },
+        {
+          at: "colunas[c][l].dono != st.vez",
+          text: "Se a casa está fora do tabuleiro, vazia (o lugar passou do fim da lista) ou é do outro jogador, não são quatro: a função devolve <code>False</code> e para ali."
+        },
+        {
+          at: "bola.glow = \"gold\"",
+          text: "Os quatro passos deram certo: as quatro bolas acendem com um brilho (<code>glow</code>) dourado, e a função devolve <code>True</code>."
+        },
+        {
+          at: "for y in range(6):",
+          text: "<code>conferir</code> experimenta cada casa do tabuleiro como começo, em quatro direções."
+        }
+      ],
+      after: [
+        `
+        <p>Rode e faça quatro em linha das quatro maneiras. São as quatro direções que <code>conferir</code> experimenta:</p>
+        <div class="tbl"><table><thead><tr><th><code>(dx, dy)</code></th><th>Anda</th><th>As quatro bolas</th></tr></thead><tbody>
+          <tr><td><code>(1, 0)</code></td><td>para a direita</td><td>deitadas, numa linha</td></tr>
+          <tr><td><code>(0, 1)</code></td><td>para cima</td><td>em pé, numa coluna</td></tr>
+          <tr><td><code>(1, 1)</code></td><td>para a direita e para cima</td><td>na diagonal que sobe</td></tr>
+          <tr><td><code>(1, -1)</code></td><td>para a direita e para baixo</td><td>na diagonal que desce</td></tr>
+        </tbody></table></div>
+        <p>Não é preciso andar para a esquerda: a mesma linha, lida a partir da outra ponta, já foi conferida.</p>
+        <p>O <code>l &lt; 0</code> do <code>if</code> parece sobrar, já que a lista não tem lugar negativo. Sem ele, ficaria assim:</p>
+        `,
+        {
+          snip: `if c > 6 or l >= len(colunas[c]) or colunas[c][l].dono != st.vez:`,
+          alt: true
+        },
+        `
+        <p>E nenhum erro apareceria, que é o perigo. Em Python, um lugar negativo conta do fim da lista: <code>coluna[-1]</code> é a bola de cima, não “nenhuma”. A diagonal que desce, a única que sai por baixo do tabuleiro, acharia quatro bolas onde não há.</p>
+        `
+      ]
     },
     {
       title: "Novo jogo",
       example: "ligue4.py",
       body: `
-        <p>Uma partida acabou; falta começar outra. Um <code>Button</code> (botão, o do 04) chama <code>novo_jogo</code>.</p>
-        <p><strong>Voltar ao começo.</strong> As bolas jogadas entram num grupo, <code>group="jogadas"</code>, e o grupo inteiro é destruído de uma vez. As listas ficam vazias (<code>clear</code>, limpar). A vez volta para o vermelho, <code>st.fim</code> volta a falso, e a <code>proxima</code> volta vermelha e visível. Esta última linha conta: se o botão for clicado com uma bola caindo, a bola é destruída no meio da queda, o <code>pousou</code> não chega a rodar, e a <code>proxima</code> ficaria escondida para sempre.</p>
-        <p>É um recomeço à mão, como o do Avião (15): uma lista do que desfazer.</p>
+        <p>Uma partida acabou; falta começar outra. Um botão chama <code>novo_jogo</code>, que põe tudo de volta como no começo, uma coisa por linha.</p>
       `,
       code: `from scena import *
 
@@ -592,9 +793,31 @@ Button(label="Novo jogo", on_click=novo_jogo)
 
 run()
 `,
+      notes: [
+        {
+          at: "group=\"jogadas\")",
+          text: "As bolas jogadas entram num grupo, para poderem sair todas juntas."
+        },
+        {
+          at: "group[\"jogadas\"].destroy()",
+          text: "<code>destroy</code> (destruir) no grupo tira do jogo todas as bolas jogadas de uma vez."
+        },
+        {
+          at: "coluna.clear()",
+          text: "<code>clear</code> (limpar) esvazia cada lista. O tabuleiro e as listas voltam a concordar: nada em lugar nenhum."
+        },
+        {
+          at: "Button(label=\"Novo jogo\", on_click=novo_jogo)",
+          text: "<code>Button</code> (botão) com <code>on_click</code> (ao clicar): a função vai sem parênteses, como no <code>on_done</code>."
+        }
+      ],
+      after: `
+        <p>Jogue até alguém vencer e clique em <strong>Novo jogo</strong>. Depois, clique nele com uma bola ainda caindo.</p>
+        <details class="ask"><summary>Por que <code>novo_jogo</code> mostra a <code>proxima</code>, se ela já está à vista?</summary><p>Nem sempre está: durante a queda ela fica escondida, e quem a mostra de volta é o <code>pousou</code>. Clicando no meio da queda, a bola é destruída antes de chegar, o <code>pousou</code> nunca roda, e sem a última linha de <code>novo_jogo</code> a <code>proxima</code> ficaria escondida para sempre.</p></details>
+      `,
       try: [
           {
-            note: "Enquanto você arrasta, uma faixa clara mostra a coluna onde a bola vai cair: <code>@drag_over</code> roda a cada movimento do mouse durante o arraste. Para a faixa sumir ao soltar, ponha <code>faixa.visible = False</code> na primeira linha de <code>soltou</code>. A cor <code>\"#ffffff33\"</code> é branco com transparência: os dois últimos dígitos (<code>33</code>) dizem o quanto ela aparece (<code>00</code> invisível, <code>ff</code> inteira). No fim do script, antes do <code>run()</code>:",
+            note: "Enquanto você arrasta, uma faixa clara mostra a coluna onde a bola vai cair: <code>@drag_over</code> (arrastando sobre) roda a cada movimento do mouse durante o arraste. Para a faixa sumir ao soltar, ponha <code>faixa.visible = False</code> na primeira linha de <code>soltou</code>. A cor <code>\"#ffffff33\"</code> é branco com transparência: os dois últimos dígitos dizem o quanto ela aparece (<code>00</code> nada, <code>ff</code> inteira). No fim do script, antes do <code>run()</code>:",
             code: `faixa = Rect(center=(500, 340), width=80, height=480, color="#ffffff33")
 faixa.visible = False
 
@@ -615,10 +838,10 @@ def arrastando(bola, alvo, pos):
           body: `
             <p>O jogo tem as regras mínimas. Daqui em diante, ele é seu. Algumas ideias, da mais simples para a mais trabalhosa:</p>
             <ul>
-              <li><strong>Empate.</strong> As sete colunas cheias e ninguém com quatro: o jogo acaba empatado. No <code>pousou</code>, conte as bolas das listas; 42 é o tabuleiro cheio.</li>
-              <li><strong>Placar.</strong> As vitórias de cada jogador em <code>st</code>, num texto com <code>@=</code>, que o <code>novo_jogo</code> não zera.</li>
-              <li><strong>Uma festa para quem ganhou.</strong> As quatro bolas pulsando (<code>scale_to</code> com <code>loops="forever"</code>, como a frota do 05), ou um efeito no meio delas.</li>
-              <li><strong>O computador.</strong> Um adversário que joga sozinho na vez do azul. A função <code>soltou</code> é sua, e dá para chamá-la à mão: <code>soltou(proxima, None, casa.center)</code> joga na coluna daquela casa. No <code>pousou</code>, um <code>after</code> espera um pouco e o computador escolhe uma coluna. Comece sorteando uma coluna que não esteja cheia; depois, ensine-o a completar as suas linhas de três e a fechar as do adversário.</li>
+              <li>Um empate: as sete colunas cheias e ninguém com quatro. No <code>pousou</code>, conte as bolas das listas; 42 é o tabuleiro cheio.</li>
+              <li>Um placar com as vitórias de cada jogador, guardadas em <code>st</code> e mostradas num texto com <code>@=</code>. O <code>novo_jogo</code> não as zera.</li>
+              <li>Uma festa para quem ganhou: as quatro bolas pulsando (<code>scale_to</code> com <code>loops="forever"</code>), ou um efeito no meio delas.</li>
+              <li>Um adversário que joga sozinho na vez do azul. A função <code>soltou</code> é sua, e dá para chamá-la à mão: <code>soltou(proxima, None, casa.center)</code> joga na coluna daquela casa. No <code>pousou</code>, um <code>after</code> espera um pouco, e o computador escolhe uma coluna. Comece sorteando uma coluna que não esteja cheia; depois, ensine-o a completar as suas linhas de três e a fechar as do outro.</li>
             </ul>
           `,
         }

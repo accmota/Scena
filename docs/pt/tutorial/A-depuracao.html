@@ -22,8 +22,8 @@ Tutorial.mount({
       title: "As teclas",
       part: "O laboratório",
       body: `
-        <p>Todo jogo Scena traz um painel de ferramentas escondido: teclas que mostram o que o jogo está fazendo por dentro. Elas não mudam o seu código nem o resultado do jogo; só mostram. Servem para responder as perguntas que o olho sozinho não responde. Quantas coisas existem agora? Por que esse meteoro atravessou a nave sem bater? Para onde foi a estrela que sumiu? Depurar (em inglês, <em>debug</em>) é isto: procurar por que o programa faz o que faz.</p>
-        <p><strong>Ctrl+Shift.</strong> Todas as teclas são <kbd>Ctrl+Shift</kbd> mais um número ou uma letra: segure Ctrl e Shift juntos e aperte a terceira tecla. É igual no PC e no Mac (no Mac também é a tecla Control, não a Command). Funcionam em qualquer jogo Scena, sem escrever nada.</p>
+        <p>Todo jogo Scena traz teclas escondidas que mostram o que o jogo faz por dentro. Elas respondem as perguntas que o olho sozinho não responde: quantas coisas existem agora? Por que esse meteoro atravessou a nave sem bater? Para onde foi a estrela que sumiu? Depurar (em inglês, <em>debug</em>) é isto: procurar por que o programa faz o que faz.</p>
+        <p>Todas são <kbd>Ctrl+Shift</kbd> mais uma tecla: segure Ctrl e Shift juntos e aperte a terceira. No Mac também é a tecla Control, não a Command. Funcionam em qualquer jogo Scena, sem escrever nada, e não mudam o jogo; só mostram.</p>
         <div class="tbl"><table>
           <thead><tr><th>Tecla</th><th>O que faz</th><th>Quando ajuda</th></tr></thead>
           <tbody>
@@ -40,7 +40,7 @@ Tutorial.mount({
             <tr><td><kbd>Ctrl+Shift+Z</kbd></td><td>Sai do jogo.</td><td>Em tela cheia, onde não há botão de fechar.</td></tr>
           </tbody>
         </table></div>
-        <p><strong>O laboratório.</strong> Para ver cada tecla funcionando, vamos montar um pequeno laboratório: uma nave, meteoros que caem, um disco voador que dá voltas. Cada passo acrescenta uma peça e apresenta a tecla que a mostra por dentro. Começamos pela nave, que anda com as setas.</p>
+        <p>Para ver cada tecla funcionando, vamos montar um pequeno laboratório: uma nave, meteoros que caem, um disco voador que dá voltas. Cada passo acrescenta uma peça e a tecla que a mostra por dentro. Começamos pela nave, que anda com as setas.</p>
       `,
       code: `from scena import *
 
@@ -63,15 +63,7 @@ run()
     {
       title: "O painel",
       body: `
-        <p>Agora caem meteoros: a cada meio segundo, um nasce acima da tela, num <code>x</code> sorteado, e o <code>update</code> o faz descer. É o mesmo jeito das estrelas do tutorial 02.</p>
-        <p><strong>Ctrl+Shift+1.</strong> Rode e aperte <kbd>Ctrl+Shift+1</kbd>. No canto aparece o painel do sistema, o HUD (de <em>heads-up display</em>, o painel que fica por cima do jogo). Ele tem três leituras:</p>
-        <ul>
-          <li><code>fps</code> (<em>frames per second</em>, quadros por segundo) — quantas vezes por segundo o Scena redesenha a tela. Perto de 60 é o normal. Se cai muito, o jogo está pesado demais para o computador (a seção <a href="#qualidade-e-quadros">Qualidade e ritmo</a> mostra o que fazer).</li>
-          <li><code>objs</code> — quantas coisas existem no jogo agora: a nave, cada meteoro, cada texto.</li>
-          <li><code>xy</code> — onde está o mouse, nas mesmas medidas do seu código.</li>
-        </ul>
-        <p><strong>O vazamento.</strong> Olhe o <code>objs</code> por meio minuto: ele só sobe. Os meteoros que passam do fundo da tela somem da vista, mas continuam existindo e descendo para sempre. Um programa que cria coisas e nunca as apaga tem um <em>vazamento</em>: fica mais pesado a cada segundo. O <code>objs</code> é o jeito mais rápido de descobrir. O próximo passo conserta.</p>
-        <p><strong>A régua.</strong> O <code>xy</code> é uma régua. Quer pôr alguma coisa perto do canto de cima, à direita, e não sabe que números escrever? Leve o mouse até lá e leia: algo como (900, 620). É esse o <code>center=(…)</code> que você procura.</p>
+        <p>Agora caem meteoros, um a cada meio segundo. Com eles, a primeira tecla: o painel que conta o que existe no jogo.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -98,30 +90,32 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "center=(x, 760)",
+          text: "O meteoro nasce em <code>y</code> 760, um pouco acima da tela, que vai até 700. O <code>x</code> é sorteado por <code>uniform(60, 940)</code>: qualquer número entre 60 e 940."
+        },
+        {
+          at: "meteoro.move_by(0, -250 * dt)",
+          text: "Cada meteoro desce 250 pixels por segundo. Nenhuma linha o apaga."
+        }
+      ],
+      after: `
+        <p>Rode e aperte <kbd>Ctrl+Shift+1</kbd>. No canto aparece o painel do sistema, o HUD (de <em>heads-up display</em>, o painel que fica por cima do jogo), com três leituras:</p>
+        <div class="tbl"><table><thead><tr><th>Leitura</th><th>O que mostra</th></tr></thead><tbody>
+          <tr><td><code>fps</code></td><td>(<em>frames per second</em>, quadros por segundo) quantas vezes por segundo a tela é redesenhada. Perto de 60 é o normal; se cai muito, o jogo está pesado para o computador (veja <a href="#qualidade-e-quadros">Qualidade e ritmo</a>).</td></tr>
+          <tr><td><code>objs</code></td><td>quantas coisas existem no jogo agora: a nave, cada meteoro, cada texto.</td></tr>
+          <tr><td><code>xy</code></td><td>onde está o mouse, nas mesmas medidas do seu código.</td></tr>
+        </tbody></table></div>
+        <details class="ask"><summary>Olhe o <code>objs</code> por meio minuto. O que ele faz?</summary><p>Só sobe. Os meteoros que passam do fundo da tela somem da vista, mas continuam existindo e descendo para sempre. Um programa que cria coisas e nunca as apaga tem um <em>vazamento</em>: fica mais pesado a cada segundo, e o <code>objs</code> é o jeito mais rápido de descobrir.</p></details>
+        <p>O <code>xy</code> também serve de régua. Quer pôr alguma coisa perto do canto de cima, à direita, e não sabe que números escrever? Leve o mouse até lá e leia: algo como (900, 620). É esse o <code>center=(…)</code> que você procura.</p>
+      `
     },
     {
       title: "Ver além da janela",
       body: `
-        <p><code>@leave_playfield("meteoros")</code> (ao sair do campo de jogo) chama a função quando um meteoro sai da área do jogo, e ela o apaga. Rode com o painel ligado: agora o <code>objs</code> sobe um pouco e para.</p>
-        <p><strong>Ctrl+Shift+8.</strong> Mas onde exatamente o meteoro é apagado? Aperte <kbd>Ctrl+Shift+8</kbd>: a vista se afasta para 50%. Mais uma vez, 25%. Mais uma, volta ao normal. Afastada, a janela vira um quadro no meio, e você vê o que acontece fora dela: os meteoros nascendo acima da borda de cima (em <code>y</code> 760, e a tela vai até 700) e descendo além da borda de baixo, até sumirem.</p>
-        <figure class="fig">
-          <svg viewBox="0 0 320 210" role="img" aria-label="Um retângulo pequeno, a janela, dentro de um retângulo tracejado maior, o campo de jogo; pontos acima e abaixo da janela, ainda dentro do campo, e um ponto que acaba de cruzar a borda de baixo do campo">
-            <rect class="guide" x="40" y="22" width="240" height="168"/>
-            <rect class="bar" x="80" y="50" width="160" height="112"/>
-            <text x="160" y="110" text-anchor="middle">janela</text>
-            <text x="160" y="17" text-anchor="middle">campo de jogo</text>
-            <circle class="dot" cx="120" cy="38" r="5"/>
-            <circle class="dot" cx="200" cy="90" r="5"/>
-            <circle class="dot" cx="140" cy="140" r="5"/>
-            <circle class="dot" cx="215" cy="176" r="5"/>
-            <circle class="hot" cx="105" cy="198" r="5"/>
-            <text x="30" y="205" text-anchor="end">destroy</text>
-          </svg>
-          <figcaption>O campo de jogo é maior que a janela: um quarto a mais de cada lado. O meteoro só é apagado quando o centro dele cruza a borda do campo.</figcaption>
-        </figure>
-        <p><strong>O campo de jogo.</strong> Os meteoros não somem na borda da janela, e sim bem depois: o campo de jogo (<code>canvas.playfield</code>) é maior que a tela, um quarto a mais de cada lado. Assim, uma coisa que sai um pouco e volta não é apagada por engano. Aperte <kbd>Ctrl+Shift+7</kbd> com a vista afastada: o campo aparece desenhado em ciano.</p>
-        <p>O zoom de inspeção não muda o jogo nem a câmera (<code>canvas.zoom</code>): só a sua vista. Os meteoros continuam caindo, e as colisões continuam as mesmas.</p>
+        <p>Para fechar o vazamento, o meteoro que sai do jogo é apagado. E uma segunda tecla mostra onde isso acontece.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -154,6 +148,33 @@ def saiu(meteoro):
 
 run()
 `,
+      notes: [
+        {
+          at: "@leave_playfield(\"meteoros\")",
+          text: "<code>@leave_playfield</code> (ao sair do campo de jogo) chama a função logo abaixo quando um meteoro sai da área do jogo, e ela o apaga com <code>destroy</code> (destruir)."
+        }
+      ],
+      after: `
+        <p>Rode com o painel ligado: agora o <code>objs</code> sobe um pouco e para.</p>
+        <p>Onde exatamente o meteoro é apagado? Aperte <kbd>Ctrl+Shift+8</kbd>: a vista se afasta para 50%. Mais uma vez, 25%; mais uma, volta ao normal. Afastada, a janela vira um quadro no meio, e você vê o que acontece fora dela: os meteoros nascendo acima da borda de cima e descendo além da borda de baixo, até sumirem.</p>
+        <figure class="fig">
+          <svg viewBox="-21 0 341 212" role="img" aria-label="Um retângulo pequeno, a janela, dentro de um retângulo tracejado maior, o campo de jogo; pontos acima e abaixo da janela, ainda dentro do campo, e um ponto que acaba de cruzar a borda de baixo do campo">
+            <rect class="guide" x="40" y="22" width="240" height="168"/>
+            <rect class="bar" x="80" y="50" width="160" height="112"/>
+            <text x="160" y="110" text-anchor="middle">janela</text>
+            <text x="160" y="17" text-anchor="middle">campo de jogo</text>
+            <circle class="dot" cx="120" cy="38" r="5"/>
+            <circle class="dot" cx="200" cy="90" r="5"/>
+            <circle class="dot" cx="140" cy="140" r="5"/>
+            <circle class="dot" cx="215" cy="176" r="5"/>
+            <circle class="hot" cx="105" cy="198" r="5"/>
+            <text x="30" y="205" text-anchor="end">destroy</text>
+          </svg>
+          <figcaption>O campo de jogo é maior que a janela: um quarto a mais de cada lado. O meteoro só é apagado quando o centro dele cruza a borda do campo.</figcaption>
+        </figure>
+        <p>O campo de jogo (<code>canvas.playfield</code>) é maior que a tela para que uma coisa que sai um pouco e volta não é apagada por engano. Aperte <kbd>Ctrl+Shift+7</kbd> com a vista afastada: o campo aparece desenhado em ciano.</p>
+        <p>O 8 não muda o jogo nem a câmera; só a sua vista. Os meteoros continuam caindo, e as colisões continuam as mesmas.</p>
+      `,
       try: [
         {
           note: "O campo de jogo pode ser do tamanho exato da tela. Rode, afaste a vista e veja os meteoros sumirem bem na borda de baixo (e, com o 7, o campo ciano colado na janela).",
@@ -164,10 +185,7 @@ run()
     {
       title: "Colisores",
       body: `
-        <p>Agora a nave leva a pancada: <code>@collide("nave", "meteoros")</code> apaga o meteoro que encosta nela, e a nave pisca.</p>
-        <p><strong>Ctrl+Shift+7.</strong> Rode, aperte <kbd>Ctrl+Shift+7</kbd> e deixe alguns meteoros passarem perto da nave. Por cima de cada imagem aparece um contorno fino: é o <strong>colisor</strong>, a forma que o Scena usa para decidir se duas coisas se tocam. A colisão não olha o desenho; olha essa forma. As cores dizem o tipo: verde é uma forma que só avisa o toque (<code>@collide</code>, como aqui); dourado é uma forma sólida, que não deixa passar (<code>resolve</code>, do tutorial 10); ciano é uma parte extra (<code>add_hitbox</code>, do tutorial 27).</p>
-        <p><strong>Por que não bateu?</strong> Para uma imagem, o Scena calcula o colisor a partir dos pixels do desenho e prefere errar para dentro: as pontas das asas da nave e as bordas do meteoro podem ficar de fora. Se um meteoro raspou na asa e nada aconteceu, o 7 responde: as duas formas não se tocaram. E se a colisão aconteceu “de longe”, o 7 também mostra por quê. É a primeira tecla a apertar quando uma colisão surpreende.</p>
-        <p><strong>A moldura e a origem.</strong> O mesmo desenho traz mais duas coisas. A moldura é o retângulo do <code>init</code>, 1000 × 700: tudo o que fica dentro dela aparece na janela. A cruz marca a origem, o ponto (0, 0), no canto de baixo, à esquerda. Com a vista afastada (8), as duas ajudam a ver onde a tela acaba e onde o mundo começa.</p>
+        <p>Agora a nave leva a pancada: o meteoro que encosta nela é apagado, e ela pisca. A tecla deste passo mostra a forma que decide o encosto.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -206,6 +224,26 @@ def bateu(nave, meteoro):
 
 run()
 `,
+      notes: [
+        {
+          at: "@collide(\"nave\", \"meteoros\")",
+          text: "<code>@collide</code> (colidir) chama a função quando um membro do grupo <code>nave</code> toca um do grupo <code>meteoros</code>, e entrega os dois."
+        },
+        {
+          at: "nave.flash(0.2)",
+          text: "<code>flash</code> (lampejo) faz a nave piscar por 0.2 s."
+        }
+      ],
+      after: `
+        <p>Rode, aperte <kbd>Ctrl+Shift+7</kbd> e deixe alguns meteoros passarem perto da nave. Por cima de cada imagem aparece um contorno fino: é o <strong>colisor</strong>, a forma que o Scena usa para decidir se duas coisas se tocam. A colisão não olha o desenho; olha essa forma. A cor diz o tipo:</p>
+        <div class="tbl"><table><thead><tr><th>Cor</th><th>O colisor</th></tr></thead><tbody>
+          <tr><td>verde</td><td>só avisa o toque, como o <code>@collide</code> daqui</td></tr>
+          <tr><td>dourado</td><td>sólido, não deixa passar (<code>resolve</code>)</td></tr>
+          <tr><td>ciano</td><td>uma parte extra do corpo (<code>add_hitbox</code>)</td></tr>
+        </tbody></table></div>
+        <details class="ask"><summary>Um meteoro raspou na asa e nada aconteceu. Por quê?</summary><p>Para uma imagem, o Scena calcula o colisor a partir dos pixels do desenho e prefere errar para dentro: as pontas das asas e as bordas do meteoro podem ficar de fora. Com o 7 ligado você vê que as duas formas não se tocaram. É a primeira tecla a apertar quando uma colisão surpreende, para mais ou para menos.</p></details>
+        <p>O mesmo desenho traz mais duas coisas. A moldura é o retângulo do <code>init</code>, 1000 × 700: tudo o que fica dentro dela aparece na janela. A cruz marca a origem, o ponto (0, 0), no canto de baixo, à esquerda. Com a vista afastada (8), as duas mostram onde a tela acaba e onde o mundo continua.</p>
+      `,
       try: [
         {
           note: "O mesmo desenho, ligado pelo código desde o começo: útil enquanto você ajusta uma colisão e não quer apertar a tecla a cada vez. Tire a linha quando terminar; o jogo pronto não deve mostrar os colisores.",
@@ -216,8 +254,7 @@ run()
     {
       title: "Trilhas",
       body: `
-        <p>Um disco voador entra em cena e faz um oito no alto da tela. <code>move_along</code> (mover ao longo de) leva o disco por uma trilha, um <code>Track</code>; <code>Track.eight(…)</code> é uma trilha pronta em forma de oito (<em>eight</em>), de 600 de largura e 160 de altura, que começa onde o disco está. <code>loops="forever"</code> repete para sempre. O tutorial 13 conta as trilhas a fundo.</p>
-        <p><strong>Ctrl+Shift+7, de novo.</strong> A trilha é invisível: ela guia o disco, mas não é desenhada. Com <kbd>Ctrl+Shift+7</kbd>, ela aparece em magenta, inteira. Você vê o caminho todo de uma vez, e não só o pedaço que o disco já percorreu. Ajuda quando o disco faz uma volta inesperada: a trilha está mesmo onde você pensava?</p>
+        <p>Um disco voador entra em cena e faz um oito no alto da tela, por um caminho que ninguém vê.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -259,6 +296,19 @@ def bateu(nave, meteoro):
 
 run()
 `,
+      notes: [
+        {
+          at: "ovni.move_along(",
+          text: "<code>move_along</code> (mover ao longo de) leva o disco por uma trilha, um <code>Track</code>, em 6 segundos por volta; <code>loops=\"forever\"</code> repete para sempre."
+        },
+        {
+          at: "Track.eight(width=600, height=160)",
+          text: "Uma trilha pronta em forma de oito (<em>eight</em>), de 600 de largura e 160 de altura, que começa onde o disco está."
+        }
+      ],
+      after: `
+        <p>A trilha guia o disco, mas não é desenhada. Rode e aperte <kbd>Ctrl+Shift+7</kbd>: ela aparece em magenta, inteira, e você vê o caminho todo de uma vez, e não só o pedaço que o disco já percorreu. Quando o disco faz uma volta inesperada, é aqui que se confere se a trilha está mesmo onde você pensava.</p>
+      `,
       try: [
         {
           note: "Só as trilhas, ligadas pelo código (os colisores ficam de fora).",
@@ -269,9 +319,7 @@ run()
     {
       title: "O tempo",
       body: `
-        <p>A batida ganha um estouro: <code>canvas.burst_at(meteoro, radius=40)</code> (estourar em) solta um anel de faíscas onde o meteoro estava. Dura um instante, rápido demais para ver direito.</p>
-        <p><strong>Ctrl+Shift+P.</strong> <kbd>Ctrl+Shift+P</kbd> mexe no tempo do jogo, em ciclo: roda → pausa → ¼ da velocidade → roda. Em pausa, tudo para, mas a janela continua desenhando: ligue o 7, afaste a vista com o 8 e examine com calma onde cada coisa está. Em ¼, o jogo anda devagar: dá para ver o meteoro chegar, os dois colisores se tocarem e o estouro abrir.</p>
-        <p>O relógio do jogo inteiro muda junto: os meteoros, o <code>@every</code> que os solta, o disco no oito. Por isso o jogo fica igual, só que mais lento.</p>
+        <p>A batida ganha um estouro. Ele dura um instante, rápido demais para ver direito, e a tecla deste passo desacelera o tempo.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -314,6 +362,17 @@ def bateu(nave, meteoro):
 
 run()
 `,
+      notes: [
+        {
+          at: "canvas.burst_at(meteoro, radius=40)",
+          text: "<code>burst_at</code> (estourar em) solta um anel de faíscas de raio 40 onde o meteoro estava, antes de ele ser apagado."
+        }
+      ],
+      after: `
+        <p>Rode e aperte <kbd>Ctrl+Shift+P</kbd> algumas vezes. O tempo do jogo anda em ciclo: roda → pausa → ¼ da velocidade → roda.</p>
+        <p>Em pausa, tudo para, mas a janela continua desenhando: ligue o 7, afaste a vista com o 8 e examine com calma onde cada coisa está. Em ¼, dá para ver o meteoro chegar, os dois colisores se tocarem e o estouro abrir.</p>
+        <p>O relógio do jogo inteiro muda junto: os meteoros, o <code>@every</code> que os solta, o disco no oito. O jogo fica igual, só que mais lento.</p>
+      `,
       try: [
         {
           note: "O mesmo pelo código: <code>clock.scale</code> (escala do relógio) é a velocidade do tempo. 1 é o normal, 0.5 é metade, 0.25 é um quarto, 0 é parado. O Apêndice B mostra o relógio em mais detalhe.",
@@ -326,10 +385,7 @@ run()
       part: "Avisos",
       fresh: true,
       body: `
-        <p>Um programa novo, pequeno: uma bola dourada que troca de cor quando você aperta espaço. A troca tem um erro de propósito. Rode e aperte espaço.</p>
-        <p><strong>O aviso.</strong> A bola fica magenta, um rosa forte, e aparecem duas coisas: uma mensagem no console que começa com <strong>SCENA WARNING</strong> (aviso do Scena) e uma faixa âmbar no canto da janela. Os nomes de cor do Scena são em inglês, e <code>"laranja"</code> não está entre eles. O Scena não para o jogo por isso: pinta a bola de magenta, uma cor que chama a atenção de propósito, e avisa.</p>
-        <p><strong>Ctrl+Shift+E.</strong> A faixa fica na tela até você ler. <kbd>Ctrl+Shift+E</kbd> a fecha. O aviso continua no console, se você precisar dele de novo.</p>
-        <p><strong>Aviso ou erro.</strong> Viram aviso os problemas que não impedem o jogo de continuar: um arquivo de imagem que falta (no lugar aparece um quadriculado), um som que falta (silêncio), um nome de cor desconhecido (magenta). Já um erro no seu código, como um nome escrito errado (<code>bola.colr</code>) ou um parêntese que falta, não vira faixa: o programa para, e o Python mostra a mensagem de erro com a linha onde ele aconteceu.</p>
+        <p>Um programa novo, pequeno: uma bola dourada que troca de cor quando você aperta espaço. A troca tem um erro de propósito, para ver como o Scena avisa.</p>
       `,
       code: `from scena import *
 
@@ -347,6 +403,17 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "bola.color = \"laranja\"",
+          text: "O erro: os nomes de cor do Scena são em inglês, e <code>\"laranja\"</code> não está entre eles."
+        }
+      ],
+      after: `
+        <p>Rode e aperte espaço. A bola fica magenta, um rosa forte, e aparecem duas coisas: uma mensagem no console que começa com <strong>SCENA WARNING</strong> (aviso do Scena) e uma faixa âmbar no canto da janela.</p>
+        <p>O Scena não para o jogo por um nome de cor errado: pinta a bola de magenta, uma cor que chama a atenção de propósito, e avisa. A faixa fica na tela até você ler; <kbd>Ctrl+Shift+E</kbd> a fecha, e o aviso continua no console, se você precisar dele de novo.</p>
+        <details class="ask"><summary>Todo erro vira faixa?</summary><p>Não. Viram aviso só os problemas que não impedem o jogo de continuar: um arquivo de imagem que falta (no lugar aparece um quadriculado), um som que falta (silêncio), um nome de cor desconhecido (magenta). Um erro no código Python, como uma variável escrita errado (<code>bloa.color</code>) ou um parêntese que falta, para o programa, e o Python mostra a mensagem de erro com a linha onde ele aconteceu.</p></details>
+      `,
       try: [
         {
           note: "No lugar da linha da cor: o nome em inglês. Laranja é <code>orange</code>. Sem aviso, sem faixa.",
@@ -361,11 +428,7 @@ run()
       part: "Qualidade e ritmo",
       fresh: true,
       body: `
-        <p>Outro programa novo, este cheio de efeitos: um céu, estrelas, um brilho geral na tela (<code>Bloom</code>), seis fogueiras (<code>Fire</code>) e seis bolas com brilho. Efeitos assim custam trabalho ao computador, quadro após quadro. Rode e ligue o painel (<kbd>Ctrl+Shift+1</kbd>) para acompanhar o <code>fps</code>.</p>
-        <p><strong>O ajuste automático.</strong> Sem você pedir, o Scena mede quanto tempo cada quadro leva. Se o computador não dá conta, ele baixa a qualidade dos efeitos (high → medium → low) e, se ainda não bastar, o ritmo (de 60 para 30 quadros por segundo). Esse ajuste é o FX Auto, e começa ligado. <kbd>Ctrl+Shift+2</kbd> o desliga e liga de novo.</p>
-        <p><strong>Ctrl+Shift+3.</strong> Troca a qualidade você mesmo: low (baixa) → medium (média) → high (alta). Olhe as fogueiras: em low, viram um brilho simples. É o mesmo jogo, mais leve.</p>
-        <p><strong>Ctrl+Shift+4.</strong> Troca o ritmo dos quadros, um por aperto: o do monitor, 60, 30 ou sem limite. O <code>fps</code> do painel mostra o ritmo de verdade.</p>
-        <p><strong>Para quê.</strong> Para ver como o seu jogo fica num computador mais fraco: ponha em low e 30, e jogue. Se ainda dá para jogar, ótimo. Os movimentos escritos com <code>dt</code> andam na mesma velocidade em qualquer ritmo; só ficam menos suaves.</p>
+        <p>Outro programa novo, este cheio de efeitos. Efeitos custam trabalho ao computador, quadro após quadro, e três teclas mostram como o jogo fica num computador mais fraco.</p>
       `,
       code: `from scena import *
 
@@ -381,6 +444,26 @@ for i in range(6):
 
 run()
 `,
+      notes: [
+        {
+          at: "Bloom(intensity=0.8)",
+          text: "<code>Bloom</code> (florescer) é um brilho geral na tela: tudo o que é claro espalha luz em volta."
+        },
+        {
+          at: "Fire(center=",
+          text: "Seis fogueiras (<code>Fire</code>, fogo), o efeito mais pesado do programa. Abaixo delas, seis bolas com brilho."
+        }
+      ],
+      after: `
+        <p>Rode e ligue o painel (<kbd>Ctrl+Shift+1</kbd>) para acompanhar o <code>fps</code>.</p>
+        <p>Sem você pedir, o Scena mede quanto tempo cada quadro leva. Se o computador não dá conta, ele baixa a qualidade dos efeitos (high → medium → low) e, se ainda não bastar, o ritmo, de 60 para 30 quadros por segundo. Esse ajuste automático se chama FX Auto e começa ligado. As teclas deixam você mesmo escolher:</p>
+        <div class="tbl"><table><thead><tr><th>Tecla</th><th>O que troca</th></tr></thead><tbody>
+          <tr><td><kbd>Ctrl+Shift+2</kbd></td><td>desliga e liga de novo o FX Auto</td></tr>
+          <tr><td><kbd>Ctrl+Shift+3</kbd></td><td>a qualidade: low (baixa) → medium (média) → high (alta). Em low, as fogueiras viram um brilho simples</td></tr>
+          <tr><td><kbd>Ctrl+Shift+4</kbd></td><td>o ritmo dos quadros, um por aperto: o do monitor, 60, 30 ou sem limite. O <code>fps</code> do painel mostra o ritmo de verdade</td></tr>
+        </tbody></table></div>
+        <p>Ponha em low e 30, e jogue: é assim que o seu jogo fica num computador mais fraco. Os movimentos escritos com <code>dt</code> andam na mesma velocidade em qualquer ritmo; só ficam menos suaves.</p>
+      `,
       try: [
         {
           note: "Os mesmos ajustes pelo código, um por vez. A última linha, <code>set_fx_auto(False)</code>, desliga o ajuste automático, como o <kbd>Ctrl+Shift+2</kbd>.",
@@ -395,11 +478,7 @@ set_fx_auto(False)`
       part: "A janela",
       fresh: true,
       body: `
-        <p>O último programa só desenha uma moldura dourada em volta da área do <code>init</code> (1000 × 700), para você ver onde ela fica quando a janela muda. É um <code>Rect</code> do tamanho da tela, sem preenchimento (<code>fill = None</code>, como no tutorial 03) e com o contorno (<code>line</code>) dourado.</p>
-        <p><strong>Ctrl+Shift+F.</strong> Tela cheia (<em>fullscreen</em>): o jogo cobre o monitor inteiro, sem a borda da janela e sem a barra de tarefas. Apertar de novo volta à janela.</p>
-        <p><strong>Ctrl+Shift+M.</strong> Maximizada (<em>maximized</em>): a janela ocupa toda a área de trabalho, mas a barra de tarefas fica. É o mesmo que o botão de maximizar da janela.</p>
-        <p><strong>As faixas pretas.</strong> Nos dois modos, o desenho não estica: tudo dentro da moldura dourada é o jogo, e o que sobra do monitor fica com faixas pretas. O Apêndice B, em “Os três modos”, conta por quê.</p>
-        <p><strong>Ctrl+Shift+Z.</strong> Sai do jogo, como fechar a janela. É útil em tela cheia, onde não há botão de fechar à vista.</p>
+        <p>O último programa só desenha uma moldura dourada em volta da área do <code>init</code> (1000 × 700), para você ver onde ela fica quando a janela muda de tamanho.</p>
       `,
       code: `from scena import *
 
@@ -413,6 +492,21 @@ Text("Ctrl+Shift+F  tela cheia\\nCtrl+Shift+M  maximizada\\nCtrl+Shift+Z  sair",
 
 run()
 `,
+      notes: [
+        {
+          at: "moldura.fill = None",
+          text: "Sem preenchimento (<code>fill</code>), só o contorno (<code>line</code>) dourado: um <code>Rect</code> vazado do tamanho da tela."
+        }
+      ],
+      after: `
+        <p>Rode e experimente as três teclas:</p>
+        <div class="tbl"><table><thead><tr><th>Tecla</th><th>O que faz</th></tr></thead><tbody>
+          <tr><td><kbd>Ctrl+Shift+F</kbd></td><td>tela cheia (<em>fullscreen</em>): o jogo cobre o monitor inteiro, sem a borda da janela e sem a barra de tarefas. Apertar de novo volta à janela</td></tr>
+          <tr><td><kbd>Ctrl+Shift+M</kbd></td><td>maximizada (<em>maximized</em>): a janela ocupa toda a área de trabalho, mas a barra de tarefas fica, como no botão de maximizar</td></tr>
+          <tr><td><kbd>Ctrl+Shift+Z</kbd></td><td>sai do jogo, como fechar a janela. Útil em tela cheia, onde não há botão de fechar à vista</td></tr>
+        </tbody></table></div>
+        <details class="ask"><summary>Em tela cheia, o que acontece com a moldura?</summary><p>Ela não estica: tudo dentro da moldura dourada é o jogo, do mesmo formato, e o que sobra do monitor fica com faixas pretas. O Apêndice B, em “Os três modos”, conta por quê.</p></details>
+      `,
       try: [
         {
           note: "Pelo código, o jogo já abre em tela cheia. O atalho alterna; o código põe um modo (<code>\"windowed\"</code>, <code>\"maximized\"</code> ou <code>\"fullscreen\"</code>). O Apêndice B mostra a janela em detalhe.",

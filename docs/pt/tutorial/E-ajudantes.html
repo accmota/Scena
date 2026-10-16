@@ -22,8 +22,8 @@ Tutorial.mount({
       title: "Um ponto entre dois",
       part: "lerp",
       body: `
-        <p>Este apêndice mostra os <strong>ajudantes</strong>: funções pequenas que fazem uma conta que aparece em todo jogo. Misturar dois valores (<code>lerp</code>), levar um número de uma escala para outra (<code>remap</code>), chegar perto de um alvo aos poucos (<code>chase</code>), dar folga a quem segue (<code>deadzone</code>). Cada seção é um programa curto: rode, mexa o mouse, mude os números. Sortear (<code>chance</code>, <code>choice</code>, <code>uniform</code>) fica no Apêndice B.</p>
-        <p><strong>lerp.</strong> <code>lerp(a, b, t)</code> dá o valor que fica uma fração <code>t</code> do caminho entre <code>a</code> e <code>b</code>. Com <code>t = 0</code>, é o próprio <code>a</code>; com <code>t = 1</code>, é o <code>b</code>; com <code>0.5</code>, o meio; com <code>0.25</code>, um quarto do caminho, mais perto de <code>a</code>. O nome vem do inglês <em>linear interpolation</em> (interpolação linear: preencher o caminho reto entre dois valores).</p>
+        <p>Este apêndice mostra os <strong>ajudantes</strong>: funções pequenas que fazem uma conta que aparece em todo jogo. Misturar dois valores (<code>lerp</code>), levar um número de uma escala para outra (<code>remap</code>), chegar perto de um alvo aos poucos (<code>chase</code>), dar folga a quem segue (<code>deadzone</code>). Cada seção é um programa curto: rode, mexa o mouse, mude os números. Os sorteios ficam no Apêndice B.</p>
+        <p>O primeiro é <code>lerp(a, b, t)</code>: o valor que fica uma fração <code>t</code> do caminho entre <code>a</code> e <code>b</code>. Com <code>t = 0</code>, é o próprio <code>a</code>; com <code>t = 1</code>, é o <code>b</code>; com <code>0.5</code>, o meio; com <code>0.25</code>, um quarto do caminho, mais perto de <code>a</code>. O nome vem do inglês <em>linear interpolation</em> (interpolação linear: preencher o caminho reto entre dois valores).</p>
         <figure class="fig">
           <svg viewBox="0 0 400 110" role="img" aria-label="Um segmento de A até B, com marcas em t igual a 0, 0.25, 0.5, 0.75 e 1; A fica no 0 e B no 1">
             <line class="ray" x1="40" y1="50" x2="360" y2="50"/>
@@ -43,7 +43,7 @@ Tutorial.mount({
           </svg>
           <figcaption>O <code>t</code> diz quanto do caminho de <code>a</code> até <code>b</code> já foi andado.</figcaption>
         </figure>
-        <p><strong>O programa.</strong> As pontas são duas <code>Anchor</code> (âncoras, do 03): arraste-as. A função <code>marca(t, cor)</code> põe uma bolinha em <code>lerp(a.center, b.center, t)</code> e o número logo acima. Com dois pontos, o <code>lerp</code> devolve uma tupla <code>(x, y)</code>.</p>
+        <p>O programa desenha a figura entre duas pontas que você pode arrastar.</p>
       `,
       code: `from scena import *
 
@@ -66,6 +66,19 @@ marca(0.75, "turquoise")
 
 run()
 `,
+      notes: [
+        {
+          at: "b = Anchor(850, 450",
+          text: "As pontas são duas <code>Anchor</code> (âncora): pontos visíveis e arrastáveis."
+        },
+        {
+          at: "Circle(center=lambda: lerp(a.center, b.center, t)",
+          text: "Uma bolinha a uma fração <code>t</code> do caminho. Com dois pontos, o <code>lerp</code> devolve uma tupla <code>(x, y)</code>, e a <code>lambda</code> refaz a conta a cada quadro."
+        }
+      ],
+      after: `
+        <p>Arraste as pontas: as três bolinhas ficam sempre a um quarto, à metade e a três quartos do caminho.</p>
+      `,
       try: [
         {
           note: "O <code>t</code> não precisa ficar entre 0 e 1: com 1.25, o ponto passa do <code>b</code>; com −0.25, fica antes do <code>a</code>. No fim do programa.",
@@ -77,8 +90,7 @@ marca(-0.25, "white")`
     {
       title: "O t com o mouse",
       body: `
-        <p>A bolinha branca usa o mouse como <code>t</code>: <code>mouse.x / 1000</code> vai de 0, na borda esquerda, a 1, na direita. Passe o mouse de um lado ao outro, e ela anda de A até B.</p>
-        <p><code>round(…, 2)</code> arredonda com duas casas depois da vírgula, para o texto não mostrar um número comprido.</p>
+        <p>Uma bolinha branca usa o mouse como <code>t</code>.</p>
       `,
       code: `from scena import *
 
@@ -104,6 +116,19 @@ Text(lambda: f"t = mouse.x / 1000 = {round(mouse.x / 1000, 2)}", top_left=(20, 6
 
 run()
 `,
+      notes: [
+        {
+          at: "mouse.x / 1000), radius=16",
+          text: "<code>mouse.x / 1000</code> vai de 0, na borda esquerda, a 1, na direita: um <code>t</code> pronto."
+        },
+        {
+          at: "round(mouse.x / 1000, 2)",
+          text: "<code>round(…, 2)</code> arredonda com duas casas depois da vírgula, para o texto não mostrar um número comprido."
+        }
+      ],
+      after: `
+        <p>Passe o mouse de um lado ao outro da janela: a bolinha anda de A até B.</p>
+      `,
       dive: [
         {
           title: "lerp e middle_point",
@@ -119,8 +144,7 @@ run()
       fresh: true,
       part: "lerp com números e cores",
       body: `
-        <p>O <code>lerp</code> não é só para pontos. Com dois números, dá o número entre eles: <code>lerp(20, 200, 0.5)</code> é 110. Com duas cores, mistura as cores: <code>lerp(Color("gold"), Color("purple"), 0.5)</code> é o tom do meio entre o dourado e o roxo.</p>
-        <p>Aqui o mouse é o <code>t</code> das duas contas. O raio da bola vai de 20 a 200; a cor, de dourado a roxo. A cor muda no <code>update</code>: uma cor não aceita <code>lambda</code>, então o programa a escreve a cada quadro. <code>Color("gold")</code> transforma o nome numa cor que o <code>lerp</code> sabe misturar (com o texto <code>"gold"</code>, ele dá erro).</p>
+        <p>O <code>lerp</code> não é só para pontos. Com dois números, dá o número entre eles: <code>lerp(20, 200, 0.5)</code> é 110. Com duas cores, mistura as cores. Aqui o mouse é o <code>t</code> das duas contas.</p>
       `,
       code: `from scena import *
 
@@ -137,6 +161,19 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "radius=lambda: lerp(20, 200, mouse.x / 1000)",
+          text: "O raio vai de 20, com o mouse na borda esquerda, a 200, na direita."
+        },
+        {
+          at: "bola.color = lerp(Color(\"gold\")",
+          text: "A cor vai de dourado a roxo, escrita a cada quadro. <code>Color(\"gold\")</code> transforma o nome numa cor que o <code>lerp</code> sabe misturar; com o texto <code>\"gold\"</code>, ele dá erro."
+        }
+      ],
+      after: `
+        <p>Mexa o mouse da esquerda para a direita: a bola cresce e passa do dourado ao roxo. No meio, ela tem o tom do meio entre os dois.</p>
+      `,
       try: [
         {
           note: "Outras duas cores. No lugar da linha da cor.",
@@ -151,7 +188,7 @@ run()
       part: "remap",
       body: `
         <p>No passo anterior, o raio vinha de <code>lerp(20, 200, mouse.x / 1000)</code>: primeiro a conta <code>mouse.x / 1000</code> transforma a posição do mouse num <code>t</code> de 0 a 1, depois o <code>lerp</code> leva esse <code>t</code> para o raio. <code>remap</code> (remapear) faz as duas contas de uma vez.</p>
-        <p><code>remap(valor, de_min, de_max, para_min, para_max)</code> pega um valor medido numa régua e diz onde ele cai na outra. Aqui, o mouse anda de 0 a 1000; o raio vai de 10 a 200. O meio de uma régua cai no meio da outra: com o mouse em 500, o raio é 105.</p>
+        <p><code>remap(valor, de_min, de_max, para_min, para_max)</code> pega um valor medido numa régua e diz onde ele cai na outra:</p>
         <figure class="fig">
           <svg viewBox="0 0 430 140" role="img" aria-label="Duas réguas, uma em cima, de 0 a 1000, e outra embaixo, de 10 a 200; linhas tracejadas ligam 0 a 10, 500 a 105 e 1000 a 200">
             <line class="ray" x1="40" y1="40" x2="360" y2="40"/>
@@ -187,13 +224,21 @@ Text(lambda: f"mouse.x = {round(mouse.x)}", top_left=(20, 680), font_size=20)
 Text(lambda: f"raio = {round(bola.radius)}", top_left=(20, 650), font_size=20)
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "radius=lambda: remap(mouse.x, 0, 1000, 10, 200)",
+          text: "O mouse anda na régua de 0 a 1000; o raio, na de 10 a 200."
+        }
+      ],
+      after: `
+        <p>Leve o mouse ao meio da janela, em 500: o raio mostra 105. O meio de uma régua cai no meio da outra.</p>
+      `
     },
     {
       title: "Ao contrário",
       body: `
-        <p>A régua de destino pode correr ao contrário: <code>remap(mouse.x, 0, 1000, 200, 10)</code> dá 200 com o mouse à esquerda e 10 à direita. A bola nova encolhe quando a outra cresce.</p>
-        <p>A segunda bola também sobe e desce, com outra régua: a altura da janela (0 a 700) vira uma faixa menor, de 250 a 450. O mouse anda a tela toda; a bola, só um pedaço.</p>
+        <p>Uma segunda bola, com duas réguas novas: uma que corre ao contrário, e uma menor que a janela.</p>
       `,
       code: `from scena import *
 
@@ -208,6 +253,19 @@ outra = Circle(center=lambda: (750, remap(mouse.y, 0, 700, 250, 450)), radius=la
 
 run()
 `,
+      notes: [
+        {
+          at: "radius=lambda: remap(mouse.x, 0, 1000, 200, 10)",
+          text: "A régua de destino corre ao contrário: 200 com o mouse à esquerda, 10 à direita."
+        },
+        {
+          at: "remap(mouse.y, 0, 700, 250, 450)",
+          text: "A altura da janela (0 a 700) vira uma faixa menor, de 250 a 450."
+        }
+      ],
+      after: `
+        <p>Mexa o mouse: a bola nova encolhe quando a outra cresce. E o mouse anda a tela toda na altura, mas a bola sobe e desce só um pedaço.</p>
+      `,
       dive: [
         {
           title: "Fora da régua",
@@ -224,10 +282,7 @@ run()
       fresh: true,
       part: "Curvas",
       body: `
-        <p>Entre as pontas, o <code>remap</code> anda reto: o meio de uma régua cai no meio da outra. Com <code>modifier=</code> (modificador), o caminho entre as pontas <strong>curva</strong>. As pontas não mudam; muda o jeito de ir de uma à outra.</p>
-        <p>Cada quadrado desenha uma curva. A régua de origem é a largura do quadrado (de 0 a 1); a de destino, a altura (de 0 a 200). Os pontinhos azuis desenham a curva. A bola dourada usa o mouse: mexa-o da esquerda para a direita e veja as seis bolas fazerem o mesmo caminho em ritmos diferentes.</p>
-        <p><strong>Os nomes.</strong> <code>"linear"</code> é a reta (o mesmo que não passar <code>modifier=</code>). <code>"ease_in"</code> (entrar devagar) começa lento e acelera; <code>"ease_out"</code> (sair devagar) começa rápido e freia; <code>"ease_in_out"</code> faz os dois. <code>"bounce"</code> (quicar) bate no fim e volta, como uma bola no chão; <code>"elastic"</code> passa do fim e balança, como uma mola.</p>
-        <p>São os mesmos nomes do <code>ease=</code> dos movimentos com tempo (<code>move_to(…, time=1, ease="bounce")</code>, a queda da peça no 21).</p>
+        <p>Entre as pontas, o <code>remap</code> anda reto: o meio de uma régua cai no meio da outra. Com <code>modifier=</code> (modificador), o caminho entre as pontas <strong>curva</strong>. As pontas não mudam; muda o jeito de ir de uma à outra. O programa desenha seis curvas, uma por quadrado.</p>
       `,
       code: `from scena import *
 
@@ -253,6 +308,32 @@ painel("elastic", 730, 60)
 
 run()
 `,
+      notes: [
+        {
+          at: "def painel(nome, x, y):",
+          text: "Cada quadrado desenha uma curva. A régua de origem é a largura do quadrado (de 0 a 1); a de destino, a altura (de 0 a 200)."
+        },
+        {
+          at: "for i in range(41):",
+          text: "41 pontinhos azuis, de <code>t = 0</code> a <code>t = 1</code>, desenham a curva."
+        },
+        {
+          at: "Circle(center=lambda: (x + mouse.x / 5",
+          text: "A bola dourada de cada quadrado usa o mouse como valor."
+        }
+      ],
+      after: `
+        <p>Mexa o mouse da esquerda para a direita: as seis bolas fazem o mesmo caminho, do canto de baixo ao de cima, em ritmos diferentes.</p>
+        <div class="tbl"><table><thead><tr><th>Nome</th><th>O caminho</th></tr></thead><tbody>
+          <tr><td><code>"linear"</code></td><td>a reta, o mesmo que não passar <code>modifier=</code></td></tr>
+          <tr><td><code>"ease_in"</code></td><td>(entrar devagar) começa lento e acelera</td></tr>
+          <tr><td><code>"ease_out"</code></td><td>(sair devagar) começa rápido e freia</td></tr>
+          <tr><td><code>"ease_in_out"</code></td><td>os dois: lento, rápido, lento</td></tr>
+          <tr><td><code>"bounce"</code></td><td>(quicar) bate no fim e volta, como uma bola no chão</td></tr>
+          <tr><td><code>"elastic"</code></td><td>passa do fim e balança, como uma mola</td></tr>
+        </tbody></table></div>
+        <p>São os mesmos nomes do <code>ease=</code> dos movimentos com tempo: <code>move_to(…, time=1, ease="bounce")</code> chega quicando.</p>
+      `,
       try: [
         {
           note: "Outras curvas, no lugar de um dos nomes: <code>\"quad\"</code>, <code>\"smoothstep\"</code>, <code>\"sigmoid\"</code>, <code>\"steps\"</code>, <code>\"erratic\"</code> ou, como abaixo, <code>\"spring\"</code> (mola), que balança em volta do meio da régua de destino.",
@@ -271,8 +352,29 @@ run()
       part: "chase",
       body: `
         <p><code>chase</code> (perseguir) aproxima um valor de um alvo, um pouco a cada quadro. A bola não pula para o mouse: anda depressa quando está longe e devagar quando está perto, e para em cima dele, sem passar.</p>
-        <p><strong>No update.</strong> <code>chase(bola.center, (mouse.x, mouse.y), rate=3)</code> devolve o próximo passo: um lugar entre onde a bola está e o mouse. O <code>update</code> o põe no <code>center</code>, e no quadro seguinte a conta recomeça, do lugar novo. Por isso o <code>chase</code> vai no <code>update</code>, e não numa <code>lambda</code>: cada passo parte do anterior.</p>
-        <p><strong>O rate.</strong> <code>rate</code> (ritmo) diz quão depressa: a cada 1/<code>rate</code> de segundo, a distância que falta cai para cerca de um terço. Com <code>rate=3</code>, em 1/3 de segundo falta um terço; em 2/3, um nono; e assim por diante.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="chase")
+Wallpaper("dark navy")
+
+bola = Circle(center=(500, 350), radius=20, color="coral")
+
+
+def update(dt):
+    bola.center = chase(bola.center, (mouse.x, mouse.y), rate=3)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "bola.center = chase(bola.center, (mouse.x, mouse.y), rate=3)",
+          text: "O <code>chase</code> devolve o próximo passo: um lugar entre onde a bola está e o mouse. No quadro seguinte a conta recomeça, do lugar novo. Por isso ele vai no <code>update</code>, e não numa <code>lambda</code>: cada passo parte do anterior."
+        }
+      ],
+      after: `
+        <p><code>rate</code> (ritmo) diz quão depressa: a cada 1/<code>rate</code> de segundo, a distância que falta cai para cerca de um terço. Com <code>rate=3</code>, em 1/3 de segundo falta um terço; em 2/3, um nono; e assim por diante.</p>
         <figure class="fig">
           <svg viewBox="0 0 400 110" role="img" aria-label="Uma bola em cinco momentos indo até um alvo à direita; a cada momento a distância que falta é cerca de um terço da anterior, então os passos ficam cada vez menores">
             <circle class="hot" cx="360" cy="50" r="8"/>
@@ -291,27 +393,12 @@ run()
           </svg>
           <figcaption>Com <code>rate=3</code>: a cada terço de segundo, falta só um terço do que faltava.</figcaption>
         </figure>
-      `,
-      code: `from scena import *
-
-init(width=1000, height=700, title="chase")
-Wallpaper("dark navy")
-
-bola = Circle(center=(500, 350), radius=20, color="coral")
-
-
-def update(dt):
-    bola.center = chase(bola.center, (mouse.x, mouse.y), rate=3)
-
-
-run()
-`
+      `
     },
     {
       title: "Três ritmos",
       body: `
-        <p>Três bolas perseguem o mouse, cada uma com o seu <code>rate</code>: 1 (devagar), 4 e 12 (quase grudada). O número de cada uma anda com ela, logo acima. Corra com o mouse de um canto ao outro e pare: as três chegam, cada uma no seu tempo.</p>
-        <p>A função <code>perseguidora(rate, cor)</code> faz uma bola e o seu número, e devolve a bola. A lista <code>bolas</code> guarda as três, e o <code>update</code> passa por todas. Cada bola guarda o seu próprio ritmo num campo, <code>bola.rate</code>.</p>
+        <p>Três bolas perseguem o mouse, cada uma com o seu <code>rate</code>: 1 (devagar), 4 e 12 (quase grudada).</p>
       `,
       code: `from scena import *
 
@@ -336,12 +423,29 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "def perseguidora(rate, cor):",
+          text: "A função faz uma bola e o seu número, que anda com ela logo acima, e devolve a bola."
+        },
+        {
+          at: "bola.rate = rate",
+          text: "Cada bola guarda o seu próprio ritmo num campo, <code>bola.rate</code>."
+        },
+        {
+          at: "for bola in bolas:",
+          text: "A lista <code>bolas</code> guarda as três, e o <code>update</code> passa por todas."
+        }
+      ],
+      after: `
+        <p>Corra com o mouse de um canto ao outro e pare: as três chegam, cada uma no seu tempo.</p>
+      `,
       dive: [
         {
           title: "chase e lerp",
           body: `
             <p>O <code>chase</code> é um <code>lerp</code> com um <code>t</code> escolhido para você. A cada quadro, ele anda uma fração do caminho que falta; a fração depende do <code>rate</code> e do tempo do quadro (<code>dt</code>). Por isso o ritmo é o mesmo num computador rápido e num lento: com quadros mais curtos, cada passo é menor.</p>
-            <p>Como o <code>lerp</code>, ele aceita números, tuplas, pontos, <code>Vec2</code> e cores. Uma barra de vida que desce suave: <code>barra.width = chase(barra.width, vida, rate=8)</code>. Uma câmera que segue o herói: <code>canvas.pan_to(chase(…, heroi.center, rate=6))</code> (o 26 faz assim).</p>
+            <p>Como o <code>lerp</code>, ele aceita números, tuplas, pontos, <code>Vec2</code> e cores. Uma barra de vida que desce suave: <code>barra.width = chase(barra.width, vida, rate=8)</code>. Uma câmera que segue o herói: <code>canvas.pan_to(chase(…, heroi.center, rate=6))</code>.</p>
             <p>No Guia: <a href="../guide/index.html#util-chase">chase</a>.</p>
           `,
           try: [
@@ -379,8 +483,7 @@ def update(dt):
           </svg>
           <figcaption>Dentro da caixa, o alvo se mexe sozinho. Fora, ele arrasta a caixa.</figcaption>
         </figure>
-        <p><code>deadzone(moldura.center, (mouse.x, mouse.y), size=(300, 200))</code> recebe o centro da caixa de agora, o alvo e o tamanho da caixa (<code>size</code>: largura e altura). Devolve o centro novo. A moldura desenha essa caixa: um <code>Rect</code> sem recheio (<code>fill = None</code>, do 03).</p>
-        <p>Mexa o mouse dentro da moldura: ela fica parada. Empurre-a para fora: ela vem atrás, encostada no mouse.</p>
+        <p>Aqui a caixa é uma moldura azul, e o alvo é o mouse.</p>
       `,
       code: `from scena import *
 
@@ -397,13 +500,25 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "moldura.fill = None",
+          text: "Um <code>Rect</code> sem recheio: só o contorno."
+        },
+        {
+          at: "moldura.center = deadzone(",
+          text: "O <code>deadzone</code> recebe o centro da caixa de agora, o alvo e o tamanho da caixa (<code>size</code>: largura e altura), e devolve o centro novo."
+        }
+      ],
+      after: `
+        <p>Mexa o mouse dentro da moldura: ela fica parada. Empurre-a para fora: ela vem atrás, encostada no mouse.</p>
+      `
     },
     {
       title: "Folga e perseguição",
       body: `
-        <p>Juntos, os dois fazem a câmera de um jogo de plataforma: o <code>deadzone</code> diz para onde ir (só quando o herói sai da caixa), e o <code>chase</code> vai até lá devagar. Aqui a moldura faz o papel da câmera: com o mouse fora dela, ela não gruda mais na borda; desliza até lá.</p>
-        <p><code>alvo</code> é o lugar onde a moldura deveria estar; o <code>chase</code> a leva até ele.</p>
+        <p>Juntos, os dois fazem a câmera de um jogo de plataforma: o <code>deadzone</code> diz para onde ir (só quando o herói sai da caixa), e o <code>chase</code> vai até lá devagar. Aqui a moldura faz o papel da câmera.</p>
       `,
       code: `from scena import *
 
@@ -422,11 +537,24 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "alvo = deadzone(",
+          text: "<code>alvo</code> é o lugar onde a moldura deveria estar."
+        },
+        {
+          at: "chase(moldura.center, alvo, rate=4)",
+          text: "O <code>chase</code> a leva até ele, um pouco a cada quadro."
+        }
+      ],
+      after: `
+        <p>Saia da moldura com o mouse: ela não gruda mais na borda; desliza até lá.</p>
+      `,
       dive: [
         {
           title: "Na câmera",
           body: `
-            <p>Num jogo, o "centro da caixa" é o lugar para onde a câmera olha, e o alvo é o herói. A receita do Guia: <code>look = (canvas.pan_x, canvas.pan_y)</code>, depois <code>canvas.pan_to(chase(look, deadzone(look, heroi.center, size=(160, 90)), rate=6))</code>, a cada quadro. O Ninja III (26) usa a câmera assim.</p>
+            <p>Num jogo, o "centro da caixa" é o lugar para onde a câmera olha, e o alvo é o herói. A receita do Guia: <code>look = (canvas.pan_x, canvas.pan_y)</code>, depois <code>canvas.pan_to(chase(look, deadzone(look, heroi.center, size=(160, 90)), rate=6))</code>, a cada quadro.</p>
             <p><code>size</code> também aceita um número só: <code>size=200</code> é uma caixa quadrada, de 200 por 200.</p>
             <p>No Guia: <a href="../guide/index.html#util-deadzone">deadzone</a> · <a href="../guide/index.html#util-chase">chase</a>.</p>
           `
@@ -438,9 +566,9 @@ run()
       fresh: true,
       part: "amp_db",
       body: `
-        <p>O último ajudante é do som. O <strong>nível</strong> de um som (quão alto ele está agora) é um número de 0 (silêncio) a 1 (o máximo): <code>audio.level</code> para tudo o que toca, <code>mic.level</code> para o microfone (o 23 usa). O ouvido não escuta esse número em linha reta: um som com nível 0.01 já se ouve bem, e numa barra ele seria um risco de 1% da altura.</p>
-        <p><code>amp_db</code> (o nome vem de amplitude e decibel, a unidade de quão alto é um som) converte o nível para a escala do ouvido, também de 0 a 1, pronta para a altura de uma barra. Os sons baixos ganham espaço: <code>amp_db(0.01)</code> é cerca de 0.33, um terço da barra.</p>
-        <p>O programa não toca som: o mouse faz o papel do nível (<code>mouse.x / 1000</code>, de 0 a 1). A barra da esquerda mostra o nível como ele é; a da direita, depois do <code>amp_db</code>. Mexa o mouse perto da borda esquerda: a primeira barra quase some, a segunda já está alta. Cada barra é um <code>Rect</code> por dois cantos (<code>p1</code> embaixo, <code>p2</code> em cima, numa <code>lambda</code>).</p>
+        <p>O último ajudante é do som. O <strong>nível</strong> de um som (quão alto ele está agora) é um número de 0 (silêncio) a 1 (o máximo): <code>audio.level</code> para tudo o que toca, <code>mic.level</code> para o microfone. O ouvido não escuta esse número em linha reta: um som com nível 0.01 já se ouve bem, e numa barra ele seria um risco de 1% da altura.</p>
+        <p><code>amp_db</code> (o nome vem de amplitude e decibel, a unidade de quão alto é um som) converte o nível para a escala do ouvido, também de 0 a 1, pronta para a altura de uma barra.</p>
+        <p>O programa não toca som: o mouse faz o papel do nível, e duas barras o mostram, antes e depois do <code>amp_db</code>.</p>
       `,
       code: `from scena import *
 
@@ -455,11 +583,25 @@ Text(lambda: f"nível = {round(mouse.x / 1000, 3)}", top_left=(20, 680), font_si
 
 run()
 `,
+      notes: [
+        {
+          at: "500 * (mouse.x / 1000)",
+          text: "O nível como ele é: <code>mouse.x / 1000</code>, de 0 a 1. A barra é um <code>Rect</code> por dois cantos: <code>p1</code> embaixo, <code>p2</code> em cima, numa <code>lambda</code>."
+        },
+        {
+          at: "500 * amp_db(mouse.x / 1000)",
+          text: "O mesmo nível, depois do <code>amp_db</code>."
+        }
+      ],
+      after: `
+        <p>Mexa o mouse perto da borda esquerda: a primeira barra quase some, a segunda já está alta.</p>
+        <details class="ask"><summary>Com o nível em 0.01, até onde vai a barra da direita?</summary><p>Até cerca de um terço: <code>amp_db(0.01)</code> é perto de 0.33. Os sons baixos ganham espaço na barra, como ganham no ouvido.</p></details>
+      `,
       dive: [
         {
           title: "Onde o nível aparece",
           body: `
-            <p>Um som que toca tem o seu nível: <code>musica = play_sound(…)</code>, depois <code>musica.level</code>. Uma barra que pula com a música: <code>barra.height = 300 * amp_db(musica.level)</code>, no <code>update</code>. O Estúdio II (23) faz um medidor assim com o microfone; o Apêndice C mostra onde achar arquivos de som.</p>
+            <p>Um som que toca tem o seu nível: <code>musica = play_sound(…)</code>, depois <code>musica.level</code>. Uma barra que pula com a música: <code>barra.height = 300 * amp_db(musica.level)</code>, no <code>update</code>. O Apêndice C mostra onde achar arquivos de som.</p>
             <p>No Guia: <a href="../guide/index.html#som-audio">audio</a>.</p>
           `
         }

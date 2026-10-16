@@ -20,9 +20,7 @@ Tutorial.mount({
     {
       title: "Colocar",
       body: `
-        <p>Até aqui, as coisas andaram de dois jeitos: um pouco a cada quadro, no <code>update</code> (a nave do 05), e sozinhas, por uma ordem dada uma vez (as naves que respiram com <code>scale_to(…, time=)</code> no 05, a trilha do letreiro do 04). Este tutorial olha de perto o segundo jeito, as <strong>viagens</strong>, e termina comparando os dois. Não é um jogo: uma nave que vai aonde você clica.</p>
-        <p><strong>Colocar.</strong> <code>on_mouse_click</code> é a função do canvas do tutorial 11: roda a cada clique, com o ponto <code>(x, y)</code>. <code>nave.move_to(x, y)</code> (mover para) põe a nave nesse ponto. Sem mais nada, é na hora: a nave some de onde estava e aparece no ponto, como se você escrevesse <code>nave.center = (x, y)</code>.</p>
-        <p>Rode e clique pela tela: a nave pula de um lugar a outro.</p>
+        <p>Uma coisa anda de dois jeitos: um pouco a cada quadro, no <code>update</code>, ou sozinha, por uma ordem dada uma vez. Este tutorial olha de perto o segundo jeito, as viagens, e termina comparando os dois. Não é um jogo: uma nave que vai aonde você clica.</p>
       `,
       code: `from scena import *
 
@@ -38,15 +36,25 @@ def on_mouse_click(x, y, button):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "def on_mouse_click(x, y, button):",
+          text: "A função de nome fixo que o Scena chama a cada clique no canvas, com o ponto <code>(x, y)</code>."
+        },
+        {
+          at: "nave.move_to(x, y)",
+          text: "<code>move_to</code> (mover para) põe a nave no ponto. Sem mais nada, é na hora: ela some de onde estava e aparece ali, como se você escrevesse <code>nave.center = (x, y)</code>."
+        }
+      ],
+      after: `
+        <p>Rode e clique pela tela: a nave pula de um lugar a outro.</p>
+      `
     },
     {
       title: "Viajar",
       body: `
-        <p>Um número a mais muda tudo: <code>time=1</code> (tempo). Agora o <code>move_to</code> não põe a nave no ponto; ele a manda <strong>viajar</strong> até lá, em 1 segundo.</p>
-        <p><strong>Uma ordem, muitos quadros.</strong> A função do clique roda uma vez e acaba na hora; quem anda com a nave é o Scena, um pouco a cada quadro, até ela chegar. Não há nenhuma linha no <code>update</code>. É o mesmo jeito do <code>move_along</code> do letreiro: você pede, o Scena cuida.</p>
-        <p>Rode e clique perto da nave, depois longe. As duas viagens duram 1 segundo: para chegar longe no mesmo tempo, a nave vai mais rápido.</p>
-        <p><strong>Clicou de novo no meio?</strong> A viagem nova toma o lugar da velha, e o console mostra um aviso dizendo isso. Daqui a alguns passos, a nave aprende a trocar de destino sem aviso.</p>
+        <p>Um número a mais, e a nave não pula mais: viaja até o ponto.</p>
       `,
       code: `from scena import *
 
@@ -62,12 +70,23 @@ def on_mouse_click(x, y, button):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "time=1",
+          text: "<code>time=1</code> (tempo): a nave viaja até o ponto em 1 segundo. A função do clique roda uma vez e acaba na hora; quem anda com a nave é o Scena, um pouco a cada quadro, até ela chegar. Nenhuma linha no <code>update</code>."
+        }
+      ],
+      after: `
+        <p>Rode e clique perto da nave, depois longe.</p>
+        <details class="ask"><summary>Qual das duas viagens é mais rápida?</summary><p>A longa. As duas duram 1 segundo, e para chegar longe no mesmo tempo a nave corre mais.</p></details>
+        <p>Clique de novo no meio de uma viagem: a nova toma o lugar da velha, e o console avisa a troca.</p>
+      `
     },
     {
       title: "Mesma velocidade",
       body: `
-        <p>Uma nave que corre mais quando o destino é longe parece estranha. <code>speed=400</code> (velocidade), no lugar do <code>time=</code>, diz a velocidade da viagem: 400 por segundo. O tempo sai da distância: 200 de distância leva meio segundo; 800 levam 2.</p>
+        <p>Uma nave que corre mais quando o destino é longe parece estranha. Melhor fixar a velocidade e deixar o tempo de cada viagem sair da distância:</p>
         <figure class="fig">
           <svg viewBox="0 0 380 150" role="img" aria-label="Duas viagens, uma curta e uma longa. Com time=1, as duas levam 1 segundo. Com speed=400, a curta leva meio segundo e a longa leva 2 segundos">
             <text x="10" y="22">time=1</text>
@@ -87,7 +106,6 @@ run()
           </svg>
           <figcaption>Com <code>time=</code>, toda viagem dura o mesmo, e a velocidade muda. Com <code>speed=</code>, toda viagem tem a mesma velocidade, e o tempo muda.</figcaption>
         </figure>
-        <p>Use um ou outro, nunca os dois: os dois dizem quanto a viagem dura.</p>
       `,
       code: `from scena import *
 
@@ -103,13 +121,50 @@ def on_mouse_click(x, y, button):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "speed=400",
+          text: "<code>speed=400</code> (velocidade), no lugar do <code>time=</code>: 400 por segundo. 200 de distância levam meio segundo; 800 levam 2. Use um ou outro, nunca os dois: os dois dizem quanto a viagem dura."
+        }
+      ],
+      after: `
+        <p>Rode e clique perto e longe: agora a viagem longa demora mais, na mesma velocidade.</p>
+      `
     },
     {
       title: "Arrancar e frear",
       body: `
-        <p>A nave sai já na velocidade toda e para de repente. <code>ease="ease_in_out"</code> (suavizar na entrada e na saída) muda isso: ela sai devagar, acelera no meio e freia ao chegar. A viagem dura o mesmo tempo; só muda o ritmo dentro dela.</p>
-        <p>O nome vem de <em>easing</em>, “suavização”. Sem <code>ease=</code>, a viagem é <code>"linear"</code>: a mesma velocidade do começo ao fim.</p>
+        <p>A nave sai já na velocidade toda e para de repente. Um parâmetro a mais dá a ela uma arrancada e uma freada, sem mudar a duração da viagem:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 110" role="img" aria-label="Duas fileiras de pontos, a posição da nave a cada décimo de segundo numa viagem de 1 segundo. Na linear, os pontos têm a mesma distância. Na ease_in_out, os pontos se juntam no começo e no fim e se afastam no meio">
+            <text x="60" y="20">linear</text>
+            <circle class="dot" cx="60" cy="36" r="3"/>
+            <circle class="dot" cx="88" cy="36" r="3"/>
+            <circle class="dot" cx="116" cy="36" r="3"/>
+            <circle class="dot" cx="144" cy="36" r="3"/>
+            <circle class="dot" cx="172" cy="36" r="3"/>
+            <circle class="dot" cx="200" cy="36" r="3"/>
+            <circle class="dot" cx="228" cy="36" r="3"/>
+            <circle class="dot" cx="256" cy="36" r="3"/>
+            <circle class="dot" cx="284" cy="36" r="3"/>
+            <circle class="dot" cx="312" cy="36" r="3"/>
+            <circle class="dot" cx="340" cy="36" r="3"/>
+            <text x="60" y="74">ease_in_out</text>
+            <circle class="hot" cx="60" cy="90" r="3"/>
+            <circle class="hot" cx="61.1" cy="90" r="3"/>
+            <circle class="hot" cx="69" cy="90" r="3"/>
+            <circle class="hot" cx="90.2" cy="90" r="3"/>
+            <circle class="hot" cx="131.7" cy="90" r="3"/>
+            <circle class="hot" cx="200" cy="90" r="3"/>
+            <circle class="hot" cx="268.3" cy="90" r="3"/>
+            <circle class="hot" cx="309.8" cy="90" r="3"/>
+            <circle class="hot" cx="331" cy="90" r="3"/>
+            <circle class="hot" cx="338.9" cy="90" r="3"/>
+            <circle class="hot" cx="340" cy="90" r="3"/>
+          </svg>
+          <figcaption>Onde a nave está a cada décimo de segundo, numa viagem de 1 segundo. Sem <code>ease=</code>, passos iguais. Com <code>"ease_in_out"</code>, passos curtos no começo e no fim (arranca e freia) e longos no meio.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -126,6 +181,15 @@ def on_mouse_click(x, y, button):
 
 run()
 `,
+      notes: [
+        {
+          at: "ease=\"ease_in_out\"",
+          text: "<code>ease</code> vem de <em>easing</em>, suavização; <code>\"ease_in_out\"</code> suaviza a entrada e a saída. Sem <code>ease=</code>, a viagem é <code>\"linear\"</code>: a mesma velocidade do começo ao fim."
+        }
+      ],
+      after: `
+        <p>Rode e clique longe: a nave sai devagar, acelera no meio e freia ao chegar.</p>
+      `,
       try: [
         {
           note: "Outros ritmos, um por vez, no lugar da linha do <code>move_to</code>. <code>\"ease_out\"</code> sai rápido e freia; <code>\"bounce\"</code> (quicar) chega quicando; <code>\"elastic\"</code> (elástico) passa do ponto e volta.",
@@ -139,8 +203,19 @@ nave.move_to(x, y, speed=400, ease="elastic")`
     {
       title: "De frente",
       body: `
-        <p>A nave viaja de lado, de costas, sempre apontando para cima. <code>face=True</code> (de frente) a vira para a direção da viagem, no começo de cada uma: o nariz aponta para onde ela vai.</p>
-        <p><strong>Para onde aponta o desenho.</strong> Para virar a nave certo, o Scena precisa saber para onde aponta o desenho na imagem. Na conta do Scena, o ângulo 0 aponta para a direita; o desenho desta nave aponta para cima, que é o ângulo 90. <code>art_angle=90</code> (o ângulo da arte) avisa isso. Sem ele, a nave viajaria de lado.</p>
+        <p>A nave viaja de lado, de costas, sempre apontando para cima. Queremos o nariz apontado para onde ela vai. Para virar a nave certo, o Scena precisa saber para onde aponta o desenho na imagem:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 140" role="img" aria-label="Os ângulos do Scena: 0 aponta para a direita e 90 para cima; o desenho da nave aponta para cima, para o 90">
+            <line class="guide" x1="150" y1="68" x2="150" y2="24"/>
+            <line class="ray" x1="150" y1="90" x2="250" y2="90"/>
+            <polygon class="dot" points="258,90 249,85 249,95"/>
+            <polygon class="hot" points="150,70 138,104 162,104"/>
+            <text x="266" y="94">0: direita</text>
+            <text x="150" y="16" text-anchor="middle">90: para cima</text>
+            <text x="150" y="128" text-anchor="middle">o desenho aponta para 90</text>
+          </svg>
+          <figcaption>Na conta do Scena, o ângulo 0 aponta para a direita e o 90 para cima. O desenho desta nave aponta para cima, e <code>art_angle=90</code> avisa isso.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -156,14 +231,25 @@ def on_mouse_click(x, y, button):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "art_angle=90",
+          text: "<code>art_angle</code> (o ângulo da arte) diz para onde aponta o desenho na imagem. Sem ele, a nave viajaria de lado."
+        },
+        {
+          at: "face=True",
+          text: "<code>face=True</code> (de frente) vira a nave para a direção da viagem, no começo de cada uma."
+        }
+      ],
+      after: `
+        <p>Rode e clique em volta da nave: o nariz aponta para cada destino antes de ela partir.</p>
+      `
     },
     {
       title: "Chegou",
       body: `
         <p>Um círculo dourado tracejado marca o destino: aparece no clique e some quando a nave chega.</p>
-        <p><strong>O alvo.</strong> O <code>alvo</code> nasce escondido (<code>visible = False</code>), antes da nave, para ficar embaixo dela. O clique o põe no ponto e o mostra.</p>
-        <p><strong>Ao chegar.</strong> <code>on_done=pousou</code> (ao terminar) entrega à viagem uma função para chamar quando ela acabar, como o <code>on_done</code> do som do Piano. A função vai sem parênteses: <code>pousou</code> é a função, para o Scena chamar depois; <code>pousou()</code> a chamaria agora.</p>
       `,
       code: `from scena import *
 
@@ -190,16 +276,48 @@ def on_mouse_click(x, y, button):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "alvo = Circle(",
+          text: "O alvo nasce antes da nave, para ficar embaixo dela, e escondido (<code>visible = False</code>). O clique o põe no ponto e o mostra."
+        },
+        {
+          at: "alvo.dash = \"dash\"",
+          text: "<code>dash</code> (traço) desenha o contorno tracejado."
+        },
+        {
+          at: "on_done=pousou",
+          text: "<code>on_done</code> (ao terminar) entrega à viagem uma função para chamar quando ela acabar. Vai sem parênteses: <code>pousou</code> é a função, para o Scena chamar depois."
+        }
+      ],
+      after: [
+        `
+        <p>Rode e clique: o círculo marca o destino e some quando a nave pousa.</p>
+        <p>Um erro fácil é escrever os parênteses:</p>
+        `,
+        {
+          snip: `nave.move_to(x, y, speed=400, ease="ease_in_out", face=True, on_done=pousou())`,
+          alt: true
+        },
+        `
+        <p>Com eles, <code>pousou()</code> roda agora, na hora do clique, e esconde o alvo logo depois de o clique mostrá-lo: o círculo nunca aparece. A viagem recebe o que a função devolveu, nada, e não chama ninguém no fim.</p>
+        `
+      ]
     },
     {
       title: "O controle da viagem",
-      body: `
-        <p>Até aqui, uma viagem começada ia até o fim. Mas dá para mexer nela no meio do caminho: o <code>move_to</code> com <code>time=</code> ou <code>speed=</code> devolve um <strong>controle</strong> da viagem. Com ele na mão, você pode cancelar a viagem, pausá-la, perguntar se acabou.</p>
-        <p><strong>Guardar o controle.</strong> <code>nave.viagem = nave.move_to(…)</code> guarda o controle num campo da nave, como o <code>marcador.caneta</code> do desenho do 04. Quando a nave está parada, o campo vale <code>None</code> (nada): antes da primeira viagem, depois de <code>parar()</code> e quando ela pousa — por isso <code>pousou()</code> também zera o campo. Assim, <code>if nave.viagem:</code> quer dizer “a nave está viajando”.</p>
-        <p><strong>Parar.</strong> <code>parar()</code> cancela a viagem que estiver acontecendo: <code>nave.viagem.cancel()</code> (cancelar) deixa a nave onde ela está. O clique chama <code>parar()</code> antes de começar a viagem nova: assim, clicar no meio do caminho troca de destino sem aviso no console. E a tecla Espaço também para a nave.</p>
-        <p>Rode, clique longe e, no meio do caminho, aperte Espaço ou clique em outro lugar.</p>
-      `,
+      body: [
+        `
+        <p>Até aqui, uma viagem começada ia até o fim. Mas o <code>move_to</code> com <code>time=</code> ou <code>speed=</code> devolve um controle da viagem, e com ele na mão dá para cancelar, pausar, perguntar se acabou. O controle fica guardado num campo da nave:</p>
+        `,
+        {
+          snip: `nave.viagem = nave.move_to(x, y, speed=400, ease="ease_in_out", face=True, on_done=pousou)`
+        },
+        `
+        <p>Quando a nave está parada, o campo vale <code>None</code> (nada): antes da primeira viagem, depois de parar e quando ela pousa. Assim, <code>if nave.viagem:</code> quer dizer “a nave está viajando”.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Movimento")
@@ -241,6 +359,27 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "def pousou():",
+          text: "Pousar também zera o campo: a viagem acabou."
+        },
+        {
+          at: "nave.viagem.cancel()",
+          text: "<code>cancel</code> (cancelar) acaba a viagem e deixa a nave onde ela está."
+        },
+        {
+          at: "def on_mouse_click(x, y, button):",
+          text: "O clique para a viagem velha antes de começar a nova: trocar de destino no meio do caminho não gera mais aviso no console."
+        },
+        {
+          at: "if keyp.once(\"SPACE\"):",
+          text: "<code>keyp.once</code> (uma vez) é verdadeiro só no quadro em que a tecla desce: um toque no Espaço para a nave."
+        }
+      ],
+      after: `
+        <p>Rode, clique longe e, no meio do caminho, aperte Espaço ou clique em outro lugar.</p>
+      `,
       try: [
         {
           note: "Pausar e continuar: dentro do <code>update</code>, a tecla P congela a viagem; R a solta, do ponto em que estava.",
@@ -254,11 +393,18 @@ if keyp.once("R") and nave.viagem:
     {
       title: "Seguir o mouse",
       example: "movimento.py",
-      body: `
-        <p>Por último, o outro jeito de andar. Com o botão direito apertado, a nave persegue o mouse, mesmo enquanto ele se mexe.</p>
-        <p><strong>Uma viagem não persegue.</strong> <code>move_to(mouse, speed=400)</code> copiaria o lugar do mouse no momento do clique e iria até lá, mesmo que o mouse saísse dali. Para seguir um alvo que anda, é preciso perguntar de novo onde ele está a cada quadro.</p>
-        <p><strong>Um passo por quadro.</strong> <code>approach(nave.center, mouse, 300)</code> (aproximar) devolve um ponto um passinho mais perto do mouse: o passo de quem anda a 300 por segundo, durante este quadro. O <code>move_to</code> sem tempo põe a nave nesse ponto, e o <code>face=True</code> a vira para lá. No <code>update</code>, isso se repete a cada quadro, e a nave vai atrás do mouse para onde ele for. Antes, <code>parar()</code> cancela uma viagem que estivesse acontecendo: as duas não podem mandar na nave ao mesmo tempo.</p>
-      `,
+      body: [
+        `
+        <p>Por último, o outro jeito de andar: com o botão direito apertado, a nave persegue o mouse, mesmo enquanto ele se mexe. Uma viagem não serve para isso:</p>
+        `,
+        {
+          snip: `nave.move_to(mouse, speed=400)`,
+          alt: true
+        },
+        `
+        <p>Essa linha copia o lugar do mouse no momento da ordem e vai até lá, mesmo que o mouse saia dali. Para seguir um alvo que anda, é preciso perguntar de novo, a cada quadro, onde ele está.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Movimento")
@@ -303,6 +449,19 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "if mouse.press(Mouse.BTN_RIGHT):",
+          text: "Antes do passo, <code>parar()</code> cancela uma viagem que estivesse acontecendo: as duas não podem mandar na nave ao mesmo tempo."
+        },
+        {
+          at: "approach(nave.center, mouse, 300)",
+          text: "<code>approach</code> (aproximar) devolve um ponto um passinho mais perto do mouse: o passo de quem anda a 300 por segundo, durante este quadro. O <code>move_to</code> sem tempo põe a nave ali, e o <code>face=True</code> a vira para lá."
+        }
+      ],
+      after: `
+        <p>Rode, segure o botão direito e passeie com o mouse: a nave vai atrás dele, de frente, aonde ele for. Solte o botão, e ela para.</p>
+      `,
       dive: [
         {
           title: "Viagem ou passo a passo?",
@@ -318,7 +477,7 @@ run()
                 <tr><td>Controle</td><td>Devolve um, para cancelar ou pausar</td><td>Basta parar de chamar</td></tr>
               </tbody>
             </table></div>
-            <p><strong>Outros verbos com tempo.</strong> Os mesmos <code>time=</code>, <code>speed=</code>, <code>ease=</code> e <code>on_done=</code> valem para <code>move_by</code> (mover por: anda tanto, a partir de onde está), <code>rotate_to</code> e <code>rotate_by</code> (girar), <code>scale_to</code> (mudar o tamanho) e para o <code>move_along</code> das trilhas, do próximo tutorial. Todos devolvem um controle. Os verbos de girar e de tamanho, lado a lado, estão no interlúdio Girar e crescer, depois do 14.</p>
+            <p>Os mesmos <code>time=</code>, <code>speed=</code>, <code>ease=</code> e <code>on_done=</code> valem para outros verbos: <code>move_by</code> (mover por: anda tanto, a partir de onde está), <code>rotate_to</code> e <code>rotate_by</code> (girar), <code>scale_to</code> (mudar o tamanho) e o <code>move_along</code> das trilhas. Todos devolvem um controle.</p>
             <p>No Guia: <a href="../guide/index.html#suite">Parâmetros de tempo</a> · <a href="../guide/index.html#mover-pose">Mover e girar</a>.</p>
           `,
           try: [

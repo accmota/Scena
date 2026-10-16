@@ -20,8 +20,7 @@ Tutorial.mount({
     {
       title: "O jogo do 07",
       body: `
-        <p>Novo script: o jogo do tutorial 07, com a folha, as explosões, o som e as três vidas. Neste tutorial a nave ganha um <strong>escudo</strong>. Mas não de graça, nem para sempre: o escudo é um presente que cai de um inimigo destruído, e ele se gasta a cada laser que segura.</p>
-        <p>A folha do 07 já tem o ícone do presente, e o escudo nem precisa de imagem: o Scena desenha um. Nenhum arquivo novo.</p>
+        <p>Um script novo, que começa onde o jogo das vidas parou: a folha, as explosões, o som e as três vidas. Neste tutorial a nave ganha um <strong>escudo</strong>, mas não de graça nem para sempre: ele é um presente que cai de um inimigo destruído, e se gasta a cada laser que segura.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -157,12 +156,18 @@ run()
     },
     {
       title: "Um presente que cai",
-      body: `
-        <p>Às vezes, um inimigo destruído deixa cair um presente. A classe <code>Poder</code> é o presente: um quadro da folha que desce 150 pixels por segundo, no grupo <code>poderes</code>.</p>
-        <p><strong>Às vezes.</strong> <code>chance(0.2)</code> (chance) sorteia: responde verdadeiro em 20% das vezes, mais ou menos um sorteio de cada cinco. O número vai de 0 (nunca) a 1 (sempre). No <code>atingido</code> do inimigo, se a sorte disser sim, um <code>Poder(center=self.center)</code> nasce onde ele estava.</p>
-        <p><strong>Pegar.</strong> No <code>Heroi</code>, outro <code>@collide_with</code>, agora com o grupo <code>poderes</code>: o presente some, a nave dá um <code>pop</code> e toca um som. E o presente que ninguém pega sai pelo fundo: o grupo entrou no <code>@leave_playfield</code>.</p>
-        <p>Atire até um presente cair, e pegue-o. Ele some e faz barulho, mas não acontece mais nada. Ainda não há escudo para ligar.</p>
-      `,
+      body: [
+        `
+        <p>Às vezes, um inimigo destruído deixa cair um presente. “Às vezes”, em código, é um sorteio, no <code>atingido</code> do inimigo:</p>
+        `,
+        {
+          snip: `if chance(0.2):
+    Poder(center=self.center)`
+        },
+        `
+        <p><code>chance(0.2)</code> (chance) responde verdadeiro em 20% das vezes: mais ou menos um inimigo em cada cinco deixa um presente. O número vai de 0 (nunca) a 1 (sempre). Quando a sorte diz sim, o presente nasce onde o inimigo estava.</p>
+        `
+      ],
       code: `from random import choice
 from scena import *
 
@@ -307,6 +312,24 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "class Poder(",
+          text: "O presente é um quadro da folha que desce 150 pixels por segundo, no grupo <code>poderes</code>."
+        },
+        {
+          at: "@collide_with(\"poderes\")",
+          text: "A nave pega o presente com outro <code>@collide_with</code>: o presente some, a nave dá um <code>pop</code> (um pulo rápido de tamanho) e toca um som."
+        },
+        {
+          at: "\"tiros_inimigos\", \"poderes\")",
+          text: "O presente que ninguém pega sai pelo fundo da tela. Com o grupo nesta lista, ele é apagado como os tiros."
+        }
+      ],
+      after: `
+        <p>Atire até um presente cair, e pegue-o.</p>
+        <details class="ask"><summary>O que o presente faz?</summary><p>Por enquanto, só some e faz barulho. Ainda não há escudo para ligar.</p></details>
+      `,
       try: [
           {
             note: "Presentes mais frequentes, para testar: no <code>atingido</code> do inimigo, no lugar do <code>0.2</code>. Com <code>1</code>, todo inimigo deixa um.",
@@ -317,16 +340,21 @@ run()
     },
     {
       title: "O escudo",
-      body: `
-        <p>O escudo é outra peça da nave, como o propulsor do 06. Ele nasce no <code>setup</code> do <code>Heroi</code>, guardado em <code>self.escudo</code>: um <code>Circle</code> (círculo) de raio 38, que cobre a nave, com o visual <code>Shield</code> (escudo). <code>Shield</code> apareceu no menu de visuais do tutorial 04: uma bolha de energia que se mexe sozinha. <code>style="plasma"</code> (estilo) é a bolha prateada, transparente o bastante para a nave aparecer dentro. O centro do círculo é uma <code>lambda</code> que lê o centro da nave: onde ela vai, o escudo vai. E o <code>on_destroy</code> agora apaga as duas peças.</p>
-        <p><strong>Estacionado.</strong> A nave começa sem escudo. <code>self.escudo.active = False</code> (ativo) <strong>estaciona</strong> o escudo: ele some e para, sem ser destruído. <code>active = True</code> o traz de volta, no mesmo lugar. É o jeito de ligar e desligar uma peça que vai e volta muitas vezes.</p>
-        <p><strong>A energia.</strong> O escudo dura enquanto houver energia: <code>st.energia</code>, de 0 a 100, ao lado das vidas. Pegar o presente enche: <code>st.energia = 100</code>.</p>
-        <p><strong>Quem liga o escudo.</strong> A regra é uma frase: <em>o escudo está ligado enquanto houver energia</em>. <code>@on_change</code> (quando mudar) escreve essa frase num lugar só. Em cima de uma função, ele diz ao Scena: rode esta função cada vez que este valor mudar, venha a mudança de onde vier. Se a função pedir um parâmetro, o Scena entrega nele o valor novo; <code>energia_mudou</code> não pede, porque lê <code>st.energia</code> direto. Ela liga o escudo se a energia é maior que zero, e o desliga se não é.</p>
-        <p><strong>Na classe, uma lambda.</strong> O valor vigiado vai entre os parênteses como uma pergunta, numa <code>lambda</code> que o lê, como a do <code>@when</code> no 01: o Scena refaz a pergunta e compara a resposta com a anterior. Dentro de uma classe, a regra não é de uma nave só, mas de cada nave que o molde criar, e por isso a <code>lambda</code> recebe <code>self</code>: <code>@on_change(lambda self: st.energia)</code>. O nome antes dos dois-pontos é o que o Scena entrega à <code>lambda</code> quando a chama: esta nave. Aqui a energia é do jogo, e a <code>lambda</code> nem usa o <code>self</code>; mesmo assim, dentro da classe, a pergunta tem sempre essa forma.</p>
-        <p><strong>Guardar uma resposta.</strong> <code>self.escudo.active = st.energia &gt; 0</code> não tem <code>if</code>: a comparação <code>st.energia &gt; 0</code> já é <code>True</code> ou <code>False</code>, e a linha guarda essa resposta direto no <code>active</code>.</p>
-        <p>Com isso, ninguém mais precisa lembrar do escudo. Pegar o presente só mexe na energia; quando, no próximo passo, os lasers gastarem a energia, eles também só mexerão nela. O escudo segue o número sozinho.</p>
-        <p>Pegue um presente: o escudo aparece em volta da nave. Mas os lasers ainda o atravessam.</p>
-      `,
+      body: [
+        `
+        <p>O escudo é uma bolha em volta da nave. Ele liga quando a nave pega o presente e dura enquanto houver energia.</p>
+        <p>Essa regra cabe numa frase: <em>o escudo está ligado enquanto houver energia</em>. Com <code>@on_change</code> (quando mudar), ela fica escrita num lugar só, dentro do <code>Heroi</code>:</p>
+        `,
+        {
+          snip: `@on_change(lambda self: st.energia)
+def energia_mudou(self):
+    self.escudo.active = st.energia > 0`
+        },
+        `
+        <p>Em cima de uma função, <code>@on_change</code> diz ao Scena: rode esta função cada vez que este valor mudar, venha a mudança de onde vier. O valor vigiado vai entre os parênteses como uma pergunta, numa <code>lambda</code> que o lê; o Scena refaz a pergunta e compara a resposta com a anterior.</p>
+        <p>A função liga o escudo se a energia é maior que zero, e o desliga se não é. Ela nem precisa de <code>if</code>: <code>st.energia &gt; 0</code> já é <code>True</code> ou <code>False</code>, e a linha guarda essa resposta direto no <code>active</code> (ativo) do escudo.</p>
+        `
+      ],
       code: `from random import choice
 from scena import *
 
@@ -480,6 +508,36 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "st.energia = 0",
+          text: "A energia do escudo, de 0 a 100, ao lado das vidas. O jogo começa com ela vazia."
+        },
+        {
+          at: "self.escudo = Circle(",
+          text: "O escudo é outra peça da nave, como o propulsor: um <code>Circle</code> (círculo) de raio 38, que cobre a nave, com o visual <code>Shield</code> (escudo), uma bolha de energia que se mexe sozinha. <code>style=\"plasma\"</code> (estilo) é a bolha prateada, transparente o bastante para a nave aparecer dentro. O centro é uma <code>lambda</code> que lê o centro da nave: onde ela vai, o escudo vai."
+        },
+        {
+          at: "self.escudo.active = False",
+          text: "A nave começa sem escudo. <code>active = False</code> <strong>estaciona</strong> o escudo: ele some e para, sem ser destruído. <code>active = True</code> o traz de volta, no mesmo lugar. É o jeito de ligar e desligar uma peça que vai e volta muitas vezes."
+        },
+        {
+          at: "st.energia = 100",
+          text: "Pegar o presente só enche a energia. Quem liga o escudo é a regra logo abaixo."
+        },
+        {
+          at: "@on_change(lambda self: st.energia)",
+          text: "Numa classe, a regra vale para cada nave que o molde criar, e por isso a <code>lambda</code> recebe <code>self</code>: esta nave. Aqui a energia é do jogo e o <code>self</code> nem é usado; mesmo assim, dentro da classe, a pergunta tem sempre essa forma."
+        },
+        {
+          at: "self.escudo.destroy()",
+          text: "O <code>on_destroy</code> agora apaga as duas peças da nave."
+        }
+      ],
+      after: `
+        <p>Pegue um presente: o escudo aparece em volta da nave. Ninguém mandou ligá-lo. A energia mudou, e a regra fez o resto: daqui em diante, quem mexer na energia não precisa lembrar do escudo.</p>
+        <details class="ask"><summary>O escudo protege a nave?</summary><p>Ainda não: os lasers o atravessam e tiram vida do mesmo jeito. O círculo só desenha a bolha.</p></details>
+      `,
       try: [
           {
             note: "Outros estilos de <code>Shield</code>, um por vez, depois do <code>nave = Heroi(…)</code> (a segunda linha liga o escudo sem esperar o presente). Sem <code>style</code>, a bolha é verde (<code>\"bubble\"</code>); <code>\"ember\"</code> é brasa. <code>\"nebula\"</code> e <code>\"frost\"</code> são bonitos, mas cobrem a nave. No Guia: <a href='../guide/index.html#aparencia-visual'>Visual</a>.",
@@ -491,9 +549,7 @@ st.energia = 100`
     {
       title: "A energia gasta",
       body: `
-        <p>Agora o escudo segura os lasers. Para isso ele precisa de um comportamento próprio, e, como no 06, comportamento próprio pede uma classe. <code>class Escudo(Circle, radius=38, visual=Shield(style="plasma"))</code> é o mesmo círculo, com o raio e o visual na linha da classe; no <code>setup</code> da nave, <code>Circle(…)</code> vira <code>Escudo(center=…)</code>.</p>
-        <p><strong>O bloqueio.</strong> O <code>Escudo</code> ganha o seu <code>@collide_with("tiros_inimigos")</code>: o laser some e a energia cai 20. Cinco lasers e acabou: a energia chega a zero, o <code>@on_change</code> desliga o escudo, e a nave volta a perder vidas. A colisão de um círculo é o próprio círculo: o laser bate na borda da bolha, antes de chegar à nave.</p>
-        <p><strong>A barra.</strong> No canto, embaixo dos pontos, uma barra mostra a energia: um <code>Rect</code> preso pelo canto de cima à esquerda (<code>top_left</code>), cuja largura está ligada com <code>@=</code> à energia: <code>st.energia * 2</code>, 200 pixels cheia, zero vazia. Como o placar, ela acompanha sozinha.</p>
+        <p>Agora o escudo segura os lasers, e cada laser que ele segura gasta energia. Bloquear é um comportamento do escudo, e comportamento próprio pede uma classe.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -658,6 +714,32 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "barra = Rect(",
+          text: "A barra de energia, embaixo dos pontos: um <code>Rect</code> (retângulo) preso pelo canto de cima à esquerda (<code>top_left</code>), com 200 pixels de largura."
+        },
+        {
+          at: "barra[\"width\"] @=",
+          text: "A largura (<code>width</code>) ligada à energia: <code>st.energia * 2</code> dá 200 com a energia cheia e 0 com ela vazia. Como o placar, a barra acompanha sozinha."
+        },
+        {
+          at: "class Escudo(Circle",
+          text: "O mesmo círculo de antes, agora com classe própria: o raio e o visual vão para a linha da classe."
+        },
+        {
+          at: "st.energia -= 20",
+          text: "O laser que toca a bolha some, e a energia cai 20: cinco lasers e acabou."
+        },
+        {
+          at: "self.escudo = Escudo(",
+          text: "No <code>setup</code> da nave, <code>Circle(…)</code> vira <code>Escudo(…)</code>; só o centro fica na criação."
+        }
+      ],
+      after: `
+        <p>Pegue um presente e deixe os lasers baterem na bolha. A barra encolhe a cada golpe. O laser bate na borda, antes de chegar à nave: a colisão de um círculo é o próprio círculo.</p>
+        <details class="ask"><summary>O que acontece no quinto laser?</summary><p>A energia chega a zero, a regra do <code>@on_change</code> desliga o escudo, e a nave volta a perder vidas. Não foi preciso nenhuma linha nova para isso: o <code>bloqueou</code> só mexe na energia.</p></details>
+      `,
       try: [
           {
             note: "Um escudo mais forte ou mais fraco, no lugar do <code>20</code>: com 10, ele segura dez lasers.",
@@ -667,9 +749,9 @@ run()
     },
     {
       title: "Onde bateu",
-      body: `
-        <p>O laser some no escudo sem aviso. Ele deveria estourar onde bateu, na borda do escudo, e não no centro da nave.</p>
-        <p><strong>O terceiro parâmetro.</strong> A função de colisão pode receber um terceiro parâmetro, <code>info</code> (informação): o Scena o preenche com o que sabe daquele toque. <code>info.point</code> é o ponto onde os dois se tocaram.</p>
+      body: [
+        `
+        <p>O laser some no escudo sem aviso. Ele deveria estourar onde bateu, na borda da bolha, e não no centro da nave.</p>
 
         <figure class="fig">
           <svg viewBox="0 0 380 230" role="img" aria-label="Um círculo tracejado em volta da nave é o escudo; um laser desce de cima e toca o círculo; o ponto de toque está marcado e se chama info.point; o centro do escudo está mais abaixo">
@@ -686,10 +768,15 @@ run()
           </svg>
           <figcaption>Onde o laser tocou o escudo. O centro dos dois não diz isso; <code>info.point</code> diz.</figcaption>
         </figure>
-
-        <p><strong>O impacto.</strong> <code>canvas.zap_at</code> (choque em) desenha um choque elétrico num ponto: um núcleo claro e raios tortos. Ele aceita até o próprio <code>info</code>: <code>canvas.zap_at(info, color="sky blue")</code>, da cor da bolha, estoura onde o laser tocou o escudo. Um som de pancada, mais agudo (<code>pitch=1.6</code>), diz que o golpe foi no escudo, não na nave.</p>
-        <p><strong>Por que um choque.</strong> O tipo de impacto conta o que aconteceu. <code>zap_at</code> diz “energia”, como pede um campo de força. Os exemplos abaixo trazem outros impactos, para você ficar com o que combina com o seu escudo.</p>
-      `,
+        `,
+        {
+          snip: `def bloqueou(self, tiro, info):
+    canvas.zap_at(info, color="sky blue")`
+        },
+        `
+        <p>A função de colisão pode receber um terceiro parâmetro, <code>info</code> (informação), que o Scena preenche com o que sabe daquele toque. <code>info.point</code> é o ponto onde os dois se tocaram, e <code>canvas.zap_at</code> aceita o próprio <code>info</code>: o choque estoura ali.</p>
+        `
+      ],
       code: `from random import choice
 from scena import *
 
@@ -855,6 +942,19 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "canvas.zap_at(info",
+          text: "<code>zap_at</code> (choque em) desenha um choque elétrico: um núcleo claro e raios tortos, aqui da cor da bolha. O tipo de impacto conta o que aconteceu, e um choque diz “energia”, como pede um campo de força."
+        },
+        {
+          at: "pitch=1.6",
+          text: "O mesmo som de pancada da nave, mais agudo (<code>pitch</code>, altura): o golpe foi no escudo, não na nave."
+        }
+      ],
+      after: `
+        <p>Pegue um presente e deixe os lasers baterem. Cada choque estoura na borda da bolha, no ponto exato onde o laser tocou.</p>
+      `,
       try: [
           {
             note: "Outros impactos no mesmo ponto, um por vez, no lugar do <code>zap_at</code>. <code>style</code> muda o choque: <code>\"fork\"</code> são raios que se dividem, <code>\"corona\"</code> um anel de raios. No Guia: <a href='../guide/index.html#mundo-impactos'>Impactos</a>.",
@@ -874,8 +974,6 @@ faisca.after(0.3, faisca.destroy)`
       example: "naves_escudo.py",
       body: `
         <p>Quando a energia acaba, o escudo some calado. Ele deveria <em>quebrar</em>: um estouro em volta da nave e um som, para o jogador saber que está exposto de novo.</p>
-        <p>O lugar certo já existe. <code>energia_mudou</code> roda a cada mudança da energia; se a energia nova é zero, o escudo acabou de quebrar. Um <code>if</code> ali dentro: <code>canvas.burst_at</code> com anéis (<code>rings=True</code>) e 70 pixels de raio, o tamanho do escudo, e um som de sino.</p>
-        <p>A quebra fica junto da regra que desliga o escudo, e não no <code>bloqueou</code>. Assim, se outra coisa um dia zerar a energia, o escudo quebra do mesmo jeito.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -1045,6 +1143,20 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "if st.energia == 0:",
+          text: "O lugar certo já existia: <code>energia_mudou</code> roda a cada mudança da energia. Se a energia nova é zero, o escudo acabou de quebrar."
+        },
+        {
+          at: "canvas.burst_at(self, radius=70, rings=True)",
+          text: "Um estouro com anéis (<code>rings</code>) de 70 pixels de raio, o tamanho do escudo, e na linha de baixo um som de sino."
+        }
+      ],
+      after: `
+        <p>Gaste o escudo até o fim: no quinto laser, ele estoura.</p>
+        <details class="ask"><summary>Por que a quebra não fica no <code>bloqueou</code>, que é quem gasta a energia?</summary><p>Porque o <code>bloqueou</code> é só um dos jeitos de a energia acabar. Junto da regra que desliga o escudo, a quebra acontece sempre que a energia chega a zero, venha a mudança de onde vier: se um dia outra coisa zerar a energia, o escudo quebra do mesmo jeito.</p></details>
+      `,
       try: [
           {
             note: "A barra muda de cor quando a energia fica baixa. Em <code>energia_mudou</code>, depois do <code>if</code>:",

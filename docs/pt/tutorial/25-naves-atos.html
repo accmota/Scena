@@ -20,8 +20,8 @@ Tutorial.mount({
     {
       title: "O jogo do 24",
       body: `
-        <p>Novo script: o jogo do tutorial 24, com a frota que chega em sequência, os mergulhos e o chefe. Até aqui ele é uma tela só: quando a nave morre, aparece FIM DE JOGO, e para jogar de novo é preciso fechar e abrir o programa. Neste tutorial o jogo ganha <strong>atos</strong>: uma tela de título, a fase, o fim de jogo, e o caminho entre eles.</p>
-        <p>O recomeço espera desde o tutorial 02. O avião do 15 recomeçava com uma função que desfazia o jogo, coisa por coisa. Com atos, essa lista some.</p>
+        <p>Um script novo, que parte do jogo de naves do tutorial anterior: a frota que chega em sequência, os mergulhos, o chefe. O jogo é uma tela só, e quando a nave morre aparece FIM DE JOGO.</p>
+        <p>Neste tutorial ele ganha <strong>atos</strong>: uma tela de título, a fase, o fim de jogo, e o caminho de um para o outro. Começamos pelo código como ele está.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -285,18 +285,29 @@ def saiu(tiro):
 
 
 run()
-`
+`,
+      after: `
+        <p>Rode e deixe a frota acertar a nave três vezes.</p>
+        <details class="ask"><summary>Como se joga de novo?</summary><p>Não se joga: FIM DE JOGO fica na tela, e só fechando e abrindo o programa. Recomeçar à mão quer dizer desfazer o jogo coisa por coisa: apagar a frota, os tiros e o chefe, zerar os pontos, pôr uma nave nova no lugar. Com atos, essa lista não existe.</p></details>
+      `
     },
     {
       title: "Uma fase",
-      body: `
-        <p>Um <strong>ato</strong> (<code>Act</code>) é uma parte do jogo: o título, a fase, o fim de jogo. Ele se escreve como uma classe, <code>class Fase(Act)</code>, e o seu <code>setup</code> monta aquela parte: aqui, o placar, as vidas, a barra de energia, a nave e a frota. São as mesmas linhas de antes, agora dentro do <code>setup</code>, um degrau para a direita.</p>
-        <p><strong>O começo.</strong> <code>run(Fase)</code> no lugar do <code>run()</code>: o jogo começa pelo ato <code>Fase</code>. Quem monta o ato é o Scena, chamando o <code>setup</code>; ninguém escreve <code>Fase()</code>.</p>
-        <p><strong>O palco e o ato.</strong> O que o topo do arquivo cria fica o jogo todo: o fundo, as estrelas, os efeitos de tela, as folhas. Esse é o <strong>palco</strong>. O que nasce depois, no <code>setup</code> do ato ou por qualquer código enquanto ele está valendo (um tiro, uma explosão, o chefe), é do ato. As classes ficam no topo: são só moldes.</p>
-        <p><strong>O que é da fase vai para a fase.</strong> O <code>update</code> que balançava a frota virou o <code>on_update</code> da fase: um <code>update</code> no topo rodaria em todo ato, e quem balança a frota é a fase. O <code>@when</code> do chefe também entrou na classe, com <code>lambda self:</code>, como os da nave. No topo, ele valeria em todo ato: num ato sem frota, como o fim de jogo que vem daqui a pouco, o grupo vazio chamaria um chefe. Dentro da fase, ele liga quando ela começa e sai com ela. O <code>@leave_playfield</code> fica no topo: ele só apaga tiros, e onde não há tiros não faz nada.</p>
-        <p><strong>A nave sem nome.</strong> A variável <code>nave</code> sumiu; <code>Heroi(center=(500, 70))</code> basta. Ninguém lia a variável: os inimigos acham a nave pelo grupo, com o <code>nearest</code> do 24.</p>
-        <p>Rode: o jogo é o mesmo, e nada mudou na tela.</p>
-      `,
+      body: [
+        `
+        <p>Primeiro, o jogo inteiro vira um ato, sem mudar nada do que se vê. Um <strong>ato</strong> (<code>Act</code>) é uma parte do jogo: o título, a fase, o fim de jogo. Ele se escreve como uma classe:</p>
+        `,
+        {
+          snip: `class Fase(Act):
+    def setup(self):
+        ...
+run(Fase)`
+        },
+        `
+        <p>O <code>setup</code> monta essa parte do jogo: aqui, o placar, as vidas, a barra de energia, a nave e a frota. São as mesmas linhas que estavam no topo do arquivo, agora um degrau para a direita.</p>
+        <p><code>run(Fase)</code>, no lugar do <code>run()</code>, diz por onde o jogo começa. Quem monta o ato é o Scena, chamando o <code>setup</code>; ninguém escreve <code>Fase()</code>.</p>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -560,14 +571,42 @@ def saiu(tiro):
 
 
 run(Fase)
-`
+`,
+      notes: [
+        {
+          at: "Heroi(center=(500, 70))",
+          text: "A variável <code>nave</code> sumiu. Ninguém a lia: os inimigos acham a nave pelo grupo <code>heroi</code>, com <code>nearest</code>."
+        },
+        {
+          at: "group[\"inimigos\"].move_by(st.velocidade * dt, 0)",
+          text: "O <code>update</code> do topo, que balançava a frota, virou o <code>on_update</code> da fase. Um <code>update</code> no topo rodaria em qualquer ato, e quem tem frota é a fase."
+        },
+        {
+          at: "@when(lambda self: group[\"inimigos\"].count == 0)",
+          text: "O <code>@when</code> do chefe também entrou na classe, com <code>lambda self:</code>. No topo, ele valeria em todo ato: numa tela sem frota, como um fim de jogo, o grupo vazio chamaria o chefe. Dentro da fase, a regra liga quando a fase começa e sai com ela."
+        },
+        {
+          at: "@leave_playfield(",
+          text: "O <code>@leave_playfield</code> fica no topo. Ele só apaga tiros e presentes; numa tela sem eles, não faz nada."
+        }
+      ],
+      after: `
+        <p>Rode: o jogo é o mesmo, e nada mudou na tela. O que mudou é quem é dono de cada coisa.</p>
+        <p>O que o topo do arquivo cria fica o jogo todo: o fundo, as estrelas, os efeitos de tela, as folhas. Esse é o <strong>palco</strong>. O que nasce depois, no <code>setup</code> do ato ou por qualquer código enquanto o ato vale (um tiro, uma explosão, o chefe), é do ato. As classes ficam no topo: são só moldes, e um molde não aparece na tela.</p>
+      `
     },
     {
       title: "Recomeçar",
-      body: `
-        <p>Agora o recomeço. No fim do <code>on_update</code> da fase, R chama <code>change_act(Fase)</code> (trocar de ato). O ato que está valendo sai com tudo o que criou: a nave, a frota, os tiros no ar, as explosões, o chefe, se ele já tinha chegado, e os timers de todos eles. Um ato <code>Fase</code> novo é montado do zero, pelo mesmo <code>setup</code>. Nenhuma linha de limpeza: compare com o <code>recomecar()</code> do avião do 15, que apagava os pilares, zerava os pontos e punha o avião no lugar, um por um.</p>
-        <p>O R usa o <code>keyp.once</code> do 01, que vale uma vez por aperto. E o <code>change_act</code> vem por último: depois dele o ato velho já saiu, e não há mais nada dele para mexer.</p>
-
+      body: [
+        `
+        <p>Agora o recomeço: R começa a fase de novo. No fim do <code>on_update</code> da fase:</p>
+        `,
+        {
+          snip: `if keyp.once("R"):
+    change_act(Fase)`
+        },
+        `
+        <p><code>change_act</code> (trocar de ato) encerra o ato que está valendo, e ele sai com tudo o que criou: a nave, a frota, os tiros no ar, as explosões, o chefe, se já tinha chegado, e os timers de todos eles. Depois, um ato <code>Fase</code> novo é montado do zero, pelo mesmo <code>setup</code>. Nenhuma linha de limpeza.</p>
         <figure class="fig">
           <svg viewBox="0 0 410 190" role="img" aria-label="O tempo corre para a direita. Em cima, o palco, do começo ao fim. No meio, o st, também do começo ao fim. Embaixo, dois atos Fase, um depois do outro, cada um com a sua nave, frota, HUD e tiros; entre os dois, a tecla R">
             <rect class="guide" x="10" y="14" width="390" height="30" rx="4"/>
@@ -586,9 +625,8 @@ run(Fase)
           </svg>
           <figcaption>O palco e o <code>st</code> atravessam o jogo inteiro. Cada ato monta a sua parte, e ela sai com ele.</figcaption>
         </figure>
-
-        <p><strong>O que fica.</strong> O <code>st</code> atravessa a troca. Aperte R no meio do jogo: a frota volta inteira, mas os pontos e as vidas continuam onde estavam. Depois do fim de jogo, então, R começa uma fase com zero vidas: o primeiro tiro que acerta e o contador mostra <code>x -1</code>. É o buraco do próximo passo.</p>
-      `,
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -855,15 +893,39 @@ def saiu(tiro):
 
 
 run(Fase)
-`
+`,
+      notes: [
+        {
+          at: "keyp.once(\"R\")",
+          text: "<code>keyp.once</code> (uma vez) vale uma vez por aperto. Com <code>keyp</code>, segurar R recomeçaria a fase a cada quadro."
+        },
+        {
+          at: "change_act(Fase)",
+          text: "A troca vem por último. Depois dela o ato velho já saiu, e não há mais nada dele para mexer."
+        }
+      ],
+      after: `
+        <p>Rode e aperte R no meio do jogo: a frota volta inteira, lá de cima.</p>
+        <details class="ask"><summary>E os pontos e as vidas?</summary><p>Continuam onde estavam. Eles moram no <code>st</code>, e o <code>st</code> atravessa a troca de ato, como o palco. Depois do fim de jogo, R começa uma fase com zero vidas: o primeiro tiro que acerta e o contador mostra <code>x -1</code>.</p></details>
+      `
     },
     {
       title: "Um jogo novo",
-      body: `
-        <p>Os dados de um jogo que começa (pontos, vidas, energia e a direção da frota) agora estão numa função no topo, <code>jogo_novo()</code>. O topo a chama uma vez, para o primeiro jogo, e o R a chama logo antes de trocar de ato. Recomeçar são duas linhas: um jogo novo, uma fase nova.</p>
-        <p><strong>Por que no <code>st</code>.</strong> Um ato nasce do zero e não recebe nada de quem o chamou: <code>change_act(Fase)</code> leva só o ato. Tudo o que precisa passar de um ato para o outro vai no <code>st</code>, que a troca nunca limpa. Assim a troca é sempre igual, e quem decide se os pontos voltam a zero é o código, chamando ou não o <code>jogo_novo()</code>.</p>
-        <p>Agora, depois do fim de jogo, R começa um jogo de verdade, com três vidas.</p>
-      `,
+      body: [
+        `
+        <p>R precisa começar um jogo de verdade: pontos em zero, três vidas. Os dados de um jogo que começa vão para uma função no topo:</p>
+        `,
+        {
+          snip: `def jogo_novo():
+    st.pontos = 0
+    st.vidas = 3
+    st.energia = 0
+    st.velocidade = 80`
+        },
+        `
+        <p>O topo a chama uma vez, logo abaixo, para o primeiro jogo. O R a chama antes de trocar de ato, e recomeçar passa a ser duas linhas: um jogo novo, uma fase nova.</p>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -1137,15 +1199,27 @@ def saiu(tiro):
 
 
 run(Fase)
-`
+`,
+      after: `
+        <p>Perca as três vidas e aperte R: agora começa um jogo de verdade, com três vidas e o placar em zero.</p>
+        <details class="ask"><summary>Por que os dados do jogo moram no <code>st</code>?</summary><p>Um ato nasce do zero e não recebe nada de quem o chamou: <code>change_act(Fase)</code> leva só o ato. Tudo o que precisa passar de um ato para o outro vai no <code>st</code>, que a troca nunca limpa. Assim a troca é sempre igual, e quem decide se os pontos voltam a zero é o código, chamando ou não o <code>jogo_novo()</code>.</p></details>
+      `
     },
     {
       title: "Fim de jogo",
-      body: `
-        <p>O fim de jogo vira um ato, <code>FimDeJogo</code>. O <code>setup</code> escreve FIM DE JOGO em vermelho, os pontos e um convite; o <code>on_update</code> começa um jogo novo com espaço. O <code>Text</code> de FIM DE JOGO saiu do <code>atingido</code> da nave: ela só explode.</p>
-        <p><strong>Quando as vidas acabam.</strong> Na fase, <code>@when(lambda self: st.vidas == 0)</code>: quando as vidas chegam a zero, <code>self.after(2, …)</code> espera dois segundos (a explosão, o fogo no destroço) e troca de ato. Esse <code>after</code> é do ato: se o R recomeçar antes, ele sai junto com a fase e não troca nada.</p>
-        <p><strong>Um cuidado.</strong> <code>@when</code> roda quando a condição <em>passa</em> a ser verdadeira. Uma fase que já começasse com zero vidas nunca veria essa passagem, e o jogo ficaria preso nela. Por isso o espaço chama <code>jogo_novo()</code> antes do <code>change_act(Fase)</code>.</p>
-      `,
+      body: [
+        `
+        <p>O fim de jogo vira um ato, <code>FimDeJogo</code>, com os pontos e um convite para jogar de novo. A fase passa para ele quando as vidas acabam:</p>
+        `,
+        {
+          snip: `@when(lambda self: st.vidas == 0)
+def perdeu(self):
+    self.after(2, lambda: change_act(FimDeJogo))`
+        },
+        `
+        <p>Quando as vidas chegam a zero, a fase espera dois segundos, o tempo da explosão e do fogo no destroço, e troca de ato. Esse <code>after</code> (depois) é da fase: se o R recomeçar antes, ele sai junto com ela e não troca nada.</p>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -1434,15 +1508,26 @@ def saiu(tiro):
 
 
 run(Fase)
-`
+`,
+      notes: [
+        {
+          at: "Text(text=\"FIM DE JOGO\"",
+          text: "O <code>Text</code> de FIM DE JOGO saiu do <code>atingido</code> da nave, que agora só explode, e veio para o <code>setup</code> do ato, maior e em vermelho."
+        },
+        {
+          at: "keyp.once(\"SPACE\")",
+          text: "Espaço começa um jogo novo: primeiro os dados, com <code>jogo_novo()</code>, depois a fase."
+        }
+      ],
+      after: `
+        <p>Perca as três vidas: dois segundos depois, a tela de fim de jogo. Espaço joga de novo.</p>
+        <details class="ask"><summary>E se o espaço chamasse só <code>change_act(Fase)</code>, sem o <code>jogo_novo()</code>?</summary><p>A fase nova começaria com zero vidas, e o jogo ficaria preso nela. <code>@when</code> roda quando a condição <em>passa</em> a ser verdadeira: numa fase que já nasce com <code>st.vidas == 0</code>, essa passagem nunca acontece, e o fim de jogo não chega mais.</p></details>
+      `
     },
     {
       title: "Título",
       body: `
-        <p>O jogo agora começa por um título: <code>run(Titulo)</code>. O ato <code>Titulo</code> tem o nome do jogo e um botão. <code>SpriteButton</code> (botão de imagem) é um botão feito de uma imagem: cresce quando o ponteiro passa por cima e afunda no clique, como o <code>Button</code> do 04, mas com cara de jogo. <code>label=</code> (rótulo) é o texto, e <code>on_click=comecar</code> é o que o clique faz.</p>
-        <p><strong>Uma função para começar.</strong> <code>comecar()</code> são as duas linhas de um jogo novo: <code>jogo_novo()</code> e <code>change_act(Fase)</code>. O botão a chama, e o R também.</p>
-        <p><strong>De volta ao título.</strong> O fim de jogo agora volta ao título: com espaço, ou sozinho, depois de 10 segundos (<code>self.after(10, …)</code>).</p>
-        <p>Repare no que não mudou: as classes, o palco, o <code>@leave_playfield</code>. Cada ato só monta a sua parte.</p>
+        <p>O jogo agora começa por um título, com o nome do jogo e um botão para jogar. O fim de jogo volta para ele.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -1743,14 +1828,34 @@ def saiu(tiro):
 
 
 run(Titulo)
-`
+`,
+      notes: [
+        {
+          at: "def comecar():",
+          text: "As duas linhas de um jogo novo ganham um nome. O botão chama <code>comecar</code>, e o R também."
+        },
+        {
+          at: "SpriteButton(",
+          text: "<code>SpriteButton</code> (botão de imagem) é um botão feito de uma imagem: cresce quando o ponteiro passa por cima e afunda no clique. <code>label</code> (rótulo) é o texto escrito nele, e <code>on_click=comecar</code> (ao clicar) é o que o clique faz."
+        },
+        {
+          at: "self.after(10, lambda: change_act(Titulo))",
+          text: "Se ninguém apertar nada, o fim de jogo volta ao título sozinho, em 10 segundos."
+        },
+        {
+          at: "run(Titulo)",
+          text: "O primeiro ato agora é o título."
+        }
+      ],
+      after: `
+        <p>Rode: o título, o clique em JOGAR, a fase, o fim, e de volta ao título.</p>
+        <p>Repare no que não mudou: as classes, o palco, o <code>@leave_playfield</code>. Cada ato só monta a sua parte, e uma tela nova no jogo é um ato a mais.</p>
+      `
     },
     {
       title: "Recorde",
       body: `
-        <p>O recorde é o único dado que deve sobreviver a um jogo novo. Ele mora no <code>st</code>, como os outros, mas <strong>fora</strong> do <code>jogo_novo()</code>: <code>st.recorde = 0</code> no topo, uma vez só, quando o programa abre. O <code>jogo_novo()</code> zera os pontos e não toca nele.</p>
-        <p>O fim de jogo o atualiza, no <code>setup</code>: <code>st.recorde = max(st.recorde, st.pontos)</code> guarda o maior dos dois (<code>max</code>, máximo). O título e o fim de jogo o mostram.</p>
-        <p>É a regra de bolso do <code>st</code>: o que começa do zero a cada jogo vai no <code>jogo_novo()</code>; o que vale entre um jogo e outro fica fora dele.</p>
+        <p>Um recorde: o maior placar desde que o programa abriu. É o único dado que deve sobreviver a um jogo novo.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -2054,18 +2159,53 @@ def saiu(tiro):
 
 
 run(Titulo)
-`
+`,
+      notes: [
+        {
+          at: "st.recorde = 0",
+          text: "O recorde mora no <code>st</code>, como os outros, mas <strong>fora</strong> do <code>jogo_novo()</code>: começa em zero uma vez só, quando o programa abre. O <code>jogo_novo()</code> zera os pontos e não toca nele."
+        },
+        {
+          at: "f\"Recorde {st.recorde}\"",
+          text: "O título mostra o recorde. O texto não está ligado a nada, e não precisa: o ato é montado de novo a cada volta, e o texto já nasce com o valor do momento."
+        },
+        {
+          at: "st.recorde = max(st.recorde, st.pontos)",
+          text: "<code>max</code> (máximo) devolve o maior dos dois. Se o jogo que acabou passou do recorde, ele vira o recorde novo."
+        }
+      ],
+      after: `
+        <p>Jogue duas vezes: o título mostra o melhor dos dois jogos. É a regra de bolso do <code>st</code>:</p>
+        <div class="tbl"><table><thead><tr><th>O dado</th><th>Onde mora</th><th>Aqui</th></tr></thead><tbody>
+          <tr><td>começa do zero a cada jogo</td><td>dentro do <code>jogo_novo()</code></td><td>pontos, vidas, energia</td></tr>
+          <tr><td>vale de um jogo para o outro</td><td>no topo, fora do <code>jogo_novo()</code></td><td>recorde</td></tr>
+        </tbody></table></div>
+        <details class="ask"><summary>E se <code>st.recorde = 0</code> fosse para dentro do <code>jogo_novo()</code>?</summary><p>Cada jogo novo zeraria o recorde, e ele mostraria só os pontos do último jogo.</p></details>
+      `
     },
     {
       title: "A fase em sequência",
       example: "naves_atos.py",
-      body: `
-        <p>A fase também é uma história: a frota, depois o chefe, depois a vitória. Um ato pode ter modos, como um inimigo, e um modo <code>async</code> conta uma sequência. <code>self.mode = self.batalha</code> no fim do <code>setup</code> põe a fase no capítulo da batalha.</p>
-        <p><strong>A frota.</strong> <code>batalha</code> começa montando os 24 inimigos (o laço que estava no <code>setup</code>) e espera: <code>await until_empty("inimigos")</code> (até esvaziar) segura a sequência até o grupo ficar vazio, seja quanto tempo for.</p>
-        <p><strong>O chefe.</strong> Um segundo de folga, o <code>Chefe</code>, e outra espera, agora pelo grupo <code>chefe</code>. Quando ele cai, dois segundos para ver a explosão, <code>st.venceu = True</code> e o fim de jogo. O <code>change_act</code> é a última linha: a sequência, e o ato, acabam ali.</p>
-        <p><strong>Vencer ou perder.</strong> <code>st.venceu</code> começa falso no <code>jogo_novo()</code>, e o fim de jogo escolhe o que escrever: VOCÊ VENCEU, em dourado, ou FIM DE JOGO. O <code>@when</code> do chefe saiu: a sequência já diz quando ele chega, e diz o que vem depois. Lida de cima para baixo, ela é a fase inteira.</p>
-        <p><strong>Uma estrela no lugar do chefe.</strong> Quando o chefe é destruído, um <code>Starburst</code> (explosão de estrela) fica brilhando onde ele estava. Ninguém o apaga: dois segundos depois o ato troca, e ele sai com a fase, como tudo o que ela criou.</p>
-      `,
+      body: [
+        `
+        <p>A fase também é uma história: a frota, depois o chefe, depois a vitória. Um ato pode ter modos, como um inimigo, e um modo <code>async</code> conta uma sequência em ordem:</p>
+        `,
+        {
+          snip: `@on_mode
+async def batalha(self):
+    ...
+    await until_empty("inimigos")
+    await wait(1)
+    Chefe(center=(750, 1000))
+    await until_empty("chefe")
+    await wait(2)
+    st.venceu = True
+    change_act(FimDeJogo)`
+        },
+        `
+        <p>Lida de cima para baixo, ela é a fase inteira. <code>batalha</code> começa montando os 24 inimigos (o laço que estava no <code>setup</code>) e espera: <code>until_empty</code> (até esvaziar) segura a sequência até o grupo ficar vazio, leve o tempo que levar. Depois, um segundo de folga, o chefe, e outra espera, agora pelo grupo <code>chefe</code>. Quando ele cai, dois segundos para ver a explosão, e o fim de jogo. A troca de ato é a última linha: a sequência, e o ato, acabam ali.</p>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -2379,6 +2519,28 @@ def saiu(tiro):
 
 run(Titulo)
 `,
+      notes: [
+        {
+          at: "st.venceu = False",
+          text: "Um dado novo do jogo: <code>st.venceu</code> (venceu) começa falso a cada jogo novo, e a batalha o liga quando o chefe cai."
+        },
+        {
+          at: "Starburst(center=self.center, radius=110)",
+          text: "<code>Starburst</code> (explosão de estrela) fica brilhando onde o chefe estava. Ninguém o apaga: dois segundos depois a fase troca de ato, e ele sai com ela, como tudo o que ela criou."
+        },
+        {
+          at: "self.mode = self.batalha",
+          text: "No fim do <code>setup</code>, a fase entra no modo <code>batalha</code>."
+        },
+        {
+          at: "if st.venceu:",
+          text: "O fim de jogo escolhe o que escrever: VOCÊ VENCEU, em dourado, ou FIM DE JOGO."
+        }
+      ],
+      after: `
+        <p>Derrube a frota e o chefe: VOCÊ VENCEU.</p>
+        <p>O <code>@when</code> que chamava o chefe saiu. A sequência já diz quando ele chega, e diz também o que vem depois: uma regra solta responde a uma pergunta, uma sequência conta a fase em ordem.</p>
+      `,
       try: [
           {
             note: "Para chegar logo ao chefe, enquanto testa: no laço da frota, no lugar da última linha. Cada inimigo é destruído assim que nasce, o grupo fica vazio, e a sequência segue.",
@@ -2396,8 +2558,12 @@ Orb(center=self.center, radius=60, color="gold")`
         {
           title: "Ato e modo",
           body: `
-            <p>Os dois são capítulos, em escalas diferentes. Um <strong>modo</strong> é um capítulo da vida de um objeto: o mergulho de um inimigo, a chegada do chefe, a batalha da fase. Troca com <code>self.mode = …</code>; o mesmo modo de novo não faz nada; o que ele começa (timers, movimentos) para quando ele acaba.</p>
-            <p>Um <strong>ato</strong> é a parte do jogo em que o jogador está: o título, a fase, o fim. Troca com <code>change_act(…)</code>; é sempre um ato novo, mesmo que seja o mesmo nome; tudo o que nasce nele, objetos e timers, sai com ele.</p>
+            <p>Os dois são capítulos, em escalas diferentes. Um <strong>modo</strong> é um capítulo da vida de um objeto: o mergulho de um inimigo, a chegada do chefe, a batalha da fase. Um <strong>ato</strong> é a parte do jogo em que o jogador está: o título, a fase, o fim.</p>
+            <div class="tbl"><table><thead><tr><th></th><th>Modo</th><th>Ato</th></tr></thead><tbody>
+              <tr><td>troca com</td><td><code>self.mode = …</code></td><td><code>change_act(…)</code></td></tr>
+              <tr><td>o mesmo de novo</td><td>não faz nada</td><td>começa um ato novo, do zero</td></tr>
+              <tr><td>quando acaba</td><td>para o que ele começou: timers, movimentos</td><td>leva tudo o que nasceu nele: objetos e timers</td></tr>
+            </tbody></table></div>
             <p>No Guia: <a href="../guide/index.html#atos-palco">o palco e o ato</a> · <a href="../guide/index.html#atos-regras">regras do ato</a>.</p>
           `
         }

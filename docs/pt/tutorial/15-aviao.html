@@ -20,9 +20,7 @@ Tutorial.mount({
     {
       title: "O céu e o avião",
       body: `
-        <p>Outro jogo: um avião voa entre pilares. Ele não anda para a frente; quem anda é o mundo, e o avião só sobe e desce. Cada par de pilares que ele atravessa vale um ponto, e uma batida acaba o voo.</p>
-        <p><strong>O tamanho.</strong> As imagens do cenário deste jogo (e do próximo) são <em>pixel art</em> de 640 por 360 pixels. Com <code>init(width=640, height=360)</code>, o espaço do jogo tem o mesmo tamanho do desenho, e as contas ficam simples: a imagem cobre a tela inteira.</p>
-        <p><strong>O céu.</strong> <code>Wallpaper</code> (papel de parede) com um arquivo de imagem: o céu e as montanhas lá no fundo, parados. O avião, por enquanto, é um sprite parado também.</p>
+        <p>Outro jogo: um avião voa entre pilares. Ele não anda para a frente; quem anda é o mundo, e o avião só sobe e desce. Cada par de pilares que ele atravessa vale um ponto, e uma batida acaba o voo. Primeiro, o céu e o avião.</p>
       `,
       code: `from scena import *
 
@@ -33,14 +31,25 @@ aviao = Sprite("plane/Fly1.png", height=40, center=(120, 200))
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "init(width=640, height=360",
+          text: "As imagens do cenário deste jogo são <em>pixel art</em> de 640 por 360 pixels. Com a janela do mesmo tamanho, a imagem cobre a tela inteira, e as contas ficam simples."
+        },
+        {
+          at: "Wallpaper(",
+          text: "<code>Wallpaper</code> (papel de parede) com um arquivo de imagem: o céu e as montanhas lá no fundo, parados."
+        }
+      ],
+      after: `
+        <p>Rode: o cenário e o avião, ainda parados.</p>
+      `
     },
     {
       title: "A hélice gira",
       body: `
-        <p>O avião tem três desenhos, cada um num arquivo: <code>Fly1.png</code> e <code>Fly2.png</code> (voar, com a hélice em duas posições) e <code>Dead.png</code> (o avião quebrado). No 07, a explosão era <em>uma</em> imagem cortada em 12 quadros. Aqui, cada quadro é um arquivo: <code>Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")</code> junta os três numa folha, numerados na ordem em que aparecem: 0, 1 e 2.</p>
-        <p><strong>Dois clips.</strong> <code>clip("voando", [0, 1], fps=12)</code> é uma sequência com nome: os quadros 0 e 1, doze por segundo (<code>fps</code>, quadros por segundo), repetindo. Trocar de desenho tão depressa faz a hélice girar. <code>clip("caindo", [2])</code> tem um quadro só, o avião quebrado; ele fica guardado para a batida.</p>
-
+        <p>O avião tem três desenhos, cada um num arquivo: <code>Fly1.png</code> e <code>Fly2.png</code> (voar, com a hélice em duas posições) e <code>Dead.png</code> (o avião quebrado). Trocar entre os dois primeiros bem depressa faz a hélice girar.</p>
         <figure class="fig">
           <svg viewBox="0 0 400 180" role="img" aria-label="Três quadros lado a lado, numerados 0, 1 e 2, cada um vindo de um arquivo; os quadros 0 e 1 formam o clip voando, que se repete; o quadro 2 sozinho é o clip caindo">
             <text x="42" y="20">Fly1.png</text>
@@ -63,8 +72,6 @@ run()
           </svg>
           <figcaption>Cada arquivo é um quadro, numerado na ordem. Um clip é uma sequência de quadros com nome; <code>play</code> escolhe qual toca.</figcaption>
         </figure>
-
-        <p><code>aviao.play("voando")</code> (tocar) escolhe o clip que está tocando.</p>
       `,
       code: `from scena import *
 
@@ -80,15 +87,48 @@ aviao.play("voando")
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "folha = Sheet(",
+          text: "<code>Sheet</code> (folha) junta os três arquivos numa folha de quadros, numerados na ordem em que aparecem: 0, 1 e 2."
+        },
+        {
+          at: "fps=12",
+          text: "Um clip é uma sequência de quadros com nome. Este toca os quadros 0 e 1, doze por segundo (<code>fps</code>, quadros por segundo), e repete."
+        },
+        {
+          at: "folha.clip(\"caindo\", [2])",
+          text: "Um quadro só, o avião quebrado. Ele fica guardado para a batida."
+        },
+        {
+          at: "aviao.play(\"voando\")",
+          text: "<code>play</code> (tocar) escolhe o clip que está tocando."
+        }
+      ],
+      after: `
+        <p>Rode: a hélice gira.</p>
+      `
     },
     {
       title: "O manche",
       body: `
-        <p>O avião ganha comportamento, então vira uma classe, como o <code>Heroi</code> do 06: <code>Aviao</code>, com a folha e a altura na linha da classe. O clip começa no <code>setup</code>.</p>
-        <p><strong>O nariz.</strong> As setas para cima e para baixo escolhem um <code>alvo</code> (o ângulo pedido): 30 graus para cima, 30 para baixo, ou reto (0) se nada está apertado. <code>rotate_to(alvo)</code> gira o avião até lá.</p>
-        <p><strong>Sobe para onde aponta.</strong> <code>vec_from_angle</code> (do 10) faz uma seta na direção do nariz, de comprimento 220. Dela, o avião usa só a parte de cima, <code>seta.y</code>: com o nariz reto, zero; a 30 graus, 110 por segundo. Para a frente, ele não vai. <code>confine</code> (do 05) o segura dentro da tela.</p>
-        <p>Voe um pouco. Funciona, mas o nariz pula de uma posição para a outra, como um brinquedo. Um avião de verdade demora a virar.</p>
+        <p>O avião ganha comportamento, então vira uma classe, <code>Aviao</code>. As setas levantam e abaixam o nariz, e ele sobe ou desce para onde aponta. Para isso, uma seta na direção do nariz, da qual o avião usa só a altura:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 180" role="img" aria-label="Uma seta de comprimento 220 sai do avião inclinada 30 graus; a parte de cima dela, a altura, mede 110; a parte deitada não é usada">
+            <line class="guide" x1="60" y1="150" x2="231.5" y2="150"/>
+            <line class="guide" x1="231.5" y1="150" x2="231.5" y2="51"/>
+            <line class="ray" x1="60" y1="150" x2="231.5" y2="51"/>
+            <polygon class="dot" points="231.5,51 220.3,51.7 225.3,60.3"/>
+            <path class="ray" fill="none" d="M 100 150 A 40 40 0 0 0 94.6 130"/>
+            <circle class="hot" cx="60" cy="150" r="6"/>
+            <text x="106" y="144">30°</text>
+            <text x="132" y="88" text-anchor="end">220</text>
+            <text x="240" y="104">seta.y = 110</text>
+            <text x="146" y="170" text-anchor="middle">seta.x: o avião não usa</text>
+          </svg>
+          <figcaption>A seta tem o comprimento 220 e a direção do nariz. A 30 graus, a parte de cima dela mede 110: o avião sobe 110 por segundo. Com o nariz reto, a parte de cima é zero, e ele não sobe nem desce.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -120,14 +160,45 @@ aviao = Aviao(center=(120, 200))
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "alvo = 0",
+          text: "<code>alvo</code> é o ângulo pedido: 30 graus para cima, 30 para baixo, ou reto (0) se nada está apertado."
+        },
+        {
+          at: "self.rotate_to(alvo)",
+          text: "<code>rotate_to</code> (girar até) põe o nariz no ângulo pedido."
+        },
+        {
+          at: "vec_from_angle(self.angle, length=220)",
+          text: "<code>vec_from_angle</code> (vetor a partir do ângulo) faz a seta da figura: a direção do nariz, com comprimento 220."
+        },
+        {
+          at: "self.move_by(0, seta.y * dt)",
+          text: "Da seta, o avião usa só a parte de cima, <code>seta.y</code>. O x do <code>move_by</code> é 0: para a frente, ele não vai."
+        },
+        {
+          at: "self.confine(canvas.game_view)",
+          text: "<code>confine</code> (confinar) o segura dentro da tela."
+        }
+      ],
+      after: `
+        <p>Voe um pouco com as setas.</p>
+        <details class="ask"><summary>Funciona. O que ainda parece errado?</summary><p>O nariz pula de uma posição para a outra, como um brinquedo. Um avião de verdade demora a virar.</p></details>
+      `
     },
     {
       title: "Inércia",
-      body: `
-        <p>No lugar de girar até o alvo de uma vez, o ângulo <strong>persegue</strong> o alvo: <code>chase(self.angle, alvo, rate=4)</code>. É o <code>chase</code> da cadeia de bolas do 04, agora num ângulo. A cada quadro, ele devolve um ângulo um pouco mais perto do alvo: muito mais perto quando está longe, só um pouco quando já está perto.</p>
-        <p><strong>Com números.</strong> O avião voa reto (0) e você aperta a seta para cima (alvo 30). Com <code>rate=4</code> (taxa), em um quarto de segundo o nariz já está a 19 graus; em meio segundo, a 26; e daí vai encostando no 30. Soltar a seta faz o mesmo caminho de volta, até 0. Esse atraso é a <strong>inércia</strong>: o avião parece ter peso.</p>
-
+      body: [
+        `
+        <p>No lugar de girar até o alvo de uma vez, o ângulo vai persegui-lo:</p>
+        `,
+        {
+          snip: `self.rotate_to(chase(self.angle, alvo, rate=4))`
+        },
+        `
+        <p><code>chase</code> (perseguir) devolve, a cada quadro, um ângulo um pouco mais perto do alvo: muito mais perto quando está longe, só um pouco quando já está perto. Com números: o avião voa reto (0) e você aperta a seta para cima (alvo 30). Com <code>rate=4</code> (taxa), em um quarto de segundo o nariz já está a 19 graus; em meio segundo, a 26; e daí vai encostando no 30.</p>
         <figure class="fig">
           <svg viewBox="0 0 380 190" role="img" aria-label="Um gráfico do ângulo no tempo: o ângulo pedido salta de 0 para 30 de uma vez; o ângulo de verdade sobe depressa no começo e devagar no fim, até encostar no pedido">
             <line class="guide" x1="40" y1="150" x2="360" y2="150"/>
@@ -167,7 +238,8 @@ run()
           </svg>
           <figcaption>O alvo (tracejado) pula para 30 quando a seta é apertada. O ângulo de verdade (linha cheia) persegue: anda muito quando está longe e pouco quando está perto.</figcaption>
         </figure>
-      `,
+        `
+      ],
       code: `from scena import *
 
 init(width=640, height=360, title="Avião")
@@ -199,6 +271,9 @@ aviao = Aviao(center=(120, 200))
 
 run()
 `,
+      after: `
+        <p>Voe de novo: o nariz demora a virar, e soltar a seta faz o mesmo caminho de volta, até 0. Esse atraso é a inércia: o avião parece ter peso.</p>
+      `,
       try: [
           {
             note: "Um por vez, no lugar do <code>rate=4</code>. Com 2, um avião pesado, que demora a responder; com 10, um avião leve e nervoso.",
@@ -211,10 +286,22 @@ self.rotate_to(chase(self.angle, alvo, rate=10))`
     {
       title: "Um par de pilares",
       body: `
-        <p><strong>As peças.</strong> Os pilares vêm da folha de um pacote de peças (<code>rollingBall_sheet@2.png</code>, com o seu atlas, como a folha das naves no 07). O quadro <code>block_narrow.png</code> é um bloco verde, alto e estreito; com <code>height=260</code>, um pilar.</p>
-        <p><strong>Um par.</strong> <code>novo_par()</code> faz dois pilares, um em cima do outro, com um vão entre eles. <code>meio</code> é a altura do meio do vão: um pilar fica acima dele, o outro abaixo, à mesma distância, e o vão entre os dois tem 120. Os dois nascem em x = 680, logo depois da borda direita da tela.</p>
-        <p><strong>O mundo anda.</strong> No <code>update</code>, <code>group["pilar"].move_by(-120 * dt, 0)</code> leva os pilares para a esquerda, 120 por segundo. O avião não sai do lugar; parece que ele voa.</p>
-        <p>Por enquanto, um par só, e o avião passa através dele: ainda não há colisão.</p>
+        <p>Agora os pilares. Um par é dois blocos, um em cima do outro, com um vão entre eles por onde o avião deve passar. Eles nascem fora da tela, à direita, e o mundo os traz:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 446 215" role="img" aria-label="A tela de 640 por 360, com o avião à esquerda; logo depois da borda direita, em x 680, um pilar em cima e outro embaixo, com um vão de 120 em volta da linha do meio">
+            <rect class="ray" fill="none" x="20" y="10" width="320" height="180"/>
+            <line class="guide" x1="20" y1="100" x2="380" y2="100"/>
+            <rect class="bar" x="352" y="10" width="16" height="60"/>
+            <rect class="bar" x="352" y="130" width="16" height="60"/>
+            <circle class="hot" cx="80" cy="90" r="6"/>
+            <text x="80" y="76" text-anchor="middle">avião</text>
+            <text x="26" y="94">meio</text>
+            <text x="376" y="104">vão de 120</text>
+            <text x="360" y="206" text-anchor="middle">x = 680</text>
+            <text x="180" y="206" text-anchor="middle">a tela</text>
+          </svg>
+          <figcaption>Os dois pilares nascem em x = 680, logo depois da borda direita. Cada um fica a 190 do meio; com 260 de altura, sobra entre eles um vão de 120.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -260,14 +347,29 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "pecas = Sheet(",
+          text: "Os pilares vêm da folha de um pacote de peças, com o seu atlas, o arquivo que diz onde fica cada quadro. O quadro <code>block_narrow.png</code> é um bloco verde, alto e estreito; com <code>height=260</code>, um pilar."
+        },
+        {
+          at: "meio = 180",
+          text: "<code>meio</code> é a altura do meio do vão. Um pilar fica 190 acima dele, o outro 190 abaixo."
+        },
+        {
+          at: "group[\"pilar\"].move_by(-120 * dt, 0)",
+          text: "O mundo anda: o grupo inteiro vai para a esquerda, 120 por segundo. O avião não sai do lugar; parece que ele voa."
+        }
+      ],
+      after: `
+        <p>Rode: um par atravessa a tela, e o avião passa através dele. Ainda não há colisão.</p>
+      `
     },
     {
       title: "Pilares sem fim",
       body: `
-        <p>Um par novo a cada 2 segundos: <code>@every(2)</code> chama <code>novo_par</code>. A 120 por segundo, um par fica a 240 do outro.</p>
-        <p><strong>Um vão em cada altura.</strong> <code>meio = uniform(110, 250)</code> sorteia a altura do vão de cada par. O avião precisa subir e descer, e a inércia passa a fazer diferença.</p>
-        <p><strong>Os que saíram.</strong> Um par que passou pela borda esquerda não volta mais. <code>@leave_playfield("pilar")</code> (do 05) destrói cada pilar que sai da área do jogo. Sem isso, os pilares velhos se juntariam fora da tela, para sempre.</p>
+        <p>Um par só não é um jogo. Agora vem um par novo a cada 2 segundos, cada um com o vão numa altura diferente.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -321,14 +423,30 @@ def saiu(coisa):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "meio = uniform(110, 250)",
+          text: "<code>uniform</code> (uniforme) sorteia um número entre 110 e 250: a altura do vão de cada par. O avião precisa subir e descer, e a inércia passa a fazer diferença."
+        },
+        {
+          at: "@every(2)",
+          text: "<code>@every</code> (a cada) chama a função a cada 2 segundos. A 120 por segundo, um par fica a 240 do outro."
+        },
+        {
+          at: "@leave_playfield(\"pilar\")",
+          text: "Um pilar que passou pela borda esquerda não volta mais, e esta função o destrói quando ele sai da área do jogo."
+        }
+      ],
+      after: `
+        <p>Rode: os pilares não acabam.</p>
+        <details class="ask"><summary>E sem o <code>@leave_playfield</code>?</summary><p>Os pilares velhos se juntariam fora da tela, para sempre, um par a cada 2 segundos. Com <kbd>Ctrl+Shift+1</kbd>, o canto da tela mostra quantos objetos existem: com a função, o número sobe e desce, mas não cresce.</p></details>
+      `
     },
     {
       title: "Pontos",
       body: `
-        <p>Passar por um par vale um ponto. Mas o que é <em>passar</em>? O avião atravessou o vão. Para o Scena ver isso, uma <strong>porta</strong>: um <code>Rect</code> estreito no vão, no grupo <code>porta</code>, que anda com os pilares. Quando o avião toca a porta, é um ponto: o <code>@collide_with("porta")</code> do <code>Aviao</code> destrói a porta (para não contar duas vezes), soma o ponto e toca um som.</p>
-        <p><strong>Invisível.</strong> <code>porta.visible = False</code> (visível) esconde o desenho, mas a porta continua no jogo e continua colidindo. <code>Ctrl+Shift+7</code> desenha os colisores: a porta aparece no vão.</p>
-        <p>O placar é o do 02: <code>st.pontos</code> e um <code>Text</code> ligado a ele com <code>@=</code>.</p>
+        <p>Passar por um par vale um ponto. Mas o que é <em>passar</em>? O avião atravessou o vão. Para o Scena ver isso, uma porta: um <code>Rect</code> estreito e invisível no vão, que anda com os pilares. Tocar a porta é um ponto.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -396,16 +514,46 @@ def saiu(coisa):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "placar[\"text\"] @=",
+          text: "O placar: um <code>Text</code> ligado a <code>st.pontos</code> com <code>@=</code>. Quando o número muda, o texto muda."
+        },
+        {
+          at: "@collide_with(\"porta\")",
+          text: "Quando o avião toca uma porta, <code>passou</code> a destrói, para não contar duas vezes, soma o ponto e toca um som."
+        },
+        {
+          at: "porta = Rect(center=(690, meio)",
+          text: "A porta fica no meio do vão: estreita, com a altura dele, no grupo <code>porta</code>."
+        },
+        {
+          at: "porta.visible = False",
+          text: "<code>visible</code> (visível) <code>= False</code> esconde o desenho, mas a porta continua no jogo e continua colidindo."
+        }
+      ],
+      after: `
+        <p>Rode e passe por alguns vãos: o placar sobe. Com <kbd>Ctrl+Shift+7</kbd>, o Scena desenha os colisores, e a porta invisível aparece no vão.</p>
+      `
     },
     {
       title: "A batida",
-      body: `
-        <p>Bater num pilar, ou no chão, acaba o voo.</p>
-        <p><strong>Voando ou não.</strong> <code>st.voando</code> diz se o avião ainda voa. O <code>update</code> só move os pilares, e o <code>@every</code> só faz pilares novos, enquanto ele voa. O manche também: depois da batida, as setas não fazem nada.</p>
-        <p><strong>Cair.</strong> <code>cair</code> é uma função da própria classe, que nós chamamos (<code>self.cair()</code>), de dois lugares: do <code>@collide_with("pilar")</code> e do <code>on_update</code>, quando o avião desce abaixo de 30, o chão. Ela muda <code>st.voando</code>, troca o clip para <code>"caindo"</code> (o avião quebrado), treme a tela e toca a batida. O <code>if st.voando</code> do <code>bateu</code> evita uma segunda batida enquanto ele cai encostado no pilar.</p>
-        <p><strong>A queda.</strong> Sem voar, o <code>on_update</code> faz outra coisa: o nariz persegue -60 graus (aponta para o chão) e o avião desce até o chão, e para ali. Quem escolhe é o <code>elif</code> (de <em>else if</em>, senão, se): ele só é perguntado quando o <code>if</code> de cima foi falso. Voando, o primeiro bloco roda; caído e ainda acima do chão, o segundo; no chão, nenhum.</p>
-      `,
+      body: [
+        `
+        <p>Bater num pilar, ou no chão, acaba o voo. <code>st.voando</code> guarda se o avião ainda voa, e o <code>on_update</code> passa a ter dois blocos:</p>
+        `,
+        {
+          snip: `if st.voando:
+...
+elif self.center.y > 30:
+    self.rotate_to(chase(self.angle, -60, rate=3))
+    self.move_by(0, -160 * dt)`
+        },
+        `
+        <p>O <code>elif</code> (de <em>else if</em>, senão, se) só é perguntado quando o <code>if</code> de cima foi falso. Voando, o primeiro bloco roda: o manche de antes. Caído e ainda acima do chão, o segundo: o nariz persegue −60 graus, apontando para o chão, e o avião desce. No chão, nenhum dos dois, e ele fica ali.</p>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -492,16 +640,30 @@ def saiu(coisa):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "if self.center.y < 30:",
+          text: "Abaixo de 30 é o chão: o avião cai."
+        },
+        {
+          at: "@collide_with(\"pilar\")",
+          text: "A outra batida, num pilar. O <code>if st.voando</code> logo abaixo evita uma segunda batida enquanto o avião cai encostado no pilar."
+        },
+        {
+          at: "def cair(self):",
+          text: "<code>cair</code> é uma função da própria classe, que nós chamamos com <code>self.cair()</code>, dos dois lugares. Ela muda <code>st.voando</code>, troca o clip para <code>\"caindo\"</code> (o avião quebrado), treme a tela e toca a batida."
+        }
+      ],
+      after: `
+        <p>Rode e bata num pilar. O mundo para junto: o <code>update</code> só move os pilares, e o <code>@every</code> só faz pilares novos, enquanto <code>st.voando</code> for verdadeiro. Depois da batida, as setas também não fazem nada.</p>
+      `
     },
     {
       title: "De novo",
       example: "aviao.py",
       body: `
-        <p>Depois da batida, espaço recomeça.</p>
-        <p><strong>O aviso.</strong> Um <code>Text</code> no meio da tela, vazio no começo. <code>cair</code> escreve nele “Aperte espaço”.</p>
-        <p><strong>Recomeçar.</strong> Um jogo de uma fase só recomeça com uma lista curta: destruir os pilares e as portas (<code>group["pilar"].destroy()</code> destrói o grupo todo), zerar os pontos, voltar a voar, apagar o aviso, pôr o avião no lugar, reto, com o clip de voar. <code>recomecar()</code> é essa lista, e o <code>update</code> a chama quando o avião não voa e o espaço está apertado.</p>
-        <p>A lista cresce com o jogo: cada coisa nova que o jogo cria precisa de uma linha aqui. Mais adiante, os atos (<code>Act</code>) fazem isso sozinhos.</p>
+        <p>Depois da batida, espaço recomeça. Um jogo de uma fase só recomeça com uma lista curta: tudo o que mudou durante o voo volta a ser como no começo.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -605,6 +767,27 @@ def saiu(coisa):
 
 run()
 `,
+      notes: [
+        {
+          at: "aviso = Text(",
+          text: "Um aviso no meio da tela, vazio no começo. <code>cair</code> escreve nele “Aperte espaço”."
+        },
+        {
+          at: "def recomecar():",
+          text: "A lista: destruir os pilares e as portas, zerar os pontos, voltar a voar, apagar o aviso e pôr o avião no lugar, reto, com o clip de voar."
+        },
+        {
+          at: "group[\"pilar\"].destroy()",
+          text: "<code>destroy</code> (destruir) num grupo destrói todos os membros de uma vez."
+        },
+        {
+          at: "elif keyp(\"SPACE\"):",
+          text: "Com o avião caído e o espaço apertado, o jogo recomeça."
+        }
+      ],
+      after: `
+        <p>Rode, bata e aperte espaço. A lista cresce com o jogo: cada coisa nova que o jogo cria precisa de uma linha em <code>recomecar</code>, ou ela sobra do voo anterior.</p>
+      `,
       try: [
           {
             note: "Mais difícil com o tempo: o vão fica menor a cada ponto. Em <code>novo_par</code>, no lugar das duas linhas dos pilares (o <code>max</code> não deixa o vão ficar menor que 80):",

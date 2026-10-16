@@ -20,8 +20,8 @@ Tutorial.mount({
     {
       title: "O jogo do 18",
       body: `
-        <p>O ninja do 18 corre, pula e pisa no chão, mas não tem o que fazer. Neste tutorial, ele ganha um mundo para viver: um buraco com água, estrelas para pegar, robôs que patrulham, kunais (as facas de arremesso do ninja) para jogar e três vidas.</p>
-        <p>O ponto de partida é o jogo do 18, como ficou. Rode e lembre: setas para os lados andam, seta para cima pula.</p>
+        <p>O ninja corre, pula e pisa no chão, mas não tem o que fazer. Neste tutorial, ele ganha um mundo para viver: um buraco com água, estrelas para pegar, robôs que patrulham, kunais (as facas de arremesso do ninja) para jogar e três vidas.</p>
+        <p>O ponto de partida é o jogo do ninja como ficou.</p>
       `,
       code: `from scena import *
 
@@ -86,14 +86,42 @@ heroi = Heroi(center=(100, 400))
 
 
 run()
-`
+`,
+      after: `
+        <p>Rode e lembre: setas para os lados andam, seta para cima pula.</p>
+      `
     },
     {
       title: "Um buraco no chão",
       body: `
-        <p><strong>O buraco.</strong> O chão agora vem em dois pedaços, com um vão de duas peças entre eles. Lá embaixo, duas peças de água (<code>17.png</code>), mais baixas que o chão. Uma terceira plataforma, lá no alto, completa o cenário.</p>
-        <p><strong>Quem fica na frente.</strong> O que nasce depois é desenhado na frente. A árvore, as moitas, a placa e o cogumelo nascem antes do chão: ficam atrás de tudo, só de enfeite, sem grupo e sem colisão. A água nasce depois do ninja, então o ninja que cai afunda <em>atrás</em> dela.</p>
-        <p><strong>Cair no buraco.</strong> Quando os pés descem abaixo de y = 30, o ninja caiu na água: o <code>on_update</code> chama <code>self.perder()</code>, uma função da própria classe, como o <code>cair()</code> do avião no 15. Por enquanto ela só põe o ninja de volta no começo, parado. <code>self.center = (100, 400)</code> <strong>coloca</strong>: o ninja some de um lugar e aparece no outro, sem atravessar o caminho. É a diferença do 12 entre colocar e viajar, agora com chão no meio: o <code>resolve</code> segura quem viaja. Se o ninja fosse da água até o começo com <code>move_by</code>, a beirada do chão estaria no caminho e o barraria ali, na borda do buraco; colocado, ele simplesmente aparece no começo. E a <code>vel</code> volta a zero, senão ele chegaria lá caindo depressa.</p>
+        <p>O chão ganha um buraco com água, e cair nele custa caro: o ninja volta ao começo. O chão agora vem em dois pedaços, com um vão de duas peças entre eles:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 112" role="img" aria-label="O chão em treze vagas de 80; as vagas de x 520 e 600 não têm chão, só água, mais baixa; as peças dos dois lados do vão, em 440 e 680, são pontas">
+            <rect class="bar" x="13" y="50" width="26" height="26"/>
+            <rect class="bar" x="41" y="50" width="26" height="26"/>
+            <rect class="bar" x="69" y="50" width="26" height="26"/>
+            <rect class="bar" x="97" y="50" width="26" height="26"/>
+            <rect class="bar" x="125" y="50" width="26" height="26"/>
+            <rect class="bar child" x="153" y="50" width="26" height="26"/>
+            <rect class="guide" x="181" y="60" width="26" height="16"/>
+            <rect class="guide" x="209" y="60" width="26" height="16"/>
+            <rect class="bar child" x="237" y="50" width="26" height="26"/>
+            <rect class="bar" x="265" y="50" width="26" height="26"/>
+            <rect class="bar" x="293" y="50" width="26" height="26"/>
+            <rect class="bar" x="321" y="50" width="26" height="26"/>
+            <rect class="bar" x="349" y="50" width="26" height="26"/>
+            <text x="166" y="40" text-anchor="middle">3.png</text>
+            <text x="208" y="54" text-anchor="middle">água</text>
+            <text x="250" y="40" text-anchor="middle">1.png</text>
+            <text x="26" y="96" text-anchor="middle">40</text>
+            <text x="166" y="96" text-anchor="middle">440</text>
+            <text x="194" y="96" text-anchor="middle">520</text>
+            <text x="222" y="96" text-anchor="middle">600</text>
+            <text x="250" y="96" text-anchor="middle">680</text>
+            <text x="362" y="96" text-anchor="middle">1000</text>
+          </svg>
+          <figcaption>O chão em vagas de 80, pelo x do centro. Nas vagas 520 e 600 não há chão, só água, mais baixa. As peças dos dois lados do vão são pontas, com a borda desenhada.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -179,6 +207,32 @@ Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
 
 run()
 `,
+      notes: [
+        {
+          at: "Sprite(\"tilesets/Object/Tree_2.png\"",
+          text: "A árvore, as moitas, a placa e o cogumelo são só enfeite: sem grupo e sem colisão. O que nasce depois é desenhado na frente, e eles nascem antes do chão: ficam atrás de tudo."
+        },
+        {
+          at: "plataforma(420, 560)",
+          text: "Uma terceira plataforma, lá no alto."
+        },
+        {
+          at: "if self.center.y < 30:",
+          text: "Com a âncora embaixo, o <code>center</code> são os pés. Abaixo de y = 30, o ninja caiu na água, e o <code>on_update</code> chama <code>self.perder()</code>, uma função da própria classe."
+        },
+        {
+          at: "self.center = (100, 400)",
+          text: "Dar um valor ao <code>center</code> coloca: o ninja some de um lugar e aparece no outro, sem atravessar o caminho. Por enquanto, perder é só isso: voltar ao começo, parado."
+        },
+        {
+          at: "center=(520, 31))",
+          text: "As duas peças de água (<code>17.png</code>), mais baixas que o chão. Elas nascem depois do ninja, então são desenhadas na frente dele: o ninja que cai afunda atrás da água."
+        }
+      ],
+      after: `
+        <p>Rode e caia no buraco: o ninja afunda atrás da água e reaparece no começo.</p>
+        <details class="ask"><summary>Por que colocar o ninja no começo, e não levá-lo até lá com <code>move_by</code>?</summary><p>O <code>resolve</code> segura quem viaja. Indo da água até o começo com <code>move_by</code>, o ninja encontraria a beirada do chão no caminho e ficaria barrado ali, na borda do buraco. Colocado, ele simplesmente aparece no começo. E a <code>vel</code> volta a zero; senão, ele chegaria lá ainda caindo depressa.</p></details>
+      `,
       try: [
           {
             note: "Outros enfeites da mesma pasta (uma pedra, outra árvore, outro cogumelo), para pôr junto dos outros, antes do chão, para ficarem atrás.",
@@ -190,10 +244,16 @@ Sprite("tilesets/Object/Mushroom_2.png", height=30, center=(240, 95))`
     },
     {
       title: "Pulo mais justo",
-      body: `
+      body: [
+        `
         <p>Corra até a beirada do buraco e pule no último instante. Muitas vezes o ninja cai em vez de pular, e parece injusto: você apertou na hora. O que aconteceu é que, por um ou dois quadros, os pés já tinham saído do chão, e <code>"bottom"</code> já não estava em <code>touching_sides</code>.</p>
-        <p><strong>Uma folga.</strong> Jogos de plataforma dão uma folga aqui: o personagem ainda pode pular um pouquinho depois de sair da beirada. Tem até nome, <em>coyote time</em> (o tempo do coiote, o do desenho animado, que só cai quando olha para baixo). <code>recently</code> (recentemente) é a ferramenta: <code>recently("no_chao", no_chao, hold=0.12)</code> responde <code>True</code> se <code>no_chao</code> foi verdade em algum momento dos últimos 0,12 segundos (<code>hold</code>, segurar). O nome <code>"no_chao"</code> é a gaveta onde o Scena guarda essa lembrança.</p>
-
+        <p>Jogos de plataforma dão uma folga aqui: o personagem ainda pode pular um pouquinho depois de sair da beirada. Tem até nome, <em>coyote time</em> (o tempo do coiote, o do desenho animado, que só cai quando olha para baixo). No Scena, a folga é uma linha:</p>
+        `,
+        {
+          snip: `pode_pular = recently("no_chao", no_chao, hold=0.12)`
+        },
+        `
+        <p><code>recently</code> (recentemente) responde <code>True</code> se <code>no_chao</code> foi verdade em algum momento dos últimos 0,12 segundos (<code>hold</code>, segurar). O pulo passa a perguntar <code>pode_pular</code>, e não mais <code>no_chao</code>.</p>
         <figure class="fig">
           <svg viewBox="0 0 400 180" role="img" aria-label="Uma linha do tempo. A faixa no_chao vai até o instante em que o ninja sai da beirada. A faixa pode_pular vai até o mesmo ponto e continua por mais 0,12 segundo. Apertar a seta dentro dessa folga ainda pula; depois dela, não">
             <line class="ray" x1="20" y1="140" x2="380" y2="140"/>
@@ -214,9 +274,8 @@ Sprite("tilesets/Object/Mushroom_2.png", height=30, center=(240, 95))`
           </svg>
           <figcaption>Os pés saem do chão na linha tracejada. <code>pode_pular</code> continua verdade por mais 0,12 segundo: apertar a seta ali ainda pula (o ponto vermelho); depois, não.</figcaption>
         </figure>
-
-        <p><strong>Gastar a folga.</strong> <code>recently</code> diz <code>True</code> em todos os quadros da folga, não uma vez só. Depois de pular, <code>recently.reset("no_chao")</code> (esquecer) apaga a lembrança; sem isso, o ninja que acabou de pular ainda teria 0,12 segundo para pular de novo, no ar.</p>
-      `,
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=750, title="Ninja")
@@ -303,6 +362,19 @@ Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
 
 run()
 `,
+      notes: [
+        {
+          at: "recently(\"no_chao\"",
+          text: "<code>\"no_chao\"</code> é o nome da gaveta onde o Scena guarda essa lembrança."
+        },
+        {
+          at: "recently.reset(\"no_chao\")",
+          text: "<code>recently</code> diz <code>True</code> em todos os quadros da folga, não uma vez só. <code>reset</code> (zerar) apaga a lembrança depois do pulo; sem isso, o ninja que acabou de pular ainda teria 0,12 segundo para pular de novo, no ar."
+        }
+      ],
+      after: `
+        <p>Rode e pule no último instante, já saindo da beirada: agora o pulo sai.</p>
+      `,
       try: [
           {
             note: "A outra folga, para quem aperta cedo demais: a seta apertada até 0,12 segundo antes de pisar também vale (o pulo fica guardado). No lugar da linha do <code>if</code>:",
@@ -314,11 +386,17 @@ run()
     },
     {
       title: "Estrelas",
-      body: `
-        <p>Cinco estrelas espalhadas pelo mundo: em cima das plataformas, sobre o buraco, num canto. O <code>for</code> lê os pontos de uma lista. Cada item é um par, e <code>for x, y in …</code> abre o par em dois nomes: na primeira volta, <code>x</code> vale 360 e <code>y</code> vale 300. Cada estrela pulsa para sempre com o <code>scale_to</code> do 05.</p>
-        <p><strong>Pegar.</strong> É o jogo do 02, agora dentro da classe: <code>@collide_with("estrela")</code> no <code>Heroi</code> destrói a estrela, soma um em <code>st.estrelas</code> e toca um som. O placar é ligado a <code>st.estrelas</code> com <code>@=</code>, como sempre.</p>
-        <p><strong>Todas.</strong> Na quinta, o <code>aviso</code> (um <code>Text</code> vazio no alto) ganha a frase da vitória, com música.</p>
-      `,
+      body: [
+        `
+        <p>Agora há o que pegar: cinco estrelas espalhadas pelo mundo, em cima das plataformas, sobre o buraco, num canto. Os cinco pontos vêm de uma lista:</p>
+        `,
+        {
+          snip: `for x, y in [(360, 300), (560, 220), (720, 470), (420, 640), (960, 150)]:`
+        },
+        `
+        <p>Cada item da lista é um par, e <code>for x, y in …</code> abre o par em dois nomes: na primeira volta, <code>x</code> vale 360 e <code>y</code> vale 300; na segunda, 560 e 220. Cinco voltas, cinco estrelas.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=750, title="Ninja")
@@ -423,16 +501,61 @@ Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "placar[\"text\"] @=",
+          text: "<code>@=</code> liga o texto a essa função: quando <code>st.estrelas</code> muda, o placar muda."
+        },
+        {
+          at: "@collide_with(\"estrela\")",
+          text: "Dentro do <code>Heroi</code>: quando o ninja encosta numa estrela, o Scena chama <code>pegou</code> com ela. A função destrói a estrela, soma um e toca um som."
+        },
+        {
+          at: "if st.estrelas == 5:",
+          text: "Na quinta, o <code>aviso</code>, um <code>Text</code> vazio no alto, ganha a frase da vitória, com música."
+        },
+        {
+          at: "estrela.scale_to(1.2",
+          text: "Cada estrela pulsa para sempre: cresce até 1.2 em meio segundo e volta."
+        }
+      ],
+      after: `
+        <p>Rode e pegue as cinco.</p>
+      `
     },
     {
       title: "Um robô",
-      body: `
-        <p>Dois robôs patrulham: um no chão da direita, outro na plataforma do meio. Cada um é um <code>Robo</code>, uma classe de <code>Sprite</code> com uma folha só dele, feita como a do ninja: <code>anchor="bottom"</code> e <code>pixel_size</code>, para os pés ficarem no chão. Com um clip só na folha, o robô já nasce andando.</p>
-        <p><strong>A patrulha.</strong> No <code>setup</code>, o robô guarda onde nasceu: <code>self.meio = self.center.x</code>. Ele anda 90 por segundo e vira quando passa 90 além do meio, para um lado ou para o outro. Cada <code>if</code> diz para que lado ir (−90 ou 90), em vez de inverter o sinal: logo depois da virada, o robô pode continuar além da borda por um quadro, e um sinal invertido de novo o faria tremer ali, indo e voltando. Com o lado dito, perguntar outra vez não muda nada. O <code>flip_x</code> vira o desenho junto. Cada robô patrulha em volta de onde nasceu, então um <code>Robo(center=…)</code> basta para pôr outro.</p>
-        <p><strong>Sem gravidade.</strong> O robô anda numa linha reta, na altura em que nasceu, e nunca sai da plataforma: não precisa cair, nem de <code>resolve</code>. Só o ninja tem as linhas da gravidade.</p>
-        <p><strong>Encostar.</strong> <code>@collide_with("robo")</code> no <code>Heroi</code> chama o mesmo <code>perder</code> do buraco: o ninja volta ao começo.</p>
-      `,
+      body: [
+        `
+        <p>Dois robôs patrulham: um no chão da direita, outro na plataforma do meio. Cada um anda de um lado para o outro em volta de onde nasceu:</p>
+        `,
+        {
+          snip: `if self.center.x > self.meio + 90:
+    self.vel.x = -90
+...
+if self.center.x < self.meio - 90:
+    self.vel.x = 90`
+        },
+        `
+        <figure class="fig">
+          <svg viewBox="0 0 400 110" role="img" aria-label="Uma linha de chão com três marcas: meio menos 90, meio e meio mais 90; o robô passou da marca da direita, e uma seta mostra que ele volta para a esquerda, com vel.x igual a menos 90">
+            <line class="ray" x1="40" y1="72" x2="360" y2="72"/>
+            <line class="guide" x1="80" y1="20" x2="80" y2="80"/>
+            <line class="guide" x1="320" y1="20" x2="320" y2="80"/>
+            <line class="ray" x1="200" y1="66" x2="200" y2="78"/>
+            <rect class="hot" x="324" y="40" width="18" height="32" rx="3"/>
+            <line class="ray" x1="300" y1="56" x2="240" y2="56"/>
+            <polygon class="dot" points="232,56 241,51 241,61"/>
+            <text x="270" y="36" text-anchor="middle">vel.x = −90</text>
+            <text x="80" y="96" text-anchor="middle">meio − 90</text>
+            <text x="200" y="96" text-anchor="middle">meio</text>
+            <text x="320" y="96" text-anchor="middle">meio + 90</text>
+          </svg>
+          <figcaption>O robô patrulha 90 para cada lado de onde nasceu. Passou de <code>meio + 90</code>, vai para a esquerda: −90. Aquém de <code>meio − 90</code>, para a direita: 90.</figcaption>
+        </figure>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=750, title="Ninja")
@@ -562,17 +685,47 @@ Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "robo = Sheet(",
+          text: "Uma folha só do robô, feita como a do ninja: com a âncora embaixo, os pés ficam no chão. Com um clip só na folha, o robô já nasce andando."
+        },
+        {
+          at: "self.meio = self.center.x",
+          text: "No <code>setup</code>, o robô guarda onde nasceu. Cada robô patrulha em volta do seu meio, então um <code>Robo(center=…)</code> basta para pôr outro."
+        },
+        {
+          at: "self.move_by(self.vel.x * dt, 0)",
+          text: "Só x: o robô anda numa linha reta, na altura em que nasceu, e nunca sai da plataforma. Não precisa de gravidade, nem de <code>resolve</code>."
+        },
+        {
+          at: "@collide_with(\"robo\")",
+          text: "Encostar num robô chama o mesmo <code>perder</code> do buraco: o ninja volta ao começo."
+        }
+      ],
+      after: `
+        <p>Rode e encoste num robô, de propósito.</p>
+        <details class="ask"><summary>Não seria mais curto inverter o sinal, <code>self.vel.x = -self.vel.x</code>, numa linha só?</summary><p>Logo depois da virada, o robô pode continuar além da marca por um quadro. A inversão dispararia de novo, ele viraria para fora outra vez e ficaria tremendo ali, indo e voltando. Com o lado dito, perguntar outra vez não muda nada: além de <code>meio + 90</code>, a resposta é sempre −90.</p></details>
+      `
     },
     {
       title: "Kunai",
-      body: `
+      body: [
+        `
         <p>Espaço joga uma kunai. Três coisas acontecem juntas: o ninja faz o movimento de jogar, a kunai sai voando, e um robô atingido quebra.</p>
-        <p><strong>O movimento.</strong> Um clip novo, <code>"jogando"</code>, com os arquivos <code>Throw__</code>. <code>play("jogando", loops=1, next="parado")</code> toca uma vez (<code>loops=1</code>) e depois passa para o parado (<code>next</code>, o próximo). Mas o fim do <code>on_update</code> escolhe um clip a cada quadro e trocaria o arremesso logo no quadro seguinte. <code>self.showing("jogando")</code> (mostrando) diz se o desenho na tela é do arremesso: enquanto for, o <code>return</code> sai do <code>on_update</code> antes da escolha.</p>
-        <p><strong>A kunai.</strong> O desenho dela aponta para cima; <code>art_angle=90</code> (o ângulo da arte) avisa o Scena, e daí o ângulo da kunai é para onde ela aponta no mundo. Ela nasce na altura do peito do ninja e gira para o mesmo ângulo dele: <code>kunai.rotate_to(self.angle)</code>. O ninja espelhado para a esquerda tem ângulo 180; para a direita, 0. No <code>on_update</code>, ela anda para onde aponta, como o avião do 15. <code>ready("kunai", 0.4)</code> (do 05) deixa jogar uma a cada 0,4 segundo, e <code>@leave_playfield</code> destrói as que saem da tela.</p>
-        <p><strong>O robô quebra.</strong> A folha do robô ganha o clip <code>"quebrado"</code>. Com dois clips, ele não toca nenhum sozinho: o <code>setup</code> pede o <code>"andando"</code>. Atingido, o robô para, toca o <code>"quebrado"</code> uma vez (sem <code>next</code>, fica no último desenho, caído) e se destrói 2 segundos depois. <code>self.untag("robo")</code> (tirar a etiqueta) o tira do grupo <code>robo</code>: caído, ele não machuca mais o ninja.</p>
-        <p><strong>Uma vez só.</strong> O <code>untag</code> não para as kunais, porque o <code>@collide_with("kunai")</code> é do próprio robô: sem cuidado, uma segunda kunai no robô que já está caindo o quebraria de novo, com outro estrondo. Por isso <code>atingido</code> começa perguntando <code>self.showing("quebrado")</code>: se o robô já está quebrando, a função sai, e a kunai passa por ele.</p>
-      `,
+        <p>O movimento é um clip novo, <code>"jogando"</code>, que toca uma vez e volta ao parado. Só que o fim do <code>on_update</code> escolhe um clip a cada quadro, e trocaria o arremesso logo no quadro seguinte. Duas linhas resolvem:</p>
+        `,
+        {
+          snip: `self.play("jogando", loops=1, next="parado")
+...
+if self.showing("jogando"):
+    return`
+        },
+        `
+        <p><code>loops=1</code> toca o clip uma vez, e <code>next</code> (o próximo) diz o que vem depois. <code>self.showing("jogando")</code> (mostrando) diz se o desenho na tela é do arremesso: enquanto for, o <code>return</code> sai do <code>on_update</code> antes da escolha do clip.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=750, title="Ninja")
@@ -735,16 +888,65 @@ def saiu(kunai):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "art_angle=90",
+          text: "O desenho da kunai aponta para cima. <code>art_angle=90</code> (o ângulo da arte) avisa o Scena, e daí o ângulo da kunai é para onde ela aponta no mundo."
+        },
+        {
+          at: "vec_from_angle(self.angle, length=700)",
+          text: "A kunai anda para onde aponta: uma seta de 700 no ângulo dela, por segundo. Só a parte x conta, e ela voa reta."
+        },
+        {
+          at: "self.play(\"andando\")",
+          text: "Com dois clips na folha, o robô não toca nenhum sozinho: o <code>setup</code> pede o <code>\"andando\"</code>."
+        },
+        {
+          at: "self.untag(\"robo\")",
+          text: "<code>untag</code> (tirar a etiqueta) tira o robô do grupo <code>robo</code>: caído, ele não machuca mais o ninja."
+        },
+        {
+          at: "self.play(\"quebrado\", loops=1)",
+          text: "O robô para e toca o <code>\"quebrado\"</code> uma vez. Sem <code>next</code>, fica no último desenho, caído."
+        },
+        {
+          at: "self.after(2, self.destroy)",
+          text: "<code>after</code> (depois): 2 segundos depois, o robô caído some."
+        },
+        {
+          at: "ready(\"kunai\", 0.4)",
+          text: "<code>ready</code> (pronto) deixa jogar uma kunai a cada 0,4 segundo, mesmo com o espaço apertado."
+        },
+        {
+          at: "kunai.rotate_to(self.angle)",
+          text: "A kunai nasce na altura do peito do ninja e gira para o mesmo ângulo dele: espelhado para a esquerda, o ninja tem ângulo 180; para a direita, 0."
+        }
+      ],
+      after: `
+        <p>Rode e jogue uma kunai em cada robô.</p>
+        <details class="ask"><summary>O <code>untag</code> já tirou o robô do grupo. Para que o <code>if self.showing("quebrado")</code> no começo de <code>atingido</code>?</summary><p>O <code>untag</code> não para as kunais: o <code>@collide_with("kunai")</code> é do próprio robô. Sem o <code>if</code>, uma segunda kunai no robô que já está caindo o quebraria de novo, com outro estrondo. Se ele já está quebrando, a função sai, e a kunai passa por ele.</p></details>
+      `
     },
     {
       title: "Três vidas",
       example: "ninja_mundo.py",
-      body: `
-        <p>Cair na água ou encostar num robô agora custa uma vida. São as vidas do 07: <code>st.vidas</code> começa em 3, e o HUD mostra um ninja pequeno e <code>x 3</code>, ligado com <code>@=</code>.</p>
-        <p><strong>Perder.</strong> Agora a função <code>perder</code> tira uma vida e treme a tela. Se sobrou alguma, o ninja volta ao começo, piscando (<code>blink</code>, do 07). Na última, o aviso diz que o jogo acabou. E se as vidas já acabaram, a primeira linha de <code>perder</code> sai sem fazer nada: um robô que encoste no ninja caído não tira uma vida que não existe.</p>
-        <p><strong>Depois do fim.</strong> Com <code>st.vidas</code> em 0, o <code>on_update</code> começa por um <code>if</code> que termina em <code>return</code>: as setas e o espaço não fazem mais nada. Mas a gravidade continua: um ninja atingido no meio de um pulo cai até o chão, e só então o clip <code>"morto"</code> (os arquivos <code>Dead__</code>) toca, uma vez. O <code>not self.showing("morto")</code> é o que deixa tocar uma vez só: chamar <code>play</code> num clip de <code>loops=1</code> que já acabou o toca de novo, e a morte se repetiria sem parar.</p>
-      `,
+      body: [
+        `
+        <p>Cair na água ou encostar num robô agora custa uma vida. São três, e quando acabam, o jogo acaba. Um ninja sem vidas não obedece mais às setas, mas ainda cai:</p>
+        `,
+        {
+          snip: `if st.vidas == 0:
+    self.vel.y -= 2200 * dt
+    self.move_by(0, self.vel.y * dt)
+    if "bottom" in self.touching_sides and not self.showing("morto"):
+        self.play("morto", loops=1)
+    return`
+        },
+        `
+        <p>Com <code>st.vidas</code> em 0, o <code>on_update</code> começa por este <code>if</code>, que termina em <code>return</code>: as setas e o espaço não fazem mais nada. A gravidade continua, então um ninja atingido no meio de um pulo cai até o chão, e só então o clip <code>"morto"</code> (os arquivos <code>Dead__</code>) toca, uma vez.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=750, title="Ninja")
@@ -930,6 +1132,28 @@ def saiu(kunai):
 
 run()
 `,
+      notes: [
+        {
+          at: "vidas[\"text\"] @=",
+          text: "O HUD mostra um ninja pequeno e <code>x 3</code>, ligado a <code>st.vidas</code> com <code>@=</code>."
+        },
+        {
+          at: "not self.showing(\"morto\")",
+          text: "Chamar <code>play</code> num clip de <code>loops=1</code> que já acabou o toca de novo, e a morte se repetiria sem parar. A pergunta deixa tocar uma vez só."
+        },
+        {
+          at: "st.vidas -= 1",
+          text: "Agora <code>perder</code> tira uma vida e treme a tela. Se sobrou alguma, o ninja volta ao começo; na última, o aviso diz que o jogo acabou."
+        },
+        {
+          at: "self.blink(1)",
+          text: "<code>blink</code> (piscar): o ninja volta piscando por 1 segundo."
+        }
+      ],
+      after: `
+        <p>Rode e perca as três vidas; a última, se der, encostando num robô no meio de um pulo.</p>
+        <details class="ask"><summary>Para que serve a primeira linha de <code>perder</code>, que sai se as vidas já acabaram?</summary><p>O ninja caído continua no jogo, e um robô que patrulha pode encostar nele. Sem essa linha, cada toque tiraria uma vida que não existe: o HUD mostraria <code>x -1</code>, <code>x -2</code>…</p></details>
+      `,
       closing: `
         <p>Setas para os lados andam; seta para cima pula, com uma folga na beirada; espaço joga uma kunai. Pegue as cinco estrelas. Cair na água ou encostar num robô custa uma vida; uma kunai quebra o robô. Sem vidas, o jogo acaba (para jogar de novo, rode outra vez).</p>
       `,

@@ -20,8 +20,7 @@ Tutorial.mount({
     {
       title: "O jogo do 06",
       body: `
-        <p>Novo script: o jogo do tutorial 06, como ele terminou, com as classes e o propulsor. Até aqui ele é bonito e curto, mas não perdoa: um tiro e acabou. Neste tutorial a frota fica variada e explode de verdade, o jogo ganha som e a nave ganha três vidas.</p>
-        <p>Antes disso, uma arrumação. O jogo vai querer muitas imagens novas: três tipos de inimigo, o ícone das vidas e, no próximo tutorial, um presente que cai e um escudo. Cada uma num arquivo solto é uma pilha de nomes de arquivo espalhada pelo código. O próximo passo junta tudo numa folha só.</p>
+        <p>Um script novo, que começa onde o jogo das classes parou: a nave com o propulsor, a frota que respira e devolve tiro. Neste tutorial a frota fica variada e explode de verdade, o jogo ganha som e a nave ganha três vidas.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -125,15 +124,19 @@ def saiu(tiro):
 
 
 run()
-`
+`,
+      after: `
+        <p>Rode e deixe um laser vermelho acertar a nave.</p>
+        <details class="ask"><summary>Quantas chances você tem?</summary><p>Uma só: o primeiro laser explode a nave, e o jogo acaba. Ele é bonito, mas não perdoa.</p></details>
+      `
     },
     {
       title: "Uma folha de imagens",
       body: `
-        <p>Os jogos guardam as figuras pequenas numa imagem só, uma <strong>folha</strong>, com uma lista ao lado que diz onde cada figura está. Isso se chama <strong>atlas</strong>. O pacote que usamos desde o 05 tem um: <code>shooter/sheet.png</code> é a folha, e <code>shooter/sheet.xml</code> é a lista, com o nome de cada figura e o retângulo que ela ocupa.</p>
+        <p>O jogo vai pedir muitas figuras novas: três tipos de inimigo, o ícone das vidas, uma explosão. Um arquivo para cada uma é uma pilha de nomes espalhada pelo código. Os jogos fazem diferente: guardam as figuras pequenas numa imagem só, uma <strong>folha</strong>, com uma lista ao lado que diz onde cada figura está. A folha com a sua lista se chama <strong>atlas</strong>.</p>
 
         <figure class="fig">
-          <svg viewBox="0 0 400 230" role="img" aria-label="Uma imagem quadrada com várias figuras; quatro delas, na borda direita, têm uma linha até o seu nome numa lista ao lado">
+          <svg viewBox="0 0 406 236" role="img" aria-label="Uma imagem quadrada com várias figuras; quatro delas, na borda direita, têm uma linha até o seu nome numa lista ao lado">
             <rect class="guide" x="20" y="15" width="200" height="200"/>
             <rect class="bar" x="34" y="30" width="50" height="46"/>
             <rect class="bar" x="94" y="30" width="46" height="42"/>
@@ -160,10 +163,6 @@ run()
           </svg>
           <figcaption>Um atlas: uma imagem com muitas figuras (<code>sheet.png</code>) e uma lista com o nome e o retângulo de cada uma (<code>sheet.xml</code>). <code>frame="…"</code> escolhe um retângulo pelo nome.</figcaption>
         </figure>
-
-        <p><strong>A folha.</strong> <code>Sheet</code> (folha) carrega as duas coisas de uma vez: <code>Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")</code>. A folha fica numa variável, <code>folha</code>, e vale para o jogo inteiro: cada sprite que usa uma figura dela aponta para essa variável.</p>
-        <p><strong>Um quadro.</strong> Um sprite da folha diz duas coisas: a folha, em <code>source</code>, e qual figura, em <code>frame</code> (quadro), pelo nome que está na lista. Nas classes, os dois vão para a linha da classe: <code>class Tiro(Sprite, source=folha, frame="laserBlue03.png", …)</code>. O inimigo leva só a folha; cada criação diz o quadro: <code>Inimigo(frame=FROTA[linha % 2], …)</code>, e a lista <code>FROTA</code> agora guarda nomes de quadros, não de arquivos.</p>
-        <p>Rode: o jogo está igual. As figuras são as mesmas do 05, agora tiradas da folha. O ganho aparece no próximo passo.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -270,6 +269,28 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "folha = Sheet(",
+          text: "<code>Sheet</code> (folha) carrega a imagem e a lista de uma vez; <code>atlas</code> é a lista. A folha fica numa variável e serve o jogo inteiro: todo sprite que usa uma figura dela aponta para <code>folha</code>."
+        },
+        {
+          at: "frame=\"laserBlue03.png\"",
+          text: "Um sprite da folha diz duas coisas: a folha, em <code>source</code> (fonte), e qual figura, em <code>frame</code> (quadro), pelo nome que está na lista. Numa classe, os dois vão na linha da classe."
+        },
+        {
+          at: "class Inimigo(Sprite, source=folha",
+          text: "O inimigo leva só a folha: a figura muda de uma linha da frota para outra."
+        },
+        {
+          at: "Inimigo(frame=FROTA[linha % 2]",
+          text: "Por isso cada criação diz o seu quadro. A lista <code>FROTA</code> agora guarda nomes de quadros, não de arquivos."
+        }
+      ],
+      after: `
+        <p>Rode: o jogo está igual. As figuras são as mesmas, agora tiradas da folha.</p>
+        <details class="ask"><summary>Então o que se ganhou?</summary><p>Uma figura nova agora custa só um nome. Tudo o que está na lista já está carregado: basta escrever outro <code>frame</code>.</p></details>
+      `,
       try: [
           {
             note: "Outros quadros da folha para a nave, um por vez, depois do <code>nave = Heroi(…)</code>: trocar o <code>frame</code> troca a figura. Os nomes estão em <code>shooter/sheet.xml</code>; abra-o num editor de texto.",
@@ -281,8 +302,7 @@ nave.frame = "playerShip3_green.png"`
     {
       title: "Três inimigos",
       body: `
-        <p>Com a folha, um inimigo novo custa um nome. A lista <code>FROTA</code> ganha três tipos, um por linha da frota, e o laço usa <code>FROTA[linha]</code>: a linha 0 tem o primeiro tipo, a linha 1 o segundo, a linha 2 o terceiro.</p>
-        <p>O matiz por coluna continua: cada linha tem a sua forma, cada coluna a sua cor. Nenhum arquivo novo, nenhuma linha nova na classe.</p>
+        <p>Com a folha, um inimigo novo custa um nome. A frota ganha três tipos, um por linha.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -389,6 +409,16 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "frame=FROTA[linha],",
+          text: "<code>FROTA[linha]</code> pega o item da lista pela posição: a linha 0 recebe o primeiro tipo, a linha 1 o segundo, a linha 2 o terceiro. O <code>% 2</code> alternava dois tipos; agora cada linha tem o seu."
+        }
+      ],
+      after: `
+        <p>Rode. Cada linha tem a sua forma, e o matiz por coluna continua: cada coluna, a sua cor. A classe <code>Inimigo</code> nem mudou.</p>
+        <details class="ask"><summary>E se a frota tivesse quatro linhas, com <code>range(4)</code>?</summary><p>A quarta volta pediria <code>FROTA[3]</code>, um quarto item que a lista não tem, e o Python pararia com um <code>IndexError</code> (erro de índice). Com quatro linhas, a lista precisa de quatro nomes.</p></details>
+      `,
       try: [
           {
             note: "Outra frota, no lugar da lista. A folha tem <code>enemyBlack</code>, <code>enemyBlue</code>, <code>enemyGreen</code> e <code>enemyRed</code>, cada um de 1 a 5.",
@@ -399,8 +429,8 @@ run()
     {
       title: "Uma explosão em quadros",
       body: `
-        <p>O inimigo some num estouro desenhado pelo Scena. Agora ele vai explodir com uma animação de verdade: uma explosão desenhada quadro a quadro, como num desenho animado.</p>
-        <p><strong>A faixa.</strong> <code>misc/exp4.png</code> é uma faixa de 12 quadros lado a lado: a explosão nasce pequena, cresce e se desfaz em fumaça. <code>Sheet("misc/exp4.png", cols=12)</code> corta a faixa em 12 colunas (<code>cols</code>). Esta folha não tem lista: os quadros se chamam pelo número, de 0 a 11.</p>
+        <p>O inimigo some num estouro desenhado pelo Scena. Agora ele vai explodir com uma animação de verdade, desenhada quadro a quadro, como num desenho animado.</p>
+        <p>A animação vem numa faixa: <code>misc/exp4.png</code> tem 12 quadros lado a lado. A explosão nasce pequena, cresce e se desfaz em fumaça.</p>
 
         <figure class="fig">
           <svg viewBox="0 0 420 150" role="img" aria-label="Uma faixa de doze quadrados numerados de 0 a 11, como um filme; círculos crescem e depois se desfazem; uma seta embaixo diz o tempo, 24 quadros por segundo">
@@ -443,9 +473,6 @@ run()
           </svg>
           <figcaption>A faixa <code>exp4.png</code> cortada em 12 quadros (<code>cols=12</code>). O clip toca os quadros em ordem, como um filme.</figcaption>
         </figure>
-
-        <p><strong>O clip.</strong> Um <code>clip</code> é uma sequência de quadros com nome. <code>explosao.clip("explode", range(12), fps=24)</code> diz: o clip <code>"explode"</code> mostra os quadros 0 a 11 (<code>range(12)</code>, o mesmo do <code>for</code>), 24 por segundo (<code>fps</code>, quadros por segundo). Os 12 quadros levam meio segundo.</p>
-        <p><strong>A classe.</strong> <code>Explosao</code> é um sprite dessa folha. No <code>setup</code>, <code>play("explode", loops=1)</code> (tocar) toca o clip uma vez só e para no último quadro. Como o clip leva 0.5 s, <code>self.after(0.5, self.destroy)</code> apaga a explosão quando ele acaba. O <code>after</code> do tutorial 02, agora de um objeto: o relógio é desta explosão. No acerto, <code>Explosao(center=self.center)</code> nasce onde o inimigo estava, no lugar do <code>burst_at</code>.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -560,9 +587,35 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "Sheet(\"misc/exp4.png\", cols=12)",
+          text: "Esta folha não tem lista. <code>cols=12</code> (colunas) corta a faixa em 12 partes iguais, e os quadros se chamam pelo número, de 0 a 11."
+        },
+        {
+          at: "explosao.clip(",
+          text: "Um <code>clip</code> é uma sequência de quadros com nome. O clip <code>\"explode\"</code> mostra os quadros de <code>range(12)</code>, de 0 a 11, a 24 por segundo (<code>fps</code>, quadros por segundo)."
+        },
+        {
+          at: "self.play(\"explode\", loops=1)",
+          text: "<code>play</code> (tocar) toca o clip. <code>loops=1</code> (voltas) toca uma vez só, e a explosão para no último quadro."
+        },
+        {
+          at: "self.after(0.5, self.destroy)",
+          text: "O <code>after</code> (depois) do próprio objeto: o relógio é desta explosão, e ela se apaga quando o clip acaba."
+        },
+        {
+          at: "Explosao(center=self.center)",
+          text: "No acerto, a explosão nasce onde o inimigo estava, no lugar do <code>burst_at</code>."
+        }
+      ],
+      after: `
+        <p>Rode e acerte um inimigo.</p>
+        <details class="ask"><summary>Por que 0.5 no <code>after</code>?</summary><p>É a duração do clip: 12 quadros a 24 por segundo dão 12 ÷ 24 = 0.5 s. Os dois números andam juntos. Com <code>fps=12</code>, o clip passa a durar 1 s, e o <code>after</code> precisa dizer 1; senão a explosão some no meio.</p></details>
+      `,
       try: [
           {
-            note: "Uma explosão maior, no acerto, no lugar da linha da <code>Explosao</code>: a criação vence a altura da linha da classe. Mais devagar é o <code>fps</code> do clip; com 12 quadros, o tempo do <code>after</code> é 12 dividido pelo <code>fps</code>.",
+            note: "Uma explosão maior, no acerto, no lugar da linha da <code>Explosao</code>: a altura dada na criação vence a da linha da classe.",
             code: `Explosao(center=self.center, height=140)`
           }
         ]
@@ -570,8 +623,8 @@ run()
     {
       title: "Som",
       body: `
-        <p>O jogo é mudo. <code>play_sound</code> (tocar som) toca um arquivo de som, uma vez, e o jogo segue sem esperar. Como as imagens, o som vem da pasta <code>media/</code>, e o nome traz a subpasta: <code>"audio/laser4.wav"</code>.</p>
-        <p>Dois sons. O laser fica com quem atira: no <code>on_update</code> do <code>Heroi</code>, logo depois de criar o <code>Tiro</code>. O estrondo fica com a explosão: no <code>setup</code> da <code>Explosao</code>, junto do <code>play</code>. Cada som fica junto da coisa que o faz; assim, toda explosão que o jogo criar, de quem quer que seja, já nasce com o seu estrondo. Dez tiros seguidos tocam dez vezes: os sons se somam, e um não corta o outro.</p>
+        <p>O jogo é mudo. <code>play_sound</code> (tocar som) toca um arquivo de som uma vez, e o jogo segue sem esperar o som acabar. O nome traz a subpasta, como nas imagens: <code>"audio/laser4.wav"</code>.</p>
+        <p>Cada som fica junto da coisa que o faz.</p>
       `,
       code: `from random import choice
 from scena import *
@@ -688,6 +741,19 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "play_sound(\"audio/explosion01.wav\")",
+          text: "O estrondo fica com a explosão, no <code>setup</code> dela. Assim, toda <code>Explosao</code> que o jogo criar, de quem quer que seja, já nasce com o seu som."
+        },
+        {
+          at: "play_sound(\"audio/laser4.wav\")",
+          text: "O laser fica com quem atira, logo depois de criar o <code>Tiro</code>."
+        }
+      ],
+      after: `
+        <p>Rode e segure espaço. Cada tiro toca o seu laser, e os sons se somam: um não corta o outro.</p>
+      `,
       try: [
           {
             note: "Outros sons, um por vez, no lugar dos dois. <code>volume</code> 1 é o original; <code>pitch</code> (altura) 1.5 é mais agudo e mais rápido.",
@@ -695,7 +761,7 @@ run()
 play_sound("audio/explosion03.wav", pitch=1.5)`
           },
           {
-            note: "Cada som um pouco diferente, com o sorteio <code>uniform</code> do tutorial 02. Com o <code>pitch</code> sorteado a cada vez, cada tiro sai um pouco mais grave ou mais agudo, e a repetição para de cansar o ouvido: é um truque dos jogos. Pouca variação no laser, mais na explosão; demais, o som desafina. A primeira linha vai no topo, no lugar da importação; as outras, no lugar das duas linhas de som.",
+            note: "Cada som um pouco diferente. <code>uniform</code> (uniforme) sorteia um número qualquer entre dois. Com o <code>pitch</code> sorteado a cada vez, cada tiro sai um pouco mais grave ou mais agudo, e a repetição para de cansar o ouvido: é um truque dos jogos. Pouca variação no laser, mais na explosão; demais, o som desafina. A primeira linha vai no topo, no lugar da importação; as outras, no lugar das duas linhas de som.",
             code: `from random import choice, uniform
 play_sound("audio/laser4.wav", pitch=uniform(0.9, 1.1))
 play_sound("audio/explosion01.wav", pitch=uniform(0.8, 1.2))`
@@ -704,13 +770,45 @@ play_sound("audio/explosion01.wav", pitch=uniform(0.8, 1.2))`
     },
     {
       title: "Vidas",
-      body: `
-        <p>A nave ganha três vidas. Um laser vermelho tira uma vida, a nave pisca e, por um momento, nada mais a atinge.</p>
-        <p><strong>O número.</strong> <code>st.vidas = 3</code> guarda as vidas em <code>st</code>, ao lado dos pontos. No <code>Heroi</code>, quem perde a vida é o <code>atingido</code>: <code>st.vidas -= 1</code>. A nave não é mais destruída. Por enquanto, as vidas descem sem fim: 2, 1, 0, −1… É o assunto do próximo passo.</p>
-        <p><strong>O placar das vidas.</strong> No canto de cima, o ícone de uma nave pequena, outro quadro da folha, e um texto ligado: <code>vidas["text"] @= lambda: f"x {st.vidas}"</code>. É o <code>@=</code> do placar do tutorial 02: ele liga o texto a uma conta que lê <code>st.vidas</code>, e quando o número muda, o texto muda sozinho. Ninguém atualiza o placar à mão.</p>
-        <p><strong>O golpe.</strong> <code>canvas.shake(8)</code> (sacudir) treme a tela; 8 é a força. <code>self.blink(1.5)</code> (piscar) faz a nave piscar por 1.5 s. E um som de pancada.</p>
-        <p><strong>Um tempo de folga.</strong> Sem folga, uma rajada de lasers tiraria as três vidas num segundo. <code>ready</code>, o freio do tiro no tutorial 05, serve aqui também: <code>ready("dano", 1.5)</code> só responde verdadeiro se já passou 1.5 s desde a última vez. <code>not</code> (não) inverte a resposta: <code>if not ready(…)</code> quer dizer “se ainda <em>não</em> está pronto”. Nesse caso, o <code>return</code> sai da função sem tirar vida. O laser some do mesmo jeito; enquanto a nave pisca, ela não perde vida.</p>
-      `,
+      body: [
+        `
+        <p>A nave ganha três vidas. Um laser vermelho tira uma, a nave pisca e, por um momento, nada mais a atinge.</p>
+        <p>Esse momento de folga é a parte que pede cuidado. Sem ele, uma rajada de lasers tiraria as três vidas num segundo. O freio é o mesmo <code>ready</code> que dá a cadência do tiro, agora no começo do <code>atingido</code>:</p>
+        `,
+        {
+          snip: `if not ready("dano", 1.5):
+    return`
+        },
+        `
+        <p><code>ready("dano", 1.5)</code> responde sim se já passou 1.5 s desde o último sim. <code>not</code> (não) inverte a resposta: <code>if not ready(…)</code> quer dizer “se ainda <em>não</em> está pronto”. Nesse caso, <code>return</code> (voltar) sai da função ali mesmo, antes de tirar a vida. O laser some na linha de cima, então ele se gasta do mesmo jeito.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 130" role="img" aria-label="Uma linha do tempo de 3.5 segundos com cinco lasers que acertam a nave; o primeiro e o quarto tiram uma vida e abrem uma folga de 1.5 segundo; os outros caem dentro de uma folga e não tiram nada">
+            <rect class="bar" x="50" y="62" width="150" height="10"/>
+            <rect class="bar" x="220" y="62" width="150" height="10"/>
+            <line class="guide" x1="50" y1="46" x2="50" y2="100"/>
+            <line class="guide" x1="100" y1="46" x2="100" y2="100"/>
+            <line class="guide" x1="140" y1="46" x2="140" y2="100"/>
+            <line class="guide" x1="220" y1="46" x2="220" y2="100"/>
+            <line class="guide" x1="280" y1="46" x2="280" y2="100"/>
+            <line class="ray" x1="30" y1="100" x2="385" y2="100"/>
+            <circle class="hot" cx="50" cy="40" r="6"/>
+            <circle class="dot" cx="100" cy="40" r="5"/>
+            <circle class="dot" cx="140" cy="40" r="5"/>
+            <circle class="hot" cx="220" cy="40" r="6"/>
+            <circle class="dot" cx="280" cy="40" r="5"/>
+            <text x="50" y="24" text-anchor="middle">−1</text>
+            <text x="220" y="24" text-anchor="middle">−1</text>
+            <text x="175" y="88" text-anchor="middle">1.5 s</text>
+            <text x="330" y="88" text-anchor="middle">1.5 s</text>
+            <text x="30" y="120" text-anchor="middle">0 s</text>
+            <text x="130" y="120" text-anchor="middle">1 s</text>
+            <text x="230" y="120" text-anchor="middle">2 s</text>
+            <text x="330" y="120" text-anchor="middle">3 s</text>
+          </svg>
+          <figcaption>Cada ponto é um laser que acerta a nave. O primeiro tira uma vida e abre 1.5 s de folga (a barra); os que caem dentro dela somem sem tirar nada. O primeiro depois da folga tira outra vida e abre outra folga.</figcaption>
+        </figure>
+        `
+      ],
       code: `from random import choice
 from scena import *
 
@@ -834,17 +932,43 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "st.vidas = 3",
+          text: "As vidas moram em <code>st</code>, ao lado dos pontos: são do jogo inteiro, não de uma nave."
+        },
+        {
+          at: "frame=\"playerLife1_red.png\"",
+          text: "O ícone das vidas é outro quadro da mesma folha: uma nave pequena no canto de cima."
+        },
+        {
+          at: "vidas[\"text\"] @=",
+          text: "O <code>@=</code> liga o texto a uma conta que lê <code>st.vidas</code>. Quando o número muda, o texto muda sozinho: ninguém atualiza o placar à mão."
+        },
+        {
+          at: "st.vidas -= 1",
+          text: "O <code>atingido</code> não destrói mais a nave: tira uma vida."
+        },
+        {
+          at: "canvas.shake(8)",
+          text: "<code>shake</code> (sacudir) treme a tela; 8 é a força. Na linha de baixo, <code>blink</code> (piscar) faz a nave piscar por 1.5 s, o mesmo tempo da folga: enquanto pisca, ela está protegida."
+        }
+      ],
+      after: `
+        <p>Rode e deixe a nave apanhar. O placar desce a cada golpe, e os lasers que chegam enquanto ela pisca não contam.</p>
+        <details class="ask"><summary>O que acontece depois da terceira vida?</summary><p>Nada de especial: o placar continua descendo, 0, −1, −2, e a nave segue voando. Nenhuma linha do <code>atingido</code> olha se as vidas acabaram.</p></details>
+      `,
       dive: [
         {
           title: "O st por dentro",
           body: `
-            <p><code>st</code> guarda os dados do jogo como um todo: os pontos, as vidas, a velocidade da frota. Cada nome em <code>st</code> é uma <strong>célula</strong>: um lugar com um valor que o Scena acompanha. É por isso que o <code>@=</code> funciona: a conta <code>f"x {st.vidas}"</code> lê o valor da célula, e o Scena sabe que, quando a célula mudar, o texto precisa ser refeito.</p>
-            <p>Ponto e colchetes dizem coisas diferentes. <code>st.vidas</code> é o número de agora (3, 2, 1…): é com ele que você lê e muda as vidas. <code>st["vidas"]</code> é a própria célula, o lugar onde o número mora. Os colchetes vão onde alguém precisa acompanhar a célula, e não só ler o número uma vez, como o <code>Slider(st["n_bolas"])</code> do tutorial 04, que escrevia na célula a cada arraste. Dentro de uma <code>lambda</code>, como no placar, é sempre ponto: <code>f"x {st.vidas}"</code>. A <code>lambda</code> já mantém a conta viva, e colchetes ali são erro.</p>
+            <p><code>st</code> guarda os dados do jogo como um todo: os pontos, as vidas, a velocidade da frota. Cada nome em <code>st</code> é uma <strong>célula</strong>, um lugar com um valor que o Scena acompanha. É isso que faz o <code>@=</code> funcionar: a conta <code>f"x {st.vidas}"</code> lê a célula <code>vidas</code>, o Scena anota essa leitura, e quando a célula muda ele refaz o texto.</p>
+            <p>Ponto e colchetes dizem coisas diferentes. <code>st.vidas</code> é o número de agora (3, 2, 1…): é com ele que você lê e muda as vidas. <code>st["vidas"]</code> é a própria célula, o lugar onde o número mora. Os colchetes vão onde alguém precisa acompanhar a célula, e não só ler o número uma vez: um <code>Slider(st["volume"])</code> escreve na célula a cada arraste; um <code>@on_change(st["vidas"])</code> a vigia, como no exemplo abaixo. Dentro de uma <code>lambda</code>, como a do placar, é sempre ponto: a <code>lambda</code> já mantém a conta viva, e colchetes ali são erro.</p>
             <p>No Guia: <a href="../guide/index.html#reativo-state">st</a> · <a href="../guide/index.html#reagir-on-change">@on_change</a>.</p>
           `,
           try: [
               {
-                note: "Um aviso a cada vida perdida, sem mexer no <code>atingido</code>. É uma prévia do <code>@on_change</code>, que o 08 usa no escudo e explica lá. No fim do arquivo, antes do <code>run()</code>:",
+                note: "<code>@on_change</code> (quando mudar) roda a função cada vez que a célula muda, venha a mudança de onde vier: aqui, um aviso a cada vida perdida, sem mexer no <code>atingido</code>. <code>flash_text</code> mostra outro texto no lugar do placar por 0.5 s. No fim do arquivo, antes do <code>run()</code>:",
                 code: `@on_change(st["vidas"])
 def vidas_mudaram():
     vidas.flash_text("AI!", 0.5)`
@@ -863,12 +987,23 @@ def vidas_mudaram():
     {
       title: "Fim de jogo",
       example: "naves_vidas.py",
-      body: `
+      body: [
+        `
         <p>As vidas descem para baixo de zero. Na última, a nave tem de explodir, e o jogo tem de dizer que acabou.</p>
-        <p><strong>A última vida.</strong> Depois de <code>st.vidas -= 1</code>, um <code>if</code> separa os dois casos. Se ainda há vidas, é o golpe do passo anterior: piscar e o som de pancada. Se não há (<code>else</code>, senão), é o fim: o clarão e a explosão grande do tutorial 05, o som de fim de jogo, o texto <code>FIM DE JOGO</code> no meio da tela e o <code>destroy</code>. O <code>shake</code> vale para os dois casos e fica antes do <code>if</code>.</p>
-        <p><strong>O que sobra.</strong> <code>Fire</code> (fogo) é um fogo parado num ponto do mundo. Ele nasce no centro da nave, um instante antes do <code>destroy</code>, e fica queimando onde ela caiu. <code>radius</code> (raio) é o tamanho do fogo.</p>
-        <p><strong>Depois do fim.</strong> A frota continua viva e atirando, e o propulsor sai com a nave. Para jogar de novo, feche a janela e rode outra vez: recomeçar o jogo por dentro é um assunto à parte, num tutorial adiante.</p>
-      `,
+        <p>Depois de tirar a vida, um <code>if</code> separa os dois casos:</p>
+        `,
+        {
+          snip: `st.vidas -= 1
+canvas.shake(8)
+if st.vidas > 0:
+    ...
+else:
+    ...`
+        },
+        `
+        <p>Se ainda sobra vida, é o golpe do passo anterior: piscar e o som de pancada. Se não sobra (<code>else</code>, senão), é o fim. O <code>shake</code> vale para os dois casos, e por isso fica antes do <code>if</code>.</p>
+        `
+      ],
       code: `from random import choice
 from scena import *
 
@@ -1000,6 +1135,23 @@ def saiu(tiro):
 
 run()
 `,
+      notes: [
+        {
+          at: "canvas.explosion_at(self, amount=1.2)",
+          text: "O fim volta a ser o de antes das vidas: o clarão e a explosão grande."
+        },
+        {
+          at: "Fire(center=self.center, radius=30)",
+          text: "<code>Fire</code> (fogo) é um fogo parado num ponto do mundo. Ele nasce no centro da nave, um instante antes do <code>destroy</code>, e fica queimando onde ela caiu. <code>radius</code> (raio) é o tamanho."
+        },
+        {
+          at: "Text(text=\"FIM DE JOGO\"",
+          text: "Um texto no meio da janela: <code>(500, 400)</code> é o meio de 1000 por 800."
+        }
+      ],
+      after: `
+        <p>Rode e perca as três vidas. A nave explode e o fogo fica. A frota continua viva e atirando; para jogar de novo, feche a janela e rode outra vez.</p>
+      `,
       try: [
           {
             note: "Outros fogos no lugar do destroço. <code>style</code> (estilo) muda o jeito: <code>\"soft\"</code> é um disco mais calmo, <code>\"plume\"</code> uma chama que sobe, <code>\"embers\"</code> só brasas. No Guia: <a href='../guide/index.html#desenhar-spatial'>SpatialFx</a>.",

@@ -20,12 +20,7 @@ Tutorial.mount({
     {
       title: "A janela",
       body: `
-        <p>Um script Scena é um arquivo Python comum: você escreve as linhas, salva e roda. O Scena cuida da janela, do desenho, do teclado e do mouse. Este primeiro script tem só três linhas, e as três vão estar em todo script que você escrever daqui em diante.</p>
-        <p><strong>O import.</strong> <code>from scena import *</code> traz para o seu arquivo tudo que o Scena oferece: formas, cores, teclado, mouse. O <code>*</code> quer dizer “tudo”. Graças a ele, nomes como <code>Circle</code> ou <code>keyp</code> se escrevem direto, sem prefixo.</p>
-        <p><strong>O tamanho.</strong> <code>init</code> (de <em>initialize</em>, iniciar) prepara a janela, mas ainda não a abre. <code>width</code> (largura) e <code>height</code> (altura) dão o tamanho da área de desenho, e <code>title</code> (título) é o texto na barra da janela. Os 1000 × 700 não são pixels do monitor: são a régua com que você vai posicionar tudo, e o Scena ajusta a janela à sua tela. Num monitor grande ou pequeno, o desenho sai igual. Por isso, quando um tutorial disser que algo tem 80 pixels, entenda 80 unidades dessa régua, e não pontinhos do monitor.</p>
-        <p><strong>Nome e valor.</strong> Dentro dos parênteses, cada informação vai como <code>nome=valor</code>: <code>width=1000</code> quer dizer “a largura é 1000”. Com o nome escrito, a ordem não importa, e o que você não escreve fica num valor padrão que o Scena escolhe. As vírgulas separam uma informação da outra.</p>
-        <p><strong>O laço.</strong> <code>run()</code> (rodar) abre a janela e põe o jogo para andar: muitas vezes por segundo, o Scena lê o teclado e o mouse e redesenha a tela. Ele só sai desse laço quando você fecha a janela. Por isso <code>run()</code> é sempre a última linha, e tudo que você criar vem antes dela.</p>
-        <p>Copie, salve como <code>primeiro.py</code> e rode (<code>python primeiro.py</code>). Deve abrir uma janela vazia, de fundo preto, com o título “Mouse e teclado”. Feche a janela para encerrar o script.</p>
+        <p>Um script Scena é um arquivo Python comum: você escreve as linhas, salva e roda, e o Scena cuida da janela, do desenho, do teclado e do mouse. O primeiro tem três linhas, e as três vão estar em todo script que você escrever.</p>
       `,
       code: `from scena import *
 
@@ -33,6 +28,25 @@ init(width=1000, height=700, title="Mouse e teclado")
 
 run()
 `,
+      notes: [
+        {
+          at: "from scena import *",
+          text: "Traz para o seu arquivo tudo o que o Scena oferece: formas, cores, teclado, mouse. O <code>*</code> quer dizer “tudo”; graças a ele, nomes como <code>Circle</code> se escrevem direto, sem prefixo."
+        },
+        {
+          at: "init(",
+          text: "<code>init</code> (de <em>initialize</em>, iniciar) prepara a janela, mas ainda não a abre. <code>width</code> (largura) e <code>height</code> (altura) dão o tamanho da área de desenho; <code>title</code> (título) é o texto na barra da janela."
+        },
+        {
+          at: "run()",
+          text: "<code>run</code> (rodar) abre a janela e põe o jogo para andar: muitas vezes por segundo, o Scena lê o teclado e o mouse e redesenha a tela, até você fechar a janela. Por isso <code>run()</code> é sempre a última linha, e tudo o que você criar vem antes dela."
+        }
+      ],
+      after: `
+        <p>Copie, salve como <code>primeiro.py</code> e rode (<code>python primeiro.py</code>). Abre uma janela vazia, de fundo preto, com o título “Mouse e teclado”. Feche a janela para encerrar o script.</p>
+        <p>Dentro dos parênteses do <code>init</code>, cada informação vai como <code>nome=valor</code>, separada da seguinte por uma vírgula: <code>width=1000</code> quer dizer “a largura é 1000”. Com o nome escrito, a ordem não importa, e o que você não escreve fica num valor padrão que o Scena escolhe.</p>
+        <details class="ask"><summary>A janela mede 1000 pixels do seu monitor?</summary><p>Não. Os 1000 × 700 são a régua com que você vai posicionar tudo, e o Scena ajusta a janela à sua tela: num monitor grande ou pequeno, o desenho sai igual. Quando um tutorial disser que algo tem 80 pixels, entenda 80 unidades dessa régua.</p></details>
+      `,
       try: [
         {
           note: "No lugar da linha do <code>init</code>: outra área de desenho, mais larga que alta, e outro título. É só isto que muda de uma janela para outra.",
@@ -44,8 +58,6 @@ run()
       title: "O fundo",
       body: `
         <p>A janela abriu preta. Antes de desenhar qualquer coisa, vamos dar uma cor ao fundo.</p>
-        <p><code>Wallpaper</code> (papel de parede) é o fundo da janela, atrás de tudo que for desenhado. A linha <code>Wallpaper("dark navy")</code> sozinha já troca o fundo: não precisa guardar nada em variável nem chamar mais nada. Como tudo que você criar, ela fica entre o <code>init</code> e o <code>run()</code>.</p>
-        <p><code>"dark navy"</code> é um nome de cor, em inglês: <code>navy</code> é azul-marinho, e <code>dark</code> (escuro) na frente escurece a cor. O Scena conhece uns setenta nomes (<code>"navy"</code>, <code>"coral"</code>, <code>"gold"</code>…), alguns com espaço no meio, e aceita <code>dark</code> ou <code>light</code> (claro) antes de qualquer um deles. Se você errar a grafia, ele avisa no console e sugere o nome mais parecido.</p>
       `,
       code: `from scena import *
 
@@ -54,6 +66,20 @@ Wallpaper("dark navy")
 
 run()
 `,
+      notes: [
+        {
+          at: "Wallpaper(",
+          text: "<code>Wallpaper</code> (papel de parede) é o fundo da janela, atrás de tudo o que for desenhado. A linha sozinha já troca o fundo: não precisa guardar nada numa variável nem chamar mais nada."
+        },
+        {
+          at: "\"dark navy\"",
+          text: "Um nome de cor, em inglês: <code>navy</code> é azul-marinho, e <code>dark</code> (escuro) na frente escurece a cor."
+        }
+      ],
+      after: `
+        <p>O Scena conhece uns setenta nomes de cor (<code>"navy"</code>, <code>"coral"</code>, <code>"gold"</code>…), alguns com espaço no meio, e aceita <code>dark</code> ou <code>light</code> (claro) antes de qualquer um deles.</p>
+        <details class="ask"><summary>E se você errar a grafia, como em <code>"dark navi"</code>?</summary><p>O script roda assim mesmo: o Scena avisa no console e sugere o nome mais parecido. Quando algo não sai como esperado, olhe o console primeiro.</p></details>
+      `,
       try: [
         {
           note: "Um por vez, no lugar da linha do <code>Wallpaper</code>. O primeiro é uma cor em hex (hexadecimal), que o passo Cor explica. O segundo é um <code>Gradient</code> (degradê), que passa do preto, embaixo, ao navy, em cima: <code>angle=90</code> (ângulo) põe o degradê na vertical, de baixo para cima, em vez de da esquerda para a direita.",
@@ -65,8 +91,7 @@ Wallpaper(Gradient("black", "navy", angle=90))`
     {
       title: "Três formas",
       body: `
-        <p>Agora as primeiras formas: <code>Rect</code> (retângulo), <code>Circle</code> (círculo) e <code>Triangle</code> (triângulo). Cada linha já faz a sua forma aparecer na tela. Guardamos cada uma numa variável (<code>retangulo</code>, <code>circulo</code>, <code>triangulo</code>) porque, nos próximos passos, vamos pintá-las e mexer nelas pelo nome.</p>
-        <p><strong>Onde.</strong> <code>center</code> (centro) é o ponto do meio da forma, escrito como <code>(x, y)</code>. O x conta da esquerda para a direita. O y conta <strong>de baixo para cima</strong>: <code>(0, 0)</code> é o canto de baixo, à esquerda, e o canto de cima, à direita, é <code>(1000, 700)</code>, o tamanho que demos ao <code>init</code>. As três formas têm y = 480, então ficam numa fileira na parte de cima da janela. Se você já desenhou em outro programa, atenção: em muitos deles o y cresce para baixo. No Scena, cresce para cima, como nos gráficos da escola.</p>
+        <p>Agora as primeiras formas: <code>Rect</code> (retângulo), <code>Circle</code> (círculo) e <code>Triangle</code> (triângulo). Cada uma recebe um <code>center</code> (centro), o ponto do meio da forma, escrito como <code>(x, y)</code>. O x conta da esquerda para a direita; o y conta <strong>de baixo para cima</strong>, como nos gráficos da escola:</p>
         <figure class="fig">
           <svg viewBox="0 0 400 272" role="img" aria-label="A janela como um retângulo de 1000 por 700; a origem (0, 0) no canto de baixo à esquerda; x cresce para a direita e y para cima; as três formas numa fileira em y = 480">
             <rect class="guide" x="50" y="20" width="300" height="210"/>
@@ -89,10 +114,8 @@ Wallpaper(Gradient("black", "navy", angle=90))`
             <text x="46" y="90" text-anchor="end">480</text>
             <text x="98" y="244" text-anchor="middle">160</text>
           </svg>
-          <figcaption>A janela de 1000 × 700. O retângulo está em <code>(160, 480)</code>: 160 para a direita e 480 para cima, a partir do canto de baixo, à esquerda.</figcaption>
+          <figcaption>A janela de 1000 × 700, com o <code>(0, 0)</code> no canto de baixo, à esquerda. O retângulo está em <code>(160, 480)</code>: 160 para a direita e 480 para cima.</figcaption>
         </figure>
-        <p><strong>Que tamanho.</strong> Cada forma recebe as medidas que a definem, na mesma régua do <code>init</code>. O retângulo tem <code>width</code> e <code>height</code>: 90 de largura por 70 de altura. O círculo tem <code>radius</code> (raio), a distância do centro até a borda: com 40, ele mede 80 de um lado ao outro. O triângulo também usa <code>radius</code>, a distância do centro até cada ponta. <code>angle</code> (ângulo) diz para onde aponta uma das pontas, em graus: 0 é para a direita, 90 é para cima. Com <code>angle=90</code>, o triângulo fica de pé. Sem ele, valeria 0, e o triângulo nasceria deitado, apontando para a direita.</p>
-        <p>Rode: as três aparecem azul-marinho por dentro, com um contorno claro, e quase somem no fundo. Dar cor a elas é o próximo passo.</p>
       `,
       code: `from scena import *
 
@@ -107,6 +130,28 @@ triangulo = Triangle(center=(440, 480), radius=48, angle=90)
 
 run()
 `,
+      notes: [
+        {
+          at: "retangulo = Rect(",
+          text: "Cada linha já faz a sua forma aparecer. Guardamos cada uma numa variável (<code>retangulo</code>, <code>circulo</code>, <code>triangulo</code>) para pintá-las e mexer nelas pelo nome, mais adiante."
+        },
+        {
+          at: "width=90, height=70",
+          text: "As medidas usam a mesma régua do <code>init</code>: 90 de largura por 70 de altura."
+        },
+        {
+          at: "radius=40",
+          text: "<code>radius</code> (raio) é a distância do centro até a borda: com 40, o círculo mede 80 de um lado ao outro."
+        },
+        {
+          at: "angle=90",
+          text: "No triângulo, o <code>radius</code> vai do centro até cada ponta. <code>angle</code> (ângulo) diz, em graus, para onde aponta uma das pontas: 0 é para a direita, 90 é para cima. Sem ele, o triângulo nasceria deitado, apontando para a direita."
+        }
+      ],
+      after: `
+        <p>Rode: as três aparecem numa fileira, azul-marinho por dentro, com um contorno claro, e quase somem no fundo. Falta a cor.</p>
+        <details class="ask"><summary>Com <code>center=(160, 50)</code>, onde ficaria o retângulo?</summary><p>Perto da borda de baixo: y = 50 é 50 unidades acima do chão da janela. Em muitos programas de desenho o y cresce para baixo; no Scena, cresce para cima.</p></details>
+      `,
       try: [
         {
           note: "Mais duas formas, para pôr junto das outras, antes do <code>run()</code>. <code>Square</code> (quadrado) tem uma medida só, <code>length</code> (comprimento), que é o lado. <code>RegularPolygon</code> (polígono regular) tem <code>n</code> lados iguais: <code>n=6</code> é um hexágono; experimente 5 ou 8. Como no triângulo, o <code>radius</code> vai do centro até uma ponta.",
@@ -117,11 +162,17 @@ RegularPolygon(n=6, center=(740, 480), radius=42)`
     },
     {
       title: "Cor",
-      body: `
-        <p>As formas nasceram com a cor padrão. Agora cada uma ganha a sua.</p>
-        <p><strong>Pintar.</strong> Depois do nome da variável vem um ponto e <code>color</code> (cor): <code>retangulo.color</code> é a cor do retângulo guardado em <code>retangulo</code>. Escrever nela com <code>=</code> pinta a forma, e a tela já mostra a cor nova. É assim que se muda qualquer coisa numa forma: o nome, um ponto, o que mudar.</p>
-        <p><strong>Duas maneiras de dizer a cor.</strong> Pelo nome em inglês, como no fundo: <code>"coral"</code> (um laranja-rosado) e <code>"gold"</code> (dourado). Ou em hex (hexadecimal), como nas páginas da web: <code>"#FF83FA"</code> é um <code>#</code> seguido de três pares de dígitos, que dizem quanto há de vermelho, de verde e de azul, de <code>00</code> (nada) a <code>FF</code> (o máximo). <code>FF</code> de vermelho, <code>83</code> de verde e <code>FA</code> de azul dão um rosa vivo.</p>
-      `,
+      body: [
+        `
+        <p>As formas nasceram com a cor padrão. Agora cada uma ganha a sua, e a maneira de mudar a cor serve para mudar qualquer coisa numa forma: o nome da variável, um ponto, o que mudar.</p>
+        `,
+        {
+          snip: `retangulo.color = "coral"`
+        },
+        `
+        <p><code>retangulo.color</code> é a <code>color</code> (cor) do retângulo guardado em <code>retangulo</code>. Escrever nela com <code>=</code> pinta a forma, e a tela já mostra a cor nova.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Mouse e teclado")
@@ -138,6 +189,25 @@ triangulo.color = "gold"
 
 run()
 `,
+      notes: [
+        {
+          at: "\"coral\"",
+          text: "Uma cor pelo nome em inglês, como no fundo: <code>coral</code> é um laranja-rosado, e o <code>gold</code> do triângulo é dourado."
+        },
+        {
+          at: "\"#FF83FA\"",
+          text: "Uma cor em hex (hexadecimal), como nas páginas da web. Logo abaixo, como ler os dígitos."
+        }
+      ],
+      after: `
+        <p>Em hex, depois do <code>#</code> vêm três pares de dígitos. Cada par diz quanto há de uma luz, de <code>00</code> (nada) a <code>FF</code> (o máximo):</p>
+        <div class="tbl"><table><thead><tr><th>Par</th><th>Em <code>#FF83FA</code></th></tr></thead><tbody>
+          <tr><td>vermelho</td><td><code>FF</code>, o máximo</td></tr>
+          <tr><td>verde</td><td><code>83</code>, um pouco mais da metade</td></tr>
+          <tr><td>azul</td><td><code>FA</code>, quase o máximo</td></tr>
+        </tbody></table></div>
+        <p>Muito vermelho e muito azul, com um pouco de verde: um rosa vivo.</p>
+      `,
       try: [
         {
           note: "No lugar das duas linhas do <code>circulo</code>. A cor também pode ir na própria criação, com <code>color=</code>: o círculo já nasce rosa. A segunda linha troca a cor depois, por um nome com espaços: <code>deep sky blue</code>, um azul-céu forte.",
@@ -150,9 +220,6 @@ circulo.color = "deep sky blue"`
       title: "Visual",
       body: `
         <p>Uma cor lisa é só o começo. O Scena tem visuais prontos: maneiras de desenhar a forma com luz, relevo ou textura, que aproveitam a cor que ela já tem.</p>
-        <p><strong>O visual.</strong> <code>.visual</code> escolhe como a forma é desenhada. <code>Neon()</code> transforma o triângulo num tubo de neon aceso, no dourado dele. <code>Halo("blue")</code> (auréola) desenha o retângulo como uma casca luminosa; a cor entre parênteses tinge a luz de azul. Cada forma tem um visual só: escrever outro <code>.visual</code> troca o anterior.</p>
-        <p><strong>O brilho.</strong> <code>.glow</code> (brilho) é outra coisa: não troca o visual, acrescenta uma luz em volta da forma. <code>True</code> (verdadeiro) liga, <code>False</code> (falso) desliga. Ele convive com o visual, então uma forma pode ter <code>Neon()</code> e brilho ao mesmo tempo.</p>
-        <p>Rode e compare: o círculo continua o mesmo rosa, agora com uma luz em volta; o retângulo e o triângulo mudaram de aparência.</p>
       `,
       code: `from scena import *
 
@@ -173,6 +240,24 @@ triangulo.visual = Neon()
 
 run()
 `,
+      notes: [
+        {
+          at: "Halo(\"blue\")",
+          text: "<code>.visual</code> escolhe como a forma é desenhada. <code>Halo</code> (auréola) desenha o retângulo como uma casca luminosa; o <code>\"blue\"</code> tinge a luz de azul."
+        },
+        {
+          at: "circulo.glow = True",
+          text: "<code>.glow</code> (brilho) não troca o visual: acrescenta uma luz em volta da forma. <code>True</code> (verdadeiro) liga, <code>False</code> (falso) desliga."
+        },
+        {
+          at: "Neon()",
+          text: "<code>Neon()</code> transforma o triângulo num tubo de neon aceso, no dourado dele."
+        }
+      ],
+      after: `
+        <p>Rode e compare: o círculo continua rosa, agora com uma luz em volta; o retângulo e o triângulo mudaram de aparência.</p>
+        <details class="ask"><summary>Uma forma pode ter dois visuais?</summary><p>Não: cada forma tem um visual só, e escrever outro <code>.visual</code> troca o anterior. O brilho é outra coisa e convive com o visual: um triângulo pode ter <code>Neon()</code> e <code>glow</code> ao mesmo tempo.</p></details>
+      `,
       try: [
         {
           note: "Outros visuais, um por vez, no lugar da linha do <code>Halo</code>. <code>Rim</code> (borda) acende o contorno; <code>Flame</code> (chama) enche a forma de fogo; <code>Metal</code> é metal escovado; <code>Sphere</code> (esfera) dá volume de bola; <code>Gel</code> parece uma bala translúcida. Se colar as cinco linhas de uma vez, só a última vale.",
@@ -187,9 +272,7 @@ retangulo.visual = Gel()`
     {
       title: "Um sprite",
       body: `
-        <p>Formas se desenham com números. Para um desenho com detalhe, usamos uma imagem pronta: um <code>Sprite</code> (em inglês, um duende; nos jogos, uma imagem que se move pela tela). Esta estrela vai ser a personagem do script: nos próximos passos, ela anda.</p>
-        <p><strong>O arquivo.</strong> O primeiro valor é o nome do arquivo de imagem, entre aspas. Copie a pasta <code>media/</code> dos exemplos do Scena para junto do <code>primeiro.py</code>: assim, <code>"space/star_gold.png"</code> é o arquivo <code>media/space/star_gold.png</code>, uma estrela dourada. Se o arquivo não estiver lá, o script não para: no lugar da imagem aparece um xadrez magenta e preto, e o console diz qual arquivo faltou.</p>
-        <p><strong>O tamanho.</strong> A imagem tem o tamanho dela em pixels, que raramente é o que você quer na tela. <code>size=48</code> (tamanho) diz quanto deve medir o lado maior, na régua do <code>init</code>. O outro lado acompanha a proporção da imagem, sem deformar. O <code>center</code> é o mesmo das formas: <code>(500, 200)</code> é o meio da janela na largura, mais para baixo.</p>
+        <p>Formas se desenham com números. Para um desenho com detalhe, usamos uma imagem pronta: um <code>Sprite</code> (em inglês, um duende; nos jogos, uma imagem que se move pela tela). Esta estrela vai ser a personagem do script.</p>
       `,
       code: `from scena import *
 
@@ -212,6 +295,20 @@ estrela = Sprite("space/star_gold.png", size=48, center=(500, 200))
 
 run()
 `,
+      notes: [
+        {
+          at: "\"space/star_gold.png\"",
+          text: "O nome do arquivo de imagem, entre aspas. Copie a pasta <code>media/</code> dos exemplos do Scena para junto do <code>primeiro.py</code>: este é o arquivo <code>media/space/star_gold.png</code>, uma estrela dourada."
+        },
+        {
+          at: "size=48",
+          text: "A imagem tem o tamanho dela em pixels, que raramente é o que você quer na tela. <code>size</code> (tamanho) diz quanto deve medir o lado maior, na régua do <code>init</code>; o outro lado acompanha a proporção, sem deformar."
+        }
+      ],
+      after: `
+        <p>Rode: a estrela aparece no meio da largura, abaixo das formas.</p>
+        <details class="ask"><summary>E se o arquivo não estiver lá?</summary><p>O script não para: no lugar da imagem aparece um xadrez magenta e preto, e o console diz qual arquivo faltou.</p></details>
+      `,
       try: [
         {
           note: "Uma por vez, no lugar da linha da <code>estrela</code>. Com <code>width</code> você escolhe só a largura; com <code>height</code>, só a altura. Nos dois casos, o outro lado acompanha a proporção, como no <code>size</code>.",
@@ -224,10 +321,6 @@ estrela = Sprite("space/star_gold.png", height=64, center=(500, 200))`
       title: "A cada frame",
       body: `
         <p>Até aqui, tudo fica parado. Para mover a estrela, o script precisa de um lugar que rode o tempo todo, enquanto a janela está aberta.</p>
-        <p><strong>A função update.</strong> Lembra do laço do <code>run()</code>? A cada volta, o Scena desenha uma imagem nova da tela, um frame (quadro), uns 60 por segundo. Se o script tem uma função chamada <code>update</code> (atualizar), o Scena a chama uma vez por frame, antes de desenhar. Você não chama <code>update</code> em lugar nenhum: basta o nome certo. O que estiver dentro dela acontece 60 vezes por segundo.</p>
-        <p><strong>O dt.</strong> Em cada chamada, o Scena entrega um número, <code>dt</code> (de <em>delta time</em>, diferença de tempo): quantos segundos se passaram desde o frame anterior. A 60 frames por segundo, é cerca de 0,017.</p>
-        <p><strong>O passo.</strong> <code>move_by</code> (mover por) desloca a estrela a partir de onde ela está. O primeiro número é quanto andar em x (positivo vai para a direita, negativo para a esquerda); o segundo, em y (positivo sobe, negativo desce). Aqui, <code>200 * dt</code> em x e <code>0</code> em y: a cada frame, um passinho para a direita. Em um segundo, os passinhos somam 200, em qualquer computador. Numa máquina lenta há menos frames, mas cada <code>dt</code> é maior, e a soma dá o mesmo. É por isso que se multiplica por <code>dt</code>: <code>200 * dt</code> quer dizer “200 por segundo”.</p>
-        <p>Rode: a estrela atravessa a janela para a direita e sai pela borda, sem parar. Ainda falta controlá-la.</p>
       `,
       code: `from scena import *
 
@@ -255,6 +348,36 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "def update",
+          text: "A cada volta do laço do <code>run()</code>, o Scena desenha uma imagem nova da tela, um frame (quadro), uns 60 por segundo. Se o script tem uma função chamada <code>update</code> (atualizar), o Scena a chama uma vez por frame, antes de desenhar. Você não a chama em lugar nenhum: basta o nome certo."
+        },
+        {
+          at: "(dt)",
+          text: "Em cada chamada, o Scena entrega <code>dt</code> (de <em>delta time</em>, diferença de tempo): quantos segundos se passaram desde o frame anterior. A 60 frames por segundo, é cerca de 0,017."
+        },
+        {
+          at: "move_by(",
+          text: "<code>move_by</code> (mover por) desloca a estrela a partir de onde ela está: primeiro quanto andar em x (positivo vai para a direita), depois em y (positivo sobe). Aqui, um passinho para a direita a cada frame, e nada na altura."
+        }
+      ],
+      after: `
+        <p>Rode: a estrela atravessa a janela para a direita e sai pela borda, sem parar.</p>
+        <p>Por que multiplicar por <code>dt</code>? Porque cada computador desenha um número diferente de frames por segundo. Com o <code>dt</code>, os passinhos somam 200 em um segundo em qualquer máquina:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 132" role="img" aria-label="Duas fileiras de riscos ao longo de um segundo: a de cima tem sessenta riscos, passos de 3,3; a de baixo tem trinta, passos de 6,7; as duas terminam na mesma linha, 200">
+            <line class="guide" x1="340" y1="30" x2="340" y2="100"/>
+            <line class="ray" x1="40" y1="40" x2="340" y2="40" style="stroke-width: 12; stroke-dasharray: 1 4"/>
+            <line class="ray" x1="40" y1="90" x2="340" y2="90" style="stroke-width: 12; stroke-dasharray: 1.5 8.5"/>
+            <text x="40" y="24">rápida: 60 frames, passo ≈ 3,3</text>
+            <text x="40" y="74">lenta: 30 frames, passo ≈ 6,7</text>
+            <text x="40" y="120" text-anchor="middle">0</text>
+            <text x="340" y="120" text-anchor="middle">200</text>
+          </svg>
+          <figcaption>Um segundo de estrela, um risco por frame. Na máquina lenta há metade dos frames, mas cada <code>dt</code> é o dobro, e o passo também: as duas chegam a 200. É isso que <code>200 * dt</code> quer dizer: 200 por segundo.</figcaption>
+        </figure>
+      `,
       try: [
         {
           note: "Formas também andam. Dentro do <code>update</code>, junto da linha da estrela: o retângulo vai para a direita, o círculo desce (y negativo) e o triângulo vai na diagonal, para a esquerda e para cima.",
@@ -268,8 +391,6 @@ triangulo.move_by(-40 * dt, 40 * dt)`
       title: "Uma tecla",
       body: `
         <p>A estrela foge sozinha. Agora ela só vai andar quando você mandar, com a seta para a direita.</p>
-        <p><code>keyp</code> (de <em>key pressed</em>, tecla pressionada) pergunta como está o teclado. <code>keyp("RIGHT")</code> (direita) responde <code>True</code> enquanto a seta direita está apertada e <code>False</code> quando ela está solta. O nome da tecla vai entre aspas, em inglês.</p>
-        <p>O <code>if</code> põe o <code>move_by</code> de antes sob essa condição. Como o <code>update</code> roda a cada frame, a pergunta também é feita a cada frame: enquanto você segura a seta, a estrela anda; soltou, ela para. Por enquanto, só para a direita.</p>
       `,
       code: `from scena import *
 
@@ -297,14 +418,28 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "keyp(\"RIGHT\")",
+          text: "<code>keyp</code> (de <em>key pressed</em>, tecla pressionada) pergunta como está o teclado. <code>keyp(\"RIGHT\")</code> (direita) responde <code>True</code> enquanto a seta direita está apertada e <code>False</code> quando ela está solta. O nome da tecla vai entre aspas, em inglês."
+        }
+      ],
+      after: `
+        <p>Rode, segure a seta e solte.</p>
+        <details class="ask"><summary>Por que a estrela para assim que você solta?</summary><p>O <code>update</code> roda a cada frame, então a pergunta do <code>if</code> também é feita a cada frame. No primeiro frame com a seta solta, <code>keyp</code> responde <code>False</code>, e o <code>move_by</code> não roda.</p></details>
+      `
     },
     {
       title: "As quatro setas",
       body: `
-        <p>Uma direção vira quatro. É o mesmo <code>if</code> repetido, um para cada seta: <code>"LEFT"</code> (esquerda), <code>"RIGHT"</code>, <code>"UP"</code> (para cima) e <code>"DOWN"</code> (para baixo).</p>
-        <p><strong>As direções.</strong> O que muda de um <code>if</code> para outro é o sinal e a posição do número no <code>move_by</code>. Esquerda é x negativo. Para cima, o número vai no y, positivo; para baixo, no y, negativo. São quatro <code>if</code> separados, e não <code>elif</code>: com duas setas apertadas, as duas valem no mesmo frame, e a estrela anda na diagonal.</p>
-        <p><strong>A velocidade.</strong> O número agora tem nome: <code>VELOCIDADE = 400</code>, ou seja, 400 unidades por segundo, o dobro de antes. Escrito num lugar só, ele se ajusta numa linha, em vez de quatro. O nome em maiúsculas é um costume do Python para um valor que não muda enquanto o programa roda.</p>
+        <p>Uma direção vira quatro: o mesmo <code>if</code> repetido, um para cada seta. De um para outro, muda só onde vai o número no <code>move_by</code> e o sinal dele:</p>
+        <div class="tbl"><table><thead><tr><th>Tecla</th><th>No <code>move_by</code></th></tr></thead><tbody>
+          <tr><td><code>"LEFT"</code> (esquerda)</td><td>x negativo</td></tr>
+          <tr><td><code>"RIGHT"</code> (direita)</td><td>x positivo</td></tr>
+          <tr><td><code>"UP"</code> (para cima)</td><td>y positivo</td></tr>
+          <tr><td><code>"DOWN"</code> (para baixo)</td><td>y negativo</td></tr>
+        </tbody></table></div>
       `,
       code: `from scena import *
 
@@ -340,6 +475,15 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "VELOCIDADE = 400",
+          text: "O número agora tem nome: 400 unidades por segundo, o dobro de antes. Escrito num lugar só, ele se ajusta numa linha, em vez de quatro. O nome em maiúsculas é um costume do Python para um valor que não muda enquanto o programa roda."
+        }
+      ],
+      after: `
+        <details class="ask"><summary>E com duas setas apertadas ao mesmo tempo?</summary><p>A estrela anda na diagonal. São quatro <code>if</code> separados, e não <code>elif</code>: no mesmo frame, mais de um pode valer, e os dois <code>move_by</code> se somam.</p></details>
+      `,
       try: [
         {
           note: "Dentro do <code>update</code>, depois das setas. <code>keyp.once</code> (uma vez) responde <code>True</code> só no frame em que a tecla foi apertada, não enquanto ela continua segurada. Cada toque no espaço (<code>SPACE</code>) leva a estrela de volta ao ponto de partida: escrever no <code>center</code> põe a forma direto num lugar.",
@@ -352,9 +496,6 @@ run()
       title: "Clique",
       body: `
         <p>Agora o mouse. Um clique no triângulo vai trocar a cor dele por uma sorteada.</p>
-        <p><strong>O sorteio.</strong> <code>Color</code> (cor) é o tipo de cor do Scena. <code>Color.random()</code> sorteia uma cor nova a cada vez que é chamada, e cada clique traz uma surpresa.</p>
-        <p><strong>O clique.</strong> <code>@click(triangulo)</code> (clique), escrito em cima da função, diz ao Scena quando rodá-la: quando alguém clicar no triângulo. Como no <code>update</code>, você não chama <code>clicou</code>; o Scena chama, a cada clique. E entrega a forma clicada no parâmetro, que aqui se chama <code>forma</code>. A linha de dentro é o mesmo <code>.color</code> do passo Cor, agora com uma cor sorteada.</p>
-        <p>Rode e clique no triângulo algumas vezes: cada clique sorteia outra cor. As outras formas ainda não respondem ao clique.</p>
       `,
       code: `from scena import *
 
@@ -395,6 +536,23 @@ def clicou(forma):
 
 run()
 `,
+      notes: [
+        {
+          at: "@click(triangulo)",
+          text: "<code>@click</code> (clique), escrito em cima da função, diz ao Scena quando rodá-la: quando alguém clicar no triângulo. Como no <code>update</code>, você não chama <code>clicou</code>; o Scena chama, a cada clique."
+        },
+        {
+          at: "(forma)",
+          text: "O Scena entrega a forma clicada neste parâmetro, que aqui se chama <code>forma</code>."
+        },
+        {
+          at: "Color.random()",
+          text: "<code>Color</code> (cor) é o tipo de cor do Scena, e <code>Color.random()</code> sorteia uma cor nova (<em>random</em> = aleatório) a cada vez que é chamada. É o mesmo <code>.color</code> de antes, agora com uma cor sorteada."
+        }
+      ],
+      after: `
+        <p>Rode e clique no triângulo algumas vezes: cada clique traz outra cor. As outras formas ainda não respondem.</p>
+      `,
       try: [
         {
           note: "Uma linha a mais dentro de <code>clicou</code>, depois da cor. <code>pop</code> (estalo) faz a forma inchar e voltar, num pulso rápido. <code>scale=1.25</code> (escala) é o tamanho no auge do pulso: 25% maior.",
@@ -405,9 +563,7 @@ run()
     {
       title: "Clique em várias",
       body: `
-        <p>Só o triângulo responde. Para as outras duas formas, não é preciso outra função: basta pôr as três no <code>@click</code>, separadas por vírgula.</p>
-        <p>É aqui que o parâmetro <code>forma</code> mostra para que serve. Ele recebe quem foi clicado: clique no círculo, e <code>forma</code> é o círculo; no retângulo, é o retângulo. A mesma linha, <code>forma.color = Color.random()</code>, pinta sempre a forma certa. Foi por isso que a função do passo anterior não escreveu <code>triangulo.color</code>.</p>
-        <p>Rode e clique nas três: cada uma troca de cor quando é a clicada, e as outras ficam como estão.</p>
+        <p>Só o triângulo responde. Para as outras duas formas, não é preciso outra função: as três entram no mesmo <code>@click</code>, separadas por vírgula.</p>
       `,
       code: `from scena import *
 
@@ -447,16 +603,46 @@ def clicou(forma):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "forma.color",
+          text: "É aqui que o parâmetro <code>forma</code> mostra para que serve: ele recebe quem foi clicado. Clique no círculo, e <code>forma</code> é o círculo; no retângulo, é o retângulo. A mesma linha pinta sempre a forma certa."
+        }
+      ],
+      after: `
+        <p>Rode e clique nas três: cada uma troca de cor quando é a clicada, e as outras ficam como estão.</p>
+        <details class="ask"><summary>E se a linha fosse <code>triangulo.color = Color.random()</code>?</summary><p>Um clique em qualquer das três pintaria o triângulo. Por isso a função já escrevia <code>forma.color</code>, desde o passo anterior.</p></details>
+      `
     },
     {
       title: "Soltar círculos",
-      body: `
-        <p>Mais um jeito de reagir: a tecla D solta um círculo pequeno, de cor sorteada, bem onde está o ponteiro do mouse.</p>
-        <p><strong>O gatilho.</strong> <code>@when</code> (quando) se parece com o <code>@click</code>: escrito em cima da função, diz ao Scena quando rodá-la. Mas, em vez de um clique, ele recebe uma pergunta de sim ou não. O Scena refaz a pergunta a cada frame e roda a função no momento em que a resposta <em>vira</em> <code>True</code>. Aqui a pergunta é <code>keyp("D")</code>, então a função roda no instante em que D desce. Enquanto você segura, a resposta continua <code>True</code>, mas não virou de novo, e nada se repete. Para outro círculo, solte e aperte outra vez. Compare com o <code>if keyp(…)</code> do <code>update</code>, que age em todo frame em que a tecla está apertada.</p>
-        <p><strong>A pergunta.</strong> Como o Scena precisa refazer a pergunta a cada frame, ela não vai como uma resposta pronta, e sim como uma função. <code>lambda</code> é uma palavra-chave do Python para escrever uma função curta, numa linha só, que calcula um valor a partir do que lê. <code>lambda: keyp("D")</code> é uma função que, cada vez que o Scena a chama, responde se D está apertada naquele momento.</p>
-        <p><strong>O círculo.</strong> <code>mouse.x</code> e <code>mouse.y</code> são a posição do ponteiro, na mesma régua das formas (y para cima). Dentro da função, <code>Circle(…)</code> já aparece na hora, com a cor passada direto em <code>color=</code>. Ele não vai para uma variável, porque não vamos mexer nele depois. Cada círculo solto fica na tela até o script acabar.</p>
-      `,
+      body: [
+        `
+        <p>Mais um jeito de reagir: a tecla D solta um círculo pequeno, de cor sorteada, bem onde está o ponteiro do mouse. Quem dispara é <code>@when</code> (quando):</p>
+        `,
+        {
+          snip: `@when(lambda: keyp("D"))`
+        },
+        `
+        <p>Como o <code>@click</code>, ele fica em cima da função e diz ao Scena quando rodá-la. Mas, em vez de um clique, recebe uma pergunta de sim ou não. O Scena refaz a pergunta a cada frame e roda a função no momento em que a resposta <em>vira</em> <code>True</code>.</p>
+        <p>Para refazer a pergunta, o Scena precisa dela como uma função, e não como uma resposta pronta. <code>lambda</code> é a palavra do Python para escrever uma função curta, numa linha só, que calcula um valor a partir do que lê: <code>lambda: keyp("D")</code> responde, cada vez que o Scena a chama, se D está apertada naquele momento.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 140" role="img" aria-label="Uma linha do tempo: a tecla D fica apertada por um trecho; durante esse trecho, o if do update responde sim em todo frame; o @when roda uma vez só, no instante em que a tecla desce">
+            <line class="guide" x1="120" y1="38" x2="380" y2="38"/>
+            <rect class="bar" x="170" y="22" width="150" height="16"/>
+            <line class="ray" x1="170" y1="70" x2="320" y2="70" style="stroke-width: 12; stroke-dasharray: 1 4"/>
+            <circle class="hot" cx="170" cy="106" r="5"/>
+            <text x="12" y="34">D apertada</text>
+            <text x="12" y="74">if keyp("D")</text>
+            <text x="12" y="110">@when</text>
+            <text x="170" y="132" text-anchor="middle">desce</text>
+            <text x="320" y="132" text-anchor="middle">sobe</text>
+          </svg>
+          <figcaption>Enquanto D está apertada, um <code>if keyp("D")</code> no <code>update</code> responde sim em todo frame. O <code>@when</code> roda uma vez só, no instante em que a resposta vira <code>True</code>.</figcaption>
+        </figure>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Mouse e teclado")
@@ -500,16 +686,39 @@ def soltar_circulo():
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "mouse.x, mouse.y",
+          text: "<code>mouse.x</code> e <code>mouse.y</code> são a posição do ponteiro, na mesma régua das formas."
+        },
+        {
+          at: "radius=20, color=Color.random()",
+          text: "A cor vai direto na criação, com <code>color=</code>. O círculo não vai para uma variável, porque não vamos mexer nele depois."
+        }
+      ],
+      after: `
+        <p>Rode, aponte o mouse e aperte D. Segure: nada se repete. Para outro círculo, solte e aperte de novo. Cada círculo solto fica na tela até o script acabar.</p>
+      `
     },
     {
       title: "Quando a estrela chega",
       example: "primeiro_script.py",
       body: `
-        <p>No passo anterior, a pergunta do <code>@when</code> era uma tecla. Mas ela pode ser qualquer coisa que responda <code>True</code> ou <code>False</code>. Aqui, a pergunta é sobre a estrela: ela já passou da linha x = 800, perto da borda direita?</p>
-        <p><strong>A pergunta.</strong> <code>estrela.center</code> é o ponto do meio da estrela, e <code>.x</code> é só a parte x desse ponto. <code>estrela.center.x > 800</code> responde <code>False</code> enquanto a estrela está à esquerda da linha e passa a <code>True</code> quando ela cruza. Nesse instante, <code>chegou</code> roda uma vez.</p>
-        <p><strong>A resposta.</strong> O triângulo fica branco, e o círculo cresce de raio 40 para 60. Escrever em <code>radius</code> muda o tamanho, do mesmo jeito que escrever em <code>color</code> muda a cor.</p>
-        <p>Rode e leve a estrela para a direita. Enquanto ela fica além de 800, a resposta continua <code>True</code> e nada se repete. Para ver de novo, pinte o triângulo com um clique, volte com a estrela para a esquerda e cruze a linha outra vez: ele fica branco de novo.</p>
+        <p>A pergunta do <code>@when</code> não precisa ser uma tecla: pode ser qualquer coisa que responda <code>True</code> ou <code>False</code>. Aqui, ela é sobre a estrela: já passou da linha x = 800, perto da borda direita?</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 250" role="img" aria-label="A janela com uma linha vertical tracejada em x 800; a estrela, à esquerda da linha, anda para a direita; à esquerda da linha a pergunta responde False, à direita, True">
+            <rect class="ray" fill="none" x="40" y="20" width="300" height="210"/>
+            <line class="guide" x1="280" y1="20" x2="280" y2="230"/>
+            <circle class="hot" cx="190" cy="170" r="6"/>
+            <line class="ray" x1="202" y1="170" x2="288" y2="170"/>
+            <polygon class="dot" points="296,170 288,165 288,175"/>
+            <text x="160" y="50" text-anchor="middle">False</text>
+            <text x="310" y="50" text-anchor="middle">True</text>
+            <text x="280" y="246" text-anchor="middle">x = 800</text>
+          </svg>
+          <figcaption>A pergunta responde <code>False</code> enquanto a estrela está à esquerda da linha. No frame em que ela cruza, a resposta vira <code>True</code>, e a função roda uma vez.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -561,6 +770,20 @@ def chegou():
 
 run()
 `,
+      notes: [
+        {
+          at: "estrela.center.x > 800",
+          text: "<code>estrela.center</code> é o ponto do meio da estrela, e <code>.x</code> é só a parte x desse ponto."
+        },
+        {
+          at: "circulo.radius = 60",
+          text: "Escrever em <code>radius</code> muda o tamanho, do mesmo jeito que escrever em <code>color</code> muda a cor: o círculo cresce de raio 40 para 60."
+        }
+      ],
+      after: `
+        <p>Rode e leve a estrela para a direita: o triângulo fica branco e o círculo cresce.</p>
+        <details class="ask"><summary>Como fazer o triângulo ficar branco de novo?</summary><p>Enquanto a estrela fica além de 800, a resposta continua <code>True</code> e nada se repete. Pinte o triângulo com um clique, volte com a estrela para a esquerda e cruze a linha outra vez: a resposta vira <code>True</code> de novo, e ele fica branco.</p></details>
+      `,
       try: [
         {
           note: "Outras perguntas, junto do <code>chegou</code>. A primeira olha a altura: pinta o retângulo de verde-limão quando a estrela sobe acima de y = 400. A segunda olha o mouse: acende um brilho na estrela quando o ponteiro entra na faixa da esquerda (x &lt; 200).",

@@ -20,8 +20,8 @@ Tutorial.mount({
     {
       title: "O jogo do 16",
       body: `
-        <p>Novo script: o avião do tutorial 16, com o cenário em três faixas. Ele já é um cenário sem fim, mas repete sempre a mesma imagem: depois de um minuto de voo, você já viu os mesmos montes passarem vinte vezes.</p>
-        <p>Neste tutorial, a paisagem fica <strong>variada</strong>: faixas que sorteiam a sua imagem, e árvores e casas soltas pelo caminho, cada uma num lugar. Para isso, há imagens novas de nuvens, de campos e de enfeites: árvores, casas e torres.</p>
+        <p>Um script novo, que começa onde o avião parou: os pilares, o placar e três faixas de cenário que passam sem fim.</p>
+        <p>Neste tutorial, a paisagem fica variada: faixas que sorteiam a sua imagem, e árvores e casas soltas pelo caminho, cada uma num lugar.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -143,15 +143,25 @@ def saiu(coisa):
 
 
 run()
-`
+`,
+      after: `
+        <p>Rode e voe um minuto, de olho nos montes.</p>
+        <details class="ask"><summary>Quantos montes diferentes passam?</summary><p>Um só. Cada faixa repete a mesma imagem, uma colada na outra: depois de um minuto, você já viu os mesmos montes passarem vinte vezes.</p></details>
+      `
     },
     {
       title: "Um sorteio por vaga",
-      body: `
-        <p>Duas faixas novas, uma de nuvens grandes e uma de campo, cada uma com mais de uma imagem.</p>
-        <p><strong>Uma lista.</strong> No lugar de um arquivo, o <code>Endless</code> aceita uma lista de arquivos: <code>Endless("banco", NUVENS, height=360)</code>. A cada vaga (cada imagem nova que entra), ele sorteia uma da lista. <code>NUVENS</code> tem três versões do mesmo céu: uma nuvem alta, uma mais baixa e uma faixa de nuvens só. Elas se encaixam umas nas outras, então qualquer ordem dá certo. <code>CAMPOS</code> tem o campo com árvores e o campo sem.</p>
-        <p><strong>Onde ficam.</strong> As camadas novas entram no meio das outras, na ordem da profundidade, como no 16: o banco de nuvens logo atrás dos montes, e o campo logo na frente deles.</p>
-      `,
+      body: [
+        `
+        <p>Duas faixas novas, uma de nuvens grandes e uma de campo, e cada uma com mais de uma imagem. No lugar de um arquivo, o <code>Endless</code> recebe uma lista:</p>
+        `,
+        {
+          snip: `Endless("banco", NUVENS, height=360)`
+        },
+        `
+        <p>O <code>Endless</code> monta a faixa uma imagem depois da outra, e cada imagem ocupa uma vaga. Com uma lista, a cada vaga nova ele sorteia uma imagem dela. Com as três imagens de <code>NUVENS</code>, a faixa pode sair nuvem alta, nuvem baixa, nuvem baixa, nuvem alta…, e a sequência não se repete.</p>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -285,9 +295,23 @@ def saiu(coisa):
 
 run()
 `,
+      notes: [
+        {
+          at: "NUVENS = [",
+          text: "Três versões do mesmo céu: uma nuvem alta, uma mais baixa e uma faixa de nuvens só. As bordas delas se encaixam, então qualquer ordem dá certo. <code>CAMPOS</code>, logo abaixo, tem o campo com árvores e o campo sem."
+        },
+        {
+          at: "banco = canvas.layers.create(",
+          text: "As camadas novas entram no meio das outras, na ordem da profundidade: o banco de nuvens logo atrás dos montes, o campo logo na frente deles."
+        },
+        {
+          at: "banco.scroll = ",
+          text: "O banco anda a 20% da velocidade do voo, entre as nuvens (10%) e os montes (30%). Quanto mais longe, mais devagar."
+        }
+      ],
       try: [
           {
-            note: "Mais céu entre as nuvens pequenas: <code>gap=</code> (vão) põe um espaço depois de cada imagem; um par sorteia o espaço de cada uma. No lugar do <code>Endless</code> das nuvens:",
+            note: "Mais céu entre as nuvens pequenas: <code>gap=</code> (vão) põe um espaço depois de cada imagem, e um par sorteia o espaço de cada uma, aqui entre 0 e 400. No lugar do <code>Endless</code> das nuvens:",
             replaces: ['Endless("nuvens"'],
             code: `Endless("nuvens", "backgrounds/mountains/mountains2.png", height=360, gap=(0, 400))`
           }
@@ -295,12 +319,19 @@ run()
     },
     {
       title: "Peças soltas",
-      body: `
-        <p>Uma imagem que cobre a tela é uma faixa. Uma árvore é outra coisa: uma peça pequena, num lugar, e cada uma diferente. Para isso, o <code>Endless</code> aceita uma <strong>função</strong>: em vez de uma imagem, ele chama <code>enfeite(slot)</code> para cada vaga, e a função monta o que vai ali.</p>
-        <p><strong>A vaga.</strong> <code>step=110</code> (passo) corta o caminho em vagas de 110 de largura. O <code>slot</code> (vaga) que a função recebe diz onde está a vaga: <code>slot.left</code> e <code>slot.right</code> (esquerda e direita) são as bordas dela. A função faz uma árvore num <code>x</code> sorteado entre as duas, com uma altura sorteada, em pé no campo (a base em y = 50), e a devolve com <code>return</code>.</p>
-
+      body: [
+        `
+        <p>Uma imagem que cobre a tela é uma faixa. Uma árvore é outra coisa: uma peça pequena, num lugar, e cada uma diferente. Para isso, o <code>Endless</code> recebe uma função no lugar da imagem:</p>
+        `,
+        {
+          snip: `def enfeite(slot):
+...
+Endless("enfeites", enfeite, step=110)`
+        },
+        `
+        <p><code>step=110</code> (passo) corta o caminho em vagas de 110 pixels de largura. Para cada vaga, um pouco antes de ela entrar na tela, o <code>Endless</code> chama <code>enfeite(slot)</code>. A função monta o que vai ali e o devolve com <code>return</code>; o <code>Endless</code> põe a peça na camada e a destrói quando ela fica bem para trás.</p>
         <figure class="fig">
-          <svg viewBox="0 0 400 180" role="img" aria-label="Uma faixa cortada em vagas iguais, numeradas; a tela é um retângulo sobre algumas delas; cada vaga tem uma árvore num lugar sorteado dentro dela, uma está vazia e outra tem uma casa; as vagas à direita da tela já estão montadas, as que ficaram bem para trás, à esquerda, foram destruídas">
+          <svg viewBox="0 -2 456 182" role="img" aria-label="Uma faixa cortada em vagas iguais, numeradas; a tela é um retângulo sobre algumas delas; cada vaga tem uma árvore num lugar sorteado dentro dela, uma está vazia e outra tem uma casa; as vagas à direita da tela já estão montadas, as que ficaram bem para trás, à esquerda, foram destruídas">
             <rect class="guide" x="96" y="20" width="190" height="120"/>
             <text x="160" y="14">a tela</text>
             <line class="guide" x1="10" y1="120" x2="390" y2="120"/>
@@ -322,12 +353,10 @@ run()
             <text x="300" y="172">montada antes de entrar</text>
             <text x="10" y="172">destruída bem depois de sair</text>
           </svg>
-          <figcaption>O caminho é cortado em vagas de 110. Para cada uma, o <code>Endless</code> chama <code>enfeite(slot)</code> um pouco antes de ela entrar na tela; o que a função devolve fica naquela vaga.</figcaption>
+          <figcaption>O caminho é cortado em vagas de 110. Cada vaga é montada antes de entrar na tela; o que a função devolve fica naquela vaga.</figcaption>
         </figure>
-
-        <p><strong>O sorteio da vaga.</strong> Dentro da função, os sorteios usam <code>slot.rng</code> (o sorteador da vaga) no lugar de <code>uniform</code> e <code>choice</code> soltos: <code>slot.rng.uniform(…)</code>, <code>slot.rng.choice(…)</code>. Cada vaga tem o seu sorteador, e é isso que deixa o <code>seed=</code>, num Experimente também do próximo passo, repetir a mesma paisagem em toda partida; o sorteio solto daria outra árvore.</p>
-        <p>A folha de enfeites é um atlas, como a das naves no 07: <code>ARVORES</code> é uma lista de nomes de quadros, e o sorteio escolhe um. A camada <code>enfeites</code> anda junto com o campo (50%), para as árvores ficarem paradas no chão.</p>
-      `,
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -474,15 +503,51 @@ def saiu(coisa):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "ARVORES = [",
+          text: "A folha de enfeites é um atlas, uma imagem com muitos quadros, cada um com o seu nome. <code>ARVORES</code> é a lista dos nomes das árvores; o sorteio escolhe um."
+        },
+        {
+          at: "slot.left + 20, slot.right - 20",
+          text: "O <code>slot</code> (vaga) diz onde está a vaga: <code>slot.left</code> e <code>slot.right</code> (esquerda e direita) são as bordas dela. O <code>x</code> da árvore é sorteado entre as duas, com 20 pixels de folga de cada lado."
+        },
+        {
+          at: "altura = slot.rng.uniform(50, 90)",
+          text: "<code>slot.rng</code> é o sorteador da vaga, e ele toma o lugar do <code>uniform</code> e do <code>choice</code> soltos. Cada vaga tem o seu: a mesma vaga sorteia sempre a mesma árvore, e por isso uma semente pode repetir a paisagem inteira."
+        },
+        {
+          at: "center=(x, 50 + altura / 2)",
+          text: "O chão do campo fica em y = 50. O centro sobe metade da altura acima dele, e a árvore fica em pé no chão, seja ela baixa ou alta."
+        }
+      ],
+      after: `
+        <p>Rode: as árvores passam, cada uma num lugar e num tamanho.</p>
+        <details class="ask"><summary>Por que elas não escorregam pelo campo?</summary><p>A camada <code>enfeites</code> anda na mesma velocidade do campo: 60 no começo, e 50% do voo no <code>update</code>. Árvore e chão andam juntos, então a árvore parece plantada.</p></details>
+      `
     },
     {
       title: "Às vezes",
-      body: `
-        <p>Árvore em toda vaga fica parecendo um pomar. A função pode decidir outras coisas.</p>
-        <p><strong>Uma casa.</strong> <code>slot.chance(0.2)</code> é o <code>chance</code> do 08, no sorteio da vaga: verdadeiro em 20% das vezes. Então, uma vaga em cinco ganha uma casa (ou uma torre, ou um castelo) no lugar da árvore. O <code>return</code> sai da função ali mesmo.</p>
-        <p><strong>Nada.</strong> Das que sobram, 30% ficam vazias: <code>return []</code> (uma lista vazia) diz ao <code>Endless</code> que naquela vaga não vai nada. O resto ganha a árvore, como antes. Com três caminhos e os sorteios, a paisagem nunca se repete.</p>
-      `,
+      body: [
+        `
+        <p>Árvore em toda vaga fica parecendo um pomar. A função pode decidir outra coisa para cada vaga: uma casa, ou nada.</p>
+        `,
+        {
+          snip: `if slot.chance(0.2):
+    return Sprite(cenario, frame=slot.rng.choice(CASAS), height=50, center=(x, 75))
+if slot.chance(0.3):
+    return []`
+        },
+        `
+        <p>Os dois <code>if</code> vêm antes da árvore, e cada <code>return</code> sai da função ali mesmo. A vaga segue o primeiro caminho que disser sim; a árvore fica para as que passaram pelos dois. Em 100 vagas, mais ou menos:</p>
+        <div class="tbl"><table><thead><tr><th>A vaga ganha</th><th>Quando</th><th>Em 100</th></tr></thead><tbody>
+          <tr><td>uma casa</td><td>o primeiro sorteio diz sim (20%)</td><td>20</td></tr>
+          <tr><td>nada</td><td>o primeiro diz não, o segundo diz sim (30% das 80 que sobram)</td><td>24</td></tr>
+          <tr><td>uma árvore</td><td>os dois dizem não</td><td>56</td></tr>
+        </tbody></table></div>
+        `
+      ],
       code: `from random import uniform
 from scena import *
 
@@ -635,6 +700,23 @@ def saiu(coisa):
 
 run()
 `,
+      notes: [
+        {
+          at: "CASAS = [",
+          text: "Casas, uma torre e um castelo, do mesmo atlas das árvores. Todas com a mesma altura, 50, e o centro em y = 75: em pé no chão, como as árvores."
+        },
+        {
+          at: "if slot.chance(0.2):",
+          text: "<code>slot.chance(0.2)</code> é verdadeiro em 20% das vezes (<code>chance</code>, probabilidade), com o sorteador da vaga."
+        },
+        {
+          at: "return []",
+          text: "<code>[]</code> é uma lista vazia: diz ao <code>Endless</code> que naquela vaga não vai nada."
+        }
+      ],
+      after: `
+        <p>Rode: casas, árvores e vãos, numa ordem que não se repete.</p>
+      `,
       try: [
           {
             note: "A mesma paisagem em toda partida: <code>seed=</code> (semente) com um número faz os sorteios de todas as vagas saírem sempre iguais. Troque o número para outra paisagem. No lugar do <code>Endless</code> dos enfeites:",
@@ -654,9 +736,31 @@ return [casa, cerca]`
       title: "Na frente",
       example: "aviao_paisagem.py",
       body: `
-        <p>Tudo o que existe até aqui está atrás do avião. Mas uma coisa perto da câmera passaria <strong>na frente</strong> dele, ainda mais depressa que os pilares.</p>
-        <p><strong>O mato na frente.</strong> A camada do mato muda de lugar: <code>above="default"</code> (acima) a põe na frente da camada do jogo. Ela anda 140% da velocidade do voo, mais que os pilares (100%): está mais perto que eles. E fica menor, <code>height=200</code>, só uma franja de folhas no pé da tela, para não esconder o jogo.</p>
-        <p>Agora o avião voa no meio da paisagem: há coisas atrás dele e coisas na frente, cada uma na sua velocidade.</p>
+        <p>Tudo o que existe até aqui está atrás do avião. Mas uma coisa perto da câmera passaria na frente dele, e ainda mais depressa que os pilares. O mato muda de lugar: sai do fundo e vem para a frente do jogo.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 440 168" role="img" aria-label="As camadas de trás para a frente, cada uma com uma barra do tamanho da sua velocidade: nuvens 10%, banco 20%, montes 30%, campo e enfeites 50%, o jogo 100% e o mato 140%">
+            <text x="112" y="24" text-anchor="end">nuvens</text>
+            <rect class="bar" x="120" y="14" width="19" height="14"/>
+            <text x="145" y="24">10%</text>
+            <text x="112" y="50" text-anchor="end">banco</text>
+            <rect class="bar" x="120" y="40" width="38" height="14"/>
+            <text x="164" y="50">20%</text>
+            <text x="112" y="76" text-anchor="end">montes</text>
+            <rect class="bar" x="120" y="66" width="57" height="14"/>
+            <text x="183" y="76">30%</text>
+            <text x="112" y="102" text-anchor="end">campo, enfeites</text>
+            <rect class="bar" x="120" y="92" width="95" height="14"/>
+            <text x="221" y="102">50%</text>
+            <text x="112" y="128" text-anchor="end">jogo</text>
+            <rect class="hot" x="120" y="118" width="190" height="14"/>
+            <text x="316" y="128">100%</text>
+            <text x="112" y="154" text-anchor="end">mato</text>
+            <rect class="bar child" x="120" y="144" width="266" height="14"/>
+            <text x="392" y="154">140%</text>
+            <line class="guide" x1="20" y1="139" x2="420" y2="139"/>
+          </svg>
+          <figcaption>As camadas de trás para a frente, com a velocidade de cada uma. O mato passa a ficar depois do jogo: na frente do avião, e mais rápido que ele.</figcaption>
+        </figure>
       `,
       code: `from random import uniform
 from scena import *
@@ -810,11 +914,28 @@ def saiu(coisa):
 
 run()
 `,
+      notes: [
+        {
+          at: "above=\"default\"",
+          text: "<code>above</code> (acima) põe a camada na frente da camada do jogo, a <code>default</code> (padrão), onde estão o avião e os pilares. As outras usam <code>below</code> (abaixo) e ficam atrás."
+        },
+        {
+          at: "height=200)",
+          text: "O mato fica menor, 200 em vez de 360: só uma franja de folhas no pé da tela, para não esconder o jogo."
+        },
+        {
+          at: "mato.scroll = ",
+          text: "140% da velocidade do voo, mais que os pilares (100%): o mato está mais perto da câmera que eles."
+        }
+      ],
+      after: `
+        <p>Rode e desça até perto do chão: as folhas passam por cima do avião. Agora ele voa no meio da paisagem, com coisas atrás e coisas na frente, cada uma na sua velocidade.</p>
+      `,
       dive: [
         {
           title: "A ordem das camadas",
           body: `
-            <p>De trás para a frente: o <code>Wallpaper</code> (o céu, sempre atrás de tudo); as camadas com <code>below="default"</code>, na ordem em que foram criadas; a camada <code>default</code>, com os pilares e o avião; as camadas com <code>above="default"</code>; e o HUD (<code>ui</code>), com o placar.</p>
+            <p>O Scena desenha de trás para a frente, e cada coisa cobre o que veio antes. Primeiro o <code>Wallpaper</code> (papel de parede): o céu, sempre atrás de tudo. Depois as camadas com <code>below="default"</code>, na ordem em que foram criadas: as nuvens, criadas primeiro, ficam mais atrás. Depois a camada <code>default</code>, com os pilares e o avião; as camadas com <code>above="default"</code>; e por fim o HUD (<code>ui</code>), com o placar, que nada cobre.</p>
             <p>No Guia: <a href="../guide/index.html#mundo-camadas">Camadas</a> · <a href="../guide/index.html#mundo-sem-fim">Mundo sem fim</a>.</p>
           `
         }

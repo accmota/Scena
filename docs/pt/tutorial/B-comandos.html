@@ -22,10 +22,8 @@ Tutorial.mount({
       title: "Medidas de design",
       part: "A janela",
       body: `
-        <p>Este apêndice junta comandos gerais do Scena que todo jogo pode usar, mas que nenhum dos jogos dos tutoriais precisou explicar: o tamanho e o modo da janela, o fundo, as cores, os sorteios, o relógio, os valores que você quer espiar enquanto o jogo roda. Cada seção é um programa curto, que você pode rodar e modificar.</p>
-        <p><strong>A régua.</strong> <code>init(width=800, height=600, title="Minha janela")</code> já apareceu em todo tutorial. <code>width</code> (largura) e <code>height</code> (altura) não são pixels do monitor: são a régua do seu jogo, as <em>medidas de design</em>. Com 800 × 600, x vai de 0 (borda esquerda) a 800 (borda direita), e y de 0 (embaixo) a 600 (em cima). O meio da tela é (400, 300). <code>title</code> (título) é o texto na barra da janela.</p>
-        <p>Rode: os três círculos marcam o canto de baixo, à esquerda (0, 0), o meio (400, 300) e o canto de cima, à direita (800, 600). Nos cantos, só um quarto de cada círculo aparece: o centro está bem na borda, e o resto fica fora da tela.</p>
-        <p><strong>Qualquer monitor.</strong> O Scena faz a janela do tamanho que cabe no seu monitor, com a mesma proporção da régua (aqui, 4 por 3). Num monitor grande ou pequeno, o desenho sai igual, só maior ou menor. Arrastar a borda da janela muda o tamanho, mas não a proporção.</p>
+        <p>Este apêndice junta comandos gerais que todo jogo pode usar: o tamanho e o modo da janela, o fundo, as cores, os sorteios, o relógio, os valores que você quer espiar enquanto o jogo roda. Cada seção é um programa curto, para rodar e modificar.</p>
+        <p>A primeira é a régua do jogo: os números que o <code>init</code> escolhe, e onde ficam os cantos e o meio da tela.</p>
       `,
       code: `from scena import *
 
@@ -42,6 +40,20 @@ Text("(800, 600)", top_right=(750, 560), font_size=24)
 
 run()
 `,
+      notes: [
+        {
+          at: "init(width=800, height=600, title=\"Minha janela\")",
+          text: "<code>width</code> (largura) e <code>height</code> (altura) não são pixels do monitor: são a régua do jogo, as <em>medidas de design</em>. x vai de 0 (borda esquerda) a 800 (borda direita), y de 0 (embaixo) a 600 (em cima). <code>title</code> (título) é o texto na barra da janela."
+        },
+        {
+          at: "Circle(center=(0, 0)",
+          text: "O centro bem no canto: só um quarto do círculo aparece, e o resto fica fora da tela."
+        }
+      ],
+      after: `
+        <p>Rode: os três círculos marcam o canto de baixo, à esquerda, o meio (400, 300) e o canto de cima, à direita.</p>
+        <details class="ask"><summary>Num monitor maior, o desenho muda?</summary><p>Só de tamanho. O Scena faz a janela do tamanho que cabe no seu monitor, com a mesma proporção da régua (aqui, 4 por 3), e o desenho sai igual, só maior ou menor. Arrastar a borda da janela também muda o tamanho, mas não a proporção.</p></details>
+      `,
       try: [
         {
           note: "No lugar do <code>init</code>: a mesma proporção, com a régua duas vezes mais longa. Os círculos, com os mesmos raios, ficam com metade do tamanho na tela, e o canto (800, 600) vira o meio. Quer uma tela mais larga que alta? Por exemplo, 1280 × 720.",
@@ -53,8 +65,7 @@ run()
     {
       title: "O tamanho da janela",
       body: `
-        <p><strong>window_scale.</strong> Por padrão, a janela ocupa 80% do maior tamanho que cabe na sua área de trabalho. <code>window_scale</code> (escala da janela) muda essa fração: <code>0.5</code> é metade, <code>1.0</code> é o maior tamanho que cabe com a borda da janela. Vale só ao abrir; depois, você arrasta a borda.</p>
-        <p><strong>Ler a régua.</strong> <code>canvas.width</code> e <code>canvas.height</code> devolvem a largura e a altura do <code>init</code>. Com elas, o círculo branco fica no meio da tela mesmo que você troque o 800 × 600 por outro tamanho: <code>canvas.width / 2</code> é sempre a metade. É só leitura: para mudar a régua, mude o <code>init</code>.</p>
+        <p>Duas coisas da janela: o tamanho com que ela abre, e como o código lê a régua sem repetir os números.</p>
       `,
       code: `from scena import *
 
@@ -70,22 +81,27 @@ Text("(400, 300)", top_center=(400, 250), font_size=24)
 Text("(800, 600)", top_right=(750, 560), font_size=24)
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "window_scale=0.5",
+          text: "Por padrão, a janela abre com 80% do maior tamanho que cabe na área de trabalho. <code>window_scale</code> (escala da janela) muda essa fração: <code>0.5</code> é metade, <code>1.0</code> o maior que cabe. Vale só ao abrir; depois, você arrasta a borda."
+        },
+        {
+          at: "canvas.width / 2",
+          text: "<code>canvas.width</code> e <code>canvas.height</code> devolvem a largura e a altura do <code>init</code>. É só leitura: para mudar a régua, mude o <code>init</code>."
+        }
+      ],
+      after: `
+        <p>Troque o 800 × 600 do <code>init</code> por 1000 × 600 e rode de novo: o círculo branco continua no meio, porque <code>canvas.width / 2</code> é sempre a metade. Os outros dois, com números escritos à mão, não acompanham.</p>
+      `
     },
     {
       title: "Os três modos",
       part: "Maximizada e tela cheia",
       fresh: true,
       body: `
-        <p>A janela tem três modos, e <code>canvas.display</code> (a exibição) escolhe um deles:</p>
-        <ul>
-          <li><code>"windowed"</code> (em janela) — o padrão: uma janela com borda, no meio da tela.</li>
-          <li><code>"maximized"</code> (maximizada) — a janela ocupa toda a área de trabalho, e a barra de tarefas continua à vista. É o mesmo que o botão de maximizar.</li>
-          <li><code>"fullscreen"</code> (tela cheia) — o jogo cobre o monitor inteiro, sem borda e sem barra de tarefas.</li>
-        </ul>
-        <p>Rode e aperte 1, 2 e 3. O texto no canto lê <code>canvas.display</code> a cada quadro e mostra o modo atual.</p>
-        <p><strong>As faixas pretas.</strong> Maximizada ou em tela cheia, o desenho não estica. O monitor quase nunca tem a proporção do seu <code>init</code> (aqui, 4 por 3), então o Scena aumenta o jogo até onde ele cabe e preenche o resto com faixas pretas, dos lados ou em cima e embaixo. A moldura dourada marca a borda do jogo: dentro dela, tudo; fora, as faixas. É assim que um círculo continua redondo em qualquer monitor.</p>
-        <p><strong>Sair.</strong> Em tela cheia não há botão de fechar à vista. Volte à janela (aqui, a tecla 1) ou aperte <kbd>Ctrl+Shift+Z</kbd>, que fecha qualquer jogo Scena. <kbd>Ctrl+Shift+F</kbd> e <kbd>Ctrl+Shift+M</kbd> alternam tela cheia e maximizada sem escrever nada (Apêndice A).</p>
+        <p>A janela tem três modos, e <code>canvas.display</code> (a exibição) escolhe um deles. Aqui as teclas 1, 2 e 3 trocam o modo, e uma moldura dourada marca a borda do jogo.</p>
       `,
       code: `from scena import *
 
@@ -112,6 +128,35 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "modo.text = \"Modo: \" + canvas.display",
+          text: "O texto do canto lê <code>canvas.display</code> a cada quadro e mostra o modo atual."
+        }
+      ],
+      after: `
+        <div class="tbl"><table><thead><tr><th>Modo</th><th>O que faz</th></tr></thead><tbody>
+          <tr><td><code>"windowed"</code></td><td>(em janela) o padrão: uma janela com borda, no meio da tela</td></tr>
+          <tr><td><code>"maximized"</code></td><td>(maximizada) a janela ocupa toda a área de trabalho, e a barra de tarefas continua à vista, como no botão de maximizar</td></tr>
+          <tr><td><code>"fullscreen"</code></td><td>(tela cheia) o jogo cobre o monitor inteiro, sem borda e sem barra de tarefas</td></tr>
+        </tbody></table></div>
+        <p>Rode e aperte 2, depois 3. O desenho não estica: o monitor quase nunca tem a proporção do seu <code>init</code> (aqui, 4 por 3), então o Scena aumenta o jogo até onde ele cabe e preenche o resto com faixas pretas, dos lados ou em cima e embaixo.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 225" role="img" aria-label="Um monitor largo, de proporção 16 por 9; no meio, o jogo de proporção 4 por 3 ocupa toda a altura; dos dois lados sobram faixas">
+            <rect class="ray" fill="none" x="40" y="14" width="320" height="180"/>
+            <rect class="bar child" x="40" y="14" width="40" height="180"/>
+            <rect class="bar child" x="320" y="14" width="40" height="180"/>
+            <rect class="bar" x="80" y="14" width="240" height="180"/>
+            <text x="200" y="100" text-anchor="middle">jogo, 4 por 3</text>
+            <text x="200" y="118" text-anchor="middle">(a moldura dourada)</text>
+            <text x="60" y="212" text-anchor="middle">faixa</text>
+            <text x="340" y="212" text-anchor="middle">faixa</text>
+            <text x="200" y="212" text-anchor="middle">monitor, 16 por 9</text>
+          </svg>
+          <figcaption>Num monitor mais largo que o jogo, o jogo cresce até tocar em cima e embaixo; as faixas pretas preenchem os lados. Um círculo continua redondo em qualquer monitor.</figcaption>
+        </figure>
+        <p>Em tela cheia não há botão de fechar à vista. Volte à janela (aqui, a tecla 1) ou aperte <kbd>Ctrl+Shift+Z</kbd>, que fecha qualquer jogo Scena. <kbd>Ctrl+Shift+F</kbd> e <kbd>Ctrl+Shift+M</kbd> alternam tela cheia e maximizada sem escrever nada (Apêndice A).</p>
+      `,
       try: [
         {
           note: "No lugar do <code>init</code>: o jogo já abre em tela cheia. <code>display=</code> aceita os mesmos três nomes.",
@@ -125,13 +170,12 @@ run()
       part: "O fundo",
       fresh: true,
       body: `
-        <p>O fundo é o que fica atrás de tudo. Desde o tutorial 01, <code>Wallpaper("dark navy")</code> (papel de parede) o pinta de uma cor. O mesmo <code>Wallpaper</code> aceita mais coisas:</p>
-        <ul>
-          <li>uma cor: <code>Wallpaper("dark navy")</code>;</li>
-          <li>um degradê (<code>Gradient</code>), que passa de uma cor a outra: <code>Wallpaper(Gradient("black", "navy", angle=90))</code>. <code>angle=90</code> (ângulo, em graus) põe a passagem na vertical, de baixo para cima (a primeira cor embaixo), em vez de da esquerda para a direita;</li>
-          <li>um arquivo de imagem: <code>Wallpaper("images/bg3.jpg")</code>. A imagem cobre a tela inteira, cortando o que sobrar.</li>
-        </ul>
-        <p><strong>Um fundo só.</strong> Um <code>Wallpaper</code> novo substitui o anterior: o último criado vale. Por isso dá para trocar o fundo no meio do jogo, numa fase nova ou num fim de jogo. O tutorial 05 mostra os fundos animados (céus, estrelas, nuvens), que se somam por cima deste.</p>
+        <p>O fundo é o que fica atrás de tudo. O mesmo <code>Wallpaper</code> (papel de parede) que o pinta de uma cor aceita mais duas coisas:</p>
+        <div class="tbl"><table><thead><tr><th>O fundo</th><th>Como se escreve</th></tr></thead><tbody>
+          <tr><td>uma cor</td><td><code>Wallpaper("dark navy")</code></td></tr>
+          <tr><td>um degradê, que passa de uma cor a outra</td><td><code>Wallpaper(Gradient("black", "navy", angle=90))</code></td></tr>
+          <tr><td>uma imagem, que cobre a tela inteira, cortando o que sobrar</td><td><code>Wallpaper("images/bg3.jpg")</code></td></tr>
+        </tbody></table></div>
       `,
       code: `from scena import *
 
@@ -142,6 +186,15 @@ Circle(center=(400, 300), radius=80, color="gold")
 
 run()
 `,
+      notes: [
+        {
+          at: "angle=90",
+          text: "<code>Gradient</code> é o degradê. <code>angle=90</code> (ângulo, em graus) põe a passagem na vertical, com a primeira cor embaixo; sem ele, ela vai da esquerda para a direita."
+        }
+      ],
+      after: `
+        <p>Um <code>Wallpaper</code> novo substitui o anterior: o último criado vale. Por isso dá para trocar o fundo no meio do jogo, numa fase nova ou num fim de jogo. Os fundos animados (céus, estrelas, nuvens) são outra coisa: se somam por cima deste.</p>
+      `,
       try: [
         {
           note: "No lugar do <code>Wallpaper</code>, um por vez: uma imagem da pasta <code>media</code>, um degradê pronto pelo nome (<code>\"sunset\"</code>, pôr do sol; <code>angle=-90</code> o desenha de cima para baixo, com o céu no alto).",
@@ -159,14 +212,7 @@ run()
       part: "Cores",
       fresh: true,
       body: `
-        <p>Onde o Scena pede uma cor (<code>color=</code>, o fundo, um texto), você pode escrevê-la de quatro jeitos. Os quatro círculos mostram um cada:</p>
-        <ul>
-          <li><strong>Pelo nome</strong>, em inglês: <code>"coral"</code>, <code>"gold"</code>, <code>"sky blue"</code>. <code>dark</code> (escuro) ou <code>light</code> (claro) na frente escurecem ou clareiam: <code>"dark red"</code>.</li>
-          <li><strong>Em hexadecimal</strong>, como nos sites: <code>"#33CCFF"</code>. Os seis dígitos são três pares, vermelho, verde e azul, de <code>00</code> (nada) a <code>FF</code> (tudo).</li>
-          <li><strong>Em números</strong>, três valores de 0 a 1 para vermelho, verde e azul: <code>(0.5, 0.9, 0.3)</code> é um verde-limão. <code>(1, 1, 1)</code> é branco; <code>(0, 0, 0)</code>, preto.</li>
-          <li><strong>Com <code>Color</code></strong> (cor), que transforma uma cor em outra: <code>Color("gold").darker(0.2)</code> é o dourado um pouco mais escuro (<em>darker</em>); <code>lighter</code> clareia.</li>
-        </ul>
-        <p>Um nome que o Scena não conhece vira magenta, com um aviso (Apêndice A, “Avisos”).</p>
+        <p>Onde o Scena pede uma cor (<code>color=</code>, o fundo, um texto), você pode escrevê-la de quatro jeitos. Os quatro círculos mostram um cada.</p>
       `,
       code: `from scena import *
 
@@ -180,6 +226,27 @@ Circle(center=(670, 200), radius=60, color=Color("gold").darker(0.2))
 
 run()
 `,
+      notes: [
+        {
+          at: "color=\"coral\"",
+          text: "Pelo nome, em inglês: <code>\"coral\"</code>, <code>\"gold\"</code>, <code>\"sky blue\"</code>. <code>dark</code> (escuro) ou <code>light</code> (claro) na frente escurecem ou clareiam: <code>\"dark red\"</code>."
+        },
+        {
+          at: "color=\"#33CCFF\"",
+          text: "Em hexadecimal, como nos sites. Os seis dígitos são três pares, vermelho, verde e azul, de <code>00</code> (nada) a <code>FF</code> (tudo)."
+        },
+        {
+          at: "color=(0.5, 0.9, 0.3)",
+          text: "Em números, de 0 a 1, para vermelho, verde e azul: aqui, um verde-limão. <code>(1, 1, 1)</code> é branco; <code>(0, 0, 0)</code>, preto."
+        },
+        {
+          at: "Color(\"gold\").darker(0.2)",
+          text: "<code>Color</code> (cor) transforma uma cor em outra: o dourado um pouco mais escuro (<em>darker</em>). <code>lighter</code> clareia."
+        }
+      ],
+      after: `
+        <p>Um nome que o Scena não conhece vira magenta, com um aviso no console (Apêndice A, “Avisos”).</p>
+      `,
       try: [
         {
           note: "No lugar do último círculo: uma cor sorteada, sempre viva. Rode algumas vezes.",
@@ -191,8 +258,7 @@ run()
     {
       title: "Uma paleta",
       body: `
-        <p>Escolher cores que combinam dá trabalho. <code>Palette</code> (paleta) faz isso por você: <code>Palette("plasma", steps=6)</code> tira 6 cores (<em>steps</em>, passos) de uma faixa pronta chamada <code>"plasma"</code>, do roxo ao amarelo, igualmente espaçadas. Ela não desenha nada; só guarda as cores. <code>cores[0]</code> é a primeira, <code>cores[1]</code> a segunda, como numa lista.</p>
-        <p>O <code>for</code> cria seis quadrados lado a lado, cada um com a cor da sua posição. Se o número passar do fim (<code>cores[6]</code>), a paleta volta ao começo: dá para usar a fase, a onda ou o placar como índice sem medo de sair da lista.</p>
+        <p>Escolher cores que combinam dá trabalho. Uma <code>Palette</code> (paleta) faz isso por você, e uma fila de seis quadrados mostra as cores dela.</p>
       `,
       code: `from scena import *
 
@@ -210,6 +276,19 @@ for i in range(6):
 
 run()
 `,
+      notes: [
+        {
+          at: "Palette(\"plasma\", steps=6)",
+          text: "Tira 6 cores (<em>steps</em>, passos) de uma faixa pronta chamada <code>\"plasma\"</code>, do roxo ao amarelo, igualmente espaçadas. A paleta não desenha nada; só guarda as cores."
+        },
+        {
+          at: "color=cores[i]",
+          text: "<code>cores[0]</code> é a primeira cor, <code>cores[1]</code> a segunda, como numa lista. Cada quadrado pega a cor da sua posição."
+        }
+      ],
+      after: `
+        <details class="ask"><summary>E <code>cores[6]</code>, se a paleta só tem seis?</summary><p>A paleta volta ao começo: <code>cores[6]</code> é a mesma que <code>cores[0]</code>. Por isso dá para usar a fase, a onda ou o placar como índice sem medo de sair da lista.</p></details>
+      `,
       try: [
         {
           note: "No lugar da paleta, uma por vez: outra faixa pronta, ou a sua, das cores que você der.",
@@ -227,14 +306,7 @@ run()
       part: "Sorteios",
       fresh: true,
       body: `
-        <p>Jogos precisam de surpresa: o inimigo que aparece num lugar diferente, o presente que cai às vezes. O Python traz um módulo de sorteios, <code>random</code> (aleatório); a primeira linha pega dele três ferramentas. O Scena acrescenta uma quarta, <code>chance</code>. A cada 0,3 segundo, o programa joga um confete na tela, e cada detalhe é sorteado:</p>
-        <ul>
-          <li><code>uniform(50, 850)</code> — um número qualquer entre 50 e 850, com casas decimais (como 312.47). Bom para posições.</li>
-          <li><code>randint(10, 40)</code> — um número inteiro entre 10 e 40, os dois incluídos (de <em>random integer</em>, inteiro aleatório). Bom para contar: raios, quantidades, o lado de um dado.</li>
-          <li><code>choice(CORES)</code> — um item da lista, ao acaso (<em>choice</em>, escolha).</li>
-          <li><code>chance(0.1)</code> — <code>True</code> em 10% das vezes, <code>False</code> nas outras. Aqui, um confete em cada dez ganha brilho.</li>
-        </ul>
-        <p>Cada confete se apaga sozinho depois de 3 segundos (<code>bolinha.after(3, bolinha.destroy)</code>, como as estrelas do tutorial 02), então a tela nunca enche.</p>
+        <p>Jogos precisam de surpresa: o inimigo que aparece num lugar diferente, o presente que cai às vezes. Aqui, a cada 0,3 segundo, um confete cai na tela, e cada detalhe dele é sorteado.</p>
       `,
       code: `from random import uniform, randint, choice
 from scena import *
@@ -258,6 +330,32 @@ def confete():
 
 run()
 `,
+      notes: [
+        {
+          at: "from random import uniform, randint, choice",
+          text: "O Python traz um módulo de sorteios, <code>random</code> (aleatório); esta linha pega dele três ferramentas. A quarta, <code>chance</code>, vem do Scena."
+        },
+        {
+          at: "x = uniform(50, 850)",
+          text: "Um número qualquer entre 50 e 850, com casas decimais (como 312.47). Bom para posições."
+        },
+        {
+          at: "randint(10, 40)",
+          text: "Um número inteiro entre 10 e 40, os dois incluídos (de <em>random integer</em>, inteiro aleatório). Bom para contar: raios, quantidades, o lado de um dado."
+        },
+        {
+          at: "choice(CORES)",
+          text: "Um item da lista, ao acaso (<em>choice</em>, escolha)."
+        },
+        {
+          at: "if chance(0.1):",
+          text: "<code>True</code> em 10% das vezes, <code>False</code> nas outras: um confete em cada dez ganha brilho."
+        },
+        {
+          at: "bolinha.after(3, bolinha.destroy)",
+          text: "Cada confete se apaga sozinho depois de 3 segundos (<em>after</em>, depois), então a tela nunca enche."
+        }
+      ],
       try: [
         {
           note: "No lugar da linha do círculo: qualquer cor viva, sorteada pelo <code>Color.random()</code>, em vez de uma da lista.",
@@ -271,9 +369,7 @@ run()
       part: "O relógio",
       fresh: true,
       body: `
-        <p><code>clock</code> (relógio) é o relógio do jogo. <code>clock.time</code> (tempo) diz quantos segundos se passaram desde que o jogo começou. O texto no canto mostra esse número ao vivo: como ele lê <code>clock</code> dentro da <code>lambda</code>, o Scena refaz o texto a cada quadro.</p>
-        <p><strong>Uma casa decimal.</strong> <code>clock.time</code> tem muitas casas (12.016666…). Dentro das chaves de uma f-string, <code>:.1f</code> depois do nome pede o número com uma casa só: <code>{clock.time:.1f}</code> vira <code>12.0</code>. Com <code>:.0f</code>, nenhuma casa; com <code>:.2f</code>, duas.</p>
-        <p>O quadrado gira 90 graus por segundo, pelo <code>dt</code> do <code>update</code>. Ele serve de comparação para o próximo passo.</p>
+        <p><code>clock</code> (relógio) é o relógio do jogo. Um cronômetro no canto mostra quantos segundos se passaram desde o começo, e um quadrado gira ao lado, para comparar no próximo passo.</p>
       `,
       code: `from scena import *
 
@@ -291,14 +387,26 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "cronometro[\"text\"] @= lambda:",
+          text: "O texto fica ligado a esta conta. Como ela lê <code>clock</code>, o Scena a refaz a cada quadro, e o número anda sozinho."
+        },
+        {
+          at: "{clock.time:.1f}",
+          text: "<code>clock.time</code> (tempo) tem muitas casas (12.016666…). Dentro das chaves de uma f-string, <code>:.1f</code> pede uma casa só: <code>12.0</code>. Com <code>:.0f</code>, nenhuma; com <code>:.2f</code>, duas."
+        },
+        {
+          at: "quadrado.rotate_by(90 * dt)",
+          text: "90 graus por segundo, pelo <code>dt</code>."
+        }
+      ]
     },
     {
       title: "Câmera lenta e pausa",
       body: `
-        <p><code>clock.scale</code> (escala) é a velocidade do tempo do jogo: 1 é o normal, 0.25 é um quarto da velocidade. Aperte L: o quadrado gira devagar, e o cronômetro também anda devagar. N volta ao normal.</p>
-        <p><code>clock.paused</code> (pausado) para o tempo: <code>True</code> pausa, <code>False</code> continua. A tecla P troca entre os dois com <code>not</code>, que inverte um valor: <code>not True</code> é <code>False</code>, e <code>not False</code> é <code>True</code>.</p>
-        <p><strong>O que para.</strong> Em câmera lenta, o <code>dt</code> encolhe; em pausa, ele vale 0. Por isso tudo o que anda com <code>dt</code> fica lento ou para junto: o quadrado, os <code>@every</code>, os <code>move_to(…, time=)</code>. Mas o <code>update</code> continua sendo chamado a cada quadro, e é por isso que a tecla P ainda funciona com o jogo pausado. Um menu de pausa usa isto: o tempo para, o teclado não.</p>
+        <p>O relógio também anda devagar e para. Três teclas mexem nele: L para câmera lenta, N para o normal, P para pausar.</p>
       `,
       code: `from scena import *
 
@@ -322,15 +430,28 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "clock.scale = 0.25",
+          text: "<code>clock.scale</code> (escala) é a velocidade do tempo do jogo: 1 é o normal, 0.25 é um quarto."
+        },
+        {
+          at: "clock.paused = not clock.paused",
+          text: "<code>clock.paused</code> (pausado) para o tempo com <code>True</code>. <code>not</code> inverte um valor: <code>not True</code> é <code>False</code>, e <code>not False</code> é <code>True</code>. Assim a mesma tecla pausa e continua."
+        }
+      ],
+      after: `
+        <p>Rode e aperte L: o quadrado gira devagar, e o cronômetro também. Em câmera lenta o <code>dt</code> encolhe; em pausa, ele vale 0. Tudo o que anda com <code>dt</code> fica lento ou para junto: o quadrado, os <code>@every</code>, os <code>move_to(…, time=)</code>.</p>
+        <details class="ask"><summary>Com o jogo pausado, por que a tecla P ainda funciona?</summary><p>Porque o <code>update</code> continua sendo chamado a cada quadro; só o <code>dt</code> vale 0. Um menu de pausa usa isto: o tempo para, o teclado não.</p></details>
+      `
     },
     {
       title: "A aparência padrão",
       part: "Aparência padrão",
       fresh: true,
       body: `
-        <p>Quando várias formas têm a mesma cor e o mesmo contorno, repetir <code>color=</code> e <code>line_width=</code> em cada uma cansa. <code>set_defaults</code> (definir os padrões) escolhe a aparência das formas criadas <em>depois</em> dele: aqui, dourado com contorno de espessura 4. As três primeiras formas saem assim sem pedir nada.</p>
-        <p>O padrão vale até o próximo <code>set_defaults</code>. O segundo troca para coral, com contorno pontilhado (<code>dash="dot"</code>, tracejado em pontos), e só a última linha de formas muda. As formas que já existiam ficam como estavam. Uma forma que diz a própria cor (<code>color=</code>) continua mandando nela.</p>
+        <p>Quando várias formas têm a mesma cor e o mesmo contorno, repetir <code>color=</code> e <code>line_width=</code> em cada uma cansa. <code>set_defaults</code> (definir os padrões) escolhe a aparência das formas criadas depois dele.</p>
       `,
       code: `from scena import *
 
@@ -348,7 +469,24 @@ Square(center=(400, 180), length=110)
 RegularPolygon(n=6, center=(600, 180), radius=65, color="orchid")
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "set_defaults(\"gold\", line_width=4)",
+          text: "Dourado, com contorno de espessura 4. As três formas logo abaixo saem assim sem pedir nada."
+        },
+        {
+          at: "set_defaults(\"coral\", dash=\"dot\")",
+          text: "O padrão vale até o próximo <code>set_defaults</code>. Este troca para coral, com contorno pontilhado (<code>dash=\"dot\"</code>, tracejado em pontos)."
+        },
+        {
+          at: "color=\"orchid\"",
+          text: "Uma forma que diz a própria cor continua mandando nela."
+        }
+      ],
+      after: `
+        <p>Rode: só a fila de baixo é coral. As formas que já existiam quando o segundo <code>set_defaults</code> rodou ficam como estavam.</p>
+      `
     },
     {
       title: "Print no console",
@@ -356,8 +494,6 @@ run()
       fresh: true,
       body: `
         <p>Enquanto você escreve um jogo, muitas vezes quer saber um valor: onde foi o clique, quanto vale o placar, se aquela função chegou a rodar. O jeito mais simples é o <code>print</code> (imprimir) do Python, que escreve uma linha no console, a janela de texto onde você rodou o programa.</p>
-        <p><code>on_mouse_click</code> (ao clicar o mouse) é uma função com nome fixo: o Scena a chama a cada clique, com <code>x</code> e <code>y</code> do ponto clicado, nas medidas do seu jogo. Rode e clique em vários lugares: cada clique escreve uma linha no console. <code>round</code> (arredondar) tira as casas decimais, para a linha ficar curta. É um bom jeito de descobrir as coordenadas de um lugar da tela.</p>
-        <p><strong>Cuidado com o update.</strong> Um <code>print</code> dentro do <code>update</code> escreve 60 linhas por segundo, e o console vira uma cachoeira. Ponha o <code>print</code> onde as coisas acontecem uma vez: num clique, numa colisão, numa tecla.</p>
       `,
       code: `from scena import *
 
@@ -373,13 +509,26 @@ def on_mouse_click(x, y):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "def on_mouse_click(x, y):",
+          text: "<code>on_mouse_click</code> (ao clicar o mouse) é uma função de nome fixo: o Scena a chama a cada clique, com o <code>x</code> e o <code>y</code> do ponto, nas medidas do seu jogo."
+        },
+        {
+          at: "round(x), round(y)",
+          text: "<code>round</code> (arredondar) tira as casas decimais, para a linha ficar curta."
+        }
+      ],
+      after: `
+        <p>Rode e clique em vários lugares: cada clique escreve uma linha no console. É também um bom jeito de descobrir as coordenadas de um lugar da tela.</p>
+        <p>Cuidado com o <code>update</code>: um <code>print</code> ali escreve 60 linhas por segundo, e o console vira uma cachoeira. Ponha o <code>print</code> onde as coisas acontecem uma vez: num clique, numa colisão, numa tecla.</p>
+      `
     },
     {
       title: "Um painel na tela",
       body: `
-        <p>Para um valor que muda o tempo todo, como a posição do mouse, um texto na tela é melhor que o console. O <code>painel</code> é um <code>Text</code> no canto, e o <code>update</code> reescreve o texto dele a cada quadro, com uma f-string: os cliques e a posição do mouse (<code>mouse.x</code>, <code>mouse.y</code>), sem casas decimais (<code>:.0f</code>).</p>
-        <p>É o mesmo que o painel do sistema faz (<kbd>Ctrl+Shift+1</kbd>, Apêndice A), mas com os valores que você escolher: a velocidade do herói, a energia do escudo, o modo do chefe. Quando o jogo ficar pronto, apague o painel, ou deixe-o como parte do jogo.</p>
+        <p>Para um valor que muda o tempo todo, como a posição do mouse, um texto na tela é melhor que o console.</p>
       `,
       code: `from scena import *
 
@@ -400,17 +549,23 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "painel.text = f\"cliques",
+          text: "A cada quadro, o <code>update</code> reescreve o texto do painel: os cliques e a posição do mouse (<code>mouse.x</code>, <code>mouse.y</code>), sem casas decimais (<code>:.0f</code>)."
+        }
+      ],
+      after: `
+        <p>É o que o painel do sistema faz (<kbd>Ctrl+Shift+1</kbd>, Apêndice A), mas com os valores que você escolher: a velocidade do herói, a energia do escudo, o modo do chefe. Quando o jogo ficar pronto, apague o painel, ou deixe-o como parte do jogo.</p>
+      `
     },
     {
       title: "Qual é o nome desta tecla?",
       part: "Nomes das teclas",
       fresh: true,
       body: `
-        <p>Para ler uma tecla, <code>keyp("…")</code> precisa do nome dela: <code>"A"</code>, <code>"SPACE"</code>, <code>"LEFT"</code>. Este programa descobre o nome de qualquer tecla. <code>on_key_down</code> (ao apertar uma tecla) é outra função de nome fixo: o Scena a chama a cada tecla apertada, com o nome em <code>key</code> (tecla). O programa mostra o nome no meio da tela, numa f-string, e também o escreve no console.</p>
-        <p><strong>Alguns nomes.</strong> Letras e números são eles mesmos (<code>"A"</code>, <code>"7"</code>); maiúscula ou minúscula tanto faz. As setas são <code>"LEFT"</code>, <code>"RIGHT"</code>, <code>"UP"</code>, <code>"DOWN"</code>; espaço é <code>"SPACE"</code>, Esc é <code>"ESC"</code>, Enter é <code>"ENTER"</code>, as teclas de função vão de <code>"F1"</code> a <code>"F12"</code>. Shift, Ctrl, Alt e Command são <code>"SHIFT"</code>, <code>"CTRL"</code>, <code>"ALT"</code> e <code>"CMD"</code>.</p>
-        <p><strong>Pontuação.</strong> As teclas de pontuação têm um número no lugar do símbolo, de <code>"K1"</code> a <code>"K12"</code>, porque o símbolo impresso muda de um teclado para outro. No teclado brasileiro (ABNT2), o Ç é <code>"K7"</code>. Aperte e veja.</p>
-        <p><strong>Combinações.</strong> Com Ctrl ou Shift segurados, uma letra não chega aqui. Para uma combinação, use <code>keyp</code> com <code>+</code>: <code>keyp.once("CTRL+R")</code>.</p>
+        <p>Para ler uma tecla, <code>keyp("…")</code> precisa do nome dela: <code>"A"</code>, <code>"SPACE"</code>, <code>"LEFT"</code>. Este programa descobre o nome de qualquer tecla que você apertar.</p>
       `,
       code: `from scena import *
 
@@ -426,16 +581,32 @@ def on_key_down(key):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "def on_key_down(key):",
+          text: "<code>on_key_down</code> (ao apertar uma tecla) é outra função de nome fixo: o Scena a chama a cada tecla apertada, com o nome em <code>key</code> (tecla). O nome vai para o meio da tela e para o console."
+        }
+      ],
+      after: `
+        <p>Rode e aperte várias teclas. Os nomes seguem estas regras:</p>
+        <div class="tbl"><table><thead><tr><th>Teclas</th><th>Nomes</th></tr></thead><tbody>
+          <tr><td>letras e números</td><td>eles mesmos: <code>"A"</code>, <code>"7"</code>; maiúscula ou minúscula tanto faz</td></tr>
+          <tr><td>setas</td><td><code>"LEFT"</code>, <code>"RIGHT"</code>, <code>"UP"</code>, <code>"DOWN"</code></td></tr>
+          <tr><td>espaço, Esc, Enter</td><td><code>"SPACE"</code>, <code>"ESC"</code>, <code>"ENTER"</code></td></tr>
+          <tr><td>teclas de função</td><td>de <code>"F1"</code> a <code>"F12"</code></td></tr>
+          <tr><td>Shift, Ctrl, Alt, Command</td><td><code>"SHIFT"</code>, <code>"CTRL"</code>, <code>"ALT"</code>, <code>"CMD"</code></td></tr>
+          <tr><td>pontuação</td><td>de <code>"K1"</code> a <code>"K12"</code>, um número no lugar do símbolo, porque o símbolo impresso muda de um teclado para outro. No teclado brasileiro (ABNT2), o Ç é <code>"K7"</code></td></tr>
+        </tbody></table></div>
+        <details class="ask"><summary>Segure Ctrl e aperte R. O que aparece?</summary><p>Só o Ctrl: com Ctrl ou Shift segurados, a letra não chega aqui. Para uma combinação, use <code>keyp</code> com <code>+</code>: <code>keyp.once("CTRL+R")</code>.</p></details>
+      `
     },
     {
       title: "Volume e mudo",
       part: "Volume",
       fresh: true,
       body: `
-        <p>Todo jogo com música merece uma tecla de silêncio. <code>audio</code> é o som do jogo inteiro, de todos os <code>play_sound</code> juntos. <code>audio.muted</code> (mudo) silencia tudo com <code>True</code> e devolve o som com <code>False</code>; a tecla M troca com <code>not</code>. <code>audio.volume</code> é o volume geral: 1 é o normal, 0 é silêncio.</p>
-        <p>As setas sobem e descem o volume de 0.1 em 0.1. <code>min</code> e <code>max</code> são do Python e seguram o número dentro da faixa: <code>min(1, …)</code> devolve o menor dos dois, então nunca passa de 1; <code>max(0, …)</code> devolve o maior, então nunca fica abaixo de 0.</p>
-        <p>A música começa no topo do arquivo: <code>play_sound</code> com <code>loops="forever"</code> (repetições: para sempre) toca sem parar. O tutorial 07 conta os sons de efeito.</p>
+        <p>Todo jogo com música merece uma tecla de silêncio. <code>audio</code> é o som do jogo inteiro, de todos os <code>play_sound</code> juntos: a tecla M o silencia, e as setas sobem e descem o volume.</p>
       `,
       code: `from scena import *
 
@@ -457,7 +628,25 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "loops=\"forever\"",
+          text: "A música começa no topo do arquivo e, com <code>loops=\"forever\"</code> (repetições: para sempre), toca sem parar."
+        },
+        {
+          at: "audio.muted = not audio.muted",
+          text: "<code>audio.muted</code> (mudo) silencia tudo com <code>True</code> e devolve o som com <code>False</code>; o <code>not</code> troca de um para o outro."
+        },
+        {
+          at: "min(1, audio.volume + 0.1)",
+          text: "<code>audio.volume</code> é o volume geral: 1 é o normal, 0 é silêncio. <code>min</code> devolve o menor dos dois números, então o volume nunca passa de 1."
+        },
+        {
+          at: "max(0, audio.volume - 0.1)",
+          text: "<code>max</code> devolve o maior, então o volume nunca fica abaixo de 0."
+        }
+      ]
     }
   ]
 });

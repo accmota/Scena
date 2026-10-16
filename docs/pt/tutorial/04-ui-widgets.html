@@ -20,12 +20,38 @@ Tutorial.mount({
     {
       title: "Uma bola que persegue",
       part: "Script 1 · Cadeia de bolas",
-      body: `
-        <p>Este tutorial é sobre <strong>widgets</strong> (controles): sliders, caixas, listas, botões e menus, o painel com que você mexe num programa enquanto ele roda. São três scripts. Neste primeiro, para ter o que controlar, fazemos uma animação simples: uma cadeia de bolas que segue o mouse, como uma cobra. No segundo, o controle é o próprio mouse, num programa de desenho. No terceiro, um campo para digitar e um letreiro que passeia pela tela.</p>
-        <p><strong>A bola.</strong> Começamos por uma bola só, a ponta da futura cadeia. Ela nasce no centro da vista: <code>canvas.game_view.center</code> (o centro da vista do jogo). <code>Halo(style="pulse")</code> é um visual de auréola que pulsa.</p>
-        <p><strong>O movimento.</strong> <code>chase</code> (perseguir) aproxima um número de outro, um pedaço a cada quadro: <code>chase(atual, alvo, rate=8)</code>. Quando está longe, anda muito; perto, pouco. Por isso a bola freia suave ao chegar. <code>rate</code> (taxa) é a pressa: quanto maior, mais rápido alcança. No <code>update</code>, uma chamada aproxima o x da bola do x do mouse, outra faz o mesmo com o y, e <code>move_to</code> (mover para) põe a bola no ponto novo.</p>
-        <p><code>Plasma</code> é o fundo: uma névoa colorida que se move devagar (<code>speed</code>, velocidade). Rode e mexa o mouse: a bola vai atrás do ponteiro e freia ao chegar.</p>
-      `,
+      body: [
+        `
+        <p>Este tutorial é sobre <strong>widgets</strong> (controles): sliders, listas, caixas, botões e menus, o painel com que você mexe num programa enquanto ele roda. São três scripts: uma cadeia de bolas que segue o mouse, com um painel para ajustá-la; um programa de desenho, em que a caneta é o mouse; e um letreiro que mostra o que você digita.</p>
+        <p>Para ter o que controlar, começamos por uma bola só, a ponta da futura cadeia, que vai atrás do mouse. Quem a leva é <code>chase</code> (perseguir):</p>
+        `,
+        {
+          snip: `x = chase(ponta.center.x, mouse.x, rate=8)`
+        },
+        `
+        <p><code>chase</code> aproxima um número de outro, um pedaço do que falta a cada quadro. Longe do alvo, o pedaço é grande; perto, é pequeno. Por isso a bola corre quando o mouse está longe e freia suave ao chegar. <code>rate</code> (taxa) é a pressa: quanto maior, mais rápido ela alcança.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 110" role="img" aria-label="Uma fila de pontos que vai de uma bola até o alvo; os pontos ficam cada vez mais juntos perto do alvo">
+            <line class="guide" x1="40" y1="50" x2="340" y2="50"/>
+            <circle class="dot" cx="40" cy="50" r="4"/>
+            <circle class="dot" cx="100" cy="50" r="4"/>
+            <circle class="dot" cx="148" cy="50" r="4"/>
+            <circle class="dot" cx="186" cy="50" r="4"/>
+            <circle class="dot" cx="217" cy="50" r="4"/>
+            <circle class="dot" cx="242" cy="50" r="4"/>
+            <circle class="dot" cx="261" cy="50" r="4"/>
+            <circle class="dot" cx="277" cy="50" r="4"/>
+            <circle class="dot" cx="290" cy="50" r="4"/>
+            <circle class="dot" cx="300" cy="50" r="4"/>
+            <circle class="hot" cx="340" cy="50" r="7"/>
+            <text x="40" y="84" text-anchor="middle">a bola</text>
+            <text x="340" y="84" text-anchor="middle">o mouse</text>
+            <text x="190" y="26" text-anchor="middle">um ponto por quadro</text>
+          </svg>
+          <figcaption>Onde a bola está a cada quadro. Cada passo anda uma parte do que falta: longe, passos largos; perto do mouse, passos curtos.</figcaption>
+        </figure>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Mouse e teclado")
@@ -44,6 +70,27 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "Plasma(speed=0.2)",
+          text: "<code>Plasma</code> é uma névoa colorida por cima do degradê; <code>speed</code> (velocidade) baixa faz ela se mover devagar."
+        },
+        {
+          at: "center=canvas.game_view.center",
+          text: "A bola nasce no centro da vista do jogo: <code>canvas.game_view</code> (vista do jogo) é o retângulo que a janela mostra, e <code>center</code> (centro), o meio dele."
+        },
+        {
+          at: "Halo(style=\"pulse\")",
+          text: "<code>Halo</code> é um visual de auréola; <code>style=\"pulse\"</code> (estilo pulso) a faz pulsar."
+        },
+        {
+          at: "ponta.move_to(x, y)",
+          text: "Uma chamada de <code>chase</code> aproxima o x, outra o y, e <code>move_to</code> (mover para) põe a bola no ponto novo."
+        }
+      ],
+      after: `
+        <p>Rode e mexa o mouse: a bola vai atrás do ponteiro e freia ao chegar.</p>
+      `,
       try: [
         {
           note: "No lugar das três linhas do <code>update</code>. <code>approach</code> (aproximar) anda até o alvo sempre na mesma velocidade, aqui 300 por segundo, e chega exato: a bola não freia. Ela recebe o ponto inteiro, não o x e o y separados.",
@@ -54,12 +101,49 @@ run()
     },
     {
       title: "A cadeia",
-      body: `
-        <p>Agora, trinta bolas em fila, cada uma perseguindo a da frente.</p>
-        <p><strong>As bolas.</strong> A função <code>criar</code> faz trinta círculos no centro da vista, todos no grupo <code>bolas</code>. <code>range(30)</code> (intervalo) dá os números 0, 1, 2, …, 29: são trinta voltas do <code>for</code>, contando a partir do 0, como o Python sempre conta. A cor começa em tomate, e <code>cor.darker(0.02)</code> (mais escura) a escurece um pouco a cada volta: a cauda sai mais escura que a cabeça. Por que uma função, se a chamamos uma vez só? Porque, daqui a dois passos, um botão vai chamá-la de novo para refazer a cadeia.</p>
-        <p><strong>Quem segue quem.</strong> No <code>update</code>, <code>group["bolas"]</code> devolve as bolas na ordem em que nasceram. <code>bolas[0]</code> é a primeira (de novo, contando do 0), e <code>bolas.count</code> (contagem) diz quantas são. A primeira persegue o mouse, como a bola do passo anterior. As outras passam pelo segundo <code>for</code>: <code>range(1, bolas.count)</code> começa em 1 e para <em>antes</em> de <code>bolas.count</code>, ou seja, pula a primeira, que já segue o mouse, e passa por todas as outras. Em cada volta, <code>bolas[i - 1]</code> é a da frente: a bola 5 persegue a 4, a 4 persegue a 3, e assim até a 1, que persegue a ponta. Cada uma chega um pouco atrasada, e é esse atraso em fila que faz a cadeia ondular.</p>
-        <p>Rode e mexa o mouse em círculos.</p>
-      `,
+      body: [
+        `
+        <p>Agora, trinta bolas em fila. Só a primeira persegue o mouse; cada uma das outras persegue a bola da frente:</p>
+        `,
+        {
+          snip: `for i in range(1, bolas.count):
+    bola = bolas[i]
+    da_frente = bolas[i - 1]`
+        },
+        `
+        <p><code>bolas.count</code> (contagem) é quantas bolas há, e <code>range(1, bolas.count)</code> conta de 1 até uma antes dessa conta: pula a bola 0, que já segue o mouse, e passa por todas as outras. Em cada volta, <code>bolas[i - 1]</code> é a da frente: a bola 5 persegue a 4, a 4 persegue a 3, e assim até a 1, que persegue a ponta.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 100" role="img" aria-label="Seis bolas em fila, numeradas de 5 a 0, e o mouse na frente; cada seta vai de uma bola para a da frente, e a bola 0 aponta para o mouse">
+            <circle class="dot" cx="40" cy="44" r="12"/>
+            <circle class="dot" cx="96" cy="44" r="12"/>
+            <circle class="dot" cx="152" cy="44" r="12"/>
+            <circle class="dot" cx="208" cy="44" r="12"/>
+            <circle class="dot" cx="264" cy="44" r="12"/>
+            <circle class="bar child" cx="320" cy="44" r="12"/>
+            <polygon class="hot" points="370,34 370,56 386,50"/>
+            <line class="ray" x1="55" y1="44" x2="81" y2="44"/>
+            <line class="ray" x1="111" y1="44" x2="137" y2="44"/>
+            <line class="ray" x1="167" y1="44" x2="193" y2="44"/>
+            <line class="ray" x1="223" y1="44" x2="249" y2="44"/>
+            <line class="ray" x1="279" y1="44" x2="305" y2="44"/>
+            <line class="ray" x1="335" y1="44" x2="361" y2="44"/>
+            <polygon class="dot" points="83,44 76,40 76,48"/>
+            <polygon class="dot" points="139,44 132,40 132,48"/>
+            <polygon class="dot" points="195,44 188,40 188,48"/>
+            <polygon class="dot" points="251,44 244,40 244,48"/>
+            <polygon class="dot" points="307,44 300,40 300,48"/>
+            <text x="40" y="82" text-anchor="middle">5</text>
+            <text x="96" y="82" text-anchor="middle">4</text>
+            <text x="152" y="82" text-anchor="middle">3</text>
+            <text x="208" y="82" text-anchor="middle">2</text>
+            <text x="264" y="82" text-anchor="middle">1</text>
+            <text x="320" y="82" text-anchor="middle">0</text>
+            <text x="378" y="82" text-anchor="middle">mouse</text>
+          </svg>
+          <figcaption>Quem persegue quem. Cada bola chega um pouco atrasada à posição da da frente, e esse atraso em fila faz a cadeia ondular.</figcaption>
+        </figure>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Mouse e teclado")
@@ -98,15 +182,53 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "def criar():",
+          text: "As bolas nascem numa função, e não em linhas soltas, para que ela possa ser chamada de novo e refazer a cadeia."
+        },
+        {
+          at: "for i in range(30):",
+          text: "<code>range(30)</code> (intervalo) dá os números 0, 1, 2, …, 29: trinta voltas, contando a partir do 0, como o Python sempre conta."
+        },
+        {
+          at: "cor = cor.darker(0.02)",
+          text: "<code>darker</code> (mais escura) escurece a cor um pouco a cada volta: a cauda sai mais escura que a cabeça."
+        },
+        {
+          at: "ponta = bolas[0]",
+          text: "<code>group[\"bolas\"]</code> traz as bolas na ordem em que nasceram, e <code>bolas[0]</code> é a primeira. Ela persegue o mouse, como a bola do passo anterior."
+        }
+      ],
+      after: `
+        <p>Rode e mexa o mouse em círculos.</p>
+      `
     },
     {
       title: "Slider",
-      body: `
-        <p>Primeiro widget: um controle para o número de bolas. Hoje esse número está escrito no código, em <code>range(30)</code>. Para um widget poder mudá-lo, ele precisa morar num lugar que os dois enxerguem: <code>st</code>, que você conheceu no placar. <code>st.n_bolas = 30</code> cria o valor, e <code>criar</code> passa a ler <code>range(st.n_bolas)</code>.</p>
-        <p><code>Slider</code> (controle deslizante) é uma trilha com um botão que se arrasta. O primeiro valor, <code>st["n_bolas"]</code>, diz onde ele escreve: arrastar muda <code>st.n_bolas</code>. Os colchetes entregam a célula, o lugar onde o valor mora; <code>st.n_bolas</code> sozinho é só o número que está lá agora (30), e com ele o Slider não teria onde escrever. <code>label</code> (legenda) é o nome ao lado; <code>min_value</code> e <code>max_value</code> são o menor e o maior valor; <code>only_int=True</code> (só inteiros) faz o slider pular de 1 em 1, porque não existe 12,4 bolas. Sem uma posição (<code>top_left</code>, canto de cima à esquerda), o widget entra numa coluna no canto da janela, e os próximos se empilham embaixo dele.</p>
-        <p>Rode e arraste. O número ao lado do slider muda, mas as bolas não: <code>criar</code> rodou uma vez, no começo, e não roda de novo sozinha. O próximo passo resolve isso.</p>
-      `,
+      body: [
+        `
+        <p>Primeiro widget: um controle para o número de bolas. Hoje esse número está escrito no código, em <code>range(30)</code>. Para um widget poder mudá-lo, ele passa a morar em <code>st</code>, onde o widget e <code>criar</code> o enxergam.</p>
+        <p><code>Slider</code> (controle deslizante) é uma trilha com um botão que se arrasta:</p>
+        `,
+        {
+          snip: `Slider(st["n_bolas"], label="Bolas", min_value=5, max_value=60, only_int=True)`
+        },
+        `
+        <div class="tbl"><table><thead><tr><th>Na linha</th><th>O que faz</th></tr></thead><tbody>
+          <tr><td><code>st["n_bolas"]</code></td><td>onde o slider escreve: arrastar muda <code>st.n_bolas</code></td></tr>
+          <tr><td><code>label="Bolas"</code></td><td>(legenda) o nome ao lado da trilha</td></tr>
+          <tr><td><code>min_value=5</code>, <code>max_value=60</code></td><td>o menor e o maior valor</td></tr>
+          <tr><td><code>only_int=True</code></td><td>(só inteiros) pula de 1 em 1, porque não existem 12,4 bolas</td></tr>
+        </tbody></table></div>
+        <p>Os colchetes importam. <code>st["n_bolas"]</code> entrega a célula, o lugar onde o valor mora. Sem eles, o slider recebe só o número que está lá agora, 30, e não tem onde escrever; o Scena para com um erro que mostra a escrita com colchetes:</p>
+        `,
+        {
+          snip: `Slider(st.n_bolas, label="Bolas", min_value=5, max_value=60, only_int=True)`,
+          alt: true
+        }
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Mouse e teclado")
@@ -149,16 +271,43 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "st.n_bolas = 30",
+          text: "O número de bolas sai do <code>range</code> e passa a morar em <code>st</code>, que guarda os valores do programa."
+        },
+        {
+          at: "range(st.n_bolas)",
+          text: "<code>criar</code> lê o valor guardado, em vez do 30 escrito no código."
+        },
+        {
+          at: "Slider(st[\"n_bolas\"]",
+          text: "Sem uma posição (<code>top_left</code>, o canto de cima à esquerda), o widget entra numa coluna no canto da janela, e os próximos se empilham embaixo dele."
+        }
+      ],
+      after: `
+        <p>Rode e arraste o slider.</p>
+        <details class="ask"><summary>O número de bolas muda?</summary><p>O número ao lado do slider muda, mas as bolas não. <code>criar</code> rodou uma vez, no começo, e não roda de novo sozinha: o slider só grava o valor.</p></details>
+      `
     },
     {
       title: "Botão Rodar",
-      body: `
-        <p>Para o slider ter efeito, alguém precisa chamar <code>criar</code> de novo. Esse é o trabalho de um botão.</p>
-        <p><code>Button</code> (botão) recebe <code>label="Rodar"</code>, o texto, e <code>on_click=criar</code> (ao clicar). Repare: <code>criar</code> sem parênteses. Com parênteses, a função rodaria agora, enquanto o botão é criado. Sem eles, você entrega a função ao botão, e o Scena a chama a cada clique. <code>ui.gap()</code> (vão) abre um espaço na coluna antes do botão, para ele não grudar no slider.</p>
-        <p>Chamar <code>criar</code> de novo, porém, somaria bolas novas às antigas. Por isso <code>criar</code> agora começa limpando: <code>group["bolas"].destroy()</code> (destruir) apaga todas as bolas do grupo.</p>
-        <p>Arraste o slider para 10 e aperte Rodar: a cadeia renasce no centro, com dez bolas.</p>
-      `,
+      body: [
+        `
+        <p>Para o slider ter efeito, alguém precisa chamar <code>criar</code> de novo. Esse é o trabalho de um botão:</p>
+        `,
+        {
+          snip: `Button(label="Rodar", on_click=criar)`
+        },
+        `
+        <p><code>Button</code> (botão) recebe o texto em <code>label</code> e, em <code>on_click</code> (ao clicar), a função que o clique chama. Repare: <code>criar</code> vai sem parênteses. Assim você entrega a função ao botão, e o Scena a chama a cada clique. Com parênteses, ela rodaria uma vez, agora, enquanto o botão é criado, e o botão receberia o que ela devolve:</p>
+        `,
+        {
+          snip: `Button(label="Rodar", on_click=criar())`,
+          alt: true
+        }
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Mouse e teclado")
@@ -205,14 +354,25 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "group[\"bolas\"].destroy()",
+          text: "Chamar <code>criar</code> de novo somaria bolas novas às antigas. Por isso ela agora começa limpando: <code>destroy</code> (destruir) apaga todas as bolas do grupo."
+        },
+        {
+          at: "ui.gap()",
+          text: "<code>gap</code> (vão) abre um espaço na coluna, para o botão não grudar no slider."
+        }
+      ],
+      after: `
+        <p>Arraste o slider para 10 e aperte Rodar: a cadeia renasce no centro, com dez bolas.</p>
+      `
     },
     {
       title: "DropDown",
       body: `
-        <p>Agora, escolher o visual das bolas. Para escolher um entre vários nomes, o widget é o <code>DropDown</code> (lista suspensa): um campo que abre uma lista quando você clica nele. <code>options</code> (opções) são os nomes da lista, e a escolha vai para <code>st.efeito</code>, que começa em <code>"Halo"</code>.</p>
-        <p>A lista guarda um texto, mas a bola precisa de um visual. Quem traduz é a função <code>visual_da_bola</code>: uma fila de <code>if</code> que compara <code>st.efeito</code> com cada nome e devolve (<code>return</code>) o visual daquele nome. Se nenhum bater, a última linha devolve o <code>Halo</code> (auréola) de antes. Repare nos dois sinais: <code>==</code> pergunta se dois valores são iguais (a resposta é verdadeiro ou falso), e <code>=</code> guarda um valor num nome. Em <code>criar</code>, <code>bola.visual = visual_da_bola()</code> leva parênteses, ao contrário do <code>on_click</code>: aqui queremos o resultado agora, uma vez por bola.</p>
-        <p>Como o slider, a lista só grava o valor. Escolha <code>Flame</code> e aperte Rodar.</p>
+        <p>Agora, escolher o visual das bolas. Para escolher um entre vários nomes, o widget é o <code>DropDown</code> (lista suspensa): um campo que abre uma lista quando você clica nele.</p>
       `,
       code: `from scena import *
 
@@ -280,6 +440,35 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "st.efeito = \"Halo\"",
+          text: "A escolha da lista mora aqui, e começa em <code>\"Halo\"</code>."
+        },
+        {
+          at: "def visual_da_bola():",
+          text: "A lista guarda um texto, mas a bola precisa de um visual. Esta função traduz: compara <code>st.efeito</code> com cada nome e devolve (<code>return</code>) o visual daquele nome."
+        },
+        {
+          at: "if st.efeito == \"Flame\":",
+          text: "<code>==</code> pergunta se dois valores são iguais, e a resposta é verdadeiro ou falso. Não confunda com <code>=</code>, que guarda um valor num nome."
+        },
+        {
+          at: "return Halo(style=\"pulse\")",
+          text: "Se nenhum nome bater, a última linha devolve o <code>Halo</code> (auréola) de antes."
+        },
+        {
+          at: "bola.visual = visual_da_bola()",
+          text: "Aqui a função leva parênteses, ao contrário do <code>on_click</code>: queremos o resultado agora, um visual novo para cada bola."
+        },
+        {
+          at: "DropDown(st[\"efeito\"]",
+          text: "<code>options</code> (opções) são os nomes da lista. Como no slider, os colchetes dizem onde a escolha vai: <code>st.efeito</code>."
+        }
+      ],
+      after: `
+        <p>Como o slider, a lista só grava o valor. Escolha <code>Flame</code> e aperte Rodar.</p>
+      `,
       try: [
         {
           note: "Mais visuais para experimentar, um por vez: troque a última linha de <code>visual_da_bola</code> (o <code>return</code> do <code>Halo</code>) por um deles e aperte Rodar com <code>Halo</code> escolhido. Para escolher pelo painel, acrescente um <code>if</code> e o nome na lista do <code>DropDown</code>.",
@@ -292,13 +481,18 @@ return Bolt()`
     },
     {
       title: "Linhas",
-      body: `
-        <p>Um enfeite: ligar cada bola à anterior com uma linha, como contas num colar. As linhas vão para o grupo <code>linhas</code>.</p>
-        <p><strong>Lembrar a anterior.</strong> Para ligar, <code>criar</code> precisa saber qual foi a bola anterior. <code>anterior</code> começa <code>None</code> (nada) e, no fim de cada volta do <code>for</code>, passa a ser a bola que acabou de nascer. A primeira bola não tem anterior, e o <code>if anterior is not None</code> (se a anterior não é nada, ou seja: se já existe uma anterior) pula a linha nessa volta: trinta bolas, vinte e nove linhas.</p>
-        <p><strong>Pontas que acompanham.</strong> A linha nasce com as duas pontas no centro. Logo em seguida, <code>linha["p1"] @= anterior.center</code> prende a ponta 1 ao centro da bola anterior, e <code>p2</code> ao da bola nova. É o mesmo <code>@=</code> do placar, aqui ligado a um ponto: quando as bolas andam, as pontas andam junto. Sem ele, as linhas ficariam paradas onde nasceram.</p>
-        <p><strong>A aparência.</strong> <code>layer=-1</code> (camada) desenha as linhas atrás das bolas, para que elas não cubram o desenho principal. As três linhas seguintes são enfeite: um degradê de vermelho a laranja, quase transparente, que brilha mais onde várias linhas se cruzam.</p>
-        <p>Por fim, <code>criar</code> também apaga as linhas antigas com <code>group["linhas"].destroy()</code>. Senão, elas sobrariam a cada Rodar.</p>
-      `,
+      body: [
+        `
+        <p>Um enfeite: ligar cada bola à anterior com uma linha, como contas num colar. Cada linha nasce com as duas pontas no centro, e logo em seguida as pontas se prendem às bolas:</p>
+        `,
+        {
+          snip: `linha["p1"] @= anterior.center
+linha["p2"] @= bola.center`
+        },
+        `
+        <p><code>p1</code> e <code>p2</code> são as duas pontas da linha. <code>@=</code> liga cada ponta ao centro de uma bola: a ponta 1 à bola anterior, a ponta 2 à bola nova. Quando as bolas andam, as pontas andam junto.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Mouse e teclado")
@@ -376,14 +570,42 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "group[\"linhas\"].destroy()",
+          text: "<code>criar</code> também apaga as linhas antigas. Senão, elas sobrariam a cada Rodar."
+        },
+        {
+          at: "anterior = None",
+          text: "Para ligar, <code>criar</code> precisa lembrar a bola anterior. <code>anterior</code> começa <code>None</code> (nada), porque a primeira bola não tem anterior."
+        },
+        {
+          at: "if anterior is not None:",
+          text: "Se já existe uma bola anterior, nasce uma linha. Na primeira volta não existe, e a linha fica de fora: trinta bolas, vinte e nove linhas."
+        },
+        {
+          at: "layer=-1",
+          text: "<code>layer</code> (camada) <code>-1</code> desenha as linhas atrás das bolas."
+        },
+        {
+          at: "linha.blend = \"add\"",
+          text: "Esta linha e as duas de cima são enfeite: um degradê de vermelho a laranja, quase transparente (<code>set_alpha(0.3)</code>), e <code>blend=\"add\"</code> (mistura por soma), que faz a luz brilhar mais onde várias linhas se cruzam."
+        },
+        {
+          at: "anterior = bola",
+          text: "No fim de cada volta, a bola que acabou de nascer passa a ser a anterior da próxima."
+        }
+      ],
+      after: `
+        <p>Rode e mexa o mouse: as linhas se esticam entre as bolas.</p>
+        <details class="ask"><summary>E sem o <code>@=</code>?</summary><p>As pontas ficariam onde a linha nasceu, as duas no centro da tela. Cada linha seria um ponto parado, e nenhuma acompanharia as bolas.</p></details>
+      `
     },
     {
       title: "CheckBox",
       body: `
-        <p>As linhas são bonitas, mas nem sempre se quer vê-las. Para ligar e desligar, o widget é o <code>CheckBox</code> (caixa de seleção): um quadradinho marcado ou desmarcado, que guarda <code>True</code> (verdadeiro) ou <code>False</code> (falso). Ele escreve em <code>st.linhas</code>, que começa <code>True</code>: a caixa nasce marcada.</p>
-        <p>Em <code>criar</code>, a condição da linha ganha uma parte: <code>if st.linhas and anterior is not None</code>. <code>and</code> (e) exige as duas coisas ao mesmo tempo: a caixa marcada e uma bola anterior.</p>
-        <p>Desmarque a caixa e aperte Rodar: a cadeia renasce sem linhas.</p>
+        <p>As linhas são bonitas, mas nem sempre se quer vê-las. Para ligar e desligar, o widget é o <code>CheckBox</code> (caixa de seleção): um quadradinho marcado ou desmarcado.</p>
       `,
       code: `from scena import *
 
@@ -465,15 +687,24 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "st.linhas = True",
+          text: "A caixa guarda <code>True</code> (verdadeiro) ou <code>False</code> (falso) em <code>st.linhas</code>. Começa <code>True</code>: a caixa nasce marcada."
+        },
+        {
+          at: "if st.linhas and anterior is not None:",
+          text: "A condição da linha ganha uma parte. <code>and</code> (e) exige as duas coisas ao mesmo tempo: a caixa marcada e uma bola anterior."
+        }
+      ],
+      after: `
+        <p>Desmarque a caixa e aperte Rodar: a cadeia renasce sem linhas.</p>
+      `,
     },
     {
       title: "Menu de pausa",
       body: `
-        <p>O último widget é diferente dos outros. Slider, lista, caixa e botão ficam sempre na coluna. Um <code>Menu</code> é uma pergunta: aparece no meio da tela, espera uma resposta e some. Vamos usá-lo como menu de pausa, aberto pela tecla Esc.</p>
-        <p><strong>Abrir.</strong> No <code>update</code>, <code>keyp.once("ESC")</code> é verdadeiro só no quadro em que a tecla desce, uma vez por toque. Com <code>keyp("ESC")</code>, verdadeiro enquanto a tecla está apertada, abriríamos um menu novo a cada quadro. Criar o <code>Menu</code> já o mostra: <code>title</code> (título) é a faixa de cima, e <code>options</code> (opções) são os botões. Sem <code>center</code> (centro), ele aparece no meio da vista.</p>
-        <p><strong>Pausar.</strong> <code>pause=True</code> (pausar) para o relógio do jogo enquanto o menu está aberto e o devolve como estava ao fechar: as bolas congelam.</p>
-        <p><strong>Responder.</strong> Um clique numa opção fecha o menu e chama <code>on_choose</code> (ao escolher) com a opção clicada. A função <code>escolher</code> só precisa tratar <code>"Recomeçar"</code>: chama <code>criar</code>, como o botão Rodar. <code>"Continuar"</code> não precisa de nada, porque fechar o menu já é continuar.</p>
-        <p>Aperte Esc e experimente as duas opções.</p>
+        <p>O último widget é diferente dos outros. Slider, lista, caixa e botão ficam sempre na coluna. Um <code>Menu</code> é uma pergunta: aparece no meio da tela, espera uma resposta e some. Aqui, um menu de pausa, aberto pela tecla Esc.</p>
       `,
       example: "cadeia_de_bolas.py",
       code: `from scena import *
@@ -569,6 +800,31 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "def escolher(opcao):",
+          text: "O Scena chama esta função com a opção clicada. Ela só precisa tratar <code>\"Recomeçar\"</code>, chamando <code>criar</code> como o botão Rodar. <code>\"Continuar\"</code> não precisa de nada: fechar o menu já é continuar."
+        },
+        {
+          at: "if keyp.once(\"ESC\"):",
+          text: "<code>keyp.once</code> (uma vez) é verdadeiro só no quadro em que a tecla desce. Com <code>keyp(\"ESC\")</code>, verdadeiro enquanto a tecla está apertada, abriríamos um menu novo a cada quadro."
+        },
+        {
+          at: "title=\"Pausa\",",
+          text: "Criar o <code>Menu</code> já o mostra. <code>options</code> (opções) são os botões, e <code>title</code> (título) é a faixa de cima. Sem <code>center</code> (centro), ele aparece no meio da vista."
+        },
+        {
+          at: "pause=True,",
+          text: "<code>pause</code> (pausar) para o relógio do jogo enquanto o menu está aberto e o devolve como estava ao fechar: as bolas congelam."
+        },
+        {
+          at: "on_choose=escolher,",
+          text: "Um clique numa opção fecha o menu e chama <code>on_choose</code> (ao escolher). <code>escolher</code> vai sem parênteses, como o <code>criar</code> do botão."
+        }
+      ],
+      after: `
+        <p>Aperte Esc e experimente as duas opções.</p>
+      `,
       closing: `
         <p>Neste script, slider, lista e caixa só gravam valores em <code>st</code>. Quem aplica é <code>criar</code>, chamado pelo botão Rodar ou pelo Recomeçar do menu: a cadeia nasce de novo, inteira, com os valores do painel. É simples e seguro.</p>
       `,
@@ -588,9 +844,8 @@ run()
       part: "Script 2 · Desenho",
       fresh: true,
       body: `
-        <p>Aqui começa um script novo, num arquivo novo. Desta vez não há painel: o controle é o próprio mouse. Vamos fazer um programa de desenho. Você segura o botão e arrasta, e o caminho do mouse vira um traço de luz. Cada traço tem a sua cor e se apaga sozinho depois de alguns segundos.</p>
-        <p><strong>O marcador.</strong> Primeiro, uma bolinha que acompanha o ponteiro, para mostrar onde está a ponta da caneta. <code>mouse</code> é o ponto onde o ponteiro está agora; o Scena o atualiza a cada quadro. <code>center=lambda: mouse</code> é a ideia das linhas do tutorial 03: a <code>lambda</code> lê o mouse a cada quadro, e o centro do círculo vai junto. <code>Neon</code> é o visual de um tubo de luz, na cor que você passa.</p>
-        <p>Rode e mexa o mouse: a bolinha ciano segue o ponteiro.</p>
+        <p>Um script novo, num arquivo novo: um programa de desenho. Você segura o botão e arrasta, e o caminho do mouse vira um traço de luz, que tem a sua cor e se apaga sozinho depois de alguns segundos. Desta vez não há painel: o controle é o próprio mouse.</p>
+        <p>Primeiro, uma bolinha que acompanha o ponteiro e mostra onde está a ponta da caneta.</p>
       `,
       code: `from scena import *
 
@@ -601,6 +856,19 @@ marcador.visual = Neon("cyan")
 
 run()
 `,
+      notes: [
+        {
+          at: "center=lambda: mouse",
+          text: "<code>mouse</code> é o ponto onde o ponteiro está agora. A <code>lambda</code> é uma função de uma linha que lê esse ponto, e o Scena a consulta a cada quadro: o centro do círculo vai junto com o mouse."
+        },
+        {
+          at: "Neon(\"cyan\")",
+          text: "<code>Neon</code> é o visual de um tubo de luz, na cor que você passa."
+        }
+      ],
+      after: `
+        <p>Rode e mexa o mouse: a bolinha ciano segue o ponteiro.</p>
+      `,
       try: [
         {
           note: "Sem <code>lambda</code>, o Python lê <code>mouse</code> uma vez, quando o círculo nasce, e o marcador fica parado onde o ponteiro estava naquela hora. Troque a linha e compare.",
@@ -613,9 +881,6 @@ run()
       title: "Apertar e soltar",
       body: `
         <p>O marcador só deve aparecer enquanto o botão está apertado. Para isso, o Scena precisa nos avisar de duas coisas: quando o botão desce e quando ele sobe.</p>
-        <p><strong>Funções que o Scena chama.</strong> <code>on_mouse_down</code> (ao descer o botão do mouse) e <code>on_mouse_up</code> (ao subir) são nomes especiais, como <code>update</code>: você só escreve a função, com esse nome exato, e o Scena a chama na hora certa. Nenhuma linha do script chama <code>on_mouse_down()</code>. Elas valem para a janela inteira: diferente do clique no triângulo do tutorial 01, não é preciso acertar uma forma.</p>
-        <p><strong>Mostrar e esconder.</strong> <code>visible</code> (visível) liga e desliga o desenho de um objeto. O marcador nasce escondido (<code>False</code>), aparece quando o botão desce (<code>True</code>) e some quando ele sobe. Escondido, ele continua existindo e seguindo o mouse; só não é desenhado.</p>
-        <p>Rode, aperte e segure o botão: o marcador aparece. Solte: ele some.</p>
       `,
       code: `from scena import *
 
@@ -636,6 +901,23 @@ def on_mouse_up():
 
 run()
 `,
+      notes: [
+        {
+          at: "def on_mouse_down():",
+          text: "<code>on_mouse_down</code> (ao descer o botão do mouse) é um nome especial, como <code>update</code>: você só escreve a função, com esse nome exato, e o Scena a chama na hora certa. Ela vale para a janela inteira; não é preciso acertar uma forma."
+        },
+        {
+          at: "marcador.visible = True",
+          text: "<code>visible</code> (visível) liga e desliga o desenho. O marcador nasce escondido e aparece aqui. Escondido, ele continua existindo e seguindo o mouse; só não é desenhado."
+        },
+        {
+          at: "def on_mouse_up():",
+          text: "<code>on_mouse_up</code> (ao subir o botão) é o par dela: o Scena a chama quando você solta, e o marcador se esconde de novo."
+        }
+      ],
+      after: `
+        <p>Rode, aperte e segure o botão: o marcador aparece. Solte: ele some.</p>
+      `,
       try: [
         {
           note: "A função também pode pedir o lugar do clique: com <code>x</code> e <code>y</code> entre os parênteses, o Scena os entrega. Aqui, cada clique deixa um pontinho branco. No lugar da linha <code>def on_mouse_down():</code>.",
@@ -648,8 +930,7 @@ run()
     {
       title: "O rastro",
       body: `
-        <p>Agora o traço. <code>Contrail</code> (rastro de condensação, a faixa branca que um avião deixa no céu) desenha uma linha contínua passando pelos pontos que você vai dando a ele. Ele não segue nada sozinho: quem diz quando guardar um ponto é você.</p>
-        <p><strong>Guardar um ponto.</strong> <code>rastro.snapshot(mouse)</code> (instantâneo, como uma foto) guarda uma cópia de onde o mouse está neste momento. Uma cópia: depois o mouse anda, e o ponto guardado fica onde estava. Cada ponto novo entra na ponta do rastro, e a linha se estica até ele.</p>
+        <p>Agora o traço. <code>Contrail</code> (rastro de condensação, a faixa branca que um avião deixa no céu) desenha uma linha contínua pelos pontos que você vai dando a ele. Ele não segue nada sozinho: quem diz quando guardar um ponto é você.</p>
         <figure class="fig">
           <svg viewBox="0 0 380 170" role="img" aria-label="Uma linha curva passa por uma fila de pontos; o último ponto, na ponta da linha, é o mouse agora">
             <polyline class="ray" fill="none" points="30,100 56,79 82,64 108,60 134,68 160,85 186,106 212,126 238,138 264,139 290,128 316,109 342,88"/>
@@ -672,8 +953,6 @@ run()
           </svg>
           <figcaption>Cada <code>snapshot</code> guarda um ponto; o <code>Contrail</code> passa uma linha por todos eles.</figcaption>
         </figure>
-        <p><strong>A cada 0,03 segundo.</strong> Quem chama <code>snapshot</code> é a função <code>desenhar</code>, com o <code>@every</code> (a cada) que você conheceu nas estrelas do tutorial 02: em cima da função, ele faz o Scena rodá-la de tempos em tempos, aqui umas 33 vezes por segundo. Quanto menor o intervalo, mais pontos, e mais o traço se parece com o caminho do mouse.</p>
-        <p>Rode e mexa o mouse. O traço aparece, mas desenha <strong>sempre</strong>, com ou sem o botão apertado: o <code>@every</code> começou junto com o programa e não para nunca. O próximo passo liga a caneta só enquanto o botão está apertado.</p>
       `,
       code: `from scena import *
 
@@ -700,16 +979,57 @@ def on_mouse_up():
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "@every(0.03)",
+          text: "<code>@every</code> (a cada), em cima da função, faz o Scena rodá-la de tempos em tempos: aqui a cada 0,03 s, umas 33 vezes por segundo. Quanto menor o intervalo, mais pontos, e mais o traço se parece com o caminho do mouse."
+        },
+        {
+          at: "rastro.snapshot(mouse)",
+          text: "<code>snapshot</code> (instantâneo, como uma foto) guarda uma cópia de onde o mouse está neste momento. Depois o mouse anda, e o ponto guardado fica onde estava."
+        }
+      ],
+      after: `
+        <p>Rode e mexa o mouse, sem apertar nada.</p>
+        <details class="ask"><summary>O traço espera o botão?</summary><p>Não: ele desenha sempre, com ou sem o botão apertado. O <code>@every</code> começou junto com o programa e não para nunca.</p></details>
+      `
     },
     {
       title: "Ligar e desligar a caneta",
-      body: `
-        <p>O <code>@every</code> em cima de uma função começa com o programa e vale até o fim. Para um timer que começa numa hora e para em outra, o Scena tem a mesma palavra escrita como chamada: <code>every(0.03, desenhar)</code> começa agora a chamar <code>desenhar</code> a cada 0,03 segundo. <code>desenhar</code> vai sem parênteses, como no <code>on_click=criar</code> do botão da cadeia: você entrega a função, e o Scena a chama.</p>
-        <p><strong>Desligar o timer.</strong> <code>every(…)</code> devolve um controle do timer, e <code>.cancel()</code> (cancelar) o desliga. Por que é preciso desligar? O timer não sabe que você soltou o botão: sem o <code>cancel</code>, ele continuaria guardando pontos para sempre. E pior: cada clique começaria mais um timer. Depois de dez cliques, seriam dez timers guardando o mesmo ponto ao mesmo tempo.</p>
-        <p><strong>Onde guardar o controle.</strong> O timer nasce em <code>on_mouse_down</code>, mas quem o desliga é <code>on_mouse_up</code>. Uma variável criada dentro de uma função é só dela: a outra função não a enxerga. Por isso o controle fica num <strong>campo</strong> do marcador, <code>marcador.caneta</code>. Um campo é um nome preso a um objeto, escrito com ponto, como <code>marcador.visible</code>; para criar um novo, basta atribuir. O marcador existe o programa inteiro, e as duas funções o enxergam: <code>marcador.caneta.cancel()</code> desliga a caneta que o clique ligou.</p>
-        <p>Rode e desenhe: agora só sai traço com o botão apertado. Mas solte, leve o mouse a outro canto e aperte de novo: uma reta liga o fim do traço anterior ao começo do novo. Ainda é um rastro só, e ele continua de onde parou.</p>
-      `,
+      body: [
+        `
+        <p>A caneta deve desenhar só enquanto o botão está apertado. O <code>@every</code> em cima de uma função começa com o programa e vale até o fim; para um timer que começa numa hora e para em outra, o Scena tem a mesma palavra escrita como chamada:</p>
+        `,
+        {
+          snip: `marcador.caneta = every(0.03, desenhar)
+...
+marcador.caneta.cancel()`
+        },
+        `
+        <p><code>every(0.03, desenhar)</code> começa agora a chamar <code>desenhar</code> a cada 0,03 segundo. <code>desenhar</code> vai sem parênteses, como o <code>criar</code> do botão Rodar: você entrega a função, e o Scena a chama. A chamada devolve um controle do timer, e <code>cancel()</code> (cancelar) o desliga.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 110" role="img" aria-label="Uma linha do tempo; o botão desce, o timer guarda pontos em intervalos iguais, e o botão sobe; antes e depois, nenhum ponto">
+            <line class="guide" x1="20" y1="56" x2="104" y2="56"/>
+            <line class="guide" x1="296" y1="56" x2="380" y2="56"/>
+            <rect class="bar" x="110" y="51" width="180" height="10"/>
+            <circle class="dot" cx="110" cy="56" r="4"/>
+            <circle class="dot" cx="140" cy="56" r="4"/>
+            <circle class="dot" cx="170" cy="56" r="4"/>
+            <circle class="dot" cx="200" cy="56" r="4"/>
+            <circle class="dot" cx="230" cy="56" r="4"/>
+            <circle class="dot" cx="260" cy="56" r="4"/>
+            <circle class="hot" cx="110" cy="56" r="6"/>
+            <circle class="hot" cx="290" cy="56" r="6"/>
+            <text x="110" y="32" text-anchor="middle">desce: every(…)</text>
+            <text x="290" y="32" text-anchor="middle">sobe: cancel()</text>
+            <text x="200" y="88" text-anchor="middle">um ponto a cada 0,03 s</text>
+          </svg>
+          <figcaption>O timer vive do clique até a soltura. Fora desse trecho, nenhum ponto é guardado.</figcaption>
+        </figure>
+        <p>Desligar é obrigatório. O timer não sabe que você soltou o botão: sem o <code>cancel</code>, ele guardaria pontos para sempre, e cada clique começaria mais um. Depois de dez cliques, seriam dez timers guardando o mesmo ponto ao mesmo tempo.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Desenho")
@@ -736,16 +1056,32 @@ def on_mouse_up():
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "marcador.caneta = every(0.03, desenhar)",
+          text: "O timer nasce aqui, mas quem o desliga é <code>on_mouse_up</code>, e uma variável criada dentro de uma função é só dela. Por isso o controle fica num <strong>campo</strong> do marcador: um nome preso a um objeto, escrito com ponto, como <code>marcador.visible</code>. Para criar um campo novo, basta atribuir. O marcador existe o programa inteiro, e as duas funções o enxergam."
+        }
+      ],
+      after: `
+        <p>Rode e desenhe: agora só sai traço com o botão apertado.</p>
+        <details class="ask"><summary>Solte, leve o mouse a outro canto e aperte de novo. O que aparece?</summary><p>Uma reta liga o fim do traço anterior ao começo do novo. Ainda é um rastro só, e ele continua de onde parou.</p></details>
+      `
     },
     {
       title: "Um traço por clique",
-      body: `
-        <p>Para os traços ficarem separados, cada clique ganha o seu próprio rastro. A linha do <code>Contrail</code> sai do topo do arquivo e entra em <code>on_mouse_down</code>: um clique, um rastro novo. Os antigos continuam na tela, onde foram desenhados.</p>
-        <p><strong>Uma cor por traço.</strong> <code>Color.random()</code> (cor aleatória), que você usou no tutorial 01, sorteia uma cor para cada rastro.</p>
-        <p><strong>Quem alimenta o rastro novo.</strong> A função <code>desenhar</code> lá de cima não serve mais: o <code>rastro</code> agora é uma variável de dentro de <code>on_mouse_down</code>, e uma função de fora não a enxerga. A saída é escrever a função ali mesmo, com <code>lambda</code>: <code>lambda: rastro.snapshot(mouse)</code> é uma função de uma linha que guarda o mouse no rastro. Como ela nasce dentro de <code>on_mouse_down</code>, enxerga o <code>rastro</code> deste clique. Cada clique tem o seu rastro e o seu timer, e o timer de um clique só alimenta o rastro dele.</p>
-        <p>Rode e faça vários traços: cada um sai separado, com a sua cor.</p>
-      `,
+      body: [
+        `
+        <p>Para os traços ficarem separados, cada clique ganha o seu próprio rastro. A linha do <code>Contrail</code> sai do topo do arquivo e entra em <code>on_mouse_down</code>: um clique, um rastro novo.</p>
+        `,
+        {
+          snip: `rastro = Contrail(color=Color.random())
+marcador.caneta = every(0.03, lambda: rastro.snapshot(mouse))`
+        },
+        `
+        <p>A função <code>desenhar</code> lá de cima não serve mais: o <code>rastro</code> agora é uma variável de dentro de <code>on_mouse_down</code>, e uma função de fora não a enxerga. A saída é escrever a função ali mesmo, com <code>lambda</code>: <code>lambda: rastro.snapshot(mouse)</code> é uma função de uma linha que guarda o mouse no rastro. Como ela nasce dentro de <code>on_mouse_down</code>, enxerga o <code>rastro</code> deste clique. Cada clique tem o seu rastro e o seu timer, e o timer de um clique só alimenta o rastro dele.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Desenho")
@@ -768,16 +1104,22 @@ def on_mouse_up():
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "Color.random()",
+          text: "<code>Color.random()</code> (cor aleatória) sorteia uma cor para cada rastro."
+        }
+      ],
+      after: `
+        <p>Rode e faça vários traços: cada um sai separado, com a sua cor. Os antigos continuam na tela, onde foram desenhados.</p>
+      `
     },
     {
       title: "O traço que se apaga",
       example: "desenho.py",
       body: `
-        <p>Os últimos ajustes ficam todos no <code>Contrail</code>, que agora ocupa várias linhas, uma informação por linha, como o <code>Circle</code> do compasso no tutorial 03.</p>
-        <p><strong>Apagar.</strong> <code>duration=5</code> (duração) é quanto tempo cada ponto fica guardado: com 5 segundos de idade, o ponto sai, e o traço vai sumindo pela cauda até desaparecer. <code>fade=True</code> (esmaecer) deixa a linha transparente na cauda e firme na cabeça, como um cometa.</p>
-        <p><strong>A linha.</strong> <code>line_width=4</code> (largura da linha) engrossa o traço. <code>visual=Rim(…)</code> troca a linha lisa por uma borda luminosa (<code>Rim</code>, aro), na cor sorteada. O <code>color=</code> sai: agora quem tem a cor é o visual, e o Contrail não aceita os dois juntos.</p>
-        <p>Desenhe à vontade: cada traço brilha na sua cor e some cinco segundos depois.</p>
+        <p>Por último, cada traço se apaga sozinho e ganha brilho. Os ajustes ficam todos no <code>Contrail</code>, que agora ocupa várias linhas, uma informação por linha.</p>
       `,
       code: `from scena import *
 
@@ -807,6 +1149,27 @@ def on_mouse_up():
 
 run()
 `,
+      notes: [
+        {
+          at: "duration=5,",
+          text: "<code>duration</code> (duração) é quanto tempo cada ponto fica guardado. Com 5 segundos de idade, o ponto sai, e o traço vai sumindo pela cauda até desaparecer."
+        },
+        {
+          at: "fade=True,",
+          text: "<code>fade</code> (esmaecer) deixa a linha transparente na cauda e firme na cabeça, como um cometa."
+        },
+        {
+          at: "line_width=4,",
+          text: "<code>line_width</code> (largura da linha) engrossa o traço."
+        },
+        {
+          at: "visual=Rim(Color.random()),",
+          text: "<code>Rim</code> (aro) troca a linha lisa por uma borda luminosa, na cor sorteada. O <code>color=</code> saiu: agora quem tem a cor é o visual, e o <code>Contrail</code> não aceita os dois juntos."
+        }
+      ],
+      after: `
+        <p>Desenhe à vontade: cada traço brilha na sua cor e some cinco segundos depois.</p>
+      `,
       try: [
         {
           note: "Outros visuais de linha, um por vez, no lugar de <code>Rim(Color.random())</code>. Mais no Guia: <a href='../guide/index.html#aparencia-visual'>Visual</a>.",
@@ -821,13 +1184,13 @@ Halo(Color.random())`
         {
           title: "Os ajustes do Contrail",
           body: `
-            <p>Um <code>Contrail</code> guarda pontos e passa uma linha por eles. Os parâmetros dizem quantos pontos guardar e como desenhar a linha:</p>
-            <ul>
-              <li><code>duration</code> — quantos segundos cada ponto vive. Sem ele, os pontos ficam para sempre (foi o que você viu nos passos anteriores).</li>
-              <li><code>max_points</code> (máximo de pontos) — quantos pontos cabem; quando passa, o mais velho sai. O traço fica curto e anda junto com a caneta, como uma cobra.</li>
-              <li><code>fade</code> — esmaece da cabeça para a cauda.</li>
-              <li><code>line_width</code> e <code>color</code> ou <code>visual</code> — a aparência da linha.</li>
-            </ul>
+            <p>Um <code>Contrail</code> guarda pontos e passa uma linha por eles. Há dois jeitos de um ponto velho sair: pela idade ou pela fila. Os parâmetros dizem qual, e como desenhar a linha:</p>
+            <div class="tbl"><table><thead><tr><th>Parâmetro</th><th>O que faz</th></tr></thead><tbody>
+              <tr><td><code>duration</code></td><td>quantos segundos cada ponto vive. Sem ele, os pontos ficam para sempre, como nos passos anteriores.</td></tr>
+              <tr><td><code>max_points</code></td><td>(máximo de pontos) quantos pontos cabem; quando passa, o mais velho sai. O traço fica curto e anda junto com a caneta, como uma cobra.</td></tr>
+              <tr><td><code>fade</code></td><td>esmaece da cabeça para a cauda.</td></tr>
+              <tr><td><code>line_width</code>, <code>color</code> ou <code>visual</code></td><td>a aparência da linha.</td></tr>
+            </tbody></table></div>
             <p>No Guia: <a href="../guide/index.html#contrail">Contrail</a>.</p>
           `,
           try: [
@@ -875,11 +1238,7 @@ marcador.caneta = every(0.15, lambda: rastro.snapshot(mouse))`
       part: "Script 3 · Letreiro",
       fresh: true,
       body: `
-        <p>Último script do tutorial, num arquivo novo, e mais um widget: um campo para digitar. Você escreve uma frase, aperta Enter, e ela vira um letreiro colorido que passeia pela tela desenhando um oito.</p>
-        <p><strong>O letreiro.</strong> É um <code>Text</code>, como o placar do tutorial 02, agora com <code>center=</code> (centro): o meio do texto fica nesse ponto. <code>font_size=80</code> (tamanho da fonte) deixa as letras grandes. O fundo é um degradê, como o da cadeia; <code>angle=90</code> (ângulo) o põe em pé, de baixo para cima: a primeira cor embaixo, a segunda no alto.</p>
-        <p><strong>O campo.</strong> <code>TextInput</code> (entrada de texto) é uma caixa de uma linha onde se digita. <code>placeholder</code> (o que guarda o lugar) é a dica cinza que aparece com a caixa vazia; <code>width</code> (largura) é o tamanho da caixa. Sem posição, ela entra na coluna do canto, como os widgets da cadeia.</p>
-        <p><strong>O foco.</strong> Clique na caixa: aparece um cursor piscando. A caixa tem o <strong>foco</strong>, quer dizer, recebe o teclado: cada letra que você digita vai para ela. Esc ou um clique fora da caixa devolvem o teclado ao programa.</p>
-        <p>Rode, clique na caixa e escreva. As letras aparecem no campo, mas o Enter ainda não muda o letreiro: os dois ainda não estão ligados.</p>
+        <p>Último script, num arquivo novo, e mais um widget: um campo para digitar. Você escreve uma frase, aperta Enter, e ela vira um letreiro colorido que passeia pela tela desenhando um oito. Primeiro, o letreiro e o campo, ainda separados.</p>
       `,
       code: `from scena import *
 
@@ -892,12 +1251,30 @@ TextInput(placeholder="Escreva aqui", width=400)
 
 run()
 `,
+      notes: [
+        {
+          at: "angle=90",
+          text: "<code>angle=90</code> (ângulo) põe o degradê em pé: a primeira cor embaixo, a segunda no alto."
+        },
+        {
+          at: "center=(500, 350)",
+          text: "Com <code>center</code> (centro), o meio do texto fica nesse ponto. <code>font_size</code> (tamanho da fonte) 80 deixa as letras grandes."
+        },
+        {
+          at: "TextInput(",
+          text: "<code>TextInput</code> (entrada de texto) é uma caixa de uma linha onde se digita. <code>placeholder</code> (o que guarda o lugar) é a dica cinza da caixa vazia, e <code>width</code> (largura), o tamanho dela. Sem posição, ela entra na coluna do canto, como os widgets da cadeia."
+        }
+      ],
+      after: `
+        <p>Rode e clique na caixa: aparece um cursor piscando. A caixa tem o <strong>foco</strong>, quer dizer, recebe o teclado: cada letra que você digita vai para ela. Esc ou um clique fora da caixa devolvem o teclado ao programa.</p>
+        <details class="ask"><summary>Escreva e aperte Enter. O letreiro muda?</summary><p>Ainda não. O campo e o letreiro não estão ligados: nada no script diz o que fazer com o texto.</p></details>
+      `,
       dive: [
         {
           title: "O teclado com o campo focado",
           body: `
             <p>Enquanto a caixa tem o foco, as teclas de texto são dela: letras, números, espaço, setas, Backspace, Enter, Esc. O resto do programa não as vê: <code>keyp("LEFT")</code> responde falso, mesmo com a seta apertada. É de propósito. Sem isso, num jogo em que o herói anda com A e D, escrever o nome "Ana" também faria o herói andar.</p>
-            <p>Num jogo com um campo de texto, então, depois de escrever, aperte Enter ou Esc (ou clique fora) para o teclado voltar ao jogo.</p>
+            <p>Num jogo com um campo de texto, então, depois de escrever, aperte Enter ou Esc, ou clique fora, para o teclado voltar ao jogo.</p>
             <p>No Guia: <a href="../guide/index.html#ui-textinput">TextInput</a> · <a href="../guide/index.html#frame-teclado">Teclado</a>.</p>
           `
         }
@@ -906,10 +1283,7 @@ run()
     {
       title: "Enter",
       body: `
-        <p>Agora o Enter manda o texto para o letreiro. <code>on_submit</code> (ao enviar) é o parâmetro do Enter: ele recebe uma função, e o Scena a chama quando você aperta Enter na caixa. É a ideia do <code>on_click</code> do botão e do <code>on_choose</code> do menu, na cadeia: a função vai sem parênteses, e quem a chama é o Scena.</p>
-        <p><strong>O texto chega na função.</strong> O Scena chama <code>mostrar</code> com o que estava escrito na caixa, como o menu entregava a opção escolhida a <code>escolher</code>. Dentro dela, <code>letreiro.text = texto</code> troca o texto do letreiro. O centro continua no mesmo lugar, e o texto novo se ajeita em volta dele.</p>
-        <p>A função vem antes do <code>TextInput</code>, pela mesma razão do <code>criar</code> antes do botão: o Python lê o arquivo de cima para baixo, e <code>mostrar</code> precisa existir na linha que a entrega ao campo.</p>
-        <p>Rode, clique na caixa, escreva e aperte Enter: o letreiro muda. Depois do Enter, a caixa solta o foco; para outra frase, clique nela de novo.</p>
+        <p>Agora o Enter manda o texto para o letreiro. O campo ganha a função do Enter, do mesmo jeito que o botão ganhou a do clique.</p>
       `,
       code: `from scena import *
 
@@ -926,15 +1300,29 @@ def mostrar(texto):
 TextInput(placeholder="Escreva e aperte Enter", width=400, on_submit=mostrar)
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "def mostrar(texto):",
+          text: "O Scena chama <code>mostrar</code> com o que estava escrito na caixa, em <code>texto</code>, como o menu entregava a opção a <code>escolher</code>."
+        },
+        {
+          at: "letreiro.text = texto",
+          text: "Troca o texto do letreiro. O centro continua no mesmo lugar, e o texto novo se ajeita em volta dele."
+        },
+        {
+          at: "on_submit=mostrar",
+          text: "<code>on_submit</code> (ao enviar) recebe a função do Enter, sem parênteses, como o <code>on_click</code> e o <code>on_choose</code>. A função vem antes desta linha porque o Python lê o arquivo de cima para baixo: <code>mostrar</code> precisa existir quando é entregue ao campo."
+        }
+      ],
+      after: `
+        <p>Rode, clique na caixa, escreva e aperte Enter: o letreiro muda. Depois do Enter, a caixa solta o foco; para outra frase, clique nela de novo.</p>
+      `
     },
     {
       title: "Pronto para a próxima",
       body: `
-        <p>Dois retoques no campo. Depois do Enter, ele se esvazia e continua com o teclado, pronto para a próxima frase. E ele já nasce com o foco: dá para escrever sem clicar.</p>
-        <p><strong>O campo ganha um nome.</strong> Para mexer no campo depois, ele precisa de uma variável: <code>campo = TextInput(…)</code>. Como uma forma, um widget tem campos e ações. <code>campo.text</code> é o texto que está na caixa, e guardar ali <code>""</code> (um texto vazio) a limpa. <code>campo.focus()</code> (focar) dá o foco à caixa, como um clique nela. A mesma linha logo depois do <code>TextInput</code> faz isso na partida.</p>
-        <p><strong>Um nome usado antes de existir?</strong> <code>mostrar</code> usa <code>campo</code>, que só é criado mais abaixo. Funciona porque o corpo de uma função só roda quando ela é chamada: quando você aperta Enter, o arquivo inteiro já foi lido, e <code>campo</code> já existe. Já o <code>on_submit=mostrar</code> precisa de <code>mostrar</code> na hora, e por isso a função continua antes.</p>
-        <p>Rode e escreva várias frases seguidas, com Enter entre elas.</p>
+        <p>Dois retoques no campo. Depois do Enter, ele se esvazia e continua com o teclado, pronto para a próxima frase. E ele já nasce com o foco: dá para escrever sem clicar. Para mexer no campo depois, ele ganha um nome.</p>
       `,
       code: `from scena import *
 
@@ -954,16 +1342,26 @@ campo = TextInput(placeholder="Escreva e aperte Enter", width=400, on_submit=mos
 campo.focus()
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "campo.text = \"\"",
+          text: "Como uma forma, um widget tem campos e ações. <code>campo.text</code> é o texto que está na caixa, e guardar ali <code>\"\"</code> (um texto vazio) a limpa. Na linha de baixo, <code>focus()</code> (focar) devolve o foco à caixa, como um clique nela."
+        },
+        {
+          at: "campo = TextInput(",
+          text: "O campo ganha uma variável, e a linha logo abaixo lhe dá o foco na partida."
+        }
+      ],
+      after: `
+        <p>Rode e escreva várias frases seguidas, com Enter entre elas.</p>
+        <details class="ask"><summary><code>mostrar</code> usa <code>campo</code>, que só é criado mais abaixo. Por que funciona?</summary><p>O corpo de uma função só roda quando ela é chamada. Quando você aperta Enter, o arquivo inteiro já foi lido, e <code>campo</code> já existe. Já o <code>on_submit=mostrar</code> precisa de <code>mostrar</code> na hora, e por isso a função continua antes.</p></details>
+      `
     },
     {
       title: "Letras com estilo",
       body: `
-        <p>Agora o letreiro ganha cara de letreiro. São três ajustes, todos do <code>Text</code>.</p>
-        <p><strong>A fonte.</strong> <code>font</code> (fonte) é o desenho das letras. Um arquivo <code>.ttf</code> traz uma fonte inteira; este vem na pasta <code>media</code>, como as imagens, e o nome traz a subpasta. Esta fonte só tem letras maiúsculas: o que você digitar aparece em maiúsculas.</p>
-        <p><strong>O degradê.</strong> <code>fill</code> (preenchimento) é a tinta de dentro das letras. Um <code>Gradient</code> ali pinta cada letra com um degradê. No fundo, o degradê ia de uma cor a outra; aqui ele recebe um nome pronto, <code>"sunset"</code> (pôr do sol), uma sequência de cores que o Scena já conhece. Com <code>angle=90</code>, as cores mudam de cima para baixo em cada letra.</p>
-        <p><strong>O brilho.</strong> <code>glow</code> (brilho), que você viu no tutorial 01, acende um halo em volta das letras, aqui laranja.</p>
-        <p>Rode e escreva algo: o texto novo já sai com fonte, degradê e brilho. Eles são do letreiro, não de um texto, e ficam quando o texto muda.</p>
+        <p>Agora o letreiro ganha cara de letreiro: fonte, degradê e brilho, três ajustes do <code>Text</code>.</p>
       `,
       code: `from scena import *
 
@@ -986,6 +1384,23 @@ campo.focus()
 
 run()
 `,
+      notes: [
+        {
+          at: "font=\"fonts/kenvector_future.ttf\"",
+          text: "<code>font</code> (fonte) é o desenho das letras, e um arquivo <code>.ttf</code> traz uma fonte inteira. Esta só tem letras maiúsculas: o que você digitar aparece em maiúsculas."
+        },
+        {
+          at: "letreiro.fill = Gradient(",
+          text: "<code>fill</code> (preenchimento) é a tinta de dentro das letras, e um <code>Gradient</code> ali pinta cada letra com um degradê. Em vez de duas cores, ele recebe um nome pronto: <code>\"sunset\"</code> (pôr do sol), uma sequência de cores que o Scena já conhece. Com <code>angle=90</code>, as cores mudam na vertical, em cada letra."
+        },
+        {
+          at: "letreiro.glow = \"orange\"",
+          text: "<code>glow</code> (brilho) acende um halo laranja em volta das letras."
+        }
+      ],
+      after: `
+        <p>Rode e escreva algo: o texto novo já sai com fonte, degradê e brilho. Eles são do letreiro, não de um texto, e ficam quando o texto muda.</p>
+      `,
       try: [
         {
           note: "Outros degradês prontos, um por vez, no lugar do <code>\"sunset\"</code>. Duas cores também valem, como no fundo. Mais no Guia: <a href='../guide/index.html#aparencia-cor'>Cor</a>.",
@@ -1032,7 +1447,7 @@ Text("Novo!", top_center=(500, 200), width=200, align="center", background="#3A4
       example: "letreiro.py",
       body: `
         <p>Falta o passeio. Para um objeto andar por um caminho, o Scena tem duas peças: a trilha e o verbo que a percorre.</p>
-        <p><strong>A trilha.</strong> <code>Track</code> (trilha) é um caminho: uma curva que guarda uma forma. Ela não é um desenho, e por isso é <strong>invisível</strong>: não aparece na tela, só serve para alguém andar por ela. O Scena traz formas prontas, os <em>presets</em> (predefinições). <code>Track.eight</code> (oito) é um oito deitado, com <code>width</code> (largura) e <code>height</code> (altura). Só com o tamanho, o oito não tem lugar fixo: ele começa onde estiver quem vai andar nele. Aqui, no centro, onde está o letreiro.</p>
+        <p><code>Track</code> (trilha) é um caminho: uma curva que guarda uma forma. Ela não é um desenho, e por isso é invisível: não aparece na tela, só serve para alguém andar por ela.</p>
         <figure class="fig">
           <svg viewBox="0 0 380 160" role="img" aria-label="Um oito deitado, tracejado; o ponto de partida fica no cruzamento, no meio; uma seta indica que a primeira volta sobe para a direita">
             <polyline class="guide" points="190.0,80.0 209.6,67.1 228.8,55.0 247.4,44.6 265.0,36.7 281.3,31.7 296.1,30.0 309.0,31.7 319.9,36.7 328.6,44.6 334.9,55.0 338.7,67.1 340.0,80.0 338.7,92.9 334.9,105.0 328.6,115.4 319.9,123.3 309.0,128.3 296.1,130.0 281.3,128.3 265.0,123.3 247.4,115.4 228.8,105.0 209.6,92.9 190.0,80.0 170.4,67.1 151.2,55.0 132.6,44.6 115.0,36.7 98.7,31.7 83.9,30.0 71.0,31.7 60.1,36.7 51.4,44.6 45.1,55.0 41.3,67.1 40.0,80.0 41.3,92.9 45.1,105.0 51.4,115.4 60.1,123.3 71.0,128.3 83.9,130.0 98.7,128.3 115.0,123.3 132.6,115.4 151.2,105.0 170.4,92.9 190.0,80.0"/>
@@ -1046,8 +1461,6 @@ Text("Novo!", top_center=(500, 200), width=200, align="center", background="#3A4
           </svg>
           <figcaption><code>Track.eight</code>: a trilha invisível. O letreiro começa no cruzamento, onde estava, e dá a volta no oito.</figcaption>
         </figure>
-        <p><strong>Andar pela trilha.</strong> <code>letreiro.move_along(trilha, …)</code> (mover ao longo de) faz o letreiro percorrer a trilha. <code>time=8</code> (tempo) é quanto dura uma volta, em segundos; <code>loops="forever"</code> (voltas: para sempre) recomeça a volta cada vez que ela termina. Você chama uma vez, e o Scena move o letreiro a cada quadro, sem nenhuma linha no <code>update</code>.</p>
-        <p>Rode e escreva uma frase: o letreiro troca de texto sem parar de andar. As trilhas têm muito mais a mostrar, e o tutorial 13 volta a elas com calma.</p>
       `,
       code: `from scena import *
 
@@ -1073,6 +1486,20 @@ campo.focus()
 
 run()
 `,
+      notes: [
+        {
+          at: "Track.eight(",
+          text: "O Scena traz trilhas prontas, os <em>presets</em> (predefinições). <code>Track.eight</code> (oito) é um oito deitado, com <code>width</code> (largura) e <code>height</code> (altura). Só com o tamanho, o oito não tem lugar fixo: ele começa onde estiver quem vai andar nele, aqui no centro, onde está o letreiro."
+        },
+        {
+          at: "letreiro.move_along(",
+          text: "<code>move_along</code> (mover ao longo de) faz o letreiro percorrer a trilha. <code>time</code> (tempo) é quanto dura uma volta, em segundos, e <code>loops=\"forever\"</code> (voltas, para sempre) recomeça a volta cada vez que ela termina."
+        }
+      ],
+      after: `
+        <p>Rode e escreva uma frase: o letreiro troca de texto sem parar de andar.</p>
+        <p>O <code>move_along</code> foi chamado uma vez só, e nenhuma linha do <code>update</code> mexe no letreiro. Quem o move a cada quadro é o Scena, até o fim do programa.</p>
+      `,
       try: [
         {
           note: "A trilha à vista (em magenta) e o letreiro inclinado na direção em que anda: <code>face=True</code> (de frente). Na metade esquerda do oito, ele vira de cabeça para baixo. No lugar da linha do <code>move_along</code>.",
@@ -1108,8 +1535,8 @@ letreiro.move_along(trilha, time=8, loops="forever", yoyo=True)`
         {
           title: "Um campo ligado a uma célula",
           body: `
-            <p>O letreiro recebe a frase pelo <code>on_submit</code>: a função do Enter copia o texto para ele. Há outro jeito, o mesmo do <code>Slider</code> do Script 1. <code>Slider(st["n_bolas"])</code> escrevia o número numa célula do <code>st</code>; um <code>TextInput</code> também pode escrever numa célula: <code>TextInput(st["legenda"])</code>.</p>
-            <p>Quando você aperta Enter (ou clica fora da caixa), o que foi digitado vai para a célula <code>legenda</code>. E <code>Text(st["legenda"])</code> é um texto que mostra essa célula: muda sozinho a cada Enter. Ninguém precisa escrever a função do Enter; o tutorial 09 conta com calma como esses colchetes funcionam.</p>
+            <p>O letreiro recebe a frase pelo <code>on_submit</code>: a função do Enter copia o texto para ele. Há outro jeito, o mesmo do <code>Slider</code> da cadeia. <code>Slider(st["n_bolas"])</code> escrevia o número numa célula do <code>st</code>; um <code>TextInput</code> também pode escrever numa célula: <code>TextInput(st["legenda"])</code>.</p>
+            <p>Quando você aperta Enter, ou clica fora da caixa, o que foi digitado vai para a célula <code>legenda</code>. E <code>Text(st["legenda"])</code> é um texto que mostra essa célula: muda sozinho a cada Enter, sem nenhuma função do Enter.</p>
           `,
           try: [
             {

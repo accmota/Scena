@@ -20,10 +20,7 @@ Tutorial.mount({
     {
       title: "O sol",
       body: `
-        <p>As trilhas do tutorial 13 viram um sistema solar: planetas em órbita, uma lua que deixa rastro, um anel que gira e, no fim, uma sonda que passeia entre eles e se liga ao planeta mais perto. Primeiro, o sol.</p>
-        <p><strong>O céu.</strong> Um azul quase preto e <code>Stars()</code> (estrelas), o fundo animado do 05.</p>
-        <p><strong>O degradê do sol.</strong> <code>.fill</code> (preenchimento, do 03) é a tinta de dentro da forma. Até aqui ela era uma cor; pode ser também um <code>Gradient</code> (degradê), o do fundo do 05. Lá o degradê ia de uma borda a outra. Com <code>type="radial"</code> (radial, do centro para fora), ele vai do centro do círculo até a borda: a primeira cor no meio, a segunda na beirada. Um sol amarelo-claro no miolo e laranja na borda parece uma bola acesa, e não um disco chapado.</p>
-        <p><strong>O halo.</strong> O <code>Halo</code> do 01 desenhava o retângulo como uma casca de luz, oca. <code>Halo(style="fill")</code> (estilo: preenchido) mantém o recheio, aqui o degradê, e acende só a borda, com um brilho em volta.</p>
+        <p>As trilhas viram um sistema solar: planetas em órbita, uma lua que deixa rastro e uma sonda que passeia entre eles. Primeiro, o sol, uma bola acesa num céu quase preto.</p>
       `,
       code: `from scena import *
 
@@ -38,6 +35,20 @@ sol.visual = Halo(style="fill")
 
 run()
 `,
+      notes: [
+        {
+          at: "Stars()",
+          text: "<code>Stars</code> (estrelas) é um fundo animado: um céu de estrelas que piscam atrás de tudo."
+        },
+        {
+          at: "type=\"radial\"",
+          text: "<code>.fill</code> (preenchimento) é a tinta de dentro da forma; além de uma cor, pode ser um <code>Gradient</code> (degradê). Com <code>type=\"radial\"</code> (radial, do centro para fora), a primeira cor fica no meio e a segunda na beirada. Amarelo-claro no miolo e laranja na borda: o sol parece uma bola acesa, não um disco chapado."
+        },
+        {
+          at: "Halo(style=\"fill\")",
+          text: "<code>Halo</code> (auréola) acende a borda com um brilho em volta. Sozinho, ele desenha a forma como uma casca de luz, oca; <code>style=\"fill\"</code> (estilo: preenchido) mantém o recheio, aqui o degradê."
+        }
+      ],
       try: [
         {
           note: "Outros sóis, um por vez, no lugar da linha do <code>sol.fill</code>. Um degradê pode ter mais de duas cores; <code>\"plasma\"</code> é um degradê pronto.",
@@ -58,9 +69,7 @@ sol.visual = Halo()`
     {
       title: "Um planeta",
       body: `
-        <p>Agora um planeta, com o que o tutorial 13 mostrou. A órbita é um <code>Track.circle</code> com o centro no sol e raio 190, num azul escuro que mal se vê no céu. O planeta é um círculo com o mesmo tratamento do sol: um degradê radial, do azul-claro ao azul-real, e o halo preenchido.</p>
-        <p><code>center=sol.center</code> lê o centro do sol uma vez, quando a órbita nasce. O sol não sai do lugar, então basta; não precisa de <code>lambda</code>.</p>
-        <p>Rode: a Terra dá uma volta a cada 9 segundos.</p>
+        <p>Agora um planeta: uma trilha em círculo em volta do sol, e uma bola que a percorre, com o mesmo degradê e o mesmo halo do sol.</p>
       `,
       code: `from scena import *
 
@@ -80,16 +89,43 @@ terra.move_along(orbita, time=9, loops="forever")
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "center=sol.center",
+          text: "Lê o centro do sol uma vez, quando a órbita nasce. O sol não sai do lugar, então basta; não precisa de <code>lambda</code>."
+        },
+        {
+          at: "color=\"#2c3654\"",
+          text: "Um azul escuro, que mal se vê no céu: a órbita aparece sem roubar a cena."
+        }
+      ],
+      after: `
+        <p>Rode: a Terra dá uma volta a cada 9 segundos.</p>
+      `
     },
     {
       title: "Vários planetas",
-      body: `
-        <p>Mais dois planetas seriam mais dez linhas quase iguais à da Terra, trocando só uns números e cores. Quando um bloco se repete com diferenças, ele vira uma função, e as diferenças viram os seus <strong>parâmetros</strong>.</p>
-        <p><strong>A função.</strong> <code>def planeta(distancia, tempo, tamanho, cor_dentro, cor_fora):</code> recebe cinco valores: o raio da órbita, o tempo da volta, o raio do planeta e as duas cores do degradê. O corpo é o bloco da Terra, com os números trocados por esses nomes. Cada chamada, como <code>planeta(110, 5, 12, "white", "tomato")</code>, cria uma órbita e um planeta com os seus valores, na ordem em que os parâmetros aparecem no <code>def</code>.</p>
-        <p><strong>O return.</strong> <code>return bola</code> (devolver) faz a função entregar o planeta que criou a quem a chamou. <code>terra = planeta(…)</code> guarda essa entrega num nome. O planeta vermelho, de dentro, não precisa de nome; a Terra e o gigante sim, porque os próximos passos vão pôr coisas em volta deles.</p>
-        <p>Rode: três planetas, cada um no seu ritmo. Os de dentro andam mais rápido, como no sistema solar de verdade.</p>
-      `,
+      body: [
+        `
+        <p>Mais dois planetas seriam mais dez linhas quase iguais às da Terra, trocando só uns números e cores. Quando um bloco se repete com diferenças, ele vira uma função, e as diferenças viram os seus parâmetros, os valores que ela recebe:</p>
+        `,
+        {
+          snip: `def planeta(distancia, tempo, tamanho, cor_dentro, cor_fora):
+...
+planeta(110, 5, 12, "white", "tomato")`
+        },
+        `
+        <p>Cada chamada entrega os seus valores na ordem em que os parâmetros aparecem no <code>def</code>. Nesta, o planeta vermelho de dentro:</p>
+        <div class="tbl"><table><thead><tr><th>Parâmetro</th><th>Na chamada</th><th>O que é</th></tr></thead><tbody>
+          <tr><td><code>distancia</code></td><td><code>110</code></td><td>o raio da órbita</td></tr>
+          <tr><td><code>tempo</code></td><td><code>5</code></td><td>os segundos de uma volta</td></tr>
+          <tr><td><code>tamanho</code></td><td><code>12</code></td><td>o raio do planeta</td></tr>
+          <tr><td><code>cor_dentro</code></td><td><code>"white"</code></td><td>a cor do miolo do degradê</td></tr>
+          <tr><td><code>cor_fora</code></td><td><code>"tomato"</code></td><td>a cor da borda</td></tr>
+        </tbody></table></div>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Órbitas")
@@ -116,15 +152,54 @@ gigante = planeta(300, 16, 26, "khaki", "chocolate")
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "radius=distancia",
+          text: "O corpo da função é o bloco da Terra, com os números trocados pelos nomes dos parâmetros."
+        },
+        {
+          at: "return bola",
+          text: "<code>return</code> (devolver) entrega o planeta criado a quem chamou a função."
+        },
+        {
+          at: "terra = planeta(",
+          text: "<code>terra</code> guarda o planeta que a função devolveu. O vermelho, de dentro, não precisa de nome; a Terra e o gigante sim, porque o script ainda vai falar deles."
+        }
+      ],
+      after: `
+        <p>Rode: três planetas, cada um no seu ritmo. Os de dentro andam mais rápido, como no sistema solar de verdade.</p>
+      `
     },
     {
       title: "A lua",
-      body: `
-        <p>A lua gira em volta da Terra, e a Terra não para quieta. A órbita da lua precisa andar junto com ela.</p>
-        <p><strong>Uma trilha que anda.</strong> É o <code>lambda</code> do 03, agora no <code>center=</code> de uma trilha: <code>Track.circle(center=lambda: terra.center, radius=40)</code>. O Scena relê o centro da Terra a cada quadro e leva o círculo da órbita até lá. A lua percorre uma trilha que se move, e as duas voltas se somam: a lua gira em volta da Terra enquanto a Terra gira em volta do sol.</p>
-        <p>Sem a <code>lambda</code>, <code>center=terra.center</code> copiaria o lugar da Terra no instante em que a órbita nasce, e a lua ficaria girando ali, sozinha, enquanto a Terra ia embora.</p>
-      `,
+      body: [
+        `
+        <p>A lua gira em volta da Terra, e a Terra não para quieta: a órbita da lua precisa andar junto com ela. Para isso, o centro da órbita é uma <code>lambda</code>:</p>
+        `,
+        {
+          snip: `orbita_lua = Track.circle(center=lambda: terra.center, radius=40)`
+        },
+        `
+        <p>O Scena relê o centro da Terra a cada quadro e leva o círculo da órbita até lá. A lua percorre uma trilha que se move, e as duas voltas se somam:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="O sol no meio de uma órbita grande; a Terra aparece em dois lugares da órbita, e em cada um tem em volta o seu círculo pequeno, a órbita da lua, com a lua nele">
+            <circle class="guide" cx="200" cy="105" r="70"/>
+            <circle class="hot" cx="200" cy="105" r="11"/>
+            <circle class="guide" cx="270" cy="105" r="20"/>
+            <circle class="dot" cx="270" cy="105" r="7"/>
+            <circle class="bar child" cx="270" cy="85" r="4"/>
+            <circle class="guide" cx="165" cy="44.4" r="20"/>
+            <circle class="dot" cx="165" cy="44.4" r="7"/>
+            <circle class="bar child" cx="146.2" cy="51.2" r="4"/>
+            <text x="200" y="134" text-anchor="middle">sol</text>
+            <text x="298" y="109">Terra</text>
+            <text x="192" y="28">a Terra, 3 s depois</text>
+          </svg>
+          <figcaption>O círculo pequeno, a órbita da lua, tem o centro na Terra. Quando a Terra anda pela órbita grande, ele vai junto, e a lua continua girando em volta dela.</figcaption>
+        </figure>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Órbitas")
@@ -156,16 +231,25 @@ lua.move_along(orbita_lua, time=2, loops="forever")
 
 
 run()
-`
+`,
+      after: [
+        `
+        <p>Rode: a lua dá uma volta na Terra a cada 2 segundos, e vai com ela pelo céu.</p>
+        <p>Parece que daria no mesmo escrever o centro direto, sem a <code>lambda</code>:</p>
+        `,
+        {
+          snip: `orbita_lua = Track.circle(center=terra.center, radius=40)`,
+          alt: true
+        },
+        `
+        <p>Mas <code>terra.center</code> sozinho copia o lugar da Terra no instante em que a órbita nasce. A lua ficaria girando ali, em volta de um ponto vazio, enquanto a Terra ia embora. Com o sol, que não sai do lugar, a cópia bastava; com a Terra, não.</p>
+        `
+      ]
     },
     {
       title: "O rastro da lua",
       body: `
-        <p>Vista de longe, que caminho a lua faz? Ela gira em volta da Terra enquanto a Terra gira em volta do sol, e as duas voltas juntas desenham uma curva com laçadas. Para vê-la, a lua vai deixar um rastro de bolinhas.</p>
-        <p><strong>Uma bolinha a cada instante.</strong> <code>every(0.05, soltar_bolinha)</code> (a cada) chama a função 20 vezes por segundo, como o <code>every</code> do desenho do 04. Cada chamada cria um círculo pequeno onde a lua está agora.</p>
-        <p><strong>Uma fila com tamanho máximo.</strong> Se nada apagasse as bolinhas, elas se acumulariam para sempre, e o céu ficaria cheio. <code>History</code> (histórico) guarda as últimas coisas que você acrescenta com <code>add</code> (acrescentar). <code>max_points=80</code> (no máximo 80): quando chega a 81ª, a mais velha sai da fila e é destruída. O rastro tem sempre as 80 bolinhas mais novas, os últimos 4 segundos da viagem.</p>
-        <p><strong>Uma saída suave.</strong> <code>on_leave=</code> (ao sair) é uma função que recebe cada bolinha que sai. <code>dissolve_out(0.4)</code> (dissolver) a apaga aos poucos, em 0,4 segundo, em vez de sumir de uma vez.</p>
-        <p>Rode e olhe a curva: a lua anda para trás um pouco a cada volta, e o rastro faz uma laçada.</p>
+        <p>Vista de longe, que caminho a lua faz? Para ver, ela vai deixar um rastro de bolinhas, e o rastro guarda só as mais novas.</p>
       `,
       code: `from scena import *
 
@@ -208,12 +292,34 @@ every(0.05, soltar_bolinha)
 
 run()
 `,
+      notes: [
+        {
+          at: "max_points=80",
+          text: "<code>History</code> (histórico) é uma fila que guarda o que você acrescenta com <code>add</code> (acrescentar). <code>max_points=80</code> (no máximo 80): quando chega a 81ª bolinha, a mais velha sai da fila e é destruída. Sem esse limite, as bolinhas se acumulariam para sempre."
+        },
+        {
+          at: "bolinha.dissolve_out(0.4)",
+          text: "<code>on_leave</code> (ao sair) recebe cada bolinha que sai da fila, e <code>dissolve_out(0.4)</code> (dissolver) a apaga aos poucos, em 0.4 s, em vez de sumir de uma vez."
+        },
+        {
+          at: "rastro.add(",
+          text: "Cada chamada cria um círculo pequeno onde a lua está agora e o põe na fila."
+        },
+        {
+          at: "every(0.05, soltar_bolinha)",
+          text: "<code>every</code> (a cada) chama a função a cada 0.05 s: 20 bolinhas por segundo."
+        }
+      ],
+      after: `
+        <p>Rode e olhe a curva. As duas voltas juntas desenham laçadas: a cada volta em torno da Terra, a lua anda um pouco para trás no céu.</p>
+        <details class="ask"><summary>Quantos segundos de viagem o rastro mostra?</summary><p>Quatro. Nascem 20 bolinhas por segundo, e a fila guarda no máximo 80.</p></details>
+      `,
       dive: [
         {
           title: "History e Contrail",
           body: `
-            <p>O <code>Contrail</code> do desenho (tutorial 04) também deixava um rastro. A diferença está no que fica na tela.</p>
-            <p>O <code>Contrail</code> é <strong>um traço</strong>: uma linha só, que passa pelos pontos que você dá a ele. O <code>History</code> não desenha nada: ele guarda <strong>objetos</strong> que você criou, cada um com a sua forma, cor e brilho, e destrói os mais velhos. Cada bolinha do rastro é um <code>Circle</code> de verdade: poderia ter um visual, mudar de cor, até colidir.</p>
+            <p>O <code>Contrail</code> também deixa um rastro. A diferença está no que fica na tela.</p>
+            <p>O <code>Contrail</code> é um traço: uma linha só, que passa pelos pontos que você dá a ele. O <code>History</code> não desenha nada: ele guarda objetos que você criou, cada um com a sua forma, cor e brilho, e destrói os mais velhos. Cada bolinha do rastro é um <code>Circle</code> de verdade: poderia ter um visual, mudar de cor, até colidir.</p>
             <p>Uma fila de objetos com tamanho máximo serve para mais coisas: o corpo de uma cobra, as últimas cartas jogadas, as pegadas de um personagem.</p>
             <p>No Guia: <a href="../guide/index.html#history">History</a>.</p>
           `,
@@ -230,9 +336,7 @@ run()
     {
       title: "O anel",
       body: `
-        <p>O gigante ganha um anel: um círculo vazio, de traço mais grosso e tracejado, em volta dele (<code>fill = None</code>, <code>line_width</code> e <code>dash</code>, do 03), com o centro preso ao gigante por uma <code>lambda</code>, como a órbita da lua.</p>
-        <p><strong>O giro.</strong> <code>rotate_by(360, time=1.0, loops="forever")</code> (girar por) gira a forma 360 graus, uma volta inteira, em 1 segundo. Com <code>time=</code>, o giro é uma viagem, como as da nave no 12, e <code>loops="forever"</code> emenda uma volta na outra, para sempre, sem nenhuma linha no <code>update</code>.</p>
-        <p><strong>Por que tracejado.</strong> Um círculo liso girando no próprio centro parece parado: cada pedaço da borda é trocado por um igual. Os tracinhos mostram o giro.</p>
+        <p>O gigante ganha um anel que gira: um círculo vazio e tracejado em volta dele.</p>
       `,
       code: `from scena import *
 
@@ -281,6 +385,28 @@ anel.rotate_by(360, time=1.0, loops="forever")
 
 run()
 `,
+      notes: [
+        {
+          at: "center=lambda: gigante.center",
+          text: "O centro do anel vai preso ao gigante por uma <code>lambda</code>, como a órbita da lua."
+        },
+        {
+          at: "anel.fill = None",
+          text: "<code>None</code> (nenhum): sem recheio, o círculo é só o traço."
+        },
+        {
+          at: "anel.dash = \"dash\"",
+          text: "<code>dash</code> (tracejado) corta o traço em tracinhos."
+        },
+        {
+          at: "anel.rotate_by(",
+          text: "<code>rotate_by</code> (girar por) gira a forma 360 graus, uma volta inteira, em 1 segundo. Com <code>time=</code>, o giro é uma viagem, como as da trilha, e <code>loops=\"forever\"</code> emenda uma volta na outra."
+        }
+      ],
+      after: `
+        <p>Rode: o anel gira em volta do gigante e vai com ele pela órbita.</p>
+        <details class="ask"><summary>Por que o anel é tracejado?</summary><p>Um círculo liso girando no próprio centro parece parado: cada pedaço da borda é trocado por um igual. Os tracinhos mostram o giro.</p></details>
+      `,
       try: [
         {
           note: "No lugar da linha do <code>rotate_by</code>. Com <code>ease=\"ease_in_out\"</code>, cada volta sai devagar e freia no fim, e o anel parece dar trancos. Troque também <code>360</code> por <code>-360</code>: um número negativo gira para o outro lado, no sentido do relógio.",
@@ -291,11 +417,15 @@ run()
     },
     {
       title: "O sol pulsa",
-      body: `
-        <p>O sol vai respirar: crescer e encolher, devagar, sem parar. É um trabalho para o <code>tween</code>.</p>
-        <p><strong>O que é um tween.</strong> O nome vem de <em>in-between</em> (entre os dois): os quadros do meio de uma animação. <code>tween</code> leva um número do valor que ele tem agora até outro valor, aos poucos, num tempo que você escolhe. Aqui, <code>tween(sol["radius"], 52, time=1.5)</code> leva o raio do sol de 44 até 52 em 1,5 segundo. A cada quadro, o Scena escreve no raio o valor do meio do caminho: 44, 44.1, 44.3… até chegar a 52.</p>
-        <p><strong>Os colchetes.</strong> São os do 09: colchetes entregam a caixa, ponto entrega o que está dentro. <code>sol.radius</code> seria o número de agora, 44, uma cópia. <code>sol["radius"]</code> é a caixa do raio, o <strong>campo</strong> onde o número mora. O <code>tween</code> precisa da caixa, para escrever nela a cada quadro.</p>
-        
+      body: [
+        `
+        <p>O sol vai respirar: crescer e encolher, devagar, sem parar. Uma linha faz isso:</p>
+        `,
+        {
+          snip: `tween(sol["radius"], 52, time=1.5, ease="ease_in_out", loops="forever", yoyo=True)`
+        },
+        `
+        <p>O nome vem de <em>in-between</em> (entre os dois): os quadros do meio de uma animação. <code>tween</code> leva um número do valor que ele tem agora até outro, aos poucos, num tempo que você escolhe. Aqui, leva o raio do sol de 44 até 52 em 1.5 s: a cada quadro, o Scena escreve no raio o valor do meio do caminho, 44, 44.1, 44.3… até chegar a 52. Os outros parâmetros são os das viagens, e a figura mostra o que cada um faz:</p>
         <figure class="fig">
           <svg viewBox="0 0 380 200" role="img" aria-label="Gráfico do raio do sol ao longo do tempo: sobe de 44 a 52 em um segundo e meio, devagar no começo e no fim, volta a 44 e sobe de novo">
             <line class="ray" x1="50" y1="170" x2="360" y2="170"/>
@@ -317,8 +447,8 @@ run()
           </svg>
           <figcaption>O <code>tween</code> do raio do sol. A linha tracejada é o caminho em linha reta (<code>"linear"</code>); com <code>ease="ease_in_out"</code>, o número sai devagar, acelera no meio e freia ao chegar. <code>yoyo=True</code> faz a volta; <code>loops="forever"</code> repete para sempre.</figcaption>
         </figure>
-        <p><strong>O resto.</strong> Os outros parâmetros são os que você já usou no <code>move_along</code> e no <code>rotate_by</code>, e a figura mostra o que cada um faz aqui. As órbitas não se mexem: elas leram o centro do sol, e o centro não muda; só o tamanho.</p>
-      `,
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Órbitas")
@@ -367,13 +497,26 @@ anel.rotate_by(360, time=1.0, loops="forever")
 
 run()
 `,
+      after: [
+        `
+        <p>Rode: o sol respira. As órbitas não se mexem com ele: leram o centro do sol, e o centro não muda; só o tamanho.</p>
+        <p>Repare nos colchetes de <code>sol["radius"]</code>. Com ponto, a linha parece igual:</p>
+        `,
+        {
+          snip: `tween(sol.radius, 52, time=1.5, ease="ease_in_out", loops="forever", yoyo=True)`,
+          alt: true
+        },
+        `
+        <p>Mas <code>sol.radius</code> é o número de agora, 44, uma cópia, e o <code>tween</code> não teria onde escrever. <code>sol["radius"]</code> é o campo, a caixa onde o número mora. O Scena recusa a versão com ponto e explica no erro: o <code>tween</code> precisa da caixa.</p>
+        `
+      ],
       dive: [
         {
           title: "tween e os verbos de movimento",
           body: `
-            <p>Você já animou coisas com tempo: <code>move_to</code> e <code>move_by</code> (posição), <code>rotate_by</code> (ângulo), <code>scale_to</code> (tamanho), todos com <code>time=</code>. São <strong>verbos</strong> com nome, um para cada coisa, e eles cuidam do que é especial em cada uma.</p>
-            <p>O <code>tween</code> é o caso geral: anima <strong>qualquer número</strong> de um objeto, mesmo os que não têm verbo, como o raio, a <code>line_width</code> ou um número seu. Para posição, ângulo e tamanho, prefira o verbo; para o resto, <code>tween</code>, com os mesmos parâmetros de tempo que você conheceu no 12. O próximo passo usa um campo que nenhum verbo alcança.</p>
-            <p><strong>Um nome.</strong> Um <code>tween</code> novo no mesmo campo toma o lugar do anterior, e o console avisa, como a viagem nova da nave do 12. Quando trocar é o que você quer (um sol que às vezes pulsa mais forte), dê um nome: <code>tween(…, name="pulso")</code>. Um <code>tween</code> com o mesmo nome substitui o anterior em silêncio.</p>
+            <p>Você já animou coisas com tempo: <code>move_to</code> e <code>move_by</code> (posição), <code>rotate_by</code> (ângulo), <code>scale_to</code> (tamanho), todos com <code>time=</code>. São verbos com nome, um para cada coisa, e cuidam do que é especial em cada uma.</p>
+            <p>O <code>tween</code> é o caso geral: anima qualquer número de um objeto, mesmo os que não têm verbo, como o raio, a <code>line_width</code> ou um número seu. Para posição, ângulo e tamanho, prefira o verbo; para o resto, <code>tween</code>, com os mesmos parâmetros de tempo.</p>
+            <p>Um <code>tween</code> novo no mesmo campo toma o lugar do anterior, e o console avisa. Quando trocar é o que você quer (um sol que às vezes pulsa mais forte), dê um nome: <code>tween(…, name="pulso")</code>. Um <code>tween</code> com o mesmo nome substitui o anterior em silêncio.</p>
             <p>No Guia: <a href="../guide/index.html#mover-tween">tween</a> · <a href="../guide/index.html#suite">Parâmetros de tempo</a>.</p>
           `,
           try: [
@@ -395,9 +538,23 @@ run()
       title: "As órbitas se desenham",
       body: `
         <p>Um efeito de abertura: quando o programa começa, cada órbita se desenha na tela, como um risco de compasso.</p>
-        <p><strong>O fim da trilha.</strong> Uma trilha tem uma janela do traço: <code>begin</code> (começo) e <code>end</code> (fim), dois números de 0 a 1 que dizem que pedaço do caminho é desenhado. O normal é o caminho inteiro, de 0 a 1. Com <code>end = 0.5</code>, só a primeira metade aparece; com <code>end = 0</code>, nada.</p>
-        <p><strong>O tween.</strong> Na função <code>planeta</code>, a órbita nasce com <code>end = 0</code>, apagada, e <code>tween(orbita["end"], 1, time=2, ease="ease_out")</code> leva o fim de 0 a 1 em 2 segundos. Nenhum verbo mexe no <code>end</code>: é o campo que o <code>tween</code> alcança. <code>ease="ease_out"</code> (suavizar na saída) começa rápido e freia no fim, como um risco feito à mão.</p>
-        <p>A janela muda só o desenho: o caminho continua inteiro, e os planetas andam por ele desde o começo, antes de o risco chegar lá.</p>
+        <p>Uma trilha tem uma janela do traço: <code>begin</code> (começo) e <code>end</code> (fim), dois números de 0 a 1 que dizem que pedaço do caminho é desenhado. O normal é o caminho inteiro, de 0 a 1:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 130" role="img" aria-label="Três trilhas em círculo; na primeira só um quarto do traço, do ponto da direita até o topo, está desenhado; na segunda, a metade de cima; na terceira, o círculo inteiro">
+            <circle class="guide" cx="70" cy="58" r="40"/>
+            <path class="ray" fill="none" d="M 110 58 A 40 40 0 0 0 70 18"/>
+            <circle class="dot" cx="110" cy="58" r="3.5"/>
+            <circle class="guide" cx="200" cy="58" r="40"/>
+            <path class="ray" fill="none" d="M 240 58 A 40 40 0 0 0 160 58"/>
+            <circle class="dot" cx="240" cy="58" r="3.5"/>
+            <circle class="ray" fill="none" cx="330" cy="58" r="40"/>
+            <circle class="dot" cx="370" cy="58" r="3.5"/>
+            <text x="70" y="120" text-anchor="middle">end = 0.25</text>
+            <text x="200" y="120" text-anchor="middle">end = 0.5</text>
+            <text x="330" y="120" text-anchor="middle">end = 1</text>
+          </svg>
+          <figcaption>O tracejado é a trilha inteira, que existe sempre; a linha cheia é o que aparece. O traço começa no ponto da direita e vai, no sentido da volta, até a fração <code>end</code>. Com <code>end = 0</code>, nada aparece.</figcaption>
+        </figure>
       `,
       code: `from scena import *
 
@@ -449,6 +606,20 @@ anel.rotate_by(360, time=1.0, loops="forever")
 
 run()
 `,
+      notes: [
+        {
+          at: "orbita.end = 0",
+          text: "A órbita nasce apagada: o traço vai do começo até o começo."
+        },
+        {
+          at: "tween(orbita[\"end\"], 1, time=2, ease=\"ease_out\")",
+          text: "O <code>tween</code> leva o fim de 0 a 1 em 2 segundos. Nenhum verbo mexe no <code>end</code>: é um campo que só o <code>tween</code> alcança. <code>\"ease_out\"</code> (suavizar na saída) começa rápido e freia no fim, como um risco feito à mão."
+        }
+      ],
+      after: `
+        <p>Rode e olhe a abertura: as três órbitas se riscam ao mesmo tempo.</p>
+        <details class="ask"><summary>Os planetas esperam o risco chegar para andar?</summary><p>Não. A janela muda só o desenho: o caminho continua inteiro, e os planetas andam por ele desde o primeiro quadro. Se o <code>end</code> ficasse em 0, eles dariam voltas numa órbita invisível.</p></details>
+      `,
       try: [
         {
           note: "No lugar da linha do <code>tween</code> da órbita: um risco que nunca para. Ele desenha a órbita, apaga de volta e desenha de novo.",
@@ -459,13 +630,19 @@ run()
     },
     {
       title: "A sonda",
-      body: `
-        <p>Agora a ideia do tutorial: uma sonda que passeia entre os planetas e fica ligada, por uma linha, ao planeta que estiver mais perto dela.</p>
-        <p><strong>A sonda.</strong> Um <code>Triangle</code> branco que percorre um oito grande, de 820 por 520, por cima do sistema inteiro. A trilha <code>passeio</code> não tem cor: é só o caminho. O oito começa no cruzamento do meio, então a sonda nasce em cima do sol e passa por ele a cada meia volta. A <code>linha</code> tem uma ponta presa à sonda por uma <code>lambda</code>; a outra começa no sol.</p>
-        <p><strong>O mais perto.</strong> No <code>update</code>, <code>group["planeta"].nearest(sonda)</code> (o mais perto) olha todos os objetos do grupo <code>planeta</code> e devolve o que está mais perto da sonda. Para isso, a função <code>planeta</code> e a lua ganharam <code>group="planeta"</code>: os três planetas e a lua estão no grupo; o sol, não. O resultado vai para <code>alvo</code>, e <code>linha.p2 = alvo.center</code> põe a segunda ponta da linha no centro dele.</p>
-        <p><strong>Por que no update.</strong> Quem é o mais perto muda o tempo todo, e a resposta depende de olhar o grupo inteiro. Isso uma <code>lambda</code> não faz: se você tentar, o Scena recusa e explica. Contas sobre um grupo vão no <code>update</code>, que roda a cada quadro.</p>
-        <p>Rode: a linha pula de um planeta para outro conforme a sonda passa.</p>
-      `,
+      body: [
+        `
+        <p>Agora a ideia do tutorial: uma sonda que passeia entre os planetas e fica ligada, por uma linha, ao planeta que estiver mais perto dela. A cada quadro, o <code>update</code> procura esse planeta e leva a ponta da linha até ele:</p>
+        `,
+        {
+          snip: `def update(dt):
+    alvo = group["planeta"].nearest(sonda)
+    linha.p2 = alvo.center`
+        },
+        `
+        <p><code>nearest</code> (o mais perto) olha todos os objetos do grupo <code>planeta</code> e devolve o que está mais perto da sonda. O resultado vai para <code>alvo</code>, e <code>linha.p2 = alvo.center</code> põe a segunda ponta da linha no centro dele.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Órbitas")
@@ -526,14 +703,30 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "bola = Circle(radius=tamanho, group=\"planeta\")",
+          text: "<code>group=\"planeta\"</code> (grupo) põe cada planeta no grupo que o <code>nearest</code> vai olhar. A lua também entra; o sol, não."
+        },
+        {
+          at: "passeio = Track.eight(",
+          text: "Um oito grande, de 820 por 520, por cima do sistema inteiro, e sem cor: é só o caminho. O oito começa no cruzamento do meio, então a sonda nasce em cima do sol."
+        },
+        {
+          at: "p1=lambda: sonda.center",
+          text: "Uma ponta da linha vai presa à sonda. A outra começa no sol, e o <code>update</code> a muda a cada quadro."
+        }
+      ],
+      after: `
+        <p>Rode: a linha pula de um planeta para outro conforme a sonda passa.</p>
+        <details class="ask"><summary>A ponta da sonda é uma <code>lambda</code>. Por que a ponta do alvo não é?</summary><p>Quem é o mais perto muda o tempo todo, e a resposta depende de olhar o grupo inteiro. Isso uma <code>lambda</code> não faz: se você tentar, o Scena recusa e explica. Contas sobre um grupo vão no <code>update</code>, que roda a cada quadro.</p></details>
+      `
     },
     {
       title: "Apontar",
       body: `
-        <p>A sonda anda de lado, apontando sempre para a direita. Ela deve olhar para o planeta da linha.</p>
-        <p><strong>O rumo.</strong> <code>heading(sonda, alvo)</code> (rumo, direção) devolve o ângulo de quem olha (o primeiro) para o que é olhado (o segundo), em graus, como sempre. Escrito em <code>sonda.angle</code> (ângulo), ele gira o triângulo, e a ponta aponta para o alvo.</p>
-        
+        <p>A sonda anda de lado, apontando sempre para a direita. Ela deve olhar para o planeta da linha: o ângulo dela vem da direção que vai da sonda ao alvo.</p>
         <figure class="fig">
           <svg viewBox="0 0 360 200" role="img" aria-label="Um triângulo à esquerda aponta para um círculo acima e à direita; uma linha tracejada sai do triângulo para a direita, e um arco marca o ângulo entre ela e a linha até o círculo">
             <line class="guide" x1="90" y1="150" x2="320" y2="150"/>
@@ -550,7 +743,6 @@ run()
           </svg>
           <figcaption><code>heading(sonda, alvo)</code> é o ângulo da linha que vai da sonda ao alvo. Posto em <code>sonda.angle</code>, a ponta do triângulo aponta para lá.</figcaption>
         </figure>
-        <p><strong>E o face?</strong> Nas Trilhas (13), <code>face=True</code> virava o triângulo para onde ele <em>anda</em>. Aqui queremos que ele aponte para onde ele <em>olha</em>, que é outra coisa; por isso o <code>move_along</code> da sonda não tem <code>face=</code>, e o ângulo vem do <code>update</code>.</p>
       `,
       code: `from scena import *
 
@@ -613,15 +805,23 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "sonda.angle = heading(sonda, alvo)",
+          text: "<code>heading</code> (rumo) devolve o ângulo de quem olha (o primeiro) para o que é olhado (o segundo), em graus. Escrito em <code>sonda.angle</code> (ângulo), ele gira o triângulo, e a ponta aponta para o alvo."
+        }
+      ],
+      after: `
+        <p>Rode: a ponta da sonda segue o planeta da linha, e vira de uma vez quando a linha pula para outro.</p>
+        <details class="ask"><summary>Por que não <code>face=True</code> no <code>move_along</code> da sonda?</summary><p><code>face=True</code> vira o triângulo para onde ele anda. Aqui ele deve apontar para onde olha, que é outra coisa; por isso o ângulo vem do <code>update</code>.</p></details>
+      `
     },
     {
       title: "A faísca",
       example: "orbitas.py",
       body: `
         <p>Quando a sonda chega perto de um planeta, a linha vira um raio elétrico; quando se afasta, volta a ser uma linha simples.</p>
-        <p><strong>A distância.</strong> <code>distance(sonda, alvo)</code> (distância) devolve a distância entre os dois centros, em pixels: um número. O <code>if</code> compara com 120: mais perto que isso, a linha ganha o visual <code>ElectricBolt</code> (raio elétrico), o das linhas do 03; senão, <code>visual = None</code> (nenhum) tira o visual, e a linha volta a ser um traço azul-claro.</p>
-        <p>Rode: a sonda nasce no meio, perto do planeta vermelho, e a linha já estala; depois ela se afasta, a linha se acalma, e o raio volta na próxima passagem perto de um planeta ou da lua.</p>
       `,
       code: `from scena import *
 
@@ -689,9 +889,22 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "if distance(sonda, alvo) < 120:",
+          text: "<code>distance</code> (distância) devolve a distância entre os dois centros, em pixels. Mais perto que 120, a linha ganha o visual <code>ElectricBolt</code> (raio elétrico)."
+        },
+        {
+          at: "linha.visual = None",
+          text: "<code>None</code> (nenhum) tira o visual, e a linha volta a ser um traço azul-claro."
+        }
+      ],
+      after: `
+        <p>Rode: a sonda nasce no meio, perto do planeta vermelho, e a linha já estala. Depois ela se afasta, a linha se acalma, e o raio volta na próxima passagem perto de um planeta ou da lua.</p>
+      `,
       try: [
         {
-          note: "Outros efeitos para o perto, um por vez, no lugar da linha do <code>ElectricBolt</code>. <code>amount=</code> (quantidade) deixa o raio mais forte; <code>Laser</code> (do 03) é um feixe de luz; <code>Neon</code> (do 01), um tubo aceso.",
+          note: "Outros efeitos para o perto, um por vez, no lugar da linha do <code>ElectricBolt</code>. <code>amount=</code> (quantidade) deixa o raio mais forte; <code>Laser</code> é um feixe de luz; <code>Neon</code>, um tubo aceso.",
           replaces: ['linha.visual = ElectricBolt('],
           code: `linha.visual = ElectricBolt(amount=9)
 linha.visual = Laser()

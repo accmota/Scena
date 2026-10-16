@@ -20,11 +20,7 @@ Tutorial.mount({
     {
       title: "O chão e as plataformas",
       body: `
-        <p>Outro jogo: um ninja que anda, pula e cai. É um jogo de plataforma, e este tutorial é sobre o que todo jogo de plataforma precisa: <strong>gravidade</strong> e <strong>chão</strong>. Primeiro, o cenário.</p>
-        <p><strong>O fundo.</strong> Como no 15, o espaço do jogo tem o tamanho da imagem do fundo: <code>init(width=1000, height=750)</code>, e o <code>Wallpaper</code> com o arquivo cobre a tela inteira.</p>
-        <p><strong>O chão em peças.</strong> A arte do chão vem em <strong>peças</strong> (<em>tiles</em>, ladrilhos): quadrados desenhados para se encaixar lado a lado. O <code>for</code> põe 13 peças de 80 de altura, uma ao lado da outra: os centros vão de x = 40 a x = 1000, de 80 em 80. Todas entram no grupo <code>chao</code>.</p>
-        <p><strong>Plataformas.</strong> Uma plataforma solta no ar tem três peças: a ponta esquerda (<code>13.png</code>), o meio (<code>14.png</code>) e a ponta direita (<code>15.png</code>). A função <code>plataforma(x, y)</code> monta as três em volta do ponto (x, y); duas chamadas, duas plataformas. Elas também vão para o grupo <code>chao</code>: para o ninja, tudo isso é chão.</p>
-        <p>O ninja, por enquanto, é um sprite parado. O chão termina em y = 80, e o centro do ninja fica meia altura acima dele: de pé.</p>
+        <p>Outro jogo: um ninja que anda, pula e cai. É um jogo de plataforma, e este tutorial é sobre o que todo jogo de plataforma precisa: gravidade e chão. Primeiro, o cenário, e o ninja de pé, parado.</p>
       `,
       code: `from scena import *
 
@@ -48,16 +44,42 @@ heroi = Sprite("ninja/Idle__000.png", height=88, center=(100, 124))
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "init(width=1000, height=750",
+          text: "O espaço do jogo tem o tamanho da imagem do fundo, 1000 por 750. Assim o <code>Wallpaper</code> com o arquivo cobre a tela inteira, sem esticar."
+        },
+        {
+          at: "for i in range(13):",
+          text: "A arte do chão vem em peças (<em>tiles</em>, ladrilhos): quadrados desenhados para se encaixar lado a lado. O <code>for</code> põe 13 peças de 80, uma ao lado da outra: os centros vão de x = 40 a x = 1000, de 80 em 80."
+        },
+        {
+          at: "def plataforma(x, y):",
+          text: "Uma plataforma solta no ar tem três peças: a ponta esquerda (<code>13.png</code>), o meio (<code>14.png</code>) e a ponta direita (<code>15.png</code>). A função monta as três em volta do ponto (x, y); duas chamadas, duas plataformas."
+        },
+        {
+          at: "center=(100, 124)",
+          text: "O chão termina em y = 80. O centro do ninja fica meia altura (44) acima dele, em 124: de pé no chão."
+        }
+      ],
+      after: `
+        <p>Chão e plataformas estão todos no grupo <code>chao</code>: para o ninja, tudo isso vai ser chão.</p>
+      `
     },
     {
       title: "Gravidade",
-      body: `
-        <p>O ninja vai ganhar comportamento, então vira uma classe, como o <code>Aviao</code> do 15: <code>Heroi</code>, com a imagem e a altura na linha da classe. Ele começa no alto (y = 400), para a queda aparecer.</p>
-        <p><strong>A velocidade.</strong> Como a bola do 10, o ninja tem uma <code>vel</code>: uma seta que diz quanto ele anda por segundo. Ela nasce parada, <code>Vec2(0, 0)</code>, no <code>setup</code>. A cada quadro, o <code>on_update</code> anda o pedaço da seta que cabe naquele quadro: <code>vel.y * dt</code>.</p>
-        <p><strong>A gravidade.</strong> Uma linha: <code>self.vel.y -= 2200 * dt</code>. A cada segundo, a velocidade para baixo cresce 2200, um pouco a cada quadro. Por isso a queda começa devagar e vai acelerando. O Scena não tem uma gravidade pronta: são estas duas linhas, e o número é seu.</p>
-        <p><strong>Um pulo é uma velocidade.</strong> A mesma linha explica o pulo, que vem daqui a pouco: dar ao ninja 900 de <code>vel.y</code>, para cima. A gravidade gasta essa velocidade aos poucos; quando ela chega a zero, o ninja está no alto; daí em diante, a mesma conta a faz crescer para baixo, e ele desce.</p>
-
+      body: [
+        `
+        <p>Agora o ninja cai. O Scena não tem uma gravidade pronta: são duas linhas, e o número é seu.</p>
+        `,
+        {
+          snip: `self.vel.y -= 2200 * dt
+self.move_by(0, self.vel.y * dt)`
+        },
+        `
+        <p><code>vel</code> é a velocidade do ninja: quanto ele anda por segundo, para cima se positiva, para baixo se negativa. A primeira linha é a gravidade: tira 2200 da velocidade a cada segundo, um pouco em cada quadro. A segunda anda o pedaço da velocidade que cabe naquele quadro. Solto do alto, o ninja começa parado; meio segundo depois, já desce a 1100 por segundo. Por isso a queda começa devagar e vai acelerando.</p>
+        <p>A mesma conta desenha um pulo inteiro. Lance o ninja para cima com 900: a gravidade gasta essa velocidade aos poucos, ela chega a zero no alto, e dali em diante cresce para baixo.</p>
         <figure class="fig">
           <svg viewBox="0 0 410 235" role="img" aria-label="Os pontos de um pulo, a cada décimo de segundo, desenham um arco; em cada ponto, uma seta vertical: grande para cima no começo, cada vez menor, nenhuma no alto, e depois para baixo, cada vez maior">
             <line class="ray" x1="20" y1="175" x2="400" y2="175"/>
@@ -103,9 +125,8 @@ run()
           </svg>
           <figcaption>O ninja a cada décimo de segundo de um pulo, e a sua <code>vel.y</code> (as setas). A gravidade tira 2200 por segundo: a seta encolhe na subida, some no alto e cresce na descida.</figcaption>
         </figure>
-
-        <p>Rode: o ninja cai, atravessa o chão e some. As peças são só desenho; ainda não seguram ninguém.</p>
-      `,
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=750, title="Ninja")
@@ -139,6 +160,24 @@ heroi = Heroi(center=(100, 400))
 
 run()
 `,
+      notes: [
+        {
+          at: "class Heroi(",
+          text: "O ninja vai ganhar comportamento, então vira uma classe. A imagem e a altura vão na linha da classe."
+        },
+        {
+          at: "self.vel = Vec2(0, 0)",
+          text: "<code>Vec2</code> é uma seta com duas partes, x e y. A velocidade nasce parada, no <code>setup</code>; a gravidade cuida do resto."
+        },
+        {
+          at: "center=(100, 400)",
+          text: "O ninja começa no alto, em y = 400, para a queda aparecer."
+        }
+      ],
+      after: `
+        <p>Rode e olhe a queda.</p>
+        <details class="ask"><summary>Onde o ninja para?</summary><p>Em lugar nenhum: ele atravessa o chão e some. As peças são só desenho; nada diz que seguram alguém.</p></details>
+      `,
       try: [
           {
             note: "Um por vez, no lugar do 2200. Com 1000, a queda é lenta, como na Lua; com 4000, o ninja pesa.",
@@ -150,11 +189,17 @@ self.vel.y -= 4000 * dt`
     },
     {
       title: "O chão segura",
-      body: `
-        <p>É a regra do 10: <code>resolve("heroi", "chao", bounce=0)</code>. Herói e chão <strong>não se atravessam</strong>: quando o ninja chega ao chão, o Scena o para no ponto do toque. O ninja entra no grupo <code>heroi</code>, na linha da classe, para a regra o achar. <code>group["chao"].mass = STATIC</code> faz o chão não ceder; sem isso, o ninja empurraria as peças.</p>
-        <p><strong>Por que bounce=0.</strong> Sem <code>bounce</code> (quique), o <code>resolve</code> só corrige a posição: o ninja para em cima do chão, mas a sua <code>vel.y</code> continua crescendo para baixo, 2200 a cada segundo parado. Ao sair da beirada de uma plataforma, ele despencaria de uma vez, com toda a velocidade guardada. Com <code>bounce=0</code>, a parte da velocidade que entra no chão vira zero a cada toque: parado no chão, a <code>vel.y</code> é 0. Na bola do 10, o <code>bounce</code> era 1: ela saía com a mesma força com que batia.</p>
-        <p><strong>A caixa dos pés.</strong> Quem colide não é o desenho, é uma forma calculada a partir dele, a <em>hitbox</em> (caixa de colisão). <code>Ctrl+Shift+7</code> mostra as formas. Sem pedir nada, o Scena escolhe a forma sozinho, e a forma automática deixa os pés do ninja de fora: eles afundam na grama. <code>hitbox_shape="rect"</code> (forma: retângulo) pede uma caixa de base reta: os pés pisam na grama, e uma base reta não escorrega na beirada. É a forma de quem anda sobre um chão.</p>
-      `,
+      body: [
+        `
+        <p>O chão precisa segurar o ninja. Uma linha, fora de qualquer função, faz disso uma regra:</p>
+        `,
+        {
+          snip: `resolve("heroi", "chao", bounce=0)`
+        },
+        `
+        <p><code>resolve</code> (resolver) diz que os dois grupos não se atravessam: quando o ninja chega ao chão, o Scena o para no ponto do toque. A regra fica valendo sozinha, para todo ninja e toda peça desses grupos, sem nenhuma linha no <code>on_update</code>. Por isso o ninja entra no grupo <code>heroi</code>, na linha da classe: é assim que a regra o acha.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=750, title="Ninja")
@@ -190,15 +235,31 @@ heroi = Heroi(center=(100, 400))
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "group[\"chao\"].mass = STATIC",
+          text: "<code>mass</code> (massa) <code>STATIC</code> (parado): o chão não cede. Sem isso, o ninja empurraria as peças."
+        },
+        {
+          at: "hitbox_shape=\"rect\"",
+          text: "<code>hitbox_shape</code> (forma da caixa de colisão) <code>\"rect\"</code> (retângulo): uma caixa de base reta, a forma de quem anda sobre um chão."
+        },
+        {
+          at: "bounce=0)",
+          text: "<code>bounce</code> (quique) 0: a parte da velocidade que entra no chão vira zero a cada toque."
+        }
+      ],
+      after: `
+        <p>Rode: o ninja cai e para no chão. Aperte <kbd>Ctrl+Shift+7</kbd> para ver as formas que colidem.</p>
+        <p>Quem colide não é o desenho, é uma forma calculada a partir dele, a <em>hitbox</em> (caixa de colisão). Sem pedir nada, o Scena escolhe a forma sozinho, e a forma automática deixa os pés do ninja de fora: eles afundariam na grama. Com <code>"rect"</code>, a base da caixa fica nos pés, que pisam na grama; e uma base reta não escorrega na beirada de uma plataforma.</p>
+        <details class="ask"><summary>Sem o <code>bounce=0</code>, o ninja também pararia. Para que serve?</summary><p>Sem ele, o <code>resolve</code> só corrige a posição: o ninja fica em cima do chão, mas a sua <code>vel.y</code> continua crescendo para baixo, 2200 a cada segundo parado. Ao sair da beirada de uma plataforma, ele despencaria de uma vez, com toda a velocidade guardada. Com <code>bounce=0</code>, parado no chão, a <code>vel.y</code> é 0. Com <code>bounce=1</code>, ele quicaria como uma bola, com a mesma força com que bateu.</p></details>
+      `
     },
     {
       title: "Andar",
       body: `
-        <p>As setas mudam a <code>vel.x</code>: −280 para a esquerda, 280 para a direita e 0 sem seta. O <code>move_by</code> agora usa as duas partes da seta, como a bola do 10; o <code>resolve</code> continua segurando.</p>
-        <p><strong>Para que lado olha.</strong> O desenho do ninja olha para a direita. <code>flip_x = True</code> (espelhar no x) o vira para a esquerda; <code>False</code>, de volta. Sem seta, ninguém muda o <code>flip_x</code>: o ninja fica olhando para o último lado em que andou.</p>
-        <p><strong>As bordas.</strong> Andando, o ninja sairia da tela. Duas paredes o seguram: um <code>Rect</code> alto de cada lado, logo além da borda (por isso não aparecem), também no grupo <code>chao</code>. O <code>resolve</code> segura o ninja nelas do mesmo jeito que no chão; quem é sólido para ele está nesse grupo.</p>
-        <p>Ande até debaixo de uma plataforma: ainda não dá para subir.</p>
+        <p>Agora as setas andam com o ninja. A gravidade mexe na parte y da velocidade; as setas mexem na parte x.</p>
       `,
       code: `from scena import *
 
@@ -246,14 +307,40 @@ heroi = Heroi(center=(100, 400))
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "Rect(center=(-20, 375)",
+          text: "Andando, o ninja sairia da tela. Duas paredes o seguram: um <code>Rect</code> alto de cada lado, logo além da borda (por isso não aparecem), também no grupo <code>chao</code>. O <code>resolve</code> segura o ninja nelas como no chão."
+        },
+        {
+          at: "self.vel.x = -280",
+          text: "−280 para a esquerda, 280 para a direita, e 0 sem seta: o ninja para assim que você solta."
+        },
+        {
+          at: "self.flip_x = True",
+          text: "O desenho do ninja olha para a direita. <code>flip_x</code> (espelhar no x) <code>True</code> o vira para a esquerda; <code>False</code>, de volta. Sem seta, ninguém mexe nele, e o ninja fica olhando para o último lado em que andou."
+        },
+        {
+          at: "self.move_by(self.vel.x * dt, self.vel.y * dt)",
+          text: "O <code>move_by</code> agora usa as duas partes da velocidade."
+        }
+      ],
+      after: `
+        <p>Ande até debaixo de uma plataforma: ainda não dá para subir.</p>
+      `
     },
     {
       title: "Pular",
-      body: `
-        <p>O pulo é o da figura do passo 2: <code>self.vel.y = 900</code>, e a gravidade faz o resto. <code>keyp.once("UP")</code> (do 01) só vale no quadro em que a seta é apertada: segurar a seta não pula de novo.</p>
-        <p><strong>Só no chão.</strong> Sem mais nada, o ninja pularia também no ar, quantas vezes quisesse, e subiria até o céu. <code>self.touching_sides</code> (os lados que tocam) diz quais lados do ninja encostam em algo sólido, segundo as regras de <code>resolve</code>: <code>"bottom"</code> (embaixo), <code>"top"</code> (em cima), <code>"left"</code> (esquerda) e <code>"right"</code> (direita). De pé no chão, tem <code>"bottom"</code>; no ar, nenhum. <code>no_chao = "bottom" in self.touching_sides</code> faz a pergunta uma vez e lhe dá um nome. <code>in</code> (em) pergunta se um item está na lista: verdadeiro se <code>"bottom"</code> é um dos lados que tocam.</p>
-
+      body: [
+        `
+        <p>O pulo é o arco da gravidade: <code>self.vel.y = 900</code>, e a gravidade faz o resto. Mas só com os pés no chão; senão, o ninja pularia também no ar, quantas vezes quisesse, e subiria até o céu.</p>
+        `,
+        {
+          snip: `no_chao = "bottom" in self.touching_sides`
+        },
+        `
+        <p><code>self.touching_sides</code> (os lados que tocam) diz quais lados do ninja encostam em algo sólido, segundo as regras de <code>resolve</code>: <code>"bottom"</code> (embaixo), <code>"top"</code> (em cima), <code>"left"</code> (esquerda) e <code>"right"</code> (direita). De pé no chão, tem <code>"bottom"</code>; no ar, nenhum.</p>
         <figure class="fig">
           <svg viewBox="0 0 360 215" role="img" aria-label="Uma caixa, o ninja, de pé num chão e encostada numa parede à direita; os quatro lados da caixa têm nome: top em cima, bottom embaixo, left à esquerda, right à direita; os lados bottom e right estão marcados, porque encostam em algo">
             <rect class="bar child" x="20" y="160" width="320" height="22" rx="3"/>
@@ -269,10 +356,8 @@ run()
           </svg>
           <figcaption>Os quatro lados do ninja. Aqui, ele pisa no chão e encosta numa parede: <code>touching_sides</code> tem <code>"bottom"</code> e <code>"right"</code>. No ar, longe de tudo, não tem nenhum.</figcaption>
         </figure>
-
-        <p><strong>A cabeça.</strong> Pule debaixo de uma plataforma: a cabeça bate (<code>"top"</code>) e o ninja cai de volta. É o mesmo <code>bounce=0</code>: a parte da velocidade que entrava na plataforma vira zero.</p>
-        <p><strong>A altura.</strong> A 900, o pulo alcança a primeira plataforma, e dela a segunda, com pouca folga. Pule de longe e correndo; subindo bem debaixo dela, a cabeça bate. O pulo toca um som.</p>
-      `,
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=750, title="Ninja")
@@ -325,6 +410,24 @@ heroi = Heroi(center=(100, 400))
 
 run()
 `,
+      notes: [
+        {
+          at: "\"bottom\" in self.touching_sides",
+          text: "<code>in</code> (em) pergunta se um item está na lista: verdadeiro se <code>\"bottom\"</code> é um dos lados que tocam. A pergunta é feita uma vez e ganha um nome, <code>no_chao</code>."
+        },
+        {
+          at: "keyp.once(\"UP\")",
+          text: "<code>keyp.once</code> (uma vez) só vale no quadro em que a seta é apertada: segurar a seta não pula de novo."
+        },
+        {
+          at: "self.vel.y = 900",
+          text: "O pulo inteiro é esta linha: uma velocidade para cima, que a gravidade gasta aos poucos."
+        }
+      ],
+      after: `
+        <p>Rode e pule debaixo de uma plataforma: a cabeça bate (<code>"top"</code>) e o ninja cai de volta. É o mesmo <code>bounce=0</code>: a parte da velocidade que entrava na plataforma vira zero.</p>
+        <details class="ask"><summary>Dá para chegar à plataforma mais alta?</summary><p>Dá, com pouca folga. A 900, o pulo alcança a primeira plataforma, e dela a segunda. Pule de longe e correndo: subindo bem debaixo de uma plataforma, a cabeça bate.</p></details>
+      `,
       try: [
           {
             note: "Um por vez, no lugar do 900. Com 700, o pulo não alcança a primeira plataforma; com 1100, sobra altura.",
@@ -337,11 +440,25 @@ self.vel.y = 1100`
     {
       title: "Correr e pular de verdade",
       example: "ninja.py",
-      body: `
-        <p>O ninja tem dez desenhos para cada movimento, cada um num arquivo: <code>Idle__000.png</code> a <code>Idle__009.png</code> (parado), <code>Run__000.png</code> a <code>Run__009.png</code> (correndo), <code>Jump__000.png</code> a <code>Jump__009.png</code> (pulando). No 15, o avião tinha três arquivos, escritos um por um; aqui são trinta.</p>
-        <p><strong>Um padrão.</strong> O <code>*</code> (qualquer coisa no lugar) pega todos os arquivos que casam, em ordem: <code>"ninja/Idle__*.png"</code> são os dez do parado. <code>strip</code> (faixa) acrescenta à folha uma animação: o nome do clip, os arquivos e o <code>fps</code>. A folha começa vazia, <code>Sheet(…)</code> sem arquivo, e ganha uma linha por animação.</p>
-        <p><strong>Tamanhos diferentes.</strong> Os desenhos não têm o mesmo tamanho: o ninja pulando é mais alto que o parado, e as larguras mudam mais ainda. Dois ajustes na folha resolvem. <code>pixel_size=0.2</code> (tamanho do pixel): cada pixel do desenho vale 0,2 no jogo, e assim cada desenho fica no seu tamanho de verdade, um pouco maior ou menor que os outros; o <code>height=</code> sai da classe. <code>anchor="bottom"</code> (âncora embaixo): o <code>center</code> do ninja passa a ser o meio da base de cada desenho, os pés. Trocar de desenho não tira o ninja do chão.</p>
-
+      body: [
+        `
+        <p>O ninja tem dez desenhos para cada movimento, cada um num arquivo: <code>Idle__000.png</code> a <code>Idle__009.png</code> (parado), <code>Run__000.png</code> a <code>Run__009.png</code> (correndo), <code>Jump__000.png</code> a <code>Jump__009.png</code> (pulando). São trinta arquivos, e cada animação cabe numa linha:</p>
+        `,
+        {
+          snip: `ninja.strip("parado", "ninja/Idle__*.png", fps=8)`
+        },
+        `
+        <p><code>strip</code> (faixa) acrescenta à folha uma animação: o nome do clip, os arquivos e o <code>fps</code>. O <code>*</code> quer dizer “qualquer coisa neste lugar”: <code>"ninja/Idle__*.png"</code> pega todos os arquivos que casam com o resto do nome, em ordem, os dez do parado.</p>
+        <p>Os desenhos não têm o mesmo tamanho: o ninja pulando é mais alto que o parado, e as larguras mudam mais ainda. A folha começa vazia, sem arquivo, e resolve isso com dois ajustes:</p>
+        `,
+        {
+          snip: `ninja = Sheet(anchor="bottom", pixel_size=0.2)`
+        },
+        `
+        <div class="tbl"><table><thead><tr><th>Na linha</th><th>O que faz</th></tr></thead><tbody>
+          <tr><td><code>pixel_size=0.2</code></td><td>(tamanho do pixel) cada pixel do desenho vale 0,2 no jogo. Cada desenho fica no seu tamanho de verdade, um pouco maior ou menor que os outros.</td></tr>
+          <tr><td><code>anchor="bottom"</code></td><td>(âncora embaixo) o <code>center</code> do ninja passa a ser o meio da base de cada desenho: os pés. Trocar de desenho não tira o ninja do chão.</td></tr>
+        </tbody></table></div>
         <figure class="fig">
           <svg viewBox="0 0 380 165" role="img" aria-label="Três retângulos de tamanhos diferentes, o parado, o correndo e o pulando, apoiados na mesma linha; um ponto marca o meio da base de cada um, que é o center">
             <line class="guide" x1="20" y1="130" x2="360" y2="130"/>
@@ -358,10 +475,8 @@ self.vel.y = 1100`
           </svg>
           <figcaption>Com <code>pixel_size=0.2</code>, cada desenho fica no seu tamanho. Com <code>anchor="bottom"</code>, todos se apoiam no mesmo ponto: o <code>center</code> é o meio da base.</figcaption>
         </figure>
-
-        <p><strong>Qual clip.</strong> No fim do <code>on_update</code>, o estado escolhe: no ar, <code>"pulando"</code>; no chão e andando, <code>"correndo"</code>; senão, <code>"parado"</code>. “Andando” é <code>self.vel.x != 0</code>: <code>!=</code> quer dizer “diferente de”, então a velocidade de lado não é zero. Pedir o clip que já está tocando não o reinicia, então dá para pedir a cada quadro.</p>
-        <p><strong>A caixa não muda.</strong> A hitbox não muda com o clip: o ninja não cresce quando pula, nem fica mais largo quando corre.</p>
-      `,
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=750, title="Ninja")
@@ -426,6 +541,23 @@ heroi = Heroi(center=(100, 400))
 
 run()
 `,
+      notes: [
+        {
+          at: "class Heroi(Sprite, source=ninja,",
+          text: "A classe usa a folha, e o <code>height=</code> saiu: cada desenho já tem o seu tamanho."
+        },
+        {
+          at: "if not no_chao:",
+          text: "No fim do <code>on_update</code>, o estado escolhe o clip: no ar, <code>\"pulando\"</code>; no chão e andando, <code>\"correndo\"</code>; senão, <code>\"parado\"</code>. Pedir o clip que já está tocando não o reinicia, então dá para pedir a cada quadro."
+        },
+        {
+          at: "self.vel.x != 0",
+          text: "<code>!=</code> quer dizer “diferente de”: andando é ter a velocidade de lado diferente de zero."
+        }
+      ],
+      after: `
+        <p>Rode, corra e pule. Com <kbd>Ctrl+Shift+7</kbd>, veja a caixa de colisão enquanto o desenho troca: ela não muda com o clip. O ninja não cresce quando pula, nem fica mais largo quando corre.</p>
+      `,
       try: [
           {
             note: "No ar, o ninja plana em vez de pular: os arquivos Glide_000.png a Glide_009.png (planar; o nome tem um sublinhado só). No lugar da linha do pulando:",

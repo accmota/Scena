@@ -22,9 +22,8 @@ Tutorial.mount({
       part: "Até e por",
       fresh: true,
       body: `
-        <p>Um interlúdio é uma pausa entre dois tutoriais para olhar de perto uma ideia que a série já usou. Girar apareceu aos pedaços: no 05, <code>rotate_to(180)</code> virou o laser para baixo; no 11, <code>rotate_by(90 * dt)</code> girou o triângulo sob o mouse; no 14, <code>rotate_by(360, time=1.0, loops="forever")</code> girou o anel, e <code>sonda.angle = heading(…)</code> apontou a sonda. São três escritas. Aqui você vê quando elas fazem a mesma coisa e quando não fazem. No fim, o mesmo para o tamanho.</p>
-        <p><strong>Até e por.</strong> <code>rotate_to</code> (girar até) leva o ângulo até um número: depois de <code>rotate_to(45)</code>, o ângulo é 45, de onde quer que a barra tenha partido. <code>rotate_by</code> (girar por) soma: <code>rotate_by(45)</code> gira mais 45 graus a partir de onde a barra está. Aperte Espaço algumas vezes. A barra azul vai a 45 e fica; a dourada vai a 45, 90, 135…: cada aperto soma mais um oitavo de volta.</p>
-        <p><strong>O número embaixo.</strong> <code>angle</code> (ângulo) é quanto a barra está girada, em graus, contados no sentido contrário ao dos ponteiros do relógio (a roda dos graus está no Apêndice D). Cada texto é uma fórmula, como no 09: ele lê o <code>angle</code> da sua barra e se refaz quando o número muda.</p>
+        <p>Um interlúdio é uma pausa entre dois tutoriais para olhar de perto uma ideia que a série já usou. A série girou coisas de três jeitos: <code>rotate_to</code>, <code>rotate_by</code> e escrevendo no campo <code>angle</code>. Aqui você vê quando eles fazem a mesma coisa e quando não fazem; no fim, o mesmo para o tamanho.</p>
+        <p>Primeiro, duas barras e a barra de espaço: a cada aperto, uma gira <em>até</em> 45 graus, a outra gira <em>por</em> 45 graus.</p>
       `,
       code: `from scena import *
 
@@ -45,15 +44,30 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "round(ate.angle)",
+          text: "<code>angle</code> (ângulo) é quanto a barra está girada, em graus, contados no sentido contrário ao dos ponteiros do relógio (a roda dos graus está no <a href='D-vetores.html'>Apêndice D</a>). O texto é uma fórmula: lê o <code>angle</code> e se refaz quando o número muda."
+        },
+        {
+          at: "ate.rotate_to(45)",
+          text: "<code>rotate_to</code> (girar até) leva o ângulo até um número: depois dele, o ângulo é 45, de onde quer que a barra tenha partido."
+        },
+        {
+          at: "por.rotate_by(45)",
+          text: "<code>rotate_by</code> (girar por) soma: mais 45 graus a partir de onde a barra está."
+        }
+      ],
+      after: `
+        <p>Rode e aperte Espaço algumas vezes.</p>
+        <details class="ask"><summary>Depois de três apertos, onde está cada barra?</summary><p>A azul está em 45, como depois do primeiro: ir até 45 quando já se está lá não muda nada. A dourada está em 135: cada aperto somou mais um oitavo de volta.</p></details>
+      `
     },
     {
       title: "Com tempo",
       body: `
-        <p>Com <code>time=</code> (tempo), do 12, o giro dura um segundo, e dá para ver o caminho.</p>
-        <p><strong>Uma volta inteira.</strong> <code>rotate_by(360, time=1)</code> dá uma volta inteira em um segundo. <code>rotate_to(360, time=1)</code> não sai do lugar: 360 graus apontam para o mesmo lado que 0, e a barra já está lá. Até um lugar onde você já está, não há caminho.</p>
-        <p><strong>O ângulo soma.</strong> Aperte Espaço de novo depois de cada volta. O texto da dourada mostra 360, 720, 1080: o <code>rotate_by</code> soma sempre, e o ângulo não volta para 0. São voltas inteiras, então a barra aponta sempre para o mesmo lado.</p>
-        <p><strong>O freio.</strong> <code>ready("giro", 1)</code>, do 05, deixa começar um giro por segundo. Sem ele, um aperto no meio de um giro começaria outro, e o console avisaria que o novo tomou o lugar do velho, como as viagens do 12.</p>
+        <p>Com <code>time=</code> (tempo), o giro dura um segundo, e dá para ver o caminho. Agora o pedido é uma volta inteira: 360 graus.</p>
       `,
       code: `from scena import *
 
@@ -75,6 +89,20 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "ready(\"giro\", 1)",
+          text: "<code>ready</code> (pronto) deixa começar um giro por segundo. Sem ele, um aperto no meio de um giro começaria outro, e o console avisaria que o novo tomou o lugar do velho."
+        },
+        {
+          at: "ate.rotate_to(360, time=1)",
+          text: "360 graus apontam para o mesmo lado que 0, e a barra já está lá. Até um lugar onde você já está, não há caminho."
+        }
+      ],
+      after: `
+        <p>Rode e aperte Espaço: a azul não sai do lugar, e a dourada dá uma volta inteira em um segundo.</p>
+        <details class="ask"><summary>Aperte de novo depois de cada volta. Que números a dourada mostra?</summary><p>360, 720, 1080: o <code>rotate_by</code> soma sempre, e o ângulo não volta para 0. São voltas inteiras, então a barra aponta sempre para o mesmo lado.</p></details>
+      `,
       try: [
         {
           note: "No lugar dos dois giros. Com tempo, <code>rotate_to</code> vai pelo caminho mais curto: até 270, o curto é um quarto de volta para trás, no sentido dos ponteiros do relógio. <code>rotate_by(270)</code> soma: três quartos de volta para a frente.",
@@ -89,9 +117,7 @@ por.rotate_by(270, time=1)`
       part: "O campo angle",
       fresh: true,
       body: `
-        <p><code>angle</code> também é um campo, como <code>width</code> (largura): dá para ler, escrever com <code>=</code> e ligar com <code>@=</code>, como no 09. Este script gira duas caixas no <code>update</code>, 45 graus por segundo. A azul soma no campo: <code>campo.angle += 45 * dt</code>. A dourada chama o verbo: <code>verbo.rotate_by(45 * dt)</code>.</p>
-        <p><strong>Igual.</strong> Rode: as duas giram juntas, sem diferença nenhuma. As duas nasceram pelo centro, <code>center=(…)</code>, e o centro é também o ponto em volta do qual o verbo gira. Numa forma posta pelo centro, escrever no campo e chamar o verbo dão no mesmo.</p>
-        <p>Isso muda quando a forma nasce por outro ponto.</p>
+        <p><code>angle</code> também é um campo, como <code>width</code> (largura): dá para ler, escrever com <code>=</code> e ligar com <code>@=</code>. Este script gira duas caixas no <code>update</code>, 45 graus por segundo: a azul soma no campo, a dourada chama o verbo.</p>
       `,
       code: `from scena import *
 
@@ -109,29 +135,21 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "campo = Rect(center=",
+          text: "As duas caixas nascem pelo centro, <code>center=(…)</code>."
+        }
+      ],
+      after: `
+        <p>Rode: as duas giram juntas, sem diferença nenhuma. O centro, por onde elas nasceram, é também o ponto em volta do qual o verbo gira. Numa forma posta pelo centro, escrever no campo e chamar o verbo dão no mesmo.</p>
+      `
     },
     {
       title: "Quem fica parado",
       body: `
-        <p><strong>Por um canto.</strong> Agora as duas caixas nascem por <code>top_left</code>, o canto de cima, à esquerda. Rode. A azul gira em volta desse canto; a dourada, em volta do centro. As bolinhas brancas marcam o ponto que fica parado em cada uma.</p>
-        <figure class="fig">
-          <svg viewBox="0 0 400 200" role="img" aria-label="Duas caixas iguais giradas 30 graus: a da esquerda em volta do canto de cima à esquerda, a da direita em volta do centro">
-            <rect class="bar" x="50" y="80" width="100" height="36"/>
-            <rect class="bar child" x="50" y="80" width="100" height="36" transform="rotate(-30 50 80)"/>
-            <circle class="hot" cx="50" cy="80" r="4"/>
-            <rect class="bar" x="250" y="80" width="100" height="36"/>
-            <rect class="bar child" x="250" y="80" width="100" height="36" transform="rotate(-30 300 98)"/>
-            <circle class="hot" cx="300" cy="98" r="4"/>
-            <text x="100" y="170" text-anchor="middle">campo.angle = 30</text>
-            <text x="100" y="186" text-anchor="middle">o canto fica</text>
-            <text x="300" y="170" text-anchor="middle">verbo.rotate_by(30)</text>
-            <text x="300" y="186" text-anchor="middle">o centro fica</text>
-          </svg>
-          <figcaption>A mesma caixa, posta por <code>top_left</code>, girada 30 graus de dois jeitos. O ponto vermelho não sai do lugar: o canto, quando se escreve o campo; o centro, quando se chama o verbo.</figcaption>
-        </figure>
-        <p><strong>A regra.</strong> Escrever o campo <code>angle</code> (com <code>=</code>, com <code>@=</code> ou no próprio <code>Rect(…, angle=30)</code>) gira a forma em volta do ponto pelo qual ela foi posta, e esse ponto fica onde está. É a mesma ideia de <code>width</code>: mudar a largura de uma caixa posta por <code>top_left</code> não tira o canto do lugar. Já os verbos <code>rotate_to</code> e <code>rotate_by</code> giram a forma inteira em volta do centro, de onde quer que ela tenha sido posta.</p>
-        <p><strong>Um ponteiro.</strong> Uma <code>Line</code> posta por uma ponta, <code>Line(p1=…, length=…, angle=…)</code>, segue a mesma regra: o <code>angle</code> dela gira em volta de <code>p1</code>, como o ponteiro de um relógio preso no meio do mostrador. A caixa abaixo traz um.</p>
+        <p>Agora as duas caixas nascem por <code>top_left</code>, o canto de cima, à esquerda. O código de girar é o mesmo.</p>
       `,
       code: `from scena import *
 
@@ -152,9 +170,34 @@ def update(dt):
 
 run()
 `,
+      notes: [
+        {
+          at: "Circle(center=campo.top_left",
+          text: "Uma bolinha branca no canto da azul, outra no centro da dourada: os pontos para olhar quando rodar."
+        }
+      ],
+      after: `
+        <p>Rode. Agora as caixas giram diferente: a azul em volta do canto, a dourada em volta do centro. Cada bolinha branca marca o ponto que fica parado.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="Duas caixas iguais giradas 30 graus: a da esquerda em volta do canto de cima à esquerda, a da direita em volta do centro">
+            <rect class="bar" x="50" y="80" width="100" height="36"/>
+            <rect class="bar child" x="50" y="80" width="100" height="36" transform="rotate(-30 50 80)"/>
+            <circle class="hot" cx="50" cy="80" r="4"/>
+            <rect class="bar" x="250" y="80" width="100" height="36"/>
+            <rect class="bar child" x="250" y="80" width="100" height="36" transform="rotate(-30 300 98)"/>
+            <circle class="hot" cx="300" cy="98" r="4"/>
+            <text x="100" y="170" text-anchor="middle">campo.angle = 30</text>
+            <text x="100" y="186" text-anchor="middle">o canto fica</text>
+            <text x="300" y="170" text-anchor="middle">verbo.rotate_by(30)</text>
+            <text x="300" y="186" text-anchor="middle">o centro fica</text>
+          </svg>
+          <figcaption>A mesma caixa, posta por <code>top_left</code>, girada 30 graus de dois jeitos. O ponto vermelho não sai do lugar: o canto, quando se escreve o campo; o centro, quando se chama o verbo.</figcaption>
+        </figure>
+        <p>Escrever o campo <code>angle</code> (com <code>=</code>, com <code>@=</code> ou no próprio <code>Rect(…, angle=30)</code>) gira a forma em volta do ponto pelo qual ela foi posta, e esse ponto fica onde está. É a mesma ideia de <code>width</code>: mudar a largura de uma caixa posta por <code>top_left</code> não tira o canto do lugar. Já os verbos <code>rotate_to</code> e <code>rotate_by</code> giram a forma inteira em volta do centro, de onde quer que ela tenha sido posta.</p>
+      `,
       try: [
         {
-          note: "Um ponteiro de relógio, no fim do arquivo, antes do <code>run()</code>. A linha nasce pela ponta <code>p1</code>, apontando para cima (90 graus). A fórmula tira 6 graus por segundo, e o ângulo diminuindo gira no sentido dos ponteiros do relógio: uma volta por minuto, como o ponteiro dos segundos.",
+          note: "Uma <code>Line</code> posta por uma ponta segue a mesma regra: o <code>angle</code> dela gira em volta de <code>p1</code>, como um ponteiro de relógio preso no meio do mostrador. No fim do arquivo, antes do <code>run()</code>. A linha nasce apontando para cima (90 graus); a fórmula tira 6 graus por segundo, e o ângulo diminuindo gira no sentido dos ponteiros do relógio: uma volta por minuto, como o ponteiro dos segundos.",
           code: `ponteiro = Line(p1=(500, 560), length=100, angle=90, color="white", line_width=4)
 ponteiro["angle"] @= lambda: 90 - 6 * clock.time`
         }
@@ -162,10 +205,17 @@ ponteiro["angle"] @= lambda: 90 - 6 * clock.time`
     },
     {
       title: "Escolher o ponto: about=",
-      body: `
-        <p>E se o verbo tiver de girar em volta do canto? <code>about=</code> (em volta de) escolhe o ponto que fica parado. <code>canto = verbo.top_left</code> guarda o canto da dourada, e <code>verbo.rotate_by(45 * dt, about=canto)</code> gira em volta dele. Rode: agora as duas caixas giram iguais.</p>
-        <p><strong>Qual usar.</strong> O campo, quando a forma foi posta pelo ponto que deve ficar parado (o ponteiro preso pela ponta) ou quando você já sabe a direção (a sonda do 14 lê o rumo e o escreve no <code>angle</code>). O verbo, quando o giro é um movimento: uma volta, um pouco a cada quadro, em volta do centro ou, com <code>about=</code>, de qualquer ponto, como uma porta na dobradiça.</p>
-      `,
+      body: [
+        `
+        <p>E se o verbo tiver de girar em volta do canto? <code>about=</code> (em volta de) escolhe o ponto que fica parado:</p>
+        `,
+        {
+          snip: `verbo.rotate_by(45 * dt, about=canto)`
+        },
+        `
+        <p><code>canto</code> guarda o canto da dourada, o lugar onde ela nasceu, e o verbo gira em volta dele em vez do centro.</p>
+        `
+      ],
       code: `from scena import *
 
 init(width=1000, height=700, title="Girar e crescer")
@@ -186,6 +236,14 @@ def update(dt):
 
 run()
 `,
+      after: `
+        <p>Rode: agora as duas caixas giram iguais, cada uma em volta do seu canto.</p>
+        <p>Então, qual usar? Depende do que o giro é:</p>
+        <div class="tbl"><table><thead><tr><th>Use</th><th>Quando</th></tr></thead><tbody>
+          <tr><td>o campo <code>angle</code></td><td>a forma foi posta pelo ponto que deve ficar parado (o ponteiro preso pela ponta), ou você já sabe a direção e só a escreve (a sonda que lê o rumo do planeta)</td></tr>
+          <tr><td>o verbo <code>rotate_by</code> / <code>rotate_to</code></td><td>o giro é um movimento: uma volta, um pouco a cada quadro, em volta do centro ou, com <code>about=</code>, de qualquer ponto, como uma porta na dobradiça</td></tr>
+        </tbody></table></div>
+      `,
       try: [
         {
           note: "No lugar do canto, um ponto fora da caixa. A dourada passa a dar voltas em volta dele, como uma lua em volta de um planeta.",
@@ -199,9 +257,7 @@ run()
       part: "Duas âncoras",
       fresh: true,
       body: `
-        <p>No 03, um segmento ficava preso a duas âncoras: <code>Anchor</code> é um ponto que nasce visível e arrastável, e a <code>Line</code> lia as âncoras com <code>lambda</code>. Um <code>Rect</code> também pode nascer por dois cantos opostos, <code>p1</code> e <code>p2</code>: o de baixo, à esquerda, e o de cima, à direita. Com <code>lambda</code> nos dois, a caixa fica presa às âncoras. Arraste uma âncora: a caixa estica junto.</p>
-        <p><strong>Girar o campo.</strong> As setas mudam <code>presa.angle</code>. Segure a seta da esquerda e olhe: a caixa não gira inteira. Os cantos estão presos às âncoras, e o campo <code>angle</code> mantém os pontos pelos quais a caixa foi posta. Então ela inclina e, para os cantos continuarem nas âncoras, muda de tamanho. O texto mostra a largura e a altura mudando.</p>
-        <p><strong>Uma linha.</strong> Perto de 23 graus, a caixa vira uma linha. A diagonal, a reta de uma âncora à outra, sobe uns 23 graus; com esse ângulo, a diagonal fica deitada sobre um lado, e a caixa não tem altura nenhuma. Continue: depois ela engorda de novo, e a 90 graus volta com a largura e a altura trocadas.</p>
+        <p>Um <code>Rect</code> também pode nascer por dois cantos opostos, <code>p1</code> e <code>p2</code>: o de baixo, à esquerda, e o de cima, à direita. Aqui os dois cantos ficam presos a duas âncoras, e as setas mudam o campo <code>angle</code>. O que acontece com uma caixa presa quando ela gira?</p>
       `,
       code: `from scena import *
 
@@ -221,12 +277,27 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "ponta1 = Anchor(180, 300)",
+          text: "<code>Anchor</code> (âncora) é um ponto que nasce visível e que se arrasta com o mouse."
+        },
+        {
+          at: "presa = Rect(p1=lambda",
+          text: "Os dois cantos são fórmulas: leem as âncoras, e a caixa fica presa a elas."
+        }
+      ],
+      after: `
+        <p>Rode e arraste uma âncora: a caixa estica junto. Agora segure a seta da esquerda e olhe o texto.</p>
+        <details class="ask"><summary>A caixa gira inteira?</summary><p>Não. Os cantos estão presos às âncoras, e o campo <code>angle</code> mantém os pontos pelos quais a caixa foi posta. Então ela inclina e, para os cantos continuarem nas âncoras, muda de tamanho: o texto mostra a largura e a altura mudando.</p></details>
+        <p>Perto de 23 graus, a caixa vira uma linha. A diagonal, a reta de uma âncora à outra, sobe uns 23 graus; com esse ângulo, ela fica deitada sobre um lado, e a caixa não tem altura nenhuma. Continue: depois ela engorda de novo, e a 90 graus volta com a largura e a altura trocadas.</p>
+      `
     },
     {
       title: "Solta, ela gira inteira",
       body: `
-        <p>À direita, a mesma caixa, posta pelos mesmos dois cantos, mas com números: <code>Rect(p1=(580, 300), p2=(820, 400))</code>. Nada a prende. As setas giram esta com o verbo, <code>solta.rotate_by(…)</code>. Segure uma seta: a dourada gira inteira, sempre do mesmo tamanho, e os cantos saem de onde nasceram. A azul continua inclinando presa às âncoras.</p>
+        <p>À direita, a mesma caixa, posta pelos mesmos dois cantos, mas com números: nada a prende. As setas giram esta com o verbo.</p>
         <figure class="fig">
           <svg viewBox="0 0 400 210" role="img" aria-label="À esquerda, uma caixa presa por dois cantos opostos inclina 60 graus e muda de forma, com os cantos livres sobre um círculo; à direita, a mesma caixa gira 60 graus inteira em volta do centro">
             <circle class="guide" cx="100" cy="105" r="65"/>
@@ -244,7 +315,6 @@ run()
           </svg>
           <figcaption>À esquerda, os cantos <code>p1</code> e <code>p2</code> ficam: os outros dois andam sobre o círculo tracejado, que tem a diagonal como diâmetro, e a caixa muda de forma. À direita, o verbo gira a caixa inteira em volta do centro, e todos os cantos saem do lugar.</figcaption>
         </figure>
-        <p><strong>Por que o verbo não serve na presa.</strong> Girar a caixa inteira tiraria os cantos das âncoras, e quem manda nos cantos são as fórmulas. Se você escrever <code>presa.rotate_by(30)</code>, o Scena recusa, e a mensagem diz o motivo: o <code>p1</code> tem uma fórmula. É a mesma recusa do <code>=</code> num campo ligado, no 09.</p>
       `,
       code: `from scena import *
 
@@ -269,16 +339,33 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "solta = Rect(p1=(580, 300), p2=(820, 400)",
+          text: "Os mesmos cantos da azul, mas números em vez de fórmulas: nada prende esta caixa."
+        }
+      ],
+      after: [
+        `
+        <p>Segure uma seta: a dourada gira inteira, sempre do mesmo tamanho, e os cantos saem de onde nasceram. A azul continua inclinando presa às âncoras.</p>
+        <p>Por que não girar a presa com o verbo também?</p>
+        `,
+        {
+          snip: `presa.rotate_by(45 * dt)`,
+          alt: true
+        },
+        `
+        <p>Girar a caixa inteira tiraria os cantos das âncoras, e quem manda nos cantos são as fórmulas. O Scena recusa essa linha, e a mensagem diz o motivo: o <code>p1</code> tem uma fórmula. É a mesma recusa de um <code>=</code> num campo ligado.</p>
+        `
+      ]
     },
     {
       title: "Mudar o tamanho até, mudar por",
       part: "Tamanho",
       fresh: true,
       body: `
-        <p>O tamanho tem o mesmo par. <code>scale</code> (escala) é o tamanho em vezes: 1 é o tamanho com que a forma nasceu, 2 é o dobro, 0.5 é a metade. <code>scale_to</code> (mudar a escala até) leva a escala até um número; <code>scale_by</code> (mudar a escala por) multiplica a escala que a forma já tem.</p>
-        <p><strong>Até e por, de novo.</strong> Aperte Espaço algumas vezes. O quadrado azul vai a 1.5 e fica. O dourado vai a 1.5, depois a 2.25 (1.5 vezes 1.5), depois a 3.38: cada aperto multiplica por 1.5, e ele cresce cada vez mais depressa. A tecla R chama <code>scale_to(1)</code> nos dois, e eles voltam ao tamanho do começo.</p>
-        <p><strong>O campo.</strong> <code>scale</code> também é um campo: <code>quadrado.scale = 2</code> faz o mesmo que <code>quadrado.scale_to(2)</code>. Aqui não há a diferença do <code>angle</code>: o campo e o verbo mudam o tamanho a partir do centro, sempre.</p>
+        <p>O tamanho tem o mesmo par, até e por. <code>scale</code> (escala) é o tamanho em vezes: 1 é o tamanho com que a forma nasceu, 2 é o dobro, 0.5 é a metade.</p>
       `,
       code: `from scena import *
 
@@ -302,13 +389,31 @@ def update(dt):
 
 
 run()
-`
+`,
+      notes: [
+        {
+          at: "ate.scale_to(1.5)",
+          text: "<code>scale_to</code> (mudar a escala até) leva a escala até 1.5."
+        },
+        {
+          at: "por.scale_by(1.5)",
+          text: "<code>scale_by</code> (mudar a escala por) multiplica por 1.5 a escala que a forma já tem."
+        },
+        {
+          at: "keyp.once(\"R\")",
+          text: "A tecla R leva os dois de volta ao tamanho do começo, escala 1."
+        }
+      ],
+      after: `
+        <p>Rode e aperte Espaço algumas vezes.</p>
+        <details class="ask"><summary>Depois de três apertos, qual é a escala de cada quadrado?</summary><p>O azul está em 1.5, como depois do primeiro. O dourado foi a 1.5, depois a 2.25 (1.5 vezes 1.5), depois a 3.38: cada aperto multiplica, e ele cresce cada vez mais depressa.</p></details>
+        <p><code>scale</code> também é um campo: <code>quadrado.scale = 2</code> faz o mesmo que <code>quadrado.scale_to(2)</code>. Aqui não há a diferença do <code>angle</code>: o campo e o verbo mudam o tamanho a partir do centro, sempre.</p>
+      `
     },
     {
       title: "Crescer do chão",
       body: `
-        <p>Com <code>time=</code>, o tamanho muda aos poucos. <code>loops="forever"</code> com <code>yoyo=True</code> (ida e volta, do 13) faz os dois quadrados crescerem e encolherem sem parar, como as naves que respiravam no 05.</p>
-        <p><strong>De onde cresce.</strong> O azul cresce a partir do centro: metade para cima e metade para baixo, para dentro do chão (o chão foi criado depois, então é desenhado por cima e esconde essa metade). <code>about=</code> vale também aqui. O dourado cresce a partir de <code>pelo_chao.bottom_center</code>, o centro de baixo (<em>bottom center</em>), que está apoiado no chão e fica parado: ele cresce só para cima, como uma planta.</p>
+        <p>Com <code>time=</code>, o tamanho muda aos poucos, e dois quadrados apoiados num chão crescem e encolhem sem parar. O que muda entre eles é o ponto de onde crescem.</p>
       `,
       code: `from scena import *
 
@@ -325,6 +430,38 @@ pelo_chao.scale_to(2, time=1, loops="forever", yoyo=True, about=pelo_chao.bottom
 
 run()
 `,
+      notes: [
+        {
+          at: "Rect(top_left=(0, 210)",
+          text: "O chão é criado depois dos quadrados, então é desenhado por cima deles."
+        },
+        {
+          at: "pelo_meio.scale_to(2, time=1",
+          text: "Em 1 segundo, a escala vai a 2; <code>yoyo=True</code> (ioiô) a traz de volta, e <code>loops=\"forever\"</code> repete sem parar."
+        },
+        {
+          at: "yoyo=True, about=pelo_chao",
+          text: "<code>about=</code> vale também aqui. <code>bottom_center</code> é o centro de baixo, apoiado no chão: ele fica parado."
+        }
+      ],
+      after: `
+        <p>Rode e compare os dois.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 210" role="img" aria-label="Dois quadrados pequenos sobre a linha do chão e, atrás de cada um, a versão com o dobro do tamanho; o da esquerda cresceu em volta do centro e passou para baixo do chão; o da direita cresceu para cima, com o centro de baixo parado no chão">
+            <rect class="bar child" x="60" y="80" width="80" height="80"/>
+            <rect class="bar" x="80" y="100" width="40" height="40"/>
+            <rect class="bar child" x="260" y="60" width="80" height="80"/>
+            <rect class="bar" x="280" y="100" width="40" height="40"/>
+            <line class="ray" x1="20" y1="140" x2="380" y2="140"/>
+            <circle class="hot" cx="100" cy="120" r="4"/>
+            <circle class="hot" cx="300" cy="140" r="4"/>
+            <text x="380" y="132" text-anchor="end">chão</text>
+            <text x="100" y="190" text-anchor="middle">pelo_meio</text>
+            <text x="300" y="190" text-anchor="middle">pelo_chao</text>
+          </svg>
+          <figcaption>Os dois nascem apoiados no chão; atrás de cada um, o mesmo quadrado com escala 2. O ponto vermelho fica parado. À esquerda, o centro: o quadrado cresce para cima e para baixo, e a parte de baixo entra no chão, que a esconde. À direita, o centro de baixo: o quadrado cresce só para cima, como uma planta.</figcaption>
+        </figure>
+      `,
       dive: [
         {
           title: "Girar e crescer, lado a lado",
@@ -341,7 +478,7 @@ run()
                 <tr><td><code>scale = 1.5</code></td><td>o mesmo que <code>scale_to(1.5)</code></td><td>o centro</td></tr>
               </tbody>
             </table></div>
-            <p><strong>A diferença está no ponto parado.</strong> Numa forma posta pelo centro, que é o caso de quase todo <code>Sprite</code> da série, o campo e o verbo giram igual. Numa forma posta por um canto ou por uma ponta, o campo gira em volta desse ponto, e o verbo, em volta do centro. Numa forma presa pelos cantos com fórmulas, só o campo serve.</p>
+            <p>A diferença está sempre no ponto parado. Numa forma posta pelo centro, que é o caso de quase todo <code>Sprite</code> da série, o campo e o verbo giram igual. Numa forma posta por um canto ou por uma ponta, o campo gira em volta desse ponto, e o verbo, em volta do centro. Numa forma presa pelos cantos com fórmulas, só o campo serve.</p>
             <p>No Guia: <a href="../guide/index.html#mover-pose">Mover e girar</a> · <a href="../guide/index.html#suite">Parâmetros de tempo</a>.</p>
           `
         }
