@@ -1,6 +1,6 @@
 from typing import Any, Optional, Union, Tuple, overload, List, Dict, Any, Iterator, Set, TypeVar, Generic, Callable
 from .state import (
-    Attribute, Container, FieldType, ScalarSlot, ScalarAnchor,
+    Attribute, Container, ContainerSet, FieldType, ScalarSlot, ScalarAnchor,
     batch_update_self, ephemeral_creation, _init_scalar, as_payload, bump_pose_rev,
     _point_index_refusal,
 )
@@ -117,8 +117,25 @@ class Vec2(Container):
             x = x.value
         if isinstance(y, Attribute):
             y = y.value
+        x = float(x)
+        y = float(y)
+        if cls is Vec2 and _isfinite(x) and _isfinite(y):
+            # Fast path (every arithmetic result): the state the general
+            # constructor below leaves, written in one ``__dict__`` update.
+            # Reactive Design, "Vec2 (scenamath.py)"; guard:
+            # test_vec2_temp_fast_path (same dict as the general path).
+            system = _state._global_scena_system
+            if system is not None:
+                v = _object_new(Vec2)
+                d = v.__dict__
+                d.update(_TEMP_STATE)
+                d['_scena_system'] = system
+                d['_parts'] = ContainerSet()
+                d['x'] = x
+                d['y'] = y
+                return v
         with ephemeral_creation():
-            return cls(x=float(x), y=float(y))
+            return cls(x=x, y=y)
 
     @overload
     def __new__(cls) -> 'Vec2': ...
@@ -335,8 +352,24 @@ class Vec2(Container):
 
     def _materialize_derivate_part(self, name: str) -> None:
         """Fill lazy length/angle from current x/y on first access."""
-        x = float(self.__dict__.get('x', 0.0))
-        y = float(self.__dict__.get('y', 0.0))
+        d = self.__dict__
+        x = float(d.get('x', 0.0))
+        y = float(d.get('y', 0.0))
+        if (type(self) is Vec2 and d.get('_node_id') is None and d.get('_owner') is None
+                and not d.get('_field_anchors')):
+            # A free vector no graph node observes (every arithmetic result):
+            # store what the write below would. It would also bump a pose cell
+            # and queue it for the collision drain, which no collider reads.
+            if name == 'length':
+                value = math.sqrt(x * x + y * y)
+            elif name == 'angle':
+                value = math.degrees(math.atan2(y, x))
+            else:
+                return
+            if _isfinite(value):
+                if value != d.get(name, 0.0):
+                    d[name] = value
+                return
         with self._no_update():
             if name == 'length':
                 self.length = math.sqrt(x * x + y * y)
@@ -385,8 +418,9 @@ class Vec2(Container):
 
     def normalize(self) -> 'Vec2':
         """Return normalized vector (unit length)."""
-        if self.length > 0:
-            return Vec2.temp(x=self.x / self.length, y=self.y / self.length)
+        n = self.length
+        if n > 0:
+            return Vec2.temp(x=self.x / n, y=self.y / n)
         return Vec2.temp()
 
     def rotate(self, angle: float) -> 'Vec2':
@@ -478,9 +512,10 @@ class Vec2(Container):
         Clamp this vector's length between min and max values.
         Useful for limiting forces, velocities, etc.
         """
-        if self.length == 0:
+        n = self.length
+        if n == 0:
             return Vec2.temp()
-        return self * (min(max(self.length, min_length), max_length) / self.length)
+        return self * (min(max(n, min_length), max_length) / n)
 
     # Arithmetic operations
     def __add__(self, other):
@@ -491,10 +526,10 @@ class Vec2(Container):
         Returns:
             Vec2 when adding Vec2 or tuple, Point when adding Point
         """
-        from .shapes import Point
         if isinstance(other, Vec2):
             return Vec2.temp(x=self.x + other.x, y=self.y + other.y)
-        elif isinstance(other, Point):
+        from .shapes import Point
+        if isinstance(other, Point):
             return Point.temp(self.x + other.x, self.y + other.y)
         elif (isinstance(other, (tuple, list)) and len(other) == 2
               and type(other[0]) is not bool and type(other[1]) is not bool):
@@ -512,10 +547,10 @@ class Vec2(Container):
         Returns:
             Vec2 when subtracting Vec2 or tuple, Point when subtracting Point
         """
-        from .shapes import Point
         if isinstance(other, Vec2):
             return Vec2.temp(x=self.x - other.x, y=self.y - other.y)
-        elif isinstance(other, Point):
+        from .shapes import Point
+        if isinstance(other, Point):
             return Point.temp(self.x - other.x, self.y - other.y)
         elif (isinstance(other, (tuple, list)) and len(other) == 2
               and type(other[0]) is not bool and type(other[1]) is not bool):
@@ -527,13 +562,14 @@ class Vec2(Container):
 
     def __iadd__(self, other):
         """Implements the += operator for in-place addition."""
-        from .shapes import Point
         self._refuse_author_write()
         if isinstance(other, Vec2):
             with self._batch_update():
                 self.x += other.x
                 self.y += other.y
-        elif isinstance(other, Point):
+            return self
+        from .shapes import Point
+        if isinstance(other, Point):
             with self._batch_update():
                 self.x += other.x
                 self.y += other.y
@@ -548,13 +584,14 @@ class Vec2(Container):
     
     def __isub__(self, other):
         """Implements the -= operator for in-place subtraction."""
-        from .shapes import Point
         self._refuse_author_write()
         if isinstance(other, Vec2):
             with self._batch_update():
                 self.x -= other.x
                 self.y -= other.y
-        elif isinstance(other, Point):
+            return self
+        from .shapes import Point
+        if isinstance(other, Point):
             with self._batch_update():
                 self.x -= other.x
                 self.y -= other.y
@@ -757,9 +794,10 @@ class Vec2(Container):
         Clamp this vector's length between min and max values.
         Useful for limiting forces, velocities, etc.
         """
-        if self.length == 0:
+        n = self.length
+        if n == 0:
             return Vec2.temp()
-        return self * (min(max(self.length, min_length), max_length) / self.length)
+        return self * (min(max(n, min_length), max_length) / n)
 
     # Self modifying methods -------------------------------------------------------------------------------------------------------
 
@@ -777,6 +815,21 @@ class Vec2(Container):
         with self._batch_update():
             self.x = x
             self.y = y
+
+
+_object_new = object.__new__
+_isfinite = math.isfinite
+
+# What ``Vec2.temp`` leaves in a fresh vector's ``__dict__`` (ephemeral,
+# ownerless, sealed), in the general constructor's key order. ``_scena_system``,
+# ``_parts`` (a fresh ContainerSet each), ``x`` and ``y`` are filled per call.
+_TEMP_STATE = {
+    '_node_id': None, '_ephemeral': True, '_scena_system': None, '_owner': None,
+    '_parts': None, '_attr_name': 'vec2', '_name': 'vec2',
+    '_in_batch_update': False, '_dirty': False, '_resolving': False, '_link': None,
+    '_field_type': FieldType.Defining, '_derivate_live': False,
+    '_needs_pull_invalidate': False, 'x': 0.0, 'y': 0.0, _SEALED: True,
+}
 
 
 # Standalone methods -------------------------------------------------------------------------------------------------------
