@@ -1,7 +1,8 @@
-ninja.json, ninja_perigos.json
+ninja.json, ninja_perigos.json, duelo.json
 
-A level file for the Ninja tutorials (21 and 22), made for Scena (written
-by a script in the level editor's own format). Creative Commons Zero (CC0) /
+Level files for the Ninja tutorials (26 and 27) and the Duelo tutorial (30),
+made for Scena (written by a script or by hand, in the level editor's own
+format). Creative Commons Zero (CC0) /
 Public Domain: use it freely, no credit needed.
 https://creativecommons.org/publicdomain/zero/1.0/
 

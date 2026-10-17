@@ -34,6 +34,13 @@ Bug classes guarded (catalogue: Testing Design, TU):
   width and color are ``@=`` formulas on the chosen ball's ``vel``, which
   only ``resolve`` changes (a ball-ball hit). Each frame the bar agrees with
   the speed, and the speed does change, so the check is not vacuous.
+* **Two players no step run moves** (tutorial 30, Duelo): the choice act
+  hands the chosen ship to the duel; a ship rides its rail (always on the
+  curve, stopping at the ends, coasting after the key); a laser bounces three
+  times and goes on the fourth; a big asteroid splits in two and a small one
+  breaks; the shield takes three blows (laser or asteroid) and then the ship
+  takes damage; a broken star sends its power-up to the shooter; a ship out
+  of energy ends the duel, and Space goes back to the choice.
 
 Run:
 
@@ -194,6 +201,160 @@ class TestNinjaElevator(unittest.TestCase):
             run.step(60)
             self.assertEqual(ns["st"].vidas, 0)
             self.assertLess(heroi.center.y, 0, "sent back to the start")
+
+
+class TestDueloRules(unittest.TestCase):
+    """Tutorial 30: the rules two players reach, played on purpose."""
+
+    PATH = "examples/duelo.py"
+
+    def _start(self, run, tipo_azul=None):
+        if tipo_azul == 2:
+            self._tap(run, "D")
+        self._tap(run, "TAB")
+        self._tap(run, "ENTER")
+        run.step(2)
+        ns = run.ns
+        naves = list(ns["group"]["naves"])
+        self.assertEqual(len(naves), 2, "the choice did not start the duel")
+        azul = [n for n in naves if n.teclas["tiro"] == "TAB"][0]
+        vermelha = [n for n in naves if n.teclas["tiro"] == "ENTER"][0]
+        for a in list(ns["group"]["asteroides"]):
+            a.destroy()
+        ns["PUXAO"] = 0                 # lasers fly straight in these checks
+        return ns, azul, vermelha
+
+    def _tap(self, run, name):
+        run.key_down(name)
+        run.step(1)
+        run.key_up(name)
+        run.step(1)
+
+    def _laser(self, ns, at, vel, dono):
+        tiro = ns["Tiro"](frame="laserBlue01.png", center=at)
+        tiro.vel = ns["Vec2"](*vel)
+        tiro.dono = dono
+        return tiro
+
+    def test_the_choice_picks_the_drawing(self):
+        with ProgramRun(self.PATH) as run:
+            run.step(2)
+            ns, azul, vermelha = self._start(run, tipo_azul=2)
+            folha = ns["folha"]
+            self.assertEqual(azul.frame, folha.frame_index("playerShip2_blue.png"))
+            self.assertEqual(vermelha.frame, folha.frame_index("playerShip1_red.png"))
+
+    def test_the_ship_rides_its_rail(self):
+        with ProgramRun(self.PATH) as run:
+            run.step(2)
+            ns, azul, _ = self._start(run)
+            start = azul.u
+            run.key_down("W")
+            for _ in range(40):
+                run.step(1)
+                self.assertLess(ns["distance"](azul, azul.trilho.at(azul.u)), 0.5, "off the rail")
+            run.key_up("W")
+            run.step(2)
+            moving = azul.u
+            self.assertGreater(moving, start)
+            run.step(10)
+            self.assertGreater(azul.u, moving, "no coasting after the key")
+            run.key_down("W")
+            run.step(240)                  # far more than the rail
+            self.assertEqual(azul.u, 1)
+            self.assertEqual(azul.passo, 0)
+            run.key_up("W")
+
+    def test_a_laser_bounces_three_times(self):
+        with ProgramRun(self.PATH) as run:
+            run.step(2)
+            ns, azul, _ = self._start(run)
+            tiro = self._laser(ns, (560, 400), (0, 700), azul)
+            seen = 0
+            for _ in range(60 * 6):
+                run.step(1)
+                if not tiro:
+                    break
+                seen = tiro.batidas
+            self.assertFalse(tiro, "the laser outlived its fourth hit")
+            self.assertEqual(seen, 3)
+
+    def test_an_asteroid_splits_then_breaks(self):
+        with ProgramRun(self.PATH) as run:
+            run.step(2)
+            ns, azul, _ = self._start(run)
+            grande = ns["Asteroide"](center=(560, 460))
+            grande.vel = ns["Vec2"](0, 0)
+            self._laser(ns, (560, 360), (0, 700), azul)
+            run.step(20)
+            pedacos = list(ns["group"]["asteroides"])
+            self.assertFalse(grande)
+            self.assertEqual(len(pedacos), 2)
+            self.assertEqual({p.height for p in pedacos}, {30})
+            alvo = pedacos[0]
+            alvo.vel = ns["Vec2"](0, 0)
+            self._laser(ns, (alvo.center.x, alvo.center.y - 80), (0, 700), azul)
+            run.step(20)
+            self.assertFalse(alvo, "the small one did not break")
+            self.assertEqual(len(ns["group"]["asteroides"]), 1)
+
+    def test_the_shield_takes_three_blows(self):
+        with ProgramRun(self.PATH) as run:
+            run.step(2)
+            ns, azul, vermelha = self._start(run)
+            azul.escudo.cargas = 3
+            azul.escudo.active = True
+            y = azul.center.y
+            for left in (2, 1):
+                self._laser(ns, (250, y), (-700, 0), vermelha)
+                run.step(20)
+                self.assertEqual(azul.escudo.cargas, left)
+            pedra = ns["Asteroide"](frame="meteorBrown_small1.png", height=30, center=(240, y))
+            pedra.vel = ns["Vec2"](-200, 0)
+            run.step(40)
+            self.assertFalse(pedra, "the shield did not break the asteroid")
+            self.assertFalse(azul.escudo.active)
+            self.assertEqual(azul.energia, 100)
+            self._laser(ns, (250, y), (-700, 0), vermelha)
+            run.step(20)
+            self.assertEqual(azul.energia, 90)
+
+    def test_a_broken_star_sends_the_power_up_to_the_shooter(self):
+        with ProgramRun(self.PATH) as run:
+            run.step(2)
+            ns, azul, vermelha = self._start(run)
+            azul.energia = 50
+            estrela = ns["Alvo"](center=(250, 600))
+            self._laser(ns, (250, 520), (0, 700), azul)
+            run.step(20)
+            self.assertFalse(estrela)
+            self.assertEqual(len(ns["group"]["poderes"]), 1)
+            for _ in range(60 * 6):
+                run.step(1)
+                if not ns["group"]["poderes"]:
+                    break
+            self.assertTrue(azul.energia == 90 or azul.escudo.active, "the shooter never got it")
+
+    def test_out_of_energy_ends_the_duel(self):
+        with ProgramRun(self.PATH) as run:
+            run.step(2)
+            ns, azul, vermelha = self._start(run)
+            # inside a frame, as a hit would: a timer of the duel act
+            ns["after"](0.01, lambda: setattr(vermelha, "energia", 0))
+            run.step(5)
+            self.assertFalse(vermelha)
+            self.assertEqual(ns["st"].vencedor, "AZUL")
+            run.step(100)
+            self.assertEqual(len(ns["group"]["naves"]), 1)
+            run.step(100)                   # 3 s after the blast: the victory act
+            self.assertEqual(len(ns["group"]["naves"]), 0)
+            self._tap(run, "SPACE")
+            run.step(2)
+            self.assertEqual(len(ns["group"]["naves"]), 0)
+            self._tap(run, "TAB")
+            self._tap(run, "ENTER")
+            run.step(2)
+            self.assertEqual(len(ns["group"]["naves"]), 2, "the choice did not come back")
 
 
 if __name__ == "__main__":

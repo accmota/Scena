@@ -23,24 +23,28 @@ its last step here.
 | 08 Naves IV · Escudo | `naves_escudo.py` |
 | 09 Fórmulas | `formulas.py` |
 | 10 Bolas | `bolas.py` |
-| 11 Interação | `interacao.py` |
-| 12 Órbitas | `trilhas.py`, `orbitas.py` |
-| 13 Giros | `barras_girando.py`, `osciloscopio.py` |
-| 14 Avião | `aviao.py` |
-| 15 Avião II · Profundidade | `aviao_profundidade.py` |
-| 16 Avião III · Paisagem sem fim | `aviao_paisagem.py` |
-| 17 Ninja | `ninja.py` |
-| 18 Ninja II · O mundo | `ninja_mundo.py` |
-| 19 Ligue 4 | `ligue4.py` |
-| 20 Estúdio · Piano | `piano.py` |
-| 21 Estúdio II · Voz | `estudio_voz.py` |
-| 22 Naves V · Capítulos e sequências | `naves_modos.py` |
-| 23 Naves VI · Atos | `naves_atos.py` |
-| 24 Ninja III · O nível | `ninja_nivel.py` |
-| 25 Ninja IV · Perigos | `ninja_perigos.py` |
-| 26 Corredor infinito | `corredor.py` |
+| 11 Interação | `interacao.py`, `ceu_estrelado.py` |
+| 12 Movimento | `movimento.py` |
+| 13 Trilhas | `trilhas.py` |
+| 14 Órbitas | `orbitas.py` |
+| 15 Avião | `aviao.py` |
+| 16 Avião II · Profundidade | `aviao_profundidade.py` |
+| 17 Avião III · Paisagem sem fim | `aviao_paisagem.py` |
+| 18 Ninja | `ninja.py` |
+| 19 Ninja II · O mundo | `ninja_mundo.py` |
+| 20 Colisão | `colisao.py` |
+| 21 Ligue 4 | `ligue4.py` |
+| 22 Estúdio · Piano | `piano.py` |
+| 23 Estúdio II · Voz | `estudio_voz.py` |
+| 24 Naves V · Capítulos e sequências | `naves_modos.py` |
+| 25 Naves VI · Atos | `naves_atos.py` |
+| 26 Ninja III · O nível | `ninja_nivel.py` |
+| 27 Ninja IV · Perigos | `ninja_perigos.py` |
+| 28 Corredor infinito | `corredor.py` |
+| 29 Giros | `barras_girando.py`, `osciloscopio.py` |
+| 30 Duelo | `duelo.py` |
 
-The appendices (`A-…` to `F-…` in the same folder) are reference pages made of
+The appendices (`A-…` to `G-…` in the same folder) are reference pages made of
 short programs; they end in no file here.
 
 ## Other examples

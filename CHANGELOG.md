@@ -326,6 +326,17 @@ left out.
 
 ### Documentation
 
+- A new tutorial after Giros, 30 Duelo: a game for two players on one
+  keyboard. Each ship rides a curved rail from the level file
+  (`trilho.at(u)`, `angle_at`) and steers like a wheel, both with `chase` as
+  weight; the keys of each player live in a dictionary; lasers bounce three
+  times (`resolve(…, bounce=1.0)` with a counter in `@collide_with`) and
+  bend near a `Warp` whose pull falls with the cube of the distance; a
+  barrier of crates, asteroids that split in two, electric rays between two
+  balls on an upright eight (`Track.eight(angle=90)`, `phase=`), a star
+  whose power-up flies on a `Track` built on the spot (`zigzag`,
+  `speed=`), a shield, and a ship-choice act. `examples/duelo.py` is the
+  last step; the arena is the new CC0 `levels/duelo.json`.
 - Tutorial 10 (Bolas) ends in a new step, "O velocímetro": a bar in the
   window (`layer="ui"`) shows the golden ball's speed. Its width and color
   are `@=` formulas on `escolhida.vel.length`, the color sampled from a

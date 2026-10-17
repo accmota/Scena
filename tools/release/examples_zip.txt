@@ -13,6 +13,7 @@ examples/ceu_estrelado.py
 examples/colisao.py
 examples/corredor.py
 examples/desenho.py
+examples/duelo.py
 examples/entropia.py
 examples/estudio_voz.py
 examples/formulas.py
@@ -26,12 +27,14 @@ examples/media/audio/Victory.mp3
 examples/media/audio/explosion01.wav
 examples/media/audio/explosion02.wav
 examples/media/audio/explosion03.wav
+examples/media/audio/explosion04.wav
 examples/media/audio/fx1.wav
 examples/media/audio/fx2.wav
 examples/media/audio/gameover.wav
 examples/media/audio/impactBell_heavy_000.ogg
 examples/media/audio/impactGeneric_light_003.ogg
 examples/media/audio/impactPlank_medium_002.ogg
+examples/media/audio/impactPunch_heavy_001.ogg
 examples/media/audio/laser-big.wav
 examples/media/audio/laser4.wav
 examples/media/audio/laser7.wav
@@ -65,6 +68,7 @@ examples/media/k-textures/License.txt
 examples/media/k-textures/floor_ground_dirt.png
 examples/media/k-textures/wall_rock.png
 examples/media/k-textures/wall_stone.png
+examples/media/levels/duelo.json
 examples/media/levels/license.txt
 examples/media/levels/ninja.json
 examples/media/levels/ninja_perigos.json

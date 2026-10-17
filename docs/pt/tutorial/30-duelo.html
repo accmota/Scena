@@ -1,0 +1,3528 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Duelo — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "30",
+  title: "Duelo",
+  steps: [
+    {
+      title: "A arena",
+      body: `
+        <p>Novo jogo, para duas pessoas no mesmo teclado: duas naves, uma de cada lado de uma arena fechada, trocando tiros de laser. A tela não anda; tudo acontece dentro dela.</p>
+        <p>A arena vem de um arquivo de fase, como no Ninja III (26): <code>media/levels/duelo.json</code>, feito no editor de fases. Nele estão as quatro paredes, os cantos curvos, duas pedras e alguns pontos com nome. O código decide o que cada item vira. No meio, um <code>Warp</code> (dobra): um redemoinho que, daqui a alguns passos, vai puxar os tiros.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "Stardust(",
+          text: "O fundo: <code>Stardust</code> (poeira de estrelas), uma poeira de espaço em duas cores que se move devagar."
+        },
+        {
+          at: "ColorWash(",
+          text: "Um efeito de tela: <code>ColorWash</code> (lavada de cor) passa manchas de cor, bem fracas (<code>amount=0.25</code>), por cima de tudo. Ele não pertence a nenhum objeto; vale para a tela inteira."
+        },
+        {
+          at: "fase = Level(",
+          text: "<code>Level</code> (fase) só lê o arquivo; não cria nada na tela. Os nomes do editor viram perguntas: <code>fase[\"buraco\"]</code> é o ponto com esse nome, <code>fase.group(\"parede\")</code> é a lista dos itens desse grupo."
+        },
+        {
+          at: "BORDA = 60",
+          text: "Um nome para o raio do <code>Warp</code>. Ele volta no passo em que o Warp começa a puxar."
+        },
+        {
+          at: "item.make(color=\"#2b3a55\")",
+          text: "<code>make()</code> (fazer) cria a forma como ela foi desenhada no editor. No grupo <code>parede</code> há quatro retângulos e quatro <code>Concave</code> (côncavo): uma caixa com um pedaço de círculo tirado dela. Nos cantos, eles arredondam a arena por dentro."
+        },
+        {
+          at: "pedra.fill =",
+          text: "As pedras são trilhas fechadas e suaves (<code>Track</code>) com um traço grosso. Um <code>fill</code> (preenchimento) pinta o lado de dentro, e o traço vira a borda da pedra."
+        },
+        {
+          at: "Warp(center=BURACO",
+          text: "Um efeito que vive no mundo, num ponto e com um raio, como o <code>Jet</code> do 06. <code>spin</code> (giro) faz o redemoinho girar."
+        }
+      ],
+      after: `
+        <p>Rode. A arena aparece, ainda vazia. Se quiser ver como a fase foi desenhada, abra o arquivo no editor (no terminal: <code>python -m scena_editor media/levels/duelo.json</code>).</p>
+      `,
+      try: [
+        {
+          note: "Outros fundos de poeira, um por vez, no lugar do <code>Stardust</code>. Mais no Guia: <a href=\"../guide/index.html#mundo-background\">Fundos</a>.",
+          replaces: ['Stardust('],
+          code: `Nebuladust(color="violet", color2="teal", color3="navy")
+Chromadust("plasma")`
+        }
+      ]
+    },
+    {
+      title: "Uma nave num trilho",
+      body: [
+        `
+        <p>A nave deste jogo não voa solta. Ela anda num trilho, uma curva que passa pelo lugar onde ela começa, e só pode ir para cima e para baixo nele. O trilho também está na fase: é uma <code>Track</code> (trilha) chamada <code>trilho_azul</code>, com três pontos e curvada para o meio da arena.</p>
+        <p>Como dizer onde a nave está no trilho? Com um número só, o <code>u</code>. Ele vale 0 numa ponta, 1 na outra, e 0.5 no meio do caminho. Quem transforma o <code>u</code> num ponto da tela é o próprio trilho:</p>
+        `,
+        {
+          snip: `self.center = self.trilho.at(self.u)`
+        },
+        `
+        <figure class="fig">
+          <svg viewBox="0 0 320 220" role="img" aria-label="Um trilho curvo, em pé. Na ponta de baixo, u igual a 0; no meio, u igual a 0.5, onde a nave começa; na ponta de cima, u igual a 1. Um ponto mais acima do meio marca u igual a 0.75.">
+            <path class="ray" fill="none" d="M 140 200 Q 60 110 140 20"/>
+            <circle class="dot" cx="140" cy="200" r="5"/>
+            <circle class="dot" cx="100" cy="110" r="5"/>
+            <circle class="dot" cx="140" cy="20" r="5"/>
+            <circle class="hot" cx="110" cy="65" r="7"/>
+            <text x="152" y="204">u = 0</text>
+            <text x="114" y="114">u = 0.5 (o começo)</text>
+            <text x="124" y="69">u = 0.75</text>
+            <text x="152" y="24">u = 1</text>
+            <text x="190" y="150">W: o u cresce</text>
+            <text x="190" y="170">S: o u diminui</text>
+          </svg>
+          <figcaption><code>trilho.at(u)</code> (no ponto u) devolve o lugar da curva: 0 numa ponta, 1 na outra, e o resto no meio, na proporção do caminho. A nave anda mudando o <code>u</code>, nunca a posição direto.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        self.passo = 0
+        self.u = 0.5
+
+    def on_update(self, dt):
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp("W"):
+            alvo = 260
+        if keyp("S"):
+            alvo = -260
+        self.passo = alvo
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "self.u = 0.5",
+          text: "A nave começa no meio do trilho. O ponto <code>azul</code> da fase, onde ela nasce, fica bem ali."
+        },
+        {
+          at: "alvo = 260",
+          text: "<code>alvo</code> é a velocidade que a tecla pede, em unidades por segundo: 260 para cima com <kbd>W</kbd>, −260 para baixo com <kbd>S</kbd>, 0 sem tecla."
+        },
+        {
+          at: "self.trilho.length",
+          text: "O <code>u</code> conta o caminho em frações, e a velocidade está em unidades. Dividir pelo comprimento do trilho (<code>length</code>) faz a troca: num trilho de 480, andar 260 por segundo é somar 0.54 ao <code>u</code> a cada segundo."
+        },
+        {
+          at: "if self.u > 1:",
+          text: "O trilho acaba. Passou de 1 (ou de 0, logo abaixo), a nave fica na ponta e o passo zera."
+        },
+        {
+          at: "fase[\"trilho_azul\"].make()",
+          text: "O trilho é feito sem cor: só para a viagem, invisível. Para vê-lo enquanto testa, aperte <kbd>Ctrl+Shift+7</kbd> (mostra as trilhas e os colisores; Apêndice A)."
+        }
+      ],
+      after: `
+        <p>Rode e segure <kbd>W</kbd> e <kbd>S</kbd>. A nave sobe e desce pela curva e para nas pontas. Ela anda de lado e continua de frente para o meio da arena, como um vagão num trilho.</p>
+        <details class="ask"><summary>Por que o trilho não é desenhado no código, com <code>Track(points=…)</code>?</summary><p>Poderia ser. Na fase, a curva fica no mesmo arquivo que as paredes e as pedras: dá para ajustá-la no editor, olhando a arena inteira, sem mexer no código.</p></details>
+      `
+    },
+    {
+      title: "Inércia",
+      body: `
+        <p>A nave para e anda na hora, como um cursor. Naves têm peso: elas demoram um pouco para ganhar velocidade e um pouco para perder. Uma linha muda isso.</p>
+        <p>No lugar de copiar o <code>alvo</code> para o <code>passo</code>, o <code>passo</code> vai até o <code>alvo</code> aos poucos, com o <code>chase</code> (perseguir) que o Avião (15) usou para inclinar o manche.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        self.passo = 0
+        self.u = 0.5
+
+    def on_update(self, dt):
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp("W"):
+            alvo = 260
+        if keyp("S"):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "chase(self.passo, alvo, 5)",
+          text: "<code>chase</code> devolve um valor um pouco mais perto do alvo a cada quadro: anda depressa quando falta muito e devagar quando falta pouco. Com <code>5</code>, em meio segundo o passo já fez uns 90% do caminho. Soltando a tecla, o alvo vira 0, e a nave vai parando do mesmo jeito."
+        }
+      ],
+      after: `
+        <p>Rode. Troque o <code>5</code> por <code>1</code> e rode de novo: a nave fica pesada, quase um navio. Com <code>20</code>, ela volta a ser um cursor.</p>
+      `
+    },
+    {
+      title: "O volante",
+      body: `
+        <p>Andar no trilho não basta para mirar. <kbd>A</kbd> e <kbd>D</kbd> vão girar a nave, e com o mesmo peso: o giro também chega aos poucos e volta aos poucos, como um volante.</p>
+        <p>O jeito é o do trilho, com outros nomes: <code>alvo</code> é o giro que a tecla pede, em graus por segundo, e <code>self.giro</code> vai até ele com <code>chase</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        self.giro = 0
+        self.passo = 0
+        self.u = 0.5
+
+    def on_update(self, dt):
+        # O volante: o giro chega aos poucos e volta aos poucos.
+        alvo = 0
+        if keyp("A"):
+            alvo = 200
+        if keyp("D"):
+            alvo = -200
+        self.giro = chase(self.giro, alvo, 5)
+        self.rotate_by(self.giro * dt)
+
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp("W"):
+            alvo = 260
+        if keyp("S"):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "self.giro = 0",
+          text: "O giro de agora, em graus por segundo. Começa parado."
+        },
+        {
+          at: "alvo = 200",
+          text: "Para a esquerda, o ângulo cresce (anti-horário): <kbd>A</kbd> pede 200 graus por segundo, <kbd>D</kbd> pede −200."
+        },
+        {
+          at: "self.rotate_by(self.giro * dt)",
+          text: "<code>rotate_by</code> (girar de) soma graus ao ângulo da nave. A cada quadro, o giro de um quadro: <code>self.giro * dt</code>."
+        }
+      ],
+      after: `
+        <p>Rode. Gire e solte: a nave ainda gira um pouco antes de parar. Os dois movimentos são independentes: dá para descer o trilho girando.</p>
+        <details class="ask"><summary>O <code>alvo</code> aparece duas vezes no <code>on_update</code>. Não dá confusão?</summary><p>Não: ele é refeito antes de cada uso. Primeiro vale o giro pedido e é lido pelo <code>chase</code> do giro; depois volta a 0, vira o passo pedido e é lido pelo <code>chase</code> do passo.</p></details>
+      `
+    },
+    {
+      title: "O jato",
+      body: `
+        <p>Uma nave que anda de lado precisa de um jato de lado. Um <code>Jet</code> (jato) vai sair da nave do lado contrário ao movimento, empurrando-a pelo trilho, e crescer com a velocidade.</p>
+        <p>Até aqui, um <code>Jet</code> nascia preso a um ponto com uma <code>lambda</code>. Este muda de lado conforme a nave sobe ou desce; é mais simples acertar a ponta, a direção e a força dele a cada quadro, no <code>on_update</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        self.giro = 0
+        self.passo = 0
+        self.u = 0.5
+        self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
+
+    def on_update(self, dt):
+        # O volante: o giro chega aos poucos e volta aos poucos.
+        alvo = 0
+        if keyp("A"):
+            alvo = 200
+        if keyp("D"):
+            alvo = -200
+        self.giro = chase(self.giro, alvo, 5)
+        self.rotate_by(self.giro * dt)
+
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp("W"):
+            alvo = 260
+        if keyp("S"):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+        # O jato sai do lado de trás do movimento, na linha do trilho, e
+        # cresce com a velocidade.
+        rumo = self.trilho.angle_at(self.u)
+        if self.passo < 0:
+            rumo += 180
+        self.jato.origin = self.center - vec_from_angle(rumo, 22)
+        self.jato.angle = rumo + 180
+        self.jato.amount = abs(self.passo) / 160
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "self.jato = Jet(",
+          text: "O jato nasce apagado (<code>amount=0</code>, intensidade zero). O <code>on_update</code> o põe no lugar."
+        },
+        {
+          at: "self.trilho.angle_at(self.u)",
+          text: "<code>angle_at</code> (ângulo no ponto u) é a direção do trilho ali, em graus: para onde o <code>u</code> cresce. Como o trilho é curvo, ela muda um pouco ao longo do caminho."
+        },
+        {
+          at: "rumo += 180",
+          text: "Descendo, o movimento é para o outro lado: meia volta."
+        },
+        {
+          at: "self.jato.origin =",
+          text: "A ponta do jato fica 22 atrás do centro, contra o movimento, e ele aponta para trás (<code>rumo + 180</code>)."
+        },
+        {
+          at: "abs(self.passo) / 160",
+          text: "<code>abs</code> (valor absoluto) tira o sinal: −260 vira 260. O jato cresce com a velocidade, para os dois lados; parada, a nave fica sem jato."
+        }
+      ]
+    },
+    {
+      title: "Atirar",
+      body: `
+        <p><kbd>TAB</kbd> atira um laser para onde o nariz da nave aponta. O laser é uma classe, como o tiro das Naves: cada um guarda a própria velocidade.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+
+
+class Tiro(Sprite, source=folha, height=26, art_angle=90, hitbox_shape="circle", group="tiros"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        # "add" soma a luz do laser ao fundo: o laser brilha, e não custa nada.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        self.giro = 0
+        self.passo = 0
+        self.u = 0.5
+        self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
+
+    def on_update(self, dt):
+        # O volante: o giro chega aos poucos e volta aos poucos.
+        alvo = 0
+        if keyp("A"):
+            alvo = 200
+        if keyp("D"):
+            alvo = -200
+        self.giro = chase(self.giro, alvo, 5)
+        self.rotate_by(self.giro * dt)
+
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp("W"):
+            alvo = 260
+        if keyp("S"):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+        # O jato sai do lado de trás do movimento, na linha do trilho, e
+        # cresce com a velocidade.
+        rumo = self.trilho.angle_at(self.u)
+        if self.passo < 0:
+            rumo += 180
+        self.jato.origin = self.center - vec_from_angle(rumo, 22)
+        self.jato.angle = rumo + 180
+        self.jato.amount = abs(self.passo) / 160
+
+        if keyp("TAB") and self.ready("tiro", 0.3):
+            self.atirar()
+
+    def atirar(self):
+        tiro = Tiro(frame="laserBlue01.png", center=self.center + vec_from_angle(self.angle, 52))
+        tiro.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "self.blend = \"add\"",
+          text: "<code>blend</code> (mistura) com <code>\"add\"</code> (somar) soma a cor do laser à do fundo, como uma luz: no espaço escuro, o laser brilha. Caixa abaixo do código: por que não o <code>glow</code>."
+        },
+        {
+          at: "self.angle = self.vel.angle",
+          text: "O laser aponta para onde vai. Por enquanto ele vai reto, mas daqui a pouco vai quicar e fazer curva."
+        },
+        {
+          at: "self.ready(\"tiro\", 0.3)",
+          text: "<code>self.ready</code> é o <code>ready</code> (pronto) desta nave: no máximo um tiro a cada 0,3 s. Com duas naves, cada uma terá o seu."
+        },
+        {
+          at: "vec_from_angle(self.angle, 52)",
+          text: "O laser nasce 52 à frente do centro, na direção do nariz: fora da nave."
+        },
+        {
+          at: "@leave_playfield(\"tiros\")",
+          text: "O laser que sai da tela é destruído. Logo eles vão quicar nas paredes, e quase nenhum vai sair."
+        }
+      ],
+      dive: [
+        {
+          title: "Glow ou blend?",
+          body: `
+            <p>O <code>glow</code> (brilho) desenha um halo em volta do objeto, e esse halo custa: para cada laser, o Scena pinta a imagem de novo, borrada. Num computador rápido, com 30 lasers na tela, o jogo caiu de uns 1270 para uns 590 quadros por segundo. O <code>blend = "add"</code> muda só como a imagem se mistura com o fundo, e não custa nada a mais. No tamanho de um laser, os dois quase não se distinguem.</p>
+            <p>A regra serve para todo complemento: num herói, num chefe, à vontade. Em coisas que aparecem às dezenas, como tiros, partículas ou moedas, prefira o que é de graça.</p>
+            <p>No Guia: <a href="../guide/index.html#aparencia-blend">Blend</a> · <a href="../guide/index.html#aparencia-selos">Complementos</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Dois jogadores",
+      body: [
+        `
+        <p>Agora a nave vermelha, do outro lado, para a outra pessoa. A classe é a mesma; o que muda são as teclas, a cor do laser e o trilho. A esquerda joga com <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> e <kbd>TAB</kbd>; a direita, com as setas e <kbd>ENTER</kbd>.</p>
+        <p>As cinco teclas de cada jogador ficam num <strong>dicionário</strong>: uma tabela que liga nomes a valores, escrita entre chaves:</p>
+        `,
+        {
+          snip: `TECLAS_ESQUERDA = {"cima": "W", "baixo": "S", "esquerda": "A", "direita": "D", "tiro": "TAB"}`
+        },
+        `
+        <p>Cada par é <code>nome: valor</code>. Para ler, o nome vai entre colchetes: <code>TECLAS_ESQUERDA["tiro"]</code> é <code>"TAB"</code>. Uma lista também guarda cinco teclas, mas aí <code>teclas[4]</code> não diz o que a tecla faz; <code>teclas["tiro"]</code> diz.</p>
+        <div class="tbl"><table><thead><tr><th>Nome</th><th>Esquerda</th><th>Direita</th></tr></thead><tbody>
+          <tr><td><code>"cima"</code> / <code>"baixo"</code></td><td><kbd>W</kbd> / <kbd>S</kbd></td><td><kbd>↑</kbd> / <kbd>↓</kbd></td></tr>
+          <tr><td><code>"esquerda"</code> / <code>"direita"</code></td><td><kbd>A</kbd> / <kbd>D</kbd></td><td><kbd>←</kbd> / <kbd>→</kbd></td></tr>
+          <tr><td><code>"tiro"</code></td><td><kbd>TAB</kbd></td><td><kbd>ENTER</kbd></td></tr>
+        </tbody></table></div>
+        <p>Cada nave recebe o seu dicionário num campo, <code>self.teclas</code>, e pergunta por nome: <code>keyp(self.teclas["cima"])</code>.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+
+TECLAS_ESQUERDA = {"cima": "W", "baixo": "S", "esquerda": "A", "direita": "D", "tiro": "TAB"}
+TECLAS_DIREITA = {"cima": "UP", "baixo": "DOWN", "esquerda": "LEFT", "direita": "RIGHT", "tiro": "ENTER"}
+
+
+class Tiro(Sprite, source=folha, height=26, art_angle=90, hitbox_shape="circle", group="tiros"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        # "add" soma a luz do laser ao fundo: o laser brilha, e não custa nada.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        self.giro = 0
+        self.passo = 0
+        self.u = 0.5
+        self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
+
+    def on_update(self, dt):
+        # O volante: o giro chega aos poucos e volta aos poucos.
+        alvo = 0
+        if keyp(self.teclas["esquerda"]):
+            alvo = 200
+        if keyp(self.teclas["direita"]):
+            alvo = -200
+        self.giro = chase(self.giro, alvo, 5)
+        self.rotate_by(self.giro * dt)
+
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp(self.teclas["cima"]):
+            alvo = 260
+        if keyp(self.teclas["baixo"]):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+        # O jato sai do lado de trás do movimento, na linha do trilho, e
+        # cresce com a velocidade.
+        rumo = self.trilho.angle_at(self.u)
+        if self.passo < 0:
+            rumo += 180
+        self.jato.origin = self.center - vec_from_angle(rumo, 22)
+        self.jato.angle = rumo + 180
+        self.jato.amount = abs(self.passo) / 160
+
+        if keyp(self.teclas["tiro"]) and self.ready("tiro", 0.3):
+            self.atirar()
+
+    def atirar(self):
+        tiro = Tiro(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        tiro.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+        self.azul.teclas = TECLAS_ESQUERDA
+        self.azul.laser = "laserBlue01.png"
+        self.vermelha = Nave(frame="playerShip1_red.png", center=fase["vermelha"].center)
+        self.vermelha.angle = 180
+        self.vermelha.trilho = fase["trilho_vermelho"].make()
+        self.vermelha.teclas = TECLAS_DIREITA
+        self.vermelha.laser = "laserRed01.png"
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "self.azul.teclas = TECLAS_ESQUERDA",
+          text: "Os campos de cada nave são dados depois que ela nasce, no ato, como a <code>espera</code> de cada inimigo nas Naves VI (25). O <code>setup</code> roda dentro de <code>Nave(…)</code>, antes desta linha: por isso ele não lê as teclas, e só o <code>on_update</code> as usa."
+        },
+        {
+          at: "self.vermelha.angle = 180",
+          text: "A vermelha nasce virada para a esquerda, para a azul."
+        },
+        {
+          at: "frame=self.laser",
+          text: "O laser de cada nave tem a cor dela: <code>laserBlue01.png</code> ou <code>laserRed01.png</code>."
+        }
+      ],
+      after: `
+        <p>Rode com alguém. Os lasers atravessam as naves e as paredes: ainda não existe colisão nenhuma.</p>
+      `
+    },
+    {
+      title: "Tiros que quicam",
+      body: `
+        <p>Um laser que bate na parede volta, e um laser bem mirado acerta depois de quicar. Cada um quica no máximo três vezes; na quarta batida, some.</p>
+        <p>Quicar é um <code>resolve</code> com <code>bounce=1.0</code>, como nas Bolas (10). E, para dar o que fazer aos tiros, duas barras de metal giram perto dos cantos.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+
+TECLAS_ESQUERDA = {"cima": "W", "baixo": "S", "esquerda": "A", "direita": "D", "tiro": "TAB"}
+TECLAS_DIREITA = {"cima": "UP", "baixo": "DOWN", "esquerda": "LEFT", "direita": "RIGHT", "tiro": "ENTER"}
+
+
+class Tiro(Sprite, source=folha, height=26, art_angle=90, hitbox_shape="circle", group="tiros"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.batidas = 0
+        # "add" soma a luz do laser ao fundo: o laser brilha, e não custa nada.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        self.batidas += 1
+        if self.batidas > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        self.giro = 0
+        self.passo = 0
+        self.u = 0.5
+        self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
+
+    def on_update(self, dt):
+        # O volante: o giro chega aos poucos e volta aos poucos.
+        alvo = 0
+        if keyp(self.teclas["esquerda"]):
+            alvo = 200
+        if keyp(self.teclas["direita"]):
+            alvo = -200
+        self.giro = chase(self.giro, alvo, 5)
+        self.rotate_by(self.giro * dt)
+
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp(self.teclas["cima"]):
+            alvo = 260
+        if keyp(self.teclas["baixo"]):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+        # O jato sai do lado de trás do movimento, na linha do trilho, e
+        # cresce com a velocidade.
+        rumo = self.trilho.angle_at(self.u)
+        if self.passo < 0:
+            rumo += 180
+        self.jato.origin = self.center - vec_from_angle(rumo, 22)
+        self.jato.angle = rumo + 180
+        self.jato.amount = abs(self.passo) / 160
+
+        if keyp(self.teclas["tiro"]) and self.ready("tiro", 0.3):
+            self.atirar()
+
+    def atirar(self):
+        tiro = Tiro(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        tiro.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+
+resolve("tiros", "parede", bounce=1.0)
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        for item in fase.group("barra"):
+            barra = item.make(group="parede", visual=Metal())
+            barra.rotate_by(360, time=4, loops="forever")
+        group["parede"].mass = STATIC
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+        self.azul.teclas = TECLAS_ESQUERDA
+        self.azul.laser = "laserBlue01.png"
+        self.vermelha = Nave(frame="playerShip1_red.png", center=fase["vermelha"].center)
+        self.vermelha.angle = 180
+        self.vermelha.trilho = fase["trilho_vermelho"].make()
+        self.vermelha.teclas = TECLAS_DIREITA
+        self.vermelha.laser = "laserRed01.png"
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "self.batidas = 0",
+          text: "Quantas vezes este laser já quicou."
+        },
+        {
+          at: "if self.batidas > 3:",
+          text: "Na quarta batida, um clarão pequeno onde ele tocou e o laser some."
+        },
+        {
+          at: "barra.rotate_by(360,",
+          text: "Uma volta a cada 4 segundos, para sempre. Um laser que bate na barra quica para onde ela está virada naquele instante."
+        },
+        {
+          at: "group[\"parede\"].mass = STATIC",
+          text: "Paredes, pedras e barras ficam paradas (<code>STATIC</code>): quem quica é o laser."
+        },
+        {
+          at: "resolve(\"tiros\", \"parede\", bounce=1.0)",
+          text: "A regra fica valendo para todo laser que nascer: no contato, o Scena o tira de dentro da parede e espelha a velocidade (<code>bounce=1.0</code>: sai tão rápido quanto chegou)."
+        }
+      ],
+      after: `
+        <p>Rode e atire contra as paredes, os cantos curvos e as pedras. O laser segue a curva do canto e volta para o meio.</p>
+        <details class="ask"><summary>O <code>@collide_with("parede")</code> conta a batida. Mas quem faz o laser quicar é o <code>resolve</code>. Qual vem antes?</summary><p>No mesmo quadro, o Scena primeiro chama as funções de colisão e depois resolve. Na quarta batida, o <code>bateu</code> destrói o laser, e o <code>resolve</code> já não tem o que quicar.</p></details>
+      `
+    },
+    {
+      title: "O Warp puxa",
+      body: [
+        `
+        <p>O redemoinho do meio vai puxar os lasers. De longe quase nada, de perto muito: um laser que passa rente ao Warp faz uma curva, e um bom jogador usa isso para mirar por trás de um obstáculo.</p>
+        <p>A força do puxão fica num nome, <code>PUXAO</code>: é quanto o laser ganha de velocidade por segundo na borda do Warp. Mais longe, ela cai, e cai depressa. A conta usa a proporção entre a borda e a distância:</p>
+        `,
+        {
+          snip: `perto = BORDA / max(d, BORDA)
+self.vel += vec_from_angle(heading(self, BURACO), PUXAO * perto ** 3 * dt)`
+        },
+        `
+        <p><code>perto</code> vale 1 na borda, 1/2 no dobro da distância, 1/3 no triplo. <code>** 3</code> é elevado ao cubo: o número vezes ele mesmo, três vezes. No dobro da distância, o puxão é 1/2 × 1/2 × 1/2 = 1/8 do da borda; no triplo, 1/27.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 200" role="img" aria-label="O Warp no centro, com três anéis em volta: na borda, a 60, o puxão vale 400; no dobro, a 120, vale 50; no triplo, a 180, vale 15. Um laser passa perto e faz uma curva.">
+            <circle class="bar" cx="110" cy="100" r="22"/>
+            <circle class="guide" fill="none" cx="110" cy="100" r="44"/>
+            <circle class="guide" fill="none" cx="110" cy="100" r="66"/>
+            <path class="ray" fill="none" d="M 400 40 L 230 46 Q 150 52 152 192"/>
+            <text x="110" y="104" text-anchor="middle">1</text>
+            <text x="110" y="158" text-anchor="middle">1/8</text>
+            <text x="110" y="182" text-anchor="middle">1/27</text>
+            <text x="250" y="110">borda (60): 400</text>
+            <text x="250" y="130">dobro (120): 50</text>
+            <text x="250" y="150">triplo (180): 15</text>
+            <text x="250" y="170">300: 3</text>
+            <text x="236" y="30">um laser passa e curva</text>
+          </svg>
+          <figcaption>Com <code>PUXAO = 400</code>, a borda puxa 400; o dobro da distância, 50; o triplo, 15. Por isso o laser que passa longe quase não sente o Warp, e o que passa perto faz a curva.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+PUXAO = 400     # o puxão na borda do Warp: quanto um tiro ali ganha de velocidade por segundo
+
+TECLAS_ESQUERDA = {"cima": "W", "baixo": "S", "esquerda": "A", "direita": "D", "tiro": "TAB"}
+TECLAS_DIREITA = {"cima": "UP", "baixo": "DOWN", "esquerda": "LEFT", "direita": "RIGHT", "tiro": "ENTER"}
+
+
+class Tiro(Sprite, source=folha, height=26, art_angle=90, hitbox_shape="circle", group="tiros"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.batidas = 0
+        # "add" soma a luz do laser ao fundo: o laser brilha, e não custa nada.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # perto vale 1 na borda do Warp, 1/2 no dobro da distância, 1/3 no
+        # triplo. Ao cubo, o puxão cai depressa: 1/8 no dobro, 1/27 no triplo.
+        # Dentro da borda ele não cresce mais; além de 300 nem vale a conta.
+        d = distance(self, BURACO)
+        if d < 300:
+            perto = BORDA / max(d, BORDA)
+            self.vel += vec_from_angle(heading(self, BURACO), PUXAO * perto ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        self.batidas += 1
+        if self.batidas > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        self.giro = 0
+        self.passo = 0
+        self.u = 0.5
+        self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
+
+    def on_update(self, dt):
+        # O volante: o giro chega aos poucos e volta aos poucos.
+        alvo = 0
+        if keyp(self.teclas["esquerda"]):
+            alvo = 200
+        if keyp(self.teclas["direita"]):
+            alvo = -200
+        self.giro = chase(self.giro, alvo, 5)
+        self.rotate_by(self.giro * dt)
+
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp(self.teclas["cima"]):
+            alvo = 260
+        if keyp(self.teclas["baixo"]):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+        # O jato sai do lado de trás do movimento, na linha do trilho, e
+        # cresce com a velocidade.
+        rumo = self.trilho.angle_at(self.u)
+        if self.passo < 0:
+            rumo += 180
+        self.jato.origin = self.center - vec_from_angle(rumo, 22)
+        self.jato.angle = rumo + 180
+        self.jato.amount = abs(self.passo) / 160
+
+        if keyp(self.teclas["tiro"]) and self.ready("tiro", 0.3):
+            self.atirar()
+
+    def atirar(self):
+        tiro = Tiro(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        tiro.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+
+resolve("tiros", "parede", bounce=1.0)
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        for item in fase.group("barra"):
+            barra = item.make(group="parede", visual=Metal())
+            barra.rotate_by(360, time=4, loops="forever")
+        group["parede"].mass = STATIC
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+        self.azul.teclas = TECLAS_ESQUERDA
+        self.azul.laser = "laserBlue01.png"
+        self.vermelha = Nave(frame="playerShip1_red.png", center=fase["vermelha"].center)
+        self.vermelha.angle = 180
+        self.vermelha.trilho = fase["trilho_vermelho"].make()
+        self.vermelha.teclas = TECLAS_DIREITA
+        self.vermelha.laser = "laserRed01.png"
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "PUXAO = 400",
+          text: "O botão da força: mude este número para o Warp puxar mais ou menos."
+        },
+        {
+          at: "d = distance(self, BURACO)",
+          text: "A distância do laser ao centro do Warp."
+        },
+        {
+          at: "if d < 300:",
+          text: "A 300, o puxão já é 3 por segundo: nem dá para ver. Mais longe, o laser nem faz a conta."
+        },
+        {
+          at: "max(d, BORDA)",
+          text: "Dentro da borda, o puxão não cresce mais: <code>max</code> nunca deixa a distância passar para menos de 60."
+        },
+        {
+          at: "heading(self, BURACO)",
+          text: "<code>heading</code> (rumo) é a direção do laser ao centro. <code>vec_from_angle</code> faz uma seta nessa direção, com o tamanho do puxão de um quadro, e o <code>+=</code> a soma à velocidade."
+        }
+      ],
+      after: `
+        <p>Rode e atire passando perto do Warp. Experimente <code>PUXAO = 1500</code>: alguns lasers dão a volta no redemoinho.</p>
+      `,
+      try: [
+        {
+          note: "O expoente decide quão depressa o puxão some, um por vez no lugar da linha do <code>+=</code>. Com <code>** 2</code>, o dobro da distância puxa 1/4: o Warp alcança mais longe. Com <code>** 4</code>, 1/16: só puxa quem passa rente.",
+          replaces: ['self.vel += vec_from_angle('],
+          code: `self.vel += vec_from_angle(heading(self, BURACO), PUXAO * perto ** 2 * dt)`
+        }
+      ]
+    },
+    {
+      title: "Energia",
+      body: `
+        <p>Um laser que acerta uma nave tira 10 de energia. Cada nave começa com 100, e uma barra no alto da tela mostra quanto sobra: azul à esquerda, vermelha à direita. Quase sem energia, a nave pega fogo.</p>
+        <p>O acerto é uma regra do jogo, não de uma nave só: ela vai no topo do arquivo, com <code>@collide("naves", "tiros")</code>, e serve para as duas.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+PUXAO = 400     # o puxão na borda do Warp: quanto um tiro ali ganha de velocidade por segundo
+
+TECLAS_ESQUERDA = {"cima": "W", "baixo": "S", "esquerda": "A", "direita": "D", "tiro": "TAB"}
+TECLAS_DIREITA = {"cima": "UP", "baixo": "DOWN", "esquerda": "LEFT", "direita": "RIGHT", "tiro": "ENTER"}
+
+
+class Tiro(Sprite, source=folha, height=26, art_angle=90, hitbox_shape="circle", group="tiros"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.batidas = 0
+        # "add" soma a luz do laser ao fundo: o laser brilha, e não custa nada.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # perto vale 1 na borda do Warp, 1/2 no dobro da distância, 1/3 no
+        # triplo. Ao cubo, o puxão cai depressa: 1/8 no dobro, 1/27 no triplo.
+        # Dentro da borda ele não cresce mais; além de 300 nem vale a conta.
+        d = distance(self, BURACO)
+        if d < 300:
+            perto = BORDA / max(d, BORDA)
+            self.vel += vec_from_angle(heading(self, BURACO), PUXAO * perto ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        self.batidas += 1
+        if self.batidas > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        self.giro = 0
+        self.passo = 0
+        self.u = 0.5
+        self.energia = 100
+        self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo.active = False
+
+    def on_update(self, dt):
+        # O volante: o giro chega aos poucos e volta aos poucos.
+        alvo = 0
+        if keyp(self.teclas["esquerda"]):
+            alvo = 200
+        if keyp(self.teclas["direita"]):
+            alvo = -200
+        self.giro = chase(self.giro, alvo, 5)
+        self.rotate_by(self.giro * dt)
+
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp(self.teclas["cima"]):
+            alvo = 260
+        if keyp(self.teclas["baixo"]):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+        # O jato sai do lado de trás do movimento, na linha do trilho, e
+        # cresce com a velocidade.
+        rumo = self.trilho.angle_at(self.u)
+        if self.passo < 0:
+            rumo += 180
+        self.jato.origin = self.center - vec_from_angle(rumo, 22)
+        self.jato.angle = rumo + 180
+        self.jato.amount = abs(self.passo) / 160
+
+        if keyp(self.teclas["tiro"]) and self.ready("tiro", 0.3):
+            self.atirar()
+
+    def atirar(self):
+        tiro = Tiro(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        tiro.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energia < 30)
+    def pegou_fogo(self):
+        self.fogo.active = True
+
+    @when(lambda self: self.energia >= 30)
+    def apagou(self):
+        self.fogo.active = False
+
+
+resolve("tiros", "parede", bounce=1.0)
+
+
+@collide("naves", "tiros")
+def acertou(nave, tiro, info):
+    tiro.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    nave.flash(0.1)
+    nave.energia -= 10
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        for item in fase.group("barra"):
+            barra = item.make(group="parede", visual=Metal())
+            barra.rotate_by(360, time=4, loops="forever")
+        group["parede"].mass = STATIC
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+        self.azul.teclas = TECLAS_ESQUERDA
+        self.azul.laser = "laserBlue01.png"
+        self.vermelha = Nave(frame="playerShip1_red.png", center=fase["vermelha"].center)
+        self.vermelha.angle = 180
+        self.vermelha.trilho = fase["trilho_vermelho"].make()
+        self.vermelha.teclas = TECLAS_DIREITA
+        self.vermelha.laser = "laserRed01.png"
+
+        self.azul.barra = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.azul.barra["width"] @= lambda: max(self.azul.energia, 0) * 3
+        self.vermelha.barra = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.vermelha.barra["width"] @= lambda: max(self.vermelha.energia, 0) * 3
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "self.fogo = Fire(",
+          text: "Um fogo pequeno (<code>radius=20</code>) um pouco atrás do centro, que segue a nave por uma <code>lambda</code>. Ele nasce desligado (<code>active = False</code>)."
+        },
+        {
+          at: "@when(lambda self: self.energia < 30)",
+          text: "Quando a energia cai abaixo de 30, o fogo acende. O <code>@when</code> de baixo o apaga se a energia voltar; um poder vai devolver energia mais adiante."
+        },
+        {
+          at: "def acertou(nave, tiro, info):",
+          text: "As duas naves estão no grupo <code>naves</code>. O <code>info</code> diz onde foi o toque: o <code>hit_at</code> acende ali um clarão, e a nave pisca branco (<code>flash</code>)."
+        },
+        {
+          at: "self.azul.barra[\"width\"] @=",
+          text: "A largura da barra ligada à energia: 3 de largura por ponto, 300 cheia. O <code>max(…, 0)</code> segura a barra em zero se a energia passar para baixo."
+        }
+      ],
+      after: `
+        <p>Rode e acerte a outra nave algumas vezes. Uma nave também pode se acertar: um laser que quica volta para quem atirou.</p>
+        <details class="ask"><summary>E quando a energia chega a zero?</summary><p>Nada: a barra fica vazia e a nave continua. Falta o fim do duelo.</p></details>
+      `
+    },
+    {
+      title: "Fim do duelo",
+      body: `
+        <p>Sem energia, a nave explode, e três segundos depois a tela diz quem venceu. <kbd>ESPAÇO</kbd> começa outro duelo.</p>
+        <p>Como no Corredor (28), o fim é uma troca de ato: um ato <code>Vitoria</code>, só com o aviso, e de volta ao <code>Duelo</code>, que monta tudo de novo.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+PUXAO = 400     # o puxão na borda do Warp: quanto um tiro ali ganha de velocidade por segundo
+
+TECLAS_ESQUERDA = {"cima": "W", "baixo": "S", "esquerda": "A", "direita": "D", "tiro": "TAB"}
+TECLAS_DIREITA = {"cima": "UP", "baixo": "DOWN", "esquerda": "LEFT", "direita": "RIGHT", "tiro": "ENTER"}
+st.vencedor = ""
+
+
+class Tiro(Sprite, source=folha, height=26, art_angle=90, hitbox_shape="circle", group="tiros"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.batidas = 0
+        # "add" soma a luz do laser ao fundo: o laser brilha, e não custa nada.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # perto vale 1 na borda do Warp, 1/2 no dobro da distância, 1/3 no
+        # triplo. Ao cubo, o puxão cai depressa: 1/8 no dobro, 1/27 no triplo.
+        # Dentro da borda ele não cresce mais; além de 300 nem vale a conta.
+        d = distance(self, BURACO)
+        if d < 300:
+            perto = BORDA / max(d, BORDA)
+            self.vel += vec_from_angle(heading(self, BURACO), PUXAO * perto ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        self.batidas += 1
+        if self.batidas > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        self.giro = 0
+        self.passo = 0
+        self.u = 0.5
+        self.energia = 100
+        self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo.active = False
+
+    def on_update(self, dt):
+        # O volante: o giro chega aos poucos e volta aos poucos.
+        alvo = 0
+        if keyp(self.teclas["esquerda"]):
+            alvo = 200
+        if keyp(self.teclas["direita"]):
+            alvo = -200
+        self.giro = chase(self.giro, alvo, 5)
+        self.rotate_by(self.giro * dt)
+
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp(self.teclas["cima"]):
+            alvo = 260
+        if keyp(self.teclas["baixo"]):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+        # O jato sai do lado de trás do movimento, na linha do trilho, e
+        # cresce com a velocidade.
+        rumo = self.trilho.angle_at(self.u)
+        if self.passo < 0:
+            rumo += 180
+        self.jato.origin = self.center - vec_from_angle(rumo, 22)
+        self.jato.angle = rumo + 180
+        self.jato.amount = abs(self.passo) / 160
+
+        if keyp(self.teclas["tiro"]) and self.ready("tiro", 0.3):
+            self.atirar()
+
+    def atirar(self):
+        tiro = Tiro(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        tiro.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energia < 30)
+    def pegou_fogo(self):
+        self.fogo.active = True
+
+    @when(lambda self: self.energia >= 30)
+    def apagou(self):
+        self.fogo.active = False
+
+    def on_destroy(self):
+        self.jato.destroy()
+        self.fogo.destroy()
+        self.barra.destroy()
+
+
+resolve("tiros", "parede", bounce=1.0)
+
+
+@collide("naves", "tiros")
+def acertou(nave, tiro, info):
+    tiro.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    nave.flash(0.1)
+    nave.energia -= 10
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        for item in fase.group("barra"):
+            barra = item.make(group="parede", visual=Metal())
+            barra.rotate_by(360, time=4, loops="forever")
+        group["parede"].mass = STATIC
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+        self.azul.teclas = TECLAS_ESQUERDA
+        self.azul.laser = "laserBlue01.png"
+        self.vermelha = Nave(frame="playerShip1_red.png", center=fase["vermelha"].center)
+        self.vermelha.angle = 180
+        self.vermelha.trilho = fase["trilho_vermelho"].make()
+        self.vermelha.teclas = TECLAS_DIREITA
+        self.vermelha.laser = "laserRed01.png"
+
+        self.azul.barra = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.azul.barra["width"] @= lambda: max(self.azul.energia, 0) * 3
+        self.vermelha.barra = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.vermelha.barra["width"] @= lambda: max(self.vermelha.energia, 0) * 3
+
+    @when(lambda self: self.azul.energia <= 0 or self.vermelha.energia <= 0)
+    def fim(self):
+        if self.azul.energia <= 0:
+            perdeu = self.azul
+            st.vencedor = "VERMELHO"
+        else:
+            perdeu = self.vermelha
+            st.vencedor = "AZUL"
+        canvas.explosion_at(perdeu, amount=1.6)
+        canvas.debris_at(perdeu, color="gray", radius=70)
+        canvas.shake(14)
+        play_sound("audio/explosion04.wav")
+        perdeu.destroy()
+        self.after(3, lambda: change_act(Vitoria))
+
+
+class Vitoria(Act):
+    def setup(self):
+        Text(text=f"{st.vencedor} VENCEU", center=(640, 420), font_size=64, color="gold")
+        Text(text="aperte ESPAÇO", center=(640, 320), font_size=22)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Duelo)
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "st.vencedor = \"\"",
+          text: "O nome de quem venceu fica no <code>st</code>, que passa de um ato para o outro."
+        },
+        {
+          at: "def on_destroy(self):",
+          text: "O jato, o fogo e a barra são partes da nave: saem com ela. Sem isso, a fórmula da barra continuaria lendo a energia de uma nave que não existe mais."
+        },
+        {
+          at: "@when(lambda self: self.azul.energia <= 0 or",
+          text: "Um <code>@when</code> do ato: roda uma vez, quando a primeira das duas zera."
+        },
+        {
+          at: "canvas.explosion_at(perdeu",
+          text: "Uma explosão grande, cacos sem fogo (<code>debris_at</code>) e a tela tremendo (<code>shake</code>). Depois, a nave sai do jogo."
+        },
+        {
+          at: "self.after(3, lambda: change_act(Vitoria))",
+          text: "Três segundos para ver a explosão. O <code>after</code> é do ato: se ele sair antes, o timer sai junto."
+        }
+      ]
+    },
+    {
+      title: "A barreira",
+      body: `
+        <p>No começo, cada nave fica atrás de uma barreira de cinco caixas pequenas, a um quarto e a três quartos da largura da arena. Um laser estoura a caixa em que bate. A barreira dá alguns segundos de respiro, e abrir buracos nela vira parte do jogo.</p>
+        <p>As caixas estão na fase, no grupo <code>caixa</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+PUXAO = 400     # o puxão na borda do Warp: quanto um tiro ali ganha de velocidade por segundo
+
+TECLAS_ESQUERDA = {"cima": "W", "baixo": "S", "esquerda": "A", "direita": "D", "tiro": "TAB"}
+TECLAS_DIREITA = {"cima": "UP", "baixo": "DOWN", "esquerda": "LEFT", "direita": "RIGHT", "tiro": "ENTER"}
+st.vencedor = ""
+
+
+class Tiro(Sprite, source=folha, height=26, art_angle=90, hitbox_shape="circle", group="tiros"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.batidas = 0
+        # "add" soma a luz do laser ao fundo: o laser brilha, e não custa nada.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # perto vale 1 na borda do Warp, 1/2 no dobro da distância, 1/3 no
+        # triplo. Ao cubo, o puxão cai depressa: 1/8 no dobro, 1/27 no triplo.
+        # Dentro da borda ele não cresce mais; além de 300 nem vale a conta.
+        d = distance(self, BURACO)
+        if d < 300:
+            perto = BORDA / max(d, BORDA)
+            self.vel += vec_from_angle(heading(self, BURACO), PUXAO * perto ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        self.batidas += 1
+        if self.batidas > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        self.giro = 0
+        self.passo = 0
+        self.u = 0.5
+        self.energia = 100
+        self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo.active = False
+
+    def on_update(self, dt):
+        # O volante: o giro chega aos poucos e volta aos poucos.
+        alvo = 0
+        if keyp(self.teclas["esquerda"]):
+            alvo = 200
+        if keyp(self.teclas["direita"]):
+            alvo = -200
+        self.giro = chase(self.giro, alvo, 5)
+        self.rotate_by(self.giro * dt)
+
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp(self.teclas["cima"]):
+            alvo = 260
+        if keyp(self.teclas["baixo"]):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+        # O jato sai do lado de trás do movimento, na linha do trilho, e
+        # cresce com a velocidade.
+        rumo = self.trilho.angle_at(self.u)
+        if self.passo < 0:
+            rumo += 180
+        self.jato.origin = self.center - vec_from_angle(rumo, 22)
+        self.jato.angle = rumo + 180
+        self.jato.amount = abs(self.passo) / 160
+
+        if keyp(self.teclas["tiro"]) and self.ready("tiro", 0.3):
+            self.atirar()
+
+    def atirar(self):
+        tiro = Tiro(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        tiro.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energia < 30)
+    def pegou_fogo(self):
+        self.fogo.active = True
+
+    @when(lambda self: self.energia >= 30)
+    def apagou(self):
+        self.fogo.active = False
+
+    def on_destroy(self):
+        self.jato.destroy()
+        self.fogo.destroy()
+        self.barra.destroy()
+
+
+resolve("tiros", "parede", bounce=1.0)
+
+
+@collide("naves", "tiros")
+def acertou(nave, tiro, info):
+    tiro.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    nave.flash(0.1)
+    nave.energia -= 10
+
+
+@collide("tiros", "caixa")
+def estourou(tiro, caixa):
+    canvas.burst_at(caixa, radius=24)
+    canvas.debris_at(caixa, color="peru", radius=24)
+    play_sound("audio/explosion01.wav", volume=0.4)
+    tiro.destroy()
+    caixa.destroy()
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        for item in fase.group("barra"):
+            barra = item.make(group="parede", visual=Metal())
+            barra.rotate_by(360, time=4, loops="forever")
+        for item in fase.group("caixa"):
+            item.make(color="peru")
+        group["parede"].mass = STATIC
+        group["caixa"].mass = STATIC
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+        self.azul.teclas = TECLAS_ESQUERDA
+        self.azul.laser = "laserBlue01.png"
+        self.vermelha = Nave(frame="playerShip1_red.png", center=fase["vermelha"].center)
+        self.vermelha.angle = 180
+        self.vermelha.trilho = fase["trilho_vermelho"].make()
+        self.vermelha.teclas = TECLAS_DIREITA
+        self.vermelha.laser = "laserRed01.png"
+
+        self.azul.barra = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.azul.barra["width"] @= lambda: max(self.azul.energia, 0) * 3
+        self.vermelha.barra = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.vermelha.barra["width"] @= lambda: max(self.vermelha.energia, 0) * 3
+
+    @when(lambda self: self.azul.energia <= 0 or self.vermelha.energia <= 0)
+    def fim(self):
+        if self.azul.energia <= 0:
+            perdeu = self.azul
+            st.vencedor = "VERMELHO"
+        else:
+            perdeu = self.vermelha
+            st.vencedor = "AZUL"
+        canvas.explosion_at(perdeu, amount=1.6)
+        canvas.debris_at(perdeu, color="gray", radius=70)
+        canvas.shake(14)
+        play_sound("audio/explosion04.wav")
+        perdeu.destroy()
+        self.after(3, lambda: change_act(Vitoria))
+
+
+class Vitoria(Act):
+    def setup(self):
+        Text(text=f"{st.vencedor} VENCEU", center=(640, 420), font_size=64, color="gold")
+        Text(text="aperte ESPAÇO", center=(640, 320), font_size=22)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Duelo)
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "item.make(color=\"peru\")",
+          text: "Dez quadrados de 20, cinco de cada lado, na cor <code>peru</code> (um marrom-alaranjado)."
+        },
+        {
+          at: "def estourou(tiro, caixa):",
+          text: "Uma explosão do tamanho da caixa (<code>burst_at</code>) e os cacos dela (<code>debris_at</code>, com a cor da caixa). A caixa e o laser saem: ela segura o tiro, em vez de devolvê-lo."
+        }
+      ]
+    },
+    {
+      title: "Asteroides",
+      body: `
+        <p>Três asteroides vagam pela arena, quicando nas paredes, nas caixas e nas naves. Um laser divide o asteroide grande em dois pequenos, que saem para os lados do tiro; um laser destrói o pequeno. Quando não sobra nenhum, chegam três novos.</p>
+        <p>O asteroide pequeno é a mesma classe com outra imagem e outro tamanho: a pergunta <code>if self.height > 40</code> diz se este ainda se divide.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+PUXAO = 400     # o puxão na borda do Warp: quanto um tiro ali ganha de velocidade por segundo
+
+TECLAS_ESQUERDA = {"cima": "W", "baixo": "S", "esquerda": "A", "direita": "D", "tiro": "TAB"}
+TECLAS_DIREITA = {"cima": "UP", "baixo": "DOWN", "esquerda": "LEFT", "direita": "RIGHT", "tiro": "ENTER"}
+st.vencedor = ""
+
+
+class Tiro(Sprite, source=folha, height=26, art_angle=90, hitbox_shape="circle", group="tiros"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.batidas = 0
+        # "add" soma a luz do laser ao fundo: o laser brilha, e não custa nada.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # perto vale 1 na borda do Warp, 1/2 no dobro da distância, 1/3 no
+        # triplo. Ao cubo, o puxão cai depressa: 1/8 no dobro, 1/27 no triplo.
+        # Dentro da borda ele não cresce mais; além de 300 nem vale a conta.
+        d = distance(self, BURACO)
+        if d < 300:
+            perto = BORDA / max(d, BORDA)
+            self.vel += vec_from_angle(heading(self, BURACO), PUXAO * perto ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        self.batidas += 1
+        if self.batidas > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        # Presa ao trilho, a nave não cede: um asteroide quica nela.
+        self.mass = STATIC
+        self.giro = 0
+        self.passo = 0
+        self.u = 0.5
+        self.energia = 100
+        self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo.active = False
+
+    def on_update(self, dt):
+        # O volante: o giro chega aos poucos e volta aos poucos.
+        alvo = 0
+        if keyp(self.teclas["esquerda"]):
+            alvo = 200
+        if keyp(self.teclas["direita"]):
+            alvo = -200
+        self.giro = chase(self.giro, alvo, 5)
+        self.rotate_by(self.giro * dt)
+
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp(self.teclas["cima"]):
+            alvo = 260
+        if keyp(self.teclas["baixo"]):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+        # O jato sai do lado de trás do movimento, na linha do trilho, e
+        # cresce com a velocidade.
+        rumo = self.trilho.angle_at(self.u)
+        if self.passo < 0:
+            rumo += 180
+        self.jato.origin = self.center - vec_from_angle(rumo, 22)
+        self.jato.angle = rumo + 180
+        self.jato.amount = abs(self.passo) / 160
+
+        if keyp(self.teclas["tiro"]) and self.ready("tiro", 0.3):
+            self.atirar()
+
+    def atirar(self):
+        tiro = Tiro(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        tiro.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energia < 30)
+    def pegou_fogo(self):
+        self.fogo.active = True
+
+    @when(lambda self: self.energia >= 30)
+    def apagou(self):
+        self.fogo.active = False
+
+    def on_destroy(self):
+        self.jato.destroy()
+        self.fogo.destroy()
+        self.barra.destroy()
+
+
+class Asteroide(Sprite, source=folha, frame="meteorBrown_big1.png", height=64,
+                hitbox_shape="circle", group="asteroides"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), uniform(40, 90))
+        self.giro = uniform(-60, 60)
+
+    def on_update(self, dt):
+        self.rotate_by(self.giro * dt)
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("tiros")
+    def atingido(self, tiro, info):
+        canvas.debris_at(self, color="sienna", radius=self.height)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        # O grande se divide em dois pequenos, que saem para os lados do tiro.
+        if self.height > 40:
+            for lado in [90, -90]:
+                pedaco = Asteroide(frame="meteorBrown_small1.png", height=30,
+                                   center=self.center + vec_from_angle(tiro.vel.angle + lado, 18))
+                pedaco.vel = vec_from_angle(tiro.vel.angle + lado, 110)
+        tiro.destroy()
+        self.destroy()
+
+
+resolve("tiros", "parede", bounce=1.0)
+resolve("asteroides", ["parede", "caixa", "naves"], bounce=1.0)
+resolve("asteroides", "asteroides", bounce=1.0)
+
+
+@collide("naves", "tiros")
+def acertou(nave, tiro, info):
+    tiro.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    nave.flash(0.1)
+    nave.energia -= 10
+
+
+@collide("naves", "asteroides")
+def bateu(nave, asteroide, info):
+    canvas.hit_at(info, style="disc", radius=14)
+    play_sound("audio/impactPlank_medium_002.ogg", volume=0.5)
+    nave.energia -= 2
+
+
+@collide("tiros", "caixa")
+def estourou(tiro, caixa):
+    canvas.burst_at(caixa, radius=24)
+    canvas.debris_at(caixa, color="peru", radius=24)
+    play_sound("audio/explosion01.wav", volume=0.4)
+    tiro.destroy()
+    caixa.destroy()
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+def criar_asteroides():
+    for item in fase.group("asteroide"):
+        Asteroide(center=item.center)
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        for item in fase.group("barra"):
+            barra = item.make(group="parede", visual=Metal())
+            barra.rotate_by(360, time=4, loops="forever")
+        for item in fase.group("caixa"):
+            item.make(color="peru")
+        group["parede"].mass = STATIC
+        group["caixa"].mass = STATIC
+        criar_asteroides()
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+        self.azul.teclas = TECLAS_ESQUERDA
+        self.azul.laser = "laserBlue01.png"
+        self.vermelha = Nave(frame="playerShip1_red.png", center=fase["vermelha"].center)
+        self.vermelha.angle = 180
+        self.vermelha.trilho = fase["trilho_vermelho"].make()
+        self.vermelha.teclas = TECLAS_DIREITA
+        self.vermelha.laser = "laserRed01.png"
+
+        self.azul.barra = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.azul.barra["width"] @= lambda: max(self.azul.energia, 0) * 3
+        self.vermelha.barra = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.vermelha.barra["width"] @= lambda: max(self.vermelha.energia, 0) * 3
+
+    @every(15)
+    def mais_asteroides(self):
+        if group["asteroides"].empty:
+            criar_asteroides()
+
+    @when(lambda self: self.azul.energia <= 0 or self.vermelha.energia <= 0)
+    def fim(self):
+        if self.azul.energia <= 0:
+            perdeu = self.azul
+            st.vencedor = "VERMELHO"
+        else:
+            perdeu = self.vermelha
+            st.vencedor = "AZUL"
+        canvas.explosion_at(perdeu, amount=1.6)
+        canvas.debris_at(perdeu, color="gray", radius=70)
+        canvas.shake(14)
+        play_sound("audio/explosion04.wav")
+        perdeu.destroy()
+        self.after(3, lambda: change_act(Vitoria))
+
+
+class Vitoria(Act):
+    def setup(self):
+        Text(text=f"{st.vencedor} VENCEU", center=(640, 420), font_size=64, color="gold")
+        Text(text="aperte ESPAÇO", center=(640, 320), font_size=22)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Duelo)
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "from random import uniform",
+          text: "<code>uniform</code> sorteia um número qualquer entre dois: cada asteroide sai numa direção e com uma velocidade sua."
+        },
+        {
+          at: "self.mass = STATIC",
+          text: "A nave anda presa ao trilho. Parada para o <code>resolve</code> (<code>STATIC</code>), ela não é empurrada: o asteroide quica nela."
+        },
+        {
+          at: "for lado in [90, -90]:",
+          text: "Dois pedaços: um 90° à esquerda do tiro, outro 90° à direita. Cada um nasce 18 para o seu lado e sai a 110 por segundo."
+        },
+        {
+          at: "resolve(\"asteroides\", [\"parede\"",
+          text: "Os asteroides quicam no que é sólido, e uns nos outros na linha de baixo. Os lasers não estão na lista: quem cuida deles é o <code>atingido</code>."
+        },
+        {
+          at: "def bateu(nave, asteroide, info):",
+          text: "Um asteroide que bate na nave tira pouco, 2 de energia, mas tira."
+        },
+        {
+          at: "if group[\"asteroides\"].empty:",
+          text: "<code>empty</code> (vazio): o grupo não tem ninguém. A cada 15 segundos, o ato confere e, se for o caso, manda outros três para os pontos <code>asteroide</code> da fase."
+        }
+      ],
+      after: `
+        <p>Rode e atire num asteroide grande, depois nos pedaços. Os asteroides também viram escudo: um asteroide entre você e a outra nave segura os tiros dela.</p>
+      `
+    },
+    {
+      title: "Raios elétricos",
+      body: [
+        `
+        <p>Em cima e embaixo do Warp, duas bolas de metal dão voltas num oito em pé, uma quase meia volta atrás da outra. No cruzamento do oito elas passam perto, e um raio elétrico as liga; nas pontas, ficam longe, e o raio some. Ligado, o raio queima os lasers que o cruzam.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 214" role="img" aria-label="Dois oitos em pé. No da esquerda, as duas bolas estão perto do cruzamento, ligadas por um raio. No da direita, uma bola está na ponta de cima e a outra na de baixo, longe, sem raio.">
+            <path class="guide" fill="none" d="M 90 105 C 40 65, 40 15, 90 15 C 140 15, 140 65, 90 105 C 40 145, 40 195, 90 195 C 140 195, 140 145, 90 105"/>
+            <path class="guide" fill="none" d="M 270 105 C 220 65, 220 15, 270 15 C 320 15, 320 65, 270 105 C 220 145, 220 195, 270 195 C 320 195, 320 145, 270 105"/>
+            <line class="ray" stroke-width="4" x1="78" y1="92" x2="102" y2="122"/>
+            <circle class="dot" cx="78" cy="92" r="7"/>
+            <circle class="dot" cx="102" cy="122" r="7"/>
+            <circle class="dot" cx="270" cy="15" r="7"/>
+            <circle class="dot" cx="270" cy="195" r="7"/>
+            <text x="90" y="208" text-anchor="middle">perto: raio</text>
+            <text x="270" y="208" text-anchor="middle">longe: nada</text>
+          </svg>
+          <figcaption>As duas bolas andam no mesmo oito, com o mesmo tempo, mas uma sai 45% da volta depois da outra (<code>phase=0.45</code>). Assim elas se cruzam no meio do oito e se separam nas pontas.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+PUXAO = 400     # o puxão na borda do Warp: quanto um tiro ali ganha de velocidade por segundo
+
+TECLAS_ESQUERDA = {"cima": "W", "baixo": "S", "esquerda": "A", "direita": "D", "tiro": "TAB"}
+TECLAS_DIREITA = {"cima": "UP", "baixo": "DOWN", "esquerda": "LEFT", "direita": "RIGHT", "tiro": "ENTER"}
+st.vencedor = ""
+
+
+class Tiro(Sprite, source=folha, height=26, art_angle=90, hitbox_shape="circle", group="tiros"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.batidas = 0
+        # "add" soma a luz do laser ao fundo: o laser brilha, e não custa nada.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # perto vale 1 na borda do Warp, 1/2 no dobro da distância, 1/3 no
+        # triplo. Ao cubo, o puxão cai depressa: 1/8 no dobro, 1/27 no triplo.
+        # Dentro da borda ele não cresce mais; além de 300 nem vale a conta.
+        d = distance(self, BURACO)
+        if d < 300:
+            perto = BORDA / max(d, BORDA)
+            self.vel += vec_from_angle(heading(self, BURACO), PUXAO * perto ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        self.batidas += 1
+        if self.batidas > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        # Presa ao trilho, a nave não cede: um asteroide quica nela.
+        self.mass = STATIC
+        self.giro = 0
+        self.passo = 0
+        self.u = 0.5
+        self.energia = 100
+        self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo.active = False
+
+    def on_update(self, dt):
+        # O volante: o giro chega aos poucos e volta aos poucos.
+        alvo = 0
+        if keyp(self.teclas["esquerda"]):
+            alvo = 200
+        if keyp(self.teclas["direita"]):
+            alvo = -200
+        self.giro = chase(self.giro, alvo, 5)
+        self.rotate_by(self.giro * dt)
+
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp(self.teclas["cima"]):
+            alvo = 260
+        if keyp(self.teclas["baixo"]):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+        # O jato sai do lado de trás do movimento, na linha do trilho, e
+        # cresce com a velocidade.
+        rumo = self.trilho.angle_at(self.u)
+        if self.passo < 0:
+            rumo += 180
+        self.jato.origin = self.center - vec_from_angle(rumo, 22)
+        self.jato.angle = rumo + 180
+        self.jato.amount = abs(self.passo) / 160
+
+        if keyp(self.teclas["tiro"]) and self.ready("tiro", 0.3):
+            self.atirar()
+
+    def atirar(self):
+        tiro = Tiro(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        tiro.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energia < 30)
+    def pegou_fogo(self):
+        self.fogo.active = True
+
+    @when(lambda self: self.energia >= 30)
+    def apagou(self):
+        self.fogo.active = False
+
+    def on_destroy(self):
+        self.jato.destroy()
+        self.fogo.destroy()
+        self.barra.destroy()
+
+
+class Asteroide(Sprite, source=folha, frame="meteorBrown_big1.png", height=64,
+                hitbox_shape="circle", group="asteroides"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), uniform(40, 90))
+        self.giro = uniform(-60, 60)
+
+    def on_update(self, dt):
+        self.rotate_by(self.giro * dt)
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("tiros")
+    def atingido(self, tiro, info):
+        canvas.debris_at(self, color="sienna", radius=self.height)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        # O grande se divide em dois pequenos, que saem para os lados do tiro.
+        if self.height > 40:
+            for lado in [90, -90]:
+                pedaco = Asteroide(frame="meteorBrown_small1.png", height=30,
+                                   center=self.center + vec_from_angle(tiro.vel.angle + lado, 18))
+                pedaco.vel = vec_from_angle(tiro.vel.angle + lado, 110)
+        tiro.destroy()
+        self.destroy()
+
+
+def criar_raio(centro):
+    # Duas bolas no mesmo oito (em pé), quase meia volta uma atrás da outra:
+    # no meio do oito elas passam perto, nas pontas ficam longe.
+    trilha = Track.eight(width=160, height=50, center=centro, angle=90)
+    bola1 = Circle(center=centro, radius=10, group="parede", visual=Metal("gold"))
+    bola2 = Circle(center=centro, radius=10, group="parede", visual=Metal("gold"))
+    bola1.move_along(trilha, time=6, loops="forever")
+    bola2.move_along(trilha, time=6, loops="forever", phase=0.45)
+    raio = Line(p1=lambda: bola1.center, p2=lambda: bola2.center, line_width=8,
+                visual=ElectricBolt("cyan"), group="raio")
+    raio.bola1 = bola1
+    raio.bola2 = bola2
+    return raio
+
+
+resolve("tiros", "parede", bounce=1.0)
+resolve("asteroides", ["parede", "caixa", "naves"], bounce=1.0)
+resolve("asteroides", "asteroides", bounce=1.0)
+
+
+@collide("naves", "tiros")
+def acertou(nave, tiro, info):
+    tiro.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    nave.flash(0.1)
+    nave.energia -= 10
+
+
+@collide("naves", "asteroides")
+def bateu(nave, asteroide, info):
+    canvas.hit_at(info, style="disc", radius=14)
+    play_sound("audio/impactPlank_medium_002.ogg", volume=0.5)
+    nave.energia -= 2
+
+
+@collide("tiros", "raio")
+def queimou(tiro, raio, info):
+    canvas.zap_at(info, color="cyan")
+    play_sound("audio/fx2.wav", volume=0.5)
+    tiro.destroy()
+
+
+@collide("tiros", "caixa")
+def estourou(tiro, caixa):
+    canvas.burst_at(caixa, radius=24)
+    canvas.debris_at(caixa, color="peru", radius=24)
+    play_sound("audio/explosion01.wav", volume=0.4)
+    tiro.destroy()
+    caixa.destroy()
+
+
+@leave_playfield("tiros")
+def saiu(tiro):
+    tiro.destroy()
+
+
+def criar_asteroides():
+    for item in fase.group("asteroide"):
+        Asteroide(center=item.center)
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        for item in fase.group("barra"):
+            barra = item.make(group="parede", visual=Metal())
+            barra.rotate_by(360, time=4, loops="forever")
+        for item in fase.group("caixa"):
+            item.make(color="peru")
+        self.raios = []
+        for item in fase.group("raio"):
+            self.raios.append(criar_raio(item.center))
+        group["parede"].mass = STATIC
+        group["caixa"].mass = STATIC
+        criar_asteroides()
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+        self.azul.teclas = TECLAS_ESQUERDA
+        self.azul.laser = "laserBlue01.png"
+        self.vermelha = Nave(frame="playerShip1_red.png", center=fase["vermelha"].center)
+        self.vermelha.angle = 180
+        self.vermelha.trilho = fase["trilho_vermelho"].make()
+        self.vermelha.teclas = TECLAS_DIREITA
+        self.vermelha.laser = "laserRed01.png"
+
+        self.azul.barra = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.azul.barra["width"] @= lambda: max(self.azul.energia, 0) * 3
+        self.vermelha.barra = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.vermelha.barra["width"] @= lambda: max(self.vermelha.energia, 0) * 3
+
+    def on_update(self, dt):
+        # O raio só existe quando as duas bolas estão perto.
+        for raio in self.raios:
+            raio.active = distance(raio.bola1, raio.bola2) < 90
+
+    @every(15)
+    def mais_asteroides(self):
+        if group["asteroides"].empty:
+            criar_asteroides()
+
+    @when(lambda self: self.azul.energia <= 0 or self.vermelha.energia <= 0)
+    def fim(self):
+        if self.azul.energia <= 0:
+            perdeu = self.azul
+            st.vencedor = "VERMELHO"
+        else:
+            perdeu = self.vermelha
+            st.vencedor = "AZUL"
+        canvas.explosion_at(perdeu, amount=1.6)
+        canvas.debris_at(perdeu, color="gray", radius=70)
+        canvas.shake(14)
+        play_sound("audio/explosion04.wav")
+        perdeu.destroy()
+        self.after(3, lambda: change_act(Vitoria))
+
+
+class Vitoria(Act):
+    def setup(self):
+        Text(text=f"{st.vencedor} VENCEU", center=(640, 420), font_size=64, color="gold")
+        Text(text="aperte ESPAÇO", center=(640, 320), font_size=22)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Duelo)
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "def criar_raio(centro):",
+          text: "Uma função monta um raio inteiro: o oito, as duas bolas e a linha. Ela é chamada duas vezes, uma por ponto <code>raio</code> da fase. Dentro da função, cada <code>lambda</code> lê as bolas desta chamada; num <code>for</code> direto no ato, as duas linhas leriam as bolas da última volta (o problema da <code>lambda</code> num <code>for</code>, Fórmulas, 09)."
+        },
+        {
+          at: "angle=90)",
+          text: "<code>Track.eight</code> faz um oito deitado, de 160 por 50; <code>angle=90</code> o põe em pé."
+        },
+        {
+          at: "phase=0.45)",
+          text: "<code>phase</code> (fase) é onde a viagem começa, como fração da volta: a segunda bola sai 45% à frente."
+        },
+        {
+          at: "visual=ElectricBolt(\"cyan\"), group=\"raio\")",
+          text: "A linha vai de uma bola à outra (<code>p1</code> e <code>p2</code> seguem as bolas), com o visual <code>ElectricBolt</code> (descarga elétrica) das Órbitas (14)."
+        },
+        {
+          at: "raio.bola1 = bola1",
+          text: "O raio guarda as suas bolas em campos: o ato precisa delas para medir a distância."
+        },
+        {
+          at: "raio.active = distance(",
+          text: "Perto, o raio fica ativo; longe, desligado. Desligado (<code>active = False</code>), ele não é desenhado e não colide. Caixa abaixo do código: por que esta linha mora no ato."
+        },
+        {
+          at: "def queimou(tiro, raio, info):",
+          text: "Uma faísca (<code>zap_at</code>) onde o laser cruzou o raio, e o laser some. As bolas estão no grupo <code>parede</code>: nelas, o laser quica."
+        }
+      ],
+      dive: [
+        {
+          title: "Quem liga e desliga o raio",
+          body: `
+            <p>Daria vontade de escrever <code>raio["active"] @= lambda: …</code>, ligando o raio à distância. O Scena recusa: <code>active</code> não é uma aparência; ligar e desligar um objeto é um comando, que tira o objeto do jogo e o põe de volta.</p>
+            <p>E o raio não pode cuidar disso sozinho, num <code>on_update</code> dele: um objeto desligado não roda os próprios métodos. Uma vez apagado, ele nunca se acenderia de novo. Quem decide é alguém que está sempre ligado: o ato, no <code>on_update</code> dele.</p>
+            <p>No Guia: <a href="../guide/index.html#shape-track">Track</a> · <a href="../guide/index.html#mover-move-along">move_along</a> · <a href="../guide/index.html#aparencia-visual">Visual</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "A estrela",
+      body: `
+        <p>De tempos em tempos, uma estrela dourada atravessa a arena, devagar, de cima para baixo ou de baixo para cima. Um laser a quebra, e ela solta um poder que voa até a nave que atirou. Quem pega o poder ganha 40 de energia.</p>
+        <p>O poder não vai em linha reta. Ele faz uma curva até onde a nave estava na hora do tiro, com uma onda por cima, e segue em frente até sair da tela: a nave precisa estar no caminho.</p>
+      `,
+      code: `from random import choice, uniform
+from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+PUXAO = 400     # o puxão na borda do Warp: quanto um tiro ali ganha de velocidade por segundo
+
+TECLAS_ESQUERDA = {"cima": "W", "baixo": "S", "esquerda": "A", "direita": "D", "tiro": "TAB"}
+TECLAS_DIREITA = {"cima": "UP", "baixo": "DOWN", "esquerda": "LEFT", "direita": "RIGHT", "tiro": "ENTER"}
+st.vencedor = ""
+
+
+class Tiro(Sprite, source=folha, height=26, art_angle=90, hitbox_shape="circle", group="tiros"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.batidas = 0
+        # "add" soma a luz do laser ao fundo: o laser brilha, e não custa nada.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # perto vale 1 na borda do Warp, 1/2 no dobro da distância, 1/3 no
+        # triplo. Ao cubo, o puxão cai depressa: 1/8 no dobro, 1/27 no triplo.
+        # Dentro da borda ele não cresce mais; além de 300 nem vale a conta.
+        d = distance(self, BURACO)
+        if d < 300:
+            perto = BORDA / max(d, BORDA)
+            self.vel += vec_from_angle(heading(self, BURACO), PUXAO * perto ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        self.batidas += 1
+        if self.batidas > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        # Presa ao trilho, a nave não cede: um asteroide quica nela.
+        self.mass = STATIC
+        self.giro = 0
+        self.passo = 0
+        self.u = 0.5
+        self.energia = 100
+        self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo.active = False
+
+    def on_update(self, dt):
+        # O volante: o giro chega aos poucos e volta aos poucos.
+        alvo = 0
+        if keyp(self.teclas["esquerda"]):
+            alvo = 200
+        if keyp(self.teclas["direita"]):
+            alvo = -200
+        self.giro = chase(self.giro, alvo, 5)
+        self.rotate_by(self.giro * dt)
+
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp(self.teclas["cima"]):
+            alvo = 260
+        if keyp(self.teclas["baixo"]):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+        # O jato sai do lado de trás do movimento, na linha do trilho, e
+        # cresce com a velocidade.
+        rumo = self.trilho.angle_at(self.u)
+        if self.passo < 0:
+            rumo += 180
+        self.jato.origin = self.center - vec_from_angle(rumo, 22)
+        self.jato.angle = rumo + 180
+        self.jato.amount = abs(self.passo) / 160
+
+        if keyp(self.teclas["tiro"]) and self.ready("tiro", 0.3):
+            self.atirar()
+
+    def atirar(self):
+        tiro = Tiro(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        tiro.vel = vec_from_angle(self.angle, 700)
+        tiro.dono = self
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energia < 30)
+    def pegou_fogo(self):
+        self.fogo.active = True
+
+    @when(lambda self: self.energia >= 30)
+    def apagou(self):
+        self.fogo.active = False
+
+    def on_destroy(self):
+        self.jato.destroy()
+        self.fogo.destroy()
+        self.barra.destroy()
+
+
+class Asteroide(Sprite, source=folha, frame="meteorBrown_big1.png", height=64,
+                hitbox_shape="circle", group="asteroides"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), uniform(40, 90))
+        self.giro = uniform(-60, 60)
+
+    def on_update(self, dt):
+        self.rotate_by(self.giro * dt)
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("tiros")
+    def atingido(self, tiro, info):
+        canvas.debris_at(self, color="sienna", radius=self.height)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        # O grande se divide em dois pequenos, que saem para os lados do tiro.
+        if self.height > 40:
+            for lado in [90, -90]:
+                pedaco = Asteroide(frame="meteorBrown_small1.png", height=30,
+                                   center=self.center + vec_from_angle(tiro.vel.angle + lado, 18))
+                pedaco.vel = vec_from_angle(tiro.vel.angle + lado, 110)
+        tiro.destroy()
+        self.destroy()
+
+
+class Poder(Sprite, source=folha, height=30, group="poderes"):
+    def setup(self):
+        self.tipo = "energia"
+
+
+def soltar_poder(de, para):
+    # de e para são cópias (x, y) tiradas na hora do tiro: a estrela some, e
+    # a nave continua andando. O poder faz uma curva até onde a nave estava,
+    # com uma onda por cima, e segue reto até sair da tela.
+    poder = Poder(frame="pill_green.png", center=de)
+    rumo = heading(de, para)
+    mx, my = middle_point(de, para)
+    desvio = vec_from_angle(rumo + choice([90, -90]), 100)
+    longe = vec_from_angle(rumo, 1500)
+    x, y = para
+    trilha = Track(points=[de, (mx + desvio.x, my + desvio.y), para, (x + longe.x, y + longe.y)])
+    trilha.zigzag(amount=16, waves=6)
+    poder.move_along(trilha, speed=120)
+
+
+class Alvo(Circle, radius=16, visual=Sphere("gold"), group="alvo"):
+    def setup(self):
+        self.estrela = Starburst(center=lambda: self.center, radius=34, color="gold")
+
+    @collide_with("tiros")
+    def atingido(self, tiro, info):
+        canvas.debris_at(self, color="gold", radius=60)
+        play_sound("audio/explosion02.wav", volume=0.6)
+        if tiro.dono:
+            soltar_poder(tuple(self.center), tuple(tiro.dono.center))
+        tiro.destroy()
+        self.destroy()
+
+    def on_destroy(self):
+        self.estrela.destroy()
+
+
+def criar_raio(centro):
+    # Duas bolas no mesmo oito (em pé), quase meia volta uma atrás da outra:
+    # no meio do oito elas passam perto, nas pontas ficam longe.
+    trilha = Track.eight(width=160, height=50, center=centro, angle=90)
+    bola1 = Circle(center=centro, radius=10, group="parede", visual=Metal("gold"))
+    bola2 = Circle(center=centro, radius=10, group="parede", visual=Metal("gold"))
+    bola1.move_along(trilha, time=6, loops="forever")
+    bola2.move_along(trilha, time=6, loops="forever", phase=0.45)
+    raio = Line(p1=lambda: bola1.center, p2=lambda: bola2.center, line_width=8,
+                visual=ElectricBolt("cyan"), group="raio")
+    raio.bola1 = bola1
+    raio.bola2 = bola2
+    return raio
+
+
+resolve("tiros", "parede", bounce=1.0)
+resolve("asteroides", ["parede", "caixa", "naves"], bounce=1.0)
+resolve("asteroides", "asteroides", bounce=1.0)
+
+
+@collide("naves", "tiros")
+def acertou(nave, tiro, info):
+    tiro.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    nave.flash(0.1)
+    nave.energia -= 10
+
+
+@collide("naves", "asteroides")
+def bateu(nave, asteroide, info):
+    canvas.hit_at(info, style="disc", radius=14)
+    play_sound("audio/impactPlank_medium_002.ogg", volume=0.5)
+    nave.energia -= 2
+
+
+@collide("tiros", "raio")
+def queimou(tiro, raio, info):
+    canvas.zap_at(info, color="cyan")
+    play_sound("audio/fx2.wav", volume=0.5)
+    tiro.destroy()
+
+
+@collide("tiros", "caixa")
+def estourou(tiro, caixa):
+    canvas.burst_at(caixa, radius=24)
+    canvas.debris_at(caixa, color="peru", radius=24)
+    play_sound("audio/explosion01.wav", volume=0.4)
+    tiro.destroy()
+    caixa.destroy()
+
+
+@collide("naves", "poderes")
+def pegou(nave, poder):
+    nave.energia = min(100, nave.energia + 40)
+    nave.pop()
+    play_sound("audio/fx1.wav")
+    poder.destroy()
+
+
+@leave_playfield("tiros", "poderes")
+def saiu(coisa):
+    coisa.destroy()
+
+
+def criar_asteroides():
+    for item in fase.group("asteroide"):
+        Asteroide(center=item.center)
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        for item in fase.group("barra"):
+            barra = item.make(group="parede", visual=Metal())
+            barra.rotate_by(360, time=4, loops="forever")
+        for item in fase.group("caixa"):
+            item.make(color="peru")
+        self.raios = []
+        for item in fase.group("raio"):
+            self.raios.append(criar_raio(item.center))
+        group["parede"].mass = STATIC
+        group["caixa"].mass = STATIC
+        criar_asteroides()
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+        self.azul.teclas = TECLAS_ESQUERDA
+        self.azul.laser = "laserBlue01.png"
+        self.vermelha = Nave(frame="playerShip1_red.png", center=fase["vermelha"].center)
+        self.vermelha.angle = 180
+        self.vermelha.trilho = fase["trilho_vermelho"].make()
+        self.vermelha.teclas = TECLAS_DIREITA
+        self.vermelha.laser = "laserRed01.png"
+
+        self.azul.barra = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.azul.barra["width"] @= lambda: max(self.azul.energia, 0) * 3
+        self.vermelha.barra = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.vermelha.barra["width"] @= lambda: max(self.vermelha.energia, 0) * 3
+
+    def on_update(self, dt):
+        # O raio só existe quando as duas bolas estão perto.
+        for raio in self.raios:
+            raio.active = distance(raio.bola1, raio.bola2) < 90
+
+    @every(8)
+    def mandar_estrela(self):
+        if group["alvo"].empty:
+            y = choice([760, -40])
+            inicio = (uniform(420, 860), y)
+            meio = (uniform(300, 980), 360)
+            fim = (uniform(420, 860), 720 - y)
+            estrela = Alvo(center=inicio)
+            estrela.move_along(Track(points=[inicio, meio, fim]), speed=60, on_done=estrela.destroy)
+
+    @every(15)
+    def mais_asteroides(self):
+        if group["asteroides"].empty:
+            criar_asteroides()
+
+    @when(lambda self: self.azul.energia <= 0 or self.vermelha.energia <= 0)
+    def fim(self):
+        if self.azul.energia <= 0:
+            perdeu = self.azul
+            st.vencedor = "VERMELHO"
+        else:
+            perdeu = self.vermelha
+            st.vencedor = "AZUL"
+        canvas.explosion_at(perdeu, amount=1.6)
+        canvas.debris_at(perdeu, color="gray", radius=70)
+        canvas.shake(14)
+        play_sound("audio/explosion04.wav")
+        perdeu.destroy()
+        self.after(3, lambda: change_act(Vitoria))
+
+
+class Vitoria(Act):
+    def setup(self):
+        Text(text=f"{st.vencedor} VENCEU", center=(640, 420), font_size=64, color="gold")
+        Text(text="aperte ESPAÇO", center=(640, 320), font_size=22)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Duelo)
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "tiro.dono = self",
+          text: "Cada laser lembra quem o atirou."
+        },
+        {
+          at: "soltar_poder(tuple(self.center), tuple(tiro.dono.center))",
+          text: "<code>tuple</code> (tupla) copia os dois números do ponto agora. <code>self.center</code> é o centro vivo da estrela, que vai sumir; a nave vai continuar andando. O poder precisa dos lugares deste instante."
+        },
+        {
+          at: "if tiro.dono:",
+          text: "A nave que atirou pode ter explodido enquanto o laser voava. Então não há para onde mandar o poder."
+        },
+        {
+          at: "mx, my = middle_point(de, para)",
+          text: "O meio do caminho, empurrado 100 para um lado sorteado (<code>desvio</code>): a curva passa por ali."
+        },
+        {
+          at: "longe = vec_from_angle(rumo, 1500)",
+          text: "Um último ponto 1500 adiante, na mesma direção: depois de passar pela nave, o poder segue até sair da tela."
+        },
+        {
+          at: "trilha.zigzag(",
+          text: "<code>zigzag</code> ondula a trilha no próprio objeto: seis ondas de 16 para cada lado, por cima da curva."
+        },
+        {
+          at: "speed=120)",
+          text: "Com <code>speed=</code> (velocidade), o poder anda 120 por segundo, longa ou curta a trilha. Quem sai da tela some pelo <code>saiu</code>, agora também para os poderes."
+        },
+        {
+          at: "@every(8)",
+          text: "A cada 8 segundos, se não houver estrela na arena, nasce outra fora da tela, que cruza a arena por três pontos sorteados a 60 por segundo e some do outro lado (<code>on_done</code>, ao terminar)."
+        }
+      ],
+      after: `
+        <p>Rode e espere a estrela. Quebre-a e fique no caminho do poder; ele passa pelo lugar onde a nave estava.</p>
+      `
+    },
+    {
+      title: "O escudo",
+      body: `
+        <p>Metade dos poderes vai ser um escudo: uma bolha em volta da nave que segura três golpes, de laser ou de asteroide. Um asteroide que bate no escudo se despedaça. No terceiro golpe, o escudo estoura.</p>
+        <p>O escudo é uma parte da nave, como nas Naves (08): nasce com ela, desligado, e o poder o liga.</p>
+      `,
+      code: `from random import choice, uniform
+from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+PUXAO = 400     # o puxão na borda do Warp: quanto um tiro ali ganha de velocidade por segundo
+
+TECLAS_ESQUERDA = {"cima": "W", "baixo": "S", "esquerda": "A", "direita": "D", "tiro": "TAB"}
+TECLAS_DIREITA = {"cima": "UP", "baixo": "DOWN", "esquerda": "LEFT", "direita": "RIGHT", "tiro": "ENTER"}
+st.vencedor = ""
+
+
+class Tiro(Sprite, source=folha, height=26, art_angle=90, hitbox_shape="circle", group="tiros"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.batidas = 0
+        # "add" soma a luz do laser ao fundo: o laser brilha, e não custa nada.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # perto vale 1 na borda do Warp, 1/2 no dobro da distância, 1/3 no
+        # triplo. Ao cubo, o puxão cai depressa: 1/8 no dobro, 1/27 no triplo.
+        # Dentro da borda ele não cresce mais; além de 300 nem vale a conta.
+        d = distance(self, BURACO)
+        if d < 300:
+            perto = BORDA / max(d, BORDA)
+            self.vel += vec_from_angle(heading(self, BURACO), PUXAO * perto ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        self.batidas += 1
+        if self.batidas > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Escudo(Circle, radius=44, visual=Shield(style="plasma")):
+    def setup(self):
+        self.cargas = 0
+
+    @collide_with("tiros")
+    def segurou(self, tiro, info):
+        tiro.destroy()
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        self.gastar()
+
+    # O escudo despedaça o asteroide inteiro: dois pedaços nascendo
+    # encostados nele gastariam as outras cargas na hora.
+    @collide_with("asteroides")
+    def rebateu(self, asteroide, info):
+        canvas.zap_at(info, color="sky blue")
+        canvas.debris_at(asteroide, color="sienna", radius=asteroide.height)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        asteroide.destroy()
+        self.gastar()
+
+    def gastar(self):
+        self.cargas -= 1
+        if self.cargas == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+            self.active = False
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        # Presa ao trilho, a nave não cede: um asteroide quica nela.
+        self.mass = STATIC
+        self.giro = 0
+        self.passo = 0
+        self.u = 0.5
+        self.energia = 100
+        self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo.active = False
+        self.escudo = Escudo(center=lambda: self.center)
+        self.escudo.active = False
+
+    def on_update(self, dt):
+        # O volante: o giro chega aos poucos e volta aos poucos.
+        alvo = 0
+        if keyp(self.teclas["esquerda"]):
+            alvo = 200
+        if keyp(self.teclas["direita"]):
+            alvo = -200
+        self.giro = chase(self.giro, alvo, 5)
+        self.rotate_by(self.giro * dt)
+
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp(self.teclas["cima"]):
+            alvo = 260
+        if keyp(self.teclas["baixo"]):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+        # O jato sai do lado de trás do movimento, na linha do trilho, e
+        # cresce com a velocidade.
+        rumo = self.trilho.angle_at(self.u)
+        if self.passo < 0:
+            rumo += 180
+        self.jato.origin = self.center - vec_from_angle(rumo, 22)
+        self.jato.angle = rumo + 180
+        self.jato.amount = abs(self.passo) / 160
+
+        if keyp(self.teclas["tiro"]) and self.ready("tiro", 0.3):
+            self.atirar()
+
+    def atirar(self):
+        tiro = Tiro(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        tiro.vel = vec_from_angle(self.angle, 700)
+        tiro.dono = self
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energia < 30)
+    def pegou_fogo(self):
+        self.fogo.active = True
+
+    @when(lambda self: self.energia >= 30)
+    def apagou(self):
+        self.fogo.active = False
+
+    def on_destroy(self):
+        self.jato.destroy()
+        self.fogo.destroy()
+        self.escudo.destroy()
+        self.barra.destroy()
+
+
+class Asteroide(Sprite, source=folha, frame="meteorBrown_big1.png", height=64,
+                hitbox_shape="circle", group="asteroides"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), uniform(40, 90))
+        self.giro = uniform(-60, 60)
+
+    def on_update(self, dt):
+        self.rotate_by(self.giro * dt)
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("tiros")
+    def atingido(self, tiro, info):
+        canvas.debris_at(self, color="sienna", radius=self.height)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        # O grande se divide em dois pequenos, que saem para os lados do tiro.
+        if self.height > 40:
+            for lado in [90, -90]:
+                pedaco = Asteroide(frame="meteorBrown_small1.png", height=30,
+                                   center=self.center + vec_from_angle(tiro.vel.angle + lado, 18))
+                pedaco.vel = vec_from_angle(tiro.vel.angle + lado, 110)
+        tiro.destroy()
+        self.destroy()
+
+
+class Poder(Sprite, source=folha, height=30, group="poderes"):
+    def setup(self):
+        self.tipo = "energia"
+
+
+def soltar_poder(de, para):
+    # de e para são cópias (x, y) tiradas na hora do tiro: a estrela some, e
+    # a nave continua andando. O poder faz uma curva até onde a nave estava,
+    # com uma onda por cima, e segue reto até sair da tela.
+    # O quadro vai no construtor: é dele que o Scena tira a hitbox e o tamanho.
+    if chance(0.5):
+        poder = Poder(frame="powerupGreen_shield.png", center=de)
+        poder.tipo = "escudo"
+    else:
+        poder = Poder(frame="pill_green.png", center=de)
+    rumo = heading(de, para)
+    mx, my = middle_point(de, para)
+    desvio = vec_from_angle(rumo + choice([90, -90]), 100)
+    longe = vec_from_angle(rumo, 1500)
+    x, y = para
+    trilha = Track(points=[de, (mx + desvio.x, my + desvio.y), para, (x + longe.x, y + longe.y)])
+    trilha.zigzag(amount=16, waves=6)
+    poder.move_along(trilha, speed=120)
+
+
+class Alvo(Circle, radius=16, visual=Sphere("gold"), group="alvo"):
+    def setup(self):
+        self.estrela = Starburst(center=lambda: self.center, radius=34, color="gold")
+
+    @collide_with("tiros")
+    def atingido(self, tiro, info):
+        canvas.debris_at(self, color="gold", radius=60)
+        play_sound("audio/explosion02.wav", volume=0.6)
+        if tiro.dono:
+            soltar_poder(tuple(self.center), tuple(tiro.dono.center))
+        tiro.destroy()
+        self.destroy()
+
+    def on_destroy(self):
+        self.estrela.destroy()
+
+
+def criar_raio(centro):
+    # Duas bolas no mesmo oito (em pé), quase meia volta uma atrás da outra:
+    # no meio do oito elas passam perto, nas pontas ficam longe.
+    trilha = Track.eight(width=160, height=50, center=centro, angle=90)
+    bola1 = Circle(center=centro, radius=10, group="parede", visual=Metal("gold"))
+    bola2 = Circle(center=centro, radius=10, group="parede", visual=Metal("gold"))
+    bola1.move_along(trilha, time=6, loops="forever")
+    bola2.move_along(trilha, time=6, loops="forever", phase=0.45)
+    raio = Line(p1=lambda: bola1.center, p2=lambda: bola2.center, line_width=8,
+                visual=ElectricBolt("cyan"), group="raio")
+    raio.bola1 = bola1
+    raio.bola2 = bola2
+    return raio
+
+
+resolve("tiros", "parede", bounce=1.0)
+resolve("asteroides", ["parede", "caixa", "naves"], bounce=1.0)
+resolve("asteroides", "asteroides", bounce=1.0)
+
+
+@collide("naves", "tiros")
+def acertou(nave, tiro, info):
+    tiro.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    nave.flash(0.1)
+    nave.energia -= 10
+
+
+@collide("naves", "asteroides")
+def bateu(nave, asteroide, info):
+    canvas.hit_at(info, style="disc", radius=14)
+    play_sound("audio/impactPlank_medium_002.ogg", volume=0.5)
+    nave.energia -= 2
+
+
+@collide("tiros", "raio")
+def queimou(tiro, raio, info):
+    canvas.zap_at(info, color="cyan")
+    play_sound("audio/fx2.wav", volume=0.5)
+    tiro.destroy()
+
+
+@collide("tiros", "caixa")
+def estourou(tiro, caixa):
+    canvas.burst_at(caixa, radius=24)
+    canvas.debris_at(caixa, color="peru", radius=24)
+    play_sound("audio/explosion01.wav", volume=0.4)
+    tiro.destroy()
+    caixa.destroy()
+
+
+@collide("naves", "poderes")
+def pegou(nave, poder):
+    if poder.tipo == "escudo":
+        nave.escudo.cargas = 3
+        nave.escudo.active = True
+    else:
+        nave.energia = min(100, nave.energia + 40)
+    nave.pop()
+    play_sound("audio/fx1.wav")
+    poder.destroy()
+
+
+@leave_playfield("tiros", "poderes")
+def saiu(coisa):
+    coisa.destroy()
+
+
+def criar_asteroides():
+    for item in fase.group("asteroide"):
+        Asteroide(center=item.center)
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        for item in fase.group("barra"):
+            barra = item.make(group="parede", visual=Metal())
+            barra.rotate_by(360, time=4, loops="forever")
+        for item in fase.group("caixa"):
+            item.make(color="peru")
+        self.raios = []
+        for item in fase.group("raio"):
+            self.raios.append(criar_raio(item.center))
+        group["parede"].mass = STATIC
+        group["caixa"].mass = STATIC
+        criar_asteroides()
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = Nave(frame="playerShip1_blue.png", center=fase["azul"].center)
+        self.azul.trilho = fase["trilho_azul"].make()
+        self.azul.teclas = TECLAS_ESQUERDA
+        self.azul.laser = "laserBlue01.png"
+        self.vermelha = Nave(frame="playerShip1_red.png", center=fase["vermelha"].center)
+        self.vermelha.angle = 180
+        self.vermelha.trilho = fase["trilho_vermelho"].make()
+        self.vermelha.teclas = TECLAS_DIREITA
+        self.vermelha.laser = "laserRed01.png"
+
+        self.azul.barra = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.azul.barra["width"] @= lambda: max(self.azul.energia, 0) * 3
+        self.vermelha.barra = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.vermelha.barra["width"] @= lambda: max(self.vermelha.energia, 0) * 3
+
+    def on_update(self, dt):
+        # O raio só existe quando as duas bolas estão perto.
+        for raio in self.raios:
+            raio.active = distance(raio.bola1, raio.bola2) < 90
+
+    @every(8)
+    def mandar_estrela(self):
+        if group["alvo"].empty:
+            y = choice([760, -40])
+            inicio = (uniform(420, 860), y)
+            meio = (uniform(300, 980), 360)
+            fim = (uniform(420, 860), 720 - y)
+            estrela = Alvo(center=inicio)
+            estrela.move_along(Track(points=[inicio, meio, fim]), speed=60, on_done=estrela.destroy)
+
+    @every(15)
+    def mais_asteroides(self):
+        if group["asteroides"].empty:
+            criar_asteroides()
+
+    @when(lambda self: self.azul.energia <= 0 or self.vermelha.energia <= 0)
+    def fim(self):
+        if self.azul.energia <= 0:
+            perdeu = self.azul
+            st.vencedor = "VERMELHO"
+        else:
+            perdeu = self.vermelha
+            st.vencedor = "AZUL"
+        canvas.explosion_at(perdeu, amount=1.6)
+        canvas.debris_at(perdeu, color="gray", radius=70)
+        canvas.shake(14)
+        play_sound("audio/explosion04.wav")
+        perdeu.destroy()
+        self.after(3, lambda: change_act(Vitoria))
+
+
+class Vitoria(Act):
+    def setup(self):
+        Text(text=f"{st.vencedor} VENCEU", center=(640, 420), font_size=64, color="gold")
+        Text(text="aperte ESPAÇO", center=(640, 320), font_size=22)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Duelo)
+
+
+run(Duelo)
+`,
+      notes: [
+        {
+          at: "class Escudo(Circle",
+          text: "Um <code>Circle</code> com o visual <code>Shield</code> (escudo). Ele é maior que a nave (raio 44): o golpe toca o escudo antes de chegar nela."
+        },
+        {
+          at: "def rebateu(self, asteroide, info):",
+          text: "Com o escudo, o asteroide vira cacos inteiro, mesmo o grande: os dois pedaços nasceriam encostados no escudo e gastariam as outras cargas na hora."
+        },
+        {
+          at: "def gastar(self):",
+          text: "Um método para o que os dois golpes têm em comum: uma carga a menos e, na última, o estouro."
+        },
+        {
+          at: "self.escudo = Escudo(center=lambda: self.center)",
+          text: "Preso ao centro da nave por uma <code>lambda</code>, e desligado (<code>active = False</code>) até o poder chegar."
+        },
+        {
+          at: "poder = Poder(frame=\"powerupGreen_shield.png\", center=de)",
+          text: "A imagem vai no construtor, e não trocada depois: é dela que o Scena tira o tamanho e a forma da colisão. Trocada depois, a colisão continuaria a da pílula, pequena dentro do quadrado."
+        },
+        {
+          at: "if poder.tipo == \"escudo\":",
+          text: "Três cargas e o escudo ligado. Com o escudo já ligado, o poder recarrega as três."
+        }
+      ]
+    },
+    {
+      title: "Escolha a nave",
+      example: "duelo.py",
+      body: `
+        <p>Por último, a tela de abertura: cada jogador escolhe entre duas naves, a I e a II, com <kbd>A</kbd> / <kbd>D</kbd> ou <kbd>←</kbd> / <kbd>→</kbd>, e confirma com <kbd>TAB</kbd> ou <kbd>ENTER</kbd>. Quando os dois confirmam, o duelo começa. As duas naves andam igual; a escolha é pelo desenho.</p>
+        <p>O jogo passa a começar pelo ato <code>Escolha</code>, e a vitória volta para ele.</p>
+      `,
+      code: `from random import choice, uniform
+from scena import *
+
+init(width=1280, height=720, title="Duelo")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+fase = Level("levels/duelo.json")
+BURACO = fase["buraco"].center
+BORDA = 60      # o raio do Warp
+PUXAO = 400     # o puxão na borda do Warp: quanto um tiro ali ganha de velocidade por segundo
+
+TECLAS_ESQUERDA = {"cima": "W", "baixo": "S", "esquerda": "A", "direita": "D", "tiro": "TAB"}
+TECLAS_DIREITA = {"cima": "UP", "baixo": "DOWN", "esquerda": "LEFT", "direita": "RIGHT", "tiro": "ENTER"}
+
+st.tipo_azul = 1
+st.tipo_vermelha = 1
+st.vencedor = ""
+
+
+class Tiro(Sprite, source=folha, height=26, art_angle=90, hitbox_shape="circle", group="tiros"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.batidas = 0
+        # "add" soma a luz do laser ao fundo: o laser brilha, e não custa nada.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # perto vale 1 na borda do Warp, 1/2 no dobro da distância, 1/3 no
+        # triplo. Ao cubo, o puxão cai depressa: 1/8 no dobro, 1/27 no triplo.
+        # Dentro da borda ele não cresce mais; além de 300 nem vale a conta.
+        d = distance(self, BURACO)
+        if d < 300:
+            perto = BORDA / max(d, BORDA)
+            self.vel += vec_from_angle(heading(self, BURACO), PUXAO * perto ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("parede")
+    def bateu(self, parede, info):
+        self.batidas += 1
+        if self.batidas > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Escudo(Circle, radius=44, visual=Shield(style="plasma")):
+    def setup(self):
+        self.cargas = 0
+
+    @collide_with("tiros")
+    def segurou(self, tiro, info):
+        tiro.destroy()
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        self.gastar()
+
+    # O escudo despedaça o asteroide inteiro: dois pedaços nascendo
+    # encostados nele gastariam as outras cargas na hora.
+    @collide_with("asteroides")
+    def rebateu(self, asteroide, info):
+        canvas.zap_at(info, color="sky blue")
+        canvas.debris_at(asteroide, color="sienna", radius=asteroide.height)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        asteroide.destroy()
+        self.gastar()
+
+    def gastar(self):
+        self.cargas -= 1
+        if self.cargas == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+            self.active = False
+
+
+class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
+    def setup(self):
+        # Presa ao trilho, a nave não cede: um asteroide quica nela.
+        self.mass = STATIC
+        self.giro = 0
+        self.passo = 0
+        self.u = 0.5
+        self.energia = 100
+        self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo.active = False
+        self.escudo = Escudo(center=lambda: self.center)
+        self.escudo.active = False
+
+    def on_update(self, dt):
+        # O volante: o giro chega aos poucos e volta aos poucos.
+        alvo = 0
+        if keyp(self.teclas["esquerda"]):
+            alvo = 200
+        if keyp(self.teclas["direita"]):
+            alvo = -200
+        self.giro = chase(self.giro, alvo, 5)
+        self.rotate_by(self.giro * dt)
+
+        # u é o lugar no trilho: 0 numa ponta, 1 na outra.
+        alvo = 0
+        if keyp(self.teclas["cima"]):
+            alvo = 260
+        if keyp(self.teclas["baixo"]):
+            alvo = -260
+        self.passo = chase(self.passo, alvo, 5)
+        self.u += self.passo * dt / self.trilho.length
+        if self.u > 1:
+            self.u = 1
+            self.passo = 0
+        if self.u < 0:
+            self.u = 0
+            self.passo = 0
+        self.center = self.trilho.at(self.u)
+
+        # O jato sai do lado de trás do movimento, na linha do trilho, e
+        # cresce com a velocidade.
+        rumo = self.trilho.angle_at(self.u)
+        if self.passo < 0:
+            rumo += 180
+        self.jato.origin = self.center - vec_from_angle(rumo, 22)
+        self.jato.angle = rumo + 180
+        self.jato.amount = abs(self.passo) / 160
+
+        if keyp(self.teclas["tiro"]) and self.ready("tiro", 0.3):
+            self.atirar()
+
+    def atirar(self):
+        tiro = Tiro(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        tiro.vel = vec_from_angle(self.angle, 700)
+        tiro.dono = self
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energia < 30)
+    def pegou_fogo(self):
+        self.fogo.active = True
+
+    @when(lambda self: self.energia >= 30)
+    def apagou(self):
+        self.fogo.active = False
+
+    def on_destroy(self):
+        self.jato.destroy()
+        self.fogo.destroy()
+        self.escudo.destroy()
+        self.barra.destroy()
+
+
+class Asteroide(Sprite, source=folha, frame="meteorBrown_big1.png", height=64,
+                hitbox_shape="circle", group="asteroides"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), uniform(40, 90))
+        self.giro = uniform(-60, 60)
+
+    def on_update(self, dt):
+        self.rotate_by(self.giro * dt)
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("tiros")
+    def atingido(self, tiro, info):
+        canvas.debris_at(self, color="sienna", radius=self.height)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        # O grande se divide em dois pequenos, que saem para os lados do tiro.
+        if self.height > 40:
+            for lado in [90, -90]:
+                pedaco = Asteroide(frame="meteorBrown_small1.png", height=30,
+                                   center=self.center + vec_from_angle(tiro.vel.angle + lado, 18))
+                pedaco.vel = vec_from_angle(tiro.vel.angle + lado, 110)
+        tiro.destroy()
+        self.destroy()
+
+
+class Poder(Sprite, source=folha, height=30, group="poderes"):
+    def setup(self):
+        self.tipo = "energia"
+
+
+def soltar_poder(de, para):
+    # de e para são cópias (x, y) tiradas na hora do tiro: a estrela some, e
+    # a nave continua andando. O poder faz uma curva até onde a nave estava,
+    # com uma onda por cima, e segue reto até sair da tela.
+    # O quadro vai no construtor: é dele que o Scena tira a hitbox e o tamanho.
+    if chance(0.5):
+        poder = Poder(frame="powerupGreen_shield.png", center=de)
+        poder.tipo = "escudo"
+    else:
+        poder = Poder(frame="pill_green.png", center=de)
+    rumo = heading(de, para)
+    mx, my = middle_point(de, para)
+    desvio = vec_from_angle(rumo + choice([90, -90]), 100)
+    longe = vec_from_angle(rumo, 1500)
+    x, y = para
+    trilha = Track(points=[de, (mx + desvio.x, my + desvio.y), para, (x + longe.x, y + longe.y)])
+    trilha.zigzag(amount=16, waves=6)
+    poder.move_along(trilha, speed=120)
+
+
+class Alvo(Circle, radius=16, visual=Sphere("gold"), group="alvo"):
+    def setup(self):
+        self.estrela = Starburst(center=lambda: self.center, radius=34, color="gold")
+
+    @collide_with("tiros")
+    def atingido(self, tiro, info):
+        canvas.debris_at(self, color="gold", radius=60)
+        play_sound("audio/explosion02.wav", volume=0.6)
+        if tiro.dono:
+            soltar_poder(tuple(self.center), tuple(tiro.dono.center))
+        tiro.destroy()
+        self.destroy()
+
+    def on_destroy(self):
+        self.estrela.destroy()
+
+
+def criar_raio(centro):
+    # Duas bolas no mesmo oito (em pé), quase meia volta uma atrás da outra:
+    # no meio do oito elas passam perto, nas pontas ficam longe.
+    trilha = Track.eight(width=160, height=50, center=centro, angle=90)
+    bola1 = Circle(center=centro, radius=10, group="parede", visual=Metal("gold"))
+    bola2 = Circle(center=centro, radius=10, group="parede", visual=Metal("gold"))
+    bola1.move_along(trilha, time=6, loops="forever")
+    bola2.move_along(trilha, time=6, loops="forever", phase=0.45)
+    raio = Line(p1=lambda: bola1.center, p2=lambda: bola2.center, line_width=8,
+                visual=ElectricBolt("cyan"), group="raio")
+    raio.bola1 = bola1
+    raio.bola2 = bola2
+    return raio
+
+
+resolve("tiros", "parede", bounce=1.0)
+resolve("asteroides", ["parede", "caixa", "naves"], bounce=1.0)
+resolve("asteroides", "asteroides", bounce=1.0)
+
+
+@collide("naves", "tiros")
+def acertou(nave, tiro, info):
+    tiro.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    nave.flash(0.1)
+    nave.energia -= 10
+
+
+@collide("naves", "asteroides")
+def bateu(nave, asteroide, info):
+    canvas.hit_at(info, style="disc", radius=14)
+    play_sound("audio/impactPlank_medium_002.ogg", volume=0.5)
+    nave.energia -= 2
+
+
+@collide("tiros", "raio")
+def queimou(tiro, raio, info):
+    canvas.zap_at(info, color="cyan")
+    play_sound("audio/fx2.wav", volume=0.5)
+    tiro.destroy()
+
+
+@collide("tiros", "caixa")
+def estourou(tiro, caixa):
+    canvas.burst_at(caixa, radius=24)
+    canvas.debris_at(caixa, color="peru", radius=24)
+    play_sound("audio/explosion01.wav", volume=0.4)
+    tiro.destroy()
+    caixa.destroy()
+
+
+@collide("naves", "poderes")
+def pegou(nave, poder):
+    if poder.tipo == "escudo":
+        nave.escudo.cargas = 3
+        nave.escudo.active = True
+    else:
+        nave.energia = min(100, nave.energia + 40)
+    nave.pop()
+    play_sound("audio/fx1.wav")
+    poder.destroy()
+
+
+@leave_playfield("tiros", "poderes")
+def saiu(coisa):
+    coisa.destroy()
+
+
+class Escolha(Act):
+    def setup(self):
+        st.pronto_azul = False
+        st.pronto_vermelha = False
+        Text(text="DUELO", center=(640, 600), font_size=80)
+        self.azuis = [Sprite(folha, frame="playerShip1_blue.png", height=80, center=(230, 360)),
+                      Sprite(folha, frame="playerShip2_blue.png", height=80, center=(430, 360))]
+        self.vermelhas = [Sprite(folha, frame="playerShip1_red.png", height=80, center=(850, 360)),
+                          Sprite(folha, frame="playerShip2_red.png", height=80, center=(1050, 360))]
+        Text(text="I", center=(230, 270), font_size=28)
+        Text(text="II", center=(430, 270), font_size=28)
+        Text(text="I", center=(850, 270), font_size=28)
+        Text(text="II", center=(1050, 270), font_size=28)
+        Text(text="A / D escolhe · TAB confirma", center=(330, 180), font_size=20)
+        Text(text="ESQ / DIR escolhe · ENTER confirma", center=(950, 180), font_size=20)
+        self.aviso_azul = Text(text="", center=(330, 130), font_size=24, color="deep sky blue")
+        self.aviso_vermelha = Text(text="", center=(950, 130), font_size=24, color="tomato")
+
+    def on_update(self, dt):
+        if keyp.once("A"):
+            st.tipo_azul = 1
+        if keyp.once("D"):
+            st.tipo_azul = 2
+        if keyp.once("LEFT"):
+            st.tipo_vermelha = 1
+        if keyp.once("RIGHT"):
+            st.tipo_vermelha = 2
+        if keyp.once("TAB"):
+            st.pronto_azul = True
+            self.aviso_azul.text = "PRONTO"
+        if keyp.once("ENTER"):
+            st.pronto_vermelha = True
+            self.aviso_vermelha.text = "PRONTO"
+
+        for i in range(2):
+            self.azuis[i].alpha = 0.25
+            self.vermelhas[i].alpha = 0.25
+        self.azuis[st.tipo_azul - 1].alpha = 1
+        self.vermelhas[st.tipo_vermelha - 1].alpha = 1
+
+        if st.pronto_azul and st.pronto_vermelha:
+            change_act(Duelo)
+
+
+def criar_nave(tipo, cor, lugar, angulo):
+    # Os dois tipos só mudam o desenho: playerShip1 ou playerShip2.
+    nave = Nave(frame=f"playerShip{tipo}_{cor}.png", center=lugar)
+    nave.angle = angulo
+    return nave
+
+
+def criar_asteroides():
+    for item in fase.group("asteroide"):
+        Asteroide(center=item.center)
+
+
+class Duelo(Act):
+    def setup(self):
+        for item in fase.group("parede"):
+            item.make(color="#2b3a55")
+        for item in fase.group("pedra"):
+            pedra = item.make(group="parede", color="#3d5a80", line_width=6)
+            pedra.fill = "#1d2d44"
+        for item in fase.group("barra"):
+            barra = item.make(group="parede", visual=Metal())
+            barra.rotate_by(360, time=4, loops="forever")
+        for item in fase.group("caixa"):
+            item.make(color="peru")
+        self.raios = []
+        for item in fase.group("raio"):
+            self.raios.append(criar_raio(item.center))
+        group["parede"].mass = STATIC
+        group["caixa"].mass = STATIC
+        criar_asteroides()
+        Warp(center=BURACO, radius=BORDA, color="violet", spin=0.5)
+
+        self.azul = criar_nave(st.tipo_azul, "blue", fase["azul"].center, 0)
+        self.azul.trilho = fase["trilho_azul"].make()
+        self.azul.teclas = TECLAS_ESQUERDA
+        self.azul.laser = "laserBlue01.png"
+        self.vermelha = criar_nave(st.tipo_vermelha, "red", fase["vermelha"].center, 180)
+        self.vermelha.trilho = fase["trilho_vermelho"].make()
+        self.vermelha.teclas = TECLAS_DIREITA
+        self.vermelha.laser = "laserRed01.png"
+
+        self.azul.barra = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.azul.barra["width"] @= lambda: max(self.azul.energia, 0) * 3
+        self.vermelha.barra = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.vermelha.barra["width"] @= lambda: max(self.vermelha.energia, 0) * 3
+
+    def on_update(self, dt):
+        # O raio só existe quando as duas bolas estão perto.
+        for raio in self.raios:
+            raio.active = distance(raio.bola1, raio.bola2) < 90
+
+    @every(8)
+    def mandar_estrela(self):
+        if group["alvo"].empty:
+            y = choice([760, -40])
+            inicio = (uniform(420, 860), y)
+            meio = (uniform(300, 980), 360)
+            fim = (uniform(420, 860), 720 - y)
+            estrela = Alvo(center=inicio)
+            estrela.move_along(Track(points=[inicio, meio, fim]), speed=60, on_done=estrela.destroy)
+
+    @every(15)
+    def mais_asteroides(self):
+        if group["asteroides"].empty:
+            criar_asteroides()
+
+    @when(lambda self: self.azul.energia <= 0 or self.vermelha.energia <= 0)
+    def fim(self):
+        if self.azul.energia <= 0:
+            perdeu = self.azul
+            st.vencedor = "VERMELHO"
+        else:
+            perdeu = self.vermelha
+            st.vencedor = "AZUL"
+        canvas.explosion_at(perdeu, amount=1.6)
+        canvas.debris_at(perdeu, color="gray", radius=70)
+        canvas.shake(14)
+        play_sound("audio/explosion04.wav")
+        perdeu.destroy()
+        self.after(3, lambda: change_act(Vitoria))
+
+
+class Vitoria(Act):
+    def setup(self):
+        Text(text=f"{st.vencedor} VENCEU", center=(640, 420), font_size=64, color="gold")
+        Text(text="aperte ESPAÇO", center=(640, 320), font_size=22)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Escolha)
+
+
+run(Escolha)
+`,
+      notes: [
+        {
+          at: "criar_nave(st.tipo_azul,",
+          text: "A escolha fica no <code>st</code>, que passa de um ato para o outro: o <code>Duelo</code> a lê aqui, e a próxima partida começa com a mesma nave."
+        },
+        {
+          at: "self.azuis = [",
+          text: "As duas naves de cada lado numa lista. <code>self.azuis[0]</code> é a I, <code>self.azuis[1]</code> é a II."
+        },
+        {
+          at: "self.azuis[st.tipo_azul - 1].alpha = 1",
+          text: "Todas ficam apagadas (<code>alpha</code> 0.25, quase transparentes), e a escolhida acende. O tipo vai de 1 a 2 e a lista conta de 0: daí o <code>- 1</code>."
+        },
+        {
+          at: "nave = Nave(frame=f\"playerShip{tipo}_{cor}.png\"",
+          text: "O nome da imagem montado com o tipo e a cor: <code>playerShip2_red.png</code> é a nave II vermelha."
+        },
+        {
+          at: "run(Escolha)",
+          text: "O jogo começa pela escolha."
+        }
+      ],
+      closing: `
+        <p>Dois jogadores no mesmo teclado. A nave da esquerda (azul) anda no trilho com <kbd>W</kbd> / <kbd>S</kbd>, gira com <kbd>A</kbd> / <kbd>D</kbd> e atira com <kbd>TAB</kbd>; a da direita (vermelha), com <kbd>↑</kbd> / <kbd>↓</kbd>, <kbd>←</kbd> / <kbd>→</kbd> e <kbd>ENTER</kbd>. Os lasers quicam três vezes e fazem curva perto do Warp. Quebre caixas, asteroides e a estrela, pegue os poderes e zere a energia da outra nave. Na vitória, <kbd>ESPAÇO</kbd> volta à escolha.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>trilho.at(u)</code> — o ponto do trilho no lugar u, de 0 a 1; a nave anda mudando o u, e <code>angle_at</code> dá a direção ali.</li>
+          <li><code>chase</code> como peso — a velocidade e o giro vão até o que a tecla pede aos poucos, e voltam do mesmo jeito.</li>
+          <li>Um dicionário — nomes ligados a valores (<code>teclas["tiro"]</code>); uma classe, dois jogadores, cada um com os seus campos.</li>
+          <li><code>resolve(…, bounce=1.0)</code> com <code>@collide_with</code> — o laser quica, e a função conta as batidas antes de o Scena resolver.</li>
+          <li><code>PUXAO * perto ** 3</code> — uma força que cai depressa com a distância, ajustada por um número na borda.</li>
+          <li><code>blend = "add"</code> — brilho que não custa nada, para o que aparece às dezenas.</li>
+          <li><code>zigzag</code> e <code>speed=</code> — uma trilha montada na hora, ondulada, percorrida a uma velocidade fixa.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#track-sample">Amostrar a trilha</a> · <a href="../guide/index.html#track-mod">Modificadores</a> · <a href="../guide/index.html#util-chase">chase</a> · <a href="../guide/index.html#colisao-bounce">bounce</a> · <a href="../guide/index.html#desenhar-spatial">SpatialFx</a> · <a href="../guide/index.html#aparencia-blend">Blend</a> · <a href="../guide/index.html#colocar-fase">Level</a> · <a href="../guide/index.html#mundo-impactos">Impactos</a>.</p>
+        <p><strong>E agora?</strong> Por enquanto a série acaba aqui, mas o Guia continua: cada recurso que você viu tem lá a sua seção, com tudo o que ele sabe fazer. Dê às duas naves jeitos diferentes de andar, ou escolha um jogo de que você gosta e faça a sua versão.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>
