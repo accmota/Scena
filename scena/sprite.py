@@ -4435,6 +4435,9 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
                 per second; then the usual ``ease=`` / ``then=`` / ``on_done=`` /
                 ``about=`` / ``force=``.
         """
+        if self._destroyed:     # before the tilt is touched or any argument (DV1)
+            from .entity import _refuse_dead_verb
+            _refuse_dead_verb(self, "reset_rotation", time is None and speed is None)
         tilt_fields = ("_tilt", "_tilt_mode", "_tilt_contact_point", "_tilt_contact_angle",
                        "_tilt_contact_normal", "_tilt_contact_side")
         saved = tuple(getattr(self, f) for f in tilt_fields)

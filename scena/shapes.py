@@ -45,7 +45,7 @@ from .entity import (
     _refuse_linked_pose, _gate_pose_anchor,
     _bump_collision_epoch, _geom_path_cache_set, _placement_write,
     _USE_LAYER_DEFAULT, _COPY_GROUPS, _STYLE_PAINT,
-    _fire_on_destroy, _refuse_if_destroyed,
+    _fire_on_destroy, _refuse_dead_verb, _refuse_if_destroyed,
     _parked, _stash_flag, _refuse_linked_channel,
     _wrap_actor_init, _finish_actor_construct,
     _rotate_as_motion, _rotate_as_placement,
@@ -2325,6 +2325,8 @@ class Shape(Graphic, PaintState):
         ``speed=`` (degrees per second) instead of ``time=``: the duration is that arc ÷ speed.
         force=True unlinks Defining parts that must be written (default: raise).
         """
+        if self._destroyed:     # before any argument (DV1)
+            _refuse_dead_verb(self, "rotate_to", time is None and speed is None)
         if force is not False and force is not True:      # "no" is truthy: it unlinked
             force = _expect_flag(force, "rotate_to(force=)")
         if time is not None or speed is not None:
@@ -2353,6 +2355,8 @@ class Shape(Graphic, PaintState):
         Default Graphic path (Sprite): CTM ``_rotation``; orbit ``center`` when
         ``about`` is not the pose pivot. Geometry subclasses override.
         """
+        if self._destroyed:     # before any argument (DV1)
+            _refuse_dead_verb(self, "rotate_by", time is None and speed is None)
         if force is not False and force is not True:      # "no" is truthy: it unlinked
             force = _expect_flag(force, "rotate_by(force=)")
         if time is not None or speed is not None:
@@ -2361,7 +2365,6 @@ class Shape(Graphic, PaintState):
                 self, angle, time=time, speed=speed, ease=ease, then=then, on_done=on_done,
                 about=about, force=force, loops=loops, yoyo=yoyo,
             )
-        _refuse_if_destroyed(self, "rotate_by")
         if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
             _require_timed_completion(time=time, speed=speed, then=then, on_done=on_done, ease=ease, call_name="rotate_by")
@@ -2393,6 +2396,8 @@ class Shape(Graphic, PaintState):
         With ``time=``, interpolate and return a Handle.
         force=True unlinks Defining parts that must be written (default: raise).
         """
+        if self._destroyed:     # before any argument (DV1)
+            _refuse_dead_verb(self, "scale_to", time is None)
         if force is not False and force is not True:      # "no" is truthy: it unlinked
             force = _expect_flag(force, "scale_to(force=)")
         if time is not None:
@@ -2416,6 +2421,8 @@ class Shape(Graphic, PaintState):
         Default Graphic path (Sprite): CTM ``_scale``; orbit ``center`` when
         ``about`` is not the pose pivot. Geometry subclasses override.
         """
+        if self._destroyed:     # before any argument (DV1)
+            _refuse_dead_verb(self, "scale_by", time is None)
         if force is not False and force is not True:      # "no" is truthy: it unlinked
             force = _expect_flag(force, "scale_by(force=)")
         if time is not None:
@@ -2424,7 +2431,6 @@ class Shape(Graphic, PaintState):
                 self, factor, time=time, ease=ease, then=then, on_done=on_done,
                 about=about, force=force, loops=loops, yoyo=yoyo,
             )
-        _refuse_if_destroyed(self, "scale_by")
         if then is not None or on_done is not None or ease != "linear":
             from .process import _require_timed_completion
             _require_timed_completion(time=time, then=then, on_done=on_done, ease=ease, call_name="scale_by")
@@ -2488,6 +2494,8 @@ class Shape(Graphic, PaintState):
         it needs an explicit ``angle=`` in the polar family.
         force=True unlinks Defining parts that must be written (default: raise).
         """
+        if self._destroyed:     # before any argument (DV1)
+            _refuse_dead_verb(self, "move_by", time is None and speed is None)
         if time is None and (then is not None or on_done is not None or ease != "linear") \
                 and speed is None:
             from .process import _require_timed_completion
@@ -2573,7 +2581,6 @@ class Shape(Graphic, PaintState):
                 time=time, speed=speed, ease=ease, then=then, on_done=on_done, force=force,
                 loops=loops, yoyo=yoyo, face=face,
             )
-        _refuse_if_destroyed(self, "move_by")
         result = self._move_by(to_dx, to_dy, force=force)
         from .collision import note_collider_motion
         note_collider_motion(self, step_dx, step_dy)
@@ -2611,6 +2618,8 @@ class Shape(Graphic, PaintState):
         Combined with ``about=``, the face-rotation pivots about the same point.
         force=True unlinks Defining parts that must be written (default: raise).
         """
+        if self._destroyed:     # before any argument (DV1)
+            _refuse_dead_verb(self, "move_to", time is None and speed is None)
         if time is None and (then is not None or on_done is not None or ease != "linear") \
                 and speed is None:
             from .process import _require_timed_completion
@@ -2653,7 +2662,6 @@ class Shape(Graphic, PaintState):
                 self, to_x, to_y, about=about, time=time, speed=speed, ease=ease, then=then, on_done=on_done,
                 force=force, loops=loops, yoyo=yoyo, face=face,
             )
-        _refuse_if_destroyed(self, "move_to")
         if about is None and not face:
             # The common instant move: no pivot to read (graphics review SA14:
             # a Rect spent 1.85 of 4.6 µs on a pivot it never used).
@@ -2985,6 +2993,8 @@ class Shape(Graphic, PaintState):
         ``loops="forever"`` never fires ``on_done``. ``yoyo=True`` swaps
         start/end each odd lap (flips ``span``, not ``phase``).
         """
+        if self._destroyed:     # before any argument (DV1); always timed
+            _refuse_dead_verb(self, "move_along", False)
         from .process import timed_move_along
         return timed_move_along(
             self, target, time=time, speed=speed, ease=ease, span=span, phase=phase,
@@ -3619,7 +3629,6 @@ class Point(Shape):
         the pivot (default: the point itself, which then only turns its heading).
         It placed the point at polar angle ``value`` about the pivot instead,
         unlike every other kind (C2; graphics review SA4)."""
-        _refuse_if_destroyed(self, "rotate_to")
         target = _finite_deg(value, "rotate_to angle")
         _fresh_pose(self)
         return self.rotate_by(target - float(self._rotation), about=about, force=force)
@@ -3627,7 +3636,6 @@ class Point(Shape):
     @batch_update_self()
     def rotate_by(self, angle: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Point':
         """Rotate this point about a pivot by angle degrees."""
-        _refuse_if_destroyed(self, "rotate_by")
         angle = _finite_deg(angle, "rotate_by angle")
         if angle:
             _gate_pose_anchor(self, "angle", "rotate_by", force)
@@ -3652,7 +3660,6 @@ class Point(Shape):
     @batch_update_self()
     def scale_by(self, factor: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Point':
         """Scale distance from pivot by factor."""
-        _refuse_if_destroyed(self, "scale_by")
         geom, store = _resolve_scale_apply(self, factor, force=force)
         if geom == 1.0 and store == float(self._scale):
             return self
@@ -4912,7 +4919,6 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
         A free line turned about its center takes bare float writes, as
         Ellipse and Rect do (graphics review SB11: 32 µs against 10–15 for
         its siblings). Anything linked, pulled or read falls to the batch."""
-        _refuse_if_destroyed(self, "rotate_by")
         dθ_deg = _finite_deg(angle, "rotate_by angle")
         if dθ_deg == 0.0:
             return self
@@ -5028,7 +5034,6 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
     @batch_update_self()
     def scale_by(self, factor: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Line':
         """Scale Defining geometry about a pivot by factor."""
-        _refuse_if_destroyed(self, "scale_by")
         geom, store = _resolve_scale_apply(self, factor, force=force)
         if geom == 1.0 and store == float(self._scale):
             return self
@@ -5660,6 +5665,8 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
         Line's TANGENT_POINT model). If point is inside the circle, the touch point
         computation degenerates gracefully to point==touch point (zero-length lines).
         """
+        if self._destroyed:     # before the point / layer / group checks (DV1)
+            _refuse_if_destroyed(self, "tangent_lines_from")
         line1 = Line(circle=self, from_point=point, side='left', layer=layer, group=group)
         try:
             line2 = Line(circle=self, from_point=point, side='right', layer=layer, group=group)
@@ -5796,7 +5803,6 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
 
     def rotate_by(self, angle: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Circle':
         """Rotate Defining geometry about a pivot by angle degrees; the arc heading turns with it."""
-        _refuse_if_destroyed(self, "rotate_by")
         dθ_deg = _finite_deg(angle, "rotate_by angle")
         if dθ_deg == 0.0:
             return self
@@ -5857,7 +5863,6 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
     @batch_update_self()
     def scale_by(self, factor: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Circle':
         """Scale Defining geometry about a pivot by factor. angle/spread are unaffected."""
-        _refuse_if_destroyed(self, "scale_by")
         geom, store = _resolve_scale_apply(self, factor, force=force)
         if geom == 1.0 and store == float(self._scale):
             return self
@@ -6408,7 +6413,6 @@ class Ellipse(_DerivedRotationRoute, Shape):
 
     def rotate_by(self, angle: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Ellipse':
         """Rotate about a pivot by angle degrees; updates Defining parts + angle."""
-        _refuse_if_destroyed(self, "rotate_by")
         dθ_deg = _finite_deg(angle, "rotate_by angle")
         if dθ_deg == 0.0:
             return self
@@ -6468,7 +6472,6 @@ class Ellipse(_DerivedRotationRoute, Shape):
     @batch_update_self()
     def scale_by(self, factor: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Ellipse':
         """Uniformly scale Defining geometry about a pivot."""
-        _refuse_if_destroyed(self, "scale_by")
         geom, store = _resolve_scale_apply(self, factor, force=force)
         if geom == 1.0 and store == float(self._scale):
             return self
@@ -6868,7 +6871,6 @@ class Polygon(Shape):
     @batch_update_self()
     def rotate_by(self, angle: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Polygon':
         """Rotate every vertex about a pivot by angle degrees."""
-        _refuse_if_destroyed(self, "rotate_by")
         dθ_deg = _finite_deg(angle, "rotate_by angle")
         if dθ_deg == 0.0:
             return self
@@ -6889,7 +6891,6 @@ class Polygon(Shape):
     @batch_update_self()
     def scale_by(self, factor: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Polygon':
         """Scale every vertex's distance from a pivot by factor."""
-        _refuse_if_destroyed(self, "scale_by")
         geom, store = _resolve_scale_apply(self, factor, force=force)
         if geom == 1.0 and store == float(self._scale):
             return self
@@ -7613,7 +7614,6 @@ class _RadialPolygon(Polygon):
 
     def rotate_by(self, angle: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'RegularPolygon':
         """Rotate about a pivot by angle degrees; updates Defining parts + angle."""
-        _refuse_if_destroyed(self, "rotate_by")
         dθ_deg = _finite_deg(angle, "rotate_by angle")
         if dθ_deg == 0.0:
             return self
@@ -7672,7 +7672,6 @@ class _RadialPolygon(Polygon):
 
     def scale_by(self, factor: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'RegularPolygon':
         """Uniformly scale Defining geometry about a pivot."""
-        _refuse_if_destroyed(self, "scale_by")
         geom, store = _resolve_scale_apply(self, factor, force=force)
         if geom == 1.0 and store == float(self._scale):
             return self
@@ -8814,7 +8813,6 @@ class _RectBody(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
 
     def rotate_by(self, angle: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Rect':
         """Rotate about a pivot by angle degrees; updates Defining parts + angle."""
-        _refuse_if_destroyed(self, "rotate_by")
         dθ_deg = _finite_deg(angle, "rotate_by angle")
         if dθ_deg == 0.0:
             return self
@@ -8844,7 +8842,6 @@ class _RectBody(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
     @batch_update_self()
     def scale_by(self, factor: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Rect':
         """Uniformly scale Defining geometry about a pivot."""
-        _refuse_if_destroyed(self, "scale_by")
         geom, store = _resolve_scale_apply(self, factor, force=force)
         if geom == 1.0 and store == float(self._scale):
             return self
@@ -9362,7 +9359,6 @@ class Square(Rect):
     def scale_by(self, factor: float, *, about: Optional[GeneralPoint] = None, force: bool = False) -> 'Square':
         """Uniformly scale length (and position); reuses Rect's scale_by for the geometry,
         then re-syncs length from the resulting width so it never goes stale."""
-        _refuse_if_destroyed(self, "scale_by")
         geom, store = _resolve_scale_apply(self, factor, force=force)
         if geom == 1.0 and store == float(self._scale):
             return self
@@ -10361,21 +10357,17 @@ class Blank(Shape):
         return self
 
     def rotate_to(self, value: float, *, about=None, force: bool = False) -> 'Blank':
-        _refuse_if_destroyed(self, "rotate_to")
         _finite_deg(value, "rotate_to angle")
         return self
 
     def rotate_by(self, angle: float, *, about=None, force: bool = False) -> 'Blank':
-        _refuse_if_destroyed(self, "rotate_by")
         _finite_deg(angle, "rotate_by angle")
         return self
 
     def scale_to(self, value: float, *, about=None, force: bool = False) -> 'Blank':
-        _refuse_if_destroyed(self, "scale_to")
         return _scale_to_via(self, value, about=about, force=force)
 
     def scale_by(self, factor: float, *, about=None, force: bool = False) -> 'Blank':
-        _refuse_if_destroyed(self, "scale_by")
         _geom, store = _resolve_scale_apply(self, factor, force=force)
         _pose_scale_set(self, store)
         return self

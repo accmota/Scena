@@ -2024,6 +2024,23 @@ def _drawn(obj) -> bool:
     return bool(obj.visible) if v is None else bool(v)
 
 
+def _refuse_dead_verb(obj, verb: str, instant: bool) -> None:
+    """A destroyed actor's verb, before it checks one argument (DV1 in Testing
+    Design): ``dead.move_to((nan, 0))`` says destroyed, not "finite". The
+    verbs reach it only when ``obj._destroyed`` is set, so a living call pays
+    one attribute read. An instant call refuses. A timed one runs the probe
+    its helper runs at the call: a kind whose probe refuses (a Point's move,
+    every pose scale) refuses here whatever the arguments; a turn, or a move
+    whose probe passes, goes on to its cancelled Handle (T6)."""
+    if instant:
+        _refuse_if_destroyed(obj, verb)
+    elif verb.startswith("scale"):
+        if getattr(obj, "_scale_gate", None) is not None:
+            _refuse_if_destroyed(obj, verb)     # ``_scale_gate_at_call``'s first check
+    elif verb.startswith("move"):
+        obj._move_by(0.0, 0.0)                  # the move helpers' writability probe
+
+
 def _refuse_if_destroyed(obj, action: str) -> None:
     """Raise when ``action`` would change a destroyed actor. Reads stay legal.
 
@@ -2283,6 +2300,9 @@ class Entity(Container):
     # (S2-3).
     _dying = False
     _mode_leaving = None
+    # ``__init__`` sets it; the class default lets a verb read it as its first
+    # statement (``if self._destroyed:``, DV1) on an object still being built.
+    _destroyed = False
     # A whole-object link (``obj @= other``) drives the pose too (a copy carries
     # it, C7); Point overrides: its link follows position only.
     _whole_link_carries_pose = True
@@ -2416,7 +2436,9 @@ class Entity(Container):
             _install_setattr_route(type(self))
             route_map = type(self)._setattr_route  # type: ignore[attr-defined]
         route = route_map.get(name)
-        if callable(value) and not isinstance(value, type):
+        if callable(value) and not isinstance(value, type) and not self._destroyed:
+            # A destroyed actor's refusal comes first (its dead route map or
+            # the ink branch below), whatever the value (DV1).
             if (
                 name in _PROPERTY_LINK_ANY
                 and isinstance(self, Graphic)
@@ -2988,6 +3010,8 @@ class Entity(Container):
         """Always exit, then enter the mode ``fn`` — even when ``fn`` is the
         current mode (a restart). ``e.mode = fn`` does nothing when ``fn`` is
         already running."""
+        if self._destroyed and fn is not None:  # before the value check (DV1)
+            raise DestroyedError(_destroyed_access_message(self, "mode"))
         self._validate_mode_value(fn)
         self._refuse_mode_in_exit_hook()
         self._goto_mode(fn)
@@ -3201,9 +3225,9 @@ class Entity(Container):
 
     def add_to_group(self, groupid: str) -> "Entity":
         """Add this object to a named group."""
-        groupid = _require_group_name(groupid, "add_to_group")
-        if not self.is_alive:
+        if self._destroyed:     # before the name check (DV1)
             raise DestroyedError(_destroyed_access_message(self, "tag"))
+        groupid = _require_group_name(groupid, "add_to_group")
         self._refuse_part_tags("add_to_group", groupid)
         self._scenacanvas.registry.add_to_group(self, groupid)
         return self
@@ -3480,6 +3504,9 @@ def _install_timed_pose(cls) -> None:
             ):
                 # Instant path is the per-frame hot path (angle= / scale=).
                 # Do not import process or validate completion kwargs unless used.
+                if self._destroyed:     # before any argument (DV1); the
+                    _refuse_dead_verb(    # overrides do not repeat it
+                        self, name, time is None and (not kwargs or kwargs.get("speed") is None))
                 if kwargs:
                     f = kwargs.get("force", False)
                     if f is not False and f is not True:    # force="no" is truthy: it unlinked
@@ -4052,6 +4079,8 @@ class Graphic(Entity, ABC):
         ``speed=`` (degrees per second) instead of ``time=``, as on ``rotate_to``.
         No ``loops=`` / ``yoyo=``: a single fixed destination has nothing to bounce toward.
         """
+        if self._destroyed:     # before rest_heading or any argument (DV1)
+            _refuse_dead_verb(self, "reset_rotation", time is None and speed is None)
         return self.rotate_to(
             self.rest_heading,
             time=time,
