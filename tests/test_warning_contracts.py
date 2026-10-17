@@ -77,6 +77,7 @@ CONTRACTS: Dict[str, W] = {
     "pacing:FramePacer.__init__": W(untested="platform pacing fallback (no CoreVideo display link): test_pacing_corevideo runs where it exists", twin="the display link is present: the normal path"),
     # --- reactive core ----------------------------------------------------------
     "state:Container._clean_up": W(fires="test_act", silent="test_graph_lifecycle.TestOwnFieldLinksDieQuietly.test_self_reading_field_is_quiet"),
+    "state:FormulaLink._follow_holders": W(fires="test_formula_follows_holder", silent="test_formula_follows_holder.TestHolderMatrix.test_follows_a_new_object"),
     "state:Container._assign_formula": W(fires="test_graph_lifecycle", twin="a first link on a field is silent: every link test"),
     "state:UpdateManager.flush": W(fires="test_reactive_edge_cases", silent="test_reactive_edge_cases.TestEvents.test_destroyed_source_retires_quietly"),
     "shapes:_ensure_writable": W(fires="test_pose_fast_path", twin="only with force=True: the author asked to unlink"),

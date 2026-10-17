@@ -338,8 +338,10 @@ class State:
         elif value is cell._raw_value and type(value) not in _VALUE_TYPES:
             # ``st.pos += v`` / ``st.items += [x]``: ``st.pos`` is the held
             # object, ``+=`` changed it in place and assigns it back. The cell
-            # sees the same object, so it would notify nothing (0.8.0).
-            cell._changed_in_place()
+            # sees the same object, so it would notify nothing (0.8.0). A Vec2
+            # already told the cell, from its own ``update()`` (_HeldPayloadUpdate).
+            if value.__class__ is not _HELD_BY_VALUE:
+                cell._changed_in_place()
         else:
             # What ``cell.value = value`` runs, without the closed-surface
             # ``__setattr__`` and the property hop (pays for the check above).
@@ -861,9 +863,19 @@ class FormulaLink():
         self.always_update = always_update
         # Extract Container sources from the expression (AST + closure).
         # Empty sources would install a dead link (never dirty again) — refuse.
-        self.sources = self._extract_sources(expression_fn)
+        hops = []
+        self.sources = self._extract_sources(expression_fn, hops)
         if not self.sources:
             raise TypeError(_FORMULA_NO_SOURCES_ERROR)
+        if hops:
+            # The chain reads through a holder (``nave.alvo.radius``,
+            # ``st.alvo.radius``): what it follows past the holder is the
+            # object held now, re-learned when the holder holds another one.
+            # Only such a link checks its holders on evaluation (the class).
+            self._hops = hops
+            self._source_fn = expression_fn
+            if type(self) is FormulaLink:
+                self.__class__ = _HolderFormulaLink
         # Store old value for simple value comparison optimization
         self.old_value = None
 
@@ -871,15 +883,92 @@ class FormulaLink():
         """Check if a value is a simple type that can be efficiently compared."""
         return isinstance(value, (int, float, bool, str))
 
+    # ``(store, key, held)`` per holder the formula reads through: ``store[key]``
+    # held ``held`` when the sources were learned (an ink dict and field name,
+    # or a cell's ``__dict__`` and ``'_raw_value'``); ``_A_VALUE`` when it held
+    # a value (a Vec2, a number, a string: the chain stops at the holder, and
+    # another value changes nothing). None: no holder hop.
+    _hops = None
+
     def evaluate(self) -> Any:
         return self.expression_fn()
-        
+
+    def _follow_holders(self) -> None:
+        """A holder on a chain holds another object: follow that one instead.
+
+        Runs after an evaluation (the holder notified, so the formula re-ran).
+        Sources are re-learned from the formula, and the edges that changed
+        are moved. A chain that no longer resolves (``nave.alvo`` is None now,
+        or lacks the attribute) stops at its holder, which is still a source."""
+        for store, key, held in self._hops:
+            now = store.get(key, _NO_HELD)
+            if now is held:
+                continue
+            if held is _A_VALUE and (now.__class__ is _HELD_BY_VALUE or (
+                    now is not None and type(now) in _VALUE_TYPE_SET)):
+                continue            # ``nave.desvio = vec_from_angle(…)``: a value again
+            break
+        else:
+            return
+        owner = self.owner
+        hops = []
+        try:
+            new_sources = self._extract_sources(self._source_fn, hops, lenient=True,
+                                                parts=self._source_parts)
+        except Exception:
+            # Not readable any more (a helper was rebound, a cell removed):
+            # keep the sources, and stop asking until a holder moves again.
+            self._hops = [(store, key, store.get(key, _NO_HELD))
+                          for store, key, _ in self._hops]
+            return
+        self._hops = hops or None
+        old_sources = self.sources
+        if owner is None:
+            self.sources = new_sources
+            return
+        ss = owner._scena_system
+        dropped = [s for s in old_sources if s not in new_sources]
+        added = [s for s in new_sources if s not in old_sources]
+        if not dropped and not added:
+            return
+        kept = ContainerSet(s for s in old_sources if s in new_sources)
+        for source in dropped:
+            ss.remove_dependency(owner, source)
+        g = ss.dependency_graph
+        if getattr(owner, '_node_id', None) is None:
+            ss.register_container(owner)
+        for source in added:
+            if not getattr(source, '_ephemeral', False):
+                if getattr(source, '_node_id', None) is None:
+                    ss.register_container(source)
+                if g.would_create_cycle(owner._node_id, source._node_id):
+                    # ``nave.alvo = r`` under ``r.radius = nave.alvo.radius * 2``:
+                    # the formula would read the value it defines. It is not
+                    # followed (as before re-pointing); say so once.
+                    from .process import report_author_warning
+                    report_author_warning(
+                        "@=",
+                        f"{_cycle_label(owner)}'s formula now reads "
+                        f"{_cycle_label(source)}, which reads {_cycle_label(owner)}: "
+                        "a formula cannot depend on the value it defines, so it does "
+                        "not follow that read.",
+                    )
+                    continue
+            ss.add_dependency(owner, source)
+            source._note_became_link_source()
+            kept.add(source)
+        self.sources = kept
+        for source in dropped:
+            source._refresh_link_source_liveness()
+
     def evaluate_and_update(self):
         """Evaluate formula and update owner through dependency system"""
         if self.owner is None:
             return
             
         result = self.expression_fn()
+        if self._hops is not None:
+            self._follow_holders()
         
         # Check if value changed (for optimization)
         if not self.always_update and self._is_simple_value(result):
@@ -999,7 +1088,8 @@ class FormulaLink():
         return locate_formula_node(fn)
 
     # Extract all Container objects that are referenced in a formula
-    def _extract_sources(self, fn: Callable[[], Any]) -> ContainerSet:
+    def _extract_sources(self, fn: Callable[[], Any], hops: Optional[list] = None,
+                         lenient: bool = False, parts=None) -> ContainerSet:
         """
         Extract all Container instances a formula reads, from its source.
 
@@ -1014,6 +1104,15 @@ class FormulaLink():
         Handles attribute chains, calls, and simple subscripts
         (e.g. ``obj.attr``, ``items[0].radius``).
 
+        A chain that reads through a holder (an Entity ink field or an st
+        cell holding an object, ``nave.alvo.radius``) adds the holder and the
+        object it holds now, and appends ``(store, key, held)`` to ``hops``
+        (``FormulaLink._follow_holders`` re-learns the sources when the holder
+        holds another object). ``lenient`` (that re-learning): a chain that
+        does not resolve stops at its holder instead of raising, and ``parts``
+        are the ones read at link (``_source_parts``): the same names, the
+        same helpers, so only what the holders hold is read again.
+
         Raises:
             TypeError: If the formula hides a read, its source cannot be read
                 and has no Container defaults, or no Container sources are found.
@@ -1022,10 +1121,12 @@ class FormulaLink():
         import ast
         from .formula_check import check_formula, formula_context
         from .validate import refuse_async
+        if hops is None:
+            hops = []
 
         # An async formula returns a coroutine, never a value.
         refuse_async(fn, what="@= formula")
-        lambda_node = self._locate_lambda_node(fn)
+        lambda_node = parts[0].node if parts else self._locate_lambda_node(fn)
         if lambda_node is None:
             # No source (REPL / ``exec``). Default-arg captures are sources
             # either way — ``def f(b=branch): ...`` is how wide fan-in links
@@ -1096,7 +1197,8 @@ class FormulaLink():
             )
 
         # Refuses hidden reads; returns the formula plus the helpers it calls.
-        parts = check_formula(fn, lambda_node)
+        if parts is None:
+            parts = check_formula(fn, lambda_node)
         _fname = getattr(getattr(fn, "__func__", fn), "__name__", "")
         fn_label = "lambda" if _fname == "<lambda>" else f"{_fname}()"
 
@@ -1165,27 +1267,51 @@ class FormulaLink():
                 target = base_obj
                 parent_container = None
                 terminal_field = None
+                last = len(steps) - 1
                 for i, (kind, payload) in enumerate(steps):
                     if kind == 'attr':
                         if isinstance(target, State):
                             # ``st.score`` reads the value; the source is the
-                            # cell (a missing one raises "has no cell …"). The
-                            # rest of a chain (``st.pos.x``) reads the payload,
-                            # which is not a source of its own: a write
-                            # replaces it in the cell.
-                            target = last_container = target._resolve_cell(payload)
+                            # cell (a missing one raises "has no cell …").
+                            if lenient and payload not in target._data:
+                                return
+                            cell = target._resolve_cell(payload)
+                            target = last_container = cell
+                            if i == last:
+                                break
+                            held = cell.value
+                            if (held.__class__ is _HELD_BY_VALUE
+                                    or type(held) in _VALUE_TYPE_SET and held is not None):
+                                # ``st.pos.x``: the Vec2 is the cell's value, not
+                                # a source of its own (a new one replaces it in
+                                # the cell; an in-place change tells the cell).
+                                hops.append((cell.__dict__, '_raw_value', _A_VALUE))
+                                break
+                            # The rest of the chain (``st.alvo.radius``) reads the
+                            # object held now: the cell is a source, so is what
+                            # the chain reads in that object, and a new
+                            # ``st.alvo`` re-points them (``_follow_holders``).
+                            # A cell that holds None now (``lambda: st.alvo.r
+                            # if st.alvo else 0``) stops here until it holds one.
+                            hops.append((cell.__dict__, '_raw_value', held))
+                            self.sources.add(cell)
+                            if held is None:
+                                break
                             # An audio reader held in the cell (``st.mic.level``)
                             # is written off the graph: its level is a source
                             # too, or the formula hears only a new ``st.mic``.
-                            # A cell that holds None now (``lambda: st.alvo.r
-                            # if st.alvo else 0``) is fine: the cell is the
-                            # source, and a new ``st.alvo`` re-runs the formula.
-                            if i < len(steps) - 1:
-                                off_graph = _formula_source_of(target.value)
-                                if off_graph is not None:
-                                    self.sources.add(off_graph)
-                            break
+                            off_graph = _formula_source_of(held)
+                            if off_graph is not None:
+                                self.sources.add(off_graph)
+                                last_container = None
+                                break
+                            target = held
+                            last_container = held if _is_durable_source(held) else None
+                            continue
                         if target is None and i > 0:
+                            if lenient:
+                                last_container = None
+                                break
                             # ``g.mic.level`` while ``g.mic`` is None (a mic
                             # opened later): Python's "'NoneType' object has
                             # no attribute 'level'" named neither the read nor
@@ -1202,6 +1328,9 @@ class FormulaLink():
                                 f"with 'if {path} else …' in the formula)."
                             )
                         if not hasattr(target, payload):
+                            if lenient:
+                                last_container = None
+                                break
                             # A read the link cannot follow would leave it
                             # silently stale — refuse instead of warning. The
                             # object's own error (with its hints) comes first.
@@ -1212,7 +1341,36 @@ class FormulaLink():
                                 "(yet). Create it before linking, or check the spelling."
                             )
                         next_target = getattr(target, payload)
-                        if i == len(steps) - 1:
+                        if isinstance(target, Container) and (
+                                i < last or isinstance(next_target, Container)):
+                            # An ink field holding an object (``nave.desvio``,
+                            # ``nave.alvo``): the field is a source, so a new
+                            # value re-runs the formula. A Vec2 there is the
+                            # field's value, not a source of its own: its
+                            # in-place changes notify the field (``_hold_payload``),
+                            # as an st cell's do. An object goes on being
+                            # followed below: the one held now, re-pointed when
+                            # the field holds another (``_follow_holders``).
+                            anchor = _ink_field_source(target, payload)
+                            if anchor is not None:
+                                self.sources.add(anchor)
+                                if (next_target.__class__ is _HELD_BY_VALUE
+                                        or type(next_target) in _VALUE_TYPE_SET
+                                        and (next_target is not None or lenient)):
+                                    # A Vec2, a number, a string: the field's
+                                    # value. None (re-learning only; at link
+                                    # time a read through None is refused
+                                    # below): stop here until it holds one.
+                                    if i < last:
+                                        hops.append((target._ink, payload,
+                                                     None if next_target is None
+                                                     else _A_VALUE))
+                                    last_container = None
+                                    break
+                                if next_target is not None:
+                                    hops.append((target._ink, payload, next_target))
+                                    last_container = None
+                        if i == last:
                             if isinstance(target, Container) and not isinstance(
                                 next_target, Container
                             ):
@@ -1231,6 +1389,9 @@ class FormulaLink():
                         try:
                             target = target[payload]
                         except Exception:
+                            if lenient:
+                                last_container = None
+                                break
                             raise TypeError(
                                 f"@= formula {fn_label} reads {base_name}[…{payload!r}], "
                                 "which does not exist when the formula is linked."
@@ -1328,9 +1489,29 @@ class FormulaLink():
             is_descendant = any(owner in raw_sources for owner in get_owner_chain(source))
             if not is_descendant:
                 final_sources.add(source)
-
+        if hops:
+            self._source_parts = parts
         return final_sources
     
+class _HolderFormulaLink(FormulaLink):
+    """A formula whose chain reads through a holder (``FormulaLink._hops``).
+
+    Its own class so that only these pay the holder check on a pull; a
+    formula that reads no object through a holder evaluates as before."""
+
+    def evaluate(self) -> Any:
+        result = self.expression_fn()
+        hops = self._hops
+        if hops is not None:
+            # Inline: the same object in every holder (most pulls) costs one
+            # probe per hop; anything else is ``_follow_holders``'s to judge.
+            for store, key, held in hops:
+                if store.get(key, _NO_HELD) is not held:
+                    self._follow_holders()
+                    break
+        return result
+
+
 class DirectLink(FormulaLink):
     """A simplified FormulaLink for direct attribute references that bypasses AST parsing."""
     
@@ -1425,6 +1606,21 @@ def _formula_source_of(obj):
     return hook(obj)
 
 
+def _ink_field_source(obj, name: str):
+    """The graph node of ink field ``name`` on ``obj`` (made on demand), or None
+    when ``name`` is not an ink field. Asked at link time only."""
+    try:
+        slot = obj._resolve_field(name)
+    except AttributeError:
+        return None
+    if slot is not _INK_SLOT or name in getattr(type(obj), "_scena_target_only", ()):
+        return None
+    ink = getattr(obj, '_ink', None)
+    if not isinstance(ink, dict) or name not in ink:
+        return None         # a property-backed field (``angle``) reads its own node
+    return obj._ensure_scalar_anchor(name)
+
+
 def _is_durable_source(obj) -> bool:
     """A Container a formula chain may depend on.
 
@@ -1451,6 +1647,8 @@ _FORMULA_NO_SOURCES_ERROR = (
 
 
 _INK_SLOT = object()  # sentinel from _resolve_field for dynamic ink names
+_NO_HELD = object()   # a holder hop's field is gone (``FormulaLink._follow_holders``)
+_A_VALUE = object()   # a holder hop held a value, not an object to follow
 
 
 class FieldRef:
@@ -3040,6 +3238,13 @@ class Container():
             anchor = cls(self, name)
             anchors[name] = anchor
             bump_pose_trust(self)   # an anchor came: trust is re-checked
+            ink = getattr(self, '_ink', None)
+            if isinstance(ink, dict):
+                held = ink.get(name)
+                if held.__class__ is _HELD_BY_VALUE:
+                    # A Vec2 in this ink field: its in-place changes notify
+                    # the field from now on (``_HeldPayloadUpdate``).
+                    _hold_payload(held, self, name)
         elif type(anchor) is not cls:
             # Formula source extraction and ``@=`` must share one node type
             # (``_PropertyAnchor`` for Graphic.angle/scale, not a dead ScalarAnchor).
@@ -3056,6 +3261,9 @@ class Container():
             return
         anchor = anchors.pop(name)
         bump_pose_trust(self)
+        ink = getattr(self, '_ink', None)
+        if isinstance(ink, dict) and ink.get(name).__class__ is _HELD_BY_VALUE:
+            _unhold_payload(ink[name], self, name)
         try:
             if anchor._link is not None:
                 anchor.unlink()
@@ -3265,7 +3473,19 @@ class Container():
             else:
                 old = self.__dict__.get(name, slot.default)
                 store = self.__dict__
-            if _value_changed(old, value):
+            if old is value:
+                # The same object again. A number or a string: nothing changed
+                # (and no ``_value_changed`` call). ``ship.items += [x]`` /
+                # ``ship.d |= {…}``: ``+=`` changed the held object and assigns
+                # it back. Tell what reads the field, as ``st.items += [x]``
+                # does. (A Vec2 told them already, from its own ``update()``.)
+                if (store is ink and type(value) not in _VALUE_TYPE_SET
+                        and value.__class__ is not _HELD_BY_VALUE):
+                    anchors = self.__dict__.get('_field_anchors')
+                    anchor = anchors.get(name) if anchors else None
+                    if anchor is not None:
+                        _notify_ink_anchor(self, anchor)
+            elif _value_changed(old, value):
                 store[name] = value
                 if store is not ink:
                     bump_pose_rev(self)
@@ -3276,6 +3496,9 @@ class Container():
                 anchors = self.__dict__.get('_field_anchors')
                 anchor = anchors.get(name) if anchors else None
                 if anchor is not None:
+                    if ((old.__class__ is _HELD_BY_VALUE
+                         or value.__class__ is _HELD_BY_VALUE) and store is ink):
+                        _hold_ink_value(self, name, old, value)
                     # Source-only or linked ScalarAnchor: dependents of this
                     # field (other formulas that read it) must be dirtied.
                     if not self._in_batch_update:
@@ -3666,6 +3889,11 @@ class Container():
                 self.update()
             elif not was_batching and um.is_updating:
                 um.mark_dirty(self._node_id)
+                # In a flush callback the batch skips ``update()``, so a held
+                # Vec2 (``ship.aim += …`` in ``@on_change``) tells its holders here.
+                held = self.__dict__.get('_held_payload')
+                if held is not None:
+                    held.changed(self)
 
     @contextmanager
     def _no_update(self):
@@ -4385,8 +4613,130 @@ def _rehold_payload(cell: "Attribute", old, new) -> None:
         guard = old.__dict__.get('_write_field')
         if isinstance(guard, _HeldPayloadWrite) and guard.cell() is cell:
             del old.__dict__['_write_field']
+        _unhold_payload(old, cell, None)
     if new.__class__ is _HELD_BY_VALUE:
         new.__dict__['_write_field'] = _HeldPayloadWrite(cell, new)
+        _hold_payload(new, cell, None)
+
+
+# Every in-place change of a Vec2 ends in its ``update()``: ``<<`` (``_takein``),
+# ``+=`` / ``-=`` / ``do_rotation`` (the batch's exit), and ``v.x = …`` once the
+# vector's ownership root has ``_needs_pull_invalidate``. A held Vec2 (an st
+# cell's payload, or the value of an Entity ink field a formula reads) gets a
+# per-instance ``update`` that runs the class's and then tells its holders, so
+# other Vec2s pay nothing. A holder is ``(cell, None)`` or ``(host, name)``.
+class _HeldPayloadUpdate:
+    """``update`` of a held Vec2 (weak refs: no cycle)."""
+
+    __slots__ = ("payload", "holders", "flagged")
+
+    def __init__(self, payload) -> None:
+        self.payload = weakref.ref(payload)
+        self.holders: list = []
+        self.flagged = False        # this hook set the vector's own pull flag
+
+    def __call__(self) -> None:
+        p = self.payload()
+        if p._in_batch_update:
+            return                  # the batch's exit calls again
+        d = p.__dict__
+        if d['_node_id'] is None and d['_owner'] is None and d.get('_link') is None:
+            # Off the graph, nothing reads it there: what ``update()`` would do
+            # is store length / angle (``_update_impl``); bring in step only
+            # the ones it has (a later read computes the others).
+            p._sync_computed()
+        else:
+            type(p).update(p)
+        holders = self.holders
+        if len(holders) == 1 and holders[0][1] is None:
+            # The common case inline: one st cell (``st.pos += v``).
+            cell = holders[0][0]()
+            if cell is not None:
+                d = cell.__dict__
+                if d['_raw_value'] is p and d['_link'] is None:
+                    cell._changed_in_place()
+            return
+        self.changed(p)
+
+    def changed(self, p) -> None:
+        """``p`` changed in place: notify each holder that holds it now."""
+        # ``_unhold_payload`` replaces the list (never edits it): a holder
+        # dropped by a callback this notify runs does not upset the loop.
+        for ref, name in self.holders:
+            holder = ref()
+            if holder is None:
+                continue
+            if name is None:
+                # An st cell. A linked cell's payload is its formula's output.
+                d = holder.__dict__
+                if d['_raw_value'] is p and d['_link'] is None:
+                    holder._changed_in_place()
+                continue
+            ink = getattr(holder, '_ink', None)
+            if not isinstance(ink, dict) or ink.get(name) is not p:
+                continue
+            anchors = holder.__dict__.get('_field_anchors')
+            anchor = anchors.get(name) if anchors else None
+            if anchor is not None and anchor._link is None:
+                _notify_ink_anchor(holder, anchor)
+
+
+def _hold_payload(payload, holder, name) -> None:
+    """``holder`` (a cell, or an Entity with ink field ``name``) holds ``payload``."""
+    d = payload.__dict__
+    hook = d.get('_held_payload')
+    if hook is None:
+        hook = _HeldPayloadUpdate(payload)
+        d['_held_payload'] = hook
+        d['update'] = hook
+    for ref, n in hook.holders:
+        if n == name and ref() is holder:
+            return
+    hook.holders.append((weakref.ref(holder), name))
+    if name is not None:
+        # ``v.x = …`` calls ``update()`` only under a pull flag (A2); a cell's
+        # payload refuses that write, so only an ink field needs it.
+        root = payload if d['_owner'] is None else payload._ownership_root()
+        if not getattr(root, '_needs_pull_invalidate', False):
+            root._needs_pull_invalidate = True
+            hook.flagged = root is payload
+
+
+def _unhold_payload(payload, holder, name) -> None:
+    """``holder`` no longer holds ``payload``; the last one removes the hook."""
+    d = payload.__dict__
+    hook = d.get('_held_payload')
+    if hook is None:
+        return
+    holders = hook.holders
+    if len(holders) != 1 or holders[0][1] != name or holders[0][0]() is not holder:
+        hook.holders = [(ref, n) for ref, n in holders
+                        if not (n == name and ref() is holder) and ref() is not None]
+        if hook.holders:
+            return
+    del d['_held_payload']
+    if d.get('update') is hook:
+        del d['update']
+    if (hook.flagged and d.get('_link') is None and d.get('_node_id') is None
+            and '_link_source' not in d):
+        # Back to a plain free vector: its ``v.x = …`` skips ``update()`` again.
+        payload._needs_pull_invalidate = False
+
+
+def _notify_ink_anchor(host, anchor) -> None:
+    """Dirty what reads the ink field behind ``anchor``, as an ink ``=`` does."""
+    if not host._in_batch_update:
+        anchor.update()
+    elif anchor._node_id is not None:
+        host._scena_system.update_manager.mark_dirty(anchor)
+
+
+def _hold_ink_value(host, name, old, new) -> None:
+    """Ink field ``name`` of ``host`` (a formula reads it) went from ``old`` to ``new``."""
+    if old.__class__ is _HELD_BY_VALUE:
+        _unhold_payload(old, host, name)
+    if new.__class__ is _HELD_BY_VALUE:
+        _hold_payload(new, host, name)
 
 
 class Attribute(ClosedSurface, Container):  # Use string literal for forward reference
@@ -4907,6 +5257,7 @@ def unbound_value_hint(call: str, value, example: str = "volume") -> str:
 
 
 _VALUE_TYPES = (float, int, str, bool, tuple, type(None))
+_VALUE_TYPE_SET = frozenset(_VALUE_TYPES)     # one hash probe (the ink write)
 
 
 # ``input`` sets it to ``KeyName``, the ``str`` an ``on_key_*`` handler
