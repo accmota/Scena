@@ -247,6 +247,19 @@ left out.
   `v.length` and `v.angle` at their old values if they had been read before.
 - `v.abs_angle_to(w)` reads exactly `abs(v.angle_to(w))`: between a vector and
   itself it read about 0.000001° instead of 0.
+- `ship.vel << (math.nan, 0)` (and any vector of an actor) says "a vector takes
+  two finite numbers"; it said "a point takes…".
+- A write to a destroyed actor names the field: `dead.vel = (5, 5)` raises
+  `Circle.vel cannot change a destroyed actor … Guard the call: if dead:`; every
+  field said `Circle.set` and `if actor:`.
+- On the `vel` of a destroyed actor, `held += (math.inf, 0)`, `held += ("a", 1)`
+  and `held.do_rotation(math.nan)` raise `DestroyedError`, as `held += (1, 0)`
+  does; they raised the bad value's `ValueError` / `TypeError` first.
+- `v == [3, 4]` is True when `v == (3, 4)` is: a vector compares with a list
+  as with a tuple (`v + [3, 4]` already took both).
+- `Vec2(x=1)` says `Vec2 takes x and y together … Write Vec2(1, 0) or
+  Vec2(x=1, y=0).`; the type hints and the docstring no longer advertise an
+  x-only form, which always raised.
 
 - A formula that reads a field of your own holding a `Vec2` now follows the
   field. With `nave.desvio = Vec2(50, 0)` and

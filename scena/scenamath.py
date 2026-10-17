@@ -76,7 +76,7 @@ def _vec_scale_message(op: str, other) -> str:
 
 def _vec_overflow_message(other) -> str:
     """``v += (10**400, 0)``: an int no float holds (GX15's words, not Python's
-    OverflowError)."""
+    OverflowError); also ``rect.vec << (nan, 0)``, NaN / inf into a part."""
     r = repr(tuple(other)) if isinstance(other, (tuple, list)) else repr(other)
     return f"a vector takes two finite numbers, got {r if len(r) <= 40 else r[:39] + '…'}"
 
@@ -86,8 +86,7 @@ class Vec2(Container):
     and ``angle`` are bare Derivate scalars (ScalarSlot).
     Supports all standard vector operations and various utility methods.
     
-    Constructor signatures:
-    (see __new__ signatures for proper usage, not all parameters are required at the same time)
+    Constructor signatures (x and y go together; there is no x-only form):
       - Vec2() - Create a zero vector (0, 0)
       - Vec2(100, 200) - Create vector with x=100, y=200 (positional arguments)
       - Vec2(x=100, y=200) - Create vector with specific x and y coordinates
@@ -170,9 +169,6 @@ class Vec2(Container):
     
     @overload
     def __new__(cls, *, tuple: Union[Tuple[float, float], Tuple[Attribute, Attribute]], **kwargs) -> 'Vec2': ...
-    
-    @overload
-    def __new__(cls, *, x: Union[float, Attribute], **kwargs) -> 'Vec2': ...
     
     def __new__(cls, *args, **kwargs):
         processed_params = {}
@@ -331,6 +327,13 @@ class Vec2(Container):
         ]
 
         if len(matched_signatures) == 0:
+            if present_keys and present_keys <= {'x', 'y'}:
+                # ``Vec2(x=1)``: an x-only form was advertised and never
+                # existed (VB11).
+                given = ", ".join(f"{k}={kwargs[k]!r:.40}" for k in sorted(present_keys))
+                raise ValueError(
+                    f"Vec2 takes x and y together, got only {given}. "
+                    f"Write Vec2(1, 0) or Vec2(x=1, y=0).")
             raise ValueError(f"No matching signature for vector-defining keys: {present_keys}")
         if len(matched_signatures) > 1:
             raise ValueError(f"Multiple matching signatures for keys: {present_keys}. Matches: {matched_signatures}")
@@ -630,8 +633,10 @@ class Vec2(Container):
                 x = x0 + other.x
                 y = y0 + other.y
         except OverflowError:
+            self._refuse_if_dead()      # a dead actor's part says so first (VB15)
             raise ValueError(_vec_overflow_message(other)) from None
         except TypeError:               # ``v += ("a", 1)`` (VB13)
+            self._refuse_if_dead()
             raise TypeError(_vec_operand_message("add", other)) from None
         self._store_xy(x, y, bare)
         return self
@@ -665,8 +670,10 @@ class Vec2(Container):
                 x = x0 - other.x
                 y = y0 - other.y
         except OverflowError:
+            self._refuse_if_dead()      # a dead actor's part says so first (VB15)
             raise ValueError(_vec_overflow_message(other)) from None
         except TypeError:               # ``v += ("a", 1)`` (VB13)
+            self._refuse_if_dead()
             raise TypeError(_vec_operand_message("subtract", other)) from None
         self._store_xy(x, y, bare)
         return self
@@ -683,16 +690,21 @@ class Vec2(Container):
         (``_scalar_bare_ok``) holds both as bare Defining leaves, so no
         Derivate walk is due; otherwise the caller's descriptor reads seeded
         the cache and it is read here. A part of a destroyed actor refuses at
-        the x write (``ScalarSlot.__set__``), before either axis changes."""
+        the x write (``ScalarSlot.__set__``), before either axis changes; on
+        the two refusal branches below it refuses first, so a dead
+        ``vel += (inf, 0)`` says destroyed, not "finite" (VB15). A living
+        finite store pays nothing for that check."""
         d = self.__dict__
         if not bare:
             cache = d.get('_scalar_bare_ok')
             if cache is None or cache.get('x') is not True or cache.get('y') is not True:
+                self._refuse_if_dead()
                 self._refuse_derived_axes(x, y)
         if x.__class__ is not float or y.__class__ is not float or x - x != 0.0 or y - y != 0.0:
             # NaN / inf (finite: x - x == 0), or an int: ``w.x = 4`` keeps an
             # int, and ``4 + 10**400`` is an int no float holds whose
             # ``x - x`` is 0 (VB1). ``finite`` refuses both before either axis.
+            self._refuse_if_dead()
             from .validate import finite
             owner = d.get('_owner')
             field = d.get('_link_refused')      # ``ship.vel``: same words as its setter
@@ -702,6 +714,15 @@ class Vec2(Container):
         with self._batch_update():
             self.x = x
             self.y = y
+
+    def _refuse_if_dead(self) -> None:
+        """``ScalarSlot.__set__``'s refusal for a part of a destroyed actor,
+        for ``_store_xy``'s branches that refuse before the x write."""
+        from .state import _dead_self_or_owner
+        dead = _dead_self_or_owner(self)
+        if dead is not None:
+            from .entity import _refuse_if_destroyed
+            _refuse_if_destroyed(dead, "x")
 
     def _refuse_derived_axes(self, x, y) -> None:
         """The plain ``v.x = …`` Derivate refusal, for ``_store_xy``."""
@@ -749,20 +770,14 @@ class Vec2(Container):
     # Value __eq__; mutable vector — not a dict/set key.
     __hash__ = None
 
-    def __eq__(self, other: Union['Vec2', Tuple[float, float], Attribute]) -> bool:
-        """
-        Compare two Vec2 objects based on their x and y coordinates only.
-        This is different from __eq__ which uses object identity.
-        
-        Args:
-            other: Vec2 to compare with
-            
-        Returns:
-            bool: True if x and y coordinates match, False otherwise
+    def __eq__(self, other: Union['Vec2', Tuple[float, float], List[float]]) -> bool:
+        """``v == w``: the same x and y. ``w`` is a Vec2 or an ``(x, y)`` pair,
+        a tuple or a list, as ``+`` takes (VB8: a list compared False). A
+        Point answers for itself (it warns: PE1); anything else is False.
         """
         if isinstance(other, Vec2):
             return self.x == other.x and self.y == other.y
-        elif isinstance(other, tuple) and len(other) == 2:
+        elif (isinstance(other, tuple) or isinstance(other, list)) and len(other) == 2:
             return self.x == other[0] and self.y == other[1]
         elif getattr(type(other), "_point_eq_warns", False):
             return NotImplemented       # Point.__eq__ answers (and warns: PE1)
@@ -844,14 +859,14 @@ class Vec2(Container):
         d = self.__dict__
         if overflow:
             # An int no float holds: Python's OverflowError, not a Scena one (GX15).
-            r = repr(tuple(other))
-            raise ValueError(f"a vector takes two finite numbers, got {r if len(r) <= 40 else r[:39] + '…'}")
-        if d.get('_owner') is not None:
-            # A part (``rect.vec``, a Box's vector) is geometry: two finite
+            raise ValueError(_vec_overflow_message(other))
+        if d.get('_owner') is not None and ((x - x) or (y - y)):
+            # A part (``rect.vec``, ``ship.vel``) is geometry: two finite
             # numbers, as for a point; it took ``(0, inf)`` on every path (GX15
             # in Testing Design). A free Vec2 is a value and may hold NaN / inf.
-            from .shapes import _finite_xy
-            x, y = _finite_xy(other, x, y)
+            # x / y are floats here: NaN / inf minus itself is NaN (truthy).
+            # The words speak of a vector (VB15: they said "a point takes").
+            raise ValueError(_vec_overflow_message(other))
         old_x = d.get('x', 0.0)
         old_y = d.get('y', 0.0)
         if old_x != x or old_y != y:
@@ -931,7 +946,12 @@ class Vec2(Container):
         Rotate this vector by angle (in degrees), modifying itself.
         """
         from .validate import number
-        rad = math.radians(number(angle, "Vec2.do_rotation angle"))
+        try:
+            angle = number(angle, "Vec2.do_rotation angle")
+        except (TypeError, ValueError):
+            self._refuse_if_dead()      # a dead actor's part says so first (VB15)
+            raise
+        rad = math.radians(angle)
         cos_a = math.cos(rad)
         sin_a = math.sin(rad)
         self._refuse_author_write()

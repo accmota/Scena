@@ -925,24 +925,27 @@ _DEAD_QUIET = frozenset({"active", "mode", "owner", "on_update"})
 
 class _DeadSetter:
     """Route of every name on a destroyed actor (E14: ``time_scale`` / ``mass`` /
-    ``clickable`` / ``corner_radius`` … were stored silently)."""
+    ``clickable`` / ``corner_radius`` … were stored silently). It carries the
+    name, so the refusal says ``Circle.vel cannot change…`` (VB15: it said
+    ``Circle.set``)."""
 
-    __slots__ = ()
+    __slots__ = ("name",)
+
+    def __init__(self, name: str) -> None:
+        self.name = name
 
     def __set__(self, obj, value) -> None:
-        _refuse_if_destroyed(obj, "set")
-
-
-_DEAD_SETTER = _DeadSetter()
+        _refuse_if_destroyed(obj, self.name)
 
 
 class _DeadRoute(dict):
     """A class's route map for its destroyed instances: the quiet names keep
-    their setter, every other name refuses."""
+    their setter, every other name refuses (a setter made per write: only a
+    refused write reaches it)."""
 
     def get(self, name, default=None):
         hit = dict.get(self, name)
-        return _DEAD_SETTER if hit is None else hit
+        return _DeadSetter(name) if hit is None else hit
 
 
 def _mark_routes_dead(obj) -> None:

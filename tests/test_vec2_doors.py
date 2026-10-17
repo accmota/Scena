@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import contextlib
 import fnmatch
+import inspect
 from unittest import mock
 import itertools
 import os
@@ -330,6 +331,75 @@ class TestFoundByTheMatrix(unittest.TestCase):
             with self.assertRaises(ValueError) as cm:
                 call()
             self.assertIn("a vector takes two finite numbers", str(cm.exception))
+
+    def test_vb15_a_part_refuses_nan_in_a_vectors_words(self):
+        ship = self.circle(center=(0, 0))
+        ship.vel = (1, 2)
+        for bad in ((math.nan, 0), (0, math.inf), [-math.inf, 1]):
+            with self.assertRaises(ValueError) as cm:
+                ship.vel << bad
+            self.assertIn("a vector takes two finite numbers", str(cm.exception))
+            self.assertEqual((ship.vel.x, ship.vel.y), (1.0, 2.0))
+
+    def test_vb15_a_dead_write_names_the_field(self):
+        # The dead route refused every name as "Circle.set" (_DeadSetter).
+        from scena.state import DestroyedError
+        dead = self.circle(center=(0, 0))
+        dead.vel = (1, 1)
+        dead.destroy()
+        writes = {"vel": (5, 5), "mass": 3, "time_scale": 2, "center": (1, 1),
+                  "radius": 9, "pontos": 4}
+        for name, value in writes.items():
+            with self.assertRaises(DestroyedError) as cm:
+                setattr(dead, name, value)
+            self.assertIn(f"Circle.{name} cannot change a destroyed actor",
+                          str(cm.exception))
+            self.assertNotIn("Circle.set", str(cm.exception))
+
+    def test_vb15_a_dead_in_place_op_says_destroyed_before_finite(self):
+        from scena.state import DestroyedError
+        dead = self.circle(center=(0, 0))
+        dead.vel = (1, 2)
+        held = dead.vel
+        dead.destroy()
+        ops = (lambda v: v.__iadd__((math.inf, 0)),
+               lambda v: v.__iadd__((0, math.nan)),
+               lambda v: v.__isub__((math.inf, 0)),
+               lambda v: v.__iadd__((10 ** 400, 0)),
+               lambda v: v.__isub__((0, 10 ** 400)),
+               lambda v: v.__iadd__(("a", 1)),
+               lambda v: v.__isub__("zz"),
+               lambda v: v.do_rotation(math.nan),
+               lambda v: v.do_rotation("a"),
+               lambda v: v.do_rotation(30),
+               lambda v: v.__iadd__((1, 0)))
+        for op in ops:
+            for cold in (False, True):
+                if cold:                    # the non-bare branch of _store_xy
+                    held.__dict__.pop("_scalar_bare_ok", None)
+                with self.assertRaises(DestroyedError):
+                    op(held)
+                self.assertEqual((held.x, held.y), (1.0, 2.0))
+
+    def test_vb8_a_list_compares_like_a_tuple(self):
+        v = Vec2(3, 4)
+        self.assertTrue(v == [3, 4])
+        self.assertFalse(v != [3, 4])
+        self.assertFalse(v == [3, 5])
+        self.assertFalse(v == [3, 4, 0])
+        self.assertTrue([3, 4] == v)        # reflected: list defers to Vec2
+        self.assertEqual(v == [3, 4], v == (3, 4))
+
+    def test_vb11_no_x_only_constructor_is_advertised(self):
+        import typing
+        for kw in ({"x": 1}, {"y": 2}):
+            with self.assertRaises(ValueError) as cm:
+                Vec2(**kw)
+            self.assertIn("Vec2 takes x and y together", str(cm.exception))
+        for sig in typing.get_overloads(Vec2.__new__):
+            names = set(inspect.signature(sig).parameters) - {"cls", "kwargs"}
+            self.assertFalse(names == {"x"}, "an x-only overload is advertised")
+        self.assertNotIn("not all parameters are required", Vec2.__doc__)
 
 
 if __name__ == "__main__":

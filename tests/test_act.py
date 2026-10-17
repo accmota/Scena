@@ -2086,6 +2086,7 @@ class TestMessagesNameTheAct(ActTestCase):
             self.begin(Fase5)
         msg = str(cm.exception)
         self.assertIn("act Fase5 ended", msg)
+        self.assertIn("Fase5.pontos cannot change", msg)    # the field (VB15)
         self.assertIn("change_act", msg)
         self.assertIn("return right after", msg)
         self.assertNotIn("if actor:", msg)
