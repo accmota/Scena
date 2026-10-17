@@ -212,6 +212,11 @@ left out.
   file) no longer jumps them to their end, and a shape's `fade_out` and
   `canvas.fade_out` started together end together. A game run headless now
   plays its transients the same way on every machine.
+- Vector math is about 4× faster: `v + w`, `v * 2`, `vec_from_angle(...)`,
+  `normalize()` and the first `.length` / `.angle` of a result build no more
+  than they need (`v + w` 4.3 → 1.0 µs, `(b - a).normalize() * 3` 19 → 5 µs).
+  A crowd that steers with vectors every frame (the `horda` benchmark) runs
+  about 15 % faster per frame. Nothing changes in what a vector does.
 
 ### Fixed
 

@@ -807,7 +807,7 @@ flush()
 
 ## Ephemeral containers
 
-Arithmetic temps (`Point.temp()`, `Vec2` ops, etc.) are created under `with ephemeral_creation()`:
+Arithmetic temps (`Point.temp()`, `Vec2` ops, etc.) are created under `with ephemeral_creation()` (an exact `Vec2` from two finite floats gets the same state written directly: [Vec2](#vec2-scenamathpy), "Arithmetic results skip the constructor"):
 
 - `_ephemeral = True`, `node_id = None` — never registered
 - no structural or formula edges
@@ -1007,8 +1007,8 @@ Author catalog: [Guia — Frame](../docs/pt/guide/index.html#frame).
 ## Vec2 (`scenamath.py`)
 
 2D vector Container with Defining `x` / `y` and Derivate `length` / `angle`.
-Used heavily as Shape parts and arithmetic results (`Vec2.temp` under
-`ephemeral_creation`). Same takein / `@=` / `_update_impl` patterns as other
+Used heavily as Shape parts and arithmetic results (`Vec2.temp`: ephemeral,
+built without the constructor; below). Same takein / `@=` / `_update_impl` patterns as other
 composites — Derivate `length` / `angle` refresh on read when dirty (pull).
 `abs_angle_to` on a zero-length vector is `0` (no division). `reflect_about`,
 `project_onto`, and `reject_from` normalize with `normalize()`. `takein` accepts
@@ -1030,6 +1030,55 @@ HEAD, 2026-10-07): `Vec2.temp`, `v + w`, `v * 2` 4–6% faster; `v.x = 5` 446 �
 within noise (−1.9%, −0.2%, +0.2%; A/A ±0.5%). Guard:
 `test_closed_surfaces.TestClosedVec2.test_construction_makes_no_setattr_call`.
 A new engine write on the construction path goes through `__dict__`.
+
+**Arithmetic results skip the constructor.** Author games build vectors every
+frame (`vec_from_angle(a, k * dt)`, `(b - a).normalize() * speed`), so the
+cost of one result is frame time. The general constructor spent ~3.2 µs on a
+result that is always the same shape: `__new__`'s argument parsing, the kwargs
+merge, the signature-set matching (`_extract_common_params_and_signature`
+rebuilds its key sets per call), the friendly-constructor wrapper, the
+`ephemeral_creation` context manager, `Container.__init__` and two
+`_init_scalar` slot lookups. `Vec2.temp` now builds an exact `Vec2` from two
+finite floats in one `__dict__` update from `scenamath._TEMP_STATE` (the
+general path's dict, key order included; fresh `_parts`, the current
+`_scena_system`, `x`, `y`). Everything else (a subclass such as `_RimPair`,
+NaN / inf, no scena system) still takes the general constructor and its
+errors. The first `length` / `angle` read on a free vector (no `_node_id`, no
+owner, no field anchor, exact `Vec2`) stores the computed value directly when
+it is finite. The general write stores the same value, but it also builds a
+pose cell and queues it for the collision drain, and nothing reads that cell
+for a vector with no root collider (~3.5 µs per first read). A registered,
+owned or anchored vector keeps the general write. `normalize` /
+`clamp_length` read `length` once. `+`, `-`, `+=`, `-=` import `Point` only off
+the Vec2 branch. Measured 2026-10-16 (in-process interleaved A/B, 12 rounds,
+the pristine HEAD module and the new one both loaded as fresh copies):
+
+| Spelling | Before | After |
+| --- | --- | --- |
+| `Vec2.temp(1, 2)` | 3.26 µs | 0.40 µs |
+| `v + w` / `v - w` | 4.28 µs | 0.96 µs |
+| `v * 2` / `-v` | 3.59 µs | 0.69 µs |
+| `vec_from_angle(30, 5)` | 4.11 µs | 1.12 µs |
+| `v.normalize()` | 5.09 µs | 1.20 µs |
+| `(v + w).length` | 9.74 µs | 2.38 µs |
+| `Vec2(1, 2)` (general path, control) | 2.56 µs | 2.57 µs |
+
+Author spellings on a `Circle` (HEAD tree against this one, three alternating
+processes, median): `(b - a).normalize() * 3` 19.1 → 4.9 µs; the Duelo Warp
+pull (`c.vel += vec_from_angle(heading(c, hole), k / d**3 * dt)`) 17.3 →
+13.2 µs. What remains there is the owned `c.vel += …`: `__iadd__` writes
+`x` / `y`, then the `Graphic.vel` setter gets the same vector back and writes
+both axes again (four guarded field writes, ~8 µs). Whole game
+(`game_bench.py --ab` on a temporary switch over both fast paths, 30 s,
+machine under peer load, load average 4–8): `horda` work 16.4 → 13.9 ms per
+frame; the Duelo draft idle on its menu (no lasers) +0.9 %, within noise.
+The template is a second
+copy of what the general path writes: a new private field in
+`Container.__init__` or `Vec2.__init__` goes into `_TEMP_STATE` too.
+`test_ephemeral_math.TestVec2TempFastPath` fails otherwise (it compares both
+dicts key by key). It also checks that the first read stores what the general
+write stores, minus the pose cell and the subtree cache, and that results
+used in formulas and links behave as before.
 
 **`length` / `angle` are read-only; the in-place spelling is `<<`.** A write
 or link raises `DerivedAttributeError` worded by `Vec2._derived_field_message`
