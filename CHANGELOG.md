@@ -215,6 +215,22 @@ left out.
 
 ### Fixed
 
+- A formula that reads a field of your own holding a `Vec2` now follows the
+  field. With `nave.desvio = Vec2(50, 0)` and
+  `mira = Circle(center=lambda: nave.center + nave.desvio)`, a new value
+  (`nave.desvio = vec_from_angle(0, 20)`, `nave.desvio *= 2`) left `mira`
+  where it was, and a vector made by arithmetic (`a + b`, `vec_from_angle`)
+  was never followed at all: `nave.desvio << (80, 0)`, `nave.desvio += (10, 0)`
+  and `nave.desvio.x = 70` changed it and `mira` did not move, until something
+  else in the formula changed. Every spelling now reaches the formula, the
+  in-place ones (`<<`, `+=`, `-=`, `.x =`, `do_rotation`) included. A field
+  holding a list or a dict now takes `nave.itens += [x]` and `nave.d |= {…}`
+  as `st.itens += [x]` does (`nave.itens.append(x)` still changes the list
+  without telling the formulas, as in `st`). A field holding an object
+  (`nave.alvo = inimigo`) re-runs the formula when it gets a new object.
+- `st.pos << (3, 4)` and `st.pos.do_rotation(90)` changed the vector a cell
+  holds without telling what is linked to the cell; they now do, as
+  `st.pos += …` did. `st.pos += v` is also about 40 % faster.
 - A misspelled short property no longer becomes a silent field of your own.
   `bola.colr = "red"`, `bola.angl = 45`, `bola.scal = 2` and `bola.fil = "blue"`
   used to store a new field that nothing reads, so nothing changed on screen.

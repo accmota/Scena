@@ -607,6 +607,13 @@ surface (a write to a name it does not have raises —
 > inside one async mode stays a local. Scenes use the same rule
 > ([Act Design.md](Act%20Design.md#act-memory-on-self-ink-rule)).
 
+**A formula reads the field, not what it holds.** `lambda: nave.center + nave.desvio`
+depends on the field `desvio` (its anchor), whatever it holds, so a new value
+re-runs the formula; a Vec2 there also notifies the field on every in-place
+change (`<<`, `+=`, `.x =`, `do_rotation`), and a list or dict on `+=` / `|=`.
+Mechanism and the options weighed: [Reactive Design — A formula that reads an ink
+field follows the field](Reactive%20Design.md#a-formula-that-reads-an-ink-field-follows-the-field).
+
 **Reading ink is a miss.** An ink field is not an attribute, so every read
 (`self.rumo`) misses normal lookup and runs `Entity.__getattr__`. Its first
 branch returns `ink[name]` when the full path (`_ink_read_slow`: the destroyed
