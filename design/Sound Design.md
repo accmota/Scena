@@ -333,10 +333,12 @@ a mixer reset) gets `update()`. `.level` stays a live read; the node only says
   `g.mic` is `None`, raises (the source walk reads the whole chain, whatever
   the condition) with a message naming the read and the fix
   (`state._extract_sources`, RA2). A mic in a State cell (`st.mic.level`)
-  follows the cell and the level; one linked while `st.mic` is `None`
-  follows the cell only, and a later `g.mic = other` / `st.mic = other`
-  leaves the formula on the first mic's level (link again after replacing a
-  mic). A mic opened on demand links where it
+  follows the cell and the level, and one linked while `st.mic` is `None`
+  follows the mic the cell gets later. A later `g.mic = other` /
+  `st.mic = other` moves the formula to the new mic's level (2026-10-17;
+  before, it stayed on the first mic's: [Reactive Design — A formula that
+  reads an ink field follows the field](Reactive%20Design.md#a-formula-that-reads-an-ink-field-follows-the-field)).
+  A mic opened on demand links where it
   opens: tutorial 23 writes `st["voz"] @= lambda: amp_db(self.mic.level)`
   right after `Microphone()` in the R handler, and the meter, the light and
   the `@when` read `st.voz` (0 until then). Opening the mic at the top of the

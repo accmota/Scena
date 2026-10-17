@@ -139,6 +139,39 @@ class TestMicLevelIsASource(SystemTestCase, unittest.TestCase):
             b["width"].unlink()
             st.mic_t = None
 
+    def test_a_replaced_mic_is_followed(self):
+        """``g.mic = other`` / ``st.mic = other``: the formula re-ran once and
+        stayed on the first mic's level (sources learned at link). It follows
+        the mic its holder holds now (Reactive Design, "Through a holder")."""
+        from scena import State
+
+        class Recorder(Circle):
+            def setup(self):
+                self.mic = None
+
+        g = Recorder(radius=4)
+        g.mic = self.mic
+        hud = State(name="hud_mic2")
+        hud.mic = None
+        a = Rect(top_left=(0, 0), width=1, height=10)
+        b = Rect(top_left=(0, 20), width=1, height=10)
+        other = _null_mic()
+        try:
+            a["width"] @= lambda: 1 + 300 * g.mic.level
+            b["width"] @= lambda: 1 + 300 * hud.mic.level if hud.mic else 1
+            g.mic = other
+            hud.mic = other
+            for _ in range(3):
+                other._ingest(_block(0.5))
+                self.w.step(1)
+            self.assertGreater(other.level, 0.0)
+            self.assertAlmostEqual(a.width, 1 + 300 * other.level)
+            self.assertAlmostEqual(b.width, 1 + 300 * other.level)
+        finally:
+            a["width"].unlink()
+            b["width"].unlink()
+            other.close()
+
     def test_a_mic_not_opened_yet_names_the_read_and_the_fix(self):
         """``g.mic.level`` with ``g.mic`` None raised Python's bare "'NoneType'
         object has no attribute 'level'", also behind ``if g.mic else 0``

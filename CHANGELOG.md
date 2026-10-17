@@ -231,6 +231,16 @@ left out.
 - `st.pos << (3, 4)` and `st.pos.do_rotation(90)` changed the vector a cell
   holds without telling what is linked to the cell; they now do, as
   `st.pos += …` did. `st.pos += v` is also about 40 % faster.
+- A formula that reads through an object kept in a field or a cell now
+  follows the object kept there now. With `nave.alvo = a` and
+  `r = Circle(radius=lambda: nave.alvo.radius * 2)`, after `nave.alvo = b`
+  the formula went on hearing `a.radius` and missed every change of
+  `b.radius`; with `st.alvo` it never heard the radius at all
+  (`st.alvo.radius = 7` left `r` as it was). It now follows `b`, and stops
+  hearing `a`. The same holds for a microphone swapped in a field
+  (`g.mic = other_mic`): the formula moves to the new mic's level. A formula
+  linked while `st.alvo` is `None` (`lambda: st.alvo.radius if st.alvo else 0`)
+  follows the object the cell gets later.
 - A misspelled short property no longer becomes a silent field of your own.
   `bola.colr = "red"`, `bola.angl = 45`, `bola.scal = 2` and `bola.fil = "blue"`
   used to store a new field that nothing reads, so nothing changed on screen.
