@@ -3625,6 +3625,15 @@ class Graphic(Entity, ABC):
         if value is None:
             object.__setattr__(self, "_vel", None)
             return
+        if value is self._vel:
+            # ``ship.vel += w`` / ``-= w``: ``Vec2.__iadd__`` already wrote both
+            # axes through the guarded field writes and hands the held object
+            # back; writing them again is a same-value no-op (~2 µs). Only the
+            # finite check is left: a batched ``+=`` write does not run it.
+            from .validate import number
+            number(value.x, f"{self.name}.vel x")
+            number(value.y, f"{self.name}.vel y")
+            return
         if callable(value) and not isinstance(value, Vec2):
             raise CallableAssignError(callable_assign_message(self, "vel"))
         if isinstance(value, Vec2):

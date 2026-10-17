@@ -217,6 +217,10 @@ left out.
   than they need (`v + w` 4.3 → 1.0 µs, `(b - a).normalize() * 3` 19 → 5 µs).
   A crowd that steers with vectors every frame (the `horda` benchmark) runs
   about 15 % faster per frame. Nothing changes in what a vector does.
+- `ship.vel += w` and `ship.vel -= w` are about 27 % faster (each axis is
+  written once, not twice); a gravity-well pull such as
+  `ship.vel += vec_from_angle(heading(ship, hole), pull * dt)` is about 17 %
+  faster. Nothing else changes: the same errors, the same values.
 
 ### Fixed
 
