@@ -62,6 +62,13 @@ def _vec_scale_message(op: str, other) -> str:
     hint = " For a dot product write v.dot(w)." if isinstance(other, Vec2) else ""
     return f"Vec2 {op} {kind}: a Vec2 scales by a number, as in v {op} 2.{hint}"
 
+
+def _vec_overflow_message(other) -> str:
+    """``v += (10**400, 0)``: an int no float holds (GX15's words, not Python's
+    OverflowError)."""
+    r = repr(tuple(other)) if isinstance(other, (tuple, list)) else repr(other)
+    return f"a vector takes two finite numbers, got {r if len(r) <= 40 else r[:39] + '…'}"
+
 class Vec2(Container):
     """
     2D vector class. ``x``/``y`` are bare Defining scalars; ``length``
@@ -321,9 +328,12 @@ class Vec2(Container):
     def _update_impl(self) -> None:
         """Update internal state variables."""
         # Update length and angle
+        # ``_write_field``, not ``self.length =``: an engine store, so the
+        # author door's destroyed check (``ScalarSlot.__set__``) does not
+        # refuse a read of a dead actor's ``vel.length``.
         length_squared = self.x * self.x + self.y * self.y
-        self.length = math.sqrt(length_squared)
-        self.angle = math.degrees(math.atan2(self.y, self.x))
+        self._write_field('length', math.sqrt(length_squared))
+        self._write_field('angle', math.degrees(math.atan2(self.y, self.x)))
 
     def _derived_field_message(
         self, name: str, operation: str, value: Any = None, part: Optional[str] = None,
@@ -370,11 +380,11 @@ class Vec2(Container):
                 if value != d.get(name, 0.0):
                     d[name] = value
                 return
-        with self._no_update():
+        with self._no_update():      # engine stores (see ``_update_impl``)
             if name == 'length':
-                self.length = math.sqrt(x * x + y * y)
+                self._write_field('length', math.sqrt(x * x + y * y))
             elif name == 'angle':
-                self.angle = math.degrees(math.atan2(y, x))
+                self._write_field('angle', math.degrees(math.atan2(y, x)))
 
     def _assign_formula(self, formula: Union['Container', Tuple[float, float], Callable[[], Any]]):
         if isinstance(formula, tuple):
@@ -563,47 +573,108 @@ class Vec2(Container):
     def __iadd__(self, other):
         """Implements the += operator for in-place addition."""
         self._refuse_author_write()
-        if isinstance(other, Vec2):
-            with self._batch_update():
-                self.x += other.x
-                self.y += other.y
-            return self
-        from .shapes import Point
-        if isinstance(other, Point):
-            with self._batch_update():
-                self.x += other.x
-                self.y += other.y
-        elif (isinstance(other, (tuple, list)) and len(other) == 2
-              and type(other[0]) is not bool and type(other[1]) is not bool):
-            with self._batch_update():
-                self.x += other[0]
-                self.y += other[1]
+        d = self.__dict__
+        bare = d.get('_scalar_bare_ok')
+        if (bare is not None and bare.get('x') is True and bare.get('y') is True
+                and not d.get('_field_anchors')):
+            x0 = d.get('x', 0.0)    # what ScalarSlot.__get__ returns here (A3)
+            y0 = d.get('y', 0.0)
+            bare = True
         else:
-            raise TypeError(_vec_operand_message("add", other))
+            x0 = self.x
+            y0 = self.y
+            bare = False
+        try:
+            if isinstance(other, Vec2):
+                x = x0 + other.x
+                y = y0 + other.y
+            elif (isinstance(other, (tuple, list)) and len(other) == 2
+                  and type(other[0]) is not bool and type(other[1]) is not bool):
+                x = x0 + other[0]
+                y = y0 + other[1]
+            else:
+                from .shapes import Point
+                if not isinstance(other, Point):
+                    raise TypeError(_vec_operand_message("add", other))
+                x = x0 + other.x
+                y = y0 + other.y
+        except OverflowError:
+            raise ValueError(_vec_overflow_message(other)) from None
+        self._store_xy(x, y, bare)
         return self
-    
+
     def __isub__(self, other):
         """Implements the -= operator for in-place subtraction."""
         self._refuse_author_write()
-        if isinstance(other, Vec2):
-            with self._batch_update():
-                self.x -= other.x
-                self.y -= other.y
-            return self
-        from .shapes import Point
-        if isinstance(other, Point):
-            with self._batch_update():
-                self.x -= other.x
-                self.y -= other.y
-        elif (isinstance(other, (tuple, list)) and len(other) == 2
-              and type(other[0]) is not bool and type(other[1]) is not bool):
-            with self._batch_update():
-                self.x -= other[0]
-                self.y -= other[1]
+        d = self.__dict__
+        bare = d.get('_scalar_bare_ok')
+        if (bare is not None and bare.get('x') is True and bare.get('y') is True
+                and not d.get('_field_anchors')):
+            x0 = d.get('x', 0.0)    # what ScalarSlot.__get__ returns here (A3)
+            y0 = d.get('y', 0.0)
+            bare = True
         else:
-            raise TypeError(_vec_operand_message("subtract", other))
+            x0 = self.x
+            y0 = self.y
+            bare = False
+        try:
+            if isinstance(other, Vec2):
+                x = x0 - other.x
+                y = y0 - other.y
+            elif (isinstance(other, (tuple, list)) and len(other) == 2
+                  and type(other[0]) is not bool and type(other[1]) is not bool):
+                x = x0 - other[0]
+                y = y0 - other[1]
+            else:
+                from .shapes import Point
+                if not isinstance(other, Point):
+                    raise TypeError(_vec_operand_message("subtract", other))
+                x = x0 - other.x
+                y = y0 - other.y
+        except OverflowError:
+            raise ValueError(_vec_overflow_message(other)) from None
+        self._store_xy(x, y, bare)
         return self
-    
+
+    def _store_xy(self, x, y, bare: bool = False) -> None:
+        """The one store of an in-place op (``+=``, ``-=``, ``do_rotation``):
+        both axes are checked, then both are written. A batched axis write
+        skips the field's finite check (``_coerce_magnitude_slot`` with
+        ``clamp=True``): ``w += (inf, 0)`` stored inf while ``w.x = inf``
+        raised, and ``ship.vel += (inf, 0)`` had written x when the vel setter
+        refused. The batch also skips the Derivate guard: ``line.vec += …``
+        on a Line(p1, p2) wrote a vector its p1 / p2 then disagreed with.
+        ``bare``: the caller read x / y from ``__dict__`` because the A3 cache
+        (``_scalar_bare_ok``) holds both as bare Defining leaves, so no
+        Derivate walk is due; otherwise the caller's descriptor reads seeded
+        the cache and it is read here. A part of a destroyed actor refuses at
+        the x write (``ScalarSlot.__set__``), before either axis changes."""
+        d = self.__dict__
+        if not bare:
+            cache = d.get('_scalar_bare_ok')
+            if cache is None or cache.get('x') is not True or cache.get('y') is not True:
+                self._refuse_derived_axes(x, y)
+        if x - x != 0.0 or y - y != 0.0:          # NaN / inf (finite: x - x == 0)
+            from .validate import finite
+            owner = d.get('_owner')
+            field = d.get('_link_refused')      # ``ship.vel``: same words as its setter
+            prefix = f"{owner.name}.{field} " if owner is not None and field else ""
+            finite(x, prefix + "x")
+            finite(y, prefix + "y")
+        with self._batch_update():
+            self.x = x
+            self.y = y
+
+    def _refuse_derived_axes(self, x, y) -> None:
+        """The plain ``v.x = …`` Derivate refusal, for ``_store_xy``."""
+        from .state import DerivedAttributeError
+        der = self._derivate_source()
+        for name, value in (('x', x), ('y', y)):
+            if self._field_is_derivate(name):
+                raise DerivedAttributeError(self._derived_field_message(name, "set", value))
+            if der is not None:
+                raise DerivedAttributeError(self._derived_refusal(der, "set", value, leaf=name))
+
     def __mul__(self, scalar: float) -> 'Vec2':
         """Scale by a number: ``v * 2``."""
         try:
@@ -680,6 +751,11 @@ class Vec2(Container):
         """
         if new_value is self:
             return
+        if self.__dict__.get('_destroyed'):
+            # A part of a destroyed actor (``held = ship.vel``): the raw store
+            # below would skip ``ScalarSlot.__set__``'s refusal.
+            from .entity import _refuse_if_destroyed
+            _refuse_if_destroyed(self, "copy")
 
         # Nested under an outer no_update/batch_update: leaf writes already
         # skip update(); skip the redundant 3-node subtree walk.
@@ -809,12 +885,21 @@ class Vec2(Container):
         rad = math.radians(number(angle, "Vec2.do_rotation angle"))
         cos_a = math.cos(rad)
         sin_a = math.sin(rad)
-        x = self.x * cos_a - self.y * sin_a
-        y = self.x * sin_a + self.y * cos_a
         self._refuse_author_write()
-        with self._batch_update():
-            self.x = x
-            self.y = y
+        d = self.__dict__
+        bare = d.get('_scalar_bare_ok')
+        if (bare is not None and bare.get('x') is True and bare.get('y') is True
+                and not d.get('_field_anchors')):
+            x0 = d.get('x', 0.0)    # what ScalarSlot.__get__ returns here (A3)
+            y0 = d.get('y', 0.0)
+            bare = True
+        else:
+            x0 = self.x
+            y0 = self.y
+            bare = False
+        x = x0 * cos_a - y0 * sin_a
+        y = x0 * sin_a + y0 * cos_a
+        self._store_xy(x, y, bare)
 
 
 _object_new = object.__new__

@@ -742,7 +742,7 @@ Two different goals: stop drawing vs leave the reactive system. Mixing them up l
 
 `destroy()` is the author-facing “delete this drawable.” Standalone Attributes and State variables have no canvas role — use `clean_up()` / `State.remove`.
 
-**Links and a destroyed actor.** `@=` is a write: onto a destroyed actor — an ink cell (`dead["hp"] @=`), a slot (`dead["radius"] @=`), a property anchor (`angle` / `scale`) or a part the author still holds (`dead.center @=`) — it raises `DestroyedError` and registers nothing (destroy marks the part subtree `_host_destroyed`; W2 in [Testing Design](Testing%20Design.md#w--world-machine-extensions)). A formula that names a destroyed source raises `DestroyedError` at install. A formula that raises on its first evaluation installs **nothing**: no new ink cell, no scalar anchor, no graph node (W3).
+**Links and a destroyed actor.** `@=` is a write: onto a destroyed actor — an ink cell (`dead["hp"] @=`), a slot (`dead["radius"] @=`), a property anchor (`angle` / `scale`) or a part the author still holds (`dead.center @=`) — it raises `DestroyedError` and registers nothing (destroy marks the part subtree `_host_destroyed`; W2 in [Testing Design](Testing%20Design.md#w--world-machine-extensions)). Every other write on a held part refuses too: an Entity part (`center`, `p1`) is retired (`retire_part` sets `_destroyed`), and a part that is not an Entity (`ship.vel`, a Vec2) gets `_destroyed` and `_destroyed_with_host` at the same teardown step, so `held.x = 3` (`ScalarSlot.__set__`), `held += …`, `held << …` (`Vec2._takein`) and `held.do_rotation(…)` raise before they change anything, and `dead.vel += (1, 0)` refuses in the op, not after it (VI3). The refusal builds its breadcrumb (`a part of the Circle made at …`) from `_destroyed_with_host` only when it raises. Reads stay, as for any dead actor; copying from a dead part with `<<` raises (GX12), as for its `center`. A formula that names a destroyed source raises `DestroyedError` at install. A formula that raises on its first evaluation installs **nothing**: no new ink cell, no scalar anchor, no graph node (W3).
 
 `Shape.is_alive`**:** True from construction until hard `destroy()`. Independent of `visible` and of soft `undraw()` / park (`active = False`) — those leave `is_alive` True. After `destroy`, leftover refs read `is_alive` False **and** `active` False (`active = True` does not revive). Remaining Python references are not deleted but must not be treated as live Scena objects.
 
@@ -1107,6 +1107,34 @@ method and no writable polar fields (decided 2026-10-07): `<<` +
 spelling, and polar setters lose the heading at length 0 (`v.length = 0;
 v.angle = 30`). A vector linked whole keeps `length` / `angle` current
 ("Pull stores raw").
+
+**In-place ops check, then write.** `v += …`, `v -= …` and `v.do_rotation(…)`
+compute both axes, then store them through `Vec2._store_xy`, which runs the
+refusals of a plain `v.x = …` before either axis changes: a non-finite result
+raises the same `ValueError` (`Circle.vel x must be a finite number` for an
+actor's velocity), a computed vector (`Line(p1, p2).vec`) raises
+`DerivedAttributeError`, a part of a destroyed actor raises `DestroyedError`.
+The two axes are then written in one `_batch_update`, and a batched axis write
+checks nothing (`_coerce_magnitude_slot(clamp=True)`, no Derivate walk under
+`_in_batch_update`): before, `w += (inf, 0)` stored inf and `ship.vel += (inf,
+0)` raised with x already written (VI1, VI2 in Testing Design). The finite test
+is `x - x != 0.0`. The checks are paid for by the op's own reads: when the A3
+cache (`_scalar_bare_ok`) holds `x` and `y` as bare Defining leaves and no
+field anchor sits on them, the op reads both from `__dict__` (what
+`ScalarSlot.__get__` returns there, ~12 ns against ~100 ns through the
+descriptor) and `_store_xy(…, bare=True)` skips the Derivate walk; otherwise it
+reads through the descriptor, which seeds the cache, and `_store_xy` reads it.
+Measured against the main with the Vec2.temp fast path and the vel same-object
+return (in-process interleaved A/B, 12 rounds, 2026-10-17): `c.vel += w` and
+`c.vel += vec_from_angle(…)` 1.00×, `st.pos += w` 1.00×, `c.vel -= (x, y)`
+0.91×, `v -= (x, y)` 0.90×, `v.do_rotation(1)` 0.94×, `v.x = …` control 1.00×.
+An overflowing `int` operand raises `ValueError`, not Python's `OverflowError`
+(GX15's words). A new self-modifying Vec2 method reads and stores the same way.
+Engine stores of `length` / `angle` (`_update_impl`, the graph path of
+`_materialize_derivate_part`) call `_write_field`, not the descriptor, so they
+pass the author door's destroyed check: reading a dead actor's `vel.length`
+stays legal (a dead `vel` is ownerless and off the graph, so its first read
+takes the free-vector store into `__dict__`).
 
 **Lazy graph registration.** A bare `Vec2` / `Attribute` constructed without an
 `owner=` and without an inbound `@=` stays **off** the dependency graph until

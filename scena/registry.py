@@ -946,9 +946,18 @@ class Registry:
             # Parts outlive the teardown as readable values (the author may
             # still hold ``dead.center``) with their owner edge cut: mark them
             # so a later ``@=`` on one refuses like the actor itself (W2).
+            # A part that is not an Entity (``ship.vel``, a Vec2) is dead too:
+            # ``ScalarSlot.__set__`` refuses its axis writes as it does a
+            # retired Point's (``retire_part`` below marks the Entity parts).
+            # Its refusal builds the breadcrumb from ``_destroyed_with_host``
+            # (``_destroyed_access_message``): no label string per destroy.
             for node in obj._iter_subtree():
                 if node is not obj:
-                    node.__dict__["_host_destroyed"] = True
+                    nd = node.__dict__
+                    nd["_host_destroyed"] = True
+                    if not getattr(type(node), "_scena_is_entity", False):
+                        nd["_destroyed"] = True
+                        nd["_destroyed_with_host"] = obj
         except Exception:
             pass
         try:
@@ -1022,11 +1031,6 @@ class Registry:
         """
         if getattr(part, "_destroyed", False):
             return
-        from .entity import entity_label
-        try:
-            host_label = entity_label(host)
-        except Exception:
-            host_label = f"its {type(host).__name__}"
         from .bounds import get_bounds_system
         from .collision import get_collision_system
         from .events import get_global_event_system
@@ -1047,13 +1051,11 @@ class Registry:
         self.remove_live(part)
         for group_id in list(getattr(part, "group", ()) or ()):
             self.remove_from_group(part, group_id)
-        host_note = getattr(host, "__dict__", {}).get("_destroyed_by")
-        note = f"a part of {host_label}, which was " + (host_note or "destroyed")
         d = part.__dict__
         d["_destroyed"] = True
         from .entity import _mark_routes_dead
         _mark_routes_dead(part)
-        d["_destroyed_by"] = note
+        d["_destroyed_by"] = _part_destroyed_note(host)
         # Slots on a Shape part: a ``d[...]`` write never reached them, so a
         # retired Point read ``active`` True (review 2026-10-09 S5-4 class).
         object.__setattr__(part, "_active", False)
@@ -1708,6 +1710,18 @@ def _normalize_group_formula_source(source, registry: Registry) -> Callable:
         "group['name'] @= expected a lambda, a live group, or a tag name, "
         f"got {type(source).__name__}."
     )
+
+
+def _part_destroyed_note(host) -> str:
+    """The breadcrumb a dead part's refusal carries (``_destroyed_by``):
+    ``a part of the Circle made at app.py:3, which was destroyed at …``."""
+    from .entity import entity_label
+    try:
+        host_label = entity_label(host)
+    except Exception:
+        host_label = f"its {type(host).__name__}"
+    host_note = getattr(host, "__dict__", {}).get("_destroyed_by")
+    return f"a part of {host_label}, which was " + (host_note or "destroyed")
 
 
 def entity_parts(obj) -> List[RegistryObject]:

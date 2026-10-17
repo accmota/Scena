@@ -250,6 +250,24 @@ left out.
   (`g.mic = other_mic`): the formula moves to the new mic's level. A formula
   linked while `st.alvo` is `None` (`lambda: st.alvo.radius if st.alvo else 0`)
   follows the object the cell gets later.
+
+- `v += …`, `v -= …` and `v.do_rotation(…)` check the result before they change
+  the vector. `w += (math.inf, 0)` stored `inf` without a word, while
+  `w.x = math.inf` raised; `ship.vel += (math.inf, 0)` raised with `vel.x`
+  already `inf`. Both now raise `ValueError: x must be a finite number, got inf`
+  (`Circle.vel x …` for a velocity) and leave the vector as it was. A vector
+  computed from its shape refuses the same way: on a `Line(p1=…, p2=…)`,
+  `line.vec += (1, 0)` changed `vec` and not the line; it raises
+  `DerivedAttributeError`, as `line.vec.x = 5` does.
+
+- The velocity of a destroyed actor refuses writes, as its center does.
+  `bala.vel.x = 3`, `bala.vel += (1, 0)` and `bala.vel << (1, 0)` on a
+  destroyed `bala` (or on a `v = bala.vel` you kept) were accepted, so a loop
+  over a list that still held destroyed bullets ran on without an error.
+  They raise `DestroyedError` now, naming where the actor was destroyed.
+  Reads stay: `bala.vel.x`, `bala.vel.length`. Copying from it
+  (`v << bala.vel`) raises, as `v << bala.center` does.
+
 - A misspelled short property no longer becomes a silent field of your own.
   `bola.colr = "red"`, `bola.angl = 45`, `bola.scal = 2` and `bola.fil = "blue"`
   used to store a new field that nothing reads, so nothing changed on screen.

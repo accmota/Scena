@@ -1664,6 +1664,13 @@ def _destroyed_access_message(obj, base: str) -> str:
         note = object.__getattribute__(obj, "_destroyed_by")
     except AttributeError:
         note = None
+    if not note:
+        # A part that is not an Entity (``ship.vel``): teardown stamped its
+        # host, not the text (registry ``_destroy_teardown_body``).
+        host = getattr(obj, "__dict__", {}).get("_destroyed_with_host")
+        if host is not None:
+            from .registry import _part_destroyed_note
+            note = _part_destroyed_note(host)
     if note:
         return f"{base} — {note}"
     return base
