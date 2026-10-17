@@ -1054,6 +1054,28 @@ vectors every frame on a plain Python attribute — mutate in place (`v.x = …`
 graph nodes; with lazy registration those orphans never enter the graph, but
 mutating remains the taught idiom.
 
+**`ship.vel += w` writes each axis once.** `Vec2.__iadd__` / `__isub__` write
+both axes (guarded, in one batch) and hand the held Vec2 back to the
+`Graphic.vel` setter, which returns early on its own object. It used to write
+both axes again: four guarded field writes per `+=`, all same-value no-ops.
+The early return keeps the finite check, the one check a batched `+=` write
+skips (`ship.vel += (inf, 0)` raises `Circle.vel x must be a finite number`;
+the axis is already written when it raises, as before). The destroyed refusal
+runs before the setter (the dead route map), `@=` stays refused
+(`_link_refused`), and links reading `vel`, pose revisions and `@on_change`
+see the same values (probe diffed against HEAD, byte-identical). Interleaved
+A/B, 12 rounds, 2026-10-16: `c.vel += Vec2(…)` 7.78 → 5.68 µs, `-=` 7.76 →
+5.65, the Duelo Warp line `c.vel += vec_from_angle(…)` 13.46 → 11.22,
+`c.vel = c.vel` 3.20 → 1.18; `c.vel = (x, y)` 3.06 → 3.07 and
+`c.vel.x += 0.001` 0.97 → 0.97 (no other path pays). Whole games, game_bench
+`--ab` (horda does not write `vel`; entropia bounces and falls through it):
+horda work within noise (two runs, the gap follows the pair count), entropia
+5.53 → 5.52 ms. The other held parts (`center`, `rim`, Text parts) were
+already free: `Container._assign_value` returns on its own object. Guard:
+`tests/test_held_part_assign_back.py` (every exported Entity kind, every held
+part a route assigns, assigned back to itself makes no field write; `vel +=`
+semantics pinned).
+
 **GC graph backstop (durability).** Lazy registration only defers *entry*. Once
 a Container is linked or owned, it used to stay in `DependencyGraph.nodes`
 forever unless the author called `destroy()` / `clean_up()`. The backstop

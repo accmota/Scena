@@ -212,6 +212,10 @@ left out.
   file) no longer jumps them to their end, and a shape's `fade_out` and
   `canvas.fade_out` started together end together. A game run headless now
   plays its transients the same way on every machine.
+- `ship.vel += w` and `ship.vel -= w` are about 27 % faster (each axis is
+  written once, not twice); a gravity-well pull such as
+  `ship.vel += vec_from_angle(heading(ship, hole), pull * dt)` is about 17 %
+  faster. Nothing else changes: the same errors, the same values.
 
 ### Fixed
 
