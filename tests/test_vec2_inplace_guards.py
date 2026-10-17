@@ -37,10 +37,11 @@ INF, NAN = math.inf, math.nan
 
 
 def _free_holding(x, y):
-    """A free Vec2 holding a non-finite pair: ``<<`` lets a free vector hold
-    NaN / inf (GX15), so a Vec2 operand can carry one into ``+=``."""
+    """A Vec2 holding a non-finite pair, stored raw: no public door makes one
+    since VB4 (every door refuses NaN / inf), but ``+=`` must still refuse a
+    corrupted operand rather than pass it on."""
     v = Vec2(0, 0)
-    v << (x, y)
+    v.__dict__.update(x=float(x), y=float(y))
     return v
 
 

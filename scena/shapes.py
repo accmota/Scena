@@ -937,7 +937,7 @@ def _xy_of(obj: Any, *, required: bool = False) -> Optional[Tuple[float, float]]
     the same signature as before, no extra keyword defaults to fill)."""
     if isinstance(obj, Point):
         return _bare_num(obj.x), _bare_num(obj.y)
-    if isinstance(obj, Vec2):       # a value type: it may hold NaN, a Point may not
+    if isinstance(obj, Vec2):       # finite on every door since VB4; still checked here
         return _finite_xy(obj, obj.x, obj.y)
     if isinstance(obj, (tuple, list)) and len(obj) == 2:
         x, y = obj

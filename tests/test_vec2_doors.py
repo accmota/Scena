@@ -323,6 +323,35 @@ class TestFoundByTheMatrix(unittest.TestCase):
         self.assertEqual(seen["read"], (math.hypot(4, 6), math.degrees(math.atan2(6, 4))))
         self.assertEqual(seen["turned"], math.degrees(math.atan2(v.y, v.x)))
 
+    def test_vb4_every_door_refuses_nan_and_inf(self):
+        src = State(name="vb4_src")
+        src.p = (1.0, 2.0)
+        for bad in ((math.nan, 0.0), (0.0, math.inf), (-math.inf, 1.0)):
+            with self.subTest(bad=bad):
+                v = Vec2(1, 2)
+                with self.assertRaises(ValueError) as cm:
+                    v << bad
+                self.assertIn("a vector takes two finite numbers", str(cm.exception))
+                self.assertEqual((v.x, v.y), (1.0, 2.0))
+                # A pull raises on the read while the source is bad, and
+                # the next read recovers (as a number slot's link does).
+                w = Vec2(0, 0)
+                src.p = (1.0, 2.0)
+                w @= lambda: src.p
+                src.p = bad
+                with self.assertRaises(ValueError):
+                    w.x
+                src.p = (5.0, 6.0)
+                self.assertEqual((w.x, w.y), (5.0, 6.0))
+                # Held by a cell, the bad write is refused at the write, not
+                # in a formula that reads the cell later.
+                st = State(name="vb4")
+                st.pos = Vec2(1, 2)
+                mira = self.circle(center=lambda: st.pos)
+                with self.assertRaises(ValueError):
+                    st.pos << bad
+                self.assertEqual((mira.center.x, mira.center.y), (1.0, 2.0))
+
     def test_vb5_overflow_is_a_scena_error(self):
         v = Vec2(1, 2)
         for call in (lambda: v + (10 ** 400, 0), lambda: v - (0, 10 ** 400),

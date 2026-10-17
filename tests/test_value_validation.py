@@ -585,8 +585,9 @@ class TestLinkPullsKeepTheNumbersRule(unittest.TestCase):
                 self.assertTrue(_author_error(ctx.exception), repr(ctx.exception))
                 remove(r)
         free = scena.Vec2(0, 0)
-        free << (float("inf"), 0)               # a free Vec2 is a value: it may hold inf
-        self.assertEqual(free.x, float("inf"))
+        with self.assertRaises(ValueError):     # a free Vec2 too, since VB4
+            free << (float("inf"), 0)
+        self.assertEqual(free.x, 0.0)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

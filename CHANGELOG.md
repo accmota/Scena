@@ -243,6 +243,12 @@ left out.
   Scena's `ValueError` / `TypeError` instead of Python's. So do `v.lerp(w, "a")`,
   `v.clamp_length(None, 5)`; `vec_from_angle(a, n, reference_vec=)` takes a
   pair as well as a `Vec2` (a pair raised `AttributeError`).
+- A `Vec2` refuses NaN and infinity on every door. `v << (math.nan, 0)` and a
+  link that pulled NaN stored it in a vector no shape owns, and the error came
+  later from whatever read it ("a point takes two finite numbers" in a formula
+  reading `st.pos`). Now `<<` raises `ValueError: a vector takes two finite
+  numbers`, and a linked vector raises when read while its source is bad,
+  then reads normally again once the source is a number.
 - Inside an `@on_change` or `@when` callback, `v += w`, `v -= w` and `v.do_rotation(a)` left
   `v.length` and `v.angle` at their old values if they had been read before.
 - `v.abs_angle_to(w)` reads exactly `abs(v.angle_to(w))`: between a vector and

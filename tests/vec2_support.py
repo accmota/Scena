@@ -345,12 +345,6 @@ DESIGNED_REFUSALS = {
 # Operands
 # --------------------------------------------------------------------------
 
-def _free_holding(x, y):
-    v = Vec2(0, 0)
-    v << (x, y)             # GX15: a free vector may hold NaN / inf
-    return v
-
-
 def _cell_holding(pair):
     st = State(name="vb_operand")
     st.p = pair
@@ -369,7 +363,6 @@ OPERANDS: Dict[str, Callable[[], Any]] = {
     "[3, 4] list": lambda: [3, 4],
     "(1, 2, 3)": lambda: (1, 2, 3),
     "Vec2(3, 4)": lambda: Vec2(3, 4),
-    "Vec2 holding nan": lambda: _free_holding(NAN, 0),
     "Point(3, 4)": lambda: Point(3, 4),
     "None": lambda: None,
     "'ab'": lambda: "ab",

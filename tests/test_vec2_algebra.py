@@ -362,9 +362,7 @@ NOT_OPERATIONS = {"normalize", "perp_left", "perp_right", "to_tuple", "to_array"
                   "temp"}   # engine-internal (not in the Guia): numbers only
 
 # Violations known to the catalogue, by ``"<operation> <junk!r>"``. Shrink-only.
-KNOWN = {
-    "__lshift__ (nan, 0)": "VB4: a free Vec2 takes NaN through << (GX15)",
-}
+KNOWN: dict = {}
 
 
 def _finite_result(r) -> bool:

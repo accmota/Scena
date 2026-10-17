@@ -1035,7 +1035,10 @@ VB14); on a zero-length vector it is `0`. Arithmetic that overflows (`v * 10**40
 raise Scena's `ValueError` / `TypeError`, not Python's (VB5, VB13). `reflect_about`,
 `project_onto`, and `reject_from` normalize with `normalize()`. `takein` accepts
 a `Vec2`, a 2-tuple, or a 2-list; a coordinate may be an `Attribute` or a
-scalar anchor.
+scalar anchor. Every Vec2 holds two finite numbers: `takein` refuses NaN / inf on a free
+vector too (VB4; before, `v << (nan, 0)` and a pull stored it, and the error
+came from the first formula that read it), so a linked vector raises on
+the read while its source is bad and recovers on the next good read.
 
 **Closed surface at no arithmetic cost.** `v.lenght = 5` raises with a
 did-you-mean (Scena Design, "Entity ink vs `st`"); `length` / `angle` are

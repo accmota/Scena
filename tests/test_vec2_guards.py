@@ -36,7 +36,7 @@ from scena.state import Container, ContainerSlot  # noqa: E402
 RAW_XY_WRITERS = {
     "temp": "finite floats only (anything else takes the checking constructor)",
     "_store_xy": "derived refusal, finite check, then a batched slot write",
-    "_takein_impl": "type, overflow; finite when owned (GX15: a free vector may hold NaN, VB4)",
+    "_takein_impl": "type, overflow, finite on every vector (GX15 for parts, VB4 for free ones)",
     "__new__": "constructor arguments, not the vector's fields",
 }
 

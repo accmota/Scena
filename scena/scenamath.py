@@ -846,12 +846,14 @@ class Vec2(Container):
             # An int no float holds: Python's OverflowError, not a Scena one (GX15).
             r = repr(tuple(other))
             raise ValueError(f"a vector takes two finite numbers, got {r if len(r) <= 40 else r[:39] + '…'}")
-        if d.get('_owner') is not None:
-            # A part (``rect.vec``, a Box's vector) is geometry: two finite
-            # numbers, as for a point; it took ``(0, inf)`` on every path (GX15
-            # in Testing Design). A free Vec2 is a value and may hold NaN / inf.
-            from .shapes import _finite_xy
-            x, y = _finite_xy(other, x, y)
+        if x - x != 0.0 or y - y != 0.0:
+            # Two finite numbers on every Vec2, as every other door says (VB4).
+            # A part (``rect.vec``) took ``(0, inf)`` before GX15; a free vector
+            # took NaN / inf through ``v << …`` and a pull until VB4, and no
+            # consumer could read it (``_xy_of`` refuses it, arithmetic raises):
+            # the error surfaced in a formula far from the write.
+            from .shapes import _short_point
+            raise ValueError(f"a vector takes two finite numbers, got {_short_point(other)}")
         old_x = d.get('x', 0.0)
         old_y = d.get('y', 0.0)
         if old_x != x or old_y != y:

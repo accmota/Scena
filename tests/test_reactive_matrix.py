@@ -175,11 +175,14 @@ class TestNonFiniteScalarLink(unittest.TestCase):
                 st.v = 2.0
                 self.assertEqual(p.x, 2.0)       # the next read recovers
 
-    def test_a_pair_store_is_not_checked(self):
+    def test_a_pair_store_is_checked(self):
+        # VB4: a free Vec2 refuses NaN / inf through ``<<`` like every door.
         from scena import Vec2
         v = Vec2(0, 0)
-        v << (float("nan"), 0.0)
-        self.assertNotEqual(v.x, v.x)
+        for bad in ((float("nan"), 0.0), (0.0, float("inf"))):
+            with self.assertRaises(ValueError):
+                v << bad
+        self.assertEqual((v.x, v.y), (0.0, 0.0))
 
 
 class TestOneCoercionForEveryPath(unittest.TestCase):
