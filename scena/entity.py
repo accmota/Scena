@@ -2491,6 +2491,8 @@ class Entity(Container):
         # Design). A rewrite unwraps it in ``_write_field``.
         if value.__class__ is _state_module._KEY_NAME:
             value = str(value)
+        elif value.__class__ is _state_module._HELD_BY_VALUE:
+            value.__dict__['_ink_held'] = True     # a cell copies it (VB2)
         ink[name] = value
 
     # Private names go straight to object.__setattr__ (state._container_dict_init).

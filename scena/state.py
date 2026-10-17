@@ -3043,6 +3043,9 @@ class Container():
         if hook is not None and owner is not None and self.attr_name:
             commit = hook(owner, self.attr_name)       # ``c.center @= …`` (PA1)
         self._assign_formula(other)
+        hook = self.__dict__.get('_held_payload')
+        if hook is not None:
+            hook.link_changed(self)         # ``ship.aim @= f`` (VB3)
         if commit is not None:
             commit()
         return self
@@ -3273,6 +3276,22 @@ class Container():
     def _link_field(self, name: str, source) -> None:
         """Install a formula/direct link on field ``name`` (bracket ``@=``)."""
         _refuse_link_on_dead(self, f"{name} @=")
+        if self.__class__ is _HELD_BY_VALUE:
+            cell = held_cell(self)
+            if cell is not None:
+                # ``st.pos["x"] @= f`` as ``st.pos @= f``: the link would stay
+                # on this payload after the next ``st.pos = …``, and its pulls
+                # are raw stores the cell never hears (VB3).
+                who = cell._name
+                owner, _, key = who.rpartition(".")
+                bracket = f'{owner}["{key}"]' if owner else who
+                raise TypeError(
+                    f'{who}["{name}"] @= … would link one axis of the '
+                    f"{type(self).__name__} that {who} holds now, not the cell: "
+                    f"the next {who} = … would leave the link behind, and "
+                    f"nothing linked to {who} would see it. Link the cell to "
+                    f"the whole vector: {bracket} @= lambda: Vec2(x, y)."
+                )
         source = _normalize_link_rhs(source)
         if not callable(source) and not isinstance(source, Container):
             raise TypeError(_LINK_RHS_ERROR)
@@ -3305,6 +3324,10 @@ class Container():
                 if not had_anchor:
                     self._drop_scalar_anchor(name)
                 raise
+            hook = self.__dict__.get('_held_payload')
+            if hook is not None:
+                # ``ship.aim["y"] @= f``: the pull stored raw (no update()).
+                hook.link_changed(self)
             return
         # Refuse before ``__get__`` so a rejected Derivate link does not
         # materialize the slot or stick ``_needs_pull_invalidate``.
@@ -3489,6 +3512,8 @@ class Container():
                 store[name] = value
                 if store is not ink:
                     bump_pose_rev(self)
+                elif value.__class__ is _HELD_BY_VALUE:
+                    value.__dict__['_ink_held'] = True     # a cell copies it (VB2)
                 if name == "angle" and store is self.__dict__:
                     pub = self._publish_angle_input
                     if pub is not None:
@@ -3888,7 +3913,15 @@ class Container():
             if not was_batching and not um.is_updating:
                 self.update()
             elif not was_batching and um.is_updating:
-                um.mark_dirty(self._node_id)
+                if self._node_id is not None:
+                    um.mark_dirty(self._node_id)
+                else:
+                    # Off the graph nothing pulls a refresh: ``mark_dirty(None)``
+                    # did nothing, so a read length / angle stayed stale after
+                    # ``v += w`` in an ``@on_change`` callback (VB16).
+                    sync = self._sync_computed
+                    if sync is not None:
+                        sync()
                 # In a flush callback the batch skips ``update()``, so a held
                 # Vec2 (``ship.aim += …`` in ``@on_change``) tells its holders here.
                 held = self.__dict__.get('_held_payload')
@@ -4628,12 +4661,13 @@ def _rehold_payload(cell: "Attribute", old, new) -> None:
 class _HeldPayloadUpdate:
     """``update`` of a held Vec2 (weak refs: no cycle)."""
 
-    __slots__ = ("payload", "holders", "flagged")
+    __slots__ = ("payload", "holders", "flagged", "edges")
 
     def __init__(self, payload) -> None:
         self.payload = weakref.ref(payload)
         self.holders: list = []
         self.flagged = False        # this hook set the vector's own pull flag
+        self.edges = None           # ``(dependent_id, dependency_id)`` it added (VB3)
 
     def __call__(self) -> None:
         p = self.payload()
@@ -4657,6 +4691,54 @@ class _HeldPayloadUpdate:
                     cell._changed_in_place()
             return
         self.changed(p)
+
+    def link_changed(self, p) -> None:
+        """A link on ``p`` (whole, or one axis) was installed: depend, and notify."""
+        self.sync_link_edges(p)
+        self.changed(p)
+
+    def sync_link_edges(self, p) -> None:
+        """While ``p`` is linked (the whole vector, or an axis), each ink field
+        holding it depends on the link's node in the graph, so a later pull's
+        source change dirties the formulas that read the field. A pull stores
+        raw and calls no ``update()``, so this hook never ran for it: after
+        ``ship.aim @= f`` a formula reading ``ship.aim`` kept the value at link
+        time (VB3). Only linked held vectors get edges: an unlinked one tells
+        its holders from ``update()``, and a field write re-points nothing."""
+        d = p.__dict__
+        want = set()
+        if d.get('_link') is not None or d.get('_field_anchors'):
+            links = []
+            if d.get('_link') is not None and d.get('_node_id') is not None:
+                links.append(d['_node_id'])
+            for a in (d.get('_field_anchors') or {}).values():
+                ad = a.__dict__
+                if ad.get('_link') is not None and ad.get('_node_id') is not None:
+                    links.append(ad['_node_id'])
+            for ref, name in (self.holders if links else ()):
+                holder = ref()
+                if holder is None or name is None:
+                    continue
+                anchors = holder.__dict__.get('_field_anchors')
+                anchor = anchors.get(name) if anchors else None
+                aid = anchor.__dict__.get('_node_id') if anchor is not None else None
+                if aid is not None:
+                    want.update((aid, lid) for lid in links)
+        have = self.edges or set()
+        if want == have:
+            return
+        graph = p._scena_system.update_manager.graph
+        for dependent, dependency in have - want:
+            graph.remove_dependency(dependent, dependency)
+        added = set(have & want)
+        for dependent, dependency in want - have:
+            if dependency in graph.dependencies[dependent]:
+                continue        # already an edge the graph made: not ours to remove
+            if graph.can_reach(dependency, dependent):
+                continue        # the link reads the field: no cycle
+            graph.add_dependency(dependent, dependency)
+            added.add((dependent, dependency))
+        self.edges = added or None
 
     def changed(self, p) -> None:
         """``p`` changed in place: notify each holder that holds it now."""
@@ -4693,6 +4775,8 @@ def _hold_payload(payload, holder, name) -> None:
         if n == name and ref() is holder:
             return
     hook.holders.append((weakref.ref(holder), name))
+    if name is not None and (d.get('_link') is not None or d.get('_field_anchors')):
+        hook.sync_link_edges(payload)       # a linked vector put in a field (VB3)
     if name is not None:
         # ``v.x = …`` calls ``update()`` only under a pull flag (A2); a cell's
         # payload refuses that write, so only an ink field needs it.
@@ -4713,7 +4797,12 @@ def _unhold_payload(payload, holder, name) -> None:
         hook.holders = [(ref, n) for ref, n in holders
                         if not (n == name and ref() is holder) and ref() is not None]
         if hook.holders:
+            if hook.edges:
+                hook.sync_link_edges(payload)
             return
+    if hook.edges:
+        hook.holders = []
+        hook.sync_link_edges(payload)
     del d['_held_payload']
     if d.get('update') is hook:
         del d['update']
@@ -4841,9 +4930,23 @@ class Attribute(ClosedSurface, Container):  # Use string literal for forward ref
                 # A cell holds a Vec2 by value: an object's own Vec2 (``st.v0 =
                 # ball.vel``) is copied, or the held-payload guard would sit on
                 # the object's field and refuse its next write (``ball.vel = …``).
-                if (new_value.__class__ is _HELD_BY_VALUE
-                        and new_value.__dict__.get('_owner') is not None):
-                    new_value = _HELD_BY_VALUE(new_value.x, new_value.y)
+                # So is one another holder holds (VB2): ``st.start = st.pos``
+                # shared the vector, so the saved start moved with ``st.pos``
+                # and the guard left ``st.pos`` when ``st.start`` changed; and
+                # one an ink field took (``_ink_held``, sticky, set where ink
+                # stores a Vec2): ``st.v0 = ship.aim`` put the guard on the
+                # field's vector, as RA3 did on ``ball.vel``.
+                # A linked one too (``v["y"] @= f; st.pos = v``): its pulls are
+                # raw stores the cell never hears, and a cell refuses a link on
+                # its payload (``st.pos @= f``), so it takes the value now.
+                if new_value.__class__ is _HELD_BY_VALUE:
+                    nd = new_value.__dict__
+                    anchors = nd.get('_field_anchors')
+                    if (nd.get('_owner') is not None or '_held_payload' in nd
+                            or '_ink_held' in nd or nd.get('_link') is not None
+                            or (anchors and any(a._link is not None
+                                                for a in anchors.values()))):
+                        new_value = _HELD_BY_VALUE(new_value.x, new_value.y)
                 self._raw_value = new_value
                 _rehold_payload(self, old_value, new_value)
             else:

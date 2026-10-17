@@ -39,6 +39,17 @@ def _vec_arg(value, what: str) -> "Vec2":
     return Vec2.temp(x=x, y=y)
 
 
+def _scalar_arg(value, what: str) -> float:
+    """A number argument off the fast path (VB13): a cell counts as its
+    number, a bracket handle gets the words ``float(st["x"])`` gives, anything
+    else the Numbers rule's."""
+    from .state import FieldRef, field_ref_value_message
+    if isinstance(value, FieldRef):
+        raise TypeError(field_ref_value_message(value))
+    from .validate import number
+    return number(as_payload(value), what)
+
+
 def _vec_operand_message(verb: str, other) -> str:
     """``v + 5`` / ``v - "a"``: say what the other side may be, and the fix.
 
@@ -124,8 +135,12 @@ class Vec2(Container):
             x = x.value
         if isinstance(y, Attribute):
             y = y.value
-        x = float(x)
-        y = float(y)
+        try:
+            x = float(x)
+            y = float(y)
+        except OverflowError:
+            # ``v + (10**400, 0)``, ``v * 10**400``: GX15's words, not Python's (VB5).
+            raise ValueError(_vec_overflow_message((x, y))) from None
         if cls is Vec2 and _isfinite(x) and _isfinite(y):
             # Fast path (every arithmetic result): the state the general
             # constructor below leaves, written in one ``__dict__`` update.
@@ -461,7 +476,8 @@ class Vec2(Container):
     def lerp(self, other: 'Vec2', t: float) -> 'Vec2':
         """Linear interpolation to another vector. ``t`` is not clamped."""
         other = as_payload(other)
-        t = float(as_payload(t))
+        if not (t.__class__ is float or (t.__class__ is int and -1e308 < t < 1e308)):
+            t = _scalar_arg(t, "Vec2.lerp t")
         if not isinstance(other, Vec2):
             raise TypeError(
                 f"Vec2.lerp expected Vec2, got {type(other).__name__}"
@@ -487,12 +503,10 @@ class Vec2(Container):
     def abs_angle_to(self, other: 'Vec2') -> float:
         """Compute absolute angle between this vector and another vector in degrees."""
         other = _vec_arg(other, "Vec2.abs_angle_to")
-        len_self = self.length
-        len_other = other.length
-        if len_self == 0 or len_other == 0:
-            return 0.0
-        cos_angle = clip(self.dot(other) / (len_self * len_other), -1.0, 1.0)
-        return math.degrees(math.acos(cos_angle))
+        # ``atan2(|cross|, dot)``, not ``acos(dot / (|a||b|))``: acos is
+        # ill-conditioned near 0 and 180, so a vector read 1.2e-6 degrees from
+        # itself (VB14). A zero vector gives atan2(0, 0) = 0, as before.
+        return math.degrees(math.atan2(abs(self.cross(other)), self.dot(other)))
 
     def reflect(self, normal: 'Vec2') -> 'Vec2':
         """
@@ -522,10 +536,17 @@ class Vec2(Container):
         Clamp this vector's length between min and max values.
         Useful for limiting forces, velocities, etc.
         """
+        lo, hi = min_length, max_length
+        if not ((lo.__class__ is float or (lo.__class__ is int and -1e308 < lo < 1e308))
+                and (hi.__class__ is float or (hi.__class__ is int and -1e308 < hi < 1e308))):
+            lo = _scalar_arg(min_length, "Vec2.clamp_length min_length")
+            hi = _scalar_arg(max_length, "Vec2.clamp_length max_length")
         n = self.length
         if n == 0:
             return Vec2.temp()
-        return self * (min(max(n, min_length), max_length) / n)
+        c = lo if lo > n else n         # max(n, lo), min(…, hi): their ties and NaN,
+        c = hi if hi < c else c         # without two builtin calls
+        return self * (c / n)
 
     # Arithmetic operations
     def __add__(self, other):
@@ -543,7 +564,12 @@ class Vec2(Container):
             return Point.temp(self.x + other.x, self.y + other.y)
         elif (isinstance(other, (tuple, list)) and len(other) == 2
               and type(other[0]) is not bool and type(other[1]) is not bool):
-            return Vec2.temp(x=self.x + other[0], y=self.y + other[1])
+            try:
+                return Vec2.temp(x=self.x + other[0], y=self.y + other[1])
+            except OverflowError:       # ``v + (10**400, 0)`` (VB5)
+                raise ValueError(_vec_overflow_message(other)) from None
+            except TypeError:           # ``v + ("a", 1)``: Scena's words (VB13)
+                raise TypeError(_vec_operand_message("add", other)) from None
         elif isinstance(other, Attribute):
             return self.__add__(other.value)     # a cell holding a pair, read fresh
         else:
@@ -564,7 +590,12 @@ class Vec2(Container):
             return Point.temp(self.x - other.x, self.y - other.y)
         elif (isinstance(other, (tuple, list)) and len(other) == 2
               and type(other[0]) is not bool and type(other[1]) is not bool):
-            return Vec2.temp(x=self.x - other[0], y=self.y - other[1])
+            try:
+                return Vec2.temp(x=self.x - other[0], y=self.y - other[1])
+            except OverflowError:       # ``v - (10**400, 0)`` (VB5)
+                raise ValueError(_vec_overflow_message(other)) from None
+            except TypeError:           # ``v - ("a", 1)``: Scena's words (VB13)
+                raise TypeError(_vec_operand_message("subtract", other)) from None
         elif isinstance(other, Attribute):
             return self.__sub__(other.value)
         else:
@@ -600,6 +631,8 @@ class Vec2(Container):
                 y = y0 + other.y
         except OverflowError:
             raise ValueError(_vec_overflow_message(other)) from None
+        except TypeError:               # ``v += ("a", 1)`` (VB13)
+            raise TypeError(_vec_operand_message("add", other)) from None
         self._store_xy(x, y, bare)
         return self
 
@@ -633,6 +666,8 @@ class Vec2(Container):
                 y = y0 - other.y
         except OverflowError:
             raise ValueError(_vec_overflow_message(other)) from None
+        except TypeError:               # ``v += ("a", 1)`` (VB13)
+            raise TypeError(_vec_operand_message("subtract", other)) from None
         self._store_xy(x, y, bare)
         return self
 
@@ -654,13 +689,16 @@ class Vec2(Container):
             cache = d.get('_scalar_bare_ok')
             if cache is None or cache.get('x') is not True or cache.get('y') is not True:
                 self._refuse_derived_axes(x, y)
-        if x - x != 0.0 or y - y != 0.0:          # NaN / inf (finite: x - x == 0)
+        if x.__class__ is not float or y.__class__ is not float or x - x != 0.0 or y - y != 0.0:
+            # NaN / inf (finite: x - x == 0), or an int: ``w.x = 4`` keeps an
+            # int, and ``4 + 10**400`` is an int no float holds whose
+            # ``x - x`` is 0 (VB1). ``finite`` refuses both before either axis.
             from .validate import finite
             owner = d.get('_owner')
             field = d.get('_link_refused')      # ``ship.vel``: same words as its setter
             prefix = f"{owner.name}.{field} " if owner is not None and field else ""
-            finite(x, prefix + "x")
-            finite(y, prefix + "y")
+            x = finite(x, prefix + "x")
+            y = finite(y, prefix + "y")
         with self._batch_update():
             self.x = x
             self.y = y
@@ -681,6 +719,8 @@ class Vec2(Container):
             return Vec2.temp(x=self.x * scalar, y=self.y * scalar)
         except TypeError:
             raise TypeError(_vec_scale_message("*", scalar)) from None
+        except OverflowError:
+            raise ValueError(_vec_overflow_message(scalar)) from None
 
     def __truediv__(self, scalar: float) -> 'Vec2':
         """Divide by a number: ``v / 2``."""
@@ -688,6 +728,8 @@ class Vec2(Container):
             return Vec2.temp(x=self.x / scalar, y=self.y / scalar)
         except TypeError:
             raise TypeError(_vec_scale_message("/", scalar)) from None
+        except OverflowError:
+            raise ValueError(_vec_overflow_message(scalar)) from None
 
     def __neg__(self) -> 'Vec2':
         return Vec2.temp(x=-self.x, y=-self.y)
@@ -870,10 +912,17 @@ class Vec2(Container):
         Clamp this vector's length between min and max values.
         Useful for limiting forces, velocities, etc.
         """
+        lo, hi = min_length, max_length
+        if not ((lo.__class__ is float or (lo.__class__ is int and -1e308 < lo < 1e308))
+                and (hi.__class__ is float or (hi.__class__ is int and -1e308 < hi < 1e308))):
+            lo = _scalar_arg(min_length, "Vec2.clamp_length_to min_length")
+            hi = _scalar_arg(max_length, "Vec2.clamp_length_to max_length")
         n = self.length
         if n == 0:
             return Vec2.temp()
-        return self * (min(max(n, min_length), max_length) / n)
+        c = lo if lo > n else n         # max(n, lo), min(…, hi): their ties and NaN,
+        c = hi if hi < c else c         # without two builtin calls
+        return self * (c / n)
 
     # Self modifying methods -------------------------------------------------------------------------------------------------------
 
@@ -975,7 +1024,7 @@ def vec_from_angle(angle: float, length: float = 1.0, reference_vec: Optional[Ve
     length = number(length, "vec_from_angle length")
     if reference_vec is not None:
         # If reference vector is provided, add its angle to get the absolute angle
-        ref_angle = reference_vec.angle
+        ref_angle = _vec_arg(reference_vec, "vec_from_angle reference_vec").angle
         absolute_angle = ref_angle + angle
     else:
         # If no reference vector, use angle directly (relative to x-axis)

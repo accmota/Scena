@@ -120,6 +120,12 @@ Rules of thumb:
 | `tests/geom_laws.py` | H3 law table (`LAWS`): two programs on twin subjects that must read alike (algebra, timed = instant, spellings); `run_law`, `observe`, `differ` (Q6: points exactly, `angle` modulo 360 unless the law is about turns, flags only where the law says). Used by `test_geom_laws`; the fuzzer's rewrites reuse it. |
 | `tests/fuzz/` | H10 **metamorphic fuzzer**: `geom_gen.py` (seeded JSON programs over the whole K pool, parameterized verbs, reads, clones, unlinks; `run` returns a trace and checks every call against its own affine shadow), `geom_rewrite.py` (stacked semantics-preserving rewrites from the law table, kept as one group per original op so traces stay aligned), `geom_fuzz.py` (triple oracle P vs P′ / shadow / sentinel; multi-process volume runner with `sys.monitoring` branch-coverage guidance; signatures with tags that map a divergence to a known finding; `--canary`; `--build-corpus`), `reduce.py` (ddmin to a `unittest` repro in `found/`), `corpus/` (a greedy coverage set replayed in `gate` by `test_fuzz_corpus`). |
 | `tests/leftovers.py` | Module isolation: `module_sweep()` → `setUpModule, tearDownModule` that destroy every actor the module registered (roster keys after the module's mark, newest first; parts leave with their owners; `on_destroy` cleared; raises when one survives); `mark()` / `made_since()` / `sweep()`; `LeftoverCheck` (fails a module that leaves more than `LIMIT` = 50 live roster items). `run_tiers.py` runs every job through `--child` (`python -m unittest` plus one check after each module, not counted in "Ran N"). Tests: `test_leftovers.py`. |
+| `tests/vec2_support.py`, `tests/vec2_known.py` | The [Vec2 battery](#vec2-battery)'s axes, read from the code where they can be: `KINDS` (every way an author holds a Vec2: free, an arithmetic result, an actor's `vel`, an st cell's vector alone or saved into a second cell, an ink field's vector watched, saved into a cell, saved unwatched, every `ContainerSlot(Vec2)` part as `PART_KINDS`, a Derivate `vec`, whole / one-axis linked, a dead actor's `vel`), `DOORS` (every spelling that writes x / y), `OPERANDS`, `CONTEXTS` (plain, frame batch, `on_change` callback, frame), `READS` (cold / warm); `run_cell(kind, door, operand, context, read)` returns the generic oracle's violations (`INVARIANTS`), with `DESIGNED_REFUSALS` / `DESIGNED_ACCEPTS` / `DESIGNED_OPERAND_REFUSALS` naming each designed exception and its doc. `vec2_known.DOORS`: open violations by glob, shrink-only, stale entries fail the gate run. |
+| `tests/test_vec2_doors.py` | The door matrix: the full product in the plain context (quick, ~0.7 s for 2.5k cells), a 2-wise array over the contexts and every kind × door × context × read with one good operand (quick), the full product in every context plus the stale check (gate); `TestOracleBites` plants one bug per invariant; `TestFoundByTheMatrix` holds one minimal repro per VB row. ~7 s dev, ~9 s ci. |
+| `tests/test_vec2_algebra.py` | Black-box Hypothesis properties: exact identities on integer-valued vectors, ULP-bounded identities, inequalities (triangle, Cauchy–Schwarz, ranges of `angle` / `angle_to`, `clamp_length` bounds), aliases bit-equal, the Guia's own examples, degenerate bases, and "author errors only" for every operation × junk operand (completeness over Vec2's public methods). |
+| `tests/test_vec2_metamorphic.py` | Twins: one Hypothesis sequence of author writes on every kind at once (free cold / warm / slow / A3 cache cleared, `vel`, st, watched ink, Defining parts), bit-equal after every step, formulas read at chosen moments; four spellings of one displacement; rotation / translation / scaling / mirror invariances. |
+| `tests/test_hyp_vec2_machine.py` | State machine over holders (three st cells, two ships' `vel` and ink fields, free vectors), copies between holders, links (whole, one axis) and their source, watchers, destroy; invariants: finite numbers with agreeing length / angle, formulas show their holder, no two cells share a vector and each keeps its guard, a refused step moved nothing. ~6 s dev, ~22 s ci. |
+| `tests/test_vec2_guards.py` | Static guards: every raw x / y store in `Vec2` named with its guards (`RAW_XY_WRITERS`), `DOOR_METHODS` ↔ Vec2's in-place spellings, `PART_KINDS` ↔ every `ContainerSlot(Vec2)`, the Guia's Vec2 table ↔ the class (`UNDOCUMENTED`, shrink-only). |
 
 Scena keeps **one** `ScenaFramework` per process. Every example and every system test
 must undo what it did; an example that leaks state makes Hypothesis report *Flaky*
@@ -1192,6 +1198,49 @@ between worlds (X-life-8; `reset_input_state`, shared with `ProgramRun`).
 Rerun the deep tier to see whether the serial failures are gone.
 
 
+
+# Vec2 battery
+
+Found 2026-10-17, after five fixes in a row (VI1–VI3, SV10, SV11) each sat on
+a door the tests never sent that operand through. The battery crosses the
+axes once, from the code, and checks every cell with invariants that need no
+expected value ([Harness map](#harness-map): `vec2_support`).
+
+**Axes.** Kind (how the author holds the vector, 16 kinds, every
+`ContainerSlot(Vec2)` part pinned by a guard) × door (12 spellings that write
+x / y, the in-place ones pinned to the class) × operand (15: good, `-0.0`,
+`1e308`, `10**400`, inf, NaN, bool, list, a 3-tuple, a Vec2 holding NaN, a
+Point, None, a string) × context (plain, frame batch, `on_change` callback,
+frame) × read (cold, or length / angle read before the door). A cell costs
+~0.3 ms in the plain context, so the full product runs in `quick`; contexts
+cost more, so `quick` runs them 2-wise plus every kind × door × context × read
+with one good operand, and `gate` runs everything.
+
+**Invariants** (`vec2_support.INVARIANTS`, each with a planted bug that must
+be reported): a refusal is Scena's (`leak`) and changed nothing (`partial`); an
+accepted write leaves numbers a float holds (`number`: an int is legal, a
+`10**400` is not), finite (`finite`), with length / angle that agree
+(`derived`); a formula reading the holder shows what it holds, also after a
+link's source changes (`follow`); a copy saved elsewhere did not move
+(`kept`); a free twin written the plain way agrees (`twin`); a bad operand was
+not taken (`bad`); a writable kind did not refuse a good operand outside the
+designed refusals (`refused`), and a derived, linked or dead vector did not
+take one (`accepted`). Designed exceptions are tables with their doc
+(`DESIGNED_REFUSALS`, `DESIGNED_ACCEPTS`); open findings are globs in
+`vec2_known` (shrink-only, stale entries fail `gate`).
+
+**Layers.** The matrix (`test_vec2_doors`); black-box algebra with
+inequalities and "author errors only" over every method
+(`test_vec2_algebra`); twins and invariances (`test_vec2_metamorphic`); a state
+machine for what needs a history — two holders and one vector, a link
+installed before or after the vector is held (`test_hyp_vec2_machine`);
+static guards (`test_vec2_guards`). Yield: [VB](#vb--vec2-battery-2026-10-17).
+
+**Extending.** A new way to hold a vector is a `KINDS` entry (a new
+`ContainerSlot(Vec2)` fails `test_vec2_guards` until it has one); a new
+in-place spelling is a `DOORS` entry (the guard finds `__i*__`, `__lshift__`
+and `do_*`); a new rule is an invariant with its canary in `TestOracleBites`.
+
 # Test tiers
 
 Run the smallest tier that answers the question. `tests/run_tiers.py` runs **one
@@ -1398,6 +1447,12 @@ optional. The loop exists because fixes cause regressions: the H1 fix broke ever
 
 Each of these produced a false leak or a false pass. Check them before blaming the
 engine.
+
+- **An `@on_change` a test registers outlives the test.** A per-cell context
+  that ran its step in a callback left one handler per cell: each kept its
+  subject alive (381 shapes over the leftover limit) and every later poll
+  walked them all (the Vec2 door matrix took 155 s at `ci`, 9 s once each cell
+  called `unregister_event(cb)` in a `finally`). Unregister what a cell arms.
 
 - **`kN32` is the platform's byte order**: RGBA on the Mac, **BGRA on Windows**.
   `skia.Image.fromarray` defaults to it; `Image.toarray` defaults to the image's own
@@ -2285,6 +2340,52 @@ contacts after a design session), CD4 (today's rule), CD5 (a message);
    models and the equations for keys built from the old one, and add a
    synthetic case for each direction.
 
+
+## What the Vec2 battery taught (2026-10-17)
+
+1. **A link is two doors: the install and every later pull.** SV10's matrix
+   read the formula right after each write; a link installed on a held vector
+   showed its first value and never another (VB3). A cell that checks a link
+   checks it again after the link's source changes.
+2. **Every way an object gets a second holder is an axis.** RA3 copied an
+   owned vector into a cell; a vector another cell held, one an ink field
+   held (watched or not), and one already linked took the old path (VB2,
+   VB3c). Name each route to a second holder (cell → cell, field → cell,
+   linked → cell) and give each a kind.
+3. **Check the refusals both ways.** An oracle that only judges accepted
+   writes passes a door that refuses what it should take (`ship.aim.x = 9`
+   refused because a cell snapshotted the vector) and one that takes what it
+   should refuse. `refused` and `accepted` are invariants of their own, with
+   the designed exceptions as tables that name their doc.
+4. **Read the contract before writing the invariant.** The first oracle
+   wanted x / y stored as floats; the engine keeps an int by design (`v.x = 4`)
+   and promises floats only on read (`__iter__`). The real bug was a
+   `10**400` int (VB1): `number` asks for "a number a float holds".
+5. **When a cell is cheap, run the product; a covering array covers pairs.**
+   2.5k cells cost 0.7 s, so the plain context runs every combination in
+   `quick`. The contexts ran 2-wise there, and VB16 needed three values at
+   once (a free vector, a callback, a warm read): `gate`'s full product found
+   it. `quick` now also runs every kind × door × context × read with one good
+   operand (1.5k cells, ~4 s): the operand is the axis that pairs well.
+6. **The operand's inside is an axis.** A18 covered `v + "a"`; `v + ("a", 1)`
+   leaked Python's message (VB13). Junk goes in as the operand, inside a pair,
+   and as each scalar argument, for every public method (the completeness
+   check makes a new method join).
+7. **Some bugs need a history.** VB3c (a vector linked, then put in a cell,
+   then its source moved) needs three steps in that order; the one-write
+   matrix cannot reach it, and the machine found it only at `ci`. Plan the
+   machine with the matrix, not after it.
+
+### Class guards written from the Vec2 battery
+
+| Guard | Class | How | Found |
+| --- | --- | --- | --- |
+| `test_vec2_doors` | a door that skips a rule other doors run | kind × door × operand × context × read, generic oracle, a canary per invariant | VB1, VB2, VB3a/b, VB5, VB16 (gate) |
+| `test_hyp_vec2_machine` | holder histories | holders, copies, links, sources, destroy, in any order | VB3c |
+| `test_vec2_algebra` (junk table) | an engine message reaching the author | every public method × junk (completeness by `inspect`) | VB13 |
+| `test_vec2_algebra` (twins) | two formulas for one quantity | `abs(angle_to) == abs_angle_to`, aliases bit-equal | VB14 |
+| `test_vec2_guards` | a new raw store, part, or spelling outside the battery | AST and class introspection, both directions | — |
+
 ## Yield ledger
 
 Whether the engine converges is a curve, not a feeling. One row per campaign,
@@ -2312,6 +2413,7 @@ one, or a rare combination.
 | Game-behaviour probes | 2026-10-13 / 14 | author-shaped probes under real input | PG 32 | — | — | — | collision, input, acts: taught and plausible patterns |
 | Laws, S0–S6 | 2026-10-14 / 15 | laws model, equations | LW 9 | 3 (LW2, LW5, LW8) | LW7, LW6 (both applied) | LW3, LW4 academic; LW1, LW9 harness; the instruments' own errors outnumbered the engine's (lessons 1, 2) | resolve: Breakout, a taught game (LW2, LW7, LW8); input: a plausible pattern (LW5) |
 | Laws S7, chaos doors | 2026-10-15 / 16 | a command injected at every door; directed cells | CD 5, CD3 3 | 3 (CD1, CD2, CD3 with CD3-x, CD3-b) | CD4 (today's rule), CD5 (message) | about six instrument fixes, then C5's key at the merge (lesson 7) | seams: hover × park, act change × dispatch, rule × contact; rare combinations, except CD3 (plausible: a shield gained while touching). Random single faults at sampled doors found none |
+| Vec2 battery | 2026-10-17 | kind × door × operand × context × read with a generic oracle; algebra properties; twins; holder machine; static guards. Mutation sample of `scenamath` (60 sites the battery runs): 45 killed by the battery alone, 1 more after adding the `/` identities, the other 14 equivalent or message-only | VB 16 | 7 (VB1, VB2, VB3 a/b/c, VB5, VB13, VB14, VB16) | VB4, VB6, VB7, VB9, VB10 open decisions; VB15 messages | the first oracle asked for floats where the contract allows ints (lesson 4); five harness slips (a cell given a tuple, a closure rebinding `v` with `@=`, a formula naming no source) | holders: `st.start = st.pos` (a plausible save-the-spawn pattern) and a linked vector in an ink field (plausible); arithmetic and messages: rare operands |
 
 **Reading it.** A falling yield across *different* instruments says the
 shallow bugs are gone, not that no deep ones remain: each new kind of
@@ -3201,6 +3303,31 @@ Found while proving the `Graphic.vel` same-object early return equivalent
 | VI1 | `w += (inf, 0)` / `w -= (nan, 0)` / an overflowing sum / `do_rotation` past `1.8e308` stored a non-finite axis on a free vector, a part vector (`Line(p1, vec=).vec`) or `ship.vel`, while `w.x = inf` raised; `ship.vel += (inf, 0)` raised from the vel setter with `vel.x` already inf; `w += (10**400, 0)` leaked Python's `OverflowError` | `w = Vec2(1, 2); w += (math.inf, 0)` | The op wrote both axes inside `_batch_update`, and a batched `_write_field` coerces with `clamp=True` (no finite check) | Finite tests wrote one axis with `=`; the in-place ops were tested with finite operands | `Vec2._store_xy`: compute both axes, check (`x - x != 0.0` on the fast path), then write. `test_vec2_inplace_guards.TestInPlaceOpsRefuseNonFinite` (every op × every non-finite operand × every kind of vector) |
 | VI2 | `line.vec += (1, 0)` / `do_rotation` on a `Line(p1, p2)` (a computed `vec`) changed `vec` and not the line, while `line.vec.x = 5` raised `DerivedAttributeError` | `line = Line(p1=(0, 0), p2=(3, 4)); v = line.vec; v += (1, 0)` | The same batch skips the Derivate refusal too (`_write_field` under `_in_batch_update`) | Derivate tests used `=` and `@=` | The op reads x / y from `__dict__` when the A3 cache (`_scalar_bare_ok`) says both are bare (no walk due), else through the descriptor; not bare → `_refuse_derived_axes`. `TestInPlaceOpsOnADerivedVector` |
 | VI3 | The `vel` of a destroyed actor took writes: `held.x = 3`, `held += …`, `held << …`, `held.do_rotation(…)` were stored, and `dead.vel += (1, 0)` changed the vector before the dead route refused, while `dead.center.x = 3` raised | `ship.vel = (2, 3); held = ship.vel; ship.destroy(); held.x = 3` | Teardown retires Entity parts (`retire_part` sets `_destroyed`); a Vec2 part only got `_host_destroyed`, which the `@=` check reads and `ScalarSlot.__set__` does not | W2 tested `@=` on a held part; the axis doors were tested on Points, which are Entities | Teardown marks every non-Entity part `_destroyed` with `_destroyed_with_host` (the refusal builds the breadcrumb lazily); `Vec2._takein` refuses a dead vector; engine stores of `length` / `angle` use `_write_field`, so reads stay legal. `TestDestroyedActorParts` (every write door; every held part of each kind; reads) |
+
+
+### VB — Vec2 battery (2026-10-17)
+
+Found by the [Vec2 battery](#vec2-battery) and its review. Verdicts by
+mechanism; DECISION rows wait for the author-facing call.
+
+| ID | Finding | Repro | Cause | Why tests missed it | Fix / guard |
+| --- | --- | --- | --- | --- | --- |
+| VB1 | An in-place op on a vector holding an int stored an int no float holds, then raised: `w += (10**400, 0)` left `w.x` a 401-digit int and every later read of `length` raised `OverflowError` (free vector and `ship.vel`). ACADEMIC operand, but it broke VI1's "check before write" | `w = Vec2(1, 2); w.x = 4; w += (10**400, 0)` | `v.x = 4` keeps an int (the Numbers rule allows it); `4 + 10**400` is an int whose `x - x` is 0, so `_store_xy`'s finite test passed | VI1's operands met float axes only | `_store_xy` sends a non-float result through `finite()` (refuses, or stores the float). Guard: the matrix's `number` invariant, `test_vb1_…` |
+| VB2 | A cell that took a vector another holder held shared it: `st.start = st.pos` then `st.pos += v` moved the saved start, and `st.start = …` later removed `st.pos`'s guard (`st.pos.x = 5` then passed silently, and nothing linked to `st.pos` heard it). `st.v0 = ship.aim` put the cell's guard on the ink field's vector: `ship.aim.x = 9` raised naming `st.v0`, and `ship.aim += d` moved the snapshot | `st.pos = Vec2(1, 2); st.start = st.pos; st.pos += (5, 0); st.start` | `Attribute._takein_impl` copied only an owned vector (RA3); one guard slot per vector, so the second cell's guard replaced the first's | No test gave one vector a second holder | The cell copies a vector another cell holds (`_held_payload`) or an ink field took (`_ink_held`, a sticky mark set where ink stores a Vec2). Guard: `kept` / `refused` invariants on the `st_saved`, `ink_saved`, `ink_saved_unwatched` kinds; the machine's "no two cells share a vector" |
+| VB3 | A linked vector in a holder: (a) `st.pos["x"] @= f` was accepted while `st.pos @= f` is refused, and its pulls never reached what reads `st.pos` (the link stayed on the old payload after `st.pos = …`); (b) an ink field's vector linked whole or per axis (`ship.aim @= f`, `ship.aim["y"] @= f`): formulas reading `ship.aim` kept the value at link time; (c) a cell given a vector already linked (`v["y"] @= f; st.pos = v`) held it, and the pulls never reached the cell's readers | `ship.aim = Vec2(1, 2); mira = Circle(center=lambda: ship.aim); ship.aim @= lambda: Vec2(st.k, 2); st.k = 5` | A pull stores raw and calls no `update()`, so the held-vector hook (SV10) never ran for it; a formula reading the holder depends on the holder's node, not on the link's | SV10's matrix checked the value right after each write, never after a link's source changed; (c) needs three steps | (a) refused with the cell spelling; (b) while held and linked, each ink holder's field node depends on the link's node(s) (`_HeldPayloadUpdate.sync_link_edges`, edges only for linked held vectors, removed when the holder lets go); (c) the cell copies a linked vector. Guard: `follow` re-checked after the source changes; machine (c was found by it at `ci`) |
+| VB4 | DECISION. A free vector takes NaN / inf through `<<` and a pull (`v @= lambda: …`), while the constructor, `.x =`, `+=` and every arithmetic result refuse it; held in a cell or an ink field, it makes every formula reading the holder raise "a point takes two finite numbers" far from the write | `st.pos = Vec2(0, 0); mira = Circle(center=lambda: st.pos); st.pos << (math.nan, 0); mira.center` | GX15 kept "a free Vec2 is a value and may hold NaN / inf"; `_takein_impl` checks finiteness only for an owned vector | — | Open: refuse on every door (recommended), or keep and document. Known: `vec2_known` |
+| VB5 | Arithmetic overflow leaked Python's `OverflowError`: `v + (10**400, 0)`, `v - …`, `v * 10**400`, `ship.vel *= 10**400` (while `+=` / `<<` raised Scena's `ValueError`) | `Vec2(1, 2) * 10**400` | The float operation overflows inside the operator, before `Vec2.temp` | The value sweeps reached `+=` and `<<`, not the pure operators | Operators and `temp` turn it into GX15's words. Guard: `leak` invariant, `test_vb5_…`, the algebra's junk table |
+| VB6 | DECISION. `v * True` scales by 1 while `v + (True, 0)` and `Vec2(True, 0)` refuse a bool | `Vec2(1, 2) * True` | `__mul__` multiplies whatever Python multiplies | — | Open (message / decision) |
+| VB7 | DECISION, ACADEMIC. `(-Vec2(1, 0)).angle` is −180 while `Vec2(-1, 0).angle` is 180: a `-0.0` y reaches `atan2`; `<<` and `.x =` never store `-0.0` over `0.0`, so the angle of one vector depends on the door that wrote it | `(-Vec2(1, 0)).angle` | `atan2(-0.0, -1) = -180` | — | Open: normalise to (−180, 180], or document [−180, 180] |
+| VB8 | LATENT. `v == (3, 4)` is True but `v == [3, 4]` is False (`+` takes both); the docstring says `__eq__` takes an Attribute, which compares False | `Vec2(3, 4) == [3, 4]` | `__eq__` tests `tuple` only | — | Open |
+| VB9 | DECISION. `v += w` changes the object (aliases follow), `v *= 2` rebinds a new one (aliases keep the old value): Vec2 has no `__imul__` / `__itruediv__` | `a = v; v *= 2; a` | No in-place scale | — | Open: add `__imul__` / `__itruediv__` through `_store_xy`, or document |
+| VB10 | DECISION. `v += point` / `v -= point` take a Point as a displacement, while `_vec_operand_message` says a Point is refused on purpose (a place); `v + point` is a Point by design | `v = Vec2(1, 2); v += Point(3, 4)` | `__iadd__` has a Point branch | — | Open. Known: `vec2_known` |
+| VB11 | LATENT. API edges: `clamp_length(10, 1)` (min > max) is not refused; `lerp` refuses a pair where `dot` / `cross` / `angle_to` take one; the docstring and an `@overload` advertise `Vec2(x=1)`, which raises; `v / 0` is Python's `ZeroDivisionError`; `reflect` about a zero normal returns the vector unchanged, silently | `Vec2(3, 4).clamp_length(10, 1)` | — | — | Open. `v / 0` pinned in `test_vec2_algebra` |
+| VB12 | ACADEMIC. `length` overflows past `1.3e154` (`sqrt(x*x + y*y)`): `Vec2(1e200, 0).length` is inf and `normalize()` gives (0, 0); below `1e-154` a non-zero vector has length 0 | `Vec2(1e200, 0).length` | No `hypot` | Strategies stay within `1e6` | Open: `math.hypot` changes the last bit of many lengths (A/B and the exact twins first) |
+| VB13 | Python messages from the operand's inside and from scalar arguments: `v + ("a", 1)`, `v += ("a", 1)`, `v.lerp(w, "a")`, `v.clamp_length(None, 5)`, `vec_from_angle(30, 1, (1, 0))` (`AttributeError`: no `.angle` on a tuple) | `Vec2(1, 2) + ("a", 1)` | The operators checked the pair's shape and bools, not its numbers; `lerp` / `clamp_length` used `float()` / comparisons; `reference_vec` was read as a Vec2 | A18 covered `v + "a"`, not a pair holding a string | Scena's words; `reference_vec` takes a pair (as `dot` does). Guard: the algebra's junk × every operation, with a completeness check over the public methods |
+| VB14 | `abs_angle_to` read 1.2e-6° between a vector and itself, while `angle_to` read 0 | `v = Vec2(971385, 511321); v.abs_angle_to(v)` | `acos(dot / (‖a‖ ‖b‖))` is ill-conditioned near 0 and 180 | No property compared the two | `abs_angle_to` is `atan2(abs(cross), dot)`: one formula with `angle_to`. Guard: `test_angle_to` (`abs(angle_to) == abs_angle_to`) |
+| VB15 | Messages. `ship.vel << (nan, 0)` says "a point takes…"; `dead.vel = (5, 5)` says "Circle.set cannot change…"; a dead `vel += (inf, 0)` raises the finite `ValueError` before `DestroyedError` | `dead.vel = (5, 5)` | `_finite_xy` speaks for points; the dead route's setter passes `"set"` | — | Open |
+| VB16 | Inside an `@on_change` / `@when` callback, `v += w`, `v -= w` and `v.do_rotation(a)` left a `length` / `angle` already read stale on every vector off the graph (free, arithmetic result, an st cell's or ink field's vector): `v.length` read the value from before the op | `v = Vec2(1, 2); v.length`; in a callback `v += (3, 4); v.length` → 2.236 | In a flush the batch exit skips `update()` and marks the vector dirty by node id (`mark_dirty(self._node_id)`); off the graph that id is None, so nothing was marked | The quick tier's 2-wise array covered every pair of (kind, context, read), never the triple (free, callback, warm); the gate's full product found it | Off the graph, the batch exit syncs the computed fields (`_sync_computed`). Guard: `test_every_context_one_operand` (every kind × door × context × read, quick), `test_vb16_…` |
 
 ### Open (found, not yet fixed)
 

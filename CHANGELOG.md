@@ -224,6 +224,30 @@ left out.
 
 ### Fixed
 
+- A state cell keeps its own copy of a `Vec2` it takes from another holder.
+  `st.start = st.pos` shared the vector, so `st.pos += v` moved the saved
+  start too, and a later `st.start = …` let `st.pos.x = 5` through silently.
+  `st.v0 = ship.aim` (a field of your own) made `ship.aim.x = 9` raise naming
+  `st.v0`, and `ship.aim += d` moved the snapshot. A vector that is linked
+  (`v @= …`, `v["y"] @= …`) is copied too: the cell holds its value of now.
+- A formula that reads a field of your own holding a linked `Vec2` follows the
+  link. After `ship.aim @= lambda: …` (or `ship.aim["y"] @= …`),
+  `Circle(center=lambda: ship.aim)` kept the value of the moment the link was
+  made. `st.pos["x"] @= …` now raises with the fix, as `st.pos @= …` does:
+  the link stayed on the old vector after the next `st.pos = …`, and nothing
+  that read `st.pos` heard it. Link the cell: `st["pos"] @= lambda: Vec2(x, y)`.
+- `w += (10**400, 0)` on a vector holding an int (`w.x = 4`) stored a number no
+  float holds before raising, and every later `w.length` raised; it now raises
+  and leaves `w` as it was.
+- `v * 10**400`, `v + (10**400, 0)` and `v + ("a", 1)` (and `+=`, `-=`) raise
+  Scena's `ValueError` / `TypeError` instead of Python's. So do `v.lerp(w, "a")`,
+  `v.clamp_length(None, 5)`; `vec_from_angle(a, n, reference_vec=)` takes a
+  pair as well as a `Vec2` (a pair raised `AttributeError`).
+- Inside an `@on_change` or `@when` callback, `v += w`, `v -= w` and `v.do_rotation(a)` left
+  `v.length` and `v.angle` at their old values if they had been read before.
+- `v.abs_angle_to(w)` reads exactly `abs(v.angle_to(w))`: between a vector and
+  itself it read about 0.000001° instead of 0.
+
 - A formula that reads a field of your own holding a `Vec2` now follows the
   field. With `nave.desvio = Vec2(50, 0)` and
   `mira = Circle(center=lambda: nave.center + nave.desvio)`, a new value
