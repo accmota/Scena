@@ -223,13 +223,15 @@ class TestVec2TempFastPath(unittest.TestCase):
     def test_point_and_pair_operands_still_work(self):
         v = Vec2(1, 2)
         self.assertIsInstance(v + Point.temp(1, 1), Point)
-        self.assertIsInstance(v - Point.temp(1, 1), Point)
+        with self.assertRaises(TypeError):          # a place is not a displacement (VB10)
+            v - Point.temp(1, 1)
         self.assertEqual(v + (1, 1), (2.0, 3.0))
         w = Vec2(1, 2)
         w += Vec2.temp(1, 1)
         w -= (0.5, 0.5)
-        w += Point.temp(1, 0)
-        self.assertEqual(w, (2.5, 2.5))
+        with self.assertRaises(TypeError):          # VB10
+            w += Point.temp(1, 0)
+        self.assertEqual(w, (1.5, 2.5))
         with self.assertRaises(TypeError):
             w += 5
 

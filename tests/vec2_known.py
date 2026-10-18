@@ -9,9 +9,8 @@ A key is a glob over ``kind|door|operand|context/read|invariant``.
 """
 
 DOORS = {
-    # VB10 (DECISION): ``v += point`` / ``v -= point`` take a Point as a
-    # displacement; ``v + point`` is a Point (moves the place) by design.
-    "*|+=|Point(3, 4)|*|bad": "VB10",
-    "*|-=|Point(3, 4)|*|bad": "VB10",
-    "*|alias +=|Point(3, 4)|*|bad": "VB10",
+    # VB11 (LATENT): ``v / 0`` is Python's ZeroDivisionError; ``/=`` shares it.
+    "*|/=|(-0.0, 0.0)|*|leak": "VB11",
+    "*|/=|(-0.0, 0.0)|*|refused": "VB11",
+    "*|/=|(0, nan)|*|leak": "VB11",
 }

@@ -90,6 +90,7 @@ class TestRawFieldStoresAreAllowlisted(unittest.TestCase):
         ("scenamath.py", "Vec2._materialize_derivate_part"): "first fill of a free vector's length / angle on its first read: no graph node, owner or anchor reads it (TestVec2TempFastPath)",
         ("scenamath.py", "Vec2._sync_computed"): "brings computed length / angle in step after a raw x / y store (D12)",
         ("scenamath.py", "Vec2._takein_impl"): "the pull's raw store (the caller notifies; Reactive Design, 'Pull stores raw')",
+        ("scenamath.py", "Vec2._store_xy"): "an in-place op on a vector off the graph (no node, owner, link or anchor), after its refusals: what the batch's update() would do, then the holder hook if held (Reactive Design, 'In-place ops check, then write'; test_vec2_doors, test_vec2_metamorphic twins)",
         ("shapes.py", "Point._takein_impl"): "the pull's raw store (the caller notifies)",
         ("shapes.py", "_takein_xy_float"): "the A1 pose fast path itself (gated: TestPoseFastPathsAreGated)",
         ("shapes.py", "Circle.rotate_by"): "A1 fast turn, only when not _requires_pull_invalidate()",

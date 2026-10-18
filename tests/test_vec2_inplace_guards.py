@@ -168,11 +168,13 @@ class TestInPlaceOpsRefuseNonFinite(unittest.TestCase):
                     self.assertAlmostEqual(host.p2.x, -3.0)
                     self.assertAlmostEqual(host.p2.y, 2.0)
 
-    def test_point_operand_still_accepted(self):
+    def test_point_operand_refused(self):
+        # VB10: a Point is a place, not a displacement (as ``v << p`` says).
         w = Vec2(1, 2)
-        w += Point(1, 1)
-        w -= Point(0, 2)
-        self.assertEqual(tuple(w), (2.0, 1.0))
+        for op in (w.__iadd__, w.__isub__):
+            with self.assertRaises(TypeError):
+                op(Point.temp(1, 1))
+        self.assertEqual(tuple(w), (1.0, 2.0))
 
     def test_bad_operand_type_still_type_error(self):
         w = Vec2(1, 2)

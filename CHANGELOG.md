@@ -71,6 +71,21 @@ left out.
   `Fire` subclass) now raises at that line: rename the field. A bare
   `Entity` and an `Act` keep them as plain fields.
 
+- `v *= k` and `v /= k` change the vector itself, as `v += w` always did.
+  Before, they made a new vector and rebound the name: after `a = v; v *= 2`,
+  `a` kept the old value; now `a` is `v` and reads the new one. Through a
+  holder nothing changes (`ship.vel *= 0.9`, `st.pos *= 2` still give the new
+  value to `ship.vel` / `st.pos` and to what reads them). A vector that is
+  linked or computed now refuses `*=` like `+=` (`LinkedAttributeError` /
+  `DerivedAttributeError`) instead of being replaced. To keep the old vector,
+  copy first: `a = Vec2(v.x, v.y)`.
+- A `Point` is a place, not a displacement: `v += p`, `v -= p` and `v - p` raise
+  `TypeError: Cannot add Vec2 and Point: a Point is a place, a Vec2 a
+  displacement. The vector between two points is p - q; to move a point by a
+  vector, write p + v (v + p is that place moved too).` (`p - v` for subtract).
+  Before, `v += p` added the point's coordinates to the vector and `v - p` gave
+  a Point at `v - p`. `v + p` and `p + v` (the place moved) are unchanged.
+
 ### Added
 
 - Colors, opacity, visibility and flips link with `@=`: a HUD bar can follow
@@ -250,6 +265,12 @@ left out.
   Scena's `ValueError` / `TypeError` instead of Python's. So do `v.lerp(w, "a")`,
   `v.clamp_length(None, 5)`; `vec_from_angle(a, n, reference_vec=)` takes a
   pair as well as a `Vec2` (a pair raised `AttributeError`).
+- `v * True`, `v * False` and `v / True` raise `TypeError` ("a Vec2 scales by a
+  number"): a flag passed by mistake scaled by 1 or 0 silently. Every other
+  place a Vec2 takes a number already refused a bool.
+- `angle` and `angle_to` read from just above −180 to 180: a vector pointing
+  left reads 180 however it was made. `(-Vec2(1, 0)).angle` read −180 while
+  `Vec2(-1, 0).angle` read 180, and `Vec2(1, -0.0).angle` read −0.0.
 - A `Vec2` refuses NaN and infinity on every door. `v << (math.nan, 0)` and a
   link that pulled NaN stored it in a vector no shape owns, and the error came
   later from whatever read it ("a point takes two finite numbers" in a formula

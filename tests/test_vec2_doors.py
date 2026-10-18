@@ -130,7 +130,7 @@ class TestOracleBites(unittest.TestCase):
 
     def test_each_invariant_can_fire(self):
         """One planted bug per invariant; each must be reported (lesson 19)."""
-        from scena.state import Attribute, _HeldPayloadUpdate, _HeldPayloadWrite
+        from scena.state import Attribute, _HeldPayloadUpdate
         stale = lambda *a, **k: None    # noqa: E731
         store_xy = Vec2._store_xy
         takein = Attribute._takein_impl
@@ -153,13 +153,13 @@ class TestOracleBites(unittest.TestCase):
                 self.__dict__["_raw_value"] = new_value
             return changed
 
-        def always_refuse(self, name, value):
-            raise AttributeError("planted: the guard refuses in a batch too")
+        def always_refuse(self, *a):
+            raise AttributeError("planted: the cell refuses its own value back")
 
         def none_is_zero(self, other):
             return lshift_impl(self, (0, 0) if other is None else other)
 
-        def leaky_mul(self, k):
+        def leaky_scale(self, k, divide):
             raise TypeError("unsupported operand type(s) for *: 'Vec2' and 'x'")
 
         cases = {
@@ -173,9 +173,9 @@ class TestOracleBites(unittest.TestCase):
             "follow": ("st", "<<", "(3, 4) ints", [(_HeldPayloadUpdate, "changed", stale),
                                                    (_HeldPayloadUpdate, "__call__", stale)]),
             "kept": ("st_saved", "+=", "(3, 4) ints", [(Attribute, "_takein_impl", alias)]),
-            "refused": ("st", "+=", "(3, 4) ints", [(_HeldPayloadWrite, "__call__", always_refuse)]),
+            "refused": ("st", "+=", "(3, 4) ints", [(Attribute, "_changed_in_place", always_refuse)]),
             "twin": ("vel", "+=", "(3, 4) ints", [(Vec2, "_store_xy", owned_off_by_one)]),
-            "leak": ("vel", "*=", "(3, 4) ints", [(Vec2, "__mul__", leaky_mul)]),
+            "leak": ("vel", "*=", "(3, 4) ints", [(Vec2, "_scale_in_place", leaky_scale)]),
             "bad": ("free", "<<", "None", [(Vec2, "_takein_impl", none_is_zero)]),
             "accepted": ("line_derived", "+=", "(3, 4) ints",
                          [(Vec2, "_refuse_derived_axes", stale),
@@ -321,8 +321,8 @@ class TestFoundByTheMatrix(unittest.TestCase):
 
         on_change(st["go"])(cb)
         st.go = 1
-        self.assertEqual(seen["read"], (math.hypot(4, 6), math.degrees(math.atan2(6, 4))))
-        self.assertEqual(seen["turned"], math.degrees(math.atan2(v.y, v.x)))
+        self.assertEqual(seen["read"], (math.hypot(4, 6), V.heading(6, 4)))
+        self.assertEqual(seen["turned"], V.heading(v.y, v.x))
 
     def test_vb4_every_door_refuses_nan_and_inf(self):
         src = State(name="vb4_src")
@@ -352,6 +352,68 @@ class TestFoundByTheMatrix(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     st.pos << bad
                 self.assertEqual((mira.center.x, mira.center.y), (1.0, 2.0))
+
+    def test_vb6_a_bool_does_not_scale(self):
+        v = Vec2(1, 2)
+        for call in (lambda: v * True, lambda: v * False, lambda: v / True,
+                     lambda: v.__imul__(True), lambda: v.__itruediv__(False)):
+            with self.assertRaises(TypeError) as cm:
+                call()
+            self.assertIn("scales by a number", str(cm.exception))
+        self.assertEqual((v.x, v.y), (1.0, 2.0))
+        self.assertEqual(tuple(v * 2), (2.0, 4.0))
+
+    def test_vb7_one_heading_range(self):
+        # (-180, 180]: the same direction reads the same, whatever the door.
+        left = [Vec2(-1, 0), -Vec2(1, 0), Vec2(5, 0) * -1, Vec2(1, 0).rotate(180)]
+        self.assertEqual({w.angle for w in left}, {180.0})
+        w = Vec2(-1, 0)
+        w << (-1, -0.0)
+        self.assertEqual(w.angle, 180.0)
+        self.assertEqual(repr(Vec2(1, -0.0).angle), "0.0")
+        self.assertEqual(Vec2(1, 0).angle_to((-1, -0.0)), 180.0)
+        self.assertLess(Vec2(1, 0).angle_to((-1, -0.001)), 0.0)   # just below: negative
+
+    def test_vb9_scale_in_place_like_add(self):
+        v = Vec2(1, 2)
+        alias = v
+        v *= 3
+        v /= 2
+        self.assertIs(alias, v)
+        self.assertEqual((alias.x, alias.y), (1.5, 3.0))
+        # Through holders: the formula follows, a linked or computed vector refuses.
+        st = State(name="vb9")
+        st.pos = Vec2(2, 2)
+        mira = self.circle(center=lambda: st.pos)
+        st.pos *= 2
+        self.assertEqual((mira.center.x, mira.center.y), (4.0, 4.0))
+        line = self.circle(center=(0, 0))       # a living owner for the vel
+        line.vel = (4, 2)
+        line.vel *= 0.5
+        self.assertEqual(tuple(line.vel), (2.0, 1.0))
+        from scena import Line
+        from scena.state import DerivedAttributeError, LinkedAttributeError
+        derived = Line(p1=(0, 0), p2=(3, 4))
+        self.owned.append(derived)
+        with self.assertRaises(DerivedAttributeError):
+            derived.vec *= 2
+        linked = Vec2(0, 0)
+        linked @= lambda: st.pos
+        with self.assertRaises(LinkedAttributeError):
+            linked *= 2
+
+    def test_vb10_a_point_is_not_a_displacement(self):
+        from scena.shapes import Point
+        p = Point.temp(3, 4)
+        for call in (lambda v: v.__iadd__(p), lambda v: v.__isub__(p), lambda v: v - p):
+            v = Vec2(1, 2)
+            with self.assertRaises(TypeError) as cm:
+                call(v)
+            self.assertIn("a Point is a place", str(cm.exception))
+            self.assertEqual((v.x, v.y), (1.0, 2.0))
+        moved = Vec2(1, 2) + p                  # by design: the place moved
+        self.assertIsInstance(moved, Point)
+        self.assertEqual((moved.x, moved.y), (4.0, 6.0))
 
     def test_vb5_overflow_is_a_scena_error(self):
         v = Vec2(1, 2)

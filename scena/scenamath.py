@@ -56,9 +56,10 @@ def _vec_operand_message(verb: str, other) -> str:
     A Point is refused on purpose: it is a place, a Vec2 a displacement."""
     kind = type(other).__name__
     if kind == "Point":
+        move = "p - v" if verb == "subtract" else "p + v"
         return (f"Cannot {verb} Vec2 and Point: a Point is a place, a Vec2 a "
                 "displacement. The vector between two points is p - q; to move "
-                "a point by a vector, write p + v.")
+                f"a point by a vector, write {move} (v + p is that place moved too).")
     fix = " To move by the same amount on both axes, write v + (5, 5)." if isinstance(
         other, (int, float)) and not isinstance(other, bool) else ""
     return (
@@ -351,7 +352,8 @@ class Vec2(Container):
         # refuse a read of a dead actor's ``vel.length``.
         length_squared = self.x * self.x + self.y * self.y
         self._write_field('length', math.sqrt(length_squared))
-        self._write_field('angle', math.degrees(math.atan2(self.y, self.x)))
+        a = math.degrees(math.atan2(self.y, self.x)) + 0.0     # -0.0 -> 0.0
+        self._write_field('angle', 180.0 if a == -180.0 else a)  # (-180, 180] (VB7)
 
     def _derived_field_message(
         self, name: str, operation: str, value: Any = None, part: Optional[str] = None,
@@ -391,7 +393,9 @@ class Vec2(Container):
             if name == 'length':
                 value = math.sqrt(x * x + y * y)
             elif name == 'angle':
-                value = math.degrees(math.atan2(y, x))
+                value = math.degrees(math.atan2(y, x)) + 0.0
+                if value == -180.0:
+                    value = 180.0                       # (-180, 180] (VB7)
             else:
                 return
             if _isfinite(value):
@@ -402,7 +406,8 @@ class Vec2(Container):
             if name == 'length':
                 self._write_field('length', math.sqrt(x * x + y * y))
             elif name == 'angle':
-                self._write_field('angle', math.degrees(math.atan2(y, x)))
+                a = math.degrees(math.atan2(y, x)) + 0.0
+                self._write_field('angle', 180.0 if a == -180.0 else a)
 
     def _assign_formula(self, formula: Union['Container', Tuple[float, float], Callable[[], Any]]):
         if isinstance(formula, tuple):
@@ -497,11 +502,12 @@ class Vec2(Container):
 
     def angle_to(self, other: 'Vec2') -> float:
         """
-        Get signed angle from this vector to another vector in degrees (-180 to 180).
+        Get signed angle from this vector to another vector in degrees, in (-180, 180].
         Positive is counter-clockwise.
         """
         other = _vec_arg(other, "Vec2.angle_to")
-        return math.degrees(math.atan2(self.cross(other), self.dot(other)))
+        a = math.degrees(math.atan2(self.cross(other), self.dot(other))) + 0.0
+        return 180.0 if a == -180.0 else a      # (-180, 180], as ``angle`` (VB7)
 
     def abs_angle_to(self, other: 'Vec2') -> float:
         """Compute absolute angle between this vector and another vector in degrees."""
@@ -580,17 +586,17 @@ class Vec2(Container):
 
     def __sub__(self, other):
         """
-        Subtract another Vec2, tuple of floats, or Point from this vector.
-        Args:
-            other: Vec2, tuple of (float, float), or Point
-        Returns:
-            Vec2 when subtracting Vec2 or tuple, Point when subtracting Point
+        Subtract another Vec2 or an (x, y) pair from this vector. A Point is
+        refused: a place is not a displacement (the vector between two points
+        is ``p - q``).
         """
         if isinstance(other, Vec2):
             return Vec2.temp(x=self.x - other.x, y=self.y - other.y)
         from .shapes import Point
         if isinstance(other, Point):
-            return Point.temp(self.x - other.x, self.y - other.y)
+            # A displacement minus a place is neither (VB10): ``v - p`` gave a
+            # Point at v - p. The vector between two points is p - q.
+            raise TypeError(_vec_operand_message("subtract", other))
         elif (isinstance(other, (tuple, list)) and len(other) == 2
               and type(other[0]) is not bool and type(other[1]) is not bool):
             try:
@@ -627,11 +633,10 @@ class Vec2(Container):
                 x = x0 + other[0]
                 y = y0 + other[1]
             else:
-                from .shapes import Point
-                if not isinstance(other, Point):
-                    raise TypeError(_vec_operand_message("add", other))
-                x = x0 + other.x
-                y = y0 + other.y
+                # A Point too (VB10): ``v += p`` took the place as a
+                # displacement, while ``v << p`` refuses it and ``v + p`` is a
+                # Point.
+                raise TypeError(_vec_operand_message("add", other))
         except OverflowError:
             self._refuse_if_dead()      # a dead actor's part says so first (VB15)
             raise ValueError(_vec_overflow_message(other)) from None
@@ -664,11 +669,10 @@ class Vec2(Container):
                 x = x0 - other[0]
                 y = y0 - other[1]
             else:
-                from .shapes import Point
-                if not isinstance(other, Point):
-                    raise TypeError(_vec_operand_message("subtract", other))
-                x = x0 - other.x
-                y = y0 - other.y
+                # A Point too (VB10): ``v -= p`` took the place as a
+                # displacement, while ``v << p`` refuses it and ``v - p`` is a
+                # refusal.
+                raise TypeError(_vec_operand_message("subtract", other))
         except OverflowError:
             self._refuse_if_dead()      # a dead actor's part says so first (VB15)
             raise ValueError(_vec_overflow_message(other)) from None
@@ -679,7 +683,7 @@ class Vec2(Container):
         return self
 
     def _store_xy(self, x, y, bare: bool = False) -> None:
-        """The one store of an in-place op (``+=``, ``-=``, ``do_rotation``):
+        """The one store of an in-place op (``+=``, ``-=``, ``*=``, ``/=``, ``do_rotation``):
         both axes are checked, then both are written. A batched axis write
         skips the field's finite check (``_coerce_magnitude_slot`` with
         ``clamp=True``): ``w += (inf, 0)`` stored inf while ``w.x = inf``
@@ -711,6 +715,27 @@ class Vec2(Container):
             prefix = f"{owner.name}.{field} " if owner is not None and field else ""
             x = finite(x, prefix + "x")
             y = finite(y, prefix + "y")
+        if (d.get('_node_id') is None and d.get('_owner') is None
+                and d.get('_link') is None and not d.get('_field_anchors')
+                and not d.get('_destroyed') and not d.get('_host_destroyed')
+                and type(self) is Vec2):
+            # A vector off the graph (no node, owner, link or anchor): the
+            # batch's ``update()`` would only recompute length / angle
+            # (``Container.update``, off-graph branch), or, for a vector a
+            # cell or an ink field holds, run the holder hook, which does that
+            # and tells the holders (``_HeldPayloadUpdate``; the cell's guard
+            # lets an in-place op through, as inside the batch). Store and do
+            # that directly: ``v += w`` cost 8 µs on a free vector against
+            # 5 µs on ``ship.vel``, and ``*=`` (in place since VB9) would have
+            # paid it too.
+            d['x'] = x
+            d['y'] = y
+            hook = d.get('_held_payload')
+            if hook is None:
+                self._sync_computed()
+            elif not self._in_batch_update:
+                hook()                  # an outer batch's exit calls it
+            return
         with self._batch_update():
             self.x = x
             self.y = y
@@ -736,8 +761,11 @@ class Vec2(Container):
 
     def __mul__(self, scalar: float) -> 'Vec2':
         """Scale by a number: ``v * 2``."""
+        if scalar.__class__ is not float and scalar.__class__ is bool:
+            # A bool is never a number (VB6): ``v * is_boosted`` scaled by 0 or 1.
+            raise TypeError(_vec_scale_message("*", scalar))
         try:
-            return Vec2.temp(x=self.x * scalar, y=self.y * scalar)
+            return Vec2.temp(self.x * scalar, self.y * scalar)
         except TypeError:
             raise TypeError(_vec_scale_message("*", scalar)) from None
         except OverflowError:
@@ -745,12 +773,60 @@ class Vec2(Container):
 
     def __truediv__(self, scalar: float) -> 'Vec2':
         """Divide by a number: ``v / 2``."""
+        if scalar.__class__ is not float and scalar.__class__ is bool:
+            raise TypeError(_vec_scale_message("/", scalar))      # VB6
         try:
-            return Vec2.temp(x=self.x / scalar, y=self.y / scalar)
+            return Vec2.temp(self.x / scalar, self.y / scalar)
         except TypeError:
             raise TypeError(_vec_scale_message("/", scalar)) from None
         except OverflowError:
             raise ValueError(_vec_overflow_message(scalar)) from None
+
+    def __imul__(self, scalar: float) -> 'Vec2':
+        """``v *= 2``: scale in place, as ``v += w`` adds in place (VB9).
+
+        Without it Python rebound the name to ``v * 2``: an alias kept the old
+        value after ``*=`` and followed after ``+=``, and a linked or computed
+        vector was replaced instead of refusing. Same store as ``+=``
+        (``_store_xy``: refusals, then one batched write)."""
+        return self._scale_in_place(scalar, False)
+
+    def __itruediv__(self, scalar: float) -> 'Vec2':
+        """``v /= 2``: divide in place (VB9; see ``__imul__``)."""
+        return self._scale_in_place(scalar, True)
+
+    def _scale_in_place(self, scalar, divide: bool) -> 'Vec2':
+        self._refuse_author_write()
+        op = "/" if divide else "*"
+        if scalar.__class__ is not float and scalar.__class__ is bool:
+            self._refuse_if_dead()
+            raise TypeError(_vec_scale_message(op, scalar))       # VB6
+        d = self.__dict__
+        bare = d.get('_scalar_bare_ok')
+        if (bare is not None and bare.get('x') is True and bare.get('y') is True
+                and not d.get('_field_anchors')):
+            x0 = d.get('x', 0.0)    # what ScalarSlot.__get__ returns here (A3)
+            y0 = d.get('y', 0.0)
+            bare = True
+        else:
+            x0 = self.x
+            y0 = self.y
+            bare = False
+        try:
+            if divide:
+                x = x0 / scalar
+                y = y0 / scalar
+            else:
+                x = x0 * scalar
+                y = y0 * scalar
+        except TypeError:
+            self._refuse_if_dead()
+            raise TypeError(_vec_scale_message(op, scalar)) from None
+        except OverflowError:
+            self._refuse_if_dead()
+            raise ValueError(_vec_overflow_message(scalar)) from None
+        self._store_xy(x, y, bare)
+        return self
 
     def __neg__(self) -> 'Vec2':
         return Vec2.temp(x=-self.x, y=-self.y)
@@ -898,7 +974,8 @@ class Vec2(Container):
         if 'length' in computed or 'length' in d:
             d['length'] = math.sqrt(x * x + y * y)
         if 'angle' in computed or 'angle' in d:
-            d['angle'] = math.degrees(math.atan2(y, x))
+            a = math.degrees(math.atan2(y, x)) + 0.0
+            d['angle'] = 180.0 if a == -180.0 else a
 
     def reflect_about(self, normal: 'Vec2') -> 'Vec2':
         """

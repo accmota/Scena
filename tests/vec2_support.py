@@ -71,6 +71,12 @@ def same_xy(a, b) -> bool:
     return len(a) == len(b) and all(same_value(p, q) for p, q in zip(a, b))
 
 
+def heading(y, x) -> float:
+    """``angle`` of a vector: degrees in (-180, 180], -0.0 read as 0 (VB7)."""
+    a = math.degrees(math.atan2(y, x)) + 0.0
+    return 180.0 if a == -180.0 else a
+
+
 def _holds_number(x) -> bool:
     if type(x) is float:
         return True
@@ -82,7 +88,7 @@ def derived_ok(v) -> Optional[str]:
     x, y = raw_xy(v)
     try:
         want_len = math.sqrt(x * x + y * y)
-        want_ang = math.degrees(math.atan2(y, x))
+        want_ang = heading(y, x)
     except (OverflowError, TypeError):
         return f"x, y = {x!r:.40}, {y!r:.40} give no length"
     try:
@@ -337,7 +343,7 @@ DESIGNED_REFUSALS = {
     ("st", "@= whole"), ("st_saved", "@= whole"),  # the cell is linked, not its payload
     ("st", '["y"] @='), ("st_saved", '["y"] @='),  # nor one axis of it (VB3)
     *((("axis_linked", d) for d in (".x =", ".x +=", "+=", "-=", "alias +=",
-                                    "<<", "do_rotation", "@= whole"))),
+                                    "<<", "do_rotation", "@= whole", "*=", "/="))),
 }
 
 
@@ -446,9 +452,24 @@ def _d_assign(s, o):
 
 
 def _d_imul(s, o):
+    if s.holder is None:
+        v = s.v
+        v *= scalar_of(o)     # in place, as += (VB9)
+        return
     obj, attr = s.holder
     v = getattr(obj, attr)
-    v *= scalar_of(o)         # no __imul__: a new vector, assigned back
+    v *= scalar_of(o)
+    setattr(obj, attr, v)     # what ``obj.attr *= k`` runs
+
+
+def _d_idiv(s, o):
+    if s.holder is None:
+        v = s.v
+        v /= scalar_of(o)
+        return
+    obj, attr = s.holder
+    v = getattr(obj, attr)
+    v /= scalar_of(o)
     setattr(obj, attr, v)
 
 
@@ -481,23 +502,25 @@ DOORS: Dict[str, Callable[[Subject, Any], None]] = {
     "do_rotation": _d_rotate,
     "= whole": _d_assign,
     "*=": _d_imul,
+    "/=": _d_idiv,
     "@= whole": _d_link_whole,
     '["y"] @=': _d_link_axis,
 }
 
 # Doors that need a holder to assign through.
-HOLDER_DOORS = {"= whole", "*="}
+HOLDER_DOORS = {"= whole"}
 # Doors that install a link (the value arrives by a pull).
 LINK_DOORS = {"@= whole", '["y"] @='}
 # Doors that take one number from the operand.
-SCALAR_DOORS = {".x =", ".y =", ".x +=", "do_rotation", "*=", '["y"] @='}
+SCALAR_DOORS = {".x =", ".y =", ".x +=", "do_rotation", "*=", "/=", '["y"] @='}
 # Doors whose operand the author combines with Python first (``v.x + o``): an
 # operand Python itself refuses there never reaches a Scena door.
 AUTHOR_EXPRESSION_DOORS = {".x +="}
 
 # The method each Vec2 spelling is found under (completeness: test_vec2_guards).
 DOOR_METHODS = {"__iadd__": "+=", "__isub__": "-=", "__lshift__": "<<",
-                "do_rotation": "do_rotation", "__imatmul__": "@= whole"}
+                "do_rotation": "do_rotation", "__imatmul__": "@= whole",
+                "__imul__": "*=", "__itruediv__": "/="}
 
 
 def door_valid(kind: str, door: str) -> bool:
@@ -689,6 +712,7 @@ _TWIN_DOORS = {
     "do_rotation": lambda t, o: t.do_rotation(scalar_of(o)),
     "= whole": lambda t, o: t << o,
     "*=": lambda t, o: t << t * scalar_of(o),
+    "/=": lambda t, o: t << t / scalar_of(o),
 }
 
 

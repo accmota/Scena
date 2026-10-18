@@ -1028,7 +1028,10 @@ Author catalog: [Guia — Frame](../docs/pt/guide/index.html#frame).
 Used heavily as Shape parts and arithmetic results (`Vec2.temp`: ephemeral,
 built without the constructor; below). Same takein / `@=` / `_update_impl` patterns as other
 composites — Derivate `length` / `angle` refresh on read when dirty (pull).
-`abs_angle_to` is `atan2(abs(cross), dot)`, the same formula as `abs(angle_to)`
+`angle` and `angle_to` read in (−180, 180]: −180 reads 180 and −0.0 reads 0, so
+one direction reads one value whatever door wrote it (`-Vec2(1, 0)` stored a y of
+−0.0 and read −180 while `Vec2(-1, 0)` read 180; VB7). `abs_angle_to` is
+`atan2(abs(cross), dot)`, the same formula as `abs(angle_to)`
 (the `acos` of the normalized dot read 1.2e-6° between a vector and itself,
 VB14); on a zero-length vector it is `0`. Arithmetic that overflows (`v * 10**400`,
 `v + (10**400, 0)`) and a pair holding a non-number (`v + ("a", 1)`, `v += …`)
@@ -1117,8 +1120,8 @@ spelling, and polar setters lose the heading at length 0 (`v.length = 0;
 v.angle = 30`). A vector linked whole keeps `length` / `angle` current
 ("Pull stores raw").
 
-**In-place ops check, then write.** `v += …`, `v -= …` and `v.do_rotation(…)`
-compute both axes, then store them through `Vec2._store_xy`, which runs the
+**In-place ops check, then write.** `v += …`, `v -= …`, `v *= k`, `v /= k` and
+`v.do_rotation(…)` compute both axes, then store them through `Vec2._store_xy`, which runs the
 refusals of a plain `v.x = …` before either axis changes: a non-finite result
 raises the same `ValueError` (`Circle.vel x must be a finite number` for an
 actor's velocity), a computed vector (`Line(p1, p2).vec`) raises
@@ -1142,6 +1145,19 @@ return (in-process interleaved A/B, 12 rounds, 2026-10-17): `c.vel += w` and
 0.91×, `v -= (x, y)` 0.90×, `v.do_rotation(1)` 0.94×, `v.x = …` control 1.00×.
 An overflowing `int` operand raises `ValueError`, not Python's `OverflowError`
 (GX15's words). A new self-modifying Vec2 method reads and stores the same way.
+`*=` / `/=` scale in place (`__imul__` / `__itruediv__`, VB9): without them
+Python rebound the name to `v * k`, so an alias kept the old value after `*=` and
+followed after `+=`, and a linked or computed vector was replaced instead of
+refusing. A bool scales nothing: `v * True` raises (VB6, the Numbers rule).
+**Off the graph, the store is direct.** After its refusals, `_store_xy` on a
+vector with no graph node, owner, link or field anchor (a free vector, an
+arithmetic result, a cell's or an ink field's vector) writes `x` / `y` into
+the dict and does what the batch's `update()` would: sync length / angle, or
+run the holder hook (sync, then tell the holders), unless an outer batch
+will. In-process interleaved A/B against the batched store (2026-10-17, under
+load): free `v += w` 0.07–0.10×, free `v *= k` 0.55× (against the old
+rebinding), `st.pos += w` 0.44×, `st.pos *= k` 0.51×, `ship.vel += w` /
+`*=` 0.97–1.07× (unchanged path), `v * k` / `v / k` 1.00×.
 Engine stores of `length` / `angle` (`_update_impl`, the graph path of
 `_materialize_derivate_part`) call `_write_field`, not the descriptor, so they
 pass the author door's destroyed check: reading a dead actor's `vel.length`

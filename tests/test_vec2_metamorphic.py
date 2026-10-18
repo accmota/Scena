@@ -32,6 +32,7 @@ from hypothesis import given, strategies as hst  # noqa: E402
 
 import hypothesis_support as hs  # noqa: E402
 from diff_support import force_slow  # noqa: E402
+from vec2_support import heading  # noqa: E402
 from scena import Circle, Line, Rect, State, Vec2, init  # noqa: E402
 from tests.leftovers import module_sweep  # noqa: E402
 
@@ -170,7 +171,7 @@ class TestTwinsAgree(unittest.TestCase):
                     where = f"step {i} {door} {o!r} on {t.name}"
                     self.assertEqual(_bits(v), want, where)
                     self.assertEqual(v.length, math.sqrt(v.x * v.x + v.y * v.y), where)
-                    self.assertEqual(v.angle, math.degrees(math.atan2(v.y, v.x)), where)
+                    self.assertEqual(v.angle, heading(v.y, v.x), where)
                     if t.watch is not None and (read_now or i == len(seq) - 1):
                         self.assertEqual(t.watch(), want, where + " (formula)")
         finally:
@@ -251,9 +252,10 @@ class TestInvariances(unittest.TestCase):
         # Negating turns by a half turn.
         turn = ((-v).angle - v.angle) % 360.0
         self.assertLess(abs(turn - 180.0), 1e-9)
-        # Conjugating (y -> -y) negates the angle, except on the -x axis.
-        if not (v.y == 0 and v.x < 0):
-            self.assertEqual(Vec2(x, -y).angle, -v.angle)
+        # Conjugating (y -> -y) negates the angle, modulo a full turn: on the
+        # -x axis both read 180 (one range, (-180, 180]: VB7).
+        turn = (Vec2(x, -y).angle + v.angle) % 360.0
+        self.assertEqual(min(turn, 360.0 - turn), 0.0)
 
 
 if __name__ == "__main__":

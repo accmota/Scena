@@ -142,6 +142,11 @@ class TestExactIdentities(_Case):
             w = Vec2(a.x, a.y)
             getattr(w, op)(b)
             self.assertEqual(xy(w), xy(getattr(a, pure)(b)), op)
+        for op, pure, k in (("__imul__", "__mul__", b.x), ("__itruediv__", "__truediv__", 4.0)):
+            w = Vec2(a.x, a.y)
+            same = getattr(w, op)(k)
+            self.assertIs(same, w, op)                      # in place (VB9)
+            self.assertEqual(xy(w), xy(getattr(a, pure)(k)), op)
 
     @given(vecs(exact))
     def test_conversions(self, a):
@@ -229,15 +234,16 @@ class TestInequalities(_Case):
 
     @given(vecs())
     def test_angle_range(self, a):
-        self.assertGreaterEqual(a.angle, -180.0)
+        self.assertGreater(a.angle, -180.0)              # (-180, 180] (VB7)
         self.assertLessEqual(a.angle, 180.0)
-        self.assertEqual(a.angle, math.degrees(math.atan2(a.y, a.x)))
+        want = math.degrees(math.atan2(a.y, a.x)) + 0.0
+        self.assertEqual(a.angle, 180.0 if want == -180.0 else want)
         self.assertEqual(a.length, math.sqrt(a.x * a.x + a.y * a.y))
 
     @given(nonzero(), nonzero())
     def test_angle_to(self, a, b):
         t = a.angle_to(b)
-        self.assertGreaterEqual(t, -180.0)
+        self.assertGreater(t, -180.0)
         self.assertLessEqual(t, 180.0)
         u = a.abs_angle_to(b)
         self.assertGreaterEqual(u, 0.0)
@@ -329,6 +335,8 @@ OPERATIONS = {
     "__truediv__": lambda v, j: v / j,
     "__eq__": lambda v, j: v == j,
     "__iadd__": lambda v, j: v.__iadd__(j),
+    "__imul__": lambda v, j: v.__imul__(j),
+    "__itruediv__": lambda v, j: v.__itruediv__(j),
     "__isub__": lambda v, j: v.__isub__(j),
     "__lshift__": lambda v, j: v << j,
     "dot": lambda v, j: v.dot(j),

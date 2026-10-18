@@ -54,7 +54,12 @@ def _ink_write(attr):
 
     def imul(h):
         v = getattr(h, attr)
-        v *= 2                      # no __imul__: a new vector, assigned back
+        v *= 2                      # in place (VB9), assigned back
+        setattr(h, attr, v)
+
+    def itruediv(h):
+        v = getattr(h, attr)
+        v /= 2
         setattr(h, attr, v)
 
     def alias_iadd(h):
@@ -69,6 +74,7 @@ def _ink_write(attr):
         "+=": iadd,
         "-=": isub,
         "*=": imul,
+        "/=": itruediv,
         ".x =": lambda h: setattr(getattr(h, attr), "x", 70),
         ".y =": lambda h: setattr(getattr(h, attr), "y", -20),
         ".x +=": x_aug,
@@ -81,7 +87,8 @@ def _ink_write(attr):
 # Spellings that change a Vec2 in place, by the name the completeness check
 # finds them under (a public method, or an in-place operator).
 _IN_PLACE_COVERED = {"__iadd__": "+=", "__isub__": "-=", "__lshift__": "<<",
-                     "do_rotation": "do_rotation"}
+                     "do_rotation": "do_rotation", "__imul__": "*=",
+                     "__itruediv__": "/="}
 # In-place operators that are not value writes: ``@=`` links (its own rules:
 # Reactive Design, "What may be linked").
 _IN_PLACE_NOT_WRITES = {"__imatmul__"}
