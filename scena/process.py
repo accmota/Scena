@@ -1768,6 +1768,118 @@ def _is_ignored_filename(filename: str) -> bool:
     return ignored
 
 
+# --- An async function called without ``await`` ---------------------------
+# ``show()`` with no ``await`` builds a coroutine and drops it: nothing in
+# ``show()`` runs. CPython reports it through ``warnings._warn_unawaited_coroutine``
+# (looked up on the module at each report, from the frame whose statement
+# dropped the coroutine), with a message that does not say what to write.
+# The hook says it as a SCENA WARNING (banner + console) for author code and
+# hands everything else (stdlib, site-packages, the engine) to Python's own.
+
+_UNAWAITED_ORIGINAL: Optional[Callable] = None
+_UNAWAITED_HOOK_ACTIVE = False
+_UNAWAITED_PROBE_SEEN = False
+# Origin tracking depth before the hook turned it on: Python's own message
+# lists where the coroutine was made only when the program asked for it.
+_UNAWAITED_USER_DEPTH = 0
+
+
+async def _unawaited_probe() -> None:
+    """Dropped once at install: proves the interpreter calls the hook."""
+
+
+def _unawaited_message(coro) -> str:
+    code = coro.cr_code
+    name = f"{code.co_name}()"
+    where = ""
+    origin = getattr(coro, "cr_origin", None)
+    if origin:
+        filename, lineno, _func = origin[0]   # the caller (most recent first)
+        where = f" at {os.path.basename(filename)}, line {lineno}"
+    return (
+        f"{name} was called{where} but never awaited, so nothing in {name} ran. "
+        f"Inside async code write await {name}; from a plain def start it as "
+        f"an async mode (self.mode = self.{code.co_name})."
+    )
+
+
+def _python_unawaited(coro) -> None:
+    """Python's own "never awaited" warning, as if the hook were not there.
+
+    Same text as ``warnings._warn_unawaited_coroutine`` (the creation lines
+    only when the program had turned origin tracking on itself) and the same
+    location: ``stacklevel=3`` is the frame that dropped the coroutine
+    (this function ← the hook ← that frame).
+    """
+    msg = f"coroutine '{coro.__qualname__}' was never awaited"
+    origin = getattr(coro, "cr_origin", None)
+    if origin and _UNAWAITED_USER_DEPTH > 0:
+        import linecache
+        lines = ["Coroutine created at (most recent call last)\n"]
+        lines += traceback.format_list([
+            (f, n, fn, linecache.getline(f, n)) for f, n, fn in reversed(origin)
+        ])
+        msg = (msg + "\n" + "".join(lines)).rstrip("\n")
+    warnings.warn(msg, category=RuntimeWarning, stacklevel=3, source=coro)
+
+
+def _warn_unawaited(coro) -> None:
+    """``warnings._warn_unawaited_coroutine`` while Scena is imported.
+
+    Runs while the coroutine is being freed: it never raises (any failure
+    falls back to Python's own warning).
+    """
+    global _UNAWAITED_PROBE_SEEN
+    original = _UNAWAITED_ORIGINAL
+    try:
+        code = coro.cr_code
+        if code is _unawaited_probe.__code__:
+            _UNAWAITED_PROBE_SEEN = True
+            return
+        if _is_ignored_filename(code.co_filename):
+            _python_unawaited(coro)
+            return
+        report_author_warning("async call", _unawaited_message(coro))
+    except BaseException:
+        try:
+            _python_unawaited(coro)
+        except BaseException:
+            if original is not None:
+                try:
+                    original(coro)
+                except BaseException:
+                    pass
+
+
+def install_unawaited_hook() -> bool:
+    """Route "coroutine … was never awaited" through :func:`_warn_unawaited`.
+
+    Idempotent. Turns on coroutine origin tracking (depth ≥ 1) so the
+    message names the line that called the function. Returns whether the
+    interpreter calls the hook (a probe coroutine is dropped to find out);
+    when it does not, Python's own warning stays.
+    """
+    global _UNAWAITED_ORIGINAL, _UNAWAITED_HOOK_ACTIVE, _UNAWAITED_PROBE_SEEN
+    global _UNAWAITED_USER_DEPTH
+    current = getattr(warnings, "_warn_unawaited_coroutine", None)
+    if current is None:
+        return False
+    if current is not _warn_unawaited:
+        _UNAWAITED_ORIGINAL = current
+        warnings._warn_unawaited_coroutine = _warn_unawaited
+        try:
+            _UNAWAITED_USER_DEPTH = sys.get_coroutine_origin_tracking_depth()
+            if _UNAWAITED_USER_DEPTH < 1:
+                sys.set_coroutine_origin_tracking_depth(1)
+        except Exception:
+            pass
+    if not _UNAWAITED_HOOK_ACTIVE:
+        _UNAWAITED_PROBE_SEEN = False
+        _unawaited_probe()  # dropped at once: the hook records it
+        _UNAWAITED_HOOK_ACTIVE = _UNAWAITED_PROBE_SEEN
+    return _UNAWAITED_HOOK_ACTIVE
+
+
 def set_watchdog(enabled: bool = True) -> None:
     """Turn the author-code freeze watchdog on or off.
 

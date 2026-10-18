@@ -73,6 +73,13 @@ left out.
 
 ### Added
 
+- An async function called without `await` says so where it happens. Before,
+  `self.flash()` written for `async def flash(self)` ran nothing and Python
+  printed `coroutine 'Ship.flash' was never awaited`, often at a later line.
+  Now it is a SCENA WARNING on the banner and the console, at the line that
+  made the call: `flash() was called at game.py, line 12 but never awaited,
+  so nothing in flash() ran. Inside async code write await flash(); …`.
+  Coroutines of other libraries keep Python's own message.
 - Colors, opacity, visibility and flips link with `@=`: a HUD bar can follow
   the game in its length *and* its color, with formulas only.
   `bar["width"] @= lambda: 200 * st.hp / 100` and `bar["fill"] @= lambda:

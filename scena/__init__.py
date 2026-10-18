@@ -299,6 +299,12 @@ import builtins
 
 init()
 
+# ``show()`` without ``await`` becomes a SCENA WARNING naming the line and the
+# fix (process.install_unawaited_hook; Actors Design, Protections).
+from .process import install_unawaited_hook as _install_unawaited_hook
+_install_unawaited_hook()
+del _install_unawaited_hook
+
 keyp = builtins.keyp
 mouse = builtins.mouse
 st = builtins.st

@@ -68,6 +68,8 @@ CONTRACTS: Dict[str, W] = {
                                twin="a body that unwinds cleanly on cancel is the normal path (every mode-change test)"),
     "process:exit_mode.<locals>.deco": W(fires="test_process", silent="test_process.TestOnModeAndExitMode.test_async_enter_fn_allows_exit_mode_without_warning"),
     "process:Handle._apply_then": W(fires="test_process", twin="then= into a mode while no async body runs: the normal then= path (test_process)"),
+    "process:_warn_unawaited": W(fires="test_async_hooks", silent="test_async_hooks.TestNeverAwaitedHook.test_awaited_or_closed_coroutine_is_silent"),
+    "process:_python_unawaited": W(fires="test_async_hooks", silent="test_async_hooks.TestNeverAwaitedHook.test_awaited_or_closed_coroutine_is_silent"),
     "process:Handle.__del__": W(fires="test_process", twin="an awaited handle is the normal path: every async test"),
     "process:Scheduler.note_every_site": W(fires="test_process", twin="every() armed once (setup, a mode body) is the normal path"),
     "process:Scheduler._tick_on_update": W(fires="test_process", twin=GUARD),
