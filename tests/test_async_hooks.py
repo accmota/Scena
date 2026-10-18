@@ -399,7 +399,9 @@ NOT_A_CALLBACK = {
 
 # An async function is the point here: the engine drives it as a mode.
 _DRIVES_A_MODE = "takes a mode, which the engine drives (test_then_takes_an_async_mode)"
-DRIVEN = {"Entity.goto_mode(fn)": _DRIVES_A_MODE, "on_mode(fn)": _DRIVES_A_MODE}
+_DRIVES_A_TASK = "takes an async function and drives it as a task (test_tasks)"
+DRIVEN = {"Entity.goto_mode(fn)": _DRIVES_A_MODE, "on_mode(fn)": _DRIVES_A_MODE,
+          "run_task(fn)": _DRIVES_A_TASK, "Entity.run_task(fn)": _DRIVES_A_TASK}
 
 
 def _is_driven(door: str):

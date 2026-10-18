@@ -13,14 +13,19 @@ T1  A timer fires on the first tick where its owner's world time since its
     start reaches its delay: a whole number of frames lands on that frame.
 T2  A timer's time starts at the first process tick that begins after it is
     made: one made before the tick (in update, an input hook) counts that
-    frame; one made in the tick or later counts from the next.
+    frame; one made in the tick or later counts from the next. A task's
+    later steps run in the tick (its first runs where it is started).
 T3  A parked owner's timers neither fire nor gain time; a dead owner's never
-    fire.
+    fire. A parked or dead owner's task takes no step.
+T5  Work a task starts (its owner and scope) ends with it: nothing it
+    started fires after a live cancel of the task (its replacement by
+    ``name=``, its owner's destroy). The closure-over-``self`` half of T5
+    is equation E6.
 T4  ``every`` fires once per interval of world time, at most
     ``ceil(MAX_FRAME_DT / interval)`` times in one tick (debt beyond that
     keeps only its phase).
 T6  Work scheduled on a destroyed actor registers nothing: it never ticks,
-    never runs.
+    never runs (a task's body never takes a step).
 """
 from __future__ import annotations
 
@@ -30,7 +35,7 @@ from typing import Dict
 
 from laws.model.base import Report, Trace
 
-LAWS = ("T1", "T2", "T3", "T4", "T6")
+LAWS = ("T1", "T2", "T3", "T4", "T5", "T6")
 
 MAX_FRAME_DT = Fraction(1, 4)       # scena.input.MAX_FRAME_DT, a declared parameter
 MODELLED = ("after", "every")
@@ -69,6 +74,9 @@ def check(tr: Trace, rep: Report) -> None:
     hs: Dict[str, _H] = {}
     frames = tr.frames
     dead = set()                      # labels whose destroy returned (dead)
+    tasks: Dict[str, list] = {}       # task label -> [steps taken, refused]
+    parent_of: Dict[str, str] = {}    # handle label -> the task it is work of
+    killed = set()                    # tasks a live cancel ended
 
     def settle(label, h, f):
         """The tick that ended owed ``h.want`` fires; ``h.fired`` happened."""
@@ -95,6 +103,12 @@ def check(tr: Trace, rep: Report) -> None:
         f = frames[i]
         if what == "add":
             kind, delay, interval, _owner, _scope, refused, phase = e[3], e[4], e[5], e[6], e[7], e[8], e[9]
+            parent = e[10] if len(e) > 10 else None
+            if parent is not None:
+                parent_of[label] = parent
+            if kind == "task":
+                tasks[label] = [0, refused or (_owner is not None and _owner in dead)]
+                continue
             if kind not in MODELLED:
                 continue
             on_dead = _owner is not None and _owner in dead
@@ -102,6 +116,34 @@ def check(tr: Trace, rep: Report) -> None:
             if on_dead:
                 rep.witness("T6")
             continue
+        if what == "step":
+            t = tasks.get(label)
+            if t is None:
+                continue
+            active, alive, phase = e[3], e[4], e[5]
+            if t[1]:
+                rep.find("T6", f, f"{label} was started on a destroyed actor and took a step",
+                         "task|registered")
+            if t[0]:
+                rep.witness("T2")
+                if phase is not None and phase != "tick":
+                    rep.find("T2", f, f"{label} took a later step in {phase}", f"task|{phase}")
+                rep.witness("T3")
+                if not active or not alive:
+                    rep.find("T3", f, f"{label} took a step while its owner was "
+                             f"{'parked' if alive else 'destroyed'}", "task|owner")
+            t[0] += 1
+            if parent_of.get(label) in killed:
+                rep.find("T5", f, f"{label} took a step after its task was cancelled",
+                         "task|step")
+            continue
+        if what == "cancel" and len(e) > 3 and e[3] and label in tasks:
+            killed.add(label)
+            if label in parent_of.values():
+                rep.witness("T5")
+        elif what == "fire" and parent_of.get(label) in killed:
+            rep.find("T5", f, f"{label} fired after its task was cancelled",
+                     f"{label.rsplit('#', 1)[0]}|fire")
         h = hs.get(label)
         if h is None:
             continue

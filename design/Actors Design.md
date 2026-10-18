@@ -16,6 +16,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 | Formula groups | [Formula groups](#formula-groups) |
 | Modes / `@on_mode` / `@exit_mode` | [Mode enter / exit](#mode-enter--exit) |
 | Async wait / helpers | [Process semantics](#process-semantics) |
+| `run_task` (an async sequence without a mode) | [Tasks](#tasks) |
 | Method decorators | [Method decorators](#method-decorators-every--after--collide_with--when--on_change) |
 | Ownership / tracks | [Tracks](#tracks), [Ownership](#ownership-no-on) |
 | Frame order | [Frame order](#frame-order) (canonical: [Scena Design.md — Datapath](Scena%20Design.md#datapath)) |
@@ -766,11 +767,58 @@ of source.
 | 1 | `update(dt)`, `@collide`, `@when`, transients | Continuous motion, reactions |
 | 2 | `after`, `every`, `ready`, `recently` | Time, no modes |
 | 3 | `mode` + `then=` | One chapter, one completion |
-| 4 | `async` / `await`, optional class | A **sequence** of waits; per-object `on_update` |
+| 4 | `async` / `await`: an async mode, or a task (`run_task`) | A **sequence** of waits; per-object `on_update` |
 
 Teach: zero or one completion → `then=` (or ignore the handle). Two or more waits, or a
-value that must survive a wait → `async` mode (helpers that mode `await`s count). `then=`
-inside an async body: don’t; warn if a transition cancelled a still-running script.
+value that must survive a wait → an `async def`: as the object's **mode** when it is what
+the object *is doing* (one at a time), as a **task** (`run_task`) when it is a job *beside*
+the modes or a sequence that belongs to no single object (helpers they `await` count).
+`then=` inside an async body: don’t; warn if a transition cancelled a still-running script.
+
+## Tasks
+
+`run_task(fn, *, name=None)` / `e.run_task(fn, *, name=None)` run an `async def` as a
+**task**: a `Handle(kind="task")` whose first step (up to the first `await`) runs at the
+call, in the caller's phase, and whose later steps run in the process tick (the same
+driver as an async mode's body: [Implementation notes](#implementation-notes-maintainers)).
+It exists for sequences that are not a state of one object — a button that plays a few
+animations in a row in a script with no classes, a power-up that counts down while the
+ship goes through its modes, a countdown on a label. Without it, the first needed a host
+actor (`label.goto_mode(seq)`, and `label.mode = seq` did nothing the second time) and the
+second a chain of `after` calls sharing one `name=` slot (separate names left a stale
+step behind: a second pickup at 4.5 s showed the old countdown at 5 s).
+
+| Rule | |
+| --- | --- |
+| `fn` | An `async def`, a bound method or a `partial` of one, or a lambda whose call returns a coroutine (how `after` takes arguments: `run_task(lambda: show(box, 2))`). Called like an `after` callback: the owner as the first argument when `fn` takes one and is not a bound method (`box.run_task(show)` → `show(box)`). Refused before anything registers: a coroutine (`run_task(show())`, closed so no "never awaited" follows), a plain `def`, a function marked `@on_mode` (enter a mode with `self.mode =`), a lambda that returns no coroutine |
+| Owner | The `after` rule ([Ownership](#ownership-no-on)): a bound method or a closure over `self` → that actor (**entity**); bare inside a mode body → that mode; otherwise the act (the game before the top level ends). `e.run_task` → `e`, **entity** |
+| Handle | `await h` → the body's `return` value; works in `parallel` / `race`; `.done`, `.cancelled`, `.elapsed` (world time × the owner's `time_scale`, frozen while parked); `.remaining` is 0 (no clock duration, like `until`); `pause()` raises (park the owner instead). Awaiting the running task from itself raises |
+| `name=` | The named slot: a new task with the same name cancels the running one (and its work) — restart. Ignore-while-running is the author's `if h is None or h.done:` |
+| Its work | A handle made during a task's step with the task's owner and scope is the task's (`_children`; the child points back with `_task_parent`, cleared in `_forget`). Cancelling the task (`cancel()`, `name=`, owner destroyed, act / mode ended) cancels that work, tasks last and one-shot sounds ringing out (`_end_implicitly`). A task that ends by itself — returned, raised, tripped the watchdog — leaves it running; a nested task's work passes to the task that started it. Another actor's bound method (`after(0.4, bomb.destroy)`) and an explicit `e.after` from a mode keep their own owner (PA4, S2-1) |
+| Already cancelled | Work made later in the same step of a task already cancelled (still on the stack: `self.mode = calm` earlier in `angry`, `h.cancel()` from inside) is cancelled at once. Before 2026-10-16 it became the next mode's work (fixed with tasks) |
+| Hooks | `setup`, `on_destroy`, `@exit_mode` (`no_owner`) and a new mode's body (`_enter_mode`) run with no running task: their work is not the task's, and `wait()` there is refused |
+| Dead owner | `dead.run_task(fn)` returns a cancelled Handle; `fn` is never called (T6) |
+| Laws | F2 (first step where started), T2 (later steps in the tick), T3 (no step while the owner is parked or dead), T5 (its work ends with it), T6 — [Laws.md](Laws.md#timers) |
+
+**Cancelled under it.** `Handle.__await__` raises `Cancelled(handle)`. When the task's own
+handle is cancelled the `Cancelled` that leaves the body is the plan: quiet. Otherwise an
+awaited handle was cancelled *out from under* the body and the body did not catch it: the
+task ends with a `RuntimeWarning` ("… was silently cancelled") naming the task (or the async
+mode), what it awaited and the author line, why that ended (`Handle._cancel_reason`, set by
+the engine's cancel paths through `_cancel_for`: owner destroyed, the actor it moves
+destroyed, another tween took the property, `name=` replaced, act ended, mode left,
+`cancel_process()`, race picked another, a member cancelled, its task cancelled), and the
+fixes (`try/except Cancelled`; start the task on the actor, `box.run_task(...)`, so it ends
+with it; `if box:`). A plain `h.cancel()` sets no reason ("cancel() was called on it").
+
+**Not a second spelling of a mode.** A mode is the object's one current state: exclusive,
+same-mode no-op, `@exit_mode`, `mode_time`, `then=`. A task is concurrent work with the
+`after` ownership rule. The mode's async body *is* a task internally (owner, mode scope),
+so the two share one driver, one cancel path and the same laws. `run_task` refuses an
+`@on_mode` function; event doors still refuse `async def` (an async `on_click` would need a
+re-entry policy per door, and code after its first `await` would run outside the handler's
+phase); their error names `run_task`. Tests: `tests/test_tasks.py`,
+`test_process.TestModeTask`, `test_sys_hyp_scheduler.TestTask`, `test_laws_timers`.
 
 ## Process semantics
 
@@ -1307,6 +1355,7 @@ wrong instance in a spawner loop.
 | Track | Policy |
 |-------|--------|
 | Mode script | One per Entity; a new mode cancels it |
+| Task (`run_task`) | Any number; each ends with its owner / scope, its `name=` slot, `cancel()` |
 | Event handler (`@collide`, `@when`, `on_click`) | One running instance; re-entry **ignored** (async event-track later) |
 | `on_update` | Every frame, including during `await` |
 | `on_destroy` | Once, from `destroy()` only, before teardown |
@@ -1316,12 +1365,13 @@ A hit-flash handler must not abort a dive. Cosmetic FX are not modes (use transi
 ### Ownership (no `on=`)
 
 **One rule for all process Handles** (`after` / `every` / `wait` / `until` /
-`parallel` / `race` / `tween` / timed pose / `move_along` / `play_sound`):
+`parallel` / `race` / `tween` / timed pose / `move_along` / `play_sound` / `run_task`):
 
 | Where you write it | Owner | Scope |
 |-----------------------------------|-------|--------|
 | Inside a mode body (sync or async), bare call | that Entity | **mode** (dies on leave; a sound that ends by itself finishes — [Sound Design](Sound%20Design.md#when-the-owner-ends)) |
-| `e.after(...)` / `e.every(...)` / `e.tween(...)` / `e.play_sound(...)` | `e` | **entity** (survives mode; dies on `destroy` / `cancel_process` — on `destroy` a sound that ends by itself finishes) |
+| `e.after(...)` / `e.every(...)` / `e.tween(...)` / `e.play_sound(...)` / `e.run_task(...)` | `e` | **entity** (survives mode; dies on `destroy` / `cancel_process` — on `destroy` a sound that ends by itself finishes) |
+| Inside a task's step, bare call | the task's owner (none for an ownerless task) | the task's scope (a game task's work stays **game** after the top level ends) — and it is the task's work: [Tasks](#tasks) |
 | Bound method of a *different* Entity — `after(0.4, bomb.destroy)` from wasp's mode | that other Entity | **entity** |
 | Plain `after(2, drop)` at script level (lambda / free fn, no mode running) | none | **game** before the top level ends; **act** after it (ends on the next act change) — [Act Design](Act%20Design.md#lifetime-the-game-and-the-act) |
 | `setup` / `on_update` / `@collide` / `@when` | receiver or script | **entity** or script — no ambient mode |
@@ -1571,8 +1621,9 @@ step (mode entry) still toggles around itself; its rare endings live out of
 - Debug overlay (mode name, `mode_time`, active handles, `@on_mode` inventory).
   Runtime-recorded transition trace first if added; a static `then=` scan would
   silently under-report dynamic targets.
-- Async event-track handlers (`@collide` / `@when` / `on_click`) — one running instance,
-  re-entry ignored; modes are the async surface today.
+- Async event-track handlers (`@collide` / `@when` / `on_click`) stay refused: a handler
+  starts a task (`lambda: run_task(fn)`), which makes the concurrency visible and needs
+  no re-entry policy per door ([Tasks](#tasks)).
 - Edge-map silhouette FX on sprites — landed (FrameFx path + SDF; assign-time / `prepare_fx` warmup; Sprite Halo/Laser/Rim SDF).
 - Pixel-crisp (`nearest`) sprite sampling flag.
 - Auto hitbox follow-ups — see [Sprite Design.md — Deferred (auto hitbox)](Sprite%20Design.md#deferred-auto-hitbox).

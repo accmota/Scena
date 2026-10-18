@@ -340,6 +340,7 @@ vocabulary is needed to teach it.
 | --- | --- |
 | Entities (Shape, Sprite, Text, SpatialFx, bare Entity), widgets | destroyed (`on_destroy` runs) |
 | Timers, tweens, sounds with no longer-lived owner (includes camera tweens) | cancelled — except a sound that ends by itself, which finishes as game work with its `on_done` dropped ([decision 12](#decisions-2026-09-26)). Forever loops, named slots (`name=`) and paused sounds are cut |
+| Tasks (`run_task(…)`) with no longer-lived owner | cancelled with the work they started (tasks after the other handles, so a `finally` in the body sees its timers gone). A task started at the top of the file is game work, and so is the work it starts later, also after the top level ended ([Actors — Tasks](Actors%20Design.md#tasks)) |
 | A timed camera verb in flight (`canvas.pan_to(…, time=2)`), **whatever its owner** | cancelled: the camera pose is restored, and a game actor's mode that started the move would write it again next frame (review 2026-10-09 S9-5) |
 | Classless `@when` / `@on_change` / `@collide` / `@leave_playfield` registrations | unregistered (a `@leave_playfield` tag the act took over goes back to the game's handler) |
 | `resolve(a, b)` pairs | back to the top-level set (act pairs removed; a game pair the act removed or re-tuned comes back) |

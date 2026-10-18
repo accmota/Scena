@@ -49,9 +49,12 @@ Events are tuples; the first item is the kind:
   ``("I", kind, name, action, doors)``         an OS key / char / button event and the
                                                doors it reached (S3)
   ``("O", "abandon", button, widget)``         a leaving widget gave up its press
-  ``("H", "add", h, kind, delay, interval, owner, scope, refused, phase)``
+  ``("H", "add", h, kind, delay, interval, owner, scope, refused, phase, parent)``
+                                                ``parent``: the task it is work of
   ``("H", "tick", h, world_dt, scale, active, alive, paused, held, over)``
-  ``("H", "fire" | "cancel" | "pause" | "resume", h)``   a timed handle (S4)
+  ``("H", "fire" | "pause" | "resume", h)``     a timed handle (S4)
+  ``("H", "cancel", h, live)``                  ``live``: it ended a running job
+  ``("H", "step", h, active, alive, phase)``    a task's step (``Script._advance``)
 
 Contact handler doors are ``enter`` / ``stay`` (``_dispatch_contact``'s phase)
 and ``exit`` (``_run_exit``: a step's exit, a destroy's, or a deferred one).
@@ -515,7 +518,34 @@ def _handle_add_end(frame, retval):
                         float(_slot(h, "interval", 0.0) or 0.0),
                         _rec.label_of(owner) if owner is not None else None,
                         str(_slot(h, "scope")), bool(_slot(h, "_cancelled", False)),
+                        _rec.phases[-1] if _rec.phases else None,
+                        _rec.label_of(_slot(h, "_task_parent"))))
+
+
+def _task_step(frame):
+    """A task's step (``Script._advance``): its owner's flags and the phase."""
+    script = frame.f_locals.get("self")
+    if script is None or _slot(script, "done", False):
+        return
+    h = _slot(script, "handle")
+    label = _rec.label_of(h)
+    if label is None:
+        return
+    owner = _slot(h, "_owner")
+    _rec.events.append(("H", "step", label,
+                        bool(_field(owner, "_active", True)) if owner is not None else True,
+                        not _field(owner, "_destroyed", False) if owner is not None else True,
                         _rec.phases[-1] if _rec.phases else None))
+
+
+def _handle_cancel(frame):
+    """``Handle.cancel``: the 4th field says whether it ended a live job (a
+    cancel of a finished one changes nothing)."""
+    h = frame.f_locals.get("self")
+    label = _rec.label_of(h)
+    if label is not None:
+        live = not (_slot(h, "_done", False) or _slot(h, "_cancelled", False))
+        _rec.events.append(("H", "cancel", label, live))
 
 
 def _handle_tick(frame):
@@ -642,7 +672,8 @@ _ENGINE_HOOKS = (
     ("scena.process", "Scheduler._tick_every", _handle_tick, None),
     ("scena.process", "Handle._fire_once", _handle_event("fire"), None),
     ("scena.process", "Handle._fire_every", _handle_event("fire"), None),
-    ("scena.process", "Handle.cancel", _handle_event("cancel"), None),
+    ("scena.process", "Handle.cancel", _handle_cancel, None),
+    ("scena.process", "Script._advance", _task_step, None),
     ("scena.process", "Handle.pause", _handle_event("pause"), None),
     ("scena.process", "Handle.resume", _handle_event("resume"), None),
     # Input (S3): the OS event, and the doors it reached while it was handled.

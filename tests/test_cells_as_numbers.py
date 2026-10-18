@@ -75,7 +75,7 @@ NO_NUMBERS = {
         "unresolve", "test_collision", "intersections")},
     **{n: "takes functions or handles" for n in (
         "on_change", "on_mode", "exit_mode", "when", "until", "until_empty",
-        "parallel", "race", "unregister_event")},
+        "parallel", "race", "unregister_event", "run_task")},
     "above": "takes a layer name or number (a layer key, not a quantity)",
     "below": "takes a layer name or number (a layer key, not a quantity)",
     "change_act": "takes an Act class",

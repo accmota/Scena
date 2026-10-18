@@ -313,6 +313,12 @@ def t4_every_uncapped() -> Patches:
     return [(proc, "_every_fire_budget", lambda interval: 10 ** 9)]
 
 
+def t5_task_cancel_spares_its_work() -> Patches:
+    """T5: cancelling a task leaves the work it started running (the
+    cascade's ending is gone)."""
+    return [(proc.Scheduler, "_end_implicitly", lambda self, handle: None)]
+
+
 def t6_dead_owner_registers() -> Patches:
     """T6: work on a destroyed actor is registered (the add's check is gone)."""
     real = proc.Scheduler.add
@@ -436,6 +442,7 @@ PLANTS: Dict[str, Callable[[], Patches]] = {
     "T2": t2_new_work_ticks_at_once,
     "T3": t3_parked_owner_ticks,
     "T4": t4_every_uncapped,
+    "T5": t5_task_cancel_spares_its_work,
     "T6": t6_dead_owner_registers,
     "I1": i1_act_change_drops_keys,
     "I2": i2_up_without_its_down,

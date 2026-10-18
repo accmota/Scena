@@ -1258,6 +1258,7 @@
   <div class="nav-block" data-nav="mode">
     <a href="#mode-enter" class="nav-child" data-chapter="mode" data-search="on_mode goto_mode mode_time">mode</a>
     <a href="#mode-async" class="nav-child" data-chapter="mode" data-search="wait until parallel race watchdog">espera async</a>
+    <a href="#mode-task" class="nav-child" data-chapter="mode" data-search="run_task tarefa task async sequência botão power-up name restart">tarefas</a>
     <a href="#mode-cancela" class="nav-child" data-chapter="mode" data-search="cancel cancel_process scope escopo exit_mode every after tween move_along overvive restart">escopo e cancelamento</a>
   </div>
 
@@ -1373,7 +1374,7 @@
           <tr><td><code>ParallaxLayerError</code></td><td><code>clickable</code> / <code>draggable</code> / colisão num objeto de camada com parallax (<code>pan_response</code> ≠ 1 …)</td><td>Camadas de parallax são só decoração. Ponha o objeto jogável numa camada sem parallax. Também é <code>ValueError</code></td></tr>
           <tr><td><code>UiLayerError</code></td><td>Colisão ou <a href="#desenhar-spatial">SpatialFx</a> na camada <code>"ui"</code></td><td><code>"ui"</code> é espaço de tela (HUD). Use uma camada do mundo. Também é <code>ValueError</code></td></tr>
           <tr><td><code>ActUsageError</code></td><td>Tratar um <a href="#atos-classe">Act</a> como um objeto do jogo: <code>self.visible</code>, <code>self.layer</code>, <code>@collide_with</code> num ato</td><td>O ato não desenha nem colide; a regra vai na classe do objeto, ou <code>@collide(a, b)</code> dentro de <code>setup()</code>. Também é <code>TypeError</code> / <code>AttributeError</code></td></tr>
-          <tr><td><code>Cancelled</code></td><td>Um <code>await</code> num Handle que foi cancelado (<a href="#mode-async">espera async</a>)</td><td>Não é erro seu: o mode acabou. <code>try</code> / <code>finally</code> para limpar. É <code>BaseException</code> — <code>except Exception</code> não pega</td></tr>
+          <tr><td><code>Cancelled</code></td><td>Um <code>await</code> num Handle que foi cancelado (<a href="#mode-async">espera async</a>, <a href="#mode-task">tarefas</a>)</td><td>Não é erro seu: o mode ou a tarefa acabou. <code>try</code> / <code>finally</code> para limpar. É <code>BaseException</code> — <code>except Exception</code> não pega</td></tr>
           <tr><td><code>TypeError</code></td><td>Tipo errado: string onde vai número, <code>bool</code>, <code>Circle(10)</code>; nome de parâmetro errado (<code>Polygon(pionts=…)</code>)</td><td>A mensagem nomeia o parâmetro e um exemplo (<code>Circle(center=(0, 0), radius=10)</code>), ou <code>Did you mean 'points'?</code> + a lista <code>Valid:</code></td></tr>
           <tr><td><code>TypeError</code></td><td>Uma célula de <code>st</code> sem colchetes onde ela é ligada ou acompanhada: <code>Slider(st.volume)</code>, <code>Text(st.score)</code>, <code>@on_change(st.vidas)</code>, <code>tween(st.t, …)</code>, <code>until(st.acabou)</code>, <code>c["radius"] @= st.r</code></td><td><code>st.volume</code> é o valor; a célula é <code>st["volume"]</code> (desde a 0.8.0). A mensagem mostra a grafia com colchetes</td></tr>
           <tr><td><code>TypeError</code></td><td>Colchetes dentro de uma <code>lambda</code> ou usados como número: <code>Text(lambda: f"Pontos: {st['score']}")</code>, <code>c["radius"] @= lambda: st["r"] * 2</code>, <code>@when(lambda: st["vidas"] == 0)</code>, <code>if st["vivo"]:</code></td><td>Dentro da <code>lambda</code>, ponto: <code>st.score</code>. A <code>lambda</code> já mantém a conta viva; <code>st["score"]</code> é a célula, não o número. A mensagem mostra a grafia com ponto</td></tr>
@@ -7936,7 +7937,7 @@ def solta_caixa():
             <tr><th>Método</th><th>Assinatura</th><th>Retorna</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td><code>await h</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>Espera (use await)</td><td>No mode async. Handle já <code>.done</code> passa na hora. Cancelado levanta <code>Cancelled</code>.</td></tr>
+<tr><td><code>await h</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>Espera (use await)</td><td>No mode async ou numa tarefa. Handle já <code>.done</code> passa na hora. Cancelado levanta <code>Cancelled</code>. Uma tarefa devolve o valor do seu <code>return</code>.</td></tr>
 <tr><td><code>.cancel()</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>—</td><td>Para agora. Seguro duas vezes, inclusive depois do <code>destroy</code>.</td></tr>
 <tr><td><code>.pause()</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>o próprio Handle</td><td>Congela o relógio desta tarefa (<code>every</code> / <code>after</code> / <code>wait</code> / <code>tween</code> / <code>play_sound</code>). Chamar de novo não faz nada. Devolve <code>self</code>. Em <code>until</code> / <code>parallel</code> / <code>race</code> levanta <code>TypeError</code>.</td></tr>
 <tr><td><code>.resume()</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>o próprio Handle</td><td>Descongela. Não revive um Handle cancelado ou já terminado. Chamar de novo não faz nada. Devolve <code>self</code>.</td></tr>
@@ -8065,7 +8066,7 @@ class Director(Entity):
 
     <section class="section prose" id="mode-async">
       <h2>espera async</h2>
-      <p class="one-liner">Num mode <code>async def</code>, <code>await</code> pausa o capítulo até algo acontecer — um tempo (<code>wait</code>), uma condição (<code>until</code>), um grupo esvaziar (<code>until_empty</code>), outras tarefas terminarem (<code>parallel</code> / <code>race</code>) — e então segue para a próxima linha. Só funciona dentro de um mode async (ou de uma função que ele chama com <code>await</code>); no <code>update</code> ou num <code>@collide</code>, use <code>after</code>.</p>
+      <p class="one-liner">Num mode <code>async def</code>, <code>await</code> pausa o capítulo até algo acontecer — um tempo (<code>wait</code>), uma condição (<code>until</code>), um grupo esvaziar (<code>until_empty</code>), outras tarefas terminarem (<code>parallel</code> / <code>race</code>) — e então segue para a próxima linha. Só funciona dentro de um mode async ou de uma <a href="#mode-task">tarefa</a> (ou de uma função que eles chamam com <code>await</code>); no <code>update</code> ou num <code>@collide</code>, comece a sequência com <code>run_task(…)</code> ou use <code>after</code>.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>await wait(0.4)
@@ -8088,7 +8089,7 @@ async def diving(e):
             <tr><th>Método</th><th>Assinatura</th><th>Retorna</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td><code>await wait(0.4)</code></td><td class="sig"><span class="params">Parâmetros: segundos (número)</span></td><td>Espera (use await)</td><td>Pausa. Sem <code>await</code> não bloqueia: erro. Só no async que o mode está rodando, incluindo helpers.</td></tr>
+<tr><td><code>await wait(0.4)</code></td><td class="sig"><span class="params">Parâmetros: segundos (número)</span></td><td>Espera (use await)</td><td>Pausa. Sem <code>await</code> não bloqueia: erro. Só no async que o mode ou a tarefa está rodando, incluindo helpers.</td></tr>
 <tr><td><code>await until(lambda: ship.hp &lt;= 0)</code></td><td class="sig"><span class="params">Parâmetros: pred (condição, função)</span></td><td>Espera (use await)</td><td>Espera até a função devolver <code>True</code> (o Scena confere a cada frame). Passe uma função (<code>lambda: …</code>) ou uma célula (<code>until(st["acabou"])</code>), não a condição já calculada — <code>True</code>/<code>False</code> direto levanta TypeError, e <code>st.acabou</code> também (é o valor). Mesma regra de script que <code>wait</code>.</td></tr>
 <tr><td><code>await until_empty("wasp")</code></td><td class="sig"><span class="params">Parâmetros: group_or_id (nome ou o grupo)</span></td><td>Espera (use await)</td><td>Grupo vazio. Aceita o nome, <code>group["wasp"]</code> (vista viva, não uma cópia), ou um grupo fórmula. Não use <code>until(group.empty)</code>.</td></tr>
 <tr><td><code>await parallel(h1, h2)</code></td><td class="sig"><span class="params">Parâmetros: h1 (Handle), h2 (Handle), …</span></td><td>Espera (use await)</td><td>Espera todos. Cancelar cancela o resto. Passe o Handle ao <code>parallel</code> / <code>race</code> antes do próximo <code>await</code>.</td></tr>
@@ -8098,13 +8099,71 @@ async def diving(e):
         </table>
         </div>
       </details>
-      <p class="gotcha"><strong><code>wait(0.4)</code> sem <code>await</code> não pausa o script.</strong> Devolve um Handle e o resto corre. Fora de um mode async (<code>update</code>, <code>on_update</code>, <code>@collide</code>, mode sync) é <code>TypeError</code>. Dentro, sem <code>await</code> (e sem passar a <code>parallel</code> / <code>race</code>) é <code>TypeError</code> com a linha e o <code>await</code> que falta. Use <code>after(…)</code> quando não há um capítulo async.</p>
-      <p class="gotcha"><strong>Só o mode é async.</strong> O Scena <em>roda</em> um mode async como script; todo o resto ele só <em>chama</em>. Por isso <code>async def setup</code>, <code>async def on_update</code>, um <code>@every</code> / <code>@when</code> / <code>@collide</code> / <code>on_click</code> / <code>on_done=</code> async, ou <code>after(1, lambda: self.anda())</code> com <code>anda</code> async são <code>TypeError</code> — o corpo nunca rodaria. Vale também para uma função que o Scena pergunta: um filtro (<code>group["x"].filter</code> / <code>any</code> / <code>all</code> / <code>count_where</code>, <code>nearest(where=)</code>), a condição de <code>until</code> / <code>@when</code>, o alvo de <code>@on_change</code>, <code>resolve(only=)</code> e uma fórmula <code>@=</code>: a resposta de uma função async não é um valor. Ponha as esperas num mode e entre nele: <code>self.mode = self.intro</code> (no <code>setup</code>, num handler ou com <code>then=</code>). Um helper <code>async</code> vale quando o mode o chama com <code>await</code>.</p>
+      <p class="gotcha"><strong><code>wait(0.4)</code> sem <code>await</code> não pausa o script.</strong> Devolve um Handle e o resto corre. Fora de um mode async ou de uma tarefa (<code>update</code>, <code>on_update</code>, <code>@collide</code>, mode sync) é <code>TypeError</code>. Dentro, sem <code>await</code> (e sem passar a <code>parallel</code> / <code>race</code>) é <code>TypeError</code> com a linha e o <code>await</code> que falta. Fora do async, comece a sequência com <code>run_task(…)</code> ou use <code>after(…)</code>.</p>
+      <p class="gotcha"><strong>Só o mode e a tarefa são async.</strong> O Scena <em>roda</em> um mode async e uma tarefa (<code>run_task</code>) como script; todo o resto ele só <em>chama</em>. Por isso <code>async def setup</code>, <code>async def on_update</code>, um <code>@every</code> / <code>@when</code> / <code>@collide</code> / <code>on_click</code> / <code>on_done=</code> async, ou <code>after(1, lambda: self.anda())</code> com <code>anda</code> async são <code>TypeError</code> — o corpo nunca rodaria. Vale também para uma função que o Scena pergunta: um filtro (<code>group["x"].filter</code> / <code>any</code> / <code>all</code> / <code>count_where</code>, <code>nearest(where=)</code>), a condição de <code>until</code> / <code>@when</code>, o alvo de <code>@on_change</code>, <code>resolve(only=)</code> e uma fórmula <code>@=</code>: a resposta de uma função async não é um valor. Escreva um <code>def</code> comum e comece dele a sequência: como tarefa (<code>self.run_task(self.intro)</code>, <code>run_task(intro)</code>) ou como mode (<code>self.mode = self.intro</code>). Um helper <code>async</code> vale quando o mode ou a tarefa o chama com <code>await</code>. Chamar uma função async sem <code>await</code> (<code>self.intro()</code> sozinho numa linha) não roda nada: o Scena avisa (SCENA WARNING) com a linha.</p>
+    </section>
+
+    <section class="section prose" id="mode-task">
+      <h2>tarefas</h2>
+      <p class="one-liner">Uma <em>tarefa</em> é uma sequência <code>async def</code> que roda ao lado de tudo, sem ser um mode: <code>run_task(mostra)</code> roda <code>mostra()</code> até o primeiro <code>await</code> na hora e continua nos frames seguintes. Serve para um botão que dispara uma animação em passos, um power-up que dura uns segundos enquanto a nave troca de mode, uma contagem na tela.</p>
+      <div class="code-panel">
+        <button class="copy-btn" type="button">copiar</button>
+<pre>async def mostra():
+    await caixa.move_to(600, 300, time=0.5)
+    await wait(0.2)
+    await parallel(caixa.rotate_by(90, time=0.3),
+                   titulo.move_by(0, 40, time=0.3))
+
+botao.on_click = lambda: run_task(mostra, name="mostra")   # outro clique recomeça
+
+class Nave(Sprite):
+    @collide_with("powerup")
+    def pega(self, item, info):
+        item.destroy()
+        self.run_task(self.tiro_triplo, name="power")      # sobrevive às trocas de mode
+
+    async def tiro_triplo(self):
+        self.tiros = 3
+        await wait(4)
+        self.blink(2.0)
+        await wait(2)
+        self.tiros = 1</pre>
+      </div>
+      <h3>Mode ou tarefa?</h3>
+      <p>Um <strong>mode</strong> é o que o objeto <em>está fazendo</em> — um de cada vez; entrar em outro cancela o anterior. Uma <strong>tarefa</strong> é um trabalho <em>a mais</em> (um power-up, um piscar, uma contagem) ou uma sequência na tela que não é de um objeto só. Várias tarefas rodam juntas.</p>
+      <h3>Dono</h3>
+      <p>O mesmo do <code>after</code>: um método de um objeto (<code>run_task(self.pisca)</code>) ou uma <code>lambda</code> que usa <code>self</code> → a tarefa é desse objeto e acaba no <code>destroy</code>; dentro do corpo de um mode → é do mode e acaba quando ele sai; solta → é do Act atual (do jogo todo, se chamada no topo do arquivo). <code>caixa.run_task(mostra)</code> dá a tarefa à <code>caixa</code> (sobrevive às trocas de mode da caixa) e chama <code>mostra(caixa)</code> se <code>mostra</code> recebe um parâmetro. Argumentos: <code>run_task(lambda: mostra(caixa, 2))</code>.</p>
+      <h3>Clicou de novo?</h3>
+      <ul>
+        <li><code>run_task(mostra)</code> a cada clique: as execuções correm juntas.</li>
+        <li><code>run_task(mostra, name="mostra")</code>: um clique novo cancela a execução em curso (e o que ela começou) e recomeça.</li>
+        <li>Ignorar cliques enquanto roda: guarde o Handle — <code>if h is None or h.done: h = run_task(mostra)</code>.</li>
+      </ul>
+      <h3>O que a tarefa começa é dela</h3>
+      <p>Um <code>after</code>, um <code>wait</code>, um movimento ou outra tarefa iniciados dentro da tarefa acabam com ela: cancelar a tarefa (<code>h.cancel()</code>, <code>name=</code>, o dono destruído, o Act trocado) cancela esse trabalho. Uma tarefa que termina normalmente deixa esse trabalho seguir. A primeira parte (até o primeiro <code>await</code>) roda na hora, onde você chamou <code>run_task</code>; o resto roda na etapa de processos do frame, como um mode async.</p>
+      <details class="spec">
+      <summary>Nesta tarefa</summary>
+        <div class="tbl-wrap">
+          <table>
+          <thead>
+            <tr><th>Método</th><th>Assinatura</th><th>Retorna</th><th>Significado</th></tr>
+          </thead>
+          <tbody>
+<tr><td><code>run_task(fn, *, name=None)</code></td><td class="sig"><span class="params">Parâmetros: fn (função async, ou lambda que chama uma), name (slot, texto)</span></td><td>Handle</td><td>Roda <code>fn</code> como tarefa. Dono como no <code>after</code>. <code>name=</code>: uma tarefa nova com o mesmo nome cancela a que está rodando.</td></tr>
+<tr><td><code>e.run_task(fn, *, name=None)</code></td><td class="sig"><span class="params">Parâmetros: fn (função async), name (slot, texto)</span></td><td>Handle</td><td>A tarefa é de <code>e</code>: acaba no <code>destroy</code> / <code>cancel_process</code>, sobrevive às trocas de mode. <code>fn</code> recebe <code>e</code> se tiver um parâmetro.</td></tr>
+<tr><td><code>await h</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>o valor que a tarefa devolve</td><td>Espera a tarefa acabar (num mode async ou noutra tarefa). Também vale em <code>parallel(h1, h2)</code> / <code>race(h1, h2)</code>.</td></tr>
+<tr><td><code>h.cancel()</code></td><td class="sig"><span class="params">Sem parâmetros</span></td><td>—</td><td>Para a tarefa e o que ela começou. <code>h.done</code>, <code>h.elapsed</code> como em qualquer Handle; <code>h.pause()</code> não vale para tarefa (pause o dono com <code>active = False</code>).</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </details>
+      <p class="gotcha"><strong><code>run_task(mostra())</code> com parênteses é <code>TypeError</code>.</strong> Passe a função; para argumentos, <code>run_task(lambda: mostra(caixa, 2))</code>. Uma função <code>def</code> comum também é recusada (chame-a direto ou use <code>after</code>), e um mode (<code>@on_mode</code>) também: entre nele com <code>self.mode =</code>.</p>
+      <p class="gotcha"><strong>Quando o que a tarefa espera é cancelado por fora, ela para e o Scena avisa o motivo</strong> — o objeto que se movia foi destruído, outro movimento pegou a mesma propriedade. Se isso é esperado, <code>try: … except Cancelled:</code> em volta do <code>await</code>; para a tarefa acabar junto com o objeto, comece-a nele: <code>caixa.run_task(mostra)</code>. O cancelamento da própria tarefa (dono destruído, <code>name=</code>, <code>h.cancel()</code>) é silencioso.</p>
     </section>
 
     <section class="section prose" id="mode-cancela">
       <h2>escopo e cancelamento</h2>
-      <p class="one-liner">Um mode é um <em>capítulo</em> de comportamento. Tudo que você inicia enquanto esse capítulo está rodando some quando o capítulo acaba — a menos que você diga o contrário com <code>e.after</code> / <code>e.every</code> / <code>e.tween</code>.</p>
+      <p class="one-liner">Um mode é um <em>capítulo</em> de comportamento. Tudo que você inicia enquanto esse capítulo está rodando some quando o capítulo acaba — a menos que você diga o contrário com <code>e.after</code> / <code>e.every</code> / <code>e.tween</code> / <code>e.run_task</code>.</p>
 
       <h3>O que é um mode</h3>
       <p>Um mode é a função em <code>e.mode</code> — o capítulo atual do Entity (formação, mergulho, morrer…). Entrar no capítulo roda o corpo uma vez; sair cancela o trabalho desse capítulo e, se houver, chama <code>@exit_mode</code>. Compare com <code>==</code>. Uma ação que termina e passa a outro mode: <code>then=</code>. Uma sequência de passos com esperas: um mode <code>async</code> com <code>await</code>.</p>
@@ -8121,11 +8180,12 @@ async def diving(e):
         <li><code>tween(…)</code> (sem o <code>e.</code>)</li>
         <li><code>move_to</code> / <code>move_by</code> / <code>move_along</code> / <code>rotate_*</code> / <code>scale_*</code> com <code>time=</code></li>
         <li><code>play_sound</code> (chamada solta)</li>
+        <li><code>run_task(…)</code> (chamada solta) e o que essa tarefa começar</li>
         <li>o script async do mode</li>
       </ul>
       <p><strong>Não</strong> cancelam na troca de mode:</p>
       <ul>
-        <li><code>e.after</code> / <code>e.every</code> / <code>e.tween</code> / <code>e.play_sound</code> — escopo Entity (morrem no <code>destroy</code> / <code>cancel_process</code>; no <code>destroy</code>, um som que acaba sozinho termina de tocar)</li>
+        <li><code>e.after</code> / <code>e.every</code> / <code>e.tween</code> / <code>e.play_sound</code> / <code>e.run_task</code> — escopo Entity (morrem no <code>destroy</code> / <code>cancel_process</code>; no <code>destroy</code>, um som que acaba sozinho termina de tocar)</li>
         <li>timers do script (módulo, sem mode rodando) — esses saem quando o Act muda (<code>change_act</code>, ver <a href="#atos-palco">Atos</a>) se nasceram depois do topo</li>
         <li>transientes (<code>blink</code>, <code>flash</code>, <code>dissolve_out</code>, …) e <code>sprite.play</code></li>
         <li>funções de evento (<code>@collide</code>, <code>@when</code>, <code>on_click</code>)</li>
@@ -8137,7 +8197,7 @@ async def diving(e):
           </thead>
           <tbody>
             <tr><td>No corpo do mode: <code>after</code> / <code>every</code> / <code>wait</code> / <code>tween</code> / <code>move_*(time=)</code> / …</td><td><code>"mode"</code></td><td>cancela</td></tr>
-            <tr><td><code>e.after</code> / <code>e.every</code> / <code>e.tween</code></td><td>sempre a Entity</td><td>não cancela (morre no <code>destroy</code> / <code>cancel_process</code>)</td></tr>
+            <tr><td><code>e.after</code> / <code>e.every</code> / <code>e.tween</code> / <code>e.run_task</code></td><td>sempre a Entity</td><td>não cancela (morre no <code>destroy</code> / <code>cancel_process</code>)</td></tr>
             <tr><td><code>after(…, bomb.destroy)</code> de outro Entity, de dentro do mode</td><td>aquele outro Entity</td><td>não cancela com <em>este</em> mode</td></tr>
             <tr><td><code>setup</code> / <code>on_update</code> / <code>@collide</code> da Entity: <code>after(0.1, self.atirar)</code> ou uma lambda / <code>def</code> interna que usa <code>self</code> (<code>after(0.1, lambda: self.set_color("red"))</code>)</td><td>a Entity (<code>self</code>)</td><td>não cancela (não há mode ambiente); morre no <code>destroy</code>: um inimigo destruído não atira depois. Exceção: no <code>on_destroy</code> a lambda é do script e roda depois da morte</td></tr>
             <tr><td>script solto no topo do arquivo (<code>after(…)</code>, <code>play_sound(…)</code>, <code>tween(…)</code>)</td><td><code>"game"</code> — o jogo todo</td><td>não cancela; vale o jogo todo</td></tr>

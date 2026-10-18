@@ -785,9 +785,9 @@ _CO_ASYNC = 0x80 | 0x200
 
 _ASYNC_FIX = (
     "Scena calls it without driving it, so its body would never run. "
-    "Write a plain def. For a sequence of waits use an async mode: "
-    "`async def intro(self): ...` started with `self.mode = self.intro` "
-    "(from setup, a handler, or then=)."
+    "Write a plain def, and start the sequence of waits from it as a task "
+    "(`self.run_task(self.intro)`, or `run_task(intro)`) or as an async mode "
+    "(`self.mode = self.intro`)."
 )
 
 
@@ -836,7 +836,8 @@ def refuse_coroutine_result(result: Any, callback: Any) -> None:
     raise TypeError(
         f"callback {name}() called the async function {inner}() without await, "
         f"so nothing in {inner}() ran. Scena does not run coroutines from "
-        f"callbacks: put the waits in an async mode and switch to it "
+        f"callbacks: start it as a task (run_task({inner}), or "
+        f"self.run_task(self.{inner})) or switch to it as an async mode "
         f"(self.mode = self.{inner})."
     )
 

@@ -21,7 +21,7 @@ from .easing import approach, chase, deadzone
 from .process import (
     after, every, tween, Handle, ReadyManager, RememberedManager, Cancelled,
     wait, until, until_empty, parallel, race, set_watchdog,
-    on_mode, exit_mode,
+    on_mode, exit_mode, run_task,
 )
 from .audio import play_sound, Sound, audio, amp_db
 from .audio_capture import Microphone
@@ -126,7 +126,7 @@ FRAMEWORK_EXPORTS = [
     'st', 'group', 'canvas', 'mouse', 'keyp', 'clock', 'ready', 'recently', 'ui',
     'run', 'init', 'set_fx_auto',
     'flush',
-    'after', 'every', 'tween', 'Handle', 'Cancelled',
+    'after', 'every', 'tween', 'run_task', 'Handle', 'Cancelled',
     'wait', 'until', 'until_empty', 'parallel', 'race', 'set_watchdog',
     'on_mode', 'exit_mode',
     'Act', 'change_act',

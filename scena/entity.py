@@ -3082,12 +3082,20 @@ class Entity(Container):
             sched.watch_mode(self, False)
             return
         sched.watch_mode(self, True)
-        with owning(self, scope=SCOPE_MODE):
-            if _is_async_callable(value):
-                coro = _spawn_coro(value, self)
-                sched.start_task(self, coro, scope=SCOPE_MODE, mode=True)
-            else:
-                _invoke(value, self)
+        # The new body is not the work of a task whose step set this mode
+        # (``self.mode = calm`` inside ``angry``): its timers belong to the
+        # new mode, not to the step that is ending (Actors Design — Tasks).
+        running = sched._running
+        sched._running = None
+        try:
+            with owning(self, scope=SCOPE_MODE):
+                if _is_async_callable(value):
+                    coro = _spawn_coro(value, self)
+                    sched.start_task(self, coro, scope=SCOPE_MODE, mode=True)
+                else:
+                    _invoke(value, self)
+        finally:
+            sched._running = running
 
     @property
     def mode_time(self) -> float:
@@ -3138,6 +3146,19 @@ class Entity(Container):
         """
         from .process import after_on
         return after_on(self, delay, fn, then=then, on_done=on_done, name=name)
+
+    def run_task(self, fn, *, name: Optional[str] = None):
+        """``run_task`` owned by this item: the task ends when the item is
+        destroyed (and survives its mode changes). ``fn`` gets the item when it
+        takes a parameter: ``box.run_task(show)`` runs ``show(box)``.
+
+        Args:
+            fn: an ``async def`` (or a lambda that calls one).
+            name: a slot: a new task with the same ``name`` on this item
+                restarts it (the old run and its work are cancelled).
+        """
+        from .process import run_task_on
+        return run_task_on(self, fn, name=name)
 
     def every(self, interval: float, fn=None, *, name: Optional[str] = None):
         """``every`` owned by this item (dies on destroy). Named timers replace themselves."""

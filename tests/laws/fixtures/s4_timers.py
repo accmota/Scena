@@ -9,7 +9,11 @@
   with a timer pending (never fires);
 * a Slow actor at ``time_scale = 0.5``: its ``after(0.5)`` takes a second;
 * an actor that schedules work on itself in its own ``on_destroy`` (T6:
-  nothing registers on a dead actor).
+  nothing registers on a dead actor);
+* tasks: a top-level task with an ``every`` of its own, cancelled at
+  0.45 s (its ``every`` ends with it, T5); a Sleeper's task that parks with
+  it (no step while parked, T3); a task started on the destroyed actor
+  (its body never runs, T6).
 
 Program for the laws harness (tests/laws/); not an example.
 """
@@ -27,6 +31,9 @@ st.drone_pings = 0
 st.ghost = 0
 st.slow = 0
 st.late = 0
+st.task_steps = 0
+st.task_kid = 0
+st.sleeper = 0
 
 
 def half_second():
@@ -87,6 +94,41 @@ after(0.2, doomed.destroy)
 after(0.4, lambda: after(0.1, doomed.boom))
 after(0.3, lambda: setattr(drone, "active", False))
 after(0.6, lambda: setattr(drone, "active", True))
+
+
+async def pulse():
+    every(0.05, pulse_kid)         # the task's work: ends with the task (T5)
+    while True:
+        st.task_steps += 1
+        await wait(0.1)
+
+
+def pulse_kid():
+    st.task_kid += 1
+
+
+pulse_task = run_task(pulse)       # top level: game work
+after(0.45, pulse_task.cancel)
+
+
+class Sleeper(Circle):
+    def setup(self):
+        self.run_task(self.count)
+
+    async def count(self):
+        while True:
+            await wait(0.05)
+            st.sleeper += 1
+
+
+async def never(e):
+    st.late += 1
+
+
+sleeper = Sleeper(center=(150, 250), radius=6)
+after(0.3, lambda: setattr(sleeper, "active", False))   # no step while parked (T3)
+after(0.6, lambda: setattr(sleeper, "active", True))
+after(0.4, lambda: doomed.run_task(never))              # dead owner: never runs (T6)
 
 
 def update(dt):
