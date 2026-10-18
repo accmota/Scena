@@ -224,6 +224,13 @@ left out.
 
 ### Fixed
 
+- A destroyed actor says so first, whatever the arguments. `dead.move_to((nan,
+  0))`, `dead.move_by()`, `dead.rotate_to("a")`, `dead.scale_by(2, force="no")`,
+  `dead.add_to_group(5)` and `dead.radius = lambda: 3` raised the bad
+  argument's error ("a point takes two finite numbers", "use @=") before
+  `DestroyedError`, so you chased the number when the actor was gone. Every
+  verb and setter that refuses a destroyed actor now refuses it before it
+  checks a value; guard the call with `if nave:`.
 - A state cell keeps its own copy of a `Vec2` it takes from another holder.
   `st.start = st.pos` shared the vector, so `st.pos += v` moved the saved
   start too, and a later `st.start = …` let `st.pos.x = 5` through silently.
