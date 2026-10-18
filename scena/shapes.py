@@ -1247,7 +1247,7 @@ class Shape(Graphic, PaintState):
         '_collidable', '_collider', '_collision_opt_out', '_time_scale',
         '_active', '_active_saved_visible', '_active_saved_collidable',
         '_mode', '_mode_time', 'model', '_ink',
-        '_on_update', '_on_destroy', '_mode_script', '_frozen_warned', '_mode_idle_from',
+        '_on_update', '_on_destroy', '_mode_task', '_frozen_warned', '_mode_idle_from',
         '_actor_constructed',
         '_geom_path', '_geom_path_key', '_tx_state',
         '_collision_epoch',

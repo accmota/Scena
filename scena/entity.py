@@ -2401,7 +2401,7 @@ class Entity(Container):
         self._mode_time = 0.0
         self._on_update = None
         self._on_destroy = None
-        self._mode_script = None
+        self._mode_task = None
         self._frozen_warned = False
         self._actor_constructed = False
         self._collision_epoch = 0
@@ -2675,7 +2675,7 @@ class Entity(Container):
         object.__setattr__(self, "_mode", None)
         object.__setattr__(self, "_on_update", None)
         object.__setattr__(self, "_on_destroy", None)
-        object.__setattr__(self, "_mode_script", None)
+        object.__setattr__(self, "_mode_task", None)
         Container._clean_up(self)
         ink = getattr(self, "_ink", None)
         if ink is not None:
@@ -3085,7 +3085,7 @@ class Entity(Container):
         with owning(self, scope=SCOPE_MODE):
             if _is_async_callable(value):
                 coro = _spawn_coro(value, self)
-                sched.start_mode_script(self, coro)
+                sched.start_task(self, coro, scope=SCOPE_MODE, mode=True)
             else:
                 _invoke(value, self)
 

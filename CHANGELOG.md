@@ -201,6 +201,11 @@ left out.
 
 ### Changed
 
+- Async modes cost less per frame. The freeze watchdog used to switch its
+  instrumentation on and off around every resumed mode, which re-instruments
+  every function on the stack; it now does it once per frame for all of them.
+  300 actors in async modes that wait and resume: about 3.7× less scheduler
+  time per frame. Behaviour is unchanged.
 - **Level editor:** with several items selected, the "Add group" and
   "Remove group" inputs are gone. The **Groups** field shows the groups every
   selected item has: type a name to add it to all of them, delete one to

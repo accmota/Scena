@@ -159,6 +159,13 @@ _watchdog_resume_depth = 0
 _wd_deadline = 0.0
 _wd_author_lines = 0
 _wd_check_every = 256
+# The task walk holds the LINE / JUMP events on for all its resumes (one
+# ``set_events`` pair per tick, not per resume): each ``set_events`` re-instruments
+# every function on the stack (the tick, the run loop), which cost ~25 µs per
+# resume. Between resumes the deadline is infinite, so author code the walk
+# runs outside a resume (a ``finally`` thrown by a cancel) never trips.
+_wd_window_open = False
+_wd_window_prev = 0
 
 # Scope on a handle. Mode-scoped work is cancelled on ``e.mode = …``.
 # Ownerless work (a bare ``after`` / ``play_sound`` / ``tween`` with no actor)
@@ -629,6 +636,7 @@ class Handle:
         "_voice_id", "_sound_volume", "_sound_pan", "_sound_pitch",
         "_sound_loops", "_clip_duration", "_sound_effects", "_sound_fade_out",
         "_record", "_end_held",
+        "_task", "_task_parent", "_cancel_reason",
     )
 
     def __init__(self, *_args, **_kwargs) -> None:
@@ -740,6 +748,11 @@ class Handle:
         # the sound, so the sound rings out when its owner ends).
         self._sound_fade_out = None
         self._record = None
+        # kind "task": the coroutine driver (a mode's async body, Actors
+        # Design — Tasks). None for every other kind.
+        self._task = None
+        self._task_parent = None
+        self._cancel_reason = None
 
     @property
     def effects(self):
@@ -1207,6 +1220,14 @@ class Handle:
         self._held = False
         self._alive = False
         _release_process_driver(self)
+        script = self._task
+        if script is not None:
+            # Throw Cancelled into the body (deferred while it is on the
+            # stack, S2-11). Quiet when the owner is already dead.
+            owner = self._owner
+            script.cancel(silent=_is_entity(owner) and not getattr(owner, "is_alive", True))
+            self._task = None          # no handle <-> script cycle left for the gc
+            _clear_mode_task(owner, self)
         kids = self._children
         if kids:
             for child in kids:
@@ -1248,8 +1269,8 @@ class Handle:
         then = self._then
         if then is None or owner is None:
             return
-        script = getattr(owner, "_mode_script", None)
-        if script is not None and not script.done:
+        body = getattr(owner, "_mode_task", None)
+        if body is not None and not body._done:
             warnings.warn(
                 f"then= entered {getattr(then, '__name__', then)!r} and cancelled "
                 f"a still-running async mode on {owner!r}. Inside async, use "
@@ -1488,15 +1509,27 @@ class Handle:
         return f"<Handle {' '.join(bits)}>"
 
 
+def _clear_mode_task(owner, handle) -> None:
+    """Drop ``owner._mode_task`` if it still names ``handle`` (its body ended)."""
+    if owner is not None and getattr(owner, "_mode_task", None) is handle:
+        try:
+            object.__setattr__(owner, "_mode_task", None)
+        except Exception:
+            pass
+
+
 class Script:
-    """One running async mode (or later, event) coroutine."""
+    """The driver of one task: a coroutine the engine resumes (an async
+    mode's body). Its ``handle`` is the ``Handle(kind="task")`` that owns it:
+    the scheduler keeps the handle (owner, scope, cancel), the script keeps
+    the coroutine and what it waits on (Actors Design — Tasks)."""
 
     __slots__ = (
         "coro", "owner", "kind", "done", "cancelled", "waiting_on", "silent",
-        "_created_awaits",
+        "_created_awaits", "handle",
     )
 
-    def __init__(self, coro, owner, *, kind: str = "mode"):
+    def __init__(self, coro, owner, *, kind: str = "mode", handle: Optional[Handle] = None):
         self.coro = coro
         self.owner = owner
         self.kind = kind
@@ -1505,6 +1538,28 @@ class Script:
         self.waiting_on: Optional[Handle] = None
         self.silent = False
         self._created_awaits: List[Handle] = []
+        self.handle = handle
+
+    def _end(self, *, cancelled: bool, result=None) -> None:
+        """The body ended by itself (returned, raised, tripped the watchdog,
+        or an awaited handle was cancelled under it): its task handle ends
+        with it. A body that returned completes the handle (``await task``
+        gets the value); the others leave it cancelled. Not a cancel of the
+        task: nothing it started is cancelled here."""
+        handle = self.handle
+        if handle is None or handle._done or handle._cancelled:
+            return
+        handle._task = None            # no handle <-> script cycle left for the gc
+        if cancelled:
+            handle._cancelled = True
+            handle._done = True
+            handle._alive = False
+            _release_process_driver(handle)
+            get_scheduler()._forget(handle)
+        else:
+            handle._result = result
+            handle._mark_complete()
+        _clear_mode_task(handle._owner, handle)
 
     def start(self) -> None:
         self._advance()
@@ -1560,75 +1615,28 @@ class Script:
         prev = sched._running
         sched._running = self
         self._created_awaits = []
+        handle = self.handle
         own = (
-            owning(self.owner, scope=SCOPE_MODE)
-            if self.kind == "mode" and self.owner is not None
+            owning(handle._owner, scope=handle.scope)
+            if handle is not None and handle._owner is not None
             else nullcontext()
         )
         finished = False
+        result = None
         try:
             try:
                 with own:
                     yielded = _resume_with_watchdog(self.coro, value)
-            except StopIteration:
+            except StopIteration as stop:
                 self.done = True
                 self.waiting_on = None
                 finished = True
+                result = stop.value
             except Cancelled:
-                self.done = True
-                self.cancelled = True
-                self.waiting_on = None
-                # Reaching here means a Handle the mode was awaiting got
-                # cancelled *out from under it* (another tween claimed the
-                # same key, the awaited thing's target was destroyed, an
-                # until() predicate's subject was destroyed, ...) and the
-                # mode's own code did not catch ``Cancelled`` around the
-                # ``await``. Script.cancel() (deliberately switching/ending
-                # this mode) never reaches this branch — it throws/returns
-                # before or after this call, not through it — so this is
-                # always the "awaited thing died, mode didn't notice" case.
-                # ``e.mode`` still reads the old function; no further code
-                # in it will ever run.
-                if self.kind == "mode" and not self.silent:
-                    mode = getattr(self.owner, "mode", None)
-                    mode_name = getattr(mode, "__name__", mode)
-                    warnings.warn(
-                        f"async mode {mode_name!r} on {self.owner!r} was "
-                        f"silently cancelled: something it was `await`ing "
-                        f"(a tween, until(), wait(), ...) got cancelled out "
-                        f"from under it — for example another tween claimed "
-                        f"the same property, or the awaited target was "
-                        f"destroyed. `.mode` still reports {mode_name!r}, "
-                        f"but this mode has stopped running. If this "
-                        f"cancellation is expected, wrap the `await` in "
-                        f"`try: ... except Cancelled: ...` to handle it "
-                        f"explicitly.",
-                        RuntimeWarning,
-                        stacklevel=2,
-                    )
+                self._cancelled_under_it()
                 return
             except _Watchdog:
-                self.done = True
-                self.cancelled = True
-                self.waiting_on = None
-                mode = getattr(self.owner, "mode", None)
-                mode_name = getattr(mode, "__name__", mode)
-                warnings.warn(
-                    f"SCENA ERROR: async mode {mode_name!r} on {self.owner!r} "
-                    f"ran more than {WATCHDOG_RESUME_S:g}s without awaiting — "
-                    f"the mode was CANCELLED and any in-progress work "
-                    f"(for example a partial spawn wave) may be incomplete. "
-                    f"This usually means `while True:` with no await. "
-                    f"Add `await wait(...)` / `await until(...)` / "
-                    f"`await move_to(..., time=)` inside the loop. "
-                    f"Constructing many Sprite(...) actors in one go is allowed.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                try:
-                    self.coro.close()
-                except Exception:
-                    pass
+                self._tripped_watchdog()
                 return
             except Exception:
                 self._abort()
@@ -1636,6 +1644,7 @@ class Script:
         finally:
             sched._running = prev
         if finished:
+            self._end(cancelled=False, result=result)
             self._raise_unused_awaits()
             return
         if self.cancelled:
@@ -1658,19 +1667,73 @@ class Script:
             raise
         self.waiting_on = yielded
 
+    # The rare endings of ``_advance``, out of line: ``_advance`` is on the
+    # stack whenever the watchdog turns its events on, and every function on
+    # the stack is re-instrumented then (cost grows with its size).
+
+    def _cancelled_under_it(self) -> None:
+        """An awaited handle was cancelled *out from under* the body (another
+        tween claimed the same key, the awaited thing's target was destroyed,
+        an ``until()`` subject was destroyed, ...) and the body did not catch
+        ``Cancelled`` around the ``await``. ``Script.cancel()`` (switching or
+        ending the mode on purpose) never reaches this: it throws before or
+        after ``_advance``, not through it. ``e.mode`` still reads the old
+        function; no further code in it will ever run."""
+        self.done = True
+        self.cancelled = True
+        self.waiting_on = None
+        self._end(cancelled=True)
+        if self.kind == "mode" and not self.silent:
+            mode = getattr(self.owner, "mode", None)
+            mode_name = getattr(mode, "__name__", mode)
+            warnings.warn(
+                f"async mode {mode_name!r} on {self.owner!r} was "
+                f"silently cancelled: something it was `await`ing "
+                f"(a tween, until(), wait(), ...) got cancelled out "
+                f"from under it — for example another tween claimed "
+                f"the same property, or the awaited target was "
+                f"destroyed. `.mode` still reports {mode_name!r}, "
+                f"but this mode has stopped running. If this "
+                f"cancellation is expected, wrap the `await` in "
+                f"`try: ... except Cancelled: ...` to handle it "
+                f"explicitly.",
+                RuntimeWarning,
+                stacklevel=4,
+            )
+
+    def _tripped_watchdog(self) -> None:
+        self.done = True
+        self.cancelled = True
+        self.waiting_on = None
+        self._end(cancelled=True)
+        mode = getattr(self.owner, "mode", None)
+        mode_name = getattr(mode, "__name__", mode)
+        warnings.warn(
+            f"SCENA ERROR: async mode {mode_name!r} on {self.owner!r} "
+            f"ran more than {WATCHDOG_RESUME_S:g}s without awaiting — "
+            f"the mode was CANCELLED and any in-progress work "
+            f"(for example a partial spawn wave) may be incomplete. "
+            f"This usually means `while True:` with no await. "
+            f"Add `await wait(...)` / `await until(...)` / "
+            f"`await move_to(..., time=)` inside the loop. "
+            f"Constructing many Sprite(...) actors in one go is allowed.",
+            RuntimeWarning,
+            stacklevel=4,
+        )
+        try:
+            self.coro.close()
+        except Exception:
+            pass
+
     def _abort(self) -> None:
-        """An author error ended this script: done, coroutine closed, mode slot cleared."""
+        """An author error ended this script: done, coroutine closed, task ended."""
         self.done = True
         self.waiting_on = None
         try:
             self.coro.close()
         except Exception:
             pass  # never shadow the error that ended the script
-        if self.kind == "mode" and self.owner is not None:
-            try:
-                object.__setattr__(self.owner, "_mode_script", None)
-            except Exception:
-                pass
+        self._end(cancelled=True)
 
     def _raise_unused_awaits(self) -> None:
         """``wait`` / ``until`` / … created by this resume but never awaited → ``TypeError``.
@@ -2015,9 +2078,21 @@ def _run_with_watchdog(
     if sync and not SYNC_WATCHDOG_ENABLED:
         return fn(*args, **kwargs)
 
+    limit = float(WATCHDOG_RESUME_S if budget is None else budget)
+    if _wd_window_open:
+        # Events already on (the task walk): only this resume's deadline.
+        _wd_deadline = time.perf_counter() + limit
+        _wd_author_lines = 0
+        _wd_check_every = max(1, int(WATCHDOG_CHECK_EVERY))
+        _watchdog_resume_depth += 1
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            _watchdog_resume_depth -= 1
+            _wd_deadline = math.inf
+
     _ensure_watchdog_tool()
     mon = sys.monitoring
-    limit = float(WATCHDOG_RESUME_S if budget is None else budget)
     _wd_deadline = time.perf_counter() + limit
     _wd_author_lines = 0
     _wd_check_every = max(1, int(WATCHDOG_CHECK_EVERY))
@@ -2029,6 +2104,31 @@ def _run_with_watchdog(
     finally:
         mon.set_events(_WATCHDOG_TOOL_ID, prev_events)
         _watchdog_resume_depth -= 1
+
+
+def _watchdog_window_open() -> bool:
+    """Turn the watchdog events on for a run of resumes (the task walk).
+
+    Returns whether this call opened the window (close it with
+    :func:`_watchdog_window_close`). No-op when the watchdog is off, a
+    window is open, or a guarded call is already running.
+    """
+    global _wd_window_open, _wd_window_prev, _wd_deadline
+    if not WATCHDOG_ENABLED or _wd_window_open or _watchdog_resume_depth > 0:
+        return False
+    _ensure_watchdog_tool()
+    mon = sys.monitoring
+    _wd_deadline = math.inf
+    _wd_window_prev = mon.get_events(_WATCHDOG_TOOL_ID)
+    mon.set_events(_WATCHDOG_TOOL_ID, _watchdog_events())
+    _wd_window_open = True
+    return True
+
+
+def _watchdog_window_close() -> None:
+    global _wd_window_open
+    _wd_window_open = False
+    sys.monitoring.set_events(_WATCHDOG_TOOL_ID, _wd_window_prev)
 
 
 def _resume_with_watchdog(coro, value=None):
@@ -2146,14 +2246,17 @@ class Scheduler:
         self._update_dense: List[object] = []
         self._mode_dirty = False
         self._update_dirty = False
-        self._scripts: List[Script] = []
+        # Tasks (``Handle(kind="task")``: async mode bodies), creation order.
+        # Walked after every other bucket, before ``on_update``.
+        self._tasks: Dict[Handle, None] = {}
+        # Set while the tick walks tasks: a task started during the walk is
+        # also visited in it (the walk is not limited to its snapshot).
+        self._task_walk_extras: Optional[List[Handle]] = None
         self._every_sites: Dict[Tuple[Optional[int], str, int], List[float]] = {}
         self._every_flood_warned: set = set()
         self._running: Optional[Script] = None
-        # True while tick() walks scripts. A script that finishes mid-walk is
-        # left in _scripts until _compact_scripts (list.remove mid-iteration
-        # would skip the next script). Handles do not need this: their
-        # buckets are snapshotted and removal is O(1).
+        # True while tick() runs (tests read it after a raise: the tick's
+        # finally must reset it).
         self._iterating = False
 
     def _bucket_for(self, handle: Handle) -> Dict[Handle, None]:
@@ -2168,6 +2271,8 @@ class Scheduler:
             return self._await_family
         if kind == "sound":
             return self._sound
+        if kind == "task":
+            return self._tasks
         return self._once
 
     def add(self, handle: Handle) -> Handle:
@@ -2219,6 +2324,10 @@ class Scheduler:
             self._tweens[key] = handle
         self._bucket_for(handle)[handle] = None
         self._handles[handle] = None
+        if handle.kind == "task":
+            extras = self._task_walk_extras
+            if extras is not None:
+                extras.append(handle)
         owner = handle.owner
         if owner is not None:
             owned = self._by_owner.get(id(owner))
@@ -2319,15 +2428,23 @@ class Scheduler:
                     self._release_sound(handle)
             owned = self._by_owner.get(id(owner))
         if owned:
+            # Tasks last: a mode's timers are gone before its body is thrown
+            # (a ``finally`` in the body sees them cancelled, as it always did).
+            tasks = None
             for handle in list(owned):
                 if handle.owner is not owner:
                     continue
                 if scopes is not None and handle.scope not in scopes:
                     continue
+                if handle.kind == "task":
+                    if tasks is None:
+                        tasks = []
+                    tasks.append(handle)
+                    continue
                 handle.cancel()
-        if scopes is None or SCOPE_MODE in scopes:
-            silent = _is_entity(owner) and not getattr(owner, "is_alive", True)
-            self.cancel_mode_script(owner, silent=silent)
+            if tasks:
+                for handle in tasks:
+                    handle.cancel()
         if scopes is None and _is_entity(owner) and not getattr(owner, "is_alive", True):
             # destroy(): forget the owner now, not at the next busy tick —
             # the dense snapshots hold it strongly.
@@ -2419,54 +2536,29 @@ class Scheduler:
         self._update_pos = {id(o): i for i, (o, _fn, _form) in enumerate(dense)}
         self._update_dirty = False
 
-    def start_mode_script(self, owner, coro) -> Script:
-        self.cancel_mode_script(owner)
-        script = Script(coro, owner, kind="mode")
-        object.__setattr__(owner, "_mode_script", script)
-        self._scripts.append(script)
-        try:
-            script.start()
-        finally:
-            if script.done:
-                self._drop_script(script)
-        return script
+    def start_task(self, owner, coro, *, scope: str, mode: bool = False,
+                   fn: Optional[Callable] = None, name: Optional[str] = None) -> Handle:
+        """Register a task for ``coro`` and run its first step now.
 
-    def cancel_mode_script(self, owner, *, silent: bool = False) -> None:
-        script = getattr(owner, "_mode_script", None)
-        if script is None:
-            return
-        if not script.done:
-            script.cancel(silent=silent)
-        object.__setattr__(owner, "_mode_script", None)
-        self._drop_script(script)
-
-    def _drop_script(self, script: Script) -> None:
-        if self._iterating:
-            # Leave it in the list; _compact_scripts drops done scripts after
-            # the walk. Do not tombstone handles here — those leave immediately.
-            owner = script.owner
-            if owner is not None and getattr(owner, "_mode_script", None) is script:
-                object.__setattr__(owner, "_mode_script", None)
-                self._note_mode_work_ended(owner)
-            return
-        try:
-            self._scripts.remove(script)
-        except ValueError:
-            pass
-        owner = script.owner
-        if owner is not None and getattr(owner, "_mode_script", None) is script:
-            object.__setattr__(owner, "_mode_script", None)
-            self._note_mode_work_ended(owner)
-
-    @staticmethod
-    def _note_mode_work_ended(owner) -> None:
-        if getattr(owner, "_mode", None) is not None:
-            _note_idle_from(owner)
-
-    def _compact_scripts(self) -> None:
-        if not any(s.done for s in self._scripts):
-            return
-        self._scripts = [s for s in self._scripts if not s.done]
+        ``mode=True``: the body of ``owner``'s async mode (``owner._mode_task``;
+        the mode's leave cancels it with the mode-scoped work). The first
+        step runs here, in the caller's phase; its exceptions raise here.
+        """
+        if mode:
+            old = getattr(owner, "_mode_task", None)
+            if old is not None and not old._done:
+                old.cancel()
+        handle = Handle._make(kind="task", owner=owner, scope=scope, fn=fn, name=name)
+        self.add(handle)
+        if handle._cancelled:          # owner already dead: the body never starts
+            coro.close()
+            return handle
+        script = Script(coro, owner, kind="mode" if mode else "task", handle=handle)
+        handle._task = script
+        if mode:
+            object.__setattr__(owner, "_mode_task", handle)
+        script.start()
+        return handle
 
     def note_every_site(
         self,
@@ -2684,7 +2776,6 @@ class Scheduler:
         # Idle: no timers, scripts, modes, or on_update — skip clock/list work.
         if (
             not self._handles
-            and not self._scripts
             and not self._mode_owners
             and not self._update_owners
         ):
@@ -2764,29 +2855,50 @@ class Scheduler:
             finally:
                 self._sound_finished_tick = None
 
-            for script in self._scripts:
-                if script.done:
-                    self._drop_script(script)
-                    continue
-                if _is_entity(script.owner) and not script.owner.is_alive:
-                    script.cancel(silent=True)
-                    self._drop_script(script)
-                    continue
-                if (
-                    script.owner is not None
-                    and _is_entity(script.owner)
-                    and not getattr(script.owner, "active", True)
-                ):
-                    continue  # parked: do not resume async
-                script.resume_if_ready()
-                if script.done:
-                    self._drop_script(script)
+            if self._tasks:
+                # Snapshot, plus the tasks started during the walk (a mode
+                # entered from another task's step is visited this tick too).
+                batch = list(self._tasks)
+                self._task_walk_extras = []
+                # One watchdog window for the whole walk, opened at the first
+                # task that is ready to resume (see _wd_window_open).
+                window = False
+                try:
+                    while batch:
+                        for handle in batch:
+                            # Inlined _tick_task (one call per task per frame).
+                            if handle._done:
+                                continue
+                            owner = handle._owner
+                            if owner is not None and _is_entity(owner):
+                                if not owner.is_alive:
+                                    handle.cancel()        # quiet: the owner is dead
+                                    continue
+                                if not owner.active:
+                                    continue               # parked: the body waits
+                                scale = owner._time_scale
+                                handle._elapsed += world_dt * scale if scale > 0.0 else 0.0
+                            else:
+                                handle._elapsed += world_dt
+                            script = handle._task
+                            awaited = script.waiting_on
+                            if awaited is None or not (awaited._done or awaited._cancelled):
+                                continue               # still waiting
+                            if not window:
+                                window = _watchdog_window_open()
+                            script._advance()
+                        batch = self._task_walk_extras
+                        self._task_walk_extras = []
+                finally:
+                    if window:
+                        _watchdog_window_close()
+                self._task_walk_extras = None
             self._tick_on_update(world_dt)
             if world_dt > 0.0:
                 self._warn_frozen_modes()
         finally:
             self._iterating = False
-            self._compact_scripts()
+            self._task_walk_extras = None
 
     def _tick_on_update(self, world_dt: float) -> None:
         self._refresh_update_dense()
@@ -2838,9 +2950,9 @@ class Scheduler:
     def _owner_has_pending(self, item) -> bool:
         if getattr(item, "_on_update", None) is not None:
             return True
-        script = getattr(item, "_mode_script", None)
-        if script is not None and not script.done:
-            return True
+        body = getattr(item, "_mode_task", None)
+        if body is not None and not body._done:
+            return True                # the mode's body still runs (fast path)
         owned = self._by_owner.get(id(item))
         if not owned:
             return False
@@ -2883,11 +2995,13 @@ class Scheduler:
             )
 
     def reset(self) -> None:
-        for script in list(self._scripts):
-            script.cancel(silent=True)
-        self._scripts.clear()
+        for handle in list(self._tasks):
+            if handle._task is not None:
+                handle._task.silent = True
         for handle in list(self._handles):
             handle.cancel()
+        self._tasks.clear()
+        self._task_walk_extras = None
         self._every.clear()
         self._once.clear()
         self._tween.clear()

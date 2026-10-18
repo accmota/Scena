@@ -1413,7 +1413,7 @@ audio device, clock hitches.
 | `after(1, fn).velocity` | `AttributeError` with a hint: velocity is on `move_along` / timed `move_to` / `move_by` |
 | `after(1, fn).volume` / `.level` | `AttributeError` with a hint: those are on `play_sound` handles |
 | Exception in a **mode body** / `then=` (sync enter) | Raise. Name the Entity, the mode, the line. Do not leave a frozen idle mode. |
-| Exception in an **async mode** body | Raise. The mode script is aborted (coroutine closed, `_mode_script` cleared). |
+| Exception in an **async mode** body | Raise. The body's task ends (coroutine closed, task handle cancelled, `_mode_task` cleared); work the body started stays (as a timer's error leaves its siblings). |
 | Async mode `await`s something that is not a Handle | `TypeError`: await a Handle (`wait` / `until` / `move_to(time=)` / `after`); script aborted |
 | Exception in an **exit hook** (`@exit_mode`) | Raise after the transition completes (the new mode is entered; an error entering it chains onto the exit error). |
 | Exception in **`on_destroy`** | Raise after `destroy()` completes teardown. Same for a partner's `on_collide_exit` fired by the destroy: every exit of the body and of each hitbox part fires, each with its own error, and the first is raised after the cleanup (a raising body exit skipped the part exits and left their keys: review 2026-10-09 S8-10). |
@@ -1443,6 +1443,17 @@ jump, or a back jump to another line (LINE already fires every iteration), retur
 require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena.__all__`; off by default — ~10–15% frame cost when on).
 `set_watchdog(False)` for benchmarks.
 
+**One watchdog window per task walk.** `sys.monitoring.set_events` re-instruments
+every function on the stack (the tick, the run loop: cost grows with their size), so
+turning the events on and off around each resume cost ~25 µs per resume (300 async
+modes: 2.0 s with the watchdog, 0.5 s without). The task walk opens one window at the
+first task ready to resume (`_watchdog_window_open`) and closes it after the walk;
+inside it `_run_with_watchdog` only resets the deadline and the line counter for each
+resume, and leaves an infinite deadline between resumes (a `finally` a cancel throws
+there never trips). Same 300 modes: 0.53 s (`test_process.TestWatchdogWindow`). A first
+step (mode entry) still toggles around itself; its rare endings live out of
+`Script._advance` (`_cancelled_under_it`, `_tripped_watchdog`) to keep that frame small.
+
 
 
 ## Implementation notes (maintainers)
@@ -1465,9 +1476,22 @@ require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena._
 - Mode body runs inside `owning(e, scope="mode")`. Mode transition:
   `cancel_owner(obj, scopes=("mode",))`, then the outgoing `@exit_mode` hook (no
   owning context), then store and run the new body. Entity-scoped handles left alone.
+- **An async mode's body is a task.** `Scheduler.start_task(owner, coro, scope="mode",
+  mode=True)` makes a `Handle(kind="task")` (owner, scope, `_by_owner`, the `_tasks`
+  bucket) whose `_task` is the `Script` driving the coroutine; `owner._mode_task`
+  names it while it runs. So the mode's leave cancels the body with the mode's timers
+  (`cancel_owner(scopes=("mode",))` — tasks after the other handles, so a `finally`
+  in the body sees its timers already gone), and `destroy` / `cancel_process` / part
+  teardown need no script special case. `Handle.cancel` on a task throws `Cancelled`
+  into the body (`Script.cancel`, deferred while on the stack); a body that ends by
+  itself (`Script._end`) completes the handle (its return value is `_result`) or, on
+  an error, the watchdog or an awaited handle cancelled under it, leaves it cancelled
+  without cancelling what the body started. The handle drops `_task` when it ends
+  (no handle ↔ script cycle). The mode policy (same-mode no-op, `goto_mode`,
+  `@exit_mode`, `mode_time`, the frozen-mode check, `then=`) stays on the Entity.
 - `wait` / `until` / `until_empty` / `parallel` / `race` call `_require_running_script`.
   `Script._advance` reports leftover must-await Handles created this resume.
-- `Shape.__slots__` must list `_time_scale`, `_on_update`, `_on_destroy`, `_mode_script`,
+- `Shape.__slots__` must list `_time_scale`, `_on_update`, `_on_destroy`, `_mode_task`,
   `_frozen_warned`, `_actor_constructed` (forgetting → `AttributeError` on `Circle()`).
   `Entity` / `SpatialFx` have no those slots.
 - Star-export: `after`, `every`, `tween`, `wait`, `until`, `until_empty`, `parallel`,
@@ -1531,8 +1555,10 @@ require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena._
   every `@when` / `@on_change`. Do **not** reintroduce tombstones or deferred
   removal: a finished Handle holds the Entity strongly, and a destroyed Entity
   must be collectable immediately after `destroy()` (no tick in between).
-  Scripts stay a list; a script that finishes mid-tick is dropped by
-  `_compact_scripts` after the walk.
+  Tasks are the `_tasks` bucket, walked after every other bucket and the sound
+  tick, before `on_update`: a snapshot, then the tasks started during the walk
+  (`_task_walk_extras`), so a mode entered from another task's step is visited in
+  the same tick, as when scripts were a live list.
 - Groups / formula `@=`: `registry.py` (`GroupOperator`, `Registry._group_formulas`).
   Formula eval uses a re-entrancy stack (`_group_formula_stack`); do not cache on
   `_group_gen`. `until_empty` resolves formula names through the same live path.
@@ -1555,4 +1581,3 @@ require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena._
   invents the formation” reject as spatial walk order.
 - Optional `SCENA HINT` when N Entities each own an identical `every` (not a silent merge).
 - `self.collide_with(target)` imperative twin of `@collide_with` — decorator shipped first; add the method only if scripts need late/dynamic pair enrollment.
-- `Scheduler._scripts` append-during-iteration (async mode list) — same shape as the handle-bucket snapshot, but `coro.send` is already watchdog-guarded. Revisit only if a concrete hang surfaces.

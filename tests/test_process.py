@@ -3117,7 +3117,7 @@ class TestAsyncAwait(ProcessTestCase):
 
         with self.assertRaises(NameError):
             c.mode = diving
-        script = getattr(c, "_mode_script", None)
+        script = getattr(c, "_mode_task", None)
         self.assertTrue(script is None or script.done)
         tick_processes()  # nothing left to resume
 
@@ -3288,7 +3288,7 @@ class TestAsyncAwait(ProcessTestCase):
 
         with self.assertRaisesRegex(TypeError, "await a Handle"):
             c.mode = diving
-        self.assertIsNone(getattr(c, "_mode_script", None))
+        self.assertIsNone(getattr(c, "_mode_task", None))
 
     def test_until_already_true_does_not_yield(self):
         c = self.track(Circle())
@@ -3542,7 +3542,7 @@ class TestAsyncAwait(ProcessTestCase):
 
         with self.assertRaisesRegex(TypeError, "not awaited"):
             c.mode = diving
-        self.assertIsNone(getattr(c, "_mode_script", None))  # script aborted
+        self.assertIsNone(getattr(c, "_mode_task", None))  # script aborted
         _frame(0.1)
         self.assertEqual(seen, [])
 
@@ -3602,7 +3602,7 @@ class TestAsyncAwait(ProcessTestCase):
                 msgs,
             )
             self.assertTrue(c.mode == spinning)
-            script = getattr(c, "_mode_script", None)
+            script = getattr(c, "_mode_task", None)
             self.assertTrue(script is None or script.done)
         finally:
             proc.WATCHDOG_RESUME_S = old
@@ -5379,7 +5379,7 @@ class TestDeadOwnerRelease(ProcessTestCase):
             c.goto_mode(angry)
         c.mode = None  # clearing stays a quiet no-op
         self.assertEqual(ran, [])
-        self.assertEqual(get_scheduler()._scripts, [])
+        self.assertEqual(get_scheduler()._tasks, {})
 
 
 class TestTweenPropertyBackedField(ProcessTestCase):
@@ -5843,6 +5843,223 @@ class TestWatchOnADestroyedSourceRetires(unittest.TestCase):
                 del boss
                 gc.collect()
                 self.assertIsNone(ref(), f"{label}: the watch kept the dead actor")
+
+
+class TestWatchdogWindow(ProcessTestCase):
+    """The task walk turns the watchdog events on once per tick, at the first
+    task ready to resume, and resets only the deadline per resume: each
+    ``sys.monitoring.set_events`` re-instruments every function on the stack,
+    so a toggle per resume cost ~25 µs (Actors Design — Tasks, perf)."""
+
+    def setUp(self):
+        super().setUp()
+        import scena.process as proc
+        self.proc = proc
+        proc.set_watchdog(True)
+        self.opened = []
+        real = proc._watchdog_window_open
+
+        def counting():
+            hit = real()
+            self.opened.append(hit)
+            return hit
+
+        proc._watchdog_window_open = counting
+        self.addCleanup(setattr, proc, "_watchdog_window_open", real)
+
+    def test_one_window_for_every_ready_task(self):
+        async def loop(e):
+            while True:
+                await wait(0.1)
+
+        for _ in range(20):
+            self.track(Circle()).mode = loop
+        self.opened.clear()
+        _frame(0.1)
+        self.assertEqual(self.opened, [True])
+        self.assertFalse(self.proc._wd_window_open)
+
+    def test_no_window_when_nothing_is_ready(self):
+        async def slow(e):
+            await wait(10.0)
+
+        self.track(Circle()).mode = slow
+        self.opened.clear()
+        _frame(0.1)
+        self.assertEqual(self.opened, [])
+
+    def test_a_later_step_that_spins_still_trips(self):
+        proc = self.proc
+        old, old_every = proc.WATCHDOG_RESUME_S, proc.WATCHDOG_CHECK_EVERY
+        proc.WATCHDOG_RESUME_S = 0.05
+        proc.WATCHDOG_CHECK_EVERY = 64
+        self.addCleanup(setattr, proc, "WATCHDOG_RESUME_S", old)
+        self.addCleanup(setattr, proc, "WATCHDOG_CHECK_EVERY", old_every)
+        c = self.track(Circle())
+        other = self.track(Circle())
+        log = []
+
+        async def spins_later(e):
+            await wait(0.1)
+            while True:
+                pass
+
+        async def steady(e):
+            await wait(0.1)
+            log.append("steady ran")
+
+        c.mode = spins_later
+        other.mode = steady
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _frame(0.1)
+        msgs = [str(w.message) for w in caught]
+        self.assertTrue(any("SCENA ERROR" in m and "CANCELLED" in m for m in msgs), msgs)
+        self.assertEqual(log, ["steady ran"], "the walk goes on after a trip")
+        self.assertIsNone(c._mode_task)
+        self.assertFalse(proc._wd_window_open)
+        self.assertEqual(proc._wd_deadline, float("inf"), "no deadline between resumes")
+
+
+class TestModeTask(ProcessTestCase):
+    """An async mode's body is a task: a ``Handle(kind="task")`` owned by the
+    actor in mode scope, so leaving the mode cancels it with the mode's
+    timers (Actors Design — Tasks). Behaviour is the async mode's as before."""
+
+    def test_body_is_an_owned_mode_task(self):
+        c = self.track(Circle())
+
+        async def diving(e):
+            await wait(1.0)
+
+        c.mode = diving
+        h = c._mode_task
+        self.assertIsInstance(h, Handle)
+        self.assertEqual(h.kind, "task")
+        self.assertIs(h.owner, c)
+        self.assertEqual(h.scope, "mode")
+        sched = get_scheduler()
+        self.assertIn(h, sched._tasks)
+        self.assertIn(h, sched._by_owner[id(c)])
+
+    def test_leaving_cancels_the_task_after_its_timers(self):
+        c = self.track(Circle())
+        seen = {}
+
+        async def diving(e):
+            timer = after(5.0, lambda: None)
+            try:
+                await wait(1.0)
+            finally:
+                seen["timer_cancelled_first"] = timer.cancelled
+
+        c.mode = diving
+        h = c._mode_task
+        c.mode = None
+        self.assertTrue(h.cancelled)
+        self.assertIsNone(c._mode_task)
+        self.assertEqual(seen, {"timer_cancelled_first": True})
+        self.assertNotIn(h, get_scheduler()._tasks)
+
+    def test_finished_body_completes_and_frees_the_slot(self):
+        c = self.track(Circle())
+
+        async def short(e):
+            await wait(0.1)
+            return 7
+
+        c.mode = short
+        h = c._mode_task
+        _frame(0.1)
+        self.assertTrue(h.done)
+        self.assertFalse(h.cancelled)
+        self.assertEqual(h._result, 7)
+        self.assertIsNone(c._mode_task)
+        self.assertTrue(c.mode == short, "a finished body is not an exit")
+
+    def test_tasks_resume_after_timers_and_before_on_update(self):
+        c = self.track(Circle())
+        log = []
+
+        async def diving(e):
+            await wait(0.1)
+            log.append("task")
+
+        c.mode = diving
+        every(0.1, lambda: log.append("every"))
+        after(0.1, lambda: log.append("after"))
+        c.on_update = lambda e, dt: log.append("update")
+        _frame(0.1)
+        self.assertEqual(log, ["every", "after", "task", "update"])
+
+    def test_a_mode_entered_during_the_walk_is_visited_in_it(self):
+        a = self.track(Circle())
+        b = self.track(Circle())
+        d = self.track(Circle())
+        gate = after(100.0, lambda: None)
+        log = []
+
+        async def b_mode(e):
+            try:
+                await gate
+            except Cancelled:
+                log.append(("b", clock.frame))
+
+        async def a_mode(e):
+            await wait(0.1)
+            b.mode = b_mode            # started in A's step
+
+        async def d_mode(e):
+            await wait(0.1)
+            gate.cancel()              # later in the same walk
+
+        a.mode = a_mode
+        d.mode = d_mode
+        _frame(0.1)
+        self.assertEqual(log, [("b", clock.frame)])
+
+    def test_goto_same_mode_from_its_own_body(self):
+        c = self.track(Circle())
+        runs = []
+
+        async def loop(e):
+            runs.append(len(runs))
+            await wait(0.1)
+            if len(runs) < 3:
+                e.goto_mode(loop)
+
+        c.mode = loop
+        for _ in range(4):
+            _frame(0.1)
+        self.assertEqual(runs, [0, 1, 2])
+
+    def test_a_parts_mode_task_ends_with_the_host(self):
+        line = Line(p1=(0, 0), p2=(10, 0))
+
+        async def drift(p):
+            await wait(5.0)
+
+        line.p1.mode = drift
+        h = line.p1._mode_task
+        line.destroy()
+        self.assertTrue(h.cancelled)
+        self.assertNotIn(h, get_scheduler()._tasks)
+
+    def test_parked_owner_task_waits(self):
+        c = self.track(Circle())
+        log = []
+
+        async def diving(e):
+            await wait(0.1)
+            log.append("resumed")
+
+        c.mode = diving
+        c.active = False
+        _frame(0.2)
+        self.assertEqual(log, [])
+        c.active = True
+        _frame(0.1)
+        self.assertEqual(log, ["resumed"])
 
 
 if __name__ == "__main__":

@@ -478,7 +478,7 @@ def census(*, collect: bool = True) -> Dict[str, int]:
         out["events.by_owner"] = _len(es._by_owner)
     sch = get_scheduler()
     for name in ("_handles", "_every", "_once", "_tween", "_await_family", "_sound",
-                 "_by_owner", "_named", "_tweens", "_scripts", "_mode_owners",
+                 "_by_owner", "_named", "_tweens", "_tasks", "_mode_owners",
                  "_update_owners", "_every_sites"):
         out["sched." + name.lstrip("_")] = _len(getattr(sch, name))
     col = get_collision_system()

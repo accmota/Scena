@@ -986,7 +986,7 @@ class Registry:
             for node in obj._iter_subtree():
                 if node is obj:
                     continue
-                if id(node) in sched._by_owner or getattr(node, "_mode_script", None):
+                if id(node) in sched._by_owner:
                     sched.cancel_owner(node, release=True)
         except Exception:
             pass
