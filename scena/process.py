@@ -1248,17 +1248,11 @@ class Handle:
         _release_process_driver(self)
         script = self._task
         kids = self._children
-        if script is not None or type(kids) is dict:   # a task (its body, its work)
-            if script is not None:
-                # Throw Cancelled into the body (deferred while it is on the
-                # stack, S2-11). Quiet when the owner is already dead.
-                owner = self._owner
-                script.cancel(silent=_is_entity(owner) and not getattr(owner, "is_alive", True))
-                self._task = None      # no handle <-> script cycle left for the gc
-                _clear_mode_task(owner, self)
+        if script is not None or type(kids) is dict:   # a task (its work, its body)
             if kids:
-                # The work it started ends with it; a sound that ends by
-                # itself rings out (as on a mode's leave).
+                # The work it started ends with it, before the body is thrown
+                # (its ``finally`` sees that work gone, as on a mode's leave);
+                # a sound that ends by itself rings out.
                 self._children = None
                 sched = get_scheduler()
                 for child in tuple(kids):
@@ -1267,6 +1261,13 @@ class Handle:
                         if getattr(child, "_cancel_reason", None) is None:
                             child._cancel_reason = _R_TASK
                         sched._end_implicitly(child)
+            if script is not None:
+                # Throw Cancelled into the body (deferred while it is on the
+                # stack, S2-11). Quiet when the owner is already dead.
+                owner = self._owner
+                script.cancel(silent=_is_entity(owner) and not getattr(owner, "is_alive", True))
+                self._task = None      # no handle <-> script cycle left for the gc
+                _clear_mode_task(owner, self)
         elif kids:
             for child in kids:
                 if not child._cancelled:
@@ -1788,12 +1789,16 @@ class Script:
         self.cancelled = True
         self.waiting_on = None
         self._end(cancelled=True)
-        mode = getattr(self.owner, "mode", None)
-        mode_name = getattr(mode, "__name__", mode)
+        if self.kind == "mode":
+            mode = getattr(self.owner, "mode", None)
+            mode_name = getattr(mode, "__name__", mode)
+            who, what = f"async mode {mode_name!r} on {self.owner!r}", "mode"
+        else:
+            who, what = f"task {getattr(self.coro, '__name__', 'task')}()", "task"
         warnings.warn(
-            f"SCENA ERROR: async mode {mode_name!r} on {self.owner!r} "
+            f"SCENA ERROR: {who} "
             f"ran more than {WATCHDOG_RESUME_S:g}s without awaiting — "
-            f"the mode was CANCELLED and any in-progress work "
+            f"the {what} was CANCELLED and any in-progress work "
             f"(for example a partial spawn wave) may be incomplete. "
             f"This usually means `while True:` with no await. "
             f"Add `await wait(...)` / `await until(...)` / "
@@ -2163,16 +2168,7 @@ def _run_with_watchdog(
 
     limit = float(WATCHDOG_RESUME_S if budget is None else budget)
     if _wd_window_open:
-        # Events already on (the task walk): only this resume's deadline.
-        _wd_deadline = time.perf_counter() + limit
-        _wd_author_lines = 0
-        _wd_check_every = max(1, int(WATCHDOG_CHECK_EVERY))
-        _watchdog_resume_depth += 1
-        try:
-            return fn(*args, **kwargs)
-        finally:
-            _watchdog_resume_depth -= 1
-            _wd_deadline = math.inf
+        return _run_in_watchdog_window(fn, args, kwargs, limit)
 
     _ensure_watchdog_tool()
     mon = sys.monitoring
@@ -2187,6 +2183,22 @@ def _run_with_watchdog(
     finally:
         mon.set_events(_WATCHDOG_TOOL_ID, prev_events)
         _watchdog_resume_depth -= 1
+
+
+def _run_in_watchdog_window(fn, args, kwargs, limit: float):
+    """A guarded call while the task walk holds the events on: only this
+    resume's deadline (out of ``_run_with_watchdog``, which is on the stack
+    when the events toggle and so is re-instrumented then)."""
+    global _watchdog_resume_depth, _wd_deadline, _wd_author_lines, _wd_check_every
+    _wd_deadline = time.perf_counter() + limit
+    _wd_author_lines = 0
+    _wd_check_every = max(1, int(WATCHDOG_CHECK_EVERY))
+    _watchdog_resume_depth += 1
+    try:
+        return fn(*args, **kwargs)
+    finally:
+        _watchdog_resume_depth -= 1
+        _wd_deadline = math.inf
 
 
 def _watchdog_window_open() -> bool:
@@ -2383,7 +2395,9 @@ class Scheduler:
                 old = None
             if old is not None and old is not handle:
                 old_fn = old._fn
-                replaced = old
+                # Its parent first: the cancel unlinks it (a task restarting
+                # itself takes its place under that parent, _link_to_task).
+                replaced = (old, old._task_parent)
                 old._cancel_for(_R_NAME)
                 # Keep decorator ``fn.handle`` pointing at the live slot occupant.
                 if (
@@ -2436,10 +2450,10 @@ class Scheduler:
         parent = running.handle
         if parent is None or parent is handle:
             return
-        if parent is replaced:
+        if replaced is not None and parent is replaced[0]:
             # ``run_task(loop, name="loop")`` inside ``loop``: the new run
             # takes the old run's place under its parent.
-            parent = parent._task_parent
+            parent = replaced[1]
             if parent is None:
                 return
         if parent._owner is not handle._owner or parent.scope != handle.scope:
@@ -2690,7 +2704,11 @@ class Scheduler:
             if old is not None and not old._done:
                 old.cancel()
         handle = Handle._make(kind="task", owner=owner, scope=scope, fn=fn, name=name)
-        self.add(handle)
+        try:
+            self.add(handle)
+        except BaseException:
+            coro.close()               # refused (a bad name=): no "never awaited" on top
+            raise
         if handle._cancelled:          # owner already dead: the body never starts
             coro.close()
             return handle

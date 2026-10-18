@@ -309,6 +309,27 @@ class TestNameSlot(TaskCase):
         self.assertNotIn("stale step", log)
         self.assertFalse(second.done)
 
+    def test_a_nested_task_restarting_itself_stays_under_its_parent(self):
+        made = {}
+
+        async def loop():
+            made.setdefault("runs", []).append(1)
+            await wait(0.1)
+            if len(made["runs"]) < 3:
+                made["last"] = run_task(loop, name="inner")
+
+        async def outer():
+            made["first"] = run_task(loop, name="inner")
+            await wait(5)
+
+        h = run_task(outer)
+        _frame(0.1)
+        _frame(0.1)
+        last = made["last"]
+        self.assertIs(last._task_parent, h)
+        h.cancel()
+        self.assertTrue(last.cancelled)
+
     def test_a_task_restarting_itself(self):
         runs = []
 
@@ -324,6 +345,28 @@ class TestNameSlot(TaskCase):
         self.assertEqual(runs, [0, 1, 2])
 
 
+class TestWatchdog(TaskCase):
+    def test_a_spinning_task_is_named(self):
+        old, every_ = process.WATCHDOG_RESUME_S, process.WATCHDOG_CHECK_EVERY
+        process.WATCHDOG_RESUME_S, process.WATCHDOG_CHECK_EVERY = 0.05, 64
+        self.addCleanup(setattr, process, "WATCHDOG_RESUME_S", old)
+        self.addCleanup(setattr, process, "WATCHDOG_CHECK_EVERY", every_)
+        process.set_watchdog(True)
+
+        async def spinner():
+            await wait(0.1)
+            while True:
+                pass
+
+        h = run_task(spinner)
+        msgs = self.caught(lambda: _frame(0.1))
+        hits = [m for m in msgs if "SCENA ERROR" in m]
+        self.assertEqual(len(hits), 1, msgs)
+        self.assertIn("task spinner()", hits[0])
+        self.assertIn("the task was CANCELLED", hits[0])
+        self.assertTrue(h.cancelled)
+
+
 class TestChildren(TaskCase):
     def test_cancel_cascades_to_its_work(self):
         made = {}
@@ -337,6 +380,19 @@ class TestChildren(TaskCase):
         h.cancel()
         self.assertTrue(made["after"].cancelled)
         self.assertTrue(made["inner"].cancelled)
+
+    def test_its_work_is_gone_before_its_finally_runs(self):
+        seen = {}
+
+        async def show():
+            timer = after(5, lambda: None)
+            try:
+                await wait(5)
+            finally:
+                seen["timer_cancelled"] = timer.cancelled
+
+        run_task(show).cancel()
+        self.assertEqual(seen, {"timer_cancelled": True})
 
     def test_a_finished_task_leaves_its_work_running(self):
         log = []

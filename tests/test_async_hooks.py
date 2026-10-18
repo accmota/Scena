@@ -1,7 +1,7 @@
 """An ``async def`` where Scena calls a function synchronously raises with the fix.
 
-Bug class: only an async **mode** is driven as a script (``e.mode = fn``,
-``then=``). Every other place that takes a function calls it and drops the
+Bug class: only an async **mode** (``e.mode = fn``, ``then=``) and a task
+(``run_task(fn)``) are driven as scripts. Every other place that takes a function calls it and drops the
 result, so an ``async def setup`` / ``on_update`` / ``@every`` / ``on_done``
 made a coroutine nobody ran: the body never ran and the only trace was
 Python's "coroutine ... was never awaited". Each funnel now refuses it:
@@ -14,6 +14,8 @@ Python's "coroutine ... was never awaited". Each funnel now refuses it:
 * script hooks (``update``, ``on_key_down`` …) when ``run()`` binds them;
 * backstop at the call (``_invoke`` / ``call_truncated``): a sync callback
   that returns a coroutine (``lambda: self.intro()``) raises, coroutine closed;
+* an async function called without ``await`` anywhere in author code: a
+  SCENA WARNING at the calling line (``TestNeverAwaitedHook``);
 * predicates and conditions (``group.filter`` / ``any`` / ``all`` /
   ``count_where`` / ``nearest(where=)``, ``until``, ``@when``, the
   ``@on_change`` target, ``resolve(only=)``) and ``@=`` formulas at the call:
