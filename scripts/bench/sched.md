@@ -58,6 +58,7 @@ python scripts/bench/sched.py --bench --mode mix --json scripts/bench/results/sc
 | `--no-readout` | Skip the per-frame `Handle.elapsed` / `.remaining` walk |
 | `--tight` | Shorter timer / when periods (ceiling, not the pulse) |
 | `--profile` | cProfile cumulative + tottime |
+| `--watchdog` | Keep the freeze watchdog on (off by default: the bench times the scheduler) |
 | `--json` | Full payload (worker only) |
 | `--pulse` | Protocol snapshot: mix ×3 + suite; append this log |
 | `--no-append` | With `--pulse`, print markdown only |

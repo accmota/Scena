@@ -5845,64 +5845,88 @@ class TestWatchOnADestroyedSourceRetires(unittest.TestCase):
                 self.assertIsNone(ref(), f"{label}: the watch kept the dead actor")
 
 
-class TestWatchdogWindow(ProcessTestCase):
-    """The task walk turns the watchdog events on once per tick, at the first
-    task ready to resume, and resets only the deadline per resume: each
-    ``sys.monitoring.set_events`` re-instruments every function on the stack,
-    so a toggle per resume cost ~25 µs (Actors Design — Tasks, perf)."""
+class TestWatchdogWatcher(ProcessTestCase):
+    """A guard on time turns no ``sys.monitoring`` events on: it writes a
+    deadline. The watcher thread turns LINE | JUMP on once a guard is overdue,
+    and the callbacks raise at the next author line, wherever it was reached
+    from. ``set_events`` re-instruments every function on the stack and,
+    lazily, every function run after it (~70 µs a mode switch when it ran per
+    guard; Actors Design — Freeze watchdog). Each loop is capped at 2 s so a
+    regression fails instead of hanging."""
+
+    CAP = 2.0
 
     def setUp(self):
         super().setUp()
         import scena.process as proc
         self.proc = proc
         proc.set_watchdog(True)
-        self.opened = []
-        real = proc._watchdog_window_open
-
-        def counting():
-            hit = real()
-            self.opened.append(hit)
-            return hit
-
-        proc._watchdog_window_open = counting
-        self.addCleanup(setattr, proc, "_watchdog_window_open", real)
-
-    def test_one_window_for_every_ready_task(self):
-        async def loop(e):
-            while True:
-                await wait(0.1)
-
-        for _ in range(20):
-            self.track(Circle()).mode = loop
-        self.opened.clear()
-        _frame(0.1)
-        self.assertEqual(self.opened, [True])
-        self.assertFalse(self.proc._wd_window_open)
-
-    def test_no_window_when_nothing_is_ready(self):
-        async def slow(e):
-            await wait(10.0)
-
-        self.track(Circle()).mode = slow
-        self.opened.clear()
-        _frame(0.1)
-        self.assertEqual(self.opened, [])
-
-    def test_a_later_step_that_spins_still_trips(self):
-        proc = self.proc
         old, old_every = proc.WATCHDOG_RESUME_S, proc.WATCHDOG_CHECK_EVERY
         proc.WATCHDOG_RESUME_S = 0.05
         proc.WATCHDOG_CHECK_EVERY = 64
         self.addCleanup(setattr, proc, "WATCHDOG_RESUME_S", old)
         self.addCleanup(setattr, proc, "WATCHDOG_CHECK_EVERY", old_every)
+        self.addCleanup(self._events_off)
+
+    def _events_off(self):
+        if self.proc._watchdog_tool_ready:
+            self.proc._wd_deescalate()
+
+    def _events(self):
+        return sys.monitoring.get_events(self.proc._WATCHDOG_TOOL_ID)
+
+    def _trips(self, body):
+        """Run *body* as a mode for a few frames: (tripped, seconds)."""
+        import time
+        c = self.track(Circle())
+        t0 = time.perf_counter()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            c.mode = body
+            for _ in range(3):
+                _frame(0.1)
+        took = time.perf_counter() - t0
+        msgs = [str(w.message) for w in caught]
+        return any("SCENA ERROR" in m and "CANCELLED" in m for m in msgs), took
+
+    def _spin(self):
+        import time
+        t0 = time.perf_counter()
+        while time.perf_counter() - t0 < self.CAP:
+            pass
+
+    def test_a_step_on_time_turns_no_events_on(self):
+        seen = []
+
+        async def loop(e):
+            while True:
+                seen.append(self._events())
+                await wait(0.1)
+
+        async def other(e):
+            seen.append(self._events())
+            await wait(0.1)
+
+        actors = [self.track(Circle()) for _ in range(20)]
+        for a in actors:
+            a.mode = loop
+        for _ in range(3):
+            _frame(0.1)
+        actors[0].mode = other          # a first step outside the walk
+        self.assertEqual(len(seen), 20 * 4 + 1)
+        self.assertEqual(set(seen), {0})
+        self.assertEqual(self._events(), 0)
+        self.assertEqual(self.proc._wd_deadline, float("inf"), "no deadline between resumes")
+
+    def test_a_later_step_that_spins_still_trips(self):
+        proc = self.proc
         c = self.track(Circle())
         other = self.track(Circle())
         log = []
 
         async def spins_later(e):
             await wait(0.1)
-            while True:
-                pass
+            self._spin()
 
         async def steady(e):
             await wait(0.1)
@@ -5917,8 +5941,89 @@ class TestWatchdogWindow(ProcessTestCase):
         self.assertTrue(any("SCENA ERROR" in m and "CANCELLED" in m for m in msgs), msgs)
         self.assertEqual(log, ["steady ran"], "the walk goes on after a trip")
         self.assertIsNone(c._mode_task)
-        self.assertFalse(proc._wd_window_open)
         self.assertEqual(proc._wd_deadline, float("inf"), "no deadline between resumes")
+        self.assertEqual(self._events(), 0, "the trip turned the events off")
+        self.assertFalse(proc._wd_escalated)
+
+    def test_a_spin_reached_through_c_or_the_engine_trips(self):
+        """Whatever reached the loop: a property, a key function called from
+        C, a generator resumed in a later step, a helper."""
+        spin = self._spin
+
+        class Thing:
+            @property
+            def heavy(self):
+                spin()
+                return 1
+
+        def gen():
+            yield 1
+            spin()
+            yield 2
+
+        async def via_property(e):
+            Thing().heavy
+            await wait(1.0)
+
+        async def via_sorted_key(e):
+            sorted([2, 1], key=lambda x: spin() or x)
+            await wait(1.0)
+
+        async def via_generator_later(e):
+            g = gen()
+            next(g)
+            await wait(0.1)
+            next(g)
+
+        async def via_helper(e):
+            spin()
+            await wait(1.0)
+
+        for body in (via_property, via_sorted_key, via_generator_later, via_helper):
+            with self.subTest(body=body.__name__):
+                tripped, took = self._trips(body)
+                self.assertTrue(tripped)
+                self.assertLess(took, 1.0)
+                self.assertEqual(self._events(), 0)
+
+    def test_events_left_on_with_no_guard_go_off(self):
+        """The one race: the thread turns the events on just as the guard
+        ends. The next guard's end, or the next poll, turns them off."""
+        import time
+        proc = self.proc
+        proc._run_with_watchdog(lambda: None)           # the watcher runs
+        ev = proc._watchdog_events()
+        sys.monitoring.set_events(proc._WATCHDOG_TOOL_ID, ev)
+        proc._wd_escalated = True
+        proc._run_with_watchdog(lambda: None)
+        self.assertEqual(self._events(), 0, "a guard's end turns them off")
+        self.assertFalse(proc._wd_escalated)
+
+        sys.monitoring.set_events(proc._WATCHDOG_TOOL_ID, ev)
+        proc._wd_escalated = True
+        t0 = time.perf_counter()
+        while self._events() and time.perf_counter() - t0 < 1.0:
+            time.sleep(0.005)
+        self.assertEqual(self._events(), 0, "the next poll turns them off")
+        self.assertFalse(proc._wd_escalated)
+
+    def test_one_daemon_thread(self):
+        import threading
+        for _ in range(5):
+            self.proc._run_with_watchdog(lambda: None)
+        mine = [t for t in threading.enumerate() if t.name == "scena-watchdog"]
+        self.assertEqual(len(mine), 1)
+        self.assertTrue(mine[0].daemon)
+
+    def test_watchdog_off_never_turns_events_on(self):
+        import time
+        proc = self.proc
+        proc.set_watchdog(False)
+        self.addCleanup(proc.set_watchdog, True)
+        t0 = time.perf_counter()
+        proc._run_with_watchdog(lambda: time.sleep(0.15))
+        self.assertGreater(time.perf_counter() - t0, 0.1)
+        self.assertEqual(self._events(), 0)
 
 
 class TestModeTask(ProcessTestCase):
