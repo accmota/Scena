@@ -204,7 +204,7 @@ ambient emitter (domain pose + tick/draw); it does not grow HP / hitbox / look A
 | **Registry** / **Layer** | Live roster, groups, draw lists, camera response |
 | **GroupOperator** | Named-group view (`group["wasp"]`); formula `@=`; join-order walks; queries (`.index`, `.first` / `.last`, `nearest`, …) / bulk. Not a process owner — [Actors Design.md](Actors%20Design.md#fleet-helpers-groups) |
 | **Canvas** | Design size, camera (instant + timed pose suite), background, layers, post stack |
-| **Handle** | Process timer / tween / awaitable / **playing sound**; `.elapsed` / `.remaining` (read-only); translation motion also `.velocity` / `.speed` / `.heading`; sound also `.volume` / `.pan` / `.pitch` / `.level` |
+| **Handle** | Process timer / tween / awaitable / **playing sound** / **task** (`run_task`; `await` returns its value); `.elapsed` / `.remaining` (read-only); translation motion also `.velocity` / `.speed` / `.heading`; sound also `.volume` / `.pan` / `.pitch` / `.level` |
 | **Sound** | Audio material (path, defaults). Does not play. Interned decode / stream heuristic. A recording is a `Sound` still being made until the take ends |
 | **Microphone** | Explicit capture opt-in; `.level` / `.spectrum`; `play_sound(mic)` monitors; `record` / `stop` keep a dry clip. OS default input |
 
@@ -638,10 +638,13 @@ shapes with cold Derivates skip the dirty walk (pose fast path). `@when` /
 
 Cooperative (not `asyncio`): `after` / `every` / `tween` / `play_sound` / modes / `on_update` /
 `ready` / `recently` (poll APIs; not Handles).
-`wait` / `until` run inside the async mode the engine is driving (helpers that mode
-`await`s count). A mode is the only async entry: an `async def` hook, decorated handler or
-callback raises `TypeError` (its body would never run). Ownership: work started inside a mode body is **mode-scoped** (dies on leave);
-`e.after` / `e.every` / `e.tween` / `e.play_sound` are **entity-scoped** (survive mode change);
+`wait` / `until` run inside a **task** the engine is driving: an async mode's body, or
+`run_task(fn)` / `e.run_task(fn)` (an async sequence beside the modes; helpers they `await`
+count). Those are the async entries: an `async def` hook, decorated handler or callback
+raises `TypeError` naming `run_task` (its body would never run), and an async function
+called without `await` is a SCENA WARNING at the calling line. Ownership: work started inside a mode body is **mode-scoped** (dies on leave);
+work a task starts is the task's (dies when the task is cancelled; a finished task leaves it);
+`e.after` / `e.every` / `e.tween` / `e.play_sound` / `e.run_task` are **entity-scoped** (survive mode change);
 a sound that ends by itself finishes when its owner ends ([Sound Design](Sound%20Design.md#when-the-owner-ends));
 `e.ready` / `e.recently` are per-instance poll memory (not Handles — die with the instance).
 No public `on=`. Groups are tags and queries, **not** process owners. Event-track
@@ -753,7 +756,7 @@ Do not read this appendix as a license to open the whole cluster.
 | `SpriteButton` | `sprite_button.py` | `orchestration.py` (press), `canvas.py` (solo draw) | [Sprite Design.md](Sprite%20Design.md#spritebutton) |
 | `@=` / Attribute / pull graph | `state.py` | — | [Reactive Design.md](Reactive%20Design.md) |
 | `@=` formula source reading (cache, named functions, refusals) | `formula_check.py` | `state.py` (`FormulaLink._extract_sources`) | [Reactive Design.md](Reactive%20Design.md#formula-visibility-named-functions-helpers-refusals) |
-| `after` / `every` / tween / modes / `ready` / `recently` | `process.py` | `easing.py` (`ease=`, `remap`, `lerp`, `chase`, `approach`, `deadzone`) | [Actors Design.md](Actors%20Design.md) |
+| `after` / `every` / tween / modes / `run_task` / `ready` / `recently` | `process.py` | `easing.py` (`ease=`, `remap`, `lerp`, `chase`, `approach`, `deadzone`) | [Actors Design.md](Actors%20Design.md) |
 | `play_sound` / `Sound` / `audio` | `audio.py` | `audio_mixer.py` | [Sound Design.md](Sound%20Design.md) |
 | Microphone | `audio_capture.py` | `audio.py` | [Sound Design.md](Sound%20Design.md) |
 | `@= lambda: mic.level` / `audio.level` / `h.level` | `level_source.py` | `state.py` (`_formula_source_of`), `orchestration.py` (frame step 1) | [Sound Design.md — Levels as formula sources](Sound%20Design.md#levels-as-formula-sources) |

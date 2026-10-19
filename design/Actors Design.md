@@ -16,6 +16,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 | Formula groups | [Formula groups](#formula-groups) |
 | Modes / `@on_mode` / `@exit_mode` | [Mode enter / exit](#mode-enter--exit) |
 | Async wait / helpers | [Process semantics](#process-semantics) |
+| `run_task` (an async sequence without a mode) | [Tasks](#tasks) |
 | Method decorators | [Method decorators](#method-decorators-every--after--collide_with--when--on_change) |
 | Ownership / tracks | [Tracks](#tracks), [Ownership](#ownership-no-on) |
 | Frame order | [Frame order](#frame-order) (canonical: [Scena Design.md — Datapath](Scena%20Design.md#datapath)) |
@@ -766,11 +767,58 @@ of source.
 | 1 | `update(dt)`, `@collide`, `@when`, transients | Continuous motion, reactions |
 | 2 | `after`, `every`, `ready`, `recently` | Time, no modes |
 | 3 | `mode` + `then=` | One chapter, one completion |
-| 4 | `async` / `await`, optional class | A **sequence** of waits; per-object `on_update` |
+| 4 | `async` / `await`: an async mode, or a task (`run_task`) | A **sequence** of waits; per-object `on_update` |
 
 Teach: zero or one completion → `then=` (or ignore the handle). Two or more waits, or a
-value that must survive a wait → `async` mode (helpers that mode `await`s count). `then=`
-inside an async body: don’t; warn if a transition cancelled a still-running script.
+value that must survive a wait → an `async def`: as the object's **mode** when it is what
+the object *is doing* (one at a time), as a **task** (`run_task`) when it is a job *beside*
+the modes or a sequence that belongs to no single object (helpers they `await` count).
+`then=` inside an async body: don’t; warn if a transition cancelled a still-running script.
+
+## Tasks
+
+`run_task(fn, *, name=None)` / `e.run_task(fn, *, name=None)` run an `async def` as a
+**task**: a `Handle(kind="task")` whose first step (up to the first `await`) runs at the
+call, in the caller's phase, and whose later steps run in the process tick (the same
+driver as an async mode's body: [Implementation notes](#implementation-notes-maintainers)).
+It exists for sequences that are not a state of one object — a button that plays a few
+animations in a row in a script with no classes, a power-up that counts down while the
+ship goes through its modes, a countdown on a label. Without it, the first needed a host
+actor (`label.goto_mode(seq)`, and `label.mode = seq` did nothing the second time) and the
+second a chain of `after` calls sharing one `name=` slot (separate names left a stale
+step behind: a second pickup at 4.5 s showed the old countdown at 5 s).
+
+| Rule | |
+| --- | --- |
+| `fn` | An `async def`, a bound method or a `partial` of one, or a lambda whose call returns a coroutine (how `after` takes arguments: `run_task(lambda: show(box, 2))`). Called like an `after` callback: the owner as the first argument when `fn` takes one and is not a bound method (`box.run_task(show)` → `show(box)`). Refused before anything registers: a coroutine (`run_task(show())`, closed so no "never awaited" follows), a plain `def`, a function marked `@on_mode` (enter a mode with `self.mode =`), a lambda that returns no coroutine |
+| Owner | The `after` rule ([Ownership](#ownership-no-on)): a bound method or a closure over `self` → that actor (**entity**); bare inside a mode body → that mode; otherwise the act (the game before the top level ends). `e.run_task` → `e`, **entity** |
+| Handle | `await h` → the body's `return` value; works in `parallel` / `race`; `.done`, `.cancelled`, `.elapsed` (world time × the owner's `time_scale`, frozen while parked); `.remaining` is 0 (no clock duration, like `until`); `pause()` raises (park the owner instead). Awaiting the running task from itself raises |
+| `name=` | The named slot: a new task with the same name cancels the running one (and its work) — restart. Ignore-while-running is the author's `if h is None or h.done:` |
+| Its work | A handle made during a task's step with the task's owner and scope is the task's (`_children`; the child points back with `_task_parent`, cleared in `_forget`). Cancelling the task (`cancel()`, `name=`, owner destroyed, act / mode ended) cancels that work, tasks last and one-shot sounds ringing out (`_end_implicitly`). A task that ends by itself — returned, raised, tripped the watchdog — leaves it running; a nested task's work passes to the task that started it. Another actor's bound method (`after(0.4, bomb.destroy)`) and an explicit `e.after` from a mode keep their own owner (PA4, S2-1) |
+| Already cancelled | Work made later in the same step of a task already cancelled (still on the stack: `self.mode = calm` earlier in `angry`, `h.cancel()` from inside) is cancelled at once. Before 2026-10-16 it became the next mode's work (fixed with tasks) |
+| Hooks | `setup`, `on_destroy`, `@exit_mode` (`no_owner`) and a new mode's body (`_enter_mode`) run with no running task: their work is not the task's, and `wait()` there is refused |
+| Dead owner | `dead.run_task(fn)` returns a cancelled Handle; `fn` is never called (T6) |
+| Laws | F2 (first step where started), T2 (later steps in the tick), T3 (no step while the owner is parked or dead), T5 (its work ends with it), T6 — [Laws.md](Laws.md#timers) |
+
+**Cancelled under it.** `Handle.__await__` raises `Cancelled(handle)`. When the task's own
+handle is cancelled the `Cancelled` that leaves the body is the plan: quiet. Otherwise an
+awaited handle was cancelled *out from under* the body and the body did not catch it: the
+task ends with a `RuntimeWarning` ("… was silently cancelled") naming the task (or the async
+mode), what it awaited and the author line, why that ended (`Handle._cancel_reason`, set by
+the engine's cancel paths through `_cancel_for`: owner destroyed, the actor it moves
+destroyed, another tween took the property, `name=` replaced, act ended, mode left,
+`cancel_process()`, race picked another, a member cancelled, its task cancelled), and the
+fixes (`try/except Cancelled`; start the task on the actor, `box.run_task(...)`, so it ends
+with it; `if box:`). A plain `h.cancel()` sets no reason ("cancel() was called on it").
+
+**Not a second spelling of a mode.** A mode is the object's one current state: exclusive,
+same-mode no-op, `@exit_mode`, `mode_time`, `then=`. A task is concurrent work with the
+`after` ownership rule. The mode's async body *is* a task internally (owner, mode scope),
+so the two share one driver, one cancel path and the same laws. `run_task` refuses an
+`@on_mode` function; event doors still refuse `async def` (an async `on_click` would need a
+re-entry policy per door, and code after its first `await` would run outside the handler's
+phase); their error names `run_task`. Tests: `tests/test_tasks.py`,
+`test_process.TestModeTask`, `test_sys_hyp_scheduler.TestTask`, `test_laws_timers`.
 
 ## Process semantics
 
@@ -1307,6 +1355,7 @@ wrong instance in a spawner loop.
 | Track | Policy |
 |-------|--------|
 | Mode script | One per Entity; a new mode cancels it |
+| Task (`run_task`) | Any number; each ends with its owner / scope, its `name=` slot, `cancel()` |
 | Event handler (`@collide`, `@when`, `on_click`) | One running instance; re-entry **ignored** (async event-track later) |
 | `on_update` | Every frame, including during `await` |
 | `on_destroy` | Once, from `destroy()` only, before teardown |
@@ -1316,12 +1365,13 @@ A hit-flash handler must not abort a dive. Cosmetic FX are not modes (use transi
 ### Ownership (no `on=`)
 
 **One rule for all process Handles** (`after` / `every` / `wait` / `until` /
-`parallel` / `race` / `tween` / timed pose / `move_along` / `play_sound`):
+`parallel` / `race` / `tween` / timed pose / `move_along` / `play_sound` / `run_task`):
 
 | Where you write it | Owner | Scope |
 |-----------------------------------|-------|--------|
 | Inside a mode body (sync or async), bare call | that Entity | **mode** (dies on leave; a sound that ends by itself finishes — [Sound Design](Sound%20Design.md#when-the-owner-ends)) |
-| `e.after(...)` / `e.every(...)` / `e.tween(...)` / `e.play_sound(...)` | `e` | **entity** (survives mode; dies on `destroy` / `cancel_process` — on `destroy` a sound that ends by itself finishes) |
+| `e.after(...)` / `e.every(...)` / `e.tween(...)` / `e.play_sound(...)` / `e.run_task(...)` | `e` | **entity** (survives mode; dies on `destroy` / `cancel_process` — on `destroy` a sound that ends by itself finishes) |
+| Inside a task's step, bare call | the task's owner (none for an ownerless task) | the task's scope (a game task's work stays **game** after the top level ends) — and it is the task's work: [Tasks](#tasks) |
 | Bound method of a *different* Entity — `after(0.4, bomb.destroy)` from wasp's mode | that other Entity | **entity** |
 | Plain `after(2, drop)` at script level (lambda / free fn, no mode running) | none | **game** before the top level ends; **act** after it (ends on the next act change) — [Act Design](Act%20Design.md#lifetime-the-game-and-the-act) |
 | `setup` / `on_update` / `@collide` / `@when` | receiver or script | **entity** or script — no ambient mode |
@@ -1413,7 +1463,7 @@ audio device, clock hitches.
 | `after(1, fn).velocity` | `AttributeError` with a hint: velocity is on `move_along` / timed `move_to` / `move_by` |
 | `after(1, fn).volume` / `.level` | `AttributeError` with a hint: those are on `play_sound` handles |
 | Exception in a **mode body** / `then=` (sync enter) | Raise. Name the Entity, the mode, the line. Do not leave a frozen idle mode. |
-| Exception in an **async mode** body | Raise. The mode script is aborted (coroutine closed, `_mode_script` cleared). |
+| Exception in an **async mode** body | Raise. The body's task ends (coroutine closed, task handle cancelled, `_mode_task` cleared); work the body started stays (as a timer's error leaves its siblings). |
 | Async mode `await`s something that is not a Handle | `TypeError`: await a Handle (`wait` / `until` / `move_to(time=)` / `after`); script aborted |
 | Exception in an **exit hook** (`@exit_mode`) | Raise after the transition completes (the new mode is entered; an error entering it chains onto the exit error). |
 | Exception in **`on_destroy`** | Raise after `destroy()` completes teardown. Same for a partner's `on_collide_exit` fired by the destroy: every exit of the body and of each hitbox part fires, each with its own error, and the first is raised after the cleanup (a raising body exit skipped the part exits and left their keys: review 2026-10-09 S8-10). |
@@ -1423,7 +1473,7 @@ audio device, clock hitches.
 | `@when` already True at registration | Rising edge: it does not fire until the condition goes False, then True again. |
 | Exception in **`@collide` / `on_collide*`**, `@leave_playfield` | Raise (a leave edge is consumed first). |
 | `@exit_mode` on an `async def` **exit hook** | `TypeError` at decoration: use a plain function; put async cleanup in `try`/`finally` if it must sit next to setup |
-| `async def` anywhere Scena **calls** a function (only a mode is driven as a script) | `TypeError` with the fix (plain `def`; waits go in an async mode started with `self.mode = self.intro`). Each funnel refuses it, so the body cannot silently never run (Python only prints "coroutine … was never awaited"): class-body hooks (`setup`, `on_update`, `on_click`, `on_collide*`, `on_destroy` …) at the class statement (`_cache_actor_lookups`); every decorator but `@on_mode` (`_claim_decorator_role`); `on_update =` / `on_destroy =` / `on_collide* =` / pointer handlers / `expect_callable` slots at the assignment; script hooks (`update`, `on_key_down` …) when `run()` binds them; predicates, conditions and formulas at the call (`group.filter` / `any` / `all` / `count_where` / `group.nearest(where=)`, the free `nearest(where=)`, `until`, the `@when` condition, the `@on_change` target, `resolve(only=)`, an `@=` formula): their coroutine is truthy, so before 2026-10-12 a filter kept every member, `until` ended at once, `@on_change` fired every frame (AH2). `after` / `every` / `on_done=` are hot calls and skip the registration check: `_invoke` refuses at the fire. Backstop at the call (`_invoke`, `call_truncated`): a sync callback that returns a coroutine (`lambda: self.intro()`) raises naming both, coroutine closed. Not caught: author code calling an async helper without `await` outside any callback — Python's warning is the only trace. `then=` takes an async mode. Tests: `tests/test_async_hooks.py`; `TestEveryCallbackDoor` enumerates every callback door from the public surface (a new one needs a case). |
+| `async def` anywhere Scena **calls** a function (only an async mode's body and `run_task` are driven as scripts) | `TypeError` with the fix (plain `def`; the waits start from it as a task, `self.run_task(self.intro)`, or an async mode, `self.mode = self.intro`). Each funnel refuses it, so the body cannot silently never run (Python only prints "coroutine … was never awaited"): class-body hooks (`setup`, `on_update`, `on_click`, `on_collide*`, `on_destroy` …) at the class statement (`_cache_actor_lookups`); every decorator but `@on_mode` (`_claim_decorator_role`); `on_update =` / `on_destroy =` / `on_collide* =` / pointer handlers / `expect_callable` slots at the assignment; script hooks (`update`, `on_key_down` …) when `run()` binds them; predicates, conditions and formulas at the call (`group.filter` / `any` / `all` / `count_where` / `group.nearest(where=)`, the free `nearest(where=)`, `until`, the `@when` condition, the `@on_change` target, `resolve(only=)`, an `@=` formula): their coroutine is truthy, so before 2026-10-12 a filter kept every member, `until` ended at once, `@on_change` fired every frame (AH2). `after` / `every` / `on_done=` are hot calls and skip the registration check: `_invoke` refuses at the fire. Backstop at the call (`_invoke`, `call_truncated`): a sync callback that returns a coroutine (`lambda: self.intro()`) raises naming both, coroutine closed. An async function called without `await` in author code (`self.intro()` as a statement) is reported where it happens: importing Scena replaces `warnings._warn_unawaited_coroutine` (`process.install_unawaited_hook`), so the dropped coroutine becomes a SCENA WARNING (banner + console) at the dropping line that names the function, that line, and the fix (`await intro()` in async code; `run_task(intro)` or an async mode from a plain def). Coroutines of the engine, the stdlib and site-packages keep Python's own text and location; a hook failure falls back to it; an interpreter that does not call the hook (checked once with a probe coroutine) keeps Python's warning. The hook turns coroutine origin tracking on (depth 1, ~40 ns per coroutine made: mode entries and helper calls only). `then=` takes an async mode; `run_task` takes an async def (Tasks). Tests: `tests/test_async_hooks.py`; `TestEveryCallbackDoor` enumerates every callback door from the public surface (a new one needs a case). |
 | Frozen mode | Warn once naming Entity + mode |
 | `@when` after `destroy` | Inert: registration dropped, don’t fire, don’t traceback |
 | `e.mode = fn` / `e.goto_mode(fn)` on a destroyed actor | `DestroyedError` — the body never runs (it used to run and arm work for a dead actor). `e.mode = None` stays a quiet no-op. |
@@ -1442,6 +1492,17 @@ jump, or a back jump to another line (LINE already fires every iteration), retur
 20-step loop per frame: within noise, best frames 21.0–21.7 ms either way). Async mode resume is guarded by default; script `update(dt)` and `on_update`
 require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena.__all__`; off by default — ~10–15% frame cost when on).
 `set_watchdog(False)` for benchmarks.
+
+**One watchdog window per task walk.** `sys.monitoring.set_events` re-instruments
+every function on the stack (the tick, the run loop: cost grows with their size), so
+turning the events on and off around each resume cost ~25 µs per resume (300 async
+modes: 2.0 s with the watchdog, 0.5 s without). The task walk opens one window at the
+first task ready to resume (`_watchdog_window_open`) and closes it after the walk;
+inside it `_run_with_watchdog` only resets the deadline and the line counter for each
+resume, and leaves an infinite deadline between resumes (a `finally` a cancel throws
+there never trips). Same 300 modes: 0.53 s (`test_process.TestWatchdogWindow`). A first
+step (mode entry) still toggles around itself; its rare endings live out of
+`Script._advance` (`_cancelled_under_it`, `_tripped_watchdog`) to keep that frame small.
 
 
 
@@ -1465,9 +1526,22 @@ require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena._
 - Mode body runs inside `owning(e, scope="mode")`. Mode transition:
   `cancel_owner(obj, scopes=("mode",))`, then the outgoing `@exit_mode` hook (no
   owning context), then store and run the new body. Entity-scoped handles left alone.
+- **An async mode's body is a task.** `Scheduler.start_task(owner, coro, scope="mode",
+  mode=True)` makes a `Handle(kind="task")` (owner, scope, `_by_owner`, the `_tasks`
+  bucket) whose `_task` is the `Script` driving the coroutine; `owner._mode_task`
+  names it while it runs. So the mode's leave cancels the body with the mode's timers
+  (`cancel_owner(scopes=("mode",))` — tasks after the other handles, so a `finally`
+  in the body sees its timers already gone), and `destroy` / `cancel_process` / part
+  teardown need no script special case. `Handle.cancel` on a task throws `Cancelled`
+  into the body (`Script.cancel`, deferred while on the stack); a body that ends by
+  itself (`Script._end`) completes the handle (its return value is `_result`) or, on
+  an error, the watchdog or an awaited handle cancelled under it, leaves it cancelled
+  without cancelling what the body started. The handle drops `_task` when it ends
+  (no handle ↔ script cycle). The mode policy (same-mode no-op, `goto_mode`,
+  `@exit_mode`, `mode_time`, the frozen-mode check, `then=`) stays on the Entity.
 - `wait` / `until` / `until_empty` / `parallel` / `race` call `_require_running_script`.
   `Script._advance` reports leftover must-await Handles created this resume.
-- `Shape.__slots__` must list `_time_scale`, `_on_update`, `_on_destroy`, `_mode_script`,
+- `Shape.__slots__` must list `_time_scale`, `_on_update`, `_on_destroy`, `_mode_task`,
   `_frozen_warned`, `_actor_constructed` (forgetting → `AttributeError` on `Circle()`).
   `Entity` / `SpatialFx` have no those slots.
 - Star-export: `after`, `every`, `tween`, `wait`, `until`, `until_empty`, `parallel`,
@@ -1531,8 +1605,10 @@ require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena._
   every `@when` / `@on_change`. Do **not** reintroduce tombstones or deferred
   removal: a finished Handle holds the Entity strongly, and a destroyed Entity
   must be collectable immediately after `destroy()` (no tick in between).
-  Scripts stay a list; a script that finishes mid-tick is dropped by
-  `_compact_scripts` after the walk.
+  Tasks are the `_tasks` bucket, walked after every other bucket and the sound
+  tick, before `on_update`: a snapshot, then the tasks started during the walk
+  (`_task_walk_extras`), so a mode entered from another task's step is visited in
+  the same tick, as when scripts were a live list.
 - Groups / formula `@=`: `registry.py` (`GroupOperator`, `Registry._group_formulas`).
   Formula eval uses a re-entrancy stack (`_group_formula_stack`); do not cache on
   `_group_gen`. `until_empty` resolves formula names through the same live path.
@@ -1545,8 +1621,9 @@ require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena._
 - Debug overlay (mode name, `mode_time`, active handles, `@on_mode` inventory).
   Runtime-recorded transition trace first if added; a static `then=` scan would
   silently under-report dynamic targets.
-- Async event-track handlers (`@collide` / `@when` / `on_click`) — one running instance,
-  re-entry ignored; modes are the async surface today.
+- Async event-track handlers (`@collide` / `@when` / `on_click`) stay refused: a handler
+  starts a task (`lambda: run_task(fn)`), which makes the concurrency visible and needs
+  no re-entry policy per door ([Tasks](#tasks)).
 - Edge-map silhouette FX on sprites — landed (FrameFx path + SDF; assign-time / `prepare_fx` warmup; Sprite Halo/Laser/Rim SDF).
 - Pixel-crisp (`nearest`) sprite sampling flag.
 - Auto hitbox follow-ups — see [Sprite Design.md — Deferred (auto hitbox)](Sprite%20Design.md#deferred-auto-hitbox).
@@ -1555,4 +1632,3 @@ require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena._
   invents the formation” reject as spatial walk order.
 - Optional `SCENA HINT` when N Entities each own an identical `every` (not a silent merge).
 - `self.collide_with(target)` imperative twin of `@collide_with` — decorator shipped first; add the method only if scripts need late/dynamic pair enrollment.
-- `Scheduler._scripts` append-during-iteration (async mode list) — same shape as the handle-bucket snapshot, but `coro.send` is already watchdog-guarded. Revisit only if a concrete hang surfaces.

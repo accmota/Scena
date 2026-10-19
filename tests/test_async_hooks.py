@@ -1,7 +1,7 @@
 """An ``async def`` where Scena calls a function synchronously raises with the fix.
 
-Bug class: only an async **mode** is driven as a script (``e.mode = fn``,
-``then=``). Every other place that takes a function calls it and drops the
+Bug class: only an async **mode** (``e.mode = fn``, ``then=``) and a task
+(``run_task(fn)``) are driven as scripts. Every other place that takes a function calls it and drops the
 result, so an ``async def setup`` / ``on_update`` / ``@every`` / ``on_done``
 made a coroutine nobody ran: the body never ran and the only trace was
 Python's "coroutine ... was never awaited". Each funnel now refuses it:
@@ -14,6 +14,8 @@ Python's "coroutine ... was never awaited". Each funnel now refuses it:
 * script hooks (``update``, ``on_key_down`` …) when ``run()`` binds them;
 * backstop at the call (``_invoke`` / ``call_truncated``): a sync callback
   that returns a coroutine (``lambda: self.intro()``) raises, coroutine closed;
+* an async function called without ``await`` anywhere in author code: a
+  SCENA WARNING at the calling line (``TestNeverAwaitedHook``);
 * predicates and conditions (``group.filter`` / ``any`` / ``all`` /
   ``count_where`` / ``nearest(where=)``, ``until``, ``@when``, the
   ``@on_change`` target, ``resolve(only=)``) and ``@=`` formulas at the call:
@@ -42,6 +44,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import scena  # noqa: E402
+import scena.process as process  # noqa: E402
 from scena import (  # noqa: E402
     Act, Button, Circle, Entity, Rect, after, collide, every, exit_mode, on_change,
     on_mode, play_sound, tween, wait, when,
@@ -398,7 +401,9 @@ NOT_A_CALLBACK = {
 
 # An async function is the point here: the engine drives it as a mode.
 _DRIVES_A_MODE = "takes a mode, which the engine drives (test_then_takes_an_async_mode)"
-DRIVEN = {"Entity.goto_mode(fn)": _DRIVES_A_MODE, "on_mode(fn)": _DRIVES_A_MODE}
+_DRIVES_A_TASK = "takes an async function and drives it as a task (test_tasks)"
+DRIVEN = {"Entity.goto_mode(fn)": _DRIVES_A_MODE, "on_mode(fn)": _DRIVES_A_MODE,
+          "run_task(fn)": _DRIVES_A_TASK, "Entity.run_task(fn)": _DRIVES_A_TASK}
 
 
 def _is_driven(door: str):
@@ -611,6 +616,87 @@ class TestEveryCallbackDoor(AsyncHookCase):
             self, "test_async_hooks.TestEveryCallbackDoor.test_every_door_refuses_async",
             [("scena.registry", "_refuse_async", lambda fn, what: None)],
             "an async group.filter / any / all predicate (AH2)")
+
+
+async def _show():
+    await wait(0.1)
+
+
+def _drop_show():
+    _show()  # the dropping line: the message names it
+    return inspect.currentframe().f_lineno - 1
+
+
+@unittest.skipUnless(process._UNAWAITED_HOOK_ACTIVE,
+                     "this interpreter does not call warnings._warn_unawaited_coroutine")
+class TestNeverAwaitedHook(unittest.TestCase):
+    """``show()`` without ``await`` in author code: a SCENA WARNING naming the
+    line and the fix, at the statement (not at a later gc). Python's own text
+    stays for everything that is not author code (process.install_unawaited_hook)."""
+
+    def setUp(self):
+        scena.process.clear_author_error()
+        self.addCleanup(scena.process.clear_author_error)
+
+    def _caught(self, body):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = body()
+            before_gc = [str(w.message) for w in caught]
+            gc.collect()
+        return result, before_gc, caught
+
+    def test_author_drop_names_the_line_and_the_fix(self):
+        line, msgs, caught = self._caught(_drop_show)
+        self.assertEqual(len(msgs), 1, msgs)
+        msg = msgs[0]
+        self.assertIn("SCENA WARNING", msg)
+        self.assertIn("never awaited", msg)           # _never_awaited() keeps seeing it
+        self.assertIn("_show() was called at test_async_hooks.py, line %d" % line, msg)
+        self.assertIn("await _show()", msg)
+        self.assertEqual(caught[0].lineno, line, "the warning points at the dropping line")
+        self.assertEqual(os.path.basename(caught[0].filename), "test_async_hooks.py")
+        self.assertIsNotNone(scena.process.last_author_error(), "the banner shows it")
+
+    def test_library_drop_keeps_pythons_text(self):
+        import asyncio
+
+        def drop():
+            asyncio.sleep(0)
+            return inspect.currentframe().f_lineno - 1
+
+        line, msgs, caught = self._caught(drop)
+        self.assertEqual(msgs, ["coroutine 'sleep' was never awaited"])
+        self.assertEqual(caught[0].lineno, line)
+        self.assertIsNone(scena.process.last_author_error())
+
+    def test_awaited_or_closed_coroutine_is_silent(self):
+        def close_it():
+            c = _show()
+            c.close()
+
+        _, msgs, _ = self._caught(close_it)
+        self.assertEqual(msgs, [])
+
+    def test_install_twice_keeps_one_hook(self):
+        self.assertTrue(process.install_unawaited_hook())
+        self.assertTrue(process.install_unawaited_hook())
+        self.assertIs(warnings._warn_unawaited_coroutine, process._warn_unawaited)
+        self.assertIsNot(process._UNAWAITED_ORIGINAL, process._warn_unawaited)
+        _, msgs, _ = self._caught(_drop_show)
+        self.assertEqual(len(msgs), 1, msgs)
+
+    def test_internal_failure_falls_back_to_python(self):
+        def boom(_coro):
+            raise RuntimeError("hook bug")
+
+        old = process._unawaited_message
+        process._unawaited_message = boom
+        try:
+            _, msgs, _ = self._caught(_drop_show)
+        finally:
+            process._unawaited_message = old
+        self.assertEqual(msgs, ["coroutine '_show' was never awaited"])
 
 
 if __name__ == "__main__":

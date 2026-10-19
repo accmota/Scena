@@ -88,6 +88,38 @@ left out.
 
 ### Added
 
+- `run_task(fn)` runs an `async def` from anywhere: a sequence of waits
+  without a mode. Before, `await` worked only in an async mode, so a script
+  with no classes needed a host actor (`label.goto_mode(show)`), and a job
+  beside an actor's modes (a power-up that counts down while the ship flies
+  and gets hit) needed a chain of `after` calls sharing one `name=` slot.
+  Now:
+
+  ```python
+  async def show():
+      await box.move_to(600, 300, time=0.5)
+      await wait(0.2)
+      await box.rotate_by(90, time=0.3)
+
+  button.on_click = lambda: run_task(show, name="show")   # a new click restarts it
+  ```
+
+  The first step runs at the call, the rest in later frames. The owner is
+  the one `after` picks (an actor's method or a lambda over its `self`: that
+  actor; inside a mode body: that mode; otherwise the act); `ship.run_task(fn)`
+  makes `ship` the owner (`fn` gets the ship if it takes a parameter). Work
+  the task starts ends when the task is cancelled (`h.cancel()`, `name=`,
+  its owner destroyed); a task that finishes leaves it running. `await h`
+  returns the task's value; tasks work in `parallel` / `race`. Refused with
+  the fix: `run_task(show())`, a plain `def`, a mode (`@on_mode`). Event
+  handlers still take a plain `def`: start the task from it.
+- An async function called without `await` says so where it happens. Before,
+  `self.flash()` written for `async def flash(self)` ran nothing and Python
+  printed `coroutine 'Ship.flash' was never awaited`, often at a later line.
+  Now it is a SCENA WARNING on the banner and the console, at the line that
+  made the call: `flash() was called at game.py, line 12 but never awaited,
+  so nothing in flash() ran. Inside async code write await flash(); …`.
+  Coroutines of other libraries keep Python's own message.
 - Colors, opacity, visibility and flips link with `@=`: a HUD bar can follow
   the game in its length *and* its color, with formulas only.
   `bar["width"] @= lambda: 200 * st.hp / 100` and `bar["fill"] @= lambda:
@@ -209,6 +241,20 @@ left out.
 
 ### Changed
 
+- When something an async mode or a task awaits is cancelled from outside
+  (the actor it moves destroyed, another move on the same property), the
+  warning now says what it was awaiting, at which line, and why it ended:
+  `task show() was silently cancelled: the tween it was awaiting at
+  game.py, line 14 was cancelled (the actor it moves was destroyed)`. The
+  task's own cancel stays quiet.
+- The errors for an `async def` where Scena calls a plain function, and for
+  `wait()` outside async code, now name `run_task(...)` next to the async
+  mode.
+- Async modes cost less per frame. The freeze watchdog used to switch its
+  instrumentation on and off around every resumed mode, which re-instruments
+  every function on the stack; it now does it once per frame for all of them.
+  300 actors in async modes that wait and resume: about 3.7× less scheduler
+  time per frame. Behaviour is unchanged.
 - **Level editor:** with several items selected, the "Add group" and
   "Remove group" inputs are gone. The **Groups** field shows the groups every
   selected item has: type a name to add it to all of them, delete one to
@@ -239,6 +285,10 @@ left out.
 
 ### Fixed
 
+- Work an async mode started after switching its own actor to another mode,
+  later in the same step (`self.mode = self.calm` then `after(1, …)` before
+  the next `await`), no longer leaks into the new mode: it is cancelled with
+  the old one.
 - A destroyed actor says so first, whatever the arguments. `dead.move_to((nan,
   0))`, `dead.move_by()`, `dead.rotate_to("a")`, `dead.scale_by(2, force="no")`,
   `dead.add_to_group(5)` and `dead.radius = lambda: 3` raised the bad

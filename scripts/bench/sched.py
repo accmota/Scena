@@ -530,7 +530,7 @@ def _inventory() -> Dict[str, float]:
         "tween": float(len(tweens)),
         "rides": float(rides),
         "await": float(len(getattr(sched, "_await_family", []) or [])),
-        "scripts": float(len(getattr(sched, "_scripts", []) or [])),
+        "tasks": float(len(getattr(sched, "_tasks", []) or [])),
         "events": float(len(getattr(events, "_events", []) or [])),
         "updates": float(len(getattr(sched, "_update_dense", []) or [])),
         "modes": float(len(getattr(sched, "_mode_dense", []) or [])),
@@ -816,7 +816,7 @@ if args.bench:
     stats = empty_phase_stats()
     extra = {
         "handles": 0.0, "rides": 0.0, "events": 0.0, "every": 0.0,
-        "tween": 0.0, "once": 0.0, "await": 0.0, "scripts": 0.0,
+        "tween": 0.0, "once": 0.0, "await": 0.0, "tasks": 0.0,
         "n_frames": 0.0,
     }
     _recording_started = {"done": False}
@@ -836,7 +836,7 @@ if args.bench:
         extra["tween"] += inv["tween"]
         extra["once"] += inv["once"]
         extra["await"] += inv["await"]
-        extra["scripts"] += inv["scripts"]
+        extra["tasks"] += inv["tasks"]
         extra["n_frames"] += 1.0
 
     install_phase_run(

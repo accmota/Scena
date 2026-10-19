@@ -159,6 +159,13 @@ _watchdog_resume_depth = 0
 _wd_deadline = 0.0
 _wd_author_lines = 0
 _wd_check_every = 256
+# The task walk holds the LINE / JUMP events on for all its resumes (one
+# ``set_events`` pair per tick, not per resume): each ``set_events`` re-instruments
+# every function on the stack (the tick, the run loop), which cost ~25 µs per
+# resume. Between resumes the deadline is infinite, so author code the walk
+# runs outside a resume (a ``finally`` thrown by a cancel) never trips.
+_wd_window_open = False
+_wd_window_prev = 0
 
 # Scope on a handle. Mode-scoped work is cancelled on ``e.mode = …``.
 # Ownerless work (a bare ``after`` / ``play_sound`` / ``tween`` with no actor)
@@ -168,6 +175,22 @@ SCOPE_GAME = "game"
 SCOPE_ACT = "act"
 SCOPE_ENTITY = "entity"
 SCOPE_MODE = "mode"
+
+# Why a handle was cancelled (``Handle._cancel_reason``): named in the warning
+# a task or an async mode gets when what it awaits is cancelled under it.
+_R_OWNER_GONE = "its owner was destroyed"
+_R_DEAD_AT_START = "it was scheduled on an actor that was already destroyed"
+_R_TARGET_GONE = "the actor it moves was destroyed"
+_R_UNTIL_GONE = "the actor its condition reads was destroyed"
+_R_UNTIL_RAISED = "its condition raised"
+_R_PREEMPTED = "another move or tween took the same property"
+_R_NAME = "a new job took its name="
+_R_MODE_LEFT = "its mode was left"
+_R_PROCESS = "cancel_process() was called on its owner"
+_R_ACT = "the act ended"
+_R_RACE = "race() picked another member"
+_R_MEMBER = "one of its members was cancelled"
+_R_TASK = "the task that started it was cancelled"
 
 # Set by ``ActManager._seal`` when the top level ends (``run()`` startup).
 _top_level_ended = False
@@ -629,6 +652,7 @@ class Handle:
         "_voice_id", "_sound_volume", "_sound_pan", "_sound_pitch",
         "_sound_loops", "_clip_duration", "_sound_effects", "_sound_fade_out",
         "_record", "_end_held",
+        "_task", "_task_parent", "_cancel_reason",
     )
 
     def __init__(self, *_args, **_kwargs) -> None:
@@ -680,9 +704,11 @@ class Handle:
         self._then = then
         self._on_done = on_done
         self._owner = owner
-        if owner is None and scope in (SCOPE_ACT, SCOPE_GAME):
+        if owner is None and scope == SCOPE_ACT and not _top_level_ended:
             # One place decides game vs act for every ownerless start site.
-            scope = SCOPE_ACT if _top_level_ended else SCOPE_GAME
+            # An explicit GAME stays GAME: work a game task starts after the
+            # top level ended is still game work (Actors Design — Tasks).
+            scope = SCOPE_GAME
         self.scope = scope
         self._name = name
         self._elapsed = 0.0
@@ -740,6 +766,12 @@ class Handle:
         # the sound, so the sound rings out when its owner ends).
         self._sound_fade_out = None
         self._record = None
+        # kind "task": the coroutine driver (a mode's async body, Actors
+        # Design — Tasks). None for every other kind.
+        self._task = None
+        self._task_parent = None
+        # ``_cancel_reason`` stays unset until a cancel names one (read it
+        # with getattr): one store less on every handle.
 
     @property
     def effects(self):
@@ -822,7 +854,8 @@ class Handle:
 
         Dual of ``elapsed``. ``after`` / ``wait`` / ``tween`` count down ``delay``;
         ``every`` counts down ``interval`` (resets after each fire). ``until`` /
-        ``parallel`` / ``race`` have no clock duration → 0. Done or cancelled → 0.
+        ``parallel`` / ``race`` / a task have no clock duration → 0. Done or
+        cancelled → 0.
         """
         if self._done or self._cancelled:
             return 0.0
@@ -1176,6 +1209,12 @@ class Handle:
                 fade.resume()
         return self
 
+    def _cancel_for(self, reason: str) -> None:
+        """:meth:`cancel`, recording why (the first reason wins)."""
+        if getattr(self, "_cancel_reason", None) is None:
+            self._cancel_reason = reason
+        self.cancel()
+
     def cancel(self) -> None:
         """Stop the job now. ``then=`` / ``on_done=`` do not run.
 
@@ -1207,8 +1246,29 @@ class Handle:
         self._held = False
         self._alive = False
         _release_process_driver(self)
+        script = self._task
         kids = self._children
-        if kids:
+        if script is not None or type(kids) is dict:   # a task (its work, its body)
+            if kids:
+                # The work it started ends with it, before the body is thrown
+                # (its ``finally`` sees that work gone, as on a mode's leave);
+                # a sound that ends by itself rings out.
+                self._children = None
+                sched = get_scheduler()
+                for child in tuple(kids):
+                    child._task_parent = None
+                    if not child._cancelled and not child._done:
+                        if getattr(child, "_cancel_reason", None) is None:
+                            child._cancel_reason = _R_TASK
+                        sched._end_implicitly(child)
+            if script is not None:
+                # Throw Cancelled into the body (deferred while it is on the
+                # stack, S2-11). Quiet when the owner is already dead.
+                owner = self._owner
+                script.cancel(silent=_is_entity(owner) and not getattr(owner, "is_alive", True))
+                self._task = None      # no handle <-> script cycle left for the gc
+                _clear_mode_task(owner, self)
+        elif kids:
             for child in kids:
                 if not child._cancelled:
                     child.cancel()
@@ -1248,8 +1308,8 @@ class Handle:
         then = self._then
         if then is None or owner is None:
             return
-        script = getattr(owner, "_mode_script", None)
-        if script is not None and not script.done:
+        body = getattr(owner, "_mode_task", None)
+        if body is not None and not body._done:
             warnings.warn(
                 f"then= entered {getattr(then, '__name__', then)!r} and cancelled "
                 f"a still-running async mode on {owner!r}. Inside async, use "
@@ -1269,7 +1329,7 @@ class Handle:
             return
         owner = self._live_owner()
         if self.owner is not None and owner is None:
-            self.cancel()
+            self._cancel_for(_R_OWNER_GONE)
             return
         self._mark_complete()
         if self.kind == "wait":
@@ -1296,10 +1356,10 @@ class Handle:
             # ``DestroyedError`` out of the process tick the frame after
             # ``boss.destroy()`` — contradicting "waiting on a dead entity
             # ends the script silently" for every other await path.
-            self.cancel()
+            self._cancel_for(_R_UNTIL_GONE)
             return
         except Exception:
-            self.cancel()  # a broken predicate must not re-raise every frame
+            self._cancel_for(_R_UNTIL_RAISED)  # a broken predicate must not re-raise every frame
             raise
         if hit:
             self._mark_complete()
@@ -1334,7 +1394,7 @@ class Handle:
         if not all(c._done for c in kids):
             return
         if any(c._cancelled for c in kids):
-            self.cancel()
+            self._cancel_for(_R_MEMBER)
             return
         self._mark_complete()
 
@@ -1352,12 +1412,12 @@ class Handle:
                 break
         if winner is None:
             if all(c._cancelled or c._done for c in kids):
-                self.cancel()
+                self._cancel_for(_R_MEMBER)
             return
         self._result = winner
         for i, child in enumerate(kids):
             if i != winner and not child._cancelled:
-                child.cancel()
+                child._cancel_for(_R_RACE)
         self._mark_complete()
 
     def _fire_every(self) -> None:
@@ -1365,7 +1425,7 @@ class Handle:
             return
         owner = self._live_owner()
         if self.owner is not None and owner is None:
-            self.cancel()
+            self._cancel_for(_R_OWNER_GONE)
             return
         _invoke(self._fn, owner)
 
@@ -1379,11 +1439,11 @@ class Handle:
         if self._cancelled or self._done:
             return
         if self._claimed_target_dead():
-            self.cancel()
+            self._cancel_for(_R_TARGET_GONE)
             return
         owner = self._live_owner()
         if self.owner is not None and owner is None:
-            self.cancel()
+            self._cancel_for(_R_OWNER_GONE)
             return
         duration = self.delay
         if duration <= 0.0:
@@ -1450,10 +1510,18 @@ class Handle:
 
     def __await__(self):
         self._awaited = True
+        if self.kind == "task" and not (self._done or self._cancelled):
+            running = get_scheduler()._running
+            if running is not None and running.handle is self:
+                raise TypeError(
+                    "a task cannot await itself (it would wait forever). "
+                    "Await another task, or return a value and await the task "
+                    "from the code that started it."
+                )
         while not self._done and not self._cancelled:
             yield self
         if self._cancelled:
-            raise Cancelled()
+            raise Cancelled(self)      # the handle: its _cancel_reason names why
         return self._result
 
     def __del__(self) -> None:
@@ -1488,15 +1556,27 @@ class Handle:
         return f"<Handle {' '.join(bits)}>"
 
 
+def _clear_mode_task(owner, handle) -> None:
+    """Drop ``owner._mode_task`` if it still names ``handle`` (its body ended)."""
+    if owner is not None and getattr(owner, "_mode_task", None) is handle:
+        try:
+            object.__setattr__(owner, "_mode_task", None)
+        except Exception:
+            pass
+
+
 class Script:
-    """One running async mode (or later, event) coroutine."""
+    """The driver of one task: a coroutine the engine resumes (an async
+    mode's body). Its ``handle`` is the ``Handle(kind="task")`` that owns it:
+    the scheduler keeps the handle (owner, scope, cancel), the script keeps
+    the coroutine and what it waits on (Actors Design — Tasks)."""
 
     __slots__ = (
         "coro", "owner", "kind", "done", "cancelled", "waiting_on", "silent",
-        "_created_awaits",
+        "_created_awaits", "handle",
     )
 
-    def __init__(self, coro, owner, *, kind: str = "mode"):
+    def __init__(self, coro, owner, *, kind: str = "mode", handle: Optional[Handle] = None):
         self.coro = coro
         self.owner = owner
         self.kind = kind
@@ -1505,6 +1585,42 @@ class Script:
         self.waiting_on: Optional[Handle] = None
         self.silent = False
         self._created_awaits: List[Handle] = []
+        self.handle = handle
+
+    def _end(self, *, cancelled: bool, result=None) -> None:
+        """The body ended by itself (returned, raised, tripped the watchdog,
+        or an awaited handle was cancelled under it): its task handle ends
+        with it. A body that returned completes the handle (``await task``
+        gets the value); the others leave it cancelled. Not a cancel of the
+        task: nothing it started is cancelled here."""
+        handle = self.handle
+        if handle is None or handle._done or handle._cancelled:
+            return
+        handle._task = None            # no handle <-> script cycle left for the gc
+        kids = handle._children
+        if kids:
+            # What it started goes on: the work of a nested task passes to the
+            # task that started it (cancelling that one still ends it all).
+            handle._children = None
+            grand = handle._task_parent
+            if grand is not None and (grand._done or grand._cancelled):
+                grand = None
+            for child in kids:
+                child._task_parent = grand
+                if grand is not None:
+                    if grand._children is None:
+                        grand._children = {}
+                    grand._children[child] = None
+        if cancelled:
+            handle._cancelled = True
+            handle._done = True
+            handle._alive = False
+            _release_process_driver(handle)
+            get_scheduler()._forget(handle)
+        else:
+            handle._result = result
+            handle._mark_complete()
+        _clear_mode_task(handle._owner, handle)
 
     def start(self) -> None:
         self._advance()
@@ -1560,75 +1676,28 @@ class Script:
         prev = sched._running
         sched._running = self
         self._created_awaits = []
+        handle = self.handle
         own = (
-            owning(self.owner, scope=SCOPE_MODE)
-            if self.kind == "mode" and self.owner is not None
+            owning(handle._owner, scope=handle.scope)
+            if handle is not None
             else nullcontext()
         )
         finished = False
+        result = None
         try:
             try:
                 with own:
                     yielded = _resume_with_watchdog(self.coro, value)
-            except StopIteration:
+            except StopIteration as stop:
                 self.done = True
                 self.waiting_on = None
                 finished = True
-            except Cancelled:
-                self.done = True
-                self.cancelled = True
-                self.waiting_on = None
-                # Reaching here means a Handle the mode was awaiting got
-                # cancelled *out from under it* (another tween claimed the
-                # same key, the awaited thing's target was destroyed, an
-                # until() predicate's subject was destroyed, ...) and the
-                # mode's own code did not catch ``Cancelled`` around the
-                # ``await``. Script.cancel() (deliberately switching/ending
-                # this mode) never reaches this branch — it throws/returns
-                # before or after this call, not through it — so this is
-                # always the "awaited thing died, mode didn't notice" case.
-                # ``e.mode`` still reads the old function; no further code
-                # in it will ever run.
-                if self.kind == "mode" and not self.silent:
-                    mode = getattr(self.owner, "mode", None)
-                    mode_name = getattr(mode, "__name__", mode)
-                    warnings.warn(
-                        f"async mode {mode_name!r} on {self.owner!r} was "
-                        f"silently cancelled: something it was `await`ing "
-                        f"(a tween, until(), wait(), ...) got cancelled out "
-                        f"from under it — for example another tween claimed "
-                        f"the same property, or the awaited target was "
-                        f"destroyed. `.mode` still reports {mode_name!r}, "
-                        f"but this mode has stopped running. If this "
-                        f"cancellation is expected, wrap the `await` in "
-                        f"`try: ... except Cancelled: ...` to handle it "
-                        f"explicitly.",
-                        RuntimeWarning,
-                        stacklevel=2,
-                    )
+                result = stop.value
+            except Cancelled as exc:
+                self._cancelled_under_it(exc)
                 return
             except _Watchdog:
-                self.done = True
-                self.cancelled = True
-                self.waiting_on = None
-                mode = getattr(self.owner, "mode", None)
-                mode_name = getattr(mode, "__name__", mode)
-                warnings.warn(
-                    f"SCENA ERROR: async mode {mode_name!r} on {self.owner!r} "
-                    f"ran more than {WATCHDOG_RESUME_S:g}s without awaiting — "
-                    f"the mode was CANCELLED and any in-progress work "
-                    f"(for example a partial spawn wave) may be incomplete. "
-                    f"This usually means `while True:` with no await. "
-                    f"Add `await wait(...)` / `await until(...)` / "
-                    f"`await move_to(..., time=)` inside the loop. "
-                    f"Constructing many Sprite(...) actors in one go is allowed.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                try:
-                    self.coro.close()
-                except Exception:
-                    pass
+                self._tripped_watchdog()
                 return
             except Exception:
                 self._abort()
@@ -1636,6 +1705,7 @@ class Script:
         finally:
             sched._running = prev
         if finished:
+            self._end(cancelled=False, result=result)
             self._raise_unused_awaits()
             return
         if self.cancelled:
@@ -1658,19 +1728,99 @@ class Script:
             raise
         self.waiting_on = yielded
 
+    # The rare endings of ``_advance``, out of line: ``_advance`` is on the
+    # stack whenever the watchdog turns its events on, and every function on
+    # the stack is re-instrumented then (cost grows with its size).
+
+    def _cancelled_under_it(self, exc: BaseException) -> None:
+        """``Cancelled`` came out of the body. When the task itself was
+        cancelled (its owner destroyed, its mode or act left, ``name=``
+        replaced, ``cancel()``) that is the plan: quiet. Otherwise an awaited
+        handle was cancelled *out from under* it (another tween claimed the
+        same property, the awaited target was destroyed, an ``until()``
+        subject was destroyed, ...) and the body did not catch ``Cancelled``
+        around the ``await``: the task ends with a warning that names what it
+        awaited, where, and why that ended. An async mode's ``e.mode`` still
+        reads the old function; no further code in it will ever run."""
+        handle = self.handle
+        own = self.cancelled or (handle is not None and handle._cancelled)
+        self.done = True
+        self.cancelled = True
+        self.waiting_on = None
+        self._end(cancelled=True)
+        if own or self.silent:
+            return
+        warnings.warn(self._under_it_message(exc), RuntimeWarning, stacklevel=4)
+
+    def _under_it_message(self, exc: BaseException) -> str:
+        src = exc.args[0] if exc.args and isinstance(exc.args[0], Handle) else None
+        what = "handle"
+        reason = "it was cancelled"
+        if src is not None:
+            what = src._claim_label or {"tween": "move or tween"}.get(src.kind, src.kind)
+            reason = getattr(src, "_cancel_reason", None) or "cancel() was called on it"
+        at = ""
+        tb = exc.__traceback__
+        while tb is not None:
+            code = tb.tb_frame.f_code
+            if not _is_ignored_filename(code.co_filename):
+                at = f" at {os.path.basename(code.co_filename)}, line {tb.tb_lineno}"
+            tb = tb.tb_next
+        fix = ("If that is expected, wrap the `await` in `try: ... except Cancelled: ...`; "
+               "to end the work together with an actor, start it on that actor "
+               "(box.run_task(...)) or check `if box:` before using it.")
+        if self.kind == "mode":
+            mode = getattr(self.owner, "mode", None)
+            mode_name = getattr(mode, "__name__", mode)
+            return (
+                f"async mode {mode_name!r} on {self.owner!r} was silently "
+                f"cancelled: the {what} it was awaiting{at} was cancelled "
+                f"({reason}). `.mode` still reports {mode_name!r}, but this mode "
+                f"has stopped running. {fix}"
+            )
+        name = getattr(self.coro, "__name__", "task")
+        return (
+            f"task {name}() was silently cancelled: the {what} it was "
+            f"awaiting{at} was cancelled ({reason}). {fix}"
+        )
+
+    def _tripped_watchdog(self) -> None:
+        self.done = True
+        self.cancelled = True
+        self.waiting_on = None
+        self._end(cancelled=True)
+        if self.kind == "mode":
+            mode = getattr(self.owner, "mode", None)
+            mode_name = getattr(mode, "__name__", mode)
+            who, what = f"async mode {mode_name!r} on {self.owner!r}", "mode"
+        else:
+            who, what = f"task {getattr(self.coro, '__name__', 'task')}()", "task"
+        warnings.warn(
+            f"SCENA ERROR: {who} "
+            f"ran more than {WATCHDOG_RESUME_S:g}s without awaiting — "
+            f"the {what} was CANCELLED and any in-progress work "
+            f"(for example a partial spawn wave) may be incomplete. "
+            f"This usually means `while True:` with no await. "
+            f"Add `await wait(...)` / `await until(...)` / "
+            f"`await move_to(..., time=)` inside the loop. "
+            f"Constructing many Sprite(...) actors in one go is allowed.",
+            RuntimeWarning,
+            stacklevel=4,
+        )
+        try:
+            self.coro.close()
+        except Exception:
+            pass
+
     def _abort(self) -> None:
-        """An author error ended this script: done, coroutine closed, mode slot cleared."""
+        """An author error ended this script: done, coroutine closed, task ended."""
         self.done = True
         self.waiting_on = None
         try:
             self.coro.close()
         except Exception:
             pass  # never shadow the error that ended the script
-        if self.kind == "mode" and self.owner is not None:
-            try:
-                object.__setattr__(self.owner, "_mode_script", None)
-            except Exception:
-                pass
+        self._end(cancelled=True)
 
     def _raise_unused_awaits(self) -> None:
         """``wait`` / ``until`` / … created by this resume but never awaited → ``TypeError``.
@@ -1766,6 +1916,119 @@ def _is_ignored_filename(filename: str) -> bool:
             break
     _IGNORE_FILE_CACHE[filename] = ignored
     return ignored
+
+
+# --- An async function called without ``await`` ---------------------------
+# ``show()`` with no ``await`` builds a coroutine and drops it: nothing in
+# ``show()`` runs. CPython reports it through ``warnings._warn_unawaited_coroutine``
+# (looked up on the module at each report, from the frame whose statement
+# dropped the coroutine), with a message that does not say what to write.
+# The hook says it as a SCENA WARNING (banner + console) for author code and
+# hands everything else (stdlib, site-packages, the engine) to Python's own.
+
+_UNAWAITED_ORIGINAL: Optional[Callable] = None
+_UNAWAITED_HOOK_ACTIVE = False
+_UNAWAITED_PROBE_SEEN = False
+# Origin tracking depth before the hook turned it on: Python's own message
+# lists where the coroutine was made only when the program asked for it.
+_UNAWAITED_USER_DEPTH = 0
+
+
+async def _unawaited_probe() -> None:
+    """Dropped once at install: proves the interpreter calls the hook."""
+
+
+def _unawaited_message(coro) -> str:
+    code = coro.cr_code
+    name = f"{code.co_name}()"
+    where = ""
+    origin = getattr(coro, "cr_origin", None)
+    if origin:
+        filename, lineno, _func = origin[0]   # the caller (most recent first)
+        where = f" at {os.path.basename(filename)}, line {lineno}"
+    return (
+        f"{name} was called{where} but never awaited, so nothing in {name} ran. "
+        f"Inside async code write await {name}; from a plain def start it as "
+        f"a task (run_task({code.co_name})) or an async mode "
+        f"(self.mode = self.{code.co_name})."
+    )
+
+
+def _python_unawaited(coro) -> None:
+    """Python's own "never awaited" warning, as if the hook were not there.
+
+    Same text as ``warnings._warn_unawaited_coroutine`` (the creation lines
+    only when the program had turned origin tracking on itself) and the same
+    location: ``stacklevel=3`` is the frame that dropped the coroutine
+    (this function ← the hook ← that frame).
+    """
+    msg = f"coroutine '{coro.__qualname__}' was never awaited"
+    origin = getattr(coro, "cr_origin", None)
+    if origin and _UNAWAITED_USER_DEPTH > 0:
+        import linecache
+        lines = ["Coroutine created at (most recent call last)\n"]
+        lines += traceback.format_list([
+            (f, n, fn, linecache.getline(f, n)) for f, n, fn in reversed(origin)
+        ])
+        msg = (msg + "\n" + "".join(lines)).rstrip("\n")
+    warnings.warn(msg, category=RuntimeWarning, stacklevel=3, source=coro)
+
+
+def _warn_unawaited(coro) -> None:
+    """``warnings._warn_unawaited_coroutine`` while Scena is imported.
+
+    Runs while the coroutine is being freed: it never raises (any failure
+    falls back to Python's own warning).
+    """
+    global _UNAWAITED_PROBE_SEEN
+    original = _UNAWAITED_ORIGINAL
+    try:
+        code = coro.cr_code
+        if code is _unawaited_probe.__code__:
+            _UNAWAITED_PROBE_SEEN = True
+            return
+        if _is_ignored_filename(code.co_filename):
+            _python_unawaited(coro)
+            return
+        report_author_warning("async call", _unawaited_message(coro))
+    except BaseException:
+        try:
+            _python_unawaited(coro)
+        except BaseException:
+            if original is not None:
+                try:
+                    original(coro)
+                except BaseException:
+                    pass
+
+
+def install_unawaited_hook() -> bool:
+    """Route "coroutine … was never awaited" through :func:`_warn_unawaited`.
+
+    Idempotent. Turns on coroutine origin tracking (depth ≥ 1) so the
+    message names the line that called the function. Returns whether the
+    interpreter calls the hook (a probe coroutine is dropped to find out);
+    when it does not, Python's own warning stays.
+    """
+    global _UNAWAITED_ORIGINAL, _UNAWAITED_HOOK_ACTIVE, _UNAWAITED_PROBE_SEEN
+    global _UNAWAITED_USER_DEPTH
+    current = getattr(warnings, "_warn_unawaited_coroutine", None)
+    if current is None:
+        return False
+    if current is not _warn_unawaited:
+        _UNAWAITED_ORIGINAL = current
+        warnings._warn_unawaited_coroutine = _warn_unawaited
+        try:
+            _UNAWAITED_USER_DEPTH = sys.get_coroutine_origin_tracking_depth()
+            if _UNAWAITED_USER_DEPTH < 1:
+                sys.set_coroutine_origin_tracking_depth(1)
+        except Exception:
+            pass
+    if not _UNAWAITED_HOOK_ACTIVE:
+        _UNAWAITED_PROBE_SEEN = False
+        _unawaited_probe()  # dropped at once: the hook records it
+        _UNAWAITED_HOOK_ACTIVE = _UNAWAITED_PROBE_SEEN
+    return _UNAWAITED_HOOK_ACTIVE
 
 
 def set_watchdog(enabled: bool = True) -> None:
@@ -1903,9 +2166,12 @@ def _run_with_watchdog(
     if sync and not SYNC_WATCHDOG_ENABLED:
         return fn(*args, **kwargs)
 
+    limit = float(WATCHDOG_RESUME_S if budget is None else budget)
+    if _wd_window_open:
+        return _run_in_watchdog_window(fn, args, kwargs, limit)
+
     _ensure_watchdog_tool()
     mon = sys.monitoring
-    limit = float(WATCHDOG_RESUME_S if budget is None else budget)
     _wd_deadline = time.perf_counter() + limit
     _wd_author_lines = 0
     _wd_check_every = max(1, int(WATCHDOG_CHECK_EVERY))
@@ -1917,6 +2183,47 @@ def _run_with_watchdog(
     finally:
         mon.set_events(_WATCHDOG_TOOL_ID, prev_events)
         _watchdog_resume_depth -= 1
+
+
+def _run_in_watchdog_window(fn, args, kwargs, limit: float):
+    """A guarded call while the task walk holds the events on: only this
+    resume's deadline (out of ``_run_with_watchdog``, which is on the stack
+    when the events toggle and so is re-instrumented then)."""
+    global _watchdog_resume_depth, _wd_deadline, _wd_author_lines, _wd_check_every
+    _wd_deadline = time.perf_counter() + limit
+    _wd_author_lines = 0
+    _wd_check_every = max(1, int(WATCHDOG_CHECK_EVERY))
+    _watchdog_resume_depth += 1
+    try:
+        return fn(*args, **kwargs)
+    finally:
+        _watchdog_resume_depth -= 1
+        _wd_deadline = math.inf
+
+
+def _watchdog_window_open() -> bool:
+    """Turn the watchdog events on for a run of resumes (the task walk).
+
+    Returns whether this call opened the window (close it with
+    :func:`_watchdog_window_close`). No-op when the watchdog is off, a
+    window is open, or a guarded call is already running.
+    """
+    global _wd_window_open, _wd_window_prev, _wd_deadline
+    if not WATCHDOG_ENABLED or _wd_window_open or _watchdog_resume_depth > 0:
+        return False
+    _ensure_watchdog_tool()
+    mon = sys.monitoring
+    _wd_deadline = math.inf
+    _wd_window_prev = mon.get_events(_WATCHDOG_TOOL_ID)
+    mon.set_events(_WATCHDOG_TOOL_ID, _watchdog_events())
+    _wd_window_open = True
+    return True
+
+
+def _watchdog_window_close() -> None:
+    global _wd_window_open
+    _wd_window_open = False
+    sys.monitoring.set_events(_WATCHDOG_TOOL_ID, _wd_window_prev)
 
 
 def _resume_with_watchdog(coro, value=None):
@@ -2034,14 +2341,17 @@ class Scheduler:
         self._update_dense: List[object] = []
         self._mode_dirty = False
         self._update_dirty = False
-        self._scripts: List[Script] = []
+        # Tasks (``Handle(kind="task")``: async mode bodies), creation order.
+        # Walked after every other bucket, before ``on_update``.
+        self._tasks: Dict[Handle, None] = {}
+        # Set while the tick walks tasks: a task started during the walk is
+        # also visited in it (the walk is not limited to its snapshot).
+        self._task_walk_extras: Optional[List[Handle]] = None
         self._every_sites: Dict[Tuple[Optional[int], str, int], List[float]] = {}
         self._every_flood_warned: set = set()
         self._running: Optional[Script] = None
-        # True while tick() walks scripts. A script that finishes mid-walk is
-        # left in _scripts until _compact_scripts (list.remove mid-iteration
-        # would skip the next script). Handles do not need this: their
-        # buckets are snapshotted and removal is O(1).
+        # True while tick() runs (tests read it after a raise: the tick's
+        # finally must reset it).
         self._iterating = False
 
     def _bucket_for(self, handle: Handle) -> Dict[Handle, None]:
@@ -2056,16 +2366,19 @@ class Scheduler:
             return self._await_family
         if kind == "sound":
             return self._sound
+        if kind == "task":
+            return self._tasks
         return self._once
 
     def add(self, handle: Handle) -> Handle:
         owner = handle.owner
+        replaced = None
         if owner is not None and _is_entity(owner) and not getattr(owner, "is_alive", True):
             # Work scheduled on a destroyed actor (e.g. ``e.after`` inside a
             # teardown callback) never runs: hand back a cancelled Handle and
             # keep it out of every bucket — registering it would hold the dead
             # owner until the next tick noticed.
-            handle.cancel()
+            handle._cancel_for(_R_DEAD_AT_START)
             return handle
         if handle.name:
             key = (id(handle.owner) if handle.owner is not None else None, handle.name)
@@ -2082,7 +2395,10 @@ class Scheduler:
                 old = None
             if old is not None and old is not handle:
                 old_fn = old._fn
-                old.cancel()
+                # Its parent first: the cancel unlinks it (a task restarting
+                # itself takes its place under that parent, _link_to_task).
+                replaced = (old, old._task_parent)
+                old._cancel_for(_R_NAME)
                 # Keep decorator ``fn.handle`` pointing at the live slot occupant.
                 if (
                     old_fn is not None
@@ -2103,10 +2419,14 @@ class Scheduler:
                         RuntimeWarning,
                         stacklevel=3,
                     )
-                    old_tw.cancel()
+                    old_tw._cancel_for(_R_PREEMPTED)
             self._tweens[key] = handle
         self._bucket_for(handle)[handle] = None
         self._handles[handle] = None
+        if handle.kind == "task":
+            extras = self._task_walk_extras
+            if extras is not None:
+                extras.append(handle)
         owner = handle.owner
         if owner is not None:
             owned = self._by_owner.get(id(owner))
@@ -2114,13 +2434,48 @@ class Scheduler:
                 owned = {}
                 self._by_owner[id(owner)] = owned
             owned[handle] = None
-        if handle._must_await:
-            running = self._running
-            if running is not None:
+        running = self._running
+        if running is not None:
+            if handle._must_await:
                 running._created_awaits.append(handle)
+            self._link_to_task(running, handle, replaced)
         return handle
 
+    def _link_to_task(self, running: "Script", handle: Handle, replaced) -> None:
+        """Work made during a task's step with the task's own owner and scope
+        is the task's: it dies when the task is cancelled or replaced
+        (``_children``), and is cancelled at once when the task already was
+        (``self.mode = calm`` earlier in ``angry``'s step). A mode's body keeps
+        no list: the mode's scope already ends its work on leave."""
+        parent = running.handle
+        if parent is None or parent is handle:
+            return
+        if replaced is not None and parent is replaced[0]:
+            # ``run_task(loop, name="loop")`` inside ``loop``: the new run
+            # takes the old run's place under its parent.
+            parent = replaced[1]
+            if parent is None:
+                return
+        if parent._owner is not handle._owner or parent.scope != handle.scope:
+            return                     # another actor's work, or e.after from a mode
+        if parent._cancelled:
+            handle._cancel_for(_R_TASK)
+            return
+        if running.kind == "mode":
+            return
+        kids = parent._children
+        if kids is None:
+            kids = parent._children = {}
+        kids[handle] = None
+        handle._task_parent = parent
+
     def _forget(self, handle: Handle) -> None:
+        parent = handle._task_parent
+        if parent is not None:
+            handle._task_parent = None
+            kids = parent._children
+            if kids is not None:
+                kids.pop(handle, None)
         if handle.name:
             key = (id(handle.owner) if handle.owner is not None else None, handle.name)
             if self._named.get(key) is handle:
@@ -2142,6 +2497,11 @@ class Scheduler:
 
     def _reparent_to_game(self, handle: Handle) -> None:
         owner = handle._owner
+        parent = handle._task_parent
+        if parent is not None:         # a released sound is nobody's work now
+            handle._task_parent = None
+            if parent._children is not None:
+                parent._children.pop(handle, None)
         if handle._name:
             # Unbind with the *old* key: once the owner is cleared, _forget
             # would look up (None, name) and leave a stale slot that a new
@@ -2197,6 +2557,14 @@ class Scheduler:
         cancel loop reaches it.
         """
         owned = self._by_owner.get(id(owner)) if owner is not None else None
+        if not owned:
+            pass
+        elif _is_entity(owner) and not getattr(owner, "is_alive", True):
+            reason = _R_OWNER_GONE
+        elif scopes is not None and SCOPE_MODE in scopes:
+            reason = _R_MODE_LEFT
+        else:
+            reason = _R_PROCESS
         if owned and release:
             for handle in list(owned):
                 if handle.kind != "sound" or handle.owner is not owner:
@@ -2207,15 +2575,23 @@ class Scheduler:
                     self._release_sound(handle)
             owned = self._by_owner.get(id(owner))
         if owned:
+            # Tasks last: a mode's timers are gone before its body is thrown
+            # (a ``finally`` in the body sees them cancelled, as it always did).
+            tasks = None
             for handle in list(owned):
                 if handle.owner is not owner:
                     continue
                 if scopes is not None and handle.scope not in scopes:
                     continue
-                handle.cancel()
-        if scopes is None or SCOPE_MODE in scopes:
-            silent = _is_entity(owner) and not getattr(owner, "is_alive", True)
-            self.cancel_mode_script(owner, silent=silent)
+                if handle.kind == "task":
+                    if tasks is None:
+                        tasks = []
+                    tasks.append(handle)
+                    continue
+                handle._cancel_for(reason)
+            if tasks:
+                for handle in tasks:
+                    handle._cancel_for(reason)
         if scopes is None and _is_entity(owner) and not getattr(owner, "is_alive", True):
             # destroy(): forget the owner now, not at the next busy tick —
             # the dense snapshots hold it strongly.
@@ -2251,9 +2627,17 @@ class Scheduler:
                 if handle._owner is None and handle.scope == scope and _rings_out(handle):
                     self._release_sound(handle)
         n = 0
+        tasks = []                      # tasks last, as in cancel_owner
         for handle in list(self._handles):
             if handle._owner is None and handle.scope == scope and not handle._cancelled:
-                handle.cancel()
+                if handle.kind == "task":
+                    tasks.append(handle)
+                    continue
+                handle._cancel_for(_R_ACT)
+                n += 1
+        for handle in tasks:
+            if not handle._cancelled:
+                handle._cancel_for(_R_ACT)
                 n += 1
         return n
 
@@ -2307,54 +2691,33 @@ class Scheduler:
         self._update_pos = {id(o): i for i, (o, _fn, _form) in enumerate(dense)}
         self._update_dirty = False
 
-    def start_mode_script(self, owner, coro) -> Script:
-        self.cancel_mode_script(owner)
-        script = Script(coro, owner, kind="mode")
-        object.__setattr__(owner, "_mode_script", script)
-        self._scripts.append(script)
+    def start_task(self, owner, coro, *, scope: str, mode: bool = False,
+                   fn: Optional[Callable] = None, name: Optional[str] = None) -> Handle:
+        """Register a task for ``coro`` and run its first step now.
+
+        ``mode=True``: the body of ``owner``'s async mode (``owner._mode_task``;
+        the mode's leave cancels it with the mode-scoped work). The first
+        step runs here, in the caller's phase; its exceptions raise here.
+        """
+        if mode:
+            old = getattr(owner, "_mode_task", None)
+            if old is not None and not old._done:
+                old.cancel()
+        handle = Handle._make(kind="task", owner=owner, scope=scope, fn=fn, name=name)
         try:
-            script.start()
-        finally:
-            if script.done:
-                self._drop_script(script)
-        return script
-
-    def cancel_mode_script(self, owner, *, silent: bool = False) -> None:
-        script = getattr(owner, "_mode_script", None)
-        if script is None:
-            return
-        if not script.done:
-            script.cancel(silent=silent)
-        object.__setattr__(owner, "_mode_script", None)
-        self._drop_script(script)
-
-    def _drop_script(self, script: Script) -> None:
-        if self._iterating:
-            # Leave it in the list; _compact_scripts drops done scripts after
-            # the walk. Do not tombstone handles here — those leave immediately.
-            owner = script.owner
-            if owner is not None and getattr(owner, "_mode_script", None) is script:
-                object.__setattr__(owner, "_mode_script", None)
-                self._note_mode_work_ended(owner)
-            return
-        try:
-            self._scripts.remove(script)
-        except ValueError:
-            pass
-        owner = script.owner
-        if owner is not None and getattr(owner, "_mode_script", None) is script:
-            object.__setattr__(owner, "_mode_script", None)
-            self._note_mode_work_ended(owner)
-
-    @staticmethod
-    def _note_mode_work_ended(owner) -> None:
-        if getattr(owner, "_mode", None) is not None:
-            _note_idle_from(owner)
-
-    def _compact_scripts(self) -> None:
-        if not any(s.done for s in self._scripts):
-            return
-        self._scripts = [s for s in self._scripts if not s.done]
+            self.add(handle)
+        except BaseException:
+            coro.close()               # refused (a bad name=): no "never awaited" on top
+            raise
+        if handle._cancelled:          # owner already dead: the body never starts
+            coro.close()
+            return handle
+        script = Script(coro, owner, kind="mode" if mode else "task", handle=handle)
+        handle._task = script
+        if mode:
+            object.__setattr__(owner, "_mode_task", handle)
+        script.start()
+        return handle
 
     def note_every_site(
         self,
@@ -2408,7 +2771,7 @@ class Scheduler:
             return False
         owner = handle._live_owner()
         if handle.owner is not None and owner is None:
-            handle.cancel()
+            handle._cancel_for(_R_OWNER_GONE)
             return False
         if owner is not None and not getattr(owner, "active", True):
             return False
@@ -2435,7 +2798,7 @@ class Scheduler:
             return
         owner = handle._live_owner()
         if handle.owner is not None and owner is None:
-            handle.cancel()
+            handle._cancel_for(_R_OWNER_GONE)
             return
         if owner is not None and not getattr(owner, "active", True):
             return
@@ -2501,7 +2864,7 @@ class Scheduler:
             return
         owner = handle._live_owner()
         if handle.owner is not None and owner is None:
-            handle.cancel()
+            handle._cancel_for(_R_OWNER_GONE)
             return
         if owner is not None and not getattr(owner, "active", True):
             return
@@ -2572,7 +2935,6 @@ class Scheduler:
         # Idle: no timers, scripts, modes, or on_update — skip clock/list work.
         if (
             not self._handles
-            and not self._scripts
             and not self._mode_owners
             and not self._update_owners
         ):
@@ -2652,29 +3014,50 @@ class Scheduler:
             finally:
                 self._sound_finished_tick = None
 
-            for script in self._scripts:
-                if script.done:
-                    self._drop_script(script)
-                    continue
-                if _is_entity(script.owner) and not script.owner.is_alive:
-                    script.cancel(silent=True)
-                    self._drop_script(script)
-                    continue
-                if (
-                    script.owner is not None
-                    and _is_entity(script.owner)
-                    and not getattr(script.owner, "active", True)
-                ):
-                    continue  # parked: do not resume async
-                script.resume_if_ready()
-                if script.done:
-                    self._drop_script(script)
+            if self._tasks:
+                # Snapshot, plus the tasks started during the walk (a mode
+                # entered from another task's step is visited this tick too).
+                batch = list(self._tasks)
+                self._task_walk_extras = []
+                # One watchdog window for the whole walk, opened at the first
+                # task that is ready to resume (see _wd_window_open).
+                window = False
+                try:
+                    while batch:
+                        for handle in batch:
+                            # Inlined _tick_task (one call per task per frame).
+                            if handle._done:
+                                continue
+                            owner = handle._owner
+                            if owner is not None and _is_entity(owner):
+                                if not owner.is_alive:
+                                    handle.cancel()        # quiet: the owner is dead
+                                    continue
+                                if not owner.active:
+                                    continue               # parked: the body waits
+                                scale = owner._time_scale
+                                handle._elapsed += world_dt * scale if scale > 0.0 else 0.0
+                            else:
+                                handle._elapsed += world_dt
+                            script = handle._task
+                            awaited = script.waiting_on
+                            if awaited is None or not (awaited._done or awaited._cancelled):
+                                continue               # still waiting
+                            if not window:
+                                window = _watchdog_window_open()
+                            script._advance()
+                        batch = self._task_walk_extras
+                        self._task_walk_extras = []
+                finally:
+                    if window:
+                        _watchdog_window_close()
+                self._task_walk_extras = None
             self._tick_on_update(world_dt)
             if world_dt > 0.0:
                 self._warn_frozen_modes()
         finally:
             self._iterating = False
-            self._compact_scripts()
+            self._task_walk_extras = None
 
     def _tick_on_update(self, world_dt: float) -> None:
         self._refresh_update_dense()
@@ -2726,9 +3109,9 @@ class Scheduler:
     def _owner_has_pending(self, item) -> bool:
         if getattr(item, "_on_update", None) is not None:
             return True
-        script = getattr(item, "_mode_script", None)
-        if script is not None and not script.done:
-            return True
+        body = getattr(item, "_mode_task", None)
+        if body is not None and not body._done:
+            return True                # the mode's body still runs (fast path)
         owned = self._by_owner.get(id(item))
         if not owned:
             return False
@@ -2771,11 +3154,13 @@ class Scheduler:
             )
 
     def reset(self) -> None:
-        for script in list(self._scripts):
-            script.cancel(silent=True)
-        self._scripts.clear()
+        for handle in list(self._tasks):
+            if handle._task is not None:
+                handle._task.silent = True
         for handle in list(self._handles):
             handle.cancel()
+        self._tasks.clear()
+        self._task_walk_extras = None
         self._every.clear()
         self._once.clear()
         self._tween.clear()
@@ -2858,9 +3243,16 @@ def no_owner() -> Iterator[None]:
     (review 2026-10-09 S2-1; Actors Design, Ownership)."""
     t_owner = _owner_ctx.set(None)
     t_scope = _scope_ctx.set(None)
+    # Nor a running task: a hook called from a task's step is not the
+    # task's work (its handles are not the task's children; wait() there
+    # is refused like anywhere outside async code).
+    sched = get_scheduler()
+    running = sched._running
+    sched._running = None
     try:
         yield
     finally:
+        sched._running = running
         _owner_ctx.reset(t_owner)
         _scope_ctx.reset(t_scope)
 
@@ -2948,6 +3340,11 @@ def _infer_owner(fn: Optional[Callable] = None) -> Tuple[object, str]:
         return ctx, (_scope_ctx.get() or SCOPE_MODE)
     if _is_entity(self):
         return self, SCOPE_ENTITY
+    # Inside an ownerless task's step: its scope (a game task's work stays
+    # game work after the top level ended).
+    scope = _scope_ctx.get()
+    if scope == SCOPE_GAME:
+        return None, SCOPE_GAME
     return None, SCOPE_ACT
 
 
@@ -3165,6 +3562,113 @@ def every_on(
     return _start_every(interval, fn, name=name, owner=item, scope=SCOPE_ENTITY)
 
 
+def _check_task_fn(fn, what: str) -> str:
+    """What ``run_task`` was given: ``"async"`` (an async def, bound method or
+    partial) or ``"lambda"`` (its call must return a coroutine). Raises, with
+    the fix, for anything else — before anything registers."""
+    if inspect.iscoroutine(fn):
+        name = getattr(fn, "__name__", "fn")
+        fn.close()                     # no "never awaited" on top of this error
+        raise TypeError(
+            f"{what} takes the async function, not a call of it: write "
+            f"run_task({name}), or run_task(lambda: {name}(...)) to pass "
+            f"arguments. {name}() only made a coroutine, and nothing in it ran."
+        )
+    _callable_or_none_error(fn, what)
+    name = getattr(fn, "__name__", None) or type(fn).__name__
+    if getattr(getattr(fn, "__func__", fn), "_is_mode", False):
+        raise TypeError(
+            f"{name} is a mode (@on_mode): enter it with self.mode = self.{name}. "
+            f"{what} runs a job alongside the modes, not a mode."
+        )
+    if is_async_callable(fn):
+        return "async"
+    if name == "<lambda>":
+        return "lambda"
+    raise TypeError(
+        f"{what} needs an async def (a sequence that awaits), got {name}(), a "
+        f"plain function. Call {name}() directly, or schedule it with after(...)."
+    )
+
+
+def _spawn_task_coro(fn, form: str, owner):
+    """Call ``fn`` the way ``after`` calls a callback (the owner as the first
+    argument when ``fn`` takes one and is not a bound method); return the
+    coroutine."""
+    n = _argcount(fn)
+    extra: list = []
+    if owner is not None and not hasattr(fn, "__self__"):
+        extra = [owner]
+    result = fn(*extra[:n])
+    if inspect.iscoroutine(result):
+        return result
+    close = getattr(result, "aclose", None)
+    if close is not None:              # an async generator (``yield``)
+        raise TypeError(
+            "run_task() needs an async def that awaits, not an async generator "
+            "(a function with yield)."
+        )
+    if form == "lambda":
+        raise TypeError(
+            f"run_task(lambda: ...) must return a call of an async function, "
+            f"like run_task(lambda: show(box)); the lambda returned "
+            f"{type(result).__name__}."
+        )
+    raise TypeError(
+        f"run_task() expected {getattr(fn, '__name__', fn)!r} to return a coroutine."
+    )
+
+
+def _start_run_task(fn, form: str, owner, scope: str, name: Optional[str]) -> Handle:
+    sched = get_scheduler()
+    if owner is not None and _is_entity(owner) and not getattr(owner, "is_alive", True):
+        # Its body never starts; the handle comes back cancelled (T6).
+        return sched.add(Handle._make(kind="task", owner=owner, scope=scope, fn=fn, name=name))
+    coro = _spawn_task_coro(fn, form, owner)   # a refused lambda registers nothing
+    return sched.start_task(owner, coro, scope=scope, fn=fn, name=name)
+
+
+def run_task(fn, *, name: Optional[str] = None) -> Handle:
+    """Run an ``async def`` alongside everything else: a task.
+
+    ``run_task(show)`` runs ``show()`` up to its first ``await`` now, then
+    continues it in later frames, like an async mode but without a mode:
+    from a button's ``on_click``, a collision, the top of the file.
+    ``run_task(lambda: show(box, 2))`` passes arguments. The owner is the
+    one ``after`` would pick: a method of an actor (or a lambda over its
+    ``self``) → that actor; inside a mode body → that mode (it ends with
+    the mode); otherwise the act (the game, from the top of the file). Use
+    ``e.run_task(fn)`` to make ``e`` the owner.
+
+    Work the task starts (``after``, ``wait``, moves, sounds, other tasks)
+    is the task's: cancelling the task ends it too. A task that finishes
+    leaves that work running.
+
+    Args:
+        fn: an ``async def`` (or a lambda that calls one). A function marked
+            ``@on_mode`` is refused: enter a mode with ``self.mode =``.
+        name: a slot like ``after``'s: a new task with the same ``name``
+            cancels the one running (and its work) — restart semantics.
+
+    Returns:
+        A ``Handle``: ``await`` it for the task's return value, ``cancel()``
+        it, pass it to ``parallel`` / ``race``; ``.done`` / ``.elapsed``.
+    """
+    if _SOLVER_READING:
+        refuse_if_solver_reading("run_task()")
+    form = _check_task_fn(fn, "run_task()")
+    owner, scope = _infer_owner(fn)
+    return _start_run_task(fn, form, owner, scope, name)
+
+
+def run_task_on(item, fn, *, name: Optional[str] = None) -> Handle:
+    """``run_task`` owned by ``item`` (``item.run_task(fn)``): entity-scoped."""
+    if _SOLVER_READING:
+        refuse_if_solver_reading("run_task()")
+    form = _check_task_fn(fn, "run_task()")
+    return _start_run_task(fn, form, item, SCOPE_ENTITY, name)
+
+
 def _require_number(value, *, what: str, minimum: Optional[float] = None) -> float:
     """Finite number. ``bool`` is not a number. ``minimum`` is a magnitude floor."""
     from .validate import number, fixed_magnitude
@@ -3191,9 +3695,10 @@ def _require_running_script(what: str):
     script = get_scheduler()._running
     if script is None:
         raise TypeError(
-            f"{what} only works inside an async mode "
-            f"(or a helper that mode awaits). "
-            f"In update / on_update / @collide / a sync mode, use after(...) instead."
+            f"{what} only works inside an async mode or a task "
+            f"(or a helper they await). In update / on_update / @collide / a "
+            f"sync mode, start the waits as a task (run_task(fn)) or use "
+            f"after(...)."
         )
     return script
 
@@ -3844,7 +4349,7 @@ def _preempt_tween_keys(*keys, slot=None) -> None:
         seen.add(key)
         old = sched._tweens.get(key)
         if old is not None and old is named and _claim_active(old):
-            old.cancel()        # the name= slot replaces it: no warning
+            old._cancel_for(_R_NAME)        # the name= slot replaces it: no warning
             continue
         if old is not None and _claim_active(old):
             warnings.warn(
@@ -3853,7 +4358,7 @@ def _preempt_tween_keys(*keys, slot=None) -> None:
                 RuntimeWarning,
                 stacklevel=3,
             )
-            old.cancel()
+            old._cancel_for(_R_PREEMPTED)
 
 
 def _ensure_tween_writable(target, *, force: bool) -> None:

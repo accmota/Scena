@@ -59,6 +59,11 @@ class TestFixture(unittest.TestCase):
         self.assertEqual(s["slow"], 1)
         # 90 frames: 30 fires; the 0.5 s hitch owes 10, the cap gives 5; 30 more: 10.
         self.assertEqual(s["ticks"], 45)
+        # The task steps at 0, .1 … .4 and is cancelled at .45 with its every
+        # (9 fires, .05 … .45: the every bucket goes before the after).
+        self.assertEqual((s["task_steps"], s["task_kid"]), (5, 9))
+        # 2.5 s of world time, 0.3 s parked; the 0.5 s hitch is one step, not ten.
+        self.assertEqual(s["sleeper"], 35)
 
 
 # -- synthetic traces ---------------------------------------------------------
@@ -68,6 +73,10 @@ DT = 1 / 60
 
 def H_add(h, kind, delay=0.0, interval=0.0, owner=None, phase="update", refused=False):
     return ("H", "add", h, kind, delay, interval, owner, "act", refused, phase)
+
+
+def H_step(h, active=True, alive=True, phase="tick"):
+    return ("H", "step", h, active, alive, phase)
 
 
 def H_tick(h, dt=DT, scale=1.0, active=True, alive=True):
@@ -118,6 +127,35 @@ class TestTimerRules(unittest.TestCase):
             + [("H", "fire", "e")] * 10 + [("f", 1)]
         self.assertTrue(found(ev, "T4"))
 
+    def test_tasks_steps_in_the_tick_pass(self):
+        ev = [("F", 1, DT), H_add("t", "task", phase="poll"), H_step("t", phase="poll"),
+              ("f", 1)] + frames(2, lambda k: [H_step("t")])
+        self.assertEqual([f for f in model.check(ev).findings if f.law in ("T2", "T3", "T5", "T6")], [])
+
+    def test_t2_a_later_task_step_outside_the_tick_is_found(self):
+        ev = [H_add("t", "task"), H_step("t", phase="update"), H_step("t", phase="collision")]
+        self.assertTrue(found(ev, "T2"))
+
+    def test_t3_a_task_step_on_a_parked_owner_is_found(self):
+        ev = [H_add("t", "task", owner="O#0"), H_step("t"), H_step("t", active=False)]
+        self.assertTrue(found(ev, "T3"))
+
+    def test_t5_work_firing_after_its_task_was_cancelled_is_found(self):
+        ev = [H_add("t", "task"), ("H", "add", "a", "after", 0.1, 0.0, None, "act", False,
+                                   "tick", "t"),
+              ("H", "cancel", "t", True), ("H", "fire", "a")]
+        self.assertTrue(found(ev, "T5"))
+
+    def test_t5_a_finished_tasks_work_may_fire(self):
+        ev = [H_add("t", "task"), ("H", "add", "a", "after", 0.1, 0.0, None, "act", False,
+                                   "tick", "t"),
+              ("H", "cancel", "t", False), ("H", "fire", "a")]
+        self.assertEqual(found(ev, "T5"), [])
+
+    def test_t6_a_task_started_on_a_dead_actor_that_steps_is_found(self):
+        ev = [H_add("t", "task", owner="O#0", refused=True), H_step("t")]
+        self.assertTrue(found(ev, "T6"))
+
     def test_t6_work_on_a_dead_actor_that_ticks_is_found(self):
         ev = [("N", "O#0", "O", "g.py:1", None), ("D", "O#0", False), ("d", "O#0", True),
               H_add("a", "after", delay=0.1, owner="O#0")] + frames(1, lambda k: [H_tick("a")])
@@ -146,6 +184,9 @@ class TestCanaries(unittest.TestCase):
 
     def test_t4(self):
         self._bites("T4")
+
+    def test_t5(self):
+        self._bites("T5")
 
     def test_t6(self):
         self._bites("T6")

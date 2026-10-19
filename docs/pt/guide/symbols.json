@@ -8582,6 +8582,20 @@
       "params": []
     },
     {
+      "name": "run_task",
+      "kind": "function",
+      "chapter": "mode",
+      "section": "mode-task",
+      "anchor": "mode-task",
+      "oneLiner": "Roda uma sequência async ao lado de tudo (uma tarefa).",
+      "public": true,
+      "chapterTitle": "Mode",
+      "sectionTitle": "tarefas",
+      "search": "run_task",
+      "catalog": false,
+      "params": []
+    },
+    {
       "name": "wait",
       "kind": "function",
       "chapter": "mode",

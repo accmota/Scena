@@ -12,6 +12,9 @@ Scena Design § Frame order):
 * a linear tween's value depends only on elapsed world time, not on how that
   time was split into frames; it lands exactly on the target and finishes once;
 * parking an owner for k frames delays its timers by exactly those frames;
+* a task's ``await wait(t)`` (made in its first step, before the tick) ends
+  in the frame ``after(t)`` would fire; a loop of waits steps at most once a
+  frame, and cancelling the task ends the ``every`` it started;
 * the wall-clock path clamps a hitch to ``MAX_FRAME_DT``; ``advance`` does not.
 
     python -m unittest tests.test_sys_hyp_scheduler -v
@@ -29,7 +32,7 @@ from hypothesis import assume, given, strategies as hst  # noqa: E402
 
 from system_support import quiet, system_world  # noqa: E402
 
-from scena import Circle, Entity, after, clock, every  # noqa: E402
+from scena import Circle, Entity, after, clock, every, run_task, wait  # noqa: E402
 from scena.input import MAX_FRAME_DT  # noqa: E402
 
 EPS = 1e-9
@@ -81,6 +84,50 @@ class TestAfter(unittest.TestCase):
                     ok.add(reach)
                 if fired:
                     self.assertIn(fired[0], ok, f"cum={cum} t={t}")
+
+
+class TestTask(unittest.TestCase):
+
+    @given(dts=frame_dts, t=hst.floats(0.0, 2.0, allow_nan=False))
+    def test_first_wait_ends_where_after_fires(self, dts, t):
+        with system_world(draw=False) as w:
+            frame_of = {"i": -1}
+            fired, woke = [], []
+            after(t, lambda: fired.append(frame_of["i"]))
+
+            async def seq():
+                await wait(t)
+                woke.append(frame_of["i"])
+
+            run_task(seq)
+            for i, dt in enumerate(dts):
+                frame_of["i"] = i
+                w.step(1, dt=dt)
+            self.assertEqual(woke, fired, f"dts={dts} t={t}")
+
+    @given(dts=frame_dts, p=hst.sampled_from([0.0, 0.01, 0.05, 0.2]),
+           stop=hst.integers(0, 60))
+    def test_steps_once_a_frame_and_its_work_ends_with_it(self, dts, p, stop):
+        with system_world(draw=False) as w:
+            frame_of = {"i": -1}
+            steps, kid = [], []
+
+            async def loop():
+                every(0.05, lambda: kid.append(frame_of["i"]))
+                while True:
+                    steps.append(frame_of["i"])
+                    await wait(p)
+
+            h = run_task(loop)
+            for i, dt in enumerate(dts):
+                frame_of["i"] = i
+                if i == stop:
+                    h.cancel()
+                w.step(1, dt=dt)
+            later = steps[1:]
+            self.assertEqual(len(later), len(set(later)), f"two steps in one frame: {steps}")
+            self.assertFalse([f for f in kid if f >= stop], f"its every outlived it: {kid}")
+            self.assertFalse([f for f in later if f >= stop], f"it stepped after its cancel: {steps}")
 
 
 class TestEvery(unittest.TestCase):

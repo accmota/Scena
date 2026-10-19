@@ -6,7 +6,8 @@ Controls
 --------
   mouse hover        lights a toy (hover / hover_exit)
   mouse drag         carry a toy; drop it on the red or blue bin (drag_over / drag_to / drop_by)
-  click the scanner  count the loose toys touching it (test_collision)
+  click the scanner  count the loose toys touching it (test_collision); the
+                     scanner blinks three times (run_task, name= restarts it)
   R                  toys pass through each other / are solid again (unresolve / resolve)
   P                  pause / resume all collision resolution (collision.resolve_enabled)
   U                  stop watching the bin count (unregister_event)
@@ -56,6 +57,7 @@ st.binned = 0          # toys currently in a bin
 st.changes = 0         # on_change(st["binned"]) firings
 st.flushed = True      # each drop saw its on_change run right after flush()
 st.watching = True
+st.sweeps = 0          # scanner blink sequences that ran to the end (run_task)
 st.hovers = st.hover_exits = 0
 st.hovered = ""
 st.over_frames = 0
@@ -152,6 +154,14 @@ def on_binned(value):
 @click(scanner)
 def scan(_):
     st.scanned = sum(1 for t in group["loose"] if test_collision(scanner, t) is not None)
+    run_task(sweep, name="sweep")   # a click during a sweep restarts it
+
+
+async def sweep():
+    for _ in range(3):
+        scanner.flash(0.08)
+        await wait(0.12)
+    st.sweeps += 1
 
 
 # -- collisions ---------------------------------------------------------------

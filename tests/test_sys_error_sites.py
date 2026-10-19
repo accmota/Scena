@@ -41,8 +41,8 @@ from system_support import SystemTestCase, quiet, tone  # noqa: E402
 import scena  # noqa: E402
 from scena import (Act, Button, Circle, Endless, Entity, Rect, TextInput, after, canvas,  # noqa: E402
                    change_act, clock, collide, collide_exit, collide_stay, drag_to, drop_by,
-                   exit_mode, hover, hover_exit, leave_playfield, on_change, st, tween, until,
-                   wait, when)
+                   exit_mode, hover, hover_exit, leave_playfield, on_change, run_task, st,
+                   tween, until, wait, when)
 from scena.input import Mouse  # noqa: E402
 from scena.state import get_scena_system  # noqa: E402
 
@@ -118,6 +118,15 @@ def arm_mode_async(tc, log):
         await wait(0.03)
         f()
     e.mode = body
+
+
+def arm_run_task(tc, log):
+    f = _once(log)
+
+    async def body():
+        await wait(0.03)
+        f()
+    run_task(body)
 
 
 def arm_exit_mode(tc, log):
@@ -372,6 +381,7 @@ SITES: List[Site] = [
     Site("tween on_done", arm_tween_on_done, ["tween"]),
     Site("mode body (sync)", arm_mode_sync, ["mode", "on_mode"]),
     Site("mode body (async)", arm_mode_async, ["wait"]),
+    Site("task body", arm_run_task, ["run_task"]),
     Site("@exit_mode", arm_exit_mode, ["exit_mode"]),
     Site("on_update", arm_on_update, ["on_update"]),
     Site("on_destroy", arm_on_destroy, ["on_destroy"]),
@@ -425,7 +435,7 @@ CALLBACK_EXPORTS = {
     "tween", "until", "wait", "parallel", "race", "play_sound", "Endless", "Act",
     "change_act", "Button", "SpriteButton", "CheckBox", "Menu", "TextInput", "Slider",
     "DropDown", "Attribute", "State", "Handle", "Level", "History", "Contrail",
-    "Microphone", "unregister_event", "Sound",
+    "Microphone", "unregister_event", "Sound", "run_task",
 }
 
 
