@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eventos e processos — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Interlúdio",
+  title: "Eventos e processos",
+  steps: [
+    {
+      title: "O quadro",
+      body: [
+        `
+        <p>Ao longo da série, o seu código rodou de muitos jeitos: no <code>update</code>, num <code>@collide</code>, num <code>@every</code>, depois de um <code>after</code>, numa fórmula, num modo <code>async</code>. Cada tutorial apresentou a peça de que o jogo precisava. Este interlúdio junta as peças numa ideia só, com um cruzamento: uma rua, um semáforo, carros e pedestres.</p>
+        <p>Tudo começa no <strong>quadro</strong>. Um jogo do Scena é uma fila de quadros, uns 60 por segundo, e em cada um o Scena faz as mesmas coisas, sempre na mesma ordem:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 250" role="img" aria-label="As etapas de um quadro, de cima para baixo: entrada, update, processos, colisao, bordas e mouse, vigias e desenho; uma seta volta do desenho para a entrada do quadro seguinte">
+            <rect class="bar" x="40" y="10" width="120" height="22" rx="4"/>
+            <rect class="bar" x="40" y="40" width="120" height="22" rx="4"/>
+            <rect class="bar child" x="40" y="70" width="120" height="22" rx="4"/>
+            <rect class="bar" x="40" y="100" width="120" height="22" rx="4"/>
+            <rect class="bar" x="40" y="130" width="120" height="22" rx="4"/>
+            <rect class="bar" x="40" y="160" width="120" height="22" rx="4"/>
+            <rect class="bar" x="40" y="190" width="120" height="22" rx="4"/>
+            <text x="50" y="25">entrada</text>
+            <text x="50" y="55">update</text>
+            <text x="50" y="85">processos</text>
+            <text x="50" y="115">colisão</text>
+            <text x="50" y="145">bordas e mouse</text>
+            <text x="50" y="175">vigias</text>
+            <text x="50" y="205">desenho</text>
+            <text x="172" y="25">on_key_down, cliques</text>
+            <text x="172" y="55">update(dt)</text>
+            <text x="172" y="85">after, every, time=, async…</text>
+            <text x="172" y="115">@collide, resolve</text>
+            <text x="172" y="145">@leave_playfield, @hover</text>
+            <text x="172" y="175">@when, @on_change</text>
+            <text x="172" y="205">a tela</text>
+            <line class="ray" x1="22" y1="201" x2="22" y2="21"/>
+            <line class="ray" x1="22" y1="201" x2="38" y2="201"/>
+            <line class="ray" x1="22" y1="21" x2="38" y2="21"/>
+            <line class="ray" x1="38" y1="21" x2="32" y2="17"/>
+            <line class="ray" x1="38" y1="21" x2="32" y2="25"/>
+            <text x="40" y="238">o próximo quadro começa de novo em cima</text>
+          </svg>
+          <figcaption>Um quadro, de cima para baixo. Os processos (os timers, os movimentos com <code>time=</code>, as sequências <code>async</code>, o <code>on_update</code> de cada objeto) rodam todos na mesma etapa.</figcaption>
+        </figure>
+        <p>Nada roda ao mesmo tempo que outra coisa. Cada função que o Scena chama roda até o fim, e só então vem a próxima. Para começar, um carro e duas maneiras de ler o teclado.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Semáforo")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+frota = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+carro = Sprite(frota, frame="car_red_1.png", height=100, center=(500, 80))
+
+
+def update(dt):
+    if keyp("UP"):
+        carro.move_by(0, 220 * dt)
+
+
+def on_key_down(key):
+    if key == "SPACE":
+        carro.flash(0.2)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "atlas=",
+          text: "A folha de carros do pacote de corrida, com o seu atlas: o arquivo que diz onde está cada carro. <code>frame=</code> escolhe um pelo nome. Os carros do pacote são vistos de cima, de frente para cima."
+        },
+        {
+          at: "if keyp(\"UP\"):",
+          text: "Uma <strong>pergunta</strong>: em todo quadro, o <code>update</code> pergunta se a seta está apertada. Enquanto você segura, a resposta é sim em todos os quadros, e o carro anda um pouco em cada um."
+        },
+        {
+          at: "def on_key_down(key):",
+          text: "Um <strong>aviso</strong>: o Scena chama <code>on_key_down</code> (ao apertar uma tecla) uma vez, no quadro em que a tecla desce. <code>flash(0.2)</code> (clarão) clareia o carro por 0.2 s."
+        }
+      ],
+      after: `
+        <p>Rode. Segure a seta para cima, e aperte o Espaço de vez em quando.</p>
+        <details class="ask"><summary>E se o clarão estivesse no <code>update</code>, com <code>if keyp("SPACE"):</code>?</summary><p>O carro ficaria claro o tempo todo enquanto você segura o Espaço: a pergunta responde sim em todos esses quadros, e o clarão recomeça em cada um. Para um estado (a tecla está apertada?), a pergunta; para um instante (a tecla acabou de descer), o aviso.</p></details>
+      `
+    },
+    {
+      title: "Os carros",
+      body: [
+        `
+        <p>Agora o trânsito anda sozinho. Cada carro é um objeto da classe <code>Carro</code>, e um timer cria um novo a cada 1,6 segundo, embaixo da tela.</p>
+        <p>O timer chama uma função comum, <code>novo_carro</code>. Ela roda inteira, na hora, como a do aviso de tecla. O que muda é quem decide quando: o relógio do timer, e não você.</p>
+        `
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=700, title="Semáforo")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+frota = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+CARROS = ["car_red_1.png", "car_blue_3.png", "car_green_2.png", "car_yellow_5.png", "car_black_4.png"]
+
+
+class Carro(Sprite, source=frota, height=100, group="carros"):
+    def on_update(self, dt):
+        self.move_by(0, 220 * dt)
+
+    @leave_playfield
+    def saiu(self):
+        self.destroy()
+
+
+def novo_carro():
+    Carro(frame=choice(CARROS), center=(500, -60))
+
+
+transito = every(1.6, novo_carro)
+
+
+def on_key_down(key):
+    if key == "P":
+        if transito.paused:
+            transito.resume()
+        else:
+            transito.pause()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_update(self, dt):",
+          text: "O <code>on_update</code> é o <code>update</code> de cada carro. O Scena o chama em todo quadro, na etapa dos processos."
+        },
+        {
+          at: "@leave_playfield",
+          text: "Outro aviso: <code>@leave_playfield</code> (ao sair da área de jogo) chama <code>saiu</code> uma vez, quando o carro passa da borda de cima."
+        },
+        {
+          at: "transito = every(1.6, novo_carro)",
+          text: "<code>every</code> (a cada) chama <code>novo_carro</code> a cada 1,6 s e devolve um <strong>Handle</strong> (alça): o controle desse timer. Guardado numa variável, ele pode ser pausado, retomado e cancelado."
+        },
+        {
+          at: "if transito.paused:",
+          text: "<code>pause()</code> (pausar) segura o relógio onde ele está; <code>resume()</code> (retomar) continua de onde parou. <code>paused</code> (pausado) diz em qual dos dois ele está."
+        }
+      ],
+      after: `
+        <p>Rode e aperte P. Os carros na rua continuam: o que parou foi só o relógio que cria carros.</p>
+      `,
+      dive: [
+        {
+          title: "O Handle",
+          body: `
+            <p>Todo processo do Scena devolve um Handle: <code>after</code>, <code>every</code>, um <code>move_to</code> com <code>time=</code>, um <code>play_sound</code>, uma tarefa. É sempre o mesmo controle, com as mesmas leituras:</p>
+            <div class="tbl"><table>
+              <thead><tr><th>No Handle</th><th>O que faz</th></tr></thead>
+              <tbody>
+                <tr><td><code>h.done</code></td><td>já terminou? (<code>True</code> ou <code>False</code>)</td></tr>
+                <tr><td><code>h.cancel()</code></td><td>cancela: o timer não dispara mais, o movimento para onde está</td></tr>
+                <tr><td><code>h.pause()</code> · <code>h.resume()</code></td><td>segura e retoma, sem perder a vez</td></tr>
+                <tr><td><code>h.elapsed</code> · <code>h.remaining</code></td><td>quanto tempo já passou, quanto falta</td></tr>
+              </tbody>
+            </table></div>
+            <p>Quem não precisa controlar o processo não guarda o Handle: <code>every(1.6, novo_carro)</code> sozinho na linha também funciona.</p>
+            <p>No Guia: <a href="../guide/index.html#agendar-timers">after / every</a> · <a href="../guide/index.html#agendar-handle">Handle</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "O semáforo com after",
+      body: [
+        `
+        <p>O semáforo é uma caixa escura com três lâmpadas. Em que cor ele está fica guardado em <code>st.luz</code>, e cada lâmpada tem a cor como fórmula: acesa quando <code>st.luz</code> é a sua cor, apagada nas outras.</p>
+        `,
+        {
+          snip: `Circle(center=(730, 460), radius=16, color=lambda: "red" if st.luz == "vermelho" else "#401818")`
+        },
+        `
+        <p>É o terceiro jeito de o Scena rodar o seu código, depois da pergunta e do aviso: a fórmula fica valendo, e o Scena a refaz quando o que ela lê muda (as Fórmulas, tutorial 09). Basta escrever em <code>st.luz</code>, e as três lâmpadas se acertam sozinhas.</p>
+        <p>Para trocar de cor, um <code>after</code> (depois de) em cada fase: o verde marca o amarelo para daqui a 4 s, o amarelo marca o vermelho, o vermelho marca o verde de novo.</p>
+        `,
+        {
+          snip: `def verde():
+    st.luz = "verde"
+    after(4, amarelo)`
+        },
+        `
+        <p>A chamada <code>verde()</code>, sozinha no fim do arquivo, liga o ciclo; dali em diante cada fase chama a seguinte. E o carro passa a olhar o semáforo.</p>
+        `
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=700, title="Semáforo")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+st.luz = "verde"
+Rect(center=(730, 420), width=50, height=130, color="#222222")
+Circle(center=(730, 460), radius=16, color=lambda: "red" if st.luz == "vermelho" else "#401818")
+Circle(center=(730, 420), radius=16, color=lambda: "gold" if st.luz == "amarelo" else "#403818")
+Circle(center=(730, 380), radius=16, color=lambda: "lime" if st.luz == "verde" else "#183818")
+
+frota = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+CARROS = ["car_red_1.png", "car_blue_3.png", "car_green_2.png", "car_yellow_5.png", "car_black_4.png"]
+
+
+class Carro(Sprite, source=frota, height=100, group="carros"):
+    def on_update(self, dt):
+        if self.pode_andar():
+            self.move_by(0, 220 * dt)
+
+    def pode_andar(self):
+        na_linha = 150 < self.center.y < 250
+        if na_linha and st.luz in ("amarelo", "vermelho"):
+            return False
+        if group["carros"].any(lambda c: 0 < c.center.y - self.center.y < 130):
+            return False
+        return True
+
+    @leave_playfield
+    def saiu(self):
+        self.destroy()
+
+
+def novo_carro():
+    Carro(frame=choice(CARROS), center=(500, -60))
+
+
+transito = every(1.6, novo_carro)
+
+
+def verde():
+    st.luz = "verde"
+    after(4, amarelo)
+
+
+def amarelo():
+    st.luz = "amarelo"
+    after(1, vermelho)
+
+
+def vermelho():
+    st.luz = "vermelho"
+    after(4, verde)
+
+
+def on_key_down(key):
+    if key == "P":
+        if transito.paused:
+            transito.resume()
+        else:
+            transito.pause()
+
+
+verde()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "na_linha = 150 < self.center.y < 250",
+          text: "O carro está chegando à faixa: o centro dele entre 150 e 250, logo antes das listras."
+        },
+        {
+          at: "if na_linha and st.luz in (\"amarelo\", \"vermelho\"):",
+          text: "No amarelo e no vermelho, quem está chegando para. Quem já passou da linha segue em frente."
+        },
+        {
+          at: "group[\"carros\"].any(",
+          text: "A fila: <code>any</code> (algum) pergunta se algum carro está logo à frente, até 130 acima do centro deste. O carro tem 100 de altura; sobram 30 de folga."
+        }
+      ],
+      after: `
+        <p>Rode. Os carros param no vermelho e fazem fila; no verde, saem um atrás do outro.</p>
+        <details class="ask"><summary>Funciona. Mas onde está a ordem do ciclo no código?</summary><p>Espalhada em três funções. Para ler verde, amarelo, vermelho, você salta de uma para a outra seguindo os <code>after</code>. Acrescentar uma fase, como o vermelho com o amarelo antes do verde, é mais uma função e mais um elo na corrente.</p></details>
+      `
+    },
+    {
+      title: "A mesma ordem, em sequência",
+      body: [
+        `
+        <p>O ciclo é uma <strong>sequência</strong>: verde, espera 4 s, amarelo, espera 1 s, vermelho, espera 4 s, e de novo. Uma sequência com esperas se escreve como uma função <code>async</code>, que você já usou nos modos do 24:</p>
+        `,
+        {
+          snip: `async def ciclo():
+    while True:
+        st.luz = "verde"
+        await wait(4)
+        st.luz = "amarelo"`
+        },
+        `
+        <p>A ordem do semáforo agora é a ordem das linhas. O <code>await wait(4)</code> (aguarde, esperar) pausa só esta função, por 4 s; o jogo não para. Os quadros continuam, os carros andam, e a função dorme até a hora de seguir para a linha de baixo:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 150" role="img" aria-label="Duas faixas no tempo, de 0 a 9 segundos. Em cima, o ciclo: verde por 4 segundos, amarelo por 1, vermelho por 4, com um ponto em cada troca. Embaixo, os quadros do jogo, um risco curto atras do outro, sem parar">
+            <line class="ray" x1="70.0" y1="80" x2="70.0" y2="98"/>
+            <line class="ray" x1="75.5" y1="80" x2="75.5" y2="98"/>
+            <line class="ray" x1="81.0" y1="80" x2="81.0" y2="98"/>
+            <line class="ray" x1="86.5" y1="80" x2="86.5" y2="98"/>
+            <line class="ray" x1="92.0" y1="80" x2="92.0" y2="98"/>
+            <line class="ray" x1="97.5" y1="80" x2="97.5" y2="98"/>
+            <line class="ray" x1="103.0" y1="80" x2="103.0" y2="98"/>
+            <line class="ray" x1="108.5" y1="80" x2="108.5" y2="98"/>
+            <line class="ray" x1="114.0" y1="80" x2="114.0" y2="98"/>
+            <line class="ray" x1="119.5" y1="80" x2="119.5" y2="98"/>
+            <line class="ray" x1="125.0" y1="80" x2="125.0" y2="98"/>
+            <line class="ray" x1="130.5" y1="80" x2="130.5" y2="98"/>
+            <line class="ray" x1="136.0" y1="80" x2="136.0" y2="98"/>
+            <line class="ray" x1="141.5" y1="80" x2="141.5" y2="98"/>
+            <line class="ray" x1="147.0" y1="80" x2="147.0" y2="98"/>
+            <line class="ray" x1="152.5" y1="80" x2="152.5" y2="98"/>
+            <line class="ray" x1="158.0" y1="80" x2="158.0" y2="98"/>
+            <line class="ray" x1="163.5" y1="80" x2="163.5" y2="98"/>
+            <line class="ray" x1="169.0" y1="80" x2="169.0" y2="98"/>
+            <line class="ray" x1="174.5" y1="80" x2="174.5" y2="98"/>
+            <line class="ray" x1="180.0" y1="80" x2="180.0" y2="98"/>
+            <line class="ray" x1="185.5" y1="80" x2="185.5" y2="98"/>
+            <line class="ray" x1="191.0" y1="80" x2="191.0" y2="98"/>
+            <line class="ray" x1="196.5" y1="80" x2="196.5" y2="98"/>
+            <line class="ray" x1="202.0" y1="80" x2="202.0" y2="98"/>
+            <line class="ray" x1="207.5" y1="80" x2="207.5" y2="98"/>
+            <line class="ray" x1="213.0" y1="80" x2="213.0" y2="98"/>
+            <line class="ray" x1="218.5" y1="80" x2="218.5" y2="98"/>
+            <line class="ray" x1="224.0" y1="80" x2="224.0" y2="98"/>
+            <line class="ray" x1="229.5" y1="80" x2="229.5" y2="98"/>
+            <line class="ray" x1="235.0" y1="80" x2="235.0" y2="98"/>
+            <line class="ray" x1="240.5" y1="80" x2="240.5" y2="98"/>
+            <line class="ray" x1="246.0" y1="80" x2="246.0" y2="98"/>
+            <line class="ray" x1="251.5" y1="80" x2="251.5" y2="98"/>
+            <line class="ray" x1="257.0" y1="80" x2="257.0" y2="98"/>
+            <line class="ray" x1="262.5" y1="80" x2="262.5" y2="98"/>
+            <line class="ray" x1="268.0" y1="80" x2="268.0" y2="98"/>
+            <line class="ray" x1="273.5" y1="80" x2="273.5" y2="98"/>
+            <line class="ray" x1="279.0" y1="80" x2="279.0" y2="98"/>
+            <line class="ray" x1="284.5" y1="80" x2="284.5" y2="98"/>
+            <line class="ray" x1="290.0" y1="80" x2="290.0" y2="98"/>
+            <line class="ray" x1="295.5" y1="80" x2="295.5" y2="98"/>
+            <line class="ray" x1="301.0" y1="80" x2="301.0" y2="98"/>
+            <line class="ray" x1="306.5" y1="80" x2="306.5" y2="98"/>
+            <line class="ray" x1="312.0" y1="80" x2="312.0" y2="98"/>
+            <line class="ray" x1="317.5" y1="80" x2="317.5" y2="98"/>
+            <line class="ray" x1="323.0" y1="80" x2="323.0" y2="98"/>
+            <line class="ray" x1="328.5" y1="80" x2="328.5" y2="98"/>
+            <line class="ray" x1="334.0" y1="80" x2="334.0" y2="98"/>
+            <line class="ray" x1="339.5" y1="80" x2="339.5" y2="98"/>
+            <line class="ray" x1="345.0" y1="80" x2="345.0" y2="98"/>
+            <line class="ray" x1="350.5" y1="80" x2="350.5" y2="98"/>
+            <line class="ray" x1="356.0" y1="80" x2="356.0" y2="98"/>
+            <line class="ray" x1="361.5" y1="80" x2="361.5" y2="98"/>
+            <line class="ray" x1="367.0" y1="80" x2="367.0" y2="98"/>
+            <line class="ray" x1="372.5" y1="80" x2="372.5" y2="98"/>
+            <line class="ray" x1="378.0" y1="80" x2="378.0" y2="98"/>
+            <line class="ray" x1="383.5" y1="80" x2="383.5" y2="98"/>
+            <line class="ray" x1="389.0" y1="80" x2="389.0" y2="98"/>
+            <line class="ray" x1="394.5" y1="80" x2="394.5" y2="98"/>
+            <line class="ray" x1="400.0" y1="80" x2="400.0" y2="98"/>
+            <rect class="bar" x="70" y="30" width="146" height="24" rx="4"/>
+            <rect class="bar child" x="217" y="30" width="36" height="24" rx="4"/>
+            <rect class="bar" x="254" y="30" width="146" height="24" rx="4"/>
+            <circle class="hot" cx="70" cy="42" r="5"/>
+            <circle class="hot" cx="217" cy="42" r="5"/>
+            <circle class="hot" cx="254" cy="42" r="5"/>
+            <circle class="hot" cx="400" cy="42" r="5"/>
+            <text x="120" y="22">verde</text>
+            <text x="210" y="22">amarelo</text>
+            <text x="300" y="22">vermelho</text>
+            <text x="100" y="47">await wait(4)</text>
+            <text x="226" y="47">1 s</text>
+            <text x="284" y="47">await wait(4)</text>
+            <text x="8" y="47">ciclo</text>
+            <text x="8" y="92">quadros</text>
+            <line class="ray" x1="70" y1="118" x2="400" y2="118"/>
+            <text x="64" y="134">0 s</text>
+            <text x="211" y="134">4</text>
+            <text x="250" y="134">5</text>
+            <text x="394" y="134">9</text>
+          </svg>
+          <figcaption>Enquanto o ciclo espera, os quadros seguem. A tarefa só acorda nos pontos: troca a cor e volta a dormir até a próxima espera.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=700, title="Semáforo")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+st.luz = "verde"
+Rect(center=(730, 420), width=50, height=130, color="#222222")
+Circle(center=(730, 460), radius=16, color=lambda: "red" if st.luz == "vermelho" else "#401818")
+Circle(center=(730, 420), radius=16, color=lambda: "gold" if st.luz == "amarelo" else "#403818")
+Circle(center=(730, 380), radius=16, color=lambda: "lime" if st.luz == "verde" else "#183818")
+
+frota = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+CARROS = ["car_red_1.png", "car_blue_3.png", "car_green_2.png", "car_yellow_5.png", "car_black_4.png"]
+
+
+class Carro(Sprite, source=frota, height=100, group="carros"):
+    def on_update(self, dt):
+        if self.pode_andar():
+            self.move_by(0, 220 * dt)
+
+    def pode_andar(self):
+        na_linha = 150 < self.center.y < 250
+        if na_linha and st.luz in ("amarelo", "vermelho"):
+            return False
+        if group["carros"].any(lambda c: 0 < c.center.y - self.center.y < 130):
+            return False
+        return True
+
+    @leave_playfield
+    def saiu(self):
+        self.destroy()
+
+
+def novo_carro():
+    Carro(frame=choice(CARROS), center=(500, -60))
+
+
+transito = every(1.6, novo_carro)
+
+
+async def ciclo():
+    while True:
+        st.luz = "verde"
+        await wait(4)
+        st.luz = "amarelo"
+        await wait(1)
+        st.luz = "vermelho"
+        await wait(4)
+
+
+def on_key_down(key):
+    if key == "P":
+        if transito.paused:
+            transito.resume()
+        else:
+            transito.pause()
+
+
+run_task(ciclo)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "async def ciclo():",
+          text: "<code>async def</code> (função assíncrona) é uma função que pode esperar no meio. As três funções e os três <code>after</code> viraram esta."
+        },
+        {
+          at: "while True:",
+          text: "<code>while True</code> (enquanto verdadeiro) repete para sempre. O <code>await</code> dentro do laço é o que deixa o jogo continuar enquanto a função espera."
+        },
+        {
+          at: "await wait(1)",
+          text: "Sem o <code>await</code>, <code>wait(1)</code> não espera nada: o Scena recusa (<code>TypeError</code>) e diz a linha e o <code>await</code> que falta."
+        },
+        {
+          at: "run_task(ciclo)",
+          text: "<code>run_task</code> (rodar tarefa) roda <code>ciclo</code> como uma <strong>tarefa</strong>: uma sequência que corre ao lado do jogo. A primeira parte, até o primeiro <code>await</code>, roda aqui mesmo; o resto, nos quadros seguintes. Passe a função sem parênteses: <code>run_task(ciclo())</code> é recusado."
+        }
+      ],
+      after: `
+        <p>Rode: o semáforo faz o mesmo que antes.</p>
+        <details class="ask"><summary>E um <code>while True</code> sem nenhum <code>await</code> dentro?</summary><p>O laço nunca devolve a vez, e o quadro não termina: o jogo congela. Depois de meio segundo o Scena cancela a tarefa e avisa (SCENA ERROR) que falta um <code>await</code> dentro do laço.</p></details>
+      `
+    },
+    {
+      title: "Uma vaga com nome",
+      body: [
+        `
+        <p>De madrugada, o semáforo pisca o amarelo. É outra sequência, <code>alerta</code>, e as teclas trocam uma pela outra: N põe o pisca-alerta, D volta para o ciclo do dia.</p>
+        <p>Duas tarefas escrevendo em <code>st.luz</code> ao mesmo tempo seriam uma briga. Então as duas ocupam a mesma <strong>vaga</strong>, um nome:</p>
+        `,
+        {
+          snip: `run_task(alerta, name="semaforo")`
+        },
+        `
+        <p>Uma tarefa nova com o mesmo <code>name=</code> (nome) cancela a que está rodando. E o que a tarefa antiga tinha começado vai junto: a espera do ciclo é cancelada, e ninguém volta para o amarelo daqui a 4 s.</p>
+        `
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=700, title="Semáforo")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+st.luz = "verde"
+Rect(center=(730, 420), width=50, height=130, color="#222222")
+Circle(center=(730, 460), radius=16, color=lambda: "red" if st.luz == "vermelho" else "#401818")
+Circle(center=(730, 420), radius=16, color=lambda: "gold" if st.luz in ("amarelo", "alerta") else "#403818")
+Circle(center=(730, 380), radius=16, color=lambda: "lime" if st.luz == "verde" else "#183818")
+
+frota = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+CARROS = ["car_red_1.png", "car_blue_3.png", "car_green_2.png", "car_yellow_5.png", "car_black_4.png"]
+
+
+class Carro(Sprite, source=frota, height=100, group="carros"):
+    def on_update(self, dt):
+        if self.pode_andar():
+            self.move_by(0, 220 * dt)
+
+    def pode_andar(self):
+        na_linha = 150 < self.center.y < 250
+        if na_linha and st.luz in ("amarelo", "vermelho"):
+            return False
+        if group["carros"].any(lambda c: 0 < c.center.y - self.center.y < 130):
+            return False
+        return True
+
+    @leave_playfield
+    def saiu(self):
+        self.destroy()
+
+
+def novo_carro():
+    Carro(frame=choice(CARROS), center=(500, -60))
+
+
+transito = every(1.6, novo_carro)
+
+
+async def ciclo():
+    while True:
+        st.luz = "verde"
+        await wait(4)
+        st.luz = "amarelo"
+        await wait(1)
+        st.luz = "vermelho"
+        await wait(4)
+
+
+async def alerta():
+    while True:
+        st.luz = "alerta"
+        await wait(0.5)
+        st.luz = "apagado"
+        await wait(0.5)
+
+
+def on_key_down(key):
+    if key == "P":
+        if transito.paused:
+            transito.resume()
+        else:
+            transito.pause()
+    if key == "N":
+        run_task(alerta, name="semaforo")
+    if key == "D":
+        run_task(ciclo, name="semaforo")
+
+
+run_task(ciclo, name="semaforo")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "st.luz in (\"amarelo\", \"alerta\")",
+          text: "A lâmpada amarela acende no amarelo do ciclo e no <code>\"alerta\"</code> do pisca. Os carros só param no amarelo e no vermelho, então no pisca-alerta eles passam."
+        },
+        {
+          at: "if key == \"D\":",
+          text: "D põe o ciclo de volta na vaga. O ciclo do começo do jogo, no fim do arquivo, também ganhou o <code>name=</code>: sem ele, o N não teria o que trocar."
+        }
+      ],
+      after: `
+        <p>Rode. Aperte N e, depois de um tempo, D: o ciclo recomeça do verde, porque a tarefa nova começa do começo.</p>
+        <details class="ask"><summary>E sem os <code>name=</code>?</summary><p>As duas tarefas correriam juntas, cada uma escrevendo a sua cor em <code>st.luz</code>: o semáforo piscaria e trocaria de cor ao mesmo tempo. E cada D começaria mais um ciclo, sem parar o anterior.</p></details>
+      `
+    },
+    {
+      title: "Quem atravessa",
+      body: [
+        `
+        <p>Chegam os pedestres, um a cada 5 s, na calçada da esquerda. Cada um espera o vermelho, atravessa e sobe pela outra calçada.</p>
+        <p>Esperar, atravessar e ir embora é o que o pedestre <em>está fazendo</em>: um capítulo dele, um modo. Como no 24, um modo com esperas é um modo <code>async</code>:</p>
+        `,
+        {
+          snip: `@on_mode
+async def atravessando(self):
+    await until(lambda: st.luz == "vermelho")
+    await self.move_to(650, self.center.y, time=2.5, face=True)`
+        },
+        `
+        <p><code>until</code> (até) espera uma condição: o Scena faz a pergunta da <code>lambda</code> a cada quadro, e o <code>await</code> segue no primeiro quadro em que a resposta é sim. Um pedestre que chega no meio do vermelho não espera nada: a resposta já é sim.</p>
+        `
+      ],
+      code: `from random import choice, uniform
+from scena import *
+
+init(width=1000, height=700, title="Semáforo")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+st.luz = "verde"
+Rect(center=(730, 420), width=50, height=130, color="#222222")
+Circle(center=(730, 460), radius=16, color=lambda: "red" if st.luz == "vermelho" else "#401818")
+Circle(center=(730, 420), radius=16, color=lambda: "gold" if st.luz in ("amarelo", "alerta") else "#403818")
+Circle(center=(730, 380), radius=16, color=lambda: "lime" if st.luz == "verde" else "#183818")
+
+frota = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+gente = Sheet("racing/spritesheet_characters.png", atlas="racing/spritesheet_characters.xml")
+CARROS = ["car_red_1.png", "car_blue_3.png", "car_green_2.png", "car_yellow_5.png", "car_black_4.png"]
+GENTE = ["character_brown_blue.png", "character_blonde_red.png", "character_black_green.png"]
+
+
+class Carro(Sprite, source=frota, height=100, group="carros"):
+    def on_update(self, dt):
+        if self.pode_andar():
+            self.move_by(0, 220 * dt)
+
+    def pode_andar(self):
+        na_linha = 150 < self.center.y < 250
+        if na_linha and st.luz in ("amarelo", "vermelho"):
+            return False
+        if na_linha and group["pedestres"].any(lambda p: 370 < p.center.x < 630):
+            return False
+        if group["carros"].any(lambda c: 0 < c.center.y - self.center.y < 130):
+            return False
+        return True
+
+    @leave_playfield
+    def saiu(self):
+        self.destroy()
+
+
+def novo_carro():
+    Carro(frame=choice(CARROS), center=(500, -60))
+
+
+transito = every(1.6, novo_carro)
+
+
+class Pedestre(Sprite, source=gente, height=24, group="pedestres", art_angle=-90):
+    def setup(self):
+        self.mode = self.atravessando
+
+    @on_mode
+    async def atravessando(self):
+        await until(lambda: st.luz == "vermelho")
+        await self.move_to(650, self.center.y, time=2.5, face=True)
+        await self.move_by(0, 450, time=4, face=True)
+        self.destroy()
+
+
+def novo_pedestre():
+    Pedestre(frame=choice(GENTE), center=(350, uniform(320, 380)))
+
+
+every(5, novo_pedestre)
+
+
+async def ciclo():
+    while True:
+        st.luz = "verde"
+        await wait(4)
+        st.luz = "amarelo"
+        await wait(1)
+        st.luz = "vermelho"
+        await wait(4)
+
+
+async def alerta():
+    while True:
+        st.luz = "alerta"
+        await wait(0.5)
+        st.luz = "apagado"
+        await wait(0.5)
+
+
+def on_key_down(key):
+    if key == "P":
+        if transito.paused:
+            transito.resume()
+        else:
+            transito.pause()
+    if key == "N":
+        run_task(alerta, name="semaforo")
+    if key == "D":
+        run_task(ciclo, name="semaforo")
+
+
+run_task(ciclo, name="semaforo")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "art_angle=-90",
+          text: "Os pedestres do pacote olham para baixo; <code>art_angle=-90</code> diz isso ao Scena, e <code>face=True</code> vira cada um para onde ele anda."
+        },
+        {
+          at: "self.mode = self.atravessando",
+          text: "O pedestre entra no modo assim que nasce."
+        },
+        {
+          at: "await self.move_to(650, self.center.y, time=2.5, face=True)",
+          text: "Um movimento com <code>time=</code> também se espera: o <code>await</code> segue quando o pedestre chega do outro lado."
+        },
+        {
+          at: "group[\"pedestres\"].any(",
+          text: "E o carro espera quem ainda está na faixa, mesmo que o verde já tenha voltado."
+        },
+        {
+          at: "every(5, novo_pedestre)",
+          text: "Os pedestres chegam por um timer, como os carros."
+        }
+      ],
+      after: `
+        <p>Rode e espere o vermelho.</p>
+      `,
+      dive: [
+        {
+          title: "Modo ou tarefa?",
+          body: `
+            <p>As duas são sequências <code>async</code>. A diferença é de quem elas são, e quantas rodam juntas:</p>
+            <div class="tbl"><table>
+              <thead><tr><th></th><th>Modo</th><th>Tarefa</th></tr></thead>
+              <tbody>
+                <tr><td>É</td><td>o que o objeto está fazendo</td><td>um trabalho a mais, ou de ninguém</td></tr>
+                <tr><td>Quantos</td><td>um de cada vez: entrar noutro cancela o atual</td><td>quantas você começar</td></tr>
+                <tr><td>Começa com</td><td><code>self.mode = self.atravessando</code></td><td><code>run_task(ciclo)</code></td></tr>
+                <tr><td>Aqui</td><td>o pedestre esperando e atravessando</td><td>o ciclo do semáforo, que não é de nenhum objeto</td></tr>
+              </tbody>
+            </table></div>
+            <p>Uma tarefa também pode ser de um objeto: <code>self.run_task(self.piscar)</code> começa uma tarefa que acaba quando o objeto é destruído e que não se importa com as trocas de modo dele. Serve para um trabalho que corre ao lado do capítulo, como um power-up que dura uns segundos enquanto a nave luta.</p>
+            <p>No Guia: <a href="../guide/index.html#mode-async">espera async</a> · <a href="../guide/index.html#mode-task">tarefas</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "O que vier primeiro",
+      body: [
+        `
+        <p>No pisca-alerta não há vermelho, e o pedestre esperaria para sempre. Ele espera, no máximo, 8 s: o que vier primeiro, o vermelho ou o fim da paciência.</p>
+        `,
+        {
+          snip: `vez = await race(until(lambda: st.luz == "vermelho"), wait(8))`
+        },
+        `
+        <p><code>until(…)</code> e <code>wait(8)</code> também devolvem um Handle, como o <code>every</code>. <code>race</code> (corrida) recebe dois ou mais, espera o primeiro terminar e cancela os outros. A resposta é a posição de quem ganhou: <code>0</code> para o primeiro, <code>1</code> para o segundo.</p>
+        `
+      ],
+      code: `from random import choice, uniform
+from scena import *
+
+init(width=1000, height=700, title="Semáforo")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+st.luz = "verde"
+Rect(center=(730, 420), width=50, height=130, color="#222222")
+Circle(center=(730, 460), radius=16, color=lambda: "red" if st.luz == "vermelho" else "#401818")
+Circle(center=(730, 420), radius=16, color=lambda: "gold" if st.luz in ("amarelo", "alerta") else "#403818")
+Circle(center=(730, 380), radius=16, color=lambda: "lime" if st.luz == "verde" else "#183818")
+
+frota = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+gente = Sheet("racing/spritesheet_characters.png", atlas="racing/spritesheet_characters.xml")
+CARROS = ["car_red_1.png", "car_blue_3.png", "car_green_2.png", "car_yellow_5.png", "car_black_4.png"]
+GENTE = ["character_brown_blue.png", "character_blonde_red.png", "character_black_green.png"]
+
+
+class Carro(Sprite, source=frota, height=100, group="carros"):
+    def on_update(self, dt):
+        if self.pode_andar():
+            self.move_by(0, 220 * dt)
+
+    def pode_andar(self):
+        na_linha = 150 < self.center.y < 250
+        if na_linha and st.luz in ("amarelo", "vermelho"):
+            return False
+        if na_linha and group["pedestres"].any(lambda p: 370 < p.center.x < 630):
+            return False
+        if group["carros"].any(lambda c: 0 < c.center.y - self.center.y < 130):
+            return False
+        return True
+
+    @leave_playfield
+    def saiu(self):
+        self.destroy()
+
+
+def novo_carro():
+    Carro(frame=choice(CARROS), center=(500, -60))
+
+
+transito = every(1.6, novo_carro)
+
+
+class Pedestre(Sprite, source=gente, height=24, group="pedestres", art_angle=-90):
+    def setup(self):
+        self.mode = self.atravessando
+
+    @on_mode
+    async def atravessando(self):
+        vez = await race(until(lambda: st.luz == "vermelho"), wait(8))
+        if vez == 0:
+            await self.move_to(650, self.center.y, time=2.5, face=True)
+        await self.move_by(0, 450, time=4, face=True)
+        self.destroy()
+
+
+def novo_pedestre():
+    Pedestre(frame=choice(GENTE), center=(350, uniform(320, 380)))
+
+
+every(5, novo_pedestre)
+
+
+async def ciclo():
+    while True:
+        st.luz = "verde"
+        await wait(4)
+        st.luz = "amarelo"
+        await wait(1)
+        st.luz = "vermelho"
+        await wait(4)
+
+
+async def alerta():
+    while True:
+        st.luz = "alerta"
+        await wait(0.5)
+        st.luz = "apagado"
+        await wait(0.5)
+
+
+def on_key_down(key):
+    if key == "P":
+        if transito.paused:
+            transito.resume()
+        else:
+            transito.pause()
+    if key == "N":
+        run_task(alerta, name="semaforo")
+    if key == "D":
+        run_task(ciclo, name="semaforo")
+
+
+run_task(ciclo, name="semaforo")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "if vez == 0:",
+          text: "Veio o vermelho: o pedestre atravessa. Se a paciência acabou, ele pula a travessia e só sobe pela calçada onde está."
+        }
+      ],
+      after: `
+        <p>Rode, aperte N e espere: depois de 8 s sem vermelho, o pedestre desiste e vai embora pela calçada da esquerda.</p>
+        <details class="ask"><summary>E para esperar as duas coisas, não a primeira?</summary><p><code>parallel</code> (em paralelo) é o par do <code>race</code>: <code>await parallel(h1, h2)</code> espera todos terminarem. Serve para dois movimentos que andam juntos e só depois o resto segue.</p></details>
+      `
+    },
+    {
+      title: "De quem é, e quando acaba",
+      body: [
+        `
+        <p>Um clique num pedestre o faz voltar para a calçada mais perto, onde quer que ele esteja: esperando, no meio da rua, ou já do outro lado.</p>
+        <p>O clique troca o modo dele:</p>
+        `,
+        {
+          snip: `def on_click(self):
+    self.mode = self.voltando`
+        },
+        `
+        <p>E trocar de modo cancela tudo o que o modo antigo começou: a corrida, a espera pelo vermelho, os 8 s da paciência, o movimento até o outro lado. Nada disso precisa ser desfeito à mão. Cada processo tem um <strong>dono</strong>, e acaba quando o dono acaba.</p>
+        `
+      ],
+      code: `from random import choice, uniform
+from scena import *
+
+init(width=1000, height=700, title="Semáforo")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+st.luz = "verde"
+Rect(center=(730, 420), width=50, height=130, color="#222222")
+Circle(center=(730, 460), radius=16, color=lambda: "red" if st.luz == "vermelho" else "#401818")
+Circle(center=(730, 420), radius=16, color=lambda: "gold" if st.luz in ("amarelo", "alerta") else "#403818")
+Circle(center=(730, 380), radius=16, color=lambda: "lime" if st.luz == "verde" else "#183818")
+
+frota = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+gente = Sheet("racing/spritesheet_characters.png", atlas="racing/spritesheet_characters.xml")
+CARROS = ["car_red_1.png", "car_blue_3.png", "car_green_2.png", "car_yellow_5.png", "car_black_4.png"]
+GENTE = ["character_brown_blue.png", "character_blonde_red.png", "character_black_green.png"]
+
+
+class Carro(Sprite, source=frota, height=100, group="carros"):
+    def on_update(self, dt):
+        if self.pode_andar():
+            self.move_by(0, 220 * dt)
+
+    def pode_andar(self):
+        na_linha = 150 < self.center.y < 250
+        if na_linha and st.luz in ("amarelo", "vermelho"):
+            return False
+        if na_linha and group["pedestres"].any(lambda p: 370 < p.center.x < 630):
+            return False
+        if group["carros"].any(lambda c: 0 < c.center.y - self.center.y < 130):
+            return False
+        return True
+
+    @leave_playfield
+    def saiu(self):
+        self.destroy()
+
+
+def novo_carro():
+    Carro(frame=choice(CARROS), center=(500, -60))
+
+
+transito = every(1.6, novo_carro)
+
+
+class Pedestre(Sprite, source=gente, height=24, group="pedestres", art_angle=-90):
+    def setup(self):
+        self.mode = self.atravessando
+
+    @on_mode
+    async def atravessando(self):
+        vez = await race(until(lambda: st.luz == "vermelho"), wait(8))
+        if vez == 0:
+            await self.move_to(650, self.center.y, time=2.5, face=True)
+        await self.move_by(0, 450, time=4, face=True)
+        self.destroy()
+
+    def on_click(self):
+        self.mode = self.voltando
+
+    @on_mode
+    async def voltando(self):
+        lado = 350 if self.center.x < 500 else 650
+        await self.move_to(lado, self.center.y, time=0.6, face=True)
+        await self.move_by(0, 450, time=4, face=True)
+        self.destroy()
+
+
+def novo_pedestre():
+    Pedestre(frame=choice(GENTE), center=(350, uniform(320, 380)))
+
+
+every(5, novo_pedestre)
+
+
+async def ciclo():
+    while True:
+        st.luz = "verde"
+        await wait(4)
+        st.luz = "amarelo"
+        await wait(1)
+        st.luz = "vermelho"
+        await wait(4)
+
+
+async def alerta():
+    while True:
+        st.luz = "alerta"
+        await wait(0.5)
+        st.luz = "apagado"
+        await wait(0.5)
+
+
+def on_key_down(key):
+    if key == "P":
+        if transito.paused:
+            transito.resume()
+        else:
+            transito.pause()
+    if key == "N":
+        run_task(alerta, name="semaforo")
+    if key == "D":
+        run_task(ciclo, name="semaforo")
+
+
+run_task(ciclo, name="semaforo")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_click(self):",
+          text: "Um aviso, um <code>def</code> comum: o Scena o chama no clique, e ele roda inteiro. Para começar uma sequência a partir de um aviso, ele troca o modo (ou chama <code>run_task</code>)."
+        },
+        {
+          at: "lado = 350 if self.center.x < 500 else 650",
+          text: "A calçada mais perto: a da esquerda se o pedestre ainda não passou do meio da rua."
+        }
+      ],
+      after: `
+        <p>Rode e clique nos pedestres: os que estão esperando, os que estão no meio da faixa.</p>
+      `,
+      dive: [
+        {
+          title: "De quem é cada processo",
+          body: `
+            <p>O dono de um processo é o lugar onde ele começou. Quando o dono acaba, o processo acaba junto, sem aviso:</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Começou</th><th>Dono</th><th>Acaba quando</th></tr></thead>
+              <tbody>
+                <tr><td>no topo do arquivo (o <code>every</code> dos carros, o ciclo)</td><td>o jogo</td><td>o jogo fecha</td></tr>
+                <tr><td>no <code>update</code> ou num aviso solto (o <code>run_task</code> do N)</td><td>o ato atual</td><td>o <code>change_act</code> (25)</td></tr>
+                <tr><td>dentro de um modo (a corrida do pedestre)</td><td>o modo</td><td>o objeto troca de modo, ou é destruído</td></tr>
+                <tr><td>num método do objeto que não é modo (<code>setup</code>, <code>on_update</code>, um aviso da classe), ou com <code>self.after</code>, <code>self.run_task</code></td><td>o objeto</td><td>o objeto é destruído</td></tr>
+                <tr><td>dentro de uma tarefa</td><td>a tarefa</td><td>a tarefa é cancelada (<code>cancel()</code>, <code>name=</code>, o dono dela acaba)</td></tr>
+              </tbody>
+            </table></div>
+            <p>O som é a exceção: um <code>play_sound</code> que acaba sozinho termina de tocar, mesmo depois do dono.</p>
+            <p>No Guia: <a href="../guide/index.html#mode-cancela">escopo e cancelamento</a>.</p>
+          `
+        },
+        {
+          title: "Qual usar",
+          body: `
+            <p>Os três jeitos de o seu código rodar, e as peças de cada um:</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Quero</th><th>Uso</th></tr></thead>
+              <tbody>
+                <tr><td>que algo fique sempre igual a outra coisa (a cor da lâmpada)</td><td>uma fórmula: <code>lambda</code>, <code>@=</code></td></tr>
+                <tr><td>saber um estado a cada quadro (a tecla está apertada?)</td><td>uma pergunta no <code>update</code> ou no <code>on_update</code></td></tr>
+                <tr><td>reagir a um instante (uma tecla, um clique, uma batida, a saída da tela)</td><td>um aviso: <code>on_key_down</code>, <code>on_click</code>, <code>@collide</code>, <code>@leave_playfield</code></td></tr>
+                <tr><td>reagir quando uma condição vira sim</td><td><code>@when</code></td></tr>
+                <tr><td>uma vez, mais tarde</td><td><code>after</code></td></tr>
+                <tr><td>de novo e de novo</td><td><code>every</code></td></tr>
+                <tr><td>uma sequência com esperas, do que o objeto está fazendo</td><td>um modo <code>async</code></td></tr>
+                <tr><td>uma sequência a mais, ou que não é de nenhum objeto</td><td><code>run_task</code></td></tr>
+              </tbody>
+            </table></div>
+            <p>Os erros mais comuns com o tempo, e o que o Scena diz:</p>
+            <ul>
+              <li><code>wait(1)</code> sem <code>await</code> não espera nada. O Scena recusa com a linha e o <code>await</code> que falta.</li>
+              <li>Um aviso não pode ser <code>async</code>: <code>async def on_click(self)</code> nunca rodaria, e o Scena recusa. O aviso é um <code>def</code> comum que começa a sequência, trocando o modo ou chamando <code>run_task</code>.</li>
+              <li>Chamar uma função <code>async</code> sem <code>await</code> (<code>self.piscar()</code> sozinho numa linha, para um <code>async def piscar</code>) não roda nada. O Scena avisa (SCENA WARNING) com a linha.</li>
+              <li><code>run_task(ciclo())</code>, com parênteses, é recusado: passe a função, <code>run_task(ciclo)</code>.</li>
+              <li>Um <code>while True</code> sem <code>await</code> congela o jogo; o Scena cancela a tarefa e avisa.</li>
+            </ul>
+            <p>No Guia: <a href="../guide/index.html#reagir">Reagir</a> · <a href="../guide/index.html#agendar">Agendar</a> · <a href="../guide/index.html#mode">Mode</a>.</p>
+          `
+        }
+      ],
+      closing: `
+        <p>Os carros param no amarelo e no vermelho e fazem fila. Os pedestres chegam a cada 5 s, esperam o vermelho (no máximo 8 s) e atravessam; um clique faz um pedestre voltar para a calçada mais perto. <kbd>P</kbd> pausa a chegada de carros, <kbd>N</kbd> põe o pisca-alerta, <kbd>D</kbd> volta ao ciclo do dia.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

@@ -142,6 +142,11 @@ examples/media/plane/Dead.png
 examples/media/plane/Fly1.png
 examples/media/plane/Fly2.png
 examples/media/plane/license.txt
+examples/media/racing/License.txt
+examples/media/racing/spritesheet_characters.png
+examples/media/racing/spritesheet_characters.xml
+examples/media/racing/spritesheet_vehicles.png
+examples/media/racing/spritesheet_vehicles.xml
 examples/media/robot/Dead (1).png
 examples/media/robot/Dead (10).png
 examples/media/robot/Dead (2).png

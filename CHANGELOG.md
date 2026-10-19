@@ -500,6 +500,19 @@ left out.
 
 ### Documentation
 
+- A new interlude after tutorial 25, Eventos e processos: one page that ties
+  together what the series taught in pieces about time. A crossing with a
+  traffic light, cars and pedestrians shows the frame and its phases, a
+  question read every frame (`keyp`) against a notice (`on_key_down`), the
+  Handle that `every` returns (`pause` / `resume`), the light's cycle first
+  as three chained `after` calls and then as one `async def` run with
+  `run_task`, `name=` as a slot (a night-time blinking cycle replaces the day
+  cycle), each pedestrian in an async mode that waits with `until` and gives
+  up with `race`, and a click that changes the mode and so cancels what the
+  old one started. Closing boxes: mode or task, who owns each process, which
+  tool for which job, and the common mistakes with time. The cars and
+  pedestrians come from the new CC0 `racing/` folder (Kenney's Racing Pack),
+  listed in `examples/media/CREDITS.md`.
 - A new tutorial after Giros, 30 Duelo: a game for two players on one
   keyboard. Each ship rides a curved rail from the level file
   (`trilho.at(u)`, `angle_at`) and steers like a wheel, both with `chase` as

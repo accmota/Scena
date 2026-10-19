@@ -109,6 +109,7 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | `textures/Brick_*.png` | Cethiel | https://opengameart.org/content/tileable-brick-ground-textures-set-2 |
 | `k-rolling-ball/` | Kenney | https://www.kenney.nl ("Rolling Ball Assets") |
 | `k-textures/` | Kenney | https://www.kenney.nl ("Retro Textures Fantasy") |
+| `racing/` | Kenney | https://www.kenney.nl ("Racing Pack") |
 | `planets/` | Kenney | https://www.kenney.nl ("Planets") |
 | `shooter/` | Kenney | https://www.kenney.nl ("Space Shooter Extension") |
 | `space/` | Kenney | https://www.kenney.nl ("Space Shooter Redux") |
