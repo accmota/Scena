@@ -723,8 +723,8 @@ class Vec2(Container):
             # batch's ``update()`` would only recompute length / angle
             # (``Container.update``, off-graph branch), or, for a vector a
             # cell or an ink field holds, run the holder hook, which does that
-            # and tells the holders (``_HeldPayloadUpdate``; the cell's guard
-            # lets an in-place op through, as inside the batch). Store and do
+            # and tells the holders (``_HeldPayloadUpdate``; a linked cell's
+            # payload refused in ``_refuse_author_write``). Store and do
             # that directly: ``v += w`` cost 8 µs on a free vector against
             # 5 µs on ``ship.vel``, and ``*=`` (in place since VB9) would have
             # paid it too.
@@ -884,11 +884,16 @@ class Vec2(Container):
         """
         if new_value is self:
             return
-        if self.__dict__.get('_destroyed'):
+        d = self.__dict__
+        if d.get('_destroyed'):
             # A part of a destroyed actor (``held = ship.vel``): the raw store
             # below would skip ``ScalarSlot.__set__``'s refusal.
             from .entity import _refuse_if_destroyed
             _refuse_if_destroyed(self, "copy")
+        if '_write_field' in d and not self._in_batch_update:
+            # The Vec2 a linked cell holds (``st.pos << v``): the formula's
+            # output (``state._HeldPayloadWrite``).
+            d['_refuse_author_write']()
 
         # Nested under an outer no_update/batch_update: leaf writes already
         # skip update(); skip the redundant 3-node subtree walk.
@@ -1136,7 +1141,8 @@ def vec_from_angle(angle: float, length: float = 1.0, reference_vec: Optional[Ve
 
 
 
-# The Vec2 a State cell holds refuses an in-place author write (``st.pos.x = 5``):
-# ``state._rehold_payload`` installs the guard; see ``state._HELD_BY_VALUE``.
+# The Vec2 a State cell holds tells the cell on every in-place change, and
+# refuses one while the cell is linked: ``state._rehold_payload`` installs the
+# hooks; see ``state._HELD_BY_VALUE``.
 from . import state as _state  # noqa: E402
 _state._HELD_BY_VALUE = Vec2

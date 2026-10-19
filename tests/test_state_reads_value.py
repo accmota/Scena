@@ -217,34 +217,38 @@ class TestInPlaceChanges(EngineCase):
         get_scena_system().flush()
         self.assertEqual(seen[-1], [1, 2])
 
-    def test_writing_into_the_held_vec2_raises_with_the_fix(self):
+    def test_writing_into_the_held_vec2_reaches_links(self):
         st = State(name="st")
         st.pos = Vec2(1, 2)
-        with self.assertRaises(AttributeError) as cm:
-            st.pos.x = 5
-        msg = str(cm.exception)
-        self.assertIn("st.pos = Vec2(..., st.pos.y)", msg)
-        with self.assertRaises(AttributeError) as cm:
-            st.pos.y = 5
-        self.assertIn("st.pos = Vec2(st.pos.x, ...)", str(cm.exception))
-        self.assertEqual((st.pos.x, st.pos.y), (1.0, 2.0))
+        c = self.track(Circle())
+        c["center"] @= lambda: st.pos
+        st.pos.x = 5
+        self.assertEqual((c.center.x, c.center.y), (5.0, 2.0))
+        st.pos.y = 6
+        self.assertEqual((c.center.x, c.center.y), (5.0, 6.0))
 
     def test_a_replaced_payload_is_a_free_vec2_again(self):
         st = State(name="st")
         old = Vec2(1, 2)
         st.pos = old
         st.pos = Vec2(3, 4)
+        c = self.track(Circle())
+        c["center"] @= lambda: st.pos
         old.x = 7                            # no longer held: a plain Vec2
         self.assertEqual(old.x, 7)
-        self.assertNotIn("_write_field", vars(old))
-        with self.assertRaises(AttributeError):
-            st.pos.x = 0
+        self.assertEqual((st.pos.x, c.center.x), (3.0, 3.0))
+        for hook in ("_write_field", "_refuse_author_write", "update", "_held_payload"):
+            self.assertNotIn(hook, vars(old))
+        self.assertFalse(old._needs_pull_invalidate)
+        st.pos.x = 0
+        self.assertEqual(c.center.x, 0.0)
 
     def test_other_vec2s_are_untouched(self):
         free = Vec2(1, 2)
         free.x = 5
         self.assertEqual(free.x, 5)
-        self.assertNotIn("_write_field", vars(free))
+        for hook in ("_write_field", "_refuse_author_write", "update", "_held_payload"):
+            self.assertNotIn(hook, vars(free))
 
     def test_reassigning_an_object_payload_is_harmless(self):
         st = State(name="st")
@@ -440,8 +444,9 @@ class TestHeldVec2IsNotTheCell(EngineCase):
 class TestCellCopiesAnObjectsVec2(EngineCase):
     """``st.v0 = ball.vel`` stored the ball's own Vec2, and the held-payload
     guard then sat on the ball's field: ``ball.vel = …`` (whose setter writes
-    into that Vec2) raised an error naming ``st.v0``. A cell holds a Vec2 by
-    value: an owned Vec2 is copied, like ``recorde = st.score``."""
+    into that Vec2) raised an error naming ``st.v0`` (RA3). A cell holds a Vec2
+    by value: an owned Vec2 is copied, like ``recorde = st.score``, and the
+    cell's hooks sit on the copy."""
 
     def test_storing_a_field_vec2_snapshots_it(self):
         st = State(name="st")
@@ -452,8 +457,9 @@ class TestCellCopiesAnObjectsVec2(EngineCase):
         ball.vel = Vec2(3, 3)                # the ball's field stays writable
         self.assertEqual((ball.vel.x, ball.vel.y), (3.0, 3.0))
         self.assertEqual((st.v0.x, st.v0.y), (50.0, 0.0))
-        with self.assertRaises(AttributeError):
-            st.v0.x = 1                      # the copy is the held payload
+        st.v0.x = 1                          # the copy is the held payload
+        self.assertEqual((st.v0.x, ball.vel.x), (1, 3.0))
+        self.assertIsNone(ball.vel.__dict__.get("_held_payload"))
 
     def test_replacing_with_a_field_vec2_snapshots_it_too(self):
         st = State(name="st")
@@ -469,6 +475,10 @@ class TestCellCopiesAnObjectsVec2(EngineCase):
         v = Vec2(1, 2)
         st.v = v
         self.assertIs(st.v, v)               # no copy where no one else owns it
+        c = self.track(Circle())
+        c["center"] @= lambda: st.v
+        v.x = 3                              # another name for st.v
+        self.assertEqual((st.v.x, c.center.x), (3, 3.0))
 
 
 if __name__ == "__main__":

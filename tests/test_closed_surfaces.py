@@ -245,18 +245,25 @@ class TestEngineValueRegressions(unittest.TestCase):
         from hypothesis_support import boot
         boot()
 
-    def test_cell_payload_write_raises_with_the_reactive_fix(self):
+    def test_cell_object_payload_write_raises_with_the_fix(self):
+        from scena import Vec2
+        from scena.state import Attribute
+        cell = Attribute(Vec2(1, 2))
+        with self.assertRaises(AttributeError) as cm:
+            cell.x = 5                      # lands on the cell, not on the Vec2
+        msg = str(cm.exception)
+        self.assertIn("not on the Vec2 it holds", msg)
+        self.assertIn(".value.x = ...", msg)
+        self.assertEqual((cell.value.x, cell.value.y), (1.0, 2.0))
+        cell.value.x = 5                    # the spelling the message names
+        self.assertEqual(cell.value.x, 5)
+
+    def test_st_payload_axis_write_reaches_the_value(self):
         from scena import st, Vec2
         st.cs_pos = Vec2(1, 2)
-        with self.assertRaises(AttributeError) as cm:
-            st.cs_pos.x = 5
-        msg = str(cm.exception)
-        self.assertIn("the Vec2 that st.cs_pos holds", msg)
-        self.assertIn("st.cs_pos = Vec2(..., st.cs_pos.y)", msg)
-        self.assertEqual((st.cs_pos.x, st.cs_pos.y), (1.0, 2.0))
         self.assertIs(type(st.cs_pos), Vec2)          # the held value itself (0.8.0)
-        st.cs_pos = Vec2(5, st.cs_pos.y)            # the reactive spelling
-        self.assertEqual(st.cs_pos.x, 5.0)
+        st.cs_pos.x = 5                     # into the Vec2 (2026-10-19; CS4 refused it)
+        self.assertEqual((st.cs_pos.x, st.cs_pos.y), (5, 2.0))
 
     def test_cell_value_write_stays_open(self):
         from scena import st

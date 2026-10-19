@@ -232,9 +232,11 @@ class TestFoundByTheMatrix(unittest.TestCase):
         st.start = st.pos                   # save where it started
         st.pos += (5, 0)
         self.assertEqual(tuple(st.start), (1.0, 2.0))
-        st.start = Vec2(9, 9)               # the guard stays on st.pos
-        with self.assertRaises(AttributeError):
-            st.pos.x = 5
+        st.start = Vec2(9, 9)               # the hooks stay on st.pos
+        c = self.circle(center=lambda: st.pos)
+        st.pos.x = 5
+        self.assertEqual((c.center.x, c.center.y), (5.0, 2.0))
+        self.assertEqual(tuple(st.start), (9.0, 9.0))
 
     def test_vb2_a_cell_copies_an_ink_fields_vector(self):
         for watched in (False, True):

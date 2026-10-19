@@ -283,24 +283,70 @@ class TestInkOtherPayloads(_Case):
 
 
 class TestCellVec2InPlace(_Case):
-    """An st cell's Vec2: the spellings the cell accepts reach its formulas."""
+    """An st cell's Vec2: every in-place spelling reaches its formulas, its
+    direct links and its watchers, as an ink field's does. ``st.pos.x = 5``
+    raised until 2026-10-19 (CS4); the cell's ``update()`` hook made it safe."""
 
-    def test_every_accepted_spelling(self):
-        writes = {k: v for k, v in _ink_write("pos").items()
-                  if k not in (".x =", ".y =", ".x +=")}       # these raise (CS4)
-        for spelling, write in writes.items():
+    def test_every_spelling_reaches_a_formula(self):
+        for maker_name, make in _VEC_MAKERS.items():
+            for spelling, write in _ink_write("pos").items():
+                with self.subTest(payload=maker_name, spelling=spelling):
+                    st = State(name="st")
+                    st.pos = make()
+                    c = self.track(Circle(center=lambda: st.pos, radius=3))
+                    write(st)
+                    self.assertFollows(c, (st.pos.x, st.pos.y))
+
+    def test_every_spelling_reaches_a_direct_link_and_a_watcher(self):
+        for spelling, write in _ink_write("pos").items():
             with self.subTest(spelling=spelling):
                 st = State(name="st")
                 st.pos = Vec2(50, 0)
-                c = self.track(Circle(center=lambda: st.pos, radius=3))
+                c = self.track(Circle(radius=3))
+                c["center"] @= st["pos"]
+                seen = []
+                on_change(st["pos"])(lambda value: seen.append(tuple(value)))
                 write(st)
                 self.assertFollows(c, (st.pos.x, st.pos.y))
+                get_scena_system().flush()
+                self.assertEqual(seen[-1:], [(st.pos.x, st.pos.y)])
 
-    def test_axis_write_still_raises(self):
+    def test_axis_write_keeps_length_and_angle_in_step(self):
         st = State(name="st")
-        st.pos = Vec2(1, 2)
-        with self.assertRaises(AttributeError):
-            st.pos.x = 5
+        st.pos = Vec2(3, 0)
+        st.pos.y = 4
+        self.assertAlmostEqual(st.pos.length, 5.0)
+        self.assertAlmostEqual(st.pos.angle, 53.130102354, places=6)
+
+
+class TestLinkedCellRefusesInPlace(_Case):
+    """A linked cell's Vec2 is its formula's output: every in-place spelling
+    refuses, as ``st.pos = …`` does. Before 2026-10-19 ``<<``, ``+=``, ``*=``
+    and ``do_rotation`` changed it silently (the next pull put it back) and
+    only ``.x =`` raised, with the unlinked cell's message."""
+
+    def test_every_spelling_refuses_and_changes_nothing(self):
+        from scena import LinkedAttributeError
+        for spelling, write in _ink_write("pos").items():
+            with self.subTest(spelling=spelling):
+                src = self.track(Circle(center=(0, 0), radius=7))
+                st = State(name="st")
+                st.pos = Vec2(0, 0)
+                st["pos"] @= lambda: Vec2(src.radius, 1)
+                with self.assertRaises(LinkedAttributeError) as cm:
+                    write(st)
+                self.assertIn("st['pos'].unlink()", str(cm.exception))
+                self.assertEqual((st.pos.x, st.pos.y), (7.0, 1.0))
+
+    def test_unlinked_again_takes_in_place_writes(self):
+        src = self.track(Circle(center=(0, 0), radius=7))
+        st = State(name="st")
+        st.pos = Vec2(0, 0)
+        st["pos"] @= lambda: Vec2(src.radius, 1)
+        st["pos"].unlink()
+        c = self.track(Circle(center=lambda: st.pos, radius=3))
+        st.pos.x = 9
+        self.assertFollows(c, (9.0, 1.0))
 
 
 class TestInPlaceSpellingsComplete(unittest.TestCase):

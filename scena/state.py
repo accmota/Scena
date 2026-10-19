@@ -4565,10 +4565,13 @@ class _FlagChannelAnchor(_ChannelAnchor):
 
 
 # A value type a cell holds by value (``scenamath`` sets it to ``Vec2``). Since
-# 0.8.0 ``st.pos`` is the held Vec2 itself, so ``st.pos.x = 5`` would change the
-# payload in place and the cell's links would never hear of it. The Vec2 a cell
-# holds gets a per-instance ``_write_field`` that refuses an author write (other
-# Vec2s pay nothing); it is removed when the cell takes another value.
+# 0.8.0 ``st.pos`` is the held Vec2 itself, so ``st.pos.x = 5`` changes the
+# payload in place: its ``update()`` hook tells the cell (``_HeldPayloadUpdate``),
+# as ``st.pos += v`` does. The Vec2 a cell holds also gets a per-instance
+# ``_write_field`` / ``_refuse_author_write`` (``_HeldPayloadWrite``) that
+# refuses every in-place write while the cell is linked (the payload is the
+# formula's output) and marks the vector for ``held_cell``; other Vec2s pay
+# nothing. Both are removed when the cell takes another value.
 _HELD_BY_VALUE: Optional[type] = None
 
 
@@ -4584,24 +4587,22 @@ class _HeldPayloadWrite:
     def __call__(self, name: str, value) -> None:
         p = self.payload()
         cell = self.cell()
-        if (cell is not None and not p._in_batch_update
+        if (cell is not None and cell.__dict__.get('_link') is not None
+                and not p._in_batch_update
                 and cell.__dict__.get('_raw_value') is p):
-            raise AttributeError(_held_payload_message(cell, p, name))
+            cell._refuse_author_write()
         type(p)._write_field(p, name, value)
 
-
-def _held_payload_message(cell: "Attribute", payload, name: str) -> str:
-    who = cell._name
-    kind = type(payload).__name__
-    if name in ("x", "y"):
-        example = f"Vec2(..., {who}.y)" if name == "x" else f"Vec2({who}.x, ...)"
-    else:
-        example = f"<a new {kind}>"
-    return (
-        f"{who}.{name} = ... would change the {kind} that {who} holds in place, "
-        f"and nothing linked to {who} would see it. Assign a whole value: "
-        f"{who} = {example} (or {who} += Vec2(...))."
-    )
+    def refuse(self) -> None:
+        """``_refuse_author_write`` of the payload: its own links, then the
+        cell's (``st.pos += v`` / ``<<`` / ``do_rotation`` on a linked cell
+        would change the formula's output and nothing would hear it)."""
+        p = self.payload()
+        type(p)._refuse_author_write(p)
+        cell = self.cell()
+        if (cell is not None and cell.__dict__.get('_link') is not None
+                and cell.__dict__.get('_raw_value') is p):
+            cell._refuse_author_write()
 
 
 def held_cell(obj) -> Optional["Attribute"]:
@@ -4641,14 +4642,17 @@ def refuse_held_payload(obj, call: str) -> None:
 
 
 def _rehold_payload(cell: "Attribute", old, new) -> None:
-    """Move the held-payload guard from ``old`` to ``new`` (either may be a Vec2)."""
+    """Move the held-payload hooks from ``old`` to ``new`` (either may be a Vec2)."""
     if old.__class__ is _HELD_BY_VALUE:
         guard = old.__dict__.get('_write_field')
         if isinstance(guard, _HeldPayloadWrite) and guard.cell() is cell:
             del old.__dict__['_write_field']
+            del old.__dict__['_refuse_author_write']
         _unhold_payload(old, cell, None)
     if new.__class__ is _HELD_BY_VALUE:
-        new.__dict__['_write_field'] = _HeldPayloadWrite(cell, new)
+        guard = _HeldPayloadWrite(cell, new)
+        new.__dict__['_write_field'] = guard
+        new.__dict__['_refuse_author_write'] = guard.refuse
         _hold_payload(new, cell, None)
 
 
@@ -4777,13 +4781,13 @@ def _hold_payload(payload, holder, name) -> None:
     hook.holders.append((weakref.ref(holder), name))
     if name is not None and (d.get('_link') is not None or d.get('_field_anchors')):
         hook.sync_link_edges(payload)       # a linked vector put in a field (VB3)
-    if name is not None:
-        # ``v.x = …`` calls ``update()`` only under a pull flag (A2); a cell's
-        # payload refuses that write, so only an ink field needs it.
-        root = payload if d['_owner'] is None else payload._ownership_root()
-        if not getattr(root, '_needs_pull_invalidate', False):
-            root._needs_pull_invalidate = True
-            hook.flagged = root is payload
+    # ``v.x = …`` calls ``update()`` only under a pull flag (A2): set it, so
+    # ``st.pos.x = 5`` / ``ship.aim.x = 5`` reach the hook. A cell's payload
+    # has no owner (a cell holds a Vec2 by value).
+    root = payload if d['_owner'] is None else payload._ownership_root()
+    if not getattr(root, '_needs_pull_invalidate', False):
+        root._needs_pull_invalidate = True
+        hook.flagged = root is payload
 
 
 def _unhold_payload(payload, holder, name) -> None:
@@ -4831,9 +4835,10 @@ def _hold_ink_value(host, name, old, new) -> None:
 class Attribute(ClosedSurface, Container):  # Use string literal for forward reference
     """It is a unified attribute class that behaves according to its value type.
 
-    A closed surface: ``st.pos.x = 5`` (``st.pos`` holding a Vec2) raises —
-    the write would land on the cell, not on the Vec2, and nothing linked to
-    the cell would see it. Assign a whole value: ``st.pos = Vec2(5, st.pos.y)``.
+    A closed surface: ``cell.x = 5`` (the cell holding a Vec2) raises — the
+    write would land on the cell, not on the Vec2. ``cell.value.x = 5`` (or
+    ``st.pos.x = 5``, which reads the held Vec2) changes the Vec2 and tells
+    what is linked to the cell.
 
     Args:
         initial: Starting value (default 0.0).
@@ -4928,8 +4933,9 @@ class Attribute(ClosedSurface, Container):  # Use string literal for forward ref
         if changed:
             if old_value.__class__ is _HELD_BY_VALUE or new_value.__class__ is _HELD_BY_VALUE:
                 # A cell holds a Vec2 by value: an object's own Vec2 (``st.v0 =
-                # ball.vel``) is copied, or the held-payload guard would sit on
-                # the object's field and refuse its next write (``ball.vel = …``).
+                # ball.vel``) is copied, or the cell would follow the object's
+                # field and its hooks would sit on it (RA3: the old guard
+                # refused the field's next write, ``ball.vel = …``).
                 # So is one another holder holds (VB2): ``st.start = st.pos``
                 # shared the vector, so the saved start moved with ``st.pos``
                 # and the guard left ``st.pos`` when ``st.start`` changed; and
@@ -5284,21 +5290,17 @@ class Attribute(ClosedSurface, Container):  # Use string literal for forward ref
 
     # Method delegation for non-special methods
     def _closed_hint(self, name: str) -> Optional[str]:
-        """A write the payload has (``st.pos.x = 5``): name the reactive fix."""
+        """A write the payload has, on the cell object (``cell.x = 5``): it
+        would land on the cell, not on what it holds. ``st.pos.x = 5`` never
+        gets here: ``st.pos`` reads the held Vec2 (0.8.0)."""
         raw = self.__dict__.get("_raw_value")
         if raw is None or isinstance(raw, Attribute) or not hasattr(raw, name):
             return None
         who = self._name
         kind = type(raw).__name__
-        if kind == "Vec2" and name in ("x", "y"):
-            example = f"Vec2(..., {who}.y)" if name == "x" else f"Vec2({who}.x, ...)"
-        else:
-            example = f"<a new {kind}>"
         return (
-            f"{who}.{name} = ... cannot change the value: {who} holds a {kind}, "
-            f"so .{name} on the cell would not reach it, and changing the "
-            f"{kind} in place would not reach links. Assign a whole value: "
-            f"{who} = {example}."
+            f"{who}.{name} = ... would land on the cell, not on the {kind} it "
+            f"holds. Write into the value: {who}.value.{name} = ..."
         )
 
     def __getattr__(self, name):

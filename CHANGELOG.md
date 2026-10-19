@@ -282,6 +282,13 @@ left out.
   written once, not twice); a gravity-well pull such as
   `ship.vel += vec_from_angle(heading(ship, hole), pull * dt)` is about 17 %
   faster. Nothing else changes: the same errors, the same values.
+- `st.pos.x = 5` (a cell holding a `Vec2`) now changes the vector and tells
+  what is linked to `st.pos`, as `nave.desvio.x = 5` does on a field of your
+  own. It raised `AttributeError` (assign a whole value:
+  `st.pos = Vec2(5, st.pos.y)`), because the write would have reached no
+  link; every in-place change of a cell's vector now does. The old spelling
+  still works. A vector that is another name for the cell's
+  (`v = Vec2(1, 2); st.v = v`) changes `st.v` with `v.x = 3` too.
 
 ### Fixed
 
@@ -345,6 +352,12 @@ left out.
   Vec2(x=1, y=0).`; the type hints and the docstring no longer advertise an
   x-only form, which always raised.
 
+- A cell with a formula (`st["pos"] @= lambda: …`) refuses every change of
+  its vector in place, as `st.pos = …` does: `st.pos << (3, 4)`,
+  `st.pos += …`, `st.pos *= 2` and `st.pos.do_rotation(90)` changed the
+  formula's output without telling anything, and the next run of the
+  formula put it back. They now raise `LinkedAttributeError: st.pos is
+  linked — call st['pos'].unlink() first`.
 - A formula that reads a field of your own holding a `Vec2` now follows the
   field. With `nave.desvio = Vec2(50, 0)` and
   `mira = Circle(center=lambda: nave.center + nave.desvio)`, a new value
