@@ -803,6 +803,8 @@ def _start_sound(
         )
 
     vol = default_volume if volume is None else float(volume)
+    # Before the voice starts: a refused name must leave nothing playing.
+    get_scheduler().refuse_game_task_clash(owner, scope, name, "sound")
     # crossfade=0 is an instant named-slot cut (same as omitting it).
     # Only a positive crossfade ramps the outgoing voice and forces a fade-in.
     if crossfade_s:

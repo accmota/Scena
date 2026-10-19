@@ -208,6 +208,26 @@ def ownerless_scope() -> str:
 # Kinds that accept Handle.pause() / resume(). until / parallel / race raise.
 _PAUSABLE_KINDS = frozenset({"every", "after", "wait", "tween", "sound"})
 
+_CALL_FOR_KIND = {
+    "task": "run_task", "after": "after", "every": "every",
+    "tween": "tween", "sound": "play_sound",
+}
+
+
+def _game_task_clash_message(old: "Handle", name: str, kind: str) -> str:
+    call = _CALL_FOR_KIND.get(kind, kind)
+    fn = getattr(old._fn, "__name__", None)
+    what = f"{fn}()" if fn and fn != "<lambda>" else "a task"
+    return (
+        f"{call}(..., name={name!r}) in an act: the game task named {name!r} "
+        f"({what}) is still running. An act's "
+        f"timer with a game timer's name pauses the game's one until the act "
+        f"changes, but a task cannot pause, so this would end the game's task "
+        f"for good. Use another name in the act, or end the game's task first "
+        f"(keep its Handle and call cancel() on it)."
+    )
+
+
 _owner_ctx: ContextVar[Optional[object]] = ContextVar(
     "scena_process_owner", default=None
 )
@@ -2382,6 +2402,8 @@ class Scheduler:
             return handle
         if handle.name:
             key = (id(handle.owner) if handle.owner is not None else None, handle.name)
+            self.refuse_game_task_clash(handle.owner, handle.scope, handle.name,
+                                        handle.kind, new=handle)
             old = self._named.get(key)
             if (old is not None and old is not handle and key[0] is None
                     and old.scope == SCOPE_GAME and handle.scope == SCOPE_ACT
@@ -2599,6 +2621,28 @@ class Scheduler:
             self._update_owners.discard(owner)
             self._mode_dirty = True
             self._update_dirty = True
+
+    def refuse_game_task_clash(self, owner, scope: str, name: Optional[str],
+                               kind: str, *, new: Optional[Handle] = None) -> None:
+        """Ownerless act work named like a running game task raises.
+
+        A task cannot pause, so it cannot step aside for the act the way a
+        game timer does (``_suspended_game``): the restart would end the
+        game's task for good, silently. ``add`` calls this before anything
+        registers; ``play_sound`` and the tween verbs call it before they
+        start a voice or claim a target.
+        """
+        if not name or owner is not None:
+            return
+        if scope == SCOPE_ACT and not _top_level_ended:
+            scope = SCOPE_GAME          # as Handle._make decides
+        if scope != SCOPE_ACT:
+            return
+        old = self._named.get((None, name))
+        if (old is None or old is new or old.kind != "task"
+                or old.scope != SCOPE_GAME or old._done or old._cancelled):
+            return
+        raise ValueError(_game_task_clash_message(old, name, kind))
 
     def resume_suspended_game_slots(self) -> None:
         """An act change: game named handles an act shadowed take their slot
@@ -4478,6 +4522,8 @@ def _tween_target(
 
     if target is None:
         raise TypeError("tween() needs a target Attribute or pose Container")
+    # Before the same-property preempt below cancels the target's tween.
+    get_scheduler().refuse_game_task_clash(owner, scope, name, "tween")
 
     is_fieldref = isinstance(target, FieldRef)
     is_attribute = isinstance(target, Attribute)

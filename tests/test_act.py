@@ -2176,6 +2176,144 @@ class TestNamedSlotsAcrossTheSeal(ActTestCase):
         self.assertTrue(h.paused)
         h.cancel()
 
+    # A task cannot pause, so it cannot step aside for the act: before
+    # 2026-10-19 the act's same-name work cancelled the game's task for good
+    # (its timers came back at the act change, its task did not), silently.
+
+    def _game_task(self, name, beats):
+        from scena import run_task, wait
+
+        async def clima():
+            while True:
+                await wait(0.25)
+                beats.append(1)
+
+        return run_task(clima, name=name)
+
+    def test_an_act_task_taking_a_game_task_name_raises_with_the_fix(self):
+        from scena import run_task, wait
+        beats = []
+        h = self._game_task("clima", beats)
+        started = []
+
+        async def chuva():
+            started.append(1)
+            await wait(1)
+
+        class Tempestade(Act):
+            def setup(self):
+                run_task(chuva, name="clima")
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with self.assertRaises(ValueError) as cm:
+                self.begin(Tempestade)
+            gc.collect()
+        self.assertEqual([str(w.message) for w in caught
+                          if "never awaited" in str(w.message)], [])
+        msg = str(cm.exception)
+        for part in ("'clima'", "game task", "clima()", "another name", "cancel()"):
+            self.assertIn(part, msg)
+        self.assertEqual(started, [], "the refused task's body ran")
+        self.assertFalse(h.cancelled, "the game's task was cancelled anyway")
+        self.assertIs(get_scheduler()._named[(None, "clima")], h)
+        self.w.step(30, dt=1 / 60)
+        self.assertGreater(len(beats), 0, "the game's task stopped")
+        h.cancel()
+
+    def test_an_act_timer_taking_a_game_task_name_raises(self):
+        from scena import after
+        beats = []
+        h = self._game_task("clima2", beats)
+
+        class Garoa(Act):
+            def setup(self):
+                after(1, lambda: None, name="clima2")
+
+        with self.assertRaises(ValueError) as cm:
+            self.begin(Garoa)
+        self.assertIn("after(", str(cm.exception))
+        self.assertFalse(h.cancelled)
+        h.cancel()
+
+    def test_a_refused_sound_or_tween_leaves_nothing_behind(self):
+        """The check runs before the voice starts and before the tween
+        claims its target, not only at registration."""
+        from scena import play_sound, tween
+        from scena.audio_mixer import get_mixer
+        h = self._game_task("clima5", [])
+        alvo = Circle()
+        mover = tween(alvo["radius"], 50, time=2)   # game work on alvo
+        test = self
+
+        class Trovao(Act):
+            def setup(self):
+                mixer = get_mixer()
+                with mock.patch.object(mixer, "start_voice",
+                                       wraps=mixer.start_voice) as start:
+                    with test.assertRaises(ValueError) as cm:
+                        play_sound(tone(), name="clima5")
+                test.assertIn("play_sound(", str(cm.exception))
+                test.assertEqual(start.call_count, 0, "a refused play_sound started a voice")
+                with test.assertRaises(ValueError) as cm:
+                    tween(alvo["radius"], 80, time=1, name="clima5")
+                test.assertIn("tween(", str(cm.exception))
+
+        self.begin(Trovao)
+        self.assertFalse(mover.cancelled, "a refused tween took the target")
+        self.assertFalse(h.cancelled)
+        h.cancel()
+
+    def test_a_finished_or_cancelled_game_task_leaves_the_name_free(self):
+        from scena import run_task, wait
+        h = self._game_task("clima3", [])
+        h.cancel()
+        ran = []
+
+        async def sol():
+            ran.append(1)
+            await wait(1)
+
+        class Verao(Act):
+            def setup(self):
+                run_task(sol, name="clima3")
+
+        self.begin(Verao)
+        self.assertEqual(ran, [1])
+
+    def test_a_game_task_restarts_itself_by_name_during_an_act(self):
+        """The task's own step is game scope: restart is not a clash."""
+        from scena import run_task, wait
+        runs = []
+
+        async def onda():
+            runs.append(1)
+            await wait(0.25)
+            if len(runs) < 3:
+                run_task(onda, name="onda")
+
+        run_task(onda, name="onda")
+        self.begin(Vazia)
+        self.w.step(60, dt=1 / 60)
+        self.assertEqual(len(runs), 3)
+
+    def test_an_actor_owned_task_with_the_name_is_not_a_clash(self):
+        """Owned slots are per owner: only ownerless act work shadows game work."""
+        beats = []
+        h = self._game_task("clima4", beats)
+        from scena import wait
+
+        class Ilha(Act):
+            def setup(self):
+                async def nuvem(c):
+                    await wait(1)
+                self.c = Circle()
+                self.c.run_task(nuvem, name="clima4")
+
+        self.begin(Ilha)
+        self.assertFalse(h.cancelled)
+        h.cancel()
+
 
 class TestCoverOnDoneLeavesWithTheAct(ActTestCase):
     """An act's in-flight fade keeps animating across the change, but its

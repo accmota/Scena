@@ -112,7 +112,12 @@ left out.
   its owner destroyed); a task that finishes leaves it running. `await h`
   returns the task's value; tasks work in `parallel` / `race`. Refused with
   the fix: `run_task(show())`, a plain `def`, a mode (`@on_mode`). Event
-  handlers still take a plain `def`: start the task from it.
+  handlers still take a plain `def`: start the task from it. A game task
+  (started at the top of the file) cannot pause, so an act's ownerless
+  `run_task`, `after`, `every`, `tween` or `play_sound` with its `name=`
+  raises with the fix (another name, or cancel the game's task first)
+  instead of ending it for good; a game *timer* with that name still pauses
+  for the act and comes back at the change.
 - An async function called without `await` says so where it happens. Before,
   `self.flash()` written for `async def flash(self)` ran nothing and Python
   printed `coroutine 'Ship.flash' was never awaited`, often at a later line.
