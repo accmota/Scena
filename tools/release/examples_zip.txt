@@ -43,7 +43,6 @@ examples/media/audio/sfx-hit-2.wav
 examples/media/backgrounds/kn/License.txt
 examples/media/backgrounds/kn/bgElements_spritesheet.png
 examples/media/backgrounds/kn/bgElements_spritesheet.xml
-examples/media/backgrounds/mountains/grass.png
 examples/media/backgrounds/mountains/license.txt
 examples/media/backgrounds/mountains/mountains1.png
 examples/media/fonts/Licenses/LICENSE-Kranky.txt
@@ -138,7 +137,6 @@ examples/media/ninja/Throw__009.png
 examples/media/ninja/license.txt
 examples/media/pixel_adv/Checkpoint (Flag Idle)(64x64).png
 examples/media/pixel_adv/Cherries.png
-examples/media/pixel_adv/End (Idle).png
 examples/media/pixel_adv/license.txt
 examples/media/plane/Dead.png
 examples/media/plane/Fly1.png
@@ -194,7 +192,6 @@ examples/media/synth/jump.wav
 examples/media/synth/license.txt
 examples/media/synth/throw.wav
 examples/media/textures/236.jpg
-examples/media/textures/Brick_01.png
 examples/media/textures/Brick_04.png
 examples/media/textures/license.txt
 examples/media/tilesets/BG/BG.png

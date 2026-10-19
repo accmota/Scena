@@ -447,11 +447,13 @@ const Tutorial = {
         .join("");
       const part = steps.slice(0, idx + 1).reverse().find((s) => s.part);
 
-      const prevCode = step.fresh || idx === 0 ? "" : steps[idx - 1].code;
-      const marks = step.focus ? focusMarks(step.code, step.focus) : diffMarks(prevCode, step.code);
-      const lines = step.code.replace(/\n$/, "").split("\n");
+      // A step without code is prose only (an appendix's list of sites).
+      const code = step.code || "";
+      const prevCode = step.fresh || idx === 0 ? "" : steps[idx - 1].code || "";
+      const marks = step.focus ? focusMarks(code, step.focus) : diffMarks(prevCode, code);
+      const lines = code.replace(/\n$/, "").split("\n");
       const copyNew = newSnippet(lines, marks);
-      const copyAll = step.code.replace(/\n$/, "") + "\n";
+      const copyAll = code.replace(/\n$/, "") + "\n";
 
       const closing = step.closing
         ? `<div class="closing">${step.closing}</div>`
@@ -464,7 +466,7 @@ const Tutorial = {
         <div class="kicker">${part ? `${esc(part.part)} · ` : ""}Passo ${idx + 1} de ${steps.length}</div>
         <h1>${esc(step.title)}</h1>
         <div class="explain">${renderProse(step.body)}</div>
-        ${renderCode(step.code, marks, !!step.focus, step.notes)}
+        ${code ? renderCode(code, marks, !!step.focus, step.notes) : ""}
         ${renderNotes(step.notes)}
         ${step.after ? `<div class="explain after">${renderProse(step.after)}</div>` : ""}
         ${renderTry(step.try)}

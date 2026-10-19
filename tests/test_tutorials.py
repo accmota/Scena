@@ -306,7 +306,7 @@ class TestTutorialExtraction(unittest.TestCase):
                 self.assertEqual(
                     sum(1 for s in steps if s.example), html.count("example:"),
                     "an example: field the extractor did not attach to a step")
-                self.assertGreater(len(steps), 2)
+                self.assertGreater(len(step_chunks(path)), 2)
                 for step in steps:
                     self.assertTrue(is_program(step.code), f"{os.path.basename(path)}:{step.line}: no run(…) line")
 
@@ -401,11 +401,26 @@ class TestTutorialEndsInAnExample(unittest.TestCase):
 
 
 _STEP_OPEN = re.compile(r"^    \{$", re.M)
+_STEP_CODE = re.compile(r"^      code:", re.M)
+
+
+def step_chunks(path: str) -> List[str]:
+    """The source of every step object (``    {`` at four spaces opens one)."""
+    return _STEP_OPEN.split(_read(path))[1:]
+
+
+def code_chunks(path: str) -> List[str]:
+    """The step objects that hold a script, in the order of ``extract_steps``.
+
+    A step without ``code`` is prose only (Apêndice C, "Os sites"): the
+    engine draws no code box, and the scans that pair a step object with its
+    script skip it (``TestProseSteps``)."""
+    return [c for c in step_chunks(path) if _STEP_CODE.search(c)]
 
 
 def step_heads(path: str) -> List[Tuple[bool, Optional[str]]]:
-    """``(fresh, part)`` per step object (``    {`` at four spaces opens one)."""
-    chunks = _STEP_OPEN.split(_read(path))[1:]
+    """``(fresh, part)`` per step object that holds a script."""
+    chunks = code_chunks(path)
     heads = []
     for chunk in chunks:
         part = re.search(r'^      part:\s*"([^"]*)"', chunk, re.M)
@@ -434,6 +449,42 @@ class TestTutorialParts(unittest.TestCase):
                     f"{page}: part goes on the first step and on every fresh step")
 
 
+class TestProseSteps(unittest.TestCase):
+    """A step without ``code`` is a section of prose in an appendix.
+
+    Bug classes: the engine read ``step.code`` of a step that has none (a
+    blank page, or the next step diffed against ``undefined``); the scans that
+    pair step objects with scripts went out of step by one, so every note,
+    focus and recap after it was checked against the wrong script.
+    """
+
+    def test_engine_draws_a_step_without_code(self):
+        js = _read(os.path.join(ROOT, "docs", "assets", "tutorial", "tutorial.js"))
+        self.assertIn('const code = step.code || "";', js)
+        self.assertIn('steps[idx - 1].code || ""', js)
+        self.assertIn('${code ? renderCode(', js)
+
+    def test_a_prose_step_is_its_own_section_of_an_appendix(self):
+        seen = 0
+        for path in tutorial_pages():
+            page = os.path.basename(path)
+            chunks = step_chunks(path)
+            for i, chunk in enumerate(chunks):
+                if _STEP_CODE.search(chunk):
+                    continue
+                seen += 1
+                with self.subTest(page=page, step=i + 1):
+                    self.assertTrue(is_appendix(path), f"{page}: a tutorial step is a program; prose only in an appendix")
+                    self.assertRegex(chunk, re.compile(r'^      part:\s*"[^"]+"', re.M), "a prose step is a section: it needs a part")
+                    for field in ("notes", "focus", "try", "example", "recap", "dive"):
+                        self.assertNotRegex(chunk, re.compile(rf"^      {field}:", re.M), f"{field} needs a script")
+                    self.assertNotIn("{snip:", chunk, "a snippet needs a script")
+                    if i + 1 < len(chunks):
+                        self.assertRegex(chunks[i + 1], re.compile(r"^      fresh:\s*true", re.M),
+                                         "the step after a prose step starts a script")
+        self.assertGreater(seen, 0, "no prose step (Apêndice C 'Os sites' should): the scan no longer matches")
+
+
 _RECAP = re.compile(r"^      recap:\s*`((?:\\.|[^`\\])*)`", re.M | re.S)
 GUIDE_PT = os.path.join(ROOT, "docs", "pt", "guide", "index.html")
 
@@ -441,7 +492,7 @@ GUIDE_PT = os.path.join(ROOT, "docs", "pt", "guide", "index.html")
 def step_recaps(path: str) -> List[Optional[str]]:
     """The ``recap`` HTML per step object (``None`` when the step has none)."""
     out = []
-    for chunk in _STEP_OPEN.split(_read(path))[1:]:
+    for chunk in code_chunks(path):
         m = _RECAP.search(chunk)
         out.append(None if m is None else m.group(1))
     return out
@@ -533,7 +584,7 @@ _FOCUS = re.compile(r"^      focus:\s*\[(.*)\],?$", re.M)
 def step_focus(path: str) -> List[Optional[List[str]]]:
     """The ``focus`` anchors per step object (``None`` when the step has none)."""
     out = []
-    for chunk in _STEP_OPEN.split(_read(path))[1:]:
+    for chunk in code_chunks(path):
         m = _FOCUS.search(chunk)
         out.append(None if m is None else
                    [a or b for a, b in re.findall(r'"([^"]*)"|\'([^\']*)\'', m.group(1))])
@@ -608,7 +659,7 @@ def step_notes(path: str) -> List[Tuple[List[str], List[str]]]:
     ``alt: true`` is a spelling the script does not use, and is left out.
     """
     out = []
-    for chunk in _STEP_OPEN.split(_read(path))[1:]:
+    for chunk in code_chunks(path):
         out.append(([_unquote(a) for a in _NOTE_AT.findall(chunk)],
                     [_unescape(s) for s, alt in _SNIP.findall(chunk) if not alt]))
     return out

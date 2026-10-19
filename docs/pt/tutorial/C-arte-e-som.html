@@ -19,94 +19,21 @@ Tutorial.mount({
   title: "Arte e som",
   steps: [
     {
-      title: "Uma vitrine",
+      title: "Os sites",
       part: "Onde encontrar",
       body: `
-        <p>Quase toda a arte e todo o som dos tutoriais vieram de sites que oferecem <em>assets</em> (recursos: imagens, animações, sons, músicas, fontes) para quem faz jogos. Este programa é uma vitrine: uma peça de cada site, com o nome dele embaixo, e um som no espaço.</p>
-      `,
-      code: `from scena import *
-
-init(width=1000, height=600, title="Vitrine")
-Wallpaper("dark steel blue")
-
-Sprite("backgrounds/mountains/grass.png", width=1000, center=(500, 281))
-
-Sprite("space/playerShip1_red.png", height=90, center=(150, 400))
-Sprite("ninja/Idle__000.png", height=140, center=(330, 400))
-Sprite("textures/Brick_01.png", height=110, center=(510, 400))
-Sprite("pixel_adv/End (Idle).png", height=110, center=(690, 400))
-
-Text("Kenney", top_center=(150, 310), font_size=22)
-Text("GameArt2D", top_center=(330, 310), font_size=22)
-Text("OpenGameArt", top_center=(510, 310), font_size=22)
-Text("itch.io", top_center=(690, 310), font_size=22)
-Text("CraftPix (a grama)", top_center=(500, 120), font_size=22)
-Text("ESPAÇO: um som do Freesound", top_left=(20, 580), font_size=22)
-
-
-def update(dt):
-    if keyp.once("SPACE"):
-        play_sound("audio/explosion02.wav")
-
-
-run()
-`,
-      after: `
-        <p>De onde veio cada peça, e o que mais se acha em cada site:</p>
-        <div class="tbl"><table><thead><tr><th>Site</th><th>O que tem</th><th>Licença</th></tr></thead><tbody>
-          <tr><td><a href="https://www.kenney.nl">kenney.nl</a></td><td>Milhares de peças em pacotes que combinam entre si: naves, plataformas, cartas, botões, sons, fontes. As naves, os planetas e as bolas dos tutoriais. Cada pacote traz as peças em arquivos soltos e também numa folha com todas (Apêndice G).</td><td><strong>CC0</strong>: use como quiser, sem pedir nem dar crédito.</td></tr>
-          <tr><td><a href="https://www.gameart2d.com">gameart2d.com</a></td><td>Personagens animados e cenários de plataforma, de um artista só: o ninja, o robô, o avião e os blocos de chão, um arquivo por quadro de animação.</td><td>A seção <em>Freebies</em> (grátis) é CC0; o resto é pago.</td></tr>
-          <tr><td><a href="https://opengameart.org">opengameart.org</a></td><td>Um site comunitário: muita gente publica sprites, texturas, músicas e sons. Os tijolos da vitrine.</td><td>Cada peça tem a sua, escrita na página dela; a busca filtra pela licença.</td></tr>
-          <tr><td><a href="https://itch.io/game-assets">itch.io</a></td><td>Uma loja de criadores independentes, com muitos pacotes grátis ou “pague quanto quiser”. O troféu vem do <em>Pixel Adventure</em>, da Pixel Frog.</td><td>Cada autor escreve a sua na página do pacote: leia antes.</td></tr>
-          <tr><td><a href="https://craftpix.net">craftpix.net</a></td><td>Um catálogo grande de arte 2D, quase toda paga, com uma seção de grátis. A grama.</td><td>Licença própria, diferente das Creative Commons: leia a página de licença do site.</td></tr>
-          <tr><td><a href="https://freesound.org">freesound.org</a></td><td>Sons gravados ou criados por milhares de pessoas: explosões, passos, portas, vozes, ambientes. Baixar pede uma conta grátis. Várias explosões dos tutoriais.</td><td>Cada som mostra a sua; a busca filtra por ela.</td></tr>
+        <p>Quase toda a arte e todo o som dos tutoriais vieram de sites que oferecem <em>assets</em> (recursos: imagens, animações, sons, músicas, fontes) para quem faz jogos:</p>
+        <div class="tbl"><table><thead><tr><th>Site</th><th>O que tem</th></tr></thead><tbody>
+          <tr><td><a href="https://www.kenney.nl">kenney.nl</a></td><td>Milhares de peças grátis em pacotes que combinam entre si: naves, plataformas, cartas, botões, sons, fontes. As naves, os planetas e as bolas dos tutoriais. Cada pacote traz as peças em arquivos soltos e também numa folha com todas (Apêndice G).</td></tr>
+          <tr><td><a href="https://www.gameart2d.com">gameart2d.com</a></td><td>Personagens animados e cenários de plataforma, de um artista só: o ninja, o robô, o avião e os blocos de chão, um arquivo por quadro de animação. A seção <em>Freebies</em> é grátis; o resto é pago.</td></tr>
+          <tr><td><a href="https://opengameart.org">opengameart.org</a></td><td>Um site comunitário: muita gente publica sprites, texturas, músicas e sons.</td></tr>
+          <tr><td><a href="https://itch.io/game-assets">itch.io</a></td><td>Uma loja de criadores independentes, com muitos pacotes grátis ou “pague quanto quiser”.</td></tr>
+          <tr><td><a href="https://craftpix.net">craftpix.net</a></td><td>Um catálogo grande de arte 2D, quase toda paga, com uma seção de grátis.</td></tr>
+          <tr><td><a href="https://freesound.org">freesound.org</a></td><td>Sons gravados ou criados por milhares de pessoas: explosões, passos, portas, vozes, ambientes. Baixar pede uma conta grátis. Várias explosões dos tutoriais.</td></tr>
+          <tr><td><a href="https://fonts.google.com">fonts.google.com</a></td><td>Mais de mil famílias de fontes (as letras de um <code>Text</code>), todas livres.</td></tr>
+          <tr><td><a href="https://www.1001fonts.com/video-game-fonts.html">1001fonts.com</a></td><td>Neste link, as fontes com cara de videogame: pixel, arcade, ficção científica.</td></tr>
         </tbody></table></div>
-        <p>Para fontes (as letras de um <code>Text</code>), dois sites a mais. O <a href="https://fonts.google.com">Google Fonts</a> tem mais de mil famílias, todas livres (SIL Open Font License ou Apache): pode usar e distribuir com o jogo, inclusive vendido; ponha o arquivo de licença do download junto da fonte. O <a href="https://www.1001fonts.com/video-game-fonts.html">1001fonts.com</a> abre, neste link, as fontes com cara de videogame (pixel, arcade, ficção científica), mas muitas são grátis só para uso pessoal: leia a licença antes de pôr num jogo que vai publicar.</p>
-        <p>Prefira um pacote inteiro do mesmo autor a peças soltas de vários: o estilo combina. Antes de baixar, olhe a licença; ao baixar, anote de onde veio (a seção “Licenças” mostra como), e guarde o arquivo de licença que vem dentro do pacote, em geral <code>License.txt</code>.</p>
-      `
-    },
-    {
-      title: "CC0, BY, SA, NC",
-      part: "Licenças",
-      fresh: true,
-      body: `
-        <p>Um arquivo que você baixa tem dono: quem o fez. A <strong>licença</strong> é a permissão que o autor dá, por escrito, dizendo o que você pode fazer com ele. A maioria dos sites de assets usa as licenças <em>Creative Commons</em> (CC), montadas com algumas siglas:</p>
-        <div class="tbl"><table><thead><tr><th>Sigla</th><th>O que pede</th></tr></thead><tbody>
-          <tr><td><strong>CC0</strong> (zero)</td><td>nada: o autor abriu mão de tudo. Use, mude, publique e até venda, sem pedir nem dar crédito (dar crédito continua sendo gentil)</td></tr>
-          <tr><td><strong>BY</strong> (“por”, de autoria)</td><td>crédito: o nome do autor, o nome ou o link da peça e a licença. CC-BY é a mais comum depois da CC0</td></tr>
-          <tr><td><strong>SA</strong> (<em>share alike</em>, compartilhe igual)</td><td>se você <em>modificar</em> o arquivo (cortar um som, recolorir uma imagem), a versão modificada sai com a mesma licença. Só tocar o som no jogo não é modificar</td></tr>
-          <tr><td><strong>NC</strong> (<em>non commercial</em>, não comercial)</td><td>nada vendido ou que dê dinheiro. Para um jogo de estudo, tudo bem; para um jogo que você talvez venda um dia, evite</td></tr>
-          <tr><td><strong>ND</strong> (<em>no derivatives</em>, sem derivados)</td><td>use como está: sem cortar o som, sem recolorir a imagem</td></tr>
-        </tbody></table></div>
-        <p>Uma imagem achada numa busca qualquer, sem licença escrita, pertence ao autor: não pode ir para o seu jogo. Na dúvida, procure a mesma ideia num dos sites da seção anterior.</p>
-        <p>O jeito mais simples de dar o crédito que o BY pede é uma tela de créditos no jogo. Este programa mostra uma, para o laser que toca no espaço e para a grama da vitrine.</p>
-      `,
-      code: `from scena import *
-
-init(width=1000, height=600, title="Créditos")
-Wallpaper("dark navy")
-
-Text("Créditos", top_center=(500, 560), font_size=40)
-Text("Laser Fire, por dklon\\nopengameart.org/content/laser-fire\\nCC BY 3.0", top_center=(500, 440), font_size=22)
-Text("Grama, por CraftPix.net 2D Game Assets\\nopengameart.org/content/summer-pixel-art-seamless-background\\nOGA-BY 3.0", top_center=(500, 300), font_size=22)
-Text("ESPAÇO: o laser", top_left=(20, 40), font_size=20)
-
-
-def update(dt):
-    if keyp.once("SPACE"):
-        play_sound("audio/laser4.wav")
-
-
-run()
-`,
-      notes: [
-        {
-          at: "Text(\"Laser Fire, por dklon",
-          text: "O crédito tem três partes: a peça e o autor, o link, a licença. O <code>\\n</code> quebra a linha do texto."
-        }
-      ],
-      after: `
-        <p>Ao baixar um arquivo que não é CC0, anote na hora, num <code>creditos.txt</code> ao lado do jogo: o nome do arquivo, o autor, o link e a licença. Depois de cinquenta arquivos, ninguém lembra de onde veio cada um, e a tela de créditos sai pronta desse arquivo.</p>
+        <p>Prefira um pacote inteiro do mesmo autor a peças soltas de vários: o estilo combina. Cada site diz, na página da peça, o que a licença permite: leia antes de baixar.</p>
       `
     },
     {
@@ -114,13 +41,19 @@ run()
       part: "Organizar os arquivos",
       fresh: true,
       body: `
-        <p>Quando você escreve <code>Sprite("space/star_gold.png")</code>, o Scena procura o arquivo ao lado do seu script e depois numa pasta chamada <code>media</code> ao lado dele. É por isso que os tutoriais pedem para copiar a pasta <code>media</code> dos exemplos para junto dos seus scripts. Guarde o que você baixar do mesmo jeito, uma subpasta por pacote:</p>
+        <p>Quando você escreve <code>Sprite("space/star_gold.png")</code>, o Scena procura o arquivo nesta ordem, e usa o primeiro que existir:</p>
+        <ol>
+          <li>ao lado do script: a pasta do arquivo <code>.py</code> que você rodou;</li>
+          <li>na pasta <code>media</code> ao lado do script;</li>
+          <li>na pasta de onde o programa foi rodado (a pasta atual do terminal).</li>
+        </ol>
+        <p>Um caminho completo, como <code>"/Users/ana/jogos/nave.png"</code>, vale só para aquele arquivo. A mesma busca serve para tudo que abre um arquivo pelo nome: <code>Sprite</code>, <code>Wallpaper</code>, <code>Svg</code>, <code>Sheet</code>, <code>play_sound</code> e a <code>font=</code> de um texto.</p>
+        <p>É por isso que os tutoriais pedem para copiar a pasta <code>media</code> dos exemplos para junto dos seus scripts. Guarde o que você baixar do mesmo jeito, uma subpasta por pacote:</p>
         <ul>
           <li><code>meu_jogo.py</code></li>
-          <li><code>creditos.txt</code></li>
           <li><code>media/</code>
             <ul>
-              <li><code>space/</code> — um pacote do Kenney, com o <code>License.txt</code> dele</li>
+              <li><code>space/</code> — um pacote do Kenney</li>
               <li><code>k-rolling-ball/</code> — outro pacote</li>
               <li><code>audio/</code> — os sons</li>
             </ul>
@@ -146,15 +79,16 @@ run()
       notes: [
         {
           at: "Sprite(\"space/star_gold.png\"",
-          text: "O nome leva a subpasta. O Scena não procura sozinho dentro das subpastas, então ela tem que estar no nome."
+          text: "O nome leva a subpasta: o Scena procura <code>media/space/star_gold.png</code>. Ele não entra sozinho nas subpastas atrás de um <code>star_gold.png</code>, então a subpasta tem que estar no nome."
         },
         {
           at: "Sprite(\"robot/Idle (1).png\"",
-          text: "Letra por letra igual ao arquivo, com maiúsculas, espaços e parênteses. Manter os nomes originais do pacote ajuda a achar o crédito depois; se for renomear, prefira nomes curtos, sem acento e sem espaço."
+          text: "Letra por letra igual ao arquivo, com maiúsculas, espaços e parênteses. No Mac e no Windows, <code>idle (1).png</code> ainda abre, mas com um aviso no console: no Linux o arquivo não seria achado. Se for renomear, prefira nomes curtos, sem acento e sem espaço."
         }
       ],
       after: `
         <p>Troque <code>star_gold</code> por <code>star_gld</code> e rode. Um nome errado não para o jogo: no lugar da imagem aparece um quadriculado (num som, silêncio), e um aviso no console diz qual arquivo faltou (Apêndice A, “Avisos”).</p>
+        <details class="ask"><summary>Há um <code>space/star_gold.png</code> ao lado do script e outro em <code>media/space/star_gold.png</code>. Qual aparece?</summary><p>O de ao lado do script: a busca para no primeiro que acha, e a pasta do script vem antes da <code>media</code>. Assim dá para trocar uma imagem do pacote por uma sua sem mexer na pasta <code>media</code>.</p></details>
       `
     },
     {
@@ -202,59 +136,6 @@ run()
           </tbody>
         </table></div>
         <p>Um personagem animado vem em vários arquivos, numa faixa ou num atlas. Os jeitos de carregar cada um, com figuras, e a forma com que uma imagem colide estão no Apêndice G.</p>
-      `
-    },
-    {
-      title: "Efeitos e música",
-      part: "Sons",
-      fresh: true,
-      body: `
-        <p><code>play_sound("…")</code> (tocar som) toca um arquivo uma vez e pronto: não precisa criar nada antes. Os sons de um jogo são de dois tipos: efeitos, curtos, que respondem a alguma coisa (o pulo, a moeda, a explosão), e a música, longa, que repete.</p>
-      `,
-      code: `from random import uniform
-from scena import *
-
-init(width=900, height=500, title="Sons")
-Wallpaper("dark navy")
-
-Text("1: pulo   2: moeda   3: explosão   M: música", center=(450, 250), font_size=26)
-
-
-def update(dt):
-    if keyp.once("1"):
-        play_sound("synth/jump.wav", pitch=uniform(0.9, 1.1))
-    if keyp.once("2"):
-        play_sound("synth/coin.wav", pitch=uniform(0.9, 1.1))
-    if keyp.once("3"):
-        play_sound("audio/explosion02.wav", volume=0.5)
-    if keyp.once("M"):
-        play_sound("audio/Victory.mp3", loops="forever", name="musica")
-
-
-run()
-`,
-      notes: [
-        {
-          at: "play_sound(\"synth/jump.wav\", pitch=uniform(0.9, 1.1))",
-          text: "<code>pitch=</code> (altura) muda o tom: 1 é o original, acima de 1 fica mais agudo e mais rápido. Sortear um pouco o tom a cada vez evita que o mesmo som, repetido, canse o ouvido."
-        },
-        {
-          at: "volume=0.5",
-          text: "<code>volume=</code> deixa um som mais baixo: 0.5 é metade."
-        },
-        {
-          at: "loops=\"forever\"",
-          text: "A música repete sem parar (<em>loops</em>, repetições; <em>forever</em>, para sempre)."
-        },
-        {
-          at: "name=\"musica\"",
-          text: "<code>name=</code> (nome) dá um nome à vaga da música."
-        }
-      ],
-      after: `
-        <p>Rode e aperte 1 várias vezes seguidas: o pulo nunca soa exatamente igual.</p>
-        <details class="ask"><summary>Aperte M duas vezes. Quantas músicas tocam?</summary><p>Uma só. Por causa do <code>name="musica"</code>, a segunda começa no lugar da primeira, em vez de somar uma segunda música por cima.</p></details>
-        <p>Para o volume de tudo e uma tecla de mudo, veja o Apêndice B, “Volume”.</p>
       `
     }
   ]
