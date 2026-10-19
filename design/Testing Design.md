@@ -16,6 +16,7 @@ strategy, the rules, and the bug catalogue.
 | Whole programs against a spec written from the docs; a divergence to triage | [Program model tests](#program-model-tests) |
 | Whole games written to be tested: side models inside the game, under a real load | [Game system tests](#game-system-tests) |
 | The laws trace, the reference model, the equations; triage of what they find | [Laws and equations](#laws-and-equations) |
+| Games written by personas (beginner, Scratch kid, Unity refugee, copy-paster), the probe runner, the freeze signal | [Persona probes](#persona-probes) |
 | A leak test fails but the engine looks right | [Harness pitfalls](#harness-pitfalls) |
 | Do the smoke / example scripts still run? | `tests/test_scripts_run.py` (examples, quick) and `tests/test_smoke_scripts.py` (`scripts/smoke`, benches; `SLOW`) ([Recurring bug classes](#recurring-bug-classes): a script left on a retired spelling) |
 | Is this bug a known class? | [Recurring bug classes](#recurring-bug-classes), [Bug catalogue](#bug-catalogue) |
@@ -1241,6 +1242,78 @@ static guards (`test_vec2_guards`). Yield: [VB](#vb--vec2-battery-2026-10-17).
 `ContainerSlot(Vec2)` fails `test_vec2_guards` until it has one); a new
 in-place spelling is a `DOORS` entry (the guard finds `__i*__`, `__lshift__`
 and `do_*`); a new rule is an invariant with its canary in `TestOracleBites`.
+
+# Persona probes
+
+The earlier campaigns found bugs because each brought a new model of how
+the engine should behave. Their probe writers had read the Guia closely, so
+their expectations were the engine's own. A persona probe brings
+expectations from elsewhere: a beginner who changes things by trial and
+error, a Scratch kid (forever loops, broadcasts, clones), a Unity or Pygame
+refugee (dt by hand, collisions by polling, managers), a copy-paster (Guia
+snippets stitched across sections), an ambitious hobbyist (500 entities,
+pause, save/load, an hour of play). The persona reads only what an author
+can read (`docs/` and `examples/`), never `design/`, `tests/` or `scena/`.
+Being unlike Unity or Pygame is not a finding when Scena is consistent and
+logical; a habit the Guia encouraged is (DOC), and so is a message that does
+not steer the author to the fix (ERROR).
+
+**A probe** is a pair: `<name>.py`, the game as the persona writes it, and
+`<name>.expect.py`, written before the game ever ran and never changed after
+a run: `PLAY` (input steps in game seconds), `CHECKS` (`(label, seconds or
+"end", predicate)` on the program's namespace), and optionally `SECONDS`,
+`PARAMS`, `HZ`, `TIMEOUT`, `LAWS`, `MOTION`, `EXPECT_ERROR` (the error the
+persona expects and what its message should say), `MIRROR` (E11).
+
+**The runner** (`tests/laws/probe.py`, `python tests/laws/probe.py <folder>`)
+runs each probe at 60, 30 and 144 Hz, each rate in its own process (a crash
+or a hang stays there), under OS-level input (`game_harness.GameRun`
+`os_level`, plus typed characters that have no alphanumeric key) with the
+laws recorder attached. It raises flags, not verdicts:
+
+- `ERROR`: the exception, its innermost frame (author or engine), the author
+  line and the engine line; `HANG`: no result within the timeout, with the
+  stack where it hung (a `while True` in `update` hangs a real game: the sync
+  watchdog is off by default); `CRASH`: the process died;
+- `CHECK`: a stated expectation that did not hold; `PACE`: a check, or the
+  error, that differs between rates; `EXPECT_ERROR`: the expected error
+  did not come;
+- `LAWS`: a model finding not in `known.KNOWN`; `E1`: an edge event not
+  within a frame of the 60 Hz run's (`equations.compare_paced`); `E11`: the
+  bodies of a hand-written `<name>.mirror.py` (x mirrored about the design
+  width) are not within 0.5 DU of the game's once mapped back, under
+  mirrored input (LEFT↔RIGHT, A↔D, x → W − x). No transform mirrors an
+  arbitrary program, so E11 runs only where the triage wrote a mirror;
+- `WARN`: every warning the 60 Hz run raised; `GROWTH`: past 300 game
+  seconds the run samples the live object count and the wall time per game
+  minute instead of recording laws, and flags either one growing.
+
+Frame counting in author code trips E1 and PACE by design (the runner's own
+test uses it): the triage decides whether the author or the engine is at
+fault. `test_laws_probe` (quick, ~7 s) runs one probe of each flag.
+
+**Triage.** The verdicts of [Laws and equations](#laws-and-equations) (BUG,
+LATENT, ACADEMIC, DECISION) plus DOC (the Guia led the persona astray),
+ERROR (the message did not name the fix, or it pointed into the engine),
+NOT-ENGINE (the persona's habit; the engine is consistent, and the row says
+why) and PROBE (the probe's own mistake). Every flag is read to its
+mechanism.
+
+**Protocol and the freeze signal** (fixed 2026-10-19, before the first
+round). A round is two campaigns written blind on one frozen commit, by
+different models with different personas; neither sees the other's results
+or the bug catalogue until both are triaged, and fixes land only after
+both. The overlap estimates what is left (capture–recapture, Chapman:
+N̂ = (n₁ + 1)(n₂ + 1)/(m + 1) − 1, remaining = N̂ − distinct found). The
+agents share training and blind spots, so the overlap reads high and the
+estimate low. A 1.0 candidate needs two rounds in a row with:
+
+| Condition | Value |
+| --- | --- |
+| BUG findings per campaign of n probes | ≤ ⌈3n/40⌉ |
+| BUG findings in law-governed areas (frame, lifetime, contacts, input, timers) | 0 |
+| Remaining BUG estimate | below 5 |
+
 
 # Test tiers
 

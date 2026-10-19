@@ -425,7 +425,9 @@ equations".
           (each: its fixture, synthetic traces, canaries in gate),
           test_laws_chaos (S7, law F3: the chaos doors' machinery, the
           s5_doors fixture, a seeded slice of single-fault runs, the s7_cells
-          directed cells; the F3 canaries in gate)
+          directed cells; the F3 canaries in gate),
+          test_laws_probe (the persona probe runner, tests/laws/probe.py:
+          one probe per flag, each rate in its own process)
   SLOW:   test_laws_neutrality (E0 over programs, games, examples),
           test_laws_families (the model over every program, game, example;
           deep: every tutorial step), test_laws_equations (E1 pacing, E3 spawn
@@ -440,6 +442,8 @@ equations".
   python tests/script_harness.py examples/naves.py 600 --pace 144      # E1: same game time
   python tests/laws/chaos.py tests/laws/fixtures/s5_doors --plan enter:0:destroy.partner
                                      # one chaos run: what fired, what the checks found
+  python tests/laws/probe.py <folder>  # persona probes: <name>.py + <name>.expect.py
+                                     # at 60/30/144 Hz; flags in <folder>/_results/summary.md
 
   Attach to a program or game run: from laws.attach import attach;
   run_game(game, scenario, before_start=attach); the trace is run.laws
