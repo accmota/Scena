@@ -199,6 +199,9 @@ E1_EXCLUDED = {
                 "left in many-body contacts (bodies sweep one at a time; a tie with movable "
                 "partners answers one at a time); one ball in a box holds (LW7 closed)",
     "entropia.py": "ACADEMIC (as bolas): a box of balls bouncing off each other",
+    "constelacao.py": "ACADEMIC (as aviao): the author's own Euler steps (vel += push * dt, "
+                      "chase toward a heading) in a pursuit where the nearest prey switches; "
+                      "a capture lands a few frames apart at other pacings",
     "aviao.py": "ACADEMIC: the author's own Euler step (vel.y -= g * dt) puts the plane a "
                 "few pixels apart at uneven pacing; a door passed one frame later",
     "naves_modos.py": "ACADEMIC: a self re-arming after / a mode's wait starts each period at "

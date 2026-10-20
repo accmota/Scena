@@ -693,6 +693,15 @@ left out.
 
 ### Documentation
 
+- New example `examples/constelacao.py`, a piece of creative coding: points
+  of light drift and each one threads a line to its nearest neighbour
+  (`nearest`), so constellations keep coming apart and re-forming. Neon
+  comets hunt the nearest point no other comet is after, joined to it by a
+  line that turns into lightning up close; a caught point bursts, is reborn
+  elsewhere and lends the comet its colour. Hold the mouse to pull the
+  points in, let go to push them out with a wave; SPACE adds a comet, T the
+  screen trail (`MotionTrail`).
+
 - Guia: `vel` does not move an object by itself (two "De outro motor"
   rows said it did); an act may subclass an act, and what runs once is
   stated (the Guia said "never", and the engine accepted it).

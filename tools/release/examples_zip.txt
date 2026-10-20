@@ -11,6 +11,7 @@ examples/bolhas.py
 examples/cadeia_de_bolas.py
 examples/ceu_estrelado.py
 examples/colisao.py
+examples/constelacao.py
 examples/corredor.py
 examples/desenho.py
 examples/duelo.py
