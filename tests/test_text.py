@@ -214,7 +214,7 @@ class TestTextCell(TextTestCase):
         bag = State(name="hud_bag")
         bag.score = 3
         hud = self.track(Text(text="", top_left=(20, 100), font_size=16))
-        self.assertIsInstance(hud.text, Attribute)
+        self.assertIsInstance(hud.text, str)
 
         hud["text"] @= (lambda: f"Stars {bag.score}")
         self.assertEqual(hud.value, "Stars 3")
@@ -226,7 +226,7 @@ class TestTextCell(TextTestCase):
         with self.assertRaises(LinkedAttributeError):
             hud.text = "paused"
         self.assertEqual(hud.value, "Stars 7")
-        hud.text.unlink()
+        hud["text"].unlink()
         hud.text = "paused"
         self.assertEqual(hud.value, "paused")
 
@@ -1512,10 +1512,10 @@ class TestTextTakesAFunction(unittest.TestCase):
         st.s67_n = 3
         t = Text(lambda: f"pontos {st.s67_n}", center=(0, 0))
         try:
-            self.assertEqual(t.text.value, "pontos 3")
+            self.assertEqual(t.text, "pontos 3")
             st.s67_n = 12
-            self.assertEqual(t.text.value, "pontos 12")
-            self.assertIsNotNone(t.text._link)
+            self.assertEqual(t.text, "pontos 12")
+            self.assertTrue(t["text"].is_linked)
         finally:
             t.destroy()
 
@@ -1656,7 +1656,7 @@ class TestTextFrame(TextTestCase):
                     self.assertTrue(self._near(self._xy(getattr(copy, n)), self._xy(getattr(t, n))), n)
                 # The copy is pinned like the source: a new text grows from the anchor.
                 pin = self._xy(getattr(copy, anchor))
-                copy.text.value = "a longer caption"
+                copy.text = "a longer caption"
                 self.assertTrue(self._near(self._xy(getattr(copy, anchor)), pin), anchor)
 
     def test_clone_of_a_linked_anchor_is_a_free_snapshot(self):
@@ -1915,3 +1915,88 @@ class TestLinkedCenterIsThePin(unittest.TestCase):
             t.rotate_by(15)
             self.assert_center_holds(t, 10.0, 20.0, anchor)
             self.assert_anchor_follows(t, anchor, anchor)
+
+
+class TestTextReadsAsStr(TextTestCase):
+    """``t.text`` is the text itself, a str, like every other field; the link
+    handle is ``t["text"]`` (persona probes PP, 0.9.0). Before, it was the
+    cell: its str methods read a stale value (``t.text.endswith(…)`` False
+    while ``t.text == …`` was True in the same frame), and it could not be a
+    dict key, joined or searched for."""
+
+    def test_reads_as_the_current_str(self):
+        st.pp_tx = 0
+        t = self.track(Text("", center=(100, 100)))
+        t["text"] @= (lambda: f"Pontos {st.pp_tx}")
+        st.pp_tx = 1
+        self.assertIsInstance(t.text, str)
+        self.assertTrue(t.text.endswith("1"))          # fresh, read first by a method
+        self.assertEqual(t.text, "Pontos 1")
+        self.assertEqual({"Pontos 1": 7}[t.text], 7)
+        self.assertEqual("-".join([t.text, "x"]), "Pontos 1-x")
+        self.assertIn(t.text, "Pontos 1 de 3")
+        self.assertTrue("Pontos 1 e mais".startswith(t.text))
+
+    def test_a_number_link_reads_as_its_shown_text(self):
+        st.pp_tx2 = 5
+        t = self.track(Text(st["pp_tx2"], center=(100, 100)))
+        self.assertEqual(t.text, "5")
+        self.assertEqual(t["text"].value, 5)              # the handle keeps the payload
+
+    def test_the_handle_still_links_reads_and_unlinks(self):
+        st.pp_tx3 = 2
+        t = self.track(Text("a", center=(100, 100)))
+        t["text"] @= (lambda: f"n {st.pp_tx3}")
+        self.assertTrue(t["text"].is_linked)
+        with self.assertRaises(LinkedAttributeError):
+            t.text = "b"
+        t["text"].unlink()
+        t.text = "b"
+        self.assertEqual(t.text, "b")
+        self.assertEqual(t.value, "b")
+
+    def test_the_old_cell_spellings_raise_with_the_fix(self):
+        t = self.track(Text("a", center=(100, 100)))
+        for use in (lambda: t.text.value, lambda: t.text.unlink(), lambda: t.text.is_linked):
+            with self.assertRaises(AttributeError) as cm:
+                use()
+            self.assertIn('["text"]', str(cm.exception))
+        with self.assertRaises(TypeError) as cm:
+            t.text @= (lambda: "x")
+        self.assertIn('["text"] @=', str(cm.exception))
+
+
+class TestCellMethodsReadFresh(unittest.TestCase):
+    """A method called on a cell reads its current value, never a stale one
+    (the cell's ``__getattr__`` read ``_raw_value``: PP, the class of the
+    Text.text bug; ``slider.data`` is such a cell)."""
+
+    def test_a_linked_cell_method_sees_the_new_value(self):
+        st.pp_cell = "ab"
+        c = Attribute("")
+        c @= (lambda: st.pp_cell + "!")
+        self.assertEqual(c.value, "ab!")
+        st.pp_cell = "xyz"
+        self.assertTrue(c.endswith("z!"))
+        self.assertEqual(c.upper(), "XYZ!")
+
+
+class TestEngineReachesCellsThroughTheSlot(unittest.TestCase):
+    """Class guard (PP, Text.text): a ``ValueSlot`` field reads its value, so
+    engine code that wants the cell asks the slot (``slot.cell(obj)``). A
+    direct ``slot.__get__(…)`` or ``getattr(slot, "__get__")`` gets the value
+    and breaks links, act link snapshots and unlinks (test_act PA1 caught one)."""
+
+    def test_no_engine_code_reads_a_slot_by_its_descriptor(self):
+        import re
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from source_support import iter_files
+        root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scena")
+        pat = re.compile(r'\bslot\.__get__\(|getattr\(slot,\s*["\']__get__')
+        hits = []
+        for path in iter_files(root, ".py", recursive=True):
+            with open(path, encoding="utf-8") as fh:
+                for n, line in enumerate(fh, 1):
+                    if pat.search(line):
+                        hits.append(f"{os.path.relpath(path, root)}:{n}: {line.strip()}")
+        self.assertEqual(hits, [])

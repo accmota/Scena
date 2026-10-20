@@ -4473,7 +4473,7 @@ Text("x", top_left=(lambda: mouse.x, 760))</pre>
             <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td><code>text</code></td><td>1º</td><td class="type"><span class="t">str, célula ou função</span><span class="ex">"SCORE"</span></td><td>O texto; ou uma célula (<code>st["score"]</code>), que o Text mostra e acompanha num sentido só (como <code>t["text"] @= st["score"]</code>: <code>t.text = …</code> levanta <code>LinkedAttributeError</code>; para mudar o que aparece, mude a célula); ou uma função, que liga. Um número levanta erro: escreva um texto (<code>Text(str(n))</code>). <code>Text(st.nome)</code> é o texto de agora e não acompanha; a célula é <code>st["nome"]</code>.</td></tr>
+<tr><td><code>text</code></td><td>1º</td><td class="type"><span class="t">str, célula ou função</span><span class="ex">"SCORE"</span></td><td>O texto; ou uma célula (<code>st["score"]</code>), que o Text mostra e acompanha num sentido só (como <code>t["text"] @= st["score"]</code>: <code>t.text = …</code> levanta <code>LinkedAttributeError</code>; para mudar o que aparece, mude a célula); ou uma função, que liga. Um número levanta erro: escreva um texto (<code>Text(str(n))</code>). <code>Text(st.nome)</code> é o texto de agora e não acompanha; a célula é <code>st["nome"]</code>. Ler <code>t.text</code> dá o texto que aparece agora, um <code>str</code> como outro qualquer (serve de chave de dicionário, em <code>in</code>, em <code>join</code>), também quando está ligado; a ligação é <code>t["text"]</code> (<code>t["text"] @= …</code>, <code>t["text"].unlink()</code>).</td></tr>
 <tr><td><code>top_left=</code> / <code>top_center=</code> / <code>top_right=</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">(20, 780)</span></td><td>Um só. Prende esse ponto da caixa (topo visual); o texto cresce para baixo e para longe dele — uma linha nova ou <code>font_size</code> maior não empurra o topo. Sem nenhum: pilha da coluna. <code>layer</code> omitido → <code>ui</code> (avança a coluna); <code>layer="default"</code> → legenda no mundo, fora da coluna. Valor copia; <code>lambda</code> liga, como <code>Rect(top_left=)</code>: <code>top_left=lambda: panel.top_left</code>, ou tupla mista <code>(lambda: mouse.x, 760)</code> (só x liga). Um <code>Point</code> passado é copiado. Mover (<code>move_by</code>, <code>move_to</code>, <code>time=</code>, <code>tween</code>, arrastar) leva o ponto junto; <code>move_to(x, y)</code> põe o meio da string atual em <code>(x, y)</code>. Com âncora ligada, mover levanta <code>LinkedAttributeError</code> (use <code>t["top_left"].unlink()</code>).</td></tr>
 <tr><td><code>width=</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">120</span></td><td>Caixa fixa. Omitido → acompanha a string. Excesso corta (sem wrap). <code>\n</code> é quebra dura (altura = n × métrica da linha). A coluna não se reorganiza se o número de linhas mudar depois.</td></tr>
 <tr><td><code>align=</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">"left"</span></td><td><code>"left"</code> / <code>"center"</code> / <code>"right"</code> (ou <code>XPos.LEFT</code> / <code>XPos.CENTER</code> / <code>XPos.RIGHT</code>). Alinha cada linha dentro da caixa (<code>width=</code> ou a linha mais larga); nunca move a âncora. Padrão segue a âncora: <code>top_left</code> → <code>"left"</code>, <code>top_right</code> → <code>"right"</code>, <code>top_center</code> / <code>center=</code> / <code>box=</code> → <code>"center"</code>. Qualquer combinação vale (ex.: bloco em <code>top_right=</code> com linhas à esquerda).</td></tr>
@@ -4925,6 +4925,7 @@ placa.visual = Paint("coral", line=False)   # cor sem contorno</pre>
     </div>
     <details class="spec">
       <summary>Nomes de cor</summary>
+      <p>Os nomes de cor do CSS também valem (<code>"beige"</code>, <code>"saddle brown"</code>, <code>"midnight blue"</code>), juntos ou separados. <code>dark</code> / <code>light</code> / <code>faded</code> na frente são sempre o modificador de Scena: <code>"dark slate gray"</code> é <code>"slate gray"</code> escurecido.</p>
       <p class="name-group">Básicas</p>
       <div class="color-grid">
         <div class="color-swatch"><div class="color-chip" style="background:rgb(0,0,0)"></div><div class="color-label">black</div></div>
@@ -4936,6 +4937,34 @@ placa.visual = Paint("coral", line=False)   # cor sem contorno</pre>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(0,255,255)"></div><div class="color-label">cyan</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(255,0,255)"></div><div class="color-label">magenta</div></div>
       </div>
+      <p class="name-group">Brancos e claros</p>
+      <div class="color-grid">
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(240,248,255)"></div><div class="color-label">alice blue</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(250,235,215)"></div><div class="color-label">antique white</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(240,255,255)"></div><div class="color-label">azure</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(245,245,220)"></div><div class="color-label">beige</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,228,196)"></div><div class="color-label">bisque</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,235,205)"></div><div class="color-label">blanched almond</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,248,220)"></div><div class="color-label">cornsilk</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,250,240)"></div><div class="color-label">floral white</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(220,220,220)"></div><div class="color-label">gainsboro</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(248,248,255)"></div><div class="color-label">ghost white</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(240,255,240)"></div><div class="color-label">honeydew</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,255,240)"></div><div class="color-label">ivory</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,240,245)"></div><div class="color-label">lavender blush</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(250,240,230)"></div><div class="color-label">linen</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(245,255,250)"></div><div class="color-label">mint cream</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,228,225)"></div><div class="color-label">misty rose</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,228,181)"></div><div class="color-label">moccasin</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,222,173)"></div><div class="color-label">navajo white</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(253,245,230)"></div><div class="color-label">old lace</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,239,213)"></div><div class="color-label">papaya whip</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,218,185)"></div><div class="color-label">peach puff</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,245,238)"></div><div class="color-label">seashell</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,250,250)"></div><div class="color-label">snow</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(245,245,245)"></div><div class="color-label">white smoke</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(245,222,179)"></div><div class="color-label">wheat</div></div>
+      </div>
       <p class="name-group">Cinzas</p>
       <div class="color-grid">
         <div class="color-swatch"><div class="color-chip" style="background:rgb(128,128,128)"></div><div class="color-label">gray</div></div>
@@ -4943,6 +4972,8 @@ placa.visual = Paint("coral", line=False)   # cor sem contorno</pre>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(105,105,105)"></div><div class="color-label">dim gray</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(105,105,105)"></div><div class="color-label">dim grey</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(192,192,192)"></div><div class="color-label">silver</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(112,128,144)"></div><div class="color-label">slate gray</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(112,128,144)"></div><div class="color-label">slate grey</div></div>
       </div>
       <p class="name-group">Vermelhos</p>
       <div class="color-grid">
@@ -4958,12 +4989,16 @@ placa.visual = Paint("coral", line=False)   # cor sem contorno</pre>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(255,192,203)"></div><div class="color-label">pink</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(255,105,180)"></div><div class="color-label">hot pink</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(255,20,147)"></div><div class="color-label">deep pink</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(219,112,147)"></div><div class="color-label">pale violet red</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(199,21,133)"></div><div class="color-label">medium violet red</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(188,143,143)"></div><div class="color-label">rosy brown</div></div>
       </div>
       <p class="name-group">Laranjas</p>
       <div class="color-grid">
         <div class="color-swatch"><div class="color-chip" style="background:rgb(255,165,0)"></div><div class="color-label">orange</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(255,218,185)"></div><div class="color-label">peach</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(255,99,71)"></div><div class="color-label">tomato</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,69,0)"></div><div class="color-label">orange red</div></div>
       </div>
       <p class="name-group">Marrons</p>
       <div class="color-grid">
@@ -4974,6 +5009,8 @@ placa.visual = Paint("coral", line=False)   # cor sem contorno</pre>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(244,164,96)"></div><div class="color-label">sandybrown</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(244,164,96)"></div><div class="color-label">sandy brown</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(205,133,63)"></div><div class="color-label">peru</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(139,69,19)"></div><div class="color-label">saddle brown</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(222,184,135)"></div><div class="color-label">burlywood</div></div>
       </div>
       <p class="name-group">Amarelos</p>
       <div class="color-grid">
@@ -4982,6 +5019,7 @@ placa.visual = Paint("coral", line=False)   # cor sem contorno</pre>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(240,230,140)"></div><div class="color-label">khaki</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(255,250,205)"></div><div class="color-label">lemonchiffon</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(173,255,47)"></div><div class="color-label">green yellow</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(238,232,170)"></div><div class="color-label">pale goldenrod</div></div>
       </div>
       <p class="name-group">Verdes</p>
       <div class="color-grid">
@@ -4996,6 +5034,15 @@ placa.visual = Paint("coral", line=False)   # cor sem contorno</pre>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(188,221,175)"></div><div class="color-label">sage</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(80,200,120)"></div><div class="color-label">emerald</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(0,255,255)"></div><div class="color-label">aqua</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(127,255,0)"></div><div class="color-label">chartreuse</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(107,142,35)"></div><div class="color-label">olive drab</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(107,142,35)"></div><div class="color-label">olive green</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(152,251,152)"></div><div class="color-label">pale green</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(0,255,127)"></div><div class="color-label">spring green</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(0,250,154)"></div><div class="color-label">medium spring green</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(60,179,113)"></div><div class="color-label">medium sea green</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(102,205,170)"></div><div class="color-label">medium aquamarine</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(127,255,212)"></div><div class="color-label">aquamarine</div></div>
       </div>
       <p class="name-group">Azuis</p>
       <div class="color-grid">
@@ -5008,6 +5055,13 @@ placa.visual = Paint("coral", line=False)   # cor sem contorno</pre>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(95,158,160)"></div><div class="color-label">cadet blue</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(100,149,237)"></div><div class="color-label">cornflower blue</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(64,224,208)"></div><div class="color-label">turquoise</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(25,25,112)"></div><div class="color-label">midnight blue</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(0,0,205)"></div><div class="color-label">medium blue</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(176,224,230)"></div><div class="color-label">powder blue</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(106,90,205)"></div><div class="color-label">slate blue</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(123,104,238)"></div><div class="color-label">medium slate blue</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(72,209,204)"></div><div class="color-label">medium turquoise</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(175,238,238)"></div><div class="color-label">pale turquoise</div></div>
       </div>
       <p class="name-group">Roxos</p>
       <div class="color-grid">
@@ -5019,6 +5073,10 @@ placa.visual = Paint("coral", line=False)   # cor sem contorno</pre>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(221,160,221)"></div><div class="color-label">plum</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(218,112,214)"></div><div class="color-label">orchid</div></div>
         <div class="color-swatch"><div class="color-chip" style="background:rgb(186,85,211)"></div><div class="color-label">medium orchid</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(255,0,255)"></div><div class="color-label">fuchsia</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(147,112,219)"></div><div class="color-label">medium purple</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(102,51,153)"></div><div class="color-label">rebecca purple</div></div>
+        <div class="color-swatch"><div class="color-chip" style="background:rgb(216,191,216)"></div><div class="color-label">thistle</div></div>
       </div>
       <p class="name-group">Metálicos</p>
       <div class="color-grid">

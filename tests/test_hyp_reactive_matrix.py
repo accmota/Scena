@@ -112,7 +112,7 @@ def _put(obj, name, is_pair, v):
     if name == "@self":
         obj << v
     elif is_pair:
-        getattr(obj, name)._takein(v)
+        obj._resolve_field(name).cell(obj)._takein(v)
     else:
         setattr(obj, name, v)
 

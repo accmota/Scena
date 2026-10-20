@@ -143,6 +143,65 @@ class ColorNames:
         'silver': (0.753, 0.753, 0.753),
         'bronze': (0.804, 0.498, 0.196),
         'copper': (0.722, 0.451, 0.2),
+
+        # CSS / X11 names (persona probes PP: beige, wheat, saddle brown,
+        # midnight blue … are what learners guess). Base names only: a
+        # dark / light prefix stays Scena's modifier (dark slate gray is
+        # dark + slate gray, not the CSS value).
+        'alice blue': (0.941, 0.973, 1),
+        'antique white': (0.98, 0.922, 0.843),
+        'azure': (0.941, 1, 1),
+        'beige': (0.961, 0.961, 0.863),
+        'bisque': (1, 0.894, 0.769),
+        'blanched almond': (1, 0.922, 0.804),
+        'cornsilk': (1, 0.973, 0.863),
+        'floral white': (1, 0.98, 0.941),
+        'gainsboro': (0.863, 0.863, 0.863),
+        'ghost white': (0.973, 0.973, 1),
+        'honeydew': (0.941, 1, 0.941),
+        'ivory': (1, 1, 0.941),
+        'lavender blush': (1, 0.941, 0.961),
+        'linen': (0.98, 0.941, 0.902),
+        'mint cream': (0.961, 1, 0.98),
+        'misty rose': (1, 0.894, 0.882),
+        'moccasin': (1, 0.894, 0.71),
+        'navajo white': (1, 0.871, 0.678),
+        'old lace': (0.992, 0.961, 0.902),
+        'papaya whip': (1, 0.937, 0.835),
+        'peach puff': (1, 0.855, 0.725),
+        'seashell': (1, 0.961, 0.933),
+        'snow': (1, 0.98, 0.98),
+        'white smoke': (0.961, 0.961, 0.961),
+        'wheat': (0.961, 0.871, 0.702),
+        'slate gray': (0.439, 0.502, 0.565),
+        'slate grey': (0.439, 0.502, 0.565),
+        'pale violet red': (0.859, 0.439, 0.576),
+        'medium violet red': (0.78, 0.082, 0.522),
+        'rosy brown': (0.737, 0.561, 0.561),
+        'orange red': (1, 0.271, 0),
+        'saddle brown': (0.545, 0.271, 0.075),
+        'burlywood': (0.871, 0.722, 0.529),
+        'pale goldenrod': (0.933, 0.91, 0.667),
+        'chartreuse': (0.498, 1, 0),
+        'olive drab': (0.42, 0.557, 0.137),
+        'olive green': (0.42, 0.557, 0.137),
+        'pale green': (0.596, 0.984, 0.596),
+        'spring green': (0, 1, 0.498),
+        'medium spring green': (0, 0.98, 0.604),
+        'medium sea green': (0.235, 0.702, 0.443),
+        'medium aquamarine': (0.4, 0.804, 0.667),
+        'aquamarine': (0.498, 1, 0.831),
+        'midnight blue': (0.098, 0.098, 0.439),
+        'medium blue': (0, 0, 0.804),
+        'powder blue': (0.69, 0.878, 0.902),
+        'slate blue': (0.416, 0.353, 0.804),
+        'medium slate blue': (0.482, 0.408, 0.933),
+        'medium turquoise': (0.282, 0.82, 0.8),
+        'pale turquoise': (0.686, 0.933, 0.933),
+        'fuchsia': (1, 0, 1),
+        'medium purple': (0.576, 0.439, 0.859),
+        'rebecca purple': (0.4, 0.2, 0.6),
+        'thistle': (0.847, 0.749, 0.847),
     }
 
     _compact_to_name: Optional[Dict[str, str]] = None
@@ -374,6 +433,53 @@ class ColorNames:
         return result.rgb
 
 
+_EQ_NAMES: Dict[str, Optional[Tuple[float, float, float, float]]] = {}
+
+
+def _comparable_rgba(other) -> Optional[Tuple[float, float, float, float]]:
+    """The RGBA of a color spelling on the other side of ``==``, or None
+    (not a color: the comparison is unequal). Never raises, never warns for
+    a word that is not near a color name."""
+    if isinstance(other, (tuple, list)):
+        if len(other) not in (3, 4):
+            return None
+        out = []
+        for x in other:
+            if isinstance(x, bool) or not isinstance(x, (int, float)) or not 0 <= x <= 1:
+                return None
+            out.append(float(x))
+        if len(out) == 3:
+            out.append(1.0)
+        return tuple(out)  # type: ignore[return-value]
+    if not isinstance(other, str):
+        return None
+    if other in _EQ_NAMES:
+        return _EQ_NAMES[other]
+    got: Optional[Tuple[float, float, float, float]] = None
+    text = other.strip()
+    if text.startswith("#"):
+        h = text[1:]
+        if len(h) in (6, 8) and all(ch in "0123456789abcdefABCDEF" for ch in h):
+            got = (int(h[0:2], 16) / 255.0, int(h[2:4], 16) / 255.0, int(h[4:6], 16) / 255.0,
+                   1.0 if len(h) == 6 else int(h[6:8], 16) / 255.0)
+    elif text:
+        res = ColorNames.resolve(text)
+        if res.kind in (ColorResolveKind.EXACT, ColorResolveKind.MODIFIER):
+            got = (float(res.rgb[0]), float(res.rgb[1]), float(res.rgb[2]), 1.0)
+        elif res.kind in (ColorResolveKind.FUZZY, ColorResolveKind.SUFFIX) and res.suggestions:
+            warnings.warn(
+                f"Comparing a color with {other!r}, which is not a color name "
+                f"(did you mean {', '.join(repr(x) for x in res.suggestions)}?): "
+                f"the comparison is False.",
+                RuntimeWarning,
+                stacklevel=4,
+            )
+    if len(_EQ_NAMES) > 512:
+        _EQ_NAMES.clear()
+    _EQ_NAMES[other] = got
+    return got
+
+
 def _range_error(value: float) -> str:
     """Message for an RGB(A) channel outside ``[0, 1]``."""
     msg = f"Color components must be in range [0, 1], got {value:g}"
@@ -487,6 +593,34 @@ class Color(ClosedSurface):
         if self.is_none():
             return "Color(none)"
         return f"Color(r={self._r:.3f}, g={self._g:.3f}, b={self._b:.3f}, a={self._a:.3f})"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    # A Color is a value: equal channels are equal colors, however spelled
+    # (``Color("red") == Color("#ff0000") == "red" == (1, 0, 0)``). The other
+    # side may be anything ``color=`` takes; a word that is not a color is
+    # simply unequal, silently (engine code compares values with "auto"),
+    # unless it is a near typo of a color name, which warns once.
+    # Channels compare at the name table's precision (3 decimals, finer than
+    # 8 bits): ``Color("navy") == "#000080"`` although the table holds 0.502.
+    def _key(self) -> Tuple:
+        if self._is_none:
+            return ("none",)
+        return (round(self._r, 3), round(self._g, 3), round(self._b, 3), round(self._a, 3))
+
+    def __eq__(self, other) -> bool:
+        if other is self:
+            return True
+        if isinstance(other, Color):
+            return self._key() == other._key()
+        rgba = _comparable_rgba(other)
+        if rgba is None:
+            return NotImplemented
+        return not self._is_none and self._key() == tuple(round(x, 3) for x in rgba)
+
+    def __hash__(self) -> int:
+        return hash(self._key())
 
     # Private methods, used in __init__ -----------------------------------------------------------------
 

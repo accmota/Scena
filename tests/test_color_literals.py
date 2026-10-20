@@ -104,8 +104,8 @@ class TestColorLiterals(unittest.TestCase):
     def test_detector_is_not_vacuous(self):
         self.assertTrue(is_known_color("dim gray"))
         self.assertTrue(is_known_color("#ff8800"))
-        self.assertFalse(is_known_color("slategray"))
-        self.assertFalse(is_known_color("mediumseagreen"))
+        self.assertFalse(is_known_color("vermilion"))
+        self.assertFalse(is_known_color("cerulean"))
         src = 'Circle(color="red")\n_HIT_SWATCHES = (None, "cyan")\n'
         tree_names = sorted(n for _l, n in script_literals_from_source(src))
         self.assertEqual(tree_names, ["cyan", "red"])

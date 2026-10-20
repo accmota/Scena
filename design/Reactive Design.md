@@ -311,7 +311,7 @@ point1.y = c1.radius      # Attribute on the RHS
 
 When the RHS is another `Attribute`, `_takein` **unwraps** it to `.value` and stores a **copy of the scalar**. The objects are not aliased; there is no ongoing dependency from this assignment alone. Propagation to owners/dependents goes through `update()` → DependencyGraph / UpdateManager.
 
-Shape fields declared with `ContainerSlot` follow the same idea on `__set__`: assignment never replaces the part object; it calls `part.takein(value)`.
+Shape fields declared with `ContainerSlot` follow the same idea on `__set__`: assignment never replaces the part object; it calls `part.takein(value)`. A cell read for its value goes through `.value` (fresh): a method called on a cell (`cell.endswith(…)`, `Attribute.__getattr__`) reads the current value too; it read `_raw_value` and was stale until something read `.value`, so `t.text.endswith(…)` and `t.text == …` disagreed in one frame (persona probes PP).
 
 **One set of rules per field, on the slot.** A `ScalarSlot` declares its rules:
 `magnitude` (finite, >= 0; `positive` for > 0), `minimum` / `maximum`,
@@ -596,6 +596,7 @@ EventRegistration (events.py)
 | **Shape**             | Entity + PaintState; declares parts with `ContainerSlot`; implements `_update_impl`                                                                   |
 | **SpatialFx**         | Entity ambient emitter; domain pose + tick/draw; no PaintState (see `spatial_fx.py`)                                                                  |
 | **ContainerSlot**     | Descriptor that lazily creates a part, sets `field_type` (from `_defining_part_names` when set), wires owner, materializes live Derivates on first access |
+| **ValueSlot**         | `ContainerSlot` whose dot read is the payload (`read(value, owner, name)`): `Text.text` reads the text shown, a `str` (`TextValue`, which refuses the cell spellings `.value` / `.unlink()` / `.is_linked` / `@=` with the bracket fix). The engine reaches the cell with `slot.cell(obj)`, never a dot read or `slot.__get__` (guard `test_text.TestEngineReachesCellsThroughTheSlot`; persona probes PP, 0.9.0) |
 | **ScalarAnchor**      | Graph node for a linked bare-scalar / ink field, and the node formulas that read that field depend on. Created on first `obj["field"] @=` (or when a formula reads the field), destroyed on unlink **unless another formula still reads it** — then it is only unlinked and stays a source (dropping it unlinked every reader: AC12, `test_fieldref.TestUnlinkKeepsReaders`). `_takein` writes `__dict__` / `_ink`. |
 | **_PropertyAnchor**   | `ScalarAnchor` subclass for property-backed pose (`Graphic.scale` everywhere; `angle` on Point/Sprite/Svg/Text/Track/free Polygon and on derived headings — not where `angle` is a model input, a real `ScalarSlot`). `_takein` calls `setattr` so `rotate_to` / `scale_to` run. **Private** — do not promote to a general property-link primitive until a second use case appears. |
 | **ScenaSystem**       | Facade: register/unregister, edges, begin_frame_batch / flush / end_frame_batch                                                                           |

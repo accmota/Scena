@@ -401,7 +401,7 @@ class TestLabel(ButtonTestCase):
         self.assertIsNone(b.label_text.layer)
         self.assertEqual(b.label_text.name.split(".")[-1], "label_text")
         b.label = "Continuar"
-        self.assertEqual(b.label_text.text.value, "Continuar")
+        self.assertEqual(b.label_text.text, "Continuar")
         b.label = 3
         self.assertEqual(b.label, "3")
 

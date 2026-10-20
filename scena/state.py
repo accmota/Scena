@@ -3333,7 +3333,7 @@ class Container():
         # materialize the slot or stick ``_needs_pull_invalidate``.
         if not getattr(self, "_in_batch_update", False) and self._field_is_derivate(name, slot):
             raise DerivedAttributeError(self._derived_field_message(name, "link"))
-        target = slot.__get__(self, type(self))
+        target = slot.cell(self)
         target._assign_formula(source)
 
     def _linkable_source(self, name: str) -> 'Container':
@@ -3346,7 +3346,7 @@ class Container():
         slot = self._resolve_field(name)
         if slot is _INK_SLOT or isinstance(slot, ScalarSlot):
             return self._ensure_scalar_anchor(name)
-        target = slot.__get__(self, type(self))
+        target = slot.cell(self)
         if not isinstance(target, Container):
             raise TypeError(_LINK_RHS_ERROR)
         return target
@@ -3366,13 +3366,13 @@ class Container():
                 return
             self._drop_scalar_anchor(name)
             return
-        target = slot.__get__(self, type(self))
+        target = slot.cell(self)
         if isinstance(target, Container):
             target.unlink()
 
     def _read_field(self, name: str):
-        self._resolve_field(name)
-        v = getattr(self, name)
+        slot = self._resolve_field(name)
+        v = slot.cell(self) if isinstance(slot, ContainerSlot) else getattr(self, name)
         # Boxed State/widget cells: FieldRef.value is the payload, matching
         # scalar FieldRefs that already return a bare float/str.
         if isinstance(v, Attribute):
@@ -3386,7 +3386,7 @@ class Container():
             if not anchors or name not in anchors:
                 return False
             return anchors[name]._link is not None
-        target = slot.__get__(self, type(self))
+        target = slot.cell(self)
         return isinstance(target, Container) and target._link is not None
 
     def _write_field(self, name: str, value) -> None:
@@ -3538,7 +3538,7 @@ class Container():
                 elif slot is _INK_SLOT:
                     self._scena_system.update_manager.maybe_poll_events()
             return
-        target = slot.__get__(self, type(self))
+        target = slot.cell(self)
         target._ensure_not_derivate("set", value)
         target._refuse_author_write()
         target._takein(value)
@@ -4100,8 +4100,37 @@ class ContainerSlot:
             raise DerivedAttributeError(
                 instance._derived_field_message(self.name, "set", value)
             )
-        container = self.__get__(instance, None)  # Get the container instance
+        container = self.cell(instance)  # the container instance
         container._assign_value(value)
+
+    def cell(self, instance):
+        """The container behind the field: what the engine links, unlinks and
+        writes (``obj["name"]``). For a ``ContainerSlot`` it is also what a dot
+        read returns; a ``ValueSlot`` reads its value instead."""
+        return self.__get__(instance, type(instance))
+
+
+class ValueSlot(ContainerSlot):
+    """A cell field that reads as its value, like every scalar field
+    (``Text.text``: ``t.text`` is the text, a str; ``t["text"]`` is the link
+    handle). ``read`` turns the payload into what a dot read returns.
+
+    The engine reaches the cell with ``slot.cell(obj)``. The value a read
+    returns refuses the cell's own spellings (``.value``, ``.unlink()``,
+    ``@=``) with the bracket fix (``_value_read``)."""
+
+    def __init__(self, container_class: type, read: Callable[[Any, Any, str], Any],
+                 field_type: FieldType = FieldType.Defining):
+        super().__init__(container_class, field_type)
+        self.read = read
+
+    def cell(self, instance):
+        return ContainerSlot.__get__(self, instance, type(instance))
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        return self.read(ContainerSlot.__get__(self, instance, owner).value, instance, self.name)
 
 
 def _dead_self_or_owner(instance):
@@ -5368,7 +5397,11 @@ class Attribute(ClosedSurface, Container):  # Use string literal for forward ref
         Uses ``_raw_value`` (not ``.value``) so lookup during init / pull
         resolve cannot recurse through ``_ensure_fresh``.
         """
-        raw = object.__getattribute__(self, '_raw_value')
+        # A public name is the author's (``cell.endswith(…)``): read the
+        # current value, as ``==`` does; it read ``_raw_value`` and was stale
+        # until something read ``.value`` (persona probes PP, Text.text).
+        raw = (object.__getattribute__(self, '_raw_value') if name.startswith('_')
+               else self.value)
         if hasattr(raw, name):
             attr = getattr(raw, name)
             if callable(attr):

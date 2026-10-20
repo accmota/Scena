@@ -192,7 +192,7 @@ class TestPointKeepsItsMeaning(unittest.TestCase):
         a = Anchor(10, 20)
         self.assertEqual(middle_point(a, (30, 40)), (20.0, 30.0))
         self.assertEqual(Track(points=[a, (30, 40)]).at(0), (10.0, 20.0))
-        self.assertEqual(str(a), str(Text(a, center=(0, 0), layer="default").text.value))
+        self.assertEqual(str(a), str(Text(a, center=(0, 0), layer="default").text))
 
 
 class TestNotAList(unittest.TestCase):

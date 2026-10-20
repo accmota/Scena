@@ -86,7 +86,27 @@ left out.
   Before, `v += p` added the point's coordinates to the vector and `v - p` gave
   a Point at `v - p`. `v + p` and `p + v` (the place moved) are unchanged.
 
+- `t.text` on a `Text` reads the text shown, a `str`, like every other
+  field; the link handle is `t["text"]`. Before, `t.text` was the cell: its
+  string methods read a stale value (`t.text.endswith("1")` was `False` in the
+  frame `t.text == "Pontos 1"` was `True`), and it could not be a dict key,
+  joined, or searched for (`PONTOS[t.text]` raised `unhashable type`). Before
+  → after: `t.text.value` → `t.text`; `t.text.unlink()` →
+  `t["text"].unlink()`; `t.text @= f` → `t["text"] @= f`. Each old spelling
+  raises with the fix: `AttributeError: Text.text is the text itself, a str,
+  since 0.9.0: read it as t.text. The link handle is the bracket:
+  t["text"].unlink().` A text linked to a number reads as its shown text
+  (`"5"`); `t["text"].value` and `t.value` keep the payload.
+
 ### Added
+
+- The CSS colour names: `"beige"`, `"wheat"`, `"saddle brown"`,
+  `"midnight blue"`, `"slate gray"`, the `medium …` and `pale …` families and
+  the rest of the CSS base names, joined or spaced (`"saddlebrown"`). Before,
+  they went to the nearest name (`"midnight blue"` → blue) or to magenta with
+  a misleading hint (`"beige"` → "Did you mean: blue violet?"). A `dark` /
+  `light` / `faded` prefix stays Scena's modifier: `"dark slate gray"` is
+  slate gray darkened, not the CSS value.
 
 - `run_task(fn)` runs an `async def` from anywhere: a sequence of waits
   without a mode. Before, `await` worked only in an async mode, so a script
@@ -271,6 +291,17 @@ left out.
 
 ### Changed
 
+- A `Color` is a value: equal colours compare equal however they were spelled,
+  and the other side may be anything `color=` takes: `c.color == "red"`,
+  `Color("navy") == "#000080"`, `c.color == (1, 0, 0)`. Before, `==` was
+  identity, so `Color("red") == Color("red")` was `False` and a memory game
+  that compared card colours never matched. Colours hash by value (a set of
+  colours drops repeats; a colour is a dict key), print their channels
+  (`Color(r=1.000, g=0.000, b=0.000, a=1.000)`, not an address), and a write
+  of an equal colour no longer fires `@on_change`. A word that is not a
+  colour compares unequal; a near typo of one (`c.color == "yelow"`) also
+  warns once, naming the colour.
+
 - When something an async mode or a task awaits is cancelled from outside
   (the actor it moves destroyed, another move on the same property), the
   warning now says what it was awaiting, at which line, and why it ended:
@@ -354,6 +385,10 @@ left out.
   128 wide, so its corners stay on the grid.
 
 ### Fixed
+
+- A method called on a cell reads its current value (`slider.data.upper()`,
+  any `Attribute`): it read the value from before the last change until
+  something read `.value`.
 
 - A grid `Sheet` past 1024 cells loads: the cap refused real tilesets
   (Kenney's 1-bit pack, 49 × 22 cells of 16 px). The hard cap is 16384 cells;

@@ -29,6 +29,7 @@ from .validate import MIN_SCALE, magnitude, fixed_magnitude
 from .state import (
     Attribute,
     ContainerSlot,
+    ValueSlot,
     FieldRef,
     FieldType,
     LinkedAttributeError,
@@ -200,6 +201,44 @@ def _refuse_linked_text_paint(text, names, operation: str) -> None:
     _refuse_linked_channel(text, names, operation)
 
 
+
+class TextValue(str):
+    """What ``t.text`` reads: the text shown, a plain ``str`` to the author.
+
+    Until 0.9.0 ``t.text`` was the cell. Its spellings (``.value``,
+    ``.unlink()``, ``.is_linked``, ``t.text @= …``) now raise naming the
+    bracket handle ``t["text"]`` (Scena Design, "Compatibility and versions").
+    """
+
+    __slots__ = ()
+
+    def __new__(cls, payload, owner=None):
+        return str.__new__(cls, payload)
+
+    def _moved(self, what: str):
+        raise AttributeError(
+            f'Text.text is the text itself, a str, since 0.9.0: read it as t.text. '
+            f'The link handle is the bracket: t["text"]{what}.'
+        )
+
+    @property
+    def value(self):
+        self._moved(".value")
+
+    @property
+    def is_linked(self):
+        self._moved(".is_linked")
+
+    def unlink(self):
+        self._moved(".unlink()")
+
+    def __imatmul__(self, other):
+        raise TypeError(
+            'Text.text is the text itself, a str, since 0.9.0. '
+            'Link the text with the bracket: t["text"] @= lambda: …'
+        )
+
+
 class Text(Graphic, PaintState):
     """Single author caption class (HUD or world).
 
@@ -273,7 +312,9 @@ class Text(Graphic, PaintState):
     top_left = _TextPartSlot(Point)
     top_center = _TextPartSlot(Point)
     top_right = _TextPartSlot(Point)
-    text = ContainerSlot(Attribute)
+    # ``t.text`` reads the text shown, a str (persona probes PP, 0.9.0: it was
+    # the cell); the link handle is ``t["text"]``, the cell ``_text_cell()``.
+    text = ValueSlot(Attribute, read=lambda v, owner, name: TextValue(v, owner))
 
     # Class keywords of an author subclass (``class Placar(Text, font_size=32,
     # color="gold", group="hud")``): the look, never the content or the
@@ -512,18 +553,18 @@ class Text(Graphic, PaintState):
             # ``t.text = …`` raises LinkedAttributeError naming the cell. Before,
             # the text *was* the cell, so ``t.text = "oi"`` wrote ``st.score``
             # (a display that edited the game state, far from any error).
-            self.text.value = ""
+            self._text_cell().value = ""
             self._link_field("text", bounded)
         elif callable(initial_text):
             # ``Text(lambda: f"Pontos {st.pontos}")``: a function links, the
             # same link as ``t["text"] @= fn`` (same source rules), before the
             # first layout reads it (review 2026-10-09 S6-7; the docstring and
             # the constructor-links rule promised it).
-            self.text.value = ""
+            self._text_cell().value = ""
             self._link_field("text", initial_text)
         else:
             seed = "no label" if initial_text is None else initial_text
-            self.text.value = seed
+            self._text_cell().value = seed
 
         hud = on_ui and wm is not None
         if anchor is None:
@@ -568,7 +609,13 @@ class Text(Graphic, PaintState):
         flash = active_flash_text(self)
         if flash is not None:
             return flash
-        return str(self.text.value)
+        return str(self._text_cell().value)
+
+    def _text_cell(self) -> Attribute:
+        """The ``text`` cell (``t["text"]`` links it; ``t.text`` reads its str).
+        Made on the first read, then held in ``__dict__`` (the slot's own store)."""
+        c = self.__dict__.get("text")
+        return c if c is not None else Text.__dict__["text"].cell(self)
 
     def _needs_outline_path(self) -> bool:
         """True when fill/line is a shader material (Gradient / Texture / …).
@@ -1142,7 +1189,7 @@ class Text(Graphic, PaintState):
     @property
     def value(self):
         """Python payload of the ``text`` cell (Label migration)."""
-        return self.text.value
+        return self._text_cell().value
 
     @value.setter
     def value(self, v) -> None:
@@ -1330,7 +1377,7 @@ class Text(Graphic, PaintState):
             # the world default, as a center= copy does.
             kwargs.setdefault("layer", "default")
         return type(self)(
-            str(self.text.value),
+            str(self._text_cell().value),
             font_size=self.font_size,
             background=self._background,
             width=self._width,

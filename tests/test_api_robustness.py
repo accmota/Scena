@@ -1357,7 +1357,7 @@ class TestLifecycleContracts(unittest.TestCase):
     def test_text_clone(self):
         t = Text("x", center=(0, 0))
         copy = t.clone()
-        self.assertEqual(str(copy.text.value), "x")
+        self.assertEqual(copy.text, "x")
         t.destroy()
         copy.destroy()
 

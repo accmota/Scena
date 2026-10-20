@@ -255,7 +255,7 @@ class TestColorFallback(unittest.TestCase):
     def test_unknown_uses_magenta_and_warns(self):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter('always')
-            rgb = ColorNames.get('chartreuse-ish')
+            rgb = ColorNames.get('plutonium')
             self.assertEqual(rgb, ColorNames._FALLBACK_RGB)
             self.assertEqual(rgb, (1.0, 0.0, 1.0))
             self.assertTrue(any('fallback' in str(x.message).lower() for x in w))
@@ -710,6 +710,103 @@ class TestPalette(unittest.TestCase):
         self.assertIn('Palette', scena.__all__)
         self.assertTrue(hasattr(scena, 'Palette'))
 
+
+
+class TestColorEquality(unittest.TestCase):
+    """A Color is a value: two equal colors compare equal however they were
+    spelled (persona probes PP: a memory game compared card colors with
+    ``==`` and never matched, ``Color("red") == Color("red")`` was False)."""
+
+    def test_equal_colors_compare_equal_and_hash_alike(self):
+        a, b = Color("red"), Color("#ff0000")
+        self.assertEqual(a, b)
+        self.assertEqual(hash(a), hash(b))
+        self.assertEqual(len({a, b, Color(1, 0, 0), Color((1, 0, 0, 1))}), 1)
+        self.assertEqual({a: "x"}[Color("red")], "x")
+        self.assertNotEqual(Color("red"), Color("blue"))
+        self.assertNotEqual(Color("red"), Color("red").with_alpha(0.5))
+
+    def test_any_color_spelling_compares(self):
+        c = Color("red")
+        for same in ("red", "Red", "#ff0000", "#FF0000FF", (1, 0, 0), (1, 0, 0, 1), [1, 0, 0]):
+            self.assertTrue(c == same, same)
+            self.assertFalse(c != same, same)
+        self.assertTrue(Color("dark red") == "dark red")
+        self.assertFalse(c == "blue")
+        self.assertTrue("red" == c)            # reflected
+
+    def test_no_color(self):
+        self.assertEqual(Color(None), Color(None))
+        self.assertNotEqual(Color(None), Color("black"))
+        self.assertNotEqual(Color(0, 0, 0, 0), Color(None))
+
+    def test_not_a_color_is_unequal_and_silent(self):
+        c = Color("red")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            for other in ("auto", "none", "", (255, 0, 0), (1, 0), 5, None, object(), "#zz0000"):
+                self.assertFalse(c == other, other)
+                self.assertTrue(c != other, other)
+
+    def test_a_near_typo_warns_once_and_is_unequal(self):
+        c = Color("yellow")
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.assertFalse(c == "yelow")
+            self.assertFalse(c == "yelow")
+        msgs = [str(x.message) for x in w]
+        self.assertEqual(len(msgs), 1, msgs)
+        self.assertIn("yellow", msgs[0])
+
+    def test_repr_shows_the_channels(self):
+        self.assertEqual(repr(Color("red")), str(Color("red")))
+        self.assertIn("r=1.000", repr(Color("red")))
+        self.assertEqual(repr(Color(None)), "Color(none)")
+
+
+class TestCssNames(unittest.TestCase):
+    """The CSS / X11 base names learners guess resolve exactly (persona
+    probes PP: beige went magenta, midnight blue went blue); a dark / light
+    prefix stays Scena's modifier."""
+
+    CSS_BASES = ("alice blue", "antique white", "aquamarine", "azure", "beige", "bisque",
+                 "blanched almond", "burlywood", "chartreuse", "cornsilk", "floral white",
+                 "fuchsia", "gainsboro", "ghost white", "honeydew", "ivory", "lavender blush",
+                 "linen", "medium aquamarine", "medium blue", "medium purple",
+                 "medium sea green", "medium slate blue", "medium spring green",
+                 "medium turquoise", "medium violet red", "midnight blue", "mint cream",
+                 "misty rose", "moccasin", "navajo white", "old lace", "olive drab",
+                 "orange red", "pale goldenrod", "pale green", "pale turquoise",
+                 "pale violet red", "papaya whip", "peach puff", "powder blue",
+                 "rebecca purple", "rosy brown", "saddle brown", "seashell", "slate blue",
+                 "slate gray", "slate grey", "snow", "spring green", "thistle", "wheat",
+                 "white smoke")
+
+    def test_css_bases_resolve_exactly_in_every_spelling(self):
+        for name in self.CSS_BASES:
+            for spelling in (name, name.replace(" ", ""), name.title().replace(" ", "")):
+                self.assertEqual(ColorNames.resolve(spelling).kind, ColorResolveKind.EXACT, spelling)
+        self.assertEqual(Color("saddlebrown"), "#8b4513")
+        self.assertEqual(Color("midnight blue"), "#191970")
+
+    def test_css_dark_light_compounds_are_modifiers_without_a_warning(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            for name in ("darkslategray", "dark slate blue", "dark olive green",
+                         "lightslategray", "light steel blue", "dark orange"):
+                self.assertEqual(ColorNames.resolve(name).kind, ColorResolveKind.MODIFIER, name)
+                Color(name)
+
+    def test_the_guia_shows_every_name(self):
+        import re
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, "docs", "pt", "guide", "index.html"), encoding="utf-8") as fh:
+            html = fh.read()
+        sec = html[html.index("<summary>Nomes de cor</summary>"):
+                   html.index("<summary>Presets de Gradient</summary>")]
+        shown = set(re.findall(r'<div class="color-label">([^<]+)</div>', sec))
+        self.assertEqual(set(ColorNames._COLORS) - shown, set())
+        self.assertEqual(shown - set(ColorNames._COLORS), set())
 
 if __name__ == '__main__':
     unittest.main()

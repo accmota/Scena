@@ -786,14 +786,11 @@ def _field_node(owner, name: str):
         slot = owner._resolve_field(name)
     except Exception:
         return None
-    getter = getattr(slot, "__get__", None)
-    if getter is None:
-        return None
-    from .state import Container, ScalarSlot
-    if isinstance(slot, ScalarSlot):
+    from .state import Container, ContainerSlot
+    if not isinstance(slot, ContainerSlot):
         return None
     try:
-        target = getter(owner, type(owner))
+        target = slot.cell(owner)      # never a dot read: Text.text reads a str
     except Exception:
         return None
     return target if isinstance(target, Container) else None
