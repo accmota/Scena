@@ -951,11 +951,53 @@ def _xy_of(obj: Any, *, required: bool = False) -> Optional[Tuple[float, float]]
             if (fx - fx) or (fy - fy):                  # NaN / inf (SA6)
                 return _finite_xy(obj, x, y)
             return fx, fy
-    return _read_xy(obj, required, True, True)
+    part = getattr(obj.__class__, "_scena_center_part", None)
+    if part is not None:
+        xy = _center_part_xy(obj, part)
+        if xy is not None:
+            return xy
+    # Point / Vec2 are ruled out above: ``_read_xy`` skips its own isinstance
+    # (Point is an ABC: ~80 ns a negative check, paid twice by mouse).
+    return _read_xy(obj, required, True, True, True)
+
+
+def _center_part_xy(obj: Any, part: type) -> Optional[Tuple[float, float]]:
+    """A Graphic's ``(center.x, center.y)`` when the descriptors would hand
+    back the stored floats, else None (take ``_read_xy``).
+
+    Mirrors ``ScalarSlot.__get__``'s A3 branch (no anchor, no link, both axes
+    classified bare) on a center already made (``obj.__dict__``): a cold
+    Derivate center (Line, Rect by corner…) is never touched here, so this
+    read wakes nothing, and a Derivate, linked or anchored center goes the
+    general way, which pulls it fresh. ``_scena_center_part``
+    (``entity._center_part_class``) says the class reads its center through a
+    plain ContainerSlot; ``part`` is that class's ``_scena_center_part``.
+    ``nearest`` over 55 Circles: 0.26 µs an item instead of 0.99 µs. A change
+    to those descriptors ahead of their A3 branch is made here too (Shapes
+    Design, "An actor's center, read from its slots").
+    """
+    center = obj.__dict__.get("center")
+    if center is None or center.__class__ is not part:
+        return None
+    d = center.__dict__
+    # The A3 cache first: a woken Derivate center (``False``) leaves soonest.
+    # A link or an anchor drops the cache (``_invalidate_bare_reads``); the
+    # check below is the descriptor's own order, kept as a defence.
+    bare = d.get("_scalar_bare_ok")
+    if bare is None or bare.get("x") is not True or bare.get("y") is not True:
+        return None
+    if d.get("_field_anchors") or d.get("_link") is not None:
+        return None
+    x = d.get("x")
+    y = d.get("y")
+    if x.__class__ is float and y.__class__ is float:
+        return x, y
+    return None
 
 
 def _read_xy(
     obj: Any, required: bool = False, graphic_center: bool = True, duck: bool = True,
+    not_point: bool = False,
 ) -> Optional[Tuple[float, float]]:
     """The one reading of a point-like as ``(x, y)`` (Track C item 3).
 
@@ -966,14 +1008,16 @@ def _read_xy(
     on purpose: ``graphic_center=False`` / ``duck=False`` for a delta (a
     direction is not a Graphic). Vec2, where a Point is a place and not a
     displacement, refuses it itself (``_xy_refusal(points=False)`` words it).
-    ``required`` raises TypeError instead of None.
+    ``required`` raises TypeError instead of None. ``not_point``: the caller
+    (``_xy_of``) has already ruled out Point and Vec2.
     """
     # Lockstep with get_xy's Point/Vec2 branch. Do not call get_xy here:
     # that would add a second call on every linked takein and stamp rebuild.
-    if isinstance(obj, Point):
-        return _bare_num(obj.x), _bare_num(obj.y)
-    if isinstance(obj, Vec2):
-        return _finite_xy(obj, obj.x, obj.y)
+    if not not_point:
+        if isinstance(obj, Point):
+            return _bare_num(obj.x), _bare_num(obj.y)
+        if isinstance(obj, Vec2):
+            return _finite_xy(obj, obj.x, obj.y)
     if isinstance(obj, (tuple, list)):
         xy = _pair_numbers(obj)
         if xy is not None:
@@ -1132,10 +1176,20 @@ def nearest(
 
     best = None
     best_d2 = None
+    last_cls = part = None
     for item in iterator:
         if where is not None and not where(item):
             continue
-        xy = _xy_of(item)
+        # An actor's center straight from its slots (``_center_part_xy``);
+        # the class is looked up once per run of same-kind items.
+        cls = item.__class__
+        if cls is not last_cls:
+            last_cls = cls
+            part = getattr(cls, "_scena_center_part", None)
+        if part is None:
+            xy = _xy_of(item)
+        else:
+            xy = _center_part_xy(item, part) or _xy_of(item)
         if xy is None:
             continue
         dx = xy[0] - ox

@@ -555,6 +555,7 @@ def _cache_class_tables(cls: type) -> None:
     cls._scena_pose_pull = tuple(sorted(_PROPERTY_LINK_FIELDS)) + tuple(
         n for n in _POSE_PULL_FLIPS if n in links)
     cls._scena_kind_name = _kind_of_class(cls)
+    cls._scena_center_part = _center_part_class(cls)
     cls._scena_extra_slots = tuple(
         n for n in GRAPHIC_EXTRA_SLOTS
         if getattr(getattr(cls, n, None), "_is_field_slot", False))
@@ -563,6 +564,37 @@ def _cache_class_tables(cls: type) -> None:
         _install_setattr_route(cls)
         live = cls._setattr_route
     cls._scena_dead_route = _DeadRoute({name: live[name] for name in _DEAD_QUIET if name in live})
+
+
+def _static_lookup(cls: type, name: str):
+    """``name`` as the class finds it (MRO ``__dict__``), no descriptor run."""
+    for base in cls.__mro__:
+        if name in base.__dict__:
+            return base.__dict__[name]
+    return None
+
+
+def _center_part_class(cls: type) -> Optional[type]:
+    """The part class of a plain ``center = ContainerSlot(...)``, else None.
+
+    Read by ``shapes._center_part_xy`` (the ``nearest`` / ``distance`` fast
+    path): when it is set, ``obj.center`` is ``obj.__dict__['center']`` once
+    made and ``center.x`` / ``center.y`` are ``ScalarSlot`` reads, so that
+    path may answer from the slots' own A3 cache. A slot subclass (Text,
+    Track), a property (Shape, Polygon, Point) or a ``__getattribute__`` on
+    either class keeps the general read.
+    """
+    from .state import ContainerSlot, ScalarSlot
+    slot = _static_lookup(cls, "center")
+    if type(slot) is not ContainerSlot:
+        return None
+    part = slot.container_class
+    for klass in (cls, part):
+        if _static_lookup(klass, "__getattribute__") is not object.__getattribute__:
+            return None
+    if type(_static_lookup(part, "x")) is not ScalarSlot or type(_static_lookup(part, "y")) is not ScalarSlot:
+        return None
+    return part
 
 
 def _property_link_names(obj) -> frozenset:
