@@ -6368,6 +6368,65 @@ class TestPoseKeyCoversDefiningInputs(CollisionTestCase):
         self._check(c, lambda s: setattr(s, "perimeter_point", self.at(0, 9)))
 
 
+class TestSweptAgainstAPlacedPartner(CollisionTestCase):
+    """Persona probes round 2 (R2-2, contacts): a body *placed* right behind a
+    fast traveller (``b.center = a.center + Vec2(0, -25)``, or the same with
+    ``@=``) got an enter on every other frame at 30 Hz and none at 60 Hz: the
+    placed partner counted as standing at its end pose for the whole frame,
+    where the traveller had just been. A placement on the scale of a frame's
+    travel is the partner's motion for the pair's sweep; a teleport is not
+    swept (a respawn is no ghost path)."""
+
+    _run = 0
+
+    def run_follower(self, step, link=False, frames=20):
+        TestSweptAgainstAPlacedPartner._run += 1
+        ga, gb = f"pa{self._run}", f"pb{self._run}"
+        x = 300 + 100 * self._run              # a lane of its own per run
+        a = self.track(Circle(center=self.at(x, 100), radius=8, group=ga))
+        b = self.track(Circle(center=self.at(x, 75), radius=13, group=gb))
+        if link:
+            b["center"] @= lambda: a.center + Vec2(0, -25)
+        enters = []
+        collide(ga, gb)(lambda me, other, info: enters.append(1))
+        self.step()
+        for _ in range(frames):
+            a.move_by(0, step)
+            if not link:
+                b.center = a.center + Vec2(0, -25)
+            self.step()
+        return len(enters)
+
+    def test_a_follower_placed_behind_a_fast_body_never_touches(self):
+        for step in (15.0, 7.5, 30.0):            # 450 DU/s at 30, 60 and 15 Hz
+            with self.subTest(step=step, placed="="):
+                self.assertEqual(self.run_follower(step), 0)
+            with self.subTest(step=step, placed="@="):
+                self.assertEqual(self.run_follower(step, link=True), 0)
+
+    def test_a_fast_laser_still_hits_an_enemy_that_moves_by_placement(self):
+        shot = self.track(Rect(center=self.at(0, -40), width=6, height=28, group="shot"))
+        enemy = self.track(Rect(center=self.at(-10, 0), width=40, height=40, group="enemy"))
+        log = []
+        collide("shot", "enemy")(lambda me, other, info: log.append(other))
+        self.step()
+        shot.move_by(0, 83.0)                     # through the enemy, no end overlap
+        enemy.center = self.at(0, 0)              # the enemy slid 10 by placement
+        self.step()
+        self.assertEqual(log, [enemy])
+
+    def test_a_teleported_partner_is_not_swept_along_its_jump(self):
+        shot = self.track(Rect(center=self.at(0, -40), width=6, height=28, group="shot"))
+        hero = self.track(Rect(center=self.at(600, 0), width=40, height=40, group="enemy"))
+        log = []
+        collide("shot", "enemy")(lambda me, other, info: log.append(other))
+        self.step()
+        shot.move_by(0, 83.0)                     # past (0, 0)
+        hero.center = self.at(0, 300)             # respawn far above the shot's path
+        self.step()
+        self.assertEqual(log, [])
+
+
 class TestSweptDetection(CollisionTestCase):
     """A fast ``move_by`` body is detected along its path, not only at the end.
 

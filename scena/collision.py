@@ -4745,6 +4745,8 @@ class Collider:
         "_resolved_key",
         "_in_resolve",
         "_part",
+        "_end_cx",
+        "_end_cy",
         "__weakref__",
     )
 
@@ -4838,6 +4840,11 @@ class Collider:
         self._in_resolve = False
         # The Hitbox when this collider is a sprite's hitbox part (else None).
         self._part = None
+        # Proxy center at the end of the last step it moved in (None: never):
+        # this step's placement is the proxy's shift since, less its motion
+        # (``_placement_of``; swept detection, R2-2).
+        self._end_cx: Optional[float] = None
+        self._end_cy: Optional[float] = None
         if _register:
             self._system.register(self)
         # Single-shape explicit Collider: bind so shape.collidable / @collide
@@ -5095,6 +5102,14 @@ class CollisionSystem:
         # Script-level ``@collide`` entries made after the top level ended
         # (inside an act): removed on an act change (``drop_act_pair_handlers``).
         self._act_pair_handlers: List[Tuple[Any, Any, Callable, str]] = []
+        # Colliders a real bounce impulse sent off a partner in the last step
+        # and in this one (``_respond_velocity``): floor snap lets them leave
+        # (persona probes round 2, R2-1). Cleared and rotated by ``step()``.
+        self._bounced_prev: Set[int] = set()
+        self._bounced_now: Set[int] = set()
+        # Colliders whose proxy changed this step (snapshot or a solver nudge):
+        # their end-of-step centers are stored (``_store_end_centers``).
+        self._moved_now: Set["Collider"] = set()
         # ``resolve`` pairs at the seal (``run()`` ended the top level): an act
         # change puts them back (``restore_sealed_resolve_pairs``). Owned here
         # so a destroyed side leaves it like every other pair list (HD2).
@@ -6329,6 +6344,8 @@ class CollisionSystem:
         if not ns:
             return
         vel.x, vel.y = _cone_response(vx, vy, ns, es)
+        for (nx, ny), e in zip(ns, es):
+            self._note_bounce(ca, vx, vy, 0.0, 0.0, nx, ny, e)
         for other, nx, ny in recs:
             self._record_solve_contact(ca, other, nx, ny, 0.0)
 
@@ -6984,6 +7001,8 @@ class CollisionSystem:
         self._solve_contacts.clear()
         self._solve_contact_sides.clear()
         self._solve_bottom_count.clear()
+        self._bounced_prev, self._bounced_now = self._bounced_now, self._bounced_prev
+        self._bounced_now.clear()
         for c in self._colliders:
             c._tags_cache = None
             c._in_resolve = False
@@ -7016,6 +7035,7 @@ class CollisionSystem:
                 for c in self._colliders:
                     if self._update_proxy(c):
                         live.append(c)
+                self._moved_now.update(self._colliders)
         finally:
             self._fast_k2 = math.inf
         ms_snapshot = (time.perf_counter() - t0) * 1000.0
@@ -7289,6 +7309,7 @@ class CollisionSystem:
             self._store_resolved_aabbs()
         finally:
             self._trust_proxy_world = False
+        self._store_end_centers()
         self.last_stats["ms_bounds"] = (time.perf_counter() - t0) * 1000.0
         self.last_stats["ms_total"] = (time.perf_counter() - t_total0) * 1000.0
         self._update_touching_state(self._solve_contacts, id_to_collider)
@@ -7348,6 +7369,30 @@ class CollisionSystem:
                 ca, cb = colliders_for_key(key)
                 info = CollisionInfo(a=ca._identity, b=cb._identity, normal=Vec2.temp(0, 0), depth=0.0)
                 self._run_lost_exit(ca, cb, info, lost)
+
+    def _store_end_centers(self) -> None:
+        """Where each collider that moved this step ended (its proxy center):
+        next step's placement is measured from here. O(moved)."""
+        moved = self._moved_now
+        if not moved:
+            return
+        for c in moved:
+            if c._proxy_valid:
+                p = c._proxy
+                c._end_cx = (p[0] + p[2]) * 0.5
+                c._end_cy = (p[1] + p[3]) * 0.5
+        moved.clear()
+
+    @staticmethod
+    def _placement_of(c: Collider, mx: float, my: float) -> Tuple[float, float]:
+        """This step's placement of ``c``: its proxy's shift since the end of
+        the last step it moved in, less its motion ``(mx, my)``. ``(0, 0)``
+        for a collider that has no stored end (new) or did not move."""
+        ex = c._end_cx
+        if ex is None or not c._proxy_valid:
+            return 0.0, 0.0
+        p = c._proxy
+        return (p[0] + p[2]) * 0.5 - ex - mx, (p[1] + p[3]) * 0.5 - c._end_cy - my
 
     def _swept_contacts(
         self,
@@ -7414,6 +7459,23 @@ class CollisionSystem:
                 t_enter[key] = t
                 hits += 1
                 continue
+            # A placement on the scale of a frame's travel is motion for this
+            # pair's sweep (a follower placed behind a fast body moves with it;
+            # an enemy on a formula slides); a larger one is a teleport, not
+            # swept (a respawn is no ghost path). R2-2: the placed side counted
+            # as standing at its end pose all frame, where the traveller had
+            # just been, so a trailing follower touched every other frame.
+            pax, pay = self._placement_of(ca, dax, day)
+            pbx, pby = self._placement_of(cb, dbx, dby)
+            if pax or pay or pbx or pby:
+                scale = max(math.sqrt(ca._thick2), math.sqrt(cb._thick2),
+                            math.hypot(dax, day), math.hypot(dbx, dby))
+                if pax * pax + pay * pay <= scale * scale:
+                    dax += pax
+                    day += pay
+                if pbx * pbx + pby * pby <= scale * scale:
+                    dbx += pbx
+                    dby += pby
             # In b's end frame, a travels the relative motion.
             rdx = dax - dbx
             rdy = day - dby
@@ -7792,6 +7854,7 @@ class CollisionSystem:
     def _nudge_collider(self, collider: Collider, dx: float, dy: float) -> None:
         if abs(dx) < 1e-18 and abs(dy) < 1e-18:
             return
+        self._moved_now.add(collider)
         ident = collider._identity
         # The shifted key below is the pose only if the stored key was the
         # pose before the move: a shape this collider shares with another
@@ -7923,13 +7986,31 @@ class CollisionSystem:
         if type(cb) is _GhostPartner:
             self._ghost_velocity(ca, cb, token, nx, ny)
             return
+        bounce = float(token)
+        if bounce > 0.0:
+            va = getattr(ca._identity, "_vel", None)
+            if va is not None:
+                vbv = getattr(cb._identity, "_vel", None) if cb._identity is not None else None
+                ax, ay = _vec2_components(va)
+                bx, by = (0.0, 0.0) if vbv is None else _vec2_components(vbv)
+                self._note_bounce(ca, ax, ay, bx, by, nx, ny, bounce)
         info = CollisionInfo(
             a=ca._identity,
             b=cb._identity,
             normal=Vec2.temp(nx, ny),
             depth=0.0,
         )
-        info.bounce_apart(bounce=float(token))
+        info.bounce_apart(bounce=bounce)
+
+    def _note_bounce(self, ca: Collider, ax: float, ay: float, bx: float, by: float,
+                     nx: float, ny: float, bounce: float) -> None:
+        """A real bounce: the impulse sends ``ca`` off at more than the leave
+        speed (approach × ``bounce``). Resting and walking contacts approach at
+        ``g · dt``, far under it, so the walker leave gate still holds them
+        (Collision Design, "Leave gate"; R2-1). Every velocity response calls
+        this: the sweep's, the unreached contact's, a removed partner's."""
+        if bounce > 0.0 and bounce * ((ax - bx) * nx + (ay - by) * ny) > _FLOOR_SNAP_LEAVE_VY:
+            self._bounced_now.add(id(ca))
 
     def _ghost_velocity(
         self, ca: Collider, g: "_GhostPartner", token: Any, nx: float, ny: float,
@@ -7940,6 +8021,8 @@ class CollisionSystem:
         va = getattr(ident, "_vel", None)
         if va is None:
             return
+        gvx, gvy = (0.0, 0.0) if g.vel is None else _vec2_components(g.vel)
+        self._note_bounce(ca, float(va.x), float(va.y), gvx, gvy, nx, ny, float(token))
         contact = CollisionInfo(a=ident, b=g.dead._identity, normal=Vec2.temp(nx, ny), depth=0.0)
         nva, _nvb = contact.velocity_split(
             mass_a=float(getattr(ident, "mass", 1.0)),
@@ -9224,6 +9307,9 @@ class CollisionSystem:
             rel_dy = ca._motion_dy - _ody
             leave_v = -((vx - ovx) * nx + (vy - ovy) * ny)
             leave_d = -(rel_dx * nx + rel_dy * ny)
+            if leave_v > _FLOOR_SNAP_LEAVE_VY and (
+                    id(ca) in self._bounced_prev or id(ca) in self._bounced_now):
+                return      # a bounce just sent it off: leaving at any rate (R2-1)
             if _floor_snap_should_refuse(
                 leave_v=leave_v,
                 leave_d=leave_d,
@@ -9545,6 +9631,7 @@ class CollisionSystem:
         order = sorted((c for c in visit if id(c) in idx), key=lambda c: idx[id(c)])
         for c in order:
             self._update_proxy(c)
+        self._moved_now.update(order)
         if _POSE_REV_VERIFY:
             for c in self._colliders:
                 if c in visit:

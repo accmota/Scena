@@ -30,7 +30,7 @@ from .state import (
     callable_assign_message, probe_private, bump_pose_rev,
 )
 from .scenamath import Vec2
-from .validate import expect_bool, refuse_async
+from .validate import NO_FN, expect_bool, refuse_async
 from .validate import expect_bool as _expect_flag
 
 # Names that stay real properties / instance fields (never ink Attributes).
@@ -353,6 +353,9 @@ _FOREIGN_ENGINE_HOOKS = {
     "OnTriggerExit2D": "on_collide_exit", "OnTriggerExit": "on_collide_exit",
     "OnMouseDown": "on_click", "OnMouseUpAsButton": "on_click",
     "OnMouseEnter": "on_hover", "OnMouseOver": "on_hover", "OnMouseExit": "on_hover_exit",
+    # Godot's (persona probes round 2, R2-6: ``_process(self, delta)``).
+    "_process": "on_update", "_physics_process": "on_update",
+    "_ready": "setup", "_enter_tree": "setup", "_exit_tree": "on_destroy",
 }
 _HOOK_SIGNATURES = {
     "on_update": "on_update(self, dt)", "setup": "setup(self)",
@@ -744,7 +747,12 @@ _INK_SPELLINGS = {
     "enable": "active", "enabled": "active",
     # ``angle`` is too short for the one-edit check below (len >= 6).
     "angel": "angle", "agnle": "angle",
+    # Godot's / Unity's pose words: written, they became ink nothing reads,
+    # while the read named the fix (persona probes round 2, R2-7).
+    "position": "center", "global_position": "center",
+    "rotation": "angle", "rotation_degrees": "angle",
 }
+_POSE_SPELLINGS = frozenset({"position", "global_position", "rotation", "rotation_degrees"})
 
 
 # Names other engines and Scratch read on an object, and Scena's way (persona
@@ -796,6 +804,9 @@ def _unknown_read_text(cls, name: str, ink) -> str:
     kind = cls.__name__
     base = f"{kind!r} object has no attribute {name!r}"
     hint = _FOREIGN_READS.get(name) or _FOREIGN_READS.get(name.lower())
+    if hint is not None and name in ("position", "transform") \
+            and not getattr(cls, "_pose_xy_guard", False):
+        hint = None     # a bare Entity has no pose to point at
     if hint is not None:
         return f"{base}. {hint}"
     if name in _RESERVED_FAMILY:
@@ -916,6 +927,8 @@ def _ink_near_miss_message(cls: type, name: str, known) -> Optional[str]:
     if exact is not None:
         return exact
     fix = _INK_SPELLINGS.get(name)
+    if fix is not None and name in _POSE_SPELLINGS and not getattr(cls, "_pose_xy_guard", False):
+        fix = None      # a bare Entity has no pose: ``position`` is its own field
     if fix is not None and fix in known:
         if name == "font":
             return (
@@ -3251,7 +3264,12 @@ class Entity(Container):
                     coro = _spawn_coro(value, self)
                     sched.start_task(self, coro, scope=SCOPE_MODE, mode=True)
                 else:
-                    _invoke(value, self)
+                    from . import process as _proc
+                    _proc._ENTERING_MODE[0] = getattr(value, "__func__", value)
+                    try:
+                        _invoke(value, self)
+                    finally:
+                        _proc._ENTERING_MODE[0] = None
         finally:
             sched._running = running
 
@@ -3296,7 +3314,7 @@ class Entity(Container):
         Script-level ``setup(canvas)`` is the app hook; this is the per-actor hook.
         """
 
-    def after(self, delay: float, fn=None, *, then=None, on_done=None, name: Optional[str] = None):
+    def after(self, delay: float, fn=NO_FN, *, then=None, on_done=None, name: Optional[str] = None):
         """``after`` owned by this item (survives mode changes; dies on destroy).
 
         ``then=`` is the mode to enter when the timer finishes.
@@ -3318,7 +3336,7 @@ class Entity(Container):
         from .process import run_task_on
         return run_task_on(self, fn, name=name)
 
-    def every(self, interval: float, fn=None, *, name: Optional[str] = None):
+    def every(self, interval: float, fn=NO_FN, *, name: Optional[str] = None):
         """``every`` owned by this item (dies on destroy). Named timers replace themselves."""
         from .process import every_on
         return every_on(self, interval, fn, name=name)

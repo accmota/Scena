@@ -1477,6 +1477,8 @@ audio device, clock hitches.
 |--------------|----------------|
 | `e.mode = diving()` / `"diving"` | Must be a function; drop `()` / don’t use a string |
 | `fn` / `on_done=` and `then=` both | Use one channel, not both |
+| `every(0.6, spawn())` / `after(1, boom())` (a call where the function goes) | `TypeError` naming the call and `every(0.6, spawn)` (`validate.refuse_called_function`). The omitted function is the decorator form: its default is the `NO_FN` sentinel (shown as `None`), so an explicit `None` is told apart. Before, it ran `spawn` once and returned the decorator, silently (persona probes round 2, R2-8) |
+| `self.mode = self.phase2()` (a sync `@on_mode` body called) | `TypeError` naming `self.mode = self.phase2`. A sync mode body is wrapped by `@on_mode` and runs only when `Entity._enter_mode` enters it (`process._ENTERING_MODE`); before, it ran as a helper (its timers outlived the mode) and the mode became `None` (R2-9). An async body needs no guard: calling it only makes a coroutine |
 | `wait(0.4)` with no running async script | `TypeError`: only inside an async mode (or a helper that mode awaits); use `after(...)` |
 | `wait(0.4)` without `await` inside an async mode | `TypeError` with call site and `await wait(0.4)`; Handle cancelled, script aborted |
 | Unknown `ease=` | `ValueError` listing catalog |

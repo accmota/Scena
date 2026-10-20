@@ -343,6 +343,65 @@ class TestRiderCarryTimedMovers(unittest.TestCase):
 # --------------------------------------------------------------------------
 
 
+class TestBounceLeavesAtEveryRate(_Plain):
+    """Persona probes round 2 (R2-1): a ball with ``bounce=0.5`` and sideways
+    speed was glued to the floor at 144 Hz after its first bounce. The walker
+    leave gate needed 2 DU of separation in one frame (``vy · dt``: a 150 DU/s
+    rebound moves 1 DU at 144 Hz) or a step at least 0.85 straight off the
+    floor (sideways speed lowers it). A body a real bounce impulse just sent
+    off the floor is leaving, at every rate; a resting or walking body (tiny
+    impulses from ``g · dt``) keeps the walker gate."""
+
+    def second_hop(self, fps, bounce, vx=300.0):
+        self.clear()
+        dt = 1.0 / fps
+        o = self.o
+        self.keep(Rect(center=(o + 500, o + 50), width=4000, height=100, group="chao"),
+                  mass=STATIC, vel=False)
+        ball = self.keep(Circle(center=(o + 100, o + 300), radius=20, group="bola"))
+        ball.vel = Vec2(vx, 0.0)
+        resolve("bola", "chao", bounce=bounce)
+        peak, t = 0.0, 0.0
+        while t < 1.5:
+            ball.vel.y -= 600.0 * dt
+            ball.move_by(ball.vel.x * dt, ball.vel.y * dt)
+            self.step()
+            t += dt
+            if t > 0.75:
+                peak = max(peak, float(ball.center.y) - o)
+        return peak
+
+    def test_a_soft_bounce_with_sideways_speed_rises_at_every_rate(self):
+        ref = {b: self.second_hop(60, b) for b in (0.3, 0.5)}
+        for b in (0.3, 0.5):
+            self.assertGreater(ref[b], 125.0, b)       # the 60 Hz hop clears the floor
+            for fps in (30, 144, 240):
+                with self.subTest(bounce=b, fps=fps):
+                    self.assertGreater(self.second_hop(fps, b), ref[b] - 8.0)
+
+    def test_a_soft_walker_on_a_slope_stays_grounded(self):
+        for fps in (60, 144, 240):
+            with self.subTest(fps=fps):
+                self.clear()
+                dt = 1.0 / fps
+                o = self.o
+                ramp = self.keep(Rect(center=(o, o), width=800, height=20, group="chao"),
+                                 mass=STATIC, vel=False)
+                ramp.rotate_by(-20.0)
+                snail = self.keep(Rect(center=(o - 200, o + 120), width=20, height=20,
+                                       group="lesma"))
+                resolve("lesma", "chao", bounce=0.2)
+                lost = 0
+                for i in range(int(2.0 * fps)):
+                    snail.vel.x = 120.0
+                    snail.vel.y -= 2200.0 * dt
+                    snail.move_by(snail.vel.x * dt, snail.vel.y * dt)
+                    self.step()
+                    if i > fps // 2 and "bottom" not in snail.touching_sides:
+                        lost += 1
+                self.assertEqual(lost, 0)
+
+
 class TestIdleSlope(_Plain):
     """Bug PE2: after a vertical stop on a slope the sweep backed off the skin
     along the slope normal, and floor snap did the same, so an idle hero slid

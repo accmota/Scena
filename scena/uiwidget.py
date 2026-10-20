@@ -1158,7 +1158,8 @@ class _NoCell:
 _NO_CELL = _NoCell()
 
 
-def _require_bound(cell, widget: str, example: str, *, takes_initial: bool = True):
+def _require_bound(cell, widget: str, example: str, *, takes_initial: bool = True,
+                   takes_label: bool = False):
     """The cell a widget binds: ``st["volume"]`` → its Attribute; omitted → None.
 
     A plain value raises: ``Slider(st.volume)`` reads the value (0.8.0), so
@@ -1180,6 +1181,10 @@ def _require_bound(cell, widget: str, example: str, *, takes_initial: bool = Tru
         )
     tail = (f" To set the starting value instead, write {widget}(initial={cell!r:.40})."
             if takes_initial and not hasattr(cell, "owner") else "")
+    if takes_label and isinstance(cell, str):
+        # ``Button("Contar")``: a text is the caption (persona probes R2-4).
+        tail = (f" If {cell!r:.40} is the text shown on it, write "
+                f"{widget}(label={cell!r:.40}).") + tail
     raise TypeError(f"{widget}(cell) binds a data cell: "
                     + unbound_value_hint(call, cell, example) + tail)
 
@@ -1217,7 +1222,7 @@ class Slider(UIWidget):
         # Flags before any layout call: a rejected Slider must not move the HUD column.
         show_value = expect_bool(show_value, "Slider show_value")
         only_int = expect_bool(only_int, "Slider only_int")
-        cell = _require_bound(cell, "Slider", "volume")
+        cell = _require_bound(cell, "Slider", "volume", takes_label=True)
         from .validate import number   # fixed numbers: finite() lets a function through
         if min_value is not None:
             min_value = number(min_value, "Slider min_value")
@@ -1921,7 +1926,7 @@ class Button(UIWidget):
         on_click = as_payload(on_click)
         value_on = as_payload(value_on)
         value_off = as_payload(value_off)
-        cell = _require_bound(cell, "Button", "firing", takes_initial=False)
+        cell = _require_bound(cell, "Button", "firing", takes_initial=False, takes_label=True)
         from .validate import check_pointer_handler
         check_pointer_handler(on_click, ("the Button",), what="Button on_click")
         enabled = _expect_flag(enabled, "Button enabled")
@@ -2051,7 +2056,7 @@ class CheckBox(UIWidget):
         size = _geom_size(size, "CheckBox size")
         label = as_payload(label)
         initial = as_payload(initial)
-        cell = _require_bound(cell, "CheckBox", "mute")
+        cell = _require_bound(cell, "CheckBox", "mute", takes_label=True)
         enabled = _expect_flag(enabled, "CheckBox enabled")
         super().__init__(group=group, top_left=top_left)
         self._enabled = enabled

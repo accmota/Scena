@@ -261,6 +261,29 @@ def expect_type(
     return value
 
 
+class _NoFunction:
+    """The omitted ``fn`` of ``after`` / ``every`` (the decorator form). An
+    explicit ``None`` is a call's result, ``every(0.6, spawn())``: it ran
+    ``spawn`` once and returned the decorator, silently (persona probes
+    round 2, R2-8). Shown as ``None`` in signatures."""
+
+    def __repr__(self) -> str:
+        return "None"
+
+
+NO_FN = _NoFunction()
+
+
+def refuse_called_function(verb: str, fn) -> None:
+    """``after`` / ``every`` given ``None`` where the function goes."""
+    if fn is None:
+        raise TypeError(
+            f"{verb}() got None where the function goes: a call such as "
+            f"{verb}(0.6, spawn()) runs spawn now and passes what it returns. "
+            f"Pass the function itself, without parentheses: {verb}(0.6, spawn)."
+        )
+
+
 def did_you_mean(
     name: Any, candidates: Iterable[str], *, n: int = 3, cutoff: float = 0.7,
 ) -> str:

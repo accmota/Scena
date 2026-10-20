@@ -1322,6 +1322,17 @@ DOC, DECISION): n₁ = 13, n₂ = 10, m = 2, N̂ ≈ 50, about 29 unfound. The
 runner's own errors were fixed before round 2 (`test_laws_probe`), and the
 fixes landed after both campaigns were triaged ([PP](#pp--persona-probes-round-1-2026-10-20)).
 
+**Round 2 (2026-10-20).** Commit 4220f07, models swapped. A (Sonnet:
+tinkering teen, teacher) 31 probes; B (Opus: Godot / Processing refugee,
+game-jam crammer) 22. BUG: A 1 (limit 3), B 1 (limit 2), but B's is in a
+law-governed area (contacts, R2-2), so **round 2 does not meet the table:
+the streak is 0**, and a 1.0 candidate needs rounds 3 and 4. BUG estimate
+≈ 1 remaining (1 + 1, no overlap); broad estimate n₁ = 4, n₂ = 7, m = 1,
+N̂ ≈ 19, about 9 unfound (round 1: about 29). **Every round also re-runs
+the previous rounds' probes on the new commit** (the runner, same flags
+diffed): round 2's re-run found three regressions of round 1's own fixes
+(PP4-R, PP10-R, PP18-R) that neither blind campaign reported.
+
 
 # Test tiers
 
@@ -2537,6 +2548,7 @@ one, or a rare combination.
 | Laws S7, chaos doors | 2026-10-15 / 16 | a command injected at every door; directed cells | CD 5, CD3 3 | 3 (CD1, CD2, CD3 with CD3-x, CD3-b) | CD4 (today's rule), CD5 (message) | about six instrument fixes, then C5's key at the merge (lesson 7) | seams: hover × park, act change × dispatch, rule × contact; rare combinations, except CD3 (plausible: a shield gained while touching). Random single faults at sampled doors found none |
 | Vec2 battery | 2026-10-17 | kind × door × operand × context × read with a generic oracle; algebra properties; twins; holder machine; static guards. Mutation sample of `scenamath` (60 sites the battery runs): 45 killed by the battery alone, 1 more after adding the `/` identities, the other 14 equivalent or message-only | VB 16 | 7 (VB1, VB2, VB3 a/b/c, VB5, VB13, VB14, VB16) | VB4, VB6, VB7, VB9, VB10 decided and applied (2026-10-17); VB15 messages (fixed) | the first oracle asked for floats where the contract allows ints (lesson 4); five harness slips (a cell given a tuple, a closure rebinding `v` with `@=`, a formula naming no source) | holders: `st.start = st.pos` (a plausible save-the-spawn pattern) and a linked vector in an ink field (plausible); arithmetic and messages: rare operands |
 | Persona probes, round 1 | 2026-10-19 / 20 | two blind campaigns on one frozen commit (b5054b0): A, Opus, beginner + Scratch kid, 44 probes + 14 second tries; B, Sonnet, Unity / Pygame refugee + copy-paster + hobbyist, 40 probes + 19 second tries; the probe runner (stated checks, errors, laws model, E1 at 30 / 60 / 144 Hz, 22 hand mirrors for E11) | PP 22 | 2 (PP1 `Color` identity `==`, PP2 `Text.text` a stale cell) | 10 messages fixed (PP4–PP12, PP13 DOC); decisions PP3, PP17, PP18 applied, PP14–PP16, PP19, PP20 kept with a Guia note, PP21 kept | the runner's own: 5 (a drag released a frame late, a save file shared between rates, `SHIFT` not a key, Ctrl / Cmd modifier bits never set, a HANG flag that cut the author frame) | the author-facing surface: messages and silently ignored names (other engines' hooks, a top-level `on_click`, `run` as a callback), value semantics (`==` on colours, a field that read as its cell); all plausible patterns (a memory game, a HUD, a rebuilt board, Unity habits). Laws model and E11: no finding |
+| Persona probes, round 2 | 2026-10-20 | two blind campaigns on 4220f07, models swapped: A Sonnet (teen, teacher) 31 probes + 9 second tries + 8 mirrors; B Opus (Godot / Processing refugee, game-jam crammer) 22 + 2 + 7; plus the round-1 probes re-run on the same commit | R2 10 (+3 R rows of round 1) | 2 (R2-1 floor snap glues a soft bounce at 144 Hz; R2-2 phantom contacts behind a fast body at 30 Hz) | 6 messages fixed (R2-4–R2-9), 1 DOC (R2-3, the round-1 Guia rows on `vel`: both campaigns), 1 decision (R2-10, applied: the Guia documents act inheritance) | triager mirrors (E11 keys flipped twice), probe timing | resolve and swept detection under frame-rate change (the E1 / PACE flags found both BUGs); messages for other engines' words. Laws model: no finding |
 
 **Reading it.** A falling yield across *different* instruments says the
 shallow bugs are gone, not that no deep ones remain: each new kind of
@@ -3486,6 +3498,25 @@ after both campaigns were triaged (0aa24d4, 6e4cfaa, 4bf362d, 6c10428).
 | PP4-R | R (of PP4). An unknown read printed as `_UnknownRead (scena.entity)` in a traceback, and `nivel` got "Did you mean 'vel'?" | `chave.hide()`; an own field never set | The lazy error class kept its own name; cutoff 0.75 | The tests read `str(e)`, never the traceback | The class reports as `AttributeError` (builtins); cutoff 0.8. `test_read_hints.TestEntityReads.test_a_traceback_names_attribute_error`. Found by re-running the round-1 probes on the round-2 commit |
 | PP10-R | R (of PP10). The Unity-name refusal broke working games that call `Start()` / `Update(dt)` themselves | `def Start(self)`; `player.Start()` | A refusal where the name may be a helper | No test called the method by hand | Warning, silent when the file calls it. `TestOtherEnginesHookNames.test_a_method_the_file_calls_itself_is_a_helper` |
 | PP18-R | R (of PP18). The container warning fired for code that only reassigns (four times, one per button) | `label=lambda i=i: st.rotulos[i]`; `st.rotulos = novos` | Link time cannot see how the cell is written | The test changed the cell by reassigning | Only when the file changes the cell in place; once per cell. `TestContainerItemLinks.test_a_list_only_reassigned_says_nothing` |
+
+### R2 — persona probes, round 2 (2026-10-20)
+
+Found by the [persona probes](#persona-probes), round 2 (blind, 4220f07;
+A and B shared R2-3). The re-run of round 1's probes on the same commit
+found PP4-R, PP10-R and PP18-R ([PP](#pp--persona-probes-round-1-2026-10-20)).
+
+| ID | Finding | Repro | Cause | Why tests missed it | Fix / guard |
+| --- | --- | --- | --- | --- | --- |
+| R2-1 | BUG. A `bounce=0.5` ball with sideways speed was glued to the floor at ≥ 144 Hz after its first bounce, sliding at y = 120 with `vy` +210 | ball `vel=(300, 0)`, gravity by hand, `resolve(ball, floor, bounce=0.5)`, 144 Hz | The walker leave gate needs 2 DU of separation per frame (`vy · dt`) or a step 0.85 straight off; sideways speed lowers the second. The elastic rule (`> 0.5`) trusted speed only above 0.5 | Bounce tests ran at 60 Hz or with `vx = 0`; the high-FPS fix covered `bounce > 0.5` | A body a real bounce (`bounce × approach > 8`) just sent off leaves, at any rate (`_note_bounce` in every velocity response; Collision Design, leave gate). `test_resolve_solver.TestBounceLeavesAtEveryRate` (30–240 Hz; a soft walker on a slope stays grounded) |
+| R2-2 | BUG (contacts). A body placed right behind a fast traveller got `@collide` enters and exits every other frame at 30 Hz, none at 60 | `a.move_by(0, 450 * dt)`; `b.center = a.center + Vec2(0, -25)` (or `@=`) | The pair sweep used motion only: the placed side stood at its end pose all frame, where the traveller had been | Swept tests moved the partner by `move_by` or not at all | A placement on the scale of a frame's travel is the partner's motion in the pair sweep (`_placement_of`, end centers stored for moved colliders); a teleport stays unswept. `test_collision.TestSweptAgainstAPlacedPartner` |
+| R2-3 | DOC (both campaigns). The Guia's "De outro motor" rows (round 1) said `obj.vel = (vx, vy)` makes Scena move the object | `ball.vel = Vec2(400, 0)`, no `update` | Written from the round-1 note "vel is every actor's velocity" without checking the engine: nothing integrates `vel` | A Guia row is prose | Rows corrected (`move_by(vel.x * dt, vel.y * dt)`; `vel` is what `bounce=` reads) |
+| R2-4 | ERROR. `Button("Contar")` was told to pass a cell | as written | `_require_bound` had no caption hint | — | Names `Button(label="Contar")` (also CheckBox, Slider). `test_state_reads_value.TestBindingSitesTakeTheCell.test_a_caption_given_as_the_cell_names_label` |
+| R2-5 | ERROR. `intersections(line, track)` gave no route for a curve | a plotted parabola as a Track | The allow-list message only | — | Names `spaced_points` and a Line per pair. `test_read_hints.TestIntersectionsOfACurve` |
+| R2-6 | ERROR. Godot's `_process` / `_ready` in a class were silently never called | `def _process(self, delta)` | `_FOREIGN_ENGINE_HOOKS` listed Unity only | — | Godot names in the table (a warning, as Unity's) |
+| R2-7 | ERROR. `paddle.position = …` became an own field while the read named `.center` | `r.position = Vec2(40, 300)` | The write table had no pose words | — | `position` / `global_position` / `rotation` / `rotation_degrees` refuse on a kind with a pose (a bare Entity keeps them). `test_read_hints.TestForeignPoseWrites` |
+| R2-8 | ERROR. `every(0.6, spawn())` returned the decorator silently | as written | `None` was the decorator sentinel | — | `NO_FN` default; an explicit `None` raises. `test_read_hints.TestTimerGivenACall` |
+| R2-9 | ERROR. `self.mode = self.phase2()` ran the body as a helper and left the mode `None` | a boss's phase change | `@on_mode` was a pure marker | — | A sync body runs only when the engine enters it. `test_read_hints.TestModeBodyCalledByHand` |
+| R2-10 | DECISION, applied (2026-10-20). The Guia said an act never subclasses an act; the engine accepts it, and it works | `class Chefe(Fase)` | An unenforced "never" | — | The Guia and Act Design document what runs once; `test_act.TestAnActMaySubclassAnAct` |
 
 ### DV — a destroyed actor refuses first (2026-10-17)
 

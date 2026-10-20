@@ -1390,7 +1390,7 @@
 
   <section class="section prose" id="outro-motor">
     <h2>De outro motor</h2>
-    <p class="one-liner">O jeito do Scratch, da Unity ou do Pygame, e o jeito do Scena. A ideia é a mesma; a grafia muda.</p>
+    <p class="one-liner">O jeito do Scratch, da Unity, da Godot ou do Pygame, e o jeito do Scena. A ideia é a mesma; a grafia muda.</p>
     <div class="tbl-wrap">
       <table>
         <thead><tr><th>Você escreveria</th><th>No Scena</th></tr></thead>
@@ -1400,6 +1400,7 @@
           <tr><td><code>clock.tick(60)</code></td><td>Não precisa: <code>update(dt)</code> recebe o tempo do frame. A taxa é <code>canvas.framerate = 60</code></td></tr>
           <tr><td><code>Update()</code> / <code>FixedUpdate()</code> numa classe</td><td><code>on_update(self, dt)</code></td></tr>
           <tr><td><code>Start()</code> / <code>Awake()</code></td><td><code>setup(self)</code></td></tr>
+          <tr><td>Godot: <code>_process(delta)</code>, <code>_ready()</code>, <code>queue_free()</code></td><td><code>on_update(self, dt)</code>, <code>setup(self)</code>, <code>self.destroy()</code>. Um filho que anda com o pai: <code>filho["center"] @= lambda: pai.center + Vec2(20, 0)</code></td></tr>
           <tr><td><code>OnTriggerEnter2D(other)</code>, <code>OnCollisionEnter2D</code>, <code>rect.colliderect(outro)</code> a cada frame</td><td><code>on_collide(self, other)</code> na classe, ou <code>@collide("heroi", "moeda")</code>: roda quando começam a se tocar. Para perguntar agora: <code>test_collision(a, b)</code></td></tr>
           <tr><td><code>OnMouseDown()</code>, “quando este ator for clicado”</td><td><code>on_click(self)</code>, ou <code>@click(obj)</code>. Um clique em qualquer lugar: <code>def on_mouse_click(x, y, button):</code> no topo do arquivo</td></tr>
           <tr><td><code>Destroy(obj, 0.4)</code>, “apague este clone”</td><td><code>obj.destroy()</code>; depois de um tempo, <code>after(0.4, obj.destroy)</code></td></tr>
@@ -1409,8 +1410,8 @@
           <tr><td>“aponte para”</td><td><code>obj.rotate_to(heading(obj, alvo))</code></td></tr>
           <tr><td>“transmita mensagem” / “quando receber”</td><td>Chame a função. Ou conte: <code>st.ondas += 1</code> com <code>@on_change(st["ondas"])</code>, que compara uma vez por frame (duas escritas que voltam ao valor antigo no mesmo frame não disparam)</td></tr>
           <tr><td>“crie clone de mim”</td><td><code>obj.clone()</code>; veja o que a cópia leva na tabela de <code>clone</code></td></tr>
-          <tr><td><code>x += vel * dt</code></td><td>Funciona. Ou <code>obj.vel = (vx, vy)</code>, e o Scena move a cada frame</td></tr>
-          <tr><td><code>self.vel = 200</code> (a rapidez, um número)</td><td><code>vel</code> é a velocidade 2D de todo ator: <code>self.vel = (200, 0)</code>, e o Scena move. Um número seu precisa de outro nome: <code>self.rapidez = 200</code></td></tr>
+          <tr><td><code>x += vel * dt</code></td><td>Funciona: <code>obj.move_by(obj.vel.x * dt, obj.vel.y * dt)</code> no <code>update</code> (ou <code>on_update</code>). O Scena não move ninguém sozinho pela <code>vel</code>; ela é a velocidade que <code>bounce=</code> lê e reescreve</td></tr>
+          <tr><td><code>self.vel = 200</code> (a rapidez, um número)</td><td><code>vel</code> é a velocidade 2D de todo ator (<code>self.vel = (200, 0)</code>), a que <code>resolve(…, bounce=)</code> usa; quem move é você, com <code>move_by(vel.x * dt, vel.y * dt)</code>. Um número seu precisa de outro nome: <code>self.rapidez = 200</code></td></tr>
           <tr><td><code>cooldown -= dt</code> … <code>if cooldown &lt;= 0: cooldown = 0.6</code></td><td>Funciona, mas joga fora o que passou de zero, e o ritmo muda com a taxa de quadros. <code>@every(0.6)</code> ou <code>ready("tiro", 0.6)</code> guardam o resto</td></tr>
         </tbody>
       </table>
@@ -8493,7 +8494,7 @@ run(Titulo)</pre>
         </table>
         </div>
       </details>
-      <p class="gotcha">Classes planas: <code>class Fase(Act)</code>, nunca <code>class Fase1(Fase)</code>. O que se repete vai num ato que lê <code>st</code> (<code>st.fase</code>) ou numa função do topo chamada no <code>setup</code>. Sem <code>__init__</code>, sem <code>setup(self, vidas)</code>. Um ato não tem corpo: <code>@collide_with</code>, <code>@leave_playfield</code> de classe, <code>on_click</code> e <code>on_collide</code> dão erro na definição da classe. <code>self.destroy()</code>, <code>self.active</code>, <code>self.tag(…)</code>, <code>self.visible</code> e <code>self.cancel_process()</code> também — a mensagem diz o que usar.</p>
+      <p class="gotcha">O jeito simples são classes planas: <code>class Fase(Act)</code>, e o que se repete vai num ato que lê <code>st</code> (<code>st.fase</code>) ou numa função do topo chamada no <code>setup</code>. Um ato pode herdar de outro (<code>class Chefe(Fase)</code>): <code>on_update</code>, <code>@every</code> e <code>@when</code> da base valem uma vez no ato filho, e o <code>setup</code> da base só roda se o filho chamar <code>super().setup()</code>. Sem <code>__init__</code>, sem <code>setup(self, vidas)</code>. Um ato não tem corpo: <code>@collide_with</code>, <code>@leave_playfield</code> de classe, <code>on_click</code> e <code>on_collide</code> dão erro na definição da classe. <code>self.destroy()</code>, <code>self.active</code>, <code>self.tag(…)</code>, <code>self.visible</code> e <code>self.cancel_process()</code> também — a mensagem diz o que usar.</p>
       <p class="gotcha">Na 0.6.0, <code>Scene</code> e <code>change_scene</code> passaram a se chamar <code>Act</code> e <code>change_act</code>; com <code>from scena import *</code> os nomes antigos não existem mais (<code>NameError</code>): troque <code>Scene</code> por <code>Act</code> e <code>change_scene</code> por <code>change_act</code>.</p>
     </section>
 

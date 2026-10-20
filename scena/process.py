@@ -12,6 +12,8 @@ mode is left.
 
 from __future__ import annotations
 
+import functools
+import types
 import builtins
 import inspect
 import math
@@ -29,6 +31,7 @@ from .easing import Ease, TWEEN_EASES, resolve_ease
 from types import CoroutineType as _CoroutineType
 
 from .validate import (
+    NO_FN, refuse_called_function,
     HINT_SCALE, clamp_magnitude, is_async_callable, magnitude, fixed_magnitude,
     payload_arity, refuse_async, refuse_coroutine_result, seconds,
 )
@@ -486,10 +489,21 @@ def _claim_decorator_role(func: Callable, role: str) -> None:
     roles.add(role)
 
 
+# The mode body ``Entity._enter_mode`` is entering right now (its function):
+# a sync ``@on_mode`` body runs only then (``on_mode``).
+_ENTERING_MODE: List[Any] = [None]
+
+
 def on_mode(fn):
-    """Tag ``fn`` as a mode body. Purely a marker — no runtime effect on
-    ``e.mode = fn`` / ``then=fn`` / comparison. Enables a modes inventory
-    (debug overlay, transition graph) built from tagged callables.
+    """Tag ``fn`` as a mode body. No effect on ``e.mode = fn`` / ``then=fn`` /
+    comparison; enables a modes inventory (debug overlay, transition graph)
+    built from tagged callables.
+
+    A sync body is entered only by the engine: ``self.mode = self.phase2()``
+    ran the body as a helper (its timers outlived the mode) and set the mode
+    to ``None``, silently (persona probes round 2, R2-9). A direct call now
+    raises naming ``self.mode = self.phase2``. An async body needs no guard:
+    calling it only makes a coroutine, which the mode setter refuses.
     """
     if not callable(fn):
         raise TypeError(
@@ -498,7 +512,25 @@ def on_mode(fn):
         )
     _claim_decorator_role(fn, "mode")
     fn._is_mode = True
-    return fn
+    if _is_async_callable(fn) or not isinstance(fn, types.FunctionType):
+        return fn
+    n = _argcount(fn)
+    name = fn.__name__
+
+    @functools.wraps(fn)
+    def mode_body(*args, **kwargs):
+        if _ENTERING_MODE[0] is not mode_body:
+            raise TypeError(
+                f"{name}() is a mode (@on_mode): enter it with self.mode = "
+                f"self.{name} (no parentheses). Called, it runs its body outside "
+                f"the mode, and self.mode = None leaves the mode."
+            )
+        _ENTERING_MODE[0] = None
+        return fn(*args[:n], **kwargs) if n is not None else fn(*args, **kwargs)
+
+    mode_body._is_mode = True
+    mode_body._scena_roles = getattr(fn, "_scena_roles", None)
+    return mode_body
 
 
 def exit_mode(enter_fn):
@@ -3503,7 +3535,7 @@ def _start_every(
 
 def after(
     delay: float,
-    fn: Optional[Callable] = None,
+    fn: Optional[Callable] = NO_FN,
     *,
     then: Optional[Callable] = None,
     on_done: Optional[Callable] = None,
@@ -3543,6 +3575,9 @@ def after(
     """
     if _SOLVER_READING:
         refuse_if_solver_reading('after()')
+    refuse_called_function("after", fn)
+    if fn is NO_FN:
+        fn = None
     if fn is None and then is None and on_done is None:
         def decorator(func: Callable) -> Callable:
             _claim_decorator_role(func, "timer")
@@ -3565,7 +3600,7 @@ def after(
 
 def every(
     interval: float,
-    fn: Optional[Callable] = None,
+    fn: Optional[Callable] = NO_FN,
     *,
     name: Optional[str] = None,
 ) -> Union[Handle, Callable]:
@@ -3586,6 +3621,9 @@ def every(
     """
     if _SOLVER_READING:
         refuse_if_solver_reading('every()')
+    refuse_called_function("every", fn)
+    if fn is NO_FN:
+        fn = None
     if fn is None:
         def decorator(func: Callable) -> Callable:
             _claim_decorator_role(func, "timer")
@@ -3614,7 +3652,7 @@ def every(
 def after_on(
     item,
     delay: float,
-    fn: Optional[Callable] = None,
+    fn: Optional[Callable] = NO_FN,
     *,
     then: Optional[Callable] = None,
     on_done: Optional[Callable] = None,
@@ -3623,6 +3661,9 @@ def after_on(
     """``Entity.after`` implementation (entity-scoped)."""
     if _SOLVER_READING:
         refuse_if_solver_reading('after()')
+    refuse_called_function("after", fn)
+    if fn is NO_FN:
+        fn = None
     if fn is None and then is None and on_done is None:
         def decorator(func: Callable) -> Callable:
             handle = _start_after(
@@ -3639,13 +3680,16 @@ def after_on(
 def every_on(
     item,
     interval: float,
-    fn: Optional[Callable] = None,
+    fn: Optional[Callable] = NO_FN,
     *,
     name: Optional[str] = None,
 ) -> Union[Handle, Callable]:
     """``Entity.every`` implementation (entity-scoped)."""
     if _SOLVER_READING:
         refuse_if_solver_reading('every()')
+    refuse_called_function("every", fn)
+    if fn is NO_FN:
+        fn = None
     if fn is None:
         def decorator(func: Callable) -> Callable:
             handle = _start_every(

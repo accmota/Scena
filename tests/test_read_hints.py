@@ -152,5 +152,138 @@ class TestPositionalTime(unittest.TestCase):
         self.c.scale_to(1.5)
 
 
+
+class TestIntersectionsOfACurve(unittest.TestCase):
+    """``intersections(line, track)`` listed the shapes it takes and stopped
+    there; a teacher plotting y = x² as a Track could not go on (persona
+    probes round 2, R2-5). The message names the route, and the route works."""
+
+    def test_the_message_names_lines_between_spaced_points(self):
+        from scena import Line, Track, intersections
+        init(width=1000, height=700)
+        curve = Track(points=[(100, 580), (500, 100), (900, 580)])
+        level = Line(p1=(0, 280), p2=(1000, 280))
+        self.addCleanup(curve.destroy)
+        self.addCleanup(level.destroy)
+        with self.assertRaises(TypeError) as cm:
+            intersections(level, curve)
+        self.assertIn("spaced_points", str(cm.exception))
+        pts = curve.spaced_points(64)
+        hits = []
+        for a, b in zip(pts, pts[1:]):
+            seg = Line(p1=a, p2=b)
+            hits += intersections(level, seg)
+            seg.destroy()
+        self.assertEqual(len(hits), 2)
+
+
+class TestForeignPoseWrites(unittest.TestCase):
+    """``paddle.position = Vec2(40, 300)`` (Godot, Unity) became an own field
+    nothing reads, while the read named ``.center`` (persona probes round 2,
+    R2-7). The write names it too; a bare Entity keeps the name as its own."""
+
+    def setUp(self):
+        init(width=400, height=300)
+
+    def test_a_shape_refuses_and_names_center_and_angle(self):
+        from scena import Vec2
+        r = Rect(center=(50, 50), width=20, height=100)
+        self.addCleanup(r.destroy)
+        for name, fix, value in (("position", "center", Vec2(40, 300)),
+                                 ("global_position", "center", (40, 300)),
+                                 ("rotation", "angle", 30), ("rotation_degrees", "angle", 30)):
+            with self.subTest(name=name), self.assertRaises(AttributeError) as cm:
+                setattr(r, name, value)
+            self.assertIn(f"'{fix}'", str(cm.exception))
+
+    def test_a_bare_entity_keeps_it(self):
+        e = Entity()
+        self.addCleanup(e.destroy)
+        e.position = 3
+        self.assertEqual(e.position, 3)
+
+
+class TestTimerGivenACall(unittest.TestCase):
+    """``every(0.6, spawn())`` ran ``spawn`` once and returned the decorator,
+    silently: no wave ever came (persona probes round 2, R2-8). An explicit
+    ``None`` where the function goes now raises; the decorator form (the
+    function omitted) and ``on_done=`` stay."""
+
+    def test_a_call_result_raises_naming_the_function_form(self):
+        from scena import after, every, Entity
+        init(width=200, height=200)
+        e = Entity()
+        self.addCleanup(e.destroy)
+        for fn in (lambda: every(0.6, None), lambda: after(1, None),
+                   lambda: e.every(0.6, None), lambda: e.after(1, None)):
+            with self.assertRaises(TypeError) as cm:
+                fn()
+            self.assertIn("without parentheses", str(cm.exception))
+
+    def test_the_decorator_and_keyword_forms_still_work(self):
+        from scena import after, every
+        init(width=200, height=200)
+
+        @every(0.5)
+        def tique():
+            pass
+
+        h = after(1, on_done=lambda: None)
+        tique.handle.cancel()
+        h.cancel()
+
+
+class TestModeBodyCalledByHand(unittest.TestCase):
+    """``self.mode = self.phase2()`` ran the body as a helper (its ``every``
+    outlived the mode) and set the mode to ``None``, silently (persona probes
+    round 2, R2-9). A sync mode body is entered only by the engine."""
+
+    def test_a_direct_call_raises_and_the_mode_setter_still_enters(self):
+        from scena import Rect, on_mode
+        init(width=400, height=300)
+        ran = []
+
+        class Boss(Rect):
+            def setup(self):
+                self.mode = self.phase1
+
+            @on_mode
+            def phase1(self):
+                ran.append("phase1")
+
+            @on_mode
+            def phase2(self):
+                ran.append("phase2")
+
+        b = Boss(center=(200, 150), width=40, height=20)
+        self.addCleanup(b.destroy)
+        self.assertEqual(ran, ["phase1"])
+        with self.assertRaises(TypeError) as cm:
+            b.mode = b.phase2()
+        self.assertIn("self.mode = self.phase2", str(cm.exception))
+        self.assertEqual(ran, ["phase1"])
+        b.mode = b.phase2
+        self.assertEqual(ran, ["phase1", "phase2"])
+        self.assertEqual(b.mode, b.phase2)
+
+    def test_a_plain_function_mode_still_gets_its_owner(self):
+        from scena import Entity, on_mode
+        init(width=400, height=300)
+        got = []
+
+        @on_mode
+        def calm(e):
+            got.append(e)
+
+        @on_mode
+        def idle():
+            got.append("idle")
+
+        e = Entity()
+        self.addCleanup(e.destroy)
+        e.mode = calm
+        e.mode = idle
+        self.assertEqual(got, [e, "idle"])
+
 if __name__ == "__main__":
     unittest.main()

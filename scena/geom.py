@@ -51,8 +51,16 @@ def _require_allowed(obj: Any, *, fn: str) -> None:
     allowed = _allowlist_types()
     if not isinstance(obj, allowed):
         names = ", ".join(t.__name__ for t in allowed)
+        hint = ""
+        from .track import Track
+        if isinstance(obj, Track):
+            # A curve (persona probes round 2, R2-5: the message gave no route).
+            hint = (". A Track is a path: cross it piece by piece with Lines between "
+                    "its points (pts = track.spaced_points(64); "
+                    "Line(p1=a, p2=b) for a, b in zip(pts, pts[1:])), or use "
+                    "Polygon(points=pts) for a closed one")
         raise TypeError(
-            f"{fn}() supports {names}; got {type(obj).__name__}"
+            f"{fn}() supports {names}; got {type(obj).__name__}{hint}"
         )
 
 

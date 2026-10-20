@@ -873,6 +873,45 @@ class TestNameSlotsAreByPlace(ActTestCase):
         self._end()
 
 
+class TestAnActMaySubclassAnAct(ActTestCase):
+    """The Guia documents it (persona probes round 2, R2-10): a base act's
+    ``on_update``, class ``@every`` and ``@when`` run once in the subclass
+    act, and the base ``setup`` only through ``super().setup()``."""
+
+    def test_inherited_parts_run_once(self):
+        from scena import every, when
+        seen = {"update": 0, "every": 0, "when": 0, "base_setup": 0}
+
+        class Fase(Act):
+            def setup(self):
+                seen["base_setup"] += 1
+                self.pronto = False
+
+            def on_update(self, dt):
+                seen["update"] += 1
+                if seen["update"] == 5:
+                    self.pronto = True
+
+            @every(0.1)
+            def tique(self):
+                seen["every"] += 1
+
+            @when(lambda self: self.pronto)
+            def comecou(self):
+                seen["when"] += 1
+
+        class Chefe(Fase):
+            def setup(self):
+                super().setup()
+
+        self.begin(Chefe)
+        self.w.step(30)            # 0.5 s at 60 Hz
+        self.assertEqual(seen["base_setup"], 1)
+        self.assertEqual(seen["update"], 30)
+        self.assertIn(seen["every"], (4, 5))
+        self.assertEqual(seen["when"], 1)
+
+
 class TestRunInsideTheGame(ActTestCase):
     """``TextInput(on_submit=run)``: a pasted snippet named its own function
     ``run`` and a rename left this line, so Enter called Scena's ``run`` with

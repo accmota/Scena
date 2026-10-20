@@ -317,6 +317,18 @@ left out.
 
 ### Changed
 
+- More messages that name the fix (persona probes round 2):
+  `Button("Contar")` says `Button(label="Contar")` (also CheckBox, Slider);
+  `intersections(line, track)` names the route for a curve
+  (`track.spaced_points(n)` and a Line per pair); Godot's hook names in a
+  class (`_process`, `_ready`, …) warn like Unity's; `x.position = …` /
+  `x.rotation = …` on a shape raise naming `center` / `angle` (they were
+  silently own fields; a bare `Entity` keeps them); `every(0.6, spawn())`
+  and `after(1, boom())` raise saying the function was called (they
+  returned the decorator silently); `self.mode = self.phase2()` raises
+  saying to drop the `()` (a sync mode body ran as a helper and the mode
+  became `None`).
+
 - Messages that name the fix (persona probes): a read of a name an object
   lacks says Scena's way (`chave.hide()` → `visible = False`,
   `bola.transform` → `.center`, `circle.alpha` → `set_alpha`, `clock.tick(60)`
@@ -430,6 +442,16 @@ left out.
   128 wide, so its corners stay on the grid.
 
 ### Fixed
+
+- A ball with `bounce=` 0.5 or less and sideways speed bounces at every
+  frame rate: at 144 Hz and up it was glued to the floor after its first
+  bounce, sliding along it (a rebound under ~2 × the frame rate in DU/s
+  counted as "not leaving" for the floor snap).
+- A body placed right behind a fast one (`b.center = a.center + …`, or a
+  `@=` link) no longer gets phantom `@collide` enters and exits: at 30 Hz a
+  follower 4 units behind a 450 DU/s body "touched" it every other frame. A
+  fast shot still hits an enemy that slides by placement; a respawn is
+  still not swept.
 
 - A method called on a cell reads its current value (`slider.data.upper()`,
   any `Attribute`): it read the value from before the last change until
@@ -670,6 +692,10 @@ left out.
   What links and what refuses did not change.
 
 ### Documentation
+
+- Guia: `vel` does not move an object by itself (two "De outro motor"
+  rows said it did); an act may subclass an act, and what runs once is
+  stated (the Guia said "never", and the engine accepted it).
 
 - Guia, Level: "A fase e a janela" shows the two ways to fit a level on
   screen — read it before `init()` and open the window at `fase.size`

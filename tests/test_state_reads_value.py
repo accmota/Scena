@@ -314,6 +314,16 @@ class TestBindingSitesTakeTheCell(EngineCase):
                     make(st.v)
                 self.assertIn(f'{name}(st["', str(cm.exception))
 
+    def test_a_caption_given_as_the_cell_names_label(self):
+        """``Button("Contar")``: the text is the button's caption, not a cell
+        (persona probes round 2, R2-4: the message only said "pass the cell
+        with brackets")."""
+        for make, kind in ((lambda v: Button(v), "Button"), (lambda v: CheckBox(v), "CheckBox"),
+                           (lambda v: Slider(v), "Slider")):
+            with self.subTest(widget=kind), self.assertRaises(TypeError) as cm:
+                make("Contar")
+            self.assertIn(f"{kind}(label='Contar')", str(cm.exception))
+
     def test_explicit_none_raises_and_omitted_cell_is_fine(self):
         # ``Menu(st.nave)`` while ``st.nave`` is still None would otherwise
         # leave the widget silently unbound.

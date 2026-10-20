@@ -166,9 +166,13 @@ word `setup`, so it ends with the Entity word that pairs with it, and the act
 entity really is destroyed. `on_leave` already means something else
 (`History(on_leave=)`), and a second name would be a second spelling.
 
-Acts are **flat**: `class Fase(Act)`, never `class Fase1(Fase)`. Python
-allows a base class, but the taught surface does not (the examples and
-tutorials never use class hierarchy: a beginner reads one class, not two).
+Acts are **taught flat**: `class Fase(Act)` (the examples and tutorials
+never use class hierarchy: a beginner reads one class, not two). An act that
+subclasses an act works and is not refused: a base's `on_update`, class
+`@every` and `@when` run once in the subclass act, and the base `setup` runs
+only through `super().setup()`. The Guia said "never" while nothing enforced
+it and the form behaves correctly (persona probes round 2, R2-10); decided
+2026-10-20: the Guia recommends flat acts and documents inheritance.
 Shared parts are either one act that reads `st` (`Fase` with `st.fase`) or a
 top-level helper function called from each `setup` (`montar_frota()`; what it
 creates belongs to the act that called it; `jogo_novo()` resets data).
