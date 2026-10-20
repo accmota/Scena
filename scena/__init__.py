@@ -331,3 +331,8 @@ def __getattr__(name):
     if stub is not None:
         return stub
     raise AttributeError(f"module 'scena' has no attribute {name!r}")
+
+
+# ``python jogo.py`` that ends without ``run()`` is told so at exit (stall.py).
+from .stall import note_script_import as _note_script_import  # noqa: E402
+_note_script_import()

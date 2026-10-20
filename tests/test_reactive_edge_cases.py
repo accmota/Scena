@@ -770,5 +770,45 @@ class TestGraphResetRebindsEverySource(unittest.TestCase):
             canvas.reset_view()
 
 
+
+class TestOnChangeComparesOncePerFrame(unittest.TestCase):
+    """``@on_change`` compares once per frame, at the flush: two writes in one
+    frame that end at the old value fire nothing (persona probes PP: the
+    Scratch "broadcast again", ``st.msg = ""; st.msg = "nova onda"``, never
+    sent wave 2). Counting is the way to send the same message twice. The
+    Guia says so (Começar, "De outro motor"; FRAME_PROMISES)."""
+
+    def setUp(self):
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from system_support import SystemWorld, boot
+        boot()
+        self.w = SystemWorld(draw=False)
+        self.addCleanup(self.w.teardown)
+
+    def test_writes_back_to_the_old_value_in_one_frame_fire_nothing_and_a_count_fires(self):
+        from scena import st
+        st.pp_msg = "go"
+        st.pp_waves = 0
+        got, waves = [], []
+
+        @on_change(st["pp_msg"])
+        def heard(v):
+            got.append(v)
+
+        @on_change(st["pp_waves"])
+        def wave(v):
+            waves.append(v)
+
+        class Sender(Entity):
+            def on_update(self, dt):
+                st.pp_msg = ""
+                st.pp_msg = "go"
+                st.pp_waves += 1
+
+        self.w.track(Sender())
+        self.w.step(3)
+        self.assertEqual(got, [])
+        self.assertEqual(waves, [1, 2, 3])
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

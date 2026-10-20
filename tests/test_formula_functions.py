@@ -454,5 +454,46 @@ class TestStaleSourceFile(FormulaFunctionTest):
                 o.destroy()
 
 
+
+class TestContainerItemLinks(FormulaFunctionTest):
+    """A formula that reads inside a list / dict / set held in a cell
+    (``st.inv["gemas"]``, ``", ".join(st.inventario)``) never refreshes on an
+    in-place change (``st.inv["gemas"] += 1``, ``.append``): the cell holds
+    one object, and nothing writes the cell. The data was right, the HUD kept
+    its old text (persona probes PP). The link warns, naming the spellings
+    that notify."""
+
+    def link(self, fn):
+        import warnings
+        sink = Attribute("")
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            sink @= fn
+        return sink, [str(x.message) for x in w]
+
+    def test_an_item_of_a_dict_warns(self):
+        ST.inv = {"gemas": 0}
+        sink, msgs = self.link(lambda: f"Gemas {ST.inv['gemas']}")
+        self.assertEqual(len(msgs), 1, msgs)
+        self.assertIn("formula_functions.inv", msgs[0])
+        self.assertIn("in place", msgs[0])
+        self.assertIn("formula_functions.inv = ", msgs[0])
+
+    def test_a_list_given_to_a_function_warns(self):
+        ST.itens = ["a"]
+        _sink, msgs = self.link(lambda: ", ".join(ST.itens))
+        self.assertEqual(len(msgs), 1, msgs)
+
+    def test_numbers_strings_and_reassigned_lists_say_nothing(self):
+        ST.nome = "Ana"
+        _sink, msgs = self.link(lambda: f"{ST.nome} {ST.pontos}")
+        self.assertEqual(msgs, [])
+
+    def test_reassigning_the_container_refreshes_it(self):
+        ST.inv = {"gemas": 0}
+        sink, _ = self.link(lambda: f"Gemas {ST.inv['gemas']}")
+        ST.inv = {**ST.inv, "gemas": 2}
+        self.assertEqual(sink.value, "Gemas 2")
+
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,8 @@ from .uiwidget import WidgetTheme, ui
 from .state import State, get_scena_system
 from .process import ReadyManager, RememberedManager, tick_processes, _run_with_watchdog, _Watchdog, WATCHDOG_RESUME_S
 from .sprite import settle_clip_ends
+from . import stall as _stall
+from .stall import _state as _stall_state
 from .endless import refill_after_tick
 from .validate import call_truncated
 from .bounds import get_bounds_system
@@ -3946,6 +3948,9 @@ class ScenaFramework:
         whole vblank periods when pacing is locked to the display.
         """
         ss = get_scena_system()
+        _stall_state[0] = "frame"           # stall.frame_begin, inlined
+        _stall_state[1] = time.perf_counter()
+        _stall_state[2] = False
 
         # Frame-consistent reactivity: writes during tick + user update(dt)
         # only mark dirty; one flush() resolves derived geometry, links, and
@@ -4060,6 +4065,7 @@ class ScenaFramework:
                 mouse._end_frame()      # dx / dy are per frame (S1-1)
             if ss is not None:
                 ss.end_frame_batch()
+            _stall_state[0] = None          # stall.frame_end
         # An act change this frame asked for one collect + freeze: here no
         # handler stack holds the old act (gc_policy, S4-7).
         run_pending_freeze()
@@ -4266,6 +4272,8 @@ def run(first_act=None):
         first_act: The Act class to start in (``run(Titulo)``); omit for a script
             without acts.
     """
+    _stall.top_level_end()
+    _stall.run_called()
     from . import process as _process
     if _process._top_level_ended:
         # Inside the game: Scena's run handed over as a callback (persona
@@ -4327,6 +4335,13 @@ def init(width=None, height=None, title=None, *,
         width=width, height=height, title=title, window_scale=window_scale,
         display=display, ui_scale=ui_scale, ui_font=ui_font,
     )
+    # A script's own init() arms the stall watch (a test's does not): a
+    # top-level loop that never reaches run() names its line.
+    caller = inspect.currentframe().f_back
+    if caller is not None and caller.f_globals.get("__name__") == "__main__":
+        _stall.top_level_begin()
+        _stall.arm()
+        _stall.mark_engine_objects()
 
 def forget_hud_column_item(obj) -> None:
     """Drop ``obj`` from the current HUD column; rewind the cursor if it empties."""

@@ -502,7 +502,10 @@ def _holds_scena_objects(value: Any) -> bool:
 
 
 class _Checker(ast.NodeVisitor):
-    def __init__(self, root_fn, fn, node, ctx, local, depth, seen, parts):
+    def __init__(self, root_fn, fn, node, ctx, local, depth, seen, parts, containers=None):
+        # ``(state, cell)`` read while it holds a list / dict / set (persona
+        # probes PP): ``check_formula`` warns once per cell.
+        self.containers = containers if containers is not None else set()
         self.root_fn = root_fn
         self.fn = fn
         self.node = node
@@ -633,6 +636,21 @@ class _Checker(ast.NodeVisitor):
                 "group membership is not a formula source. Count or scan the group in "
                 "update(), or use a group formula (group['all'] @= lambda: …).",
             )
+
+    def visit_Attribute(self, node):
+        if isinstance(node.ctx, ast.Load) and isinstance(node.value, ast.Name) \
+                and node.value.id not in self.local:
+            held = self.ctx.get(node.value.id, _MISSING)
+            if held is _MISSING:
+                held = getattr(builtins, node.value.id, _MISSING)
+            from .state import State
+            if isinstance(held, State):
+                cell = held.__dict__.get("_data", {}).get(node.attr)
+                if cell is not None and isinstance(cell.__dict__.get("_raw_value"),
+                                                   (list, dict, set)):
+                    self.containers.add((held._name, node.attr,
+                                         type(cell.__dict__["_raw_value"]).__name__))
+        self.generic_visit(node)
 
     def visit_Subscript(self, node):
         key = _constant_key(node.slice)
@@ -779,7 +797,8 @@ class _Checker(ast.NodeVisitor):
         part = FormulaPart(value, node, ctx, local)
         self.parts.append(part)
         self.seen.add(code)
-        _Checker(self.root_fn, value, node, ctx, local, self.depth + 1, self.seen, self.parts).run()
+        _Checker(self.root_fn, value, node, ctx, local, self.depth + 1, self.seen, self.parts,
+                 self.containers).run()
 
 
 def check_formula(fn: Callable[..., Any], node: ast.AST) -> List[FormulaPart]:
@@ -793,5 +812,26 @@ def check_formula(fn: Callable[..., Any], node: ast.AST) -> List[FormulaPart]:
     root = FormulaPart(fn, node, ctx, local)
     parts: List[FormulaPart] = [root]
     seen: Set[types.CodeType] = {_unwrap_function(fn).__code__}
-    _Checker(fn, fn, node, ctx, local, 0, seen, parts).run()
+    checker = _Checker(fn, fn, node, ctx, local, 0, seen, parts)
+    checker.run()
+    for state, cell, kind in sorted(checker.containers):
+        _warn_container_read(fn, state, cell, kind)
     return parts
+
+
+def _warn_container_read(fn, state: str, cell: str, kind: str) -> None:
+    """A formula reads inside a list / dict / set a cell holds: an in-place
+    change writes nothing to the cell, so the formula keeps its old value
+    (persona probes PP: a HUD over ``st.inv["gemas"] += 1``)."""
+    from .process import report_author_warning
+    name = f"{state}.{cell}"
+    whole = (f'{name} = {{**{name}, "chave": valor}}' if kind == "dict"
+             else f"{name} = {name} + [x]" if kind == "list" else f"{name} = {name} | {{x}}")
+    report_author_warning(
+        "@=",
+        f"formula {_label(fn)} reads inside {name} (a {kind}). A change made in "
+        f"place ({name}[…] = …, {name}[…] += 1, .append, .pop) does not reach it, "
+        f"so it keeps showing the old value. Write the whole value ({whole}; "
+        f"{name} += [x] also tells it), or keep each number in a cell of its own "
+        f"({state}.gemas).",
+    )

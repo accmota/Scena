@@ -119,6 +119,20 @@ left out.
   (`iniciar`).
 ### Added
 
+- A frame that never ends (a `while` inside `update`, `on_update` or a
+  handler) prints, after 2 s, `SCENA ERROR: a frame has not finished …`
+  naming your line and the fix (`if` for `while`, `@when`, a task). Before,
+  the window froze with no message; the game is not stopped (Ctrl+C is). A
+  script stuck at the top level (a loop of its own before `run()`) is named
+  after 8 s.
+- `python jogo.py` that ends without `run()` says so at exit (`SCENA: the
+  script ended without run(), so no window opened.`); before, nothing opened
+  and nothing was said.
+- A formula that reads inside a list or dict held in `st`
+  (`hud["text"] @= lambda: f"Gemas {st.inv['gemas']}"`) warns when it is
+  linked: an in-place change (`st.inv["gemas"] += 1`, `.append`) does not
+  reach it. The warning names the spellings that do.
+
 - The CSS colour names: `"beige"`, `"wheat"`, `"saddle brown"`,
   `"midnight blue"`, `"slate gray"`, the `medium …` and `pale …` families and
   the rest of the CSS base names, joined or spaced (`"saddlebrown"`). Before,
