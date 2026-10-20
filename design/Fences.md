@@ -87,7 +87,7 @@ API a row below forbids without evidence that matches the **Revisit** bar.
 | Widget `box=` | A taught layout needs a grid of widgets that `top_left=` + `ui.stack_*` + `widget.box` cannot express | [Canvas — HUD column](Canvas%20Design.md) |
 | Widget `top_left=` links (`lambda`) | A taught script needs a HUD widget that follows something | [Canvas — HUD column](Canvas%20Design.md) |
 | `Level(...)` creating anything at load; a bulk `level.make_all("g")`; a `LevelItem` as a `box=` input | A taught script needs a group made with no per-item change and a two-line loop is the friction (`box=item`: never — `item.box`) | [Editor — Fences](Editor%20Design.md#fences) |
-| Behavior, numbers, layers or several levels in a level file | See the row in the Editor fences | [Editor — Fences](Editor%20Design.md#fences) |
+| Behavior, numbers, layers or several levels in a level file; clips, a tile layer or flips for sheet frames | See the rows in the Editor fences | [Editor — Fences](Editor%20Design.md#fences) |
 | `enabled` on a Graphic other than `SpriteButton` (it is otherwise the near-miss for `active`) | A second Graphic with a "drawn but inert" state — then move `enabled` + `_accepts_press` to Graphic in one change | [Sprite — SpriteButton](Sprite%20Design.md#spritebutton) |
 | `SpriteButton.text` (or any third spelling of the label) | Never — `label` (string shortcut, same word as HUD `Button.label`) and `label_text` (the `Text`) are the two spellings | [Sprite — SpriteButton](Sprite%20Design.md#spritebutton) |
 | Linking a part's pose to its owner (`button.label_text["center"] @= lambda: button.center…`) | Never: the owner → part edge makes it a cycle. A part drawn by its owner has a relative pose | [Sprite — SpriteButton](Sprite%20Design.md#spritebutton) |

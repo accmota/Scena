@@ -189,7 +189,14 @@ illegal Python.
 Grid layout is `cols=` alone (one row), `cols=` with `rows=`, or `cell=(w, h)` in
 pixels. `rows=` without `cols=` is `TypeError` (`cols=1` is a vertical strip).
 `cell=` does not combine with `cols=` / `rows=`. Layout does not combine with
-`atlas=`.
+`atlas=`. **Cell count** (0.9.0): at most 16384 (`_MAX_GRID_CELLS`); a real
+tileset runs past a thousand (Kenney's 1-bit pack: 49 × 22 of 16 px), which
+the old 1024 cap refused. The cap's other job, the hint for `cell=(4, 3)`
+written for `cols=4, rows=3`, fires past 1024 cells when a cell is under 8 px
+(`_CELL_TYPO_*`). A missing file loaded with `cols=` / `rows=` tiles the
+checker at most 4096 px on a side (`_PLACEHOLDER_MAX_SIDE`; one 64 px checker
+per cell grew past memory). Construction is about 5 µs per cell (4096 cells:
+~21 ms, setup only). Guard: `tests/test_sheet_grid_cap.py`.
 
 Taught packed load names the image and the atlas. `Sheet("file.xml")` /
 `Sheet("file.json")` alone is a convenience: the PNG comes from atlas metadata.

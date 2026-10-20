@@ -310,7 +310,46 @@ left out.
   still works. A vector that is another name for the cell's
   (`v = Vec2(1, 2); st.v = v`) changes `st.v` with `v.x = 3` too.
 
+- Level files can use spritesheets. A level's `sheets` table names one image
+  cut one way, with `Sheet`'s layouts (`cols` / `rows`, `cell`, `atlas`), and
+  an image item shows either a whole `file` or a `sheet` + `frame`. The
+  level's `Sheet` is `level.sheet("terreno")` (`level.sheets` lists the
+  names): one catalog for every frame of that sheet, built on first use, so a
+  clip registered on it plays on what `make()` builds:
+
+  ```python
+  fase = Level("fase1.json")
+  for t in fase.group("chao"):
+      t.make()                              # Sprite(sheet, frame=37, …) as drawn
+  fase.sheet("agua").clip("onda", [40, 41, 42], fps=6)
+  for a in fase.group("agua"):
+      a.make().play("onda")
+  ```
+
+  `item.sheet` / `item.frame` read a frame image; `item.image` on one raises
+  (the sheet's file would show every frame), as `item.sheet` does on a whole
+  picture. Building a sheet checks every item's frame and raises
+  `LevelFormatError` naming the item (`Sprite(frame="typo")` only warns).
+  Level files are now version 2, always written; version 1 files still load.
+- The level editor places frames of spritesheets. The Image tool also takes
+  an atlas (`.xml` / `.json`) and opens a frame picker on it; **Choose
+  frame…** (beside Change image) opens it on a selected image — cut a placed
+  strip or tileset into its frames, or show another frame — keeping its
+  center, angle and scale. The picker shows the sheet on the canvas (wheel
+  zooms, drag pans, F fits, Esc cancels) and the cut in the right panel
+  (whole image, columns × rows, cell size, atlas; a name filter on atlases).
+  Copy as code prints the `Sheet` line first
+  (`terreno = Sheet("tiles.png", cell=(16, 16))`). Grid steps 4, 8, 16, 32
+  and 64 join 1, 5, 10, 20 and 50; on 8 to 64 a click-made shape is 96 or
+  128 wide, so its corners stay on the grid.
+
 ### Fixed
+
+- A grid `Sheet` past 1024 cells loads: the cap refused real tilesets
+  (Kenney's 1-bit pack, 49 × 22 cells of 16 px). The hard cap is 16384 cells;
+  `cell=` written for `cols=` / `rows=` still gets the hint past 1024 cells
+  when a cell is under 8 px. A missing file with a big `cols=` / `rows=`
+  grid no longer builds one 64 px checker per cell.
 
 - Work an async mode started after switching its own actor to another mode,
   later in the same step (`self.mode = self.calm` then `after(1, …)` before

@@ -7,8 +7,8 @@ what it becomes.** Two parts:
   level file. Creates nothing.
 - **The level editor** (companion app, `scena_editor/`, `python -m scena_editor`):
   draws rects, ellipses, circles, lines, polygons, triangles, regular polygons,
-  tracks, concaves, points and images on
-  a level area, names and groups them, saves the file. Not part of the
+  tracks, concaves, points and images (a whole picture, or a frame of a
+  spritesheet) on a level area, names and groups them, saves the file. Not part of the
   framework (see [Boundary](#boundary)).
 
 Hub: [Scena Design.md](Scena%20Design.md). Regions: [Box Design.md](Box%20Design.md).
@@ -19,6 +19,8 @@ Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-
 | Goal | Go to |
 | --- | --- |
 | What a level file holds | [File format](#file-format) |
+| Spritesheets in a level (`sheets`, frame images) | [Sheets](#sheets) |
+| The frame picker, Choose frame… | [Editor](#editor-companion-app) ("Frames of a sheet") |
 | `Level` / `LevelItem` / `make()` / `.box` | [Reading a level](#reading-a-level) |
 | Copy as code | [One constructor table](#one-constructor-table) |
 | Install, start, launcher icon, error log | [Starting the editor](#starting-the-editor) |
@@ -43,7 +45,8 @@ Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-
 | `Level`, `LevelItem`, `make()` | `level.py` | `level_format.py` (`constructor_for`), `sprite.py` (`_resolve_image_path`) | [Reading a level](#reading-a-level) |
 | Copy as code | `level_format.py` (`code_for`) | `level.py` (`make`) | [One constructor table](#one-constructor-table) |
 | Editor gestures / commands | `scena_editor/tools.py` (`Editor`) | `geometry.py`, `doc.py`, `undo.py` | [Editor](#editor-companion-app) |
-| Editor window: drawing the document | `scena_editor/view.py` | `tools.py` | [Editor](#editor-companion-app) |
+| Editor window: drawing the document | `scena_editor/view.py` | `tools.py`, `sheets.py` | [Editor](#editor-companion-app) |
+| Frame picker, a level's sheets in the editor | `scena_editor/sheet_pick.py` | `sheets.py`, `doc.py` (`ensure_sheet`), `app.py` (`choose_frame`) | [Editor](#editor-companion-app) |
 | Editor panels, status, prompts | `scena_editor/panel.py`, `app.py` | `i18n.py` | [Editor](#editor-companion-app) |
 | File dialogs | `scena_editor/dialogs.py` | `_tkdialog.py` | [Editor](#editor-companion-app) |
 | Scena privates the editor uses | `scena_editor/_engine.py` | `scena/orchestration.py` (`_close_guard`) | [Boundary](#boundary) |
@@ -60,6 +63,8 @@ Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-
 | item groups | editor labels, applied by `make()` | live groups until something is made |
 | guide image | editor-only tracing reference | part of the level (`Level` skips it) |
 | `locked` | editor-only: selectable, not movable | a game flag (`Level` ignores it) |
+| `level.sheet("terreno")` | the one `Sheet` every frame of that sheet uses (built on first use) | a fresh catalog per call; the author's own `Sheet(...)` |
+| `item.image` of a frame | refused: the sheet's file would show every frame | the frame's picture (`item.make()`, or `item.sheet` + `item.frame`) |
 
 # File format
 
@@ -68,7 +73,10 @@ in degrees counter-clockwise — the numbers an author writes in code; no
 conversion anywhere.
 
 ```json
-{"format": "scena-level", "version": 1, "size": [3600, 1500], "items": [
+{"format": "scena-level", "version": 2, "size": [3600, 1500], "sheets": [
+  {"name": "terreno", "file": "tiles/terrain.png", "cell": [16, 16]},
+  {"name": "bola", "file": "k-rolling-ball/rollingBall_sheet.png", "atlas": "k-rolling-ball/rollingBall_sheet.xml"}
+], "items": [
   {"kind": "rect",    "groups": ["plataforma"], "center": [1000, 150], "width": 220, "height": 24, "angle": 20},
   {"kind": "ellipse", "name": "lago", "center": [500, 60], "width": 300, "height": 80},
   {"kind": "concave", "name": "rampa", "center": [1600, 100], "width": 200, "height": 200, "scoop": "top_right", "rim": [20, 0]},
@@ -80,13 +88,21 @@ conversion anywhere.
   {"kind": "track",   "name": "rota_drone", "points": [[900, 600], [1300, 600]], "smooth": 0.5},
   {"kind": "point",   "groups": ["estrela"], "center": [330, 320]},
   {"kind": "image",   "name": "fundo", "file": "arte/fase1.png", "center": [1800, 750],
-                      "width": 3600, "height": 1500, "locked": true}
+                      "width": 3600, "height": 1500, "locked": true},
+  {"kind": "image",   "groups": ["chao"], "sheet": "terreno", "frame": 37, "center": [8, 8],
+                      "width": 16, "height": 16},
+  {"kind": "image",   "name": "saida", "sheet": "bola", "frame": "block_large.png",
+                      "center": [900, 120], "width": 64, "height": 64}
 ]}
 ```
 
 - `format` / `version` are plumbing: a JSON that is not a level fails clearly
   ("not a Scena level file"); a newer version is refused ("Update Scena").
-  `Level` exposes neither.
+  `Level` exposes neither. **Version 2** (0.9.0) added `sheets`; the editor
+  always writes the current version (author's decision 2026-10-20: no editor
+  users yet, so a 0.9 file need not open in 0.8.x), and every older version
+  is still read (a version-1 file is a version-2 file without `sheets`; the
+  shipped `examples/media/levels/*.json` are version 1).
 - `items` order is the draw order.
 - Common keys: `name` (optional, unique in the file), `groups` (optional list,
   no repeats), `locked` (editor-only).
@@ -100,9 +116,11 @@ conversion anywhere.
   `RegularPolygon`); triangle `center, radius` · `angle=0` (toward the apex),
   `base_ratio=1` (above 0, below 2, as `Triangle`); track `points` (≥ 2) · `closed=false`
   · `smooth=0` (0 to 1, `Track.smooth`: 0 straight segments, 1 a curve);
-  point `center`; image `file, center, width, height` · `angle=0`,
-  `guide=false`. Sizes are magnitudes (≥ 0).
-- Image `file` is a POSIX path **relative to the level file**.
+  point `center`; image `center, width, height` and **either** `file` (a
+  whole picture) **or** `sheet` + `frame` (one frame of a sheet, below) ·
+  `angle=0`, `guide=false`. Sizes are magnitudes (≥ 0).
+- Image `file` (and a sheet's `file` / `atlas`) is a POSIX path **relative
+  to the level file**.
 - `angle` was `rotation` until 2026-10-01 (renamed with `Graphic.angle`); a
   file with `"rotation"` is refused with the new name, never rewritten.
 - The kind `track` was `path` until 2026-10-02 — renamed so every kind is
@@ -114,7 +132,55 @@ conversion anywhere.
   silent skip, never a half-read file.
 - Writing (`serialize`) leaves out fields at their default and writes
   integral floats as ints; `parse(serialize(doc))` is the identity and
-  `serialize` is canonical (`TestFormatProperties`).
+  `serialize` is canonical (`TestFormatProperties`, `TestSheetFormatProperties`).
+
+## Sheets
+
+A packed picture — a tileset, a Kenney or TexturePacker atlas — is one image
+cut into frames. The engine reads it with `Sheet`; a level names it once in
+`sheets` and each image item says which frame it shows. *Which picture* is
+appearance, already in the file as `file`: a frame only narrows it. **Time
+stays in code** (clips, fps: `level.sheet(name).clip(...)`), as values do
+([Why no values](#why-no-values-in-the-file)).
+
+- `sheets` is a **list** (JSON objects drop a repeated key silently; a list
+  lets the reader refuse a repeated name, as for items). An entry: `name` (a
+  Python identifier, not a keyword — it is also the variable in Copy as code
+  and the key of `level.sheet()`; unique), `file`, and **exactly one layout**,
+  `Sheet`'s single-image ones: `cols` (whole ≥ 1, with optional `rows`,
+  default 1; `rows` alone is refused, as `Sheet(rows=)`), `cell` (`[w, h]`,
+  whole pixels ≥ 1) or `atlas` (Kenney / TexturePacker XML, TexturePacker JSON
+  hash or array — what `scena.atlas.load_atlas` reads). Count and cell size
+  are both kept: they are `Sheet`'s two spellings of one grid, and a pack's
+  documentation gives one or the other. Not carried: lists of files and
+  patterns (loose files are one image item each), `strip` (several backing
+  images: two entries) and `Sheet("x.xml")` alone (the entry names both
+  `file` and `atlas`).
+- **Refused with the reason:** `fps`, `yoyo`, `clip(s)` (time: code),
+  `anchor` (an item's `center` is its box's center; the level's sheets use the
+  default anchor), `pixel_size` (every item carries `width` / `height`).
+- An image item with `sheet` + `frame`: `frame` is what `Sprite(frame=)`
+  takes — a whole number ≥ 0 or a non-empty string. The editor writes a
+  **name on an atlas** (stable when the atlas is repacked; indices are not)
+  and an **index on a grid** (row-major from the top-left, as the engine).
+  `file` with `sheet` / `frame`, neither, or one of the pair is refused with
+  the fix; `sheet` must name an entry (did-you-mean).
+- **Frames are checked when the sheet is first built**, not at `Level()`:
+  the frame needs the atlas or the image, and `Level` reads only (a script
+  that uses a level for geometry does not decode its art). Building it checks
+  the frame of every item cut from it (`sheet.frame_index`) and raises
+  `LevelFormatError` naming the file and the item. This matters: `Sprite(sheet,
+  frame="typo")` only warns and shows a placeholder; a level must not. A
+  missing image or atlas file warns and shows the checker, as for a plain
+  image.
+- `center` means what it means for a plain image: the Sprite's `center`, and
+  `width` / `height` size the frame's **untrimmed** box (the engine sizes a
+  trimmed atlas frame against its source size), so trimmed frames need
+  nothing special. **Known limit:** a frame with an *authored* pivot
+  (TexturePacker `pivotX/Y` ≠ 0.5; the packs in `examples/media` have none)
+  draws off its box, because a Sprite's center is its pivot; the game and the
+  editor agree (both build the same Sprite), only the editor's selection box
+  does not wrap the art.
 
 # Reading a level
 
@@ -138,6 +204,12 @@ drone.move_along(fase["rota_drone"].points, time=6)
   with `level.group(...)` when the name is a group.
 - **`level.group("g")`** — items with `g` among their groups, file order.
   **Raises** when no item has `g` (a typo must not become an empty loop).
+- **`level.sheet("name")`** — the `Sheet` of that entry: one per entry per
+  `Level`, built on first use (`level.sheet`, `item.sheet`, `item.make()`),
+  default anchor; every frame of that sheet uses it, so a clip registered
+  on it plays on what `make()` builds. Unknown name: did-you-mean.
+  `level.sheets` — the names, file order. Two `Level`s of one file get two
+  catalogs; the decode is shared (`_IMAGE_CACHE`).
 - `level.names`, `level.groups` (first-use order), `level.size`, `level.box`
   (fresh, `(0, 0)` → `size`), `level.path`, iteration, `len`, `in`.
 - **`LevelItem`** — `kind`, `name`, `groups`, `center` (a line's midpoint, a
@@ -147,8 +219,11 @@ drone.move_along(fase["rota_drone"].points, time=6)
   (a line's `length` and `angle` too: computed from its ends as `make()`
   reads them; `angle` runs from -180 up to 180), `points` (new list of `Vec2`),
   `closed`, `smooth`,
-  `image` (absolute). A field of another kind raises `AttributeError`
-  listing what the item has. Every read is a copy.
+  `image` (absolute; a whole picture), `sheet` / `frame` (a frame of a sheet).
+  A field of another kind raises `AttributeError` listing what the item has;
+  so do `image` on a frame (`Sprite(item.image, …)` would show the whole
+  sheet: a silent wrong picture) and `sheet` / `frame` on a whole picture.
+  Every read is a copy.
 - **`item.box`** — fresh oriented `Box(center, width, height, angle)` for
   rect / ellipse / concave / image; a circle's square. Lines, polygons, regular
   polygons, triangles, tracks and points raise (only those four kinds are regions).
@@ -159,8 +234,9 @@ drone.move_along(fase["rota_drone"].points, time=6)
   triangle → `Triangle(center, radius, angle, base_ratio)`,
   track → `Track(points, smooth, closed)` (`smooth` always written: the
   file's default is 0, `Track`'s own is 1), point → `Point`, image →
-  `Sprite(file, center, width, height, angle)` — every field is a
-  constructor keyword. The item's groups are applied; `group=` **adds**; other
+  `Sprite(file, center, width, height, angle)` (a frame:
+  `Sprite(level.sheet(name), frame=…, center, …)`; `make(frame=)` is a
+  geometry clash) — every field is a constructor keyword. The item's groups are applied; `group=` **adds**; other
   keywords pass through (`layer=`, `color=`, `visual=`); a geometry keyword
   raises (`TypeError`, "remove center="). A guide raises.
 
@@ -183,7 +259,11 @@ is the only kind → constructor mapping. `LevelItem.make()` calls the class;
 rotated item gets `angle=`: `Sprite("a.png", center=…, width=…, height=…,
 angle=30)`). `settings` (attributes set after construction) is empty today;
 it stays in the table for a class that lacks a keyword. Copied lines name the
-image as the file does (relative); `make()` passes the absolute path.
+image as the file does (relative); `make()` passes the absolute path. A frame
+image's source is the `Sheet` in `make()` and a `SheetVar` (printed bare) in
+Copy as code; `code_for_items` prints each sheet's line once, first
+(`terreno = Sheet("tiles.png", cell=(16, 16))`, from `sheet_call`, the one
+entry → `Sheet` table, which `Level.sheet` uses too).
 Guard: `tests/test_level_codegen.py` evals the copied code and compares it with
 `make()` and with the item, for every kind and for random items.
 
@@ -262,7 +342,50 @@ guard, no zombies) and `test_editor_dialogs`. v1:
 - **Choosing the Select tool** (button or V) clears the selection.
 - **Selected points** get a ring (a fixed screen size), not only a color.
 - **Images:** "Change image…" picks another file — same center, angle and
-  height, width from the new picture's proportions.
+  height, width from the new picture's proportions (a frame of a sheet
+  becomes a whole picture).
+- **Frames of a sheet** (0.9.0). The Image tool's dialog also takes an atlas
+  (`.xml` / `.json`): the **frame picker** opens on its frames, and the
+  picked one is placed at the view's middle at its untrimmed pixel size. A
+  PNG is placed whole, as before (the fast path did not change). **Choose
+  frame…** (beside Change image, one image selected) opens the picker on the
+  item's file and keeps **center, angle and scale** (design units per
+  pixel): a tileset placed whole at 1:1 becomes a 1:1 tile, and frames of
+  different sizes keep their relative size (Change image keeps its shipped
+  rule, same height). One undo step.
+  - **The picker borrows the canvas and the camera** (`sheet_pick.py`): an
+    opaque backdrop on its own world layer above the items, the sheet at
+    1 px = 1 unit, the overlay layer (handles) hidden. Planned as a modal box
+    (proposal 2026-10-19); built this way because Scena does not clip a layer
+    to a region, so a zoomed sheet in a box spilled over the panels — the
+    panels drawn over the world are the clip — and the canvas gestures come
+    free: the wheel zooms, a drag / Space+drag / middle button pans, F fits,
+    Primary+0 is 100%. `top` cannot have a layer above it (Scena reserves it),
+    so the picker's layers sit above `default` and `top` is hidden while it is
+    up. A click without a drag picks; Esc or Cancel closes; the camera comes
+    back either way.
+  - **The right panel holds the cut**: *Whole image · Columns × rows · Cell
+    size · Atlas* (a drop-down), its fields, Change atlas…, a name filter on
+    atlases (frames that do not match are dimmed), the frame count, Use whole
+    image, Cancel. The status bar names the frame under the pointer
+    (`block_large.png · 65 × 128 px`, `37 · 16 × 16 px`) or gives `Sheet`'s
+    message for a cut it refuses (`cell` that does not divide, the cell cap):
+    the cut is built through `Sheet` (`sheets.sheet_for`), so the editor never
+    disagrees with the game. Every other widget is disabled while it is up
+    (`_engine.live_widgets`). Opens with: the item's sheet; an atlas with the
+    PNG's stem beside it; a cell size in the file name (`Terrain (16x16).png`);
+    else the whole image. Columns × rows starts at the strip's square frames
+    (`544 × 32` → 17 × 1). Shown, then written explicitly: nothing is inferred
+    at read time.
+  - **Document:** `LevelDoc.sheets` holds the entries with **absolute** paths
+    (written relative, so an undo across a Save As restores paths that still
+    point at the art). Only sheets an item uses are saved or kept by undo
+    snapshots; an unused one yields its name. `ensure_sheet` reuses an entry
+    with the same file and cut, else adds one named after the file
+    (`Terrain (16x16).png` → `Terrain_16x16`; `_2` on a clash). Copy carries
+    the entries the items use; a paste into another level reuses the same cut
+    or renames a clash. Not yet: a stamp tool (pick once, click many), arrow
+    keys between frames, a frame for several items at once, renaming a sheet.
 - **Select:** click; Shift+click adds / removes; drag a shape moves the
   selection; handles resize (8; images 4 corners, aspect kept) and rotate (1);
   click again cycles overlaps. **Alt / Option+drag** moves copies made where
@@ -313,8 +436,9 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   drag) with rect / ellipse / circle / line makes a default shape at the
   snapped click (Figma's rule): rect / ellipse 100 × 100 with the top-left
   there, circle radius 50 centered there, line 100 long to the right
-  (`tools.DEFAULT_SIZE`; every grid step divides it, so the corners stay on
-  the grid). v1 drew nothing on a click, which read as broken. The tool
+  (`tools.default_size(grid)`: 100, or the nearest grid multiple where the
+  grid does not divide 100 — 96 on 8 / 16 / 32, 128 on 64 — so the corners
+  stay on the grid). v1 drew nothing on a click, which read as broken. The tool
   returns to Select with the new item selected. Images come in at their
   pixel size (1 px = 1 design unit).
 - **Empty canvas (Select tool):** drag draws a selection box (items fully
@@ -604,7 +728,10 @@ imports `scena_editor`; the editor uses the public API, and every Scena
 private it needs goes through `scena_editor/_engine.py`: the close guard
 (`ScenaFramework._close_guard`, the one hook added to `scena/` for the editor —
 asked on a window close request and on Ctrl+Shift+Z; `tests/test_close_guard.py`),
-the GLFW window for title / clipboard / focus / cursors,
+the GLFW window for title / clipboard / focus / cursors, the live widgets
+(the frame picker disables the rest), a sheet's per-frame rects and sizes
+(`sheet_frames`: `Sheet` has no public per-frame size) and an atlas's listed
+image,
 `keyp._swallow_edges()` after a dialog, and whether a `Slider`'s handle is
 held (`slider_dragging`: the panel records a drag when it is let go). Scena has no tooltip or icon-button
 widget: the editor builds both from Graphics (`toolbar.py`) — a public-API
@@ -622,6 +749,9 @@ through `level_format.serialize`.
 | Behavior or numbers in the file (speed, hp, custom fields) — see [Why no values](#why-no-values-in-the-file) | A taught game needs non-geometric per-item numbers (time, hp, worth) on many unnamed items, where naming each one to key a dict in code is the friction | here |
 | Layers in the file / editor | A taught level needs per-layer hide or lock that groups, `locked`, guides and z-order cannot give | here |
 | Several levels per file | A taught game needs shared items across levels that one file per level cannot express | here |
+| Clips, fps, `anchor` or `pixel_size` in the `sheets` table | A taught level needs animated scenery that `level.sheet(name).clip(...)` in code cannot express | [Sheets](#sheets) |
+| A tile layer (a grid of frame indices) or Tiled `.tmx` import | A taught level needs thousands of tiles that one item per tile cannot carry | [Sheets](#sheets) |
+| `flip_x` / `flip_y` on image items | A taught level needs a mirrored decoration or tile that rotation cannot give | here |
 
 ### Why no values in the file
 
