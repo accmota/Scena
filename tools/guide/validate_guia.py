@@ -1363,10 +1363,18 @@ def _sample_level() -> str:
             {"kind": "line", "name": "corda", "p1": [600, 500], "p2": [640, 380]},
             {"kind": "image", "name": "fundo", "file": "fundo.png",
              "center": [400, 300], "width": 800, "height": 600},
+            {"kind": "image", "groups": ["chao"], "sheet": "agua", "frame": 3,
+             "center": [32, 32], "width": 64, "height": 64},
+            {"kind": "image", "groups": ["agua"], "sheet": "agua", "frame": 40,
+             "center": [96, 32], "width": 64, "height": 64},
         ]
-        doc = {"format": "scena-level", "version": 1, "size": [3600, 1500], "items": items}
-        path = os.path.join(tempfile.mkdtemp(prefix="guia_level_"), "fase1.json")
-        with open(path, "w") as f:
+        ball = REPO / "examples" / "media" / "k-rolling-ball"
+        sheets = [{"name": "agua", "file": str(ball / "rollingBall_sheet.png"),
+                   "atlas": str(ball / "rollingBall_sheet.xml")}]
+        doc = {"format": "scena-level", "version": 2, "size": [3600, 1500],
+               "sheets": sheets, "items": items}
+        path = os.path.normpath(os.path.join(tempfile.mkdtemp(prefix="guia_level_"), "fase1.json"))
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(doc, f)
         _SAMPLE_LEVEL.append(path)
     return _SAMPLE_LEVEL[0]

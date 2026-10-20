@@ -302,7 +302,7 @@ class TestTrimmedAtlasFrame(SheetLevelCase):
             "frame": {"x": 0, "y": 0, "w": 20, "h": 10}, "rotated": False, "trimmed": True,
             "spriteSourceSize": {"x": 6, "y": 11, "w": 20, "h": 10},
             "sourceSize": {"w": 32, "h": 32}}}, "meta": {"image": "t.png"}}
-        with open(os.path.join(art, "t.json"), "w") as f:
+        with open(os.path.join(art, "t.json"), "w", encoding="utf-8") as f:
             json.dump(atlas, f)
         lv = self.level([{"name": "g", "file": "art/t.png", "atlas": "art/t.json"}],
                         [frame_item("g", "gema.png", name="x", width=32, height=32)])

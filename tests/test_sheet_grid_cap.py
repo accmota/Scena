@@ -20,7 +20,7 @@ from tests.test_sprite import SpriteTestCase, _write_rect_png
 
 class TestGridCap(SpriteTestCase):
     def _png(self, w, h, name="sheet.png"):
-        path = os.path.join(self._tmp.name, name)
+        path = os.path.normpath(os.path.join(self._tmp.name, name))
         _write_rect_png(path, w, h)
         return path
 
