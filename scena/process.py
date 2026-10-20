@@ -1740,12 +1740,11 @@ class Script:
             return
         try:
             self._raise_unused_awaits()
-            if yielded is not None and not isinstance(yielded, Handle):
-                raise TypeError(
-                    f"async mode on {self.owner!r} awaited "
-                    f"{type(yielded).__name__}; await a Handle "
-                    f"(wait / until / move_to(time=) / after)."
-                )
+            if not isinstance(yielded, Handle):
+                # A bare yield (None: ``asyncio.sleep(0)``) included: the
+                # tick resumes a task only when its Handle ends, so the
+                # task would wait forever with no error.
+                raise TypeError(self._not_a_handle_message(yielded))
         except TypeError:
             self._abort()
             raise
@@ -1809,17 +1808,66 @@ class Script:
             f"awaiting{at} was cancelled ({reason}). {fix}"
         )
 
+    def _who(self) -> str:
+        """``async mode 'dive' on <Circle …>`` or ``task show()``: for messages."""
+        if self.kind == "mode":
+            mode = getattr(self.owner, "mode", None)
+            mode_name = getattr(mode, "__name__", mode)
+            return f"async mode {mode_name!r} on {self.owner!r}"
+        return f"task {getattr(self.coro, '__name__', 'task')}()"
+
+    def _not_a_handle_message(self, yielded) -> str:
+        """The step yielded something the tick cannot wait on (not a Handle).
+
+        Names what the body awaited and the author line, found down the
+        suspended coroutine's ``cr_await`` chain: the deepest frame in author
+        code is the ``await``, the next link is what it awaited
+        (``asyncio.sleep(0)`` → ``sleep()``).
+        """
+        at = ""
+        what = None
+        try:
+            link = self.coro
+            while link is not None:
+                frame = getattr(link, "cr_frame", None) or getattr(link, "gi_frame", None)
+                nxt = getattr(link, "cr_await", None)
+                if nxt is None:
+                    nxt = getattr(link, "gi_yieldfrom", None)
+                if (nxt is not None and frame is not None
+                        and not _is_ignored_filename(frame.f_code.co_filename)):
+                    at = (f" at {os.path.basename(frame.f_code.co_filename)}, "
+                          f"line {frame.f_lineno}")
+                    what = nxt
+                link = nxt
+        except Exception:
+            pass
+        qual = getattr(what, "__qualname__", None)
+        if isinstance(qual, str):
+            # ``Thing.__await__`` → ``Thing``: the author awaited the object.
+            name = qual[:-len(".__await__")] if qual.endswith(".__await__") else f"{qual}()"
+            module = getattr(getattr(what, "cr_code", None) or getattr(what, "gi_code", None),
+                             "co_filename", "")
+        else:
+            obj = yielded if yielded is not None else what
+            name = "None" if obj is None else type(obj).__name__
+            module = getattr(type(obj), "__module__", "") or ""
+        if "asyncio" in module or "asyncio" in (getattr(type(yielded), "__module__", "") or ""):
+            name = f"asyncio.{name}"
+        fix = ("await a Handle: wait(seconds) / until(...) / move_to(..., time=) / "
+               "after(...); await wait(0) gives up the rest of the frame. A task runs "
+               "on the game clock, not on an asyncio event loop.")
+        if yielded is None:
+            return (f"{self._who()} awaited {name}{at}, which yields nothing the "
+                    f"engine can wait on (a bare yield): it would never resume; {fix}")
+        return f"{self._who()} awaited {name}{at}, not a Scena Handle; {fix}"
+
     def _tripped_watchdog(self) -> None:
         self.done = True
         self.cancelled = True
         self.waiting_on = None
         self._end(cancelled=True)
-        if self.kind == "mode":
-            mode = getattr(self.owner, "mode", None)
-            mode_name = getattr(mode, "__name__", mode)
-            who, what = f"async mode {mode_name!r} on {self.owner!r}", "mode"
-        else:
-            who, what = f"task {getattr(self.coro, '__name__', 'task')}()", "task"
+        who = self._who()
+        what = "mode" if self.kind == "mode" else "task"
         warnings.warn(
             f"SCENA ERROR: {who} "
             f"ran more than {WATCHDOG_RESUME_S:g}s without awaiting — "

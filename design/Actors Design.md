@@ -800,6 +800,7 @@ step behind: a second pickup at 4.5 s showed the old countdown at 5 s).
 | Already cancelled | Work made later in the same step of a task already cancelled (still on the stack: `self.mode = calm` earlier in `angry`, `h.cancel()` from inside) is cancelled at once. Before 2026-10-16 it became the next mode's work (fixed with tasks) |
 | Hooks | `setup`, `on_destroy`, `@exit_mode` (`no_owner`) and a new mode's body (`_enter_mode`) run with no running task: their work is not the task's, and `wait()` there is refused |
 | Dead owner | `dead.run_task(fn)` returns a cancelled Handle; `fn` is never called (T6) |
+| Awaits | Only a Scena Handle (`wait` / `until` / `move_to(..., time=)` / `after` / a task / a sound / a menu): the tick resumes a task when the Handle it awaits ends, and nothing else. Anything else a step yields raises `TypeError` at that `await` — in the first step at the call, in a later one from the tick — naming the task (or the mode), what it awaited and the author line; the task ends (coroutine closed, handle cancelled, so an `await` of it gets `Cancelled`). A bare yield is included: `asyncio.sleep(0)`, a `types.coroutine` with `yield`, an `__await__` that yields nothing. Before 2026-10-20 a step that yielded `None` left the task waiting on nothing, forever and silently. `asyncio.sleep(s)` is `await wait(s)`; `await wait(0)` gives up the rest of the frame (one step a frame) |
 | Laws | F2 (first step where started), T2 (later steps in the tick), T3 (no step while the owner is parked or dead), T5 (its work ends with it), T6 — [Laws.md](Laws.md#timers) |
 
 **Cancelled under it.** `Handle.__await__` raises `Cancelled(handle)`. When the task's own
@@ -1492,7 +1493,7 @@ audio device, clock hitches.
 | `after(1, fn).volume` / `.level` | `AttributeError` with a hint: those are on `play_sound` handles |
 | Exception in a **mode body** / `then=` (sync enter) | Raise. Name the Entity, the mode, the line. Do not leave a frozen idle mode. |
 | Exception in an **async mode** body | Raise. The body's task ends (coroutine closed, task handle cancelled, `_mode_task` cleared); work the body started stays (as a timer's error leaves its siblings). |
-| Async mode `await`s something that is not a Handle | `TypeError`: await a Handle (`wait` / `until` / `move_to(time=)` / `after`); script aborted |
+| An async mode or a task `await`s something that is not a Handle (`asyncio.sleep(0)`, a Future, a bare `yield`) | `TypeError` at the `await`, naming what it awaited and the line: await a Handle (`wait` / `until` / `move_to(..., time=)` / `after`); the task ends. A bare yield (`None`) once hung the task with no error ([Tasks](#tasks)) |
 | Exception in an **exit hook** (`@exit_mode`) | Raise after the transition completes (the new mode is entered; an error entering it chains onto the exit error). |
 | Exception in **`on_destroy`** | Raise after `destroy()` completes teardown. Same for a partner's `on_collide_exit` fired by the destroy: every exit of the body and of each hitbox part fires, each with its own error, and the first is raised after the cleanup (a raising body exit skipped the part exits and left their keys: review 2026-10-09 S8-10). |
 | Exception in a GLFW input callback (`on_key_down`, `@click`, a widget) | Raise. pyGLFW drops the rest of that poll's events after a raise, so the frame re-reads held keys and mouse buttons from the OS before the error leaves (`_resync_input_from_os`): a caught error does not leave `keyp("SPACE")` stuck on a key the OS reports up (review 2026-10-09 S1-9). |
@@ -1568,7 +1569,12 @@ step (mode entry) still toggles around itself; its rare endings live out of
   (no handle ↔ script cycle). The mode policy (same-mode no-op, `goto_mode`,
   `@exit_mode`, `mode_time`, the frozen-mode check, `then=`) stays on the Entity.
 - `wait` / `until` / `until_empty` / `parallel` / `race` call `_require_running_script`.
-  `Script._advance` reports leftover must-await Handles created this resume.
+  `Script._advance` reports leftover must-await Handles created this resume, and refuses
+  a step that yielded anything but a `Handle` (`None` too): the task walk reads
+  `waiting_on is None` as "still waiting", so an accepted bare yield never resumed.
+  The message (`_not_a_handle_message`, out of line) walks the suspended `cr_await`
+  chain for the author `await` line and the awaitable's name. Engine awaitables
+  (`Handle`, `Menu`, the sound handle) yield their Handle.
 - `Shape.__slots__` must list `_time_scale`, `_on_update`, `_on_destroy`, `_mode_task`,
   `_frozen_warned`, `_actor_constructed` (forgetting → `AttributeError` on `Circle()`).
   `Entity` / `SpatialFx` have no those slots.

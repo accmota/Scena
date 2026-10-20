@@ -360,7 +360,16 @@ left out.
   `cell=` written for `cols=` / `rows=` still gets the hint past 1024 cells
   when a cell is under 8 px. A missing file with a big `cols=` / `rows=`
   grid no longer builds one 64 px checker per cell.
-
+- A task or an async mode that awaits `asyncio.sleep(0)` (or anything else
+  that yields nothing: a `types.coroutine` with a bare `yield`, an
+  `__await__` that yields `None`) raises at that `await`. It stopped there
+  forever, with no error. The `TypeError` names the task or the mode, what it
+  awaited and the line: `task show() awaited asyncio.sleep() at game.py, line
+  12, which yields nothing the engine can wait on (a bare yield): it would
+  never resume; await a Handle: wait(seconds) / …`. Tasks run on the game
+  clock, not on an asyncio loop: write `await wait(s)` (`await wait(0)` waits
+  for the next frame). Awaiting another non-Handle (an `asyncio.Future`) already
+  raised; its message now names the task, the object and the line too.
 - Work an async mode started after switching its own actor to another mode,
   later in the same step (`self.mode = self.calm` then `after(1, …)` before
   the next `await`), no longer leaks into the new mode: it is cancelled with

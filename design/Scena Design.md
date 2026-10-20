@@ -640,7 +640,8 @@ Cooperative (not `asyncio`): `after` / `every` / `tween` / `play_sound` / modes 
 `ready` / `recently` (poll APIs; not Handles).
 `wait` / `until` run inside a **task** the engine is driving: an async mode's body, or
 `run_task(fn)` / `e.run_task(fn)` (an async sequence beside the modes; helpers they `await`
-count). Those are the async entries: an `async def` hook, decorated handler or callback
+count; they await only Scena Handles — `asyncio.sleep(0)` or any other awaitable raises at the
+`await`, [Actors Design — Tasks](Actors%20Design.md#tasks)). Those are the async entries: an `async def` hook, decorated handler or callback
 raises `TypeError` naming `run_task` (its body would never run), and an async function
 called without `await` is a SCENA WARNING at the calling line. Ownership: work started inside a mode body is **mode-scoped** (dies on leave);
 work a task starts is the task's (dies when the task is cancelled; a finished task leaves it);

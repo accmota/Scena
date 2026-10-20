@@ -13,9 +13,11 @@ warning naming the reason (the task's own cancel is quiet).
 """
 from __future__ import annotations
 
+import asyncio
 import gc
 import os
 import sys
+import types
 import unittest
 import warnings
 import weakref
@@ -365,6 +367,199 @@ class TestWatchdog(TaskCase):
         self.assertIn("task spinner()", hits[0])
         self.assertIn("the task was CANCELLED", hits[0])
         self.assertTrue(h.cancelled)
+
+
+class _YieldsNone:
+    def __await__(self):
+        yield
+
+
+class _YieldsText:
+    def __await__(self):
+        yield "nope"
+
+
+@types.coroutine
+def _bare_yield():
+    yield
+
+
+async def _helper_with_asyncio_sleep():
+    await asyncio.sleep(0)
+
+
+class TestOnlyAHandleIsAwaited(TaskCase):
+    """The tick resumes a task only when the Handle it awaits ends. Anything
+    else a step yields — a bare yield (``asyncio.sleep(0)``) included — is
+    refused at the ``await`` with the fix: before 2026-10-20 a None yield
+    left the task waiting forever, with no error (``waiting_on`` None reads
+    "still waiting" in the walk)."""
+
+    # name, makes the awaitable, what the message names
+    CASES = (
+        ("asyncio.sleep(0)", lambda: asyncio.sleep(0), "asyncio.sleep()"),
+        ("types.coroutine bare yield", _bare_yield, "_bare_yield()"),
+        ("__await__ yields None", _YieldsNone, "_YieldsNone"),
+        ("__await__ yields a str", _YieldsText, "_YieldsText"),
+        ("asyncio.Future", lambda: asyncio.Future(loop=_asyncio_loop()), "asyncio.Future"),
+        ("helper awaiting asyncio.sleep(0)", _helper_with_asyncio_sleep, "asyncio.sleep()"),
+    )
+
+    def assert_live_tasks_wait_on_a_handle(self):
+        for handle in list(get_scheduler()._tasks):
+            if not handle._done:
+                self.assertIsInstance(handle._task.waiting_on, Handle)
+
+    def assert_refused(self, start, name, line, *, later):
+        """``start()`` runs the body; ``later``: its first step awaits wait(0.1)."""
+        ran = []
+        if later:
+            h = start(ran)
+            self.assert_live_tasks_wait_on_a_handle()
+            with self.assertRaises(TypeError) as cm:
+                _frame(0.1)
+        else:
+            with self.assertRaises(TypeError) as cm:
+                start(ran)
+            h = None
+        msg = str(cm.exception)
+        self.assertIn(f"awaited {name}", msg)
+        self.assertIn("await a Handle", msg)
+        self.assertIn("wait(seconds)", msg)
+        self.assertIn(f"test_tasks.py, line {line}", msg)
+        self.assertEqual(ran, [], "nothing after the await ran")
+        if h is not None:
+            self.assertTrue(h.cancelled)
+            self.assertTrue(h.done)
+        for _ in range(3):
+            _frame(0.1)                              # nothing left to resume, no error
+        self.assertEqual(ran, [])
+        self.assert_live_tasks_wait_on_a_handle()
+        self.assertFalse([t for t in get_scheduler()._tasks if not t._done])
+
+    def test_run_task_refuses_each_kind_at_the_first_step(self):
+        for label, make, name in self.CASES:
+            with self.subTest(label):
+                reset_process_scheduler()
+
+                async def body(ran):
+                    await make()
+                    ran.append("after")
+
+                line = body.__code__.co_firstlineno + 1
+                self.assert_refused(lambda ran: run_task(lambda: body(ran)), name,
+                                    line if "helper" not in label else _HELPER_LINE,
+                                    later=False)
+
+    def test_run_task_refuses_each_kind_at_a_later_step(self):
+        for label, make, name in self.CASES:
+            with self.subTest(label):
+                reset_process_scheduler()
+
+                async def body(ran):
+                    await wait(0.1)
+                    await make()
+                    ran.append("after")
+
+                line = body.__code__.co_firstlineno + 2
+                self.assert_refused(lambda ran: run_task(lambda: body(ran)), name,
+                                    line if "helper" not in label else _HELPER_LINE,
+                                    later=True)
+
+    def test_an_async_mode_refuses_each_kind(self):
+        for label, make, name in self.CASES:
+            for later in (False, True):
+                with self.subTest(label, later=later):
+                    reset_process_scheduler()
+                    c = self.track(Circle())
+
+                    async def diving(e):
+                        if later:
+                            await wait(0.1)
+                        await make()
+                        e.ran.append("after")
+
+                    def start(ran):
+                        c.ran = ran
+                        c.mode = diving
+                        return c._mode_task
+
+                    line = diving.__code__.co_firstlineno + 3
+                    self.assert_refused(start, name,
+                                        line if "helper" not in label else _HELPER_LINE,
+                                        later=later)
+                    self.assertIsNone(c._mode_task)
+
+    def test_the_message_names_the_mode(self):
+        c = self.track(Circle())
+
+        async def diving(e):
+            await asyncio.sleep(0)
+
+        with self.assertRaises(TypeError) as cm:
+            c.mode = diving
+        self.assertIn("async mode 'diving'", str(cm.exception))
+        self.assertIn("asyncio event loop", str(cm.exception))
+
+    def test_a_bare_yield_says_it_would_never_resume(self):
+        async def body():
+            await asyncio.sleep(0)
+
+        with self.assertRaises(TypeError) as cm:
+            run_task(body)
+        self.assertIn("task body()", str(cm.exception))
+        self.assertIn("never resume", str(cm.exception))
+
+    def test_an_awaiter_of_the_refused_task_is_not_left_waiting(self):
+        seen = []
+
+        async def bad():
+            await wait(0.1)
+            await asyncio.sleep(0)
+
+        async def outer():
+            try:
+                await run_task(bad)
+            except Cancelled:
+                seen.append("cancelled")
+
+        h = run_task(outer)
+        with self.assertRaises(TypeError):
+            _frame(0.1)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _frame(0.1)
+        self.assertEqual(seen, ["cancelled"])
+        self.assertTrue(h.done)
+
+    def test_wait_zero_is_the_fix_it_names(self):
+        frames = []
+
+        async def body():
+            for _ in range(3):
+                await wait(0)
+                frames.append(clock._frame)
+
+        run_task(body)
+        for _ in range(4):
+            _frame(1 / 60)
+        self.assertEqual(frames, [1, 2, 3])          # one step a frame, no spin
+
+
+_HELPER_LINE = _helper_with_asyncio_sleep.__code__.co_firstlineno + 1
+_LOOP = []
+
+
+def _asyncio_loop():
+    """A loop only to build a Future (never run: Scena's tick drives tasks)."""
+    if not _LOOP:
+        _LOOP.append(asyncio.new_event_loop())
+    return _LOOP[0]
+
+
+def tearDownModule():
+    while _LOOP:
+        _LOOP.pop().close()
 
 
 class TestChildren(TaskCase):
