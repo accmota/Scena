@@ -111,14 +111,6 @@ left out.
   them clickable: give them another tag. A union (`group["a"] |
   group["b"]`) or `.filter(…)` still wires the members of the moment.
 
-- Another engine's hook names in a class body raise at the class line with
-  the Scena hook: `def Update(self, dt)` → `on_update(self, dt)`, `Start` /
-  `Awake` → `setup`, `OnTriggerEnter2D` → `on_collide`, `OnMouseDown` →
-  `on_click`. Before, they were silently never called. A program that kept a
-  helper named `Start` or `Update` on an actor or act now raises: rename it
-  (`iniciar`).
-### Added
-
 - A frame that never ends (a `while` inside `update`, `on_update` or a
   handler) prints, after 2 s, `SCENA ERROR: a frame has not finished …`
   naming your line and the fix (`if` for `while`, `@when`, a task). Before,
@@ -129,9 +121,10 @@ left out.
   script ended without run(), so no window opened.`); before, nothing opened
   and nothing was said.
 - A formula that reads inside a list or dict held in `st`
-  (`hud["text"] @= lambda: f"Gemas {st.inv['gemas']}"`) warns when it is
-  linked: an in-place change (`st.inv["gemas"] += 1`, `.append`) does not
-  reach it. The warning names the spellings that do.
+  (`hud["text"] @= lambda: f"Gemas {st.inv['gemas']}"`) warns once when it
+  is linked, if the file changes that cell in place (`st.inv["gemas"] += 1`,
+  `.append`): such a change does not reach it. The warning names the
+  spellings that do; a file that writes the whole value hears nothing.
 
 - The CSS colour names: `"beige"`, `"wheat"`, `"saddle brown"`,
   `"midnight blue"`, `"slate gray"`, the `medium …` and `pale …` families and
@@ -332,6 +325,12 @@ left out.
   write the call back with `time=`; `run()` called from inside the game (a
   `TextInput(on_submit=run)`) says a callback handed Scena's `run`; a class
   with several wrong hook names lists all of them, one line each.
+- Another engine's hook names in a class body get a SCENA WARNING at the
+  class line naming the Scena hook: `def Update(self, dt)` →
+  `on_update(self, dt)`, `Start` / `Awake` → `setup`, `OnTriggerEnter2D` →
+  `on_collide`, `OnMouseDown` → `on_click`. Before, they were silently never
+  called. A method the file calls itself (`player.Start()`, a manager's
+  `e.Update(dt)`) is a helper and gets no warning.
 - A top-of-file `def on_click(x, y):` (or `on_key_press`, a top-level
   `on_update`, `on_mouse_clik`) gets a SCENA WARNING at `run()` naming the
   callback (`on_mouse_click(x, y, button)`, `@click(obj)`). It was silently

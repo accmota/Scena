@@ -67,6 +67,18 @@ class TestEntityReads(unittest.TestCase):
     def test_a_plain_miss_keeps_the_python_words(self):
         self.assertIn("'Circle' object has no attribute 'zzqx'", _read_error(self.c, "zzqx"))
 
+    def test_a_traceback_names_attribute_error(self):
+        import traceback
+        try:
+            self.c.hide()
+        except AttributeError as e:
+            text = "".join(traceback.format_exception_only(type(e), e))
+        self.assertTrue(text.startswith("AttributeError: "), text)
+        self.assertNotIn("_UnknownRead", text)
+
+    def test_an_own_field_never_set_gets_no_far_fetched_hint(self):
+        self.assertNotIn("'vel'", _read_error(self.c, "nivel"))
+
     def test_hasattr_and_getattr_default_still_work(self):
         self.assertFalse(hasattr(self.c, "hide"))
         self.assertIsNone(getattr(self.c, "hide", None))

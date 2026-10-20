@@ -458,10 +458,16 @@ class TestStaleSourceFile(FormulaFunctionTest):
 class TestContainerItemLinks(FormulaFunctionTest):
     """A formula that reads inside a list / dict / set held in a cell
     (``st.inv["gemas"]``, ``", ".join(st.inventario)``) never refreshes on an
-    in-place change (``st.inv["gemas"] += 1``, ``.append``): the cell holds
-    one object, and nothing writes the cell. The data was right, the HUD kept
-    its old text (persona probes PP). The link warns, naming the spellings
-    that notify."""
+    in-place change: the cell holds one object, and nothing writes the cell.
+    The data was right, the HUD kept its old text (persona probes PP). The
+    link warns when the file changes that cell in place, once per cell; a
+    file that only reassigns it (``st.rotulos = novos``, the right spelling)
+    hears nothing (the round-2 regression run: an idle game got four warnings
+    for code that was already right)."""
+
+    def setUp(self):
+        super().setUp()
+        formula_check._CONTAINER_WARNED.clear()
 
     def link(self, fn):
         import warnings
@@ -471,28 +477,38 @@ class TestContainerItemLinks(FormulaFunctionTest):
             sink @= fn
         return sink, [str(x.message) for x in w]
 
-    def test_an_item_of_a_dict_warns(self):
+    def test_an_item_of_a_dict_changed_in_place_warns(self):
         ST.inv = {"gemas": 0}
         sink, msgs = self.link(lambda: f"Gemas {ST.inv['gemas']}")
+        ST.inv["gemas"] += 1                    # the in-place change the file makes
         self.assertEqual(len(msgs), 1, msgs)
-        self.assertIn("formula_functions.inv", msgs[0])
+        self.assertIn("ST.inv", msgs[0])
         self.assertIn("in place", msgs[0])
-        self.assertIn("formula_functions.inv = ", msgs[0])
+        self.assertIn("ST.inv = ", msgs[0])
+        _sink, again = self.link(lambda: f"{ST.inv['gemas']} gemas")
+        self.assertEqual(again, [], "once per cell")
 
-    def test_a_list_given_to_a_function_warns(self):
+    def test_a_list_appended_to_warns(self):
         ST.itens = ["a"]
         _sink, msgs = self.link(lambda: ", ".join(ST.itens))
+        ST.itens.append("b")
         self.assertEqual(len(msgs), 1, msgs)
 
-    def test_numbers_strings_and_reassigned_lists_say_nothing(self):
+    def test_a_list_only_reassigned_says_nothing(self):
+        ST.rotulos = ["", ""]
+        _sink, msgs = self.link(lambda: ST.rotulos[0])
+        ST.rotulos = ["x", "y"]
+        self.assertEqual(msgs, [])
+
+    def test_numbers_and_strings_say_nothing(self):
         ST.nome = "Ana"
         _sink, msgs = self.link(lambda: f"{ST.nome} {ST.pontos}")
         self.assertEqual(msgs, [])
 
     def test_reassigning_the_container_refreshes_it(self):
-        ST.inv = {"gemas": 0}
-        sink, _ = self.link(lambda: f"Gemas {ST.inv['gemas']}")
-        ST.inv = {**ST.inv, "gemas": 2}
+        ST.caixa = {"gemas": 0}
+        sink, _ = self.link(lambda: f"Gemas {ST.caixa['gemas']}")
+        ST.caixa = {**ST.caixa, "gemas": 2}
         self.assertEqual(sink.value, "Gemas 2")
 
 if __name__ == "__main__":

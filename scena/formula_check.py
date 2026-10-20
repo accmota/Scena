@@ -648,7 +648,7 @@ class _Checker(ast.NodeVisitor):
                 cell = held.__dict__.get("_data", {}).get(node.attr)
                 if cell is not None and isinstance(cell.__dict__.get("_raw_value"),
                                                    (list, dict, set)):
-                    self.containers.add((held._name, node.attr,
+                    self.containers.add((node.value.id, node.attr,
                                          type(cell.__dict__["_raw_value"]).__name__))
         self.generic_visit(node)
 
@@ -819,10 +819,36 @@ def check_formula(fn: Callable[..., Any], node: ast.AST) -> List[FormulaPart]:
     return parts
 
 
+# ``(file, "st.inv")`` already warned: once per cell, however many formulas
+# read it (four buttons over ``st.rotulos[i]``).
+_CONTAINER_WARNED: Set[tuple] = set()
+
+
+def _changes_in_place(fn, state: str, cell: str) -> bool:
+    """The formula's file changes ``state.cell`` in place somewhere: an item
+    written or augmented, a mutating method, a ``del``. A file that only
+    reassigns the whole value (the spelling that notifies) does not."""
+    import linecache
+    import re
+    path = getattr(getattr(_unwrap_function(fn), "__code__", None), "co_filename", "")
+    lines = linecache.getlines(path) if path else []
+    name = rf"\b{re.escape(state)}\.{re.escape(cell)}"
+    pats = (re.compile(name + r"\s*\[[^\]]*\]\s*(?:[-+*/%|&^]|//|\*\*)?=(?!=)"),
+            re.compile(name + r"\.(?:append|extend|insert|pop|popitem|remove|clear|update|"
+                       r"setdefault|add|discard|sort|reverse)\s*\("),
+            re.compile(r"\bdel\s+" + name[2:] + r"\s*\["))
+    return any(p.search(line) for line in lines for p in pats)
+
+
 def _warn_container_read(fn, state: str, cell: str, kind: str) -> None:
-    """A formula reads inside a list / dict / set a cell holds: an in-place
-    change writes nothing to the cell, so the formula keeps its old value
-    (persona probes PP: a HUD over ``st.inv["gemas"] += 1``)."""
+    """A formula reads inside a list / dict / set a cell holds, and the file
+    changes it in place: that writes nothing to the cell, so the formula keeps
+    its old value (persona probes PP: a HUD over ``st.inv["gemas"] += 1``)."""
+    path = getattr(getattr(_unwrap_function(fn), "__code__", None), "co_filename", "")
+    key = (path, f"{state}.{cell}")
+    if key in _CONTAINER_WARNED or not _changes_in_place(fn, state, cell):
+        return
+    _CONTAINER_WARNED.add(key)
     from .process import report_author_warning
     name = f"{state}.{cell}"
     whole = (f'{name} = {{**{name}, "chave": valor}}' if kind == "dict"

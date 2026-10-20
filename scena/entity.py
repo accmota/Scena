@@ -419,6 +419,17 @@ def _check_class_hook_names(cls) -> None:
         raise TypeError(f"{who} has {len(found)} methods the engine would never call:\n{lines}")
 
 
+def _file_calls(fn, name: str) -> bool:
+    """The file ``fn`` is written in calls ``name(`` somewhere other than a
+    ``def`` line (read from linecache)."""
+    import linecache
+    import re
+    path = getattr(getattr(fn, "__code__", None), "co_filename", "")
+    lines = linecache.getlines(path) if path else []
+    pat = re.compile(rf"(?<!def )\b{re.escape(name)}\s*\(")
+    return any(pat.search(line) for line in lines)
+
+
 def _class_hook_refusal(cls, name: str, raw, is_act: bool, who: str) -> Optional[str]:
     """The refusal for one class-body method, or None (``_check_class_hook_names``)."""
     from ._pkg import is_framework_module
@@ -454,11 +465,18 @@ def _class_hook_refusal(cls, name: str, raw, is_act: bool, who: str) -> Optional
         return None     # the base's own name (engine or author)
     engine = _FOREIGN_ENGINE_HOOKS.get(name)
     if engine is not None:
-        return (
-            f"{who}.{name} is another engine's hook name; Scena never calls it. "
-            f"Write {_HOOK_SIGNATURES.get(engine, engine)}. (A helper of your own: "
-            f"give it a snake_case name.)"
-        )
+        # A warning, not a refusal: a refugee calls ``player.Start()`` /
+        # ``e.Update(dt)`` by hand, and that is a working helper (the round-2
+        # regression run). Silent when the file calls it.
+        if not _file_calls(raw, name):
+            from .process import report_author_warning
+            report_author_warning(
+                "class",
+                f"{who}.{name} is another engine's hook name; Scena never calls it. "
+                f"Write {_HOOK_SIGNATURES.get(engine, engine)} (if you call {name} "
+                f"yourself, nothing is wrong).",
+            )
+        return None
     if not name.startswith("on_") or name in _CLASS_HOOK_NAMES:
         return None
     fix = _FOREIGN_HOOK_NAMES.get(name)
@@ -768,6 +786,12 @@ class _UnknownRead(AttributeError):
         return _unknown_read_text(type(obj), self._name, ink)
 
 
+# A traceback names the class: an author sees ``AttributeError``, not an
+# engine-private name (the round-2 regression run: ``_UnknownRead (scena.entity)``).
+_UnknownRead.__name__ = _UnknownRead.__qualname__ = "AttributeError"
+_UnknownRead.__module__ = "builtins"
+
+
 def _unknown_read_text(cls, name: str, ink) -> str:
     kind = cls.__name__
     base = f"{kind!r} object has no attribute {name!r}"
@@ -785,7 +809,7 @@ def _unknown_read_text(cls, name: str, ink) -> str:
     pool = [n for n in dir(cls) if not n.startswith("_")]
     if isinstance(ink, dict):
         pool += [n for n in ink if isinstance(n, str) and not n.startswith("_")]
-    near = did_you_mean(name, pool, cutoff=0.75)
+    near = did_you_mean(name, pool, cutoff=0.8)     # 0.75 offered 'vel' for 'nivel'
     return base + (f".{near}" if near else "")
 
 

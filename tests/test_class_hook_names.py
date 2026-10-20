@@ -247,18 +247,55 @@ class TestThePoolFollowsTheEngine(unittest.TestCase):
 
 class TestOtherEnginesHookNames(unittest.TestCase):
     """Unity's hook names in a class body (``Update``, ``OnTriggerEnter2D``,
-    ``Start``) were helpers to the check, so the hero never moved and the
-    coin was never taken, with no message, while ``update`` and every
-    ``on_*`` near miss were refused (persona probes PP)."""
+    ``Start``) were never called, with no message (persona probes PP). They
+    warn at the class line naming the Scena hook, unless the file calls the
+    method itself: a refugee's ``player.Start()`` / a manager's
+    ``e.Update(dt)`` is a working helper (round 2's regression run found the
+    first fix refusing those games)."""
 
-    def test_each_engine_spelling_names_the_scena_hook(self):
+    def define(self, body, calls=""):
+        import tempfile
+        import textwrap
+        import warnings
+        src = textwrap.dedent(body) + textwrap.dedent(calls)
+        fd, path = tempfile.mkstemp(suffix=".py", prefix="unity_")
+        with os.fdopen(fd, "w") as fh:
+            fh.write(src)
+        self.addCleanup(os.remove, path)
+        ns = {"scena": scena, "Act": Act, "Entity": Entity, "__name__": AUTHOR_MODULE}
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            exec(compile(src, path, "exec"), ns)
+        return [str(x.message) for x in w]
+
+    def test_each_engine_spelling_warns_naming_the_scena_hook(self):
         from scena.entity import _FOREIGN_ENGINE_HOOKS
         for wrong, fix in _FOREIGN_ENGINE_HOOKS.items():
-            with self.subTest(wrong=wrong), self.assertRaises(TypeError) as cm:
-                author_class(scena.Circle, wrong)
-            msg = str(cm.exception)
-            self.assertIn(wrong, msg)
-            self.assertIn(fix, msg)
+            with self.subTest(wrong=wrong):
+                msgs = self.define(f"""
+                    class Hero(scena.Circle):
+                        def {wrong}(self, *a):
+                            pass
+                """)
+                hits = [m for m in msgs if wrong in m]
+                self.assertEqual(len(hits), 1, msgs)
+                self.assertIn(fix, hits[0])
+
+    def test_a_method_the_file_calls_itself_is_a_helper(self):
+        msgs = self.define("""
+            class Hero(scena.Circle):
+                def Start(self):
+                    self.hp = 3
+                def Update(self, dt):
+                    pass
+        """, calls="""
+            h = Hero(center=(10, 10), radius=5)
+            h.Start()
+            for e in [h]:
+                e.Update(0.1)
+            h.destroy()
+        """)
+        self.assertEqual([m for m in msgs if "another engine" in m], [])
 
     def test_the_fixes_are_real_hooks(self):
         from scena.entity import _FOREIGN_ENGINE_HOOKS
@@ -266,10 +303,14 @@ class TestOtherEnginesHookNames(unittest.TestCase):
             self.assertIn(fix, set(_CLASS_HOOK_NAMES) | {"setup"}, wrong)
 
     def test_unity_update_on_a_sprite_and_an_act(self):
-        for base in (scena.Sprite, Act, Entity):
-            with self.subTest(base=base.__name__), self.assertRaises(TypeError) as cm:
-                author_class(base, "Update")
-            self.assertIn("on_update(self, dt)", str(cm.exception))
+        for base in ("scena.Sprite", "Act", "Entity"):
+            with self.subTest(base=base):
+                msgs = self.define(f"""
+                    class Meu({base}):
+                        def Update(self, dt):
+                            pass
+                """)
+                self.assertTrue(any("on_update(self, dt)" in m for m in msgs), msgs)
 
     def test_a_camel_case_helper_of_ones_own_stays_legal(self):
         for name in ("Shoot", "TakeDamage", "Respawn", "start", "awake"):
@@ -286,14 +327,14 @@ class TestEveryOffenderAtOnce(unittest.TestCase):
             "class Cena(Act):\n"
             "    def update(self, dt):\n        pass\n"
             "    def on_key_down(self, key):\n        pass\n"
-            "    def OnTriggerEnter2D(self, other):\n        pass\n"
+            "    def on_updat(self, dt):\n        pass\n"
             "    def on_colide(self, other):\n        pass\n"
         )
         ns = {"Act": Act, "__name__": AUTHOR_MODULE}
         with self.assertRaises(TypeError) as cm:
             exec(compile(src, "cena.py", "exec"), ns)
         msg = str(cm.exception)
-        for name in ("update", "on_key_down", "OnTriggerEnter2D", "on_colide"):
+        for name in ("update", "on_key_down", "on_updat", "on_colide"):
             self.assertIn(name, msg)
         self.assertIn("4 methods", msg)
         self.assertIn("line 4", msg)
