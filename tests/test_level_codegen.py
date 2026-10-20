@@ -26,7 +26,9 @@ from hypothesis import given, strategies as hst  # noqa: E402
 
 import scena  # noqa: E402
 from scena import Level, canvas, init  # noqa: E402
-from scena.level_format import FORMAT, SCOOPS, VERSION, code_for, parse  # noqa: E402
+from scena.level_format import (  # noqa: E402
+    FORMAT, SCOOPS, VERSION, code_for, code_for_items, code_for_sheet, parse,
+)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STAR = media("space", "star_gold.png")
@@ -238,6 +240,84 @@ class TestRandomItems(CodegenCase):
     @given(raw=_raw_item())
     def test_make_and_copied_code_reproduce_the_item(self, raw):
         self.check(raw)
+
+
+
+class TestSheetFrames(CodegenCase):
+    """A frame image: the copied ``Sheet`` line plus the ``Sprite`` line build
+    the frame make() builds, for every layout."""
+
+    SHEETS = [
+        {"name": "bola", "file": "rollingBall_sheet.png", "atlas": "rollingBall_sheet.xml"},
+        {"name": "fruta", "file": "Cherries.png", "cols": 17},
+        {"name": "fruta_cel", "file": "Cherries.png", "cell": [32, 32]},
+        {"name": "fruta_grade", "file": "Cherries.png", "cols": 17, "rows": 1},
+    ]
+
+    def setUp(self):
+        super().setUp()
+        for parts in (("k-rolling-ball", "rollingBall_sheet.png"),
+                      ("k-rolling-ball", "rollingBall_sheet.xml"), ("pixel_adv", "Cherries.png")):
+            shutil.copy(media(*parts), self.dir)
+
+    def check_frame(self, raw):
+        doc = {"format": FORMAT, "version": VERSION, "size": [100, 100],
+               "sheets": self.SHEETS, "items": [raw]}
+        path = os.path.join(self.dir, "lv.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(doc, f)
+        parsed = parse(doc)
+        item = parsed["items"][0]
+        made = list(Level(path))[0].make()
+        entry = next(e for e in parsed["sheets"] if e["name"] == item["sheet"])
+        ns = {n: getattr(scena, n) for n in scena.__all__}
+        old = os.getcwd()
+        os.chdir(self.dir)
+        try:
+            exec(code_for_sheet(entry) + "\n" + code_for(item, var="copied"), ns)
+        finally:
+            os.chdir(old)
+        copied = ns["copied"]
+        try:
+            self.assertEqual(geometry(made), geometry(copied))
+            self.assertEqual(geometry(made), rounded(expected(item)))
+            self.assertEqual(made.frame, copied.frame)
+            self.assertEqual(made.frame, made._sheet.frame_index(item["frame"]))
+            self.assertEqual(copied._sheet.nframes, made._sheet.nframes)
+            self.assertEqual(set(copied.group), set(item["groups"]))
+        finally:
+            made.destroy()
+            copied.destroy()
+
+    def test_each_layout(self):
+        for sheet, frame in (("bola", "block_large.png"), ("bola", 3), ("fruta", 16),
+                             ("fruta_cel", 0), ("fruta_grade", 7)):
+            with self.subTest(sheet=sheet, frame=frame):
+                self.check_frame({"kind": "image", "sheet": sheet, "frame": frame,
+                                  "center": [5, 6], "width": 40, "height": 30, "angle": 15,
+                                  "groups": ["g"]})
+
+    @given(sheet=hst.sampled_from(["fruta", "fruta_cel", "fruta_grade"]),
+           frame=hst.integers(0, 16), center=_p, w=_s, h=_s, groups=_groups)
+    def test_random_grid_frames(self, sheet, frame, center, w, h, groups):
+        self.check_frame({"kind": "image", "sheet": sheet, "frame": frame, "center": center,
+                          "width": w, "height": h, "groups": groups})
+
+    def test_selection_copies_each_sheet_line_once_first(self):
+        items = parse({"format": FORMAT, "version": VERSION, "size": [1, 1], "sheets": self.SHEETS,
+                       "items": [
+                           {"kind": "image", "sheet": "fruta", "frame": 1, "center": [0, 0],
+                            "width": 32, "height": 32},
+                           {"kind": "point", "name": "p", "center": [1, 1]},
+                           {"kind": "image", "sheet": "bola", "frame": "key.png",
+                            "center": [0, 0], "width": 32, "height": 32},
+                           {"kind": "image", "sheet": "fruta", "frame": 2, "center": [9, 0],
+                            "width": 32, "height": 32}]})
+        lines = code_for_items(items["items"], items["sheets"]).splitlines()
+        self.assertEqual(lines[0], "fruta = Sheet('Cherries.png', cols=17)")
+        self.assertEqual(lines[1], "bola = Sheet('rollingBall_sheet.png', atlas='rollingBall_sheet.xml')")
+        self.assertEqual(lines[2], "Sprite(fruta, frame=1, center=(0, 0), width=32, height=32)")
+        self.assertEqual(len(lines), 6)
 
 
 if __name__ == "__main__":

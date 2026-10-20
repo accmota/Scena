@@ -12,7 +12,9 @@ names and groups. Game code reads it and decides what each item becomes::
 
 ``item.make()`` builds the shape exactly as drawn; ``item.box`` is the region
 (for ``Sprite(box=)``, ``confine``, a grid …). Two purposes, not two
-spellings. File format and editor: ``design/Editor Design.md``.
+spellings. An image item cut from a spritesheet makes ``Sprite(sheet,
+frame=…)`` with the level's ``Sheet`` (``level.sheet(name)``, built on first
+use). File format and editor: ``design/Editor Design.md``.
 """
 from __future__ import annotations
 
@@ -22,7 +24,7 @@ import os
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from .level_format import (
-    AREA_KINDS, KINDS, LevelFormatError, constructor_for, parse,
+    AREA_KINDS, KINDS, LevelFormatError, constructor_for, parse, sheet_call,
 )
 from .validate import did_you_mean
 from .closed import ClosedSurface
@@ -41,7 +43,7 @@ _KIND_FIELDS = {
     "triangle": ("radius", "angle", "base_ratio"),
     "track": ("points", "closed", "smooth"),
     "point": (),
-    "image": ("box", "image", "width", "height", "angle"),
+    "image": ("box", "image", "sheet", "frame", "width", "height", "angle"),
 }
 _COMMON_FIELDS = ("kind", "name", "groups", "center", "make")
 
@@ -60,19 +62,24 @@ class LevelItem:
     the level.
     """
 
-    __slots__ = ("_item", "_image", "_source")
+    __slots__ = ("_item", "_image", "_source", "_level", "_index")
 
-    def __init__(self, item: Dict[str, Any], *, image: Optional[str] = None, source: str = ""):
+    def __init__(self, item: Dict[str, Any], *, image: Optional[str] = None, source: str = "",
+                 level: Optional["Level"] = None, index: Optional[int] = None):
         """Made by :class:`Level` — read items with ``level["name"]`` or ``level.group("g")``.
 
         Args:
             item: The checked item record (from ``scena.level_format.parse``).
             image: Absolute path of an image item's file.
             source: The level file, for messages.
+            level: The level it belongs to (a frame image gets its ``Sheet`` there).
+            index: Its place in the file's items, for messages.
         """
         self._item = item
         self._image = image
         self._source = source
+        self._level = level
+        self._index = index
 
     # -- identity -----------------------------------------------------------
     @property
@@ -104,6 +111,9 @@ class LevelItem:
             raise AttributeError(
                 f"{self._label()} has no {field}. It has: {has}.{hint}"
             )
+
+    def _label_short(self) -> str:
+        return self.kind + (f" {self.name!r}" if self.name else "")
 
     def _label(self) -> str:
         return f"the {self.kind}" + (f" {self.name!r}" if self.name else "") + (
@@ -243,10 +253,43 @@ class LevelItem:
 
     @property
     def image(self) -> str:
-        """Absolute path of the image file (image). The file names it relative
-        to the level file."""
+        """Absolute path of the image file (an image with a whole picture). The
+        file names it relative to the level file. A frame of a sheet has none:
+        ``item.sheet`` and ``item.frame``, or ``item.make()``."""
         self._need("image")
+        if self._item["sheet"] is not None:
+            raise AttributeError(
+                f"{self._label()} is frame {self._item['frame']!r} of the sheet "
+                f"{self._item['sheet']!r}, not a whole picture: the sheet's file would show "
+                "every frame. Use item.make(), or Sprite(item.sheet, frame=item.frame, …)."
+            )
         return self._image
+
+    @property
+    def sheet(self):
+        """The ``Sheet`` this image's frame is cut from (an image of a sheet) —
+        ``level.sheet(name)``: the same catalog for every item of that sheet,
+        so a clip registered on it plays on what ``make()`` builds."""
+        self._need("sheet")
+        name = self._item["sheet"]
+        if name is None:
+            raise AttributeError(
+                f"{self._label()} is a whole picture, not a frame of a sheet: it has "
+                "item.image."
+            )
+        return self._level.sheet(name)
+
+    @property
+    def frame(self):
+        """The frame's index (a grid) or name (an atlas) in ``item.sheet`` (an
+        image of a sheet) — ``Sprite(frame=)``."""
+        self._need("frame")
+        if self._item["sheet"] is None:
+            raise AttributeError(
+                f"{self._label()} is a whole picture, not a frame of a sheet: it has "
+                "item.image."
+            )
+        return self._item["frame"]
 
     # -- make ---------------------------------------------------------------
     def make(self, **kwargs):
@@ -258,7 +301,8 @@ class LevelItem:
         ``RegularPolygon``, triangle → ``Triangle`` (its ``base_ratio``),
         track → ``Track`` (its
         ``smooth``, 0 when the file has none),
-        point → ``Point``, image → ``Sprite`` (that size and angle).
+        point → ``Point``, image → ``Sprite`` (that size and angle; a frame of a
+        sheet → ``Sprite(item.sheet, frame=item.frame, …)``).
         Other constructor keywords pass through (``layer=``, ``color=``, …);
         ``group=`` adds to the item's groups. Same table as the editor's
         Copy as code.
@@ -274,7 +318,8 @@ class LevelItem:
                 f"{self._label()} is a guide: the editor shows it for tracing and "
                 "the game does not use it."
             )
-        cls_name, args, base, settings = constructor_for(item, image=self._image)
+        sheet = self.sheet if item["kind"] == "image" and item["sheet"] is not None else None
+        cls_name, args, base, settings = constructor_for(item, image=self._image, sheet=sheet)
         clash = sorted(set(kwargs) & set(base))
         if clash:
             raise TypeError(
@@ -347,19 +392,29 @@ class Level(ClosedSurface):
         doc = parse(data, source=label)
         self._size = doc["size"]
         base = os.path.dirname(found)
+
+        def absolute(file: str) -> str:
+            # Relative to the level file (POSIX separators). The editor
+            # writes an absolute path only when no relative one exists
+            # (another drive on Windows).
+            return (os.path.normpath(file) if os.path.isabs(file)
+                    else os.path.normpath(os.path.join(base, *file.split("/"))))
+
+        self._sheet_entries: Dict[str, Dict[str, Any]] = {}
+        for entry in doc["sheets"]:
+            entry = dict(entry, file=absolute(entry["file"]))
+            if entry["atlas"] is not None:
+                entry["atlas"] = absolute(entry["atlas"])
+            self._sheet_entries[entry["name"]] = entry
+        self._sheets: Dict[str, Any] = {}
         self._items: List[LevelItem] = []
-        for item in doc["items"]:
+        for index, item in enumerate(doc["items"]):
             if item.get("guide"):
                 continue
             image = None
-            if item["kind"] == "image":
-                file = item["file"]
-                # Relative to the level file (POSIX separators). The editor
-                # writes an absolute path only when no relative one exists
-                # (another drive on Windows).
-                image = (os.path.normpath(file) if os.path.isabs(file)
-                         else os.path.normpath(os.path.join(base, *file.split("/"))))
-            self._items.append(LevelItem(item, image=image, source=label))
+            if item["kind"] == "image" and item["file"] is not None:
+                image = absolute(item["file"])
+            self._items.append(LevelItem(item, image=image, source=label, level=self, index=index))
         self._by_name = {it.name: it for it in self._items if it.name is not None}
         self._label = label
 
@@ -367,6 +422,54 @@ class Level(ClosedSurface):
     def path(self) -> str:
         """Absolute path of the file that was read."""
         return self._path
+
+    @property
+    def sheets(self) -> Tuple[str, ...]:
+        """Every sheet name in the file's ``sheets`` table, in file order."""
+        return tuple(self._sheet_entries)
+
+    def sheet(self, name: str):
+        """The ``Sheet`` named ``name`` in the level's ``sheets`` table.
+
+        Built on first use (the default anchor) and kept: every frame image of
+        that sheet — ``item.sheet``, ``item.make()`` — uses this one catalog, so
+        a clip registered here plays on them
+        (``level.sheet("agua").clip("onda", [40, 41, 42], fps=6)``). Building it
+        checks the frame of every item cut from it: an unknown frame raises
+        ``LevelFormatError`` naming the item. A missing image or atlas file
+        shows a placeholder, as for any image.
+
+        Args:
+            name: A sheet name from the level file (``"terreno"``).
+        """
+        if not isinstance(name, str):
+            raise TypeError(f"level.sheet expected a sheet name, got {type(name).__name__}")
+        sheet = self._sheets.get(name)
+        if sheet is not None:
+            return sheet
+        entry = self._sheet_entries.get(name)
+        if entry is None:
+            known = self.sheets
+            raise ValueError(
+                f"{self._label} has no sheet named {name!r}."
+                + (did_you_mean(name, known) or (
+                    f" Sheets: {', '.join(known)}." if known else " The level has no sheets."))
+            )
+        from .sprite import Sheet
+        args, kwargs = sheet_call(entry)
+        sheet = Sheet(*args, **kwargs)
+        for it in self._items:
+            if it._item["kind"] != "image" or it._item["sheet"] != name:
+                continue
+            try:
+                sheet.frame_index(it._item["frame"])
+            except (ValueError, TypeError) as e:
+                raise LevelFormatError(
+                    f"{self._label}: item {it._index} ({it._label_short()}): the sheet {name!r} "
+                    f"has no frame {it._item['frame']!r}. {e}"
+                ) from None
+        self._sheets[name] = sheet
+        return sheet
 
     @property
     def size(self) -> Tuple[float, float]:

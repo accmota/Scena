@@ -6750,6 +6750,7 @@ rota = fase["rota_drone"].points        # lista de Vec2 para move_along</pre>
 <tr><td><code>.names</code> · <code>.groups</code></td><td>tupla de nomes</td><td>Todos os nomes; todos os grupos usados (ordem do primeiro uso).</td></tr>
 <tr><td><code>.size</code> · <code>.box</code></td><td>(largura, altura) · Box</td><td>A área da fase, de (0, 0) até <code>size</code>. <code>.box</code> é um Box novo a cada leitura.</td></tr>
 <tr><td><code>.path</code></td><td>texto</td><td>Caminho absoluto do arquivo lido.</td></tr>
+<tr><td><code>level.sheet("nome")</code> · <code>.sheets</code></td><td>Sheet · tupla de nomes</td><td>As folhas de sprites da fase (a tabela <code>sheets</code> do arquivo). <code>sheet("nome")</code> é o <em>mesmo</em> Sheet para todos os quadros dessa folha, criado no primeiro uso: um clip registrado nele toca no que <code>make()</code> cria. Criá-lo confere o quadro de cada item: quadro desconhecido levanta <code>LevelFormatError</code> com o item. Nome desconhecido levanta <code>ValueError</code>, com sugestão.</td></tr>
           </tbody>
         </table>
           <p class="name-group">LevelItem — todo item</p>
@@ -6761,7 +6762,7 @@ rota = fase["rota_drone"].points        # lista de Vec2 para move_along</pre>
 <tr><td><code>.kind</code></td><td>texto</td><td><code>"rect"</code> · <code>"ellipse"</code> · <code>"concave"</code> · <code>"circle"</code> · <code>"line"</code> · <code>"polygon"</code> · <code>"regular_polygon"</code> · <code>"triangle"</code> · <code>"track"</code> · <code>"point"</code> · <code>"image"</code></td></tr>
 <tr><td><code>.name</code> · <code>.groups</code></td><td>texto ou None · tupla</td><td>Nome e grupos dados no editor. Um item pode estar em vários grupos.</td></tr>
 <tr><td><code>.center</code></td><td>Vec2</td><td>Centro. Linha: o meio; polígono e caminho: o meio da caixa que os envolve; ponto: o próprio ponto.</td></tr>
-<tr><td><code>make(**kwargs)</code></td><td>o shape novo</td><td>Cria o shape <strong>como foi desenhado</strong>, nos grupos do item: rect → <code>Rect</code>, ellipse → <code>Ellipse</code>, concave → <code>Concave</code> (com <code>scoop</code> e <code>rim</code>), circle → <code>Circle</code>, line → <code>Line</code>, polygon → <code>Polygon</code>, regular_polygon → <code>RegularPolygon</code>, triangle → <code>Triangle</code> (com <code>base_ratio</code>), track → <code>Track</code> (com o <code>smooth</code> do item; 0 se o arquivo não tem), point → <code>Point</code>, image → <code>Sprite</code> (tamanho e giro do editor). Outras palavras-chave passam adiante (<code>layer=</code>, <code>color=</code>, <code>visual=</code>); <code>group=</code> <em>soma</em> aos grupos do item. Geometria (<code>center=</code>, <code>width=</code> …) levanta <code>TypeError</code>: ela vem da fase. Mesma tabela do “Copiar como código” do editor.</td></tr>
+<tr><td><code>make(**kwargs)</code></td><td>o shape novo</td><td>Cria o shape <strong>como foi desenhado</strong>, nos grupos do item: rect → <code>Rect</code>, ellipse → <code>Ellipse</code>, concave → <code>Concave</code> (com <code>scoop</code> e <code>rim</code>), circle → <code>Circle</code>, line → <code>Line</code>, polygon → <code>Polygon</code>, regular_polygon → <code>RegularPolygon</code>, triangle → <code>Triangle</code> (com <code>base_ratio</code>), track → <code>Track</code> (com o <code>smooth</code> do item; 0 se o arquivo não tem), point → <code>Point</code>, image → <code>Sprite</code> (tamanho e giro do editor; um quadro de folha → <code>Sprite(item.sheet, frame=item.frame, …)</code>). Outras palavras-chave passam adiante (<code>layer=</code>, <code>color=</code>, <code>visual=</code>); <code>group=</code> <em>soma</em> aos grupos do item. Geometria (<code>center=</code>, <code>width=</code> …) levanta <code>TypeError</code>: ela vem da fase. Mesma tabela do “Copiar como código” do editor.</td></tr>
           </tbody>
         </table>
           <p class="name-group">LevelItem — por tipo</p>
@@ -6772,7 +6773,7 @@ rota = fase["rota_drone"].points        # lista de Vec2 para move_along</pre>
           <tbody>
 <tr><td>rect · ellipse</td><td><code>.width</code> <code>.height</code> <code>.angle</code></td><td>Box orientado (com o giro)</td></tr>
 <tr><td>concave</td><td><code>.width</code> <code>.height</code> <code>.angle</code> <code>.scoop</code> (texto) <code>.rim</code> (Vec2)</td><td>Box orientado (a caixa)</td></tr>
-<tr><td>image</td><td><code>.image</code> (caminho absoluto) <code>.width</code> <code>.height</code> <code>.angle</code></td><td>Box orientado</td></tr>
+<tr><td>image</td><td><code>.width</code> <code>.height</code> <code>.angle</code>; uma imagem inteira tem <code>.image</code> (caminho absoluto), um quadro de folha tem <code>.sheet</code> (o Sheet) e <code>.frame</code> (índice ou nome) — pedir o campo da outra forma levanta <code>AttributeError</code> (o arquivo de uma folha mostraria todos os quadros)</td><td>Box orientado</td></tr>
 <tr><td>circle</td><td><code>.radius</code></td><td>o quadrado em volta</td></tr>
 <tr><td>line</td><td><code>.p1</code> <code>.p2</code> (Vec2), <code>.length</code>, <code>.angle</code> (rumo de <code>p1</code> a <code>p2</code>; os dois como <code>item.make()</code> lê)</td><td>não tem — levanta <code>AttributeError</code> com dica</td></tr>
 <tr><td>regular_polygon</td><td><code>.radius</code> (centro ao vértice), <code>.n</code> (lados), <code>.angle</code> (rumo do vértice 0)</td><td>não tem</td></tr>
@@ -6796,6 +6797,17 @@ corda = Line(p1=c.p1, angle=c.angle, length=c.length, group=c.groups)  # presa e
 laser = Line(center=c.center, length=c.length, angle=c.angle)          # cresce pelo meio</pre>
       </div>
       <p>São cópias, como toda leitura da fase. <code>make()</code> põe o shape nos grupos do item; aqui, passe <code>group=item.groups</code>. Um côncavo leva também <code>scoop=item.scoop, rim=item.rim</code>. Para um shape que já existe vale o mesmo, lendo as partes dele (<code>Rect(top_left=r.top_left, width=r.width, height=r.height, angle=r.angle)</code>). A mensagem de erro de um campo calculado já mostra essa linha pronta.</p>
+      <p class="name-group">Quadros de uma folha de sprites</p>
+      <p>Uma imagem da fase pode ser um quadro de uma folha (spritesheet): uma grade (colunas e linhas, ou o tamanho da célula) ou um atlas (as coordenadas num <code>.xml</code> ou <code>.json</code>), os mesmos recortes do <a href="#sprite-carregar"><code>Sheet</code></a>. O arquivo da fase guarda a folha uma vez e, em cada item, qual quadro ele mostra. O tempo fica no código: os clips vão no Sheet da fase.</p>
+      <div class="code-panel">
+        <button class="copy-btn" type="button">copiar</button>
+<pre>fase = Level("fase1.json")
+for t in fase.group("chao"):
+    t.make()                              # o quadro, no tamanho e no giro do editor
+fase.sheet("agua").clip("onda", [40, 41, 42], fps=6)
+for a in fase.group("agua"):
+    a.make().play("onda")                 # o mesmo Sheet: o clip está nele</pre>
+      </div>
       <p class="name-group">O editor de fases</p>
       <p>O editor vem junto com o Scena (<code>pip install scena</code>). No terminal, qualquer uma das duas formas abre (ou cria) a fase: <code>scena-editor fase1.json</code> ou <code>python -m scena_editor fase1.json</code> — a segunda sempre funciona, porque usa o mesmo Python dos seus jogos.</p>
       <p>Um ícone para abrir o editor com dois cliques: rode uma vez <code>scena-editor --shortcut</code> (ou <code>python -m scena_editor --shortcut</code>). No Windows ele aparece no menu Iniciar e na área de trabalho; no macOS, em Aplicativos (<code>~/Applications</code>); no Linux, no menu de aplicativos. Se reinstalar o Python, rode de novo. Erros do editor ficam num arquivo de log, cujo caminho aparece na barra de status.</p>
