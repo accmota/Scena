@@ -4,8 +4,9 @@ made for it (Testing Design, "Persona probes").
 The probes are written to a temporary folder and run once, together
 (``run_folder``), each rate in its own process: a game that passes, a wrong
 expectation, an author error, an engine-raised error, a hang, frame counting
-(E1 and the same check at every rate), typed text, and a mirror pair that
-holds and one that does not (E11).
+(E1 and the same check at every rate), typed text, a mirror pair that
+holds and one that does not (E11), and the runner's own fixes: drags that
+end on time, a fresh folder per run, modifiers named as in ``keyp``.
 """
 from __future__ import annotations
 
@@ -163,6 +164,61 @@ PROBES = {
         PLAY = [("hold", "RIGHT", 0.5)]
         MIRROR = {"bodies": lambda g: [g.player]}
     """),
+    "after_drags": ("""
+        from scena import *
+        init(width=400, height=300, title="probe drags")
+        t_space = None
+
+
+        def update(dt):
+            global t_space
+            if keyp.once("SPACE") and t_space is None:
+                t_space = clock.time
+
+
+        run()
+    """, """
+        PLAY = [("drag", 10, 10, 100, 100, 0.3), ("drag", 100, 100, 10, 10, 0.3),
+                ("drag", 10, 10, 100, 100, 0.3), ("wait", 0.5), ("tap", "SPACE")]
+        CHECKS = [("space lands at 1.4 s", "end",
+                   lambda g: g.t_space is not None and abs(g.t_space - 1.4) < 0.05)]
+    """),
+    "save_file": ("""
+        import json, os
+        from scena import *
+        init(width=400, height=300, title="probe save")
+        runs = 1
+        if os.path.exists("save.json"):
+            with open("save.json") as fh:
+                runs = json.load(fh)["runs"] + 1
+        with open("save.json", "w") as fh:
+            json.dump({"runs": runs}, fh)
+        run()
+    """, """
+        PLAY = [("wait", 0.1)]
+        CHECKS = [("a fresh folder each run", "end", lambda g: g.runs == 1)]
+    """),
+    "modifiers": ("""
+        from scena import *
+        init(width=400, height=300, title="probe modifiers")
+        shift_seen = False
+        chord_seen = False
+
+
+        def update(dt):
+            global shift_seen, chord_seen
+            shift_seen = shift_seen or keyp("SHIFT")
+            chord_seen = chord_seen or keyp("CTRL+S")
+
+
+        run()
+    """, """
+        HZ = (60,)
+        PLAY = [("hold", "SHIFT", 0.2), ("key_down", "CTRL"), ("tap", "S"), ("key_up", "CTRL"),
+                ("wait", 0.1)]
+        CHECKS = [("Shift held reads as SHIFT", "end", lambda g: g.shift_seen),
+                  ("Ctrl+S reads as the chord", "end", lambda g: g.chord_seen)]
+    """),
 }
 MIRRORS = {
     "mirror_ok": WALKER.format(x=300, right=150, left=150),
@@ -224,6 +280,14 @@ class TestProbeRunner(unittest.TestCase):
         (f,) = self.flags("hang", "HANG at 60 Hz")
         self.assertIn("hang.py", f)
 
+    def test_a_hang_stack_keeps_its_innermost_frames(self):
+        """faulthandler prints the most recent call first: a long dump keeps
+        its head (the author's frame), however long the paths."""
+        dump = ("noise\nThread 0x1 (most recent call first):\n"
+                '  File "/x/hang.py", line 6 in update\n'
+                + '  File "/a/very/long/engine/path/frame.py", line 1 in f\n' * 200)
+        self.assertIn("hang.py", probe._hang_stack(dump))
+
     def test_frame_counting_trips_e1_and_the_same_check_at_every_rate(self):
         self.assertTrue(self.flags("frames", "E1 at 30 Hz"), self.by["frames"]["flags"])
         self.assertTrue(self.flags("frames", "E1 at 144 Hz"), self.by["frames"]["flags"])
@@ -232,6 +296,15 @@ class TestProbeRunner(unittest.TestCase):
 
     def test_typed_text_arrives_character_by_character(self):
         self.assertEqual(self.by["typing"]["flags"], [])
+
+    def test_inputs_after_a_drag_land_at_the_same_game_time_at_every_rate(self):
+        self.assertEqual(self.by["after_drags"]["flags"], [])
+
+    def test_each_run_starts_from_a_fresh_copy_of_the_folder(self):
+        self.assertEqual(self.by["save_file"]["flags"], [])
+
+    def test_modifiers_named_as_in_keyp_are_held_with_their_bits(self):
+        self.assertEqual(self.by["modifiers"]["flags"], [])
 
     def test_e11_holds_for_a_true_mirror_and_flags_a_false_one(self):
         self.assertEqual(self.by["mirror_ok"]["flags"], [])

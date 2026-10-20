@@ -54,6 +54,9 @@ LONG = 300.0                 # game seconds; past this a run samples growth inst
 TAP = 0.1                    # seconds a tap holds its key
 CLICK = 0.05                 # seconds a click holds its button
 MIRROR_KEYS = {"LEFT": "RIGHT", "RIGHT": "LEFT", "A": "D", "D": "A"}
+# A modifier as an author names it in keyp ("SHIFT") is a physical key here.
+KEY_ALIASES = {"SHIFT": "LEFT_SHIFT", "CTRL": "LEFT_CTRL", "CONTROL": "LEFT_CTRL",
+               "ALT": "LEFT_ALT", "CMD": "LEFT_CMD", "ESCAPE": "ESC", "RETURN": "ENTER"}
 POS_BUDGET = 0.5             # DU (equations.POS_BUDGET)
 
 
@@ -168,6 +171,7 @@ class _Player:
         return self.width - x
 
     def _k(self, k: str) -> str:
+        k = KEY_ALIASES.get(k.upper(), k)
         if self.mirror_keys is None:
             return k
         return self.mirror_keys.get(k.upper(), k)
@@ -235,9 +239,8 @@ class _Player:
                 n = max(1, int(round(secs * self.hz)))
                 r.press(self._x(x0), y0)
                 for j in range(1, n + 1):
-                    self.advance(secs / n)
                     r.move(self._x(x0 + (x1 - x0) * j / n), y0 + (y1 - y0) * j / n)
-                self.advance(1.0 / self.hz)
+                    self.advance(secs / n)
                 r.release()
             elif k == "scroll":
                 r.scroll(0.0, float(args[0]))
@@ -385,9 +388,29 @@ def _child(argv: Sequence[str]) -> int:
 # One probe (in the parent): rates, E1, E11, flags
 # ---------------------------------------------------------------------------
 
+def _stage(program: str, expect_path: Optional[str], tmp: str):
+    """A fresh copy of the probe's folder (its files, a link to its
+    ``media``) for one run: what a run writes next to the script (a save
+    file) must not reach the next rate's run."""
+    import shutil
+    from source_support import iter_files
+    folder = os.path.dirname(program)
+    work = os.path.join(tmp, "probe")
+    os.makedirs(work)
+    for f in iter_files(folder):
+        shutil.copy2(f, work)
+    media = os.path.join(folder, "media")
+    if os.path.isdir(media):
+        os.symlink(os.path.realpath(media), os.path.join(work, "media"))
+    moved = os.path.join(work, os.path.basename(program))
+    exp = os.path.join(work, os.path.basename(expect_path)) if expect_path else None
+    return moved, exp
+
+
 def _spawn(program: str, expect_path: Optional[str], hz: int, timeout: float,
            flags: Sequence[str] = ()) -> Dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="probe_") as tmp:
+        program, expect_path = _stage(program, expect_path, tmp)
         out = os.path.join(tmp, "out.json")
         env = dict(os.environ, SCENA_PROBE_TIMEOUT=str(timeout), PYTHONDONTWRITEBYTECODE="1",
                    PYTHONIOENCODING="utf-8")
@@ -408,8 +431,15 @@ def _spawn(program: str, expect_path: Optional[str], hz: int, timeout: float,
             hang = code is None or "Timeout (" in se or "most recent call first" in se
             res = {"hz": hz, "hang": hang, "exit": code, "error": None}
         res["stdout_tail"] = so[-1500:]
-        res["stderr_tail"] = se[-3000:]
+        res["stderr_tail"] = se[-6000:]
         return res
+
+
+def _hang_stack(stderr: str) -> str:
+    """The head of faulthandler's dump: it prints the most recent call first,
+    so the author's frame is at the top (a tail cut it off)."""
+    i = stderr.rfind("most recent call first")
+    return (stderr[i:] if i >= 0 else stderr)[:1500]
 
 
 def _edges(res):
@@ -437,7 +467,7 @@ def run_probe(program: str, expect_path: Optional[str] = None) -> Dict[str, Any]
         flags.append("NO-EXPECT: no .expect.py next to the probe")
     for hz, r in runs.items():
         if r.get("hang"):
-            flags.append(f"HANG at {hz} Hz: no result in time; stack:\n{r['stderr_tail'][-1500:]}")
+            flags.append(f"HANG at {hz} Hz: no result in time; stack:\n{_hang_stack(r['stderr_tail'])}")
             continue
         if "frames" not in r and not r.get("hang"):
             flags.append(f"CRASH at {hz} Hz: the run process died (exit {r.get('exit')}):\n"

@@ -1033,9 +1033,12 @@ class GameRun(ProgramRun):
     motion callback."""
 
     os_level = False
-    _MODS = {"LEFT_SHIFT": 0x0001, "RIGHT_SHIFT": 0x0001, "LEFT_CONTROL": 0x0002,
-             "RIGHT_CONTROL": 0x0002, "LEFT_ALT": 0x0004, "RIGHT_ALT": 0x0004,
-             "LEFT_SUPER": 0x0008, "RIGHT_SUPER": 0x0008}
+    # Scena's key names (``program_support._KEY_CODES``): a name missing
+    # here never sets its bit (LEFT_CONTROL / LEFT_SUPER did not, so a held
+    # Ctrl or Cmd went in with no modifier; found by the persona probes).
+    _MODS = {"LEFT_SHIFT": 0x0001, "RIGHT_SHIFT": 0x0001, "LEFT_CTRL": 0x0002,
+             "RIGHT_CTRL": 0x0002, "LEFT_ALT": 0x0004, "RIGHT_ALT": 0x0004,
+             "LEFT_CMD": 0x0008, "RIGHT_CMD": 0x0008}
 
     def start(self) -> None:
         super().start()
