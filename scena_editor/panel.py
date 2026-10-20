@@ -556,7 +556,9 @@ class Panel:
         is_image = single is not None and single["kind"] == "image"
         want[self.change_image] = want[self.image_file] = is_image
         if is_image:
-            self.image_file.text = fit_text(single["file"], PANEL_RIGHT - 24, 12)
+            shown = (single["file"] if single["sheet"] is None
+                     else f"{single['sheet']} · {single['frame']}")
+            self.image_file.text = fit_text(str(shown), PANEL_RIGHT - 24, 12)
         if single is not None:
             kind = single["kind"]
             self.title.text = t(f"tool.{kind}") + (f"  ·  {single['name']}" if single["name"] else "")

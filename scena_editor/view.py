@@ -20,6 +20,8 @@ from scena import (
 )
 
 from . import geometry as geo
+from . import sheets
+from .doc import sheet_layout
 from .tools import HANDLE_PX, Editor
 
 DESIGN = (1280.0, 800.0)
@@ -321,6 +323,8 @@ def _shape_key(item: Dict[str, Any], doc) -> tuple:
     if kind in ("polygon", "track"):
         return (kind, item["points"], item.get("closed", False), item.get("smooth", 0.0))
     if kind == "image":
+        if item["sheet"] is not None:
+            return (kind, sheet_layout(doc.sheet(item["sheet"])), item["frame"])
         return (kind, doc.image_path(item))
     if kind == "regular_polygon":
         return (kind, item["n"])              # n is fixed at construction
@@ -351,8 +355,21 @@ def _make_shape(item: Dict[str, Any], doc):
         return Track(points=list(item["points"]), smooth=item["smooth"], closed=item["closed"],
                      color=UNGROUPED, layer=ITEM_LAYER)
     if kind == "image":
+        if item["sheet"] is not None:
+            return _frame_sprite(doc.sheet(item["sheet"]), item["frame"])
         return Sprite(doc.image_path(item), center=(0, 0), width=1, height=1, layer=ITEM_LAYER)
     raise AssertionError(kind)
+
+
+def _frame_sprite(entry: Dict[str, Any], frame: Any):
+    """A frame image as the game draws it. A cut ``Sheet`` refuses or a frame
+    out of range shows the missing-file checker (the file is still edited)."""
+    try:
+        return Sprite(sheets.sheet_for(entry), frame=frame, center=(0, 0), width=1, height=1,
+                      layer=ITEM_LAYER)
+    except (ValueError, TypeError):
+        return Sprite(entry["file"] + ".missing", center=(0, 0), width=1, height=1,
+                      layer=ITEM_LAYER)
 
 
 def _apply(shape, item: Dict[str, Any]) -> None:

@@ -271,16 +271,20 @@ class TestCreate(unittest.TestCase):
         self.assertEqual(e.doc.get(a)["n"], 5)
 
     def test_default_shape_corners_land_on_every_grid(self):
-        """DEFAULT_SIZE is a multiple of every grid step: all corners snap."""
-        from scena_editor.tools import DEFAULT_SIZE, GRID_SIZES
+        """The click size is a multiple of every grid step: all corners snap.
+        100 where the grid divides it; 96 / 128 on the pixel-tile grids."""
+        from scena_editor.tools import GRID_SIZES, default_size
         for grid in GRID_SIZES:
-            self.assertEqual(DEFAULT_SIZE % grid, 0, grid)
-        e = ed()
-        e.grid = 20.0
-        e.set_tool("rect")
-        click(e, (47, 93))
-        x0, y0, x1, y1 = geo.aabb(e.single())
-        self.assertEqual([v % 20 for v in (x0, y0, x1, y1)], [0, 0, 0, 0])
+            self.assertEqual(default_size(grid) % grid, 0, grid)
+            self.assertLessEqual(abs(default_size(grid) - 100), 28, grid)
+            e = ed()
+            e.grid = float(grid)
+            e.set_tool("rect")
+            click(e, (47, 93))
+            x0, y0, x1, y1 = geo.aabb(e.single())
+            self.assertEqual([v % grid for v in (x0, y0, x1, y1)], [0, 0, 0, 0], grid)
+        self.assertEqual([default_size(g) for g in (8, 16, 32, 64)], [96, 96, 96, 128])
+        self.assertEqual(default_size(0), 100)               # Shift: no grid
 
     def test_shift_click_default_is_unsnapped(self):
         e = ed()

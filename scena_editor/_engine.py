@@ -133,3 +133,16 @@ def slider_dragging(slider) -> bool:
     has no public drag-ended signal; the panel records one undo step when
     the handle is let go."""
     return bool(getattr(slider, "_dragging_handle", False))
+
+
+def sheet_frames(sheet):
+    """Every frame of a ``Sheet``: ``((x, y, w, h), (src_w, src_h), name)`` —
+    its packed rect in ``sheet.image`` (pixels, y down), its untrimmed size
+    (what a Sprite of it is sized against) and its name (an atlas name, or the
+    index as text on a grid). ``Sheet`` has no public per-frame size."""
+    out = []
+    for i in range(sheet.nframes):
+        r = sheet._src_rect(i)
+        fr = sheet._frame_at(i)
+        out.append(((r.x(), r.y(), r.width(), r.height()), (fr.src_w, fr.src_h), fr.name))
+    return out

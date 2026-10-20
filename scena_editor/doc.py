@@ -1,18 +1,28 @@
-"""The document being edited: level size + items, file I/O. No Graphics.
+"""The document being edited: level size + items + sheets, file I/O. No Graphics.
 
 Items are the normalized dicts of ``scena.level_format`` plus a transient
 ``"id"`` (an int, never saved) that the view, the selection and undo use.
 ``version`` grows on every change so the view knows when to sync.
+
+Sheets are the file's ``sheets`` entries with **absolute** ``file`` / ``atlas``
+paths (made relative when written), so an undo across a Save As restores
+paths that still point at the art. Only sheets some item uses count: an
+entry no item names is not saved nor kept by undo snapshots (undo brings it
+back with the item that used it), and a new sheet may take its name.
 """
 from __future__ import annotations
 
 import json
+import keyword
 import os
+import re
 import shutil
 import tempfile
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from scena.level_format import KINDS, dumps, parse, parse_item, serialize
+from scena.level_format import (
+    KINDS, SHEET_KEYS, LevelFormatError, dumps, parse, parse_item, parse_sheet, serialize,
+)
 
 DEFAULT_SIZE = (1280.0, 800.0)
 
@@ -39,11 +49,31 @@ class NameTaken(ValueError):
     """Another item already has that name (names are unique in a level)."""
 
 
+def sheet_layout(entry: Dict[str, Any]) -> tuple:
+    """What makes two sheet entries the same sheet: the file and the cut."""
+    return (os.path.normcase(os.path.normpath(entry["file"])), entry.get("cols"),
+            entry.get("rows"), tuple(entry["cell"]) if entry.get("cell") else None,
+            os.path.normcase(os.path.normpath(entry["atlas"])) if entry.get("atlas") else None)
+
+
+def sheet_name_for(path: str) -> str:
+    """A sheet name from a file name: ``Terrain (16x16).png`` → ``Terrain_16x16``."""
+    stem = os.path.splitext(os.path.basename(path))[0]
+    name = re.sub(r"\W+", "_", stem).strip("_") or "sheet"
+    if name[0].isdigit():
+        name = "_" + name
+    if keyword.iskeyword(name):
+        name += "_"
+    return name
+
+
 class LevelDoc:
     def __init__(self, size: Tuple[float, float] = DEFAULT_SIZE,
-                 items: Iterable[Dict[str, Any]] = (), path: Optional[str] = None):
+                 items: Iterable[Dict[str, Any]] = (), path: Optional[str] = None,
+                 sheets: Iterable[Dict[str, Any]] = ()):
         self.size = (float(size[0]), float(size[1]))
         self.items: List[Dict[str, Any]] = []
+        self.sheets: List[Dict[str, Any]] = [dict(e) for e in sheets]
         self.path = path
         self.version = 0
         self._next_id = 1
@@ -64,6 +94,9 @@ class LevelDoc:
 
     def _changed(self) -> None:
         self.version += 1
+
+    def _used_sheets(self) -> set:
+        return {item["sheet"] for item in self.items if item.get("sheet") is not None}
 
     @property
     def dirty(self) -> bool:
@@ -100,12 +133,52 @@ class LevelDoc:
                 seen.setdefault(g, None)
         return list(seen)
 
+    # -- sheets ---------------------------------------------------------------
+    def sheet(self, name: str) -> Dict[str, Any]:
+        """The sheet entry named ``name`` (absolute paths)."""
+        for entry in self.sheets:
+            if entry["name"] == name:
+                return entry
+        raise KeyError(name)
+
+    def ensure_sheet(self, entry: Dict[str, Any]) -> str:
+        """The name of a sheet cut like ``entry`` (absolute ``file`` / ``atlas``):
+        an existing one with the same file and layout, else a new entry — named
+        ``entry["name"]`` (or after the file) when free, else ``name_2`` …
+        Not an undo step by itself: the item that uses it is."""
+        want = sheet_layout(entry)
+        for have in self.sheets:
+            if sheet_layout(have) == want:
+                return have["name"]
+        name = entry.get("name") or sheet_name_for(entry["file"])
+        used = self._used_sheets()
+        # An entry no item uses yields its name (it would not be saved anyway).
+        self.sheets = [e for e in self.sheets if e["name"] in used or e["name"] != name]
+        taken = {e["name"] for e in self.sheets}
+        if name in taken:
+            base, n = name, 2
+            while f"{base}_{n}" in taken:
+                n += 1
+            name = f"{base}_{n}"
+        raw = {k: entry[k] for k in SHEET_KEYS if entry.get(k) is not None}
+        raw["name"] = name
+        self.sheets.append(parse_sheet(raw, where="new sheet"))
+        return name
+
+    def _check_sheet_ref(self, item: Dict[str, Any]) -> None:
+        name = item.get("sheet")
+        if name is not None and name not in {e["name"] for e in self.sheets}:
+            raise LevelFormatError(f"no sheet named {name!r} in this level")
+
     # -- edits ----------------------------------------------------------------
     def add(self, raw: Dict[str, Any]) -> int:
-        """Add an item (raw level-file fields, checked by ``parse_item``)."""
-        item = parse_item({k: tidy(v) for k, v in raw.items() if k != "id"}, where="new item")
+        """Add an item (raw level-file fields, checked by ``parse_item``). A
+        frame image names a sheet already in ``sheets`` (``ensure_sheet``)."""
+        item = parse_item({k: tidy(v) for k, v in raw.items() if k != "id" and v is not None},
+                          where="new item")
         if item["name"] is not None and item["name"] in self.names():
             raise NameTaken(item["name"])
+        self._check_sheet_ref(item)
         new_id = self._append(item)
         self._changed()
         return new_id
@@ -124,6 +197,7 @@ class LevelDoc:
         merged = {k: v for k, v in item.items() if k != "id"}
         merged.update({k: tidy(v) for k, v in fields.items()})
         checked = parse_item(_raw(merged), where=f"item {item_id}")
+        self._check_sheet_ref(checked)
         if all(item.get(k) == v for k, v in checked.items()):
             return
         checked["id"] = item_id
@@ -183,13 +257,17 @@ class LevelDoc:
 
     # -- undo snapshots -----------------------------------------------------------
     def snapshot(self) -> tuple:
-        """An immutable copy of the content (items keep their ids)."""
-        return (self.size, tuple(tuple(sorted(item.items())) for item in self.items))
+        """An immutable copy of the content (items keep their ids; the sheets
+        some item uses)."""
+        used = self._used_sheets()
+        return (self.size, tuple(tuple(sorted(item.items())) for item in self.items),
+                tuple(tuple(sorted(e.items())) for e in self.sheets if e["name"] in used))
 
     def restore(self, snap: tuple) -> None:
-        size, items = snap
+        size, items, sheets = snap
         self.size = size
         self.items = [dict(pairs) for pairs in items]
+        self.sheets = [dict(pairs) for pairs in sheets]
         self._next_id = max([self._next_id] + [i["id"] + 1 for i in self.items])
         self._changed()
 
@@ -215,14 +293,25 @@ class LevelDoc:
         return rel.replace(os.sep, "/")
 
     def to_file_dict(self, folder: Optional[str] = None) -> Dict[str, Any]:
-        """The level file content; image paths rebased onto ``folder``."""
+        """The level file content; image paths rebased onto ``folder``, sheet
+        paths made relative to it (the level's own folder by default); only the
+        sheets some item uses."""
         items = []
         for item in self.items:
             item = {k: v for k, v in item.items() if k != "id"}
-            if item["kind"] == "image" and folder is not None:
+            if item["kind"] == "image" and item["file"] is not None and folder is not None:
                 item["file"] = self.relative_file(self.image_path(item), folder)
             items.append(item)
-        return serialize({"size": self.size, "items": items})
+        used = self._used_sheets()
+        sheets = []
+        for entry in self.sheets:
+            if entry["name"] not in used:
+                continue
+            entry = dict(entry, file=self.relative_file(entry["file"], folder))
+            if entry["atlas"] is not None:
+                entry["atlas"] = self.relative_file(entry["atlas"], folder)
+            sheets.append(entry)
+        return serialize({"size": self.size, "sheets": sheets, "items": items})
 
     def save(self, path: Optional[str] = None) -> str:
         """Write the level (atomically; the previous file is kept as ``.bak``)."""
@@ -243,7 +332,7 @@ class LevelDoc:
             raise
         # Image paths now live relative to the new folder.
         for item, written in zip(self.items, data["items"]):
-            if item["kind"] == "image":
+            if item["kind"] == "image" and item["file"] is not None:
                 item["file"] = written["file"]
         self.path = path
         self._saved = self.snapshot()
@@ -256,22 +345,36 @@ class LevelDoc:
         with open(path, encoding="utf-8-sig") as f:
             data = json.load(f)
         doc_data = parse(data, source=os.path.basename(path))
-        return cls(doc_data["size"], doc_data["items"], path=path)
+        folder = os.path.dirname(path)
+        sheets = []
+        for entry in doc_data["sheets"]:
+            entry = dict(entry, file=_absolute(entry["file"], folder))
+            if entry["atlas"] is not None:
+                entry["atlas"] = _absolute(entry["atlas"], folder)
+            sheets.append(entry)
+        return cls(doc_data["size"], doc_data["items"], path=path, sheets=sheets)
+
+
+def _absolute(file: str, folder: str) -> str:
+    """A level file's path (POSIX, relative to ``folder``) as an absolute path."""
+    if os.path.isabs(file):
+        return os.path.normpath(file)
+    return os.path.normpath(os.path.join(folder, *file.split("/")))
 
 
 def _raw(item: Dict[str, Any]) -> Dict[str, Any]:
     """A normalized item back to raw fields (for re-checking after an edit)."""
     out = {}
     for key, value in item.items():
+        if value is None:                 # an unset optional field (name, file, sheet, frame)
+            continue
         if key == "groups":
             out[key] = list(value)
         elif isinstance(value, tuple):
             out[key] = [list(v) if isinstance(v, tuple) else v for v in value]
         else:
             out[key] = value
-    if out.get("name") is None:
-        out.pop("name", None)
     return out
 
 
-__all__ = ["LevelDoc", "NameTaken", "DEFAULT_SIZE", "KINDS"]
+__all__ = ["LevelDoc", "NameTaken", "DEFAULT_SIZE", "KINDS", "sheet_layout", "sheet_name_for"]

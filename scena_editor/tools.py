@@ -33,7 +33,7 @@ import re
 import sys
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 
-from scena.level_format import code_for
+from scena.level_format import code_for_items
 from scena.validate import did_you_mean
 
 from . import geometry as geo
@@ -83,12 +83,21 @@ def rim_text(rim: Tuple[float, float]) -> str:
 def key_label(combo: str) -> str:
     """``"CMD+SHIFT+Z"`` → ``"Cmd+Shift+Z"`` (a shortcut as the UI shows it)."""
     return "+".join(k.capitalize() if len(k) > 1 else k for k in combo.split("+"))
-DEFAULT_SIZE = 100.0  # a click with a shape tool (every grid step divides it)
+DEFAULT_SIZE = 100.0  # a click with a shape tool (``default_size``: a grid multiple)
 DRAG_PX = 3.0       # press → drag threshold, screen pixels
 HANDLE_PX = 9.0     # handle size on screen
 PICK_PX = 5.0       # extra reach for thin shapes (lines, points, paths)
 ROTATE_PX = 28.0    # rotate knob above the top edge
-GRID_SIZES = (1, 5, 10, 20, 50)
+GRID_SIZES = (1, 4, 5, 8, 10, 16, 20, 32, 50, 64)
+
+
+def default_size(grid: float) -> float:
+    """The side of a click-made shape: ``DEFAULT_SIZE``, or on a grid that does
+    not divide it (8, 16, 32, 64: pixel tiles) the nearest multiple of the
+    grid (96, 96, 96, 128), so every corner lands on the grid."""
+    if grid <= 0 or DEFAULT_SIZE % grid == 0:
+        return DEFAULT_SIZE
+    return grid * max(1, round(DEFAULT_SIZE / grid))
 LEFT, RIGHT, MIDDLE = 0, 1, 2
 
 
@@ -117,6 +126,7 @@ class Editor:
         self.band: Optional[Tuple[float, float, float, float]] = None
         self.message: Optional[str] = None        # status-bar note for the host
         self.clipboard: List[Dict[str, Any]] = []  # copied items (kept across New / Open)
+        self.clipboard_sheets: List[Dict[str, Any]] = []  # the sheets their frames use
         self._pastes = 0
         self.image_requested = False              # host opens the image dialog
         # Primary held (the host sets it): in Pan or a drawing tool a press
@@ -457,7 +467,7 @@ class Editor:
         if kind == "create":
             item_id = g["id"]
             if item_id is None:                      # a click: a default shape
-                self._created(self.doc.add(self._default_shape(g["start"])))
+                self._created(self.doc.add(self._default_shape(g["start"], self._grid(shift))))
                 return
             item = self.doc.get(item_id)
             if self._degenerate(item):
@@ -469,12 +479,12 @@ class Editor:
             p = geo.snap_point((x, y), self._grid(shift))
             self._created(self.doc.add({"kind": "point", "center": p}))
 
-    def _default_shape(self, at: Tuple[float, float]) -> Dict[str, Any]:
-        """The item a click (no drag) makes: ``DEFAULT_SIZE`` wide, top-left at
-        ``at`` (circle, regular polygon, triangle: centered there; line: from
+    def _default_shape(self, at: Tuple[float, float], grid: float) -> Dict[str, Any]:
+        """The item a click (no drag) makes: ``default_size(grid)`` wide, top-left
+        at ``at`` (circle, regular polygon, triangle: centered there; line: from
         there to the right)."""
         x, y = at
-        s = DEFAULT_SIZE
+        s = default_size(grid)
         if self.tool == "regular_polygon":
             return {"kind": "regular_polygon", "center": (x, y), "radius": s / 2, "n": SIDES,
                     "angle": HEADING}
@@ -640,9 +650,13 @@ class Editor:
         self.selection = [it["id"] for it in self.doc.items]
 
     def copy_code(self) -> str:
-        """Copy-as-code text for the selection (one block per item)."""
-        return "\n".join(code_for({k: v for k, v in it.items() if k != "id"})
-                         for it in self.selected_items())
+        """Copy-as-code text for the selection: the ``Sheet`` lines its frames
+        need (as the file names them), then one block per item."""
+        items = [{k: v for k, v in it.items() if k != "id"} for it in self.selected_items()]
+        sheets = [dict(e, file=self.doc.relative_file(e["file"]),
+                       atlas=e["atlas"] and self.doc.relative_file(e["atlas"]))
+                  for e in self.doc.sheets]
+        return code_for_items(items, sheets)
 
     def copy(self) -> str:
         """Copy the selected items inside the editor (for :meth:`paste`, also
@@ -650,11 +664,14 @@ class Editor:
         items = []
         for it in self.selected_items():
             item = {k: v for k, v in it.items() if k != "id"}
-            if item["kind"] == "image":
+            if item["kind"] == "image" and item["file"] is not None:
                 item["file"] = self.doc.image_path(it)        # absolute: survives Open
             items.append(item)
         if items:
+            used = {it["sheet"] for it in items if it.get("sheet") is not None}
             self.clipboard = items
+            # Sheet entries hold absolute paths: they survive Open too.
+            self.clipboard_sheets = [dict(e) for e in self.doc.sheets if e["name"] in used]
             self._pastes = 0
         return self.copy_code()
 
@@ -671,15 +688,20 @@ class Editor:
         self.cancel()
         self._pastes += 1
         step = (self.grid or 10.0) * self._pastes
+        # The same sheet in this level (same file and cut) keeps its name here;
+        # another gets a free name. Items follow the renaming.
+        renamed = {e["name"]: self.doc.ensure_sheet(e) for e in self.clipboard_sheets}
         new = []
         for item in self.clipboard:
             item = dict(item)
+            if item.get("sheet") is not None:
+                item["sheet"] = renamed[item["sheet"]]
             item.update(geo.translate(item, step, -step))
             if item.get("name"):
                 taken = self.doc.names()
                 if item["name"] in taken:
                     item["name"] = self.doc.free_name(item["name"])
-            if item["kind"] == "image" and self.doc.path:
+            if item["kind"] == "image" and item["file"] is not None and self.doc.path:
                 item["file"] = self.doc.relative_file(item["file"])
             new.append(self.doc.add(item))
         self.history.commit()
@@ -696,6 +718,40 @@ class Editor:
                                 "width": w, "height": h})
         self._created(item_id)
         return item_id
+
+    def add_frame(self, entry: Dict[str, Any], frame: Any, pixel_size: Tuple[float, float],
+                  center: Tuple[float, float]) -> int:
+        """Place a frame of a sheet at its pixel size (1 pixel = 1 design unit).
+        ``entry`` is a sheet entry with absolute paths (``LevelDoc.ensure_sheet``)."""
+        self.image_requested = False
+        self.tool = "select"
+        name = self.doc.ensure_sheet(entry)
+        w, h = pixel_size
+        item_id = self.doc.add({"kind": "image", "sheet": name, "frame": frame,
+                                "center": center, "width": w, "height": h})
+        self._created(item_id)
+        return item_id
+
+    def set_frame(self, item_id: int, entry: Dict[str, Any], frame: Any,
+                  pixel_size: Tuple[float, float], shown_px_height: float) -> bool:
+        """Show another frame (of a sheet cut like ``entry``) in an image item:
+        same center and angle, same **scale** (design units per pixel), so a
+        whole tileset placed 1:1 becomes a 1:1 tile and frames of different
+        sizes keep their relative size. ``shown_px_height`` is the height in
+        pixels of the picture the item shows now. One undo step."""
+        item = self.doc.get(item_id)
+        scale = item["height"] / shown_px_height if shown_px_height > 0 else 1.0
+        pw, ph = pixel_size
+        try:
+            name = self.doc.ensure_sheet(entry)
+            self.doc.update(item_id, file=None, sheet=name, frame=frame,
+                            width=pw * scale, height=ph * scale)
+        except (TypeError, ValueError) as e:
+            self.message = str(e)
+            self.history.discard()
+            return False
+        self.history.commit()
+        return True
 
     # -- panel edits ---------------------------------------------------------------------
     def set_field(self, field: str, value: Any, item_id: Optional[int] = None, *,
@@ -848,7 +904,7 @@ class Editor:
         height = item["height"]
         width = height * pw / ph if ph > 0 else item["width"]
         try:
-            self.doc.update(item_id, file=file, width=width, height=height)
+            self.doc.update(item_id, file=file, sheet=None, frame=None, width=width, height=height)
         except (TypeError, ValueError) as e:
             self.message = str(e)
             return False
