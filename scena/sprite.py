@@ -186,7 +186,16 @@ def _plain_geo(geo):
     cx, cy, (draw_ang, seat, lean, fx, fy, turn, src, dst) = geo
     return (cx, cy, draw_ang, seat, lean, fx, fy, turn, tuple(src), tuple(dst))
 _BLIT_PAINT = skia.Paint(AntiAlias=True)
-_MAX_GRID_CELLS = 1024
+# A grid sheet's cell count. A real tileset runs past a thousand cells
+# (Kenney's 1-bit pack: 49 × 22 of 16 px), so the hard cap only stops a sheet
+# no game needs; the typo guard (``cell=`` written for ``cols=`` / ``rows=``)
+# is ``_CELL_TYPO_CELLS`` with cells under ``_CELL_TYPO_PX`` on a side.
+_MAX_GRID_CELLS = 16384
+_CELL_TYPO_CELLS = 1024
+_CELL_TYPO_PX = 8
+# Longest side of the missing-file checker tiled for a grid (``cols=`` /
+# ``rows=`` keep their count); one 64 px checker per cell grows past memory.
+_PLACEHOLDER_MAX_SIDE = 4096
 _HITBOX_CHOICES = ("auto", "rect", "ellipse", "circle", "hull")
 HitboxSpec = Literal["auto", "rect", "ellipse", "circle", "hull"]
 _HITBOX_FROM_SPECIAL = ("all", "each", "clip")
@@ -711,6 +720,11 @@ def _placeholder_for_layout(
         n_c = cols if cols is not None else 1
         n_r = rows if rows is not None else 1
         w, h = side_w, side_h
+        # A big grid shrinks the checker per cell (the count is what matters).
+        most = max(n_c * w, n_r * h)
+        if most > _PLACEHOLDER_MAX_SIDE:
+            w = max(1, _PLACEHOLDER_MAX_SIDE // n_c)
+            h = max(1, _PLACEHOLDER_MAX_SIDE // n_r)
     info = skia.ImageInfo.Make(
         w * n_c, h * n_r, skia.kRGBA_8888_ColorType, skia.kPremul_AlphaType,
     )
@@ -1966,10 +1980,14 @@ def _sheet_layout(
         n_cols = px_w // cw
         n_rows = px_h // ch
         n = n_cols * n_rows
-        if n > _MAX_GRID_CELLS:
+        if n > _MAX_GRID_CELLS or (
+            n > _CELL_TYPO_CELLS and min(cw, ch) < _CELL_TYPO_PX
+        ):
+            limit = (f"max {_MAX_GRID_CELLS}" if n > _MAX_GRID_CELLS
+                     else f"max {_CELL_TYPO_CELLS} for cells under {_CELL_TYPO_PX} px")
             raise ValueError(
                 f"cell=({cw}, {ch}) would create {n} cells on a {px_w}×{px_h} image "
-                f"(max {_MAX_GRID_CELLS}). "
+                f"({limit}). "
                 f"If you meant columns×rows, write cols={cw}, rows={ch} "
                 f"(cell size would be {px_w // max(cw, 1)}×{px_h // max(ch, 1)} px)."
             )
