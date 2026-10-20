@@ -143,7 +143,9 @@ drone.move_along(fase["rota_drone"].points, time=6)
 - **`LevelItem`** — `kind`, `name`, `groups`, `center` (a line's midpoint, a
   polygon's / track's bounding-box middle — of its points, not of a smooth
   curve), and per kind `width` / `height` /
-  `angle`, `scoop` / `rim` (a `Vec2`), `radius`, `n`, `base_ratio`, `p1` / `p2`, `points` (new list of `Vec2`),
+  `angle`, `scoop` / `rim` (a `Vec2`), `radius`, `n`, `base_ratio`, `p1` / `p2`
+  (a line's `length` and `angle` too: computed from its ends as `make()`
+  reads them; `angle` runs from -180 up to 180), `points` (new list of `Vec2`),
   `closed`, `smooth`,
   `image` (absolute). A field of another kind raises `AttributeError`
   listing what the item has. Every read is a copy.
@@ -161,6 +163,16 @@ drone.move_along(fase["rota_drone"].points, time=6)
   constructor keyword. The item's groups are applied; `group=` **adds**; other
   keywords pass through (`layer=`, `color=`, `visual=`); a geometry keyword
   raises (`TypeError`, "remove center="). A guide raises.
+
+- **Another model.** `make()` builds the file's model (a rect by its
+  center, a line by its ends). For another, the author writes the
+  constructor with the item's numbers: `item.box` has every named point
+  (`Rect(top_left=b.top_left, width=b.width, height=b.height, angle=b.angle)`,
+  `Rect(p1=b.left_center, p2=b.right_center, height=b.height, anchor="cap")`),
+  a line has `length` / `angle` (`Line(p1=item.p1, angle=item.angle,
+  length=item.length)`). No `make(model=…)` and no shape-as-source
+  constructor: [Shapes — A shape is not a source of another model](Shapes%20Design.md#a-shape-is-not-a-source-of-another-model).
+  Guard: `test_level.TestLineLengthAngle`.
 
 ## One constructor table
 

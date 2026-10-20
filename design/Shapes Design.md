@@ -205,6 +205,27 @@ in `_CTOR_EXTRA_KEYS` (Circle `angle` / `spread` included); `anchor` is a requir
    `Rect(width=180)` raises. Size defaults apply on the **home** path only
    (`Shot(p1=…, p2=…)` does not inject class `radius=` / Line `length=`).
 
+## A shape is not a source of another model
+
+A constructor builds one model from values; it never takes an existing shape
+to copy into another model (`Rect(source=bloco, by=("p1", "p2"))`,
+`item.make(model=…)`, `rect << bloco` keeping the target's model). Weighed
+2026-10-20 for level items (the editor writes one model per kind): every
+spelling breaks a rule already published. A Graphic where a point goes is
+its center (`_xy_of`), so `Rect(p1=bloco, p2=…)` already means
+`bloco.center` and runs. Model names are not public: the keyword set picks
+the model, and a selector would be a second spelling of it. A `source=`
+would copy beside `from_rect=` / `parallel_to=`, which link. And `<<`
+adopts the source's model (C7), which keeps each part's identity.
+
+The rebuild is one line of reads instead, a snapshot like any value:
+`Rect(top_left=r.top_left, width=r.width, height=r.height, angle=r.angle)`.
+Every model's inputs can be read on every model (Derivate mirrors), a
+level item's region has every named point (`item.box`), and a line item
+has `length` / `angle` ([Editor — Reading a level](Editor%20Design.md#reading-a-level)).
+The refusal on a computed field prints that line for the shape at hand
+([Refusing a computed field](#batching-and-external-dependents)).
+
 ## Empty constructors (visible defaults)
 
 Empty / `center=` / complete home-minus-center fill from class size defaults, then
@@ -973,9 +994,19 @@ that works:
 - a computed **point** of an actor: move the actor so the point lands where
   the author wrote it — `rect.move_to(1, 2, about=rect.top_right)` (one axis:
   `rect.move_to(1, rect.top_right.y, about=rect.top_right)`);
-- anything else: change the inputs, or build with the field as a keyword when
-  the constructor takes it (`Line(..., length=...)`; checked against the
-  signature, never guessed);
+- anything else: change the inputs, or rebuild with the field as an input
+  when the constructor takes it — the whole call, read from the shape
+  (`Line(p1=line.p1, length=line.length, angle=line.angle)`), so the
+  author does not complete a signature by hand. `Container._rebuild_recipe`
+  picks the signature that takes the field and keeps most of the current
+  model inputs, then one placed by `center`, then the fuller one (a turned
+  spine keeps `angle=`), then table order. A signature with a key that is
+  not a field (`parallel_to=`, `anchor=`) is never offered, and
+  `_recipe_fits` drops keys that mean other points (a spine's `p1` / `p2`
+  are on its axis, not corners). `_recipe_extras` adds what the copy needs
+  besides (`n` read as `len(…points)`, `scoop` and `rim`, a non-equilateral
+  `base_ratio`, an arc's `angle` / `spread`, `corner_radius`). A class with
+  no signature table (Box, Text) keeps `Who(..., name=...)`;
 - a link: link one of the inputs instead.
 
 Classes word their own case: `Vec2` (`v << vec_from_angle(...)`), Track
@@ -983,7 +1014,9 @@ Classes word their own case: `Vec2` (`v << vec_from_angle(...)`), Track
 actor), and a reversed Track view forwards its writes to the host. Guard:
 `test_derivate_readonly.TestDerivedFieldMessages` — every model, field and
 form raises with this wording and changes nothing, and each suggested
-`move_to` is run and must land the point.
+`move_to` is run and must land the point; `TestRebuildRecipe` runs every
+rebuild recipe of every model and kind and compares the copy's outline
+(`closest_point` probes), ends and heading with the shape's.
 
 
 # Draw policy

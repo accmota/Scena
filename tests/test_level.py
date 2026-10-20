@@ -305,6 +305,47 @@ class TestRegularPolygon(LevelTestCase):
             favo.points
 
 
+class TestLineLengthAngle(LevelTestCase):
+    """A line item reads ``length`` and ``angle`` as ``item.make()`` does, so
+    the line can be built in another model in one line:
+    ``Line(p1=item.p1, angle=item.angle, length=item.length)``."""
+
+    ENDS = (
+        ((0, 0), (10, 20)), ((0, 0), (-10, 0)), ((5, 5), (5, -7)), ((3, 4), (3, 4)),
+        ((-2, 1), (-9, -6)), ((0, 0), (1e-9, -1)), ((100, 50), (40, 50.000001)),
+    )
+
+    def _lines(self):
+        items = [{"kind": "line", "name": f"l{i}", "p1": list(a), "p2": list(b)}
+                 for i, (a, b) in enumerate(self.ENDS)]
+        return Level(self.write(level_doc(items)))
+
+    def test_reads_what_make_reads(self):
+        for item in self._lines():
+            with self.subTest(p1=item.p1, p2=item.p2):
+                line = self.made(item.make())
+                self.assertEqual(item.length, line.length)
+                self.assertAlmostEqual(item.angle, line.angle, places=9)   # -180, not 180
+
+    def test_rebuilds_the_line_in_another_model(self):
+        for item in self._lines():
+            with self.subTest(p1=item.p1, p2=item.p2):
+                drawn = self.made(item.make())
+                for line in (
+                    self.made(Line(p1=item.p1, angle=item.angle, length=item.length)),
+                    self.made(Line(center=item.center, length=item.length, angle=item.angle)),
+                ):
+                    for a, b in ((line.p1, drawn.p1), (line.p2, drawn.p2)):
+                        self.assertAlmostEqual(a.x, b.x, places=9)
+                        self.assertAlmostEqual(a.y, b.y, places=9)
+
+    def test_other_kinds_have_no_length(self):
+        lv = self.sample()
+        with self.assertRaisesRegex(AttributeError, "has no length. It has: .*width"):
+            lv["lago"].length
+        self.assertEqual(lv["laser"].angle, self.made(lv["laser"].make()).angle)
+
+
 class TestFormatErrors(LevelTestCase):
     def bad(self, doc, pattern):
         with self.assertRaisesRegex(LevelFormatError, pattern):

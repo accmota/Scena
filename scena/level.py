@@ -17,6 +17,7 @@ spellings. File format and editor: ``design/Editor Design.md``.
 from __future__ import annotations
 
 import json
+import math
 import os
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
@@ -34,7 +35,7 @@ _KIND_FIELDS = {
     "ellipse": ("box", "width", "height", "angle"),
     "concave": ("box", "width", "height", "angle", "scoop", "rim"),
     "circle": ("box", "radius"),
-    "line": ("p1", "p2"),
+    "line": ("p1", "p2", "length", "angle"),
     "polygon": ("points",),
     "regular_polygon": ("radius", "n", "angle"),
     "triangle": ("radius", "angle", "base_ratio"),
@@ -154,9 +155,26 @@ class LevelItem:
     @property
     def angle(self) -> float:
         """Angle in degrees, counter-clockwise (rect, ellipse, concave, image; regular_polygon:
-        toward its first vertex; triangle: toward its apex) — like ``Graphic.angle``."""
+        toward its first vertex; triangle: toward its apex) — like ``Graphic.angle``.
+        A line's is the direction ``p1 → p2``, as ``item.make().angle`` reads it
+        (``-180`` up to ``180``; ``0`` when the ends meet)."""
         self._need("angle")
+        if self.kind == "line":
+            from .shapes import _unwrap_deg
+            (x1, y1), (x2, y2) = self._item["p1"], self._item["p2"]
+            if x1 == x2 and y1 == y2:
+                return 0.0
+            return _unwrap_deg(math.degrees(math.atan2(y2 - y1, x2 - x1)), 0.0)
         return self._item["angle"]
+
+    @property
+    def length(self) -> float:
+        """Distance from ``p1`` to ``p2`` (line), as ``item.make().length`` reads it.
+        With ``angle``, it builds the line in another model:
+        ``Line(p1=item.p1, angle=item.angle, length=item.length)``."""
+        self._need("length")
+        (x1, y1), (x2, y2) = self._item["p1"], self._item["p2"]
+        return math.hypot(x2 - x1, y2 - y1)
 
     @property
     def radius(self) -> float:

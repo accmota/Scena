@@ -1360,6 +1360,7 @@ def _sample_level() -> str:
             {"kind": "point", "groups": ["estrela"], "center": [450, 240]},
             {"kind": "point", "name": "inicio", "center": [120, 70]},
             {"kind": "track", "name": "rota_drone", "points": [[900, 600], [1300, 600]]},
+            {"kind": "line", "name": "corda", "p1": [600, 500], "p2": [640, 380]},
             {"kind": "image", "name": "fundo", "file": "fundo.png",
              "center": [400, 300], "width": 800, "height": 600},
         ]

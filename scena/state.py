@@ -3573,7 +3573,8 @@ class Container():
         head = f"{who}.{name} is {source}, so {subject} cannot be {what}."
         build = ""
         if self._constructor_takes(name):
-            build = f"build the {prose} with {name}=: {who}(..., {name}=...)"
+            recipe = self._rebuild_recipe(name, var) or f"{who}(..., {name}=...)"
+            build = f"build the {prose} with {name}=: {recipe}"
         slot = self._field_slots().get(name)
         is_point = (
             isinstance(slot, ContainerSlot) and slot.container_class.__name__ == "Point"
@@ -3659,6 +3660,64 @@ class Container():
         names = [n for n in slots if n in defining and n != exclude]
         names += sorted(n for n in defining if n not in slots and n != exclude)
         return sorted(names, key=lambda n: not isinstance(slots.get(n), ContainerSlot))
+
+    # Keyword order of a rebuild recipe: placement, then extents, then the heading.
+    _RECIPE_ORDER = (
+        "center", "top_left", "vertex", "perimeter_point", "p1", "p2", "fp1", "fp2",
+        "vec", "dx", "dy", "width", "height", "length", "radius", "side", "major_axis",
+        "angle",
+    )
+
+    def _rebuild_recipe(self, name: str, var: str) -> Optional[str]:
+        """The constructor call that rebuilds this object as it is now with
+        ``name`` as an input — ``Rect(top_left=rect.top_left, width=rect.width,
+        height=rect.height, angle=rect.angle)`` — for a refusal message only.
+
+        Of the signatures that take ``name``, the one that keeps most of the
+        current model inputs wins, then one placed by ``center``, then the
+        fuller one (``angle=`` too: a turned spine stays turned), then table
+        order. A signature with a key that is not a field of this object
+        (``parallel_to=``, ``anchor=``) cannot be read back, so it is never
+        offered. ``_recipe_extras`` adds the keywords outside the signature a
+        copy needs (``n``, ``scoop`` …). ``None`` when nothing fits.
+        """
+        signatures = getattr(type(self), "_CONSTRUCTOR_SIGNATURES", None)
+        if not signatures:
+            return None
+        slots = self._field_slots()
+        current = set(getattr(self, '_defining_part_names', None) or ())
+        best, best_score = None, None
+        for _sig_name, keys in signatures:
+            if name not in keys or not all(k in slots for k in keys) \
+                    or not self._recipe_fits(keys):
+                continue
+            score = (len(keys & current), "center" in keys, len(keys))
+            if best_score is None or score > best_score:
+                best, best_score = keys, score
+        if best is None:
+            return None
+        order = self._RECIPE_ORDER
+        keys = sorted(best, key=lambda k: (order.index(k) if k in order else len(order), k))
+        args = [f"{k}={var}.{k}" for k in keys]
+        for extra in self._recipe_extras():
+            k, read = extra if isinstance(extra, tuple) else (extra, f"{var}.{extra}")
+            if k not in best:
+                args.append(f"{k}={read.format(var=var)}")
+        return f"{type(self).__name__}({', '.join(args)})"
+
+    def _recipe_extras(self) -> Tuple[Any, ...]:
+        """Constructor keywords outside the signature that a rebuild recipe
+        must carry to copy this object (``Concave.scoop``); kinds override.
+        A name reads ``var.name``; a ``(name, "len({var}.points)")`` pair
+        names how to read a keyword the object has no field for. Keywords at
+        their default are left out."""
+        return ()
+
+    def _recipe_fits(self, keys) -> bool:
+        """False for a signature whose keys mean other points on this object
+        than the constructor gives them (a spine's ``p1`` is on its axis, not
+        a corner); kinds override."""
+        return True
 
     def _constructor_takes(self, name: str) -> bool:
         """True when ``type(self)(…, name=…)`` is a constructor keyword."""

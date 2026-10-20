@@ -5182,6 +5182,17 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
     # angle/spread ride along on every model; they are not signature keys.
     _CTOR_EXTRA_KEYS = frozenset({"use_center", "angle", "spread"})
 
+    def _recipe_extras(self) -> Tuple[str, ...]:
+        """A rebuild recipe carries the heading and an arc's opening (refusal hint)."""
+        extras = []
+        if _bare_num(self.angle) != 0.0:
+            extras.append("angle")
+        if _bare_num(self.spread) < 360.0:
+            extras.append("spread")
+            if not self._use_center:      # default True: a pie slice
+                extras.append("use_center")
+        return tuple(extras)
+
     # Placed by its rim (``perimeter_point=`` / ``p1=, p2=``) the heading is
     # derived: ``angle`` is the direction to ``p1`` (_DerivedRotationRoute).
     _HEADING_FIELD = 'angle'
@@ -7802,6 +7813,11 @@ class RegularPolygon(_RadialPolygon):
     _CTOR_EXTRA_KEYS = frozenset({"n"})
     _HOME_SIZE_KEYS = frozenset({"radius", "angle", "n"})
 
+    def _recipe_extras(self) -> Tuple[Any, ...]:
+        """A rebuild recipe carries the side count (refusal hint); ``n`` is a
+        constructor keyword, not a field, so it is read off the vertices."""
+        return (("n", "len({var}.points)"),)
+
     @overload
     def __new__(cls, *, n: int = 6, center: Optional[GeneralPoint] = None, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'RegularPolygon': ...
 
@@ -8468,6 +8484,11 @@ class _RectBody(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
     ``_scale_gate_extras`` (``scale_by``, when ``_SCALES_EXTRAS``).
     """
 
+    def _recipe_fits(self, keys) -> bool:
+        """A spine's ``p1`` / ``p2`` sit on its axis; every other model that
+        takes them means corners (refusal hint)."""
+        return self.model is not RectModel.SPINE or not ({"p1", "p2"} & set(keys))
+
     p1 = ContainerSlot(Point)
     p2 = ContainerSlot(Point)
     top_left = ContainerSlot(Point)
@@ -9023,6 +9044,10 @@ class Rect(_RectBody):
 
     _CTOR_EXTRA_KEYS = frozenset({"corner_radius"})
 
+    def _recipe_extras(self) -> Tuple[str, ...]:
+        """A rebuild recipe carries rounded corners (refusal hint)."""
+        return ("corner_radius",) if self._corner_radius else ()
+
 
     @overload
     def __new__(cls, *, center: Optional[GeneralPoint] = None, layer: Any = None, group: Optional[Union[str, Sequence[str]]] = None, visual: Optional[LookLike] = None, color: Optional[ColorLike] = None, line_width: Optional[float] = None, box: Any = None) -> 'Rect': ...
@@ -9529,6 +9554,10 @@ class Concave(_RectBody):
     rim = ContainerSlot(_RimPair)
 
     _CTOR_EXTRA_KEYS = frozenset({"scoop", "rim"})
+
+    def _recipe_extras(self) -> Tuple[str, ...]:
+        """A rebuild recipe carries the scoop and its rim (refusal hint)."""
+        return ("scoop", "rim")
     _HOME_SIZE_KEYS = frozenset({"width", "height", "angle", "scoop", "rim"})
     _PART_NAMES = _RectBody._PART_NAMES + ('rim',)
     _SCALES_EXTRAS = True
@@ -9996,6 +10025,10 @@ class Triangle(_RadialPolygon):
     )
 
     _CTOR_EXTRA_KEYS = frozenset({"base_ratio"})
+
+    def _recipe_extras(self) -> Tuple[str, ...]:
+        """A rebuild recipe carries a non-equilateral base (refusal hint)."""
+        return ("base_ratio",) if _bare_num(self.base_ratio) != 1.0 else ()
     _HOME_SIZE_KEYS = frozenset({"radius", "angle", "base_ratio"})
     _PART_NAMES = _RadialPolygon._PART_NAMES + ('base_ratio',)
 

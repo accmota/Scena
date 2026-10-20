@@ -211,6 +211,21 @@ left out.
   The left toolbar now reads Polygon, Triangle, Regular polygon, Track,
   Concave, and the Polygon icon is an irregular outline (it looked like the
   Regular polygon tool's).
+- A level item in another model: `LevelItem.length` and `.angle` on a line
+  (the direction `p1 → p2`, as `item.make()` reads them), so a line drawn in
+  the editor becomes a pendulum fixed at `p1` in one line:
+  `Line(p1=item.p1, angle=item.angle, length=item.length)`. A rect already
+  had every named point on `item.box`
+  (`Rect(top_left=b.top_left, width=b.width, height=b.height, angle=b.angle)`).
+  The Guia's Level section shows the recipes. A shape in a constructor is
+  still its center as a point: `Rect(p1=bloco, …)` does not copy `bloco`.
+- A refusal on a computed field shows the constructor call that rebuilds the
+  shape with that field as an input, read from the shape. Before:
+  `… or build the rect with top_left=: Rect(..., top_left=...)`. Now:
+  `… or build the rect with top_left=: Rect(top_left=rect.top_left,
+  width=rect.width, height=rect.height, angle=rect.angle)`. It keeps the
+  shape's other inputs where it can, its heading, and what the copy needs
+  besides (`n`, `scoop` and `rim`, `base_ratio`, an arc's `spread`).
 - **Level editor:** Smooth (tracks) and Base ratio (triangles) are a slider
   with a number box beside it. Dragging redraws the shape as you go and is
   one undo step; typing a number works as before.

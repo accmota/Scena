@@ -348,5 +348,116 @@ class TestDerivedFieldMessages(unittest.TestCase):
                 self.assertFalse(landed, f"fixed: remove {kind} from KNOWN_BAD_HINT")
 
 
+
+class TestRebuildRecipe(unittest.TestCase):
+    """A refusal on a computed field names the constructor call that rebuilds
+    the shape as it is, with that field as an input (``Rect(top_left=
+    rect.top_left, width=rect.width, height=rect.height, angle=rect.angle)``).
+    Every recipe of every model and kind is run and must draw the same shape:
+    a recipe that drops the heading (a turned spine), the side count, the
+    scoop or an arc's opening fails here."""
+
+    PARAMS = (
+        None,
+        {"x": -40.0, "y": 25.0, "s": 1.7, "r": -130.0},
+        {"x": 12.0, "y": 8.0, "s": 0.6, "r": 205.0},
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        from hypothesis_support import boot
+        boot()
+
+    def _link(self, obj, name, part, src):
+        if part:
+            getattr(obj, name).__imatmul__(lambda: (src.x, src.y))
+        else:
+            obj[name].__imatmul__(lambda: src.x)
+
+    def _same(self, a, b, where):
+        import scena
+        from scena.shapes import Circle, Line
+        if isinstance(a, Line):
+            for n in ("p1", "p2"):
+                pa, pb = getattr(a, n), getattr(b, n)
+                self.assertAlmostEqual(pa.x, pb.x, places=6, msg=f"{where} {n}")
+                self.assertAlmostEqual(pa.y, pb.y, places=6, msg=f"{where} {n}")
+        if isinstance(a, Circle):
+            for n in ("radius", "spread"):
+                self.assertAlmostEqual(getattr(a, n), getattr(b, n), places=6, msg=f"{where} {n}")
+        if hasattr(a, "angle"):
+            turn = (float(a.angle) - float(b.angle)) % 360.0
+            self.assertAlmostEqual(min(turn, 360.0 - turn), 0.0, places=6, msg=f"{where} angle")
+        c = a.center
+        for i in range(24):
+            r = 6.0 + 9.0 * (i % 6)
+            th = math.radians(15.0 * i)
+            q = (c.x + r * math.cos(th), c.y + r * math.sin(th))
+            qa, qb = scena.closest_point(a, q), scena.closest_point(b, q)
+            self.assertAlmostEqual(qa[0], qb[0], places=6, msg=f"{where} closest {q}")
+            self.assertAlmostEqual(qa[1], qb[1], places=6, msg=f"{where} closest {q}")
+
+    def test_every_recipe_rebuilds_the_shape(self):
+        import re
+        import geometry_support as G
+        import scena
+        from scena.shapes import Point
+        from scena.state import ContainerSlot, ScalarSlot
+        src = Point(1, 2)
+        checked = set()
+        for params in self.PARAMS:
+            for kind in G.KINDS:
+                probe = G.build(kind, params)
+                if not hasattr(probe, "_field_slots") or kind.endswith("reversed"):
+                    continue
+                for name, slot in sorted(probe._field_slots().items()):
+                    if name == "angle" or not probe._field_is_derivate(name, slot):
+                        continue
+                    if not isinstance(slot, (ContainerSlot, ScalarSlot)):
+                        continue
+                    with self.subTest(kind=kind, field=name, params=params):
+                        obj = G.build(kind, params)
+                        try:
+                            self._link(obj, name, isinstance(slot, ContainerSlot), src)
+                        except DerivedAttributeError as e:
+                            msg = str(e)
+                        else:
+                            self.fail(f"{kind}.{name} @= did not raise")
+                        found = re.search(r"with (\w+)=: (\w+)\(([^()]*)\)", msg)
+                        if found is None or found.group(3) == "..., " + name + "=...":
+                            continue        # a kind without a readable signature (Box, Text)
+                        self.assertEqual(found.group(1), name)
+                        call = f"{found.group(2)}({found.group(3)})"
+                        var = re.search(r"=(\w+)\.", call).group(1)
+                        copy = eval(call, {var: obj, found.group(2): type(obj)})
+                        self.assertIs(type(copy), type(obj))
+                        self.assertIn(f"{name}={var}.{name}", call)
+                        self._same(obj, copy, f"{kind} / {call}")
+                        copy.destroy()
+                        checked.add((kind, name))
+        self.assertGreater(len(checked), 120)
+
+    def test_the_recipe_keeps_the_current_inputs(self):
+        """The pick: most current inputs kept, then a center placement, then
+        the fuller signature (a turned spine keeps ``angle=``)."""
+        from scena.shapes import Line, Rect
+        line = Line(p1=(0, 0), p2=(30, 40))
+        rect = Rect(center=(0, 0), width=40, height=10, angle=30)
+        spine = Rect(p1=(0, 0), p2=(30, 30), height=10, anchor="cap")
+        cases = (
+            (line, "length", "Line(p1=line.p1, length=line.length, angle=line.angle)"),
+            (line, "center", "Line(center=line.center, length=line.length, angle=line.angle)"),
+            (rect, "top_left", "Rect(top_left=rect.top_left, width=rect.width, "
+                               "height=rect.height, angle=rect.angle)"),
+            (rect, "p1", "Rect(p1=rect.p1, p2=rect.p2, angle=rect.angle)"),
+            (spine, "width", "Rect(center=rect.center, width=rect.width, "
+                             "height=rect.height, angle=rect.angle)"),
+        )
+        for obj, name, recipe in cases:
+            with self.subTest(field=name, recipe=recipe):
+                self.assertIn(f"with {name}=: {recipe}.", obj._derived_field_message(name, "link"))
+        for o in (line, rect, spine):
+            o.destroy()
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

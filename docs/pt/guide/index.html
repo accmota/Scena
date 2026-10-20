@@ -6774,7 +6774,7 @@ rota = fase["rota_drone"].points        # lista de Vec2 para move_along</pre>
 <tr><td>concave</td><td><code>.width</code> <code>.height</code> <code>.angle</code> <code>.scoop</code> (texto) <code>.rim</code> (Vec2)</td><td>Box orientado (a caixa)</td></tr>
 <tr><td>image</td><td><code>.image</code> (caminho absoluto) <code>.width</code> <code>.height</code> <code>.angle</code></td><td>Box orientado</td></tr>
 <tr><td>circle</td><td><code>.radius</code></td><td>o quadrado em volta</td></tr>
-<tr><td>line</td><td><code>.p1</code> <code>.p2</code> (Vec2)</td><td>não tem — levanta <code>AttributeError</code> com dica</td></tr>
+<tr><td>line</td><td><code>.p1</code> <code>.p2</code> (Vec2), <code>.length</code>, <code>.angle</code> (rumo de <code>p1</code> a <code>p2</code>; os dois como <code>item.make()</code> lê)</td><td>não tem — levanta <code>AttributeError</code> com dica</td></tr>
 <tr><td>regular_polygon</td><td><code>.radius</code> (centro ao vértice), <code>.n</code> (lados), <code>.angle</code> (rumo do vértice 0)</td><td>não tem</td></tr>
 <tr><td>triangle</td><td><code>.radius</code> (centro à ponta), <code>.angle</code> (rumo da ponta), <code>.base_ratio</code> (base / lado; 1 = equilátero)</td><td>não tem</td></tr>
 <tr><td>polygon · track</td><td><code>.points</code> (lista nova de Vec2); track também <code>.closed</code> e <code>.smooth</code> (0 = retas, 1 = curva; numa trilha suave os pontos são os de controle — <code>move_along(item.make())</code> segue a curva)</td><td>não tem</td></tr>
@@ -6783,6 +6783,19 @@ rota = fase["rota_drone"].points        # lista de Vec2 para move_along</pre>
         </table>
         </div>
       </details>
+      <p class="name-group">O item em outro modelo</p>
+      <p><code>make()</code> cria o shape no modelo do arquivo: o retângulo pelo centro (<code>center</code>, <code>width</code>, <code>height</code>, <code>angle</code>), a linha pelas pontas (<code>p1</code>, <code>p2</code>). O modelo decide o que o shape guarda e o que ele calcula. Num Rect pelo centro, <code>width = 300</code> cresce para os dois lados, e <code>top_left</code> é calculado: não aceita <code>=</code> nem <code>@=</code>. Para outro modelo, escreva o construtor com os números do item; o Box de <code>item.box</code> tem todos os pontos com nome.</p>
+      <div class="code-panel">
+        <button class="copy-btn" type="button">copiar</button>
+<pre>b = fase["elevador"].box
+porta = Rect(top_left=b.top_left, width=b.width, height=b.height, angle=b.angle)  # cresce a partir do canto
+ponte = Rect(p1=b.bottom_left, p2=b.top_right, angle=b.angle)    # por dois cantos (cópias)
+viga = Rect(p1=b.left_center, p2=b.right_center, height=b.height, anchor="cap")  # pelo eixo
+c = fase["corda"]
+corda = Line(p1=c.p1, angle=c.angle, length=c.length, group=c.groups)  # presa em p1: um pêndulo
+laser = Line(center=c.center, length=c.length, angle=c.angle)          # cresce pelo meio</pre>
+      </div>
+      <p>São cópias, como toda leitura da fase. <code>make()</code> põe o shape nos grupos do item; aqui, passe <code>group=item.groups</code>. Um côncavo leva também <code>scoop=item.scoop, rim=item.rim</code>. Para um shape que já existe vale o mesmo, lendo as partes dele (<code>Rect(top_left=r.top_left, width=r.width, height=r.height, angle=r.angle)</code>). A mensagem de erro de um campo calculado já mostra essa linha pronta.</p>
       <p class="name-group">O editor de fases</p>
       <p>O editor vem junto com o Scena (<code>pip install scena</code>). No terminal, qualquer uma das duas formas abre (ou cria) a fase: <code>scena-editor fase1.json</code> ou <code>python -m scena_editor fase1.json</code> — a segunda sempre funciona, porque usa o mesmo Python dos seus jogos.</p>
       <p>Um ícone para abrir o editor com dois cliques: rode uma vez <code>scena-editor --shortcut</code> (ou <code>python -m scena_editor --shortcut</code>). No Windows ele aparece no menu Iniciar e na área de trabalho; no macOS, em Aplicativos (<code>~/Applications</code>); no Linux, no menu de aplicativos. Se reinstalar o Python, rode de novo. Erros do editor ficam num arquivo de log, cujo caminho aparece na barra de status.</p>
@@ -6793,6 +6806,7 @@ rota = fase["rota_drone"].points        # lista de Vec2 para move_along</pre>
 <thead><tr><th>Parece</th><th>É</th><th>Não é</th></tr></thead>
 <tbody>
 <tr><td><code>item.make()</code> vs <code>item.box</code></td><td><code>make()</code> = o shape desenhado no editor. <code>.box</code> = a região, para outro uso (<code>Sprite("x.png", box=item.box)</code>, <code>confine</code>, grade). Dois propósitos, não duas grafias.</td><td><code>Level(...)</code> não cria nada sozinho; nem <code>level.group(...)</code>.</td></tr>
+<tr><td><code>Rect(p1=bloco, p2=…)</code></td><td>O <strong>centro</strong> de <code>bloco</code> como ponto: um shape no lugar de um ponto vale o centro dele.</td><td>Não copia o bloco em outro modelo. Leia as partes: <code>Rect(p1=bloco.p1, p2=bloco.p2, angle=bloco.angle)</code>.</td></tr>
 <tr><td>Grupos da fase</td><td>Rótulos do editor. <code>make()</code> os aplica ao shape, então <code>group["plataforma"]</code> encontra os blocos feitos assim.</td><td>Não são grupos vivos: <code>level.group("g")</code> lê o arquivo, não o registro.</td></tr>
 <tr><td>Números do editor</td><td>Os mesmos do código: unidades de design, y para cima, centro, giro anti-horário em graus.</td><td>Não há conversão. Mudar um valor lido (<code>item.center</code>) não muda a fase: são cópias.</td></tr>
 </tbody>
