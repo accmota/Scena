@@ -1385,7 +1385,7 @@
         </tbody>
       </table>
     </div>
-    <p class="gotcha">Problemas que não impedem o jogo — arquivo de som ou imagem que falta, nome de cor desconhecido — viram um <strong>SCENA WARNING</strong>, não uma exceção: o jogo continua (silêncio, um quadriculado no lugar da imagem; nome de cor quase certo vira a cor mais próxima, nome desconhecido vira magenta) e uma faixa âmbar no canto mostra o aviso. <kbd>Ctrl+Shift+E</kbd> fecha a faixa.</p>
+    <p class="gotcha">Problemas que não impedem o jogo — arquivo de som ou imagem que falta, nome de cor desconhecido — viram um <strong>SCENA WARNING</strong>, não uma exceção: o jogo continua (silêncio, um quadriculado no lugar da imagem; nome de cor quase certo vira a cor mais próxima, nome desconhecido vira magenta) e uma faixa âmbar no canto mostra o aviso. <kbd>Ctrl+Shift+E</kbd> fecha a faixa. Dois avisos falam do jogo, não de um erro: “mode … frozen for 2s with nothing pending” sai quando um mode fica parado sem nada para fazer (nem timer, nem tarefa, nem <code>on_update</code>); se ele só espera um clique ou já terminou o que tinha de fazer, está certo (para sair do mode, <code>self.mode = None</code>). “leak-detector: objects rising” sai quando o número de objetos sobe sem parar; num jogo em que a população cresce de propósito (ondas cada vez maiores), confira só que os objetos que saem são destruídos.</p>
   </section>
 
   <section class="section prose" id="outro-motor">
@@ -1410,6 +1410,8 @@
           <tr><td>“transmita mensagem” / “quando receber”</td><td>Chame a função. Ou conte: <code>st.ondas += 1</code> com <code>@on_change(st["ondas"])</code>, que compara uma vez por frame (duas escritas que voltam ao valor antigo no mesmo frame não disparam)</td></tr>
           <tr><td>“crie clone de mim”</td><td><code>obj.clone()</code>; veja o que a cópia leva na tabela de <code>clone</code></td></tr>
           <tr><td><code>x += vel * dt</code></td><td>Funciona. Ou <code>obj.vel = (vx, vy)</code>, e o Scena move a cada frame</td></tr>
+          <tr><td><code>self.vel = 200</code> (a rapidez, um número)</td><td><code>vel</code> é a velocidade 2D de todo ator: <code>self.vel = (200, 0)</code>, e o Scena move. Um número seu precisa de outro nome: <code>self.rapidez = 200</code></td></tr>
+          <tr><td><code>cooldown -= dt</code> … <code>if cooldown &lt;= 0: cooldown = 0.6</code></td><td>Funciona, mas joga fora o que passou de zero, e o ritmo muda com a taxa de quadros. <code>@every(0.6)</code> ou <code>ready("tiro", 0.6)</code> guardam o resto</td></tr>
         </tbody>
       </table>
     </div>
@@ -6328,6 +6330,7 @@ def pegou(heroi, moeda):
     <section class="section prose" id="mundo-grupos">
       <h2>Grupos</h2>
       <p class="one-liner">Um grupo é uma tag. Quem tem a tag está no grupo; <code>group["wasp"]</code> é uma vista viva desse conjunto — quem entrar depois aparece na próxima leitura.</p>
+      <p class="gotcha">Um nome que nenhum objeto usa é um grupo vazio, não um erro: depois de renomear uma tag num lugar só, <code>group["jogadas"].destroy()</code> não faz nada. Confira o nome (o Scena avisa quando o nome é quase o de um grupo que existe).</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>wasp = Sprite("x.png", group="wasp")   # entra no grupo "wasp"
@@ -8231,6 +8234,7 @@ async def diving(e):
     <section class="section prose" id="mode-task">
       <h2>tarefas</h2>
       <p class="one-liner">Uma <em>tarefa</em> é uma sequência <code>async def</code> que roda ao lado de tudo, sem ser um mode: <code>run_task(mostra)</code> roda <code>mostra()</code> até o primeiro <code>await</code> na hora e continua nos frames seguintes. Serve para um botão que dispara uma animação em passos, um power-up que dura uns segundos enquanto a nave troca de mode, uma contagem na tela.</p>
+      <p class="gotcha"><strong>Um laço com <code>await wait(p)</code> dá voltas de pelo menos <code>p</code> segundos</strong>, sempre num frame inteiro: <code>wait(0.02)</code> espera 2 frames a 60 Hz (0,033 s) e 3 a 144 Hz (0,021 s), então “ande 5 a cada 0,02 s” anda mais rápido em telas mais rápidas. Para velocidade, mova com <code>dt</code> no <code>update</code> (ou <code>on_update</code>) ou use <code>@every</code>, que guarda o resto entre as voltas.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>async def mostra():
@@ -9418,6 +9422,7 @@ def missed(star):
     <section class="section prose" id="colisao-collide">
       <h2>Detectar</h2>
       <p class="one-liner"><code>@collide</code> chama uma função sua quando dois objetos (ou grupos) se tocam. Diga quais dois — <code>@collide("bullet", "enemy")</code> — e escreva a função que reage: função no módulo, método da classe ou propriedade no objeto. As três formas têm as mesmas três fases: começou a tocar, continua tocando, deixou de tocar.</p>
+      <p class="gotcha"><strong>Encostar conta.</strong> Dois objetos que dividem uma borda já se tocam (é o que mantém um objeto apoiado no chão “tocando”). Numa grade de células do mesmo tamanho (cobra, Tetris, ligue 3), a cabeça encosta no pescoço logo no começo: faça cada célula 1 ou 2 unidades menor que o passo da grade.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>@collide("bullet", "enemy")

@@ -1314,6 +1314,14 @@ estimate low. A 1.0 candidate needs two rounds in a row with:
 | BUG findings in law-governed areas (frame, lifetime, contacts, input, timers) | 0 |
 | Remaining BUG estimate | below 5 |
 
+**Round 1 (2026-10-19 / 20).** Commit b5054b0; A (Opus) 44 probes, B
+(Sonnet) 40. BUG: A 2 (limit 4), B 0 (limit 3); law-governed BUG 0;
+remaining BUG estimate 0 (no overlap on two captures: no information).
+Round 1 meets the table, the first of two. Broad estimate (BUG, ERROR,
+DOC, DECISION): n₁ = 13, n₂ = 10, m = 2, N̂ ≈ 50, about 29 unfound. The
+runner's own errors were fixed before round 2 (`test_laws_probe`), and the
+fixes landed after both campaigns were triaged ([PP](#pp--persona-probes-round-1-2026-10-20)).
+
 
 # Test tiers
 
@@ -2415,6 +2423,40 @@ contacts after a design session), CD4 (today's rule), CD5 (a message);
    synthetic case for each direction.
 
 
+
+## What the persona probes taught (2026-10-20)
+
+Round 1 ([Persona probes](#persona-probes), [PP](#pp--persona-probes-round-1-2026-10-20)):
+84 blind probes found 2 BUGs, 10 messages, 1 DOC and 8 decisions, and no
+law-model or E11 finding. Five lessons:
+
+1. **The bugs were in the author-facing surface, not the engine's core.**
+   Every instrument before this one asked whether the engine does what it
+   says; personas asked whether an author can tell what it says. Ten of
+   21 findings were messages or silent no-ops (a name nobody calls, a
+   `while` with no word), and both BUGs were value semantics (`==` on a
+   colour, a field that read as its cell). Both bug classes are now guarded:
+   a value type with identity `==`, and engine code reading a slot by its
+   descriptor.
+2. **Write the second try.** A message is tested by the author's next
+   attempt from the message alone: 33 second tries found that `clock.tick`,
+   `Destroy(x, t)` and `transform` messages led nowhere, while the
+   `DestroyedError` one led straight to the fix.
+3. **A runner is an observer with bugs of its own.** Five runner errors
+   (a drag a frame late, a shared save file, a missing key name, modifier
+   bits never set, a cut stack) produced E1 and CHECK flags before any
+   engine finding. The fixes landed first, each with its test failing on the
+   old runner (`test_laws_probe`).
+4. **Blind, two models, overlap small.** A and B shared 2 of 21 findings.
+   The broad estimate (Chapman, all real verdicts) is about 50, so about 29
+   message and rule defects remain unfound. The BUG estimate (2 + 0, no
+   overlap) carries no information. Two campaigns that share so little
+   say the surface is wide, not that the engine is clean.
+5. **Personas probe habits, not features.** The refugee's `self.vel = speed`
+   (three probes), `cooldown -= dt` timers, `Update` hooks and the copy-
+   paster's renamed `run` came from habit, and the Guia's "De outro motor"
+   table now answers them before they become messages.
+
 ## What the Vec2 battery taught (2026-10-17)
 
 1. **A link is two doors: the install and every later pull.** SV10's matrix
@@ -2494,6 +2536,7 @@ one, or a rare combination.
 | Laws, S0–S6 | 2026-10-14 / 15 | laws model, equations | LW 9 | 3 (LW2, LW5, LW8) | LW7, LW6 (both applied) | LW3, LW4 academic; LW1, LW9 harness; the instruments' own errors outnumbered the engine's (lessons 1, 2) | resolve: Breakout, a taught game (LW2, LW7, LW8); input: a plausible pattern (LW5) |
 | Laws S7, chaos doors | 2026-10-15 / 16 | a command injected at every door; directed cells | CD 5, CD3 3 | 3 (CD1, CD2, CD3 with CD3-x, CD3-b) | CD4 (today's rule), CD5 (message) | about six instrument fixes, then C5's key at the merge (lesson 7) | seams: hover × park, act change × dispatch, rule × contact; rare combinations, except CD3 (plausible: a shield gained while touching). Random single faults at sampled doors found none |
 | Vec2 battery | 2026-10-17 | kind × door × operand × context × read with a generic oracle; algebra properties; twins; holder machine; static guards. Mutation sample of `scenamath` (60 sites the battery runs): 45 killed by the battery alone, 1 more after adding the `/` identities, the other 14 equivalent or message-only | VB 16 | 7 (VB1, VB2, VB3 a/b/c, VB5, VB13, VB14, VB16) | VB4, VB6, VB7, VB9, VB10 decided and applied (2026-10-17); VB15 messages (fixed) | the first oracle asked for floats where the contract allows ints (lesson 4); five harness slips (a cell given a tuple, a closure rebinding `v` with `@=`, a formula naming no source) | holders: `st.start = st.pos` (a plausible save-the-spawn pattern) and a linked vector in an ink field (plausible); arithmetic and messages: rare operands |
+| Persona probes, round 1 | 2026-10-19 / 20 | two blind campaigns on one frozen commit (b5054b0): A, Opus, beginner + Scratch kid, 44 probes + 14 second tries; B, Sonnet, Unity / Pygame refugee + copy-paster + hobbyist, 40 probes + 19 second tries; the probe runner (stated checks, errors, laws model, E1 at 30 / 60 / 144 Hz, 22 hand mirrors for E11) | PP 22 | 2 (PP1 `Color` identity `==`, PP2 `Text.text` a stale cell) | 10 messages fixed (PP4–PP12, PP13 DOC); decisions PP3, PP17, PP18 applied, PP14–PP16, PP19, PP20 kept with a Guia note, PP21 kept | the runner's own: 5 (a drag released a frame late, a save file shared between rates, `SHIFT` not a key, Ctrl / Cmd modifier bits never set, a HANG flag that cut the author frame) | the author-facing surface: messages and silently ignored names (other engines' hooks, a top-level `on_click`, `run` as a callback), value semantics (`==` on colours, a field that read as its cell); all plausible patterns (a memory game, a HUD, a rebuilt board, Unity habits). Laws model and E11: no finding |
 
 **Reading it.** A falling yield across *different* instruments says the
 shallow bugs are gone, not that no deep ones remain: each new kind of
@@ -3409,6 +3452,37 @@ mechanism; DECISION rows wait for the author-facing call.
 | VB14 | `abs_angle_to` read 1.2e-6° between a vector and itself, while `angle_to` read 0 | `v = Vec2(971385, 511321); v.abs_angle_to(v)` | `acos(dot / (‖a‖ ‖b‖))` is ill-conditioned near 0 and 180 | No property compared the two | `abs_angle_to` is `atan2(abs(cross), dot)`: one formula with `angle_to`. Guard: `test_angle_to` (`abs(angle_to) == abs_angle_to`) |
 | VB15 | Messages. `ship.vel << (nan, 0)` says "a point takes…"; `dead.vel = (5, 5)` says "Circle.set cannot change…"; a dead `vel += (inf, 0)` raises the finite `ValueError` before `DestroyedError` | `dead.vel = (5, 5)` | `_finite_xy` speaks for points; the dead route's setter passes `"set"`; `_store_xy` reached the finite check before the x write's dead check, and `+=`'s operand errors and `do_rotation`'s angle check come before it too | Nothing read a refusal's words on these doors | `<<` refuses NaN / inf in a vector's words (`_vec_overflow_message`; every vector since VB4, a part before); `_DeadRoute.get` gives a `_DeadSetter` carrying the name; `_refuse_if_dead` runs first on every refusal branch of `+=`, `-=`, `do_rotation` and `_store_xy` (a living finite store pays nothing). Guard: `test_vb15_…` (every op × warm / cold cache; a sweep of routed names) |
 | VB16 | Inside an `@on_change` / `@when` callback, `v += w`, `v -= w` and `v.do_rotation(a)` left a `length` / `angle` already read stale on every vector off the graph (free, arithmetic result, an st cell's or ink field's vector): `v.length` read the value from before the op | `v = Vec2(1, 2); v.length`; in a callback `v += (3, 4); v.length` → 2.236 | In a flush the batch exit skips `update()` and marks the vector dirty by node id (`mark_dirty(self._node_id)`); off the graph that id is None, so nothing was marked | The quick tier's 2-wise array covered every pair of (kind, context, read), never the triple (free, callback, warm); the gate's full product found it | Off the graph, the batch exit syncs the computed fields (`_sync_computed`). Guard: `test_every_context_one_operand` (every kind × door × context × read, quick), `test_vb16_…` |
+
+### PP — persona probes, round 1 (2026-10-20)
+
+Found by the [persona probes](#persona-probes) (two blind campaigns on
+b5054b0; merged by mechanism: A and B shared PP3 and PP4). Fixed on main
+after both campaigns were triaged (0aa24d4, 6e4cfaa, 4bf362d, 6c10428).
+
+| ID | Finding | Repro | Cause | Why tests missed it | Fix / guard |
+| --- | --- | --- | --- | --- | --- |
+| PP1 | BUG. `Color` had identity `==`: `Color("red") == Color("red")` False, `c.color == "red"` False; a memory game or a shop comparing colours never matched; `print(c.color)` showed an address | `card.color == Color("red")` | No `__eq__` / `__hash__` / `__repr__` on an "immutable RGBA" value | Every test compared `.rgb` tuples | Value equality and hash at the name table's precision (3 decimals), the other side any `color=` spelling, a near typo warns once, repr = str. `test_color.TestColorEquality` |
+| PP2 | BUG. `Text.text` was the cell: `t.text.endswith("1")` False in the frame `t.text == "Pontos 1"` was True; not hashable, not joinable | `t["text"] @= lambda: f"Pontos {st.p}"`; `st.p += 1`; `t.text.endswith("1")` | `ContainerSlot(Attribute)`; `Attribute.__getattr__` read `_raw_value` (stale until `.value`) | A test pinned `isinstance(hud.text, Attribute)`; reads always went through `==` | `ValueSlot`: `t.text` reads a str (`TextValue`, old spellings raise with the bracket fix; Breaking); `slot.cell()` for the engine; cell methods read fresh. `test_text.TestTextReadsAsStr`, `TestCellMethodsReadFresh`, class guard `TestEngineReachesCellsThroughTheSlot` |
+| PP3 | DECISION, applied. `@click(group["x"])` wired the members of the moment; `@collide` on the same tag follows it, so a rebuilt board and an act's own objects were dead | top-level `@click(group["bichos"])`, members made in `Act.setup` | `_collect_targets` snapshot | Tests decorated after making the members | Tag rules (`interaction._TAG_RULES`, registry hook, act scope). `test_shape_interaction.TestGroupDecoratorsFollowTheTag`, `test_act.TestPointerTagRulesLeaveWithTheAct` |
+| PP4 | ERROR. An unknown read gave Python's bare words, or `Did you mean: '_tick'?` | `chave.hide()`, `bola.transform`, `clock.tick(60)` | `_ink_read_slow` raised plain; Clock had no `__getattr__` | Writes had near-miss hints; reads none | `_UnknownRead` (lazy), `_FOREIGN_READS`, `Clock._FOREIGN`. `test_read_hints` |
+| PP5 | ERROR. Shape `.alpha` refused without `set_alpha`, inviting an ignored own field | `circle.alpha = 0.5` | Generic reserved-name tail | Message tests checked the family only | `_OTHER_KIND_API`. `test_read_hints.TestEntityReads.test_a_field_another_kind_owns` |
+| PP6 | ERROR. `move_to(1, 200, 100)` (Scratch's glide) gave "takes from 1 to 3 positional arguments", counting `self` | as written | Python's arity check runs first | — | `*extra` on the six pose verbs and the timed wrapper, `_time_by_name`. `test_read_hints.TestPositionalTime` |
+| PP7 | ERROR. A `while` in `update` froze the window, no message | `while not keyp("SPACE"): pass` | Sync line watchdog off by default (cost) | The Actors Design row said the watchdog skips `update` | `scena/stall.py` (frame stamp + thread). `test_stall` |
+| PP8 | ERROR. A script with no `run()` exited silently | no `run()` line | Nothing checks | — | `stall.note_script_import` (atexit). `test_stall.TestEndedWithoutRun` |
+| PP9 | ERROR. A top-level `def on_click(x, y)` was never called, silently | as written | Only exact top-level names are hooks | — | `_top_level_near_misses` at `run()`. `test_class_hook_names.TestTopLevelNearMisses` |
+| PP10 | ERROR. Unity hooks in a class (`Update`, `OnTriggerEnter2D`) were helpers to the check | `class Hero(Circle): def Update(self, dt)` | The foreign table was snake_case only | — | `_FOREIGN_ENGINE_HOOKS` (Breaking for a helper so named). `test_class_hook_names.TestOtherEnginesHookNames` |
+| PP11 | ERROR. `TextInput(on_submit=run)` said "Write run(bola)" | a renamed snippet function | The act check ran first | — | `run()` refuses inside the game first. `test_act.TestRunInsideTheGame` |
+| PP12 | ERROR. Several wrong hook names cost a run each | `update` + `on_key_down` in one act | The check raised on the first | — | One error, every name, its line. `test_class_hook_names.TestEveryOffenderAtOnce` |
+| PP13 | DOC. `@on_change` compares once per flush; the Guia said "every time the value changes" | `st.msg = ""; st.msg = "go"` | By design (F1 / F3) | Untested promise | Guia note; `test_reactive_edge_cases.TestOnChangeComparesOncePerFrame` in `FRAME_PROMISES` |
+| PP14 | DECISION, kept. Equal cells edge to edge touch (a snake's head and neck on frame 1) | two 30-wide Rects 30 apart | Strict AABB test; resting contact needs it | — | Guia note (Colisão: make grid cells 1–2 units smaller) |
+| PP15 | DECISION, kept. A bulk op on a tag nobody joined is a silent no-op | rename a tag in one place | Any name is a valid empty group | — | Guia note (Grupos); the near-name warning already exists |
+| PP16 | DECISION, kept. `await wait(p)` in a loop runs at least `p` apart, frame-rate dependent (law T2) | Scratch "forever: move; wait 0.02" | `wait` starts at the next tick on a whole frame | — | Guia note (Tarefas): `dt` or `@every` for speed |
+| PP17 | DECISION, applied. CSS names went to the nearest name or magenta | `"beige"`, `"midnight blue"` | Short table | SR4's literal scan covers the repo only | CSS base names; Guia swatches held to the table (`test_color.TestCssNames`) |
+| PP18 | DECISION, applied. A formula reading inside a container in `st` misses in-place changes | `f"Gemas {st.inv['gemas']}"`; `st.inv["gemas"] += 1` | One object per cell | Documented only | Link-time warning (`formula_check._warn_container_read`). `test_formula_functions.TestContainerItemLinks` |
+| PP19 | DECISION, kept. The frozen-mode warning fires for a rest mode waiting for a click and for a director whose body ended | a card in `fechada` waiting for `on_click` | Idle = nothing pending (AC7) | — | Guia note (the warning explained) |
+| PP20 | DECISION, kept. The leak detector warns on legitimate spawn ramps, repeatedly | survivors-style ramp, cap + destroy | A climb heuristic; wall-time samples | Harness runs faster than real time (over-counts) | Guia note. `set_leak_detector` is not exported |
+| PP21 | DECISION, kept. Formula refusals of a `for` helper and `len(group)` | idle-game number format | Link-time static reads (by design) | — | Messages name the fix; kept |
+| PP22 | ACADEMIC. A grazing rotating contact flickers at one rate; author timers drop their remainder | — | Per-frame rotation sampling; author code | — | None (Guia row on `cooldown -= dt`) |
 
 ### DV — a destroyed actor refuses first (2026-10-17)
 
