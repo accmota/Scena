@@ -118,6 +118,16 @@ left out.
   raises with the fix (another name, or cancel the game's task first)
   instead of ending it for good; a game *timer* with that name still pauses
   for the act and comes back at the change.
+- A panel of what is running: **Ctrl+Shift+6** or `show_processes()`. One
+  row per task (`run_task`, an async mode's body) with what it awaits
+  (`wait 0.3s left`, `move_to 0.6s left`, `until 4.1s`, `parallel 1/3 done`),
+  for how long, and the line of the `await`; then one row per mode (`sync`
+  for a `def`, with `mode_time` and its timers). Alike rows fold
+  (`Wasp x12`). A task that waits 5 s or more on an `until` shows **SLOW**:
+  before, a task stuck on an `until` that could no longer come true gave no
+  sign at all. A second Ctrl+Shift+6 adds the timers outside any mode or
+  task; the Ctrl+Shift+1 HUD counts tasks (`tasks: 3 (1 slow)`). Off, it
+  costs nothing.
 - An async function called without `await` says so where it happens. Before,
   `self.flash()` written for `async def flash(self)` ran nothing and Python
   printed `coroutine 'Ship.flash' was never awaited`, often at a later line.

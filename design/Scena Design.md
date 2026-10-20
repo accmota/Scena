@@ -756,6 +756,7 @@ Do not read this appendix as a license to open the whole cluster.
 | `SpriteButton` | `sprite_button.py` | `orchestration.py` (press), `canvas.py` (solo draw) | [Sprite Design.md](Sprite%20Design.md#spritebutton) |
 | `@=` / Attribute / pull graph | `state.py` | — | [Reactive Design.md](Reactive%20Design.md) |
 | `@=` formula source reading (cache, named functions, refusals) | `formula_check.py` | `state.py` (`FormulaLink._extract_sources`) | [Reactive Design.md](Reactive%20Design.md#formula-visibility-named-functions-helpers-refusals) |
+| Process overlay (Ctrl+Shift+6, `show_processes`) | `process_overlay.py` | `orchestration.py` (chord, draw after the cover), `process.py` (`Script.waiting_since`) | [Actors Design.md — Process overlay](Actors%20Design.md#process-overlay) |
 | `after` / `every` / tween / modes / `run_task` / `ready` / `recently` | `process.py` | `easing.py` (`ease=`, `remap`, `lerp`, `chase`, `approach`, `deadzone`) | [Actors Design.md](Actors%20Design.md) |
 | `play_sound` / `Sound` / `audio` | `audio.py` | `audio_mixer.py` | [Sound Design.md](Sound%20Design.md) |
 | Microphone | `audio_capture.py` | `audio.py` | [Sound Design.md](Sound%20Design.md) |
@@ -826,7 +827,7 @@ Same names as [Subsystems](#subsystems). Open the cluster only when the change s
 - **Graphics:** `shapes.py`, `box.py`, `confine.py`, `track.py`, `history.py`, `curves.py`, `geom.py`, `sprite.py`, `hitbox.py`, `atlas.py`, `text.py`, `style.py`, `color.py`, `gradient_presets.py`, `level.py`, `level_format.py` → [Shapes Design.md](Shapes%20Design.md), [Tracks Design.md](Tracks%20Design.md), [History Design.md](History%20Design.md), [Sprite Design.md](Sprite%20Design.md), [Box Design.md](Box%20Design.md), [Editor Design.md](Editor%20Design.md)
 - **Collision:** `collision.py` → [Collision Design.md](Collision%20Design.md)
 - **Bounds:** `bounds.py` → [Canvas Design.md](Canvas%20Design.md), [Box Design.md](Box%20Design.md)
-- **Scheduler:** `process.py`, `events.py`, `easing.py` → [Actors Design.md](Actors%20Design.md), [Reactive Design.md](Reactive%20Design.md)
+- **Scheduler:** `process.py`, `process_overlay.py`, `events.py`, `easing.py` → [Actors Design.md](Actors%20Design.md), [Reactive Design.md](Reactive%20Design.md)
 - **Audio:** `audio.py`, `audio_mixer.py`, `audio_capture.py`, `audio_effects.py` → [Sound Design.md](Sound%20Design.md)
 - **Input / HUD:** `input.py`, `interaction.py`, `uiwidget.py`
 - **Looks:** `filters.py`, `visuals.py`, `recipes.py`, `stamps.py`, `validate.py`, `transients.py`
@@ -890,6 +891,7 @@ Current baseline — not a freeze.
 | Sprite `hitbox_shape="auto"` | **Implemented** — frozen reference-set bake; `"rect"` / `"ellipse"` / `"circle"` / `"hull"`; `source` (`"clip"`, `"all"` = registered clips, tuple of clips) / numeric `hitbox_anchor` / per-axis `hitbox_scale`; kind lock under `"auto"` + `"each"` / `"clip"`; extra detect-only colliders via `add_hitbox` (hitbox parts; follow paint incl. tilt; `Track(sprite)` stays an outline, `.silhouette` removed); round 2 (2026-09-28): hand-placed `px_rect` / `px_circle` parts, `sprite.showing()`, and a linked `hb["active"] @=` — [Sprite Design.md](Sprite%20Design.md#hitbox-parts); tests: `tests/test_hitbox_parts.py`, `tests/test_hitbox_round2.py` |
 | Sprite spawn / `Graphic.clone` | **Implemented** — [Sprite Design.md](Sprite%20Design.md) |
 | Tracks / `move_along` | **Implemented** — [Tracks Design.md](Tracks%20Design.md); tests: `tests/test_track.py` |
+| Process overlay (tasks, modes, loose timers; Ctrl+Shift+6, `show_processes`) | **Implemented (2026-10-20)** — [Actors Design.md — Process overlay](Actors%20Design.md#process-overlay); tests: `tests/test_process_overlay.py` |
 | `speed=` on timed pose verbs (rate instead of duration) | **Implemented (2026-10-13)** — `move_to` / `move_by` / `move_along` / `rotate_to` / `rotate_by` / `reset_rotation` and camera `pan_to` / `pan_by`; duration = distance ÷ speed read once at the call, then the same tween as `time=`; `time=` + `speed=` raises; `move_along` needs one of the two; scale / zoom / `tween` refuse it — [Actors Design.md — Rate instead of duration](Actors%20Design.md#rate-instead-of-duration-speed); tests: `tests/test_timed_speed.py` |
 | History / Contrail | **Implemented** — [History Design.md](History%20Design.md); tests: `tests/test_history.py`; smoke: `scripts/smoke/history.py` |
 | Audio / `play_sound` | **Implemented** — [Sound Design.md](Sound%20Design.md); tests: `tests/test_audio.py` |

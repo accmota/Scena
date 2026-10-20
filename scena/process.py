@@ -1593,7 +1593,7 @@ class Script:
 
     __slots__ = (
         "coro", "owner", "kind", "done", "cancelled", "waiting_on", "silent",
-        "_created_awaits", "handle",
+        "_created_awaits", "handle", "waiting_since",
     )
 
     def __init__(self, coro, owner, *, kind: str = "mode", handle: Optional[Handle] = None):
@@ -1604,6 +1604,9 @@ class Script:
         self.cancelled = False
         self.waiting_on: Optional[Handle] = None
         self.silent = False
+        # The task's ``_elapsed`` when it reached its current await: how long
+        # it has waited there (the process overlay; ``until`` has no clock).
+        self.waiting_since = 0.0
         self._created_awaits: List[Handle] = []
         self.handle = handle
 
@@ -1747,6 +1750,8 @@ class Script:
             self._abort()
             raise
         self.waiting_on = yielded
+        if handle is not None:
+            self.waiting_since = handle._elapsed
 
     # The rare endings of ``_advance``, out of line: ``_advance`` is on the
     # stack whenever the watchdog turns its events on, and every function on

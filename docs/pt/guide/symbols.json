@@ -8470,6 +8470,20 @@
       "params": []
     },
     {
+      "name": "show_processes",
+      "kind": "function",
+      "chapter": "atalhos",
+      "section": "debug-metodos",
+      "anchor": "debug-metodos",
+      "oneLiner": "Debug: painel das tarefas e modes em andamento (Ctrl+Shift+6).",
+      "public": true,
+      "chapterTitle": "Debug",
+      "sectionTitle": "Métodos",
+      "search": "show_processes",
+      "catalog": false,
+      "params": []
+    },
+    {
       "name": "collision.show_colliders",
       "kind": "method",
       "chapter": "atalhos",

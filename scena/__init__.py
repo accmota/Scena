@@ -103,6 +103,7 @@ from .shapes import (
 from .box import Box, Grid
 from .geom import intersections, intersection, closest_point
 from .track import Track, show_tracks
+from .process_overlay import show_processes
 from .history import History, Contrail
 from .sprite import Sprite, Sheet, Svg, AUTO_GROUND
 from .sprite_button import SpriteButton
@@ -133,6 +134,7 @@ FRAMEWORK_EXPORTS = [
     'play_sound', 'Sound', 'audio', 'amp_db',
     'Microphone', 'LowPass', 'HighPass', 'Echo', 'Reverb', 'Distortion', 'Wavefold',
     'show_tracks',
+    'show_processes',
 ]
 
 STATE_EXPORTS = [

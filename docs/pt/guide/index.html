@@ -1335,7 +1335,7 @@
 
   <a href="#atalhos" class="nav-top" data-chapter="atalhos" data-search="debug atalhos ctrl shift hud fps fullscreen maximized stage warning tela cheia show_colliders show_tracks overlay colisores hitbox trilhas">Debug</a>
   <div class="nav-block" data-nav="atalhos">
-    <a href="#debug-metodos" class="nav-child" data-chapter="atalhos" data-search="show_colliders show_tracks overlay colisores hitbox trilhas debug métodos">Métodos</a>
+    <a href="#debug-metodos" class="nav-child" data-chapter="atalhos" data-search="show_colliders show_tracks show_processes overlay colisores hitbox trilhas processos tarefas modes debug métodos">Métodos</a>
     <a href="#atalhos-teclado" class="nav-child" data-chapter="atalhos" data-search="atalhos ctrl shift teclado hud fps fullscreen maximized tela cheia">Atalhos de teclado</a>
   </div>
 </nav>
@@ -8185,6 +8185,7 @@ class Nave(Sprite):
       </details>
       <p class="gotcha"><strong><code>run_task(mostra())</code> com parênteses é <code>TypeError</code>.</strong> Passe a função; para argumentos, <code>run_task(lambda: mostra(caixa, 2))</code>. Uma função <code>def</code> comum também é recusada (chame-a direto ou use <code>after</code>), e um mode (<code>@on_mode</code>) também: entre nele com <code>self.mode =</code>.</p>
       <p class="gotcha"><strong>Quando o que a tarefa espera é cancelado por fora, ela para e o Scena avisa o motivo</strong> — o objeto que se movia foi destruído, outro movimento pegou a mesma propriedade. Se isso é esperado, <code>try: … except Cancelled:</code> em volta do <code>await</code>; para a tarefa acabar junto com o objeto, comece-a nele: <code>caixa.run_task(mostra)</code>. O cancelamento da própria tarefa (dono destruído, <code>name=</code>, <code>h.cancel()</code>) é silencioso.</p>
+      <p class="gotcha"><strong>Uma tarefa que espera um <code>until</code> que nunca fica verdadeiro não avisa nada</strong> — o jogo segue e a sequência simplesmente não continua. Para ver o que cada tarefa e cada mode está esperando, há quanto tempo e em que linha: <kbd>Ctrl+Shift+6</kbd> ou <a href="#debug-metodos"><code>show_processes()</code></a>. Uma espera de 5 s ou mais num <code>until</code> aparece como <strong>SLOW</strong>.</p>
     </section>
 
     <section class="section prose" id="mode-cancela">
@@ -11032,7 +11033,7 @@ canvas.pan_to(chase(look, (tx, ty), rate=6.0))</pre>
     <h1>Debug</h1>
     <p class="lede">Ferramentas de depuração em execução: métodos de overlay e atalhos de teclado. Não são API de lógica de jogo — nada aqui participa de <code>@collide</code>, <code>resolve</code> ou do resultado do jogo.</p>
     <p class="which">
-      show_colliders / show_tracks → <a href="#debug-metodos">Métodos</a><br>
+      show_colliders / show_tracks / show_processes → <a href="#debug-metodos">Métodos</a><br>
       HUD / overlay / pausa / tela cheia → <a href="#atalhos-teclado">Atalhos de teclado</a>
     </p>
   </header>
@@ -11043,7 +11044,8 @@ canvas.pan_to(chase(look, (tx, ty), rate=6.0))</pre>
     <div class="code-panel">
       <button class="copy-btn" type="button">copiar</button>
 <pre>collision.show_colliders(enabled=True)
-show_tracks(enabled=True)</pre>
+show_tracks(enabled=True)
+show_processes(enabled=True)</pre>
     </div>
     <details class="spec" open>
       <summary>Neste Debug</summary>
@@ -11055,6 +11057,7 @@ show_tracks(enabled=True)</pre>
           <tbody>
 <tr><td><code>collision.show_colliders(enabled=True)</code></td><td class="sig"><span class="params">Parâmetros: enabled (ligado, True/False)</span></td><td>—</td><td>Desenha hitbox inscrito (dourado = <code>resolve</code>; ciano = parte <code>add_hitbox</code>; verde = só detecção). O retângulo de quem anda (dourado) e as partes (ciano) aparecem juntos. <kbd>Ctrl+Shift+7</kbd>. Consultas: <a href="#colisao-aux">Consultas</a>. Quem entra no sistema: <a href="#colisao-corpo">O que colide</a>.</td></tr>
 <tr><td><code>show_tracks(enabled=True)</code></td><td class="sig"><span class="params">Parâmetros: enabled (ligado, True/False)</span></td><td>—</td><td>Overlay magenta das viagens ativas de <code>move_along</code> e dos Tracks parados numa camada. <strong>Não</strong> liga <code>Track.visible</code>. Também <code>collision.show_tracks</code> (mesmo método, outro nome). <kbd>Ctrl+Shift+7</kbd> (o zoom de inspeção do <kbd>Ctrl+Shift+8</kbd> não mostra as trilhas). Desligado: zero trabalho extra no frame. Ver <a href="#shape-track">Track</a>.</td></tr>
+<tr><td><code>show_processes(enabled=True)</code></td><td class="sig"><span class="params">Parâmetros: enabled (ligado, True/False)</span></td><td>—</td><td>Painel no canto de cima à direita com o que está rodando. Uma linha por tarefa (<code>run_task</code>, o corpo de um mode <code>async</code>): dono (a classe; <code>act</code> / <code>game</code> sem dono; <code>(parked)</code> / <code>(time 0)</code> quando o dono está parado), função, tipo, idade, o que espera (<code>wait 0.3s left</code>, <code>move_to 0.6s left</code>, <code>until 4.1s</code>, <code>parallel 1/3 done</code>, <code>race of 3</code>), a linha do <code>await</code> (também dentro de uma função auxiliar) e quanto trabalho ela possui (<code>+2 work</code>). Uma tarefa iniciada por outra fica recuada embaixo dela. Depois, uma linha por mode (<code>sync</code> = <code>def</code>; com <code>mode_time</code> e os timers do mode). Linhas iguais viram uma só: <code>Wasp x12</code>. Uma espera de 5 s ou mais num <code>until</code> / <code>until_empty</code> (ou um <code>race</code> / <code>parallel</code> sem relógio) fica âmbar, <strong>SLOW</strong> — só no painel, nunca um aviso: esperar uma tecla na tela de título é normal. <kbd>Ctrl+Shift+6</kbd> (o segundo toque mostra também os timers soltos). Desligado: zero trabalho extra no frame. Ver <a href="#mode-task">tarefas</a>.</td></tr>
           </tbody>
         </table>
       </div>
@@ -11070,10 +11073,11 @@ show_tracks(enabled=True)</pre>
           <tr><th>Atalho</th><th>Faz</th></tr>
         </thead>
         <tbody>
-          <tr><td><kbd>Ctrl+Shift+1</kbd></td><td>Liga / desliga o HUD de sistema (FPS, objs, mouse <code>xy</code> no mundo). Começa desligado.</td></tr>
+          <tr><td><kbd>Ctrl+Shift+1</kbd></td><td>Liga / desliga o HUD de sistema (FPS, objs, mouse <code>xy</code> no mundo; com tarefas rodando, quantas e quantas lentas: <code>tasks: 3 (1 slow)</code>). Começa desligado.</td></tr>
           <tr><td><kbd>Ctrl+Shift+2</kbd></td><td>Liga / desliga o ajuste automático de qualidade (FX Auto): quando o jogo não cabe no frame, o Scena baixa a qualidade dos efeitos (high → medium → low) e, por último, a taxa (60 → 30 fps). Começa ligado, em high a 60 fps.</td></tr>
           <tr><td><kbd>Ctrl+Shift+3</kbd></td><td>Cicla perfil de render: low → medium → high.</td></tr>
           <tr><td><kbd>Ctrl+Shift+4</kbd></td><td>Cicla framerate: vsync → vsync60 → vsync30 → 60 → 30 → max.</td></tr>
+          <tr><td><kbd>Ctrl+Shift+6</kbd></td><td>Painel de processos: desligado → tarefas e modes → também os timers soltos (<code>every</code> / <code>after</code> / sons fora de qualquer mode ou tarefa) → desligado. O mesmo painel: <a href="#debug-metodos"><code>show_processes(enabled=True)</code></a>.</td></tr>
           <tr><td><kbd>Ctrl+Shift+7</kbd></td><td>Overlay: colisores + quadro de design + cruz da origem + trilhas <code>move_along</code>. Com <code>@leave_playfield</code>, também o playfield. O mesmo desenho: <a href="#debug-metodos"><code>collision.show_colliders(enabled=True)</code></a> / <code>show_tracks(enabled=True)</code>.</td></tr>
           <tr><td><kbd>Ctrl+Shift+8</kbd></td><td>Zoom de inspeção: 100% → 50% → 25%. Não muda <code>canvas.zoom</code>. Quadro de design / playfield; sem trilhas.</td></tr>
           <tr><td><kbd>Ctrl+Shift+E</kbd></td><td>Fecha o banner SCENA WARNING (placa acima do FPS; ex.: som que falta). Erro no seu código não vira banner: sobe com o traceback.</td></tr>

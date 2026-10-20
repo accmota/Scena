@@ -91,6 +91,7 @@ NO_NUMBERS = {
     "set_fx_auto": "a bench knob: test_fx_auto",
     "set_watchdog": "takes a flag",
     "show_tracks": "takes a flag",
+    "show_processes": "takes a flag",
 }
 
 

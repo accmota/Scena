@@ -292,6 +292,8 @@ CORE_SYMBOLS = [
      "anchor": "colisao-collide", "oneLiner": "Casa com qualquer collider."},
     {"name": "show_tracks", "kind": "function", "chapter": "atalhos", "section": "debug-metodos",
      "anchor": "debug-metodos", "oneLiner": "Debug: overlay das trilhas ativas de move_along."},
+    {"name": "show_processes", "kind": "function", "chapter": "atalhos", "section": "debug-metodos",
+     "anchor": "debug-metodos", "oneLiner": "Debug: painel das tarefas e modes em andamento (Ctrl+Shift+6)."},
     {"name": "collision.show_colliders", "kind": "method", "chapter": "atalhos", "section": "debug-metodos",
      "anchor": "debug-metodos", "oneLiner": "Debug: overlay dos hitboxes inscritos (verde detecção, dourado resolve)."},
     {"name": "when", "kind": "function", "chapter": "reagir", "section": "reagir-when",

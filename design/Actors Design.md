@@ -17,6 +17,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 | Modes / `@on_mode` / `@exit_mode` | [Mode enter / exit](#mode-enter--exit) |
 | Async wait / helpers | [Process semantics](#process-semantics) |
 | `run_task` (an async sequence without a mode) | [Tasks](#tasks) |
+| What is running (Ctrl+Shift+6, `show_processes`) | [Process overlay](#process-overlay) |
 | Method decorators | [Method decorators](#method-decorators-every--after--collide_with--when--on_change) |
 | Ownership / tracks | [Tracks](#tracks), [Ownership](#ownership-no-on) |
 | Frame order | [Frame order](#frame-order) (canonical: [Scena Design.md — Datapath](Scena%20Design.md#datapath)) |
@@ -37,6 +38,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 | `Entity`, ink, construct | `entity.py` | `place.py` |
 | `group["name"]` / formula `@=` | `registry.py` (`GroupOperator`) | `process.py` (`until_empty`) |
 | `after` / `every` / tween / modes | `process.py` | `easing.py` |
+| Process overlay | `process_overlay.py` | `orchestration.py` (chord, draw), `process.py` (`Script.waiting_since`) |
 | `@when` / `@on_change` | `events.py` | `state.py` |
 | `@collide*` **sugar** | `interaction.py` | `collision.py` (engine) |
 
@@ -819,6 +821,32 @@ so the two share one driver, one cancel path and the same laws. `run_task` refus
 re-entry policy per door, and code after its first `await` would run outside the handler's
 phase); their error names `run_task`. Tests: `tests/test_tasks.py`,
 `test_process.TestModeTask`, `test_sys_hyp_scheduler.TestTask`, `test_laws_timers`.
+
+## Process overlay
+
+Async code is invisible: the watchdog catches a step that never yields and
+"silently cancelled" names an await cancelled under a body, but a task stuck
+forever on an `until` (a predicate that can no longer be true, a group that
+never empties) said nothing. The overlay is a panel at the top right of the
+design view listing what is running. **Ctrl+Shift+6** cycles off → processes
+(tasks and modes) → processes + loose timers → off; `show_processes(enabled=True)`
+(author export, beside `show_tracks`) turns on the first step. Inspection, not
+game logic: nothing registers, the panel keeps no handles between refreshes.
+
+| Part | Rule |
+| --- | --- |
+| Rows | Tasks first (`Scheduler._tasks`, creation order; a task started by a task is indented under it through `_task_parent`), then modes (`_mode_owners`), then — second step — loose timers (handles with no task parent, not mode-scoped, not awaited). An owner whose mode body is running is a task row only; an async mode whose body ended is a mode row (`body ended`) |
+| Task row | Owner class (`act` / `game` ownerless; `(parked)` / `(time 0)`), the coroutine's name, `mode` / `task` / `task·mode` (scope mode) and the `name=` slot, `elapsed`, what it awaits (`wait 0.3s left`, the verb of a claim label `move_to 0.6s left`, `until 4.1s`, `until_empty …`, `parallel 1/3 done`, `race of 3`, `task inner() 1.2s`, `(paused)` / `(held)`), the author line of the await (the `cr_await` chain to the deepest non-engine frame, so a helper's `await` names the helper's line), `+N work` (its children that are not tasks and not what it awaits) |
+| Wait age | `Script.waiting_since`: the task's `_elapsed` when it reached its current await, stored in `Script._advance` (one store per resume, not per frame). Age = `_elapsed - waiting_since`: the task's own time, frozen while parked. `until` has no clock of its own (`remaining` is 0, `_elapsed` stays 0) |
+| SLOW | A wait of `SLOW_S` (5 s) or more on an await with no clock (`until`, `until_empty`, a `race` / `parallel` with no timed member, a non-Handle yield): amber, counted in the header and in the Ctrl+Shift+1 HUD (`tasks: 3 (1 slow)`). Never a warning: a title screen waiting for a key is a long `until` by design (the `@on_mode` rule: a sometimes-wrong warning is worse than none). A parked owner is shown, not marked: parking is a feature |
+| Fold | Rows alike in (group, depth, owner label, function, kind, await word, line) become one, `Wasp x12`, at the first one's place, showing the longest wait; a fleet reads like its source. Rows keep creation order (no sort by staleness: rows that jump at 10 Hz cannot be read) |
+| Mode row | Owner class, mode name, `sync` (a `def`) or `mode` (async, body ended), `mode_time`, the count of its mode-scoped handles (`2 timers`) |
+| Header | `PROCESSES`, the current act (`(changing)` mid-change), tasks (slow), modes, `on_update` owners |
+| Cost | Off: one test of `process_overlay._level` in the draw (as `show_tracks`). On: rows rebuilt at 10 Hz (wall clock) into cached strings, at most 16 rows + `+N more`; each frame draws the cache. Drawn in view space after the cover, so a task stuck behind a fade stays readable |
+
+Not listed: `@when` / `@on_change` / `@collide` / `on_click` are armed rules,
+not running work — "why didn't it fire" needs a fire log, a different tool;
+`ready` / `recently` are poll memory. Tests: `tests/test_process_overlay.py`.
 
 ## Process semantics
 
@@ -1618,9 +1646,11 @@ step (mode entry) still toggles around itself; its rare endings live out of
 ## Deferred
 
 - Multi-body attach (turret / compound) — when a script needs it.
-- Debug overlay (mode name, `mode_time`, active handles, `@on_mode` inventory).
-  Runtime-recorded transition trace first if added; a static `then=` scan would
-  silently under-report dynamic targets.
+- `@on_mode` inventory and a mode transition trace (the [Process overlay](#process-overlay)
+  shows the current mode, `mode_time` and handles). Runtime-recorded transition trace
+  first if added; a static `then=` scan would silently under-report dynamic targets.
+- A per-owner marker in the world matching a panel row (owners off screen and
+  ownerless tasks have no place, so the panel is the list).
 - Async event-track handlers (`@collide` / `@when` / `on_click`) stay refused: a handler
   starts a task (`lambda: run_task(fn)`), which makes the concurrency visible and needs
   no re-entry policy per door ([Tasks](#tasks)).

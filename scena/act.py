@@ -727,6 +727,7 @@ KEPT_SETTINGS: Dict[str, str] = {
     "set_watchdog": "debug",
     "set_extrude_focus": "debug",
     "show_tracks": "debug",
+    "show_processes": "debug",
     "collision.show_colliders": "debug",
     "collision.show_tracks": "debug",
 }

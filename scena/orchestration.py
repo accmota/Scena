@@ -28,6 +28,7 @@ from .bounds import get_bounds_system
 from .transients import tick_all_transients
 from .history import tick_all_histories
 from .cover import tick_cover, is_cover_active, draw_cover
+from . import process_overlay as _process_overlay
 from .spatial_fx import tick_all_spatial_fx
 from .pacing import FramePacer, PaceMode, locked_interval
 from .gc_policy import freeze_world, run_pending_freeze, thaw_world
@@ -2668,6 +2669,10 @@ class ScenaFramework:
                 f"graph: {graph_nodes}",
             ]
         )
+        from .process_overlay import task_counts
+        n_tasks, n_slow = task_counts()
+        if n_tasks:
+            parts.append(f"tasks: {n_tasks}" + (f" ({n_slow} slow)" if n_slow else ""))
         if self._fx_auto and self._fx_auto_ctrl is not None:
             rung = self._fx_auto_ctrl.current_rung()
             parts.append(f"auto:{rung.label}")
@@ -2994,6 +2999,14 @@ class ScenaFramework:
             self.collision_system.show_colliders(True)
         self._flash_system_feedback("Overlays: on")
 
+    def _cycle_process_overlay(self) -> None:
+        """Process panel: off → tasks + modes → + loose timers → off."""
+        from .process_overlay import cycle_processes_overlay
+        level = cycle_processes_overlay()
+        self._flash_system_feedback(
+            ("Processes: off", "Processes: on", "Processes: + timers")[level]
+        )
+
     def _cycle_debug_time(self) -> None:
         """Cycle world time: run → pause → ¼ → run (restores author scale)."""
         if self.clock is None:
@@ -3052,7 +3065,8 @@ class ScenaFramework:
             glfw.KEY_2: self._toggle_fx_auto,
             glfw.KEY_3: self._cycle_render_profile,
             glfw.KEY_4: self._cycle_framerate,
-            # KEY_5 / KEY_6 unused (points/handles are per-shape APIs only).
+            # KEY_5 unused (points/handles are per-shape APIs only).
+            glfw.KEY_6: self._cycle_process_overlay,
             glfw.KEY_7: self._toggle_overlay_pack,
             glfw.KEY_8: self._cycle_debug_zoom,
             glfw.KEY_E: self._dismiss_author_error,
@@ -4125,6 +4139,12 @@ class ScenaFramework:
                 self._drawing_canvas,
                 self.design_width,
                 self.design_height,
+            )
+        # Process panel (Ctrl+Shift+6 / show_processes): over the cover, so a
+        # task stuck behind a fade stays readable.
+        if _process_overlay._level:
+            _process_overlay.draw_process_overlay(
+                self._drawing_canvas, self.design_width, self.design_height,
             )
 
     def set_auto_callbacks(self, namespace):
