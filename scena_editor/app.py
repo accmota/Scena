@@ -12,8 +12,9 @@ from typing import Callable, Optional
 from scena import Color, Menu, canvas, keyp, mouse
 from scena.validate import payload_arity
 
-from . import _engine, dialogs, log
+from . import _engine, dialogs, log, sheets
 from .doc import LevelDoc
+from .sheet_pick import ATLAS_EXTS, FramePicker, image_for_atlas
 from .i18n import t
 from .panel import Panel
 from .tools import PRIMARY, REDO, Editor
@@ -39,6 +40,7 @@ class App:
         self.note = ""
         self._note_until = 0.0
         self._prompt: Optional[Menu] = None
+        self.picker: Optional[FramePicker] = None
         self.panel = Panel(self)
         self._title = None
         _engine.set_close_guard(self._close_guard)
@@ -52,10 +54,17 @@ class App:
     # -- input routing ------------------------------------------------------------------
     @property
     def blocked(self) -> bool:
-        """A dialog or a prompt is up: the canvas ignores input."""
-        return self.dialogs.busy or self._prompt is not None
+        """A dialog, a prompt or the frame picker is up: the canvas ignores input."""
+        return self.dialogs.busy or self._prompt is not None or self.picker is not None
+
+    def _picking(self) -> bool:
+        """The frame picker has the canvas (and no dialog of its own is up)."""
+        return self.picker is not None and not self.dialogs.busy
 
     def on_mouse_down(self, x, y, button):
+        if self._picking() and not over_panel(x, y):
+            self.picker.pointer_down(x, y, button)
+            return
         if self.blocked or over_panel(x, y):
             return
         self.editor.message = None
@@ -66,11 +75,15 @@ class App:
     def on_mouse_move(self, x, y):
         # Motion is handled here only — Scena also calls on_mouse_drag for the
         # same event while a button is held (Editor Design.md — Spike lessons).
-        if not self.blocked:
+        if self._picking():
+            self.picker.pointer_move(x, y)
+        elif not self.blocked:
             self.editor.pointer_move(x, y, shift=keyp("SHIFT"), straight=keyp(PRIMARY))
 
     def on_mouse_up(self, x, y, button, click_x, click_y):
-        if not self.blocked:
+        if self._picking():
+            self.picker.pointer_up(x, y, button)
+        elif not self.blocked:
             self.editor.pointer_up(x, y, button, shift=keyp("SHIFT"))
 
     def on_mouse_double_click(self, x, y, button):
@@ -78,7 +91,7 @@ class App:
             self.editor.double_click(x, y)
 
     def on_mouse_scroll(self, xoffset, yoffset):
-        if not self.blocked and not over_panel(mouse.x, mouse.y):
+        if (self._picking() or not self.blocked) and not over_panel(mouse.x, mouse.y):
             self.editor.zoom_wheel(yoffset, mouse.x, mouse.y)
 
     def on_key(self, key):
@@ -87,6 +100,9 @@ class App:
         Shift does not block a key (0.8.1): Shift+arrow nudges by the grid
         here, on the press and its repeats; another Shift+key does nothing.
         """
+        if self._picking():
+            self.picker.key(key)
+            return
         if self.blocked:
             return
         if keyp("SHIFT"):
@@ -133,6 +149,10 @@ class App:
     # -- per frame ---------------------------------------------------------------------
     def update(self, dt):
         self.dialogs.poll()
+        if self._picking():
+            self.picker.update()
+            if keyp.once(f"{PRIMARY}+0"):
+                self.editor.actual_size()
         if not self.blocked:
             self.panel.poll()
             self._shortcuts()
@@ -210,9 +230,67 @@ class App:
     def _place_image(self, path: Optional[str]) -> None:
         if not path:
             return
+        if os.path.splitext(path)[1].lower() in ATLAS_EXTS:
+            self._place_from_atlas(path)
+            return
         size = self._image_size(path)
         if size is not None:
             self.editor.add_image(self._file_for(path), size, (canvas.pan_x, canvas.pan_y))
+
+    def _place_from_atlas(self, atlas: str) -> None:
+        """An atlas from the Image tool: pick one of its frames, placed at the
+        middle of the view at its pixel size."""
+        png = image_for_atlas(atlas)
+        if png is None:
+            self.say(t("error.not_an_atlas_image", file=os.path.basename(atlas)))
+            return
+
+        def picked(entry, frame, size):
+            center = (canvas.pan_x, canvas.pan_y)
+            if entry is None:
+                self.editor.add_image(self._file_for(png), size, center)
+            else:
+                self.editor.add_frame(entry, frame, size, center)
+
+        self._open_picker(png, layout={"mode": "atlas", "atlas": atlas}, on_pick=picked)
+
+    def choose_frame(self) -> None:
+        """Show another frame in the selected image: the picker on its file
+        (its sheet's cut, its frame marked); same center, angle and scale."""
+        ed = self.editor
+        item = ed.single()
+        if self.blocked or item is None or item["kind"] != "image":
+            return
+        self.panel.poll()
+        item_id = item["id"]
+        entry = ed.doc.sheet(item["sheet"]) if item["sheet"] is not None else None
+        file = entry["file"] if entry is not None else ed.doc.image_path(item)
+        try:
+            shown = (sheets.frame_size(entry, item["frame"]) if entry is not None
+                     else sheets.image_size(file))
+        except (ValueError, TypeError):
+            shown = (item["width"], item["height"])
+
+        def picked(new_entry, frame, size):
+            if not ed.doc.has(item_id):
+                return
+            if new_entry is None:
+                ed.replace_image(item_id, self._file_for(file), size)
+            else:
+                ed.set_frame(item_id, new_entry, frame, size, shown[1])
+
+        self._open_picker(file, entry=entry, current=item["frame"], on_pick=picked)
+
+    def _open_picker(self, file: str, **kwargs) -> None:
+        if self.picker is not None:
+            return
+
+        def closed():
+            self.picker = None
+            self.panel.forget_shown()
+
+        self.picker = FramePicker(self, file, on_close=closed, **kwargs)
+        self.panel.forget_shown()
 
     def change_image(self) -> None:
         """Pick another file for the selected image: same center, angle and

@@ -49,6 +49,17 @@ def frame_size(entry: Dict[str, Any], frame: Any) -> Tuple[float, float]:
     return tuple(float(v) for v in frames(entry)[index][1])
 
 
+def image_size(path: str) -> Tuple[float, float]:
+    """An image file's pixel size; a missing or unreadable file is the
+    64 × 64 checker a Sprite shows for it."""
+    try:
+        import skia
+        image = skia.Image.open(path)
+        return float(image.width()), float(image.height())
+    except Exception:  # noqa: BLE001 — any unreadable file
+        return 64.0, 64.0
+
+
 def forget() -> None:
     """Drop the cached catalogs (the art may have changed on disk)."""
     _CACHE.clear()

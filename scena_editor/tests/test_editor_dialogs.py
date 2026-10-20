@@ -129,14 +129,17 @@ class TestMacOpen(unittest.TestCase):
             self.assertEqual(dialogs.open_level("/levels", "Open level"),
                              os.path.abspath("/levels/fase1.json"))
             dialogs.choose_image("/art")
-        self.assertEqual(len(scripts), 2)
+            dialogs.choose_atlas("/art")
+        self.assertEqual(len(scripts), 3)
         self.assertEqual(self._types(scripts[0]), ["public.json"])
-        self.assertEqual(self._types(scripts[1]), ["public.image"])
+        # The Image tool takes a picture or a spritesheet's atlas.
+        self.assertEqual(self._types(scripts[1]), ["public.image", "public.xml", "public.json"])
+        self.assertEqual(self._types(scripts[2]), ["public.xml", "public.json"])
         for script in scripts:
             for uti in self._types(script):
                 # A UTI has a dot; "json" / "png" are extensions and match nothing.
                 self.assertIn(".", uti, script)
-                self.assertNotIn(uti, dialogs.IMAGE_TYPES + ("json",))
+                self.assertNotIn(uti, dialogs.IMAGE_TYPES + dialogs.ATLAS_TYPES)
         self.assertIn('default location POSIX file "/levels"', scripts[0])
         self.cfd.open_file.assert_not_called()
 

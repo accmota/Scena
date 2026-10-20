@@ -27,10 +27,12 @@ import threading
 from typing import Callable, List, Optional
 
 IMAGE_TYPES = ("png", "jpg", "jpeg", "webp", "gif", "bmp", "svg")
+ATLAS_TYPES = ("xml", "json")          # a spritesheet's atlas (Kenney XML, TexturePacker JSON)
 # macOS ``choose file of type``: UTIs, never extensions. ``public.image``
 # covers every IMAGE_TYPES entry (svg, webp and gif conform to it).
 LEVEL_UTIS = ("public.json",)
 IMAGE_UTIS = ("public.image",)
+ATLAS_UTIS = ("public.xml", "public.json")
 MACOS = sys.platform == "darwin"
 
 
@@ -138,7 +140,13 @@ def save_level_as(start_dir: str, default_name: str = "level.json",
 
 
 def choose_image(start_dir: str, title: str = "Choose an image") -> Optional[str]:
-    return _open("image", title, start_dir, [f"*.{ext}" for ext in IMAGE_TYPES], IMAGE_UTIS)
+    """An image — or a spritesheet's atlas, whose frames the picker then shows."""
+    return _open("image", title, start_dir, [f"*.{ext}" for ext in IMAGE_TYPES + ATLAS_TYPES],
+                 IMAGE_UTIS + ATLAS_UTIS)
+
+
+def choose_atlas(start_dir: str, title: str = "Choose an atlas") -> Optional[str]:
+    return _open("atlas", title, start_dir, [f"*.{ext}" for ext in ATLAS_TYPES], ATLAS_UTIS)
 
 
 # -- one dialog at a time, polled by the host ----------------------------------------

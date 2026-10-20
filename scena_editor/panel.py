@@ -402,11 +402,16 @@ class Panel:
                        label=label, on_click=_safe(app.pack, axis, say=app.say))
             attach_tip(b, self.tooltip, tip, side="left", edge=W - PANEL_RIGHT - 8)
             self.pack_buttons.append(b)
-        # One image selected: its file, and a way to pick another.
+        # One image selected: its file (or sheet · frame), a way to pick another
+        # file, and the frame picker (a sheet's frame, or cut this image into one).
         self.image_file = Text("", top_left=(X0, by - 3 * 34 + 2), font_size=12)
-        self.change_image = Button(top_left=(X0, by - 3 * 34 - 18), width=PANEL_RIGHT - 20,
+        half = (PANEL_RIGHT - 26) / 2
+        self.change_image = Button(top_left=(X0, by - 3 * 34 - 18), width=half,
                                    height=28, label=t("panel.change_image"),
                                    on_click=_safe(app.change_image, say=app.say))
+        self.choose_frame = Button(top_left=(X0 + half + 6, by - 3 * 34 - 18), width=half,
+                                   height=28, label=t("panel.choose_frame"),
+                                   on_click=_safe(app.choose_frame, say=app.say))
         # Several selected: the groups they all share (the same field and
         # parsing as for one item), the ones only some have, and X / Y of the
         # selection's box. Owners are tuples of ids.
@@ -440,6 +445,10 @@ class Panel:
         """A thin rule between top-bar groups; returns where the next group starts."""
         _rect(x + 6, H - PANEL_TOP + 8, x + 7, H - 8, SEPARATOR)
         return x + 20
+
+    def forget_shown(self) -> None:
+        """Re-decide every row on the next refresh (the frame picker opened or closed)."""
+        self._seen = None
 
     # -- every frame -----------------------------------------------------------------------
     def poll(self) -> None:
@@ -509,10 +518,11 @@ class Panel:
             b.set_active(b.tool == ed.tool)
             b.set_standby(standby and b.tool == "select")
         self.tooltip.tick()
-        for button, able in ((self.undo_button, ed.history.can_undo),
-                             (self.redo_button, ed.history.can_redo)):
-            if button.enabled != able:
-                button.enabled = able
+        if self.app.picker is None:      # the picker disables every widget but its own
+            for button, able in ((self.undo_button, ed.history.can_undo),
+                                 (self.redo_button, ed.history.can_redo)):
+                if button.enabled != able:
+                    button.enabled = able
         if key == self._seen:
             return
         self._seen = key
@@ -554,7 +564,7 @@ class Panel:
         for b in self.pack_buttons:
             want[b] = len(items) > 1
         is_image = single is not None and single["kind"] == "image"
-        want[self.change_image] = want[self.image_file] = is_image
+        want[self.change_image] = want[self.image_file] = want[self.choose_frame] = is_image
         if is_image:
             shown = (single["file"] if single["sheet"] is None
                      else f"{single['sheet']} · {single['frame']}")
@@ -613,6 +623,10 @@ class Panel:
             self.level_w.set(w, "level")
             self.level_h.set(h, "level")
             want[self.level_w] = want[self.level_h] = True
+        if self.app.picker is not None:
+            # The picker has the right panel: hide every property row.
+            want = dict.fromkeys(want, False)
+            self.title.text = ""
         for element, visible in want.items():
             _set_visible(element, visible)
 
@@ -626,6 +640,8 @@ class Panel:
         name = os.path.basename(doc.path) if doc.path else t("status.untitled")
         if app.dialogs.busy:
             note = t("dialog.busy")
+        elif app.picker is not None:
+            note = app.picker.status
         else:
             note = ed.message or app.note or ed.hint()
         left = f"{name}{' •' if doc.dirty else ''}    {note}"

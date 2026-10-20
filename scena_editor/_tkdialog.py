@@ -1,6 +1,6 @@
 """Fallback file dialog: tkinter in its own process (never next to GLFW).
 
-``python -m scena_editor._tkdialog open|save|image TITLE START_DIR [DEFAULT_NAME]``
+``python -m scena_editor._tkdialog open|save|image|atlas TITLE START_DIR [DEFAULT_NAME]``
 prints the chosen path (nothing on cancel). Tk and GLFW both drive the
 macOS application loop, so the editor never imports tkinter itself.
 """
@@ -34,8 +34,13 @@ def main(argv) -> int:
     elif kind == "image":
         path = filedialog.askopenfilename(
             parent=root, title=title, initialdir=start,
-            filetypes=[("Images", "*.png *.jpg *.jpeg *.webp *.gif *.bmp *.svg"),
+            filetypes=[("Images and atlases",
+                        "*.png *.jpg *.jpeg *.webp *.gif *.bmp *.svg *.xml *.json"),
                        ("All files", "*")])
+    elif kind == "atlas":
+        path = filedialog.askopenfilename(
+            parent=root, title=title, initialdir=start,
+            filetypes=[("Atlases", "*.xml *.json"), ("All files", "*")])
     else:
         path = filedialog.askopenfilename(parent=root, title=title, initialdir=start,
                                           filetypes=[("Level", "*.json")])

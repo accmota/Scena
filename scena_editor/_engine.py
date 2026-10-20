@@ -146,3 +146,24 @@ def sheet_frames(sheet):
         fr = sheet._frame_at(i)
         out.append(((r.x(), r.y(), r.width(), r.height()), (fr.src_w, fr.src_h), fr.name))
     return out
+
+
+def live_widgets() -> list:
+    """Every Scena widget alive now (to make the panels inert under a picker)."""
+    wm = getattr(framework(), "widget_manager", None)
+    return list(wm.widgets) if wm is not None else []
+
+
+def atlas_image(atlas_path: str) -> Optional[str]:
+    """The image an atlas file lists (``imagePath`` / ``meta.image``), next to
+    the atlas, when that file exists; else None."""
+    import os
+    from scena.atlas import load_atlas
+    try:
+        listed, _frames = load_atlas(atlas_path)
+    except Exception:  # noqa: BLE001 — a broken atlas has no image to offer
+        return None
+    if not listed:
+        return None
+    path = os.path.normpath(os.path.join(os.path.dirname(atlas_path), listed))
+    return path if os.path.isfile(path) else None
