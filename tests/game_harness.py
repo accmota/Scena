@@ -926,7 +926,9 @@ def _oficina() -> GameSpec:
                    "act.column_restored", "remap.linear", "dropdown.index", "bake.tail_kept",
                    "when.sobrecarga.edges", "change.potencia.fires", "sound.effects_stack"),
     }
-    claims = ("State", "Attribute", "when", "on_change", "Slider", "CheckBox", "DropDown",
+    # No "Attribute": the game reached it only through ``t.text == …`` on the
+    # Text cell; ``t.text`` reads a str since 0.9.0 (persona probes PP2).
+    claims = ("State", "when", "on_change", "Slider", "CheckBox", "DropDown",
               "TextInput", "Button", "Menu", "click", "drop_by", "Box", "Grid", "Collider",
               "test_collision", "intersections", "intersection", "closest_point", "distance",
               "heading", "nearest", "middle_point", "Track", "Anchor", "Line", "RegularPolygon",
