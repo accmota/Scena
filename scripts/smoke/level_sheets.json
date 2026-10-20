@@ -20,5 +20,9 @@
   {"kind": "image", "name": "estrela_dobro", "groups": ["atlas"], "sheet": "bola", "frame": "star.png", "center": [300, 110], "width": 60, "height": 60},
   {"kind": "image", "name": "chave", "groups": ["atlas"], "sheet": "bola", "frame": "key.png", "center": [420, 110], "width": 37, "height": 34},
   {"kind": "image", "name": "indice_3", "groups": ["atlas"], "sheet": "bola", "frame": 3, "center": [550, 110], "width": 64, "height": 64},
-  {"kind": "image", "name": "canto_girado", "groups": ["atlas"], "sheet": "bola", "frame": "block_corner.png", "center": [690, 110], "width": 64, "height": 64, "angle": 90}
+  {"kind": "image", "name": "canto_girado", "groups": ["atlas"], "sheet": "bola", "frame": "block_corner.png", "center": [690, 110], "width": 64, "height": 64, "angle": 90},
+  {"kind": "rect", "center": [20, 620], "width": 40, "height": 40},
+  {"kind": "rect", "center": [20, 20], "width": 40, "height": 40},
+  {"kind": "rect", "center": [1180, 620], "width": 40, "height": 40},
+  {"kind": "rect", "center": [1180, 20], "width": 40, "height": 40}
 ]}
