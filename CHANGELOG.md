@@ -591,6 +591,11 @@ left out.
 
 ### Documentation
 
+- Guia, Level: "A fase e a janela" shows the two ways to fit a level on
+  screen — read it before `init()` and open the window at `fase.size`
+  (`init(width=w, height=h)`), or keep any window and frame it with
+  `canvas.frame_to(fase.box)`. `Level` only reads a file, so it works before
+  `init()`.
 - A new interlude after tutorial 25, Eventos e processos: one page that ties
   together what the series taught in pieces about time. A crossing with a
   traffic light, cars and pedestrians shows the frame and its phases, a

@@ -6797,6 +6797,17 @@ corda = Line(p1=c.p1, angle=c.angle, length=c.length, group=c.groups)  # presa e
 laser = Line(center=c.center, length=c.length, angle=c.angle)          # cresce pelo meio</pre>
       </div>
       <p>São cópias, como toda leitura da fase. <code>make()</code> põe o shape nos grupos do item; aqui, passe <code>group=item.groups</code>. Um côncavo leva também <code>scoop=item.scoop, rim=item.rim</code>. Para um shape que já existe vale o mesmo, lendo as partes dele (<code>Rect(top_left=r.top_left, width=r.width, height=r.height, angle=r.angle)</code>). A mensagem de erro de um campo calculado já mostra essa linha pronta.</p>
+      <p class="name-group">A fase e a janela</p>
+      <p>O tamanho da fase (<code>fase.size</code>, a moldura que o editor mostra) é a área do mundo; a janela é outra coisa, e o código decide como uma mostra a outra. <code>Level</code> só lê o arquivo, então dá para ler a fase antes de <code>init()</code> e abrir a janela do tamanho dela: uma unidade da fase vale uma da janela, e a câmera não precisa mexer. Uma fase maior que a tela (o ninja tem 4000 × 750) fica numa janela do tamanho que você quiser, e a <a href="#mundo-camera">câmera</a> mostra a parte certa: <code>canvas.frame_to(fase.box)</code> enquadra a fase inteira.</p>
+      <div class="code-panel">
+        <button class="copy-btn" type="button">copiar</button>
+<pre>fase = Level("fase1.json")       # antes de init(): só lê o arquivo
+w, h = fase.size
+init(width=w, height=h)          # a janela do tamanho da fase
+
+init(width=1280, height=720)     # ou: uma janela qualquer...
+canvas.frame_to(fase.box)        # ...e a câmera enquadra a fase inteira</pre>
+      </div>
       <p class="name-group">Quadros de uma folha de sprites</p>
       <p>Uma imagem da fase pode ser um quadro de uma folha (spritesheet): uma grade (colunas e linhas, ou o tamanho da célula) ou um atlas (as coordenadas num <code>.xml</code> ou <code>.json</code>), os mesmos recortes do <a href="#sprite-carregar"><code>Sheet</code></a>. O arquivo da fase guarda a folha uma vez e, em cada item, qual quadro ele mostra. O tempo fica no código: os clips vão no Sheet da fase.</p>
       <div class="code-panel">
