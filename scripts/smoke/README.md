@@ -40,6 +40,7 @@ Keep `background.py` and `world_view.py` **separate**: fields catalog vs camera 
 | `shape_class.py` | Shape class defaults, home fill, subclass `clone()` (A/S) |
 | `shape_fx.py` | Shape looks + canvas post (A/S · Q/W) |
 | `sprite_fx.py` | Sprite looks, atlas clips, flip / class defaults, hitbox kinds, Svg file reload |
+| `level_sheets.py` | A level file's image items in every form — whole `file`, a sheet cut by `cols` × `rows`, by `cell`, by `atlas` — made with `item.make()`: each fills its box, each drawn number = its label, the status checks center / size / angle / frame against `level_sheets.json` (open it in the editor to compare); SPACE plays a clip registered on `level.sheet("grade")` |
 | `hitbox.py` | Auto-hitbox overlays (A/S pages) |
 | `hitbox_round2.py` | Hitbox parts round 2: `px_rect` / `px_circle` follow the drawing, where the pixel numbers come from, `sprite.showing()`, linked `hb["active"] @=` attack box, plain `.active` i-frames (A/S pages, Z slow motion) |
 | `transients.py` | Life mutex + hit channels (A/S effect; H = HitStack) |

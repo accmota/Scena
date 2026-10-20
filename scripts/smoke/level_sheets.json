@@ -1,0 +1,24 @@
+{"format": "scena-level", "version": 2, "size": [1200, 640], "sheets": [
+  {"name": "grade", "file": "_level_sheets/grade_numerada.png", "cols": 4, "rows": 3},
+  {"name": "celula", "file": "_level_sheets/grade_numerada.png", "cell": [48, 48]},
+  {"name": "bola", "file": "../../examples/media/k-rolling-ball/rollingBall_sheet.png", "atlas": "../../examples/media/k-rolling-ball/rollingBall_sheet.xml"}
+], "items": [
+  {"kind": "image", "name": "nave", "groups": ["arquivo"], "file": "../../examples/media/space/playerShip1_red.png", "center": [150, 560], "width": 99, "height": 75},
+  {"kind": "image", "name": "nave_girada", "groups": ["arquivo"], "file": "../../examples/media/space/playerShip1_red.png", "center": [350, 560], "width": 99, "height": 75, "angle": 30},
+  {"kind": "image", "name": "nave_esticada", "groups": ["arquivo"], "file": "../../examples/media/space/playerShip1_red.png", "center": [560, 560], "width": 150, "height": 50},
+  {"kind": "image", "name": "nave_metade", "groups": ["arquivo"], "file": "../../examples/media/space/playerShip1_red.png", "center": [760, 560], "width": 49.5, "height": 37.5},
+  {"kind": "image", "name": "grade_0", "groups": ["grade"], "sheet": "grade", "frame": 0, "center": [150, 420], "width": 48, "height": 48},
+  {"kind": "image", "name": "grade_5", "groups": ["grade"], "sheet": "grade", "frame": 5, "center": [290, 420], "width": 48, "height": 48},
+  {"kind": "image", "name": "grade_11", "groups": ["grade"], "sheet": "grade", "frame": 11, "center": [430, 420], "width": 48, "height": 48},
+  {"kind": "image", "name": "grade_6_dobro", "groups": ["grade"], "sheet": "grade", "frame": 6, "center": [600, 420], "width": 96, "height": 96},
+  {"kind": "image", "name": "grade_9_girada", "groups": ["grade"], "sheet": "grade", "frame": 9, "center": [780, 420], "width": 48, "height": 48, "angle": 45},
+  {"kind": "image", "name": "celula_3", "groups": ["celula"], "sheet": "celula", "frame": 3, "center": [150, 270], "width": 48, "height": 48},
+  {"kind": "image", "name": "celula_7", "groups": ["celula"], "sheet": "celula", "frame": 7, "center": [300, 270], "width": 48, "height": 48},
+  {"kind": "image", "name": "celula_10", "groups": ["celula"], "sheet": "celula", "frame": 10, "center": [450, 270], "width": 48, "height": 48},
+  {"kind": "image", "name": "celula_1_dobro", "groups": ["celula"], "sheet": "celula", "frame": 1, "center": [650, 270], "width": 96, "height": 96},
+  {"kind": "image", "name": "bloco_grande", "groups": ["atlas"], "sheet": "bola", "frame": "block_large.png", "center": [150, 110], "width": 65, "height": 128},
+  {"kind": "image", "name": "estrela_dobro", "groups": ["atlas"], "sheet": "bola", "frame": "star.png", "center": [300, 110], "width": 60, "height": 60},
+  {"kind": "image", "name": "chave", "groups": ["atlas"], "sheet": "bola", "frame": "key.png", "center": [420, 110], "width": 37, "height": 34},
+  {"kind": "image", "name": "indice_3", "groups": ["atlas"], "sheet": "bola", "frame": 3, "center": [550, 110], "width": 64, "height": 64},
+  {"kind": "image", "name": "canto_girado", "groups": ["atlas"], "sheet": "bola", "frame": "block_corner.png", "center": [690, 110], "width": 64, "height": 64, "angle": 90}
+]}
