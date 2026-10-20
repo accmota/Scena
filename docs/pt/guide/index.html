@@ -1153,6 +1153,7 @@
   <a href="#comecar" class="nav-top" data-chapter="comecar" data-search="começar script regras globais arquivo imagem media png init window_scale display">Começar</a>
   <div class="nav-block" data-nav="comecar">
     <a href="#script-minimo" class="nav-child" data-chapter="comecar" data-search="init run window_scale display ui_scale ui_font title width height">Script mínimo</a>
+    <a href="#outro-motor" class="nav-child" data-chapter="comecar" data-search="scratch unity pygame Update Start OnTriggerEnter2D Destroy transform clock.tick sleep forever broadcast clone">De outro motor</a>
     <a href="#regras" class="nav-child" data-chapter="comecar">Regras</a>
     <a href="#vocabulario" class="nav-child" data-chapter="comecar">Vocabulário</a>
     <a href="#arquivos-imagem" class="nav-child" data-chapter="comecar" data-search="arquivo imagem media png sprite texture svg">Arquivos de imagem</a>
@@ -1350,6 +1351,7 @@
     <p class="which">
       Script mínimo / <code>init</code> → <a href="#script-minimo">Script mínimo</a><br>
       Exceção → causa → correção → <a href="#erros-catalogo">Catálogo de erros</a><br>
+      Vindo do Scratch, da Unity ou do Pygame → <a href="#outro-motor">De outro motor</a><br>
       Regras → <a href="#regras">Regras</a><br>
       Unidades, Entity, ponto, frame… → <a href="#vocabulario">Vocabulário</a><br>
       Arquivo PNG / SVG → <a href="#arquivos-imagem">Arquivos de imagem</a><br>
@@ -1378,13 +1380,41 @@
           <tr><td><code>TypeError</code></td><td>Tipo errado: string onde vai número, <code>bool</code>, <code>Circle(10)</code>; nome de parâmetro errado (<code>Polygon(pionts=…)</code>)</td><td>A mensagem nomeia o parâmetro e um exemplo (<code>Circle(center=(0, 0), radius=10)</code>), ou <code>Did you mean 'points'?</code> + a lista <code>Valid:</code></td></tr>
           <tr><td><code>TypeError</code></td><td>Uma célula de <code>st</code> sem colchetes onde ela é ligada ou acompanhada: <code>Slider(st.volume)</code>, <code>Text(st.score)</code>, <code>@on_change(st.vidas)</code>, <code>tween(st.t, …)</code>, <code>until(st.acabou)</code>, <code>c["radius"] @= st.r</code></td><td><code>st.volume</code> é o valor; a célula é <code>st["volume"]</code> (desde a 0.8.0). A mensagem mostra a grafia com colchetes</td></tr>
           <tr><td><code>TypeError</code></td><td>Colchetes dentro de uma <code>lambda</code> ou usados como número: <code>Text(lambda: f"Pontos: {st['score']}")</code>, <code>c["radius"] @= lambda: st["r"] * 2</code>, <code>@when(lambda: st["vidas"] == 0)</code>, <code>if st["vivo"]:</code></td><td>Dentro da <code>lambda</code>, ponto: <code>st.score</code>. A <code>lambda</code> já mantém a conta viva; <code>st["score"]</code> é a célula, não o número. A mensagem mostra a grafia com ponto</td></tr>
-          <tr><td><code>TypeError</code></td><td>Na linha da classe: um método que o Scena nunca chamaria. Um método chamado <code>update</code> numa classe, com qualquer assinatura (até um ajudante <code>def update(self)</code>: <code>update</code> é do Scena) (o gancho de cada frame é <code>on_update</code>; numa forma, <code>update</code> é o recálculo interno dos campos ligados); <code>on_key_down</code> / <code>on_mouse_click</code> / … (nomes do topo do arquivo) num ato ou num objeto; um nome a uma letra de um gancho (<code>on_colide</code>, <code>on_updat</code>, <code>on_destory</code>) ou de outro motor (<code>on_collision</code>); um método chamado <code>collide_with</code></td><td>A mensagem diz o nome certo: <code>on_update(self, dt)</code>; num ato, <code>keyp.once("SPACE")</code> / <code>mouse.press()</code> no <code>on_update</code>; num objeto, <code>on_click(self)</code>; <code>Did you mean on_collide?</code>. Um ajudante seu (<code>on_hit</code>, <code>on_frame</code>) passa: só nomes a uma letra de um gancho são recusados</td></tr>
+          <tr><td><code>TypeError</code></td><td>Na linha da classe: um método que o Scena nunca chamaria. Um método chamado <code>update</code> numa classe, com qualquer assinatura (até um ajudante <code>def update(self)</code>: <code>update</code> é do Scena) (o gancho de cada frame é <code>on_update</code>; numa forma, <code>update</code> é o recálculo interno dos campos ligados); <code>on_key_down</code> / <code>on_mouse_click</code> / … (nomes do topo do arquivo) num ato ou num objeto; um nome a uma letra de um gancho (<code>on_colide</code>, <code>on_updat</code>, <code>on_destory</code>) ou de outro motor (<code>on_collision</code>, <code>Update</code>, <code>Start</code>, <code>OnTriggerEnter2D</code>); um método chamado <code>collide_with</code>. Se a classe tem vários, a mensagem lista todos, com a linha de cada um</td><td>A mensagem diz o nome certo: <code>on_update(self, dt)</code>; num ato, <code>keyp.once("SPACE")</code> / <code>mouse.press()</code> no <code>on_update</code>; num objeto, <code>on_click(self)</code>; <code>Did you mean on_collide?</code>. Um ajudante seu (<code>on_hit</code>, <code>on_frame</code>) passa: só nomes a uma letra de um gancho são recusados</td></tr>
           <tr><td><code>ValueError</code></td><td>Número fora do domínio: tamanho negativo, <code>NaN</code>, camada que não existe</td><td>A mensagem diz o intervalo ou <code>Did you mean</code></td></tr>
         </tbody>
       </table>
     </div>
     <p class="gotcha">Problemas que não impedem o jogo — arquivo de som ou imagem que falta, nome de cor desconhecido — viram um <strong>SCENA WARNING</strong>, não uma exceção: o jogo continua (silêncio, um quadriculado no lugar da imagem; nome de cor quase certo vira a cor mais próxima, nome desconhecido vira magenta) e uma faixa âmbar no canto mostra o aviso. <kbd>Ctrl+Shift+E</kbd> fecha a faixa.</p>
   </section>
+
+  <section class="section prose" id="outro-motor">
+    <h2>De outro motor</h2>
+    <p class="one-liner">O jeito do Scratch, da Unity ou do Pygame, e o jeito do Scena. A ideia é a mesma; a grafia muda.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Você escreveria</th><th>No Scena</th></tr></thead>
+        <tbody>
+          <tr><td>“sempre” (Scratch), <code>while running:</code> com <code>pygame.event.get()</code></td><td><code>def update(dt):</code> roda a cada frame; o Scena faz o laço. Um <code>while</code> dentro de <code>update</code> trava a janela: use <code>if</code>. Uma sequência com esperas é uma <a href="#mode-task">tarefa</a> (<code>async def</code> + <code>await wait(1)</code>, com <code>run_task</code>)</td></tr>
+          <tr><td>“espere 1 segundo”, <code>time.sleep(1)</code></td><td><code>after(1, f)</code>; numa tarefa, <code>await wait(1)</code>. <code>time.sleep</code> para o jogo inteiro</td></tr>
+          <tr><td><code>clock.tick(60)</code></td><td>Não precisa: <code>update(dt)</code> recebe o tempo do frame. A taxa é <code>canvas.framerate = 60</code></td></tr>
+          <tr><td><code>Update()</code> / <code>FixedUpdate()</code> numa classe</td><td><code>on_update(self, dt)</code></td></tr>
+          <tr><td><code>Start()</code> / <code>Awake()</code></td><td><code>setup(self)</code></td></tr>
+          <tr><td><code>OnTriggerEnter2D(other)</code>, <code>OnCollisionEnter2D</code>, <code>rect.colliderect(outro)</code> a cada frame</td><td><code>on_collide(self, other)</code> na classe, ou <code>@collide("heroi", "moeda")</code>: roda quando começam a se tocar. Para perguntar agora: <code>test_collision(a, b)</code></td></tr>
+          <tr><td><code>OnMouseDown()</code>, “quando este ator for clicado”</td><td><code>on_click(self)</code>, ou <code>@click(obj)</code>. Um clique em qualquer lugar: <code>def on_mouse_click(x, y, button):</code> no topo do arquivo</td></tr>
+          <tr><td><code>Destroy(obj, 0.4)</code>, “apague este clone”</td><td><code>obj.destroy()</code>; depois de um tempo, <code>after(0.4, obj.destroy)</code></td></tr>
+          <tr><td><code>transform.position</code>, <code>transform.rotation</code></td><td><code>.center</code> (mova com <code>move_to</code> / <code>move_by</code>), <code>.angle</code>, <code>.scale</code></td></tr>
+          <tr><td>“esconda” / “mostre”, <code>SetActive(false)</code></td><td><code>visible = False</code> / <code>True</code> some só o desenho (ainda colide); <code>active = False</code> para tudo</td></tr>
+          <tr><td>“deslize em 1 s até x: y:”</td><td><code>move_to(x, y, time=1)</code> (o tempo vai pelo nome)</td></tr>
+          <tr><td>“aponte para”</td><td><code>obj.rotate_to(heading(obj, alvo))</code></td></tr>
+          <tr><td>“transmita mensagem” / “quando receber”</td><td>Chame a função. Ou conte: <code>st.ondas += 1</code> com <code>@on_change(st["ondas"])</code>, que compara uma vez por frame (duas escritas que voltam ao valor antigo no mesmo frame não disparam)</td></tr>
+          <tr><td>“crie clone de mim”</td><td><code>obj.clone()</code>; veja o que a cópia leva na tabela de <code>clone</code></td></tr>
+          <tr><td><code>x += vel * dt</code></td><td>Funciona. Ou <code>obj.vel = (vx, vy)</code>, e o Scena move a cada frame</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
 
   <section class="section prose" id="script-minimo">
     <h2>Script mínimo</h2>

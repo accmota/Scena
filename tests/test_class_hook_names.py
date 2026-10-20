@@ -244,5 +244,118 @@ class TestThePoolFollowsTheEngine(unittest.TestCase):
             self.assertIn(f"'{name}'", src)
 
 
+
+class TestOtherEnginesHookNames(unittest.TestCase):
+    """Unity's hook names in a class body (``Update``, ``OnTriggerEnter2D``,
+    ``Start``) were helpers to the check, so the hero never moved and the
+    coin was never taken, with no message, while ``update`` and every
+    ``on_*`` near miss were refused (persona probes PP)."""
+
+    def test_each_engine_spelling_names_the_scena_hook(self):
+        from scena.entity import _FOREIGN_ENGINE_HOOKS
+        for wrong, fix in _FOREIGN_ENGINE_HOOKS.items():
+            with self.subTest(wrong=wrong), self.assertRaises(TypeError) as cm:
+                author_class(scena.Circle, wrong)
+            msg = str(cm.exception)
+            self.assertIn(wrong, msg)
+            self.assertIn(fix, msg)
+
+    def test_the_fixes_are_real_hooks(self):
+        from scena.entity import _FOREIGN_ENGINE_HOOKS
+        for wrong, fix in _FOREIGN_ENGINE_HOOKS.items():
+            self.assertIn(fix, set(_CLASS_HOOK_NAMES) | {"setup"}, wrong)
+
+    def test_unity_update_on_a_sprite_and_an_act(self):
+        for base in (scena.Sprite, Act, Entity):
+            with self.subTest(base=base.__name__), self.assertRaises(TypeError) as cm:
+                author_class(base, "Update")
+            self.assertIn("on_update(self, dt)", str(cm.exception))
+
+    def test_a_camel_case_helper_of_ones_own_stays_legal(self):
+        for name in ("Shoot", "TakeDamage", "Respawn", "start", "awake"):
+            author_class(scena.Circle, name)
+
+
+class TestEveryOffenderAtOnce(unittest.TestCase):
+    """A pasted block with several wrong hook names was refused one name per
+    run: fix ``update``, run, now ``on_key_down`` (persona probes PP). The
+    class line names every one."""
+
+    def test_one_error_lists_every_wrong_name_with_its_line(self):
+        src = (
+            "class Cena(Act):\n"
+            "    def update(self, dt):\n        pass\n"
+            "    def on_key_down(self, key):\n        pass\n"
+            "    def OnTriggerEnter2D(self, other):\n        pass\n"
+            "    def on_colide(self, other):\n        pass\n"
+        )
+        ns = {"Act": Act, "__name__": AUTHOR_MODULE}
+        with self.assertRaises(TypeError) as cm:
+            exec(compile(src, "cena.py", "exec"), ns)
+        msg = str(cm.exception)
+        for name in ("update", "on_key_down", "OnTriggerEnter2D", "on_colide"):
+            self.assertIn(name, msg)
+        self.assertIn("4 methods", msg)
+        self.assertIn("line 4", msg)
+
+    def test_a_single_offender_keeps_its_one_line_message(self):
+        with self.assertRaises(TypeError) as cm:
+            author_class(scena.Circle, "on_colide")
+        self.assertNotIn("methods", str(cm.exception))
+
+
+class TestTopLevelNearMisses(unittest.TestCase):
+    """A top-of-file ``def on_click(x, y):`` (meaning "a click anywhere") was
+    never called, with no message: only the exact top-level names are hooks
+    (persona probes PP). ``run()`` now warns for a plain function whose name
+    is another engine's spelling or one edit from a top-level hook, unless a
+    decorator or a live object uses it."""
+
+    def misses(self, ns):
+        """``ns`` is the namespace itself, as ``run()`` passes the module's:
+        a copy (``**ns``) would be one more holder of each function."""
+        from scena.orchestration import _top_level_near_misses
+        return _top_level_near_misses(ns)
+
+    def test_other_engine_spellings_and_typos(self):
+        def fn(*a):
+            pass
+        for name, fix in (("on_click", "on_mouse_click"), ("on_key_press", "on_key_down"),
+                          ("on_mouse_press", "on_mouse_down"), ("on_update", "update(dt)"),
+                          ("on_mouse_clik", "on_mouse_click"), ("on_key_dwn", "on_key_down")):
+            with self.subTest(name=name):
+                ns = {name: (lambda *a: None)}
+                (msg,) = self.misses(ns)
+                self.assertIn(name, msg)
+                self.assertIn(fix, msg)
+
+    def test_helpers_hooks_and_decorated_functions_are_left_alone(self):
+        from scena import click
+        def on_hit(*a):
+            pass
+        def on_mouse_click(x, y, b):
+            pass
+        def on_click(c):
+            pass
+        on_click._scena_roles = {"pointer"}        # what @click records
+        self.assertEqual(self.misses(dict(on_hit=on_hit, on_mouse_click=on_mouse_click,
+                                          on_click=on_click, on_y=on_hit)), [])
+
+    def test_a_function_an_object_holds_is_a_callback(self):
+        ns = {"on_click": (lambda button: None)}
+        holder = {"cb": ns["on_click"]}            # Button(on_click=on_click) holds it
+        self.assertEqual(self.misses(ns), [])
+        del holder
+        self.assertEqual(len(self.misses(ns)), 1)
+
+    def test_run_reports_it(self):
+        from scena.orchestration import ScenaFramework
+        from scena.process import last_author_error
+        ns = {"on_click": (lambda x, y: None)}
+        ScenaFramework.get_instance().set_auto_callbacks(ns)
+        err = last_author_error()
+        self.assertIsNotNone(err)
+        self.assertIn("on_mouse_click", err["message"])
+
 if __name__ == "__main__":
     unittest.main()

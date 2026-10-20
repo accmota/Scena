@@ -4165,6 +4165,13 @@ class ScenaFramework:
             if callback in namespace and callable(namespace[callback]):
                 refuse_async(namespace[callback], what="script hook")
 
+        # A plain ``def on_click(x, y):`` is never called (persona probes PP).
+        misses = _top_level_near_misses(namespace)
+        if misses:
+            from .process import report_author_warning
+            for msg in misses:
+                report_author_warning("run", msg)
+
         # For each callback name, check if it exists in the namespace
         # Setup execution_callbacks in ScenaFramework
         for callback in execution_callbacks:
@@ -4176,6 +4183,69 @@ class ScenaFramework:
             if callback in namespace:
                 # Set the callback if it exists
                 setattr(self.canvas_manager, callback, namespace[callback])
+
+_TOP_LEVEL_HOOKS = (
+    'setup', 'update', 'post_draw',
+    'on_key_down', 'on_key_up', 'on_key', 'on_char',
+    'on_mouse_down', 'on_mouse_up', 'on_mouse_click', 'on_mouse_double_click',
+    'on_mouse_move', 'on_mouse_drag', 'on_mouse_scroll',
+)
+
+# Another engine's top-level names (Pygame, Unity, a guess): a plain function
+# so named is never called. The value is the Scena spelling.
+_TOP_LEVEL_FOREIGN = {
+    "on_click": ("on_mouse_click(x, y, button) for a click anywhere, or "
+                 "@click(obj) above it for one object"),
+    "on_mouse_press": "on_mouse_down(x, y, button)",
+    "on_mouse_release": "on_mouse_up(x, y, button)",
+    "on_mouse_motion": "on_mouse_move(x, y)",
+    "on_key_press": "on_key_down(key)", "on_key_pressed": "on_key_down(key)",
+    "on_keydown": "on_key_down(key)", "on_key_release": "on_key_up(key)",
+    "on_keyup": "on_key_up(key)",
+    "on_update": "update(dt) (the top-of-file per-frame function is update)",
+    "on_start": "setup()",
+}
+
+
+def _top_level_near_misses(namespace) -> list:
+    """The messages for top-of-file plain functions Scena will never call:
+    another engine's spelling or one edit from a top-level hook (persona
+    probes PP: a visual novel's ``def on_click(x, y)`` never advanced). A
+    function a decorator claimed (``@click``) or anything else holds (a
+    ``Button(on_click=on_click)``) is a callback, not a miss."""
+    from .entity import _one_edit_apart
+    out = []
+    for name in list(namespace):
+        if not isinstance(name, str) or not name.startswith("on_") or name in _TOP_LEVEL_HOOKS:
+            continue
+        fn = namespace[name]
+        if not inspect.isfunction(fn) or getattr(fn, "_scena_roles", None):
+            continue
+        fix = _TOP_LEVEL_FOREIGN.get(name)
+        if fix is None:
+            near = sorted(h for h in _TOP_LEVEL_HOOKS if _one_edit_apart(name, h))
+            if not near:
+                continue
+            fix = near[0]
+        if _held_elsewhere(fn, namespace):
+            continue
+        out.append(
+            f"{name}() at the top of the file is not a Scena callback, so it is "
+            f"never called. Did you mean {fix}?"
+        )
+    return out
+
+
+def _held_elsewhere(fn, namespace) -> bool:
+    """Something besides the module (and running frames) holds ``fn``: it was
+    handed over as a callback. Asked once, at ``run()``, for a candidate only."""
+    import gc
+    for ref in gc.get_referrers(fn):
+        if ref is namespace or inspect.isframe(ref):
+            continue
+        return True
+    return False
+
 
 # Global functions for the framework -----------------------------------------------------------
 
@@ -4196,6 +4266,19 @@ def run(first_act=None):
         first_act: The Act class to start in (``run(Titulo)``); omit for a script
             without acts.
     """
+    from . import process as _process
+    if _process._top_level_ended:
+        # Inside the game: Scena's run handed over as a callback (persona
+        # probes PP: ``TextInput(on_submit=run)`` after a snippet's own
+        # ``def run(cmd)`` was renamed; the act check said "Write run(bola)").
+        got = "" if first_act is None else f" (it got {first_act!r})"
+        raise TypeError(
+            f"run() was called while the game is already running{got}. A "
+            f"callback handed Scena's run instead of a function of yours: "
+            f"on_submit=run, after(1, run), Button(on_click=run) … Give your "
+            f"function another name (def enviar(texto): …) and pass that. To "
+            f"go to another act, write change_act(Fase)."
+        )
     if first_act is not None:
         # Validate before the window opens: a bad argument changes nothing.
         from .act import _check_act_class

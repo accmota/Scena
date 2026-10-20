@@ -203,7 +203,7 @@ def _class_body_value_message(cls: type, kind: type, name: str, value: Any, rout
     if isinstance(route, _RouteRefusal):
         return f"{head}: {route.message.format(cls=kind.__name__)}"
     if route is _LOOK_MISSING:
-        return f"{head}: {_look_missing_text(kind.__name__, name)}"
+        return f"{head}: {_look_missing_text(kind.__name__, name, kind)}"
     why = (f"{head} does not change {name}: Scena keeps {name} on each "
            f"{cls.__name__}, not on the class.")
     if name in cls._class_keywords():
@@ -337,6 +337,31 @@ _FOREIGN_HOOK_NAMES = {
     "on_mouse_leave": "on_hover_exit",
 }
 
+# Another engine's hook names in a class body (persona probes PP: Unity's
+# ``Update`` / ``OnTriggerEnter2D`` were plain helpers to the check, so the
+# hero never moved). The value is the Scena hook to write.
+_FOREIGN_ENGINE_HOOKS = {
+    "Update": "on_update", "FixedUpdate": "on_update", "LateUpdate": "on_update",
+    "fixed_update": "on_update", "late_update": "on_update",
+    "Start": "setup", "Awake": "setup", "OnEnable": "setup",
+    "OnDestroy": "on_destroy",
+    "OnCollisionEnter2D": "on_collide", "OnCollisionEnter": "on_collide",
+    "OnTriggerEnter2D": "on_collide", "OnTriggerEnter": "on_collide",
+    "OnCollisionStay2D": "on_collide_stay", "OnCollisionStay": "on_collide_stay",
+    "OnTriggerStay2D": "on_collide_stay", "OnTriggerStay": "on_collide_stay",
+    "OnCollisionExit2D": "on_collide_exit", "OnCollisionExit": "on_collide_exit",
+    "OnTriggerExit2D": "on_collide_exit", "OnTriggerExit": "on_collide_exit",
+    "OnMouseDown": "on_click", "OnMouseUpAsButton": "on_click",
+    "OnMouseEnter": "on_hover", "OnMouseOver": "on_hover", "OnMouseExit": "on_hover_exit",
+}
+_HOOK_SIGNATURES = {
+    "on_update": "on_update(self, dt)", "setup": "setup(self)",
+    "on_destroy": "on_destroy(self)", "on_collide": "on_collide(self, other)",
+    "on_collide_stay": "on_collide_stay(self, other)",
+    "on_collide_exit": "on_collide_exit(self, other)", "on_click": "on_click(self)",
+    "on_hover": "on_hover(self)", "on_hover_exit": "on_hover_exit(self)",
+}
+
 
 def _plain_function(raw) -> bool:
     return inspect.isfunction(raw) and not any(
@@ -379,55 +404,78 @@ def _check_class_hook_names(cls) -> None:
     ns = cls.__dict__
     is_act = bool(getattr(cls, "_scena_is_act", False))
     who = cls.__name__
+    found = []      # (line, message): every wrong name at once (persona probes PP)
     for name, raw in ns.items():
         if not _plain_function(raw):
             continue
-        if name == "update":
-            # Any signature: ``update`` is ``Container.update`` (the graph
-            # recalculation) on an act as on an actor, so even a helper
-            # ``def update(self)`` shadows it (release audit C15).
-            sig = _signature_text(raw)
-            if is_act:
-                raise TypeError(
-                    f"{who}.update{sig}: update is reserved in an act too (it is the "
-                    f"engine's own recalculation of linked fields), so the engine "
-                    f"would not call it per frame. The per-frame hook is "
-                    f"on_update(self, dt) (update(dt) is the top-of-file spelling); "
-                    f"a helper of your own needs another name."
-                )
-            raise TypeError(
-                f"{who}.update{sig}: an actor's per-frame hook is "
-                f"on_update(self, dt). update is reserved: it is the engine's own "
-                f"recalculation of the object's linked fields. Rename it on_update "
-                f"(a helper of your own needs another name)."
+        msg = _class_hook_refusal(cls, name, raw, is_act, who)
+        if msg is not None:
+            found.append((getattr(raw.__code__, "co_firstlineno", 0), msg))
+    if len(found) == 1:
+        raise TypeError(found[0][1])
+    if found:
+        found.sort()
+        lines = "\n".join(f"  line {n}: {m}" for n, m in found)
+        raise TypeError(f"{who} has {len(found)} methods the engine would never call:\n{lines}")
+
+
+def _class_hook_refusal(cls, name: str, raw, is_act: bool, who: str) -> Optional[str]:
+    """The refusal for one class-body method, or None (``_check_class_hook_names``)."""
+    from ._pkg import is_framework_module
+    if name == "update":
+        # Any signature: ``update`` is ``Container.update`` (the graph
+        # recalculation) on an act as on an actor, so even a helper
+        # ``def update(self)`` shadows it (release audit C15).
+        sig = _signature_text(raw)
+        if is_act:
+            return (
+                f"{who}.update{sig}: update is reserved in an act too (it is the "
+                f"engine's own recalculation of linked fields), so the engine "
+                f"would not call it per frame. The per-frame hook is "
+                f"on_update(self, dt) (update(dt) is the top-of-file spelling); "
+                f"a helper of your own needs another name."
             )
-        if name in _TOP_LEVEL_INPUT_HOOKS:
-            raise TypeError(_top_level_hook_message(who, name, is_act))
-        if name == "collide_with":
-            raise TypeError(
-                f"{who}.collide_with is the name of a decorator, not a hook: the "
-                f"engine never calls this method. Write on_collide(self, other) "
-                f"for every touch, or @collide_with(\"group\") above a method of "
-                f"another name for one group."
-            )
-        if not name.startswith("on_") or name in _CLASS_HOOK_NAMES:
-            continue
-        if any(name in k.__dict__ for k in cls.__mro__[1:]):
-            continue        # the base's own name (engine or author)
-        fix = _FOREIGN_HOOK_NAMES.get(name)
-        if fix is None:
-            pool = set(_CLASS_HOOK_NAMES)
-            for k in cls.__mro__[1:]:
-                if is_framework_module(k.__module__):
-                    pool.update(n for n in k.__dict__ if n.startswith("on_"))
-            hits = sorted(c for c in pool if _one_edit_apart(name, c))
-            fix = hits[0] if hits else None
-        if fix is not None:
-            raise TypeError(
-                f"{who}.{name} is not a hook name, so the engine would never call "
-                f"it. Did you mean {fix}? (A helper of your own: give it a name "
-                f"that is not one letter away from a hook.)"
-            )
+        return (
+            f"{who}.update{sig}: an actor's per-frame hook is "
+            f"on_update(self, dt). update is reserved: it is the engine's own "
+            f"recalculation of the object's linked fields. Rename it on_update "
+            f"(a helper of your own needs another name)."
+        )
+    if name in _TOP_LEVEL_INPUT_HOOKS:
+        return _top_level_hook_message(who, name, is_act)
+    if name == "collide_with":
+        return (
+            f"{who}.collide_with is the name of a decorator, not a hook: the "
+            f"engine never calls this method. Write on_collide(self, other) "
+            f"for every touch, or @collide_with(\"group\") above a method of "
+            f"another name for one group."
+        )
+    if any(name in k.__dict__ for k in cls.__mro__[1:]):
+        return None     # the base's own name (engine or author)
+    engine = _FOREIGN_ENGINE_HOOKS.get(name)
+    if engine is not None:
+        return (
+            f"{who}.{name} is another engine's hook name; Scena never calls it. "
+            f"Write {_HOOK_SIGNATURES.get(engine, engine)}. (A helper of your own: "
+            f"give it a snake_case name.)"
+        )
+    if not name.startswith("on_") or name in _CLASS_HOOK_NAMES:
+        return None
+    fix = _FOREIGN_HOOK_NAMES.get(name)
+    if fix is None:
+        pool = set(_CLASS_HOOK_NAMES)
+        for k in cls.__mro__[1:]:
+            if is_framework_module(k.__module__):
+                pool.update(n for n in k.__dict__ if n.startswith("on_"))
+        hits = sorted(c for c in pool if _one_edit_apart(name, c))
+        fix = hits[0] if hits else None
+    if fix is not None:
+        return (
+            f"{who}.{name} is not a hook name, so the engine would never call "
+            f"it. Did you mean {fix}? (A helper of your own: give it a name "
+            f"that is not one letter away from a hook.)"
+        )
+    return None
 
 
 def _top_level_hook_message(who: str, name: str, is_act: bool) -> str:
@@ -561,7 +609,8 @@ def _ink_link_forbidden_message(owner: "Entity", field: str) -> str:
             if own:
                 size = " Size it with " + " / ".join(own) + "."
         # The words ``=`` answers with (a bare Entity's ``angle`` adds its hint).
-        return _absent_reserved_text(field, ", so @= has nothing to link", size).format(cls=kind)
+        return _absent_reserved_text(field, ", so @= has nothing to link", size,
+                                     cls=cls).format(cls=kind)
     hint = _INK_LINK_FORBIDDEN_HINTS.get(field)
     if hint is None:
         hint = f"Set it with `{kind.lower()}.{field} = …`."
@@ -680,6 +729,66 @@ _INK_SPELLINGS = {
 }
 
 
+# Names other engines and Scratch read on an object, and Scena's way (persona
+# probes PP: ``chave.hide()``, ``bola.transform.position`` got Python's bare
+# "no attribute"). Read side of ``_INK_SPELLINGS``.
+_FOREIGN_READS = {
+    "hide": "To hide it: x.visible = False (x.visible = True shows it again).",
+    "show": "To show it: x.visible = True (x.visible = False hides it).",
+    "kill": "To remove it: x.destroy() (later: after(0.5, x.destroy)).",
+    "remove": "To remove it: x.destroy() (later: after(0.5, x.destroy)).",
+    "transform": ("Scena has no transform: the position is .center (move_to / move_by), "
+                  "the turn .angle, the size .scale."),
+    "position": "The position is .center (move it with move_to / move_by).",
+    "goto": "To move it: x.move_to(x, y); to glide there: x.move_to(x, y, time=1).",
+    "go_to": "To move it: x.move_to(x, y); to glide there: x.move_to(x, y, time=1).",
+    "glide": "To glide: x.move_to(x, y, time=1) (the time goes by name).",
+    "point_towards": "To turn towards something: x.rotate_to(heading(x, target)).",
+    "look_at": "To turn towards something: x.rotate_to(heading(x, target)).",
+    "point_at": "To turn towards something: x.rotate_to(heading(x, target)).",
+}
+
+
+class _UnknownRead(AttributeError):
+    """A read of a name the object lacks. The message (and its hint) is built
+    only when someone reads it: ``hasattr`` / ``getattr(x, name, None)`` pay
+    nothing."""
+
+    def __init__(self, obj, name: str):
+        self.args = (name,)
+        self._obj = obj
+        self._name = name
+
+    def __str__(self) -> str:
+        obj = self._obj
+        try:
+            ink = object.__getattribute__(obj, "_ink")
+        except AttributeError:
+            ink = None
+        return _unknown_read_text(type(obj), self._name, ink)
+
+
+def _unknown_read_text(cls, name: str, ink) -> str:
+    kind = cls.__name__
+    base = f"{kind!r} object has no attribute {name!r}"
+    hint = _FOREIGN_READS.get(name) or _FOREIGN_READS.get(name.lower())
+    if hint is not None:
+        return f"{base}. {hint}"
+    if name in _RESERVED_FAMILY:
+        own = _other_kind_api(cls, name)
+        return (f"{kind} has no field {name!r} (a {_RESERVED_FAMILY[name]} field)."
+                + (f" {own}" if own else ""))
+    fix = _INK_SPELLINGS.get(name)
+    if fix is not None and hasattr(cls, fix):
+        return f"{base}. Scena spells it {fix!r}."
+    from .validate import did_you_mean
+    pool = [n for n in dir(cls) if not n.startswith("_")]
+    if isinstance(ink, dict):
+        pool += [n for n in ink if isinstance(n, str) and not n.startswith("_")]
+    near = did_you_mean(name, pool, cutoff=0.75)
+    return base + (f".{near}" if near else "")
+
+
 def _pose_xy_refused(owner, name: str) -> bool:
     """True when ``name`` is the pose alias Graphics do not have.
 
@@ -729,11 +838,11 @@ def _retired_attr_message(owner, name: str):
 
 
 def _look_missing_message(owner, name: str) -> str:
-    return _look_missing_text(type(owner).__name__, name)
+    return _look_missing_text(type(owner).__name__, name, type(owner))
 
 
-def _look_missing_text(kind: str, name: str) -> str:
-    return _absent_reserved_text(name).format(cls=kind)     # what ``@=`` answers
+def _look_missing_text(kind: str, name: str, cls=None) -> str:
+    return _absent_reserved_text(name, cls=cls).format(cls=kind)     # what ``@=`` answers
 
 
 def _one_edit_apart(a: str, b: str) -> bool:
@@ -1000,8 +1109,24 @@ _SHAPE_WORDS = {"base_ratio": "Triangle", "scoop": "Concave"}
 _ABSENT_HINTED = frozenset({"angle", "scale", "hue", "gray", "collider"})
 
 
+# A reserved name another kind owns, where this kind does the same job with
+# its own API: the answer names it and drops the "field of your own" tail
+# (persona probes PP: ``circle.alpha = 0.1`` never said ``set_alpha``, and the
+# tail invited ``circle.transparencia = 0.1``, which nothing reads).
+_OTHER_KIND_API = {
+    "alpha": ("set_alpha", "Set its opacity with .set_alpha(0.5) (fill and line together)."),
+}
+
+
+def _other_kind_api(cls, name: str) -> Optional[str]:
+    api = _OTHER_KIND_API.get(name)
+    if api is not None and cls is not None and callable(getattr(cls, api[0], None)):
+        return api[1]
+    return None
+
+
 def _absent_reserved_text(name: str, verb: str = "", size: str = "",
-                          hint: Optional[str] = None) -> str:
+                          hint: Optional[str] = None, cls=None) -> str:
     """``{cls} has no field 'text' (a Text field).`` — the answer to ``=`` and
     ``@=`` on a reserved name the kind lacks (``verb``: ``", so @= has nothing
     to link"``). ``hint``: the kind's own (``"Its caption is `.label`."``;
@@ -1009,6 +1134,9 @@ def _absent_reserved_text(name: str, verb: str = "", size: str = "",
     the caller."""
     family = _RESERVED_FAMILY.get(name)
     msg = f"{{cls}} has no field {name!r}" + (f" (a {family} field)" if family else "")
+    own_api = _other_kind_api(cls, name)
+    if own_api is not None:
+        return msg + verb + ". " + own_api
     if family:
         size = ""
     if hint is None:
@@ -2582,9 +2710,11 @@ class Entity(Container):
             if anchors and name in anchors:
                 anchors[name]._ensure_fresh()
             return ink[name]
-        raise AttributeError(
-            f"{type(self).__name__!r} object has no attribute {name!r}"
-        )
+        if name[:1] == "_":
+            raise AttributeError(
+                f"{type(self).__name__!r} object has no attribute {name!r}"
+            )
+        raise _UnknownRead(self, name)
 
     def __getitem__(self, key: str):
         """Bracket link handle; unknown entity ink names defer until ``@=``."""
@@ -3527,7 +3657,7 @@ def _install_timed_pose(cls) -> None:
 
             @wraps(orig_fn)
             def wrapped(
-                self, value, *, time=None, ease="linear", then=None, on_done=None,
+                self, value, *extra, time=None, ease="linear", then=None, on_done=None,
                 loops=1, yoyo=False, **kwargs,
             ):
                 # Instant path is the per-frame hot path (angle= / scale=).
@@ -3535,6 +3665,9 @@ def _install_timed_pose(cls) -> None:
                 if self._destroyed:     # before any argument (DV1); the
                     _refuse_dead_verb(    # overrides do not repeat it
                         self, name, time is None and (not kwargs or kwargs.get("speed") is None))
+                if extra:
+                    from .shapes import _time_by_name
+                    raise TypeError(_time_by_name(name, (value,) + extra))
                 if kwargs:
                     f = kwargs.get("force", False)
                     if f is not False and f is not True:    # force="no" is truthy: it unlinked

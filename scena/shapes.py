@@ -1225,6 +1225,35 @@ def _graphic_rotate_by(self, angle: float, *, about: Optional[GeneralPoint] = No
     return self
 
 
+
+def _time_by_name(verb: str, args) -> str:
+    """A duration passed by position (``move_to(1, 200, 100)``, Scratch's
+    "glide 1 s to x, y"; ``rotate_to(90, 1)``): Python said "takes from 1 to 3
+    positional arguments but 4 were given", counting ``self`` (persona probes
+    PP). The call written back with ``time=``."""
+    def show(v):
+        return f"{v:g}" if isinstance(v, (int, float)) and not isinstance(v, bool) else repr(v)
+    nums = all(isinstance(a, (int, float)) and not isinstance(a, bool) for a in args)
+    if verb.startswith("move"):
+        what = "x, y (or one point)" if verb == "move_to" else "dx, dy (or a Vec2)"
+        if nums and len(args) == 3:
+            a, b, c = args
+            scratch = f"{verb}({show(b)}, {show(c)}, time={show(a)})"     # glide a s to b, c
+            last = f"{verb}({show(a)}, {show(b)}, time={show(c)})"        # x, y, then seconds
+            if verb != "move_to" or not 0 < a <= 10:
+                call = last
+            elif not 0 < c <= 10:
+                call = scratch
+            else:
+                call = f"{scratch} (or, if {show(a)}, {show(b)} is the place, {last})"
+        else:
+            call = f"{verb}(x, y, time=seconds)"
+    else:
+        what = "the angle" if verb.startswith("rotate") else "the factor"
+        call = (f"{verb}({show(args[0])}, time={show(args[1])})" if nums and len(args) == 2
+                else f"{verb}(value, time=seconds)")
+    return f"{verb}() takes {what}; the duration goes by name: {call}."
+
 class Shape(Graphic, PaintState):
     """
     Abstract base class for all shapes.
@@ -2318,7 +2347,7 @@ class Shape(Graphic, PaintState):
         """
         self.rotate_to(_finite_deg(value, "angle"))
 
-    def rotate_to(self, value: float, *, time: Optional[float] = None, speed: Optional[float] = None, ease: str = "linear", then=None, on_done=None, about: Optional[GeneralPoint] = None, force: bool = False, loops: object = 1, yoyo: bool = False) -> Union['Shape', 'Handle']:
+    def rotate_to(self, value: float, *extra, time: Optional[float] = None, speed: Optional[float] = None, ease: str = "linear", then=None, on_done=None, about: Optional[GeneralPoint] = None, force: bool = False, loops: object = 1, yoyo: bool = False) -> Union['Shape', 'Handle']:
         """
         Set absolute rotation in degrees about a pivot (default: center).
         With ``time=``, interpolate the shortest arc (CCW+; 180° tie → CCW) and return a Handle.
@@ -2327,6 +2356,8 @@ class Shape(Graphic, PaintState):
         """
         if self._destroyed:     # before any argument (DV1)
             _refuse_dead_verb(self, "rotate_to", time is None and speed is None)
+        if extra:
+            raise TypeError(_time_by_name("rotate_to", (value,) + extra))
         if force is not False and force is not True:      # "no" is truthy: it unlinked
             force = _expect_flag(force, "rotate_to(force=)")
         if time is not None or speed is not None:
@@ -2347,7 +2378,7 @@ class Shape(Graphic, PaintState):
             return _rotate_as_placement(self.rotate_by, delta, about=about, force=force)
         return self.rotate_by(delta, about=about, force=force)
 
-    def rotate_by(self, angle: float, *, time: Optional[float] = None, speed: Optional[float] = None, ease: str = "linear", then=None, on_done=None, about: Optional[GeneralPoint] = None, force: bool = False, loops: object = 1, yoyo: bool = False) -> Union['Shape', 'Handle']:
+    def rotate_by(self, angle: float, *extra, time: Optional[float] = None, speed: Optional[float] = None, ease: str = "linear", then=None, on_done=None, about: Optional[GeneralPoint] = None, force: bool = False, loops: object = 1, yoyo: bool = False) -> Union['Shape', 'Handle']:
         """Rotate by angle degrees about a pivot (default: center).
 
         With ``time=``, interpolate the signed delta as written (Handle).
@@ -2357,6 +2388,8 @@ class Shape(Graphic, PaintState):
         """
         if self._destroyed:     # before any argument (DV1)
             _refuse_dead_verb(self, "rotate_by", time is None and speed is None)
+        if extra:
+            raise TypeError(_time_by_name("rotate_by", (angle,) + extra))
         if force is not False and force is not True:      # "no" is truthy: it unlinked
             force = _expect_flag(force, "rotate_by(force=)")
         if time is not None or speed is not None:
@@ -2390,7 +2423,7 @@ class Shape(Graphic, PaintState):
         from .validate import number
         self.scale_to(number(value, f"{type(self).__name__}.scale"))
 
-    def scale_to(self, value: float, *, time: Optional[float] = None, ease: str = "linear", then=None, on_done=None, about: Optional[GeneralPoint] = None, force: bool = False, loops: object = 1, yoyo: bool = False) -> Union['Shape', 'Handle']:
+    def scale_to(self, value: float, *extra, time: Optional[float] = None, ease: str = "linear", then=None, on_done=None, about: Optional[GeneralPoint] = None, force: bool = False, loops: object = 1, yoyo: bool = False) -> Union['Shape', 'Handle']:
         """
         Set absolute uniform scale about a pivot (default: center).
         With ``time=``, interpolate and return a Handle.
@@ -2398,6 +2431,8 @@ class Shape(Graphic, PaintState):
         """
         if self._destroyed:     # before any argument (DV1)
             _refuse_dead_verb(self, "scale_to", time is None)
+        if extra:
+            raise TypeError(_time_by_name("scale_to", (value,) + extra))
         if force is not False and force is not True:      # "no" is truthy: it unlinked
             force = _expect_flag(force, "scale_to(force=)")
         if time is not None:
@@ -2414,7 +2449,7 @@ class Shape(Graphic, PaintState):
             _require_loop_kwargs(loops=loops, yoyo=yoyo, time=time, call_name="scale_to")
         return _scale_to_via(self, value, about=about, force=force)
 
-    def scale_by(self, factor: float, *, time: Optional[float] = None, ease: str = "linear", then=None, on_done=None, about: Optional[GeneralPoint] = None, force: bool = False, loops: object = 1, yoyo: bool = False) -> Union['Shape', 'Handle']:
+    def scale_by(self, factor: float, *extra, time: Optional[float] = None, ease: str = "linear", then=None, on_done=None, about: Optional[GeneralPoint] = None, force: bool = False, loops: object = 1, yoyo: bool = False) -> Union['Shape', 'Handle']:
         """Multiply uniform scale by factor about a pivot (default: center).
 
         With ``time=``, interpolate the frozen factor and return a Handle.
@@ -2423,6 +2458,8 @@ class Shape(Graphic, PaintState):
         """
         if self._destroyed:     # before any argument (DV1)
             _refuse_dead_verb(self, "scale_by", time is None)
+        if extra:
+            raise TypeError(_time_by_name("scale_by", (factor,) + extra))
         if force is not False and force is not True:      # "no" is truthy: it unlinked
             force = _expect_flag(force, "scale_by(force=)")
         if time is not None:
@@ -2469,7 +2506,7 @@ class Shape(Graphic, PaintState):
         self,
         dx: Optional[Union[Vec2, float]] = None,
         dy: Optional[float] = None,
-        *,
+        *extra,
         angle: Optional[float] = None,
         distance: Optional[float] = None,
         time: Optional[float] = None,
@@ -2496,6 +2533,8 @@ class Shape(Graphic, PaintState):
         """
         if self._destroyed:     # before any argument (DV1)
             _refuse_dead_verb(self, "move_by", time is None and speed is None)
+        if extra:
+            raise TypeError(_time_by_name("move_by", (dx, dy) + extra))
         if time is None and (then is not None or on_done is not None or ease != "linear") \
                 and speed is None:
             from .process import _require_timed_completion
@@ -2593,7 +2632,7 @@ class Shape(Graphic, PaintState):
         self,
         x: Optional[Union[Vec2, float, 'Point']] = None,
         y: Optional[float] = None,
-        *,
+        *extra,
         about: Optional[GeneralPoint] = None,
         time: Optional[float] = None,
         speed: Optional[float] = None,
@@ -2620,6 +2659,8 @@ class Shape(Graphic, PaintState):
         """
         if self._destroyed:     # before any argument (DV1)
             _refuse_dead_verb(self, "move_to", time is None and speed is None)
+        if extra:
+            raise TypeError(_time_by_name("move_to", (x, y) + extra))
         if time is None and (then is not None or on_done is not None or ease != "linear") \
                 and speed is None:
             from .process import _require_timed_completion

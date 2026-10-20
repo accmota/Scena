@@ -113,6 +113,7 @@ CONTRACTS: Dict[str, W] = {
     "style:_warn_recolor_hidden": W(fires="test_visuals", twin="set_color on a visual that paints the shape's colour: the normal path"),
     "color:ColorNames.get": W(fires="test_color", twin=MISTAKE),
     "color:Color._parse_color_args": W(fires="test_color", twin=MISTAKE),
+    "orchestration:ScenaFramework.set_auto_callbacks": W(fires="test_class_hook_names", silent="test_class_hook_names.TestTopLevelNearMisses.test_helpers_hooks_and_decorated_functions_are_left_alone"),
     "color:_comparable_rgba": W(fires="test_color", silent="test_color.TestColorEquality.test_not_a_color_is_unequal_and_silent"),
     "uiwidget:resolve_typeface": W(fires="test_text", twin=MISSING_FILE),
     "uiwidget:resolve_ui_typeface": W(fires="test_api_robustness", twin=MISSING_FILE),

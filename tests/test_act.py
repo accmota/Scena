@@ -873,6 +873,25 @@ class TestNameSlotsAreByPlace(ActTestCase):
         self._end()
 
 
+class TestRunInsideTheGame(ActTestCase):
+    """``TextInput(on_submit=run)``: a pasted snippet named its own function
+    ``run`` and a rename left this line, so Enter called Scena's ``run`` with
+    the typed text and the message said "Write run(bola)", a call the author
+    never wrote (persona probes PP). ``run()`` inside the running game says
+    what happened."""
+
+    def test_run_called_from_a_callback_names_the_callback(self):
+        from scena import orchestration
+        self.begin(Vazia)
+        for arg in ("bola", None, Vazia):
+            with self.subTest(arg=arg), self.assertRaises(TypeError) as cm:
+                orchestration.run(arg) if arg is not None else orchestration.run()
+            msg = str(cm.exception)
+            self.assertIn("already running", msg)
+            self.assertIn("on_submit=run", msg)
+            self.assertNotIn("Write run(", msg)
+
+
 class TestPointerTagRulesLeaveWithTheAct(ActTestCase):
     """An act's ``@click(group["x"])`` follows the tag while the act runs and
     leaves with it, as an act's ``@collide`` does (persona probes PP)."""

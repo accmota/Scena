@@ -111,6 +111,12 @@ left out.
   them clickable: give them another tag. A union (`group["a"] |
   group["b"]`) or `.filter(…)` still wires the members of the moment.
 
+- Another engine's hook names in a class body raise at the class line with
+  the Scena hook: `def Update(self, dt)` → `on_update(self, dt)`, `Start` /
+  `Awake` → `setup`, `OnTriggerEnter2D` → `on_collide`, `OnMouseDown` →
+  `on_click`. Before, they were silently never called. A program that kept a
+  helper named `Start` or `Update` on an actor or act now raises: rename it
+  (`iniciar`).
 ### Added
 
 - The CSS colour names: `"beige"`, `"wheat"`, `"saddle brown"`,
@@ -303,6 +309,19 @@ left out.
   mean 'plataforma'?`.
 
 ### Changed
+
+- Messages that name the fix (persona probes): a read of a name an object
+  lacks says Scena's way (`chave.hide()` → `visible = False`,
+  `bola.transform` → `.center`, `circle.alpha` → `set_alpha`, `clock.tick(60)`
+  → no tick needed, `canvas.framerate`) and never suggests a private name
+  (`Did you mean: '_tick'?`); `move_to(1, 200, 100)` and `rotate_to(90, 1)`
+  write the call back with `time=`; `run()` called from inside the game (a
+  `TextInput(on_submit=run)`) says a callback handed Scena's `run`; a class
+  with several wrong hook names lists all of them, one line each.
+- A top-of-file `def on_click(x, y):` (or `on_key_press`, a top-level
+  `on_update`, `on_mouse_clik`) gets a SCENA WARNING at `run()` naming the
+  callback (`on_mouse_click(x, y, button)`, `@click(obj)`). It was silently
+  never called. A function a decorator or an object uses is left alone.
 
 - A `Color` is a value: equal colours compare equal however they were spelled,
   and the other side may be anything `color=` takes: `c.color == "red"`,

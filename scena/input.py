@@ -981,7 +981,30 @@ class Clock(ClosedSurface, Container):
     """
 
     _closed_who = "clock"
-    
+
+    # Pygame's / Unity's clock words (persona probes PP: ``clock.tick(60)``
+    # got Python's "Did you mean: '_tick'?", a private engine method).
+    _FOREIGN = {
+        "tick": ("Scena runs the frame loop for you: there is no clock.tick(). "
+                 "update(dt) gets each frame's time, and the frame rate is "
+                 "canvas.framerate = 60."),
+        "get_fps": "The frame rate is clock.fps.",
+        "get_time": "The frame time is clock.dt (seconds); the game time is clock.time.",
+        "delta_time": "The frame time is clock.dt (seconds), also passed to update(dt).",
+        "deltaTime": "The frame time is clock.dt (seconds), also passed to update(dt).",
+    }
+
+    def __getattr__(self, name: str):
+        # Only for a name that is not there; a private miss stays Python's.
+        if name[:1] == "_":
+            raise AttributeError(name)
+        hint = Clock._FOREIGN.get(name)
+        if hint is None:
+            from .validate import did_you_mean
+            hint = did_you_mean(name, [n for n in dir(type(self)) if not n.startswith("_")],
+                                cutoff=0.6).strip()
+        raise AttributeError(f"'Clock' object has no attribute {name!r}." + (f" {hint}" if hint else ""))
+
     def __init__(self):
         super().__init__()
         
