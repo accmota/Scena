@@ -4899,8 +4899,11 @@ def _unhold_payload(payload, holder, name) -> None:
     if d.get('update') is hook:
         del d['update']
     if (hook.flagged and d.get('_link') is None and d.get('_node_id') is None
-            and '_link_source' not in d):
+            and '_link_source' not in d and not d.get('_derivate_state')):
         # Back to a plain free vector: its ``v.x = …`` skips ``update()`` again.
+        # Not once anything else made the flag sticky while it was held: a
+        # read of ``length`` / ``angle`` (``_derivate_state``) stores them, and
+        # only ``update()`` re-syncs them after ``v.x = …`` (VB17).
         payload._needs_pull_invalidate = False
 
 
