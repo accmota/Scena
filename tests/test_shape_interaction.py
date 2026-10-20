@@ -254,6 +254,148 @@ class TestFlagsAndDecorators(InteractionTestCase):
         self.assertEqual(len(seen), 1)
 
 
+
+class TestGroupDecoratorsFollowTheTag(InteractionTestCase):
+    """``@click(group["x"])`` and the other pointer decorators follow the tag,
+    as ``@collide("x", …)`` does: a member that joins later gets the handler,
+    one that leaves loses it (persona probes PP, 0.9.0; before, only the
+    members of the moment were wired, so a rebuilt board or an act's own
+    objects were never clickable)."""
+
+    def gid(self, n=""):
+        return f"ix_live_{self.origin}{n}"
+
+    def click_at(self, x, y):
+        self.sim.handle_mouse_down(x, y, self.btn)
+        self.sim.handle_mouse_up(x, y, self.btn)
+
+    def test_a_member_made_later_is_clickable(self):
+        from scena import group
+        gid, seen = self.gid(), []
+
+        @click(group[gid])
+        def hit(shape):
+            seen.append(shape)
+
+        x, y = self.at(10, 10)
+        c = self.track(Circle(center=(x, y), radius=8, group=gid))
+        self.assertTrue(c.clickable)
+        self.click_at(x, y)
+        self.assertEqual(seen, [c])
+
+    def test_a_rebuilt_board_is_clickable_again(self):
+        from scena import group
+        gid, seen = self.gid(), []
+
+        def build():
+            return [self.track(Rect(center=self.at(10 + 60 * i, 10), width=40, height=40, group=gid))
+                    for i in range(3)]
+
+        build()
+
+        @click(group[gid])
+        def hit(card):
+            seen.append(card)
+
+        group[gid].destroy()
+        cards = build()
+        self.click_at(*self.at(70, 10))
+        self.assertEqual(seen, [cards[1]])
+
+    def test_tag_and_untag_wire_and_unwire(self):
+        from scena import group
+        gid = self.gid()
+
+        @click(group[gid])
+        def hit(shape):
+            pass
+
+        c = self.track(Circle(center=self.at(0, 0), radius=8))
+        self.assertFalse(c.clickable)
+        c.add_to_group(gid)
+        self.assertIs(c.on_click, hit)
+        self.assertTrue(c.clickable)
+        c.remove_from_group(gid)
+        self.assertIsNone(c.on_click)
+        self.assertFalse(c.clickable)
+
+    def test_a_handler_set_by_hand_is_never_overwritten(self):
+        from scena import group
+        gid = self.gid()
+
+        @click(group[gid])
+        def hit(shape):
+            pass
+
+        def own(shape):
+            pass
+
+        c = self.track(Circle(center=self.at(0, 0), radius=8, group=gid))
+        c.on_click = own
+        c.remove_from_group(gid)
+        self.assertIs(c.on_click, own)
+        c.add_to_group(gid)
+        self.assertIs(c.on_click, own)
+
+    def test_the_last_decorated_tag_wins_and_the_other_comes_back(self):
+        from scena import group
+        a, b = self.gid("a"), self.gid("b")
+
+        @click(group[a])
+        def first(shape):
+            pass
+
+        @click(group[b])
+        def second(shape):
+            pass
+
+        c = self.track(Circle(center=self.at(0, 0), radius=8, group=b))
+        c.add_to_group(a)                  # joined a later, decorated first
+        self.assertIs(c.on_click, second)
+        c.remove_from_group(b)
+        self.assertIs(c.on_click, first)
+
+    def test_drag_follows_the_tag(self):
+        from scena import group
+        gid = self.gid()
+
+        @drag_to(group[gid])
+        def dropped(frm, to, pos):
+            pass
+
+        c = self.track(Circle(center=self.at(0, 0), radius=8, group=gid))
+        self.assertTrue(c.draggable)
+        c.remove_from_group(gid)
+        self.assertFalse(c.draggable)
+
+    def test_a_snapshot_operator_stays_a_snapshot(self):
+        from scena import group
+        a, b = self.gid("a"), self.gid("b")
+        old = self.track(Circle(center=self.at(0, 0), radius=8, group=a))
+
+        @click(group[a] | group[b])
+        def hit(shape):
+            pass
+
+        late = self.track(Circle(center=self.at(30, 0), radius=8, group=a))
+        self.assertIs(old.on_click, hit)
+        self.assertIsNone(late.on_click)
+
+    def test_a_joiner_the_gesture_refuses_raises_naming_the_decorator(self):
+        from scena import Button, group
+        gid = self.gid()
+
+        @drag_to(group[gid])
+        def dropped(frm, to, pos):
+            pass
+
+        with self.assertRaises(TypeError) as cm:
+            b = Button(label="ok", top_left=(10, 10))
+            self.track(b)
+            b.add_to_group(gid)
+        self.assertIn("@drag_to", str(cm.exception))
+        self.assertIn(gid, str(cm.exception))
+
 # ---------------------------------------------------------------------------
 # contains_point (design-space hit geometry)
 # ---------------------------------------------------------------------------

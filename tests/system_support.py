@@ -200,6 +200,8 @@ def reset_system_globals() -> None:
     """
     _reset_act_manager()
     reset_collision_system()
+    from scena.interaction import _reset_tag_rules
+    _reset_tag_rules()      # a game's @click(group[...]) rules, like its @collide pairs
     reset_bounds_system()
     reset_cover()
     _transients._active_shapes.clear()

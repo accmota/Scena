@@ -873,6 +873,44 @@ class TestNameSlotsAreByPlace(ActTestCase):
         self._end()
 
 
+class TestPointerTagRulesLeaveWithTheAct(ActTestCase):
+    """An act's ``@click(group["x"])`` follows the tag while the act runs and
+    leaves with it, as an act's ``@collide`` does (persona probes PP)."""
+
+    def test_an_acts_group_click_wires_its_objects_and_leaves(self):
+        from scena import click
+        card = Circle(center=(10, 10), group="pp_cartas")
+        seen = []
+
+        class Mesa(Act):
+            def setup(self):
+                @click(group["pp_cartas"])
+                def virar(c):
+                    seen.append(c)
+                self.nova = Circle(center=(40, 10), group="pp_cartas")
+
+        self.begin(Mesa)
+        nova = current().nova
+        self.assertTrue(nova.clickable)
+        self.assertTrue(card.clickable)
+        change_act(Vazia)
+        self.assertIsNone(card.on_click, "the act's rule leaves the game card")
+        later = Circle(center=(70, 10), group="pp_cartas")
+        self.assertIsNone(later.on_click)
+
+    def test_a_game_rule_stays_across_acts(self):
+        from scena import click
+
+        @click(group["pp_botoes"])
+        def apertar(c):
+            pass
+
+        self.begin(Vazia)
+        change_act(Vazia)
+        b = Circle(center=(10, 10), group="pp_botoes")
+        self.assertIs(b.on_click, apertar)
+
+
 class TestBatchTeardown(ActTestCase):
 
     def change_recording(self, cls):

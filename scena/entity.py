@@ -2182,6 +2182,10 @@ def _finish_actor_construct(item) -> None:
         enroll_item_groups(item)
     except (ParallaxLayerError, UiLayerError):
         pass        # a decoration / HUD layer member of a pair group: no body (E18)
+    from . import registry as _reg
+    if _reg._POINTER_TAG_HOOK is not None:
+        from .interaction import apply_tag_rules
+        apply_tag_rules(item)
 
 
 def _wrap_construct_rollback(cls) -> None:

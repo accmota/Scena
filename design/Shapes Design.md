@@ -1261,9 +1261,24 @@ when nothing droppable is under the pointer.
 ## Decorators (`scena.interaction`)
 
 Sugar over the callback attributes. Accept individual Graphics (`Shape` or
-`Sprite`), widgets where the gesture makes sense, and/or `group['name']`
-(`GroupOperator` live view — **members present at decoration time** are
-registered). Last registration wins per target.
+`Sprite`), widgets where the gesture makes sense, and/or `group['name']`.
+A named tag **follows the tag** (0.9.0, persona probes PP), as `@collide`
+does: a *tag rule* (`interaction._TAG_RULES`) wires the members present now,
+every member that joins later (`registry.add_to_group` calls
+`interaction._tag_hook` once a rule exists; a new actor's `group=` is applied
+in the construct finish step, `apply_tag_rules`), and unwires a member that
+leaves. A joiner the gesture refuses (a Button joining a `@drag_to` tag)
+raises before the join, naming the decorator's line. Last registration wins
+per target, across tags too: a member in two tags gets the rule decorated
+last, and the other comes back when it leaves that tag. A handler set by hand
+(`card.on_click = f`) is never overwritten by a join or a leave. A rule
+decorated after the top level is the act's and leaves at the act change
+(`drop_act_tag_rules`), like an act's `@collide`; the game objects in its tag
+fall back to the game's rule or to none. Snapshots (`group['a'] |
+group['b']`, `.filter(…)`) and formula groups wire the members of the
+moment. Before 0.9.0 a named tag was a snapshot too: a rebuilt board, or an
+act's own objects under a top-level `@click(group[…])`, were never wired
+(both persona campaigns hit it).
 
 Widget policy — one rule for direct arguments and group members, checked for
 every target **before** any is touched (no half-applied decorator):

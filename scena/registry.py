@@ -56,6 +56,11 @@ RegistryObject = Any
 from .purity_check import _READING as _SOLVER_READING, refuse_if_solver_reading
 
 
+# ``@click(group[tag])`` and the other pointer decorators follow the tag:
+# ``interaction._tag_hook`` once a tag rule exists, else None (one global read
+# per tag / untag).
+_POINTER_TAG_HOOK = None
+
 class ParallaxLayerError(ValueError):
     """Raised when interactive / collidable geometry is used on a parallax layer.
 
@@ -1297,6 +1302,10 @@ class Registry:
                 f"group[{groupid!r}] is a formula group; cannot tag members onto it. "
                 f"Untag sources, or unlink the formula first."
             )
+        hook = _POINTER_TAG_HOOK
+        built = getattr(obj, "_actor_constructed", False)
+        if hook is not None and built:
+            hook(obj, groupid, "check")     # a refused joiner raises, nothing changed
         tags = obj.group
         if groupid not in tags:
             # Snapshot swap, never in-place: ``shape.group`` is read-only
@@ -1308,12 +1317,14 @@ class Registry:
         self.group_map[groupid].add(obj)
         if not already:
             self._group_gen[groupid] = self._group_gen.get(groupid, 0) + 1
-        if getattr(obj, "_actor_constructed", False):
+        if built:
             try:
                 from .collision import notify_group_add
                 notify_group_add(obj, groupid)
             except Exception:
                 pass
+            if hook is not None and not already:
+                hook(obj, groupid, "join")
 
     def remove_from_group(self, obj: Shape, groupid: str) -> None:
         if _SOLVER_READING:
@@ -1331,6 +1342,9 @@ class Registry:
                     notify_group_remove(obj, groupid)
                 except Exception:
                     pass
+                hook = _POINTER_TAG_HOOK
+                if hook is not None and getattr(obj, "_actor_constructed", False):
+                    hook(obj, groupid, "leave")
             # The notify above can reach a formula group's refresh, which may
             # already have dropped the emptied entry (untag of a last member).
             if not self.group_map.get(groupid):
@@ -1863,7 +1877,8 @@ class GroupOperator:
       - ``group['a'] | group['b']`` — snapshot (fixed member list)
       - ``group['a'].filter(pred)`` — snapshot of members matching ``pred``
       - Membership changes only via ``shape.add_to_group`` / ``remove_from_group``
-      - ``@click(group['x'])`` wires members present at decoration time
+      - ``@click(group['x'])`` follows the tag (members joining later get the
+        handler, leavers lose it); a snapshot wires its members of the moment
       - Groups are **not** a process owner (no ``group.every`` / ``group.on_update``)
     """
 

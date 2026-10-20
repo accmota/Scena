@@ -98,6 +98,19 @@ left out.
   t["text"].unlink().` A text linked to a number reads as its shown text
   (`"5"`); `t["text"].value` and `t.value` keep the payload.
 
+- `@click(group["x"])` and the other pointer decorators (`@hover`,
+  `@hover_exit`, `@drag_to`, `@drag_over`, `@drop_by`) follow the tag, as
+  `@collide` does: a member that joins later (`group=`, `add_to_group`) gets
+  the handler, and one that leaves loses it. Before, only the members of the
+  moment were wired, so a board rebuilt after `group["cartas"].destroy()`,
+  or an act's own objects under a top-level `@click(group[…])`, were never
+  clickable, with no message. A rule made inside an act leaves with the act;
+  a handler set by hand (`carta.on_click = f`) is never overwritten; a joiner
+  the gesture refuses raises at the line that tagged it. A program that
+  tagged objects it meant to stay unclickable into a decorated tag now gets
+  them clickable: give them another tag. A union (`group["a"] |
+  group["b"]`) or `.filter(…)` still wires the members of the moment.
+
 ### Added
 
 - The CSS colour names: `"beige"`, `"wheat"`, `"saddle brown"`,

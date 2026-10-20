@@ -3,8 +3,14 @@ Decorator sugar for pointer callbacks and collision pairing.
 
 Built on the ``on_click`` / ``on_drag_to`` / ``on_drag_over`` / ``on_drop_by``
 / ``on_hover`` / ``on_hover_exit`` properties. Accepts Graphics (Shape,
-Sprite), widgets where the gesture makes sense, and GroupOperator instances
-(registers every member present now). Last registration wins per item.
+Sprite), widgets where the gesture makes sense, and GroupOperator instances.
+A named tag (``group["cartas"]``) follows the tag, as ``@collide`` does: its
+members now, every member that joins later, and a member that leaves loses
+the handler (a tag rule). A snapshot (``group["a"] | group["b"]``,
+``.filter(…)``) or a formula group wires the members of the moment. Last
+registration wins per item; a handler set by hand (``card.on_click = f``) is
+never overwritten by a join or a leave. A rule made in an act leaves with the
+act, like an act's ``@collide``.
 
 Widget policy (one rule for direct arguments and group members):
 ``@click`` takes a ``Button`` (other widgets report a value change: use
@@ -16,7 +22,7 @@ Collision decorators (`collide` / `collide_stay` / `collide_exit`) live here
 as the author-facing re-exports; implementation is in ``scena.collision``.
 """
 
-from typing import Callable, List
+from typing import Callable, Dict, List, Optional
 
 from .entity import Graphic
 from .shapes import Shape
@@ -77,12 +83,152 @@ def _collect_targets(verb: str, *targets) -> List:
     return out
 
 
+class _TagRule:
+    """``@<verb>(group[tag])``: ``attr = func`` on every member of ``tag``."""
+
+    __slots__ = ("tag", "verb", "attr", "func", "seq", "in_act")
+
+    def __init__(self, tag, verb, attr, func, seq, in_act):
+        self.tag, self.verb, self.attr, self.func = tag, verb, attr, func
+        self.seq, self.in_act = seq, in_act
+
+
+# tag -> its rules, in decoration order. The registry calls ``_tag_hook`` on
+# every tag / untag once a rule exists (``registry._POINTER_TAG_HOOK``).
+_TAG_RULES: Dict[str, List[_TagRule]] = {}
+_seq = [0]
+
+
+def _live_tag(target) -> Optional[str]:
+    """The tag a live ``group[tag]`` view names, or None (a snapshot, a
+    formula group, an object)."""
+    from .canvas import GroupOperator
+    if isinstance(target, GroupOperator) and target._group_id is not None \
+            and target._snapshot is None and target._formula_name is None:
+        return target._group_id
+    return None
+
+
+def _where(func) -> str:
+    code = getattr(func, "__code__", None)
+    if code is None:
+        return getattr(func, "__name__", "the handler")
+    import os
+    return f"{os.path.basename(code.co_filename)}:{code.co_firstlineno}"
+
+
+def _check_joiner(item, rule: _TagRule) -> None:
+    try:
+        _check_target(rule.verb, item)
+    except TypeError as e:
+        raise TypeError(
+            f"{type(item).__name__} joined group {rule.tag!r}, whose @{rule.verb} "
+            f"({_where(rule.func)}) cannot take it: {e}"
+        ) from None
+
+
+def _rule_funcs(attr: str, extra=()) -> set:
+    out = {id(f) for f in extra}
+    for rules in _TAG_RULES.values():
+        for r in rules:
+            if r.attr == attr:
+                out.add(id(r.func))
+    return out
+
+
+def _refresh(item, attrs, gone=()) -> None:
+    """Give ``item`` the newest rule its tags have for each of ``attrs``,
+    unless it holds a handler no rule set (set by hand: kept)."""
+    if getattr(item, "_destroyed", False):
+        return
+    tags = getattr(item, "group", ()) or ()
+    for attr in attrs:
+        best = None
+        for tag in tags:
+            for r in _TAG_RULES.get(tag, ()):
+                if r.attr == attr and (best is None or r.seq > best.seq):
+                    best = r
+        current = getattr(item, attr, None)
+        if current is not None and id(current) not in _rule_funcs(attr, gone):
+            continue
+        want = best.func if best is not None else None
+        if current is not want:
+            setattr(item, attr, want)
+
+
+def _tag_hook(item, tag: str, phase: str) -> None:
+    """``registry.add_to_group`` / ``remove_from_group`` on a built actor:
+    ``check`` (before the join: a refused joiner raises, nothing changed),
+    ``join`` and ``leave`` (after)."""
+    rules = _TAG_RULES.get(tag)
+    if not rules:
+        return
+    if phase == "check":
+        for r in rules:
+            _check_joiner(item, r)
+        return
+    _refresh(item, {r.attr for r in rules})
+
+
+def apply_tag_rules(item) -> None:
+    """A new actor's tags (``group=`` at construction): the construct finish
+    step. A refused joiner raises, and the constructor rolls back."""
+    if not _TAG_RULES:
+        return
+    tags = getattr(item, "group", ()) or ()
+    attrs = set()
+    for tag in tags:
+        for r in _TAG_RULES.get(tag, ()):
+            _check_joiner(item, r)
+            attrs.add(r.attr)
+    if attrs:
+        _refresh(item, attrs)
+
+
+def drop_act_tag_rules() -> None:
+    """An act change: the act's tag rules leave; the members that stay (game
+    objects) fall back to the game's rules, or to no handler."""
+    doomed = [r for rules in _TAG_RULES.values() for r in rules if r.in_act]
+    if not doomed:
+        return
+    for tag in list(_TAG_RULES):
+        _TAG_RULES[tag] = [r for r in _TAG_RULES[tag] if not r.in_act]
+        if not _TAG_RULES[tag]:
+            del _TAG_RULES[tag]
+    from .canvas import ScenaCanvas
+    gm = ScenaCanvas.get_current().registry.group_map
+    for r in doomed:
+        for item in list(gm.get(r.tag, ())):
+            _refresh(item, (r.attr,), gone=(r.func,))
+    if not _TAG_RULES:
+        from . import registry as _reg
+        _reg._POINTER_TAG_HOOK = None
+
+
+def _reset_tag_rules() -> None:
+    """Tests / a world reset: no rules."""
+    _TAG_RULES.clear()
+    from . import registry as _reg
+    _reg._POINTER_TAG_HOOK = None
+
+
 def _pointer_decorator(verb: str, attr: str, passes, targets):
     def decorator(func: Callable) -> Callable:
         from .process import _claim_decorator_role
+        from . import process as _process
         check_pointer_handler(func, passes, what=f"@{verb}")
         items = _collect_targets(verb, *targets)
         _claim_decorator_role(func, "pointer")
+        for target in targets:
+            tag = _live_tag(target)
+            if tag is None:
+                continue
+            _seq[0] += 1
+            rules = _TAG_RULES.setdefault(tag, [])
+            rules[:] = [r for r in rules if r.attr != attr]     # a newer rule replaces it
+            rules.append(_TagRule(tag, verb, attr, func, _seq[0], _process._top_level_ended))
+            from . import registry as _reg
+            _reg._POINTER_TAG_HOOK = _tag_hook
         for item in items:
             setattr(item, attr, func)
         return func

@@ -451,6 +451,8 @@ class ActManager:
         get_scheduler().resume_suspended_game_slots()
         get_global_event_system().drop_act_owned()
         get_collision_system().drop_act_pair_handlers()
+        from .interaction import drop_act_tag_rules
+        drop_act_tag_rules()
         get_collision_system().restore_sealed_resolve_pairs()
         get_collision_system().retire_unused_pair_tags()
         from .cover import drop_act_on_done

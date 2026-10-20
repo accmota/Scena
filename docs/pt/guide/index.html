@@ -6438,7 +6438,7 @@ group["inimigos"].unlink()     # o nome volta a ser um grupo-tag vazio</pre>
           </div>
           <p>Alias sem <code>lambda</code> só vale para um grupo vivo ou o nome da tag. União, interseção, <code>filter</code> já calcularam: o <code>@=</code> recusa (não congela em silêncio). Isto não usa a ligação <code>@=</code> dos campos: se dois nomes dependem um do outro (A usa B e B usa A), o erro só aparece ao ler. <code>.is_linked</code> diz se o nome tem fórmula.</p>
           <p>Parecido, em outro lugar: o interruptor <code>active</code> de uma caixa de ataque também se liga com <code>@=</code> (<code>espada["active"] @= lambda: heroi.showing(GOLPE)</code>) e é recalculado na etapa de colisão de cada frame. Ver <a href="#spr-hit-ataque">Caixas de ataque</a>.</p>
-          <p class="gotcha"><code>@collide</code> não acompanha grupo fórmula — use as tags de origem. <code>@click(group["…"])</code> liga só os membros do momento da decoração.</p>
+          <p class="gotcha"><code>@collide</code> não acompanha grupo fórmula — use as tags de origem. <code>@click(group["…"])</code> acompanha a tag, como <code>@collide</code>: quem entrar depois também é clicável.</p>
         </div>
         <div class="tab-panel" data-panel="grp-esperar" id="grp-esperar">
           <p class="one-liner">Esperar a onda acabar: <code>await until_empty(...)</code>, num mode async.</p>
@@ -9172,7 +9172,7 @@ hud = Rect(center=(930, 170), width=85, height=65, layer="top", color="navy")</p
       </div>
       <details class="spec">
       <summary>Decorators</summary>
-        <p>Ligam no alvo a propriedade certa (<code>clickable</code>, <code>draggable</code>, <code>droppable</code>) e a função ao gesto. Alvo é um Graphic (Shape, Sprite ou Text), não SpatialFx. <code>@click</code> também aceita <code>Button</code>; <code>@hover</code> / <code>@hover_exit</code> aceitam qualquer widget. Slider / CheckBox / DropDown / TextInput em <code>@click</code> levantam erro: use <code>@on_change(w.data)</code>. <code>@click(group["…"])</code> vê os membros no momento da decoração; um membro recusado levanta erro antes de ligar qualquer um.</p>
+        <p>Ligam no alvo a propriedade certa (<code>clickable</code>, <code>draggable</code>, <code>droppable</code>) e a função ao gesto. Alvo é um Graphic (Shape, Sprite ou Text), não SpatialFx. <code>@click</code> também aceita <code>Button</code>; <code>@hover</code> / <code>@hover_exit</code> aceitam qualquer widget. Slider / CheckBox / DropDown / TextInput em <code>@click</code> levantam erro: use <code>@on_change(w.data)</code>. <code>@click(group["…"])</code> acompanha a tag, como <code>@collide</code>: liga os membros de agora, quem entrar depois (<code>group=</code>, <code>add_to_group</code>) e desliga quem sair. Um membro recusado levanta erro antes de ligar qualquer um (e quem entrar recusado levanta erro na linha que o pôs na tag). Uma função ligada à mão (<code>carta.on_click = f</code>) fica. Feito dentro de um ato, sai com o ato. Uma união (<code>group["a"] | group["b"]</code>) ou um <code>.filter(…)</code> é uma foto: liga só os membros do momento.</p>
         <div class="tbl-wrap">
           <table>
           <thead>
