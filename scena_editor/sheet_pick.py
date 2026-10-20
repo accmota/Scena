@@ -473,7 +473,7 @@ class FramePicker:
             self._mark(self.mark_hover, index)
 
     def key(self, key: str) -> None:
-        if key == "ESCAPE":
+        if key == "ESC":
             self.cancel()
         elif key == "F":
             self.fit()

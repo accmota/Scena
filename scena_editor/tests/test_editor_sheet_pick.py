@@ -114,9 +114,55 @@ class TestPickFromAtlas(PickerCase):
         self.assertIsNotNone(app.picker)
         self.assertNotEqual((canvas.pan_x, canvas.pan_y), before)
         self.assertEqual(app.editor.doc.items, [])
-        app.on_key("ESCAPE")
+        self.key("ESC")
         self.assertIsNone(app.picker)
         self.assertEqual(app.editor.doc.items, [])
+
+
+class TestChangeImage(PickerCase):
+    """Change image… on a frame of a sheet (no file of its own) and with an atlas."""
+
+    def choose(self, path):
+        from unittest import mock
+        from scena_editor import dialogs
+        starts = []
+
+        def chosen(start, title=""):
+            starts.append(start)
+            return path
+
+        self.app.dialogs.threaded = False
+        with mock.patch.object(dialogs, "choose_image", side_effect=chosen):
+            self.app.change_image()
+        self.frame()
+        return starts
+
+    def test_a_frame_starts_at_its_sheet_folder_and_becomes_a_whole_picture(self):
+        app = self.app
+        app._place_image(self.ball_xml)
+        self.frame()
+        p = app.picker
+        (x, y, w, h), _s, _n = next(f for f in p.frames if f[2] == "key.png")
+        self.click_pixel(x + w / 2, y + h / 2, p.img_h)
+        starts = self.choose(self.cherries)
+        self.assertEqual(starts, [os.path.dirname(self.ball_png)])
+        item = app.editor.single()
+        self.assertEqual((item["file"], item["sheet"], item["frame"]),
+                         ("arte/Cherries.png", None, None))
+        self.assertViewMatchesDoc()
+
+    def test_an_atlas_opens_the_picker_for_the_item(self):
+        app = self.app
+        self.place_whole(self.cherries)
+        self.choose(self.ball_xml)
+        p = app.picker
+        self.assertIsNotNone(p)
+        self.assertEqual(p.layout["mode"], "atlas")
+        (x, y, w, h), size, _n = next(f for f in p.frames if f[2] == "star.png")
+        self.click_pixel(x + w / 2, y + h / 2, p.img_h)
+        item = app.editor.single()
+        self.assertEqual(item["frame"], "star.png")
+        self.assertEqual((item["width"], item["height"]), size)        # Cherries was 1:1
 
 
 class TestChooseFrame(PickerCase):

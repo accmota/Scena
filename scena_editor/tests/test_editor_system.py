@@ -64,6 +64,14 @@ class EditorSystemCase(SystemTestCase, unittest.TestCase):
     def frame(self, n=1):
         self.w.step(n)
 
+    def key(self, name):
+        """A key press as Scena delivers it to ``on_key``: a ``KeyName``, whose
+        ``==`` raises on a spelling Scena never sends (``"ESCAPE"`` for ``"ESC"``).
+        A plain ``str`` here hid that bug in the frame picker."""
+        from scena.input import KeyName, _is_delivered_name
+        self.assertTrue(_is_delivered_name(name), f"Scena never delivers {name!r} to on_key")
+        self.app.on_key(KeyName(name))
+
     def drag_view(self, a, b, steps=4, shift=False):
         app = self.app
         x, y = world(*a)
@@ -147,14 +155,14 @@ class TestEditorOnFrames(EditorSystemCase):
         app.choose_tool("polygon")
         for p in ((300, 200), (380, 200), (340, 260)):
             self.click_view(p)
-        app.on_key("ENTER")
+        self.key("ENTER")
         self.frame()
         self.assertEqual(len(app.editor.doc.items), 6)
         self.assertViewMatchesDoc()
         # move the polygon, delete it, undo, redo
         self.drag_view((340, 215), (400, 240))
         self.assertViewMatchesDoc()
-        app.on_key("DEL")
+        self.key("DEL")
         self.frame()
         self.assertEqual(len(app.editor.doc.items), 5)
         self.assertViewMatchesDoc()
@@ -754,16 +762,16 @@ class TestEditorOnFrames(EditorSystemCase):
         tool = ed.tool
         keyp._press("LEFT_SHIFT")
         try:
-            app.on_key("RIGHT")
+            self.key("RIGHT")
             self.frame()
-            app.on_key("R")                          # Shift+letter: no tool switch
+            self.key("R")                          # Shift+letter: no tool switch
             self.frame()
         finally:
             keyp._release("LEFT_SHIFT")
         item = ed.selected_items()[0]
         self.assertAlmostEqual(item["center"][0] - x0, ed.grid)
         self.assertEqual(ed.tool, tool)
-        app.on_key("RIGHT")
+        self.key("RIGHT")
         self.frame()
         self.assertAlmostEqual(ed.selected_items()[0]["center"][0] - x0, ed.grid + 1.0)
 
@@ -773,10 +781,10 @@ class TestEditorOnFrames(EditorSystemCase):
         self.frame()
         self.assertEqual(active(), ["select"])
         for key, tool in (("H", "hand"), ("R", "rect"), ("P", "point")):
-            app.on_key(key)
+            self.key(key)
             self.frame()
             self.assertEqual(active(), [tool])
-        app.on_key("ESC")
+        self.key("ESC")
         self.frame()
         self.assertEqual(active(), ["select"])
         app.choose_tool("rect")

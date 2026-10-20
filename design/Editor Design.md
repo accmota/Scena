@@ -343,7 +343,9 @@ guard, no zombies) and `test_editor_dialogs`. v1:
 - **Selected points** get a ring (a fixed screen size), not only a color.
 - **Images:** "Change image…" picks another file — same center, angle and
   height, width from the new picture's proportions (a frame of a sheet
-  becomes a whole picture).
+  becomes a whole picture; its dialog starts in the sheet's folder: a frame
+  has no `file` of its own). An atlas picked there opens the frame picker for
+  the item, as Choose frame does.
 - **Frames of a sheet** (0.9.0). The Image tool's dialog also takes an atlas
   (`.xml` / `.json`): the **frame picker** opens on its frames, and the
   picked one is placed at the view's middle at its untrimmed pixel size. A
@@ -657,6 +659,15 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   error returns to 0 on the next event).
 - `keyp.once("CMD+O")` used to fire for keys never down together (bug IN1,
   [Testing Design.md](Testing%20Design.md)); fixed in `input.py`.
+- **`on_key` gets a `KeyName`, not a `str`**: its `==` raises on a spelling
+  Scena never delivers. The frame picker compared `key == "ESCAPE"` (Scena
+  sends `"ESC"`) and Esc crashed it, while its test, passing a plain `str`,
+  stayed green. System tests press keys through `EditorSystemCase.key`, which
+  sends a `KeyName` and refuses an undeliverable name;
+  `test_boundary.TestKeyNamesAreDelivered` checks every literal a key handler
+  compares its key with. (Found 2026-10-20 in the author's first live run, with
+  Change image on a frame, whose `file` is `None`: a test had called the
+  controller's `replace_image`, never the App's `change_image`.)
 - **Widgets draw after the whole `ui` layer** (`orchestration.py`,
   `_draw_ui_layer` then `widget_manager.draw`), so no Graphic can sit on a
   `Button`: an icon there is hidden under it. An icon button is therefore a

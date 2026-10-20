@@ -257,17 +257,23 @@ class App:
     def choose_frame(self) -> None:
         """Show another frame in the selected image: the picker on its file
         (its sheet's cut, its frame marked); same center, angle and scale."""
-        ed = self.editor
-        item = ed.single()
+        item = self.editor.single()
         if self.blocked or item is None or item["kind"] != "image":
             return
         self.panel.poll()
+        entry = self.editor.doc.sheet(item["sheet"]) if item["sheet"] is not None else None
+        file = entry["file"] if entry is not None else self.editor.doc.image_path(item)
+        self._pick_into(item, file, entry=entry, current=item["frame"])
+
+    def _pick_into(self, item, file: str, **picker) -> None:
+        """Open the picker on ``file`` for an image item: the picked frame (or
+        the whole picture) replaces what the item shows, at the item's scale."""
+        ed = self.editor
         item_id = item["id"]
         entry = ed.doc.sheet(item["sheet"]) if item["sheet"] is not None else None
-        file = entry["file"] if entry is not None else ed.doc.image_path(item)
         try:
             shown = (sheets.frame_size(entry, item["frame"]) if entry is not None
-                     else sheets.image_size(file))
+                     else sheets.image_size(ed.doc.image_path(item)))
         except (ValueError, TypeError):
             shown = (item["width"], item["height"])
 
@@ -279,7 +285,7 @@ class App:
             else:
                 ed.set_frame(item_id, new_entry, frame, size, shown[1])
 
-        self._open_picker(file, entry=entry, current=item["frame"], on_pick=picked)
+        self._open_picker(file, on_pick=picked, **picker)
 
     def _open_picker(self, file: str, **kwargs) -> None:
         if self.picker is not None:
@@ -299,10 +305,22 @@ class App:
         if self.blocked or item is None or item["kind"] != "image":
             return
         item_id = item["id"]
-        start = os.path.dirname(self.editor.doc.image_path(item))
+        doc = self.editor.doc
+        # A frame of a sheet has no file of its own: start at the sheet's.
+        shown = doc.sheet(item["sheet"])["file"] if item["sheet"] is not None else doc.image_path(item)
+        start = os.path.dirname(shown)
 
         def replace(path):
             if not path or not self.editor.doc.has(item_id):
+                return
+            if os.path.splitext(path)[1].lower() in ATLAS_EXTS:
+                # An atlas (the dialog takes one): pick which of its frames.
+                png = image_for_atlas(path)
+                if png is None:
+                    self.say(t("error.not_an_atlas_image", file=os.path.basename(path)))
+                else:
+                    self._pick_into(self.editor.doc.get(item_id), png,
+                                    layout={"mode": "atlas", "atlas": path})
                 return
             size = self._image_size(path)
             if size is not None:

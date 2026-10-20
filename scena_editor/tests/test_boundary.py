@@ -80,3 +80,45 @@ class TestRuleCatchesALeak(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestKeyNamesAreDelivered(unittest.TestCase):
+    """Every key a key handler compares with is a name Scena delivers to
+    ``on_key``. The frame picker compared ``key == "ESCAPE"``: Scena sends
+    ``"ESC"``, and its ``KeyName`` raises on the spelling it never sends — Esc
+    crashed the picker while a test passing a plain ``str`` stayed green."""
+
+    HANDLERS = {"key", "on_key"}
+
+    def test_handlers_compare_with_delivered_names(self):
+        from scena.input import _is_delivered_name
+        bad, seen = [], 0
+        for path in _py_files(EDITOR, skip_tests=True):
+            with open(path, encoding="utf-8") as fh:
+                tree = ast.parse(fh.read(), path)
+            for fn in ast.walk(tree):
+                if not isinstance(fn, ast.FunctionDef) or fn.name not in self.HANDLERS:
+                    continue
+                params = [a.arg for a in fn.args.args if a.arg != "self"]
+                if not params:
+                    continue
+                param = params[0]                    # the key the handler was given
+
+                def is_param(n):
+                    return isinstance(n, ast.Name) and n.id == param
+
+                for node in ast.walk(fn):
+                    if not isinstance(node, ast.Compare):
+                        continue
+                    sides = [node.left] + node.comparators
+                    if not any(is_param(n) for n in sides):
+                        continue
+                    for side in sides:
+                        values = side.elts if isinstance(side, (ast.Tuple, ast.List, ast.Set)) else [side]
+                        for v in values:
+                            if isinstance(v, ast.Constant) and isinstance(v.value, str):
+                                seen += 1
+                                if not _is_delivered_name(v.value):
+                                    bad.append(f"{os.path.relpath(path, ROOT)}:{v.lineno}: {v.value!r}")
+        self.assertGreater(seen, 3)          # the scan reaches the handlers
+        self.assertEqual(bad, [], "on_key never delivers these names (see scena.input)")
