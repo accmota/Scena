@@ -59,7 +59,6 @@ def tap(run, key):
 
 def check_bonds(test, ns):
     """Every bond obeys the rules the docstring states."""
-    polo = ns["POLO"]
     for a in ns["atomos"]:
         test.assertLessEqual(len(a.vizinhos), a.valencia, a.nome)
         test.assertLessEqual(len(a.pontes), a.max_fracas, a.nome)
@@ -69,8 +68,9 @@ def check_bonds(test, ns):
         for b in a.pontes:
             test.assertIn(a, b.pontes)
             test.assertIsNot(a.molecula, b.molecula, "a weak bond inside one molecule")
+            # it forms above POLO and lives while the two charges stay
+            # opposite (a borrowed charge fades as the atom leaves the ion)
             test.assertLess(a.carga * b.carga, 0, "a weak bond between equal charges")
-            test.assertGreater(abs(a.carga), polo)
 
 
 def molecules(ns):
@@ -333,6 +333,54 @@ class TestAffinityMixPanel(unittest.TestCase):
             near = [a for a in ns["atomos"] if a.x < ns["CX"] - ns["PRATO"] + 140]
             self.assertTrue(near)
             self.assertLess(sum(a.vx for a in near) / len(near), 40, "the slider drag stirred the atoms")
+
+
+class TestAffinityIons(unittest.TestCase):
+    """An ion lends the opposite charge to the atoms near it, so it holds
+    neutral atoms too (before, with no charged molecule in the dish, the two
+    ions only bonded each other); Acaso draws the ions as well."""
+
+    def test_an_ion_holds_neutral_atoms(self):
+        with ProgramRun(PATH, seed=1) as run:
+            ns = run.ns
+            st = ns["st"]
+            run.move(*AWAY)
+            # no red: white on amber stays neutral, only the ions are charged
+            st.total, st.branco, st.vermelho, st.ambar, st.verde, st.violeta = 200, 5, 0, 5, 1, 1
+            ns["mistura"]()
+            run.step(8 * SECOND)
+            check_bonds(self, ns)
+            polo = ns["POLO"]
+            ions = [a for a in ns["atomos"] if a.carga_fixa]
+            held = [(ion, b) for ion in ions for b in ion.pontes if abs(b.carga_propria) < polo]
+            self.assertGreater(len(held), 15, "the ions hold no neutral atom")
+            for ion, b in held:
+                self.assertLess(b.carga * ion.carga_fixa, 0, "a borrowed charge with the ion's sign")
+            # the borrowed charge is there only near an ion
+            reach = ns["ALCANCE_INDUZ"]
+            far = [a for a in ns["atomos"] if not a.carga_fixa
+                   and all(math.dist((a.x, a.y), (i.x, i.y)) >= reach for i in ions)]
+            self.assertTrue(far)
+            for a in far:
+                self.assertEqual(a.carga, a.carga_propria)
+
+    def test_acaso_draws_the_ions(self):
+        with ProgramRun(PATH, seed=1) as run:
+            ns = run.ns
+            tap(run, "R")
+            for nome, sign in (("verde", 1), ("violeta", -1)):
+                e = ns["ELEMENTOS"][nome]
+                self.assertTrue(0.5 <= sign * e["carga"] <= 1.5, e)
+                self.assertIn(e["fracas"], range(2, 7))
+                self.assertIn(f"íon {e['carga']:+.2f}  segura {e['fracas']}", ns["legenda"][nome].text)
+            ns["st"].verde = ns["st"].violeta = 3
+            centre = ns["rodar"].box.center
+            click(run, centre.x, centre.y)
+            ion = next(a for a in ns["atomos"] if a.nome == "verde")
+            self.assertEqual(ion.carga_fixa, ns["ELEMENTOS"]["verde"]["carga"])
+            self.assertEqual(ion.max_fracas, ns["ELEMENTOS"]["verde"]["fracas"])
+            tap(run, "1")
+            self.assertEqual(ns["ELEMENTOS"], ns["ORIGINAIS"])
 
 
 class TestAffinityFastPath(unittest.TestCase):

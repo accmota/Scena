@@ -887,10 +887,13 @@ left out.
   white on amber does not: the two molecules separate on their own. Atoms
   without a strong bond push apart: a soft shell out to 1.5 times the
   contact distance, stronger than the other forces (a weak bond keeps a
-  visible gap), and a steep core inside it, so nobody piles up. Recipes
+  visible gap), and a steep core inside it, so nobody piles up. An ion
+  lends the opposite charge to the atoms near it, so it holds neutral
+  atoms too, not only the other ion. Recipes
   with invented names (it is not a physical simulation): Nascente (free
   atoms react), Coroas (ions gather molecules), Ilhas (two molecules
-  separate) and Acaso (R: random rules, shown in a side table). Sliders
+  separate) and Acaso (R: random rules, ions included, shown in a side
+  table). Sliders
   set how many atoms and the weight of each element, and Rodar builds that
   mix of free atoms with the rules of the moment; each recipe shows its own
   mix on them. UP / DOWN heat, a drag stirs, SPACE a spark that breaks the

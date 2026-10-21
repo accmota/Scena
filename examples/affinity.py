@@ -24,13 +24,18 @@ Duas ligações
   fraca   (linha fina, tracejada) junta uma ponta + a uma ponta - de moléculas
           diferentes. O branco segura uma só, o vermelho duas, um íon
           várias. Ela puxa como um fio, mais forte quanto mais perto;
-          esticada demais, arrebenta; e o calor a desfaz e refaz o tempo todo.
+          esticada demais, arrebenta; o calor a desfaz e refaz o tempo todo;
+          e ela solta quando as duas pontas deixam de ter cargas opostas.
 
 A carga vem das ligações: um átomo solto é neutro. Ligado a um vizinho mais
 ávido, ele fica + (brilho azul) e o vizinho fica - (brilho rosa). Cargas
 iguais se empurram, opostas se puxam. Por isso o branco preso ao vermelho
 fica carregado e faz ligações fracas, e o branco preso ao âmbar fica quase
 neutro e não faz: as duas moléculas não se misturam.
+
+Um íon empresta carga: um átomo perto dele fica com um pouco da carga
+oposta (e o brilho dela) enquanto estiver perto, mesmo que seja neutro.
+Assim o íon segura átomos soltos e moléculas neutras, não só o outro íon.
 
 Ninguém se amontoa: dois átomos sem ligação forte se empurram quando chegam
 perto (uma casca macia em volta de cada um), e cada vez mais forte se
@@ -42,7 +47,8 @@ Coisas para experimentar
   1   Nascente: brancos e vermelhos soltos reagem e viram moléculas
   2   Coroas: cada íon junta moléculas vermelhas em volta de si
   3   Ilhas: as moléculas de vermelho e as de âmbar se separam sozinhas
-  R   Acaso: valência e avidez ao acaso para as mesmas cores
+  R   Acaso: valência e avidez ao acaso para as mesmas cores; nos íons, o
+      tamanho da carga e quantas ligações fracas cada um segura
   Os sliders mostram a mistura de cada receita. Mude quantos átomos e o
   peso de cada elemento e aperte Rodar: átomos soltos, com as regras de
   agora (depois de R, as regras sorteadas).
@@ -106,6 +112,9 @@ AGITO = 420         # o quanto o calor sacode
 QUEBRA = 20         # o quanto o calor desfaz as ligações fracas
 FAISCA = 90         # o alcance da faísca
 POLO = 0.15         # menos carga que isso: o átomo não faz ligação fraca (nem brilha)
+INDUZ = 0.8         # a carga que um íon empresta a quem encosta nele...
+ALCANCE_INDUZ = 60  # ...e que cai a zero a esta distância
+EMPRESTA = 0.6      # o máximo de carga emprestada que um átomo junta
 
 st.calor = 0.4      # 0: gelado · 1: fervendo
 st.receita = "Nascente"
@@ -146,7 +155,9 @@ class Atomo:
         self.avidez = e["avidez"]
         self.max_fracas = e["fracas"]
         self.carga_fixa = e["carga"]
-        self.carga = self.carga_fixa
+        self.carga_propria = self.carga_fixa    # a que vem das ligações fortes
+        self.carga = self.carga_fixa            # a própria + a emprestada pelos íons
+        self.emprestada = 0
         self.vizinhos = []      # ligações fortes
         self.pontes = []        # ligações fracas
         self.molecula = self    # um átomo da molécula, o mesmo para todos
@@ -220,19 +231,9 @@ def entende_moleculas():
                         fila.append(c)
     for a in atomos:
         # cada vizinho mais ávido puxa um pouco de carga deste átomo
-        a.carga = a.carga_fixa
+        a.carga_propria = a.carga_fixa
         for b in a.vizinhos:
-            a.carga += b.avidez - a.avidez
-        # o brilho mostra a carga: azul +, rosa -, nada se é quase neutro
-        if a.carga > POLO:
-            brilho = "deep sky blue"
-        elif a.carga < -POLO:
-            brilho = "hot pink"
-        else:
-            brilho = None
-        if brilho != a.brilho:
-            a.brilho = brilho
-            a.bola.glow = CheapGlow(brilho, radius=8) if brilho else None
+            a.carga_propria += b.avidez - a.avidez
     # uma ligação fraca dentro da mesma molécula não faz sentido
     for ligacao in list(fracas):
         if ligacao[0].molecula is ligacao[1].molecula:
@@ -249,6 +250,42 @@ def entende_moleculas():
                 d2 = lado_b ** 2 + lado_c ** 2 - 2 * lado_b * lado_c * cos(radians(ANGULO))
                 angulos.append([b, c, d2 ** 0.5])
     st.mudou = False
+
+
+def pinta_carga(a):
+    """O brilho mostra a carga: azul +, rosa -, nada se é quase neutro."""
+    if a.carga > POLO:
+        brilho = "deep sky blue"
+    elif a.carga < -POLO:
+        brilho = "hot pink"
+    else:
+        brilho = None
+    if brilho != a.brilho:      # só troca o brilho quando muda de cor
+        a.brilho = brilho
+        a.bola.glow = CheapGlow(brilho, radius=8) if brilho else None
+
+
+def empresta_cargas(quadras):
+    """Perto de um íon, um átomo fica com um pouco da carga oposta à dele,
+    enquanto estiver perto: até um átomo neutro passa a ser puxado."""
+    for a in atomos:
+        a.emprestada = 0
+    for ion in atomos:
+        if not ion.carga_fixa:
+            continue
+        qx, qy = int(ion.x // ALCANCE), int(ion.y // ALCANCE)
+        for cx in (qx - 1, qx, qx + 1):
+            for cy in (qy - 1, qy, qy + 1):
+                for b in quadras.get((cx, cy), []):
+                    if b.carga_fixa:
+                        continue        # íon não empresta para íon
+                    d = ((b.x - ion.x) ** 2 + (b.y - ion.y) ** 2) ** 0.5
+                    if d < ALCANCE_INDUZ:
+                        b.emprestada -= ion.carga_fixa * INDUZ * (1 - d / ALCANCE_INDUZ)
+    for a in atomos:
+        emprestada = max(-EMPRESTA, min(EMPRESTA, a.emprestada))
+        a.carga = a.carga_propria + emprestada
+        pinta_carga(a)
 
 
 def puxa(a, b, forca, ax, ay):
@@ -284,6 +321,7 @@ def agitar(dt):
         if chave not in quadras:
             quadras[chave] = []
         quadras[chave].append(a)
+    empresta_cargas(quadras)
 
     candidatas = []     # ligações fracas que podem nascer
     choques = []        # ligações fortes que podem nascer
@@ -371,14 +409,16 @@ def agitar(dt):
         a, b = ligacao[0], ligacao[1]
         d = ((b.x - a.x) ** 2 + (b.y - a.y) ** 2) ** 0.5
         forca = 1 - d / ROMPE
+        qq = a.carga * b.carga
         # o calor desfaz as ligações fracas; as de carga alta duram mais
-        quebra = QUEBRA * calor ** 2 / (abs(a.carga * b.carga) + 0.1)
-        if forca <= 0 or random() < quebra * dt:
+        quebra = QUEBRA * calor ** 2 / (abs(qq) + 0.1)
+        # e uma carga emprestada some quando o átomo se afasta do íon
+        if forca <= 0 or qq >= 0 or random() < quebra * dt:
             solta(fracas, ligacao)
             continue
         ligacao[3] = forca
         # perto demais, a casca empurra mais do que o fio puxa: sobra uma folga
-        puxa(a, b, FIO * abs(a.carga * b.carga) * forca, ax, ay)
+        puxa(a, b, -FIO * qq * forca, ax, ay)
 
     # o movimento: forças, o freio do líquido, a sacudida do calor
     # (a sacudida cresce com a raiz do passo: assim o calor não depende dos fps)
@@ -546,12 +586,17 @@ def mistura():
 
 
 def elementos_novos():
-    """As mesmas cores, regras novas: valência e avidez ao acaso."""
+    """As mesmas cores, regras novas: valência e avidez ao acaso; nos íons,
+    o tamanho da carga e quantas ligações fracas cada um segura."""
     esvazia()
     st.receita = "Acaso"
     for nome in ("branco", "vermelho", "ambar"):
         ELEMENTOS[nome]["valencia"] = int(uniform(1, 4))
         ELEMENTOS[nome]["avidez"] = round(uniform(0, 1), 2)
+    ELEMENTOS["verde"]["carga"] = round(uniform(0.5, 1.5), 2)
+    ELEMENTOS["violeta"]["carga"] = -round(uniform(0.5, 1.5), 2)
+    for nome in ("verde", "violeta"):
+        ELEMENTOS[nome]["fracas"] = int(uniform(2, 7))
     mostra_elementos()
     lugar = lugares(34)
     for nome, quantos in (("vermelho", 50), ("branco", 100), ("ambar", 40)):
@@ -578,7 +623,7 @@ def mostra_elementos():
     for nome, texto in legenda.items():
         e = ELEMENTOS[nome]
         if e["carga"]:
-            texto.text = f"{nome.replace('ambar', 'âmbar')}  íon {'+' if e['carga'] > 0 else '-'}"
+            texto.text = (f"{nome}  íon {e['carga']:+.2f}  segura {e['fracas']}")
         else:
             texto.text = (f"{nome.replace('ambar', 'âmbar')}  valência {e['valencia']}"
                           f"  avidez {e['avidez']:.2f}")
