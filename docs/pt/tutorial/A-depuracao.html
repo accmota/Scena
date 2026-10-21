@@ -456,7 +456,7 @@ run()
       ],
       after: `
         <p>Rode e ligue o painel (<kbd>Ctrl+Shift+1</kbd>) para acompanhar o <code>fps</code>.</p>
-        <p>Sem você pedir, o Scena mede quanto tempo cada quadro leva. Se o computador não dá conta, ele baixa a qualidade dos efeitos (high → medium → low) e, se ainda não bastar, o ritmo, de 60 para 30 quadros por segundo. Esse ajuste automático se chama FX Auto e começa ligado. As teclas deixam você mesmo escolher:</p>
+        <p>Sem você pedir, o Scena mede quanto tempo cada quadro leva. Se o computador não dá conta, ele baixa a qualidade dos efeitos (high → medium → low) e, se ainda não bastar, o ritmo, de 60 para 30 quadros por segundo. Se o que pesa é a lógica do jogo (o <code>update</code>, os processos, as colisões), baixar a qualidade não ajuda: ele vai direto para 30 e mantém a qualidade. Esse ajuste automático se chama FX Auto e começa ligado. As teclas deixam você mesmo escolher:</p>
         <div class="tbl"><table><thead><tr><th>Tecla</th><th>O que troca</th></tr></thead><tbody>
           <tr><td><kbd>Ctrl+Shift+2</kbd></td><td>desliga e liga de novo o FX Auto</td></tr>
           <tr><td><kbd>Ctrl+Shift+3</kbd></td><td>a qualidade: low (baixa) → medium (média) → high (alta). Em low, as fogueiras viram um brilho simples</td></tr>

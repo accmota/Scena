@@ -2681,6 +2681,7 @@ class ScenaFramework:
             ctrl = self._fx_auto_ctrl
             if ctrl._ema_ready:
                 parts.append(f"work:{ctrl.ema_ms:.1f}/{ctrl.net_budget_ms():.1f}ms")
+                parts.append(f"sim:{ctrl.sim_ema_ms:.1f}ms")
             if ctrl.slip_rate > 0.0:
                 parts.append(f"slip:{100.0 * ctrl.slip_rate:.1f}%")
         mx = getattr(self.mouse, "x", 0.0) if self.mouse is not None else 0.0
@@ -3877,6 +3878,7 @@ class ScenaFramework:
             current_time = time.perf_counter()
             self._simulate_frame(now=current_time, smooth=pacer.smooth_dt)
 
+            draw_start = time.perf_counter()
             self._draw_frame()
 
             # Render
@@ -3888,8 +3890,11 @@ class ScenaFramework:
             if stack is not None:
                 stack._release_retained_runtime_images()
 
-            # CPU work of this frame (before the present wait), for FX Auto.
-            work_ms = (time.perf_counter() - current_time) * 1000.0
+            # CPU work of this frame (before the present wait) and its draw
+            # share (draw + submit; the rest is simulation), for FX Auto.
+            work_end = time.perf_counter()
+            work_ms = (work_end - current_time) * 1000.0
+            draw_ms = (work_end - draw_start) * 1000.0
 
             # Pacing (scena/pacing.py): wait for this frame's present slot
             # (display link / timer), swap (blocks under native VSync).
@@ -3902,7 +3907,7 @@ class ScenaFramework:
             # overran its vblank (the frame did not fit) and the present overhead.
             ctrl = self._fx_auto_ctrl
             if self._fx_auto and ctrl is not None:
-                ctrl.note_work_ms(work_ms, slipped=pacer.last_overran)
+                ctrl.note_work_ms(work_ms, slipped=pacer.last_overran, draw_ms=draw_ms)
                 ctrl.set_present_overhead_ms(pacer.present_overhead() * 1000.0)
                 rung = ctrl.maybe_step(time.perf_counter())
                 if rung is not None:

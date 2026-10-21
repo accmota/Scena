@@ -15,6 +15,7 @@ from scena.fx_auto import (
     AutoParams,
     FxAutoController,
     build_ladder,
+    build_rungs,
     budget_ms,
 )
 from scena.fx_quality import DEFAULT_FX_QUALITY, FxQuality
@@ -778,6 +779,164 @@ class TestStability(unittest.TestCase):
         self.assertGreater(ctrl._failed_climbs, 2)
 
 
+class TestSimBound(unittest.TestCase):
+    """Production parameters (warmup off), 60 Hz, 2.5 ms present overhead.
+    The loop passes the draw share of the work (``_draw_frame`` +
+    ``flushAndSubmit``); the rest is simulation, which no fidelity rung
+    changes.
+
+    Bug (2026-10-21, ``examples/constelacao.py`` at 818072e in a real
+    window: simulate 11.0 + draw 4.4 + submit 0.5 ms): FX Auto saw only the
+    total, walked high@60 → medium@60 → low@60 → low@30 within 15 s (48 fps
+    average, p95 frame 34 ms) — quality steps that cannot help and cost the
+    look. A sim-bound frame now halves the rate at the same fidelity; a
+    draw-bound one walks the ladder as before."""
+
+    FPS = 60.0
+    # Draw share per fidelity, relative to high. Measured 2026-10-21 on
+    # Constelação (draw + submit 6.47 / 6.09 / 5.43 ms).
+    MEASURED = {"high": 1.0, "medium": 0.94, "low": 0.84}
+    # An FX-heavy look family: quality is the lever.
+    HEAVY_FX = {"high": 1.0, "medium": 0.8, "low": 0.65}
+
+    def _ctrl(self, **kw):
+        ctrl = FxAutoController(refresh_hz=60.0, params=AutoParams(warmup_s=0.0, **kw))
+        ctrl.reset_to_aspirational()
+        ctrl.maybe_step(0.0)
+        return ctrl
+
+    def _run(self, ctrl, seconds, sim_ms, draw_ms, cost, overhead=2.5,
+             split=True, t0=0.0):
+        """Frames at the rung's rate. ``sim_ms(t)`` / ``draw_ms(t)``: the
+        shares at high fidelity; draw scales by ``cost``. A frame overruns
+        when work + overhead misses its slot. ``split=False`` feeds the total
+        only (the old signal). Returns (end t, steps)."""
+        t, steps = t0, []
+        while t < t0 + seconds:
+            rung = ctrl.current_rung()
+            dt = rung.interval / self.FPS
+            sim = sim_ms(t)
+            draw = draw_ms(t) * cost[rung.fidelity.value]
+            work = sim + draw
+            ctrl.note_work_ms(work, slipped=work + overhead > 1000.0 * dt,
+                              draw_ms=draw if split else None)
+            ctrl.set_present_overhead_ms(overhead)
+            t += dt
+            r = ctrl.maybe_step(t)
+            if r is not None:
+                steps.append((round(t, 1), r.label))
+        return t, steps
+
+    @staticmethod
+    def _labels(steps):
+        return [label for _t, label in steps]
+
+    def test_rungs_add_the_fidelity_keeping_rate_rungs(self):
+        self.assertEqual([r.label for r in build_rungs(60.0)],
+                         ["high@60", "medium@60", "low@60", "low@30",
+                          "high@30", "medium@30"])
+        self.assertEqual(build_rungs(144.0)[:4], build_ladder(144.0))
+        r = build_rungs(144.0)[4]
+        self.assertEqual((r.framerate, r.interval, r.label), ("vsync30", 4, "high@36"))
+
+    def test_measured_constelacao_halves_the_rate_and_keeps_high(self):
+        ctrl = self._ctrl()
+        _t, steps = self._run(ctrl, 60.0, lambda t: 11.0, lambda t: 4.9, self.MEASURED)
+        self.assertEqual(self._labels(steps), ["high@30"])
+        self.assertLess(steps[0][0], 5.0, "one step, within a few seconds")
+        self.assertTrue(ctrl.diagnostics(60.0)["sim_ms"] > 10.0)
+
+    def test_same_stream_without_the_split_walks_the_old_ladder(self):
+        # The pre-fix signal (total work only): every step is a fidelity step.
+        ctrl = self._ctrl()
+        _t, steps = self._run(ctrl, 60.0, lambda t: 11.0, lambda t: 4.9,
+                              self.MEASURED, split=False)
+        self.assertEqual(self._labels(steps), ["medium@60", "low@60", "low@30"])
+
+    def test_draw_bound_scene_steps_quality_as_before(self):
+        # Same 15.9 ms total at high, but draw is the bulk: medium (13.1)
+        # is still over the 13.0 ms line, low (11.0) fits. With and without
+        # the split the controller takes the same steps.
+        for name, sim, draw, cost in (
+                ("fits at low@60", 2.0, 13.9, self.HEAVY_FX),
+                ("needs low@30", 3.0, 40.0, self.HEAVY_FX),
+                ("half and half", 7.0, 8.9, self.HEAVY_FX)):
+            with self.subTest(name):
+                runs = []
+                for split in (True, False):
+                    ctrl = self._ctrl()
+                    _t, steps = self._run(ctrl, 60.0, lambda t: sim, lambda t: draw,
+                                          cost, split=split)
+                    runs.append(steps)
+                self.assertEqual(runs[0], runs[1])
+                self.assertTrue(runs[0] and runs[0][0][1] == "medium@60", runs[0])
+
+    def test_over_the_line_but_fitting_holds_at_60(self):
+        # 14.5 ms of work (13.5 sim) is over the 13.95 ms line of a 15.2 ms
+        # net budget, but 14.5 + 1.5 overhead still fits 16.7: no overruns,
+        # and no fidelity step could bring it under the line. Hold.
+        ctrl = self._ctrl()
+        _t, steps = self._run(ctrl, 60.0, lambda t: 13.5, lambda t: 1.0,
+                              self.MEASURED, overhead=1.5)
+        self.assertEqual(steps, [])
+        self.assertTrue(ctrl.diagnostics(60.0)["sim_bound"])
+
+    def test_sim_bound_at_30_holds(self):
+        # 45 ms of simulation: nothing fits, not even 30. One rate step,
+        # then hold at high@30 (no medium@30 / low@30 that cannot help).
+        ctrl = self._ctrl()
+        _t, steps = self._run(ctrl, 60.0, lambda t: 45.0, lambda t: 2.0, self.MEASURED)
+        self.assertEqual(self._labels(steps), ["high@30"])
+
+    def test_draw_that_grows_at_30_steps_fidelity_in_the_30_row(self):
+        # Sim-bound first (high@30); then the draw share grows to 25 ms and
+        # the frame is draw-bound at 30: fidelity steps within the 30 row.
+        ctrl = self._ctrl()
+        draw = lambda t: 4.9 if t < 30.0 else 25.0  # noqa: E731
+        _t, steps = self._run(ctrl, 90.0, lambda t: 11.0, draw, self.HEAVY_FX)
+        self.assertEqual(self._labels(steps), ["high@30", "medium@30", "low@30"])
+        # low@30 climbs by rate (to low@60): a fidelity step into it
+        # (medium@30 → low@30) must not teach that climb a cost ratio.
+        self.assertNotIn(3, ctrl._ratio)
+        self.assertAlmostEqual(ctrl.draw_ratio(FxQuality.LOW), 0.8 / 0.65, places=2)
+
+    def test_sim_bound_climbs_back_by_rate(self):
+        # The simulation load passes: high@30 → high@60 directly.
+        ctrl = self._ctrl()
+        sim = lambda t: 11.0 if t < 30.0 else 4.0  # noqa: E731
+        _t, steps = self._run(ctrl, 120.0, sim, lambda t: 4.9, self.MEASURED)
+        self.assertEqual(self._labels(steps), ["high@30", "high@60"])
+        self.assertGreater(steps[1][0] - 30.0, 10.0, "climbs patiently")
+
+    def test_wrong_draw_prior_costs_at_most_one_rung(self):
+        # The prior (1.35 per step) promises more than this scene saves
+        # (7.5 + 7.5 ms, 1.06 per step): it predicts low fits (11.6 < 13.0),
+        # so one fidelity step; its draw ratio is learned and also stands in
+        # for the step still unlearned, so the rate halves at medium
+        # (without that, the old prior walks on to low@60, then low@30).
+        ctrl = self._ctrl()
+        cost = {"high": 1.0, "medium": 0.94, "low": 0.89}
+        _t, steps = self._run(ctrl, 60.0, lambda t: 7.5, lambda t: 7.5, cost)
+        self.assertEqual(self._labels(steps), ["medium@60", "medium@30"])
+        self.assertAlmostEqual(ctrl.draw_ratio(FxQuality.MEDIUM), 1 / 0.94, places=2)
+        self.assertEqual(ctrl.draw_ratio(FxQuality.LOW), ctrl.draw_ratio(FxQuality.MEDIUM))
+
+    def test_draw_share_is_clamped(self):
+        ctrl = self._ctrl()
+        ctrl.note_work_ms(5.0, draw_ms=9.0)  # draw over work: no simulation
+        ctrl.note_work_ms(5.0, draw_ms=-1.0)  # all simulation
+        self.assertEqual(ctrl._period_sims, [0.0, 5.0])
+
+    def test_run_loop_passes_the_draw_share(self):
+        # The real loop needs a window; guard the call site instead: the draw
+        # share starts after _simulate_frame and reaches the controller.
+        import inspect
+        src = inspect.getsource(ScenaFramework._run_loop)
+        self.assertLess(src.index("_simulate_frame("), src.index("draw_start = "))
+        self.assertLess(src.index("draw_start = "), src.index("self._draw_frame()"))
+        self.assertIn("draw_ms=draw_ms", src)
+
+
 class TestCanvasFramerate(unittest.TestCase):
     """``canvas.framerate``: one string token (or a fixed fps) per pacing mode.
 
@@ -873,6 +1032,10 @@ class TestCanvasFramerate(unittest.TestCase):
         self.fw._apply_auto_rung(ctrl.current_rung())
         self.assertEqual(canvas.framerate, "vsync30")
         self.assertTrue(self.fw.fx_auto)  # applying a rung is not a manual change
+        ctrl.rung_index = 4  # high@36: a sim-bound frame keeps its look
+        self.fw._apply_auto_rung(ctrl.current_rung())
+        self.assertEqual((canvas.framerate, canvas.fx_quality), ("vsync30", FxQuality.HIGH))
+        self.assertTrue(self.fw.fx_auto)
 
 
 if __name__ == "__main__":

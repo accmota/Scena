@@ -357,7 +357,15 @@ left out.
   line. The `.vel` warning of `resolve(…, bounce=)` no longer names a STATIC
   wall and stays quiet for `bounce=0`; otherwise it says to drop `bounce=`
   for a body you move by hand, or to set `.vel`.
-
+- FX Auto tells a frame slowed by game logic from one slowed by drawing.
+  When `update`, processes and collisions are most of the frame and even
+  `"low"` would not make it fit, lowering quality cannot help: Auto now
+  halves the rate and keeps the look (`FX Auto: high@30`, or
+  `medium@30`), and only when frames really miss the vsync. Before, it
+  walked high → medium → low and then went to 30 anyway
+  (`examples/constelacao.py` once ended at low@30 within 15 s). A scene
+  slowed by its effects steps quality first, as before. The debug HUD
+  shows the simulation share (`sim:11.0ms`).
 - After `destroy()`, an object's own fields still read (`inimigo.valor`), as
   its built-in fields do; every write still raises. A second handler of the
   same contact (they all run) can read the dead body, as the Guia says.

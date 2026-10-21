@@ -6029,7 +6029,7 @@ canvas.cull_offscreen = False  # desenha tudo, até o que está fora da vista</p
           </thead>
           <tbody>
 <tr><td><code>"vsync60"</code></td><td class="type"><span class="t">str</span><span class="ex">"vsync60"</span></td><td>lê / escreve</td><td>Padrão. Preso ao monitor, no ritmo mais perto de 60: acompanha cada atualização do monitor num de 60 Hz, uma a cada duas num de 120 Hz, 72 por segundo num de 144 Hz. Cada frame aparece exatamente quando o monitor redesenha (o <em>vblank</em>), sempre no mesmo ritmo, e <code>dt</code> vira um múltiplo exato do período do monitor.</td></tr>
-<tr><td><code>"vsync30"</code></td><td class="type"><span class="t">str</span><span class="ex">"vsync30"</span></td><td>lê / escreve</td><td>Preso ao monitor, no ritmo mais perto de 30 (o dobro do intervalo do <code>"vsync60"</code>). É o último recurso do FX Auto quando o computador não dá conta.</td></tr>
+<tr><td><code>"vsync30"</code></td><td class="type"><span class="t">str</span><span class="ex">"vsync30"</span></td><td>lê / escreve</td><td>Preso ao monitor, no ritmo mais perto de 30 (o dobro do intervalo do <code>"vsync60"</code>). É o último recurso do FX Auto quando o computador não dá conta (em <code>"low"</code>, ou na qualidade atual quando o que pesa é a lógica do jogo).</td></tr>
 <tr><td><code>"vsync"</code></td><td class="type"><span class="t">str</span><span class="ex">"vsync"</span></td><td>lê / escreve</td><td>Um frame a cada atualização do monitor: a taxa cheia (120 num de 120 Hz). Mais suave, mas o trabalho por segundo sobe junto.</td></tr>
 <tr><td>um número</td><td class="type"><span class="t">número</span><span class="ex">30</span></td><td>lê / escreve</td><td>Relógio fixo nessa taxa (finito, &gt; 0). Não segue o monitor: o movimento pode tremer por um tempo quando essa taxa fica perto da do monitor. Prefira um <code>"vsync…"</code>.</td></tr>
 <tr><td><code>"max"</code></td><td class="type"><span class="t">str</span><span class="ex">"max"</span></td><td>lê / escreve</td><td>Sem teto: tantos frames quanto o computador conseguir. Para medir desempenho.</td></tr>
@@ -6073,7 +6073,7 @@ canvas.cull_offscreen = False  # desenha tudo, até o que está fora da vista</p
       <details class="spec" open>
       <summary>set_fx_auto</summary>
         <p class="sig"><code>set_fx_auto(enabled=True, refresh_hz=None, params=None)</code></p>
-        <p>Liga ou desliga o FX Auto, o ajuste automático de qualidade e fps. Padrão <strong>ligado</strong> (qualidade <code>"high"</code> a ~60 fps). Ele mede quanto tempo cada frame leva e, se o computador não der conta, baixa a qualidade (high → medium → low, em <code>"vsync60"</code>) e depois os fps (low em <code>"vsync30"</code>). Atalho: <a href="#atalhos"><kbd>Ctrl+Shift+2</kbd></a>.</p>
+        <p>Liga ou desliga o FX Auto, o ajuste automático de qualidade e fps. Padrão <strong>ligado</strong> (qualidade <code>"high"</code> a ~60 fps). Ele mede quanto tempo cada frame leva e, se o computador não der conta, baixa a qualidade (high → medium → low, em <code>"vsync60"</code>) e depois os fps (low em <code>"vsync30"</code>). Se o que não cabe é a lógica do jogo (<code>update</code>, processos, colisões) e não o desenho, baixar a qualidade não ajudaria: ele passa direto para <code>"vsync30"</code> na qualidade atual (high@30), e só se os frames de fato perdem o vsync. Atalho: <a href="#atalhos"><kbd>Ctrl+Shift+2</kbd></a>.</p>
         <div class="tbl-wrap">
           <table>
           <thead>
@@ -11209,7 +11209,7 @@ show_processes(enabled=True)</pre>
         </thead>
         <tbody>
           <tr><td><kbd>Ctrl+Shift+1</kbd></td><td>Liga / desliga o HUD de sistema (FPS, objs, mouse <code>xy</code> no mundo; com tarefas rodando, quantas e quantas lentas: <code>tasks: 3 (1 slow)</code>). Começa desligado.</td></tr>
-          <tr><td><kbd>Ctrl+Shift+2</kbd></td><td>Liga / desliga o ajuste automático de qualidade (FX Auto): quando o jogo não cabe no frame, o Scena baixa a qualidade dos efeitos (high → medium → low) e, por último, a taxa (60 → 30 fps). Começa ligado, em high a 60 fps.</td></tr>
+          <tr><td><kbd>Ctrl+Shift+2</kbd></td><td>Liga / desliga o ajuste automático de qualidade (FX Auto): quando o jogo não cabe no frame, o Scena baixa a qualidade dos efeitos (high → medium → low) e, por último, a taxa (60 → 30 fps); se o que pesa é a lógica do jogo, vai direto para 30 e mantém a qualidade. Começa ligado, em high a 60 fps.</td></tr>
           <tr><td><kbd>Ctrl+Shift+3</kbd></td><td>Cicla perfil de render: low → medium → high.</td></tr>
           <tr><td><kbd>Ctrl+Shift+4</kbd></td><td>Cicla framerate: vsync → vsync60 → vsync30 → 60 → 30 → max.</td></tr>
           <tr><td><kbd>Ctrl+Shift+6</kbd></td><td>Painel de processos: desligado → tarefas e modes → também os timers soltos (<code>every</code> / <code>after</code> / sons fora de qualquer mode ou tarefa) → desligado. O mesmo painel: <a href="#debug-metodos"><code>show_processes(enabled=True)</code></a>.</td></tr>

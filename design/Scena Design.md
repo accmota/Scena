@@ -541,7 +541,7 @@ The author picks the mode with **`canvas.framerate`** (string tokens, like
 | `canvas.framerate` | Meaning | 60 Hz | 120 Hz | 144 Hz |
 |---|---|---|---|---|
 | `"vsync60"` (**default**; FX Auto's 60 rungs) | locked, vblank divisor nearest 60 (never below 50 Hz) | 60 | 60 | 72 |
-| `"vsync30"` (FX Auto's survival rung) | locked, twice that interval | 30 | 30 | 36 |
+| `"vsync30"` (FX Auto's 30 rungs: survival low@30, and high@30 / medium@30 for a sim-bound frame) | locked, twice that interval | 30 | 30 | 36 |
 | `"vsync"` | locked, every vblank (full refresh) | 60 | 120 | 144 |
 | `60`, `30`, any fps | fixed-rate timer | 60 | 60 | 60 |
 | `"max"` | uncapped (benchmarks) | — | — | — |
@@ -572,8 +572,11 @@ Auto reads two pacer signals after each present: **overruns**
 not fit — a late wake of the pacer itself is excused; a sustained rate steps
 down even when CPU work looks fine, and blocks climbs) and the **present
 overhead** (`present_overhead()`), which makes its budget
-`interval × period − overhead` instead of the full frame time. It steps down
-only on a sustained problem and climbs back on a predicted cost, slowly
+`interval × period − overhead` instead of the full frame time. The loop also
+passes the draw share of the work (`_draw_frame` + `flushAndSubmit`), so a
+frame bound by game logic halves the rate at its fidelity instead of walking
+fidelity down. It steps down only on a sustained problem and climbs back on a
+predicted cost, slowly
 ([Effect System Design — FX Auto](Effect%20System%20Design.md)).
 
 **World `dt` follows the display** when locked: an interval within 20 % of *k*
