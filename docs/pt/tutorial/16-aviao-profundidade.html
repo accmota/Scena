@@ -524,6 +524,7 @@ class Aviao(Sprite, source=folha, height=40):
         self.play("caindo")
         canvas.shake(6)
         play_sound("audio/explosion02.wav")
+        self.move_to_front()
         self.fogo = Fire(center=lambda: self.center + Vec2(-20, 8).rotate(self.angle), width=12, style="tongues")
         aviso.text = "Aperte espaço"
 
@@ -581,6 +582,10 @@ run()
         {
           at: "self.fogo = Fire(",
           text: "<code>Fire</code> (fogo) é um efeito que vive no mundo; <code>style=\"tongues\"</code> (línguas) são chamas pequenas presas a um ponto. O ponto é a cauda: <code>Vec2(-20, 8)</code> leva do centro do avião até ela, e <code>.rotate(self.angle)</code> gira esse caminho junto com o avião. Como o centro é uma <code>lambda</code>, o fogo fica na cauda até o chão."
+        },
+        {
+          at: "self.move_to_front()",
+          text: "Os pilares nasceram depois do avião, então são desenhados por cima dele; o fogo nasce na batida, depois dos pilares, e ficaria na frente deles. <code>move_to_front</code> (para a frente) traz o avião para a frente dos pilares, e o fogo, criado logo depois, fica na frente junto com ele."
         },
         {
           at: "aviao.fogo.destroy()",
@@ -671,6 +676,7 @@ class Aviao(Sprite, source=folha, height=40):
         self.play("caindo")
         canvas.shake(6)
         play_sound("audio/explosion02.wav")
+        self.move_to_front()
         self.fogo = Fire(center=lambda: self.center + Vec2(-20, 8).rotate(self.angle), width=12, style="tongues")
         aviso.text = "Aperte espaço"
         musica.fade_to(0.1, time=1)
