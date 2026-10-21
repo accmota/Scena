@@ -319,6 +319,46 @@ class TestCellVec2InPlace(_Case):
         self.assertAlmostEqual(st.pos.angle, 53.130102354, places=6)
 
 
+class TestLetGoVectorKeepsLengthInStep(_Case):
+    """A vector a holder lets go of (VB17, 2026-10-20): ``length`` / ``angle``
+    read while it was held are stored, and only ``update()`` re-syncs them
+    after ``v.x = …``. ``_unhold_payload`` cleared the pull flag the hold had
+    set even though that read had made it sticky, so ``v.x = 0`` left
+    ``v.length`` at its old value. Every holder kind times every axis spelling."""
+
+    _AXIS = {
+        ".x =": lambda v: setattr(v, "x", 0),
+        ".y =": lambda v: setattr(v, "y", 0),
+        ".x +=": lambda v: setattr(v, "x", v.x + 2),
+    }
+
+    def _holders(self):
+        def cell():
+            st = State(name="st")
+            st.pos = Vec2(9, 9)
+            return lambda v: setattr(st, "pos", v)
+
+        def watched_field():
+            nave = self.track(Circle(center=(0, 0), radius=3))
+            nave.desvio = Vec2(9, 9)
+            self.track(Circle(center=lambda: nave.desvio, radius=3))
+            return lambda v: setattr(nave, "desvio", v)
+        return {"st cell": cell, "watched ink field": watched_field}
+
+    def test_axis_write_after_let_go(self):
+        for holder_name, make_holder in self._holders().items():
+            for spelling, write in self._AXIS.items():
+                with self.subTest(holder=holder_name, spelling=spelling):
+                    hold = make_holder()
+                    v = Vec2(1, 2)
+                    hold(v)
+                    v.length, v.angle           # read while held: stored
+                    hold(Vec2(1, 3))            # the holder lets go of v
+                    write(v)
+                    self.assertAlmostEqual(v.length, (v.x ** 2 + v.y ** 2) ** 0.5)
+                    self.assertEqual(v.angle, Vec2(v.x, v.y).angle)
+
+
 class TestLinkedCellRefusesInPlace(_Case):
     """A linked cell's Vec2 is its formula's output: every in-place spelling
     refuses, as ``st.pos = …`` does. Before 2026-10-19 ``<<``, ``+=``, ``*=``
