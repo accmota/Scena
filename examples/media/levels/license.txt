@@ -1,7 +1,8 @@
-ninja.json, ninja_perigos.json, duelo.json, corrida.json, corrida_relampago.json
+ninja.json, ninja_perigos.json, duelo.json, corrida.json, corrida_relampago.json,
+minigolfe.json
 
-Level files for the Ninja tutorials (26 and 27), the Duelo tutorial (30) and
-the Corrida example (its two tracks),
+Level files for the Ninja tutorials (26 and 27), the Duelo tutorial (30),
+the Corrida example (its two tracks) and the level editor interlude (26i),
 made for Scena (written by a script or by hand, in the level editor's own
 format). Creative Commons Zero (CC0) /
 Public Domain: use it freely, no credit needed.

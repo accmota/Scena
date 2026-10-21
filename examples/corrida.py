@@ -73,24 +73,6 @@ st.chegaram = 0
 st.podio = []
 
 
-def montar_pista():
-    """Prepara a pista escolhida: a fase, os marcos e a câmera."""
-    global fase, MARCOS, VISTA
-    fase = PISTAS[st.pista]
-    # Os marcos: pontos em fila, um a cada meio ladrilho, no meio da pista.
-    MARCOS = fase["linha"].make().spaced_points(48)
-    # A câmera mostra a "vista" da fase: a pista e uma faixa de grama. Os
-    # carros ficam dentro dela, e um tiro que sai dela some.
-    VISTA = fase["vista"].box
-    canvas.frame_to(VISTA)
-    canvas.playfield.set(VISTA)
-
-
-def rumo_da_pista(i):
-    """Para onde a pista vai no marco i, em graus."""
-    return heading(MARCOS[i % len(MARCOS)], MARCOS[(i + 1) % len(MARCOS)])
-
-
 def quanto_virar(carro, rumo):
     """Quantos graus o carro precisa virar para apontar no rumo (+ é para a esquerda)."""
     return vec_from_angle(carro.angle).angle_to(vec_from_angle(rumo))
@@ -146,7 +128,7 @@ class Carro(Sprite, source=veiculos, height=46, art_angle=90, group="carros"):
         frente = vec_from_angle(self.angle, self.velocidade)
         self.vel = chase(self.vel, frente, aderencia)
         self.move_by(self.vel * dt)
-        self.confine(VISTA, by="box")
+        self.confine(self.vista, by="box")
         self.contar_marcos()
 
     def ler_teclado(self):
@@ -169,7 +151,7 @@ class Carro(Sprite, source=veiculos, height=46, art_angle=90, group="carros"):
 
         # Mira num ponto da pista um pouco à frente, na sua faixa.
         adiante = self.marco + 3
-        mira = Vec2(*MARCOS[adiante % len(MARCOS)]) + vec_from_angle(rumo_da_pista(adiante) + 90, self.faixa)
+        mira = Vec2(*self.marcos[adiante % len(self.marcos)]) + vec_from_angle(self.rumo_da_pista(adiante) + 90, self.faixa)
         erro = quanto_virar(self, heading(self, mira))
 
         # Um obstáculo logo à frente: desvia para o lado onde ele não está.
@@ -184,7 +166,7 @@ class Carro(Sprite, source=veiculos, height=46, art_angle=90, group="carros"):
 
         # Acelera quando aponta mais ou menos para a mira, e alivia antes de
         # uma curva forte mais adiante.
-        curva = abs(quanto_virar(self, rumo_da_pista(self.marco + 6)))
+        curva = abs(quanto_virar(self, self.rumo_da_pista(self.marco + 6)))
         self.acelera = (abs(erro) < 40 or self.velocidade < 120) and not (curva > 60 and self.velocidade > 260)
         self.freia = abs(erro) > 70 and self.velocidade > 200
 
@@ -221,12 +203,16 @@ class Carro(Sprite, source=veiculos, height=46, art_angle=90, group="carros"):
         # Sem ninguém no volante, o carro se alinha devagar com a pista. Só
         # quando já está quase alinhado, para não roubar uma curva de quem dirige.
         if self.vira == 0 and self.velocidade > 0:
-            erro = quanto_virar(self, rumo_da_pista(self.marco))
+            erro = quanto_virar(self, self.rumo_da_pista(self.marco))
             if abs(erro) < 25:
                 self.rotate_by(erro * 3 * dt)
 
         if self.quer_atirar and self.tiros > 0:
             self.atirar()
+
+    def rumo_da_pista(self, i):
+        """Para onde a pista vai no marco i, em graus."""
+        return heading(self.marcos[i % len(self.marcos)], self.marcos[(i + 1) % len(self.marcos)])
 
     def contar_marcos(self):
         # Os marcos são pontos em fila no meio da pista. O carro avança
@@ -234,10 +220,10 @@ class Carro(Sprite, source=veiculos, height=46, art_angle=90, group="carros"):
         # numa curva aberta, mas cortar caminho pela grama não conta.
         for passo in range(1, 6):
             i = self.marco + passo
-            if distance(self, MARCOS[i % len(MARCOS)]) < LARGURA * 0.7:
-                self.marco = i % len(MARCOS)
+            if distance(self, self.marcos[i % len(self.marcos)]) < LARGURA * 0.7:
+                self.marco = i % len(self.marcos)
                 self.sem_marco = 0
-                if i >= len(MARCOS):
+                if i >= len(self.marcos):
                     self.completar_volta()
                 return
 
@@ -260,8 +246,8 @@ class Carro(Sprite, source=veiculos, height=46, art_angle=90, group="carros"):
         # marcos, quem está mais perto do próximo. Quem chegou, pela chegada.
         if self.chegou:
             return 1000000 - self.chegada
-        proximo = MARCOS[(self.marco + 1) % len(MARCOS)]
-        return self.voltas * len(MARCOS) + self.marco - distance(self, proximo) / 1000
+        proximo = self.marcos[(self.marco + 1) % len(self.marcos)]
+        return self.voltas * len(self.marcos) + self.marco - distance(self, proximo) / 1000
 
     def lugar(self):
         return 1 + group["carros"].count_where(lambda outro: outro.progresso() > self.progresso())
@@ -427,17 +413,14 @@ def letreiro(texto, centro, tamanho):
     return letras
 
 
-def criar_carro(quadro, nome, cor, largada):
-    carro = Carro(frame=quadro, center=fase[largada].center)
-    carro.angle = rumo_da_pista(0)
-    carro.nome = nome
-    carro.cor = cor
-    return carro
-
-
 class Corrida(Act):
     def setup(self):
-        montar_pista()
+        fase = PISTAS[st.pista]
+        # A câmera mostra a "vista" da fase: a pista e uma faixa de grama. Os
+        # carros ficam dentro dela, e um tiro que sai dela some.
+        self.vista = fase["vista"].box
+        canvas.frame_to(self.vista)
+        canvas.playfield.set(self.vista)
         st.largou = False
         st.chegaram = 0
         st.podio = []
@@ -470,24 +453,26 @@ class Corrida(Act):
         # a vê; ela só responde se um ponto está no asfalto.
         asfalto = fase["linha"].make(line_width=LARGURA, group="asfalto")
         asfalto.visible = False
+        # Os marcos: 48 pontos em fila no meio da pista, à mesma distância um do outro.
+        self.marcos = asfalto.spaced_points(48)
         for item in fase.group("poder"):
             Poder(center=item.center)
 
         # Sempre quatro carros: o azul no teclado, o vermelho no teclado ou
         # na CPU, e dois da CPU, cada um na sua faixa e com a sua velocidade.
-        self.azul = criar_carro("car_blue_1.png", "AZUL", "deep sky blue", "largada1")
+        self.azul = self.criar_carro("car_blue_1.png", "AZUL", "deep sky blue", fase["largada1"].center)
         self.azul.teclas = TECLAS_AZUL
-        self.vermelho = criar_carro("car_red_1.png", "VERMELHO", "tomato", "largada2")
+        self.vermelho = self.criar_carro("car_red_1.png", "VERMELHO", "tomato", fase["largada2"].center)
         if st.jogadores == 2:
             self.vermelho.teclas = TECLAS_VERMELHO
         else:
             self.vermelho.cpu = True
             self.vermelho.maxima = MAXIMA * 0.96
-        verde = criar_carro("car_green_1.png", "VERDE", "lime green", "largada3")
+        verde = self.criar_carro("car_green_1.png", "VERDE", "lime green", fase["largada3"].center)
         verde.cpu = True
         verde.faixa = 15
         verde.maxima = MAXIMA * 0.94
-        amarelo = criar_carro("car_yellow_1.png", "AMARELO", "gold", "largada4")
+        amarelo = self.criar_carro("car_yellow_1.png", "AMARELO", "gold", fase["largada4"].center)
         amarelo.cpu = True
         amarelo.faixa = -15
         amarelo.maxima = MAXIMA * 0.9
@@ -502,6 +487,16 @@ class Corrida(Act):
 
         self.aviso = letreiro("", (640, 400), 150)
         self.mode = self.largada
+
+    def criar_carro(self, quadro, nome, cor, largada):
+        carro = Carro(frame=quadro, center=largada)
+        # A pista é da corrida; cada carro guarda os marcos e a vista dela.
+        carro.marcos = self.marcos
+        carro.vista = self.vista
+        carro.angle = carro.rumo_da_pista(0)
+        carro.nome = nome
+        carro.cor = cor
+        return carro
 
     def on_update(self, dt):
         self.brilhar()

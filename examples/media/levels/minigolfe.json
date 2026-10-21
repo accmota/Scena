@@ -1,0 +1,21 @@
+{"format": "scena-level", "version": 2, "size": [1000, 640], "items": [
+  {"kind": "polygon", "name": "campo", "groups": ["grama"], "points": [[60, 60], [940, 60], [940, 580], [580, 580], [580, 300], [60, 300]]},
+  {"kind": "line", "groups": ["parede"], "p1": [60, 60], "p2": [940, 60]},
+  {"kind": "line", "groups": ["parede"], "p1": [940, 60], "p2": [940, 580]},
+  {"kind": "line", "groups": ["parede"], "p1": [940, 580], "p2": [580, 580]},
+  {"kind": "line", "groups": ["parede"], "p1": [580, 580], "p2": [580, 300]},
+  {"kind": "line", "groups": ["parede"], "p1": [580, 300], "p2": [60, 300]},
+  {"kind": "line", "groups": ["parede"], "p1": [60, 300], "p2": [60, 60]},
+  {"kind": "ellipse", "name": "lago", "groups": ["agua"], "center": [330, 180], "width": 200, "height": 110},
+  {"kind": "polygon", "groups": ["areia"], "points": [[700, 110], [850, 90], [900, 170], [820, 240], [720, 220]]},
+  {"kind": "circle", "groups": ["pino"], "center": [560, 230], "radius": 18},
+  {"kind": "circle", "groups": ["pino"], "center": [600, 140], "radius": 18},
+  {"kind": "circle", "groups": ["pino"], "center": [640, 230], "radius": 18},
+  {"kind": "triangle", "groups": ["pino"], "center": [170, 110], "radius": 34, "angle": 90},
+  {"kind": "regular_polygon", "groups": ["pino"], "center": [760, 470], "radius": 30, "n": 6},
+  {"kind": "track", "name": "vaivem", "points": [[620, 380], [900, 380]]},
+  {"kind": "rect", "name": "trave", "groups": ["trave"], "center": [620, 380], "width": 80, "height": 16},
+  {"kind": "point", "name": "saida", "center": [120, 200]},
+  {"kind": "circle", "name": "buraco", "center": [850, 520], "radius": 14},
+  {"kind": "rect", "name": "bandeira", "center": [868, 552], "width": 48, "height": 48}
+]}

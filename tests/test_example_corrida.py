@@ -125,7 +125,7 @@ class Race:
     def aim(self, carro, alvo, back=3, speed=300):
         """Put the car on the centre line a few marks before the mark nearest
         ``alvo`` and point it at ``alvo``."""
-        marcos = self.ns["MARCOS"]
+        marcos = act().marcos
         ax, ay = xy(alvo.center)
         near = min(range(len(marcos)), key=lambda i: math.dist(marcos[i], (ax, ay)))
         start = marcos[(near - back) % len(marcos)]
@@ -208,7 +208,7 @@ class TestCorridaDriving(unittest.TestCase):
             r = Race(run)
             # The bottom straight runs west (180): start 12 degrees off.
             r.place(r.azul, (1300, 264), 192, speed=300)
-            r.azul.marco = len(r.ns["MARCOS"]) - 3
+            r.azul.marco = len(act().marcos) - 3
             run.key_down("UP")
             run.step(SECOND)
             run.key_up("UP")
@@ -225,7 +225,7 @@ class TestCorridaDriving(unittest.TestCase):
     def test_a_shortcut_across_the_grass_does_not_count(self):
         with ProgramRun(PATH) as run:
             r = Race(run)
-            marcos = r.ns["MARCOS"]
+            marcos = act().marcos
             r.place(r.azul, marcos[20], 0)
             run.step(5)
             self.assertEqual(r.azul.marco, 0)
@@ -444,7 +444,8 @@ class TestCorridaPresentation(unittest.TestCase):
                 else:
                     tap(run, "2")
                 self.assertEqual(type(act()).__name__, "Corrida")
-                self.assertIs(run.ns["fase"], run.ns["PISTAS"]["RELÂMPAGO"])
+                self.assertEqual(run.ns["st"].pista, "RELÂMPAGO")
+                self.assertEqual(tuple(act().vista.center), tuple(run.ns["PISTAS"]["RELÂMPAGO"]["vista"].box.center))
                 self.assertEqual(sum(1 for c in run.ns["group"]["carros"] if not c.cpu), 1)
 
     def test_each_track_has_every_piece_the_race_uses(self):
@@ -455,12 +456,12 @@ class TestCorridaPresentation(unittest.TestCase):
             with self.subTest(pista=pista), ProgramRun(PATH) as run:
                 r = Race(run, pista=pista)
                 ns = r.ns
-                marcos = ns["MARCOS"]
+                marcos = act().marcos
                 self.assertGreater(len(marcos), 40)
-                self.assertTrue(ns["fase"]["linha"].make().closed, "the centre line does not close")
+                self.assertTrue(ns["PISTAS"][pista]["linha"].make().closed, "the centre line does not close")
                 for nome in ("chao", "luz", "parede", "pneu", "arvore", "barril", "cone", "oleo", "poderes"):
                     self.assertGreater(ns["group"][nome].count, 0, f"{pista} has no {nome}")
-                rumo = ns["rumo_da_pista"](0)
+                rumo = r.azul.rumo_da_pista(0)
                 for carro in ns["group"]["carros"]:
                     self.assertTrue(ns["collision"].query_point(carro, group="asfalto"),
                                     f"{carro.nome} starts off the asphalt on {pista}")
@@ -637,7 +638,7 @@ class TestCorridaLuzes(unittest.TestCase):
             # trapped a computer car that slid behind it, off the road.)
             luz = min(luzes, key=lambda m: math.dist(xy(m.at(0.08)), (300, 300)))
             meio = xy(luz.at(0.08))   # near an end, clear of the tyre stack
-            estrada = min(r.ns["MARCOS"], key=lambda m: math.dist(m, meio))
+            estrada = min(act().marcos, key=lambda m: math.dist(m, meio))
             r.place(r.azul, meio, heading(meio, estrada), 250)
             run.step(SECOND // 3)
             self.assertGreater(math.dist(xy(r.azul.center), meio), 60, "the car stopped at the strip")
@@ -659,7 +660,7 @@ class TestCorridaCpu(unittest.TestCase):
             for _ in range(8):
                 r.place(r.azul, (800, 264), 180)
                 r.place(cpu, (1150, 264), 180)
-                cpu.marco = len(r.ns["MARCOS"]) - 4
+                cpu.marco = len(act().marcos) - 4
                 for _ in range(SECOND):
                     run.step(1)
                     if r.ns["group"]["tiros"].count:

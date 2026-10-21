@@ -43,6 +43,7 @@ its last step here.
 | 28 Corredor infinito | `corredor.py` |
 | 29 Giros | `barras_girando.py`, `osciloscopio.py` |
 | 30 Duelo | `duelo.py` |
+| 31 Corrida | `corrida.py` |
 | 32 Ninja V · Espada | `ninja_5_espada.py` |
 
 The appendices (`A-…` to `G-…` in the same folder) are reference pages made of
@@ -59,7 +60,6 @@ No tutorial ends in these; each docstring says what to try.
 | `constelacao.py` | Creative coding: drifting points thread to their nearest neighbour (`nearest`) into constellations that keep re-forming; Neon comets hunt the nearest free point and take its colour. Hold the mouse to pull the points, let go for a wave; SPACE adds a comet, T the screen trail. |
 | `affinity.py` | Creative coding: invented atoms in a dish with two bonds. Strong bonds (valence, a fast enough collision) make molecules; weak bonds are strings between + and - ends of two molecules that snap and re-form with the heat. Charge comes from the bonds, so white on red bonds and white on amber does not, and the two separate. A soft shell and a steep core keep atoms from piling up; an ion lends charge to the atoms near it, so it holds neutral atoms too. Recipes Nascente / Coroas / Ilhas (1 2 3) and Acaso (R: random rules, ions included, side table); sliders for the atom count and each element's weight, and Rodar to build that mix; UP / DOWN heat, drag to stir, SPACE a spark. The atoms' numbers live on plain objects; the `Circle` only draws. |
 | `revoada.py` | Flocking: 120 `Triangle` birds follow three rules (separate, align, gather) and flocks form with no leader. The heading is the colour, so a flock is one colour; the mouse is a falcon whose fright passes from bird to bird (white, thin); the sky lights up (`Bloom`) when the flock is in order. Click for a burst; S / A / J switch the rules. |
-| `corrida.py` | A racing game seen from above: one or two players on one keyboard, the other cars computer-driven (always four). Two tracks, each a level file with the same named pieces (`media/levels/corrida.json`, Serpentina, and `corrida_relampago.json`, Relâmpago: tiles, the centre line, obstacles, light strips on the outer curves, the grid, the camera's view); the strips are halos, one changing colour (a light red to yellow) and the next brightening and dimming (its `amount`, swapped each frame). The wheel turns gradually, a fast turn slides the rear and, off the wheel, the car lines up with the road; walls, tyres and trees bounce a car back, the faster car throws the one ahead, a barrel crashes it (it blinks and lets the others through while out), the oil spins it; a power-up box gives one fireball that flies straight and crashes the car it reaches. The computer cars follow the centre line, dodge, back out when stuck and shoot (not always, not dead on). A two-step opening of `SpriteButton`s: the players (or 1 / 2), then the track, side by side under a drawing of each layout (or 1 / 2); player one drives with the arrows + ENTER, player two with W A S D + TAB. |
 
 ```bash
 python examples/naves_1.py

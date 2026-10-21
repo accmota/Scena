@@ -122,12 +122,16 @@ examples/media/k-rolling-ball/rollingBall_sheet@2.xml
 examples/media/k-rolling-ball/star.png
 examples/media/k-textures/License.txt
 examples/media/k-textures/floor_ground_dirt.png
+examples/media/k-textures/floor_ground_grass.png
+examples/media/k-textures/floor_ground_sand.png
+examples/media/k-textures/floor_ground_water.png
 examples/media/k-textures/wall_rock.png
 examples/media/k-textures/wall_stone.png
 examples/media/levels/corrida.json
 examples/media/levels/corrida_relampago.json
 examples/media/levels/duelo.json
 examples/media/levels/license.txt
+examples/media/levels/minigolfe.json
 examples/media/levels/ninja.json
 examples/media/levels/ninja_perigos.json
 examples/media/ninja/Attack__000.png

@@ -48,7 +48,7 @@ class TestCorridaCpuRace(unittest.TestCase):
 class TestCorridaRace(unittest.TestCase):
     def drive(self, run, carro):
         """Hold the car's keys toward a mark ahead on the centre line."""
-        marcos = run.ns["MARCOS"]
+        marcos = act().marcos
         alvo = marcos[(carro.marco + 3) % len(marcos)]
         diff = (heading(xy(carro.center), alvo) - carro.angle + 540) % 360 - 180
         keys = carro.teclas

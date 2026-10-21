@@ -930,6 +930,26 @@ left out.
   frame no longer counts as a fall); in 27 a ray shocks the ninja for 2.5 s
   (`save_visual` / `restore_visual`) and `prepare_fx` builds the look up
   front.
+- New tutorial 31, Corrida (`examples/corrida.py`), 18 steps: a track of
+  tiles cut from a spritesheet in the level editor (`make()` with the
+  level's sheet; `fase["vista"].box` as the camera, playfield and `confine`
+  region), the centre line made thick and hidden as the asphalt
+  (`make(line_width=, group=)` + `query_point`) and sampled into lap marks
+  (`spaced_points`), a car whose movement chases its nose (the skid), the
+  driver's intent (`acelera` / `freia` / `vira`) read from the keys or
+  decided by a computer driver, crash and spin modes, power-ups, the place
+  and the podium, and two level files with the same names under one code.
+  `corrida.py` no longer uses `global`: the race act owns the track, and
+  each car keeps its marks and view.
+- New interlude 26i, O editor de fases: a mini-golf course made from
+  scratch in the level editor (new `levels/minigolfe.json`): level size,
+  tools and panel, every item kind read with `for item in fase` / `make()`,
+  a level track with `move_along`, `item.box` as a Sprite's `box=`, Copy as
+  code and guide images.
+- Guia, Level: `Level(path)` names its errors (a missing file raises
+  `ValueError`; a file Scena cannot read raises `LevelFormatError`, a
+  `ValueError`), and `.box` says what it is for (`canvas.playfield.set`,
+  `frame_to`, `confine`).
 
 - The examples of the Naves and Ninja series carry their number in the
   series, as the tutorial titles do: `naves_1.py`, `naves_2_classes.py`,

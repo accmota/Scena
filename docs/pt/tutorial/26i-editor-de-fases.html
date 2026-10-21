@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>O editor de fases — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Interlúdio",
+  title: "O editor de fases",
+  steps: [
+    {
+      title: "Uma fase nova",
+      body: [
+        `
+        <p>No Ninja III, a fase vinha pronta: o código só lia o arquivo. Neste interlúdio você faz uma fase do zero, um campo de minigolfe visto de cima, e aprende a ler cada tipo de peça que o editor sabe desenhar.</p>
+        <p>O editor de fases vem junto com o Scena. No terminal, na pasta do seu jogo, abra um arquivo que ainda não existe:</p>
+        <p><code>python -m scena_editor media/levels/meu_golfe.json</code></p>
+        <p>(ou <code>scena-editor media/levels/meu_golfe.json</code>). O editor abre uma fase vazia, e o arquivo nasce quando você salva: o botão <em>Save</em> (salvar), ou <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd>. Os botões do editor estão em inglês; a tradução de cada um vem na primeira vez em que ele aparece.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 440 250" role="img" aria-label="A janela do editor: a barra de cima com New, Open, Save, Undo e Snap; as ferramentas à esquerda, cada uma com a sua tecla; a moldura da fase no meio, com algumas formas; o painel da direita com Level, Width e Height; a barra de status embaixo">
+            <rect class="bar" x="10" y="8" width="420" height="22" rx="4"/>
+            <text x="20" y="23">New · Open · Save │ Undo · Redo │ Snap to grid</text>
+            <rect class="bar" x="10" y="36" width="44" height="182" rx="4"/>
+            <text x="22" y="54">R</text><text x="22" y="70">E</text><text x="22" y="86">C</text><text x="22" y="102">L</text>
+            <text x="22" y="118">G</text><text x="22" y="134">D</text><text x="22" y="150">N</text><text x="22" y="166">A</text>
+            <text x="22" y="182">U</text><text x="22" y="198">P</text><text x="22" y="214">I</text>
+            <rect class="guide" x="76" y="52" width="210" height="140"/>
+            <text x="80" y="206">a moldura: o tamanho da fase</text>
+            <rect class="bar child" x="96" y="132" width="70" height="40" rx="2"/>
+            <circle class="dot" cx="226" cy="96" r="14"/>
+            <line class="ray" x1="186" y1="172" x2="266" y2="150"/>
+            <rect class="bar" x="300" y="36" width="130" height="182" rx="4"/>
+            <text x="310" y="56">Level</text>
+            <text x="310" y="80">Width   1000</text>
+            <text x="310" y="100">Height   640</text>
+            <text x="310" y="136">com um item:</text>
+            <text x="310" y="152">Name, Groups,</text>
+            <text x="310" y="168">X, Y, Width…</text>
+            <rect class="bar" x="10" y="224" width="420" height="20" rx="4"/>
+            <text x="20" y="238">a barra de status: o ponteiro (x, y), a grade, o zoom</text>
+          </svg>
+          <figcaption>As ferramentas ficam à esquerda, cada uma com a sua tecla. O painel da direita mostra a fase quando nada está selecionado, e o item quando há um.</figcaption>
+        </figure>
+        <p>Sem nada selecionado, o painel da direita mostra <em>Level</em> (a fase), com <em>Width</em> (largura) e <em>Height</em> (altura): o tamanho da fase, a moldura no meio da tela. Comece por aí. Depois escolha uma ferramenta, arraste dentro da moldura e dê a cada peça um nome e grupos no painel. A caixa no fim deste passo tem as ferramentas e o painel.</p>
+        <p>A fase deste interlúdio já vem pronta, em <code>media/levels/minigolfe.json</code>. Abra-a no editor para ver como foi feita. Se você desenhar a sua, salve com outro nome, como <code>meu_golfe.json</code>, e troque o nome na linha do <code>Level</code>.</p>
+        `
+      ],
+      code: `from scena import *
+
+fase = Level("levels/minigolfe.json")
+largura, altura = fase.size
+init(width=largura, height=altura, title="Minigolfe")
+Wallpaper("#24331f")
+
+for item in fase:
+    print(item.kind, item.name, item.groups)
+    item.make()
+
+run()
+`,
+      notes: [
+        {
+          at: "fase = Level(",
+          text: "<code>Level</code> (fase) lê o arquivo e não cria nada na tela. Por isso ele pode vir antes do <code>init</code>."
+        },
+        {
+          at: "largura, altura = fase.size",
+          text: "<code>size</code> (tamanho) é o par <em>Width</em> e <em>Height</em> do painel. A vírgula separa os dois números em duas variáveis."
+        },
+        {
+          at: "init(width=largura, height=altura",
+          text: "A janela do tamanho da fase: uma unidade do editor vale uma da janela, e a câmera não precisa mexer."
+        },
+        {
+          at: "for item in fase:",
+          text: "Percorre todos os itens da fase, na ordem do arquivo, que é a ordem de desenho: o que vem depois fica por cima."
+        },
+        {
+          at: "print(item.kind, item.name, item.groups)",
+          text: "<code>kind</code> (tipo) diz que forma o item é. <code>name</code> (nome) e <code>groups</code> (grupos) vêm do painel do editor; um item sem nome dá <code>None</code>."
+        },
+        {
+          at: "item.make()",
+          text: "<code>make()</code> (fazer) cria a forma exatamente como foi desenhada: o mesmo lugar, o mesmo tamanho, o mesmo giro."
+        }
+      ],
+      after: `
+        <p>Rode e olhe o console: uma linha por item, como <code>polygon campo ('grama',)</code> ou <code>circle None ('pino',)</code>. O tipo de cada item decide o que o <code>make()</code> cria:</p>
+        <div class="tbl"><table>
+          <thead><tr><th><code>kind</code></th><th><code>make()</code> cria</th><th>neste campo</th></tr></thead>
+          <tbody>
+            <tr><td><code>polygon</code></td><td><code>Polygon</code></td><td>a grama, a areia</td></tr>
+            <tr><td><code>line</code></td><td><code>Line</code></td><td>as paredes</td></tr>
+            <tr><td><code>ellipse</code></td><td><code>Ellipse</code></td><td>o lago</td></tr>
+            <tr><td><code>circle</code></td><td><code>Circle</code></td><td>os pinos, o buraco</td></tr>
+            <tr><td><code>triangle</code> · <code>regular_polygon</code></td><td><code>Triangle</code> · <code>RegularPolygon</code></td><td>mais dois pinos</td></tr>
+            <tr><td><code>rect</code></td><td><code>Rect</code></td><td>a trave, a bandeira</td></tr>
+            <tr><td><code>point</code></td><td><code>Point</code></td><td>a saída da bola</td></tr>
+            <tr><td><code>track</code></td><td><code>Track</code></td><td>o caminho da trave</td></tr>
+          </tbody>
+        </table></div>
+        <details class="ask"><summary>A trilha <code>vaivem</code> aparece na tela?</summary><p>Não. Uma <code>Track</code> sem cor é só um caminho para seguir, e fica fora do desenho. Ela vai servir daqui a pouco, para a trave andar.</p></details>
+      `,
+      dive: [
+        {
+          title: "O editor de fases",
+          body: `
+            <p>As ferramentas, à esquerda. Com a ferramenta escolhida, um clique sem arrastar cria a forma com 100 de lado (ou de raio 50).</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Tecla</th><th>Ferramenta</th><th>Como desenhar</th></tr></thead>
+              <tbody>
+                <tr><td><kbd>R</kbd></td><td><em>Rect</em> (retângulo)</td><td>arraste de um canto ao outro</td></tr>
+                <tr><td><kbd>E</kbd></td><td><em>Ellipse</em> (elipse)</td><td>arraste, como o retângulo</td></tr>
+                <tr><td><kbd>C</kbd></td><td><em>Circle</em> (círculo)</td><td>arraste do centro para fora</td></tr>
+                <tr><td><kbd>L</kbd></td><td><em>Line</em> (linha)</td><td>arraste de uma ponta à outra</td></tr>
+                <tr><td><kbd>G</kbd></td><td><em>Polygon</em> (polígono)</td><td>clique em cada canto; <kbd>Enter</kbd> ou um clique duplo fecha</td></tr>
+                <tr><td><kbd>D</kbd></td><td><em>Triangle</em> (triângulo)</td><td>arraste do centro até a ponta</td></tr>
+                <tr><td><kbd>N</kbd></td><td><em>Regular polygon</em> (polígono regular)</td><td>arraste do centro para fora; o número de lados (<em>Sides</em>) fica no painel</td></tr>
+                <tr><td><kbd>A</kbd></td><td><em>Track</em> (trilha)</td><td>clique em cada ponto; <kbd>Enter</kbd> ou um clique duplo termina</td></tr>
+                <tr><td><kbd>U</kbd></td><td><em>Concave</em> (côncavo)</td><td>arraste uma caixa; a concha (<em>Scoop</em>) fica no painel</td></tr>
+                <tr><td><kbd>P</kbd></td><td><em>Point</em> (ponto)</td><td>um clique: um lugar</td></tr>
+                <tr><td><kbd>I</kbd></td><td><em>Image</em> (imagem)</td><td>escolha um arquivo de imagem</td></tr>
+              </tbody>
+            </table></div>
+            <p>Para mexer no que já está desenhado, <em>Select</em> (selecionar, <kbd>V</kbd>): clique numa peça e arraste-a, ou puxe as alças dela. <kbd>Esc</kbd> também volta para o <em>Select</em>, e <kbd>Espaço</kbd> + arrastar move a vista.</p>
+            <p>Com uma peça selecionada, o painel da direita mostra <em>Name</em> (nome, único na fase), <em>Groups</em> (grupos, separados por vírgula: <code>pino, vermelho</code>) e os números dela: <em>X</em> e <em>Y</em> do centro, <em>Width</em>, <em>Height</em>, <em>Angle</em> (giro), <em>Radius</em> (raio)… São os números do código: y para cima, o centro de cada coisa, o giro em graus.</p>
+            <p>As peças grudam numa grade de 10 em 10 (<em>Snap to grid</em>, grudar na grade, na barra de cima, onde também se troca o passo). Segure <kbd>Shift</kbd> enquanto arrasta para soltar da grade. <em>Undo</em> (desfazer) e <em>Redo</em> (refazer) voltam e refazem cada mudança; <em>Fit</em> (caber) enquadra a fase inteira.</p>
+            <p>No Guia: <a href="../guide/index.html#colocar-fase">Level e o editor de fases</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Cada coisa com a sua cara",
+      body: [
+        `
+        <p>O arquivo guarda a geometria, os nomes e os grupos, e nenhuma cor: a aparência é do código. Em vez de fazer tudo do mesmo jeito, peça cada peça pelo nome ou pelo grupo, e dê a cada uma a sua cara.</p>
+        `,
+        {
+          snip: `for item in fase.group("parede"):
+    item.make(color="white", line_width=8)`
+        },
+        `
+        <p><code>make()</code> aceita as mesmas palavras que o construtor da forma: <code>color=</code>, <code>line_width=</code>, <code>visual=</code>, <code>layer=</code>. A geometria não: <code>center=</code> ou <code>width=</code> são recusados, porque o lugar e o tamanho vêm da fase.</p>
+        `
+      ],
+      code: `from scena import *
+
+fase = Level("levels/minigolfe.json")
+largura, altura = fase.size
+init(width=largura, height=altura, title="Minigolfe")
+Wallpaper("#24331f")
+
+GRAMA = Texture("k-textures/floor_ground_grass.png", fit="tile", tile_size=64)
+AGUA = Texture("k-textures/floor_ground_water.png", fit="tile", tile_size=64)
+AREIA = Texture("k-textures/floor_ground_sand.png", fit="tile", tile_size=64)
+
+campo = fase["campo"].make()
+campo.fill = GRAMA
+lago = fase["lago"].make()
+lago.fill = AGUA
+for item in fase.group("areia"):
+    areia = item.make()
+    areia.fill = AREIA
+for item in fase.group("parede"):
+    item.make(color="white", line_width=8)
+for item in fase.group("pino"):
+    item.make(color="tomato")
+buraco = fase["buraco"].make(color="black")
+
+run()
+`,
+      notes: [
+        {
+          at: "GRAMA = Texture(",
+          text: "<code>Texture</code> (textura) pinta com uma imagem repetida (<code>fit=\"tile\"</code>, em ladrilhos), em vez de uma cor lisa."
+        },
+        {
+          at: "campo = fase[\"campo\"].make()",
+          text: "<code>fase[\"campo\"]</code> é o item com esse nome: o polígono da grama. Guardamos a forma numa variável para pintar o miolo dela."
+        },
+        {
+          at: "campo.fill = GRAMA",
+          text: "<code>fill</code> (preenchimento) é o miolo da forma. A textura vai depois do <code>make()</code>, numa linha própria, como em qualquer forma."
+        },
+        {
+          at: "for item in fase.group(\"pino\"):",
+          text: "No grupo <code>pino</code> há três círculos, um triângulo e um hexágono. Tipos diferentes, o mesmo <code>make()</code>: cada um vira a sua forma."
+        },
+        {
+          at: "buraco = fase[\"buraco\"].make(color=\"black\")",
+          text: "O buraco é um círculo com nome. Guardado numa variável, ele vai responder à bola daqui a pouco."
+        }
+      ],
+      after: `
+        <p>O que o código não pede não aparece: a saída, a trave, a bandeira e a trilha continuam no arquivo, esperando a sua vez.</p>
+        <p>Agora o jeito de trabalhar com uma fase. Abra <code>minigolfe.json</code> (ou a sua) no editor, arraste o lago para outro lugar, salve e rode o jogo de novo: o lago mudou, e o código não. O editor cuida de onde as coisas ficam; o código, do que elas são.</p>
+      `
+    },
+    {
+      title: "A bola",
+      body: `
+        <p>No editor, um <em>Point</em> (ponto) é só um lugar: não desenha nada, tem um nome e um centro. A saída da bola é um ponto chamado <code>saida</code>. A bola nasce ali, e um clique dá a tacada: quanto mais longe da bola você clica, mais forte.</p>
+      `,
+      code: `from scena import *
+
+fase = Level("levels/minigolfe.json")
+largura, altura = fase.size
+init(width=largura, height=altura, title="Minigolfe")
+Wallpaper("#24331f")
+
+GRAMA = Texture("k-textures/floor_ground_grass.png", fit="tile", tile_size=64)
+AGUA = Texture("k-textures/floor_ground_water.png", fit="tile", tile_size=64)
+AREIA = Texture("k-textures/floor_ground_sand.png", fit="tile", tile_size=64)
+
+campo = fase["campo"].make()
+campo.fill = GRAMA
+lago = fase["lago"].make()
+lago.fill = AGUA
+for item in fase.group("areia"):
+    areia = item.make()
+    areia.fill = AREIA
+for item in fase.group("parede"):
+    item.make(color="white", line_width=8)
+for item in fase.group("pino"):
+    item.make(color="tomato")
+buraco = fase["buraco"].make(color="black")
+group["parede"].mass = STATIC
+group["pino"].mass = STATIC
+
+bola = Circle(center=fase["saida"].center, radius=9, color="white", group="bola")
+bola.vel = Vec2(0, 0)
+resolve("bola", ["parede", "pino"], bounce=0.8)
+
+
+def on_mouse_click(x, y, button):
+    if bola.vel.length < 5:
+        bola.vel = vec_from_angle(heading(bola, (x, y)), length=distance(bola, (x, y)) * 2)
+
+
+def update(dt):
+    bola.vel = chase(bola.vel, Vec2(0, 0), 1.2)
+    bola.move_by(bola.vel * dt)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "group[\"pino\"].mass = STATIC",
+          text: "<code>STATIC</code> (parado): as paredes e os pinos seguram a bola e nunca são empurrados por ela."
+        },
+        {
+          at: "center=fase[\"saida\"].center",
+          text: "O centro do ponto <code>saida</code>: a bola nasce onde o ponto foi posto no editor."
+        },
+        {
+          at: "resolve(\"bola\", [\"parede\", \"pino\"], bounce=0.8)",
+          text: "<code>resolve</code> separa a bola das paredes e dos pinos; <code>bounce=0.8</code> (quique) devolve 80% da velocidade. As paredes são linhas do editor, e uma <code>Line</code> segura como qualquer forma."
+        },
+        {
+          at: "def on_mouse_click(x, y, button):",
+          text: "<code>on_mouse_click</code> (ao clicar o mouse): o Scena a chama a cada clique, com o lugar do clique, <code>x</code> e <code>y</code>."
+        },
+        {
+          at: "if bola.vel.length < 5:",
+          text: "Só uma bola parada aceita a tacada. <code>vel.length</code> (comprimento) é a rapidez da bola."
+        },
+        {
+          at: "vec_from_angle(heading(bola, (x, y)), length=distance(bola, (x, y)) * 2)",
+          text: "Uma seta que aponta da bola para o clique (<code>heading</code>, o rumo) e mede o dobro da distância entre os dois."
+        },
+        {
+          at: "bola.vel = chase(bola.vel, Vec2(0, 0), 1.2)",
+          text: "O atrito: a cada quadro, a velocidade corre um pouco atrás do zero (<code>chase</code>, perseguir). A bola desliza e para devagar."
+        }
+      ],
+      after: `
+        <p>Clique perto da bola para uma tacada fraca e longe para uma forte. Mire numa parede: a bola volta. Por enquanto ela passa por cima da água e da areia, e pelo buraco também.</p>
+      `
+    },
+    {
+      title: "Água e areia",
+      body: [
+        `
+        <p>A bola não quica na água nem na areia: ela entra. O lago e a areia não seguram nada; o jogo só precisa saber se a bola está em cima deles.</p>
+        `,
+        {
+          snip: `    if collision.query_point(bola, group="agua"):`
+        },
+        `
+        <p><code>collision.query_point</code> (perguntar por um ponto) devolve a lista das formas do grupo que estão debaixo do centro da bola. Uma lista vazia vale como “não” no <code>if</code>. A pergunta vale para qualquer tipo: o lago é uma elipse, a areia é um polígono.</p>
+        `
+      ],
+      code: `from scena import *
+
+fase = Level("levels/minigolfe.json")
+largura, altura = fase.size
+init(width=largura, height=altura, title="Minigolfe")
+Wallpaper("#24331f")
+
+GRAMA = Texture("k-textures/floor_ground_grass.png", fit="tile", tile_size=64)
+AGUA = Texture("k-textures/floor_ground_water.png", fit="tile", tile_size=64)
+AREIA = Texture("k-textures/floor_ground_sand.png", fit="tile", tile_size=64)
+
+campo = fase["campo"].make()
+campo.fill = GRAMA
+lago = fase["lago"].make()
+lago.fill = AGUA
+for item in fase.group("areia"):
+    areia = item.make()
+    areia.fill = AREIA
+for item in fase.group("parede"):
+    item.make(color="white", line_width=8)
+for item in fase.group("pino"):
+    item.make(color="tomato")
+buraco = fase["buraco"].make(color="black")
+group["parede"].mass = STATIC
+group["pino"].mass = STATIC
+
+bola = Circle(center=fase["saida"].center, radius=9, color="white", group="bola")
+bola.vel = Vec2(0, 0)
+resolve("bola", ["parede", "pino"], bounce=0.8)
+
+
+def on_mouse_click(x, y, button):
+    if bola.vel.length < 5:
+        bola.vel = vec_from_angle(heading(bola, (x, y)), length=distance(bola, (x, y)) * 2)
+
+
+def de_volta():
+    bola.center = fase["saida"].center
+    bola.vel = Vec2(0, 0)
+
+
+def update(dt):
+    atrito = 1.2
+    if collision.query_point(bola, group="areia"):
+        atrito = 4
+    bola.vel = chase(bola.vel, Vec2(0, 0), atrito)
+    bola.move_by(bola.vel * dt)
+    if collision.query_point(bola, group="agua"):
+        canvas.ripple_at(bola)
+        de_volta()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "atrito = 1.2",
+          text: "O atrito de sempre, na grama."
+        },
+        {
+          at: "if collision.query_point(bola, group=\"areia\"):",
+          text: "Na areia, o atrito é maior, e a bola para logo."
+        },
+        {
+          at: "def de_volta():",
+          text: "Uma função para pôr a bola de volta na saída, parada. Ela vai servir também para o buraco."
+        },
+        {
+          at: "canvas.ripple_at(bola)",
+          text: "Uma onda na tela, onde a bola caiu (<code>ripple</code>, ondulação)."
+        }
+      ],
+      after: `
+        <details class="ask"><summary>Por que o lago não entra no <code>resolve</code>, como as paredes?</summary><p>O <code>resolve</code> separa duas formas: a bola quicaria na beira do lago e nunca cairia nele. Para a água, o jogo pergunta, não separa.</p></details>
+      `
+    },
+    {
+      title: "O buraco e as tacadas",
+      body: `
+        <p>A bola cai no buraco quando passa perto do centro dele e devagar: rápida demais, ela passa por cima. E um placar conta as tacadas.</p>
+      `,
+      code: `from scena import *
+
+fase = Level("levels/minigolfe.json")
+largura, altura = fase.size
+init(width=largura, height=altura, title="Minigolfe")
+Wallpaper("#24331f")
+
+GRAMA = Texture("k-textures/floor_ground_grass.png", fit="tile", tile_size=64)
+AGUA = Texture("k-textures/floor_ground_water.png", fit="tile", tile_size=64)
+AREIA = Texture("k-textures/floor_ground_sand.png", fit="tile", tile_size=64)
+
+campo = fase["campo"].make()
+campo.fill = GRAMA
+lago = fase["lago"].make()
+lago.fill = AGUA
+for item in fase.group("areia"):
+    areia = item.make()
+    areia.fill = AREIA
+for item in fase.group("parede"):
+    item.make(color="white", line_width=8)
+for item in fase.group("pino"):
+    item.make(color="tomato")
+buraco = fase["buraco"].make(color="black")
+group["parede"].mass = STATIC
+group["pino"].mass = STATIC
+
+st.tacadas = 0
+placar = Text(text="", top_left=(20, altura - 16), font_size=24, color="white")
+placar["text"] @= lambda: f"Tacadas {st.tacadas}"
+
+bola = Circle(center=fase["saida"].center, radius=9, color="white", group="bola")
+bola.vel = Vec2(0, 0)
+resolve("bola", ["parede", "pino"], bounce=0.8)
+
+
+def on_mouse_click(x, y, button):
+    if bola.vel.length < 5:
+        bola.vel = vec_from_angle(heading(bola, (x, y)), length=distance(bola, (x, y)) * 2)
+        st.tacadas += 1
+
+
+def de_volta():
+    bola.center = fase["saida"].center
+    bola.vel = Vec2(0, 0)
+
+
+def update(dt):
+    atrito = 1.2
+    if collision.query_point(bola, group="areia"):
+        atrito = 4
+    bola.vel = chase(bola.vel, Vec2(0, 0), atrito)
+    bola.move_by(bola.vel * dt)
+    if collision.query_point(bola, group="agua"):
+        canvas.ripple_at(bola)
+        de_volta()
+    if distance(bola, buraco) < buraco.radius and bola.vel.length < 200:
+        canvas.fireworks_at(buraco)
+        de_volta()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "placar[\"text\"] @= lambda: f\"Tacadas {st.tacadas}\"",
+          text: "O placar ligado ao <code>st.tacadas</code>: quando o número muda, o texto muda."
+        },
+        {
+          at: "st.tacadas += 1",
+          text: "Cada tacada aceita conta uma."
+        },
+        {
+          at: "if distance(bola, buraco) < buraco.radius and bola.vel.length < 200:",
+          text: "<code>buraco.radius</code> é o raio desenhado no editor: o círculo da fase responde como qualquer <code>Circle</code>. Mude o buraco no editor, e o teste muda junto."
+        },
+        {
+          at: "canvas.fireworks_at(buraco)",
+          text: "Fogos de artifício no buraco (<code>fireworks</code>), e a bola volta para a saída."
+        }
+      ],
+      after: `
+        <p>Leve a bola até o buraco: a areia e o lago ficam no caminho, e os pinos guardam a curva.</p>
+      `
+    },
+    {
+      title: "A trave que vai e volta",
+      body: `
+        <p>Uma trave atravessa o braço de cima do campo, indo e voltando. O caminho dela está na fase: uma trilha chamada <code>vaivem</code>, desenhada com a ferramenta <em>Track</em> (<kbd>A</kbd>), um clique em cada ponto. Aqui são só dois pontos, um caminho reto.</p>
+      `,
+      code: `from scena import *
+
+fase = Level("levels/minigolfe.json")
+largura, altura = fase.size
+init(width=largura, height=altura, title="Minigolfe")
+Wallpaper("#24331f")
+
+GRAMA = Texture("k-textures/floor_ground_grass.png", fit="tile", tile_size=64)
+AGUA = Texture("k-textures/floor_ground_water.png", fit="tile", tile_size=64)
+AREIA = Texture("k-textures/floor_ground_sand.png", fit="tile", tile_size=64)
+
+campo = fase["campo"].make()
+campo.fill = GRAMA
+lago = fase["lago"].make()
+lago.fill = AGUA
+for item in fase.group("areia"):
+    areia = item.make()
+    areia.fill = AREIA
+for item in fase.group("parede"):
+    item.make(color="white", line_width=8)
+for item in fase.group("pino"):
+    item.make(color="tomato")
+buraco = fase["buraco"].make(color="black")
+group["parede"].mass = STATIC
+group["pino"].mass = STATIC
+
+trave = fase["trave"].make(color="gold")
+trave.mass = STATIC
+trilho = fase["vaivem"].make()
+trave.move_along(trilho, speed=140, loops="forever", yoyo=True)
+
+st.tacadas = 0
+placar = Text(text="", top_left=(20, altura - 16), font_size=24, color="white")
+placar["text"] @= lambda: f"Tacadas {st.tacadas}"
+
+bola = Circle(center=fase["saida"].center, radius=9, color="white", group="bola")
+bola.vel = Vec2(0, 0)
+resolve("bola", ["parede", "pino", "trave"], bounce=0.8)
+
+
+def on_mouse_click(x, y, button):
+    if bola.vel.length < 5:
+        bola.vel = vec_from_angle(heading(bola, (x, y)), length=distance(bola, (x, y)) * 2)
+        st.tacadas += 1
+
+
+def de_volta():
+    bola.center = fase["saida"].center
+    bola.vel = Vec2(0, 0)
+
+
+def update(dt):
+    atrito = 1.2
+    if collision.query_point(bola, group="areia"):
+        atrito = 4
+    bola.vel = chase(bola.vel, Vec2(0, 0), atrito)
+    bola.move_by(bola.vel * dt)
+    if collision.query_point(bola, group="agua"):
+        canvas.ripple_at(bola)
+        de_volta()
+    if distance(bola, buraco) < buraco.radius and bola.vel.length < 200:
+        canvas.fireworks_at(buraco)
+        de_volta()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "trave = fase[\"trave\"].make(color=\"gold\")",
+          text: "A trave é um retângulo com nome, posto no começo da trilha."
+        },
+        {
+          at: "trilho = fase[\"vaivem\"].make()",
+          text: "A trilha da fase vira uma <code>Track</code>: sem cor, ela não aparece, mas dá o caminho."
+        },
+        {
+          at: "trave.move_along(trilho, speed=140, loops=\"forever\", yoyo=True)",
+          text: "<code>move_along</code> (andar ao longo) leva a trave pelo caminho a 140 por segundo; <code>yoyo=True</code> (ioiô) volta pelo mesmo caminho, e <code>loops=\"forever\"</code> repete para sempre."
+        },
+        {
+          at: "resolve(\"bola\", [\"parede\", \"pino\", \"trave\"], bounce=0.8)",
+          text: "A trave também segura a bola. Ela é <code>STATIC</code>: a bola não a empurra, mas o <code>move_along</code> a leva."
+        }
+      ],
+      after: `
+        <p>No editor, selecione a trilha e arraste os pontos dela, ou desenhe outra com mais pontos e o mesmo nome: a trave segue o caminho novo, sem mudar uma linha de código.</p>
+      `
+    },
+    {
+      title: "A bandeira numa caixa",
+      body: [
+        `
+        <p>Falta a bandeira no buraco. No editor, ela é um retângulo chamado <code>bandeira</code>, mas o jogo não quer o retângulo: quer uma imagem dentro dele. Para isso, em vez de <code>make()</code>, leia a <code>box</code> (caixa) do item, a região que ele ocupa.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 150" role="img" aria-label="À esquerda, make cria o retângulo desenhado. À direita, box é só a região, tracejada, e o Sprite cabe dentro dela">
+            <rect class="bar child" x="50" y="30" width="80" height="80"/>
+            <text x="20" y="135">fase["bandeira"].make()</text>
+            <rect class="guide" x="270" y="30" width="80" height="80"/>
+            <line class="ray" x1="290" y1="40" x2="290" y2="104"/>
+            <rect class="bar" x="292" y="42" width="40" height="24"/>
+            <text x="232" y="135">Sprite(…, box=item.box)</text>
+          </svg>
+          <figcaption>À esquerda, a forma desenhada. À direita, a mesma região como caixa: o Sprite cabe dentro dela, do tamanho que ela tem.</figcaption>
+        </figure>
+        <p>Só as regiões têm <code>box</code>: retângulo, elipse, côncavo, círculo e imagem. Uma linha, um polígono, uma trilha ou um ponto não têm: o Scena recusa e diz o que eles têm no lugar (as pontas, os pontos, o centro).</p>
+        `
+      ],
+      code: `from scena import *
+
+fase = Level("levels/minigolfe.json")
+largura, altura = fase.size
+init(width=largura, height=altura, title="Minigolfe")
+Wallpaper("#24331f")
+
+GRAMA = Texture("k-textures/floor_ground_grass.png", fit="tile", tile_size=64)
+AGUA = Texture("k-textures/floor_ground_water.png", fit="tile", tile_size=64)
+AREIA = Texture("k-textures/floor_ground_sand.png", fit="tile", tile_size=64)
+
+campo = fase["campo"].make()
+campo.fill = GRAMA
+lago = fase["lago"].make()
+lago.fill = AGUA
+for item in fase.group("areia"):
+    areia = item.make()
+    areia.fill = AREIA
+for item in fase.group("parede"):
+    item.make(color="white", line_width=8)
+for item in fase.group("pino"):
+    item.make(color="tomato")
+buraco = fase["buraco"].make(color="black")
+group["parede"].mass = STATIC
+group["pino"].mass = STATIC
+
+trave = fase["trave"].make(color="gold")
+trave.mass = STATIC
+trilho = fase["vaivem"].make()
+trave.move_along(trilho, speed=140, loops="forever", yoyo=True)
+
+bandeira = Sheet("pixel_adv/Checkpoint (Flag Idle)(64x64).png", cell=(64, 64), fps=12)
+Sprite(bandeira, box=fase["bandeira"].box)
+
+st.tacadas = 0
+placar = Text(text="", top_left=(20, altura - 16), font_size=24, color="white")
+placar["text"] @= lambda: f"Tacadas {st.tacadas}"
+
+bola = Circle(center=fase["saida"].center, radius=9, color="white", group="bola")
+bola.vel = Vec2(0, 0)
+resolve("bola", ["parede", "pino", "trave"], bounce=0.8)
+
+
+def on_mouse_click(x, y, button):
+    if bola.vel.length < 5:
+        bola.vel = vec_from_angle(heading(bola, (x, y)), length=distance(bola, (x, y)) * 2)
+        st.tacadas += 1
+
+
+def de_volta():
+    bola.center = fase["saida"].center
+    bola.vel = Vec2(0, 0)
+
+
+def update(dt):
+    atrito = 1.2
+    if collision.query_point(bola, group="areia"):
+        atrito = 4
+    bola.vel = chase(bola.vel, Vec2(0, 0), atrito)
+    bola.move_by(bola.vel * dt)
+    if collision.query_point(bola, group="agua"):
+        canvas.ripple_at(bola)
+        de_volta()
+    if distance(bola, buraco) < buraco.radius and bola.vel.length < 200:
+        canvas.fireworks_at(buraco)
+        de_volta()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "bandeira = Sheet(",
+          text: "A bandeira animada: uma faixa de quadros de 64 × 64 (<code>cell</code>, célula), tocando a 12 quadros por segundo."
+        },
+        {
+          at: "Sprite(bandeira, box=fase[\"bandeira\"].box)",
+          text: "<code>box=</code> põe o Sprite dentro da caixa do retângulo: no lugar e no tamanho que ele tem no editor. A imagem não estica; ela cabe."
+        }
+      ],
+      after: `
+        <p>Mude o retângulo <code>bandeira</code> de tamanho no editor e rode: a bandeira acompanha. O mesmo vale para qualquer imagem do jogo que deve ocupar uma região desenhada na fase.</p>
+      `,
+      closing: `
+        <p>Clique para dar a tacada: quanto mais longe da bola, mais forte. A bola só aceita a tacada parada. A água devolve a bola à saída, a areia a freia, a trave e os pinos a rebatem. No buraco, devagar, ela cai.</p>
+      `,
+      dive: [
+        {
+          title: "O que cada item sabe",
+          body: `
+            <p>Todo item tem <code>kind</code>, <code>name</code>, <code>groups</code>, <code>center</code> e <code>make()</code>. O resto depende do tipo; pedir um campo que o tipo não tem levanta um erro com a lista dos que ele tem.</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Tipo</th><th>Campos</th><th><code>.box</code></th></tr></thead>
+              <tbody>
+                <tr><td>rect · ellipse · image</td><td><code>width</code>, <code>height</code>, <code>angle</code></td><td>sim</td></tr>
+                <tr><td>circle</td><td><code>radius</code></td><td>sim (o quadrado em volta)</td></tr>
+                <tr><td>line</td><td><code>p1</code>, <code>p2</code> (as pontas), <code>length</code>, <code>angle</code></td><td>não</td></tr>
+                <tr><td>polygon · track</td><td><code>points</code> (a lista dos pontos)</td><td>não</td></tr>
+                <tr><td>triangle · regular_polygon</td><td><code>radius</code>, <code>angle</code></td><td>não</td></tr>
+                <tr><td>point</td><td>só o <code>center</code></td><td>não</td></tr>
+              </tbody>
+            </table></div>
+            <p>São cópias: mudar <code>item.center</code> não muda a fase. E <code>Level</code> não cria nada sozinho: só <code>make()</code>, ou o que o seu código fizer com os números.</p>
+          `
+        },
+        {
+          title: "Copiar como código",
+          body: `
+            <p>Selecione peças no editor e aperte <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>C</kbd>: elas vão para a área de transferência do editor (<kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>V</kbd> cola uma cópia ao lado), e o código que as cria vai para a do sistema. Cole no seu script, e o retângulo da bandeira vira a linha <code>bandeira = Rect(center=(868, 552), width=48, height=48)</code>, com o nome do item como variável. O botão <em>Copy as code</em> (copiar como código), no painel, copia só o código.</p>
+            <p>Serve para tirar da fase uma peça que não vai mais mudar, ou para ver qual construtor desenha o que você fez. Os números são os mesmos dos dois lados: não há conversão.</p>
+          `
+        },
+        {
+          title: "Imagens-guia",
+          body: `
+            <p>Para desenhar por cima de um rascunho (um mapa feito no papel, uma captura de outro jogo), ponha a imagem com a ferramenta <em>Image</em> (<kbd>I</kbd>) e marque <em>Guide (editor only)</em> (guia, só no editor) no painel. Ela aparece no editor para você seguir o traço, mas não faz parte da fase: <code>for item in fase</code> não a vê, e o <code>len(fase)</code> não a conta.</p>
+            <p>No Guia: <a href="../guide/index.html#colocar-fase">Level</a> (a tabela de cada tipo, as folhas de sprites, o editor) · <a href="../guide/index.html#colocar-fit">box=</a> · <a href="../guide/index.html#mover-move-along">move_along</a> · <a href="../guide/index.html#colisao-aux">query_point</a>.</p>
+          `
+        }
+      ]
+    }
+  ]
+});
+</script>
+</body>
+</html>
