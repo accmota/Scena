@@ -12,11 +12,12 @@ Bug class guarded: **an example that stops doing what its docstring says**
 after an engine change (``move_by(face=True)``, in-place ``vel.x`` writes,
 ``Triangle.base_ratio``) while it still builds and runs, and **a flock that
 falls off the fast pose path**: reading a derived value of a bird's own
-``vel`` (``self.vel.angle``, ``self.vel.length``) marks the bird as a pull
-source for good, and every ``move_by`` / ``angle`` write after it takes the
-invalidating path (measured: ~150 fps instead of ~250 with 120 birds). The
-example aims with ``face=True`` instead; the canary below fails if a bird
-gets that mark. Also **a contagion that never reaches zero**: two neighbours
+``vel`` (``self.vel.angle``, ``self.vel.length``) used to mark the bird as a
+pull source for good, and every ``move_by`` / ``angle`` write after it took
+the invalidating path (measured: ~150 fps instead of ~250 with 120 birds;
+fixed 2026-10-20, Reactive Design "Scoped pull flag", guard
+``test_scoped_pull_flag``). The example aims with ``face=True``, still the
+cheapest spelling; the canary below fails if a bird gets that mark. Also **a contagion that never reaches zero**: two neighbours
 that pass the fright to each other kept it at ~1e-302 for good (a draft did,
 and every bird then rewrote ``medo`` each frame); the fade check asks for an
 exact 0.

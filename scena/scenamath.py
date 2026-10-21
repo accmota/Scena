@@ -104,6 +104,23 @@ class Vec2(Container):
     length = ScalarSlot(FieldType.Derivate)
     _scena_point_value = True       # iterates as (x, y); see Point
     angle = ScalarSlot(FieldType.Derivate)
+    # ``length`` / ``angle`` read only x / y, and every store of x / y comes
+    # through this vector (``_write_field``, ``_takein_impl`` and the pull
+    # stores, which run ``_sync_computed``); the A1 pose writers write Points,
+    # never a Vec2. So their first read flags this vector alone, and
+    # ``self.angle = self.vel.angle`` keeps the actor's pose on A1.
+    _scalar_pull_scoped = True
+
+    def _requires_pull_invalidate(self) -> bool:
+        """Container's check, plus this vector's own flag (scoped, above).
+        Per write (``ship.vel.x = …``): the root comes from its cache."""
+        d = self.__dict__
+        if d.get('_needs_pull_invalidate'):
+            return True
+        root = d.get('_ownership_root_cache')
+        if root is None:
+            root = self._ownership_root()
+        return root.__dict__.get('_needs_pull_invalidate', False)
 
     # Closed surface (scena.closed): ``v.lenght = 5`` raises. The axes pass
     # first. Construction makes no ``__setattr__`` call (Container fields go

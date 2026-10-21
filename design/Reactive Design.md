@@ -250,7 +250,7 @@ Derivate parts are **demand-driven**:
 
 `_x_impl` hooks (`_takein_impl`, `_update_impl`) chain with `super()._x_impl(...)`, never `super()._x(...)`: `_x` is the dispatcher and calls `self._x_impl` again (infinite recursion; `Square << Square` did this until A7).
 
-**Cold-safe** `_set_defining_parts` **(required):** only `getattr` Defining names. Never loop Derivate names through `getattr` at construction — that materializes them, sets `_derivate_live` / `_needs_pull_invalidate`, and defeats A2 for the whole shape lifetime. Circles/Lines/Ellipses historically broke scene demos this way; Rect/Square already used cold `__dict__.get`. A rejected author write or bracket `@=` on a Derivate Container part raises **before** `__get__`, so the slot stays unregistered and the pull flag stays clear. Batched `_update_impl` writes are unchanged.
+**Cold-safe** `_set_defining_parts` **(required):** only `getattr` Defining names. Never loop Derivate names through `getattr` at construction — that materializes them, sets `_derivate_live` / `_needs_pull_invalidate`, and defeats A2 for the whole shape lifetime. Circles/Lines/Ellipses historically broke scene demos this way; Rect/Square already used cold `__dict__.get`. A rejected author write or bracket `@=` on a Derivate Container part raises **before** `__get__`, so the slot stays unregistered and the pull flag stays clear. A Vec2's Derivate scalars (`ship.vel.angle`) flag only the vector ([Scoped pull flag](#pose-performance-a1a4)). Batched `_update_impl` writes are unchanged.
 
 Canonical geometry for links/queries is still Attributes. Draw for Rect / Square / Ellipse / RegularPolygon may use **Defining pose + Skia CTM** so painting does not force world corners live — see [Shapes Design.md](Shapes%20Design.md).
 
@@ -1571,6 +1571,38 @@ filters, post stack) is clean — shape_fx lost ~15% after cycling visuals
 (12 Lines). Diagnose by profiling idle frames before/after: `mark_dirty` and
 `_move_by_batched` / `_rotate_by_batched` call counts rise per frame. Test:
 `tests/test_pose_fast_path.py` (`TestDrawHelpersKeepDerivatesCold`).
+
+**Scoped pull flag (a vector's own scalars, 2026-10-20):** the root flag is
+right for a Derivate that reads the shape's pose, and wrong for one that
+reads only its own node. `self.angle = self.vel.angle` (an ordinary author
+idiom) used to flag the whole actor on the first `vel.angle` read, and every
+later `move_by` / `angle =` took the batched path: 120 Triangles in a flock
+went ~250 → ~150 fps (in-frame `move_by` ~2 → 9 µs, `angle =` ~2 → 10 µs).
+Now a class whose Derivate scalars read only its own fields, and whose every
+store of those fields passes through the node, sets
+`_scalar_pull_scoped = True`. Its first Derivate-scalar read
+(`_ensure_derivate_scalar`) sets `_needs_pull_invalidate` on **that node**,
+not the ownership root, and the class's `_requires_pull_invalidate` also
+checks its own flag. Vec2 is the one such class (`length` / `angle` from `x` /
+`y`). Its stores are `_write_field` (gated), `_takein_impl`, and the pull
+stores (`_sync_computed`). The A1 raw writers (`_takein_xy_float`) write
+Points only. Points are not scoped: the pose writers store their axes raw.
+Live consumers keep A4: a link or `@when` that reads `vel` still flags the
+root (`_note_became_link_source`). `_unhold_payload` keeps a free vector's
+flag once its scalars were read (VB17), which the scoped flag relies on too.
+A `vel` write still invalidates the
+vector once its scalars were read (dirty, then a resolve on the next read),
+as before: ~0.9 ms of 3.7 per frame in that flock, against ~3.0 with
+`move_by(face=True)`. Syncing `length` / `angle` at each store instead was
+measured and declined. A `Vec2._write_field` override costs ~4 % on every
+axis write of vectors nobody reads. Diverting `mark_dirty` to a sync for a
+flagged part would touch every entry that invalidates (`update`, both
+`_write_field` batch branches, the batch exit, `_takein`). `move_by(..., face=True)`
+(in the Guia) aims without the read. Rule for a new scoped class: every raw store of its
+fields runs its sync, or it is not scoped. Test:
+`tests/test_scoped_pull_flag.py` (every fast model × every pose verb after
+reading `vel` and its Defining vectors; every `vel` write door; links and
+`@when`; canary on the unscoped check).
 
 ## Results (dev machine; target is ~3–10× slower)
 

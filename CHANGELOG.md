@@ -466,6 +466,11 @@ left out.
   follows the shape's angle, as it already did for a turned `Rect`: a
   triangle turning against a wall is pushed as it turns and stays whole
   inside.
+- Reading an actor's own velocity heading or speed (`self.angle =
+  self.vel.angle`, `self.vel.length`) no longer slows that actor's moves and
+  turns for the rest of the game: every later `move_by` / `angle =` had taken
+  the slow path (120 birds in a flock, 4.7 → 3.7 ms of work per frame).
+  `move_by(dx, dy, face=True)` is still the cheapest way to aim where it goes.
 - `st.pos.x = 5` (a cell holding a `Vec2`) now changes the vector and tells
   what is linked to `st.pos`, as `nave.desvio.x = 5` does on a field of your
   own. It raised `AttributeError` (assign a whole value:

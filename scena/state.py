@@ -1896,6 +1896,12 @@ class Container():
     # per-field link's pull): a class whose computed fields derive from those
     # fields (Vec2 ``length`` / ``angle``) brings them in step. None: nothing to do.
     _sync_computed = None
+    # True when this class's Derivate scalars read only its own fields and every
+    # store of those fields passes through this node (Vec2 ``length`` /
+    # ``angle``): their first read sets the pull flag on this node, not on the
+    # ownership root, so ``ship.vel.angle`` does not cost the ship's pose writes
+    # the A1 path (Reactive Design, "Scoped pull flag").
+    _scalar_pull_scoped = False
     # Shape publishes its pose store after an ``angle`` write (None elsewhere).
     _publish_angle_input = None
     # Graph plumbing: never offered in a closed surface's "Writable on …" list.
@@ -3774,7 +3780,10 @@ class Container():
         state = cache.get(name)
         if state is None:
             cache[name] = {'dirty': False}
-            self._flag_pull_consumers()
+            if self._scalar_pull_scoped:
+                self.__dict__['_needs_pull_invalidate'] = True   # this node only
+            else:
+                self._flag_pull_consumers()
             if self._dirty:
                 self._resolve_structural()
             else:
