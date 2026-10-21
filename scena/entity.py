@@ -786,6 +786,35 @@ _FOREIGN_READS = {
 }
 
 
+_EVAL_CODES: Optional[frozenset] = None
+
+
+def _in_engine_evaluation() -> bool:
+    """The read comes from the engine evaluating a watch's condition or a
+    formula (``@when`` / ``@on_change``, ``@=``, at link time or a pull).
+    There a dead actor's own field still raises, as before R3-1: a watch on a
+    dead source retires, a link to one is refused, a formula on one unlinks.
+    An author's own read (a handler, ``update``) gets the value. Asked only
+    on the rare dead-read path: a short walk up the stack."""
+    global _EVAL_CODES
+    if _EVAL_CODES is None:
+        from . import events as _events, state as _state
+        _EVAL_CODES = frozenset({
+            _events._eval_condition.__code__,
+            _state.FormulaLink.evaluate.__code__,
+            _state.FormulaLink.evaluate_and_update.__code__,
+            _state._HolderFormulaLink.evaluate.__code__,
+        })
+    f = sys._getframe(2)
+    for _ in range(48):
+        if f is None:
+            return False
+        if f.f_code in _EVAL_CODES:
+            return True
+        f = f.f_back
+    return False
+
+
 class _UnknownRead(AttributeError):
     """A read of a name the object lacks. The message (and its hint) is built
     only when someone reads it: ``hasattr`` / ``getattr(x, name, None)`` pay
@@ -2736,7 +2765,7 @@ class Entity(Container):
             destroyed = False
         if destroyed:
             dead = self.__dict__.get("_dead_ink")
-            if dead is not None and name in dead:
+            if dead is not None and name in dead and not _in_engine_evaluation():
                 return dead[name]           # reads stay; writes refuse (R3-1)
             raise DestroyedError(_destroyed_access_message(
                 self, f"{type(self).__name__} is destroyed"
@@ -3893,6 +3922,19 @@ class Graphic(Entity, ABC):
             number(value.x, f"{self.name}.vel x")
             number(value.y, f"{self.name}.vel y")
             return
+        existing = self._vel
+        if existing is not None and value.__class__ is Vec2:
+            # ``ship.vel = Vec2(…)`` / ``= v.clamp_length(…)`` each frame: a
+            # finite float pair goes straight to the two axis writes (the
+            # coercion, callable and payload checks skipped; Reactive Design,
+            # "ship.vel = Vec2(…)"). Anything else takes the checks below.
+            vx = value.x
+            vy = value.y
+            if (vx.__class__ is float and vy.__class__ is float
+                    and vx - vx == 0.0 and vy - vy == 0.0):
+                existing.x = vx
+                existing.y = vy
+                return
         if callable(value) and not isinstance(value, Vec2):
             raise CallableAssignError(callable_assign_message(self, "vel"))
         if isinstance(value, Vec2):

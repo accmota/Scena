@@ -840,5 +840,22 @@ class TestPauseStartsNextFrame(unittest.TestCase):
         self.assertEqual(len([d for d in moved if d > 0]), 3)
         self.assertTrue(all(d == 0 for d in moved[3:]), moved)
 
+
+class TestAWatchOnAGlobalRetiresAtTheDestroy(unittest.TestCase):
+    """A ``@when`` whose condition reads an actor through a module global
+    retired when the read raised after the destroy; a dead actor's own
+    fields read now (R3-1), so ``destroy()`` retires it (the world machine
+    found the live watch left behind)."""
+
+    def test_the_watch_leaves_with_the_actor(self):
+        ns = {"Entity": Entity, "when": when}
+        exec(compile("alvo = Entity()\nalvo.hp = 3\n"
+                     "@when(lambda: alvo.hp <= 0)\ndef morreu():\n    pass\n",
+                     "author_mod.py", "exec"), ns)
+        reg = ns["morreu"]._event_registration
+        self.assertTrue(reg._is_active)
+        ns["alvo"].destroy()
+        self.assertFalse(reg._is_active)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

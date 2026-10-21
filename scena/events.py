@@ -527,7 +527,16 @@ def _condition_reads(cond: Any, obj: Any) -> bool:
                 return True
         except ValueError:
             continue
-    return any(d is obj for d in (getattr(func, "__defaults__", None) or ()))
+    if any(d is obj for d in (getattr(func, "__defaults__", None) or ())):
+        return True
+    # A global the code names (``lambda: inimigo.hp <= 0`` at the top of the
+    # file): its read used to raise after the destroy and retire the watch;
+    # a dead actor's own fields read now (R3-1), so the destroy retires it.
+    code = getattr(func, "__code__", None)
+    glb = getattr(func, "__globals__", None)
+    if code is not None and glb is not None:
+        return any(glb.get(n) is obj for n in code.co_names)
+    return False
 
 
 def _is_dead(x: Any) -> bool:
