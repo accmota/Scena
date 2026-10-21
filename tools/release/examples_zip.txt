@@ -1,6 +1,7 @@
 # Files in scena-examples.zip (repo-relative), one per line.
 # Made by: python tools/release/make_examples_zip.py --update
 # Guard: tests/test_examples_zip.py (a stale list fails).
+examples/affinity.py
 examples/app_pitagoras.py
 examples/aviao.py
 examples/aviao_paisagem.py

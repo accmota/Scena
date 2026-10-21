@@ -833,6 +833,20 @@ left out.
 - Guia: a pause starts at the next frame; stacks of three or more movable
   boxes are outside what `resolve` promises.
 
+- New example `examples/affinity.py`, a piece of creative coding: a dish
+  of invented atoms (one colour per element) with two kinds of bond. A
+  strong bond joins two different elements, up to each one's valence, and
+  only in a fast enough collision; a weak bond is a string between a + and
+  a - end of two molecules, stronger the closer they are, which stretches,
+  snaps and re-forms with the heat. Charge comes from the bonds (a more
+  eager neighbour makes an atom +), so white on red ("water") makes weak
+  bonds and white on amber ("oil") does not: the two separate on their
+  own. Recipes: water forming from free atoms, ions in water, oil and
+  water, and R for new random rules (shown in a side table); UP / DOWN
+  heat, a drag stirs, SPACE a spark that breaks the bonds near the mouse.
+  The world step keeps each atom's numbers on a plain object and lets the
+  `Circle` only draw (reads of actor fields cost ~6x in that loop).
+
 - New example `examples/revoada.py`, a flock of 120 `Triangle` birds with no
   leader: each one sees only its neighbours and follows three rules (keep
   apart, fly the same way, go to the middle). The heading is the colour,
