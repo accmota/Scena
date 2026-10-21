@@ -2258,6 +2258,84 @@ class TestNamedSlotsAcrossTheSeal(ActTestCase):
         self.assertEqual(len(act_beats), 2)
         get_scheduler()._named[(None, "beat")].cancel()
 
+    # R4-5 (persona probes, round 4): the act object's own named work (a
+    # loose ``every`` whose callback is an act method, ``self.every``,
+    # ``self.after``) sets the game's same-named timer aside too; before,
+    # both ran. One test per door: the game timer must be made before the seal.
+
+    def _sets_the_game_one_aside(self, start):
+        from scena import every
+        game = []
+        h = every(0.25, lambda: game.append(1), name="relogio")
+
+        class Fazenda(Act):
+            def setup(self):
+                start(self)
+
+            def tic(self):
+                pass
+
+        self.begin(Fazenda)
+        n0 = len(game)
+        self.w.step(60, dt=1 / 60)
+        self.assertEqual(len(game), n0, "the game's timer ran during the act")
+        self.assertTrue(h.paused)
+        change_act(Vazia)
+        self.w.step(60, dt=1 / 60)
+        self.assertEqual(len(game) - n0, 4, "the game's timer did not come back")
+        self.assertFalse(h.paused)
+        h.cancel()
+
+    def test_a_loose_every_with_an_act_method(self):
+        from scena import every
+        self._sets_the_game_one_aside(lambda act: every(0.5, act.tic, name="relogio"))
+
+    def test_the_acts_own_every(self):
+        self._sets_the_game_one_aside(lambda act: act.every(0.5, act.tic, name="relogio"))
+
+    def test_the_acts_own_after(self):
+        self._sets_the_game_one_aside(lambda act: act.after(5.0, act.tic, name="relogio"))
+
+    def test_the_acts_own_then_a_loose_one(self):
+        from scena import every
+
+        def both(act):
+            act.every(0.5, act.tic, name="relogio")
+            every(0.5, lambda: None, name="relogio")    # ownerless act work
+        self._sets_the_game_one_aside(both)
+
+    def test_the_act_objects_named_music_sets_the_game_track_aside(self):
+        musica = play_sound(tone(2.0), name="musica", loops="forever")
+
+        class Fazenda(Act):
+            def setup(self):
+                self.faixa = self.play_sound(tone(2.0), name="musica", loops="forever")
+
+        self.begin(Fazenda)
+        self.w.seconds(0.05)
+        self.assertTrue(musica.paused, "two tracks played")
+        change_act(Vazia)
+        self.w.seconds(0.05)
+        self.assertFalse(musica.paused)
+        musica.cancel()
+
+    def test_an_author_pause_survives_the_act_objects_slot(self):
+        from scena import every
+        beats = []
+        h = every(0.25, lambda: beats.append(1), name="relogio2")
+        h.pause()
+
+        class Fazenda2(Act):
+            def setup(self):
+                self.every(0.5, lambda: None, name="relogio2")
+
+        self.begin(Fazenda2)
+        change_act(Vazia)
+        self.w.step(60, dt=1 / 60)
+        self.assertEqual(beats, [])
+        self.assertTrue(h.paused)
+        h.cancel()
+
     def test_an_author_pause_is_kept(self):
         from scena import every
         beats = []

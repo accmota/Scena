@@ -279,6 +279,26 @@ def t1_due_without_tolerance() -> Patches:
     return [(proc, "reached", lambda elapsed, target: elapsed >= target)]
 
 
+def t1_timers_before_tweens() -> Patches:
+    """T1 (R4-1): the tick walks the timers before the tweens."""
+    real_tick = proc.Scheduler.tick
+
+    def tick(self):
+        held = list(self._tween)
+        self._tween.clear()
+        try:
+            real_tick(self)
+        finally:
+            made = dict(self._tween)
+            self._tween.clear()
+            self._tween.update(dict.fromkeys(held))
+            self._tween.update(made)
+            from scena import clock
+            for h in held:
+                self._tick_tween(h, clock.dt)
+    return [(proc.Scheduler, "tick", tick)]
+
+
 def t2_new_work_ticks_at_once() -> Patches:
     """T2: work made inside the tick is ticked in that same tick (the tick
     walks its live buckets, not a snapshot)."""

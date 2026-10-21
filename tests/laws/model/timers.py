@@ -11,6 +11,8 @@ are modelled; other kinds (tweens, waits) abstain.
 
 T1  A timer fires on the first tick where its owner's world time since its
     start reaches its delay: a whole number of frames lands on that frame.
+    In the tick, tweens step before timers: no tween ticks after a timer
+    has ticked in the same frame (R4-1).
 T2  A timer's time starts at the first process tick that begins after it is
     made: one made before the tick (in update, an input hook) counts that
     frame; one made in the tick or later counts from the next. A task's
@@ -77,6 +79,9 @@ def check(tr: Trace, rep: Report) -> None:
     tasks: Dict[str, list] = {}       # task label -> [steps taken, refused]
     parent_of: Dict[str, str] = {}    # handle label -> the task it is work of
     killed = set()                    # tasks a live cancel ended
+    tweens = set()                    # tween handle labels
+    timer_ticked = None               # the frame a modelled timer last ticked in
+    tween_ticked = None               # the frame a tween last ticked in
 
     def settle(label, h, f):
         """The tick that ended owed ``h.want`` fires; ``h.fired`` happened."""
@@ -108,6 +113,9 @@ def check(tr: Trace, rep: Report) -> None:
                 parent_of[label] = parent
             if kind == "task":
                 tasks[label] = [0, refused or (_owner is not None and _owner in dead)]
+                continue
+            if kind == "tween":
+                tweens.add(label)
                 continue
             if kind not in MODELLED:
                 continue
@@ -144,10 +152,19 @@ def check(tr: Trace, rep: Report) -> None:
         elif what == "fire" and parent_of.get(label) in killed:
             rep.find("T5", f, f"{label} fired after its task was cancelled",
                      f"{label.rsplit('#', 1)[0]}|fire")
+        if what == "tick" and label in tweens:
+            if timer_ticked == f:
+                rep.find("T1", f, f"{label} ticked after a timer in the same tick",
+                         "tween|after a timer")
+            tween_ticked = f
+            continue
         h = hs.get(label)
         if h is None:
             continue
         if what == "tick":
+            if tween_ticked == f and timer_ticked != f:
+                rep.witness("T1")             # a tween, then a timer, in one tick
+            timer_ticked = f
             world_dt, scale, active, alive, paused, held, over = e[3:10]
             if h.refused:
                 rep.find("T6", f, f"{label} was made on a destroyed actor and registered",

@@ -367,6 +367,68 @@ class TestDueOnTheExactFrame(ProcessTestCase):
                 self.assertFalse(recently("pm8", False, hold=secs), "recently past the hold")
 
 
+class TestATweenEndsBeforeATimerOfItsLength(ProcessTestCase):
+    """R4-1 (persona probes, round 4): the tick walked timers before tweens,
+    so ``after(2, nxt)`` made with ``move_to(…, time=2)`` saw the move one
+    step short (295 / 297.5 / 298.96 at 30 / 60 / 144 Hz), and a move on the
+    same field started in ``nxt`` replaced the first in flight: its
+    ``on_done`` never ran. Tweens now tick first (Laws T1). The class: every
+    tween door × ``after`` / ``every`` × rates × lengths."""
+
+    FPS = (24, 30, 60, 144)
+
+    def _doors(self):
+        from scena import st
+        c = self.track(Circle(center=(0, 0), radius=1))
+        st.r41 = 0.0
+        return [
+            ("move_to", lambda done: c.move_to(300, 0, time=self.secs, on_done=done),
+             lambda: c.center.x, 300.0),
+            ("rotate_to", lambda done: c.rotate_to(90, time=self.secs, on_done=done),
+             lambda: c.angle, 90.0),
+            ("tween st", lambda done: tween(st["r41"], 50.0, time=self.secs, on_done=done),
+             lambda: st.r41, 50.0),
+        ]
+
+    def test_the_timer_sees_the_tween_finished_and_its_on_done_run(self):
+        import itertools
+        for fps, k, timer in itertools.product(self.FPS, (1, 3, 12, 30), ("after", "every")):
+            dt = 1.0 / fps
+            self.secs = k / fps
+            for name, start, read, end in self._doors():
+                with self.subTest(fps=fps, k=k, timer=timer, door=name):
+                    log = []
+                    start(lambda: log.append("done"))
+                    seen = []
+
+                    def fire(h=None):
+                        seen.append(read())
+                        log.append("timer")
+                    h = (after if timer == "after" else every)(self.secs, fire)
+                    for _ in range(k):
+                        _frame(dt)
+                    h.cancel()
+                    self.assertEqual(log, ["done", "timer"])
+                    self.assertAlmostEqual(seen[0], end, places=9)
+                    reset_process_scheduler()
+
+    def test_a_retween_from_the_timer_keeps_the_first_on_done(self):
+        for fps in self.FPS:
+            with self.subTest(fps=fps):
+                self.tearDown()
+                self.setUp()
+                dt = 1.0 / fps
+                c = self.track(Circle(center=(0, 0), radius=1))
+                log = []
+                c.move_to(300, 0, time=2.0, on_done=lambda: log.append(("done", c.center.x)))
+                after(2.0, lambda: (log.append(("after", c.center.x)),
+                                    c.move_to(300, 150, time=1.0)))
+                for _ in range(int(round(3.5 * fps))):
+                    _frame(dt)
+                self.assertEqual(log, [("done", 300.0), ("after", 300.0)])
+                self.assertAlmostEqual(c.center.y, 150.0, places=9)
+
+
 class TestRearmSameTick(ProcessTestCase):
     """A Handle created during tick() must not fire until the next tick.
 

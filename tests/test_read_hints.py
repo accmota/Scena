@@ -415,5 +415,54 @@ class TestRoundThreeMessages(unittest.TestCase):
                 parse(data, source="mine.json")
             self.assertIn("json.load", str(cm.exception))
 
+
+class TestRoundFourMessages(unittest.TestCase):
+    """Persona probes round 4: "create hidden, show later" written as a
+    constructor keyword (R4-2), and a ``move_by`` game with ``bounce=`` told
+    to give its STATIC wall a ``.vel`` (R4-4)."""
+
+    def setUp(self):
+        init(width=200, height=200)
+
+    def test_visible_on_a_constructor_names_the_next_line(self):
+        for make in (lambda: Rect(center=(1, 1), width=4, height=4, visible=False),
+                     lambda: Circle(center=(1, 1), radius=2, visible=False),
+                     lambda: Text("oi", visible=False),
+                     lambda: Sprite("k-rolling-ball/ball_red_large.png", visible=False)):
+            with self.assertRaises(TypeError) as cm:
+                make()
+            msg = str(cm.exception)
+            self.assertIn(".visible = False", msg)
+            self.assertIn("Point, Track", msg)
+
+    def _walk_into_the_wall(self, bounce):
+        import warnings
+        from scena import resolve, STATIC
+        from scena.collision import _vel_missing_warned, get_collision_system
+        _vel_missing_warned.clear()
+        wall = Rect(center=(120, 100), width=20, height=200, group="r44_parede")
+        wall.mass = STATIC
+        hero = Rect(center=(100, 100), width=20, height=20, group="r44_heroi")
+        self.addCleanup(wall.destroy)
+        self.addCleanup(hero.destroy)
+        resolve("r44_heroi", "r44_parede", bounce=bounce)
+        with warnings.catch_warnings(record=True) as ws:
+            warnings.simplefilter("always")
+            for _ in range(5):
+                hero.move_by(3, 0)
+                get_collision_system().step()
+        return hero, wall, [str(w.message) for w in ws if ".vel" in str(w.message)]
+
+    def test_a_move_by_body_on_a_bounce_pair_is_told_and_the_wall_is_not(self):
+        hero, wall, msgs = self._walk_into_the_wall(0.5)
+        self.assertEqual(len(msgs), 1, msgs)
+        self.assertIn("Drop bounce=", msgs[0])
+        self.assertNotIn(repr(wall), msgs[0])
+
+    def test_a_move_by_game_with_bounce_zero_is_quiet(self):
+        hero, _wall, msgs = self._walk_into_the_wall(0)
+        self.assertEqual(msgs, [])
+        self.assertLessEqual(hero.center.x, 100.5)      # it still stops at the wall
+
 if __name__ == "__main__":
     unittest.main()

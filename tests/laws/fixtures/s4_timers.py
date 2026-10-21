@@ -10,6 +10,8 @@
 * a Slow actor at ``time_scale = 0.5``: its ``after(0.5)`` takes a second;
 * an actor that schedules work on itself in its own ``on_destroy`` (T6:
   nothing registers on a dead actor);
+* a tween and an ``after`` of the same length, made together: the timer
+  sees the tween finished (tweens tick before timers, T1);
 * tasks: a top-level task with an ``every`` of its own, cancelled at
   0.45 s (its ``every`` ends with it, T5); a Sleeper's task that parks with
   it (no step while parked, T3); a task started on the destroyed actor
@@ -34,6 +36,8 @@ st.late = 0
 st.task_steps = 0
 st.task_kid = 0
 st.sleeper = 0
+st.tw = 0.0
+st.tw_seen = -1.0
 
 
 def half_second():
@@ -129,6 +133,18 @@ sleeper = Sleeper(center=(150, 250), radius=6)
 after(0.3, lambda: setattr(sleeper, "active", False))   # no step while parked (T3)
 after(0.6, lambda: setattr(sleeper, "active", True))
 after(0.4, lambda: doomed.run_task(never))              # dead owner: never runs (T6)
+
+
+def tw_start():
+    tween(st["tw"], 1.0, time=0.25)
+    after(0.25, tw_seen)            # the same length: sees 1.0 (T1)
+
+
+def tw_seen():
+    st.tw_seen = st.tw
+
+
+after(0.8, tw_start)
 
 
 def update(dt):

@@ -1052,12 +1052,12 @@ class CollisionInfo:
             if va is None and vb is None and not (
                 _is_static_mass(ma) and _is_static_mass(mb)
             ):
-                _warn_missing_vel_once(a, b)
+                _warn_missing_vel_once(a, b, ma, mb, bounce)
             return
         writable_a = (not a_static) and va is not None
         writable_b = (not b_static) and vb is not None
         if not writable_a and not writable_b:
-            _warn_missing_vel_once(a, b)
+            _warn_missing_vel_once(a, b, ma, mb, bounce)
             return
         vel_a = va if va is not None else (0.0, 0.0)
         vel_b = vb if vb is not None else (0.0, 0.0)
@@ -1114,16 +1114,24 @@ class CollisionInfo:
         return Vec2.temp(vx, vy)
 
 
-def _warn_missing_vel_once(a: Any, b: Any) -> None:
-    for body in (a, b):
+def _warn_missing_vel_once(a: Any, b: Any, ma: float, mb: float, bounce: float) -> None:
+    """A body with no ``.vel`` on a ``bounce=`` pair: the bounce does nothing.
+    Not for a STATIC body (a wall never moves; giving it ``.vel`` is no fix),
+    nor for ``bounce=0`` (stopping is what the positional answer already did).
+    R4-4: a ``move_by`` game told to set ``.vel`` on its STATIC wall."""
+    if not bounce:
+        return
+    for body, mass in ((a, ma), (b, mb)):
         bid = id(body)
-        if bid in _vel_missing_warned:
+        if bid in _vel_missing_warned or _is_static_mass(mass):
             continue
         if getattr(body, "_vel", None) is None:
             _vel_missing_warned.add(bid)
             warnings.warn(
-                f"{body!r} has no .vel set; skipping velocity resolution for this pair. "
-                f"Assign .vel before using bounce= on resolve().",
+                f"{body!r} has no .vel, so bounce= does nothing for this pair: it "
+                f"moves by move_by or a pose write, which resolve stops but cannot "
+                f"bounce. Drop bounce= for a body you move by hand, or move it by "
+                f"velocity: set .vel = (vx, vy).",
                 stacklevel=4,
             )
 

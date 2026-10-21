@@ -957,6 +957,11 @@ _FAMILY_KWARG_HINTS = {
     "friction": "Scena has no friction: slow vel.x yourself in update",
     "velocity": "velocity is ball.vel = (vx, vy), set after making it",
     "vel": "vel is set after making it: ball.vel = (vx, vy)",
+    # Persona probes round 4, R4-2: "create hidden, show later".
+    "visible": (
+        "visible is set after making it: obj.visible = False on the next line, "
+        "obj.visible = True to show it (only Point, Track and layers take visible=)"
+    ),
     "radius": "radius= is Circle",
     "width": "width= is Rect/Ellipse/Sprite (Line uses length=)",
     "height": "height= is Rect/Ellipse/Sprite",

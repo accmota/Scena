@@ -364,7 +364,7 @@ then `_draw_frame` (8):
 
 1. `clock._tick`, then layer scroll (`advance_layer_scroll`: world state, integrated here so `update` and `layer.view` see this frame's offset; draw only reads it — [Canvas Design.md — Parallax layers](Canvas%20Design.md#parallax-layers-decoration-only)), then input (poll events; **sample** world pointer; keys/buttons via callbacks; mouse moves only *record* the pointer), then the audio levels a formula links (`sample_level_sources`, only when one is linked — [Sound Design.md — Levels as formula sources](Sound%20Design.md#levels-as-formula-sources))  
 2. User script `update(dt)`  
-3. Process tick (tweens, due timers, sound-finished poll, async resume, `on_update`)  
+3. Process tick, in this order: tweens, due timers (`every`, then `after` / `wait`), awaits (`until` / `parallel` / `race`), sound-finished poll, task steps (async resume), `on_update`. Tweens come first since R4-1 (Laws T1), so a timer as long as a tween sees it finished.  
 4. Collision  
 5. Leave playfield (`@leave_playfield`; after collision, before flush), then **hover** (`step_hover`: one hover target, `@hover` / `@hover_exit` edges — [Shapes Design.md — Hover](Shapes%20Design.md#hover-pointer_hover-hover--hover_exit))  
 6. `flush` `@when` / `@on_change` (collision pair and hover handlers already ran in steps 4–5)  

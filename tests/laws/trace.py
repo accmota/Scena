@@ -670,6 +670,7 @@ _ENGINE_HOOKS = (
     ("scena.process", "Scheduler.add", None, _handle_add_end),
     ("scena.process", "Scheduler._tick_once", _handle_tick, None),
     ("scena.process", "Scheduler._tick_every", _handle_tick, None),
+    ("scena.process", "Scheduler._tick_tween", _handle_tick, None),     # T1's order
     ("scena.process", "Handle._fire_once", _handle_event("fire"), None),
     ("scena.process", "Handle._fire_every", _handle_event("fire"), None),
     ("scena.process", "Handle.cancel", _handle_cancel, None),

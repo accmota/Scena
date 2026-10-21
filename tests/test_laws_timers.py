@@ -27,7 +27,7 @@ from hypothesis_support import require_canaries  # noqa: E402
 from laws import model  # noqa: E402
 from laws.harness import drive  # noqa: E402
 from laws.model import timers  # noqa: E402
-from laws.plants import PLANTS, both_verify_modes  # noqa: E402
+from laws.plants import PLANTS, both_verify_modes, t1_timers_before_tweens  # noqa: E402
 
 S4 = "tests/laws/fixtures/s4_timers"
 PLAY = [("step", 90), ("step_dt", 0.5), ("step", 30)]
@@ -64,6 +64,8 @@ class TestFixture(unittest.TestCase):
         self.assertEqual((s["task_steps"], s["task_kid"]), (5, 9))
         # 2.5 s of world time, 0.3 s parked; the 0.5 s hitch is one step, not ten.
         self.assertEqual(s["sleeper"], 35)
+        # A tween and an after of 0.25 s made together: the timer sees it done.
+        self.assertEqual(s["tw_seen"], 1.0)
 
 
 # -- synthetic traces ---------------------------------------------------------
@@ -107,6 +109,16 @@ class TestTimerRules(unittest.TestCase):
         ev = [H_add("a", "after", delay=0.5)] + frames(
             31, lambda k: [H_tick("a")] + ([("H", "fire", "a")] if k == 31 else []))
         self.assertTrue(found(ev, "T1"))
+
+    def test_t1_a_tween_ticked_after_a_timer_is_found(self):
+        ev = [H_add("a", "after", delay=0.5), H_add("w", "tween")] + frames(
+            2, lambda k: [H_tick("a"), H_tick("w")])
+        self.assertTrue(found(ev, "T1"))
+
+    def test_t1_tweens_then_timers_pass(self):
+        ev = [H_add("a", "after", delay=0.5), H_add("w", "tween")] + frames(
+            2, lambda k: [H_tick("w"), H_tick("a")])
+        self.assertEqual(found(ev, "T1"), [])
 
     def test_t2_made_in_the_tick_and_ticked_that_frame_is_found(self):
         ev = [("F", 1, DT), H_add("a", "after", delay=0.1, phase="tick"), H_tick("a"), ("f", 1)]
@@ -175,6 +187,13 @@ class TestCanaries(unittest.TestCase):
 
     def test_t1(self):
         self._bites("T1")
+
+    def test_t1_order(self):
+        for verify in both_verify_modes():
+            with self.subTest(verify=verify):
+                run, _state, rep = _drive(patches=t1_timers_before_tweens(), keep_going=True)
+                self.assertIn("T1|tween|after a timer", {f.sig for f in rep.findings},
+                              f"{rep.summary()} (the run stopped on: {run.error!r})")
 
     def test_t2(self):
         self._bites("T2")

@@ -317,6 +317,25 @@ left out.
 
 ### Changed
 
+- In a frame, tweens now step before timers. So a timer as long as a tween
+  made with it sees the tween finished, with its `on_done` already run, at
+  any frame rate. Before, `after(2, seguinte)` made with
+  `move_to(…, time=2)` saw the move one step short (297.5 of 300 at 60 Hz).
+  A move started in `seguinte` on the same object then replaced the first,
+  whose `on_done` never ran. A timer that cancels a tween in the frame it is
+  due now comes after that frame's step.
+- An act's own named timer or sound now pauses the stage's one of the same
+  name during the act and gives it back at the change, as a loose call in
+  the act already did. This covers `self.every(…, name=)`,
+  `self.play_sound(…, name=)`, and a loose `every` whose callback is a
+  method of the act. Before, both ran, and the stage's music played under
+  the act's.
+- More messages that name the fix (persona probes round 4):
+  `Rect(visible=False)` says to write `obj.visible = False` on the next
+  line. The `.vel` warning of `resolve(…, bounce=)` no longer names a STATIC
+  wall and stays quiet for `bounce=0`; otherwise it says to drop `bounce=`
+  for a body you move by hand, or to set `.vel`.
+
 - After `destroy()`, an object's own fields still read (`inimigo.valor`), as
   its built-in fields do; every write still raises. A second handler of the
   same contact (they all run) can read the dead body, as the Guia says.
@@ -748,6 +767,12 @@ left out.
   What links and what refuses did not change.
 
 ### Documentation
+
+- Guia: an object is hidden on the line after it is made
+  (`obj.visible = False`, not a constructor keyword). `st.keys()` is a call.
+  `on_update` keeps running at dt = 0 during a pause, so a key read there
+  still acts (`if clock.paused: return`). A stage name an act reuses waits
+  for the act, whichever way the act made it.
 
 - Guia: a pause starts at the next frame; stacks of three or more movable
   boxes are outside what `resolve` promises.

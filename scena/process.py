@@ -2497,9 +2497,13 @@ class Scheduler:
                 # An act's timer takes a game timer's name: it replaces it for
                 # the act only. The game's pauses and comes back at the act
                 # change (review 2026-10-09 S2-6; Act Design).
-                self._suspended_game[key] = (old, old._paused)
+                # setdefault: the act object may have set it aside already
+                # (``_shadow_game_slot``); its "was paused" is the author's.
+                self._suspended_game.setdefault(key, (old, old._paused))
                 old.pause()
                 old = None
+            elif key[0] is not None and getattr(handle.owner, "_scena_is_act", False):
+                self._shadow_game_slot(handle.name)
             if old is not None and old is not handle:
                 old_fn = old._fn
                 # Its parent first: the cancel unlinks it (a task restarting
@@ -2728,6 +2732,23 @@ class Scheduler:
                 or old.scope != SCOPE_GAME or old._done or old._cancelled):
             return
         raise ValueError(_game_task_clash_message(old, name, kind))
+
+    def _shadow_game_slot(self, name: str) -> None:
+        """The act object's own named work (``self.every(…, name=)``, a loose
+        ``every`` whose callback is an act method, ``self.play_sound(…,
+        name=)``) takes a game handle's name: the game's steps aside for the
+        act, as for the act's ownerless work above (R4-5: both ran, two
+        tracks played). The act's handle keeps its own slot; the act change
+        gives the game's back."""
+        key = (None, name)
+        if key in self._suspended_game:
+            return
+        game = self._named.get(key)
+        if (game is not None and game.scope == SCOPE_GAME
+                and game.kind in _PAUSABLE_KINDS
+                and not (game._done or game._cancelled)):
+            self._suspended_game[key] = (game, game._paused)
+            game.pause()
 
     def resume_suspended_game_slots(self) -> None:
         """An act change: game named handles an act shadowed take their slot
@@ -3108,12 +3129,16 @@ class Scheduler:
             tween_s = list(self._tween)
             await_s = list(self._await_family)
 
+            # Tweens before timers (Laws T1): a timer as long as a tween made
+            # with it sees the tween finished, its on_done run, and can start
+            # the next one on the same field (R4-1: it read one step short,
+            # and a re-tween dropped the first one's on_done).
+            for handle in tween_s:
+                self._tick_tween(handle, world_dt)
             for handle in every_s:
                 self._tick_every(handle, world_dt)
             for handle in once_s:
                 self._tick_once(handle, world_dt)
-            for handle in tween_s:
-                self._tick_tween(handle, world_dt)
             for handle in await_s:
                 self._tick_await(handle, world_dt)
 
