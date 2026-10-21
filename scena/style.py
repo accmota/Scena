@@ -217,6 +217,9 @@ def _coerce_channel_paint(value):
     value = as_payload(value)
     if value is None:
         return None
+    if value.__class__ is Color:
+        # The copy Color(value) makes, without re-parsing valid channels.
+        return Color._unit(value._r, value._g, value._b, value._a)
     if value is SPRITE_BODY:
         return SPRITE_BODY
     fe = globals().get("FilterEffect")

@@ -431,6 +431,13 @@ left out.
   (it read the shape's position again for each of its four glow bands).
   Nothing changes in what they do or draw; a colour that changes on every
   write costs about 5 % more.
+- A colour that changes every frame costs less. `Colormap.get_color` is
+  about 2× faster (6.2 → 3.4 µs), `color.with_alpha(…)` about 4× (3.4 → 0.8),
+  and writing a new colour to a shape about a third less (`line.color = …`
+  13.8 → 8.7 µs, `fill = …` 7.9 → 3.1): the engine no longer re-checks colours
+  it made itself. `examples/constelacao.py`, which recolours 55 threads every
+  frame, spends about 9 % less time per frame. The colours are exactly the
+  same; a colour you write (`Color(…)`, a name, a tuple) is checked as before.
 - `confine(by="box")` and `by="overlap"` now measure the shape's outline, so
   they work on every shape: a `Triangle`, `RegularPolygon`, `Polygon`,
   `Line`, `Track` or `Point` raised `TypeError` ("… .box is unsupported").

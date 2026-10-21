@@ -841,7 +841,8 @@ class Color(ClosedSurface):
         """Create new color with modified alpha (clamped to [0, 1])."""
         from .validate import alpha01
         a = alpha01(alpha, "Color.with_alpha")
-        return Color(self._r, self._g, self._b, a)
+        # Our own channels are already in [0, 1]: no re-parse (Color._unit).
+        return Color._unit(self._r, self._g, self._b, a)
 
     def jitter(
         self,
@@ -952,6 +953,8 @@ class Color(ClosedSurface):
             g = color1._g + (color2._g - color1._g) * t
             b = color1._b + (color2._b - color1._b) * t
             a = color1._a + (color2._a - color1._a) * t
+            if cls is Color:
+                return Color._unit(r, g, b, a)      # clamps, as below
             return cls(
                 _clamp01(r), _clamp01(g), _clamp01(b), _clamp01(a),
             )
@@ -968,6 +971,9 @@ class Color(ClosedSurface):
             # Convert back to RGB
             r, g, b = cls._oklab_to_rgb(l, a, b)
             a = _clamp01(color1._a + (color2._a - color1._a) * t)
+            if cls is Color:
+                # _oklab_to_rgb clamps: no re-parse (a Colormap per frame).
+                return Color._unit(r, g, b, a)
             return cls(r, g, b, a)
             
         elif color_space in [ColorSpace.HSL, ColorSpace.HSV]:
