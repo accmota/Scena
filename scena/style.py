@@ -208,6 +208,8 @@ _LINE_WIDTH_FIELDS = ("line_width",)
 def _refuse_linked_paint(obj, names, operation: str) -> None:
     """Raise before writing when an author write reaches a linked paint field
     (callers check the ``_alinks`` slot first)."""
+    if obj.__dict__.get("_alink_writing"):
+        return      # the link's own write (_ChannelAnchor), as _refuse_linked_channel
     from .entity import _refuse_linked_channel
     _refuse_linked_channel(obj, names, operation)
 

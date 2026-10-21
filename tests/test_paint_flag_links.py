@@ -896,6 +896,175 @@ class TestConstructorFormulas(unittest.TestCase):
         self.assertTrue(r._channel_linked("color"))
 
 
+class TestLinkWriteFastPath(unittest.TestCase):
+    """The link's own write passes the setters' refusal on the host's
+    ``_alink_writing`` flag (Reactive Design — Appearance links, Cost): one
+    dict read, not a walk of the host's anchors per setter (a ``color`` write
+    meets three: set_color, fill, line). Behaviour is ``=``'s."""
+
+    def setUp(self):
+        st.t = 0.0
+        warnings.simplefilter("ignore")
+        self.addCleanup(warnings.resetwarnings)
+
+    def _track(self, obj):
+        self.addCleanup(obj.destroy)
+        return obj
+
+    def test_the_link_write_takes_the_flag_not_the_anchor_walk(self):
+        """Catches: the slow path back (the refusal walks the anchors on the
+        link's own write) in either layer, style's or entity's."""
+        r = self._track(Rect())
+        r["color"] @= lambda: Color(st.t, 0.2, 0.4)
+        r["visible"] @= lambda: st.t < 0.8
+        r.fill, r.visible
+
+        class Counting(dict):
+            walks = 0
+
+            def values(self):
+                Counting.walks += 1
+                return super().values()
+
+        r.__dict__["_field_anchors"] = Counting(r.__dict__["_field_anchors"])
+        calls = []
+        real = _entity._refuse_linked_channel
+
+        def spy(obj, names, operation):
+            calls.append(names)
+            return real(obj, names, operation)
+
+        from scena import shapes as _shapes     # Shape.visible's own binding
+        _entity._refuse_linked_channel = _shapes._refuse_linked_channel = spy
+        try:
+            for t in (0.1, 0.5, 0.9):
+                st.t = t
+                fill = r.fill
+                self.assertEqual(_rgba(fill)[0], round(t, 3))
+                self.assertIs(r.visible, t < 0.8)
+            self.assertEqual(calls, [("visible",)])     # set_color passes in style
+            self.assertEqual(Counting.walks, 0)
+            # The author's write still refuses, before writing.
+            with self.assertRaises(LinkedAttributeError):
+                r.color = "red"
+            with self.assertRaises(LinkedAttributeError):
+                r.visible = True
+            self.assertEqual(_rgba(r.fill)[0], 0.9)
+        finally:
+            _entity._refuse_linked_channel = _shapes._refuse_linked_channel = real
+        self.assertFalse(r.__dict__.get("_alink_writing"))
+
+    def test_lands_where_the_hand_write_lands(self):
+        """``@=`` is ``=`` re-run: same paint, same look identity, same number
+        of paint writes (the look revision the cull cache keys on)."""
+        from scena import Colormap
+        cmap = Colormap.from_colors("cyan", "medium purple", "hot pink", "orange")
+        for look in (None, Neon):
+            a = self._track(Circle(center=(10, 10), radius=4))
+            b = self._track(Circle(center=(10, 10), radius=4))
+            if look is not None:
+                a.visual = look()
+                b.visual = look()
+            a["color"] @= lambda: cmap.get_color(st.t)
+            a.fill
+            b.color = cmap.get_color(st.t)
+            last = st.t
+            for t in (0.3, 0.3, 0.7, 1.0, 0.25):
+                st.t = t
+                rev_a = a.__dict__.get("_look_rev", 0)
+                rev_b = b.__dict__.get("_look_rev", 0)
+                a.fill
+                b.color = cmap.get_color(t)
+                with self.subTest(look=look, t=t):
+                    self.assertEqual(_paint_state(a), _paint_state(b))
+                    self.assertEqual(_rgba(a.color), _rgba(b.color))
+                    if t != last:   # a repeat: the link compares with its last write
+                        self.assertEqual(a.__dict__.get("_look_rev", 0) - rev_a,
+                                         b.__dict__.get("_look_rev", 0) - rev_b)
+                last = t
+            self.assertFalse(a.__dict__.get("_alink_writing"))
+
+    def test_a_result_of_the_fields_class_skips_the_doors(self):
+        """A ``Color`` result for a paint field and a ``bool`` for a flag are
+        what ``_normalize`` would return: they skip it. A name, an int flag
+        and every amount take it."""
+        from scena.state import _AmountChannelAnchor, _FlagChannelAnchor, _PaintChannelAnchor
+        r = self._track(Rect())
+        st.v = 0
+        r["color"] @= lambda: Color(0.1 * st.v, 0, 0) if st.v < 5 else "blue"
+        r["visible"] @= lambda: (st.v % 2 == 0) if st.v < 5 else st.v % 2
+        r["line_width"] @= lambda: st.v - 3
+        r.fill, r.visible, r.line_width
+        seen = []
+        patched = []
+        for kind in (_PaintChannelAnchor, _FlagChannelAnchor, _AmountChannelAnchor):
+            real = kind.__dict__["_normalize"]
+
+            def spy(self, value, real=real):
+                seen.append(self._scalar_name)
+                return real(self, value)
+            kind._normalize = spy
+            patched.append((kind, real))
+        try:
+            st.v = 1
+            r.fill, r.visible, r.line_width
+            self.assertEqual(sorted(seen), ["line_width"])
+            self.assertEqual(r.line_width, 0.0)         # clamps as a formula does
+            seen.clear()
+            st.v = 7
+            r.fill, r.visible, r.line_width
+            self.assertEqual(sorted(seen), ["color", "line_width", "visible"])
+            self.assertIs(r.visible, True)              # 1 reads as a flag
+            self.assertEqual(_rgba(r.fill), (0.0, 0.0, 1.0, 1.0))
+        finally:
+            for kind, real in patched:
+                kind._normalize = real
+
+    def test_the_flag_is_given_back(self):
+        """Catches: a flag left set after a write that raised (every later
+        author write would pass the refusal), and a nested link write on the
+        same host that clears the outer write's flag."""
+        r = self._track(Rect())
+        r["color"] @= lambda: Color(st.t, 0.0, 0.0)
+        r["visible"] @= lambda: st.t < 0.5
+        r.fill, r.visible
+        seen = []
+        real = type(r)._invalidate_fill_paint
+
+        def nested(self):
+            self.visible                    # pulls the dirty visible link
+            seen.append(self.__dict__.get("_alink_writing"))
+            return real(self)
+
+        type(r)._invalidate_fill_paint = nested
+        try:
+            st.t = 0.6
+            r.fill
+        finally:
+            type(r)._invalidate_fill_paint = real
+        self.assertEqual(seen, [True])
+        self.assertIs(r.visible, False)
+        self.assertFalse(r.__dict__.get("_alink_writing"))
+
+        def boom(self, *a):
+            raise RuntimeError("boom")
+
+        real_set = type(r).set_color
+        type(r).set_color = boom
+        try:
+            st.t = 0.2
+            with self.assertRaises(RuntimeError):
+                r.fill
+        finally:
+            type(r).set_color = real_set
+        self.assertFalse(r.__dict__.get("_alink_writing"))
+        with self.assertRaises(LinkedAttributeError):
+            r.color = "red"
+        with self.assertRaises(LinkedAttributeError):
+            r.fill = "red"
+        self.assertEqual(_rgba(r.fill)[0], 0.2)     # the retry writes
+
+
 # --------------------------------------------------------------------------
 # Canaries: each test above catches the wrong implementation it names
 # --------------------------------------------------------------------------
@@ -950,6 +1119,33 @@ def _plant_flip_anchor_on_write(kind):
         self._ensure_scalar_anchor(f"flip_{axis}")
         return real(self, axis, value, force=force)
     return apply
+
+
+def _plant_ignore_flag(real_name, module):
+    """The refusal as it was before the flag: it walks the host's anchors on
+    the link's own write."""
+    real = getattr(sys.modules[module], real_name)
+
+    def refuse(obj, names, operation):
+        d = obj.__dict__
+        was = d.pop("_alink_writing", False)
+        try:
+            return real(obj, names, operation)
+        finally:
+            d["_alink_writing"] = was
+    return refuse
+
+
+def _plant_flag_kept(kind, value):
+    """A channel write that leaves ``_alink_writing`` at ``value`` after it."""
+    real = kind._takein_impl
+
+    def takein(self, new_value):
+        try:
+            return real(self, new_value)
+        finally:
+            self._scalar_parent.__dict__["_alink_writing"] = value
+    return takein
 
 
 class TestCanaries(unittest.TestCase):
@@ -1066,6 +1262,29 @@ class TestCanaries(unittest.TestCase):
                     [("scena.entity", "_refuse_linked_channel", lambda obj, names, op: None)],
                     "a linked enabled written by a plain =")
 
+    def test_link_write_walks_the_anchors(self):
+        test = "TestLinkWriteFastPath.test_the_link_write_takes_the_flag_not_the_anchor_walk"
+        self._catch(test, [("scena.style", "_refuse_linked_paint",
+                            _plant_ignore_flag("_refuse_linked_paint", "scena.style"))],
+                    "set_color's refusal without the flag")
+        slow = _plant_ignore_flag("_refuse_linked_channel", "scena.entity")
+        self._catch(test, [("scena.entity", "_refuse_linked_channel", slow),
+                           ("scena.shapes", "_refuse_linked_channel", slow)],
+                    "the entity refusal without the flag")
+
+    def test_amount_skips_its_clamp(self):
+        from scena.state import _AmountChannelAnchor
+        self._catch("TestValues.test_line_width_clamps_like_a_formula",
+                    [(_AmountChannelAnchor, "_as_is", float)],
+                    "a float amount taken as it is (no clamp)")
+
+    def test_flag_not_given_back(self):
+        from scena.state import _ChannelAnchor
+        test = "TestLinkWriteFastPath.test_the_flag_is_given_back"
+        self._catch(test, [(_ChannelAnchor, "_takein_impl", _plant_flag_kept(_ChannelAnchor, True))],
+                    "a flag left set after the link's write")
+        self._catch(test, [(_ChannelAnchor, "_takein_impl", _plant_flag_kept(_ChannelAnchor, False))],
+                    "a nested write that clears the outer write's flag")
 
 if __name__ == "__main__":
     unittest.main()

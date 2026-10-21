@@ -4547,6 +4547,11 @@ class _ChannelAnchor(_PropertyAnchor):
     may own the live paint. The first pull after linking always writes.
     """
 
+    # A formula result of exactly this class is already what the doors below
+    # make of it (a ``Color`` for a paint field, a ``bool`` for a flag): it
+    # skips them. ``None``: every result takes them.
+    _as_is = None
+
     def __init__(self, parent: Container, field_name: str):
         super().__init__(parent, field_name)
         self.__dict__["_last_written"] = _NOT_WRITTEN
@@ -4563,22 +4568,33 @@ class _ChannelAnchor(_PropertyAnchor):
         self.__dict__["_last_written"] = _NOT_WRITTEN
 
     def _takein_impl(self, new_value) -> bool:
-        if isinstance(new_value, FieldRef):
-            new_value = new_value.value
-        if isinstance(new_value, Attribute):
-            new_value = new_value.value
-        elif isinstance(new_value, Container):
-            raise TypeError(
-                f"field {self.name} cannot take a {type(new_value).__name__}; "
-                f"use a lambda that returns the value"
-            )
-        value = self._normalize(new_value)
+        if new_value.__class__ is self._as_is:
+            value = new_value
+        else:
+            if isinstance(new_value, FieldRef):
+                new_value = new_value.value
+            if isinstance(new_value, Attribute):
+                new_value = new_value.value
+            elif isinstance(new_value, Container):
+                raise TypeError(
+                    f"field {self.name} cannot take a {type(new_value).__name__}; "
+                    f"use a lambda that returns the value"
+                )
+            value = self._normalize(new_value)
         d = self.__dict__
         last = d["_last_written"]
         if last is not _NOT_WRITTEN and self._same(last, value):
             return False
         parent = self._scalar_parent
         name = self._scalar_name
+        # ``_alink_writing`` on the host: the setters' linked-field refusal
+        # (``entity._refuse_linked_channel``) passes on one dict read instead
+        # of walking the host's anchors for a ``_writing`` one, three times
+        # for a ``color`` (set_color, fill, line). Saved and given back: a
+        # getter inside this write may pull another link of the same host.
+        pd = parent.__dict__
+        was = pd.get("_alink_writing", False)
+        pd["_alink_writing"] = True
         d["_writing"] = True
         try:
             setattr(parent, name, value)
@@ -4588,6 +4604,7 @@ class _ChannelAnchor(_PropertyAnchor):
             ) from exc
         finally:
             d["_writing"] = False
+            pd["_alink_writing"] = was
         d["_last_written"] = value
         return True
 
@@ -4639,6 +4656,7 @@ def _paint_types():
         from .color import Color
         from .style import _coerce_channel_paint
         _PAINT_TYPES = (Color, _coerce_channel_paint)
+        _PaintChannelAnchor._as_is = Color      # _normalize passes a Color as it is
     return _PAINT_TYPES
 
 
@@ -4667,7 +4685,11 @@ class _PaintChannelAnchor(_ChannelAnchor):
             return True
         Color = _paint_types()[0]
         if last.__class__ is Color and value.__class__ is Color:
-            return bool(last) == bool(value) and last.rgb == value.rgb
+            # ``bool(c)`` and ``c.rgb`` read straight (every Color sets these
+            # five: ``__init__`` and ``Color._unit``): two calls fewer a pull.
+            return (last._is_none == value._is_none and last._r == value._r
+                    and last._g == value._g and last._b == value._b
+                    and last._a == value._a)
         return False
 
 
@@ -4690,6 +4712,8 @@ class _AmountChannelAnchor(_ChannelAnchor):
 class _FlagChannelAnchor(_ChannelAnchor):
     """``visible`` / ``flip_x`` / ``flip_y``: a real bool (``0`` / ``1`` read
     as a flag, like every flag)."""
+
+    _as_is = bool
 
     def _normalize(self, value):
         from .validate import expect_bool

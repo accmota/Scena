@@ -509,6 +509,13 @@ left out.
   turns for the rest of the game: every later `move_by` / `angle =` had taken
   the slow path (120 birds in a flock, 4.7 → 3.7 ms of work per frame).
   `move_by(dx, dy, face=True)` is still the cheapest way to aim where it goes.
+- A colour or a `visible` that follows a formula (`self["color"] @= lambda:
+  CORES.get_color(self.center.x / LARGURA)`) costs less each time it changes:
+  the engine no longer re-checks, three times per colour, that its own write
+  is not yours (about 13 % less a step for a moving shape, 15 % for a
+  `visible`; 55 moving points each coloured by such a formula, about 10 %
+  less a frame). The values and the refusals are the same: `shape.color =
+  "red"` on a linked colour still raises.
 - Collision queries over a big group cost the bodies near the question, not
   the whole group: 140 birds each asking
   `collision.query_circle(self.center, radius=70, group="passaro", ignore=self)`

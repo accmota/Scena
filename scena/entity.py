@@ -1473,10 +1473,13 @@ def _refuse_linked_channel(obj, names, operation: str) -> None:
     applying itself (``_in_visual_apply``), which writes the live channels a
     linked ``color`` stays the identity of. Park writes ``visible`` through
     ``_engine_flag_write``."""
-    anchors = obj.__dict__.get("_field_anchors")
+    d = obj.__dict__
+    if d.get("_alink_writing"):
+        return              # a channel link of this object is writing (_ChannelAnchor)
+    anchors = d.get("_field_anchors")
     if not anchors:
         return
-    if getattr(obj, "_in_visual_apply", False) or obj.__dict__.get("_engine_flag_write"):
+    if getattr(obj, "_in_visual_apply", False) or d.get("_engine_flag_write"):
         return
     for name in names:
         anchor = anchors.get(name)

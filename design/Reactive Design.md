@@ -1324,8 +1324,9 @@ setters), Track no `visible` (it moves the track between layers), Text no flip.
   `.line =`, Shape `set_alpha`, a look that brings its own color (`Paint` / `Fill` /
   `Stroke`, a seeded `Neon("red")`), Text `color` / `background`, Sprite `alpha`,
   `visible`, the flips, `SpriteButton.enabled`. Engine writes pass: the link's own
-  (`_writing`), a look applying itself (`_in_visual_apply`), park
-  (`_engine_flag_write`). `color` writes the fill package, so it excludes a linked
+  (`_writing` on the anchor; a channel anchor also sets `_alink_writing` on its host
+  for the write, saved and given back, and the refusals read that first — see Cost),
+  a look applying itself (`_in_visual_apply`), park (`_engine_flag_write`). `color` writes the fill package, so it excludes a linked
   `fill` / `line` at link time in both orders (`_paint_fields`; on Text, `fill` only).
 * **When the value is taken.** Getters pull on read. The draw-head refresh
   (`refresh_linked_channels`, head of `_draw_frame`) pulls every linked field before
@@ -1359,6 +1360,35 @@ setters), Track no `visible` (it moves the track between layers), Text no flip.
   changing every frame draw in ≈21.8 ms/frame, ≈17.7 ms when `update()` writes each
   shape's color itself, ≈10.6 ms when `update()` computes one color for all (this
   machine, 2026-10-15) — a link evaluates per shape.
+* **Cost of one pull (2026-10-21).** A pull is `=` through the setter plus the link:
+  `_resolve_link` → `_ChannelAnchor._takein_impl` → `setattr` → `set_color`. Three
+  rules keep the link's part small, each with behaviour identical to the slow path
+  (`TestLinkWriteFastPath`, `test_paint_flag_links.py`):
+  - The link's own write passes the refusals on the host's `_alink_writing` flag
+    (one dict read in `_refuse_linked_paint` / `_refuse_linked_channel`), not by
+    walking the host's anchors for a `_writing` one — a `color` write meets three
+    refusals (`set_color`, `fill`, `line`). The flag is saved and given back, never
+    reset to `False`: a getter inside the write may pull another link of the same
+    host, and an outer write must keep passing. A write that raises gives it back
+    too (a stuck flag would let every later author write through).
+  - A formula result of exactly the field's normalized class (`_as_is`: `Color` for
+    a paint field, `bool` for a flag) skips the doors (`FieldRef` / `Attribute` /
+    `Container` checks, `_normalize`). Amounts (`line_width`, `alpha`) have no
+    `_as_is`: every result clamps.
+  - `_PaintChannelAnchor._same` compares a `Color`'s `_is_none` / `_r` … `_a`
+    straight, not through `bool()` and `.rgb`.
+  A Circle with `CheapGlow` moved one pixel and read, colour linked to a `Colormap`
+  of its x: 30.1 → 26.2 µs a step (−13 %); a linked `visible` flipping 7.9 → 6.8 µs;
+  55 such circles moved and refreshed 2.24 → 2.01 ms a frame (−10 %; the
+  constelação pattern before its example moved to `every(0.25, …)`)
+  (`scripts/bench/perf_channel_link.py --ab 872a78c`,
+  in-process interleaved, CPU time, GC off per block; M4, 2026-10-21, peers
+  loading the machine). The same recolour written by hand on a shape whose center
+  feeds a formula: 23.3 µs; what is left over it (≈2.5 µs) is `_resolve_link` and
+  the formula call. The biggest share of a linked shape's cost is not the link: a
+  formula that reads the shape's `center` makes every move take the batched,
+  dirty-marking path (A1 bare-float writes need no pull consumers), 1.8 → ≈7.5 µs
+  a `move_by`, whatever reads it (a `Line(p1=lambda: self.center)` pays the same).
 
 Guard: `tests/test_paint_flag_links.py` (every wrong implementation above has a
 canary). Custom entity ink (`ship.hp`) and geometry slots (`rect.width`,
