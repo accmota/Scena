@@ -5,7 +5,9 @@ The example says: each point's thread runs to its nearest neighbour and fades
 out past ``FIO_MAXIMO``; each comet hunts the nearest *free* point (no two
 comets after the same one); a caught point is reborn elsewhere and the comet
 takes its colour; a point that runs off an edge comes back by the other one;
-holding the mouse pulls the points in and letting go pushes them out; SPACE
+holding the mouse pulls the points in and letting go pushes them out; a
+point takes the colour of where it is four times a second (and at once when
+reborn); SPACE
 adds a comet up to six; T switches the screen trail.
 
 Bug class guarded: **an example that stops doing what its docstring says**
@@ -95,6 +97,29 @@ class TestConstelacao(unittest.TestCase):
             colours = [c.color for c in ns["group"]["cometa"]]
             self.assertIn(cor, colours, "no comet took the caught point's colour")
             self.assertGreater(dist(xy(ponto.center), where), 0.0)
+
+    def test_colour_by_position_four_times_a_second(self):
+        # Not a per-frame @= formula: re-evaluating 55 links each frame cost
+        # ~1.7 ms of draw (2026-10-21); a slow point needs 4 a second.
+        with ProgramRun(PATH, seed=3) as run:
+            ns = run.ns
+            cores, largura = ns["CORES"], ns["LARGURA"]
+            pontos = list(ns["group"]["ponto"])
+            self.assertTrue(all(p.glow is None for p in pontos), "Bloom makes the points glow")
+            # the timer holds the bound method: count the colour changes
+            last = {p: p.color for p in pontos}
+            changes = 0
+            for _ in range(2 * SECOND):
+                run.step(1)
+                for p in pontos:
+                    if p.color != last[p]:
+                        changes += 1
+                        last[p] = p.color
+            per_point = changes / len(pontos)
+            self.assertTrue(6 <= per_point <= 10, per_point)
+            p = pontos[0]
+            ns["Ponto"].renascer(p)
+            self.assertEqual(p.color, cores.get_color(p.center.x / largura))
 
     def test_points_wrap_and_comets_stay_in(self):
         with ProgramRun(PATH, seed=3) as run:

@@ -163,6 +163,20 @@ dst.every(0.05, lambda: contrail.snapshot(dst))
 - Author `on_leave=` is a side effect when the tail recedes; stroke always trims itself. `destroy_on_leave=` is not a Contrail keyword.
 - Path rebuild is dirty-flagged on store / remove and flushed once per
   mutation (`snapshot` / tick / `pop` / `discard` / `clear` / `smooth` / `fade` / `ease`).
+- **One span table a rebuild (2026-10-21).** `history._span_table` computes each
+  span's Catmull-Rom cubic once (the point list and the phantom ends once a
+  rebuild); the stroke and every fade band replay it. Before, each span rebuilt
+  the point list and the phantom ends (O(n²) a rebuild) and the bands computed
+  every span a second time: three comets with a 40-point faded trail spent
+  ~0.7 ms a frame in `snapshot` (`examples/constelacao.py`). The path bytes are
+  the same. Measured (HEAD vs HEAD + this, eight alternating processes): a
+  40-point faded rebuild 158 → 57 µs, unfaded 72 → 36; `snapshot` 40 faded
+  231 → 131 µs, 8 points 88 → 77, 200 points 1978 → 358. Guard:
+  `tests/test_contrail_rebuild.py` (byte-identical stroke, bands, alphas and
+  centre against the pre-change rebuild over random trails, through
+  `snapshot` too; a spy: one curve per span, one `_phantom_open` a rebuild).
+  What remains of a snapshot is mostly the detached `Point` (~43 µs, a full
+  Shape build even through `Point.temp`) and reading the points back.
 - No `stroke=` (stroke-only shape → `color=` is enough). Sampling stays `every` + `snapshot` — see [Sampling](#sampling).
 - Snapshot for travel: `Track(points=list(contrail), smooth=0)`.
 

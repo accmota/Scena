@@ -445,31 +445,48 @@ class History(ClosedSurface):
 # Private stroke for Contrail
 # ---------------------------------------------------------------------------
 
-def _append_span(path: skia.Path, xs: List[float], ys: List[float], i: int, smooth: float) -> None:
-    """Append sample span ``i → i+1`` (line or cubic) onto ``path``."""
+def _span_table(xs: List[float], ys: List[float], smooth: float) -> Optional[List[tuple]]:
+    """Each span ``i → i+1`` as its cubic's ``(c1x, c1y, c2x, c2y, ex, ey)``,
+    or ``None`` for a polyline (``smooth <= 0``).
+
+    Computed once per rebuild and replayed into the stroke and its fade bands.
+    Each span used to rebuild the point list and the phantom ends on its own
+    (O(n²) a rebuild) and the bands computed every span a second time: a
+    40-point faded trail took ~160 µs a snapshot, now ~57, with the same
+    path bytes (History Design, "One span table a rebuild")."""
     n = len(xs)
-    if smooth <= 0.0:
-        path.lineTo(xs[i + 1], ys[i + 1])
-        return
+    if smooth <= 0.0 or n < 2:
+        return None
     pts = list(zip(xs, ys))
     before, after = _phantom_open(pts)
-    p1 = pts[i]
-    p2 = pts[i + 1]
-    p0 = before if i == 0 else pts[i - 1]
-    p3 = after if i + 2 >= n else pts[i + 2]
-    _b0, b1, b2, b3 = catmull_rom_to_bezier(p0, p1, p2, p3, smooth=smooth)
-    path.cubicTo(b1[0], b1[1], b2[0], b2[1], b3[0], b3[1])
+    spans = []
+    for i in range(n - 1):
+        p0 = before if i == 0 else pts[i - 1]
+        p3 = after if i + 2 >= n else pts[i + 2]
+        _b0, b1, b2, b3 = catmull_rom_to_bezier(p0, pts[i], pts[i + 1], p3, smooth=smooth)
+        spans.append((b1[0], b1[1], b2[0], b2[1], b3[0], b3[1]))
+    return spans
 
 
-def _fill_stroke_path(path: skia.Path, xs: List[float], ys: List[float], smooth: float) -> None:
-    """Full open stroke through samples: polyline (``smooth<=0``) or Catmull-Rom cubics."""
+def _append_span(path: skia.Path, xs: List[float], ys: List[float], i: int,
+                 spans: Optional[List[tuple]]) -> None:
+    """Append sample span ``i → i+1`` (line, or the cubic from ``spans``) onto ``path``."""
+    if spans is None:
+        path.lineTo(xs[i + 1], ys[i + 1])
+    else:
+        path.cubicTo(*spans[i])
+
+
+def _fill_stroke_path(path: skia.Path, xs: List[float], ys: List[float],
+                      spans: Optional[List[tuple]]) -> None:
+    """Full open stroke through samples: polyline or Catmull-Rom cubics (``spans``)."""
     path.rewind()
     n = len(xs)
     if n == 0:
         return
     path.moveTo(xs[0], ys[0])
     for i in range(n - 1):
-        _append_span(path, xs, ys, i, smooth)
+        _append_span(path, xs, ys, i, spans)
 
 
 def _fill_band_path(
@@ -479,7 +496,7 @@ def _fill_band_path(
     *,
     span0: int,
     span1: int,
-    smooth: float,
+    spans: Optional[List[tuple]],
 ) -> None:
     """Open subpath covering sample spans ``[span0, span1)``."""
     path.rewind()
@@ -487,7 +504,7 @@ def _fill_band_path(
         return
     path.moveTo(xs[span0], ys[span0])
     for i in range(span0, span1):
-        _append_span(path, xs, ys, i, smooth)
+        _append_span(path, xs, ys, i, spans)
 
 
 class _Stroke(Shape):
@@ -547,7 +564,8 @@ class _Stroke(Shape):
         xs, ys = self._xs, self._ys
         n = len(xs)
         smooth = self._smooth
-        _fill_stroke_path(self._path, xs, ys, smooth)
+        table = _span_table(xs, ys, smooth)
+        _fill_stroke_path(self._path, xs, ys, table)
         self._band_paths.clear()
         self._band_alphas.clear()
         if n >= 1:
@@ -564,7 +582,7 @@ class _Stroke(Shape):
                 if span1 <= span0:
                     continue
                 band = skia.Path()
-                _fill_band_path(band, xs, ys, span0=span0, span1=span1, smooth=smooth)
+                _fill_band_path(band, xs, ys, span0=span0, span1=span1, spans=table)
                 # Alpha at the band's newest stamp index.
                 t = float(ease(span1 / denom))
                 self._band_paths.append(band)

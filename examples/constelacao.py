@@ -10,9 +10,10 @@ que outro cometa já persegue não serve), preso a ele por uma linha que vira
 raio quando a presa está perto; os pontos fogem dos cometas. Um ponto pego
 estoura e renasce em outro lugar, e o cometa fica com a cor dele.
 
-A cor de cada ponto é uma fórmula (@=) da sua posição numa Colormap; os
-fios somam luz (blend = "add"); os cometas são Neon com um Contrail atrás;
-Bloom, Vignette e Nebuladust fazem o céu.
+A cor de cada ponto vem da sua posição numa Colormap, refeita a cada
+quarto de segundo (every); os fios somam luz (blend = "add"); os cometas
+são Neon com um Contrail atrás; Bloom (que também faz os pontos
+brilharem), Vignette e Nebuladust fazem o céu.
 
 Controles
 ---------
@@ -58,8 +59,9 @@ class Ponto(Circle, radius=4, group="ponto"):
     def setup(self):
         self.vel = vec_from_angle(uniform(0, 360), CALMA)
         self.cacador = None     # o cometa que está atrás deste ponto
-        self["color"] @= lambda: CORES.get_color(self.center.x / LARGURA)
-        self.glow = CheapGlow(radius=6)
+        # um ponto anda devagar: trocar a cor 4 vezes por segundo basta
+        self.recolorir()
+        self.every(0.25, self.recolorir)
         # cada ponto respira no seu próprio ritmo
         tween(self["radius"], uniform(5, 7), time=uniform(0.8, 2),
               ease="ease_in_out", loops="forever", yoyo=True)
@@ -87,9 +89,13 @@ class Ponto(Circle, radius=4, group="ponto"):
             self.fio.color = CORES.get_color(meio / LARGURA).with_alpha(perto)
             self.fio.line_width = 1 + 2 * perto
 
+    def recolorir(self):
+        self.color = CORES.get_color(self.center.x / LARGURA)
+
     def renascer(self):
         self.move_to(uniform(40, LARGURA - 40), uniform(40, ALTURA - 40))
         self.vel = vec_from_angle(uniform(0, 360), CALMA)
+        self.recolorir()
         self.dissolve_in(0.8)
         self.fio.dissolve_in(0.8)
 

@@ -457,6 +457,14 @@ left out.
   it made itself. `examples/constelacao.py`, which recolours 55 threads every
   frame, spends about 9 % less time per frame. The colours are exactly the
   same; a colour you write (`Color(…)`, a name, a tuple) is checked as before.
+- `Contrail.snapshot` is faster, more so for long trails: a 40-point faded
+  trail 231 → 131 µs a snapshot, a 200-point one 1978 → 358 (the cost grew
+  with the square of the length). The trail draws exactly the same.
+- `examples/constelacao.py` is lighter: each point takes the colour of where
+  it is four times a second (`self.every(0.25, self.recolorir)`) instead of
+  through a formula re-evaluated every frame, and the points have no
+  `CheapGlow` (Bloom already makes them glow). Its frame's drawing work went
+  from about 4.4 to 1.7 ms, and it looks the same.
 - `confine(by="box")` and `by="overlap"` now measure the shape's outline, so
   they work on every shape: a `Triangle`, `RegularPolygon`, `Polygon`,
   `Line`, `Track` or `Point` raised `TypeError` ("… .box is unsupported").
