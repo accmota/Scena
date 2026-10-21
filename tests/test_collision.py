@@ -6368,6 +6368,35 @@ class TestPoseKeyCoversDefiningInputs(CollisionTestCase):
         self._check(c, lambda s: setattr(s, "perimeter_point", self.at(0, 9)))
 
 
+class TestASecondHandlerReadsTheDeadBody(CollisionTestCase):
+    """Persona probes round 3 (R3-1, decided 2026-10-20): every handler of a
+    contact runs (C3), and the ones after a destroy receive the dead body. Its
+    own fields read, as its built-in ones do; writes refuse. Before, a
+    module score handler reading ``inimigo.valor`` after the enemy's own
+    handler destroyed it raised DestroyedError."""
+
+    def test_the_score_handler_reads_the_destroyed_enemys_value(self):
+        from scena import st
+        shot = self.track(Circle(center=self.at(0, 0), radius=5, group="tiro3"))
+        enemy = self.track(Rect(center=self.at(100, 0), width=20, height=20, group="ini3"))
+        enemy.valor = 10
+        st.pp_pontos = 0
+
+        @collide("tiro3", "ini3")
+        def morre(t, e, info):
+            e.destroy()
+
+        @collide("tiro3", "ini3")
+        def soma(t, e, info):
+            st.pp_pontos += e.valor
+
+        self.step()
+        shot.move_to(self.at(100, 0))
+        self.step()
+        self.assertFalse(enemy.is_alive)
+        self.assertEqual(st.pp_pontos, 10)
+
+
 class TestSweptAgainstAPlacedPartner(CollisionTestCase):
     """Persona probes round 2 (R2-2, contacts): a body *placed* right behind a
     fast traveller (``b.center = a.center + Vec2(0, -25)``, or the same with

@@ -1333,6 +1333,18 @@ the previous rounds' probes on the new commit** (the runner, same flags
 diffed): round 2's re-run found three regressions of round 1's own fixes
 (PP4-R, PP10-R, PP18-R) that neither blind campaign reported.
 
+**Round 3 (2026-10-20).** Commit fe00fda, models swapped again. A (Opus:
+deadline student, puzzle designer) 20 probes; B (Sonnet: web developer,
+physics tinkerer) 24. BUG: A 0, B 1 (R3-2, resolve motion: not a freeze
+area). R3-1 (an author's own field raised on a destroyed actor, against the
+Guia) was the engine's documented rule, so a DECISION (user, 2026-10-20:
+the rule changed, reads now work). **Round 3 meets the table: streak 1**;
+round 4 decides the freeze. BUG estimate 0 remaining. Broad estimate
+n₁ = 10, n₂ = 7, m = 1, N̂ ≈ 43, about 27 unfound (round 2: 9): each persona
+brings its own vocabulary (`addEventListener`, `friction=`, a half rename),
+so the message surface is the open part. The re-run of rounds 1 and 2
+found no regression.
+
 
 # Test tiers
 
@@ -2818,7 +2830,8 @@ A value copies; a lambda links. These failed that rule because the constructor t
 | --- | --- | --- | --- | --- |
 | T1 | Any motion on a view caption recentered it on its pin; a `center` write drew moved but snapped back on the next string change | `t = Text(text="", top_left=(16, 560)); t["text"] @= …; t.move_by(0, 0)` → left edge `16 − w/2` (then spelled `x1=16, y1=560`) | `center` stayed the old string's midpoint until the next layout, and `_move_by` / `_move_to` rebuilt the box around it with the world rule. Found again during the fix: a reconcile alone misread an *absolute* stale write (`center = P`, `tween`) as a translation, so reads refresh too | `tests/test_text.py` `TestViewPinMotion` (every verb × three anchors, stale and fresh), `TestViewPinMotionProperty` |
 | T2 | `Text(box=cell)` sat half its height above the cell centre (bug A); with `align="left"` / `"right"` the region-wide box shifted half a width sideways (bug B); and it silently advanced the HUD column | cell centre `(200, 150)`, 60 high → text centre y `161.8`; `align="left"` → box x `200..360` for a `120..280` cell | The region centre was fed to the bottom-left **edge** `x1, y1` (a centre is not a corner), and `align` doubled as the horizontal pin. Class: converting between a top / centre anchor and the min edge `y1` without the height | `tests/test_box.py` `test_text_box_is_centred_in_the_region` (every align × one and three lines), `test_text_box_does_not_join_the_hud_column`. Fix by design: `box=` is `center=` (pose) and `align` only places lines; anchors are named points (`top_left=` …), edges are private `_x1.._y2` |
-| T3 | A HUD caption near the top grew **upward**: a second line (formula text) pushed its first line off screen; `font_size` moved the top edge | tutorial `placar = Text(x1=20, y1=760)` on an 800-high screen; `"…\nVidas 3"` → top `807` | Placement was the bottom-left corner in y-up, so growth went up | `test_text.TestTextAnchors.test_growth_is_downward_and_away_from_the_anchor`; `TestViewPinMotionProperty` (every anchor × string / hard breaks / `width` / `align` / `font_size` / moves / anchor writes: pin fixed, top fixed) and `test_linked_anchor_tracks_its_source`. Guard against the scalar spelling coming back: `TestTextAnchors.test_no_public_scalar_edges` |
+| T3 | A HUD caption near the top grew **upward**: a second line (formula text) pushed its first line off screen; `font_size` moved the top edge | tutorial `placar = Text(x1=20, y1=760)` on an 800-high screen; `"…
+| Persona probes, round 3 | 2026-10-20 | two blind campaigns on fe00fda, models swapped again: A Opus (deadline student, puzzle designer) 20 probes + 8 second tries + 8 mirrors; B Sonnet (web developer, physics tinkerer) 24 + 8 + 6; plus rounds 1 and 2 re-run | R3 16 | 1 (R3-2 a resting movable partner answered as a wall at 60 Hz) | 12 messages fixed, 2 DOC, decisions R3-1 (applied: dead own-field reads), R3-3 (applied: pose retarget quiet), R3-11 (kept, Guia note); B2 LATENT (stacks, P1 non-goal) | runner timeout under load (one HANG); triager mirrors | messages for other worlds' words and half-done edits; resolve's skin answer. Laws model and E11: no finding |\nVidas 3"` → top `807` | Placement was the bottom-left corner in y-up, so growth went up | `test_text.TestTextAnchors.test_growth_is_downward_and_away_from_the_anchor`; `TestViewPinMotionProperty` (every anchor × string / hard breaks / `width` / `align` / `font_size` / moves / anchor writes: pin fixed, top fixed) and `test_linked_anchor_tracks_its_source`. Guard against the scalar spelling coming back: `TestTextAnchors.test_no_public_scalar_edges` |
 | T4 | Tutorial steps had drifted from the API: `quadrado.visual = Aura()` (Aura is sprite-only), `keyp.once("escape")` (the key is `"ESC"`), `barra["rotation"] @= lambda b=barra: … b.nivel` (`CircularReferenceError`; also `examples/barras_girando.py`), `SkyGradient("space")` (no such preset) | open `docs/pt/tutorial/04-ui-widgets.html`, press Esc | Nothing executed the tutorial HTML; the API moved underneath (Aura scope, key names, default-arg formula sources) | `tests/test_tutorials.py`: every step's `code:` runs in a child process with `run()` as a few `update(dt)` calls; each `try` box runs appended to its step, or (a function-body fragment) compiles and resolves its calls. Verified to fail on the pre-fix HTML. Fix: `Rim()`, `"ESC"`, `lambda n=nivel: …`, `SkyGradient("dusk")` |
 
 ### K — handle fields that double as registry keys (2026-09-28)
@@ -3517,6 +3530,27 @@ found PP4-R, PP10-R and PP18-R ([PP](#pp--persona-probes-round-1-2026-10-20)).
 | R2-8 | ERROR. `every(0.6, spawn())` returned the decorator silently | as written | `None` was the decorator sentinel | — | `NO_FN` default; an explicit `None` raises. `test_read_hints.TestTimerGivenACall` |
 | R2-9 | ERROR. `self.mode = self.phase2()` ran the body as a helper and left the mode `None` | a boss's phase change | `@on_mode` was a pure marker | — | A sync body runs only when the engine enters it. `test_read_hints.TestModeBodyCalledByHand` |
 | R2-10 | DECISION, applied (2026-10-20). The Guia said an act never subclasses an act; the engine accepts it, and it works | `class Chefe(Fase)` | An unenforced "never" | — | The Guia and Act Design document what runs once; `test_act.TestAnActMaySubclassAnAct` |
+
+### R3 — persona probes, round 3 (2026-10-20)
+
+Found by the [persona probes](#persona-probes), round 3 (blind, fe00fda;
+A and B shared R3-3).
+
+| ID | Finding | Repro | Cause | Why tests missed it | Fix / guard |
+| --- | --- | --- | --- | --- | --- |
+| R3-1 | DECISION, applied (user, 2026-10-20). A destroyed actor's own field raised on read (`inimigo.valor`), while built-in fields read and the Guia said "dá para ler": a second handler of the contact (C3) crashed | two `@collide` handlers, the first destroys, the second reads | The documented rule "Ink reads still raise"; teardown clears the ink | `test_api_robustness` pinned the raise | A plain copy at teardown (`_dead_ink`) reads; writes refuse; a `@when` made on a dead source retires (`events._condition_reads_dead`). `test_collision.TestASecondHandlerReadsTheDeadBody` |
+| R3-2 | BUG. At 60 Hz a mover ending a frame in the resting skin of a resting movable box bounced off it as off a wall; the box never moved, masses ignored | equal 60×60 boxes, `a.vel = (200, 0)`, `resolve(a, b, bounce=1)`, start x 100 | `_answer_unreached` (LW8) skipped a partner only when it moved | LW8's tests used bricks with no `.vel` | A partner with a `.vel` and a finite mass is the next sweep's (the mass split). `test_resolve_solver.TestARestingMovablePartnerIsNotAWall` |
+| R3-3 | DECISION, applied (both campaigns). A pose retarget warned "replaces a previous in-flight handle", located in `shapes.py` | `move_to(cell, time=0.06)` on each fast key; a hover lift and exit | `_preempt_tween_keys` warned on every same-kind replace | — | Timed pose verbs quiet; a tween still warns, at the author line, naming `name=`. `test_driver_composition.TestPoseRetargetIsQuiet` |
+| R3-4 | ERROR. `change_act` after a plain `run()` said "start with run(Fase)": the title screen was lost | a title at the top, `change_act(Fase)` on ENTER | The hint named the target | — | Names a first act (`run(Titulo)`). `test_act.TestRestrictions.test_change_act_after_plain_run` |
+| R3-5 | ERROR. A missing `st` cell after a half rename said "create it first"; the second try made a dead cell | `st.placar` renamed, `st.pontos += 1` left | No close name, no list | — | Lists the cells; "if renamed, use its new name". `test_read_hints.TestMissingCellAfterARename` |
+| R3-6 | ERROR. A false "Did you mean 'tiros_inimigos'?" for a class keyword group before its first member | `class Inimigo(Rect, group="inimigos")`, `@when(lambda: group["inimigos"].empty)` | The near-miss guard did not know class keywords | — | `group_name_known` scans class defaults on a miss. `test_read_hints.TestAClassKeywordGroupIsKnown` |
+| R3-7 | ERROR. `self.vel = 150` said "physics motion" | as written | Generic text | — | Names another name and that nothing moves by vel. `test_read_hints.TestVelGivenANumber` |
+| R3-8 | ERROR. `box=None` did not say None | `Rect(box=grid.cell_at(0, 0))` | Fixed text | — | Says None, names `grid.cell`. `test_read_hints.TestBoxGivenNone` |
+| R3-9 | ERROR. `"#222"` lost the reason | as written | The parser's reason dropped | — | 6 or 8 digits, spelled out. `test_color.TestShortHexWarning` |
+| R3-10 | ERROR. `Level()` on one's own JSON led toward forging an editor file | a hand map | Field-by-field checks | — | Names `json.load`; a format tag with no version says "not an editor file". `test_read_hints.TestRoundThreeMessages` |
+| R3-11 | DECISION, kept. A pause set during a frame starts at the next | `clock.paused = True` in `update` | This frame's dt is taken | — | Guia note; `test_reactive_edge_cases.TestPauseStartsNextFrame` |
+| R3-12–15 | ERROR. `addEventListener` / `apply_impulse` reads; `Circle(mass=, bounce=)`; `resolve(friction=)`; `Text(lambda)` named `@=` | as written | No table for these words | — | `_FOREIGN_READS`, `_FAMILY_KWARG_HINTS`, `resolve` with a published signature, the no-sources text. `test_read_hints.TestRoundThreeMessages` |
+| R3-16 | DOC. Stacks of 3+ movable boxes are outside what resolve promises (P1); the Guia did not say | `phys_stack1` | — | — | Guia note (Colisão, resolve) |
 
 ### DV — a destroyed actor refuses first (2026-10-17)
 

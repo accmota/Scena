@@ -699,8 +699,14 @@ class Color(ClosedSurface):
                     
                     return r, g, b, a
                 except ValueError:
+                    # Keep the reason (persona probes R3-9: '#222' lost it).
+                    digits = arg[1:]
+                    hint = ""
+                    if len(digits) in (3, 4) and all(ch in "0123456789abcdefABCDEF" for ch in digits):
+                        hint = f" Write {'#' + ''.join(ch * 2 for ch in digits)!r}."
                     warnings.warn(
-                        f"Invalid hex color {arg!r}. Using 'magenta' fallback.",
+                        f"Invalid hex color {arg!r}: hex needs 6 or 8 digits "
+                        f"(#RRGGBB or #RRGGBBAA). Using 'magenta' fallback.{hint}",
                         RuntimeWarning,
                         stacklevel=2,
                     )

@@ -1087,9 +1087,16 @@ def change_act(act, *args, **kwargs) -> None:
             "The game has not started. Start the first act with run(Titulo)."
         )
     if not m.act_mode:
+        # The target is rarely where the game begins: a title at the top of
+        # the file changing to the level was told run(Fase), and lost its
+        # title screen (persona probes R3-4).
+        name = act.__name__
         raise RuntimeError(
-            f"This game started with run(). To use acts, start with "
-            f"run({act.__name__})."
+            f"This game started with run(), with no act, so change_act({name}) has "
+            f"nothing to change from. With acts, the game starts in its first act: "
+            f"make the title (or whatever comes first) an act too, class "
+            f"Titulo(Act), start with run(Titulo), and call change_act({name}) "
+            f"from it. If the game begins in {name}, start with run({name})."
         )
     if m.changing:
         owner = m._hook_owner

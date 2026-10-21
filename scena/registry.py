@@ -1369,9 +1369,17 @@ class Registry:
         self._declared_groups.add(name)
 
     def group_name_known(self, name: str) -> bool:
-        """Live now, ever had a member, declared by a rule, or a formula group."""
-        return (name in self.group_map or name in self._group_gen
-                or name in self._declared_groups or name in self._group_formulas)
+        """Live now, ever had a member, declared by a rule, a formula group, or
+        a class keyword's ``group=`` (``class Inimigo(Rect, group="inimigos")``
+        before the first one exists: persona probes R3-6). The class scan runs
+        only for a name not known otherwise (a near-miss check, rare)."""
+        if (name in self.group_map or name in self._group_gen
+                or name in self._declared_groups or name in self._group_formulas):
+            return True
+        if _class_keyword_groups_include(name):
+            self._declared_groups.add(name)
+            return True
+        return False
 
     def known_group_names(self) -> List[str]:
         """Every known name (see ``group_name_known``), for did-you-mean hints."""
@@ -1563,6 +1571,27 @@ class LayersFacade:
 
     def __iter__(self) -> Iterator[LayerKey]:
         return iter(self._registry.layers)
+
+
+def _class_keyword_groups_include(name: str) -> bool:
+    """Some author class names ``name`` in its class keyword ``group=``."""
+    from .entity import Entity
+    stack = list(Entity.__subclasses__())
+    seen = set()
+    while stack:
+        cls = stack.pop()
+        if cls in seen:
+            continue
+        seen.add(cls)
+        stack.extend(cls.__subclasses__())
+        for attr in ("_shape_defaults", "_class_defaults", "_sprite_defaults"):
+            defs = cls.__dict__.get(attr)
+            if not defs:
+                continue
+            g = defs.get("group")
+            if g == name or (isinstance(g, (list, tuple, set, frozenset)) and name in g):
+                return True
+    return False
 
 
 def declare_group_names(atoms) -> None:

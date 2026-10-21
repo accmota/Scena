@@ -402,6 +402,40 @@ class TestBounceLeavesAtEveryRate(_Plain):
                 self.assertEqual(lost, 0)
 
 
+class TestARestingMovablePartnerIsNotAWall(_Plain):
+    """Persona probes round 3 (R3-2): a mover that ended a frame inside the
+    resting skin of a resting *movable* partner (``.vel`` = 0) bounced off it
+    as off a wall at 60 Hz (the unreached-contact answer, LW8): B never moved,
+    masses ignored. At 30 and 144 Hz the textbook split held. The answer is
+    the sweep's, with the masses, at every rate; a partner with no ``.vel``
+    (a Breakout brick) is still answered there."""
+
+    def collide(self, fps, ma, mb, bounce, x0=100.0):
+        self.clear()
+        dt = 1.0 / fps
+        o = self.o
+        a = self.keep(Rect(center=(o + x0, o), width=60, height=60, group="pa"), mass=ma)
+        b = self.keep(Rect(center=(o + 500, o), width=60, height=60, group="pb"), mass=mb)
+        a.vel = Vec2(200.0, 0.0)
+        resolve("pa", "pb", bounce=bounce)
+        for _ in range(int(2.5 * fps)):
+            a.move_by(a.vel.x * dt, a.vel.y * dt)
+            b.move_by(b.vel.x * dt, b.vel.y * dt)
+            self.step()
+        return float(a.vel.x), float(b.vel.x)
+
+    def test_the_split_holds_at_every_rate_and_start(self):
+        cases = ((10.0, 1.0, 0.5, (172.7, 272.7)), (1.0, 10.0, 1.0, (-163.6, 36.4)),
+                 (1.0, 1.0, 1.0, (0.0, 200.0)))
+        for ma, mb, e, (wa, wb) in cases:
+            for fps in (30, 60, 144):
+                for x0 in (100.0, 103.2, 100.2):
+                    with self.subTest(ma=ma, mb=mb, fps=fps, x0=x0):
+                        va, vb = self.collide(fps, ma, mb, e, x0)
+                        self.assertAlmostEqual(va, wa, delta=1.0)
+                        self.assertAlmostEqual(vb, wb, delta=1.0)
+
+
 class TestIdleSlope(_Plain):
     """Bug PE2: after a vertical stop on a slope the sweep backed off the skin
     along the slope normal, and floor snap did the same, so an idle hero slid

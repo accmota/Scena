@@ -317,6 +317,26 @@ left out.
 
 ### Changed
 
+- After `destroy()`, an object's own fields still read (`inimigo.valor`), as
+  its built-in fields do; every write still raises. A second handler of the
+  same contact (they all run) can read the dead body, as the Guia says.
+  Before, the read raised `DestroyedError`. A `@when` made on an object that
+  is already destroyed retires at once.
+- A timed pose verb (`move_to`, `move_by`, the turns and scales with
+  `time=`) that replaces one still running on the same object no longer
+  warns: the newest wins, as the Guia says (a puzzle tile on a fast key, a
+  hover lift undone). A `tween` replacing a tween still warns, now at your
+  line, naming `name=` as the way to say "on purpose".
+- More messages that name the fix (persona probes round 3): `change_act`
+  after a plain `run()` says to make the title an act too; a missing `st`
+  cell lists the cells that exist (a rename made in one place); a group a
+  class keyword names is not a near-miss before its first member;
+  `self.vel = 150` names another name; `box=None` says it got None and
+  names `grid.cell(col, row)`; `"#222"` says hex needs 6 or 8 digits;
+  `Level()` on your own JSON names `json.load`; `addEventListener`,
+  `apply_impulse`, `apply_force`, `setPosition`; `Circle(mass=, bounce=)`;
+  `resolve(friction=)`; a `Text(lambda)` over plain variables.
+
 - More messages that name the fix (persona probes round 2):
   `Button("Contar")` says `Button(label="Contar")` (also CheckBox, Slider);
   `intersections(line, track)` names the route for a curve
@@ -442,6 +462,10 @@ left out.
   128 wide, so its corners stay on the grid.
 
 ### Fixed
+
+- Two movable boxes with a `.vel` collide by their masses at every frame
+  rate: at 60 Hz, a mover that ended a frame inside the resting skin of a
+  resting box bounced back as off a wall, and the box never moved.
 
 - A ball with `bounce=` 0.5 or less and sideways speed bounces at every
   frame rate: at 144 Hz and up it was glued to the floor after its first
@@ -692,6 +716,10 @@ left out.
   What links and what refuses did not change.
 
 ### Documentation
+
+- Guia: a pause starts at the next frame; stacks of three or more movable
+  boxes are outside what `resolve` promises.
+
 
 - New example `examples/constelacao.py`, a piece of creative coding: points
   of light drift and each one threads a line to its nearest neighbour

@@ -772,6 +772,17 @@ _FOREIGN_READS = {
     "point_towards": "To turn towards something: x.rotate_to(heading(x, target)).",
     "look_at": "To turn towards something: x.rotate_to(heading(x, target)).",
     "point_at": "To turn towards something: x.rotate_to(heading(x, target)).",
+    # The browser's and physics engines' words (persona probes round 3, R3-12).
+    "addEventListener": ("For a click: def on_click(self) in the class, x.on_click = f, "
+                         "or @click(x) above a function."),
+    "onclick": "For a click: x.on_click = f, or @click(x) above a function.",
+    "apply_impulse": ("There is no impulse: set the velocity, x.vel = (vx, vy), and move "
+                      "by it in update (move_by(x.vel.x * dt, x.vel.y * dt))."),
+    "apply_force": ("There is no force: change the velocity each frame, "
+                    "x.vel.y -= 900 * dt, and move by it with move_by."),
+    "set_velocity": "The velocity is x.vel = (vx, vy).",
+    "setPosition": "To place it: x.center = (x, y), or x.move_to(x, y).",
+    "set_position": "To place it: x.center = (x, y), or x.move_to(x, y).",
 }
 
 
@@ -2724,6 +2735,9 @@ class Entity(Container):
         except AttributeError:
             destroyed = False
         if destroyed:
+            dead = self.__dict__.get("_dead_ink")
+            if dead is not None and name in dead:
+                return dead[name]           # reads stay; writes refuse (R3-1)
             raise DestroyedError(_destroyed_access_message(
                 self, f"{type(self).__name__} is destroyed"
             ))
@@ -2850,6 +2864,12 @@ class Entity(Container):
         Container._clean_up(self)
         ink = getattr(self, "_ink", None)
         if ink is not None:
+            if ink and self.__dict__.get("_destroyed"):
+                # A destroyed actor's own fields still read, as its built-in
+                # fields do (the Guia: a second handler of the contact reads
+                # the dead body). A plain copy: no anchor, no hook; every
+                # write refuses (``_mark_routes_dead``). Persona probes R3-1.
+                object.__setattr__(self, "_dead_ink", dict(ink))
             ink.clear()
         object.__setattr__(self, "_ink", None)
 
@@ -3884,10 +3904,18 @@ class Graphic(Entity, ABC):
         ):
             raw = (value[0], value[1])
         else:
+            # A speed number of the author's own under the reserved name
+            # (persona probes R3-7: "physics motion" contradicted the Guia,
+            # and the Guia's own fix was missing).
+            own = (f" A number of your own needs another name: "
+                   f"self.rapidez = {value!r}." if isinstance(value, (int, float))
+                   and not isinstance(value, bool) else "")
             raise TypeError(
                 f"{self.name}.vel expected a 2D velocity, got "
-                f"{type(value).__name__} {value!r}. Write vel = (vx, vy) or "
-                f"vel = Vec2(vx, vy); vel = None stops physics motion."
+                f"{type(value).__name__} {value!r}. vel is every actor's velocity "
+                f"(vx, vy), the one resolve(..., bounce=) reads and writes; Scena "
+                f"never moves an object by it (move it with move_by(vel.x * dt, "
+                f"vel.y * dt)). Write vel = (vx, vy) or vel = Vec2(vx, vy).{own}"
             )
         from .validate import number
         from .state import as_payload

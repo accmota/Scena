@@ -951,6 +951,12 @@ def family_hint(value: Any) -> Optional[str]:
 
 
 _FAMILY_KWARG_HINTS = {
+    # Physics words given to a constructor (persona probes round 3, R3-13).
+    "mass": "mass is a property: ball.mass = 10 (STATIC for a wall)",
+    "bounce": "bounce= belongs to the pair: resolve(ball, \"chao\", bounce=0.5)",
+    "friction": "Scena has no friction: slow vel.x yourself in update",
+    "velocity": "velocity is ball.vel = (vx, vy), set after making it",
+    "vel": "vel is set after making it: ball.vel = (vx, vy)",
     "radius": "radius= is Circle",
     "width": "width= is Rect/Ellipse/Sprite (Line uses length=)",
     "height": "height= is Rect/Ellipse/Sprite",

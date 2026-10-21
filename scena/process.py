@@ -4470,12 +4470,16 @@ def _note_idle_from(owner) -> None:
         pass        # an owner with no slot for it: counted from the mode's start
 
 
-def _preempt_tween_keys(*keys, slot=None) -> None:
+def _preempt_tween_keys(*keys, slot=None, quiet: bool = False) -> None:
     """Same-kind replace: cancel in-flight handles on these tween keys (with warning).
 
     ``slot`` is the new call's ``(owner, name)``: an old handle in that same
     ``name=`` slot is the replacement the Guia promises ("substitui o
-    anterior"), so it is cancelled without the warning.
+    anterior"), so it is cancelled without the warning. ``quiet``: the new
+    call is a timed pose verb (``move_to`` / ``move_by`` / a turn / a scale),
+    whose retarget is the documented last-wins (a puzzle tile, a hover lift:
+    persona probes R3-3); no warning. The warning is located at the author's
+    line (it pointed into ``shapes.py``) and names the ``name=`` way out.
     """
     if not keys:
         return
@@ -4493,12 +4497,18 @@ def _preempt_tween_keys(*keys, slot=None) -> None:
             old._cancel_for(_R_NAME)        # the name= slot replaces it: no warning
             continue
         if old is not None and _claim_active(old):
-            warnings.warn(
-                f"tween/move_along on the same property replaces a previous "
-                f"in-flight {old._claim_kind or old.kind} handle",
-                RuntimeWarning,
-                stacklevel=3,
-            )
+            if not quiet:
+                from .entity import _frame_outside_scena
+                site = _frame_outside_scena()
+                msg = (f"tween/move_along on the same property replaces a previous "
+                       f"in-flight {old._claim_kind or old.kind} handle: the earlier one "
+                       f"stops where it is. If that is meant, give both calls the same "
+                       f"name= (tween(..., name=\"lift\")), and the new one replaces "
+                       f"the old quietly.")
+                if site is not None:
+                    warnings.warn_explicit(msg, RuntimeWarning, site.filename, site.lineno)
+                else:
+                    warnings.warn(msg, RuntimeWarning, stacklevel=3)
             old._cancel_for(_R_PREEMPTED)
 
 
@@ -4816,7 +4826,7 @@ def timed_move_to(
                               owner=shape, what="move_to time=")
     key = _center_pose_key(shape)
     # Same-kind replace before writability probe.
-    _preempt_tween_keys(key)
+    _preempt_tween_keys(key, quiet=True)
     # Probe writability at the call with the writer the ticks use (``_move_by``):
     # ``_move_to`` to the current place returned before its gate, so the
     # refusal came from a tick, after part of the move (GX4 in Testing Design).
@@ -4829,7 +4839,7 @@ def timed_move_to(
     do_face = bool(face)
     heading0 = _heading_from_delta(dx, dy) if do_face else None
     if do_face and heading0 is not None:
-        _preempt_tween_keys((id(shape), "angle"))
+        _preempt_tween_keys((id(shape), "angle"), quiet=True)
         _face_to_heading(shape, heading0, about=about, force=force)
     keys = (key, (id(shape), "angle")) if (do_face and heading0 is not None) else (key,)
 
@@ -4901,7 +4911,7 @@ def timed_move_by(
     checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
                               owner=shape)
     key = _center_pose_key(shape)
-    _preempt_tween_keys(key)
+    _preempt_tween_keys(key, quiet=True)
     # Probe writability on the instant path.
     shape._move_by(0.0, 0.0, force=force)
     applied = [0.0, 0.0]
@@ -4910,7 +4920,7 @@ def timed_move_by(
     do_face = bool(face)
     heading0 = _heading_from_delta(dx, dy) if do_face else None
     if do_face and heading0 is not None:
-        _preempt_tween_keys((id(shape), "angle"))
+        _preempt_tween_keys((id(shape), "angle"), quiet=True)
         _face_to_heading(shape, heading0, force=force)
     keys = (key, (id(shape), "angle")) if (do_face and heading0 is not None) else (key,)
 
@@ -5009,7 +5019,7 @@ def timed_rotate_to(
         time = _speed_duration(speed, delta)        # degrees per second
     checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
                               owner=shape)
-    _preempt_tween_keys((id(shape), "angle"))
+    _preempt_tween_keys((id(shape), "angle"), quiet=True)
     _probe_rotate_writable(shape, about=about, force=force, verb="rotate_to")
     applied = [0.0]
     owner, scope = _pose_owner_scope(shape)
@@ -5064,7 +5074,7 @@ def timed_rotate_by(
         time = _speed_duration(speed, delta)        # degrees per second
     checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
                               owner=shape)
-    _preempt_tween_keys((id(shape), "angle"))
+    _preempt_tween_keys((id(shape), "angle"), quiet=True)
     _probe_rotate_writable(shape, about=about, force=force, verb="rotate_by")
     applied = [0.0]
     owner, scope = _pose_owner_scope(shape)
@@ -5125,7 +5135,7 @@ def timed_scale_to(
     )
     checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
                               owner=shape)
-    _preempt_tween_keys((id(shape), "scale"))
+    _preempt_tween_keys((id(shape), "scale"), quiet=True)
     start = float(shape.scale)
     end = fixed_magnitude(value, "scale", hint=HINT_SCALE)
     _probe_scale_writable(shape, end, about=about, force=force, verb="scale_to")
@@ -5164,7 +5174,7 @@ def timed_scale_by(
     )
     checked = _validate_timed(time=time, ease=ease, then=then, on_done=on_done,
                               owner=shape)
-    _preempt_tween_keys((id(shape), "scale"))
+    _preempt_tween_keys((id(shape), "scale"), quiet=True)
     start = float(shape.scale)
     end = start * fixed_magnitude(factor, "scale", hint=HINT_SCALE)
     _probe_scale_writable(shape, end, about=about, force=force, verb="scale_by")

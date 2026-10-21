@@ -370,6 +370,10 @@ def parse_sheet(raw: Any, *, where: str = "sheet") -> Dict[str, Any]:
     return entry
 
 
+_OWN_DATA_HINT = ("For a map in your own format, read it yourself: "
+                  "import json; dados = json.load(open(path)).")
+
+
 def parse(data: Any, *, source: str = "level") -> Dict[str, Any]:
     """A decoded level file → ``{"size": (w, h), "sheets": [..], "items": [..]}``
     (normalized).
@@ -382,9 +386,17 @@ def parse(data: Any, *, source: str = "level") -> Dict[str, Any]:
     ):
         raise LevelFormatError(
             f"{source} is not a Scena level file (no \"format\": \"{FORMAT}\"). "
-            "Level files are made by the level editor: python -m scena_editor"
+            "Level files are made by the level editor: python -m scena_editor. "
+            + _OWN_DATA_HINT
         )
     version = data.get("version")
+    if version is None:
+        # The format tag added by hand to one's own map (persona probes R3-10:
+        # the next message led field by field toward forging an editor file).
+        raise LevelFormatError(
+            f"{source} has the level format tag but no version: it does not look "
+            f"like a file the level editor wrote. " + _OWN_DATA_HINT
+        )
     if isinstance(version, bool) or not isinstance(version, int) or version < 1:
         raise LevelFormatError(f"{source}: version must be a whole number >= 1, got {version!r}")
     if version > VERSION:

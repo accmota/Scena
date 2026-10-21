@@ -311,10 +311,18 @@ class State:
     def _missing_cell_message(self, key: str) -> str:
         from .validate import did_you_mean
         who = self._name
+        near = did_you_mean(key, self._data)
+        if not near and self._data:
+            # A rename made in one place only (st.pontos -> st.placar): no close
+            # name, so show what exists (persona probes R3-5: "create it first"
+            # made a second, dead cell the screen never showed).
+            names = sorted(self._data)
+            shown = ", ".join(names[:8]) + (", …" if len(names) > 8 else "")
+            near = f" {who} has: {shown}. If {key!r} was renamed, use its new name."
         return (
             f"{who} has no cell {key!r}. Create it first: {who}.{key} = 0 "
             f"(any starting value), then read {who}.{key} or link {who}['{key}'] @= …."
-            f"{did_you_mean(key, self._data)}"
+            f"{near}"
         )
 
     def __setattr__(self, key: str, value: Any) -> None:
@@ -1640,9 +1648,11 @@ def _is_durable_source(obj) -> bool:
 
 
 _FORMULA_NO_SOURCES_ERROR = (
-    "@= formula has no reactive sources — name a Scena value in the lambda "
-    "(st.x, shape.radius, mouse, clock, keyp, …) so the graph can update it; "
-    "use '=' to copy a plain Python value once"
+    "@= formula has no reactive sources — this function (a @= link, Text(lambda: …), "
+    "color=lambda: …) reads no Scena value, so nothing would ever update it. Name "
+    "one in the lambda (st.x, shape.radius, mouse, clock, keyp, …): a plain "
+    "variable of yours becomes st.pontos. To show a value once, pass it "
+    "(Text(f\"{pontos}\")) or use '='"
 )
 
 

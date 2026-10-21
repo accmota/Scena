@@ -285,5 +285,135 @@ class TestModeBodyCalledByHand(unittest.TestCase):
         e.mode = idle
         self.assertEqual(got, [e, "idle"])
 
+
+class TestMissingCellAfterARename(unittest.TestCase):
+    """``st.pontos`` renamed to ``st.placar`` in one place only: "Create it
+    first" made a second cell the screen never showed (persona probes round 3,
+    R3-5). With no close name, the message lists the cells that exist."""
+
+    def test_the_existing_cells_are_listed(self):
+        from scena.state import State
+        bag = State(name="st")
+        bag.placar = 0
+        bag.energia = 3
+        with self.assertRaises(AttributeError) as cm:
+            bag.pontos
+        msg = str(cm.exception)
+        self.assertIn("st has: energia, placar", msg)
+        self.assertIn("renamed", msg)
+
+    def test_a_close_name_is_still_the_hint(self):
+        from scena.state import State
+        bag = State(name="st")
+        bag.pontos = 0
+        with self.assertRaises(AttributeError) as cm:
+            bag.ponto
+        self.assertIn("Did you mean 'pontos'", str(cm.exception))
+
+
+class TestAClassKeywordGroupIsKnown(unittest.TestCase):
+    """``class Inimigo(Rect, group="inimigos")``, its first enemy spawned a
+    second later, and ``@when(lambda: group["inimigos"].empty)`` warned "No
+    group 'inimigos'. Did you mean 'tiros_inimigos'?" in a correct game
+    (persona probes round 3, R3-6)."""
+
+    def test_no_near_miss_warning(self):
+        import warnings
+        from scena import Rect, group
+        init(width=200, height=200)
+
+        class Inimigo(Rect, width=20, height=20, group="pp_inimigos"):
+            pass
+
+        class TiroInimigo(Rect, width=4, height=10, group="pp_tiros_inimigos"):
+            pass
+
+        t = TiroInimigo(center=(50, 50))
+        self.addCleanup(t.destroy)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            self.assertTrue(group["pp_inimigos"].empty)
+
+
+class TestVelGivenANumber(unittest.TestCase):
+    """``self.vel = 150`` (a speed of one's own): the message said "vel = None
+    stops physics motion" (nothing moves by vel) and left out the Guia's own
+    fix, another name (persona probes round 3, R3-7)."""
+
+    def test_the_message_names_another_name_and_no_physics_motion(self):
+        init(width=200, height=200)
+        c = Circle(center=(10, 10), radius=3)
+        self.addCleanup(c.destroy)
+        with self.assertRaises(TypeError) as cm:
+            c.vel = 150
+        msg = str(cm.exception)
+        self.assertIn("self.rapidez = 150", msg)
+        self.assertIn("never moves an object by it", msg)
+        self.assertNotIn("physics motion", msg)
+
+
+class TestBoxGivenNone(unittest.TestCase):
+    """``Rect(box=grade.cell_at(0, 0))`` (a column/row given to cell_at, which
+    takes a point) said "box= requires a Box": the author passed what they
+    took for a cell (persona probes round 3, R3-8)."""
+
+    def test_the_message_says_none_and_names_cell(self):
+        from scena import Box
+        init(width=800, height=800)
+        grade = Box(center=(400, 400), width=480, height=480).grid(3, 3)
+        with self.assertRaises(TypeError) as cm:
+            Rect(box=grade.cell_at(-1000, -1000))
+        msg = str(cm.exception)
+        self.assertIn("got None", msg)
+        self.assertIn("grid.cell(col, row)", msg)
+
+
+class TestRoundThreeMessages(unittest.TestCase):
+    """Persona probes round 3: the browser's and physics engines' words get
+    Scena's (R3-12, R3-13, R3-14); a formula with no Scena value names the
+    form the author wrote (R3-15); a hand-made map is pointed at json.load
+    (R3-10)."""
+
+    def setUp(self):
+        init(width=200, height=200)
+
+    def test_foreign_method_reads(self):
+        r = Rect(center=(10, 10), width=5, height=5)
+        self.addCleanup(r.destroy)
+        for name, fix in (("addEventListener", "on_click"), ("apply_impulse", "vel"),
+                          ("apply_force", "vel"), ("setPosition", "center")):
+            self.assertIn(fix, _read_error(r, name), name)
+
+    def test_physics_keywords_on_a_constructor(self):
+        with self.assertRaises(TypeError) as cm:
+            Circle(center=(1, 1), radius=3, mass=10, bounce=0.2)
+        msg = str(cm.exception)
+        self.assertIn("ball.mass = 10", msg)
+        self.assertIn("resolve(", msg)
+
+    def test_resolve_friction(self):
+        from scena import resolve
+        with self.assertRaises(TypeError) as cm:
+            resolve("pp_a", "pp_b", friction=0.4)
+        msg = str(cm.exception)
+        self.assertIn("no friction", msg)
+        self.assertIn("bounce=", msg)
+
+    def test_a_text_lambda_over_plain_variables(self):
+        pontos = 3
+        with self.assertRaises(TypeError) as cm:
+            Text(lambda: f"Pontos {pontos}", center=(50, 50))
+        msg = str(cm.exception)
+        self.assertIn("no reactive sources", msg)
+        self.assertIn("Text(lambda", msg)
+        self.assertIn("st.pontos", msg)
+
+    def test_a_hand_made_map_is_pointed_at_json_load(self):
+        from scena.level_format import LevelFormatError, parse
+        for data in ({"mapa": ["#####"]}, {"format": "scena-level", "mapa": ["#####"]}):
+            with self.assertRaises(LevelFormatError) as cm:
+                parse(data, source="mine.json")
+            self.assertIn("json.load", str(cm.exception))
+
 if __name__ == "__main__":
     unittest.main()

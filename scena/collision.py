@@ -6315,8 +6315,13 @@ class CollisionSystem:
                 if other is None or passing.get(id(other)) is other:
                     continue
                 _mb, ov = _partner_mass_vel(other)
-                if ov is not None and (ov[0] or ov[1]):
-                    continue                # a moving partner: its sweep's business
+                if ov is not None and (ov[0] or ov[1] or not _is_static_mass(_mb)):
+                    # A moving partner, or a resting movable one with a ``.vel``:
+                    # the next sweep answers it with the masses, both written.
+                    # Answered here as a wall, a resting box sent the mover back
+                    # and never moved (persona probes R3-2). A partner with no
+                    # ``.vel`` (a Breakout brick) still answers as rest, here.
+                    continue
                 token = self._resolve_bounce_for(ca, other)
                 if token is _RESOLVE_POSITION_ONLY or token is None or float(token) <= 0.0:
                     continue
@@ -11480,7 +11485,7 @@ def _resolve_pair_equal(pa, pb, a, b) -> bool:
     )
 
 
-def resolve(a, b, bounce: Optional[float] = None, only: Any = None) -> None:
+def resolve(a, b, bounce: Optional[float] = None, only: Any = None, **unknown) -> None:
     """Register standing auto-resolution for overlapping ``a`` and ``b`` each frame.
 
     Same side grammar as ``@collide``: a tag, a body, ``ANYTHING``, or a
@@ -11501,6 +11506,16 @@ def resolve(a, b, bounce: Optional[float] = None, only: Any = None) -> None:
         only: Sides of ``a`` this pair may block (one-way platforms): a side, a set of
             sides, or ``fn(contact)``.
     """
+    if unknown:
+        # resolve(..., friction=0.4) got Python's bare "unexpected keyword"
+        # (persona probes round 3, R3-14).
+        names = ", ".join(sorted(unknown))
+        extra = (" Scena has no friction: slow vel.x yourself in update "
+                 "(ball.vel.x *= 0.98)." if "friction" in unknown else "")
+        raise TypeError(
+            f"resolve() got unexpected keyword argument(s): {names}. It takes the "
+            f"two sides, bounce= (0 to 1) and only= (a one-way side).{extra}"
+        )
     sys = get_collision_system()
     lefts = _normalize_side(a)
     rights = _normalize_side(b)
@@ -11564,6 +11579,20 @@ def resolve(a, b, bounce: Optional[float] = None, only: Any = None) -> None:
             _restore_resolve_pairs(before)
             raise
 
+
+
+
+# The published signature: ``**unknown`` exists only to answer a foreign
+# keyword (``friction=``) with a message (R3-14).
+import inspect as _inspect  # noqa: E402
+resolve.__signature__ = _inspect.Signature([
+    _inspect.Parameter("a", _inspect.Parameter.POSITIONAL_OR_KEYWORD),
+    _inspect.Parameter("b", _inspect.Parameter.POSITIONAL_OR_KEYWORD),
+    _inspect.Parameter("bounce", _inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None,
+                       annotation=Optional[float]),
+    _inspect.Parameter("only", _inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None,
+                       annotation=Any),
+], return_annotation=None)
 
 def _resolve_side_alive(side) -> bool:
     if side is ANYTHING or isinstance(side, str):

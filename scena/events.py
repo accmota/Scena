@@ -230,6 +230,9 @@ class EventRegistration:
         check_handler_arity(
             callback, () if kind is EventKind.WHEN else ("value",), what=label,
         )
+        if _condition_reads_dead(condition):
+            self.release()
+            return
         try:
             raw = _eval_condition(condition)
         except _SOURCE_GONE:
@@ -525,6 +528,35 @@ def _condition_reads(cond: Any, obj: Any) -> bool:
         except ValueError:
             continue
     return any(d is obj for d in (getattr(func, "__defaults__", None) or ()))
+
+
+def _is_dead(x: Any) -> bool:
+    return x is not None and bool(getattr(x, "__dict__", {}).get("_destroyed"))
+
+
+def _condition_reads_dead(cond: Any) -> bool:
+    """``cond`` reads an actor that is already destroyed: its bound object, a
+    field handle's owner, a closure cell, a default, or a global its code
+    names. A watch made on a dead source retires at once: a dead actor's own
+    fields read (persona probes R3-1), so the read no longer raises to say so."""
+    if cond is None:
+        return False
+    if _is_dead(getattr(cond, "__self__", None)) or _is_dead(getattr(cond, "owner", None)):
+        return True
+    func = getattr(cond, "__func__", cond)
+    for cell in getattr(func, "__closure__", None) or ():
+        try:
+            if _is_dead(cell.cell_contents):
+                return True
+        except ValueError:
+            continue
+    if any(_is_dead(d) for d in (getattr(func, "__defaults__", None) or ())):
+        return True
+    code = getattr(func, "__code__", None)
+    glb = getattr(func, "__globals__", None)
+    if code is not None and glb is not None:
+        return any(_is_dead(glb.get(n)) for n in code.co_names)
+    return False
 
 
 def poll_all_events(fired_before: Optional[set] = None) -> Tuple[int, bool]:

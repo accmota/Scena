@@ -808,5 +808,18 @@ class TestCssNames(unittest.TestCase):
         self.assertEqual(set(ColorNames._COLORS) - shown, set())
         self.assertEqual(shown - set(ColorNames._COLORS), set())
 
+
+class TestShortHexWarning(unittest.TestCase):
+    """``color="#222"`` went magenta with "Invalid hex color '#222'", the
+    reason dropped (persona probes round 3, R3-9)."""
+
+    def test_the_warning_says_six_or_eight_digits_and_spells_it_out(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            Color("#222")
+        (msg,) = [str(x.message) for x in w]
+        self.assertIn("6 or 8 digits", msg)
+        self.assertIn("'#222222'", msg)
+
 if __name__ == '__main__':
     unittest.main()

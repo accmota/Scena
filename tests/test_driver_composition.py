@@ -193,6 +193,39 @@ class TestOrderIndependence(DriverCase):
         self.assertFalse(h2.cancelled)
 
 
+class TestPoseRetargetIsQuiet(DriverCase):
+    """Persona probes round 3 (R3-3): a puzzle tile retargeted by a fast key
+    (``move_to(cell, time=0.06)`` twice) and a hover lift undone by its exit
+    warned "replaces a previous in-flight handle", located inside the engine.
+    A timed pose verb replacing one is the documented last-wins: quiet. A
+    ``tween`` on a tween still warns, at the author's line, naming ``name=``."""
+
+    def test_move_rotate_scale_retargets_are_quiet(self):
+        ox, oy = self.at(0, 0)
+        r = self.track(Rect(center=(ox, oy), width=20, height=20))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            r.move_to((ox + 100, oy), time=0.5)
+            r.move_to((ox + 200, oy), time=0.5)
+            r.move_by(0, 12, time=0.15)
+            r.move_to((ox, oy), time=0.15)
+            r.rotate_to(90, time=0.5)
+            r.rotate_by(45, time=0.5)
+            r.scale_to(2, time=0.5)
+            r.scale_by(0.5, time=0.5)
+
+    def test_a_tween_replace_warns_at_the_author_line(self):
+        ox, oy = self.at(0, 0)
+        r = self.track(Rect(center=(ox, oy), width=20, height=20))
+        tween(r.center, (ox + 50, oy), time=1.0)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            tween(r.center, (ox + 80, oy), time=1.0)
+        (msg,) = [x for x in w if "in-flight" in str(x.message)]
+        self.assertEqual(os.path.basename(msg.filename), "test_driver_composition.py")
+        self.assertIn("name=", str(msg.message))
+
+
 class TestCloneMotionThenResolve(DriverCase):
     def _run(self, *, resolve_first: bool) -> float:
         ox, oy = self.at(0, 0)

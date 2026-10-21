@@ -153,7 +153,12 @@ def frame_kind(obj) -> str:
 def region_frame(obj) -> Tuple[float, float, float, float, float]:
     """Return ``(cx, cy, w, h, ang)`` from a Box, Rect, or frame-like Graphic."""
     if obj is None:
-        raise TypeError("box= requires a Box, Rect, or frame-like Graphic")
+        # Say it got None, and the usual source (persona probes R3-8).
+        raise TypeError(
+            "box= requires a Box, Rect, or frame-like Graphic, got None. "
+            "grid.cell_at(x, y) returns None for a point off the grid; the cell "
+            "at a column and row is grid.cell(col, row)."
+        )
     if isinstance(obj, Box):
         return obj._oriented_frame()
     if is_box_formula(obj):

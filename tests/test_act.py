@@ -1477,8 +1477,11 @@ class TestRestrictions(ActTestCase):
         self.begin(None)
         with self.assertRaises(RuntimeError) as cm:
             change_act(Fase)
-        self.assertIn("This game started with run(). To use acts, start with run(Fase).",
-                      str(cm.exception))
+        msg = str(cm.exception)
+        self.assertIn("This game started with run(), with no act", msg)
+        # The title comes first (persona probes R3-4: run(Fase) skipped it).
+        self.assertIn("run(Titulo)", msg)
+        self.assertIn("If the game begins in Fase, start with run(Fase).", msg)
 
     def test_run_validates_the_first_act_before_opening_the_window(self):
         fw = self.w.fw

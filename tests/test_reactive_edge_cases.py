@@ -810,5 +810,35 @@ class TestOnChangeComparesOncePerFrame(unittest.TestCase):
         self.assertEqual(got, [])
         self.assertEqual(waves, [1, 2, 3])
 
+
+class TestPauseStartsNextFrame(unittest.TestCase):
+    """A pause set during a frame (``update``, a key handler) starts at the
+    next frame: this frame already has its ``dt``, so its ``on_update`` and
+    tweens run once more (persona probes round 3, R3-11, a documented rule:
+    the Guia's ``clock.paused`` row; FRAME_PROMISES)."""
+
+    def setUp(self):
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from system_support import SystemWorld, boot
+        boot()
+        self.w = SystemWorld(draw=False)
+        self.addCleanup(self.w.teardown)
+
+    def test_the_frame_of_the_pause_still_moves_then_nothing_does(self):
+        from scena import clock
+        moved = []
+
+        class Fleet(Entity):
+            def on_update(self, dt):
+                moved.append(dt)
+                if len(moved) == 3:
+                    clock.paused = True
+
+        self.w.track(Fleet())
+        self.addCleanup(lambda: setattr(clock, "paused", False))
+        self.w.step(6)
+        self.assertEqual(len([d for d in moved if d > 0]), 3)
+        self.assertTrue(all(d == 0 for d in moved[3:]), moved)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

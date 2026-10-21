@@ -1286,9 +1286,13 @@ class TestLifecycleContracts(unittest.TestCase):
         c.destroy()
         self.assertEqual((float(c.center.x), float(c.center.y)), (10.0, 20.0))
         self.assertFalse(c.is_alive)
-        # Ink reads already raise (History appends its breadcrumb to that error).
+        # Own fields read too, as built-in ones do (persona probes R3-1: a
+        # second handler of the contact reads the dead body); writes refuse.
+        self.assertEqual(c.hp, 3)
         with self.assertRaises(DestroyedError):
-            _ = c.hp
+            c.hp = 4
+        with self.assertRaises(DestroyedError):
+            _ = c.never_set
 
     def test_bool_matches_is_alive(self):
         c = Circle(center=(0, 0), radius=4)
