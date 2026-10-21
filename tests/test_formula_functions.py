@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import scena  # noqa: F401 — installs builtins (group, st, …)
 from scena import formula_check
 from scena.shapes import Point
-from scena.state import Attribute, State
+from scena.state import Attribute, CircularReferenceError, State
 from scena.easing import lerp
 from tests.test_progress import new_state  # another module: not followed
 
@@ -452,6 +452,112 @@ class TestStaleSourceFile(FormulaFunctionTest):
         finally:
             for o in (a, b):
                 o.destroy()
+
+
+class TestInMemorySource(FormulaFunctionTest):
+    """Bug FC1: code run from memory (``exec`` of registered text, a notebook
+    cell, IDLE, the Guia validator) has no file to parse. The checker parsed
+    ``inspect.getsource(fn)`` alone, which puts the lambda on line 1, then
+    looked for it on ``co_firstlineno``: a formula below the first line found
+    no node, fell back to "every object the lambda names" and refused a read
+    of the object's own custom field as a size read. The whole text now comes
+    from linecache, and the node cache keys on the file name (code objects
+    compare equal across files)."""
+
+    SRC = (
+        "from scena import Rect\n"
+        "r = Rect(center=(0, 0), width=40, height=40)\n"
+        "r.hp = 2\n"
+        "r['dano'] @= lambda: r.hp * 10\n"
+        "r['chao'] @= lambda: 'bottom' in r.touching_sides\n"
+        "def vivo():\n"
+        "    return r.hp > 0\n"
+        "r['vivo'] @= vivo\n"
+    )
+
+    def _run(self, src, name, register=True):
+        import linecache
+        if register:
+            linecache.cache[name] = (len(src), None, src.splitlines(True), name)
+            self.addCleanup(linecache.cache.pop, name, None)
+        ns = {}
+        try:
+            exec(compile(src, name, "exec"), ns)
+        finally:
+            if "r" in ns:
+                self.addCleanup(ns["r"].destroy)
+        return ns
+
+    def test_formulas_below_line_one_link_and_react(self):
+        for name in ("<fc1-snippet>", "html:120"):   # "<...>" and a bare name
+            with self.subTest(name=name):
+                r = self._run(self.SRC, name)["r"]
+                self.assertEqual(float(r.dano), 20.0)
+                self.assertTrue(r.vivo)
+                self.assertFalse(r.chao)
+                r.hp = 0
+                self.assertEqual(float(r.dano), 0.0)
+                self.assertFalse(r.vivo)
+
+    def test_named_function_matches_by_line(self):
+        src = (
+            "def texto():\n    return 'a'\n"
+            "from scena import Rect\n"
+            "r = Rect(center=(0, 0), width=4, height=4)\n"
+            "r.hp = 1\n"
+            "def texto():\n    return r.hp * 3\n"
+            "r['t'] @= texto\n"
+        )
+        r = self._run(src, "<fc1-def>")["r"]
+        self.assertEqual(float(r.t), 3.0)
+        r.hp = 2
+        self.assertEqual(float(r.t), 6.0)
+
+    def test_sourceless_run_does_not_stand_in_for_a_later_one(self):
+        src = "r['dano'] @= lambda: r.hp * 10\n"
+        from scena import Rect
+        for name, register in (("<fc1-bare>", False), ("<fc1-registered>", True)):
+            r = Rect(center=(0, 0), width=4, height=4)
+            self.addCleanup(r.destroy)
+            r.hp = 1
+            ns = {"r": r}
+            if register:
+                import linecache
+                linecache.cache[name] = (len(src), None, src.splitlines(True), name)
+                self.addCleanup(linecache.cache.pop, name, None)
+                exec(compile(src, name, "exec"), ns)
+                self.assertEqual(float(r.dano), 10.0)
+            else:
+                with self.assertRaises(CircularReferenceError) as ctx:
+                    exec(compile(src, name, "exec"), ns)
+                # Sourceless: the message names the missing source, not a size read.
+                self.assertIn("cannot read this formula's source", str(ctx.exception))
+
+    def test_snippet_fallback_keeps_the_real_line(self):
+        src = "x = 1\ny = 2\nf = lambda: x + y\n"
+        import linecache
+        linecache.cache["<fc1-snip>"] = (len(src), None, src.splitlines(True), "<fc1-snip>")
+        self.addCleanup(linecache.cache.pop, "<fc1-snip>", None)
+        ns = {}
+        exec(compile(src, "<fc1-snip>", "exec"), ns)
+        formula_check.clear_formula_caches()
+        with mock.patch.object(formula_check, "_memory_tree", return_value=None):
+            node = formula_check.locate_formula_node(ns["f"])
+        self.assertIsInstance(node, ast.Lambda)
+        self.assertEqual(node.lineno, 3)
+
+    def test_snippet_fallback_keeps_the_indented_columns(self):
+        # Two lambdas on one indented line: the column match picks each one.
+        src = "x = 1\ny = 2\nif True:\n    pair = (lambda: x, lambda: y)\n"
+        import linecache
+        linecache.cache["<fc1-cols>"] = (len(src), None, src.splitlines(True), "<fc1-cols>")
+        self.addCleanup(linecache.cache.pop, "<fc1-cols>", None)
+        ns = {}
+        exec(compile(src, "<fc1-cols>", "exec"), ns)
+        formula_check.clear_formula_caches()
+        with mock.patch.object(formula_check, "_memory_tree", return_value=None):
+            bodies = [formula_check.locate_formula_node(f).body.id for f in ns["pair"]]
+        self.assertEqual(bodies, ["x", "y"])
 
 
 

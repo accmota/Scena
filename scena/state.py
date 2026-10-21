@@ -859,6 +859,23 @@ def _own_size_read_message(owner, source) -> Optional[str]:
     )
 
 
+def _sourceless_self_read_message(owner) -> str:
+    """FC1: a formula whose source Scena cannot read (``exec`` of a string,
+    the plain ``python`` prompt before 3.13) depends on every object it names,
+    so one that names its own object reads itself, whatever field it reads."""
+    from .entity import entity_label
+    name = getattr(owner, "_scalar_name", "field")
+    what = entity_label(owner._scalar_parent)
+    return (
+        f"{name} of {what} names its own object, and Scena cannot read this "
+        f"formula's source (code run with exec() from a string, or typed at the "
+        f"plain python prompt), so it would depend on the whole object, {name} "
+        f"included. Put the code in a .py file, or register the text with "
+        f"linecache before exec (as notebooks and IDLE do); or set {name} in "
+        f"update(dt)."
+    )
+
+
 class FormulaLink():
     """Base class for Direct and Formula attribute links."""
 
@@ -1081,6 +1098,8 @@ class FormulaLink():
                 source_desc = _cycle_label(source)
                 own = _own_size_read_message(owner, source)
                 if own is not None:
+                    if self._locate_lambda_node(self.expression_fn) is None:
+                        own = _sourceless_self_read_message(owner)
                     raise CircularReferenceError(own)
                 raise CircularReferenceError(
                     f"Circular link: {owner_desc} would read {source_desc}, which already "

@@ -582,6 +582,15 @@ left out.
 
 ### Fixed
 
+- A formula linked from code run in memory (a notebook cell, IDLE, `exec`
+  of text kept in `linecache`) no longer raises a false
+  `CircularReferenceError` ("cannot read that object's own size") when it is
+  not on the first line: `player["g"] @= lambda: player.hp > 1` links as it
+  does in a `.py` file. Scena now reads the whole text from memory to find
+  the lambda. With no text at all (`exec` of a bare string, the plain
+  `python` prompt before 3.13) a formula that names its own object is still
+  refused, and the message now says the source could not be read (FC1).
+
 - The keys answer again after a screenshot. On macOS, Cmd+Shift+4 (or
   another app's hotkey) takes the keyboard while Cmd is down, and the window
   never got Cmd's release: `keyp` held Cmd for good, and a held Cmd hides

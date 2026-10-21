@@ -22,6 +22,7 @@ from __future__ import annotations
 import ast
 import builtins
 import inspect
+import linecache
 import os
 import sys
 import time
@@ -44,13 +45,18 @@ __all__ = [
 # --- source location (cached) ------------------------------------------------
 
 _FILE_AST: Dict[str, Tuple[float, ast.Module]] = {}
-_NODE_CACHE: Dict[types.CodeType, Optional[ast.AST]] = {}
+_MEM_AST: Dict[str, Tuple[str, ast.Module]] = {}
+# Keyed with the file name: code objects compare equal across files (CPython
+# leaves co_filename out of ==), and one file's answer must not stand in for
+# another's: an identical lambda run first without source (bug FC1).
+_NODE_CACHE: Dict[Tuple[str, types.CodeType], Optional[ast.AST]] = {}
 _NODE_CACHE_MAX = 4096
 
 
 def clear_formula_caches() -> None:
     """Drop parsed files and located nodes (tests; long sessions)."""
     _FILE_AST.clear()
+    _MEM_AST.clear()
     _NODE_CACHE.clear()
 
 
@@ -72,14 +78,40 @@ def _file_tree(path: str) -> Optional[ast.Module]:
     return tree
 
 
+def _memory_tree(path: str, module_globals: Optional[dict] = None) -> Optional[ast.Module]:
+    """Parsed source of code that has no file on disk but whose text sits in
+    ``linecache``: ``exec(compile(src, "<snippet>", "exec"))`` with the text
+    registered, a notebook cell, the IDLE shell, a zipped module (its loader,
+    through ``module_globals``). The whole text keeps the lambda on its real
+    line, so ``co_firstlineno`` finds it (bug FC1)."""
+    lines = linecache.getlines(path, module_globals)
+    if not lines:
+        return None
+    text = "".join(lines)
+    hit = _MEM_AST.get(path)
+    if hit is not None and hit[0] == text:
+        return hit[1]
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return None
+    _MEM_AST[path] = (text, tree)
+    return tree
+
+
 def _snippet_tree(fn: Callable[..., Any]) -> Optional[ast.Module]:
-    """Parse ``inspect.getsource(fn)`` when the file itself cannot be read.
+    """Parse ``inspect.getsource(fn)`` when no whole source can be read.
 
     ``@when`` / ``@on_change``: getsource may include the decorator; peel the
-    argument expression so a lone lambda parses cleanly.
+    argument expression so a lone lambda parses cleanly. The snippet starts at
+    the code's first line: its line numbers are shifted there, or a formula
+    below line 1 would match no lambda (bug FC1).
     """
     try:
-        source_code = inspect.getsource(fn).strip()
+        raw = inspect.getsource(fn)
+        indent = len(raw) - len(raw.lstrip())
+        source_code = raw.strip()
+        peeled = False
         for deco, deco_len in (("@when", 5), ("@on_change", 10)):
             when_start = source_code.find(deco)
             if when_start == -1:
@@ -97,11 +129,22 @@ def _snippet_tree(fn: Callable[..., Any]) -> Optional[ast.Module]:
                 elif char == ")":
                     if paren_count == 0:
                         source_code = source_code[paren_start:i].strip()
+                        peeled = True
                         break
                     paren_count -= 1
             break
-        return ast.parse(source_code)
-    except (OSError, TypeError, SyntaxError, IndexError):
+        tree = ast.parse(source_code)
+        if indent and not peeled:
+            # strip() took the first line's indentation: put its columns back,
+            # or two lambdas on that line miss the co_positions column match.
+            for n in ast.walk(tree):
+                if getattr(n, "lineno", None) == 1:
+                    n.col_offset += indent
+                    if getattr(n, "end_lineno", None) == 1 and n.end_col_offset is not None:
+                        n.end_col_offset += indent
+        ast.increment_lineno(tree, fn.__code__.co_firstlineno - 1)
+        return tree
+    except (OSError, TypeError, SyntaxError, IndexError, AttributeError):
         return None
 
 
@@ -194,14 +237,15 @@ def locate_formula_node(fn: Callable[..., Any]) -> Optional[ast.AST]:
     code = getattr(func, "__code__", None)
     if code is None:
         return None
+    key = (code.co_filename, code)
     try:
-        return _NODE_CACHE[code]
+        return _NODE_CACHE[key]
     except KeyError:
         pass
     node = _locate_uncached(func, code)
     if len(_NODE_CACHE) >= _NODE_CACHE_MAX:
         _NODE_CACHE.clear()
-    _NODE_CACHE[code] = node
+    _NODE_CACHE[key] = node
     return node
 
 
@@ -216,6 +260,10 @@ def _locate_uncached(func: Any, code: types.CodeType) -> Optional[ast.AST]:
     if path and not path.startswith("<"):
         tree = _file_tree(path)
         from_file = tree is not None
+    whole = from_file
+    if tree is None and path:
+        tree = _memory_tree(path, getattr(func, "__globals__", None))
+        whole = tree is not None
     if tree is None:
         tree = _snippet_tree(func)
     if tree is None:
@@ -223,7 +271,7 @@ def _locate_uncached(func: Any, code: types.CodeType) -> Optional[ast.AST]:
     if is_lambda:
         node = _find_lambda(tree, code)
     else:
-        node = _find_def(tree, code, by_line=from_file)
+        node = _find_def(tree, code, by_line=whole)
     if node is None and from_file and _edited_while_running(path):
         _STALE_CODES.add(code)
         return None
