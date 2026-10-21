@@ -553,6 +553,12 @@ left out.
 
 ### Fixed
 
+- A formula that reads inside the arguments of a call in the middle of a
+  chain now follows that read: `lambda: TONS.get_color(st.calor).with_alpha(0.3)`
+  and `lambda: str(st.n).upper()` used to raise "@= formula has no reactive
+  sources", and next to another source (`lambda: a.value + float(str(st.n))`)
+  the link ignored `st.n` and never updated on it.
+
 - `confine(by="box")` / `by="overlap"` on a turned `Circle` or `Ellipse`
   stopped short of the wall: it measured the shape's frame turned with it, so
   a ball rotated 45° stayed 0.41 × its radius away (8 units for a radius of

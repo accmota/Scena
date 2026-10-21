@@ -1437,6 +1437,29 @@ class FormulaLink():
                 if not added_scalar and last_container is not None:
                     self.sources.add(last_container)
 
+            def _visit_call_arguments(self, node):
+                """The arguments of every call inside a chain are reads too.
+
+                ``_unwind_chain`` steps from a call to its function, so
+                ``TONS.get_color(st.calor).with_alpha(0.3)`` and
+                ``str(st.n).upper()`` lost ``st.calor`` / ``st.n``: refused
+                as sourceless, or silently stale next to another source.
+                """
+                curr = node
+                while True:
+                    if isinstance(curr, ast.Attribute):
+                        curr = curr.value
+                    elif isinstance(curr, ast.Subscript):
+                        curr = curr.value
+                    elif isinstance(curr, ast.Call):
+                        for arg in curr.args:
+                            self.visit(arg)
+                        for keyword in curr.keywords:
+                            self.visit(keyword.value)
+                        curr = curr.func
+                    else:
+                        return
+
             def visit_Attribute(self, node: ast.Attribute):
                 # Full chain like ``my_line.p1.x`` or ``orbiters[0].radius``.
                 # Do not ``generic_visit`` — that would also register intermediate
@@ -1447,6 +1470,7 @@ class FormulaLink():
                     self.generic_visit(node)
                     return
                 self._collect_from_chain(*unwound)
+                self._visit_call_arguments(node)
 
             def visit_Subscript(self, node: ast.Subscript):
                 # Bare ``items[0]`` (no trailing attribute).
@@ -1455,6 +1479,7 @@ class FormulaLink():
                     self.generic_visit(node)
                     return
                 self._collect_from_chain(*unwound)
+                self._visit_call_arguments(node)
 
             def visit_Name(self, node: ast.Name):
                 # Standalone variables that are not part of an attribute chain.
