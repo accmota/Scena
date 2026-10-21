@@ -43,6 +43,7 @@ TIMERS = G.model(TimerModel())
 
 W, H = 1000, 600
 init(width=W, height=H, title="Canteiro")
+collision.floor = True   # gravidade: quem encosta no que está embaixo fica em pé nele
 
 GRAVIDADE = 2200.0
 PULO = 760.0

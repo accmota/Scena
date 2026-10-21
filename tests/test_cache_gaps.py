@@ -35,6 +35,7 @@ from scena.sprite import Sheet, Sprite
 
 from tests.hypothesis_support import quiet
 from tests.system_support import system_world
+from tests.floor_support import with_floor  # noqa: E402
 
 C = sys.modules["scena.collision"]
 CV = sys.modules["scena.canvas"]
@@ -226,6 +227,7 @@ class TestQueriesSeeEveryBody(_Collision):
         self.assertIn("hit", log)
 
 
+@with_floor
 class TestPartnerLists(_Collision):
     """A formula group as a resolve side follows retags (H1's selective drop)."""
 

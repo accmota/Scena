@@ -92,6 +92,7 @@ CONTRACTS: Dict[str, W] = {
     "collision:CollisionSystem._warn_dead_object_target": W(fires="test_warning_contracts", twin="@collide on a live object, or on group tags: the normal path"),
     "collision:CollisionSystem._warn_member_skipped": W(fires="test_read_hints", silent="test_read_hints.TestAGroupMemberWithNoBodyIsNamed.test_members_on_a_plain_layer_are_quiet"),
     "collision:CollisionSystem._check_on_collide_alone": W(fires="test_read_hints", silent="test_read_hints.TestOnCollideWithNoPartner.test_an_enrolled_partner_is_quiet"),
+    "collision:_hint_no_floor": W(fires="test_collision_floor", silent="test_collision_floor.TestNoFloorHint.test_silent_with_a_floor"),
     "collision:_warn_missing_vel_once": W(fires="test_read_hints", silent="test_read_hints.TestRoundFourMessages.test_a_move_by_game_with_bounce_zero_is_quiet"),
     "collision:_mass_or_static": W(fires="test_warning_contracts", twin="a push between bodies with .mass: every push test"),
     "collision:_ear_clip": W(untested="a polygon the ear clipper cannot finish (self-intersecting / degenerate in a way the guards upstream let through)", twin=MISTAKE),

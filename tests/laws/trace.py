@@ -487,7 +487,10 @@ def _resolve_start(frame):
         _GEOM_KINDS = (Circle, Rect)
     _rec.events.append(("S", "resolve"))
     if _rec.motion:
-        _rec.events.append(("M", "pre", _bodies(frame.f_locals.get("id_to_collider") or {})))
+        # The world's floor (``collision.floor``): P5 and P6 are laws of a
+        # world with one (V10).
+        floor = bool(_slot(frame.f_locals.get("self"), "_floor", True))
+        _rec.events.append(("M", "pre", _bodies(frame.f_locals.get("id_to_collider") or {}), floor))
 
 
 def _resolve_end(frame, retval):

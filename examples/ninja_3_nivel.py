@@ -172,6 +172,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
             aviso.text = "Fim de jogo"
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 
 heroi = Heroi(center=fase["inicio"].center)

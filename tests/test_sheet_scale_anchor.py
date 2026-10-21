@@ -16,6 +16,7 @@ from scena.collision import _collision_pose_xy, get_collision_system, snapshot_s
 from scena.process import tick_processes
 from tests.test_hitbox_parts import _spec_bounds
 from tests.test_sprite import SpriteTestCase, _frame, _write_rect_png
+from tests.floor_support import with_floor  # noqa: E402
 
 
 class SheetScaleTestCase(SpriteTestCase):
@@ -386,6 +387,7 @@ class TestPixelSize(SheetScaleTestCase):
                 self.ninja(pixel_size=bad)
 
 
+@with_floor
 class TestRestingBodyAcrossClips(SheetScaleTestCase):
     """A walker resting under ``resolve()`` must not float or sink on a clip change.
 

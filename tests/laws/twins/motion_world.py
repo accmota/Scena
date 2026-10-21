@@ -21,6 +21,7 @@ S = PARAMS.get("s", 1.0)
 G = 900.0 * S
 
 init(width=800, height=600, title="laws twin: motion")
+collision.floor = True   # gravity: bodies stand on floors (ramps, lifts, seams)
 
 
 def P(x, y):

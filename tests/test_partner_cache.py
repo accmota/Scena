@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scena.collision import ANYTHING, STATIC, collide, get_collision_system, reset_collision_system, resolve, unresolve
 from scena.shapes import Circle, Rect
+from tests.floor_support import with_floor  # noqa: E402
 
 C = sys.modules["scena.collision"]   # the module (``scena.collision`` is the facade)
 
@@ -179,6 +180,7 @@ class TestCachedEqualsFresh(SelectiveCase):
             self.run_sequence(seed)
 
 
+@with_floor
 class TestAnythingSeesNewcomers(SelectiveCase):
     """PF1: a body under resolve(hero, ANYTHING) lands on a crate spawned
     after a query in the same frame (it fell through to the floor)."""

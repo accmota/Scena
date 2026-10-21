@@ -34,6 +34,12 @@ C = sys.modules["scena.collision"]   # the module (``scena.collision`` is the fa
 DT = 1.0 / 60.0
 
 
+from tests.floor_support import floor_module  # noqa: E402
+
+# Walkers, a lift and falling balls: a world with gravity (collision.floor).
+setUpModule, tearDownModule = floor_module()
+
+
 class Scene:
     def __init__(self, seed, origin, log):
         self.r = random.Random(seed)

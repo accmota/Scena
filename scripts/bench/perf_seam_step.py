@@ -41,6 +41,7 @@ RUN = 120.0
 
 def build(scene, n_tiles, n_walkers, seed):
     reset_collision_system()
+    get_collision_system().floor = True     # walkers on a tile row: a world with gravity
     rng = random.Random(seed)
     owned = []
     top = 0.0

@@ -35,6 +35,7 @@ from scena import (  # noqa: E402
 )
 from scena.scenamath import Vec2  # noqa: E402
 from scena.state import LinkedAttributeError  # noqa: E402
+from tests.floor_support import with_floor  # noqa: E402
 
 GUIA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                     "docs", "pt", "guide", "index.html")
@@ -56,6 +57,7 @@ def _screen(world):
 # Collision
 # --------------------------------------------------------------------------
 
+@with_floor
 class TestCollisionFrames(unittest.TestCase):
 
     def test_stay_runs_each_following_frame_not_the_enter_frame(self):

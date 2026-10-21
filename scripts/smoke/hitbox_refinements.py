@@ -69,6 +69,7 @@ _MIXED_FRAMES = (
 )
 
 init(width=W, height=H, window_scale=0.78, title="Smoke — hitbox refinements")
+collision.floor = True   # gravity: bodies stand on floors (ramps, lifts, seams)
 canvas.background = (0.07, 0.08, 0.11)
 collision.show_colliders(True)
 

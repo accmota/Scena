@@ -240,7 +240,7 @@ WORLD_RESETS = frozenset({"camera", "effects", "clock", "collision.resolve_enabl
 def reset_world_settings() -> None:
     """Every world setting an act change restores (``act.WORLD_SETTINGS``) back
     to the framework default, as a fresh process has it: camera, background
-    base and fields, post effects, playfield, clock, resolve, default layer,
+    base and fields, post effects, playfield, clock, resolve, floor, default layer,
     paint defaults, HUD column cursor. ``ProgramRun`` starts from here (one program per process
     in real use); guard: ``test_prog_isolation.TestResetWorldSettings``.
     """
@@ -259,6 +259,8 @@ def reset_world_settings() -> None:
     clock.scale = 1.0
     clock.paused = False
     get_collision_system().resolve_enabled = True
+    import importlib
+    get_collision_system().floor = importlib.import_module("scena.collision")._FLOOR_DEFAULT
     layers = registry().layers
     if "default" in layers:
         layers.default = "default"

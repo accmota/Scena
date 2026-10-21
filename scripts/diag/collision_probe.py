@@ -31,6 +31,7 @@ SLAB_W, SLAB_H = 220.0, 24.0
 
 def new_world():
     reset_collision_system()
+    get_collision_system().floor = True   # platformer probes: a world with gravity
 
 
 def step():

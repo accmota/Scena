@@ -14,6 +14,26 @@ left out.
 
 ### Breaking
 
+- A world has no floor unless the game says so: `collision.floor = True`
+  for a game with gravity. Five rules of `resolve` treat a body's lower side
+  as its feet: it is pulled back onto a floor in reach (ramps, short frames),
+  a moving platform carries it, it steps over seams of up to 2 units, it
+  does not creep down a ramp when idle, and it does not bounce off the floor
+  it stood on. They used to act in every game, so seen from above (a race,
+  an RPG), in space or without gravity, a car stuck to a wall under it, a
+  barrier sliding under it took it along, and a slanted wall under it slid
+  it less than the same wall at its side. Now they act only with
+  `collision.floor = True`; without it every side is alike, and turning the
+  world turns every motion with it.
+  Before: `resolve("heroi", "chao", bounce=0)` alone.
+  After: `collision.floor = True` before it, in a game with gravity.
+  A platformer without the line: the hero is not carried by a lift, creeps
+  down ramps, and on 120 Hz displays flickers between ground and air.
+  `floor_below` and `tilt = "ground"` in a world without a floor say so once
+  (SCENA WARNING). The examples (`ninja*`, `corredor`, `entropia`) and
+  tutorials 18, 19, 26, 27 and 28 have the line. `collision.floor` is a
+  world setting: an act change gives it back.
+
 - `CheckBox.checked` reads the value (`True` / `False`), as `Slider.value`
   and `TextInput.text` do. Before, it was the cell, so
   `json.dumps({"hat": box.checked})` raised and `box.checked is True` was

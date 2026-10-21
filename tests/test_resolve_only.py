@@ -25,6 +25,7 @@ from scena.collision import (
 )
 from scena.shapes import Rect
 from scena.scenamath import Vec2
+from tests.floor_support import with_floor  # noqa: E402
 
 GRAVITY = 900.0
 HERO_W = 38.0
@@ -99,6 +100,7 @@ class OnlyTestCase(unittest.TestCase):
             self.frame(h, dt)
 
 
+@with_floor
 class TestJumpThrough(OnlyTestCase):
     def setUp(self):
         super().setUp()
@@ -245,6 +247,7 @@ class TestSides(OnlyTestCase):
         )
 
 
+@with_floor
 class TestFallAndDrop(OnlyTestCase):
     def test_fast_fall_does_not_tunnel(self):
         self.floor()
@@ -333,6 +336,7 @@ class TestFallAndDrop(OnlyTestCase):
         self.assertIs(cs._passing[id(h._collider)][id(p._collider)], p._collider)
 
 
+@with_floor
 class TestTileSeams(OnlyTestCase):
     """Walking across a row of one-way tiles must never drop through a seam."""
 
@@ -359,6 +363,7 @@ class TestTileSeams(OnlyTestCase):
         self.run_row(240)
 
 
+@with_floor
 class TestPerspective(OnlyTestCase):
     def test_function_sees_first_argument_view(self):
         p = self.plat(top=100.0)

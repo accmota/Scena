@@ -68,6 +68,7 @@ def criar_robo(centro, velocidade=VELOCIDADE_ROBO):
 
 # --- cenário -------------------------------------------------------------------
 init(width=LARGURA, height=ALTURA, title="Plataforma")
+collision.floor = True   # gravidade: quem encosta no que está embaixo fica em pé nele
 SkyGradient("light blue", horizon=1.0, rotation_response=0.5)
 #Ground(rotation_response=1)
 #Wallpaper(Gradient("navy", angle=60), rotation_response=1)

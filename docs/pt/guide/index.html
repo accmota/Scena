@@ -1296,8 +1296,8 @@
   <div class="nav-block" data-nav="colisao">
     <a href="#colisao-collide" class="nav-child" data-chapter="colisao" data-search="detectar collide collide_stay collide_exit collide_with on_collide on_collide_stay on_collide_exit ANYTHING fases">Detectar</a>
     <a href="#colisao-info" class="nav-child" data-chapter="colisao" data-search="CollisionInfo a_hitbox b_hitbox point points normal depth side slope_angle tangent slide_along ramp">CollisionInfo</a>
-    <a href="#colisao-resolve" class="nav-child" data-chapter="colisao" data-search="resolve unresolve mass STATIC vel bounce restitution quique solid walls floors floor snap rampa elevador carregar junto em cima rider pilha placement motion coloca viaja stick resolve_enabled only one-way mão única atravessar plataforma semisolid jump-through descer">Tornar sólido</a>
-    <a href="#colisao-touching" class="nav-child" data-chapter="colisao" data-search="touching_sides touching_contacts grounded chão slope_angle point TouchingContact coyote">Tocando</a>
+    <a href="#colisao-resolve" class="nav-child" data-chapter="colisao" data-search="resolve unresolve mass STATIC vel bounce restitution quique solid walls floors floor snap rampa elevador carregar junto em cima rider pilha placement motion coloca viaja stick resolve_enabled collision.floor mundo com chão gravidade visto de cima top-down corrida grudado only one-way mão única atravessar plataforma semisolid jump-through descer">Tornar sólido</a>
+    <a href="#colisao-touching" class="nav-child" data-chapter="colisao" data-search="touching_sides touching_contacts grounded chão slope_angle point TouchingContact coyote collision.floor">Tocando</a>
     <a href="#colisao-floor" class="nav-child" data-chapter="colisao" data-search="floor_below chão à frente borda beirada ledge edge plataforma cair patrulha virar inimigo depth degrau">Chão à frente</a>
     <a href="#colisao-manual" class="nav-child" data-chapter="colisao" data-search="resolve_now push_apart bounce_apart mtv_split velocity_split reflect_velocity manual ladder escada">Resolução manual</a>
     <a href="#colisao-aux" class="nav-child" data-chapter="colisao" data-search="collision query_point query_circle query_sector query_shape test_collision collides_with raycast consultas">Consultas</a>
@@ -1522,6 +1522,7 @@ run()</pre>
 <tr><td>Handle</td><td>O objeto que os verbos que levam tempo devolvem (<code>after</code>, <code>tween</code>, <code>move_to(…, time=)</code> ou <code>speed=</code>, <code>play_sound</code>…): serve para cancelar, pausar ou esperar aquela tarefa. Ver <a href="#agendar-handle">Handle</a>.</td></tr>
 <tr><td>mode</td><td>O capítulo de comportamento em que uma Entity está agora (<code>e.mode = e.mergulhando</code>). O que ele começa (timers, movimentos) para quando ele acaba. Ver <a href="#mode">Mode</a>.</td></tr>
 <tr><td>slot (<code>name=</code>)</td><td>Um nome que guarda uma tarefa só: <code>after(2, dica, name="dica")</code> chamado de novo com o mesmo nome <em>substitui</em> o anterior em vez de somar outro. O slot é de um <em>lugar</em>: o objeto da chamada (<code>nave.after(…, name=)</code>); numa chamada solta, quem está no mode que roda (dentro do corpo de um mode, inclusive o mode de um ato); fora de mode (topo do script, <code>setup</code> do ato, callbacks), o jogo / o ato atual. O mesmo nome em dois lugares são dois slots: um <code>play_sound(…, name="musica")</code> solto no <code>setup</code> do ato e outro solto no mode do ato tocam juntos. Para uma tarefa só, chame sempre do mesmo lugar — a trilha de um ato com <code>self.play_sound(…, name="musica")</code>, que é o mesmo slot de uma chamada solta no mode do ato. Um nome do palco (topo do script) reusado no ato, por qualquer desses lugares, fica parado durante o ato e volta na troca: a trilha do palco não toca junto com a do ato.</td></tr>
+<tr><td>mundo com chão</td><td>Um jogo com gravidade (plataforma, corredor) escreve <code>collision.floor = True</code>: quem encosta no que está embaixo fica em pé nele (não escorrega na rampa, vai junto com o elevador). Sem a linha, o padrão, nenhum lado é especial: um jogo visto de cima, no espaço ou sem gravidade. Ver <a href="#res-snap">Mundo com chão</a>.</td></tr>
 <tr><td>colocar × viajar</td><td>Colocar põe o objeto direto no lugar (<code>center = …</code>, <code>move_to</code> sem <code>time=</code>) e atravessa paredes. Viajar anda até lá (<code>move_by</code>, <code>move_to(…, time=)</code> ou <code>speed=</code>, <code>move_along</code>), e uma parede de <a href="#colisao-resolve"><code>resolve()</code></a> para no meio; o <code>@collide</code> de quem viaja rápido confere o caminho inteiro (<a href="#colisao-rapido">Objeto rápido</a>). Girar no lugar e escalar (<code>rotate_*</code> / <code>scale_*</code>) nunca são parados pela parede: ela só afasta o objeto depois. Girar em volta de outro ponto (<code>rotate_by(…, about=)</code>) leva o centro junto, e isso é viajar.</td></tr>
 <tr><td>segurando × no frame do aperto</td><td><code>keyp("A")</code> é <code>True</code> em todo frame em que a tecla está segurada; <code>keyp.once("A")</code> só no frame em que ela foi apertada. <code>@when</code> dispara quando a condição <em>passa</em> de <code>False</code> para <code>True</code>, não enquanto continua <code>True</code>.</td></tr>
 <tr><td>canal</td><td>Nos <a href="#aparencia-transientes">Transientes</a>, a vaga de um tipo de efeito: um <code>flash</code> novo substitui o <code>flash</code> em curso, mas convive com um <code>pop</code>.</td></tr>
@@ -3558,7 +3559,8 @@ elif keyp("RIGHT"):
         <p class="one-liner"><code>tilt</code> inclina só o desenho — numa rampa, por exemplo. O corpo fica em pé, e o <code>center</code> fica onde o <code>resolve</code> o pôs.</p>
         <div class="code-panel">
           <button class="copy-btn" type="button">copiar</button>
-<pre>heroi = Sprite(ninja, hitbox_shape="rect", hitbox_anchor="bottom")
+<pre>collision.floor = True      # "ground" é de um mundo com chão
+heroi = Sprite(ninja, hitbox_shape="rect", hitbox_anchor="bottom")
 
 def update(dt):
     heroi.tilt = "ground"   # ou AUTO_GROUND: segue o chão; no ar volta a 0
@@ -3572,7 +3574,7 @@ heroi.tilt = 0              # desliga</pre>
             <thead><tr><th>Valor</th><th>Efeito</th></tr></thead>
             <tbody>
               <tr><td>número</td><td>Gira o desenho esse ângulo. Não desloca.</td></tr>
-              <tr><td><code>"ground"</code> / <code>AUTO_GROUND</code></td><td>Lê a cada frame o <code>slope_angle</code> de um contato <code>"bottom"</code> (<a href="#colisao-touching">touching</a>). No ar: 0.</td></tr>
+              <tr><td><code>"ground"</code> / <code>AUTO_GROUND</code></td><td>Lê a cada frame o <code>slope_angle</code> de um contato <code>"bottom"</code> (<a href="#colisao-touching">touching</a>). No ar: 0. É de um mundo com chão (<a href="#res-snap"><code>collision.floor = True</code></a>); sem chão, avisa uma vez.</td></tr>
               <tr><td>um contato <code>c</code></td><td>Usa <code>c.slope_angle</code> e fica até você sobrescrever. No <code>update</code>, zere antes do loop dos contatos.</td></tr>
             </tbody>
           </table>
@@ -8572,7 +8574,7 @@ run(Titulo)</pre>
           </thead>
           <tbody>
 <tr><td><strong>Sai</strong></td><td>Objetos (Shape, Sprite, Text, SpatialFx, Entity, widgets) — <code>on_destroy</code> roda. Timers, tweens, sons e tweens de câmera sem dono do palco — mas <a href="#som-dono-acaba">um som que acaba sozinho termina de tocar</a> (sem <code>on_done</code>); loop <code>"forever"</code>, <code>name=</code> e pausado cortam. <code>@when</code> / <code>@on_change</code> / <code>@collide</code> / <code>@leave_playfield</code> soltos escritos no <code>setup</code>. Post e background criados no ato. Grupos-fórmula (<code>group["alvos"] @= …</code>) criados no ato. Uma tag de colisão que nenhuma regra restante nomeia deixa de inscrever membros (um objeto que só ela pôs na colisão sai dela; <code>collidable = True</code> escrito por você fica). Um movimento de câmera com <code>time=</code>, de qualquer dono. Slots de <code>ready</code> / <code>recently</code> do script. <code>shake</code> / <code>flash</code> / <code>explosion_at</code> pendentes. Ligações <code>@=</code> entre objetos que saem juntos somem em silêncio.</td></tr>
-<tr><td><strong>Volta</strong> ao que o topo deixou (ou ao padrão)</td><td>Câmera, <code>canvas.background</code>, <code>canvas.effects</code> e o background (lista e <code>.enabled</code>), <code>canvas.playfield</code>, <code>clock.scale</code> / <code>clock.paused</code>, <code>collision.resolve_enabled</code>, <code>canvas.layers.default</code>, <code>set_defaults</code>, os pares de <code>resolve</code>, os grupos-fórmula do topo, a coluna do HUD (o próximo <code>Text</code> ou widget sem <code>y</code> do ato começa sempre no mesmo lugar).</td></tr>
+<tr><td><strong>Volta</strong> ao que o topo deixou (ou ao padrão)</td><td>Câmera, <code>canvas.background</code>, <code>canvas.effects</code> e o background (lista e <code>.enabled</code>), <code>canvas.playfield</code>, <code>clock.scale</code> / <code>clock.paused</code>, <code>collision.resolve_enabled</code>, <code>collision.floor</code>, <code>canvas.layers.default</code>, <code>set_defaults</code>, os pares de <code>resolve</code>, os grupos-fórmula do topo, a coluna do HUD (o próximo <code>Text</code> ou widget sem <code>y</code> do ato começa sempre no mesmo lugar).</td></tr>
 <tr><td><strong>Fica</strong></td><td><code>st</code>. Objetos do palco e os timers deles (<code>radio.play_sound(…)</code>) — menos o que o ato entregou a eles: um método do ato (ou uma função que lê o <code>self</code> do ato) em <code>heroi.every(…)</code>, <code>heroi.on_update</code> ou <code>heroi.mode</code> sai com o ato. Um timer ou som do palco cujo <code>name=</code> o ato reusou fica parado durante o ato e volta depois da troca — reusado numa chamada solta, no próprio ato (<code>self.every(…, name=)</code>, <code>self.play_sound(…, name=)</code>) ou com um método do ato como callback. Uma tarefa do palco (<code>run_task</code> no topo) não pausa: reusar o nome dela num ato é erro com a correção (outro nome, ou <code>cancel()</code> nela antes). Camadas do palco (uma camada criada no ato sai com ele; recomeçar o ato a cria de novo). Preferências: volume do <code>audio</code>, <code>fx_quality</code>, <code>post_fx_scale</code>, <code>display</code>, <code>framerate</code>, <code>ui.scale</code> / <code>ui.font</code>. O fade (<code>fade_out</code> / <code>fade_in</code>).</td></tr>
           </tbody>
         </table>
@@ -9641,7 +9643,7 @@ unresolve(player, "walls")</pre>
         <div class="tab-bar">
           <button class="tab active" type="button" data-tab="res-basic">Parede e chão</button>
           <button class="tab" type="button" data-tab="colisao-bounce">Velocidade e bounce=</button>
-          <button class="tab" type="button" data-tab="res-snap">Grudar no chão</button>
+          <button class="tab" type="button" data-tab="res-snap">Mundo com chão</button>
           <button class="tab" type="button" data-tab="res-place">Colocar × viajar</button>
           <button class="tab" type="button" data-tab="res-only">Mão única (only=)</button>
           <button class="tab" type="button" data-tab="res-off">Desligar</button>
@@ -9649,7 +9651,7 @@ unresolve(player, "walls")</pre>
         <div class="tab-panel active" data-panel="res-basic" id="res-basic">
           <p class="one-liner"><code>.mass</code> decide <em>quem</em> cede no empurrão. <code>STATIC</code> não cede: chão, parede, plataforma.</p>
           <p>Cada frame, o Scena acompanha o caminho do movimento do par inscrito e para no impacto, desliza na superfície e desfaz o que sobrou de sobreposição. Os lados são objetos ou nomes de grupo (quem entrar no grupo depois também entra). Massa padrão <code>1.0</code>; <code>&lt;= 0</code> levanta erro. Duas massas iguais se empurram meio a meio.</p>
-          <p>Peças encostadas raramente ficam perfeitas: uma fileira de blocos girada, uma coordenada arredondada. Quem está no chão e anda contra a lateral de uma peça parada que sobe <strong>até 2</strong> acima dos pés sobe esse degrau e continua andando. Degrau maior é parede. No ar não há degrau: bater na quina de lado é parede.</p>
+          <p>Peças encostadas raramente ficam perfeitas: uma fileira de blocos girada, uma coordenada arredondada. Num mundo com chão (<a href="#res-snap"><code>collision.floor = True</code></a>), quem está no chão e anda contra a lateral de uma peça parada que sobe <strong>até 2</strong> acima dos pés sobe esse degrau e continua andando. Degrau maior é parede. No ar não há degrau: bater na quina de lado é parede.</p>
           <p>Coletável ou sensor não é sólido: só <code>@collide</code>. Moeda não empurra ninguém:</p>
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
@@ -9660,7 +9662,7 @@ def caught(me, star, info):
           </div>
           <p class="gotcha"><code>resolve(hero, ANYTHING)</code> torna sólido <strong>tudo</strong> que está inscrito, inclusive moeda, tiro e sensor: o herói empurra a moeda em vez de passar por ela (o <code>@collide</code> da moeda continua disparando). Não há como marcar um corpo como “não sólido”: nomeie os grupos sólidos, <code>resolve(hero, ["walls", "crates"])</code>. <code>ANYTHING</code> serve quando tudo no mundo é sólido (um mundo só de blocos e paredes).</p>
           <p class="gotcha"><strong>Chão que não pode ceder é <code>STATIC</code>.</strong> Quando nenhum dos dois corpos é <code>STATIC</code>, o empurrão se divide pela massa, quem quer que tenha sido criado primeiro: uma caixa de massa <code>1</code> anda a metade do passo do jogador que a empurra, uma de massa <code>50</code> quase não sai do lugar. Isso vale para chão, parede e plataforma também: deixados na massa padrão <code>1</code>, eles cedem embaixo de um herói de massa <code>1</code> (a gravidade dele afunda o chão). Uma plataforma que você move com <code>move_by</code> e que deve carregar quem estiver em cima é <code>STATIC</code>.</p>
-          <p><strong>Quem está em cima vai junto.</strong> Um objeto parado em cima de outro do <code>resolve</code> (o lado <code>"bottom"</code> encostado) anda junto com ele no frame, para os lados e para cima e para baixo, com <code>move_by</code>, <code>time=</code> ou <code>move_along</code>, em qualquer taxa de quadros; o que ele mesmo anda soma (andar em cima do elevador). Uma parede no caminho do elevador segura quem está em cima. Quem pula ou quica deixa de ir junto. Uma caixa empurrada não carrega a de cima: só uma plataforma (<code>STATIC</code>, ou sem <code>.vel</code>) carrega.</p>
+          <p><strong>Quem está em cima vai junto</strong>, num mundo com chão (<a href="#res-snap"><code>collision.floor = True</code></a>). Um objeto parado em cima de outro do <code>resolve</code> (o lado <code>"bottom"</code> encostado) anda junto com ele no frame, para os lados e para cima e para baixo, com <code>move_by</code>, <code>time=</code> ou <code>move_along</code>, em qualquer taxa de quadros; o que ele mesmo anda soma (andar em cima do elevador). Uma parede no caminho do elevador segura quem está em cima. Quem pula ou quica deixa de ir junto. Uma caixa empurrada não carrega a de cima: só uma plataforma (<code>STATIC</code>, ou sem <code>.vel</code>) carrega.</p>
           <p class="gotcha"><strong>Não copie a velocidade do elevador para quem está em cima.</strong> <code>heroi.vel.x += elevador_vel</code> (ou <code>heroi.vel = h.velocity</code>) faz o herói andar duas vezes: o <code>resolve</code> já o leva junto.</p>
           <p>Um <code>STATIC</code> nunca cede: uma pilha de caixas pesadas não afunda a de baixo no chão, e uma bola leve atingida por uma pesada não atravessa o chão nem uma parede fina. As caixas de uma pilha ainda podem entrar um pouco uma na outra e tremer (o Scena não é um motor de física). Dois objetos que já nascem um dentro do outro se separam pelo lado em que estão sobrepostos, seja qual for a <code>.vel</code>.</p>
         </div>
@@ -9691,7 +9693,9 @@ resolve(ball, wall, bounce=0.0)    # inelástico — zera componente normal na .
           <p>Para zerar a velocidade contra uma parede há dois padrões:</p>
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
-<pre># A — motor zera velocidade normal no contato
+<pre>collision.floor = True   # um mundo com gravidade (Mundo com chão)
+
+# A — motor zera velocidade normal no contato
 resolve(player, "walls", bounce=0.0)
 
 # B — só posição no resolve; autor trata velocidade (mesma receita da rampa)
@@ -9709,7 +9713,16 @@ def update(dt):
           <p><strong>Quebrou no contato.</strong> Destruir (ou estacionar) o parceiro no <code>@collide</code> não tira o quique: com <code>resolve(bola, "tijolo", bounce=1)</code> e <code>@collide(bola, "tijolo")</code> que faz <code>tijolo.destroy()</code>, a bola quebra o tijolo e volta de onde tocou, como num tijolo inteiro: neste frame o tijolo morto ainda segura a bola, mas não se mexe nem conta como contato. Quebrar no frame seguinte (uma marca no <code>@collide</code>, o <code>destroy()</code> no <code>update</code>) dá o mesmo quique. Só a parte que vem de encontro muda: quem passa rente ou se afasta segue com a mesma velocidade. Com <code>bounce=0</code>, um chão que some quando o herói pousa segura a queda nesse frame, e no próximo ele cai. Na emenda de dois tijolos a bola toca os dois de uma vez, e os dois respondem juntos: ela volta reto, seja qual for a ordem em que foram criados.</p>
         </div>
         <div class="tab-panel" data-panel="res-snap" id="res-snap">
-          <p class="one-liner">Quem estava no chão no início do frame é puxado de volta para um chão ao alcance. É o que mantém o herói grudado ao descer rampa, em frames curtos e num elevador.</p>
+          <p class="one-liner">Num jogo com gravidade, o mundo tem chão: <code>collision.floor = True</code>. Quem encosta no que está embaixo fica em pé nele.</p>
+          <div class="code-panel">
+            <button class="copy-btn" type="button">copiar</button>
+<pre>collision.floor = True              # este mundo tem chão (a gravidade é sua)
+resolve("heroi", "chao", bounce=0)</pre>
+          </div>
+          <p>Com chão, o <code>resolve</code> trata o lado de baixo de um corpo como os pés: quem estava no chão no início do frame é puxado de volta para um chão ao alcance (desce a rampa sem pular, não pisca entre “no chão” e “no ar” em frames curtos), a plataforma que se move leva quem está em cima, um degrau de até 2 é subido andando, e quem está parado numa rampa não escorrega.</p>
+          <p>Sem a linha (o padrão), o mundo não tem chão: um jogo visto de cima (corrida, labirinto, RPG), no espaço ou sem gravidade. Nenhum lado é especial, e girar o mundo inteiro gira todo movimento junto: um carro que raspa uma parede abaixo dele sai dela como sai de uma parede ao lado.</p>
+          <p class="gotcha"><strong>Jogo de plataforma sem <code>collision.floor = True</code>.</strong> O herói não vai junto com o elevador, escorrega devagar na rampa e, em telas de 120 Hz, pisca entre “no chão” e “no ar” (o pulo falha às vezes). <code>floor_below</code> e <code>tilt = "ground"</code> num mundo sem chão avisam uma vez (SCENA WARNING).</p>
+          <p>Num mundo com chão, o <code>bounce=</code> do par decide quando quem está no chão sai dele:</p>
           <div class="tbl-wrap wrap-first">
             <table>
               <thead><tr><th><code>bounce=</code></th><th>Grudar no chão</th></tr></thead>
@@ -9800,6 +9813,7 @@ collision.resolve_enabled = False   # avançado: desliga toda a resolução</pre
 <tr><td><code>STATIC</code></td><td class="type"><span class="t">constante</span><span class="ex">wall.mass = STATIC</span></td><td>lê / escreve</td><td>Imóvel — chão, parede. <code>float("inf")</code>.</td></tr>
 <tr><td><code>shape.mass</code></td><td class="type"><span class="t">número</span><span class="ex">1.0</span></td><td>lê / escreve</td><td>Peso no empurrão. Padrão <code>1.0</code>. <code>&lt;= 0</code> levanta erro.</td></tr>
 <tr><td><code>shape.vel</code></td><td class="type"><span class="t">Vec2 ou None</span><span class="ex">ball.vel = Vec2(0, -200)</span></td><td>lê / escreve</td><td>Velocidade do corpo. <code>None</code> até atribuir. Lida e escrita por <code>resolve(..., bounce=)</code>. Não se liga com <code>@=</code> (o motor escreve nela): para seguir o estado, escreva a cada frame — <code>ship.vel = vec_from_angle(st.a * 30, 10)</code> no <code>on_update</code>. Tweens de pose não escrevem isto — o Handle reporta a taxa (<a href="#agendar-handle">Handle</a>).</td></tr>
+<tr><td><code>collision.floor</code></td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>lê / escreve</td><td>O mundo tem chão? Padrão <code>False</code> (visto de cima, espaço, sem gravidade: nenhum lado é especial). <code>True</code> num jogo com gravidade: quem encosta no que está embaixo fica em pé nele (rampa, elevador, degrau). Ver <a href="#res-snap">Mundo com chão</a>. Volta na troca de ato.</td></tr>
 <tr><td><code>collision.resolve_enabled</code></td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>lê / escreve</td><td>Avançado. <code>False</code>: nenhum par para no caminho, se separa ou gruda no chão. <code>@collide</code>, consultas e raycast continuam. <code>touching_*</code> zera enquanto desligado.</td></tr>
           </tbody>
         </table>
@@ -9819,10 +9833,11 @@ collision.resolve_enabled = False   # avançado: desliga toda a resolução</pre
 
     <section class="section prose" id="colisao-touching">
       <h2>Tocando</h2>
-      <p class="one-liner"><code>touching_sides</code> diz quais lados do objeto encostam em algo sólido, conforme a última conferência de colisões (a do frame anterior) — só pares em <a href="#colisao-resolve"><code>resolve()</code></a>, não sensores. É o “está no chão?” do jogo de plataforma.</p>
+      <p class="one-liner"><code>touching_sides</code> diz quais lados do objeto encostam em algo sólido, conforme a última conferência de colisões (a do frame anterior) — só pares em <a href="#colisao-resolve"><code>resolve()</code></a>, não sensores. É o “está no chão?” do jogo de plataforma, que é um mundo com chão (<a href="#res-snap"><code>collision.floor = True</code></a>): é ele que mantém o <code>"bottom"</code> firme em frames curtos e na rampa.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
-<pre>player["grounded"] @= lambda: "bottom" in player.touching_sides
+<pre>collision.floor = True              # um mundo com chão (Mundo com chão)
+player["grounded"] @= lambda: "bottom" in player.touching_sides
 
 def update(dt):
     if keyp("SPACE") and player.grounded:
@@ -9893,10 +9908,11 @@ piso = next((c.other for c in player.touching_contacts if c.side == "bottom"), N
 
     <section class="section prose" id="colisao-floor">
       <h2>Chão à frente</h2>
-      <p class="one-liner"><code>objeto.floor_below(dx=)</code> devolve o chão em que o objeto estaria depois de andar <code>dx</code>, ou <code>None</code> se ele cairia. É a borda da plataforma do jogo de plataforma: o inimigo que vira antes de cair, o herói que se equilibra na beirada.</p>
+      <p class="one-liner"><code>objeto.floor_below(dx=)</code> devolve o chão em que o objeto estaria depois de andar <code>dx</code>, ou <code>None</code> se ele cairia. É a borda da plataforma do jogo de plataforma: o inimigo que vira antes de cair, o herói que se equilibra na beirada. É uma pergunta de um mundo com chão (<a href="#res-snap"><code>collision.floor = True</code></a>); num mundo sem chão ela avisa uma vez.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
-<pre>resolve(inimigo, "chao", bounce=0.0)
+<pre>collision.floor = True              # um mundo com chão (Mundo com chão)
+resolve(inimigo, "chao", bounce=0.0)
 
 def update(dt):
     frente = inimigo.hitbox.box.width * st.dir

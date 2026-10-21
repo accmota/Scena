@@ -29,6 +29,7 @@ from scena.collision import STATIC, get_collision_system, reset_collision_system
 from scena.sprite import Sprite
 from scena.shapes import Rect
 from scena.scenamath import Vec2
+from tests.floor_support import with_floor  # noqa: E402
 
 C = sys.modules["scena.collision"]   # the module (``scena.collision`` is the facade)
 P, K = C.Prim, C.PrimKind
@@ -158,6 +159,7 @@ class TestSpriteHulls(SpriteCase):
             self.assertEqual(self.kinds(t), [K.POLY])
 
 
+@with_floor
 class TestWalkersAgree(SpriteCase):
     """A walker on a row of tiles (gaps, steps) behaves the same either way."""
 

@@ -32,6 +32,7 @@ from scena.collision import STATIC, get_collision_system, reset_collision_system
 from scena.scenamath import Vec2
 from scena.shapes import Rect
 from scena.sprite import Sprite
+from tests.floor_support import with_floor  # noqa: E402
 
 C = sys.modules["scena.collision"]   # the module (``scena.collision`` is the facade)
 P, K = C.Prim, C.PrimKind
@@ -269,6 +270,7 @@ class SpriteCase(unittest.TestCase):
         reset_collision_system()
 
 
+@with_floor
 class TestWalkersAgree(SpriteCase):
     """A walker over rounded tiles walks, lands and probes the same either way."""
 

@@ -201,6 +201,7 @@ def _cycle_index(i: int, n: int, step: int) -> int:
 
 
 init(width=W, height=H, window_scale=0.78, title="Smoke — hitbox frames")
+collision.floor = True   # gravity: bodies stand on floors (ramps, lifts, seams)
 canvas.background = (0.07, 0.08, 0.11)
 SkyGradient("night")
 Stars(density=0.25, twinkle=0.08)

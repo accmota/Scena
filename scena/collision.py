@@ -537,11 +537,28 @@ _TOI_ADVANCE_ITERS = 32
 _TOI_BISECT_CAP = 96
 _TOI_UNRESOLVED = object()
 
+# ``collision.floor`` in a fresh world: no floor (a world seen from above, in
+# space, without gravity). A game with gravity writes ``collision.floor = True``.
+_FLOOR_DEFAULT = False
+
 # Immovable mass sentinel for ``Graphic.mass`` / ``mtv_split`` / ``velocity_split``.
 STATIC = float("inf")
 
 # Sentinel: ``add_resolve_pair`` stores this when only position correction is wanted.
 _RESOLVE_POSITION_ONLY = object()
+
+
+def _expect_floor_flag(value: Any) -> bool:
+    """``collision.floor`` takes a flag; a shape there means a floor object."""
+    from .validate import expect_bool
+    from .entity import Entity
+    if isinstance(value, Entity):
+        raise TypeError(
+            "collision.floor takes True or False (does this world have a floor?), "
+            f"not a {type(value).__name__}. A floor shape is a resolve partner: "
+            "resolve(hero, floor_shape) — and collision.floor = True for a world with gravity."
+        )
+    return expect_bool(value, "collision.floor")
 
 
 def _resolve_token_is_elastic(token: Any) -> bool:
@@ -1183,6 +1200,28 @@ def _warn_missing_vel_once(a: Any, b: Any, ma: float, mb: float, bounce: float) 
 
 
 _mass_missing_warned: Set[int] = set()
+
+# ``collision.floor`` is off and the game asks a floor question: once per process.
+_no_floor_hinted: List[bool] = [False]
+
+
+def _hint_no_floor(what: str) -> None:
+    """``floor_below`` / ``tilt = "ground"`` in a world without a floor.
+
+    Both read standing on a floor, which only a world with gravity has; a
+    platformer that forgot ``collision.floor = True`` also hops on ramps and
+    rides no lift. Said once, where it is first used (a game may set the
+    floor after building its sprites)."""
+    if _no_floor_hinted[0]:
+        return
+    _no_floor_hinted[0] = True
+    warnings.warn(
+        f"{what} asks about a floor, but collision.floor is False (the default: "
+        f"a world seen from above or without gravity, where nothing stands on "
+        f"anything). For a game with gravity, write collision.floor = True at "
+        f"the top: resolve then keeps bodies on ramps and lifts carry them.",
+        stacklevel=4,
+    )
 
 
 def _mass_or_static(body: Any, override: Optional[float]) -> float:
@@ -5295,6 +5334,10 @@ class CollisionSystem:
         self._pass_carry: Optional[Dict[int, Tuple["Collider", float, float]]] = None
         # Standing resolve on/off. Detection, queries, and @collide stay live.
         self._resolve_enabled = True
+        # ``collision.floor``: a world with a floor (gravity is the author's).
+        # Off, nobody stands on anything: no floor snap, no rider carry, no
+        # seam step, no stop-on-slope (Collision Design, "A world with a floor").
+        self._floor = _FLOOR_DEFAULT
         # Fast colliders of the current step (swept detection). Filled by
         # ``_commit_pending_motion`` only during the proxy loop of ``step()``
         # (``_fast_k2`` is the squared fraction there and ``inf`` elsewhere,
@@ -5361,6 +5404,15 @@ class CollisionSystem:
     @resolve_enabled.setter
     def resolve_enabled(self, value: bool) -> None:
         self._resolve_enabled = bool(value)
+
+    @property
+    def floor(self) -> bool:
+        """True: a body stands on what is under it (the floor rules of resolve)."""
+        return self._floor
+
+    @floor.setter
+    def floor(self, value: bool) -> None:
+        self._floor = _expect_floor_flag(value)
 
     # -- registration -------------------------------------------------------
 
@@ -7725,6 +7777,8 @@ class CollisionSystem:
         grounded_at_start: Dict[int, bool] = {}
         grounded: List[Collider] = []
         seen: Set[int] = set()
+        # Without a floor nobody is grounded: no snap, no carry, no floor rest.
+        floor = self._floor
         for ta, tb, _tok, _only in self._resolve_pairs:
             for side in (ta, tb):
                 for c in self._resolve_side_colliders(side):
@@ -7735,7 +7789,7 @@ class CollisionSystem:
                     ident = c._identity
                     mass = float(getattr(ident, "mass", 1.0)) if ident is not None else 1.0
                     sides = getattr(ident, "touching_sides", frozenset()) or frozenset()
-                    on_floor = "bottom" in sides
+                    on_floor = floor and "bottom" in sides
                     grounded_at_start[cid] = on_floor
                     if _is_static_mass(mass):
                         statics.append(c)
@@ -8449,7 +8503,7 @@ class CollisionSystem:
             first = slide == 0
             # Standing (last frame, or on a floor met earlier this frame):
             # a side face with a small lip above the feet may be a seam step.
-            ground = seam and (grounded or self._solve_bottom_count.get(cid, 0) > 0)
+            ground = seam and self._floor and (grounded or self._solve_bottom_count.get(cid, 0) > 0)
             deferred = [] if ground and gate is not None else None
             ties = [] if _JOINT_RESPONSE else None
             hit = self._earliest_toi(
@@ -8508,7 +8562,7 @@ class CollisionSystem:
                 e_sub = self._substep_restitution(ca, other, token, nx, ny)
             ox += rdx * t
             oy += rdy * t
-            stop = side == "bottom" and abs(own_dx) < _STOP_ON_SLOPE_INTENT
+            stop = self._floor and side == "bottom" and abs(own_dx) < _STOP_ON_SLOPE_INTENT
             if first:
                 mx, my = rdx - odx, rdy - ody
             else:
@@ -8715,7 +8769,7 @@ class CollisionSystem:
         # along its own motion instead, as one contact does (PE2: no creep).
         back = min(_RESOLVE_SLOP / c, 3.0 * _RESOLVE_SLOP)
         bx, by = -sx * back, -sy * back
-        stop = abs(own_dx) < _STOP_ON_SLOPE_INTENT and any(
+        stop = self._floor and abs(own_dx) < _STOP_ON_SLOPE_INTENT and any(
             _side_from_normal(n[0], n[1]) == "bottom" for n in ns)
         if stop and _SKIN_ALONG_MOTION:
             ml = math.hypot(rdx, rdy)
@@ -10396,6 +10450,8 @@ class CollisionSystem:
         motion; enrolls nothing.
         """
         dx = _number(dx, "floor_below(dx=)")
+        if not self._floor:
+            _hint_no_floor("floor_below()")
         reach = (
             _FLOOR_SNAP_MIN if depth is None
             else _fixed_magnitude(depth, "floor_below(depth=)")
@@ -11929,6 +11985,23 @@ class _CollisionFacade(ClosedSurface):
     @resolve_enabled.setter
     def resolve_enabled(self, value: bool) -> None:
         get_collision_system().resolve_enabled = bool(value)
+
+    @property
+    def floor(self) -> bool:
+        """Does this world have a floor? ``True`` for a game with gravity.
+
+        With a floor, a body touching something under it stands on it:
+        resolve keeps it there on ramps and short frames (floor snap), a moving
+        platform carries it, it steps over small seams and does not creep down
+        a ramp. ``False`` (the default) is a world seen from above, in space or
+        without gravity: every side is alike, and turning the world turns
+        every motion with it.
+        """
+        return get_collision_system().floor
+
+    @floor.setter
+    def floor(self, value: bool) -> None:
+        get_collision_system().floor = value
 
     def query_point(self, x, y=None, *, group=None, ignore=None):
         """Hitboxes containing ``(x, y)`` or one point-like.

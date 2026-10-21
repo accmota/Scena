@@ -198,6 +198,13 @@ self.vel.y -= 4000 * dt`
         },
         `
         <p><code>resolve</code> (resolver) diz que os dois grupos não se atravessam: quando o ninja chega ao chão, o Scena o para no ponto do toque. A regra fica valendo sozinha, para todo ninja e toda peça desses grupos, sem nenhuma linha no <code>on_update</code>. Por isso o ninja entra no grupo <code>heroi</code>, na linha da classe: é assim que a regra o acha.</p>
+        <p>E um jogo com gravidade avisa que o mundo tem chão:</p>
+        `,
+        {
+          snip: `collision.floor = True`
+        },
+        `
+        <p>Com <code>floor</code> (chão), quem encosta no que está embaixo fica em pé nele: o ninja fica firme no chão, quadro a quadro, sem piscar entre “no chão” e “no ar” — é o que o pulo vai perguntar, dois passos adiante. Mais tarde, numa tábua inclinada e num elevador, é também essa linha que o mantém em pé. Num jogo visto de cima, como uma corrida, não há chão, e a linha não vai.</p>
         `
       ],
       code: `from scena import *
@@ -229,6 +236,7 @@ class Heroi(Sprite, source="ninja/Idle__000.png", height=88, group="heroi", hitb
         self.move_by(0, self.vel.y * dt)
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 
 heroi = Heroi(center=(100, 400))
@@ -301,6 +309,7 @@ class Heroi(Sprite, source="ninja/Idle__000.png", height=88, group="heroi", hitb
         self.move_by(self.vel.x * dt, self.vel.y * dt)
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 
 heroi = Heroi(center=(100, 400))
@@ -403,6 +412,7 @@ class Heroi(Sprite, source="ninja/Idle__000.png", height=88, group="heroi", hitb
         self.move_by(self.vel.x * dt, self.vel.y * dt)
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 
 heroi = Heroi(center=(100, 400))
@@ -534,6 +544,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
             self.play("parado")
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 
 heroi = Heroi(center=(100, 400))

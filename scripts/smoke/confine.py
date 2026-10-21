@@ -27,6 +27,7 @@ from _hud import SmokeHud
 
 W, H = 1400, 900
 init(width=W, height=H, window_scale=0.78, title="Smoke — confine")
+collision.floor = True   # gravity: bodies stand on floors (ramps, lifts, seams)
 canvas.background = (0.07, 0.08, 0.11, 1)
 
 hud = SmokeHud(

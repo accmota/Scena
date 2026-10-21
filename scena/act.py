@@ -579,6 +579,16 @@ def _restore_resolve(v) -> None:
     get_collision_system().resolve_enabled = v
 
 
+def _snap_floor():
+    from .collision import get_collision_system
+    return get_collision_system().floor
+
+
+def _restore_floor(v) -> None:
+    from .collision import get_collision_system
+    get_collision_system().floor = v
+
+
 def _snap_layer_default():
     return _engine().registry.layers.default
 
@@ -696,6 +706,8 @@ WORLD_SETTINGS: Tuple[WorldSetting, ...] = (
     WorldSetting(
         "collision.resolve_enabled", ("collision.resolve_enabled",),
         _snap_resolve, _restore_resolve),
+    WorldSetting(
+        "collision.floor", ("collision.floor",), _snap_floor, _restore_floor),
     WorldSetting(
         "layers.default", ("layers.default",),
         _snap_layer_default, _restore_layer_default),

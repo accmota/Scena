@@ -26,6 +26,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 | Relative-frame sweep / glue | [Relative-frame sweep](#relative-frame-sweep) |
 | Two movable bodies: who gives in a sweep stop (mass split, crate push, springy body) | [Mass split between two movable bodies](#mass-split-between-two-movable-bodies) |
 | Floor snap / grounded flicker | [Floor snap / grounded flicker](#floor-snap--grounded-flicker) |
+| Gravity vs top-down: which rules treat the bottom side as feet (`collision.floor`) | [A world with a floor](#a-world-with-a-floor-collisionfloor) |
 | Ledge / "will I fall?" (`floor_below`) | [Floor ahead: `floor_below`](#floor-ahead-floor_below); cost: [`floor_below`: cost](#floor_below-cost) |
 | Tile hull as an AABB prim | [Axis-aligned hulls](#axis-aligned-hulls) |
 | Box vs polygon sweep (closed form, GJK skin) | [Polygon sweeps](#polygon-sweeps) |
@@ -237,7 +238,7 @@ Push direction and stopping distance both come from **this frame's motion**, not
 
 A side impact at a ledge is a wall (for an airborne body at any height, for a grounded one above the seam step); a jump into a ramp end face is not a floor. Small-extent bodies no longer tunnel through thin slabs at realistic speeds (any speed against non-rotating geometry). Sweeping is the default for `resolve()` pairs; there is no `continuous=True` flag. Detection-only pairs sweep too, gated by speed, again with no flag ([Swept detection](#swept-detection-fast-bodies)). Resolve cost is zero for scenes with no `resolve()` pairs (Galaga-style `@collide` only). Mutual pools (`resolve("ball", "ball")`) stay cheap via the [Resolve hot path](#resolve-hot-path) — not by asking the author to drop the pair.
 
-`side` stays `"top"` / `"bottom"` / `"left"` / `"right"`. Given Scena's fixed y-up world, floor ≡ bottom, ceiling ≡ top, wall ≡ left or right. An exact 45° normal (`abs(nx) == abs(ny)`) is top or bottom, so a 45° ramp is a floor. A per-body `up` (wall-walking, gravity flip) is deferred.
+`side` stays `"top"` / `"bottom"` / `"left"` / `"right"`. Given Scena's fixed y-up world, in a world with a floor ([`collision.floor`](#a-world-with-a-floor-collisionfloor)) floor ≡ bottom, ceiling ≡ top, wall ≡ left or right; without one, a side is only a side. An exact 45° normal (`abs(nx) == abs(ny)`) is top or bottom, so a 45° ramp is a floor. A per-body `up` (wall-walking, gravity flip) is deferred.
 
 `touching_*` is published from the sweep/settle contacts, not from the pre-correction detection snapshot. `@collide` handlers still see that detection snapshot, plus the resting skin for resolve pairs ([Resting contact (skin)](#resting-contact-skin)) and a fast body's path ([Swept detection](#swept-detection-fast-bodies)). `@collide`-only scenes skip the per-Graphic `touching_*` walk until a previously published set must clear (e.g. `unresolve()`).
 
@@ -247,9 +248,31 @@ Manual `info.resolve()` / `push_apart()` apply MTV via `move_by` (same `_ensure_
 
 `collision.resolve_enabled` (bool, default `True`) is an advanced hatch next to `show_colliders`. When `False`, skip standing `_apply_auto_resolve` (sweep / settle / floor snap) but keep enroll, proxy, narrow phase, `@collide` / stay / exit, queries, and raycast. `touching_*` clears while off. On `True` again, the next `step()` settles residual overlaps. Not the taught reset path — use placement (`center =` / instant `move_to`) instead.
 
+## A world with a floor: `collision.floor`
+
+`resolve` has five rules that treat a body's `"bottom"` side as its feet. They are the engine's half of a game with gravity (the author writes the gravity, `vel.y -= G * dt`):
+
+| Rule | Where | Without it, in a game with gravity |
+| --- | --- | --- |
+| Floor snap | `_floor_snap` ([Floor snap / grounded flicker](#floor-snap--grounded-flicker)) | `"bottom"` flickers on frames under ~9 ms (120 Hz displays), a walker hops downhill |
+| Rider carry | `_carry_riders` ([Riders](#riders-a-body-standing-on-a-moving-partner)) | a lift moves out from under its rider |
+| Seam step | `_try_seam_step` ([Seam lips](#seam-lips-step-up)) | a walker snags on a 1 DU lip between tiles |
+| Stop-on-slope | `stop` in `_sweep_and_slide` / `_joint_stop` (PE2, law P5) | an idle body creeps down a ramp |
+| No bounce off the floor it started on | the bounce sub-step's `grounded` exemption ([Bounce sub-step](#bounce-sub-step)) | a resting body keeps hopping |
+
+**`collision.floor` says whether the world has a floor; `False` is the default** (decided 2026-10-21, Testing Design EX2). With `False`, `grounded_at_start` is false for every body, which turns off snap, carry and the bounce exemption, and the seam step and stop-on-slope read `self._floor` directly. Every side is alike, and turning the whole world turns every motion with it (law V10, equation E16 on `tests/laws/twins/topdown_world.py`). A game with gravity writes `collision.floor = True`, and the five rules act as they always did.
+
+Why the default is no floor. The rules were always on, and seen from above (a race, an RPG), in space or without gravity they made the bottom side special. Measured on the engine before the switch: a car that brushed a wall under it and drove off at a shallow angle (`.vel` (200, 40)) stayed glued to it for good. A STATIC barrier sliding under a car carried it all the way (116 of 120 DU in 1 s, against 97 for the same barrier at its side). A ball pushing into a 30° wall under it slid 33 DU in 0.5 s, against 47 for the same wall at its side. The engine cannot see the gravity (it is the author's own Euler step), so it cannot tell the two worlds apart. The author who needs the floor is the one already thinking about it (`touching_sides`, jumps, `floor_below`), so that is where the line goes. The author of a top-down game would never look for a floor setting, and with the old default never found why the car stuck. `floor_below` and `tilt = "ground"` in a world without a floor say so once (`_hint_no_floor`), at use (a game may set the floor after building its sprites).
+
+What does not change with the setting: `touching_sides` / `touching_contacts` still name the sides (`"bottom"` is a side, not the feet); `floor_below` answers by geometry; `only="bottom"` one-ways still pass from below; settle is direction-neutral ([Settle direction](#settle-direction-and-static-under-a-stack)). A moving wall takes a body leaning on it partway from any side (97 of 120 DU above at 60 Hz): that is the relative sweep's leftover `d × (1 − t)`, the same from every side but not at every frame rate, the open member of [Riders](#riders-a-body-standing-on-a-moving-partner) ("Not done"); it is not the rider carry.
+
+Cost: one bool read per body per resolve step, in the loop that already reads `touching_sides`, plus two reads at a stop (seam, stop-on-slope). Measured 2026-10-21 against a clean HEAD copy, separate processes interleaved, 7 rounds, median ms of the collision step: 30 walkers on 100 flat tiles −0.7 %, on tiles with lips −0.1 % (`perf_seam_step`'s scene, with a floor), 80 balls bouncing in a box without a floor −0.2 %: within noise.
+
+**Fences.** A per-pair `resolve(..., floor=)`: "grounded" is per body (any `"bottom"` contact), so a pair keyword would filter every body's contacts by pair each step, and a world mixing floors and no floors has not been seen. A side name as the floor (`collision.floor = "left"`, gravity turned) is the way to grow this knob if a game ever needs it (`True` would mean `"bottom"`): not a second knob, not `collision.gravity` (Scena applies no gravity, and the name would promise it).
+
 ## Seam lips (step-up)
 
-**A grounded body that walks into the side face of a still partner whose top is at most `_SEAM_STEP` (2 DU) above its feet steps onto that partner.** It neither stops (solid pair) nor passes into it (`only=` pair). SU in [Testing Design](Testing%20Design.md#su--seam-lips-2026-10-11).
+In a world with a floor ([`collision.floor`](#a-world-with-a-floor-collisionfloor)). **A grounded body that walks into the side face of a still partner whose top is at most `_SEAM_STEP` (2 DU) above its feet steps onto that partner.** It neither stops (solid pair) nor passes into it (`only=` pair). SU in [Testing Design](Testing%20Design.md#su--seam-lips-2026-10-11).
 
 Why: a walker rests `_RESOLVE_SLOP` (0.08 DU) above its floor. Two tiles placed a hair apart leave a lip at their seam: a rotated row (each tile turned about its own center), integer coordinates, a scaled sprite hull (one source pixel ≈ 0.6 DU at 80 / 128). Any lip above the slop puts the next tile's **side face** in front of the walker's leading corner, and the sweep's contact normal is then horizontal. Solid: the walker stopped dead at a 0.1 DU lip. One-way: `only=` rejected the side hit, a pass started, the walker rode the previous tile's corner and dropped into the tile (reported in `ninja_perigos`, a 15° platform with a 0.34 DU lip). The one-way threshold was frame-rate dependent: a 0.05 DU lip held at 60 Hz and dropped at 144 Hz.
 
@@ -403,7 +426,7 @@ Tests: `tests/test_collision.py` `TestSweepMassSplit` — spring-held wall energ
 
 ### Riders: a body standing on a moving partner
 
-**A body that ended the last step on top of a resolve partner (a `"bottom"` contact) and is not leaving it moves with that partner's displacement this frame, at every frame rate; its own motion adds** (PB2, decided 2026-10-14). Before, the only carry was the relative sweep's leftover `d_other × (1 − t)` ([Relative-frame sweep](#relative-frame-sweep)): 97 % of a sideways lift at 30 fps, 87 % at 60, 1–24 % at 144, ~1 % at 240. Vertical lifts carried through the relative sweep and floor snap, so only the part along the surface was missing.
+In a world with a floor ([`collision.floor`](#a-world-with-a-floor-collisionfloor)). **A body that ended the last step on top of a resolve partner (a `"bottom"` contact) and is not leaving it moves with that partner's displacement this frame, at every frame rate; its own motion adds** (PB2, decided 2026-10-14). Before, the only carry was the relative sweep's leftover `d_other × (1 − t)` ([Relative-frame sweep](#relative-frame-sweep)): 97 % of a sideways lift at 30 fps, 87 % at 60, 1–24 % at 144, ~1 % at 240. Vertical lifts carried through the relative sweep and floor snap, so only the part along the surface was missing.
 
 | Rule | Detail |
 | --- | --- |
@@ -617,6 +640,8 @@ leave_frac = leave_d / |relative motion|   # 1 = this frame's step is straight o
 | --- | --- | --- |
 | omitted / `None`, or `≤ 0.5` (**walker**) | `leave_v > 8` **and** (`leave_d > 2 DU` **or** `leave_frac > 0.85`) | World-axis `vel.x` on a slope looks like leave-speed; displacement / fraction is the honest walk-vs-jump split. `leave_frac` is the high-FPS path: a jump of 460 DU/s at 2 ms only moves 0.92 DU, so the 2 DU conjunct would glue it. |
 | `> 0.5` (**elastic**) | `leave_v > 8` alone | Last frame's impulse already wrote an honest separating `.vel`. `leave_d` is `~|vy|×dt`; requiring 2 DU glues `bounce=1` balls at high FPS or moderate speed (the bouncing-balls floor stick). Snap still runs when `leave_v` is small — a nearly-resting projectile still heals slop. |
+
+**Snap runs only in a world with a floor** ([`collision.floor`](#a-world-with-a-floor-collisionfloor)). Seen from above, a body that touches a wall on its `"bottom"` side and drives away at a shallow angle (`leave_v` 40, `leave_d` 0.7 DU, `leave_frac` 0.2) never passes the walker gate below, so with a floor it stays glued while its `.vel` points away (Testing Design EX2). Without one, nobody is grounded and snap never runs.
 
 Walkability is `abs(slope_angle) ≤ 45`, so a walk-miss `leave_frac` is at most `sin(45°) ≈ 0.71`. `0.85` sits above that and below a real jump (`≈ 1`). Do **not** disable snap entirely when `bounce > 0`: snails at `0.2` and a `bounce=0.7` ball that has actually stopped still need the slop heal.
 

@@ -179,6 +179,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
             st.aviso = "Fim de jogo · R recomeça"
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
 

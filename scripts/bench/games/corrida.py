@@ -34,6 +34,7 @@ GRAVIDADE = 2400
 PULO = 980
 
 init(width=W, height=H, title="Corrida")
+collision.floor = True   # gravity: bodies stand on floors (ramps, lifts, seams)
 SkyGradient("day")
 
 NINJA = Sheet(anchor="bottom", pixel_size=0.2)

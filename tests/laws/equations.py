@@ -499,6 +499,39 @@ def e13_pacing(scene: str, dt: float, *, c: float = 1.0, base_dt: float = 1 / 60
     return out
 
 
+# ---------------------------------------------------------------------------
+# E16: a world without a floor has no down (V10), on tests/laws/twins/topdown_world.py
+# ---------------------------------------------------------------------------
+
+TOPDOWN = "tests/laws/twins/topdown_world"
+TOPDOWN_SCENES = ("leave", "lift", "slope", "seam", "bounce")
+
+
+def topdown_trajectory(scene: str, rot: float, *, floor: bool = False,
+                       seconds: float = 1.5) -> Dict[float, List[Tuple[float, float]]]:
+    """game time -> the moving bodies' centers, turned back by ``rot``."""
+    from program_support import ProgramRun
+    probes = {"pos": lambda v: [tuple(v.home(b.center.x, b.center.y)) for b in v.BODIES]}
+    run = ProgramRun(TOPDOWN, {"scene": scene, "rot": rot, "floor": floor}, probes=probes)
+    run.start()
+    try:
+        run.step(int(round(seconds * 60)))
+    finally:
+        run.close()
+    return {round(s.time, 6): s.values["pos"] for s in run.trace.samples}
+
+
+def e16_rotation(scene: str, rot: float, *, floor: bool = False,
+                 budget: float = POS_BUDGET) -> List[str]:
+    """E16: the world turned by ``rot`` moves as the turn of the world."""
+    base = topdown_trajectory(scene, 0.0, floor=floor)
+    twin = topdown_trajectory(scene, rot, floor=floor)
+    worst, where = compare_trajectories(base, twin, budget)
+    if worst > budget:
+        return [f"{scene} rot={rot:g} floor={floor}: {worst:.3f} DU apart ({where})"]
+    return []
+
+
 def e5_projection(events) -> Dict[int, Counter]:
     """E5: everything but the act's own machinery (its build, its setup)."""
     out = project(events, doors=lambda d: d not in ("act-build", "setup"))

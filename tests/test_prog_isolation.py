@@ -320,6 +320,7 @@ def world_settings() -> Undo:
     canvas.background.add(Stars())
     canvas.background.enabled = False
     scena.collision.resolve_enabled = False
+    scena.collision.floor = True
     canvas.layers.create("suja", below="default")
     canvas.layers.default = "suja"
     scena.ui.stack_origin(321, 123)

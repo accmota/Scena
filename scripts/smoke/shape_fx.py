@@ -59,6 +59,7 @@ TEX_SPRITE = Texture(TEX2, fit="cover")
 TEX_TILE = Texture(TEX2, fit="tile", tile_size=40)
 
 init(width=W, height=H, window_scale=0.75, title="Smoke — shape FX")
+collision.floor = True   # gravity: bodies stand on floors (ramps, lifts, seams)
 canvas.fx_quality = args.quality
 canvas.batch_shared_filters = True
 Wallpaper(BG2, fit="cover")

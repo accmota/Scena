@@ -30,6 +30,10 @@ sys.path.insert(0, ROOT)
 from scena.collision import STATIC, get_collision_system, reset_collision_system, resolve
 from scena.scenamath import Vec2
 from scena.shapes import Circle, Polygon, Rect
+from tests.floor_support import floor_module  # noqa: E402
+
+# Walkers, ramps, lifts and resting piles: a world with gravity (collision.floor).
+setUpModule, tearDownModule = floor_module()
 
 C = sys.modules["scena.collision"]   # the module (``scena.collision`` is the facade)
 DT = 1.0 / 60.0

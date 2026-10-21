@@ -5197,6 +5197,9 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
                 getattr(self, "_tilt_contact_point", None),
                 getattr(self, "_tilt_contact_normal", None),
             )
+        from .collision import get_collision_system, _hint_no_floor
+        if not get_collision_system().floor:
+            _hint_no_floor('tilt = "ground"')
         c = self._select_ground_contact()
         if c is None:
             return None

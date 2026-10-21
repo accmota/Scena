@@ -27,6 +27,7 @@ Tutorial.mount({
 
 init(width=960, height=540, title="Corredor")
 Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
 
 folha = Sheet(anchor="bottom", pixel_size=0.16)
 folha.strip("correndo", "robot/Run (*).png", fps=14)
@@ -68,6 +69,10 @@ run(Corrida)
         {
           at: "folha.strip(\"correndo\"",
           text: "Uma animação por linha. <code>strip</code> (tira) junta numa animação os arquivos numerados que o <code>*</code> encontra: <code>Run (1).png</code>, <code>Run (2).png</code>, e assim por diante."
+        },
+        {
+          at: "collision.floor = True",
+          text: "Um mundo com gravidade tem chão: <code>floor</code> (chão) faz quem encosta no que está embaixo ficar em pé nele, como no Ninja."
         },
         {
           at: "self.vel.y -= 2200 * dt",
@@ -143,6 +148,7 @@ run(Corrida)
 
 init(width=960, height=540, title="Corredor")
 Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
 
 folha = Sheet(anchor="bottom", pixel_size=0.16)
 folha.strip("correndo", "robot/Run (*).png", fps=14)
@@ -215,6 +221,7 @@ run(Corrida)
 
 init(width=960, height=540, title="Corredor")
 Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
 
 folha = Sheet(anchor="bottom", pixel_size=0.16)
 folha.strip("correndo", "robot/Run (*).png", fps=14)
@@ -332,6 +339,7 @@ TERRA = Texture("tilesets/Tiles/5.png", fit="tile", tile_size=64)`
 
 init(width=960, height=540, title="Corredor")
 Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
 
 folha = Sheet(anchor="bottom", pixel_size=0.16)
 folha.strip("correndo", "robot/Run (*).png", fps=14)
@@ -408,6 +416,7 @@ run(Corrida)
 
 init(width=960, height=540, title="Corredor")
 Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
 
 folha = Sheet(anchor="bottom", pixel_size=0.16)
 folha.strip("correndo", "robot/Run (*).png", fps=14)
@@ -562,6 +571,7 @@ from scena import *
 
 init(width=960, height=540, title="Corredor")
 Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
 
 folha = Sheet(anchor="bottom", pixel_size=0.16)
 folha.strip("correndo", "robot/Run (*).png", fps=14)
@@ -684,6 +694,7 @@ from scena import *
 
 init(width=960, height=540, title="Corredor")
 Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
 
 folha = Sheet(anchor="bottom", pixel_size=0.16)
 folha.strip("correndo", "robot/Run (*).png", fps=14)
@@ -885,6 +896,7 @@ from scena import *
 
 init(width=960, height=540, title="Corredor")
 Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
 
 folha = Sheet(anchor="bottom", pixel_size=0.16)
 folha.strip("correndo", "robot/Run (*).png", fps=14)
@@ -1076,6 +1088,7 @@ from scena import *
 
 init(width=960, height=540, title="Corredor")
 Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
 
 folha = Sheet(anchor="bottom", pixel_size=0.16)
 folha.strip("correndo", "robot/Run (*).png", fps=14)

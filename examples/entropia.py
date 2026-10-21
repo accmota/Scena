@@ -100,6 +100,8 @@ parede_esq = Parede(center=(ESQ - GROSSURA / 2, (BAIXO + CIMA) / 2), width=GROSS
 parede_dir = Parede(center=(DIR + GROSSURA / 2, (BAIXO + CIMA) / 2), width=GROSSURA,
                     height=altura, group=("parede", "lateral"))
 
+# Com a gravidade ligada, as bolas assentam no fundo: um mundo com chão.
+collision.floor = True
 resolve("bola", "parede", bounce=1)
 resolve("bola", "bola", bounce=1)
 resolve("bola", "divisoria", bounce=1)

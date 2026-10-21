@@ -40,6 +40,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from scena import STATIC, Circle, Rect, collide, resolve  # noqa: E402
 from scena.collision import get_collision_system, reset_collision_system  # noqa: E402
 from scena.scenamath import Vec2  # noqa: E402
+from tests.floor_support import with_floor  # noqa: E402
 
 C = sys.modules["scena.collision"]   # the module (``scena.collision`` is the facade)
 FPS = (30, 60, 144)
@@ -263,6 +264,7 @@ class TestSeams(_World):
 # --------------------------------------------------------------------------
 
 
+@with_floor
 class TestInternalEdges(_World):
     """A tile seam's side face within the skin of a walker's floor hit is an
     AABB corner artefact: the floor's slide passes above it, so the joint
@@ -299,6 +301,7 @@ class TestInternalEdges(_World):
 # --------------------------------------------------------------------------
 
 
+@with_floor
 class TestBounceSubstep(_World):
     """After a stop, the closing part of the leftover gets the restitution
     the velocity got. It was dropped at every bounce."""
@@ -499,6 +502,7 @@ class TestGhostWalls(_World):
 # --------------------------------------------------------------------------
 
 
+@with_floor
 class TestSkinAnswer(_World):
     """A ball that ends a frame within the skin of a brick gets ``@collide``
     that frame, and its bounce that frame: a brick broken the frame after

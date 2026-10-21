@@ -10,6 +10,9 @@ body on a ramp, a stack, a head-on hit, a rider on a lift, a ball in a box):
   of an idle body; P6 (a rider moves with its lift) on the lift scene;
 * E10 translation, E11 mirror, E12 mass scale, E14 world scale within the
   position budget; E13 pacing within one frame of travel;
+* E16 (V10) on the top-down twin (``tests/laws/twins/topdown_world.py``): a
+  world without a floor turned by 90 / 180 / 270 degrees moves as the turn
+  of the world; with ``collision.floor = True`` it does not (the canary);
 * canaries (gate) through the engine's own switches (``_SKIN_ALONG_MOTION``,
   ``_SETTLE_STATIC_CLAMP``, ``_SWEEP_MASS_SPLIT``, ``_RIDER_CARRY``) and a
   left / right asymmetric bounce for E11.
@@ -112,6 +115,31 @@ def frame_pair(pre, post, pairs):
 
 def found(ev, law):
     return [f for f in model.check(ev).findings if f.law == law]
+
+
+class TestTopDownHasNoDown(unittest.TestCase):
+    """V10 (E16): without a floor, turning the whole world turns every path.
+
+    The scenes are the floor rules' cases seen from above (leave a wall under
+    you, a barrier sliding under you, a slanted wall, a seam, a soft bounce);
+    each runs turned by 90, 180 and 270 degrees about the centre. The canary
+    is the same scenes with ``collision.floor = True``: the floor rules act on
+    the bottom side only, and the turned worlds move apart."""
+
+    def test_e16_rotation(self):
+        for scene in eq.TOPDOWN_SCENES:
+            base = eq.topdown_trajectory(scene, 0.0)
+            for rot in (90.0, 180.0, 270.0):
+                with self.subTest(scene=scene, rot=rot):
+                    twin = eq.topdown_trajectory(scene, rot)
+                    worst, where = eq.compare_trajectories(base, twin, eq.POS_BUDGET)
+                    self.assertLessEqual(worst, eq.POS_BUDGET, f"{scene} rot={rot}: {where}")
+
+    def test_e16_sees_a_floor(self):
+        for scene in ("leave", "lift", "slope"):
+            with self.subTest(scene=scene):
+                self.assertNotEqual(eq.e16_rotation(scene, 90.0, floor=True), [],
+                                    f"{scene}: the floor rules did not act (vacuous E16)")
 
 
 class TestMotionRules(unittest.TestCase):

@@ -18,7 +18,9 @@ P3  Between two movable bodies answered only by each other, momentum is
 P4  A STATIC body never moves under resolve.
 P5  A body with no sideways velocity, answered only by still STATIC
     partners (and not riding a partner that moved), is not moved sideways
-    by resolve (an idle body on a ramp does not creep, PE2).
+    by resolve (an idle body on a ramp does not creep, PE2). Only in a
+    world with a floor (``collision.floor``, recorded per resolve step):
+    seen from above, nothing rests on anything (V10).
 """
 from __future__ import annotations
 
@@ -75,12 +77,14 @@ def check(tr: Trace, rep: Report) -> None:
     prev_post: Dict[str, tuple] = {}
     prev_partners: Dict[str, List[str]] = {}
     pre: Dict[str, tuple] = {}
+    floor = True
     for i, e in enumerate(tr.events):
         if e[0] != "M":
             continue
         f = tr.frames[i]
         if e[1] == "pre":
             pre = {b[0]: b for b in e[2] if b[0]}
+            floor = e[3] if len(e) > 3 else True
             continue
         post = {b[0]: b for b in e[2] if b[0]}
         pairs = [p for p in e[3] if "?" not in p]
@@ -127,7 +131,9 @@ def check(tr: Trace, rep: Report) -> None:
                 # nor a direct ``move_by`` (a walker moving by ``move_by``
                 # keeps ``vel.x`` at 0; caverna's robot).
                 walked = last is not None and abs(b0[2] - last[2]) > EPS
-                if abs(b0[4]) <= EPS and not riding and resting and not walked:
+                # P5 is a law of a world with a floor: seen from above an idle
+                # body against a slanted wall may slide (V10, no down).
+                if floor and abs(b0[4]) <= EPS and not riding and resting and not walked:
                     rep.witness("P5")
                     if abs(b1[2] - b0[2]) > EPS:
                         rep.find("P5", f, f"{label} with no sideways velocity moved "

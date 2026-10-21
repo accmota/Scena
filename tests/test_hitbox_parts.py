@@ -27,6 +27,7 @@ from tests.test_sprite import (
     _write_padded_png,
     _write_rect_png,
 )
+from tests.floor_support import with_floor  # noqa: E402
 
 
 # 64×64 canvas, 16×48 opaque bar in the middle: the silhouette is x∈[-8, 8],
@@ -423,6 +424,7 @@ class TestHitboxDispatch(PartTestCase):
         self.assertEqual(hits, [s])
 
 
+@with_floor
 class TestHitboxDetectsOnly(PartTestCase):
     def test_resolve_refuses_a_hitbox_side(self):
         s = self.hero()
@@ -525,6 +527,7 @@ class TestHitboxDetectsOnly(PartTestCase):
         self.assertFalse(sys._collider_in_resolve(hurt._collider))
 
 
+@with_floor
 class TestResolveUsesBodies(PartTestCase):
     """``resolve()`` on a group moves its members' bodies, even when a
     hitbox part answers that group for ``@collide`` (boss weak spot)."""

@@ -37,6 +37,10 @@ from system_support import quiet, system_world  # noqa: E402
 
 from scena import STATIC, Circle, Rect, collide, collide_exit, resolve  # noqa: E402
 from scena.scenamath import Vec2  # noqa: E402
+from tests.floor_support import floor_module  # noqa: E402
+
+# Walkers, ramps, lifts and resting piles: a world with gravity (collision.floor).
+setUpModule, tearDownModule = floor_module()
 
 GRAVITY = 900.0
 TILE = 16.0

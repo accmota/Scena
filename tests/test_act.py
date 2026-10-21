@@ -1194,6 +1194,7 @@ def _world_state():
         "playfield": (pf.left, pf.bottom, pf.right, pf.top, pf.pad),
         "clock": (clock.scale, clock.paused),
         "collision.resolve_enabled": collision.resolve_enabled,
+        "collision.floor": collision.floor,
         "layers.default": canvas.layers.default,
         "set_defaults": PaintState.get_defaults(),
         # Where the next omitted-y HUD item goes.
@@ -1216,6 +1217,7 @@ def _mess_up_the_world():
     clock.scale = 0.25
     clock.paused = True
     collision.resolve_enabled = not collision.resolve_enabled
+    collision.floor = not collision.floor
     canvas.layers.create("ato_extra", z=40)
     canvas.layers.default = "ato_extra"
     set_defaults("coral", line_width=4.0)
@@ -1291,6 +1293,7 @@ class TestWorldSettings(ActTestCase):
         super().setUp()
         self._orig_defaults = PaintState.get_defaults()
         self._orig_resolve = collision.resolve_enabled
+        self._orig_floor = collision.floor
         self._state_at_seal = None
         begin = self.w.begin_game
 
@@ -1305,6 +1308,7 @@ class TestWorldSettings(ActTestCase):
         finally:
             PaintState._default_instance = self._orig_defaults
             collision.resolve_enabled = self._orig_resolve
+            collision.floor = self._orig_floor
             canvas.background.reset_base()
             canvas.background.clear()
             canvas.background.enabled = True

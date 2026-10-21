@@ -58,6 +58,7 @@ N_BALLS = max(0, int(args.balls))
 rng = Random(args.seed)
 
 init(width=W, height=H, title=f"Resolve platformer — {N_BALLS} balls")
+collision.floor = True   # gravity: bodies stand on floors (ramps, lifts, seams)
 canvas.background = (0.55, 0.75, 0.95)
 configure_bench(quality="medium")
 set_watchdog(False)

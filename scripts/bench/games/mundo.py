@@ -31,6 +31,7 @@ W, H = 1000, 750
 T = 64                      # tile size (world units)
 GRAVIDADE = 2200
 init(width=W, height=H, title="Mundo")
+collision.floor = True   # gravity: bodies stand on floors (ramps, lifts, seams)
 Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
 canvas.layers.create("longe", pan_response=0.5, below="default")
 

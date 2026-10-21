@@ -62,6 +62,7 @@ from scena.shapes import (
 from scena.track import Track
 from scena.scenamath import Vec2
 from scena.sprite import Sprite, Sheet
+from tests.floor_support import with_floor  # noqa: E402
 
 
 class CollisionTestCase(unittest.TestCase):
@@ -3182,6 +3183,7 @@ class TestProxyAabbConservative(CollisionTestCase):
         self.assertAlmostEqual(proxy[3] - proxy[1], 2.0 * disk, places=6)
 
 
+@with_floor
 class TestResolution(CollisionTestCase):
     def test_mass_validation(self):
         c = self.track(Circle(center=self.at(0, 0), radius=10))
@@ -4045,6 +4047,7 @@ class TestSweepMassSplit(CollisionTestCase):
                     self.assertLessEqual(float(a.center.x), float(b.center.x))
 
 
+@with_floor
 class TestSweepAndSlideGates(CollisionTestCase):
     """Phase 1 gates from the sweep-and-slide rework (Collision Resolution Redesign §4 / §10).
 
@@ -4916,6 +4919,7 @@ class TestSweepAndSlideGates(CollisionTestCase):
             )
 
 
+@with_floor
 class TestSpriteHitboxGrounding(CollisionTestCase):
     """Phase 4: frozen silhouette collider stays grounded; ``each`` still flickers."""
 
@@ -5062,6 +5066,7 @@ class TestSpriteHitboxGrounding(CollisionTestCase):
         self.assertGreater(c.point[0], mid_x)
 
 
+@with_floor
 class TestMotionVsPlacement(CollisionTestCase):
     """Instant set is placement (no sweep); ``_by`` / ``time=`` is motion."""
 
@@ -5361,6 +5366,7 @@ class TestMotionVsPlacement(CollisionTestCase):
         self.assertGreaterEqual(dist, 39.0)
 
 
+@with_floor
 class TestSilhouetteHurtbox(CollisionTestCase):
     def test_track_hurtbox_detects_while_walker_rect_resolves(self):
         import os
@@ -5423,6 +5429,7 @@ def _circle_prim(cx, cy, r):
     return Prim(PrimKind.CIRCLE, (cx - r, cy - r, cx + r, cy + r), (cx, cy, r))
 
 
+@with_floor
 class TestReviewedCollisionFixes(CollisionTestCase):
     def test_queries_do_not_consume_the_sweep(self):
         """move_by then a query must still sweep on the next step."""

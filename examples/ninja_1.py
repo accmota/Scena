@@ -73,6 +73,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
             self.play("parado")
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 
 heroi = Heroi(center=(100, 400))

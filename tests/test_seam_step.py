@@ -34,6 +34,10 @@ from scena.collision import (  # noqa: E402
 )
 from scena.shapes import Polygon, Rect  # noqa: E402
 from scena.scenamath import Vec2  # noqa: E402
+from tests.floor_support import floor_module  # noqa: E402
+
+# Walkers, ramps, lifts and resting piles: a world with gravity (collision.floor).
+setUpModule, tearDownModule = floor_module()
 
 coll = sys.modules["scena.collision"]   # the name ``scena.collision`` is the query facade
 

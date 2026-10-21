@@ -38,6 +38,10 @@ from system_support import system_world  # noqa: E402
 from scena import STATIC, Circle, Rect, Track, resolve  # noqa: E402
 from scena.collision import get_collision_system, reset_collision_system  # noqa: E402
 from scena.scenamath import Vec2  # noqa: E402
+from tests.floor_support import floor_module  # noqa: E402
+
+# Walkers, ramps, lifts and resting piles: a world with gravity (collision.floor).
+setUpModule, tearDownModule = floor_module()
 
 C = sys.modules["scena.collision"]   # the module (``scena.collision`` is the facade)
 FPS = (30, 60, 144, 240)

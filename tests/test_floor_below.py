@@ -30,6 +30,10 @@ from scena.collision import (
 )
 from scena.shapes import Circle, Polygon, Rect
 from scena.scenamath import Vec2
+from tests.floor_support import floor_module  # noqa: E402
+
+# Walkers, ramps, lifts and resting piles: a world with gravity (collision.floor).
+setUpModule, tearDownModule = floor_module()
 
 GRAVITY = 900.0
 DT = 1.0 / 60.0

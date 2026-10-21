@@ -174,6 +174,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
             aviso.text = "Fim de jogo"
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 
 heroi = Heroi(center=fase["inicio"].center)
@@ -404,6 +405,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
             aviso.text = "Fim de jogo"
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 resolve("heroi", "plataforma", bounce=0, only="bottom")
 
@@ -635,6 +637,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
             aviso.text = "Fim de jogo"
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
 
@@ -696,7 +699,7 @@ run()
     {
       title: "A tábua inclinada",
       body: `
-        <p>No meio da fase, uma plataforma sobe da esquerda para a direita, inclinada 15°. O ninja já anda nela: o <code>resolve</code> segura a caixa de colisão na rampa, e o pulo continua valendo. Mas o desenho fica em pé, e na rampa o ninja pisa com um pé no ar. Duas mudanças o assentam, e só funcionam juntas.</p>
+        <p>No meio da fase, uma plataforma sobe da esquerda para a direita, inclinada 15°. O ninja já anda nela: o <code>resolve</code> segura a caixa de colisão na rampa, o mundo com chão (<code>collision.floor = True</code>) não o deixa escorregar quando para, e o pulo continua valendo. Mas o desenho fica em pé, e na rampa o ninja pisa com um pé no ar. Duas mudanças o assentam, e só funcionam juntas.</p>
       `,
       code: `from scena import *
 
@@ -856,6 +859,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
             aviso.text = "Fim de jogo"
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
 
@@ -1116,6 +1120,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
             aviso.text = "Fim de jogo"
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
 
@@ -1348,6 +1353,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
             aviso.text = "Fim de jogo"
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
 
@@ -1577,6 +1583,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
             aviso.text = "Fim de jogo"
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
 
@@ -1829,6 +1836,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
             aviso.text = "Fim de jogo"
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
 
@@ -1903,7 +1911,7 @@ run()
       ],
       after: `
         <p>Suba no elevador e vá até a estrela alta.</p>
-        <details class="ask"><summary>Quem carrega o ninja, se nenhuma linha do <code>Heroi</code> mudou?</summary><p>O <code>resolve</code> das plataformas, que já segura os pés dele. Um <code>move_by</code> com <code>time=</code> é viagem, não teleporte: o Scena sabe quanto o elevador andou em cada quadro, e o ninja em cima vai junto. Como é do grupo <code>plataforma</code>, o elevador também é de mão única: dá para pular nele por baixo, e a seta para baixo desce dele.</p></details>
+        <details class="ask"><summary>Quem carrega o ninja, se nenhuma linha do <code>Heroi</code> mudou?</summary><p>O <code>resolve</code> das plataformas, que já segura os pés dele, e o <code>collision.floor = True</code> do começo: num mundo com chão, quem está em pé em cima de algo que se move vai junto. Um <code>move_by</code> com <code>time=</code> é viagem, não teleporte: o Scena sabe quanto o elevador andou em cada quadro, e o ninja em cima anda o mesmo. Como é do grupo <code>plataforma</code>, o elevador também é de mão única: dá para pular nele por baixo, e a seta para baixo desce dele.</p></details>
       `,
       try: [
           {
@@ -2081,6 +2089,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
             st.aviso = "Fim de jogo · R recomeça"
 
 
+collision.floor = True
 resolve("heroi", "chao", bounce=0)
 resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
 

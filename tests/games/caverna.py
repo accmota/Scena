@@ -34,6 +34,7 @@ COVER = G.model(CoverModel(lambda: canvas.covered))
 
 W, H = 1000, 600
 init(width=W, height=H, title="Caverna")
+collision.floor = True   # gravidade: quem encosta no que está embaixo fica em pé nele
 
 FADE = float(PARAMS.get("fade", 0.25))
 CAMERA = PARAMS.get("camera", "chase")

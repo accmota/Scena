@@ -26,6 +26,7 @@ HERO_W, HERO_H = 38.0, 70.0
 
 def new_world():
     reset_collision_system()
+    get_collision_system().floor = True   # platformer probes: a world with gravity
 
 
 def step():

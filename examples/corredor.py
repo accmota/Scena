@@ -25,6 +25,7 @@ from scena import *
 
 init(width=960, height=540, title="Corredor")
 Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
 
 folha = Sheet(anchor="bottom", pixel_size=0.16)
 folha.strip("correndo", "robot/Run (*).png", fps=14)
