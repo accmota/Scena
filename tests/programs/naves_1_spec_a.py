@@ -1,4 +1,4 @@
-"""Spec A for examples/naves.py (tutorial 05), written from the docs only.
+"""Spec A for examples/naves_1.py (tutorial 05), written from the docs only.
 
 Frame model used throughout (design/Scena Design.md "Frame order"):
   1 clock tick + input, 2 update(dt), 3 process tick (tweens, timers -> @every),
@@ -14,7 +14,7 @@ from program_support import (Scenario, Expect, wait, wait_s, click_widget, click
 import math
 
 FILES_READ = [
-    "examples/naves.py",
+    "examples/naves_1.py",
     "docs/pt/tutorial/05-naves.html",
     "design/Scena Design.md#frame-order",
     "docs/pt/guide/index.html#frame-clock",

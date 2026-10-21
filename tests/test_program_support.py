@@ -243,7 +243,7 @@ class TestTierC(unittest.TestCase):
         import ast
         import program_oracles as O
         from program_support import program_path
-        for prog in ("bouncing_balls", "snake_chain", "examples/naves.py",
+        for prog in ("bouncing_balls", "snake_chain", "examples/naves_1.py",
                      "examples/pegar_estrelas.py", "examples/cadeia_de_bolas.py",
                      "platformer", "galaga_acts"):
             with self.subTest(prog=prog):

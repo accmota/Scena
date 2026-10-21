@@ -64,7 +64,7 @@ BLANK_MIN_DIFF = 8             # a clip must change by more than this (0–255) 
 CLIPS = {
     "catch-the-stars": {"program": "README.md#catch-the-stars", "size": (640, 480),
                         "seconds": 6.0, "lead": 1.5, "pilot": "follow_stars"},
-    "naves_escudo": {"program": "examples/naves_escudo.py", "size": (600, 480),
+    "naves_escudo": {"program": "examples/naves_4_escudo.py", "size": (600, 480),
                      "seconds": 8.0, "lead": 0.5, "pilot": "fly_fire_and_catch"},
     "bolas": {"program": "examples/bolas.py", "size": (600, 432),
               "seconds": 6.0, "lead": 1.0, "pilot": "watch"},
@@ -72,7 +72,7 @@ CLIPS = {
                        "seconds": 7.0, "lead": 3.0, "pilot": "fly_the_gaps"},
     "osciloscopio": {"program": "examples/osciloscopio.py", "size": (600, 432),
                      "seconds": 6.0, "lead": 0.3, "pilot": "click_the_ball"},
-    "ninja_perigos": {"program": "examples/ninja_perigos.py", "size": (600, 450),
+    "ninja_perigos": {"program": "examples/ninja_4_perigos.py", "size": (600, 450),
                       "seconds": 7.2, "lead": 1.0, "pilot": "run_jump_and_throw"},
     "ligue4": {"program": "examples/ligue4.py", "size": (500, 380),
                "seconds": 8.5, "lead": 0.0, "pilot": "play_connect_four"},

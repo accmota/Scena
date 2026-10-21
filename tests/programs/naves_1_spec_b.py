@@ -1,4 +1,4 @@
-"""Spec B for examples/naves.py (tutorial 05), written from the docs only.
+"""Spec B for examples/naves_1.py (tutorial 05), written from the docs only.
 
 Frame model used (design/Scena Design.md "Frame order"): input -> update(dt)
 -> process tick (tweens, due timers) -> collision -> leave_playfield -> flush.
@@ -14,7 +14,7 @@ from program_support import (Scenario, Expect, wait, wait_s, click_widget, click
 import math
 
 FILES_READ = [
-    "examples/naves.py",
+    "examples/naves_1.py",
     "docs/pt/tutorial/05-naves.html",
     "design/Scena Design.md#frame-order",
     "design/Collision Design.md#frame-order",

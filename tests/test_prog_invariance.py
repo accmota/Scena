@@ -41,7 +41,7 @@ from program_support import load_spec  # noqa: E402
 FULL = hypothesis_support.PROFILE in ("ci", "deep")
 
 PROGRAMS = ["bouncing_balls", "examples/cadeia_de_bolas", "galaga_acts", "geometry_lab",
-            "examples/naves", "examples/pegar_estrelas", "platformer", "runner_story",
+            "examples/naves_1", "examples/pegar_estrelas", "platformer", "runner_story",
             "snake_chain", "toybox"]
 
 # program -> reason it is outside an oracle
@@ -49,7 +49,7 @@ CAMERA_EXCLUDED: Dict[str, str] = {
     "examples/cadeia_de_bolas": "the chain chases the mouse (a view point, elsewhere in the world under a moved camera)",
     "geometry_lab": "reads the mouse",
     "toybox": "reads the mouse",
-    "examples/naves": "confines the ship to canvas.game_view every frame (the world follows the camera by design)",
+    "examples/naves_1": "confines the ship to canvas.game_view every frame (the world follows the camera by design)",
     "snake_chain": "places the head at the view's centre and confines it to the view",
     "runner_story": "Endless fills what the camera sees (camera-driven by design)",
     "galaga_acts": "places the ship by canvas.game_view when the play act starts",

@@ -1,9 +1,8 @@
-"""Naves IV — tutorial 08.
+"""Naves III — tutorial 07.
 
-O jogo de naves do tutorial 07 com um escudo: às vezes um inimigo
-destruído deixa cair um presente; pegá-lo enche a energia e liga o
-escudo. Cada laser que o escudo segura estoura onde bateu e gasta
-energia; sem energia, o escudo quebra e a nave volta a perder vidas.
+O jogo de naves do tutorial 06 com as figuras numa folha (atlas), três
+tipos de inimigo, uma explosão em quadros, som e três vidas. Na última vida, a nave
+explode e o jogo acaba (para jogar de novo, rode outra vez).
 
 Controles
 ---------
@@ -12,7 +11,7 @@ Controles
 
 Uso
 ---
-    python examples/naves_escudo.py
+    python examples/naves_3_vidas.py
 """
 
 from random import choice
@@ -31,7 +30,6 @@ explosao.clip("explode", range(12), fps=24)
 
 st.pontos = 0
 st.vidas = 3
-st.energia = 0
 st.velocidade = 80
 
 placar = Text(text="", top_left=(20, 780), font_size=20)
@@ -40,9 +38,6 @@ placar["text"] @= lambda: f"Pontos {st.pontos}"
 Sprite(folha, frame="playerLife1_red.png", height=24, center=(900, 768))
 vidas = Text(text="", top_left=(920, 780), font_size=20)
 vidas["text"] @= lambda: f"x {st.vidas}"
-
-barra = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
-barra["width"] @= lambda: st.energia * 2
 
 
 class Explosao(Sprite, source=explosao, height=90):
@@ -72,25 +67,9 @@ class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
     @collide_with("tiros")
     def atingido(self, tiro):
         Explosao(center=self.center)
-        if chance(0.2):
-            Poder(center=self.center)
         tiro.destroy()
         self.destroy()
         st.pontos += 1
-
-
-class Poder(Sprite, source=folha, frame="powerupBlue_shield.png", height=30, group="poderes"):
-    def on_update(self, dt):
-        self.move_by(0, -150 * dt)
-
-
-class Escudo(Circle, radius=38, visual=Shield(style="plasma")):
-    @collide_with("tiros_inimigos")
-    def bloqueou(self, tiro, info):
-        canvas.zap_at(info, color="sky blue")
-        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
-        tiro.destroy()
-        st.energia -= 20
 
 
 class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
@@ -98,8 +77,6 @@ class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
         self.glow = True
         self.propulsor = Jet(origin=lambda: (self.center.x, self.center.y - 22),
                              angle=270, length=40, width=16, amount=2)
-        self.escudo = Escudo(center=lambda: self.center)
-        self.escudo.active = False
 
     def on_update(self, dt):
         if keyp("LEFT"):
@@ -130,23 +107,8 @@ class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
             play_sound("audio/gameover.wav")
             self.destroy()
 
-    @collide_with("poderes")
-    def pegou(self, poder):
-        poder.destroy()
-        self.pop()
-        play_sound("audio/fx1.wav")
-        st.energia = 100
-
-    @on_change(lambda self: st.energia)
-    def energia_mudou(self):
-        self.escudo.active = st.energia > 0
-        if st.energia == 0:
-            canvas.burst_at(self, radius=70, rings=True)
-            play_sound("audio/impactBell_heavy_000.ogg")
-
     def on_destroy(self):
         self.propulsor.destroy()
-        self.escudo.destroy()
 
 
 nave = Heroi(center=(500, 70))
@@ -176,7 +138,7 @@ def update(dt):
             st.velocidade = 80
 
 
-@leave_playfield("tiros", "tiros_inimigos", "poderes")
+@leave_playfield("tiros", "tiros_inimigos")
 def saiu(tiro):
     tiro.destroy()
 

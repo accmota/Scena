@@ -16,7 +16,7 @@ still runs each tutorial's last step, as its ``examples/`` file
 Bug classes guarded:
 
 * **The example drifts from the tutorial** (TU3): ``pegar_estrelas.py``,
-  ``naves.py``, ``cadeia_de_bolas.py``, ``barras_girando.py`` had each
+  ``naves_1.py``, ``cadeia_de_bolas.py``, ``barras_girando.py`` had each
   grown past (or behind) the step that was meant to be them.
 * **The extractor silently skips** a step or box (a regex change), so the
   runs in ``test_tutorial_steps`` would pass vacuously.

@@ -1,21 +1,20 @@
-"""Naves VI · Atos — tutorial 25.
+"""Naves V · Capítulos e sequências — tutorial 24.
 
-O jogo de naves do tutorial 24 dividido em atos: um título com um botão
-JOGAR, a fase e o fim de jogo. Recomeçar é trocar de ato, sem código de
-limpeza; os pontos, as vidas e o recorde ficam no st, que atravessa os
-atos. A fase tem dois capítulos (modos async): a frota, até o grupo
-esvaziar, e a batalha do chefe, que termina na vitória.
+O jogo de naves do tutorial 08 com capítulos (modos): cada inimigo fica
+na formação, de vez em quando mergulha na direção da nave com o jato
+aceso, atira lá de baixo e volta para a vaga. A frota chega em
+sequência (um modo async: desce, espera, estala, entra na formação), e,
+quando ela acaba, chega um chefe com barra de vida, que entra, luta e
+cai em etapas.
 
 Controles
 ---------
-  clique em JOGAR      começar
   ESQUERDA / DIREITA   mover
-  ESPAÇO               atirar; no fim de jogo, voltar ao título
-  R                    recomeçar
+  ESPAÇO               atirar
 
 Uso
 ---
-    python examples/naves_atos.py
+    python examples/naves_5_modos.py
 """
 
 from random import uniform
@@ -32,18 +31,21 @@ folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
 explosao = Sheet("misc/exp4.png", cols=12)
 explosao.clip("explode", range(12), fps=24)
 
+st.pontos = 0
+st.vidas = 3
+st.energia = 0
+st.velocidade = 80
 
+placar = Text(text="", top_left=(20, 780), font_size=20)
+placar["text"] @= lambda: f"Pontos {st.pontos}"
 
-def jogo_novo():
-    st.pontos = 0
-    st.vidas = 3
-    st.energia = 0
-    st.velocidade = 80
-    st.venceu = False
+Sprite(folha, frame="playerLife1_red.png", height=24, center=(900, 768))
+vidas = Text(text="", top_left=(920, 780), font_size=20)
+vidas["text"] @= lambda: f"x {st.vidas}"
 
+barra = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+barra["width"] @= lambda: st.energia * 2
 
-st.recorde = 0
-jogo_novo()
 
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
@@ -168,7 +170,7 @@ class Chefe(Sprite, source=folha, frame="ufoRed.png", height=110, group="chefe")
         canvas.shake(14)
         Explosao(center=self.center)
         st.pontos += 20
-        Starburst(center=self.center, radius=110)
+        Text(text="VITÓRIA", center=(500, 400), font_size=48)
         self.destroy()
 
     def on_destroy(self):
@@ -222,6 +224,7 @@ class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45, group=
             canvas.flash(0.4)
             canvas.explosion_at(self, amount=1.2)
             Fire(center=self.center, radius=30)
+            Text(text="FIM DE JOGO", center=(500, 400), font_size=48)
             play_sound("audio/gameover.wav")
             self.destroy()
 
@@ -244,84 +247,30 @@ class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45, group=
         self.escudo.destroy()
 
 
+nave = Heroi(center=(500, 70))
+
 FROTA = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for linha in range(3):
+    for coluna in range(8):
+        inimigo = Inimigo(frame=FROTA[linha], center=(185 + coluna * 90, 1220 - linha * 70))
+        inimigo.hue = coluna / 8
+        inimigo.espera = (2 - linha) * 0.6 + coluna * 0.08
+        inimigo.mode = inimigo.chegando
 
 
-def comecar():
-    jogo_novo()
-    change_act(Fase)
+@when(lambda: group["inimigos"].count == 0)
+def chega_o_chefe():
+    Chefe(center=(750, 1000))
 
 
-class Titulo(Act):
-    def setup(self):
-        Text(text="NAVES", center=(500, 520), font_size=80)
-        Text(text=f"Recorde {st.recorde}", center=(500, 430), font_size=24)
-        SpriteButton("k-rolling-ball/button_blue.png", center=(500, 330), width=180,
-                     label="JOGAR", label_inset=(0, 0, 0, 8), on_click=comecar)
+def update(dt):
+    group["inimigos"].move_by(st.velocidade * dt, 0)
 
-
-class Fase(Act):
-    def setup(self):
-        placar = Text(text="", top_left=(20, 780), font_size=20)
-        placar["text"] @= lambda: f"Pontos {st.pontos}"
-
-        Sprite(folha, frame="playerLife1_red.png", height=24, center=(900, 768))
-        vidas = Text(text="", top_left=(920, 780), font_size=20)
-        vidas["text"] @= lambda: f"x {st.vidas}"
-
-        barra = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
-        barra["width"] @= lambda: st.energia * 2
-
-        Heroi(center=(500, 70))
-        self.mode = self.batalha
-
-    @on_mode
-    async def batalha(self):
-        for linha in range(3):
-            for coluna in range(8):
-                inimigo = Inimigo(frame=FROTA[linha], center=(185 + coluna * 90, 1220 - linha * 70))
-                inimigo.hue = coluna / 8
-                inimigo.espera = (2 - linha) * 0.6 + coluna * 0.08
-                inimigo.mode = inimigo.chegando
-        await until_empty("inimigos")
-        await wait(1)
-        Chefe(center=(750, 1000))
-        await until_empty("chefe")
-        await wait(2)
-        st.venceu = True
-        change_act(FimDeJogo)
-
-    def on_update(self, dt):
-        group["inimigos"].move_by(st.velocidade * dt, 0)
-
-        for inimigo in group["inimigos"]:
-            if inimigo.center.x > 960:
-                st.velocidade = -80
-            if inimigo.center.x < 40:
-                st.velocidade = 80
-
-        if keyp.once("R"):
-            comecar()
-
-    @when(lambda self: st.vidas == 0)
-    def perdeu(self):
-        self.after(2, lambda: change_act(FimDeJogo))
-
-
-class FimDeJogo(Act):
-    def setup(self):
-        st.recorde = max(st.recorde, st.pontos)
-        if st.venceu:
-            Text(text="VOCÊ VENCEU", center=(500, 480), font_size=56, color="gold")
-        else:
-            Text(text="FIM DE JOGO", center=(500, 480), font_size=56, color="tomato")
-        Text(text=f"Pontos {st.pontos}   Recorde {st.recorde}", center=(500, 400), font_size=24)
-        Text(text="aperte ESPAÇO", center=(500, 330), font_size=18)
-        self.after(10, lambda: change_act(Titulo))
-
-    def on_update(self, dt):
-        if keyp.once("SPACE"):
-            change_act(Titulo)
+    for inimigo in group["inimigos"]:
+        if inimigo.center.x > 960:
+            st.velocidade = -80
+        if inimigo.center.x < 40:
+            st.velocidade = 80
 
 
 @leave_playfield("tiros", "tiros_inimigos", "poderes")
@@ -329,4 +278,4 @@ def saiu(tiro):
     tiro.destroy()
 
 
-run(Titulo)
+run()

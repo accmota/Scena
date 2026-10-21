@@ -3,7 +3,7 @@
 The script runs unmodified in the product loop (real pacing, present, GC).
 Play it, watch it, or leave it alone; the window closes after ``--seconds``.
 
-    python scripts/bench/jitter_probe.py examples/naves.py
+    python scripts/bench/jitter_probe.py examples/naves_1.py
     python scripts/bench/jitter_probe.py examples/barras_girando.py --seconds 120
     python scripts/bench/jitter_probe.py scripts/bench/live_mix.py --present fixed60 --seconds 300
     python scripts/bench/jitter_probe.py app.py --present vsync --json /tmp/j.json --trace /tmp/j.csv

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """perf_cull_level.py — ``canvas.cull_offscreen`` on a real game level, in-process A/B.
 
-Runs an example unmodified (default: ``examples/ninja_nivel.py``, tutorial 21:
+Runs an example unmodified (default: ``examples/ninja_3_nivel.py``, tutorial 21:
 a 4000-wide level in a 1000-wide window) inside the phase-timed loop of
 ``harness.install_phase_run``, sweeps the camera across the level, and flips
 ``cull_offscreen`` every ``--block`` frames. Each OFF block replays the camera
@@ -14,7 +14,7 @@ objects the draw walk kept / skipped.
 
     python scripts/bench/perf_cull_level.py
     python scripts/bench/perf_cull_level.py --seconds 30 --block 60 --sweep 600
-    python scripts/bench/perf_cull_level.py --script examples/ninja_perigos.py
+    python scripts/bench/perf_cull_level.py --script examples/ninja_4_perigos.py
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ from harness import install_phase_run  # noqa: E402
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("--script", default=os.path.join(REPO, "examples", "ninja_nivel.py"))
+    p.add_argument("--script", default=os.path.join(REPO, "examples", "ninja_3_nivel.py"))
     p.add_argument("--seconds", type=float, default=20.0, help="recorded time")
     p.add_argument("--warmup", type=float, default=4.0,
                    help="unrecorded start (the example opens zoomed out on the whole level)")

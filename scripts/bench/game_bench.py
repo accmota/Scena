@@ -9,10 +9,10 @@ from the product frame: no clip settle, Endless refill, bounds, hover or
 pointer resync). Pacing is uncapped (``canvas.framerate = "max"``), FX Auto
 off; everything else is the game's own.
 
-    python scripts/bench/game_bench.py examples/ninja_perigos.py
+    python scripts/bench/game_bench.py examples/ninja_4_perigos.py
     python scripts/bench/game_bench.py scripts/bench/games/horda.py --params n=400
     python scripts/bench/game_bench.py scripts/bench/games/horda.py --ladder n=50,150,400,1000
-    python scripts/bench/game_bench.py examples/ninja_nivel.py --cull ab
+    python scripts/bench/game_bench.py examples/ninja_3_nivel.py --cull ab
     python scripts/bench/game_bench.py scripts/bench/games/mundo.py --profile 40
 
 Report (ms per recorded frame): ``work`` (simulate + draw + submit: the CPU

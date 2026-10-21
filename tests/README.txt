@@ -438,8 +438,8 @@ equations".
           tutorial steps; seed SCENA_CHAOS_SEED)
 
   python tests/run_tiers.py focused test_laws_quick test_laws_lifetime
-  python tests/script_harness.py examples/naves.py 120 --laws /tmp/t.jsonl --fingerprint
-  python tests/script_harness.py examples/naves.py 600 --pace 144      # E1: same game time
+  python tests/script_harness.py examples/naves_1.py 120 --laws /tmp/t.jsonl --fingerprint
+  python tests/script_harness.py examples/naves_1.py 600 --pace 144      # E1: same game time
   python tests/laws/chaos.py tests/laws/fixtures/s5_doors --plan enter:0:destroy.partner
                                      # one chaos run: what fired, what the checks found
   python tests/laws/probe.py <folder>  # persona probes: <name>.py + <name>.expect.py

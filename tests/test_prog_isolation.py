@@ -63,7 +63,7 @@ PROGRAMS: Dict[str, str] = {
     "examples/cadeia_de_bolas": "mouse",
     "galaga_acts": "start_space",
     "geometry_lab": "pins",
-    "examples/naves": "atira",
+    "examples/naves_1": "atira",
     "examples/pegar_estrelas": "direita",
     "platformer": "jump",
     "runner_story": "skip",
@@ -106,7 +106,7 @@ def b_scenarios(program: str) -> List[str]:
 
 # Dirty predecessors at dev run against the programs with widgets, a pointer
 # scenario and acts; the full run takes every program.
-DIRTY_PROGRAMS_DEV = ("bouncing_balls", "galaga_acts", "toybox", "examples/naves")
+DIRTY_PROGRAMS_DEV = ("bouncing_balls", "galaga_acts", "toybox", "examples/naves_1")
 
 
 def warm() -> None:

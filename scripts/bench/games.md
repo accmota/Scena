@@ -2,7 +2,7 @@
 
 Whole games timed in the **real** run loop by [`game_bench.py`](game_bench.py): the
 four benchmark games in [`games/`](games/README.txt) plus the tutorial-22 ninja
-(`examples/ninja_perigos.py`). The other pulses time one subsystem each; these
+(`examples/ninja_4_perigos.py`). The other pulses time one subsystem each; these
 time what an author's game costs, and where.
 
 **Budget.** The target machine is about 4× slower than the M4 these rows come
@@ -15,7 +15,7 @@ a ladder that only shows how the cost grows ([games/README.txt](games/README.txt
 From the repo root (opens a window; uncapped pacing, FX Auto off).
 
 ```bash
-python scripts/bench/game_bench.py examples/ninja_perigos.py
+python scripts/bench/game_bench.py examples/ninja_4_perigos.py
 python scripts/bench/game_bench.py scripts/bench/games/horda.py --ladder n=50,150,400,1000
 python scripts/bench/game_bench.py scripts/bench/games/mundo.py --cull ab
 python scripts/bench/game_bench.py scripts/bench/games/festa.py --profile 40

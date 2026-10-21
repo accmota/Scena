@@ -1,11 +1,12 @@
-"""Ninja II · O mundo — tutorial 19.
+"""Ninja III · O nível — tutorial 26.
 
-O ninja do tutorial 18 num mundo para viver: um buraco com água no meio
-do chão, uma folga para pular na beirada (recently, o tempo do coiote),
-cinco estrelas para pegar, dois robôs que patrulham, kunais que os
-quebram (um clip que toca uma vez e volta) e três vidas. Cair na água ou
-encostar num robô custa uma vida; sem vidas, o jogo acaba (para jogar de
-novo, rode outra vez).
+O ninja do tutorial 19 numa fase quatro vezes mais larga que a tela,
+desenhada no editor de fases (media/levels/ninja.json): o código lê a fase
+(Level), cria as peças de cada grupo (make) e decide o que elas são. A
+câmera segue o ninja com folga e atraso (deadzone e chase), o HUD fica
+preso à janela (layer="ui"), o fundo e uma fileira de árvores andam mais
+devagar que o chão (pan_response), e o jogo começa mostrando a fase
+inteira (frame_to).
 
 Controles
 ---------
@@ -13,41 +14,31 @@ Controles
   CIMA                 pular
   ESPAÇO               jogar uma kunai
 
+Para ver ou mudar a fase: python -m scena_editor media/levels/ninja.json
+
 Uso
 ---
-    python examples/ninja_mundo.py
+    python examples/ninja_3_nivel.py
 """
 
 from scena import *
 
 init(width=1000, height=750, title="Ninja")
-Wallpaper("tilesets/BG/BG.png")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("longe", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="longe")
 
-Sprite("tilesets/Object/Tree_2.png", height=230, center=(130, 195))
-Sprite("tilesets/Object/Bush (1).png", height=50, center=(300, 105))
-Sprite("tilesets/Object/Sign_2.png", height=60, center=(410, 110))
-Sprite("tilesets/Object/Mushroom_1.png", height=30, center=(770, 95))
-Sprite("tilesets/Object/Bush (3).png", height=40, center=(960, 100))
+fase = Level("levels/ninja.json")
+canvas.playfield.set(fase.box)
 
-for i in range(5):
-    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
-Sprite("tilesets/Tiles/3.png", height=80, center=(440, 40), group="chao")
-Sprite("tilesets/Tiles/1.png", height=80, center=(680, 40), group="chao")
-for i in range(9, 13):
-    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="chao")
-
-
-def plataforma(x, y):
-    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="chao")
-    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="chao")
-    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="chao")
-
-
-plataforma(360, 220)
-plataforma(720, 390)
-plataforma(420, 560)
-Rect(center=(-20, 375), width=40, height=750, group="chao")
-Rect(center=(1020, 375), width=40, height=750, group="chao")
+for enfeite in fase.group("enfeite"):
+    enfeite.make()
+for peca in fase.group("chao"):
+    peca.make()
+for lugar in fase.group("parede"):
+    parede = lugar.make(group="chao")
+    parede.visible = False
 group["chao"].mass = STATIC
 
 st.estrelas = 0
@@ -55,10 +46,10 @@ st.vidas = 3
 
 placar = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
 placar["text"] @= lambda: f"Estrelas {st.estrelas}"
-Sprite("ninja/Idle__000.png", height=40, center=(890, 715))
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
 vidas = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
 vidas["text"] @= lambda: f"x {st.vidas}"
-aviso = Text(text="", center=(500, 680), font_size=36, color="dark green")
+aviso = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
 
 ninja = Sheet(anchor="bottom", pixel_size=0.2)
 ninja.strip("parado", "ninja/Idle__*.png", fps=8)
@@ -158,7 +149,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
         estrela.destroy()
         st.estrelas += 1
         play_sound("synth/coin.wav")
-        if st.estrelas == 5:
+        if st.estrelas == len(fase.group("estrela")):
             aviso.text = "Todas as estrelas!"
             play_sound("audio/Victory.mp3")
 
@@ -173,7 +164,7 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
         canvas.shake(6)
         if st.vidas > 0:
             play_sound("audio/sfx-hit-2.wav")
-            self.center = (100, 400)
+            self.center = fase["inicio"].center
             self.vel = Vec2(0, 0)
             self.blink(1)
         else:
@@ -183,17 +174,37 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
 resolve("heroi", "chao", bounce=0)
 
-heroi = Heroi(center=(100, 400))
+heroi = Heroi(center=fase["inicio"].center)
 
-for x, y in [(360, 300), (560, 220), (720, 470), (420, 640), (960, 150)]:
-    estrela = Sprite("k-rolling-ball/star.png", height=36, center=(x, y), group="estrela")
+for lugar in fase.group("estrela"):
+    estrela = Sprite("k-rolling-ball/star.png", height=36, center=lugar.center, group="estrela")
     estrela.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
 
-Robo(center=(840, 80))
-Robo(center=(720, 419))
+for lugar in fase.group("robo"):
+    Robo(center=lugar.center)
 
-Sprite("tilesets/Tiles/17.png", width=80, center=(520, 31))
-Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
+for agua in fase.group("agua"):
+    agua.make()
+
+
+st.seguir = False
+canvas.frame_to(fase.box)
+
+
+@after(2)
+def comecar():
+    canvas.zoom_to(1, time=1)
+    st.seguir = True
+
+
+def update(dt):
+    if not st.seguir:
+        return
+    olhar = (canvas.pan_x, canvas.pan_y)
+    x, y = deadzone(olhar, heroi.center, size=200)
+    x = max(x, 500)
+    x = min(x, 3500)
+    canvas.pan_to(chase(olhar, (x, 375), rate=5))
 
 
 @leave_playfield("kunai")

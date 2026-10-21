@@ -80,7 +80,7 @@ SLOW = frozenset({
     "test_tutorial_steps",      # ~300-500 s CPU: every tutorial step and box, 600 frames each
                                 # (quick keeps test_tutorials and the endpoints in test_scripts_run)
     # Program model tests (gate / deep run them all; quick keeps the light ones).
-    "test_prog_naves", "test_prog_cadeia_de_bolas", "test_prog_platformer",
+    "test_prog_naves_1", "test_prog_cadeia_de_bolas", "test_prog_platformer",
     "test_prog_galaga_acts", "test_prog_runner_story",
     "test_prog_isolation",       # ~50 s dev, ~150 s ci: every program after a neighbour and
                                  # after dirty predecessors; ci runs every ordered pair

@@ -856,6 +856,14 @@ left out.
 
 ### Documentation
 
+- The examples of the Naves and Ninja series carry their number in the
+  series, as the tutorial titles do: `naves_1.py`, `naves_2_classes.py`,
+  `naves_3_vidas.py`, `naves_4_escudo.py`, `naves_5_modos.py`,
+  `naves_6_atos.py`; `ninja_1.py`, `ninja_2_mundo.py`, `ninja_3_nivel.py`,
+  `ninja_4_perigos.py`. Before: `naves.py`, `naves_classes.py`, …,
+  `ninja.py`, `ninja_mundo.py`, …. The level files keep their names
+  (`levels/ninja_perigos.json`).
+
 - Guia: the parallax row of the error table now tells naming an object
   apart from a group member. `@drag_to` with 2 parameters gets
   `(from, to)`, and the point is the 3rd. A chain of moves started from

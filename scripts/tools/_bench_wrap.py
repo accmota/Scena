@@ -1,7 +1,7 @@
 """Phase-timing bench wrapper for Scena apps without built-in --bench.
 
 Usage:
-    python scripts/tools/_bench_wrap.py examples/naves.py
+    python scripts/tools/_bench_wrap.py examples/naves_1.py
     python scripts/tools/_bench_wrap.py scripts/smoke/spatial.py --duration 3 --warmup 0.5
 """
 from __future__ import annotations

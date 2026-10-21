@@ -15,7 +15,7 @@ python scripts/smoke/shape_fx.py
 python scripts/bench/live_mix.py --bench --duration 3
 python scripts/bench/soak_leak.py --cycles 20 --json
 python scripts/bench/fx_churn.py --quick
-python examples/naves.py
+python examples/naves_1.py
 ```
 
 Author-facing games live in [`examples/`](../examples/) at the repo root.

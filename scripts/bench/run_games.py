@@ -54,7 +54,7 @@ SCRIPT_FILES = (
 )
 # id, script (repo-relative), PARAMS. Reference sizes, then the stress sizes.
 GAMES: Tuple[Tuple[str, str, str], ...] = (
-    ("ninja", "examples/ninja_perigos.py", ""),
+    ("ninja", "examples/ninja_4_perigos.py", ""),
     ("horda", "scripts/bench/games/horda.py", "n=150"),
     ("horda400", "scripts/bench/games/horda.py", "n=400"),
     ("mundo", "scripts/bench/games/mundo.py", "tiles=1500,robots=20"),

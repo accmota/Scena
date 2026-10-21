@@ -13,7 +13,7 @@ Controles
 
 Uso
 ---
-    python examples/ninja.py
+    python examples/ninja_1.py
 """
 
 from scena import *

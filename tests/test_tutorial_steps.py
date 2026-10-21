@@ -261,7 +261,7 @@ class TestFleetBounce(unittest.TestCase):
         # Labels in "/" form on every OS (os.path.relpath gives "\\" on Windows).
         programs = [(os.path.relpath(p, ROOT).replace(os.sep, "/"), p) for p in iter_files(EXAMPLES, ".py", recursive=True)
                     if marker in _read(p) and not os.path.basename(p).startswith("game_")]
-        self.assertIn("examples/naves.py", [label for label, _ in programs])
+        self.assertIn("examples/naves_1.py", [label for label, _ in programs])
         steps = [s for s in extract_steps(os.path.join(TUTORIALS, "05-naves.html"))
                  if marker in s.code]
         self.assertGreater(len(steps), 0, "no fleet-bounce step found in tutorial 05")

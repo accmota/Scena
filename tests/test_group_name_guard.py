@@ -6,7 +6,7 @@ only live members, so two correct reads warned:
 
 * not filled yet: ``group["tiros_inimigos"]`` before the first enemy shot
   ("Did you mean 'inimigos'?"), although ``@collide`` / ``@leave_playfield``
-  name the group (``examples/naves.py``);
+  name the group (``examples/naves_1.py``);
 * emptied: the registry drops a bucket with its last member, so clearing the
   fleet made ``group["inimigos"]`` warn "Did you mean 'tiros_inimigos'?" (the
   ``until_empty`` member of the class: ``test_process``).

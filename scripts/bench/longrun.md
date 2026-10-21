@@ -41,7 +41,7 @@ python scripts/bench/longrun.py --pulse                         # protocol longr
 python scripts/bench/longrun.py --minutes 30                    # ad-hoc soak, print only
 python scripts/bench/longrun.py --minutes 5 --present vsync     # A/B pacing
 python scripts/bench/longrun.py --minutes 5 --gc-freeze         # A/B GC
-python scripts/bench/jitter_probe.py examples/naves.py --seconds 120   # any app
+python scripts/bench/jitter_probe.py examples/naves_1.py --seconds 120   # any app
 ```
 
 Keep the window **visible and in front** (macOS throttles occluded windows) and leave the machine alone.

@@ -86,7 +86,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def program_path(name: str) -> str:
-    """``"bouncing_balls"`` -> tests/programs/; ``"examples/naves.py"`` -> repo-relative
+    """``"bouncing_balls"`` -> tests/programs/; ``"examples/naves_1.py"`` -> repo-relative
     (a taught example runs in place, next to its ``media/``); absolute stays."""
     if not name.endswith(".py"):
         name += ".py"
@@ -1005,7 +1005,7 @@ class Divergence:
 
 
 def spec_base(program: str) -> str:
-    """Spec files are named after the program's basename (``naves_spec_a.py``)."""
+    """Spec files are named after the program's basename (``naves_1_spec_a.py``)."""
     return os.path.splitext(os.path.basename(program))[0]
 
 

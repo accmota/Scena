@@ -35,7 +35,7 @@ import make_examples_zip as mz  # noqa: E402
 from tests.source_support import iter_files  # noqa: E402
 
 # Played from the unzipped folder: their images come through a level file.
-PLAYED = ("ninja_nivel.py", "ninja_perigos.py")
+PLAYED = ("ninja_3_nivel.py", "ninja_4_perigos.py")
 
 
 class TestExamplesZipList(unittest.TestCase):
@@ -82,7 +82,7 @@ class TestExamplesZipWiring(unittest.TestCase):
             readme = fh.read()
         self.assertIn("https://github.com/accmota/Scena/releases/latest/download/"
                       "scena-examples.zip", readme)
-        self.assertIn(f"python {mz.TOP}/naves_escudo.py", readme)
+        self.assertIn(f"python {mz.TOP}/naves_4_escudo.py", readme)
 
     def test_the_release_job_builds_and_attaches_it_after_pypi(self):
         with open(os.path.join(ROOT, ".github", "workflows", "release.yml"),
@@ -113,7 +113,7 @@ class TestExamplesZipContents(unittest.TestCase):
     def test_layout(self):
         self.assertTrue(all(n.startswith(mz.TOP + "/") for n in self.names))
         self.assertIn(f"{mz.TOP}/README.txt", self.names)
-        self.assertIn(f"{mz.TOP}/naves_escudo.py", self.names)
+        self.assertIn(f"{mz.TOP}/naves_4_escudo.py", self.names)
         self.assertIn(f"{mz.TOP}/media/CREDITS.md", self.names)
 
     def test_the_same_list_makes_the_same_zip(self):

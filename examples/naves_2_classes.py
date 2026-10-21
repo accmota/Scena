@@ -11,7 +11,7 @@ Controles
 
 Uso
 ---
-    python examples/naves_classes.py
+    python examples/naves_2_classes.py
 """
 
 from random import choice

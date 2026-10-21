@@ -48,7 +48,7 @@ Each .py file here is the last step of a tutorial. The images and sounds they
 use are in media/. To run one (Python 3.12 or newer):
 
     pip install scena
-    python naves_escudo.py
+    python naves_4_escudo.py
 
 Tutorial and API Guide: https://accmota.github.io/Scena/
 The tutorial copies media/ next to your own scripts: copy this media/ folder.

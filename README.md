@@ -292,8 +292,8 @@ last step of a tutorial.
 
 <table>
   <tr>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/naves_escudo.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/naves_escudo.webp" width="380" alt="Naves"></a><br><b>Naves</b>: a space shooter with lives, explosions and a shield</td>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/ninja_perigos.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ninja_perigos.webp" width="380" alt="Ninja IV"></a><br><b>Ninja IV</b>: a platformer built in the level editor, with robots and electric traps</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/naves_4_escudo.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/naves_escudo.webp" width="380" alt="Naves"></a><br><b>Naves</b>: a space shooter with lives, explosions and a shield</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/ninja_4_perigos.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ninja_perigos.webp" width="380" alt="Ninja IV"></a><br><b>Ninja IV</b>: a platformer built in the level editor, with robots and electric traps</td>
   </tr>
   <tr>
     <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/aviao_paisagem.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/aviao_paisagem.webp" width="380" alt="Plane"></a><br><b>Plane</b>: fly between pillars over an endless, layered landscape</td>
@@ -321,7 +321,7 @@ To try the examples, download
 and run one:
 
 ```bash
-python scena-examples/naves_escudo.py
+python scena-examples/naves_4_escudo.py
 ```
 
 ## Learn

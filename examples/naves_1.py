@@ -10,7 +10,7 @@ Controles
 
 Uso
 ---
-    python examples/naves.py
+    python examples/naves_1.py
 """
 
 from random import choice

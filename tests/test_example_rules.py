@@ -58,7 +58,7 @@ sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 from program_support import ProgramRun  # noqa: E402
 
-NINJAS = ("examples/ninja_mundo.py", "examples/ninja_nivel.py", "examples/ninja_perigos.py")
+NINJAS = ("examples/ninja_2_mundo.py", "examples/ninja_3_nivel.py", "examples/ninja_4_perigos.py")
 
 
 class _Ball:
@@ -154,7 +154,7 @@ class TestNinjaFallsThenDies(unittest.TestCase):
 
 
 class TestNinjaElevator(unittest.TestCase):
-    PATH = "examples/ninja_perigos.py"
+    PATH = "examples/ninja_4_perigos.py"
 
     def test_the_ninja_rides_it_up_and_down(self):
         with ProgramRun(self.PATH) as run:

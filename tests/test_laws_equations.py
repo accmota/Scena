@@ -204,11 +204,11 @@ E1_EXCLUDED = {
                       "a capture lands a few frames apart at other pacings",
     "aviao.py": "ACADEMIC: the author's own Euler step (vel.y -= g * dt) puts the plane a "
                 "few pixels apart at uneven pacing; a door passed one frame later",
-    "naves_modos.py": "ACADEMIC: a self re-arming after / a mode's wait starts each period at "
+    "naves_5_modos.py": "ACADEMIC: a self re-arming after / a mode's wait starts each period at "
                       "the frame that noticed the last one (Scena Design, Clocks: 'at least p "
                       "apart', not a rate); uneven pacing drifts the chain",
 }
-E1_DEV = ("one_ball", "orbitas.py", "naves.py", "colisao.py", "ninja.py", "pegar_estrelas.py")
+E1_DEV = ("one_ball", "orbitas.py", "naves_1.py", "colisao.py", "ninja_1.py", "pegar_estrelas.py")
 
 
 class TestPacing(unittest.TestCase):
