@@ -81,7 +81,7 @@ class Aviao(Sprite, source=folha, height=40):
         self.play("caindo")
         canvas.shake(6)
         play_sound("audio/explosion02.wav")
-        self.fogo = Fire(center=lambda: self.center, width=14, style="plume")
+        self.fogo = Fire(center=lambda: self.center + Vec2(-20, 8).rotate(self.angle), width=12, style="tongues")
         aviso.text = "Aperte espaço"
         musica.fade_to(0.1, time=1)
 

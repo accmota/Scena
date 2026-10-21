@@ -458,7 +458,7 @@ run()
     {
       title: "Fogo na queda",
       body: `
-        <p>O avião quebrado cai pegando fogo, e o fogo vai com ele até o chão.</p>
+        <p>O avião quebrado cai com fogo na cauda, e o fogo vai com ele até o chão.</p>
       `,
       code: `from random import uniform
 from scena import *
@@ -524,7 +524,7 @@ class Aviao(Sprite, source=folha, height=40):
         self.play("caindo")
         canvas.shake(6)
         play_sound("audio/explosion02.wav")
-        self.fogo = Fire(center=lambda: self.center, width=14, style="plume")
+        self.fogo = Fire(center=lambda: self.center + Vec2(-20, 8).rotate(self.angle), width=12, style="tongues")
         aviso.text = "Aperte espaço"
 
 
@@ -580,7 +580,7 @@ run()
       notes: [
         {
           at: "self.fogo = Fire(",
-          text: "<code>Fire</code> (fogo) é um efeito que vive no mundo; <code>style=\"plume\"</code> (pluma) é uma labareda que sobe. O centro é uma <code>lambda</code> que lê o centro do avião, então o fogo cai junto com ele."
+          text: "<code>Fire</code> (fogo) é um efeito que vive no mundo; <code>style=\"tongues\"</code> (línguas) são chamas pequenas presas a um ponto. O ponto é a cauda: <code>Vec2(-20, 8)</code> leva do centro do avião até ela, e <code>.rotate(self.angle)</code> gira esse caminho junto com o avião. Como o centro é uma <code>lambda</code>, o fogo fica na cauda até o chão."
         },
         {
           at: "aviao.fogo.destroy()",
@@ -588,14 +588,14 @@ run()
         }
       ],
       after: `
-        <p>Bata num pilar: o fogo cai com o avião e se apaga quando o jogo recomeça.</p>
+        <p>Bata num pilar: o fogo fica na cauda enquanto o avião cai e se apaga quando o jogo recomeça.</p>
       `,
       try: [
           {
-            note: "Um de cada vez, no lugar do <code>Fire</code> em <code>cair</code>: um fogo maior, ou brasas que sobem.",
+            note: "Um de cada vez, no lugar do <code>Fire</code> em <code>cair</code>: um fogo maior, ou fogo no avião inteiro.",
             replaces: ['self.fogo = Fire('],
-            code: `self.fogo = Fire(center=lambda: self.center, width=24, style="plume")
-self.fogo = Fire(center=lambda: self.center, width=20, style="embers")`
+            code: `self.fogo = Fire(center=lambda: self.center + Vec2(-20, 8).rotate(self.angle), width=20, style="tongues")
+self.fogo = Fire(center=lambda: self.center, width=14, style="plume")`
           }
         ]
     },
@@ -671,7 +671,7 @@ class Aviao(Sprite, source=folha, height=40):
         self.play("caindo")
         canvas.shake(6)
         play_sound("audio/explosion02.wav")
-        self.fogo = Fire(center=lambda: self.center, width=14, style="plume")
+        self.fogo = Fire(center=lambda: self.center + Vec2(-20, 8).rotate(self.angle), width=12, style="tongues")
         aviso.text = "Aperte espaço"
         musica.fade_to(0.1, time=1)
 
