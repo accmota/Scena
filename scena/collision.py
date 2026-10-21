@@ -174,6 +174,13 @@ _POSE_REV_VERIFY = os.environ.get("SCENA_VERIFY_POSE_REV") == "1"
 # and a group's candidates are masked against the query box in numpy. False:
 # every candidate is refreshed and tested in Python (oracle, A/B).
 _QUERY_VECTOR = True
+# Query pools (Collision Design, "Query pools"): a query over a group of at
+# least ``_QUERY_POOL_MIN`` candidates reads a cached candidate list (the
+# walk's, in its order) whose boxes are kept fresh by the moved set, masks it
+# against the query box in numpy, and runs the walk's per-candidate checks on
+# what is left. False: the walk (oracle, A/B).
+_QUERY_POOL = True
+_QUERY_POOL_MIN = 16
 # One convex polygon (box, turned box, hull) swept against another takes the
 # closed-form swept SAT instead of conservative advancement (Collision Design,
 # "Polygon sweeps"). False: GJK advancement (oracle, A/B).
@@ -238,6 +245,7 @@ _LOCAL_PAD = 8.0
 # Design, "Step cost"). False: the full walks (oracle, A/B).
 _STEP_SKIP_STILL = True
 _INF_BOX = (-math.inf, -math.inf, math.inf, math.inf)
+_NO_IDS: frozenset = frozenset()
 
 
 def _mirror_row(c) -> Tuple[float, ...]:
@@ -272,6 +280,44 @@ def _rows_meeting(b, rows, c0: int, x0, y0, x1, y1) -> List[int]:
         mask = ~((b[:, c0] > x1) | (x0 > b[:, c0 + 2]) | (b[:, c0 + 1] > y1)
                  | (y0 > b[:, c0 + 3]))[rows]
     return np.flatnonzero(mask).tolist()
+
+
+class _QueryPool:
+    """One query group's candidates, as the walk lists them, with their boxes
+    (``CollisionSystem._query_pool``).
+
+    Entry ``i`` is ``cols[i]`` (None: volatile, asked every time) and
+    ``members[i]`` (a weakref to the group member it answers for, or None for
+    a collider listed as itself: a declared tag's or the enrolled world's).
+    Registered colliders read the proxy mirror (``reg_pos`` / ``reg_rows``);
+    the others own a row of ``q_boxes``: ``(minx, miny, -maxx, -maxy)``, so a
+    box meets the query when no column exceeds ``(x1, y1, -x0, -y0)``.
+    """
+
+    __slots__ = ("ver", "cols", "members", "tags", "n", "reg_pos", "reg_list", "reg_rows",
+                 "reg_ids", "q_pos", "q_boxes", "q_cols", "q_always", "vol_pos", "plain_q")
+
+    def __init__(self, ver):
+        self.ver = ver
+        self.cols: List[Optional[Collider]] = []
+        self.members: List[Any] = []
+        self.tags: List[Optional[str]] = []
+        self.n = 0
+        self.reg_pos = self.reg_rows = self.q_pos = self.vol_pos = None
+        self.reg_list: List[int] = []
+        self.reg_ids: Set[int] = set()
+        self.q_boxes = None
+        self.q_cols: List[Collider] = []
+        self.q_always: Set[int] = set()        # q rows refreshed by every query
+        self.plain_q = False
+
+
+def _q_row(c) -> Tuple[float, float, float, float]:
+    """A pool row: the proxy with its max negated (infinite when invalid)."""
+    if not c._proxy_valid:
+        return (-math.inf, -math.inf, -math.inf, -math.inf)
+    p = c._proxy
+    return (p[0], p[1], -p[2], -p[3])
 
 
 class _SharedPartners:
@@ -1774,15 +1820,16 @@ def _pose_rev_kind(cls) -> int:
     on the class."""
     ok = cls.__dict__.get("_scena_pose_rev_kind")
     if ok is None:
-        from .shapes import Circle, Ellipse, Rect
+        from .shapes import Circle, Ellipse, Rect, RegularPolygon, Triangle
         ok = 2 if _sprite_pose_fast_class(cls) else 0
         if not ok:
-            for base in (Rect, Circle, Ellipse):
+            for base in (Rect, Circle, Ellipse, Triangle, RegularPolygon):
                 if issubclass(cls, base):
                     same = all(getattr(cls, n, None) is getattr(base, n, None)
                                for n in ("_collision_pose_extra", "_collision_pose_anchor",
                                          "_center_xy", "_oriented_frame", "_pull_property_anchors",
-                                         "_has_domain_frame", "_is_hitbox_part"))
+                                         "_has_domain_frame", "_is_hitbox_part",
+                                         "_placement_params"))
                     ok = 1 if same else 0
                     break
         type.__setattr__(cls, "_scena_pose_rev_kind", ok)
@@ -4092,6 +4139,31 @@ def _sat_circle_vs(circle: Prim, other: Prim) -> Optional[Contact]:
     return Contact(best_axis, min_overlap, [(qx, qy)])
 
 
+def _circle_overlaps(circle: Prim, other: Prim) -> bool:
+    """``narrow_phase(circle, other) is not None``, for a query: the same
+    separating-axis test as ``_sat_circle_vs`` on a box or polygon, without
+    the MTV and contact point a query does not read."""
+    kind = other.kind
+    if kind != PrimKind.OBB and kind != PrimKind.POLY:
+        return narrow_phase(circle, other) is not None
+    cx, cy, r = circle.params[0], circle.params[1], circle.params[2]
+    verts = _prim_as_poly(other)
+    if len(verts) < 3:
+        return False
+    axes = _axes_from_poly(verts)
+    closest = min(verts, key=lambda p: _sq(p[0] - cx) + _sq(p[1] - cy))
+    dx, dy = cx - closest[0], cy - closest[1]
+    dlen = math.hypot(dx, dy)
+    if dlen > 1e-12:
+        axes.append((dx / dlen, dy / dlen))
+    for ax, ay in axes:
+        amin, amax = _project_circle(cx, cy, r, ax, ay)
+        bmin, bmax = _project_poly(verts, ax, ay)
+        if _axis_penetration(amin, amax, bmin, bmax) is None:
+            return False
+    return True
+
+
 def _closest_point_on_poly(px: float, py: float, verts: Sequence[Tuple[float, float]]) -> Tuple[float, float]:
     """Closest point on the polygon *boundary* (never an interior point)."""
     best = verts[0]
@@ -4405,6 +4477,20 @@ def _shape_layer_name(shape) -> Optional[Union[str, int]]:
     return name
 
 
+_LAYER_DEPS = None
+
+
+def _layer_deps() -> tuple:
+    """``_collision_layer_error``'s imports, once (every named query's
+    candidate asks: a function-level import costs a module lookup)."""
+    global _LAYER_DEPS
+    if _LAYER_DEPS is None:
+        from .canvas import ScenaCanvas
+        from .registry import ParallaxLayerError, UiLayerError, normalize_layer_name, UI_LAYER
+        _LAYER_DEPS = (ScenaCanvas, ParallaxLayerError, UiLayerError, normalize_layer_name, UI_LAYER)
+    return _LAYER_DEPS
+
+
 def _collision_layer_error(shape):
     """``(exception class, message)`` when ``shape`` cannot enroll, else None.
 
@@ -4413,9 +4499,8 @@ def _collision_layer_error(shape):
     name the host pass the host.
     """
     try:
-        from .canvas import ScenaCanvas
-        from .registry import ParallaxLayerError, UiLayerError, normalize_layer_name, UI_LAYER
-
+        (ScenaCanvas, ParallaxLayerError, UiLayerError, normalize_layer_name,
+         UI_LAYER) = _layer_deps()
         registry = ScenaCanvas.get_current().registry
     except Exception:
         return None
@@ -4475,9 +4560,15 @@ def _has_query_geometry(item) -> bool:
     """
     if getattr(type(item), "_is_hitbox_part", False):
         return True
-    from .entity import Graphic
-    from .spatial_fx import SpatialFx
-    return isinstance(item, (Graphic, SpatialFx))
+    global _GEOMETRY_KINDS
+    if _GEOMETRY_KINDS is None:
+        from .entity import Graphic
+        from .spatial_fx import SpatialFx
+        _GEOMETRY_KINDS = (Graphic, SpatialFx)
+    return isinstance(item, _GEOMETRY_KINDS)
+
+
+_GEOMETRY_KINDS = None
 
 
 def _is_query_actor(atom) -> bool:
@@ -5168,6 +5259,17 @@ class CollisionSystem:
         self._struct_version = 0             # _colliders order / membership
         self._tag_version = 0                # tag index membership
         self._group_rows_cache: Dict[Any, tuple] = {}
+        # Query pools (QP): one per queried group; the unregistered colliders
+        # they hold, by the id of their pose root (the moved set reaches them
+        # through it) and by their own id (the pool rows they fill); those
+        # moved since a query refreshed them; those whose pose can change
+        # with no write (refreshed by every query of their pool).
+        self._query_pools: Dict[Any, _QueryPool] = {}
+        self._q_by_root: Dict[int, List[Collider]] = {}
+        self._q_slots: Dict[int, List[Tuple[_QueryPool, int]]] = {}
+        self._q_stale: Set["Collider"] = set()
+        self._q_unrooted: Set[int] = set()
+        self._query_seen: Dict[Any, tuple] = {}   # last version asked, per group
         # Object-literal @collide targets that were already warned as destroyed.
         self._dead_target_warned: Set[int] = set()
         # Last-step contacts from sweep/settle (feeds touching_*).
@@ -5379,6 +5481,8 @@ class CollisionSystem:
         self._unbound.discard(c)
         if self._group_rows_cache:
             self._group_rows_cache.clear()  # its candidate lists may hold c
+        if self._query_pools:
+            self._drop_query_pools(lambda pool: id(c) in pool.reg_ids)
         self._touching_live.pop(id(c), None)
 
     def _swap_remove_collider(self, collider: Collider) -> None:
@@ -6787,6 +6891,25 @@ class CollisionSystem:
             and proxy_keys is not None
             and old == proxy_keys
         ):
+            return cached
+        # The proxy's revisions still the pose's: its key is the pose, and so
+        # is a hull built for that key (a query's candidates, just refreshed).
+        if (
+            _POSE_REV_SKIP
+            and cached is not None
+            and old is not None
+            and collider._proxy_valid
+            and collider._proxy_revs is not None
+            and (old is proxy_keys or old == proxy_keys)
+            and collider._proxy_revs == _collider_pose_revs(shapes)
+        ):
+            if _POSE_REV_VERIFY:
+                keys = tuple(_collision_pose_key(s) for s in shapes)
+                if keys != old:
+                    raise AssertionError(
+                        f"world prims of {collider!r} kept for revisions "
+                        f"{collider._proxy_revs}, but the pose key moved: {old} -> {keys}"
+                    )
             return cached
         keys = tuple(_collision_pose_key(s) for s in shapes)
         if cached is not None and old == keys:
@@ -9666,6 +9789,7 @@ class CollisionSystem:
         if not cells:
             return
         stale = self._stale
+        q_by_root = self._q_by_root
         for cell in cells:
             cell[1] = False
             ref = cell[2]
@@ -9681,9 +9805,13 @@ class CollisionSystem:
                     pc = probe_private(part, "_collider", None)
                     if pc is not None:
                         stale.add(pc)
+            if q_by_root:
+                held = q_by_root.get(id(root))
+                if held:
+                    self._q_stale.update(held)
         cells.clear()
 
-    def _fresh_proxies(self, members: Optional[Set[int]] = None) -> None:
+    def _fresh_proxies(self, members: Optional[Set[int]] = None) -> int:
         """Between steps: make registered proxies match their pose, touching
         only what moved (``_stale``), what can change with no write
         (``_untrusted``, and ``_timed``: a "clip" hitbox rebakes when time
@@ -9692,10 +9820,12 @@ class CollisionSystem:
 
         ``members`` (collider ids): only those, for a query that reads no
         other row; the other moved colliders stay in ``_stale`` for the next
-        query (``step()`` refreshes every proxy).
+        query (``step()`` refreshes every proxy). Returns how many moved
+        members it refreshed (0 without ``members``).
         """
         self._drain_pose_cells()
         idx = self._collider_index
+        moved = 0
         if self._stale:
             if members is None:
                 for c in self._stale:
@@ -9708,6 +9838,7 @@ class CollisionSystem:
                     if id(c) in idx:
                         self._update_proxy(c, commit_motion=False)
                 self._stale.difference_update(done)
+                moved = len(done)
         for always in (self._untrusted, self._timed, self._unbound):
             if not always:
                 continue
@@ -9721,6 +9852,7 @@ class CollisionSystem:
         for c in list(self._multi_bodies.values()):
             if members is None or id(c) in members:
                 self._update_proxy(c, commit_motion=False)
+        return moved
 
     def _box_array(self):
         """numpy ``(n, 10)``, column-major (``_mirror_row``), row ``i`` =
@@ -9828,7 +9960,13 @@ class CollisionSystem:
         if _linked_parts():
             from .hitbox import _refresh_linked_parts
             _refresh_linked_parts()
-        atoms = _parse_query_group(group)
+        return self._walk_candidates(group)
+
+    def _walk_candidates(self, group: Any) -> List[Collider]:
+        """``_candidates_for_group`` once the linked parts are polled."""
+        return self._walk_atoms(_parse_query_group(group))
+
+    def _walk_atoms(self, atoms) -> List[Collider]:
         if atoms is None:
             return self._refresh_live_colliders(bodies_only=True)
         seen: Set[int] = set()
@@ -9840,6 +9978,302 @@ class CollisionSystem:
                     seen.add(cid)
                     candidates.append(collider)
         return candidates
+
+    # --- query pools (QP) ---------------------------------------------------
+
+    def _query_candidates(self, group: Any, x0, y0, x1, y1):
+        """``(candidates, fresh)``: the walk's candidates
+        (``_candidates_for_group``), in its order, less colliders whose fresh
+        proxy misses ``(x0, y0, x1, y1)`` (the walk's inclusive box test), and
+        the ids of those whose proxy the pool just made match their pose. The
+        caller refreshes the others (``_proxy_now``) and box-tests each one:
+        what this drops, it would have rejected."""
+        if _linked_parts():
+            from .hitbox import _refresh_linked_parts
+            _refresh_linked_parts()
+        atoms = _parse_query_group(group)
+        pool = self._query_pool(atoms)
+        if pool is None:
+            return self._walk_atoms(atoms), _NO_IDS
+        moved = self._sync_query_pool(pool)
+        cols = pool.cols
+        if pool.plain_q:
+            q = np.array((x1, y1, -x0, -y0))
+            order = np.flatnonzero(~(pool.q_boxes > q).any(axis=1)).tolist()
+        else:
+            keep = np.zeros(pool.n, dtype=bool)
+            if pool.q_cols:
+                q = np.array((x1, y1, -x0, -y0))
+                keep[pool.q_pos[~(pool.q_boxes > q).any(axis=1)]] = True
+            n_reg = len(pool.reg_rows)
+            if n_reg and (n_reg <= 32 or moved * 4 >= n_reg):
+                # Most rows were just refreshed (or few): their proxies, in
+                # Python, cost less than syncing the mirror rows.
+                for i in pool.reg_list:
+                    c = cols[i]
+                    if c._proxy_valid:
+                        p = c._proxy
+                        if p[0] > x1 or x0 > p[2] or p[1] > y1 or y0 > p[3]:
+                            continue
+                    keep[i] = True
+            elif n_reg:
+                got = _rows_meeting(self._box_array(), pool.reg_rows, 0, x0, y0, x1, y1)
+                keep[pool.reg_pos[got]] = True
+            if pool.vol_pos is not None:
+                keep[pool.vol_pos] = True
+            order = np.flatnonzero(keep).tolist()
+        members, tags = pool.members, pool.tags
+        out: List[Collider] = []
+        seen: Set[int] = set()
+        fresh: Set[int] = set()
+        for i in order:
+            c = cols[i]
+            ref = members[i]
+            row = c
+            if ref is not None:
+                # The walk's per-member checks (in play, layer, a claiming
+                # part), on the near ones only.
+                member = ref()
+                if member is None:
+                    continue
+                now = self._query_collider(member, tags[i])
+                if now is None:
+                    continue
+                if c is not None and now is not c:
+                    # A new collider answers (it left play and came back):
+                    # same shapes, so this box held; rebuild next time.
+                    self._drop_query_pools(lambda p, pool=pool: p is pool)
+                c = now
+            cid = id(c)
+            if cid not in seen:
+                seen.add(cid)
+                out.append(c)
+                if c is row:
+                    fresh.add(cid)              # its row's proxy, just synced
+        if _POSE_REV_VERIFY:
+            fresh = _NO_IDS                     # the callers refresh: verify checks
+        return out, fresh
+
+    def _proxy_now(self, c: Collider, fresh) -> bool:
+        """A query candidate's proxy matches its pose; False when it has none."""
+        if id(c) in fresh:
+            return c._proxy_valid
+        return self._update_proxy(c, commit_motion=False)
+
+    def _query_pool(self, atoms) -> Optional[_QueryPool]:
+        """The pool of a parsed ``group=`` (``_parse_query_group``), built on
+        the second query of a version; None when the walk runs (a small
+        group, an object or formula atom, the first query of a version, the
+        switch off). The size comes first: a small group pays one count per
+        name.
+
+        The version is the collider list and tag index (registered
+        candidates) and each undeclared tag's membership generation and size
+        (the registry drops a collected member without a generation bump)."""
+        if not _QUERY_POOL:
+            return None
+        if atoms is None:
+            if len(self._colliders) < _QUERY_POOL_MIN:
+                return None
+            names = (ANYTHING,)
+        else:
+            names = tuple(atoms)
+        registry = None
+        size = 0
+        for name in names:
+            if name is ANYTHING:
+                size += len(self._colliders)
+                continue
+            if not isinstance(name, str):
+                return None
+            if name in self._pair_tags:
+                size += len(self._tag_colliders.get(name) or ())
+                continue
+            if registry is None:
+                try:
+                    registry = _layer_deps()[0].get_current().registry
+                except Exception:
+                    return None
+            size += registry.group_live_count(name)
+        if size < _QUERY_POOL_MIN:
+            return None
+        if registry is None:
+            try:
+                registry = _layer_deps()[0].get_current().registry
+            except Exception:
+                return None
+        ver: List[Any] = [self._struct_version, self._tag_version]
+        for name in names:
+            if name is ANYTHING:
+                continue
+            if registry.has_group_formula(name):
+                return None
+            if name in self._pair_tags:
+                ver.append(True)
+            else:
+                ver.append(registry.group_generation(name))
+                ver.append(registry.group_live_count(name))
+        key = tuple(ver)
+        pool = self._query_pools.get(names)
+        if pool is not None and pool.ver == key:
+            return pool
+        # A build costs about a walk: only a second query of the same version
+        # builds (a one-off query between spawns keeps walking).
+        seen = self._query_seen
+        if seen.get(names) != key:
+            if len(seen) >= 64:
+                seen.clear()
+            seen[names] = key
+            return None
+        return self._build_query_pool(names, key, registry)
+
+    def _build_query_pool(self, names, ver, registry) -> _QueryPool:
+        """The walk's candidate list for ``names``, as entries with rows.
+
+        A member is volatile (no row: asked every time) when it does not
+        answer now (out of play, ui or parallax layer), answers with a
+        collider already listed, or has a hitbox part claiming a tag (a part
+        switches on and off with no membership change)."""
+        self._drop_query_pools(lambda p: p.ver[:2] != ver[:2])
+        self._query_pools.pop(names, None)
+        if len(self._query_pools) >= 32:
+            self._query_pools.clear()
+        pool = _QueryPool(ver)
+        cols, members, tags = pool.cols, pool.members, pool.tags
+        seen: Set[int] = set()
+
+        def direct(cs) -> None:
+            for c in cs:
+                if id(c) not in seen:
+                    seen.add(id(c))
+                    cols.append(c)
+                    members.append(None)
+                    tags.append(None)
+
+        for name in names:
+            if name is ANYTHING:
+                direct([c for c in self._colliders if c._part is None])
+            elif name in self._pair_tags:
+                direct(self._tag_colliders.get(name) or ())
+            else:
+                for member in registry.list_by_groupid(name):
+                    claims = getattr(member, "_hitbox_claims", None)
+                    if not claims and not _has_query_geometry(member):
+                        continue                  # a bare Entity: never answers
+                    c = self._query_collider(member, name)
+                    if c is None or claims or id(c) in seen:
+                        cols.append(None)
+                    else:
+                        seen.add(id(c))
+                        cols.append(c)
+                    members.append(weakref.ref(member))
+                    tags.append(name)
+        pool.n = n = len(cols)
+        idx = self._collider_index
+        reg_pos: List[int] = []
+        reg_rows: List[int] = []
+        q_pos: List[int] = []
+        vol: List[int] = []
+        for i, c in enumerate(cols):
+            if c is None:
+                vol.append(i)
+            elif id(c) in idx:
+                reg_pos.append(i)
+                reg_rows.append(idx[id(c)])
+            else:
+                q_pos.append(i)
+                pool.q_cols.append(c)
+        pool.reg_list = reg_pos
+        pool.reg_pos = np.array(reg_pos, dtype=np.intp)
+        pool.reg_rows = np.array(reg_rows, dtype=np.intp)
+        pool.reg_ids = {id(cols[i]) for i in reg_pos}
+        pool.q_pos = np.array(q_pos, dtype=np.intp)
+        pool.vol_pos = np.array(vol, dtype=np.intp) if vol else None
+        pool.plain_q = len(q_pos) == n
+        pool.q_boxes = np.empty((len(q_pos), 4), dtype=float)
+        self._query_pools[names] = pool
+        self._reslot_query_pools()
+        for c in pool.q_cols:
+            self._refresh_q(c)          # every row is the pose now
+        return pool
+
+    def _drop_query_pools(self, which) -> None:
+        dropped = [k for k, p in self._query_pools.items() if which(p)]
+        if dropped:
+            for k in dropped:
+                del self._query_pools[k]
+            self._reslot_query_pools()
+
+    def _reslot_query_pools(self) -> None:
+        """Rebuild the maps from unregistered colliders to their pool rows and
+        to their pose roots (whose revision cell the moved set drains)."""
+        from .state import _pose_cell_of
+        slots: Dict[int, List[Tuple[_QueryPool, int]]] = {}
+        by_root: Dict[int, List[Collider]] = {}
+        unrooted: Set[int] = set()
+        for pool in self._query_pools.values():
+            for j, c in enumerate(pool.q_cols):
+                cid = id(c)
+                if cid not in slots:
+                    slots[cid] = []
+                    for s in c.shapes:
+                        root = None
+                        if getattr(s, "__dict__", None) is not None:
+                            ref = _pose_cell_of(s)[2]
+                            root = ref() if ref is not None else None
+                        if root is None:
+                            unrooted.add(cid)   # no cell to drain: every time
+                            continue
+                        held = by_root.setdefault(id(root), [])
+                        if c not in held:
+                            held.append(c)
+                slots[cid].append((pool, j))
+        self._q_slots = slots
+        self._q_by_root = by_root
+        self._q_unrooted = unrooted
+
+    def _refresh_q(self, c: Collider) -> None:
+        """Refresh an unregistered pool collider and write its rows. One whose
+        pose can change with no write (untrusted, a clip hitbox, no proxy)
+        is refreshed by every query of its pools."""
+        self._update_proxy(c, commit_motion=False)
+        row = _q_row(c)
+        always = (c._proxy_revs is None or not c._proxy_valid or c in self._timed
+                  or id(c) in self._q_unrooted)
+        for pool, j in self._q_slots.get(id(c), ()):
+            pool.q_boxes[j] = row
+            if always:
+                pool.q_always.add(j)
+            else:
+                pool.q_always.discard(j)
+
+    def _sync_query_pool(self, pool: _QueryPool) -> int:
+        """Make the pool's rows match the pose: registered candidates through
+        ``_fresh_proxies`` (the mirror), the others through the moved set.
+        Returns how many registered candidates had moved."""
+        moved = 0
+        if pool.reg_ids:
+            moved = self._fresh_proxies(pool.reg_ids)
+        else:
+            self._drain_pose_cells()
+        if self._q_stale:
+            todo = list(self._q_stale)
+            self._q_stale.clear()
+            for c in todo:
+                self._refresh_q(c)
+        if pool.q_always:
+            for j in list(pool.q_always):
+                self._refresh_q(pool.q_cols[j])
+        if _POSE_REV_VERIFY:
+            for j, c in enumerate(pool.q_cols):
+                before = tuple(pool.q_boxes[j])
+                self._update_proxy(c, commit_motion=False)
+                if not np.array_equal(np.array(_q_row(c)), pool.q_boxes[j], equal_nan=True):
+                    raise AssertionError(
+                        f"query pool row of {c!r} was {before}, its pose is "
+                        f"{_q_row(c)}: a pose writer did not mark it"
+                    )
+        return moved
 
     def query_shape(self, shape, group: Any = None) -> List[Any]:
         """Return identities overlapping ``shape``'s current geometry.
@@ -9855,8 +10289,11 @@ class CollisionSystem:
         probe = existing if existing is not None else Collider(
             [shape], _register=False, _bind=False,
         )
-        self._update_proxy(probe, commit_motion=False)
-        candidates = self._candidates_for_group(group)
+        fresh = _NO_IDS
+        if self._update_proxy(probe, commit_motion=False) and _QUERY_SHAPE_REJECT:
+            candidates, fresh = self._query_candidates(group, *probe._proxy)
+        else:
+            candidates = self._candidates_for_group(group)
         hits: List[Any] = []
         seen_hit: Set[int] = set()
         for cb in candidates:
@@ -9869,7 +10306,7 @@ class CollisionSystem:
             # overlap its own torso).
             if _is_multi_body(cb) and any(r() is shape for r in cb._shapes):
                 continue
-            if not self._update_proxy(cb, commit_motion=False):
+            if not self._proxy_now(cb, fresh):
                 continue
             # Proxies contain their prims and the test is inclusive: a pair
             # whose boxes miss cannot touch.
@@ -10642,10 +11079,11 @@ class CollisionSystem:
     def _point_hits(self, x, y, group, skipped) -> List[Any]:
         hits = []
         seen = set()
-        for c in self._candidates_for_group(group):
+        cands, fresh = self._query_candidates(group, x, y, x, y)
+        for c in cands:
             if skipped(c):
                 continue
-            if not self._update_proxy(c, commit_motion=False):
+            if not self._proxy_now(c, fresh):
                 continue
             p = c._proxy
             if x < p[0] or x > p[2] or y < p[1] or y > p[3]:
@@ -10683,10 +11121,11 @@ class CollisionSystem:
         probe = Prim(PrimKind.CIRCLE, _aabb_from_circle(x, y, r), (x, y, r))
         hits = []
         seen = set()
-        for c in self._candidates_for_group(group):
+        cands, fresh = self._query_candidates(group, x - r, y - r, x + r, y + r)
+        for c in cands:
             if skipped(c):
                 continue
-            if not self._update_proxy(c, commit_motion=False):
+            if not self._proxy_now(c, fresh):
                 continue
             p = c._proxy
             if x + r < p[0] or x - r > p[2] or y + r < p[1] or y - r > p[3]:
@@ -10697,7 +11136,7 @@ class CollisionSystem:
                 minx, miny, maxx, maxy = prim.aabb
                 if x + r < minx or x - r > maxx or y + r < miny or y - r > maxy:
                     continue
-                if narrow_phase(probe, prim) is not None:
+                if _circle_overlaps(probe, prim):
                     seen.add(id(c))
                     hits.append(c)
         return _bodies_first(hits)
@@ -10758,10 +11197,11 @@ class CollisionSystem:
         miny, maxy = (y1, y2) if y1 <= y2 else (y2, y1)
         hits = []
         seen = set()
-        for c in self._candidates_for_group(group):
+        cands, fresh = self._query_candidates(group, minx, miny, maxx, maxy)
+        for c in cands:
             if skipped(c):
                 continue
-            if not self._update_proxy(c, commit_motion=False):
+            if not self._proxy_now(c, fresh):
                 continue
             p = c._proxy
             if maxx < p[0] or minx > p[2] or maxy < p[1] or miny > p[3]:
@@ -10785,10 +11225,11 @@ class CollisionSystem:
         maxy = max(p.aabb[3] for p in probes)
         hits = []
         seen = set()
-        for c in self._candidates_for_group(group):
+        cands, fresh = self._query_candidates(group, minx, miny, maxx, maxy)
+        for c in cands:
             if skipped(c):
                 continue
-            if not self._update_proxy(c, commit_motion=False):
+            if not self._proxy_now(c, fresh):
                 continue
             proxy = c._proxy
             if maxx < proxy[0] or minx > proxy[2] or maxy < proxy[1] or miny > proxy[3]:
@@ -10878,10 +11319,11 @@ class CollisionSystem:
         miny, maxy = (y1, y2) if y1 <= y2 else (y2, y1)
         skipped = _ignore_filter(ignore, caster)
 
-        for c in self._candidates_for_group(group):
+        cands, fresh = self._query_candidates(group, minx, miny, maxx, maxy)
+        for c in cands:
             if skipped(c):
                 continue
-            if not self._update_proxy(c, commit_motion=False):
+            if not self._proxy_now(c, fresh):
                 continue
             p = c._proxy
             if maxx < p[0] or minx > p[2] or maxy < p[1] or miny > p[3]:

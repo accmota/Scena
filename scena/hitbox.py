@@ -831,6 +831,8 @@ class Hitbox(_HitboxBakeMixin):
         self._claims.add(name)
         from .collision import _collision_system
         sys = _collision_system
+        if sys is not None and sys._query_pools:
+            sys._drop_query_pools(lambda pool: True)   # the part answers now
         body = getattr(host, "_collider", None)
         if sys is not None and body is not None:
             # The body stops answering for this group.
@@ -856,6 +858,8 @@ class Hitbox(_HitboxBakeMixin):
             del claims[name]
         from .collision import _collision_system
         sys = _collision_system
+        if sys is not None and sys._query_pools:
+            sys._drop_query_pools(lambda pool: True)   # the body answers again
         if sys is not None and self._collider is not None:
             sys._tag_remove(name, self._collider)
         return added

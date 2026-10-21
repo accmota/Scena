@@ -55,6 +55,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 | `floor_below` | `collision.py` (`CollisionSystem.floor_below`, `_floor_march`, `_floor_probe_envelope`, `_QueryOnlyGate`, `_note_floor_probe`) | `entity.py` (`Graphic.floor_below`), `tests/test_floor_below.py`, `tests/test_floor_below_fast.py` |
 | `only=` read-only guard | `purity_check.py` (`check_read_only`, `_READING`) | `formula_check.py` (locator, context) |
 | Simultaneous contacts, bounce sub-step, partner removed by a handler | `collision.py` (`_earliest_toi` ties, `_joint_stop`, `_cone_response`, `_substep_restitution`, `_GhostPartner`, `_answer_unreached`) | [Joint stop](#joint-stop-simultaneous-contacts), [Bounce sub-step](#bounce-sub-step), `tests/test_joint_response.py` |
+| Query cost (`query_*`, `raycast` over a big group) | `collision.py` (`_query_candidates`, `_query_pool`, `_build_query_pool`, `_sync_query_pool`, `_circle_overlaps`) | [Query pools](#query-pools), `tests/test_query_pool.py` |
 | Swept detection (fast bodies) | `collision.py` (`_commit_pending_motion`, `_declared_broad_pairs`, `_swept_contacts`, `note_collider_motion`); orbit chord: `entity.py` (`_rotate_as_motion`, `_rotate_as_placement`) | `tests/test_collision.py` (`TestSweptDetection`, `TestOrbitMotion`), `tests/test_sys_fast_shots.py` |
 
 **Do not slurp:** `collision.py`.
@@ -966,6 +967,8 @@ Headless regression: `scripts/diag/collision_probe*.py` (probe 8 = elevator ride
 
 Queries and `raycast` refresh the live pose (`commit_motion=False`). They do not consume `move_by`'s pending motion; `step()` is the only consumer. A probe that is not already collidable is not enrolled. A named query does not enroll its candidates either.
 
+**Cost.** A query over a group of 16 or more candidates costs its near candidates, not the group: a flock of 140 that asks `query_circle(self.center, radius=70, group="passaro")` once per bird per frame is fine ([Query pools](#query-pools)). A move in `on_update` is seen by every later query of the same frame.
+
 **Two meanings of `group=`.**
 
 - **Omitted, `None`, or `ANYTHING`** — the enrolled collision world: registered **body** colliders only (`collidable`, `@collide`, `resolve`, `on_collide`). Hitbox parts are excluded. This is what `query_point(mouse)` means.
@@ -1286,16 +1289,25 @@ The bumps sit in these funnels:
   `_ensure_scalar_anchor`, `_drop_scalar_anchor`).
 
 Trusted (`_pose_rev_of`):
-- **Kinds**: plain Sprites, Rect / Square, Circle and Ellipse, and their
-  subclasses that keep the kind's pose hooks (`_pose_rev_kind`, cached on the
-  class).
+- **Kinds**: plain Sprites, Rect / Square, Circle, Ellipse, RegularPolygon
+  and Triangle (every model: center or vertex, radius or side; `base_ratio`),
+  and their subclasses that keep the kind's pose hooks (`_pose_rev_kind`,
+  cached on the class; `_placement_params` is one of the hooks). The two
+  radial kinds joined on 2026-10-20: every input their key reads (center or
+  vertex, radius, side, angle, `base_ratio`, rotation, scale, flips) is a
+  slot or part written through the funnels below.
 - **State**: no link, anchor or pull owner on the body or its Defining parts
   (a linked value changes on a pull, with no write), and no
   `hitbox_source="each"`. Cached per revision, because links and anchors bump
   when they come or go.
 
 Everything else builds its key every time, as before: Text, Track, SpatialFx,
-hitbox parts, Polygons, Lines.
+hitbox parts, free Polygons, Lines.
+
+`_world_prims` reads the revision too: a hull built for the proxy's key, on a
+proxy whose revisions are still the pose's, is the pose's hull, with no key
+built (a query's candidates were just refreshed; verify mode builds the key
+and raises when it moved).
 
 `_update_proxy` stores the shapes' revisions next to the key (`_proxy_revs`).
 A solver nudge shifts the stored key and may keep the new revisions only if
@@ -1327,8 +1339,9 @@ Measured (in-process A/B, `game_bench.py --ab scena.collision:_POSE_REV_SKIP`):
 - horda unchanged.
 
 Tests: `tests/test_pose_rev.py`:
-- random public pose operations on every trusted kind: a revision that did
-  not move means a key that did not move;
+- random public pose operations on every trusted kind (all three radial
+  models included; a write the model refuses is no write): a revision that
+  did not move means a key that did not move;
 - trust is refused for links, Text and `each`;
 - a still body builds no key;
 - canaries: the A1 funnel without its bump is caught (and so is a disabled
@@ -1600,6 +1613,98 @@ and a sorted compare then pairs different prims (D10 in [Testing Design](Testing
 During the detection narrow loop and `_apply_auto_resolve`, `_trust_proxy_world` lets a collider whose `_world_key` already matches `_proxy_key` return the cached hull **without** walking `_collision_pose_key` / Sprite extras. Solver nudges (`_nudge_collider`) translate that hull and **shift** the `(epoch, x, y, *extra)` key bundle by `(dx, dy)` instead of recomputing extras.
 
 In the narrow loop that is safe because `_update_proxy` refreshed every live `_proxy_key` a moment earlier and no user code runs before dispatch; it turns k pose-key walks for a collider in k pairs into one. The end-of-step `_store_resolved_aabbs` runs in the same window: nothing runs between resolve and the store, so proxies still match the solver's nudges. Do not trust that cache outside those three passes — `test_collision` after `center=` and before `step()` must see the new pose.
+
+## Query pools
+
+`_candidates_in_box` covers only declared pair tags. The other queries
+(`query_point`, `query_circle`, `query_sector`, `query_shape`, `raycast`)
+walked every candidate: an undeclared tag's members each through
+`_query_collider` (in play, layer, a claiming part, the cached unregistered
+collider) and `_update_proxy`. About 6 µs a candidate, 10 for a Triangle,
+whose kind was not trusted: 140 Triangle birds each asking `query_circle`
+once a frame cost 124 ms a frame (0.9 ms a query), so `examples/revoada.py`
+kept its own grid of floats (2026-10-20).
+
+A query over a group of at least `_QUERY_POOL_MIN` (16) candidates reads a
+pool (`_query_candidates`):
+- **The pool** (`_QueryPool`, `_build_query_pool`) is the walk's candidate
+  list, in its order: the enrolled world's body colliders, a declared tag's
+  `_tag_colliders`, an undeclared tag's members, each with the collider
+  that answered for it when the pool was built. Keyed by the group's names;
+  its version is `_struct_version`, `_tag_version`, and each undeclared
+  tag's registry generation and live count (the registry drops a collected
+  member with no generation bump). A formula group or an object atom walks.
+- **Built on the second ask.** A build costs about one walk, so the first
+  query of a version walks and remembers it (`_query_seen`); the second
+  builds. A query that runs once between spawns (mundo's bombs over 20
+  robots) keeps walking: building on the first ask made it 50 % slower.
+  The size check comes first, so a group under 16 pays one count per name.
+- **Volatile members** have no row and are asked every time: one that did
+  not answer when the pool was built (out of play, ui or parallax), one
+  whose collider is already listed (two pieces of a compound body), and one
+  with a hitbox part claiming a tag (a part switches with no membership
+  change). A claim made or dropped clears the pools (`Hitbox._claim` /
+  `_unclaim`).
+- **Rows.** Registered candidates read the proxy mirror (`_box_array`),
+  refreshed by `_fresh_proxies(members)`. The unregistered ones own a row
+  of the pool (`q_boxes`, the proxy with its max negated: one compare and
+  one `any` per query). The moved set reaches them through their pose root:
+  `_q_by_root` maps a root's id to the pool colliders under it, and
+  `_drain_pose_cells` moves them into `_q_stale`, which the next pooled
+  query refreshes (once per move, whichever pool asks). An untrusted one (a
+  link, a free Polygon, a clip hitbox, no proxy) is refreshed by every query
+  of its pool (`q_always`).
+- **The near ones.** The mask keeps the rows that meet the query box (the
+  walk's inclusive test: what it drops, the walk would have rejected). Each
+  member kept runs `_query_collider` again, exactly as the walk; a different
+  collider than the row's (it left play and came back: same shapes, so the
+  row held) is used and the pool is rebuilt next time. The hit loops still
+  box-test every candidate; they refresh only those the pool did not just
+  sync (`_proxy_now`: a volatile member, a new collider; every one in verify
+  mode), so a walked group answers the same.
+- **Registered rows in Python.** When a registered pool has at most 32 rows,
+  or a quarter of them moved since the last query (`_fresh_proxies` returns
+  how many it refreshed), the box test runs on their proxies in Python: the
+  refresh is the walk's work anyway, and syncing those mirror rows for numpy
+  cost more than it saved (20 robots that all move, asked once a frame: 14 %
+  slower than the walk; now even).
+- **Narrow.** `query_circle` asks `_circle_overlaps`: `_sat_circle_vs`'s
+  separating-axis loop on a box or polygon without the MTV and contact
+  point; every other kind is `narrow_phase(...) is not None`.
+
+`_QUERY_POOL = False` is the walk (oracle, A/B). Verify mode checks every
+unregistered row against a fresh refresh on every pooled query. The
+broad-phase fence holds: a pool is the walk's own list with a box mask, not
+a spatial index, and it changes no answer and no order.
+
+Measured (in-process A/B, `game_bench.py --ab scena.collision:_QUERY_POOL`,
+`scripts/bench/games/bando.py`, 140 Triangle birds each asking `query_circle`
+once a frame):
+
+| | query_circle (ms / frame) | frame work (ms) |
+|---|---|---|
+| before (HEAD 2026-10-20: walk, Triangle untrusted) | 127.5 | 134 |
+| walk, Triangle trusted (`_QUERY_POOL = False`) | 52.3 | 58 |
+| pool | 14.0 | 19 |
+
+With `enroll=1` (every bird `collidable`, no `group=`): 38.5 → 12.5. The
+rest of a flock query is its real neighbours (about 9 per bird): the walk's
+per-member checks, the revision check and the narrow test. Groups under 16
+walk; they pay the size check (about 0.5 µs a query).
+
+Tests: `tests/test_query_pool.py`:
+- random worlds (every shape kind, enrolled or not, a compound body, a
+  claiming part, a ui member, a linked member) mutated between queries
+  through the write paths (moves, turns, resizes, links, active,
+  collidable, retag, layer, spawn, destroy, a part switched off, a step),
+  with churning and calm phases: every query form over every group form
+  answers the same with and without the pool, in the same order; the pool
+  is asked first;
+- a move between two queries of one frame, by every write kind and inside
+  `on_update`, is seen by the second;
+- `_circle_overlaps` decides as `narrow_phase` on every prim kind;
+- canaries: the moved set cut off from the rows, and verify mode naming a
+  stale row.
 
 ## What not to add
 

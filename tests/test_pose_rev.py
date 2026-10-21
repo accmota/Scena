@@ -4,8 +4,9 @@ Rule under test (Collision Design.md, "Pose revision"): every write that can
 change what a trusted body's pose key reads bumps ``_pose_rev`` on its root
 (``state.bump_pose_rev``), so ``_update_proxy`` may keep a proxy whose
 revision did not move without building the key. Trusted: plain Sprites,
-Rect / Square, Circle, Ellipse with no link, anchor or pull owner on them or
-their Defining parts, and no ``hitbox_source="each"``. Any other body, or a
+Rect / Square, Circle, Ellipse, RegularPolygon and Triangle (every model)
+with no link, anchor or pull owner on them or their Defining parts, and no
+``hitbox_source="each"``. Any other body, or a
 linked one, builds the key every time.
 
 The oracle is the generic key: over random sequences of every public pose
@@ -27,8 +28,9 @@ sys.path.insert(0, ROOT)
 
 from scena import st
 from scena.collision import get_collision_system, reset_collision_system
-from scena.shapes import Circle, Ellipse, Rect, Square
+from scena.shapes import Circle, Ellipse, Rect, RegularPolygon, Square, Triangle
 from scena.sprite import Sheet, Sprite
+from scena.state import DerivedAttributeError
 from scena.text import Text
 
 C = sys.modules["scena.collision"]   # the module (``scena.collision`` is the facade)
@@ -74,6 +76,15 @@ def make(r, kind):
         return Ellipse(center=(x, y), width=r.uniform(10, 60), height=r.uniform(5, 40))
     if kind == "tile":
         return Sprite(TILE, size=r.choice((32.0, 64.0)), center=(x, y))
+    if kind in ("regular", "triangle"):
+        cls = RegularPolygon if kind == "regular" else Triangle
+        kw = {"n": r.choice((3, 5, 6))} if kind == "regular" else {"base_ratio": r.uniform(0.3, 1.5)}
+        model = r.choice(("radius", "side", "vertex"))
+        if model == "radius":
+            return cls(center=(x, y), radius=r.uniform(4, 30), angle=r.uniform(-180, 180), **kw)
+        if model == "side":
+            return cls(center=(x, y), side=r.uniform(4, 40), **kw)
+        return cls(vertex=(x, y), side=r.uniform(4, 40), angle=r.uniform(-180, 180), **kw)
     sheet = Sheet(anchor="bottom", pixel_size=0.2)
     sheet.strip("run", os.path.join(NINJA, "Run__*.png"), fps=12)
     sheet.strip("idle", os.path.join(NINJA, "Idle__*.png"), fps=8)
@@ -91,11 +102,23 @@ def operate(r, s, kind):
         ops += ["width", "height"]
     if kind == "circle":
         ops += ["radius"]
+    if kind in ("regular", "triangle"):
+        ops += ["radius", "side", "vertex", "vertex.y"]
+    if kind == "triangle":
+        ops += ["base_ratio"]
     if kind in ("tile", "sheet"):
         ops += ["offset", "hitbox_scale", "art_angle"]
     if kind == "sheet":
         ops += ["play", "advance"]
     op = r.choice(ops)
+    try:
+        _apply(r, s, op)
+    except DerivedAttributeError:
+        op += " (refused)"          # a Derivate input of this model: no write
+    return op
+
+
+def _apply(r, s, op):
     if op == "move_by":
         s.move_by(r.uniform(-20, 20), r.uniform(-20, 20))
     elif op == "move_to":
@@ -120,6 +143,14 @@ def operate(r, s, kind):
         s.height = r.uniform(5, 80)
     elif op == "radius":
         s.radius = r.uniform(3, 40)
+    elif op == "side":
+        s.side = r.uniform(3, 40)
+    elif op == "vertex":
+        s.vertex = (r.uniform(-300, 300), r.uniform(-300, 300))
+    elif op == "vertex.y":
+        s.vertex.y = r.uniform(-300, 300)
+    elif op == "base_ratio":
+        s.base_ratio = r.uniform(0.2, 1.8)
     elif op == "offset":
         s.offset = (r.uniform(-10, 10), r.uniform(-10, 10))
     elif op == "hitbox_scale":
@@ -132,7 +163,6 @@ def operate(r, s, kind):
         from scena import clock
         clock.advance(r.uniform(0.02, 0.3))
         C._sync_auto_hitbox_frame(s)
-    return op
 
 
 class TestRevisionCoversTheKey(RevCase):
@@ -140,7 +170,8 @@ class TestRevisionCoversTheKey(RevCase):
         checked = trusted = 0
         for seed in range(30):
             r = random.Random(seed)
-            for kind in ("rect", "square", "circle", "ellipse", "tile", "sheet"):
+            for kind in ("rect", "square", "circle", "ellipse", "tile", "sheet",
+                         "regular", "triangle"):
                 s = self.track(make(r, kind))
                 for k in range(12):
                     rev0 = C._pose_rev_of(s)
@@ -175,6 +206,21 @@ class TestTrust(RevCase):
         sheet.strip("run", os.path.join(NINJA, "Run__*.png"), fps=12)
         e = self.track(Sprite(sheet, center=(0, 0), hitbox_source="each"))
         self.assertIsNone(C._pose_rev_of(e), "hitbox_source='each' re-fits per cell")
+
+    def test_radial_polygons_are_trusted_until_linked(self):
+        st.pr = 7.0
+        for s in (self.track(Triangle(center=(0, 0), radius=9, base_ratio=0.5)),
+                  self.track(RegularPolygon(n=5, vertex=(0, 0), side=8))):
+            self.assertIsNotNone(C._pose_rev_of(s), type(s).__name__)
+        t = self.track(Triangle(center=(0, 0), radius=9))
+        t["base_ratio"] @= lambda: st.pr / 10
+        self.assertIsNone(C._pose_rev_of(t), "a linked base_ratio is pulled, not written")
+
+        class Pointy(Triangle):
+            def _collision_pose_extra(self):
+                return ()
+        p = self.track(Pointy(center=(0, 0), radius=9))
+        self.assertIsNone(C._pose_rev_of(p), "a subclass with its own pose hook")
 
 
 class TestSkip(RevCase):
