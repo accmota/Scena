@@ -130,6 +130,16 @@ examples/media/levels/duelo.json
 examples/media/levels/license.txt
 examples/media/levels/ninja.json
 examples/media/levels/ninja_perigos.json
+examples/media/ninja/Attack__000.png
+examples/media/ninja/Attack__001.png
+examples/media/ninja/Attack__002.png
+examples/media/ninja/Attack__003.png
+examples/media/ninja/Attack__004.png
+examples/media/ninja/Attack__005.png
+examples/media/ninja/Attack__006.png
+examples/media/ninja/Attack__007.png
+examples/media/ninja/Attack__008.png
+examples/media/ninja/Attack__009.png
 examples/media/ninja/Dead__000.png
 examples/media/ninja/Dead__001.png
 examples/media/ninja/Dead__002.png
@@ -290,6 +300,7 @@ examples/ninja_1.py
 examples/ninja_2_mundo.py
 examples/ninja_3_nivel.py
 examples/ninja_4_perigos.py
+examples/ninja_5_espada.py
 examples/orbitas.py
 examples/osciloscopio.py
 examples/pegar_estrelas.py

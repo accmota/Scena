@@ -1,4 +1,4 @@
-{"format": "scena-level", "version": 1, "size": [4000, 750], "items": [
+{"format": "scena-level", "version": 2, "size": [4000, 750], "items": [
   {"kind": "image", "groups": ["enfeite"], "file": "../tilesets/Object/Tree_2.png", "center": [130, 195], "width": 215.5, "height": 230},
   {"kind": "image", "groups": ["enfeite"], "file": "../tilesets/Object/Bush (1).png", "center": [300, 105], "width": 102.3, "height": 50},
   {"kind": "image", "groups": ["enfeite"], "file": "../tilesets/Object/Sign_2.png", "center": [410, 110], "width": 58.1, "height": 60},
@@ -13,7 +13,7 @@
   {"kind": "image", "groups": ["enfeite"], "file": "../tilesets/Object/Tree_2.png", "center": [3000, 195], "width": 215.5, "height": 230},
   {"kind": "image", "groups": ["enfeite"], "file": "../tilesets/Object/Bush (4).png", "center": [3250, 100], "width": 63.5, "height": 40},
   {"kind": "image", "groups": ["enfeite"], "file": "../tilesets/Object/Stone.png", "center": [3520, 100], "width": 66.7, "height": 40},
-  {"kind": "image", "groups": ["enfeite"], "file": "../tilesets/Object/Crate.png", "center": [3760, 110], "width": 60, "height": 60},
+  {"kind": "image", "groups": ["enfeite"], "file": "../tilesets/Object/Bush (4).png", "center": [3760, 110], "width": 95.22, "height": 60},
   {"kind": "image", "groups": ["enfeite"], "file": "../tilesets/Object/Sign_1.png", "center": [3920, 110], "width": 58.2, "height": 60},
   {"kind": "image", "groups": ["chao"], "file": "../tilesets/Tiles/2.png", "center": [40, 40], "width": 80, "height": 80},
   {"kind": "image", "groups": ["chao"], "file": "../tilesets/Tiles/2.png", "center": [120, 40], "width": 80, "height": 80},
@@ -125,5 +125,8 @@
   {"kind": "rect", "groups": ["raio"], "center": [1350, 205], "width": 16, "height": 250},
   {"kind": "rect", "groups": ["raio"], "center": [2350, 205], "width": 16, "height": 250},
   {"kind": "rect", "groups": ["raio"], "center": [3200, 205], "width": 16, "height": 250},
-  {"kind": "rect", "name": "elevador", "center": [3900, 200], "width": 120, "height": 24}
+  {"kind": "rect", "name": "elevador", "center": [3900, 200], "width": 120, "height": 24},
+  {"kind": "image", "groups": ["caixa"], "file": "../tilesets/Object/Crate.png", "center": [230, 105], "width": 50, "height": 50},
+  {"kind": "image", "groups": ["caixa"], "file": "../tilesets/Object/Crate.png", "center": [1600, 354], "width": 50, "height": 50},
+  {"kind": "image", "groups": ["caixa"], "file": "../tilesets/Object/Crate.png", "center": [2960, 105], "width": 50, "height": 50}
 ]}

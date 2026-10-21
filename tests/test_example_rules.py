@@ -34,6 +34,11 @@ Bug classes guarded (catalogue: Testing Design, TU):
   width and color are ``@=`` formulas on the chosen ball's ``vel``, which
   only ``resolve`` changes (a ball-ball hit). Each frame the bar agrees with
   the speed, and the speed does change, so the check is not vacuous.
+* **A hitbox switched by the animation** (tutorial 32, Ninja V): the sword's
+  part is on only in the cut's frames, so a crate the ninja leans on does
+  not break until Space; the crate leaves a light; the light makes the ninja
+  invincible for 6 s, the Aura blinks in the last 2 and goes; a shock just
+  before the light does not take the Aura away when its 2.5 s end.
 * **Two players no step run moves** (tutorial 30, Duelo): the choice act
   hands the chosen ship to the duel; a ship rides its rail (always on the
   curve, stopping at the ends, coasting after the key); a laser bounces three
@@ -58,7 +63,8 @@ sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 from program_support import ProgramRun  # noqa: E402
 
-NINJAS = ("examples/ninja_2_mundo.py", "examples/ninja_3_nivel.py", "examples/ninja_4_perigos.py")
+NINJAS = ("examples/ninja_2_mundo.py", "examples/ninja_3_nivel.py", "examples/ninja_4_perigos.py",
+          "examples/ninja_5_espada.py")
 
 
 class _Ball:
@@ -201,6 +207,76 @@ class TestNinjaElevator(unittest.TestCase):
             run.step(60)
             self.assertEqual(ns["st"].vidas, 0)
             self.assertLess(heroi.center.y, 0, "sent back to the start")
+
+
+class TestNinjaEspada(unittest.TestCase):
+    PATH = "examples/ninja_5_espada.py"
+
+    def _at_the_first_crate(self, run):
+        ns = run.ns
+        heroi = list(ns["group"]["heroi"])[0]
+        caixa = ns["group"]["caixa"].nearest((230, 105))
+        heroi.center = (caixa.center.x - 60, 80.08)
+        heroi.vel.y = 0
+        run.key_down("RIGHT")
+        run.step(20)                       # walks into it and stops there
+        run.key_up("RIGHT")
+        run.step(5)
+        return heroi, caixa
+
+    def test_only_the_cut_breaks_a_crate(self):
+        with ProgramRun(self.PATH) as run:
+            run.step(3)
+            ns = run.ns
+            heroi, caixa = self._at_the_first_crate(run)
+            espada = heroi.hitboxes[-1]
+            run.step(60)
+            self.assertTrue(caixa, "the crate broke with no swing")
+            run.key_down("SPACE")
+            on = []
+            for _ in range(30):            # the clip: 10 cells at 20 fps
+                run.step(1)
+                on.append((espada.active, heroi.showing(ns["GOLPE"])))
+            run.key_up("SPACE")
+            self.assertTrue(any(a for a, _ in on), "the sword's box never came on")
+            self.assertTrue(all(a == g for a, g in on), f"box on outside the cut: {on}")
+            self.assertFalse(caixa, "the cut did not break the crate")
+            self.assertEqual(len(list(ns["group"]["luz"])), 1)
+
+    def test_the_light_gives_six_seconds_and_blinks_at_the_end(self):
+        with ProgramRun(self.PATH) as run:
+            run.step(3)
+            ns = run.ns
+            heroi = list(ns["group"]["heroi"])[0]
+            heroi.pegou_luz(ns["Orb"](center=(0, 0), radius=5))
+            run.step(2)
+            self.assertTrue(heroi.invencivel)
+            vidas = ns["st"].vidas
+            heroi.perder()
+            self.assertEqual(ns["st"].vidas, vidas, "a hit while invincible")
+            looks = []
+            for _ in range(int(6.2 * 60)):
+                run.step(1)
+                looks.append(type(heroi.visual).__name__ if heroi.visual else None)
+            first_off = looks.index(None)
+            self.assertGreater(first_off, int(3.9 * 60), "the Aura went out before the warning")
+            self.assertIn("Aura", looks[first_off:], "no blink: the Aura went out for good")
+            self.assertIsNone(heroi.visual)
+            self.assertFalse(heroi.invencivel)
+            heroi.perder()
+            self.assertEqual(ns["st"].vidas, vidas - 1)
+
+    def test_a_shock_then_the_light_keeps_the_aura(self):
+        with ProgramRun(self.PATH) as run:
+            run.step(3)
+            ns = run.ns
+            heroi = list(ns["group"]["heroi"])[0]
+            ns["choque"](None, heroi, None)
+            run.step(10)
+            heroi.pegou_luz(ns["Orb"](center=(0, 0), radius=5))
+            run.step(int(3 * 60))          # past the shock's 2.5 s
+            self.assertEqual(type(heroi.visual).__name__, "Aura")
+            self.assertIsNone(heroi.glow, "the shock's glow stayed on")
 
 
 class TestDueloRules(unittest.TestCase):

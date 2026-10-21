@@ -65,11 +65,11 @@ ninja.strip("parado", "ninja/Idle__*.png", fps=8)
 ninja.strip("correndo", "ninja/Run__*.png", fps=12)
 ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
 ninja.strip("jogando", "ninja/Throw__*.png", fps=24)
-ninja.strip("morto", "ninja/Dead__*.png", fps=12)
+ninja.strip("morto", "ninja/Dead__*.png", fps=12, offset=(0, -19))
 
 robo = Sheet(anchor="bottom", pixel_size=0.16)
-robo.strip("andando", "robot/Run (*).png", fps=12)
-robo.strip("quebrado", "robot/Dead (*).png", fps=12)
+robo.strip("andando", "robot/Run (*).png", fps=12, offset=(0, -12))
+robo.strip("quebrado", "robot/Dead (*).png", fps=12, offset=(0, -23))
 
 
 class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
@@ -141,8 +141,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
-        if self.center.y < 30:
-            self.perder()
 
         if self.showing("jogando"):
             return
@@ -164,6 +162,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
     @collide_with("robo")
     def bateu(self, robo):
+        self.perder()
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
         self.perder()
 
     def perder(self):

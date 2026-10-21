@@ -379,6 +379,8 @@ Interned bake in `atlas.py`, keyed by the image token (shared by every live shee
 
 Path and SDF are independent: `DashRing` warms contour only; later `Aura` upgrades `fx.sdf` in place from the retained mask. Flags: `Visual._needs_sprite_path` / `_needs_sprite_sdf` (plus `_replaces_sprite_body`).
 
+**Cost.** A cell of the ninja pack (96 px mask side) bakes in ~4 ms for the path and ~9 ms with the SDF on this machine, so `prepare_fx(ElectricField, Aura)` on the 60-cell ninja takes ~0.6 s, once, at setup. The SDF is an exact squared distance transform in numpy blocks (`_edt_sq_axis0`: `min_k (i - k)^2 + f[k, j]`, columns then rows), and `path_v2` is Visvalingam–Whyatt on a heap (only the two neighbours of a dropped vertex get a new cost; ties go to the earlier vertex, as the full rescan did). Both replaced Python loops that cost ~0.2 s a cell: a first `visual = Aura()` stalled a game 0.85 s, long enough (with `MAX_FRAME_DT` 0.25 s) to make an author's pit check fire on a hero standing on the floor (see [Collision Design — Frame order](Collision%20Design.md#frame-order)). Guards: `tests/test_atlas.py` (`TestSilhouetteBakeSpeed`: same vertices as the rescan, same SDF bytes as the scalar lower envelope, a time bound). Still Python: `_marching_squares_outer` (most of the ~4 ms path bake).
+
 Beginners: assign the costume — that is the warmup. Advanced: `prepare_fx(*looks)` on a load screen when art is not spawned yet or several costumes will be used later. Smoke A/B: `scripts/smoke/look_fx.py` (`PREPARE_FX = True/False`).
 
 Alpha cutoff `_FX_ALPHA = 16` (0–255, ~6%) — **same floor as** `_AUTO_ALPHA`. AA fringe can sit slightly outside the perceived art edge; do not raise this independently of hitbox auto-bake.

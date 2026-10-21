@@ -122,7 +122,9 @@ class TestSheetFormat(unittest.TestCase):
         self.assertEqual(parse(old)["items"], parse({**old, "version": 2})["items"])
 
     def test_shipped_version_1_levels_still_load(self):
-        for name in ("ninja.json", "duelo.json", "ninja_perigos.json"):
+        # ninja_perigos.json left this list when the editor saved it (it writes
+        # version 2); these two stay version 1 as the read-back fixtures.
+        for name in ("ninja.json", "duelo.json"):
             with self.subTest(level=name):
                 with open(media("levels", name), encoding="utf-8") as f:
                     data = json.load(f)

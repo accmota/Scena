@@ -43,6 +43,7 @@ its last step here.
 | 28 Corredor infinito | `corredor.py` |
 | 29 Giros | `barras_girando.py`, `osciloscopio.py` |
 | 30 Duelo | `duelo.py` |
+| 32 Ninja V · Espada | `ninja_5_espada.py` |
 
 The appendices (`A-…` to `G-…` in the same folder) are reference pages made of
 short programs; they end in no file here.

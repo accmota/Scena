@@ -183,8 +183,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
-        if self.center.y < 30:
-            self.perder()
 
         if not no_chao:
             self.play("pulando")
@@ -192,6 +190,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
             self.play("correndo")
         else:
             self.play("parado")
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
+        self.perder()
 
     def perder(self):
         self.center = (100, 400)
@@ -219,8 +221,8 @@ run()
           text: "Uma terceira plataforma, lá no alto."
         },
         {
-          at: "if self.center.y < 30:",
-          text: "Com a âncora embaixo, o <code>center</code> são os pés. Abaixo de y = 30, o ninja caiu na água, e o <code>on_update</code> chama <code>self.perder()</code>, uma função da própria classe."
+          at: "@when(lambda self: self.center.y < 30)",
+          text: "Com a âncora embaixo, o <code>center</code> são os pés. Abaixo de y = 30, o ninja caiu na água. O <code>@when</code> numa classe vale para cada ninja: quando a pergunta passa de falsa a verdadeira, o Scena chama <code>caiu</code>, e <code>caiu</code> chama <code>self.perder()</code>, uma função da própria classe."
         },
         {
           at: "self.center = (100, 400)",
@@ -233,6 +235,7 @@ run()
       ],
       after: `
         <p>Rode e caia no buraco: o ninja afunda atrás da água e reaparece no começo.</p>
+        <details class="ask"><summary>Não seria mais simples um <code>if self.center.y < 30:</code> no <code>on_update</code>, logo depois do <code>move_by</code>?</summary><p>Ali o ninja ainda não passou pela colisão. A cada quadro, o <code>move_by</code> leva o ninja aonde a gravidade manda, e só depois o <code>resolve</code> o empurra de volta para cima do chão. Num quadro normal, a queda é de menos de um ponto e ninguém nota. Mas num quadro lento (o computador engasgou por um quinto de segundo), a gravidade leva os pés para baixo de 30 antes do empurrão, e o <code>if</code> veria um ninja caído no buraco quando ele está de pé no chão. O <code>@when</code> faz a pergunta no fim do quadro, depois da colisão, com o ninja já no lugar.</p></details>
         <details class="ask"><summary>Por que colocar o ninja no começo, e não levá-lo até lá com <code>move_by</code>?</summary><p>O <code>resolve</code> segura quem viaja. Indo da água até o começo com <code>move_by</code>, o ninja encontraria a beirada do chão no caminho e ficaria barrado ali, na borda do buraco. Colocado, ele simplesmente aparece no começo. E a <code>vel</code> volta a zero; senão, ele chegaria lá ainda caindo depressa.</p></details>
       `,
       try: [
@@ -339,8 +342,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
-        if self.center.y < 30:
-            self.perder()
 
         if not no_chao:
             self.play("pulando")
@@ -348,6 +349,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
             self.play("correndo")
         else:
             self.play("parado")
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
+        self.perder()
 
     def perder(self):
         self.center = (100, 400)
@@ -467,8 +472,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
-        if self.center.y < 30:
-            self.perder()
 
         if not no_chao:
             self.play("pulando")
@@ -485,6 +488,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
         if st.estrelas == 5:
             aviso.text = "Todas as estrelas!"
             play_sound("audio/Victory.mp3")
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
+        self.perder()
 
     def perder(self):
         self.center = (100, 400)
@@ -604,7 +611,7 @@ ninja.strip("correndo", "ninja/Run__*.png", fps=12)
 ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
 
 robo = Sheet(anchor="bottom", pixel_size=0.16)
-robo.strip("andando", "robot/Run (*).png", fps=12)
+robo.strip("andando", "robot/Run (*).png", fps=12, offset=(0, -12))
 
 
 class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
@@ -645,8 +652,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
-        if self.center.y < 30:
-            self.perder()
 
         if not no_chao:
             self.play("pulando")
@@ -666,6 +671,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
     @collide_with("robo")
     def bateu(self, robo):
+        self.perder()
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
         self.perder()
 
     def perder(self):
@@ -694,7 +703,11 @@ run()
       notes: [
         {
           at: "robo = Sheet(",
-          text: "Uma folha só do robô, feita como a do ninja: com a âncora embaixo, os pés ficam no chão. Com um clip só na folha, o robô já nasce andando."
+          text: "Uma folha só do robô, feita como a do ninja. Com um clip só na folha, o robô já nasce andando."
+        },
+        {
+          at: "offset=(0, -12)",
+          text: "<code>offset</code> (deslocamento) move o desenho de um clip, em pixels da imagem: <code>(0, -12)</code> é 12 pixels para baixo. A âncora <code>\"bottom\"</code> põe no chão a borda de baixo do PNG, e os PNGs do robô têm uma faixa vazia embaixo dos pés: sem o deslocamento, ele anda flutuando."
         },
         {
           at: "self.meio = self.center.x",
@@ -711,6 +724,20 @@ run()
       ],
       after: `
         <p>Rode e encoste num robô, de propósito.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 150" role="img" aria-label="Dois quadros do robô. À esquerda, sem offset, a borda de baixo do PNG está no chão e os pés ficam acima dele, sobre uma faixa vazia. À direita, com offset igual a zero, menos doze, o PNG desce, a faixa vazia fica abaixo do chão e os pés pisam nele">
+            <line class="ray" x1="20" y1="110" x2="180" y2="110"/>
+            <rect class="guide" x="55" y="12" width="90" height="98"/>
+            <rect class="bar" x="80" y="20" width="40" height="74" rx="4"/>
+            <text x="100" y="105" text-anchor="middle">vazio</text>
+            <text x="100" y="132" text-anchor="middle">sem offset</text>
+            <line class="ray" x1="220" y1="110" x2="380" y2="110"/>
+            <rect class="guide" x="255" y="28" width="90" height="98"/>
+            <rect class="bar" x="280" y="36" width="40" height="74" rx="4"/>
+            <text x="300" y="140" text-anchor="middle">offset=(0, -12)</text>
+          </svg>
+          <figcaption>O tracejado é o PNG, com a âncora embaixo. À esquerda, a borda de baixo do PNG está no chão, e os pés, acima dele: o robô flutua. Com <code>offset=(0, -12)</code>, o desenho desce 12 pixels e os pés pisam no chão.</figcaption>
+        </figure>
         <details class="ask"><summary>Não seria mais curto inverter o sinal, <code>self.vel.x = -self.vel.x</code>, numa linha só?</summary><p>Logo depois da virada, o robô pode continuar além da marca por um quadro. A inversão dispararia de novo, ele viraria para fora outra vez e ficaria tremendo ali, indo e voltando. Com o lado dito, perguntar outra vez não muda nada: além de <code>meio + 90</code>, a resposta é sempre −90.</p></details>
       `
     },
@@ -776,8 +803,8 @@ ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
 ninja.strip("jogando", "ninja/Throw__*.png", fps=24)
 
 robo = Sheet(anchor="bottom", pixel_size=0.16)
-robo.strip("andando", "robot/Run (*).png", fps=12)
-robo.strip("quebrado", "robot/Dead (*).png", fps=12)
+robo.strip("andando", "robot/Run (*).png", fps=12, offset=(0, -12))
+robo.strip("quebrado", "robot/Dead (*).png", fps=12, offset=(0, -23))
 
 
 class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
@@ -842,8 +869,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
-        if self.center.y < 30:
-            self.perder()
 
         if self.showing("jogando"):
             return
@@ -865,6 +890,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
     @collide_with("robo")
     def bateu(self, robo):
+        self.perder()
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
         self.perder()
 
     def perder(self):
@@ -896,6 +925,10 @@ def saiu(kunai):
 run()
 `,
       notes: [
+        {
+          at: "offset=(0, -23)",
+          text: "O clip do robô quebrado tem a sua própria faixa vazia, maior: 23 pixels. Cada clip leva o seu <code>offset</code>."
+        },
         {
           at: "art_angle=90",
           text: "O desenho da kunai aponta para cima. <code>art_angle=90</code> (o ângulo da arte) avisa o Scena, e daí o ângulo da kunai é para onde ela aponta no mundo."
@@ -1000,11 +1033,11 @@ ninja.strip("parado", "ninja/Idle__*.png", fps=8)
 ninja.strip("correndo", "ninja/Run__*.png", fps=12)
 ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
 ninja.strip("jogando", "ninja/Throw__*.png", fps=24)
-ninja.strip("morto", "ninja/Dead__*.png", fps=12)
+ninja.strip("morto", "ninja/Dead__*.png", fps=12, offset=(0, -19))
 
 robo = Sheet(anchor="bottom", pixel_size=0.16)
-robo.strip("andando", "robot/Run (*).png", fps=12)
-robo.strip("quebrado", "robot/Dead (*).png", fps=12)
+robo.strip("andando", "robot/Run (*).png", fps=12, offset=(0, -12))
+robo.strip("quebrado", "robot/Dead (*).png", fps=12, offset=(0, -23))
 
 
 class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
@@ -1076,8 +1109,6 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
-        if self.center.y < 30:
-            self.perder()
 
         if self.showing("jogando"):
             return
@@ -1099,6 +1130,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
 
     @collide_with("robo")
     def bateu(self, robo):
+        self.perder()
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
         self.perder()
 
     def perder(self):
@@ -1141,6 +1176,10 @@ run()
 `,
       notes: [
         {
+          at: "offset=(0, -19)",
+          text: "O ninja caído também flutuaria: os PNGs <code>Dead__</code> têm 19 pixels vazios embaixo do corpo."
+        },
+        {
           at: "vidas[\"text\"] @=",
           text: "O HUD mostra um ninja pequeno e <code>x 3</code>, ligado a <code>st.vidas</code> com <code>@=</code>."
         },
@@ -1166,9 +1205,11 @@ run()
       `,
       recap: `
         <ul>
+          <li><code>@when(lambda self: …)</code> no <code>Heroi</code> — a queda na água é perguntada depois da colisão, com o ninja já no lugar; um quadro lento não vira uma queda.</li>
           <li><code>center =</code> — coloca: o ninja aparece no começo sem atravessar o caminho; o <code>resolve</code> segura quem viaja por ele.</li>
           <li><code>recently</code> e <code>recently.reset</code> — lembram por um instante que algo foi verdade (o tempo do coiote) e esquecem quando a folga foi gasta.</li>
           <li><code>Robo</code> com <code>self.meio</code> — cada robô patrulha em volta de onde nasceu, virando num lado dito, sem gravidade.</li>
+          <li><code>offset</code> no <code>strip</code> — desce o desenho de um clip cujo PNG tem uma faixa vazia embaixo dos pés: o robô e o ninja caído pisam no chão.</li>
           <li><code>play(…, loops=1, next=)</code> e <code>showing</code> — um clip que toca uma vez e volta, e a pergunta que deixa a escolha do clip esperar.</li>
           <li><code>art_angle</code> e <code>rotate_to(self.angle)</code> — a kunai aponta para onde o ninja olha.</li>
           <li><code>untag</code> — tira um objeto de um grupo: o robô caído não machuca.</li>

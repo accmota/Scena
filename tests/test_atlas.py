@@ -585,6 +585,145 @@ class TestSilhouettePathV2(unittest.TestCase):
         procedural_builder("sprite_sil_v2")
 
 
+def _simplify_vw_full_rescan(verts, *, max_verts):
+    """Reference Visvalingam-Whyatt: every cost again each round, first minimum.
+
+    ``_simplify_contour_vw`` must keep exactly these vertices. The reference is
+    the O(n^2) loop that made ``prepare_fx(Aura)`` take seconds on the ninja.
+    """
+    from scena.atlas import _triangle_area
+
+    poly = list(verts)
+    if len(poly) >= 2:
+        if abs(poly[0][0] - poly[-1][0]) < 1e-6 and abs(poly[0][1] - poly[-1][1]) < 1e-6:
+            poly.pop()
+    if len(poly) < 3:
+        return poly
+    cap = max(8, int(max_verts))
+    while len(poly) > cap:
+        n = len(poly)
+        costs = [_triangle_area(poly[(i - 1) % n], poly[i], poly[(i + 1) % n]) for i in range(n)]
+        poly.pop(int(np.argmin(costs)))
+    return poly
+
+
+def _edt_2d_envelope(binary):
+    """Reference signed EDT: the scalar Felzenszwalb lower envelope per row / column."""
+    def edt_1d(f):
+        n = int(f.shape[0])
+        d = np.empty(n, dtype=np.float64)
+        v = np.empty(n, dtype=np.int32)
+        z = np.empty(n + 1, dtype=np.float64)
+        k = 0
+        v[0] = 0
+        z[0] = -1e20
+        z[1] = 1e20
+        for q in range(1, n):
+            s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2.0 * q - 2.0 * v[k])
+            while s <= z[k]:
+                k -= 1
+                s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2.0 * q - 2.0 * v[k])
+            k += 1
+            v[k] = q
+            z[k] = s
+            z[k + 1] = 1e20
+        k = 0
+        for q in range(n):
+            while z[k + 1] < q:
+                k += 1
+            d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]
+        return d
+
+    def sq(f):
+        f = f.copy()
+        for x in range(f.shape[1]):
+            f[:, x] = edt_1d(f[:, x])
+        for y in range(f.shape[0]):
+            f[y, :] = edt_1d(f[y, :])
+        return f
+
+    out = np.sqrt(sq(np.where(binary, 0.0, 1e10)))
+    inn = np.sqrt(sq(np.where(~binary, 0.0, 1e10)))
+    out[binary] = -inn[binary]
+    return out
+
+
+class TestSilhouetteBakeSpeed(unittest.TestCase):
+    """The FrameFx bake (Aura, Halo, prepare_fx) keeps its output and loses its
+    Python hot loops: ``prepare_fx(Aura, ElectricField)`` on the 60-cell ninja
+    took 6.3 s, a first ``visual = Aura()`` stalled the game 0.85 s."""
+
+    def _rings(self):
+        from scena.atlas import _marching_squares_outer
+        rng = np.random.default_rng(7)
+        rings = []
+        for _ in range(12):
+            mask = np.zeros((90, 80), dtype=bool)
+            for _ in range(int(rng.integers(2, 7))):
+                cx, cy = rng.integers(10, 70), rng.integers(10, 80)
+                rx, ry = rng.integers(4, 25), rng.integers(4, 25)
+                yy, xx = np.ogrid[:90, :80]
+                mask |= ((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2 <= 1.0
+            padded = np.zeros((92, 82), dtype=bool)
+            padded[1:-1, 1:-1] = mask
+            rings.append(_marching_squares_outer(padded))
+        # Ties: a lattice ring where many triangles share one area.
+        rings.append([(float(x), 0.0) for x in range(30)] + [(30.0, float(y)) for y in range(30)]
+                     + [(float(x), 30.0) for x in range(30, 0, -1)] + [(0.0, float(y)) for y in range(30, 0, -1)])
+        return rings
+
+    def test_vw_keeps_the_same_vertices_as_the_full_rescan(self):
+        from scena.atlas import _FX_PATH_V2_MAX, _simplify_contour_vw
+        for ring in self._rings():
+            for cap in (8, 20, _FX_PATH_V2_MAX):
+                self.assertEqual(_simplify_contour_vw(ring, max_verts=cap),
+                                 _simplify_vw_full_rescan(ring, max_verts=cap))
+
+    def test_vw_short_and_closed_rings(self):
+        from scena.atlas import _simplify_contour_vw
+        self.assertEqual(_simplify_contour_vw([(0, 0), (1, 0)]), [(0, 0), (1, 0)])
+        ring = [(float(i), float(i % 3)) for i in range(40)] + [(0.0, 0.0)]
+        self.assertEqual(_simplify_contour_vw(ring, max_verts=10),
+                         _simplify_vw_full_rescan(ring, max_verts=10))
+
+    def test_edt_matches_the_envelope(self):
+        from scena.atlas import _edt_2d
+        rng = np.random.default_rng(3)
+        masks = [rng.random((37, 29)) < p for p in (0.02, 0.3, 0.9)]
+        masks.append(np.zeros((12, 9), dtype=bool))      # no solid: all far
+        masks.append(np.ones((9, 12), dtype=bool))       # all solid
+        one = np.zeros((1, 15), dtype=bool)
+        one[0, 4] = True
+        masks.append(one)
+        for mask in masks:
+            np.testing.assert_allclose(_edt_2d(mask), _edt_2d_envelope(mask), rtol=0, atol=1e-9)
+
+    def test_sdf_image_bytes_unchanged(self):
+        from scena.atlas import _mask_to_sdf_image, _FX_SDF_PAD
+        mask = np.zeros((60, 50), dtype=bool)
+        mask[10:50, 15:35] = True
+        mask[20:30, 5:45] = True
+        p = _FX_SDF_PAD
+        big = np.zeros((60 + 2 * p, 50 + 2 * p), dtype=bool)
+        big[p:p + 60, p:p + 50] = mask
+        want = np.clip(128.0 + _edt_2d_envelope(big) * (128.0 / 30.0), 0, 255).astype(np.uint8)
+        img = _mask_to_sdf_image(mask, pad=p)
+        got = img.toarray(colorType=skia.kRGBA_8888_ColorType)[:, :, 0]
+        np.testing.assert_array_equal(got, want)
+
+    def test_bake_of_a_large_cell_is_fast(self):
+        import time
+        from scena.atlas import AtlasFrame, _bake_frame_fx
+        img = skia.Image.open(media("ninja", "Attack__005.png"))
+        frame = AtlasFrame(name="a", x=0, y=0, w=img.width(), h=img.height())
+        t = time.perf_counter()
+        fx = _bake_frame_fx(img, frame, sdf=True)
+        took = time.perf_counter() - t
+        self.assertIsNotNone(fx.sdf)
+        # Was ~0.2 s here; the bound leaves room for a loaded machine.
+        self.assertLess(took, 0.08)
+
+
 class TestMaskCache(unittest.TestCase):
     def setUp(self):
         reset_atlas_caches()

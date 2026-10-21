@@ -608,6 +608,14 @@ left out.
 
 ### Fixed
 
+- A silhouette look on an animated Sprite no longer stalls the game the
+  first time: `ninja.visual = Aura()` took 0.85 s and a first
+  `ElectricField` 0.15 s on the ninja pack; now ~30 ms, and
+  `prepare_fx(ElectricField, Aura)` bakes all 60 cells in ~0.6 s (was 6.3 s).
+  The drawing is the same. The Ninja examples call `prepare_fx` in the
+  hero's `setup` and test the pit in a `@when` (read after collision): a
+  long frame used to make a hero standing on the floor count as fallen.
+
 - A formula linked from code run in memory (a notebook cell, IDLE, `exec`
   of text kept in `linecache`) no longer raises a false
   `CircularReferenceError` ("cannot read that object's own size") when it is
@@ -908,6 +916,20 @@ left out.
   What links and what refuses did not change.
 
 ### Documentation
+
+- New tutorial 32, Ninja V · Espada (`examples/ninja_5_espada.py`): crates
+  that only the sword breaks, with a hitbox part placed by hand in the
+  attack frame's pixels (`add_hitbox(px_rect=)`) and on only in the frames
+  of the cut (`espada["active"] @= lambda: self.showing(GOLPE)`); a broken
+  crate leaves a light that makes the ninja invincible for a while, with an
+  `Aura` that blinks before it ends. The level of 27 now holds the crates
+  (decoration there).
+- Ninja tutorials 19, 26 and 27: the robots and the dead ninja stand on the
+  ground (`offset=` on their clips, taught in 19 with a figure); the fall
+  into the water is a `@when` in the hero, read after collision (a slow
+  frame no longer counts as a fall); in 27 a ray shocks the ninja for 2.5 s
+  (`save_visual` / `restore_visual`) and `prepare_fx` builds the look up
+  front.
 
 - The examples of the Naves and Ninja series carry their number in the
   series, as the tutorial titles do: `naves_1.py`, `naves_2_classes.py`,

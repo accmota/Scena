@@ -5,6 +5,7 @@ path; greedy alpha covering is cached per image region.
 """
 from __future__ import annotations
 
+import heapq
 import json
 import math
 import os
@@ -2520,14 +2521,34 @@ def _simplify_contour_vw(
     if len(poly) < 3:
         return poly
     cap = max(8, int(max_verts))
-    while len(poly) > cap:
-        n = len(poly)
-        costs = [
-            _triangle_area(poly[(i - 1) % n], poly[i], poly[(i + 1) % n])
-            for i in range(n)
-        ]
-        poly.pop(int(np.argmin(costs)))
-    return poly
+    n = len(poly)
+    if n <= cap:
+        return poly
+    # Same choice as recomputing every cost each round and dropping the first
+    # smallest (ties go to the earliest vertex in ring order, which is the
+    # original order): a heap of (cost, index), and only the two neighbours of
+    # a dropped vertex get a new cost. O(n log n); the full rescan was O(n^2)
+    # and most of a silhouette bake (prepare_fx(Aura) on a 60-cell sheet).
+    prev = [(i - 1) % n for i in range(n)]
+    nxt = [(i + 1) % n for i in range(n)]
+    cost = [_triangle_area(poly[prev[i]], poly[i], poly[nxt[i]]) for i in range(n)]
+    alive = [True] * n
+    heap = [(c, i) for i, c in enumerate(cost)]
+    heapq.heapify(heap)
+    left = n
+    while left > cap:
+        c, i = heapq.heappop(heap)
+        if not alive[i] or c != cost[i]:
+            continue                      # dropped, or an older cost
+        alive[i] = False
+        left -= 1
+        p, q = prev[i], nxt[i]
+        nxt[p] = q
+        prev[q] = p
+        for j in (p, q):
+            cost[j] = _triangle_area(poly[prev[j]], poly[j], poly[nxt[j]])
+            heapq.heappush(heap, (cost[j], j))
+    return [poly[i] for i in range(n) if alive[i]]
 
 
 def _marching_squares_outer(mask: np.ndarray) -> List[Tuple[float, float]]:
@@ -2644,31 +2665,23 @@ def _marching_squares_outer(mask: np.ndarray) -> List[Tuple[float, float]]:
     return best
 
 
-def _edt_1d(f: np.ndarray) -> np.ndarray:
-    """Felzenszwalb 1D squared Euclidean distance transform."""
-    n = int(f.shape[0])
-    d = np.empty(n, dtype=np.float64)
-    v = np.empty(n, dtype=np.int32)
-    z = np.empty(n + 1, dtype=np.float64)
-    k = 0
-    v[0] = 0
-    z[0] = -1e20
-    z[1] = 1e20
-    for q in range(1, n):
-        s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2.0 * q - 2.0 * v[k])
-        while s <= z[k]:
-            k -= 1
-            s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2.0 * q - 2.0 * v[k])
-        k += 1
-        v[k] = q
-        z[k] = s
-        z[k + 1] = 1e20
-    k = 0
-    for q in range(n):
-        while z[k + 1] < q:
-            k += 1
-        d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]
-    return d
+def _edt_sq_axis0(f: np.ndarray) -> np.ndarray:
+    """Squared distance transform down axis 0: ``min_k (i - k)^2 + f[k, j]``.
+
+    Exact, the same sums as the Felzenszwalb lower envelope, in numpy blocks
+    of rows (masks here are at most ``_FX_MAX_SIDE + 2 * _FX_SDF_PAD`` a side).
+    The scalar Python envelope cost ~0.1 s per cell (one call per row and column).
+    """
+    n, m = f.shape
+    idx = np.arange(n, dtype=np.float64)
+    d = idx[:, None] - idx[None, :]
+    d2 = d * d
+    out = np.empty_like(f)
+    rows = max(1, 1_000_000 // max(1, n * m))
+    for i0 in range(0, n, rows):
+        i1 = min(n, i0 + rows)
+        out[i0:i1] = (d2[i0:i1, :, None] + f[None, :, :]).min(axis=1)
+    return out
 
 
 def _edt_2d(binary: np.ndarray) -> np.ndarray:
@@ -2677,24 +2690,15 @@ def _edt_2d(binary: np.ndarray) -> np.ndarray:
     Input True = solid. Returns signed distance: negative inside, positive outside
     (in pixel units, not squared).
     """
-    h, w = binary.shape
     INF = 1e10
-    # Distance to nearest solid for every cell (0 on solid).
+    # Distance to nearest solid for every cell (0 on solid): columns, then rows.
     f = np.where(binary, 0.0, INF)
-    # Columns
-    for x in range(w):
-        f[:, x] = _edt_1d(f[:, x])
-    # Rows
-    for y in range(h):
-        f[y, :] = _edt_1d(f[y, :])
+    f = _edt_sq_axis0(_edt_sq_axis0(f).T).T
     dist_out = np.sqrt(f)  # distance to solid (= 0 inside, >0 outside)
 
     # Distance to nearest empty for solid cells
     g = np.where(~binary, 0.0, INF)
-    for x in range(w):
-        g[:, x] = _edt_1d(g[:, x])
-    for y in range(h):
-        g[y, :] = _edt_1d(g[y, :])
+    g = _edt_sq_axis0(_edt_sq_axis0(g).T).T
     dist_in = np.sqrt(g)
 
     signed = dist_out.copy()

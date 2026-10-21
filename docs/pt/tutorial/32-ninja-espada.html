@@ -1,0 +1,2462 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ninja V · Espada — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "32",
+  title: "Ninja V · Espada",
+  steps: [
+    {
+      title: "O jogo do 27",
+      body: `
+        <p>Na fase do tutorial 27 há três caixas de madeira, e elas são só enfeite: o ninja passa através delas. Neste tutorial, elas entram no jogo. Só a espada as quebra, e só no instante do corte; a caixa quebrada deixa uma luz, e quem pega a luz fica invencível por alguns segundos.</p>
+        <p>Começamos pelo jogo do tutorial 27, como ficou.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("longe", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="longe")
+
+fase = Level("levels/ninja_perigos.json")
+canvas.playfield.set(fase.box)
+
+
+
+def jogo_novo():
+    st.estrelas = 0
+    st.vidas = 3
+    st.descer = False
+    st.aviso = ""
+
+
+jogo_novo()
+
+placar = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+placar["text"] @= lambda: f"Estrelas {st.estrelas}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+vidas = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+vidas["text"] @= lambda: f"x {st.vidas}"
+aviso = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+aviso["text"] @= lambda: st.aviso
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+ninja.strip("jogando", "ninja/Throw__*.png", fps=24)
+ninja.strip("morto", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robo = Sheet(anchor="bottom", pixel_size=0.16)
+robo.strip("andando", "robot/Run (*).png", fps=12, offset=(0, -12))
+robo.strip("quebrado", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        seta = vec_from_angle(self.angle, length=700)
+        self.move_by(seta.x * dt, 0)
+
+
+class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("andando")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["chao", "plataforma"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["chao", "plataforma"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
+        kunai.destroy()
+        self.untag("robo")
+        self.vel.x = 0
+        self.play("quebrado", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.add_hitbox(group="dor")
+        self.prepare_fx(ElectricField)
+
+    def on_update(self, dt):
+        if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
+            return
+
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.descer = recently("descer", keyp.once("DOWN"), hold=0.2)
+
+        no_chao = "bottom" in self.touching_sides
+        pode_pular = recently("no_chao", no_chao, hold=0.12)
+        if keyp.once("UP") and pode_pular:
+            self.vel.y = 900
+            recently.reset("no_chao")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and ready("kunai", 0.4):
+            self.play("jogando", loops=1, next="parado")
+            kunai = Kunai(center=(self.center.x, self.center.y + 50))
+            kunai.rotate_to(self.angle)
+            play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing("jogando"):
+            return
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    @collide_with("estrela")
+    def pegou(self, estrela):
+        estrela.destroy()
+        st.estrelas += 1
+        play_sound("synth/coin.wav")
+        if st.estrelas == len(fase.group("estrela")):
+            st.aviso = "Todas as estrelas!"
+            play_sound("audio/Victory.mp3")
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
+        self.perder()
+        if st.vidas > 0:
+            self.center = fase["inicio"].center
+            self.vel = Vec2(0, 0)
+
+    def perder(self):
+        if st.vidas == 0:
+            return
+        st.vidas -= 1
+        canvas.shake(6)
+        if st.vidas > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("dor")
+            self.after(1.5, lambda: self.tag("dor"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.aviso = "Fim de jogo · R recomeça"
+
+
+collision.floor = True
+resolve("heroi", "chao", bounce=0)
+resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
+
+@collide("robo", "dor")
+def encostou(robo, heroi, info):
+    heroi.perder()
+
+
+@collide("raio", "dor")
+def choque(raio, heroi, info):
+    heroi.perder()
+    heroi.save_visual()
+    heroi.visual = ElectricField("cyan")
+    heroi.glow = "light blue"
+    heroi.after(2.5, heroi.restore_visual, name="choque")
+
+
+@leave_playfield("kunai")
+def saiu(kunai):
+    kunai.destroy()
+
+
+
+class Fase(Act):
+    def setup(self):
+        for enfeite in fase.group("enfeite"):
+            enfeite.make()
+        for caixa in fase.group("caixa"):
+            caixa.make()
+        for peca in fase.group("chao"):
+            peca.make()
+        for peca in fase.group("plataforma"):
+            peca.make()
+        elevador = fase["elevador"].make(group="plataforma", visual=Metal("gold"))
+        elevador.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for lugar in fase.group("parede"):
+            parede = lugar.make(group="chao")
+            parede.visible = False
+        group["chao"].mass = STATIC
+        group["plataforma"].mass = STATIC
+
+        self.heroi = Heroi(center=fase["inicio"].center)
+
+        for lugar in fase.group("estrela"):
+            estrela = Sprite("k-rolling-ball/star.png", height=36, center=lugar.center, group="estrela")
+            estrela.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for lugar in fase.group("robo"):
+            Robo(center=lugar.center)
+
+        for agua in fase.group("agua"):
+            agua.make()
+
+        for lugar in fase.group("raio"):
+            lugar.make(visual=ElectricField("cyan", amount=10))
+
+        self.seguir = False
+        canvas.frame_to(fase.box)
+        self.after(2, self.comecar)
+
+    def comecar(self):
+        canvas.zoom_to(1, time=1)
+        self.seguir = True
+
+    @every(1.5)
+    def piscar(self):
+        for raio in group["raio"]:
+            raio.active = not raio.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            jogo_novo()
+            change_act(Fase)
+            return
+        if not self.seguir:
+            return
+        olhar = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(olhar, self.heroi.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(olhar, (x, 375), rate=5))
+
+
+run(Fase)
+`,
+      notes: [
+        {
+          at: "for caixa in fase.group(\"caixa\"):",
+          text: "As três caixas da fase, num grupo só delas. Por enquanto, cada uma é feita como foi desenhada no editor, e nada mais."
+        }
+      ]
+    },
+    {
+      title: "Caixas no caminho",
+      body: `
+        <p>Primeiro, as caixas ficam sólidas: o ninja para do lado delas e pode subir nelas. É o mesmo <code>resolve</code> do chão, com outro grupo.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("longe", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="longe")
+
+fase = Level("levels/ninja_perigos.json")
+canvas.playfield.set(fase.box)
+
+
+
+def jogo_novo():
+    st.estrelas = 0
+    st.vidas = 3
+    st.descer = False
+    st.aviso = ""
+
+
+jogo_novo()
+
+placar = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+placar["text"] @= lambda: f"Estrelas {st.estrelas}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+vidas = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+vidas["text"] @= lambda: f"x {st.vidas}"
+aviso = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+aviso["text"] @= lambda: st.aviso
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+ninja.strip("jogando", "ninja/Throw__*.png", fps=24)
+ninja.strip("morto", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robo = Sheet(anchor="bottom", pixel_size=0.16)
+robo.strip("andando", "robot/Run (*).png", fps=12, offset=(0, -12))
+robo.strip("quebrado", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        seta = vec_from_angle(self.angle, length=700)
+        self.move_by(seta.x * dt, 0)
+
+
+class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("andando")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["chao", "plataforma"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["chao", "plataforma"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
+        kunai.destroy()
+        self.untag("robo")
+        self.vel.x = 0
+        self.play("quebrado", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.add_hitbox(group="dor")
+        self.prepare_fx(ElectricField)
+
+    def on_update(self, dt):
+        if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
+            return
+
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.descer = recently("descer", keyp.once("DOWN"), hold=0.2)
+
+        no_chao = "bottom" in self.touching_sides
+        pode_pular = recently("no_chao", no_chao, hold=0.12)
+        if keyp.once("UP") and pode_pular:
+            self.vel.y = 900
+            recently.reset("no_chao")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and ready("kunai", 0.4):
+            self.play("jogando", loops=1, next="parado")
+            kunai = Kunai(center=(self.center.x, self.center.y + 50))
+            kunai.rotate_to(self.angle)
+            play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing("jogando"):
+            return
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    @collide_with("estrela")
+    def pegou(self, estrela):
+        estrela.destroy()
+        st.estrelas += 1
+        play_sound("synth/coin.wav")
+        if st.estrelas == len(fase.group("estrela")):
+            st.aviso = "Todas as estrelas!"
+            play_sound("audio/Victory.mp3")
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
+        self.perder()
+        if st.vidas > 0:
+            self.center = fase["inicio"].center
+            self.vel = Vec2(0, 0)
+
+    def perder(self):
+        if st.vidas == 0:
+            return
+        st.vidas -= 1
+        canvas.shake(6)
+        if st.vidas > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("dor")
+            self.after(1.5, lambda: self.tag("dor"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.aviso = "Fim de jogo · R recomeça"
+
+
+collision.floor = True
+resolve("heroi", "chao", bounce=0)
+resolve("heroi", "caixa", bounce=0)
+resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
+
+@collide("robo", "dor")
+def encostou(robo, heroi, info):
+    heroi.perder()
+
+
+@collide("raio", "dor")
+def choque(raio, heroi, info):
+    heroi.perder()
+    heroi.save_visual()
+    heroi.visual = ElectricField("cyan")
+    heroi.glow = "light blue"
+    heroi.after(2.5, heroi.restore_visual, name="choque")
+
+
+@collide("kunai", "caixa")
+def cravou(kunai, caixa, info):
+    kunai.destroy()
+
+
+@leave_playfield("kunai")
+def saiu(kunai):
+    kunai.destroy()
+
+
+
+class Fase(Act):
+    def setup(self):
+        for enfeite in fase.group("enfeite"):
+            enfeite.make()
+        for caixa in fase.group("caixa"):
+            caixa.make()
+        for peca in fase.group("chao"):
+            peca.make()
+        for peca in fase.group("plataforma"):
+            peca.make()
+        elevador = fase["elevador"].make(group="plataforma", visual=Metal("gold"))
+        elevador.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for lugar in fase.group("parede"):
+            parede = lugar.make(group="chao")
+            parede.visible = False
+        group["chao"].mass = STATIC
+        group["plataforma"].mass = STATIC
+        group["caixa"].mass = STATIC
+
+        self.heroi = Heroi(center=fase["inicio"].center)
+
+        for lugar in fase.group("estrela"):
+            estrela = Sprite("k-rolling-ball/star.png", height=36, center=lugar.center, group="estrela")
+            estrela.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for lugar in fase.group("robo"):
+            Robo(center=lugar.center)
+
+        for agua in fase.group("agua"):
+            agua.make()
+
+        for lugar in fase.group("raio"):
+            lugar.make(visual=ElectricField("cyan", amount=10))
+
+        self.seguir = False
+        canvas.frame_to(fase.box)
+        self.after(2, self.comecar)
+
+    def comecar(self):
+        canvas.zoom_to(1, time=1)
+        self.seguir = True
+
+    @every(1.5)
+    def piscar(self):
+        for raio in group["raio"]:
+            raio.active = not raio.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            jogo_novo()
+            change_act(Fase)
+            return
+        if not self.seguir:
+            return
+        olhar = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(olhar, self.heroi.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(olhar, (x, 375), rate=5))
+
+
+run(Fase)
+`,
+      notes: [
+        {
+          at: "resolve(\"heroi\", \"caixa\", bounce=0)",
+          text: "Uma regra a mais para o ninja: a caixa o segura, como o chão."
+        },
+        {
+          at: "group[\"caixa\"].mass = STATIC",
+          text: "Parada, como o chão: o ninja que anda contra ela não a empurra."
+        },
+        {
+          at: "def cravou(kunai, caixa, info):",
+          text: "Uma kunai que bate numa caixa fica cravada nela, e some. A kunai não quebra a caixa: isso vai ser trabalho da espada."
+        }
+      ],
+      after: `
+        <p>Rode e ande até a primeira caixa: ela segura o ninja. Pule em cima dela, e jogue uma kunai de longe.</p>
+      `
+    },
+    {
+      title: "O golpe",
+      body: [
+        `
+        <p>Ao lado de uma caixa, espaço vira um golpe de espada; longe de todas, continua sendo a kunai. Quem está perto é uma pergunta ao grupo:</p>
+        `,
+        {
+          snip: `caixa = group["caixa"].nearest(self, within=75)
+if caixa:`
+        },
+        `
+        <p><code>nearest</code> (a mais perto) devolve a caixa mais próxima do ninja, ou <code>None</code> (nenhuma) se nenhuma está a menos de 75 dele: <code>within</code> quer dizer "dentro de". Encostado numa caixa, o centro do ninja (os pés) está a uns 55 do centro dela; 75 dá uma folga que a lâmina ainda alcança. Com <code>None</code>, o <code>if</code> não entra, e o espaço joga a kunai.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("longe", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="longe")
+
+fase = Level("levels/ninja_perigos.json")
+canvas.playfield.set(fase.box)
+
+
+
+def jogo_novo():
+    st.estrelas = 0
+    st.vidas = 3
+    st.descer = False
+    st.aviso = ""
+
+
+jogo_novo()
+
+placar = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+placar["text"] @= lambda: f"Estrelas {st.estrelas}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+vidas = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+vidas["text"] @= lambda: f"x {st.vidas}"
+aviso = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+aviso["text"] @= lambda: st.aviso
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+ninja.strip("jogando", "ninja/Throw__*.png", fps=24)
+ninja.strip("espada", "ninja/Attack__*.png", fps=20, offset=(50, -42))
+ninja.strip("morto", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robo = Sheet(anchor="bottom", pixel_size=0.16)
+robo.strip("andando", "robot/Run (*).png", fps=12, offset=(0, -12))
+robo.strip("quebrado", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        seta = vec_from_angle(self.angle, length=700)
+        self.move_by(seta.x * dt, 0)
+
+
+class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("andando")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["chao", "plataforma"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["chao", "plataforma"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
+        kunai.destroy()
+        self.untag("robo")
+        self.vel.x = 0
+        self.play("quebrado", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.add_hitbox(group="dor")
+        self.prepare_fx(ElectricField)
+
+    def on_update(self, dt):
+        if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
+            return
+
+        if self.showing("espada"):
+            self.vel.x = 0
+        elif keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.descer = recently("descer", keyp.once("DOWN"), hold=0.2)
+
+        no_chao = "bottom" in self.touching_sides
+        pode_pular = recently("no_chao", no_chao, hold=0.12)
+        if keyp.once("UP") and pode_pular:
+            self.vel.y = 900
+            recently.reset("no_chao")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and not self.showing("espada"):
+            caixa = group["caixa"].nearest(self, within=75)
+            if caixa:
+                self.flip_x = caixa.center.x < self.center.x
+                self.play("espada", loops=1, next="parado")
+                play_sound("synth/throw.wav")
+            elif ready("kunai", 0.4):
+                self.play("jogando", loops=1, next="parado")
+                kunai = Kunai(center=(self.center.x, self.center.y + 50))
+                kunai.rotate_to(self.angle)
+                play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing(("jogando", "espada")):
+            return
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    @collide_with("estrela")
+    def pegou(self, estrela):
+        estrela.destroy()
+        st.estrelas += 1
+        play_sound("synth/coin.wav")
+        if st.estrelas == len(fase.group("estrela")):
+            st.aviso = "Todas as estrelas!"
+            play_sound("audio/Victory.mp3")
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
+        self.perder()
+        if st.vidas > 0:
+            self.center = fase["inicio"].center
+            self.vel = Vec2(0, 0)
+
+    def perder(self):
+        if st.vidas == 0:
+            return
+        st.vidas -= 1
+        canvas.shake(6)
+        if st.vidas > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("dor")
+            self.after(1.5, lambda: self.tag("dor"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.aviso = "Fim de jogo · R recomeça"
+
+
+collision.floor = True
+resolve("heroi", "chao", bounce=0)
+resolve("heroi", "caixa", bounce=0)
+resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
+
+@collide("robo", "dor")
+def encostou(robo, heroi, info):
+    heroi.perder()
+
+
+@collide("raio", "dor")
+def choque(raio, heroi, info):
+    heroi.perder()
+    heroi.save_visual()
+    heroi.visual = ElectricField("cyan")
+    heroi.glow = "light blue"
+    heroi.after(2.5, heroi.restore_visual, name="choque")
+
+
+@collide("kunai", "caixa")
+def cravou(kunai, caixa, info):
+    kunai.destroy()
+
+
+@leave_playfield("kunai")
+def saiu(kunai):
+    kunai.destroy()
+
+
+
+class Fase(Act):
+    def setup(self):
+        for enfeite in fase.group("enfeite"):
+            enfeite.make()
+        for caixa in fase.group("caixa"):
+            caixa.make()
+        for peca in fase.group("chao"):
+            peca.make()
+        for peca in fase.group("plataforma"):
+            peca.make()
+        elevador = fase["elevador"].make(group="plataforma", visual=Metal("gold"))
+        elevador.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for lugar in fase.group("parede"):
+            parede = lugar.make(group="chao")
+            parede.visible = False
+        group["chao"].mass = STATIC
+        group["plataforma"].mass = STATIC
+        group["caixa"].mass = STATIC
+
+        self.heroi = Heroi(center=fase["inicio"].center)
+
+        for lugar in fase.group("estrela"):
+            estrela = Sprite("k-rolling-ball/star.png", height=36, center=lugar.center, group="estrela")
+            estrela.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for lugar in fase.group("robo"):
+            Robo(center=lugar.center)
+
+        for agua in fase.group("agua"):
+            agua.make()
+
+        for lugar in fase.group("raio"):
+            lugar.make(visual=ElectricField("cyan", amount=10))
+
+        self.seguir = False
+        canvas.frame_to(fase.box)
+        self.after(2, self.comecar)
+
+    def comecar(self):
+        canvas.zoom_to(1, time=1)
+        self.seguir = True
+
+    @every(1.5)
+    def piscar(self):
+        for raio in group["raio"]:
+            raio.active = not raio.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            jogo_novo()
+            change_act(Fase)
+            return
+        if not self.seguir:
+            return
+        olhar = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(olhar, self.heroi.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(olhar, (x, 375), rate=5))
+
+
+run(Fase)
+`,
+      notes: [
+        {
+          at: "ninja.strip(\"espada\"",
+          text: "Os PNGs do golpe (<code>Attack__</code>) são bem mais largos que os outros, 536 pixels, com o ninja à esquerda e 42 pixels vazios embaixo. O <code>offset</code>, como o dos robôs do 19, acerta o desenho: 50 pixels para a direita e 42 para baixo. Sem ele, o ninja pularia para trás e flutuaria a cada golpe."
+        },
+        {
+          at: "if self.showing(\"espada\"):",
+          text: "Durante o golpe, o ninja fica parado: as setas esperam o golpe acabar."
+        },
+        {
+          at: "self.flip_x = caixa.center.x < self.center.x",
+          text: "O ninja vira para a caixa: <code>True</code> se ela está à esquerda dele. Um golpe de costas não acertaria nada."
+        },
+        {
+          at: "elif ready(\"kunai\", 0.4):",
+          text: "Sem caixa perto, a kunai de antes, com o mesmo intervalo."
+        },
+        {
+          at: "if self.showing((\"jogando\", \"espada\")):",
+          text: "<code>showing</code> aceita vários clips numa tupla: enquanto o arremesso ou o golpe estão na tela, a escolha do clip espera."
+        }
+      ],
+      after: `
+        <p>Rode, chegue a uma caixa e aperte espaço: o ninja vira para ela e golpeia, mas a caixa nem sente. A espada ainda é só desenho; a colisão do ninja continua sendo a caixa principal, a que pisa no chão.</p>
+      `
+    },
+    {
+      title: "Uma caixa para a espada",
+      body: [
+        `
+        <p>A espada precisa de uma caixa de colisão própria, como a caixa da dor do 27. Só que esta não segue o desenho inteiro: é a área da lâmina, posta à mão.</p>
+        `,
+        {
+          snip: `espada = self.add_hitbox(group="espada", px_rect=(400, 60, 136, 375))`
+        },
+        `
+        <p><code>px_rect</code> (retângulo em pixels) é um retângulo nos pixels do quadro, contados como um editor de imagem conta: <code>(x, y, largura, altura)</code>, a partir do canto de cima à esquerda, com y para baixo. É um endereço na imagem, medido no quadro do golpe. O Scena leva o retângulo junto com o desenho: o <code>offset</code>, o <code>flip_x</code> e o tamanho do ninja valem para ele também, e você nunca soma nada.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 250" role="img" aria-label="O quadro Attack__005, um retângulo largo. O ninja ocupa a parte da esquerda; o rastro do golpe faz um arco à direita dele. Um retângulo cheio cobre o arco: começa no pixel 400, 60 e tem 136 de largura por 375 de altura">
+            <rect class="guide" x="20" y="20" width="214" height="198"/>
+            <rect class="bar" x="42" y="52" width="96" height="150" rx="22"/>
+            <text x="90" y="132" text-anchor="middle">ninja</text>
+            <rect class="hot" x="180" y="44" width="54" height="150"/>
+            <path class="ray" d="M168 40 Q 252 120 172 196" fill="none"/>
+            <text x="24" y="14">(0, 0)</text>
+            <text x="176" y="38" text-anchor="end">(400, 60)</text>
+            <text x="207" y="236" text-anchor="middle">136</text>
+            <text x="244" y="124">375</text>
+            <text x="300" y="60" text-anchor="middle">x →</text>
+            <text x="300" y="84" text-anchor="middle">y ↓</text>
+          </svg>
+          <figcaption>O quadro <code>Attack__005</code>, de 536 × 495 pixels, e o rastro do golpe. O retângulo cheio é <code>px_rect=(400, 60, 136, 375)</code>: começa no pixel (400, 60), contado do canto de cima à esquerda, e cobre o arco da lâmina.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("longe", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="longe")
+
+fase = Level("levels/ninja_perigos.json")
+canvas.playfield.set(fase.box)
+
+
+
+def jogo_novo():
+    st.estrelas = 0
+    st.vidas = 3
+    st.descer = False
+    st.aviso = ""
+
+
+jogo_novo()
+
+placar = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+placar["text"] @= lambda: f"Estrelas {st.estrelas}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+vidas = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+vidas["text"] @= lambda: f"x {st.vidas}"
+aviso = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+aviso["text"] @= lambda: st.aviso
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+ninja.strip("jogando", "ninja/Throw__*.png", fps=24)
+ninja.strip("espada", "ninja/Attack__*.png", fps=20, offset=(50, -42))
+ninja.strip("morto", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robo = Sheet(anchor="bottom", pixel_size=0.16)
+robo.strip("andando", "robot/Run (*).png", fps=12, offset=(0, -12))
+robo.strip("quebrado", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        seta = vec_from_angle(self.angle, length=700)
+        self.move_by(seta.x * dt, 0)
+
+
+class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("andando")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["chao", "plataforma"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["chao", "plataforma"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
+        kunai.destroy()
+        self.untag("robo")
+        self.vel.x = 0
+        self.play("quebrado", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.add_hitbox(group="dor")
+        self.prepare_fx(ElectricField)
+        espada = self.add_hitbox(group="espada", px_rect=(400, 60, 136, 375))
+
+    def on_update(self, dt):
+        if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
+            return
+
+        if self.showing("espada"):
+            self.vel.x = 0
+        elif keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.descer = recently("descer", keyp.once("DOWN"), hold=0.2)
+
+        no_chao = "bottom" in self.touching_sides
+        pode_pular = recently("no_chao", no_chao, hold=0.12)
+        if keyp.once("UP") and pode_pular:
+            self.vel.y = 900
+            recently.reset("no_chao")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and not self.showing("espada"):
+            caixa = group["caixa"].nearest(self, within=75)
+            if caixa:
+                self.flip_x = caixa.center.x < self.center.x
+                self.play("espada", loops=1, next="parado")
+                play_sound("synth/throw.wav")
+            elif ready("kunai", 0.4):
+                self.play("jogando", loops=1, next="parado")
+                kunai = Kunai(center=(self.center.x, self.center.y + 50))
+                kunai.rotate_to(self.angle)
+                play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing(("jogando", "espada")):
+            return
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    @collide_with("estrela")
+    def pegou(self, estrela):
+        estrela.destroy()
+        st.estrelas += 1
+        play_sound("synth/coin.wav")
+        if st.estrelas == len(fase.group("estrela")):
+            st.aviso = "Todas as estrelas!"
+            play_sound("audio/Victory.mp3")
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
+        self.perder()
+        if st.vidas > 0:
+            self.center = fase["inicio"].center
+            self.vel = Vec2(0, 0)
+
+    def perder(self):
+        if st.vidas == 0:
+            return
+        st.vidas -= 1
+        canvas.shake(6)
+        if st.vidas > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("dor")
+            self.after(1.5, lambda: self.tag("dor"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.aviso = "Fim de jogo · R recomeça"
+
+
+collision.floor = True
+resolve("heroi", "chao", bounce=0)
+resolve("heroi", "caixa", bounce=0)
+resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
+
+@collide("robo", "dor")
+def encostou(robo, heroi, info):
+    heroi.perder()
+
+
+@collide("raio", "dor")
+def choque(raio, heroi, info):
+    heroi.perder()
+    heroi.save_visual()
+    heroi.visual = ElectricField("cyan")
+    heroi.glow = "light blue"
+    heroi.after(2.5, heroi.restore_visual, name="choque")
+
+
+@collide("espada", "caixa")
+def quebrou(heroi, caixa, info):
+    canvas.debris_at(caixa, color="peru", fall=1)
+    play_sound("audio/impactPlank_medium_002.ogg")
+    caixa.destroy()
+
+
+@collide("kunai", "caixa")
+def cravou(kunai, caixa, info):
+    kunai.destroy()
+
+
+@leave_playfield("kunai")
+def saiu(kunai):
+    kunai.destroy()
+
+
+
+class Fase(Act):
+    def setup(self):
+        for enfeite in fase.group("enfeite"):
+            enfeite.make()
+        for caixa in fase.group("caixa"):
+            caixa.make()
+        for peca in fase.group("chao"):
+            peca.make()
+        for peca in fase.group("plataforma"):
+            peca.make()
+        elevador = fase["elevador"].make(group="plataforma", visual=Metal("gold"))
+        elevador.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for lugar in fase.group("parede"):
+            parede = lugar.make(group="chao")
+            parede.visible = False
+        group["chao"].mass = STATIC
+        group["plataforma"].mass = STATIC
+        group["caixa"].mass = STATIC
+
+        self.heroi = Heroi(center=fase["inicio"].center)
+
+        for lugar in fase.group("estrela"):
+            estrela = Sprite("k-rolling-ball/star.png", height=36, center=lugar.center, group="estrela")
+            estrela.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for lugar in fase.group("robo"):
+            Robo(center=lugar.center)
+
+        for agua in fase.group("agua"):
+            agua.make()
+
+        for lugar in fase.group("raio"):
+            lugar.make(visual=ElectricField("cyan", amount=10))
+
+        self.seguir = False
+        canvas.frame_to(fase.box)
+        self.after(2, self.comecar)
+
+    def comecar(self):
+        canvas.zoom_to(1, time=1)
+        self.seguir = True
+
+    @every(1.5)
+    def piscar(self):
+        for raio in group["raio"]:
+            raio.active = not raio.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            jogo_novo()
+            change_act(Fase)
+            return
+        if not self.seguir:
+            return
+        olhar = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(olhar, self.heroi.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(olhar, (x, 375), rate=5))
+
+
+run(Fase)
+`,
+      notes: [
+        {
+          at: "espada = self.add_hitbox(",
+          text: "A caixa nova responde pelo grupo <code>espada</code>. Como a da dor, ela só detecta: não pisa no chão nem empurra nada."
+        },
+        {
+          at: "@collide(\"espada\", \"caixa\")",
+          text: "A regra do conjunto: quando a caixa da espada toca uma caixa de madeira, a função recebe o dono da espada (o ninja) e a caixa."
+        },
+        {
+          at: "canvas.debris_at(caixa, color=\"peru\", fall=1)",
+          text: "<code>debris_at</code> (destroços em) espalha cacos no lugar da caixa, que voam e somem. A cor é a da madeira, e <code>fall=1</code> (queda) faz os cacos caírem, como cabe num jogo com gravidade."
+        }
+      ],
+      after: `
+        <p>Rode e ande até a primeira caixa. Ela quebra antes de qualquer golpe, só de o ninja chegar perto.</p>
+        <p>Com <kbd>Ctrl+Shift+7</kbd>, a caixa da espada aparece em ciano, sempre à frente do ninja: parado, correndo, pulando. O retângulo foi medido no quadro do golpe, que é largo. No quadro parado, de 232 pixels, o pixel 400 fica além do desenho, e os mesmos números caem num lugar logo à frente do ninja: a caixa de madeira esbarra nele.</p>
+      `
+    },
+    {
+      title: "Só no golpe",
+      body: [
+        `
+        <p>A caixa da espada deve existir só nos quadros em que a lâmina está para fora: no golpe, os quadros 4, 5 e 6.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 96" role="img" aria-label="Os dez quadros do golpe, de 0 a 9, numa fila. Os quadros 4, 5 e 6 estão destacados: neles a caixa da espada está ligada">
+            <rect class="bar" x="20" y="24" width="30" height="30"/>
+            <rect class="bar" x="56" y="24" width="30" height="30"/>
+            <rect class="bar" x="92" y="24" width="30" height="30"/>
+            <rect class="bar" x="128" y="24" width="30" height="30"/>
+            <rect class="hot" x="164" y="24" width="30" height="30"/>
+            <rect class="hot" x="200" y="24" width="30" height="30"/>
+            <rect class="hot" x="236" y="24" width="30" height="30"/>
+            <rect class="bar" x="272" y="24" width="30" height="30"/>
+            <rect class="bar" x="308" y="24" width="30" height="30"/>
+            <rect class="bar" x="344" y="24" width="30" height="30"/>
+            <text x="35" y="72" text-anchor="middle">0</text>
+            <text x="179" y="72" text-anchor="middle">4</text>
+            <text x="215" y="72" text-anchor="middle">5</text>
+            <text x="251" y="72" text-anchor="middle">6</text>
+            <text x="359" y="72" text-anchor="middle">9</text>
+            <text x="215" y="16" text-anchor="middle">a lâmina corta</text>
+            <text x="200" y="92" text-anchor="middle">um quadro a cada 1/20 de segundo</text>
+          </svg>
+          <figcaption>Os dez quadros do golpe, a 20 por segundo. A caixa da espada vale só nos três destacados.</figcaption>
+        </figure>
+        `,
+        {
+          snip: `GOLPE = ("Attack__004", "Attack__005", "Attack__006")
+...
+espada["active"] @= lambda: self.showing(GOLPE)`
+        },
+        `
+        <p>O <code>showing</code> do 19 também aceita nomes de quadro: o nome do arquivo, sem o <code>.png</code>. Ele diz se o quadro na tela é um desses. <code>active</code> (ativo) liga e desliga a caixa da espada, e o <code>@=</code> liga o <code>active</code> a essa pergunta: o Scena a refaz a cada quadro, logo antes da colisão, e a caixa existe só enquanto a resposta é sim.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("longe", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="longe")
+
+fase = Level("levels/ninja_perigos.json")
+canvas.playfield.set(fase.box)
+
+GOLPE = ("Attack__004", "Attack__005", "Attack__006")
+
+
+def jogo_novo():
+    st.estrelas = 0
+    st.vidas = 3
+    st.descer = False
+    st.aviso = ""
+
+
+jogo_novo()
+
+placar = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+placar["text"] @= lambda: f"Estrelas {st.estrelas}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+vidas = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+vidas["text"] @= lambda: f"x {st.vidas}"
+aviso = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+aviso["text"] @= lambda: st.aviso
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+ninja.strip("jogando", "ninja/Throw__*.png", fps=24)
+ninja.strip("espada", "ninja/Attack__*.png", fps=20, offset=(50, -42))
+ninja.strip("morto", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robo = Sheet(anchor="bottom", pixel_size=0.16)
+robo.strip("andando", "robot/Run (*).png", fps=12, offset=(0, -12))
+robo.strip("quebrado", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        seta = vec_from_angle(self.angle, length=700)
+        self.move_by(seta.x * dt, 0)
+
+
+class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("andando")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["chao", "plataforma"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["chao", "plataforma"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
+        kunai.destroy()
+        self.untag("robo")
+        self.vel.x = 0
+        self.play("quebrado", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.add_hitbox(group="dor")
+        self.prepare_fx(ElectricField)
+        espada = self.add_hitbox(group="espada", px_rect=(400, 60, 136, 375))
+        espada["active"] @= lambda: self.showing(GOLPE)
+
+    def on_update(self, dt):
+        if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
+            return
+
+        if self.showing("espada"):
+            self.vel.x = 0
+        elif keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.descer = recently("descer", keyp.once("DOWN"), hold=0.2)
+
+        no_chao = "bottom" in self.touching_sides
+        pode_pular = recently("no_chao", no_chao, hold=0.12)
+        if keyp.once("UP") and pode_pular:
+            self.vel.y = 900
+            recently.reset("no_chao")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and not self.showing("espada"):
+            caixa = group["caixa"].nearest(self, within=75)
+            if caixa:
+                self.flip_x = caixa.center.x < self.center.x
+                self.play("espada", loops=1, next="parado")
+                play_sound("synth/throw.wav")
+            elif ready("kunai", 0.4):
+                self.play("jogando", loops=1, next="parado")
+                kunai = Kunai(center=(self.center.x, self.center.y + 50))
+                kunai.rotate_to(self.angle)
+                play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing(("jogando", "espada")):
+            return
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    @collide_with("estrela")
+    def pegou(self, estrela):
+        estrela.destroy()
+        st.estrelas += 1
+        play_sound("synth/coin.wav")
+        if st.estrelas == len(fase.group("estrela")):
+            st.aviso = "Todas as estrelas!"
+            play_sound("audio/Victory.mp3")
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
+        self.perder()
+        if st.vidas > 0:
+            self.center = fase["inicio"].center
+            self.vel = Vec2(0, 0)
+
+    def perder(self):
+        if st.vidas == 0:
+            return
+        st.vidas -= 1
+        canvas.shake(6)
+        if st.vidas > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("dor")
+            self.after(1.5, lambda: self.tag("dor"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.aviso = "Fim de jogo · R recomeça"
+
+
+collision.floor = True
+resolve("heroi", "chao", bounce=0)
+resolve("heroi", "caixa", bounce=0)
+resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
+
+@collide("robo", "dor")
+def encostou(robo, heroi, info):
+    heroi.perder()
+
+
+@collide("raio", "dor")
+def choque(raio, heroi, info):
+    heroi.perder()
+    heroi.save_visual()
+    heroi.visual = ElectricField("cyan")
+    heroi.glow = "light blue"
+    heroi.after(2.5, heroi.restore_visual, name="choque")
+
+
+@collide("espada", "caixa")
+def quebrou(heroi, caixa, info):
+    canvas.debris_at(caixa, color="peru", fall=1)
+    play_sound("audio/impactPlank_medium_002.ogg")
+    caixa.destroy()
+
+
+@collide("kunai", "caixa")
+def cravou(kunai, caixa, info):
+    kunai.destroy()
+
+
+@leave_playfield("kunai")
+def saiu(kunai):
+    kunai.destroy()
+
+
+
+class Fase(Act):
+    def setup(self):
+        for enfeite in fase.group("enfeite"):
+            enfeite.make()
+        for caixa in fase.group("caixa"):
+            caixa.make()
+        for peca in fase.group("chao"):
+            peca.make()
+        for peca in fase.group("plataforma"):
+            peca.make()
+        elevador = fase["elevador"].make(group="plataforma", visual=Metal("gold"))
+        elevador.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for lugar in fase.group("parede"):
+            parede = lugar.make(group="chao")
+            parede.visible = False
+        group["chao"].mass = STATIC
+        group["plataforma"].mass = STATIC
+        group["caixa"].mass = STATIC
+
+        self.heroi = Heroi(center=fase["inicio"].center)
+
+        for lugar in fase.group("estrela"):
+            estrela = Sprite("k-rolling-ball/star.png", height=36, center=lugar.center, group="estrela")
+            estrela.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for lugar in fase.group("robo"):
+            Robo(center=lugar.center)
+
+        for agua in fase.group("agua"):
+            agua.make()
+
+        for lugar in fase.group("raio"):
+            lugar.make(visual=ElectricField("cyan", amount=10))
+
+        self.seguir = False
+        canvas.frame_to(fase.box)
+        self.after(2, self.comecar)
+
+    def comecar(self):
+        canvas.zoom_to(1, time=1)
+        self.seguir = True
+
+    @every(1.5)
+    def piscar(self):
+        for raio in group["raio"]:
+            raio.active = not raio.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            jogo_novo()
+            change_act(Fase)
+            return
+        if not self.seguir:
+            return
+        olhar = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(olhar, self.heroi.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(olhar, (x, 375), rate=5))
+
+
+run(Fase)
+`,
+      notes: [
+        {
+          at: "GOLPE = (",
+          text: "Os três quadros com a lâmina para fora, numa tupla com nome, no topo do arquivo. O nome em maiúsculas diz que ela não muda durante o jogo."
+        },
+        {
+          at: "espada[\"active\"] @= lambda: self.showing(GOLPE)",
+          text: "Colchetes antes do <code>@=</code>, como em todo campo ligado (o 09). No quadro 4 a caixa da espada entra na colisão e quebra a caixa que estiver ali; depois do 6, ela sai."
+        }
+      ],
+      after: `
+        <p>Rode: a caixa de madeira segura o ninja, e só o golpe a quebra. Com <kbd>Ctrl+Shift+7</kbd>, o retângulo ciano aparece no meio do golpe e some.</p>
+        <details class="ask"><summary>Não daria para escrever <code>espada.active = self.showing(GOLPE)</code> no <code>on_update</code>?</summary><p>Quase sempre, sim. Mas o <code>play("espada")</code> vem depois dessa linha no <code>on_update</code>: no quadro em que o golpe começa, a linha ainda olharia o clip de antes, e a caixa chegaria um quadro atrasada. E se o ninja perde a última vida no meio do golpe, o <code>on_update</code> sai logo no começo, no <code>return</code> do ninja sem vidas, e ninguém mais desliga a caixa da espada. Com o <code>@=</code>, o Scena faz a pergunta sozinho, a cada quadro, sempre na hora certa.</p></details>
+      `
+    },
+    {
+      title: "A luz",
+      body: `
+        <p>No lugar da caixa quebrada aparece uma luz, e o ninja a pega passando por ela.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("longe", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="longe")
+
+fase = Level("levels/ninja_perigos.json")
+canvas.playfield.set(fase.box)
+
+GOLPE = ("Attack__004", "Attack__005", "Attack__006")
+
+
+def jogo_novo():
+    st.estrelas = 0
+    st.vidas = 3
+    st.descer = False
+    st.aviso = ""
+
+
+jogo_novo()
+
+placar = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+placar["text"] @= lambda: f"Estrelas {st.estrelas}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+vidas = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+vidas["text"] @= lambda: f"x {st.vidas}"
+aviso = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+aviso["text"] @= lambda: st.aviso
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+ninja.strip("jogando", "ninja/Throw__*.png", fps=24)
+ninja.strip("espada", "ninja/Attack__*.png", fps=20, offset=(50, -42))
+ninja.strip("morto", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robo = Sheet(anchor="bottom", pixel_size=0.16)
+robo.strip("andando", "robot/Run (*).png", fps=12, offset=(0, -12))
+robo.strip("quebrado", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        seta = vec_from_angle(self.angle, length=700)
+        self.move_by(seta.x * dt, 0)
+
+
+class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("andando")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["chao", "plataforma"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["chao", "plataforma"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
+        kunai.destroy()
+        self.untag("robo")
+        self.vel.x = 0
+        self.play("quebrado", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.add_hitbox(group="dor")
+        self.prepare_fx(ElectricField)
+        espada = self.add_hitbox(group="espada", px_rect=(400, 60, 136, 375))
+        espada["active"] @= lambda: self.showing(GOLPE)
+
+    def on_update(self, dt):
+        if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
+            return
+
+        if self.showing("espada"):
+            self.vel.x = 0
+        elif keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.descer = recently("descer", keyp.once("DOWN"), hold=0.2)
+
+        no_chao = "bottom" in self.touching_sides
+        pode_pular = recently("no_chao", no_chao, hold=0.12)
+        if keyp.once("UP") and pode_pular:
+            self.vel.y = 900
+            recently.reset("no_chao")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and not self.showing("espada"):
+            caixa = group["caixa"].nearest(self, within=75)
+            if caixa:
+                self.flip_x = caixa.center.x < self.center.x
+                self.play("espada", loops=1, next="parado")
+                play_sound("synth/throw.wav")
+            elif ready("kunai", 0.4):
+                self.play("jogando", loops=1, next="parado")
+                kunai = Kunai(center=(self.center.x, self.center.y + 50))
+                kunai.rotate_to(self.angle)
+                play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing(("jogando", "espada")):
+            return
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    @collide_with("estrela")
+    def pegou(self, estrela):
+        estrela.destroy()
+        st.estrelas += 1
+        play_sound("synth/coin.wav")
+        if st.estrelas == len(fase.group("estrela")):
+            st.aviso = "Todas as estrelas!"
+            play_sound("audio/Victory.mp3")
+
+    @collide_with("luz")
+    def pegou_luz(self, luz):
+        luz.destroy()
+        play_sound("audio/impactBell_heavy_000.ogg")
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
+        self.perder()
+        if st.vidas > 0:
+            self.center = fase["inicio"].center
+            self.vel = Vec2(0, 0)
+
+    def perder(self):
+        if st.vidas == 0:
+            return
+        st.vidas -= 1
+        canvas.shake(6)
+        if st.vidas > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("dor")
+            self.after(1.5, lambda: self.tag("dor"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.aviso = "Fim de jogo · R recomeça"
+
+
+collision.floor = True
+resolve("heroi", "chao", bounce=0)
+resolve("heroi", "caixa", bounce=0)
+resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
+
+@collide("robo", "dor")
+def encostou(robo, heroi, info):
+    heroi.perder()
+
+
+@collide("raio", "dor")
+def choque(raio, heroi, info):
+    heroi.perder()
+    heroi.save_visual()
+    heroi.visual = ElectricField("cyan")
+    heroi.glow = "light blue"
+    heroi.after(2.5, heroi.restore_visual, name="choque")
+
+
+@collide("espada", "caixa")
+def quebrou(heroi, caixa, info):
+    canvas.debris_at(caixa, color="peru", fall=1)
+    play_sound("audio/impactPlank_medium_002.ogg")
+    Orb(center=caixa.center, radius=14, color="gold", group="luz")
+    caixa.destroy()
+
+
+@collide("kunai", "caixa")
+def cravou(kunai, caixa, info):
+    kunai.destroy()
+
+
+@leave_playfield("kunai")
+def saiu(kunai):
+    kunai.destroy()
+
+
+
+class Fase(Act):
+    def setup(self):
+        for enfeite in fase.group("enfeite"):
+            enfeite.make()
+        for caixa in fase.group("caixa"):
+            caixa.make()
+        for peca in fase.group("chao"):
+            peca.make()
+        for peca in fase.group("plataforma"):
+            peca.make()
+        elevador = fase["elevador"].make(group="plataforma", visual=Metal("gold"))
+        elevador.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for lugar in fase.group("parede"):
+            parede = lugar.make(group="chao")
+            parede.visible = False
+        group["chao"].mass = STATIC
+        group["plataforma"].mass = STATIC
+        group["caixa"].mass = STATIC
+
+        self.heroi = Heroi(center=fase["inicio"].center)
+
+        for lugar in fase.group("estrela"):
+            estrela = Sprite("k-rolling-ball/star.png", height=36, center=lugar.center, group="estrela")
+            estrela.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for lugar in fase.group("robo"):
+            Robo(center=lugar.center)
+
+        for agua in fase.group("agua"):
+            agua.make()
+
+        for lugar in fase.group("raio"):
+            lugar.make(visual=ElectricField("cyan", amount=10))
+
+        self.seguir = False
+        canvas.frame_to(fase.box)
+        self.after(2, self.comecar)
+
+    def comecar(self):
+        canvas.zoom_to(1, time=1)
+        self.seguir = True
+
+    @every(1.5)
+    def piscar(self):
+        for raio in group["raio"]:
+            raio.active = not raio.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            jogo_novo()
+            change_act(Fase)
+            return
+        if not self.seguir:
+            return
+        olhar = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(olhar, self.heroi.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(olhar, (x, 375), rate=5))
+
+
+run(Fase)
+`,
+      notes: [
+        {
+          at: "Orb(center=caixa.center",
+          text: "<code>Orb</code> (esfera) é um efeito que vive num lugar do mundo, como os raios: um disco brilhante com uma coroa de luz. <code>radius</code> (raio) é o tamanho do disco, que também é o que colide; a luz em volta é só desenho. Ela nasce no grupo <code>luz</code>."
+        },
+        {
+          at: "@collide_with(\"luz\")",
+          text: "Pegar a luz: ela some, com um som de sino."
+        }
+      ],
+      after: `
+        <p>Quebre a primeira caixa e passe pela luz.</p>
+      `,
+      try: [
+          {
+            note: "Outras luzes, no lugar do <code>Orb</code>: uma mais forte, uma de outra cor, ou faíscas. Uma por vez. Mais no Guia, em SpatialFx.",
+            replaces: ['Orb(center=caixa.center'],
+            code: `Orb(center=caixa.center, radius=14, color="gold", glow=2, group="luz")
+Orb(center=caixa.center, radius=14, color="cyan", group="luz")
+Sparks(center=caixa.center, radius=20, color="gold", group="luz")`
+          }
+        ]
+    },
+    {
+      title: "Invencível",
+      body: [
+        `
+        <p>A luz deixa o ninja invencível por seis segundos, com uma aura dourada em volta. São três coisas, uma depois da outra: ligar, esperar, desligar. Uma tarefa, como no interlúdio 25i, as escreve em ordem:</p>
+        `,
+        {
+          snip: `async def brilhar(self):
+    self.invencivel = True
+...
+    self.visual = Aura("gold")
+    await wait(6)
+    self.visual = None
+    self.invencivel = False`
+        },
+        `
+        <p><code>self.run_task(self.brilhar, name="invencivel")</code> começa a tarefa. Ela liga a aura e dorme no <code>await wait(6)</code> enquanto o jogo segue; seis segundos depois, acorda e desliga tudo. Com <code>name=</code> (nome), uma segunda luz no meio do caminho cancela a tarefa de antes e recomeça os seis segundos. A tarefa é do ninja: se ele some (o R recomeça a fase), ela some junto.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("longe", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="longe")
+
+fase = Level("levels/ninja_perigos.json")
+canvas.playfield.set(fase.box)
+
+GOLPE = ("Attack__004", "Attack__005", "Attack__006")
+
+
+def jogo_novo():
+    st.estrelas = 0
+    st.vidas = 3
+    st.descer = False
+    st.aviso = ""
+
+
+jogo_novo()
+
+placar = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+placar["text"] @= lambda: f"Estrelas {st.estrelas}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+vidas = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+vidas["text"] @= lambda: f"x {st.vidas}"
+aviso = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+aviso["text"] @= lambda: st.aviso
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+ninja.strip("jogando", "ninja/Throw__*.png", fps=24)
+ninja.strip("espada", "ninja/Attack__*.png", fps=20, offset=(50, -42))
+ninja.strip("morto", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robo = Sheet(anchor="bottom", pixel_size=0.16)
+robo.strip("andando", "robot/Run (*).png", fps=12, offset=(0, -12))
+robo.strip("quebrado", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        seta = vec_from_angle(self.angle, length=700)
+        self.move_by(seta.x * dt, 0)
+
+
+class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("andando")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["chao", "plataforma"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["chao", "plataforma"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
+        kunai.destroy()
+        self.untag("robo")
+        self.vel.x = 0
+        self.play("quebrado", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.invencivel = False
+        self.add_hitbox(group="dor")
+        self.prepare_fx(ElectricField, Aura)
+        espada = self.add_hitbox(group="espada", px_rect=(400, 60, 136, 375))
+        espada["active"] @= lambda: self.showing(GOLPE)
+
+    def on_update(self, dt):
+        if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
+            return
+
+        if self.showing("espada"):
+            self.vel.x = 0
+        elif keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.descer = recently("descer", keyp.once("DOWN"), hold=0.2)
+
+        no_chao = "bottom" in self.touching_sides
+        pode_pular = recently("no_chao", no_chao, hold=0.12)
+        if keyp.once("UP") and pode_pular:
+            self.vel.y = 900
+            recently.reset("no_chao")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and not self.showing("espada"):
+            caixa = group["caixa"].nearest(self, within=75)
+            if caixa:
+                self.flip_x = caixa.center.x < self.center.x
+                self.play("espada", loops=1, next="parado")
+                play_sound("synth/throw.wav")
+            elif ready("kunai", 0.4):
+                self.play("jogando", loops=1, next="parado")
+                kunai = Kunai(center=(self.center.x, self.center.y + 50))
+                kunai.rotate_to(self.angle)
+                play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing(("jogando", "espada")):
+            return
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    @collide_with("estrela")
+    def pegou(self, estrela):
+        estrela.destroy()
+        st.estrelas += 1
+        play_sound("synth/coin.wav")
+        if st.estrelas == len(fase.group("estrela")):
+            st.aviso = "Todas as estrelas!"
+            play_sound("audio/Victory.mp3")
+
+    @collide_with("luz")
+    def pegou_luz(self, luz):
+        luz.destroy()
+        play_sound("audio/impactBell_heavy_000.ogg")
+        self.run_task(self.brilhar, name="invencivel")
+
+    async def brilhar(self):
+        self.invencivel = True
+        self.restore_visual()
+        self.visual = Aura("gold")
+        await wait(6)
+        self.visual = None
+        self.invencivel = False
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
+        self.perder()
+        if st.vidas > 0:
+            self.center = fase["inicio"].center
+            self.vel = Vec2(0, 0)
+
+    def perder(self):
+        if st.vidas == 0 or self.invencivel:
+            return
+        st.vidas -= 1
+        canvas.shake(6)
+        if st.vidas > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("dor")
+            self.after(1.5, lambda: self.tag("dor"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.aviso = "Fim de jogo · R recomeça"
+
+
+collision.floor = True
+resolve("heroi", "chao", bounce=0)
+resolve("heroi", "caixa", bounce=0)
+resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
+
+@collide("robo", "dor")
+def encostou(robo, heroi, info):
+    heroi.perder()
+
+
+@collide("raio", "dor")
+def choque(raio, heroi, info):
+    if heroi.invencivel:
+        return
+    heroi.perder()
+    heroi.save_visual()
+    heroi.visual = ElectricField("cyan")
+    heroi.glow = "light blue"
+    heroi.after(2.5, heroi.restore_visual, name="choque")
+
+
+@collide("espada", "caixa")
+def quebrou(heroi, caixa, info):
+    canvas.debris_at(caixa, color="peru", fall=1)
+    play_sound("audio/impactPlank_medium_002.ogg")
+    Orb(center=caixa.center, radius=14, color="gold", group="luz")
+    caixa.destroy()
+
+
+@collide("kunai", "caixa")
+def cravou(kunai, caixa, info):
+    kunai.destroy()
+
+
+@leave_playfield("kunai")
+def saiu(kunai):
+    kunai.destroy()
+
+
+
+class Fase(Act):
+    def setup(self):
+        for enfeite in fase.group("enfeite"):
+            enfeite.make()
+        for caixa in fase.group("caixa"):
+            caixa.make()
+        for peca in fase.group("chao"):
+            peca.make()
+        for peca in fase.group("plataforma"):
+            peca.make()
+        elevador = fase["elevador"].make(group="plataforma", visual=Metal("gold"))
+        elevador.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for lugar in fase.group("parede"):
+            parede = lugar.make(group="chao")
+            parede.visible = False
+        group["chao"].mass = STATIC
+        group["plataforma"].mass = STATIC
+        group["caixa"].mass = STATIC
+
+        self.heroi = Heroi(center=fase["inicio"].center)
+
+        for lugar in fase.group("estrela"):
+            estrela = Sprite("k-rolling-ball/star.png", height=36, center=lugar.center, group="estrela")
+            estrela.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for lugar in fase.group("robo"):
+            Robo(center=lugar.center)
+
+        for agua in fase.group("agua"):
+            agua.make()
+
+        for lugar in fase.group("raio"):
+            lugar.make(visual=ElectricField("cyan", amount=10))
+
+        self.seguir = False
+        canvas.frame_to(fase.box)
+        self.after(2, self.comecar)
+
+    def comecar(self):
+        canvas.zoom_to(1, time=1)
+        self.seguir = True
+
+    @every(1.5)
+    def piscar(self):
+        for raio in group["raio"]:
+            raio.active = not raio.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            jogo_novo()
+            change_act(Fase)
+            return
+        if not self.seguir:
+            return
+        olhar = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(olhar, self.heroi.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(olhar, (x, 375), rate=5))
+
+
+run(Fase)
+`,
+      notes: [
+        {
+          at: "self.prepare_fx(ElectricField, Aura)",
+          text: "A aura também segue o contorno do ninja, quadro a quadro. Como o choque, o contorno dela é montado agora, quando o ninja nasce, e pegar a luz não engasga o jogo."
+        },
+        {
+          at: "self.run_task(self.brilhar, name=\"invencivel\")",
+          text: "<code>self.brilhar</code> sem parênteses: o <code>run_task</code> recebe a função e a roda como tarefa."
+        },
+        {
+          at: "self.restore_visual()",
+          text: "Se o ninja pega a luz ainda com os arcos de um choque, <code>restore_visual</code> devolve a aparência de antes do choque, e só então a aura entra. Sem isso, o fim do choque, 2,5 segundos depois, devolveria a aparência sem aura no meio da invencibilidade."
+        },
+        {
+          at: "self.visual = Aura(\"gold\")",
+          text: "<code>Aura</code> é um visual: uma faixa de luz que acompanha a silhueta do ninja em cada quadro da animação."
+        },
+        {
+          at: "if st.vidas == 0 or self.invencivel:",
+          text: "Invencível, o <code>perder</code> sai logo: nem robô, nem raio, nem a água tiram vida. Quem cai na água ainda volta ao começo, porque o <code>caiu</code> o põe lá."
+        },
+        {
+          at: "if heroi.invencivel:",
+          text: "Um raio também não acende o choque num ninja invencível: a aura fica sozinha."
+        }
+      ],
+      after: `
+        <p>Pegue a luz e encoste num robô: nada acontece. Seis segundos depois, a aura some, e o robô volta a doer.</p>
+      `,
+      try: [
+          {
+            note: "Outros visuais que seguem a silhueta, no lugar da <code>Aura</code>. Um por vez; ponha o nome no <code>prepare_fx</code> também. Mais no Guia, em Visual.",
+            replaces: ['self.visual = Aura('],
+            code: `self.visual = Halo("gold")
+self.visual = Rim("gold")`
+          }
+        ]
+    },
+    {
+      title: "O aviso",
+      example: "ninja_5_espada.py",
+      body: [
+        `
+        <p>Do jeito que está, a invencibilidade acaba de repente, e quem joga não tem como saber quando. Nos dois últimos segundos, a aura pisca: um décimo de segundo apagada, um décimo acesa.</p>
+        `,
+        {
+          snip: `await wait(4)
+for vez in range(10):
+    self.visual = None
+    await wait(0.1)
+    self.visual = Aura("gold")
+    await wait(0.1)`
+        },
+        `
+        <p>Dez voltas de duas esperas de 0,1 segundo: dois segundos. Somados aos quatro do começo, a invencibilidade continua durando seis.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("longe", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="longe")
+
+fase = Level("levels/ninja_perigos.json")
+canvas.playfield.set(fase.box)
+
+GOLPE = ("Attack__004", "Attack__005", "Attack__006")
+
+
+def jogo_novo():
+    st.estrelas = 0
+    st.vidas = 3
+    st.descer = False
+    st.aviso = ""
+
+
+jogo_novo()
+
+placar = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+placar["text"] @= lambda: f"Estrelas {st.estrelas}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+vidas = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+vidas["text"] @= lambda: f"x {st.vidas}"
+aviso = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+aviso["text"] @= lambda: st.aviso
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("parado", "ninja/Idle__*.png", fps=8)
+ninja.strip("correndo", "ninja/Run__*.png", fps=12)
+ninja.strip("pulando", "ninja/Jump__*.png", fps=10)
+ninja.strip("jogando", "ninja/Throw__*.png", fps=24)
+ninja.strip("espada", "ninja/Attack__*.png", fps=20, offset=(50, -42))
+ninja.strip("morto", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robo = Sheet(anchor="bottom", pixel_size=0.16)
+robo.strip("andando", "robot/Run (*).png", fps=12, offset=(0, -12))
+robo.strip("quebrado", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        seta = vec_from_angle(self.angle, length=700)
+        self.move_by(seta.x * dt, 0)
+
+
+class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("andando")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["chao", "plataforma"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["chao", "plataforma"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def atingido(self, kunai):
+        if self.showing("quebrado"):
+            return
+        kunai.destroy()
+        self.untag("robo")
+        self.vel.x = 0
+        self.play("quebrado", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.invencivel = False
+        self.add_hitbox(group="dor")
+        self.prepare_fx(ElectricField, Aura)
+        espada = self.add_hitbox(group="espada", px_rect=(400, 60, 136, 375))
+        espada["active"] @= lambda: self.showing(GOLPE)
+
+    def on_update(self, dt):
+        if st.vidas == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("morto"):
+                self.play("morto", loops=1)
+            return
+
+        if self.showing("espada"):
+            self.vel.x = 0
+        elif keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.descer = recently("descer", keyp.once("DOWN"), hold=0.2)
+
+        no_chao = "bottom" in self.touching_sides
+        pode_pular = recently("no_chao", no_chao, hold=0.12)
+        if keyp.once("UP") and pode_pular:
+            self.vel.y = 900
+            recently.reset("no_chao")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and not self.showing("espada"):
+            caixa = group["caixa"].nearest(self, within=75)
+            if caixa:
+                self.flip_x = caixa.center.x < self.center.x
+                self.play("espada", loops=1, next="parado")
+                play_sound("synth/throw.wav")
+            elif ready("kunai", 0.4):
+                self.play("jogando", loops=1, next="parado")
+                kunai = Kunai(center=(self.center.x, self.center.y + 50))
+                kunai.rotate_to(self.angle)
+                play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing(("jogando", "espada")):
+            return
+        if not no_chao:
+            self.play("pulando")
+        elif self.vel.x != 0:
+            self.play("correndo")
+        else:
+            self.play("parado")
+
+    @collide_with("estrela")
+    def pegou(self, estrela):
+        estrela.destroy()
+        st.estrelas += 1
+        play_sound("synth/coin.wav")
+        if st.estrelas == len(fase.group("estrela")):
+            st.aviso = "Todas as estrelas!"
+            play_sound("audio/Victory.mp3")
+
+    @collide_with("luz")
+    def pegou_luz(self, luz):
+        luz.destroy()
+        play_sound("audio/impactBell_heavy_000.ogg")
+        self.run_task(self.brilhar, name="invencivel")
+
+    async def brilhar(self):
+        self.invencivel = True
+        self.restore_visual()
+        self.visual = Aura("gold")
+        await wait(4)
+        for vez in range(10):
+            self.visual = None
+            await wait(0.1)
+            self.visual = Aura("gold")
+            await wait(0.1)
+        self.visual = None
+        self.invencivel = False
+
+    @when(lambda self: self.center.y < 30)
+    def caiu(self):
+        self.perder()
+        if st.vidas > 0:
+            self.center = fase["inicio"].center
+            self.vel = Vec2(0, 0)
+
+    def perder(self):
+        if st.vidas == 0 or self.invencivel:
+            return
+        st.vidas -= 1
+        canvas.shake(6)
+        if st.vidas > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("dor")
+            self.after(1.5, lambda: self.tag("dor"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.aviso = "Fim de jogo · R recomeça"
+
+
+collision.floor = True
+resolve("heroi", "chao", bounce=0)
+resolve("heroi", "caixa", bounce=0)
+resolve("heroi", "plataforma", bounce=0, only=lambda c: c.side == "bottom" and not st.descer)
+
+@collide("robo", "dor")
+def encostou(robo, heroi, info):
+    heroi.perder()
+
+
+@collide("raio", "dor")
+def choque(raio, heroi, info):
+    if heroi.invencivel:
+        return
+    heroi.perder()
+    heroi.save_visual()
+    heroi.visual = ElectricField("cyan")
+    heroi.glow = "light blue"
+    heroi.after(2.5, heroi.restore_visual, name="choque")
+
+
+@collide("espada", "caixa")
+def quebrou(heroi, caixa, info):
+    canvas.debris_at(caixa, color="peru", fall=1)
+    play_sound("audio/impactPlank_medium_002.ogg")
+    Orb(center=caixa.center, radius=14, color="gold", group="luz")
+    caixa.destroy()
+
+
+@collide("kunai", "caixa")
+def cravou(kunai, caixa, info):
+    kunai.destroy()
+
+
+@leave_playfield("kunai")
+def saiu(kunai):
+    kunai.destroy()
+
+
+
+class Fase(Act):
+    def setup(self):
+        for enfeite in fase.group("enfeite"):
+            enfeite.make()
+        for caixa in fase.group("caixa"):
+            caixa.make()
+        for peca in fase.group("chao"):
+            peca.make()
+        for peca in fase.group("plataforma"):
+            peca.make()
+        elevador = fase["elevador"].make(group="plataforma", visual=Metal("gold"))
+        elevador.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for lugar in fase.group("parede"):
+            parede = lugar.make(group="chao")
+            parede.visible = False
+        group["chao"].mass = STATIC
+        group["plataforma"].mass = STATIC
+        group["caixa"].mass = STATIC
+
+        self.heroi = Heroi(center=fase["inicio"].center)
+
+        for lugar in fase.group("estrela"):
+            estrela = Sprite("k-rolling-ball/star.png", height=36, center=lugar.center, group="estrela")
+            estrela.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for lugar in fase.group("robo"):
+            Robo(center=lugar.center)
+
+        for agua in fase.group("agua"):
+            agua.make()
+
+        for lugar in fase.group("raio"):
+            lugar.make(visual=ElectricField("cyan", amount=10))
+
+        self.seguir = False
+        canvas.frame_to(fase.box)
+        self.after(2, self.comecar)
+
+    def comecar(self):
+        canvas.zoom_to(1, time=1)
+        self.seguir = True
+
+    @every(1.5)
+    def piscar(self):
+        for raio in group["raio"]:
+            raio.active = not raio.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            jogo_novo()
+            change_act(Fase)
+            return
+        if not self.seguir:
+            return
+        olhar = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(olhar, self.heroi.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(olhar, (x, 375), rate=5))
+
+
+run(Fase)
+`,
+      notes: [
+        {
+          at: "for vez in range(10):",
+          text: "Um <code>for</code> dentro da tarefa. Cada <code>await wait(0.1)</code> espera sem parar o jogo, e a volta seguinte continua de onde parou."
+        }
+      ],
+      after: `
+        <p>Pegue a luz e espere: a aura pisca antes de sumir.</p>
+      `,
+      closing: `
+        <p>A fase inteira aparece e a câmera mergulha no ninja. Setas para os lados andam; seta para cima pula; seta para baixo desce de uma plataforma. Espaço, ao lado de uma caixa, é um golpe de espada que a quebra; longe das caixas, joga uma kunai. Cada caixa quebrada deixa uma luz: quem a pega fica invencível por seis segundos, com uma aura dourada que pisca no fim. R recomeça.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>group["caixa"].nearest(self, within=75)</code> — a caixa mais perto, se estiver ao alcance; senão, <code>None</code>.</li>
+          <li><code>offset</code> no <code>strip</code> — o golpe tem PNGs mais largos: o desenho anda para o lado e para baixo, e o ninja fica no lugar.</li>
+          <li><code>add_hitbox</code> com <code>px_rect</code> — uma caixa de colisão posta à mão nos pixels do quadro, que acompanha o desenho.</li>
+          <li><code>espada["active"] @=</code> com <code>showing(GOLPE)</code> — a caixa da espada vale só nos quadros em que a lâmina está para fora.</li>
+          <li><code>debris_at</code> e <code>Orb</code> — a caixa vira cacos, e no lugar dela fica uma luz que colide.</li>
+          <li><code>run_task</code>, <code>await wait</code> e <code>Aura</code> — ligar, esperar e desligar em ordem, numa tarefa do ninja; o <code>prepare_fx</code> monta a aura antes.</li>
+        </ul>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#spr-hit-ataque">A área que acerta (px_rect, active)</a> · <a href="../guide/index.html#spr-hit-partes">Hitbox do Sprite (partes)</a> · <a href="../guide/index.html#mundo-grupos">Grupos (nearest)</a> · <a href="../guide/index.html#mundo-impactos">Impactos</a> · <a href="../guide/index.html#desenhar-spatial">SpatialFx</a> · <a href="../guide/index.html#mode-task">Tarefas</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#sprite-extras">Recursos adicionais do Sprite (prepare_fx)</a>.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>
