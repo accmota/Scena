@@ -269,6 +269,7 @@ class TestSpritePartFrames(unittest.TestCase):
 _HERE = "test_sys_frame_contracts"
 # A distinctive piece of the sentence -> "module.Class.test" or "prose: why".
 FRAME_PROMISES = {
+    "O mesmo vale para movimentos encadeados por": "test_process.TestMovesChainedByOnDoneAreNotARate.test_each_hop_rounds_up_to_frames",
     "Um after que se arma de novo dentro da própria função não é um ritmo": "test_process.TestASelfRearmingAfterIsNotARate.test_rearmed_after_rounds_each_lap_up_and_every_does_not",
     "A pausa vale a partir do próximo frame": "test_reactive_edge_cases.TestPauseStartsNextFrame.test_the_frame_of_the_pause_still_moves_then_nothing_does",
     "que compara uma vez por frame (duas escritas que voltam ao valor antigo no mesmo frame não disparam)": "test_reactive_edge_cases.TestOnChangeComparesOncePerFrame.test_writes_back_to_the_old_value_in_one_frame_fire_nothing_and_a_count_fires",

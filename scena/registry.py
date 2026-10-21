@@ -787,8 +787,10 @@ class Registry:
             names = [n for n in self.layers if isinstance(n, str)]
             raise ValueError(
                 f"Layer '{target}' not found.{did_you_mean(target, names)} "
-                f"Existing layers: {', '.join(names)}. Create it first with "
-                f"canvas.layers.create({target!r}, below=\"default\"), or use an int layer (auto-created)."
+                f"Existing layers: {', '.join(names)}. Create it first: "
+                f"canvas.layers.create({target!r}, above=\"default\") draws it in front "
+                f"of the game, below=\"default\" behind it; or use an int layer "
+                f"(auto-created, a higher number in front)."
             )
         return self.layers[target]
 

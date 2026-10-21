@@ -5123,6 +5123,8 @@ class CollisionSystem:
         self._colliders: List[Collider] = []
         # R5-7: the one-time "on_collide has no partner" check is still owed.
         self._alone_check_owed = True
+        # R6-2: (tag, layer) pairs whose skipped members were reported.
+        self._skipped_member_warned: Set[Tuple[str, Any]] = set()
         # Registered multi-piece bodies (``Collider([a, b])``), so the broad
         # phase finds a body / own-piece pair without walking every collider.
         self._multi_bodies: Dict[int, Collider] = {}
@@ -5712,6 +5714,25 @@ class CollisionSystem:
             if b_tag == tag:
                 collider._add_pair_target(a)
 
+    def _warn_member_skipped(self, item, tag: str) -> None:
+        """Once per (tag, layer): a rule's group member on ``ui`` or a parallax
+        layer has no body, so the rule never touches it (S9-1 keeps the skip,
+        order-independent; R6-2, persona probes round 6: coins on a parallax
+        layer could not be collected, silently, while the Guia said it raised)."""
+        layer = _shape_layer_name(item)
+        key = (tag, layer)
+        if key in self._skipped_member_warned:
+            return
+        self._skipped_member_warned.add(key)
+        kind = "the ui layer (view space)" if layer == "ui" else f"parallax layer {layer!r}"
+        warnings.warn(
+            f"{type(item).__name__} in group {tag!r} is on {kind}, which has no "
+            f"collision: the rule on {tag!r} never touches it (nor any other "
+            f"member there). Put it on a layer without parallax to make it collide.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
     def _try_enroll_item(self, item, *, tag: str) -> Optional[Collider]:
         """Ensure collider + tag index for one in-play group member (once).
 
@@ -5724,6 +5745,7 @@ class CollisionSystem:
         if item is None or not self._item_in_play(item):
             return None
         if _collision_layer_error(item) is not None:
+            self._warn_member_skipped(item, tag)
             return None                 # a group member on ui / parallax: no body (S9-1)
         existing = getattr(item, "_collider", None)
         idx_map = self._tag_index.get(tag)

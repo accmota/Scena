@@ -325,6 +325,20 @@ left out.
 
 ### Changed
 
+- A callback that needs arguments raises where it is given, not when it
+  fires. This covers `after`, `every`, `on_done=` of a move, tween or sound,
+  and an actor's own timers. Before, `after(0.8, ia_joga)` with
+  `def ia_joga(peca, casas)` was accepted and stopped the game 0.8 s later
+  with an error from inside Scena and no line of yours. The message now
+  names the fix: `after(0.8, lambda: ia_joga(peca, 3))`.
+- A warning, once, when a rule's group has members on a parallax layer (or
+  on `ui`): they have no collision, so the rule never touches them. Before,
+  coins on a parallax layer simply could not be collected.
+- More messages (persona probes round 6). An unknown layer offers both
+  `above="default"` (in front) and `below="default"` (behind).
+  `Text(wrap=True)` (or `word_wrap=`, `max_width=`) says Text does not wrap
+  and to break lines with `\n`.
+
 - A `crossfade=` replace ends the old named sound as a cut, as a plain
   `name=` replace does: its `on_done` no longer runs. Before, crossfading a
   `loops="forever"` track ran its `on_done` at the end of the fade, so a
@@ -832,6 +846,12 @@ left out.
   What links and what refuses did not change.
 
 ### Documentation
+
+- Guia: the parallax row of the error table now tells naming an object
+  apart from a group member. `@drag_to` with 2 parameters gets
+  `(from, to)`, and the point is the 3rd. A chain of moves started from
+  `on_done` is "at least p" per step, like a self re-arming `after`; for a
+  steady path, use `move_along` on a Track.
 
 - Guia: `on_collide` sees enrolled bodies only (a plain `Rect` needs
   `collidable = True`). A self re-arming `after` is "at least p" apart, not a

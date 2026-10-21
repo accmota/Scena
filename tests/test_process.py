@@ -429,6 +429,53 @@ class TestATweenEndsBeforeATimerOfItsLength(ProcessTestCase):
                 self.assertAlmostEqual(c.center.y, 150.0, places=9)
 
 
+class TestACallbackThatNeedsArgumentsRaisesWhereItIsGiven(ProcessTestCase):
+    """R6-1 (persona probes, round 6): ``after(0.8, ia_joga)`` with
+    ``def ia_joga(peca, casas)`` was accepted and failed 0.8 s later inside
+    the engine, with no author line. Every door that keeps a callback for
+    later (after, every, ``on_done=`` of a tween or a timed pose, an
+    actor's own timers) now refuses it at the call, naming the lambda."""
+
+    def test_every_door_refuses_a_callback_that_needs_more(self):
+        def needs_two(peca, casas):
+            pass
+        c = self.track(Circle(center=(0, 0), radius=1))
+        doors = {
+            "after": lambda: after(0.8, needs_two),
+            "every": lambda: every(0.3, needs_two),
+            "tween on_done": lambda: tween(c["radius"], 5.0, time=0.2, on_done=needs_two),
+            "move_to on_done": lambda: c.move_to(10, 0, time=0.2, on_done=needs_two),
+            "e.after": lambda: c.after(0.5, needs_two),      # gets the owner, needs two
+        }
+        for door, call in doors.items():
+            with self.subTest(door=door):
+                with self.assertRaises(TypeError) as cm:
+                    call()
+                msg = str(cm.exception)
+                self.assertIn("needs_two() needs 2 argument(s)", msg)
+                self.assertIn("lambda", msg)
+        self.assertEqual(len(get_scheduler()._handles), 0)
+
+    def test_what_fits_is_accepted(self):
+        c = self.track(Circle(center=(0, 0), radius=1))
+        got = []
+
+        def owner_only(e):
+            got.append(e)
+
+        def with_defaults(peca=None, casas=3):
+            got.append(casas)
+        after(0.1, with_defaults)
+        after(0.1, lambda: got.append("lambda"))
+        c.after(0.1, owner_only)                        # an actor's timer gets the actor
+        c.move_to(5, 0, time=0.1, on_done=owner_only)
+        for _ in range(3):
+            _frame(0.1)
+        self.assertIn(3, got)
+        self.assertIn("lambda", got)
+        self.assertEqual(got.count(c), 2)
+
+
 class TestASelfRearmingAfterIsNotARate(ProcessTestCase):
     """The Guia's timers paragraph (R5-8, persona probes round 5): an
     ``after`` armed again inside its own function starts each lap at the
@@ -458,6 +505,36 @@ class TestASelfRearmingAfterIsNotARate(ProcessTestCase):
                     self.assertGreaterEqual(t + 1e-9, k * p)
                 for k, t in enumerate(beats[:20], 1):
                     self.assertLess(t - k * p, dt + 1e-9)     # within a frame, no drift
+
+
+class TestMovesChainedByOnDoneAreNotARate(ProcessTestCase):
+    """The Guia's timers paragraph (R6-4, persona probes round 6): a move
+    started from the last one's ``on_done`` begins at the frame that saw
+    the last one end, so each hop of ``time=p`` takes ``p`` rounded up to
+    frames, as a self re-arming ``after`` does (Laws T2, V1 limits)."""
+
+    def test_each_hop_rounds_up_to_frames(self):
+        import math
+        p, hops = 0.12, 5
+        for fps in (30, 60, 144):
+            with self.subTest(fps=fps):
+                reset_process_scheduler()
+                clock._time = 0.0
+                dt = 1.0 / fps
+                c = self.track(Circle(center=(0, 0), radius=1))
+                ends = []
+
+                def hop(n):
+                    if n == 0:
+                        ends.append(clock.time)
+                        return
+                    c.move_by(20, 0, time=p, on_done=lambda: hop(n - 1))
+                hop(hops)
+                for _ in range(int(round(1.5 * fps))):
+                    _frame(dt)
+                per_hop = math.ceil(p * fps - 1e-9) / fps
+                self.assertAlmostEqual(ends[0], hops * per_hop, places=6)
+                self.assertAlmostEqual(c.center.x, 20 * hops, places=6)
 
 
 class TestRearmSameTick(ProcessTestCase):

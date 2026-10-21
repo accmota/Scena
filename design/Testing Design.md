@@ -1375,6 +1375,17 @@ Each brief now told its triager to check a "that is the rule" verdict against th
 - Broad estimate: n₁ = 5, n₂ = 3, m = 0, N̂ ≈ 23, about 15 unfound (round 4: 12).
 - The re-run of rounds 1–4 found no regression.
 
+**Round 6 (2026-10-21).** Commit bbc094e, models swapped again:
+- A (Sonnet: interactive-fiction writer, parent with a small child): 26 probes.
+- B (Opus: game-feel polisher, board / card maker): 22 probes.
+
+- BUG: A 0, B 0; none in a law area.
+- **Round 6 meets the table. With round 5, two rounds in a row: the freeze signal is met (2026-10-21).**
+- BUG estimate: 0 remaining.
+- Broad estimate: n₁ = 1, n₂ = 5, m = 0, N̂ ≈ 11, about 5 unfound. The six rounds gave about 29, 9, 27, 12, 15 and 5: the message surface narrows but does not close. Every round still finds a few messages and Guia lines.
+- The re-run of rounds 1–5 found no regression.
+- What the signal means: authors of these kinds, writing from the Guia, no longer meet wrong behaviour often enough for two blind campaigns to find it. It says nothing about kinds of game no persona wrote.
+
 
 # Test tiers
 
@@ -2594,6 +2605,7 @@ one, or a rare combination.
 | Persona probes, round 3 | 2026-10-20 | two blind campaigns on fe00fda, models swapped again: A Opus (deadline student, puzzle designer) 20 probes + 8 second tries + 8 mirrors; B Sonnet (web developer, physics tinkerer) 24 + 8 + 6; plus rounds 1 and 2 re-run | R3 16 | 1 (R3-2 a resting movable partner answered as a wall at 60 Hz) | 12 messages fixed, 2 DOC, decisions R3-1 (applied: dead own-field reads), R3-3 (applied: pose retarget quiet), R3-11 (kept, Guia note); B2 LATENT (stacks, P1 non-goal) | runner timeout under load (one HANG); triager mirrors | messages for other worlds' words and half-done edits; resolve's skin answer. Laws model and E11: no finding |
 | Persona probes, round 4 | 2026-10-21 | two blind campaigns on c7e8626, models swapped again: A Sonnet (animator, level builder) 20 probes + 11 second tries + 10 mirrors; B Opus (two players, simulation builder) 23 + 10 + 6, two long runs; plus rounds 1–3 re-run | R4 7 | 1 (R4-1, timers before tweens against the documented order; the triager's DECISION, re-read by the coordinator) | 2 messages (R4-2, R4-4), 2 DOC (R4-3, R4-7), decisions R4-5 (applied: act-owned names set the stage's aside), R4-6 (kept, Guia note); ACADEMIC A5, B4, B5 | triager format slips (`HZ` an int); a missed E1 in round 3's triage | tick order and act slots, where two documented rules met; laws model and E11: no finding |
 | Persona probes, round 5 | 2026-10-21 | two blind campaigns on 872a78c, models swapped again: A Opus (UI designer, rhythm maker) 22 probes + 7 second tries + 6 mirrors; B Sonnet (procedural generator, arcade cloner) 28 + 5 + 9; plus rounds 1–4 re-run | R5 8 | 2 (R5-1 crossfade fate, R5-2 `.checked` a cell) | 3 messages (R5-5, R5-6, R5-7 a new warning), 2 DOC (R5-4, R5-8), decision R5-3 (kept) | probe timing at check instants, mirrors naming widgets | the audio slot's fade path, a widget alias, `on_collide`'s enrolled-only reach; laws model and E11: no finding |
+| Persona probes, round 6 | 2026-10-21 | two blind campaigns on bbc094e, models swapped again: A Sonnet (interactive fiction, parent and small child) 26 probes + 5 second tries + 8 mirrors; B Opus (game feel, board / card games) 22 + 5 + 7; plus rounds 1–5 re-run | R6 6 | 0 (the freeze signal is met: rounds 5 and 6) | 3 messages (R6-1 callback arity at the call, R6-5, R6-6), R6-2 a warning and a Guia fix, decisions R6-3 and R6-4 documented | probe timing (taps) | messages at the doors that keep a callback for later; documented rules the Guia half-said (S9-1, T2 for chained moves); laws model and E11: no finding |
 
 **Reading it.** A falling yield across *different* instruments says the
 shallow bugs are gone, not that no deep ones remain: each new kind of
@@ -3615,6 +3627,20 @@ no overlap between A and B).
 | R5-6 | ERROR. `RegularPolygon(sides=5)` offered `side=`, the edge length (following it was silently wrong) | as written | The spelling matcher | — | A family hint names `n=`; `TestRoundFiveMessages` |
 | R5-7 | ERROR (a new warning, user 2026-10-21). `on_collide` never met a plain `Rect` bullet, silently | an Alien class with `on_collide`, plain bullets | `ANYTHING` reaches enrolled bodies only (design) | — | `CollisionSystem._check_on_collide_alone`, once, a second in; Guia line. `test_read_hints.TestOnCollideWithNoPartner` (fires and silent twin) |
 | R5-8 | DOC. A self re-arming `after` drifts; the Guia promised a rate | invaders that speed up | Laws T2 ("at least p") | — | The Guia's timers paragraph names the exception and `every(…, name=)` |
+
+### R6 — persona probes, round 6 (2026-10-21)
+
+Found by the [persona probes](#persona-probes), round 6 (blind, bbc094e;
+no overlap between A and B; no BUG).
+
+| ID | Finding | Repro | Cause | Why tests missed it | Fix / guard |
+| --- | --- | --- | --- | --- | --- |
+| R6-1 | ERROR. A timer, `every` or `on_done=` callback that needs arguments was accepted, then failed at the fire inside the engine, with no author line | `after(0.8, ia_joga)`, `def ia_joga(peca, casas)` | Hot calls skipped the registration check that decorated handlers have (`check_handler_arity`) | No test gave a timer a callback with more parameters than its payload | `_refuse_overfull_callback` in `Handle._init` (the kinds whose `fn` is a callback, and every `on_done`), naming the lambda; A/B within noise. `test_process.TestACallbackThatNeedsArgumentsRaisesWhereItIsGiven` (5 doors, plus what fits) |
+| R6-2 | DOC + ERROR (user, 2026-10-21: warn). A group member on a parallax layer never collided, silently; the Guia's error table said it raised | coins with `group="moeda", layer="frente"` (parallax) and `@collide("heroi", "moeda")` | S9-1 skips the member, order-independent | — | `CollisionSystem._warn_member_skipped`, once per (tag, layer), either order; the Guia row tells naming apart from a group. `test_read_hints.TestAGroupMemberWithNoBodyIsNamed` |
+| R6-3 | DECISION, documented. A 2-parameter `@drag_to` function gets `(from, to)`, so a parameter named `pos` holds the target | `def soltou(carta, pos)` | Positional payload (documented) | — | Guia line in the `@drag_to` row |
+| R6-4 | DECISION, documented. Moves chained by `on_done` lose each overshoot; a hop chain's pace depends on the rate | `move_by(…, time=0.12, on_done=next_hop)` × 5 | T2: work made in the tick counts from the next | — | Laws V1 known limits, the Clocks row, the Guia's timers paragraph (`move_along` on a Track) |
+| R6-5 | ERROR. An unknown layer offered only `below="default"` (behind), for a card meant to be on top | `carta.layer = "cima"` | Fixed template | — | Both placements; `test_read_hints.TestRoundSixMessages` |
+| R6-6 | ERROR. `Text(wrap=True)` listed `width` as valid and never said Text does not wrap | as written | No hint for layout words | — | `wrap` / `word_wrap` / `max_width` / `multiline` hints; `TestRoundSixMessages` |
 
 ### DV — a destroyed actor refuses first (2026-10-17)
 

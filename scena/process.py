@@ -266,6 +266,40 @@ def _argcount(callback) -> Optional[int]:
     return payload_arity(callback)
 
 
+# Kinds whose ``fn`` is the author's callback (a tween's ``fn`` is its ease).
+_FN_IS_A_CALLBACK = frozenset({"after", "every", "sound", "until"})
+
+
+def _refuse_overfull_callback(callback: Callable, owner, kind: str, slot: str) -> None:
+    """A timer / tween / sound callback that needs more arguments than
+    ``_invoke`` will give (the owner, or nothing) raises at the call that
+    made the handle, at the author's line (R6-1, persona probes round 6:
+    ``after(0.8, ia_joga)`` with ``def ia_joga(peca, casas)`` failed 0.8 s
+    later inside the engine, with no author line). The decorated handlers
+    were already checked at registration (``check_handler_arity``)."""
+    needed = payload_arity(callback)
+    if needed is None or needed == 0:
+        return
+    offered = 1 if owner is not None and not hasattr(callback, "__self__") else 0
+    if needed <= offered:
+        return
+    name = getattr(callback, "__name__", None) or type(callback).__name__
+    if slot == "on_done":
+        door = "on_done="
+    elif kind == "sound":
+        door = "play_sound(on_done=)"
+    else:
+        door = f"{kind}()"
+    given = "the object it belongs to" if offered else "no arguments"
+    hint = (f"after(…, lambda: {name}(…))" if kind in ("after", "every") and slot == "fn"
+            else f"on_done=lambda: {name}(…)")
+    raise TypeError(
+        f"{door} calls {name}() with {given}, but {name}() needs {needed} "
+        f"argument(s). Give it the values with a lambda: {hint}, or give the "
+        f"parameters defaults."
+    )
+
+
 def _invoke(callback: Optional[Callable], owner=None) -> None:
     """Call ``callback``, arity-truncated; optionally pass ``owner`` as first arg."""
     if callback is None:
@@ -752,6 +786,10 @@ class Handle:
         self.kind = kind
         self.delay = float(delay)
         self.interval = float(interval)
+        if fn is not None and kind in _FN_IS_A_CALLBACK:
+            _refuse_overfull_callback(fn, owner, kind, "fn")
+        if on_done is not None:
+            _refuse_overfull_callback(on_done, owner, kind, "on_done")
         self._fn = fn
         self._then = then
         self._on_done = on_done

@@ -539,5 +539,80 @@ class TestRoundFiveMessages(unittest.TestCase):
         self.assertIn("n= is the number of sides", msg)
         self.assertNotIn("Did you mean 'side'", msg)
 
+
+class TestAGroupMemberWithNoBodyIsNamed(unittest.TestCase):
+    """R6-2 (persona probes, round 6): coins with ``group="moeda"`` on a
+    parallax layer never collided, silently (S9-1 skips them, in any order);
+    the Guia said it raised. Now one warning per (tag, layer), either order."""
+
+    def setUp(self):
+        from scena.collision import reset_collision_system
+        init(width=1000, height=700)
+        reset_collision_system()
+        self.addCleanup(reset_collision_system)
+
+    def _coins(self, layer, rule_first):
+        import warnings
+        from scena import canvas, collide
+        if layer != "default" and layer not in {d["name"] for d in canvas.layers.list()}:
+            canvas.layers.create(layer, pan_response=1.3, above="default")
+        with warnings.catch_warnings(record=True) as ws:
+            warnings.simplefilter("always")
+            hero = Rect(center=(100, 150), width=30, height=40, group="r62_heroi")
+            self.addCleanup(hero.destroy)
+
+            def rule():
+                @collide("r62_heroi", "r62_moeda")
+                def pegou(h, m, info):
+                    pass
+            if rule_first:
+                rule()
+            for i in range(3):
+                c = Circle(center=(300 + 40 * i, 150), radius=12, group="r62_moeda", layer=layer)
+                self.addCleanup(c.destroy)
+            if not rule_first:
+                rule()
+        return [str(w.message) for w in ws if "has no collision" in str(w.message)]
+
+    def _named_once(self, rule_first):
+        msgs = self._coins("r62_frente", rule_first)
+        self.assertEqual(len(msgs), 1, msgs)
+        self.assertIn("'r62_moeda'", msgs[0])
+        self.assertIn("parallax layer 'r62_frente'", msgs[0])
+
+    def test_members_on_a_parallax_layer_are_named_once_rule_first(self):
+        self._named_once(True)
+
+    def test_members_on_a_parallax_layer_are_named_once_members_first(self):
+        self._named_once(False)
+
+    def test_members_on_a_plain_layer_are_quiet(self):
+        self.assertEqual(self._coins("default", True), [])
+
+
+class TestRoundSixMessages(unittest.TestCase):
+    """Persona probes round 6: an unknown layer offers both placements
+    (R6-5: it offered only "behind", for a card the author wanted on top);
+    ``Text(wrap=)`` says Text does not wrap (R6-6)."""
+
+    def setUp(self):
+        init(width=400, height=300)
+
+    def test_an_unknown_layer_offers_in_front_and_behind(self):
+        r = Rect(center=(1, 1), width=2, height=2)
+        self.addCleanup(r.destroy)
+        with self.assertRaises(ValueError) as cm:
+            r.layer = "r65_cima"
+        msg = str(cm.exception)
+        self.assertIn('above="default") draws it in front', msg)
+        self.assertIn('below="default" behind', msg)
+
+    def test_text_layout_words_say_it_does_not_wrap(self):
+        for word in ("wrap", "word_wrap", "max_width"):
+            with self.subTest(word=word):
+                with self.assertRaises(TypeError) as cm:
+                    Text("um texto longo", width=200, **{word: True})
+                self.assertIn("Text does not wrap", str(cm.exception))
+
 if __name__ == "__main__":
     unittest.main()

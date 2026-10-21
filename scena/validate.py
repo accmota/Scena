@@ -957,6 +957,11 @@ _FAMILY_KWARG_HINTS = {
     "friction": "Scena has no friction: slow vel.x yourself in update",
     "velocity": "velocity is ball.vel = (vx, vy), set after making it",
     "vel": "vel is set after making it: ball.vel = (vx, vy)",
+    # Persona probes round 6, R6-6: other tools' text-layout words.
+    "wrap": "Text does not wrap: width= clips the excess; break lines with \\n",
+    "word_wrap": "Text does not wrap: width= clips the excess; break lines with \\n",
+    "max_width": "Text does not wrap: width= clips the excess; break lines with \\n",
+    "multiline": "Text takes several lines with \\n in the string (no wrapping)",
     # Persona probes round 5, R5-6: the spelling matcher offered side=, the
     # edge length, a different quantity (following it was silently wrong).
     "sides": "n= is the number of sides (side= is the length of one edge)",

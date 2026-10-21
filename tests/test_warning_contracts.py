@@ -90,6 +90,7 @@ CONTRACTS: Dict[str, W] = {
     # --- collision ----------------------------------------------------------------
     "collision:CollisionSystem.remove_resolve_pair": W(fires="test_collision", twin="unresolve() of a standing pair is silent: every resolve test"),
     "collision:CollisionSystem._warn_dead_object_target": W(fires="test_warning_contracts", twin="@collide on a live object, or on group tags: the normal path"),
+    "collision:CollisionSystem._warn_member_skipped": W(fires="test_read_hints", silent="test_read_hints.TestAGroupMemberWithNoBodyIsNamed.test_members_on_a_plain_layer_are_quiet"),
     "collision:CollisionSystem._check_on_collide_alone": W(fires="test_read_hints", silent="test_read_hints.TestOnCollideWithNoPartner.test_an_enrolled_partner_is_quiet"),
     "collision:_warn_missing_vel_once": W(fires="test_read_hints", silent="test_read_hints.TestRoundFourMessages.test_a_move_by_game_with_bounce_zero_is_quiet"),
     "collision:_mass_or_static": W(fires="test_warning_contracts", twin="a push between bodies with .mass: every push test"),
