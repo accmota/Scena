@@ -10,7 +10,9 @@ leaves a gap even across a weak bond; the cold stops the reactions; red and
 amber molecules do not mix (Ilhas); ions gather red molecules around them
 (Coroas); the spark breaks the bonds near the mouse; a drag stirs the
 liquid; UP / DOWN heat and cool; 1 2 3 R switch the recipes (R draws new
-rules, the table shows them); T the trail.
+rules, the table shows them) and the sliders show each recipe's mix; the
+sliders and Rodar build a mix of free atoms with the rules of the moment,
+and dragging a slider does not stir; T the trail.
 
 Bug class guarded: **an example that stops doing what its docstring says**
 after an engine change, and **a world step that slides back onto actor
@@ -246,6 +248,91 @@ class TestAffinityControls(unittest.TestCase):
             self.assertTrue(rastro.enabled)
             tap(run, "T")
             self.assertFalse(rastro.enabled)
+
+
+def click(run, x, y):
+    run.move(x, y)
+    run.press(x, y)
+    run.step(1)
+    run.release()
+    run.step(1)
+
+
+class TestAffinityMixPanel(unittest.TestCase):
+    """The sliders set how many atoms and the weight of each element;
+    Rodar builds that mix of free atoms with the rules of the moment."""
+
+    def press_rodar(self, run):
+        centre = run.ns["rodar"].box.center
+        click(run, centre.x, centre.y)
+        run.move(*AWAY)
+
+    def test_rodar_builds_the_mix_of_the_sliders(self):
+        with ProgramRun(PATH, seed=1) as run:
+            ns = run.ns
+            st = ns["st"]
+            st.total, st.branco, st.vermelho, st.ambar, st.verde, st.violeta = 300, 10, 5, 3, 1, 1
+            old = set(ns["atomos"])
+            self.press_rodar(run)
+            self.assertFalse(old & set(ns["atomos"]), "Rodar kept atoms of the old dish")
+            self.assertEqual(st.receita, "Mistura")
+            count = {n: sum(a.nome == n for a in ns["atomos"]) for n in ns["ELEMENTOS"]}
+            self.assertEqual(count, {"branco": 150, "vermelho": 75, "ambar": 45, "verde": 15, "violeta": 15})
+            # free atoms: two frames after the click only a few collisions reacted
+            self.assertLess(len(ns["fortes"]), 10, "Rodar does not start from free atoms")
+            run.step(5 * SECOND)
+            self.assertGreater(len(ns["fortes"]), 60, "the mix does not react")
+
+    def test_rodar_keeps_the_rules_of_the_moment(self):
+        with ProgramRun(PATH, seed=1) as run:
+            ns = run.ns
+            tap(run, "R")
+            rules = {n: dict(e) for n, e in ns["ELEMENTOS"].items()}
+            self.press_rodar(run)
+            self.assertEqual(ns["ELEMENTOS"], rules)
+            red = next(a for a in ns["atomos"] if a.nome == "vermelho")
+            self.assertEqual(red.valencia, rules["vermelho"]["valencia"])
+
+    def test_a_recipe_shows_its_mix_on_the_sliders(self):
+        with ProgramRun(PATH, seed=1) as run:
+            st = run.ns["st"]
+            tap(run, "3")       # 50 red and 40 amber molecules, each with two whites
+            self.assertEqual((st.total, st.branco, st.vermelho, st.ambar, st.verde, st.violeta),
+                             (270, 10, 3, 2, 0, 0))
+            tap(run, "1")
+            self.assertEqual((st.total, st.branco, st.vermelho), (210, 10, 5))
+
+    def test_all_weights_at_zero_leave_the_dish_as_it_is(self):
+        with ProgramRun(PATH, seed=1) as run:
+            ns = run.ns
+            st = ns["st"]
+            st.branco = st.vermelho = st.ambar = st.verde = st.violeta = 0
+            before = list(ns["atomos"])
+            self.press_rodar(run)
+            self.assertEqual(ns["atomos"], before)
+            self.assertEqual(st.receita, "Nascente")
+
+    def test_dragging_a_slider_does_not_stir_the_liquid(self):
+        with ProgramRun(PATH, seed=1) as run:
+            ns = run.ns
+            st = ns["st"]
+            run.move(*AWAY)
+            run.step(2 * SECOND)
+            centre = ns["rodar"].box.center
+            x, y = centre.x, centre.y + 6 * 40      # the first slider (Átomos)
+            start = st.total
+            run.move(x, y)
+            run.press(x, y)
+            run.step(1)
+            for k in range(1, 21):
+                run.move(x + 6 * k, y)
+                run.step(1)
+            run.release()
+            run.step(1)
+            self.assertNotEqual(st.total, start, "vacuous: the slider did not move")
+            near = [a for a in ns["atomos"] if a.x < ns["CX"] - ns["PRATO"] + 140]
+            self.assertTrue(near)
+            self.assertLess(sum(a.vx for a in near) / len(near), 40, "the slider drag stirred the atoms")
 
 
 class TestAffinityFastPath(unittest.TestCase):

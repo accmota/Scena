@@ -21,7 +21,7 @@ Duas ligações
 -------------
   forte   (linha cheia) junta átomos de elementos diferentes numa molécula.
           Só acontece num choque rápido o bastante, e não se desfaz sozinha.
-  fraca   (linha tracejada) junta uma ponta + a uma ponta - de moléculas
+  fraca   (linha fina, tracejada) junta uma ponta + a uma ponta - de moléculas
           diferentes. O branco segura uma só, o vermelho duas, um íon
           várias. Ela puxa como um fio, mais forte quanto mais perto;
           esticada demais, arrebenta; e o calor a desfaz e refaz o tempo todo.
@@ -43,6 +43,9 @@ Coisas para experimentar
   2   Coroas: cada íon junta moléculas vermelhas em volta de si
   3   Ilhas: as moléculas de vermelho e as de âmbar se separam sozinhas
   R   Acaso: valência e avidez ao acaso para as mesmas cores
+  Os sliders mostram a mistura de cada receita. Mude quantos átomos e o
+  peso de cada elemento e aperte Rodar: átomos soltos, com as regras de
+  agora (depois de R, as regras sorteadas).
   Esfrie tudo: a rede de ligações fracas para de se mexer (um gelo).
   Esquente: as ligações fracas não duram, e uma faísca desfaz as fortes.
 
@@ -52,6 +55,7 @@ Controles
   ARRASTAR O MOUSE   mexe o líquido
   ESPAÇO             uma faísca onde está o mouse: quebra as ligações perto
   1 2 3 R            as receitas acima
+  SLIDERS + RODAR    uma mistura sua de átomos soltos
   T                  liga e desliga o rastro
 
 Uso
@@ -105,6 +109,13 @@ POLO = 0.15         # menos carga que isso: o átomo não faz ligação fraca (n
 
 st.calor = 0.4      # 0: gelado · 1: fervendo
 st.receita = "Nascente"
+# a mistura dos sliders: quantos átomos e o peso de cada elemento (0 a 10)
+st.total = 210
+st.branco = 10
+st.vermelho = 5
+st.ambar = 0
+st.verde = 0
+st.violeta = 0
 
 atomos = []
 fortes = []         # [a, b, linha]
@@ -112,7 +123,7 @@ fracas = []         # [a, b, linha, força]
 angulos = []        # [b, c, distância]: dois vizinhos do mesmo átomo
 linhas_livres = []
 # os tons da ligação fraca: quanto mais forte, mais visível
-TONS_FIO = [Color("aquamarine").with_alpha(0.3 + 0.7 * k / 8) for k in range(9)]
+TONS_FIO = [Color("aquamarine").with_alpha(0.12 + 0.43 * k / 8) for k in range(9)]
 st.mudou = True     # alguma ligação forte nasceu ou morreu
 
 
@@ -173,7 +184,7 @@ def liga_forte(a, b):
 def liga_fraca(a, b):
     linha = nova_linha()
     linha.dash = "dash"
-    linha.line_width = 2.5
+    linha.line_width = 1.2      # fina e clara: não se confunde com a forte
     fracas.append([a, b, linha, 1])
     a.pontes.append(b)
     b.pontes.append(a)
@@ -493,6 +504,45 @@ def receita(nome):
             molecula("vermelho", 2, *lugar.pop())
         for k in range(40):
             molecula("ambar", 2, *lugar.pop())
+    mostra_mistura()
+
+
+def espaco_para(quantos):
+    """O espaço da grade que ainda dá um lugar para cada um."""
+    espaco = 34
+    while len(lugares(espaco)) < quantos:
+        espaco *= 0.95
+    return espaco
+
+
+def mostra_mistura():
+    """Os sliders mostram a mistura que está no prato."""
+    conta = {nome: 0 for nome in ELEMENTOS}
+    for a in atomos:
+        conta[a.nome] += 1
+    maior = max(conta.values())
+    st.total = len(atomos)
+    st.branco = round(10 * conta["branco"] / maior)
+    st.vermelho = round(10 * conta["vermelho"] / maior)
+    st.ambar = round(10 * conta["ambar"] / maior)
+    st.verde = round(10 * conta["verde"] / maior)
+    st.violeta = round(10 * conta["violeta"] / maior)
+
+
+def mistura():
+    """Átomos soltos na proporção dos sliders, com as regras de agora."""
+    pesos = {"branco": st.branco, "vermelho": st.vermelho, "ambar": st.ambar,
+             "verde": st.verde, "violeta": st.violeta}
+    soma = sum(pesos.values())
+    if soma == 0:
+        return
+    esvazia()
+    st.receita = "Mistura"
+    lugar = lugares(espaco_para(st.total))
+    for nome, peso in pesos.items():
+        for k in range(round(st.total * peso / soma)):
+            if lugar:
+                Atomo(nome, *lugar.pop())
 
 
 def elementos_novos():
@@ -507,6 +557,7 @@ def elementos_novos():
     for nome, quantos in (("vermelho", 50), ("branco", 100), ("ambar", 40)):
         for k in range(quantos):
             Atomo(nome, *lugar.pop())
+    mostra_mistura()
 
 
 # o líquido muda de cor com o calor: azul gelado, roxo morno, vermelho fervendo
@@ -536,6 +587,16 @@ Text(lambda: f"{st.receita}    calor {round(st.calor * 100)}%",
      top_left=(20, ALTURA - 20), color="white", font_size=18)
 Text("CIMA/BAIXO calor   ARRASTAR mexe   ESPAÇO faísca   1 2 3 R receitas   T rastro",
      top_left=(20, 36), color="#8aa0b8", font_size=14)
+
+# a mistura própria: escolha quantos átomos e o peso de cada um, e Rodar
+Slider(st["total"], label="Átomos", min_value=20, max_value=360, only_int=True,
+       top_left=(16, ALTURA - 70))     # a coluna à esquerda do prato; os outros vêm embaixo
+Slider(st["branco"], label="branco", min_value=0, max_value=10, only_int=True)
+Slider(st["vermelho"], label="vermelho", min_value=0, max_value=10, only_int=True)
+Slider(st["ambar"], label="âmbar", min_value=0, max_value=10, only_int=True)
+Slider(st["verde"], label="verde", min_value=0, max_value=10, only_int=True)
+Slider(st["violeta"], label="violeta", min_value=0, max_value=10, only_int=True)
+rodar = Button(label="Rodar", on_click=mistura)
 
 receita("Nascente")
 

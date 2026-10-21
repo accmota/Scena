@@ -890,8 +890,11 @@ left out.
   visible gap), and a steep core inside it, so nobody piles up. Recipes
   with invented names (it is not a physical simulation): Nascente (free
   atoms react), Coroas (ions gather molecules), Ilhas (two molecules
-  separate) and Acaso (R: random rules, shown in a side table); UP / DOWN
-  heat, a drag stirs, SPACE a spark that breaks the bonds near the mouse.
+  separate) and Acaso (R: random rules, shown in a side table). Sliders
+  set how many atoms and the weight of each element, and Rodar builds that
+  mix of free atoms with the rules of the moment; each recipe shows its own
+  mix on them. UP / DOWN heat, a drag stirs, SPACE a spark that breaks the
+  bonds near the mouse.
   The world step keeps each atom's numbers on a plain object and lets the
   `Circle` only draw (reads of actor fields cost ~6x in that loop).
 
