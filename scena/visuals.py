@@ -290,6 +290,52 @@ def _shadow_tint_rgba(
     return (rgba[0], rgba[1], rgba[2], rgba[3])
 
 
+class _CanvasTape:
+    """A canvas stand-in that forwards each call and records it, so a host's
+    ``_geometry_draw`` can be replayed without reading its pose again
+    (CheapGlow's bands). Positional calls only: a keyword call or a value
+    read from the canvas falls back to a plain draw (``ops`` is None)."""
+
+    __slots__ = ("_canvas", "ops")
+
+    def __init__(self, canvas) -> None:
+        self._canvas = canvas
+        self.ops = []
+
+    def __getattr__(self, name):
+        fn = getattr(self._canvas, name)
+
+        def call(*args, **kwargs):
+            ops = self.ops
+            if ops is not None:
+                if kwargs or not name.startswith(_TAPE_VERBS):
+                    self.ops = None     # not replayable: draw it every time
+                else:
+                    ops.append((fn, args))
+            return fn(*args, **kwargs)
+        return call
+
+
+# Canvas calls that leave no value the caller reads: replaying them is the draw.
+_TAPE_VERBS = ("draw", "save", "restore", "translate", "rotate", "scale", "concat",
+               "clip", "skew")
+
+
+def _geometry_tape_ok(shape) -> bool:
+    """The kinds whose ``_geometry_draw`` is canvas calls only (scena.shapes:
+    pose transform + draw*); Sprite / Svg / Track / Text draw through helpers."""
+    cls = type(shape)
+    ok = _TAPE_KINDS.get(cls)
+    if ok is None:
+        fn = getattr(cls, "_geometry_draw", None)
+        ok = getattr(fn, "__module__", None) == "scena.shapes"
+        _TAPE_KINDS[cls] = ok
+    return ok
+
+
+_TAPE_KINDS: Dict[type, bool] = {}
+
+
 def _aura_anchor(shape) -> Tuple[float, float]:
     """Scale pivot for an extra Halo rim pass."""
     # Defining pose first: ``center`` is a cold Derivate on Line (and other
@@ -1009,7 +1055,7 @@ class CheapGlow(CompiledVisual):
 
     def _cull_grow(self, shape, box):
         """``box`` under the largest fill band: the host scaled about its
-        anchor (``_draw_scaled``), which reaches past a constant pad when the
+        anchor (the fill bands), which reaches past a constant pad when the
         anchor is off center or the drawn cell outgrows ``width`` / ``height``."""
         if scena_kind(shape) == "Text" or _host_uses_stroke_filter(shape):
             return box
@@ -1061,18 +1107,6 @@ class CheapGlow(CompiledVisual):
             pass
         return 12.0
 
-    def _draw_scaled(self, shape, skia_canvas, paint, scale: float, *, fill: bool) -> None:
-        cx, cy = _aura_anchor(shape)
-        skia_canvas.save()
-        skia_canvas.translate(cx, cy)
-        skia_canvas.scale(scale, scale)
-        skia_canvas.translate(-cx, -cy)
-        if fill:
-            shape._geometry_draw(skia_canvas, fill_paint=paint, stroke_paint=None)
-        else:
-            shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
-        skia_canvas.restore()
-
     def _apply(self, shape) -> None:
         from .style import BlendMode
 
@@ -1092,6 +1126,13 @@ class CheapGlow(CompiledVisual):
             return
         paint = self._add_paint()
         pad = float(self._pad)
+        # One geometry draw, recorded, then replayed for the other bands: the
+        # bands differ only in the paint (one Paint object, recoloured) and
+        # the scale about the anchor. Each band re-read the host's pose before
+        # (9 pose reads a shape: ~28 µs a Triangle, 3× a Glow; Effect System Design,
+        # "CheapGlow draw cost").
+        ops = None
+        tape = _geometry_tape_ok(shape)
         if _host_uses_stroke_filter(shape):
             paint.setStyle(skia.Paint.kStroke_Style)
             host_w = 2.0
@@ -1103,15 +1144,38 @@ class CheapGlow(CompiledVisual):
             for width, alpha in layers:
                 paint.setStrokeWidth(float(width))
                 paint.setColor4f(skia.Color4f(r, g, b, float(alpha)))
-                shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
+                if ops is not None:
+                    for fn, args in ops:
+                        fn(*args)
+                elif tape:
+                    rec = _CanvasTape(skia_canvas)
+                    shape._geometry_draw(rec, fill_paint=None, stroke_paint=paint)
+                    ops = rec.ops
+                    tape = ops is not None
+                else:
+                    shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
             return
         paint.setStyle(skia.Paint.kFill_Style)
         extra = pad / self._host_radius(shape)
+        cx, cy = _aura_anchor(shape)
         for frac, amul in self._FILL_BANDS:
             paint.setColor4f(skia.Color4f(r, g, b, min(1.0, a * float(amul))))
-            self._draw_scaled(
-                shape, skia_canvas, paint, 1.0 + extra * float(frac), fill=True,
-            )
+            scale = 1.0 + extra * float(frac)
+            skia_canvas.save()
+            skia_canvas.translate(cx, cy)
+            skia_canvas.scale(scale, scale)
+            skia_canvas.translate(-cx, -cy)
+            if ops is not None:
+                for fn, args in ops:
+                    fn(*args)
+            elif tape:
+                rec = _CanvasTape(skia_canvas)
+                shape._geometry_draw(rec, fill_paint=paint, stroke_paint=None)
+                ops = rec.ops
+                tape = ops is not None
+            else:
+                shape._geometry_draw(skia_canvas, fill_paint=paint, stroke_paint=None)
+            skia_canvas.restore()
 
 
 class Halo(CompiledVisual):

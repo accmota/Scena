@@ -145,7 +145,8 @@ class Vec2(Container):
             # Fast path (every arithmetic result): the state the general
             # constructor below leaves, written in one ``__dict__`` update.
             # Reactive Design, "Vec2 (scenamath.py)"; guard:
-            # test_vec2_temp_fast_path (same dict as the general path).
+            # test_ephemeral_math.TestVec2TempFastPath (same dict as the
+            # general path).
             system = _state._global_scena_system
             if system is not None:
                 v = _object_new(Vec2)
@@ -172,6 +173,29 @@ class Vec2(Container):
     def __new__(cls, *, tuple: Union[Tuple[float, float], Tuple[Attribute, Attribute]], **kwargs) -> 'Vec2': ...
     
     def __new__(cls, *args, **kwargs):
+        if cls is Vec2 and len(args) == 2 and not kwargs:
+            # Fast path for the author's ``Vec2(dx, dy)`` of two plain finite
+            # numbers: the state the general path below leaves (``Vec2.temp``'s
+            # dict, ``_ephemeral`` as the creation context says), written in one
+            # ``__dict__`` update. It cost ~3.7 µs against ~0.5 for
+            # ``Vec2.temp``. Guard: test_per_object_costs (same dict).
+            x, y = args
+            tx, ty = x.__class__, y.__class__
+            if (((tx is float and _isfinite(x)) or (tx is int and -1e308 < x < 1e308))
+                    and ((ty is float and _isfinite(y)) or (ty is int and -1e308 < y < 1e308))
+                    and _state._lazy_container_registration):
+                system = _state._global_scena_system
+                if system is not None:
+                    v = _object_new(Vec2)
+                    d = v.__dict__
+                    d.update(_TEMP_STATE)
+                    d['_ephemeral'] = _state._ephemeral_creation.get()
+                    d['_scena_system'] = system
+                    d['_parts'] = ContainerSet()
+                    d['x'] = float(x)
+                    d['y'] = float(y)
+                    d['_processed_params'] = _BUILT
+                    return v
         processed_params = {}
         
         # Handle positional arguments
@@ -228,6 +252,8 @@ class Vec2(Container):
         # Merge processed parameters from __new__ with original kwargs
         d = self.__dict__
         processed_params = d.pop('_processed_params', None)
+        if processed_params is _BUILT:
+            return              # built whole by __new__'s fast path
         if processed_params is not None:
             # Merge: processed_params take precedence over original kwargs
             merged_kwargs = kwargs.copy()
@@ -1055,6 +1081,8 @@ class Vec2(Container):
 
 
 _object_new = object.__new__
+# ``Vec2.__new__``'s fast path built the whole state: ``__init__`` returns.
+_BUILT = object()
 _isfinite = math.isfinite
 
 # What ``Vec2.temp`` leaves in a fresh vector's ``__dict__`` (ephemeral,

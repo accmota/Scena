@@ -420,6 +420,26 @@ left out.
   written once, not twice); a gravity-well pull such as
   `ship.vel += vec_from_angle(heading(ship, hole), pull * dt)` is about 17 %
   faster. Nothing else changes: the same errors, the same values.
+- What a flock or a fleet pays per object each frame is lower. Writing the
+  colour a shape already has (`self.color = "red" if hit else "white"`) does
+  nothing and returns (about 14 → 1 µs, and the shape's paint is not rebuilt
+  for the draw); `fill =` / `line =` the same object or name, likewise.
+  `Vec2(x, y)` is about 4× faster (2.8 → 0.7 µs) and `ship.vel = Vec2(…)`
+  about 2× (7.8 → 3.7 µs). `canvas.game_view` and `shape.box` are 2–5× faster
+  (9.7 → 2.0 µs and 13.8 → 5.7), so `ship.confine(canvas.game_view,
+  action="wrap")` per ship is too. `CheapGlow` draws about a third cheaper
+  (it read the shape's position again for each of its four glow bands).
+  Nothing changes in what they do or draw; a colour that changes on every
+  write costs about 5 % more.
+- `confine(by="box")` and `by="overlap"` now measure the shape's outline, so
+  they work on every shape: a `Triangle`, `RegularPolygon`, `Polygon`,
+  `Line`, `Track` or `Point` raised `TypeError` ("… .box is unsupported").
+  The Asteroids wrap of a triangle ship now works as written:
+  `nave.confine(canvas.game_view, by="overlap", action="wrap")` lets the
+  whole ship leave before it comes back on the other side. The measure
+  follows the shape's angle, as it already did for a turned `Rect`: a
+  triangle turning against a wall is pushed as it turns and stays whole
+  inside.
 - `st.pos.x = 5` (a cell holding a `Vec2`) now changes the vector and tells
   what is linked to `st.pos`, as `nave.desvio.x = 5` does on a field of your
   own. It raised `AttributeError` (assign a whole value:
@@ -463,6 +483,11 @@ left out.
 
 ### Fixed
 
+- `confine(by="box")` / `by="overlap"` on a turned `Circle` or `Ellipse`
+  stopped short of the wall: it measured the shape's frame turned with it, so
+  a ball rotated 45° stayed 0.41 × its radius away (8 units for a radius of
+  20). It now touches the wall at any angle. A game that relied on the gap
+  sees a turned ball or ellipse go up to the edge.
 - Two movable boxes with a `.vel` collide by their masses at every frame
   rate: at 60 Hz, a mover that ended a frame inside the resting skin of a
   resting box bounced back as off a wall, and the box never moved.

@@ -25,6 +25,7 @@ from .state import (
     batch_update_attrs,
 )
 from .scenamath import Vec2
+from . import state as _state
 from .validate import HINT_EXTENT, magnitude
 from .closed import ClosedSurface, seal
 
@@ -750,6 +751,45 @@ class _SnapshotCenterSlot(ContainerSlot):
         return container
 
 
+# ``Box._snapshot`` fast path: ``(system, plain dict, defining names, bare-ok
+# cache)`` of the general path's state, captured from its first box with plain
+# values (``_capture_snapshot_template``); rebuilt when the scena system is.
+# ``_SNAPSHOT_FAST`` is the switch the guard test and an A/B flip.
+_SNAPSHOT_FAST = True
+_snapshot_template = None
+# Per-box keys: fresh containers, the values, the creation context.
+_SNAPSHOT_OWN_KEYS = frozenset({
+    '_ephemeral', '_parts', '_defining_part_names', '_scalar_bare_ok',
+    '_subtree_cache', '_snap_center', 'width', 'height', 'angle', '_name_signs',
+})
+_object_new = object.__new__
+_isfinite = math.isfinite
+
+
+def _snapshot_values_plain(cx, cy, w, h, ang) -> bool:
+    """Floats the general path stores as given (``_init_scalar``'s accepting
+    branch: finite; width / height not negative)."""
+    return (cx.__class__ is float and cy.__class__ is float and w.__class__ is float
+            and h.__class__ is float and ang.__class__ is float
+            and _isfinite(cx) and _isfinite(cy) and _isfinite(ang)
+            and 0.0 <= w < math.inf and 0.0 <= h < math.inf)
+
+
+def _capture_snapshot_template(box) -> None:
+    global _snapshot_template
+    d = box.__dict__
+    system = d.get('_scena_system')
+    tpl = _snapshot_template
+    if tpl is not None and tpl[0] is system:
+        return
+    if (system is not _state._global_scena_system or d.get('_node_id') is not None
+            or d.get('_ephemeral') or len(d['_parts']) or d.get('_subtree_cache') != [box]):
+        return      # registered, ephemeral or with parts: not the plain state
+    plain = {k: v for k, v in d.items() if k not in _SNAPSHOT_OWN_KEYS}
+    _snapshot_template = (system, plain, frozenset(d['_defining_part_names']),
+                          dict(d['_scalar_bare_ok']))
+
+
 class Box(_RectFrame, _RectNames, ClosedSurface, Container):
     """Oriented measuring rectangle. Not a Shape. Not on a layer.
 
@@ -871,6 +911,31 @@ class Box(_RectFrame, _RectNames, ClosedSurface, Container):
         ``center`` (``_SnapshotCenterSlot``). Same Box, same model
         (``CENTER_WH``), same answers.
         """
+        if cls is Box and _SNAPSHOT_FAST:
+            tpl = _snapshot_template
+            if (tpl is not None and tpl[0] is _state._global_scena_system
+                    and _state._lazy_container_registration
+                    and _snapshot_values_plain(cx, cy, w, h, ang)):
+                # The dict the general path below leaves (captured from its
+                # first box), fresh containers and the five values: ~1 µs
+                # against ~14. ``canvas.game_view`` read per actor per frame
+                # (``ship.confine(canvas.game_view)``) paid the full build.
+                # Guard: test_per_object_costs (same dict as the general path).
+                box = _object_new(Box)
+                d = box.__dict__
+                d.update(tpl[1])
+                d['_ephemeral'] = _state._ephemeral_creation.get()
+                d['_parts'] = ContainerSet()
+                d['_defining_part_names'] = set(tpl[2])
+                d['_scalar_bare_ok'] = dict(tpl[3])
+                d['_subtree_cache'] = [box]
+                d['_snap_center'] = (float(cx), float(cy))
+                d['width'] = float(w)
+                d['height'] = float(h)
+                d['angle'] = float(ang)
+                if name_signs is not None:
+                    d['_name_signs'] = name_signs
+                return box
         box = cls.__new__(cls)
         super(Box, box).__init__()
         # Plain fields: one dict update, not a closed __setattr__ call each.
@@ -879,6 +944,8 @@ class Box(_RectFrame, _RectNames, ClosedSurface, Container):
         if name_signs is not None:
             box.__dict__["_name_signs"] = name_signs
         seal(box)   # built without __init__: close it here
+        if cls is Box and _snapshot_values_plain(cx, cy, w, h, ang):
+            _capture_snapshot_template(box)
         return box
 
     @classmethod

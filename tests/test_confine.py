@@ -85,12 +85,15 @@ class TestByBox(ConfineTestCase):
         self.assertAlmostEqual(float(c.center.y), 300.0)
         self.assertIn("left", sides)
 
-    def test_line_raises_same_as_graphic_box(self):
-        line = self.track(Line(p1=(0, 0), p2=(100, 0)))
+    def test_line_is_measured_by_its_ends(self):
+        # A Line has no .box; by="box" keeps both ends inside (before
+        # 2026-10-20 it raised; tests/test_per_object_costs.py).
+        line = self.track(Line(p1=(-80, 0), p2=(20, 10)))
         region = Box(center=(50, 0), width=200, height=100)
-        with self.assertRaises(TypeError) as cm:
-            line.confine(region, by="box")
-        self.assertIn("unsupported", str(cm.exception))
+        self.assertEqual(line.confine(region, by="box"), frozenset({"left"}))
+        self.assertAlmostEqual(float(line.p1.x), -50.0)
+        self.assertAlmostEqual(float(line.p2.x), 50.0)
+        self.assertAlmostEqual(float(line.p2.y), 10.0)
         with self.assertRaises(TypeError) as cm2:
             _ = line.box
         self.assertIn("unsupported", str(cm2.exception))
@@ -305,6 +308,121 @@ class TestAnchoredSprite(ConfineTestCase):
         self.assertEqual(b.confine(play, action="bounce"), frozenset({"top"}))
         self.assertAlmostEqual(float(b.center.y), 800.0)
         self.assertAlmostEqual(float(b.vel.y), -100.0)
+
+
+def _outline_samples(shape):
+    """Points on the shape's outline, built from its geometry (the oracle:
+    the drawn curve, not confine's extents)."""
+    from scena.box import region_frame
+    from scena.confine import _outline_points
+    from scena.box import oriented_xy
+    kind = type(shape).__mro__
+    if any(k.__name__ in ("Circle", "Ellipse") for k in kind):
+        cx, cy, w, h, ang = region_frame(shape)
+        a, b = abs(w) / 2, abs(h) / 2
+        return [oriented_xy(cx, cy, a * math.cos(t), b * math.sin(t), ang)
+                for t in (2 * math.pi * i / 720 for i in range(720))]
+    if any(k.__name__ in ("Rect", "Square", "Concave") for k in kind):
+        cx, cy, w, h, ang = region_frame(shape)
+        return [oriented_xy(cx, cy, sx * w / 2, sy * h / 2, ang)
+                for sx in (-1, 1) for sy in (-1, 1)]
+    return _outline_points(shape)
+
+
+def _local(points, region):
+    from scena.box import region_frame
+    rcx, rcy, _rw, _rh, rang = region_frame(region)
+    rad = math.radians(-rang)
+    c, s = math.cos(rad), math.sin(rad)
+    return ([(x - rcx) * c - (y - rcy) * s for x, y in points],
+            [(x - rcx) * s + (y - rcy) * c for x, y in points])
+
+
+class TestOutlineEveryKind(ConfineTestCase):
+    """``by="box"`` keeps the whole outline inside and touches each side it
+    acted on; ``by="overlap"`` leaves it just outside. Every kind, shape angle
+    and region angle (a rotated Circle / Ellipse stopped short of the wall
+    before 2026-10-20: its frame turned with it; Triangle / Polygon / Line /
+    Track / Point refused)."""
+
+    def _kinds(self):
+        from scena import Concave, Ellipse, Point, Polygon, RegularPolygon, Square, Track, Triangle
+        return {
+            "Rect": lambda c, a: Rect(width=60, height=24, center=c, angle=a),
+            "Square": lambda c, a: Square(length=40, center=c, angle=a),
+            "Concave": lambda c, a: Concave(width=60, height=30, center=c, angle=a,
+                                            scoop="top_center"),
+            "Circle": lambda c, a: Circle(radius=25, center=c).rotate_to(a),
+            "Ellipse": lambda c, a: Ellipse(width=70, height=26, center=c, angle=a),
+            "Triangle": lambda c, a: Triangle(radius=30, center=c, angle=a),
+            "Triangle wide": lambda c, a: Triangle(radius=20, base_ratio=1.8, center=c, angle=a),
+            "RegularPolygon": lambda c, a: RegularPolygon(n=5, radius=25, center=c, angle=a),
+            "Polygon": lambda c, a: Polygon(points=[(c[0] - 30, c[1]), (c[0] + 25, c[1] - 10),
+                                                    (c[0] + 5, c[1] + 35)]),
+            "Line": lambda c, a: Line(p1=(c[0] - 30, c[1] - 5), p2=(c[0] + 25, c[1] + 20)),
+            "Track": lambda c, a: Track(points=[(c[0] - 30, c[1]), (c[0], c[1] + 30),
+                                                (c[0] + 30, c[1] - 10)]),
+            "Point": lambda c, a: Point(c[0], c[1]),
+        }
+
+    def test_box_keeps_the_outline_inside_and_touching(self):
+        import random
+        rng = random.Random(11)
+        eps = 1e-6
+        for name, make in self._kinds().items():
+            for _ in range(12):
+                rang = rng.choice((0.0, 0.0, 15.0, -40.0, 90.0))
+                region = Box(center=(500, 400), width=600, height=400, angle=rang)
+                c = (500 + rng.uniform(-420, 420), 400 + rng.uniform(-320, 320))
+                shape = self.track(make(c, rng.uniform(-180, 180)))
+                sides = shape.confine(region, by="box")
+                lxs, lys = _local(_outline_samples(shape), region)
+                tol = 1e-2 if name in ("Circle", "Ellipse") else eps   # sampled curve
+                msg = f"{name} region {rang} sides {sides}"
+                self.assertLessEqual(max(lxs), 300 + eps, msg)
+                self.assertGreaterEqual(min(lxs), -300 - eps, msg)
+                self.assertLessEqual(max(lys), 200 + eps, msg)
+                self.assertGreaterEqual(min(lys), -200 - eps, msg)
+                if "right" in sides:
+                    self.assertAlmostEqual(max(lxs), 300, delta=tol, msg=msg)
+                if "left" in sides:
+                    self.assertAlmostEqual(min(lxs), -300, delta=tol, msg=msg)
+                if "top" in sides:
+                    self.assertAlmostEqual(max(lys), 200, delta=tol, msg=msg)
+                if "bottom" in sides:
+                    self.assertAlmostEqual(min(lys), -200, delta=tol, msg=msg)
+
+    def test_overlap_acts_only_once_the_outline_has_left(self):
+        import random
+        rng = random.Random(5)
+        for name, make in self._kinds().items():
+            for _ in range(8):
+                rang = rng.choice((0.0, 25.0))
+                region = Box(center=(500, 400), width=600, height=400, angle=rang)
+                c = (500 + rng.uniform(-500, 500), 400 + rng.uniform(-380, 380))
+                shape = self.track(make(c, rng.uniform(-180, 180)))
+                lxs0, lys0 = _local(_outline_samples(shape), region)
+                sides = shape.confine(region, by="overlap")
+                lxs, lys = _local(_outline_samples(shape), region)
+                tol = 1e-2 if name in ("Circle", "Ellipse") else 1e-6
+                msg = f"{name} region {rang} sides {sides}"
+                if not sides:      # still overlapping (or touching) on both axes
+                    self.assertTrue(min(lxs0) <= 300 + tol and max(lxs0) >= -300 - tol, msg)
+                    self.assertTrue(min(lys0) <= 200 + tol and max(lys0) >= -200 - tol, msg)
+                if "right" in sides:
+                    self.assertAlmostEqual(min(lxs), 300, delta=tol, msg=msg)
+                if "left" in sides:
+                    self.assertAlmostEqual(max(lxs), -300, delta=tol, msg=msg)
+                if "top" in sides:
+                    self.assertAlmostEqual(min(lys), 200, delta=tol, msg=msg)
+                if "bottom" in sides:
+                    self.assertAlmostEqual(max(lys), -200, delta=tol, msg=msg)
+
+    def test_rect_and_square_answer_as_before(self):
+        # Frame kinds keep the frame math (projected half-extents, unchanged).
+        r = self.track(Rect(width=40, height=10, center=(5, 200), angle=30))
+        r.confine(Box(center=(500, 400), width=1000, height=800), by="box")
+        self.assertAlmostEqual(float(r.center.x), 20 * math.cos(math.radians(30)) + 5 * 0.5)
 
 
 class TestPureHelpers(unittest.TestCase):

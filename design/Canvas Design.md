@@ -787,7 +787,7 @@ with the cull opt-in; a default-on cull draws every game through them:
   padded by the SDF border (`_draw_sprite_sdf_bands`). `Sprite._draw_aabb`
   adds that pad, sized from the frame as the mask is, with no bake
   (`_sdf_quad_pad`; Rim lost a 5 px band at 63/255).
-- **CheapGlow** scales the host about its anchor (`_draw_scaled`), past a
+- **CheapGlow** scales the host about its anchor (its fill bands), past a
   constant pad when the anchor is off center or the cell outgrows `width`:
   `_cull_grow` maps the box through the widest band.
 - **Stale cached boxes:** `shield_scale =` and the Sprite's lazy auto-bake

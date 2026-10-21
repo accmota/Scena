@@ -1109,6 +1109,20 @@ dicts key by key). It also checks that the first read stores what the general
 write stores, minus the pose cell and the subtree cache, and that results
 used in formulas and links behave as before.
 
+**An author `Vec2(x, y)` takes the same template (2026-10-20).** `Vec2(dx, dy)`
+with two plain finite numbers (float, or an int a float holds) is the most common
+author spelling (`ship.vel = Vec2(…)` each frame) and paid the general path,
+~2.8 µs against ~0.7. `Vec2.__new__` now builds it from `_TEMP_STATE` as
+`temp` does, with `_ephemeral` as the creation context says (author code is not
+ephemeral; inside `ephemeral_creation()` it is), stores `float(x)`, `float(y)`,
+and hands `__init__` the `_BUILT` marker so it returns at once. Only an exact
+`Vec2` with lazy registration on takes it: keywords, a tuple, a lambda, an
+`Attribute`, a bool, NaN / inf, an int too big for a float and every subclass
+take the general path and its errors. Guard: `tests/test_per_object_costs.py`
+(`TestVec2Construction`: the same dict as `Vec2(x=…, y=…)`; the refusals).
+Measured (two trees, six alternating processes, 2026-10-20): `Vec2(1.0, 2.0)`
+2.79 → 0.68 µs; `Vec2(x=1.0, y=2.0)` (general, control) 2.82 → 2.87 µs.
+
 **`length` / `angle` are read-only; the in-place spelling is `<<`.** A write
 or link raises `DerivedAttributeError` worded by `Vec2._derived_field_message`
 (an override of the `Container` hook every computed field uses — Shapes
@@ -1197,6 +1211,22 @@ already free: `Container._assign_value` returns on its own object. Guard:
 `tests/test_held_part_assign_back.py` (every exported Entity kind, every held
 part a route assigns, assigned back to itself makes no field write; `vel +=`
 semantics pinned).
+
+**`ship.vel = Vec2(…)` goes straight to the axes (2026-10-20).** A flock that
+steers by building a new vector each frame (`self.vel = Vec2(vx, vy)`,
+`self.vel = self.vel.clamp_length(0, top)`) paid the setter's general checks
+(callable, pair parsing, `as_payload`, two `number()` calls: ~1.5 µs) on top of
+the two axis writes. When the held vector exists and the value is an exact
+`Vec2` whose `x` / `y` read as finite floats, the setter writes the two axes and
+returns; a tuple, an int axis, NaN / inf, a callable or the first assignment
+(which builds the held vector) take the checks as before, so every error and
+value is unchanged. The destroyed refusal runs before the setter (dead route
+map). With the author `Vec2(x, y)` fast path ([Vec2](#vec2-scenamathpy)):
+`c.vel = Vec2(c.vel.x, c.vel.y)` 7.76 → 3.71 µs, `c.vel = w` 3.37 → 1.91;
+`c.vel = (x, y)` 3.25 → 3.29 and `c.vel += w` 5.71 → 5.67 (control). In place
+(`c.vel.x = …; c.vel.y = …`, ~1.35 µs) stays the cheapest spelling. Guard:
+`tests/test_per_object_costs.py` (`TestVelSetter`: the held vector is kept, a
+formula reading `vel` follows, bad values and a destroyed actor refuse).
 
 **GC graph backstop (durability).** Lazy registration only defers *entry*. Once
 a Container is linked or owned, it used to stay in `DependencyGraph.nodes`

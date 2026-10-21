@@ -86,6 +86,8 @@ class TestRawFieldStoresAreAllowlisted(unittest.TestCase):
         ("closed.py", "seal_after_init"): "closed-surface sealing",
         ("closed.py", "seal_after_init.__init__"): "closed-surface sealing",
         ("scenamath.py", "Vec2.__init__"): "construction, before any reader exists",
+        ("scenamath.py", "Vec2.__new__"): "construction of an author Vec2(x, y) from two plain finite numbers, before any reader exists; the general constructor's dict (test_per_object_costs.TestVec2Construction)",
+        ("box.py", "Box._snapshot"): "construction of a measured box from the general path's template (plain finite floats), before any reader exists (test_per_object_costs.TestMeasuredBoxFastPath)",
         ("scenamath.py", "Vec2.temp"): "construction of an arithmetic result (finite floats), before any reader exists; the general constructor's dict (TestVec2TempFastPath)",
         ("scenamath.py", "Vec2._materialize_derivate_part"): "first fill of a free vector's length / angle on its first read: no graph node, owner or anchor reads it (TestVec2TempFastPath)",
         ("scenamath.py", "Vec2._sync_computed"): "brings computed length / angle in step after a raw x / y store (D12)",

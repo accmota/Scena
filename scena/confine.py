@@ -6,9 +6,11 @@ write pose. No registration, no datapath step, no collision enrollment.
 from __future__ import annotations
 
 import math
-from typing import FrozenSet, Optional, Set, Tuple
+from typing import FrozenSet, List, Optional, Set, Tuple
 
 from .box import frame_kind, oriented_xy, region_frame, _FRAME_GRAPHIC_NAMES
+from .entity import scena_kind
+from .shapes import get_xy
 
 __all__ = [
     "confine_graphic",
@@ -67,14 +69,23 @@ def _effective_half_extents(
     self_frame: Optional[Tuple[float, float, float, float, float]],
     region_ang: float,
 ) -> Tuple[float, float]:
-    """Return local half-width / half-height of the effective confine region."""
-    rh_w = abs(region_w) * 0.5
-    rh_h = abs(region_h) * 0.5
+    """Return local half-width / half-height of the effective confine region
+    for a self frame ``(cx, cy, w, h, ang)`` (projected onto the region's axes)."""
     if by == "center":
-        return rh_w, rh_h
+        return abs(region_w) * 0.5, abs(region_h) * 0.5
     assert self_frame is not None
     _scx, _scy, sw, sh, sang = self_frame
     proj_w, proj_h = _projected_half(abs(sw) * 0.5, abs(sh) * 0.5, sang, region_ang)
+    return _region_half_for(region_w, region_h, by, proj_w, proj_h)
+
+
+def _region_half_for(
+    region_w: float, region_h: float, by: str, proj_w: float, proj_h: float,
+) -> Tuple[float, float]:
+    """The region's half-extents shrunk (``"box"``) or grown (``"overlap"``) by
+    self's half-extents along its axes."""
+    rh_w = abs(region_w) * 0.5
+    rh_h = abs(region_h) * 0.5
     if by == "box":
         # Remainder: too-big object pins to region center (half → 0), not an error.
         return max(0.0, rh_w - proj_w), max(0.0, rh_h - proj_h)
@@ -169,16 +180,76 @@ def _graphic_center_xy(graphic) -> Tuple[float, float]:
     return get_xy(center, bare=True)
 
 
-def _self_frame_for_by(graphic, by: str) -> Optional[Tuple[float, float, float, float, float]]:
-    if by == "center":
-        return None
-    name = type(graphic).__name__
-    if frame_kind(graphic) not in _FRAME_GRAPHIC_NAMES:
+def _outline_points(graphic) -> Optional[List[Tuple[float, float]]]:
+    """World points whose hull is the outline of a kind with no frame:
+    a regular polygon's vertices, a free polygon's, a line's ends, a track's
+    samples, a point. ``None``: a kind confine cannot measure."""
+    params = getattr(graphic, "_placement_params", None)
+    verts = getattr(graphic, "_world_verts", None)
+    if callable(params) and callable(verts):           # Triangle, RegularPolygon
+        cx, cy, r, phi0 = params()
+        return list(verts(cx, cy, r, phi0))
+    kind = scena_kind(graphic)
+    if kind == "Polygon":
+        return [get_xy(v, bare=True) for v in graphic._vertices]
+    if kind == "Line":
+        x1, y1, x2, y2 = graphic._segment_xy()
+        return [(x1, y1), (x2, y2)]
+    if kind == "Track":
+        xs, ys = graphic._tables()[:2]          # the track's own frame
+        world = graphic._world_of
+        return [world(x, y) for x, y in zip(xs, ys)]
+    if kind == "Point":
+        return [get_xy(graphic, bare=True)]
+    return None
+
+
+def _outline_extent(graphic, region_ang: float) -> Tuple[float, float, float, float, bool]:
+    """``(mx, my, hw, hh, moved)`` of the shape's outline along the region's
+    axes: the middle (world) and the half-extents of its region-local bounding
+    box. ``moved``: the middle is not the pose point, so the correction moves
+    the pose by the same amount (``confine_graphic``).
+
+    A frame kind is measured by its frame turned onto the region's axes, except
+    the round ones: a Circle by its radius, an Ellipse by its true extent at its
+    angle (their frame turned with them reached past the curve: a rotated ball
+    stopped up to 0.41 r short of the wall). Other kinds by their points.
+    """
+    kind = frame_kind(graphic)
+    if kind in _FRAME_GRAPHIC_NAMES:
+        cx, cy, w, h, ang = region_frame(graphic)      # pulls linked angle / scale
+        a, b = abs(w) * 0.5, abs(h) * 0.5
+        if kind == "Circle":
+            return cx, cy, a, a, False
+        if kind == "Ellipse":
+            rel = math.radians(float(ang) - float(region_ang))
+            c, s = math.cos(rel), math.sin(rel)
+            return cx, cy, math.hypot(a * c, b * s), math.hypot(a * s, b * c), False
+        pw, ph = _projected_half(a, b, ang, region_ang)
+        return cx, cy, pw, ph, False
+    d = getattr(graphic, "__dict__", None)
+    if d and d.get("_field_anchors"):
+        pull = getattr(type(graphic), "_pull_property_anchors", None)
+        if pull is not None:
+            pull(graphic)
+    pts = _outline_points(graphic)
+    if not pts:
+        name = type(graphic).__name__
         raise TypeError(
-            f"{name}.box is unsupported — Box needs a rectangular frame. "
-            "Use Rect, Square, Ellipse, Circle, Sprite, or Svg."
+            f'{name}.confine(by="box" / "overlap") measures the outline of a shape, '
+            f'and a {kind} has none. Use by="center" (the default).'
         )
-    return region_frame(graphic)
+    if region_ang:
+        rad = math.radians(-float(region_ang))
+        c, s = math.cos(rad), math.sin(rad)
+        lxs = [x * c - y * s for x, y in pts]
+        lys = [x * s + y * c for x, y in pts]
+    else:
+        lxs = [x for x, _y in pts]
+        lys = [y for _x, y in pts]
+    x0, x1, y0, y1 = min(lxs), max(lxs), min(lys), max(lys)
+    mx, my = oriented_xy(0.0, 0.0, 0.5 * (x0 + x1), 0.5 * (y0 + y1), region_ang)
+    return mx, my, 0.5 * (x1 - x0), 0.5 * (y1 - y0), True
 
 
 def confine_graphic(
@@ -211,8 +282,11 @@ def confine_graphic(
         vel_xy = (float(vel.x), float(vel.y))
 
     rcx, rcy, rw, rh, rang = region_frame(region)
-    self_frame = _self_frame_for_by(graphic, by)
-    hw, hh = _effective_half_extents(rw, rh, by, self_frame, rang)
+    outline = None if by == "center" else _outline_extent(graphic, rang)
+    if outline is None:
+        hw, hh = abs(rw) * 0.5, abs(rh) * 0.5
+    else:
+        hw, hh = _region_half_for(rw, rh, by, outline[2], outline[3])
 
     # The point compared to the region: the pose ``center`` for by="center"
     # (what the author placed), the drawn frame's middle for "box" /
@@ -223,8 +297,8 @@ def confine_graphic(
     # written back as the feet: every clamp lifted the sprite by half its
     # height, a frame at a time.
     pose = getattr(type(graphic), "_move_to_xy", None)
-    if self_frame is not None:
-        x, y = self_frame[0], self_frame[1]
+    if outline is not None:
+        x, y = outline[0], outline[1]
     elif pose is None:
         x, y = _graphic_center_xy(graphic)
     else:
@@ -232,8 +306,10 @@ def confine_graphic(
     nx, ny, sides, new_vel = _confine_point(
         x, y, rcx, rcy, hw, hh, rang, action, vel=vel_xy,
     )
-    if pose is not None and self_frame is not None:
-        px, py = pose(graphic)
+    if outline is not None and (pose is not None or outline[4]):
+        # The outline's middle moved: move the pose point by as much (an
+        # anchored Sprite's feet, a Triangle's centroid, a Line's midpoint).
+        px, py = pose(graphic) if pose is not None else _graphic_center_xy(graphic)
         nx, ny = px + (nx - x), py + (ny - y)
         x, y = px, py
 

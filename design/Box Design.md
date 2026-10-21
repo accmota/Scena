@@ -342,6 +342,27 @@ Do not build a per-read measurement with `Box(p1=, p2=)`: that is an author
 Box, and it registers. `tests/test_box_snapshot.py` counts graph nodes over
 repeated point reads of every measured Box with the cyclic GC off.
 
+**A measured Box is one dict update (2026-10-20).** Even lazy, a snapshot cost
+~10–14 µs (the batch around three `_init_scalar`s, its `update()`, the subtree
+rewire, the seal), and an author reads `canvas.game_view` per actor per frame
+(`ship.confine(canvas.game_view, action="wrap")`, `if x > canvas.game_view.right`).
+`Box._snapshot` now copies a template of the general path's dict, captured from
+its first plain box (`box._snapshot_template`: the scena system, the plain
+keys, the defining names, the bare-ok cache), and writes the per-box keys:
+fresh `_parts`, `_defining_part_names`, `_scalar_bare_ok`, `_subtree_cache`,
+`_ephemeral` from the creation context, `_snap_center`, `width`, `height`,
+`angle`, `_name_signs`. Only an exact `Box` with plain finite floats (width and
+height not negative), lazy registration on and the template's scena system
+takes it; anything else builds in full (and may capture the template). The
+Box is still fresh: `canvas.game_view` is a new, writable Box each read.
+Measured (two trees, six alternating processes): `canvas.game_view` 9.7 →
+2.0 µs, `rect.box` 13.8 → 5.7, `ship.confine(canvas.game_view, action="wrap")`
+13.8 → 5.7. A new private field on the general snapshot path lands in the
+template by itself; one that depends on the values must join
+`_SNAPSHOT_OWN_KEYS`, or `tests/test_per_object_costs.py`
+(`TestMeasuredBoxFastPath`: the same dict as the general path over random
+values, name signs and the ephemeral context) fails.
+
 `.box` copies the Graphic's frame **with its names**: `rect.box.top_right` is
 `rect.top_right`, and a flipped sprite's `box.top_center` is still over its
 head (it used to land at its feet — G7). For the screen, read the
@@ -394,8 +415,8 @@ if "left" in sides:
 | Knob | Values | Meaning |
 | --- | --- | --- |
 | `by=` | `"center"` (default) | Check `self.center` only |
-| | `"box"` | Shrink region by self's projected half-extents — self's `.box` stays fully inside. Too-big object → remainder pin at region center (not an error) |
-| | `"overlap"` | Grow region by those half-extents — act only once self's `.box` has **fully left** |
+| | `"box"` | Shrink region by self's outline half-extents along the region's axes — the whole outline stays inside. Too-big object → remainder pin at region center (not an error) |
+| | `"overlap"` | Grow region by those half-extents — act only once the outline has **fully left** |
 | `action=` | `"clamp"` (default) | Stop the checked reference at the effective edge |
 | | `"bounce"` | Clamp + flip `self.vel` along the crossed **local** axis. Requires `self.vel` set |
 | | `"wrap"` | Teleport to the opposite edge, carrying overshoot |
@@ -416,8 +437,32 @@ edge climbed to the top; tutorial 18). Guard: `tests/test_confine.py`
 `TestAnchoredSprite`. The pose point is read from the class
 (`type(g)._move_to_xy`), so a shape pays one type lookup.
 
-`by="box"` / `by="overlap"` on a Graphic with no `.box` (`Line`, free `Polygon`,
-`Track`, `Point`) raises the same `TypeError` as `graphic.box`.
+**What `by="box"` / `"overlap"` measure: the outline (2026-10-20).** Every kind,
+along the region's axes (`confine._outline_extent`): the middle and the
+half-extents of the outline's region-local bounding box. A frame kind (Rect,
+Square, Concave, Sprite, Svg, Text) is its frame turned onto the region's
+axes, as before; a **Circle** is its radius and an **Ellipse** its true extent
+at its angle (`hypot(a cos φ, b sin φ)`, `hypot(a sin φ, b cos φ)`); Triangle /
+RegularPolygon are their vertices, a free Polygon its vertices, a Line its
+ends, a Track its samples (mapped to the world), a Point itself. When the
+middle is not the pose point (a Triangle's centroid, a Line's midpoint, an
+anchored Sprite's feet) the correction moves the pose point by as much. The
+extent follows the angle, as a rotated Rect's always did: a triangle turning
+against a wall is moved as it turns, so it stays whole inside. Before:
+a rotated Circle / Ellipse was measured by its frame turned with it, which
+reaches past the curve, so a turned ball stopped up to 0.41 r short of the
+wall (8 units for r = 20 at 45°); and Triangle, RegularPolygon, Line, Polygon,
+Track and Point raised `TypeError` ("… .box is unsupported"), so
+`ship.confine(canvas.game_view, by="overlap", action="wrap")` failed on the
+Asteroids ship. `by=` no longer reads `.box` (a polygon still has none). A
+Graphic with no outline confine knows raises `TypeError` naming
+`by="center"`. Cost: frame kinds unchanged (A/B within noise: Rect / Circle /
+Ellipse `by="box"` 5.4 / 6.4 / 6.7 µs); a polygon pays its points (Triangle
+`by="box"` 6.7 µs against 3.7 for `by="center"`). Guards: `tests/test_confine.py`
+(`TestOutlineEveryKind`: every kind × shape angle × region angle, the
+sampled outline inside and touching each acted side for `"box"`, just outside
+for `"overlap"`), `tests/test_per_object_costs.py`
+(`TestConfineMeasuresTheOutline`).
 
 **Not** a registration, **not** a datapath step, **not** collision. Do not drive
 the same axis with a tween / `move_along` / `resolve()` wall and `confine` —

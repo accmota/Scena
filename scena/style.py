@@ -248,6 +248,36 @@ def _coerce_channel_paint(value):
     return Color(value)
 
 
+# The memo slots are written straight (an Entity's ``__setattr__`` only
+# forwards a private name here, after ~0.3 µs of dispatch).
+_object_setattr = object.__setattr__
+
+
+def _same_plain_paint(last, value) -> bool:
+    """True when ``value`` is the plain paint ``last`` was: the same str, or a
+    Color with exactly its channels (``==`` rounds to 3 decimals: a slow
+    fade would stall). Tuples, Gradients, Attributes … are never the same:
+    they take the full write. ``last`` is a str or a Color (the memo slots).
+
+    An author repaints every frame (``self.color = "red" if hit else
+    "white"``): the full write re-parsed the colour, derived the outline and
+    dropped the cached Skia paints (~17 µs a shape, and the draw rebuilt
+    them). The same plain paint again, with the channels still the objects
+    that write left and no look on, changes nothing and returns (Effect
+    System Design, "Same-value paint writes").
+    """
+    c = value.__class__
+    if last is value:
+        return True
+    if c is not last.__class__:
+        return False
+    if c is str:
+        return last == value
+    return (c is Color and last._r == value._r and last._g == value._g
+            and last._b == value._b and last._a == value._a
+            and last._is_none == value._is_none)
+
+
 class PaintState:
     """Internal paint/filter/visual channels for drawable shapes.
 
@@ -279,6 +309,10 @@ class PaintState:
         # (sticky): the hot getters / setters test this slot (≈2 ns), not
         # ``__dict__.get("_field_anchors")`` (≈18 ns).
         '_alinks',
+        # Same-value writes (``color =`` / ``fill =`` / ``line =`` each frame):
+        # ``(value, fill, line)`` / ``(value, paint)`` the last plain write
+        # left, see ``_same_plain_paint``. Unset until the first such write.
+        '_color_memo', '_fill_memo', '_line_memo',
     )
 
     _default_instance = None
@@ -632,6 +666,18 @@ class PaintState:
             # Before anything is written: a Paint installer replaced, a look
             # de-seeded or re-applied (Reactive Design — Appearance links).
             _refuse_linked_paint(self, type(self)._paint_fields["color"], "set the color of")
+        elif len(args) == 1:
+            memo = getattr(self, "_color_memo", None)
+            if memo is not None and memo[1] is self._fill and memo[2] is self._line:
+                last, value = memo[0], args[0]
+                if ((last is value or (last.__class__ is value.__class__
+                                       and _same_plain_paint(last, value)))
+                        and getattr(self, "_visual", None) is None
+                        and getattr(self, "_look_identity", None) is None):
+                    return self     # the same plain colour again (_same_plain_paint)
+        memo_value = args[0] if len(args) == 1 else None
+        if memo_value.__class__ is not str and memo_value.__class__ is not Color:
+            memo_value = None       # only a str or a Color is remembered
         args = as_payload_all(*args)
         if not args:
             raise TypeError(
@@ -697,6 +743,8 @@ class PaintState:
             self._recolor_outline_only(material)
         else:
             self._apply_primary_paint(material)
+        if visual is None and memo_value is not None:
+            _object_setattr(self, "_color_memo", (memo_value, self._fill, self._line))
         if visual is not None and role in ("C", "D", "E"):
             self._reapply_visual()
         if role == "D":
@@ -897,7 +945,20 @@ class PaintState:
     def line(self, value: Optional["PaintMaterial"]) -> None:
         if self._alinks:
             _refuse_linked_paint(self, type(self)._paint_fields["line"], "set line on")
-        self._line = _coerce_channel_paint(value)
+        else:
+            memo = getattr(self, "_line_memo", None)
+            if memo is not None and memo[1] is self._line:
+                # The same object, or an equal str: a Color built anew each
+                # write (``set_color``'s own) takes the full write, unchecked.
+                last = memo[0]
+                if ((last is value or (value.__class__ is str and last.__class__ is str
+                                       and last == value))
+                        and getattr(self, "_look_identity", None) is None):
+                    return      # the same plain colour again (_same_plain_paint)
+        self._line = paint = _coerce_channel_paint(value)
+        c = value.__class__
+        if c is str or c is Color:
+            _object_setattr(self, "_line_memo", (value, paint))
         self._invalidate_line_paint()
         if self._patch_look_identity(line=self._line):
             self._look_channel_written("line")
@@ -913,7 +974,20 @@ class PaintState:
     def fill(self, value: Optional["PaintMaterial"]) -> None:
         if self._alinks:
             _refuse_linked_paint(self, type(self)._paint_fields["fill"], "set fill on")
-        self._fill = _coerce_channel_paint(value)
+        else:
+            memo = getattr(self, "_fill_memo", None)
+            if memo is not None and memo[1] is self._fill:
+                # The same object, or an equal str: a Color built anew each
+                # write (``set_color``'s own) takes the full write, unchecked.
+                last = memo[0]
+                if ((last is value or (value.__class__ is str and last.__class__ is str
+                                       and last == value))
+                        and getattr(self, "_look_identity", None) is None):
+                    return      # the same plain colour again (_same_plain_paint)
+        self._fill = paint = _coerce_channel_paint(value)
+        c = value.__class__
+        if c is str or c is Color:
+            _object_setattr(self, "_fill_memo", (value, paint))
         self._invalidate_fill_paint()
         if self._patch_look_identity(fill=self._fill):
             self._look_channel_written("fill")
