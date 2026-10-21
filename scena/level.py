@@ -450,10 +450,14 @@ class Level(ClosedSurface):
         entry = self._sheet_entries.get(name)
         if entry is None:
             known = self.sheets
+            # The editor saves only the sheets some item uses: a sheet the
+            # code alone wanted was dropped by the last save (corrida.py).
             raise ValueError(
                 f"{self._label} has no sheet named {name!r}."
                 + (did_you_mean(name, known) or (
                     f" Sheets: {', '.join(known)}." if known else " The level has no sheets."))
+                + " The level editor keeps only the sheets an item uses; for art only"
+                " the code places, load the sheet in the code: Sheet(\"file.png\", atlas=\"file.xml\")."
             )
         from .sprite import Sheet
         args, kwargs = sheet_call(entry)

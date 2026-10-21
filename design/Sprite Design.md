@@ -1298,7 +1298,9 @@ Guia: [SpriteButton](../docs/pt/guide/index.html#ui-sprite-button).
 
 **Feel is draw-time only.** `draw` (the class is `_draws_solo`, never
 `_plain_blit` — `Graphic.__init__` seeds that flag True, so the constructor
-clears it) wraps the body in a CTM scale about the drawn-box centre plus one
+clears it; every draw pass, the world layers' and the `ui` pass's, sends a
+`_must_solo_draw` object to its own `draw` before the filtered route, or a
+glowing button loses its label) wraps the body in a CTM scale about the drawn-box centre plus one
 `saveLayer` carrying a ColorFilter (lighten / darken matrix composed over a
 `Grayscale` matrix) and alpha — only when not identity. It never writes
 `scale`, so the author's pose, tweens and hitbox stay theirs and the click

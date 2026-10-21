@@ -608,7 +608,9 @@ class Track(Shape):
         if visible is None:
             visible = bool(styled)
         visible = _expect_flag(visible, "Track visible")
-        want_draw = visible
+        # A styled track is a Shape on the canvas even when it starts hidden
+        # (an invisible collision band): on a layer, held like any Shape.
+        want_draw = visible or styled
         if layer is _USE_LAYER_SENTINEL:
             layer = _USE_LAYER_DEFAULT if (_register and want_draw) else None
 
@@ -1741,16 +1743,17 @@ class Track(Shape):
             if self._layer is None:
                 self.layer = self._scenacanvas.registry.layers.default
         else:
+            # Only a track that ``visible = True`` promoted goes back to a bare
+            # motion path. One built on a layer (styled / explicit) stays on
+            # it while hidden, like any hidden Shape: off its layer nothing
+            # holds it, and an invisible collision band (a road, a sensor)
+            # was reclaimed under the author.
             if self._path_layer_saved:
                 prev = self._layer_before_visible
                 self._path_layer_saved = False
                 self._layer_before_visible = None
                 if self._layer != prev:
                     self.layer = prev
-            elif self._layer is not None:
-                # Constructed on a layer (styled / explicit) — drop off the
-                # draw list while hidden so idle overlay does not scan it.
-                self.layer = None
         if value != self._visible:
             self._visible = value
             self._sync_interactive_registry()
@@ -1822,7 +1825,9 @@ class Track(Shape):
                         path.lineTo(x, y)
             _geom_path_cache_set(self, path, key)
         path = self._geom_path
-        skip_fill = not full
+        # A visual's wash (GearShell, Shield…) is an interior: an open track
+        # has none, and filling it would close the curve along its chord.
+        skip_fill = not full or (not closed and fill_paint is not _STYLE_PAINT)
         cx, cy = self._pose_xy()
         skia_canvas.save()
         skia_canvas.translate(cx, cy)

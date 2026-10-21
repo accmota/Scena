@@ -368,6 +368,28 @@ class TestDrawRoutes(ButtonTestCase):
             canvas._draw_layer_batched([b])
         spy.assert_called_once()
 
+    def test_ui_layer_draws_a_glowing_or_shadowed_button_whole(self):
+        """The ui pass sent any filtered object to the fill-only route, so a
+        SpriteButton with ``.glow`` / ``.shadow`` lost its label (and its
+        hover / press feel): the world layers honour ``_must_solo_draw``,
+        the ui pass did not (examples/corrida.py, 2026-10-21: the chosen
+        track's button glowed with no name on it)."""
+        from types import SimpleNamespace
+        from scena.orchestration import ScenaFramework
+        canvas = ScenaCanvas.get_current()
+        for look in ("glow", "shadow"):
+            with self.subTest(look=look):
+                b = self.make(label="OK")
+                setattr(b, look, True)
+                layer = SimpleNamespace(_objects=[b])
+                surf = skia.Surface(200, 200)
+                calls = []
+                orig = SpriteButton._draw_attached
+                with mock.patch.object(SpriteButton, "_draw_attached",
+                                       lambda self, c: (calls.append(1), orig(self, c))):
+                    ScenaFramework._draw_ui_objects(None, surf.getCanvas(), layer, canvas)
+                self.assertEqual(len(calls), 1, f"a button with .{look} drew no label on the ui layer")
+
     def test_attached_parts_ride_the_transient_envelope(self):
         b = self.make()
         calls = []

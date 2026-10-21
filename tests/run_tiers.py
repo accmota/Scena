@@ -94,6 +94,8 @@ SLOW = frozenset({
     # Examples: quick keeps test_example_affinity (controls, canaries); the
     # chemistry and repulsion runs are ~70 s alone.
     "test_example_affinity_deep",
+    # quick keeps test_example_corrida (the rules); the two whole races are ~10 s.
+    "test_example_corrida_deep",
     # Laws campaign (tests/laws/): quick runs test_laws_quick (the recorder, its
     # fixtures, the models on synthetic traces); the sweeps over the three
     # families are gate / deep.

@@ -12,7 +12,7 @@ from collections import namedtuple
 from typing import Optional, Tuple
 
 from .leak_detector import LeakSampler
-from .canvas import ScenaCanvas, Canvas, GroupOperator
+from .canvas import ScenaCanvas, Canvas, GroupOperator, _must_solo_draw
 from .entity import _drawn, refresh_linked_channels, refresh_linked_visible
 from .registry import Registry
 from .input import (
@@ -2257,6 +2257,18 @@ class ScenaFramework:
             lf = getattr(o, "line_filter", None)
             has_ff = ff is not None and getattr(ff, "_skia_filter", None) is not None
             has_lf = lf is not None and getattr(lf, "_skia_filter", None) is not None
+            if (has_ff or has_lf) and _must_solo_draw(o):
+                # Same rule as a world layer: an object that draws its own
+                # envelope (a SpriteButton: label, hover / press feel) goes
+                # through ``o.draw``, which routes its glow / shadow itself.
+                # The fill-only route dropped a glowing button's label.
+                saved = engine.skia_canvas
+                engine.skia_canvas = skia_canvas
+                try:
+                    o.draw(skia_canvas)
+                finally:
+                    engine.skia_canvas = saved
+                continue
             if has_ff or has_lf:
                 saved = engine.skia_canvas
                 engine.skia_canvas = skia_canvas

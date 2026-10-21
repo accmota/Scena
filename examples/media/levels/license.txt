@@ -1,10 +1,12 @@
-ninja.json, ninja_perigos.json, duelo.json
+ninja.json, ninja_perigos.json, duelo.json, corrida.json, corrida_relampago.json
 
-Level files for the Ninja tutorials (26 and 27) and the Duelo tutorial (30),
+Level files for the Ninja tutorials (26 and 27), the Duelo tutorial (30) and
+the Corrida example (its two tracks),
 made for Scena (written by a script or by hand, in the level editor's own
 format). Creative Commons Zero (CC0) /
 Public Domain: use it freely, no credit needed.
 https://creativecommons.org/publicdomain/zero/1.0/
 
-The images it places come from tilesets/ (GameArt2D, CC0); see
-tilesets/licence.txt.
+The images they place come from tilesets/ (GameArt2D, CC0; see
+tilesets/licence.txt), racing/ and shooter/ (Kenney, CC0; see their
+License.txt).

@@ -281,6 +281,15 @@ class TestSheetReader(SheetLevelCase):
         with self.assertRaises(TypeError):
             lv.sheet(0)
 
+    def test_a_sheet_no_item_uses_is_not_in_the_file(self):
+        """The editor saves only the sheets an item uses: a sheet kept in the
+        file for the code alone (examples/corrida.py, its power-up boxes) was
+        gone after the next save, and the message said only "no sheet". It
+        now says why and what to write instead."""
+        lv = self.level([FRUIT], [frame_item("fruta", 1)])
+        with self.assertRaisesRegex(ValueError, r"keeps only the sheets an item uses.*Sheet\("):
+            lv.sheet("poderes")
+
     def test_paths_are_relative_to_the_level_file(self):
         sub = os.path.join(self.dir, "fases")
         os.makedirs(sub)

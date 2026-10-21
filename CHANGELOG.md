@@ -325,6 +325,12 @@ left out.
 
 ### Changed
 
+- `level.sheet("nome")` for a sheet the file does not have now says why it
+  may be gone: the level editor saves only the sheets some item uses, so a
+  sheet kept in the file for the code alone is dropped by the next save. The
+  message says to load such a sheet in the code (`Sheet("folha.png",
+  atlas="folha.xml")`); the Guia's Level table says the same.
+
 - A callback that needs arguments raises where it is given, not when it
   fires. This covers `after`, `every`, `on_done=` of a move, tween or sound,
   and an actor's own timers. Before, `after(0.8, ia_joga)` with
@@ -599,6 +605,24 @@ left out.
   carries the modifiers as the system has them; a Cmd, Ctrl, Alt or Shift
   the system reports up is released (with its `on_key_up`). The next press
   of that key counts as a press.
+
+- A `SpriteButton` with `.glow` or `.shadow` on the `ui` layer (its
+  default) keeps its label and its hover / press feel. Before, the glow
+  drew the button's art alone, with no label.
+
+- A visual that paints its host's interior (`GearShell`'s wash, and the
+  other force-field looks) on an open `Track` no longer fills it along its
+  chord. Before, a `GearShell` strip around a curve drew a translucent
+  triangle over what was inside the curve. Closed tracks and the author's
+  own `.fill` are unchanged.
+
+- A styled `Track` (`color=`, `visual=` or `line_width=`) that is hidden
+  stays a Shape on its layer, like a hidden `Rect`. Before, `visible = False`
+  (or `visible=False` in the constructor) took it off its layer, and with no
+  variable holding it the track was collected: an invisible collision band
+  (`fase["linha"].make(line_width=112, group="asfalto")`, then
+  `asfalto.visible = False`) emptied its group at some later moment and every
+  query missed it. A bare motion track still goes back to being reclaimable.
 
 - A formula that reads inside the arguments of a call in the middle of a
   chain now follows that read: `lambda: TONS.get_color(st.calor).with_alpha(0.3)`
@@ -893,6 +917,38 @@ left out.
 
 - Guia: a pause starts at the next frame; stacks of three or more movable
   boxes are outside what `resolve` promises.
+
+- New example `examples/corrida.py`, a racing game seen from above: one or
+  two players on one keyboard (player one the arrows, player two W A S D)
+  and computer cars, always four. The opening has two steps of
+  `SpriteButton`s: how many play, then the track, side by side under a
+  drawing of each layout. Two tracks, each a level file with the same named
+  pieces (`levels/corrida.json`, Serpentina, and
+  `levels/corrida_relampago.json`, Relâmpago: the Kenney racing tiles, the
+  centre line, the obstacles, lit strips along the outer curves, the
+  starting grid and a `vista` rect the camera frames). The wheel turns
+  gradually and the car's motion (`vel`) chases where its nose points
+  (`chase`), so a fast turn slides the rear; off the wheel the car lines up
+  with the road (`Vec2.angle_to` toward the next mark). Off the asphalt a
+  car slows to the grass limit. Tyres, trees, tents and stands hold a car,
+  which bounces back (`resolve(…, bounce=0.6)`; pushing one head on, the
+  engine does not push); a barrel crashes it, and it blinks and lets the
+  others through (`collidable = False`) for the 1.5 s it is out. The faster
+  of two cars throws the other, which slides for a moment. The oil spins a
+  car. A power-up box gives one shot, a fireball that flies straight ahead
+  and crashes the car it reaches, which smokes (one black-smoke puff that
+  grows, turns and fades). A computer car aims at the centre line a few
+  marks ahead, dodges what is in front (`collision.query_sector`), backs out
+  when it passes no mark for a while, and fires at a car ahead after a
+  random wait (`chance`) with a random aim error. Laps count through the
+  marks of the centre line in order (a few may be missed on a wide line, a
+  cut across the grass does not pay); the result lists all four cars. The
+  big signs use a font from `media/fonts` with a `Gradient` fill and an
+  outline; the curve strips are `Halo(style="line")`: one colour linked to
+  a tweened `st` cell (a light red to yellow), the next brightening and
+  dimming (its `amount`, a new Halo each frame: a visual does not link with
+  `@=`). The road is the centre line made thick and hidden, asked with
+  `collision.query_point(carro, group="asfalto")`.
 
 - New example `examples/affinity.py`, a piece of creative coding: a dish
   of invented atoms (one colour per element) with two kinds of bond. A

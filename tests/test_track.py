@@ -1074,6 +1074,58 @@ class TestTrackReclaim(TrackTestCase):
         self.assertIsNotNone(rail.layer)
 
 
+class TestHiddenStyledTrackIsKept(TrackTestCase):
+    """A styled Track hidden is a hidden Shape, not a bare motion path.
+
+    Bug class: hiding a shape changes its lifetime. ``visible = False`` (or
+    ``visible=False`` in the constructor) took a styled track off its layer,
+    so with no variable holding it the track was reclaimed: an invisible
+    collision band (``Track(…, line_width=112, group="asfalto")``, the road
+    of examples/corrida.py) emptied its group and every query missed. A hidden
+    Rect, Circle or Line stays; so does a hidden styled Track now.
+    """
+
+    def _kept_and_queried(self, make):
+        import gc
+        import weakref
+        name = "faixa_oculta"
+        ref = weakref.ref(make(name))
+        gc.collect()
+        band = ref()
+        self.assertIsNotNone(band, "the hidden styled track was reclaimed")
+        self.track(band)
+        self.assertFalse(band.visible)
+        self.assertIsNotNone(band.layer)
+        self.assertEqual(list(group[name]), [band])
+        hits = get_collision_system().query_point(50, 0, group=name)
+        self.assertEqual(hits, [band])
+
+    def test_hidden_after_construction(self):
+        def make(name):
+            t = Track(points=[(0, 0), (100, 0)], smooth=0, line_width=40, group=name)
+            t.visible = False
+            return t
+        self._kept_and_queried(make)
+
+    def test_built_hidden(self):
+        self._kept_and_queried(lambda name: Track(
+            points=[(0, 0), (100, 0)], smooth=0, line_width=40, group=name, visible=False))
+
+    def test_shown_again_draws_on_the_same_layer(self):
+        t = self.track(Track(points=[(0, 0), (100, 0)], color="gold", visible=False))
+        layer = t.layer
+        t.visible = True
+        self.assertTrue(t.visible)
+        self.assertIs(t.layer, layer)
+
+    def test_bare_track_still_goes_back_to_a_motion_path(self):
+        p = self.track(Track(points=[(0, 0), (100, 0)], group="trilho_nu", visible=False))
+        self.assertIsNone(p.layer)
+        p.visible = True
+        p.visible = False
+        self.assertIsNone(p.layer)
+
+
 # ---------------------------------------------------------------------------
 # Stage 8 — cursor / u
 # ---------------------------------------------------------------------------
@@ -1850,6 +1902,49 @@ class TestGeometryEdgeCases(TrackTestCase):
         soft = self.track(Rect(center=(0, 0), width=100, height=40, corner_radius=0.49))
         self.assertEqual(len(shape_outline(sharp)[0]), 4)
         self.assertGreater(len(shape_outline(soft)[0]), 4)
+
+
+class TestOpenTrackHasNoWash(unittest.TestCase):
+    """An open track has no interior: a visual's wash does not close it.
+
+    Bug class: a look that paints its host's interior (the GearShell wash, the
+    force-field family's fill passes) on an open curve. Skia fills an open
+    path as if it were closed, so a GearShell on a quarter-circle strip
+    painted a translucent triangle along the chord, over the road
+    (examples/corrida.py, 2026-10-21). The author's own ``.fill`` keeps its
+    old meaning; only a visual's fill paint is skipped on an open track.
+    """
+
+    ARC = [(10, 10), (12, 50), (30, 82), (60, 100), (100, 108)]
+    INSIDE = (40, 72)       # between the arc and its chord, clear of the stroke
+
+    def _alpha_inside(self, draw):
+        import skia
+        surf = skia.Surface(120, 120)
+        surf.getCanvas().clear(skia.ColorTRANSPARENT)
+        draw(surf.getCanvas())
+        x, y = self.INSIDE
+        return int(surf.makeImageSnapshot().toarray(colorType=skia.kRGBA_8888_ColorType)[y, x, 3])
+
+    def _paint(self):
+        import skia
+        return skia.Paint(Color=skia.ColorRED, Style=skia.Paint.kFill_Style)
+
+    def test_a_visual_fill_on_an_open_track_paints_no_interior(self):
+        tr = Track(points=self.ARC, smooth=0, closed=False)
+        alpha = self._alpha_inside(lambda c: tr._geometry_draw(c, fill_paint=self._paint(), stroke_paint=None))
+        self.assertEqual(alpha, 0, "the open track was filled along its chord")
+
+    def test_a_closed_track_still_takes_the_fill(self):
+        tr = Track(points=self.ARC, smooth=0, closed=True)
+        alpha = self._alpha_inside(lambda c: tr._geometry_draw(c, fill_paint=self._paint(), stroke_paint=None))
+        self.assertGreater(alpha, 0)
+
+    def test_gearshell_on_an_open_track_leaves_the_chord_clear(self):
+        from scena import GearShell
+        tr = Track(points=self.ARC, smooth=0, closed=False, line_width=8, visual=GearShell("deep sky blue"))
+        alpha = self._alpha_inside(lambda c: tr.visual._render(tr, c))
+        self.assertEqual(alpha, 0, "GearShell painted a wash inside an open curve")
 
 
 class TestTrackPathCache(unittest.TestCase):

@@ -69,6 +69,11 @@ motion-track type and no `Shape.path` property — `Track(hexagon)` is the
 conversion. Any `Shape` is travelable: `bug.move_along(hexagon, time=4)`.
 
 Invisible until styled (`color=` / `visual=` / `line_width=` / `visible=True`), same as `Point`.
+Styling decides the lifetime, `visible` only the drawing: a styled track that
+is hidden (`visible = False`, or `visible=False` in the constructor) stays on
+its layer like a hidden `Rect` — an invisible collision band (a road asked
+with `query_point`, a sensor) is held by the canvas. Only a track that
+`visible = True` promoted goes back to a bare motion path when hidden.
 
 # Anchored vs floating
 
@@ -220,7 +225,10 @@ region does not — that is `Circle`'s `angle` / `spread`, the same pair as
 `query_sector`.
 
 Fill is skipped while the window is not full (a trimmed closed path is a poor
-fill). Open tracks with `begin >= end` draw nothing (and emit no stroke prims).
+fill). A visual's fill pass (the GearShell wash, the force-field family) is
+skipped on an open track too: an open curve has no interior, and Skia would
+fill it closed along its chord (a translucent triangle over a game's road).
+The author's own `.fill` on an open track keeps its old meaning. Open tracks with `begin >= end` draw nothing (and emit no stroke prims).
 Closed tracks wrap: `begin=0.8`, `end=0.2` strokes `[0.8, 1]` then `[0, 0.2]`
 (two open chains — no chord across the invisible gap).
 
@@ -365,8 +373,10 @@ Distinct magenta. Off → zero extra work in the frame path.
 **Reclaim:** a bare movement Track (`Track.eight(...)`, `Track(points=[...])`,
 `Track(vectors=[...])` with no stroke / fill / `visible=True` / explicit `layer=`)
 stays **off** the draw list — rideable, reclaimable when nothing holds it. Styled
-/ shown / explicitly layered Tracks stay on the canvas as drawing Shapes. Active
-rides still appear in the overlay via the scheduler, layer or not.
+/ shown / explicitly layered Tracks stay on the canvas as drawing Shapes, also
+while hidden (until 2026-10-21 hiding one took it off its layer, and an unheld
+hidden band was collected under the author: `test_track.TestHiddenStyledTrackIsKept`).
+Active rides still appear in the overlay via the scheduler, layer or not.
 
 # cursor / u
 
