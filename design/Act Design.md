@@ -56,8 +56,9 @@ Goals:
   Scena vocabulary (groups, `@when`, modes) instead of new plumbing.
 - Reuse what authors already know (Entity classes, `setup`, `on_update`,
   `on_destroy`, modes, method decorators).
-- Optional: games without acts are unchanged. Acts are a **rung 3–4** tool
-  (authors who already write classes such as `Heroi` or `Director`).
+- Optional: games without acts are unchanged. Acts are a tool for
+  authors who already write classes such as `Heroi` or `Director` (the last step of
+  the owners grow path: [Grow path](#grow-path)).
 
 Non-goals (deliberately out):
 
@@ -665,14 +666,20 @@ Other restrictions:
 
 ## Grow path
 
-1. **Rungs 0–2** — no acts. Restart = run the program again, or a hand-made
-   reset (today).
-2. **Rung 3–4** — the author already writes classes. The Galaga `Director(Entity)`
-   becomes `Fase(Act)`; `run()` becomes `run(Fase)`; the reset list is
-   deleted. Title and game-over acts are two more small classes.
+An act is the last step of the owners grow path in
+[Actors Design — How author code runs](Actors%20Design.md#how-author-code-runs)
+(top-level script → classes → modes → acts). That path is about how code is organized
+and who owns what, not about how code runs: formulas, questions, notices and processes
+are the same at every step. The move comes when restarting hurts, not to climb a level.
 
-Nothing written at a lower rung has to change; top-level code keeps working in
-every act.
+1. **Script without classes** — no acts. Restart = run the program again, or a
+   hand-made reset list.
+2. **Author who writes classes** — the Galaga `Director(Entity)` becomes
+   `Fase(Act)`; `run()` becomes `run(Fase)`; the reset list is deleted. Title
+   and game-over acts are two more small classes.
+
+Nothing written in a script without acts has to change: top-level code keeps
+working in every act.
 
 
 ## Naming

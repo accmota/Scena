@@ -124,7 +124,7 @@ These are today’s choices, not irrevocable commitments. Challenge them when a 
 | FSM name | **`mode`** (callable). Not `state` (`st` and “visual state” already exist). |
 | Completion | **`then=`** = enter that mode. Positional **`fn`** / **`on_done=`** = call it (same channel). Not both with `then=`. |
 | Ownership | **One ambient rule** for bare `after` / `every` / `wait` / `tween` / timed pose / `play_sound`: started in a mode body → mode-scoped. Explicit `e.after` / `e.every` / `e.tween` / `e.play_sound` → entity-scoped. No public `on=`. |
-| Four rungs | All first-class **parallel styles**, not a one-way ladder. |
+| Teaching model | **Three ways** code runs (formula, question, notice), **processes** (one `Handle`; `then=` → async mode / task), **owners** (game / act, object, mode). Chosen by need, not a ladder ([How author code runs](#how-author-code-runs); replaced the "four rungs"). |
 | Async | Sequence form (`await`). Same handles. Not hidden; not the first tutorial. |
 | Per-frame hook | **`on_update`**. `Container.update()` stays graph recalculation; an author `def update(self, dt)` in a class body is refused at the class line, naming `on_update` (PA3). |
 | Teardown hook | **`on_destroy`**. Fixed name, like `on_update`. Fires from `destroy()` only, before cancellation. |
@@ -762,20 +762,55 @@ filters do not link ([Reactive Design — Appearance links](Reactive%20Design.md
 `@when`/`on_change`/`until` poll whatever they're given every frame regardless
 of source.
 
-## Four rungs (parallel)
+## How author code runs
 
-| Rung | Surface | Best at |
-|------|---------|---------|
-| 1 | `update(dt)`, `@collide`, `@when`, transients | Continuous motion, reactions |
-| 2 | `after`, `every`, `ready`, `recently` | Time, no modes |
-| 3 | `mode` + `then=` | One chapter, one completion |
-| 4 | `async` / `await`: an async mode, or a task (`run_task`) | A **sequence** of waits; per-object `on_update` |
+The model the tutorial teaches (interlude 25i, *Eventos e processos*) and the Guia maps
+(Começar, *Qual usar*). It replaced the "four rungs" on 2026-10-21. The rungs looked like a
+ladder, though they were meant to be parallel. Act Design used the same word for something
+else (scripts without classes vs authors who write classes). And they mixed two questions:
+*when does this code run?* and *whose is it, and when does it end?*. They also left out
+formulas, and grouped the per-frame poll with instant events. Real games are never at one
+rung: `on_update` is in nearly every class-based example, including the largest, and 25i
+runs its task at the top level of a script with no classes.
 
-Teach: zero or one completion → `then=` (or ignore the handle). Two or more waits, or a
-value that must survive a wait → an `async def`: as the object's **mode** when it is what
-the object *is doing* (one at a time), as a **task** (`run_task`) when it is a job *beside*
-the modes or a sequence that belongs to no single object (helpers they `await` count).
-`then=` inside an async body: don’t; warn if a transition cancelled a still-running script.
+Everything rests on the frame ([Frame order](#frame-order), [Laws.md](Laws.md)): a fixed
+order of phases, and each function Scena calls runs to its end before the next one.
+
+**Three ways code runs.** Each is chosen by need; none is for beginners only.
+
+| Way | Meaning | Surface | Frame |
+| --- | --- | --- | --- |
+| **Formula** | stays true | `lambda`, `@=` ([Reactive Design](Reactive%20Design.md)) | recomputed when what it reads changes |
+| **Question** | asked every frame: a state | `update(dt)` / `on_update`, `keyp`, `ready` / `recently` (poll memory) | script update, process tick |
+| **Notice** | runs once, at an instant | `on_key_down`, `on_click`, `@collide`, `@leave_playfield`, `@when` (a condition becomes true), `@on_change`; the clock's notices: an `after` / `every` callback, `then=` / `on_done=` | flush; the clock's in the process tick |
+
+A state (is the key held?) is a question, an instant (the key just went down) is a notice.
+The usual mistake is to use one for the other: a `flash` under `if keyp("SPACE")` restarts
+on every frame the key is held.
+
+**Processes.** Work that takes time: `after`, `every`, a timed verb (`time=` / `speed=`), a
+transient, a sound, a sequence (`async def`). They all return the same `Handle`
+(cancel, pause, `await`, `name=` slot). Inside processes there is one escalation, and it is
+driven by need, not by the author's level. Zero or one completion: `then=` (or ignore the
+handle). Two or more waits, or a value that must survive a wait: an `async def`, as the
+object's **mode** when it is what the object *is doing* (one at a time), or as a **task**
+(`run_task`) when it is a job *beside* the modes or a sequence that belongs to no single
+object (helpers they `await` count). `then=` inside an async body: don't; warn if a
+transition cancelled a still-running script.
+
+**Owners.** A process belongs to where it started and ends when that ends
+([Ownership](#ownership-no-on)): the game or the act, an object, a mode. A mode is to an object
+what an act is to the game: the one current chapter, and leaving it cancels what it started.
+How code is organized grows along the owners: a top-level script, then classes (hooks on
+the class), then modes, then acts ([Act Design — Grow path](Act%20Design.md#grow-path)). Each
+step is taken when the simpler form hurts (stray flags, a reset list), and nothing written
+before has to change.
+
+**Teaching.** Bring each piece in when the game needs it. Show the simpler tool until it
+hurts, then the next one (25i: an `after` chain spreads the light's cycle over three
+functions, and `async` makes it the order of the lines). Pull it together with the need → tool
+map (25i *Qual usar*, Guia *Qual usar*), not with a ladder. Use the same five words everywhere:
+formula, question, notice, process, owner (pt: fórmula, pergunta, aviso, processo, dono).
 
 ## Tasks
 

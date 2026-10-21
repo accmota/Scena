@@ -1159,6 +1159,7 @@
     <a href="#arquivos-imagem" class="nav-child" data-chapter="comecar" data-search="arquivo imagem media png sprite texture svg">Arquivos de imagem</a>
     <a href="#globais" class="nav-child" data-chapter="comecar" data-search="st canvas clock keyp mouse audio ui group collision singleton">Objetos globais únicos</a>
     <a href="#comecar-callbacks" class="nav-child" data-chapter="comecar">Callbacks do script</a>
+    <a href="#qual-usar" class="nav-child" data-chapter="comecar" data-search="qual usar fórmula pergunta aviso processo dono quando roda update on_update after every when collide mode async tarefa run_task">Qual usar</a>
   </div>
 
   <a href="#reativo" class="nav-top" data-chapter="reativo" data-search="reativo st score @= unlink lambda attribute clock keyp mouse fontes o que pode ser ligado for bola entity tinta construtor setattr">Reativo</a>
@@ -1356,7 +1357,8 @@
       Unidades, Entity, ponto, frame… → <a href="#vocabulario">Vocabulário</a><br>
       Arquivo PNG / SVG → <a href="#arquivos-imagem">Arquivos de imagem</a><br>
       st / canvas / clock… → <a href="#globais">Objetos globais únicos</a><br>
-      setup / update / on_key → <a href="#reagir-callbacks">Callbacks do script</a>
+      setup / update / on_key → <a href="#reagir-callbacks">Callbacks do script</a><br>
+      Fórmula, pergunta, aviso ou processo? → <a href="#qual-usar">Qual usar</a>
     </p>
     <p class="note">Os exemplos do Guia assumem <code>from scena import *</code> e <code>init(…)</code> no começo e <code>run()</code> no fim. <code>from scena import *</code> é o único import: tudo o que o Guia mostra vem dele.</p>
   </header>
@@ -1606,6 +1608,28 @@ def on_mouse_scroll(xoffset, yoffset):
     canvas.zoom_by(factor, about=(mouse.x, mouse.y))</pre>
     </div>
     <p>Cada função pede só os parâmetros que quiser: o Scena passa os que ela declara. <code>update(dt)</code> e <code>update(dt, canvas)</code> valem os dois. Catálogo: <a href="#reagir-callbacks">Callbacks do script</a> e <a href="#reagir-callbacks-entity">Callbacks da Entity</a>.</p>
+  </section>
+  <section class="section prose" id="qual-usar">
+    <h2>Qual usar</h2>
+    <p class="one-liner">O seu código roda de três jeitos: a <strong>fórmula</strong> fica valendo, a <strong>pergunta</strong> é feita a cada frame, o <strong>aviso</strong> roda uma vez, num instante. O que leva tempo é um <strong>processo</strong>, e todo processo tem um <strong>dono</strong>. Escolha pelo que o jogo precisa: nenhum deles é só para começar, e um jogo grande usa todos.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Quero</th><th>Uso</th></tr></thead>
+        <tbody>
+<tr><td>que algo fique sempre igual a outra coisa (a cor da lâmpada)</td><td>uma fórmula: <code>lambda</code>, <a href="#reativo"><code>@=</code></a></td></tr>
+<tr><td>saber um estado a cada frame (a tecla está apertada?)</td><td>uma pergunta no <a href="#frame"><code>update</code></a> ou no <a href="#reagir-callbacks-entity"><code>on_update</code></a></td></tr>
+<tr><td>reagir a um instante (uma tecla, um clique, uma batida, a saída da tela)</td><td>um aviso: <a href="#reagir-callbacks"><code>on_key_down</code></a>, <a href="#reagir-pointer"><code>on_click</code></a>, <a href="#colisao"><code>@collide</code></a>, <a href="#reagir-bounds"><code>@leave_playfield</code></a></td></tr>
+<tr><td>reagir quando uma condição vira sim</td><td><a href="#reagir-when"><code>@when</code></a></td></tr>
+<tr><td>uma vez, mais tarde</td><td><a href="#agendar-timers"><code>after</code></a></td></tr>
+<tr><td>de novo e de novo</td><td><a href="#agendar-timers"><code>every</code></a></td></tr>
+<tr><td>uma sequência com esperas, do que o objeto está fazendo</td><td>um <a href="#mode-async">mode <code>async</code></a></td></tr>
+<tr><td>uma sequência a mais, ou que não é de nenhum objeto</td><td><a href="#mode-task"><code>run_task</code></a></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>Pergunta ou aviso.</strong> Para um estado (a tecla está apertada?), a pergunta; para um instante (a tecla acabou de descer), o aviso. Um <code>flash</code> dentro de <code>if keyp("SPACE")</code> recomeça em todo frame em que a tecla está segurada.</p>
+    <p><strong>Processos.</strong> <code>after</code>, <code>every</code>, um movimento com <code>time=</code>, um som, uma sequência: todos devolvem o mesmo <a href="#agendar-handle">Handle</a>. Uma coisa só no fim de um processo: <a href="#agendar-fim"><code>then=</code> / <code>on_done=</code></a>. Duas esperas ou mais: uma função <code>async</code> — um mode, quando é o que o objeto está fazendo (um de cada vez), ou uma <a href="#mode-task">tarefa</a>, quando corre ao lado ou não é de nenhum objeto.</p>
+    <p><strong>Dono.</strong> O dono de um processo é o lugar onde ele começou — o jogo ou o ato, um objeto, um mode — e o processo acaba quando o dono acaba: trocar de mode cancela o que o mode antigo começou. Ver <a href="#mode-cancela">escopo e cancelamento</a>.</p>
   </section>
     <p class="more"><strong>Onde mais procurar</strong> — <a href="#reativo">Reativo</a> · <a href="#desenhar">Desenhar</a> · <a href="#frame">Frame</a> · <a href="#reagir-callbacks">Callbacks do script</a></p>
 </article>
@@ -6935,14 +6959,15 @@ for a in fase.group("agua"):
   <article class="chapter" id="frame" data-chapter="frame">
     <header class="chapter-head">
       <h1>Frame</h1>
-      <p class="lede">O que se lê a cada frame: o tempo (<code>clock</code>), o teclado (<code>keyp</code>) e o mouse. Pergunte no <code>update</code> — “a seta está apertada?” — e aja. Os três também podem entrar numa fórmula <a href="#reativo"><code>@=</code></a>. Para rodar algo uma vez quando uma condição vira verdade, veja <a href="#reagir">Reagir</a>.</p>
+      <p class="lede">O que se lê a cada frame: o tempo (<code>clock</code>), o teclado (<code>keyp</code>) e o mouse. Pergunte no <code>update</code> — “a seta está apertada?” — e aja: é a <a href="#qual-usar">pergunta</a>, feita a cada frame. Os três também podem entrar numa fórmula <a href="#reativo"><code>@=</code></a>. Para rodar algo uma vez quando uma condição vira verdade, veja <a href="#reagir">Reagir</a>.</p>
       <p class="which">
         Segurando / todo frame → <a href="#frame">Frame</a><br>
         Quando vira verdade / sai da tela → <a href="#reagir">Reagir</a><br>
         Corpos se tocam → <a href="#colisao">Colisão</a><br>
         Daqui a N segundos / a cada N → <a href="#agendar">Agendar</a><br>
         Este número vai de A até B → <a href="#mover">Mover</a><br>
-        Esta Entity está neste capítulo → <a href="#mode">Mode</a>
+        Esta Entity está neste capítulo → <a href="#mode">Mode</a><br>
+        O mapa inteiro → <a href="#qual-usar">Qual usar</a>
       </p>
     </header>
 
@@ -7807,7 +7832,8 @@ ship["color"] @= lambda: st.cor
       Cooldown → <a href="#agendar-ready">ready</a><br>
       Janela de tempo → <a href="#agendar-recently">recently</a><br>
       then= / on_done= → <a href="#agendar-fim">Ao terminar</a><br>
-      O retorno do tween → <a href="#agendar-handle">Handle</a>
+      O retorno do tween → <a href="#agendar-handle">Handle</a><br>
+      O mapa inteiro → <a href="#qual-usar">Qual usar</a>
     </p>
     </header>
 
@@ -8098,7 +8124,9 @@ def solta_caixa():
     <p class="which">
       Entrar num capítulo → <a href="#mode-enter">mode</a><br>
       wait / parallel / race → <a href="#mode-async">espera async</a><br>
-      Cancelar o capítulo → <a href="#mode-cancela">escopo e cancelamento</a>
+      Sequência ao lado, ou de ninguém → <a href="#mode-task">tarefas</a><br>
+      Cancelar o capítulo → <a href="#mode-cancela">escopo e cancelamento</a><br>
+      O mapa inteiro → <a href="#qual-usar">Qual usar</a>
     </p>
     </header>
 
@@ -8866,7 +8894,7 @@ play_sound(crunch)</pre>
   <article class="chapter" id="reagir" data-chapter="reagir">
     <header class="chapter-head">
       <h1>Reagir</h1>
-      <p class="lede">Rodar código quando algo acontece: uma condição vira verdade (<code>@when</code>), um valor muda (<code>@on_change</code>), uma tecla é apertada (callbacks do script), o mouse clica num objeto, algo sai da área de jogo. Para ler o teclado a cada frame: <a href="#frame">Frame</a>. Objetos se tocando: <a href="#colisao">Colisão</a>.</p>
+      <p class="lede">Rodar código quando algo acontece — um <a href="#qual-usar">aviso</a>, que roda uma vez, no instante: uma condição vira verdade (<code>@when</code>), um valor muda (<code>@on_change</code>), uma tecla é apertada (callbacks do script), o mouse clica num objeto, algo sai da área de jogo. Para ler o teclado a cada frame: <a href="#frame">Frame</a>. Objetos se tocando: <a href="#colisao">Colisão</a>.</p>
       <p class="which">
         Bool virou True → <a href="#reagir-when"><code>@when</code></a><br>
         Valor mudou → <a href="#reagir-on-change"><code>@on_change</code></a><br>
@@ -8878,7 +8906,8 @@ play_sound(crunch)</pre>
         Segurando / todo frame → <a href="#frame">Frame</a><br>
         Daqui a N segundos → <a href="#agendar">Agendar</a><br>
         Esta Entity está neste capítulo → <a href="#mode">Mode</a><br>
-        Widget (<code>Button.on_click</code>, valor ligado) → <a href="#ui">UI</a>
+        Widget (<code>Button.on_click</code>, valor ligado) → <a href="#ui">UI</a><br>
+        O mapa inteiro → <a href="#qual-usar">Qual usar</a>
       </p>
     </header>
 
