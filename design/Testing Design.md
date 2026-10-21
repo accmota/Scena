@@ -1385,6 +1385,7 @@ Each brief now told its triager to check a "that is the rule" verdict against th
 - Broad estimate: n₁ = 1, n₂ = 5, m = 0, N̂ ≈ 11, about 5 unfound. The six rounds gave about 29, 9, 27, 12, 15 and 5: the message surface narrows but does not close. Every round still finds a few messages and Guia lines.
 - The re-run of rounds 1–5 found no regression.
 - What the signal means: authors of these kinds, writing from the Guia, no longer meet wrong behaviour often enough for two blind campaigns to find it. It says nothing about kinds of game no persona wrote.
+- The signal is necessary for 1.0, not sufficient. The user decided (2026-10-21) to stay on 0.9 until tests with real users: imagined personas share the models' blind spots, which the independence caveat above names.
 
 
 # Test tiers
