@@ -582,6 +582,15 @@ left out.
 
 ### Fixed
 
+- The keys answer again after a screenshot. On macOS, Cmd+Shift+4 (or
+  another app's hotkey) takes the keyboard while Cmd is down, and the window
+  never got Cmd's release: `keyp` held Cmd for good, and a held Cmd hides
+  every bare key, so `keyp("UP")`, `keyp.once("1")` and `on_key_down` went
+  dead, also after a click on the window. Each key or mouse event now
+  carries the modifiers as the system has them; a Cmd, Ctrl, Alt or Shift
+  the system reports up is released (with its `on_key_up`). The next press
+  of that key counts as a press.
+
 - A formula that reads inside the arguments of a call in the middle of a
   chain now follows that read: `lambda: TONS.get_color(st.calor).with_alpha(0.3)`
   and `lambda: str(st.n).upper()` used to raise "@= formula has no reactive

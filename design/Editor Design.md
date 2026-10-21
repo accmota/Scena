@@ -664,7 +664,7 @@ guard, no zombies) and `test_editor_dialogs`. v1:
   sends `"ESC"`) and Esc crashed it, while its test, passing a plain `str`,
   stayed green. System tests press keys through `EditorSystemCase.key`, which
   sends a `KeyName` and refuses an undeliverable name;
-  `test_boundary.TestKeyNamesAreDelivered` checks every literal a key handler
+  `TestKeyNamesAreDelivered` (`test_boundary` in `scena_editor/tests/`) checks every literal a key handler
   compares its key with. (Found 2026-10-20 in the author's first live run, with
   Change image on a frame, whose `file` is `None`: a test had called the
   controller's `replace_image`, never the App's `change_image`.)

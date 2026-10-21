@@ -379,6 +379,16 @@ Linked appearance fields and flags (`rect["fill"] @=`, `visible`, `alpha`, â€¦ â
 `open_window()` runs, the engine **seeds level** from the OS (pointer position,
 keys already down) without manufacturing edges (`mouse.dx`, `keyp.once`,
 `on_mouse_move`). Linked consumers re-pull before `setup()` and first draw.
+A modifier's release the OS took away (a macOS screenshot hotkey grabs the
+keyboard while Cmd is down) would hold Cmd for good and hide every bare key.
+Each key and button event carries the modifiers the OS sees (`mods`): a held
+family it reports up is released through the normal up (`on_key_up`, law
+I1), read only from events of non-modifier keys and buttons (X11 reports a
+modifier's own event with the state before it). On macOS GLFW still holds
+that key, so its next press arrives as a release with the flag set: it is
+read as a press (bug IN3, `tests/test_lost_modifier_release.py`).
+`glfw.get_key` reports GLFW's own record, not the keyboard, so seeding from
+it cannot repair a lost release.
 Each frame, after `poll_events`, world `mouse.x` / `.y` are sampled again so a
 still cursor stays current if the camera moves, and once more after the process
 tick when `update` or a timed camera verb moved the camera (W-P1). A **point-like** is a `Point`,

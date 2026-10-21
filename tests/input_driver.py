@@ -31,6 +31,15 @@ _CHAR_KEYS = {c: getattr(glfw, "KEY_" + c.upper()) for c in "abcdefghijklmnopqrs
 _CHAR_KEYS.update({str(i): getattr(glfw, f"KEY_{i}") for i in range(10)})
 _CHAR_KEYS[" "] = glfw.KEY_SPACE
 
+# The ``mods`` bit of each modifier key: an event carries the modifiers held
+# (as after it, the macOS reading), as the OS sends them.
+_MOD_BITS = {
+    glfw.KEY_LEFT_SHIFT: glfw.MOD_SHIFT, glfw.KEY_RIGHT_SHIFT: glfw.MOD_SHIFT,
+    glfw.KEY_LEFT_CONTROL: glfw.MOD_CONTROL, glfw.KEY_RIGHT_CONTROL: glfw.MOD_CONTROL,
+    glfw.KEY_LEFT_ALT: glfw.MOD_ALT, glfw.KEY_RIGHT_ALT: glfw.MOD_ALT,
+    glfw.KEY_LEFT_SUPER: glfw.MOD_SUPER, glfw.KEY_RIGHT_SUPER: glfw.MOD_SUPER,
+}
+
 
 class InputDriver:
     def __init__(self, fw) -> None:
@@ -53,20 +62,27 @@ class InputDriver:
         """The OS cursor is at (vx, vy) with no motion callback (level only)."""
         self.cur = self.to_screen(vx, vy)
 
+    def held_mods(self) -> int:
+        """The ``mods`` bits of the modifier keys held now."""
+        mods = 0
+        for code in self.held_keys:
+            mods |= _MOD_BITS.get(code, 0)
+        return mods
+
     def down(self, button: int = glfw.MOUSE_BUTTON_LEFT) -> None:
         self.held_buttons.add(button)
-        self.fw._handle_mouse_button(self.fw._window, button, glfw.PRESS, 0)
+        self.fw._handle_mouse_button(self.fw._window, button, glfw.PRESS, self.held_mods())
 
     def up(self, button: int = glfw.MOUSE_BUTTON_LEFT) -> None:
         self.held_buttons.discard(button)
-        self.fw._handle_mouse_button(self.fw._window, button, glfw.RELEASE, 0)
+        self.fw._handle_mouse_button(self.fw._window, button, glfw.RELEASE, self.held_mods())
 
     def key(self, glfw_key: int, action: int, mods: int = 0) -> None:
         if action == glfw.PRESS:
             self.held_keys.add(glfw_key)
         elif action == glfw.RELEASE:
             self.held_keys.discard(glfw_key)
-        self.fw._handle_key(self.fw._window, glfw_key, 0, action, mods)
+        self.fw._handle_key(self.fw._window, glfw_key, 0, action, mods | self.held_mods())
 
     def press(self, glfw_key: int, mods: int = 0) -> None:
         self.key(glfw_key, glfw.PRESS, mods)

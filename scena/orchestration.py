@@ -1,4 +1,5 @@
 import glfw
+import sys
 import skia
 from OpenGL import GL
 import time
@@ -71,6 +72,15 @@ _SWALLOWED_PRESS = object()
 
 # Physical modifier keys (Scena names). Never claimed by a focused widget.
 _MODIFIER_KEYS = frozenset(_SPECIFIC_TO_FAMILY)
+# The GLFW ``mods`` bit of each modifier family.
+_MOD_BITS = {
+    "SHIFT": glfw.MOD_SHIFT,
+    "CTRL": glfw.MOD_CONTROL,
+    "ALT": glfw.MOD_ALT,
+    "CMD": glfw.MOD_SUPER,
+}
+# macOS reports a modifier's own event with the flags after it (X11: before).
+_COCOA_KEY_MODS = sys.platform == "darwin"
 
 
 class WidgetManager:
@@ -3302,14 +3312,47 @@ class ScenaFramework:
         if not wm.handle_char(char) and not wm._modal_consumes():
             self.canvas_manager.handle_char(char)
 
-    def _handle_key(self, window, key, scancode, action, mods):
-        # Framework-wide Ctrl+Shift shortcuts (quality, HUD, debug overlays, quit).
-        if self._handle_framework_shortcut(key, action, mods):
+    def _drop_lost_modifiers(self, mods) -> None:
+        """Release held modifiers the OS reports up in this event's ``mods``.
+
+        The OS can take a modifier's release away from the window: a macOS
+        screenshot (Cmd+Shift+4) or another app's hotkey grabs the keyboard
+        and Cmd goes up there. ``keyp`` then holds Cmd for good, and a held
+        Cmd hides every bare play key: no key works (bug IN3). Each key and
+        button event carries the modifiers as the OS has them; a family it
+        reports up is released here through the normal up (``on_key_up``
+        included, law I1). Only from events of non-modifier keys and buttons:
+        on X11 a modifier's own event reports the state before it.
+        """
+        held = self.keys._pressed_keys
+        if not held:
             return
-            
+        lost = [
+            name for name in held
+            if name in _SPECIFIC_TO_FAMILY
+            and not mods & _MOD_BITS[_SPECIFIC_TO_FAMILY[name]]
+        ]
+        for name in lost:
+            self._key_up(name)
+
+    def _handle_key(self, window, key, scancode, action, mods):
         # Convert GLFW key to friendly name. A key Scena cannot name (numpad,
         # Caps Lock, GLFW_KEY_UNKNOWN) is dropped — never a raw code like "46".
         key_name = get_glfw_key_name(key)
+        if key_name not in _MODIFIER_KEYS:
+            self._drop_lost_modifiers(mods)
+        elif (action == glfw.RELEASE and key_name not in self.keys._pressed_keys
+              and mods & _MOD_BITS[_SPECIFIC_TO_FAMILY[key_name]]
+              and _COCOA_KEY_MODS):
+            # macOS: the press after a lost release reaches us as a release
+            # (GLFW still holds the key and toggles it); the flags say it is
+            # down. Read it as the press it is (bug IN3).
+            action = glfw.PRESS
+
+        # Framework-wide Ctrl+Shift shortcuts (quality, HUD, debug overlays, quit).
+        if self._handle_framework_shortcut(key, action, mods):
+            return
+
         if key_name is None:
             if action != glfw.RELEASE:
                 # Unnamed (a keypad digit): its character types where it did.
@@ -3325,19 +3368,7 @@ class ScenaFramework:
         # Release always reaches keyp, even when a focused widget claimed the
         # press — otherwise the key sticks. The up goes where the down went.
         if action == glfw.RELEASE:
-            # A key's character comes between its press (or repeat) and its
-            # release: no later character belongs to it (LW5; text with no key
-            # event, an input method's, types into the box).
-            wm._char_to_script = False
-            self.keys._release(key_name)
-            if key_name in wm._claimed_down:
-                owner = wm._claimed_down.pop(key_name)
-                if owner is wm._keyboard_widget():
-                    wm.handle_key_up(key_name)
-            elif self.canvas_manager.take_key_up(key_name):
-                # Every script down gets its up, modal or not, also when the
-                # act changed in between (PD7).
-                self.canvas_manager.handle_key_up(script_key)
+            self._key_up(key_name)
             return
         if action not in (glfw.PRESS, glfw.REPEAT):
             return
@@ -3389,6 +3420,24 @@ class ScenaFramework:
         # (review 2026-10-09 W-P4).
         if delivers and (action == glfw.PRESS or self.canvas_manager.repeats_to_script(key_name)):
             self.canvas_manager.handle_key(script_key)
+
+    def _key_up(self, key_name) -> None:
+        """A key went up (an OS release, or a modifier the OS lost)."""
+        wm = self.widget_manager
+        # A key's character comes between its press (or repeat) and its
+        # release: no later character belongs to it (LW5; text with no key
+        # event, an input method's, types into the box).
+        wm._char_to_script = False
+        self.keys._release(key_name)
+        if key_name in wm._claimed_down:
+            owner = wm._claimed_down.pop(key_name)
+            if owner is wm._keyboard_widget():
+                wm.handle_key_up(key_name)
+        elif self.canvas_manager.take_key_up(key_name):
+            # Every script down gets its up, modal or not, also when the
+            # act changed in between (PD7).
+            self.canvas_manager.handle_key_up(
+                KeyName(self.keys._script_key_name(key_name)))
 
     def _pointer_from_glfw(self, glfw_x, glfw_y):
         """GLFW window points → (world_x, world_y, view_x, view_y)."""
@@ -3517,6 +3566,7 @@ class ScenaFramework:
         self.canvas_manager.handle_mouse_move(world_x, world_y)
 
     def _handle_mouse_button(self, window, glfw_button, action, mods):
+        self._drop_lost_modifiers(mods)
         glfw_x, glfw_y = glfw.get_cursor_pos(window)
         world_x, world_y = self.screen_to_world_coords(glfw_x, glfw_y)
         view_x, view_y = self.screen_to_view_coords(glfw_x, glfw_y)

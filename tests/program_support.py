@@ -63,6 +63,13 @@ from scena.state import Attribute, get_scena_system  # noqa: E402
 PROGRAMS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "programs")
 
 _KEY_CODES: Dict[str, int] = {name: code for code, name in _GLFW_NAMED_KEYS.items()}
+# The ``mods`` bit of each modifier key.
+_MOD_BITS: Dict[int, int] = {
+    glfw.KEY_LEFT_SHIFT: glfw.MOD_SHIFT, glfw.KEY_RIGHT_SHIFT: glfw.MOD_SHIFT,
+    glfw.KEY_LEFT_CONTROL: glfw.MOD_CONTROL, glfw.KEY_RIGHT_CONTROL: glfw.MOD_CONTROL,
+    glfw.KEY_LEFT_ALT: glfw.MOD_ALT, glfw.KEY_RIGHT_ALT: glfw.MOD_ALT,
+    glfw.KEY_LEFT_SUPER: glfw.MOD_SUPER, glfw.KEY_RIGHT_SUPER: glfw.MOD_SUPER,
+}
 for _c in range(glfw.KEY_A, glfw.KEY_Z + 1):
     _KEY_CODES[chr(_c)] = _c
 for _c in range(glfw.KEY_0, glfw.KEY_9 + 1):
@@ -484,6 +491,7 @@ class ProgramRun:
         self.ns: Dict[str, Any] = {}
         self.view: Optional[ProgramView] = None
         self._pending: List[Tuple[str, tuple]] = []
+        self._held_keys: set = set()      # GLFW codes down (the ``mods`` they carry)
         self._cursor = [0.0, 0.0]
         self._patches: List[Any] = []
         self.world: Optional[SystemWorld] = None
@@ -765,7 +773,15 @@ class ProgramRun:
             if kind == "key":
                 name, action = args
                 code = _KEY_CODES[name]
-                fw._handle_key(None, code, 0, action, 0)
+                # The event carries the modifiers held, as the OS sends them.
+                if action == glfw.PRESS:
+                    self._held_keys.add(code)
+                elif action == glfw.RELEASE:
+                    self._held_keys.discard(code)
+                mods = 0
+                for held in self._held_keys:
+                    mods |= _MOD_BITS.get(held, 0)
+                fw._handle_key(None, code, 0, action, mods)
                 if action == glfw.PRESS and len(name) == 1 and name.isalnum():
                     fw._handle_char(None, ord(name.lower()))
             elif kind == "move":
@@ -774,7 +790,10 @@ class ProgramRun:
                 fw._handle_mouse_move(None, sx, sy)
             elif kind == "button":
                 button, action = args
-                fw._handle_mouse_button(None, button, action, 0)
+                mods = 0
+                for held in self._held_keys:
+                    mods |= _MOD_BITS.get(held, 0)
+                fw._handle_mouse_button(None, button, action, mods)
             elif kind == "scroll":
                 fw._handle_mouse_scroll(None, *args)
             elif kind == "cell":
